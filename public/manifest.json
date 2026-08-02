@@ -1,0 +1,21 @@
+{
+  "name": "Registro Partido",
+  "short_name": "Partido",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6yJYCCNXXj4hbRh5HJelhBC-cHYbKGaCov-yCA9j5SA&s",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6yJYCCNXXj4hbRh5HJelhBC-cHYbKGaCov-yCA9j5SA&s",
+      "sizes": "544x544",
+      "type": "image/png"
+    }
+  ]
+}
