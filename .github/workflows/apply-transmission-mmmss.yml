@@ -1,0 +1,46 @@
+name: Apply transmission MMMSS
+
+on:
+  push:
+    branches:
+      - agent/transmission-mmmss
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    if: ${{ !contains(github.event.head_commit.message, '[transmission-mmmss]') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/transmission-mmmss
+          persist-credentials: true
+
+      - name: Apply patch
+        run: python scripts/apply_transmission_mmmss.py
+
+      - name: Install dependencies
+        run: npm install --no-package-lock
+
+      - name: Build application
+        run: npm run build
+
+      - name: Remove temporary automation
+        run: |
+          rm -f scripts/apply_transmission_mmmss.py
+          rm -f .github/workflows/apply-transmission-mmmss.yml
+          rmdir scripts 2>/dev/null || true
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+      - name: Commit validated changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implementa tiempos de transmisión en MMM:SS [transmission-mmmss]"
+          git push origin HEAD:agent/transmission-mmmss
