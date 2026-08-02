@@ -846,16 +846,18 @@ tiempoST: fila.tiempo_st || "",
         (campo === "inicioPT" || campo === "inicioST")
       ) {
         const normalizado = normalizarEntradaTiempoTransmision(valor);
+        const tipo = campo === "inicioST" ? "ST" : "PT";
+        const claveReferencia =
+          tipo === "ST" ? "referenciaRealST" : "referenciaRealPT";
 
         if (normalizado) {
-          const tipo = campo === "inicioST" ? "ST" : "PT";
-          const claveReferencia =
-            tipo === "ST" ? "referenciaRealST" : "referenciaRealPT";
           const baseSegundos = tipo === "ST" ? 45 * 60 : 0;
           const marcaSegundos = segundosDesdeHora(normalizado);
           const transcurridos = Math.max(0, marcaSegundos - baseSegundos);
 
           siguiente[claveReferencia] = Date.now() - transcurridos * 1000;
+        } else if (!String(valor || "").trim()) {
+          siguiente[claveReferencia] = null;
         }
       }
 
@@ -2877,7 +2879,7 @@ setTimeout(() => {
               <div className="fila-cambio encabezado-cambios">
                 <div>Sale</div>
                 <div>Entra</div>
-                <div>Hora</div>
+                <div>{registro.modoTiempo === "transmision" ? "Minuto" : "Hora"}</div>
               </div>
   
               {(registro.cambiosRival || crearCambiosVacios()).map(
@@ -3195,7 +3197,7 @@ setTimeout(() => {
             <div className="fila-cambio encabezado-cambios">
               <div>Sale</div>
               <div>Entra</div>
-              <div>Hora</div>
+              <div>{registro.modoTiempo === "transmision" ? "Minuto" : "Hora"}</div>
             </div>
 
             {registro.cambios.map((cambio, index) => (
