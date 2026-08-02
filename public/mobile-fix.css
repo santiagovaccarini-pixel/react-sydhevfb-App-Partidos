@@ -1,0 +1,36 @@
+/* Corrección del selector En Vivo / Transmisión en pantallas táctiles. */
+.selector-modo-tiempo .boton-modo-tiempo {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.selector-modo-tiempo .boton-modo-tiempo.activo {
+  background: linear-gradient(135deg, #000000, #16a34a) !important;
+  border-color: #138a43 !important;
+  color: #ffffff !important;
+}
+
+.selector-modo-tiempo .boton-modo-tiempo.activo .titulo-modo-tiempo,
+.selector-modo-tiempo .boton-modo-tiempo.activo .descripcion-modo-tiempo {
+  color: #ffffff !important;
+}
+
+/* El efecto hover solamente se aplica en dispositivos con mouse real. */
+@media (hover: hover) and (pointer: fine) {
+  .selector-modo-tiempo .boton-modo-tiempo:not(.activo):hover {
+    background: #f0fdf4 !important;
+    border-color: #16a34a !important;
+    color: #111827 !important;
+  }
+}
+
+/* En celulares evita que el último botón tocado quede negro por un hover persistente. */
+@media (hover: none), (pointer: coarse) {
+  .selector-modo-tiempo .boton-modo-tiempo:not(.activo):hover {
+    background: #ffffff !important;
+    border-color: #cfd5dc !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+}
