@@ -1174,3 +1174,12 @@ button:active {
       font-size: 11px;
     }
   }
+
+/* Inputs de transmisión MMM:SS */
+.fila-hora input[type="text"],
+.input-hora-cambio[type="text"],
+.input-hora-cambio-detalle[type="text"] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
