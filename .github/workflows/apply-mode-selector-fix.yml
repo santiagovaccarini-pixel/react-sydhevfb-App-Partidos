@@ -1,0 +1,125 @@
+name: Apply mode selector fix
+
+on:
+  push:
+    branches:
+      - agent/fix-mode-switch-state
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[selector-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout correction branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/fix-mode-switch-state
+          persist-credentials: true
+
+      - name: Correct selector logic and styles
+        shell: python
+        run: |
+          from pathlib import Path
+
+          app_path = Path('src/App.js')
+          app = app_path.read_text(encoding='utf-8')
+
+          state_line = '  const [modoTiempoBloqueado, setModoTiempoBloqueado] = useState(false);\n'
+          if state_line not in app:
+              raise SystemExit('No se encontró modoTiempoBloqueado')
+          app = app.replace(state_line, '', 1)
+
+          old_function = '''  const seleccionarModoTiempo = (nuevoModo) => {
+              if (modoTiempoBloqueado) return;
+            
+              setRegistro((prev) => ({
+                ...prev,
+                modoTiempo: nuevoModo,
+                referenciaRealPT: null,
+                referenciaRealST: null,
+              }));
+            
+              setModoTiempoBloqueado(true);
+            };'''
+
+          new_function = '''  const seleccionarModoTiempo = (nuevoModo) => {
+              setRegistro((prev) => ({
+                ...prev,
+                modoTiempo: nuevoModo,
+                referenciaRealPT: null,
+                referenciaRealST: null,
+              }));
+            };'''
+
+          if old_function not in app:
+              raise SystemExit('No se encontró la función seleccionarModoTiempo esperada')
+          app = app.replace(old_function, new_function, 1)
+          app_path.write_text(app, encoding='utf-8')
+
+          css_path = Path('src/style.css')
+          css = css_path.read_text(encoding='utf-8')
+
+          css = css.replace(
+              '    background: linear-gradient(135deg, #000000, #16a34a);\n    border-color: #138a43 !important;\n    color: #000000 !important;',
+              '    background: linear-gradient(135deg, #000000, #16a34a) !important;\n    border-color: #138a43 !important;\n    color: #ffffff !important;',
+              1,
+          )
+          css = css.replace(
+              '    background: #000000 !important;\n    border-color: #138a43 !important;\n    color: #000000 !important;',
+              '    background: #f0fdf4 !important;\n    border-color: #16a34a !important;\n    color: #111827 !important;',
+              1,
+          )
+          css = css.replace(
+              '    color: #000000;\n    opacity: 1;',
+              '    color: #ffffff;\n    opacity: 1;',
+              1,
+          )
+
+          css += '''
+
+/* Estado estable del selector en mouse, teclado y pantallas táctiles. */
+.selector-modo-tiempo .boton-modo-tiempo:focus {
+  outline: none;
+}
+
+.selector-modo-tiempo .boton-modo-tiempo:not(.activo),
+.selector-modo-tiempo .boton-modo-tiempo:not(.activo):focus,
+.selector-modo-tiempo .boton-modo-tiempo:not(.activo):active {
+  background: #ffffff !important;
+  border-color: #cfd5dc !important;
+  color: #111827 !important;
+}
+
+.selector-modo-tiempo .boton-modo-tiempo.activo,
+.selector-modo-tiempo .boton-modo-tiempo.activo:focus,
+.selector-modo-tiempo .boton-modo-tiempo.activo:active {
+  background: linear-gradient(135deg, #000000, #16a34a) !important;
+  border-color: #138a43 !important;
+  color: #ffffff !important;
+}
+
+.selector-modo-tiempo .boton-modo-tiempo.activo .titulo-modo-tiempo,
+.selector-modo-tiempo .boton-modo-tiempo.activo .descripcion-modo-tiempo {
+  color: #ffffff !important;
+}
+'''
+          css_path.write_text(css, encoding='utf-8')
+
+          branch_workflow = Path('.github/workflows/apply-mode-selector-fix.yml')
+          if branch_workflow.exists():
+              branch_workflow.unlink()
+
+          trigger = Path('.selector-fix-trigger')
+          if trigger.exists():
+              trigger.unlink()
+
+      - name: Commit correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Corrige cambio entre En Vivo y Transmisión [selector-fix]"
+          git push origin HEAD:agent/fix-mode-switch-state
