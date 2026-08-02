@@ -143,7 +143,6 @@ varSTActivo: registroRecuperado.varSTActivo || 0,
   const [ordenRegistros, setOrdenRegistros] = useState("reciente");
   const [mostrarFormacionPartido, setMostrarFormacionPartido] = useState(false);
   const [mensajeGuardado, setMensajeGuardado] = useState("");
-  const [modoTiempoBloqueado, setModoTiempoBloqueado] = useState(false);
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
     (formacionInicial.titulares || []).some((j) => String(j || "").trim()) ||
@@ -484,16 +483,14 @@ tiempoST: fila.tiempo_st || "",
     }));
   };
   const seleccionarModoTiempo = (nuevoModo) => {
-    if (modoTiempoBloqueado) return;
-  
     setRegistro((prev) => ({
       ...prev,
       modoTiempo: nuevoModo,
       referenciaRealPT: null,
       referenciaRealST: null,
     }));
-  
-    setModoTiempoBloqueado(true);
+
+    setTimeout(quitarFoco, 0);
   };
   const actualizarCambio = (index, campo, valor) => {
     setRegistro((prev) => {
