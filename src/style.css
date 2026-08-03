@@ -1305,11 +1305,11 @@ button:active {
 }
 
 .tarjeta-prorroga {
-  border: 1px solid rgba(245, 158, 11, 0.6);
+  border: 1px solid rgba(220, 38, 38, 0.65);
   background: linear-gradient(
     145deg,
     rgba(255, 255, 255, 0.98),
-    rgba(255, 247, 237, 0.98)
+    rgba(254, 242, 242, 0.98)
   );
   scroll-margin-top: 14px;
 }
@@ -1324,12 +1324,12 @@ button:active {
 
 .cabecera-prorroga h2 {
   margin: 4px 0 3px;
-  color: #431407;
+  color: #111827;
 }
 
 .cabecera-prorroga p {
   margin: 0;
-  color: #9a3412;
+  color: #111827;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1338,7 +1338,7 @@ button:active {
   display: inline-flex;
   padding: 5px 9px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #111827, #d97706);
+  background: linear-gradient(135deg, #050505, #dc2626);
   color: #ffffff;
   font-size: 10px;
   font-weight: 900;
@@ -1349,9 +1349,9 @@ button:active {
   flex: 0 0 auto;
   min-height: 38px;
   padding: 0 13px;
-  background: rgba(127, 29, 29, 0.09);
-  color: #991b1b;
-  border: 1px solid rgba(185, 28, 28, 0.24);
+  background: rgba(220, 38, 38, 0.1);
+  color: #111827;
+  border: 1px solid rgba(220, 38, 38, 0.36);
 }
 
 .grid-prorroga {
@@ -1364,8 +1364,8 @@ button:active {
   min-width: 0;
   padding: 14px;
   border-radius: 22px;
-  border: 1px solid rgba(251, 146, 60, 0.34);
-  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(220, 38, 38, 0.34);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .titulo-periodo-prorroga {
@@ -1382,7 +1382,7 @@ button:active {
   height: 34px;
   flex: 0 0 34px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #111827, #d97706);
+  background: linear-gradient(135deg, #050505, #dc2626);
   color: #ffffff;
   font-weight: 900;
 }
@@ -1394,24 +1394,24 @@ button:active {
 }
 
 .titulo-periodo-prorroga strong {
-  color: #431407;
+  color: #111827;
   font-size: 14px;
 }
 
 .titulo-periodo-prorroga small {
-  color: #9a3412;
+  color: #111827;
   font-size: 10px;
   font-weight: 700;
 }
 
 .periodo-prorroga .bloque-evento {
-  background: rgba(255, 251, 235, 0.72);
-  border-color: rgba(251, 146, 60, 0.28);
+  background: rgba(254, 242, 242, 0.72);
+  border-color: rgba(220, 38, 38, 0.28);
 }
 
 .periodo-prorroga .titulo-evento span,
 .periodo-prorroga .var-chip.activo {
-  background: linear-gradient(135deg, #111827, #d97706);
+  background: linear-gradient(135deg, #050505, #dc2626);
 }
 
 .tarjeta-accion-prorroga {
@@ -1428,14 +1428,14 @@ button:active {
   align-items: flex-start;
   justify-content: center;
   gap: 4px;
-  background: linear-gradient(135deg, #111827, #d97706);
+  background: linear-gradient(135deg, #050505, #dc2626);
   color: #ffffff;
   text-align: left;
-  box-shadow: 0 10px 24px rgba(217, 119, 6, 0.26);
+  box-shadow: 0 10px 24px rgba(220, 38, 38, 0.28);
 }
 
 .boton-cargar-prorroga.activa {
-  background: linear-gradient(135deg, #431407, #f59e0b);
+  background: linear-gradient(135deg, #050505, #ef4444);
 }
 
 .boton-cargar-prorroga strong {
@@ -1444,13 +1444,13 @@ button:active {
 
 .boton-cargar-prorroga span {
   font-size: 11px;
-  opacity: 0.86;
+  opacity: 0.9;
   line-height: 1.35;
 }
 
 .detalle-prorroga .periodo-prorroga h3 {
   margin: 0 0 12px;
-  color: #431407;
+  color: #111827;
 }
 
 @media (max-width: 760px) {
