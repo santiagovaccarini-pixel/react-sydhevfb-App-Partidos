@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.03.2";
+const APP_VERSION = "2026.08.03.3";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
@@ -1898,6 +1898,9 @@ tiempo_st: registroEditado.tiempoST || "",
           <h1>Formación del partido</h1>
           <p>Elegí la fecha e importá o cargá los datos manualmente.</p>
         </header>
+
+        <IndicadorModoTiempo />
+
         <button
   type="button"
   className="boton-registros-inicio"
@@ -1947,6 +1950,8 @@ tiempo_st: registroEditado.tiempoST || "",
             </button>
           )}
         </section>
+
+        <VersionApp />
       </div>
     </div>
   );
@@ -2945,7 +2950,6 @@ setTimeout(() => {
             </p>
           </header>
 
-          <IndicadorModoTiempo />
   
           <section className="tarjeta">
           <h2 className="titulo-cambios-rival">Cambios del rival</h2>
@@ -3084,7 +3088,6 @@ setTimeout(() => {
           <p>Atlético Mineiro · PT, ST, VAR e hidratación</p>
         </header>
 
-        <IndicadorModoTiempo />
 
         <section className="tarjeta">
           <label>Fecha</label>
@@ -3407,6 +3410,5 @@ setTimeout(() => {
   </button>
 </section>
 
-        <VersionApp />
     </div>
     </div>);}
