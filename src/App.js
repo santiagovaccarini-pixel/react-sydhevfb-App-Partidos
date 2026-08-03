@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.03.5";
+const APP_VERSION = "2026.08.03.6";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
@@ -150,6 +150,8 @@ varSTActivo: registroRecuperado.varSTActivo || 0,
   const hayFormacionInicial =
     (formacionInicial.titulares || []).some((j) => String(j || "").trim()) ||
     (formacionInicial.convocados || []).some((j) => String(j || "").trim());
+
+  const [partidoEnCurso, setPartidoEnCurso] = useState(hayFormacionInicial);
 
   const [pantallaFormacion, setPantallaFormacion] = useState(
     hayFormacionInicial ? "lista" : "inicio"
@@ -1285,6 +1287,7 @@ rival_cambio_horario5: cambiosRival[4]?.hora || "",
     setRegistro(nuevoRegistro);
     setFormacionTemporal(nuevoRegistro.formacion);
     setFechaFormacion(nuevoRegistro.fecha);
+    setPartidoEnCurso(false);
     setPantallaFormacion("lista");
     setMostrarFormacionPartido(false);
 
@@ -1294,6 +1297,7 @@ rival_cambio_horario5: cambiosRival[4]?.hora || "",
   const volverAPantallaFormacion = () => {
     setFormacionTemporal(registro.formacion || crearFormacionVacia());
     setFechaFormacion(registro.fecha || new Date().toISOString().slice(0, 10));
+    setPartidoEnCurso(true);
     setPantallaFormacion("inicio");
     setMostrarFormacionPartido(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1578,6 +1582,7 @@ tiempo_st: registroEditado.tiempoST || "",
 
   const continuarConFormacion = () => {
     actualizarFormacion(formacionTemporal);
+    setPartidoEnCurso(true);
     setPantallaFormacion("lista");
   
     setTimeout(() => {
@@ -1893,7 +1898,7 @@ tiempo_st: registroEditado.tiempoST || "",
     <div className="app">
       <ListaJugadores />
 
-      <div className="contenedor">
+      <div className="contenedor contenedor-inicio-formacion">
         <header className="encabezado">
           <h1>Formación del partido</h1>
           <p>Elegí la fecha e importá o cargá los datos manualmente.</p>
@@ -1938,7 +1943,7 @@ tiempo_st: registroEditado.tiempoST || "",
           La formación se importa automáticamente desde SportMonks usando la fecha seleccionada.
           </p>
 
-          {hayFormacionInicial && (
+          {partidoEnCurso && (
             <button
               type="button"
               className="boton-secundario boton-formacion-grande"

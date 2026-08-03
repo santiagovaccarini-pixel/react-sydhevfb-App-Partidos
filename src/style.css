@@ -1270,3 +1270,18 @@ button:active {
   font-size: 13px;
   box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28);
 }
+
+
+/* Mantiene el estado de versión al fondo de Formación del partido */
+.contenedor-inicio-formacion {
+  min-height: calc(100dvh - 28px);
+  display: flex;
+  flex-direction: column;
+}
+
+.contenedor-inicio-formacion .bloque-version-app {
+  margin-top: auto;
+  margin-bottom: 0;
+  padding-top: 18px;
+  padding-bottom: max(2px, env(safe-area-inset-bottom));
+}
