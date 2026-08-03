@@ -32,12 +32,13 @@ jobs:
               )
           app = app.replace("          <AvisoActualizacion />\\n", "")'''
           new = '''cantidad_avisos = app.count("<AvisoActualizacion />")
-          if cantidad_avisos != 2:
+          if cantidad_avisos != 3:
               raise RuntimeError(
-                  f"avisos separados: se esperaban 2 y se encontraron {cantidad_avisos}"
+                  f"avisos separados: se esperaban 3 y se encontraron {cantidad_avisos}"
               )
           app = app.replace("          <AvisoActualizacion />\\n", "")
-          app = app.replace("        <AvisoActualizacion />\\n", "")'''
+          app = app.replace("        <AvisoActualizacion />\\n", "")
+          app = app.replace("      <AvisoActualizacion />\\n", "")'''
           if old not in text:
               raise RuntimeError('No se encontró el bloque de avisos para corregir')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
@@ -58,6 +59,7 @@ jobs:
           rm -rf build
           rm -f scripts/simplify_mode_update_card.py
           rm -f .simplify-mode-trigger
+          rm -f .simplify-mode-trigger-2
           rmdir scripts 2>/dev/null || true
 
       - name: Commit validated changes
