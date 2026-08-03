@@ -8,6 +8,8 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
+const APP_VERSION = "2026.08.03.1";
+
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 
@@ -143,6 +145,7 @@ varSTActivo: registroRecuperado.varSTActivo || 0,
   const [ordenRegistros, setOrdenRegistros] = useState("reciente");
   const [mostrarFormacionPartido, setMostrarFormacionPartido] = useState(false);
   const [mensajeGuardado, setMensajeGuardado] = useState("");
+  const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
     (formacionInicial.titulares || []).some((j) => String(j || "").trim()) ||
@@ -341,6 +344,44 @@ tiempoST: fila.tiempo_st || "",
     }, 1800);
   
     return () => clearTimeout(timerIntro);
+  }, []);
+
+  useEffect(() => {
+    let activo = true;
+
+    const verificarActualizacion = async () => {
+      try {
+        const respuesta = await fetch(`/version.json?t=${Date.now()}`, {
+          cache: "no-store",
+        });
+
+        if (!respuesta.ok) return;
+
+        const datos = await respuesta.json();
+
+        if (activo && datos.version && datos.version !== APP_VERSION) {
+          setActualizacionDisponible(true);
+        }
+      } catch (error) {
+        console.warn("No se pudo comprobar la versión de la app:", error);
+      }
+    };
+
+    const verificarAlVolver = () => {
+      if (document.visibilityState === "visible") {
+        verificarActualizacion();
+      }
+    };
+
+    verificarActualizacion();
+    const intervalo = setInterval(verificarActualizacion, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", verificarAlVolver);
+
+    return () => {
+      activo = false;
+      clearInterval(intervalo);
+      document.removeEventListener("visibilitychange", verificarAlVolver);
+    };
   }, []);
 
   useEffect(() => {
@@ -1672,6 +1713,7 @@ tiempo_st: registroEditado.tiempoST || "",
       <ListaJugadores />
 
       <div className="contenedor">
+        <AvisoActualizacion />
         <header className="encabezado">
           <h1>
             {modo === "revision" ? "Formación encontrada" : "Cargar formación"}
@@ -1909,6 +1951,48 @@ tiempo_st: registroEditado.tiempoST || "",
       </div>
     </div>
   );
+
+  const actualizarAplicacion = () => {
+    window.location.reload();
+  };
+
+  const AvisoActualizacion = () =>
+    actualizacionDisponible ? (
+      <div className="aviso-actualizacion-app">
+        <div>
+          <strong>Nueva versión disponible</strong>
+          <span>Actualizá para usar los últimos cambios.</span>
+        </div>
+        <button type="button" onClick={actualizarAplicacion}>
+          Actualizar ahora
+        </button>
+      </div>
+    ) : null;
+
+  const IndicadorModoTiempo = () => {
+    const esTransmision = registro.modoTiempo === "transmision";
+
+    return (
+      <div
+        className={`indicador-modo-activo ${
+          esTransmision ? "transmision" : "en-vivo"
+        }`}
+      >
+        <span className="indicador-modo-punto" aria-hidden="true" />
+        <div className="indicador-modo-texto">
+          <strong>
+            Modo activo: {esTransmision ? "Transmisión" : "En Vivo"}
+          </strong>
+          <span>
+            {esTransmision
+              ? "Minutos de juego · formato MMM:SS · PT 000:00 · ST 045:00"
+              : "Hora actual del dispositivo · formato HH:MM:SS"}
+          </span>
+        </div>
+        <small>v{APP_VERSION}</small>
+      </div>
+    );
+  };
 
   const DatoDetalle = ({ label, valor }) => (
     <div className="dato-detalle">
@@ -2845,6 +2929,7 @@ setTimeout(() => {
             </button>
           </div>
   
+          <AvisoActualizacion />
           <header className="encabezado">
             <h1>Cambios Rival</h1>
             <p>
@@ -2852,6 +2937,8 @@ setTimeout(() => {
               {registro.rival || "Rival"}
             </p>
           </header>
+
+          <IndicadorModoTiempo />
   
           <section className="tarjeta">
           <h2 className="titulo-cambios-rival">Cambios del rival</h2>
@@ -2985,10 +3072,13 @@ setTimeout(() => {
     {mensajeGuardado}
   </div>
 )}
+        <AvisoActualizacion />
         <header className="encabezado">
           <h1>Registro Partido</h1>
           <p>Atlético Mineiro · PT, ST, VAR e hidratación</p>
         </header>
+
+        <IndicadorModoTiempo />
 
         <section className="tarjeta">
           <label>Fecha</label>
