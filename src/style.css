@@ -1214,6 +1214,22 @@ button:active {
   color: #ffffff;
 }
 
+.indicador-modo-activo.rival {
+  border-color: rgba(245, 158, 11, 0.72);
+  background: linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.98),
+    rgba(217, 119, 6, 0.97)
+  );
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(217, 119, 6, 0.24);
+}
+
+.indicador-modo-activo.rival .indicador-modo-punto {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.24);
+}
+
 .indicador-modo-punto {
   flex: 0 0 auto;
   width: 11px;
