@@ -2307,10 +2307,6 @@ tiempo_st: registroEditado.tiempoST || "",
             Cargar manual
           </button>
 
-          <p className="texto-ayuda-formacion">
-          La formación se importa automáticamente desde SportMonks usando la fecha seleccionada.
-          </p>
-
           {partidoEnCurso && (
             <button
               type="button"
