@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.03.1";
+const APP_VERSION = "2026.08.03.2";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
@@ -359,8 +359,8 @@ tiempoST: fila.tiempo_st || "",
 
         const datos = await respuesta.json();
 
-        if (activo && datos.version && datos.version !== APP_VERSION) {
-          setActualizacionDisponible(true);
+        if (activo && datos.version) {
+          setActualizacionDisponible(datos.version !== APP_VERSION);
         }
       } catch (error) {
         console.warn("No se pudo comprobar la versión de la app:", error);
@@ -1713,7 +1713,6 @@ tiempo_st: registroEditado.tiempoST || "",
       <ListaJugadores />
 
       <div className="contenedor">
-        <AvisoActualizacion />
         <header className="encabezado">
           <h1>
             {modo === "revision" ? "Formación encontrada" : "Cargar formación"}
@@ -1952,47 +1951,56 @@ tiempo_st: registroEditado.tiempoST || "",
     </div>
   );
 
-  const actualizarAplicacion = () => {
-    window.location.reload();
-  };
+  const actualizarAplicacion = async () => {
+    try {
+      if ("caches" in window) {
+        const nombresCache = await window.caches.keys();
+        await Promise.all(
+          nombresCache.map((nombreCache) => window.caches.delete(nombreCache))
+        );
+      }
+    } catch (error) {
+      console.warn("No se pudo limpiar la caché antes de actualizar:", error);
+    }
 
-  const AvisoActualizacion = () =>
-    actualizacionDisponible ? (
-      <div className="aviso-actualizacion-app">
-        <div>
-          <strong>Nueva versión disponible</strong>
-          <span>Actualizá para usar los últimos cambios.</span>
-        </div>
-        <button type="button" onClick={actualizarAplicacion}>
-          Actualizar ahora
-        </button>
-      </div>
-    ) : null;
+    const urlActualizada = new URL(window.location.href);
+    urlActualizada.searchParams.set("actualizar", Date.now().toString());
+    window.location.replace(urlActualizada.toString());
+  };
 
   const IndicadorModoTiempo = () => {
     const esTransmision = registro.modoTiempo === "transmision";
 
     return (
-      <div
-        className={`indicador-modo-activo ${
-          esTransmision ? "transmision" : "en-vivo"
-        }`}
-      >
-        <span className="indicador-modo-punto" aria-hidden="true" />
-        <div className="indicador-modo-texto">
-          <strong>
-            Modo activo: {esTransmision ? "Transmisión" : "En Vivo"}
-          </strong>
-          <span>
-            {esTransmision
-              ? "Minutos de juego · formato MMM:SS · PT 000:00 · ST 045:00"
-              : "Hora actual del dispositivo · formato HH:MM:SS"}
-          </span>
+      <div className="bloque-modo-activo">
+        <div
+          className={`indicador-modo-activo ${
+            esTransmision ? "transmision" : "en-vivo"
+          } ${actualizacionDisponible ? "actualizacion-pendiente" : ""}`}
+        >
+          <span className="indicador-modo-punto" aria-hidden="true" />
+          <div className="indicador-modo-texto">
+            <strong>Modo {esTransmision ? "Transmisión" : "En Vivo"}</strong>
+            <span>{esTransmision ? "Minutos de juego" : "Hora actual"}</span>
+          </div>
         </div>
-        <small>v{APP_VERSION}</small>
+
+        {actualizacionDisponible && (
+          <button
+            type="button"
+            className="boton-actualizar-version"
+            onClick={actualizarAplicacion}
+          >
+            Actualizar Versión
+          </button>
+        )}
       </div>
     );
   };
+
+  const VersionApp = () => (
+    <div className="version-app-pie">Versión {APP_VERSION}</div>
+  );
 
   const DatoDetalle = ({ label, valor }) => (
     <div className="dato-detalle">
@@ -2929,7 +2937,6 @@ setTimeout(() => {
             </button>
           </div>
   
-          <AvisoActualizacion />
           <header className="encabezado">
             <h1>Cambios Rival</h1>
             <p>
@@ -3072,7 +3079,6 @@ setTimeout(() => {
     {mensajeGuardado}
   </div>
 )}
-        <AvisoActualizacion />
         <header className="encabezado">
           <h1>Registro Partido</h1>
           <p>Atlético Mineiro · PT, ST, VAR e hidratación</p>
@@ -3400,5 +3406,7 @@ setTimeout(() => {
     Ir a Registros
   </button>
 </section>
+
+        <VersionApp />
     </div>
     </div>);}
