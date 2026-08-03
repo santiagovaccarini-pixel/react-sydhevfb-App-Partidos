@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.03.3";
+const APP_VERSION = "2026.08.03.4";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
@@ -1899,7 +1899,7 @@ tiempo_st: registroEditado.tiempoST || "",
           <p>Elegí la fecha e importá o cargá los datos manualmente.</p>
         </header>
 
-        <IndicadorModoTiempo />
+        <EstadoVersionApp />
 
         <button
   type="button"
@@ -1951,7 +1951,6 @@ tiempo_st: registroEditado.tiempoST || "",
           )}
         </section>
 
-        <VersionApp />
       </div>
     </div>
   );
@@ -1981,7 +1980,7 @@ tiempo_st: registroEditado.tiempoST || "",
         <div
           className={`indicador-modo-activo ${
             esTransmision ? "transmision" : "en-vivo"
-          } ${actualizacionDisponible ? "actualizacion-pendiente" : ""}`}
+          }`}
         >
           <span className="indicador-modo-punto" aria-hidden="true" />
           <div className="indicador-modo-texto">
@@ -1989,22 +1988,38 @@ tiempo_st: registroEditado.tiempoST || "",
             <span>{esTransmision ? "Minutos de juego" : "Hora actual"}</span>
           </div>
         </div>
-
-        {actualizacionDisponible && (
-          <button
-            type="button"
-            className="boton-actualizar-version"
-            onClick={actualizarAplicacion}
-          >
-            Actualizar Versión
-          </button>
-        )}
       </div>
     );
   };
 
-  const VersionApp = () => (
-    <div className="version-app-pie">Versión {APP_VERSION}</div>
+  const EstadoVersionApp = () => (
+    <div className="bloque-version-app">
+      <div
+        className={`indicador-version-app ${
+          actualizacionDisponible ? "actualizacion-pendiente" : ""
+        }`}
+      >
+        <span className="indicador-modo-punto" aria-hidden="true" />
+        <div className="indicador-modo-texto">
+          <strong>
+            {actualizacionDisponible
+              ? "Nueva versión disponible"
+              : "Aplicación actualizada"}
+          </strong>
+          <span>Versión {APP_VERSION}</span>
+        </div>
+      </div>
+
+      {actualizacionDisponible && (
+        <button
+          type="button"
+          className="boton-actualizar-version"
+          onClick={actualizarAplicacion}
+        >
+          Actualizar Versión
+        </button>
+      )}
+    </div>
   );
 
   const DatoDetalle = ({ label, valor }) => (
@@ -2950,6 +2965,7 @@ setTimeout(() => {
             </p>
           </header>
 
+          <IndicadorModoTiempo />
   
           <section className="tarjeta">
           <h2 className="titulo-cambios-rival">Cambios del rival</h2>
@@ -3088,6 +3104,7 @@ setTimeout(() => {
           <p>Atlético Mineiro · PT, ST, VAR e hidratación</p>
         </header>
 
+        <IndicadorModoTiempo />
 
         <section className="tarjeta">
           <label>Fecha</label>
