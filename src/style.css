@@ -1184,37 +1184,45 @@ button:active {
   text-align: center;
 }
 
+/* Estado visible del modo y actualización */
+.bloque-modo-activo {
+  margin: -4px 0 16px;
+}
 
-/* Estado visible del modo de registro */
 .indicador-modo-activo {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
   align-items: center;
   gap: 11px;
-  margin: -4px 0 16px;
   padding: 13px 15px;
   border-radius: 18px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
 }
 
 .indicador-modo-activo.transmision {
   border-color: rgba(22, 163, 74, 0.5);
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.97), rgba(22, 163, 74, 0.96));
+  background: linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.97),
+    rgba(22, 163, 74, 0.96)
+  );
   color: #ffffff;
 }
 
-.indicador-modo-activo.en-vivo {
-  color: #0f172a;
-}
-
 .indicador-modo-punto {
+  flex: 0 0 auto;
   width: 11px;
   height: 11px;
   border-radius: 999px;
   background: #22c55e;
   box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+}
+
+.indicador-modo-activo.actualizacion-pendiente .indicador-modo-punto {
+  background: #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.22);
 }
 
 .indicador-modo-texto {
@@ -1230,68 +1238,25 @@ button:active {
 
 .indicador-modo-texto span {
   font-size: 11px;
-  opacity: 0.82;
+  opacity: 0.84;
   line-height: 1.35;
 }
 
-.indicador-modo-activo small {
-  font-size: 10px;
-  font-weight: 800;
-  opacity: 0.72;
-}
-
-.aviso-actualizacion-app {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
-  color: #78350f;
-  box-shadow: 0 8px 20px rgba(120, 53, 15, 0.16);
-}
-
-.aviso-actualizacion-app div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.aviso-actualizacion-app strong {
-  font-size: 13px;
-}
-
-.aviso-actualizacion-app span {
-  font-size: 11px;
-}
-
-.aviso-actualizacion-app button {
-  flex: 0 0 auto;
-  min-height: 38px;
-  padding: 0 12px;
-  background: #78350f;
+.boton-actualizar-version {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  background: linear-gradient(135deg, #7f1d1d, #dc2626);
   color: #ffffff;
-  font-size: 11px;
+  font-size: 13px;
+  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28);
 }
 
-@media (max-width: 520px) {
-  .indicador-modo-activo {
-    grid-template-columns: auto 1fr;
-  }
-
-  .indicador-modo-activo small {
-    grid-column: 2;
-  }
-
-  .aviso-actualizacion-app {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .aviso-actualizacion-app button {
-    width: 100%;
-  }
+.version-app-pie {
+  margin: 10px 0 2px;
+  color: rgba(203, 213, 225, 0.62);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: center;
 }
