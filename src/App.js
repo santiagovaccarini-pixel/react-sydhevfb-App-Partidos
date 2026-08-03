@@ -1727,13 +1727,35 @@ tiempo_st: registroEditado.tiempoST || "",
     console.log("ID A EDITAR:", idRegistro);
     console.log("DATOS QUE SE MANDAN A SUPABASE:", registroSupabase);
   
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("registros_partido")
       .update(registroSupabase)
       .eq("id", idRegistro)
       .select();
+
+    if (
+      error &&
+      esErrorColumnasExtendidas(error) &&
+      !tieneDatosExtendidos(registroConTiempos)
+    ) {
+      const reintento = await supabase
+        .from("registros_partido")
+        .update(quitarCamposExtendidos(registroSupabase))
+        .eq("id", idRegistro)
+        .select();
+
+      data = reintento.data;
+      error = reintento.error;
+    }
   
     if (error) {
+      if (esErrorColumnasExtendidas(error)) {
+        alert(
+          "Falta ejecutar la migración de prórroga en Supabase antes de guardar estos datos."
+        );
+        return false;
+      }
+
       console.error("Error editando registro en Supabase:", error);
       alert("No se pudieron guardar los cambios en Supabase");
       return false;
