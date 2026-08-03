@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 app_path = Path("src/App.js")
 version_path = Path("public/version.json")
@@ -22,21 +23,28 @@ replace_once(
     "versión de la aplicación",
 )
 
-indicator = "          <IndicadorModoTiempo />\n"
-indicator_count = app.count(indicator)
+app, indicator_count = re.subn(
+    r"^[ \t]*<IndicadorModoTiempo />\r?\n",
+    "",
+    app,
+    flags=re.MULTILINE,
+)
 if indicator_count != 2:
     raise RuntimeError(
         f"indicadores actuales: se esperaban 2 y se encontraron {indicator_count}"
     )
-app = app.replace(indicator, "")
 
-version_footer = "        <VersionApp />\n"
-version_count = app.count(version_footer)
+app, version_count = re.subn(
+    r"^[ \t]*<VersionApp />\r?\n",
+    "",
+    app,
+    count=1,
+    flags=re.MULTILINE,
+)
 if version_count != 1:
     raise RuntimeError(
         f"versión actual al pie: se esperaba 1 y se encontraron {version_count}"
     )
-app = app.replace(version_footer, "", 1)
 
 replace_once(
     '''        <header className="encabezado">
