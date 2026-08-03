@@ -19,6 +19,30 @@ jobs:
           ref: agent/simplify-mode-update-card
           persist-credentials: true
 
+      - name: Correct patch script
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/simplify_mode_update_card.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''cantidad_avisos = app.count("          <AvisoActualizacion />\\n")
+          if cantidad_avisos != 2:
+              raise RuntimeError(
+                  f"avisos separados: se esperaban 2 y se encontraron {cantidad_avisos}"
+              )
+          app = app.replace("          <AvisoActualizacion />\\n", "")'''
+          new = '''cantidad_avisos = app.count("<AvisoActualizacion />")
+          if cantidad_avisos != 2:
+              raise RuntimeError(
+                  f"avisos separados: se esperaban 2 y se encontraron {cantidad_avisos}"
+              )
+          app = app.replace("          <AvisoActualizacion />\\n", "")
+          app = app.replace("        <AvisoActualizacion />\\n", "")'''
+          if old not in text:
+              raise RuntimeError('No se encontró el bloque de avisos para corregir')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Apply patch
         run: python scripts/simplify_mode_update_card.py
 
@@ -33,6 +57,7 @@ jobs:
           git checkout -- package.json
           rm -rf build
           rm -f scripts/simplify_mode_update_card.py
+          rm -f .simplify-mode-trigger
           rmdir scripts 2>/dev/null || true
 
       - name: Commit validated changes
