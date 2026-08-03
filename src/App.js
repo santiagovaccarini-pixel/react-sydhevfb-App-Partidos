@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.03.6";
+const APP_VERSION = "2026.08.03.7";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
@@ -34,14 +34,34 @@ const InputJugador = ({ value, onChange }) => (
 );
 
 export default function App() {
-  const crearCambiosVacios = () =>
-  Array.from({ length: 5 }, () => ({
+  const crearCambioVacio = () => ({
     sale: "",
     entra: "",
     hora: "",
     minuto: "",
     extraMinuto: "",
-  }));
+  });
+
+  const crearCambiosVacios = () =>
+    Array.from({ length: 5 }, () => crearCambioVacio());
+
+  const crearProrrogaVacia = () => ({
+    prorrogaActiva: false,
+    referenciaRealPTE: null,
+    referenciaRealSTE: null,
+    inicioPTE: "",
+    finalPTE: "",
+    varsPTE: [{ inicio: "", final: "" }],
+    varPTEActivo: 0,
+    inicioHidratacionPTE: "",
+    finalHidratacionPTE: "",
+    inicioSTE: "",
+    finalSTE: "",
+    varsSTE: [{ inicio: "", final: "" }],
+    varSTEActivo: 0,
+    inicioHidratacionSTE: "",
+    finalHidratacionSTE: "",
+  });
 
   const crearFormacionVacia = () => ({
     titulares: Array.from({ length: 10 }, () => ""),
@@ -60,6 +80,7 @@ export default function App() {
     // Guardarán Date.now(), no una hora escrita.
     referenciaRealPT: null,
     referenciaRealST: null,
+    ...crearProrrogaVacia(),
   
     inicioPT: "",
     finalPT: "",
@@ -120,6 +141,16 @@ varsST:
     ? registroRecuperado.varsST
     : registroVacio.varsST,
 varSTActivo: registroRecuperado.varSTActivo || 0,
+varsPTE:
+  registroRecuperado.varsPTE && registroRecuperado.varsPTE.length > 0
+    ? registroRecuperado.varsPTE
+    : registroVacio.varsPTE,
+varPTEActivo: registroRecuperado.varPTEActivo || 0,
+varsSTE:
+  registroRecuperado.varsSTE && registroRecuperado.varsSTE.length > 0
+    ? registroRecuperado.varsSTE
+    : registroVacio.varsSTE,
+varSTEActivo: registroRecuperado.varSTEActivo || 0,
         formacion: {
           titulares:
             registroRecuperado.formacion?.titulares?.length > 0
@@ -196,6 +227,14 @@ varSTActivo: registroRecuperado.varSTActivo || 0,
   };
   const posicionScrollPendiente = useRef(null);
   const convertirSupabaseARegistro = (fila) => {
+    const prorroga = fila.prorroga || {};
+    const cambiosExtra = Array.isArray(fila.cambios_extra)
+      ? fila.cambios_extra
+      : [];
+    const cambiosRivalExtra = Array.isArray(fila.cambios_rival_extra)
+      ? fila.cambios_rival_extra
+      : [];
+
     const registroConvertido = {
       fecha: fila.fecha || "",
       rival: fila.rival || "",
@@ -209,6 +248,32 @@ tiempoPT: fila.tiempo_pt || "",
 inicioST: fila.inicio_st || "",
 finalST: fila.final_st || "",
 tiempoST: fila.tiempo_st || "",
+
+      prorrogaActiva: Boolean(prorroga.activa),
+      referenciaRealPTE: null,
+      referenciaRealSTE: null,
+      inicioPTE: prorroga.inicioPTE || "",
+      finalPTE: prorroga.finalPTE || "",
+      varsPTE:
+        Array.isArray(prorroga.varsPTE) && prorroga.varsPTE.length > 0
+          ? prorroga.varsPTE
+          : [{ inicio: "", final: "" }],
+      varPTEActivo: 0,
+      inicioHidratacionPTE: prorroga.inicioHidratacionPTE || "",
+      finalHidratacionPTE: prorroga.finalHidratacionPTE || "",
+      inicioSTE: prorroga.inicioSTE || "",
+      finalSTE: prorroga.finalSTE || "",
+      varsSTE:
+        Array.isArray(prorroga.varsSTE) && prorroga.varsSTE.length > 0
+          ? prorroga.varsSTE
+          : [{ inicio: "", final: "" }],
+      varSTEActivo: 0,
+      inicioHidratacionSTE: prorroga.inicioHidratacionSTE || "",
+      finalHidratacionSTE: prorroga.finalHidratacionSTE || "",
+      tiempoPTE: prorroga.tiempoPTE || "",
+      tiempoHidratacionPTE: prorroga.tiempoHidratacionPTE || "",
+      tiempoSTE: prorroga.tiempoSTE || "",
+      tiempoHidratacionSTE: prorroga.tiempoHidratacionSTE || "",
   
       inicioHidratacionPT: fila.inicio_hid_pt || "",
       finalHidratacionPT: fila.final_hid_pt || "",
@@ -274,6 +339,7 @@ tiempoST: fila.tiempo_st || "",
           entra: fila.cambio_5_entra || "",
           hora: fila.cambio_5_tiempo || "",
         },
+        ...cambiosExtra,
       ],
   
       cambiosRival: [
@@ -302,6 +368,7 @@ tiempoST: fila.tiempo_st || "",
           entra: fila.rival_cambio_entra5 || "",
           hora: fila.rival_cambio_horario5 || "",
         },
+        ...cambiosRivalExtra,
       ],
   
       formacion: {
@@ -532,6 +599,8 @@ tiempoST: fila.tiempo_st || "",
       modoTiempo: nuevoModo,
       referenciaRealPT: null,
       referenciaRealST: null,
+      referenciaRealPTE: null,
+      referenciaRealSTE: null,
     }));
 
     setTimeout(quitarFoco, 0);
@@ -567,6 +636,43 @@ tiempoST: fila.tiempo_st || "",
         cambiosRival: cambiosActualizados,
       };
     });
+  };
+
+  const agregarCambio = (tipo) => {
+    const clave = tipo === "rival" ? "cambiosRival" : "cambios";
+
+    setRegistro((prev) => ({
+      ...prev,
+      [clave]: [...(prev[clave] || crearCambiosVacios()), crearCambioVacio()],
+    }));
+
+    setTimeout(() => window.scrollBy({ top: 180, behavior: "smooth" }), 0);
+  };
+
+  const activarProrroga = () => {
+    setRegistro((prev) => ({
+      ...prev,
+      prorrogaActiva: true,
+    }));
+
+    setTimeout(() => {
+      document
+        .getElementById("seccion-prorroga")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  };
+
+  const quitarProrroga = () => {
+    const confirmar = window.confirm(
+      "¿Querés quitar la prórroga y borrar todos sus horarios?"
+    );
+
+    if (!confirmar) return;
+
+    setRegistro((prev) => ({
+      ...prev,
+      ...crearProrrogaVacia(),
+    }));
   };
   
   const limpiarCambiosRival = () => {
@@ -648,9 +754,20 @@ tiempoST: fila.tiempo_st || "",
     
         setRegistro((prev) => {
           const cambiosActuales = prev.cambiosRival || crearCambiosVacios();
-          const nuevosCambios = crearCambiosVacios();
+          const cantidadCambios = Math.max(
+            5,
+            cambiosActuales.length,
+            cambiosApi.length
+          );
+          const nuevosCambios = Array.from(
+            { length: cantidadCambios },
+            (_, index) => ({
+              ...crearCambioVacio(),
+              ...(cambiosActuales[index] || {}),
+            })
+          );
     
-          cambiosApi.slice(0, 5).forEach((cambioApi, index) => {
+          cambiosApi.forEach((cambioApi, index) => {
             const cambioActual = cambiosActuales[index] || {};
     
             const matchClock = cambioApi.matchClock || "";
@@ -678,42 +795,74 @@ tiempoST: fila.tiempo_st || "",
         alert("Error conectando con Sportradar.");
       }
     };
+  const configuracionPeriodos = {
+    PT: {
+      vars: "varsPT",
+      activo: "varPTActivo",
+      inicio: "inicioPT",
+      referencia: "referenciaRealPT",
+      baseSegundos: 0,
+      etiqueta: "PT",
+    },
+    ST: {
+      vars: "varsST",
+      activo: "varSTActivo",
+      inicio: "inicioST",
+      referencia: "referenciaRealST",
+      baseSegundos: 45 * 60,
+      etiqueta: "ST",
+    },
+    PTE: {
+      vars: "varsPTE",
+      activo: "varPTEActivo",
+      inicio: "inicioPTE",
+      referencia: "referenciaRealPTE",
+      baseSegundos: 90 * 60,
+      etiqueta: "PTE",
+    },
+    STE: {
+      vars: "varsSTE",
+      activo: "varSTEActivo",
+      inicio: "inicioSTE",
+      referencia: "referenciaRealSTE",
+      baseSegundos: 105 * 60,
+      etiqueta: "STE",
+    },
+  };
+
+  const obtenerConfigPeriodo = (tipo) =>
+    configuracionPeriodos[tipo] || configuracionPeriodos.PT;
+
   const agregarVar = (tipo) => {
     setRegistro((prev) => {
-      const claveVars = tipo === "PT" ? "varsPT" : "varsST";
-      const claveActivo = tipo === "PT" ? "varPTActivo" : "varSTActivo";
-  
-      const varsActuales = [...prev[claveVars]];
+      const config = obtenerConfigPeriodo(tipo);
+      const varsActuales = [...(prev[config.vars] || [{ inicio: "", final: "" }])];
   
       if (varsActuales.length >= 3) return prev;
   
-      varsActuales.push({
-        inicio: "",
-        final: "",
-      });
+      varsActuales.push({ inicio: "", final: "" });
   
       return {
         ...prev,
-        [claveVars]: varsActuales,
-        [claveActivo]: varsActuales.length - 1,
+        [config.vars]: varsActuales,
+        [config.activo]: varsActuales.length - 1,
       };
     });
   };
   
   const cambiarVarActivo = (tipo, index) => {
+    const config = obtenerConfigPeriodo(tipo);
     setRegistro((prev) => ({
       ...prev,
-      [tipo === "PT" ? "varPTActivo" : "varSTActivo"]: index,
+      [config.activo]: index,
     }));
   };
   
   const actualizarVar = (tipo, campo, valor) => {
     setRegistro((prev) => {
-      const claveVars = tipo === "PT" ? "varsPT" : "varsST";
-      const claveActivo = tipo === "PT" ? "varPTActivo" : "varSTActivo";
-  
-      const varsActuales = [...prev[claveVars]];
-      const activo = prev[claveActivo];
+      const config = obtenerConfigPeriodo(tipo);
+      const varsActuales = [...(prev[config.vars] || [{ inicio: "", final: "" }])];
+      const activo = prev[config.activo] || 0;
   
       varsActuales[activo] = {
         ...varsActuales[activo],
@@ -722,7 +871,7 @@ tiempoST: fila.tiempo_st || "",
   
       return {
         ...prev,
-        [claveVars]: varsActuales,
+        [config.vars]: varsActuales,
       };
     });
   };
@@ -816,6 +965,14 @@ tiempoST: fila.tiempo_st || "",
   };
 
   const detectarModoTiempoFila = (fila) => {
+    const prorroga = fila.prorroga || {};
+    const cambiosExtra = Array.isArray(fila.cambios_extra)
+      ? fila.cambios_extra
+      : [];
+    const cambiosRivalExtra = Array.isArray(fila.cambios_rival_extra)
+      ? fila.cambios_rival_extra
+      : [];
+
     const valoresTiempo = [
       fila.inicio_pt,
       fila.final_pt,
@@ -847,6 +1004,14 @@ tiempoST: fila.tiempo_st || "",
       fila.rival_cambio_horario3,
       fila.rival_cambio_horario4,
       fila.rival_cambio_horario5,
+      prorroga.inicioPTE,
+      prorroga.finalPTE,
+      prorroga.inicioSTE,
+      prorroga.finalSTE,
+      ...(prorroga.varsPTE || []).flatMap((item) => [item.inicio, item.final]),
+      ...(prorroga.varsSTE || []).flatMap((item) => [item.inicio, item.final]),
+      ...cambiosExtra.map((item) => item.hora),
+      ...cambiosRivalExtra.map((item) => item.hora),
     ];
 
     return valoresTiempo.some(esFormatoTransmision)
@@ -854,22 +1019,28 @@ tiempoST: fila.tiempo_st || "",
       : "enVivo";
   };
 
-  const obtenerPeriodoCampo = (campo) =>
-    String(campo || "").toUpperCase().includes("ST") ? "ST" : "PT";
+  const obtenerPeriodoCampo = (campo) => {
+    const texto = String(campo || "").toUpperCase();
+    if (texto.includes("STE")) return "STE";
+    if (texto.includes("PTE")) return "PTE";
+    if (texto.includes("ST")) return "ST";
+    return "PT";
+  };
 
   const obtenerMarcaTransmision = (tipo, estado = registro) => {
-    const claveReferencia = tipo === "ST" ? "referenciaRealST" : "referenciaRealPT";
-    const referencia = Number(estado[claveReferencia]);
+    const config = obtenerConfigPeriodo(tipo);
+    const referencia = Number(estado[config.referencia]);
 
     if (!referencia) return "";
 
-    const baseSegundos = tipo === "ST" ? 45 * 60 : 0;
     const transcurridos = Math.max(
       0,
       Math.floor((Date.now() - referencia) / 1000)
     );
 
-    return formatearTiempoTransmision(baseSegundos + transcurridos);
+    return formatearTiempoTransmision(
+      config.baseSegundos + transcurridos
+    );
   };
 
   const obtenerMarcaActual = (tipo, estado = registro) => {
@@ -884,23 +1055,23 @@ tiempoST: fila.tiempo_st || "",
         [campo]: valor,
       };
 
-      if (
-        prev.modoTiempo === "transmision" &&
-        (campo === "inicioPT" || campo === "inicioST")
-      ) {
+      const tipo = obtenerPeriodoCampo(campo);
+      const config = obtenerConfigPeriodo(tipo);
+      const esInicioPeriodo = campo === config.inicio;
+
+      if (prev.modoTiempo === "transmision" && esInicioPeriodo) {
         const normalizado = normalizarEntradaTiempoTransmision(valor);
-        const tipo = campo === "inicioST" ? "ST" : "PT";
-        const claveReferencia =
-          tipo === "ST" ? "referenciaRealST" : "referenciaRealPT";
 
         if (normalizado) {
-          const baseSegundos = tipo === "ST" ? 45 * 60 : 0;
           const marcaSegundos = segundosDesdeHora(normalizado);
-          const transcurridos = Math.max(0, marcaSegundos - baseSegundos);
+          const transcurridos = Math.max(
+            0,
+            marcaSegundos - config.baseSegundos
+          );
 
-          siguiente[claveReferencia] = Date.now() - transcurridos * 1000;
+          siguiente[config.referencia] = Date.now() - transcurridos * 1000;
         } else if (!String(valor || "").trim()) {
-          siguiente[claveReferencia] = null;
+          siguiente[config.referencia] = null;
         }
       }
 
@@ -908,8 +1079,12 @@ tiempoST: fila.tiempo_st || "",
     });
   };
 
-  const obtenerPeriodoActivo = () =>
-    registro.referenciaRealST ? "ST" : "PT";
+  const obtenerPeriodoActivo = () => {
+    if (registro.referenciaRealSTE) return "STE";
+    if (registro.referenciaRealPTE) return "PTE";
+    if (registro.referenciaRealST) return "ST";
+    return "PT";
+  };
 
   const quitarFoco = () => {
     if (document.activeElement && document.activeElement.blur) {
@@ -927,20 +1102,17 @@ tiempoST: fila.tiempo_st || "",
 
     if (registro.modoTiempo === "transmision") {
       const tipo = obtenerPeriodoCampo(campo);
-      const esInicioPeriodo = campo === "inicioPT" || campo === "inicioST";
+      const config = obtenerConfigPeriodo(tipo);
+      const esInicioPeriodo = campo === config.inicio;
 
       if (esInicioPeriodo) {
-        const claveReferencia =
-          tipo === "ST" ? "referenciaRealST" : "referenciaRealPT";
-        const valorInicial = formatearTiempoTransmision(
-          tipo === "ST" ? 45 * 60 : 0
-        );
+        const valorInicial = formatearTiempoTransmision(config.baseSegundos);
         const referencia = Date.now();
 
         mantenerPosicion(() => {
           setRegistro((prev) => ({
             ...prev,
-            [claveReferencia]: referencia,
+            [config.referencia]: referencia,
             [campo]: valorInicial,
           }));
         });
@@ -948,7 +1120,7 @@ tiempoST: fila.tiempo_st || "",
         const valor = obtenerMarcaTransmision(tipo);
 
         if (!valor) {
-          alert(`Primero marcá Inicio ${tipo}.`);
+          alert(`Primero marcá Inicio ${config.etiqueta}.`);
           return;
         }
 
@@ -989,30 +1161,35 @@ tiempoST: fila.tiempo_st || "",
     mantenerPosicion(() => actualizarCambioRival(index, "hora", valor));
     setTimeout(quitarFoco, 0);
   };
+  const obtenerMarcaEntreTiempos = () =>
+    registro.inicioSTE || registro.inicioPTE || registro.inicioST || "";
+
   const ponerHoraEntreTiempo = (index) => {
     quitarFoco();
+    const marcaEntreTiempos = obtenerMarcaEntreTiempos();
 
-    if (!registro.inicioST) {
-      alert("Primero cargá Inicio ST.");
+    if (!marcaEntreTiempos) {
+      alert("Primero cargá el inicio del período siguiente.");
       return;
     }
 
     mantenerPosicion(() => {
-      actualizarCambio(index, "hora", registro.inicioST);
+      actualizarCambio(index, "hora", marcaEntreTiempos);
     });
 
     setTimeout(quitarFoco, 0);
   };
   const ponerHoraEntreTiempoRival = (index) => {
     quitarFoco();
+    const marcaEntreTiempos = obtenerMarcaEntreTiempos();
   
-    if (!registro.inicioST) {
-      alert("Primero cargá Inicio ST.");
+    if (!marcaEntreTiempos) {
+      alert("Primero cargá el inicio del período siguiente.");
       return;
     }
   
     mantenerPosicion(() => {
-      actualizarCambioRival(index, "hora", registro.inicioST);
+      actualizarCambioRival(index, "hora", marcaEntreTiempos);
     });
   
     setTimeout(quitarFoco, 0);
@@ -1154,6 +1331,14 @@ tiempoST: fila.tiempo_st || "",
     tiempoHidratacionST: formatearDuracion(
       segundosEntre(item.inicioHidratacionST, item.finalHidratacionST)
     ),
+    tiempoPTE: formatearDuracion(segundosEntre(item.inicioPTE, item.finalPTE)),
+    tiempoHidratacionPTE: formatearDuracion(
+      segundosEntre(item.inicioHidratacionPTE, item.finalHidratacionPTE)
+    ),
+    tiempoSTE: formatearDuracion(segundosEntre(item.inicioSTE, item.finalSTE)),
+    tiempoHidratacionSTE: formatearDuracion(
+      segundosEntre(item.inicioHidratacionSTE, item.finalHidratacionSTE)
+    ),
   });
 
   const resumen = useMemo(() => {
@@ -1170,8 +1355,58 @@ tiempoST: fila.tiempo_st || "",
         registro.inicioHidratacionST,
         registro.finalHidratacionST
       ),
+      tiempoPTE: segundosEntre(registro.inicioPTE, registro.finalPTE),
+      tiempoHidratacionPTE: segundosEntre(
+        registro.inicioHidratacionPTE,
+        registro.finalHidratacionPTE
+      ),
+      tiempoSTE: segundosEntre(registro.inicioSTE, registro.finalSTE),
+      tiempoHidratacionSTE: segundosEntre(
+        registro.inicioHidratacionSTE,
+        registro.finalHidratacionSTE
+      ),
     };
   }, [registro]);
+
+  const serializarProrroga = (item) => ({
+    activa: Boolean(item.prorrogaActiva),
+    inicioPTE: item.inicioPTE || "",
+    finalPTE: item.finalPTE || "",
+    varsPTE: item.varsPTE || [{ inicio: "", final: "" }],
+    inicioHidratacionPTE: item.inicioHidratacionPTE || "",
+    finalHidratacionPTE: item.finalHidratacionPTE || "",
+    inicioSTE: item.inicioSTE || "",
+    finalSTE: item.finalSTE || "",
+    varsSTE: item.varsSTE || [{ inicio: "", final: "" }],
+    inicioHidratacionSTE: item.inicioHidratacionSTE || "",
+    finalHidratacionSTE: item.finalHidratacionSTE || "",
+    tiempoPTE: item.tiempoPTE || "",
+    tiempoHidratacionPTE: item.tiempoHidratacionPTE || "",
+    tiempoSTE: item.tiempoSTE || "",
+    tiempoHidratacionSTE: item.tiempoHidratacionSTE || "",
+  });
+
+  const tieneDatosExtendidos = (item) =>
+    Boolean(
+      item.prorrogaActiva ||
+        (item.cambios || []).length > 5 ||
+        (item.cambiosRival || []).length > 5
+    );
+
+  const esErrorColumnasExtendidas = (error) =>
+    /prorroga|cambios_extra|cambios_rival_extra/i.test(
+      String(error?.message || error?.details || "")
+    );
+
+  const quitarCamposExtendidos = (payload) => {
+    const {
+      prorroga,
+      cambios_extra,
+      cambios_rival_extra,
+      ...payloadBase
+    } = payload;
+    return payloadBase;
+  };
 
   const guardarRegistro = async () => {
     const nuevoRegistro = {
@@ -1179,6 +1414,8 @@ tiempoST: fila.tiempo_st || "",
       ...calcularTiemposRegistro(registro),
       varsPT: registro.varsPT || [{ inicio: "", final: "" }],
       varsST: registro.varsST || [{ inicio: "", final: "" }],
+      varsPTE: registro.varsPTE || [{ inicio: "", final: "" }],
+      varsSTE: registro.varsSTE || [{ inicio: "", final: "" }],
       noIngresaron: calcularNoIngresaron(registro.formacion, registro.cambios),
       guardadoEn: new Date().toISOString(),
     };
@@ -1254,16 +1491,38 @@ rival_cambio_horario4: cambiosRival[3]?.hora || "",
 rival_cambio_sale5: cambiosRival[4]?.sale || "",
 rival_cambio_entra5: cambiosRival[4]?.entra || "",
 rival_cambio_horario5: cambiosRival[4]?.hora || "",
+
+      prorroga: serializarProrroga(nuevoRegistro),
+      cambios_extra: (nuevoRegistro.cambios || []).slice(5),
+      cambios_rival_extra: cambiosRival.slice(5),
       
       titulares: nuevoRegistro.formacion?.titulares || [],
       convocados: nuevoRegistro.formacion?.convocados || [],
     };
   
-    const { error } = await supabase
+    let { error } = await supabase
       .from("registros_partido")
       .insert([registroSupabase]);
+
+    if (
+      error &&
+      esErrorColumnasExtendidas(error) &&
+      !tieneDatosExtendidos(nuevoRegistro)
+    ) {
+      const reintento = await supabase
+        .from("registros_partido")
+        .insert([quitarCamposExtendidos(registroSupabase)]);
+      error = reintento.error;
+    }
   
     if (error) {
+      if (esErrorColumnasExtendidas(error)) {
+        alert(
+          "Falta ejecutar la migración de prórroga en Supabase. Abrí el archivo SQL incluido en el repositorio y ejecutalo en SQL Editor."
+        );
+        setMensajeGuardado("Falta actualizar la base de datos");
+        return;
+      }
       console.error("ERROR COMPLETO SUPABASE:");
       console.log(error);
       alert(JSON.stringify(error, null, 2));
@@ -1376,6 +1635,10 @@ tiempo_st: registroEditado.tiempoST || "",
       rival_cambio_sale5: cambiosRival[4]?.sale || "",
       rival_cambio_entra5: cambiosRival[4]?.entra || "",
       rival_cambio_horario5: cambiosRival[4]?.hora || "",
+
+      prorroga: serializarProrroga(registroEditado),
+      cambios_extra: (registroEditado.cambios || []).slice(5),
+      cambios_rival_extra: cambiosRival.slice(5),
   
       titulares: registroEditado.formacion?.titulares || [],
       convocados: registroEditado.formacion?.convocados || [],
@@ -1464,13 +1727,35 @@ tiempo_st: registroEditado.tiempoST || "",
     console.log("ID A EDITAR:", idRegistro);
     console.log("DATOS QUE SE MANDAN A SUPABASE:", registroSupabase);
   
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("registros_partido")
       .update(registroSupabase)
       .eq("id", idRegistro)
       .select();
+
+    if (
+      error &&
+      esErrorColumnasExtendidas(error) &&
+      !tieneDatosExtendidos(registroConTiempos)
+    ) {
+      const reintento = await supabase
+        .from("registros_partido")
+        .update(quitarCamposExtendidos(registroSupabase))
+        .eq("id", idRegistro)
+        .select();
+
+      data = reintento.data;
+      error = reintento.error;
+    }
   
     if (error) {
+      if (esErrorColumnasExtendidas(error)) {
+        alert(
+          "Falta ejecutar la migración de prórroga en Supabase antes de guardar estos datos."
+        );
+        return false;
+      }
+
       console.error("Error editando registro en Supabase:", error);
       alert("No se pudieron guardar los cambios en Supabase");
       return false;
@@ -1666,6 +1951,89 @@ tiempo_st: registroEditado.tiempoST || "",
       <CampoHora label="Final" campo={finalCampo} />
     </div>
   );
+
+  const BloqueVarPeriodo = ({ tipo, titulo }) => {
+    const config = obtenerConfigPeriodo(tipo);
+    const vars = registro[config.vars] || [{ inicio: "", final: "" }];
+    const activo = registro[config.activo] || 0;
+
+    return (
+      <div className="bloque-evento bloque-var-prorroga">
+        <div className="titulo-evento">
+          <h3>{titulo}</h3>
+          <span>
+            {formatearDuracion(
+              segundosEntre(vars[activo]?.inicio, vars[activo]?.final)
+            ) || "-"}
+          </span>
+        </div>
+
+        <div className="vars-header">
+          {vars.map((item, index) => (
+            <button
+              key={`${tipo}-var-${index}`}
+              type="button"
+              className={`var-chip ${activo === index ? "activo" : ""}`}
+              onClick={() => cambiarVarActivo(tipo, index)}
+            >
+              {formatearDuracion(segundosEntre(item.inicio, item.final)) ||
+                `VAR ${index + 1}`}
+            </button>
+          ))}
+        </div>
+
+        <div className="campo-hora">
+          <label>Inicio</label>
+          <div className="fila-hora">
+            <input
+              {...obtenerPropsInputTiempo(
+                vars[activo]?.inicio || "",
+                (valor) => actualizarVar(tipo, "inicio", valor),
+                registro.modoTiempo
+              )}
+            />
+            <button
+              type="button"
+              className="boton-ahora"
+              onClick={() => ponerAhoraVar(tipo, "inicio")}
+            >
+              Ahora
+            </button>
+          </div>
+        </div>
+
+        <div className="campo-hora">
+          <label>Final</label>
+          <div className="fila-hora">
+            <input
+              {...obtenerPropsInputTiempo(
+                vars[activo]?.final || "",
+                (valor) => actualizarVar(tipo, "final", valor),
+                registro.modoTiempo
+              )}
+            />
+            <button
+              type="button"
+              className="boton-ahora"
+              onClick={() => ponerAhoraVar(tipo, "final")}
+            >
+              Ahora
+            </button>
+          </div>
+        </div>
+
+        {vars.length < 3 && (
+          <button
+            type="button"
+            className="boton-agregar-var"
+            onClick={() => agregarVar(tipo)}
+          >
+            Agregar +
+          </button>
+        )}
+      </div>
+    );
+  };
 
   const ListaSimple = ({
     titulo,
@@ -2573,6 +2941,91 @@ setTimeout(() => {
             )}
           </section>
 
+          {editado.prorrogaActiva && (
+            <section className="tarjeta tarjeta-prorroga detalle-prorroga">
+              <div className="cabecera-prorroga">
+                <div>
+                  <span className="etiqueta-prorroga">TIEMPO EXTRA</span>
+                  <h2>Prórroga</h2>
+                </div>
+              </div>
+
+              <div className="grid-prorroga">
+                <div className="periodo-prorroga">
+                  <h3>Primer tiempo de prórroga</h3>
+                  <DatoDetalle label="Inicio PTE" valor={editado.inicioPTE} />
+                  <DatoDetalle label="Final PTE" valor={editado.finalPTE} />
+                  <DatoDetalle
+                    label="Tiempo PTE"
+                    valor={tiemposEditados.tiempoPTE}
+                  />
+                  {(editado.varsPTE || [])
+                    .filter((item) => item.inicio || item.final)
+                    .map((item, varIndex) => (
+                      <div className="var-detalle" key={`detalle-pte-${varIndex}`}>
+                        <div className="var-detalle-header">
+                          <span>VAR PTE {varIndex + 1}</span>
+                          <span className="var-detalle-tempo">
+                            {formatearDuracion(
+                              segundosEntre(item.inicio, item.final)
+                            )}
+                          </span>
+                        </div>
+                        <div className="var-detalle-info">
+                          <span>Inicio: {item.inicio || "--:--"}</span>
+                          <span>Final: {item.final || "--:--"}</span>
+                        </div>
+                      </div>
+                    ))}
+                  <DatoDetalle
+                    label="Inicio Hidratación PTE"
+                    valor={editado.inicioHidratacionPTE}
+                  />
+                  <DatoDetalle
+                    label="Final Hidratación PTE"
+                    valor={editado.finalHidratacionPTE}
+                  />
+                </div>
+
+                <div className="periodo-prorroga">
+                  <h3>Segundo tiempo de prórroga</h3>
+                  <DatoDetalle label="Inicio STE" valor={editado.inicioSTE} />
+                  <DatoDetalle label="Final STE" valor={editado.finalSTE} />
+                  <DatoDetalle
+                    label="Tiempo STE"
+                    valor={tiemposEditados.tiempoSTE}
+                  />
+                  {(editado.varsSTE || [])
+                    .filter((item) => item.inicio || item.final)
+                    .map((item, varIndex) => (
+                      <div className="var-detalle" key={`detalle-ste-${varIndex}`}>
+                        <div className="var-detalle-header">
+                          <span>VAR STE {varIndex + 1}</span>
+                          <span className="var-detalle-tempo">
+                            {formatearDuracion(
+                              segundosEntre(item.inicio, item.final)
+                            )}
+                          </span>
+                        </div>
+                        <div className="var-detalle-info">
+                          <span>Inicio: {item.inicio || "--:--"}</span>
+                          <span>Final: {item.final || "--:--"}</span>
+                        </div>
+                      </div>
+                    ))}
+                  <DatoDetalle
+                    label="Inicio Hidratación STE"
+                    valor={editado.inicioHidratacionSTE}
+                  />
+                  <DatoDetalle
+                    label="Final Hidratación STE"
+                    valor={editado.finalHidratacionSTE}
+                  />
+                </div>
+              </div>
+            </section>
+          )}
+
           <section className="tarjeta">
             <h2>Cambios</h2>
 
@@ -3060,6 +3513,14 @@ setTimeout(() => {
                 )
               )}
             </div>
+
+            <button
+              type="button"
+              className="boton-agregar-cambio boton-agregar-cambio-rival"
+              onClick={() => agregarCambio("rival")}
+            >
+              + Agregar cambio
+            </button>
   
             <div className="contenedor-limpiar-rival">
               <button
@@ -3311,6 +3772,85 @@ setTimeout(() => {
           />
         </section>
 
+        {registro.prorrogaActiva && (
+          <section
+            className="tarjeta tarjeta-prorroga"
+            id="seccion-prorroga"
+          >
+            <div className="cabecera-prorroga">
+              <div>
+                <span className="etiqueta-prorroga">TIEMPO EXTRA</span>
+                <h2>Prórroga</h2>
+                <p>
+                  Primer tiempo desde 090:00 · Segundo tiempo desde 105:00
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="boton-quitar-prorroga"
+                onClick={quitarProrroga}
+              >
+                Quitar
+              </button>
+            </div>
+
+            <div className="grid-prorroga">
+              <div className="periodo-prorroga">
+                <div className="titulo-periodo-prorroga">
+                  <span>1</span>
+                  <div>
+                    <strong>Primer tiempo de prórroga</strong>
+                    <small>Inicio de transmisión: 090:00</small>
+                  </div>
+                </div>
+
+                <BloqueEvento
+                  titulo="PTE"
+                  inicioCampo="inicioPTE"
+                  finalCampo="finalPTE"
+                  duracion={formatearDuracion(resumen.tiempoPTE)}
+                />
+                <BloqueVarPeriodo tipo="PTE" titulo="VAR PTE" />
+                <BloqueEvento
+                  titulo="Hidratación PTE"
+                  inicioCampo="inicioHidratacionPTE"
+                  finalCampo="finalHidratacionPTE"
+                  duracion={formatearDuracion(
+                    resumen.tiempoHidratacionPTE
+                  )}
+                />
+              </div>
+
+              <div className="periodo-prorroga">
+                <div className="titulo-periodo-prorroga">
+                  <span>2</span>
+                  <div>
+                    <strong>Segundo tiempo de prórroga</strong>
+                    <small>Inicio de transmisión: 105:00</small>
+                  </div>
+                </div>
+
+                <BloqueEvento
+                  titulo="STE"
+                  inicioCampo="inicioSTE"
+                  finalCampo="finalSTE"
+                  duracion={formatearDuracion(resumen.tiempoSTE)}
+                />
+                <BloqueVarPeriodo tipo="STE" titulo="VAR STE" />
+                <BloqueEvento
+                  titulo="Hidratación STE"
+                  inicioCampo="inicioHidratacionSTE"
+                  finalCampo="finalHidratacionSTE"
+                  duracion={formatearDuracion(
+                    resumen.tiempoHidratacionSTE
+                  )}
+                />
+              </div>
+            </div>
+          </section>
+        )}
+
         <section className="tarjeta">
   <h2>Cambios</h2>
   <div className="tabla-cambios">
@@ -3368,6 +3908,14 @@ setTimeout(() => {
               </div>
             ))}
           </div>
+
+          <button
+            type="button"
+            className="boton-agregar-cambio"
+            onClick={() => agregarCambio("atletico")}
+          >
+            + Agregar cambio
+          </button>
         </section>
 
         <section className="tarjeta">
@@ -3420,6 +3968,25 @@ setTimeout(() => {
             Guardar
           </button>
         </div>
+
+        <section className="tarjeta tarjeta-accion-prorroga">
+          <button
+            type="button"
+            className={`boton-cargar-prorroga ${
+              registro.prorrogaActiva ? "activa" : ""
+            }`}
+            onClick={activarProrroga}
+          >
+            <strong>
+              {registro.prorrogaActiva ? "Ver Prórroga" : "Cargar Prórroga"}
+            </strong>
+            <span>
+              {registro.prorrogaActiva
+                ? "La sección ya está disponible dentro del partido"
+                : "Agrega dos tiempos de 15 minutos, VAR e hidratación"}
+            </span>
+          </button>
+        </section>
 
         <section className="tarjeta">
   <button
