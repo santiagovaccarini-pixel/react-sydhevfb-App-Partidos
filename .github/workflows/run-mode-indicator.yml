@@ -19,6 +19,9 @@ jobs:
           ref: agent/mode-indicator
           persist-credentials: true
 
+      - name: Correct patch script
+        run: python scripts/fix_mode_patch.py
+
       - name: Apply patch
         run: python scripts/add_mode_indicator.py
 
@@ -33,6 +36,7 @@ jobs:
           git checkout -- package.json
           rm -rf build
           rm -f scripts/add_mode_indicator.py
+          rm -f scripts/fix_mode_patch.py
           rmdir scripts 2>/dev/null || true
 
       - name: Commit validated changes
