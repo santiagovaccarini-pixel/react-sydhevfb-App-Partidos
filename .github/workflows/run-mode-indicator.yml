@@ -1,0 +1,44 @@
+name: Run mode indicator patch
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-build:
+    if: ${{ github.head_ref == 'agent/mode-indicator' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/mode-indicator
+          persist-credentials: true
+
+      - name: Apply patch
+        run: python scripts/add_mode_indicator.py
+
+      - name: Install dependencies
+        run: npm install --no-package-lock
+
+      - name: Build application
+        run: npm run build
+
+      - name: Clean temporary files
+        run: |
+          git checkout -- package.json
+          rm -rf build
+          rm -f scripts/add_mode_indicator.py
+          rmdir scripts 2>/dev/null || true
+
+      - name: Commit validated changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Agrega indicador de modo y aviso de actualización"
+          git push origin HEAD:agent/mode-indicator
