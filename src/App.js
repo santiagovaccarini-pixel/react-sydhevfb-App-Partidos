@@ -971,6 +971,10 @@ tiempoST: fila.tiempo_st || "",
   };
 
   const horaDesdeTimestamp = (timestamp) => {
+    if (timestamp === null || timestamp === undefined || timestamp === "") {
+      return "";
+    }
+
     const fecha = new Date(Number(timestamp));
     return Number.isNaN(fecha.getTime()) ? "" : fecha.toTimeString().slice(0, 8);
   };
@@ -1858,7 +1862,7 @@ rival_cambio_entra5: cambiosRival[4]?.entra || "",
 rival_cambio_horario5: cambiosRival[4]?.hora || "",
 
       guia_transmision: serializarGuiaTransmision(nuevoRegistro),
-      prorroga: serializarProrroga(nuevoRegistro),
+      prorroga: serializarProrroga(registroConHorasReales),
       cambios_extra: (registroConHorasReales.cambios || []).slice(5),
       cambios_rival_extra: cambiosRival.slice(5),
       
@@ -2006,7 +2010,7 @@ tiempo_st: registroParaGuardar.tiempoST || "",
 
       guia_transmision:
         registroEditado.guiaTransmision || serializarGuiaTransmision(registroEditado),
-      prorroga: serializarProrroga(registroEditado),
+      prorroga: serializarProrroga(registroParaGuardar),
       cambios_extra: (registroParaGuardar.cambios || []).slice(5),
       cambios_rival_extra: cambiosRival.slice(5),
   
@@ -2121,7 +2125,7 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     if (error) {
       if (esErrorColumnasExtendidas(error)) {
         alert(
-          "Falta ejecutar la migración de prórroga en Supabase antes de guardar estos datos."
+          "Falta ejecutar la migración de transmisión y prórroga en Supabase antes de guardar estos datos."
         );
         return false;
       }
