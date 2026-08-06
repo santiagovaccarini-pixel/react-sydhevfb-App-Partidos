@@ -19,6 +19,23 @@ jobs:
           ref: agent/transmission-real-hours
           persist-credentials: true
 
+      - name: Correct patch anchors
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply_transmission_real_hours.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              'prorroga: serializarProrroga(registroConHorasReales)',
+              'prorroga: serializarProrroga(nuevoRegistro)',
+          )
+          text = text.replace(
+              'prorroga: serializarProrroga(registroParaGuardar)',
+              'prorroga: serializarProrroga(registroEditado)',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Apply transmission patch
         run: python scripts/apply_transmission_real_hours.py
 
