@@ -14,21 +14,29 @@ jobs:
 
     steps:
       - name: Checkout implementation branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent/single-transmission-picker
-          persist-credentials: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone \
+            --branch agent/single-transmission-picker \
+            --single-branch \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            repo
 
       - name: Apply single picker patch
+        working-directory: repo
         run: python scripts/apply_single_transmission_picker.py
 
       - name: Install dependencies
+        working-directory: repo
         run: npm install --no-package-lock
 
       - name: Build application
+        working-directory: repo
         run: npm run build
 
       - name: Clean validation artifacts
+        working-directory: repo
         run: |
           git checkout -- package.json
           rm -rf build
@@ -37,6 +45,7 @@ jobs:
           rmdir scripts 2>/dev/null || true
 
       - name: Commit validated implementation
+        working-directory: repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
