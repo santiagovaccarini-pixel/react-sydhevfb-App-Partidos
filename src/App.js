@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.06.1";
+const APP_VERSION = "2026.08.06.2";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
@@ -256,23 +256,13 @@ varSTEActivo: registroRecuperado.varSTEActivo || 0,
     const cambiosRivalExtra = Array.isArray(fila.cambios_rival_extra)
       ? fila.cambios_rival_extra
       : [];
-    const guiaTransmision = fila.guia_transmision || {};
-    const esTransmisionConHorasReales =
-      guiaTransmision.modo === "transmision";
-    const modoDetectado = detectarModoTiempoFila(fila);
 
     const registroConvertido = {
       fecha: fila.fecha || "",
       rival: fila.rival || "",
       resultado: fila.resultado || "",
-      // Los registros nuevos de Transmisión ya están persistidos como horas reales.
-      modoTiempo: esTransmisionConHorasReales ? "enVivo" : modoDetectado,
-      modoCaptura: esTransmisionConHorasReales ? "transmision" : modoDetectado,
-      guiaTransmision,
-      horaInicioRealPT: guiaTransmision.horaInicioRealPT || "",
-      horaFinalRealPT: guiaTransmision.horaFinalRealPT || "",
-      horaInicioRealST: guiaTransmision.horaInicioRealST || "",
-      horaFinalRealST: guiaTransmision.horaFinalRealST || "",
+      // Los registros guardados contienen únicamente horas reales.
+      modoTiempo: detectarModoTiempoFila(fila),
   
       inicioPT: fila.inicio_pt || "",
 finalPT: fila.final_pt || "",
@@ -285,10 +275,6 @@ tiempoST: fila.tiempo_st || "",
       prorrogaActiva: Boolean(prorroga.activa),
       referenciaRealPTE: null,
       referenciaRealSTE: null,
-      horaInicioRealPTE: guiaTransmision.horaInicioRealPTE || "",
-      horaFinalRealPTE: guiaTransmision.horaFinalRealPTE || "",
-      horaInicioRealSTE: guiaTransmision.horaInicioRealSTE || "",
-      horaFinalRealSTE: guiaTransmision.horaFinalRealSTE || "",
       inicioPTE: prorroga.inicioPTE || "",
       finalPTE: prorroga.finalPTE || "",
       varsPTE:
@@ -1087,10 +1073,6 @@ tiempoST: fila.tiempo_st || "",
   };
 
   const detectarModoTiempoFila = (fila) => {
-    if (fila.guia_transmision?.modo === "transmision") {
-      return "transmision";
-    }
-
     const prorroga = fila.prorroga || {};
     const cambiosExtra = Array.isArray(fila.cambios_extra)
       ? fila.cambios_extra
@@ -1560,38 +1542,6 @@ tiempoST: fila.tiempo_st || "",
     tiempoHidratacionSTE: item.tiempoHidratacionSTE || "",
   });
 
-  const serializarGuiaTransmision = (item) => {
-    if (item.modoTiempo !== "transmision") {
-      return item.guiaTransmision || { modo: "enVivo" };
-    }
-
-    return {
-      modo: "transmision",
-      version: 2,
-      horaInicioRealPT: obtenerHoraInicioRealPeriodo("PT", item),
-      horaFinalRealPT: item.horaFinalRealPT || "",
-      horaInicioRealST: obtenerHoraInicioRealPeriodo("ST", item),
-      horaFinalRealST: item.horaFinalRealST || "",
-      horaInicioRealPTE: obtenerHoraInicioRealPeriodo("PTE", item),
-      horaFinalRealPTE: item.horaFinalRealPTE || "",
-      horaInicioRealSTE: obtenerHoraInicioRealPeriodo("STE", item),
-      horaFinalRealSTE: item.horaFinalRealSTE || "",
-      inicioPT: item.inicioPT || "",
-      finalPT: item.finalPT || "",
-      varsPT: item.varsPT || [],
-      inicioHidratacionPT: item.inicioHidratacionPT || "",
-      finalHidratacionPT: item.finalHidratacionPT || "",
-      inicioST: item.inicioST || "",
-      finalST: item.finalST || "",
-      varsST: item.varsST || [],
-      inicioHidratacionST: item.inicioHidratacionST || "",
-      finalHidratacionST: item.finalHidratacionST || "",
-      cambios: item.cambios || [],
-      cambiosRival: item.cambiosRival || [],
-      prorroga: serializarProrroga(item),
-    };
-  };
-
   const obtenerPeriodoCambioParaGuardar = (cambio, item) => {
     if (cambio?.periodo) return cambio.periodo;
     if (!esFormatoTransmision(cambio?.hora)) return "";
@@ -1747,14 +1697,13 @@ tiempoST: fila.tiempo_st || "",
 
   const tieneDatosExtendidos = (item) =>
     Boolean(
-      item.modoTiempo === "transmision" ||
-        item.prorrogaActiva ||
+      item.prorrogaActiva ||
         (item.cambios || []).length > 5 ||
         (item.cambiosRival || []).length > 5
     );
 
   const esErrorColumnasExtendidas = (error) =>
-    /prorroga|cambios_extra|cambios_rival_extra|guia_transmision/i.test(
+    /prorroga|cambios_extra|cambios_rival_extra/i.test(
       String(error?.message || error?.details || "")
     );
 
@@ -1763,7 +1712,6 @@ tiempoST: fila.tiempo_st || "",
       prorroga,
       cambios_extra,
       cambios_rival_extra,
-      guia_transmision,
       ...payloadBase
     } = payload;
     return payloadBase;
@@ -1861,7 +1809,6 @@ rival_cambio_sale5: cambiosRival[4]?.sale || "",
 rival_cambio_entra5: cambiosRival[4]?.entra || "",
 rival_cambio_horario5: cambiosRival[4]?.hora || "",
 
-      guia_transmision: serializarGuiaTransmision(nuevoRegistro),
       prorroga: serializarProrroga(registroConHorasReales),
       cambios_extra: (registroConHorasReales.cambios || []).slice(5),
       cambios_rival_extra: cambiosRival.slice(5),
@@ -1888,7 +1835,7 @@ rival_cambio_horario5: cambiosRival[4]?.hora || "",
     if (error) {
       if (esErrorColumnasExtendidas(error)) {
         alert(
-          "Falta ejecutar la migración de transmisión y prórroga en Supabase. Abrí el archivo SQL incluido en el repositorio y ejecutalo en SQL Editor."
+          "Falta ejecutar la migración de prórroga y cambios extra en Supabase. Abrí el archivo SQL incluido en el repositorio y ejecutalo en SQL Editor."
         );
         setMensajeGuardado("Falta actualizar la base de datos");
         return;
@@ -2008,8 +1955,6 @@ tiempo_st: registroParaGuardar.tiempoST || "",
       rival_cambio_entra5: cambiosRival[4]?.entra || "",
       rival_cambio_horario5: cambiosRival[4]?.hora || "",
 
-      guia_transmision:
-        registroEditado.guiaTransmision || serializarGuiaTransmision(registroEditado),
       prorroga: serializarProrroga(registroParaGuardar),
       cambios_extra: (registroParaGuardar.cambios || []).slice(5),
       cambios_rival_extra: cambiosRival.slice(5),
@@ -2125,7 +2070,7 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     if (error) {
       if (esErrorColumnasExtendidas(error)) {
         alert(
-          "Falta ejecutar la migración de transmisión y prórroga en Supabase antes de guardar estos datos."
+          "Falta ejecutar la migración de prórroga y cambios extra en Supabase antes de guardar estos datos."
         );
         return false;
       }
