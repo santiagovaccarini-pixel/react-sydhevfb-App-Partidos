@@ -49,6 +49,7 @@ jobs:
         run: |
           git checkout -- package.json
           rm -rf build
+          rm -f .validation-trigger
           rm -f scripts/apply_transmission_real_hours.py
           rmdir scripts 2>/dev/null || true
 
