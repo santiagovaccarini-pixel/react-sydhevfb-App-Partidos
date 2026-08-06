@@ -1,3 +1,4 @@
+# Parche visual aislado para el selector horario del Rival.
 from pathlib import Path
 
 APP_PATH = Path("src/App.js")
