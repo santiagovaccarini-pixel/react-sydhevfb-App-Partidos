@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.06.3";
+const APP_VERSION = "2026.08.06.4";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
@@ -196,58 +196,169 @@ const SelectorTiempoTransmision = ({
   compacto = false,
   onKeyDown,
 }) => {
+  const contenedorRef = useRef(null);
+  const listaMinutosRef = useRef(null);
+  const listaSegundosRef = useRef(null);
+  const [abierto, setAbierto] = useState(false);
   const { minutos, segundos } = descomponerTiempoTransmision(value);
+  const minutoSeleccionado = minutos || "000";
+  const segundoSeleccionado = segundos || "00";
+
+  useEffect(() => {
+    const cerrarAlTocarAfuera = (evento) => {
+      if (!contenedorRef.current?.contains(evento.target)) {
+        setAbierto(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", cerrarAlTocarAfuera);
+    return () => document.removeEventListener("pointerdown", cerrarAlTocarAfuera);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!abierto) return undefined;
+
+    const centrarSeleccion = (lista, valor) => {
+      const opcion = lista?.querySelector(`[data-valor="${valor}"]`);
+      if (!lista || !opcion) return;
+
+      lista.scrollTop =
+        opcion.offsetTop - lista.clientHeight / 2 + opcion.clientHeight / 2;
+    };
+
+    const frame = window.requestAnimationFrame(() => {
+      centrarSeleccion(listaMinutosRef.current, minutoSeleccionado);
+      centrarSeleccion(listaSegundosRef.current, segundoSeleccionado);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [abierto, minutoSeleccionado, segundoSeleccionado]);
 
   const cambiarMinutos = (nuevoMinuto) => {
-    if (!nuevoMinuto) {
-      onChange("");
-      return;
-    }
-
     onChange(`${nuevoMinuto}:${segundos || "00"}`);
   };
 
   const cambiarSegundos = (nuevoSegundo) => {
-    if (!nuevoSegundo && !minutos) {
-      onChange("");
+    onChange(`${minutos || "000"}:${nuevoSegundo}`);
+  };
+
+  const manejarTecladoInterno = (evento) => {
+    if (evento.key === "Escape") {
+      evento.preventDefault();
+      setAbierto(false);
       return;
     }
 
-    onChange(`${minutos || "000"}:${nuevoSegundo || "00"}`);
+    if (evento.key === "Enter" && abierto) {
+      evento.preventDefault();
+      setAbierto(false);
+      return;
+    }
+
+    onKeyDown?.(evento);
   };
 
   return (
     <div
-      className={`selector-tiempo-transmision ${compacto ? "compacto" : ""}`}
-      onKeyDown={onKeyDown}
+      ref={contenedorRef}
+      className={`selector-tiempo-transmision ${
+        compacto ? "compacto" : ""
+      } ${abierto ? "abierto" : ""}`}
+      onKeyDown={manejarTecladoInterno}
     >
-      <select
-        value={minutos}
-        onChange={(evento) => cambiarMinutos(evento.target.value)}
-        aria-label="Minutos"
+      <button
+        type="button"
+        className="selector-tiempo-disparador"
+        onClick={() => setAbierto((actual) => !actual)}
+        aria-haspopup="listbox"
+        aria-expanded={abierto}
+        aria-label="Elegir minutos y segundos"
       >
-        <option value="">Min</option>
-        {opcionesMinutosTransmision.map((minuto) => (
-          <option key={minuto} value={minuto}>
-            {minuto}
-          </option>
-        ))}
-      </select>
+        <span
+          className={`selector-tiempo-valor ${value ? "" : "vacio"}`}
+        >
+          {value || "---:--"}
+        </span>
+        <span className="selector-tiempo-reloj" aria-hidden="true" />
+      </button>
 
-      <span className="selector-tiempo-separador">:</span>
+      {abierto && (
+        <div className="selector-tiempo-panel">
+          <div className="selector-tiempo-cabecera">
+            <span>Minutos</span>
+            <span>Segundos</span>
+          </div>
 
-      <select
-        value={segundos}
-        onChange={(evento) => cambiarSegundos(evento.target.value)}
-        aria-label="Segundos"
-      >
-        <option value="">Seg</option>
-        {opcionesSegundosTransmision.map((segundo) => (
-          <option key={segundo} value={segundo}>
-            {segundo}
-          </option>
-        ))}
-      </select>
+          <div className="selector-tiempo-columnas">
+            <div
+              ref={listaMinutosRef}
+              className="selector-tiempo-columna"
+              role="listbox"
+              aria-label="Minutos"
+            >
+              {opcionesMinutosTransmision.map((minuto) => (
+                <button
+                  key={minuto}
+                  type="button"
+                  role="option"
+                  data-valor={minuto}
+                  aria-selected={minutoSeleccionado === minuto}
+                  className={`selector-tiempo-opcion ${
+                    minutoSeleccionado === minuto ? "activa" : ""
+                  }`}
+                  onClick={() => cambiarMinutos(minuto)}
+                >
+                  {minuto}
+                </button>
+              ))}
+            </div>
+
+            <div
+              ref={listaSegundosRef}
+              className="selector-tiempo-columna"
+              role="listbox"
+              aria-label="Segundos"
+            >
+              {opcionesSegundosTransmision.map((segundo) => (
+                <button
+                  key={segundo}
+                  type="button"
+                  role="option"
+                  data-valor={segundo}
+                  aria-selected={segundoSeleccionado === segundo}
+                  className={`selector-tiempo-opcion ${
+                    segundoSeleccionado === segundo ? "activa" : ""
+                  }`}
+                  onClick={() => cambiarSegundos(segundo)}
+                >
+                  {segundo}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="selector-tiempo-acciones">
+            <button
+              type="button"
+              className="selector-tiempo-limpiar"
+              onClick={() => {
+                onChange("");
+                setAbierto(false);
+              }}
+            >
+              Limpiar
+            </button>
+
+            <button
+              type="button"
+              className="selector-tiempo-listo"
+              onClick={() => setAbierto(false)}
+            >
+              Listo
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
