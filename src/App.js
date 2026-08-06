@@ -3574,20 +3574,7 @@ setTimeout(() => {
 </section>
 
           <section className="tarjeta">
-            {registro.modoTiempo === "transmision" && (
-            <div className="editor-hora-real-inicio">
-              <span>Hora real de inicio</span>
-              <SelectorHoraEnVivo
-                value={obtenerHoraRealEditable("PT")}
-                onChange={(valor) =>
-                  actualizarHoraInicioRealPeriodo("PT", valor)
-                }
-                compacto
-              />
-            </div>
-          )}
-
-          <h2>Primer tiempo</h2>
+            <h2>Primer tiempo</h2>
 
             {editando ? (
               <>
@@ -3707,20 +3694,7 @@ setTimeout(() => {
           </section>
 
           <section className="tarjeta">
-            {registro.modoTiempo === "transmision" && (
-            <div className="editor-hora-real-inicio">
-              <span>Hora real de inicio</span>
-              <SelectorHoraEnVivo
-                value={obtenerHoraRealEditable("ST")}
-                onChange={(valor) =>
-                  actualizarHoraInicioRealPeriodo("ST", valor)
-                }
-                compacto
-              />
-            </div>
-          )}
-
-          <h2>Segundo tiempo</h2>
+            <h2>Segundo tiempo</h2>
 
             {editando ? (
               <>
@@ -4457,6 +4431,19 @@ setTimeout(() => {
         </section>
 
         <section className="tarjeta">
+          {registro.modoTiempo === "transmision" && (
+            <div className="editor-hora-real-inicio">
+              <span>Hora real de inicio</span>
+              <SelectorHoraEnVivo
+                value={obtenerHoraRealEditable("PT")}
+                onChange={(valor) =>
+                  actualizarHoraInicioRealPeriodo("PT", valor)
+                }
+                compacto
+              />
+            </div>
+          )}
+
           <h2>Primer tiempo</h2>
 
           <BloqueEvento
@@ -4539,6 +4526,19 @@ setTimeout(() => {
         </section>
 
         <section className="tarjeta">
+          {registro.modoTiempo === "transmision" && (
+            <div className="editor-hora-real-inicio">
+              <span>Hora real de inicio</span>
+              <SelectorHoraEnVivo
+                value={obtenerHoraRealEditable("ST")}
+                onChange={(valor) =>
+                  actualizarHoraInicioRealPeriodo("ST", valor)
+                }
+                compacto
+              />
+            </div>
+          )}
+
           <h2>Segundo tiempo</h2>
 
           <BloqueEvento
