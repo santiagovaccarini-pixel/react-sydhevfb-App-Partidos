@@ -1785,3 +1785,115 @@ button:active {
   z-index: 80;
 }
 
+/* Restaura la apariencia original de la tabla de cambios */
+.encabezado-cambios {
+  border-radius: 17px 17px 0 0;
+  overflow: hidden;
+}
+
+.tabla-cambios > .fila-cambio:last-child > div:first-child {
+  border-bottom-left-radius: 17px;
+}
+
+.tabla-cambios > .fila-cambio:last-child > div:last-child {
+  border-bottom-right-radius: 17px;
+}
+
+.celda-hora-cambio .selector-tiempo-transmision,
+.celda-hora-detalle-editable .selector-tiempo-transmision {
+  width: 100%;
+  min-width: 0;
+}
+
+.celda-hora-cambio .selector-tiempo-disparador {
+  width: 100%;
+  height: 30px;
+  padding: 0 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.celda-hora-cambio .selector-tiempo-valor,
+.celda-hora-detalle-editable .selector-tiempo-valor {
+  flex: 1;
+  text-align: center;
+}
+
+.celda-hora-cambio .selector-tiempo-reloj {
+  width: 12px;
+  height: 12px;
+  flex-basis: 12px;
+}
+
+.celda-hora-detalle-editable .selector-tiempo-disparador {
+  width: 100%;
+  height: 32px;
+  padding: 0 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+/* Hora real editable dentro de las tarjetas PT y ST */
+.editor-hora-real-inicio {
+  position: relative;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 32px;
+  margin: -3px 0 7px;
+}
+
+.editor-hora-real-inicio > span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.editor-hora-real-inicio .selector-hora-en-vivo {
+  flex: 0 0 142px;
+  width: 142px;
+}
+
+.editor-hora-real-inicio .selector-tiempo-disparador {
+  height: 30px;
+  padding: 0 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.editor-hora-real-inicio .selector-tiempo-panel {
+  left: auto;
+  right: 0;
+  width: min(300px, calc(100vw - 24px));
+}
+
+@media (max-width: 430px) {
+  .editor-hora-real-inicio {
+    gap: 6px;
+  }
+
+  .editor-hora-real-inicio > span {
+    font-size: 9px;
+  }
+
+  .editor-hora-real-inicio .selector-hora-en-vivo {
+    flex-basis: 132px;
+    width: 132px;
+  }
+}
+

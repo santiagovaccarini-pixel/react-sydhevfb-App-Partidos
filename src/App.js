@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.06.5";
+const APP_VERSION = "2026.08.06.6";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
@@ -1726,6 +1726,35 @@ tiempoST: fila.tiempo_st || "",
 
       return siguiente;
     });
+  };
+
+  const actualizarHoraInicioRealPeriodo = (tipo, valor) => {
+    if (tipo !== "PT" && tipo !== "ST") return;
+
+    setRegistro((prev) => {
+      const config = obtenerConfigPeriodo(tipo);
+      const siguiente = {
+        ...prev,
+        [config.horaInicioReal]: valor || "",
+      };
+
+      // La guía MMM:SS sigue corriendo desde el toque original. Solo cambia
+      // la hora base que se utiliza para convertir todos los eventos al guardar.
+      siguiente[config.horaFinalReal] = prev[config.final]
+        ? convertirGuiaAHoraReal(tipo, prev[config.final], siguiente)
+        : "";
+
+      return siguiente;
+    });
+  };
+
+  const obtenerHoraRealEditable = (tipo) => {
+    const config = obtenerConfigPeriodo(tipo);
+    return (
+      registro[config.horaInicioReal] ||
+      horaDesdeTimestamp(registro[config.referencia]) ||
+      ""
+    );
   };
 
   const obtenerPeriodoActivo = (estado = registro) => {
@@ -4402,6 +4431,19 @@ setTimeout(() => {
         </section>
 
         <section className="tarjeta">
+          {registro.modoTiempo === "transmision" && (
+            <div className="editor-hora-real-inicio">
+              <span>Hora real de inicio</span>
+              <SelectorHoraEnVivo
+                value={obtenerHoraRealEditable("PT")}
+                onChange={(valor) =>
+                  actualizarHoraInicioRealPeriodo("PT", valor)
+                }
+                compacto
+              />
+            </div>
+          )}
+
           <h2>Primer tiempo</h2>
 
           <BloqueEvento
@@ -4484,6 +4526,19 @@ setTimeout(() => {
         </section>
 
         <section className="tarjeta">
+          {registro.modoTiempo === "transmision" && (
+            <div className="editor-hora-real-inicio">
+              <span>Hora real de inicio</span>
+              <SelectorHoraEnVivo
+                value={obtenerHoraRealEditable("ST")}
+                onChange={(valor) =>
+                  actualizarHoraInicioRealPeriodo("ST", valor)
+                }
+                compacto
+              />
+            </div>
+          )}
+
           <h2>Segundo tiempo</h2>
 
           <BloqueEvento
