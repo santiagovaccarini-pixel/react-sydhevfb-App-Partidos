@@ -1897,3 +1897,35 @@ button:active {
   }
 }
 
+/* Corrige el color del selector de tiempo en Rival */
+.pantalla-rival
+  .celda-hora-cambio
+  button.selector-tiempo-disparador:not(.boton-entretiempo) {
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: none;
+}
+
+.pantalla-rival
+  .celda-hora-cambio
+  button.selector-tiempo-disparador:not(.boton-entretiempo):hover {
+  background: #f8fafc;
+  color: #0f172a;
+  transform: none;
+  box-shadow: none;
+}
+
+.pantalla-rival
+  .celda-hora-cambio
+  .selector-tiempo-transmision.abierto
+  button.selector-tiempo-disparador:not(.boton-entretiempo),
+.pantalla-rival
+  .celda-hora-cambio
+  button.selector-tiempo-disparador:not(.boton-entretiempo):focus {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #111827;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.12);
+}
+

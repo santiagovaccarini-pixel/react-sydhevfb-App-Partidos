@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.06.6";
+const APP_VERSION = "2026.08.06.7";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
