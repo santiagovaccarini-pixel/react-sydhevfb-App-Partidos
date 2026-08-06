@@ -1667,6 +1667,19 @@ button:active {
   width: min(218px, calc(100vw - 20px));
 }
 
+.selector-hora-en-vivo .selector-tiempo-panel {
+  width: min(330px, calc(100vw - 28px));
+}
+
+.selector-hora-en-vivo .selector-tiempo-cabecera,
+.selector-hora-en-vivo .selector-tiempo-columnas {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.selector-hora-en-vivo.compacto .selector-tiempo-panel {
+  width: min(300px, calc(100vw - 20px));
+}
+
 @media (max-width: 600px) {
   .selector-tiempo-panel {
     width: min(230px, calc(100vw - 20px));
