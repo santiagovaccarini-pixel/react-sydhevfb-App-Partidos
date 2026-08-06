@@ -25,7 +25,7 @@ jobs:
 
       - name: Apply patch
         working-directory: repo
-        run: python scripts/apply_manual_real_start_and_restore_change_table_v2.py
+        run: python scripts/run_manual_real_start_patch.py
 
       - name: Install dependencies
         working-directory: repo
@@ -43,6 +43,7 @@ jobs:
           rm -f package-lock.json
           rm -f scripts/apply_manual_real_start_and_restore_change_table.py
           rm -f scripts/apply_manual_real_start_and_restore_change_table_v2.py
+          rm -f scripts/run_manual_real_start_patch.py
           rmdir scripts 2>/dev/null || true
 
       - name: Commit validated implementation
