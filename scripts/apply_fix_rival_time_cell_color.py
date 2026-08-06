@@ -1,3 +1,4 @@
+# Ejecuta la corrección visual y valida la versión antes del build.
 from pathlib import Path
 
 APP_PATH = Path("src/App.js")
