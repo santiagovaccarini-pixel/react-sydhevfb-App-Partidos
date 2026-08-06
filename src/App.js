@@ -8,43 +8,286 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.06.2";
+const APP_VERSION = "2026.08.06.3";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 
-const opcionesTiempoTransmision = Array.from(
+const opcionesMinutosTransmision = Array.from(
   { length: 121 },
-  (_, minuto) => `${String(minuto).padStart(3, "0")}:00`
+  (_, minuto) => String(minuto).padStart(3, "0")
 );
 
-const ListaJugadores = () => (
-  <>
-    <datalist id="lista-jugadores">
-      {jugadores
-        .filter((jugador) => jugador !== "")
-        .map((jugador, index) => (
-          <option key={index} value={jugador} />
+const opcionesSegundosTransmision = Array.from(
+  { length: 60 },
+  (_, segundo) => String(segundo).padStart(2, "0")
+);
+
+const normalizarNombreBusqueda = (valor) =>
+  String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const SelectorNombre = ({
+  value,
+  onChange,
+  opciones = [],
+  placeholder = "Escribir o elegir",
+}) => {
+  const contenedorRef = useRef(null);
+  const [abierto, setAbierto] = useState(false);
+  const [indiceActivo, setIndiceActivo] = useState(-1);
+
+  const opcionesUnicas = useMemo(() => {
+    const vistos = new Set();
+
+    return (opciones || [])
+      .map((opcion) => String(opcion || "").trim())
+      .filter(Boolean)
+      .filter((opcion) => {
+        const clave = normalizarNombreBusqueda(opcion);
+        if (!clave || vistos.has(clave)) return false;
+        vistos.add(clave);
+        return true;
+      });
+  }, [opciones]);
+
+  const resultados = useMemo(() => {
+    const consulta = normalizarNombreBusqueda(value);
+
+    if (!consulta) return opcionesUnicas.slice(0, 30);
+
+    const comienzan = [];
+    const contienen = [];
+
+    opcionesUnicas.forEach((opcion) => {
+      const normalizado = normalizarNombreBusqueda(opcion);
+      if (normalizado.startsWith(consulta)) comienzan.push(opcion);
+      else if (normalizado.includes(consulta)) contienen.push(opcion);
+    });
+
+    return [...comienzan, ...contienen].slice(0, 30);
+  }, [opcionesUnicas, value]);
+
+  useEffect(() => {
+    const cerrarAlTocarAfuera = (evento) => {
+      if (!contenedorRef.current?.contains(evento.target)) {
+        setAbierto(false);
+        setIndiceActivo(-1);
+      }
+    };
+
+    document.addEventListener("pointerdown", cerrarAlTocarAfuera);
+    return () => document.removeEventListener("pointerdown", cerrarAlTocarAfuera);
+  }, []);
+
+  const seleccionar = (opcion) => {
+    onChange(opcion);
+    setAbierto(false);
+    setIndiceActivo(-1);
+  };
+
+  const manejarTeclado = (evento) => {
+    if (evento.key === "ArrowDown") {
+      evento.preventDefault();
+      setAbierto(true);
+      setIndiceActivo((actual) =>
+        resultados.length === 0 ? -1 : Math.min(actual + 1, resultados.length - 1)
+      );
+      return;
+    }
+
+    if (evento.key === "ArrowUp") {
+      evento.preventDefault();
+      setAbierto(true);
+      setIndiceActivo((actual) =>
+        resultados.length === 0
+          ? -1
+          : actual <= 0
+          ? resultados.length - 1
+          : actual - 1
+      );
+      return;
+    }
+
+    if (evento.key === "Enter" && abierto && resultados.length > 0) {
+      evento.preventDefault();
+      seleccionar(resultados[indiceActivo >= 0 ? indiceActivo : 0]);
+      return;
+    }
+
+    if (evento.key === "Escape") {
+      setAbierto(false);
+      setIndiceActivo(-1);
+    }
+  };
+
+  return (
+    <div
+      className={`selector-nombre ${abierto ? "abierto" : ""}`}
+      ref={contenedorRef}
+    >
+      <input
+        className="input-jugador"
+        value={value || ""}
+        onChange={(evento) => {
+          onChange(evento.target.value);
+          setAbierto(true);
+          setIndiceActivo(-1);
+        }}
+        onFocus={() => setAbierto(true)}
+        onBlur={() => {
+          window.setTimeout(() => setAbierto(false), 120);
+        }}
+        onKeyDown={manejarTeclado}
+        placeholder={placeholder}
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={abierto}
+        aria-autocomplete="list"
+      />
+
+      {abierto && resultados.length > 0 && (
+        <div className="selector-nombre-lista" role="listbox">
+          {resultados.map((opcion, index) => (
+            <button
+              key={`${opcion}-${index}`}
+              type="button"
+              role="option"
+              aria-selected={indiceActivo === index}
+              className={`selector-nombre-opcion ${
+                indiceActivo === index ? "activa" : ""
+              }`}
+              onPointerDown={(evento) => {
+                evento.preventDefault();
+                seleccionar(opcion);
+              }}
+            >
+              {opcion}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {abierto && value && resultados.length === 0 && (
+        <div className="selector-nombre-lista selector-nombre-sin-resultados">
+          Sin coincidencias. Podés conservar el nombre escrito.
+        </div>
+      )}
+    </div>
+  );
+};
+
+const descomponerTiempoTransmision = (valor) => {
+  const coincidencia = String(valor || "").match(/^(\d{1,3}):([0-5]\d)$/);
+  if (!coincidencia) return { minutos: "", segundos: "" };
+
+  return {
+    minutos: coincidencia[1].padStart(3, "0"),
+    segundos: coincidencia[2].padStart(2, "0"),
+  };
+};
+
+const SelectorTiempoTransmision = ({
+  value,
+  onChange,
+  compacto = false,
+  onKeyDown,
+}) => {
+  const { minutos, segundos } = descomponerTiempoTransmision(value);
+
+  const cambiarMinutos = (nuevoMinuto) => {
+    if (!nuevoMinuto) {
+      onChange("");
+      return;
+    }
+
+    onChange(`${nuevoMinuto}:${segundos || "00"}`);
+  };
+
+  const cambiarSegundos = (nuevoSegundo) => {
+    if (!nuevoSegundo && !minutos) {
+      onChange("");
+      return;
+    }
+
+    onChange(`${minutos || "000"}:${nuevoSegundo || "00"}`);
+  };
+
+  return (
+    <div
+      className={`selector-tiempo-transmision ${compacto ? "compacto" : ""}`}
+      onKeyDown={onKeyDown}
+    >
+      <select
+        value={minutos}
+        onChange={(evento) => cambiarMinutos(evento.target.value)}
+        aria-label="Minutos"
+      >
+        <option value="">Min</option>
+        {opcionesMinutosTransmision.map((minuto) => (
+          <option key={minuto} value={minuto}>
+            {minuto}
+          </option>
         ))}
-    </datalist>
+      </select>
 
-    <datalist id="lista-tiempos-transmision">
-      {opcionesTiempoTransmision.map((tiempo) => (
-        <option key={tiempo} value={tiempo} />
-      ))}
-    </datalist>
-  </>
-);
+      <span className="selector-tiempo-separador">:</span>
+
+      <select
+        value={segundos}
+        onChange={(evento) => cambiarSegundos(evento.target.value)}
+        aria-label="Segundos"
+      >
+        <option value="">Seg</option>
+        {opcionesSegundosTransmision.map((segundo) => (
+          <option key={segundo} value={segundo}>
+            {segundo}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
+const CampoTiempo = ({
+  value,
+  onChange,
+  modoTiempo,
+  className = "",
+  onKeyDown,
+}) => {
+  if (modoTiempo === "transmision") {
+    return (
+      <SelectorTiempoTransmision
+        value={value}
+        onChange={onChange}
+        compacto={className.includes("input-hora-cambio")}
+        onKeyDown={onKeyDown}
+      />
+    );
+  }
+
+  return (
+    <input
+      className={className}
+      type="time"
+      step="1"
+      value={value || ""}
+      onChange={(evento) => onChange(evento.target.value)}
+      onKeyDown={onKeyDown}
+    />
+  );
+};
+
+const ListaJugadores = () => null;
 
 const InputJugador = ({ value, onChange }) => (
-  <input
-    className="input-jugador"
-    list="lista-jugadores"
-    value={value || ""}
-    onChange={(e) => onChange(e.target.value)}
-    placeholder="Escribir o elegir"
-  />
+  <SelectorNombre value={value} onChange={onChange} opciones={jugadores} />
 );
+
 
 export default function App() {
   const crearCambioVacio = () => ({
@@ -218,35 +461,32 @@ varSTEActivo: registroRecuperado.varSTEActivo || 0,
   );
 
   const [mensajeFormacion, setMensajeFormacion] = useState("");
-  const ListaJugadoresRival = () => (
-    <datalist id="lista-jugadores-rival">
-  {[
-    ...(registro.jugadoresRival || []),
-    ...(registro.titularesRival || []),
-    ...(registro.convocadosRival || []),
-    ...(registro.cambiosRival || []).map((cambio) => cambio.sale),
-    ...(registro.cambiosRival || []).map((cambio) => cambio.entra),
-  ]
-    .filter((jugador) => jugador && String(jugador).trim() !== "")
-    .filter((jugador, index, array) => array.indexOf(jugador) === index)
-    .map((jugador, index) => (
-      <option key={`jugador-rival-${index}`} value={jugador} />
-    ))}
-</datalist>
+  const opcionesJugadoresRival = useMemo(
+    () =>
+      [
+        ...(registro.jugadoresRival || []),
+        ...(registro.titularesRival || []),
+        ...(registro.convocadosRival || []),
+        ...(registro.cambiosRival || []).map((cambio) => cambio.sale),
+        ...(registro.cambiosRival || []).map((cambio) => cambio.entra),
+      ].filter((jugador) => jugador && String(jugador).trim() !== ""),
+    [
+      registro.jugadoresRival,
+      registro.titularesRival,
+      registro.convocadosRival,
+      registro.cambiosRival,
+    ]
   );
-  
-  const InputJugadorRival = ({ value, onChange }) => {
-    return (
-      <input
-        className="input-jugador"
-        list="lista-jugadores-rival"
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={manejarEnter}
-        placeholder="Escribir o elegir"
-      />
-    );
-  };
+
+  const ListaJugadoresRival = () => null;
+
+  const InputJugadorRival = ({ value, onChange }) => (
+    <SelectorNombre
+      value={value}
+      onChange={onChange}
+      opciones={opcionesJugadoresRival}
+    />
+  );
   const posicionScrollPendiente = useRef(null);
   const convertirSupabaseARegistro = (fila) => {
     const prorroga = fila.prorroga || {};
@@ -1018,20 +1258,6 @@ tiempoST: fila.tiempo_st || "",
     return `${String(minutos).padStart(3, "0")}:${String(segundos).padStart(2, "0")}`;
   };
 
-  const limpiarEntradaTiempoTransmision = (valor) => {
-    const limpio = String(valor || "").replace(/[^\d:]/g, "");
-    const tieneDosPuntos = limpio.includes(":");
-
-    if (tieneDosPuntos) {
-      const [minutos = "", segundos = ""] = limpio.split(":");
-      return `${minutos.slice(0, 3)}:${segundos.slice(0, 2)}`;
-    }
-
-    if (limpio.length <= 3) return limpio;
-
-    return `${limpio.slice(0, 3)}:${limpio.slice(3, 5)}`;
-  };
-
   const normalizarEntradaTiempoTransmision = (valor) => {
     const texto = String(valor || "").trim();
     if (!texto) return "";
@@ -1040,36 +1266,6 @@ tiempoST: fila.tiempo_st || "",
     if (!coincidencia) return null;
 
     return `${coincidencia[1].padStart(3, "0")}:${coincidencia[2].padStart(2, "0")}`;
-  };
-
-  const obtenerPropsInputTiempo = (
-    valor,
-    onChange,
-    modoTiempo = registro.modoTiempo
-  ) => {
-    if (modoTiempo !== "transmision") {
-      return {
-        type: "time",
-        step: "1",
-        value: valor || "",
-        onChange: (e) => onChange(e.target.value),
-      };
-    }
-
-    return {
-      type: "text",
-      inputMode: "numeric",
-      placeholder: "000:00",
-      maxLength: 6,
-      list: "lista-tiempos-transmision",
-      autoComplete: "off",
-      value: valor || "",
-      onChange: (e) => onChange(limpiarEntradaTiempoTransmision(e.target.value)),
-      onBlur: (e) => {
-        const normalizado = normalizarEntradaTiempoTransmision(e.target.value);
-        if (normalizado !== null) onChange(normalizado);
-      },
-    };
   };
 
   const detectarModoTiempoFila = (fila) => {
@@ -2238,12 +2434,10 @@ tiempo_st: registroParaGuardar.tiempoST || "",
       <label>{label}</label>
 
       <div className="fila-hora">
-        <input
-          {...obtenerPropsInputTiempo(
-            registro[campo],
-            (valor) => actualizarCampoTiempo(campo, valor),
-            registro.modoTiempo
-          )}
+                <CampoTiempo
+          value={registro[campo]}
+          onChange={(valor) => actualizarCampoTiempo(campo, valor)}
+          modoTiempo={registro.modoTiempo}
         />
 
         <button
@@ -2304,12 +2498,10 @@ tiempo_st: registroParaGuardar.tiempoST || "",
         <div className="campo-hora">
           <label>Inicio</label>
           <div className="fila-hora">
-            <input
-              {...obtenerPropsInputTiempo(
-                vars[activo]?.inicio || "",
-                (valor) => actualizarVar(tipo, "inicio", valor),
-                registro.modoTiempo
-              )}
+                        <CampoTiempo
+              value={vars[activo]?.inicio || ""}
+              onChange={(valor) => actualizarVar(tipo, "inicio", valor)}
+              modoTiempo={registro.modoTiempo}
             />
             <button
               type="button"
@@ -2324,12 +2516,10 @@ tiempo_st: registroParaGuardar.tiempoST || "",
         <div className="campo-hora">
           <label>Final</label>
           <div className="fila-hora">
-            <input
-              {...obtenerPropsInputTiempo(
-                vars[activo]?.final || "",
-                (valor) => actualizarVar(tipo, "final", valor),
-                registro.modoTiempo
-              )}
+                        <CampoTiempo
+              value={vars[activo]?.final || ""}
+              onChange={(valor) => actualizarVar(tipo, "final", valor)}
+              modoTiempo={registro.modoTiempo}
             />
             <button
               type="button"
@@ -2726,20 +2916,26 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     return (
       <div className="campo-detalle-editable">
         <label>{label}</label>
-        <input
-          {...(usarTransmision
-            ? obtenerPropsInputTiempo(value, onChange, "transmision")
-            : {
-                type,
-                step: type === "time" ? "1" : undefined,
-                value: value || "",
-                onChange: (e) => onChange(e.target.value),
-              })}
-          onKeyDown={manejarEnter}
-        />
+        {usarTransmision ? (
+          <CampoTiempo
+            value={value}
+            onChange={onChange}
+            modoTiempo="transmision"
+            onKeyDown={manejarEnter}
+          />
+        ) : (
+          <input
+            type={type}
+            step={type === "time" ? "1" : undefined}
+            value={value || ""}
+            onChange={(evento) => onChange(evento.target.value)}
+            onKeyDown={manejarEnter}
+          />
+        )}
       </div>
     );
   };
+
 
   const DetalleRegistro = ({ item, index }) => {
     const [editando, setEditando] = useState(false);
@@ -3385,18 +3581,16 @@ setTimeout(() => {
                   <div>
                     {editando ? (
                       <div className="celda-hora-detalle-editable">
-                        <input
-                          className="input-hora-cambio-detalle"
-                          {...obtenerPropsInputTiempo(
-                            cambio.hora || "",
-                            (valor) =>
+                                                <CampoTiempo
+                          value={cambio.hora || ""}
+                          onChange={(valor) =>
                               actualizarCambioEditado(
                                 cambioIndex,
                                 "hora",
                                 valor
-                              ),
-                            editado.modoTiempo
-                          )}
+                              )}
+                          modoTiempo={editado.modoTiempo}
+                          className="input-hora-cambio-detalle"
                         />
 
                         <button
@@ -3435,16 +3629,11 @@ setTimeout(() => {
 
                   <div>
                     {editando ? (
-                      <input
-                      className="input-jugador"
-                      list="lista-jugadores-rival"
-                      value={cambio.sale || ""}
-                      onChange={(e) =>
-                        actualizarCambioRivalEditado(cambioIndex, "sale", e.target.value)
-                      }
-                      onKeyDown={manejarEnter}
-                      placeholder="Escribir o elegir"
-                    />
+                                            <InputJugadorRival
+                        value={cambio.sale || ""}
+                        onChange={(valor) =>
+                        actualizarCambioRivalEditado(cambioIndex, "sale", valor)}
+                      />
                     ) : (
                       cambio.sale || "-"
                     )}
@@ -3452,16 +3641,11 @@ setTimeout(() => {
 
                   <div>
                     {editando ? (
-                      <input
-                      className="input-jugador"
-                      list="lista-jugadores-rival"
-                      value={cambio.entra || ""}
-                      onChange={(e) =>
-                        actualizarCambioRivalEditado(cambioIndex, "entra", e.target.value)
-                      }
-                      onKeyDown={manejarEnter}
-                      placeholder="Escribir o elegir"
-                    />
+                                            <InputJugadorRival
+                        value={cambio.entra || ""}
+                        onChange={(valor) =>
+                        actualizarCambioRivalEditado(cambioIndex, "entra", valor)}
+                      />
                     ) : (
                       cambio.entra || "-"
                     )}
@@ -3470,18 +3654,16 @@ setTimeout(() => {
                   <div>
                   {editando ? (
   <div className="celda-hora-detalle-editable">
-    <input
-      className="input-hora-cambio-detalle"
-      {...obtenerPropsInputTiempo(
-        cambio.hora || "",
-        (valor) =>
+        <CampoTiempo
+      value={cambio.hora || ""}
+      onChange={(valor) =>
           actualizarCambioRivalEditado(
             cambioIndex,
             "hora",
             valor
-          ),
-        editado.modoTiempo
-      )}
+          )}
+      modoTiempo={editado.modoTiempo}
+      className="input-hora-cambio-detalle"
     />
 
     <button
@@ -3704,21 +3886,7 @@ setTimeout(() => {
     return (
       <div className="app pantalla-rival">
   <ListaJugadores />
-
-  <datalist id="lista-jugadores-rival">
-  {[
-    ...(registro.jugadoresRival || []),
-    ...(registro.cambiosRival || []).map((cambio) => cambio.sale),
-    ...(registro.cambiosRival || []).map((cambio) => cambio.entra),
-  ]
-    .filter((jugador) => jugador && String(jugador).trim() !== "")
-    .filter((jugador, index, array) => array.indexOf(jugador) === index)
-    .map((jugador, index) => (
-      <option key={`jugador-rival-${index}`} value={jugador} />
-    ))}
-</datalist>
-  
-        <div className="contenedor">
+<div className="contenedor">
           <div className="barra-superior">
             <button
               type="button"
@@ -3772,37 +3940,27 @@ setTimeout(() => {
                 (cambio, index) => (
                   <div className="fila-cambio" key={`cambio-rival-${index}`}>
                     <div>
-                    <input
-  className="input-jugador"
-  list="lista-jugadores-rival"
-  value={cambio.sale || ""}
-  onChange={(e) =>
-    actualizarCambioRival(index, "sale", e.target.value)
-  }
-  placeholder="Escribir o elegir"
-/>
+                                        <InputJugadorRival
+                      value={cambio.sale || ""}
+                      onChange={(valor) =>
+    actualizarCambioRival(index, "sale", valor)}
+                    />
                     </div>
   
                     <div>
-                    <input
-  className="input-jugador"
-  list="lista-jugadores-rival"
-  value={cambio.entra || ""}
-  onChange={(e) =>
-    actualizarCambioRival(index, "entra", e.target.value)
-  }
-  placeholder="Escribir o elegir"
-/>
+                                        <InputJugadorRival
+                      value={cambio.entra || ""}
+                      onChange={(valor) =>
+    actualizarCambioRival(index, "entra", valor)}
+                    />
                     </div>
   
                     <div className="celda-hora-cambio">
-                      <input
+                                            <CampoTiempo
+                        value={cambio.hora || ""}
+                        onChange={(valor) => actualizarCambioRival(index, "hora", valor)}
+                        modoTiempo={registro.modoTiempo}
                         className="input-hora-cambio"
-                        {...obtenerPropsInputTiempo(
-                          cambio.hora || "",
-                          (valor) => actualizarCambioRival(index, "hora", valor),
-                          registro.modoTiempo
-                        )}
                       />
   
                       <button
@@ -3940,12 +4098,10 @@ setTimeout(() => {
   <div className="campo-hora">
     <label>Inicio</label>
     <div className="fila-hora">
-      <input
-        {...obtenerPropsInputTiempo(
-          registro.varsPT[registro.varPTActivo]?.inicio || "",
-          (valor) => actualizarVar("PT", "inicio", valor),
-          registro.modoTiempo
-        )}
+            <CampoTiempo
+        value={registro.varsPT[registro.varPTActivo]?.inicio || ""}
+        onChange={(valor) => actualizarVar("PT", "inicio", valor)}
+        modoTiempo={registro.modoTiempo}
       />
 
       <button
@@ -3961,12 +4117,10 @@ setTimeout(() => {
     <label>Final</label>
 
     <div className="fila-hora">
-      <input
-        {...obtenerPropsInputTiempo(
-          registro.varsPT[registro.varPTActivo]?.final || "",
-          (valor) => actualizarVar("PT", "final", valor),
-          registro.modoTiempo
-        )}
+            <CampoTiempo
+        value={registro.varsPT[registro.varPTActivo]?.final || ""}
+        onChange={(valor) => actualizarVar("PT", "final", valor)}
+        modoTiempo={registro.modoTiempo}
       />
 
       <button
@@ -4028,12 +4182,10 @@ setTimeout(() => {
     <label>Inicio</label>
 
     <div className="fila-hora">
-      <input
-        {...obtenerPropsInputTiempo(
-          registro.varsST[registro.varSTActivo]?.inicio || "",
-          (valor) => actualizarVar("ST", "inicio", valor),
-          registro.modoTiempo
-        )}
+            <CampoTiempo
+        value={registro.varsST[registro.varSTActivo]?.inicio || ""}
+        onChange={(valor) => actualizarVar("ST", "inicio", valor)}
+        modoTiempo={registro.modoTiempo}
       />
 
       <button
@@ -4050,12 +4202,10 @@ setTimeout(() => {
     <label>Final</label>
 
     <div className="fila-hora">
-      <input
-        {...obtenerPropsInputTiempo(
-          registro.varsST[registro.varSTActivo]?.final || "",
-          (valor) => actualizarVar("ST", "final", valor),
-          registro.modoTiempo
-        )}
+            <CampoTiempo
+        value={registro.varsST[registro.varSTActivo]?.final || ""}
+        onChange={(valor) => actualizarVar("ST", "final", valor)}
+        modoTiempo={registro.modoTiempo}
       />
 
       <button
@@ -4192,13 +4342,11 @@ setTimeout(() => {
                 </div>
 
                 <div className="celda-hora-cambio">
-                  <input
+                                    <CampoTiempo
+                    value={cambio.hora || ""}
+                    onChange={(valor) => actualizarCambio(index, "hora", valor)}
+                    modoTiempo={registro.modoTiempo}
                     className="input-hora-cambio"
-                    {...obtenerPropsInputTiempo(
-                      cambio.hora || "",
-                      (valor) => actualizarCambio(index, "hora", valor),
-                      registro.modoTiempo
-                    )}
                   />
 
                   <button
