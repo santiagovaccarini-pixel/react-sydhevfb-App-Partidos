@@ -8,19 +8,32 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.03.8";
+const APP_VERSION = "2026.08.06.1";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 
+const opcionesTiempoTransmision = Array.from(
+  { length: 121 },
+  (_, minuto) => `${String(minuto).padStart(3, "0")}:00`
+);
+
 const ListaJugadores = () => (
-  <datalist id="lista-jugadores">
-    {jugadores
-      .filter((jugador) => jugador !== "")
-      .map((jugador, index) => (
-        <option key={index} value={jugador} />
+  <>
+    <datalist id="lista-jugadores">
+      {jugadores
+        .filter((jugador) => jugador !== "")
+        .map((jugador, index) => (
+          <option key={index} value={jugador} />
+        ))}
+    </datalist>
+
+    <datalist id="lista-tiempos-transmision">
+      {opcionesTiempoTransmision.map((tiempo) => (
+        <option key={tiempo} value={tiempo} />
       ))}
-  </datalist>
+    </datalist>
+  </>
 );
 
 const InputJugador = ({ value, onChange }) => (
@@ -40,6 +53,7 @@ export default function App() {
     hora: "",
     minuto: "",
     extraMinuto: "",
+    periodo: "",
   });
 
   const crearCambiosVacios = () =>
@@ -49,6 +63,10 @@ export default function App() {
     prorrogaActiva: false,
     referenciaRealPTE: null,
     referenciaRealSTE: null,
+    horaInicioRealPTE: "",
+    horaFinalRealPTE: "",
+    horaInicioRealSTE: "",
+    horaFinalRealSTE: "",
     inicioPTE: "",
     finalPTE: "",
     varsPTE: [{ inicio: "", final: "" }],
@@ -80,6 +98,10 @@ export default function App() {
     // Guardarán Date.now(), no una hora escrita.
     referenciaRealPT: null,
     referenciaRealST: null,
+    horaInicioRealPT: "",
+    horaFinalRealPT: "",
+    horaInicioRealST: "",
+    horaFinalRealST: "",
     ...crearProrrogaVacia(),
   
     inicioPT: "",
@@ -234,12 +256,23 @@ varSTEActivo: registroRecuperado.varSTEActivo || 0,
     const cambiosRivalExtra = Array.isArray(fila.cambios_rival_extra)
       ? fila.cambios_rival_extra
       : [];
+    const guiaTransmision = fila.guia_transmision || {};
+    const esTransmisionConHorasReales =
+      guiaTransmision.modo === "transmision";
+    const modoDetectado = detectarModoTiempoFila(fila);
 
     const registroConvertido = {
       fecha: fila.fecha || "",
       rival: fila.rival || "",
       resultado: fila.resultado || "",
-      modoTiempo: detectarModoTiempoFila(fila),
+      // Los registros nuevos de Transmisión ya están persistidos como horas reales.
+      modoTiempo: esTransmisionConHorasReales ? "enVivo" : modoDetectado,
+      modoCaptura: esTransmisionConHorasReales ? "transmision" : modoDetectado,
+      guiaTransmision,
+      horaInicioRealPT: guiaTransmision.horaInicioRealPT || "",
+      horaFinalRealPT: guiaTransmision.horaFinalRealPT || "",
+      horaInicioRealST: guiaTransmision.horaInicioRealST || "",
+      horaFinalRealST: guiaTransmision.horaFinalRealST || "",
   
       inicioPT: fila.inicio_pt || "",
 finalPT: fila.final_pt || "",
@@ -252,6 +285,10 @@ tiempoST: fila.tiempo_st || "",
       prorrogaActiva: Boolean(prorroga.activa),
       referenciaRealPTE: null,
       referenciaRealSTE: null,
+      horaInicioRealPTE: guiaTransmision.horaInicioRealPTE || "",
+      horaFinalRealPTE: guiaTransmision.horaFinalRealPTE || "",
+      horaInicioRealSTE: guiaTransmision.horaInicioRealSTE || "",
+      horaFinalRealSTE: guiaTransmision.horaFinalRealSTE || "",
       inicioPTE: prorroga.inicioPTE || "",
       finalPTE: prorroga.finalPTE || "",
       varsPTE:
@@ -601,17 +638,30 @@ tiempoST: fila.tiempo_st || "",
       referenciaRealST: null,
       referenciaRealPTE: null,
       referenciaRealSTE: null,
+      horaInicioRealPT: "",
+      horaFinalRealPT: "",
+      horaInicioRealST: "",
+      horaFinalRealST: "",
+      horaInicioRealPTE: "",
+      horaFinalRealPTE: "",
+      horaInicioRealSTE: "",
+      horaFinalRealSTE: "",
     }));
 
     setTimeout(quitarFoco, 0);
   };
   const actualizarCambio = (index, campo, valor) => {
     setRegistro((prev) => {
-      const cambiosActualizados = [...prev.cambios];
+      const cambiosActualizados = [...(prev.cambios || crearCambiosVacios())];
+      const cambioActual = cambiosActualizados[index] || crearCambioVacio();
   
       cambiosActualizados[index] = {
-        ...cambiosActualizados[index],
+        ...cambioActual,
         [campo]: valor,
+        periodo:
+          campo === "hora" && prev.modoTiempo === "transmision"
+            ? cambioActual.periodo || obtenerPeriodoActivo(prev)
+            : cambioActual.periodo || "",
       };
   
       return {
@@ -625,10 +675,15 @@ tiempoST: fila.tiempo_st || "",
       const cambiosActualizados = [
         ...(prev.cambiosRival || crearCambiosVacios()),
       ];
+      const cambioActual = cambiosActualizados[index] || crearCambioVacio();
   
       cambiosActualizados[index] = {
-        ...cambiosActualizados[index],
+        ...cambioActual,
         [campo]: valor,
+        periodo:
+          campo === "hora" && prev.modoTiempo === "transmision"
+            ? cambioActual.periodo || obtenerPeriodoActivo(prev)
+            : cambioActual.periodo || "",
       };
   
       return {
@@ -771,14 +826,15 @@ tiempoST: fila.tiempo_st || "",
             const cambioActual = cambiosActuales[index] || {};
     
             const matchClock = cambioApi.matchClock || "";
-            const horaSugerida = calcularHoraCambioDesdeMinuto(matchClock);
+            const sugerenciaTiempo = calcularHoraCambioDesdeMinuto(matchClock);
     
             nuevosCambios[index] = {
               ...cambioActual,
               sale: cambioActual.sale || String(cambioApi.sale || "").toUpperCase(),
               entra: cambioActual.entra || String(cambioApi.entra || "").toUpperCase(),
               minuto: matchClock,
-              hora: cambioActual.hora || horaSugerida,
+              hora: cambioActual.hora || sugerenciaTiempo.hora,
+              periodo: cambioActual.periodo || sugerenciaTiempo.periodo,
             };
           });
     
@@ -800,7 +856,10 @@ tiempoST: fila.tiempo_st || "",
       vars: "varsPT",
       activo: "varPTActivo",
       inicio: "inicioPT",
+      final: "finalPT",
       referencia: "referenciaRealPT",
+      horaInicioReal: "horaInicioRealPT",
+      horaFinalReal: "horaFinalRealPT",
       baseSegundos: 0,
       etiqueta: "PT",
     },
@@ -808,15 +867,22 @@ tiempoST: fila.tiempo_st || "",
       vars: "varsST",
       activo: "varSTActivo",
       inicio: "inicioST",
+      final: "finalST",
       referencia: "referenciaRealST",
-      baseSegundos: 45 * 60,
+      horaInicioReal: "horaInicioRealST",
+      horaFinalReal: "horaFinalRealST",
+      // El segundo tiempo también usa una guía independiente desde 000:00.
+      baseSegundos: 0,
       etiqueta: "ST",
     },
     PTE: {
       vars: "varsPTE",
       activo: "varPTEActivo",
       inicio: "inicioPTE",
+      final: "finalPTE",
       referencia: "referenciaRealPTE",
+      horaInicioReal: "horaInicioRealPTE",
+      horaFinalReal: "horaFinalRealPTE",
       baseSegundos: 90 * 60,
       etiqueta: "PTE",
     },
@@ -824,7 +890,10 @@ tiempoST: fila.tiempo_st || "",
       vars: "varsSTE",
       activo: "varSTEActivo",
       inicio: "inicioSTE",
+      final: "finalSTE",
       referencia: "referenciaRealSTE",
+      horaInicioReal: "horaInicioRealSTE",
+      horaFinalReal: "horaFinalRealSTE",
       baseSegundos: 105 * 60,
       etiqueta: "STE",
     },
@@ -901,6 +970,53 @@ tiempoST: fila.tiempo_st || "",
     return ahora.toTimeString().slice(0, 8);
   };
 
+  const horaDesdeTimestamp = (timestamp) => {
+    const fecha = new Date(Number(timestamp));
+    return Number.isNaN(fecha.getTime()) ? "" : fecha.toTimeString().slice(0, 8);
+  };
+
+  const sumarSegundosAHoraExacta = (horaBase, segundosASumar) => {
+    if (!horaBase) return "";
+
+    const [horas = 0, minutos = 0, segundos = 0] = String(horaBase)
+      .split(":")
+      .map(Number);
+    const totalDia = 24 * 3600;
+    const total =
+      ((horas * 3600 + minutos * 60 + segundos + Number(segundosASumar || 0)) %
+        totalDia +
+        totalDia) %
+      totalDia;
+
+    const hh = String(Math.floor(total / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+    const ss = String(total % 60).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  };
+
+  const obtenerHoraInicioRealPeriodo = (tipo, estado = registro) => {
+    const config = obtenerConfigPeriodo(tipo);
+    return (
+      estado[config.horaInicioReal] ||
+      horaDesdeTimestamp(estado[config.referencia]) ||
+      ""
+    );
+  };
+
+  const convertirGuiaAHoraReal = (tipo, guia, estado = registro) => {
+    if (!guia) return "";
+    const config = obtenerConfigPeriodo(tipo);
+    const horaInicioReal = obtenerHoraInicioRealPeriodo(tipo, estado);
+    if (!horaInicioReal || !esFormatoTransmision(guia)) return guia;
+
+    const segundosGuia = segundosDesdeHora(guia);
+    const segundosTranscurridos = Math.max(
+      0,
+      Number(segundosGuia || 0) - config.baseSegundos
+    );
+    return sumarSegundosAHoraExacta(horaInicioReal, segundosTranscurridos);
+  };
+
   const esFormatoTransmision = (valor) =>
     /^\d{3,}:\d{2}$/.test(String(valor || "").trim());
 
@@ -955,6 +1071,8 @@ tiempoST: fila.tiempo_st || "",
       inputMode: "numeric",
       placeholder: "000:00",
       maxLength: 6,
+      list: "lista-tiempos-transmision",
+      autoComplete: "off",
       value: valor || "",
       onChange: (e) => onChange(limpiarEntradaTiempoTransmision(e.target.value)),
       onBlur: (e) => {
@@ -965,6 +1083,10 @@ tiempoST: fila.tiempo_st || "",
   };
 
   const detectarModoTiempoFila = (fila) => {
+    if (fila.guia_transmision?.modo === "transmision") {
+      return "transmision";
+    }
+
     const prorroga = fila.prorroga || {};
     const cambiosExtra = Array.isArray(fila.cambios_extra)
       ? fila.cambios_extra
@@ -1058,6 +1180,7 @@ tiempoST: fila.tiempo_st || "",
       const tipo = obtenerPeriodoCampo(campo);
       const config = obtenerConfigPeriodo(tipo);
       const esInicioPeriodo = campo === config.inicio;
+      const esFinalPeriodo = campo === config.final;
 
       if (prev.modoTiempo === "transmision" && esInicioPeriodo) {
         const normalizado = normalizarEntradaTiempoTransmision(valor);
@@ -1068,21 +1191,33 @@ tiempoST: fila.tiempo_st || "",
             0,
             marcaSegundos - config.baseSegundos
           );
+          const referencia = Date.now() - transcurridos * 1000;
 
-          siguiente[config.referencia] = Date.now() - transcurridos * 1000;
+          siguiente[config.referencia] = referencia;
+          siguiente[config.horaInicioReal] = horaDesdeTimestamp(referencia);
+          siguiente[config.horaFinalReal] = "";
         } else if (!String(valor || "").trim()) {
           siguiente[config.referencia] = null;
+          siguiente[config.horaInicioReal] = "";
+          siguiente[config.horaFinalReal] = "";
         }
+      }
+
+      if (prev.modoTiempo === "transmision" && esFinalPeriodo) {
+        const normalizado = normalizarEntradaTiempoTransmision(valor);
+        siguiente[config.horaFinalReal] = normalizado
+          ? convertirGuiaAHoraReal(tipo, normalizado, siguiente)
+          : "";
       }
 
       return siguiente;
     });
   };
 
-  const obtenerPeriodoActivo = () => {
-    if (registro.referenciaRealSTE) return "STE";
-    if (registro.referenciaRealPTE) return "PTE";
-    if (registro.referenciaRealST) return "ST";
+  const obtenerPeriodoActivo = (estado = registro) => {
+    if (estado.referenciaRealSTE) return "STE";
+    if (estado.referenciaRealPTE) return "PTE";
+    if (estado.referenciaRealST) return "ST";
     return "PT";
   };
 
@@ -1108,11 +1243,14 @@ tiempoST: fila.tiempo_st || "",
       if (esInicioPeriodo) {
         const valorInicial = formatearTiempoTransmision(config.baseSegundos);
         const referencia = Date.now();
+        const horaInicioReal = horaDesdeTimestamp(referencia);
 
         mantenerPosicion(() => {
           setRegistro((prev) => ({
             ...prev,
             [config.referencia]: referencia,
+            [config.horaInicioReal]: horaInicioReal,
+            [config.horaFinalReal]: "",
             [campo]: valorInicial,
           }));
         });
@@ -1124,7 +1262,21 @@ tiempoST: fila.tiempo_st || "",
           return;
         }
 
-        mantenerPosicion(() => actualizar(campo, valor));
+        mantenerPosicion(() => {
+          setRegistro((prev) => ({
+            ...prev,
+            [campo]: valor,
+            ...(campo === config.final
+              ? {
+                  [config.horaFinalReal]: convertirGuiaAHoraReal(
+                    tipo,
+                    valor,
+                    prev
+                  ),
+                }
+              : {}),
+          }));
+        });
       }
     } else {
       mantenerPosicion(() => actualizar(campo, horaActual()));
@@ -1210,18 +1362,35 @@ tiempoST: fila.tiempo_st || "",
   };
   
   const calcularHoraCambioDesdeMinuto = (matchClock) => {
-    if (!matchClock) return "";
+    if (!matchClock) return { hora: "", periodo: "" };
   
     const partes = String(matchClock).split(":").map(Number);
     const minuto = partes[0] || 0;
     const segundo = partes[1] || 0;
+    const totalSegundos = minuto * 60 + segundo;
 
     if (registro.modoTiempo === "transmision") {
-      return formatearTiempoTransmision(minuto * 60 + segundo);
+      let periodo = "PT";
+      let segundosGuia = totalSegundos;
+
+      if (totalSegundos >= 105 * 60) {
+        periodo = "STE";
+      } else if (totalSegundos >= 90 * 60) {
+        periodo = "PTE";
+      } else if (totalSegundos > 45 * 60) {
+        periodo = "ST";
+        segundosGuia = Math.max(0, totalSegundos - 45 * 60);
+      }
+
+      return {
+        hora: formatearTiempoTransmision(segundosGuia),
+        periodo,
+      };
     }
   
     let horaBase = "";
     let minutosASumar = 0;
+    let periodo = "PT";
   
     if (minuto <= 45) {
       horaBase = registro.inicioPT;
@@ -1229,9 +1398,10 @@ tiempoST: fila.tiempo_st || "",
     } else {
       horaBase = registro.inicioST;
       minutosASumar = minuto - 45;
+      periodo = "ST";
     }
   
-    if (!horaBase) return "";
+    if (!horaBase) return { hora: "", periodo };
   
     const partesHora = horaBase.split(":").map(Number);
     const h = partesHora[0] || 0;
@@ -1243,7 +1413,7 @@ tiempoST: fila.tiempo_st || "",
     fecha.setMinutes(fecha.getMinutes() + minutosASumar);
     fecha.setSeconds(fecha.getSeconds() + segundo);
   
-    return fecha.toTimeString().slice(0, 8);
+    return { hora: fecha.toTimeString().slice(0, 8), periodo };
   };
   
   const convertirNombreJugador = (nombre) => {
@@ -1386,15 +1556,201 @@ tiempoST: fila.tiempo_st || "",
     tiempoHidratacionSTE: item.tiempoHidratacionSTE || "",
   });
 
+  const serializarGuiaTransmision = (item) => {
+    if (item.modoTiempo !== "transmision") {
+      return item.guiaTransmision || { modo: "enVivo" };
+    }
+
+    return {
+      modo: "transmision",
+      version: 2,
+      horaInicioRealPT: obtenerHoraInicioRealPeriodo("PT", item),
+      horaFinalRealPT: item.horaFinalRealPT || "",
+      horaInicioRealST: obtenerHoraInicioRealPeriodo("ST", item),
+      horaFinalRealST: item.horaFinalRealST || "",
+      horaInicioRealPTE: obtenerHoraInicioRealPeriodo("PTE", item),
+      horaFinalRealPTE: item.horaFinalRealPTE || "",
+      horaInicioRealSTE: obtenerHoraInicioRealPeriodo("STE", item),
+      horaFinalRealSTE: item.horaFinalRealSTE || "",
+      inicioPT: item.inicioPT || "",
+      finalPT: item.finalPT || "",
+      varsPT: item.varsPT || [],
+      inicioHidratacionPT: item.inicioHidratacionPT || "",
+      finalHidratacionPT: item.finalHidratacionPT || "",
+      inicioST: item.inicioST || "",
+      finalST: item.finalST || "",
+      varsST: item.varsST || [],
+      inicioHidratacionST: item.inicioHidratacionST || "",
+      finalHidratacionST: item.finalHidratacionST || "",
+      cambios: item.cambios || [],
+      cambiosRival: item.cambiosRival || [],
+      prorroga: serializarProrroga(item),
+    };
+  };
+
+  const obtenerPeriodoCambioParaGuardar = (cambio, item) => {
+    if (cambio?.periodo) return cambio.periodo;
+    if (!esFormatoTransmision(cambio?.hora)) return "";
+
+    const segundos = segundosDesdeHora(cambio.hora) || 0;
+    if (segundos >= 105 * 60) return "STE";
+    if (segundos >= 90 * 60) return "PTE";
+    if (segundos >= 45 * 60) return "ST";
+    return "PT";
+  };
+
+  const convertirCambiosAHorasReales = (cambios, item) =>
+    (cambios || []).map((cambio) => {
+      const periodo = obtenerPeriodoCambioParaGuardar(cambio, item);
+      return {
+        ...cambio,
+        periodo,
+        hora:
+          item.modoTiempo === "transmision" && periodo
+            ? convertirGuiaAHoraReal(periodo, cambio.hora, item)
+            : cambio.hora || "",
+      };
+    });
+
+  const convertirRegistroAHorasReales = (item) => {
+    if (item.modoTiempo !== "transmision") return item;
+
+    const convertirVars = (tipo, vars) =>
+      (vars || []).map((evento) => ({
+        ...evento,
+        inicio: convertirGuiaAHoraReal(tipo, evento.inicio, item),
+        final: convertirGuiaAHoraReal(tipo, evento.final, item),
+      }));
+
+    return {
+      ...item,
+      inicioPT: obtenerHoraInicioRealPeriodo("PT", item),
+      finalPT:
+        item.horaFinalRealPT || convertirGuiaAHoraReal("PT", item.finalPT, item),
+      varsPT: convertirVars("PT", item.varsPT),
+      inicioHidratacionPT: convertirGuiaAHoraReal(
+        "PT",
+        item.inicioHidratacionPT,
+        item
+      ),
+      finalHidratacionPT: convertirGuiaAHoraReal(
+        "PT",
+        item.finalHidratacionPT,
+        item
+      ),
+      inicioST: obtenerHoraInicioRealPeriodo("ST", item),
+      finalST:
+        item.horaFinalRealST || convertirGuiaAHoraReal("ST", item.finalST, item),
+      varsST: convertirVars("ST", item.varsST),
+      inicioHidratacionST: convertirGuiaAHoraReal(
+        "ST",
+        item.inicioHidratacionST,
+        item
+      ),
+      finalHidratacionST: convertirGuiaAHoraReal(
+        "ST",
+        item.finalHidratacionST,
+        item
+      ),
+      inicioPTE: item.prorrogaActiva
+        ? obtenerHoraInicioRealPeriodo("PTE", item)
+        : item.inicioPTE,
+      finalPTE: item.prorrogaActiva
+        ? item.horaFinalRealPTE ||
+          convertirGuiaAHoraReal("PTE", item.finalPTE, item)
+        : item.finalPTE,
+      varsPTE: item.prorrogaActiva
+        ? convertirVars("PTE", item.varsPTE)
+        : item.varsPTE,
+      inicioHidratacionPTE: item.prorrogaActiva
+        ? convertirGuiaAHoraReal("PTE", item.inicioHidratacionPTE, item)
+        : item.inicioHidratacionPTE,
+      finalHidratacionPTE: item.prorrogaActiva
+        ? convertirGuiaAHoraReal("PTE", item.finalHidratacionPTE, item)
+        : item.finalHidratacionPTE,
+      inicioSTE: item.prorrogaActiva
+        ? obtenerHoraInicioRealPeriodo("STE", item)
+        : item.inicioSTE,
+      finalSTE: item.prorrogaActiva
+        ? item.horaFinalRealSTE ||
+          convertirGuiaAHoraReal("STE", item.finalSTE, item)
+        : item.finalSTE,
+      varsSTE: item.prorrogaActiva
+        ? convertirVars("STE", item.varsSTE)
+        : item.varsSTE,
+      inicioHidratacionSTE: item.prorrogaActiva
+        ? convertirGuiaAHoraReal("STE", item.inicioHidratacionSTE, item)
+        : item.inicioHidratacionSTE,
+      finalHidratacionSTE: item.prorrogaActiva
+        ? convertirGuiaAHoraReal("STE", item.finalHidratacionSTE, item)
+        : item.finalHidratacionSTE,
+      cambios: convertirCambiosAHorasReales(item.cambios, item),
+      cambiosRival: convertirCambiosAHorasReales(item.cambiosRival, item),
+    };
+  };
+
+  const validarHorasInicioTransmision = (item) => {
+    if (item.modoTiempo !== "transmision") return "";
+
+    const periodosNecesarios = new Set();
+    const tieneDato = (valor) => String(valor || "").trim() !== "";
+    const varsConDatos = (vars) =>
+      (vars || []).some((evento) => tieneDato(evento.inicio) || tieneDato(evento.final));
+
+    if (
+      tieneDato(item.inicioPT) ||
+      tieneDato(item.finalPT) ||
+      varsConDatos(item.varsPT) ||
+      tieneDato(item.inicioHidratacionPT) ||
+      tieneDato(item.finalHidratacionPT)
+    ) {
+      periodosNecesarios.add("PT");
+    }
+
+    if (
+      tieneDato(item.inicioST) ||
+      tieneDato(item.finalST) ||
+      varsConDatos(item.varsST) ||
+      tieneDato(item.inicioHidratacionST) ||
+      tieneDato(item.finalHidratacionST)
+    ) {
+      periodosNecesarios.add("ST");
+    }
+
+    if (item.prorrogaActiva) {
+      if (tieneDato(item.inicioPTE) || tieneDato(item.finalPTE) || varsConDatos(item.varsPTE)) {
+        periodosNecesarios.add("PTE");
+      }
+      if (tieneDato(item.inicioSTE) || tieneDato(item.finalSTE) || varsConDatos(item.varsSTE)) {
+        periodosNecesarios.add("STE");
+      }
+    }
+
+    [...(item.cambios || []), ...(item.cambiosRival || [])]
+      .filter((cambio) => tieneDato(cambio.hora))
+      .forEach((cambio) =>
+        periodosNecesarios.add(obtenerPeriodoCambioParaGuardar(cambio, item))
+      );
+
+    const faltantes = [...periodosNecesarios].filter(
+      (tipo) => tipo && !obtenerHoraInicioRealPeriodo(tipo, item)
+    );
+
+    return faltantes.length > 0
+      ? `Falta marcar Inicio ${faltantes.join(", Inicio ")} con el botón Ahora.`
+      : "";
+  };
+
   const tieneDatosExtendidos = (item) =>
     Boolean(
-      item.prorrogaActiva ||
+      item.modoTiempo === "transmision" ||
+        item.prorrogaActiva ||
         (item.cambios || []).length > 5 ||
         (item.cambiosRival || []).length > 5
     );
 
   const esErrorColumnasExtendidas = (error) =>
-    /prorroga|cambios_extra|cambios_rival_extra/i.test(
+    /prorroga|cambios_extra|cambios_rival_extra|guia_transmision/i.test(
       String(error?.message || error?.details || "")
     );
 
@@ -1403,6 +1759,7 @@ tiempoST: fila.tiempo_st || "",
       prorroga,
       cambios_extra,
       cambios_rival_extra,
+      guia_transmision,
       ...payloadBase
     } = payload;
     return payloadBase;
@@ -1419,58 +1776,66 @@ tiempoST: fila.tiempo_st || "",
       noIngresaron: calcularNoIngresaron(registro.formacion, registro.cambios),
       guardadoEn: new Date().toISOString(),
     };
-    const cambiosRival = nuevoRegistro.cambiosRival || crearCambiosVacios();
+    const errorHorasInicio = validarHorasInicioTransmision(nuevoRegistro);
+    if (errorHorasInicio) {
+      alert(errorHorasInicio);
+      return;
+    }
+
+    const registroConHorasReales = convertirRegistroAHorasReales(nuevoRegistro);
+    const cambiosRival =
+      registroConHorasReales.cambiosRival || crearCambiosVacios();
   
     const registroSupabase = {
-      fecha: nuevoRegistro.fecha,
-      rival: nuevoRegistro.rival,
-      resultado: nuevoRegistro.resultado || "",
-      inicio_pt: nuevoRegistro.inicioPT,
-final_pt: nuevoRegistro.finalPT,
-tiempo_pt: nuevoRegistro.tiempoPT || "",
+      fecha: registroConHorasReales.fecha,
+      rival: registroConHorasReales.rival,
+      resultado: registroConHorasReales.resultado || "",
+      inicio_pt: registroConHorasReales.inicioPT,
+final_pt: registroConHorasReales.finalPT,
+tiempo_pt: registroConHorasReales.tiempoPT || "",
 
-inicio_st: nuevoRegistro.inicioST,
-final_st: nuevoRegistro.finalST,
-tiempo_st: nuevoRegistro.tiempoST || "",
+inicio_st: registroConHorasReales.inicioST,
+final_st: registroConHorasReales.finalST,
+tiempo_st: registroConHorasReales.tiempoST || "",
   
-      inicio_var_pt_1: nuevoRegistro.varsPT?.[0]?.inicio || "",
-      final_var_pt_1: nuevoRegistro.varsPT?.[0]?.final || "",
-      inicio_var_pt_2: nuevoRegistro.varsPT?.[1]?.inicio || "",
-      final_var_pt_2: nuevoRegistro.varsPT?.[1]?.final || "",
-      inicio_var_pt_3: nuevoRegistro.varsPT?.[2]?.inicio || "",
-      final_var_pt_3: nuevoRegistro.varsPT?.[2]?.final || "",
+      inicio_var_pt_1: registroConHorasReales.varsPT?.[0]?.inicio || "",
+      final_var_pt_1: registroConHorasReales.varsPT?.[0]?.final || "",
+      inicio_var_pt_2: registroConHorasReales.varsPT?.[1]?.inicio || "",
+      final_var_pt_2: registroConHorasReales.varsPT?.[1]?.final || "",
+      inicio_var_pt_3: registroConHorasReales.varsPT?.[2]?.inicio || "",
+      final_var_pt_3: registroConHorasReales.varsPT?.[2]?.final || "",
   
-      inicio_var_st_1: nuevoRegistro.varsST?.[0]?.inicio || "",
-      final_var_st_1: nuevoRegistro.varsST?.[0]?.final || "",
-      inicio_var_st_2: nuevoRegistro.varsST?.[1]?.inicio || "",
-      final_var_st_2: nuevoRegistro.varsST?.[1]?.final || "",
-      inicio_var_st_3: nuevoRegistro.varsST?.[2]?.inicio || "",
-      final_var_st_3: nuevoRegistro.varsST?.[2]?.final || "",
+      inicio_var_st_1: registroConHorasReales.varsST?.[0]?.inicio || "",
+      final_var_st_1: registroConHorasReales.varsST?.[0]?.final || "",
+      inicio_var_st_2: registroConHorasReales.varsST?.[1]?.inicio || "",
+      final_var_st_2: registroConHorasReales.varsST?.[1]?.final || "",
+      inicio_var_st_3: registroConHorasReales.varsST?.[2]?.inicio || "",
+      final_var_st_3: registroConHorasReales.varsST?.[2]?.final || "",
   
-      inicio_hid_pt: nuevoRegistro.inicioHidratacionPT,
-      final_hid_pt: nuevoRegistro.finalHidratacionPT,
-      inicio_hid_st: nuevoRegistro.inicioHidratacionST,
-      final_hid_st: nuevoRegistro.finalHidratacionST,
+      inicio_hid_pt: registroConHorasReales.inicioHidratacionPT,
+      final_hid_pt: registroConHorasReales.finalHidratacionPT,
+      inicio_hid_st: registroConHorasReales.inicioHidratacionST,
+      final_hid_st: registroConHorasReales.finalHidratacionST,
   
-      cambio_1_tiempo: nuevoRegistro.cambios?.[0]?.hora || "",
-      cambio_1_sale: nuevoRegistro.cambios?.[0]?.sale || "",
-      cambio_1_entra: nuevoRegistro.cambios?.[0]?.entra || "",
+      cambio_1_tiempo: registroConHorasReales.cambios?.[0]?.hora || "",
+      cambio_1_sale: registroConHorasReales.cambios?.[0]?.sale || "",
+      cambio_1_entra: registroConHorasReales.cambios?.[0]?.entra || "",
   
-      cambio_2_tiempo: nuevoRegistro.cambios?.[1]?.hora || "",
-      cambio_2_sale: nuevoRegistro.cambios?.[1]?.sale || "",
-      cambio_2_entra: nuevoRegistro.cambios?.[1]?.entra || "",
+      cambio_2_tiempo: registroConHorasReales.cambios?.[1]?.hora || "",
+      cambio_2_sale: registroConHorasReales.cambios?.[1]?.sale || "",
+      cambio_2_entra: registroConHorasReales.cambios?.[1]?.entra || "",
   
-      cambio_3_tiempo: nuevoRegistro.cambios?.[2]?.hora || "",
-      cambio_3_sale: nuevoRegistro.cambios?.[2]?.sale || "",
-      cambio_3_entra: nuevoRegistro.cambios?.[2]?.entra || "",
+      cambio_3_tiempo: registroConHorasReales.cambios?.[2]?.hora || "",
+      cambio_3_sale: registroConHorasReales.cambios?.[2]?.sale || "",
+      cambio_3_entra: registroConHorasReales.cambios?.[2]?.entra || "",
   
-      cambio_4_tiempo: nuevoRegistro.cambios?.[3]?.hora || "",
-      cambio_4_sale: nuevoRegistro.cambios?.[3]?.sale || "",
-      cambio_4_entra: nuevoRegistro.cambios?.[3]?.entra || "",
+      cambio_4_tiempo: registroConHorasReales.cambios?.[3]?.hora || "",
+      cambio_4_sale: registroConHorasReales.cambios?.[3]?.sale || "",
+      cambio_4_entra: registroConHorasReales.cambios?.[3]?.entra || "",
   
-      cambio_5_tiempo: nuevoRegistro.cambios?.[4]?.hora || "",
-      cambio_5_sale: nuevoRegistro.cambios?.[4]?.sale || "",
-      cambio_5_entra: nuevoRegistro.cambios?.[4]?.entra || "",
+      cambio_5_tiempo: registroConHorasReales.cambios?.[4]?.hora || "",
+      cambio_5_sale: registroConHorasReales.cambios?.[4]?.sale || "",
+      cambio_5_entra: registroConHorasReales.cambios?.[4]?.entra || "",
       
       rival_cambio_sale1: cambiosRival[0]?.sale || "",
 rival_cambio_entra1: cambiosRival[0]?.entra || "",
@@ -1492,12 +1857,13 @@ rival_cambio_sale5: cambiosRival[4]?.sale || "",
 rival_cambio_entra5: cambiosRival[4]?.entra || "",
 rival_cambio_horario5: cambiosRival[4]?.hora || "",
 
+      guia_transmision: serializarGuiaTransmision(nuevoRegistro),
       prorroga: serializarProrroga(nuevoRegistro),
-      cambios_extra: (nuevoRegistro.cambios || []).slice(5),
+      cambios_extra: (registroConHorasReales.cambios || []).slice(5),
       cambios_rival_extra: cambiosRival.slice(5),
       
-      titulares: nuevoRegistro.formacion?.titulares || [],
-      convocados: nuevoRegistro.formacion?.convocados || [],
+      titulares: registroConHorasReales.formacion?.titulares || [],
+      convocados: registroConHorasReales.formacion?.convocados || [],
     };
   
     let { error } = await supabase
@@ -1518,7 +1884,7 @@ rival_cambio_horario5: cambiosRival[4]?.hora || "",
     if (error) {
       if (esErrorColumnasExtendidas(error)) {
         alert(
-          "Falta ejecutar la migración de prórroga en Supabase. Abrí el archivo SQL incluido en el repositorio y ejecutalo en SQL Editor."
+          "Falta ejecutar la migración de transmisión y prórroga en Supabase. Abrí el archivo SQL incluido en el repositorio y ejecutalo en SQL Editor."
         );
         setMensajeGuardado("Falta actualizar la base de datos");
         return;
@@ -1562,59 +1928,61 @@ rival_cambio_horario5: cambiosRival[4]?.hora || "",
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const convertirRegistroASupabase = (registroEditado) => {
-    const cambiosRival = registroEditado.cambiosRival || crearCambiosVacios();
+    const registroParaGuardar = convertirRegistroAHorasReales(registroEditado);
+    const cambiosRival =
+      registroParaGuardar.cambiosRival || crearCambiosVacios();
   
     return {
-      fecha: registroEditado.fecha,
-      rival: registroEditado.rival,
-      resultado: registroEditado.resultado || "",
+      fecha: registroParaGuardar.fecha,
+      rival: registroParaGuardar.rival,
+      resultado: registroParaGuardar.resultado || "",
   
-      inicio_pt: registroEditado.inicioPT || "",
-final_pt: registroEditado.finalPT || "",
-tiempo_pt: registroEditado.tiempoPT || "",
+      inicio_pt: registroParaGuardar.inicioPT || "",
+final_pt: registroParaGuardar.finalPT || "",
+tiempo_pt: registroParaGuardar.tiempoPT || "",
 
-inicio_st: registroEditado.inicioST || "",
-final_st: registroEditado.finalST || "",
-tiempo_st: registroEditado.tiempoST || "",
+inicio_st: registroParaGuardar.inicioST || "",
+final_st: registroParaGuardar.finalST || "",
+tiempo_st: registroParaGuardar.tiempoST || "",
   
-      inicio_var_pt_1: registroEditado.varsPT?.[0]?.inicio || "",
-      final_var_pt_1: registroEditado.varsPT?.[0]?.final || "",
-      inicio_var_pt_2: registroEditado.varsPT?.[1]?.inicio || "",
-      final_var_pt_2: registroEditado.varsPT?.[1]?.final || "",
-      inicio_var_pt_3: registroEditado.varsPT?.[2]?.inicio || "",
-      final_var_pt_3: registroEditado.varsPT?.[2]?.final || "",
+      inicio_var_pt_1: registroParaGuardar.varsPT?.[0]?.inicio || "",
+      final_var_pt_1: registroParaGuardar.varsPT?.[0]?.final || "",
+      inicio_var_pt_2: registroParaGuardar.varsPT?.[1]?.inicio || "",
+      final_var_pt_2: registroParaGuardar.varsPT?.[1]?.final || "",
+      inicio_var_pt_3: registroParaGuardar.varsPT?.[2]?.inicio || "",
+      final_var_pt_3: registroParaGuardar.varsPT?.[2]?.final || "",
   
-      inicio_var_st_1: registroEditado.varsST?.[0]?.inicio || "",
-      final_var_st_1: registroEditado.varsST?.[0]?.final || "",
-      inicio_var_st_2: registroEditado.varsST?.[1]?.inicio || "",
-      final_var_st_2: registroEditado.varsST?.[1]?.final || "",
-      inicio_var_st_3: registroEditado.varsST?.[2]?.inicio || "",
-      final_var_st_3: registroEditado.varsST?.[2]?.final || "",
+      inicio_var_st_1: registroParaGuardar.varsST?.[0]?.inicio || "",
+      final_var_st_1: registroParaGuardar.varsST?.[0]?.final || "",
+      inicio_var_st_2: registroParaGuardar.varsST?.[1]?.inicio || "",
+      final_var_st_2: registroParaGuardar.varsST?.[1]?.final || "",
+      inicio_var_st_3: registroParaGuardar.varsST?.[2]?.inicio || "",
+      final_var_st_3: registroParaGuardar.varsST?.[2]?.final || "",
   
-      inicio_hid_pt: registroEditado.inicioHidratacionPT || "",
-      final_hid_pt: registroEditado.finalHidratacionPT || "",
-      inicio_hid_st: registroEditado.inicioHidratacionST || "",
-      final_hid_st: registroEditado.finalHidratacionST || "",
+      inicio_hid_pt: registroParaGuardar.inicioHidratacionPT || "",
+      final_hid_pt: registroParaGuardar.finalHidratacionPT || "",
+      inicio_hid_st: registroParaGuardar.inicioHidratacionST || "",
+      final_hid_st: registroParaGuardar.finalHidratacionST || "",
   
-      cambio_1_tiempo: registroEditado.cambios?.[0]?.hora || "",
-      cambio_1_sale: registroEditado.cambios?.[0]?.sale || "",
-      cambio_1_entra: registroEditado.cambios?.[0]?.entra || "",
+      cambio_1_tiempo: registroParaGuardar.cambios?.[0]?.hora || "",
+      cambio_1_sale: registroParaGuardar.cambios?.[0]?.sale || "",
+      cambio_1_entra: registroParaGuardar.cambios?.[0]?.entra || "",
   
-      cambio_2_tiempo: registroEditado.cambios?.[1]?.hora || "",
-      cambio_2_sale: registroEditado.cambios?.[1]?.sale || "",
-      cambio_2_entra: registroEditado.cambios?.[1]?.entra || "",
+      cambio_2_tiempo: registroParaGuardar.cambios?.[1]?.hora || "",
+      cambio_2_sale: registroParaGuardar.cambios?.[1]?.sale || "",
+      cambio_2_entra: registroParaGuardar.cambios?.[1]?.entra || "",
   
-      cambio_3_tiempo: registroEditado.cambios?.[2]?.hora || "",
-      cambio_3_sale: registroEditado.cambios?.[2]?.sale || "",
-      cambio_3_entra: registroEditado.cambios?.[2]?.entra || "",
+      cambio_3_tiempo: registroParaGuardar.cambios?.[2]?.hora || "",
+      cambio_3_sale: registroParaGuardar.cambios?.[2]?.sale || "",
+      cambio_3_entra: registroParaGuardar.cambios?.[2]?.entra || "",
   
-      cambio_4_tiempo: registroEditado.cambios?.[3]?.hora || "",
-      cambio_4_sale: registroEditado.cambios?.[3]?.sale || "",
-      cambio_4_entra: registroEditado.cambios?.[3]?.entra || "",
+      cambio_4_tiempo: registroParaGuardar.cambios?.[3]?.hora || "",
+      cambio_4_sale: registroParaGuardar.cambios?.[3]?.sale || "",
+      cambio_4_entra: registroParaGuardar.cambios?.[3]?.entra || "",
   
-      cambio_5_tiempo: registroEditado.cambios?.[4]?.hora || "",
-      cambio_5_sale: registroEditado.cambios?.[4]?.sale || "",
-      cambio_5_entra: registroEditado.cambios?.[4]?.entra || "",
+      cambio_5_tiempo: registroParaGuardar.cambios?.[4]?.hora || "",
+      cambio_5_sale: registroParaGuardar.cambios?.[4]?.sale || "",
+      cambio_5_entra: registroParaGuardar.cambios?.[4]?.entra || "",
   
       rival_cambio_sale1: cambiosRival[0]?.sale || "",
       rival_cambio_entra1: cambiosRival[0]?.entra || "",
@@ -1636,12 +2004,14 @@ tiempo_st: registroEditado.tiempoST || "",
       rival_cambio_entra5: cambiosRival[4]?.entra || "",
       rival_cambio_horario5: cambiosRival[4]?.hora || "",
 
+      guia_transmision:
+        registroEditado.guiaTransmision || serializarGuiaTransmision(registroEditado),
       prorroga: serializarProrroga(registroEditado),
-      cambios_extra: (registroEditado.cambios || []).slice(5),
+      cambios_extra: (registroParaGuardar.cambios || []).slice(5),
       cambios_rival_extra: cambiosRival.slice(5),
   
-      titulares: registroEditado.formacion?.titulares || [],
-      convocados: registroEditado.formacion?.convocados || [],
+      titulares: registroParaGuardar.formacion?.titulares || [],
+      convocados: registroParaGuardar.formacion?.convocados || [],
     };
   };
   const borrarHistorial = async () => {
@@ -2353,7 +2723,7 @@ tiempo_st: registroEditado.tiempoST || "",
           <span className="indicador-modo-punto" aria-hidden="true" />
           <div className="indicador-modo-texto">
             <strong>Modo {esTransmision ? "Transmisión" : "En Vivo"}</strong>
-            <span>{esTransmision ? "Minutos de juego" : "Hora actual"}</span>
+            <span>{esTransmision ? "Minutos por período" : "Hora actual"}</span>
           </div>
         </div>
       </div>
