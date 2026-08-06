@@ -43,7 +43,7 @@ const SelectorNombre = ({
   const opcionesUnicas = useMemo(() => {
     const vistos = new Set();
 
-    return [value, ...(opciones || [])]
+    return (opciones || [])
       .map((opcion) => String(opcion || "").trim())
       .filter(Boolean)
       .filter((opcion) => {
@@ -52,7 +52,7 @@ const SelectorNombre = ({
         vistos.add(clave);
         return true;
       });
-  }, [opciones, value]);
+  }, [opciones]);
 
   const resultados = useMemo(() => {
     const consulta = normalizarNombreBusqueda(value);

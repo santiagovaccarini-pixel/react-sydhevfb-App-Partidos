@@ -1617,3 +1617,16 @@ button:active {
   }
 }
 
+/* Permite desplegar nombres dentro de la edición de registros */
+.tabla-detalle-cambios {
+  overflow: visible;
+}
+
+.fila-detalle-cambio {
+  position: relative;
+}
+
+.fila-detalle-cambio:focus-within {
+  z-index: 80;
+}
+
