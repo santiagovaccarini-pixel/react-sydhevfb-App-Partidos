@@ -1,0 +1,54 @@
+name: Run unified live time picker
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-build:
+    if: ${{ github.head_ref == 'agent/unified-live-time-picker' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout implementation branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone \
+            --branch agent/unified-live-time-picker \
+            --single-branch \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            repo
+
+      - name: Apply unified live picker patch
+        working-directory: repo
+        run: python scripts/apply_unified_live_time_picker.py
+
+      - name: Install dependencies
+        working-directory: repo
+        run: npm install --no-package-lock
+
+      - name: Build application
+        working-directory: repo
+        run: npm run build
+
+      - name: Clean validation artifacts
+        working-directory: repo
+        run: |
+          git checkout -- package.json
+          rm -rf build
+          rm -f package-lock.json
+          rm -f scripts/apply_unified_live_time_picker.py
+          rmdir scripts 2>/dev/null || true
+
+      - name: Commit validated implementation
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Unifica el selector horario de En Vivo"
+          git push origin HEAD:agent/unified-live-time-picker
