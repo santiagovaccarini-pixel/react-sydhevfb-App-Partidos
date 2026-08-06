@@ -25,6 +25,9 @@ jobs:
       - name: Apply selector patch
         run: python scripts/apply_scroll_time_name_selectors.py
 
+      - name: Refine selector behavior
+        run: python scripts/refine_scroll_selectors.py
+
       - name: Install dependencies
         run: npm install --no-package-lock
 
@@ -38,6 +41,7 @@ jobs:
           rm -f .selector-validation-trigger
           rm -f scripts/apply_scroll_time_name_selectors.py
           rm -f scripts/prepare_scroll_time_name_patch.py
+          rm -f scripts/refine_scroll_selectors.py
           rmdir scripts 2>/dev/null || true
 
       - name: Commit validated implementation
