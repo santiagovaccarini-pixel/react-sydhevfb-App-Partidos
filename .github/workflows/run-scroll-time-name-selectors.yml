@@ -19,12 +19,6 @@ jobs:
           ref: agent/scroll-time-name-selectors
           persist-credentials: true
 
-      - name: Prepare complete selector patch
-        run: python scripts/prepare_scroll_time_name_patch.py
-
-      - name: Apply selector patch
-        run: python scripts/apply_scroll_time_name_selectors.py
-
       - name: Refine selector behavior
         run: python scripts/refine_scroll_selectors.py
 
@@ -39,8 +33,6 @@ jobs:
           git checkout -- package.json
           rm -rf build
           rm -f .selector-validation-trigger
-          rm -f scripts/apply_scroll_time_name_selectors.py
-          rm -f scripts/prepare_scroll_time_name_patch.py
           rm -f scripts/refine_scroll_selectors.py
           rmdir scripts 2>/dev/null || true
 
@@ -49,5 +41,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Mejora selectores de tiempo y nombres [scroll-selectors]"
+          git commit -m "Refina selectores de nombres [scroll-selectors-refine]"
           git push origin HEAD:agent/scroll-time-name-selectors
