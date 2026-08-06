@@ -1466,3 +1466,154 @@ button:active {
     align-items: center;
   }
 }
+
+/* Selectores desplazables de tiempo y nombres */
+.fila-hora .selector-tiempo-transmision {
+  flex: 1;
+  min-width: 0;
+}
+
+.selector-tiempo-transmision {
+  width: 100%;
+  height: 46px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr);
+  align-items: center;
+  padding: 0 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.selector-tiempo-transmision:focus-within {
+  border-color: #334155;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(51, 65, 85, 0.12);
+}
+
+.selector-tiempo-transmision select {
+  width: 100%;
+  height: 42px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 3px;
+  background: transparent;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
+  text-align-last: center;
+  box-shadow: none;
+}
+
+.selector-tiempo-transmision select:focus {
+  border: 0;
+  background: rgba(226, 232, 240, 0.55);
+  box-shadow: none;
+}
+
+.selector-tiempo-separador {
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.selector-tiempo-transmision.compacto {
+  height: 30px;
+  grid-template-columns: minmax(0, 1fr) 7px minmax(0, 1fr);
+  padding: 0 1px;
+  border-radius: 10px;
+}
+
+.selector-tiempo-transmision.compacto select {
+  height: 27px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.selector-tiempo-transmision.compacto .selector-tiempo-separador {
+  font-size: 11px;
+}
+
+.selector-nombre {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.selector-nombre.abierto,
+.fila-cambio:focus-within {
+  z-index: 80;
+}
+
+.selector-nombre-lista {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  z-index: 300;
+  max-height: 230px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 5px;
+  border: 1px solid #94a3b8;
+  border-radius: 13px;
+  background: #ffffff;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.28);
+}
+
+.selector-nombre-opcion {
+  width: 100%;
+  min-height: 39px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.selector-nombre-opcion:hover,
+.selector-nombre-opcion:active,
+.selector-nombre-opcion.activa {
+  transform: none;
+  box-shadow: none;
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.selector-nombre-sin-resultados {
+  padding: 11px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.tabla-cambios {
+  overflow: visible;
+}
+
+.fila-cambio {
+  position: relative;
+}
+
+@media (max-width: 600px) {
+  .selector-nombre-lista {
+    max-height: 190px;
+  }
+
+  .selector-nombre-opcion {
+    min-height: 42px;
+    font-size: 12px;
+  }
+}
+
