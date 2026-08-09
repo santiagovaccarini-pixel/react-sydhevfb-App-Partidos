@@ -630,9 +630,22 @@ const InputJugador = ({ value, onChange }) => (
   <SelectorNombre value={value} onChange={onChange} opciones={jugadores} />
 );
 
-const InputJugadorRival = ({ value, onChange, opciones = [] }) => (
-  <SelectorNombre value={value} onChange={onChange} opciones={opciones} />
-);
+const InputJugadorRival = ({ value, onChange, opciones = [] }) => {
+  const valorNormalizado = normalizarNombreBusqueda(value);
+  const opcionesFiltradas = valorNormalizado
+    ? opciones.filter(
+        (opcion) => normalizarNombreBusqueda(opcion) !== valorNormalizado
+      )
+    : opciones;
+
+  return (
+    <SelectorNombre
+      value={value}
+      onChange={onChange}
+      opciones={opcionesFiltradas}
+    />
+  );
+};
 
 
 export default function App() {
