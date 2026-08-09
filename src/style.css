@@ -346,7 +346,7 @@ button:active {
   justify-content: center;
 }
 
-.celda-hora-cambio button {
+.celda-hora-cambio > button {
   width: 100%;
   height: 30px;
   border-radius: 11px;
@@ -997,7 +997,7 @@ button:active {
 .pantalla-rival input {
   border: 1px solid rgba(0, 0, 0, 0.45);
 }
-.pantalla-rival .celda-hora-cambio button:not(.boton-entretiempo) {
+.pantalla-rival .celda-hora-cambio > button:not(.boton-entretiempo) {
   background: linear-gradient(135deg, #ff7a00 0%, #111 90%);
   color: white;
   border: none;
@@ -1620,8 +1620,9 @@ button:active {
 
 .selector-tiempo-opcion.activa,
 .selector-tiempo-opcion.activa:hover {
-  background: linear-gradient(135deg, #000000, #16a34a);
-  color: #ffffff;
+  background: #e2e8f0;
+  color: #0f172a;
+  box-shadow: inset 0 0 0 1px #94a3b8;
 }
 
 .selector-tiempo-acciones {
@@ -1643,7 +1644,7 @@ button:active {
 }
 
 .selector-tiempo-listo {
-  background: linear-gradient(135deg, #000000, #16a34a);
+  background: #0f172a;
   color: #ffffff;
 }
 
