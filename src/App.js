@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import "./style.css";
-const APP_VERSION = "2026.08.06.6";
+const APP_VERSION = "2026.08.08.1";
 
 const imagenIntro =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
@@ -143,8 +143,18 @@ const SelectorNombre = ({
           setIndiceActivo(-1);
         }}
         onFocus={() => setAbierto(true)}
-        onBlur={() => {
-          window.setTimeout(() => setAbierto(false), 120);
+        onBlur={(evento) => {
+          const siguienteFoco = evento.relatedTarget;
+          if (siguienteFoco && contenedorRef.current?.contains(siguienteFoco)) {
+            return;
+          }
+
+          window.requestAnimationFrame(() => {
+            if (!contenedorRef.current?.contains(document.activeElement)) {
+              setAbierto(false);
+              setIndiceActivo(-1);
+            }
+          });
         }}
         onKeyDown={manejarTeclado}
         placeholder={placeholder}
@@ -620,6 +630,10 @@ const InputJugador = ({ value, onChange }) => (
   <SelectorNombre value={value} onChange={onChange} opciones={jugadores} />
 );
 
+const InputJugadorRival = ({ value, onChange, opciones = [] }) => (
+  <SelectorNombre value={value} onChange={onChange} opciones={opciones} />
+);
+
 
 export default function App() {
   const crearCambioVacio = () => ({
@@ -810,15 +824,6 @@ varSTEActivo: registroRecuperado.varSTEActivo || 0,
     ]
   );
 
-  const ListaJugadoresRival = () => null;
-
-  const InputJugadorRival = ({ value, onChange }) => (
-    <SelectorNombre
-      value={value}
-      onChange={onChange}
-      opciones={opcionesJugadoresRival}
-    />
-  );
   const posicionScrollPendiente = useRef(null);
   const convertirSupabaseARegistro = (fila) => {
     const prorroga = fila.prorroga || {};
@@ -1537,6 +1542,39 @@ tiempoST: fila.tiempo_st || "",
     return Number.isNaN(fecha.getTime()) ? "" : fecha.toTimeString().slice(0, 8);
   };
 
+  const timestampDesdeHoraReal = (hora, referenciaExistente = null) => {
+    const coincidencia = String(hora || "").match(
+      /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/
+    );
+    if (!coincidencia) return null;
+
+    const referenciaNumerica = Number(referenciaExistente);
+    const baseValida =
+      referenciaExistente !== null &&
+      referenciaExistente !== "" &&
+      Number.isFinite(referenciaNumerica)
+        ? referenciaNumerica
+        : Date.now();
+
+    const fecha = new Date(baseValida);
+    fecha.setHours(
+      Number(coincidencia[1]),
+      Number(coincidencia[2]),
+      Number(coincidencia[3]),
+      0
+    );
+
+    // En cruces de medianoche conserva el día más cercano a la referencia previa.
+    const medioDia = 12 * 60 * 60 * 1000;
+    const unDia = 24 * 60 * 60 * 1000;
+    let timestamp = fecha.getTime();
+
+    if (timestamp - baseValida > medioDia) timestamp -= unDia;
+    if (baseValida - timestamp > medioDia) timestamp += unDia;
+
+    return timestamp;
+  };
+
   const sumarSegundosAHoraExacta = (horaBase, segundosASumar) => {
     if (!horaBase) return "";
 
@@ -1733,13 +1771,20 @@ tiempoST: fila.tiempo_st || "",
 
     setRegistro((prev) => {
       const config = obtenerConfigPeriodo(tipo);
+      const referenciaCorregida = timestampDesdeHoraReal(
+        valor,
+        prev[config.referencia]
+      );
       const siguiente = {
         ...prev,
         [config.horaInicioReal]: valor || "",
+        ...(referenciaCorregida !== null
+          ? { [config.referencia]: referenciaCorregida }
+          : {}),
       };
 
-      // La guía MMM:SS sigue corriendo desde el toque original. Solo cambia
-      // la hora base que se utiliza para convertir todos los eventos al guardar.
+      // La hora corregida pasa a ser también la referencia de los próximos
+      // botones Ahora. Los minutos siguen siendo una guía visual del período.
       siguiente[config.horaFinalReal] = prev[config.final]
         ? convertirGuiaAHoraReal(tipo, prev[config.final], siguiente)
         : "";
@@ -3991,6 +4036,7 @@ setTimeout(() => {
                   <div>
                     {editando ? (
                                             <InputJugadorRival
+                        opciones={opcionesJugadoresRival}
                         value={cambio.sale || ""}
                         onChange={(valor) =>
                         actualizarCambioRivalEditado(cambioIndex, "sale", valor)}
@@ -4003,6 +4049,7 @@ setTimeout(() => {
                   <div>
                     {editando ? (
                                             <InputJugadorRival
+                        opciones={opcionesJugadoresRival}
                         value={cambio.entra || ""}
                         onChange={(valor) =>
                         actualizarCambioRivalEditado(cambioIndex, "entra", valor)}
@@ -4302,6 +4349,7 @@ setTimeout(() => {
                   <div className="fila-cambio" key={`cambio-rival-${index}`}>
                     <div>
                                         <InputJugadorRival
+                      opciones={opcionesJugadoresRival}
                       value={cambio.sale || ""}
                       onChange={(valor) =>
     actualizarCambioRival(index, "sale", valor)}
@@ -4310,6 +4358,7 @@ setTimeout(() => {
   
                     <div>
                                         <InputJugadorRival
+                      opciones={opcionesJugadoresRival}
                       value={cambio.entra || ""}
                       onChange={(valor) =>
     actualizarCambioRival(index, "entra", valor)}
