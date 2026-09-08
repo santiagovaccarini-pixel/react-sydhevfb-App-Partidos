@@ -29,10 +29,12 @@ import {
 import { EscudoCAM, Icono, MarcoAplicacion } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.1";
+const APP_VERSION = "2026.09.08.2";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
+const claveAlmacenamientoUsuario = (base, idUsuario) =>
+  idUsuario ? `${base}:${idUsuario}` : base;
 
 const opcionesMinutosTransmision = Array.from({ length: 121 }, (_, minuto) =>
   String(minuto).padStart(3, "0"),
@@ -737,7 +739,16 @@ const EstadoVersionApp = ({ actualizacionDisponible, onActualizar }) => (
   </div>
 );
 
-export default function App() {
+export default function App({ session } = {}) {
+  const idUsuarioActual = session?.user?.id || "";
+  const claveBorrador = claveAlmacenamientoUsuario(
+    CLAVE_BORRADOR,
+    idUsuarioActual,
+  );
+  const claveRespaldo = claveAlmacenamientoUsuario(
+    CLAVE_RESPALDO,
+    idUsuarioActual,
+  );
   const crearCambioVacio = () => ({
     sale: "",
     entra: "",
@@ -821,7 +832,7 @@ export default function App() {
     const registroVacio = crearRegistroVacio();
 
     try {
-      const datosGuardados = localStorage.getItem(CLAVE_BORRADOR);
+      const datosGuardados = localStorage.getItem(claveBorrador);
 
       if (!datosGuardados) return registroVacio;
 
@@ -925,6 +936,8 @@ export default function App() {
   );
 
   const [mensajeFormacion, setMensajeFormacion] = useState("");
+  const registroEsPropio = (item) =>
+    !idUsuarioActual || item?.ownerId === idUsuarioActual;
 
   const opcionesJugadoresRival = useMemo(
     () =>
@@ -1111,6 +1124,7 @@ export default function App() {
       },
 
       idSupabase: fila.id,
+      ownerId: fila.owner_id || null,
       guardadoEn: fila.created_at || fila.fecha || "",
     };
 
@@ -1123,6 +1137,7 @@ export default function App() {
             rival: registroConvertido.rival,
             resultado: registroConvertido.resultado,
             idSupabase: registroConvertido.idSupabase,
+            ownerId: registroConvertido.ownerId,
             guardadoEn: registroConvertido.guardadoEn,
             modoTiempo: "transmision",
           }
@@ -1149,7 +1164,7 @@ export default function App() {
 
       try {
         const datosRespaldo = JSON.parse(
-          localStorage.getItem(CLAVE_RESPALDO) || "[]",
+          localStorage.getItem(claveRespaldo) || "[]",
         );
         const respaldo =
           datosRespaldo?.version === VERSION_BORRADOR
@@ -1216,7 +1231,7 @@ export default function App() {
 
     try {
       localStorage.setItem(
-        CLAVE_RESPALDO,
+        claveRespaldo,
         JSON.stringify({ version: VERSION_BORRADOR, registros: guardados }),
       );
     } catch (error) {
@@ -1227,7 +1242,7 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem(
-        CLAVE_BORRADOR,
+        claveBorrador,
         JSON.stringify({ version: VERSION_BORRADOR, registro }),
       );
     } catch (error) {
@@ -2502,7 +2517,9 @@ export default function App() {
 
     try {
       const coincidente = guardados.find(
-        (item) => clavePartido(item) === clavePartido(nuevoRegistro),
+        (item) =>
+          registroEsPropio(item) &&
+          clavePartido(item) === clavePartido(nuevoRegistro),
       );
       const idExistente = nuevoRegistro.idSupabase || coincidente?.idSupabase;
 
@@ -2551,7 +2568,11 @@ export default function App() {
 
       const idGuardado = respuesta.data?.[0]?.id || idExistente;
       if (idGuardado) {
-        setRegistro((prev) => ({ ...prev, idSupabase: idGuardado }));
+        setRegistro((prev) => ({
+          ...prev,
+          idSupabase: idGuardado,
+          ownerId: idUsuarioActual || prev.ownerId,
+        }));
       }
 
       await cargarRegistrosSupabase();
@@ -2581,7 +2602,7 @@ export default function App() {
 
     try {
       localStorage.setItem(
-        CLAVE_BORRADOR,
+        claveBorrador,
         JSON.stringify({ version: VERSION_BORRADOR, registro: nuevoRegistro }),
       );
     } catch (error) {
@@ -2685,13 +2706,17 @@ export default function App() {
     };
   };
   const borrarHistorial = async () => {
+    const registrosPropios = guardados.filter(registroEsPropio);
+
+    if (registrosPropios.length === 0) return;
+
     const confirmar = window.confirm(
-      "¿Seguro que querés borrar todos los registros? Esta acción también borra los datos de Supabase.",
+      "¿Seguro que querés borrar todos tus registros? Esta acción también borra tus datos de Supabase.",
     );
 
     if (!confirmar) return;
 
-    const ids = guardados
+    const ids = registrosPropios
       .map((registro) => registro.idSupabase)
       .filter(Boolean);
 
@@ -2708,8 +2733,8 @@ export default function App() {
       }
     }
 
-    setGuardados([]);
-    localStorage.removeItem(CLAVE_RESPALDO);
+    await cargarRegistrosSupabase();
+    localStorage.removeItem(claveRespaldo);
     setRegistroSeleccionado(null);
   };
 
@@ -2721,6 +2746,11 @@ export default function App() {
     if (!confirmar) return;
 
     const registroAEliminar = guardados[indexAEliminar];
+
+    if (!registroEsPropio(registroAEliminar)) {
+      alert("Los registros de otras cuentas son de solo lectura.");
+      return;
+    }
 
     if (!registroAEliminar?.idSupabase) {
       alert(
@@ -2745,8 +2775,14 @@ export default function App() {
   };
 
   const actualizarRegistroGuardado = async (indexAEditar, registroEditado) => {
+    const registroOriginal = guardados[indexAEditar];
+    if (!registroEsPropio(registroOriginal)) {
+      alert("Los registros de otras cuentas son de solo lectura.");
+      return false;
+    }
+
     const idRegistro =
-      registroEditado.idSupabase || guardados[indexAEditar]?.idSupabase;
+      registroEditado.idSupabase || registroOriginal?.idSupabase;
 
     if (!idRegistro) {
       alert("Este registro no tiene ID de Supabase. No se puede editar.");
@@ -3401,6 +3437,7 @@ export default function App() {
   };
 
   const renderDetalleRegistro = ({ item, index }) => {
+    const esPropio = registroEsPropio(item);
     const registroDetalleBase = {
       ...item,
       cambios: item.cambios || crearCambiosVacios(),
@@ -3501,6 +3538,13 @@ export default function App() {
               {editado.resultado ? ` · ${editado.resultado}` : ""}
             </p>
           </header>
+
+          {!esPropio && (
+            <div className="aviso-solo-lectura" role="note">
+              Este partido pertenece a otra cuenta. Podés consultarlo, pero no
+              editarlo ni eliminarlo.
+            </div>
+          )}
 
           <section className="tarjeta">
             <h2>Datos del partido</h2>
@@ -4248,16 +4292,18 @@ export default function App() {
                 ← Volver
               </button>
 
-              <button
-                type="button"
-                className="boton-principal"
-                onClick={() => {
-                  setEditado(registroDetalleBase);
-                  setEditando(true);
-                }}
-              >
-                Editar registro
-              </button>
+              {esPropio && (
+                <button
+                  type="button"
+                  className="boton-principal"
+                  onClick={() => {
+                    setEditado(registroDetalleBase);
+                    setEditando(true);
+                  }}
+                >
+                  Editar registro
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -4711,9 +4757,9 @@ export default function App() {
             <div className="historial-titulo">
               <h2>Registros Guardados</h2>
 
-              {guardados.length > 0 && (
+              {guardados.some(registroEsPropio) && (
                 <button type="button" onClick={borrarHistorial}>
-                  Borrar historial
+                  Borrar mis registros
                 </button>
               )}
             </div>
@@ -4736,12 +4782,23 @@ export default function App() {
                 )}
 
                 {registrosVisibles.map(({ item, index }) => (
-                  <div className="registro-guardado" key={index}>
+                  <div
+                    className={`registro-guardado ${
+                      registroEsPropio(item) ? "" : "solo-lectura"
+                    }`}
+                    key={item.idSupabase || index}
+                  >
                     <strong>
                       {item.fecha} · Atlético Mineiro vs{" "}
                       {item.rival || "Sin rival"}
                       {item.resultado ? ` · ${item.resultado}` : ""}
                     </strong>
+
+                    {!registroEsPropio(item) && (
+                      <span className="etiqueta-solo-lectura">
+                        Otra cuenta · solo lectura
+                      </span>
+                    )}
 
                     <p>
                       PT: {item.inicioPT || "-"} a {item.finalPT || "-"} ·{" "}
@@ -4766,13 +4823,15 @@ export default function App() {
                         Ver detalle
                       </button>
 
-                      <button
-                        type="button"
-                        className="boton-eliminar-registro"
-                        onClick={() => eliminarRegistro(index)}
-                      >
-                        Eliminar
-                      </button>
+                      {registroEsPropio(item) && (
+                        <button
+                          type="button"
+                          className="boton-eliminar-registro"
+                          onClick={() => eliminarRegistro(index)}
+                        >
+                          Eliminar
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
