@@ -80,10 +80,12 @@ describe("interfaz operativa", () => {
     });
     await act(async () => Promise.resolve());
 
-    // La cabecera muestra el rival del partido en curso.
+    // Guardar el partido vive en la cabecera, no en una barra flotante.
     expect(
-      contenedor.querySelector(".titulo-estado-partido h1").textContent,
-    ).toBe("Cruzeiro");
+      contenedor.querySelector(".cabecera-tablero .boton-guardar-cabecera")
+        .textContent,
+    ).toContain("Guardar partido");
+    expect(contenedor.querySelector(".barra-guardado")).toBeNull();
     expect(contenedor.textContent).toContain("Atlético Mineiro");
 
     // El marcador 1-0 deja el cero como marca de fondo, para reemplazarlo
