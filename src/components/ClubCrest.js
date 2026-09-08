@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { EscudoRival } from "./AppChrome";
+import { EscudoCAM, EscudoRival } from "./AppChrome";
 import {
   buscarEscudo,
   claveEscudo,
@@ -9,6 +9,8 @@ import {
   leerCacheEscudos,
 } from "../domain/crests";
 
+export const NOMBRE_CAM = "Atlético Mineiro";
+
 const ESPERA_TIPEO = 700;
 const MINIMO_LETRAS = 3;
 const TIEMPO_LIMITE = 8000;
@@ -16,12 +18,15 @@ const TIEMPO_LIMITE = 8000;
 const VACIO = { situacion: "vacio", url: "", nombreOficial: "" };
 
 /**
- * Busca el escudo del rival mientras se escribe el nombre. Lo encontrado queda
- * guardado en el celular, así que a partir de la segunda vez aparece al toque y
- * sin internet. Si no se encuentra nada, el que llama se queda con el escudo
- * dibujado de siempre.
+ * Busca el escudo de un club por su nombre. Sirve tanto para el rival, que se
+ * va escribiendo, como para el nuestro, que es siempre el mismo: para ese
+ * conviene demora 0, porque no hay nada que esperar a que termine de tipear.
+ *
+ * Lo encontrado queda guardado en el celular, así que a partir de la segunda
+ * vez aparece al toque y sin internet. Si no se encuentra nada, el que llama se
+ * queda con el escudo dibujado de siempre.
  */
-export const useEscudoRival = (nombre) => {
+export const useEscudoClub = (nombre, { demora = ESPERA_TIPEO } = {}) => {
   const [estado, setEstado] = useState(VACIO);
 
   useEffect(() => {
@@ -56,10 +61,7 @@ export const useEscudoRival = (nombre) => {
     const temporizador = window.setTimeout(async () => {
       setEstado({ situacion: "buscando", url: "", nombreOficial: "" });
 
-      const corte = window.setTimeout(
-        () => controlador.abort(),
-        TIEMPO_LIMITE,
-      );
+      const corte = window.setTimeout(() => controlador.abort(), TIEMPO_LIMITE);
 
       try {
         const encontrado = await buscarEscudo(texto, {
@@ -69,15 +71,16 @@ export const useEscudoRival = (nombre) => {
         if (!encontrado) {
           guardarEnCacheEscudos(clave, { url: "", ts: Date.now() });
           if (vigente) {
-            setEstado({ situacion: "sin-resultado", url: "", nombreOficial: "" });
+            setEstado({
+              situacion: "sin-resultado",
+              url: "",
+              nombreOficial: "",
+            });
           }
           return;
         }
 
-        const datos = await incrustarImagen(
-          encontrado.url,
-          controlador.signal,
-        );
+        const datos = await incrustarImagen(encontrado.url, controlador.signal);
 
         guardarEnCacheEscudos(clave, {
           url: encontrado.url,
@@ -101,36 +104,49 @@ export const useEscudoRival = (nombre) => {
       } finally {
         window.clearTimeout(corte);
       }
-    }, ESPERA_TIPEO);
+    }, demora);
 
     return () => {
       vigente = false;
       window.clearTimeout(temporizador);
       controlador.abort();
     };
-  }, [nombre]);
+  }, [nombre, demora]);
 
   return estado;
 };
 
 /**
- * El escudo del rival: la imagen real si se encontró, y si no el dibujado con
- * la inicial. Si la imagen falla al cargar, también cae al dibujado.
+ * El escudo de un club: la imagen real si se encontró, y si no el dibujado de
+ * siempre. Si la imagen falla al cargar, también cae al dibujado.
  */
-export const EscudoRivalAuto = ({ nombre = "", url = "", mini = false }) => {
+export const EscudoClub = ({
+  nombre = "",
+  url = "",
+  equipo = "rival",
+  mini = false,
+  compacto = false,
+}) => {
   const [falloImagen, setFalloImagen] = useState(false);
 
   useEffect(() => setFalloImagen(false), [url]);
 
   if (!url || falloImagen) {
-    return <EscudoRival nombre={nombre} mini={mini} />;
+    return equipo === "cam" ? (
+      <EscudoCAM compacto={compacto} />
+    ) : (
+      <EscudoRival nombre={nombre} mini={mini} />
+    );
   }
 
   return (
-    <span className={`escudo-rival escudo-real ${mini ? "mini" : ""}`}>
+    <span
+      className={`escudo-club escudo-real ${mini ? "mini" : ""}`}
+      aria-label={String(nombre).trim() || "Escudo del club"}
+    >
       <img
         src={url}
-        alt={String(nombre).trim() || "Rival"}
+        alt=""
         loading="lazy"
         onError={() => setFalloImagen(true)}
       />

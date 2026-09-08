@@ -157,6 +157,9 @@ const fuentes = [
  * lo que sea), no es grave: queda la URL, que igual carga con internet.
  */
 export const incrustarImagen = async (url, senal) => {
+  // Ya viene incrustada: no hay nada que descargar.
+  if (String(url).startsWith("data:")) return url;
+
   try {
     const respuesta = await fetch(url, { signal: senal });
     if (!respuesta.ok) return null;

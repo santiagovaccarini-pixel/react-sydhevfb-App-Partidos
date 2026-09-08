@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   CLAVE_ESCUDOS,
@@ -214,5 +215,44 @@ describe("guardado de la imagen para usarla sin internet", () => {
 
     const datos = await incrustarImagen("https://escudo/x.png");
     expect(datos).toMatch(/^data:image\/png;base64,/);
+  });
+});
+
+describe("permisos del navegador", () => {
+  // El CSP de index.html decide a qué se puede conectar la app. Si alguien lo
+  // cierra de nuevo, los escudos dejan de cargar sin ningún error visible, así
+  // que conviene que se entere un test y no el celular en la cancha.
+  const csp = readFileSync("index.html", "utf8")
+    .split('content="')
+    .find((parte) => parte.includes("connect-src"))
+    .split('"')[0];
+
+  const directiva = (nombre) =>
+    csp
+      .split(";")
+      .map((parte) => parte.trim())
+      .find((parte) => parte.startsWith(`${nombre} `)) || "";
+
+  test("se puede consultar a las fuentes de escudos", () => {
+    const conexiones = directiva("connect-src");
+
+    expect(conexiones).toContain("https://www.thesportsdb.com");
+    expect(conexiones).toContain("https://es.wikipedia.org");
+    expect(conexiones).toContain("https://pt.wikipedia.org");
+    expect(conexiones).toContain("https://upload.wikimedia.org");
+  });
+
+  test("se pueden mostrar los escudos guardados y los remotos", () => {
+    const imagenes = directiva("img-src");
+
+    expect(imagenes).toContain("data:");
+    expect(imagenes).toContain("https://upload.wikimedia.org");
+    expect(imagenes).toContain("thesportsdb.com");
+  });
+
+  test("sigue sin permitirse cualquier origen", () => {
+    expect(directiva("connect-src")).toContain("https://*.supabase.co");
+    expect(directiva("img-src")).not.toContain(" https:;");
+    expect(csp).toContain("object-src 'none'");
   });
 });

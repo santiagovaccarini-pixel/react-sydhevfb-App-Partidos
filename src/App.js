@@ -34,8 +34,13 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import { HojaConfirmar } from "./components/ConfirmSheet";
+import {
+  EscudoClub,
+  NOMBRE_CAM,
+  useEscudoClub,
+} from "./components/ClubCrest";
 import "./style.css";
-const APP_VERSION = "2026.09.08.17";
+const APP_VERSION = "2026.09.08.18";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -934,6 +939,11 @@ export default function App() {
   const [partidoEnCurso, setPartidoEnCurso] = useState(hayFormacionInicial);
 
   const [confirmarLimpieza, setConfirmarLimpieza] = useState(false);
+
+  // Escudos reales. El nuestro es siempre el mismo, así que no hay nada que
+  // esperar; el del rival se busca mientras se escribe el nombre.
+  const escudoCam = useEscudoClub(NOMBRE_CAM, { demora: 0 });
+  const escudoRival = useEscudoClub(registro.rival);
 
   const [pantallaFormacion, setPantallaFormacion] = useState(
     hayFormacionInicial ? "lista" : "inicio",
@@ -3295,58 +3305,162 @@ export default function App() {
     </div>
   );
 
+  const fechaLargaFormacion = (() => {
+    const fecha = new Date(`${fechaFormacion}T00:00:00`);
+    if (Number.isNaN(fecha.getTime())) return "";
+
+    const texto = fecha.toLocaleDateString("es-AR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  })();
+
+  const resumenEnCurso = (() => {
+    const periodoEnMarcha = ["PT", "ST", "PTE", "STE"].find(
+      (periodo) => registro[`inicio${periodo}`] && !registro[`final${periodo}`],
+    );
+    const cambiosCargados = [
+      ...(registro.cambios || []),
+      ...(registro.cambiosRival || []),
+    ].filter((cambio) => cambio?.sale?.trim() || cambio?.entra?.trim()).length;
+
+    return [
+      registro.rival?.trim() ? `vs ${registro.rival.trim()}` : "Sin rival",
+      periodoEnMarcha ? `${periodoEnMarcha} en curso` : "",
+      cambiosCargados
+        ? `${cambiosCargados} ${cambiosCargados === 1 ? "cambio" : "cambios"}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  })();
+
+  const textoEstadoEscudo = {
+    buscando: "Buscando el escudo…",
+    listo: escudoRival.nombreOficial
+      ? `Escudo de ${escudoRival.nombreOficial}`
+      : "Escudo cargado",
+    "sin-resultado": "No encontramos el escudo, queda el dibujado",
+    vacio: "",
+  }[escudoRival.situacion];
+
   const renderPantallaInicioFormacion = () => (
     <div className="app">
       <div className="contenedor contenedor-inicio-formacion">
-        <header className="encabezado">
-          <h1>Formación del partido</h1>
-          <p>Elegí la fecha e importá o cargá los datos manualmente.</p>
+        {partidoEnCurso && (
+          <button
+            type="button"
+            className="tarjeta-en-curso"
+            onClick={() => setPantallaFormacion("lista")}
+          >
+            <span className="pastilla-vivo">
+              <i aria-hidden="true" />
+              EN VIVO
+            </span>
+            <span className="texto-en-curso">
+              <strong>Partido en curso</strong>
+              <span>{resumenEnCurso}</span>
+            </span>
+            <span className="flecha-en-curso" aria-hidden="true">
+              ›
+            </span>
+          </button>
+        )}
+
+        <header className="hero-partido">
+          <span className="etiqueta-hero">Próximo partido</span>
+
+          <div className="enfrentamiento">
+            <div className="lado-enfrentamiento">
+              <EscudoClub
+                equipo="cam"
+                nombre={NOMBRE_CAM}
+                url={escudoCam.url}
+              />
+              <strong>
+                Atlético
+                <br />
+                Mineiro
+              </strong>
+            </div>
+
+            <span className="separador-enfrentamiento">VS</span>
+
+            <div
+              className={`lado-enfrentamiento ${
+                registro.rival?.trim() ? "" : "sin-cargar"
+              }`}
+            >
+              <EscudoClub nombre={registro.rival} url={escudoRival.url} />
+              <strong>{registro.rival?.trim() || "Elegí el rival"}</strong>
+            </div>
+          </div>
+
+          {fechaLargaFormacion && (
+            <p className="fecha-hero">{fechaLargaFormacion}</p>
+          )}
         </header>
 
-        <section className="tarjeta">
-          <label>Fecha del partido</label>
-          <input
-            type="date"
-            value={fechaFormacion}
-            onChange={(e) => setFechaFormacion(e.target.value)}
-          />
+        <section className="tarjeta tarjeta-inicio">
+          <div className="campo-inicio">
+            <label htmlFor="campo-rival-inicio">Rival</label>
+            <div className="campo-con-escudo">
+              <EscudoClub
+                nombre={registro.rival}
+                url={escudoRival.url}
+                mini
+              />
+              <input
+                id="campo-rival-inicio"
+                value={registro.rival}
+                onChange={(evento) => actualizar("rival", evento.target.value)}
+                placeholder="Nombre del rival"
+              />
+            </div>
+            {textoEstadoEscudo && (
+              <span
+                className={`pie-escudo ${escudoRival.situacion}`}
+                role="status"
+              >
+                {textoEstadoEscudo}
+              </span>
+            )}
+          </div>
 
-          <label>Rival</label>
-          <input
-            value={registro.rival}
-            onChange={(evento) => actualizar("rival", evento.target.value)}
-            placeholder="Nombre del rival"
-          />
+          <div className="campo-inicio">
+            <label htmlFor="campo-fecha-inicio">Fecha del partido</label>
+            <input
+              id="campo-fecha-inicio"
+              type="date"
+              value={fechaFormacion}
+              onChange={(e) => setFechaFormacion(e.target.value)}
+            />
+          </div>
 
           {mensajeFormacion && (
             <div className="aviso-formacion">{mensajeFormacion}</div>
           )}
 
-          <button
-            type="button"
-            className="boton-principal boton-formacion-grande"
-            onClick={importarFormacionAutomatica}
-          >
-            Importar formación automática
-          </button>
+          <div className="acciones-inicio">
+            <button
+              type="button"
+              className="boton-principal boton-formacion-grande"
+              onClick={importarFormacionAutomatica}
+            >
+              Importar formación automática
+            </button>
 
-          <button
-            type="button"
-            className="boton-secundario boton-formacion-grande"
-            onClick={abrirCargaManual}
-          >
-            Cargar manual
-          </button>
-
-          {partidoEnCurso && (
             <button
               type="button"
               className="boton-secundario boton-formacion-grande"
-              onClick={() => setPantallaFormacion("lista")}
+              onClick={abrirCargaManual}
             >
-              Volver al partido
+              Cargar manual
             </button>
-          )}
+          </div>
         </section>
 
         <EstadoVersionApp
