@@ -2670,8 +2670,12 @@ button:disabled {
     padding-bottom: 88px;
   }
 
+  .contenido-aplicacion .app-inicio {
+    padding-bottom: calc(67px + env(safe-area-inset-bottom, 0px));
+  }
+
   .contenido-aplicacion .contenedor-inicio-formacion {
-    min-height: calc(100dvh - 102px);
+    min-height: calc(100dvh - 81px - env(safe-area-inset-bottom, 0px));
   }
 
   .contenido-aplicacion {
@@ -3239,10 +3243,14 @@ button:disabled {
 
 /* Pantalla principal: enfrentamiento, rival y escudos reales */
 .contenedor-inicio-formacion {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
-  padding-bottom: 10px;
+}
+
+/* El cartel de versión se va al fondo, pegado a la barra de navegación */
+.contenedor-inicio-formacion .bloque-version-app {
+  margin-top: auto;
 }
 
 /* Tarjeta de partido en curso. Nada de verde: el verde es del cartel de
@@ -3340,9 +3348,10 @@ button:disabled {
 
 .lado-enfrentamiento .escudo-cam,
 .lado-enfrentamiento .escudo-rival,
-.lado-enfrentamiento .escudo-club {
-  width: 66px;
-  height: 84px;
+.lado-enfrentamiento .escudo-club.escudo-real,
+.lado-enfrentamiento .escudo-club.escudo-real.mini {
+  width: 92px;
+  height: 117px;
 }
 
 .lado-enfrentamiento strong {
@@ -3406,19 +3415,20 @@ button:disabled {
 }
 
 .campo-con-escudo .escudo-rival,
-.campo-con-escudo .escudo-club {
+.campo-con-escudo .escudo-club.escudo-real,
+.campo-con-escudo .escudo-club.escudo-real.mini {
   position: absolute;
   top: 50%;
   left: 11px;
   z-index: 1;
-  width: 22px;
-  height: 28px;
+  width: 27px;
+  height: 34px;
   transform: translateY(-50%);
   pointer-events: none;
 }
 
 .campo-con-escudo input {
-  padding-left: 42px;
+  padding-left: 48px;
 }
 
 .pie-escudo {
