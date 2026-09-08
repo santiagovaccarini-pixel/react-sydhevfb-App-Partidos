@@ -88,7 +88,7 @@ describe("interfaz operativa", () => {
     ).toHaveLength(3);
     expect(
       contenedor.querySelectorAll(".navegacion-escritorio button"),
-    ).toHaveLength(4);
+    ).toHaveLength(3);
 
     const accionPeriodo = contenedor.querySelector(".accion-periodo");
     await act(async () => accionPeriodo.click());

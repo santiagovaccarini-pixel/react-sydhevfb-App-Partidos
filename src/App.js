@@ -34,7 +34,7 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.7";
+const APP_VERSION = "2026.09.08.8";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -921,7 +921,6 @@ export default function App() {
   const [detalleBorrador, setDetalleBorrador] = useState(null);
   const [busquedaRegistros, setBusquedaRegistros] = useState("");
   const [ordenRegistros, setOrdenRegistros] = useState("reciente");
-  const [mostrarFormacionPartido, setMostrarFormacionPartido] = useState(false);
   const [mensajeGuardado, setMensajeGuardado] = useState("");
   const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
   const [periodoVista, setPeriodoVista] = useState("PT");
@@ -1259,11 +1258,6 @@ export default function App() {
       posicionScrollPendiente.current = null;
     }
   });
-  const noIngresaronActuales = useMemo(
-    () => calcularNoIngresaron(registro.formacion, registro.cambios),
-    [registro.formacion, registro.cambios],
-  );
-
   const textoRegistroParaBusqueda = (item) => {
     const cambios = item.cambios || [];
     const titulares = item.formacion?.titulares || [];
@@ -2577,14 +2571,19 @@ export default function App() {
   };
 
   const limpiarCarga = () => {
+    const confirmar = window.confirm(
+      "¿Querés borrar el partido en curso y empezar de cero?",
+    );
+
+    if (!confirmar) return;
+
     const nuevoRegistro = crearRegistroVacio();
 
     setRegistro(nuevoRegistro);
     setFormacionTemporal(nuevoRegistro.formacion);
     setFechaFormacion(nuevoRegistro.fecha);
     setPartidoEnCurso(false);
-    setPantallaFormacion("lista");
-    setMostrarFormacionPartido(false);
+    setPantallaFormacion("inicio");
 
     try {
       localStorage.setItem(
@@ -2601,7 +2600,6 @@ export default function App() {
     setFechaFormacion(registro.fecha || fechaLocalISO());
     setPartidoEnCurso(true);
     setPantallaFormacion("inicio");
-    setMostrarFormacionPartido(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const convertirRegistroASupabase = (registroEditado) => {
@@ -3309,6 +3307,13 @@ export default function App() {
             onChange={(e) => setFechaFormacion(e.target.value)}
           />
 
+          <label>Rival</label>
+          <input
+            value={registro.rival}
+            onChange={(evento) => actualizar("rival", evento.target.value)}
+            placeholder="Nombre del rival"
+          />
+
           {mensajeFormacion && (
             <div className="aviso-formacion">{mensajeFormacion}</div>
           )}
@@ -3330,13 +3335,23 @@ export default function App() {
           </button>
 
           {partidoEnCurso && (
-            <button
-              type="button"
-              className="boton-secundario boton-formacion-grande"
-              onClick={() => setPantallaFormacion("lista")}
-            >
-              Volver al partido
-            </button>
+            <>
+              <button
+                type="button"
+                className="boton-secundario boton-formacion-grande"
+                onClick={() => setPantallaFormacion("lista")}
+              >
+                Volver al partido
+              </button>
+
+              <button
+                type="button"
+                className="boton-texto limpiar-partido"
+                onClick={limpiarCarga}
+              >
+                <Icono nombre="borrar" size={17} /> Limpiar borrador
+              </button>
+            </>
           )}
         </section>
 
@@ -4276,15 +4291,6 @@ export default function App() {
       volverAPantallaFormacion();
     } else if (destino === "registros") {
       setPantallaFormacion("registros");
-    } else if (destino === "ajustes") {
-      setPantallaFormacion("lista");
-      window.setTimeout(
-        () =>
-          document
-            .getElementById("configuracion-partido")
-            ?.scrollIntoView({ behavior: "smooth", block: "start" }),
-        0,
-      );
     }
   };
 
@@ -4929,7 +4935,19 @@ export default function App() {
                   </button>
                 );
               })}
-              {!registro.prorrogaActiva && (
+              {registro.prorrogaActiva ? (
+                <button
+                  type="button"
+                  className="agregar-prorroga quitar"
+                  onClick={() => {
+                    quitarProrroga();
+                    setPeriodoVista("PT");
+                  }}
+                  aria-label="Quitar prórroga"
+                >
+                  <Icono nombre="borrar" size={18} />
+                </button>
+              ) : (
                 <button
                   type="button"
                   className="agregar-prorroga"
@@ -5095,116 +5113,6 @@ export default function App() {
 
           {renderPanelCambiosOperativo()}
         </div>
-
-        <details className="configuracion-partido" id="configuracion-partido">
-          <summary>
-            <span>
-              <Icono nombre="ajustes" size={20} /> Datos y configuración
-            </span>
-            <span>Fecha, rival, modo y formación</span>
-          </summary>
-          <div className="configuracion-contenido">
-            <div className="campos-datos-partido">
-              <label>
-                Fecha
-                <input
-                  type="date"
-                  value={registro.fecha}
-                  onChange={(evento) =>
-                    actualizar("fecha", evento.target.value)
-                  }
-                />
-              </label>
-              <label>
-                Rival
-                <input
-                  value={registro.rival}
-                  onChange={(evento) =>
-                    actualizar("rival", evento.target.value)
-                  }
-                  placeholder="Nombre del rival"
-                />
-              </label>
-            </div>
-
-            <div className="selector-modo-tiempo compacto">
-              <button
-                type="button"
-                className={`boton-modo-tiempo ${registro.modoTiempo === "enVivo" ? "activo" : ""}`}
-                onClick={() => seleccionarModoTiempo("enVivo")}
-              >
-                <span className="titulo-modo-tiempo">En vivo</span>
-                <span className="descripcion-modo-tiempo">
-                  Registrar la hora real
-                </span>
-              </button>
-              <button
-                type="button"
-                className={`boton-modo-tiempo ${registro.modoTiempo === "transmision" ? "activo" : ""}`}
-                onClick={() => seleccionarModoTiempo("transmision")}
-              >
-                <span className="titulo-modo-tiempo">Transmisión</span>
-                <span className="descripcion-modo-tiempo">
-                  Registrar el minuto de juego
-                </span>
-              </button>
-            </div>
-
-            <div className="acciones-configuracion">
-              <button type="button" onClick={volverAPantallaFormacion}>
-                <Icono nombre="formacion" size={19} /> Modificar formación
-              </button>
-              <button
-                type="button"
-                onClick={
-                  registro.prorrogaActiva ? quitarProrroga : activarProrroga
-                }
-              >
-                <Icono
-                  nombre={registro.prorrogaActiva ? "borrar" : "plus"}
-                  size={19}
-                />
-                {registro.prorrogaActiva
-                  ? "Quitar prórroga"
-                  : "Agregar prórroga"}
-              </button>
-              <button
-                type="button"
-                className="limpiar-partido"
-                onClick={limpiarCarga}
-              >
-                <Icono nombre="borrar" size={19} /> Limpiar borrador
-              </button>
-            </div>
-
-            {mostrarFormacionPartido && (
-              <div className="formacion-en-configuracion">
-                <ListaSimple
-                  titulo="10 titulares de campo"
-                  lista={registro.formacion?.titulares || []}
-                  cantidadPrimeraColumna={5}
-                />
-                <ListaSimple
-                  titulo="No ingresaron"
-                  lista={noIngresaronActuales}
-                />
-              </div>
-            )}
-            <button
-              type="button"
-              className="boton-texto mostrar-formacion"
-              onClick={() => setMostrarFormacionPartido((prev) => !prev)}
-            >
-              {mostrarFormacionPartido
-                ? "Ocultar formación"
-                : "Ver formación cargada"}
-            </button>
-            <EstadoVersionApp
-              actualizacionDisponible={actualizacionDisponible}
-              onActualizar={actualizarAplicacion}
-            />
-          </div>
-        </details>
 
         <footer className="barra-guardado">
           <div>

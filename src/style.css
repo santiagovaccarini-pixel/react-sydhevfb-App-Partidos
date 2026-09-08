@@ -1745,8 +1745,7 @@ button:disabled {
 .marcador-partido,
 .reloj-principal,
 .selector-periodos,
-.panel-operativo,
-.configuracion-partido {
+.panel-operativo {
   border: 1px solid var(--cam-linea);
   background: var(--cam-blanco);
   box-shadow: 0 3px 14px rgba(25, 38, 31, 0.035);
@@ -2548,104 +2547,6 @@ button:disabled {
   box-shadow: none;
 }
 
-.configuracion-partido {
-  margin-top: 12px;
-  border-radius: 10px;
-}
-
-.configuracion-partido > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 60px;
-  gap: 16px;
-  padding: 12px 17px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.configuracion-partido > summary::-webkit-details-marker {
-  display: none;
-}
-
-.configuracion-partido > summary > span:first-child {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.configuracion-partido > summary > span:last-child {
-  color: #77817c;
-  font-size: 10px;
-}
-
-.configuracion-contenido {
-  padding: 0 17px 17px;
-  border-top: 1px solid var(--cam-linea);
-}
-
-.campos-datos-partido {
-  display: grid;
-  grid-template-columns: 220px minmax(240px, 1fr);
-  gap: 12px;
-}
-
-.campos-datos-partido label {
-  margin-top: 13px;
-}
-
-.selector-modo-tiempo.compacto {
-  margin-top: 14px;
-}
-
-.selector-modo-tiempo.compacto .boton-modo-tiempo {
-  min-height: 68px;
-}
-
-.acciones-configuracion {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 13px;
-}
-
-.acciones-configuracion button {
-  display: inline-flex;
-  align-items: center;
-  min-height: 39px;
-  gap: 7px;
-  padding: 0 13px;
-  border: 1px solid #dce2df;
-  border-radius: 7px;
-  background: #fff;
-  color: #35403a;
-  font-size: 10px;
-  font-weight: 850;
-}
-
-.acciones-configuracion button:hover {
-  transform: none;
-  border-color: #aebbb4;
-  box-shadow: none;
-}
-
-.acciones-configuracion .limpiar-partido {
-  color: #a4343f;
-}
-
-.mostrar-formacion {
-  margin-top: 12px;
-}
-
-.formacion-en-configuracion {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-  margin-top: 15px;
-}
-
 .barra-guardado {
   position: fixed;
   right: 0;
@@ -3105,15 +3006,6 @@ button:disabled {
     width: 21px;
   }
 
-  .campos-datos-partido,
-  .formacion-en-configuracion {
-    grid-template-columns: 1fr;
-  }
-
-  .configuracion-partido > summary > span:last-child {
-    display: none;
-  }
-
   .barra-guardado {
     right: 9px;
     bottom: 72px;
@@ -3216,4 +3108,22 @@ button:disabled {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* Quitar la prórroga desde la fila de períodos */
+.agregar-prorroga.quitar {
+  color: var(--cam-rojo);
+}
+
+/* Limpiar el borrador vive ahora en la pantalla de formación */
+.app .limpiar-partido {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  gap: 8px;
+  margin-top: 14px;
+  color: #a24049;
+  font-size: 12px;
+  font-weight: 850;
 }
