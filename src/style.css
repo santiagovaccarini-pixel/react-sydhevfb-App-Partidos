@@ -1509,7 +1509,7 @@ button:active {
   --cam-tinta: #111513;
   --cam-gris: #66716c;
   --cam-linea: #dfe5e2;
-  --cam-fondo: #f2f4f3;
+  --cam-fondo: linear-gradient(135deg, #020617, #0f172a, #1e293b);
   --cam-blanco: #ffffff;
   --cam-rojo: #df2436;
   --cam-naranja: #f47a24;
@@ -1710,8 +1710,13 @@ button:disabled {
   letter-spacing: 0.16em;
 }
 
+.titulo-estado-partido .sobrelinea {
+  color: rgba(255, 255, 255, 0.56);
+}
+
 .titulo-estado-partido h1 {
   margin: 0;
+  color: var(--cam-blanco);
   font-size: clamp(20px, 2.1vw, 27px);
   letter-spacing: -0.04em;
   text-transform: uppercase;
@@ -1742,25 +1747,25 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 13px;
-  color: #606a65;
+  color: rgba(255, 255, 255, 0.6);
   font-size: 11px;
   font-weight: 650;
 }
 
 .estado-sincronizacion > * + * {
   padding-left: 13px;
-  border-left: 1px solid #d5dbd8;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
 }
 
 .estado-sincronizacion > span {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--cam-verde-oscuro);
+  color: #4ade80;
 }
 
 .estado-sincronizacion .borrador {
-  color: #816210;
+  color: #fbbf24;
 }
 
 .estado-sincronizacion .punto-estado {
