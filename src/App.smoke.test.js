@@ -263,6 +263,61 @@ describe("interfaz operativa", () => {
     ).toHaveLength(2);
   });
 
+  test("la pantalla principal muestra el enfrentamiento y lleva al partido", async () => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+
+    await act(async () => irA("Formación").click());
+
+    // Los dos clubes, con la fecha en texto y no en formato de máquina.
+    const lados = contenedor.querySelectorAll(".lado-enfrentamiento strong");
+    expect(lados).toHaveLength(2);
+    expect(lados[0].textContent).toContain("Atlético");
+    expect(lados[1].textContent).toBe("Cruzeiro");
+    expect(contenedor.querySelector(".fecha-hero").textContent).toContain(
+      "septiembre",
+    );
+
+    // Sin escudo remoto todavía, quedan los dibujados: nunca un hueco vacío.
+    expect(
+      contenedor.querySelectorAll(".lado-enfrentamiento svg").length,
+    ).toBe(2);
+
+    // La tarjeta de partido en curso no es el cartel verde de actualización.
+    const enCurso = contenedor.querySelector(".tarjeta-en-curso");
+    expect(enCurso.textContent).toContain("vs Cruzeiro");
+    expect(contenedor.querySelector(".bloque-version-app")).not.toBeNull();
+
+    await act(async () => enCurso.click());
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+  });
+
+  test("sin rival cargado la pantalla principal no queda rota", async () => {
+    localStorage.removeItem("registro_actual_partido");
+
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    expect(contenedor.querySelector(".tarjeta-en-curso")).toBeNull();
+    expect(
+      contenedor.querySelectorAll(".lado-enfrentamiento strong")[1].textContent,
+    ).toBe("Elegí el rival");
+    // El pie del escudo aparece recién cuando hay algo que informar.
+    expect(contenedor.querySelector(".pie-escudo")).toBeNull();
+    expect(contenedor.querySelector("#campo-rival-inicio").value).toBe("");
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
