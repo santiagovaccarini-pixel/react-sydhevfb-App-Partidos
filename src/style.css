@@ -2325,109 +2325,203 @@ button:disabled {
   margin-top: 10px;
 }
 
-.cambio-operativo {
+/* Los cinco cambios quedan siempre a la vista, uno por tarjeta */
+.ranura-cambio {
   position: relative;
   display: grid;
-  align-items: end;
-  grid-template-columns: 23px minmax(100px, 1fr) 23px minmax(100px, 1fr) 112px;
-  gap: 7px;
-  padding: 10px 0;
-  border-bottom: 1px solid #e7ebe9;
+  align-items: center;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 6px 9px;
+  padding: 8px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 11px;
+  background: #fbfcfc;
 }
 
-.cambio-operativo:focus-within {
+.ranura-cambio + .ranura-cambio {
+  margin-top: 7px;
+}
+
+.ranura-cambio:focus-within {
   z-index: 100;
 }
 
-.numero-cambio {
+.ranura-cambio.cargada {
+  border-color: #cfe6da;
+  background: #fff;
+}
+
+.columna-ranura {
   display: flex;
+  flex-direction: column;
+  grid-row: span 2;
+  align-self: stretch;
+  gap: 5px;
+}
+
+.numero-ranura {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  margin-bottom: 10px;
-  border-radius: 50%;
-  background: #edf1ef;
-  color: #56615b;
-  font-size: 9px;
+  flex: 1 1 auto;
+  border-radius: 8px;
+  background: #eef1f0;
+  color: #9aa5a0;
+  font-size: 12px;
   font-weight: 900;
 }
 
-.campo-cambio-operativo,
-.hora-cambio-operativa {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.campo-cambio-operativo > span,
-.hora-cambio-operativa > span {
-  color: #7b8580;
-  font-size: 8px;
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
-.campo-cambio-operativo input {
-  height: 39px;
-  padding: 0 9px;
-  border-radius: 7px;
-  font-size: 10px;
-}
-
-.flechas-cambio {
-  margin-bottom: 10px;
-  color: var(--cam-verde);
-}
-
-.hora-cambio-operativa .selector-tiempo-transmision,
-.hora-cambio-operativa .selector-hora-en-vivo {
-  width: 100%;
-}
-
-.hora-cambio-operativa .selector-tiempo-disparador {
-  width: 100%;
-  height: 39px;
-  border-radius: 7px;
-  font-size: 10px;
-}
-
-.acciones-cambio-operativo {
-  display: grid;
-  grid-column: 2 / -1;
-  grid-template-columns: minmax(120px, 1fr) 62px 42px;
-  gap: 7px;
-  margin-top: 1px;
-}
-
-.acciones-cambio-operativo button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 35px;
-  gap: 6px;
-  border: 1px solid #dce2df;
-  border-radius: 7px;
-  background: #fff;
-  color: #424b46;
-  font-size: 9px;
-  font-weight: 850;
-}
-
-.acciones-cambio-operativo button:hover {
-  transform: none;
-  border-color: #aebbb4;
-  box-shadow: none;
-}
-
-.acciones-cambio-operativo .marcar-ahora {
-  border-color: var(--cam-verde);
+.ranura-cambio.cargada .numero-ranura {
   background: var(--cam-verde);
   color: #fff;
 }
 
-.acciones-cambio-operativo .borrar-fila {
+.par-jugadores {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+  gap: 5px;
+}
+
+.par-jugadores .selector-nombre {
+  min-width: 0;
+}
+
+.par-jugadores .input-jugador {
+  height: 36px;
+  padding: 0 9px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.par-jugadores .selector-nombre.sale .input-jugador {
+  border-left: 3px solid #e3b7bc;
+}
+
+.par-jugadores .selector-nombre.entra .input-jugador {
+  border-left: 3px solid #a9d9c1;
+}
+
+.flecha-cambio {
+  color: var(--cam-verde);
+}
+
+.fila-hora-cambio {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.hora-ranura,
+.hora-ranura .selector-tiempo-transmision,
+.hora-ranura .selector-hora-en-vivo {
+  width: 122px;
+}
+
+/* Gana a la regla del modo compacto, que dejaría el campo en 30px */
+.hora-ranura .selector-tiempo-transmision .selector-tiempo-disparador,
+.hora-ranura .selector-tiempo-disparador {
+  width: 100%;
+  height: 42px;
+  gap: 6px;
+  padding: 0 9px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.boton-ahora-cambio,
+.boton-et-cambio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.boton-ahora-cambio {
+  padding: 0 14px;
+  border: 1px solid var(--cam-verde);
+  background: var(--cam-verde-suave);
+  color: var(--cam-verde-oscuro);
+}
+
+.boton-et-cambio {
+  min-width: 66px;
+  padding: 0 12px;
+  border: 1px solid var(--cam-linea);
+  background: #fff;
+  color: var(--cam-tinta);
+}
+
+.boton-ahora-cambio:hover,
+.boton-et-cambio:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.boton-ahora-cambio:hover {
+  background: #dbf0e5;
+}
+
+.boton-et-cambio:hover {
+  border-color: #aebbb4;
+}
+
+.limpiar-ranura {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--cam-linea);
+  border-radius: 8px;
+  background: #fff;
   color: #a24049;
+  box-shadow: none;
+}
+
+.limpiar-ranura:hover {
+  transform: none;
+  border-color: #e0b4b9;
+  background: #fff6f6;
+  box-shadow: none;
+}
+
+/* Cambios del rival: misma estructura, acento naranja */
+.cambios-rival .ranura-cambio.cargada {
+  border-color: #f3d5bd;
+}
+
+.cambios-rival .ranura-cambio.cargada .numero-ranura {
+  background: var(--cam-naranja);
+}
+
+.cambios-rival .par-jugadores .selector-nombre.entra .input-jugador {
+  border-left-color: #f3c39c;
+}
+
+.cambios-rival .boton-ahora-cambio {
+  border-color: var(--cam-naranja);
+  background: #fdf2e8;
+  color: #a6520e;
+}
+
+.cambios-rival .boton-ahora-cambio:hover {
+  background: #fbe6d4;
+}
+
+.selector-equipo button.activo.rival .cuerpo-escudo-rival {
+  fill: #fff;
+}
+
+.selector-equipo button.activo.rival .escudo-rival svg text {
+  fill: var(--cam-naranja);
 }
 
 .agregar-cambio-operativo {
@@ -2435,20 +2529,22 @@ button:disabled {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 39px;
-  gap: 7px;
-  margin-top: 10px;
-  border: 1px solid var(--cam-verde);
-  border-radius: 7px;
-  background: #fff;
-  color: var(--cam-verde-oscuro);
-  font-size: 10px;
-  font-weight: 900;
+  min-height: 40px;
+  gap: 8px;
+  margin-top: 9px;
+  border: 1px dashed #c3cdc8;
+  border-radius: 10px;
+  background: none;
+  color: var(--cam-gris);
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .agregar-cambio-operativo:hover {
   transform: none;
+  border-color: var(--cam-verde);
   background: var(--cam-verde-suave);
+  color: var(--cam-verde-oscuro);
   box-shadow: none;
 }
 
@@ -2998,26 +3094,6 @@ button:disabled {
 
   .timeline-vacia {
     min-height: 105px;
-  }
-
-  .cambio-operativo {
-    grid-template-columns: 20px minmax(0, 1fr) 18px minmax(0, 1fr);
-    gap: 5px;
-    padding: 10px 0 12px;
-  }
-
-  .hora-cambio-operativa {
-    grid-column: 2 / -1;
-    margin-top: 2px;
-  }
-
-  .acciones-cambio-operativo {
-    grid-column: 2 / -1;
-  }
-
-  .numero-cambio,
-  .flechas-cambio {
-    margin-bottom: 9px;
   }
 
   .selector-equipo button {
