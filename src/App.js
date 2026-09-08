@@ -34,7 +34,7 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.15";
+const APP_VERSION = "2026.09.08.16";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -2598,7 +2598,8 @@ export default function App() {
   const volverAPantallaFormacion = () => {
     setFormacionTemporal(registro.formacion || crearFormacionVacia());
     setFechaFormacion(registro.fecha || fechaLocalISO());
-    setPartidoEnCurso(true);
+    // No se marca partido en curso: ir a Formación no crea uno. El estado ya
+    // viene en true si hay una formación cargada.
     setPantallaFormacion("inicio");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -3335,23 +3336,13 @@ export default function App() {
           </button>
 
           {partidoEnCurso && (
-            <>
-              <button
-                type="button"
-                className="boton-secundario boton-formacion-grande"
-                onClick={() => setPantallaFormacion("lista")}
-              >
-                Volver al partido
-              </button>
-
-              <button
-                type="button"
-                className="boton-texto limpiar-partido"
-                onClick={limpiarCarga}
-              >
-                <Icono nombre="borrar" size={17} /> Limpiar borrador
-              </button>
-            </>
+            <button
+              type="button"
+              className="boton-secundario boton-formacion-grande"
+              onClick={() => setPantallaFormacion("lista")}
+            >
+              Volver al partido
+            </button>
           )}
         </section>
 
@@ -4892,15 +4883,26 @@ export default function App() {
             </div>
           </div>
 
-          <button
-            type="button"
-            className="boton-guardar-cabecera"
-            onClick={guardarRegistro}
-            disabled={guardando}
-          >
-            <Icono nombre={guardando ? "reloj" : "check"} size={18} />
-            {guardando ? "Guardando…" : "Guardar partido"}
-          </button>
+          <div className="acciones-cabecera">
+            <button
+              type="button"
+              className="boton-limpiar-cabecera"
+              onClick={limpiarCarga}
+            >
+              <Icono nombre="borrar" size={17} />
+              <span>Limpiar</span>
+            </button>
+
+            <button
+              type="button"
+              className="boton-guardar-cabecera"
+              onClick={guardarRegistro}
+              disabled={guardando}
+            >
+              <Icono nombre={guardando ? "reloj" : "check"} size={18} />
+              {guardando ? "Guardando…" : "Guardar partido"}
+            </button>
+          </div>
         </header>
 
         <section className="marcador-partido" aria-label="Marcador del partido">
