@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import AuthGate from "./components/AuthGate";
+import App from "./App";
 
 const root = createRoot(document.getElementById("root"));
-root.render(<AuthGate />);
+root.render(<App />);
