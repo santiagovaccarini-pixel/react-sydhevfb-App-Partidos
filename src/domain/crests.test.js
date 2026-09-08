@@ -6,9 +6,11 @@ import {
   buscarEscudo,
   claveEscudo,
   entradaVencida,
+  escudoGuardado,
   guardarEnCacheEscudos,
   incrustarImagen,
   leerCacheEscudos,
+  obtenerEscudo,
 } from "./crests";
 
 const respuesta = (cuerpo, ok = true) => ({
@@ -215,6 +217,137 @@ describe("guardado de la imagen para usarla sin internet", () => {
 
     const datos = await incrustarImagen("https://escudo/x.png");
     expect(datos).toMatch(/^data:image\/png;base64,/);
+  });
+});
+
+describe("resolver el escudo de muchos clubes a la vez", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => vi.unstubAllGlobals());
+
+  const conBadge = (equipo) => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      teams: [{ strTeam: equipo, strBadge: `https://escudo/${equipo}.png` }],
+    }),
+  });
+
+  test("lo que ya está guardado sale sin tocar la red", async () => {
+    guardarEnCacheEscudos(claveEscudo("Cruzeiro"), {
+      url: "https://escudo/viejo.png",
+      nombreOficial: "Cruzeiro EC",
+      ts: Date.now(),
+    });
+    const traer = vi.fn();
+    vi.stubGlobal("fetch", traer);
+
+    expect(await obtenerEscudo("Cruzeiro EC")).toEqual({
+      url: "https://escudo/viejo.png",
+      fuente: "",
+      nombreOficial: "Cruzeiro EC",
+    });
+    expect(traer).not.toHaveBeenCalled();
+    expect(escudoGuardado("cruzeiro esporte clube")?.url).toBe(
+      "https://escudo/viejo.png",
+    );
+  });
+
+  test("pedir el mismo club cuatro veces busca una sola", async () => {
+    // Es el caso de la lista de registros: varias filas contra el mismo rival.
+    const traer = vi.fn(async (url) =>
+      String(url).includes("searchteams")
+        ? conBadge("Flamengo")
+        : { ok: false, status: 404 },
+    );
+    vi.stubGlobal("fetch", traer);
+
+    const resultados = await Promise.all([
+      obtenerEscudo("Flamengo"),
+      obtenerEscudo("Flamengo"),
+      obtenerEscudo("Flamengo"),
+      obtenerEscudo("Flamengo"),
+    ]);
+
+    expect(resultados.every((r) => r?.url === "https://escudo/Flamengo.png")).toBe(
+      true,
+    );
+    // Una sola búsqueda; el segundo fetch es el de bajar la imagen.
+    const busquedas = traer.mock.calls.filter(([url]) =>
+      String(url).includes("searchteams"),
+    );
+    expect(busquedas).toHaveLength(1);
+  });
+
+  test("clubes distintos se buscan de a uno, no todos juntos", async () => {
+    // Abrir la lista con muchos rivales no puede disparar una ráfaga: un
+    // límite de la API dejaría todos guardados como "no existe" por un día.
+    let enCurso = 0;
+    let pico = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url) => {
+        if (!String(url).includes("searchteams")) return { ok: false, status: 404 };
+
+        enCurso += 1;
+        pico = Math.max(pico, enCurso);
+        await new Promise((r) => setTimeout(r, 5));
+        enCurso -= 1;
+
+        const equipo = decodeURIComponent(String(url).split("t=")[1]);
+        return conBadge(equipo);
+      }),
+    );
+
+    const clubes = ["Flamengo", "Palmeiras", "Santos", "Gremio"];
+    const resultados = await Promise.all(clubes.map((c) => obtenerEscudo(c)));
+
+    expect(pico).toBe(1);
+    expect(resultados.map((r) => r.nombreOficial)).toEqual(clubes);
+  });
+
+  test("un club que no existe queda anotado y no se vuelve a pedir", async () => {
+    const traer = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ teams: null, query: { pages: {} } }),
+    }));
+    vi.stubGlobal("fetch", traer);
+
+    expect(await obtenerEscudo("Club Inventado")).toBeNull();
+    const primerIntento = traer.mock.calls.length;
+
+    expect(await obtenerEscudo("Club Inventado")).toBeNull();
+    expect(traer.mock.calls).toHaveLength(primerIntento);
+  });
+
+  test("un nombre vacío no encola nada", async () => {
+    const traer = vi.fn();
+    vi.stubGlobal("fetch", traer);
+
+    expect(await obtenerEscudo("")).toBeNull();
+    expect(traer).not.toHaveBeenCalled();
+  });
+
+  test("una búsqueda que falla no traba la cola de las siguientes", async () => {
+    let llamada = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url) => {
+        if (!String(url).includes("searchteams")) return { ok: false, status: 404 };
+        llamada += 1;
+        if (llamada === 1) throw new Error("se cayó la red");
+        return conBadge("Santos");
+      }),
+    );
+
+    const [primero, segundo] = await Promise.all([
+      obtenerEscudo("Gremio").catch(() => "explotó"),
+      obtenerEscudo("Santos"),
+    ]);
+
+    expect(primero).toBeNull();
+    expect(segundo?.url).toBe("https://escudo/Santos.png");
   });
 });
 

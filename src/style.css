@@ -1813,6 +1813,30 @@ button:disabled {
   font-size: 30px;
 }
 
+/* Escudo real traído de internet: entra en el mismo hueco que el dibujado */
+.escudo-club.escudo-real {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 56px;
+  aspect-ratio: 64 / 82;
+}
+
+.escudo-club.escudo-real img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.escudo-club.escudo-real.compacto {
+  width: 27px;
+}
+
+.escudo-club.escudo-real.mini {
+  width: 20px;
+}
+
 .resultado-marcador {
   display: flex;
   align-items: center;
@@ -2553,8 +2577,13 @@ button:disabled {
   gap: 9px;
 }
 
-.enfrentamiento-registro .escudo-cam {
+.enfrentamiento-registro .escudo-cam,
+.enfrentamiento-registro .escudo-club.escudo-real {
   width: 22px;
+}
+
+.enfrentamiento-registro .escudo-club.escudo-real.mini {
+  width: 20px;
 }
 
 .enfrentamiento-registro strong {
@@ -2740,6 +2769,7 @@ button:disabled {
   }
 
   .equipo-marcador .escudo-cam,
+  .equipo-marcador .escudo-club.escudo-real,
   .escudo-rival {
     width: 22px;
   }
@@ -2819,7 +2849,8 @@ button:disabled {
     font-size: 9px;
   }
 
-  .selector-equipo .escudo-cam.compacto {
+  .selector-equipo .escudo-cam.compacto,
+  .selector-equipo .escudo-club.escudo-real {
     width: 21px;
   }
 
@@ -3455,25 +3486,6 @@ button:disabled {
   margin: 0;
 }
 
-/* Escudo real traído de internet: entra en el mismo hueco que el dibujado */
-.escudo-club.escudo-real {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 56px;
-}
-
-.escudo-club.escudo-real img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.escudo-club.escudo-real.mini {
-  width: 26px;
-  height: 32px;
-}
 
 .pie-escudo.buscando {
   color: #8b96a3;

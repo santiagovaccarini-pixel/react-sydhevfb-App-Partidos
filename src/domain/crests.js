@@ -204,3 +204,84 @@ export const buscarEscudo = async (nombre, { senal } = {}) => {
 
 export const entradaVencida = (entrada, ahora = Date.now()) =>
   !entrada || (!entrada.url && ahora - (entrada.ts || 0) > ESPERA_REINTENTO);
+
+const TIEMPO_LIMITE = 8000;
+
+const desdeCache = (entrada) =>
+  entrada?.datos || entrada?.url
+    ? {
+        url: entrada.datos || entrada.url,
+        fuente: entrada.fuente || "",
+        nombreOficial: entrada.nombreOficial || "",
+      }
+    : null;
+
+/** Lo que ya está guardado, sin salir a la red. */
+export const escudoGuardado = (nombre) => {
+  const clave = claveEscudo(nombre);
+  return clave ? desdeCache(leerCacheEscudos()[clave]) : null;
+};
+
+const enVuelo = new Map();
+let cola = Promise.resolve();
+
+const buscarYGuardar = async (nombre, clave) => {
+  const controlador = new AbortController();
+  const corte = setTimeout(() => controlador.abort(), TIEMPO_LIMITE);
+
+  try {
+    const encontrado = await buscarEscudo(nombre, { senal: controlador.signal });
+
+    if (!encontrado) {
+      guardarEnCacheEscudos(clave, { url: "", ts: Date.now() });
+      return null;
+    }
+
+    const datos = await incrustarImagen(encontrado.url, controlador.signal);
+
+    guardarEnCacheEscudos(clave, {
+      url: encontrado.url,
+      datos: datos || "",
+      fuente: encontrado.fuente,
+      nombreOficial: encontrado.nombreOficial,
+      ts: Date.now(),
+    });
+
+    return { ...encontrado, url: datos || encontrado.url };
+  } finally {
+    clearTimeout(corte);
+  }
+};
+
+/**
+ * El escudo de un club, resuelto de la única forma sensata cuando hay muchos
+ * en pantalla: primero el cache, y si hay que buscarlo, de a uno por vez y una
+ * sola vez por club. Abrir la lista de registros con veinte rivales no puede
+ * disparar veinte pedidos juntos: además de la ráfaga, un límite de la API
+ * dejaría veinte "no existe" guardados por un día.
+ */
+export const obtenerEscudo = (nombre) => {
+  const clave = claveEscudo(nombre);
+  if (!clave) return Promise.resolve(null);
+
+  const guardado = leerCacheEscudos()[clave];
+  const yaEstaba = desdeCache(guardado);
+  if (yaEstaba) return Promise.resolve(yaEstaba);
+  if (guardado && !entradaVencida(guardado)) return Promise.resolve(null);
+
+  if (enVuelo.has(clave)) return enVuelo.get(clave);
+
+  const tarea = cola.then(
+    // Mientras esperaba el turno, otro pudo haberlo guardado.
+    () => desdeCache(leerCacheEscudos()[clave]) || buscarYGuardar(nombre, clave),
+    () => buscarYGuardar(nombre, clave),
+  );
+
+  enVuelo.set(clave, tarea);
+  cola = tarea.then(
+    () => enVuelo.delete(clave),
+    () => enVuelo.delete(clave),
+  );
+
+  return tarea;
+};

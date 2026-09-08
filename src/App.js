@@ -26,21 +26,17 @@ import {
   sumarDuracionesEventos,
   validarRegistroBasico,
 } from "./domain/match";
-import {
-  EscudoCAM,
-  EscudoRival,
-  Icono,
-  MarcoAplicacion,
-} from "./components/AppChrome";
+import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import { HojaConfirmar } from "./components/ConfirmSheet";
 import {
   EscudoClub,
+  EscudoDeClub,
   NOMBRE_CAM,
   useEscudoClub,
 } from "./components/ClubCrest";
 import "./style.css";
-const APP_VERSION = "2026.09.08.19";
+const APP_VERSION = "2026.09.08.20";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4676,7 +4672,13 @@ export default function App() {
             className={!esRival ? "activo" : ""}
             onClick={() => setEquipoCambios("atletico")}
           >
-            <EscudoCAM compacto /> Atlético Mineiro
+            <EscudoClub
+              equipo="cam"
+              nombre={NOMBRE_CAM}
+              url={escudoCam.url}
+              compacto
+            />{" "}
+            Atlético Mineiro
           </button>
           <button
             type="button"
@@ -4685,7 +4687,7 @@ export default function App() {
             className={esRival ? "activo rival" : ""}
             onClick={() => setEquipoCambios("rival")}
           >
-            <EscudoRival nombre={registro.rival} mini />{" "}
+            <EscudoClub nombre={registro.rival} url={escudoRival.url} mini />{" "}
             {registro.rival || "Rival"}
           </button>
         </div>
@@ -4910,13 +4912,13 @@ export default function App() {
                     </span>
 
                     <div className="enfrentamiento-registro">
-                      <EscudoCAM compacto />
+                      <EscudoDeClub equipo="cam" nombre={NOMBRE_CAM} compacto />
                       <strong>Atlético Mineiro</strong>
                       <span className="resultado-registro">
                         {item.resultado || "–"}
                       </span>
                       <strong>{item.rival || "Sin rival"}</strong>
-                      <EscudoRival nombre={item.rival} mini />
+                      <EscudoDeClub nombre={item.rival} mini />
                     </div>
 
                     <div className="tiempos-registro">
@@ -5010,7 +5012,12 @@ export default function App() {
         <header className="cabecera-tablero">
           <div className="titulo-estado-partido">
             <span className="marca-movil-cabecera">
-              <EscudoCAM compacto />
+              <EscudoClub
+                equipo="cam"
+                nombre={NOMBRE_CAM}
+                url={escudoCam.url}
+                compacto
+              />
             </span>
             <span
               className={`punto-estado ${periodoIniciado && !periodoFinalizado ? "en-curso" : ""}`}
@@ -5045,7 +5052,7 @@ export default function App() {
 
         <section className="marcador-partido" aria-label="Marcador del partido">
           <div className="equipo-marcador equipo-local">
-            <EscudoCAM />
+            <EscudoClub equipo="cam" nombre={NOMBRE_CAM} url={escudoCam.url} />
             <strong>Atlético Mineiro</strong>
           </div>
           <div className="resultado-marcador">
@@ -5071,7 +5078,7 @@ export default function App() {
           </div>
           <div className="equipo-marcador equipo-visitante">
             <strong>{registro.rival || "Rival"}</strong>
-            <EscudoRival nombre={registro.rival} />
+            <EscudoClub nombre={registro.rival} url={escudoRival.url} />
           </div>
         </section>
 

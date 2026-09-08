@@ -1,26 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { EscudoCAM, EscudoRival } from "./AppChrome";
-import {
-  buscarEscudo,
-  claveEscudo,
-  entradaVencida,
-  guardarEnCacheEscudos,
-  incrustarImagen,
-  leerCacheEscudos,
-} from "../domain/crests";
+import { claveEscudo, escudoGuardado, obtenerEscudo } from "../domain/crests";
 
 export const NOMBRE_CAM = "Atlético Mineiro";
 
 const ESPERA_TIPEO = 700;
 const MINIMO_LETRAS = 3;
-const TIEMPO_LIMITE = 8000;
 
 const VACIO = { situacion: "vacio", url: "", nombreOficial: "" };
 
 /**
  * Busca el escudo de un club por su nombre. Sirve tanto para el rival, que se
- * va escribiendo, como para el nuestro, que es siempre el mismo: para ese
- * conviene demora 0, porque no hay nada que esperar a que termine de tipear.
+ * va escribiendo, como para el nuestro o el de un partido ya guardado, que no
+ * cambian: para esos conviene demora 0, porque no hay nada que esperar.
  *
  * Lo encontrado queda guardado en el celular, así que a partir de la segunda
  * vez aparece al toque y sin internet. Si no se encuentra nada, el que llama se
@@ -38,78 +30,47 @@ export const useEscudoClub = (nombre, { demora = ESPERA_TIPEO } = {}) => {
       return undefined;
     }
 
-    const guardado = leerCacheEscudos()[clave];
-
-    if (guardado?.datos || guardado?.url) {
+    // Si ya está guardado no hay nada que esperar ni que pedir.
+    const guardado = escudoGuardado(texto);
+    if (guardado) {
       setEstado({
         situacion: "listo",
-        url: guardado.datos || guardado.url,
-        nombreOficial: guardado.nombreOficial || "",
+        url: guardado.url,
+        nombreOficial: guardado.nombreOficial,
       });
       return undefined;
     }
 
-    // Ya se buscó hace poco y no apareció: no insistir en cada tecla.
-    if (guardado && !entradaVencida(guardado)) {
-      setEstado({ situacion: "sin-resultado", url: "", nombreOficial: "" });
-      return undefined;
-    }
-
-    const controlador = new AbortController();
     let vigente = true;
 
     const temporizador = window.setTimeout(async () => {
-      setEstado({ situacion: "buscando", url: "", nombreOficial: "" });
-
-      const corte = window.setTimeout(() => controlador.abort(), TIEMPO_LIMITE);
+      if (vigente) {
+        setEstado({ situacion: "buscando", url: "", nombreOficial: "" });
+      }
 
       try {
-        const encontrado = await buscarEscudo(texto, {
-          senal: controlador.signal,
-        });
+        const encontrado = await obtenerEscudo(texto);
+        if (!vigente) return;
 
-        if (!encontrado) {
-          guardarEnCacheEscudos(clave, { url: "", ts: Date.now() });
-          if (vigente) {
-            setEstado({
-              situacion: "sin-resultado",
-              url: "",
-              nombreOficial: "",
-            });
-          }
-          return;
-        }
-
-        const datos = await incrustarImagen(encontrado.url, controlador.signal);
-
-        guardarEnCacheEscudos(clave, {
-          url: encontrado.url,
-          datos: datos || "",
-          fuente: encontrado.fuente,
-          nombreOficial: encontrado.nombreOficial,
-          ts: Date.now(),
-        });
-
-        if (vigente) {
-          setEstado({
-            situacion: "listo",
-            url: datos || encontrado.url,
-            nombreOficial: encontrado.nombreOficial || "",
-          });
-        }
+        setEstado(
+          encontrado
+            ? {
+                situacion: "listo",
+                url: encontrado.url,
+                nombreOficial: encontrado.nombreOficial || "",
+              }
+            : { situacion: "sin-resultado", url: "", nombreOficial: "" },
+        );
       } catch (error) {
-        if (vigente && error?.name !== "AbortError") {
+        if (vigente) {
           setEstado({ situacion: "sin-resultado", url: "", nombreOficial: "" });
         }
-      } finally {
-        window.clearTimeout(corte);
       }
     }, demora);
 
     return () => {
       vigente = false;
       window.clearTimeout(temporizador);
-      controlador.abort();
     };
   }, [nombre, demora]);
 
@@ -141,7 +102,9 @@ export const EscudoClub = ({
 
   return (
     <span
-      className={`escudo-club escudo-real ${mini ? "mini" : ""}`}
+      className={`escudo-club escudo-real ${mini ? "mini" : ""} ${
+        compacto ? "compacto" : ""
+      }`}
       aria-label={String(nombre).trim() || "Escudo del club"}
     >
       <img
@@ -151,5 +114,29 @@ export const EscudoClub = ({
         onError={() => setFalloImagen(true)}
       />
     </span>
+  );
+};
+
+/**
+ * Igual que EscudoClub pero se resuelve solo, para donde no hay un nombre que
+ * se esté escribiendo: la lista de registros, donde cada fila es un rival
+ * distinto. Las búsquedas van coordinadas, de a una por vez.
+ */
+export const EscudoDeClub = ({
+  nombre = "",
+  equipo = "rival",
+  mini = false,
+  compacto = false,
+}) => {
+  const escudo = useEscudoClub(nombre, { demora: 0 });
+
+  return (
+    <EscudoClub
+      nombre={nombre}
+      url={escudo.url}
+      equipo={equipo}
+      mini={mini}
+      compacto={compacto}
+    />
   );
 };
