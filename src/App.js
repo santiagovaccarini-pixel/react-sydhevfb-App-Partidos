@@ -33,8 +33,9 @@ import {
   MarcoAplicacion,
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
+import { HojaConfirmar } from "./components/ConfirmSheet";
 import "./style.css";
-const APP_VERSION = "2026.09.08.16";
+const APP_VERSION = "2026.09.08.17";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -931,6 +932,8 @@ export default function App() {
     (formacionInicial.convocados || []).some((j) => String(j || "").trim());
 
   const [partidoEnCurso, setPartidoEnCurso] = useState(hayFormacionInicial);
+
+  const [confirmarLimpieza, setConfirmarLimpieza] = useState(false);
 
   const [pantallaFormacion, setPantallaFormacion] = useState(
     hayFormacionInicial ? "lista" : "inicio",
@@ -2571,11 +2574,11 @@ export default function App() {
   };
 
   const limpiarCarga = () => {
-    const confirmar = window.confirm(
-      "¿Querés borrar el partido en curso y empezar de cero?",
-    );
+    setConfirmarLimpieza(true);
+  };
 
-    if (!confirmar) return;
+  const confirmarLimpiarCarga = () => {
+    setConfirmarLimpieza(false);
 
     const nuevoRegistro = crearRegistroVacio();
 
@@ -4860,6 +4863,27 @@ export default function App() {
   const tiempoPeriodoGuardado = resumen[`tiempo${periodoVista}`];
   const tiempoHidratacionGuardado = resumen[`tiempoHidratacion${periodoVista}`];
 
+  // Detalle de lo que está por borrarse, para no limpiar un partido por error.
+  const cambiosCargados = [
+    ...(registro.cambios || []),
+    ...(registro.cambiosRival || []),
+  ].filter((cambio) => cambio?.sale?.trim() || cambio?.entra?.trim()).length;
+  const rivalCargado = (registro.rival || "").trim();
+  const resumenPartidoEnCurso = (
+    <>
+      <Icono nombre="cambio" size={15} />
+      {rivalCargado ? `vs ${rivalCargado}` : "Sin rival cargado"}
+      <span>
+        ·{" "}
+        {cambiosCargados === 0
+          ? "sin cambios"
+          : cambiosCargados === 1
+            ? "1 cambio cargado"
+            : `${cambiosCargados} cambios cargados`}
+      </span>
+    </>
+  );
+
   return (
     <MarcoAplicacion activo="partido" onNavigate={navegarAplicacion} hayPartido>
       <div className="tablero-partido">
@@ -5114,6 +5138,15 @@ export default function App() {
           {renderPanelCambiosOperativo()}
         </div>
       </div>
+
+      <HojaConfirmar
+        abierta={confirmarLimpieza}
+        titulo="¿Borrar el partido en curso?"
+        descripcion="Se pierden la formación, los horarios y los cambios que cargaste. Los partidos ya guardados no se tocan."
+        detalle={resumenPartidoEnCurso}
+        onConfirmar={confirmarLimpiarCarga}
+        onCancelar={() => setConfirmarLimpieza(false)}
+      />
     </MarcoAplicacion>
   );
 }
