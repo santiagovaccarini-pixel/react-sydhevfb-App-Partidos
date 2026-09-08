@@ -220,6 +220,49 @@ describe("interfaz operativa", () => {
     expect(contenedor.textContent).not.toContain("Volver al partido");
   });
 
+  test("Limpiar confirma en una hoja propia, no en el confirm del navegador", async () => {
+    const confirmNativo = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirmNativo);
+
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    const limpiar = contenedor.querySelector(".boton-limpiar-cabecera");
+    const hoja = () => contenedor.querySelector(".hoja-confirmar");
+    const rival = () =>
+      contenedor.querySelector(".equipo-visitante strong").textContent;
+
+    expect(hoja()).toBeNull();
+
+    await act(async () => limpiar.click());
+
+    expect(hoja()).not.toBeNull();
+    expect(confirmNativo).not.toHaveBeenCalled();
+    expect(contenedor.querySelector(".detalle-hoja").textContent).toContain(
+      "Cruzeiro",
+    );
+
+    // Cancelar cierra la hoja sin tocar el partido.
+    await act(async () => contenedor.querySelector(".boton-cancelar-hoja").click());
+
+    expect(hoja()).toBeNull();
+    expect(rival()).toBe("Cruzeiro");
+
+    // Confirmar sí lo borra y deja de haber partido en curso.
+    await act(async () => limpiar.click());
+    await act(async () =>
+      contenedor.querySelector(".boton-confirmar-hoja").click(),
+    );
+
+    expect(hoja()).toBeNull();
+    expect(
+      contenedor.querySelectorAll(".navegacion-movil button"),
+    ).toHaveLength(2);
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await act(async () => {
       raiz = createRoot(contenedor);

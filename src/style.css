@@ -3100,3 +3100,139 @@ button:disabled {
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.65);
 }
+
+/* Hoja de confirmación propia, en lugar del confirm() del navegador */
+.velo-dialogo {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.62);
+  backdrop-filter: blur(6px);
+  animation: aparecer-velo 0.16s ease-out;
+}
+
+.hoja-confirmar {
+  width: min(420px, 100%);
+  padding: 14px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+  border-radius: 22px 22px 0 0;
+  background: #ffffff;
+  box-shadow: 0 -18px 60px rgba(2, 6, 23, 0.5);
+  text-align: center;
+  animation: subir-hoja 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tirador-hoja {
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 14px;
+  border-radius: 99px;
+  background: #d8dee9;
+}
+
+.icono-hoja {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: #fdecee;
+  color: var(--cam-rojo);
+}
+
+.hoja-confirmar h3 {
+  margin: 0 0 7px;
+  color: var(--cam-negro);
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.hoja-confirmar p {
+  margin: 0;
+  color: var(--cam-gris);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.detalle-hoja {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 9px 12px;
+  border: 1px solid #e6eaef;
+  border-radius: 11px;
+  background: #f6f8fa;
+  color: var(--cam-negro);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.detalle-hoja span {
+  color: var(--cam-gris);
+  font-weight: 700;
+}
+
+.acciones-hoja {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 18px;
+}
+
+.acciones-hoja button {
+  min-height: 46px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.boton-cancelar-hoja {
+  border: 1px solid #d5dce4;
+  background: #ffffff;
+  color: var(--cam-negro);
+}
+
+.boton-cancelar-hoja:hover {
+  transform: none;
+  border-color: #b9c3cf;
+  background: #f4f6f9;
+  box-shadow: none;
+}
+
+.boton-confirmar-hoja {
+  border: 1px solid #a4141f;
+  background: linear-gradient(140deg, #c8102e, #8f0b20);
+  color: #ffffff;
+}
+
+.boton-confirmar-hoja:hover {
+  transform: none;
+  box-shadow: 0 12px 26px rgba(200, 16, 46, 0.35);
+}
+
+@keyframes aparecer-velo {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes subir-hoja {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .velo-dialogo,
+  .hoja-confirmar {
+    animation: none;
+  }
+}
