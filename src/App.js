@@ -34,7 +34,7 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.8";
+const APP_VERSION = "2026.09.08.9";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4376,85 +4376,8 @@ export default function App() {
     );
   };
 
-  const eventosPeriodo = (() => {
-    const eventos = [];
-    const agregar = (hora, titulo, tipo, detalle = "") => {
-      if (hora) eventos.push({ hora, titulo, tipo, detalle });
-    };
-
-    agregar(
-      registro[datosPeriodoVista.inicio],
-      `Inicio de ${periodoVista}`,
-      "periodo",
-    );
-
-    (registro[datosPeriodoVista.vars] || []).forEach((evento, index) => {
-      agregar(evento.inicio, `Inicio de VAR ${index + 1}`, "var");
-      agregar(
-        evento.final,
-        `Fin de VAR ${index + 1}`,
-        "var",
-        formatearDuracion(segundosEntre(evento.inicio, evento.final)),
-      );
-    });
-
-    agregar(
-      registro[campoInicioHidratacion],
-      "Inicio de hidratación",
-      "hidratacion",
-    );
-    agregar(
-      registro[campoFinalHidratacion],
-      "Fin de hidratación",
-      "hidratacion",
-      formatearDuracion(
-        segundosEntre(
-          registro[campoInicioHidratacion],
-          registro[campoFinalHidratacion],
-        ),
-      ),
-    );
-
-    const agregarCambios = (cambios, equipo) => {
-      (cambios || []).forEach((cambio) => {
-        const periodoCambio =
-          cambio.periodo ||
-          (registro.modoTiempo === "transmision" && cambio.hora
-            ? periodoDesdeMinutoPartido(cambio.hora, {
-                prorrogaActiva: registro.prorrogaActiva,
-              }).periodo
-            : obtenerPeriodoActivo(registro));
-        if (periodoCambio !== periodoVista) return;
-        agregar(
-          cambio.hora,
-          equipo === "rival" ? "Cambio rival" : "Cambio",
-          "cambio",
-          [cambio.sale, cambio.entra].filter(Boolean).join(" → "),
-        );
-      });
-    };
-
-    agregarCambios(registro.cambios, "atletico");
-    agregarCambios(registro.cambiosRival, "rival");
-    agregar(
-      registro[datosPeriodoVista.final],
-      `Final de ${periodoVista}`,
-      "periodo",
-    );
-
-    return eventos.sort((a, b) => {
-      const valorA = segundosDesdeHora(a.hora) ?? 0;
-      const valorB = segundosDesdeHora(b.hora) ?? 0;
-      return valorB - valorA;
-    });
-  })();
-
   const mostrarPanelCambios = () => {
     setEquipoCambios("atletico");
-    setFilasCambiosVisibles((prev) => ({
-      ...prev,
-      atletico: Math.max(1, prev.atletico),
-    }));
     window.setTimeout(
       () =>
         document
@@ -5032,48 +4955,6 @@ export default function App() {
                 <Icono nombre="hidratacion" />
                 <span>{etiquetaHidratacion}</span>
               </button>
-            </div>
-
-            <div className="timeline-periodo">
-              <div className="subtitulo-timeline">
-                <h3>Eventos del período</h3>
-                <span>{eventosPeriodo.length}</span>
-              </div>
-              {eventosPeriodo.length === 0 ? (
-                <div className="timeline-vacia">
-                  <Icono nombre="reloj" />
-                  <p>Los eventos aparecerán acá al marcarlos.</p>
-                </div>
-              ) : (
-                <div className="lista-eventos-periodo">
-                  {eventosPeriodo.map((evento, index) => (
-                    <div
-                      className="evento-periodo"
-                      key={`${evento.tipo}-${evento.hora}-${index}`}
-                    >
-                      <time>{evento.hora}</time>
-                      <span className={`icono-evento ${evento.tipo}`}>
-                        <Icono
-                          nombre={
-                            evento.tipo === "cambio"
-                              ? "cambio"
-                              : evento.tipo === "var"
-                                ? "var"
-                                : evento.tipo === "hidratacion"
-                                  ? "hidratacion"
-                                  : "reloj"
-                          }
-                          size={18}
-                        />
-                      </span>
-                      <div>
-                        <strong>{evento.titulo}</strong>
-                        {evento.detalle && <span>{evento.detalle}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             <details className="ajustes-periodo">
