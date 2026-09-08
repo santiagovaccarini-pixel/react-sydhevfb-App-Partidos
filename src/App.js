@@ -26,7 +26,12 @@ import {
   sumarDuracionesEventos,
   validarRegistroBasico,
 } from "./domain/match";
-import { EscudoCAM, Icono, MarcoAplicacion } from "./components/AppChrome";
+import {
+  EscudoCAM,
+  EscudoRival,
+  Icono,
+  MarcoAplicacion,
+} from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
 const APP_VERSION = "2026.09.08.4";
@@ -3294,13 +3299,6 @@ export default function App() {
           <p>Elegí la fecha e importá o cargá los datos manualmente.</p>
         </header>
 
-        <button
-          type="button"
-          className="boton-registros-inicio"
-          onClick={() => setPantallaFormacion("registros")}
-        >
-          Ingresar a Registros
-        </button>
         <section className="tarjeta">
           <label>Fecha del partido</label>
           <input
@@ -4537,7 +4535,7 @@ export default function App() {
             className={esRival ? "activo rival" : ""}
             onClick={() => setEquipoCambios("rival")}
           >
-            <span className="escudo-rival mini" /> {registro.rival || "Rival"}
+            <EscudoRival nombre={registro.rival} mini /> {registro.rival || "Rival"}
           </button>
         </div>
 
@@ -4650,35 +4648,43 @@ export default function App() {
     );
   };
 
+  const enMarcoAplicacion = (activo, contenido) => (
+    <MarcoAplicacion activo={activo} onNavigate={navegarAplicacion}>
+      {contenido}
+    </MarcoAplicacion>
+  );
+
   if (pantallaFormacion === "inicio") {
-    return renderPantallaInicioFormacion();
+    return enMarcoAplicacion("formacion", renderPantallaInicioFormacion());
   }
 
   if (pantallaFormacion === "revision") {
-    return renderFormularioFormacion({ modo: "revision" });
+    return enMarcoAplicacion(
+      "formacion",
+      renderFormularioFormacion({ modo: "revision" }),
+    );
   }
 
   if (pantallaFormacion === "manual") {
-    return renderFormularioFormacion({ modo: "manual" });
+    return enMarcoAplicacion(
+      "formacion",
+      renderFormularioFormacion({ modo: "manual" }),
+    );
   }
   if (registroSeleccionado !== null) {
-    return renderDetalleRegistro({
-      item: registroSeleccionado.item,
-      index: registroSeleccionado.index,
-    });
+    return enMarcoAplicacion(
+      "registros",
+      renderDetalleRegistro({
+        item: registroSeleccionado.item,
+        index: registroSeleccionado.index,
+      }),
+    );
   }
   if (pantallaFormacion === "registros") {
-    return (
+    return enMarcoAplicacion(
+      "registros",
       <div className="app">
         <div className="contenedor">
-          <button
-            type="button"
-            className="boton-volver-formacion"
-            onClick={() => setPantallaFormacion("inicio")}
-          >
-            ← Volver
-          </button>
-
           <header className="encabezado">
             <h1>Registros Guardados</h1>
             <p>Buscá y revisá partidos cargados.</p>
@@ -4686,8 +4692,6 @@ export default function App() {
 
           {guardados.length > 0 && (
             <section className="tarjeta">
-              <h2>Buscar registros</h2>
-
               <div className="buscador-registros">
                 <input
                   value={busquedaRegistros}
@@ -4708,26 +4712,22 @@ export default function App() {
           )}
 
           <section className="tarjeta">
-            <div className="historial-titulo">
-              <h2>Registros Guardados</h2>
-
-              {guardados.length > 0 && (
-                <button type="button" onClick={borrarHistorial}>
-                  Borrar historial
-                </button>
-              )}
-            </div>
-
             {guardados.length === 0 ? (
               <div className="sin-resultados">
                 No hay registros guardados todavía.
               </div>
             ) : (
               <>
-                <p className="contador-registros">
-                  Mostrando {registrosVisibles.length} de {guardados.length}{" "}
-                  registros
-                </p>
+                <div className="historial-titulo">
+                  <p className="contador-registros">
+                    Mostrando {registrosVisibles.length} de {guardados.length}{" "}
+                    registros
+                  </p>
+
+                  <button type="button" onClick={borrarHistorial}>
+                    Borrar historial
+                  </button>
+                </div>
 
                 {registrosVisibles.length === 0 && (
                   <div className="sin-resultados">
@@ -4737,21 +4737,28 @@ export default function App() {
 
                 {registrosVisibles.map(({ item, index }) => (
                   <div className="registro-guardado" key={index}>
-                    <strong>
-                      {item.fecha} · Atlético Mineiro vs{" "}
-                      {item.rival || "Sin rival"}
-                      {item.resultado ? ` · ${item.resultado}` : ""}
-                    </strong>
+                    <span className="fecha-registro">
+                      {formatearFechaPantalla(item.fecha)}
+                    </span>
 
-                    <p>
-                      PT: {item.inicioPT || "-"} a {item.finalPT || "-"} ·{" "}
-                      {item.tiempoPT || "-"}
-                    </p>
+                    <div className="enfrentamiento-registro">
+                      <EscudoCAM compacto />
+                      <strong>Atlético Mineiro</strong>
+                      <span className="resultado-registro">
+                        {item.resultado || "–"}
+                      </span>
+                      <strong>{item.rival || "Sin rival"}</strong>
+                      <EscudoRival nombre={item.rival} mini />
+                    </div>
 
-                    <p>
-                      ST: {item.inicioST || "-"} a {item.finalST || "-"} ·{" "}
-                      {item.tiempoST || "-"}
-                    </p>
+                    <div className="tiempos-registro">
+                      <span>
+                        PT <strong>{formatearDuracion(item.tiempoPT) || "-"}</strong>
+                      </span>
+                      <span>
+                        ST <strong>{formatearDuracion(item.tiempoST) || "-"}</strong>
+                      </span>
+                    </div>
 
                     <div className="acciones-registro">
                       <button
@@ -4770,8 +4777,9 @@ export default function App() {
                         type="button"
                         className="boton-eliminar-registro"
                         onClick={() => eliminarRegistro(index)}
+                        aria-label="Eliminar registro"
                       >
-                        Eliminar
+                        <Icono nombre="borrar" size={18} />
                       </button>
                     </div>
                   </div>
@@ -4780,7 +4788,7 @@ export default function App() {
             )}
           </section>
         </div>
-      </div>
+      </div>,
     );
   }
   const etiquetaAccionPeriodo = !periodoIniciado
@@ -4865,7 +4873,7 @@ export default function App() {
           </div>
           <div className="equipo-marcador equipo-visitante">
             <strong>{registro.rival || "Rival"}</strong>
-            <span className="escudo-rival" aria-hidden="true" />
+            <EscudoRival nombre={registro.rival} />
           </div>
         </section>
 
@@ -4954,6 +4962,16 @@ export default function App() {
               </span>
             </div>
 
+            <button
+              type="button"
+              className={`accion-periodo ${periodoIniciado && !periodoFinalizado ? "finalizar" : ""}`}
+              onClick={ejecutarAccionPeriodo}
+              disabled={periodoFinalizado}
+            >
+              <span className="simbolo-accion-periodo" />{" "}
+              {etiquetaAccionPeriodo}
+            </button>
+
             <div className="acciones-rapidas">
               <button
                 type="button"
@@ -5024,16 +5042,6 @@ export default function App() {
                 </div>
               )}
             </div>
-
-            <button
-              type="button"
-              className={`accion-periodo ${periodoIniciado && !periodoFinalizado ? "finalizar" : ""}`}
-              onClick={ejecutarAccionPeriodo}
-              disabled={periodoFinalizado}
-            >
-              <span className="simbolo-accion-periodo" />{" "}
-              {etiquetaAccionPeriodo}
-            </button>
 
             <details className="ajustes-periodo">
               <summary>Ajustar horarios y eventos</summary>
