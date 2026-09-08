@@ -152,7 +152,6 @@ const destinos = [
   { id: "partido", etiqueta: "Partido", icono: "partido" },
   { id: "formacion", etiqueta: "Formación", icono: "formacion" },
   { id: "registros", etiqueta: "Registros", icono: "registros" },
-  { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes", escritorio: true },
 ];
 
 export const MarcoAplicacion = ({
@@ -161,11 +160,9 @@ export const MarcoAplicacion = ({
   hayPartido = true,
   children,
 }) => {
-  // Sin un partido cargado, el tablero no tiene nada que mostrar; Ajustes
-  // también vive dentro de él, así que se ocultan los dos.
-  const destinosDelTablero = ["partido", "ajustes"];
+  // Sin un partido cargado, el tablero no tiene nada que mostrar.
   const destinosVisibles = destinos.filter(
-    (destino) => hayPartido || !destinosDelTablero.includes(destino.id),
+    (destino) => destino.id !== "partido" || hayPartido,
   );
 
   return (
@@ -197,19 +194,17 @@ export const MarcoAplicacion = ({
       <main className="contenido-aplicacion">{children}</main>
 
       <nav className="navegacion-movil" aria-label="Navegación principal">
-        {destinosVisibles
-          .filter((destino) => !destino.escritorio)
-          .map((destino) => (
-            <button
-              key={destino.id}
-              type="button"
-              className={activo === destino.id ? "activo" : ""}
-              onClick={() => onNavigate(destino.id)}
-            >
-              <Icono nombre={destino.icono} size={21} />
-              <span>{destino.etiqueta}</span>
-            </button>
-          ))}
+        {destinosVisibles.map((destino) => (
+          <button
+            key={destino.id}
+            type="button"
+            className={activo === destino.id ? "activo" : ""}
+            onClick={() => onNavigate(destino.id)}
+          >
+            <Icono nombre={destino.icono} size={21} />
+            <span>{destino.etiqueta}</span>
+          </button>
+        ))}
       </nav>
     </div>
   );
