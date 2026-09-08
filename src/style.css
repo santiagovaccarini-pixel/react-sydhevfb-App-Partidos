@@ -1860,21 +1860,25 @@ button:disabled {
 }
 
 .reloj-principal {
+  position: relative;
   display: block;
   padding: 0;
 }
 
-/* Estado a la izquierda y hora real a la derecha, pegados a las esquinas */
+/* Estado y hora real clavados a las esquinas superiores de la tarjeta */
 .cinta-reloj {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  left: 9px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 8px 0;
 }
 
 .reloj-centro {
-  padding: 0 14px 9px;
+  padding: 44px 14px 13px;
   text-align: center;
 }
 
@@ -1901,7 +1905,6 @@ button:disabled {
   align-items: center;
   min-height: 22px;
   gap: 7px;
-  margin-top: 6px;
   padding: 3px 11px;
   border-radius: 999px;
   background: #edf0ee;
@@ -2825,17 +2828,8 @@ button:disabled {
     min-height: 0;
   }
 
-  .reloj-principal {
-    gap: 25px;
-    padding: 15px 12px;
-  }
-
   .valor-reloj {
     font-size: 51px;
-  }
-
-  .hora-real-reloj {
-    padding-left: 20px;
   }
 
   .hora-real-reloj strong {
