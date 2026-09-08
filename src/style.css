@@ -2073,114 +2073,6 @@ button:disabled {
   background: #dbf0e5;
 }
 
-.timeline-periodo {
-  margin-top: 18px;
-}
-
-.subtitulo-timeline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 9px;
-  border-bottom: 1px solid var(--cam-linea);
-}
-
-.subtitulo-timeline h3 {
-  margin: 0;
-  font-size: 13px;
-}
-
-.subtitulo-timeline span {
-  min-width: 21px;
-  padding: 3px 6px;
-  border-radius: 999px;
-  background: #eef2f0;
-  color: #64706a;
-  font-size: 9px;
-  font-weight: 900;
-  text-align: center;
-}
-
-.timeline-vacia {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 148px;
-  flex-direction: column;
-  color: #a2aaa6;
-}
-
-.timeline-vacia p {
-  margin: 9px 0 0;
-  font-size: 11px;
-}
-
-.lista-eventos-periodo {
-  max-height: 250px;
-  overflow-y: auto;
-}
-
-.evento-periodo {
-  display: grid;
-  align-items: center;
-  grid-template-columns: 64px 30px minmax(0, 1fr);
-  min-height: 51px;
-  border-bottom: 1px solid #edf0ee;
-}
-
-.evento-periodo time {
-  color: #555f5a;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.icono-evento {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: #edf1ef;
-  color: #303733;
-}
-
-.icono-evento.var {
-  background: #fff0d9;
-  color: #9d5705;
-}
-
-.icono-evento.hidratacion {
-  background: #e8f2ff;
-  color: #24649b;
-}
-
-.icono-evento.cambio {
-  background: var(--cam-verde-suave);
-  color: var(--cam-verde-oscuro);
-}
-
-.evento-periodo > div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.evento-periodo strong {
-  overflow: hidden;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.evento-periodo > div span {
-  overflow: hidden;
-  color: #69736e;
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .accion-periodo {
   display: flex;
   align-items: center;
@@ -2993,10 +2885,6 @@ button:disabled {
     font-size: 9px;
   }
 
-  .timeline-vacia {
-    min-height: 105px;
-  }
-
   .selector-equipo button {
     gap: 5px;
     font-size: 9px;
@@ -3092,10 +2980,6 @@ button:disabled {
 
   .hora-real-reloj {
     padding-left: 14px;
-  }
-
-  .evento-periodo {
-    grid-template-columns: 57px 29px minmax(0, 1fr);
   }
 }
 

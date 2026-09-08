@@ -93,13 +93,15 @@ describe("interfaz operativa", () => {
     const accionPeriodo = contenedor.querySelector(".accion-periodo");
     await act(async () => accionPeriodo.click());
     expect(accionPeriodo.textContent).toContain("Finalizar PT");
-    expect(contenedor.textContent).toContain("Inicio de PT");
+    expect(
+      contenedor.querySelector(".selector-periodos p").textContent,
+    ).not.toContain("--:--");
 
     const botonVar = Array.from(
       contenedor.querySelectorAll(".acciones-rapidas button"),
     ).find((boton) => boton.textContent.includes("Iniciar VAR"));
     await act(async () => botonVar.click());
-    expect(contenedor.textContent).toContain("Inicio de VAR 1");
+    expect(botonVar.textContent).toContain("Finalizar VAR");
 
     const marcador = contenedor.querySelectorAll(".resultado-marcador input");
     expect(marcador[0].value).toBe("1");
@@ -124,6 +126,35 @@ describe("interfaz operativa", () => {
         ".contenido-ajustes-periodo .selector-tiempo-panel",
       ),
     ).not.toBeNull();
+  });
+
+  test("muestra los cinco cambios y el botón Cambio lleva a Atlético", async () => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(5);
+
+    // El manejador de "Cambio" no debe romperse: si lanza, React lo atrapa y
+    // la pantalla queda igual, así que hay que escuchar el error del navegador.
+    const fallos = [];
+    const anotarFallo = (evento) =>
+      fallos.push(evento.message || String(evento));
+    window.addEventListener("error", anotarFallo);
+
+    const botonCambio = contenedor.querySelector(
+      ".acciones-rapidas .accion-cambio",
+    );
+    await act(async () => botonCambio.click());
+
+    window.removeEventListener("error", anotarFallo);
+    expect(fallos).toEqual([]);
+
+    const pestanaAtletico = contenedor.querySelector(".selector-equipo button");
+    expect(pestanaAtletico.getAttribute("aria-selected")).toBe("true");
+    expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(5);
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {
