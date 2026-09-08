@@ -1864,13 +1864,13 @@ button:disabled {
   padding: 0;
 }
 
-/* Estado a la izquierda y hora real a la derecha, arriba del reloj */
+/* Estado a la izquierda y hora real a la derecha, pegados a las esquinas */
 .cinta-reloj {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 11px 0;
+  padding: 6px 8px 0;
 }
 
 .reloj-centro {
