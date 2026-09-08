@@ -34,7 +34,7 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.13";
+const APP_VERSION = "2026.09.08.14";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4887,19 +4887,10 @@ export default function App() {
               className={`punto-estado ${periodoIniciado && !periodoFinalizado ? "en-curso" : ""}`}
             />
             <div>
-              <span className="sobrelinea">REGISTRO OPERATIVO</span>
-              <h1>
-                {periodoIniciado && !periodoFinalizado
-                  ? "Partido en curso"
-                  : "Registro de partido"}
-              </h1>
+              <h1>{registro.rival || "Sin rival"}</h1>
             </div>
           </div>
           <div className="estado-sincronizacion">
-            <span className={registro.idSupabase ? "sincronizado" : "borrador"}>
-              <span className="punto-estado" />
-              {registro.idSupabase ? "Sincronizado" : "Borrador local"}
-            </span>
             <time>{formatearFechaPantalla(registro.fecha)}</time>
             <HoraActual />
           </div>
@@ -4914,7 +4905,7 @@ export default function App() {
             <input
               inputMode="numeric"
               aria-label="Goles de Atlético Mineiro"
-              value={golesAtletico}
+              value={golesAtletico === "0" ? "" : golesAtletico}
               placeholder="0"
               onChange={(evento) =>
                 actualizarMarcador("atletico", evento.target.value)
@@ -4924,7 +4915,7 @@ export default function App() {
             <input
               inputMode="numeric"
               aria-label={`Goles de ${registro.rival || "rival"}`}
-              value={golesRival}
+              value={golesRival === "0" ? "" : golesRival}
               placeholder="0"
               onChange={(evento) =>
                 actualizarMarcador("rival", evento.target.value)
