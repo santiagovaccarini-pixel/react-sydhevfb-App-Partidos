@@ -34,7 +34,7 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.6";
+const APP_VERSION = "2026.09.08.7";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -926,10 +926,6 @@ export default function App() {
   const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
   const [periodoVista, setPeriodoVista] = useState("PT");
   const [equipoCambios, setEquipoCambios] = useState("atletico");
-  const [filasCambiosVisibles, setFilasCambiosVisibles] = useState({
-    atletico: CAMBIOS_SIEMPRE_VISIBLES,
-    rival: CAMBIOS_SIEMPRE_VISIBLES,
-  });
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
     (formacionInicial.titulares || []).some((j) => String(j || "").trim()) ||
@@ -1387,17 +1383,6 @@ export default function App() {
         cambiosRival: cambiosActualizados,
       };
     });
-  };
-
-  const agregarCambio = (tipo) => {
-    const clave = tipo === "rival" ? "cambiosRival" : "cambios";
-
-    setRegistro((prev) => ({
-      ...prev,
-      [clave]: [...(prev[clave] || crearCambiosVacios()), crearCambioVacio()],
-    }));
-
-    setTimeout(() => window.scrollBy({ top: 180, behavior: "smooth" }), 0);
   };
 
   const activarProrroga = () => {
@@ -4482,18 +4467,6 @@ export default function App() {
     });
   };
 
-  const agregarFilaCambio = (tipo) => {
-    const clave = tipo === "rival" ? "rival" : "atletico";
-    const lista = tipo === "rival" ? registro.cambiosRival : registro.cambios;
-    const cantidadActual = filasCambiosVisibles[clave] || 1;
-
-    if (cantidadActual >= (lista || []).length) agregarCambio(tipo);
-    setFilasCambiosVisibles((prev) => ({
-      ...prev,
-      [clave]: cantidadActual + 1,
-    }));
-  };
-
   const renderPanelCambiosOperativo = () => {
     const esRival = equipoCambios === "rival";
     const lista = esRival ? registro.cambiosRival : registro.cambios;
@@ -4502,13 +4475,14 @@ export default function App() {
         cambio.sale || cambio.entra || cambio.hora ? index : ultimo,
       -1,
     );
-    const cantidad = Math.min(
-      (lista || []).length,
-      Math.max(
-        CAMBIOS_SIEMPRE_VISIBLES,
-        filasCambiosVisibles[equipoCambios] || 0,
-        ultimoConDatos + 2,
-      ),
+    // Cinco cambios reglamentarios, más el sexto habilitado por la prórroga.
+    // Si un registro viejo trae más, se muestran igual para no esconder datos.
+    const minimoRanuras =
+      CAMBIOS_SIEMPRE_VISIBLES + (registro.prorrogaActiva ? 1 : 0);
+    const cantidad = Math.max(minimoRanuras, ultimoConDatos + 1);
+    const ranuras = Array.from(
+      { length: cantidad },
+      (_, indice) => (lista || [])[indice] || crearCambioVacio(),
     );
 
     return (
@@ -4558,12 +4532,13 @@ export default function App() {
             className={esRival ? "activo rival" : ""}
             onClick={() => setEquipoCambios("rival")}
           >
-            <EscudoRival nombre={registro.rival} mini /> {registro.rival || "Rival"}
+            <EscudoRival nombre={registro.rival} mini />{" "}
+            {registro.rival || "Rival"}
           </button>
         </div>
 
         <div className="lista-cambios-operativa">
-          {(lista || []).slice(0, cantidad).map((cambio, index) => {
+          {ranuras.map((cambio, index) => {
             const cargado = Boolean(cambio.sale || cambio.entra || cambio.hora);
 
             return (
@@ -4680,20 +4655,16 @@ export default function App() {
             );
           })}
         </div>
-
-        <button
-          type="button"
-          className="agregar-cambio-operativo"
-          onClick={() => agregarFilaCambio(esRival ? "rival" : "atletico")}
-        >
-          <Icono nombre="plus" size={19} /> Agregar cambio
-        </button>
       </section>
     );
   };
 
   const enMarcoAplicacion = (activo, contenido) => (
-    <MarcoAplicacion activo={activo} onNavigate={navegarAplicacion}>
+    <MarcoAplicacion
+      activo={activo}
+      onNavigate={navegarAplicacion}
+      hayPartido={partidoEnCurso}
+    >
       {contenido}
     </MarcoAplicacion>
   );
@@ -4854,7 +4825,7 @@ export default function App() {
   const tiempoHidratacionGuardado = resumen[`tiempoHidratacion${periodoVista}`];
 
   return (
-    <MarcoAplicacion activo="partido" onNavigate={navegarAplicacion}>
+    <MarcoAplicacion activo="partido" onNavigate={navegarAplicacion} hayPartido>
       <div className="tablero-partido">
         {mensajeGuardado && (
           <div className="notificacion-guardado" role="status">
