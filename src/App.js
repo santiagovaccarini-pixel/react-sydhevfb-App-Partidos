@@ -34,7 +34,7 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.14";
+const APP_VERSION = "2026.09.08.15";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4886,14 +4886,21 @@ export default function App() {
             <span
               className={`punto-estado ${periodoIniciado && !periodoFinalizado ? "en-curso" : ""}`}
             />
-            <div>
-              <h1>{registro.rival || "Sin rival"}</h1>
+            <div className="estado-sincronizacion">
+              <time>{formatearFechaPantalla(registro.fecha)}</time>
+              <HoraActual />
             </div>
           </div>
-          <div className="estado-sincronizacion">
-            <time>{formatearFechaPantalla(registro.fecha)}</time>
-            <HoraActual />
-          </div>
+
+          <button
+            type="button"
+            className="boton-guardar-cabecera"
+            onClick={guardarRegistro}
+            disabled={guardando}
+          >
+            <Icono nombre={guardando ? "reloj" : "check"} size={18} />
+            {guardando ? "Guardando…" : "Guardar partido"}
+          </button>
         </header>
 
         <section className="marcador-partido" aria-label="Marcador del partido">
@@ -5104,22 +5111,6 @@ export default function App() {
 
           {renderPanelCambiosOperativo()}
         </div>
-
-        <footer className="barra-guardado">
-          <div>
-            <Icono nombre="documento" size={20} />
-            <span>
-              <strong>Borrador automático</strong>
-              <small>
-                Los cambios quedan en este dispositivo hasta sincronizar.
-              </small>
-            </span>
-          </div>
-          <button type="button" onClick={guardarRegistro} disabled={guardando}>
-            <Icono nombre={guardando ? "reloj" : "check"} size={20} />
-            {guardando ? "Guardando…" : "Guardar partido"}
-          </button>
-        </footer>
       </div>
     </MarcoAplicacion>
   );
