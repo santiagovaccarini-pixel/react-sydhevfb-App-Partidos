@@ -193,6 +193,33 @@ describe("interfaz operativa", () => {
     ).toContain("en curso");
   });
 
+  test("ir a Registros y volver a Formación no inventa un partido", async () => {
+    localStorage.removeItem("registro_actual_partido");
+
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    const destinos = () =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).map(
+        (boton) => boton.textContent.trim(),
+      );
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+
+    expect(destinos()).toEqual(["Formación", "Registros"]);
+
+    await act(async () => irA("Registros").click());
+    await act(async () => irA("Formación").click());
+
+    expect(destinos()).toEqual(["Formación", "Registros"]);
+    expect(contenedor.textContent).not.toContain("Volver al partido");
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await act(async () => {
       raiz = createRoot(contenedor);

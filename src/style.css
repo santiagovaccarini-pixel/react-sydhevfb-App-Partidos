@@ -2903,19 +2903,6 @@ button:disabled {
   color: var(--cam-rojo);
 }
 
-/* Limpiar el borrador vive ahora en la pantalla de formación */
-.app .limpiar-partido {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  gap: 8px;
-  margin-top: 14px;
-  color: #a24049;
-  font-size: 12px;
-  font-weight: 850;
-}
-
 /* Reloj y ítems del período comparten columna */
 .columna-reloj {
   display: grid;
@@ -3056,7 +3043,36 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* Guardar el partido vive en la cabecera, ya no en una barra flotante */
+/* Guardar y limpiar viven en la cabecera, ya no en una barra flotante */
+.acciones-cabecera {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.boton-limpiar-cabecera {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.boton-limpiar-cabecera:hover {
+  transform: none;
+  border-color: rgba(226, 130, 138, 0.5);
+  background: rgba(226, 130, 138, 0.14);
+  color: #f0b7bc;
+  box-shadow: none;
+}
+
 .boton-guardar-cabecera {
   display: inline-flex;
   align-items: center;
