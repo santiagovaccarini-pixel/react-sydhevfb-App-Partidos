@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="42" fill="#111513"/>
+  <path d="m96 17 8 18 20 2-15 13 5 20-18-11-18 11 5-20-15-13 20-2z" fill="#f7bf21"/>
+  <path d="M42 62h108v49c0 32-20 52-54 67-34-15-54-35-54-67z" fill="#101312" stroke="#fff" stroke-width="6"/>
+  <path d="M52 101h88M70 101v52m26-52v66m27-66v52" fill="none" stroke="#fff" stroke-width="5"/>
+  <text x="96" y="91" fill="#fff" font-family="Arial,sans-serif" font-size="30" font-weight="900" text-anchor="middle">CAM</text>
+</svg>

@@ -7,33 +7,46 @@ import React, {
   useState,
 } from "react";
 import jugadores from "./jugadores";
+import {
+  calcularNoIngresaron,
+  clavePartido,
+  convertirNombreJugador,
+  esFormatoHoraReal,
+  esFormatoTransmision,
+  fechaLocalISO,
+  formatearDuracion,
+  formatearTiempoTransmision,
+  limpiarLista,
+  normalizarEntradaTiempoTransmision,
+  normalizarTexto,
+  normalizarTextoBase,
+  periodoDesdeMinutoPartido,
+  segundosDesdeHora,
+  segundosEntre,
+  sumarDuracionesEventos,
+  validarRegistroBasico,
+} from "./domain/match";
+import { EscudoCAM, Icono, MarcoAplicacion } from "./components/AppChrome";
+import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.08.12.1";
+const APP_VERSION = "2026.09.08.1";
+const VERSION_BORRADOR = 2;
+const CLAVE_BORRADOR = "registro_actual_partido";
+const CLAVE_RESPALDO = "backup_registros_partidos";
 
-const imagenIntro =
-  "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
-
-const opcionesMinutosTransmision = Array.from(
-  { length: 121 },
-  (_, minuto) => String(minuto).padStart(3, "0")
+const opcionesMinutosTransmision = Array.from({ length: 121 }, (_, minuto) =>
+  String(minuto).padStart(3, "0"),
 );
 
-const opcionesSegundosTransmision = Array.from(
-  { length: 60 },
-  (_, segundo) => String(segundo).padStart(2, "0")
+const opcionesSegundosTransmision = Array.from({ length: 60 }, (_, segundo) =>
+  String(segundo).padStart(2, "0"),
 );
 
-const opcionesHorasEnVivo = Array.from(
-  { length: 24 },
-  (_, hora) => String(hora).padStart(2, "0")
+const opcionesHorasEnVivo = Array.from({ length: 24 }, (_, hora) =>
+  String(hora).padStart(2, "0"),
 );
 
-const normalizarNombreBusqueda = (valor) =>
-  String(valor || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+const normalizarNombreBusqueda = normalizarTextoBase;
 
 const SelectorNombre = ({
   value,
@@ -85,7 +98,8 @@ const SelectorNombre = ({
     };
 
     document.addEventListener("pointerdown", cerrarAlTocarAfuera);
-    return () => document.removeEventListener("pointerdown", cerrarAlTocarAfuera);
+    return () =>
+      document.removeEventListener("pointerdown", cerrarAlTocarAfuera);
   }, []);
 
   const seleccionar = (opcion) => {
@@ -99,7 +113,9 @@ const SelectorNombre = ({
       evento.preventDefault();
       setAbierto(true);
       setIndiceActivo((actual) =>
-        resultados.length === 0 ? -1 : Math.min(actual + 1, resultados.length - 1)
+        resultados.length === 0
+          ? -1
+          : Math.min(actual + 1, resultados.length - 1),
       );
       return;
     }
@@ -111,8 +127,8 @@ const SelectorNombre = ({
         resultados.length === 0
           ? -1
           : actual <= 0
-          ? resultados.length - 1
-          : actual - 1
+            ? resultados.length - 1
+            : actual - 1,
       );
       return;
     }
@@ -227,7 +243,8 @@ const SelectorTiempoTransmision = ({
     };
 
     document.addEventListener("pointerdown", cerrarAlTocarAfuera);
-    return () => document.removeEventListener("pointerdown", cerrarAlTocarAfuera);
+    return () =>
+      document.removeEventListener("pointerdown", cerrarAlTocarAfuera);
   }, []);
 
   useLayoutEffect(() => {
@@ -289,9 +306,7 @@ const SelectorTiempoTransmision = ({
         aria-expanded={abierto}
         aria-label="Elegir minutos y segundos"
       >
-        <span
-          className={`selector-tiempo-valor ${value ? "" : "vacio"}`}
-        >
+        <span className={`selector-tiempo-valor ${value ? "" : "vacio"}`}>
           {value || "---:--"}
         </span>
         <span className="selector-tiempo-reloj" aria-hidden="true" />
@@ -380,7 +395,7 @@ const SelectorTiempoTransmision = ({
 
 const descomponerHoraEnVivo = (valor) => {
   const coincidencia = String(valor || "").match(
-    /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/
+    /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/,
   );
 
   if (!coincidencia) {
@@ -418,7 +433,8 @@ const SelectorHoraEnVivo = ({
     };
 
     document.addEventListener("pointerdown", cerrarAlTocarAfuera);
-    return () => document.removeEventListener("pointerdown", cerrarAlTocarAfuera);
+    return () =>
+      document.removeEventListener("pointerdown", cerrarAlTocarAfuera);
   }, []);
 
   useLayoutEffect(() => {
@@ -624,8 +640,6 @@ const CampoTiempo = ({
   );
 };
 
-const ListaJugadores = () => null;
-
 const InputJugador = ({ value, onChange }) => (
   <SelectorNombre value={value} onChange={onChange} opciones={jugadores} />
 );
@@ -634,7 +648,7 @@ const InputJugadorRival = ({ value, onChange, opciones = [] }) => {
   const valorNormalizado = normalizarNombreBusqueda(value);
   const opcionesFiltradas = valorNormalizado
     ? opciones.filter(
-        (opcion) => normalizarNombreBusqueda(opcion) !== valorNormalizado
+        (opcion) => normalizarNombreBusqueda(opcion) !== valorNormalizado,
       )
     : opciones;
 
@@ -647,6 +661,81 @@ const InputJugadorRival = ({ value, onChange, opciones = [] }) => {
   );
 };
 
+const ListaSimple = ({
+  titulo,
+  lista,
+  vacio = "Sin datos cargados",
+  cantidadPrimeraColumna = 5,
+}) => {
+  const datos = limpiarLista(lista);
+  const columna1 = datos.slice(0, cantidadPrimeraColumna);
+  const columna2 = datos.slice(cantidadPrimeraColumna);
+
+  return (
+    <div className="lista-formacion">
+      <h3>{titulo}</h3>
+
+      {datos.length === 0 ? (
+        <p>{vacio}</p>
+      ) : (
+        <div className="formacion-grid">
+          <div className="columna-formacion">
+            {columna1.map((jugador, index) => (
+              <div className="item-formacion" key={`${jugador}-${index}`}>
+                {index + 1}. {jugador}
+              </div>
+            ))}
+          </div>
+
+          <div className="columna-formacion">
+            {columna2.map((jugador, index) => (
+              <div className="item-formacion" key={`${jugador}-2-${index}`}>
+                {index + cantidadPrimeraColumna + 1}. {jugador}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DatoDetalle = ({ label, valor }) => (
+  <div className="dato-detalle">
+    <span>{label}</span>
+    <strong>{valor || "-"}</strong>
+  </div>
+);
+
+const EstadoVersionApp = ({ actualizacionDisponible, onActualizar }) => (
+  <div className="bloque-version-app">
+    <div
+      className={`indicador-version-app ${
+        actualizacionDisponible ? "actualizacion-pendiente" : ""
+      }`}
+    >
+      <span className="indicador-modo-punto" aria-hidden="true" />
+      <div className="indicador-modo-texto">
+        <strong>
+          {actualizacionDisponible
+            ? "Nueva versión disponible"
+            : "Aplicación actualizada"}
+        </strong>
+        <span>Versión {APP_VERSION}</span>
+      </div>
+    </div>
+
+    {actualizacionDisponible && (
+      <button
+        type="button"
+        className="boton-actualizar-version"
+        onClick={onActualizar}
+      >
+        Actualizar Versión
+      </button>
+    )}
+  </div>
+);
 
 export default function App() {
   const crearCambioVacio = () => ({
@@ -689,13 +778,13 @@ export default function App() {
   });
 
   const crearRegistroVacio = () => ({
-    fecha: new Date().toISOString().split("T")[0],
+    fecha: fechaLocalISO(),
     rival: "",
     resultado: "",
-  
+
     // Modo de registro de los horarios
     modoTiempo: "enVivo",
-  
+
     // Se usarán para calcular los minutos de transmisión.
     // Guardarán Date.now(), no una hora escrita.
     referenciaRealPT: null,
@@ -705,13 +794,13 @@ export default function App() {
     horaInicioRealST: "",
     horaFinalRealST: "",
     ...crearProrrogaVacia(),
-  
+
     inicioPT: "",
     finalPT: "",
     inicioVarPT: "",
     finalVarPT: "",
     varsPT: [{ inicio: "", final: "" }],
-varPTActivo: 0,
+    varPTActivo: 0,
     inicioHidratacionPT: "",
     finalHidratacionPT: "",
     inicioST: "",
@@ -719,7 +808,7 @@ varPTActivo: 0,
     inicioVarST: "",
     finalVarST: "",
     varsST: [{ inicio: "", final: "" }],
-varSTActivo: 0,
+    varSTActivo: 0,
     inicioHidratacionST: "",
     finalHidratacionST: "",
     cambios: crearCambiosVacios(),
@@ -732,58 +821,67 @@ varSTActivo: 0,
     const registroVacio = crearRegistroVacio();
 
     try {
-      const datosGuardados = localStorage.getItem("registro_actual_partido");
+      const datosGuardados = localStorage.getItem(CLAVE_BORRADOR);
 
       if (!datosGuardados) return registroVacio;
 
-      const registroRecuperado = JSON.parse(datosGuardados);
+      const datosRecuperados = JSON.parse(datosGuardados);
+      const registroRecuperado =
+        datosRecuperados?.version === VERSION_BORRADOR
+          ? datosRecuperados.registro
+          : datosRecuperados;
+      if (!registroRecuperado || typeof registroRecuperado !== "object") {
+        return registroVacio;
+      }
+
+      const arregloSeguro = (valor, respaldo) =>
+        Array.isArray(valor) && valor.length > 0 ? valor : respaldo;
 
       return {
         ...registroVacio,
         ...registroRecuperado,
-        cambios:
-          registroRecuperado.cambios && registroRecuperado.cambios.length > 0
-            ? registroRecuperado.cambios
-            : registroVacio.cambios,
-            cambiosRival:
-  registroRecuperado.cambiosRival &&
-  registroRecuperado.cambiosRival.length > 0
-    ? registroRecuperado.cambiosRival
-    : registroVacio.cambiosRival,
-    jugadoresRival:
-  registroRecuperado.jugadoresRival &&
-  registroRecuperado.jugadoresRival.length > 0
-    ? registroRecuperado.jugadoresRival
-    : registroVacio.jugadoresRival,
-            varsPT:
-  registroRecuperado.varsPT && registroRecuperado.varsPT.length > 0
-    ? registroRecuperado.varsPT
-    : registroVacio.varsPT,
-varPTActivo: registroRecuperado.varPTActivo || 0,
-varsST:
-  registroRecuperado.varsST && registroRecuperado.varsST.length > 0
-    ? registroRecuperado.varsST
-    : registroVacio.varsST,
-varSTActivo: registroRecuperado.varSTActivo || 0,
-varsPTE:
-  registroRecuperado.varsPTE && registroRecuperado.varsPTE.length > 0
-    ? registroRecuperado.varsPTE
-    : registroVacio.varsPTE,
-varPTEActivo: registroRecuperado.varPTEActivo || 0,
-varsSTE:
-  registroRecuperado.varsSTE && registroRecuperado.varsSTE.length > 0
-    ? registroRecuperado.varsSTE
-    : registroVacio.varsSTE,
-varSTEActivo: registroRecuperado.varSTEActivo || 0,
+        cambios: arregloSeguro(
+          registroRecuperado.cambios,
+          registroVacio.cambios,
+        ),
+        cambiosRival: arregloSeguro(
+          registroRecuperado.cambiosRival,
+          registroVacio.cambiosRival,
+        ),
+        jugadoresRival: Array.isArray(registroRecuperado.jugadoresRival)
+          ? registroRecuperado.jugadoresRival
+          : registroVacio.jugadoresRival,
+        varsPT: arregloSeguro(registroRecuperado.varsPT, registroVacio.varsPT),
+        varPTActivo: Number.isInteger(registroRecuperado.varPTActivo)
+          ? registroRecuperado.varPTActivo
+          : 0,
+        varsST: arregloSeguro(registroRecuperado.varsST, registroVacio.varsST),
+        varSTActivo: Number.isInteger(registroRecuperado.varSTActivo)
+          ? registroRecuperado.varSTActivo
+          : 0,
+        varsPTE: arregloSeguro(
+          registroRecuperado.varsPTE,
+          registroVacio.varsPTE,
+        ),
+        varPTEActivo: Number.isInteger(registroRecuperado.varPTEActivo)
+          ? registroRecuperado.varPTEActivo
+          : 0,
+        varsSTE: arregloSeguro(
+          registroRecuperado.varsSTE,
+          registroVacio.varsSTE,
+        ),
+        varSTEActivo: Number.isInteger(registroRecuperado.varSTEActivo)
+          ? registroRecuperado.varSTEActivo
+          : 0,
         formacion: {
-          titulares:
-            registroRecuperado.formacion?.titulares?.length > 0
-              ? registroRecuperado.formacion.titulares
-              : registroVacio.formacion.titulares,
-          convocados:
-            registroRecuperado.formacion?.convocados?.length > 0
-              ? registroRecuperado.formacion.convocados
-              : registroVacio.formacion.convocados,
+          titulares: arregloSeguro(
+            registroRecuperado.formacion?.titulares,
+            registroVacio.formacion.titulares,
+          ),
+          convocados: arregloSeguro(
+            registroRecuperado.formacion?.convocados,
+            registroVacio.formacion.convocados,
+          ),
         },
       };
     } catch (error) {
@@ -793,14 +891,23 @@ varSTEActivo: registroRecuperado.varSTEActivo || 0,
 
   const [registro, setRegistro] = useState(obtenerRegistroInicial);
   const [guardados, setGuardados] = useState([]);
-  const [mostrarApp, setMostrarApp] = useState(false);
+  const [historialCargado, setHistorialCargado] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
   const [registroSeleccionado, setRegistroSeleccionado] = useState(null);
-  const [pantalla, setPantalla] = useState("principal");
+  const [detalleEditando, setDetalleEditando] = useState(false);
+  const [detalleBorrador, setDetalleBorrador] = useState(null);
   const [busquedaRegistros, setBusquedaRegistros] = useState("");
   const [ordenRegistros, setOrdenRegistros] = useState("reciente");
   const [mostrarFormacionPartido, setMostrarFormacionPartido] = useState(false);
   const [mensajeGuardado, setMensajeGuardado] = useState("");
   const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
+  const [periodoVista, setPeriodoVista] = useState("PT");
+  const [equipoCambios, setEquipoCambios] = useState("atletico");
+  const [filasCambiosVisibles, setFilasCambiosVisibles] = useState({
+    atletico: 1,
+    rival: 1,
+  });
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
     (formacionInicial.titulares || []).some((j) => String(j || "").trim()) ||
@@ -809,17 +916,16 @@ varSTEActivo: registroRecuperado.varSTEActivo || 0,
   const [partidoEnCurso, setPartidoEnCurso] = useState(hayFormacionInicial);
 
   const [pantallaFormacion, setPantallaFormacion] = useState(
-    hayFormacionInicial ? "lista" : "inicio"
+    hayFormacionInicial ? "lista" : "inicio",
   );
 
-  const [fechaFormacion, setFechaFormacion] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [fechaFormacion, setFechaFormacion] = useState(fechaLocalISO());
   const [formacionTemporal, setFormacionTemporal] = useState(
-    registro.formacion || crearFormacionVacia()
+    registro.formacion || crearFormacionVacia(),
   );
 
   const [mensajeFormacion, setMensajeFormacion] = useState("");
+
   const opcionesJugadoresRival = useMemo(
     () =>
       [
@@ -834,12 +940,18 @@ varSTEActivo: registroRecuperado.varSTEActivo || 0,
       registro.titularesRival,
       registro.convocadosRival,
       registro.cambiosRival,
-    ]
+    ],
   );
 
   const posicionScrollPendiente = useRef(null);
   const convertirSupabaseARegistro = (fila) => {
     const prorroga = fila.prorroga || {};
+    const capturaTiempo =
+      fila.captura_tiempo &&
+      typeof fila.captura_tiempo === "object" &&
+      !Array.isArray(fila.captura_tiempo)
+        ? fila.captura_tiempo
+        : null;
     const cambiosExtra = Array.isArray(fila.cambios_extra)
       ? fila.cambios_extra
       : [];
@@ -851,16 +963,25 @@ varSTEActivo: registroRecuperado.varSTEActivo || 0,
       fecha: fila.fecha || "",
       rival: fila.rival || "",
       resultado: fila.resultado || "",
-      // Los registros guardados contienen únicamente horas reales.
-      modoTiempo: detectarModoTiempoFila(fila),
-  
-      inicioPT: fila.inicio_pt || "",
-finalPT: fila.final_pt || "",
-tiempoPT: fila.tiempo_pt || "",
+      modoTiempo:
+        fila.modo_tiempo ||
+        capturaTiempo?.modoTiempo ||
+        detectarModoTiempoFila(fila),
 
-inicioST: fila.inicio_st || "",
-finalST: fila.final_st || "",
-tiempoST: fila.tiempo_st || "",
+      referenciaRealPT: null,
+      referenciaRealST: null,
+      horaInicioRealPT: esFormatoHoraReal(fila.inicio_pt) ? fila.inicio_pt : "",
+      horaFinalRealPT: esFormatoHoraReal(fila.final_pt) ? fila.final_pt : "",
+      horaInicioRealST: esFormatoHoraReal(fila.inicio_st) ? fila.inicio_st : "",
+      horaFinalRealST: esFormatoHoraReal(fila.final_st) ? fila.final_st : "",
+
+      inicioPT: fila.inicio_pt || "",
+      finalPT: fila.final_pt || "",
+      tiempoPT: fila.tiempo_pt || "",
+
+      inicioST: fila.inicio_st || "",
+      finalST: fila.final_st || "",
+      tiempoST: fila.tiempo_st || "",
 
       prorrogaActiva: Boolean(prorroga.activa),
       referenciaRealPTE: null,
@@ -887,12 +1008,12 @@ tiempoST: fila.tiempo_st || "",
       tiempoHidratacionPTE: prorroga.tiempoHidratacionPTE || "",
       tiempoSTE: prorroga.tiempoSTE || "",
       tiempoHidratacionSTE: prorroga.tiempoHidratacionSTE || "",
-  
+
       inicioHidratacionPT: fila.inicio_hid_pt || "",
       finalHidratacionPT: fila.final_hid_pt || "",
       inicioHidratacionST: fila.inicio_hid_st || "",
       finalHidratacionST: fila.final_hid_st || "",
-  
+
       varsPT: [
         {
           inicio: fila.inicio_var_pt_1 || "",
@@ -907,7 +1028,7 @@ tiempoST: fila.tiempo_st || "",
           final: fila.final_var_pt_3 || "",
         },
       ].filter((v) => v.inicio || v.final),
-  
+
       varsST: [
         {
           inicio: fila.inicio_var_st_1 || "",
@@ -922,10 +1043,10 @@ tiempoST: fila.tiempo_st || "",
           final: fila.final_var_st_3 || "",
         },
       ].filter((v) => v.inicio || v.final),
-  
+
       varPTActivo: 0,
       varSTActivo: 0,
-  
+
       cambios: [
         {
           sale: fila.cambio_1_sale || "",
@@ -954,7 +1075,7 @@ tiempoST: fila.tiempo_st || "",
         },
         ...cambiosExtra,
       ],
-  
+
       cambiosRival: [
         {
           sale: fila.rival_cambio_sale1 || "",
@@ -983,49 +1104,73 @@ tiempoST: fila.tiempo_st || "",
         },
         ...cambiosRivalExtra,
       ],
-  
+
       formacion: {
         titulares: fila.titulares || [],
         convocados: fila.convocados || [],
       },
-  
+
       idSupabase: fila.id,
       guardadoEn: fila.created_at || fila.fecha || "",
     };
-  
+
+    const registroRestaurado =
+      registroConvertido.modoTiempo === "transmision" && capturaTiempo
+        ? {
+            ...registroConvertido,
+            ...capturaTiempo,
+            fecha: registroConvertido.fecha,
+            rival: registroConvertido.rival,
+            resultado: registroConvertido.resultado,
+            idSupabase: registroConvertido.idSupabase,
+            guardadoEn: registroConvertido.guardadoEn,
+            modoTiempo: "transmision",
+          }
+        : registroConvertido;
+
     return {
-      ...registroConvertido,
-      ...calcularTiemposRegistro(registroConvertido),
+      ...registroRestaurado,
+      ...calcularTiemposRegistro(registroRestaurado),
       noIngresaron: calcularNoIngresaron(
-        registroConvertido.formacion,
-        registroConvertido.cambios
+        registroRestaurado.formacion,
+        registroRestaurado.cambios,
       ),
     };
   };
-  
+
   const cargarRegistrosSupabase = async () => {
     const { data, error } = await supabase
       .from("registros_partido")
       .select("*")
       .order("fecha", { ascending: false });
-  
+
     if (error) {
       console.error("Error cargando registros desde Supabase:", error);
-      alert("No se pudieron cargar los registros desde Supabase");
+
+      try {
+        const datosRespaldo = JSON.parse(
+          localStorage.getItem(CLAVE_RESPALDO) || "[]",
+        );
+        const respaldo =
+          datosRespaldo?.version === VERSION_BORRADOR
+            ? datosRespaldo.registros
+            : datosRespaldo;
+        if (Array.isArray(respaldo)) setGuardados(respaldo);
+      } catch (errorRespaldo) {
+        console.warn("El respaldo local del historial no es válido.");
+      }
+
+      setMensajeGuardado("Sin conexión · mostrando el respaldo local");
+      setHistorialCargado(true);
       return;
     }
-  
+
     const registrosConvertidos = (data || []).map(convertirSupabaseARegistro);
     setGuardados(registrosConvertidos);
+    setHistorialCargado(true);
   };
   useEffect(() => {
     cargarRegistrosSupabase();
-  
-    const timerIntro = setTimeout(() => {
-      setMostrarApp(true);
-    }, 1800);
-  
-    return () => clearTimeout(timerIntro);
   }, []);
 
   useEffect(() => {
@@ -1067,11 +1212,27 @@ tiempoST: fila.tiempo_st || "",
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("backup_registros_partidos", JSON.stringify(guardados));
-  }, [guardados]);
+    if (!historialCargado) return;
+
+    try {
+      localStorage.setItem(
+        CLAVE_RESPALDO,
+        JSON.stringify({ version: VERSION_BORRADOR, registros: guardados }),
+      );
+    } catch (error) {
+      console.warn("No se pudo actualizar el respaldo local del historial.");
+    }
+  }, [guardados, historialCargado]);
 
   useEffect(() => {
-    localStorage.setItem("registro_actual_partido", JSON.stringify(registro));
+    try {
+      localStorage.setItem(
+        CLAVE_BORRADOR,
+        JSON.stringify({ version: VERSION_BORRADOR, registro }),
+      );
+    } catch (error) {
+      console.warn("No se pudo guardar el borrador local.");
+    }
   }, [registro]);
 
   useLayoutEffect(() => {
@@ -1080,68 +1241,9 @@ tiempoST: fila.tiempo_st || "",
       posicionScrollPendiente.current = null;
     }
   });
-  const normalizarTextoBase = (valor) =>
-  String(valor ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-  const equivalenciasJugadores = {
-    "alan minda": "A MINDA",
-    "angelo preciado": "A PRECIADO",
-    "alan franco": "ALAN FRANCO",
-    "alexsander": "ALEXSANDER",
-    "junior alonso": "ALONSO",
-    "bernard": "BERNARD",
-    "caua soares": "CAUA SOARES",
-    "mamady cisse": "CISSE",
-    "tomas cuello": "CUELLO",
-    "dudu": "DUDU",
-    "ivan roman": "I ROMAN",
-    "igor gomes": "IGOR GOMES",
-    "indio": "INDIO",
-    "mateus iseppe": "M ISEPPE",
-    "kaua pascini": "KAUA PASCINI",
-    "lyanco": "LYANCO",
-    "mateo cassierra": "M CASSIERRA",
-    "maycon": "MAYCON",
-    "natanael": "NATANAEL",
-    "patrick": "PATRICK",
-    "reinier": "REINIER",
-    "renan lodi": "RENAN LODI",
-    "ruan": "RUAN",
-    "gustavo scarpa": "SCARPA",
-    "scarpa": "SCARPA",
-    "tomas perez": "T PEREZ",
-    "vitor hugo": "V HUGO",
-    "victor": "VICTOR",
-    "victor hugo": "VICTOR",
-    "vitao": "VITAO",
-    "luis gustavo": "LUIS GUSTAVO",
-    "veneno": "VENENO"
-  };
-  const normalizarTexto = (valor) => {
-    const limpio = normalizarTextoBase(valor);
-    return equivalenciasJugadores[limpio] || limpio;
-  };
-  const limpiarLista = (lista) =>
-    (lista || []).map((j) => String(j || "").trim()).filter(Boolean);
-
-  const jugadoresQueEntraron = (cambios) =>
-    limpiarLista((cambios || []).map((cambio) => cambio.entra));
-
-  const calcularNoIngresaron = (formacion, cambios) => {
-    const convocados = limpiarLista(formacion?.convocados || []);
-    const entraron = jugadoresQueEntraron(cambios).map(normalizarTexto);
-
-    return convocados.filter(
-      (jugador) => !entraron.includes(normalizarTexto(jugador))
-    );
-  };
-
   const noIngresaronActuales = useMemo(
     () => calcularNoIngresaron(registro.formacion, registro.cambios),
-    [registro.formacion, registro.cambios]
+    [registro.formacion, registro.cambios],
   );
 
   const textoRegistroParaBusqueda = (item) => {
@@ -1175,11 +1277,7 @@ tiempoST: fila.tiempo_st || "",
       ...titulares,
       ...convocados,
       ...noIngresaron,
-      ...cambios.flatMap((cambio) => [
-        cambio.sale,
-        cambio.entra,
-        cambio.hora,
-      ]),
+      ...cambios.flatMap((cambio) => [cambio.sale, cambio.entra, cambio.hora]),
     ].join(" ");
   };
 
@@ -1226,42 +1324,42 @@ tiempoST: fila.tiempo_st || "",
 
     setTimeout(quitarFoco, 0);
   };
-  const actualizarCambio = (index, campo, valor) => {
+  const actualizarCambio = (index, campo, valor, periodoForzado = "") => {
     setRegistro((prev) => {
       const cambiosActualizados = [...(prev.cambios || crearCambiosVacios())];
       const cambioActual = cambiosActualizados[index] || crearCambioVacio();
-  
+
       cambiosActualizados[index] = {
         ...cambioActual,
         [campo]: valor,
         periodo:
-          campo === "hora" && prev.modoTiempo === "transmision"
-            ? cambioActual.periodo || obtenerPeriodoActivo(prev)
+          campo === "hora"
+            ? periodoForzado || obtenerPeriodoActivo(prev)
             : cambioActual.periodo || "",
       };
-  
+
       return {
         ...prev,
         cambios: cambiosActualizados,
       };
     });
   };
-  const actualizarCambioRival = (index, campo, valor) => {
+  const actualizarCambioRival = (index, campo, valor, periodoForzado = "") => {
     setRegistro((prev) => {
       const cambiosActualizados = [
         ...(prev.cambiosRival || crearCambiosVacios()),
       ];
       const cambioActual = cambiosActualizados[index] || crearCambioVacio();
-  
+
       cambiosActualizados[index] = {
         ...cambioActual,
         [campo]: valor,
         periodo:
-          campo === "hora" && prev.modoTiempo === "transmision"
-            ? cambioActual.periodo || obtenerPeriodoActivo(prev)
+          campo === "hora"
+            ? periodoForzado || obtenerPeriodoActivo(prev)
             : cambioActual.periodo || "",
       };
-  
+
       return {
         ...prev,
         cambiosRival: cambiosActualizados,
@@ -1295,7 +1393,7 @@ tiempoST: fila.tiempo_st || "",
 
   const quitarProrroga = () => {
     const confirmar = window.confirm(
-      "¿Querés quitar la prórroga y borrar todos sus horarios?"
+      "¿Querés quitar la prórroga y borrar todos sus horarios?",
     );
 
     if (!confirmar) return;
@@ -1305,33 +1403,26 @@ tiempoST: fila.tiempo_st || "",
       ...crearProrrogaVacia(),
     }));
   };
-  
-  const limpiarCambiosRival = () => {
-    setRegistro((prev) => ({
-      ...prev,
-      cambiosRival: crearCambiosVacios(),
-    }));
-  };
+
   const importarJugadoresRival = async () => {
-    
     if (!registro.fecha) {
       alert("Primero cargá la fecha del partido.");
       return;
     }
-  
+
     try {
       const url =
-  "https://script.google.com/macros/s/AKfycbxK9paHAC-hsydI_7ylKXuQs_FJD3pH0ACyCII83LODvCBGQoZdxa1YBF8Iz8Uu-i7K/exec" +
-  "?action=jugadoresRival&fecha=" +
-  encodeURIComponent(registro.fecha);
-  
+        "https://script.google.com/macros/s/AKfycbxK9paHAC-hsydI_7ylKXuQs_FJD3pH0ACyCII83LODvCBGQoZdxa1YBF8Iz8Uu-i7K/exec" +
+        "?action=jugadoresRival&fecha=" +
+        encodeURIComponent(registro.fecha);
+
       const data = await cargarJsonp(url);
-  
+
       if (!data.ok) {
         alert(data.error || "No se pudieron importar los jugadores del rival.");
         return;
       }
-  
+
       setRegistro((prev) => ({
         ...prev,
         rival: data.rival || prev.rival,
@@ -1341,11 +1432,12 @@ tiempoST: fila.tiempo_st || "",
           ...(data.convocadosRival || []),
           ...(data.titulares || []),
           ...(data.convocados || []),
-        ].filter((jugador, index, array) =>
-          jugador && array.indexOf(jugador) === index
+        ].filter(
+          (jugador, index, array) =>
+            jugador && array.indexOf(jugador) === index,
         ),
       }));
-  
+
       alert("Jugadores del rival importados correctamente.");
     } catch (error) {
       console.error("ERROR IMPORTANDO JUGADORES RIVAL:", error);
@@ -1353,80 +1445,90 @@ tiempoST: fila.tiempo_st || "",
     }
   };
   const recomendarHorariosCambioRival = async () => {
-      if (!registro.fecha) {
-        alert("Primero cargá la fecha del partido.");
+    if (!registro.fecha) {
+      alert("Primero cargá la fecha del partido.");
+      return;
+    }
+
+    if (!registro.inicioPT || !registro.inicioST) {
+      alert(
+        "Primero cargá Inicio PT e Inicio ST para poder calcular horarios.",
+      );
+      return;
+    }
+
+    try {
+      const url =
+        "https://script.google.com/macros/s/AKfycby_KZfB2Qccm2VMn4oUMnjbYpgyJbdTOzs4NqMH3izdAC6HLwiJT62_1WPklWC4BmJ_/exec" +
+        "?action=cambiosRival&fecha=" +
+        encodeURIComponent(registro.fecha);
+
+      const data = await cargarJsonp(url);
+
+      if (!data.ok) {
+        alert(data.error || "No se pudieron recomendar horarios.");
         return;
       }
-    
-      if (!registro.inicioPT || !registro.inicioST) {
-        alert("Primero cargá Inicio PT e Inicio ST para poder calcular horarios.");
+
+      const cambiosApi = data.cambiosRival || [];
+
+      if (cambiosApi.length === 0) {
+        alert("No se encontraron cambios del rival en Sportradar.");
         return;
       }
-    
-      try {
-        const url =
-          "https://script.google.com/macros/s/AKfycby_KZfB2Qccm2VMn4oUMnjbYpgyJbdTOzs4NqMH3izdAC6HLwiJT62_1WPklWC4BmJ_/exec" +
-          "?action=cambiosRival&fecha=" +
-          encodeURIComponent(registro.fecha);
-    
-        const data = await cargarJsonp(url);
-    
-        if (!data.ok) {
-          alert(data.error || "No se pudieron recomendar horarios.");
-          return;
-        }
-    
-        const cambiosApi = data.cambiosRival || [];
-    
-        if (cambiosApi.length === 0) {
-          alert("No se encontraron cambios del rival en Sportradar.");
-          return;
-        }
-    
-        setRegistro((prev) => {
-          const cambiosActuales = prev.cambiosRival || crearCambiosVacios();
-          const cantidadCambios = Math.max(
-            5,
-            cambiosActuales.length,
-            cambiosApi.length
+
+      setRegistro((prev) => {
+        const cambiosActuales = prev.cambiosRival || crearCambiosVacios();
+        const cantidadCambios = Math.max(
+          5,
+          cambiosActuales.length,
+          cambiosApi.length,
+        );
+        const nuevosCambios = Array.from(
+          { length: cantidadCambios },
+          (_, index) => ({
+            ...crearCambioVacio(),
+            ...(cambiosActuales[index] || {}),
+          }),
+        );
+
+        cambiosApi.forEach((cambioApi, index) => {
+          const cambioActual = cambiosActuales[index] || {};
+
+          const matchClock = cambioApi.matchClock || "";
+          const sugerenciaTiempo = calcularHoraCambioDesdeMinuto(
+            matchClock,
+            cambioApi.periodo ||
+              cambioApi.period ||
+              cambioApi.matchPeriod ||
+              "",
           );
-          const nuevosCambios = Array.from(
-            { length: cantidadCambios },
-            (_, index) => ({
-              ...crearCambioVacio(),
-              ...(cambiosActuales[index] || {}),
-            })
-          );
-    
-          cambiosApi.forEach((cambioApi, index) => {
-            const cambioActual = cambiosActuales[index] || {};
-    
-            const matchClock = cambioApi.matchClock || "";
-            const sugerenciaTiempo = calcularHoraCambioDesdeMinuto(matchClock);
-    
-            nuevosCambios[index] = {
-              ...cambioActual,
-              sale: cambioActual.sale || String(cambioApi.sale || "").toUpperCase(),
-              entra: cambioActual.entra || String(cambioApi.entra || "").toUpperCase(),
-              minuto: matchClock,
-              hora: cambioActual.hora || sugerenciaTiempo.hora,
-              periodo: cambioActual.periodo || sugerenciaTiempo.periodo,
-            };
-          });
-    
-          return {
-            ...prev,
-            rival: data.rival || prev.rival,
-            cambiosRival: nuevosCambios,
+
+          nuevosCambios[index] = {
+            ...cambioActual,
+            sale:
+              cambioActual.sale || String(cambioApi.sale || "").toUpperCase(),
+            entra:
+              cambioActual.entra || String(cambioApi.entra || "").toUpperCase(),
+            minuto: matchClock,
+            hora: cambioActual.hora || sugerenciaTiempo.hora,
+            periodo: cambioActual.periodo || sugerenciaTiempo.periodo,
           };
         });
-    
-        alert("Horarios recomendados cargados. Revisalos antes de guardar.");
-      } catch (error) {
-        console.error("ERROR RECOMENDANDO HORARIOS RIVAL:", error);
-        alert("Error conectando con Sportradar.");
-      }
-    };
+
+        return {
+          ...prev,
+          rival: data.rival || prev.rival,
+          cambiosRival: nuevosCambios,
+        };
+      });
+
+      alert("Horarios recomendados cargados. Revisalos antes de guardar.");
+    } catch (error) {
+      console.error("ERROR RECOMENDANDO HORARIOS RIVAL:", error);
+      alert("Error conectando con Sportradar.");
+    }
+  };
   const configuracionPeriodos = {
     PT: {
       vars: "varsPT",
@@ -1481,12 +1583,14 @@ tiempoST: fila.tiempo_st || "",
   const agregarVar = (tipo) => {
     setRegistro((prev) => {
       const config = obtenerConfigPeriodo(tipo);
-      const varsActuales = [...(prev[config.vars] || [{ inicio: "", final: "" }])];
-  
+      const varsActuales = [
+        ...(prev[config.vars] || [{ inicio: "", final: "" }]),
+      ];
+
       if (varsActuales.length >= 3) return prev;
-  
+
       varsActuales.push({ inicio: "", final: "" });
-  
+
       return {
         ...prev,
         [config.vars]: varsActuales,
@@ -1494,7 +1598,7 @@ tiempoST: fila.tiempo_st || "",
       };
     });
   };
-  
+
   const cambiarVarActivo = (tipo, index) => {
     const config = obtenerConfigPeriodo(tipo);
     setRegistro((prev) => ({
@@ -1502,25 +1606,27 @@ tiempoST: fila.tiempo_st || "",
       [config.activo]: index,
     }));
   };
-  
+
   const actualizarVar = (tipo, campo, valor) => {
     setRegistro((prev) => {
       const config = obtenerConfigPeriodo(tipo);
-      const varsActuales = [...(prev[config.vars] || [{ inicio: "", final: "" }])];
+      const varsActuales = [
+        ...(prev[config.vars] || [{ inicio: "", final: "" }]),
+      ];
       const activo = prev[config.activo] || 0;
-  
+
       varsActuales[activo] = {
         ...varsActuales[activo],
         [campo]: valor,
       };
-  
+
       return {
         ...prev,
         [config.vars]: varsActuales,
       };
     });
   };
-  
+
   const ponerAhoraVar = (tipo, campo) => {
     const valor = obtenerMarcaActual(tipo);
 
@@ -1552,12 +1658,14 @@ tiempoST: fila.tiempo_st || "",
     }
 
     const fecha = new Date(Number(timestamp));
-    return Number.isNaN(fecha.getTime()) ? "" : fecha.toTimeString().slice(0, 8);
+    return Number.isNaN(fecha.getTime())
+      ? ""
+      : fecha.toTimeString().slice(0, 8);
   };
 
   const timestampDesdeHoraReal = (hora, referenciaExistente = null) => {
     const coincidencia = String(hora || "").match(
-      /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/
+      /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/,
     );
     if (!coincidencia) return null;
 
@@ -1574,7 +1682,7 @@ tiempoST: fila.tiempo_st || "",
       Number(coincidencia[1]),
       Number(coincidencia[2]),
       Number(coincidencia[3]),
-      0
+      0,
     );
 
     // En cruces de medianoche conserva el día más cercano a la referencia previa.
@@ -1596,8 +1704,8 @@ tiempoST: fila.tiempo_st || "",
       .map(Number);
     const totalDia = 24 * 3600;
     const total =
-      ((horas * 3600 + minutos * 60 + segundos + Number(segundosASumar || 0)) %
-        totalDia +
+      (((horas * 3600 + minutos * 60 + segundos + Number(segundosASumar || 0)) %
+        totalDia) +
         totalDia) %
       totalDia;
 
@@ -1625,30 +1733,9 @@ tiempoST: fila.tiempo_st || "",
     const segundosGuia = segundosDesdeHora(guia);
     const segundosTranscurridos = Math.max(
       0,
-      Number(segundosGuia || 0) - config.baseSegundos
+      Number(segundosGuia || 0) - config.baseSegundos,
     );
     return sumarSegundosAHoraExacta(horaInicioReal, segundosTranscurridos);
-  };
-
-  const esFormatoTransmision = (valor) =>
-    /^\d{3,}:\d{2}$/.test(String(valor || "").trim());
-
-  const formatearTiempoTransmision = (totalSegundos) => {
-    const segundosSeguros = Math.max(0, Math.floor(Number(totalSegundos) || 0));
-    const minutos = Math.floor(segundosSeguros / 60);
-    const segundos = segundosSeguros % 60;
-
-    return `${String(minutos).padStart(3, "0")}:${String(segundos).padStart(2, "0")}`;
-  };
-
-  const normalizarEntradaTiempoTransmision = (valor) => {
-    const texto = String(valor || "").trim();
-    if (!texto) return "";
-
-    const coincidencia = texto.match(/^(\d{1,3}):([0-5]?\d)$/);
-    if (!coincidencia) return null;
-
-    return `${coincidencia[1].padStart(3, "0")}:${coincidencia[2].padStart(2, "0")}`;
   };
 
   const detectarModoTiempoFila = (fila) => {
@@ -1701,9 +1788,7 @@ tiempoST: fila.tiempo_st || "",
       ...cambiosRivalExtra.map((item) => item.hora),
     ];
 
-    return valoresTiempo.some(esFormatoTransmision)
-      ? "transmision"
-      : "enVivo";
+    return valoresTiempo.some(esFormatoTransmision) ? "transmision" : "enVivo";
   };
 
   const obtenerPeriodoCampo = (campo) => {
@@ -1722,12 +1807,10 @@ tiempoST: fila.tiempo_st || "",
 
     const transcurridos = Math.max(
       0,
-      Math.floor((Date.now() - referencia) / 1000)
+      Math.floor((Date.now() - referencia) / 1000),
     );
 
-    return formatearTiempoTransmision(
-      config.baseSegundos + transcurridos
-    );
+    return formatearTiempoTransmision(config.baseSegundos + transcurridos);
   };
 
   const obtenerMarcaActual = (tipo, estado = registro) => {
@@ -1754,12 +1837,18 @@ tiempoST: fila.tiempo_st || "",
           const marcaSegundos = segundosDesdeHora(normalizado);
           const transcurridos = Math.max(
             0,
-            marcaSegundos - config.baseSegundos
+            marcaSegundos - config.baseSegundos,
           );
-          const referencia = Date.now() - transcurridos * 1000;
+          const referenciaManual = timestampDesdeHoraReal(
+            prev[config.horaInicioReal],
+            prev[config.referencia],
+          );
+          const referencia =
+            referenciaManual ?? Date.now() - transcurridos * 1000;
 
           siguiente[config.referencia] = referencia;
-          siguiente[config.horaInicioReal] = horaDesdeTimestamp(referencia);
+          siguiente[config.horaInicioReal] =
+            prev[config.horaInicioReal] || horaDesdeTimestamp(referencia);
           siguiente[config.horaFinalReal] = "";
         } else if (!String(valor || "").trim()) {
           siguiente[config.referencia] = null;
@@ -1780,13 +1869,13 @@ tiempoST: fila.tiempo_st || "",
   };
 
   const actualizarHoraInicioRealPeriodo = (tipo, valor) => {
-    if (tipo !== "PT" && tipo !== "ST") return;
+    if (!configuracionPeriodos[tipo]) return;
 
     setRegistro((prev) => {
       const config = obtenerConfigPeriodo(tipo);
       const referenciaCorregida = timestampDesdeHoraReal(
         valor,
-        prev[config.referencia]
+        prev[config.referencia],
       );
       const siguiente = {
         ...prev,
@@ -1816,9 +1905,13 @@ tiempoST: fila.tiempo_st || "",
   };
 
   const obtenerPeriodoActivo = (estado = registro) => {
-    if (estado.referenciaRealSTE) return "STE";
-    if (estado.referenciaRealPTE) return "PTE";
-    if (estado.referenciaRealST) return "ST";
+    if (estado.inicioSTE && !estado.finalSTE) return "STE";
+    if (estado.inicioPTE && !estado.finalPTE) return "PTE";
+    if (estado.inicioST && !estado.finalST) return "ST";
+    if (estado.inicioPT && !estado.finalPT) return "PT";
+    if (estado.inicioSTE || estado.referenciaRealSTE) return "STE";
+    if (estado.inicioPTE || estado.referenciaRealPTE) return "PTE";
+    if (estado.inicioST || estado.referenciaRealST) return "ST";
     return "PT";
   };
 
@@ -1872,7 +1965,7 @@ tiempoST: fila.tiempo_st || "",
                   [config.horaFinalReal]: convertirGuiaAHoraReal(
                     tipo,
                     valor,
-                    prev
+                    prev,
                   ),
                 }
               : {}),
@@ -1886,10 +1979,10 @@ tiempoST: fila.tiempo_st || "",
     setTimeout(quitarFoco, 0);
   };
 
-  const ponerHoraCambio = (index) => {
+  const ponerHoraCambio = (index, periodoForzado = "") => {
     quitarFoco();
 
-    const tipo = obtenerPeriodoActivo();
+    const tipo = periodoForzado || obtenerPeriodoActivo();
     const valor = obtenerMarcaActual(tipo);
 
     if (!valor) {
@@ -1897,21 +1990,21 @@ tiempoST: fila.tiempo_st || "",
       return;
     }
 
-    mantenerPosicion(() => actualizarCambio(index, "hora", valor));
+    mantenerPosicion(() => actualizarCambio(index, "hora", valor, tipo));
     setTimeout(quitarFoco, 0);
   };
-  const ponerHoraCambioRival = (index) => {
+  const ponerHoraCambioRival = (index, periodoForzado = "") => {
     quitarFoco();
 
-    const tipo = obtenerPeriodoActivo();
+    const tipo = periodoForzado || obtenerPeriodoActivo();
     const valor = obtenerMarcaActual(tipo);
 
     if (!valor) {
       alert(`Primero marcá Inicio ${tipo}.`);
       return;
     }
-  
-    mantenerPosicion(() => actualizarCambioRival(index, "hora", valor));
+
+    mantenerPosicion(() => actualizarCambioRival(index, "hora", valor, tipo));
     setTimeout(quitarFoco, 0);
   };
   const obtenerMarcaEntreTiempos = () =>
@@ -1935,93 +2028,47 @@ tiempoST: fila.tiempo_st || "",
   const ponerHoraEntreTiempoRival = (index) => {
     quitarFoco();
     const marcaEntreTiempos = obtenerMarcaEntreTiempos();
-  
+
     if (!marcaEntreTiempos) {
       alert("Primero cargá el inicio del período siguiente.");
       return;
     }
-  
+
     mantenerPosicion(() => {
       actualizarCambioRival(index, "hora", marcaEntreTiempos);
     });
-  
+
     setTimeout(quitarFoco, 0);
   };
-  const sumarMinutosAHora = (horaBase, minutosASumar) => {
-    if (!horaBase && horaBase !== "") return "";
-  
-    const partes = horaBase.split(":").map(Number);
-    const h = partes[0] || 0;
-    const m = partes[1] || 0;
-    const s = partes[2] || 0;
-  
-    const fecha = new Date();
-    fecha.setHours(h, m, s, 0);
-    fecha.setMinutes(fecha.getMinutes() + minutosASumar);
-  
-    return fecha.toTimeString().slice(0, 8);
-  };
-  
-  const calcularHoraCambioDesdeMinuto = (matchClock) => {
+  const calcularHoraCambioDesdeMinuto = (matchClock, periodoApi = "") => {
     if (!matchClock) return { hora: "", periodo: "" };
-  
-    const partes = String(matchClock).split(":").map(Number);
-    const minuto = partes[0] || 0;
-    const segundo = partes[1] || 0;
-    const totalSegundos = minuto * 60 + segundo;
+
+    const { periodo, segundosGuia } = periodoDesdeMinutoPartido(matchClock, {
+      prorrogaActiva: registro.prorrogaActiva,
+      periodoApi,
+    });
+
+    if (!periodo || segundosGuia === null) return { hora: "", periodo: "" };
 
     if (registro.modoTiempo === "transmision") {
-      let periodo = "PT";
-      let segundosGuia = totalSegundos;
-
-      if (totalSegundos >= 105 * 60) {
-        periodo = "STE";
-      } else if (totalSegundos >= 90 * 60) {
-        periodo = "PTE";
-      } else if (totalSegundos > 45 * 60) {
-        periodo = "ST";
-        segundosGuia = Math.max(0, totalSegundos - 45 * 60);
-      }
-
       return {
         hora: formatearTiempoTransmision(segundosGuia),
         periodo,
       };
     }
-  
-    let horaBase = "";
-    let minutosASumar = 0;
-    let periodo = "PT";
-  
-    if (minuto <= 45) {
-      horaBase = registro.inicioPT;
-      minutosASumar = minuto;
-    } else {
-      horaBase = registro.inicioST;
-      minutosASumar = minuto - 45;
-      periodo = "ST";
-    }
-  
+
+    const horaBase = {
+      PT: registro.inicioPT,
+      ST: registro.inicioST,
+      PTE: registro.inicioPTE,
+      STE: registro.inicioSTE,
+    }[periodo];
+
     if (!horaBase) return { hora: "", periodo };
-  
-    const partesHora = horaBase.split(":").map(Number);
-    const h = partesHora[0] || 0;
-    const m = partesHora[1] || 0;
-    const s = partesHora[2] || 0;
-  
-    const fecha = new Date();
-    fecha.setHours(h, m, s, 0);
-    fecha.setMinutes(fecha.getMinutes() + minutosASumar);
-    fecha.setSeconds(fecha.getSeconds() + segundo);
-  
-    return { hora: fecha.toTimeString().slice(0, 8), periodo };
-  };
-  
-  const convertirNombreJugador = (nombre) => {
-    const limpio = normalizarTextoBase(nombre);
-    const equivalente = equivalenciasJugadores[limpio];
-  
-    return equivalente ? equivalente.toUpperCase() : String(nombre || "").trim().toUpperCase();
+    return {
+      hora: sumarSegundosAHoraExacta(horaBase, segundosGuia),
+      periodo,
+    };
   };
   const manejarEnter = (e) => {
     if (e.key === "Enter") {
@@ -2030,111 +2077,54 @@ tiempoST: fila.tiempo_st || "",
     }
   };
 
-  const segundosDesdeHora = (hora) => {
-    if (!hora) return null;
-
-    const texto = String(hora).trim();
-
-    if (esFormatoTransmision(texto)) {
-      const [minutos, segundos] = texto.split(":").map(Number);
-      return minutos * 60 + segundos;
-    }
-
-    const partes = texto.split(":").map(Number);
-    const horas = partes[0] || 0;
-    const minutos = partes[1] || 0;
-    const segundos = partes[2] || 0;
-
-    return horas * 3600 + minutos * 60 + segundos;
-  };
-
-  const segundosEntre = (inicio, final) => {
-    if (!inicio || !final) return "";
-
-    const totalInicio = segundosDesdeHora(inicio);
-    let totalFinal = segundosDesdeHora(final);
-
-    if (totalInicio === null || totalFinal === null) return "";
-
-    if (totalFinal < totalInicio) {
-      totalFinal += 24 * 3600;
-    }
-
-    return totalFinal - totalInicio;
-  };
-
-  const formatearDuracion = (totalSegundos) => {
-    if (
-      totalSegundos === "" ||
-      totalSegundos === null ||
-      totalSegundos === undefined
-    ) {
-      return "";
-    }
-
-    const horas = Math.floor(totalSegundos / 3600);
-    const minutos = Math.floor((totalSegundos % 3600) / 60);
-    const segundos = totalSegundos % 60;
-
-    const mm = String(minutos).padStart(2, "0");
-    const ss = String(segundos).padStart(2, "0");
-
-    if (horas > 0) {
-      const hh = String(horas).padStart(2, "0");
-      return `${hh}:${mm}:${ss}`;
-    }
-
-    return `${mm}:${ss}`;
-  };
-
   const calcularTiemposRegistro = (item) => ({
     tiempoPT: formatearDuracion(segundosEntre(item.inicioPT, item.finalPT)),
-    tiempoVarPT: formatearDuracion(
-      segundosEntre(item.inicioVarPT, item.finalVarPT)
-    ),
+    tiempoVarPT: formatearDuracion(sumarDuracionesEventos(item.varsPT)),
     tiempoHidratacionPT: formatearDuracion(
-      segundosEntre(item.inicioHidratacionPT, item.finalHidratacionPT)
+      segundosEntre(item.inicioHidratacionPT, item.finalHidratacionPT),
     ),
     tiempoST: formatearDuracion(segundosEntre(item.inicioST, item.finalST)),
-    tiempoVarST: formatearDuracion(
-      segundosEntre(item.inicioVarST, item.finalVarST)
-    ),
+    tiempoVarST: formatearDuracion(sumarDuracionesEventos(item.varsST)),
     tiempoHidratacionST: formatearDuracion(
-      segundosEntre(item.inicioHidratacionST, item.finalHidratacionST)
+      segundosEntre(item.inicioHidratacionST, item.finalHidratacionST),
     ),
     tiempoPTE: formatearDuracion(segundosEntre(item.inicioPTE, item.finalPTE)),
+    tiempoVarPTE: formatearDuracion(sumarDuracionesEventos(item.varsPTE)),
     tiempoHidratacionPTE: formatearDuracion(
-      segundosEntre(item.inicioHidratacionPTE, item.finalHidratacionPTE)
+      segundosEntre(item.inicioHidratacionPTE, item.finalHidratacionPTE),
     ),
     tiempoSTE: formatearDuracion(segundosEntre(item.inicioSTE, item.finalSTE)),
+    tiempoVarSTE: formatearDuracion(sumarDuracionesEventos(item.varsSTE)),
     tiempoHidratacionSTE: formatearDuracion(
-      segundosEntre(item.inicioHidratacionSTE, item.finalHidratacionSTE)
+      segundosEntre(item.inicioHidratacionSTE, item.finalHidratacionSTE),
     ),
   });
 
   const resumen = useMemo(() => {
     return {
       tiempoPT: segundosEntre(registro.inicioPT, registro.finalPT),
-      tiempoVarPT: segundosEntre(registro.inicioVarPT, registro.finalVarPT),
+      tiempoVarPT: sumarDuracionesEventos(registro.varsPT),
       tiempoHidratacionPT: segundosEntre(
         registro.inicioHidratacionPT,
-        registro.finalHidratacionPT
+        registro.finalHidratacionPT,
       ),
       tiempoST: segundosEntre(registro.inicioST, registro.finalST),
-      tiempoVarST: segundosEntre(registro.inicioVarST, registro.finalVarST),
+      tiempoVarST: sumarDuracionesEventos(registro.varsST),
       tiempoHidratacionST: segundosEntre(
         registro.inicioHidratacionST,
-        registro.finalHidratacionST
+        registro.finalHidratacionST,
       ),
       tiempoPTE: segundosEntre(registro.inicioPTE, registro.finalPTE),
+      tiempoVarPTE: sumarDuracionesEventos(registro.varsPTE),
       tiempoHidratacionPTE: segundosEntre(
         registro.inicioHidratacionPTE,
-        registro.finalHidratacionPTE
+        registro.finalHidratacionPTE,
       ),
       tiempoSTE: segundosEntre(registro.inicioSTE, registro.finalSTE),
+      tiempoVarSTE: sumarDuracionesEventos(registro.varsSTE),
       tiempoHidratacionSTE: segundosEntre(
         registro.inicioHidratacionSTE,
-        registro.finalHidratacionSTE
+        registro.finalHidratacionSTE,
       ),
     };
   }, [registro]);
@@ -2152,20 +2142,66 @@ tiempoST: fila.tiempo_st || "",
     inicioHidratacionSTE: item.inicioHidratacionSTE || "",
     finalHidratacionSTE: item.finalHidratacionSTE || "",
     tiempoPTE: item.tiempoPTE || "",
+    tiempoVarPTE: item.tiempoVarPTE || "",
     tiempoHidratacionPTE: item.tiempoHidratacionPTE || "",
     tiempoSTE: item.tiempoSTE || "",
+    tiempoVarSTE: item.tiempoVarSTE || "",
     tiempoHidratacionSTE: item.tiempoHidratacionSTE || "",
   });
+
+  const serializarCapturaTiempo = (item) => {
+    const campos = [
+      "modoTiempo",
+      "referenciaRealPT",
+      "referenciaRealST",
+      "referenciaRealPTE",
+      "referenciaRealSTE",
+      "horaInicioRealPT",
+      "horaFinalRealPT",
+      "horaInicioRealST",
+      "horaFinalRealST",
+      "horaInicioRealPTE",
+      "horaFinalRealPTE",
+      "horaInicioRealSTE",
+      "horaFinalRealSTE",
+      "inicioPT",
+      "finalPT",
+      "inicioST",
+      "finalST",
+      "inicioPTE",
+      "finalPTE",
+      "inicioSTE",
+      "finalSTE",
+      "varsPT",
+      "varsST",
+      "varsPTE",
+      "varsSTE",
+      "inicioHidratacionPT",
+      "finalHidratacionPT",
+      "inicioHidratacionST",
+      "finalHidratacionST",
+      "inicioHidratacionPTE",
+      "finalHidratacionPTE",
+      "inicioHidratacionSTE",
+      "finalHidratacionSTE",
+      "cambios",
+      "cambiosRival",
+      "prorrogaActiva",
+    ];
+
+    return campos.reduce((captura, campo) => {
+      captura[campo] = item[campo] ?? null;
+      return captura;
+    }, {});
+  };
 
   const obtenerPeriodoCambioParaGuardar = (cambio, item) => {
     if (cambio?.periodo) return cambio.periodo;
     if (!esFormatoTransmision(cambio?.hora)) return "";
 
-    const segundos = segundosDesdeHora(cambio.hora) || 0;
-    if (segundos >= 105 * 60) return "STE";
-    if (segundos >= 90 * 60) return "PTE";
-    if (segundos >= 45 * 60) return "ST";
-    return "PT";
+    return periodoDesdeMinutoPartido(cambio.hora, {
+      prorrogaActiva: Boolean(item?.prorrogaActiva),
+    }).periodo;
   };
 
   const convertirCambiosAHorasReales = (cambios, item) =>
@@ -2195,31 +2231,33 @@ tiempoST: fila.tiempo_st || "",
       ...item,
       inicioPT: obtenerHoraInicioRealPeriodo("PT", item),
       finalPT:
-        item.horaFinalRealPT || convertirGuiaAHoraReal("PT", item.finalPT, item),
+        item.horaFinalRealPT ||
+        convertirGuiaAHoraReal("PT", item.finalPT, item),
       varsPT: convertirVars("PT", item.varsPT),
       inicioHidratacionPT: convertirGuiaAHoraReal(
         "PT",
         item.inicioHidratacionPT,
-        item
+        item,
       ),
       finalHidratacionPT: convertirGuiaAHoraReal(
         "PT",
         item.finalHidratacionPT,
-        item
+        item,
       ),
       inicioST: obtenerHoraInicioRealPeriodo("ST", item),
       finalST:
-        item.horaFinalRealST || convertirGuiaAHoraReal("ST", item.finalST, item),
+        item.horaFinalRealST ||
+        convertirGuiaAHoraReal("ST", item.finalST, item),
       varsST: convertirVars("ST", item.varsST),
       inicioHidratacionST: convertirGuiaAHoraReal(
         "ST",
         item.inicioHidratacionST,
-        item
+        item,
       ),
       finalHidratacionST: convertirGuiaAHoraReal(
         "ST",
         item.finalHidratacionST,
-        item
+        item,
       ),
       inicioPTE: item.prorrogaActiva
         ? obtenerHoraInicioRealPeriodo("PTE", item)
@@ -2264,7 +2302,9 @@ tiempoST: fila.tiempo_st || "",
     const periodosNecesarios = new Set();
     const tieneDato = (valor) => String(valor || "").trim() !== "";
     const varsConDatos = (vars) =>
-      (vars || []).some((evento) => tieneDato(evento.inicio) || tieneDato(evento.final));
+      (vars || []).some(
+        (evento) => tieneDato(evento.inicio) || tieneDato(evento.final),
+      );
 
     if (
       tieneDato(item.inicioPT) ||
@@ -2287,10 +2327,22 @@ tiempoST: fila.tiempo_st || "",
     }
 
     if (item.prorrogaActiva) {
-      if (tieneDato(item.inicioPTE) || tieneDato(item.finalPTE) || varsConDatos(item.varsPTE)) {
+      if (
+        tieneDato(item.inicioPTE) ||
+        tieneDato(item.finalPTE) ||
+        varsConDatos(item.varsPTE) ||
+        tieneDato(item.inicioHidratacionPTE) ||
+        tieneDato(item.finalHidratacionPTE)
+      ) {
         periodosNecesarios.add("PTE");
       }
-      if (tieneDato(item.inicioSTE) || tieneDato(item.finalSTE) || varsConDatos(item.varsSTE)) {
+      if (
+        tieneDato(item.inicioSTE) ||
+        tieneDato(item.finalSTE) ||
+        varsConDatos(item.varsSTE) ||
+        tieneDato(item.inicioHidratacionSTE) ||
+        tieneDato(item.finalHidratacionSTE)
+      ) {
         periodosNecesarios.add("STE");
       }
     }
@@ -2298,11 +2350,11 @@ tiempoST: fila.tiempo_st || "",
     [...(item.cambios || []), ...(item.cambiosRival || [])]
       .filter((cambio) => tieneDato(cambio.hora))
       .forEach((cambio) =>
-        periodosNecesarios.add(obtenerPeriodoCambioParaGuardar(cambio, item))
+        periodosNecesarios.add(obtenerPeriodoCambioParaGuardar(cambio, item)),
       );
 
     const faltantes = [...periodosNecesarios].filter(
-      (tipo) => tipo && !obtenerHoraInicioRealPeriodo(tipo, item)
+      (tipo) => tipo && !obtenerHoraInicioRealPeriodo(tipo, item),
     );
 
     return faltantes.length > 0
@@ -2313,13 +2365,14 @@ tiempoST: fila.tiempo_st || "",
   const tieneDatosExtendidos = (item) =>
     Boolean(
       item.prorrogaActiva ||
-        (item.cambios || []).length > 5 ||
-        (item.cambiosRival || []).length > 5
+      item.modoTiempo === "transmision" ||
+      (item.cambios || []).length > 5 ||
+      (item.cambiosRival || []).length > 5,
     );
 
   const esErrorColumnasExtendidas = (error) =>
-    /prorroga|cambios_extra|cambios_rival_extra/i.test(
-      String(error?.message || error?.details || "")
+    /prorroga|cambios_extra|cambios_rival_extra|modo_tiempo|captura_tiempo/i.test(
+      String(error?.message || error?.details || ""),
     );
 
   const quitarCamposExtendidos = (payload) => {
@@ -2327,12 +2380,22 @@ tiempoST: fila.tiempo_st || "",
       prorroga,
       cambios_extra,
       cambios_rival_extra,
+      modo_tiempo,
+      captura_tiempo,
       ...payloadBase
     } = payload;
     return payloadBase;
   };
 
   const guardarRegistro = async () => {
+    if (guardandoRef.current) return;
+
+    const erroresBasicos = validarRegistroBasico(registro);
+    if (erroresBasicos.length > 0) {
+      alert(erroresBasicos.join("\n"));
+      return;
+    }
+
     const nuevoRegistro = {
       ...registro,
       ...calcularTiemposRegistro(registro),
@@ -2349,127 +2412,161 @@ tiempoST: fila.tiempo_st || "",
       return;
     }
 
+    guardandoRef.current = true;
+    setGuardando(true);
+
     const registroConHorasReales = convertirRegistroAHorasReales(nuevoRegistro);
     const cambiosRival =
       registroConHorasReales.cambiosRival || crearCambiosVacios();
-  
+
     const registroSupabase = {
       fecha: registroConHorasReales.fecha,
       rival: registroConHorasReales.rival,
       resultado: registroConHorasReales.resultado || "",
       inicio_pt: registroConHorasReales.inicioPT,
-final_pt: registroConHorasReales.finalPT,
-tiempo_pt: registroConHorasReales.tiempoPT || "",
+      final_pt: registroConHorasReales.finalPT,
+      tiempo_pt: registroConHorasReales.tiempoPT || "",
 
-inicio_st: registroConHorasReales.inicioST,
-final_st: registroConHorasReales.finalST,
-tiempo_st: registroConHorasReales.tiempoST || "",
-  
+      inicio_st: registroConHorasReales.inicioST,
+      final_st: registroConHorasReales.finalST,
+      tiempo_st: registroConHorasReales.tiempoST || "",
+
       inicio_var_pt_1: registroConHorasReales.varsPT?.[0]?.inicio || "",
       final_var_pt_1: registroConHorasReales.varsPT?.[0]?.final || "",
       inicio_var_pt_2: registroConHorasReales.varsPT?.[1]?.inicio || "",
       final_var_pt_2: registroConHorasReales.varsPT?.[1]?.final || "",
       inicio_var_pt_3: registroConHorasReales.varsPT?.[2]?.inicio || "",
       final_var_pt_3: registroConHorasReales.varsPT?.[2]?.final || "",
-  
+
       inicio_var_st_1: registroConHorasReales.varsST?.[0]?.inicio || "",
       final_var_st_1: registroConHorasReales.varsST?.[0]?.final || "",
       inicio_var_st_2: registroConHorasReales.varsST?.[1]?.inicio || "",
       final_var_st_2: registroConHorasReales.varsST?.[1]?.final || "",
       inicio_var_st_3: registroConHorasReales.varsST?.[2]?.inicio || "",
       final_var_st_3: registroConHorasReales.varsST?.[2]?.final || "",
-  
+
       inicio_hid_pt: registroConHorasReales.inicioHidratacionPT,
       final_hid_pt: registroConHorasReales.finalHidratacionPT,
       inicio_hid_st: registroConHorasReales.inicioHidratacionST,
       final_hid_st: registroConHorasReales.finalHidratacionST,
-  
+
       cambio_1_tiempo: registroConHorasReales.cambios?.[0]?.hora || "",
       cambio_1_sale: registroConHorasReales.cambios?.[0]?.sale || "",
       cambio_1_entra: registroConHorasReales.cambios?.[0]?.entra || "",
-  
+
       cambio_2_tiempo: registroConHorasReales.cambios?.[1]?.hora || "",
       cambio_2_sale: registroConHorasReales.cambios?.[1]?.sale || "",
       cambio_2_entra: registroConHorasReales.cambios?.[1]?.entra || "",
-  
+
       cambio_3_tiempo: registroConHorasReales.cambios?.[2]?.hora || "",
       cambio_3_sale: registroConHorasReales.cambios?.[2]?.sale || "",
       cambio_3_entra: registroConHorasReales.cambios?.[2]?.entra || "",
-  
+
       cambio_4_tiempo: registroConHorasReales.cambios?.[3]?.hora || "",
       cambio_4_sale: registroConHorasReales.cambios?.[3]?.sale || "",
       cambio_4_entra: registroConHorasReales.cambios?.[3]?.entra || "",
-  
+
       cambio_5_tiempo: registroConHorasReales.cambios?.[4]?.hora || "",
       cambio_5_sale: registroConHorasReales.cambios?.[4]?.sale || "",
       cambio_5_entra: registroConHorasReales.cambios?.[4]?.entra || "",
-      
+
       rival_cambio_sale1: cambiosRival[0]?.sale || "",
-rival_cambio_entra1: cambiosRival[0]?.entra || "",
-rival_cambio_horario1: cambiosRival[0]?.hora || "",
+      rival_cambio_entra1: cambiosRival[0]?.entra || "",
+      rival_cambio_horario1: cambiosRival[0]?.hora || "",
 
-rival_cambio_sale2: cambiosRival[1]?.sale || "",
-rival_cambio_entra2: cambiosRival[1]?.entra || "",
-rival_cambio_horario2: cambiosRival[1]?.hora || "",
+      rival_cambio_sale2: cambiosRival[1]?.sale || "",
+      rival_cambio_entra2: cambiosRival[1]?.entra || "",
+      rival_cambio_horario2: cambiosRival[1]?.hora || "",
 
-rival_cambio_sale3: cambiosRival[2]?.sale || "",
-rival_cambio_entra3: cambiosRival[2]?.entra || "",
-rival_cambio_horario3: cambiosRival[2]?.hora || "",
+      rival_cambio_sale3: cambiosRival[2]?.sale || "",
+      rival_cambio_entra3: cambiosRival[2]?.entra || "",
+      rival_cambio_horario3: cambiosRival[2]?.hora || "",
 
-rival_cambio_sale4: cambiosRival[3]?.sale || "",
-rival_cambio_entra4: cambiosRival[3]?.entra || "",
-rival_cambio_horario4: cambiosRival[3]?.hora || "",
+      rival_cambio_sale4: cambiosRival[3]?.sale || "",
+      rival_cambio_entra4: cambiosRival[3]?.entra || "",
+      rival_cambio_horario4: cambiosRival[3]?.hora || "",
 
-rival_cambio_sale5: cambiosRival[4]?.sale || "",
-rival_cambio_entra5: cambiosRival[4]?.entra || "",
-rival_cambio_horario5: cambiosRival[4]?.hora || "",
+      rival_cambio_sale5: cambiosRival[4]?.sale || "",
+      rival_cambio_entra5: cambiosRival[4]?.entra || "",
+      rival_cambio_horario5: cambiosRival[4]?.hora || "",
 
       prorroga: serializarProrroga(registroConHorasReales),
       cambios_extra: (registroConHorasReales.cambios || []).slice(5),
       cambios_rival_extra: cambiosRival.slice(5),
-      
+      modo_tiempo: nuevoRegistro.modoTiempo || "enVivo",
+      captura_tiempo: serializarCapturaTiempo(nuevoRegistro),
+
       titulares: registroConHorasReales.formacion?.titulares || [],
       convocados: registroConHorasReales.formacion?.convocados || [],
     };
-  
-    let { error } = await supabase
-      .from("registros_partido")
-      .insert([registroSupabase]);
 
-    if (
-      error &&
-      esErrorColumnasExtendidas(error) &&
-      !tieneDatosExtendidos(nuevoRegistro)
-    ) {
-      const reintento = await supabase
-        .from("registros_partido")
-        .insert([quitarCamposExtendidos(registroSupabase)]);
-      error = reintento.error;
-    }
-  
-    if (error) {
-      if (esErrorColumnasExtendidas(error)) {
-        alert(
-          "Falta ejecutar la migración de prórroga y cambios extra en Supabase. Abrí el archivo SQL incluido en el repositorio y ejecutalo en SQL Editor."
-        );
-        setMensajeGuardado("Falta actualizar la base de datos");
+    try {
+      const coincidente = guardados.find(
+        (item) => clavePartido(item) === clavePartido(nuevoRegistro),
+      );
+      const idExistente = nuevoRegistro.idSupabase || coincidente?.idSupabase;
+
+      let respuesta = idExistente
+        ? await supabase
+            .from("registros_partido")
+            .update(registroSupabase)
+            .eq("id", idExistente)
+            .select()
+        : await supabase
+            .from("registros_partido")
+            .insert([registroSupabase])
+            .select();
+
+      if (
+        respuesta.error &&
+        esErrorColumnasExtendidas(respuesta.error) &&
+        !tieneDatosExtendidos(nuevoRegistro)
+      ) {
+        const payloadBase = quitarCamposExtendidos(registroSupabase);
+        respuesta = idExistente
+          ? await supabase
+              .from("registros_partido")
+              .update(payloadBase)
+              .eq("id", idExistente)
+              .select()
+          : await supabase
+              .from("registros_partido")
+              .insert([payloadBase])
+              .select();
+      }
+
+      if (respuesta.error) {
+        if (esErrorColumnasExtendidas(respuesta.error)) {
+          alert(
+            "Falta ejecutar la migración de captura de tiempos en Supabase. El borrador quedó guardado en este dispositivo.",
+          );
+          setMensajeGuardado("Falta actualizar la base de datos");
+          return;
+        }
+
+        console.error("No se pudo guardar el registro en Supabase.");
+        setMensajeGuardado("Guardado local · sin sincronizar");
         return;
       }
-      console.error("ERROR COMPLETO SUPABASE:");
-      console.log(error);
-      alert(JSON.stringify(error, null, 2));
-      setMensajeGuardado("Registro guardado localmente, pero falló Supabase");
-      return;
+
+      const idGuardado = respuesta.data?.[0]?.id || idExistente;
+      if (idGuardado) {
+        setRegistro((prev) => ({ ...prev, idSupabase: idGuardado }));
+      }
+
+      await cargarRegistrosSupabase();
+      setMensajeGuardado(
+        idExistente ? "Partido actualizado" : "Partido guardado con éxito",
+      );
+
+      setTimeout(() => setMensajeGuardado(""), 2500);
+    } catch (error) {
+      console.error("Error de red al guardar el partido.");
+      setMensajeGuardado("Guardado local · sin sincronizar");
+    } finally {
+      guardandoRef.current = false;
+      setGuardando(false);
     }
-  
-    console.log("INSERT OK");
-    console.log(registroSupabase);
-    await cargarRegistrosSupabase();
-    setMensajeGuardado("Registro guardado con éxito");
-  
-    setTimeout(() => {
-      setMensajeGuardado("");
-    }, 2500);
   };
 
   const limpiarCarga = () => {
@@ -2482,12 +2579,19 @@ rival_cambio_horario5: cambiosRival[4]?.hora || "",
     setPantallaFormacion("lista");
     setMostrarFormacionPartido(false);
 
-    localStorage.setItem("registro_actual_partido", JSON.stringify(nuevoRegistro));
+    try {
+      localStorage.setItem(
+        CLAVE_BORRADOR,
+        JSON.stringify({ version: VERSION_BORRADOR, registro: nuevoRegistro }),
+      );
+    } catch (error) {
+      console.warn("No se pudo limpiar el borrador local.");
+    }
   };
 
   const volverAPantallaFormacion = () => {
     setFormacionTemporal(registro.formacion || crearFormacionVacia());
-    setFechaFormacion(registro.fecha || new Date().toISOString().slice(0, 10));
+    setFechaFormacion(registro.fecha || fechaLocalISO());
     setPartidoEnCurso(true);
     setPantallaFormacion("inicio");
     setMostrarFormacionPartido(false);
@@ -2497,75 +2601,75 @@ rival_cambio_horario5: cambiosRival[4]?.hora || "",
     const registroParaGuardar = convertirRegistroAHorasReales(registroEditado);
     const cambiosRival =
       registroParaGuardar.cambiosRival || crearCambiosVacios();
-  
+
     return {
       fecha: registroParaGuardar.fecha,
       rival: registroParaGuardar.rival,
       resultado: registroParaGuardar.resultado || "",
-  
-      inicio_pt: registroParaGuardar.inicioPT || "",
-final_pt: registroParaGuardar.finalPT || "",
-tiempo_pt: registroParaGuardar.tiempoPT || "",
 
-inicio_st: registroParaGuardar.inicioST || "",
-final_st: registroParaGuardar.finalST || "",
-tiempo_st: registroParaGuardar.tiempoST || "",
-  
+      inicio_pt: registroParaGuardar.inicioPT || "",
+      final_pt: registroParaGuardar.finalPT || "",
+      tiempo_pt: registroParaGuardar.tiempoPT || "",
+
+      inicio_st: registroParaGuardar.inicioST || "",
+      final_st: registroParaGuardar.finalST || "",
+      tiempo_st: registroParaGuardar.tiempoST || "",
+
       inicio_var_pt_1: registroParaGuardar.varsPT?.[0]?.inicio || "",
       final_var_pt_1: registroParaGuardar.varsPT?.[0]?.final || "",
       inicio_var_pt_2: registroParaGuardar.varsPT?.[1]?.inicio || "",
       final_var_pt_2: registroParaGuardar.varsPT?.[1]?.final || "",
       inicio_var_pt_3: registroParaGuardar.varsPT?.[2]?.inicio || "",
       final_var_pt_3: registroParaGuardar.varsPT?.[2]?.final || "",
-  
+
       inicio_var_st_1: registroParaGuardar.varsST?.[0]?.inicio || "",
       final_var_st_1: registroParaGuardar.varsST?.[0]?.final || "",
       inicio_var_st_2: registroParaGuardar.varsST?.[1]?.inicio || "",
       final_var_st_2: registroParaGuardar.varsST?.[1]?.final || "",
       inicio_var_st_3: registroParaGuardar.varsST?.[2]?.inicio || "",
       final_var_st_3: registroParaGuardar.varsST?.[2]?.final || "",
-  
+
       inicio_hid_pt: registroParaGuardar.inicioHidratacionPT || "",
       final_hid_pt: registroParaGuardar.finalHidratacionPT || "",
       inicio_hid_st: registroParaGuardar.inicioHidratacionST || "",
       final_hid_st: registroParaGuardar.finalHidratacionST || "",
-  
+
       cambio_1_tiempo: registroParaGuardar.cambios?.[0]?.hora || "",
       cambio_1_sale: registroParaGuardar.cambios?.[0]?.sale || "",
       cambio_1_entra: registroParaGuardar.cambios?.[0]?.entra || "",
-  
+
       cambio_2_tiempo: registroParaGuardar.cambios?.[1]?.hora || "",
       cambio_2_sale: registroParaGuardar.cambios?.[1]?.sale || "",
       cambio_2_entra: registroParaGuardar.cambios?.[1]?.entra || "",
-  
+
       cambio_3_tiempo: registroParaGuardar.cambios?.[2]?.hora || "",
       cambio_3_sale: registroParaGuardar.cambios?.[2]?.sale || "",
       cambio_3_entra: registroParaGuardar.cambios?.[2]?.entra || "",
-  
+
       cambio_4_tiempo: registroParaGuardar.cambios?.[3]?.hora || "",
       cambio_4_sale: registroParaGuardar.cambios?.[3]?.sale || "",
       cambio_4_entra: registroParaGuardar.cambios?.[3]?.entra || "",
-  
+
       cambio_5_tiempo: registroParaGuardar.cambios?.[4]?.hora || "",
       cambio_5_sale: registroParaGuardar.cambios?.[4]?.sale || "",
       cambio_5_entra: registroParaGuardar.cambios?.[4]?.entra || "",
-  
+
       rival_cambio_sale1: cambiosRival[0]?.sale || "",
       rival_cambio_entra1: cambiosRival[0]?.entra || "",
       rival_cambio_horario1: cambiosRival[0]?.hora || "",
-  
+
       rival_cambio_sale2: cambiosRival[1]?.sale || "",
       rival_cambio_entra2: cambiosRival[1]?.entra || "",
       rival_cambio_horario2: cambiosRival[1]?.hora || "",
-  
+
       rival_cambio_sale3: cambiosRival[2]?.sale || "",
       rival_cambio_entra3: cambiosRival[2]?.entra || "",
       rival_cambio_horario3: cambiosRival[2]?.hora || "",
-  
+
       rival_cambio_sale4: cambiosRival[3]?.sale || "",
       rival_cambio_entra4: cambiosRival[3]?.entra || "",
       rival_cambio_horario4: cambiosRival[3]?.hora || "",
-  
+
       rival_cambio_sale5: cambiosRival[4]?.sale || "",
       rival_cambio_entra5: cambiosRival[4]?.entra || "",
       rival_cambio_horario5: cambiosRival[4]?.hora || "",
@@ -2573,94 +2677,95 @@ tiempo_st: registroParaGuardar.tiempoST || "",
       prorroga: serializarProrroga(registroParaGuardar),
       cambios_extra: (registroParaGuardar.cambios || []).slice(5),
       cambios_rival_extra: cambiosRival.slice(5),
-  
+      modo_tiempo: registroEditado.modoTiempo || "enVivo",
+      captura_tiempo: serializarCapturaTiempo(registroEditado),
+
       titulares: registroParaGuardar.formacion?.titulares || [],
       convocados: registroParaGuardar.formacion?.convocados || [],
     };
   };
   const borrarHistorial = async () => {
     const confirmar = window.confirm(
-      "¿Seguro que querés borrar todos los registros? Esta acción también borra los datos de Supabase."
+      "¿Seguro que querés borrar todos los registros? Esta acción también borra los datos de Supabase.",
     );
-  
+
     if (!confirmar) return;
-  
+
     const ids = guardados
       .map((registro) => registro.idSupabase)
       .filter(Boolean);
-  
+
     if (ids.length > 0) {
       const { error } = await supabase
         .from("registros_partido")
         .delete()
         .in("id", ids);
-  
+
       if (error) {
         console.error("Error borrando historial en Supabase:", error);
         alert("No se pudo borrar el historial en Supabase");
         return;
       }
     }
-  
+
     setGuardados([]);
-    localStorage.removeItem("registro_partidos_tiempos");
+    localStorage.removeItem(CLAVE_RESPALDO);
     setRegistroSeleccionado(null);
   };
-  
+
   const eliminarRegistro = async (indexAEliminar) => {
     const confirmar = window.confirm(
-      "¿Querés eliminar este registro? También se va a borrar de Supabase."
+      "¿Querés eliminar este registro? También se va a borrar de Supabase.",
     );
-  
+
     if (!confirmar) return;
-  
+
     const registroAEliminar = guardados[indexAEliminar];
-  
+
     if (!registroAEliminar?.idSupabase) {
-      alert("Este registro no tiene ID de Supabase. No se puede borrar de la base.");
+      alert(
+        "Este registro no tiene ID de Supabase. No se puede borrar de la base.",
+      );
       return;
     }
-  
+
     const { error } = await supabase
       .from("registros_partido")
       .delete()
       .eq("id", registroAEliminar.idSupabase);
-  
+
     if (error) {
       console.error("Error eliminando registro en Supabase:", error);
       alert("No se pudo eliminar el registro en Supabase");
       return;
     }
-  
+
     await cargarRegistrosSupabase();
     setRegistroSeleccionado(null);
   };
-  
+
   const actualizarRegistroGuardado = async (indexAEditar, registroEditado) => {
     const idRegistro =
       registroEditado.idSupabase || guardados[indexAEditar]?.idSupabase;
-  
+
     if (!idRegistro) {
       alert("Este registro no tiene ID de Supabase. No se puede editar.");
       return false;
     }
-  
+
     const registroConTiempos = {
       ...registroEditado,
       ...calcularTiemposRegistro(registroEditado),
       noIngresaron: calcularNoIngresaron(
         registroEditado.formacion,
-        registroEditado.cambios
+        registroEditado.cambios,
       ),
       editadoEn: new Date().toISOString(),
       idSupabase: idRegistro,
     };
-  
+
     const registroSupabase = convertirRegistroASupabase(registroConTiempos);
-  
-    console.log("ID A EDITAR:", idRegistro);
-    console.log("DATOS QUE SE MANDAN A SUPABASE:", registroSupabase);
-  
+
     let { data, error } = await supabase
       .from("registros_partido")
       .update(registroSupabase)
@@ -2681,11 +2786,11 @@ tiempo_st: registroParaGuardar.tiempoST || "",
       data = reintento.data;
       error = reintento.error;
     }
-  
+
     if (error) {
       if (esErrorColumnasExtendidas(error)) {
         alert(
-          "Falta ejecutar la migración de prórroga y cambios extra en Supabase antes de guardar estos datos."
+          "Falta ejecutar la migración de prórroga y cambios extra en Supabase antes de guardar estos datos.",
         );
         return false;
       }
@@ -2694,106 +2799,140 @@ tiempo_st: registroParaGuardar.tiempoST || "",
       alert("No se pudieron guardar los cambios en Supabase");
       return false;
     }
-  
+
     if (!data || data.length === 0) {
       alert(
-        "Supabase no actualizó ninguna fila. Revisá las políticas RLS de UPDATE."
+        "Supabase no actualizó ninguna fila. Revisá las políticas RLS de UPDATE.",
       );
       console.warn("UPDATE sin filas modificadas:", data);
       return false;
     }
-  
+
     const registroActualizado = convertirSupabaseARegistro(data[0]);
-  
+
     setGuardados((prev) =>
       prev.map((item) =>
-        item.idSupabase === idRegistro ? registroActualizado : item
-      )
+        item.idSupabase === idRegistro ? registroActualizado : item,
+      ),
     );
-  
+
     setRegistroSeleccionado({
       item: registroActualizado,
       index: indexAEditar,
     });
-  
+    setDetalleBorrador(registroActualizado);
+    setDetalleEditando(false);
+
     return true;
   };
-  const cargarJsonp = (url) => {
+  const cargarJsonp = (url, timeoutMs = 12000) => {
     return new Promise((resolve, reject) => {
+      let urlSegura;
+      try {
+        urlSegura = new URL(url, window.location.href);
+      } catch (error) {
+        reject(new Error("La URL de integración no es válida"));
+        return;
+      }
+
+      if (
+        urlSegura.protocol !== "https:" ||
+        urlSegura.hostname !== "script.google.com"
+      ) {
+        reject(new Error("Origen de integración no permitido"));
+        return;
+      }
+
       const callbackName = `jsonpCallback_${Date.now()}_${Math.floor(
-        Math.random() * 100000
+        Math.random() * 100000,
       )}`;
-  
       const script = document.createElement("script");
-  
+      let completado = false;
+      let temporizador;
+
       const limpiar = () => {
+        window.clearTimeout(temporizador);
         try {
           delete window[callbackName];
-        } catch (e) {}
-  
-        if (script && script.parentNode) {
-          script.parentNode.removeChild(script);
+        } catch (error) {
+          window[callbackName] = undefined;
         }
+        script.remove();
       };
-  
+
+      const finalizar = (accion) => {
+        if (completado) return;
+        completado = true;
+        limpiar();
+        accion();
+      };
+
       window[callbackName] = (data) => {
-        limpiar();
-        resolve(data);
+        const esRespuestaValida =
+          data && typeof data === "object" && !Array.isArray(data);
+        finalizar(() =>
+          esRespuestaValida
+            ? resolve(data)
+            : reject(new Error("La integración devolvió datos inválidos")),
+        );
       };
-  
-      script.src =
-        url + (url.includes("?") ? "&" : "?") + "callback=" + callbackName;
-  
+
+      urlSegura.searchParams.set("callback", callbackName);
+      script.src = urlSegura.toString();
+      script.async = true;
+      script.referrerPolicy = "no-referrer";
+
       script.onerror = () => {
-        limpiar();
-        reject(new Error("No se pudo conectar con Apps Script"));
+        finalizar(() =>
+          reject(new Error("No se pudo conectar con Apps Script")),
+        );
       };
-  
+
+      temporizador = window.setTimeout(
+        () =>
+          finalizar(() =>
+            reject(new Error("La integración tardó demasiado en responder")),
+          ),
+        timeoutMs,
+      );
+
       document.body.appendChild(script);
     });
   };
- const importarFormacionAutomatica = async () => {
-  setMensajeFormacion("Buscando formación oficial...");
+  const importarFormacionAutomatica = async () => {
+    setMensajeFormacion("Buscando formación oficial...");
 
-  try {
-    const url =
-      "https://script.google.com/macros/s/AKfycbxK9paHAC-hsydI_7ylKXuQs_FJD3pH0ACyCII83LODvCBGQoZdxa1YBF8Iz8Uu-i7K/exec" +
-      "?fecha=" +
-      encodeURIComponent(fechaFormacion);
+    try {
+      const url =
+        "https://script.google.com/macros/s/AKfycbxK9paHAC-hsydI_7ylKXuQs_FJD3pH0ACyCII83LODvCBGQoZdxa1YBF8Iz8Uu-i7K/exec" +
+        "?fecha=" +
+        encodeURIComponent(fechaFormacion);
 
-    const data = await cargarJsonp(url);
+      const data = await cargarJsonp(url);
 
-    if (!data.ok) {
-      setMensajeFormacion(data.error || "No se encontró formación oficial.");
-      return;
+      if (!data.ok) {
+        setMensajeFormacion(data.error || "No se encontró formación oficial.");
+        return;
+      }
+
+      const nuevaFormacion = {
+        titulares: (data.titulares || [])
+          .slice(1, 11)
+          .map(convertirNombreJugador),
+
+        convocados: (data.convocados || []).map(convertirNombreJugador),
+      };
+
+      setFormacionTemporal(nuevaFormacion);
+      actualizar("fecha", data.fecha || fechaFormacion);
+      actualizar("rival", data.rival || "");
+      setPantallaFormacion("revision");
+      setMensajeFormacion("");
+    } catch (error) {
+      console.error("ERROR IMPORTANDO FORMACIÓN:", error);
+      setMensajeFormacion("Error conectando con la formación automática.");
     }
-
-    const convertirNombreJugador = (nombre) => {
-      const limpio = normalizarTextoBase(nombre);
-      const equivalente = equivalenciasJugadores[limpio];
-    
-      return equivalente ? equivalente.toUpperCase() : String(nombre || "").toUpperCase();
-    };
-    
-    const nuevaFormacion = {
-      titulares: (data.titulares || [])
-        .slice(1, 11)
-        .map(convertirNombreJugador),
-    
-      convocados: (data.convocados || [])
-        .map(convertirNombreJugador),
-    };
-
-    setFormacionTemporal(nuevaFormacion);
-    actualizar("fecha", data.fecha || fechaFormacion);
-    actualizar("rival", data.rival || "");
-    setPantallaFormacion("revision");
-    setMensajeFormacion("");
-  } catch (error) {
-    console.error("ERROR IMPORTANDO FORMACIÓN:", error);
-    setMensajeFormacion("Error conectando con la formación automática.");
-  }
-};
+  };
   const abrirCargaManual = () => {
     setMensajeFormacion("");
     setPantallaFormacion("manual");
@@ -2803,7 +2942,7 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     actualizarFormacion(formacionTemporal);
     setPartidoEnCurso(true);
     setPantallaFormacion("lista");
-  
+
     setTimeout(() => {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }, 0);
@@ -2840,20 +2979,12 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     }));
   };
 
-  const modificarFormacionActual = () => {
-    setFormacionTemporal(registro.formacion || crearFormacionVacia());
-    setFechaFormacion(registro.fecha || new Date().toISOString().slice(0, 10));
-    setPantallaFormacion("manual");
-    setMostrarFormacionPartido(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const CampoHora = ({ label, campo }) => (
+  const renderCampoHora = ({ label, campo }) => (
     <div className="campo-hora">
       <label>{label}</label>
 
       <div className="fila-hora">
-                <CampoTiempo
+        <CampoTiempo
           value={registro[campo]}
           onChange={(valor) => actualizarCampoTiempo(campo, valor)}
           modoTiempo={registro.modoTiempo}
@@ -2872,19 +3003,24 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     </div>
   );
 
-  const BloqueEvento = ({ titulo, inicioCampo, finalCampo, duracion }) => (
+  const renderBloqueEvento = ({
+    titulo,
+    inicioCampo,
+    finalCampo,
+    duracion,
+  }) => (
     <div className="bloque-evento">
       <div className="titulo-evento">
         <h3>{titulo}</h3>
         <span>{duracion || "-"}</span>
       </div>
 
-      <CampoHora label="Inicio" campo={inicioCampo} />
-      <CampoHora label="Final" campo={finalCampo} />
+      {renderCampoHora({ label: "Inicio", campo: inicioCampo })}
+      {renderCampoHora({ label: "Final", campo: finalCampo })}
     </div>
   );
 
-  const BloqueVarPeriodo = ({ tipo, titulo }) => {
+  const renderBloqueVarPeriodo = ({ tipo, titulo }) => {
     const config = obtenerConfigPeriodo(tipo);
     const vars = registro[config.vars] || [{ inicio: "", final: "" }];
     const activo = registro[config.activo] || 0;
@@ -2895,7 +3031,7 @@ tiempo_st: registroParaGuardar.tiempoST || "",
           <h3>{titulo}</h3>
           <span>
             {formatearDuracion(
-              segundosEntre(vars[activo]?.inicio, vars[activo]?.final)
+              segundosEntre(vars[activo]?.inicio, vars[activo]?.final),
             ) || "-"}
           </span>
         </div>
@@ -2917,7 +3053,7 @@ tiempo_st: registroParaGuardar.tiempoST || "",
         <div className="campo-hora">
           <label>Inicio</label>
           <div className="fila-hora">
-                        <CampoTiempo
+            <CampoTiempo
               value={vars[activo]?.inicio || ""}
               onChange={(valor) => actualizarVar(tipo, "inicio", valor)}
               modoTiempo={registro.modoTiempo}
@@ -2935,7 +3071,7 @@ tiempo_st: registroParaGuardar.tiempoST || "",
         <div className="campo-hora">
           <label>Final</label>
           <div className="fila-hora">
-                        <CampoTiempo
+            <CampoTiempo
               value={vars[activo]?.final || ""}
               onChange={(valor) => actualizarVar(tipo, "final", valor)}
               modoTiempo={registro.modoTiempo}
@@ -2963,56 +3099,8 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     );
   };
 
-  const ListaSimple = ({
-    titulo,
-    lista,
-    vacio = "Sin datos cargados",
-    cantidadPrimeraColumna = 5,
-  }) => {
-    const datos = limpiarLista(lista);
-  
-    const columna1 = datos.slice(0, cantidadPrimeraColumna);
-    const columna2 = datos.slice(cantidadPrimeraColumna);
-  
-    return (
-      <div className="lista-formacion">
-        <h3>{titulo}</h3>
-  
-        {datos.length === 0 ? (
-          <p>{vacio}</p>
-        ) : (
-          <div className="formacion-grid">
-            <div className="columna-formacion">
-              {columna1.map((jugador, index) => (
-                <div
-                  className="item-formacion"
-                  key={`${jugador}-${index}`}
-                >
-                  {index + 1}. {jugador}
-                </div>
-              ))}
-            </div>
-  
-            <div className="columna-formacion">
-              {columna2.map((jugador, index) => (
-                <div
-                  className="item-formacion"
-                  key={`${jugador}-2-${index}`}
-                >
-                  {index + cantidadPrimeraColumna + 1}. {jugador}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const FormularioFormacion = ({ modo }) => (
+  const renderFormularioFormacion = ({ modo }) => (
     <div className="app">
-      <ListaJugadores />
-
       <div className="contenedor">
         <header className="encabezado">
           <h1>
@@ -3034,129 +3122,137 @@ tiempo_st: registroParaGuardar.tiempoST || "",
           {mensajeFormacion && (
             <div className="aviso-formacion">{mensajeFormacion}</div>
           )}
-<div className="selector-modo-tiempo">
-  <button
-    type="button"
-    className={`boton-modo-tiempo ${
-      registro.modoTiempo === "transmision" ? "activo" : ""
-    }`}
-    onClick={() => seleccionarModoTiempo("transmision")}
-  >
-    <span className="titulo-modo-tiempo">Transmisión</span>
-    <span className="descripcion-modo-tiempo">
-      Minutos de juego
-    </span>
-  </button>
+          <div className="selector-modo-tiempo">
+            <button
+              type="button"
+              className={`boton-modo-tiempo ${
+                registro.modoTiempo === "transmision" ? "activo" : ""
+              }`}
+              onClick={() => seleccionarModoTiempo("transmision")}
+            >
+              <span className="titulo-modo-tiempo">Transmisión</span>
+              <span className="descripcion-modo-tiempo">Minutos de juego</span>
+            </button>
 
-  <button
-    type="button"
-    className={`boton-modo-tiempo ${
-      (registro.modoTiempo || "enVivo") === "enVivo" ? "activo" : ""
-    }`}
-    onClick={() => seleccionarModoTiempo("enVivo")}
-  >
-    <span className="titulo-modo-tiempo">En Vivo</span>
-    <span className="descripcion-modo-tiempo">
-      Hora actual
-    </span>
-  </button>
-</div>
+            <button
+              type="button"
+              className={`boton-modo-tiempo ${
+                (registro.modoTiempo || "enVivo") === "enVivo" ? "activo" : ""
+              }`}
+              onClick={() => seleccionarModoTiempo("enVivo")}
+            >
+              <span className="titulo-modo-tiempo">En Vivo</span>
+              <span className="descripcion-modo-tiempo">Hora actual</span>
+            </button>
+          </div>
 
-{modo === "revision" ? (
-  <>
-    <ListaSimple
-      titulo="10 titulares de campo"
-      lista={formacionTemporal.titulares}
-      cantidadPrimeraColumna={5}
-    />
+          {modo === "revision" ? (
+            <>
+              <ListaSimple
+                titulo="10 titulares de campo"
+                lista={formacionTemporal.titulares}
+                cantidadPrimeraColumna={5}
+              />
 
-    <ListaSimple
-      titulo="Convocados no titulares"
-      lista={formacionTemporal.convocados}
-      cantidadPrimeraColumna={6}
-    />
+              <ListaSimple
+                titulo="Convocados no titulares"
+                lista={formacionTemporal.convocados}
+                cantidadPrimeraColumna={6}
+              />
 
-    <div className="acciones-dobles">
-      <button
-        type="button"
-        className="boton-secundario"
-        onClick={() => setPantallaFormacion("inicio")}
-      >
-        ← Volver
-      </button>
+              <div className="acciones-dobles">
+                <button
+                  type="button"
+                  className="boton-secundario"
+                  onClick={() => setPantallaFormacion("inicio")}
+                >
+                  ← Volver
+                </button>
 
-      <button
-        type="button"
-        className="boton-secundario boton-formacion-grande"
-        onClick={abrirCargaManual}
-      >
-        Cargar manual
-      </button>
-    </div>
+                <button
+                  type="button"
+                  className="boton-secundario boton-formacion-grande"
+                  onClick={abrirCargaManual}
+                >
+                  Cargar manual
+                </button>
+              </div>
 
-    <div className="contenedor-continuar-full">
-      <button
-        type="button"
-        className="boton-principal boton-continuar-full"
-        onClick={continuarConFormacion}
-      >
-        Continuar
-      </button>
-    </div>
-  </>
-) : (
+              <div className="contenedor-continuar-full">
+                <button
+                  type="button"
+                  className="boton-principal boton-continuar-full"
+                  onClick={continuarConFormacion}
+                >
+                  Continuar
+                </button>
+              </div>
+            </>
+          ) : (
             <>
               <h2>10 titulares de campo</h2>
 
-<div className="formacion-grid">
-  {[0, 5].map((inicioColumna) => (
-    <div className="columna-formacion" key={`titulares-col-${inicioColumna}`}>
-      {formacionTemporal.titulares
-        .slice(inicioColumna, inicioColumna + 5)
-        .map((jugador, index) => {
-          const indexReal = inicioColumna + index;
+              <div className="formacion-grid">
+                {[0, 5].map((inicioColumna) => (
+                  <div
+                    className="columna-formacion"
+                    key={`titulares-col-${inicioColumna}`}
+                  >
+                    {formacionTemporal.titulares
+                      .slice(inicioColumna, inicioColumna + 5)
+                      .map((jugador, index) => {
+                        const indexReal = inicioColumna + index;
 
-          return (
-            <div className="campo-formacion" key={`titular-${indexReal}`}>
-              <label>Titular {indexReal + 1}</label>
-              <InputJugador
-                value={jugador}
-                onChange={(valor) =>
-                  actualizarTitularTemporal(indexReal, valor)
-                }
-              />
-            </div>
-          );
-        })}
-    </div>
-  ))}
-</div>
+                        return (
+                          <div
+                            className="campo-formacion"
+                            key={`titular-${indexReal}`}
+                          >
+                            <label>Titular {indexReal + 1}</label>
+                            <InputJugador
+                              value={jugador}
+                              onChange={(valor) =>
+                                actualizarTitularTemporal(indexReal, valor)
+                              }
+                            />
+                          </div>
+                        );
+                      })}
+                  </div>
+                ))}
+              </div>
 
-<h2>Convocados no titulares</h2>
+              <h2>Convocados no titulares</h2>
 
-<div className="formacion-grid">
-  {[0, 6].map((inicioColumna) => (
-    <div className="columna-formacion" key={`convocados-col-${inicioColumna}`}>
-      {formacionTemporal.convocados
-        .slice(inicioColumna, inicioColumna + 6)
-        .map((jugador, index) => {
-          const indexReal = inicioColumna + index;
+              <div className="formacion-grid">
+                {[0, 6].map((inicioColumna) => (
+                  <div
+                    className="columna-formacion"
+                    key={`convocados-col-${inicioColumna}`}
+                  >
+                    {formacionTemporal.convocados
+                      .slice(inicioColumna, inicioColumna + 6)
+                      .map((jugador, index) => {
+                        const indexReal = inicioColumna + index;
 
-          return (
-            <div className="campo-formacion" key={`convocado-${indexReal}`}>
-              <label>Convocado {indexReal + 1}</label>
-              <InputJugador
-                value={jugador}
-                onChange={(valor) =>
-                  actualizarConvocadoTemporal(indexReal, valor)
-                }
-              />
-            </div>
-          );
-        })}
-    </div>
-  ))}
-</div>
+                        return (
+                          <div
+                            className="campo-formacion"
+                            key={`convocado-${indexReal}`}
+                          >
+                            <label>Convocado {indexReal + 1}</label>
+                            <InputJugador
+                              value={jugador}
+                              onChange={(valor) =>
+                                actualizarConvocadoTemporal(indexReal, valor)
+                              }
+                            />
+                          </div>
+                        );
+                      })}
+                  </div>
+                ))}
+              </div>
 
               <button
                 type="button"
@@ -3172,7 +3268,7 @@ tiempo_st: registroParaGuardar.tiempoST || "",
                   className="boton-secundario"
                   onClick={() => setPantallaFormacion("inicio")}
                 >
-                  ←  Volver
+                  ← Volver
                 </button>
 
                 <button
@@ -3190,10 +3286,8 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     </div>
   );
 
-  const PantallaInicioFormacion = () => (
+  const renderPantallaInicioFormacion = () => (
     <div className="app">
-      <ListaJugadores />
-
       <div className="contenedor contenedor-inicio-formacion">
         <header className="encabezado">
           <h1>Formación del partido</h1>
@@ -3201,12 +3295,12 @@ tiempo_st: registroParaGuardar.tiempoST || "",
         </header>
 
         <button
-  type="button"
-  className="boton-registros-inicio"
-  onClick={() => setPantallaFormacion("registros")}
->
-  Ingresar a Registros
-</button>
+          type="button"
+          className="boton-registros-inicio"
+          onClick={() => setPantallaFormacion("registros")}
+        >
+          Ingresar a Registros
+        </button>
         <section className="tarjeta">
           <label>Fecha del partido</label>
           <input
@@ -3246,7 +3340,10 @@ tiempo_st: registroParaGuardar.tiempoST || "",
           )}
         </section>
 
-        <EstadoVersionApp />
+        <EstadoVersionApp
+          actualizacionDisponible={actualizacionDisponible}
+          onActualizar={actualizarAplicacion}
+        />
       </div>
     </div>
   );
@@ -3256,7 +3353,7 @@ tiempo_st: registroParaGuardar.tiempoST || "",
       if ("caches" in window) {
         const nombresCache = await window.caches.keys();
         await Promise.all(
-          nombresCache.map((nombreCache) => window.caches.delete(nombreCache))
+          nombresCache.map((nombreCache) => window.caches.delete(nombreCache)),
         );
       }
     } catch (error) {
@@ -3268,64 +3365,12 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     window.location.replace(urlActualizada.toString());
   };
 
-  const IndicadorModoTiempo = ({ variante = "" } = {}) => {
-    const esTransmision = registro.modoTiempo === "transmision";
-
-    return (
-      <div className="bloque-modo-activo">
-        <div
-          className={`indicador-modo-activo ${
-            esTransmision ? "transmision" : "en-vivo"
-          } ${variante === "rival" ? "rival" : ""}`}
-        >
-          <span className="indicador-modo-punto" aria-hidden="true" />
-          <div className="indicador-modo-texto">
-            <strong>Modo {esTransmision ? "Transmisión" : "En Vivo"}</strong>
-            <span>{esTransmision ? "Minutos por período" : "Hora actual"}</span>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const EstadoVersionApp = () => (
-    <div className="bloque-version-app">
-      <div
-        className={`indicador-version-app ${
-          actualizacionDisponible ? "actualizacion-pendiente" : ""
-        }`}
-      >
-        <span className="indicador-modo-punto" aria-hidden="true" />
-        <div className="indicador-modo-texto">
-          <strong>
-            {actualizacionDisponible
-              ? "Nueva versión disponible"
-              : "Aplicación actualizada"}
-          </strong>
-          <span>Versión {APP_VERSION}</span>
-        </div>
-      </div>
-
-      {actualizacionDisponible && (
-        <button
-          type="button"
-          className="boton-actualizar-version"
-          onClick={actualizarAplicacion}
-        >
-          Actualizar Versión
-        </button>
-      )}
-    </div>
-  );
-
-  const DatoDetalle = ({ label, valor }) => (
-    <div className="dato-detalle">
-      <span>{label}</span>
-      <strong>{valor || "-"}</strong>
-    </div>
-  );
-
-  const CampoDetalleEditable = ({ label, type = "text", value, onChange }) => {
+  const renderCampoDetalleEditable = ({
+    label,
+    type = "text",
+    value,
+    onChange,
+  }) => {
     const modoDetalle =
       registroSeleccionado?.item?.modoTiempo || registro.modoTiempo;
     const usarTransmision =
@@ -3355,23 +3400,24 @@ tiempo_st: registroParaGuardar.tiempoST || "",
     );
   };
 
-
-  const DetalleRegistro = ({ item, index }) => {
-    const [editando, setEditando] = useState(false);
-
-    const [editado, setEditado] = useState({
+  const renderDetalleRegistro = ({ item, index }) => {
+    const registroDetalleBase = {
       ...item,
       cambios: item.cambios || crearCambiosVacios(),
       cambiosRival: item.cambiosRival || crearCambiosVacios(),
       formacion: item.formacion || crearFormacionVacia(),
-    });
+    };
+    const editando = detalleEditando;
+    const setEditando = setDetalleEditando;
+    const editado = detalleBorrador || registroDetalleBase;
+    const setEditado = setDetalleBorrador;
 
     const tiemposEditados = calcularTiemposRegistro(editado);
     const cambios = editado.cambios || crearCambiosVacios();
     const cambiosRival = editado.cambiosRival || crearCambiosVacios();
     const noIngresaronDetalle = calcularNoIngresaron(
       editado.formacion,
-      editado.cambios
+      editado.cambios,
     );
 
     const actualizarEditado = (campo, valor) => {
@@ -3401,12 +3447,12 @@ tiempo_st: registroParaGuardar.tiempoST || "",
         const nuevosCambiosRival = [
           ...(prev.cambiosRival || crearCambiosVacios()),
         ];
-    
+
         nuevosCambiosRival[cambioIndex] = {
           ...nuevosCambiosRival[cambioIndex],
           [campo]: valor,
         };
-    
+
         return {
           ...prev,
           cambiosRival: nuevosCambiosRival,
@@ -3434,20 +3480,18 @@ tiempo_st: registroParaGuardar.tiempoST || "",
 
     const guardarCambiosEdicion = async () => {
       const ok = await actualizarRegistroGuardado(index, editado);
-    
+
       if (ok) {
         setMensajeGuardado("Cambios guardados correctamente");
-setEditando(false);
+        setEditando(false);
 
-setTimeout(() => {
-  setMensajeGuardado("");
-}, 2500);
+        setTimeout(() => {
+          setMensajeGuardado("");
+        }, 2500);
       }
     };
     return (
       <div className="app">
-        <ListaJugadores />
-
         <div className="contenedor">
           <header className="encabezado">
             <h1>{editando ? "Editar registro" : "Detalle registro"}</h1>
@@ -3463,24 +3507,24 @@ setTimeout(() => {
 
             {editando ? (
               <>
-                <CampoDetalleEditable
-                  label="Fecha"
-                  type="date"
-                  value={editado.fecha}
-                  onChange={(valor) => actualizarEditado("fecha", valor)}
-                />
+                {renderCampoDetalleEditable({
+                  label: "Fecha",
+                  type: "date",
+                  value: editado.fecha,
+                  onChange: (valor) => actualizarEditado("fecha", valor),
+                })}
 
-                <CampoDetalleEditable
-                  label="Rival"
-                  value={editado.rival}
-                  onChange={(valor) => actualizarEditado("rival", valor)}
-                />
+                {renderCampoDetalleEditable({
+                  label: "Rival",
+                  value: editado.rival,
+                  onChange: (valor) => actualizarEditado("rival", valor),
+                })}
 
-                <CampoDetalleEditable
-                  label="Resultado"
-                  value={editado.resultado}
-                  onChange={(valor) => actualizarEditado("resultado", valor)}
-                />
+                {renderCampoDetalleEditable({
+                  label: "Resultado",
+                  value: editado.resultado,
+                  onChange: (valor) => actualizarEditado("resultado", valor),
+                })}
               </>
             ) : (
               <>
@@ -3492,215 +3536,239 @@ setTimeout(() => {
           </section>
 
           <section className="tarjeta">
-  <h2>Formación</h2>
+            <h2>Formación</h2>
 
-  {editando && (
-    <button
-      type="button"
-      className="boton-secundario boton-formacion-grande"
-      onClick={() => {
-        setEditado((prev) => ({
-          ...prev,
-          formacion: prev.formacion || crearFormacionVacia(),
-        }));
-      }}
-    >
-      Editar formación y no ingresados
-    </button>
-  )}
-
-  {editando ? (
-    <>
-      <h3>10 titulares de campo</h3>
-
-<div className="formacion-grid">
-  {[0, 5].map((inicioColumna) => (
-    <div className="columna-formacion" key={`edit-titulares-col-${inicioColumna}`}>
-      {(editado.formacion?.titulares || [])
-        .slice(inicioColumna, inicioColumna + 5)
-        .map((jugador, index) => {
-          const jugadorIndex = inicioColumna + index;
-
-          return (
-            <div className="campo-formacion" key={`edit-titular-${jugadorIndex}`}>
-              <label>Titular {jugadorIndex + 1}</label>
-              <InputJugador
-                value={jugador}
-                onChange={(valor) => {
-                  setEditado((prev) => {
-                    const nuevaFormacion = prev.formacion || crearFormacionVacia();
-                    const nuevosTitulares = [...(nuevaFormacion.titulares || [])];
-
-                    nuevosTitulares[jugadorIndex] = valor;
-
-                    return {
-                      ...prev,
-                      formacion: {
-                        ...nuevaFormacion,
-                        titulares: nuevosTitulares,
-                      },
-                    };
-                  });
+            {editando && (
+              <button
+                type="button"
+                className="boton-secundario boton-formacion-grande"
+                onClick={() => {
+                  setEditado((prev) => ({
+                    ...prev,
+                    formacion: prev.formacion || crearFormacionVacia(),
+                  }));
                 }}
-              />
-            </div>
-          );
-        })}
-    </div>
-  ))}
-</div>
+              >
+                Editar formación y no ingresados
+              </button>
+            )}
 
-<h3>Convocados no titulares</h3>
+            {editando ? (
+              <>
+                <h3>10 titulares de campo</h3>
 
-<div className="formacion-grid">
-  {[0, 6].map((inicioColumna) => (
-    <div className="columna-formacion" key={`edit-convocados-col-${inicioColumna}`}>
-      {(editado.formacion?.convocados || [])
-        .slice(inicioColumna, inicioColumna + 6)
-        .map((jugador, index) => {
-          const jugadorIndex = inicioColumna + index;
+                <div className="formacion-grid">
+                  {[0, 5].map((inicioColumna) => (
+                    <div
+                      className="columna-formacion"
+                      key={`edit-titulares-col-${inicioColumna}`}
+                    >
+                      {(editado.formacion?.titulares || [])
+                        .slice(inicioColumna, inicioColumna + 5)
+                        .map((jugador, index) => {
+                          const jugadorIndex = inicioColumna + index;
 
-          return (
-            <div className="campo-formacion" key={`edit-convocado-${jugadorIndex}`}>
-              <label>Convocado {jugadorIndex + 1}</label>
-              <InputJugador
-                value={jugador}
-                onChange={(valor) => {
-                  setEditado((prev) => {
-                    const nuevaFormacion = prev.formacion || crearFormacionVacia();
-                    const nuevosConvocados = [...(nuevaFormacion.convocados || [])];
+                          return (
+                            <div
+                              className="campo-formacion"
+                              key={`edit-titular-${jugadorIndex}`}
+                            >
+                              <label>Titular {jugadorIndex + 1}</label>
+                              <InputJugador
+                                value={jugador}
+                                onChange={(valor) => {
+                                  setEditado((prev) => {
+                                    const nuevaFormacion =
+                                      prev.formacion || crearFormacionVacia();
+                                    const nuevosTitulares = [
+                                      ...(nuevaFormacion.titulares || []),
+                                    ];
 
-                    nuevosConvocados[jugadorIndex] = valor;
+                                    nuevosTitulares[jugadorIndex] = valor;
 
-                    return {
-                      ...prev,
-                      formacion: {
-                        ...nuevaFormacion,
-                        convocados: nuevosConvocados,
-                      },
-                    };
-                  });
-                }}
-              />
-            </div>
-          );
-        })}
-    </div>
-  ))}
-</div>
+                                    return {
+                                      ...prev,
+                                      formacion: {
+                                        ...nuevaFormacion,
+                                        titulares: nuevosTitulares,
+                                      },
+                                    };
+                                  });
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ))}
+                </div>
 
-      <button
-        type="button"
-        className="boton-agregar-jugador"
-        onClick={() => {
-          setEditado((prev) => {
-            const nuevaFormacion = prev.formacion || crearFormacionVacia();
+                <h3>Convocados no titulares</h3>
 
-            return {
-              ...prev,
-              formacion: {
-                ...nuevaFormacion,
-                convocados: [...(nuevaFormacion.convocados || []), ""],
-              },
-            };
-          });
-        }}
-      >
-        + Agregar convocado
-      </button>
+                <div className="formacion-grid">
+                  {[0, 6].map((inicioColumna) => (
+                    <div
+                      className="columna-formacion"
+                      key={`edit-convocados-col-${inicioColumna}`}
+                    >
+                      {(editado.formacion?.convocados || [])
+                        .slice(inicioColumna, inicioColumna + 6)
+                        .map((jugador, index) => {
+                          const jugadorIndex = inicioColumna + index;
 
-      <ListaSimple
-  titulo="No ingresaron"
-  lista={noIngresaronDetalle}
-  cantidadPrimeraColumna={6}
-/>
-    </>
-  ) : (
-    <>
-      <ListaSimple
-        titulo="10 titulares de campo"
-        lista={editado.formacion?.titulares || []}
-        cantidadPrimeraColumna={5}
-      />
-      <ListaSimple
-  titulo="No ingresaron"
-  lista={noIngresaronDetalle}
-  cantidadPrimeraColumna={6}
-/>
-    </>
-  )}
-</section>
+                          return (
+                            <div
+                              className="campo-formacion"
+                              key={`edit-convocado-${jugadorIndex}`}
+                            >
+                              <label>Convocado {jugadorIndex + 1}</label>
+                              <InputJugador
+                                value={jugador}
+                                onChange={(valor) => {
+                                  setEditado((prev) => {
+                                    const nuevaFormacion =
+                                      prev.formacion || crearFormacionVacia();
+                                    const nuevosConvocados = [
+                                      ...(nuevaFormacion.convocados || []),
+                                    ];
+
+                                    nuevosConvocados[jugadorIndex] = valor;
+
+                                    return {
+                                      ...prev,
+                                      formacion: {
+                                        ...nuevaFormacion,
+                                        convocados: nuevosConvocados,
+                                      },
+                                    };
+                                  });
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  className="boton-agregar-jugador"
+                  onClick={() => {
+                    setEditado((prev) => {
+                      const nuevaFormacion =
+                        prev.formacion || crearFormacionVacia();
+
+                      return {
+                        ...prev,
+                        formacion: {
+                          ...nuevaFormacion,
+                          convocados: [
+                            ...(nuevaFormacion.convocados || []),
+                            "",
+                          ],
+                        },
+                      };
+                    });
+                  }}
+                >
+                  + Agregar convocado
+                </button>
+
+                <ListaSimple
+                  titulo="No ingresaron"
+                  lista={noIngresaronDetalle}
+                  cantidadPrimeraColumna={6}
+                />
+              </>
+            ) : (
+              <>
+                <ListaSimple
+                  titulo="10 titulares de campo"
+                  lista={editado.formacion?.titulares || []}
+                  cantidadPrimeraColumna={5}
+                />
+                <ListaSimple
+                  titulo="No ingresaron"
+                  lista={noIngresaronDetalle}
+                  cantidadPrimeraColumna={6}
+                />
+              </>
+            )}
+          </section>
 
           <section className="tarjeta">
             <h2>Primer tiempo</h2>
 
             {editando ? (
               <>
-                <CampoDetalleEditable
-                  label="Inicio PT"
-                  type="time"
-                  value={editado.inicioPT}
-                  onChange={(valor) => actualizarEditado("inicioPT", valor)}
-                />
-                <CampoDetalleEditable
-                  label="Final PT"
-                  type="time"
-                  value={editado.finalPT}
-                  onChange={(valor) => actualizarEditado("finalPT", valor)}
-                />
+                {renderCampoDetalleEditable({
+                  label: "Inicio PT",
+                  type: "time",
+                  value: editado.inicioPT,
+                  onChange: (valor) => actualizarEditado("inicioPT", valor),
+                })}
+                {renderCampoDetalleEditable({
+                  label: "Final PT",
+                  type: "time",
+                  value: editado.finalPT,
+                  onChange: (valor) => actualizarEditado("finalPT", valor),
+                })}
                 <DatoDetalle
                   label="Tiempo PT"
                   valor={tiemposEditados.tiempoPT}
                 />
 
-<CampoDetalleEditable
-  label="Inicio VAR PT"
-  type="time"
-  value={editado.varsPT?.[0]?.inicio || ""}
-  onChange={(valor) => {
-    const nuevasVars = [...(editado.varsPT || [{ inicio: "", final: "" }])];
-    nuevasVars[0] = {
-      ...(nuevasVars[0] || {}),
-      inicio: valor,
-    };
-    actualizarEditado("varsPT", nuevasVars);
-  }}
-/>
+                {renderCampoDetalleEditable({
+                  label: "Inicio VAR PT",
+                  type: "time",
+                  value: editado.varsPT?.[0]?.inicio || "",
+                  onChange: (valor) => {
+                    const nuevasVars = [
+                      ...(editado.varsPT || [{ inicio: "", final: "" }]),
+                    ];
+                    nuevasVars[0] = {
+                      ...(nuevasVars[0] || {}),
+                      inicio: valor,
+                    };
+                    actualizarEditado("varsPT", nuevasVars);
+                  },
+                })}
 
-<CampoDetalleEditable
-  label="Final VAR PT"
-  type="time"
-  value={editado.varsPT?.[0]?.final || ""}
-  onChange={(valor) => {
-    const nuevasVars = [...(editado.varsPT || [{ inicio: "", final: "" }])];
-    nuevasVars[0] = {
-      ...(nuevasVars[0] || {}),
-      final: valor,
-    };
-    actualizarEditado("varsPT", nuevasVars);
-  }}
-/>
+                {renderCampoDetalleEditable({
+                  label: "Final VAR PT",
+                  type: "time",
+                  value: editado.varsPT?.[0]?.final || "",
+                  onChange: (valor) => {
+                    const nuevasVars = [
+                      ...(editado.varsPT || [{ inicio: "", final: "" }]),
+                    ];
+                    nuevasVars[0] = {
+                      ...(nuevasVars[0] || {}),
+                      final: valor,
+                    };
+                    actualizarEditado("varsPT", nuevasVars);
+                  },
+                })}
                 <DatoDetalle
                   label="Tiempo VAR PT"
                   valor={tiemposEditados.tiempoVarPT}
                 />
 
-                <CampoDetalleEditable
-                  label="Inicio Hidratación PT"
-                  type="time"
-                  value={editado.inicioHidratacionPT}
-                  onChange={(valor) =>
-                    actualizarEditado("inicioHidratacionPT", valor)
-                  }
-                />
-                <CampoDetalleEditable
-                  label="Final Hidratación PT"
-                  type="time"
-                  value={editado.finalHidratacionPT}
-                  onChange={(valor) =>
-                    actualizarEditado("finalHidratacionPT", valor)
-                  }
-                />
+                {renderCampoDetalleEditable({
+                  label: "Inicio Hidratación PT",
+                  type: "time",
+                  value: editado.inicioHidratacionPT,
+                  onChange: (valor) =>
+                    actualizarEditado("inicioHidratacionPT", valor),
+                })}
+                {renderCampoDetalleEditable({
+                  label: "Final Hidratación PT",
+                  type: "time",
+                  value: editado.finalHidratacionPT,
+                  onChange: (valor) =>
+                    actualizarEditado("finalHidratacionPT", valor),
+                })}
                 <DatoDetalle
                   label="Tiempo Hidratación PT"
                   valor={tiemposEditados.tiempoHidratacionPT}
@@ -3712,41 +3780,46 @@ setTimeout(() => {
                 <DatoDetalle label="Final PT" valor={editado.finalPT} />
                 <DatoDetalle label="Tiempo PT" valor={editado.tiempoPT} />
 
-                {(editado.varsPT || [{ inicio: editado.inicioVarPT, final: editado.finalVarPT }])
-  .filter((v) => v.inicio || v.final)
-  .map((v, i) => (
-    <div className="var-detalle" key={`var-pt-${i}`}>
-      <div className="var-detalle-header">
-        <span>VAR PT {i + 1}</span>
+                {(
+                  editado.varsPT || [
+                    { inicio: editado.inicioVarPT, final: editado.finalVarPT },
+                  ]
+                )
+                  .filter((v) => v.inicio || v.final)
+                  .map((v, i) => (
+                    <div className="var-detalle" key={`var-pt-${i}`}>
+                      <div className="var-detalle-header">
+                        <span>VAR PT {i + 1}</span>
 
-        <span className="var-detalle-tempo">
-          {formatearDuracion(segundosEntre(v.inicio, v.final))}
-        </span>
-      </div>
+                        <span className="var-detalle-tempo">
+                          {formatearDuracion(segundosEntre(v.inicio, v.final))}
+                        </span>
+                      </div>
 
-      <div className="var-detalle-info">
-        <span>Inicio: {v.inicio || "--:--"}</span>
-        <span>Final: {v.final || "--:--"}</span>
-      </div>
-    </div>
-  ))}
+                      <div className="var-detalle-info">
+                        <span>Inicio: {v.inicio || "--:--"}</span>
+                        <span>Final: {v.final || "--:--"}</span>
+                      </div>
+                    </div>
+                  ))}
 
-{(editado.inicioHidratacionPT || editado.finalHidratacionPT) && (
-  <>
-    <DatoDetalle
-      label="Inicio Hidratación PT"
-      valor={editado.inicioHidratacionPT}
-    />
-    <DatoDetalle
-      label="Final Hidratación PT"
-      valor={editado.finalHidratacionPT}
-    />
-    <DatoDetalle
-      label="Tiempo Hidratación PT"
-      valor={editado.tiempoHidratacionPT}
-    />
-  </>
-)}
+                {(editado.inicioHidratacionPT ||
+                  editado.finalHidratacionPT) && (
+                  <>
+                    <DatoDetalle
+                      label="Inicio Hidratación PT"
+                      valor={editado.inicioHidratacionPT}
+                    />
+                    <DatoDetalle
+                      label="Final Hidratación PT"
+                      valor={editado.finalHidratacionPT}
+                    />
+                    <DatoDetalle
+                      label="Tiempo Hidratación PT"
+                      valor={editado.tiempoHidratacionPT}
+                    />
+                  </>
+                )}
               </>
             )}
           </section>
@@ -3756,71 +3829,73 @@ setTimeout(() => {
 
             {editando ? (
               <>
-                <CampoDetalleEditable
-                  label="Inicio ST"
-                  type="time"
-                  value={editado.inicioST}
-                  onChange={(valor) => actualizarEditado("inicioST", valor)}
-                />
-                <CampoDetalleEditable
-                  label="Final ST"
-                  type="time"
-                  value={editado.finalST}
-                  onChange={(valor) => actualizarEditado("finalST", valor)}
-                />
+                {renderCampoDetalleEditable({
+                  label: "Inicio ST",
+                  type: "time",
+                  value: editado.inicioST,
+                  onChange: (valor) => actualizarEditado("inicioST", valor),
+                })}
+                {renderCampoDetalleEditable({
+                  label: "Final ST",
+                  type: "time",
+                  value: editado.finalST,
+                  onChange: (valor) => actualizarEditado("finalST", valor),
+                })}
                 <DatoDetalle
                   label="Tiempo ST"
                   valor={tiemposEditados.tiempoST}
                 />
 
-<CampoDetalleEditable
-  label="Inicio VAR ST"
-  type="time"
-  value={editado.varsST?.[0]?.inicio || ""}
-  onChange={(valor) => {
-    const nuevasVars = [...(editado.varsST || [{ inicio: "", final: "" }])];
-    nuevasVars[0] = {
-      ...(nuevasVars[0] || {}),
-      inicio: valor,
-    };
-    actualizarEditado("varsST", nuevasVars);
-  }}
-/>
+                {renderCampoDetalleEditable({
+                  label: "Inicio VAR ST",
+                  type: "time",
+                  value: editado.varsST?.[0]?.inicio || "",
+                  onChange: (valor) => {
+                    const nuevasVars = [
+                      ...(editado.varsST || [{ inicio: "", final: "" }]),
+                    ];
+                    nuevasVars[0] = {
+                      ...(nuevasVars[0] || {}),
+                      inicio: valor,
+                    };
+                    actualizarEditado("varsST", nuevasVars);
+                  },
+                })}
 
-<CampoDetalleEditable
-  label="Final VAR ST"
-  type="time"
-  value={editado.varsST?.[0]?.final || ""}
-  onChange={(valor) => {
-    const nuevasVars = [...(editado.varsST || [{ inicio: "", final: "" }])];
-    nuevasVars[0] = {
-      ...(nuevasVars[0] || {}),
-      final: valor,
-    };
-    actualizarEditado("varsST", nuevasVars);
-  }}
-/>
+                {renderCampoDetalleEditable({
+                  label: "Final VAR ST",
+                  type: "time",
+                  value: editado.varsST?.[0]?.final || "",
+                  onChange: (valor) => {
+                    const nuevasVars = [
+                      ...(editado.varsST || [{ inicio: "", final: "" }]),
+                    ];
+                    nuevasVars[0] = {
+                      ...(nuevasVars[0] || {}),
+                      final: valor,
+                    };
+                    actualizarEditado("varsST", nuevasVars);
+                  },
+                })}
                 <DatoDetalle
                   label="Tiempo VAR ST"
                   valor={tiemposEditados.tiempoVarST}
                 />
 
-                <CampoDetalleEditable
-                  label="Inicio Hidratación ST"
-                  type="time"
-                  value={editado.inicioHidratacionST}
-                  onChange={(valor) =>
-                    actualizarEditado("inicioHidratacionST", valor)
-                  }
-                />
-                <CampoDetalleEditable
-                  label="Final Hidratación ST"
-                  type="time"
-                  value={editado.finalHidratacionST}
-                  onChange={(valor) =>
-                    actualizarEditado("finalHidratacionST", valor)
-                  }
-                />
+                {renderCampoDetalleEditable({
+                  label: "Inicio Hidratación ST",
+                  type: "time",
+                  value: editado.inicioHidratacionST,
+                  onChange: (valor) =>
+                    actualizarEditado("inicioHidratacionST", valor),
+                })}
+                {renderCampoDetalleEditable({
+                  label: "Final Hidratación ST",
+                  type: "time",
+                  value: editado.finalHidratacionST,
+                  onChange: (valor) =>
+                    actualizarEditado("finalHidratacionST", valor),
+                })}
                 <DatoDetalle
                   label="Tiempo Hidratación ST"
                   valor={tiemposEditados.tiempoHidratacionST}
@@ -3832,41 +3907,46 @@ setTimeout(() => {
                 <DatoDetalle label="Final ST" valor={editado.finalST} />
                 <DatoDetalle label="Tiempo ST" valor={editado.tiempoST} />
 
-                {(editado.varsST || [{ inicio: editado.inicioVarST, final: editado.finalVarST }])
-  .filter((v) => v.inicio || v.final)
-  .map((v, i) => (
-    <div className="var-detalle" key={`var-st-${i}`}>
-      <div className="var-detalle-header">
-        <span>VAR ST {i + 1}</span>
+                {(
+                  editado.varsST || [
+                    { inicio: editado.inicioVarST, final: editado.finalVarST },
+                  ]
+                )
+                  .filter((v) => v.inicio || v.final)
+                  .map((v, i) => (
+                    <div className="var-detalle" key={`var-st-${i}`}>
+                      <div className="var-detalle-header">
+                        <span>VAR ST {i + 1}</span>
 
-        <span className="var-detalle-tempo">
-          {formatearDuracion(segundosEntre(v.inicio, v.final))}
-        </span>
-      </div>
+                        <span className="var-detalle-tempo">
+                          {formatearDuracion(segundosEntre(v.inicio, v.final))}
+                        </span>
+                      </div>
 
-      <div className="var-detalle-info">
-        <span>Inicio: {v.inicio || "--:--"}</span>
-        <span>Final: {v.final || "--:--"}</span>
-      </div>
-    </div>
-  ))}
+                      <div className="var-detalle-info">
+                        <span>Inicio: {v.inicio || "--:--"}</span>
+                        <span>Final: {v.final || "--:--"}</span>
+                      </div>
+                    </div>
+                  ))}
 
-{(editado.inicioHidratacionST || editado.finalHidratacionST) && (
-  <>
-    <DatoDetalle
-      label="Inicio Hidratación ST"
-      valor={editado.inicioHidratacionST}
-    />
-    <DatoDetalle
-      label="Final Hidratación ST"
-      valor={editado.finalHidratacionST}
-    />
-    <DatoDetalle
-      label="Tiempo Hidratación ST"
-      valor={editado.tiempoHidratacionST}
-    />
-  </>
-)}
+                {(editado.inicioHidratacionST ||
+                  editado.finalHidratacionST) && (
+                  <>
+                    <DatoDetalle
+                      label="Inicio Hidratación ST"
+                      valor={editado.inicioHidratacionST}
+                    />
+                    <DatoDetalle
+                      label="Final Hidratación ST"
+                      valor={editado.finalHidratacionST}
+                    />
+                    <DatoDetalle
+                      label="Tiempo Hidratación ST"
+                      valor={editado.tiempoHidratacionST}
+                    />
+                  </>
+                )}
               </>
             )}
           </section>
@@ -3892,12 +3972,15 @@ setTimeout(() => {
                   {(editado.varsPTE || [])
                     .filter((item) => item.inicio || item.final)
                     .map((item, varIndex) => (
-                      <div className="var-detalle" key={`detalle-pte-${varIndex}`}>
+                      <div
+                        className="var-detalle"
+                        key={`detalle-pte-${varIndex}`}
+                      >
                         <div className="var-detalle-header">
                           <span>VAR PTE {varIndex + 1}</span>
                           <span className="var-detalle-tempo">
                             {formatearDuracion(
-                              segundosEntre(item.inicio, item.final)
+                              segundosEntre(item.inicio, item.final),
                             )}
                           </span>
                         </div>
@@ -3928,12 +4011,15 @@ setTimeout(() => {
                   {(editado.varsSTE || [])
                     .filter((item) => item.inicio || item.final)
                     .map((item, varIndex) => (
-                      <div className="var-detalle" key={`detalle-ste-${varIndex}`}>
+                      <div
+                        className="var-detalle"
+                        key={`detalle-ste-${varIndex}`}
+                      >
                         <div className="var-detalle-header">
                           <span>VAR STE {varIndex + 1}</span>
                           <span className="var-detalle-tempo">
                             {formatearDuracion(
-                              segundosEntre(item.inicio, item.final)
+                              segundosEntre(item.inicio, item.final),
                             )}
                           </span>
                         </div>
@@ -3964,7 +4050,9 @@ setTimeout(() => {
                 <div>Cambio</div>
                 <div>Sale</div>
                 <div>Entra</div>
-                <div>{editado.modoTiempo === "transmision" ? "Minuto" : "Hora"}</div>
+                <div>
+                  {editado.modoTiempo === "transmision" ? "Minuto" : "Hora"}
+                </div>
               </div>
 
               {cambios.map((cambio, cambioIndex) => (
@@ -4000,14 +4088,11 @@ setTimeout(() => {
                   <div>
                     {editando ? (
                       <div className="celda-hora-detalle-editable">
-                                                <CampoTiempo
+                        <CampoTiempo
                           value={cambio.hora || ""}
                           onChange={(valor) =>
-                              actualizarCambioEditado(
-                                cambioIndex,
-                                "hora",
-                                valor
-                              )}
+                            actualizarCambioEditado(cambioIndex, "hora", valor)
+                          }
                           modoTiempo={editado.modoTiempo}
                           className="input-hora-cambio-detalle"
                         />
@@ -4029,7 +4114,7 @@ setTimeout(() => {
                 </div>
               ))}
             </div>
-                    </section>
+          </section>
 
           <section className="tarjeta">
             <h2>Cambios Rival</h2>
@@ -4039,20 +4124,30 @@ setTimeout(() => {
                 <div>Cambio</div>
                 <div>Sale</div>
                 <div>Entra</div>
-                <div>{editado.modoTiempo === "transmision" ? "Minuto" : "Hora"}</div>
+                <div>
+                  {editado.modoTiempo === "transmision" ? "Minuto" : "Hora"}
+                </div>
               </div>
 
               {cambiosRival.map((cambio, cambioIndex) => (
-                <div className="fila-detalle-cambio" key={`rival-${cambioIndex}`}>
+                <div
+                  className="fila-detalle-cambio"
+                  key={`rival-${cambioIndex}`}
+                >
                   <div>{cambioIndex + 1}</div>
 
                   <div>
                     {editando ? (
-                                            <InputJugadorRival
+                      <InputJugadorRival
                         opciones={opcionesJugadoresRival}
                         value={cambio.sale || ""}
                         onChange={(valor) =>
-                        actualizarCambioRivalEditado(cambioIndex, "sale", valor)}
+                          actualizarCambioRivalEditado(
+                            cambioIndex,
+                            "sale",
+                            valor,
+                          )
+                        }
                       />
                     ) : (
                       cambio.sale || "-"
@@ -4061,11 +4156,16 @@ setTimeout(() => {
 
                   <div>
                     {editando ? (
-                                            <InputJugadorRival
+                      <InputJugadorRival
                         opciones={opcionesJugadoresRival}
                         value={cambio.entra || ""}
                         onChange={(valor) =>
-                        actualizarCambioRivalEditado(cambioIndex, "entra", valor)}
+                          actualizarCambioRivalEditado(
+                            cambioIndex,
+                            "entra",
+                            valor,
+                          )
+                        }
                       />
                     ) : (
                       cambio.entra || "-"
@@ -4073,38 +4173,43 @@ setTimeout(() => {
                   </div>
 
                   <div>
-                  {editando ? (
-  <div className="celda-hora-detalle-editable">
-        <CampoTiempo
-      value={cambio.hora || ""}
-      onChange={(valor) =>
-          actualizarCambioRivalEditado(
-            cambioIndex,
-            "hora",
-            valor
-          )}
-      modoTiempo={editado.modoTiempo}
-      className="input-hora-cambio-detalle"
-    />
+                    {editando ? (
+                      <div className="celda-hora-detalle-editable">
+                        <CampoTiempo
+                          value={cambio.hora || ""}
+                          onChange={(valor) =>
+                            actualizarCambioRivalEditado(
+                              cambioIndex,
+                              "hora",
+                              valor,
+                            )
+                          }
+                          modoTiempo={editado.modoTiempo}
+                          className="input-hora-cambio-detalle"
+                        />
 
-    <button
-      type="button"
-      className="boton-entretiempo-detalle"
-      onClick={() => {
-        if (!editado.inicioST) {
-          alert("Primero cargá Inicio ST.");
-          return;
-        }
+                        <button
+                          type="button"
+                          className="boton-entretiempo-detalle"
+                          onClick={() => {
+                            if (!editado.inicioST) {
+                              alert("Primero cargá Inicio ST.");
+                              return;
+                            }
 
-        actualizarCambioRivalEditado(cambioIndex, "hora", editado.inicioST);
-      }}
-    >
-      ET
-    </button>
-  </div>
-) : (
-  cambio.hora || "-"
-)}
+                            actualizarCambioRivalEditado(
+                              cambioIndex,
+                              "hora",
+                              editado.inicioST,
+                            );
+                          }}
+                        >
+                          ET
+                        </button>
+                      </div>
+                    ) : (
+                      cambio.hora || "-"
+                    )}
                   </div>
                 </div>
               ))}
@@ -4134,15 +4239,22 @@ setTimeout(() => {
               <button
                 type="button"
                 className="boton-secundario"
-                onClick={() => setRegistroSeleccionado(null)}
+                onClick={() => {
+                  setRegistroSeleccionado(null);
+                  setDetalleBorrador(null);
+                  setDetalleEditando(false);
+                }}
               >
-                 ← Volver
+                ← Volver
               </button>
 
               <button
                 type="button"
                 className="boton-principal"
-                onClick={() => setEditando(true)}
+                onClick={() => {
+                  setEditado(registroDetalleBase);
+                  setEditando(true);
+                }}
               >
                 Editar registro
               </button>
@@ -4153,37 +4265,407 @@ setTimeout(() => {
     );
   };
 
-  if (!mostrarApp) {
-    return (
-      <div
-        className="intro-pantalla"
-        style={{
-          backgroundImage: `url(${imagenIntro})`,
-        }}
-      >
-        <div className="overlay-intro">
-        </div>
-      </div>
+  const navegarAplicacion = (destino) => {
+    setRegistroSeleccionado(null);
+    setDetalleBorrador(null);
+    setDetalleEditando(false);
+
+    if (destino === "partido") {
+      setPantallaFormacion("lista");
+    } else if (destino === "formacion") {
+      volverAPantallaFormacion();
+    } else if (destino === "registros") {
+      setPantallaFormacion("registros");
+    } else if (destino === "ajustes") {
+      setPantallaFormacion("lista");
+      window.setTimeout(
+        () =>
+          document
+            .getElementById("configuracion-partido")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        0,
+      );
+    }
+  };
+
+  const formatearFechaPantalla = (fecha) => {
+    if (!fecha) return "Sin fecha";
+    const valor = new Date(`${fecha}T12:00:00`);
+    if (Number.isNaN(valor.getTime())) return fecha;
+    return new Intl.DateTimeFormat("es-AR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+      .format(valor)
+      .replace(".", "");
+  };
+
+  const [golesAtletico = "", golesRival = ""] = String(registro.resultado || "")
+    .split(/\s*[-–:]\s*/)
+    .slice(0, 2);
+
+  const actualizarMarcador = (equipo, valor) => {
+    const goles = String(valor || "")
+      .replace(/\D/g, "")
+      .slice(0, 2);
+    const local = equipo === "atletico" ? goles : golesAtletico || "0";
+    const visita = equipo === "rival" ? goles : golesRival || "0";
+    actualizar("resultado", `${local || 0}-${visita || 0}`);
+  };
+
+  const datosPeriodoVista = obtenerConfigPeriodo(periodoVista);
+  const periodoIniciado = Boolean(registro[datosPeriodoVista.inicio]);
+  const periodoFinalizado = Boolean(registro[datosPeriodoVista.final]);
+  const ejecutarAccionPeriodo = () => {
+    if (!periodoIniciado) {
+      ponerAhora(datosPeriodoVista.inicio);
+      return;
+    }
+
+    if (!periodoFinalizado) ponerAhora(datosPeriodoVista.final);
+  };
+
+  const varActual =
+    registro[datosPeriodoVista.vars]?.[
+      registro[datosPeriodoVista.activo] || 0
+    ] || {};
+
+  const alternarVarRapido = () => {
+    const marca = obtenerMarcaActual(periodoVista);
+    if (!marca) {
+      alert(`Primero marcá Inicio ${periodoVista}.`);
+      return;
+    }
+
+    setRegistro((prev) => {
+      const config = obtenerConfigPeriodo(periodoVista);
+      const eventos = [...(prev[config.vars] || [{ inicio: "", final: "" }])];
+      let activo = prev[config.activo] || 0;
+      let evento = eventos[activo] || { inicio: "", final: "" };
+
+      if (evento.inicio && evento.final && eventos.length < 3) {
+        eventos.push({ inicio: marca, final: "" });
+        activo = eventos.length - 1;
+      } else if (!evento.inicio) {
+        eventos[activo] = { ...evento, inicio: marca };
+      } else if (!evento.final) {
+        eventos[activo] = { ...evento, final: marca };
+      }
+
+      return { ...prev, [config.vars]: eventos, [config.activo]: activo };
+    });
+    setTimeout(quitarFoco, 0);
+  };
+
+  const campoInicioHidratacion = `inicioHidratacion${periodoVista}`;
+  const campoFinalHidratacion = `finalHidratacion${periodoVista}`;
+  const hidratacionIniciada = Boolean(registro[campoInicioHidratacion]);
+  const hidratacionFinalizada = Boolean(registro[campoFinalHidratacion]);
+
+  const alternarHidratacionRapida = () => {
+    if (hidratacionFinalizada) return;
+    ponerAhora(
+      hidratacionIniciada ? campoFinalHidratacion : campoInicioHidratacion,
     );
-  }
+  };
+
+  const eventosPeriodo = (() => {
+    const eventos = [];
+    const agregar = (hora, titulo, tipo, detalle = "") => {
+      if (hora) eventos.push({ hora, titulo, tipo, detalle });
+    };
+
+    agregar(
+      registro[datosPeriodoVista.inicio],
+      `Inicio de ${periodoVista}`,
+      "periodo",
+    );
+
+    (registro[datosPeriodoVista.vars] || []).forEach((evento, index) => {
+      agregar(evento.inicio, `Inicio de VAR ${index + 1}`, "var");
+      agregar(
+        evento.final,
+        `Fin de VAR ${index + 1}`,
+        "var",
+        formatearDuracion(segundosEntre(evento.inicio, evento.final)),
+      );
+    });
+
+    agregar(
+      registro[campoInicioHidratacion],
+      "Inicio de hidratación",
+      "hidratacion",
+    );
+    agregar(
+      registro[campoFinalHidratacion],
+      "Fin de hidratación",
+      "hidratacion",
+      formatearDuracion(
+        segundosEntre(
+          registro[campoInicioHidratacion],
+          registro[campoFinalHidratacion],
+        ),
+      ),
+    );
+
+    const agregarCambios = (cambios, equipo) => {
+      (cambios || []).forEach((cambio) => {
+        const periodoCambio =
+          cambio.periodo ||
+          (registro.modoTiempo === "transmision" && cambio.hora
+            ? periodoDesdeMinutoPartido(cambio.hora, {
+                prorrogaActiva: registro.prorrogaActiva,
+              }).periodo
+            : obtenerPeriodoActivo(registro));
+        if (periodoCambio !== periodoVista) return;
+        agregar(
+          cambio.hora,
+          equipo === "rival" ? "Cambio rival" : "Cambio",
+          "cambio",
+          [cambio.sale, cambio.entra].filter(Boolean).join(" → "),
+        );
+      });
+    };
+
+    agregarCambios(registro.cambios, "atletico");
+    agregarCambios(registro.cambiosRival, "rival");
+    agregar(
+      registro[datosPeriodoVista.final],
+      `Final de ${periodoVista}`,
+      "periodo",
+    );
+
+    return eventos.sort((a, b) => {
+      const valorA = segundosDesdeHora(a.hora) ?? 0;
+      const valorB = segundosDesdeHora(b.hora) ?? 0;
+      return valorB - valorA;
+    });
+  })();
+
+  const mostrarPanelCambios = () => {
+    setEquipoCambios("atletico");
+    setFilasCambiosVisibles((prev) => ({
+      ...prev,
+      atletico: Math.max(1, prev.atletico),
+    }));
+    window.setTimeout(
+      () =>
+        document
+          .getElementById("panel-cambios")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      0,
+    );
+  };
+
+  const limpiarFilaCambio = (tipo, index) => {
+    const clave = tipo === "rival" ? "cambiosRival" : "cambios";
+    setRegistro((prev) => {
+      const cambios = [...(prev[clave] || crearCambiosVacios())];
+      cambios[index] = crearCambioVacio();
+      return { ...prev, [clave]: cambios };
+    });
+  };
+
+  const agregarFilaCambio = (tipo) => {
+    const clave = tipo === "rival" ? "rival" : "atletico";
+    const lista = tipo === "rival" ? registro.cambiosRival : registro.cambios;
+    const cantidadActual = filasCambiosVisibles[clave] || 1;
+
+    if (cantidadActual >= (lista || []).length) agregarCambio(tipo);
+    setFilasCambiosVisibles((prev) => ({
+      ...prev,
+      [clave]: cantidadActual + 1,
+    }));
+  };
+
+  const renderPanelCambiosOperativo = () => {
+    const esRival = equipoCambios === "rival";
+    const lista = esRival ? registro.cambiosRival : registro.cambios;
+    const ultimoConDatos = (lista || []).reduce(
+      (ultimo, cambio, index) =>
+        cambio.sale || cambio.entra || cambio.hora ? index : ultimo,
+      -1,
+    );
+    const cantidad = Math.min(
+      (lista || []).length,
+      Math.max(filasCambiosVisibles[equipoCambios] || 1, ultimoConDatos + 2),
+    );
+
+    return (
+      <section
+        className="panel-operativo panel-cambios-operativo"
+        id="panel-cambios"
+      >
+        <div className="panel-titulo">
+          <div>
+            <span className="sobrelinea">PARTIDO</span>
+            <h2>Cambios</h2>
+          </div>
+          {esRival && (
+            <button
+              type="button"
+              className="boton-texto"
+              onClick={async () => {
+                await importarJugadoresRival();
+                await recomendarHorariosCambioRival();
+              }}
+            >
+              Importar rival
+            </button>
+          )}
+        </div>
+
+        <div
+          className="selector-equipo"
+          role="tablist"
+          aria-label="Equipo de los cambios"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!esRival}
+            className={!esRival ? "activo" : ""}
+            onClick={() => setEquipoCambios("atletico")}
+          >
+            <EscudoCAM compacto /> Atlético Mineiro
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={esRival}
+            className={esRival ? "activo rival" : ""}
+            onClick={() => setEquipoCambios("rival")}
+          >
+            <span className="escudo-rival mini" /> {registro.rival || "Rival"}
+          </button>
+        </div>
+
+        <div className="lista-cambios-operativa">
+          {(lista || []).slice(0, cantidad).map((cambio, index) => (
+            <div className="cambio-operativo" key={`${equipoCambios}-${index}`}>
+              <div className="numero-cambio">{index + 1}</div>
+              <div className="campo-cambio-operativo">
+                <span>Sale</span>
+                {esRival ? (
+                  <InputJugadorRival
+                    opciones={opcionesJugadoresRival}
+                    value={cambio.sale}
+                    onChange={(valor) =>
+                      actualizarCambioRival(index, "sale", valor)
+                    }
+                  />
+                ) : (
+                  <InputJugador
+                    value={cambio.sale}
+                    onChange={(valor) => actualizarCambio(index, "sale", valor)}
+                  />
+                )}
+              </div>
+              <Icono nombre="cambio" size={19} className="flechas-cambio" />
+              <div className="campo-cambio-operativo">
+                <span>Entra</span>
+                {esRival ? (
+                  <InputJugadorRival
+                    opciones={opcionesJugadoresRival}
+                    value={cambio.entra}
+                    onChange={(valor) =>
+                      actualizarCambioRival(index, "entra", valor)
+                    }
+                  />
+                ) : (
+                  <InputJugador
+                    value={cambio.entra}
+                    onChange={(valor) =>
+                      actualizarCambio(index, "entra", valor)
+                    }
+                  />
+                )}
+              </div>
+              <div className="hora-cambio-operativa">
+                <span>
+                  {registro.modoTiempo === "transmision" ? "Minuto" : "Hora"}
+                </span>
+                <CampoTiempo
+                  value={cambio.hora || ""}
+                  onChange={(valor) =>
+                    esRival
+                      ? actualizarCambioRival(
+                          index,
+                          "hora",
+                          valor,
+                          periodoVista,
+                        )
+                      : actualizarCambio(index, "hora", valor, periodoVista)
+                  }
+                  modoTiempo={registro.modoTiempo}
+                  className="input-hora-cambio"
+                />
+              </div>
+              <div className="acciones-cambio-operativo">
+                <button
+                  type="button"
+                  className="marcar-ahora"
+                  onClick={() =>
+                    esRival
+                      ? ponerHoraCambioRival(index, periodoVista)
+                      : ponerHoraCambio(index, periodoVista)
+                  }
+                >
+                  <Icono nombre="reloj" size={17} /> Ahora
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    esRival
+                      ? ponerHoraEntreTiempoRival(index)
+                      : ponerHoraEntreTiempo(index)
+                  }
+                >
+                  ET
+                </button>
+                <button
+                  type="button"
+                  className="borrar-fila"
+                  aria-label={`Limpiar cambio ${index + 1}`}
+                  onClick={() =>
+                    limpiarFilaCambio(esRival ? "rival" : "atletico", index)
+                  }
+                >
+                  <Icono nombre="borrar" size={17} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          className="agregar-cambio-operativo"
+          onClick={() => agregarFilaCambio(esRival ? "rival" : "atletico")}
+        >
+          <Icono nombre="plus" size={19} /> Agregar cambio
+        </button>
+      </section>
+    );
+  };
 
   if (pantallaFormacion === "inicio") {
-    return PantallaInicioFormacion();
+    return renderPantallaInicioFormacion();
   }
 
   if (pantallaFormacion === "revision") {
-    return FormularioFormacion({ modo: "revision" });
+    return renderFormularioFormacion({ modo: "revision" });
   }
 
   if (pantallaFormacion === "manual") {
-    return FormularioFormacion({ modo: "manual" });
-  }if (registroSeleccionado !== null) {
-    return (
-      <DetalleRegistro
-        item={registroSeleccionado.item}
-        index={registroSeleccionado.index}
-      />
-    );
+    return renderFormularioFormacion({ modo: "manual" });
+  }
+  if (registroSeleccionado !== null) {
+    return renderDetalleRegistro({
+      item: registroSeleccionado.item,
+      index: registroSeleccionado.index,
+    });
   }
   if (pantallaFormacion === "registros") {
     return (
@@ -4196,719 +4678,527 @@ setTimeout(() => {
           >
             ← Volver
           </button>
-  
+
           <header className="encabezado">
             <h1>Registros Guardados</h1>
             <p>Buscá y revisá partidos cargados.</p>
           </header>
-  
+
           {guardados.length > 0 && (
-  <section className="tarjeta">
-    <h2>Buscar registros</h2>
+            <section className="tarjeta">
+              <h2>Buscar registros</h2>
 
-    <div className="buscador-registros">
-      <input
-        value={busquedaRegistros}
-        onChange={(e) => setBusquedaRegistros(e.target.value)}
-        onKeyDown={manejarEnter}
-        placeholder="Buscar por rival, resultado, fecha, jugador..."
-      />
+              <div className="buscador-registros">
+                <input
+                  value={busquedaRegistros}
+                  onChange={(e) => setBusquedaRegistros(e.target.value)}
+                  onKeyDown={manejarEnter}
+                  placeholder="Buscar por rival, resultado, fecha, jugador..."
+                />
 
-      <select
-        value={ordenRegistros}
-        onChange={(e) => setOrdenRegistros(e.target.value)}
-      >
-        <option value="reciente">Más reciente primero</option>
-        <option value="antiguo">Más antiguo primero</option>
-      </select>
-    </div>
-  </section>
-)}
+                <select
+                  value={ordenRegistros}
+                  onChange={(e) => setOrdenRegistros(e.target.value)}
+                >
+                  <option value="reciente">Más reciente primero</option>
+                  <option value="antiguo">Más antiguo primero</option>
+                </select>
+              </div>
+            </section>
+          )}
 
-<section className="tarjeta">
-  <div className="historial-titulo">
-    <h2>Registros Guardados</h2>
+          <section className="tarjeta">
+            <div className="historial-titulo">
+              <h2>Registros Guardados</h2>
 
-    {guardados.length > 0 && (
-      <button type="button" onClick={borrarHistorial}>
-        Borrar historial
-      </button>
-    )}
-  </div>
+              {guardados.length > 0 && (
+                <button type="button" onClick={borrarHistorial}>
+                  Borrar historial
+                </button>
+              )}
+            </div>
 
-  {guardados.length === 0 ? (
-    <div className="sin-resultados">
-      No hay registros guardados todavía.
-    </div>
-  ) : (
-    <>
-      <p className="contador-registros">
-        Mostrando {registrosVisibles.length} de {guardados.length} registros
-      </p>
+            {guardados.length === 0 ? (
+              <div className="sin-resultados">
+                No hay registros guardados todavía.
+              </div>
+            ) : (
+              <>
+                <p className="contador-registros">
+                  Mostrando {registrosVisibles.length} de {guardados.length}{" "}
+                  registros
+                </p>
 
-      {registrosVisibles.length === 0 && (
-        <div className="sin-resultados">
-          No se encontraron registros con esa búsqueda.
-        </div>
-      )}
+                {registrosVisibles.length === 0 && (
+                  <div className="sin-resultados">
+                    No se encontraron registros con esa búsqueda.
+                  </div>
+                )}
 
-      {registrosVisibles.map(({ item, index }) => (
-        <div className="registro-guardado" key={index}>
-          <strong>
-            {item.fecha} · Atlético Mineiro vs {item.rival || "Sin rival"}
-            {item.resultado ? ` · ${item.resultado}` : ""}
-          </strong>
+                {registrosVisibles.map(({ item, index }) => (
+                  <div className="registro-guardado" key={index}>
+                    <strong>
+                      {item.fecha} · Atlético Mineiro vs{" "}
+                      {item.rival || "Sin rival"}
+                      {item.resultado ? ` · ${item.resultado}` : ""}
+                    </strong>
 
-          <p>
-            PT: {item.inicioPT || "-"} a {item.finalPT || "-"} ·{" "}
-            {item.tiempoPT || "-"}
-          </p>
+                    <p>
+                      PT: {item.inicioPT || "-"} a {item.finalPT || "-"} ·{" "}
+                      {item.tiempoPT || "-"}
+                    </p>
 
-          <p>
-            ST: {item.inicioST || "-"} a {item.finalST || "-"} ·{" "}
-            {item.tiempoST || "-"}
-          </p>
+                    <p>
+                      ST: {item.inicioST || "-"} a {item.finalST || "-"} ·{" "}
+                      {item.tiempoST || "-"}
+                    </p>
 
-          <div className="acciones-registro">
-            <button
-              type="button"
-              className="boton-detalle"
-              onClick={() => setRegistroSeleccionado({ item, index })}
-            >
-              Ver detalle
-            </button>
+                    <div className="acciones-registro">
+                      <button
+                        type="button"
+                        className="boton-detalle"
+                        onClick={() => {
+                          setRegistroSeleccionado({ item, index });
+                          setDetalleBorrador(null);
+                          setDetalleEditando(false);
+                        }}
+                      >
+                        Ver detalle
+                      </button>
 
-            <button
-              type="button"
-              className="boton-eliminar-registro"
-              onClick={() => eliminarRegistro(item.index)}
-            >
-              Eliminar
-            </button>
-          </div>
-        </div>
-      ))}
-    </>
-  )}
-</section>
+                      <button
+                        type="button"
+                        className="boton-eliminar-registro"
+                        onClick={() => eliminarRegistro(index)}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </section>
         </div>
       </div>
     );
   }
-  if (registroSeleccionado !== null) {
-    return (
-      <DetalleRegistro
-        item={registroSeleccionado.item}
-        index={registroSeleccionado.index}
-      />
-    );
-  }
-  if (pantalla === "rival") {
-    return (
-      <div className="app pantalla-rival">
-  <ListaJugadores />
-<div className="contenedor">
-          <div className="barra-superior">
-            <button
-              type="button"
-              className="boton-volver-formacion"
-              onClick={() => setPantalla("principal")}
-            >
-              ← Volver a Atlético
-            </button>
-          </div>
-  
-          <header className="encabezado">
-            <h1>Cambios Rival</h1>
-            <p>
-              {registro.fecha} · Atlético Mineiro vs{" "}
-              {registro.rival || "Rival"}
-            </p>
-          </header>
+  const etiquetaAccionPeriodo = !periodoIniciado
+    ? `Iniciar ${periodoVista}`
+    : !periodoFinalizado
+      ? `Finalizar ${periodoVista}`
+      : `${periodoVista} finalizado`;
+  const etiquetaVar = !varActual.inicio
+    ? "Iniciar VAR"
+    : !varActual.final
+      ? "Finalizar VAR"
+      : "Nuevo VAR";
+  const etiquetaHidratacion = !hidratacionIniciada
+    ? "Hidratación"
+    : !hidratacionFinalizada
+      ? "Finalizar hidratación"
+      : "Hidratación registrada";
+  const tiempoPeriodoGuardado = resumen[`tiempo${periodoVista}`];
+  const tiempoHidratacionGuardado = resumen[`tiempoHidratacion${periodoVista}`];
 
-          <IndicadorModoTiempo variante="rival" />
-  
-          <section className="tarjeta">
-          <h2 className="titulo-cambios-rival">Cambios del rival</h2>
-  
-            <button
-              type="button"
-              className="boton-secundario boton-formacion-grande"
-              onClick={async () => {
-                try {
-                  await importarJugadoresRival();
-  
-                  setTimeout(async () => {
-                    await recomendarHorariosCambioRival();
-                  }, 300);
-                } catch (error) {
-                  console.error("Error importando rival:", error);
-                  alert("No se pudieron importar los datos del rival.");
-                }
-              }}
-            >
-              Importar jugadores y recomendar horarios
-            </button>
-  
-            <div className="tabla-cambios">
-              <div className="fila-cambio encabezado-cambios">
-                <div>Sale</div>
-                <div>Entra</div>
-                <div>{registro.modoTiempo === "transmision" ? "Minuto" : "Hora"}</div>
+  return (
+    <MarcoAplicacion activo="partido" onNavigate={navegarAplicacion}>
+      <div className="tablero-partido">
+        {mensajeGuardado && (
+          <div className="notificacion-guardado" role="status">
+            <Icono nombre="check" size={18} /> {mensajeGuardado}
+          </div>
+        )}
+
+        <header className="cabecera-tablero">
+          <div className="titulo-estado-partido">
+            <span className="marca-movil-cabecera">
+              <EscudoCAM compacto />
+            </span>
+            <span
+              className={`punto-estado ${periodoIniciado && !periodoFinalizado ? "en-curso" : ""}`}
+            />
+            <div>
+              <span className="sobrelinea">REGISTRO OPERATIVO</span>
+              <h1>
+                {periodoIniciado && !periodoFinalizado
+                  ? "Partido en curso"
+                  : "Registro de partido"}
+              </h1>
+            </div>
+          </div>
+          <div className="estado-sincronizacion">
+            <span className={registro.idSupabase ? "sincronizado" : "borrador"}>
+              <span className="punto-estado" />
+              {registro.idSupabase ? "Sincronizado" : "Borrador local"}
+            </span>
+            <time>{formatearFechaPantalla(registro.fecha)}</time>
+            <HoraActual />
+          </div>
+        </header>
+
+        <section className="marcador-partido" aria-label="Marcador del partido">
+          <div className="equipo-marcador equipo-local">
+            <EscudoCAM />
+            <strong>Atlético Mineiro</strong>
+          </div>
+          <div className="resultado-marcador">
+            <input
+              inputMode="numeric"
+              aria-label="Goles de Atlético Mineiro"
+              value={golesAtletico}
+              placeholder="0"
+              onChange={(evento) =>
+                actualizarMarcador("atletico", evento.target.value)
+              }
+            />
+            <span>—</span>
+            <input
+              inputMode="numeric"
+              aria-label={`Goles de ${registro.rival || "rival"}`}
+              value={golesRival}
+              placeholder="0"
+              onChange={(evento) =>
+                actualizarMarcador("rival", evento.target.value)
+              }
+            />
+          </div>
+          <div className="equipo-marcador equipo-visitante">
+            <strong>{registro.rival || "Rival"}</strong>
+            <span className="escudo-rival" aria-hidden="true" />
+          </div>
+        </section>
+
+        <div className="resumen-operativo">
+          <RelojPartido
+            periodo={periodoVista}
+            modoTiempo={registro.modoTiempo}
+            referencia={registro[datosPeriodoVista.referencia]}
+            baseSegundos={datosPeriodoVista.baseSegundos}
+            inicio={registro[datosPeriodoVista.inicio]}
+            final={registro[datosPeriodoVista.final]}
+          />
+
+          <section
+            className="selector-periodos"
+            aria-label="Períodos del partido"
+          >
+            <div role="tablist">
+              {[
+                "PT",
+                "ST",
+                ...(registro.prorrogaActiva ? ["PTE", "STE"] : []),
+              ].map((periodo) => {
+                const config = obtenerConfigPeriodo(periodo);
+                const completo = Boolean(
+                  registro[config.inicio] && registro[config.final],
+                );
+                return (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={periodoVista === periodo}
+                    className={periodoVista === periodo ? "activo" : ""}
+                    onClick={() => setPeriodoVista(periodo)}
+                    key={periodo}
+                  >
+                    {periodo} {completo && <Icono nombre="check" size={16} />}
+                  </button>
+                );
+              })}
+              {!registro.prorrogaActiva && (
+                <button
+                  type="button"
+                  className="agregar-prorroga"
+                  onClick={() => {
+                    activarProrroga();
+                    setPeriodoVista("PTE");
+                  }}
+                  aria-label="Agregar prórroga"
+                >
+                  <Icono nombre="plus" size={20} />
+                </button>
+              )}
+            </div>
+            <p>
+              {registro[datosPeriodoVista.inicio] || "--:--"}
+              <span> → </span>
+              {registro[datosPeriodoVista.final] || "en curso"}
+              {tiempoPeriodoGuardado
+                ? ` · ${formatearDuracion(tiempoPeriodoGuardado)}`
+                : ""}
+            </p>
+          </section>
+        </div>
+
+        <div className="grilla-operativa">
+          <section className="panel-operativo panel-periodo-operativo">
+            <div className="panel-titulo">
+              <div>
+                <span className="sobrelinea">PERÍODO ACTIVO</span>
+                <h2>
+                  {
+                    {
+                      PT: "Primer tiempo",
+                      ST: "Segundo tiempo",
+                      PTE: "Primer tiempo de prórroga",
+                      STE: "Segundo tiempo de prórroga",
+                    }[periodoVista]
+                  }
+                </h2>
               </div>
-  
-              {(registro.cambiosRival || crearCambiosVacios()).map(
-                (cambio, index) => (
-                  <div className="fila-cambio" key={`cambio-rival-${index}`}>
-                    <div>
-                                        <InputJugadorRival
-                      opciones={opcionesJugadoresRival}
-                      value={cambio.sale || ""}
-                      onChange={(valor) =>
-    actualizarCambioRival(index, "sale", valor)}
-                    />
+              <span className="modo-captura">
+                {registro.modoTiempo === "transmision"
+                  ? "Transmisión"
+                  : "En vivo"}
+              </span>
+            </div>
+
+            <div className="acciones-rapidas">
+              <button
+                type="button"
+                className="accion-cambio"
+                onClick={mostrarPanelCambios}
+              >
+                <Icono nombre="cambio" />
+                <span>Cambio</span>
+              </button>
+              <button
+                type="button"
+                onClick={alternarVarRapido}
+                disabled={!periodoIniciado || periodoFinalizado}
+              >
+                <Icono nombre="var" />
+                <span>{etiquetaVar}</span>
+              </button>
+              <button
+                type="button"
+                onClick={alternarHidratacionRapida}
+                disabled={
+                  !periodoIniciado || periodoFinalizado || hidratacionFinalizada
+                }
+              >
+                <Icono nombre="hidratacion" />
+                <span>{etiquetaHidratacion}</span>
+              </button>
+            </div>
+
+            <div className="timeline-periodo">
+              <div className="subtitulo-timeline">
+                <h3>Eventos del período</h3>
+                <span>{eventosPeriodo.length}</span>
+              </div>
+              {eventosPeriodo.length === 0 ? (
+                <div className="timeline-vacia">
+                  <Icono nombre="reloj" />
+                  <p>Los eventos aparecerán acá al marcarlos.</p>
+                </div>
+              ) : (
+                <div className="lista-eventos-periodo">
+                  {eventosPeriodo.map((evento, index) => (
+                    <div
+                      className="evento-periodo"
+                      key={`${evento.tipo}-${evento.hora}-${index}`}
+                    >
+                      <time>{evento.hora}</time>
+                      <span className={`icono-evento ${evento.tipo}`}>
+                        <Icono
+                          nombre={
+                            evento.tipo === "cambio"
+                              ? "cambio"
+                              : evento.tipo === "var"
+                                ? "var"
+                                : evento.tipo === "hidratacion"
+                                  ? "hidratacion"
+                                  : "reloj"
+                          }
+                          size={18}
+                        />
+                      </span>
+                      <div>
+                        <strong>{evento.titulo}</strong>
+                        {evento.detalle && <span>{evento.detalle}</span>}
+                      </div>
                     </div>
-  
-                    <div>
-                                        <InputJugadorRival
-                      opciones={opcionesJugadoresRival}
-                      value={cambio.entra || ""}
-                      onChange={(valor) =>
-    actualizarCambioRival(index, "entra", valor)}
-                    />
-                    </div>
-  
-                    <div className="celda-hora-cambio">
-                                            <CampoTiempo
-                        value={cambio.hora || ""}
-                        onChange={(valor) => actualizarCambioRival(index, "hora", valor)}
-                        modoTiempo={registro.modoTiempo}
-                        className="input-hora-cambio"
-                      />
-  
-                      <button
-                        type="button"
-                        onClick={() => ponerHoraCambioRival(index)}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onTouchStart={quitarFoco}
-                      >
-                        Cambio {index + 1}
-                      </button>
-  
-                      <button
-                        type="button"
-                        className="boton-entretiempo"
-                        onClick={() => ponerHoraEntreTiempoRival(index)}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onTouchStart={quitarFoco}
-                      >
-                        Entre Tiempo
-                      </button>
-                    </div>
-                  </div>
-                )
+                  ))}
+                </div>
               )}
             </div>
 
             <button
               type="button"
-              className="boton-agregar-cambio boton-agregar-cambio-rival"
-              onClick={() => agregarCambio("rival")}
+              className={`accion-periodo ${periodoIniciado && !periodoFinalizado ? "finalizar" : ""}`}
+              onClick={ejecutarAccionPeriodo}
+              disabled={periodoFinalizado}
             >
-              + Agregar cambio
+              <span className="simbolo-accion-periodo" />{" "}
+              {etiquetaAccionPeriodo}
             </button>
-  
-            <div className="contenedor-limpiar-rival">
-              <button
-                type="button"
-                className="boton-limpiar-rival"
-                onClick={limpiarCambiosRival}
-              >
-                Limpiar cambios rival
-              </button>
-            </div>
+
+            <details className="ajustes-periodo">
+              <summary>Ajustar horarios y eventos</summary>
+              <div className="contenido-ajustes-periodo">
+                {registro.modoTiempo === "transmision" && (
+                  <div className="editor-hora-real-inicio">
+                    <span>Hora real de inicio</span>
+                    <SelectorHoraEnVivo
+                      value={obtenerHoraRealEditable(periodoVista)}
+                      onChange={(valor) =>
+                        actualizarHoraInicioRealPeriodo(periodoVista, valor)
+                      }
+                      compacto
+                    />
+                  </div>
+                )}
+                {renderBloqueEvento({
+                  titulo: periodoVista,
+                  inicioCampo: datosPeriodoVista.inicio,
+                  finalCampo: datosPeriodoVista.final,
+                  duracion: formatearDuracion(tiempoPeriodoGuardado),
+                })}
+                {renderBloqueVarPeriodo({
+                  tipo: periodoVista,
+                  titulo: `VAR ${periodoVista}`,
+                })}
+                {renderBloqueEvento({
+                  titulo: `Hidratación ${periodoVista}`,
+                  inicioCampo: campoInicioHidratacion,
+                  finalCampo: campoFinalHidratacion,
+                  duracion: formatearDuracion(tiempoHidratacionGuardado),
+                })}
+              </div>
+            </details>
           </section>
+
+          {renderPanelCambiosOperativo()}
         </div>
-      </div>
-    );
-  }
-  return (
-    <div className="app">
-      <ListaJugadores />
 
-      <div className="contenedor">
-      <div className="barra-superior">
-  <button
-    type="button"
-    className="boton-volver-formacion"
-    onClick={volverAPantallaFormacion}
-  >
-     ← Volver
-  </button>
-
-  <button
-  type="button"
-  className="lengueta-rival"
-  onClick={() => setPantalla("rival")}
->
-  Rival
-</button>
-</div>
-        {mensajeGuardado && (
-  <div className="mensaje-guardado">
-    <span>✓</span>
-    {mensajeGuardado}
-  </div>
-)}
-        <header className="encabezado">
-          <h1>Registro Partido</h1>
-          <p>Atlético Mineiro · PT, ST, VAR e hidratación</p>
-        </header>
-
-        <IndicadorModoTiempo />
-
-        <section className="tarjeta">
-          <label>Fecha</label>
-          <input
-            type="date"
-            value={registro.fecha}
-            onChange={(e) => actualizar("fecha", e.target.value)}
-          />
-
-          <label>Rival</label>
-          <input
-            value={registro.rival}
-            onChange={(e) => actualizar("rival", e.target.value)}
-            onKeyDown={manejarEnter}
-            placeholder="Ej: Santos"
-          />
-
-          <label>Resultado</label>
-          <input
-            value={registro.resultado}
-            onChange={(e) => actualizar("resultado", e.target.value)}
-            onKeyDown={manejarEnter}
-            placeholder="Ej: 2-1"
-          />
-        </section>
-
-        <section className="tarjeta">
-          {registro.modoTiempo === "transmision" && (
-            <div className="editor-hora-real-inicio">
-              <span>Hora real de inicio</span>
-              <SelectorHoraEnVivo
-                value={obtenerHoraRealEditable("PT")}
-                onChange={(valor) =>
-                  actualizarHoraInicioRealPeriodo("PT", valor)
-                }
-                compacto
-              />
+        <details className="configuracion-partido" id="configuracion-partido">
+          <summary>
+            <span>
+              <Icono nombre="ajustes" size={20} /> Datos y configuración
+            </span>
+            <span>Fecha, rival, modo y formación</span>
+          </summary>
+          <div className="configuracion-contenido">
+            <div className="campos-datos-partido">
+              <label>
+                Fecha
+                <input
+                  type="date"
+                  value={registro.fecha}
+                  onChange={(evento) =>
+                    actualizar("fecha", evento.target.value)
+                  }
+                />
+              </label>
+              <label>
+                Rival
+                <input
+                  value={registro.rival}
+                  onChange={(evento) =>
+                    actualizar("rival", evento.target.value)
+                  }
+                  placeholder="Nombre del rival"
+                />
+              </label>
             </div>
-          )}
 
-          <h2>Primer tiempo</h2>
-
-          <BloqueEvento
-            titulo="PT"
-            inicioCampo="inicioPT"
-            finalCampo="finalPT"
-            duracion={formatearDuracion(resumen.tiempoPT)}
-          />
-<div className="bloque-evento">
-  <div className="vars-header">
-    {registro.varsPT.map((v, index) => (
-      <button
-        key={index}
-        type="button"
-        className={`var-chip ${
-          registro.varPTActivo === index ? "activo" : ""
-        }`}
-        onClick={() => cambiarVarActivo("PT", index)}
-      >
-        {formatearDuracion(
-  segundosEntre(v.inicio, v.final)
-) || `VAR ${index + 1}`}
-      </button>
-    ))}
-  </div>
-  <div className="campo-hora">
-    <label>Inicio</label>
-    <div className="fila-hora">
-            <CampoTiempo
-        value={registro.varsPT[registro.varPTActivo]?.inicio || ""}
-        onChange={(valor) => actualizarVar("PT", "inicio", valor)}
-        modoTiempo={registro.modoTiempo}
-      />
-
-      <button
-        type="button"
-        className="boton-ahora"
-        onClick={() => ponerAhoraVar("PT", "inicio")}
-      >
-        Ahora
-      </button>
-    </div>
-  </div>
-  <div className="campo-hora">
-    <label>Final</label>
-
-    <div className="fila-hora">
-            <CampoTiempo
-        value={registro.varsPT[registro.varPTActivo]?.final || ""}
-        onChange={(valor) => actualizarVar("PT", "final", valor)}
-        modoTiempo={registro.modoTiempo}
-      />
-
-      <button
-        type="button"
-        className="boton-ahora"
-        onClick={() => ponerAhoraVar("PT", "final")}
-      >
-        Ahora
-      </button>
-    </div>
-    {registro.varsPT.length < 3 && (
-  <button
-    type="button"
-    className="boton-agregar-var"
-    onClick={() => agregarVar("PT")}
-  >
-    Agregar +
-  </button>
-)}
-  </div>
-</div>
-
-          <BloqueEvento
-            titulo="Hidratación PT"
-            inicioCampo="inicioHidratacionPT"
-            finalCampo="finalHidratacionPT"
-            duracion={formatearDuracion(resumen.tiempoHidratacionPT)}
-          />
-        </section>
-
-        <section className="tarjeta">
-          {registro.modoTiempo === "transmision" && (
-            <div className="editor-hora-real-inicio">
-              <span>Hora real de inicio</span>
-              <SelectorHoraEnVivo
-                value={obtenerHoraRealEditable("ST")}
-                onChange={(valor) =>
-                  actualizarHoraInicioRealPeriodo("ST", valor)
-                }
-                compacto
-              />
-            </div>
-          )}
-
-          <h2>Segundo tiempo</h2>
-
-          <BloqueEvento
-            titulo="ST"
-            inicioCampo="inicioST"
-            finalCampo="finalST"
-            duracion={formatearDuracion(resumen.tiempoST)}
-          />
-
-<div className="bloque-evento">
-  <div className="vars-header">
-    {registro.varsST.map((v, index) => (
-      <button
-        key={index}
-        type="button"
-        className={`var-chip ${
-          registro.varSTActivo === index ? "activo" : ""
-        }`}
-        onClick={() => cambiarVarActivo("ST", index)}
-      >
-        {formatearDuracion(segundosEntre(v.inicio, v.final)) ||
-          `VAR ${index + 1}`}
-      </button>
-    ))}
-  </div>
-
-  <div className="campo-hora">
-    <label>Inicio</label>
-
-    <div className="fila-hora">
-            <CampoTiempo
-        value={registro.varsST[registro.varSTActivo]?.inicio || ""}
-        onChange={(valor) => actualizarVar("ST", "inicio", valor)}
-        modoTiempo={registro.modoTiempo}
-      />
-
-      <button
-        type="button"
-        className="boton-ahora"
-        onClick={() => ponerAhoraVar("ST", "inicio")}
-      >
-        Ahora
-      </button>
-    </div>
-  </div>
-
-  <div className="campo-hora">
-    <label>Final</label>
-
-    <div className="fila-hora">
-            <CampoTiempo
-        value={registro.varsST[registro.varSTActivo]?.final || ""}
-        onChange={(valor) => actualizarVar("ST", "final", valor)}
-        modoTiempo={registro.modoTiempo}
-      />
-
-      <button
-        type="button"
-        className="boton-ahora"
-        onClick={() => ponerAhoraVar("ST", "final")}
-      >
-        Ahora
-      </button>
-    </div>
-  </div>
-
-  {registro.varsST.length < 3 && (
-    <button
-      type="button"
-      className="boton-agregar-var"
-      onClick={() => agregarVar("ST")}
-    >
-      Agregar +
-    </button>
-  )}
-</div>
-
-          <BloqueEvento
-            titulo="Hidratación ST"
-            inicioCampo="inicioHidratacionST"
-            finalCampo="finalHidratacionST"
-            duracion={formatearDuracion(resumen.tiempoHidratacionST)}
-          />
-        </section>
-
-        {registro.prorrogaActiva && (
-          <section
-            className="tarjeta tarjeta-prorroga"
-            id="seccion-prorroga"
-          >
-            <div className="cabecera-prorroga">
-              <div>
-                <span className="etiqueta-prorroga">TIEMPO EXTRA</span>
-                <h2>Prórroga</h2>
-                <p>
-                  Primer tiempo desde 090:00 · Segundo tiempo desde 105:00
-                </p>
-              </div>
-
+            <div className="selector-modo-tiempo compacto">
               <button
                 type="button"
-                className="boton-quitar-prorroga"
-                onClick={quitarProrroga}
+                className={`boton-modo-tiempo ${registro.modoTiempo === "enVivo" ? "activo" : ""}`}
+                onClick={() => seleccionarModoTiempo("enVivo")}
               >
-                Quitar
+                <span className="titulo-modo-tiempo">En vivo</span>
+                <span className="descripcion-modo-tiempo">
+                  Registrar la hora real
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`boton-modo-tiempo ${registro.modoTiempo === "transmision" ? "activo" : ""}`}
+                onClick={() => seleccionarModoTiempo("transmision")}
+              >
+                <span className="titulo-modo-tiempo">Transmisión</span>
+                <span className="descripcion-modo-tiempo">
+                  Registrar el minuto de juego
+                </span>
               </button>
             </div>
 
-            <div className="grid-prorroga">
-              <div className="periodo-prorroga">
-                <div className="titulo-periodo-prorroga">
-                  <span>1</span>
-                  <div>
-                    <strong>Primer tiempo de prórroga</strong>
-                    <small>Inicio de transmisión: 090:00</small>
-                  </div>
-                </div>
-
-                <BloqueEvento
-                  titulo="PTE"
-                  inicioCampo="inicioPTE"
-                  finalCampo="finalPTE"
-                  duracion={formatearDuracion(resumen.tiempoPTE)}
+            <div className="acciones-configuracion">
+              <button type="button" onClick={volverAPantallaFormacion}>
+                <Icono nombre="formacion" size={19} /> Modificar formación
+              </button>
+              <button
+                type="button"
+                onClick={
+                  registro.prorrogaActiva ? quitarProrroga : activarProrroga
+                }
+              >
+                <Icono
+                  nombre={registro.prorrogaActiva ? "borrar" : "plus"}
+                  size={19}
                 />
-                <BloqueVarPeriodo tipo="PTE" titulo="VAR PTE" />
-                <BloqueEvento
-                  titulo="Hidratación PTE"
-                  inicioCampo="inicioHidratacionPTE"
-                  finalCampo="finalHidratacionPTE"
-                  duracion={formatearDuracion(
-                    resumen.tiempoHidratacionPTE
-                  )}
-                />
-              </div>
-
-              <div className="periodo-prorroga">
-                <div className="titulo-periodo-prorroga">
-                  <span>2</span>
-                  <div>
-                    <strong>Segundo tiempo de prórroga</strong>
-                    <small>Inicio de transmisión: 105:00</small>
-                  </div>
-                </div>
-
-                <BloqueEvento
-                  titulo="STE"
-                  inicioCampo="inicioSTE"
-                  finalCampo="finalSTE"
-                  duracion={formatearDuracion(resumen.tiempoSTE)}
-                />
-                <BloqueVarPeriodo tipo="STE" titulo="VAR STE" />
-                <BloqueEvento
-                  titulo="Hidratación STE"
-                  inicioCampo="inicioHidratacionSTE"
-                  finalCampo="finalHidratacionSTE"
-                  duracion={formatearDuracion(
-                    resumen.tiempoHidratacionSTE
-                  )}
-                />
-              </div>
-            </div>
-          </section>
-        )}
-
-        <section className="tarjeta">
-  <h2>Cambios</h2>
-  <div className="tabla-cambios">
-            <div className="fila-cambio encabezado-cambios">
-              <div>Sale</div>
-              <div>Entra</div>
-              <div>{registro.modoTiempo === "transmision" ? "Minuto" : "Hora"}</div>
+                {registro.prorrogaActiva
+                  ? "Quitar prórroga"
+                  : "Agregar prórroga"}
+              </button>
+              <button
+                type="button"
+                className="limpiar-partido"
+                onClick={limpiarCarga}
+              >
+                <Icono nombre="borrar" size={19} /> Limpiar borrador
+              </button>
             </div>
 
-            {registro.cambios.map((cambio, index) => (
-              <div className="fila-cambio" key={`cambio-rival-${index}`}>
-                <div>
-                  <InputJugador
-                    value={cambio.sale}
-                    onChange={(valor) => actualizarCambio(index, "sale", valor)}
-                  />
-                </div>
-
-                <div>
-                  <InputJugador
-                    value={cambio.entra}
-                    onChange={(valor) => actualizarCambio(index, "entra", valor)}
-                  />
-                </div>
-
-                <div className="celda-hora-cambio">
-                                    <CampoTiempo
-                    value={cambio.hora || ""}
-                    onChange={(valor) => actualizarCambio(index, "hora", valor)}
-                    modoTiempo={registro.modoTiempo}
-                    className="input-hora-cambio"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => ponerHoraCambio(index)}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onTouchStart={quitarFoco}
-                  >
-                    Cambio {index + 1}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="boton-entretiempo"
-                    onClick={() => ponerHoraEntreTiempo(index)}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onTouchStart={quitarFoco}
-                  >
-                    ET
-                  </button>
-                </div>
+            {mostrarFormacionPartido && (
+              <div className="formacion-en-configuracion">
+                <ListaSimple
+                  titulo="10 titulares de campo"
+                  lista={registro.formacion?.titulares || []}
+                  cantidadPrimeraColumna={5}
+                />
+                <ListaSimple
+                  titulo="No ingresaron"
+                  lista={noIngresaronActuales}
+                />
               </div>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            className="boton-agregar-cambio"
-            onClick={() => agregarCambio("atletico")}
-          >
-            + Agregar cambio
-          </button>
-        </section>
-
-        <section className="tarjeta">
-          <div className="historial-titulo">
-            <h2>Formación cargada</h2>
-
+            )}
             <button
               type="button"
+              className="boton-texto mostrar-formacion"
               onClick={() => setMostrarFormacionPartido((prev) => !prev)}
             >
-              {mostrarFormacionPartido ? "Ocultar" : "Mostrar"}
+              {mostrarFormacionPartido
+                ? "Ocultar formación"
+                : "Ver formación cargada"}
             </button>
+            <EstadoVersionApp
+              actualizacionDisponible={actualizacionDisponible}
+              onActualizar={actualizarAplicacion}
+            />
           </div>
+        </details>
 
-          {mostrarFormacionPartido && (
-            <>
-              <ListaSimple
-                titulo="10 titulares de campo"
-                lista={registro.formacion?.titulares || []}
-                cantidadPrimeraColumna={5}
-              />
-
-              <ListaSimple titulo="No ingresaron" lista={noIngresaronActuales} />
-
-              <button
-                type="button"
-                className="boton-modificar-formacion"
-                onClick={modificarFormacionActual}
-              >
-                Modificar formación
-              </button>
-            </>
-          )}
-        </section>
-
-        <div className="acciones-dobles">
-          <button
-            type="button"
-            className="boton-secundario"
-            onClick={limpiarCarga}
-          >
-            Limpiar
-          </button>
-
-          <button
-            type="button"
-            className="boton-principal"
-            onClick={guardarRegistro}
-          >
-            Guardar
-          </button>
-        </div>
-
-        <section className="tarjeta tarjeta-accion-prorroga">
-          <button
-            type="button"
-            className={`boton-cargar-prorroga ${
-              registro.prorrogaActiva ? "activa" : ""
-            }`}
-            onClick={activarProrroga}
-          >
-            <strong>
-              {registro.prorrogaActiva ? "Ver Prórroga" : "Cargar Prórroga"}
-            </strong>
+        <footer className="barra-guardado">
+          <div>
+            <Icono nombre="documento" size={20} />
             <span>
-              {registro.prorrogaActiva
-                ? "La sección ya está disponible dentro del partido"
-                : "Agrega dos tiempos de 15 minutos, VAR e hidratación"}
+              <strong>Borrador automático</strong>
+              <small>
+                Los cambios quedan en este dispositivo hasta sincronizar.
+              </small>
             </span>
+          </div>
+          <button type="button" onClick={guardarRegistro} disabled={guardando}>
+            <Icono nombre={guardando ? "reloj" : "check"} size={20} />
+            {guardando ? "Guardando…" : "Guardar partido"}
           </button>
-        </section>
-
-        <section className="tarjeta">
-  <button
-    type="button"
-    className="boton-ir-registros"
-    onClick={() => setPantallaFormacion("registros")}
-  >
-    Ir a Registros
-  </button>
-</section>
-
-    </div>
-    </div>);}
+        </footer>
+      </div>
+    </MarcoAplicacion>
+  );
+}

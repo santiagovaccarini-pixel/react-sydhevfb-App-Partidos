@@ -1,16 +1,21 @@
+Option Explicit
+
 Sub Traer_Partido_Desde_Supabase()
+
+    On Error GoTo ManejarError
 
     Dim ws As Worksheet
     Dim fechaExcel As Variant, fechaSupabase As String
     Dim url As String, apiKey As String, endpoint As String
     Dim http As Object, respuesta As String
     
-    Dim tiempoPT As String, finalPT As String, inicioPT As String
-    Dim inicioST As String, finalST As String, tiempoST As String
+    Dim tiempoPT As Variant, tiempoST As Variant
+    Dim finalPT As String, inicioPT As String
+    Dim inicioST As String, finalST As String
     Dim jugadorFila As String, jugadorSale As String, jugadorEntra As String
     Dim horaCambio As Variant
     Dim filaJugador As Long, filaCambio As Long
-    Dim tiempoJugadorST As String
+    Dim tiempoJugadorST As Variant
     
     Set ws = ThisWorkbook.Sheets("Plantilla")
     
@@ -31,9 +36,11 @@ Sub Traer_Partido_Desde_Supabase()
         Exit Sub
     End If
     
-    endpoint = url & "/rest/v1/registros_partido?fecha=eq." & fechaSupabase & "&select=*&limit=1"
+    endpoint = url & "/rest/v1/registros_partido?fecha=eq." & fechaSupabase & _
+               "&select=*&order=created_at.desc&limit=1"
     
-    Set http = CreateObject("MSXML2.XMLHTTP")
+    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    http.setTimeouts 5000, 5000, 10000, 10000
     http.Open "GET", endpoint, False
     http.setRequestHeader "apikey", apiKey
     http.setRequestHeader "Authorization", "Bearer " & apiKey
@@ -109,7 +116,7 @@ Sub Traer_Partido_Desde_Supabase()
     
                 If Trim(CStr(horaCambio)) <> "" Then
     
-                    If jugadorFila = jugadorSale Then
+                    If NombresIguales(jugadorFila, jugadorSale) Then
                         If HoraMenor(horaCambio, finalPT) Then
                             tiempoJugadorST = CalcularDuracionHoras(inicioPT, CStr(horaCambio))
                         Else
@@ -118,7 +125,7 @@ Sub Traer_Partido_Desde_Supabase()
                         Exit For
                     End If
     
-                    If jugadorFila = jugadorEntra Then
+                    If NombresIguales(jugadorFila, jugadorEntra) Then
                         If HoraMenor(horaCambio, finalPT) Then
                             tiempoJugadorST = CalcularDuracionHoras(CStr(horaCambio), finalPT)
                         Else
@@ -179,7 +186,7 @@ Sub Traer_Partido_Desde_Supabase()
 
                     ' Si entró en PT, al comenzar ST ya estaba en cancha:
                     ' inicioJugadorST se mantiene en inicioST.
-                    If jugadorFila = jugadorEntra Then
+                    If NombresIguales(jugadorFila, jugadorEntra) Then
                         If Not HoraMenor(horaCambio, inicioST) Then
                             If Not HoraMenor(finalST, horaCambio) Then
                                 inicioJugadorST = CStr(horaCambio)
@@ -189,7 +196,7 @@ Sub Traer_Partido_Desde_Supabase()
 
                     ' Si sale durante ST, el tiempo termina en esa hora.
                     ' Si salió antes del ST, no jugó el segundo tiempo.
-                    If jugadorFila = jugadorSale Then
+                    If NombresIguales(jugadorFila, jugadorSale) Then
                         If HoraMenor(horaCambio, inicioST) Then
                             salioAntesST = True
                         ElseIf Not HoraMenor(finalST, horaCambio) Then
@@ -262,7 +269,7 @@ Sub Traer_Partido_Desde_Supabase()
     
                 If Trim(CStr(horaCambio)) <> "" Then
     
-                    If jugadorFila = jugadorSale Then
+                    If NombresIguales(jugadorFila, jugadorSale) Then
                         If HoraMenor(horaCambio, finalPT) Then
                             tiempoJugadorST = CalcularDuracionHoras(inicioPT, CStr(horaCambio))
                         Else
@@ -271,7 +278,7 @@ Sub Traer_Partido_Desde_Supabase()
                         Exit For
                     End If
     
-                    If jugadorFila = jugadorEntra Then
+                    If NombresIguales(jugadorFila, jugadorEntra) Then
                         If HoraMenor(horaCambio, finalPT) Then
                             tiempoJugadorST = CalcularDuracionHoras(CStr(horaCambio), finalPT)
                         Else
@@ -313,7 +320,7 @@ Sub Traer_Partido_Desde_Supabase()
     
                 If Trim(CStr(horaCambio)) <> "" Then
     
-                    If jugadorFila = jugadorSale Then
+                    If NombresIguales(jugadorFila, jugadorSale) Then
     If HoraMenor(horaCambio, inicioST) Then
         tiempoJugadorST = tiempoST
     Else
@@ -322,7 +329,7 @@ Sub Traer_Partido_Desde_Supabase()
     Exit For
 End If
     
-                    If jugadorFila = jugadorEntra Then
+                    If NombresIguales(jugadorFila, jugadorEntra) Then
     If HoraMenor(horaCambio, inicioST) Then
         tiempoJugadorST = tiempoST
     Else
@@ -344,14 +351,21 @@ End If
     
     Next filaJugador
     
-    ws.Range("EC3:EC17").NumberFormat = "hh:mm:ss"
-    ws.Range("EC19:EC33").NumberFormat = "hh:mm:ss"
-    ws.Range("EC51:EC65").NumberFormat = "hh:mm:ss"
-    ws.Range("EC67:EC81").NumberFormat = "hh:mm:ss"
+    ws.Range("EC3:EC17").NumberFormat = "[h]:mm:ss"
+    ws.Range("EC19:EC33").NumberFormat = "[h]:mm:ss"
+    ws.Range("EC51:EC65").NumberFormat = "[h]:mm:ss"
+    ws.Range("EC67:EC81").NumberFormat = "[h]:mm:ss"
     
     Application.ScreenUpdating = True
     
     MsgBox "Datos importados correctamente desde Supabase.", vbInformation
+
+    Exit Sub
+
+ManejarError:
+    Application.ScreenUpdating = True
+    MsgBox "No se pudo importar el partido." & vbCrLf & _
+           "Error " & Err.Number & ": " & Err.Description, vbCritical
 
 End Sub
 
@@ -416,7 +430,7 @@ Function JsonValor(ByVal json As String, ByVal campo As String) As String
     End If
 End Function
 
-Function CalcularDuracionHoras(ByVal horaInicio As String, ByVal horaFinal As String) As String
+Function CalcularDuracionHoras(ByVal horaInicio As String, ByVal horaFinal As String) As Variant
 
     On Error GoTo ErrorDuracion
 
@@ -438,7 +452,13 @@ Function CalcularDuracionHoras(ByVal horaInicio As String, ByVal horaFinal As St
 
     diferencia = tFinal - tInicio
 
-    CalcularDuracionHoras = Format(diferencia, "hh:mm:ss")
+    If diferencia < 0 Or diferencia > (4# / 24#) Then
+        CalcularDuracionHoras = ""
+        Exit Function
+    End If
+
+    ' Devuelve un valor temporal real; el formato visible se aplica en la hoja.
+    CalcularDuracionHoras = diferencia
 
     Exit Function
 
@@ -451,66 +471,60 @@ Function HoraMenor(ByVal hora1 As Variant, ByVal hora2 As Variant) As Boolean
 
     On Error GoTo ErrorHora
 
+    Dim valor1 As Double
+    Dim valor2 As Double
+
     If Trim(CStr(hora1)) = "" Or Trim(CStr(hora2)) = "" Then
         HoraMenor = False
         Exit Function
     End If
 
-    HoraMenor = CDate(hora1) < CDate(hora2)
+    valor1 = CDbl(TimeValue(CStr(hora1)))
+    valor2 = CDbl(TimeValue(CStr(hora2)))
+
+    ' Si la distancia supera 12 horas, se trata del cruce de medianoche.
+    ' Los eventos válidos de un partido nunca están separados por medio día.
+    If valor2 - valor1 < -0.5 Then
+        valor2 = valor2 + 1
+    ElseIf valor2 - valor1 > 0.5 Then
+        valor1 = valor1 + 1
+    End If
+
+    HoraMenor = valor1 < valor2
     Exit Function
 
 ErrorHora:
     HoraMenor = False
 
 End Function
-Public Sub Probar_Primer_Boton_Crear_Copia()
 
-    Const NOMBRE_PLANTILLA As String = "Plantilla GPS Partido_CAM_Final.xlsm"
-    Const MACRO_PRIMER_BOTON As String = "EliminarGoalkeepers"
+Function NombresIguales(ByVal nombre1 As String, ByVal nombre2 As String) As Boolean
+    NombresIguales = (NormalizarJugador(nombre1) = NormalizarJugador(nombre2))
+End Function
 
-    Dim wbPlantilla As Workbook
-    Dim nombreAntes As String
-    Dim nombreDespues As String
-    Dim rutaDespues As String
+Function NormalizarJugador(ByVal nombre As String) As String
+    Dim valor As String
 
-    On Error GoTo ManejarError
+    valor = UCase(Trim(nombre))
+    valor = Replace(valor, "Á", "A")
+    valor = Replace(valor, "É", "E")
+    valor = Replace(valor, "Í", "I")
+    valor = Replace(valor, "Ó", "O")
+    valor = Replace(valor, "Ú", "U")
+    valor = WorksheetFunction.Trim(valor)
 
-    On Error Resume Next
-    Set wbPlantilla = Workbooks(NOMBRE_PLANTILLA)
-    On Error GoTo ManejarError
+    Select Case valor
+        Case "ALAN MINDA", "A. MINDA": valor = "A MINDA"
+        Case "ANGELO PRECIADO", "A. PRECIADO": valor = "A PRECIADO"
+        Case "JUNIOR ALONSO": valor = "ALONSO"
+        Case "GUSTAVO SCARPA": valor = "SCARPA"
+        Case "TOMAS CUELLO": valor = "CUELLO"
+        Case "IVAN ROMAN": valor = "I ROMAN"
+        Case "MATEUS ISEPPE": valor = "M ISEPPE"
+        Case "MATEO CASSIERRA": valor = "M CASSIERRA"
+        Case "TOMAS PEREZ": valor = "T PEREZ"
+        Case "VITOR HUGO": valor = "V HUGO"
+    End Select
 
-    If wbPlantilla Is Nothing Then
-        MsgBox "No está abierto el archivo:" & vbCrLf & _
-               NOMBRE_PLANTILLA, vbCritical
-        Exit Sub
-    End If
-
-    nombreAntes = wbPlantilla.Name
-
-    Application.Run "'" & nombreAntes & "'!" & MACRO_PRIMER_BOTON
-
-    'El mismo objeto Workbook debería quedar renombrado por Guardar como
-    nombreDespues = wbPlantilla.Name
-    rutaDespues = wbPlantilla.FullName
-
-    If StrComp(nombreAntes, nombreDespues, vbTextCompare) = 0 Then
-        MsgBox "La macro se ejecutó, pero el archivo no cambió de nombre." & _
-               vbCrLf & vbCrLf & _
-               "Archivo actual: " & nombreDespues, vbExclamation
-        Exit Sub
-    End If
-
-    MsgBox "La copia se generó correctamente." & vbCrLf & vbCrLf & _
-           "Antes: " & nombreAntes & vbCrLf & _
-           "Ahora: " & nombreDespues & vbCrLf & vbCrLf & _
-           "Ruta:" & vbCrLf & rutaDespues, vbInformation
-
-    Exit Sub
-
-ManejarError:
-
-    MsgBox "Error al ejecutar el primer botón." & vbCrLf & vbCrLf & _
-           "Número: " & Err.Number & vbCrLf & _
-           "Descripción: " & Err.Description, vbCritical
-
-End Sub
+    NormalizarJugador = valor
+End Function

@@ -9,7 +9,9 @@ const datosVersion = JSON.parse(fs.readFileSync(rutaVersion, "utf8"));
 const version = String(datosVersion.version || "").trim();
 
 if (!/^\d{4}\.\d{2}\.\d{2}\.\d+$/.test(version)) {
-  throw new Error(`Versión inválida en public/version.json: ${version || "vacía"}`);
+  throw new Error(
+    `Versión inválida en public/version.json: ${version || "vacía"}`,
+  );
 }
 
 const contenidoApp = fs.readFileSync(rutaApp, "utf8");
@@ -21,7 +23,7 @@ if (!patronVersion.test(contenidoApp)) {
 
 const contenidoActualizado = contenidoApp.replace(
   patronVersion,
-  `const APP_VERSION = "${version}";`
+  `const APP_VERSION = "${version}";`,
 );
 
 if (contenidoActualizado !== contenidoApp) {
