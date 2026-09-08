@@ -34,7 +34,7 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.10";
+const APP_VERSION = "2026.09.08.11";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4393,6 +4393,105 @@ export default function App() {
     );
   };
 
+  // Los dos ítems del período: el VAR (con sus hasta tres marcas) y la
+  // hidratación, con inicio, fin y duración a la vista.
+  const renderItemsPeriodo = () => {
+    const vacio = registro.modoTiempo === "transmision" ? "---:--" : "--:--:--";
+
+    const renderRango = (inicio, final) => (
+      <span className="rango-item">
+        {inicio ? (
+          <strong>{inicio}</strong>
+        ) : (
+          <span className="pendiente">{vacio}</span>
+        )}
+        <span className="flecha">→</span>
+        {final ? (
+          <strong>{final}</strong>
+        ) : (
+          <span className="pendiente">{vacio}</span>
+        )}
+      </span>
+    );
+
+    const vars = registro[datosPeriodoVista.vars] || [
+      { inicio: "", final: "" },
+    ];
+    const varActivo = registro[datosPeriodoVista.activo] || 0;
+    const varMostrado = vars[varActivo] || { inicio: "", final: "" };
+
+    return (
+      <div className="items-periodo">
+        <section className="item-periodo var">
+          <span className="cabecera-item">
+            <span className="rotulo-item">
+              <span className="ico">
+                <Icono nombre="var" size={14} />
+              </span>{" "}
+              VAR
+            </span>
+          </span>
+
+          {vars.length > 1 && (
+            <span
+              className="chips-var"
+              role="tablist"
+              aria-label="Marcas de VAR"
+            >
+              {vars.map((marca, indice) => (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={varActivo === indice}
+                  className={`${varActivo === indice ? "activo" : ""} ${
+                    marca.inicio && !marca.final ? "corriendo" : ""
+                  }`}
+                  onClick={() => cambiarVarActivo(periodoVista, indice)}
+                  key={`var-${periodoVista}-${indice}`}
+                >
+                  {indice + 1}
+                </button>
+              ))}
+            </span>
+          )}
+
+          {renderRango(varMostrado.inicio, varMostrado.final)}
+
+          <span className="duracion-item">
+            {formatearDuracion(
+              segundosEntre(varMostrado.inicio, varMostrado.final),
+            ) || "--:--"}
+          </span>
+        </section>
+
+        <section className="item-periodo hidratacion">
+          <span className="cabecera-item">
+            <span className="rotulo-item">
+              <span className="ico">
+                <Icono nombre="hidratacion" size={14} />
+              </span>{" "}
+              HIDRATACIÓN
+            </span>
+          </span>
+
+          {renderRango(
+            registro[campoInicioHidratacion],
+            registro[campoFinalHidratacion],
+          )}
+
+          <span className="duracion-item">
+            {formatearDuracion(
+              segundosEntre(
+                registro[campoInicioHidratacion],
+                registro[campoFinalHidratacion],
+              ),
+            ) || "--:--"}
+          </span>
+        </section>
+      </div>
+    );
+  };
+
   const mostrarPanelCambios = () => {
     setEquipoCambios("atletico");
     window.setTimeout(
@@ -4839,14 +4938,18 @@ export default function App() {
         </section>
 
         <div className="resumen-operativo">
-          <RelojPartido
-            periodo={periodoVista}
-            modoTiempo={registro.modoTiempo}
-            referencia={registro[datosPeriodoVista.referencia]}
-            baseSegundos={datosPeriodoVista.baseSegundos}
-            inicio={registro[datosPeriodoVista.inicio]}
-            final={registro[datosPeriodoVista.final]}
-          />
+          <div className="columna-reloj">
+            <RelojPartido
+              periodo={periodoVista}
+              modoTiempo={registro.modoTiempo}
+              referencia={registro[datosPeriodoVista.referencia]}
+              baseSegundos={datosPeriodoVista.baseSegundos}
+              inicio={registro[datosPeriodoVista.inicio]}
+              final={registro[datosPeriodoVista.final]}
+            />
+
+            {renderItemsPeriodo()}
+          </div>
 
           <section
             className="selector-periodos"

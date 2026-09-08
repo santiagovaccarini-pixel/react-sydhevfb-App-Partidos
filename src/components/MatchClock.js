@@ -59,21 +59,21 @@ export const RelojPartido = ({
 
   return (
     <section className="reloj-principal" aria-live="off">
-      <div>
-        <span>
-          <strong>{periodo}</strong> · Reloj del período
-        </span>
-        <strong className="valor-reloj">{valor}</strong>
+      <div className="cinta-reloj">
         <span
           className={`badge-vivo ${iniciado && !finalizado ? "activo" : ""}`}
         >
           <span className="punto-estado" />
           {finalizado ? "Finalizado" : iniciado ? "En vivo" : "Sin iniciar"}
         </span>
+        <span className="hora-real-reloj">
+          Hora real <strong>{horaReal}</strong>
+        </span>
       </div>
-      <div className="hora-real-reloj">
-        <span>Hora real</span>
-        <strong>{horaReal}</strong>
+
+      <div className="reloj-centro">
+        <span className="rotulo-reloj">{periodo} · RELOJ DEL PERÍODO</span>
+        <strong className="valor-reloj">{valor}</strong>
       </div>
     </section>
   );
