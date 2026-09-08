@@ -5,6 +5,9 @@ import App from "./App";
 
 const doblesSupabase = vi.hoisted(() => ({
   insertar: vi.fn(),
+  // Con error, la app cae al respaldo local: es la forma de sembrar el
+  // historial sin tener que armar filas con los nombres de columna de la base.
+  errorHistorial: null,
 }));
 
 vi.mock("./supabase.js", () => ({
@@ -12,7 +15,7 @@ vi.mock("./supabase.js", () => ({
     from: () => {
       const consulta = {
         select: () => consulta,
-        order: async () => ({ data: [], error: null }),
+        order: async () => ({ data: [], error: doblesSupabase.errorHistorial }),
         insert: (filas) => {
           doblesSupabase.insertar(filas);
           return {
@@ -46,6 +49,7 @@ describe("interfaz operativa", () => {
     vi.stubGlobal("alert", vi.fn());
     vi.stubGlobal("scrollTo", vi.fn());
     doblesSupabase.insertar.mockClear();
+    doblesSupabase.errorHistorial = null;
     localStorage.clear();
     localStorage.setItem(
       "registro_actual_partido",
@@ -316,6 +320,46 @@ describe("interfaz operativa", () => {
     // El pie del escudo aparece recién cuando hay algo que informar.
     expect(contenedor.querySelector(".pie-escudo")).toBeNull();
     expect(contenedor.querySelector("#campo-rival-inicio").value).toBe("");
+  });
+
+  test("los escudos aparecen en el marcador y en la lista de registros", async () => {
+    doblesSupabase.errorHistorial = { message: "sin conexión en la prueba" };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    localStorage.setItem(
+      "backup_registros_partidos",
+      JSON.stringify([
+        { fecha: "2026-09-01", rival: "Flamengo", resultado: "2-2" },
+      ]),
+    );
+
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    // Marcador: los dos clubes tienen escudo, sea real o dibujado.
+    const marcador = contenedor.querySelectorAll(".equipo-marcador");
+    expect(marcador).toHaveLength(2);
+    marcador.forEach((equipo) =>
+      expect(
+        equipo.querySelector(".escudo-cam, .escudo-rival, .escudo-club"),
+      ).not.toBeNull(),
+    );
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+
+    // Lista de registros: la fila de afuera también los trae.
+    const fila = contenedor.querySelector(".enfrentamiento-registro");
+    expect(fila).not.toBeNull();
+    expect(
+      fila.querySelectorAll(".escudo-cam, .escudo-rival, .escudo-club"),
+    ).toHaveLength(2);
+    expect(fila.textContent).toContain("Flamengo");
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {
