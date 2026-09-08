@@ -31,7 +31,8 @@ seguridad bloqueada por la lista de usuarios autorizados.
 - Pantalla de carga fija de 1,8 segundos que demoraba innecesariamente el acceso al
   registro operativo.
 - Dependencia obsoleta de Create React App: se migró a Vite/Vitest y `npm audit`
-  queda en cero vulnerabilidades conocidas.
+  queda en cero vulnerabilidades conocidas; Vercel queda configurado para publicar
+  la salida `dist` del nuevo build.
 - Componente de detalle que se reiniciaba durante una edición por estar anidado con
   estado propio.
 - Selectores de tiempo que podían cerrarse y perder el foco al modificar un valor;
