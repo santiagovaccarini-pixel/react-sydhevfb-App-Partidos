@@ -34,10 +34,12 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.5";
+const APP_VERSION = "2026.09.08.6";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
+// Los cinco cambios reglamentarios se muestran siempre, aunque estén vacíos.
+const CAMBIOS_SIEMPRE_VISIBLES = 5;
 
 const opcionesMinutosTransmision = Array.from({ length: 121 }, (_, minuto) =>
   String(minuto).padStart(3, "0"),
@@ -58,6 +60,7 @@ const SelectorNombre = ({
   onChange,
   opciones = [],
   placeholder = "Escribir o elegir",
+  className = "",
 }) => {
   const contenedorRef = useRef(null);
   const [abierto, setAbierto] = useState(false);
@@ -152,7 +155,7 @@ const SelectorNombre = ({
 
   return (
     <div
-      className={`selector-nombre ${abierto ? "abierto" : ""}`}
+      className={`selector-nombre ${className} ${abierto ? "abierto" : ""}`}
       ref={contenedorRef}
     >
       <input
@@ -645,11 +648,23 @@ const CampoTiempo = ({
   );
 };
 
-const InputJugador = ({ value, onChange }) => (
-  <SelectorNombre value={value} onChange={onChange} opciones={jugadores} />
+const InputJugador = ({ value, onChange, className, placeholder }) => (
+  <SelectorNombre
+    value={value}
+    onChange={onChange}
+    opciones={jugadores}
+    className={className}
+    placeholder={placeholder}
+  />
 );
 
-const InputJugadorRival = ({ value, onChange, opciones = [] }) => {
+const InputJugadorRival = ({
+  value,
+  onChange,
+  opciones = [],
+  className,
+  placeholder,
+}) => {
   const valorNormalizado = normalizarNombreBusqueda(value);
   const opcionesFiltradas = valorNormalizado
     ? opciones.filter(
@@ -662,6 +677,8 @@ const InputJugadorRival = ({ value, onChange, opciones = [] }) => {
       value={value}
       onChange={onChange}
       opciones={opcionesFiltradas}
+      className={className}
+      placeholder={placeholder}
     />
   );
 };
@@ -910,8 +927,8 @@ export default function App() {
   const [periodoVista, setPeriodoVista] = useState("PT");
   const [equipoCambios, setEquipoCambios] = useState("atletico");
   const [filasCambiosVisibles, setFilasCambiosVisibles] = useState({
-    atletico: 1,
-    rival: 1,
+    atletico: CAMBIOS_SIEMPRE_VISIBLES,
+    rival: CAMBIOS_SIEMPRE_VISIBLES,
   });
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
@@ -4487,12 +4504,18 @@ export default function App() {
     );
     const cantidad = Math.min(
       (lista || []).length,
-      Math.max(filasCambiosVisibles[equipoCambios] || 1, ultimoConDatos + 2),
+      Math.max(
+        CAMBIOS_SIEMPRE_VISIBLES,
+        filasCambiosVisibles[equipoCambios] || 0,
+        ultimoConDatos + 2,
+      ),
     );
 
     return (
       <section
-        className="panel-operativo panel-cambios-operativo"
+        className={`panel-operativo panel-cambios-operativo ${
+          esRival ? "cambios-rival" : ""
+        }`}
         id="panel-cambios"
       >
         <div className="panel-titulo">
@@ -4540,101 +4563,122 @@ export default function App() {
         </div>
 
         <div className="lista-cambios-operativa">
-          {(lista || []).slice(0, cantidad).map((cambio, index) => (
-            <div className="cambio-operativo" key={`${equipoCambios}-${index}`}>
-              <div className="numero-cambio">{index + 1}</div>
-              <div className="campo-cambio-operativo">
-                <span>Sale</span>
-                {esRival ? (
-                  <InputJugadorRival
-                    opciones={opcionesJugadoresRival}
-                    value={cambio.sale}
-                    onChange={(valor) =>
-                      actualizarCambioRival(index, "sale", valor)
+          {(lista || []).slice(0, cantidad).map((cambio, index) => {
+            const cargado = Boolean(cambio.sale || cambio.entra || cambio.hora);
+
+            return (
+              <div
+                className={`ranura-cambio ${cargado ? "cargada" : ""}`}
+                key={`${equipoCambios}-${index}`}
+              >
+                <div className="columna-ranura">
+                  <span className="numero-ranura">{index + 1}</span>
+                  {cargado && (
+                    <button
+                      type="button"
+                      className="limpiar-ranura"
+                      aria-label={`Limpiar cambio ${index + 1}`}
+                      onClick={() =>
+                        limpiarFilaCambio(esRival ? "rival" : "atletico", index)
+                      }
+                    >
+                      <Icono nombre="borrar" size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="par-jugadores">
+                  {esRival ? (
+                    <InputJugadorRival
+                      className="sale"
+                      placeholder="Sale"
+                      opciones={opcionesJugadoresRival}
+                      value={cambio.sale}
+                      onChange={(valor) =>
+                        actualizarCambioRival(index, "sale", valor)
+                      }
+                    />
+                  ) : (
+                    <InputJugador
+                      className="sale"
+                      placeholder="Sale"
+                      value={cambio.sale}
+                      onChange={(valor) =>
+                        actualizarCambio(index, "sale", valor)
+                      }
+                    />
+                  )}
+
+                  <Icono nombre="cambio" size={18} className="flecha-cambio" />
+
+                  {esRival ? (
+                    <InputJugadorRival
+                      className="entra"
+                      placeholder="Entra"
+                      opciones={opcionesJugadoresRival}
+                      value={cambio.entra}
+                      onChange={(valor) =>
+                        actualizarCambioRival(index, "entra", valor)
+                      }
+                    />
+                  ) : (
+                    <InputJugador
+                      className="entra"
+                      placeholder="Entra"
+                      value={cambio.entra}
+                      onChange={(valor) =>
+                        actualizarCambio(index, "entra", valor)
+                      }
+                    />
+                  )}
+                </div>
+
+                <div className="fila-hora-cambio">
+                  <div className="hora-ranura">
+                    <CampoTiempo
+                      value={cambio.hora || ""}
+                      onChange={(valor) =>
+                        esRival
+                          ? actualizarCambioRival(
+                              index,
+                              "hora",
+                              valor,
+                              periodoVista,
+                            )
+                          : actualizarCambio(index, "hora", valor, periodoVista)
+                      }
+                      modoTiempo={registro.modoTiempo}
+                      className="input-hora-cambio"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    className="boton-ahora-cambio"
+                    onClick={() =>
+                      esRival
+                        ? ponerHoraCambioRival(index, periodoVista)
+                        : ponerHoraCambio(index, periodoVista)
                     }
-                  />
-                ) : (
-                  <InputJugador
-                    value={cambio.sale}
-                    onChange={(valor) => actualizarCambio(index, "sale", valor)}
-                  />
-                )}
-              </div>
-              <Icono nombre="cambio" size={19} className="flechas-cambio" />
-              <div className="campo-cambio-operativo">
-                <span>Entra</span>
-                {esRival ? (
-                  <InputJugadorRival
-                    opciones={opcionesJugadoresRival}
-                    value={cambio.entra}
-                    onChange={(valor) =>
-                      actualizarCambioRival(index, "entra", valor)
+                  >
+                    <Icono nombre="reloj" size={17} /> Ahora
+                  </button>
+
+                  <button
+                    type="button"
+                    className="boton-et-cambio"
+                    onClick={() =>
+                      esRival
+                        ? ponerHoraEntreTiempoRival(index)
+                        : ponerHoraEntreTiempo(index)
                     }
-                  />
-                ) : (
-                  <InputJugador
-                    value={cambio.entra}
-                    onChange={(valor) =>
-                      actualizarCambio(index, "entra", valor)
-                    }
-                  />
-                )}
+                  >
+                    ET
+                  </button>
+                </div>
               </div>
-              <div className="hora-cambio-operativa">
-                <span>
-                  {registro.modoTiempo === "transmision" ? "Minuto" : "Hora"}
-                </span>
-                <CampoTiempo
-                  value={cambio.hora || ""}
-                  onChange={(valor) =>
-                    esRival
-                      ? actualizarCambioRival(
-                          index,
-                          "hora",
-                          valor,
-                          periodoVista,
-                        )
-                      : actualizarCambio(index, "hora", valor, periodoVista)
-                  }
-                  modoTiempo={registro.modoTiempo}
-                  className="input-hora-cambio"
-                />
-              </div>
-              <div className="acciones-cambio-operativo">
-                <button
-                  type="button"
-                  className="marcar-ahora"
-                  onClick={() =>
-                    esRival
-                      ? ponerHoraCambioRival(index, periodoVista)
-                      : ponerHoraCambio(index, periodoVista)
-                  }
-                >
-                  <Icono nombre="reloj" size={17} /> Ahora
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    esRival
-                      ? ponerHoraEntreTiempoRival(index)
-                      : ponerHoraEntreTiempo(index)
-                  }
-                >
-                  ET
-                </button>
-                <button
-                  type="button"
-                  className="borrar-fila"
-                  aria-label={`Limpiar cambio ${index + 1}`}
-                  onClick={() =>
-                    limpiarFilaCambio(esRival ? "rival" : "atletico", index)
-                  }
-                >
-                  <Icono nombre="borrar" size={17} />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <button
