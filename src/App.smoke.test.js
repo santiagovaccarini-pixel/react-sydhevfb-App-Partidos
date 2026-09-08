@@ -80,9 +80,20 @@ describe("interfaz operativa", () => {
     });
     await act(async () => Promise.resolve());
 
-    expect(contenedor.textContent).toContain("Registro de partido");
+    // La cabecera muestra el rival del partido en curso.
+    expect(
+      contenedor.querySelector(".titulo-estado-partido h1").textContent,
+    ).toBe("Cruzeiro");
     expect(contenedor.textContent).toContain("Atlético Mineiro");
-    expect(contenedor.textContent).toContain("Cruzeiro");
+
+    // El marcador 1-0 deja el cero como marca de fondo, para reemplazarlo
+    // escribiendo sin tener que borrarlo antes.
+    const marcadorInicial = contenedor.querySelectorAll(
+      ".resultado-marcador input",
+    );
+    expect(marcadorInicial[0].value).toBe("1");
+    expect(marcadorInicial[1].value).toBe("");
+    expect(marcadorInicial[1].placeholder).toBe("0");
     expect(
       contenedor.querySelectorAll(".navegacion-movil button"),
     ).toHaveLength(3);
@@ -105,7 +116,7 @@ describe("interfaz operativa", () => {
 
     const marcador = contenedor.querySelectorAll(".resultado-marcador input");
     expect(marcador[0].value).toBe("1");
-    expect(marcador[1].value).toBe("0");
+    expect(marcador[1].value).toBe("");
 
     const selectorHora = contenedor.querySelector(
       ".contenido-ajustes-periodo .selector-tiempo-disparador",

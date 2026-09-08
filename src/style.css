@@ -1684,8 +1684,11 @@ button:disabled {
 }
 
 .titulo-estado-partido h1 {
+  overflow: hidden;
   margin: 0;
   color: var(--cam-blanco);
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: clamp(20px, 2.1vw, 27px);
   letter-spacing: -0.04em;
   text-transform: uppercase;
@@ -1815,6 +1818,13 @@ button:disabled {
   align-items: center;
   gap: 7px;
   padding: 0 clamp(10px, 3vw, 26px);
+}
+
+/* El cero va como marca de fondo: escribir lo reemplaza sin borrar antes */
+.resultado-marcador input::placeholder {
+  color: #b3bcb7;
+  font-weight: 900;
+  opacity: 1;
 }
 
 .resultado-marcador input {
