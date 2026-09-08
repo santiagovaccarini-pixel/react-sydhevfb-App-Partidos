@@ -157,6 +157,29 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(5);
   });
 
+  test("permite reanudar el período si se finalizó por error", async () => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    const accionPeriodo = contenedor.querySelector(".accion-periodo");
+    await act(async () => accionPeriodo.click());
+    await act(async () => accionPeriodo.click());
+
+    expect(accionPeriodo.textContent).toContain("Reanudar PT");
+    expect(accionPeriodo.disabled).toBe(false);
+    expect(accionPeriodo.className).toContain("finalizar");
+
+    await act(async () => accionPeriodo.click());
+
+    expect(accionPeriodo.textContent).toContain("Finalizar PT");
+    expect(
+      contenedor.querySelector(".selector-periodos p").textContent,
+    ).toContain("en curso");
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
