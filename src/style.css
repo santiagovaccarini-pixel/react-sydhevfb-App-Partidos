@@ -20,23 +20,6 @@ body {
   margin: 0 auto;
 }
 
-.barra-superior {
-  display: flex;
-  justify-content: flex-start;
-  margin-bottom: 12px;
-}
-
-.boton-volver-formacion {
-  height: 38px;
-  padding: 0 16px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #0f172a;
-  font-size: 13px;
-  font-weight: bold;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
-}
-
 .encabezado {
   background: linear-gradient(135deg, #000000, #16a34a);
   color: white;
@@ -127,8 +110,7 @@ button:active {
 .boton-detalle,
 .boton-eliminar-registro,
 .boton-ahora,
-.boton-entretiempo,
-.boton-volver-formacion {
+.boton-entretiempo {
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -720,16 +702,6 @@ button:active {
   font-size: 13px;
   color: #334155;
 }
-.boton-registros-inicio {
-  width: 100%;
-  height: 44px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #000000, #fffffe);
-  color: white;
-  font-size: 14px;
-  font-weight: 900;
-  margin-bottom: 14px;
-}
 .contenedor-continuar-full {
   width: 100%;
   display: block;
@@ -739,10 +711,6 @@ button:active {
   width: 100%;
   display: block;
 }
-.barra-superior {
-  position: relative;
-}
-
 .lista-formacion h3,
 .tarjeta h2,
 .tarjeta h3 {
