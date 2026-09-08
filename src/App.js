@@ -4753,10 +4753,10 @@ export default function App() {
 
                     <div className="tiempos-registro">
                       <span>
-                        PT <strong>{formatearDuracion(item.tiempoPT) || "-"}</strong>
+                        PT <strong>{item.tiempoPT || "-"}</strong>
                       </span>
                       <span>
-                        ST <strong>{formatearDuracion(item.tiempoST) || "-"}</strong>
+                        ST <strong>{item.tiempoST || "-"}</strong>
                       </span>
                     </div>
 
