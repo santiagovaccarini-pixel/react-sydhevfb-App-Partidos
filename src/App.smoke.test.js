@@ -5,7 +5,6 @@ import App from "./App";
 
 const doblesSupabase = vi.hoisted(() => ({
   insertar: vi.fn(),
-  filas: [],
 }));
 
 vi.mock("./supabase.js", () => ({
@@ -13,7 +12,7 @@ vi.mock("./supabase.js", () => ({
     from: () => {
       const consulta = {
         select: () => consulta,
-        order: async () => ({ data: doblesSupabase.filas, error: null }),
+        order: async () => ({ data: [], error: null }),
         insert: (filas) => {
           doblesSupabase.insertar(filas);
           return {
@@ -47,7 +46,6 @@ describe("interfaz operativa", () => {
     vi.stubGlobal("alert", vi.fn());
     vi.stubGlobal("scrollTo", vi.fn());
     doblesSupabase.insertar.mockClear();
-    doblesSupabase.filas = [];
     localStorage.clear();
     localStorage.setItem(
       "registro_actual_partido",
@@ -148,50 +146,5 @@ describe("interfaz operativa", () => {
 
     expect(doblesSupabase.insertar).toHaveBeenCalledTimes(1);
     expect(contenedor.textContent).toContain("Partido guardado con éxito");
-  });
-
-  test("mantiene en solo lectura los registros de otra cuenta", async () => {
-    doblesSupabase.filas = [
-      {
-        id: 91,
-        owner_id: "usuario-2",
-        fecha: "2026-09-07",
-        rival: "Flamengo",
-        resultado: "2-1",
-      },
-    ];
-
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(
-        <App
-          session={{ user: { id: "usuario-1", email: "uno@ejemplo.com" } }}
-        />,
-      );
-    });
-    await act(async () => Promise.resolve());
-
-    const irARegistros = Array.from(contenedor.querySelectorAll("button")).find(
-      (boton) => boton.textContent.includes("Ingresar a Registros"),
-    );
-    await act(async () => irARegistros.click());
-
-    expect(contenedor.textContent).toContain("Otra cuenta · solo lectura");
-    expect(
-      Array.from(contenedor.querySelectorAll("button")).some(
-        (boton) => boton.textContent === "Eliminar",
-      ),
-    ).toBe(false);
-
-    const verDetalle = Array.from(contenedor.querySelectorAll("button")).find(
-      (boton) => boton.textContent === "Ver detalle",
-    );
-    await act(async () => verDetalle.click());
-
-    expect(contenedor.textContent).toContain("pertenece a otra cuenta");
-    expect(contenedor.textContent).not.toContain("Editar registro");
-    expect(
-      localStorage.getItem("registro_actual_partido:usuario-1"),
-    ).not.toBeNull();
   });
 });

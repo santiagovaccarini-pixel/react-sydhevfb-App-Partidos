@@ -6,9 +6,9 @@ Rama revisada: `main` en `46d57ffb62a9113c7cb2850ae4d0988bab7a4a5a`
 ## Resultado
 
 Se revisaron la aplicación React, estilos, configuración, migraciones SQL y el
-módulo VBA. Esta rama corrige los problemas detectados e incorpora acceso
-multiusuario: cualquier correo puede crear una cuenta, cada usuario trabaja sólo
-con sus partidos y una cuenta administradora puede consultar el historial global.
+módulo VBA. Esta rama corrige los problemas que podían resolverse sin cambiar
+permisos ni eliminar datos. La autenticación/RLS queda como única decisión de
+seguridad bloqueada por la lista de usuarios autorizados.
 
 ## Corregido en esta rama
 
@@ -30,15 +30,6 @@ con sus partidos y una cuenta administradora puede consultar el historial global
   la herramienta de compilación anterior.
 - Pantalla de carga fija de 1,8 segundos que demoraba innecesariamente el acceso al
   registro operativo.
-- Acceso anónimo a los partidos: ahora la aplicación exige enlace mágico por
-  correo y no monta la interfaz ni consulta datos antes de validar la sesión.
-- Historial compartido sin aislamiento: cada fila queda asociada a `owner_id`,
-  los borradores locales usan una clave distinta por usuario y RLS limita las
-  escrituras al propietario. El administrador sólo obtiene lectura global.
-- Índice global fecha/rival incompatible con varias cuentas; la unicidad ahora se
-  aplica por propietario.
-- Borrado masivo peligroso para el administrador; ahora “Borrar mis registros”
-  nunca incluye filas de otras cuentas.
 - Dependencia obsoleta de Create React App: se migró a Vite/Vitest y `npm audit`
   queda en cero vulnerabilidades conocidas; Vercel queda configurado para publicar
   la salida `dist` del nuevo build.
@@ -50,12 +41,16 @@ con sus partidos y una cuenta administradora puede consultar el historial global
   no determinista, cálculo incorrecto al cruzar medianoche y una macro de prueba
   ajena al flujo.
 
-## Activación pendiente en infraestructura
+## Riesgo pendiente que requiere una decisión
 
-El código y las políticas están preparados, pero la protección no existe en la
-base activa hasta ejecutar las migraciones desde Supabase. Después hay que iniciar
-sesión una vez y ejecutar `supabase/configurar_admin.sql` con el correo del
-administrador. El correo real no se guarda en el repositorio.
+La app no presenta inicio de sesión. Si la tabla permite las operaciones actuales
+al rol anónimo, cualquier persona que obtenga la URL podría intentar leer o alterar
+partidos. La clave `sb_publishable_...` no es secreta por diseño; la protección debe
+implementarse con Supabase Auth y políticas RLS.
+
+Para cerrar este punto hacen falta los correos o el criterio de roles autorizado.
+No se incluyó una política genérica que pudiera bloquear accidentalmente a los
+usuarios actuales o permitir el alta libre de cualquier correo.
 
 ## Limitaciones conocidas del módulo Excel
 
@@ -65,15 +60,10 @@ pero requieren acordar dónde escribirlos en la plantilla Excel antes de ampliar
 macro. Tampoco se reemplazó el parser RegExp por un parser JSON externo para evitar
 agregar una dependencia VBA sin autorización.
 
-Además, la macro usa actualmente el rol anónimo de Supabase. RLS bloquea esa vía
-para no filtrar datos entre cuentas. Su reactivación segura requiere un endpoint
-servidor autenticado; una clave `service_role` nunca debe guardarse en VBA.
-
 ## Verificación
 
 - Pruebas unitarias del motor de tiempos y alias.
-- 17 pruebas automatizadas: motor de tiempos y alias, reloj aislado, navegación
-  PC/móvil, marcador, inicio de período, acción VAR, foco estable, doble guardado,
-  sesión por correo y registros ajenos de solo lectura.
+- 13 pruebas automatizadas: motor de tiempos y alias, reloj aislado, navegación
+  PC/móvil, marcador, inicio de período, acción VAR, foco estable y doble guardado.
 - Build de producción con Vite.
 - Auditoría de dependencias de producción y desarrollo.
