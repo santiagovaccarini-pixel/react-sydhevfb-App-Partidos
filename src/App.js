@@ -40,7 +40,7 @@ import {
   useEscudoClub,
 } from "./components/ClubCrest";
 import "./style.css";
-const APP_VERSION = "2026.09.08.18";
+const APP_VERSION = "2026.09.08.19";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -3348,7 +3348,7 @@ export default function App() {
   }[escudoRival.situacion];
 
   const renderPantallaInicioFormacion = () => (
-    <div className="app">
+    <div className="app app-inicio">
       <div className="contenedor contenedor-inicio-formacion">
         {partidoEnCurso && (
           <button
