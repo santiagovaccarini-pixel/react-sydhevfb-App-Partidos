@@ -34,7 +34,7 @@ import {
 } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import "./style.css";
-const APP_VERSION = "2026.09.08.9";
+const APP_VERSION = "2026.09.08.10";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1177,7 +1177,7 @@ export default function App() {
         console.warn("El respaldo local del historial no es válido.");
       }
 
-      setMensajeGuardado("Sin conexión · mostrando el respaldo local");
+      // El respaldo local se muestra sin avisar: el cartel tapaba el marcador.
       setHistorialCargado(true);
       return;
     }
@@ -4323,13 +4323,30 @@ export default function App() {
   const datosPeriodoVista = obtenerConfigPeriodo(periodoVista);
   const periodoIniciado = Boolean(registro[datosPeriodoVista.inicio]);
   const periodoFinalizado = Boolean(registro[datosPeriodoVista.final]);
+  // Borra el final del período para que el reloj vuelva a correr, por si se
+  // tocó "Finalizar" sin querer.
+  const reanudarPeriodo = () => {
+    mantenerPosicion(() =>
+      setRegistro((prev) => ({
+        ...prev,
+        [datosPeriodoVista.final]: "",
+        [datosPeriodoVista.horaFinalReal]: "",
+      })),
+    );
+  };
+
   const ejecutarAccionPeriodo = () => {
     if (!periodoIniciado) {
       ponerAhora(datosPeriodoVista.inicio);
       return;
     }
 
-    if (!periodoFinalizado) ponerAhora(datosPeriodoVista.final);
+    if (periodoFinalizado) {
+      reanudarPeriodo();
+      return;
+    }
+
+    ponerAhora(datosPeriodoVista.final);
   };
 
   const varActual =
@@ -4739,7 +4756,7 @@ export default function App() {
     ? `Iniciar ${periodoVista}`
     : !periodoFinalizado
       ? `Finalizar ${periodoVista}`
-      : `${periodoVista} finalizado`;
+      : `Reanudar ${periodoVista}`;
   const etiquetaVar = !varActual.inicio
     ? "Iniciar VAR"
     : !varActual.final
@@ -4920,9 +4937,8 @@ export default function App() {
 
             <button
               type="button"
-              className={`accion-periodo ${periodoIniciado && !periodoFinalizado ? "finalizar" : ""}`}
+              className={`accion-periodo ${periodoIniciado ? "finalizar" : ""}`}
               onClick={ejecutarAccionPeriodo}
-              disabled={periodoFinalizado}
             >
               <span className="simbolo-accion-periodo" />{" "}
               {etiquetaAccionPeriodo}
