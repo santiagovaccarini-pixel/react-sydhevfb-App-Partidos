@@ -86,7 +86,8 @@ export const Icono = ({ nombre, size = 22, className = "" }) => (
   </svg>
 );
 
-const siluetaEscudo = "M7 25h50v23c0 14.5-9.3 23.2-25 30C16.3 71.2 7 62.5 7 48Z";
+const siluetaEscudo =
+  "M7 25h50v23c0 14.5-9.3 23.2-25 30C16.3 71.2 7 62.5 7 48Z";
 
 export const EscudoCAM = ({ compacto = false }) => {
   const recorte = useId();
@@ -157,46 +158,59 @@ const destinos = [
 export const MarcoAplicacion = ({
   activo = "partido",
   onNavigate,
+  hayPartido = true,
   children,
-}) => (
-  <div className="marco-aplicacion">
-    <aside className="navegacion-escritorio" aria-label="Navegación principal">
-      <div className="marca-aplicacion">
-        <EscudoCAM />
-        <strong>Registro Partido</strong>
-      </div>
+}) => {
+  // Sin un partido cargado, el tablero no tiene nada que mostrar; Ajustes
+  // también vive dentro de él, así que se ocultan los dos.
+  const destinosDelTablero = ["partido", "ajustes"];
+  const destinosVisibles = destinos.filter(
+    (destino) => hayPartido || !destinosDelTablero.includes(destino.id),
+  );
 
-      <nav>
-        {destinos.map((destino) => (
-          <button
-            key={destino.id}
-            type="button"
-            className={activo === destino.id ? "activo" : ""}
-            onClick={() => onNavigate(destino.id)}
-          >
-            <Icono nombre={destino.icono} />
-            <span>{destino.etiqueta}</span>
-          </button>
-        ))}
+  return (
+    <div className="marco-aplicacion">
+      <aside
+        className="navegacion-escritorio"
+        aria-label="Navegación principal"
+      >
+        <div className="marca-aplicacion">
+          <EscudoCAM />
+          <strong>Registro Partido</strong>
+        </div>
+
+        <nav>
+          {destinosVisibles.map((destino) => (
+            <button
+              key={destino.id}
+              type="button"
+              className={activo === destino.id ? "activo" : ""}
+              onClick={() => onNavigate(destino.id)}
+            >
+              <Icono nombre={destino.icono} />
+              <span>{destino.etiqueta}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <main className="contenido-aplicacion">{children}</main>
+
+      <nav className="navegacion-movil" aria-label="Navegación principal">
+        {destinosVisibles
+          .filter((destino) => !destino.escritorio)
+          .map((destino) => (
+            <button
+              key={destino.id}
+              type="button"
+              className={activo === destino.id ? "activo" : ""}
+              onClick={() => onNavigate(destino.id)}
+            >
+              <Icono nombre={destino.icono} size={21} />
+              <span>{destino.etiqueta}</span>
+            </button>
+          ))}
       </nav>
-    </aside>
-
-    <main className="contenido-aplicacion">{children}</main>
-
-    <nav className="navegacion-movil" aria-label="Navegación principal">
-      {destinos
-        .filter((destino) => !destino.escritorio)
-        .map((destino) => (
-          <button
-            key={destino.id}
-            type="button"
-            className={activo === destino.id ? "activo" : ""}
-            onClick={() => onNavigate(destino.id)}
-          >
-            <Icono nombre={destino.icono} size={21} />
-            <span>{destino.etiqueta}</span>
-          </button>
-        ))}
-    </nav>
-  </div>
-);
+    </div>
+  );
+};
