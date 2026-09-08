@@ -34,7 +34,7 @@ const jugadores = [
   "THIAGO BORBAS",
   "KEVIN CASTANO",
   "FRED",
-  "LEMOS"
+  "LEMOS",
 ];
 
 export default jugadores;
