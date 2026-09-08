@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 
 const trazos = {
   partido: (
@@ -86,18 +86,66 @@ export const Icono = ({ nombre, size = 22, className = "" }) => (
   </svg>
 );
 
-export const EscudoCAM = ({ compacto = false }) => (
-  <span className={`escudo-cam ${compacto ? "compacto" : ""}`} aria-label="CAM">
-    <svg viewBox="0 0 70 82" role="img" aria-hidden="true">
-      <path d="M35 2 39 11 49 12 41 18 44 28 35 22 26 28 29 18 21 12 31 11Z" />
-      <path d="M8 25h54v24c0 15-10 24-27 31C18 73 8 64 8 49Z" />
-      <path d="M14 44h42M22 44v25M34 44v31M47 44v25" />
-      <text x="35" y="39" textAnchor="middle">
-        CAM
-      </text>
-    </svg>
-  </span>
-);
+const siluetaEscudo = "M7 25h50v23c0 14.5-9.3 23.2-25 30C16.3 71.2 7 62.5 7 48Z";
+
+export const EscudoCAM = ({ compacto = false }) => {
+  const recorte = useId();
+
+  return (
+    <span
+      className={`escudo-cam ${compacto ? "compacto" : ""}`}
+      aria-label="Atlético Mineiro"
+    >
+      <svg viewBox="0 0 64 82" role="img" aria-hidden="true">
+        <defs>
+          <clipPath id={recorte}>
+            <path d={siluetaEscudo} />
+          </clipPath>
+        </defs>
+
+        <path
+          className="estrella-escudo"
+          d="M32 1.5 35.3 8.7 43.2 9.7 37.4 15.1 38.9 22.9 32 19.1 25.1 22.9 26.6 15.1 20.8 9.7 28.7 8.7Z"
+        />
+
+        <path className="cuerpo-escudo" d={siluetaEscudo} />
+
+        <g className="franjas-escudo" clipPath={`url(#${recorte})`}>
+          <rect x="11" y="44" width="7" height="36" />
+          <rect x="25" y="44" width="7" height="36" />
+          <rect x="39" y="44" width="7" height="36" />
+        </g>
+
+        <path className="contorno-escudo" d={siluetaEscudo} />
+
+        <text x="32" y="39" textAnchor="middle">
+          CAM
+        </text>
+      </svg>
+    </span>
+  );
+};
+
+export const EscudoRival = ({ nombre = "", mini = false }) => {
+  const inicial = (String(nombre).trim()[0] || "R").toUpperCase();
+
+  return (
+    <span
+      className={`escudo-rival ${mini ? "mini" : ""}`}
+      aria-label={String(nombre).trim() || "Rival"}
+    >
+      <svg viewBox="0 0 64 82" role="img" aria-hidden="true">
+        <path
+          className="cuerpo-escudo-rival"
+          d="M7 10h50v38c0 14.5-9.3 23.2-25 30C16.3 71.2 7 62.5 7 48Z"
+        />
+        <text x="32" y="50" textAnchor="middle">
+          {inicial}
+        </text>
+      </svg>
+    </span>
+  );
+};
 
 const destinos = [
   { id: "partido", etiqueta: "Partido", icono: "partido" },
