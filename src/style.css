@@ -1283,9 +1283,9 @@ button:active {
   left: 0;
   right: 0;
   z-index: 300;
-  /* Más ancha que el campo: los nombres entran enteros y el blanco al que hay
-     que apuntar es más grande. Crece hacia adentro de la tarjeta. */
-  min-width: 200px;
+  /* Tope duro: sin esto, una lista más ancha que su campo empuja la página y
+     la deja scrolleable de costado en pantallas de 320-360px. */
+  max-width: calc(100vw - 20px);
   max-height: 230px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1295,6 +1295,12 @@ button:active {
   border-radius: 13px;
   background: #ffffff;
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.28);
+}
+
+/* Los campos de la fila de cambios son angostos: la lista se ensancha, cada
+   una hacia adentro de la tarjeta, así el nombre entra entero. */
+.par-jugadores .selector-nombre-lista {
+  min-width: 200px;
 }
 
 .par-jugadores .selector-nombre.sale .selector-nombre-lista {
