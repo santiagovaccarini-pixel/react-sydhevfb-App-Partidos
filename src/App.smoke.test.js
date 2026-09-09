@@ -501,6 +501,8 @@ describe("interfaz operativa", () => {
     const grillas = contenedor.querySelectorAll(".grilla-plantel");
     expect(grillas).toHaveLength(2);
     expect(grillas[0].querySelectorAll(".fila-plantel")).toHaveLength(10);
+    // El banco arranca con diez lugares; los que falten se agregan a mano.
+    expect(grillas[1].querySelectorAll(".fila-plantel")).toHaveLength(10);
 
     const contadores = contenedor.querySelectorAll(".contador-plantel");
     expect(contadores[0].textContent).toBe("0/10");
