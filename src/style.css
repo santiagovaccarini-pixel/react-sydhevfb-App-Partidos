@@ -3578,3 +3578,117 @@ button:disabled {
   height: 100vh;
   background: rgba(0, 0, 0, 0.35);
 }
+
+/* Pantalla de Ingresar formación: planilla de plantel, en dos columnas */
+.contenedor-formacion {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.tarjeta-datos-partido {
+  display: grid;
+  gap: 12px;
+}
+
+.tarjeta-datos-partido .selector-modo-tiempo {
+  margin: 0;
+}
+
+.titulo-plantel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Gana a la regla que convierte los h2 de las tarjetas en una barra verde:
+   acá son títulos, no botones, y parecían tocables. */
+.tarjeta .titulo-plantel h2 {
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--cam-negro);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.contador-plantel {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 99px;
+  color: var(--cam-gris);
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.contador-plantel.completo {
+  border-color: #b8dec9;
+  background: var(--cam-verde-suave);
+  color: var(--cam-verde-oscuro);
+}
+
+.grilla-plantel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+}
+
+/* El número va adentro del campo: así cada jugador ocupa una línea y no dos */
+.fila-plantel {
+  position: relative;
+  min-width: 0;
+}
+
+.numero-plantel {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: #eef1f5;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.fila-plantel .input-jugador {
+  height: 46px;
+  padding: 0 10px 0 38px;
+  border-color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.fila-plantel .input-jugador::placeholder {
+  color: #a8b3c0;
+  font-weight: 700;
+}
+
+.acciones-formacion {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 10px;
+}
+
+.acciones-formacion button {
+  margin: 0;
+}
