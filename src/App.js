@@ -44,7 +44,7 @@ const IMAGEN_INTRO =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 const DURACION_INTRO = 1800;
 
-const APP_VERSION = "2026.09.09.6";
+const APP_VERSION = "2026.09.09.7";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -3193,114 +3193,120 @@ export default function App() {
     );
   };
 
-  const renderFormularioFormacion = () => (
-    <div className="app">
-      <div className="contenedor">
-        <header className="encabezado">
-          <h1>Cargar formación</h1>
-          <p>
-            Revisá los 10 titulares de campo y la lista interna de convocados.
-          </p>
-        </header>
+  const renderFormularioFormacion = () => {
+    const cargados = (lista) =>
+      (lista || []).filter((jugador) => String(jugador || "").trim()).length;
 
-        <section className="tarjeta">
-          <label>Fecha del partido</label>
-          <input
-            type="date"
-            value={fechaFormacion}
-            onChange={(e) => setFechaFormacion(e.target.value)}
-          />
-
-          {mensajeFormacion && (
-            <div className="aviso-formacion">{mensajeFormacion}</div>
-          )}
-          <div className="selector-modo-tiempo">
-            <button
-              type="button"
-              className={`boton-modo-tiempo ${
-                registro.modoTiempo === "transmision" ? "activo" : ""
-              }`}
-              onClick={() => seleccionarModoTiempo("transmision")}
-            >
-              <span className="titulo-modo-tiempo">Transmisión</span>
-              <span className="descripcion-modo-tiempo">Minutos de juego</span>
-            </button>
-
-            <button
-              type="button"
-              className={`boton-modo-tiempo ${
-                (registro.modoTiempo || "enVivo") === "enVivo" ? "activo" : ""
-              }`}
-              onClick={() => seleccionarModoTiempo("enVivo")}
-            >
-              <span className="titulo-modo-tiempo">En Vivo</span>
-              <span className="descripcion-modo-tiempo">Hora actual</span>
-            </button>
+    // Dos columnas que se llenan hacia abajo, como una planilla: 1 a 5 a la
+    // izquierda y 6 a 10 a la derecha. Las filas se calculan según cuántos
+    // hay, para que no quede una columna vacía.
+    const renderGrupo = (lista, prefijo, alCambiar) => (
+      <div
+        className="grilla-plantel"
+        style={{
+          gridTemplateRows: `repeat(${Math.max(1, Math.ceil(lista.length / 2))}, auto)`,
+        }}
+      >
+        {lista.map((jugador, indice) => (
+          <div className="fila-plantel" key={`${prefijo}-${indice}`}>
+            <span className="numero-plantel" aria-hidden="true">
+              {indice + 1}
+            </span>
+            <InputJugador
+              value={jugador}
+              placeholder={`${prefijo} ${indice + 1}`}
+              onChange={(valor) => alCambiar(indice, valor)}
+            />
           </div>
+        ))}
+      </div>
+    );
 
-            <h2>10 titulares de campo</h2>
+    const titulares = cargados(formacionTemporal.titulares);
+    const convocados = cargados(formacionTemporal.convocados);
 
-            <div className="formacion-grid">
-              {[0, 5].map((inicioColumna) => (
-                <div
-                  className="columna-formacion"
-                  key={`titulares-col-${inicioColumna}`}
-                >
-                  {formacionTemporal.titulares
-                    .slice(inicioColumna, inicioColumna + 5)
-                    .map((jugador, index) => {
-                      const indexReal = inicioColumna + index;
+    return (
+      <div className="app app-formacion">
+        <div className="contenedor contenedor-formacion">
+          <header className="encabezado">
+            <h1>Ingresar formación</h1>
+            <p>Los 10 titulares de campo y los convocados que van al banco.</p>
+          </header>
 
-                      return (
-                        <div
-                          className="campo-formacion"
-                          key={`titular-${indexReal}`}
-                        >
-                          <label>Titular {indexReal + 1}</label>
-                          <InputJugador
-                            value={jugador}
-                            onChange={(valor) =>
-                              actualizarTitularTemporal(indexReal, valor)
-                            }
-                          />
-                        </div>
-                      );
-                    })}
-                </div>
-              ))}
+          <section className="tarjeta tarjeta-datos-partido">
+            <div className="campo-inicio">
+              <label htmlFor="fecha-formacion">Fecha del partido</label>
+              <input
+                id="fecha-formacion"
+                type="date"
+                value={fechaFormacion}
+                onChange={(e) => setFechaFormacion(e.target.value)}
+              />
             </div>
 
-            <h2>Convocados no titulares</h2>
+            <div className="selector-modo-tiempo">
+              <button
+                type="button"
+                className={`boton-modo-tiempo ${
+                  registro.modoTiempo === "transmision" ? "activo" : ""
+                }`}
+                onClick={() => seleccionarModoTiempo("transmision")}
+              >
+                <span className="titulo-modo-tiempo">Transmisión</span>
+                <span className="descripcion-modo-tiempo">
+                  Minutos de juego
+                </span>
+              </button>
 
-            <div className="formacion-grid">
-              {[0, 6].map((inicioColumna) => (
-                <div
-                  className="columna-formacion"
-                  key={`convocados-col-${inicioColumna}`}
-                >
-                  {formacionTemporal.convocados
-                    .slice(inicioColumna, inicioColumna + 6)
-                    .map((jugador, index) => {
-                      const indexReal = inicioColumna + index;
-
-                      return (
-                        <div
-                          className="campo-formacion"
-                          key={`convocado-${indexReal}`}
-                        >
-                          <label>Convocado {indexReal + 1}</label>
-                          <InputJugador
-                            value={jugador}
-                            onChange={(valor) =>
-                              actualizarConvocadoTemporal(indexReal, valor)
-                            }
-                          />
-                        </div>
-                      );
-                    })}
-                </div>
-              ))}
+              <button
+                type="button"
+                className={`boton-modo-tiempo ${
+                  (registro.modoTiempo || "enVivo") === "enVivo" ? "activo" : ""
+                }`}
+                onClick={() => seleccionarModoTiempo("enVivo")}
+              >
+                <span className="titulo-modo-tiempo">En Vivo</span>
+                <span className="descripcion-modo-tiempo">Hora actual</span>
+              </button>
             </div>
+
+            {mensajeFormacion && (
+              <div className="aviso-formacion">{mensajeFormacion}</div>
+            )}
+          </section>
+
+          <section className="tarjeta">
+            <div className="titulo-plantel">
+              <h2>Titulares de campo</h2>
+              <span
+                className={`contador-plantel ${
+                  titulares === formacionTemporal.titulares.length
+                    ? "completo"
+                    : ""
+                }`}
+              >
+                {titulares}/{formacionTemporal.titulares.length}
+              </span>
+            </div>
+
+            {renderGrupo(
+              formacionTemporal.titulares,
+              "Titular",
+              actualizarTitularTemporal,
+            )}
+          </section>
+
+          <section className="tarjeta">
+            <div className="titulo-plantel">
+              <h2>Convocados al banco</h2>
+              <span className="contador-plantel">{convocados}</span>
+            </div>
+
+            {renderGrupo(
+              formacionTemporal.convocados,
+              "Convocado",
+              actualizarConvocadoTemporal,
+            )}
 
             <button
               type="button"
@@ -3309,28 +3315,29 @@ export default function App() {
             >
               + Agregar jugador
             </button>
+          </section>
 
-            <div className="acciones-dobles">
-              <button
-                type="button"
-                className="boton-secundario"
-                onClick={() => setPantallaFormacion("inicio")}
-              >
-                ← Volver
-              </button>
+          <div className="acciones-formacion">
+            <button
+              type="button"
+              className="boton-secundario"
+              onClick={() => setPantallaFormacion("inicio")}
+            >
+              ← Volver
+            </button>
 
-              <button
-                type="button"
-                className="boton-principal"
-                onClick={continuarConFormacion}
-              >
-                Guardar formación
-              </button>
-            </div>
-        </section>
+            <button
+              type="button"
+              className="boton-principal"
+              onClick={continuarConFormacion}
+            >
+              Guardar formación
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const fechaLargaFormacion = (() => {
     const fecha = new Date(`${fechaFormacion}T00:00:00`);

@@ -487,6 +487,53 @@ describe("interfaz operativa", () => {
     expect(filas()).toHaveLength(2);
   });
 
+  test("la pantalla de formación es una planilla, no una lista de etiquetas", async () => {
+    localStorage.removeItem("registro_actual_partido");
+
+    await montarApp();
+
+    const ingresar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Ingresar Formación"),
+    );
+    await act(async () => ingresar.click());
+
+    // Dos grupos: titulares y convocados, cada uno con su contador.
+    const grillas = contenedor.querySelectorAll(".grilla-plantel");
+    expect(grillas).toHaveLength(2);
+    expect(grillas[0].querySelectorAll(".fila-plantel")).toHaveLength(10);
+
+    const contadores = contenedor.querySelectorAll(".contador-plantel");
+    expect(contadores[0].textContent).toBe("0/10");
+    expect(contadores[0].className).not.toContain("completo");
+
+    // El número va adentro del campo: una línea por jugador, sin etiqueta aparte.
+    const fila = grillas[0].querySelector(".fila-plantel");
+    expect(fila.querySelector(".numero-plantel").textContent).toBe("1");
+    expect(fila.querySelector("label")).toBeNull();
+
+    // Los títulos son texto, no los botones verdes que parecían tocables.
+    const titulo = contenedor.querySelector(".titulo-plantel h2");
+    expect(titulo.textContent).toBe("Titulares de campo");
+    expect(titulo.tagName).toBe("H2");
+
+    // Al completar los diez, el contador lo celebra.
+    const campos = grillas[0].querySelectorAll(".input-jugador");
+    await act(async () => {
+      campos.forEach((campo, i) => {
+        const setter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype,
+          "value",
+        ).set;
+        setter.call(campo, `JUGADOR ${i + 1}`);
+        campo.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    });
+
+    const contadorFinal = contenedor.querySelectorAll(".contador-plantel")[0];
+    expect(contadorFinal.textContent).toBe("10/10");
+    expect(contadorFinal.className).toContain("completo");
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await montarApp();
 
