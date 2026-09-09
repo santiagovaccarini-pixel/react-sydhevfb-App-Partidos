@@ -442,6 +442,60 @@ describe("interfaz operativa", () => {
     expect(entra.primera).toBe("BERNARD");
   });
 
+  test("borrar registros confirma en la hoja, no en el confirm del navegador", async () => {
+    doblesSupabase.errorHistorial = { message: "sin conexión en la prueba" };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    localStorage.setItem(
+      "backup_registros_partidos",
+      JSON.stringify([
+        { fecha: "2026-09-01", rival: "Flamengo", resultado: "2-2" },
+        { fecha: "2026-08-24", rival: "Palmeiras", resultado: "0-1" },
+      ]),
+    );
+
+    const confirmNativo = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirmNativo);
+
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+
+    const filas = () => contenedor.querySelectorAll(".registro-guardado");
+    expect(filas()).toHaveLength(2);
+
+    const borrarTodo = Array.from(
+      contenedor.querySelectorAll("button"),
+    ).find((boton) => boton.textContent.includes("Borrar historial"));
+
+    await act(async () => borrarTodo.click());
+
+    const hoja = contenedor.querySelector(".hoja-confirmar");
+    expect(hoja).not.toBeNull();
+    expect(confirmNativo).not.toHaveBeenCalled();
+    expect(hoja.querySelector("h3").textContent).toContain(
+      "¿Borrar todos los registros?",
+    );
+    // El detalle dice cuántos se van, para no borrar de más sin querer.
+    expect(hoja.querySelector(".detalle-hoja").textContent).toContain(
+      "2 partidos guardados",
+    );
+
+    // Cancelar no borra nada.
+    await act(async () =>
+      contenedor.querySelector(".boton-cancelar-hoja").click(),
+    );
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(filas()).toHaveLength(2);
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
