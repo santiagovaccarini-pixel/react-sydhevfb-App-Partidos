@@ -44,7 +44,7 @@ const IMAGEN_INTRO =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 const DURACION_INTRO = 1800;
 
-const APP_VERSION = "2026.09.09.8";
+const APP_VERSION = "2026.09.09.9";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -899,6 +899,25 @@ export default function App() {
       const arregloSeguro = (valor, respaldo) =>
         Array.isArray(valor) && valor.length > 0 ? valor : respaldo;
 
+      // Un borrador guardado antes puede traer más lugares de los que se usan
+      // hoy. Se recortan los del final que estén vacíos, sin bajar del mínimo
+      // y sin tocar nunca un nombre cargado.
+      const recortarLugaresLibres = (valor, minimo) => {
+        if (!Array.isArray(valor) || valor.length === 0) {
+          return Array.from({ length: minimo }, () => "");
+        }
+
+        const lista = [...valor];
+        while (
+          lista.length > minimo &&
+          !String(lista[lista.length - 1] || "").trim()
+        ) {
+          lista.pop();
+        }
+
+        return lista;
+      };
+
       return {
         ...registroVacio,
         ...registroRecuperado,
@@ -936,13 +955,13 @@ export default function App() {
           ? registroRecuperado.varSTEActivo
           : 0,
         formacion: {
-          titulares: arregloSeguro(
+          titulares: recortarLugaresLibres(
             registroRecuperado.formacion?.titulares,
-            registroVacio.formacion.titulares,
+            registroVacio.formacion.titulares.length,
           ),
-          convocados: arregloSeguro(
+          convocados: recortarLugaresLibres(
             registroRecuperado.formacion?.convocados,
-            registroVacio.formacion.convocados,
+            registroVacio.formacion.convocados.length,
           ),
         },
       };
