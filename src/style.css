@@ -3556,3 +3556,25 @@ button:disabled {
 .pie-escudo.sin-resultado {
   color: #a1785a;
 }
+
+/* Pantalla de intro, tal como estaba antes del rediseño: la foto del estadio
+   a pantalla completa con un velo oscuro encima. El color de fondo queda de
+   respaldo, para que si la imagen no carga no aparezca un blanco. */
+.intro-pantalla {
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  background-color: #020617;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.overlay-intro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.35);
+}
