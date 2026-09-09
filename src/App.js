@@ -37,7 +37,7 @@ import {
   useEscudoClub,
 } from "./components/ClubCrest";
 import "./style.css";
-const APP_VERSION = "2026.09.09.3";
+const APP_VERSION = "2026.09.09.4";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -964,7 +964,17 @@ export default function App() {
 
   const [partidoEnCurso, setPartidoEnCurso] = useState(hayFormacionInicial);
 
-  const [confirmarLimpieza, setConfirmarLimpieza] = useState(false);
+  // Una sola hoja para todas las confirmaciones: la que esté pedida en el
+  // momento. Reemplaza a los window.confirm del navegador.
+  const [confirmacion, setConfirmacion] = useState(null);
+
+  const cerrarConfirmacion = () => setConfirmacion(null);
+
+  const confirmarAccion = () => {
+    const accion = confirmacion?.onConfirmar;
+    setConfirmacion(null);
+    accion?.();
+  };
 
   // Escudos reales. El nuestro es siempre el mismo, así que no hay nada que
   // esperar; el del rival se busca mientras se escribe el nombre.
@@ -1432,16 +1442,20 @@ export default function App() {
   };
 
   const quitarProrroga = () => {
-    const confirmar = window.confirm(
-      "¿Querés quitar la prórroga y borrar todos sus horarios?",
-    );
-
-    if (!confirmar) return;
-
-    setRegistro((prev) => ({
-      ...prev,
-      ...crearProrrogaVacia(),
-    }));
+    setConfirmacion({
+      titulo: "¿Quitar la prórroga?",
+      descripcion:
+        "Se borran los horarios de los dos tiempos suplementarios. El resto del partido queda igual.",
+      etiquetaConfirmar: "Sí, quitar",
+      onConfirmar: () => {
+        setRegistro((prev) => ({
+          ...prev,
+          ...crearProrrogaVacia(),
+        }));
+        // La vista vuelve al primer tiempo recién cuando la prórroga se fue.
+        setPeriodoVista("PT");
+      },
+    });
   };
 
   const importarJugadoresRival = async () => {
@@ -2609,13 +2623,41 @@ export default function App() {
     }
   };
 
+  // Detalle de lo que está por borrarse, para no limpiar un partido por error.
+  const resumenPartidoEnCurso = () => {
+    const cambiosCargados = [
+      ...(registro.cambios || []),
+      ...(registro.cambiosRival || []),
+    ].filter((cambio) => cambio?.sale?.trim() || cambio?.entra?.trim()).length;
+    const rivalCargado = (registro.rival || "").trim();
+
+    return (
+      <>
+        <Icono nombre="cambio" size={15} />
+        {rivalCargado ? `vs ${rivalCargado}` : "Sin rival cargado"}
+        <span>
+          ·{" "}
+          {cambiosCargados === 0
+            ? "sin cambios"
+            : cambiosCargados === 1
+              ? "1 cambio cargado"
+              : `${cambiosCargados} cambios cargados`}
+        </span>
+      </>
+    );
+  };
+
   const limpiarCarga = () => {
-    setConfirmarLimpieza(true);
+    setConfirmacion({
+      titulo: "¿Borrar el partido en curso?",
+      descripcion:
+        "Se pierden la formación, los horarios y los cambios que cargaste. Los partidos ya guardados no se tocan.",
+      detalle: resumenPartidoEnCurso(),
+      onConfirmar: confirmarLimpiarCarga,
+    });
   };
 
   const confirmarLimpiarCarga = () => {
-    setConfirmarLimpieza(false);
-
     const nuevoRegistro = crearRegistroVacio();
 
     setRegistro(nuevoRegistro);
@@ -2729,13 +2771,24 @@ export default function App() {
       convocados: registroParaGuardar.formacion?.convocados || [],
     };
   };
-  const borrarHistorial = async () => {
-    const confirmar = window.confirm(
-      "¿Seguro que querés borrar todos los registros? Esta acción también borra los datos de Supabase.",
-    );
+  const borrarHistorial = () => {
+    setConfirmacion({
+      titulo: "¿Borrar todos los registros?",
+      descripcion:
+        "Se borran de este teléfono y también de la base. No hay forma de recuperarlos.",
+      detalle: (
+        <>
+          <Icono nombre="registros" size={15} />
+          {guardados.length}{" "}
+          {guardados.length === 1 ? "partido guardado" : "partidos guardados"}
+        </>
+      ),
+      etiquetaConfirmar: "Sí, borrar todo",
+      onConfirmar: confirmarBorrarHistorial,
+    });
+  };
 
-    if (!confirmar) return;
-
+  const confirmarBorrarHistorial = async () => {
     const ids = guardados
       .map((registro) => registro.idSupabase)
       .filter(Boolean);
@@ -2758,13 +2811,26 @@ export default function App() {
     setRegistroSeleccionado(null);
   };
 
-  const eliminarRegistro = async (indexAEliminar) => {
-    const confirmar = window.confirm(
-      "¿Querés eliminar este registro? También se va a borrar de Supabase.",
-    );
+  const eliminarRegistro = (indexAEliminar) => {
+    const registro = guardados[indexAEliminar];
 
-    if (!confirmar) return;
+    setConfirmacion({
+      titulo: "¿Eliminar este registro?",
+      descripcion:
+        "Se borra de este teléfono y también de la base. No hay forma de recuperarlo.",
+      detalle: (
+        <>
+          <Icono nombre="cambio" size={15} />
+          {registro?.rival?.trim() || "Sin rival"}
+          <span>· {formatearFechaPantalla(registro?.fecha)}</span>
+        </>
+      ),
+      etiquetaConfirmar: "Sí, eliminar",
+      onConfirmar: () => confirmarEliminarRegistro(indexAEliminar),
+    });
+  };
 
+  const confirmarEliminarRegistro = async (indexAEliminar) => {
     const registroAEliminar = guardados[indexAEliminar];
 
     if (!registroAEliminar?.idSupabase) {
@@ -2944,40 +3010,6 @@ export default function App() {
       document.body.appendChild(script);
     });
   };
-  const importarFormacionAutomatica = async () => {
-    setMensajeFormacion("Buscando formación oficial...");
-
-    try {
-      const url =
-        "https://script.google.com/macros/s/AKfycbxK9paHAC-hsydI_7ylKXuQs_FJD3pH0ACyCII83LODvCBGQoZdxa1YBF8Iz8Uu-i7K/exec" +
-        "?fecha=" +
-        encodeURIComponent(fechaFormacion);
-
-      const data = await cargarJsonp(url);
-
-      if (!data.ok) {
-        setMensajeFormacion(data.error || "No se encontró formación oficial.");
-        return;
-      }
-
-      const nuevaFormacion = {
-        titulares: (data.titulares || [])
-          .slice(1, 11)
-          .map(convertirNombreJugador),
-
-        convocados: (data.convocados || []).map(convertirNombreJugador),
-      };
-
-      setFormacionTemporal(nuevaFormacion);
-      actualizar("fecha", data.fecha || fechaFormacion);
-      actualizar("rival", data.rival || "");
-      setPantallaFormacion("revision");
-      setMensajeFormacion("");
-    } catch (error) {
-      console.error("ERROR IMPORTANDO FORMACIÓN:", error);
-      setMensajeFormacion("Error conectando con la formación automática.");
-    }
-  };
   const abrirCargaManual = () => {
     setMensajeFormacion("");
     setPantallaFormacion("manual");
@@ -3144,13 +3176,11 @@ export default function App() {
     );
   };
 
-  const renderFormularioFormacion = ({ modo }) => (
+  const renderFormularioFormacion = () => (
     <div className="app">
       <div className="contenedor">
         <header className="encabezado">
-          <h1>
-            {modo === "revision" ? "Formación encontrada" : "Cargar formación"}
-          </h1>
+          <h1>Cargar formación</h1>
           <p>
             Revisá los 10 titulares de campo y la lista interna de convocados.
           </p>
@@ -3191,141 +3221,95 @@ export default function App() {
             </button>
           </div>
 
-          {modo === "revision" ? (
-            <>
-              <ListaSimple
-                titulo="10 titulares de campo"
-                lista={formacionTemporal.titulares}
-                cantidadPrimeraColumna={5}
-              />
+            <h2>10 titulares de campo</h2>
 
-              <ListaSimple
-                titulo="Convocados no titulares"
-                lista={formacionTemporal.convocados}
-                cantidadPrimeraColumna={6}
-              />
-
-              <div className="acciones-dobles">
-                <button
-                  type="button"
-                  className="boton-secundario"
-                  onClick={() => setPantallaFormacion("inicio")}
+            <div className="formacion-grid">
+              {[0, 5].map((inicioColumna) => (
+                <div
+                  className="columna-formacion"
+                  key={`titulares-col-${inicioColumna}`}
                 >
-                  ← Volver
-                </button>
+                  {formacionTemporal.titulares
+                    .slice(inicioColumna, inicioColumna + 5)
+                    .map((jugador, index) => {
+                      const indexReal = inicioColumna + index;
 
-                <button
-                  type="button"
-                  className="boton-secundario boton-formacion-grande"
-                  onClick={abrirCargaManual}
+                      return (
+                        <div
+                          className="campo-formacion"
+                          key={`titular-${indexReal}`}
+                        >
+                          <label>Titular {indexReal + 1}</label>
+                          <InputJugador
+                            value={jugador}
+                            onChange={(valor) =>
+                              actualizarTitularTemporal(indexReal, valor)
+                            }
+                          />
+                        </div>
+                      );
+                    })}
+                </div>
+              ))}
+            </div>
+
+            <h2>Convocados no titulares</h2>
+
+            <div className="formacion-grid">
+              {[0, 6].map((inicioColumna) => (
+                <div
+                  className="columna-formacion"
+                  key={`convocados-col-${inicioColumna}`}
                 >
-                  Cargar manual
-                </button>
-              </div>
+                  {formacionTemporal.convocados
+                    .slice(inicioColumna, inicioColumna + 6)
+                    .map((jugador, index) => {
+                      const indexReal = inicioColumna + index;
 
-              <div className="contenedor-continuar-full">
-                <button
-                  type="button"
-                  className="boton-principal boton-continuar-full"
-                  onClick={continuarConFormacion}
-                >
-                  Continuar
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2>10 titulares de campo</h2>
+                      return (
+                        <div
+                          className="campo-formacion"
+                          key={`convocado-${indexReal}`}
+                        >
+                          <label>Convocado {indexReal + 1}</label>
+                          <InputJugador
+                            value={jugador}
+                            onChange={(valor) =>
+                              actualizarConvocadoTemporal(indexReal, valor)
+                            }
+                          />
+                        </div>
+                      );
+                    })}
+                </div>
+              ))}
+            </div>
 
-              <div className="formacion-grid">
-                {[0, 5].map((inicioColumna) => (
-                  <div
-                    className="columna-formacion"
-                    key={`titulares-col-${inicioColumna}`}
-                  >
-                    {formacionTemporal.titulares
-                      .slice(inicioColumna, inicioColumna + 5)
-                      .map((jugador, index) => {
-                        const indexReal = inicioColumna + index;
+            <button
+              type="button"
+              className="boton-agregar-jugador"
+              onClick={agregarConvocadoTemporal}
+            >
+              + Agregar jugador
+            </button>
 
-                        return (
-                          <div
-                            className="campo-formacion"
-                            key={`titular-${indexReal}`}
-                          >
-                            <label>Titular {indexReal + 1}</label>
-                            <InputJugador
-                              value={jugador}
-                              onChange={(valor) =>
-                                actualizarTitularTemporal(indexReal, valor)
-                              }
-                            />
-                          </div>
-                        );
-                      })}
-                  </div>
-                ))}
-              </div>
-
-              <h2>Convocados no titulares</h2>
-
-              <div className="formacion-grid">
-                {[0, 6].map((inicioColumna) => (
-                  <div
-                    className="columna-formacion"
-                    key={`convocados-col-${inicioColumna}`}
-                  >
-                    {formacionTemporal.convocados
-                      .slice(inicioColumna, inicioColumna + 6)
-                      .map((jugador, index) => {
-                        const indexReal = inicioColumna + index;
-
-                        return (
-                          <div
-                            className="campo-formacion"
-                            key={`convocado-${indexReal}`}
-                          >
-                            <label>Convocado {indexReal + 1}</label>
-                            <InputJugador
-                              value={jugador}
-                              onChange={(valor) =>
-                                actualizarConvocadoTemporal(indexReal, valor)
-                              }
-                            />
-                          </div>
-                        );
-                      })}
-                  </div>
-                ))}
-              </div>
+            <div className="acciones-dobles">
+              <button
+                type="button"
+                className="boton-secundario"
+                onClick={() => setPantallaFormacion("inicio")}
+              >
+                ← Volver
+              </button>
 
               <button
                 type="button"
-                className="boton-agregar-jugador"
-                onClick={agregarConvocadoTemporal}
+                className="boton-principal"
+                onClick={continuarConFormacion}
               >
-                + Agregar jugador
+                Guardar formación
               </button>
-
-              <div className="acciones-dobles">
-                <button
-                  type="button"
-                  className="boton-secundario"
-                  onClick={() => setPantallaFormacion("inicio")}
-                >
-                  ← Volver
-                </button>
-
-                <button
-                  type="button"
-                  className="boton-principal"
-                  onClick={continuarConFormacion}
-                >
-                  Guardar formación
-                </button>
-              </div>
-            </>
-          )}
+            </div>
         </section>
       </div>
     </div>
@@ -4901,6 +4885,18 @@ export default function App() {
     );
   };
 
+  const renderHojaConfirmar = () => (
+    <HojaConfirmar
+      abierta={Boolean(confirmacion)}
+      titulo={confirmacion?.titulo || ""}
+      descripcion={confirmacion?.descripcion}
+      detalle={confirmacion?.detalle}
+      etiquetaConfirmar={confirmacion?.etiquetaConfirmar}
+      onConfirmar={confirmarAccion}
+      onCancelar={cerrarConfirmacion}
+    />
+  );
+
   const enMarcoAplicacion = (activo, contenido) => (
     <MarcoAplicacion
       activo={activo}
@@ -4908,6 +4904,7 @@ export default function App() {
       hayPartido={partidoEnCurso}
     >
       {contenido}
+      {renderHojaConfirmar()}
     </MarcoAplicacion>
   );
 
@@ -4915,17 +4912,10 @@ export default function App() {
     return enMarcoAplicacion("formacion", renderPantallaInicioFormacion());
   }
 
-  if (pantallaFormacion === "revision") {
-    return enMarcoAplicacion(
-      "formacion",
-      renderFormularioFormacion({ modo: "revision" }),
-    );
-  }
-
   if (pantallaFormacion === "manual") {
     return enMarcoAplicacion(
       "formacion",
-      renderFormularioFormacion({ modo: "manual" }),
+      renderFormularioFormacion(),
     );
   }
   if (registroSeleccionado !== null) {
@@ -5066,27 +5056,6 @@ export default function App() {
   const tiempoPeriodoGuardado = resumen[`tiempo${periodoVista}`];
   const tiempoHidratacionGuardado = resumen[`tiempoHidratacion${periodoVista}`];
 
-  // Detalle de lo que está por borrarse, para no limpiar un partido por error.
-  const cambiosCargados = [
-    ...(registro.cambios || []),
-    ...(registro.cambiosRival || []),
-  ].filter((cambio) => cambio?.sale?.trim() || cambio?.entra?.trim()).length;
-  const rivalCargado = (registro.rival || "").trim();
-  const resumenPartidoEnCurso = (
-    <>
-      <Icono nombre="cambio" size={15} />
-      {rivalCargado ? `vs ${rivalCargado}` : "Sin rival cargado"}
-      <span>
-        ·{" "}
-        {cambiosCargados === 0
-          ? "sin cambios"
-          : cambiosCargados === 1
-            ? "1 cambio cargado"
-            : `${cambiosCargados} cambios cargados`}
-      </span>
-    </>
-  );
-
   return (
     <MarcoAplicacion activo="partido" onNavigate={navegarAplicacion} hayPartido>
       <div className="tablero-partido">
@@ -5214,10 +5183,7 @@ export default function App() {
                 <button
                   type="button"
                   className="agregar-prorroga quitar"
-                  onClick={() => {
-                    quitarProrroga();
-                    setPeriodoVista("PT");
-                  }}
+                  onClick={quitarProrroga}
                   aria-label="Quitar prórroga"
                 >
                   <Icono nombre="borrar" size={18} />
@@ -5347,14 +5313,7 @@ export default function App() {
         </div>
       </div>
 
-      <HojaConfirmar
-        abierta={confirmarLimpieza}
-        titulo="¿Borrar el partido en curso?"
-        descripcion="Se pierden la formación, los horarios y los cambios que cargaste. Los partidos ya guardados no se tocan."
-        detalle={resumenPartidoEnCurso}
-        onConfirmar={confirmarLimpiarCarga}
-        onCancelar={() => setConfirmarLimpieza(false)}
-      />
+      {renderHojaConfirmar()}
     </MarcoAplicacion>
   );
 }
