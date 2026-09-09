@@ -2261,7 +2261,7 @@ button:disabled {
   display: grid;
   align-items: center;
   grid-template-columns: 26px minmax(0, 1fr);
-  gap: 6px 9px;
+  gap: 10px 9px;
   padding: 8px;
   border: 1px solid var(--cam-linea);
   border-radius: 11px;
@@ -2318,8 +2318,8 @@ button:disabled {
 }
 
 .par-jugadores .input-jugador {
-  height: 36px;
-  padding: 0 9px;
+  height: 46px;
+  padding: 0 10px;
   border-radius: 9px;
   font-size: 13px;
   font-weight: 800;
@@ -2341,6 +2341,12 @@ button:disabled {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid #eef1f0;
+}
+
+.ranura-cambio.cargada .fila-hora-cambio {
+  border-top-color: #e2efe8;
 }
 
 .hora-ranura,
