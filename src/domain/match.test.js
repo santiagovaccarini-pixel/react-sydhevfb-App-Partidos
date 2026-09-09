@@ -2,6 +2,7 @@ import {
   calcularNoIngresaron,
   fechaLocalISO,
   formatearDuracion,
+  jugadoresParaCambio,
   normalizarEntradaTiempoTransmision,
   periodoDesdeMinutoPartido,
   segundosDesdeHora,
@@ -97,5 +98,105 @@ describe("motor de registro de partido", () => {
         varsPT: [{ inicio: "hora inválida", final: "" }],
       }),
     ).toContain("Revisá el orden o el formato de VAR PT 1.");
+  });
+});
+
+describe("a quién ofrecer en un cambio", () => {
+  const formacion = {
+    titulares: ["EVERSON", "ALONSO", "SCARPA", "HULK"],
+    convocados: ["BERNARD", "CUELLO", "DUDU"],
+  };
+  const plantel = ["", "VICTOR", "ALONSO", "BERNARD", "LYANCO", "SCARPA"];
+
+  test("para Sale ofrece primero a los que están en cancha", () => {
+    const { opciones, relevantes } = jugadoresParaCambio({
+      campo: "sale",
+      formacion,
+      cambios: [],
+      plantel,
+    });
+
+    expect(opciones.slice(0, relevantes)).toEqual([
+      "EVERSON",
+      "ALONSO",
+      "SCARPA",
+      "HULK",
+    ]);
+    // El resto del plantel sigue disponible, sin repetir a los de arriba.
+    // BERNARD está en el banco: no puede salir, pero se lo puede escribir.
+    expect(opciones.slice(relevantes)).toEqual(["VICTOR", "BERNARD", "LYANCO"]);
+  });
+
+  test("para Entra ofrece primero el banco", () => {
+    const { opciones, relevantes } = jugadoresParaCambio({
+      campo: "entra",
+      formacion,
+      cambios: [],
+      plantel,
+    });
+
+    expect(opciones.slice(0, relevantes)).toEqual([
+      "BERNARD",
+      "CUELLO",
+      "DUDU",
+    ]);
+  });
+
+  test("el que ya salió deja de estar en cancha y el que entró aparece", () => {
+    const cambios = [{ sale: "ALONSO", entra: "BERNARD" }];
+
+    const sale = jugadoresParaCambio({
+      campo: "sale",
+      formacion,
+      cambios,
+      plantel,
+    });
+    expect(sale.opciones.slice(0, sale.relevantes)).toEqual([
+      "EVERSON",
+      "SCARPA",
+      "HULK",
+      // Bernard entró: ahora puede salir.
+      "BERNARD",
+    ]);
+
+    const entra = jugadoresParaCambio({
+      campo: "entra",
+      formacion,
+      cambios,
+      plantel,
+    });
+    // Bernard ya entró, no puede volver a entrar.
+    expect(entra.opciones.slice(0, entra.relevantes)).toEqual([
+      "CUELLO",
+      "DUDU",
+    ]);
+  });
+
+  test("nadie desaparece: el plantel entero sigue alcanzable", () => {
+    const { opciones } = jugadoresParaCambio({
+      campo: "entra",
+      formacion,
+      cambios: [{ sale: "ALONSO", entra: "BERNARD" }],
+      plantel,
+    });
+
+    ["VICTOR", "ALONSO", "BERNARD", "LYANCO", "SCARPA"].forEach((jugador) =>
+      expect(opciones).toContain(jugador),
+    );
+    // Sin vacíos ni repetidos.
+    expect(opciones).not.toContain("");
+    expect(new Set(opciones).size).toBe(opciones.length);
+  });
+
+  test("sin formación cargada queda el plantel, no una lista vacía", () => {
+    const { opciones, relevantes } = jugadoresParaCambio({
+      campo: "sale",
+      formacion: null,
+      cambios: null,
+      plantel,
+    });
+
+    expect(relevantes).toBe(0);
+    expect(opciones).toEqual(["VICTOR", "ALONSO", "BERNARD", "LYANCO", "SCARPA"]);
   });
 });
