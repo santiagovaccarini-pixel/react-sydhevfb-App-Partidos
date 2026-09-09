@@ -218,10 +218,12 @@ const SelectorNombre = ({
                 className={`selector-nombre-opcion ${
                   indiceActivo === index ? "activa" : ""
                 }`}
-                onPointerDown={(evento) => {
-                  evento.preventDefault();
-                  seleccionar(opcion);
-                }}
+                // Elegir al apoyar el dedo sacaba la lista antes de
+                // levantarlo, y el click que el navegador manda después caía
+                // en el control que quedaba debajo. Al apoyar solo se evita
+                // que el campo pierda el foco; se elige al levantar.
+                onPointerDown={(evento) => evento.preventDefault()}
+                onClick={() => seleccionar(opcion)}
               >
                 {opcion}
               </button>

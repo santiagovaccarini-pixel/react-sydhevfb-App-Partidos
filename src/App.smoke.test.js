@@ -362,6 +362,76 @@ describe("interfaz operativa", () => {
     expect(fila.textContent).toContain("Flamengo");
   });
 
+  test("el nombre se elige al levantar el dedo, no al apoyarlo", async () => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    const campoSale = contenedor.querySelector(
+      ".ranura-cambio .selector-nombre.sale input",
+    );
+    await act(async () => campoSale.focus());
+
+    const opcion = contenedor.querySelector(".selector-nombre-opcion");
+    expect(opcion).not.toBeNull();
+    const nombre = opcion.textContent.trim();
+
+    // Apoyar el dedo no puede elegir ni cerrar la lista: si se cerrara acá, el
+    // click que el navegador manda al levantar caería en el control de abajo.
+    await act(async () =>
+      opcion.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })),
+    );
+
+    expect(campoSale.value).toBe("");
+    expect(contenedor.querySelector(".selector-nombre-lista")).not.toBeNull();
+
+    // Recién al levantarlo se elige.
+    await act(async () =>
+      opcion.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+    );
+
+    expect(campoSale.value).toBe(nombre);
+    expect(contenedor.querySelector(".selector-nombre-lista")).toBeNull();
+  });
+
+  test("el desplegable ofrece primero a los que pueden salir y entrar", async () => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+
+    const abrir = async (campo) => {
+      const entrada = contenedor.querySelector(
+        `.ranura-cambio .selector-nombre.${campo} input`,
+      );
+      await act(async () => entrada.focus());
+
+      // Buscar dentro del campo: la lista del otro sigue abierta, porque solo
+      // se cierra al tocar afuera.
+      const propio = entrada.closest(".selector-nombre");
+      return {
+        titulo: propio
+          .querySelector(".titulo-grupo-nombres")
+          ?.textContent.trim(),
+        primera: propio
+          .querySelector(".selector-nombre-opcion")
+          ?.textContent.trim(),
+      };
+    };
+
+    // El borrador tiene a ALONSO y SCARPA de titulares y BERNARD convocado.
+    const sale = await abrir("sale");
+    expect(sale.titulo).toBe("En cancha");
+    expect(sale.primera).toBe("ALONSO");
+
+    const entra = await abrir("entra");
+    expect(entra.titulo).toBe("En el banco");
+    expect(entra.primera).toBe("BERNARD");
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
