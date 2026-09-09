@@ -3323,18 +3323,31 @@ button:disabled {
   margin-top: auto;
 }
 
-/* Tarjeta de partido en curso. Nada de verde: el verde es del cartel de
-   actualización de la app, y no tienen que confundirse. */
+/* Tarjeta de partido en curso: misma estética que una fila de registros, con
+   el enfrentamiento, el resultado y los tiempos. Nada de verde, que es el
+   color del cartel de actualización de la app. */
 .tarjeta-en-curso {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.tarjeta-en-curso:hover {
+  transform: none;
+  border-color: #cbd5e1;
+  box-shadow: 0 12px 26px rgba(2, 6, 23, 0.28);
+}
+
+.cabecera-en-curso {
   display: flex;
   align-items: center;
-  gap: 11px;
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 15px;
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.9));
-  text-align: left;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .pastilla-vivo {
@@ -3344,8 +3357,8 @@ button:disabled {
   gap: 5px;
   padding: 4px 8px;
   border-radius: 99px;
-  background: rgba(200, 16, 46, 0.16);
-  color: #ff8d99;
+  background: rgba(200, 16, 46, 0.12);
+  color: var(--cam-rojo);
   font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.09em;
@@ -3358,29 +3371,36 @@ button:disabled {
   background: #ef4444;
 }
 
-.texto-en-curso {
-  display: grid;
-  flex: 1;
-  gap: 2px;
+/* Con la formación cargada pero sin período arrancado no hay nada en vivo */
+.pastilla-vivo.sin-empezar {
+  background: #eef1f5;
+  color: #64748b;
 }
 
-.texto-en-curso strong {
-  color: #ffffff;
+.pastilla-vivo.sin-empezar i {
+  background: #94a3b8;
+}
+
+.tarjeta-en-curso .enfrentamiento-registro {
+  width: 100%;
+}
+
+.tarjeta-en-curso .enfrentamiento-registro strong {
+  color: var(--cam-negro);
+}
+
+.ir-al-partido {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 39px;
+  border: 1px solid var(--cam-verde);
+  border-radius: 12px;
+  background: var(--cam-verde-suave);
+  color: var(--cam-verde-oscuro);
   font-size: 13px;
   font-weight: 900;
-  letter-spacing: -0.01em;
-}
-
-.texto-en-curso span {
-  color: rgba(226, 232, 240, 0.62);
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.flecha-en-curso {
-  color: rgba(226, 232, 240, 0.45);
-  font-size: 20px;
-  line-height: 1;
 }
 
 /* Enfrentamiento: los dos escudos, cara a cara */

@@ -295,9 +295,19 @@ describe("interfaz operativa", () => {
       contenedor.querySelectorAll(".lado-enfrentamiento svg").length,
     ).toBe(2);
 
-    // La tarjeta de partido en curso no es el cartel verde de actualización.
+    // La tarjeta del partido en curso copia la estética de un registro: el
+    // enfrentamiento con los dos escudos y el rival, no una línea de texto.
     const enCurso = contenedor.querySelector(".tarjeta-en-curso");
-    expect(enCurso.textContent).toContain("vs Cruzeiro");
+    const cruce = enCurso.querySelector(".enfrentamiento-registro");
+    expect(cruce.textContent).toContain("Atlético Mineiro");
+    expect(cruce.textContent).toContain("Cruzeiro");
+    expect(
+      cruce.querySelectorAll(".escudo-cam, .escudo-rival, .escudo-club"),
+    ).toHaveLength(2);
+    // Sin período arrancado no se anuncia nada en vivo.
+    expect(enCurso.querySelector(".pastilla-vivo").textContent.trim()).toBe(
+      "SIN EMPEZAR",
+    );
     expect(contenedor.querySelector(".bloque-version-app")).not.toBeNull();
 
     await act(async () => enCurso.click());
