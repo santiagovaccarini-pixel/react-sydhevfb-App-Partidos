@@ -3384,18 +3384,86 @@ export default function App() {
     };
   })();
 
-  const textoEstadoEscudo = {
-    buscando: "Buscando el escudo…",
-    listo: escudoRival.nombreOficial
-      ? `Escudo de ${escudoRival.nombreOficial}`
-      : "Escudo cargado",
-    "sin-resultado": "No encontramos el escudo, queda el dibujado",
-    vacio: "",
-  }[escudoRival.situacion];
-
   const renderPantallaInicioFormacion = () => (
     <div className="app app-inicio">
       <div className="contenedor contenedor-inicio-formacion">
+        <header className="hero-partido">
+          <span className="etiqueta-hero">Próximo partido</span>
+
+          <div className="enfrentamiento">
+            <div className="lado-enfrentamiento">
+              <EscudoClub
+                equipo="cam"
+                nombre={NOMBRE_CAM}
+                url={escudoCam.url}
+              />
+              <strong>
+                Atlético
+                <br />
+                Mineiro
+              </strong>
+            </div>
+
+            <span className="separador-enfrentamiento">VS</span>
+
+            <div
+              className={`lado-enfrentamiento ${
+                registro.rival?.trim() ? "" : "sin-cargar"
+              }`}
+            >
+              <EscudoClub nombre={registro.rival} url={escudoRival.url} />
+              <strong>{registro.rival?.trim() || "Elegí el rival"}</strong>
+            </div>
+          </div>
+
+          {fechaLargaFormacion && (
+            <p className="fecha-hero">{fechaLargaFormacion}</p>
+          )}
+        </header>
+
+        <section className="tarjeta tarjeta-inicio">
+          <div className="campo-inicio">
+            <label htmlFor="campo-rival-inicio">Rival</label>
+            <div className="campo-con-escudo">
+              <EscudoClub
+                nombre={registro.rival}
+                url={escudoRival.url}
+                mini
+              />
+              <input
+                id="campo-rival-inicio"
+                value={registro.rival}
+                onChange={(evento) => actualizar("rival", evento.target.value)}
+                placeholder="Nombre del rival"
+              />
+            </div>
+          </div>
+
+          <div className="campo-inicio">
+            <label htmlFor="campo-fecha-inicio">Fecha del partido</label>
+            <input
+              id="campo-fecha-inicio"
+              type="date"
+              value={fechaFormacion}
+              onChange={(e) => setFechaFormacion(e.target.value)}
+            />
+          </div>
+
+          {mensajeFormacion && (
+            <div className="aviso-formacion">{mensajeFormacion}</div>
+          )}
+
+          <div className="acciones-inicio">
+            <button
+              type="button"
+              className="boton-principal boton-formacion-grande"
+              onClick={abrirCargaManual}
+            >
+              Ingresar Formación
+            </button>
+          </div>
+        </section>
+
         {partidoEnCurso && (
           <button
             type="button"
@@ -3456,99 +3524,6 @@ export default function App() {
             </span>
           </button>
         )}
-
-        <header className="hero-partido">
-          <span className="etiqueta-hero">Próximo partido</span>
-
-          <div className="enfrentamiento">
-            <div className="lado-enfrentamiento">
-              <EscudoClub
-                equipo="cam"
-                nombre={NOMBRE_CAM}
-                url={escudoCam.url}
-              />
-              <strong>
-                Atlético
-                <br />
-                Mineiro
-              </strong>
-            </div>
-
-            <span className="separador-enfrentamiento">VS</span>
-
-            <div
-              className={`lado-enfrentamiento ${
-                registro.rival?.trim() ? "" : "sin-cargar"
-              }`}
-            >
-              <EscudoClub nombre={registro.rival} url={escudoRival.url} />
-              <strong>{registro.rival?.trim() || "Elegí el rival"}</strong>
-            </div>
-          </div>
-
-          {fechaLargaFormacion && (
-            <p className="fecha-hero">{fechaLargaFormacion}</p>
-          )}
-        </header>
-
-        <section className="tarjeta tarjeta-inicio">
-          <div className="campo-inicio">
-            <label htmlFor="campo-rival-inicio">Rival</label>
-            <div className="campo-con-escudo">
-              <EscudoClub
-                nombre={registro.rival}
-                url={escudoRival.url}
-                mini
-              />
-              <input
-                id="campo-rival-inicio"
-                value={registro.rival}
-                onChange={(evento) => actualizar("rival", evento.target.value)}
-                placeholder="Nombre del rival"
-              />
-            </div>
-            {textoEstadoEscudo && (
-              <span
-                className={`pie-escudo ${escudoRival.situacion}`}
-                role="status"
-              >
-                {textoEstadoEscudo}
-              </span>
-            )}
-          </div>
-
-          <div className="campo-inicio">
-            <label htmlFor="campo-fecha-inicio">Fecha del partido</label>
-            <input
-              id="campo-fecha-inicio"
-              type="date"
-              value={fechaFormacion}
-              onChange={(e) => setFechaFormacion(e.target.value)}
-            />
-          </div>
-
-          {mensajeFormacion && (
-            <div className="aviso-formacion">{mensajeFormacion}</div>
-          )}
-
-          <div className="acciones-inicio">
-            <button
-              type="button"
-              className="boton-principal boton-formacion-grande"
-              onClick={importarFormacionAutomatica}
-            >
-              Importar formación automática
-            </button>
-
-            <button
-              type="button"
-              className="boton-secundario boton-formacion-grande"
-              onClick={abrirCargaManual}
-            >
-              Cargar manual
-            </button>
-          </div>
-        </section>
 
         <EstadoVersionApp
           actualizacionDisponible={actualizacionDisponible}

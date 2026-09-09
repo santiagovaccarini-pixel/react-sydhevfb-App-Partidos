@@ -3497,7 +3497,10 @@ button:disabled {
 }
 
 .campo-inicio input {
+  height: 42px;
   margin: 0;
+  border-radius: 11px;
+  font-size: 14px;
 }
 
 .campo-con-escudo {
@@ -3509,16 +3512,16 @@ button:disabled {
 .campo-con-escudo .escudo-club.escudo-real.mini {
   position: absolute;
   top: 50%;
-  left: 11px;
+  left: 10px;
   z-index: 1;
-  width: 27px;
-  height: 34px;
+  width: 24px;
+  height: 30px;
   transform: translateY(-50%);
   pointer-events: none;
 }
 
 .campo-con-escudo input {
-  padding-left: 48px;
+  padding-left: 42px;
 }
 
 .pie-escudo {
