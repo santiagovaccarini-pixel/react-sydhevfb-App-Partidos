@@ -83,6 +83,54 @@ export const calcularNoIngresaron = (formacion, cambios) => {
   );
 };
 
+/**
+ * A quién ofrecer primero en el desplegable de un cambio. Poner el plantel
+ * entero en orden alfabético obliga a scrollear treinta nombres en medio del
+ * partido: los que importan son los que están en cancha para "Sale" y los que
+ * quedan en el banco para "Entra".
+ *
+ * Nadie se esconde: el resto del plantel sigue estando, más abajo. Se devuelve
+ * también cuántos son los relevantes, para poder marcar dónde termina el grupo.
+ */
+export const jugadoresParaCambio = ({
+  campo,
+  formacion,
+  cambios,
+  plantel = [],
+}) => {
+  const titulares = limpiarLista(formacion?.titulares);
+  const convocados = limpiarLista(formacion?.convocados);
+  const movimientos = Array.isArray(cambios) ? cambios : [];
+
+  const salieron = new Set(
+    movimientos.map((cambio) => normalizarTexto(cambio?.sale)).filter(Boolean),
+  );
+  const entraron = new Set(
+    movimientos.map((cambio) => normalizarTexto(cambio?.entra)).filter(Boolean),
+  );
+
+  const relevantes =
+    campo === "entra"
+      ? // Banco: los convocados que todavía no entraron.
+        convocados.filter((jugador) => !entraron.has(normalizarTexto(jugador)))
+      : // Cancha: los titulares que no salieron, más los que ya entraron.
+        [
+          ...titulares.filter(
+            (jugador) => !salieron.has(normalizarTexto(jugador)),
+          ),
+          ...convocados.filter((jugador) =>
+            entraron.has(normalizarTexto(jugador)),
+          ),
+        ];
+
+  const yaListados = new Set(relevantes.map(normalizarTexto));
+  const resto = limpiarLista(plantel).filter(
+    (jugador) => !yaListados.has(normalizarTexto(jugador)),
+  );
+
+  return { opciones: [...relevantes, ...resto], relevantes: relevantes.length };
+};
+
 export const fechaLocalISO = (fecha = new Date()) => {
   const anio = fecha.getFullYear();
   const mes = String(fecha.getMonth() + 1).padStart(2, "0");

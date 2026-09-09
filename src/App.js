@@ -16,6 +16,7 @@ import {
   fechaLocalISO,
   formatearDuracion,
   formatearTiempoTransmision,
+  jugadoresParaCambio,
   limpiarLista,
   normalizarEntradaTiempoTransmision,
   normalizarTexto,
@@ -36,7 +37,7 @@ import {
   useEscudoClub,
 } from "./components/ClubCrest";
 import "./style.css";
-const APP_VERSION = "2026.09.08.20";
+const APP_VERSION = "2026.09.09.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -61,6 +62,8 @@ const SelectorNombre = ({
   value,
   onChange,
   opciones = [],
+  relevantes = 0,
+  etiquetaRelevantes = "",
   placeholder = "Escribir o elegir",
   className = "",
 }) => {
@@ -98,6 +101,12 @@ const SelectorNombre = ({
 
     return [...comienzan, ...contienen].slice(0, 30);
   }, [opcionesUnicas, value]);
+
+  // El corte entre "los que importan" y el resto del plantel solo tiene
+  // sentido con la lista entera: apenas se escribe, manda la coincidencia.
+  const corteRelevantes = normalizarNombreBusqueda(value)
+    ? 0
+    : Math.min(relevantes, resultados.length);
 
   useEffect(() => {
     const cerrarAlTocarAfuera = (evento) => {
@@ -192,22 +201,33 @@ const SelectorNombre = ({
 
       {abierto && resultados.length > 0 && (
         <div className="selector-nombre-lista" role="listbox">
+          {corteRelevantes > 0 && etiquetaRelevantes && (
+            <span className="titulo-grupo-nombres">{etiquetaRelevantes}</span>
+          )}
+
           {resultados.map((opcion, index) => (
-            <button
-              key={`${opcion}-${index}`}
-              type="button"
-              role="option"
-              aria-selected={indiceActivo === index}
-              className={`selector-nombre-opcion ${
-                indiceActivo === index ? "activa" : ""
-              }`}
-              onPointerDown={(evento) => {
-                evento.preventDefault();
-                seleccionar(opcion);
-              }}
-            >
-              {opcion}
-            </button>
+            <React.Fragment key={`${opcion}-${index}`}>
+              {corteRelevantes > 0 && index === corteRelevantes && (
+                <span className="titulo-grupo-nombres">Resto del plantel</span>
+              )}
+
+              <button
+                type="button"
+                role="option"
+                aria-selected={indiceActivo === index}
+                className={`selector-nombre-opcion ${
+                  indiceActivo === index ? "activa" : ""
+                }`}
+                // Elegir al apoyar el dedo sacaba la lista antes de
+                // levantarlo, y el click que el navegador manda después caía
+                // en el control que quedaba debajo. Al apoyar solo se evita
+                // que el campo pierda el foco; se elige al levantar.
+                onPointerDown={(evento) => evento.preventDefault()}
+                onClick={() => seleccionar(opcion)}
+              >
+                {opcion}
+              </button>
+            </React.Fragment>
           ))}
         </div>
       )}
@@ -650,11 +670,21 @@ const CampoTiempo = ({
   );
 };
 
-const InputJugador = ({ value, onChange, className, placeholder }) => (
+const InputJugador = ({
+  value,
+  onChange,
+  className,
+  placeholder,
+  opciones = jugadores,
+  relevantes = 0,
+  etiquetaRelevantes = "",
+}) => (
   <SelectorNombre
     value={value}
     onChange={onChange}
-    opciones={jugadores}
+    opciones={opciones}
+    relevantes={relevantes}
+    etiquetaRelevantes={etiquetaRelevantes}
     className={className}
     placeholder={placeholder}
   />
@@ -4634,6 +4664,21 @@ export default function App() {
       (_, indice) => (lista || [])[indice] || crearCambioVacio(),
     );
 
+    // Quién puede salir y quién puede entrar, según cómo viene el partido.
+    // Se calcula una vez para todas las filas, no una por fila.
+    const enCancha = jugadoresParaCambio({
+      campo: "sale",
+      formacion: registro.formacion,
+      cambios: registro.cambios,
+      plantel: jugadores,
+    });
+    const enBanco = jugadoresParaCambio({
+      campo: "entra",
+      formacion: registro.formacion,
+      cambios: registro.cambios,
+      plantel: jugadores,
+    });
+
     return (
       <section
         className={`panel-operativo panel-cambios-operativo ${
@@ -4733,6 +4778,9 @@ export default function App() {
                       className="sale"
                       placeholder="Sale"
                       value={cambio.sale}
+                      opciones={enCancha.opciones}
+                      relevantes={enCancha.relevantes}
+                      etiquetaRelevantes="En cancha"
                       onChange={(valor) =>
                         actualizarCambio(index, "sale", valor)
                       }
@@ -4756,6 +4804,9 @@ export default function App() {
                       className="entra"
                       placeholder="Entra"
                       value={cambio.entra}
+                      opciones={enBanco.opciones}
+                      relevantes={enBanco.relevantes}
+                      etiquetaRelevantes="En el banco"
                       onChange={(valor) =>
                         actualizarCambio(index, "entra", valor)
                       }

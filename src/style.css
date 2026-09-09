@@ -1283,6 +1283,9 @@ button:active {
   left: 0;
   right: 0;
   z-index: 300;
+  /* Más ancha que el campo: los nombres entran enteros y el blanco al que hay
+     que apuntar es más grande. Crece hacia adentro de la tarjeta. */
+  min-width: 200px;
   max-height: 230px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1294,18 +1297,46 @@ button:active {
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.28);
 }
 
+.par-jugadores .selector-nombre.sale .selector-nombre-lista {
+  right: auto;
+}
+
+.par-jugadores .selector-nombre.entra .selector-nombre-lista {
+  left: auto;
+}
+
 .selector-nombre-opcion {
   width: 100%;
-  min-height: 39px;
-  padding: 8px 10px;
+  min-height: 46px;
+  padding: 9px 11px;
   border-radius: 9px;
   background: #ffffff;
   color: #0f172a;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.25;
   text-align: left;
   touch-action: manipulation;
+}
+
+/* Un respiro entre opciones: pegadas, un toque impreciso elige la de al lado */
+.selector-nombre-opcion + .selector-nombre-opcion {
+  margin-top: 3px;
+}
+
+.titulo-grupo-nombres {
+  display: block;
+  padding: 8px 11px 5px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.selector-nombre-opcion + .titulo-grupo-nombres {
+  margin-top: 5px;
+  border-top: 1px solid #eef1f5;
 }
 
 .selector-nombre-opcion:hover,
@@ -1335,12 +1366,14 @@ button:active {
 
 @media (max-width: 600px) {
   .selector-nombre-lista {
-    max-height: 190px;
+    max-height: 264px;
   }
 
+  /* En el celular el dedo necesita más, no menos: la regla vieja dejaba las
+     opciones en 42px justo donde peor se apunta. */
   .selector-nombre-opcion {
-    min-height: 42px;
-    font-size: 12px;
+    min-height: 48px;
+    font-size: 13px;
   }
 }
 
