@@ -536,6 +536,58 @@ describe("interfaz operativa", () => {
     expect(contadorFinal.className).toContain("completo");
   });
 
+  test("un borrador viejo con doce lugares de banco se recorta sin perder nombres", async () => {
+    const conBanco = (convocados) => {
+      localStorage.setItem(
+        "registro_actual_partido",
+        JSON.stringify({
+          version: 2,
+          registro: {
+            fecha: "2026-09-08",
+            rival: "Cruzeiro",
+            formacion: {
+              titulares: Array.from({ length: 10 }, () => ""),
+              convocados,
+            },
+          },
+        }),
+      );
+    };
+
+    const lugaresDelBanco = async () => {
+      await montarApp();
+
+      // Con algún nombre cargado la app abre en el partido, no en Formación.
+      const irAFormacion = Array.from(
+        contenedor.querySelectorAll(".navegacion-movil button"),
+      ).find((boton) => boton.textContent.includes("Formación"));
+      await act(async () => irAFormacion.click());
+
+      const ingresar = Array.from(contenedor.querySelectorAll("button")).find(
+        (boton) => boton.textContent.includes("Ingresar Formación"),
+      );
+      await act(async () => ingresar.click());
+      const banco = contenedor.querySelectorAll(".grilla-plantel")[1];
+      return Array.from(banco.querySelectorAll(".input-jugador")).map(
+        (campo) => campo.value,
+      );
+    };
+
+    // Doce vacíos: se recortan a diez.
+    conBanco(Array.from({ length: 12 }, () => ""));
+    expect(await lugaresDelBanco()).toHaveLength(10);
+
+    await act(async () => raiz.unmount());
+    raiz = null;
+    contenedor.innerHTML = "";
+
+    // Doce con el último cargado: no se puede recortar nada sin perderlo.
+    conBanco([...Array.from({ length: 11 }, () => ""), "LEMOS"]);
+    const conNombre = await lugaresDelBanco();
+    expect(conNombre).toHaveLength(12);
+    expect(conNombre[11]).toBe("LEMOS");
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await montarApp();
 
