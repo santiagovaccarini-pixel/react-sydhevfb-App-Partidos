@@ -37,7 +37,14 @@ import {
   useEscudoClub,
 } from "./components/ClubCrest";
 import "./style.css";
-const APP_VERSION = "2026.09.09.4";
+// Pantalla de intro: la imagen del estadio que la app mostraba al abrirse
+// desde el primer commit, hasta que el rediseño del 8 de septiembre la sacó
+// sin querer junto con el resto de la pantalla.
+const IMAGEN_INTRO =
+  "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
+const DURACION_INTRO = 1800;
+
+const APP_VERSION = "2026.09.09.6";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -966,6 +973,16 @@ export default function App() {
 
   // Una sola hoja para todas las confirmaciones: la que esté pedida en el
   // momento. Reemplaza a los window.confirm del navegador.
+  const [mostrarApp, setMostrarApp] = useState(false);
+
+  useEffect(() => {
+    const temporizador = window.setTimeout(
+      () => setMostrarApp(true),
+      DURACION_INTRO,
+    );
+    return () => window.clearTimeout(temporizador);
+  }, []);
+
   const [confirmacion, setConfirmacion] = useState(null);
 
   const cerrarConfirmacion = () => setConfirmacion(null);
@@ -4907,6 +4924,17 @@ export default function App() {
       {renderHojaConfirmar()}
     </MarcoAplicacion>
   );
+
+  if (!mostrarApp) {
+    return (
+      <div
+        className="intro-pantalla"
+        style={{ backgroundImage: `url(${IMAGEN_INTRO})` }}
+      >
+        <div className="overlay-intro" />
+      </div>
+    );
+  }
 
   if (pantallaFormacion === "inicio") {
     return enMarcoAplicacion("formacion", renderPantallaInicioFormacion());

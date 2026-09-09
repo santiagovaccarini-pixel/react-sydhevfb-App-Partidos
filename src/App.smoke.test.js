@@ -70,6 +70,19 @@ describe("interfaz operativa", () => {
     document.body.appendChild(contenedor);
   });
 
+  // La app arranca con la pantalla de intro; los tests la saltan avanzando el
+  // reloj, que ya está congelado.
+  const montarApp = async () => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App />);
+    });
+    await act(async () => Promise.resolve());
+    // runOnlyPendingTimers y no advanceTimersByTime: la app tiene un reloj que
+    // se reprograma cada segundo, y avanzar el tiempo lo dispara sin fin.
+    await act(async () => vi.runOnlyPendingTimers());
+  };
+
   afterEach(async () => {
     if (raiz) await act(async () => raiz.unmount());
     contenedor.remove();
@@ -77,12 +90,30 @@ describe("interfaz operativa", () => {
     vi.useRealTimers();
   });
 
-  test("renderiza PC y móvil y registra acciones rápidas sin perder datos", async () => {
+  test("la app abre con la pantalla del estadio y después entra", async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
       raiz.render(<App />);
     });
     await act(async () => Promise.resolve());
+
+    // Antes que nada, la intro: la foto a pantalla completa con su velo.
+    const intro = contenedor.querySelector(".intro-pantalla");
+    expect(intro).not.toBeNull();
+    expect(intro.style.backgroundImage).toContain("i.postimg.cc");
+    expect(intro.querySelector(".overlay-intro")).not.toBeNull();
+    // Todavía no se ve nada de la app.
+    expect(contenedor.querySelector(".navegacion-movil")).toBeNull();
+
+    await act(async () => vi.runOnlyPendingTimers());
+
+    // Y al ratito, la app.
+    expect(contenedor.querySelector(".intro-pantalla")).toBeNull();
+    expect(contenedor.querySelector(".navegacion-movil")).not.toBeNull();
+  });
+
+  test("renderiza PC y móvil y registra acciones rápidas sin perder datos", async () => {
+    await montarApp();
 
     // Guardar el partido vive en la cabecera, no en una barra flotante.
     expect(
@@ -146,11 +177,7 @@ describe("interfaz operativa", () => {
   });
 
   test("muestra los cinco cambios y el botón Cambio lleva a Atlético", async () => {
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(5);
 
@@ -175,11 +202,7 @@ describe("interfaz operativa", () => {
   });
 
   test("permite reanudar el período si se finalizó por error", async () => {
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     const accionPeriodo = contenedor.querySelector(".accion-periodo");
     await act(async () => accionPeriodo.click());
@@ -200,11 +223,7 @@ describe("interfaz operativa", () => {
   test("ir a Registros y volver a Formación no inventa un partido", async () => {
     localStorage.removeItem("registro_actual_partido");
 
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     const destinos = () =>
       Array.from(contenedor.querySelectorAll(".navegacion-movil button")).map(
@@ -228,11 +247,7 @@ describe("interfaz operativa", () => {
     const confirmNativo = vi.fn(() => true);
     vi.stubGlobal("confirm", confirmNativo);
 
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     const limpiar = contenedor.querySelector(".boton-limpiar-cabecera");
     const hoja = () => contenedor.querySelector(".hoja-confirmar");
@@ -268,11 +283,7 @@ describe("interfaz operativa", () => {
   });
 
   test("la pantalla principal muestra el enfrentamiento y lleva al partido", async () => {
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     const irA = (etiqueta) =>
       Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
@@ -317,11 +328,7 @@ describe("interfaz operativa", () => {
   test("sin rival cargado la pantalla principal no queda rota", async () => {
     localStorage.removeItem("registro_actual_partido");
 
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     expect(contenedor.querySelector(".tarjeta-en-curso")).toBeNull();
     expect(
@@ -342,11 +349,7 @@ describe("interfaz operativa", () => {
       ]),
     );
 
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     // Marcador: los dos clubes tienen escudo, sea real o dibujado.
     const marcador = contenedor.querySelectorAll(".equipo-marcador");
@@ -373,11 +376,7 @@ describe("interfaz operativa", () => {
   });
 
   test("el nombre se elige al levantar el dedo, no al apoyarlo", async () => {
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     const campoSale = contenedor.querySelector(
       ".ranura-cambio .selector-nombre.sale input",
@@ -407,11 +406,7 @@ describe("interfaz operativa", () => {
   });
 
   test("el desplegable ofrece primero a los que pueden salir y entrar", async () => {
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     const abrir = async (campo) => {
       const entrada = contenedor.querySelector(
@@ -456,11 +451,7 @@ describe("interfaz operativa", () => {
     const confirmNativo = vi.fn(() => true);
     vi.stubGlobal("confirm", confirmNativo);
 
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     const irA = (etiqueta) =>
       Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
@@ -497,11 +488,7 @@ describe("interfaz operativa", () => {
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<App />);
-    });
-    await act(async () => Promise.resolve());
+    await montarApp();
 
     const guardar = Array.from(contenedor.querySelectorAll("button")).find(
       (boton) => boton.textContent.includes("Guardar partido"),
