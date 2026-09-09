@@ -37,7 +37,7 @@ import {
   useEscudoClub,
 } from "./components/ClubCrest";
 import "./style.css";
-const APP_VERSION = "2026.09.09.2";
+const APP_VERSION = "2026.09.09.3";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -3344,58 +3344,49 @@ export default function App() {
     return texto.charAt(0).toUpperCase() + texto.slice(1);
   })();
 
-  const resumenEnCurso = (() => {
-    const periodoEnMarcha = ["PT", "ST", "PTE", "STE"].find(
+  // Datos del partido en curso, con la misma forma que una fila de registros:
+  // el enfrentamiento con los escudos, el resultado y los tiempos.
+  const partidoEnCursoResumen = (() => {
+    const periodos = ["PT", "ST", "PTE", "STE"];
+    const enMarcha = periodos.find(
       (periodo) => registro[`inicio${periodo}`] && !registro[`final${periodo}`],
     );
+
     const cambiosCargados = [
       ...(registro.cambios || []),
       ...(registro.cambiosRival || []),
     ].filter((cambio) => cambio?.sale?.trim() || cambio?.entra?.trim()).length;
 
-    return [
-      registro.rival?.trim() ? `vs ${registro.rival.trim()}` : "Sin rival",
-      periodoEnMarcha ? `${periodoEnMarcha} en curso` : "",
-      cambiosCargados
-        ? `${cambiosCargados} ${cambiosCargados === 1 ? "cambio" : "cambios"}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
-  })();
+    // Un período todavía en juego no tiene duración: se avisa que está en
+    // curso en vez de mostrar 00:00.
+    const tiempos = periodos
+      .filter((periodo) => registro[`inicio${periodo}`])
+      .map((periodo) => ({
+        periodo,
+        valor:
+          periodo === enMarcha
+            ? "en curso"
+            : formatearDuracion(resumen[`tiempo${periodo}`]) || "-",
+      }));
 
-  const textoEstadoEscudo = {
-    buscando: "Buscando el escudo…",
-    listo: escudoRival.nombreOficial
-      ? `Escudo de ${escudoRival.nombreOficial}`
-      : "Escudo cargado",
-    "sin-resultado": "No encontramos el escudo, queda el dibujado",
-    vacio: "",
-  }[escudoRival.situacion];
+    const [golesLocal = "", golesVisitante = ""] = String(
+      registro.resultado || "",
+    ).split("-");
+
+    return {
+      enMarcha,
+      cambiosCargados,
+      tiempos,
+      marcador:
+        golesLocal.trim() || golesVisitante.trim()
+          ? `${golesLocal.trim() || "0"}-${golesVisitante.trim() || "0"}`
+          : "",
+    };
+  })();
 
   const renderPantallaInicioFormacion = () => (
     <div className="app app-inicio">
       <div className="contenedor contenedor-inicio-formacion">
-        {partidoEnCurso && (
-          <button
-            type="button"
-            className="tarjeta-en-curso"
-            onClick={() => setPantallaFormacion("lista")}
-          >
-            <span className="pastilla-vivo">
-              <i aria-hidden="true" />
-              EN VIVO
-            </span>
-            <span className="texto-en-curso">
-              <strong>Partido en curso</strong>
-              <span>{resumenEnCurso}</span>
-            </span>
-            <span className="flecha-en-curso" aria-hidden="true">
-              ›
-            </span>
-          </button>
-        )}
-
         <header className="hero-partido">
           <span className="etiqueta-hero">Próximo partido</span>
 
@@ -3446,14 +3437,6 @@ export default function App() {
                 placeholder="Nombre del rival"
               />
             </div>
-            {textoEstadoEscudo && (
-              <span
-                className={`pie-escudo ${escudoRival.situacion}`}
-                role="status"
-              >
-                {textoEstadoEscudo}
-              </span>
-            )}
           </div>
 
           <div className="campo-inicio">
@@ -3474,20 +3457,73 @@ export default function App() {
             <button
               type="button"
               className="boton-principal boton-formacion-grande"
-              onClick={importarFormacionAutomatica}
-            >
-              Importar formación automática
-            </button>
-
-            <button
-              type="button"
-              className="boton-secundario boton-formacion-grande"
               onClick={abrirCargaManual}
             >
-              Cargar manual
+              Ingresar Formación
             </button>
           </div>
         </section>
+
+        {partidoEnCurso && (
+          <button
+            type="button"
+            className="tarjeta-en-curso"
+            onClick={() => setPantallaFormacion("lista")}
+          >
+            <span className="cabecera-en-curso">
+              <span
+                className={`pastilla-vivo ${
+                  partidoEnCursoResumen.enMarcha ? "" : "sin-empezar"
+                }`}
+              >
+                <i aria-hidden="true" />
+                {partidoEnCursoResumen.enMarcha ? "EN VIVO" : "SIN EMPEZAR"}
+              </span>
+              <span className="fecha-registro">
+                {formatearFechaPantalla(registro.fecha)}
+              </span>
+            </span>
+
+            <span className="enfrentamiento-registro">
+              <EscudoClub
+                equipo="cam"
+                nombre={NOMBRE_CAM}
+                url={escudoCam.url}
+                compacto
+              />
+              <strong>Atlético Mineiro</strong>
+              {partidoEnCursoResumen.marcador && (
+                <span className="resultado-registro">
+                  {partidoEnCursoResumen.marcador}
+                </span>
+              )}
+              <strong>{registro.rival?.trim() || "Sin rival"}</strong>
+              <EscudoClub nombre={registro.rival} url={escudoRival.url} mini />
+            </span>
+
+            {(partidoEnCursoResumen.tiempos.length > 0 ||
+              partidoEnCursoResumen.cambiosCargados > 0) && (
+              <span className="tiempos-registro">
+                {partidoEnCursoResumen.tiempos.map(({ periodo, valor }) => (
+                  <span key={periodo}>
+                    {periodo} <strong>{valor}</strong>
+                  </span>
+                ))}
+                {partidoEnCursoResumen.cambiosCargados > 0 && (
+                  <span>
+                    CAMBIOS{" "}
+                    <strong>{partidoEnCursoResumen.cambiosCargados}</strong>
+                  </span>
+                )}
+              </span>
+            )}
+
+            <span className="ir-al-partido">
+              Volver al partido
+              <span aria-hidden="true">›</span>
+            </span>
+          </button>
+        )}
 
         <EstadoVersionApp
           actualizacionDisponible={actualizacionDisponible}
