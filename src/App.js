@@ -61,7 +61,7 @@ const NOMBRES_PERIODO = {
 
 const nombrePeriodo = (tipo) => NOMBRES_PERIODO[tipo] || tipo;
 
-const APP_VERSION = "2026.09.10.6";
+const APP_VERSION = "2026.09.10.7";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
