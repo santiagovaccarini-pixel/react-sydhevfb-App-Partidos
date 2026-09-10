@@ -64,7 +64,7 @@ const nombrePeriodo = (tipo) => NOMBRES_PERIODO[tipo] || tipo;
 // La ficha muestra un tiempo o el partido entero.
 const TOTAL = "total";
 
-const APP_VERSION = "2026.09.10.8";
+const APP_VERSION = "2026.09.10.9";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -3886,11 +3886,8 @@ export default function App() {
       if (corte.clase === "cambio") {
         return (
           <li className="corte corte-cambio" key={`corte-${i}`}>
-            <span className="cabeza-corte">
-              {marca}
-              <span className="punto-corte cambio" />
-              <span className="hora-corte">{corte.hora}</span>
-            </span>
+            {marca}
+            <span className="hora-corte">{corte.hora}</span>
             {renderPares(corte.pares, i)}
           </li>
         );
@@ -3930,7 +3927,26 @@ export default function App() {
         </div>
 
         {esTotal || periodo ? (
-          <ul className="cortes">{cortes.map(renderCorte)}</ul>
+          <ul className="cortes">
+            {cortes.map((corte, i) => {
+              // Mirando todo el partido, un corte que estrena tiempo lleva
+              // adelante el descanso: si no, el final de uno y el arranque del
+              // siguiente quedan pegados como si fueran continuos.
+              const empiezaOtro =
+                esTotal && i > 0 && corte.tiempo !== cortes[i - 1].tiempo;
+
+              return empiezaOtro ? (
+                <React.Fragment key={`tramo-${i}`}>
+                  <li className="descanso" aria-hidden="true">
+                    <span>DESCANSO</span>
+                  </li>
+                  {renderCorte(corte, i)}
+                </React.Fragment>
+              ) : (
+                renderCorte(corte, i)
+              );
+            })}
+          </ul>
         ) : (
           <p className="vacio-ficha">Este tiempo no se cargó.</p>
         )}
