@@ -27,6 +27,14 @@ import {
   sumarDuracionesEventos,
   validarRegistroBasico,
 } from "./domain/match";
+import {
+  cambiosDelRival,
+  cortesDePeriodo,
+  formatearMinutosSegundos,
+  periodosDelRegistro,
+  resumenDeTiempos,
+  tiempoJugado,
+} from "./domain/tiempos";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import { HojaConfirmar } from "./components/ConfirmSheet";
@@ -44,7 +52,16 @@ const IMAGEN_INTRO =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 const DURACION_INTRO = 1800;
 
-const APP_VERSION = "2026.09.10.5";
+const NOMBRES_PERIODO = {
+  PT: "Primer tiempo",
+  ST: "Segundo tiempo",
+  PTE: "Primer tiempo extra",
+  STE: "Segundo tiempo extra",
+};
+
+const nombrePeriodo = (tipo) => NOMBRES_PERIODO[tipo] || tipo;
+
+const APP_VERSION = "2026.09.10.6";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -984,6 +1001,10 @@ export default function App() {
   const [mensajeGuardado, setMensajeGuardado] = useState("");
   const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
   const [periodoVista, setPeriodoVista] = useState("PT");
+  // Qué muestra la ficha de un registro guardado: un tiempo, los cambios del
+  // rival, y si los números van en bruto o en neto.
+  const [vistaFicha, setVistaFicha] = useState("PT");
+  const [fichaEnNeto, setFichaEnNeto] = useState(false);
   const [equipoCambios, setEquipoCambios] = useState("atletico");
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
@@ -3786,6 +3807,263 @@ export default function App() {
     );
   };
 
+  /**
+   * La ficha de un registro guardado. Está pensada para leer los horarios de
+   * corte de un vistazo: el tiempo elegido manda una lista cronológica, y el
+   * botón de bruto/neto cambia todos los números a la vez.
+   */
+  const renderFichaRegistro = ({ item, alVolver, alEditar }) => {
+    const resumen = resumenDeTiempos(item);
+    const { jugadores, resto } = tiempoJugado(item);
+    const rival = cambiosDelRival(item);
+
+    const [golesCam = "", golesContra = ""] = String(item.resultado || "")
+      .split(/\s*[-\u2013:]\s*/)
+      .slice(0, 2);
+
+    // Los botones están siempre, aunque un tiempo no tenga datos: si no, un
+    // registro viejo a medio cargar se queda sin nada que tocar.
+    const tiempos = periodosDelRegistro(item);
+    const vista =
+      vistaFicha === "rival" || tiempos.includes(vistaFicha) ? vistaFicha : "PT";
+
+    const periodo = resumen.periodos.find((item2) => item2.tipo === vista);
+    const etiquetaModo = fichaEnNeto ? "Neto" : "Bruto";
+    const enModo = (valores) => (fichaEnNeto ? valores.neto : valores.bruto);
+    const duracion = (segundos) => formatearMinutosSegundos(segundos) || "--:--";
+
+    const renderPares = (pares, llave) => (
+      <span className="pares-corte">
+        {pares.map((par, i) => (
+          <React.Fragment key={`${llave}-${i}`}>
+            <span className="sale-corte">↓ {par.sale || "-"}</span>
+            <span className="entra-corte">↑ {par.entra || "-"}</span>
+          </React.Fragment>
+        ))}
+      </span>
+    );
+
+    const renderCorte = (corte, i) => {
+      if (corte.clase === "cambio") {
+        return (
+          <li className="corte corte-cambio" key={`corte-${i}`}>
+            <span className="cabeza-corte">
+              <span className="punto-corte cambio" />
+              <span className="hora-corte">{corte.hora}</span>
+            </span>
+            {renderPares(corte.pares, i)}
+          </li>
+        );
+      }
+
+      const hasta = corte.hasta ? `\u2192 ${corte.hasta}` : "";
+      const medida = formatearMinutosSegundos(corte.duracion);
+
+      return (
+        <li className={`corte corte-${corte.clase}`} key={`corte-${i}`}>
+          <span className="hora-corte">{corte.hora || "--:--:--"}</span>
+          <span className="punto-corte" />
+          <span className="nombre-corte">{corte.etiqueta}</span>
+          {(hasta || medida) && (
+            <span className="detalle-corte">
+              {[hasta, medida].filter(Boolean).join(" \u00b7 ")}
+            </span>
+          )}
+        </li>
+      );
+    };
+
+    return (
+      <div className="app">
+        <div className="contenedor ficha-registro">
+          <section className="marcador-ficha" aria-label="Resultado del partido">
+            <div className="equipos-ficha">
+              <div className="equipo-ficha">
+                <EscudoDeClub equipo="cam" nombre={NOMBRE_CAM} />
+                <strong>Atlético Mineiro</strong>
+              </div>
+
+              <div className="resultado-ficha">
+                <b>{golesCam.trim() || "0"}</b>
+                <span>—</span>
+                <b>{golesContra.trim() || "0"}</b>
+              </div>
+
+              <div className="equipo-ficha">
+                <EscudoDeClub nombre={item.rival} />
+                <strong>{item.rival || "Rival"}</strong>
+              </div>
+            </div>
+
+            <div className={`total-ficha ${fichaEnNeto ? "neto" : ""}`}>
+              <b>{duracion(enModo(resumen.total))}</b>
+              <small>{etiquetaModo.toUpperCase()}</small>
+            </div>
+          </section>
+
+          <section className="selector-periodos en-ficha" aria-label="Qué mirar">
+            <div role="tablist">
+              {tiempos.map((tipo) => (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={vista === tipo}
+                  className={vista === tipo ? "activo" : ""}
+                  onClick={() => setVistaFicha(tipo)}
+                  key={tipo}
+                >
+                  {tipo}
+                  {Boolean(item[`inicio${tipo}`] && item[`final${tipo}`]) && (
+                    <Icono nombre="check" size={15} />
+                  )}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={vista === "rival"}
+                className={`boton-rival-ficha ${vista === "rival" ? "activo" : ""} ${
+                  tiempos.length > 2 ? "solo-escudo" : ""
+                }`}
+                onClick={() => setVistaFicha("rival")}
+                aria-label={`Cambios de ${item.rival || "el rival"}`}
+              >
+                <EscudoDeClub nombre={item.rival} mini />
+                {tiempos.length > 2 ? "" : " Rival"}
+              </button>
+
+              {/* No es una opción más: es el estado en el que se leen los
+                  números, así que va siempre pintado y aparte. */}
+              <button
+                type="button"
+                className={`boton-modo-ficha ${fichaEnNeto ? "neto" : ""}`}
+                onClick={() => setFichaEnNeto((previo) => !previo)}
+                aria-pressed={fichaEnNeto}
+              >
+                <Icono nombre="cambio" size={14} />
+                {etiquetaModo}
+              </button>
+            </div>
+          </section>
+
+          <section className="tarjeta tarjeta-ficha">
+            {vista === "rival" ? (
+              <>
+                <div className="cabeza-ficha">
+                  <EscudoDeClub nombre={item.rival} mini />
+                  <b>{item.rival || "Rival"}</b>
+                  <span>
+                    {rival.length === 0
+                      ? "SIN CAMBIOS"
+                      : `${rival.reduce((total, c) => total + c.pares.length, 0)} CAMBIOS`}
+                  </span>
+                </div>
+
+                {rival.length === 0 ? (
+                  <p className="vacio-ficha">
+                    No se cargó ningún cambio del rival.
+                  </p>
+                ) : (
+                  <ul className="cortes">
+                    {rival.map((cambio, i) => (
+                      <li className="corte corte-cambio" key={`rival-${i}`}>
+                        <span className="cabeza-corte">
+                          <span className="tiempo-corte">{cambio.periodo}</span>
+                          <span className="hora-corte">{cambio.hora}</span>
+                        </span>
+                        {renderPares(cambio.pares, `rival-${i}`)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="cabeza-ficha">
+                  <b>{nombrePeriodo(vista)}</b>
+                  <span>{etiquetaModo.toUpperCase()}</span>
+                  <em className={fichaEnNeto ? "neto" : ""}>
+                    {periodo ? duracion(enModo(periodo)) : "--:--"}
+                  </em>
+                </div>
+
+                {periodo ? (
+                  <ul className="cortes">
+                    {cortesDePeriodo(item, vista).map(renderCorte)}
+                  </ul>
+                ) : (
+                  <p className="vacio-ficha">Este tiempo no se cargó.</p>
+                )}
+              </>
+            )}
+          </section>
+
+          {(jugadores.length > 0 || resto) && (
+            <section className="tarjeta tarjeta-ficha">
+              <table className="tabla-jugados">
+                <thead>
+                  <tr>
+                    <th>TIEMPO JUGADO</th>
+                    <th>{etiquetaModo.toUpperCase()}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jugadores.map((jugador, i) => (
+                    <tr key={`jugado-${i}`}>
+                      <td>
+                        <span className="quien-jugado">{jugador.nombre}</span>
+                        {jugador.salio && (
+                          <span className="cuando-jugado sale-corte">
+                            ↓ {jugador.salio}
+                          </span>
+                        )}
+                        {jugador.entro && (
+                          <span className="cuando-jugado entra-corte">
+                            ↑ {jugador.entro}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}>
+                        {duracion(enModo(jugador))}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {resto && (
+                    <tr className="fila-resto">
+                      <td>
+                        <span className="quien-jugado">
+                          {resto.cantidad === 1
+                            ? "El otro titular"
+                            : `Los otros ${resto.cantidad} titulares`}
+                        </span>
+                        <span className="cuando-jugado">partido completo</span>
+                      </td>
+                      <td className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}>
+                        {duracion(enModo(resto))}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          <div className="acciones-dobles">
+            <button type="button" className="boton-secundario" onClick={alVolver}>
+              ← Volver
+            </button>
+
+            <button type="button" className="boton-principal" onClick={alEditar}>
+              Editar registro
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderDetalleRegistro = ({ item, index }) => {
     const registroDetalleBase = {
       ...item,
@@ -3797,6 +4075,21 @@ export default function App() {
     const setEditando = setDetalleEditando;
     const editado = detalleBorrador || registroDetalleBase;
     const setEditado = setDetalleBorrador;
+
+    if (!editando) {
+      return renderFichaRegistro({
+        item: registroDetalleBase,
+        alVolver: () => {
+          setRegistroSeleccionado(null);
+          setDetalleBorrador(null);
+          setDetalleEditando(false);
+        },
+        alEditar: () => {
+          setEditado(registroDetalleBase);
+          setEditando(true);
+        },
+      });
+    }
 
     const tiemposEditados = calcularTiemposRegistro(editado);
     const cambios = editado.cambios || crearCambiosVacios();
@@ -5246,6 +5539,10 @@ export default function App() {
                           setRegistroSeleccionado({ item, index });
                           setDetalleBorrador(null);
                           setDetalleEditando(false);
+                          // Cada registro se abre como el anterior: primer
+                          // tiempo y en bruto.
+                          setVistaFicha("PT");
+                          setFichaEnNeto(false);
                         }}
                       >
                         Ver detalle
