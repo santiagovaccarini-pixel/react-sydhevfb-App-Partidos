@@ -44,7 +44,7 @@ const IMAGEN_INTRO =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 const DURACION_INTRO = 1800;
 
-const APP_VERSION = "2026.09.10.1";
+const APP_VERSION = "2026.09.10.2";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1242,6 +1242,17 @@ export default function App() {
     };
   };
 
+  const leerRespaldoHistorial = () => {
+    try {
+      const datos = JSON.parse(localStorage.getItem(CLAVE_RESPALDO) || "[]");
+      const lista =
+        datos?.version === VERSION_BORRADOR ? datos.registros : datos;
+      return Array.isArray(lista) ? lista : [];
+    } catch (error) {
+      return [];
+    }
+  };
+
   // Partidos que no se pudieron subir. Viven aparte del respaldo del
   // historial, porque ese se pisa entero cada vez que la base responde.
   const leerPendientes = () => {
@@ -1298,18 +1309,7 @@ export default function App() {
     if (error) {
       console.error("Error cargando registros desde Supabase:", error);
 
-      try {
-        const datosRespaldo = JSON.parse(
-          localStorage.getItem(CLAVE_RESPALDO) || "[]",
-        );
-        const respaldo =
-          datosRespaldo?.version === VERSION_BORRADOR
-            ? datosRespaldo.registros
-            : datosRespaldo;
-        if (Array.isArray(respaldo)) setGuardados(respaldo);
-      } catch (errorRespaldo) {
-        console.warn("El respaldo local del historial no es válido.");
-      }
+      setGuardados(leerRespaldoHistorial());
 
       // El respaldo local se muestra sin avisar: el cartel tapaba el marcador.
       setHistorialCargado(true);
@@ -1317,6 +1317,23 @@ export default function App() {
     }
 
     const registrosConvertidos = (data || []).map(convertirSupabaseARegistro);
+
+    // Si la base contesta bien pero sin nada, y en el celular hay historial,
+    // NO se pisa: una respuesta vacía puede ser un permiso o una tabla que
+    // cambió, y antes eso borraba todos los partidos guardados.
+    if (registrosConvertidos.length === 0) {
+      const respaldo = leerRespaldoHistorial();
+
+      if (respaldo.length > 0) {
+        console.warn(
+          "La base no devolvió ningún partido. Se conserva el historial del celular.",
+        );
+        setGuardados(respaldo);
+        setHistorialCargado(true);
+        return;
+      }
+    }
+
     setGuardados(mezclarPendientes(registrosConvertidos));
     setHistorialCargado(true);
   };
@@ -2911,6 +2928,7 @@ export default function App() {
 
     setGuardados([]);
     localStorage.removeItem(CLAVE_RESPALDO);
+    localStorage.removeItem(CLAVE_PENDIENTES);
     setRegistroSeleccionado(null);
   };
 
@@ -2952,6 +2970,24 @@ export default function App() {
       console.error("Error eliminando registro en Supabase:", error);
       alert("No se pudo eliminar el registro en Supabase");
       return;
+    }
+
+    const clave = clavePartido(registroAEliminar);
+    escribirPendientes(
+      leerPendientes().filter((item) => clavePartido(item) !== clave),
+    );
+    try {
+      localStorage.setItem(
+        CLAVE_RESPALDO,
+        JSON.stringify({
+          version: VERSION_BORRADOR,
+          registros: leerRespaldoHistorial().filter(
+            (item) => clavePartido(item) !== clave,
+          ),
+        }),
+      );
+    } catch (error) {
+      console.warn("No se pudo actualizar el respaldo local del historial.");
     }
 
     await cargarRegistrosSupabase();

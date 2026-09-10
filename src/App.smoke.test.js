@@ -633,6 +633,39 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelector(".notificacion-guardado")).toBeNull();
   });
 
+  test("una respuesta vacía de la base no borra el historial del celular", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    localStorage.setItem(
+      "backup_registros_partidos",
+      JSON.stringify({
+        version: 2,
+        registros: [
+          { fecha: "2026-09-01", rival: "Flamengo", resultado: "2-2" },
+          { fecha: "2026-08-24", rival: "Palmeiras", resultado: "0-1" },
+        ],
+      }),
+    );
+
+    // La base contesta bien, pero sin ningún partido: puede ser un permiso o
+    // una tabla que cambió. Antes eso pisaba el respaldo y se perdía todo.
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(2);
+    expect(contenedor.textContent).toContain("Flamengo");
+
+    // Y sobre todo: el respaldo del celular sigue entero.
+    const respaldo = JSON.parse(
+      localStorage.getItem("backup_registros_partidos"),
+    );
+    expect(respaldo.registros).toHaveLength(2);
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await montarApp();
 
