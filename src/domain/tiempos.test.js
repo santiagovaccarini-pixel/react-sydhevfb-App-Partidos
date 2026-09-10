@@ -135,6 +135,42 @@ describe("tiempos del partido", () => {
     expect(total).toEqual({ bruto: 5680, detenido: 270, neto: 5410 });
   });
 
+  test("un cambio sin período anotado se ubica por su horario", () => {
+    // Las columnas de la base guardan el horario pero no el período. Sin
+    // deducirlo, un cambio del segundo tiempo caía en la lista del primero.
+    const sinPeriodo = {
+      ...PARTIDO,
+      cambios: [
+        { sale: "ALONSO", entra: "BERNARD", hora: "21:23:14" },
+        { sale: "SCARPA", entra: "DUDU", hora: "22:18:00" },
+      ],
+    };
+
+    expect(
+      cortesDePeriodo(sinPeriodo, "PT").filter((c) => c.clase === "cambio"),
+    ).toHaveLength(1);
+    expect(
+      cortesDePeriodo(sinPeriodo, "ST").filter((c) => c.clase === "cambio"),
+    ).toHaveLength(1);
+
+    // Y las cuentas dan lo mismo que con el período anotado.
+    const { jugadores } = tiempoJugado(sinPeriodo);
+    expect(porNombre(jugadores, "DUDU")).toMatchObject({ bruto: 1930 });
+    expect(porNombre(jugadores, "SCARPA")).toMatchObject({ bruto: 3750 });
+  });
+
+  test("un cambio hecho en el entretiempo queda en el tiempo que terminó", () => {
+    const { jugadores } = tiempoJugado({
+      ...PARTIDO,
+      cambios: [{ sale: "ALONSO", entra: "BERNARD", hora: "21:55:00" }],
+    });
+
+    // 21:55 cae entre el final del PT y el inicio del ST: se toma el final
+    // del primero, así que ALONSO jugó los 47:30 completos.
+    expect(porNombre(jugadores, "ALONSO")).toMatchObject({ bruto: 2850 });
+    expect(porNombre(jugadores, "BERNARD")).toMatchObject({ bruto: 2830 });
+  });
+
   test("los cortes de un tiempo salen en orden de horario", () => {
     const cortes = cortesDePeriodo(PARTIDO, "PT");
 

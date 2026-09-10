@@ -1039,9 +1039,19 @@ describe("interfaz operativa", () => {
 
     const cortes = contenedor.querySelectorAll(".corte-cambio");
     expect(cortes).toHaveLength(1);
-    expect(cortes[0].querySelectorAll(".pares-corte span")).toHaveLength(4);
+
     // Un solo horario arriba de los dos cambios.
     expect(cortes[0].querySelectorAll(".hora-corte")).toHaveLength(1);
+
+    // Y cada cambio en su renglón, con el que sale y el que entra juntos.
+    const renglones = cortes[0].querySelectorAll(".par-corte");
+    expect(renglones).toHaveLength(2);
+    renglones.forEach((renglon) => {
+      expect(renglon.querySelectorAll(".sale-corte")).toHaveLength(1);
+      expect(renglon.querySelectorAll(".entra-corte")).toHaveLength(1);
+    });
+    expect(renglones[0].textContent).toBe("↓ SCARPA↑ DUDU");
+    expect(renglones[1].textContent).toBe("↓ ARANA↑ HULK");
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {

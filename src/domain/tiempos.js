@@ -120,17 +120,43 @@ export const resumenDeTiempos = (registro) => {
 const clave = (nombre) => normalizarTextoBase(nombre);
 
 /**
+ * A qué tiempo pertenece un horario. Hace falta porque las columnas de la base
+ * guardan el horario del cambio pero no su período: sin esto, un cambio del
+ * segundo tiempo aparecería en la lista del primero.
+ *
+ * Se busca el tiempo en cuya ventana cae. Si cae en el entretiempo, donde no
+ * hay ninguno, se le da el último que ya había arrancado.
+ */
+const periodoDelHorario = (linea, hora) => {
+  let anterior = null;
+
+  for (const periodo of linea) {
+    const desplazamiento = segundosEntre(periodo.inicio, hora);
+    if (desplazamiento === null) continue;
+    if (desplazamiento <= periodo.duracion) return periodo;
+    anterior = periodo;
+  }
+
+  return anterior;
+};
+
+/**
  * Los cambios ubicados en la recta del partido y ordenados por horario.
- * Un cambio sin período anotado se toma como del primer tiempo, que es lo que
- * hacía la app antes de que el período se guardara.
  */
 export const cambiosOrdenados = (registro, linea, lista = "cambios") =>
   (registro?.[lista] || [])
     .map((cambio, indice) => {
-      const periodo =
-        linea.find((item) => item.tipo === (cambio?.periodo || "PT")) || null;
-      const momento = momentoEnLaRecta(periodo, cambio?.hora);
-      if (momento === null) return null;
+      const anotado = cambio?.periodo
+        ? linea.find((item) => item.tipo === cambio.periodo)
+        : null;
+      const periodo = anotado || periodoDelHorario(linea, cambio?.hora);
+      const suelto = momentoEnLaRecta(periodo, cambio?.hora);
+      if (suelto === null) return null;
+
+      // Un cambio anotado en el entretiempo cae fuera de la ventana de su
+      // tiempo. Se lo lleva al borde para que no invada al siguiente: el que
+      // sale jugó el tiempo entero y el que entra arranca el que viene.
+      const momento = Math.min(Math.max(suelto, periodo.desde), periodo.hasta);
       return {
         indice,
         sale: cambio?.sale || "",

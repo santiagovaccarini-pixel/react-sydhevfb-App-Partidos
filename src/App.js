@@ -3832,13 +3832,15 @@ export default function App() {
     const enModo = (valores) => (fichaEnNeto ? valores.neto : valores.bruto);
     const duracion = (segundos) => formatearMinutosSegundos(segundos) || "--:--";
 
+    // Cada cambio es un renglón: el que sale y el que entra pegados, como se
+    // lee un cambio. Si no entran, se recortan antes que partirse en dos.
     const renderPares = (pares, llave) => (
       <span className="pares-corte">
         {pares.map((par, i) => (
-          <React.Fragment key={`${llave}-${i}`}>
+          <span className="par-corte" key={`${llave}-${i}`}>
             <span className="sale-corte">↓ {par.sale || "-"}</span>
             <span className="entra-corte">↑ {par.entra || "-"}</span>
-          </React.Fragment>
+          </span>
         ))}
       </span>
     );

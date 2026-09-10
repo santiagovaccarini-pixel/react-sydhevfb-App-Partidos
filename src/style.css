@@ -4029,17 +4029,25 @@ button:disabled {
   font-weight: 800;
 }
 
-/* Dos columnas cuando entran; en pantallas angostas, o con nombres largos,
-   pasan a una sola antes que recortarse. */
 .pares-corte {
-  display: grid;
-  gap: 3px 10px;
-  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   margin: 5px 0 0 15px;
 }
 
-.pares-corte span {
+/* El que sale y el que entra van juntos, en un renglón. Nunca se parten: si el
+   ancho no alcanza, los nombres se recortan con puntos suspensivos. */
+.par-corte {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.par-corte span {
   overflow: hidden;
+  min-width: 0;
   font-size: 12.5px;
   font-weight: 800;
   text-overflow: ellipsis;
