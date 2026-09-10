@@ -699,6 +699,79 @@ describe("interfaz operativa", () => {
     ).toHaveLength(0);
   });
 
+  test("en transmisión se guardan horarios reales, no minutos de juego", async () => {
+    // El partido se anota en minutos de juego, pero lo que tiene que quedar
+    // guardado son horarios, calculados desde la hora en que arrancó cada
+    // período. Es la regla de siempre y conviene que un test la sostenga.
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify({
+        version: 2,
+        registro: {
+          fecha: "2026-09-10",
+          rival: "Santos",
+          resultado: "2-1",
+          modoTiempo: "transmision",
+
+          horaInicioRealPT: "21:00:00",
+          inicioPT: "000:00",
+          finalPT: "047:30",
+
+          horaInicioRealST: "22:03:00",
+          inicioST: "000:00",
+          finalST: "047:10",
+
+          varsPT: [{ inicio: "012:00", final: "014:30" }],
+          inicioHidratacionPT: "025:00",
+          finalHidratacionPT: "027:00",
+
+          cambios: [
+            { sale: "ALONSO", entra: "BERNARD", hora: "023:14", periodo: "PT" },
+            { sale: "SCARPA", entra: "DUDU", hora: "015:00", periodo: "ST" },
+          ],
+          formacion: {
+            titulares: ["ALONSO", "SCARPA"],
+            convocados: ["BERNARD", "DUDU"],
+          },
+        },
+      }),
+    );
+
+    await montarApp();
+
+    const guardar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Guardar partido"),
+    );
+    await act(async () => {
+      guardar.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const fila = doblesSupabase.insertar.mock.calls[0][0][0];
+
+    // Cada uno es la hora de arranque de su período más lo transcurrido.
+    expect(fila.inicio_pt).toBe("21:00:00");
+    expect(fila.final_pt).toBe("21:47:30");
+    expect(fila.inicio_st).toBe("22:03:00");
+    expect(fila.final_st).toBe("22:50:10");
+    expect(fila.inicio_var_pt_1).toBe("21:12:00");
+    expect(fila.final_var_pt_1).toBe("21:14:30");
+    expect(fila.inicio_hid_pt).toBe("21:25:00");
+    expect(fila.final_hid_pt).toBe("21:27:00");
+    expect(fila.cambio_1_tiempo).toBe("21:23:14");
+    expect(fila.cambio_2_tiempo).toBe("22:18:00");
+
+    // Y que no se escape ninguno en formato de minutos.
+    const enMinutos = Object.entries(fila).filter(([, valor]) =>
+      /^\d{3}:\d{2}$/.test(String(valor || "")),
+    );
+    expect(enMinutos).toEqual([]);
+
+    // El modo queda anotado, para saber cómo se cargó.
+    expect(fila.modo_tiempo).toBe("transmision");
+  });
+
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await montarApp();
 
