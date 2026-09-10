@@ -3692,3 +3692,24 @@ button:disabled {
 .acciones-formacion button {
   margin: 0;
 }
+
+/* Partidos guardados en el celular que todavía no llegaron a la base */
+.cabecera-registro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.marca-sin-sincronizar {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border: 1px solid #e7d3a8;
+  border-radius: 99px;
+  background: #fdf6e6;
+  color: #8a6412;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

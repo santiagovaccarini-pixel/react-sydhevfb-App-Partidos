@@ -44,10 +44,11 @@ const IMAGEN_INTRO =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 const DURACION_INTRO = 1800;
 
-const APP_VERSION = "2026.09.09.9";
+const APP_VERSION = "2026.09.10.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
+const CLAVE_PENDIENTES = "registros_sin_sincronizar";
 // Los cinco cambios reglamentarios se muestran siempre, aunque estén vacíos.
 const CAMBIOS_SIEMPRE_VISIBLES = 5;
 
@@ -1241,6 +1242,53 @@ export default function App() {
     };
   };
 
+  // Partidos que no se pudieron subir. Viven aparte del respaldo del
+  // historial, porque ese se pisa entero cada vez que la base responde.
+  const leerPendientes = () => {
+    try {
+      const guardado = JSON.parse(
+        localStorage.getItem(CLAVE_PENDIENTES) || "[]",
+      );
+      return Array.isArray(guardado) ? guardado : [];
+    } catch (error) {
+      return [];
+    }
+  };
+
+  const escribirPendientes = (lista) => {
+    try {
+      localStorage.setItem(CLAVE_PENDIENTES, JSON.stringify(lista));
+    } catch (error) {
+      console.warn("No se pudo guardar la lista de partidos sin sincronizar.");
+    }
+  };
+
+  const guardarPendiente = (registroNuevo) => {
+    const clave = clavePartido(registroNuevo);
+    const pendientes = leerPendientes().filter(
+      (item) => clavePartido(item) !== clave,
+    );
+    const actualizados = [
+      { ...registroNuevo, sinSincronizar: true },
+      ...pendientes,
+    ];
+
+    escribirPendientes(actualizados);
+    return actualizados;
+  };
+
+  // Al volver la base, los que ya llegaron dejan de estar pendientes; los que
+  // no, se muestran igual arriba de la lista.
+  const mezclarPendientes = (registrosDeLaBase) => {
+    const clavesEnLaBase = new Set(registrosDeLaBase.map(clavePartido));
+    const pendientes = leerPendientes().filter(
+      (item) => !clavesEnLaBase.has(clavePartido(item)),
+    );
+
+    escribirPendientes(pendientes);
+    return [...pendientes, ...registrosDeLaBase];
+  };
+
   const cargarRegistrosSupabase = async () => {
     const { data, error } = await supabase
       .from("registros_partido")
@@ -1269,7 +1317,7 @@ export default function App() {
     }
 
     const registrosConvertidos = (data || []).map(convertirSupabaseARegistro);
-    setGuardados(registrosConvertidos);
+    setGuardados(mezclarPendientes(registrosConvertidos));
     setHistorialCargado(true);
   };
   useEffect(() => {
@@ -2478,6 +2526,13 @@ export default function App() {
     return payloadBase;
   };
 
+  // El cartel de guardado siempre se borra solo: antes solo lo hacía el
+  // camino exitoso, así que un fallo dejaba el aviso pegado para siempre.
+  const avisarGuardado = (texto, milisegundos = 2500) => {
+    setMensajeGuardado(texto);
+    window.setTimeout(() => setMensajeGuardado(""), milisegundos);
+  };
+
   const guardarRegistro = async () => {
     if (guardandoRef.current) return;
 
@@ -2628,15 +2683,27 @@ export default function App() {
 
       if (respuesta.error) {
         if (esErrorColumnasExtendidas(respuesta.error)) {
-          alert(
-            "Falta ejecutar la migración de captura de tiempos en Supabase. El borrador quedó guardado en este dispositivo.",
+          console.error(
+            "Faltan columnas en Supabase:",
+            respuesta.error?.message || respuesta.error,
           );
-          setMensajeGuardado("Falta actualizar la base de datos");
+          setGuardados(guardarPendiente(nuevoRegistro));
+          avisarGuardado("Falta actualizar la base de datos", 6000);
+          alert(
+            "Falta ejecutar la migración de captura de tiempos en Supabase. El partido quedó guardado en este dispositivo.",
+          );
           return;
         }
 
-        console.error("No se pudo guardar el registro en Supabase.");
-        setMensajeGuardado("Guardado local · sin sincronizar");
+        // Antes se tiraba el error sin mirarlo, así que no había forma de
+        // saber por qué fallaba.
+        console.error(
+          "No se pudo guardar el registro en Supabase:",
+          respuesta.error?.message || respuesta.error,
+          respuesta.error,
+        );
+        setGuardados(guardarPendiente(nuevoRegistro));
+        avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
         return;
       }
 
@@ -2646,14 +2713,13 @@ export default function App() {
       }
 
       await cargarRegistrosSupabase();
-      setMensajeGuardado(
+      avisarGuardado(
         idExistente ? "Partido actualizado" : "Partido guardado con éxito",
       );
-
-      setTimeout(() => setMensajeGuardado(""), 2500);
     } catch (error) {
-      console.error("Error de red al guardar el partido.");
-      setMensajeGuardado("Guardado local · sin sincronizar");
+      console.error("Error de red al guardar el partido:", error);
+      setGuardados(guardarPendiente(nuevoRegistro));
+      avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
     } finally {
       guardandoRef.current = false;
       setGuardando(false);
@@ -5039,8 +5105,15 @@ export default function App() {
 
                 {registrosVisibles.map(({ item, index }) => (
                   <div className="registro-guardado" key={index}>
-                    <span className="fecha-registro">
-                      {formatearFechaPantalla(item.fecha)}
+                    <span className="cabecera-registro">
+                      <span className="fecha-registro">
+                        {formatearFechaPantalla(item.fecha)}
+                      </span>
+                      {item.sinSincronizar && (
+                        <span className="marca-sin-sincronizar">
+                          Sin sincronizar
+                        </span>
+                      )}
                     </span>
 
                     <div className="enfrentamiento-registro">
