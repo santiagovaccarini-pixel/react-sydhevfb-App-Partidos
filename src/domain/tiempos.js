@@ -176,15 +176,29 @@ export const cambiosOrdenados = (registro, linea, lista = "cambios") =>
  * cancha. Al neto de cada jugador se le descuentan solo las paradas que
  * ocurrieron mientras él estaba adentro: por eso a uno que entró faltando poco
  * no se le resta un VAR del primer tiempo.
+ *
+ * `periodo` acota la cuenta a un tiempo: cada tramo se recorta a esa ventana y
+ * quedan afuera los que no pisaron la cancha en ese rato. Sin él se mide el
+ * partido entero.
+ *
+ * `lista` elige de qué equipo. Del rival no se guarda la formación, solo sus
+ * cambios, así que se puede medir a los que entraron o salieron pero no saber
+ * quiénes fueron los demás: por eso ahí no hay fila de resto.
  */
-export const tiempoJugado = (registro) => {
+export const tiempoJugado = (registro, opciones = {}) => {
+  const { periodo: soloPeriodo = null, lista = "cambios" } = opciones;
   const linea = lineaDeTiempo(registro);
   const vacio = { jugadores: [], resto: null };
   if (linea.length === 0) return vacio;
 
   const finPartido = linea[linea.length - 1].hasta;
+  const ventana = soloPeriodo
+    ? linea.find((item) => item.tipo === soloPeriodo)
+    : { desde: 0, hasta: finPartido };
+  if (!ventana) return vacio;
+
   const paradas = linea.flatMap((periodo) => paradasDePeriodo(registro, periodo));
-  const cambios = cambiosOrdenados(registro, linea);
+  const cambios = cambiosOrdenados(registro, linea, lista);
 
   const titulares = limpiarLista(registro?.formacion?.titulares || []);
   const tramos = new Map();
@@ -240,33 +254,53 @@ export const tiempoJugado = (registro) => {
     anotar(nombres.get(id) || id, { desde, hasta: finPartido });
   });
 
-  const medir = (lista) => {
-    const bruto = lista.reduce((total, tramo) => total + (tramo.hasta - tramo.desde), 0);
-    return { bruto, neto: Math.max(0, bruto - descontarParadas(lista, paradas)) };
+  // Cada tramo se recorta a la ventana pedida antes de medirlo.
+  const medir = (tramosDelJugador) => {
+    const dentro = tramosDelJugador
+      .map((tramo) => ({
+        desde: Math.max(tramo.desde, ventana.desde),
+        hasta: Math.min(tramo.hasta, ventana.hasta),
+      }))
+      .filter((tramo) => tramo.hasta > tramo.desde);
+
+    const bruto = dentro.reduce((total, tramo) => total + (tramo.hasta - tramo.desde), 0);
+    return { bruto, neto: Math.max(0, bruto - descontarParadas(dentro, paradas)) };
   };
 
-  const jugadores = [...participaron.values()].map((quien) => ({
-    nombre: nombres.get(quien.id) || "",
-    entro: quien.entro || "",
-    salio: quien.salio || "",
-    ...medir(tramos.get(quien.id) || []),
-  }));
+  // Los que no pisaron la cancha en la ventana no tienen nada que mostrar.
+  const jugadores = [...participaron.values()]
+    .map((quien) => ({
+      nombre: nombres.get(quien.id) || "",
+      entro: quien.entro || "",
+      salio: quien.salio || "",
+      ...medir(tramos.get(quien.id) || []),
+    }))
+    .filter((jugador) => jugador.bruto > 0);
 
-  const completos = titulares.filter((nombre) => !participaron.has(clave(nombre)));
-  const paradasTotales = paradas.reduce((total, parada) => total + parada.duracion, 0);
+  const completos =
+    lista === "cambios"
+      ? titulares.filter((nombre) => !participaron.has(clave(nombre)))
+      : [];
+  const completo = medir([{ desde: ventana.desde, hasta: ventana.hasta }]);
 
   return {
     jugadores,
     resto:
-      completos.length > 0
-        ? {
-            cantidad: completos.length,
-            bruto: finPartido,
-            neto: Math.max(0, finPartido - paradasTotales),
-          }
-        : null,
+      completos.length > 0 ? { cantidad: completos.length, ...completo } : null,
   };
 };
+
+/**
+ * Los cortes de todo el partido, en orden y con la etiqueta del tiempo al que
+ * pertenece cada uno. Es lo que se ve cuando se mira el total.
+ */
+export const cortesDelPartido = (registro, lista = "cambios") =>
+  periodosDelRegistro(registro).flatMap((tipo) =>
+    cortesDePeriodo(registro, tipo, lista).map((corte) => ({
+      ...corte,
+      tiempo: tipo,
+    })),
+  );
 
 /**
  * Los puntos de corte de un tiempo, en orden de horario: arranque, VAR,
