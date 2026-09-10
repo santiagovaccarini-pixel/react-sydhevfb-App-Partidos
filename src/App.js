@@ -28,7 +28,7 @@ import {
   validarRegistroBasico,
 } from "./domain/match";
 import {
-  cambiosDelRival,
+  cortesDelPartido,
   cortesDePeriodo,
   formatearMinutosSegundos,
   periodosDelRegistro,
@@ -61,7 +61,10 @@ const NOMBRES_PERIODO = {
 
 const nombrePeriodo = (tipo) => NOMBRES_PERIODO[tipo] || tipo;
 
-const APP_VERSION = "2026.09.10.7";
+// La ficha muestra un tiempo o el partido entero.
+const TOTAL = "total";
+
+const APP_VERSION = "2026.09.10.8";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -3824,7 +3827,6 @@ export default function App() {
    */
   const renderFichaRegistro = ({ item, alVolver, alEditar }) => {
     const resumen = resumenDeTiempos(item);
-    const { jugadores, resto } = tiempoJugado(item);
 
     const [golesCam = "", golesContra = ""] = String(item.resultado || "")
       .split(/\s*[-\u2013:]\s*/)
@@ -3833,12 +3835,21 @@ export default function App() {
     // Los botones de tiempo están siempre, aunque uno no tenga datos: si no, un
     // registro viejo a medio cargar se queda sin nada que tocar.
     const tiempos = periodosDelRegistro(item);
-    const vista = tiempos.includes(vistaFicha) ? vistaFicha : "PT";
+    const vista =
+      vistaFicha === TOTAL || tiempos.includes(vistaFicha) ? vistaFicha : "PT";
+    const esTotal = vista === TOTAL;
     const periodo = resumen.periodos.find((item2) => item2.tipo === vista);
 
     const lista = fichaDelRival ? "cambiosRival" : "cambios";
-    const cortes = cortesDePeriodo(item, vista, lista);
+    const cortes = esTotal
+      ? cortesDelPartido(item, lista)
+      : cortesDePeriodo(item, vista, lista);
     const cambios = cortes.filter((corte) => corte.clase === "cambio");
+
+    const { jugadores, resto } = tiempoJugado(item, {
+      periodo: esTotal ? null : vista,
+      lista,
+    });
 
     const etiquetaModo = fichaEnNeto ? "Neto" : "Bruto";
     const enModo = (valores) => (fichaEnNeto ? valores.neto : valores.bruto);
@@ -3867,10 +3878,16 @@ export default function App() {
     );
 
     const renderCorte = (corte, i) => {
+      // Mirando todo el partido hace falta saber de qué tiempo es cada corte.
+      const marca = corte.tiempo ? (
+        <span className="tiempo-corte">{corte.tiempo}</span>
+      ) : null;
+
       if (corte.clase === "cambio") {
         return (
           <li className="corte corte-cambio" key={`corte-${i}`}>
             <span className="cabeza-corte">
+              {marca}
               <span className="punto-corte cambio" />
               <span className="hora-corte">{corte.hora}</span>
             </span>
@@ -3884,6 +3901,7 @@ export default function App() {
 
       return (
         <li className={`corte corte-${corte.clase}`} key={`corte-${i}`}>
+          {marca}
           <span className="hora-corte">{corte.hora || "--:--:--"}</span>
           <span className="punto-corte" />
           <span className="nombre-corte">{corte.etiqueta}</span>
@@ -3899,15 +3917,19 @@ export default function App() {
     const tarjetaLinea = (
       <section className="tarjeta tarjeta-ficha" key="linea">
         <div className="cabeza-ficha">
-          <b>{nombrePeriodo(vista)}</b>
+          <b>{esTotal ? "Todo el partido" : nombrePeriodo(vista)}</b>
           <span className="et">{etiquetaModo.toUpperCase()}</span>
           {marcaRival}
           <em className={fichaEnNeto ? "neto" : ""}>
-            {periodo ? duracion(enModo(periodo)) : "--:--"}
+            {esTotal
+              ? duracion(enModo(resumen.total))
+              : periodo
+                ? duracion(enModo(periodo))
+                : "--:--"}
           </em>
         </div>
 
-        {periodo ? (
+        {esTotal || periodo ? (
           <ul className="cortes">{cortes.map(renderCorte)}</ul>
         ) : (
           <p className="vacio-ficha">Este tiempo no se cargó.</p>
@@ -3920,7 +3942,7 @@ export default function App() {
     const tarjetaCambios = fichaCambiosArriba ? (
       <section className="tarjeta tarjeta-ficha" key="cambios">
         <div className="cabeza-ficha">
-          <b>Cambios del {vista}</b>
+          <b>{esTotal ? "Todos los cambios" : `Cambios del ${vista}`}</b>
           {marcaRival || (
             <span className="et cuenta-cambios">
               {cambios.length === 0
@@ -3988,6 +4010,16 @@ export default function App() {
                   )}
                 </button>
               ))}
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={esTotal}
+                className={esTotal ? "activo" : ""}
+                onClick={() => setVistaFicha(TOTAL)}
+              >
+                Total
+              </button>
             </div>
           </section>
 
@@ -5573,7 +5605,7 @@ export default function App() {
                           setDetalleEditando(false);
                           // Cada registro se abre igual: primer tiempo, en
                           // bruto y con los cambios nuestros.
-                          setVistaFicha("PT");
+                          setVistaFicha(TOTAL);
                           setFichaEnNeto(false);
                           setFichaDelRival(false);
                           setFichaCambiosArriba(false);

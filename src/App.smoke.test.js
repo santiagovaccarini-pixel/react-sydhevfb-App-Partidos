@@ -158,6 +158,13 @@ describe("interfaz operativa", () => {
     );
   };
 
+  const elegirTiempo = async (etiqueta) => {
+    const boton = Array.from(
+      contenedor.querySelectorAll('.selector-periodos.en-ficha button[role="tab"]'),
+    ).find((item) => item.textContent.trim().startsWith(etiqueta));
+    await act(async () => boton.click());
+  };
+
   const montarApp = async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
@@ -866,12 +873,17 @@ describe("interfaz operativa", () => {
     await act(async () => detalle.click());
 
     // La ficha muestra un tiempo por vez, así que se revisan los dos.
-    const sinGuias = (texto) => {
-      for (const guia of ["000:00", "047:30", "047:10", "023:14", "015:00"]) {
-        expect(texto).not.toContain(guia);
-      }
+    // Se miran los valores uno por uno y no el texto entero: dos horarios
+    // pegados forman por casualidad algo con pinta de guía.
+    const sinGuias = () => {
+      const horas = Array.from(
+        contenedor.querySelectorAll(".corte .hora-corte"),
+      ).map((celda) => celda.textContent.trim());
+      expect(horas.length).toBeGreaterThan(0);
+      horas.forEach((hora) => expect(hora).toMatch(/^\d{2}:\d{2}:\d{2}$/));
     };
 
+    await elegirTiempo("PT");
     const enPT = contenedor.textContent;
     for (const horario of [
       "21:00:00",
@@ -885,19 +897,16 @@ describe("interfaz operativa", () => {
       expect(enPT).toContain(horario);
     }
     expect(enPT).toContain("47:30");
-    sinGuias(enPT);
+    sinGuias();
 
-    const irAlST = Array.from(
-      contenedor.querySelectorAll('.selector-periodos.en-ficha button[role="tab"]'),
-    ).find((boton) => boton.textContent.trim().startsWith("ST"));
-    await act(async () => irAlST.click());
+    await elegirTiempo("ST");
 
     const enST = contenedor.textContent;
     for (const horario of ["22:03:00", "22:18:00", "22:50:10"]) {
       expect(enST).toContain(horario);
     }
     expect(enST).toContain("47:10");
-    sinGuias(enST);
+    sinGuias();
   });
 
   test("una corrección a mano sobre un horario guardado no se pisa", async () => {
@@ -966,10 +975,11 @@ describe("interfaz operativa", () => {
         contenedor.querySelectorAll(".total-ficha b, .cabeza-ficha em, .valor-jugado"),
       ).map((celda) => celda.textContent.trim());
 
-    // En bruto: el partido, el primer tiempo y lo que jugó cada uno.
+    // Arranca mostrando todo el partido: el total arriba, el de la tarjeta y
+    // lo que jugó cada uno.
     expect(valores()).toEqual([
       "94:40",
-      "47:30",
+      "94:40",
       "23:14",
       "71:26",
       "62:30",
@@ -988,7 +998,7 @@ describe("interfaz operativa", () => {
     );
     expect(valores()).toEqual([
       "90:10",
-      "43:00",
+      "90:10",
       "20:44",
       "69:26",
       "58:00",
@@ -1002,6 +1012,7 @@ describe("interfaz operativa", () => {
 
     await montarApp();
     await abrirFicha();
+    await elegirTiempo("PT");
 
     const horarios = () =>
       Array.from(contenedor.querySelectorAll(".corte .hora-corte")).map((h) =>
@@ -1040,6 +1051,68 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelector(".marca-rival")).toBeTruthy();
   });
 
+  test("el tiempo jugado sigue al tiempo elegido", async () => {
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+    await abrirFicha();
+
+    const tabla = () =>
+      Array.from(contenedor.querySelectorAll(".tabla-jugados tbody tr")).map(
+        (fila) => [
+          fila.querySelector(".quien-jugado").textContent.trim(),
+          fila.querySelector(".valor-jugado").textContent.trim(),
+        ],
+      );
+
+    // En el total, lo que jugó cada uno en todo el partido.
+    expect(tabla()).toEqual([
+      ["ALONSO", "23:14"],
+      ["BERNARD", "71:26"],
+      ["SCARPA", "62:30"],
+      ["DUDU", "32:10"],
+      ["El otro titular", "94:40"],
+    ]);
+
+    await elegirTiempo("PT");
+
+    // En el primero, solo lo de ese tiempo. DUDU entró en el segundo, así que
+    // no pisó la cancha acá y desaparece de la lista.
+    expect(tabla()).toEqual([
+      ["ALONSO", "23:14"],
+      ["BERNARD", "24:16"],
+      ["SCARPA", "47:30"],
+      ["El otro titular", "47:30"],
+    ]);
+
+    await elegirTiempo("ST");
+
+    expect(tabla()).toEqual([
+      ["BERNARD", "47:10"],
+      ["SCARPA", "15:00"],
+      ["DUDU", "32:10"],
+      ["El otro titular", "47:10"],
+    ]);
+  });
+
+  test("con el rival prendido, el tiempo jugado es el de sus jugadores", async () => {
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+    await abrirFicha();
+    await act(async () => contenedor.querySelector(".boton-rival-ficha").click());
+
+    const nombres = Array.from(
+      contenedor.querySelectorAll(".tabla-jugados .quien-jugado"),
+    ).map((celda) => celda.textContent.trim());
+
+    expect(nombres).toEqual(["JOAO PAULO", "GIL"]);
+    expect(nombres).not.toContain("ALONSO");
+
+    // De ellos no se guarda la formación, así que no hay fila de resto.
+    expect(contenedor.querySelector(".fila-resto")).toBeNull();
+  });
+
   test("el interruptor de cambios sube esa tarjeta arriba de la línea", async () => {
     doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
 
@@ -1053,7 +1126,7 @@ describe("interfaz operativa", () => {
       );
 
     // Apagado no hay tarjeta de cambios: repetiría lo que ya está en la línea.
-    expect(titulos()).toEqual(["Primer tiempo", "TIEMPO JUGADO"]);
+    expect(titulos()).toEqual(["Todo el partido", "TIEMPO JUGADO"]);
 
     const interruptor = Array.from(
       contenedor.querySelectorAll(".interruptores button"),
@@ -1061,8 +1134,8 @@ describe("interfaz operativa", () => {
     await act(async () => interruptor.click());
 
     expect(titulos()).toEqual([
-      "Cambios del PT",
-      "Primer tiempo",
+      "Todos los cambios",
+      "Todo el partido",
       "TIEMPO JUGADO",
     ]);
   });

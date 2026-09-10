@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   cambiosDelRival,
+  cortesDelPartido,
   formatearMinutosSegundos,
   cortesDePeriodo,
   lineaDeTiempo,
@@ -89,6 +90,80 @@ describe("tiempos del partido", () => {
 
     // Y los ocho que jugaron el partido entero quedan resumidos.
     expect(resto).toEqual({ cantidad: 8, bruto: 5680, neto: 5410 });
+  });
+
+  test("acotado a un tiempo, mide solo lo jugado dentro de ese tiempo", () => {
+    const enPT = tiempoJugado(PARTIDO, { periodo: "PT" });
+
+    // ALONSO salió en el primero: su cuenta no cambia.
+    expect(porNombre(enPT.jugadores, "ALONSO")).toMatchObject({
+      bruto: 1394,
+      neto: 1244,
+    });
+
+    // BERNARD entró en el primero y siguió: acá solo cuentan sus 24:16 del PT,
+    // menos la hidratación que le tocó.
+    expect(porNombre(enPT.jugadores, "BERNARD")).toMatchObject({
+      bruto: 1456,
+      neto: 1336,
+    });
+
+    // SCARPA jugó el primero entero.
+    expect(porNombre(enPT.jugadores, "SCARPA")).toMatchObject({
+      bruto: 2850,
+      neto: 2580,
+    });
+
+    // DUDU entró en el segundo: no pisó la cancha en el primero y no aparece.
+    expect(porNombre(enPT.jugadores, "DUDU")).toBeUndefined();
+
+    // Y el resto jugó ese tiempo completo, no el partido.
+    expect(enPT.resto).toEqual({ cantidad: 8, bruto: 2850, neto: 2580 });
+  });
+
+  test("en el segundo tiempo aparecen los que jugaron ese tiempo", () => {
+    const enST = tiempoJugado(PARTIDO, { periodo: "ST" });
+
+    expect(porNombre(enST.jugadores, "ALONSO")).toBeUndefined();
+    expect(porNombre(enST.jugadores, "BERNARD")).toMatchObject({ bruto: 2830 });
+    expect(porNombre(enST.jugadores, "SCARPA")).toMatchObject({ bruto: 900 });
+    expect(porNombre(enST.jugadores, "DUDU")).toMatchObject({ bruto: 1930 });
+    expect(enST.resto).toEqual({ cantidad: 8, bruto: 2830, neto: 2830 });
+  });
+
+  test("del rival se miden sus jugadores, sin fila de resto", () => {
+    // De ellos no se guarda la formación, así que no se puede saber quiénes
+    // fueron los otros titulares.
+    const registro = {
+      ...PARTIDO,
+      cambiosRival: [
+        { sale: "JOAO PAULO", entra: "GIL", hora: "21:35:00", periodo: "PT" },
+      ],
+    };
+
+    const { jugadores, resto } = tiempoJugado(registro, {
+      lista: "cambiosRival",
+    });
+
+    expect(jugadores.map((j) => j.nombre)).toEqual(["JOAO PAULO", "GIL"]);
+    // Salió a las 21:35: 35 minutos, menos el VAR y la hidratación de ese rato.
+    expect(porNombre(jugadores, "JOAO PAULO")).toMatchObject({
+      bruto: 2100,
+      neto: 1830,
+    });
+    expect(porNombre(jugadores, "GIL")).toMatchObject({ bruto: 3580 });
+    expect(resto).toBeNull();
+  });
+
+  test("el total encadena los cortes de los dos tiempos con su etiqueta", () => {
+    const cortes = cortesDelPartido(PARTIDO);
+
+    expect(cortes[0]).toMatchObject({ tiempo: "PT", clase: "inicio" });
+    expect(cortes[cortes.length - 1]).toMatchObject({
+      tiempo: "ST",
+      clase: "final",
+    });
+    expect(new Set(cortes.map((c) => c.tiempo))).toEqual(new Set(["PT", "ST"]));
   });
 
   test("solo lista a los que entraron o salieron, en orden de cambio", () => {
