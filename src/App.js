@@ -44,7 +44,7 @@ const IMAGEN_INTRO =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 const DURACION_INTRO = 1800;
 
-const APP_VERSION = "2026.09.10.4";
+const APP_VERSION = "2026.09.10.5";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1218,9 +1218,14 @@ export default function App() {
       guardadoEn: fila.created_at || fila.fecha || "",
     };
 
+    // La captura guarda la guía en minutos con la que se anotó el partido:
+    // hace falta para no perder el período de cada cambio ni las referencias
+    // de arranque. Pero en el registro lo que tiene que verse es el horario,
+    // así que se le vuelve a aplicar la misma conversión que se hizo al
+    // guardar. Es a prueba de repeticiones: lo que ya es horario pasa de largo.
     const registroRestaurado =
       registroConvertido.modoTiempo === "transmision" && capturaTiempo
-        ? {
+        ? convertirRegistroAHorasReales({
             ...registroConvertido,
             ...capturaTiempo,
             fecha: registroConvertido.fecha,
@@ -1229,7 +1234,7 @@ export default function App() {
             idSupabase: registroConvertido.idSupabase,
             guardadoEn: registroConvertido.guardadoEn,
             modoTiempo: "transmision",
-          }
+          })
         : registroConvertido;
 
     return {
@@ -2428,6 +2433,18 @@ export default function App() {
   const convertirRegistroAHorasReales = (item) => {
     if (item.modoTiempo !== "transmision") return item;
 
+    // Un registro que vuelve de la base ya tiene horarios. Si el valor es una
+    // hora real se deja como está: así una corrección hecha a mano en el
+    // detalle no se pisa con la referencia vieja del arranque. Sobre una guía
+    // en minutos, en cambio, se hace la cuenta de siempre.
+    const inicioReal = (tipo, valor) =>
+      esFormatoHoraReal(valor) ? valor : obtenerHoraInicioRealPeriodo(tipo, item);
+
+    const finalReal = (tipo, valor, horaFinalGuardada) =>
+      esFormatoHoraReal(valor)
+        ? valor
+        : horaFinalGuardada || convertirGuiaAHoraReal(tipo, valor, item);
+
     const convertirVars = (tipo, vars) =>
       (vars || []).map((evento) => ({
         ...evento,
@@ -2437,10 +2454,8 @@ export default function App() {
 
     return {
       ...item,
-      inicioPT: obtenerHoraInicioRealPeriodo("PT", item),
-      finalPT:
-        item.horaFinalRealPT ||
-        convertirGuiaAHoraReal("PT", item.finalPT, item),
+      inicioPT: inicioReal("PT", item.inicioPT),
+      finalPT: finalReal("PT", item.finalPT, item.horaFinalRealPT),
       varsPT: convertirVars("PT", item.varsPT),
       inicioHidratacionPT: convertirGuiaAHoraReal(
         "PT",
@@ -2452,10 +2467,8 @@ export default function App() {
         item.finalHidratacionPT,
         item,
       ),
-      inicioST: obtenerHoraInicioRealPeriodo("ST", item),
-      finalST:
-        item.horaFinalRealST ||
-        convertirGuiaAHoraReal("ST", item.finalST, item),
+      inicioST: inicioReal("ST", item.inicioST),
+      finalST: finalReal("ST", item.finalST, item.horaFinalRealST),
       varsST: convertirVars("ST", item.varsST),
       inicioHidratacionST: convertirGuiaAHoraReal(
         "ST",
@@ -2468,11 +2481,10 @@ export default function App() {
         item,
       ),
       inicioPTE: item.prorrogaActiva
-        ? obtenerHoraInicioRealPeriodo("PTE", item)
+        ? inicioReal("PTE", item.inicioPTE)
         : item.inicioPTE,
       finalPTE: item.prorrogaActiva
-        ? item.horaFinalRealPTE ||
-          convertirGuiaAHoraReal("PTE", item.finalPTE, item)
+        ? finalReal("PTE", item.finalPTE, item.horaFinalRealPTE)
         : item.finalPTE,
       varsPTE: item.prorrogaActiva
         ? convertirVars("PTE", item.varsPTE)
@@ -2484,11 +2496,10 @@ export default function App() {
         ? convertirGuiaAHoraReal("PTE", item.finalHidratacionPTE, item)
         : item.finalHidratacionPTE,
       inicioSTE: item.prorrogaActiva
-        ? obtenerHoraInicioRealPeriodo("STE", item)
+        ? inicioReal("STE", item.inicioSTE)
         : item.inicioSTE,
       finalSTE: item.prorrogaActiva
-        ? item.horaFinalRealSTE ||
-          convertirGuiaAHoraReal("STE", item.finalSTE, item)
+        ? finalReal("STE", item.finalSTE, item.horaFinalRealSTE)
         : item.finalSTE,
       varsSTE: item.prorrogaActiva
         ? convertirVars("STE", item.varsSTE)
@@ -3744,11 +3755,13 @@ export default function App() {
     value,
     onChange,
   }) => {
-    const modoDetalle =
-      registroSeleccionado?.item?.modoTiempo || registro.modoTiempo;
+    // Un partido de transmisión guardado ya tiene horarios, así que se edita
+    // con el campo de hora común. La guía en minutos solo aparece mientras el
+    // valor todavía es una guía.
     const usarTransmision =
       type === "time" &&
-      (esFormatoTransmision(value) || modoDetalle === "transmision");
+      esFormatoTransmision(value) &&
+      !esFormatoHoraReal(value);
 
     return (
       <div className="campo-detalle-editable">
@@ -4423,9 +4436,7 @@ export default function App() {
                 <div>Cambio</div>
                 <div>Sale</div>
                 <div>Entra</div>
-                <div>
-                  {editado.modoTiempo === "transmision" ? "Minuto" : "Hora"}
-                </div>
+                <div>Hora</div>
               </div>
 
               {cambios.map((cambio, cambioIndex) => (
@@ -4497,9 +4508,7 @@ export default function App() {
                 <div>Cambio</div>
                 <div>Sale</div>
                 <div>Entra</div>
-                <div>
-                  {editado.modoTiempo === "transmision" ? "Minuto" : "Hora"}
-                </div>
+                <div>Hora</div>
               </div>
 
               {cambiosRival.map((cambio, cambioIndex) => (

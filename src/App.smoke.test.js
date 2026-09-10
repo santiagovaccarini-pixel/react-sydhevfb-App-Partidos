@@ -10,6 +10,7 @@ const doblesSupabase = vi.hoisted(() => ({
   errorHistorial: null,
   errorGuardado: null,
   filasHistorial: [],
+  actualizar: vi.fn(),
 }));
 
 vi.mock("./supabase.js", () => ({
@@ -30,7 +31,17 @@ vi.mock("./supabase.js", () => ({
             }),
           };
         },
-        update: () => consulta,
+        update: (fila) => {
+          doblesSupabase.actualizar(fila);
+          return {
+            eq: () => ({
+              select: async () => ({
+                data: [{ id: 9, ...fila }],
+                error: null,
+              }),
+            }),
+          };
+        },
         delete: () => consulta,
         eq: () => consulta,
         in: async () => ({ data: [], error: null }),
@@ -39,6 +50,54 @@ vi.mock("./supabase.js", () => ({
     },
   },
 }));
+
+// Una transmisión ya guardada: en las columnas quedan los horarios, y aparte
+// una captura con la guía en minutos con la que se anotó el partido.
+const filaTransmisionGuardada = () => ({
+  id: 9,
+  fecha: "2026-09-10",
+  rival: "Santos",
+  resultado: "2-1",
+  modo_tiempo: "transmision",
+
+  inicio_pt: "21:00:00",
+  final_pt: "21:47:30",
+  inicio_st: "22:03:00",
+  final_st: "22:50:10",
+  inicio_var_pt_1: "21:12:00",
+  final_var_pt_1: "21:14:30",
+  inicio_hid_pt: "21:25:00",
+  final_hid_pt: "21:27:00",
+  cambio_1_tiempo: "21:23:14",
+  cambio_1_sale: "ALONSO",
+  cambio_1_entra: "BERNARD",
+  cambio_2_tiempo: "22:18:00",
+  cambio_2_sale: "SCARPA",
+  cambio_2_entra: "DUDU",
+  titulares: ["ALONSO", "SCARPA"],
+  convocados: ["BERNARD", "DUDU"],
+
+  captura_tiempo: {
+    modoTiempo: "transmision",
+    horaInicioRealPT: "21:00:00",
+    horaFinalRealPT: "21:47:30",
+    horaInicioRealST: "22:03:00",
+    horaFinalRealST: "22:50:10",
+    inicioPT: "000:00",
+    finalPT: "047:30",
+    inicioST: "000:00",
+    finalST: "047:10",
+    varsPT: [{ inicio: "012:00", final: "014:30" }],
+    inicioHidratacionPT: "025:00",
+    finalHidratacionPT: "027:00",
+    cambios: [
+      { sale: "ALONSO", entra: "BERNARD", hora: "023:14", periodo: "PT" },
+      { sale: "SCARPA", entra: "DUDU", hora: "015:00", periodo: "ST" },
+    ],
+    cambiosRival: [],
+    prorrogaActiva: false,
+  },
+});
 
 describe("interfaz operativa", () => {
   let contenedor;
@@ -57,6 +116,7 @@ describe("interfaz operativa", () => {
     vi.stubGlobal("alert", vi.fn());
     vi.stubGlobal("scrollTo", vi.fn());
     doblesSupabase.insertar.mockClear();
+    doblesSupabase.actualizar.mockClear();
     doblesSupabase.errorHistorial = null;
     doblesSupabase.errorGuardado = null;
     doblesSupabase.filasHistorial = [];
@@ -770,6 +830,106 @@ describe("interfaz operativa", () => {
 
     // El modo queda anotado, para saber cómo se cargó.
     expect(fila.modo_tiempo).toBe("transmision");
+  });
+
+  test("el registro guardado de una transmisión se lee en horarios", async () => {
+    // La fila guarda además una captura con la guía en minutos, para no perder
+    // el período de cada cambio. Esa captura no tiene que volver a la pantalla:
+    // al abrir el registro hay que ver el horario, no el minuto de juego.
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+
+    const detalle = contenedor.querySelector(".registro-guardado button");
+    await act(async () => detalle.click());
+
+    const enPantalla = contenedor.textContent;
+
+    // Los dos tiempos, el VAR, la hidratación y los cambios: todo en horario.
+    for (const horario of [
+      "21:00:00",
+      "21:47:30",
+      "22:03:00",
+      "22:50:10",
+      "21:12:00",
+      "21:14:30",
+      "21:25:00",
+      "21:27:00",
+      "21:23:14",
+      "22:18:00",
+    ]) {
+      expect(enPantalla).toContain(horario);
+    }
+
+    // Y ninguna guía en minutos se cuela de vuelta.
+    for (const guia of ["000:00", "047:30", "047:10", "023:14", "015:00"]) {
+      expect(enPantalla).not.toContain(guia);
+    }
+
+    // Las duraciones se siguen calculando bien sobre los horarios.
+    expect(enPantalla).toContain("47:30");
+    expect(enPantalla).toContain("47:10");
+  });
+
+  test("una corrección a mano sobre un horario guardado no se pisa", async () => {
+    // Al editar un registro de transmisión los campos ya vienen en horario. Si
+    // la conversión los recalculara igual desde la referencia de arranque, la
+    // corrección se perdería sin aviso.
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+    await act(async () => contenedor.querySelector(".registro-guardado button").click());
+
+    const boton = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll("button")).find((item) =>
+        item.textContent.includes(etiqueta),
+      );
+    await act(async () => boton("Editar registro").click());
+
+    const campoFinalPT = Array.from(
+      contenedor.querySelectorAll(".campo-detalle-editable"),
+    ).find((campo) => campo.querySelector("label")?.textContent === "Final PT");
+
+    // Se edita como hora real, no como guía en minutos.
+    const entrada = campoFinalPT.querySelector("input");
+    expect(entrada.type).toBe("time");
+    expect(entrada.value).toBe("21:47:30");
+
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    await act(async () => {
+      escribir.call(entrada, "21:48:00");
+      entrada.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      boton("Guardar cambios").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const fila = doblesSupabase.actualizar.mock.calls[0][0];
+
+    // La corrección llega tal cual, y el resto sigue en horario.
+    expect(fila.final_pt).toBe("21:48:00");
+    expect(fila.inicio_pt).toBe("21:00:00");
+    expect(fila.inicio_st).toBe("22:03:00");
+    expect(fila.final_st).toBe("22:50:10");
+    expect(fila.cambio_1_tiempo).toBe("21:23:14");
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {
