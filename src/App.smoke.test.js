@@ -74,7 +74,10 @@ const filaTransmisionGuardada = () => ({
   cambio_2_tiempo: "22:18:00",
   cambio_2_sale: "SCARPA",
   cambio_2_entra: "DUDU",
-  titulares: ["ALONSO", "SCARPA"],
+  rival_cambio_horario1: "21:35:00",
+  rival_cambio_sale1: "JOAO PAULO",
+  rival_cambio_entra1: "GIL",
+  titulares: ["ALONSO", "SCARPA", "ARANA"],
   convocados: ["BERNARD", "DUDU"],
 
   captura_tiempo: {
@@ -94,7 +97,9 @@ const filaTransmisionGuardada = () => ({
       { sale: "ALONSO", entra: "BERNARD", hora: "023:14", periodo: "PT" },
       { sale: "SCARPA", entra: "DUDU", hora: "015:00", periodo: "ST" },
     ],
-    cambiosRival: [],
+    cambiosRival: [
+      { sale: "JOAO PAULO", entra: "GIL", hora: "035:00", periodo: "PT" },
+    ],
     prorrogaActiva: false,
   },
 });
@@ -142,6 +147,17 @@ describe("interfaz operativa", () => {
 
   // La app arranca con la pantalla de intro; los tests la saltan avanzando el
   // reloj, que ya está congelado.
+  const abrirFicha = async () => {
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+    await act(async () =>
+      contenedor.querySelector(".registro-guardado button").click(),
+    );
+  };
+
   const montarApp = async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
@@ -849,32 +865,39 @@ describe("interfaz operativa", () => {
     const detalle = contenedor.querySelector(".registro-guardado button");
     await act(async () => detalle.click());
 
-    const enPantalla = contenedor.textContent;
+    // La ficha muestra un tiempo por vez, así que se revisan los dos.
+    const sinGuias = (texto) => {
+      for (const guia of ["000:00", "047:30", "047:10", "023:14", "015:00"]) {
+        expect(texto).not.toContain(guia);
+      }
+    };
 
-    // Los dos tiempos, el VAR, la hidratación y los cambios: todo en horario.
+    const enPT = contenedor.textContent;
     for (const horario of [
       "21:00:00",
-      "21:47:30",
-      "22:03:00",
-      "22:50:10",
       "21:12:00",
       "21:14:30",
+      "21:23:14",
       "21:25:00",
       "21:27:00",
-      "21:23:14",
-      "22:18:00",
+      "21:47:30",
     ]) {
-      expect(enPantalla).toContain(horario);
+      expect(enPT).toContain(horario);
     }
+    expect(enPT).toContain("47:30");
+    sinGuias(enPT);
 
-    // Y ninguna guía en minutos se cuela de vuelta.
-    for (const guia of ["000:00", "047:30", "047:10", "023:14", "015:00"]) {
-      expect(enPantalla).not.toContain(guia);
+    const irAlST = Array.from(
+      contenedor.querySelectorAll('.selector-periodos.en-ficha button[role="tab"]'),
+    ).find((boton) => boton.textContent.trim().startsWith("ST"));
+    await act(async () => irAlST.click());
+
+    const enST = contenedor.textContent;
+    for (const horario of ["22:03:00", "22:18:00", "22:50:10"]) {
+      expect(enST).toContain(horario);
     }
-
-    // Las duraciones se siguen calculando bien sobre los horarios.
-    expect(enPantalla).toContain("47:30");
-    expect(enPantalla).toContain("47:10");
+    expect(enST).toContain("47:10");
+    sinGuias(enST);
   });
 
   test("una corrección a mano sobre un horario guardado no se pisa", async () => {
@@ -930,6 +953,95 @@ describe("interfaz operativa", () => {
     expect(fila.inicio_st).toBe("22:03:00");
     expect(fila.final_st).toBe("22:50:10");
     expect(fila.cambio_1_tiempo).toBe("21:23:14");
+  });
+
+  test("el botón de bruto/neto cambia todos los números a la vez", async () => {
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+    await abrirFicha();
+
+    const valores = () =>
+      Array.from(
+        contenedor.querySelectorAll(".total-ficha b, .cabeza-ficha em, .valor-jugado"),
+      ).map((celda) => celda.textContent.trim());
+
+    // En bruto: el partido, el primer tiempo y lo que jugó cada uno.
+    expect(valores()).toEqual([
+      "94:40",
+      "47:30",
+      "23:14",
+      "71:26",
+      "62:30",
+      "32:10",
+      "94:40",
+    ]);
+
+    const interruptor = contenedor.querySelector(".boton-modo-ficha");
+    expect(interruptor.textContent).toContain("Bruto");
+    await act(async () => interruptor.click());
+
+    // En neto, a cada uno se le descuenta solo lo que se detuvo con él adentro:
+    // DUDU entró en el segundo tiempo, donde no hubo paradas, y no cambia.
+    expect(contenedor.querySelector(".boton-modo-ficha").textContent).toContain(
+      "Neto",
+    );
+    expect(valores()).toEqual([
+      "90:10",
+      "43:00",
+      "20:44",
+      "69:26",
+      "58:00",
+      "32:10",
+      "90:10",
+    ]);
+  });
+
+  test("el botón del rival muestra sus cambios", async () => {
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+    await abrirFicha();
+
+    // Antes de tocarlo, los cambios del rival no están a la vista.
+    expect(contenedor.textContent).not.toContain("JOAO PAULO");
+
+    await act(async () => contenedor.querySelector(".boton-rival-ficha").click());
+
+    expect(contenedor.textContent).toContain("JOAO PAULO");
+    expect(contenedor.textContent).toContain("GIL");
+    expect(contenedor.textContent).toContain("21:35:00");
+
+    // Y los cortes del partido dejan lugar: ya no se ve el inicio del tiempo.
+    expect(contenedor.textContent).not.toContain("Inicio PT");
+  });
+
+  test("dos cambios en el mismo horario comparten el corte", async () => {
+    const fila = filaTransmisionGuardada();
+    fila.cambio_3_tiempo = "22:18:00";
+    fila.cambio_3_sale = "ARANA";
+    fila.cambio_3_entra = "HULK";
+    fila.captura_tiempo.cambios.push({
+      sale: "ARANA",
+      entra: "HULK",
+      hora: "015:00",
+      periodo: "ST",
+    });
+    doblesSupabase.filasHistorial = [fila];
+
+    await montarApp();
+    await abrirFicha();
+
+    const irAlST = Array.from(
+      contenedor.querySelectorAll('.selector-periodos.en-ficha button[role="tab"]'),
+    ).find((boton) => boton.textContent.trim().startsWith("ST"));
+    await act(async () => irAlST.click());
+
+    const cortes = contenedor.querySelectorAll(".corte-cambio");
+    expect(cortes).toHaveLength(1);
+    expect(cortes[0].querySelectorAll(".pares-corte span")).toHaveLength(4);
+    // Un solo horario arriba de los dos cambios.
+    expect(cortes[0].querySelectorAll(".hora-corte")).toHaveLength(1);
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {

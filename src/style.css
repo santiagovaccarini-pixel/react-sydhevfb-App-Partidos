@@ -3713,3 +3713,423 @@ button:disabled {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+/* ==========================================================================
+   Ficha de un registro guardado
+   Pensada para leer los horarios de corte de un vistazo: los números van
+   grandes y con ancho fijo, y todo entra en una pantalla de celular.
+   ========================================================================== */
+
+.ficha-registro {
+  padding-bottom: 8px;
+}
+
+.marcador-ficha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 12px;
+  background: var(--cam-blanco);
+  box-shadow: 0 3px 14px rgba(25, 38, 31, 0.035);
+}
+
+.equipos-ficha {
+  display: grid;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.equipo-ficha {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.equipo-ficha .escudo-cam,
+.equipo-ficha .escudo-rival,
+.equipo-ficha .escudo-club.escudo-real {
+  width: 36px;
+}
+
+.equipo-ficha strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 11px;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.resultado-ficha {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.resultado-ficha b {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 31px;
+  height: 31px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 8px;
+  background: #f7f9f8;
+  color: #090b0a;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.resultado-ficha span {
+  color: #353b38;
+  font-size: 19px;
+}
+
+.total-ficha {
+  flex: none;
+  padding-left: 11px;
+  border-left: 1px solid var(--cam-linea);
+  text-align: right;
+}
+
+.total-ficha b {
+  display: block;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.8px;
+  line-height: 1.05;
+}
+
+.total-ficha.neto b {
+  color: var(--cam-verde);
+}
+
+.total-ficha small {
+  display: block;
+  margin-top: 1px;
+  color: var(--cam-gris);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}
+
+/* La barra reusa el aspecto del selector de la pantalla de partido; acá va
+   suelta, sin la tarjeta que la envuelve allá. */
+.selector-periodos.en-ficha {
+  display: block;
+  margin-bottom: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.selector-periodos.en-ficha > div {
+  min-height: 44px;
+  background: var(--cam-blanco);
+}
+
+.boton-rival-ficha {
+  flex: 0 0 82px;
+  gap: 5px;
+}
+
+.boton-rival-ficha.solo-escudo {
+  flex: 0 0 44px;
+  padding: 0;
+}
+
+.boton-rival-ficha .escudo-rival,
+.boton-rival-ficha .escudo-club.escudo-real {
+  width: 15px;
+}
+
+/* Con el rival activo el escudo dibujado se vuelve del color del botón. */
+.boton-rival-ficha.activo .cuerpo-escudo-rival {
+  fill: #fff;
+  stroke: #fff;
+}
+
+.boton-rival-ficha.activo .escudo-rival text {
+  fill: var(--cam-verde);
+}
+
+/* El interruptor no es una opción más: es el estado en el que se leen los
+   números, así que va siempre pintado y separado del resto. */
+.selector-periodos.en-ficha .boton-modo-ficha {
+  flex: 0 0 88px;
+  gap: 5px;
+  border-right: 0;
+  border-left: 2px solid var(--cam-linea);
+  background: var(--cam-tinta);
+  color: #fff;
+}
+
+.selector-periodos.en-ficha .boton-modo-ficha.neto {
+  background: linear-gradient(145deg, var(--cam-verde), var(--cam-verde-oscuro));
+}
+
+.selector-periodos.en-ficha .boton-modo-ficha svg {
+  margin: 0;
+}
+
+.tarjeta-ficha {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+}
+
+.cabeza-ficha {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 2px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--cam-linea);
+}
+
+.cabeza-ficha b {
+  font-size: 14px;
+}
+
+.cabeza-ficha span {
+  color: #9aa4a0;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}
+
+.cabeza-ficha .escudo-rival,
+.cabeza-ficha .escudo-club.escudo-real {
+  align-self: center;
+  width: 22px;
+}
+
+.cabeza-ficha b + span {
+  margin-right: auto;
+}
+
+.cabeza-ficha .escudo-rival + b,
+.cabeza-ficha .escudo-club.escudo-real + b {
+  margin-right: auto;
+}
+
+.cabeza-ficha em {
+  margin-left: auto;
+  font-size: 19px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.7px;
+}
+
+.cabeza-ficha em.neto {
+  color: var(--cam-verde);
+}
+
+.cortes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.corte {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f4;
+}
+
+.corte:last-child {
+  border-bottom: 0;
+}
+
+.hora-corte {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.corte > .hora-corte {
+  flex: none;
+  width: 84px;
+}
+
+.punto-corte {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9aa4a0;
+}
+
+.corte-inicio .punto-corte,
+.corte-final .punto-corte {
+  background: var(--cam-verde);
+}
+
+.corte-var .punto-corte {
+  background: var(--cam-naranja);
+}
+
+.corte-hidratacion .punto-corte {
+  background: #3b82f6;
+}
+
+.punto-corte.cambio {
+  background: var(--cam-tinta);
+}
+
+.nombre-corte {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.detalle-corte {
+  margin-left: auto;
+  color: var(--cam-gris);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* En un cambio el horario va arriba y cada par sale-entra en su renglón, así
+   ninguno pelea con el otro por el ancho. */
+.corte-cambio {
+  display: block;
+  padding: 9px 0;
+}
+
+.cabeza-corte {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tiempo-corte {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--cam-tinta);
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 800;
+}
+
+/* Dos columnas cuando entran; en pantallas angostas, o con nombres largos,
+   pasan a una sola antes que recortarse. */
+.pares-corte {
+  display: grid;
+  gap: 3px 10px;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  margin: 5px 0 0 15px;
+}
+
+.pares-corte span {
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sale-corte {
+  color: #b91c1c;
+}
+
+.entra-corte {
+  color: #15803d;
+}
+
+.vacio-ficha {
+  margin: 12px 0 2px;
+  color: #9aa4a0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tabla-jugados {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tabla-jugados th {
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--cam-linea);
+  color: #9aa4a0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-align: right;
+}
+
+.tabla-jugados th:first-child {
+  text-align: left;
+}
+
+.tabla-jugados td {
+  padding: 7px 0;
+  border-bottom: 1px solid #f1f5f4;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tabla-jugados tr:last-child td {
+  border-bottom: 0;
+}
+
+.tabla-jugados td:first-child {
+  text-align: left;
+}
+
+.quien-jugado {
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.cuando-jugado {
+  margin-left: 7px;
+  color: #9aa4a0;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+/* Las dos clases pesan igual, así que sin esto ganaba la de arriba por venir
+   después y el horario del cambio perdía su color. */
+.cuando-jugado.sale-corte {
+  color: #b91c1c;
+}
+
+.cuando-jugado.entra-corte {
+  color: #15803d;
+}
+
+.valor-jugado {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.valor-jugado.neto {
+  color: var(--cam-verde);
+}
+
+.fila-resto td {
+  background: #f7f9f8;
+}
+
+.fila-resto .quien-jugado {
+  color: #4a534f;
+}
