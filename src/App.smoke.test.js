@@ -8,6 +8,7 @@ const doblesSupabase = vi.hoisted(() => ({
   // Con error, la app cae al respaldo local: es la forma de sembrar el
   // historial sin tener que armar filas con los nombres de columna de la base.
   errorHistorial: null,
+  errorGuardado: null,
 }));
 
 vi.mock("./supabase.js", () => ({
@@ -19,7 +20,10 @@ vi.mock("./supabase.js", () => ({
         insert: (filas) => {
           doblesSupabase.insertar(filas);
           return {
-            select: async () => ({ data: [{ id: 7 }], error: null }),
+            select: async () => ({
+              data: doblesSupabase.errorGuardado ? null : [{ id: 7 }],
+              error: doblesSupabase.errorGuardado,
+            }),
           };
         },
         update: () => consulta,
@@ -50,6 +54,7 @@ describe("interfaz operativa", () => {
     vi.stubGlobal("scrollTo", vi.fn());
     doblesSupabase.insertar.mockClear();
     doblesSupabase.errorHistorial = null;
+    doblesSupabase.errorGuardado = null;
     localStorage.clear();
     localStorage.setItem(
       "registro_actual_partido",
@@ -586,6 +591,46 @@ describe("interfaz operativa", () => {
     const conNombre = await lugaresDelBanco();
     expect(conNombre).toHaveLength(12);
     expect(conNombre[11]).toBe("LEMOS");
+  });
+
+  test("si la base falla, el partido no se pierde y el cartel se va solo", async () => {
+    doblesSupabase.errorGuardado = { message: "la base dijo que no" };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await montarApp();
+
+    const guardar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Guardar partido"),
+    );
+    await act(async () => {
+      guardar.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const cartel = contenedor.querySelector(".notificacion-guardado");
+    expect(cartel.textContent).toContain("sin sincronizar");
+
+    // El partido queda guardado en el celular, no se pierde.
+    expect(
+      JSON.parse(localStorage.getItem("registros_sin_sincronizar")),
+    ).toHaveLength(1);
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+
+    // Y se ve en la lista, marcado.
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
+    expect(
+      contenedor.querySelector(".marca-sin-sincronizar").textContent,
+    ).toContain("Sin sincronizar");
+
+    // El cartel se borra solo: antes se quedaba pegado para siempre.
+    await act(async () => vi.runOnlyPendingTimers());
+    expect(contenedor.querySelector(".notificacion-guardado")).toBeNull();
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {
