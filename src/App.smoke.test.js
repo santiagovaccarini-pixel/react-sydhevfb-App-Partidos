@@ -1051,6 +1051,61 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelector(".marca-rival")).toBeTruthy();
   });
 
+  test("en el total, el descanso separa un tiempo del otro", async () => {
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+    await abrirFicha();
+
+    // Va una sola vez, justo entre el final del primero y el inicio del segundo.
+    const descansos = contenedor.querySelectorAll(".descanso");
+    expect(descansos).toHaveLength(1);
+    expect(descansos[0].textContent.trim()).toBe("DESCANSO");
+
+    const filas = Array.from(contenedor.querySelectorAll(".cortes > *")).map(
+      (fila) =>
+        fila.className.includes("descanso")
+          ? "DESCANSO"
+          : fila.querySelector(".hora-corte").textContent.trim(),
+    );
+    // Justo después del final del primero y antes del arranque del segundo.
+    const corte = filas.indexOf("DESCANSO");
+    expect(filas[corte - 1]).toBe("21:47:30");
+    expect(filas[corte + 1]).toBe("22:03:00");
+
+    // Mirando un solo tiempo no hay nada que separar.
+    await elegirTiempo("PT");
+    expect(contenedor.querySelectorAll(".descanso")).toHaveLength(0);
+  });
+
+  test("en un cambio los jugadores van al lado del horario", async () => {
+    const fila = filaTransmisionGuardada();
+    fila.cambio_3_tiempo = "22:18:00";
+    fila.cambio_3_sale = "ARANA";
+    fila.cambio_3_entra = "HULK";
+    fila.captura_tiempo.cambios.push({
+      sale: "ARANA",
+      entra: "HULK",
+      hora: "015:00",
+      periodo: "ST",
+    });
+    doblesSupabase.filasHistorial = [fila];
+
+    await montarApp();
+    await abrirFicha();
+    await elegirTiempo("ST");
+
+    const cambio = contenedor.querySelector(".corte-cambio");
+
+    // Un solo horario, y los dos cambios apilados a su derecha.
+    expect(cambio.querySelectorAll(".hora-corte")).toHaveLength(1);
+    expect(cambio.querySelectorAll(".par-corte")).toHaveLength(2);
+
+    // El horario es hijo directo del corte, como en los demás: así todos
+    // quedan en la misma columna.
+    expect(cambio.firstElementChild.className).toContain("hora-corte");
+  });
+
   test("el tiempo jugado sigue al tiempo elegido", async () => {
     doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
 
