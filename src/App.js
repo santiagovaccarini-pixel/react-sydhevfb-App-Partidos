@@ -44,7 +44,7 @@ const IMAGEN_INTRO =
   "https://i.postimg.cc/dt4zFZ2K/ey-Jp-ZCI6Im1f-Nm-Ew-Nzc0ODg3MThj-ODE5MWFi-ODU1Njcz-Mm-I1Y2M3Nj-Y6c2Vka-W1lbn-Q6Ly80Mz-E1Zj-Bh-ZDYw.jpg";
 const DURACION_INTRO = 1800;
 
-const APP_VERSION = "2026.09.10.2";
+const APP_VERSION = "2026.09.10.3";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1288,6 +1288,47 @@ export default function App() {
     return actualizados;
   };
 
+  // Guardar un partido con la base caída lo dejaba a salvo, pero nadie lo
+  // volvía a intentar: quedaba marcado "sin sincronizar" para siempre. Cuando
+  // la base contesta, se suben los que faltan.
+  const subirPendientes = async (registrosDeLaBase) => {
+    const clavesEnLaBase = new Set(registrosDeLaBase.map(clavePartido));
+    const porSubir = leerPendientes().filter(
+      (item) => !clavesEnLaBase.has(clavePartido(item)),
+    );
+
+    if (porSubir.length === 0) return { subioAlguno: false };
+
+    const quedan = [];
+    let subioAlguno = false;
+
+    for (const pendiente of porSubir) {
+      try {
+        const { error } = await supabase
+          .from("registros_partido")
+          .insert([construirFilaSupabase(pendiente)])
+          .select();
+
+        if (error) {
+          console.warn(
+            "Sigue sin poder subirse un partido:",
+            error.message || error,
+          );
+          quedan.push(pendiente);
+          continue;
+        }
+
+        subioAlguno = true;
+      } catch (error) {
+        console.warn("Sigue sin poder subirse un partido:", error);
+        quedan.push(pendiente);
+      }
+    }
+
+    escribirPendientes(quedan);
+    return { subioAlguno };
+  };
+
   // Al volver la base, los que ya llegaron dejan de estar pendientes; los que
   // no, se muestran igual arriba de la lista.
   const mezclarPendientes = (registrosDeLaBase) => {
@@ -1300,7 +1341,7 @@ export default function App() {
     return [...pendientes, ...registrosDeLaBase];
   };
 
-  const cargarRegistrosSupabase = async () => {
+  const cargarRegistrosSupabase = async ({ reintentar = true } = {}) => {
     const { data, error } = await supabase
       .from("registros_partido")
       .select("*")
@@ -1330,6 +1371,17 @@ export default function App() {
         );
         setGuardados(respaldo);
         setHistorialCargado(true);
+        return;
+      }
+    }
+
+    // Con la base respondiendo, se aprovecha para subir lo que había quedado.
+    if (reintentar) {
+      const { subioAlguno } = await subirPendientes(registrosConvertidos);
+
+      if (subioAlguno) {
+        // Se vuelve a leer para traerlos ya con su id, sin reintentar de nuevo.
+        await cargarRegistrosSupabase({ reintentar: false });
         return;
       }
     }
@@ -2550,6 +2602,95 @@ export default function App() {
     window.setTimeout(() => setMensajeGuardado(""), milisegundos);
   };
 
+  // Arma la fila que espera Supabase. Vive afuera de guardarRegistro para
+  // que el reintento de los pendientes use exactamente la misma.
+  const construirFilaSupabase = (registroBase) => {
+  const registroConHorasReales = convertirRegistroAHorasReales(registroBase);
+  const cambiosRival =
+    registroConHorasReales.cambiosRival || crearCambiosVacios();
+
+  return {
+    fecha: registroConHorasReales.fecha,
+    rival: registroConHorasReales.rival,
+    resultado: registroConHorasReales.resultado || "",
+    inicio_pt: registroConHorasReales.inicioPT,
+    final_pt: registroConHorasReales.finalPT,
+    tiempo_pt: registroConHorasReales.tiempoPT || "",
+
+    inicio_st: registroConHorasReales.inicioST,
+    final_st: registroConHorasReales.finalST,
+    tiempo_st: registroConHorasReales.tiempoST || "",
+
+    inicio_var_pt_1: registroConHorasReales.varsPT?.[0]?.inicio || "",
+    final_var_pt_1: registroConHorasReales.varsPT?.[0]?.final || "",
+    inicio_var_pt_2: registroConHorasReales.varsPT?.[1]?.inicio || "",
+    final_var_pt_2: registroConHorasReales.varsPT?.[1]?.final || "",
+    inicio_var_pt_3: registroConHorasReales.varsPT?.[2]?.inicio || "",
+    final_var_pt_3: registroConHorasReales.varsPT?.[2]?.final || "",
+
+    inicio_var_st_1: registroConHorasReales.varsST?.[0]?.inicio || "",
+    final_var_st_1: registroConHorasReales.varsST?.[0]?.final || "",
+    inicio_var_st_2: registroConHorasReales.varsST?.[1]?.inicio || "",
+    final_var_st_2: registroConHorasReales.varsST?.[1]?.final || "",
+    inicio_var_st_3: registroConHorasReales.varsST?.[2]?.inicio || "",
+    final_var_st_3: registroConHorasReales.varsST?.[2]?.final || "",
+
+    inicio_hid_pt: registroConHorasReales.inicioHidratacionPT,
+    final_hid_pt: registroConHorasReales.finalHidratacionPT,
+    inicio_hid_st: registroConHorasReales.inicioHidratacionST,
+    final_hid_st: registroConHorasReales.finalHidratacionST,
+
+    cambio_1_tiempo: registroConHorasReales.cambios?.[0]?.hora || "",
+    cambio_1_sale: registroConHorasReales.cambios?.[0]?.sale || "",
+    cambio_1_entra: registroConHorasReales.cambios?.[0]?.entra || "",
+
+    cambio_2_tiempo: registroConHorasReales.cambios?.[1]?.hora || "",
+    cambio_2_sale: registroConHorasReales.cambios?.[1]?.sale || "",
+    cambio_2_entra: registroConHorasReales.cambios?.[1]?.entra || "",
+
+    cambio_3_tiempo: registroConHorasReales.cambios?.[2]?.hora || "",
+    cambio_3_sale: registroConHorasReales.cambios?.[2]?.sale || "",
+    cambio_3_entra: registroConHorasReales.cambios?.[2]?.entra || "",
+
+    cambio_4_tiempo: registroConHorasReales.cambios?.[3]?.hora || "",
+    cambio_4_sale: registroConHorasReales.cambios?.[3]?.sale || "",
+    cambio_4_entra: registroConHorasReales.cambios?.[3]?.entra || "",
+
+    cambio_5_tiempo: registroConHorasReales.cambios?.[4]?.hora || "",
+    cambio_5_sale: registroConHorasReales.cambios?.[4]?.sale || "",
+    cambio_5_entra: registroConHorasReales.cambios?.[4]?.entra || "",
+
+    rival_cambio_sale1: cambiosRival[0]?.sale || "",
+    rival_cambio_entra1: cambiosRival[0]?.entra || "",
+    rival_cambio_horario1: cambiosRival[0]?.hora || "",
+
+    rival_cambio_sale2: cambiosRival[1]?.sale || "",
+    rival_cambio_entra2: cambiosRival[1]?.entra || "",
+    rival_cambio_horario2: cambiosRival[1]?.hora || "",
+
+    rival_cambio_sale3: cambiosRival[2]?.sale || "",
+    rival_cambio_entra3: cambiosRival[2]?.entra || "",
+    rival_cambio_horario3: cambiosRival[2]?.hora || "",
+
+    rival_cambio_sale4: cambiosRival[3]?.sale || "",
+    rival_cambio_entra4: cambiosRival[3]?.entra || "",
+    rival_cambio_horario4: cambiosRival[3]?.hora || "",
+
+    rival_cambio_sale5: cambiosRival[4]?.sale || "",
+    rival_cambio_entra5: cambiosRival[4]?.entra || "",
+    rival_cambio_horario5: cambiosRival[4]?.hora || "",
+
+    prorroga: serializarProrroga(registroConHorasReales),
+    cambios_extra: (registroConHorasReales.cambios || []).slice(5),
+    cambios_rival_extra: cambiosRival.slice(5),
+    modo_tiempo: registroBase.modoTiempo || "enVivo",
+    captura_tiempo: serializarCapturaTiempo(registroBase),
+
+    titulares: registroConHorasReales.formacion?.titulares || [],
+    convocados: registroConHorasReales.formacion?.convocados || [],
+  };
+  };
+
   const guardarRegistro = async () => {
     if (guardandoRef.current) return;
 
@@ -2578,90 +2719,7 @@ export default function App() {
     guardandoRef.current = true;
     setGuardando(true);
 
-    const registroConHorasReales = convertirRegistroAHorasReales(nuevoRegistro);
-    const cambiosRival =
-      registroConHorasReales.cambiosRival || crearCambiosVacios();
-
-    const registroSupabase = {
-      fecha: registroConHorasReales.fecha,
-      rival: registroConHorasReales.rival,
-      resultado: registroConHorasReales.resultado || "",
-      inicio_pt: registroConHorasReales.inicioPT,
-      final_pt: registroConHorasReales.finalPT,
-      tiempo_pt: registroConHorasReales.tiempoPT || "",
-
-      inicio_st: registroConHorasReales.inicioST,
-      final_st: registroConHorasReales.finalST,
-      tiempo_st: registroConHorasReales.tiempoST || "",
-
-      inicio_var_pt_1: registroConHorasReales.varsPT?.[0]?.inicio || "",
-      final_var_pt_1: registroConHorasReales.varsPT?.[0]?.final || "",
-      inicio_var_pt_2: registroConHorasReales.varsPT?.[1]?.inicio || "",
-      final_var_pt_2: registroConHorasReales.varsPT?.[1]?.final || "",
-      inicio_var_pt_3: registroConHorasReales.varsPT?.[2]?.inicio || "",
-      final_var_pt_3: registroConHorasReales.varsPT?.[2]?.final || "",
-
-      inicio_var_st_1: registroConHorasReales.varsST?.[0]?.inicio || "",
-      final_var_st_1: registroConHorasReales.varsST?.[0]?.final || "",
-      inicio_var_st_2: registroConHorasReales.varsST?.[1]?.inicio || "",
-      final_var_st_2: registroConHorasReales.varsST?.[1]?.final || "",
-      inicio_var_st_3: registroConHorasReales.varsST?.[2]?.inicio || "",
-      final_var_st_3: registroConHorasReales.varsST?.[2]?.final || "",
-
-      inicio_hid_pt: registroConHorasReales.inicioHidratacionPT,
-      final_hid_pt: registroConHorasReales.finalHidratacionPT,
-      inicio_hid_st: registroConHorasReales.inicioHidratacionST,
-      final_hid_st: registroConHorasReales.finalHidratacionST,
-
-      cambio_1_tiempo: registroConHorasReales.cambios?.[0]?.hora || "",
-      cambio_1_sale: registroConHorasReales.cambios?.[0]?.sale || "",
-      cambio_1_entra: registroConHorasReales.cambios?.[0]?.entra || "",
-
-      cambio_2_tiempo: registroConHorasReales.cambios?.[1]?.hora || "",
-      cambio_2_sale: registroConHorasReales.cambios?.[1]?.sale || "",
-      cambio_2_entra: registroConHorasReales.cambios?.[1]?.entra || "",
-
-      cambio_3_tiempo: registroConHorasReales.cambios?.[2]?.hora || "",
-      cambio_3_sale: registroConHorasReales.cambios?.[2]?.sale || "",
-      cambio_3_entra: registroConHorasReales.cambios?.[2]?.entra || "",
-
-      cambio_4_tiempo: registroConHorasReales.cambios?.[3]?.hora || "",
-      cambio_4_sale: registroConHorasReales.cambios?.[3]?.sale || "",
-      cambio_4_entra: registroConHorasReales.cambios?.[3]?.entra || "",
-
-      cambio_5_tiempo: registroConHorasReales.cambios?.[4]?.hora || "",
-      cambio_5_sale: registroConHorasReales.cambios?.[4]?.sale || "",
-      cambio_5_entra: registroConHorasReales.cambios?.[4]?.entra || "",
-
-      rival_cambio_sale1: cambiosRival[0]?.sale || "",
-      rival_cambio_entra1: cambiosRival[0]?.entra || "",
-      rival_cambio_horario1: cambiosRival[0]?.hora || "",
-
-      rival_cambio_sale2: cambiosRival[1]?.sale || "",
-      rival_cambio_entra2: cambiosRival[1]?.entra || "",
-      rival_cambio_horario2: cambiosRival[1]?.hora || "",
-
-      rival_cambio_sale3: cambiosRival[2]?.sale || "",
-      rival_cambio_entra3: cambiosRival[2]?.entra || "",
-      rival_cambio_horario3: cambiosRival[2]?.hora || "",
-
-      rival_cambio_sale4: cambiosRival[3]?.sale || "",
-      rival_cambio_entra4: cambiosRival[3]?.entra || "",
-      rival_cambio_horario4: cambiosRival[3]?.hora || "",
-
-      rival_cambio_sale5: cambiosRival[4]?.sale || "",
-      rival_cambio_entra5: cambiosRival[4]?.entra || "",
-      rival_cambio_horario5: cambiosRival[4]?.hora || "",
-
-      prorroga: serializarProrroga(registroConHorasReales),
-      cambios_extra: (registroConHorasReales.cambios || []).slice(5),
-      cambios_rival_extra: cambiosRival.slice(5),
-      modo_tiempo: nuevoRegistro.modoTiempo || "enVivo",
-      captura_tiempo: serializarCapturaTiempo(nuevoRegistro),
-
-      titulares: registroConHorasReales.formacion?.titulares || [],
-      convocados: registroConHorasReales.formacion?.convocados || [],
-    };
+    const registroSupabase = construirFilaSupabase(nuevoRegistro);
 
     try {
       const coincidente = guardados.find(
