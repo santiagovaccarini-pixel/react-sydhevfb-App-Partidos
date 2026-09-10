@@ -64,7 +64,25 @@ const nombrePeriodo = (tipo) => NOMBRES_PERIODO[tipo] || tipo;
 // La ficha muestra un tiempo o el partido entero.
 const TOTAL = "total";
 
-const APP_VERSION = "2026.09.10.9";
+/**
+ * Junta a los jugadores de un mismo cambio bajo un solo horario, como en la
+ * línea de tiempo. Vienen ya ordenados por el cambio que los trajo, así que
+ * alcanza con cortar cuando cambia la hora de referencia.
+ */
+const agruparJugados = (jugadores) =>
+  jugadores.reduce((grupos, jugador) => {
+    const hora = jugador.entro || jugador.salio || "";
+    const ultimo = grupos[grupos.length - 1];
+
+    if (ultimo && ultimo.hora === hora) {
+      ultimo.jugadores.push(jugador);
+      return grupos;
+    }
+
+    return [...grupos, { hora, jugadores: [jugador] }];
+  }, []);
+
+const APP_VERSION = "2026.09.10.10";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4081,52 +4099,69 @@ export default function App() {
 
           {(jugadores.length > 0 || resto) && (
             <section className="tarjeta tarjeta-ficha">
-              <table className="tabla-jugados">
-                <thead>
-                  <tr>
-                    <th>TIEMPO JUGADO</th>
-                    <th>{etiquetaModo.toUpperCase()}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {jugadores.map((jugador, i) => (
-                    <tr key={`jugado-${i}`}>
-                      <td>
-                        <span className="quien-jugado">{jugador.nombre}</span>
-                        {jugador.salio && (
-                          <span className="cuando-jugado sale-corte">
-                            ↓ {jugador.salio}
-                          </span>
-                        )}
-                        {jugador.entro && (
-                          <span className="cuando-jugado entra-corte">
-                            ↑ {jugador.entro}
-                          </span>
-                        )}
-                      </td>
-                      <td className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}>
-                        {duracion(enModo(jugador))}
-                      </td>
-                    </tr>
-                  ))}
+              <div className="cabeza-ficha">
+                <b>Tiempo jugado</b>
+                <span className="et">{etiquetaModo.toUpperCase()}</span>
+                {marcaRival}
+              </div>
 
-                  {resto && (
-                    <tr className="fila-resto">
-                      <td>
+              <ul className="cortes jugados">
+                {agruparJugados(jugadores).map((grupo, i) => (
+                  <li className="jugado" key={`grupo-${i}`}>
+                    <span className="hora-corte">{grupo.hora}</span>
+
+                    <span className="quienes-jugado">
+                      {grupo.jugadores.map((jugador, j) => (
+                        <span className="fila-jugado" key={`jugado-${i}-${j}`}>
+                          <span
+                            className={`quien-jugado ${
+                              jugador.entro ? "entra-corte" : "sale-corte"
+                            }`}
+                          >
+                            {jugador.entro ? "↑" : "↓"} {jugador.nombre}
+                          </span>
+
+                          {/* Entró y más tarde salió: la otra punta de su
+                              tramo no entra en el horario del grupo. */}
+                          {jugador.entro && jugador.salio && (
+                            <span className="hasta-jugado sale-corte">
+                              ↓ {jugador.salio}
+                            </span>
+                          )}
+
+                          <span
+                            className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}
+                          >
+                            {duracion(enModo(jugador))}
+                          </span>
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+
+                {resto && (
+                  <li className="jugado fila-resto">
+                    <span className="hora-corte" />
+
+                    <span className="quienes-jugado">
+                      <span className="fila-jugado">
                         <span className="quien-jugado">
                           {resto.cantidad === 1
                             ? "El otro titular"
                             : `Los otros ${resto.cantidad} titulares`}
                         </span>
                         <span className="cuando-jugado">partido completo</span>
-                      </td>
-                      <td className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}>
-                        {duracion(enModo(resto))}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                        <span
+                          className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}
+                        >
+                          {duracion(enModo(resto))}
+                        </span>
+                      </span>
+                    </span>
+                  </li>
+                )}
+              </ul>
             </section>
           )}
 
