@@ -4092,73 +4092,80 @@ button:disabled {
   font-weight: 600;
 }
 
-.tabla-jugados {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.tabla-jugados th {
-  padding: 0 0 6px;
-  border-bottom: 1px solid var(--cam-linea);
-  color: #9aa4a0;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  text-align: right;
-}
-
-.tabla-jugados th:first-child {
-  text-align: left;
-}
-
-.tabla-jugados td {
-  padding: 7px 0;
+/* Se lee como la línea de tiempo: el horario del cambio en la misma columna de
+   la izquierda y los jugadores de ese cambio a su derecha, cada uno con lo que
+   jugó. */
+.jugado {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 0;
   border-bottom: 1px solid #f1f5f4;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
-.tabla-jugados tr:last-child td {
+.jugado:last-child {
   border-bottom: 0;
 }
 
-.tabla-jugados td:first-child {
-  text-align: left;
+.jugado > .hora-corte {
+  flex: none;
+  width: 76px;
+  color: var(--cam-gris);
+}
+
+.quienes-jugado {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fila-jugado {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
 .quien-jugado {
+  overflow: hidden;
+  min-width: 0;
   font-size: 12.5px;
   font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.hasta-jugado,
 .cuando-jugado {
-  margin-left: 7px;
+  flex: none;
   color: #9aa4a0;
   font-size: 10.5px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-/* Las dos clases pesan igual, así que sin esto ganaba la de arriba por venir
-   después y el horario del cambio perdía su color. */
-.cuando-jugado.sale-corte {
+/* Pesan igual que .sale-corte y sin esto ganarían por venir después. */
+.hasta-jugado.sale-corte {
   color: #b91c1c;
 }
 
-.cuando-jugado.entra-corte {
+.hasta-jugado.entra-corte {
   color: #15803d;
 }
 
 .valor-jugado {
-  font-size: 15px;
+  flex: none;
+  margin-left: auto;
+  font-size: 14.5px;
+  font-variant-numeric: tabular-nums;
   font-weight: 800;
+  letter-spacing: -0.5px;
 }
 
 .valor-jugado.neto {
   color: var(--cam-verde);
-}
-
-.fila-resto td {
-  background: #f7f9f8;
 }
 
 .fila-resto .quien-jugado {
@@ -4203,7 +4210,8 @@ button:disabled {
    los nombres. Se la achica a lo justo y se junta un poco el par, que es lo
    que hace falta para que un nombre común entre entero. */
 @media (max-width: 380px) {
-  .corte > .hora-corte {
+  .corte > .hora-corte,
+  .jugado > .hora-corte {
     width: 70px;
   }
 
@@ -4215,8 +4223,15 @@ button:disabled {
     gap: 7px;
   }
 
-  .par-corte span {
+  .par-corte span,
+  .quien-jugado {
     font-size: 11px;
+  }
+
+  /* La aclaración del resto es lo primero que sobra cuando falta ancho: el
+     nombre y el número ya lo dicen todo. */
+  .fila-resto .cuando-jugado {
+    display: none;
   }
 
   .descanso {

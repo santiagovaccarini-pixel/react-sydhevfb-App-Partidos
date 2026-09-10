@@ -1112,13 +1112,12 @@ describe("interfaz operativa", () => {
     await montarApp();
     await abrirFicha();
 
+    // El nombre viene con la flecha del cambio adelante, que acá no interesa.
     const tabla = () =>
-      Array.from(contenedor.querySelectorAll(".tabla-jugados tbody tr")).map(
-        (fila) => [
-          fila.querySelector(".quien-jugado").textContent.trim(),
-          fila.querySelector(".valor-jugado").textContent.trim(),
-        ],
-      );
+      Array.from(contenedor.querySelectorAll(".fila-jugado")).map((fila) => [
+        fila.querySelector(".quien-jugado").textContent.replace(/^[↓↑]\s*/, "").trim(),
+        fila.querySelector(".valor-jugado").textContent.trim(),
+      ]);
 
     // En el total, lo que jugó cada uno en todo el partido.
     expect(tabla()).toEqual([
@@ -1150,6 +1149,66 @@ describe("interfaz operativa", () => {
     ]);
   });
 
+  test("en tiempo jugado, un horario por cambio y los jugadores al lado", async () => {
+    const fila = filaTransmisionGuardada();
+    fila.cambio_3_tiempo = "22:18:00";
+    fila.cambio_3_sale = "ARANA";
+    fila.cambio_3_entra = "HULK";
+    fila.captura_tiempo.cambios.push({
+      sale: "ARANA",
+      entra: "HULK",
+      hora: "015:00",
+      periodo: "ST",
+    });
+    doblesSupabase.filasHistorial = [fila];
+
+    await montarApp();
+    await abrirFicha();
+
+    const grupos = Array.from(contenedor.querySelectorAll(".jugado")).map(
+      (grupo) => [
+        grupo.querySelector(".hora-corte").textContent.trim(),
+        Array.from(grupo.querySelectorAll(".quien-jugado")).map((quien) =>
+          quien.textContent.trim(),
+        ),
+      ],
+    );
+
+    // Los cuatro del doble cambio comparten un solo horario, como en la línea.
+    // Sin fila de resto: los tres titulares del registro entraron en algún
+    // cambio, así que no queda ninguno que haya jugado el partido entero.
+    expect(grupos).toEqual([
+      ["21:23:14", ["↓ ALONSO", "↑ BERNARD"]],
+      ["22:18:00", ["↓ SCARPA", "↑ DUDU", "↓ ARANA", "↑ HULK"]],
+    ]);
+
+    // Y el horario vive en la misma columna que en la línea de tiempo.
+    const primero = contenedor.querySelector(".jugado");
+    expect(primero.firstElementChild.className).toContain("hora-corte");
+  });
+
+  test("al que entra y más tarde sale se le muestran las dos puntas", async () => {
+    const fila = filaTransmisionGuardada();
+    fila.cambio_2_sale = "BERNARD";
+    fila.captura_tiempo.cambios[1].sale = "BERNARD";
+    doblesSupabase.filasHistorial = [fila];
+
+    await montarApp();
+    await abrirFicha();
+
+    const bernard = Array.from(contenedor.querySelectorAll(".fila-jugado")).find(
+      (fila2) => fila2.textContent.includes("BERNARD"),
+    );
+
+    // Va agrupado bajo el horario en que entró, con su salida al costado.
+    expect(bernard.querySelector(".quien-jugado").textContent.trim()).toBe(
+      "↑ BERNARD",
+    );
+    expect(bernard.querySelector(".hasta-jugado").textContent.trim()).toBe(
+      "↓ 22:18:00",
+    );
+  });
+
   test("con el rival prendido, el tiempo jugado es el de sus jugadores", async () => {
     doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
 
@@ -1158,8 +1217,8 @@ describe("interfaz operativa", () => {
     await act(async () => contenedor.querySelector(".boton-rival-ficha").click());
 
     const nombres = Array.from(
-      contenedor.querySelectorAll(".tabla-jugados .quien-jugado"),
-    ).map((celda) => celda.textContent.trim());
+      contenedor.querySelectorAll(".quien-jugado"),
+    ).map((celda) => celda.textContent.replace(/^[↓↑]\s*/, "").trim());
 
     expect(nombres).toEqual(["JOAO PAULO", "GIL"]);
     expect(nombres).not.toContain("ALONSO");
@@ -1175,13 +1234,12 @@ describe("interfaz operativa", () => {
     await abrirFicha();
 
     const titulos = () =>
-      Array.from(contenedor.querySelectorAll(".tarjeta-ficha")).map(
-        (tarjeta) =>
-          tarjeta.querySelector(".cabeza-ficha b, thead th")?.textContent.trim(),
+      Array.from(contenedor.querySelectorAll(".tarjeta-ficha")).map((tarjeta) =>
+        tarjeta.querySelector(".cabeza-ficha b")?.textContent.trim(),
       );
 
     // Apagado no hay tarjeta de cambios: repetiría lo que ya está en la línea.
-    expect(titulos()).toEqual(["Todo el partido", "TIEMPO JUGADO"]);
+    expect(titulos()).toEqual(["Todo el partido", "Tiempo jugado"]);
 
     const interruptor = Array.from(
       contenedor.querySelectorAll(".interruptores button"),
@@ -1191,7 +1249,7 @@ describe("interfaz operativa", () => {
     expect(titulos()).toEqual([
       "Todos los cambios",
       "Todo el partido",
-      "TIEMPO JUGADO",
+      "Tiempo jugado",
     ]);
   });
 
