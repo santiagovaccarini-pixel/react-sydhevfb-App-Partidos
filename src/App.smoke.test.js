@@ -9,6 +9,7 @@ const doblesSupabase = vi.hoisted(() => ({
   // historial sin tener que armar filas con los nombres de columna de la base.
   errorHistorial: null,
   errorGuardado: null,
+  filasHistorial: [],
 }));
 
 vi.mock("./supabase.js", () => ({
@@ -16,7 +17,10 @@ vi.mock("./supabase.js", () => ({
     from: () => {
       const consulta = {
         select: () => consulta,
-        order: async () => ({ data: [], error: doblesSupabase.errorHistorial }),
+        order: async () => ({
+          data: doblesSupabase.filasHistorial,
+          error: doblesSupabase.errorHistorial,
+        }),
         insert: (filas) => {
           doblesSupabase.insertar(filas);
           return {
@@ -55,6 +59,7 @@ describe("interfaz operativa", () => {
     doblesSupabase.insertar.mockClear();
     doblesSupabase.errorHistorial = null;
     doblesSupabase.errorGuardado = null;
+    doblesSupabase.filasHistorial = [];
     localStorage.clear();
     localStorage.setItem(
       "registro_actual_partido",
@@ -664,6 +669,34 @@ describe("interfaz operativa", () => {
       localStorage.getItem("backup_registros_partidos"),
     );
     expect(respaldo.registros).toHaveLength(2);
+  });
+
+  test("cuando la base vuelve, sube sola lo que había quedado pendiente", async () => {
+    doblesSupabase.filasHistorial = [
+      { id: 1, fecha: "2026-09-01", rival: "Flamengo", resultado: "2-2" },
+    ];
+    localStorage.setItem(
+      "registros_sin_sincronizar",
+      JSON.stringify([
+        {
+          fecha: "2026-09-10",
+          rival: "Santos",
+          resultado: "2-1",
+          sinSincronizar: true,
+        },
+      ]),
+    );
+
+    await montarApp();
+
+    // El partido que había quedado en el celular se sube solo.
+    expect(doblesSupabase.insertar).toHaveBeenCalledTimes(1);
+    expect(doblesSupabase.insertar.mock.calls[0][0][0].rival).toBe("Santos");
+
+    // Y deja de estar pendiente.
+    expect(
+      JSON.parse(localStorage.getItem("registros_sin_sincronizar")),
+    ).toHaveLength(0);
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {
