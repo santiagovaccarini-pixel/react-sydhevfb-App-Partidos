@@ -997,23 +997,74 @@ describe("interfaz operativa", () => {
     ]);
   });
 
-  test("el botón del rival muestra sus cambios", async () => {
+  test("el interruptor del rival cambia los cambios y deja los hitos", async () => {
     doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
 
     await montarApp();
     await abrirFicha();
 
-    // Antes de tocarlo, los cambios del rival no están a la vista.
+    const horarios = () =>
+      Array.from(contenedor.querySelectorAll(".corte .hora-corte")).map((h) =>
+        h.textContent.trim(),
+      );
+
+    // Con los nuestros: el cambio del PT está en su horario.
+    expect(horarios()).toEqual([
+      "21:00:00",
+      "21:12:00",
+      "21:23:14",
+      "21:25:00",
+      "21:47:30",
+    ]);
     expect(contenedor.textContent).not.toContain("JOAO PAULO");
 
     await act(async () => contenedor.querySelector(".boton-rival-ficha").click());
 
-    expect(contenedor.textContent).toContain("JOAO PAULO");
-    expect(contenedor.textContent).toContain("GIL");
-    expect(contenedor.textContent).toContain("21:35:00");
+    // Arranque, VAR, hidratación y final son del partido y no se mueven; el
+    // cambio pasa a ser el del rival, en su propio horario.
+    expect(horarios()).toEqual([
+      "21:00:00",
+      "21:12:00",
+      "21:25:00",
+      "21:35:00",
+      "21:47:30",
+    ]);
+    // La tabla de tiempo jugado es nuestra y no se toca, así que se mira solo
+    // la línea de tiempo.
+    const linea = contenedor.querySelector(".tarjeta-ficha").textContent;
+    expect(linea).toContain("JOAO PAULO");
+    expect(linea).toContain("Inicio PT");
+    expect(linea).not.toContain("BERNARD");
 
-    // Y los cortes del partido dejan lugar: ya no se ve el inicio del tiempo.
-    expect(contenedor.textContent).not.toContain("Inicio PT");
+    // Y el escudo del rival avisa de quién es lo que se está mirando.
+    expect(contenedor.querySelector(".marca-rival")).toBeTruthy();
+  });
+
+  test("el interruptor de cambios sube esa tarjeta arriba de la línea", async () => {
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+    await abrirFicha();
+
+    const titulos = () =>
+      Array.from(contenedor.querySelectorAll(".tarjeta-ficha")).map(
+        (tarjeta) =>
+          tarjeta.querySelector(".cabeza-ficha b, thead th")?.textContent.trim(),
+      );
+
+    // Apagado no hay tarjeta de cambios: repetiría lo que ya está en la línea.
+    expect(titulos()).toEqual(["Primer tiempo", "TIEMPO JUGADO"]);
+
+    const interruptor = Array.from(
+      contenedor.querySelectorAll(".interruptores button"),
+    ).find((boton) => boton.textContent.includes("Cambios"));
+    await act(async () => interruptor.click());
+
+    expect(titulos()).toEqual([
+      "Cambios del PT",
+      "Primer tiempo",
+      "TIEMPO JUGADO",
+    ]);
   });
 
   test("dos cambios en el mismo horario comparten el corte", async () => {
@@ -1039,9 +1090,19 @@ describe("interfaz operativa", () => {
 
     const cortes = contenedor.querySelectorAll(".corte-cambio");
     expect(cortes).toHaveLength(1);
-    expect(cortes[0].querySelectorAll(".pares-corte span")).toHaveLength(4);
+
     // Un solo horario arriba de los dos cambios.
     expect(cortes[0].querySelectorAll(".hora-corte")).toHaveLength(1);
+
+    // Y cada cambio en su renglón, con el que sale y el que entra juntos.
+    const renglones = cortes[0].querySelectorAll(".par-corte");
+    expect(renglones).toHaveLength(2);
+    renglones.forEach((renglon) => {
+      expect(renglon.querySelectorAll(".sale-corte")).toHaveLength(1);
+      expect(renglon.querySelectorAll(".entra-corte")).toHaveLength(1);
+    });
+    expect(renglones[0].textContent).toBe("↓ SCARPA↑ DUDU");
+    expect(renglones[1].textContent).toBe("↓ ARANA↑ HULK");
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {

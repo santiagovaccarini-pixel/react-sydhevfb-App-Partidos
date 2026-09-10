@@ -120,17 +120,43 @@ export const resumenDeTiempos = (registro) => {
 const clave = (nombre) => normalizarTextoBase(nombre);
 
 /**
+ * A qué tiempo pertenece un horario. Hace falta porque las columnas de la base
+ * guardan el horario del cambio pero no su período: sin esto, un cambio del
+ * segundo tiempo aparecería en la lista del primero.
+ *
+ * Se busca el tiempo en cuya ventana cae. Si cae en el entretiempo, donde no
+ * hay ninguno, se le da el último que ya había arrancado.
+ */
+const periodoDelHorario = (linea, hora) => {
+  let anterior = null;
+
+  for (const periodo of linea) {
+    const desplazamiento = segundosEntre(periodo.inicio, hora);
+    if (desplazamiento === null) continue;
+    if (desplazamiento <= periodo.duracion) return periodo;
+    anterior = periodo;
+  }
+
+  return anterior;
+};
+
+/**
  * Los cambios ubicados en la recta del partido y ordenados por horario.
- * Un cambio sin período anotado se toma como del primer tiempo, que es lo que
- * hacía la app antes de que el período se guardara.
  */
 export const cambiosOrdenados = (registro, linea, lista = "cambios") =>
   (registro?.[lista] || [])
     .map((cambio, indice) => {
-      const periodo =
-        linea.find((item) => item.tipo === (cambio?.periodo || "PT")) || null;
-      const momento = momentoEnLaRecta(periodo, cambio?.hora);
-      if (momento === null) return null;
+      const anotado = cambio?.periodo
+        ? linea.find((item) => item.tipo === cambio.periodo)
+        : null;
+      const periodo = anotado || periodoDelHorario(linea, cambio?.hora);
+      const suelto = momentoEnLaRecta(periodo, cambio?.hora);
+      if (suelto === null) return null;
+
+      // Un cambio anotado en el entretiempo cae fuera de la ventana de su
+      // tiempo. Se lo lleva al borde para que no invada al siguiente: el que
+      // sale jugó el tiempo entero y el que entra arranca el que viene.
+      const momento = Math.min(Math.max(suelto, periodo.desde), periodo.hasta);
       return {
         indice,
         sale: cambio?.sale || "",
@@ -246,10 +272,14 @@ export const tiempoJugado = (registro) => {
  * Los puntos de corte de un tiempo, en orden de horario: arranque, VAR,
  * hidratación, cambios y final. Los cambios que comparten horario van juntos.
  *
+ * `lista` elige de quién son los cambios. El arranque, el VAR y la hidratación
+ * son del partido, no de un equipo, así que no cambian: mirando al rival se ve
+ * la misma línea con sus cambios en lugar de los nuestros.
+ *
  * A diferencia de las cuentas, acá una parada sin cerrar igual se muestra: el
  * dato está y sirve para cortar, aunque no se pueda medir.
  */
-export const cortesDePeriodo = (registro, tipo) => {
+export const cortesDePeriodo = (registro, tipo, lista = "cambios") => {
   const linea = lineaDeTiempo(registro);
   const periodo = linea.find((item) => item.tipo === tipo);
   if (!periodo) return [];
@@ -278,7 +308,7 @@ export const cortesDePeriodo = (registro, tipo) => {
     }));
 
   const porHorario = new Map();
-  cambiosOrdenados(registro, linea)
+  cambiosOrdenados(registro, linea, lista)
     .filter((cambio) => cambio.periodo === tipo)
     .forEach((cambio) => {
       if (!porHorario.has(cambio.hora)) {

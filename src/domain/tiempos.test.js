@@ -135,6 +135,42 @@ describe("tiempos del partido", () => {
     expect(total).toEqual({ bruto: 5680, detenido: 270, neto: 5410 });
   });
 
+  test("un cambio sin período anotado se ubica por su horario", () => {
+    // Las columnas de la base guardan el horario pero no el período. Sin
+    // deducirlo, un cambio del segundo tiempo caía en la lista del primero.
+    const sinPeriodo = {
+      ...PARTIDO,
+      cambios: [
+        { sale: "ALONSO", entra: "BERNARD", hora: "21:23:14" },
+        { sale: "SCARPA", entra: "DUDU", hora: "22:18:00" },
+      ],
+    };
+
+    expect(
+      cortesDePeriodo(sinPeriodo, "PT").filter((c) => c.clase === "cambio"),
+    ).toHaveLength(1);
+    expect(
+      cortesDePeriodo(sinPeriodo, "ST").filter((c) => c.clase === "cambio"),
+    ).toHaveLength(1);
+
+    // Y las cuentas dan lo mismo que con el período anotado.
+    const { jugadores } = tiempoJugado(sinPeriodo);
+    expect(porNombre(jugadores, "DUDU")).toMatchObject({ bruto: 1930 });
+    expect(porNombre(jugadores, "SCARPA")).toMatchObject({ bruto: 3750 });
+  });
+
+  test("un cambio hecho en el entretiempo queda en el tiempo que terminó", () => {
+    const { jugadores } = tiempoJugado({
+      ...PARTIDO,
+      cambios: [{ sale: "ALONSO", entra: "BERNARD", hora: "21:55:00" }],
+    });
+
+    // 21:55 cae entre el final del PT y el inicio del ST: se toma el final
+    // del primero, así que ALONSO jugó los 47:30 completos.
+    expect(porNombre(jugadores, "ALONSO")).toMatchObject({ bruto: 2850 });
+    expect(porNombre(jugadores, "BERNARD")).toMatchObject({ bruto: 2830 });
+  });
+
   test("los cortes de un tiempo salen en orden de horario", () => {
     const cortes = cortesDePeriodo(PARTIDO, "PT");
 
@@ -151,6 +187,35 @@ describe("tiempos del partido", () => {
       "21:23:14",
       "21:25:00",
       "21:47:30",
+    ]);
+  });
+
+  test("la línea del rival mantiene los hitos y cambia solo los cambios", () => {
+    const registro = {
+      ...PARTIDO,
+      cambiosRival: [
+        { sale: "JOAO PAULO", entra: "GIL", hora: "21:35:00", periodo: "PT" },
+      ],
+    };
+
+    const nuestra = cortesDePeriodo(registro, "PT");
+    const suya = cortesDePeriodo(registro, "PT", "cambiosRival");
+
+    // El arranque, el VAR, la hidratación y el final son del partido: iguales.
+    const hitos = (cortes) =>
+      cortes.filter((c) => c.clase !== "cambio").map((c) => c.hora);
+    expect(hitos(suya)).toEqual(hitos(nuestra));
+
+    // Lo único distinto es de quién es el cambio, y queda en su horario.
+    const cambio = suya.find((c) => c.clase === "cambio");
+    expect(cambio).toMatchObject({ hora: "21:35:00" });
+    expect(cambio.pares).toEqual([{ sale: "JOAO PAULO", entra: "GIL" }]);
+    expect(suya.map((c) => c.clase)).toEqual([
+      "inicio",
+      "var",
+      "hidratacion",
+      "cambio",
+      "final",
     ]);
   });
 
