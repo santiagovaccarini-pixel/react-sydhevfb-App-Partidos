@@ -190,6 +190,35 @@ describe("tiempos del partido", () => {
     ]);
   });
 
+  test("la línea del rival mantiene los hitos y cambia solo los cambios", () => {
+    const registro = {
+      ...PARTIDO,
+      cambiosRival: [
+        { sale: "JOAO PAULO", entra: "GIL", hora: "21:35:00", periodo: "PT" },
+      ],
+    };
+
+    const nuestra = cortesDePeriodo(registro, "PT");
+    const suya = cortesDePeriodo(registro, "PT", "cambiosRival");
+
+    // El arranque, el VAR, la hidratación y el final son del partido: iguales.
+    const hitos = (cortes) =>
+      cortes.filter((c) => c.clase !== "cambio").map((c) => c.hora);
+    expect(hitos(suya)).toEqual(hitos(nuestra));
+
+    // Lo único distinto es de quién es el cambio, y queda en su horario.
+    const cambio = suya.find((c) => c.clase === "cambio");
+    expect(cambio).toMatchObject({ hora: "21:35:00" });
+    expect(cambio.pares).toEqual([{ sale: "JOAO PAULO", entra: "GIL" }]);
+    expect(suya.map((c) => c.clase)).toEqual([
+      "inicio",
+      "var",
+      "hidratacion",
+      "cambio",
+      "final",
+    ]);
+  });
+
   test("dos cambios en el mismo horario quedan bajo un solo corte", () => {
     const cortes = cortesDePeriodo(
       {

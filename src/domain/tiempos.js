@@ -272,10 +272,14 @@ export const tiempoJugado = (registro) => {
  * Los puntos de corte de un tiempo, en orden de horario: arranque, VAR,
  * hidratación, cambios y final. Los cambios que comparten horario van juntos.
  *
+ * `lista` elige de quién son los cambios. El arranque, el VAR y la hidratación
+ * son del partido, no de un equipo, así que no cambian: mirando al rival se ve
+ * la misma línea con sus cambios en lugar de los nuestros.
+ *
  * A diferencia de las cuentas, acá una parada sin cerrar igual se muestra: el
  * dato está y sirve para cortar, aunque no se pueda medir.
  */
-export const cortesDePeriodo = (registro, tipo) => {
+export const cortesDePeriodo = (registro, tipo, lista = "cambios") => {
   const linea = lineaDeTiempo(registro);
   const periodo = linea.find((item) => item.tipo === tipo);
   if (!periodo) return [];
@@ -304,7 +308,7 @@ export const cortesDePeriodo = (registro, tipo) => {
     }));
 
   const porHorario = new Map();
-  cambiosOrdenados(registro, linea)
+  cambiosOrdenados(registro, linea, lista)
     .filter((cambio) => cambio.periodo === tipo)
     .forEach((cambio) => {
       if (!porHorario.has(cambio.hora)) {

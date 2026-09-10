@@ -4141,3 +4141,37 @@ button:disabled {
 .fila-resto .quien-jugado {
   color: #4a534f;
 }
+
+/* La segunda fila de la ficha: interruptores, no opciones. Cada uno prende y
+   apaga por su cuenta, así que ninguno "gana" sobre los otros. */
+.selector-periodos.en-ficha.interruptores {
+  margin-bottom: 11px;
+}
+
+.selector-periodos.en-ficha.interruptores button {
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.marca-rival {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 3px 9px 3px 5px;
+  border-radius: 999px;
+  background: #f1f5f4;
+  color: #4a534f;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+
+.marca-rival .escudo-rival,
+.marca-rival .escudo-club.escudo-real {
+  width: 13px;
+}
+
+.cabeza-ficha .cuenta-cambios {
+  margin-left: auto;
+}

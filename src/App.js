@@ -1001,10 +1001,12 @@ export default function App() {
   const [mensajeGuardado, setMensajeGuardado] = useState("");
   const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
   const [periodoVista, setPeriodoVista] = useState("PT");
-  // Qué muestra la ficha de un registro guardado: un tiempo, los cambios del
-  // rival, y si los números van en bruto o en neto.
+  // Qué muestra la ficha de un registro guardado. El tiempo es una elección;
+  // los otros tres son interruptores independientes.
   const [vistaFicha, setVistaFicha] = useState("PT");
   const [fichaEnNeto, setFichaEnNeto] = useState(false);
+  const [fichaDelRival, setFichaDelRival] = useState(false);
+  const [fichaCambiosArriba, setFichaCambiosArriba] = useState(false);
   const [equipoCambios, setEquipoCambios] = useState("atletico");
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
@@ -3812,25 +3814,44 @@ export default function App() {
    * corte de un vistazo: el tiempo elegido manda una lista cronológica, y el
    * botón de bruto/neto cambia todos los números a la vez.
    */
+  /**
+   * La ficha de un registro guardado. Está pensada para leer los horarios de
+   * corte de un vistazo.
+   *
+   * Arriba se elige qué tiempo mirar; abajo van tres interruptores que no se
+   * pisan entre sí: de quién son los cambios, si los números van en bruto o en
+   * neto, y si la tarjeta de cambios se adelanta a la línea de tiempo.
+   */
   const renderFichaRegistro = ({ item, alVolver, alEditar }) => {
     const resumen = resumenDeTiempos(item);
     const { jugadores, resto } = tiempoJugado(item);
-    const rival = cambiosDelRival(item);
 
     const [golesCam = "", golesContra = ""] = String(item.resultado || "")
       .split(/\s*[-\u2013:]\s*/)
       .slice(0, 2);
 
-    // Los botones están siempre, aunque un tiempo no tenga datos: si no, un
+    // Los botones de tiempo están siempre, aunque uno no tenga datos: si no, un
     // registro viejo a medio cargar se queda sin nada que tocar.
     const tiempos = periodosDelRegistro(item);
-    const vista =
-      vistaFicha === "rival" || tiempos.includes(vistaFicha) ? vistaFicha : "PT";
-
+    const vista = tiempos.includes(vistaFicha) ? vistaFicha : "PT";
     const periodo = resumen.periodos.find((item2) => item2.tipo === vista);
+
+    const lista = fichaDelRival ? "cambiosRival" : "cambios";
+    const cortes = cortesDePeriodo(item, vista, lista);
+    const cambios = cortes.filter((corte) => corte.clase === "cambio");
+
     const etiquetaModo = fichaEnNeto ? "Neto" : "Bruto";
     const enModo = (valores) => (fichaEnNeto ? valores.neto : valores.bruto);
     const duracion = (segundos) => formatearMinutosSegundos(segundos) || "--:--";
+    const nombreRival = item.rival || "Rival";
+
+    // Deja claro de quién es lo que se está mirando cuando no son los nuestros.
+    const marcaRival = fichaDelRival ? (
+      <span className="marca-rival">
+        <EscudoDeClub nombre={item.rival} mini />
+        {nombreRival}
+      </span>
+    ) : null;
 
     // Cada cambio es un renglón: el que sale y el que entra pegados, como se
     // lee un cambio. Si no entran, se recortan antes que partirse en dos.
@@ -3858,7 +3879,7 @@ export default function App() {
         );
       }
 
-      const hasta = corte.hasta ? `\u2192 ${corte.hasta}` : "";
+      const hasta = corte.hasta ? `→ ${corte.hasta}` : "";
       const medida = formatearMinutosSegundos(corte.duracion);
 
       return (
@@ -3868,12 +3889,58 @@ export default function App() {
           <span className="nombre-corte">{corte.etiqueta}</span>
           {(hasta || medida) && (
             <span className="detalle-corte">
-              {[hasta, medida].filter(Boolean).join(" \u00b7 ")}
+              {[hasta, medida].filter(Boolean).join(" · ")}
             </span>
           )}
         </li>
       );
     };
+
+    const tarjetaLinea = (
+      <section className="tarjeta tarjeta-ficha" key="linea">
+        <div className="cabeza-ficha">
+          <b>{nombrePeriodo(vista)}</b>
+          <span className="et">{etiquetaModo.toUpperCase()}</span>
+          {marcaRival}
+          <em className={fichaEnNeto ? "neto" : ""}>
+            {periodo ? duracion(enModo(periodo)) : "--:--"}
+          </em>
+        </div>
+
+        {periodo ? (
+          <ul className="cortes">{cortes.map(renderCorte)}</ul>
+        ) : (
+          <p className="vacio-ficha">Este tiempo no se cargó.</p>
+        )}
+      </section>
+    );
+
+    // La tarjeta de cambios solo aparece cuando se la pide: apagada repetiría
+    // tal cual lo que ya está en la línea de tiempo.
+    const tarjetaCambios = fichaCambiosArriba ? (
+      <section className="tarjeta tarjeta-ficha" key="cambios">
+        <div className="cabeza-ficha">
+          <b>Cambios del {vista}</b>
+          {marcaRival || (
+            <span className="et cuenta-cambios">
+              {cambios.length === 0
+                ? "SIN CAMBIOS"
+                : `${cambios.reduce((total, c) => total + c.pares.length, 0)} CAMBIOS`}
+            </span>
+          )}
+        </div>
+
+        {cambios.length === 0 ? (
+          <p className="vacio-ficha">
+            {fichaDelRival
+              ? `No se cargó ningún cambio de ${nombreRival} en este tiempo.`
+              : "No hubo cambios en este tiempo."}
+          </p>
+        ) : (
+          <ul className="cortes">{cambios.map(renderCorte)}</ul>
+        )}
+      </section>
+    ) : null;
 
     return (
       <div className="app">
@@ -3893,7 +3960,7 @@ export default function App() {
 
               <div className="equipo-ficha">
                 <EscudoDeClub nombre={item.rival} />
-                <strong>{item.rival || "Rival"}</strong>
+                <strong>{nombreRival}</strong>
               </div>
             </div>
 
@@ -3903,7 +3970,8 @@ export default function App() {
             </div>
           </section>
 
-          <section className="selector-periodos en-ficha" aria-label="Qué mirar">
+          {/* Qué tiempo mirar: uno a la vez. */}
+          <section className="selector-periodos en-ficha" aria-label="Qué tiempo">
             <div role="tablist">
               {tiempos.map((tipo) => (
                 <button
@@ -3920,23 +3988,25 @@ export default function App() {
                   )}
                 </button>
               ))}
+            </div>
+          </section>
 
+          {/* Cómo mirarlo: tres interruptores que no se pisan entre sí. */}
+          <section
+            className="selector-periodos en-ficha interruptores"
+            aria-label="Cómo mirarlo"
+          >
+            <div>
               <button
                 type="button"
-                role="tab"
-                aria-selected={vista === "rival"}
-                className={`boton-rival-ficha ${vista === "rival" ? "activo" : ""} ${
-                  tiempos.length > 2 ? "solo-escudo" : ""
-                }`}
-                onClick={() => setVistaFicha("rival")}
-                aria-label={`Cambios de ${item.rival || "el rival"}`}
+                className={`boton-rival-ficha ${fichaDelRival ? "activo" : ""}`}
+                onClick={() => setFichaDelRival((previo) => !previo)}
+                aria-pressed={fichaDelRival}
               >
                 <EscudoDeClub nombre={item.rival} mini />
-                {tiempos.length > 2 ? "" : " Rival"}
+                Rival
               </button>
 
-              {/* No es una opción más: es el estado en el que se leen los
-                  números, así que va siempre pintado y aparte. */}
               <button
                 type="button"
                 className={`boton-modo-ficha ${fichaEnNeto ? "neto" : ""}`}
@@ -3946,60 +4016,20 @@ export default function App() {
                 <Icono nombre="cambio" size={14} />
                 {etiquetaModo}
               </button>
+
+              <button
+                type="button"
+                className={fichaCambiosArriba ? "activo" : ""}
+                onClick={() => setFichaCambiosArriba((previo) => !previo)}
+                aria-pressed={fichaCambiosArriba}
+              >
+                <Icono nombre="subir" size={14} />
+                Cambios
+              </button>
             </div>
           </section>
 
-          <section className="tarjeta tarjeta-ficha">
-            {vista === "rival" ? (
-              <>
-                <div className="cabeza-ficha">
-                  <EscudoDeClub nombre={item.rival} mini />
-                  <b>{item.rival || "Rival"}</b>
-                  <span>
-                    {rival.length === 0
-                      ? "SIN CAMBIOS"
-                      : `${rival.reduce((total, c) => total + c.pares.length, 0)} CAMBIOS`}
-                  </span>
-                </div>
-
-                {rival.length === 0 ? (
-                  <p className="vacio-ficha">
-                    No se cargó ningún cambio del rival.
-                  </p>
-                ) : (
-                  <ul className="cortes">
-                    {rival.map((cambio, i) => (
-                      <li className="corte corte-cambio" key={`rival-${i}`}>
-                        <span className="cabeza-corte">
-                          <span className="tiempo-corte">{cambio.periodo}</span>
-                          <span className="hora-corte">{cambio.hora}</span>
-                        </span>
-                        {renderPares(cambio.pares, `rival-${i}`)}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="cabeza-ficha">
-                  <b>{nombrePeriodo(vista)}</b>
-                  <span>{etiquetaModo.toUpperCase()}</span>
-                  <em className={fichaEnNeto ? "neto" : ""}>
-                    {periodo ? duracion(enModo(periodo)) : "--:--"}
-                  </em>
-                </div>
-
-                {periodo ? (
-                  <ul className="cortes">
-                    {cortesDePeriodo(item, vista).map(renderCorte)}
-                  </ul>
-                ) : (
-                  <p className="vacio-ficha">Este tiempo no se cargó.</p>
-                )}
-              </>
-            )}
-          </section>
+          {[tarjetaCambios, tarjetaLinea].filter(Boolean)}
 
           {(jugadores.length > 0 || resto) && (
             <section className="tarjeta tarjeta-ficha">
@@ -5541,10 +5571,12 @@ export default function App() {
                           setRegistroSeleccionado({ item, index });
                           setDetalleBorrador(null);
                           setDetalleEditando(false);
-                          // Cada registro se abre como el anterior: primer
-                          // tiempo y en bruto.
+                          // Cada registro se abre igual: primer tiempo, en
+                          // bruto y con los cambios nuestros.
                           setVistaFicha("PT");
                           setFichaEnNeto(false);
+                          setFichaDelRival(false);
+                          setFichaCambiosArriba(false);
                         }}
                       >
                         Ver detalle
