@@ -627,7 +627,7 @@ describe("interfaz operativa", () => {
     expect(filas()).toHaveLength(2);
   });
 
-  test("la pantalla de formación es una planilla, no una lista de etiquetas", async () => {
+  test("la formación se carga sobre la cancha y el banco sigue siendo planilla", async () => {
     localStorage.removeItem("registro_actual_partido");
 
     await montarApp();
@@ -637,43 +637,125 @@ describe("interfaz operativa", () => {
     );
     await act(async () => ingresar.click());
 
-    // Dos grupos: titulares y convocados, cada uno con su contador.
+    // Los titulares van sobre la cancha; la planilla queda sólo para el banco.
     const grillas = contenedor.querySelectorAll(".grilla-plantel");
-    expect(grillas).toHaveLength(2);
+    expect(grillas).toHaveLength(1);
     expect(grillas[0].querySelectorAll(".fila-plantel")).toHaveLength(10);
-    // El banco arranca con diez lugares; los que falten se agregan a mano.
-    expect(grillas[1].querySelectorAll(".fila-plantel")).toHaveLength(10);
 
-    const contadores = contenedor.querySelectorAll(".contador-plantel");
-    expect(contadores[0].textContent).toBe("0/10");
-    expect(contadores[0].className).not.toContain("completo");
+    const puestos = contenedor.querySelectorAll(".pista .puesto-cancha");
+    expect(puestos).toHaveLength(10);
+    expect(
+      contenedor.querySelector(".chip-formacion").textContent.trim(),
+    ).toBe("4-4-2");
+    expect(contenedor.querySelector(".cuenta-cancha").textContent).toBe("0/10");
+    expect(contenedor.querySelector(".cuenta-cancha").className).not.toContain(
+      "completo",
+    );
 
-    // El número va adentro del campo: una línea por jugador, sin etiqueta aparte.
-    const fila = grillas[0].querySelector(".fila-plantel");
-    expect(fila.querySelector(".numero-plantel").textContent).toBe("1");
-    expect(fila.querySelector("label")).toBeNull();
+    // Tocar un puesto abre la lista de jugadores y lo deja cargado ahí.
+    await act(async () => puestos[0].click());
+    const lista = contenedor.querySelector(".elegir-jugador .lista-elegir");
+    expect(lista).not.toBeNull();
 
-    // Los títulos son texto, no los botones verdes que parecían tocables.
-    const titulo = contenedor.querySelector(".titulo-plantel h2");
-    expect(titulo.textContent).toBe("Titulares de campo");
-    expect(titulo.tagName).toBe("H2");
+    const primero = lista.querySelector("button");
+    const nombre = primero.textContent.trim();
+    await act(async () => primero.click());
 
-    // Al completar los diez, el contador lo celebra.
-    const campos = grillas[0].querySelectorAll(".input-jugador");
-    await act(async () => {
-      campos.forEach((campo, i) => {
-        const setter = Object.getOwnPropertyDescriptor(
-          window.HTMLInputElement.prototype,
-          "value",
-        ).set;
-        setter.call(campo, `JUGADOR ${i + 1}`);
-        campo.dispatchEvent(new Event("input", { bubbles: true }));
-      });
-    });
+    expect(contenedor.querySelector(".elegir-jugador")).toBeNull();
+    expect(contenedor.querySelector(".cuenta-cancha").textContent).toBe("1/10");
+    // En la cancha entra el apellido, no el nombre completo.
+    expect(
+      contenedor.querySelectorAll(".pista .ficha-cancha")[0].textContent,
+    ).toBe(nombre.split(/\s+/).pop());
+  });
 
-    const contadorFinal = contenedor.querySelectorAll(".contador-plantel")[0];
-    expect(contadorFinal.textContent).toBe("10/10");
-    expect(contadorFinal.className).toContain("completo");
+  test("la formación se arma tocando cuántos van en cada línea", async () => {
+    localStorage.removeItem("registro_actual_partido");
+
+    await montarApp();
+
+    const ingresar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Ingresar Formación"),
+    );
+    await act(async () => ingresar.click());
+
+    await act(async () => contenedor.querySelector(".chip-formacion").click());
+
+    const paso = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".paso-formacion")).find(
+        (boton) => boton.getAttribute("aria-label") === etiqueta,
+      );
+
+    // Con diez en la cancha no se puede sumar ninguno más.
+    expect(
+      Array.from(contenedor.querySelectorAll(".paso-formacion"))
+        .filter((boton) => boton.textContent === "+")
+        .every((boton) => boton.disabled),
+    ).toBe(true);
+
+    await act(async () => paso("Quitar uno en Ataque").click());
+    expect(
+      contenedor.querySelector(".chip-formacion").textContent.trim(),
+    ).toBe("4-4-1");
+    expect(contenedor.querySelectorAll(".pista .puesto-cancha")).toHaveLength(9);
+
+    await act(async () => paso("Sumar uno en Defensa").click());
+    expect(
+      contenedor.querySelector(".chip-formacion").textContent.trim(),
+    ).toBe("5-4-1");
+    expect(contenedor.querySelectorAll(".pista .puesto-cancha")).toHaveLength(
+      10,
+    );
+    expect(contenedor.querySelector(".cuenta-cancha").textContent).toBe("0/10");
+  });
+
+  test("un borrador de antes de la cancha no pierde sus titulares", async () => {
+    const titulares = [
+      "RENAN LODI",
+      "LYANCO",
+      "VITAO",
+      "NATANAEL",
+      "ALAN FRANCO",
+      "IGOR GOMES",
+      "SCARPA",
+      "MAYCON",
+      "BERNARD",
+      "M CASSIERRA",
+    ];
+
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify({
+        version: 2,
+        registro: {
+          fecha: "2026-09-08",
+          rival: "Cruzeiro",
+          // Como lo guardaba la app antes de que la formación fuera una
+          // cancha: los titulares en lista y nada más.
+          formacion: { titulares, convocados: [] },
+        },
+      }),
+    );
+
+    await montarApp();
+
+    const irAFormacion = Array.from(
+      contenedor.querySelectorAll(".navegacion-movil button"),
+    ).find((boton) => boton.textContent.includes("Formación"));
+    await act(async () => irAFormacion.click());
+
+    const ingresar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Ingresar Formación"),
+    );
+    await act(async () => ingresar.click());
+
+    // Los diez tienen que estar sobre la cancha, en el mismo orden.
+    expect(contenedor.querySelector(".cuenta-cancha").textContent).toBe("10/10");
+    expect(
+      Array.from(contenedor.querySelectorAll(".pista .ficha-cancha")).map(
+        (ficha) => ficha.textContent,
+      ),
+    ).toEqual(titulares.map((nombre) => nombre.split(/\s+/).pop()));
   });
 
   test("un borrador viejo con doce lugares de banco se recorta sin perder nombres", async () => {
@@ -707,7 +789,7 @@ describe("interfaz operativa", () => {
         (boton) => boton.textContent.includes("Ingresar Formación"),
       );
       await act(async () => ingresar.click());
-      const banco = contenedor.querySelectorAll(".grilla-plantel")[1];
+      const banco = contenedor.querySelectorAll(".grilla-plantel")[0];
       return Array.from(banco.querySelectorAll(".input-jugador")).map(
         (campo) => campo.value,
       );
@@ -954,6 +1036,72 @@ describe("interfaz operativa", () => {
     }
     expect(enST).toContain("47:10");
     sinGuias();
+  });
+
+  test("corregir un titular desde el detalle también lo mueve en la cancha", async () => {
+    const titulares = ["ALONSO", "SCARPA", "ARANA"];
+    doblesSupabase.filasHistorial = [
+      {
+        ...filaTransmisionGuardada(),
+        titulares,
+        formacion_cancha: {
+          lineas: { def: 2, med: 1, ata: 0 },
+          puestos: {
+            "def-0": { nombre: "ALONSO" },
+            "def-1": { nombre: "SCARPA" },
+            "med-0": { nombre: "ARANA" },
+          },
+        },
+      },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+    await act(async () =>
+      contenedor.querySelector(".registro-guardado button").click(),
+    );
+
+    const boton = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll("button")).find((item) =>
+        item.textContent.includes(etiqueta),
+      );
+
+    await act(async () => boton("Editar registro").click());
+
+    const campoTitular = Array.from(
+      contenedor.querySelectorAll(".campo-formacion"),
+    ).find((campo) => campo.querySelector("label")?.textContent === "Titular 1");
+    const entrada = campoTitular.querySelector("input");
+    expect(entrada.value).toBe("ALONSO");
+
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    await act(async () => {
+      escribir.call(entrada, "LYANCO");
+      entrada.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      boton("Guardar cambios").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // En la cancha de Info tiene que estar el nuevo y no el que salió.
+    await act(async () => boton("Info").click());
+
+    const enCancha = Array.from(
+      contenedor.querySelectorAll(".pista .ficha-cancha"),
+    ).map((ficha) => ficha.textContent);
+    expect(enCancha).toContain("LYANCO");
+    expect(enCancha).not.toContain("ALONSO");
   });
 
   test("una corrección a mano sobre un horario guardado no se pisa", async () => {
