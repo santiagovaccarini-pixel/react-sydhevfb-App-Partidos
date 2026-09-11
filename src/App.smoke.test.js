@@ -158,6 +158,10 @@ describe("interfaz operativa", () => {
     );
   };
 
+  const abrirInfo = async () => {
+    await act(async () => contenedor.querySelector(".boton-info-ficha").click());
+  };
+
   const elegirTiempo = async (etiqueta) => {
     const boton = Array.from(
       contenedor.querySelectorAll('.selector-periodos.en-ficha button[role="tab"]'),
@@ -972,35 +976,41 @@ describe("interfaz operativa", () => {
 
     const valores = () =>
       Array.from(
-        contenedor.querySelectorAll(".total-ficha b, .cabeza-ficha em, .valor-jugado"),
+        contenedor.querySelectorAll(
+          ".total-ficha b, .cabeza-ficha em, .valor-jugado",
+        ),
       ).map((celda) => celda.textContent.trim());
 
-    // Arranca mostrando todo el partido: el total arriba, el de la tarjeta y
-    // lo que jugó cada uno.
-    expect(valores()).toEqual([
-      "94:40",
-      "94:40",
-      "23:14",
-      "71:26",
-      "62:30",
-      "32:10",
-    ]);
+    // Arranca mostrando todo el partido: el total arriba y el de la tarjeta.
+    expect(valores()).toEqual(["94:40", "94:40"]);
 
     const interruptor = contenedor.querySelector(".boton-modo-ficha");
     expect(interruptor.textContent).toContain("Bruto");
     await act(async () => interruptor.click());
 
-    // En neto, a cada uno se le descuenta solo lo que se detuvo con él adentro:
-    // DUDU entró en el segundo tiempo, donde no hubo paradas, y no cambia.
     expect(contenedor.querySelector(".boton-modo-ficha").textContent).toContain(
       "Neto",
     );
+    expect(valores()).toEqual(["90:10", "90:10"]);
+
+    // Y lo mismo adentro de Info, donde está lo que jugó cada uno: a cada uno
+    // se le descuenta solo lo que se detuvo con él adentro, así que DUDU, que
+    // entró en el segundo tiempo, no cambia.
+    await abrirInfo();
     expect(valores()).toEqual([
-      "90:10",
       "90:10",
       "20:44",
       "69:26",
       "58:00",
+      "32:10",
+    ]);
+
+    await act(async () => contenedor.querySelector(".boton-modo-ficha").click());
+    expect(valores()).toEqual([
+      "94:40",
+      "23:14",
+      "71:26",
+      "62:30",
       "32:10",
     ]);
   });
@@ -1109,6 +1119,7 @@ describe("interfaz operativa", () => {
 
     await montarApp();
     await abrirFicha();
+    await abrirInfo();
 
     // El nombre viene con la flecha del cambio adelante, que acá no interesa.
     const tabla = () =>
@@ -1130,16 +1141,15 @@ describe("interfaz operativa", () => {
 
     // En el primero, solo lo de ese tiempo. DUDU entró en el segundo, así que
     // no pisó la cancha acá y desaparece de la lista.
+    // Solo el cambio del primer tiempo: el de SCARPA fue en el segundo.
     expect(tabla()).toEqual([
       ["ALONSO", "23:14"],
       ["BERNARD", "24:16"],
-      ["SCARPA", "47:30"],
     ]);
 
     await elegirTiempo("ST");
 
     expect(tabla()).toEqual([
-      ["BERNARD", "47:10"],
       ["SCARPA", "15:00"],
       ["DUDU", "32:10"],
     ]);
@@ -1160,6 +1170,7 @@ describe("interfaz operativa", () => {
 
     await montarApp();
     await abrirFicha();
+    await abrirInfo();
 
     const grupos = Array.from(contenedor.querySelectorAll(".jugado")).map(
       (grupo) => [
@@ -1189,6 +1200,7 @@ describe("interfaz operativa", () => {
 
     await montarApp();
     await abrirFicha();
+    await abrirInfo();
 
     const bernard = Array.from(contenedor.querySelectorAll(".fila-jugado")).find(
       (fila2) => fila2.textContent.includes("BERNARD"),
@@ -1208,6 +1220,7 @@ describe("interfaz operativa", () => {
 
     await montarApp();
     await abrirFicha();
+    await abrirInfo();
     await act(async () => contenedor.querySelector(".boton-rival-ficha").click());
 
     const nombres = Array.from(
@@ -1217,8 +1230,18 @@ describe("interfaz operativa", () => {
     expect(nombres).toEqual(["JOAO PAULO", "GIL"]);
     expect(nombres).not.toContain("ALONSO");
 
-    // De ellos no se guarda la formación, así que no hay fila de resto.
-    expect(contenedor.querySelector(".fila-resto")).toBeNull();
+    // De ellos no se guarda la formación: no va nada nuestro en esa pantalla.
+    expect(contenedor.querySelector(".grupo-plantel")).toBeNull();
+    expect(contenedor.textContent).not.toContain("NUESTRO PLANTEL");
+    expect(
+      Array.from(
+        contenedor.querySelectorAll(".tarjeta-ficha .cabeza-ficha b"),
+      ).map((titulo) => titulo.textContent.trim()),
+    ).toEqual(["Tiempo jugado"]);
+
+    // Y al apagar el rival vuelve el plantel nuestro.
+    await act(async () => contenedor.querySelector(".boton-rival-ficha").click());
+    expect(contenedor.querySelector(".grupo-plantel")).toBeTruthy();
   });
 
   test("Info. General reparte el plantel y saca el resto de tiempo jugado", async () => {
@@ -1230,9 +1253,10 @@ describe("interfaz operativa", () => {
     await montarApp();
     await abrirFicha();
 
-    // Los que jugaron el partido entero ya no ensucian el tiempo jugado.
-    expect(contenedor.textContent).not.toContain("partido completo");
+    // En la vista de tiempo solo está la línea: ni el plantel ni lo jugado.
     expect(contenedor.querySelector(".grupo-plantel")).toBeNull();
+    expect(contenedor.querySelector(".fila-jugado")).toBeNull();
+    expect(contenedor.textContent).not.toContain("partido completo");
 
     const info = Array.from(
       contenedor.querySelectorAll(".interruptores button"),
@@ -1248,18 +1272,42 @@ describe("interfaz operativa", () => {
       ],
     );
 
+    // Sin los del banco, que no se piden: titulares, los que jugaron enteros
+    // y los que se quedaron sin entrar.
     expect(grupos).toEqual([
-      ["Titulares", ["ALONSO", "SCARPA", "ARANA"]],
-      ["Banco", ["BERNARD", "DUDU", "IGOR"]],
-      // IGOR se quedó en el banco: es el único que no llegó a entrar.
-      ["No ingresaron", ["IGOR"]],
+      ["Titulares", ["1ALONSO", "2SCARPA", "3ARANA"]],
       // ALONSO y SCARPA salieron; ARANA jugó de principio a fin.
       ["Nunca salieron", ["ARANA"]],
+      // IGOR se quedó en el banco: es el único que no llegó a entrar.
+      ["No ingresaron", ["IGOR"]],
     ]);
 
     // Y al lado de los que nunca salieron va lo que duró el partido.
-    const nunca = contenedor.querySelectorAll(".grupo-plantel")[3];
+    const nunca = contenedor.querySelectorAll(".grupo-plantel")[1];
     expect(nunca.querySelector("em").textContent.trim()).toBe("94:40");
+
+    // Es su propia pantalla: la línea de tiempo deja lugar y quedan el tiempo
+    // jugado y el plantel.
+    const titulos = () =>
+      Array.from(
+        contenedor.querySelectorAll(".tarjeta-ficha .cabeza-ficha b"),
+      ).map((titulo) => titulo.textContent.trim());
+
+    expect(titulos()).toEqual(["Tiempo jugado", "Info. General"]);
+
+    // Pero las opciones siguen todas ahí: el tiempo elegido acota lo jugado.
+    expect(
+      contenedor.querySelectorAll(".selector-periodos.en-ficha"),
+    ).toHaveLength(2);
+    expect(
+      Array.from(contenedor.querySelectorAll(".interruptores button")).map(
+        (boton) => boton.textContent.trim().replace("Info. GeneralInfo", "Info"),
+      ),
+    ).toEqual(["SRival", "Bruto", "Cambios", "Info"]);
+
+    // Y al apagarlo vuelve la línea de tiempo.
+    await act(async () => contenedor.querySelector(".boton-info-ficha").click());
+    expect(titulos()).toEqual(["Todo el partido"]);
   });
 
   test("el interruptor de cambios sube esa tarjeta arriba de la línea", async () => {
@@ -1274,18 +1322,14 @@ describe("interfaz operativa", () => {
       );
 
     // Apagado no hay tarjeta de cambios: repetiría lo que ya está en la línea.
-    expect(titulos()).toEqual(["Todo el partido", "Tiempo jugado"]);
+    expect(titulos()).toEqual(["Todo el partido"]);
 
     const interruptor = Array.from(
       contenedor.querySelectorAll(".interruptores button"),
     ).find((boton) => boton.textContent.includes("Cambios"));
     await act(async () => interruptor.click());
 
-    expect(titulos()).toEqual([
-      "Todos los cambios",
-      "Todo el partido",
-      "Tiempo jugado",
-    ]);
+    expect(titulos()).toEqual(["Todos los cambios", "Todo el partido"]);
   });
 
   test("dos cambios en el mismo horario comparten el corte", async () => {
