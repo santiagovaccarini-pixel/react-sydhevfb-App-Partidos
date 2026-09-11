@@ -72,7 +72,7 @@ const TOTAL = "total";
  */
 const agruparJugados = (jugadores) =>
   jugadores.reduce((grupos, jugador) => {
-    const hora = jugador.entro || jugador.salio || "";
+    const hora = jugador.hora || "";
     const ultimo = grupos[grupos.length - 1];
 
     if (ultimo && ultimo.hora === hora) {
@@ -80,10 +80,13 @@ const agruparJugados = (jugadores) =>
       return grupos;
     }
 
-    return [...grupos, { hora, jugadores: [jugador] }];
+    return [
+      ...grupos,
+      { hora, juego: jugador.juego || "", jugadores: [jugador] },
+    ];
   }, []);
 
-const APP_VERSION = "2026.09.11.3";
+const APP_VERSION = "2026.09.11.4";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1030,6 +1033,7 @@ export default function App() {
   const [fichaDelRival, setFichaDelRival] = useState(false);
   const [fichaCambiosArriba, setFichaCambiosArriba] = useState(false);
   const [fichaInfoGeneral, setFichaInfoGeneral] = useState(false);
+  const [fichaEnJuego, setFichaEnJuego] = useState(false);
   const [equipoCambios, setEquipoCambios] = useState("atletico");
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
@@ -3906,19 +3910,20 @@ export default function App() {
         return (
           <li className="corte corte-cambio" key={`corte-${i}`}>
             {marca}
-            <span className="hora-corte">{corte.hora}</span>
+            <span className="hora-corte">{enReloj(corte)}</span>
             {renderPares(corte.pares, i)}
           </li>
         );
       }
 
-      const hasta = corte.hasta ? `→ ${corte.hasta}` : "";
+      const hastaTexto = fichaEnJuego ? corte.hastaJuego : corte.hasta;
+      const hasta = hastaTexto ? `→ ${hastaTexto}` : "";
       const medida = formatearMinutosSegundos(corte.duracion);
 
       return (
         <li className={`corte corte-${corte.clase}`} key={`corte-${i}`}>
           {marca}
-          <span className="hora-corte">{corte.hora || "--:--:--"}</span>
+          <span className="hora-corte">{enReloj(corte) || "--:--:--"}</span>
           <span className="punto-corte" />
           <span className="nombre-corte">{corte.etiqueta}</span>
           {(hasta || medida) && (
@@ -3932,6 +3937,26 @@ export default function App() {
 
     // Es siempre el nuestro: del rival no se guarda la formación.
     const plantel = plantelDelPartido(item);
+
+    // Los mismos datos leídos de dos maneras: la hora del reloj o el minuto de
+    // juego. Lo que se guarda es el horario; el minuto sale de ahí.
+    const enReloj = (corte) =>
+      (fichaEnJuego ? corte?.juego : corte?.hora) || "";
+
+    const botonFormato = (
+      <button
+        type="button"
+        className={`boton-formato ${fichaEnJuego ? "activo" : ""}`}
+        onClick={() => setFichaEnJuego((previo) => !previo)}
+        aria-pressed={fichaEnJuego}
+        aria-label={
+          fichaEnJuego ? "Ver la hora del reloj" : "Ver el minuto de juego"
+        }
+      >
+        <Icono nombre="reloj" size={12} />
+        {fichaEnJuego ? "Juego" : "Horario"}
+      </button>
+    );
 
     const renderGrupoPlantel = (titulo, jugadores, opciones = {}) => (
       <div className="grupo-plantel">
@@ -3968,6 +3993,7 @@ export default function App() {
         <div className="cabeza-ficha">
           <b>{esTotal ? "Todo el partido" : nombrePeriodo(vista)}</b>
           <span className="et">{etiquetaModo.toUpperCase()}</span>
+          {botonFormato}
           {marcaRival}
           <em className={fichaEnNeto ? "neto" : ""}>
             {esTotal
@@ -4011,6 +4037,7 @@ export default function App() {
       <section className="tarjeta tarjeta-ficha" key="cambios">
         <div className="cabeza-ficha">
           <b>{esTotal ? "Todos los cambios" : `Cambios del ${vista}`}</b>
+          {botonFormato}
           {marcaRival || (
             <span className="et cuenta-cambios">
               {cambios.length === 0
@@ -4149,55 +4176,6 @@ export default function App() {
 
           {!fichaInfoGeneral && [tarjetaCambios, tarjetaLinea].filter(Boolean)}
 
-          {/* Lo que jugó cada uno vive en Info: en las vistas de tiempo queda
-              solo la línea, que es lo que se usa para cortar. Igual sigue
-              atado al tiempo elegido y al interruptor del rival. */}
-          {fichaInfoGeneral && jugadores.length > 0 && (
-            <section className="tarjeta tarjeta-ficha">
-              <div className="cabeza-ficha">
-                <b>Tiempo jugado</b>
-                <span className="et">{etiquetaModo.toUpperCase()}</span>
-                {marcaRival}
-              </div>
-
-              <ul className="cortes jugados">
-                {agruparJugados(jugadores).map((grupo, i) => (
-                  <li className="jugado" key={`grupo-${i}`}>
-                    <span className="hora-corte">{grupo.hora}</span>
-
-                    <span className="quienes-jugado">
-                      {grupo.jugadores.map((jugador, j) => (
-                        <span className="fila-jugado" key={`jugado-${i}-${j}`}>
-                          <span
-                            className={`quien-jugado ${
-                              jugador.entro ? "entra-corte" : "sale-corte"
-                            }`}
-                          >
-                            {jugador.entro ? "↑" : "↓"} {jugador.nombre}
-                          </span>
-
-                          {/* Entró y más tarde salió: la otra punta de su
-                              tramo no entra en el horario del grupo. */}
-                          {jugador.entro && jugador.salio && (
-                            <span className="hasta-jugado sale-corte">
-                              ↓ {jugador.salio}
-                            </span>
-                          )}
-
-                          <span
-                            className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}
-                          >
-                            {duracion(enModo(jugador))}
-                          </span>
-                        </span>
-                      ))}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
           {/* El plantel es solo el nuestro: del rival la base guarda nada más
               que sus cambios, así que mirándolo a él esta tarjeta no va. */}
           {fichaInfoGeneral && !fichaDelRival && (
@@ -4216,6 +4194,61 @@ export default function App() {
               {renderGrupoPlantel("No ingresaron", plantel.noIngresaron, {
                 apagado: true,
               })}
+            </section>
+          )}
+
+          {/* Lo que jugó cada uno vive en Info: en las vistas de tiempo queda
+              solo la línea, que es lo que se usa para cortar. Igual sigue
+              atado al tiempo elegido y al interruptor del rival. */}
+          {fichaInfoGeneral && jugadores.length > 0 && (
+            <section className="tarjeta tarjeta-ficha">
+              <div className="cabeza-ficha">
+                <b>Tiempo jugado</b>
+                <span className="et">{etiquetaModo.toUpperCase()}</span>
+                {botonFormato}
+                {marcaRival}
+              </div>
+
+              <ul className="cortes jugados">
+                {agruparJugados(jugadores).map((grupo, i) => (
+                  <li className="jugado" key={`grupo-${i}`}>
+                    <span className="hora-corte">
+                      {fichaEnJuego ? grupo.juego : grupo.hora}
+                    </span>
+
+                    <span className="quienes-jugado">
+                      {grupo.jugadores.map((jugador, j) => (
+                        <span className="fila-jugado" key={`jugado-${i}-${j}`}>
+                          <span
+                            className={`quien-jugado ${
+                              jugador.entro ? "entra-corte" : "sale-corte"
+                            }`}
+                          >
+                            {jugador.entro ? "↑" : "↓"} {jugador.nombre}
+                          </span>
+
+                          {/* Entró y más tarde salió: la otra punta de su
+                              tramo no entra en el horario del grupo. */}
+                          {jugador.entro && jugador.salio && (
+                            <span className="hasta-jugado sale-corte">
+                              ↓{" "}
+                              {fichaEnJuego
+                                ? jugador.juegoSalida
+                                : jugador.salio}
+                            </span>
+                          )}
+
+                          <span
+                            className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}
+                          >
+                            {duracion(enModo(jugador))}
+                          </span>
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 
@@ -5720,6 +5753,7 @@ export default function App() {
                           setFichaDelRival(false);
                           setFichaCambiosArriba(false);
                           setFichaInfoGeneral(false);
+                          setFichaEnJuego(false);
                         }}
                       >
                         Ver detalle

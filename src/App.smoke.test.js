@@ -1293,7 +1293,8 @@ describe("interfaz operativa", () => {
         contenedor.querySelectorAll(".tarjeta-ficha .cabeza-ficha b"),
       ).map((titulo) => titulo.textContent.trim());
 
-    expect(titulos()).toEqual(["Tiempo jugado", "Info. General"]);
+    // El plantel primero y los horarios de los cambios abajo.
+    expect(titulos()).toEqual(["Info. General", "Tiempo jugado"]);
 
     // Pero las opciones siguen todas ahí: el tiempo elegido acota lo jugado.
     expect(
@@ -1308,6 +1309,57 @@ describe("interfaz operativa", () => {
     // Y al apagarlo vuelve la línea de tiempo.
     await act(async () => contenedor.querySelector(".boton-info-ficha").click());
     expect(titulos()).toEqual(["Todo el partido"]);
+  });
+
+  test("el botón de formato pasa de la hora del reloj al minuto de juego", async () => {
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+    await abrirFicha();
+
+    const horas = () =>
+      Array.from(contenedor.querySelectorAll(".corte .hora-corte")).map((h) =>
+        h.textContent.trim(),
+      );
+
+    const boton = contenedor.querySelector(".boton-formato");
+    expect(boton.textContent.trim()).toBe("Horario");
+    expect(horas()).toEqual([
+      "21:00:00",
+      "21:12:00",
+      "21:23:14",
+      "21:25:00",
+      "21:47:30",
+      "22:03:00",
+      "22:18:00",
+      "22:50:10",
+    ]);
+
+    await act(async () => boton.click());
+
+    // El segundo tiempo arranca en 45:00 y lo que pasa del tope va como
+    // agregado: así los números no van para atrás al cambiar de tiempo.
+    expect(contenedor.querySelector(".boton-formato").textContent.trim()).toBe(
+      "Juego",
+    );
+    expect(horas()).toEqual([
+      "00:00",
+      "12:00",
+      "23:14",
+      "25:00",
+      "45+02:30",
+      "45:00",
+      "60:00",
+      "90+02:10",
+    ]);
+
+    // Y también manda adentro de Info.
+    await abrirInfo();
+    expect(
+      Array.from(contenedor.querySelectorAll(".jugado .hora-corte")).map((h) =>
+        h.textContent.trim(),
+      ),
+    ).toEqual(["23:14", "60:00"]);
   });
 
   test("el interruptor de cambios sube esa tarjeta arriba de la línea", async () => {

@@ -17,6 +17,44 @@ export const periodosDelRegistro = (registro) =>
 
 const hayDato = (valor) => String(valor ?? "").trim() !== "";
 
+// Dónde arranca el reloj de juego de cada tiempo. Es la convención de siempre:
+// el segundo empieza en 45:00 y la prórroga en 90:00 y 105:00.
+const BASE_DE_JUEGO = {
+  PT: 0,
+  ST: 45 * 60,
+  PTE: 90 * 60,
+  STE: 105 * 60,
+};
+
+// Hasta dónde llega cada tiempo antes de entrar en tiempo agregado.
+const TOPE_DE_JUEGO = {
+  PT: 45 * 60,
+  ST: 90 * 60,
+  PTE: 105 * 60,
+  STE: 120 * 60,
+};
+
+/**
+ * El minuto de juego, como se lee en una transmisión: el segundo tiempo
+ * arranca en 45:00 y lo que pasa del tope se escribe 45+2:30.
+ *
+ * Sin ese "+", los números irían para atrás al cambiar de tiempo: un primer
+ * tiempo que terminó 47:30 seguido de un segundo que arranca en 45:00.
+ */
+export const formatearTiempoDeJuego = (tipo, transcurrido) => {
+  if (transcurrido === null || transcurrido === undefined) return "";
+
+  const segundos = Math.max(0, Math.floor(Number(transcurrido) || 0));
+  const base = BASE_DE_JUEGO[tipo] ?? 0;
+  const tope = TOPE_DE_JUEGO[tipo] ?? Infinity;
+  const total = base + segundos;
+
+  if (total <= tope) return formatearMinutosSegundos(total);
+
+  return `${Math.floor(tope / 60)}+${formatearMinutosSegundos(total - tope)}`;
+};
+
+
 /**
  * Pone los tiempos uno detrás del otro en una sola recta, medida en segundos
  * desde el arranque del primer tiempo. El entretiempo no ocupa lugar: el
@@ -174,6 +212,10 @@ export const cambiosOrdenados = (registro, linea, lista = "cambios") =>
         sale: cambio?.sale || "",
         entra: cambio?.entra || "",
         hora: cambio.hora,
+        juego: formatearTiempoDeJuego(
+          periodo.tipo,
+          Math.max(0, momento - periodo.desde),
+        ),
         periodo: periodo.tipo,
         momento,
       };
@@ -254,12 +296,22 @@ export const tiempoJugado = (registro, opciones = {}) => {
       const desde = enCancha.has(idSale) ? enCancha.get(idSale) : 0;
       anotar(cambio.sale, { desde, hasta: cambio.momento });
       enCancha.delete(idSale);
-      anotarEvento(idSale, { tipo: "sale", hora: cambio.hora, periodo: cambio.periodo });
+      anotarEvento(idSale, {
+        tipo: "sale",
+        hora: cambio.hora,
+        juego: cambio.juego,
+        periodo: cambio.periodo,
+      });
     }
 
     if (idEntra) {
       if (!enCancha.has(idEntra)) enCancha.set(idEntra, cambio.momento);
-      anotarEvento(idEntra, { tipo: "entra", hora: cambio.hora, periodo: cambio.periodo });
+      anotarEvento(idEntra, {
+        tipo: "entra",
+        hora: cambio.hora,
+        juego: cambio.juego,
+        periodo: cambio.periodo,
+      });
     }
   });
 
@@ -297,7 +349,9 @@ export const tiempoJugado = (registro, opciones = {}) => {
         nombre: nombres.get(quien.id) || "",
         entro: entrada?.hora || "",
         salio: salida?.hora || "",
+        juegoSalida: salida?.juego || "",
         hora: eventos[0].hora,
+        juego: eventos[0].juego || "",
         ...medir(tramos.get(quien.id) || []),
       };
     })
@@ -367,6 +421,10 @@ export const cortesDePeriodo = (registro, tipo, lista = "cambios") => {
       ...parada,
       duracion: segundosEntre(parada.hora, parada.hasta),
       orden: orden(parada.hora),
+      juego: formatearTiempoDeJuego(tipo, orden(parada.hora)),
+      hastaJuego: hayDato(parada.hasta)
+        ? formatearTiempoDeJuego(tipo, orden(parada.hasta))
+        : "",
     }));
 
   const porHorario = new Map();
@@ -377,6 +435,10 @@ export const cortesDePeriodo = (registro, tipo, lista = "cambios") => {
         porHorario.set(cambio.hora, {
           clase: "cambio",
           hora: cambio.hora,
+          juego: formatearTiempoDeJuego(
+            tipo,
+            Math.max(0, cambio.momento - periodo.desde),
+          ),
           pares: [],
           // Un cambio del entretiempo pasó antes de que el tiempo arrancara,
           // así que va delante del "Inicio": si no, se leería 22:03 y después
@@ -396,7 +458,15 @@ export const cortesDePeriodo = (registro, tipo, lista = "cambios") => {
   // El arranque entra en el orden con un 0 para que lo del entretiempo, que va
   // en negativo, pueda quedar delante. El final siempre cierra.
   const inicio = hayDato(periodo.inicio)
-    ? [{ clase: "inicio", etiqueta: `Inicio ${tipo}`, hora: periodo.inicio, orden: 0 }]
+    ? [
+        {
+          clase: "inicio",
+          etiqueta: `Inicio ${tipo}`,
+          hora: periodo.inicio,
+          juego: formatearTiempoDeJuego(tipo, 0),
+          orden: 0,
+        },
+      ]
     : [];
 
   const cuerpo = [...inicio, ...paradas, ...porHorario.values()].sort(
@@ -406,7 +476,14 @@ export const cortesDePeriodo = (registro, tipo, lista = "cambios") => {
   return [
     ...cuerpo,
     ...(hayDato(periodo.final)
-      ? [{ clase: "final", etiqueta: `Final ${tipo}`, hora: periodo.final }]
+      ? [
+          {
+            clase: "final",
+            etiqueta: `Final ${tipo}`,
+            hora: periodo.final,
+            juego: formatearTiempoDeJuego(tipo, periodo.duracion),
+          },
+        ]
       : []),
   ];
 };

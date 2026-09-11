@@ -4352,3 +4352,33 @@ button:disabled {
     display: inline;
   }
 }
+
+/* El botón que cambia entre la hora del reloj y el minuto de juego. Vive en el
+   encabezado de cada tarjeta con horarios: discreto, pero a mano. */
+.boton-formato {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 999px;
+  background: var(--cam-blanco);
+  color: var(--cam-gris);
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.boton-formato.activo {
+  border-color: var(--cam-tinta);
+  background: var(--cam-tinta);
+  color: #fff;
+}
+
+.boton-formato:hover {
+  transform: none;
+  box-shadow: none;
+}
