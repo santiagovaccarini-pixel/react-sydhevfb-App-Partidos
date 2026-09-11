@@ -1141,16 +1141,15 @@ describe("interfaz operativa", () => {
 
     // En el primero, solo lo de ese tiempo. DUDU entró en el segundo, así que
     // no pisó la cancha acá y desaparece de la lista.
+    // Solo el cambio del primer tiempo: el de SCARPA fue en el segundo.
     expect(tabla()).toEqual([
       ["ALONSO", "23:14"],
       ["BERNARD", "24:16"],
-      ["SCARPA", "47:30"],
     ]);
 
     await elegirTiempo("ST");
 
     expect(tabla()).toEqual([
-      ["BERNARD", "47:10"],
       ["SCARPA", "15:00"],
       ["DUDU", "32:10"],
     ]);
@@ -1231,8 +1230,18 @@ describe("interfaz operativa", () => {
     expect(nombres).toEqual(["JOAO PAULO", "GIL"]);
     expect(nombres).not.toContain("ALONSO");
 
-    // De ellos no se guarda la formación, así que no hay fila de resto.
-    expect(contenedor.querySelector(".fila-resto")).toBeNull();
+    // De ellos no se guarda la formación: no va nada nuestro en esa pantalla.
+    expect(contenedor.querySelector(".grupo-plantel")).toBeNull();
+    expect(contenedor.textContent).not.toContain("NUESTRO PLANTEL");
+    expect(
+      Array.from(
+        contenedor.querySelectorAll(".tarjeta-ficha .cabeza-ficha b"),
+      ).map((titulo) => titulo.textContent.trim()),
+    ).toEqual(["Tiempo jugado"]);
+
+    // Y al apagar el rival vuelve el plantel nuestro.
+    await act(async () => contenedor.querySelector(".boton-rival-ficha").click());
+    expect(contenedor.querySelector(".grupo-plantel")).toBeTruthy();
   });
 
   test("Info. General reparte el plantel y saca el resto de tiempo jugado", async () => {
@@ -1263,17 +1272,18 @@ describe("interfaz operativa", () => {
       ],
     );
 
+    // Sin los del banco, que no se piden: titulares, los que jugaron enteros
+    // y los que se quedaron sin entrar.
     expect(grupos).toEqual([
-      ["Titulares", ["ALONSO", "SCARPA", "ARANA"]],
-      ["Banco", ["BERNARD", "DUDU", "IGOR"]],
-      // IGOR se quedó en el banco: es el único que no llegó a entrar.
-      ["No ingresaron", ["IGOR"]],
+      ["Titulares", ["1ALONSO", "2SCARPA", "3ARANA"]],
       // ALONSO y SCARPA salieron; ARANA jugó de principio a fin.
       ["Nunca salieron", ["ARANA"]],
+      // IGOR se quedó en el banco: es el único que no llegó a entrar.
+      ["No ingresaron", ["IGOR"]],
     ]);
 
     // Y al lado de los que nunca salieron va lo que duró el partido.
-    const nunca = contenedor.querySelectorAll(".grupo-plantel")[3];
+    const nunca = contenedor.querySelectorAll(".grupo-plantel")[1];
     expect(nunca.querySelector("em").textContent.trim()).toBe("94:40");
 
     // Es su propia pantalla: la línea de tiempo deja lugar y quedan el tiempo

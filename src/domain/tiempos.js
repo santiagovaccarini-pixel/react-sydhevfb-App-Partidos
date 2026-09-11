@@ -126,20 +126,26 @@ const clave = (nombre) => normalizarTextoBase(nombre);
  * guardan el horario del cambio pero no su período: sin esto, un cambio del
  * segundo tiempo aparecería en la lista del primero.
  *
- * Se busca el tiempo en cuya ventana cae. Si cae en el entretiempo, donde no
- * hay ninguno, se le da el último que ya había arrancado.
+ * Se busca el tiempo en cuya ventana cae. Un cambio hecho en el entretiempo no
+ * cae en ninguno, y va al que está por empezar: el jugador entra para ese
+ * tiempo, no para el que ya terminó.
  */
 const periodoDelHorario = (linea, hora) => {
-  let anterior = null;
+  let ultimoQueArranco = null;
 
   for (const periodo of linea) {
     const desplazamiento = segundosEntre(periodo.inicio, hora);
-    if (desplazamiento === null) continue;
+
+    // Todavía no había arrancado: es el que viene después del descanso.
+    if (desplazamiento === null) {
+      return ultimoQueArranco ? periodo : linea[0] || null;
+    }
+
     if (desplazamiento <= periodo.duracion) return periodo;
-    anterior = periodo;
+    ultimoQueArranco = periodo;
   }
 
-  return anterior;
+  return ultimoQueArranco;
 };
 
 /**
@@ -152,13 +158,17 @@ export const cambiosOrdenados = (registro, linea, lista = "cambios") =>
         ? linea.find((item) => item.tipo === cambio.periodo)
         : null;
       const periodo = anotado || periodoDelHorario(linea, cambio?.hora);
-      const suelto = momentoEnLaRecta(periodo, cambio?.hora);
-      if (suelto === null) return null;
+      if (!periodo || !hayDato(cambio?.hora)) return null;
 
-      // Un cambio anotado en el entretiempo cae fuera de la ventana de su
-      // tiempo. Se lo lleva al borde para que no invada al siguiente: el que
-      // sale jugó el tiempo entero y el que entra arranca el que viene.
-      const momento = Math.min(Math.max(suelto, periodo.desde), periodo.hasta);
+      // Un cambio hecho en el entretiempo queda antes del arranque de su
+      // tiempo, así que ahí no hay desplazamiento que calcular: se lo pone en
+      // el arranque. El que sale jugó el tiempo anterior entero y el que entra
+      // arranca el que viene.
+      const suelto = momentoEnLaRecta(periodo, cambio.hora);
+      const momento =
+        suelto === null
+          ? periodo.desde
+          : Math.min(Math.max(suelto, periodo.desde), periodo.hasta);
       return {
         indice,
         sale: cambio?.sale || "",
@@ -225,12 +235,13 @@ export const tiempoJugado = (registro, opciones = {}) => {
     if (id) enCancha.set(id, 0);
   });
 
-  // Un mismo jugador puede entrar y más tarde salir: las dos cosas quedan
-  // anotadas en su ficha, y el orden es el del cambio que lo trajo a la lista.
+  // Un mismo jugador puede entrar y más tarde salir, y cada cosa puede caer en
+  // un tiempo distinto. Se guardan los eventos sueltos para poder quedarse
+  // después con los del tiempo que se esté mirando.
   const participaron = new Map();
-  const anotarParticipacion = (id, datos) => {
-    if (!participaron.has(id)) participaron.set(id, { id });
-    Object.assign(participaron.get(id), datos);
+  const anotarEvento = (id, evento) => {
+    if (!participaron.has(id)) participaron.set(id, { id, eventos: [] });
+    participaron.get(id).eventos.push(evento);
   };
 
   cambios.forEach((cambio) => {
@@ -243,12 +254,12 @@ export const tiempoJugado = (registro, opciones = {}) => {
       const desde = enCancha.has(idSale) ? enCancha.get(idSale) : 0;
       anotar(cambio.sale, { desde, hasta: cambio.momento });
       enCancha.delete(idSale);
-      anotarParticipacion(idSale, { salio: cambio.hora });
+      anotarEvento(idSale, { tipo: "sale", hora: cambio.hora, periodo: cambio.periodo });
     }
 
     if (idEntra) {
       if (!enCancha.has(idEntra)) enCancha.set(idEntra, cambio.momento);
-      anotarParticipacion(idEntra, { entro: cambio.hora });
+      anotarEvento(idEntra, { tipo: "entra", hora: cambio.hora, periodo: cambio.periodo });
     }
   });
 
@@ -269,16 +280,31 @@ export const tiempoJugado = (registro, opciones = {}) => {
     return { bruto, neto: Math.max(0, bruto - descontarParadas(dentro, paradas)) };
   };
 
-  // Los que no pisaron la cancha en la ventana no tienen nada que mostrar.
+  // Mirando un tiempo se listan los cambios de ese tiempo, no los del partido:
+  // si no, aparecía el que salió en el segundo con el ingreso de su reemplazo
+  // en la otra lista, y quedaba una salida sin entrada.
   const jugadores = [...participaron.values()]
-    .map((quien) => ({
-      nombre: nombres.get(quien.id) || "",
-      entro: quien.entro || "",
-      salio: quien.salio || "",
-      ...medir(tramos.get(quien.id) || []),
-    }))
-    .filter((jugador) => jugador.bruto > 0);
+    .map((quien) => {
+      const eventos = soloPeriodo
+        ? quien.eventos.filter((evento) => evento.periodo === soloPeriodo)
+        : quien.eventos;
+      if (eventos.length === 0) return null;
 
+      const entrada = eventos.find((evento) => evento.tipo === "entra");
+      const salida = eventos.find((evento) => evento.tipo === "sale");
+
+      return {
+        nombre: nombres.get(quien.id) || "",
+        entro: entrada?.hora || "",
+        salio: salida?.hora || "",
+        hora: eventos[0].hora,
+        ...medir(tramos.get(quien.id) || []),
+      };
+    })
+    .filter(Boolean);
+
+  // El resto son los titulares que no participaron de ningún cambio en todo el
+  // partido, no solo en el tiempo que se mira.
   const completos =
     lista === "cambios"
       ? titulares.filter((nombre) => !participaron.has(clave(nombre)))
@@ -352,7 +378,13 @@ export const cortesDePeriodo = (registro, tipo, lista = "cambios") => {
           clase: "cambio",
           hora: cambio.hora,
           pares: [],
-          orden: cambio.momento - periodo.desde,
+          // Un cambio del entretiempo pasó antes de que el tiempo arrancara,
+          // así que va delante del "Inicio": si no, se leería 22:03 y después
+          // 21:55, en contra del reloj.
+          orden:
+            segundosEntre(periodo.inicio, cambio.hora) === null
+              ? -1
+              : cambio.momento - periodo.desde,
         });
       }
       porHorario.get(cambio.hora).pares.push({
@@ -361,15 +393,18 @@ export const cortesDePeriodo = (registro, tipo, lista = "cambios") => {
       });
     });
 
-  const medio = [...paradas, ...porHorario.values()].sort(
+  // El arranque entra en el orden con un 0 para que lo del entretiempo, que va
+  // en negativo, pueda quedar delante. El final siempre cierra.
+  const inicio = hayDato(periodo.inicio)
+    ? [{ clase: "inicio", etiqueta: `Inicio ${tipo}`, hora: periodo.inicio, orden: 0 }]
+    : [];
+
+  const cuerpo = [...inicio, ...paradas, ...porHorario.values()].sort(
     (a, b) => a.orden - b.orden,
   );
 
   return [
-    ...(hayDato(periodo.inicio)
-      ? [{ clase: "inicio", etiqueta: `Inicio ${tipo}`, hora: periodo.inicio }]
-      : []),
-    ...medio,
+    ...cuerpo,
     ...(hayDato(periodo.final)
       ? [{ clase: "final", etiqueta: `Final ${tipo}`, hora: periodo.final }]
       : []),

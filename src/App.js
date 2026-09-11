@@ -3949,9 +3949,12 @@ export default function App() {
           <div className="chips-plantel">
             {jugadores.map((jugador, i) => (
               <span
-                className={`chip-plantel ${opciones.apagado ? "apagado" : ""}`}
+                className={`chip-plantel ${opciones.apagado ? "apagado" : ""} ${
+                  opciones.numerado ? "" : "sin-numero"
+                }`}
                 key={`${titulo}-${i}`}
               >
+                {opciones.numerado && <b>{i + 1}</b>}
                 {jugador}
               </span>
             ))}
@@ -4195,20 +4198,23 @@ export default function App() {
             </section>
           )}
 
-          {fichaInfoGeneral && (
+          {/* El plantel es solo el nuestro: del rival la base guarda nada más
+              que sus cambios, así que mirándolo a él esta tarjeta no va. */}
+          {fichaInfoGeneral && !fichaDelRival && (
             <section className="tarjeta tarjeta-ficha">
               <div className="cabeza-ficha">
                 <b>Info. General</b>
                 <span className="et cuenta-cambios">NUESTRO PLANTEL</span>
               </div>
 
-              {renderGrupoPlantel("Titulares", plantel.titulares)}
-              {renderGrupoPlantel("Banco", plantel.convocados)}
-              {renderGrupoPlantel("No ingresaron", plantel.noIngresaron, {
-                apagado: true,
+              {renderGrupoPlantel("Titulares", plantel.titulares, {
+                numerado: true,
               })}
               {renderGrupoPlantel("Nunca salieron", plantel.nuncaSalieron, {
                 medida: resto ? duracion(enModo(resto)) : "",
+              })}
+              {renderGrupoPlantel("No ingresaron", plantel.noIngresaron, {
+                apagado: true,
               })}
             </section>
           )}

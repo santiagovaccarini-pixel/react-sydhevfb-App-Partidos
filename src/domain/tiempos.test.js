@@ -109,27 +109,35 @@ describe("tiempos del partido", () => {
       neto: 1336,
     });
 
-    // SCARPA jugó el primero entero.
-    expect(porNombre(enPT.jugadores, "SCARPA")).toMatchObject({
-      bruto: 2850,
-      neto: 2580,
-    });
+    // SCARPA salió en el segundo, así que su cambio tampoco es de acá.
+    expect(porNombre(enPT.jugadores, "SCARPA")).toBeUndefined();
 
-    // DUDU entró en el segundo: no pisó la cancha en el primero y no aparece.
+    // DUDU entró en el segundo: su cambio no es de este tiempo y no aparece.
     expect(porNombre(enPT.jugadores, "DUDU")).toBeUndefined();
 
     // Y el resto jugó ese tiempo completo, no el partido.
     expect(enPT.resto).toEqual({ cantidad: 8, bruto: 2850, neto: 2580 });
   });
 
-  test("en el segundo tiempo aparecen los que jugaron ese tiempo", () => {
+  test("en el segundo tiempo aparecen los cambios del segundo tiempo", () => {
     const enST = tiempoJugado(PARTIDO, { periodo: "ST" });
 
-    expect(porNombre(enST.jugadores, "ALONSO")).toBeUndefined();
-    expect(porNombre(enST.jugadores, "BERNARD")).toMatchObject({ bruto: 2830 });
+    // El cambio del ST es SCARPA por DUDU: los dos, y nadie más.
+    expect(enST.jugadores.map((j) => j.nombre)).toEqual(["SCARPA", "DUDU"]);
     expect(porNombre(enST.jugadores, "SCARPA")).toMatchObject({ bruto: 900 });
     expect(porNombre(enST.jugadores, "DUDU")).toMatchObject({ bruto: 1930 });
     expect(enST.resto).toEqual({ cantidad: 8, bruto: 2830, neto: 2830 });
+  });
+
+  test("una salida nunca queda sin su entrada", () => {
+    // BERNARD entró en el primero y sigue en el segundo, pero su ingreso no es
+    // del segundo: en esa lista no va, y así el cambio del ST queda completo.
+    for (const periodo of ["PT", "ST"]) {
+      const { jugadores } = tiempoJugado(PARTIDO, { periodo });
+      const entraron = jugadores.filter((j) => j.entro).length;
+      const salieron = jugadores.filter((j) => j.salio).length;
+      expect(entraron).toBe(salieron);
+    }
   });
 
   test("del rival se miden sus jugadores, sin fila de resto", () => {
@@ -235,14 +243,30 @@ describe("tiempos del partido", () => {
     expect(porNombre(jugadores, "SCARPA")).toMatchObject({ bruto: 3750 });
   });
 
-  test("un cambio hecho en el entretiempo queda en el tiempo que terminó", () => {
-    const { jugadores } = tiempoJugado({
+  test("un cambio hecho en el entretiempo cuenta para el segundo tiempo", () => {
+    const registro = {
       ...PARTIDO,
       cambios: [{ sale: "ALONSO", entra: "BERNARD", hora: "21:55:00" }],
-    });
+    };
 
-    // 21:55 cae entre el final del PT y el inicio del ST: se toma el final
-    // del primero, así que ALONSO jugó los 47:30 completos.
+    // 21:55 cae entre el final del PT y el inicio del ST. El que entra lo hace
+    // para el segundo tiempo, así que el cambio es del segundo.
+    const cortes = cortesDePeriodo(registro, "ST");
+    expect(cortes.filter((c) => c.clase === "cambio")).toHaveLength(1);
+    expect(
+      cortesDePeriodo(registro, "PT").filter((c) => c.clase === "cambio"),
+    ).toEqual([]);
+
+    // Y va delante del arranque, porque pasó antes: los horarios de la lista
+    // tienen que ir siempre para adelante.
+    expect(cortes.map((c) => c.hora)).toEqual([
+      "21:55:00",
+      "22:03:00",
+      "22:50:10",
+    ]);
+
+    // ALONSO jugó el primero entero y BERNARD el segundo entero.
+    const { jugadores } = tiempoJugado(registro);
     expect(porNombre(jugadores, "ALONSO")).toMatchObject({ bruto: 2850 });
     expect(porNombre(jugadores, "BERNARD")).toMatchObject({ bruto: 2830 });
   });
