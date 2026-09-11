@@ -4693,3 +4693,426 @@ button:disabled {
   font-weight: 800;
   text-align: center;
 }
+
+/* ---------- La cancha con la formación ---------- */
+
+.cancha-formacion {
+  display: grid;
+  gap: 11px;
+}
+
+.cabecera-cancha {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* Misma razón que en la planilla del banco: gana a la regla que pinta de
+   verde los h2 de las tarjetas, que acá haría parecer tocable al título. */
+.tarjeta .cabecera-cancha h2 {
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--cam-negro);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.chip-formacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 999px;
+  background: var(--cam-blanco);
+  color: #38413d;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.4px;
+}
+
+.chip-formacion:not(.fijo)::after {
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  content: "";
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+
+.chip-formacion.abierto {
+  border-color: var(--cam-tinta);
+  background: var(--cam-tinta);
+  color: #fff;
+}
+
+.cuenta-cancha {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eef2f1;
+  color: var(--cam-gris);
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.cuenta-cancha.completo {
+  background: var(--cam-verde);
+  color: #fff;
+}
+
+.panel-formacion {
+  padding: 10px 12px 8px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 14px;
+  background: #f7f9f8;
+}
+
+.linea-formacion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+
+.linea-formacion b {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.paso-formacion {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 10px;
+  background: var(--cam-blanco);
+  color: var(--cam-tinta);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.paso-formacion:disabled {
+  border-color: #eef2f1;
+  color: #d4dad7;
+}
+
+.valor-formacion {
+  min-width: 24px;
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.pie-formacion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  color: #9aa4a0;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.pie-formacion button {
+  margin-left: auto;
+  padding: 5px 10px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 999px;
+  background: var(--cam-blanco);
+  color: #38413d;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.pie-formacion button:disabled {
+  border-color: #eef2f1;
+  color: #d4dad7;
+}
+
+/* Se estira por debajo del margen de la tarjeta: cada centímetro de ancho es
+   una letra más que entra en los nombres. */
+.pista {
+  position: relative;
+  width: auto;
+  margin-inline: -12px;
+  border-radius: 14px;
+  background: linear-gradient(#12513a, #0e4531);
+  aspect-ratio: 10 / 13;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+/* El dibujo es sólo decoración: si no se lo saca del camino, una línea de la
+   cancha se queda con el toque que iba a un puesto. */
+.pista > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pista > svg * {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 1.6;
+}
+
+.franja-cancha {
+  position: absolute;
+  right: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.franja-cancha span {
+  position: absolute;
+  top: 5px;
+  left: 8px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.franja-cancha.ata {
+  top: 0;
+  height: 31%;
+}
+
+.franja-cancha.med {
+  top: 31%;
+  height: 38%;
+  border-top: 1px dashed rgba(255, 255, 255, 0.16);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.16);
+}
+
+.franja-cancha.def {
+  top: 69%;
+  height: 31%;
+}
+
+.puesto-cancha {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  touch-action: none;
+  transform: translate(-50%, -50%);
+  transition:
+    left 0.28s ease,
+    top 0.28s ease,
+    max-width 0.28s ease;
+}
+
+/* Las reglas generales de botón mueven el transform al pasar por encima y al
+   apretar. Acá el transform es lo que centra la ficha en su punto: si se lo
+   pisan, la ficha salta y el dedo termina tocando la cancha en vez del puesto. */
+.puesto-cancha:hover,
+.puesto-cancha:active {
+  box-shadow: none;
+  transform: translate(-50%, -50%);
+}
+
+.puesto-cancha.moviendo {
+  z-index: 5;
+  transition: none;
+}
+
+.ficha-cancha {
+  display: block;
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  font-size: 9.5px;
+  letter-spacing: -0.1px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  transition: transform 0.12s ease;
+}
+
+.ficha-cancha.vacia {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px dashed rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  line-height: 30px;
+  text-align: center;
+  box-shadow: none;
+}
+
+.puesto-cancha.a-mano .ficha-cancha {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.puesto-cancha.moviendo .ficha-cancha {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  transform: scale(1.12);
+}
+
+/* La lista de jugadores tapa la cancha: en el celular no hay lugar para
+   ponerla al lado. */
+.elegir-jugador {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: grid;
+  padding: 10px;
+  background: rgba(6, 33, 24, 0.94);
+  gap: 8px;
+  grid-template-rows: auto 1fr auto;
+}
+
+.alto-elegir {
+  display: flex;
+  align-items: center;
+}
+
+.alto-elegir b {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cerrar-elegir {
+  margin-left: auto;
+  padding: 4px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.lista-elegir {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  grid-template-columns: 1fr 1fr;
+  overflow-y: auto;
+}
+
+.lista-elegir button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.lista-elegir button.activo {
+  background: var(--cam-verde);
+  font-weight: 800;
+}
+
+.lista-elegir i {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 8.5px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.vaciar-puesto {
+  padding: 9px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffb4b4;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Un titular al que cambiaron: su cuadro de siempre con la flecha roja y,
+   pegado abajo, el cuadro negro del que entró con la hora del cambio. */
+.puesto-cancha.con-cambio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.salio-cancha {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 4px;
+}
+
+.salio-cancha i {
+  flex: 0 0 auto;
+  color: #c1121f;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.entro-cancha {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 7px 5px;
+  border-radius: 11px;
+  background: #0f172a;
+  gap: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.entro-cancha b {
+  max-width: 100%;
+  overflow: hidden;
+  color: #4ade80;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.entro-cancha em {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}

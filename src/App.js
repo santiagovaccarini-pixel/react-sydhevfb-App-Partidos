@@ -7,6 +7,14 @@ import React, {
   useState,
 } from "react";
 import jugadores from "./jugadores";
+import CanchaFormacion from "./components/CanchaFormacion";
+import {
+  canchaDesdeTitulares,
+  normalizarCancha,
+  ponerJugador,
+  puestosDeCancha,
+  titularesDeCancha,
+} from "./domain/formacion";
 import {
   MAXIMO_PUESTOS,
   PUESTOS,
@@ -98,7 +106,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.11.5";
+const APP_VERSION = "2026.09.11.6";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -972,7 +980,34 @@ export default function App() {
     titulares: Array.from({ length: 10 }, () => ""),
     // Diez lugares de banco: los que faltan se suman con "Agregar jugador".
     convocados: Array.from({ length: 10 }, () => ""),
+    cancha: normalizarCancha(null),
   });
+
+  // Un borrador o un registro guardado antes de la cancha trae los titulares
+  // pero no la formación: se los acomoda en la formación por defecto para no
+  // perderlos al abrir la pantalla.
+  const conCancha = (formacion) => {
+    const base = formacion || crearFormacionVacia();
+
+    return {
+      ...base,
+      cancha: base.cancha
+        ? normalizarCancha(base.cancha)
+        : canchaDesdeTitulares(base.titulares),
+    };
+  };
+
+  // Cambiar un titular desde la lista del detalle tiene que moverlo también en
+  // la cancha; y como en la cancha nadie puede estar dos veces, la lista se
+  // vuelve a leer de ahí para que las dos digan lo mismo.
+  const cambiarTitularEnFormacion = (formacion, indice, valor) => {
+    const base = conCancha(formacion);
+    const puesto = puestosDeCancha(base.cancha)[indice];
+    if (!puesto) return base;
+
+    const cancha = ponerJugador(base.cancha, puesto.id, valor);
+    return { ...base, cancha, titulares: titularesDeCancha(cancha) };
+  };
 
   const crearRegistroVacio = () => ({
     fecha: fechaLocalISO(),
@@ -1089,7 +1124,7 @@ export default function App() {
         varSTEActivo: Number.isInteger(registroRecuperado.varSTEActivo)
           ? registroRecuperado.varSTEActivo
           : 0,
-        formacion: {
+        formacion: conCancha({
           titulares: recortarLugaresLibres(
             registroRecuperado.formacion?.titulares,
             registroVacio.formacion.titulares.length,
@@ -1098,7 +1133,8 @@ export default function App() {
             registroRecuperado.formacion?.convocados,
             registroVacio.formacion.convocados.length,
           ),
-        },
+          cancha: registroRecuperado.formacion?.cancha,
+        }),
       };
     } catch (error) {
       return registroVacio;
@@ -1177,8 +1213,8 @@ export default function App() {
   );
 
   const [fechaFormacion, setFechaFormacion] = useState(fechaLocalISO());
-  const [formacionTemporal, setFormacionTemporal] = useState(
-    registro.formacion || crearFormacionVacia(),
+  const [formacionTemporal, setFormacionTemporal] = useState(() =>
+    conCancha(registro.formacion),
   );
 
   const [mensajeFormacion, setMensajeFormacion] = useState("");
@@ -1379,6 +1415,11 @@ export default function App() {
       formacion: {
         titulares: fila.titulares || [],
         convocados: fila.convocados || [],
+        // Un registro guardado antes de la cancha no trae formación: sus
+        // titulares se acomodan en la formación por defecto.
+        cancha: fila.formacion_cancha
+          ? normalizarCancha(fila.formacion_cancha)
+          : canchaDesdeTitulares(fila.titulares || []),
       },
 
       idSupabase: fila.id,
@@ -2868,6 +2909,9 @@ export default function App() {
 
       titulares: registroConHorasReales.formacion?.titulares || [],
       convocados: registroConHorasReales.formacion?.convocados || [],
+      formacion_cancha: normalizarCancha(
+        registroConHorasReales.formacion?.cancha,
+      ),
     };
   };
 
@@ -3035,7 +3079,7 @@ export default function App() {
   };
 
   const volverAPantallaFormacion = () => {
-    setFormacionTemporal(registro.formacion || crearFormacionVacia());
+    setFormacionTemporal(conCancha(registro.formacion));
     setFechaFormacion(registro.fecha || fechaLocalISO());
     // No se marca partido en curso: ir a Formación no crea uno. El estado ya
     // viene en true si hay una formación cargada.
@@ -3127,6 +3171,7 @@ export default function App() {
 
       titulares: registroParaGuardar.formacion?.titulares || [],
       convocados: registroParaGuardar.formacion?.convocados || [],
+      formacion_cancha: normalizarCancha(registroParaGuardar.formacion?.cancha),
     };
   };
   const borrarHistorial = () => {
@@ -3402,16 +3447,14 @@ export default function App() {
     }, 0);
   };
 
-  const actualizarTitularTemporal = (index, valor) => {
-    setFormacionTemporal((prev) => {
-      const nuevosTitulares = [...prev.titulares];
-      nuevosTitulares[index] = valor;
-
-      return {
-        ...prev,
-        titulares: nuevosTitulares,
-      };
-    });
+  // La cancha manda: los titulares salen de quién está ocupando cada puesto,
+  // así no hay dos listas que puedan quedar distintas.
+  const actualizarCanchaTemporal = (cancha) => {
+    setFormacionTemporal((prev) => ({
+      ...prev,
+      cancha,
+      titulares: titularesDeCancha(cancha),
+    }));
   };
 
   const actualizarConvocadoTemporal = (index, valor) => {
@@ -3582,7 +3625,6 @@ export default function App() {
       </div>
     );
 
-    const titulares = cargados(formacionTemporal.titulares);
     const convocados = cargados(formacionTemporal.convocados);
 
     return (
@@ -3636,24 +3678,12 @@ export default function App() {
           </section>
 
           <section className="tarjeta">
-            <div className="titulo-plantel">
-              <h2>Titulares de campo</h2>
-              <span
-                className={`contador-plantel ${
-                  titulares === formacionTemporal.titulares.length
-                    ? "completo"
-                    : ""
-                }`}
-              >
-                {titulares}/{formacionTemporal.titulares.length}
-              </span>
-            </div>
-
-            {renderGrupo(
-              formacionTemporal.titulares,
-              "Titular",
-              actualizarTitularTemporal,
-            )}
+            <CanchaFormacion
+              titulo="Titulares de campo"
+              cancha={formacionTemporal.cancha}
+              opciones={nombresPlantel}
+              onCambiar={actualizarCanchaTemporal}
+            />
           </section>
 
           <section className="tarjeta">
@@ -3985,9 +4015,23 @@ export default function App() {
       : cortesDePeriodo(item, vista, lista);
     const cambios = cortes.filter((corte) => corte.clase === "cambio");
 
-    const { jugadores, resto } = tiempoJugado(item, {
+    const { jugadores } = tiempoJugado(item, {
       periodo: esTotal ? null : vista,
       lista,
+    });
+
+    // Sobre la cancha, cada titular al que cambiaron lleva su cambio encima.
+    // Va atado al tiempo elegido, igual que el resto de la ficha: un cambio
+    // del ST no tiene por qué aparecer mirando el PT.
+    const cambiosDeCadaTitular = {};
+    cambios.forEach((corte) => {
+      (corte.pares || []).forEach((par) => {
+        if (!par.sale) return;
+        cambiosDeCadaTitular[par.sale] = {
+          entra: par.entra,
+          hora: fichaEnJuego ? corte.juego : corte.hora,
+        };
+      });
     });
 
     const etiquetaModo = fichaEnNeto ? "Neto" : "Bruto";
@@ -4300,14 +4344,19 @@ export default function App() {
               <div className="cabeza-ficha">
                 <b>Info. General</b>
                 <span className="et cuenta-cambios">NUESTRO PLANTEL</span>
+                {botonFormato}
               </div>
 
-              {renderGrupoPlantel("Titulares", plantel.titulares, {
-                numerado: true,
-              })}
-              {renderGrupoPlantel("Nunca salieron", plantel.nuncaSalieron, {
-                medida: resto ? duracion(enModo(resto)) : "",
-              })}
+              <CanchaFormacion
+                titulo={esTotal ? "Todo el partido" : nombrePeriodo(vista)}
+                cancha={item.formacion?.cancha}
+                cambios={cambiosDeCadaTitular}
+                soloLectura
+              />
+
+              {/* Los titulares son los que están en la cancha y los que nunca
+                  salieron se ven ahí mismo, sin el cambio encima: abajo solo
+                  hacen falta los que no llegaron a entrar. */}
               {renderGrupoPlantel("No ingresaron", plantel.noIngresaron, {
                 apagado: true,
               })}
@@ -4583,23 +4632,14 @@ export default function App() {
                               <InputJugador
                                 value={jugador}
                                 onChange={(valor) => {
-                                  setEditado((prev) => {
-                                    const nuevaFormacion =
-                                      prev.formacion || crearFormacionVacia();
-                                    const nuevosTitulares = [
-                                      ...(nuevaFormacion.titulares || []),
-                                    ];
-
-                                    nuevosTitulares[jugadorIndex] = valor;
-
-                                    return {
-                                      ...prev,
-                                      formacion: {
-                                        ...nuevaFormacion,
-                                        titulares: nuevosTitulares,
-                                      },
-                                    };
-                                  });
+                                  setEditado((prev) => ({
+                                    ...prev,
+                                    formacion: cambiarTitularEnFormacion(
+                                      prev.formacion,
+                                      jugadorIndex,
+                                      valor,
+                                    ),
+                                  }));
                                 }}
                               />
                             </div>
