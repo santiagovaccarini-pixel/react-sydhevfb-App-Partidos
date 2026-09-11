@@ -14,10 +14,35 @@ export const MAXIMO_EN_CANCHA = 10;
 // nombre a propósito: cambiarle el título a una franja no tiene por qué
 // romper el filtro.
 export const FRANJAS = [
-  { id: "def", nombre: "Defensa", rol: "Defensa", desde: 67, hasta: 85 },
-  { id: "med", nombre: "Mediocampo", rol: "Mediocampo", desde: 39, hasta: 59 },
-  { id: "ata", nombre: "Ataque", rol: "Ataque", desde: 12, hasta: 29 },
+  {
+    id: "def",
+    nombre: "Defensa",
+    rol: "Defensa",
+    desde: 70,
+    hasta: 85,
+    limite: { arriba: 69, abajo: 100 },
+  },
+  {
+    id: "med",
+    nombre: "Mediocampo",
+    rol: "Mediocampo",
+    desde: 39,
+    hasta: 59,
+    limite: { arriba: 31, abajo: 69 },
+  },
+  {
+    id: "ata",
+    nombre: "Ataque",
+    rol: "Ataque",
+    desde: 12,
+    hasta: 29,
+    limite: { arriba: 0, abajo: 31 },
+  },
 ];
+
+// El aire que se le deja a cada puesto contra el borde de su franja, para que
+// no quede montado sobre la línea de al lado.
+const AIRE_DE_FRANJA = 3;
 
 export const LINEAS_POR_DEFECTO = { def: 4, med: 4, ata: 2 };
 
@@ -84,12 +109,29 @@ const lineasNormalizadas = (lineas) => {
   return limpias;
 };
 
-const posicionGuardada = (puesto) => {
+export const franjaDelPuesto = (id) =>
+  FRANJAS.find((franja) => String(id).startsWith(`${franja.id}-`)) || null;
+
+// Hasta dónde puede llegar un puesto sin salirse de su línea.
+const limitesDeLaFranja = (id) => {
+  const franja = franjaDelPuesto(id);
+  return franja
+    ? [
+        franja.limite.arriba + AIRE_DE_FRANJA,
+        franja.limite.abajo - AIRE_DE_FRANJA,
+      ]
+    : [0, 100];
+};
+
+// Se acota también al leer, no solo al mover: una formación guardada antes de
+// esta regla podría tener a un mediocampista dibujado en el fondo.
+const posicionGuardada = (puesto, id) => {
   const x = Number(puesto?.x);
   const y = Number(puesto?.y);
-  return Number.isFinite(x) && Number.isFinite(y)
-    ? { x: entre(x, 0, 100), y: entre(y, 0, 100) }
-    : null;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
+  const [arriba, abajo] = limitesDeLaFranja(id);
+  return { x: entre(x, 0, 100), y: entre(y, arriba, abajo) };
 };
 
 /**
@@ -105,7 +147,7 @@ export const normalizarCancha = (cancha) => {
       const id = `${franja.id}-${indice}`;
       const guardado = cancha?.puestos?.[id];
       const nombre = String(guardado?.nombre || "").trim();
-      const aMano = posicionGuardada(guardado);
+      const aMano = posicionGuardada(guardado, id);
 
       // Un puesto sin nada que guardar no ocupa lugar en el JSON.
       if (nombre || aMano)
@@ -133,7 +175,7 @@ export const puestosDeCancha = (cancha) => {
     repartirFranja(lineas[franja.id], franja).forEach((punto, indice) => {
       const id = `${franja.id}-${indice}`;
       const guardado = puestos[id] || {};
-      const aMano = posicionGuardada(guardado);
+      const aMano = posicionGuardada(guardado, id);
 
       lugares.push({
         id,
@@ -205,9 +247,14 @@ export const ponerJugador = (cancha, id, nombre) => {
   return { lineas, puestos: resto };
 };
 
-/** Deja un puesto donde lo soltaste. */
+/**
+ * Deja un puesto donde lo soltaste, pero sin salirse de su línea: a un
+ * mediocampista se lo mueve por todo el mediocampo y no pasa a ataque ni a
+ * defensa. Para cambiarlo de línea está la formación.
+ */
 export const moverPuesto = (cancha, id, x, y) => {
   const { lineas, puestos } = normalizarCancha(cancha);
+  const [arriba, abajo] = limitesDeLaFranja(id);
 
   return {
     lineas,
@@ -216,7 +263,7 @@ export const moverPuesto = (cancha, id, x, y) => {
       [id]: {
         ...(puestos[id] || {}),
         x: entre(x, 0, 100),
-        y: entre(y, 0, 100),
+        y: entre(y, arriba, abajo),
       },
     },
   };
