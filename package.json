@@ -15,7 +15,8 @@
     "prebuild": "node scripts/sync-version.js",
     "build": "vite build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postbuild": "node scripts/precache.js"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.1",
