@@ -158,6 +158,10 @@ describe("interfaz operativa", () => {
     );
   };
 
+  const abrirInfo = async () => {
+    await act(async () => contenedor.querySelector(".boton-info-ficha").click());
+  };
+
   const elegirTiempo = async (etiqueta) => {
     const boton = Array.from(
       contenedor.querySelectorAll('.selector-periodos.en-ficha button[role="tab"]'),
@@ -972,35 +976,41 @@ describe("interfaz operativa", () => {
 
     const valores = () =>
       Array.from(
-        contenedor.querySelectorAll(".total-ficha b, .cabeza-ficha em, .valor-jugado"),
+        contenedor.querySelectorAll(
+          ".total-ficha b, .cabeza-ficha em, .valor-jugado",
+        ),
       ).map((celda) => celda.textContent.trim());
 
-    // Arranca mostrando todo el partido: el total arriba, el de la tarjeta y
-    // lo que jugó cada uno.
-    expect(valores()).toEqual([
-      "94:40",
-      "94:40",
-      "23:14",
-      "71:26",
-      "62:30",
-      "32:10",
-    ]);
+    // Arranca mostrando todo el partido: el total arriba y el de la tarjeta.
+    expect(valores()).toEqual(["94:40", "94:40"]);
 
     const interruptor = contenedor.querySelector(".boton-modo-ficha");
     expect(interruptor.textContent).toContain("Bruto");
     await act(async () => interruptor.click());
 
-    // En neto, a cada uno se le descuenta solo lo que se detuvo con él adentro:
-    // DUDU entró en el segundo tiempo, donde no hubo paradas, y no cambia.
     expect(contenedor.querySelector(".boton-modo-ficha").textContent).toContain(
       "Neto",
     );
+    expect(valores()).toEqual(["90:10", "90:10"]);
+
+    // Y lo mismo adentro de Info, donde está lo que jugó cada uno: a cada uno
+    // se le descuenta solo lo que se detuvo con él adentro, así que DUDU, que
+    // entró en el segundo tiempo, no cambia.
+    await abrirInfo();
     expect(valores()).toEqual([
-      "90:10",
       "90:10",
       "20:44",
       "69:26",
       "58:00",
+      "32:10",
+    ]);
+
+    await act(async () => contenedor.querySelector(".boton-modo-ficha").click());
+    expect(valores()).toEqual([
+      "94:40",
+      "23:14",
+      "71:26",
+      "62:30",
       "32:10",
     ]);
   });
@@ -1109,6 +1119,7 @@ describe("interfaz operativa", () => {
 
     await montarApp();
     await abrirFicha();
+    await abrirInfo();
 
     // El nombre viene con la flecha del cambio adelante, que acá no interesa.
     const tabla = () =>
@@ -1160,6 +1171,7 @@ describe("interfaz operativa", () => {
 
     await montarApp();
     await abrirFicha();
+    await abrirInfo();
 
     const grupos = Array.from(contenedor.querySelectorAll(".jugado")).map(
       (grupo) => [
@@ -1189,6 +1201,7 @@ describe("interfaz operativa", () => {
 
     await montarApp();
     await abrirFicha();
+    await abrirInfo();
 
     const bernard = Array.from(contenedor.querySelectorAll(".fila-jugado")).find(
       (fila2) => fila2.textContent.includes("BERNARD"),
@@ -1208,6 +1221,7 @@ describe("interfaz operativa", () => {
 
     await montarApp();
     await abrirFicha();
+    await abrirInfo();
     await act(async () => contenedor.querySelector(".boton-rival-ficha").click());
 
     const nombres = Array.from(
@@ -1230,9 +1244,10 @@ describe("interfaz operativa", () => {
     await montarApp();
     await abrirFicha();
 
-    // Los que jugaron el partido entero ya no ensucian el tiempo jugado.
-    expect(contenedor.textContent).not.toContain("partido completo");
+    // En la vista de tiempo solo está la línea: ni el plantel ni lo jugado.
     expect(contenedor.querySelector(".grupo-plantel")).toBeNull();
+    expect(contenedor.querySelector(".fila-jugado")).toBeNull();
+    expect(contenedor.textContent).not.toContain("partido completo");
 
     const info = Array.from(
       contenedor.querySelectorAll(".interruptores button"),
@@ -1261,29 +1276,28 @@ describe("interfaz operativa", () => {
     const nunca = contenedor.querySelectorAll(".grupo-plantel")[3];
     expect(nunca.querySelector("em").textContent.trim()).toBe("94:40");
 
-    // Es una pantalla aparte: no queda nada del resto de la ficha.
-    expect(
-      Array.from(contenedor.querySelectorAll(".tarjeta-ficha .cabeza-ficha b")).map(
-        (titulo) => titulo.textContent.trim(),
-      ),
-    ).toEqual(["Info. General"]);
+    // Es su propia pantalla: la línea de tiempo deja lugar y quedan el tiempo
+    // jugado y el plantel.
+    const titulos = () =>
+      Array.from(
+        contenedor.querySelectorAll(".tarjeta-ficha .cabeza-ficha b"),
+      ).map((titulo) => titulo.textContent.trim());
 
-    // Tampoco la fila de tiempos ni los interruptores que no aplican acá.
-    expect(contenedor.querySelectorAll(".selector-periodos.en-ficha")).toHaveLength(1);
-    expect(
-      Array.from(contenedor.querySelectorAll(".interruptores button")).map((boton) =>
-        boton.textContent.trim(),
-      ),
-    ).toEqual(["Bruto", "Info. General"]);
+    expect(titulos()).toEqual(["Tiempo jugado", "Info. General"]);
 
-    // Y al apagarlo vuelve todo a su lugar.
+    // Pero las opciones siguen todas ahí: el tiempo elegido acota lo jugado.
+    expect(
+      contenedor.querySelectorAll(".selector-periodos.en-ficha"),
+    ).toHaveLength(2);
+    expect(
+      Array.from(contenedor.querySelectorAll(".interruptores button")).map(
+        (boton) => boton.textContent.trim().replace("Info. GeneralInfo", "Info"),
+      ),
+    ).toEqual(["SRival", "Bruto", "Cambios", "Info"]);
+
+    // Y al apagarlo vuelve la línea de tiempo.
     await act(async () => contenedor.querySelector(".boton-info-ficha").click());
-    expect(
-      Array.from(contenedor.querySelectorAll(".tarjeta-ficha .cabeza-ficha b")).map(
-        (titulo) => titulo.textContent.trim(),
-      ),
-    ).toEqual(["Todo el partido", "Tiempo jugado"]);
-    expect(contenedor.querySelectorAll(".selector-periodos.en-ficha")).toHaveLength(2);
+    expect(titulos()).toEqual(["Todo el partido"]);
   });
 
   test("el interruptor de cambios sube esa tarjeta arriba de la línea", async () => {
@@ -1298,18 +1312,14 @@ describe("interfaz operativa", () => {
       );
 
     // Apagado no hay tarjeta de cambios: repetiría lo que ya está en la línea.
-    expect(titulos()).toEqual(["Todo el partido", "Tiempo jugado"]);
+    expect(titulos()).toEqual(["Todo el partido"]);
 
     const interruptor = Array.from(
       contenedor.querySelectorAll(".interruptores button"),
     ).find((boton) => boton.textContent.includes("Cambios"));
     await act(async () => interruptor.click());
 
-    expect(titulos()).toEqual([
-      "Todos los cambios",
-      "Todo el partido",
-      "Tiempo jugado",
-    ]);
+    expect(titulos()).toEqual(["Todos los cambios", "Todo el partido"]);
   });
 
   test("dos cambios en el mismo horario comparten el corte", async () => {

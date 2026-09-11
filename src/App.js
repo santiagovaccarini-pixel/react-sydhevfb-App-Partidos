@@ -4060,43 +4060,40 @@ export default function App() {
             </div>
           </section>
 
-          {/* Qué tiempo mirar: uno a la vez. El plantel no depende del tiempo,
-              así que ahí esta fila no se dibuja. Va sacada del árbol y no con
-              hidden: la regla de la barra define display y le ganaría. */}
-          {!fichaInfoGeneral && (
-            <section
-              className="selector-periodos en-ficha"
-              aria-label="Qué tiempo"
-            >
-              <div role="tablist">
-                {tiempos.map((tipo) => (
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={vista === tipo}
-                    className={vista === tipo ? "activo" : ""}
-                    onClick={() => setVistaFicha(tipo)}
-                    key={tipo}
-                  >
-                    {tipo}
-                    {Boolean(item[`inicio${tipo}`] && item[`final${tipo}`]) && (
-                      <Icono nombre="check" size={15} />
-                    )}
-                  </button>
-                ))}
-
+          {/* Qué tiempo mirar: uno a la vez. Vale también en Info, donde acota
+              lo que jugó cada uno. */}
+          <section
+            className="selector-periodos en-ficha"
+            aria-label="Qué tiempo"
+          >
+            <div role="tablist">
+              {tiempos.map((tipo) => (
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={esTotal}
-                  className={esTotal ? "activo" : ""}
-                  onClick={() => setVistaFicha(TOTAL)}
+                  aria-selected={vista === tipo}
+                  className={vista === tipo ? "activo" : ""}
+                  onClick={() => setVistaFicha(tipo)}
+                  key={tipo}
                 >
-                  Total
+                  {tipo}
+                  {Boolean(item[`inicio${tipo}`] && item[`final${tipo}`]) && (
+                    <Icono nombre="check" size={15} />
+                  )}
                 </button>
-              </div>
-            </section>
-          )}
+              ))}
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={esTotal}
+                className={esTotal ? "activo" : ""}
+                onClick={() => setVistaFicha(TOTAL)}
+              >
+                Total
+              </button>
+            </div>
+          </section>
 
           {/* Cómo mirarlo: tres interruptores que no se pisan entre sí. */}
           <section
@@ -4104,17 +4101,15 @@ export default function App() {
             aria-label="Cómo mirarlo"
           >
             <div>
-              {!fichaInfoGeneral && (
-                <button
-                  type="button"
-                  className={`boton-rival-ficha ${fichaDelRival ? "activo" : ""}`}
-                  onClick={() => setFichaDelRival((previo) => !previo)}
-                  aria-pressed={fichaDelRival}
-                >
-                  <EscudoDeClub nombre={item.rival} mini />
-                  Rival
-                </button>
-              )}
+              <button
+                type="button"
+                className={`boton-rival-ficha ${fichaDelRival ? "activo" : ""}`}
+                onClick={() => setFichaDelRival((previo) => !previo)}
+                aria-pressed={fichaDelRival}
+              >
+                <EscudoDeClub nombre={item.rival} mini />
+                Rival
+              </button>
 
               <button
                 type="button"
@@ -4126,17 +4121,15 @@ export default function App() {
                 {etiquetaModo}
               </button>
 
-              {!fichaInfoGeneral && (
-                <button
-                  type="button"
-                  className={fichaCambiosArriba ? "activo" : ""}
-                  onClick={() => setFichaCambiosArriba((previo) => !previo)}
-                  aria-pressed={fichaCambiosArriba}
-                >
-                  <Icono nombre="subir" size={14} />
-                  Cambios
-                </button>
-              )}
+              <button
+                type="button"
+                className={fichaCambiosArriba ? "activo" : ""}
+                onClick={() => setFichaCambiosArriba((previo) => !previo)}
+                aria-pressed={fichaCambiosArriba}
+              >
+                <Icono nombre="subir" size={14} />
+                Cambios
+              </button>
 
               <button
                 type="button"
@@ -4145,17 +4138,18 @@ export default function App() {
                 aria-pressed={fichaInfoGeneral}
               >
                 <Icono nombre="formacion" size={14} />
-                <span className={fichaInfoGeneral ? "" : "texto-largo"}>
-                  Info. General
-                </span>
-                {!fichaInfoGeneral && <span className="texto-corto">Info</span>}
+                <span className="texto-largo">Info. General</span>
+                <span className="texto-corto">Info</span>
               </button>
             </div>
           </section>
 
           {!fichaInfoGeneral && [tarjetaCambios, tarjetaLinea].filter(Boolean)}
 
-          {!fichaInfoGeneral && (jugadores.length > 0 || resto) && (
+          {/* Lo que jugó cada uno vive en Info: en las vistas de tiempo queda
+              solo la línea, que es lo que se usa para cortar. Igual sigue
+              atado al tiempo elegido y al interruptor del rival. */}
+          {fichaInfoGeneral && jugadores.length > 0 && (
             <section className="tarjeta tarjeta-ficha">
               <div className="cabeza-ficha">
                 <b>Tiempo jugado</b>
