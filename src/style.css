@@ -4382,3 +4382,314 @@ button:disabled {
   transform: none;
   box-shadow: none;
 }
+
+/* ==========================================================================
+   Ajustes
+   ========================================================================== */
+
+.opcion-ajuste {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  margin-bottom: 9px;
+  padding: 14px 13px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 14px;
+  background: var(--cam-blanco);
+  font-family: inherit;
+  text-align: left;
+}
+
+.icono-ajuste {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #eef2f1;
+  color: #38413d;
+}
+
+.texto-ajuste b {
+  display: block;
+  font-size: 13px;
+}
+
+.texto-ajuste span {
+  display: block;
+  margin-top: 1px;
+  color: var(--cam-gris);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.flecha-ajuste {
+  margin-left: auto;
+  color: #c3cac6;
+  font-size: 17px;
+}
+
+.agregar-jugador {
+  display: flex;
+  gap: 8px;
+  margin: 2px 0 4px;
+}
+
+.agregar-jugador input {
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.agregar-jugador button {
+  height: 40px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--cam-verde), var(--cam-verde-oscuro));
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lista-plantel {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lista-plantel li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f1f5f4;
+}
+
+.lista-plantel li:last-child {
+  border-bottom: 0;
+}
+
+.numero-lista {
+  width: 19px;
+  color: #c3cac6;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.nombre-lista {
+  flex: 1;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quitar-jugador {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #f0d7d9;
+  border-radius: 9px;
+  background: #fdf4f4;
+  color: #c1121f;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.quitar-jugador:disabled {
+  border-color: var(--cam-linea);
+  background: #f7f9f8;
+  color: #c3cac6;
+}
+
+.buscador-plantel {
+  width: 100%;
+  height: 38px;
+  margin: 2px 0 10px;
+  padding: 0 12px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Un jugador por bloque: el nombre y sus puestos arriba, los roles abajo. Con
+   36 jugadores cada renglón de más se paga caro. */
+.jugador-puestos {
+  position: relative;
+  margin-bottom: 8px;
+  padding: 10px 11px;
+  border: 1px solid #eef2f1;
+  border-radius: 13px;
+  background: #f8faf9;
+}
+
+.arriba-puestos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.arriba-puestos b {
+  flex: 1;
+  min-width: 88px;
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.abajo-puestos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-rol {
+  padding: 6px 12px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 999px;
+  background: var(--cam-blanco);
+  color: #9aa4a0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.chip-rol.activo {
+  border-color: var(--cam-tinta);
+  background: var(--cam-tinta);
+  color: #fff;
+}
+
+.puesto-jugador {
+  display: inline-flex;
+}
+
+.boton-puesto {
+  min-width: 44px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 10px;
+  background: var(--cam-blanco);
+  color: var(--cam-tinta);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.boton-puesto.vacio {
+  border-style: dashed;
+  background: none;
+  color: var(--cam-gris);
+  font-size: 15px;
+}
+
+.boton-puesto.abierto {
+  border-color: var(--cam-tinta);
+}
+
+.tapa-puesto {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+}
+
+/* Se ancla a la tarjeta del jugador y no al botón: pegada al botón, uno de la
+   derecha abría la lista fuera de la pantalla. */
+.lista-puestos {
+  position: absolute;
+  z-index: 5;
+  top: 46px;
+  right: 10px;
+  left: 10px;
+  display: grid;
+  padding: 6px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 13px;
+  background: var(--cam-blanco);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.22);
+  gap: 3px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.lista-puestos button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: #38413d;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.lista-puestos button.activo {
+  background: #eef2f1;
+  color: var(--cam-tinta);
+  font-weight: 800;
+}
+
+.lista-puestos button:disabled {
+  color: #c3cac6;
+}
+
+.lista-puestos i {
+  min-width: 26px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: var(--cam-tinta);
+  color: #fff;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  text-align: center;
+}
+
+.lista-puestos button:disabled i {
+  background: #dfe5e2;
+  color: #9aa4a0;
+}
+
+.quitar-puesto {
+  grid-column: 1 / -1;
+  justify-content: center;
+  margin-top: 2px;
+  border-top: 1px solid var(--cam-linea) !important;
+  border-radius: 0 !important;
+  color: #c1121f !important;
+  font-weight: 800 !important;
+}
+
+.cuenta-ajuste {
+  min-width: 20px;
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--cam-tinta);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-align: center;
+}
