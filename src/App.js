@@ -106,7 +106,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.11.7";
+const APP_VERSION = "2026.09.11.8";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1144,6 +1144,10 @@ export default function App() {
   const [registro, setRegistro] = useState(obtenerRegistroInicial);
   const [guardados, setGuardados] = useState([]);
   const [historialCargado, setHistorialCargado] = useState(false);
+  // Cómo salió la última lectura de la base. Con un solo booleano, "todavía no
+  // cargó", "la base falló" y "no hay partidos" se veían iguales: el mismo
+  // cartel de lista vacía.
+  const [estadoHistorial, setEstadoHistorial] = useState("cargando");
   const [guardando, setGuardando] = useState(false);
   const guardandoRef = useRef(false);
   const [registroSeleccionado, setRegistroSeleccionado] = useState(null);
@@ -1564,8 +1568,7 @@ export default function App() {
       console.error("Error cargando registros desde Supabase:", error);
 
       setGuardados(leerRespaldoHistorial());
-
-      // El respaldo local se muestra sin avisar: el cartel tapaba el marcador.
+      setEstadoHistorial("error");
       setHistorialCargado(true);
       return;
     }
@@ -1583,6 +1586,9 @@ export default function App() {
           "La base no devolvió ningún partido. Se conserva el historial del celular.",
         );
         setGuardados(respaldo);
+        // La base contestó bien pero sin nada, y acá hay partidos: casi seguro
+        // es un permiso, como en septiembre. Se avisa en vez de disimularlo.
+        setEstadoHistorial("sospechoso");
         setHistorialCargado(true);
         return;
       }
@@ -1600,11 +1606,33 @@ export default function App() {
     }
 
     setGuardados(mezclarPendientes(registrosConvertidos));
+    setEstadoHistorial("listo");
     setHistorialCargado(true);
   };
+
+  const releerHistorial = () => {
+    setEstadoHistorial("cargando");
+    cargarRegistrosSupabase();
+  };
+
   useEffect(() => {
     cargarRegistrosSupabase();
   }, []);
+
+  // Sin red, el pedido a la base puede quedarse colgado sin contestar nunca.
+  // No se lo corta —si llega tarde, sirve igual—, pero a los doce segundos se
+  // deja de decir "buscando" y se ofrece reintentar.
+  useEffect(() => {
+    if (estadoHistorial !== "cargando") return undefined;
+
+    const reloj = window.setTimeout(() => {
+      setEstadoHistorial((previo) =>
+        previo === "cargando" ? "demorado" : previo,
+      );
+    }, 12000);
+
+    return () => window.clearTimeout(reloj);
+  }, [estadoHistorial]);
 
   useEffect(() => {
     let activo = true;
@@ -5741,6 +5769,41 @@ export default function App() {
 
   // Los dos ítems del período: el VAR (con sus hasta tres marcas) y la
   // hidratación, con inicio, fin y duración a la vista.
+  // Qué decirle al que abre la pantalla de Registros. Una lista vacía puede
+  // ser que no haya partidos, que la base haya fallado o que todavía no
+  // conteste, y antes las tres se veían igual.
+  const avisoDelHistorial = (() => {
+    if (estadoHistorial === "error") {
+      return {
+        tono: "malo",
+        titulo: "No se pudo leer la base",
+        detalle: guardados.length
+          ? "Estás viendo el respaldo de este teléfono, que puede estar desactualizado. Lo que guardes ahora se sube cuando vuelva la conexión."
+          : "Sin conexión con la base y sin respaldo en este teléfono, así que no hay nada para mostrar. Los partidos guardados no se perdieron: están en la base.",
+      };
+    }
+
+    if (estadoHistorial === "sospechoso") {
+      return {
+        tono: "malo",
+        titulo: "La base no devolvió ningún partido",
+        detalle:
+          "Pero en este teléfono hay historial, así que es muy probable que sea un problema de permisos y no que esté vacía. Estás viendo el respaldo del teléfono.",
+      };
+    }
+
+    if (estadoHistorial === "demorado") {
+      return {
+        tono: "espera",
+        titulo: "La base está tardando en contestar",
+        detalle:
+          "Puede ser la conexión. Si aparecen partidos, llegó tarde y está todo bien.",
+      };
+    }
+
+    return null;
+  })();
+
   const renderItemsPeriodo = () => {
     const vacio = registro.modoTiempo === "transmision" ? "---:--" : "--:--:--";
 
@@ -6151,6 +6214,19 @@ export default function App() {
             <p>Buscá y revisá partidos cargados.</p>
           </header>
 
+          {avisoDelHistorial && (
+            <section className={`aviso-base ${avisoDelHistorial.tono}`}>
+              <div>
+                <b>{avisoDelHistorial.titulo}</b>
+                <p>{avisoDelHistorial.detalle}</p>
+              </div>
+
+              <button type="button" onClick={releerHistorial}>
+                Reintentar
+              </button>
+            </section>
+          )}
+
           {guardados.length > 0 && (
             <section className="tarjeta">
               <div className="buscador-registros">
@@ -6175,7 +6251,13 @@ export default function App() {
           <section className="tarjeta">
             {guardados.length === 0 ? (
               <div className="sin-resultados">
-                No hay registros guardados todavía.
+                {estadoHistorial === "cargando"
+                  ? "Buscando los partidos guardados…"
+                  : avisoDelHistorial
+                    ? // Con el aviso arriba explicando que la base no contestó,
+                      // decir "no hay registros" sería afirmar de más.
+                      "Nada para mostrar hasta que la base conteste."
+                    : "No hay registros guardados todavía."}
               </div>
             ) : (
               <>

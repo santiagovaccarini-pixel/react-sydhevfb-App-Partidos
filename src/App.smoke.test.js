@@ -1164,6 +1164,88 @@ describe("interfaz operativa", () => {
     expect(enCancha).not.toContain("ALONSO");
   });
 
+  test("una lista vacía dice si la base falló o si de verdad no hay partidos", async () => {
+    const irARegistros = async () => {
+      const boton = Array.from(
+        contenedor.querySelectorAll(".navegacion-movil button"),
+      ).find((item) => item.textContent.includes("Registros"));
+      await act(async () => boton.click());
+    };
+    const aviso = () => contenedor.querySelector(".aviso-base");
+    const vacio = () =>
+      contenedor.querySelector(".sin-resultados")?.textContent.trim();
+
+    // 1) La base contesta bien y no hay nada: no hay ningún problema que avisar.
+    doblesSupabase.errorHistorial = null;
+    doblesSupabase.filasHistorial = [];
+    await montarApp();
+    await irARegistros();
+
+    expect(aviso()).toBeNull();
+    expect(vacio()).toBe("No hay registros guardados todavía.");
+
+    await act(async () => raiz.unmount());
+    raiz = null;
+    contenedor.innerHTML = "";
+
+    // 2) La base falla y en el teléfono no hay respaldo: no es lo mismo que
+    // estar vacía, y antes se veía igual.
+    doblesSupabase.errorHistorial = { message: "permission denied" };
+    await montarApp();
+    await irARegistros();
+
+    expect(aviso().textContent).toContain("No se pudo leer la base");
+    expect(vacio()).toBe("Nada para mostrar hasta que la base conteste.");
+
+    // Y el botón de reintentar vuelve a preguntarle a la base.
+    doblesSupabase.errorHistorial = null;
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+    const reintentar = Array.from(aviso().querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Reintentar"),
+    );
+    await act(async () => reintentar.click());
+
+    expect(aviso()).toBeNull();
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
+  });
+
+  test("avisa cuando la base contesta vacía pero el teléfono tiene partidos", async () => {
+    // El síntoma de septiembre: las filas siguen en la base pero la app perdió
+    // el permiso, así que la respuesta llega vacía. Antes se disimulaba.
+    localStorage.setItem(
+      "backup_registros_partidos",
+      JSON.stringify([
+        {
+          id: "local-1",
+          idSupabase: 9,
+          fecha: "2026-09-10",
+          rival: "Santos",
+          resultado: "2-1",
+          inicioPT: "21:00:00",
+          finalPT: "21:47:30",
+          modoTiempo: "enVivo",
+          cambios: [],
+          cambiosRival: [],
+          formacion: { titulares: [], convocados: [] },
+        },
+      ]),
+    );
+    doblesSupabase.errorHistorial = null;
+    doblesSupabase.filasHistorial = [];
+
+    await montarApp();
+    const boton = Array.from(
+      contenedor.querySelectorAll(".navegacion-movil button"),
+    ).find((item) => item.textContent.includes("Registros"));
+    await act(async () => boton.click());
+
+    expect(contenedor.querySelector(".aviso-base").textContent).toContain(
+      "La base no devolvió ningún partido",
+    );
+    // Y el partido del teléfono se sigue mostrando: no se pisa con la nada.
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
+  });
+
   test("una corrección a mano sobre un horario guardado no se pisa", async () => {
     // Al editar un registro de transmisión los campos ya vienen en horario. Si
     // la conversión los recalculara igual desde la referencia de arranque, la
