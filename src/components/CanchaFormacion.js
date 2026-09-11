@@ -4,6 +4,7 @@ import {
   FRANJAS,
   MAXIMO_EN_CANCHA,
   apellido,
+  jugadoresDeLaFranja,
   cambiarLinea,
   hayPuestosAMano,
   moverPuesto,
@@ -186,13 +187,14 @@ const Puesto = ({
 const CanchaFormacion = ({
   cancha,
   onCambiar,
-  opciones = [],
+  plantel = [],
   soloLectura = false,
   titulo = "Formación",
   cambios = {},
 }) => {
   const [panelAbierto, setPanelAbierto] = useState(false);
   const [eligiendo, setEligiendo] = useState(null);
+  const [verTodos, setVerTodos] = useState(false);
 
   const normalizada = normalizarCancha(cancha);
   const puestos = puestosDeCancha(normalizada);
@@ -202,9 +204,22 @@ const CanchaFormacion = ({
   ).length;
   const tomados = titularesDeCancha(normalizada).filter(Boolean);
   const enElPuesto = puestos.find((puesto) => puesto.id === eligiendo);
+  const franja = FRANJAS.find((una) => una.id === enElPuesto?.franja);
+
+  // El desplegable de cada línea ofrece a los de esa línea. Los que todavía no
+  // tienen rol cargado no son "de otra línea": quedan detrás de "Ver todo el
+  // plantel", para que nunca se llegue a una lista vacía.
+  const delSector = jugadoresDeLaFranja(plantel, enElPuesto?.franja);
+  const aElegir = verTodos || delSector.length === 0 ? plantel : delSector;
+  const faltan = plantel.length - delSector.length;
 
   const aplicar = (nueva) => {
     onCambiar?.(nueva);
+  };
+
+  const abrirPuesto = (id) => {
+    setVerTodos(false);
+    setEligiendo(id);
   };
 
   return (
@@ -301,14 +316,17 @@ const CanchaFormacion = ({
             cambio={puesto.nombre ? cambios[puesto.nombre] : null}
             soloLectura={soloLectura}
             onCambiar={aplicar}
-            onTocar={setEligiendo}
+            onTocar={abrirPuesto}
           />
         ))}
 
         {eligiendo && (
           <div className="elegir-jugador">
             <div className="alto-elegir">
-              <b>Puesto {enElPuesto?.numero}</b>
+              <b>
+                Puesto {enElPuesto?.numero}
+                {franja && <i>{franja.nombre}</i>}
+              </b>
               <button
                 type="button"
                 className="cerrar-elegir"
@@ -319,9 +337,9 @@ const CanchaFormacion = ({
             </div>
 
             <div className="lista-elegir">
-              {opciones
-                .filter((nombre) => String(nombre || "").trim())
-                .map((nombre) => {
+              {aElegir
+                .filter((jugador) => String(jugador?.nombre || "").trim())
+                .map(({ nombre }) => {
                   // El que ya está en otro puesto se puede elegir igual: se
                   // muda, no se duplica.
                   const enCancha = tomados.includes(nombre);
@@ -343,20 +361,41 @@ const CanchaFormacion = ({
                     </button>
                   );
                 })}
+
+              {aElegir.length === 0 && (
+                <p className="sin-jugadores">
+                  No hay nadie cargado en el plantel. Se agregan en Ajustes ›
+                  Jugadores.
+                </p>
+              )}
             </div>
 
-            {enElPuesto?.nombre && (
-              <button
-                type="button"
-                className="vaciar-puesto"
-                onClick={() => {
-                  aplicar(ponerJugador(normalizada, eligiendo, ""));
-                  setEligiendo(null);
-                }}
-              >
-                Dejar el puesto libre
-              </button>
-            )}
+            <div className="pie-elegir">
+              {enElPuesto?.nombre && (
+                <button
+                  type="button"
+                  className="vaciar-puesto"
+                  onClick={() => {
+                    aplicar(ponerJugador(normalizada, eligiendo, ""));
+                    setEligiendo(null);
+                  }}
+                >
+                  Dejar el puesto libre
+                </button>
+              )}
+
+              {delSector.length > 0 && faltan > 0 && (
+                <button
+                  type="button"
+                  className="ver-todos"
+                  onClick={() => setVerTodos((previo) => !previo)}
+                >
+                  {verTodos
+                    ? `Solo ${franja?.nombre?.toLowerCase()}`
+                    : `Ver todo el plantel (${faltan} más)`}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

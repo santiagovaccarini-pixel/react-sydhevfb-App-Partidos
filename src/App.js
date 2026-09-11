@@ -106,7 +106,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.11.6";
+const APP_VERSION = "2026.09.11.7";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -3681,7 +3681,7 @@ export default function App() {
             <CanchaFormacion
               titulo="Titulares de campo"
               cancha={formacionTemporal.cancha}
-              opciones={nombresPlantel}
+              plantel={plantel}
               onCambiar={actualizarCanchaTemporal}
             />
           </section>

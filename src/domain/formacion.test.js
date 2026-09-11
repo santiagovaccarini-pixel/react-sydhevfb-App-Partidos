@@ -6,6 +6,7 @@ import {
   cambiarLinea,
   canchaDesdeTitulares,
   hayPuestosAMano,
+  jugadoresDeLaFranja,
   moverPuesto,
   nombreDeFormacion,
   normalizarCancha,
@@ -114,6 +115,39 @@ describe("puestosDeCancha", () => {
     expect(puestos.slice(8).every((p) => p.franja === "ata")).toBe(true);
   });
 
+  it("no deja que un jugador se vaya de su línea", () => {
+    // Un mediocampista arrastrado al fondo se queda en el mediocampo: para
+    // cambiarlo de línea está la formación.
+    const alFondo = moverPuesto(
+      { lineas: { def: 4, med: 4, ata: 2 } },
+      "med-0",
+      50,
+      95,
+    );
+    const arriba = moverPuesto(alFondo, "med-1", 50, 2);
+
+    const enMedio = (id) => puestosDeCancha(arriba).find((p) => p.id === id).y;
+    const franja = FRANJAS.find((f) => f.id === "med");
+
+    expect(enMedio("med-0")).toBeLessThan(franja.limite.abajo);
+    expect(enMedio("med-0")).toBeGreaterThan(franja.limite.arriba);
+    expect(enMedio("med-1")).toBeGreaterThan(franja.limite.arriba);
+  });
+
+  it("acota también lo que venía guardado fuera de su línea", () => {
+    // Una formación de antes de esta regla podía tener a un delantero dibujado
+    // en el fondo.
+    const cancha = {
+      lineas: { def: 4, med: 4, ata: 2 },
+      puestos: { "ata-0": { nombre: "HULK", x: 50, y: 92 } },
+    };
+    const delantero = puestosDeCancha(cancha).find((p) => p.id === "ata-0");
+
+    expect(delantero.y).toBeLessThanOrEqual(
+      FRANJAS.find((f) => f.id === "ata").limite.abajo,
+    );
+  });
+
   it("respeta la posición de los que moviste a mano", () => {
     const cancha = moverPuesto(
       { lineas: { def: 4, med: 4, ata: 2 } },
@@ -139,7 +173,7 @@ describe("puestosDeCancha", () => {
     const movido = puestosDeCancha(cancha)[0];
 
     expect(movido.x).toBe(0);
-    expect(movido.y).toBe(100);
+    expect(movido.y).toBeLessThanOrEqual(100);
   });
 });
 
@@ -278,5 +312,49 @@ describe("canchaDesdeTitulares", () => {
       "VITAO",
       "SCARPA",
     ]);
+  });
+});
+
+describe("jugadoresDeLaFranja", () => {
+  const PLANTEL = [
+    { nombre: "VITAO", roles: ["Defensa"] },
+    { nombre: "LYANCO", roles: ["Defensa"] },
+    // Un jugador puede tener más de un rol: aparece en las dos líneas.
+    { nombre: "ALAN FRANCO", roles: ["Defensa", "Mediocampo"] },
+    { nombre: "SCARPA", roles: ["Mediocampo"] },
+    { nombre: "HULK", roles: ["Ataque"] },
+    { nombre: "FRED", roles: [] },
+  ];
+
+  it("ofrece solo a los de esa línea", () => {
+    expect(jugadoresDeLaFranja(PLANTEL, "ata").map((j) => j.nombre)).toEqual([
+      "HULK",
+    ]);
+    expect(jugadoresDeLaFranja(PLANTEL, "med").map((j) => j.nombre)).toEqual([
+      "ALAN FRANCO",
+      "SCARPA",
+    ]);
+  });
+
+  it("repite al que juega en varias", () => {
+    expect(jugadoresDeLaFranja(PLANTEL, "def").map((j) => j.nombre)).toContain(
+      "ALAN FRANCO",
+    );
+    expect(jugadoresDeLaFranja(PLANTEL, "med").map((j) => j.nombre)).toContain(
+      "ALAN FRANCO",
+    );
+  });
+
+  it("deja afuera al que no tiene rol cargado", () => {
+    FRANJAS.forEach((franja) => {
+      expect(
+        jugadoresDeLaFranja(PLANTEL, franja.id).map((j) => j.nombre),
+      ).not.toContain("FRED");
+    });
+  });
+
+  it("aguanta un plantel vacío o una franja que no existe", () => {
+    expect(jugadoresDeLaFranja(null, "def")).toEqual([]);
+    expect(jugadoresDeLaFranja(PLANTEL, "arquero")).toEqual([]);
   });
 });
