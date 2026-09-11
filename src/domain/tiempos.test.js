@@ -3,6 +3,7 @@ import {
   cambiosDelRival,
   cortesDelPartido,
   formatearMinutosSegundos,
+  formatearTiempoDeJuego,
   cortesDePeriodo,
   lineaDeTiempo,
   plantelDelPartido,
@@ -422,6 +423,41 @@ describe("tiempos del partido", () => {
 
     expect(nuncaSalieron).toHaveLength(10);
     expect(noIngresaron).toEqual(["BERNARD", "DUDU"]);
+  });
+
+  test("el minuto de juego sigue la convención de la transmisión", () => {
+    // El primer tiempo cuenta desde cero.
+    expect(formatearTiempoDeJuego("PT", 0)).toBe("00:00");
+    expect(formatearTiempoDeJuego("PT", 23 * 60 + 14)).toBe("23:14");
+
+    // Lo que pasa de los 45 va como agregado, no como 47:30.
+    expect(formatearTiempoDeJuego("PT", 47 * 60 + 30)).toBe("45+02:30");
+
+    // El segundo arranca en 45:00.
+    expect(formatearTiempoDeJuego("ST", 0)).toBe("45:00");
+    expect(formatearTiempoDeJuego("ST", 15 * 60)).toBe("60:00");
+    expect(formatearTiempoDeJuego("ST", 47 * 60 + 10)).toBe("90+02:10");
+
+    // Y la prórroga, en 90:00 y 105:00.
+    expect(formatearTiempoDeJuego("PTE", 0)).toBe("90:00");
+    expect(formatearTiempoDeJuego("STE", 0)).toBe("105:00");
+    expect(formatearTiempoDeJuego("STE", 15 * 60)).toBe("120:00");
+    expect(formatearTiempoDeJuego("STE", 16 * 60)).toBe("120+01:00");
+
+    expect(formatearTiempoDeJuego("PT", null)).toBe("");
+  });
+
+  test("cada corte trae su horario y su minuto de juego", () => {
+    const cortes = cortesDePeriodo(PARTIDO, "ST");
+
+    expect(cortes.map((c) => [c.hora, c.juego])).toEqual([
+      // El segundo tiempo arranca en 45:00 de juego.
+      ["22:03:00", "45:00"],
+      // El cambio fue a los 15 del segundo: 60:00.
+      ["22:18:00", "60:00"],
+      // Y el final, a los 47:10, se pasa de los 90.
+      ["22:50:10", "90+02:10"],
+    ]);
   });
 
   test("un registro sin tiempos cargados no rompe nada", () => {
