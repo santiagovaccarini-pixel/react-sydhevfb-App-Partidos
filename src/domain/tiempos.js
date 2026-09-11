@@ -1,6 +1,8 @@
 import {
+  calcularNoIngresaron,
   esFormatoHoraReal,
   limpiarLista,
+  normalizarTexto,
   normalizarTextoBase,
   segundosEntre,
 } from "./match";
@@ -422,4 +424,32 @@ export const formatearMinutosSegundos = (totalSegundos) => {
   return `${String(Math.floor(entero / 60)).padStart(2, "0")}:${String(
     entero % 60,
   ).padStart(2, "0")}`;
+};
+
+/**
+ * El plantel repartido en los grupos que interesan de un partido terminado:
+ * quiénes arrancaron, quiénes esperaron en el banco, cuáles de esos no
+ * llegaron a entrar y qué titulares jugaron de principio a fin.
+ *
+ * Se compara con la misma normalización que usa el resto de la app, así un
+ * apodo y el nombre completo del mismo jugador no cuentan como dos.
+ */
+export const plantelDelPartido = (registro) => {
+  const titulares = limpiarLista(registro?.formacion?.titulares);
+  const convocados = limpiarLista(registro?.formacion?.convocados);
+
+  const salieron = new Set(
+    (registro?.cambios || [])
+      .map((cambio) => normalizarTexto(cambio?.sale))
+      .filter(Boolean),
+  );
+
+  return {
+    titulares,
+    convocados,
+    noIngresaron: calcularNoIngresaron(registro?.formacion, registro?.cambios),
+    nuncaSalieron: titulares.filter(
+      (jugador) => !salieron.has(normalizarTexto(jugador)),
+    ),
+  };
 };
