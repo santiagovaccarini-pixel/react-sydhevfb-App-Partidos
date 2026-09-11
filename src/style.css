@@ -4238,3 +4238,83 @@ button:disabled {
     padding-left: 70px;
   }
 }
+
+/* Info. General: el plantel repartido en grupos, en chips. */
+.grupo-plantel + .grupo-plantel {
+  margin-top: 14px;
+}
+
+.titulo-grupo-plantel {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.titulo-grupo-plantel b {
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+
+.titulo-grupo-plantel span {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f5f4;
+  color: var(--cam-gris);
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.titulo-grupo-plantel em {
+  margin-left: auto;
+  color: var(--cam-gris);
+  font-size: 12px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.chips-plantel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-plantel {
+  padding: 5px 10px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 999px;
+  background: #f7f9f8;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+/* Los que no entraron se muestran apagados: están en la lista pero no jugaron. */
+.chip-plantel.apagado {
+  border-style: dashed;
+  background: none;
+  color: #9aa4a0;
+}
+
+.vacio-plantel {
+  margin: 0;
+  color: #9aa4a0;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* Cuatro interruptores entran justos: en pantallas angostas el último se
+   queda con la versión corta de su nombre. */
+.boton-info-ficha .texto-corto {
+  display: none;
+}
+
+@media (max-width: 420px) {
+  .boton-info-ficha .texto-largo {
+    display: none;
+  }
+
+  .boton-info-ficha .texto-corto {
+    display: inline;
+  }
+}

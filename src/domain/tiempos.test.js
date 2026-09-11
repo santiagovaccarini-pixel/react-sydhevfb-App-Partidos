@@ -5,6 +5,7 @@ import {
   formatearMinutosSegundos,
   cortesDePeriodo,
   lineaDeTiempo,
+  plantelDelPartido,
   resumenDeTiempos,
   tiempoJugado,
 } from "./tiempos";
@@ -360,9 +361,54 @@ describe("tiempos del partido", () => {
     expect(formatearMinutosSegundos(null)).toBe("");
   });
 
+  test("reparte el plantel en titulares, banco, no ingresaron y los que nunca salieron", () => {
+    const { titulares, convocados, noIngresaron, nuncaSalieron } =
+      plantelDelPartido(PARTIDO);
+
+    expect(titulares).toHaveLength(10);
+    expect(convocados).toEqual(["BERNARD", "DUDU"]);
+
+    // Los dos del banco entraron, así que no queda nadie sin ingresar.
+    expect(noIngresaron).toEqual([]);
+
+    // ALONSO y SCARPA salieron; los otros ocho jugaron el partido entero.
+    expect(nuncaSalieron).toHaveLength(8);
+    expect(nuncaSalieron).not.toContain("ALONSO");
+    expect(nuncaSalieron).not.toContain("SCARPA");
+    expect(nuncaSalieron).toContain("ARANA");
+  });
+
+  test("del banco, el que no entró queda aparte", () => {
+    const { noIngresaron } = plantelDelPartido({
+      ...PARTIDO,
+      formacion: {
+        ...PARTIDO.formacion,
+        convocados: ["BERNARD", "DUDU", "IGOR"],
+      },
+    });
+
+    expect(noIngresaron).toEqual(["IGOR"]);
+  });
+
+  test("sin cambios, todos los titulares jugaron de principio a fin", () => {
+    const { nuncaSalieron, noIngresaron } = plantelDelPartido({
+      ...PARTIDO,
+      cambios: [],
+    });
+
+    expect(nuncaSalieron).toHaveLength(10);
+    expect(noIngresaron).toEqual(["BERNARD", "DUDU"]);
+  });
+
   test("un registro sin tiempos cargados no rompe nada", () => {
     expect(resumenDeTiempos({}).total).toEqual({ bruto: 0, detenido: 0, neto: 0 });
     expect(tiempoJugado({})).toEqual({ jugadores: [], resto: null });
     expect(cortesDePeriodo({}, "PT")).toEqual([]);
+    expect(plantelDelPartido({})).toEqual({
+      titulares: [],
+      convocados: [],
+      noIngresaron: [],
+      nuncaSalieron: [],
+    });
   });
 });

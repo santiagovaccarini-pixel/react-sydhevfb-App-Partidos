@@ -32,6 +32,7 @@ import {
   cortesDePeriodo,
   formatearMinutosSegundos,
   periodosDelRegistro,
+  plantelDelPartido,
   resumenDeTiempos,
   tiempoJugado,
 } from "./domain/tiempos";
@@ -82,7 +83,7 @@ const agruparJugados = (jugadores) =>
     return [...grupos, { hora, jugadores: [jugador] }];
   }, []);
 
-const APP_VERSION = "2026.09.10.10";
+const APP_VERSION = "2026.09.11.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1028,6 +1029,7 @@ export default function App() {
   const [fichaEnNeto, setFichaEnNeto] = useState(false);
   const [fichaDelRival, setFichaDelRival] = useState(false);
   const [fichaCambiosArriba, setFichaCambiosArriba] = useState(false);
+  const [fichaInfoGeneral, setFichaInfoGeneral] = useState(false);
   const [equipoCambios, setEquipoCambios] = useState("atletico");
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
@@ -3929,6 +3931,36 @@ export default function App() {
       );
     };
 
+    // Es siempre el nuestro: del rival no se guarda la formación.
+    const plantel = plantelDelPartido(item);
+
+    const renderGrupoPlantel = (titulo, jugadores, opciones = {}) => (
+      <div className="grupo-plantel">
+        <div className="titulo-grupo-plantel">
+          <b>{titulo}</b>
+          <span>{jugadores.length}</span>
+          {opciones.medida && <em>{opciones.medida}</em>}
+        </div>
+
+        {jugadores.length === 0 ? (
+          <p className="vacio-plantel">
+            {opciones.apagado ? "Entraron todos." : "Sin datos cargados."}
+          </p>
+        ) : (
+          <div className="chips-plantel">
+            {jugadores.map((jugador, i) => (
+              <span
+                className={`chip-plantel ${opciones.apagado ? "apagado" : ""}`}
+                key={`${titulo}-${i}`}
+              >
+                {jugador}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+
     const tarjetaLinea = (
       <section className="tarjeta tarjeta-ficha" key="linea">
         <div className="cabeza-ficha">
@@ -4092,6 +4124,17 @@ export default function App() {
                 <Icono nombre="subir" size={14} />
                 Cambios
               </button>
+
+              <button
+                type="button"
+                className={`boton-info-ficha ${fichaInfoGeneral ? "activo" : ""}`}
+                onClick={() => setFichaInfoGeneral((previo) => !previo)}
+                aria-pressed={fichaInfoGeneral}
+              >
+                <Icono nombre="formacion" size={14} />
+                <span className="texto-largo">Info. General</span>
+                <span className="texto-corto">Info</span>
+              </button>
             </div>
           </section>
 
@@ -4140,28 +4183,25 @@ export default function App() {
                   </li>
                 ))}
 
-                {resto && (
-                  <li className="jugado fila-resto">
-                    <span className="hora-corte" />
-
-                    <span className="quienes-jugado">
-                      <span className="fila-jugado">
-                        <span className="quien-jugado">
-                          {resto.cantidad === 1
-                            ? "El otro titular"
-                            : `Los otros ${resto.cantidad} titulares`}
-                        </span>
-                        <span className="cuando-jugado">partido completo</span>
-                        <span
-                          className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}
-                        >
-                          {duracion(enModo(resto))}
-                        </span>
-                      </span>
-                    </span>
-                  </li>
-                )}
               </ul>
+            </section>
+          )}
+
+          {fichaInfoGeneral && (
+            <section className="tarjeta tarjeta-ficha">
+              <div className="cabeza-ficha">
+                <b>Info. General</b>
+                <span className="et cuenta-cambios">NUESTRO PLANTEL</span>
+              </div>
+
+              {renderGrupoPlantel("Titulares", plantel.titulares)}
+              {renderGrupoPlantel("Banco", plantel.convocados)}
+              {renderGrupoPlantel("No ingresaron", plantel.noIngresaron, {
+                apagado: true,
+              })}
+              {renderGrupoPlantel("Nunca salieron", plantel.nuncaSalieron, {
+                medida: resto ? duracion(enModo(resto)) : "",
+              })}
             </section>
           )}
 
@@ -5660,6 +5700,7 @@ export default function App() {
                           setFichaEnNeto(false);
                           setFichaDelRival(false);
                           setFichaCambiosArriba(false);
+                          setFichaInfoGeneral(false);
                         }}
                       >
                         Ver detalle

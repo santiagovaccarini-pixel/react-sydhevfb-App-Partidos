@@ -984,7 +984,6 @@ describe("interfaz operativa", () => {
       "71:26",
       "62:30",
       "32:10",
-      "94:40",
     ]);
 
     const interruptor = contenedor.querySelector(".boton-modo-ficha");
@@ -1003,7 +1002,6 @@ describe("interfaz operativa", () => {
       "69:26",
       "58:00",
       "32:10",
-      "90:10",
     ]);
   });
 
@@ -1119,13 +1117,13 @@ describe("interfaz operativa", () => {
         fila.querySelector(".valor-jugado").textContent.trim(),
       ]);
 
-    // En el total, lo que jugó cada uno en todo el partido.
+    // En el total, lo que jugó cada uno en todo el partido. Los que nunca
+    // salieron viven en Info. General, no acá.
     expect(tabla()).toEqual([
       ["ALONSO", "23:14"],
       ["BERNARD", "71:26"],
       ["SCARPA", "62:30"],
       ["DUDU", "32:10"],
-      ["El otro titular", "94:40"],
     ]);
 
     await elegirTiempo("PT");
@@ -1136,7 +1134,6 @@ describe("interfaz operativa", () => {
       ["ALONSO", "23:14"],
       ["BERNARD", "24:16"],
       ["SCARPA", "47:30"],
-      ["El otro titular", "47:30"],
     ]);
 
     await elegirTiempo("ST");
@@ -1145,7 +1142,6 @@ describe("interfaz operativa", () => {
       ["BERNARD", "47:10"],
       ["SCARPA", "15:00"],
       ["DUDU", "32:10"],
-      ["El otro titular", "47:10"],
     ]);
   });
 
@@ -1175,8 +1171,6 @@ describe("interfaz operativa", () => {
     );
 
     // Los cuatro del doble cambio comparten un solo horario, como en la línea.
-    // Sin fila de resto: los tres titulares del registro entraron en algún
-    // cambio, así que no queda ninguno que haya jugado el partido entero.
     expect(grupos).toEqual([
       ["21:23:14", ["↓ ALONSO", "↑ BERNARD"]],
       ["22:18:00", ["↓ SCARPA", "↑ DUDU", "↓ ARANA", "↑ HULK"]],
@@ -1225,6 +1219,47 @@ describe("interfaz operativa", () => {
 
     // De ellos no se guarda la formación, así que no hay fila de resto.
     expect(contenedor.querySelector(".fila-resto")).toBeNull();
+  });
+
+  test("Info. General reparte el plantel y saca el resto de tiempo jugado", async () => {
+    const fila = filaTransmisionGuardada();
+    fila.convocados = ["BERNARD", "DUDU", "IGOR"];
+    fila.captura_tiempo.convocados = fila.convocados;
+    doblesSupabase.filasHistorial = [fila];
+
+    await montarApp();
+    await abrirFicha();
+
+    // Los que jugaron el partido entero ya no ensucian el tiempo jugado.
+    expect(contenedor.textContent).not.toContain("partido completo");
+    expect(contenedor.querySelector(".grupo-plantel")).toBeNull();
+
+    const info = Array.from(
+      contenedor.querySelectorAll(".interruptores button"),
+    ).find((boton) => boton.textContent.includes("Info"));
+    await act(async () => info.click());
+
+    const grupos = Array.from(contenedor.querySelectorAll(".grupo-plantel")).map(
+      (grupo) => [
+        grupo.querySelector("b").textContent.trim(),
+        Array.from(grupo.querySelectorAll(".chip-plantel")).map((chip) =>
+          chip.textContent.trim(),
+        ),
+      ],
+    );
+
+    expect(grupos).toEqual([
+      ["Titulares", ["ALONSO", "SCARPA", "ARANA"]],
+      ["Banco", ["BERNARD", "DUDU", "IGOR"]],
+      // IGOR se quedó en el banco: es el único que no llegó a entrar.
+      ["No ingresaron", ["IGOR"]],
+      // ALONSO y SCARPA salieron; ARANA jugó de principio a fin.
+      ["Nunca salieron", ["ARANA"]],
+    ]);
+
+    // Y al lado de los que nunca salieron va lo que duró el partido.
+    const nunca = contenedor.querySelectorAll(".grupo-plantel")[3];
+    expect(nunca.querySelector("em").textContent.trim()).toBe("94:40");
   });
 
   test("el interruptor de cambios sube esa tarjeta arriba de la línea", async () => {
