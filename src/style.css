@@ -4852,7 +4852,6 @@ button:disabled {
   background: linear-gradient(#12513a, #0e4531);
   aspect-ratio: 10 / 13;
   overflow: hidden;
-  touch-action: none;
   user-select: none;
 }
 
@@ -4913,7 +4912,6 @@ button:disabled {
   border: 0;
   background: none;
   font-family: inherit;
-  touch-action: none;
   transform: translate(-50%, -50%);
   transition:
     left 0.28s ease,
@@ -4924,6 +4922,13 @@ button:disabled {
 /* Las reglas generales de botón mueven el transform al pasar por encima y al
    apretar. Acá el transform es lo que centra la ficha en su punto: si se lo
    pisan, la ficha salta y el dedo termina tocando la cancha en vez del puesto. */
+/* Solo la ficha que se arrastra se queda con el gesto del dedo. Cuando esto
+   estaba en la cancha entera, no se podía desplazar la pantalla: la cancha
+   ocupa casi todo el alto y no se llegaba al banco. */
+button.puesto-cancha {
+  touch-action: none;
+}
+
 .puesto-cancha:hover,
 .puesto-cancha:active {
   box-shadow: none;
