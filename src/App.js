@@ -83,7 +83,7 @@ const agruparJugados = (jugadores) =>
     return [...grupos, { hora, jugadores: [jugador] }];
   }, []);
 
-const APP_VERSION = "2026.09.11.1";
+const APP_VERSION = "2026.09.11.2";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -2484,7 +2484,9 @@ export default function App() {
     // detalle no se pisa con la referencia vieja del arranque. Sobre una guía
     // en minutos, en cambio, se hace la cuenta de siempre.
     const inicioReal = (tipo, valor) =>
-      esFormatoHoraReal(valor) ? valor : obtenerHoraInicioRealPeriodo(tipo, item);
+      esFormatoHoraReal(valor)
+        ? valor
+        : obtenerHoraInicioRealPeriodo(tipo, item);
 
     const finalReal = (tipo, valor, horaFinalGuardada) =>
       esFormatoHoraReal(valor)
@@ -2662,90 +2664,90 @@ export default function App() {
   // Arma la fila que espera Supabase. Vive afuera de guardarRegistro para
   // que el reintento de los pendientes use exactamente la misma.
   const construirFilaSupabase = (registroBase) => {
-  const registroConHorasReales = convertirRegistroAHorasReales(registroBase);
-  const cambiosRival =
-    registroConHorasReales.cambiosRival || crearCambiosVacios();
+    const registroConHorasReales = convertirRegistroAHorasReales(registroBase);
+    const cambiosRival =
+      registroConHorasReales.cambiosRival || crearCambiosVacios();
 
-  return {
-    fecha: registroConHorasReales.fecha,
-    rival: registroConHorasReales.rival,
-    resultado: registroConHorasReales.resultado || "",
-    inicio_pt: registroConHorasReales.inicioPT,
-    final_pt: registroConHorasReales.finalPT,
-    tiempo_pt: registroConHorasReales.tiempoPT || "",
+    return {
+      fecha: registroConHorasReales.fecha,
+      rival: registroConHorasReales.rival,
+      resultado: registroConHorasReales.resultado || "",
+      inicio_pt: registroConHorasReales.inicioPT,
+      final_pt: registroConHorasReales.finalPT,
+      tiempo_pt: registroConHorasReales.tiempoPT || "",
 
-    inicio_st: registroConHorasReales.inicioST,
-    final_st: registroConHorasReales.finalST,
-    tiempo_st: registroConHorasReales.tiempoST || "",
+      inicio_st: registroConHorasReales.inicioST,
+      final_st: registroConHorasReales.finalST,
+      tiempo_st: registroConHorasReales.tiempoST || "",
 
-    inicio_var_pt_1: registroConHorasReales.varsPT?.[0]?.inicio || "",
-    final_var_pt_1: registroConHorasReales.varsPT?.[0]?.final || "",
-    inicio_var_pt_2: registroConHorasReales.varsPT?.[1]?.inicio || "",
-    final_var_pt_2: registroConHorasReales.varsPT?.[1]?.final || "",
-    inicio_var_pt_3: registroConHorasReales.varsPT?.[2]?.inicio || "",
-    final_var_pt_3: registroConHorasReales.varsPT?.[2]?.final || "",
+      inicio_var_pt_1: registroConHorasReales.varsPT?.[0]?.inicio || "",
+      final_var_pt_1: registroConHorasReales.varsPT?.[0]?.final || "",
+      inicio_var_pt_2: registroConHorasReales.varsPT?.[1]?.inicio || "",
+      final_var_pt_2: registroConHorasReales.varsPT?.[1]?.final || "",
+      inicio_var_pt_3: registroConHorasReales.varsPT?.[2]?.inicio || "",
+      final_var_pt_3: registroConHorasReales.varsPT?.[2]?.final || "",
 
-    inicio_var_st_1: registroConHorasReales.varsST?.[0]?.inicio || "",
-    final_var_st_1: registroConHorasReales.varsST?.[0]?.final || "",
-    inicio_var_st_2: registroConHorasReales.varsST?.[1]?.inicio || "",
-    final_var_st_2: registroConHorasReales.varsST?.[1]?.final || "",
-    inicio_var_st_3: registroConHorasReales.varsST?.[2]?.inicio || "",
-    final_var_st_3: registroConHorasReales.varsST?.[2]?.final || "",
+      inicio_var_st_1: registroConHorasReales.varsST?.[0]?.inicio || "",
+      final_var_st_1: registroConHorasReales.varsST?.[0]?.final || "",
+      inicio_var_st_2: registroConHorasReales.varsST?.[1]?.inicio || "",
+      final_var_st_2: registroConHorasReales.varsST?.[1]?.final || "",
+      inicio_var_st_3: registroConHorasReales.varsST?.[2]?.inicio || "",
+      final_var_st_3: registroConHorasReales.varsST?.[2]?.final || "",
 
-    inicio_hid_pt: registroConHorasReales.inicioHidratacionPT,
-    final_hid_pt: registroConHorasReales.finalHidratacionPT,
-    inicio_hid_st: registroConHorasReales.inicioHidratacionST,
-    final_hid_st: registroConHorasReales.finalHidratacionST,
+      inicio_hid_pt: registroConHorasReales.inicioHidratacionPT,
+      final_hid_pt: registroConHorasReales.finalHidratacionPT,
+      inicio_hid_st: registroConHorasReales.inicioHidratacionST,
+      final_hid_st: registroConHorasReales.finalHidratacionST,
 
-    cambio_1_tiempo: registroConHorasReales.cambios?.[0]?.hora || "",
-    cambio_1_sale: registroConHorasReales.cambios?.[0]?.sale || "",
-    cambio_1_entra: registroConHorasReales.cambios?.[0]?.entra || "",
+      cambio_1_tiempo: registroConHorasReales.cambios?.[0]?.hora || "",
+      cambio_1_sale: registroConHorasReales.cambios?.[0]?.sale || "",
+      cambio_1_entra: registroConHorasReales.cambios?.[0]?.entra || "",
 
-    cambio_2_tiempo: registroConHorasReales.cambios?.[1]?.hora || "",
-    cambio_2_sale: registroConHorasReales.cambios?.[1]?.sale || "",
-    cambio_2_entra: registroConHorasReales.cambios?.[1]?.entra || "",
+      cambio_2_tiempo: registroConHorasReales.cambios?.[1]?.hora || "",
+      cambio_2_sale: registroConHorasReales.cambios?.[1]?.sale || "",
+      cambio_2_entra: registroConHorasReales.cambios?.[1]?.entra || "",
 
-    cambio_3_tiempo: registroConHorasReales.cambios?.[2]?.hora || "",
-    cambio_3_sale: registroConHorasReales.cambios?.[2]?.sale || "",
-    cambio_3_entra: registroConHorasReales.cambios?.[2]?.entra || "",
+      cambio_3_tiempo: registroConHorasReales.cambios?.[2]?.hora || "",
+      cambio_3_sale: registroConHorasReales.cambios?.[2]?.sale || "",
+      cambio_3_entra: registroConHorasReales.cambios?.[2]?.entra || "",
 
-    cambio_4_tiempo: registroConHorasReales.cambios?.[3]?.hora || "",
-    cambio_4_sale: registroConHorasReales.cambios?.[3]?.sale || "",
-    cambio_4_entra: registroConHorasReales.cambios?.[3]?.entra || "",
+      cambio_4_tiempo: registroConHorasReales.cambios?.[3]?.hora || "",
+      cambio_4_sale: registroConHorasReales.cambios?.[3]?.sale || "",
+      cambio_4_entra: registroConHorasReales.cambios?.[3]?.entra || "",
 
-    cambio_5_tiempo: registroConHorasReales.cambios?.[4]?.hora || "",
-    cambio_5_sale: registroConHorasReales.cambios?.[4]?.sale || "",
-    cambio_5_entra: registroConHorasReales.cambios?.[4]?.entra || "",
+      cambio_5_tiempo: registroConHorasReales.cambios?.[4]?.hora || "",
+      cambio_5_sale: registroConHorasReales.cambios?.[4]?.sale || "",
+      cambio_5_entra: registroConHorasReales.cambios?.[4]?.entra || "",
 
-    rival_cambio_sale1: cambiosRival[0]?.sale || "",
-    rival_cambio_entra1: cambiosRival[0]?.entra || "",
-    rival_cambio_horario1: cambiosRival[0]?.hora || "",
+      rival_cambio_sale1: cambiosRival[0]?.sale || "",
+      rival_cambio_entra1: cambiosRival[0]?.entra || "",
+      rival_cambio_horario1: cambiosRival[0]?.hora || "",
 
-    rival_cambio_sale2: cambiosRival[1]?.sale || "",
-    rival_cambio_entra2: cambiosRival[1]?.entra || "",
-    rival_cambio_horario2: cambiosRival[1]?.hora || "",
+      rival_cambio_sale2: cambiosRival[1]?.sale || "",
+      rival_cambio_entra2: cambiosRival[1]?.entra || "",
+      rival_cambio_horario2: cambiosRival[1]?.hora || "",
 
-    rival_cambio_sale3: cambiosRival[2]?.sale || "",
-    rival_cambio_entra3: cambiosRival[2]?.entra || "",
-    rival_cambio_horario3: cambiosRival[2]?.hora || "",
+      rival_cambio_sale3: cambiosRival[2]?.sale || "",
+      rival_cambio_entra3: cambiosRival[2]?.entra || "",
+      rival_cambio_horario3: cambiosRival[2]?.hora || "",
 
-    rival_cambio_sale4: cambiosRival[3]?.sale || "",
-    rival_cambio_entra4: cambiosRival[3]?.entra || "",
-    rival_cambio_horario4: cambiosRival[3]?.hora || "",
+      rival_cambio_sale4: cambiosRival[3]?.sale || "",
+      rival_cambio_entra4: cambiosRival[3]?.entra || "",
+      rival_cambio_horario4: cambiosRival[3]?.hora || "",
 
-    rival_cambio_sale5: cambiosRival[4]?.sale || "",
-    rival_cambio_entra5: cambiosRival[4]?.entra || "",
-    rival_cambio_horario5: cambiosRival[4]?.hora || "",
+      rival_cambio_sale5: cambiosRival[4]?.sale || "",
+      rival_cambio_entra5: cambiosRival[4]?.entra || "",
+      rival_cambio_horario5: cambiosRival[4]?.hora || "",
 
-    prorroga: serializarProrroga(registroConHorasReales),
-    cambios_extra: (registroConHorasReales.cambios || []).slice(5),
-    cambios_rival_extra: cambiosRival.slice(5),
-    modo_tiempo: registroBase.modoTiempo || "enVivo",
-    captura_tiempo: serializarCapturaTiempo(registroBase),
+      prorroga: serializarProrroga(registroConHorasReales),
+      cambios_extra: (registroConHorasReales.cambios || []).slice(5),
+      cambios_rival_extra: cambiosRival.slice(5),
+      modo_tiempo: registroBase.modoTiempo || "enVivo",
+      captura_tiempo: serializarCapturaTiempo(registroBase),
 
-    titulares: registroConHorasReales.formacion?.titulares || [],
-    convocados: registroConHorasReales.formacion?.convocados || [],
-  };
+      titulares: registroConHorasReales.formacion?.titulares || [],
+      convocados: registroConHorasReales.formacion?.convocados || [],
+    };
   };
 
   const guardarRegistro = async () => {
@@ -3670,11 +3672,7 @@ export default function App() {
           <div className="campo-inicio">
             <label htmlFor="campo-rival-inicio">Rival</label>
             <div className="campo-con-escudo">
-              <EscudoClub
-                nombre={registro.rival}
-                url={escudoRival.url}
-                mini
-              />
+              <EscudoClub nombre={registro.rival} url={escudoRival.url} mini />
               <input
                 id="campo-rival-inicio"
                 value={registro.rival}
@@ -3873,7 +3871,8 @@ export default function App() {
 
     const etiquetaModo = fichaEnNeto ? "Neto" : "Bruto";
     const enModo = (valores) => (fichaEnNeto ? valores.neto : valores.bruto);
-    const duracion = (segundos) => formatearMinutosSegundos(segundos) || "--:--";
+    const duracion = (segundos) =>
+      formatearMinutosSegundos(segundos) || "--:--";
     const nombreRival = item.rival || "Rival";
 
     // Deja claro de quién es lo que se está mirando cuando no son los nuestros.
@@ -4033,7 +4032,10 @@ export default function App() {
     return (
       <div className="app">
         <div className="contenedor ficha-registro">
-          <section className="marcador-ficha" aria-label="Resultado del partido">
+          <section
+            className="marcador-ficha"
+            aria-label="Resultado del partido"
+          >
             <div className="equipos-ficha">
               <div className="equipo-ficha">
                 <EscudoDeClub equipo="cam" nombre={NOMBRE_CAM} />
@@ -4058,36 +4060,43 @@ export default function App() {
             </div>
           </section>
 
-          {/* Qué tiempo mirar: uno a la vez. */}
-          <section className="selector-periodos en-ficha" aria-label="Qué tiempo">
-            <div role="tablist">
-              {tiempos.map((tipo) => (
+          {/* Qué tiempo mirar: uno a la vez. El plantel no depende del tiempo,
+              así que ahí esta fila no se dibuja. Va sacada del árbol y no con
+              hidden: la regla de la barra define display y le ganaría. */}
+          {!fichaInfoGeneral && (
+            <section
+              className="selector-periodos en-ficha"
+              aria-label="Qué tiempo"
+            >
+              <div role="tablist">
+                {tiempos.map((tipo) => (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={vista === tipo}
+                    className={vista === tipo ? "activo" : ""}
+                    onClick={() => setVistaFicha(tipo)}
+                    key={tipo}
+                  >
+                    {tipo}
+                    {Boolean(item[`inicio${tipo}`] && item[`final${tipo}`]) && (
+                      <Icono nombre="check" size={15} />
+                    )}
+                  </button>
+                ))}
+
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={vista === tipo}
-                  className={vista === tipo ? "activo" : ""}
-                  onClick={() => setVistaFicha(tipo)}
-                  key={tipo}
+                  aria-selected={esTotal}
+                  className={esTotal ? "activo" : ""}
+                  onClick={() => setVistaFicha(TOTAL)}
                 >
-                  {tipo}
-                  {Boolean(item[`inicio${tipo}`] && item[`final${tipo}`]) && (
-                    <Icono nombre="check" size={15} />
-                  )}
+                  Total
                 </button>
-              ))}
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected={esTotal}
-                className={esTotal ? "activo" : ""}
-                onClick={() => setVistaFicha(TOTAL)}
-              >
-                Total
-              </button>
-            </div>
-          </section>
+              </div>
+            </section>
+          )}
 
           {/* Cómo mirarlo: tres interruptores que no se pisan entre sí. */}
           <section
@@ -4095,15 +4104,17 @@ export default function App() {
             aria-label="Cómo mirarlo"
           >
             <div>
-              <button
-                type="button"
-                className={`boton-rival-ficha ${fichaDelRival ? "activo" : ""}`}
-                onClick={() => setFichaDelRival((previo) => !previo)}
-                aria-pressed={fichaDelRival}
-              >
-                <EscudoDeClub nombre={item.rival} mini />
-                Rival
-              </button>
+              {!fichaInfoGeneral && (
+                <button
+                  type="button"
+                  className={`boton-rival-ficha ${fichaDelRival ? "activo" : ""}`}
+                  onClick={() => setFichaDelRival((previo) => !previo)}
+                  aria-pressed={fichaDelRival}
+                >
+                  <EscudoDeClub nombre={item.rival} mini />
+                  Rival
+                </button>
+              )}
 
               <button
                 type="button"
@@ -4115,15 +4126,17 @@ export default function App() {
                 {etiquetaModo}
               </button>
 
-              <button
-                type="button"
-                className={fichaCambiosArriba ? "activo" : ""}
-                onClick={() => setFichaCambiosArriba((previo) => !previo)}
-                aria-pressed={fichaCambiosArriba}
-              >
-                <Icono nombre="subir" size={14} />
-                Cambios
-              </button>
+              {!fichaInfoGeneral && (
+                <button
+                  type="button"
+                  className={fichaCambiosArriba ? "activo" : ""}
+                  onClick={() => setFichaCambiosArriba((previo) => !previo)}
+                  aria-pressed={fichaCambiosArriba}
+                >
+                  <Icono nombre="subir" size={14} />
+                  Cambios
+                </button>
+              )}
 
               <button
                 type="button"
@@ -4132,15 +4145,17 @@ export default function App() {
                 aria-pressed={fichaInfoGeneral}
               >
                 <Icono nombre="formacion" size={14} />
-                <span className="texto-largo">Info. General</span>
-                <span className="texto-corto">Info</span>
+                <span className={fichaInfoGeneral ? "" : "texto-largo"}>
+                  Info. General
+                </span>
+                {!fichaInfoGeneral && <span className="texto-corto">Info</span>}
               </button>
             </div>
           </section>
 
-          {[tarjetaCambios, tarjetaLinea].filter(Boolean)}
+          {!fichaInfoGeneral && [tarjetaCambios, tarjetaLinea].filter(Boolean)}
 
-          {(jugadores.length > 0 || resto) && (
+          {!fichaInfoGeneral && (jugadores.length > 0 || resto) && (
             <section className="tarjeta tarjeta-ficha">
               <div className="cabeza-ficha">
                 <b>Tiempo jugado</b>
@@ -4182,7 +4197,6 @@ export default function App() {
                     </span>
                   </li>
                 ))}
-
               </ul>
             </section>
           )}
@@ -4206,11 +4220,19 @@ export default function App() {
           )}
 
           <div className="acciones-dobles">
-            <button type="button" className="boton-secundario" onClick={alVolver}>
+            <button
+              type="button"
+              className="boton-secundario"
+              onClick={alVolver}
+            >
               ← Volver
             </button>
 
-            <button type="button" className="boton-principal" onClick={alEditar}>
+            <button
+              type="button"
+              className="boton-principal"
+              onClick={alEditar}
+            >
               Editar registro
             </button>
           </div>
@@ -5585,10 +5607,7 @@ export default function App() {
   }
 
   if (pantallaFormacion === "manual") {
-    return enMarcoAplicacion(
-      "formacion",
-      renderFormularioFormacion(),
-    );
+    return enMarcoAplicacion("formacion", renderFormularioFormacion());
   }
   if (registroSeleccionado !== null) {
     return enMarcoAplicacion(

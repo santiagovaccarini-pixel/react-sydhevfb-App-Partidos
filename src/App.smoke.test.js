@@ -1260,6 +1260,30 @@ describe("interfaz operativa", () => {
     // Y al lado de los que nunca salieron va lo que duró el partido.
     const nunca = contenedor.querySelectorAll(".grupo-plantel")[3];
     expect(nunca.querySelector("em").textContent.trim()).toBe("94:40");
+
+    // Es una pantalla aparte: no queda nada del resto de la ficha.
+    expect(
+      Array.from(contenedor.querySelectorAll(".tarjeta-ficha .cabeza-ficha b")).map(
+        (titulo) => titulo.textContent.trim(),
+      ),
+    ).toEqual(["Info. General"]);
+
+    // Tampoco la fila de tiempos ni los interruptores que no aplican acá.
+    expect(contenedor.querySelectorAll(".selector-periodos.en-ficha")).toHaveLength(1);
+    expect(
+      Array.from(contenedor.querySelectorAll(".interruptores button")).map((boton) =>
+        boton.textContent.trim(),
+      ),
+    ).toEqual(["Bruto", "Info. General"]);
+
+    // Y al apagarlo vuelve todo a su lugar.
+    await act(async () => contenedor.querySelector(".boton-info-ficha").click());
+    expect(
+      Array.from(contenedor.querySelectorAll(".tarjeta-ficha .cabeza-ficha b")).map(
+        (titulo) => titulo.textContent.trim(),
+      ),
+    ).toEqual(["Todo el partido", "Tiempo jugado"]);
+    expect(contenedor.querySelectorAll(".selector-periodos.en-ficha")).toHaveLength(2);
   });
 
   test("el interruptor de cambios sube esa tarjeta arriba de la línea", async () => {
