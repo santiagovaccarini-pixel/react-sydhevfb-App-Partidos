@@ -4015,7 +4015,7 @@ export default function App() {
       : cortesDePeriodo(item, vista, lista);
     const cambios = cortes.filter((corte) => corte.clase === "cambio");
 
-    const { jugadores, resto } = tiempoJugado(item, {
+    const { jugadores } = tiempoJugado(item, {
       periodo: esTotal ? null : vista,
       lista,
     });
@@ -4354,12 +4354,9 @@ export default function App() {
                 soloLectura
               />
 
-              {renderGrupoPlantel("Titulares", plantel.titulares, {
-                numerado: true,
-              })}
-              {renderGrupoPlantel("Nunca salieron", plantel.nuncaSalieron, {
-                medida: resto ? duracion(enModo(resto)) : "",
-              })}
+              {/* Los titulares son los que están en la cancha y los que nunca
+                  salieron se ven ahí mismo, sin el cambio encima: abajo solo
+                  hacen falta los que no llegaron a entrar. */}
               {renderGrupoPlantel("No ingresaron", plantel.noIngresaron, {
                 apagado: true,
               })}

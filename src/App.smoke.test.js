@@ -1463,19 +1463,37 @@ describe("interfaz operativa", () => {
       ],
     );
 
-    // Sin los del banco, que no se piden: titulares, los que jugaron enteros
-    // y los que se quedaron sin entrar.
-    expect(grupos).toEqual([
-      ["Titulares", ["1ALONSO", "2SCARPA", "3ARANA"]],
-      // ALONSO y SCARPA salieron; ARANA jugó de principio a fin.
-      ["Nunca salieron", ["ARANA"]],
-      // IGOR se quedó en el banco: es el único que no llegó a entrar.
-      ["No ingresaron", ["IGOR"]],
-    ]);
+    // Los titulares y los que nunca salieron ya se leen en la cancha, así que
+    // abajo queda solo el que no llegó a entrar. Los del banco no se piden.
+    expect(grupos).toEqual([["No ingresaron", ["IGOR"]]]);
 
-    // Y al lado de los que nunca salieron va lo que duró el partido.
-    const nunca = contenedor.querySelectorAll(".grupo-plantel")[1];
-    expect(nunca.querySelector("em").textContent.trim()).toBe("94:40");
+    // Y los tres titulares están en la cancha.
+    const enCancha = () =>
+      Array.from(
+        contenedor.querySelectorAll(".pista .ficha-cancha:not(.vacia)"),
+      ).map((ficha) =>
+        (ficha.querySelector(".salio-cancha") || ficha).textContent
+          .replace("↓", "")
+          .trim(),
+      );
+    expect(enCancha()).toEqual(["ALONSO", "SCARPA", "ARANA"]);
+
+    // Mirando todo el partido, cada cambio va sobre el que salió: el que sale,
+    // el que entra y la hora, todo en la misma ficha.
+    await elegirTiempo("Total");
+    const cambios = Array.from(
+      contenedor.querySelectorAll(".pista .ficha-cancha.cambiada"),
+    ).map((ficha) => [
+      ficha.querySelector(".salio-cancha").textContent.trim(),
+      ficha.querySelector(".entro-cancha").textContent.trim(),
+      ficha.querySelector(".minuto-cancha").textContent.trim(),
+    ]);
+    expect(cambios).toEqual([
+      ["↓ ALONSO", "↑ BERNARD", "21:23:14"],
+      ["↓ SCARPA", "↑ DUDU", "22:18:00"],
+    ]);
+    // ARANA jugó entero: su ficha queda sin el cambio encima.
+    expect(enCancha()).toContain("ARANA");
 
     // Es su propia pantalla: la línea de tiempo deja lugar y quedan el tiempo
     // jugado y el plantel.
