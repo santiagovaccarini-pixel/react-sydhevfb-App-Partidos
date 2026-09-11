@@ -120,14 +120,21 @@ const Puesto = ({
     ? `${puesto.nombre}, puesto ${puesto.numero}`
     : `Puesto ${puesto.numero} libre`;
 
-  // Al que lo cambiaron se lee como el cambio: el que sale arriba en rojo, el
-  // que entra abajo en verde, y la hora del cambio bien a la vista.
+  // Al que lo cambiaron se lee como un cambio: su cuadro de siempre con la
+  // flecha roja y, abajo, un cuadro negro con el que entró y la hora. La hora
+  // va en su propia línea: al lado del nombre, con cuatro en una fila, no
+  // entrarían los dos.
   const adentro = cambio ? (
-    <span className="ficha-cancha cambiada">
-      <b className="salio-cancha">↓ {apellido(puesto.nombre)}</b>
-      <b className="entro-cancha">↑ {apellido(cambio.entra)}</b>
-      <i className="minuto-cancha">{cambio.hora}</i>
-    </span>
+    <>
+      <span className="ficha-cancha salio-cancha">
+        {apellido(puesto.nombre)}
+        <i>↓</i>
+      </span>
+      <span className="entro-cancha">
+        <b>↑ {apellido(cambio.entra)}</b>
+        <em>{cambio.hora}</em>
+      </span>
+    </>
   ) : puesto.nombre ? (
     <span className="ficha-cancha">{apellido(puesto.nombre)}</span>
   ) : (
@@ -142,7 +149,11 @@ const Puesto = ({
 
   if (soloLectura) {
     return (
-      <span className="puesto-cancha" style={estilo} title={etiqueta}>
+      <span
+        className={`puesto-cancha ${cambio ? "con-cambio" : ""}`}
+        style={estilo}
+        title={etiqueta}
+      >
         {adentro}
       </span>
     );
@@ -154,7 +165,7 @@ const Puesto = ({
       type="button"
       className={`puesto-cancha ${puesto.aMano ? "a-mano" : ""} ${
         moviendo ? "moviendo" : ""
-      }`}
+      } ${cambio ? "con-cambio" : ""}`}
       style={estilo}
       aria-label={etiqueta}
       onClick={tocar}

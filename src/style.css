@@ -5060,36 +5060,59 @@ button:disabled {
   font-weight: 800;
 }
 
-/* Un titular al que cambiaron: sale, entra y la hora, sobre su mismo puesto. */
-.ficha-cancha.cambiada {
-  display: grid;
-  padding: 4px 8px 5px;
-  gap: 1px;
-  justify-items: start;
-  line-height: 1.25;
+/* Un titular al que cambiaron: su cuadro de siempre con la flecha roja y,
+   pegado abajo, el cuadro negro del que entró con la hora del cambio. */
+.puesto-cancha.con-cambio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
 .salio-cancha {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 4px;
+}
+
+.salio-cancha i {
+  flex: 0 0 auto;
   color: #c1121f;
-  font-size: 9px;
-  font-weight: 800;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1;
 }
 
 .entro-cancha {
-  color: var(--cam-verde-oscuro);
-  font-size: 9px;
-  font-weight: 800;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 7px 5px;
+  border-radius: 11px;
+  background: #0f172a;
+  gap: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
-.minuto-cancha {
-  margin-top: 2px;
-  padding: 1px 5px;
-  border-radius: 5px;
-  background: var(--cam-tinta);
-  color: #fff;
-  font-size: 8.5px;
+.entro-cancha b {
+  max-width: 100%;
+  overflow: hidden;
+  color: #4ade80;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.entro-cancha em {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 9px;
   font-style: normal;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.2px;
 }

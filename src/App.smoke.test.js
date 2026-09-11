@@ -1478,22 +1478,25 @@ describe("interfaz operativa", () => {
       );
     expect(enCancha()).toEqual(["ALONSO", "SCARPA", "ARANA"]);
 
-    // Mirando todo el partido, cada cambio va sobre el que salió: el que sale,
-    // el que entra y la hora, todo en la misma ficha.
+    // Mirando todo el partido, cada cambio queda sobre el que salió: su cuadro
+    // de siempre y, abajo, el cuadro negro del que entró con la hora.
     await elegirTiempo("Total");
     const cambios = Array.from(
-      contenedor.querySelectorAll(".pista .ficha-cancha.cambiada"),
-    ).map((ficha) => [
-      ficha.querySelector(".salio-cancha").textContent.trim(),
-      ficha.querySelector(".entro-cancha").textContent.trim(),
-      ficha.querySelector(".minuto-cancha").textContent.trim(),
+      contenedor.querySelectorAll(".pista .puesto-cancha.con-cambio"),
+    ).map((puesto) => [
+      puesto.querySelector(".salio-cancha").textContent.trim(),
+      puesto.querySelector(".entro-cancha b").textContent.trim(),
+      puesto.querySelector(".entro-cancha em").textContent.trim(),
     ]);
     expect(cambios).toEqual([
-      ["↓ ALONSO", "↑ BERNARD", "21:23:14"],
-      ["↓ SCARPA", "↑ DUDU", "22:18:00"],
+      ["ALONSO↓", "↑ BERNARD", "21:23:14"],
+      ["SCARPA↓", "↑ DUDU", "22:18:00"],
     ]);
-    // ARANA jugó entero: su ficha queda sin el cambio encima.
+    // ARANA jugó entero: queda con su cuadro solo, sin el negro abajo.
     expect(enCancha()).toContain("ARANA");
+    expect(
+      contenedor.querySelectorAll(".pista .puesto-cancha.con-cambio"),
+    ).toHaveLength(2);
 
     // Es su propia pantalla: la línea de tiempo deja lugar y quedan el tiempo
     // jugado y el plantel.
