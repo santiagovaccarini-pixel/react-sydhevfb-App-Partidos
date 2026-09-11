@@ -5121,3 +5121,46 @@ button.puesto-cancha {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+
+/* El desplegable de un puesto dice de qué línea es y ofrece a los de esa
+   línea; el resto del plantel queda detrás de "Ver todo el plantel". */
+.alto-elegir b {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.alto-elegir b i {
+  color: #4ade80;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.sin-jugadores {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 4px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.pie-elegir {
+  display: grid;
+  gap: 6px;
+}
+
+.ver-todos {
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  background: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}

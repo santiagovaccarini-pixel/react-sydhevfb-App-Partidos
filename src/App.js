@@ -3681,7 +3681,7 @@ export default function App() {
             <CanchaFormacion
               titulo="Titulares de campo"
               cancha={formacionTemporal.cancha}
-              opciones={nombresPlantel}
+              plantel={plantel}
               onCambiar={actualizarCanchaTemporal}
             />
           </section>

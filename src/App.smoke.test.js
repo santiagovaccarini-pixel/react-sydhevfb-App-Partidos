@@ -669,6 +669,66 @@ describe("interfaz operativa", () => {
     ).toBe(nombre.split(/\s+/).pop());
   });
 
+  test("cada línea de la cancha ofrece a los jugadores de ese sector", async () => {
+    localStorage.removeItem("registro_actual_partido");
+    doblesSupabase.jugadores = [
+      { id: 1, nombre: "VITAO", roles: ["Defensa"], puestos: ["DEF"] },
+      { id: 2, nombre: "LYANCO", roles: ["Defensa"], puestos: ["DEF"] },
+      // Con dos roles tiene que aparecer en las dos líneas.
+      { id: 3, nombre: "ALAN FRANCO", roles: ["Defensa", "Mediocampo"], puestos: [] },
+      { id: 4, nombre: "SCARPA", roles: ["Mediocampo"], puestos: ["VO"] },
+      { id: 5, nombre: "HULK", roles: ["Ataque"], puestos: ["DEL"] },
+      // Sin rol cargado: no es de ninguna línea, pero tiene que poder elegirse.
+      { id: 6, nombre: "FRED", roles: [], puestos: [] },
+    ];
+
+    await montarApp();
+
+    const ingresar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Ingresar Formación"),
+    );
+    await act(async () => ingresar.click());
+
+    const abrirPuesto = async (indice) => {
+      await act(async () =>
+        contenedor.querySelectorAll(".pista .puesto-cancha")[indice].click(),
+      );
+    };
+    const ofrecidos = () =>
+      Array.from(
+        contenedor.querySelectorAll(".lista-elegir button"),
+      ).map((boton) => boton.textContent.replace("en cancha", "").trim());
+
+    // La formación arranca 4-4-2: 0 a 3 son defensa, 4 a 7 mediocampo, 8 y 9
+    // ataque.
+    await abrirPuesto(0);
+    expect(
+      contenedor.querySelector(".alto-elegir b i").textContent.trim(),
+    ).toBe("Defensa");
+    expect(ofrecidos()).toEqual(["ALAN FRANCO", "LYANCO", "VITAO"]);
+
+    await act(async () => contenedor.querySelector(".cerrar-elegir").click());
+    await abrirPuesto(9);
+    expect(
+      contenedor.querySelector(".alto-elegir b i").textContent.trim(),
+    ).toBe("Ataque");
+    expect(ofrecidos()).toEqual(["HULK"]);
+
+    // Y el resto del plantel sigue a mano, con FRED, que no tiene rol.
+    const verTodos = contenedor.querySelector(".ver-todos");
+    expect(verTodos.textContent).toContain("Ver todo el plantel");
+    await act(async () => verTodos.click());
+    expect(ofrecidos()).toContain("FRED");
+    expect(ofrecidos()).toContain("VITAO");
+
+    await act(async () => contenedor.querySelector(".cerrar-elegir").click());
+    await abrirPuesto(4);
+    expect(
+      contenedor.querySelector(".alto-elegir b i").textContent.trim(),
+    ).toBe("Mediocampo");
+    expect(ofrecidos()).toEqual(["ALAN FRANCO", "SCARPA"]);
+  });
+
   test("la formación se arma tocando cuántos van en cada línea", async () => {
     localStorage.removeItem("registro_actual_partido");
 

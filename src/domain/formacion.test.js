@@ -6,6 +6,7 @@ import {
   cambiarLinea,
   canchaDesdeTitulares,
   hayPuestosAMano,
+  jugadoresDeLaFranja,
   moverPuesto,
   nombreDeFormacion,
   normalizarCancha,
@@ -278,5 +279,49 @@ describe("canchaDesdeTitulares", () => {
       "VITAO",
       "SCARPA",
     ]);
+  });
+});
+
+describe("jugadoresDeLaFranja", () => {
+  const PLANTEL = [
+    { nombre: "VITAO", roles: ["Defensa"] },
+    { nombre: "LYANCO", roles: ["Defensa"] },
+    // Un jugador puede tener más de un rol: aparece en las dos líneas.
+    { nombre: "ALAN FRANCO", roles: ["Defensa", "Mediocampo"] },
+    { nombre: "SCARPA", roles: ["Mediocampo"] },
+    { nombre: "HULK", roles: ["Ataque"] },
+    { nombre: "FRED", roles: [] },
+  ];
+
+  it("ofrece solo a los de esa línea", () => {
+    expect(jugadoresDeLaFranja(PLANTEL, "ata").map((j) => j.nombre)).toEqual([
+      "HULK",
+    ]);
+    expect(jugadoresDeLaFranja(PLANTEL, "med").map((j) => j.nombre)).toEqual([
+      "ALAN FRANCO",
+      "SCARPA",
+    ]);
+  });
+
+  it("repite al que juega en varias", () => {
+    expect(jugadoresDeLaFranja(PLANTEL, "def").map((j) => j.nombre)).toContain(
+      "ALAN FRANCO",
+    );
+    expect(jugadoresDeLaFranja(PLANTEL, "med").map((j) => j.nombre)).toContain(
+      "ALAN FRANCO",
+    );
+  });
+
+  it("deja afuera al que no tiene rol cargado", () => {
+    FRANJAS.forEach((franja) => {
+      expect(
+        jugadoresDeLaFranja(PLANTEL, franja.id).map((j) => j.nombre),
+      ).not.toContain("FRED");
+    });
+  });
+
+  it("aguanta un plantel vacío o una franja que no existe", () => {
+    expect(jugadoresDeLaFranja(null, "def")).toEqual([]);
+    expect(jugadoresDeLaFranja(PLANTEL, "arquero")).toEqual([]);
   });
 });

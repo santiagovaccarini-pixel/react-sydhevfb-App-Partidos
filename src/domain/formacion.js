@@ -9,10 +9,14 @@
 
 export const MAXIMO_EN_CANCHA = 10;
 
+// El `rol` es el que se le carga a cada jugador en Ajustes › Posiciones, y es
+// lo que decide a quién ofrece el desplegable de cada línea. Va aparte del
+// nombre a propósito: cambiarle el título a una franja no tiene por qué
+// romper el filtro.
 export const FRANJAS = [
-  { id: "def", nombre: "Defensa", desde: 67, hasta: 85 },
-  { id: "med", nombre: "Mediocampo", desde: 39, hasta: 59 },
-  { id: "ata", nombre: "Ataque", desde: 12, hasta: 29 },
+  { id: "def", nombre: "Defensa", rol: "Defensa", desde: 67, hasta: 85 },
+  { id: "med", nombre: "Mediocampo", rol: "Mediocampo", desde: 39, hasta: 59 },
+  { id: "ata", nombre: "Ataque", rol: "Ataque", desde: 12, hasta: 29 },
 ];
 
 export const LINEAS_POR_DEFECTO = { def: 4, med: 4, ata: 2 };
@@ -271,6 +275,19 @@ export const nombreDeFormacion = (cancha) => {
 };
 
 /** En la cancha entra el apellido; el nombre completo queda en la lista. */
+/**
+ * Los del plantel que juegan en esa línea. Un jugador puede tener más de un
+ * rol, así que puede aparecer en varias.
+ */
+export const jugadoresDeLaFranja = (plantel, franjaId) => {
+  const franja = FRANJAS.find((una) => una.id === franjaId);
+  if (!franja) return [];
+
+  return (plantel || []).filter((jugador) =>
+    (jugador?.roles || []).includes(franja.rol),
+  );
+};
+
 export const apellido = (nombre) =>
   String(nombre || "")
     .trim()
