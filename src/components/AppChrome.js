@@ -153,6 +153,7 @@ const destinos = [
   { id: "partido", etiqueta: "Partido", icono: "partido" },
   { id: "formacion", etiqueta: "Formación", icono: "formacion" },
   { id: "registros", etiqueta: "Registros", icono: "registros" },
+  { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
 
 export const MarcoAplicacion = ({

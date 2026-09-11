@@ -11,11 +11,46 @@ const doblesSupabase = vi.hoisted(() => ({
   errorGuardado: null,
   filasHistorial: [],
   actualizar: vi.fn(),
+  jugadores: [],
+  errorJugadores: null,
+  insertarJugador: vi.fn(),
+  actualizarJugador: vi.fn(),
+  borrarJugador: vi.fn(),
 }));
 
 vi.mock("./supabase.js", () => ({
   supabase: {
-    from: () => {
+    from: (tabla) => {
+      if (tabla === "jugadores") {
+        const consulta = {
+          select: () => consulta,
+          order: async () => ({
+            data: doblesSupabase.jugadores,
+            error: doblesSupabase.errorJugadores,
+          }),
+          insert: (filas) => {
+            doblesSupabase.insertarJugador(filas);
+            return {
+              select: async () => ({
+                data: [{ id: 99, ...filas[0] }],
+                error: null,
+              }),
+            };
+          },
+          update: (cambios) => {
+            doblesSupabase.actualizarJugador(cambios);
+            return { eq: async () => ({ data: [], error: null }) };
+          },
+          delete: () => ({
+            eq: async (campo, valor) => {
+              doblesSupabase.borrarJugador(valor);
+              return { data: [], error: null };
+            },
+          }),
+        };
+        return consulta;
+      }
+
       const consulta = {
         select: () => consulta,
         order: async () => ({
@@ -122,6 +157,11 @@ describe("interfaz operativa", () => {
     vi.stubGlobal("scrollTo", vi.fn());
     doblesSupabase.insertar.mockClear();
     doblesSupabase.actualizar.mockClear();
+    doblesSupabase.insertarJugador.mockClear();
+    doblesSupabase.actualizarJugador.mockClear();
+    doblesSupabase.borrarJugador.mockClear();
+    doblesSupabase.jugadores = [];
+    doblesSupabase.errorJugadores = null;
     doblesSupabase.errorHistorial = null;
     doblesSupabase.errorGuardado = null;
     doblesSupabase.filasHistorial = [];
@@ -228,12 +268,13 @@ describe("interfaz operativa", () => {
     expect(marcadorInicial[0].value).toBe("1");
     expect(marcadorInicial[1].value).toBe("");
     expect(marcadorInicial[1].placeholder).toBe("0");
+    // Partido, Formación, Registros y Ajustes.
     expect(
       contenedor.querySelectorAll(".navegacion-movil button"),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     expect(
       contenedor.querySelectorAll(".navegacion-escritorio button"),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
 
     const accionPeriodo = contenedor.querySelector(".accion-periodo");
     await act(async () => accionPeriodo.click());
@@ -331,12 +372,13 @@ describe("interfaz operativa", () => {
         (boton) => boton.textContent.includes(etiqueta),
       );
 
-    expect(destinos()).toEqual(["Formación", "Registros"]);
+    // Sin partido en curso no está Partido, pero Ajustes está siempre.
+    expect(destinos()).toEqual(["Formación", "Registros", "Ajustes"]);
 
     await act(async () => irA("Registros").click());
     await act(async () => irA("Formación").click());
 
-    expect(destinos()).toEqual(["Formación", "Registros"]);
+    expect(destinos()).toEqual(["Formación", "Registros", "Ajustes"]);
     expect(contenedor.textContent).not.toContain("Volver al partido");
   });
 
@@ -374,9 +416,10 @@ describe("interfaz operativa", () => {
     );
 
     expect(hoja()).toBeNull();
+    // Sin partido en curso quedan Formación, Registros y Ajustes.
     expect(
       contenedor.querySelectorAll(".navegacion-movil button"),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
   });
 
   test("la pantalla principal muestra el enfrentamiento y lleva al partido", async () => {
@@ -1420,6 +1463,190 @@ describe("interfaz operativa", () => {
     });
     expect(renglones[0].textContent).toBe("↓ SCARPA↑ DUDU");
     expect(renglones[1].textContent).toBe("↓ ARANA↑ HULK");
+  });
+
+  test("Ajustes lleva al plantel y lo muestra desde la base", async () => {
+    doblesSupabase.jugadores = [
+      { id: 1, nombre: "ALONSO", roles: ["Mediocampo"], puestos: ["VM", "LAT"] },
+      { id: 2, nombre: "HULK", roles: ["Ataque"], puestos: ["DEL"] },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    const opcion = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
+        boton.textContent.includes(etiqueta),
+      );
+
+    await act(async () => irA("Ajustes").click());
+    expect(contenedor.querySelector("h1").textContent).toBe("Ajustes");
+
+    await act(async () => opcion("Jugadores").click());
+    await act(async () => opcion("Lista").click());
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Lista");
+    expect(
+      Array.from(contenedor.querySelectorAll(".nombre-lista")).map((x) =>
+        x.textContent.trim(),
+      ),
+    ).toEqual(["ALONSO", "HULK"]);
+  });
+
+  test("agregar un jugador lo manda a la base y a la lista", async () => {
+    doblesSupabase.jugadores = [
+      { id: 1, nombre: "ALONSO", roles: [], puestos: [] },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    const opcion = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
+        boton.textContent.includes(etiqueta),
+      );
+
+    await act(async () => irA("Ajustes").click());
+    await act(async () => opcion("Jugadores").click());
+    await act(async () => opcion("Lista").click());
+
+    const campo = contenedor.querySelector(".agregar-jugador input");
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    await act(async () => {
+      escribir.call(campo, "FRED");
+      campo.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      contenedor.querySelector(".agregar-jugador button").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(doblesSupabase.insertarJugador).toHaveBeenCalledTimes(1);
+    expect(doblesSupabase.insertarJugador.mock.calls[0][0][0]).toMatchObject({
+      nombre: "FRED",
+    });
+
+    // Y aparece en la lista, ordenado.
+    expect(
+      Array.from(contenedor.querySelectorAll(".nombre-lista")).map((x) =>
+        x.textContent.trim(),
+      ),
+    ).toEqual(["ALONSO", "FRED"]);
+  });
+
+  test("marcar un rol lo guarda sin botón de guardar", async () => {
+    doblesSupabase.jugadores = [
+      { id: 1, nombre: "ALONSO", roles: [], puestos: ["VM"] },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    const opcion = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
+        boton.textContent.includes(etiqueta),
+      );
+
+    await act(async () => irA("Ajustes").click());
+    await act(async () => opcion("Jugadores").click());
+    await act(async () => opcion("Posiciones").click());
+
+    const rol = Array.from(contenedor.querySelectorAll(".chip-rol")).find(
+      (boton) => boton.textContent.trim() === "Mediocampo",
+    );
+    expect(rol.className).not.toContain("activo");
+
+    await act(async () => {
+      rol.click();
+      await Promise.resolve();
+    });
+
+    expect(doblesSupabase.actualizarJugador).toHaveBeenCalledTimes(1);
+    expect(doblesSupabase.actualizarJugador.mock.calls[0][0]).toMatchObject({
+      roles: ["Mediocampo"],
+      puestos: ["VM"],
+    });
+
+    // Y queda marcado en pantalla, sin recargar.
+    expect(
+      Array.from(contenedor.querySelectorAll(".chip-rol.activo")).map((x) =>
+        x.textContent.trim(),
+      ),
+    ).toEqual(["Mediocampo"]);
+  });
+
+  test("con cuatro puestos ya no se puede sumar otro", async () => {
+    doblesSupabase.jugadores = [
+      { id: 1, nombre: "ZARACHO", roles: [], puestos: ["VO", "VM", "MP", "EXT"] },
+      { id: 2, nombre: "HULK", roles: [], puestos: ["DEL"] },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    const opcion = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
+        boton.textContent.includes(etiqueta),
+      );
+
+    await act(async () => irA("Ajustes").click());
+    await act(async () => opcion("Jugadores").click());
+    await act(async () => opcion("Posiciones").click());
+
+    const bloques = contenedor.querySelectorAll(".jugador-puestos");
+    const puestosDe = (bloque) =>
+      Array.from(bloque.querySelectorAll(".boton-puesto")).map((x) =>
+        x.textContent.trim(),
+      );
+
+    // El plantel viene alfabético, así que HULK va primero: con un solo
+    // puesto le queda el botón de agregar.
+    expect(puestosDe(bloques[0])).toEqual(["DEL", "+"]);
+    // Y ZARACHO, con los cuatro llenos, ya no lo tiene.
+    expect(puestosDe(bloques[1])).toEqual(["VO", "VM", "MP", "EXT"]);
+  });
+
+  test("si la base no responde, los desplegables igual tienen nombres", async () => {
+    doblesSupabase.errorJugadores = { message: "sin permiso" };
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    const opcion = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
+        boton.textContent.includes(etiqueta),
+      );
+
+    await act(async () => irA("Ajustes").click());
+    await act(async () => opcion("Jugadores").click());
+    await act(async () => opcion("Lista").click());
+
+    // Cae al plantel del código: una lista vacía dejaría la app inutilizable.
+    const nombres = Array.from(contenedor.querySelectorAll(".nombre-lista")).map(
+      (x) => x.textContent.trim(),
+    );
+    expect(nombres.length).toBeGreaterThan(30);
+    expect(nombres).toContain("ALONSO");
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {

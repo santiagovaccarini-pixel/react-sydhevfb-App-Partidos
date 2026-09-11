@@ -8,6 +8,18 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import {
+  MAXIMO_PUESTOS,
+  PUESTOS,
+  ROLES,
+  agregarJugador,
+  cargarPlantel,
+  guardarPuestos,
+  nombrePuesto,
+  nombresDelPlantel,
+  plantelDeRespaldo,
+  quitarJugador,
+} from "./domain/plantel";
+import {
   calcularNoIngresaron,
   clavePartido,
   convertirNombreJugador,
@@ -86,7 +98,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.11.4";
+const APP_VERSION = "2026.09.11.5";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -720,25 +732,105 @@ const CampoTiempo = ({
   );
 };
 
+/**
+ * El plantel que se edita en Ajustes tiene que llegar a todos los desplegables
+ * de nombre, que están repartidos por media app. Va por contexto para no
+ * encadenar la lista pantalla por pantalla.
+ */
+const ContextoPlantel = React.createContext(null);
+
 const InputJugador = ({
   value,
   onChange,
   className,
   placeholder,
-  opciones = jugadores,
+  opciones,
   relevantes = 0,
   etiquetaRelevantes = "",
-}) => (
-  <SelectorNombre
-    value={value}
-    onChange={onChange}
-    opciones={opciones}
-    relevantes={relevantes}
-    etiquetaRelevantes={etiquetaRelevantes}
-    className={className}
-    placeholder={placeholder}
-  />
-);
+}) => {
+  const delContexto = React.useContext(ContextoPlantel);
+
+  return (
+    <SelectorNombre
+      value={value}
+      onChange={onChange}
+      opciones={opciones || delContexto || jugadores}
+      relevantes={relevantes}
+      etiquetaRelevantes={etiquetaRelevantes}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+};
+
+/**
+ * Muestra la sigla y abre la lista con los nombres completos. Un desplegable
+ * común muestra el texto de la opción elegida, así que con él no se podría ver
+ * "VM" cerrado y "Volante Mixto" adentro.
+ */
+const SelectorPuesto = ({ sigla = "", elegidos = [], onElegir }) => {
+  const [abierto, setAbierto] = useState(false);
+
+  return (
+    <span className="puesto-jugador">
+      <button
+        type="button"
+        className={`boton-puesto ${abierto ? "abierto" : ""} ${sigla ? "" : "vacio"}`}
+        onClick={() => setAbierto((previo) => !previo)}
+        aria-expanded={abierto}
+        aria-label={sigla ? nombrePuesto(sigla) : "Agregar puesto"}
+      >
+        {sigla || "+"}
+      </button>
+
+      {abierto && (
+        <>
+          <span
+            className="tapa-puesto"
+            onClick={() => setAbierto(false)}
+            aria-hidden="true"
+          />
+          <span className="lista-puestos">
+            {PUESTOS.map((puesto) => {
+              // Los que ya tiene no se pueden repetir, salvo el de este botón.
+              const tomado =
+                elegidos.includes(puesto.sigla) && puesto.sigla !== sigla;
+
+              return (
+                <button
+                  type="button"
+                  key={puesto.sigla}
+                  className={puesto.sigla === sigla ? "activo" : ""}
+                  disabled={tomado}
+                  onClick={() => {
+                    onElegir(puesto.sigla);
+                    setAbierto(false);
+                  }}
+                >
+                  <i>{puesto.sigla}</i>
+                  {puesto.nombre}
+                </button>
+              );
+            })}
+
+            {sigla && (
+              <button
+                type="button"
+                className="quitar-puesto"
+                onClick={() => {
+                  onElegir(null);
+                  setAbierto(false);
+                }}
+              >
+                Quitar este puesto
+              </button>
+            )}
+          </span>
+        </>
+      )}
+    </span>
+  );
+};
 
 const InputJugadorRival = ({
   value,
@@ -1034,6 +1126,17 @@ export default function App() {
   const [fichaCambiosArriba, setFichaCambiosArriba] = useState(false);
   const [fichaInfoGeneral, setFichaInfoGeneral] = useState(false);
   const [fichaEnJuego, setFichaEnJuego] = useState(false);
+
+  // El plantel se edita en Ajustes y lo usan todos los desplegables de nombre.
+  const [plantel, setPlantel] = useState(() => plantelDeRespaldo());
+  const [plantelDesde, setPlantelDesde] = useState("respaldo");
+  const [vistaAjustes, setVistaAjustes] = useState("inicio");
+  const [nombreNuevo, setNombreNuevo] = useState("");
+  const [buscadorPlantel, setBuscadorPlantel] = useState("");
+  const [avisoPlantel, setAvisoPlantel] = useState("");
+
+  // Los desplegables de nombre de toda la app leen el plantel de acá.
+  const nombresPlantel = useMemo(() => nombresDelPlantel(plantel), [plantel]);
   const [equipoCambios, setEquipoCambios] = useState("atletico");
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
@@ -1096,6 +1199,20 @@ export default function App() {
       registro.cambiosRival,
     ],
   );
+
+  useEffect(() => {
+    let vigente = true;
+
+    cargarPlantel().then(({ plantel: lista, desde }) => {
+      if (!vigente) return;
+      setPlantel(lista);
+      setPlantelDesde(desde);
+    });
+
+    return () => {
+      vigente = false;
+    };
+  }, []);
 
   const posicionScrollPendiente = useRef(null);
   const convertirSupabaseARegistro = (fila) => {
@@ -5150,6 +5267,321 @@ export default function App() {
     );
   };
 
+  const avisar = (texto) => {
+    setAvisoPlantel(texto);
+    window.setTimeout(() => setAvisoPlantel(""), 2600);
+  };
+
+  const recargarPlantel = async () => {
+    const { plantel: lista, desde } = await cargarPlantel();
+    setPlantel(lista);
+    setPlantelDesde(desde);
+  };
+
+  const sumarJugador = async () => {
+    const { error, jugador } = await agregarJugador(nombreNuevo);
+    if (error) return avisar(error);
+
+    setNombreNuevo("");
+    setPlantel((previo) =>
+      [...previo, jugador].sort((uno, otro) =>
+        uno.nombre.localeCompare(otro.nombre, "es"),
+      ),
+    );
+    avisar(`${jugador.nombre} agregado.`);
+  };
+
+  const sacarJugador = (jugador) => {
+    setConfirmacion({
+      titulo: `¿Quitar a ${jugador.nombre}?`,
+      descripcion:
+        "Deja de aparecer en los desplegables de nombre. Los partidos ya guardados no se tocan.",
+      etiquetaConfirmar: "Sí, quitar",
+      onConfirmar: async () => {
+        const { error } = await quitarJugador(jugador.id);
+        if (error) return avisar(error);
+
+        setPlantel((previo) => previo.filter((item) => item.id !== jugador.id));
+        avisar(`${jugador.nombre} quitado.`);
+      },
+    });
+  };
+
+  // Se guarda al toque: son cambios de un toque y volver atrás a buscar un
+  // botón de guardar sería peor que el ahorro.
+  const cambiarPuestos = async (jugador, cambios) => {
+    const actualizado = { ...jugador, ...cambios };
+    setPlantel((previo) =>
+      previo.map((item) => (item.id === jugador.id ? actualizado : item)),
+    );
+
+    const { error } = await guardarPuestos(jugador.id, {
+      roles: actualizado.roles,
+      puestos: actualizado.puestos,
+    });
+    if (error) {
+      avisar("No se pudo guardar. Revisá la conexión.");
+      recargarPlantel();
+    }
+  };
+
+  const alternarRol = (jugador, rol) =>
+    cambiarPuestos(jugador, {
+      roles: jugador.roles.includes(rol)
+        ? jugador.roles.filter((item) => item !== rol)
+        : [...jugador.roles, rol],
+    });
+
+  const cambiarPuesto = (jugador, indice, sigla) => {
+    const puestos = [...jugador.puestos];
+    if (sigla === null) puestos.splice(indice, 1);
+    else puestos[indice] = sigla;
+    return cambiarPuestos(jugador, { puestos });
+  };
+
+  const renderAjustes = () => (
+    <div className="app">
+      <div className="contenedor">
+        <header className="encabezado">
+          <h1>Ajustes</h1>
+          <p>Lo que la app usa en todas las pantallas.</p>
+        </header>
+
+        <button
+          type="button"
+          className="opcion-ajuste"
+          onClick={() => setVistaAjustes("jugadores")}
+        >
+          <span className="icono-ajuste">
+            <Icono nombre="formacion" size={18} />
+          </span>
+          <span className="texto-ajuste">
+            <b>Jugadores</b>
+            <span>El plantel y sus posiciones</span>
+          </span>
+          <span className="flecha-ajuste">›</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderAjustesJugadores = () => (
+    <div className="app">
+      <div className="contenedor">
+        <header className="encabezado">
+          <h1>Jugadores</h1>
+          <p>Ajustes · Jugadores</p>
+        </header>
+
+        <button
+          type="button"
+          className="opcion-ajuste"
+          onClick={() => setVistaAjustes("lista")}
+        >
+          <span className="icono-ajuste">
+            <Icono nombre="documento" size={18} />
+          </span>
+          <span className="texto-ajuste">
+            <b>Lista</b>
+            <span>Quiénes aparecen en los desplegables</span>
+          </span>
+          <span className="flecha-ajuste">›</span>
+        </button>
+
+        <button
+          type="button"
+          className="opcion-ajuste"
+          onClick={() => setVistaAjustes("posiciones")}
+        >
+          <span className="icono-ajuste">
+            <Icono nombre="formacion" size={18} />
+          </span>
+          <span className="texto-ajuste">
+            <b>Posiciones</b>
+            <span>Dónde juega cada uno</span>
+          </span>
+          <span className="flecha-ajuste">›</span>
+        </button>
+
+        <div className="acciones-dobles">
+          <button
+            type="button"
+            className="boton-secundario"
+            onClick={() => setVistaAjustes("inicio")}
+          >
+            ← Volver
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAjustesLista = () => (
+    <div className="app">
+      <div className="contenedor">
+        <header className="encabezado">
+          <h1>Lista</h1>
+          <p>Ajustes · Jugadores · Lista</p>
+        </header>
+
+        {avisoPlantel && (
+          <div className="notificacion-guardado" role="status">
+            <Icono nombre="check" size={18} /> {avisoPlantel}
+          </div>
+        )}
+
+        <section className="tarjeta tarjeta-ficha">
+          <div className="cabeza-ficha">
+            <b>Plantel</b>
+            <span className="cuenta-ajuste">{plantel.length}</span>
+          </div>
+
+          <div className="agregar-jugador">
+            <input
+              value={nombreNuevo}
+              placeholder="Nombre del jugador"
+              onChange={(evento) => setNombreNuevo(evento.target.value)}
+              onKeyDown={(evento) => {
+                if (evento.key === "Enter") sumarJugador();
+              }}
+            />
+            <button type="button" onClick={sumarJugador}>
+              Agregar
+            </button>
+          </div>
+
+          {plantel.length === 0 ? (
+            <p className="vacio-ficha">Todavía no hay jugadores cargados.</p>
+          ) : (
+            <ul className="lista-plantel">
+              {plantel.map((jugador, i) => (
+                <li key={jugador.id ?? jugador.nombre}>
+                  <span className="numero-lista">{i + 1}</span>
+                  <span className="nombre-lista">{jugador.nombre}</span>
+                  <button
+                    type="button"
+                    className="quitar-jugador"
+                    onClick={() => sacarJugador(jugador)}
+                    aria-label={`Quitar a ${jugador.nombre}`}
+                    disabled={jugador.id === null}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <div className="acciones-dobles">
+          <button
+            type="button"
+            className="boton-secundario"
+            onClick={() => setVistaAjustes("jugadores")}
+          >
+            ← Volver
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAjustesPosiciones = () => {
+    const busqueda = normalizarTextoBase(buscadorPlantel);
+    const visibles = busqueda
+      ? plantel.filter((jugador) =>
+          normalizarTextoBase(jugador.nombre).includes(busqueda),
+        )
+      : plantel;
+
+    return (
+      <div className="app">
+        <div className="contenedor">
+          <header className="encabezado">
+            <h1>Posiciones</h1>
+            <p>Ajustes · Jugadores · Posiciones</p>
+          </header>
+
+          {avisoPlantel && (
+            <div className="notificacion-guardado" role="status">
+              <Icono nombre="check" size={18} /> {avisoPlantel}
+            </div>
+          )}
+
+          <section className="tarjeta tarjeta-ficha">
+            <div className="cabeza-ficha">
+              <b>Dónde juega cada uno</b>
+              <span className="cuenta-ajuste">{visibles.length}</span>
+            </div>
+
+            <input
+              className="buscador-plantel"
+              value={buscadorPlantel}
+              placeholder="Buscar jugador"
+              onChange={(evento) => setBuscadorPlantel(evento.target.value)}
+            />
+
+            {visibles.length === 0 ? (
+              <p className="vacio-ficha">Ningún jugador con ese nombre.</p>
+            ) : (
+              visibles.map((jugador) => (
+                <div className="jugador-puestos" key={jugador.id ?? jugador.nombre}>
+                  <div className="arriba-puestos">
+                    <b>{jugador.nombre}</b>
+
+                    {jugador.puestos.map((sigla, i) => (
+                      <SelectorPuesto
+                        key={`${jugador.id}-${i}`}
+                        sigla={sigla}
+                        elegidos={jugador.puestos}
+                        onElegir={(nueva) => cambiarPuesto(jugador, i, nueva)}
+                      />
+                    ))}
+
+                    {jugador.puestos.length < MAXIMO_PUESTOS && (
+                      <SelectorPuesto
+                        elegidos={jugador.puestos}
+                        onElegir={(nueva) =>
+                          cambiarPuestos(jugador, {
+                            puestos: [...jugador.puestos, nueva],
+                          })
+                        }
+                      />
+                    )}
+                  </div>
+
+                  <div className="abajo-puestos">
+                    {ROLES.map((rol) => (
+                      <button
+                        type="button"
+                        key={rol}
+                        className={`chip-rol ${jugador.roles.includes(rol) ? "activo" : ""}`}
+                        onClick={() => alternarRol(jugador, rol)}
+                        aria-pressed={jugador.roles.includes(rol)}
+                      >
+                        {rol}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </section>
+
+          <div className="acciones-dobles">
+            <button
+              type="button"
+              className="boton-secundario"
+              onClick={() => setVistaAjustes("jugadores")}
+            >
+              ← Volver
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const navegarAplicacion = (destino) => {
     setRegistroSeleccionado(null);
     setDetalleBorrador(null);
@@ -5161,6 +5593,10 @@ export default function App() {
       volverAPantallaFormacion();
     } else if (destino === "registros") {
       setPantallaFormacion("registros");
+    } else if (destino === "ajustes") {
+      setVistaAjustes("inicio");
+      setAvisoPlantel("");
+      setPantallaFormacion("ajustes");
     }
   };
 
@@ -5406,13 +5842,13 @@ export default function App() {
       campo: "sale",
       formacion: registro.formacion,
       cambios: registro.cambios,
-      plantel: jugadores,
+      plantel: nombresPlantel,
     });
     const enBanco = jugadoresParaCambio({
       campo: "entra",
       formacion: registro.formacion,
       cambios: registro.cambios,
-      plantel: jugadores,
+      plantel: nombresPlantel,
     });
 
     return (
@@ -5614,14 +6050,16 @@ export default function App() {
   );
 
   const enMarcoAplicacion = (activo, contenido) => (
-    <MarcoAplicacion
-      activo={activo}
-      onNavigate={navegarAplicacion}
-      hayPartido={partidoEnCurso}
-    >
-      {contenido}
-      {renderHojaConfirmar()}
-    </MarcoAplicacion>
+    <ContextoPlantel.Provider value={nombresPlantel}>
+      <MarcoAplicacion
+        activo={activo}
+        onNavigate={navegarAplicacion}
+        hayPartido={partidoEnCurso}
+      >
+        {contenido}
+        {renderHojaConfirmar()}
+      </MarcoAplicacion>
+    </ContextoPlantel.Provider>
   );
 
   if (!mostrarApp) {
@@ -5632,6 +6070,18 @@ export default function App() {
       >
         <div className="overlay-intro" />
       </div>
+    );
+  }
+
+  if (pantallaFormacion === "ajustes") {
+    const pantallas = {
+      jugadores: renderAjustesJugadores,
+      lista: renderAjustesLista,
+      posiciones: renderAjustesPosiciones,
+    };
+    return enMarcoAplicacion(
+      "ajustes",
+      (pantallas[vistaAjustes] || renderAjustes)(),
     );
   }
 
