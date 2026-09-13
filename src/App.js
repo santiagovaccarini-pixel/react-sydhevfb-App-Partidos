@@ -25,6 +25,7 @@ import {
   titularesDeCancha,
 } from "./domain/formacion";
 import {
+  CLAVE_PLANTEL,
   MAXIMO_PUESTOS,
   PUESTOS,
   ROLES,
@@ -114,11 +115,41 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.13.4";
+const APP_VERSION = "2026.09.13.5";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
 const CLAVE_PENDIENTES = "registros_sin_sincronizar";
+
+// Una copia por club. Con una sola para todos, al cambiar de equipo la base
+// contestaba vacía y la app caía al respaldo del club anterior: se veían los
+// partidos del otro.
+const porEquipo = (clave, equipoId) =>
+  equipoId ? `${clave}:${equipoId}` : clave;
+
+/**
+ * Las copias locales eran una sola para todos los clubes. La primera vez que
+ * se sabe de qué equipo es este teléfono se pasan a su nombre, así no quedan
+ * a la vista para cualquier otro.
+ */
+const mudarCopiasLocales = (equipoId, claves) => {
+  if (!equipoId) return;
+
+  claves.forEach((clave) => {
+    try {
+      const viejo = localStorage.getItem(clave);
+      if (viejo === null) return;
+
+      if (localStorage.getItem(porEquipo(clave, equipoId)) === null) {
+        localStorage.setItem(porEquipo(clave, equipoId), viejo);
+      }
+
+      localStorage.removeItem(clave);
+    } catch (error) {
+      console.warn("No se pudo mudar la copia local:", error);
+    }
+  });
+};
 // Los cinco cambios reglamentarios se muestran siempre, aunque estén vacíos.
 const CAMBIOS_SIEMPRE_VISIBLES = 5;
 
@@ -1152,6 +1183,11 @@ export default function App() {
   const [registro, setRegistro] = useState(obtenerRegistroInicial);
   const [guardados, setGuardados] = useState([]);
   const [historialCargado, setHistorialCargado] = useState(false);
+  // De qué club son los partidos que hay en memoria. Al cambiar de equipo,
+  // React todavía no actualizó la lista cuando corre el efecto que guarda el
+  // respaldo: sin esto, el respaldo del club nuevo se escribía con los
+  // partidos del anterior y una respuesta vacía los volvía a mostrar.
+  const [equipoDeGuardados, setEquipoDeGuardados] = useState(null);
   // Cómo salió la última lectura de la base. Con un solo booleano, "todavía no
   // cargó", "la base falló" y "no hay partidos" se veían iguales: el mismo
   // cartel de lista vacía.
@@ -1218,6 +1254,11 @@ export default function App() {
       });
 
       if (elegido) {
+        mudarCopiasLocales(elegido.id, [
+          CLAVE_RESPALDO,
+          CLAVE_PENDIENTES,
+          CLAVE_PLANTEL,
+        ]);
         setEquipoId(elegido.id);
         setEquipoGuardado(elegido);
         guardarEquipoElegido(elegido);
@@ -1526,9 +1567,16 @@ export default function App() {
     };
   };
 
+  const establecerGuardados = (lista, deEquipo = equipoId) => {
+    setGuardados(lista);
+    setEquipoDeGuardados(deEquipo);
+  };
+
   const leerRespaldoHistorial = () => {
     try {
-      const datos = JSON.parse(localStorage.getItem(CLAVE_RESPALDO) || "[]");
+      const datos = JSON.parse(
+        localStorage.getItem(porEquipo(CLAVE_RESPALDO, equipoId)) || "[]",
+      );
       const lista =
         datos?.version === VERSION_BORRADOR ? datos.registros : datos;
       return Array.isArray(lista) ? lista : [];
@@ -1542,7 +1590,7 @@ export default function App() {
   const leerPendientes = () => {
     try {
       const guardado = JSON.parse(
-        localStorage.getItem(CLAVE_PENDIENTES) || "[]",
+        localStorage.getItem(porEquipo(CLAVE_PENDIENTES, equipoId)) || "[]",
       );
       return Array.isArray(guardado) ? guardado : [];
     } catch (error) {
@@ -1552,7 +1600,10 @@ export default function App() {
 
   const escribirPendientes = (lista) => {
     try {
-      localStorage.setItem(CLAVE_PENDIENTES, JSON.stringify(lista));
+      localStorage.setItem(
+        porEquipo(CLAVE_PENDIENTES, equipoId),
+        JSON.stringify(lista),
+      );
     } catch (error) {
       console.warn("No se pudo guardar la lista de partidos sin sincronizar.");
     }
@@ -1637,7 +1688,7 @@ export default function App() {
     if (error) {
       console.error("Error cargando registros desde Supabase:", error);
 
-      setGuardados(leerRespaldoHistorial());
+      establecerGuardados(leerRespaldoHistorial());
       setEstadoHistorial("error");
       setHistorialCargado(true);
       return;
@@ -1655,7 +1706,7 @@ export default function App() {
         console.warn(
           "La base no devolvió ningún partido. Se conserva el historial del celular.",
         );
-        setGuardados(respaldo);
+        establecerGuardados(respaldo);
         // La base contestó bien pero sin nada, y acá hay partidos: casi seguro
         // es un permiso, como en septiembre. Se avisa en vez de disimularlo.
         setEstadoHistorial("sospechoso");
@@ -1675,7 +1726,7 @@ export default function App() {
       }
     }
 
-    setGuardados(mezclarPendientes(registrosConvertidos));
+    establecerGuardados(mezclarPendientes(registrosConvertidos));
     setEstadoHistorial("listo");
     setHistorialCargado(true);
   };
@@ -1690,12 +1741,18 @@ export default function App() {
     // lectura traería los partidos de todos.
     if (!equiposCargados) return;
     if (!equipoId) {
-      setGuardados([]);
+      establecerGuardados([], null);
       setEstadoHistorial("sin-equipo");
-      setHistorialCargado(true);
+      setHistorialCargado(false);
       return;
     }
 
+    // Se vacía antes de pedir: si no, el respaldo del club nuevo se escribiría
+    // con los partidos del anterior, que siguen en memoria hasta que llega la
+    // respuesta. Y con la copia envenenada, una respuesta vacía los volvía a
+    // mostrar.
+    establecerGuardados([]);
+    setHistorialCargado(false);
     setEstadoHistorial("cargando");
     cargarRegistrosSupabase();
   }, [equiposCargados, equipoId]);
@@ -1754,17 +1811,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!historialCargado) return;
+    // Mientras lo que hay en memoria sea de otro club no se escribe nada: es
+    // lo que envenenaba el respaldo al cambiar de equipo.
+    if (!historialCargado || equipoDeGuardados !== equipoId) return;
 
     try {
       localStorage.setItem(
-        CLAVE_RESPALDO,
+        porEquipo(CLAVE_RESPALDO, equipoId),
         JSON.stringify({ version: VERSION_BORRADOR, registros: guardados }),
       );
     } catch (error) {
       console.warn("No se pudo actualizar el respaldo local del historial.");
     }
-  }, [guardados, historialCargado]);
+  }, [guardados, historialCargado, equipoId, equipoDeGuardados]);
 
   useEffect(() => {
     try {
@@ -3096,7 +3155,7 @@ export default function App() {
             "Faltan columnas en Supabase:",
             respuesta.error?.message || respuesta.error,
           );
-          setGuardados(guardarPendiente(nuevoRegistro));
+          establecerGuardados(guardarPendiente(nuevoRegistro));
           avisarGuardado("Falta actualizar la base de datos", 6000);
           alert(
             "Falta ejecutar la migración de captura de tiempos en Supabase. El partido quedó guardado en este dispositivo.",
@@ -3111,7 +3170,7 @@ export default function App() {
           respuesta.error?.message || respuesta.error,
           respuesta.error,
         );
-        setGuardados(guardarPendiente(nuevoRegistro));
+        establecerGuardados(guardarPendiente(nuevoRegistro));
         avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
         return;
       }
@@ -3127,7 +3186,7 @@ export default function App() {
       );
     } catch (error) {
       console.error("Error de red al guardar el partido:", error);
-      setGuardados(guardarPendiente(nuevoRegistro));
+      establecerGuardados(guardarPendiente(nuevoRegistro));
       avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
     } finally {
       guardandoRef.current = false;
@@ -3320,9 +3379,9 @@ export default function App() {
       }
     }
 
-    setGuardados([]);
-    localStorage.removeItem(CLAVE_RESPALDO);
-    localStorage.removeItem(CLAVE_PENDIENTES);
+    establecerGuardados([]);
+    localStorage.removeItem(porEquipo(CLAVE_RESPALDO, equipoId));
+    localStorage.removeItem(porEquipo(CLAVE_PENDIENTES, equipoId));
     setRegistroSeleccionado(null);
   };
 
@@ -3372,7 +3431,7 @@ export default function App() {
     );
     try {
       localStorage.setItem(
-        CLAVE_RESPALDO,
+        porEquipo(CLAVE_RESPALDO, equipoId),
         JSON.stringify({
           version: VERSION_BORRADOR,
           registros: leerRespaldoHistorial().filter(
@@ -3454,6 +3513,7 @@ export default function App() {
 
     const registroActualizado = convertirSupabaseARegistro(data[0]);
 
+    setEquipoDeGuardados(equipoId);
     setGuardados((prev) =>
       prev.map((item) =>
         item.idSupabase === idRegistro ? registroActualizado : item,

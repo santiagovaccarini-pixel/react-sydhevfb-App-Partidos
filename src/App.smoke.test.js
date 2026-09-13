@@ -951,9 +951,10 @@ describe("interfaz operativa", () => {
     const cartel = contenedor.querySelector(".notificacion-guardado");
     expect(cartel.textContent).toContain("sin sincronizar");
 
-    // El partido queda guardado en el celular, no se pierde.
+    // El partido queda guardado en el celular, no se pierde. La cola también
+    // es por club, para que no se le suba a otro equipo.
     expect(
-      JSON.parse(localStorage.getItem("registros_sin_sincronizar")),
+      JSON.parse(localStorage.getItem("registros_sin_sincronizar:eq-1")),
     ).toHaveLength(1);
 
     const irA = (etiqueta) =>
@@ -999,9 +1000,11 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(2);
     expect(contenedor.textContent).toContain("Flamengo");
 
-    // Y sobre todo: el respaldo del celular sigue entero.
+    // Y sobre todo: el respaldo del celular sigue entero. Se sembró en la
+    // clave vieja, así que de paso se comprueba que quedó mudado a su club.
+    expect(localStorage.getItem("backup_registros_partidos")).toBeNull();
     const respaldo = JSON.parse(
-      localStorage.getItem("backup_registros_partidos"),
+      localStorage.getItem("backup_registros_partidos:eq-1"),
     );
     expect(respaldo.registros).toHaveLength(2);
   });
@@ -1030,7 +1033,7 @@ describe("interfaz operativa", () => {
 
     // Y deja de estar pendiente.
     expect(
-      JSON.parse(localStorage.getItem("registros_sin_sincronizar")),
+      JSON.parse(localStorage.getItem("registros_sin_sincronizar:eq-1")),
     ).toHaveLength(0);
   });
 
@@ -1323,6 +1326,65 @@ describe("interfaz operativa", () => {
     const despues = contenedor.querySelectorAll(".registro-guardado");
     expect(despues).toHaveLength(1);
     expect(despues[0].textContent).toContain("Santos");
+  });
+
+  test("al cambiar de club no quedan los partidos del anterior", async () => {
+    // La copia local del historial era una sola para todos: al cambiar de
+    // equipo la base contestaba vacía y la app caía a esa copia, así que se
+    // seguían viendo los partidos del club anterior.
+    doblesSupabase.equipos = [
+      { id: "eq-1", nombre: "Atlético Mineiro" },
+      { id: "eq-2", nombre: "Estudiantes" },
+    ];
+    doblesSupabase.filasHistorial = [
+      { ...filaTransmisionGuardada(), id: 1, rival: "Santos", equipo_id: "eq-1" },
+    ];
+    localStorage.setItem(
+      "equipo_elegido",
+      JSON.stringify({ id: "eq-1", nombre: "Atlético Mineiro" }),
+    );
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+
+    await act(async () => irA("Registros").click());
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
+
+    await act(async () => irA("Ajustes").click());
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste"))
+        .find((boton) => boton.textContent.includes("Equipo"))
+        .click(),
+    );
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".lista-equipos button"))
+        .find((boton) => boton.textContent.includes("Estudiantes"))
+        .click(),
+    );
+
+    await act(async () => irA("Registros").click());
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(0);
+    expect(contenedor.textContent).not.toContain("Santos");
+
+    // Y volviendo al primero, sus partidos siguen estando. Ajustes recuerda en
+    // qué pantalla quedó, así que puede abrir directo en Equipo.
+    await act(async () => irA("Ajustes").click());
+    const volverAEquipo = Array.from(
+      contenedor.querySelectorAll(".opcion-ajuste"),
+    ).find((boton) => boton.textContent.includes("Equipo"));
+    if (volverAEquipo) await act(async () => volverAEquipo.click());
+
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".lista-equipos button"))
+        .find((boton) => boton.textContent.includes("Mineiro"))
+        .click(),
+    );
+    await act(async () => irA("Registros").click());
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
   });
 
   test("sin equipo elegido, la app pide elegirlo antes de dejar cargar nada", async () => {
