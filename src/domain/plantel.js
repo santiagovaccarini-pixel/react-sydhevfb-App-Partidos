@@ -78,12 +78,17 @@ export const guardarPlantelLocal = (plantel) => {
  * guardado en el celular y, si tampoco hay, el del código: un desplegable de
  * nombres vacío deja la app inutilizable.
  */
-export const cargarPlantel = async () => {
+export const cargarPlantel = async (equipoId = null) => {
   try {
-    const { data, error } = await supabase
+    let consulta = supabase
       .from("jugadores")
-      .select("id, nombre, roles, puestos")
-      .order("nombre", { ascending: true });
+      .select("id, nombre, roles, puestos");
+
+    // Sin equipo elegido todavía no hay plantel que traer: en una base con
+    // varios clubes, traerlos todos mezclaría los desplegables.
+    if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
+
+    const { data, error } = await consulta.order("nombre", { ascending: true });
 
     if (error) throw error;
 
@@ -95,25 +100,40 @@ export const cargarPlantel = async () => {
 
     // Una tabla vacía no es lo mismo que una tabla inaccesible, pero en los dos
     // casos conviene no dejar la app sin nombres.
-    return { plantel: leerPlantelGuardado() || plantelDeRespaldo(), desde: "respaldo" };
+    return {
+      plantel: leerPlantelGuardado() || plantelDeRespaldo(),
+      desde: "respaldo",
+    };
   } catch (error) {
     console.warn("No se pudo leer el plantel de la base:", error);
-    return { plantel: leerPlantelGuardado() || plantelDeRespaldo(), desde: "respaldo" };
+    return {
+      plantel: leerPlantelGuardado() || plantelDeRespaldo(),
+      desde: "respaldo",
+    };
   }
 };
 
-export const agregarJugador = async (nombre) => {
+export const agregarJugador = async (nombre, equipoId = null) => {
   const limpio = limpiar(nombre);
   if (!limpio) return { error: "Escribí un nombre." };
 
   const { data, error } = await supabase
     .from("jugadores")
-    .insert([{ nombre: limpio, roles: [], puestos: [] }])
+    .insert([
+      {
+        nombre: limpio,
+        roles: [],
+        puestos: [],
+        ...(equipoId ? { equipo_id: equipoId } : {}),
+      },
+    ])
     .select();
 
   if (error) {
     const repetido = /duplicate key|unique/i.test(error.message || "");
-    return { error: repetido ? "Ese jugador ya está en la lista." : error.message };
+    return {
+      error: repetido ? "Ese jugador ya está en la lista." : error.message,
+    };
   }
 
   return { jugador: normalizarJugador(data?.[0]) };

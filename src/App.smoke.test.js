@@ -13,9 +13,10 @@ const doblesSupabase = vi.hoisted(() => ({
   actualizar: vi.fn(),
   jugadores: [],
   errorJugadores: null,
-  equipoGuardado: null,
-  errorEquipo: null,
-  guardarEquipo: vi.fn(),
+  equipos: [],
+  errorEquipos: null,
+  crearEquipo: vi.fn(),
+  renombrarEquipo: vi.fn(),
   insertarJugador: vi.fn(),
   actualizarJugador: vi.fn(),
   borrarJugador: vi.fn(),
@@ -24,22 +25,36 @@ const doblesSupabase = vi.hoisted(() => ({
 vi.mock("./supabase.js", () => ({
   supabase: {
     from: (tabla) => {
-      if (tabla === "ajustes") {
+      if (tabla === "equipos") {
         const consulta = {
           select: () => consulta,
           eq: () => consulta,
-          maybeSingle: async () => ({
-            data: doblesSupabase.equipoGuardado
-              ? { valor: doblesSupabase.equipoGuardado }
-              : null,
-            error: doblesSupabase.errorEquipo,
+          order: async () => ({
+            data: doblesSupabase.equipos,
+            error: doblesSupabase.errorEquipos,
           }),
-          upsert: async (fila) => {
-            doblesSupabase.guardarEquipo(fila);
-            if (!doblesSupabase.errorEquipo) {
-              doblesSupabase.equipoGuardado = fila.valor;
-            }
-            return { data: [fila], error: doblesSupabase.errorEquipo };
+          insert: (filas) => {
+            doblesSupabase.crearEquipo(filas);
+            const equipo = { id: `eq-${doblesSupabase.equipos.length + 1}`, ...filas[0] };
+            if (!doblesSupabase.errorEquipos) doblesSupabase.equipos.push(equipo);
+            return {
+              select: async () => ({
+                data: [equipo],
+                error: doblesSupabase.errorEquipos,
+              }),
+            };
+          },
+          update: (cambios) => {
+            doblesSupabase.renombrarEquipo(cambios);
+            return {
+              eq: async (campo, valor) => {
+                const equipo = doblesSupabase.equipos.find((e) => e.id === valor);
+                if (equipo && !doblesSupabase.errorEquipos) {
+                  equipo.nombre = cambios.nombre;
+                }
+                return { data: [], error: doblesSupabase.errorEquipos };
+              },
+            };
           },
         };
         return consulta;
@@ -48,6 +63,7 @@ vi.mock("./supabase.js", () => ({
       if (tabla === "jugadores") {
         const consulta = {
           select: () => consulta,
+          eq: () => consulta,
           order: async () => ({
             data: doblesSupabase.jugadores,
             error: doblesSupabase.errorJugadores,
@@ -75,10 +91,16 @@ vi.mock("./supabase.js", () => ({
         return consulta;
       }
 
+      let filtroEquipo = null;
+
       const consulta = {
         select: () => consulta,
         order: async () => ({
-          data: doblesSupabase.filasHistorial,
+          data: filtroEquipo
+            ? doblesSupabase.filasHistorial.filter(
+                (fila) => fila.equipo_id === filtroEquipo,
+              )
+            : doblesSupabase.filasHistorial,
           error: doblesSupabase.errorHistorial,
         }),
         insert: (filas) => {
@@ -102,7 +124,10 @@ vi.mock("./supabase.js", () => ({
           };
         },
         delete: () => consulta,
-        eq: () => consulta,
+        eq: (campo, valor) => {
+          if (campo === "equipo_id") filtroEquipo = valor;
+          return consulta;
+        },
         in: async () => ({ data: [], error: null }),
       };
       return consulta;
@@ -114,6 +139,8 @@ vi.mock("./supabase.js", () => ({
 // una captura con la guía en minutos con la que se anotó el partido.
 const filaTransmisionGuardada = () => ({
   id: 9,
+  // Después de la migración de equipos ninguna fila queda sin dueño.
+  equipo_id: "eq-1",
   fecha: "2026-09-10",
   rival: "Santos",
   resultado: "2-1",
@@ -184,10 +211,13 @@ describe("interfaz operativa", () => {
     doblesSupabase.insertarJugador.mockClear();
     doblesSupabase.actualizarJugador.mockClear();
     doblesSupabase.borrarJugador.mockClear();
-    doblesSupabase.guardarEquipo.mockClear();
+    doblesSupabase.crearEquipo.mockClear();
+    doblesSupabase.renombrarEquipo.mockClear();
     doblesSupabase.jugadores = [];
-    doblesSupabase.equipoGuardado = null;
-    doblesSupabase.errorEquipo = null;
+    // Una base con un solo equipo, que es el caso de siempre: la app lo adopta
+    // sin preguntar nada.
+    doblesSupabase.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro" }];
+    doblesSupabase.errorEquipos = null;
     doblesSupabase.errorJugadores = null;
     doblesSupabase.errorHistorial = null;
     doblesSupabase.errorGuardado = null;
@@ -1191,9 +1221,13 @@ describe("interfaz operativa", () => {
     expect(enCancha).not.toContain("ALONSO");
   });
 
-  test("el equipo propio se cambia desde Ajustes y queda en toda la app", async () => {
-    localStorage.removeItem("registro_actual_partido");
-    doblesSupabase.equipoGuardado = "Atlético Mineiro";
+  test("renombrar el equipo no deja afuera los partidos ya cargados", async () => {
+    // Por esto se filtra por un id y no por el nombre escrito: corregir el
+    // nombre no puede hacer desaparecer lo cargado.
+    doblesSupabase.equipos = [{ id: "eq-1", nombre: "Estudiantes" }];
+    doblesSupabase.filasHistorial = [
+      { ...filaTransmisionGuardada(), equipo_id: "eq-1" },
+    ];
 
     await montarApp();
 
@@ -1201,63 +1235,9 @@ describe("interfaz operativa", () => {
       Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
         (boton) => boton.textContent.includes(etiqueta),
       );
-    await act(async () => irA("Ajustes").click());
+    await act(async () => irA("Registros").click());
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
 
-    // La opción muestra el equipo que está puesto hoy.
-    const opcion = Array.from(
-      contenedor.querySelectorAll(".opcion-ajuste"),
-    ).find((boton) => boton.textContent.includes("Equipo"));
-    expect(opcion.textContent).toContain("Atlético Mineiro");
-
-    await act(async () => opcion.click());
-
-    const campo = contenedor.querySelector("#nombre-equipo");
-    const guardar = contenedor.querySelector(
-      ".tarjeta-ficha .boton-principal",
-    );
-    expect(campo.value).toBe("Atlético Mineiro");
-    // Sin cambiar nada no hay nada que guardar.
-    expect(guardar.disabled).toBe(true);
-
-    const escribir = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value",
-    ).set;
-    await act(async () => {
-      escribir.call(campo, "Cruzeiro");
-      campo.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-
-    expect(
-      contenedor.querySelector(".tarjeta-ficha .boton-principal").disabled,
-    ).toBe(false);
-
-    await act(async () =>
-      contenedor.querySelector(".tarjeta-ficha .boton-principal").click(),
-    );
-
-    // Viaja a la base, para que sea el mismo equipo en otro teléfono.
-    expect(doblesSupabase.guardarEquipo).toHaveBeenCalledWith(
-      expect.objectContaining({ clave: "equipo_propio", valor: "Cruzeiro" }),
-    );
-    expect(localStorage.getItem("equipo_propio")).toBe("Cruzeiro");
-
-    // Y el resto de la app deja de decir Mineiro.
-    await act(async () => irA("Formación").click());
-    expect(contenedor.textContent).toContain("Cruzeiro");
-    expect(contenedor.textContent).not.toContain("Mineiro");
-  });
-
-  test("si la base falla, el equipo queda al menos en este teléfono", async () => {
-    localStorage.removeItem("registro_actual_partido");
-    doblesSupabase.equipoGuardado = "Atlético Mineiro";
-
-    await montarApp();
-
-    const irA = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
-        (boton) => boton.textContent.includes(etiqueta),
-      );
     await act(async () => irA("Ajustes").click());
     await act(async () =>
       Array.from(contenedor.querySelectorAll(".opcion-ajuste"))
@@ -1265,28 +1245,119 @@ describe("interfaz operativa", () => {
         .click(),
     );
 
-    const campo = contenedor.querySelector("#nombre-equipo");
     const escribir = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       "value",
     ).set;
+    const campo = contenedor.querySelector("#nombre-equipo");
+    expect(campo.value).toBe("Estudiantes");
+
     await act(async () => {
-      escribir.call(campo, "Racing");
+      escribir.call(campo, "Estudiantes de La Plata");
       campo.dispatchEvent(new Event("input", { bubbles: true }));
     });
-
-    doblesSupabase.errorEquipo = { message: "sin permiso" };
     await act(async () =>
       contenedor.querySelector(".tarjeta-ficha .boton-principal").click(),
     );
 
-    // Se avisa, en vez de dar por guardado algo que el otro celular no verá.
-    expect(contenedor.querySelector(".error-equipo").textContent).toContain(
-      "no en la base",
+    expect(doblesSupabase.renombrarEquipo).toHaveBeenCalledWith(
+      expect.objectContaining({ nombre: "Estudiantes de La Plata" }),
     );
-    expect(contenedor.querySelector(".notificacion-guardado")).toBeNull();
-    // Pero acá el equipo igual quedó.
-    expect(localStorage.getItem("equipo_propio")).toBe("Racing");
+
+    // El nombre nuevo en toda la app, y el partido sigue estando.
+    await act(async () => irA("Registros").click());
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
+    await act(async () => irA("Formación").click());
+    expect(contenedor.textContent).toContain("Estudiantes de La Plata");
+  });
+
+  test("cada equipo ve solo sus partidos", async () => {
+    doblesSupabase.equipos = [
+      { id: "eq-1", nombre: "Atlético Mineiro" },
+      { id: "eq-2", nombre: "Estudiantes" },
+    ];
+    doblesSupabase.filasHistorial = [
+      { ...filaTransmisionGuardada(), id: 1, rival: "Santos", equipo_id: "eq-1" },
+      { ...filaTransmisionGuardada(), id: 2, rival: "Gimnasia", equipo_id: "eq-2" },
+    ];
+    localStorage.setItem("equipo_elegido", "eq-2");
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+
+    const filas = contenedor.querySelectorAll(".registro-guardado");
+    expect(filas).toHaveLength(1);
+    expect(filas[0].textContent).toContain("Gimnasia");
+    expect(contenedor.textContent).not.toContain("Santos");
+
+    // Y cambiando de equipo se ve el otro.
+    await act(async () => irA("Ajustes").click());
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste"))
+        .find((boton) => boton.textContent.includes("Equipo"))
+        .click(),
+    );
+    await act(async () =>
+      contenedor
+        .querySelector(".lista-equipos button")
+        .click(),
+    );
+
+    expect(localStorage.getItem("equipo_elegido")).toBe("eq-1");
+
+    await act(async () => irA("Registros").click());
+    const despues = contenedor.querySelectorAll(".registro-guardado");
+    expect(despues).toHaveLength(1);
+    expect(despues[0].textContent).toContain("Santos");
+  });
+
+  test("con varios equipos y ninguno elegido, pide elegir en vez de mezclar", async () => {
+    doblesSupabase.equipos = [
+      { id: "eq-1", nombre: "Atlético Mineiro" },
+      { id: "eq-2", nombre: "Estudiantes" },
+    ];
+    doblesSupabase.filasHistorial = [
+      { ...filaTransmisionGuardada(), equipo_id: "eq-1" },
+    ];
+    localStorage.removeItem("equipo_elegido");
+
+    await montarApp();
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button"))
+        .find((boton) => boton.textContent.includes("Registros"))
+        .click(),
+    );
+
+    expect(contenedor.querySelector(".aviso-base").textContent).toContain(
+      "Elegí tu equipo",
+    );
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(0);
+  });
+
+  test("con un solo equipo lo adopta sin preguntar nada", async () => {
+    // El caso de siempre: un club y varios teléfonos. No tiene sentido hacer
+    // elegir cuando no hay nada que elegir.
+    doblesSupabase.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro" }];
+    doblesSupabase.filasHistorial = [
+      { ...filaTransmisionGuardada(), equipo_id: "eq-1" },
+    ];
+    localStorage.removeItem("equipo_elegido");
+
+    await montarApp();
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button"))
+        .find((boton) => boton.textContent.includes("Registros"))
+        .click(),
+    );
+
+    expect(contenedor.querySelector(".aviso-base")).toBeNull();
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
+    expect(localStorage.getItem("equipo_elegido")).toBe("eq-1");
   });
 
   test("una lista vacía dice si la base falló o si de verdad no hay partidos", async () => {

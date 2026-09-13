@@ -10,9 +10,12 @@ import jugadores from "./jugadores";
 import CanchaFormacion from "./components/CanchaFormacion";
 import {
   EQUIPO_POR_DEFECTO,
-  cargarEquipoPropio,
-  guardarEquipoPropio,
-  leerEquipoGuardado,
+  cargarEquipos,
+  crearEquipo,
+  elegirEquipoInicial,
+  guardarEquipoElegido,
+  leerEquipoElegido,
+  renombrarEquipo,
 } from "./domain/equipo";
 import {
   canchaDesdeTitulares,
@@ -111,7 +114,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.13.1";
+const APP_VERSION = "2026.09.13.2";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1177,17 +1180,39 @@ export default function App() {
   const [plantelDesde, setPlantelDesde] = useState("respaldo");
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
 
-  // El equipo propio. Arranca con lo último que quedó en el teléfono para que
-  // la app no parpadee con otro nombre mientras la base contesta.
-  const [equipoPropio, setEquipoPropio] = useState(
-    () => leerEquipoGuardado() || EQUIPO_POR_DEFECTO,
-  );
+  // Los equipos que conviven en la base y cuál usa este teléfono. Se guarda el
+  // id y no el nombre: así, renombrar un equipo no deja afuera lo ya cargado.
+  const [equipos, setEquipos] = useState([]);
+  const [equipoId, setEquipoId] = useState(() => leerEquipoElegido());
+  const [equiposCargados, setEquiposCargados] = useState(false);
+
+  const equipoPropio =
+    equipos.find((equipo) => equipo.id === equipoId)?.nombre ||
+    EQUIPO_POR_DEFECTO;
+
+  const releerEquipos = async () => {
+    const { equipos: lista } = await cargarEquipos();
+    setEquipos(lista);
+    return lista;
+  };
 
   useEffect(() => {
     let vigente = true;
 
-    cargarEquipoPropio().then(({ equipo }) => {
-      if (vigente) setEquipoPropio(equipo);
+    cargarEquipos().then(({ equipos: lista }) => {
+      if (!vigente) return;
+
+      setEquipos(lista);
+
+      const elegido = elegirEquipoInicial(lista, leerEquipoElegido());
+      if (elegido) {
+        setEquipoId(elegido.id);
+        guardarEquipoElegido(elegido.id);
+      } else {
+        setEquipoId(null);
+      }
+
+      setEquiposCargados(true);
     });
 
     return () => {
@@ -1198,6 +1223,7 @@ export default function App() {
   const [buscadorPlantel, setBuscadorPlantel] = useState("");
   const [avisoPlantel, setAvisoPlantel] = useState("");
   const [nombreEquipoEditado, setNombreEquipoEditado] = useState("");
+  const [nombreEquipoNuevo, setNombreEquipoNuevo] = useState("");
   const [avisoEquipo, setAvisoEquipo] = useState("");
   const [errorEquipo, setErrorEquipo] = useState("");
 
@@ -1267,9 +1293,11 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (!equiposCargados) return undefined;
+
     let vigente = true;
 
-    cargarPlantel().then(({ plantel: lista, desde }) => {
+    cargarPlantel(equipoId).then(({ plantel: lista, desde }) => {
       if (!vigente) return;
       setPlantel(lista);
       setPlantelDesde(desde);
@@ -1278,7 +1306,7 @@ export default function App() {
     return () => {
       vigente = false;
     };
-  }, []);
+  }, [equiposCargados, equipoId]);
 
   const posicionScrollPendiente = useRef(null);
   const convertirSupabaseARegistro = (fila) => {
@@ -1585,10 +1613,13 @@ export default function App() {
   };
 
   const cargarRegistrosSupabase = async ({ reintentar = true } = {}) => {
-    const { data, error } = await supabase
-      .from("registros_partido")
-      .select("*")
-      .order("fecha", { ascending: false });
+    let consulta = supabase.from("registros_partido").select("*");
+
+    // En una base con varios clubes, cada uno ve lo suyo. Sin equipo elegido no
+    // se trae nada: es preferible una lista vacía con su aviso a mezclar.
+    if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
+
+    const { data, error } = await consulta.order("fecha", { ascending: false });
 
     if (error) {
       console.error("Error cargando registros desde Supabase:", error);
@@ -1642,8 +1673,19 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Se espera a saber de qué equipo es este teléfono: si no, la primera
+    // lectura traería los partidos de todos.
+    if (!equiposCargados) return;
+    if (!equipoId) {
+      setGuardados([]);
+      setEstadoHistorial("sin-equipo");
+      setHistorialCargado(true);
+      return;
+    }
+
+    setEstadoHistorial("cargando");
     cargarRegistrosSupabase();
-  }, []);
+  }, [equiposCargados, equipoId]);
 
   // Sin red, el pedido a la base puede quedarse colgado sin contestar nunca.
   // No se lo corta —si llega tarde, sirve igual—, pero a los doce segundos se
@@ -2966,6 +3008,7 @@ export default function App() {
       formacion_cancha: normalizarCancha(
         registroConHorasReales.formacion?.cancha,
       ),
+      equipo_id: equipoId,
     };
   };
 
@@ -3226,6 +3269,7 @@ export default function App() {
       titulares: registroParaGuardar.formacion?.titulares || [],
       convocados: registroParaGuardar.formacion?.convocados || [],
       formacion_cancha: normalizarCancha(registroParaGuardar.formacion?.cancha),
+      equipo_id: equipoId,
     };
   };
   const borrarHistorial = () => {
@@ -5363,13 +5407,13 @@ export default function App() {
   };
 
   const recargarPlantel = async () => {
-    const { plantel: lista, desde } = await cargarPlantel();
+    const { plantel: lista, desde } = await cargarPlantel(equipoId);
     setPlantel(lista);
     setPlantelDesde(desde);
   };
 
   const sumarJugador = async () => {
-    const { error, jugador } = await agregarJugador(nombreNuevo);
+    const { error, jugador } = await agregarJugador(nombreNuevo, equipoId);
     if (error) return avisar(error);
 
     setNombreNuevo("");
@@ -5475,28 +5519,54 @@ export default function App() {
     </div>
   );
 
-  const guardarEquipo = async () => {
-    const { equipo, error } = await guardarEquipoPropio(nombreEquipoEditado);
+  const avisarEquipo = (texto) => {
+    setAvisoEquipo(texto);
+    window.setTimeout(() => setAvisoEquipo(""), 2600);
+  };
 
-    if (!equipo) {
-      setErrorEquipo(error || "No se pudo guardar el equipo.");
-      setAvisoEquipo("");
+  const renombrarEsteEquipo = async () => {
+    const { error } = await renombrarEquipo(equipoId, nombreEquipoEditado);
+
+    if (error) {
+      setErrorEquipo(error);
       return;
     }
 
-    setEquipoPropio(equipo);
-    setNombreEquipoEditado(equipo);
-    // Si la base falló, en este teléfono igual quedó: conviene decirlo en vez
-    // de dar por guardado algo que el otro celular no va a ver.
-    setErrorEquipo(
-      error ? "Quedó guardado en este teléfono, pero no en la base." : "",
+    setErrorEquipo("");
+    await releerEquipos();
+    avisarEquipo("Nombre cambiado");
+  };
+
+  const sumarEquipo = async () => {
+    const { equipo, error } = await crearEquipo(nombreEquipoNuevo);
+
+    if (error) {
+      setErrorEquipo(error);
+      return;
+    }
+
+    setErrorEquipo("");
+    setNombreEquipoNuevo("");
+    await releerEquipos();
+    cambiarDeEquipo(equipo.id);
+    avisarEquipo(`Ahora estás en ${equipo.nombre}`);
+  };
+
+  // Cambiar de equipo cambia lo que se ve en toda la app, así que se vuelven a
+  // leer los partidos y el plantel: de eso se encargan los efectos que miran
+  // equipoId.
+  const cambiarDeEquipo = (id) => {
+    guardarEquipoElegido(id);
+    setEquipoId(id);
+    setNombreEquipoEditado(
+      equipos.find((equipo) => equipo.id === id)?.nombre || "",
     );
-    setAvisoEquipo(error ? "" : "Equipo guardado");
-    window.setTimeout(() => setAvisoEquipo(""), 2500);
+    setErrorEquipo("");
   };
 
   const renderAjustesEquipo = () => {
     const enEdicion = nombreEquipoEditado.trim();
+    const otros = equipos.filter((equipo) => equipo.id !== equipoId);
 
     return (
       <div className="app">
@@ -5514,47 +5584,115 @@ export default function App() {
 
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">
-              <b>El equipo propio</b>
+              <b>{equipoId ? "Tu equipo" : "Todavía no elegiste equipo"}</b>
             </div>
 
-            <div className="equipo-propio">
-              <EscudoDeClub equipo="cam" nombre={enEdicion} />
-              <strong>{enEdicion || "Sin nombre"}</strong>
+            {equipoId ? (
+              <>
+                <div className="equipo-propio">
+                  <EscudoDeClub equipo="cam" nombre={enEdicion} />
+                  <strong>{enEdicion || "Sin nombre"}</strong>
+                </div>
+
+                <label className="etiqueta-equipo" htmlFor="nombre-equipo">
+                  Nombre del equipo
+                </label>
+                <input
+                  id="nombre-equipo"
+                  value={nombreEquipoEditado}
+                  placeholder="Nombre del equipo"
+                  onChange={(evento) => {
+                    setNombreEquipoEditado(evento.target.value);
+                    setErrorEquipo("");
+                  }}
+                  onKeyDown={(evento) => {
+                    if (evento.key === "Enter") renombrarEsteEquipo();
+                  }}
+                />
+
+                <p className="pista-equipo">
+                  El escudo no se carga: se busca solo por el nombre y queda
+                  guardado en el teléfono. Corregir el nombre no te hace perder
+                  los partidos cargados.
+                </p>
+
+                <button
+                  type="button"
+                  className="boton-principal"
+                  onClick={renombrarEsteEquipo}
+                  disabled={!enEdicion || enEdicion === equipoPropio}
+                >
+                  Guardar nombre
+                </button>
+              </>
+            ) : (
+              <p className="vacio-ficha">
+                En esta base hay más de un equipo. Elegí el tuyo de la lista o
+                creá uno nuevo.
+              </p>
+            )}
+          </section>
+
+          {otros.length > 0 && (
+            <section className="tarjeta tarjeta-ficha">
+              <div className="cabeza-ficha">
+                <b>Cambiar de equipo</b>
+                <span className="cuenta-ajuste">{otros.length}</span>
+              </div>
+
+              <ul className="lista-equipos">
+                {otros.map((equipo) => (
+                  <li key={equipo.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        cambiarDeEquipo(equipo.id);
+                        avisarEquipo(`Ahora estás en ${equipo.nombre}`);
+                      }}
+                    >
+                      <EscudoDeClub equipo="cam" nombre={equipo.nombre} mini />
+                      {equipo.nombre}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="pista-equipo">
+                Cada equipo ve solo sus partidos y su plantel. Esto ordena, no
+                protege: desde acá se puede entrar a cualquiera.
+              </p>
+            </section>
+          )}
+
+          <section className="tarjeta tarjeta-ficha">
+            <div className="cabeza-ficha">
+              <b>Agregar un equipo</b>
             </div>
 
-            <label className="etiqueta-equipo" htmlFor="nombre-equipo">
-              Nombre del equipo
-            </label>
-            <input
-              id="nombre-equipo"
-              value={nombreEquipoEditado}
-              placeholder="Nombre del equipo"
-              onChange={(evento) => {
-                setNombreEquipoEditado(evento.target.value);
-                setErrorEquipo("");
-              }}
-              onKeyDown={(evento) => {
-                if (evento.key === "Enter") guardarEquipo();
-              }}
-            />
+            <div className="agregar-jugador">
+              <input
+                value={nombreEquipoNuevo}
+                placeholder="Nombre del equipo nuevo"
+                onChange={(evento) => {
+                  setNombreEquipoNuevo(evento.target.value);
+                  setErrorEquipo("");
+                }}
+                onKeyDown={(evento) => {
+                  if (evento.key === "Enter") sumarEquipo();
+                }}
+              />
+              <button type="button" onClick={sumarEquipo}>
+                Crear
+              </button>
+            </div>
 
             <p className="pista-equipo">
-              El escudo no se carga: se busca solo por el nombre y queda
-              guardado en el teléfono. Si no aparece, probá con el nombre
-              completo del club.
+              Arranca sin partidos y sin plantel, y este teléfono pasa a ese
+              equipo.
             </p>
-
-            {errorEquipo && <p className="error-equipo">{errorEquipo}</p>}
-
-            <button
-              type="button"
-              className="boton-principal"
-              onClick={guardarEquipo}
-              disabled={!enEdicion || enEdicion === equipoPropio}
-            >
-              Guardar equipo
-            </button>
           </section>
+
+          {errorEquipo && <p className="error-equipo">{errorEquipo}</p>}
 
           <div className="acciones-dobles">
             <button
@@ -5926,6 +6064,15 @@ export default function App() {
         titulo: "La base no devolvió ningún partido",
         detalle:
           "Pero en este teléfono hay historial, así que es muy probable que sea un problema de permisos y no que esté vacía. Estás viendo el respaldo del teléfono.",
+      };
+    }
+
+    if (estadoHistorial === "sin-equipo") {
+      return {
+        tono: "espera",
+        titulo: "Elegí tu equipo",
+        detalle:
+          "En esta base hay más de un equipo y este teléfono todavía no tiene uno elegido. Se elige en Ajustes › Equipo.",
       };
     }
 
@@ -6359,9 +6506,21 @@ export default function App() {
                 <p>{avisoDelHistorial.detalle}</p>
               </div>
 
-              <button type="button" onClick={releerHistorial}>
-                Reintentar
-              </button>
+              {estadoHistorial === "sin-equipo" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVistaAjustes("equipo");
+                    setPantallaFormacion("ajustes");
+                  }}
+                >
+                  Elegir
+                </button>
+              ) : (
+                <button type="button" onClick={releerHistorial}>
+                  Reintentar
+                </button>
+              )}
             </section>
           )}
 

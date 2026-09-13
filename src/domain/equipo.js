@@ -1,16 +1,19 @@
 import { supabase } from "../supabase.js";
 
 /**
- * El equipo propio: el que aparece a la izquierda del marcador en todas las
- * pantallas. Se elige en Ajustes y se guarda en la base, para que sea el mismo
- * si abrís la app en otro teléfono.
+ * Los equipos que conviven en la misma base. Cada teléfono elige el suyo una
+ * vez y desde ahí ve solo sus partidos y su plantel.
  *
- * El escudo no se configura: se busca por nombre contra la base de clubes, que
- * es lo que ya hace el rival.
+ * Lo que se guarda en el teléfono es el id, no el nombre: así, corregir
+ * "Estudiantes" a "Estudiantes de La Plata" no deja afuera todo lo cargado
+ * antes. El escudo tampoco se configura: se busca por nombre contra la base de
+ * clubes, igual que el del rival.
+ *
+ * Esto ordena, no protege: cualquiera puede cambiarse de equipo desde Ajustes.
  */
 
 export const EQUIPO_POR_DEFECTO = "Atlético Mineiro";
-export const CLAVE_EQUIPO = "equipo_propio";
+export const CLAVE_EQUIPO_ELEGIDO = "equipo_elegido";
 
 const limpiar = (valor) => String(valor ?? "").trim();
 
@@ -25,75 +28,93 @@ const comparable = (nombre) =>
 export const esElCam = (nombre) =>
   comparable(nombre) === comparable(EQUIPO_POR_DEFECTO);
 
-export const leerEquipoGuardado = () => {
+export const leerEquipoElegido = () => {
   try {
-    return limpiar(localStorage.getItem(CLAVE_EQUIPO)) || null;
+    return limpiar(localStorage.getItem(CLAVE_EQUIPO_ELEGIDO)) || null;
   } catch (error) {
-    console.warn("No se pudo leer el equipo guardado:", error);
+    console.warn("No se pudo leer el equipo elegido:", error);
     return null;
   }
 };
 
-export const guardarEquipoLocal = (nombre) => {
+export const guardarEquipoElegido = (id) => {
   try {
-    localStorage.setItem(CLAVE_EQUIPO, limpiar(nombre));
+    if (id) localStorage.setItem(CLAVE_EQUIPO_ELEGIDO, String(id));
+    else localStorage.removeItem(CLAVE_EQUIPO_ELEGIDO);
   } catch (error) {
-    console.warn("No se pudo guardar el equipo en el celular:", error);
+    console.warn("No se pudo guardar el equipo elegido:", error);
+  }
+};
+
+const normalizarEquipo = (fila) => ({
+  id: fila?.id ?? null,
+  nombre: limpiar(fila?.nombre),
+});
+
+export const cargarEquipos = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("equipos")
+      .select("id, nombre")
+      .order("nombre", { ascending: true });
+
+    if (error) throw error;
+
+    return { equipos: (data || []).map(normalizarEquipo).filter((e) => e.id) };
+  } catch (error) {
+    console.warn("No se pudieron leer los equipos:", error);
+    return { equipos: [], error: error.message || String(error) };
   }
 };
 
 /**
- * Trae el equipo de la base. Si no se puede, el último que quedó en el
- * teléfono y, si tampoco hay, el de siempre: la app nunca se queda sin nombre.
+ * Cuál de los equipos usar al abrir. Si el del teléfono ya no existe y hay uno
+ * solo en la base, se adopta ese: es el caso de siempre, un equipo y varios
+ * teléfonos, y no tiene sentido hacer elegir cuando no hay nada que elegir.
  */
-export const cargarEquipoPropio = async () => {
-  try {
-    const { data, error } = await supabase
-      .from("ajustes")
-      .select("valor")
-      .eq("clave", CLAVE_EQUIPO)
-      .maybeSingle();
+export const elegirEquipoInicial = (equipos, idGuardado) => {
+  const lista = equipos || [];
+  const guardado = lista.find((equipo) => equipo.id === idGuardado);
 
-    if (error) throw error;
-
-    const nombre = limpiar(data?.valor);
-
-    if (nombre) {
-      guardarEquipoLocal(nombre);
-      return { equipo: nombre, desde: "base" };
-    }
-
-    return {
-      equipo: leerEquipoGuardado() || EQUIPO_POR_DEFECTO,
-      desde: "respaldo",
-    };
-  } catch (error) {
-    console.warn("No se pudo leer el equipo de la base:", error);
-    return {
-      equipo: leerEquipoGuardado() || EQUIPO_POR_DEFECTO,
-      desde: "respaldo",
-    };
-  }
+  if (guardado) return guardado;
+  if (lista.length === 1) return lista[0];
+  return null;
 };
 
-export const guardarEquipoPropio = async (nombre) => {
+export const crearEquipo = async (nombre) => {
   const limpio = limpiar(nombre);
   if (!limpio) return { error: "Escribí el nombre del equipo." };
 
-  // Se guarda primero en el teléfono: si la base falla, al menos en este
-  // aparato el equipo queda como lo elegiste.
-  guardarEquipoLocal(limpio);
+  const { data, error } = await supabase
+    .from("equipos")
+    .insert([{ nombre: limpio }])
+    .select();
+
+  if (error) {
+    const repetido = /duplicate key|unique/i.test(error.message || "");
+    return {
+      error: repetido ? "Ya hay un equipo con ese nombre." : error.message,
+    };
+  }
+
+  return { equipo: normalizarEquipo(data?.[0]) };
+};
+
+export const renombrarEquipo = async (id, nombre) => {
+  const limpio = limpiar(nombre);
+  if (!limpio) return { error: "Escribí el nombre del equipo." };
 
   const { error } = await supabase
-    .from("ajustes")
-    .upsert(
-      {
-        clave: CLAVE_EQUIPO,
-        valor: limpio,
-        actualizado_en: new Date().toISOString(),
-      },
-      { onConflict: "clave" },
-    );
+    .from("equipos")
+    .update({ nombre: limpio })
+    .eq("id", id);
 
-  return error ? { equipo: limpio, error: error.message } : { equipo: limpio };
+  if (error) {
+    const repetido = /duplicate key|unique/i.test(error.message || "");
+    return {
+      error: repetido ? "Ya hay un equipo con ese nombre." : error.message,
+    };
+  }
+
+  return { equipo: { id, nombre: limpio } };
 };
