@@ -5222,3 +5222,49 @@ button.puesto-cancha {
     align-self: stretch;
   }
 }
+
+/* La pantalla del equipo propio: el escudo se resuelve solo con el nombre. */
+.equipo-propio {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 14px;
+  padding: 13px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 14px;
+  background: #f7f9f8;
+}
+
+.equipo-propio strong {
+  color: var(--cam-tinta);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.etiqueta-equipo {
+  margin: 0 0 6px;
+  color: #38413d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pista-equipo {
+  margin: 9px 0 0;
+  color: #9aa4a0;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.error-equipo {
+  margin: 9px 0 0;
+  color: #c1121f;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.tarjeta-ficha .boton-principal {
+  width: 100%;
+  margin-top: 14px;
+}

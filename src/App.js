@@ -9,6 +9,12 @@ import React, {
 import jugadores from "./jugadores";
 import CanchaFormacion from "./components/CanchaFormacion";
 import {
+  EQUIPO_POR_DEFECTO,
+  cargarEquipoPropio,
+  guardarEquipoPropio,
+  leerEquipoGuardado,
+} from "./domain/equipo";
+import {
   canchaDesdeTitulares,
   normalizarCancha,
   ponerJugador,
@@ -62,7 +68,6 @@ import { HojaConfirmar } from "./components/ConfirmSheet";
 import {
   EscudoClub,
   EscudoDeClub,
-  NOMBRE_CAM,
   useEscudoClub,
 } from "./components/ClubCrest";
 import "./style.css";
@@ -106,7 +111,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.12.1";
+const APP_VERSION = "2026.09.13.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1171,9 +1176,30 @@ export default function App() {
   const [plantel, setPlantel] = useState(() => plantelDeRespaldo());
   const [plantelDesde, setPlantelDesde] = useState("respaldo");
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
+
+  // El equipo propio. Arranca con lo último que quedó en el teléfono para que
+  // la app no parpadee con otro nombre mientras la base contesta.
+  const [equipoPropio, setEquipoPropio] = useState(
+    () => leerEquipoGuardado() || EQUIPO_POR_DEFECTO,
+  );
+
+  useEffect(() => {
+    let vigente = true;
+
+    cargarEquipoPropio().then(({ equipo }) => {
+      if (vigente) setEquipoPropio(equipo);
+    });
+
+    return () => {
+      vigente = false;
+    };
+  }, []);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [buscadorPlantel, setBuscadorPlantel] = useState("");
   const [avisoPlantel, setAvisoPlantel] = useState("");
+  const [nombreEquipoEditado, setNombreEquipoEditado] = useState("");
+  const [avisoEquipo, setAvisoEquipo] = useState("");
+  const [errorEquipo, setErrorEquipo] = useState("");
 
   // Los desplegables de nombre de toda la app leen el plantel de acá.
   const nombresPlantel = useMemo(() => nombresDelPlantel(plantel), [plantel]);
@@ -1209,7 +1235,7 @@ export default function App() {
 
   // Escudos reales. El nuestro es siempre el mismo, así que no hay nada que
   // esperar; el del rival se busca mientras se escribe el nombre.
-  const escudoCam = useEscudoClub(NOMBRE_CAM, { demora: 0 });
+  const escudoCam = useEscudoClub(equipoPropio, { demora: 0 });
   const escudoRival = useEscudoClub(registro.rival);
 
   const [pantallaFormacion, setPantallaFormacion] = useState(
@@ -3820,14 +3846,10 @@ export default function App() {
             <div className="lado-enfrentamiento">
               <EscudoClub
                 equipo="cam"
-                nombre={NOMBRE_CAM}
+                nombre={equipoPropio}
                 url={escudoCam.url}
               />
-              <strong>
-                Atlético
-                <br />
-                Mineiro
-              </strong>
+              <strong>{equipoPropio}</strong>
             </div>
 
             <span className="separador-enfrentamiento">VS</span>
@@ -3909,11 +3931,11 @@ export default function App() {
             <span className="enfrentamiento-registro">
               <EscudoClub
                 equipo="cam"
-                nombre={NOMBRE_CAM}
+                nombre={equipoPropio}
                 url={escudoCam.url}
                 compacto
               />
-              <strong>Atlético Mineiro</strong>
+              <strong>{equipoPropio}</strong>
               {partidoEnCursoResumen.marcador && (
                 <span className="resultado-registro">
                   {partidoEnCursoResumen.marcador}
@@ -4257,8 +4279,8 @@ export default function App() {
           >
             <div className="equipos-ficha">
               <div className="equipo-ficha">
-                <EscudoDeClub equipo="cam" nombre={NOMBRE_CAM} />
-                <strong>Atlético Mineiro</strong>
+                <EscudoDeClub equipo="cam" nombre={equipoPropio} />
+                <strong>{equipoPropio}</strong>
               </div>
 
               <div className="resultado-ficha">
@@ -4579,7 +4601,7 @@ export default function App() {
           <header className="encabezado">
             <h1>{editando ? "Editar registro" : "Detalle registro"}</h1>
             <p>
-              {editado.fecha} · Atlético Mineiro vs{" "}
+              {editado.fecha} · {equipoPropio} vs{" "}
               {editado.rival || "Sin rival"}
               {editado.resultado ? ` · ${editado.resultado}` : ""}
             </p>
@@ -5418,6 +5440,26 @@ export default function App() {
         <button
           type="button"
           className="opcion-ajuste"
+          onClick={() => {
+            setNombreEquipoEditado(equipoPropio);
+            setAvisoEquipo("");
+            setErrorEquipo("");
+            setVistaAjustes("equipo");
+          }}
+        >
+          <span className="icono-ajuste">
+            <Icono nombre="escudo" size={18} />
+          </span>
+          <span className="texto-ajuste">
+            <b>Equipo</b>
+            <span>{equipoPropio}</span>
+          </span>
+          <span className="flecha-ajuste">›</span>
+        </button>
+
+        <button
+          type="button"
+          className="opcion-ajuste"
           onClick={() => setVistaAjustes("jugadores")}
         >
           <span className="icono-ajuste">
@@ -5432,6 +5474,101 @@ export default function App() {
       </div>
     </div>
   );
+
+  const guardarEquipo = async () => {
+    const { equipo, error } = await guardarEquipoPropio(nombreEquipoEditado);
+
+    if (!equipo) {
+      setErrorEquipo(error || "No se pudo guardar el equipo.");
+      setAvisoEquipo("");
+      return;
+    }
+
+    setEquipoPropio(equipo);
+    setNombreEquipoEditado(equipo);
+    // Si la base falló, en este teléfono igual quedó: conviene decirlo en vez
+    // de dar por guardado algo que el otro celular no va a ver.
+    setErrorEquipo(
+      error ? "Quedó guardado en este teléfono, pero no en la base." : "",
+    );
+    setAvisoEquipo(error ? "" : "Equipo guardado");
+    window.setTimeout(() => setAvisoEquipo(""), 2500);
+  };
+
+  const renderAjustesEquipo = () => {
+    const enEdicion = nombreEquipoEditado.trim();
+
+    return (
+      <div className="app">
+        <div className="contenedor">
+          <header className="encabezado">
+            <h1>Equipo</h1>
+            <p>Ajustes · Equipo</p>
+          </header>
+
+          {avisoEquipo && (
+            <div className="notificacion-guardado" role="status">
+              <Icono nombre="check" size={18} /> {avisoEquipo}
+            </div>
+          )}
+
+          <section className="tarjeta tarjeta-ficha">
+            <div className="cabeza-ficha">
+              <b>El equipo propio</b>
+            </div>
+
+            <div className="equipo-propio">
+              <EscudoDeClub equipo="cam" nombre={enEdicion} />
+              <strong>{enEdicion || "Sin nombre"}</strong>
+            </div>
+
+            <label className="etiqueta-equipo" htmlFor="nombre-equipo">
+              Nombre del equipo
+            </label>
+            <input
+              id="nombre-equipo"
+              value={nombreEquipoEditado}
+              placeholder="Nombre del equipo"
+              onChange={(evento) => {
+                setNombreEquipoEditado(evento.target.value);
+                setErrorEquipo("");
+              }}
+              onKeyDown={(evento) => {
+                if (evento.key === "Enter") guardarEquipo();
+              }}
+            />
+
+            <p className="pista-equipo">
+              El escudo no se carga: se busca solo por el nombre y queda
+              guardado en el teléfono. Si no aparece, probá con el nombre
+              completo del club.
+            </p>
+
+            {errorEquipo && <p className="error-equipo">{errorEquipo}</p>}
+
+            <button
+              type="button"
+              className="boton-principal"
+              onClick={guardarEquipo}
+              disabled={!enEdicion || enEdicion === equipoPropio}
+            >
+              Guardar equipo
+            </button>
+          </section>
+
+          <div className="acciones-dobles">
+            <button
+              type="button"
+              className="boton-secundario"
+              onClick={() => setVistaAjustes("inicio")}
+            >
+              ← Volver
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderAjustesJugadores = () => (
     <div className="app">
@@ -5994,11 +6131,11 @@ export default function App() {
           >
             <EscudoClub
               equipo="cam"
-              nombre={NOMBRE_CAM}
+              nombre={equipoPropio}
               url={escudoCam.url}
               compacto
             />{" "}
-            Atlético Mineiro
+            {equipoPropio}
           </button>
           <button
             type="button"
@@ -6178,6 +6315,7 @@ export default function App() {
 
   if (pantallaFormacion === "ajustes") {
     const pantallas = {
+      equipo: renderAjustesEquipo,
       jugadores: renderAjustesJugadores,
       lista: renderAjustesLista,
       posiciones: renderAjustesPosiciones,
@@ -6292,8 +6430,8 @@ export default function App() {
                     </span>
 
                     <div className="enfrentamiento-registro">
-                      <EscudoDeClub equipo="cam" nombre={NOMBRE_CAM} compacto />
-                      <strong>Atlético Mineiro</strong>
+                      <EscudoDeClub equipo="cam" nombre={equipoPropio} compacto />
+                      <strong>{equipoPropio}</strong>
                       <span className="resultado-registro">
                         {item.resultado || "–"}
                       </span>
@@ -6381,7 +6519,7 @@ export default function App() {
             <span className="marca-movil-cabecera">
               <EscudoClub
                 equipo="cam"
-                nombre={NOMBRE_CAM}
+                nombre={equipoPropio}
                 url={escudoCam.url}
                 compacto
               />
@@ -6419,13 +6557,13 @@ export default function App() {
 
         <section className="marcador-partido" aria-label="Marcador del partido">
           <div className="equipo-marcador equipo-local">
-            <EscudoClub equipo="cam" nombre={NOMBRE_CAM} url={escudoCam.url} />
-            <strong>Atlético Mineiro</strong>
+            <EscudoClub equipo="cam" nombre={equipoPropio} url={escudoCam.url} />
+            <strong>{equipoPropio}</strong>
           </div>
           <div className="resultado-marcador">
             <input
               inputMode="numeric"
-              aria-label="Goles de Atlético Mineiro"
+              aria-label={`Goles de ${equipoPropio}`}
               value={golesAtletico === "0" ? "" : golesAtletico}
               placeholder="0"
               onChange={(evento) =>

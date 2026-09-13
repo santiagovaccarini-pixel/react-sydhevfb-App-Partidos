@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { EscudoCAM, EscudoRival } from "./AppChrome";
 import { claveEscudo, escudoGuardado, obtenerEscudo } from "../domain/crests";
+import { esElCam } from "../domain/equipo";
 
 export const NOMBRE_CAM = "Atlético Mineiro";
 
@@ -93,7 +94,9 @@ export const EscudoClub = ({
   useEffect(() => setFalloImagen(false), [url]);
 
   if (!url || falloImagen) {
-    return equipo === "cam" ? (
+    // El dibujado es el del Mineiro: si el equipo propio es otro, mientras no
+    // aparezca su escudo real va el genérico y no el ajeno.
+    return equipo === "cam" && esElCam(nombre) ? (
       <EscudoCAM compacto={compacto} />
     ) : (
       <EscudoRival nombre={nombre} mini={mini} />
