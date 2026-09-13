@@ -5268,3 +5268,28 @@ button.puesto-cancha {
   width: 100%;
   margin-top: 14px;
 }
+
+/* Los otros equipos de la base, para cambiarse. */
+.lista-equipos {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 6px;
+  list-style: none;
+}
+
+.lista-equipos button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 12px;
+  background: var(--cam-blanco);
+  color: var(--cam-tinta);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
