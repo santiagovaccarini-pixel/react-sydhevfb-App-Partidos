@@ -114,7 +114,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.13.3";
+const APP_VERSION = "2026.09.13.4";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1188,6 +1188,7 @@ export default function App() {
   );
   const [equipoId, setEquipoId] = useState(() => leerEquipoElegido()?.id || null);
   const [equiposCargados, setEquiposCargados] = useState(false);
+  const [fallaronEquipos, setFallaronEquipos] = useState(false);
 
   // Sin señal la lista de equipos viene vacía, así que el nombre sale de lo
   // que quedó guardado en el teléfono: mostrar el de por defecto sería mostrar
@@ -1210,6 +1211,7 @@ export default function App() {
       if (!vigente) return;
 
       setEquipos(lista);
+      setFallaronEquipos(Boolean(error));
 
       const elegido = elegirEquipoInicial(lista, leerEquipoElegido(), {
         huboError: Boolean(error),
@@ -5592,8 +5594,12 @@ export default function App() {
       <div className="app">
         <div className="contenedor">
           <header className="encabezado">
-            <h1>Equipo</h1>
-            <p>Ajustes · Equipo</p>
+            <h1>{equipoId ? "Equipo" : "¿De qué equipo sos?"}</h1>
+            <p>
+              {equipoId
+                ? "Ajustes · Equipo"
+                : "La app guarda los partidos y el plantel de cada club por separado. Elegí el tuyo para empezar."}
+            </p>
           </header>
 
           {avisoEquipo && (
@@ -5602,9 +5608,9 @@ export default function App() {
             </div>
           )}
 
-          <section className="tarjeta tarjeta-ficha">
+          <section className="tarjeta tarjeta-ficha" hidden={!equipoId}>
             <div className="cabeza-ficha">
-              <b>{equipoId ? "Tu equipo" : "Todavía no elegiste equipo"}</b>
+              <b>Tu equipo</b>
             </div>
 
             {equipoId ? (
@@ -5645,18 +5651,13 @@ export default function App() {
                   Guardar nombre
                 </button>
               </>
-            ) : (
-              <p className="vacio-ficha">
-                En esta base hay más de un equipo. Elegí el tuyo de la lista o
-                creá uno nuevo.
-              </p>
-            )}
+            ) : null}
           </section>
 
           {otros.length > 0 && (
             <section className="tarjeta tarjeta-ficha">
               <div className="cabeza-ficha">
-                <b>Cambiar de equipo</b>
+                <b>{equipoId ? "Cambiar de equipo" : "Elegí tu equipo"}</b>
                 <span className="cuenta-ajuste">{otros.length}</span>
               </div>
 
@@ -5678,8 +5679,9 @@ export default function App() {
               </ul>
 
               <p className="pista-equipo">
-                Cada equipo ve solo sus partidos y su plantel. Esto ordena, no
-                protege: desde acá se puede entrar a cualquiera.
+                {equipoId
+                  ? "Cada equipo ve solo sus partidos y su plantel. Esto ordena, no protege: desde acá se puede entrar a cualquiera."
+                  : "Si tu club ya está en la lista, tocalo: vas a ver todos sus partidos y su plantel, sin cargar nada de nuevo."}
               </p>
             </section>
           )}
@@ -5707,22 +5709,24 @@ export default function App() {
             </div>
 
             <p className="pista-equipo">
-              Arranca sin partidos y sin plantel, y este teléfono pasa a ese
-              equipo.
+              Solo para un club que todavía no esté en la lista. Arranca sin
+              partidos y sin plantel, y este teléfono pasa a ese equipo.
             </p>
           </section>
 
           {errorEquipo && <p className="error-equipo">{errorEquipo}</p>}
 
-          <div className="acciones-dobles">
-            <button
-              type="button"
-              className="boton-secundario"
-              onClick={() => setVistaAjustes("inicio")}
-            >
-              ← Volver
-            </button>
-          </div>
+          {equipoId && (
+            <div className="acciones-dobles">
+              <button
+                type="button"
+                className="boton-secundario"
+                onClick={() => setVistaAjustes("inicio")}
+              >
+                ← Volver
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -6478,6 +6482,14 @@ export default function App() {
         <div className="overlay-intro" />
       </div>
     );
+  }
+
+  // Con la base leída y sin equipo elegido, lo que se cargue se guardaría sin
+  // dueño: no lo vería ni quien lo cargó. Así que primero se elige. Si la base
+  // no se pudo leer no se bloquea nada: ahí no hay lista que ofrecer y la app
+  // tiene que seguir sirviendo.
+  if (equiposCargados && !equipoId && !fallaronEquipos) {
+    return enMarcoAplicacion("ajustes", renderAjustesEquipo());
   }
 
   if (pantallaFormacion === "ajustes") {

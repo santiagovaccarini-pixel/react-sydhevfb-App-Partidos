@@ -1325,7 +1325,9 @@ describe("interfaz operativa", () => {
     expect(despues[0].textContent).toContain("Santos");
   });
 
-  test("con varios equipos y ninguno elegido, pide elegir en vez de mezclar", async () => {
+  test("sin equipo elegido, la app pide elegirlo antes de dejar cargar nada", async () => {
+    // Sin equipo, lo que se cargue se guardaría sin dueño: no lo vería ni
+    // quien lo cargó. Por eso no se entra a la app hasta elegir.
     doblesSupabase.equipos = [
       { id: "eq-1", nombre: "Atlético Mineiro" },
       { id: "eq-2", nombre: "Estudiantes" },
@@ -1336,16 +1338,56 @@ describe("interfaz operativa", () => {
     localStorage.removeItem("equipo_elegido");
 
     await montarApp();
+
+    expect(contenedor.querySelector("h1").textContent).toBe(
+      "¿De qué equipo sos?",
+    );
+    // Los dos clubes, para tocar el propio.
+    expect(
+      Array.from(contenedor.querySelectorAll(".lista-equipos button")).map(
+        (boton) => boton.textContent.trim(),
+      ),
+    ).toHaveLength(2);
+
+    // Y no se puede escapar a cargar un partido.
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button"))
+        .find((boton) => boton.textContent.includes("Formación"))
+        .click(),
+    );
+    expect(contenedor.querySelector("h1").textContent).toBe(
+      "¿De qué equipo sos?",
+    );
+
+    // Al elegir uno, la app se abre con lo de ese club.
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".lista-equipos button"))
+        .find((boton) => boton.textContent.includes("Atlético Mineiro"))
+        .click(),
+    );
     await act(async () =>
       Array.from(contenedor.querySelectorAll(".navegacion-movil button"))
         .find((boton) => boton.textContent.includes("Registros"))
         .click(),
     );
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
+  });
 
-    expect(contenedor.querySelector(".aviso-base").textContent).toContain(
-      "Elegí tu equipo",
+  test("si la base no contesta, no se queda pidiendo un equipo que no puede ofrecer", async () => {
+    // Sin señal no hay lista para elegir: bloquear la app dejaría el teléfono
+    // inservible justo en la cancha.
+    doblesSupabase.errorEquipos = { message: "sin red" };
+    doblesSupabase.equipos = [];
+    localStorage.setItem(
+      "equipo_elegido",
+      JSON.stringify({ id: "eq-9", nombre: "Estudiantes" }),
     );
-    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(0);
+
+    await montarApp();
+
+    expect(contenedor.textContent).not.toContain("¿De qué equipo sos?");
+    // Y sigue sabiendo de qué club es.
+    expect(contenedor.textContent).toContain("Estudiantes");
   });
 
   test("con un solo equipo lo adopta sin preguntar nada", async () => {
