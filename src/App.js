@@ -114,7 +114,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.13.2";
+const APP_VERSION = "2026.09.13.3";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1183,11 +1183,18 @@ export default function App() {
   // Los equipos que conviven en la base y cuál usa este teléfono. Se guarda el
   // id y no el nombre: así, renombrar un equipo no deja afuera lo ya cargado.
   const [equipos, setEquipos] = useState([]);
-  const [equipoId, setEquipoId] = useState(() => leerEquipoElegido());
+  const [equipoGuardado, setEquipoGuardado] = useState(() =>
+    leerEquipoElegido(),
+  );
+  const [equipoId, setEquipoId] = useState(() => leerEquipoElegido()?.id || null);
   const [equiposCargados, setEquiposCargados] = useState(false);
 
+  // Sin señal la lista de equipos viene vacía, así que el nombre sale de lo
+  // que quedó guardado en el teléfono: mostrar el de por defecto sería mostrar
+  // un club ajeno.
   const equipoPropio =
     equipos.find((equipo) => equipo.id === equipoId)?.nombre ||
+    (equipoGuardado?.id === equipoId ? equipoGuardado?.nombre : "") ||
     EQUIPO_POR_DEFECTO;
 
   const releerEquipos = async () => {
@@ -1199,15 +1206,19 @@ export default function App() {
   useEffect(() => {
     let vigente = true;
 
-    cargarEquipos().then(({ equipos: lista }) => {
+    cargarEquipos().then(({ equipos: lista, error }) => {
       if (!vigente) return;
 
       setEquipos(lista);
 
-      const elegido = elegirEquipoInicial(lista, leerEquipoElegido());
+      const elegido = elegirEquipoInicial(lista, leerEquipoElegido(), {
+        huboError: Boolean(error),
+      });
+
       if (elegido) {
         setEquipoId(elegido.id);
-        guardarEquipoElegido(elegido.id);
+        setEquipoGuardado(elegido);
+        guardarEquipoElegido(elegido);
       } else {
         setEquipoId(null);
       }
@@ -5533,7 +5544,12 @@ export default function App() {
     }
 
     setErrorEquipo("");
-    await releerEquipos();
+    const lista = await releerEquipos();
+    const actual = lista.find((equipo) => equipo.id === equipoId);
+    if (actual) {
+      setEquipoGuardado(actual);
+      guardarEquipoElegido(actual);
+    }
     avisarEquipo("Nombre cambiado");
   };
 
@@ -5556,11 +5572,15 @@ export default function App() {
   // leer los partidos y el plantel: de eso se encargan los efectos que miran
   // equipoId.
   const cambiarDeEquipo = (id) => {
-    guardarEquipoElegido(id);
+    const elegido = equipos.find((equipo) => equipo.id === id);
+
+    guardarEquipoElegido(elegido || { id });
+    setEquipoGuardado(elegido || { id, nombre: "" });
     setEquipoId(id);
-    setNombreEquipoEditado(
-      equipos.find((equipo) => equipo.id === id)?.nombre || "",
-    );
+    // El plantel del club anterior no se queda a la vista mientras llega el
+    // nuevo: se vacía acá y los efectos que miran equipoId traen el que va.
+    setPlantel([]);
+    setNombreEquipoEditado(elegido?.nombre || "");
     setErrorEquipo("");
   };
 
