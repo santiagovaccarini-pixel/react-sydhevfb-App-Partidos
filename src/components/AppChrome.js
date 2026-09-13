@@ -68,6 +68,7 @@ const trazos = {
   ),
   flecha: <path d="m9 18 6-6-6-6" />,
   subir: <path d="M12 19V5m0 0-7 7m7-7 7 7" />,
+  escudo: <path d="M12 3 4 6v6c0 4.4 3.2 7.9 8 9 4.8-1.1 8-4.6 8-9V6l-8-3Z" />,
 };
 
 export const Icono = ({ nombre, size = 22, className = "" }) => (
@@ -90,13 +91,19 @@ export const Icono = ({ nombre, size = 22, className = "" }) => (
 const siluetaEscudo =
   "M7 25h50v23c0 14.5-9.3 23.2-25 30C16.3 71.2 7 62.5 7 48Z";
 
-export const EscudoCAM = ({ compacto = false }) => {
+// El dibujo es el escudo del Mineiro. Se usa de dos maneras: como escudo del
+// equipo propio cuando todavía es el Mineiro, y como marca de la app en la
+// barra de escritorio; por eso la etiqueta se puede cambiar.
+export const EscudoCAM = ({
+  compacto = false,
+  etiqueta = "Atlético Mineiro",
+}) => {
   const recorte = useId();
 
   return (
     <span
       className={`escudo-cam ${compacto ? "compacto" : ""}`}
-      aria-label="Atlético Mineiro"
+      aria-label={etiqueta}
     >
       <svg viewBox="0 0 64 82" role="img" aria-hidden="true">
         <defs>
@@ -174,7 +181,7 @@ export const MarcoAplicacion = ({
         aria-label="Navegación principal"
       >
         <div className="marca-aplicacion">
-          <EscudoCAM />
+          <EscudoCAM etiqueta="Registro Partido" />
           <strong>Registro Partido</strong>
         </div>
 
