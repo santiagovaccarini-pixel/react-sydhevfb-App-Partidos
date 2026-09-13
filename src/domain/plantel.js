@@ -62,11 +62,7 @@ export const plantelDeRespaldo = () =>
 export const leerPlantelGuardado = (equipoId = null) => {
   try {
     const guardado = JSON.parse(
-      localStorage.getItem(claveDelPlantel(equipoId)) ||
-        // La copia de antes de que hubiera equipos es de este teléfono, así
-        // que vale como la de su club.
-        (equipoId ? localStorage.getItem(CLAVE_PLANTEL) : null) ||
-        "null",
+      localStorage.getItem(claveDelPlantel(equipoId)) || "null",
     );
     if (!Array.isArray(guardado) || guardado.length === 0) return null;
     return guardado.map(normalizarJugador);
