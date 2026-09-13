@@ -28,19 +28,37 @@ const comparable = (nombre) =>
 export const esElCam = (nombre) =>
   comparable(nombre) === comparable(EQUIPO_POR_DEFECTO);
 
+/**
+ * El equipo de este teléfono, con su nombre. Se guarda el nombre además del id
+ * para que sin señal la app siga sabiendo de qué club es: si no, mostraría el
+ * que viene por defecto, que para otro club está mal.
+ */
 export const leerEquipoElegido = () => {
   try {
-    return limpiar(localStorage.getItem(CLAVE_EQUIPO_ELEGIDO)) || null;
+    const guardado = localStorage.getItem(CLAVE_EQUIPO_ELEGIDO);
+    if (!guardado) return null;
+
+    // Antes se guardaba solo el id, pelado.
+    if (!guardado.startsWith("{")) return { id: guardado, nombre: "" };
+
+    const leido = JSON.parse(guardado);
+    return leido?.id ? { id: leido.id, nombre: limpiar(leido.nombre) } : null;
   } catch (error) {
     console.warn("No se pudo leer el equipo elegido:", error);
     return null;
   }
 };
 
-export const guardarEquipoElegido = (id) => {
+export const guardarEquipoElegido = (equipo) => {
   try {
-    if (id) localStorage.setItem(CLAVE_EQUIPO_ELEGIDO, String(id));
-    else localStorage.removeItem(CLAVE_EQUIPO_ELEGIDO);
+    if (equipo?.id) {
+      localStorage.setItem(
+        CLAVE_EQUIPO_ELEGIDO,
+        JSON.stringify({ id: equipo.id, nombre: limpiar(equipo.nombre) }),
+      );
+    } else {
+      localStorage.removeItem(CLAVE_EQUIPO_ELEGIDO);
+    }
   } catch (error) {
     console.warn("No se pudo guardar el equipo elegido:", error);
   }
@@ -72,11 +90,16 @@ export const cargarEquipos = async () => {
  * solo en la base, se adopta ese: es el caso de siempre, un equipo y varios
  * teléfonos, y no tiene sentido hacer elegir cuando no hay nada que elegir.
  */
-export const elegirEquipoInicial = (equipos, idGuardado) => {
+export const elegirEquipoInicial = (equipos, guardado, { huboError } = {}) => {
   const lista = equipos || [];
-  const guardado = lista.find((equipo) => equipo.id === idGuardado);
 
-  if (guardado) return guardado;
+  // Si la base no contestó, este teléfono sigue siendo del equipo que ya
+  // sabía. Preguntar de nuevo sin poder ofrecer la lista no lleva a ningún
+  // lado, y en la cancha suele no haber señal.
+  if (huboError) return guardado || null;
+
+  const enLaBase = lista.find((equipo) => equipo.id === guardado?.id);
+  if (enLaBase) return enLaBase;
   if (lista.length === 1) return lista[0];
   return null;
 };

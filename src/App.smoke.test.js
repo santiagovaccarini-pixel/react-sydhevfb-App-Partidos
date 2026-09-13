@@ -686,6 +686,12 @@ describe("interfaz operativa", () => {
 
   test("la formación se carga sobre la cancha y el banco sigue siendo planilla", async () => {
     localStorage.removeItem("registro_actual_partido");
+    // Con los equipos, el plantel sale de la base y no del código: si no hay
+    // cargado ninguno, los desplegables están vacíos a propósito.
+    doblesSupabase.jugadores = [
+      { id: 1, nombre: "VITAO", roles: [], puestos: [] },
+      { id: 2, nombre: "SCARPA", roles: [], puestos: [] },
+    ];
 
     await montarApp();
 
@@ -1280,7 +1286,10 @@ describe("interfaz operativa", () => {
       { ...filaTransmisionGuardada(), id: 1, rival: "Santos", equipo_id: "eq-1" },
       { ...filaTransmisionGuardada(), id: 2, rival: "Gimnasia", equipo_id: "eq-2" },
     ];
-    localStorage.setItem("equipo_elegido", "eq-2");
+    localStorage.setItem(
+      "equipo_elegido",
+      JSON.stringify({ id: "eq-2", nombre: "Estudiantes" }),
+    );
 
     await montarApp();
 
@@ -1308,7 +1317,7 @@ describe("interfaz operativa", () => {
         .click(),
     );
 
-    expect(localStorage.getItem("equipo_elegido")).toBe("eq-1");
+    expect(JSON.parse(localStorage.getItem("equipo_elegido")).id).toBe("eq-1");
 
     await act(async () => irA("Registros").click());
     const despues = contenedor.querySelectorAll(".registro-guardado");
@@ -1357,7 +1366,7 @@ describe("interfaz operativa", () => {
 
     expect(contenedor.querySelector(".aviso-base")).toBeNull();
     expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
-    expect(localStorage.getItem("equipo_elegido")).toBe("eq-1");
+    expect(JSON.parse(localStorage.getItem("equipo_elegido")).id).toBe("eq-1");
   });
 
   test("una lista vacía dice si la base falló o si de verdad no hay partidos", async () => {
@@ -2130,7 +2139,16 @@ describe("interfaz operativa", () => {
     expect(puestosDe(bloques[1])).toEqual(["VO", "VM", "MP", "EXT"]);
   });
 
-  test("si la base no responde, los desplegables igual tienen nombres", async () => {
+  test("si la base no responde, quedan los nombres que se vieron de ese club", async () => {
+    // La copia del teléfono es por club: con la base caída se muestra la de
+    // este equipo, no la del que se estaba mirando antes.
+    localStorage.setItem(
+      "plantel_jugadores:eq-1",
+      JSON.stringify([
+        { id: 1, nombre: "VITAO", roles: ["Defensa"], puestos: [] },
+        { id: 2, nombre: "SCARPA", roles: ["Mediocampo"], puestos: [] },
+      ]),
+    );
     doblesSupabase.errorJugadores = { message: "sin permiso" };
 
     await montarApp();
@@ -2148,12 +2166,43 @@ describe("interfaz operativa", () => {
     await act(async () => opcion("Jugadores").click());
     await act(async () => opcion("Lista").click());
 
-    // Cae al plantel del código: una lista vacía dejaría la app inutilizable.
     const nombres = Array.from(contenedor.querySelectorAll(".nombre-lista")).map(
       (x) => x.textContent.trim(),
     );
-    expect(nombres.length).toBeGreaterThan(30);
-    expect(nombres).toContain("ALONSO");
+    expect(nombres).toEqual(["VITAO", "SCARPA"]);
+  });
+
+  test("un club sin plantel no muestra el de otro", async () => {
+    // Antes, un equipo recién creado caía al plantel del código —el del
+    // Mineiro— o al que hubiera quedado del club anterior.
+    doblesSupabase.equipos = [
+      { id: "eq-1", nombre: "Atlético Mineiro" },
+      { id: "eq-2", nombre: "Estudiantes" },
+    ];
+    localStorage.setItem(
+      "plantel_jugadores:eq-1",
+      JSON.stringify([{ id: 1, nombre: "VITAO", roles: [], puestos: [] }]),
+    );
+    localStorage.setItem("equipo_elegido", JSON.stringify({ id: "eq-2", nombre: "Estudiantes" }));
+    doblesSupabase.jugadores = [];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    const opcion = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
+        boton.textContent.includes(etiqueta),
+      );
+
+    await act(async () => irA("Ajustes").click());
+    await act(async () => opcion("Jugadores").click());
+    await act(async () => opcion("Lista").click());
+
+    expect(contenedor.querySelectorAll(".nombre-lista")).toHaveLength(0);
+    expect(contenedor.textContent).toContain("Todavía no hay jugadores");
   });
 
   test("bloquea el doble guardado y confirma la sincronización", async () => {

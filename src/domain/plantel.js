@@ -3,6 +3,11 @@ import jugadoresDelCodigo from "../jugadores";
 
 export const CLAVE_PLANTEL = "plantel_jugadores";
 
+// Una copia por club: sin esto, al cambiar de equipo quedaban a la vista los
+// jugadores del anterior.
+const claveDelPlantel = (equipoId) =>
+  equipoId ? `${CLAVE_PLANTEL}:${equipoId}` : CLAVE_PLANTEL;
+
 // Los tres roles gruesos. Un jugador puede tener más de uno.
 export const ROLES = ["Defensa", "Mediocampo", "Ataque"];
 
@@ -54,9 +59,15 @@ export const plantelDeRespaldo = () =>
     .filter(Boolean)
     .map((nombre) => normalizarJugador({ nombre }));
 
-export const leerPlantelGuardado = () => {
+export const leerPlantelGuardado = (equipoId = null) => {
   try {
-    const guardado = JSON.parse(localStorage.getItem(CLAVE_PLANTEL) || "null");
+    const guardado = JSON.parse(
+      localStorage.getItem(claveDelPlantel(equipoId)) ||
+        // La copia de antes de que hubiera equipos es de este teléfono, así
+        // que vale como la de su club.
+        (equipoId ? localStorage.getItem(CLAVE_PLANTEL) : null) ||
+        "null",
+    );
     if (!Array.isArray(guardado) || guardado.length === 0) return null;
     return guardado.map(normalizarJugador);
   } catch (error) {
@@ -65,9 +76,9 @@ export const leerPlantelGuardado = () => {
   }
 };
 
-export const guardarPlantelLocal = (plantel) => {
+export const guardarPlantelLocal = (plantel, equipoId = null) => {
   try {
-    localStorage.setItem(CLAVE_PLANTEL, JSON.stringify(plantel));
+    localStorage.setItem(claveDelPlantel(equipoId), JSON.stringify(plantel));
   } catch (error) {
     console.warn("No se pudo guardar el plantel en el celular:", error);
   }
@@ -92,26 +103,31 @@ export const cargarPlantel = async (equipoId = null) => {
 
     if (error) throw error;
 
-    if (Array.isArray(data) && data.length > 0) {
+    if (Array.isArray(data)) {
       const plantel = ordenarPorNombre(data.map(normalizarJugador));
-      guardarPlantelLocal(plantel);
+      guardarPlantelLocal(plantel, equipoId);
+      // Un club recién creado no tiene plantel, y eso es un dato: mostrarle el
+      // de otro equipo sería peor que mostrarle nada.
       return { plantel, desde: "base" };
     }
 
-    // Una tabla vacía no es lo mismo que una tabla inaccesible, pero en los dos
-    // casos conviene no dejar la app sin nombres.
-    return {
-      plantel: leerPlantelGuardado() || plantelDeRespaldo(),
-      desde: "respaldo",
-    };
+    return respaldoDelPlantel(equipoId);
   } catch (error) {
     console.warn("No se pudo leer el plantel de la base:", error);
-    return {
-      plantel: leerPlantelGuardado() || plantelDeRespaldo(),
-      desde: "respaldo",
-    };
+    return respaldoDelPlantel(equipoId);
   }
 };
+
+/**
+ * Con la base caída, lo último que se vio de ESE club. La lista del código
+ * solo sirve cuando todavía no hay club elegido: es la del Mineiro, y para
+ * cualquier otro equipo sería un plantel ajeno.
+ */
+const respaldoDelPlantel = (equipoId) => ({
+  plantel:
+    leerPlantelGuardado(equipoId) || (equipoId ? [] : plantelDeRespaldo()),
+  desde: "respaldo",
+});
 
 export const agregarJugador = async (nombre, equipoId = null) => {
   const limpio = limpiar(nombre);
