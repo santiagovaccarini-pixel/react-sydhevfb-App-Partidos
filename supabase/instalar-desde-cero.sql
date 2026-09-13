@@ -21,6 +21,25 @@
 
 begin;
 
+-- ----------------------------------------------------------------- Equipos --
+--
+-- En una misma base pueden convivir varios clubes: cada uno ve y borra solo
+-- sus partidos y su plantel. Se filtra por este id y no por el nombre, así
+-- corregir el nombre de un club no deja afuera lo que ya tenía cargado.
+
+create table if not exists public.equipos (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null,
+  creado_en timestamptz not null default now()
+);
+
+create unique index if not exists equipos_nombre_unico
+  on public.equipos (lower(btrim(nombre)));
+
+-- A propósito no se crea ninguno: al abrir la app por primera vez, Ajustes ›
+-- Equipo pide crear el propio. Es mejor eso que arrancar con un club ajeno
+-- que hay que renombrar.
+
 -- ---------------------------------------------------------------- Partidos --
 
 create table if not exists public.registros_partido (
@@ -110,8 +129,14 @@ create table if not exists public.registros_partido (
   titulares text[] not null default '{}',
   convocados text[] not null default '{}',
   -- Quién ocupa cada puesto de la cancha y dónde quedó si se movió a mano.
-  formacion_cancha jsonb
+  formacion_cancha jsonb,
+
+  -- De qué club es este partido.
+  equipo_id uuid references public.equipos (id)
 );
+
+create index if not exists registros_por_equipo
+  on public.registros_partido (equipo_id);
 
 -- ------------------------------------------------------------------ Plantel --
 
@@ -123,13 +148,19 @@ create table if not exists public.jugadores (
   -- Hasta cuatro, guardados como sigla. El nombre largo vive en la app.
   puestos text[] not null default '{}',
   creado_en timestamptz not null default now(),
-  actualizado_en timestamptz not null default now()
+  actualizado_en timestamptz not null default now(),
+
+  equipo_id uuid references public.equipos (id)
 );
 
 -- Dos jugadores con el mismo nombre serían dos entradas idénticas en cada
--- desplegable. Se compara sin distinguir mayúsculas ni espacios de más.
-create unique index if not exists jugadores_nombre_unico
-  on public.jugadores (lower(btrim(nombre)));
+-- desplegable. Se compara sin distinguir mayúsculas ni espacios de más, y es
+-- por club: dos equipos pueden tener un Rodríguez.
+create unique index if not exists jugadores_nombre_unico_por_equipo
+  on public.jugadores (equipo_id, lower(btrim(nombre)));
+
+create index if not exists jugadores_por_equipo
+  on public.jugadores (equipo_id);
 
 -- ------------------------------------------------------------------ Ajustes --
 
@@ -139,10 +170,9 @@ create table if not exists public.ajustes (
   actualizado_en timestamptz not null default now()
 );
 
--- El equipo propio se cambia después desde Ajustes › Equipo.
-insert into public.ajustes (clave, valor)
-values ('equipo_propio', 'Atlético Mineiro')
-on conflict (clave) do nothing;
+-- Tabla suelta de clave/valor. Hoy la app no guarda nada acá: el equipo propio
+-- pasó a la tabla equipos. Se deja porque una base migrada la tiene, y así las
+-- dos quedan con la misma forma.
 
 -- ------------------------------------------------------ Acceso de la app --
 --
@@ -150,15 +180,23 @@ on conflict (clave) do nothing;
 -- se le dan permisos explícitos, RLS la deja sin ver nada y la app queda muda,
 -- que es lo que pasó en septiembre.
 
+alter table public.equipos enable row level security;
 alter table public.registros_partido enable row level security;
 alter table public.jugadores enable row level security;
 alter table public.ajustes enable row level security;
 
 grant select, insert, update, delete
-  on table public.registros_partido, public.jugadores, public.ajustes
+  on table public.equipos, public.registros_partido, public.jugadores,
+     public.ajustes
   to anon, authenticated;
 
 grant usage, select on all sequences in schema public to anon, authenticated;
+
+drop policy if exists equipos_acceso_app on public.equipos;
+create policy equipos_acceso_app
+  on public.equipos
+  for all to anon, authenticated
+  using (true) with check (true);
 
 drop policy if exists registros_acceso_app on public.registros_partido;
 create policy registros_acceso_app
@@ -183,34 +221,34 @@ commit;
 -- --------------------------------------------------------------- Revisión --
 --
 -- Esto no cambia nada: se corre aparte para ver que quedó todo. Tienen que
--- salir tres tablas, sus tres políticas y doce permisos por rol.
+-- salir cuatro tablas, sus cuatro políticas y cuatro permisos por rol y tabla.
+-- La lista de equipos arranca vacía a propósito.
 
 select 'tabla' as revision, table_name as detalle
 from information_schema.tables
 where table_schema = 'public'
-  and table_name in ('registros_partido', 'jugadores', 'ajustes')
+  and table_name in ('equipos', 'registros_partido', 'jugadores', 'ajustes')
 
 union all
 
 select 'politica', tablename || ' → ' || policyname
 from pg_policies
 where schemaname = 'public'
-  and tablename in ('registros_partido', 'jugadores', 'ajustes')
+  and tablename in ('equipos', 'registros_partido', 'jugadores', 'ajustes')
 
 union all
 
 select 'permisos de ' || grantee, table_name || ': ' || count(*) || ' de 4'
 from information_schema.role_table_grants
 where table_schema = 'public'
-  and table_name in ('registros_partido', 'jugadores', 'ajustes')
+  and table_name in ('equipos', 'registros_partido', 'jugadores', 'ajustes')
   and grantee in ('anon', 'authenticated')
   and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
 group by grantee, table_name
 
 union all
 
-select 'equipo', clave || ' = ' || valor
-from public.ajustes
-where clave = 'equipo_propio'
+select 'equipos cargados', count(*) || ' (se crea el propio desde la app)'
+from public.equipos
 
 order by 1, 2;
