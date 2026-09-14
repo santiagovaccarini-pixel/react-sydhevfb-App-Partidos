@@ -141,7 +141,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.14.4";
+const APP_VERSION = "2026.09.14.5";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
