@@ -409,6 +409,53 @@ button:active {
   margin: 8px 0 14px;
 }
 
+/* LOCAL O VISITANTE */
+
+/* Se toca y cambia, como el de bruto y neto. Va sobre el fondo oscuro del
+   encabezado, por eso el blanco translúcido. */
+.boton-localia {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  margin-top: 12px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.boton-localia:hover,
+.boton-localia:active {
+  transform: none;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.boton-localia svg {
+  flex: 0 0 auto;
+  stroke-width: 2.2;
+}
+
+/* En la tarjeta de un registro, al lado de la fecha. */
+.marca-localia {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eceff0;
+  color: #55606b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 /* BUSCADOR */
 
 /* Mirar los registros por partido o por jugador. */
@@ -607,6 +654,113 @@ button:active {
   color: #0f172a;
   font-size: 14px;
   padding: 0 12px;
+}
+
+/* EL FILTRO DE EQUIPO */
+
+/* Los rivales del historial, con su escudo. Un select del sistema no puede
+   mostrar imágenes, por eso es una lista propia. */
+.lista-rivales {
+  max-height: 224px;
+  overflow-y: auto;
+  border: 1px solid #dfe5e2;
+  border-radius: 14px;
+  background: white;
+}
+
+.lista-rivales button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef1f0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.lista-rivales button:last-child {
+  border-bottom: 0;
+}
+
+.lista-rivales button:hover,
+.lista-rivales button:active {
+  transform: none;
+  box-shadow: none;
+  background: #f4f7f6;
+}
+
+.lista-rivales button.elegido {
+  background: #eaf4ee;
+}
+
+.lista-rivales b {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: #0f172a;
+  letter-spacing: -0.2px;
+}
+
+.lista-rivales span {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 750;
+  color: #6b7680;
+}
+
+.lista-rivales .sin-resultados {
+  margin: 0;
+}
+
+.rango-fechas {
+  display: flex;
+  gap: 8px;
+}
+
+.rango-fechas label {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.rango-fechas span {
+  flex: 0 0 auto;
+  color: #6b7680;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rango-fechas input {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.rango-fechas input:focus {
+  outline: none;
+  background: none;
+  box-shadow: none;
+}
+
+/* El selector de local o visitante reusa el de Equipo/Jugador, pero adentro
+   del panel no lleva el aire de abajo. */
+.panel-filtro .cambiar-vista {
+  margin-bottom: 0;
 }
 
 /* REGISTROS POR JUGADOR */

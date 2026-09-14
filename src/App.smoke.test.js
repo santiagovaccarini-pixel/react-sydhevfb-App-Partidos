@@ -2160,6 +2160,208 @@ describe("interfaz operativa", () => {
     ).toEqual(["ALONSO", "HULK"]);
   });
 
+  test("un partido se puede cargar de visitante y los escudos se dan vuelta", async () => {
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    const porTexto = (texto) =>
+      Array.from(contenedor.querySelectorAll("button")).find((item) =>
+        item.textContent.includes(texto),
+      );
+    const hero = () =>
+      Array.from(contenedor.querySelectorAll(".enfrentamiento > *")).map(
+        (nodo) =>
+          nodo.classList.contains("separador-enfrentamiento")
+            ? "VS"
+            : nodo.querySelector("strong").textContent.trim(),
+      );
+    const boton = () => contenedor.querySelector(".boton-localia");
+
+    await act(async () => irA("Formación").click());
+
+    // De local vamos primero, que es como venía siendo.
+    expect(boton().textContent).toContain("Local");
+    expect(hero()).toEqual(["Atlético Mineiro", "VS", "Cruzeiro"]);
+
+    await act(async () => boton().click());
+
+    expect(boton().textContent).toContain("Visitante");
+    expect(hero()).toEqual(["Cruzeiro", "VS", "Atlético Mineiro"]);
+
+    // Y se guarda con la localía puesta.
+    await act(async () => porTexto("Ingresar Formación").click());
+    await act(async () => porTexto("Guardar formación").click());
+    await act(async () => porTexto("Guardar partido").click());
+    await act(async () => vi.runOnlyPendingTimers());
+
+    expect(doblesSupabase.insertar.mock.calls[0][0][0]).toMatchObject({
+      rival: "Cruzeiro",
+      localia: "visitante",
+    });
+  });
+
+  test("Equipo tiene el mismo filtro, con equipo, fecha, resultado y localía", async () => {
+    doblesSupabase.filasHistorial = [
+      { ...filaTransmisionGuardada(), id: 21, fecha: "2026-09-10", rival: "Santos", resultado: "2-1", localia: "local" },
+      { ...filaTransmisionGuardada(), id: 22, fecha: "2026-09-03", rival: "Vasco", resultado: "0-2", localia: "visitante" },
+      { ...filaTransmisionGuardada(), id: 23, fecha: "2026-08-27", rival: "Santos", resultado: "1-1", localia: "local" },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    const elegir = Object.getOwnPropertyDescriptor(
+      window.HTMLSelectElement.prototype,
+      "value",
+    ).set;
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    const enSelect = async (selector, valor) => {
+      const select = contenedor.querySelector(selector);
+      await act(async () => {
+        elegir.call(select, valor);
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    };
+    const fechas = () =>
+      Array.from(contenedor.querySelectorAll(".fecha-registro")).map((nodo) =>
+        nodo.textContent.trim(),
+      );
+
+    await act(async () => irA("Registros").click());
+    expect(fechas()).toHaveLength(3);
+
+    // El orden dejó de estar suelto abajo del buscador.
+    expect(contenedor.querySelector(".buscador-registros > select")).toBeNull();
+
+    await act(async () => contenedor.querySelector(".boton-filtro").click());
+    expect(contenedor.querySelector(".panel-filtro")).not.toBeNull();
+
+    // Por equipo: la lista sale de los partidos guardados, con su escudo.
+    await enSelect(".panel-filtro > select", "rival");
+    const rivales = () =>
+      Array.from(contenedor.querySelectorAll(".lista-rivales button")).map(
+        (boton) => ({
+          nombre: boton.querySelector("b").textContent,
+          escudo: Boolean(boton.querySelector("svg, img")),
+        }),
+      );
+    expect(rivales()).toEqual([
+      { nombre: "Santos", escudo: true },
+      { nombre: "Vasco", escudo: true },
+    ]);
+
+    await act(async () =>
+      contenedor.querySelectorAll(".lista-rivales button")[0].click(),
+    );
+    expect(fechas()).toHaveLength(2);
+    expect(contenedor.querySelector(".boton-filtro").className).toContain(
+      "con-filtro",
+    );
+
+    // Por fecha, con las dos puntas incluidas.
+    await enSelect(".panel-filtro > select", "fecha");
+    const puntas = () => contenedor.querySelectorAll(".rango-fechas input");
+    await act(async () => {
+      escribir.call(puntas()[0], "2026-09-03");
+      puntas()[0].dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(fechas()).toHaveLength(2);
+
+    // Por resultado: el 0-2 es derrota aunque de visitante se muestre 2-0.
+    await enSelect(".panel-filtro > select", "resultado");
+    await enSelect(".minutos-filtro select", "perdido");
+    expect(fechas()).toEqual(["03 de sept de 2026"]);
+
+    await enSelect(".minutos-filtro select", "exacto");
+    const marcador = contenedor.querySelector(".minutos-filtro input");
+    await act(async () => {
+      escribir.call(marcador, "1-1");
+      marcador.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(fechas()).toEqual(["27 de ago de 2026"]);
+
+    // Por local o visitante.
+    await enSelect(".panel-filtro > select", "localia");
+    expect(fechas()).toHaveLength(2);
+    await act(async () =>
+      Array.from(
+        contenedor.querySelectorAll(".panel-filtro .cambiar-vista button"),
+      )
+        .find((boton) => boton.textContent === "Visitante")
+        .click(),
+    );
+    expect(fechas()).toEqual(["03 de sept de 2026"]);
+  });
+
+  test("un registro de visitante se lee con el local adelante", async () => {
+    // Guardado hay un 0-2 nuestro; en pantalla tiene que decir 2-0, con el
+    // rival primero. Y lo viejo, que no tiene el dato, se muestra de local.
+    doblesSupabase.filasHistorial = [
+      { ...filaTransmisionGuardada(), id: 11, resultado: "0-2", localia: "visitante" },
+      { ...filaTransmisionGuardada(), id: 12, fecha: "2026-09-03", rival: "Vasco", resultado: "3-1" },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+
+    const tarjetas = Array.from(
+      contenedor.querySelectorAll(".registro-guardado"),
+    ).map((tarjeta) => ({
+      marca: tarjeta.querySelector(".marca-localia").textContent,
+      fila: Array.from(
+        tarjeta.querySelectorAll(
+          ".enfrentamiento-registro strong, .enfrentamiento-registro .resultado-registro",
+        ),
+      ).map((nodo) => nodo.textContent.trim()),
+    }));
+
+    expect(tarjetas[0]).toEqual({
+      marca: "Visitante",
+      fila: ["Santos", "2-0", "Atlético Mineiro"],
+    });
+    expect(tarjetas[1]).toEqual({
+      marca: "Local",
+      fila: ["Atlético Mineiro", "3-1", "Vasco"],
+    });
+
+    // Y el acomodo de la fila no cambia con la localía: el escudo siempre
+    // contra el borde de afuera y el nombre mirando al resultado.
+    const acomodo = Array.from(
+      contenedor.querySelectorAll(".enfrentamiento-registro"),
+    ).map((fila) =>
+      Array.from(fila.children).map((nodo) =>
+        nodo.tagName === "STRONG"
+          ? "nombre"
+          : String(nodo.className).includes("resultado")
+            ? "resultado"
+            : "escudo",
+      ),
+    );
+
+    expect(acomodo[0]).toEqual([
+      "escudo",
+      "nombre",
+      "resultado",
+      "nombre",
+      "escudo",
+    ]);
+    expect(acomodo[1]).toEqual(acomodo[0]);
+  });
+
   test("Registros se puede mirar por jugador, con los minutos de cada partido", async () => {
     // Dos partidos: en el primero SCARPA sale a los 15:00 del segundo tiempo;
     // en el otro va al banco y no entra, que igual tiene que contar.
