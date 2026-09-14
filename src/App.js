@@ -95,6 +95,7 @@ import {
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import { HojaConfirmar } from "./components/ConfirmSheet";
+import { HojaOpciones } from "./components/HojaOpciones";
 import {
   EscudoClub,
   EscudoDeClub,
@@ -141,7 +142,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.14.5";
+const APP_VERSION = "2026.09.14.6";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1269,6 +1270,8 @@ export default function App() {
 
   const [filtroJugador, setFiltroJugador] = useState(FILTRO.TODOS);
   const [filtroAbierto, setFiltroAbierto] = useState(false);
+  // La hoja que sube con los criterios, que es lo que abre el icono.
+  const [hojaFiltro, setHojaFiltro] = useState(false);
   const [comparadorMinutos, setComparadorMinutos] = useState(COMPARADOR.MAYOR);
   const [minutosDesde, setMinutosDesde] = useState("60");
   const [minutosHasta, setMinutosHasta] = useState("90");
@@ -2146,6 +2149,48 @@ export default function App() {
     setFiltroJugador(FILTRO.TODOS);
     setFiltroEquipo(FILTRO_EQUIPO.TODOS);
     setFiltroAbierto(false);
+  };
+
+  // Volver a tocar el icono deja todo como al entrar: sin filtro y cerrado.
+  const limpiarFiltros = () => {
+    setFiltroAbierto(false);
+    setHojaFiltro(false);
+    setFiltroEquipo(FILTRO_EQUIPO.TODOS);
+    setRivalElegido("");
+    setBuscadorRival("");
+    setFechaDesde("");
+    setFechaHasta("");
+    setMarcadorExacto("");
+    setFiltroJugador(FILTRO.TODOS);
+  };
+
+  const CRITERIOS_EQUIPO = [
+    { valor: FILTRO_EQUIPO.RIVAL, etiqueta: "Equipo" },
+    { valor: FILTRO_EQUIPO.FECHA, etiqueta: "Fecha" },
+    { valor: FILTRO_EQUIPO.RESULTADO, etiqueta: "Resultado" },
+    { valor: FILTRO_EQUIPO.LOCALIA, etiqueta: "Local o visitante" },
+  ];
+
+  const CRITERIOS_JUGADOR = [
+    { valor: FILTRO.TITULAR, etiqueta: "Titular" },
+    { valor: FILTRO.ENTRO, etiqueta: "Ingresó" },
+    { valor: FILTRO.BANCO, etiqueta: "No ingresó" },
+    { valor: FILTRO.MINUTOS, etiqueta: "Minutos jugados" },
+  ];
+
+  const enEquipo = modoRegistros === "equipo";
+  const criteriosDelFiltro = enEquipo ? CRITERIOS_EQUIPO : CRITERIOS_JUGADOR;
+  const criterioElegido = enEquipo ? filtroEquipo : filtroJugador;
+  const nombreDelCriterio = (
+    criteriosDelFiltro.find((uno) => uno.valor === criterioElegido) || {}
+  ).etiqueta;
+
+  // Elegido el criterio, la hoja se va y abajo quedan sus controles.
+  const elegirCriterio = (cual) => {
+    if (enEquipo) setFiltroEquipo(cual);
+    else setFiltroJugador(cual);
+    setHojaFiltro(false);
+    setFiltroAbierto(true);
   };
 
   const elegirJugador = (nombre) => {
@@ -6536,6 +6581,17 @@ export default function App() {
     );
   };
 
+  const renderHojaDelFiltro = () => (
+    <HojaOpciones
+      abierta={hojaFiltro}
+      titulo="Filtrar por"
+      opciones={criteriosDelFiltro}
+      elegida={criterioElegido}
+      onElegir={elegirCriterio}
+      onCerrar={() => setHojaFiltro(false)}
+    />
+  );
+
   const renderHojaConfirmar = () => (
     <HojaConfirmar
       abierta={Boolean(confirmacion)}
@@ -6557,6 +6613,7 @@ export default function App() {
       >
         {contenido}
         {renderHojaConfirmar()}
+        {renderHojaDelFiltro()}
       </MarcoAplicacion>
     </ContextoPlantel.Provider>
   );
@@ -6692,9 +6749,15 @@ export default function App() {
                           ? ""
                           : "con-filtro"
                       }`}
-                      aria-label="Filtrar los partidos"
+                      aria-label={
+                        filtroAbierto
+                          ? "Borrar los filtros"
+                          : "Filtrar los partidos"
+                      }
                       aria-expanded={filtroAbierto}
-                      onClick={() => setFiltroAbierto((abierto) => !abierto)}
+                      onClick={() =>
+                        filtroAbierto ? limpiarFiltros() : setHojaFiltro(true)
+                      }
                     >
                       <Icono nombre="filtro" size={20} />
                     </button>
@@ -6703,71 +6766,66 @@ export default function App() {
 
                 {modoRegistros === "equipo" && filtroAbierto && (
                   <div className="panel-filtro">
-                    <select
-                      value={filtroEquipo}
-                      onChange={(e) => setFiltroEquipo(e.target.value)}
-                      aria-label="Qué partidos mostrar"
+                    {/* Qué se está filtrando. Se toca para volver a la hoja y
+                        cambiar de criterio sin borrar todo. */}
+                    <button
+                      type="button"
+                      className="criterio-elegido"
+                      onClick={() => setHojaFiltro(true)}
                     >
-                      <option value={FILTRO_EQUIPO.TODOS}>
-                        Todos los partidos
-                      </option>
-                      <option value={FILTRO_EQUIPO.RIVAL}>Equipo</option>
-                      <option value={FILTRO_EQUIPO.FECHA}>Fecha</option>
-                      <option value={FILTRO_EQUIPO.RESULTADO}>Resultado</option>
-                      <option value={FILTRO_EQUIPO.LOCALIA}>
-                        Local o visitante
-                      </option>
-                    </select>
+                      <b>{nombreDelCriterio}</b>
+                      <span>Cambiar</span>
+                    </button>
 
-                    {filtroEquipo === FILTRO_EQUIPO.RIVAL && (
-                      <>
-                        <input
-                          value={buscadorRival}
-                          onChange={(e) => setBuscadorRival(e.target.value)}
-                          onKeyDown={manejarEnter}
-                          placeholder="Buscar un equipo..."
-                          aria-label="Buscar un equipo"
-                        />
+                    {filtroEquipo === FILTRO_EQUIPO.RIVAL &&
+                      (rivalElegido ? (
+                        // Ya elegido, la lista se retrae: queda el equipo y se
+                        // toca para volver a abrirla.
+                        <button
+                          type="button"
+                          className="rival-elegido"
+                          onClick={() => setRivalElegido("")}
+                        >
+                          <EscudoDeClub nombre={rivalElegido} mini />
+                          <b>{rivalElegido}</b>
+                          <span>Cambiar</span>
+                        </button>
+                      ) : (
+                        <>
+                          <input
+                            value={buscadorRival}
+                            onChange={(e) => setBuscadorRival(e.target.value)}
+                            onKeyDown={manejarEnter}
+                            placeholder="Buscar un equipo..."
+                            aria-label="Buscar un equipo"
+                          />
 
-                        <div className="lista-rivales">
-                          {rivalesVisibles.length === 0 ? (
-                            <p className="sin-resultados">
-                              Ningún equipo con ese nombre.
-                            </p>
-                          ) : (
-                            rivalesVisibles.map((quien) => (
-                              <button
-                                type="button"
-                                key={quien.nombre}
-                                className={
-                                  normalizarTexto(quien.nombre) ===
-                                  normalizarTexto(rivalElegido)
-                                    ? "elegido"
-                                    : ""
-                                }
-                                onClick={() =>
-                                  setRivalElegido(
-                                    normalizarTexto(quien.nombre) ===
-                                      normalizarTexto(rivalElegido)
-                                      ? ""
-                                      : quien.nombre,
-                                  )
-                                }
-                              >
-                                <EscudoDeClub nombre={quien.nombre} mini />
-                                <b>{quien.nombre}</b>
-                                <span>
-                                  {quien.partidos}{" "}
-                                  {quien.partidos === 1
-                                    ? "partido"
-                                    : "partidos"}
-                                </span>
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </>
-                    )}
+                          <div className="lista-rivales">
+                            {rivalesVisibles.length === 0 ? (
+                              <p className="sin-resultados">
+                                Ningún equipo con ese nombre.
+                              </p>
+                            ) : (
+                              rivalesVisibles.map((quien) => (
+                                <button
+                                  type="button"
+                                  key={quien.nombre}
+                                  onClick={() => setRivalElegido(quien.nombre)}
+                                >
+                                  <EscudoDeClub nombre={quien.nombre} mini />
+                                  <b>{quien.nombre}</b>
+                                  <span>
+                                    {quien.partidos}{" "}
+                                    {quien.partidos === 1
+                                      ? "partido"
+                                      : "partidos"}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </>
+                      ))}
 
                     {filtroEquipo === FILTRO_EQUIPO.FECHA && (
                       <div className="rango-fechas">
@@ -6851,17 +6909,14 @@ export default function App() {
                   jugadorElegido &&
                   filtroAbierto && (
                     <div className="panel-filtro">
-                      <select
-                        value={filtroJugador}
-                        onChange={(e) => setFiltroJugador(e.target.value)}
-                        aria-label="Qué partidos mostrar"
+                      <button
+                        type="button"
+                        className="criterio-elegido"
+                        onClick={() => setHojaFiltro(true)}
                       >
-                        <option value={FILTRO.TODOS}>Todos los partidos</option>
-                        <option value={FILTRO.TITULAR}>Titular</option>
-                        <option value={FILTRO.ENTRO}>Ingresó</option>
-                        <option value={FILTRO.BANCO}>No ingresó</option>
-                        <option value={FILTRO.MINUTOS}>Minutos jugados</option>
-                      </select>
+                        <b>{nombreDelCriterio}</b>
+                        <span>Cambiar</span>
+                      </button>
 
                       {filtroJugador === FILTRO.MINUTOS && (
                         <div className="minutos-filtro">
@@ -7475,6 +7530,7 @@ export default function App() {
       </div>
 
       {renderHojaConfirmar()}
+      {renderHojaDelFiltro()}
     </MarcoAplicacion>
   );
 }

@@ -2242,11 +2242,28 @@ describe("interfaz operativa", () => {
     // El orden dejó de estar suelto abajo del buscador.
     expect(contenedor.querySelector(".buscador-registros > select")).toBeNull();
 
+    // El icono sube la hoja con los criterios, sin panel todavía.
     await act(async () => contenedor.querySelector(".boton-filtro").click());
-    expect(contenedor.querySelector(".panel-filtro")).not.toBeNull();
+    expect(contenedor.querySelector(".panel-filtro")).toBeNull();
 
-    // Por equipo: la lista sale de los partidos guardados, con su escudo.
-    await enSelect(".panel-filtro > select", "rival");
+    const opcionesDeLaHoja = () =>
+      Array.from(document.querySelectorAll(".opcion-hoja"));
+    const criterio = (etiqueta) =>
+      opcionesDeLaHoja().find((boton) => boton.textContent === etiqueta);
+    expect(opcionesDeLaHoja().map((boton) => boton.textContent)).toEqual([
+      "Equipo",
+      "Fecha",
+      "Resultado",
+      "Local o visitante",
+    ]);
+
+    // Elegido el criterio, la hoja se va y abajo quedan sus controles.
+    await act(async () => criterio("Equipo").click());
+    expect(document.querySelector(".hoja-opciones")).toBeNull();
+    expect(contenedor.querySelector(".panel-filtro")).not.toBeNull();
+    expect(contenedor.querySelector(".criterio-elegido").textContent).toContain(
+      "Equipo",
+    );
     const rivales = () =>
       Array.from(contenedor.querySelectorAll(".lista-rivales button")).map(
         (boton) => ({
@@ -2267,8 +2284,21 @@ describe("interfaz operativa", () => {
       "con-filtro",
     );
 
+    // Elegido el equipo, la lista se retrae y queda el elegido.
+    expect(contenedor.querySelector(".lista-rivales")).toBeNull();
+    expect(contenedor.querySelector(".rival-elegido").textContent).toContain(
+      "Santos",
+    );
+    // Y se vuelve a abrir tocándolo.
+    await act(async () => contenedor.querySelector(".rival-elegido").click());
+    expect(contenedor.querySelector(".lista-rivales")).not.toBeNull();
+    await act(async () =>
+      contenedor.querySelectorAll(".lista-rivales button")[0].click(),
+    );
+
     // Por fecha, con las dos puntas incluidas.
-    await enSelect(".panel-filtro > select", "fecha");
+    await act(async () => contenedor.querySelector(".criterio-elegido").click());
+    await act(async () => criterio("Fecha").click());
     const puntas = () => contenedor.querySelectorAll(".rango-fechas input");
     await act(async () => {
       escribir.call(puntas()[0], "2026-09-03");
@@ -2277,7 +2307,8 @@ describe("interfaz operativa", () => {
     expect(fechas()).toHaveLength(2);
 
     // Por resultado: el 0-2 es derrota aunque de visitante se muestre 2-0.
-    await enSelect(".panel-filtro > select", "resultado");
+    await act(async () => contenedor.querySelector(".criterio-elegido").click());
+    await act(async () => criterio("Resultado").click());
     await enSelect(".minutos-filtro select", "perdido");
     expect(fechas()).toEqual(["03 de sept de 2026"]);
 
@@ -2290,7 +2321,8 @@ describe("interfaz operativa", () => {
     expect(fechas()).toEqual(["27 de ago de 2026"]);
 
     // Por local o visitante.
-    await enSelect(".panel-filtro > select", "localia");
+    await act(async () => contenedor.querySelector(".criterio-elegido").click());
+    await act(async () => criterio("Local o visitante").click());
     expect(fechas()).toHaveLength(2);
     await act(async () =>
       Array.from(
@@ -2300,6 +2332,14 @@ describe("interfaz operativa", () => {
         .click(),
     );
     expect(fechas()).toEqual(["03 de sept de 2026"]);
+
+    // Volver a tocar el icono borra los filtros y cierra el panel.
+    await act(async () => contenedor.querySelector(".boton-filtro").click());
+    expect(contenedor.querySelector(".panel-filtro")).toBeNull();
+    expect(contenedor.querySelector(".boton-filtro").className).not.toContain(
+      "con-filtro",
+    );
+    expect(fechas()).toHaveLength(3);
   });
 
   test("un registro de visitante se lee con el local adelante", async () => {
@@ -2461,10 +2501,15 @@ describe("interfaz operativa", () => {
       minutos: "–",
     });
 
-    // El filtro vive detrás del botón redondo, al lado del buscador.
+    // El icono sube la hoja con los criterios; el panel aparece al elegir uno.
     expect(contenedor.querySelector(".panel-filtro")).toBeNull();
     await act(async () => contenedor.querySelector(".boton-filtro").click());
-    expect(contenedor.querySelector(".panel-filtro")).not.toBeNull();
+    expect(document.querySelector(".hoja-opciones")).not.toBeNull();
+    expect(
+      Array.from(document.querySelectorAll(".opcion-hoja")).map(
+        (boton) => boton.textContent,
+      ),
+    ).toEqual(["Titular", "Ingresó", "No ingresó", "Minutos jugados"]);
 
     const elegir = Object.getOwnPropertyDescriptor(
       window.HTMLSelectElement.prototype,
@@ -2477,7 +2522,16 @@ describe("interfaz operativa", () => {
         select.dispatchEvent(new Event("change", { bubbles: true }));
       });
     };
-    const filtrar = (valor) => enSelect(".panel-filtro > select", valor);
+    // Los criterios suben en la hoja; se vuelve a ella desde el encabezado.
+    const filtrar = async (etiqueta) => {
+      const volverALaHoja = contenedor.querySelector(".criterio-elegido");
+      if (volverALaHoja) await act(async () => volverALaHoja.click());
+      await act(async () =>
+        Array.from(document.querySelectorAll(".opcion-hoja"))
+          .find((boton) => boton.textContent === etiqueta)
+          .click(),
+      );
+    };
     const rivales = () =>
       Array.from(contenedor.querySelectorAll(".registro-de-jugador")).map(
         (tarjeta) =>
@@ -2485,7 +2539,7 @@ describe("interfaz operativa", () => {
             .textContent,
       );
 
-    await filtrar("titular");
+    await filtrar("Titular");
     expect(rivales()).toEqual(["Santos"]);
     expect(resumen()).toEqual([
       "Titular 1",
@@ -2497,7 +2551,7 @@ describe("interfaz operativa", () => {
       "Mostrando 1 de 2 partidos",
     );
 
-    await filtrar("banco");
+    await filtrar("No ingresó");
     expect(rivales()).toEqual(["Vasco"]);
     expect(resumen()).toEqual([
       "Titular 0",
@@ -2507,7 +2561,7 @@ describe("interfaz operativa", () => {
     ]);
 
     // Por minutos: jugó 62:30, así que "más de 60" lo deja y "más de 90" no.
-    await filtrar("minutos");
+    await filtrar("Minutos jugados");
     const numeros = () =>
       Array.from(contenedor.querySelectorAll(".minutos-filtro input"));
     const escribirEn = async (campo, valor) => {
@@ -2566,8 +2620,13 @@ describe("interfaz operativa", () => {
     expect(simbolos().map((b) => b.textContent)).toEqual([">", "<"]);
     expect(rivales()).toEqual(["Santos"]);
 
-    await filtrar("todos");
+    // El icono borra todo y cierra: vuelven los dos partidos.
     await act(async () => contenedor.querySelector(".boton-filtro").click());
+    expect(contenedor.querySelector(".panel-filtro")).toBeNull();
+    expect(rivales()).toEqual(["Santos", "Vasco"]);
+    expect(contenedor.querySelector(".boton-filtro").className).not.toContain(
+      "con-filtro",
+    );
 
     // Tocar el partido abre la ficha de siempre.
     await act(async () =>
