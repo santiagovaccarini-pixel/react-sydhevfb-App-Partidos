@@ -684,6 +684,50 @@ describe("interfaz operativa", () => {
     expect(filas()).toHaveLength(2);
   });
 
+  test("ya no hay que elegir entre transmisión y en vivo", async () => {
+    // Los tiempos se anotan siempre con la hora del reloj: en el registro se
+    // pueden leer igual como minuto de juego, así que elegir no hacía falta.
+    localStorage.removeItem("registro_actual_partido");
+
+    await montarApp();
+
+    const ingresar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Ingresar Formación"),
+    );
+    await act(async () => ingresar.click());
+
+    expect(contenedor.querySelector(".selector-modo-tiempo")).toBeNull();
+    expect(contenedor.textContent).not.toContain("Transmisión");
+    expect(contenedor.textContent).not.toContain("Minutos de juego");
+
+    // Y lo que se guarde queda como horario.
+    const guardarFormacion = Array.from(
+      contenedor.querySelectorAll("button"),
+    ).find((boton) => boton.textContent.includes("Guardar formación"));
+    await act(async () => guardarFormacion.click());
+
+    const borrador = JSON.parse(
+      localStorage.getItem("registro_actual_partido"),
+    );
+    expect(borrador.registro.modoTiempo).toBe("enVivo");
+  });
+
+  test("los cambios del rival ya no traen jugadores de afuera", async () => {
+    // El botón pedía los jugadores a un servicio de Google. Sacarlo deja a la
+    // app sin esa conexión: se cargan a mano, como los nuestros.
+    await montarApp();
+
+    const panel = contenedor.querySelector("#panel-cambios");
+    expect(panel).not.toBeNull();
+
+    const rival = Array.from(panel.querySelectorAll(".selector-equipo button")).find(
+      (boton) => !boton.textContent.includes("Atlético"),
+    );
+    await act(async () => rival.click());
+
+    expect(contenedor.textContent).not.toContain("Importar rival");
+  });
+
   test("la formación se carga sobre la cancha y el banco sigue siendo planilla", async () => {
     localStorage.removeItem("registro_actual_partido");
     // Con los equipos, el plantel sale de la base y no del código: si no hay

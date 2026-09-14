@@ -115,7 +115,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.13.5";
+const APP_VERSION = "2026.09.14.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1900,26 +1900,6 @@ export default function App() {
       [campo]: valor,
     }));
   };
-  const seleccionarModoTiempo = (nuevoModo) => {
-    setRegistro((prev) => ({
-      ...prev,
-      modoTiempo: nuevoModo,
-      referenciaRealPT: null,
-      referenciaRealST: null,
-      referenciaRealPTE: null,
-      referenciaRealSTE: null,
-      horaInicioRealPT: "",
-      horaFinalRealPT: "",
-      horaInicioRealST: "",
-      horaFinalRealST: "",
-      horaInicioRealPTE: "",
-      horaFinalRealPTE: "",
-      horaInicioRealSTE: "",
-      horaFinalRealSTE: "",
-    }));
-
-    setTimeout(quitarFoco, 0);
-  };
   const actualizarCambio = (index, campo, valor, periodoForzado = "") => {
     setRegistro((prev) => {
       const cambiosActualizados = [...(prev.cambios || crearCambiosVacios())];
@@ -1993,131 +1973,6 @@ export default function App() {
     });
   };
 
-  const importarJugadoresRival = async () => {
-    if (!registro.fecha) {
-      alert("Primero cargá la fecha del partido.");
-      return;
-    }
-
-    try {
-      const url =
-        "https://script.google.com/macros/s/AKfycbxK9paHAC-hsydI_7ylKXuQs_FJD3pH0ACyCII83LODvCBGQoZdxa1YBF8Iz8Uu-i7K/exec" +
-        "?action=jugadoresRival&fecha=" +
-        encodeURIComponent(registro.fecha);
-
-      const data = await cargarJsonp(url);
-
-      if (!data.ok) {
-        alert(data.error || "No se pudieron importar los jugadores del rival.");
-        return;
-      }
-
-      setRegistro((prev) => ({
-        ...prev,
-        rival: data.rival || prev.rival,
-        jugadoresRival: [
-          ...(data.jugadoresRival || []),
-          ...(data.titularesRival || []),
-          ...(data.convocadosRival || []),
-          ...(data.titulares || []),
-          ...(data.convocados || []),
-        ].filter(
-          (jugador, index, array) =>
-            jugador && array.indexOf(jugador) === index,
-        ),
-      }));
-
-      alert("Jugadores del rival importados correctamente.");
-    } catch (error) {
-      console.error("ERROR IMPORTANDO JUGADORES RIVAL:", error);
-      alert("Error conectando con jugadores del rival.");
-    }
-  };
-  const recomendarHorariosCambioRival = async () => {
-    if (!registro.fecha) {
-      alert("Primero cargá la fecha del partido.");
-      return;
-    }
-
-    if (!registro.inicioPT || !registro.inicioST) {
-      alert(
-        "Primero cargá Inicio PT e Inicio ST para poder calcular horarios.",
-      );
-      return;
-    }
-
-    try {
-      const url =
-        "https://script.google.com/macros/s/AKfycby_KZfB2Qccm2VMn4oUMnjbYpgyJbdTOzs4NqMH3izdAC6HLwiJT62_1WPklWC4BmJ_/exec" +
-        "?action=cambiosRival&fecha=" +
-        encodeURIComponent(registro.fecha);
-
-      const data = await cargarJsonp(url);
-
-      if (!data.ok) {
-        alert(data.error || "No se pudieron recomendar horarios.");
-        return;
-      }
-
-      const cambiosApi = data.cambiosRival || [];
-
-      if (cambiosApi.length === 0) {
-        alert("No se encontraron cambios del rival en Sportradar.");
-        return;
-      }
-
-      setRegistro((prev) => {
-        const cambiosActuales = prev.cambiosRival || crearCambiosVacios();
-        const cantidadCambios = Math.max(
-          5,
-          cambiosActuales.length,
-          cambiosApi.length,
-        );
-        const nuevosCambios = Array.from(
-          { length: cantidadCambios },
-          (_, index) => ({
-            ...crearCambioVacio(),
-            ...(cambiosActuales[index] || {}),
-          }),
-        );
-
-        cambiosApi.forEach((cambioApi, index) => {
-          const cambioActual = cambiosActuales[index] || {};
-
-          const matchClock = cambioApi.matchClock || "";
-          const sugerenciaTiempo = calcularHoraCambioDesdeMinuto(
-            matchClock,
-            cambioApi.periodo ||
-              cambioApi.period ||
-              cambioApi.matchPeriod ||
-              "",
-          );
-
-          nuevosCambios[index] = {
-            ...cambioActual,
-            sale:
-              cambioActual.sale || String(cambioApi.sale || "").toUpperCase(),
-            entra:
-              cambioActual.entra || String(cambioApi.entra || "").toUpperCase(),
-            minuto: matchClock,
-            hora: cambioActual.hora || sugerenciaTiempo.hora,
-            periodo: cambioActual.periodo || sugerenciaTiempo.periodo,
-          };
-        });
-
-        return {
-          ...prev,
-          rival: data.rival || prev.rival,
-          cambiosRival: nuevosCambios,
-        };
-      });
-
-      alert("Horarios recomendados cargados. Revisalos antes de guardar.");
-    } catch (error) {
-      console.error("ERROR RECOMENDANDO HORARIOS RIVAL:", error);
-      alert("Error conectando con Sportradar.");
-    }
-  };
   const configuracionPeriodos = {
     PT: {
       vars: "varsPT",
@@ -3529,80 +3384,6 @@ export default function App() {
 
     return true;
   };
-  const cargarJsonp = (url, timeoutMs = 12000) => {
-    return new Promise((resolve, reject) => {
-      let urlSegura;
-      try {
-        urlSegura = new URL(url, window.location.href);
-      } catch (error) {
-        reject(new Error("La URL de integración no es válida"));
-        return;
-      }
-
-      if (
-        urlSegura.protocol !== "https:" ||
-        urlSegura.hostname !== "script.google.com"
-      ) {
-        reject(new Error("Origen de integración no permitido"));
-        return;
-      }
-
-      const callbackName = `jsonpCallback_${Date.now()}_${Math.floor(
-        Math.random() * 100000,
-      )}`;
-      const script = document.createElement("script");
-      let completado = false;
-      let temporizador;
-
-      const limpiar = () => {
-        window.clearTimeout(temporizador);
-        try {
-          delete window[callbackName];
-        } catch (error) {
-          window[callbackName] = undefined;
-        }
-        script.remove();
-      };
-
-      const finalizar = (accion) => {
-        if (completado) return;
-        completado = true;
-        limpiar();
-        accion();
-      };
-
-      window[callbackName] = (data) => {
-        const esRespuestaValida =
-          data && typeof data === "object" && !Array.isArray(data);
-        finalizar(() =>
-          esRespuestaValida
-            ? resolve(data)
-            : reject(new Error("La integración devolvió datos inválidos")),
-        );
-      };
-
-      urlSegura.searchParams.set("callback", callbackName);
-      script.src = urlSegura.toString();
-      script.async = true;
-      script.referrerPolicy = "no-referrer";
-
-      script.onerror = () => {
-        finalizar(() =>
-          reject(new Error("No se pudo conectar con Apps Script")),
-        );
-      };
-
-      temporizador = window.setTimeout(
-        () =>
-          finalizar(() =>
-            reject(new Error("La integración tardó demasiado en responder")),
-          ),
-        timeoutMs,
-      );
-
-      document.body.appendChild(script);
-    });
-  };
   const abrirCargaManual = () => {
     setMensajeFormacion("");
     setPantallaFormacion("manual");
@@ -3815,32 +3596,6 @@ export default function App() {
                 value={fechaFormacion}
                 onChange={(e) => setFechaFormacion(e.target.value)}
               />
-            </div>
-
-            <div className="selector-modo-tiempo">
-              <button
-                type="button"
-                className={`boton-modo-tiempo ${
-                  registro.modoTiempo === "transmision" ? "activo" : ""
-                }`}
-                onClick={() => seleccionarModoTiempo("transmision")}
-              >
-                <span className="titulo-modo-tiempo">Transmisión</span>
-                <span className="descripcion-modo-tiempo">
-                  Minutos de juego
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className={`boton-modo-tiempo ${
-                  (registro.modoTiempo || "enVivo") === "enVivo" ? "activo" : ""
-                }`}
-                onClick={() => seleccionarModoTiempo("enVivo")}
-              >
-                <span className="titulo-modo-tiempo">En Vivo</span>
-                <span className="descripcion-modo-tiempo">Hora actual</span>
-              </button>
             </div>
 
             {mensajeFormacion && (
@@ -6334,18 +6089,6 @@ export default function App() {
             <span className="sobrelinea">PARTIDO</span>
             <h2>Cambios</h2>
           </div>
-          {esRival && (
-            <button
-              type="button"
-              className="boton-texto"
-              onClick={async () => {
-                await importarJugadoresRival();
-                await recomendarHorariosCambioRival();
-              }}
-            >
-              Importar rival
-            </button>
-          )}
         </div>
 
         <div

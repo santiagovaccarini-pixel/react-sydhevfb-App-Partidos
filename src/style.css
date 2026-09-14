@@ -731,107 +731,6 @@ button:active {
   font-size: 13px;
   font-weight: 900;
 }
-/* =========================================================
-   SELECTOR: EN VIVO / TRANSMISIÓN
-   ========================================================= */
-
-.selector-modo-tiempo {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 20px 0;
-}
-
-/* Opción NO seleccionada */
-.selector-modo-tiempo .boton-modo-tiempo {
-  min-height: 76px;
-  padding: 12px 10px;
-
-  background: #ffffff;
-  border: 2px solid #cfd5dc;
-  border-radius: 15px;
-
-  color: #111827;
-  box-shadow: none;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-
-  font-family: inherit;
-  cursor: pointer;
-
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.15s ease,
-    box-shadow 0.2s ease;
-}
-
-/* Opción seleccionada */
-.selector-modo-tiempo .boton-modo-tiempo.activo {
-  background: linear-gradient(135deg, #000000, #16a34a);
-  border-color: #138a43;
-  color: #ffffff;
-
-  box-shadow:
-    0 5px 14px rgba(19, 138, 67, 0.3),
-    0 0 0 3px rgba(19, 138, 67, 0.13);
-
-  transform: translateY(-1px);
-}
-
-/* Hover solamente sobre la opción no seleccionada */
-.selector-modo-tiempo .boton-modo-tiempo:not(.activo):hover {
-  background: #f0fdf4;
-  border-color: #138a43;
-  color: #111827;
-  transform: translateY(-1px);
-}
-
-.titulo-modo-tiempo {
-  display: block;
-  font-size: 17px;
-  font-weight: 800;
-  line-height: 1.2;
-  color: inherit;
-}
-
-.descripcion-modo-tiempo {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: inherit;
-  opacity: 0.78;
-}
-
-.selector-modo-tiempo .boton-modo-tiempo.activo .descripcion-modo-tiempo {
-  color: #000000;
-  opacity: 1;
-}
-
-@media (max-width: 480px) {
-  .selector-modo-tiempo {
-    gap: 8px;
-  }
-
-  .selector-modo-tiempo .boton-modo-tiempo {
-    min-height: 70px;
-    padding: 10px 6px;
-  }
-
-  .titulo-modo-tiempo {
-    font-size: 15px;
-  }
-
-  .descripcion-modo-tiempo {
-    font-size: 11px;
-  }
-}
-
 /* Inputs de transmisión MMM:SS */
 .fila-hora input[type="text"],
 .input-hora-cambio[type="text"],
@@ -3590,10 +3489,6 @@ button:disabled {
 .tarjeta-datos-partido {
   display: grid;
   gap: 12px;
-}
-
-.tarjeta-datos-partido .selector-modo-tiempo {
-  margin: 0;
 }
 
 .titulo-plantel {
