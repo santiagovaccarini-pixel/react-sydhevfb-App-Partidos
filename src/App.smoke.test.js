@@ -2160,6 +2160,37 @@ describe("interfaz operativa", () => {
     ).toEqual(["ALONSO", "HULK"]);
   });
 
+  test("volver dice a dónde vuelve y rehace el camino", async () => {
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    const opcion = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
+        boton.textContent.includes(etiqueta),
+      );
+    const volver = () => contenedor.querySelector(".boton-volver");
+
+    await act(async () => irA("Ajustes").click());
+    await act(async () => opcion("Jugadores").click());
+    await act(async () => opcion("Lista").click());
+
+    // Cuando el botón va solo dice a dónde lleva, que es el dato que faltaba
+    // cuando estaba al final de todo y decía nada más "Volver".
+    expect(volver().textContent).toContain("Volver a Jugadores");
+    // La flecha va dibujada: con el caracter "←" el botón parecía texto.
+    expect(volver().querySelector("svg")).not.toBeNull();
+
+    await act(async () => volver().click());
+    expect(contenedor.querySelector("h1").textContent).toBe("Jugadores");
+    expect(volver().textContent).toContain("Volver a Ajustes");
+
+    await act(async () => volver().click());
+    expect(contenedor.querySelector("h1").textContent).toBe("Ajustes");
+  });
+
   test("agregar un jugador lo manda a la base y a la lista", async () => {
     doblesSupabase.jugadores = [
       { id: 1, nombre: "ALONSO", roles: [], puestos: [] },

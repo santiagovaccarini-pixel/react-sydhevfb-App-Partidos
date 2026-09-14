@@ -195,6 +195,46 @@ button:active {
   border: 1px solid #cbd5e1;
 }
 
+/* Los botones de salir de una pantalla (volver, cancelar) van oscuros: así se
+   leen como botón y no como un renglón de texto más. */
+.acciones-dobles .boton-secundario,
+.acciones-formacion .boton-secundario {
+  border: 1px solid #111827;
+  border-radius: 16px;
+  background: #111827;
+  color: white;
+  letter-spacing: -0.2px;
+  box-shadow: 0 6px 16px rgba(17, 24, 39, 0.22);
+}
+
+.acciones-dobles .boton-principal,
+.acciones-formacion .boton-principal {
+  border-radius: 16px;
+}
+
+/* El de volver además lleva la flecha dibujada, en su propio redondel. */
+.boton-volver {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.flecha-volver {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #86efac;
+}
+
+.flecha-volver svg {
+  display: block;
+}
+
 /* CAMBIOS */
 
 .tabla-cambios {
@@ -2635,6 +2675,36 @@ button:disabled {
 
   .contenido-aplicacion .app {
     padding-bottom: 88px;
+  }
+
+  /* La fila de acciones queda fija arriba de la navegación: volver (y el botón
+     principal que lo acompaña) están siempre al alcance del pulgar, sin tener
+     que bajar la pantalla entera hasta el final para salir. */
+  .acciones-dobles,
+  .acciones-formacion {
+    position: fixed;
+    right: 0;
+    bottom: calc(67px + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    z-index: 20;
+    margin: 0;
+    padding: 10px max(12px, env(safe-area-inset-right)) 10px
+      max(12px, env(safe-area-inset-left));
+    border-top: 1px solid #dce2df;
+    background: rgba(248, 250, 249, 0.97);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.1);
+  }
+
+  /* Si volver es el único botón de la barra, ocupa todo el ancho. */
+  .acciones-dobles:not(:has(.boton-principal)) {
+    grid-template-columns: 1fr;
+  }
+
+  /* Aire al final para que la barra no tape la última tarjeta. */
+  .contenido-aplicacion .app:has(.acciones-dobles),
+  .contenido-aplicacion .app:has(.acciones-formacion) {
+    padding-bottom: 159px;
   }
 
   .contenido-aplicacion .app-inicio {
