@@ -66,6 +66,15 @@ const trazos = {
       <path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" />
     </>
   ),
+  local: (
+    <>
+      <path d="M4 11 12 4l8 7" />
+      <path d="M6 10v9h12v-9" />
+    </>
+  ),
+  visitante: (
+    <path d="M3 13h4l3 5h3l-2-5h4.5a2.5 2.5 0 0 0 0-5H11l2-5h-3l-3 5H3l2 2.5Z" />
+  ),
   filtro: (
     <>
       <path d="M4 7h16" />

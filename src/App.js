@@ -1,5 +1,6 @@
 import { supabase } from "./supabase.js";
 import React, {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -67,6 +68,22 @@ import {
   tiempoJugado,
 } from "./domain/tiempos";
 import {
+  FILTRO_EQUIPO,
+  MODO_RESULTADO,
+  filtrarRegistros,
+  rivalesDelHistorial,
+} from "./domain/filtros";
+import {
+  LOCALIA,
+  enOrdenDeCancha,
+  esVisitante,
+  etiquetaLocalia,
+  golesEnPantalla,
+  leerLocalia,
+  marcadorEnPantalla,
+  otraLocalia,
+} from "./domain/localia";
+import {
   COMPARADOR,
   FILTRO,
   PAPEL,
@@ -124,7 +141,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.14.3";
+const APP_VERSION = "2026.09.14.4";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1089,6 +1106,7 @@ export default function App() {
     fecha: fechaLocalISO(),
     rival: "",
     resultado: "",
+    localia: LOCALIA.LOCAL,
 
     // Modo de registro de los horarios
     modoTiempo: "enVivo",
@@ -1239,6 +1257,16 @@ export default function App() {
   // siempre, o por jugador, para ver en cuáles estuvo y cuánto jugó.
   const [modoRegistros, setModoRegistros] = useState("equipo");
   const [jugadorElegido, setJugadorElegido] = useState(null);
+  // El filtro de la vista de Equipo: qué se mira y con qué valor.
+  const [filtroEquipo, setFiltroEquipo] = useState(FILTRO_EQUIPO.TODOS);
+  const [rivalElegido, setRivalElegido] = useState("");
+  const [buscadorRival, setBuscadorRival] = useState("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  const [modoResultado, setModoResultado] = useState(MODO_RESULTADO.GANADO);
+  const [marcadorExacto, setMarcadorExacto] = useState("");
+  const [localiaElegida, setLocaliaElegida] = useState(LOCALIA.LOCAL);
+
   const [filtroJugador, setFiltroJugador] = useState(FILTRO.TODOS);
   const [filtroAbierto, setFiltroAbierto] = useState(false);
   const [comparadorMinutos, setComparadorMinutos] = useState(COMPARADOR.MAYOR);
@@ -1433,6 +1461,9 @@ export default function App() {
       fecha: fila.fecha || "",
       rival: fila.rival || "",
       resultado: fila.resultado || "",
+      // Lo cargado antes de que esto existiera no trae el dato: queda local,
+      // que es como se venía mostrando.
+      localia: leerLocalia(fila.localia),
       modoTiempo:
         fila.modo_tiempo ||
         capturaTiempo?.modoTiempo ||
@@ -1928,7 +1959,8 @@ export default function App() {
     ].join(" ");
   };
 
-  const registrosVisibles = useMemo(() => {
+  // Lo que el buscador de texto deja pasar, antes del filtro.
+  const registrosBuscados = useMemo(() => {
     const textoBuscado = normalizarTexto(busquedaRegistros);
 
     return guardados
@@ -1945,6 +1977,40 @@ export default function App() {
       });
   }, [guardados, busquedaRegistros, ordenRegistros]);
 
+  const registrosVisibles = useMemo(
+    () =>
+      filtrarRegistros(registrosBuscados, {
+        filtro: filtroEquipo,
+        rival: rivalElegido,
+        desde: fechaDesde,
+        hasta: fechaHasta,
+        modo: modoResultado,
+        marcador: marcadorExacto,
+        localia: localiaElegida,
+      }),
+    [
+      registrosBuscados,
+      filtroEquipo,
+      rivalElegido,
+      fechaDesde,
+      fechaHasta,
+      modoResultado,
+      marcadorExacto,
+      localiaElegida,
+    ],
+  );
+
+  // Los rivales que se ofrecen en el desplegable, filtrados por lo que se
+  // escriba: la base no tiene tabla de rivales, salen de los partidos.
+  const rivalesVisibles = useMemo(() => {
+    const buscado = normalizarTexto(buscadorRival);
+    const todos = rivalesDelHistorial(guardados);
+    if (!buscado) return todos;
+    return todos.filter((quien) =>
+      normalizarTexto(quien.nombre).includes(buscado),
+    );
+  }, [guardados, buscadorRival]);
+
   // Cada registro se abre igual, venga de la lista de partidos o de la de un
   // jugador: todo el partido, en bruto y con los cambios nuestros.
   const abrirDetalleDelRegistro = ({ item, index }) => {
@@ -1959,6 +2025,23 @@ export default function App() {
     setFichaEnJuego(false);
   };
 
+  // Una fila de enfrentamiento: el local a la izquierda, pero con el escudo
+  // siempre pegado al borde de afuera y el nombre mirando al resultado. Si no,
+  // al dar vuelta los lados los escudos se metían contra el marcador.
+  const filaDeEnfrentamiento = (partido, propio, rival, enElMedio) => {
+    const [izquierda, derecha] = enOrdenDeCancha(partido, propio, rival);
+
+    return (
+      <>
+        {izquierda.escudo}
+        <strong>{izquierda.nombre}</strong>
+        {enElMedio}
+        <strong>{derecha.nombre}</strong>
+        {derecha.escudo}
+      </>
+    );
+  };
+
   // La fecha y el enfrentamiento de un partido guardado. Lo usan las dos
   // vistas de Registros: la lista de partidos y la de un jugador.
   const cabeceraDelRegistro = (item) => (
@@ -1967,17 +2050,29 @@ export default function App() {
         <span className="fecha-registro">
           {formatearFechaPantalla(item.fecha)}
         </span>
+        <span className="marca-localia">{etiquetaLocalia(item.localia)}</span>
         {item.sinSincronizar && (
           <span className="marca-sin-sincronizar">Sin sincronizar</span>
         )}
       </span>
 
       <div className="enfrentamiento-registro">
-        <EscudoDeClub equipo="cam" nombre={equipoPropio} compacto />
-        <strong>{equipoPropio}</strong>
-        <span className="resultado-registro">{item.resultado || "–"}</span>
-        <strong>{item.rival || "Sin rival"}</strong>
-        <EscudoDeClub nombre={item.rival} mini />
+        {filaDeEnfrentamiento(
+          item,
+          {
+            escudo: (
+              <EscudoDeClub equipo="cam" nombre={equipoPropio} compacto />
+            ),
+            nombre: equipoPropio,
+          },
+          {
+            escudo: <EscudoDeClub nombre={item.rival} mini />,
+            nombre: item.rival || "Sin rival",
+          },
+          <span className="resultado-registro">
+            {marcadorEnPantalla(item.resultado, item) || "–"}
+          </span>,
+        )}
       </div>
     </>
   );
@@ -2049,6 +2144,7 @@ export default function App() {
     setBusquedaRegistros("");
     setJugadorElegido(null);
     setFiltroJugador(FILTRO.TODOS);
+    setFiltroEquipo(FILTRO_EQUIPO.TODOS);
     setFiltroAbierto(false);
   };
 
@@ -3104,6 +3200,7 @@ export default function App() {
       formacion_cancha: normalizarCancha(
         registroConHorasReales.formacion?.cancha,
       ),
+      localia: leerLocalia(registroBase.localia),
       equipo_id: equipoId,
     };
   };
@@ -3365,6 +3462,7 @@ export default function App() {
       titulares: registroParaGuardar.formacion?.titulares || [],
       convocados: registroParaGuardar.formacion?.convocados || [],
       formacion_cancha: normalizarCancha(registroParaGuardar.formacion?.cancha),
+      localia: leerLocalia(registroEditado.localia),
       equipo_id: equipoId,
     };
   };
@@ -3856,9 +3954,10 @@ export default function App() {
             : formatearDuracion(resumen[`tiempo${periodo}`]) || "-",
       }));
 
-    const [golesLocal = "", golesVisitante = ""] = String(
-      registro.resultado || "",
-    ).split("-");
+    const [golesLocal = "", golesVisitante = ""] = golesEnPantalla(
+      registro.resultado,
+      registro,
+    );
 
     return {
       enMarcha,
@@ -3878,26 +3977,53 @@ export default function App() {
           <span className="etiqueta-hero">Próximo partido</span>
 
           <div className="enfrentamiento">
-            <div className="lado-enfrentamiento">
-              <EscudoClub
-                equipo="cam"
-                nombre={equipoPropio}
-                url={escudoCam.url}
-              />
-              <strong>{equipoPropio}</strong>
-            </div>
-
-            <span className="separador-enfrentamiento">VS</span>
-
-            <div
-              className={`lado-enfrentamiento ${
-                registro.rival?.trim() ? "" : "sin-cargar"
-              }`}
-            >
-              <EscudoClub nombre={registro.rival} url={escudoRival.url} />
-              <strong>{registro.rival?.trim() || "Elegí el rival"}</strong>
-            </div>
+            {enOrdenDeCancha(
+              registro,
+              <div className="lado-enfrentamiento" key="propio">
+                <EscudoClub
+                  equipo="cam"
+                  nombre={equipoPropio}
+                  url={escudoCam.url}
+                />
+                <strong>{equipoPropio}</strong>
+              </div>,
+              <div
+                className={`lado-enfrentamiento ${
+                  registro.rival?.trim() ? "" : "sin-cargar"
+                }`}
+                key="rival"
+              >
+                <EscudoClub nombre={registro.rival} url={escudoRival.url} />
+                <strong>{registro.rival?.trim() || "Elegí el rival"}</strong>
+              </div>,
+            ).flatMap((lado, indice) =>
+              indice === 0
+                ? [
+                    lado,
+                    <span className="separador-enfrentamiento" key="vs">
+                      VS
+                    </span>,
+                  ]
+                : [lado],
+            )}
           </div>
+
+          {/* De qué lado jugamos. Se toca y cambia, como el botón de bruto y
+              neto, y con eso se dan vuelta los escudos. */}
+          <button
+            type="button"
+            className="boton-localia"
+            onClick={() => actualizar("localia", otraLocalia(registro.localia))}
+            aria-label={`Jugamos de ${etiquetaLocalia(
+              registro.localia,
+            )}. Tocá para cambiar.`}
+          >
+            <Icono
+              nombre={esVisitante(registro) ? "visitante" : "local"}
+              size={15}
+            />
+            {etiquetaLocalia(registro.localia)}
+          </button>
 
           {fechaLargaFormacion && (
             <p className="fecha-hero">{fechaLargaFormacion}</p>
@@ -3964,20 +4090,35 @@ export default function App() {
             </span>
 
             <span className="enfrentamiento-registro">
-              <EscudoClub
-                equipo="cam"
-                nombre={equipoPropio}
-                url={escudoCam.url}
-                compacto
-              />
-              <strong>{equipoPropio}</strong>
-              {partidoEnCursoResumen.marcador && (
-                <span className="resultado-registro">
-                  {partidoEnCursoResumen.marcador}
-                </span>
+              {filaDeEnfrentamiento(
+                registro,
+                {
+                  escudo: (
+                    <EscudoClub
+                      equipo="cam"
+                      nombre={equipoPropio}
+                      url={escudoCam.url}
+                      compacto
+                    />
+                  ),
+                  nombre: equipoPropio,
+                },
+                {
+                  escudo: (
+                    <EscudoClub
+                      nombre={registro.rival}
+                      url={escudoRival.url}
+                      mini
+                    />
+                  ),
+                  nombre: registro.rival?.trim() || "Sin rival",
+                },
+                partidoEnCursoResumen.marcador ? (
+                  <span className="resultado-registro">
+                    {partidoEnCursoResumen.marcador}
+                  </span>
+                ) : null,
               )}
-              <strong>{registro.rival?.trim() || "Sin rival"}</strong>
-              <EscudoClub nombre={registro.rival} url={escudoRival.url} mini />
             </span>
 
             {(partidoEnCursoResumen.tiempos.length > 0 ||
@@ -4082,9 +4223,7 @@ export default function App() {
   const renderFichaRegistro = ({ item, alVolver, alEditar }) => {
     const resumen = resumenDeTiempos(item);
 
-    const [golesCam = "", golesContra = ""] = String(item.resultado || "")
-      .split(/\s*[-\u2013:]\s*/)
-      .slice(0, 2);
+    const [golesCam, golesContra] = golesEnPantalla(item.resultado, item);
 
     // Los botones de tiempo están siempre, aunque uno no tenga datos: si no, un
     // registro viejo a medio cargar se queda sin nada que tocar.
@@ -4313,21 +4452,28 @@ export default function App() {
             aria-label="Resultado del partido"
           >
             <div className="equipos-ficha">
-              <div className="equipo-ficha">
-                <EscudoDeClub equipo="cam" nombre={equipoPropio} />
-                <strong>{equipoPropio}</strong>
-              </div>
-
-              <div className="resultado-ficha">
-                <b>{golesCam.trim() || "0"}</b>
-                <span>—</span>
-                <b>{golesContra.trim() || "0"}</b>
-              </div>
-
-              <div className="equipo-ficha">
-                <EscudoDeClub nombre={item.rival} />
-                <strong>{nombreRival}</strong>
-              </div>
+              {enOrdenDeCancha(
+                item,
+                <div className="equipo-ficha" key="propio">
+                  <EscudoDeClub equipo="cam" nombre={equipoPropio} />
+                  <strong>{equipoPropio}</strong>
+                </div>,
+                <div className="equipo-ficha" key="rival">
+                  <EscudoDeClub nombre={item.rival} />
+                  <strong>{nombreRival}</strong>
+                </div>,
+              ).flatMap((lado, indice) =>
+                indice === 0
+                  ? [
+                      lado,
+                      <div className="resultado-ficha" key="resultado">
+                        <b>{golesCam || "0"}</b>
+                        <span>—</span>
+                        <b>{golesContra || "0"}</b>
+                      </div>,
+                    ]
+                  : [lado],
+              )}
             </div>
 
             <div className={`total-ficha ${fichaEnNeto ? "neto" : ""}`}>
@@ -6531,15 +6677,22 @@ export default function App() {
                     }
                   />
 
-                  {/* El filtro solo tiene sentido con un jugador abierto: es
-                      sobre sus partidos. */}
-                  {modoRegistros === "jugador" && jugadorElegido && (
+                  {/* En Jugador el filtro es sobre sus partidos, así que
+                      aparece recién con uno abierto. */}
+                  {(modoRegistros === "equipo" ||
+                    (modoRegistros === "jugador" && jugadorElegido)) && (
                     <button
                       type="button"
                       className={`boton-filtro ${
-                        filtroJugador === FILTRO.TODOS ? "" : "con-filtro"
+                        (
+                          modoRegistros === "equipo"
+                            ? filtroEquipo === FILTRO_EQUIPO.TODOS
+                            : filtroJugador === FILTRO.TODOS
+                        )
+                          ? ""
+                          : "con-filtro"
                       }`}
-                      aria-label="Filtrar los partidos del jugador"
+                      aria-label="Filtrar los partidos"
                       aria-expanded={filtroAbierto}
                       onClick={() => setFiltroAbierto((abierto) => !abierto)}
                     >
@@ -6548,14 +6701,150 @@ export default function App() {
                   )}
                 </div>
 
-                {modoRegistros === "equipo" && (
-                  <select
-                    value={ordenRegistros}
-                    onChange={(e) => setOrdenRegistros(e.target.value)}
-                  >
-                    <option value="reciente">Más reciente primero</option>
-                    <option value="antiguo">Más antiguo primero</option>
-                  </select>
+                {modoRegistros === "equipo" && filtroAbierto && (
+                  <div className="panel-filtro">
+                    <select
+                      value={filtroEquipo}
+                      onChange={(e) => setFiltroEquipo(e.target.value)}
+                      aria-label="Qué partidos mostrar"
+                    >
+                      <option value={FILTRO_EQUIPO.TODOS}>
+                        Todos los partidos
+                      </option>
+                      <option value={FILTRO_EQUIPO.RIVAL}>Equipo</option>
+                      <option value={FILTRO_EQUIPO.FECHA}>Fecha</option>
+                      <option value={FILTRO_EQUIPO.RESULTADO}>Resultado</option>
+                      <option value={FILTRO_EQUIPO.LOCALIA}>
+                        Local o visitante
+                      </option>
+                    </select>
+
+                    {filtroEquipo === FILTRO_EQUIPO.RIVAL && (
+                      <>
+                        <input
+                          value={buscadorRival}
+                          onChange={(e) => setBuscadorRival(e.target.value)}
+                          onKeyDown={manejarEnter}
+                          placeholder="Buscar un equipo..."
+                          aria-label="Buscar un equipo"
+                        />
+
+                        <div className="lista-rivales">
+                          {rivalesVisibles.length === 0 ? (
+                            <p className="sin-resultados">
+                              Ningún equipo con ese nombre.
+                            </p>
+                          ) : (
+                            rivalesVisibles.map((quien) => (
+                              <button
+                                type="button"
+                                key={quien.nombre}
+                                className={
+                                  normalizarTexto(quien.nombre) ===
+                                  normalizarTexto(rivalElegido)
+                                    ? "elegido"
+                                    : ""
+                                }
+                                onClick={() =>
+                                  setRivalElegido(
+                                    normalizarTexto(quien.nombre) ===
+                                      normalizarTexto(rivalElegido)
+                                      ? ""
+                                      : quien.nombre,
+                                  )
+                                }
+                              >
+                                <EscudoDeClub nombre={quien.nombre} mini />
+                                <b>{quien.nombre}</b>
+                                <span>
+                                  {quien.partidos}{" "}
+                                  {quien.partidos === 1
+                                    ? "partido"
+                                    : "partidos"}
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {filtroEquipo === FILTRO_EQUIPO.FECHA && (
+                      <div className="rango-fechas">
+                        <label>
+                          <span>Desde</span>
+                          <input
+                            type="date"
+                            value={fechaDesde}
+                            onChange={(e) => setFechaDesde(e.target.value)}
+                          />
+                        </label>
+                        <label>
+                          <span>Hasta</span>
+                          <input
+                            type="date"
+                            value={fechaHasta}
+                            onChange={(e) => setFechaHasta(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    {filtroEquipo === FILTRO_EQUIPO.RESULTADO && (
+                      <div className="minutos-filtro">
+                        <select
+                          value={modoResultado}
+                          onChange={(e) => setModoResultado(e.target.value)}
+                          aria-label="Cómo mirar el resultado"
+                        >
+                          <option value={MODO_RESULTADO.GANADO}>Ganados</option>
+                          <option value={MODO_RESULTADO.EMPATADO}>
+                            Empatados
+                          </option>
+                          <option value={MODO_RESULTADO.PERDIDO}>
+                            Perdidos
+                          </option>
+                          <option value={MODO_RESULTADO.EXACTO}>
+                            Marcador exacto
+                          </option>
+                        </select>
+
+                        {modoResultado === MODO_RESULTADO.EXACTO && (
+                          <input
+                            value={marcadorExacto}
+                            onChange={(e) => setMarcadorExacto(e.target.value)}
+                            onKeyDown={manejarEnter}
+                            placeholder="2-1"
+                            aria-label="Marcador, nuestros goles primero"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {filtroEquipo === FILTRO_EQUIPO.LOCALIA && (
+                      <div className="cambiar-vista">
+                        {[LOCALIA.LOCAL, LOCALIA.VISITANTE].map((cual) => (
+                          <button
+                            key={cual}
+                            type="button"
+                            className={localiaElegida === cual ? "activo" : ""}
+                            onClick={() => setLocaliaElegida(cual)}
+                          >
+                            {etiquetaLocalia(cual)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <select
+                      value={ordenRegistros}
+                      onChange={(e) => setOrdenRegistros(e.target.value)}
+                      aria-label="En qué orden"
+                    >
+                      <option value="reciente">Más reciente primero</option>
+                      <option value="antiguo">Más antiguo primero</option>
+                    </select>
+                  </div>
                 )}
 
                 {modoRegistros === "jugador" &&
@@ -6947,39 +7236,67 @@ export default function App() {
         </header>
 
         <section className="marcador-partido" aria-label="Marcador del partido">
-          <div className="equipo-marcador equipo-local">
-            <EscudoClub
-              equipo="cam"
-              nombre={equipoPropio}
-              url={escudoCam.url}
-            />
-            <strong>{equipoPropio}</strong>
-          </div>
-          <div className="resultado-marcador">
-            <input
-              inputMode="numeric"
-              aria-label={`Goles de ${equipoPropio}`}
-              value={golesAtletico === "0" ? "" : golesAtletico}
-              placeholder="0"
-              onChange={(evento) =>
-                actualizarMarcador("atletico", evento.target.value)
-              }
-            />
-            <span>—</span>
-            <input
-              inputMode="numeric"
-              aria-label={`Goles de ${registro.rival || "rival"}`}
-              value={golesRival === "0" ? "" : golesRival}
-              placeholder="0"
-              onChange={(evento) =>
-                actualizarMarcador("rival", evento.target.value)
-              }
-            />
-          </div>
-          <div className="equipo-marcador equipo-visitante">
-            <strong>{registro.rival || "Rival"}</strong>
-            <EscudoClub nombre={registro.rival} url={escudoRival.url} />
-          </div>
+          {/* El lado de la pantalla manda: el escudo queda contra el borde de
+              afuera y el nombre contra el marcador, esté quien esté ahí. Cada
+              casilla, en cambio, sigue escribiendo en su equipo. */}
+          {(() => {
+            const propio = {
+              nombre: equipoPropio,
+              escudo: (
+                <EscudoClub
+                  equipo="cam"
+                  nombre={equipoPropio}
+                  url={escudoCam.url}
+                />
+              ),
+              campo: "atletico",
+              goles: golesAtletico,
+            };
+            const rival = {
+              nombre: registro.rival || "Rival",
+              escudo: (
+                <EscudoClub nombre={registro.rival} url={escudoRival.url} />
+              ),
+              campo: "rival",
+              goles: golesRival,
+            };
+            const [izquierda, derecha] = enOrdenDeCancha(
+              registro,
+              propio,
+              rival,
+            );
+
+            return (
+              <>
+                <div className="equipo-marcador equipo-local">
+                  {izquierda.escudo}
+                  <strong>{izquierda.nombre}</strong>
+                </div>
+
+                <div className="resultado-marcador">
+                  {[izquierda, derecha].map((quien, lugar) => (
+                    <Fragment key={quien.campo}>
+                      {lugar === 1 && <span>—</span>}
+                      <input
+                        inputMode="numeric"
+                        aria-label={`Goles de ${quien.nombre}`}
+                        value={quien.goles === "0" ? "" : quien.goles}
+                        placeholder="0"
+                        onChange={(evento) =>
+                          actualizarMarcador(quien.campo, evento.target.value)
+                        }
+                      />
+                    </Fragment>
+                  ))}
+                </div>
+
+                <div className="equipo-marcador equipo-visitante">
+                  <strong>{derecha.nombre}</strong>
+                  {derecha.escudo}
+                </div>
+              </>
+            );
+          })()}
         </section>
 
         <div className="resumen-operativo">
