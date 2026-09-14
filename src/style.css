@@ -658,6 +658,134 @@ button:active {
   padding: 0 12px;
 }
 
+/* Los criterios suben en una hoja, como la de confirmar. */
+.hoja-opciones h3 {
+  margin: 0 0 12px;
+}
+
+.lista-opciones-hoja {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.opcion-hoja {
+  min-height: 50px;
+  padding: 0 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: var(--cam-negro);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.opcion-hoja.activa {
+  border-color: #111827;
+  background: #111827;
+  color: white;
+}
+
+.opcion-hoja:hover,
+.opcion-hoja:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.hoja-opciones .boton-cancelar-hoja {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--cam-rojo);
+  border-radius: 12px;
+  background: white;
+  color: var(--cam-rojo);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.hoja-opciones .boton-cancelar-hoja:hover,
+.hoja-opciones .boton-cancelar-hoja:active {
+  transform: none;
+  border-color: var(--cam-rojo);
+  background: #fef2f2;
+  box-shadow: none;
+}
+
+/* Qué se está filtrando, arriba de sus controles. */
+.criterio-elegido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #111827;
+  border-radius: 14px;
+  background: #111827;
+  text-align: left;
+}
+
+.criterio-elegido:hover,
+.criterio-elegido:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.criterio-elegido b {
+  min-width: 0;
+  color: white;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.criterio-elegido span {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* El equipo ya elegido, con la lista retraída. */
+.rival-elegido {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.rival-elegido:hover,
+.rival-elegido:active {
+  transform: none;
+  box-shadow: none;
+  background: #f1f5f4;
+}
+
+.rival-elegido b {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.rival-elegido span {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  color: #6b7680;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* EL FILTRO DE EQUIPO */
 
 /* Los rivales del historial, con su escudo. Un select del sistema no puede
