@@ -115,7 +115,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.14.1";
+const APP_VERSION = "2026.09.14.2";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -948,6 +948,34 @@ const DatoDetalle = ({ label, valor }) => (
     <span>{label}</span>
     <strong>{valor || "-"}</strong>
   </div>
+);
+
+// El botón para salir de una pantalla. La flecha va dibujada y no como el
+// caracter "←", que en el teléfono sale tan fino que el botón termina
+// leyéndose como un renglón de texto más.
+const BotonVolver = ({ onClick, children = "Volver" }) => (
+  <button
+    type="button"
+    className="boton-secundario boton-volver"
+    onClick={onClick}
+  >
+    <span className="flecha-volver" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        width="15"
+        height="15"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M19 12H5" />
+        <path d="m12 19-7-7 7-7" />
+      </svg>
+    </span>
+    <span>{children}</span>
+  </button>
 );
 
 const EstadoVersionApp = ({ actualizacionDisponible, onActualizar }) => (
@@ -3634,13 +3662,7 @@ export default function App() {
           </section>
 
           <div className="acciones-formacion">
-            <button
-              type="button"
-              className="boton-secundario"
-              onClick={() => setPantallaFormacion("inicio")}
-            >
-              ← Volver
-            </button>
+            <BotonVolver onClick={() => setPantallaFormacion("inicio")} />
 
             <button
               type="button"
@@ -4341,13 +4363,7 @@ export default function App() {
           )}
 
           <div className="acciones-dobles">
-            <button
-              type="button"
-              className="boton-secundario"
-              onClick={alVolver}
-            >
-              ← Volver
-            </button>
+            <BotonVolver onClick={alVolver} />
 
             <button
               type="button"
@@ -5200,17 +5216,13 @@ export default function App() {
             </div>
           ) : (
             <div className="acciones-dobles">
-              <button
-                type="button"
-                className="boton-secundario"
+              <BotonVolver
                 onClick={() => {
                   setRegistroSeleccionado(null);
                   setDetalleBorrador(null);
                   setDetalleEditando(false);
                 }}
-              >
-                ← Volver
-              </button>
+              />
 
               <button
                 type="button"
@@ -5533,13 +5545,9 @@ export default function App() {
 
           {equipoId && (
             <div className="acciones-dobles">
-              <button
-                type="button"
-                className="boton-secundario"
-                onClick={() => setVistaAjustes("inicio")}
-              >
-                ← Volver
-              </button>
+              <BotonVolver onClick={() => setVistaAjustes("inicio")}>
+                Volver a Ajustes
+              </BotonVolver>
             </div>
           )}
         </div>
@@ -5586,13 +5594,9 @@ export default function App() {
         </button>
 
         <div className="acciones-dobles">
-          <button
-            type="button"
-            className="boton-secundario"
-            onClick={() => setVistaAjustes("inicio")}
-          >
-            ← Volver
-          </button>
+          <BotonVolver onClick={() => setVistaAjustes("inicio")}>
+            Volver a Ajustes
+          </BotonVolver>
         </div>
       </div>
     </div>
@@ -5656,13 +5660,9 @@ export default function App() {
         </section>
 
         <div className="acciones-dobles">
-          <button
-            type="button"
-            className="boton-secundario"
-            onClick={() => setVistaAjustes("jugadores")}
-          >
-            ← Volver
-          </button>
+          <BotonVolver onClick={() => setVistaAjustes("jugadores")}>
+            Volver a Jugadores
+          </BotonVolver>
         </div>
       </div>
     </div>
@@ -5751,13 +5751,9 @@ export default function App() {
           </section>
 
           <div className="acciones-dobles">
-            <button
-              type="button"
-              className="boton-secundario"
-              onClick={() => setVistaAjustes("jugadores")}
-            >
-              ← Volver
-            </button>
+            <BotonVolver onClick={() => setVistaAjustes("jugadores")}>
+              Volver a Jugadores
+            </BotonVolver>
           </div>
         </div>
       </div>
