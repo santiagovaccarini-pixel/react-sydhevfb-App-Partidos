@@ -66,6 +66,13 @@ const trazos = {
       <path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" />
     </>
   ),
+  filtro: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M7 12h10" />
+      <path d="M10 17h4" />
+    </>
+  ),
   flecha: <path d="m9 18 6-6-6-6" />,
   subir: <path d="M12 19V5m0 0-7 7m7-7 7 7" />,
   escudo: <path d="M12 3 4 6v6c0 4.4 3.2 7.9 8 9 4.8-1.1 8-4.6 8-9V6l-8-3Z" />,
