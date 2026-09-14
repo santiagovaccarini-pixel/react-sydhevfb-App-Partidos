@@ -411,10 +411,190 @@ button:active {
 
 /* BUSCADOR */
 
+/* Mirar los registros por partido o por jugador. */
+.cambiar-vista {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: #eceff0;
+  margin-bottom: 10px;
+}
+
+.cambiar-vista button {
+  height: 40px;
+  border-radius: 12px;
+  background: transparent;
+  color: #55606b;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.cambiar-vista button.activo {
+  background: white;
+  color: #0f172a;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14);
+}
+
+/* Sin esto el botón salta al tocarlo y el selector entero se mueve. */
+.cambiar-vista button:hover,
+.cambiar-vista button:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.cambiar-vista button.activo:hover,
+.cambiar-vista button.activo:active {
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14);
+}
+
 .buscador-registros {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.linea-buscador {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.linea-buscador input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* El botón de filtrar: redondo y negro, al lado del buscador. */
+.boton-filtro {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #111827;
+  color: white;
+}
+
+.boton-filtro svg {
+  stroke-width: 2.2;
+}
+
+/* Con un filtro puesto queda marcado, así no se buscan partidos que la
+   pantalla está escondiendo sin decirlo. */
+.boton-filtro.con-filtro::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #f4f7f6;
+  border-radius: 50%;
+  background: var(--cam-verde);
+}
+
+.panel-filtro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.minutos-filtro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.minutos-filtro select {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.minutos-filtro input {
+  flex: 0 1 62px;
+  min-width: 0;
+  text-align: center;
+  font-weight: 800;
+}
+
+/* Cada punta del "entre": su símbolo y su número, en una sola pieza. */
+.punta-minutos {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  height: 46px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.punta-minutos input {
+  flex: 0 1 48px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.punta-minutos input:focus {
+  outline: none;
+  background: none;
+  box-shadow: none;
+}
+
+/* El símbolo se toca para pasar de ≥ a > (y de ≤ a <). */
+.simbolo-minutos {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 44px;
+  border-radius: 0;
+  border-right: 1px solid #e2e8e5;
+  background: #eceff0;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* La punta de arriba lleva el símbolo del lado de afuera. */
+.punta-minutos.al-reves .simbolo-minutos {
+  border-right: 0;
+  border-left: 1px solid #e2e8e5;
+}
+
+.simbolo-minutos:hover,
+.simbolo-minutos:active {
+  transform: none;
+  box-shadow: none;
+  background: #dfe4e3;
+}
+
+/* Las flechitas del campo numérico se comen el ancho del número. */
+.minutos-filtro input::-webkit-outer-spin-button,
+.minutos-filtro input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.minutos-filtro input {
+  appearance: textfield;
+}
+
+.minutos-filtro span {
+  flex: 0 0 auto;
+  color: #6b7680;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .buscador-registros input,
@@ -427,6 +607,219 @@ button:active {
   color: #0f172a;
   font-size: 14px;
   padding: 0 12px;
+}
+
+/* REGISTROS POR JUGADOR */
+
+.fila-jugador {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  border-bottom: 1px solid #eef1f0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.fila-jugador:last-child {
+  border-bottom: 0;
+}
+
+.fila-jugador:hover,
+.fila-jugador:active {
+  transform: none;
+  box-shadow: none;
+  background: #f4f7f6;
+}
+
+.fila-jugador b {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  color: #0f172a;
+  letter-spacing: -0.2px;
+}
+
+.fila-jugador span {
+  font-size: 12px;
+  font-weight: 750;
+  color: #6b7680;
+}
+
+.fila-jugador i {
+  font-style: normal;
+  font-size: 17px;
+  color: #b4bdc4;
+}
+
+.ficha-jugador {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ficha-jugador > div {
+  min-width: 0;
+}
+
+.inicial-jugador {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #000000, #16a34a);
+  color: white;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.tarjeta .ficha-jugador h2 {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: #0f172a;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  text-align: left;
+  text-transform: none;
+}
+
+.ficha-jugador p {
+  margin: 1px 0 0;
+  font-size: 12px;
+  font-weight: 750;
+  color: #6b7680;
+}
+
+.resumen-jugador {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.resumen-jugador div {
+  padding: 10px 4px;
+  border-radius: 14px;
+  background: #f4f7f6;
+  text-align: center;
+}
+
+.resumen-jugador strong {
+  display: block;
+  font-size: 17px;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+}
+
+.resumen-jugador span {
+  font-size: 10px;
+  font-weight: 800;
+  color: #6b7680;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* En un teléfono angosto los cuatro no entran de una: "No ingresó" se parte
+   en dos renglones y la fila queda despareja. Dos y dos se lee mejor que
+   achicar la letra hasta que no se vea. */
+@media (max-width: 380px) {
+  .resumen-jugador {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* La tarjeta del partido es un botón entero: se toca y abre el detalle. */
+.registro-de-jugador {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.registro-de-jugador:hover,
+.registro-de-jugador:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.papel-jugador {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eef1f0;
+}
+
+.papel-jugador > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #55606b;
+}
+
+.papel-jugador em {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-style: normal;
+  font-size: 11px;
+}
+
+.papel-completo em,
+.papel-salio em {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.papel-entro em {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.papel-banco em {
+  background: #eceff0;
+  color: #8a949c;
+}
+
+.papel-banco > span {
+  color: #8a949c;
+}
+
+.papel-jugador b {
+  flex: 0 0 auto;
+  font-size: 19px;
+  letter-spacing: -0.6px;
+  color: #0f172a;
+}
+
+.papel-banco b {
+  color: #b4bdc4;
+}
+
+.papel-jugador b small {
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: #8a949c;
 }
 
 .contador-registros {

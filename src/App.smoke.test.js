@@ -2160,6 +2160,220 @@ describe("interfaz operativa", () => {
     ).toEqual(["ALONSO", "HULK"]);
   });
 
+  test("Registros se puede mirar por jugador, con los minutos de cada partido", async () => {
+    // Dos partidos: en el primero SCARPA sale a los 15:00 del segundo tiempo;
+    // en el otro va al banco y no entra, que igual tiene que contar.
+    const jugado = filaTransmisionGuardada();
+    const desdeElBanco = {
+      ...filaTransmisionGuardada(),
+      id: 10,
+      fecha: "2026-09-03",
+      rival: "Vasco",
+      titulares: ["ALONSO", "ARANA", "BERNARD"],
+      convocados: ["SCARPA", "DUDU"],
+      cambio_1_tiempo: "",
+      cambio_1_sale: "",
+      cambio_1_entra: "",
+      cambio_2_tiempo: "",
+      cambio_2_sale: "",
+      cambio_2_entra: "",
+      captura_tiempo: {
+        ...filaTransmisionGuardada().captura_tiempo,
+        cambios: [],
+      },
+    };
+    doblesSupabase.filasHistorial = [jugado, desdeElBanco];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    const verPor = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".cambiar-vista button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+
+    await act(async () => irA("Registros").click());
+    expect(contenedor.querySelectorAll(".registro-guardado").length).toBe(2);
+
+    await act(async () => verPor("Jugador").click());
+
+    // Sin escribir nada ofrece a todos los que pasaron por el historial.
+    const nombres = () =>
+      Array.from(contenedor.querySelectorAll(".fila-jugador b")).map((n) =>
+        n.textContent.trim(),
+      );
+    expect(nombres()).toEqual(["ALONSO", "ARANA", "BERNARD", "DUDU", "SCARPA"]);
+
+    const buscador = contenedor.querySelector(".buscador-registros input");
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    await act(async () => {
+      escribir.call(buscador, "scar");
+      buscador.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(nombres()).toEqual(["SCARPA"]);
+
+    await act(async () => contenedor.querySelector(".fila-jugador").click());
+
+    // El denominador son todos los partidos guardados, no solo los suyos.
+    expect(contenedor.querySelector(".ficha-jugador h2").textContent).toBe(
+      "SCARPA",
+    );
+    expect(contenedor.querySelector(".ficha-jugador p").textContent).toContain(
+      "En 2 de los 2 partidos",
+    );
+
+    const resumen = () =>
+      Array.from(contenedor.querySelectorAll(".resumen-jugador div")).map(
+        (caja) =>
+          `${caja.querySelector("span").textContent} ${caja.querySelector("strong").textContent}`,
+      );
+    // Los minutos son la suma de lo que jugó en cada partido: 62:30 más nada.
+    expect(resumen()).toEqual([
+      "Titular 1",
+      "Ingresó 0",
+      "No ingresó 1",
+      "Minutos 62:30",
+    ]);
+
+    const papeles = Array.from(
+      contenedor.querySelectorAll(".papel-jugador"),
+    ).map((fila) => ({
+      papel: fila.querySelector("span").textContent.trim(),
+      minutos: fila.querySelector("b").textContent.trim(),
+    }));
+
+    // Salió a los 15:00 del ST: 47:30 del primero más 15:00 son 62:30.
+    expect(papeles[0]).toEqual({
+      papel: "●Titular, salió 22:18",
+      minutos: "62:30 MIN",
+    });
+    // El del banco aparece igual, sin minutos.
+    expect(papeles[1]).toEqual({
+      papel: "–Quedó en el banco",
+      minutos: "–",
+    });
+
+    // El filtro vive detrás del botón redondo, al lado del buscador.
+    expect(contenedor.querySelector(".panel-filtro")).toBeNull();
+    await act(async () => contenedor.querySelector(".boton-filtro").click());
+    expect(contenedor.querySelector(".panel-filtro")).not.toBeNull();
+
+    const elegir = Object.getOwnPropertyDescriptor(
+      window.HTMLSelectElement.prototype,
+      "value",
+    ).set;
+    const enSelect = async (selector, valor) => {
+      const select = contenedor.querySelector(selector);
+      await act(async () => {
+        elegir.call(select, valor);
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    };
+    const filtrar = (valor) => enSelect(".panel-filtro > select", valor);
+    const rivales = () =>
+      Array.from(contenedor.querySelectorAll(".registro-de-jugador")).map(
+        (tarjeta) =>
+          tarjeta.querySelectorAll(".enfrentamiento-registro strong")[1]
+            .textContent,
+      );
+
+    await filtrar("titular");
+    expect(rivales()).toEqual(["Santos"]);
+    expect(resumen()).toEqual([
+      "Titular 1",
+      "Ingresó 0",
+      "No ingresó 0",
+      "Minutos 62:30",
+    ]);
+    expect(contenedor.querySelector(".contador-registros").textContent).toBe(
+      "Mostrando 1 de 2 partidos",
+    );
+
+    await filtrar("banco");
+    expect(rivales()).toEqual(["Vasco"]);
+    expect(resumen()).toEqual([
+      "Titular 0",
+      "Ingresó 0",
+      "No ingresó 1",
+      "Minutos 00:00",
+    ]);
+
+    // Por minutos: jugó 62:30, así que "más de 60" lo deja y "más de 90" no.
+    await filtrar("minutos");
+    const numeros = () =>
+      Array.from(contenedor.querySelectorAll(".minutos-filtro input"));
+    const escribirEn = async (campo, valor) => {
+      await act(async () => {
+        escribir.call(campo, valor);
+        campo.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+
+    expect(numeros()).toHaveLength(1);
+    expect(numeros()[0].value).toBe("60");
+    expect(rivales()).toEqual(["Santos"]);
+
+    await escribirEn(numeros()[0], "90");
+    expect(rivales()).toEqual([]);
+    expect(contenedor.querySelector(".sin-resultados").textContent).toBe(
+      "Ningún partido suyo entra en ese filtro.",
+    );
+
+    // Vaciar la casilla no puede dejar la pantalla sin nada.
+    await escribirEn(numeros()[0], "");
+    expect(rivales()).toEqual(["Santos", "Vasco"]);
+
+    // "Menos de" mira para el otro lado: el del banco jugó cero.
+    await enSelect(".minutos-filtro select", "menor");
+    await escribirEn(numeros()[0], "60");
+    expect(rivales()).toEqual(["Vasco"]);
+
+    // "Entre" abre la segunda casilla, cada una con su símbolo.
+    await enSelect(".minutos-filtro select", "entre");
+    expect(numeros()).toHaveLength(2);
+    const simbolos = () =>
+      Array.from(contenedor.querySelectorAll(".simbolo-minutos"));
+    expect(simbolos().map((b) => b.textContent)).toEqual(["≥", "≤"]);
+
+    await escribirEn(numeros()[0], "60");
+    await escribirEn(numeros()[1], "70");
+    expect(rivales()).toEqual(["Santos"]);
+
+    // Con una sola punta escrita no es un entre: no filtra nada.
+    await escribirEn(numeros()[1], "");
+    expect(rivales()).toEqual(["Santos", "Vasco"]);
+    await escribirEn(numeros()[1], "70");
+
+    // Tocar un símbolo lo cambia y el filtro se rehace solo. Jugó 62:30, así
+    // que con el techo en 62 queda afuera y con 63 vuelve a entrar.
+    await act(async () => simbolos()[0].click());
+    expect(simbolos().map((b) => b.textContent)).toEqual([">", "≤"]);
+
+    await escribirEn(numeros()[1], "62");
+    expect(rivales()).toEqual([]);
+    await escribirEn(numeros()[1], "63");
+    expect(rivales()).toEqual(["Santos"]);
+
+    await act(async () => simbolos()[1].click());
+    expect(simbolos().map((b) => b.textContent)).toEqual([">", "<"]);
+    expect(rivales()).toEqual(["Santos"]);
+
+    await filtrar("todos");
+    await act(async () => contenedor.querySelector(".boton-filtro").click());
+
+    // Tocar el partido abre la ficha de siempre.
+    await act(async () =>
+      contenedor.querySelector(".registro-de-jugador").click(),
+    );
+    expect(contenedor.querySelector(".boton-info-ficha")).not.toBeNull();
+  });
+
   test("volver dice a dónde vuelve y rehace el camino", async () => {
     await montarApp();
 

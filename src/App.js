@@ -66,6 +66,15 @@ import {
   resumenDeTiempos,
   tiempoJugado,
 } from "./domain/tiempos";
+import {
+  COMPARADOR,
+  FILTRO,
+  PAPEL,
+  filtrarPartidosDeJugador,
+  jugadoresDelHistorial,
+  partidosDeJugador,
+  resumenDeJugador,
+} from "./domain/jugadores";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import { HojaConfirmar } from "./components/ConfirmSheet";
@@ -115,7 +124,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.14.2";
+const APP_VERSION = "2026.09.14.3";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1226,6 +1235,18 @@ export default function App() {
   const [detalleEditando, setDetalleEditando] = useState(false);
   const [detalleBorrador, setDetalleBorrador] = useState(null);
   const [busquedaRegistros, setBusquedaRegistros] = useState("");
+  // Registros se puede mirar de dos maneras: por partido, que es lo de
+  // siempre, o por jugador, para ver en cuáles estuvo y cuánto jugó.
+  const [modoRegistros, setModoRegistros] = useState("equipo");
+  const [jugadorElegido, setJugadorElegido] = useState(null);
+  const [filtroJugador, setFiltroJugador] = useState(FILTRO.TODOS);
+  const [filtroAbierto, setFiltroAbierto] = useState(false);
+  const [comparadorMinutos, setComparadorMinutos] = useState(COMPARADOR.MAYOR);
+  const [minutosDesde, setMinutosDesde] = useState("60");
+  const [minutosHasta, setMinutosHasta] = useState("90");
+  // En "entre", cada punta elige su símbolo: ≥ o >, ≤ o <.
+  const [desdeIgual, setDesdeIgual] = useState(true);
+  const [hastaIgual, setHastaIgual] = useState(true);
   const [ordenRegistros, setOrdenRegistros] = useState("reciente");
   const [mensajeGuardado, setMensajeGuardado] = useState("");
   const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
@@ -1250,7 +1271,9 @@ export default function App() {
   const [equipoGuardado, setEquipoGuardado] = useState(() =>
     leerEquipoElegido(),
   );
-  const [equipoId, setEquipoId] = useState(() => leerEquipoElegido()?.id || null);
+  const [equipoId, setEquipoId] = useState(
+    () => leerEquipoElegido()?.id || null,
+  );
   const [equiposCargados, setEquiposCargados] = useState(false);
   const [fallaronEquipos, setFallaronEquipos] = useState(false);
 
@@ -1921,6 +1944,124 @@ export default function App() {
         return b.index - a.index;
       });
   }, [guardados, busquedaRegistros, ordenRegistros]);
+
+  // Cada registro se abre igual, venga de la lista de partidos o de la de un
+  // jugador: todo el partido, en bruto y con los cambios nuestros.
+  const abrirDetalleDelRegistro = ({ item, index }) => {
+    setRegistroSeleccionado({ item, index });
+    setDetalleBorrador(null);
+    setDetalleEditando(false);
+    setVistaFicha(TOTAL);
+    setFichaEnNeto(false);
+    setFichaDelRival(false);
+    setFichaCambiosArriba(false);
+    setFichaInfoGeneral(false);
+    setFichaEnJuego(false);
+  };
+
+  // La fecha y el enfrentamiento de un partido guardado. Lo usan las dos
+  // vistas de Registros: la lista de partidos y la de un jugador.
+  const cabeceraDelRegistro = (item) => (
+    <>
+      <span className="cabecera-registro">
+        <span className="fecha-registro">
+          {formatearFechaPantalla(item.fecha)}
+        </span>
+        {item.sinSincronizar && (
+          <span className="marca-sin-sincronizar">Sin sincronizar</span>
+        )}
+      </span>
+
+      <div className="enfrentamiento-registro">
+        <EscudoDeClub equipo="cam" nombre={equipoPropio} compacto />
+        <strong>{equipoPropio}</strong>
+        <span className="resultado-registro">{item.resultado || "–"}</span>
+        <strong>{item.rival || "Sin rival"}</strong>
+        <EscudoDeClub nombre={item.rival} mini />
+      </div>
+    </>
+  );
+
+  // Cómo se cuenta lo que hizo el jugador en ese partido.
+  const PAPELES_EN_PANTALLA = {
+    [PAPEL.COMPLETO]: { icono: "●", texto: () => "Jugó todo el partido" },
+    [PAPEL.SALIO]: {
+      icono: "●",
+      texto: (quien) => `Titular, salió ${quien.salio}`,
+    },
+    [PAPEL.ENTRO]: {
+      icono: "↑",
+      texto: (quien) =>
+        quien.salio
+          ? `Entró ${quien.entro}, salió ${quien.salio}`
+          : `Entró ${quien.entro}`,
+    },
+    [PAPEL.BANCO]: { icono: "–", texto: () => "Quedó en el banco" },
+  };
+
+  // Mirando por jugador, el buscador filtra nombres en vez de partidos.
+  const jugadoresVisibles = useMemo(() => {
+    const buscado = normalizarTexto(busquedaRegistros);
+    const todos = jugadoresDelHistorial(guardados);
+    if (!buscado) return todos;
+    return todos.filter((quien) =>
+      normalizarTexto(quien.nombre).includes(buscado),
+    );
+  }, [guardados, busquedaRegistros]);
+
+  const partidosDelJugador = useMemo(
+    () => (jugadorElegido ? partidosDeJugador(guardados, jugadorElegido) : []),
+    [guardados, jugadorElegido],
+  );
+
+  const partidosFiltrados = useMemo(
+    () =>
+      filtrarPartidosDeJugador(partidosDelJugador, {
+        filtro: filtroJugador,
+        comparador: comparadorMinutos,
+        desde: minutosDesde,
+        hasta: minutosHasta,
+        desdeIgual,
+        hastaIgual,
+      }),
+    [
+      partidosDelJugador,
+      filtroJugador,
+      comparadorMinutos,
+      minutosDesde,
+      minutosHasta,
+      desdeIgual,
+      hastaIgual,
+    ],
+  );
+
+  // El resumen cuenta lo que se está viendo: con un filtro puesto, los números
+  // de arriba y la lista de abajo tienen que hablar de los mismos partidos.
+  const resumenJugador = useMemo(
+    () => resumenDeJugador(partidosFiltrados),
+    [partidosFiltrados],
+  );
+
+  // Cambiar de vista o tocar el buscador arranca de cero: quedarse con el
+  // jugador anterior mientras se escribe otro nombre confunde.
+  const mirarRegistrosPor = (modo) => {
+    setModoRegistros(modo);
+    setBusquedaRegistros("");
+    setJugadorElegido(null);
+    setFiltroJugador(FILTRO.TODOS);
+    setFiltroAbierto(false);
+  };
+
+  const elegirJugador = (nombre) => {
+    setJugadorElegido(nombre);
+    setBusquedaRegistros(nombre);
+  };
+
+  const escribirEnElBuscador = (texto) => {
+    setBusquedaRegistros(texto);
+    // Editar el nombre es volver a la lista de jugadores.
+    if (jugadorElegido && texto !== jugadorElegido) setJugadorElegido(null);
+  };
 
   const actualizar = (campo, valor) => {
     setRegistro((prev) => ({
@@ -4489,8 +4630,7 @@ export default function App() {
           <header className="encabezado">
             <h1>{editando ? "Editar registro" : "Detalle registro"}</h1>
             <p>
-              {editado.fecha} · {equipoPropio} vs{" "}
-              {editado.rival || "Sin rival"}
+              {editado.fecha} · {equipoPropio} vs {editado.rival || "Sin rival"}
               {editado.resultado ? ` · ${editado.resultado}` : ""}
             </p>
           </header>
@@ -5707,7 +5847,10 @@ export default function App() {
               <p className="vacio-ficha">Ningún jugador con ese nombre.</p>
             ) : (
               visibles.map((jugador) => (
-                <div className="jugador-puestos" key={jugador.id ?? jugador.nombre}>
+                <div
+                  className="jugador-puestos"
+                  key={jugador.id ?? jugador.nombre}
+                >
                   <div className="arriba-puestos">
                     <b>{jugador.nombre}</b>
 
@@ -6357,21 +6500,193 @@ export default function App() {
 
           {guardados.length > 0 && (
             <section className="tarjeta">
-              <div className="buscador-registros">
-                <input
-                  value={busquedaRegistros}
-                  onChange={(e) => setBusquedaRegistros(e.target.value)}
-                  onKeyDown={manejarEnter}
-                  placeholder="Buscar por rival, resultado, fecha, jugador..."
-                />
+              <div className="cambiar-vista" role="tablist">
+                {[
+                  ["equipo", "Equipo"],
+                  ["jugador", "Jugador"],
+                ].map(([modo, etiqueta]) => (
+                  <button
+                    key={modo}
+                    type="button"
+                    role="tab"
+                    aria-selected={modoRegistros === modo}
+                    className={modoRegistros === modo ? "activo" : ""}
+                    onClick={() => mirarRegistrosPor(modo)}
+                  >
+                    {etiqueta}
+                  </button>
+                ))}
+              </div>
 
-                <select
-                  value={ordenRegistros}
-                  onChange={(e) => setOrdenRegistros(e.target.value)}
-                >
-                  <option value="reciente">Más reciente primero</option>
-                  <option value="antiguo">Más antiguo primero</option>
-                </select>
+              <div className="buscador-registros">
+                <div className="linea-buscador">
+                  <input
+                    value={busquedaRegistros}
+                    onChange={(e) => escribirEnElBuscador(e.target.value)}
+                    onKeyDown={manejarEnter}
+                    placeholder={
+                      modoRegistros === "jugador"
+                        ? "Buscar un jugador..."
+                        : "Buscar por rival, resultado, fecha..."
+                    }
+                  />
+
+                  {/* El filtro solo tiene sentido con un jugador abierto: es
+                      sobre sus partidos. */}
+                  {modoRegistros === "jugador" && jugadorElegido && (
+                    <button
+                      type="button"
+                      className={`boton-filtro ${
+                        filtroJugador === FILTRO.TODOS ? "" : "con-filtro"
+                      }`}
+                      aria-label="Filtrar los partidos del jugador"
+                      aria-expanded={filtroAbierto}
+                      onClick={() => setFiltroAbierto((abierto) => !abierto)}
+                    >
+                      <Icono nombre="filtro" size={20} />
+                    </button>
+                  )}
+                </div>
+
+                {modoRegistros === "equipo" && (
+                  <select
+                    value={ordenRegistros}
+                    onChange={(e) => setOrdenRegistros(e.target.value)}
+                  >
+                    <option value="reciente">Más reciente primero</option>
+                    <option value="antiguo">Más antiguo primero</option>
+                  </select>
+                )}
+
+                {modoRegistros === "jugador" &&
+                  jugadorElegido &&
+                  filtroAbierto && (
+                    <div className="panel-filtro">
+                      <select
+                        value={filtroJugador}
+                        onChange={(e) => setFiltroJugador(e.target.value)}
+                        aria-label="Qué partidos mostrar"
+                      >
+                        <option value={FILTRO.TODOS}>Todos los partidos</option>
+                        <option value={FILTRO.TITULAR}>Titular</option>
+                        <option value={FILTRO.ENTRO}>Ingresó</option>
+                        <option value={FILTRO.BANCO}>No ingresó</option>
+                        <option value={FILTRO.MINUTOS}>Minutos jugados</option>
+                      </select>
+
+                      {filtroJugador === FILTRO.MINUTOS && (
+                        <div className="minutos-filtro">
+                          <select
+                            value={comparadorMinutos}
+                            onChange={(e) =>
+                              setComparadorMinutos(e.target.value)
+                            }
+                            aria-label="Cómo comparar los minutos"
+                          >
+                            <option value={COMPARADOR.MAYOR}>Más de</option>
+                            <option value={COMPARADOR.MAYOR_IGUAL}>
+                              Al menos
+                            </option>
+                            <option value={COMPARADOR.MENOR}>Menos de</option>
+                            <option value={COMPARADOR.MENOR_IGUAL}>
+                              Como mucho
+                            </option>
+                            <option value={COMPARADOR.ENTRE}>Entre</option>
+                          </select>
+
+                          {comparadorMinutos === COMPARADOR.ENTRE ? (
+                            <>
+                              {[
+                                {
+                                  igual: desdeIgual,
+                                  cambiar: setDesdeIgual,
+                                  simbolos: ["≥", ">"],
+                                  valor: minutosDesde,
+                                  escribir: setMinutosDesde,
+                                  desde: true,
+                                },
+                                {
+                                  igual: hastaIgual,
+                                  cambiar: setHastaIgual,
+                                  simbolos: ["≤", "<"],
+                                  valor: minutosHasta,
+                                  escribir: setMinutosHasta,
+                                  desde: false,
+                                },
+                              ].map((punta) => {
+                                const simbolo = (
+                                  <button
+                                    type="button"
+                                    className="simbolo-minutos"
+                                    onClick={() =>
+                                      punta.cambiar((igual) => !igual)
+                                    }
+                                    aria-label={`${
+                                      punta.desde ? "Desde" : "Hasta"
+                                    }: ${
+                                      punta.igual ? "incluido" : "sin incluir"
+                                    }`}
+                                  >
+                                    {punta.igual
+                                      ? punta.simbolos[0]
+                                      : punta.simbolos[1]}
+                                  </button>
+                                );
+
+                                const numero = (
+                                  <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    min="0"
+                                    value={punta.valor}
+                                    onChange={(e) =>
+                                      punta.escribir(e.target.value)
+                                    }
+                                    onKeyDown={manejarEnter}
+                                    aria-label={
+                                      punta.desde
+                                        ? "Minutos, desde"
+                                        : "Minutos, hasta"
+                                    }
+                                  />
+                                );
+
+                                // Los dos símbolos van por fuera y los números
+                                // en el medio: 60 y 90 quedan uno al lado del
+                                // otro, que es lo que se compara de un vistazo.
+                                return (
+                                  <span
+                                    className={`punta-minutos ${
+                                      punta.desde ? "" : "al-reves"
+                                    }`}
+                                    key={punta.desde ? "desde" : "hasta"}
+                                  >
+                                    {punta.desde ? simbolo : numero}
+                                    {punta.desde ? numero : simbolo}
+                                  </span>
+                                );
+                              })}
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min="0"
+                                value={minutosDesde}
+                                onChange={(e) =>
+                                  setMinutosDesde(e.target.value)
+                                }
+                                onKeyDown={manejarEnter}
+                                aria-label="Minutos"
+                              />
+                              <span>min</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
               </div>
             </section>
           )}
@@ -6387,6 +6702,123 @@ export default function App() {
                       "Nada para mostrar hasta que la base conteste."
                     : "No hay registros guardados todavía."}
               </div>
+            ) : modoRegistros === "jugador" ? (
+              jugadorElegido ? (
+                <>
+                  <div className="ficha-jugador">
+                    <span className="inicial-jugador" aria-hidden="true">
+                      {jugadorElegido.trim().charAt(0)}
+                    </span>
+                    <div>
+                      <h2>{jugadorElegido}</h2>
+                      <p>
+                        En {partidosDelJugador.length} de{" "}
+                        {guardados.length === 1
+                          ? "1 partido"
+                          : `los ${guardados.length} partidos`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="resumen-jugador">
+                    {[
+                      ["Titular", resumenJugador.titular],
+                      ["Ingresó", resumenJugador.entro],
+                      ["No ingresó", resumenJugador.banco],
+                      [
+                        "Minutos",
+                        formatearMinutosSegundos(resumenJugador.bruto),
+                      ],
+                    ].map(([etiqueta, valor]) => (
+                      <div key={etiqueta}>
+                        <strong>{valor}</strong>
+                        <span>{etiqueta}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {filtroJugador !== FILTRO.TODOS && (
+                    <p className="contador-registros">
+                      Mostrando {partidosFiltrados.length} de{" "}
+                      {partidosDelJugador.length}{" "}
+                      {partidosDelJugador.length === 1 ? "partido" : "partidos"}
+                    </p>
+                  )}
+
+                  {partidosFiltrados.length === 0 && (
+                    <div className="sin-resultados">
+                      Ningún partido suyo entra en ese filtro.
+                    </div>
+                  )}
+
+                  {partidosFiltrados.map(({ item, index, participacion }) => {
+                    const papel = PAPELES_EN_PANTALLA[participacion.papel];
+
+                    return (
+                      <button
+                        type="button"
+                        className="registro-guardado registro-de-jugador"
+                        key={index}
+                        onClick={() => abrirDetalleDelRegistro({ item, index })}
+                      >
+                        {cabeceraDelRegistro(item)}
+
+                        <div
+                          className={`papel-jugador papel-${participacion.papel}`}
+                        >
+                          <span>
+                            <em aria-hidden="true">{papel.icono}</em>
+                            {papel.texto(participacion)}
+                          </span>
+                          <b>
+                            {participacion.papel === PAPEL.BANCO ? (
+                              "–"
+                            ) : (
+                              <>
+                                {formatearMinutosSegundos(participacion.bruto)}{" "}
+                                <small>MIN</small>
+                              </>
+                            )}
+                          </b>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  <div className="historial-titulo">
+                    <p className="contador-registros">
+                      {jugadoresVisibles.length}{" "}
+                      {jugadoresVisibles.length === 1 ? "jugador" : "jugadores"}{" "}
+                      en {guardados.length}{" "}
+                      {guardados.length === 1 ? "partido" : "partidos"}
+                    </p>
+                  </div>
+
+                  {jugadoresVisibles.length === 0 ? (
+                    <div className="sin-resultados">
+                      Ningún jugador con ese nombre en los partidos guardados.
+                    </div>
+                  ) : (
+                    jugadoresVisibles.map((quien) => (
+                      <button
+                        type="button"
+                        className="fila-jugador"
+                        key={quien.nombre}
+                        onClick={() => elegirJugador(quien.nombre)}
+                      >
+                        <b>{quien.nombre}</b>
+                        <span>
+                          {quien.partidos}{" "}
+                          {quien.partidos === 1 ? "partido" : "partidos"}
+                        </span>
+                        <i aria-hidden="true">›</i>
+                      </button>
+                    ))
+                  )}
+                </>
+              )
             ) : (
               <>
                 <div className="historial-titulo">
@@ -6408,26 +6840,7 @@ export default function App() {
 
                 {registrosVisibles.map(({ item, index }) => (
                   <div className="registro-guardado" key={index}>
-                    <span className="cabecera-registro">
-                      <span className="fecha-registro">
-                        {formatearFechaPantalla(item.fecha)}
-                      </span>
-                      {item.sinSincronizar && (
-                        <span className="marca-sin-sincronizar">
-                          Sin sincronizar
-                        </span>
-                      )}
-                    </span>
-
-                    <div className="enfrentamiento-registro">
-                      <EscudoDeClub equipo="cam" nombre={equipoPropio} compacto />
-                      <strong>{equipoPropio}</strong>
-                      <span className="resultado-registro">
-                        {item.resultado || "–"}
-                      </span>
-                      <strong>{item.rival || "Sin rival"}</strong>
-                      <EscudoDeClub nombre={item.rival} mini />
-                    </div>
+                    {cabeceraDelRegistro(item)}
 
                     <div className="tiempos-registro">
                       <span>
@@ -6442,19 +6855,7 @@ export default function App() {
                       <button
                         type="button"
                         className="boton-detalle"
-                        onClick={() => {
-                          setRegistroSeleccionado({ item, index });
-                          setDetalleBorrador(null);
-                          setDetalleEditando(false);
-                          // Cada registro se abre igual: primer tiempo, en
-                          // bruto y con los cambios nuestros.
-                          setVistaFicha(TOTAL);
-                          setFichaEnNeto(false);
-                          setFichaDelRival(false);
-                          setFichaCambiosArriba(false);
-                          setFichaInfoGeneral(false);
-                          setFichaEnJuego(false);
-                        }}
+                        onClick={() => abrirDetalleDelRegistro({ item, index })}
                       >
                         Ver detalle
                       </button>
@@ -6547,7 +6948,11 @@ export default function App() {
 
         <section className="marcador-partido" aria-label="Marcador del partido">
           <div className="equipo-marcador equipo-local">
-            <EscudoClub equipo="cam" nombre={equipoPropio} url={escudoCam.url} />
+            <EscudoClub
+              equipo="cam"
+              nombre={equipoPropio}
+              url={escudoCam.url}
+            />
             <strong>{equipoPropio}</strong>
           </div>
           <div className="resultado-marcador">
