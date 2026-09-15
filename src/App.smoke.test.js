@@ -2216,20 +2216,19 @@ describe("interfaz operativa", () => {
       Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
         (item) => item.textContent.includes(etiqueta),
       );
-    const elegir = Object.getOwnPropertyDescriptor(
-      window.HTMLSelectElement.prototype,
-      "value",
-    ).set;
     const escribir = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       "value",
     ).set;
-    const enSelect = async (selector, valor) => {
-      const select = contenedor.querySelector(selector);
-      await act(async () => {
-        elegir.call(select, valor);
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      });
+    // Todo lo que se elige de una lista pasa por la hoja: se toca el botón
+    // negro y se elige ahí.
+    const enLaHoja = async (selectorDelBoton, etiqueta) => {
+      await act(async () => contenedor.querySelector(selectorDelBoton).click());
+      await act(async () =>
+        Array.from(document.querySelectorAll(".opcion-hoja"))
+          .find((boton) => boton.textContent === etiqueta)
+          .click(),
+      );
     };
     const fechas = () =>
       Array.from(contenedor.querySelectorAll(".fecha-registro")).map((nodo) =>
@@ -2309,10 +2308,10 @@ describe("interfaz operativa", () => {
     // Por resultado: el 0-2 es derrota aunque de visitante se muestre 2-0.
     await act(async () => contenedor.querySelector(".criterio-elegido").click());
     await act(async () => criterio("Resultado").click());
-    await enSelect(".minutos-filtro select", "perdido");
+    await enLaHoja(".minutos-filtro .selector-hoja", "Perdidos");
     expect(fechas()).toEqual(["03 de sept de 2026"]);
 
-    await enSelect(".minutos-filtro select", "exacto");
+    await enLaHoja(".minutos-filtro .selector-hoja", "Marcador exacto");
     const marcador = contenedor.querySelector(".minutos-filtro input");
     await act(async () => {
       escribir.call(marcador, "1-1");
@@ -2511,16 +2510,13 @@ describe("interfaz operativa", () => {
       ),
     ).toEqual(["Titular", "Ingresó", "No ingresó", "Minutos jugados"]);
 
-    const elegir = Object.getOwnPropertyDescriptor(
-      window.HTMLSelectElement.prototype,
-      "value",
-    ).set;
-    const enSelect = async (selector, valor) => {
-      const select = contenedor.querySelector(selector);
-      await act(async () => {
-        elegir.call(select, valor);
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      });
+    const enLaHojaJugador = async (selectorDelBoton, etiqueta) => {
+      await act(async () => contenedor.querySelector(selectorDelBoton).click());
+      await act(async () =>
+        Array.from(document.querySelectorAll(".opcion-hoja"))
+          .find((boton) => boton.textContent === etiqueta)
+          .click(),
+      );
     };
     // Los criterios suben en la hoja; se vuelve a ella desde el encabezado.
     const filtrar = async (etiqueta) => {
@@ -2586,12 +2582,12 @@ describe("interfaz operativa", () => {
     expect(rivales()).toEqual(["Santos", "Vasco"]);
 
     // "Menos de" mira para el otro lado: el del banco jugó cero.
-    await enSelect(".minutos-filtro select", "menor");
+    await enLaHojaJugador(".minutos-filtro .selector-hoja", "Menos de");
     await escribirEn(numeros()[0], "60");
     expect(rivales()).toEqual(["Vasco"]);
 
     // "Entre" abre la segunda casilla, cada una con su símbolo.
-    await enSelect(".minutos-filtro select", "entre");
+    await enLaHojaJugador(".minutos-filtro .selector-hoja", "Entre");
     expect(numeros()).toHaveLength(2);
     const simbolos = () =>
       Array.from(contenedor.querySelectorAll(".simbolo-minutos"));

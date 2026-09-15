@@ -142,7 +142,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.14.6";
+const APP_VERSION = "2026.09.15.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1270,8 +1270,9 @@ export default function App() {
 
   const [filtroJugador, setFiltroJugador] = useState(FILTRO.TODOS);
   const [filtroAbierto, setFiltroAbierto] = useState(false);
-  // La hoja que sube con los criterios, que es lo que abre el icono.
-  const [hojaFiltro, setHojaFiltro] = useState(false);
+  // Una sola hoja para todo lo que se elige de una lista: el criterio, el
+  // resultado, el orden y los comparadores.
+  const [hojaSelector, setHojaSelector] = useState(null);
   const [comparadorMinutos, setComparadorMinutos] = useState(COMPARADOR.MAYOR);
   const [minutosDesde, setMinutosDesde] = useState("60");
   const [minutosHasta, setMinutosHasta] = useState("90");
@@ -2154,7 +2155,7 @@ export default function App() {
   // Volver a tocar el icono deja todo como al entrar: sin filtro y cerrado.
   const limpiarFiltros = () => {
     setFiltroAbierto(false);
-    setHojaFiltro(false);
+    setHojaSelector(null);
     setFiltroEquipo(FILTRO_EQUIPO.TODOS);
     setRivalElegido("");
     setBuscadorRival("");
@@ -2189,8 +2190,33 @@ export default function App() {
   const elegirCriterio = (cual) => {
     if (enEquipo) setFiltroEquipo(cual);
     else setFiltroJugador(cual);
-    setHojaFiltro(false);
     setFiltroAbierto(true);
+  };
+
+  const abrirHojaDeCriterios = () =>
+    setHojaSelector({
+      titulo: "Filtrar por",
+      opciones: criteriosDelFiltro,
+      valor: criterioElegido,
+      alElegir: elegirCriterio,
+    });
+
+  // El botón negro que muestra lo elegido y sube la hoja para cambiarlo. Es
+  // lo que reemplaza a los desplegables del sistema adentro del filtro.
+  const selectorConHoja = ({ titulo, opciones, valor, alElegir, ancho }) => {
+    const elegida = opciones.find((una) => una.valor === valor);
+
+    return (
+      <button
+        type="button"
+        className={`selector-hoja ${ancho === "medio" ? "a-medias" : ""}`}
+        aria-label={titulo}
+        onClick={() => setHojaSelector({ titulo, opciones, valor, alElegir })}
+      >
+        <b>{elegida ? elegida.etiqueta : titulo}</b>
+        <Icono nombre="flecha" size={15} />
+      </button>
+    );
   };
 
   const elegirJugador = (nombre) => {
@@ -6583,12 +6609,15 @@ export default function App() {
 
   const renderHojaDelFiltro = () => (
     <HojaOpciones
-      abierta={hojaFiltro}
-      titulo="Filtrar por"
-      opciones={criteriosDelFiltro}
-      elegida={criterioElegido}
-      onElegir={elegirCriterio}
-      onCerrar={() => setHojaFiltro(false)}
+      abierta={Boolean(hojaSelector)}
+      titulo={hojaSelector?.titulo}
+      opciones={hojaSelector?.opciones || []}
+      elegida={hojaSelector?.valor}
+      onElegir={(cual) => {
+        hojaSelector?.alElegir(cual);
+        setHojaSelector(null);
+      }}
+      onCerrar={() => setHojaSelector(null)}
     />
   );
 
@@ -6756,7 +6785,9 @@ export default function App() {
                       }
                       aria-expanded={filtroAbierto}
                       onClick={() =>
-                        filtroAbierto ? limpiarFiltros() : setHojaFiltro(true)
+                        filtroAbierto
+                          ? limpiarFiltros()
+                          : abrirHojaDeCriterios()
                       }
                     >
                       <Icono nombre="filtro" size={20} />
@@ -6771,7 +6802,7 @@ export default function App() {
                     <button
                       type="button"
                       className="criterio-elegido"
-                      onClick={() => setHojaFiltro(true)}
+                      onClick={abrirHojaDeCriterios}
                     >
                       <b>{nombreDelCriterio}</b>
                       <span>Cambiar</span>
@@ -6850,22 +6881,29 @@ export default function App() {
 
                     {filtroEquipo === FILTRO_EQUIPO.RESULTADO && (
                       <div className="minutos-filtro">
-                        <select
-                          value={modoResultado}
-                          onChange={(e) => setModoResultado(e.target.value)}
-                          aria-label="Cómo mirar el resultado"
-                        >
-                          <option value={MODO_RESULTADO.GANADO}>Ganados</option>
-                          <option value={MODO_RESULTADO.EMPATADO}>
-                            Empatados
-                          </option>
-                          <option value={MODO_RESULTADO.PERDIDO}>
-                            Perdidos
-                          </option>
-                          <option value={MODO_RESULTADO.EXACTO}>
-                            Marcador exacto
-                          </option>
-                        </select>
+                        {selectorConHoja({
+                          titulo: "Cómo mirar el resultado",
+                          opciones: [
+                            {
+                              valor: MODO_RESULTADO.GANADO,
+                              etiqueta: "Ganados",
+                            },
+                            {
+                              valor: MODO_RESULTADO.EMPATADO,
+                              etiqueta: "Empatados",
+                            },
+                            {
+                              valor: MODO_RESULTADO.PERDIDO,
+                              etiqueta: "Perdidos",
+                            },
+                            {
+                              valor: MODO_RESULTADO.EXACTO,
+                              etiqueta: "Marcador exacto",
+                            },
+                          ],
+                          valor: modoResultado,
+                          alElegir: setModoResultado,
+                        })}
 
                         {modoResultado === MODO_RESULTADO.EXACTO && (
                           <input
@@ -6894,14 +6932,15 @@ export default function App() {
                       </div>
                     )}
 
-                    <select
-                      value={ordenRegistros}
-                      onChange={(e) => setOrdenRegistros(e.target.value)}
-                      aria-label="En qué orden"
-                    >
-                      <option value="reciente">Más reciente primero</option>
-                      <option value="antiguo">Más antiguo primero</option>
-                    </select>
+                    {selectorConHoja({
+                      titulo: "En qué orden",
+                      opciones: [
+                        { valor: "reciente", etiqueta: "Más reciente primero" },
+                        { valor: "antiguo", etiqueta: "Más antiguo primero" },
+                      ],
+                      valor: ordenRegistros,
+                      alElegir: setOrdenRegistros,
+                    })}
                   </div>
                 )}
 
@@ -6912,7 +6951,7 @@ export default function App() {
                       <button
                         type="button"
                         className="criterio-elegido"
-                        onClick={() => setHojaFiltro(true)}
+                        onClick={abrirHojaDeCriterios}
                       >
                         <b>{nombreDelCriterio}</b>
                         <span>Cambiar</span>
@@ -6920,23 +6959,25 @@ export default function App() {
 
                       {filtroJugador === FILTRO.MINUTOS && (
                         <div className="minutos-filtro">
-                          <select
-                            value={comparadorMinutos}
-                            onChange={(e) =>
-                              setComparadorMinutos(e.target.value)
-                            }
-                            aria-label="Cómo comparar los minutos"
-                          >
-                            <option value={COMPARADOR.MAYOR}>Más de</option>
-                            <option value={COMPARADOR.MAYOR_IGUAL}>
-                              Al menos
-                            </option>
-                            <option value={COMPARADOR.MENOR}>Menos de</option>
-                            <option value={COMPARADOR.MENOR_IGUAL}>
-                              Como mucho
-                            </option>
-                            <option value={COMPARADOR.ENTRE}>Entre</option>
-                          </select>
+                          {selectorConHoja({
+                            titulo: "Cómo comparar los minutos",
+                            opciones: [
+                              { valor: COMPARADOR.MAYOR, etiqueta: "Más de" },
+                              {
+                                valor: COMPARADOR.MAYOR_IGUAL,
+                                etiqueta: "Al menos",
+                              },
+                              { valor: COMPARADOR.MENOR, etiqueta: "Menos de" },
+                              {
+                                valor: COMPARADOR.MENOR_IGUAL,
+                                etiqueta: "Como mucho",
+                              },
+                              { valor: COMPARADOR.ENTRE, etiqueta: "Entre" },
+                            ],
+                            valor: comparadorMinutos,
+                            alElegir: setComparadorMinutos,
+                            ancho: "medio",
+                          })}
 
                           {comparadorMinutos === COMPARADOR.ENTRE ? (
                             <>
