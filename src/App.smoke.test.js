@@ -1210,6 +1210,13 @@ describe("interfaz operativa", () => {
 
   test("corregir un titular desde el detalle también lo mueve en la cancha", async () => {
     const titulares = ["ALONSO", "SCARPA", "ARANA"];
+    // Para poder poner a otro hay que tenerlo en el plantel.
+    doblesSupabase.jugadores = [
+      { id: 1, nombre: "ALONSO", roles: ["Defensa"], puestos: ["DEF"] },
+      { id: 2, nombre: "LYANCO", roles: ["Defensa"], puestos: ["DEF"] },
+      { id: 3, nombre: "SCARPA", roles: ["Defensa"], puestos: ["DEF"] },
+      { id: 4, nombre: "ARANA", roles: ["Mediocampo"], puestos: ["VOL"] },
+    ];
     doblesSupabase.filasHistorial = [
       {
         ...filaTransmisionGuardada(),
@@ -1243,20 +1250,26 @@ describe("interfaz operativa", () => {
 
     await act(async () => boton("Editar registro").click());
 
-    const campoTitular = Array.from(
-      contenedor.querySelectorAll(".campo-formacion"),
-    ).find((campo) => campo.querySelector("label")?.textContent === "Titular 1");
-    const entrada = campoTitular.querySelector("input");
-    expect(entrada.value).toBe("ALONSO");
+    // El titular se corrige tocándolo en la cancha, como al cargar la formación.
+    const pestana = (etiqueta) =>
+      Array.from(
+        contenedor.querySelectorAll('.selector-periodos [role="tab"]'),
+      ).find((item) => item.textContent.trim() === etiqueta);
 
-    const escribir = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value",
-    ).set;
-    await act(async () => {
-      escribir.call(entrada, "LYANCO");
-      entrada.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await act(async () => pestana("Formación").click());
+
+    const puestoDe = (nombre) =>
+      Array.from(contenedor.querySelectorAll(".pista .puesto-cancha")).find(
+        (puesto) => puesto.textContent.includes(nombre),
+      );
+
+    expect(puestoDe("ALONSO")).toBeTruthy();
+    await act(async () => puestoDe("ALONSO").click());
+
+    const elegir = Array.from(
+      contenedor.querySelectorAll(".elegir-jugador .lista-elegir button"),
+    ).find((opcion) => opcion.textContent.includes("LYANCO"));
+    await act(async () => elegir.click());
 
     await act(async () => {
       boton("Guardar cambios").click();
@@ -1620,9 +1633,17 @@ describe("interfaz operativa", () => {
       );
     await act(async () => boton("Editar registro").click());
 
+    // Los horarios viven en su pestaña, y el período elegido arranca en PT.
+    const pestana = (etiqueta) =>
+      Array.from(
+        contenedor.querySelectorAll('.selector-periodos [role="tab"]'),
+      ).find((item) => item.textContent.trim() === etiqueta);
+
+    await act(async () => pestana("Tiempos").click());
+
     const campoFinalPT = Array.from(
       contenedor.querySelectorAll(".campo-detalle-editable"),
-    ).find((campo) => campo.querySelector("label")?.textContent === "Final PT");
+    ).find((campo) => campo.querySelector("label")?.textContent === "Final");
 
     // Se edita como hora real, no como guía en minutos.
     const entrada = campoFinalPT.querySelector("input");
@@ -2253,7 +2274,7 @@ describe("interfaz operativa", () => {
       "Equipo",
       "Fecha",
       "Resultado",
-      "Local o visitante",
+      "Dónde se jugó",
     ]);
 
     // Elegido el criterio, la hoja se va y abajo quedan sus controles.
@@ -2321,7 +2342,7 @@ describe("interfaz operativa", () => {
 
     // Por local o visitante.
     await act(async () => contenedor.querySelector(".criterio-elegido").click());
-    await act(async () => criterio("Local o visitante").click());
+    await act(async () => criterio("Dónde se jugó").click());
     expect(fechas()).toHaveLength(2);
     await act(async () =>
       Array.from(
@@ -2339,6 +2360,190 @@ describe("interfaz operativa", () => {
       "con-filtro",
     );
     expect(fechas()).toHaveLength(3);
+  });
+
+  test("editar un registro es el mismo panel de cambios, pero sin Ahora", async () => {
+    // Sobre un partido terminado "Ahora" pondría la hora actual del teléfono,
+    // que no tiene nada que ver con el partido. ET sí sirve: copia el arranque
+    // del período siguiente.
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+    await act(async () =>
+      contenedor.querySelector(".registro-guardado button").click(),
+    );
+
+    const boton = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll("button")).find((item) =>
+        item.textContent.includes(etiqueta),
+      );
+    await act(async () => boton("Editar registro").click());
+
+    const pestana = (etiqueta) =>
+      Array.from(
+        contenedor.querySelectorAll('.selector-periodos [role="tab"]'),
+      ).find((item) => item.textContent.trim() === etiqueta);
+
+    await act(async () => pestana("Cambios").click());
+
+    // Es el panel del partido, con sus ranuras y su selector de equipo.
+    expect(contenedor.querySelector(".panel-cambios-operativo")).not.toBeNull();
+    expect(
+      contenedor.querySelectorAll(".ranura-cambio").length,
+    ).toBeGreaterThan(0);
+    expect(contenedor.querySelectorAll(".boton-et-cambio").length).toBe(
+      contenedor.querySelectorAll(".ranura-cambio").length,
+    );
+    expect(contenedor.querySelectorAll(".boton-ahora-cambio")).toHaveLength(0);
+  });
+
+  test("la prórroga se puede corregir, y solo aparece si el partido la tuvo", async () => {
+    const base = filaTransmisionGuardada();
+    doblesSupabase.filasHistorial = [
+      {
+        ...base,
+        prorroga: {
+          activa: true,
+          inicioPTE: "23:05:00",
+          finalPTE: "23:21:00",
+          inicioSTE: "23:26:00",
+          finalSTE: "23:42:00",
+        },
+        // En un partido de transmisión esta copia es la que manda al leerlo.
+        captura_tiempo: {
+          ...base.captura_tiempo,
+          prorrogaActiva: true,
+          inicioPTE: "23:05:00",
+          finalPTE: "23:21:00",
+          inicioSTE: "23:26:00",
+          finalSTE: "23:42:00",
+        },
+      },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+    await act(async () =>
+      contenedor.querySelector(".registro-guardado button").click(),
+    );
+
+    const boton = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll("button")).find((item) =>
+        item.textContent.includes(etiqueta),
+      );
+    await act(async () => boton("Editar registro").click());
+
+    const pestanas = () =>
+      Array.from(
+        contenedor.querySelectorAll('.selector-periodos [role="tab"]'),
+      ).map((item) => item.textContent.trim());
+
+    const pestana = (etiqueta) =>
+      Array.from(
+        contenedor.querySelectorAll('.selector-periodos [role="tab"]'),
+      ).find((item) => item.textContent.trim() === etiqueta);
+
+    await act(async () => pestana("Tiempos").click());
+    expect(pestanas()).toContain("PTE");
+    expect(pestanas()).toContain("STE");
+
+    await act(async () => pestana("PTE").click());
+
+    const entrada = contenedor
+      .querySelectorAll(".tarjeta-ficha")[0]
+      .querySelectorAll("input")[1];
+    expect(entrada.value).toBe("23:21:00");
+
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    await act(async () => {
+      escribir.call(entrada, "23:22:30");
+      entrada.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      boton("Guardar cambios").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(doblesSupabase.actualizar.mock.calls[0][0].prorroga.finalPTE).toBe(
+      "23:22:30",
+    );
+  });
+
+  test("editando de visitante, la casilla de la izquierda es la del rival", async () => {
+    // El marcador de la pantalla de editar sigue a los escudos, pero lo que se
+    // guarda es siempre nuestros goles primero. Si las casillas se leyeran por
+    // posición en vez de por equipo, corregir el marcador de un partido de
+    // visitante le pondría los goles al equipo equivocado.
+    doblesSupabase.filasHistorial = [
+      {
+        ...filaTransmisionGuardada(),
+        id: 11,
+        resultado: "0-2",
+        localia: "visitante",
+      },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+    await act(async () =>
+      contenedor.querySelector(".registro-guardado button").click(),
+    );
+
+    const boton = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll("button")).find((item) =>
+        item.textContent.includes(etiqueta),
+      );
+    await act(async () => boton("Editar registro").click());
+
+    const casillas = contenedor.querySelectorAll(
+      ".marcador-ficha.editable input",
+    );
+
+    // De visitante va primero el local, que en este partido es el rival.
+    expect(casillas[0].getAttribute("aria-label")).toBe("Goles de Santos");
+    expect(casillas[1].getAttribute("aria-label")).toBe(
+      "Goles de Atlético Mineiro",
+    );
+    expect([casillas[0].value, casillas[1].value]).toEqual(["2", "0"]);
+
+    // Ponerle 5 al de la izquierda son 5 goles del rival, no nuestros.
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    await act(async () => {
+      escribir.call(casillas[0], "5");
+      casillas[0].dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      boton("Guardar cambios").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(doblesSupabase.actualizar.mock.calls[0][0].resultado).toBe("0-5");
   });
 
   test("un registro de visitante se lee con el local adelante", async () => {

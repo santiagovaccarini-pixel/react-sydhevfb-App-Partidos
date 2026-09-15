@@ -19,6 +19,7 @@ const HISTORIAL = [
   partido("2026-08-24", "Cruzeiro", "1-1", "visitante"),
   partido("2026-08-17", "Flamengo", "3-0", undefined),
   partido("2026-08-10", "Gremio", "", "local"),
+  partido("2026-08-03", "Boca", "1-1", "neutral"),
 ];
 
 const rivales = (opciones) =>
@@ -28,8 +29,8 @@ describe("recortar los partidos del equipo", () => {
   test("sin filtro no recorta nada", () => {
     expect(
       filtrarRegistros(HISTORIAL, { filtro: FILTRO_EQUIPO.TODOS }),
-    ).toHaveLength(5);
-    expect(filtrarRegistros(HISTORIAL, {})).toHaveLength(5);
+    ).toHaveLength(6);
+    expect(filtrarRegistros(HISTORIAL, {})).toHaveLength(6);
   });
 
   test("por rival deja los de ese equipo, sin importar cómo se escriba", () => {
@@ -40,7 +41,7 @@ describe("recortar los partidos del equipo", () => {
       rivales({ filtro: FILTRO_EQUIPO.RIVAL, rival: "cruzeiro" }),
     ).toHaveLength(2);
     // Sin rival elegido todavía, no recorta.
-    expect(rivales({ filtro: FILTRO_EQUIPO.RIVAL, rival: "" })).toHaveLength(5);
+    expect(rivales({ filtro: FILTRO_EQUIPO.RIVAL, rival: "" })).toHaveLength(6);
   });
 
   test("por fecha, cada punta es opcional", () => {
@@ -49,7 +50,7 @@ describe("recortar los partidos del equipo", () => {
     ).toEqual(["Cruzeiro", "Palmeiras"]);
     expect(
       rivales({ filtro: FILTRO_EQUIPO.FECHA, hasta: "2026-08-17" }),
-    ).toEqual(["Flamengo", "Gremio"]);
+    ).toEqual(["Flamengo", "Gremio", "Boca"]);
     // Las dos puntas entran.
     expect(
       rivales({
@@ -76,7 +77,7 @@ describe("recortar los partidos del equipo", () => {
         filtro: FILTRO_EQUIPO.RESULTADO,
         modo: MODO_RESULTADO.EMPATADO,
       }),
-    ).toEqual(["Cruzeiro"]);
+    ).toEqual(["Cruzeiro", "Boca"]);
   });
 
   test("por marcador exacto", () => {
@@ -94,22 +95,27 @@ describe("recortar los partidos del equipo", () => {
         modo: MODO_RESULTADO.EXACTO,
         marcador: "2-",
       }),
-    ).toHaveLength(5);
+    ).toHaveLength(6);
   });
 
-  test("por local o visitante, y lo viejo cuenta como local", () => {
+  test("por local, visitante o neutral, y lo viejo cuenta como local", () => {
     expect(
       rivales({ filtro: FILTRO_EQUIPO.LOCALIA, localia: "local" }),
     ).toEqual(["Cruzeiro", "Flamengo", "Gremio"]);
     expect(
       rivales({ filtro: FILTRO_EQUIPO.LOCALIA, localia: "visitante" }),
     ).toEqual(["Palmeiras", "Cruzeiro"]);
+    // La cancha neutral no se mezcla con ninguna de las otras dos.
+    expect(
+      rivales({ filtro: FILTRO_EQUIPO.LOCALIA, localia: "neutral" }),
+    ).toEqual(["Boca"]);
   });
 });
 
 describe("los rivales que pasaron por el historial", () => {
   test("cada uno una vez, en orden y con sus partidos", () => {
     expect(rivalesDelHistorial(HISTORIAL.map((fila) => fila.item))).toEqual([
+      { nombre: "Boca", partidos: 1 },
       { nombre: "Cruzeiro", partidos: 2 },
       { nombre: "Flamengo", partidos: 1 },
       { nombre: "Gremio", partidos: 1 },
