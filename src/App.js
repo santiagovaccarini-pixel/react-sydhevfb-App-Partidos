@@ -75,9 +75,10 @@ import {
 } from "./domain/filtros";
 import {
   LOCALIA,
+  LOCALIAS,
   enOrdenDeCancha,
-  esVisitante,
   etiquetaLocalia,
+  golesDelRegistro,
   golesEnPantalla,
   leerLocalia,
   marcadorEnPantalla,
@@ -142,7 +143,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.15.1";
+const APP_VERSION = "2026.09.15.2";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1253,6 +1254,10 @@ export default function App() {
   const [registroSeleccionado, setRegistroSeleccionado] = useState(null);
   const [detalleEditando, setDetalleEditando] = useState(false);
   const [detalleBorrador, setDetalleBorrador] = useState(null);
+  // Editar un registro es una pantalla por tema, no una tirada de 4000 px.
+  const [pestanaEdicion, setPestanaEdicion] = useState("partido");
+  const [periodoEdicion, setPeriodoEdicion] = useState("PT");
+  const [edicionDelRival, setEdicionDelRival] = useState(false);
   const [busquedaRegistros, setBusquedaRegistros] = useState("");
   // Registros se puede mirar de dos maneras: por partido, que es lo de
   // siempre, o por jugador, para ver en cuáles estuvo y cuánto jugó.
@@ -2169,7 +2174,7 @@ export default function App() {
     { valor: FILTRO_EQUIPO.RIVAL, etiqueta: "Equipo" },
     { valor: FILTRO_EQUIPO.FECHA, etiqueta: "Fecha" },
     { valor: FILTRO_EQUIPO.RESULTADO, etiqueta: "Resultado" },
-    { valor: FILTRO_EQUIPO.LOCALIA, etiqueta: "Local o visitante" },
+    { valor: FILTRO_EQUIPO.LOCALIA, etiqueta: "Dónde se jugó" },
   ];
 
   const CRITERIOS_JUGADOR = [
@@ -4089,10 +4094,7 @@ export default function App() {
               registro.localia,
             )}. Tocá para cambiar.`}
           >
-            <Icono
-              nombre={esVisitante(registro) ? "visitante" : "local"}
-              size={15}
-            />
+            <Icono nombre={leerLocalia(registro.localia)} size={15} />
             {etiquetaLocalia(registro.localia)}
           </button>
 
@@ -4748,84 +4750,154 @@ export default function App() {
     const editado = detalleBorrador || registroDetalleBase;
     const setEditado = setDetalleBorrador;
 
+    const cerrarDetalle = () => {
+      setRegistroSeleccionado(null);
+      setDetalleBorrador(null);
+      setDetalleEditando(false);
+    };
+
     if (!editando) {
       return renderFichaRegistro({
         item: registroDetalleBase,
-        alVolver: () => {
-          setRegistroSeleccionado(null);
-          setDetalleBorrador(null);
-          setDetalleEditando(false);
-        },
+        alVolver: cerrarDetalle,
         alEditar: () => {
           setEditado(registroDetalleBase);
+          setPestanaEdicion("partido");
+          setPeriodoEdicion("PT");
+          setEdicionDelRival(false);
           setEditando(true);
         },
       });
     }
 
     const tiemposEditados = calcularTiemposRegistro(editado);
-    const cambios = editado.cambios || crearCambiosVacios();
-    const cambiosRival = editado.cambiosRival || crearCambiosVacios();
-    const noIngresaronDetalle = calcularNoIngresaron(
-      editado.formacion,
-      editado.cambios,
+
+    const actualizarEditado = (campo, valor) =>
+      setEditado((prev) => ({ ...prev, [campo]: valor }));
+
+    // ---------------------------------------------------------------- goles
+    // Guardado el resultado es siempre nuestros goles primero. En pantalla las
+    // casillas siguen a los escudos, así que cada una escribe en su mitad sin
+    // importar de qué lado le tocó caer.
+    const [golesPropios, golesAjenos] = golesDelRegistro(editado.resultado);
+
+    const ponerResultado = (propios, ajenos) => {
+      const soloNumero = (valor) =>
+        String(valor ?? "")
+          .replace(/[^0-9]/g, "")
+          .slice(0, 2);
+      const nuestros = soloNumero(propios);
+      const suyos = soloNumero(ajenos);
+
+      actualizarEditado(
+        "resultado",
+        nuestros === "" && suyos === ""
+          ? ""
+          : `${nuestros || "0"}-${suyos || "0"}`,
+      );
+    };
+
+    const casillaGol = (valor, alCambiar, etiqueta) => (
+      <input
+        type="text"
+        inputMode="numeric"
+        value={valor}
+        aria-label={etiqueta}
+        onChange={(evento) => alCambiar(evento.target.value)}
+        onKeyDown={manejarEnter}
+      />
     );
 
-    const actualizarEditado = (campo, valor) => {
+    const nombreRival = editado.rival || "Rival";
+
+    // Las dos casillas ya puestas en el orden en que van en pantalla. Cada una
+    // sigue escribiendo en su mitad del resultado guardado.
+    const [casillaIzquierda, casillaDerecha] = enOrdenDeCancha(
+      editado,
+      casillaGol(
+        golesPropios,
+        (valor) => ponerResultado(valor, golesAjenos),
+        `Goles de ${equipoPropio}`,
+      ),
+      casillaGol(
+        golesAjenos,
+        (valor) => ponerResultado(golesPropios, valor),
+        `Goles de ${nombreRival}`,
+      ),
+    );
+
+    // ------------------------------------------------------------ formación
+    const actualizarCanchaEditada = (cancha) =>
       setEditado((prev) => ({
         ...prev,
-        [campo]: valor,
+        formacion: {
+          ...conCancha(prev.formacion),
+          cancha,
+          titulares: titularesDeCancha(cancha),
+        },
       }));
-    };
 
-    const actualizarCambioEditado = (cambioIndex, campo, valor) => {
+    const actualizarConvocadoEditado = (convocadoIndex, valor) =>
       setEditado((prev) => {
-        const nuevosCambios = [...(prev.cambios || crearCambiosVacios())];
-
-        nuevosCambios[cambioIndex] = {
-          ...nuevosCambios[cambioIndex],
-          [campo]: valor,
-        };
-
-        return {
-          ...prev,
-          cambios: nuevosCambios,
-        };
+        const convocados = [...(prev.formacion?.convocados || [])];
+        convocados[convocadoIndex] = valor;
+        return { ...prev, formacion: { ...prev.formacion, convocados } };
       });
-    };
-    const actualizarCambioRivalEditado = (cambioIndex, campo, valor) => {
+
+    const agregarConvocadoEditado = () =>
+      setEditado((prev) => ({
+        ...prev,
+        formacion: {
+          ...prev.formacion,
+          convocados: [...(prev.formacion?.convocados || []), ""],
+        },
+      }));
+
+    // -------------------------------------------------------------- cambios
+    const actualizarCambioEditado = (cambioIndex, campo, valor) =>
       setEditado((prev) => {
-        const nuevosCambiosRival = [
-          ...(prev.cambiosRival || crearCambiosVacios()),
-        ];
-
-        nuevosCambiosRival[cambioIndex] = {
-          ...nuevosCambiosRival[cambioIndex],
-          [campo]: valor,
-        };
-
-        return {
-          ...prev,
-          cambiosRival: nuevosCambiosRival,
-        };
+        const lista = [...(prev.cambios || crearCambiosVacios())];
+        lista[cambioIndex] = { ...(lista[cambioIndex] || {}), [campo]: valor };
+        return { ...prev, cambios: lista };
       });
-    };
-    const ponerHoraEntreTiempoEditado = (cambioIndex) => {
-      if (!editado.inicioST) {
-        alert("Primero cargá Inicio ST.");
+
+    const actualizarCambioRivalEditado = (cambioIndex, campo, valor) =>
+      setEditado((prev) => {
+        const lista = [...(prev.cambiosRival || crearCambiosVacios())];
+        lista[cambioIndex] = { ...(lista[cambioIndex] || {}), [campo]: valor };
+        return { ...prev, cambiosRival: lista };
+      });
+
+    const limpiarCambioEditado = (tipo, cambioIndex) =>
+      setEditado((prev) => {
+        const clave = tipo === "rival" ? "cambiosRival" : "cambios";
+        const lista = [...(prev[clave] || crearCambiosVacios())];
+        lista[cambioIndex] = crearCambioVacio();
+        return { ...prev, [clave]: lista };
+      });
+
+    // ET copia el arranque del período siguiente, que es lo que se usa cuando
+    // el cambio se hizo en el entretiempo.
+    const marcaEntreTiemposEditada = () =>
+      editado.inicioSTE || editado.inicioPTE || editado.inicioST || "";
+
+    const ponerEntreTiempoEditado = (cambioIndex, esRival) => {
+      const marca = marcaEntreTiemposEditada();
+
+      if (!marca) {
+        alert("Primero cargá el inicio del período siguiente.");
         return;
       }
 
-      actualizarCambioEditado(cambioIndex, "hora", editado.inicioST);
+      (esRival ? actualizarCambioRivalEditado : actualizarCambioEditado)(
+        cambioIndex,
+        "hora",
+        marca,
+      );
     };
 
     const cancelarEdicion = () => {
-      setEditado({
-        ...item,
-        cambios: item.cambios || crearCambiosVacios(),
-        cambiosRival: item.cambiosRival || crearCambiosVacios(),
-        formacion: item.formacion || crearFormacionVacia(),
-      });
+      setEditado(registroDetalleBase);
       setEditando(false);
     };
 
@@ -4835,28 +4907,136 @@ export default function App() {
       if (ok) {
         setMensajeGuardado("Cambios guardados correctamente");
         setEditando(false);
-
-        setTimeout(() => {
-          setMensajeGuardado("");
-        }, 2500);
+        setTimeout(() => setMensajeGuardado(""), 2500);
       }
     };
+
+    // -------------------------------------------------------------- tiempos
+    // La prórroga solo aparece si el partido la tuvo.
+    const periodos = editado.prorrogaActiva
+      ? ["PT", "ST", "PTE", "STE"]
+      : ["PT", "ST"];
+    const periodo = periodos.includes(periodoEdicion) ? periodoEdicion : "PT";
+
+    const campoHoraEditable = (label, campo) =>
+      renderCampoDetalleEditable({
+        label,
+        type: "time",
+        value: editado[campo] || "",
+        onChange: (valor) => actualizarEditado(campo, valor),
+      });
+
+    // Los VAR de un período son varios. Se muestran los cargados y uno vacío
+    // más, para poder sumar otro sin salir de la pantalla.
+    const varsDelPeriodo = (() => {
+      const lista = (editado[`vars${periodo}`] || []).filter(Boolean);
+      const cargados = lista.filter((uno) => uno.inicio || uno.final);
+      return [...cargados, { inicio: "", final: "" }];
+    })();
+
+    const actualizarVar = (varIndex, campo, valor) =>
+      setEditado((prev) => {
+        const clave = `vars${periodo}`;
+        const lista = [...(prev[clave] || [])];
+        lista[varIndex] = { ...(lista[varIndex] || { inicio: "", final: "" }) };
+        lista[varIndex][campo] = valor;
+        return { ...prev, [clave]: lista };
+      });
+
+    const cabezaTarjeta = (titulo, etiqueta, medida) => (
+      <div className="cabeza-ficha">
+        <b>{titulo}</b>
+        {etiqueta && <span className="et">{etiqueta}</span>}
+        {medida && <em>{medida}</em>}
+      </div>
+    );
+
+    // -------------------------------------------------------------- pestañas
+    const PESTANAS = [
+      { valor: "partido", etiqueta: "Partido" },
+      { valor: "tiempos", etiqueta: "Tiempos" },
+      { valor: "formacion", etiqueta: "Formación" },
+      { valor: "cambios", etiqueta: "Cambios" },
+    ];
+
+    const convocadosEditados = editado.formacion?.convocados || [];
+
     return (
       <div className="app">
-        <div className="contenedor">
-          <header className="encabezado">
-            <h1>{editando ? "Editar registro" : "Detalle registro"}</h1>
-            <p>
-              {editado.fecha} · {equipoPropio} vs {editado.rival || "Sin rival"}
-              {editado.resultado ? ` · ${editado.resultado}` : ""}
-            </p>
-          </header>
+        <div className="contenedor ficha-registro">
+          {/* El mismo marcador que la ficha, pero se toca: los goles son dos
+              casillas y abajo va de qué lado se jugó. */}
+          <section
+            className="marcador-ficha editable"
+            aria-label="Resultado del partido"
+          >
+            <div className="equipos-ficha">
+              {enOrdenDeCancha(
+                editado,
+                <div className="equipo-ficha" key="propio">
+                  <EscudoDeClub equipo="cam" nombre={equipoPropio} />
+                  <strong>{equipoPropio}</strong>
+                </div>,
+                <div className="equipo-ficha" key="rival">
+                  <EscudoDeClub nombre={editado.rival} />
+                  <strong>{nombreRival}</strong>
+                </div>,
+              ).flatMap((lado, indice) =>
+                indice === 0
+                  ? [
+                      lado,
+                      <div className="resultado-ficha" key="resultado">
+                        {casillaIzquierda}
+                        <span>—</span>
+                        {casillaDerecha}
+                      </div>,
+                    ]
+                  : [lado],
+              )}
+            </div>
 
-          <section className="tarjeta">
-            <h2>Datos del partido</h2>
+            <div className="localia-ficha">
+              <button
+                type="button"
+                className={`boton-localia ${leerLocalia(editado.localia)}`}
+                onClick={() =>
+                  actualizarEditado("localia", otraLocalia(editado.localia))
+                }
+                aria-label={`Se jugó de ${etiquetaLocalia(
+                  editado.localia,
+                )}. Tocá para cambiar.`}
+              >
+                <Icono nombre={leerLocalia(editado.localia)} size={15} />
+                {etiquetaLocalia(editado.localia)}
+              </button>
+            </div>
+          </section>
 
-            {editando ? (
-              <>
+          <section
+            className="selector-periodos en-ficha"
+            aria-label="Qué editar"
+          >
+            <div role="tablist">
+              {PESTANAS.map(({ valor, etiqueta }) => (
+                <button
+                  type="button"
+                  role="tab"
+                  key={valor}
+                  aria-selected={pestanaEdicion === valor}
+                  className={pestanaEdicion === valor ? "activo" : ""}
+                  onClick={() => setPestanaEdicion(valor)}
+                >
+                  {etiqueta}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {pestanaEdicion === "partido" && (
+            <section className="tarjeta tarjeta-ficha">
+              {cabezaTarjeta("Datos del partido")}
+
+              <div className="campos-editables">
                 {renderCampoDetalleEditable({
                   label: "Fecha",
                   type: "date",
@@ -4869,125 +5049,136 @@ export default function App() {
                   value: editado.rival,
                   onChange: (valor) => actualizarEditado("rival", valor),
                 })}
+              </div>
+            </section>
+          )}
 
-                {renderCampoDetalleEditable({
-                  label: "Resultado",
-                  value: editado.resultado,
-                  onChange: (valor) => actualizarEditado("resultado", valor),
-                })}
-              </>
-            ) : (
-              <>
-                <DatoDetalle label="Fecha" valor={editado.fecha} />
-                <DatoDetalle label="Rival" valor={editado.rival} />
-                <DatoDetalle label="Resultado" valor={editado.resultado} />
-              </>
-            )}
-          </section>
-
-          <section className="tarjeta">
-            <h2>Formación</h2>
-
-            {editando && (
-              <button
-                type="button"
-                className="boton-secundario boton-formacion-grande"
-                onClick={() => {
-                  setEditado((prev) => ({
-                    ...prev,
-                    formacion: prev.formacion || crearFormacionVacia(),
-                  }));
-                }}
+          {pestanaEdicion === "tiempos" && (
+            <>
+              <section
+                className="selector-periodos en-ficha"
+                aria-label="Qué tiempo"
               >
-                Editar formación y no ingresados
-              </button>
-            )}
-
-            {editando ? (
-              <>
-                <h3>10 titulares de campo</h3>
-
-                <div className="formacion-grid">
-                  {[0, 5].map((inicioColumna) => (
-                    <div
-                      className="columna-formacion"
-                      key={`edit-titulares-col-${inicioColumna}`}
+                <div role="tablist">
+                  {periodos.map((tipo) => (
+                    <button
+                      type="button"
+                      role="tab"
+                      key={tipo}
+                      aria-selected={periodo === tipo}
+                      className={periodo === tipo ? "activo" : ""}
+                      onClick={() => setPeriodoEdicion(tipo)}
                     >
-                      {(editado.formacion?.titulares || [])
-                        .slice(inicioColumna, inicioColumna + 5)
-                        .map((jugador, index) => {
-                          const jugadorIndex = inicioColumna + index;
-
-                          return (
-                            <div
-                              className="campo-formacion"
-                              key={`edit-titular-${jugadorIndex}`}
-                            >
-                              <label>Titular {jugadorIndex + 1}</label>
-                              <InputJugador
-                                value={jugador}
-                                onChange={(valor) => {
-                                  setEditado((prev) => ({
-                                    ...prev,
-                                    formacion: cambiarTitularEnFormacion(
-                                      prev.formacion,
-                                      jugadorIndex,
-                                      valor,
-                                    ),
-                                  }));
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
-                    </div>
+                      {tipo}
+                    </button>
                   ))}
                 </div>
+              </section>
 
-                <h3>Convocados no titulares</h3>
+              <section className="tarjeta tarjeta-ficha">
+                {cabezaTarjeta(
+                  nombrePeriodo(periodo),
+                  "BRUTO",
+                  tiemposEditados[`tiempo${periodo}`] || "--:--",
+                )}
 
-                <div className="formacion-grid">
-                  {[0, 6].map((inicioColumna) => (
+                <div className="campos-editables en-dos">
+                  {campoHoraEditable("Inicio", `inicio${periodo}`)}
+                  {campoHoraEditable("Final", `final${periodo}`)}
+                </div>
+              </section>
+
+              <section className="tarjeta tarjeta-ficha">
+                {cabezaTarjeta(
+                  "VAR",
+                  periodo,
+                  tiemposEditados[`tiempoVar${periodo}`] || "-",
+                )}
+
+                {varsDelPeriodo.map((unVar, varIndex) => (
+                  <div
+                    className="campos-editables en-dos"
+                    key={`var-${periodo}-${varIndex}`}
+                  >
+                    {renderCampoDetalleEditable({
+                      label: `Inicio ${varIndex + 1}`,
+                      type: "time",
+                      value: unVar.inicio || "",
+                      onChange: (valor) =>
+                        actualizarVar(varIndex, "inicio", valor),
+                    })}
+                    {renderCampoDetalleEditable({
+                      label: `Final ${varIndex + 1}`,
+                      type: "time",
+                      value: unVar.final || "",
+                      onChange: (valor) =>
+                        actualizarVar(varIndex, "final", valor),
+                    })}
+                  </div>
+                ))}
+              </section>
+
+              <section className="tarjeta tarjeta-ficha">
+                {cabezaTarjeta(
+                  "Hidratación",
+                  periodo,
+                  tiemposEditados[`tiempoHidratacion${periodo}`] || "-",
+                )}
+
+                <div className="campos-editables en-dos">
+                  {campoHoraEditable("Inicio", `inicioHidratacion${periodo}`)}
+                  {campoHoraEditable("Final", `finalHidratacion${periodo}`)}
+                </div>
+              </section>
+            </>
+          )}
+
+          {pestanaEdicion === "formacion" && (
+            <>
+              <section className="tarjeta">
+                <CanchaFormacion
+                  titulo="Titulares de campo"
+                  cancha={editado.formacion?.cancha}
+                  plantel={plantel}
+                  onCambiar={actualizarCanchaEditada}
+                />
+              </section>
+
+              <section className="tarjeta">
+                <div className="titulo-plantel">
+                  <h2>Convocados al banco</h2>
+                  <span className="contador-plantel">
+                    {
+                      convocadosEditados.filter((nombre) => nombre?.trim())
+                        .length
+                    }
+                  </span>
+                </div>
+
+                <div
+                  className="grid-plantel"
+                  style={{
+                    gridTemplateRows: `repeat(${Math.max(
+                      1,
+                      Math.ceil(convocadosEditados.length / 2),
+                    )}, auto)`,
+                  }}
+                >
+                  {convocadosEditados.map((jugador, convocadoIndex) => (
                     <div
-                      className="columna-formacion"
-                      key={`edit-convocados-col-${inicioColumna}`}
+                      className="fila-plantel"
+                      key={`conv-${convocadoIndex}`}
                     >
-                      {(editado.formacion?.convocados || [])
-                        .slice(inicioColumna, inicioColumna + 6)
-                        .map((jugador, index) => {
-                          const jugadorIndex = inicioColumna + index;
-
-                          return (
-                            <div
-                              className="campo-formacion"
-                              key={`edit-convocado-${jugadorIndex}`}
-                            >
-                              <label>Convocado {jugadorIndex + 1}</label>
-                              <InputJugador
-                                value={jugador}
-                                onChange={(valor) => {
-                                  setEditado((prev) => {
-                                    const nuevaFormacion =
-                                      prev.formacion || crearFormacionVacia();
-                                    const nuevosConvocados = [
-                                      ...(nuevaFormacion.convocados || []),
-                                    ];
-
-                                    nuevosConvocados[jugadorIndex] = valor;
-
-                                    return {
-                                      ...prev,
-                                      formacion: {
-                                        ...nuevaFormacion,
-                                        convocados: nuevosConvocados,
-                                      },
-                                    };
-                                  });
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
+                      <span className="numero-plantel" aria-hidden="true">
+                        {convocadoIndex + 1}
+                      </span>
+                      <InputJugador
+                        value={jugador}
+                        placeholder={`Convocado ${convocadoIndex + 1}`}
+                        onChange={(valor) =>
+                          actualizarConvocadoEditado(convocadoIndex, valor)
+                        }
+                      />
                     </div>
                   ))}
                 </div>
@@ -4995,609 +5186,51 @@ export default function App() {
                 <button
                   type="button"
                   className="boton-agregar-jugador"
-                  onClick={() => {
-                    setEditado((prev) => {
-                      const nuevaFormacion =
-                        prev.formacion || crearFormacionVacia();
-
-                      return {
-                        ...prev,
-                        formacion: {
-                          ...nuevaFormacion,
-                          convocados: [
-                            ...(nuevaFormacion.convocados || []),
-                            "",
-                          ],
-                        },
-                      };
-                    });
-                  }}
+                  onClick={agregarConvocadoEditado}
                 >
-                  + Agregar convocado
+                  + Agregar jugador
                 </button>
-
-                <ListaSimple
-                  titulo="No ingresaron"
-                  lista={noIngresaronDetalle}
-                  cantidadPrimeraColumna={6}
-                />
-              </>
-            ) : (
-              <>
-                <ListaSimple
-                  titulo="10 titulares de campo"
-                  lista={editado.formacion?.titulares || []}
-                  cantidadPrimeraColumna={5}
-                />
-                <ListaSimple
-                  titulo="No ingresaron"
-                  lista={noIngresaronDetalle}
-                  cantidadPrimeraColumna={6}
-                />
-              </>
-            )}
-          </section>
-
-          <section className="tarjeta">
-            <h2>Primer tiempo</h2>
-
-            {editando ? (
-              <>
-                {renderCampoDetalleEditable({
-                  label: "Inicio PT",
-                  type: "time",
-                  value: editado.inicioPT,
-                  onChange: (valor) => actualizarEditado("inicioPT", valor),
-                })}
-                {renderCampoDetalleEditable({
-                  label: "Final PT",
-                  type: "time",
-                  value: editado.finalPT,
-                  onChange: (valor) => actualizarEditado("finalPT", valor),
-                })}
-                <DatoDetalle
-                  label="Tiempo PT"
-                  valor={tiemposEditados.tiempoPT}
-                />
-
-                {renderCampoDetalleEditable({
-                  label: "Inicio VAR PT",
-                  type: "time",
-                  value: editado.varsPT?.[0]?.inicio || "",
-                  onChange: (valor) => {
-                    const nuevasVars = [
-                      ...(editado.varsPT || [{ inicio: "", final: "" }]),
-                    ];
-                    nuevasVars[0] = {
-                      ...(nuevasVars[0] || {}),
-                      inicio: valor,
-                    };
-                    actualizarEditado("varsPT", nuevasVars);
-                  },
-                })}
-
-                {renderCampoDetalleEditable({
-                  label: "Final VAR PT",
-                  type: "time",
-                  value: editado.varsPT?.[0]?.final || "",
-                  onChange: (valor) => {
-                    const nuevasVars = [
-                      ...(editado.varsPT || [{ inicio: "", final: "" }]),
-                    ];
-                    nuevasVars[0] = {
-                      ...(nuevasVars[0] || {}),
-                      final: valor,
-                    };
-                    actualizarEditado("varsPT", nuevasVars);
-                  },
-                })}
-                <DatoDetalle
-                  label="Tiempo VAR PT"
-                  valor={tiemposEditados.tiempoVarPT}
-                />
-
-                {renderCampoDetalleEditable({
-                  label: "Inicio Hidratación PT",
-                  type: "time",
-                  value: editado.inicioHidratacionPT,
-                  onChange: (valor) =>
-                    actualizarEditado("inicioHidratacionPT", valor),
-                })}
-                {renderCampoDetalleEditable({
-                  label: "Final Hidratación PT",
-                  type: "time",
-                  value: editado.finalHidratacionPT,
-                  onChange: (valor) =>
-                    actualizarEditado("finalHidratacionPT", valor),
-                })}
-                <DatoDetalle
-                  label="Tiempo Hidratación PT"
-                  valor={tiemposEditados.tiempoHidratacionPT}
-                />
-              </>
-            ) : (
-              <>
-                <DatoDetalle label="Inicio PT" valor={editado.inicioPT} />
-                <DatoDetalle label="Final PT" valor={editado.finalPT} />
-                <DatoDetalle label="Tiempo PT" valor={editado.tiempoPT} />
-
-                {(
-                  editado.varsPT || [
-                    { inicio: editado.inicioVarPT, final: editado.finalVarPT },
-                  ]
-                )
-                  .filter((v) => v.inicio || v.final)
-                  .map((v, i) => (
-                    <div className="var-detalle" key={`var-pt-${i}`}>
-                      <div className="var-detalle-header">
-                        <span>VAR PT {i + 1}</span>
-
-                        <span className="var-detalle-tempo">
-                          {formatearDuracion(segundosEntre(v.inicio, v.final))}
-                        </span>
-                      </div>
-
-                      <div className="var-detalle-info">
-                        <span>Inicio: {v.inicio || "--:--"}</span>
-                        <span>Final: {v.final || "--:--"}</span>
-                      </div>
-                    </div>
-                  ))}
-
-                {(editado.inicioHidratacionPT ||
-                  editado.finalHidratacionPT) && (
-                  <>
-                    <DatoDetalle
-                      label="Inicio Hidratación PT"
-                      valor={editado.inicioHidratacionPT}
-                    />
-                    <DatoDetalle
-                      label="Final Hidratación PT"
-                      valor={editado.finalHidratacionPT}
-                    />
-                    <DatoDetalle
-                      label="Tiempo Hidratación PT"
-                      valor={editado.tiempoHidratacionPT}
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </section>
-
-          <section className="tarjeta">
-            <h2>Segundo tiempo</h2>
-
-            {editando ? (
-              <>
-                {renderCampoDetalleEditable({
-                  label: "Inicio ST",
-                  type: "time",
-                  value: editado.inicioST,
-                  onChange: (valor) => actualizarEditado("inicioST", valor),
-                })}
-                {renderCampoDetalleEditable({
-                  label: "Final ST",
-                  type: "time",
-                  value: editado.finalST,
-                  onChange: (valor) => actualizarEditado("finalST", valor),
-                })}
-                <DatoDetalle
-                  label="Tiempo ST"
-                  valor={tiemposEditados.tiempoST}
-                />
-
-                {renderCampoDetalleEditable({
-                  label: "Inicio VAR ST",
-                  type: "time",
-                  value: editado.varsST?.[0]?.inicio || "",
-                  onChange: (valor) => {
-                    const nuevasVars = [
-                      ...(editado.varsST || [{ inicio: "", final: "" }]),
-                    ];
-                    nuevasVars[0] = {
-                      ...(nuevasVars[0] || {}),
-                      inicio: valor,
-                    };
-                    actualizarEditado("varsST", nuevasVars);
-                  },
-                })}
-
-                {renderCampoDetalleEditable({
-                  label: "Final VAR ST",
-                  type: "time",
-                  value: editado.varsST?.[0]?.final || "",
-                  onChange: (valor) => {
-                    const nuevasVars = [
-                      ...(editado.varsST || [{ inicio: "", final: "" }]),
-                    ];
-                    nuevasVars[0] = {
-                      ...(nuevasVars[0] || {}),
-                      final: valor,
-                    };
-                    actualizarEditado("varsST", nuevasVars);
-                  },
-                })}
-                <DatoDetalle
-                  label="Tiempo VAR ST"
-                  valor={tiemposEditados.tiempoVarST}
-                />
-
-                {renderCampoDetalleEditable({
-                  label: "Inicio Hidratación ST",
-                  type: "time",
-                  value: editado.inicioHidratacionST,
-                  onChange: (valor) =>
-                    actualizarEditado("inicioHidratacionST", valor),
-                })}
-                {renderCampoDetalleEditable({
-                  label: "Final Hidratación ST",
-                  type: "time",
-                  value: editado.finalHidratacionST,
-                  onChange: (valor) =>
-                    actualizarEditado("finalHidratacionST", valor),
-                })}
-                <DatoDetalle
-                  label="Tiempo Hidratación ST"
-                  valor={tiemposEditados.tiempoHidratacionST}
-                />
-              </>
-            ) : (
-              <>
-                <DatoDetalle label="Inicio ST" valor={editado.inicioST} />
-                <DatoDetalle label="Final ST" valor={editado.finalST} />
-                <DatoDetalle label="Tiempo ST" valor={editado.tiempoST} />
-
-                {(
-                  editado.varsST || [
-                    { inicio: editado.inicioVarST, final: editado.finalVarST },
-                  ]
-                )
-                  .filter((v) => v.inicio || v.final)
-                  .map((v, i) => (
-                    <div className="var-detalle" key={`var-st-${i}`}>
-                      <div className="var-detalle-header">
-                        <span>VAR ST {i + 1}</span>
-
-                        <span className="var-detalle-tempo">
-                          {formatearDuracion(segundosEntre(v.inicio, v.final))}
-                        </span>
-                      </div>
-
-                      <div className="var-detalle-info">
-                        <span>Inicio: {v.inicio || "--:--"}</span>
-                        <span>Final: {v.final || "--:--"}</span>
-                      </div>
-                    </div>
-                  ))}
-
-                {(editado.inicioHidratacionST ||
-                  editado.finalHidratacionST) && (
-                  <>
-                    <DatoDetalle
-                      label="Inicio Hidratación ST"
-                      valor={editado.inicioHidratacionST}
-                    />
-                    <DatoDetalle
-                      label="Final Hidratación ST"
-                      valor={editado.finalHidratacionST}
-                    />
-                    <DatoDetalle
-                      label="Tiempo Hidratación ST"
-                      valor={editado.tiempoHidratacionST}
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </section>
-
-          {editado.prorrogaActiva && (
-            <section className="tarjeta tarjeta-prorroga detalle-prorroga">
-              <div className="cabecera-prorroga">
-                <div>
-                  <span className="etiqueta-prorroga">TIEMPO EXTRA</span>
-                  <h2>Prórroga</h2>
-                </div>
-              </div>
-
-              <div className="grid-prorroga">
-                <div className="periodo-prorroga">
-                  <h3>Primer tiempo de prórroga</h3>
-                  <DatoDetalle label="Inicio PTE" valor={editado.inicioPTE} />
-                  <DatoDetalle label="Final PTE" valor={editado.finalPTE} />
-                  <DatoDetalle
-                    label="Tiempo PTE"
-                    valor={tiemposEditados.tiempoPTE}
-                  />
-                  {(editado.varsPTE || [])
-                    .filter((item) => item.inicio || item.final)
-                    .map((item, varIndex) => (
-                      <div
-                        className="var-detalle"
-                        key={`detalle-pte-${varIndex}`}
-                      >
-                        <div className="var-detalle-header">
-                          <span>VAR PTE {varIndex + 1}</span>
-                          <span className="var-detalle-tempo">
-                            {formatearDuracion(
-                              segundosEntre(item.inicio, item.final),
-                            )}
-                          </span>
-                        </div>
-                        <div className="var-detalle-info">
-                          <span>Inicio: {item.inicio || "--:--"}</span>
-                          <span>Final: {item.final || "--:--"}</span>
-                        </div>
-                      </div>
-                    ))}
-                  <DatoDetalle
-                    label="Inicio Hidratación PTE"
-                    valor={editado.inicioHidratacionPTE}
-                  />
-                  <DatoDetalle
-                    label="Final Hidratación PTE"
-                    valor={editado.finalHidratacionPTE}
-                  />
-                </div>
-
-                <div className="periodo-prorroga">
-                  <h3>Segundo tiempo de prórroga</h3>
-                  <DatoDetalle label="Inicio STE" valor={editado.inicioSTE} />
-                  <DatoDetalle label="Final STE" valor={editado.finalSTE} />
-                  <DatoDetalle
-                    label="Tiempo STE"
-                    valor={tiemposEditados.tiempoSTE}
-                  />
-                  {(editado.varsSTE || [])
-                    .filter((item) => item.inicio || item.final)
-                    .map((item, varIndex) => (
-                      <div
-                        className="var-detalle"
-                        key={`detalle-ste-${varIndex}`}
-                      >
-                        <div className="var-detalle-header">
-                          <span>VAR STE {varIndex + 1}</span>
-                          <span className="var-detalle-tempo">
-                            {formatearDuracion(
-                              segundosEntre(item.inicio, item.final),
-                            )}
-                          </span>
-                        </div>
-                        <div className="var-detalle-info">
-                          <span>Inicio: {item.inicio || "--:--"}</span>
-                          <span>Final: {item.final || "--:--"}</span>
-                        </div>
-                      </div>
-                    ))}
-                  <DatoDetalle
-                    label="Inicio Hidratación STE"
-                    valor={editado.inicioHidratacionSTE}
-                  />
-                  <DatoDetalle
-                    label="Final Hidratación STE"
-                    valor={editado.finalHidratacionSTE}
-                  />
-                </div>
-              </div>
-            </section>
+              </section>
+            </>
           )}
 
-          <section className="tarjeta">
-            <h2>Cambios</h2>
+          {pestanaEdicion === "cambios" &&
+            renderPanelCambiosOperativo({
+              registro: editado,
+              esRival: edicionDelRival,
+              alCambiarEquipo: (cual) => setEdicionDelRival(cual === "rival"),
+              alActualizar: actualizarCambioEditado,
+              alActualizarRival: actualizarCambioRivalEditado,
+              alLimpiar: limpiarCambioEditado,
+              alPonerEntreTiempo: (cambioIndex) =>
+                ponerEntreTiempoEditado(cambioIndex, false),
+              alPonerEntreTiempoRival: (cambioIndex) =>
+                ponerEntreTiempoEditado(cambioIndex, true),
+              conAhora: false,
+              sobrelinea: "REGISTRO",
+            })}
 
-            <div className="tabla-detalle-cambios">
-              <div className="fila-detalle-cambio encabezado-detalle-cambios">
-                <div>Cambio</div>
-                <div>Sale</div>
-                <div>Entra</div>
-                <div>Hora</div>
-              </div>
+          <div className="acciones-dobles">
+            <button
+              type="button"
+              className="boton-secundario"
+              onClick={cancelarEdicion}
+            >
+              Cancelar
+            </button>
 
-              {cambios.map((cambio, cambioIndex) => (
-                <div className="fila-detalle-cambio" key={cambioIndex}>
-                  <div>{cambioIndex + 1}</div>
-
-                  <div>
-                    {editando ? (
-                      <InputJugador
-                        value={cambio.sale}
-                        onChange={(valor) =>
-                          actualizarCambioEditado(cambioIndex, "sale", valor)
-                        }
-                      />
-                    ) : (
-                      cambio.sale || "-"
-                    )}
-                  </div>
-
-                  <div>
-                    {editando ? (
-                      <InputJugador
-                        value={cambio.entra}
-                        onChange={(valor) =>
-                          actualizarCambioEditado(cambioIndex, "entra", valor)
-                        }
-                      />
-                    ) : (
-                      cambio.entra || "-"
-                    )}
-                  </div>
-
-                  <div>
-                    {editando ? (
-                      <div className="celda-hora-detalle-editable">
-                        <CampoTiempo
-                          value={cambio.hora || ""}
-                          onChange={(valor) =>
-                            actualizarCambioEditado(cambioIndex, "hora", valor)
-                          }
-                          modoTiempo={editado.modoTiempo}
-                          className="input-hora-cambio-detalle"
-                        />
-
-                        <button
-                          type="button"
-                          className="boton-entretiempo-detalle"
-                          onClick={() =>
-                            ponerHoraEntreTiempoEditado(cambioIndex)
-                          }
-                        >
-                          ET
-                        </button>
-                      </div>
-                    ) : (
-                      cambio.hora || "-"
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="tarjeta">
-            <h2>Cambios Rival</h2>
-
-            <div className="tabla-detalle-cambios">
-              <div className="fila-detalle-cambio encabezado-detalle-cambios">
-                <div>Cambio</div>
-                <div>Sale</div>
-                <div>Entra</div>
-                <div>Hora</div>
-              </div>
-
-              {cambiosRival.map((cambio, cambioIndex) => (
-                <div
-                  className="fila-detalle-cambio"
-                  key={`rival-${cambioIndex}`}
-                >
-                  <div>{cambioIndex + 1}</div>
-
-                  <div>
-                    {editando ? (
-                      <InputJugadorRival
-                        opciones={opcionesJugadoresRival}
-                        value={cambio.sale || ""}
-                        onChange={(valor) =>
-                          actualizarCambioRivalEditado(
-                            cambioIndex,
-                            "sale",
-                            valor,
-                          )
-                        }
-                      />
-                    ) : (
-                      cambio.sale || "-"
-                    )}
-                  </div>
-
-                  <div>
-                    {editando ? (
-                      <InputJugadorRival
-                        opciones={opcionesJugadoresRival}
-                        value={cambio.entra || ""}
-                        onChange={(valor) =>
-                          actualizarCambioRivalEditado(
-                            cambioIndex,
-                            "entra",
-                            valor,
-                          )
-                        }
-                      />
-                    ) : (
-                      cambio.entra || "-"
-                    )}
-                  </div>
-
-                  <div>
-                    {editando ? (
-                      <div className="celda-hora-detalle-editable">
-                        <CampoTiempo
-                          value={cambio.hora || ""}
-                          onChange={(valor) =>
-                            actualizarCambioRivalEditado(
-                              cambioIndex,
-                              "hora",
-                              valor,
-                            )
-                          }
-                          modoTiempo={editado.modoTiempo}
-                          className="input-hora-cambio-detalle"
-                        />
-
-                        <button
-                          type="button"
-                          className="boton-entretiempo-detalle"
-                          onClick={() => {
-                            if (!editado.inicioST) {
-                              alert("Primero cargá Inicio ST.");
-                              return;
-                            }
-
-                            actualizarCambioRivalEditado(
-                              cambioIndex,
-                              "hora",
-                              editado.inicioST,
-                            );
-                          }}
-                        >
-                          ET
-                        </button>
-                      </div>
-                    ) : (
-                      cambio.hora || "-"
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {editando ? (
-            <div className="acciones-dobles">
-              <button
-                type="button"
-                className="boton-secundario"
-                onClick={cancelarEdicion}
-              >
-                Cancelar
-              </button>
-
-              <button
-                type="button"
-                className="boton-principal"
-                onClick={guardarCambiosEdicion}
-              >
-                Guardar cambios
-              </button>
-            </div>
-          ) : (
-            <div className="acciones-dobles">
-              <BotonVolver
-                onClick={() => {
-                  setRegistroSeleccionado(null);
-                  setDetalleBorrador(null);
-                  setDetalleEditando(false);
-                }}
-              />
-
-              <button
-                type="button"
-                className="boton-principal"
-                onClick={() => {
-                  setEditado(registroDetalleBase);
-                  setEditando(true);
-                }}
-              >
-                Editar registro
-              </button>
-            </div>
-          )}
+            <button
+              type="button"
+              className="boton-principal"
+              onClick={guardarCambiosEdicion}
+            >
+              Guardar cambios
+            </button>
+          </div>
         </div>
       </div>
     );
   };
-
   const avisar = (texto) => {
     setAvisoPlantel(texto);
     window.setTimeout(() => setAvisoPlantel(""), 2600);
@@ -6400,9 +6033,35 @@ export default function App() {
     });
   };
 
-  const renderPanelCambiosOperativo = () => {
-    const esRival = equipoCambios === "rival";
-    const lista = esRival ? registro.cambiosRival : registro.cambios;
+  /**
+   * El panel de cambios del partido. La pantalla de editar un registro guardado
+   * usa este mismo, con su propio registro y sus propios setters: es el mismo
+   * gesto, así que tiene que verse y tocarse igual.
+   *
+   * La única diferencia es "Ahora": sobre un partido terminado pondría la hora
+   * actual del teléfono, que no tiene nada que ver. ET sí queda, porque copia
+   * el inicio del período siguiente.
+   */
+  const renderPanelCambiosOperativo = (fuente = {}) => {
+    const {
+      registro: registroPanel = registro,
+      esRival: esRivalForzado = null,
+      alCambiarEquipo = setEquipoCambios,
+      alActualizar = actualizarCambio,
+      alActualizarRival = actualizarCambioRival,
+      alLimpiar = limpiarFilaCambio,
+      alPonerAhora = ponerHoraCambio,
+      alPonerAhoraRival = ponerHoraCambioRival,
+      alPonerEntreTiempo = ponerHoraEntreTiempo,
+      alPonerEntreTiempoRival = ponerHoraEntreTiempoRival,
+      periodo = periodoVista,
+      conAhora = true,
+      sobrelinea = "PARTIDO",
+    } = fuente;
+
+    const esRival =
+      esRivalForzado === null ? equipoCambios === "rival" : esRivalForzado;
+    const lista = esRival ? registroPanel.cambiosRival : registroPanel.cambios;
     const ultimoConDatos = (lista || []).reduce(
       (ultimo, cambio, index) =>
         cambio.sale || cambio.entra || cambio.hora ? index : ultimo,
@@ -6411,7 +6070,7 @@ export default function App() {
     // Cinco cambios reglamentarios, más el sexto habilitado por la prórroga.
     // Si un registro viejo trae más, se muestran igual para no esconder datos.
     const minimoRanuras =
-      CAMBIOS_SIEMPRE_VISIBLES + (registro.prorrogaActiva ? 1 : 0);
+      CAMBIOS_SIEMPRE_VISIBLES + (registroPanel.prorrogaActiva ? 1 : 0);
     const cantidad = Math.max(minimoRanuras, ultimoConDatos + 1);
     const ranuras = Array.from(
       { length: cantidad },
@@ -6422,14 +6081,14 @@ export default function App() {
     // Se calcula una vez para todas las filas, no una por fila.
     const enCancha = jugadoresParaCambio({
       campo: "sale",
-      formacion: registro.formacion,
-      cambios: registro.cambios,
+      formacion: registroPanel.formacion,
+      cambios: registroPanel.cambios,
       plantel: nombresPlantel,
     });
     const enBanco = jugadoresParaCambio({
       campo: "entra",
-      formacion: registro.formacion,
-      cambios: registro.cambios,
+      formacion: registroPanel.formacion,
+      cambios: registroPanel.cambios,
       plantel: nombresPlantel,
     });
 
@@ -6442,7 +6101,7 @@ export default function App() {
       >
         <div className="panel-titulo">
           <div>
-            <span className="sobrelinea">PARTIDO</span>
+            <span className="sobrelinea">{sobrelinea}</span>
             <h2>Cambios</h2>
           </div>
         </div>
@@ -6457,7 +6116,7 @@ export default function App() {
             role="tab"
             aria-selected={!esRival}
             className={!esRival ? "activo" : ""}
-            onClick={() => setEquipoCambios("atletico")}
+            onClick={() => alCambiarEquipo("atletico")}
           >
             <EscudoClub
               equipo="cam"
@@ -6472,10 +6131,14 @@ export default function App() {
             role="tab"
             aria-selected={esRival}
             className={esRival ? "activo rival" : ""}
-            onClick={() => setEquipoCambios("rival")}
+            onClick={() => alCambiarEquipo("rival")}
           >
-            <EscudoClub nombre={registro.rival} url={escudoRival.url} mini />{" "}
-            {registro.rival || "Rival"}
+            <EscudoClub
+              nombre={registroPanel.rival}
+              url={escudoRival.url}
+              mini
+            />{" "}
+            {registroPanel.rival || "Rival"}
           </button>
         </div>
 
@@ -6496,7 +6159,7 @@ export default function App() {
                       className="limpiar-ranura"
                       aria-label={`Limpiar cambio ${index + 1}`}
                       onClick={() =>
-                        limpiarFilaCambio(esRival ? "rival" : "atletico", index)
+                        alLimpiar(esRival ? "rival" : "atletico", index)
                       }
                     >
                       <Icono nombre="borrar" size={14} />
@@ -6512,7 +6175,7 @@ export default function App() {
                       opciones={opcionesJugadoresRival}
                       value={cambio.sale}
                       onChange={(valor) =>
-                        actualizarCambioRival(index, "sale", valor)
+                        alActualizarRival(index, "sale", valor)
                       }
                     />
                   ) : (
@@ -6523,9 +6186,7 @@ export default function App() {
                       opciones={enCancha.opciones}
                       relevantes={enCancha.relevantes}
                       etiquetaRelevantes="En cancha"
-                      onChange={(valor) =>
-                        actualizarCambio(index, "sale", valor)
-                      }
+                      onChange={(valor) => alActualizar(index, "sale", valor)}
                     />
                   )}
 
@@ -6538,7 +6199,7 @@ export default function App() {
                       opciones={opcionesJugadoresRival}
                       value={cambio.entra}
                       onChange={(valor) =>
-                        actualizarCambioRival(index, "entra", valor)
+                        alActualizarRival(index, "entra", valor)
                       }
                     />
                   ) : (
@@ -6549,9 +6210,7 @@ export default function App() {
                       opciones={enBanco.opciones}
                       relevantes={enBanco.relevantes}
                       etiquetaRelevantes="En el banco"
-                      onChange={(valor) =>
-                        actualizarCambio(index, "entra", valor)
-                      }
+                      onChange={(valor) => alActualizar(index, "entra", valor)}
                     />
                   )}
                 </div>
@@ -6562,38 +6221,35 @@ export default function App() {
                       value={cambio.hora || ""}
                       onChange={(valor) =>
                         esRival
-                          ? actualizarCambioRival(
-                              index,
-                              "hora",
-                              valor,
-                              periodoVista,
-                            )
-                          : actualizarCambio(index, "hora", valor, periodoVista)
+                          ? alActualizarRival(index, "hora", valor, periodo)
+                          : alActualizar(index, "hora", valor, periodo)
                       }
-                      modoTiempo={registro.modoTiempo}
+                      modoTiempo={registroPanel.modoTiempo}
                       className="input-hora-cambio"
                     />
                   </div>
 
-                  <button
-                    type="button"
-                    className="boton-ahora-cambio"
-                    onClick={() =>
-                      esRival
-                        ? ponerHoraCambioRival(index, periodoVista)
-                        : ponerHoraCambio(index, periodoVista)
-                    }
-                  >
-                    <Icono nombre="reloj" size={17} /> Ahora
-                  </button>
+                  {conAhora && (
+                    <button
+                      type="button"
+                      className="boton-ahora-cambio"
+                      onClick={() =>
+                        esRival
+                          ? alPonerAhoraRival(index, periodo)
+                          : alPonerAhora(index, periodo)
+                      }
+                    >
+                      <Icono nombre="reloj" size={17} /> Ahora
+                    </button>
+                  )}
 
                   <button
                     type="button"
                     className="boton-et-cambio"
                     onClick={() =>
                       esRival
-                        ? ponerHoraEntreTiempoRival(index)
-                        : ponerHoraEntreTiempo(index)
+                        ? alPonerEntreTiempoRival(index)
+                        : alPonerEntreTiempo(index)
                     }
                   >
                     ET
@@ -6919,7 +6575,7 @@ export default function App() {
 
                     {filtroEquipo === FILTRO_EQUIPO.LOCALIA && (
                       <div className="cambiar-vista">
-                        {[LOCALIA.LOCAL, LOCALIA.VISITANTE].map((cual) => (
+                        {LOCALIAS.map((cual) => (
                           <button
                             key={cual}
                             type="button"

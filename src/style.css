@@ -5993,3 +5993,87 @@ button.puesto-cancha {
   font-weight: 800;
   text-align: left;
 }
+
+/* ---------------------------------------------------------------------------
+   Editar un registro guardado. Es la misma cara que la ficha de detalle, pero
+   se toca: el marcador se escribe, la localía se cambia y cada tema vive en su
+   pestaña, en vez de una tirada de 4000 px.
+--------------------------------------------------------------------------- */
+
+.marcador-ficha.editable {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.marcador-ficha.editable .equipos-ficha {
+  width: 100%;
+}
+
+.marcador-ficha.editable .resultado-ficha input {
+  width: 46px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid var(--cam-linea);
+  border-radius: 14px;
+  background: var(--cam-blanco);
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 26px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.localia-ficha {
+  display: flex;
+  justify-content: center;
+}
+
+/* En la pantalla de carga el botón vive sobre el fondo oscuro y va en blanco.
+   Acá la tarjeta es blanca, así que la pastilla se da vuelta. */
+.marcador-ficha.editable .boton-localia {
+  height: 32px;
+  margin-top: 0;
+  border-color: var(--cam-linea);
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.marcador-ficha.editable .boton-localia.visitante {
+  border-color: #111827;
+  background: #111827;
+  color: var(--cam-blanco);
+}
+
+.marcador-ficha.editable .boton-localia:hover,
+.marcador-ficha.editable .boton-localia:active {
+  background: #e2e8f0;
+}
+
+.marcador-ficha.editable .boton-localia.visitante:hover,
+.marcador-ficha.editable .boton-localia.visitante:active {
+  background: #1f2937;
+}
+
+.campos-editables {
+  margin-top: 12px;
+}
+
+/* Inicio y final de un tiempo son un par: van uno al lado del otro. */
+.campos-editables.en-dos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.campos-editables .campo-detalle-editable:last-child {
+  margin-bottom: 0;
+}
+
+/* La etiqueta del campo, más chica que en la pantalla vieja: acá el título de
+   la tarjeta ya dice de qué tiempo se trata. */
+.tarjeta-ficha .campo-detalle-editable label {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

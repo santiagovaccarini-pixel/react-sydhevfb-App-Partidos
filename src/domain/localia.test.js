@@ -1,9 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
   LOCALIA,
+  LOCALIAS,
   RESULTADO,
   comoTermino,
   enOrdenDeCancha,
+  esNeutral,
   esVisitante,
   etiquetaLocalia,
   golesDelRegistro,
@@ -15,8 +17,9 @@ import {
 
 const local = { localia: LOCALIA.LOCAL, resultado: "2-1" };
 const visitante = { localia: LOCALIA.VISITANTE, resultado: "0-2" };
+const neutral = { localia: LOCALIA.NEUTRAL, resultado: "1-3" };
 
-describe("de local o de visitante", () => {
+describe("de local, de visitante o en cancha neutral", () => {
   test("lo que no dice nada es local", () => {
     // Todo lo cargado antes de que esto existiera no tiene el dato.
     expect(leerLocalia(undefined)).toBe(LOCALIA.LOCAL);
@@ -28,14 +31,32 @@ describe("de local o de visitante", () => {
   test("lee el dato sin importar cómo venga escrito", () => {
     expect(leerLocalia(" VISITANTE ")).toBe(LOCALIA.VISITANTE);
     expect(leerLocalia("Local")).toBe(LOCALIA.LOCAL);
+    expect(leerLocalia(" Neutral ")).toBe(LOCALIA.NEUTRAL);
     // Cualquier otra cosa cae en local, que es el caso de siempre.
     expect(leerLocalia("cualquiera")).toBe(LOCALIA.LOCAL);
   });
 
-  test("el botón alterna entre los dos", () => {
+  test("el botón da la vuelta por las tres y vuelve a empezar", () => {
     expect(otraLocalia(LOCALIA.LOCAL)).toBe(LOCALIA.VISITANTE);
-    expect(otraLocalia(LOCALIA.VISITANTE)).toBe(LOCALIA.LOCAL);
-    expect(etiquetaLocalia(LOCALIA.VISITANTE)).toBe("Visitante");
+    expect(otraLocalia(LOCALIA.VISITANTE)).toBe(LOCALIA.NEUTRAL);
+    expect(otraLocalia(LOCALIA.NEUTRAL)).toBe(LOCALIA.LOCAL);
+    // Y desde un partido viejo, que no trae el dato, arranca igual.
+    expect(otraLocalia(undefined)).toBe(LOCALIA.VISITANTE);
+  });
+
+  test("cada una con su nombre", () => {
+    expect(LOCALIAS.map(etiquetaLocalia)).toEqual([
+      "Local",
+      "Visitante",
+      "Neutral",
+    ]);
+  });
+
+  test("neutral no es visitante", () => {
+    // Importa porque el vuelco de escudos y goles cuelga de esVisitante.
+    expect(esVisitante(neutral)).toBe(false);
+    expect(esNeutral(neutral)).toBe(true);
+    expect(esNeutral(local)).toBe(false);
   });
 });
 
@@ -49,6 +70,16 @@ describe("el orden en que se muestra el partido", () => {
       "ELLOS",
       "NOSOTROS",
     ]);
+  });
+
+  test("en cancha neutral no hay local: queda el orden de siempre", () => {
+    expect(enOrdenDeCancha(neutral, "NOSOTROS", "ELLOS")).toEqual([
+      "NOSOTROS",
+      "ELLOS",
+    ]);
+    // Y el marcador no se da vuelta: se lee como está guardado.
+    expect(marcadorEnPantalla(neutral.resultado, neutral)).toBe("1-3");
+    expect(golesEnPantalla(neutral.resultado, neutral)).toEqual(["1", "3"]);
   });
 
   test("el marcador sigue a los escudos", () => {
@@ -74,7 +105,7 @@ describe("el orden en que se muestra el partido", () => {
 
 describe("cómo terminó el partido", () => {
   test("se mira contra lo guardado, no contra la localía", () => {
-    // El mismo 2-1 es victoria jugando de local y de visitante.
+    // El mismo 2-1 es victoria de local, de visitante y en cancha neutral.
     expect(comoTermino("2-1")).toBe(RESULTADO.GANADO);
     expect(comoTermino("1-1")).toBe(RESULTADO.EMPATADO);
     expect(comoTermino("0-2")).toBe(RESULTADO.PERDIDO);

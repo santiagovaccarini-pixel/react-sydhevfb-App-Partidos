@@ -75,6 +75,14 @@ const trazos = {
   visitante: (
     <path d="M3 13h4l3 5h3l-2-5h4.5a2.5 2.5 0 0 0 0-5H11l2-5h-3l-3 5H3l2 2.5Z" />
   ),
+  // Cancha neutral: el círculo central partido por la mitad, que es la marca
+  // de la cancha sin dueño. A 15px se lee mejor que dibujar el campo entero.
+  neutral: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 3.5v17" />
+    </>
+  ),
   filtro: (
     <>
       <path d="M4 7h16" />
