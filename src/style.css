@@ -713,6 +713,53 @@ button:active {
   box-shadow: none;
 }
 
+/* Lo elegido de una lista, en negro. Se toca y sube la hoja con las
+   opciones: es lo que reemplaza a los desplegables del sistema. */
+.selector-hoja {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.selector-hoja.a-medias {
+  flex: 1 1 120px;
+  width: auto;
+  min-width: 0;
+}
+
+.selector-hoja:hover,
+.selector-hoja:active {
+  transform: none;
+  background: #f1f5f9;
+  box-shadow: none;
+}
+
+.selector-hoja b {
+  min-width: 0;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.1px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* La flecha del icono mira para abajo, como la de un desplegable. */
+.selector-hoja svg {
+  flex: 0 0 auto;
+  color: #64748b;
+  transform: rotate(90deg);
+}
+
 /* Qué se está filtrando, arriba de sus controles. */
 .criterio-elegido {
   display: flex;
