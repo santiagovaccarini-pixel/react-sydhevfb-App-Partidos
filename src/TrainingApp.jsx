@@ -75,120 +75,169 @@ export default function TrainingApp({ onVolver }) {
         </button>
         <div>
           <span>Entrenamiento</span>
-          <strong>Prueba de cortes OpenField</strong>
+          <strong>OpenField · Modo prueba</strong>
         </div>
       </header>
 
       <section className="entrenamiento-contenido">
         <div className="entrenamiento-aviso">
-          <strong>POC seguro</strong>
+          <strong>Modo prueba</strong>
           <span>
-            Esta pantalla todavía no modifica OpenField. Sirve para validar la lógica de
-            horarios antes de conectar Playwright.
+            Ninguna acción de esta pantalla modifica OpenField todavía. Primero vamos a
+            conectar, leer y validar. La escritura se habilitará recién cuando esa etapa
+            sea confiable.
           </span>
         </div>
 
         <div className="entrenamiento-grid">
-          <section className="entrenamiento-panel">
-            <div className="entrenamiento-panel-titulo">
-              <span>01</span>
-              <div>
-                <h1>Definir tarea</h1>
-                <p>Los horarios quedan editables antes de procesar.</p>
+          <div className="entrenamiento-columna-principal">
+            <section className="entrenamiento-panel">
+              <div className="entrenamiento-panel-titulo">
+                <span>01</span>
+                <div>
+                  <h1>OpenField</h1>
+                  <p>Primero validamos que la app pueda comunicarse con Cloud Editor.</p>
+                </div>
               </div>
-            </div>
 
-            <label>
-              Fecha
-              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-            </label>
-
-            <label>
-              Nombre / descripción
-              <input
-                type="text"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                placeholder="Ej. Posesión 6v6+3"
-              />
-            </label>
-
-            <div className="entrenamiento-dos-columnas">
-              <label>
-                Hora de inicio
-                <input
-                  type="time"
-                  step="1"
-                  value={inicio}
-                  onChange={(e) => setInicio(e.target.value)}
-                />
-              </label>
-
-              <label>
-                Hora final
-                <input
-                  type="time"
-                  step="1"
-                  value={fin}
-                  onChange={(e) => setFin(e.target.value)}
-                />
-              </label>
-            </div>
-
-            <div className="entrenamiento-pausas-cabecera">
-              <div>
-                <strong>Pausas</strong>
-                <span>Opcionales. Podés agregar más de una.</span>
-              </div>
-              <button
-                type="button"
-                className="entrenamiento-boton-secundario"
-                onClick={() => setPausas((actuales) => [...actuales, nuevaPausa()])}
-              >
-                + Agregar pausa
-              </button>
-            </div>
-
-            {pausas.length === 0 ? (
-              <div className="entrenamiento-vacio">Esta tarea no tiene pausas.</div>
-            ) : (
-              <div className="entrenamiento-lista-pausas">
-                {pausas.map((pausa, indice) => (
-                  <div className="entrenamiento-pausa" key={`pausa-${indice}`}>
-                    <span>Pausa {indice + 1}</span>
-                    <input
-                      aria-label={`Inicio pausa ${indice + 1}`}
-                      type="time"
-                      step="1"
-                      value={pausa.inicio}
-                      onChange={(e) => actualizarPausa(indice, "inicio", e.target.value)}
-                    />
-                    <span>→</span>
-                    <input
-                      aria-label={`Fin pausa ${indice + 1}`}
-                      type="time"
-                      step="1"
-                      value={pausa.fin}
-                      onChange={(e) => actualizarPausa(indice, "fin", e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      aria-label={`Eliminar pausa ${indice + 1}`}
-                      onClick={() =>
-                        setPausas((actuales) => actuales.filter((_, i) => i !== indice))
-                      }
-                    >
-                      ×
-                    </button>
+              <div className="entrenamiento-conexion">
+                <div>
+                  <span className="entrenamiento-estado-punto pendiente" aria-hidden="true" />
+                  <div>
+                    <strong>Conexión pendiente</strong>
+                    <span>Playwright todavía no está conectado a OpenField.</span>
                   </div>
-                ))}
+                </div>
+                <span className="entrenamiento-modo-chip">SOLO LECTURA</span>
               </div>
-            )}
-          </section>
+
+              <div className="entrenamiento-siguiente">
+                <strong>Objetivo de este paso</strong>
+                <span>
+                  Poder abrir OpenField desde el backend, comprobar que la sesión esté
+                  autenticada y leer las actividades disponibles sin crear, editar ni borrar
+                  períodos.
+                </span>
+              </div>
+            </section>
+
+            <section className="entrenamiento-panel entrenamiento-panel-bloqueado">
+              <div className="entrenamiento-panel-titulo">
+                <span>02</span>
+                <div>
+                  <h2>Elegir actividad</h2>
+                  <p>Después de conectar, acá aparecerán las actividades de OpenField.</p>
+                </div>
+              </div>
+
+              <div className="entrenamiento-vacio">
+                Primero tenemos que completar la conexión con OpenField. Si hay una sola
+                actividad válida en la fecha, podremos proponerla automáticamente; si hay
+                varias, vas a elegir cuál usar antes de continuar.
+              </div>
+            </section>
+
+            <section className="entrenamiento-panel">
+              <div className="entrenamiento-panel-titulo">
+                <span>03</span>
+                <div>
+                  <h2>Definir tarea</h2>
+                  <p>Los horarios quedan editables antes de procesar.</p>
+                </div>
+              </div>
+
+              <label>
+                Fecha
+                <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+              </label>
+
+              <label>
+                Nombre / descripción
+                <input
+                  type="text"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Ej. Posesión 6v6+3"
+                />
+              </label>
+
+              <div className="entrenamiento-dos-columnas">
+                <label>
+                  Hora de inicio
+                  <input
+                    type="time"
+                    step="1"
+                    value={inicio}
+                    onChange={(e) => setInicio(e.target.value)}
+                  />
+                </label>
+
+                <label>
+                  Hora final
+                  <input
+                    type="time"
+                    step="1"
+                    value={fin}
+                    onChange={(e) => setFin(e.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="entrenamiento-pausas-cabecera">
+                <div>
+                  <strong>Pausas</strong>
+                  <span>Opcionales. Podés agregar más de una.</span>
+                </div>
+                <button
+                  type="button"
+                  className="entrenamiento-boton-secundario"
+                  onClick={() => setPausas((actuales) => [...actuales, nuevaPausa()])}
+                >
+                  + Agregar pausa
+                </button>
+              </div>
+
+              {pausas.length === 0 ? (
+                <div className="entrenamiento-vacio">Esta tarea no tiene pausas.</div>
+              ) : (
+                <div className="entrenamiento-lista-pausas">
+                  {pausas.map((pausa, indice) => (
+                    <div className="entrenamiento-pausa" key={`pausa-${indice}`}>
+                      <span>Pausa {indice + 1}</span>
+                      <input
+                        aria-label={`Inicio pausa ${indice + 1}`}
+                        type="time"
+                        step="1"
+                        value={pausa.inicio}
+                        onChange={(e) => actualizarPausa(indice, "inicio", e.target.value)}
+                      />
+                      <span>→</span>
+                      <input
+                        aria-label={`Fin pausa ${indice + 1}`}
+                        type="time"
+                        step="1"
+                        value={pausa.fin}
+                        onChange={(e) => actualizarPausa(indice, "fin", e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Eliminar pausa ${indice + 1}`}
+                        onClick={() =>
+                          setPausas((actuales) => actuales.filter((_, i) => i !== indice))
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
 
           <section className="entrenamiento-panel entrenamiento-resumen">
             <div className="entrenamiento-panel-titulo">
-              <span>02</span>
+              <span>04</span>
               <div>
                 <h2>Vista previa</h2>
                 <p>Esto será lo que luego reciba Playwright.</p>
@@ -218,10 +267,10 @@ export default function TrainingApp({ onVolver }) {
                 </dl>
 
                 <div className="entrenamiento-siguiente">
-                  <strong>Siguiente etapa</strong>
+                  <strong>Todavía no se puede aplicar</strong>
                   <span>
-                    Conectar esta salida al Cloud Editor y validar que el período creado
-                    coincida exactamente con estos horarios.
+                    El corte está bien calculado, pero falta conectar OpenField y elegir una
+                    actividad real. Hasta entonces la app no envía ninguna modificación.
                   </span>
                 </div>
               </>
