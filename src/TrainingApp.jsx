@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { prepararCorteOpenField } from "./domain/openfieldCuts.js";
+import "./training-openfield.css";
 
 const hoyLocal = () => {
   const ahora = new Date();
