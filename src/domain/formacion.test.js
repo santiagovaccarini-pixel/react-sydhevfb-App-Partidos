@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   FRANJAS,
+  HOLGURA_CANCHA,
   MAXIMO_EN_CANCHA,
   cambiarLinea,
+  escalonarFila,
   canchaDesdeTitulares,
   hayPuestosAMano,
   jugadoresDeLaFranja,
@@ -356,5 +358,70 @@ describe("jugadoresDeLaFranja", () => {
   it("aguanta un plantel vacío o una franja que no existe", () => {
     expect(jugadoresDeLaFranja(null, "def")).toEqual([]);
     expect(jugadoresDeLaFranja(PLANTEL, "arquero")).toEqual([]);
+  });
+});
+
+describe("escalonar una fila para que entren los nombres", () => {
+  // Cuatro puestos parejos; `ancho` es lo que mide el nombre dibujado.
+  const fila = (anchos) =>
+    anchos.map((ancho, indice) => {
+      const centro = 20 + indice * 20;
+      return {
+        id: `p${indice}`,
+        x: 20 + indice * 20,
+        ancho,
+        izquierda: centro - ancho / 2,
+        derecha: centro + ancho / 2,
+      };
+    });
+
+  it("una fila que entra no se toca", () => {
+    expect(escalonarFila(fila([10, 10, 10, 10]))).toEqual({});
+  });
+
+  it("los de adentro bajan y los de afuera suben", () => {
+    // Los centrales atrás de los laterales, como se paran en la cancha.
+    const acomodada = escalonarFila(fila([30, 30, 30, 30]));
+
+    expect(acomodada.p0.nivel).toBe("sube");
+    expect(acomodada.p1.nivel).toBe("baja");
+    expect(acomodada.p2.nivel).toBe("baja");
+    expect(acomodada.p3.nivel).toBe("sube");
+  });
+
+  it("con tres, el del medio baja y los de las puntas suben", () => {
+    const tres = fila([30, 30, 30]).slice(0, 3);
+    const acomodada = escalonarFila(tres);
+
+    expect(acomodada.p1.nivel).toBe("baja");
+    expect(acomodada.p0.nivel).toBe("sube");
+    expect(acomodada.p2.nivel).toBe("sube");
+  });
+
+  it("si en su renglón siguen encimados, se separan a lo ancho", () => {
+    // Los dos de adentro bajan juntos y entre ellos se siguen pisando.
+    const acomodada = escalonarFila(fila([30, 34, 34, 30]));
+
+    expect(acomodada.p1.dx).toBeLessThan(0);
+    expect(acomodada.p2.dx).toBeGreaterThan(0);
+
+    // Y quedan separados por la holgura, sin correrse el centro de la fila.
+    const izquierda = 40 - 34 / 2 + acomodada.p1.dx;
+    const derecha = 60 - 34 / 2 + acomodada.p2.dx;
+    expect(derecha - (izquierda + 34)).toBeGreaterThanOrEqual(HOLGURA_CANCHA);
+    expect((izquierda + derecha + 34) / 2).toBeCloseTo(50, 0);
+  });
+
+  it("los que ya estaban separados en su renglón no se mueven", () => {
+    const acomodada = escalonarFila(fila([44, 20, 20, 44]));
+
+    // Los de afuera suben y entre ellos sobra lugar: no se corren.
+    expect(acomodada.p0.dx).toBe(0);
+    expect(acomodada.p3.dx).toBe(0);
+  });
+
+  it("una fila de uno no se escalona", () => {
+    expect(escalonarFila(fila([80]))).toEqual({});
+    expect(escalonarFila([])).toEqual({});
   });
 });

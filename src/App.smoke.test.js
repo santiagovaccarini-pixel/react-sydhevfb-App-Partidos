@@ -396,6 +396,44 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(5);
   });
 
+  test("\"Ahora\" sobre un horario ya cargado pregunta antes de pisarlo", async () => {
+    // Un toque de más sobre un cambio ya marcado borraba el horario sin aviso,
+    // y no había manera de recuperarlo.
+    await montarApp();
+
+    const accionPeriodo = contenedor.querySelector(".accion-periodo");
+    await act(async () => accionPeriodo.click());
+
+    const ranura = contenedor.querySelector(".ranura-cambio");
+    const ahora = () => ranura.querySelector(".boton-ahora-cambio");
+    const horaCargada = () =>
+      contenedor.querySelector(".ranura-cambio .hora-ranura").textContent;
+
+    // La primera vez no pregunta: no hay nada que pisar.
+    await act(async () => ahora().click());
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+
+    const primera = horaCargada();
+
+    // La segunda sí.
+    await act(async () => ahora().click());
+    const hoja = contenedor.querySelector(".hoja-confirmar");
+    expect(hoja).not.toBeNull();
+    expect(hoja.querySelector("h3").textContent).toBe(
+      "¿Querés reemplazar este tiempo?",
+    );
+    expect(
+      Array.from(hoja.querySelectorAll(".acciones-hoja button")).map((boton) =>
+        boton.textContent.trim(),
+      ),
+    ).toEqual(["No", "Sí"]);
+
+    // Diciendo que no, el horario queda como estaba.
+    await act(async () => hoja.querySelector(".boton-cancelar-hoja").click());
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(horaCargada()).toBe(primera);
+  });
+
   test("permite reanudar el período si se finalizó por error", async () => {
     await montarApp();
 
@@ -405,11 +443,16 @@ describe("interfaz operativa", () => {
 
     expect(accionPeriodo.textContent).toContain("Reanudar PT");
     expect(accionPeriodo.disabled).toBe(false);
-    expect(accionPeriodo.className).toContain("finalizar");
+    // Reanudar va en negro: en rojo, igual que Finalizar, parecía que el
+    // tiempo seguía corriendo y que faltaba cerrarlo.
+    expect(accionPeriodo.className).toContain("reanudar");
+    expect(accionPeriodo.className).not.toContain("finalizar");
 
     await act(async () => accionPeriodo.click());
 
     expect(accionPeriodo.textContent).toContain("Finalizar PT");
+    expect(accionPeriodo.className).toContain("finalizar");
+    expect(accionPeriodo.className).not.toContain("reanudar");
     expect(
       contenedor.querySelector(".selector-periodos p").textContent,
     ).toContain("en curso");
@@ -1913,12 +1956,14 @@ describe("interfaz operativa", () => {
       (fila2) => fila2.textContent.includes("BERNARD"),
     );
 
-    // Va agrupado bajo el horario en que entró, con su salida al costado.
+    // Va agrupado bajo el horario en que entró, con su salida al costado. La
+    // salida lleva el nombre: sin él, mirando el cambio en que se fue no se
+    // leía quién había salido, solo la hora suelta.
     expect(bernard.querySelector(".quien-jugado").textContent.trim()).toBe(
       "↑ BERNARD",
     );
     expect(bernard.querySelector(".hasta-jugado").textContent.trim()).toBe(
-      "↓ 22:18:00",
+      "↓ BERNARD 22:18:00",
     );
   });
 

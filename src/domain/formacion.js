@@ -340,3 +340,66 @@ export const apellido = (nombre) =>
     .trim()
     .split(/\s+/)
     .pop() || "";
+
+/** Dos cuadros más cerca que esto ya se leen encimados. */
+export const HOLGURA_CANCHA = 4;
+
+const seEncimian = (fila) =>
+  fila.some(
+    (uno, indice) =>
+      indice > 0 && fila[indice - 1].derecha > uno.izquierda - HOLGURA_CANCHA,
+  );
+
+/**
+ * Cómo se acomoda una fila de la cancha cuando los nombres no entran de
+ * corrido. Los de adentro bajan y los de afuera suben, que es como se paran en
+ * la cancha: los dos centrales atrás de los laterales, los dos volantes del
+ * medio atrás de los externos. Si dentro de un renglón igual siguen encimados,
+ * se los reparte a lo ancho alrededor del centro de la fila.
+ *
+ * Recibe los puestos con su lugar ya medido y devuelve, por id, el renglón que
+ * le toca a cada uno y cuánto se corre al costado. Una fila que entra bien
+ * vuelve vacía: no se toca lo que ya se lee.
+ */
+export const escalonarFila = (fila) => {
+  if (!Array.isArray(fila) || fila.length < 2) return {};
+
+  const enOrden = [...fila].sort((uno, otro) => uno.x - otro.x);
+  if (!seEncimian(enOrden)) return {};
+
+  const medio = (enOrden.length - 1) / 2;
+  const cuantosBajan = Math.floor(enOrden.length / 2);
+  const niveles = { baja: [], sube: [] };
+  const acomodados = {};
+
+  enOrden
+    .map((uno, indice) => ({ ...uno, lejos: Math.abs(indice - medio) }))
+    .sort((uno, otro) => uno.lejos - otro.lejos)
+    .forEach((uno, puesto) => {
+      const nivel = puesto < cuantosBajan ? "baja" : "sube";
+      acomodados[uno.id] = { nivel, dx: 0 };
+      niveles[nivel].push(uno);
+    });
+
+  Object.values(niveles).forEach((nivel) => {
+    if (nivel.length < 2) return;
+
+    const juntos = [...nivel].sort((uno, otro) => uno.x - otro.x);
+    if (!seEncimian(juntos)) return;
+
+    const anchoTotal =
+      juntos.reduce((suma, uno) => suma + uno.ancho, 0) +
+      HOLGURA_CANCHA * (juntos.length - 1);
+    const centroDelNivel =
+      juntos.reduce((suma, uno) => suma + uno.izquierda + uno.ancho / 2, 0) /
+      juntos.length;
+
+    let borde = centroDelNivel - anchoTotal / 2;
+    juntos.forEach((uno) => {
+      acomodados[uno.id].dx = Math.round(borde - uno.izquierda);
+      borde += uno.ancho + HOLGURA_CANCHA;
+    });
+  });
+
+  return acomodados;
+};
