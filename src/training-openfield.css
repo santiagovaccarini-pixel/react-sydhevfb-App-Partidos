@@ -196,9 +196,157 @@
   text-decoration: none;
 }
 
+.entrenamiento-periodos-bloque {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 13px;
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.entrenamiento-periodos-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.entrenamiento-periodos-cabecera > div {
+  display: grid;
+  gap: 2px;
+}
+
+.entrenamiento-periodos-cabecera span {
+  color: var(--portal-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.entrenamiento-periodos-cabecera strong {
+  font-size: 0.9rem;
+}
+
+.entrenamiento-periodos-cabecera .entrenamiento-boton-secundario:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.entrenamiento-lista-periodos {
+  display: grid;
+  gap: 8px;
+}
+
+.entrenamiento-periodo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #101419;
+}
+
+.entrenamiento-periodo-identidad {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.entrenamiento-periodo-identidad > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: rgba(211, 173, 98, 0.1);
+  color: var(--portal-accent);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.entrenamiento-periodo-identidad > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.entrenamiento-periodo-identidad strong,
+.entrenamiento-periodo-identidad small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entrenamiento-periodo-identidad strong {
+  font-size: 0.84rem;
+}
+
+.entrenamiento-periodo-identidad small {
+  color: var(--portal-muted);
+  font-size: 0.66rem;
+}
+
+.entrenamiento-periodo-horarios {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 14px;
+}
+
+.entrenamiento-periodo-horarios > div {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.entrenamiento-periodo-horarios span {
+  color: var(--portal-muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.entrenamiento-periodo-horarios strong {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.entrenamiento-estado.advertencia {
+  border-color: rgba(211, 173, 98, 0.35);
+  background: rgba(211, 173, 98, 0.08);
+  color: #e6c986;
+}
+
+.entrenamiento-estado.error {
+  border-color: rgba(225, 114, 114, 0.32);
+  background: rgba(225, 114, 114, 0.08);
+  color: #f0a1a1;
+}
+
+@media (max-width: 700px) {
+  .entrenamiento-periodo {
+    grid-template-columns: 1fr;
+  }
+
+  .entrenamiento-periodo-horarios {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .entrenamiento-periodo-horarios > div {
+    text-align: left;
+  }
+}
+
 @media (max-width: 520px) {
   .entrenamiento-conexion,
-  .entrenamiento-seleccion-confirmada {
+  .entrenamiento-seleccion-confirmada,
+  .entrenamiento-periodos-cabecera {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -212,5 +360,10 @@
     display: flex;
     gap: 10px;
     text-align: left;
+  }
+
+  .entrenamiento-periodo-horarios {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 }
