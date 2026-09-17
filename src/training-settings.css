@@ -1,0 +1,215 @@
+.entrenamiento-modulo-shell {
+  min-height: 100vh;
+}
+
+.entrenamiento-ajustes-acceso {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: rgba(21, 25, 30, 0.94);
+  color: var(--portal-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+
+.entrenamiento-ajustes-acceso:hover {
+  border-color: rgba(211, 173, 98, 0.5);
+  color: var(--portal-accent);
+}
+
+.entrenamiento-ajustes-modulos {
+  margin-left: auto;
+  padding: 9px 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #15191e;
+  color: var(--portal-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.entrenamiento-ajustes-contenido {
+  width: min(920px, calc(100% - 32px));
+}
+
+.entrenamiento-ajustes-encabezado {
+  margin-bottom: 18px;
+}
+
+.entrenamiento-ajustes-encabezado > span {
+  color: var(--portal-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.entrenamiento-ajustes-encabezado h1 {
+  margin: 5px 0 7px;
+  font-size: clamp(1.55rem, 4vw, 2.15rem);
+}
+
+.entrenamiento-ajustes-encabezado p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--portal-muted);
+  line-height: 1.55;
+}
+
+.entrenamiento-ajustes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.entrenamiento-ajustes-panel form {
+  display: grid;
+}
+
+.entrenamiento-ajustes-seguridad,
+.entrenamiento-ajustes-limites,
+.entrenamiento-ajustes-objetivo,
+.entrenamiento-ajustes-resultado {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  background: #101419;
+}
+
+.entrenamiento-ajustes-seguridad,
+.entrenamiento-ajustes-limites {
+  display: grid;
+  gap: 4px;
+}
+
+.entrenamiento-ajustes-seguridad strong,
+.entrenamiento-ajustes-limites strong {
+  font-size: 0.8rem;
+}
+
+.entrenamiento-ajustes-seguridad span,
+.entrenamiento-ajustes-limites span {
+  color: var(--portal-muted);
+  font-size: 0.76rem;
+  line-height: 1.48;
+}
+
+.entrenamiento-ajustes-objetivo {
+  display: grid;
+  gap: 3px;
+  margin-top: 0;
+}
+
+.entrenamiento-ajustes-objetivo span,
+.entrenamiento-ajustes-objetivo small {
+  color: var(--portal-muted);
+}
+
+.entrenamiento-ajustes-objetivo span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.entrenamiento-ajustes-objetivo strong {
+  font-size: 1rem;
+}
+
+.entrenamiento-ajustes-objetivo small {
+  overflow-wrap: anywhere;
+  font-size: 0.68rem;
+}
+
+.entrenamiento-ajustes-resultado {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.entrenamiento-ajustes-resultado > div {
+  display: grid;
+  gap: 3px;
+}
+
+.entrenamiento-ajustes-resultado > div > strong {
+  font-size: 0.86rem;
+}
+
+.entrenamiento-ajustes-resultado > div > span {
+  color: var(--portal-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.entrenamiento-ajustes-estado-punto {
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #d3ad62;
+  box-shadow: 0 0 0 4px rgba(211, 173, 98, 0.12);
+}
+
+.entrenamiento-ajustes-resultado.correcto {
+  border-color: rgba(113, 213, 155, 0.3);
+  background: rgba(113, 213, 155, 0.06);
+}
+
+.entrenamiento-ajustes-resultado.correcto .entrenamiento-ajustes-estado-punto {
+  background: #71d59b;
+  box-shadow: 0 0 0 4px rgba(113, 213, 155, 0.12);
+}
+
+.entrenamiento-ajustes-resultado.error {
+  border-color: rgba(225, 114, 114, 0.32);
+  background: rgba(225, 114, 114, 0.07);
+}
+
+.entrenamiento-ajustes-resultado.error .entrenamiento-ajustes-estado-punto {
+  background: #e17272;
+  box-shadow: 0 0 0 4px rgba(225, 114, 114, 0.12);
+}
+
+@media (max-width: 760px) {
+  .entrenamiento-ajustes-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .entrenamiento-ajustes-acceso {
+    right: 10px;
+    top: 12px;
+    padding: 8px 10px;
+  }
+
+  .entrenamiento-ajustes-acceso span + * {
+    display: none;
+  }
+
+  .entrenamiento-ajustes-pagina .entrenamiento-barra {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .entrenamiento-ajustes-modulos {
+    padding-inline: 10px;
+  }
+}
