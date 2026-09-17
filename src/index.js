@@ -1,9 +1,9 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
+import PortalApp from "./PortalApp";
 
 const root = createRoot(document.getElementById("root"));
-root.render(<App />);
+root.render(<PortalApp />);
 
 // Deja la app guardada en el teléfono para que abra sin señal, que es la
 // situación normal en un estadio. Solo en producción: en desarrollo serviría
