@@ -1,3 +1,5 @@
+import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+
 const OPENFIELD_BASE_URL =
   process.env.OPENFIELD_API_BASE_URL ||
   "https://connect-us.catapultsports.com/api/v6";
@@ -21,6 +23,7 @@ const normalizarLista = (payload) => {
 export default async function handler(request, response) {
   response.setHeader("Cache-Control", "private, no-store");
   response.setHeader("X-Robots-Tag", "noindex");
+  response.setHeader("Vary", "Cookie");
 
   if (request.method !== "GET") {
     response.setHeader("Allow", "GET");
@@ -28,6 +31,11 @@ export default async function handler(request, response) {
       ok: false,
       error: "Método no permitido",
     });
+  }
+
+  const auth = autenticarCookieOpenField(request);
+  if (!auth.ok) {
+    return response.status(auth.status).json({ ok: false, error: auth.error });
   }
 
   const token = process.env.OPENFIELD_API_TOKEN;
@@ -77,7 +85,7 @@ export default async function handler(request, response) {
     return response.status(200).json({
       ok: true,
       source: "catapult-connect",
-      version: "read-v2",
+      version: "read-v3-authenticated",
       count: actividades.length,
       activities: actividades,
     });

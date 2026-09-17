@@ -1,0 +1,171 @@
+.training-access-page {
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--portal-bg, #0b0f13);
+  color: var(--portal-text, #f3f5f7);
+}
+
+.training-access-back {
+  border: 0;
+  background: transparent;
+  color: var(--portal-muted, #9aa4af);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.training-access-card {
+  width: min(460px, 100%);
+  margin: 48px auto 0;
+  padding: 24px;
+  border: 1px solid var(--portal-border, #26303a);
+  border-radius: 20px;
+  background: #101419;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
+}
+
+.training-access-kicker {
+  display: block;
+  margin-bottom: 18px;
+  color: var(--portal-accent, #d3ad62);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.training-access-lock {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 1.8rem;
+}
+
+.training-access-card h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+}
+
+.training-access-card p,
+.training-access-card small {
+  color: var(--portal-muted, #9aa4af);
+  line-height: 1.5;
+}
+
+.training-access-form {
+  display: grid;
+  gap: 14px;
+  margin: 22px 0 14px;
+}
+
+.training-access-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--portal-muted, #9aa4af);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.training-access-form input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--portal-border, #26303a);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: #0b0f13;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.training-access-form input:focus {
+  border-color: rgba(211, 173, 98, 0.7);
+}
+
+.training-access-primary,
+.training-access-secondary {
+  min-height: 44px;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.training-access-primary {
+  border: 1px solid rgba(211, 173, 98, 0.45);
+  background: rgba(211, 173, 98, 0.14);
+  color: var(--portal-accent, #d3ad62);
+}
+
+.training-access-secondary {
+  border: 1px solid var(--portal-border, #26303a);
+  background: transparent;
+  color: var(--portal-text, #f3f5f7);
+}
+
+.training-access-primary:disabled,
+.training-access-secondary:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.training-access-message {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.training-access-message.error {
+  border: 1px solid rgba(225, 114, 114, 0.28);
+  background: rgba(225, 114, 114, 0.08);
+  color: #f0a1a1;
+}
+
+.training-access-message.ok {
+  border: 1px solid rgba(113, 213, 155, 0.28);
+  background: rgba(113, 213, 155, 0.08);
+  color: #9ae5b9;
+}
+
+.training-access-shell {
+  min-height: 100vh;
+  background: var(--portal-bg, #0b0f13);
+}
+
+.training-access-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(113, 213, 155, 0.16);
+  background: rgba(113, 213, 155, 0.05);
+  color: #9ae5b9;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.training-access-status button {
+  border: 0;
+  background: transparent;
+  color: var(--portal-muted, #9aa4af);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@media (max-width: 520px) {
+  .training-access-page {
+    padding: 16px;
+  }
+
+  .training-access-card {
+    margin-top: 32px;
+    padding: 20px;
+  }
+
+  .training-access-status {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
