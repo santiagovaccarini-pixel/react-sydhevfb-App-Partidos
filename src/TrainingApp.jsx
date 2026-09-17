@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { prepararCorteOpenField } from "./domain/openfieldCuts.js";
 import "./training-openfield.css";
 
@@ -31,12 +31,33 @@ const segundosATiempo = (segundos) => {
   return `${minutos}:${String(segs).padStart(2, "0")}`;
 };
 
-const formatearFechaHoraActividad = (valor) => {
+const segundosATiempoPreciso = (segundos) => {
+  const numero = Number(segundos);
+  if (!Number.isFinite(numero) || numero < 0) return "Sin duración";
+
+  const totalMs = Math.round(numero * 1000);
+  const horas = Math.floor(totalMs / 3600000);
+  const minutos = Math.floor((totalMs % 3600000) / 60000);
+  const segs = Math.floor((totalMs % 60000) / 1000);
+  const ms = totalMs % 1000;
+  const base = horas > 0
+    ? `${horas}:${String(minutos).padStart(2, "0")}:${String(segs).padStart(2, "0")}`
+    : `${minutos}:${String(segs).padStart(2, "0")}`;
+
+  return `${base}.${String(ms).padStart(3, "0")}`;
+};
+
+const timestampAFecha = (valor) => {
   const numero = Number(valor);
-  if (!Number.isFinite(numero) || numero <= 0) return "Sin horario";
+  if (!Number.isFinite(numero) || numero <= 0) return null;
 
   const fecha = new Date(numero < 1e12 ? numero * 1000 : numero);
-  if (Number.isNaN(fecha.getTime())) return "Sin horario";
+  return Number.isNaN(fecha.getTime()) ? null : fecha;
+};
+
+const formatearFechaHoraActividad = (valor) => {
+  const fecha = timestampAFecha(valor);
+  if (!fecha) return "Sin horario";
 
   return new Intl.DateTimeFormat("es-AR", {
     day: "2-digit",
@@ -45,6 +66,19 @@ const formatearFechaHoraActividad = (valor) => {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    hour12: false,
+  }).format(fecha);
+};
+
+const formatearHoraPeriodo = (valor) => {
+  const fecha = timestampAFecha(valor);
+  if (!fecha) return "Sin horario";
+
+  return new Intl.DateTimeFormat("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    fractionalSecondDigits: 3,
     hour12: false,
   }).format(fecha);
 };
@@ -63,6 +97,11 @@ export default function TrainingApp({ onVolver }) {
   const [errorOpenField, setErrorOpenField] = useState("");
   const [busquedaActividad, setBusquedaActividad] = useState("");
   const [actividadSeleccionadaId, setActividadSeleccionadaId] = useState("");
+
+  const [estadoPeriodos, setEstadoPeriodos] = useState("idle");
+  const [periodos, setPeriodos] = useState([]);
+  const [errorPeriodos, setErrorPeriodos] = useState("");
+  const solicitudPeriodosRef = useRef(0);
 
   const evaluacion = useMemo(() => {
     if (!inicio || !fin) {
@@ -104,6 +143,54 @@ export default function TrainingApp({ onVolver }) {
     [actividades, actividadSeleccionadaId],
   );
 
+  const cargarPeriodos = async (activityId) => {
+    if (!activityId) return;
+
+    const solicitudActual = solicitudPeriodosRef.current + 1;
+    solicitudPeriodosRef.current = solicitudActual;
+    setEstadoPeriodos("cargando");
+    setPeriodos([]);
+    setErrorPeriodos("");
+
+    try {
+      const respuesta = await fetch(
+        `/api/openfield/periods?activityId=${encodeURIComponent(activityId)}`,
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        },
+      );
+
+      const payload = await respuesta.json().catch(() => null);
+
+      if (!respuesta.ok || !payload?.ok) {
+        const detalle = payload?.upstreamStatus
+          ? ` Código OpenField: ${payload.upstreamStatus}.`
+          : "";
+        throw new Error(`${payload?.error || "No se pudieron leer los períodos."}${detalle}`);
+      }
+
+      if (solicitudActual !== solicitudPeriodosRef.current) return;
+
+      const lista = Array.isArray(payload.periods) ? payload.periods : [];
+      setPeriodos(lista);
+      setEstadoPeriodos("listo");
+    } catch (error) {
+      if (solicitudActual !== solicitudPeriodosRef.current) return;
+      setPeriodos([]);
+      setEstadoPeriodos("error");
+      setErrorPeriodos(error?.message || "No se pudieron leer los períodos de OpenField.");
+    }
+  };
+
+  const seleccionarActividad = (activityId) => {
+    setActividadSeleccionadaId(activityId);
+    setPeriodos([]);
+    setErrorPeriodos("");
+    cargarPeriodos(activityId);
+  };
+
   const cargarActividades = async () => {
     setEstadoOpenField("cargando");
     setErrorOpenField("");
@@ -132,11 +219,20 @@ export default function TrainingApp({ onVolver }) {
         actividadSeleccionadaId &&
         !lista.some((actividad) => actividad.id === actividadSeleccionadaId)
       ) {
+        solicitudPeriodosRef.current += 1;
         setActividadSeleccionadaId("");
+        setPeriodos([]);
+        setEstadoPeriodos("idle");
+        setErrorPeriodos("");
+      } else if (actividadSeleccionadaId) {
+        cargarPeriodos(actividadSeleccionadaId);
       }
     } catch (error) {
+      solicitudPeriodosRef.current += 1;
       setActividades([]);
       setActividadSeleccionadaId("");
+      setPeriodos([]);
+      setEstadoPeriodos("idle");
       setEstadoOpenField("error");
       setErrorOpenField(error?.message || "No se pudo conectar con OpenField.");
     }
@@ -151,6 +247,13 @@ export default function TrainingApp({ onVolver }) {
   };
 
   const conexionLista = estadoOpenField === "conectado";
+  const periodosListos = estadoPeriodos === "listo";
+  const cantidadEsperada = Number(actividadSeleccionada?.period_count);
+  const diferenciaCantidad =
+    actividadSeleccionada &&
+    periodosListos &&
+    Number.isFinite(cantidadEsperada) &&
+    cantidadEsperada !== periodos.length;
 
   return (
     <main className="entrenamiento-app">
@@ -168,8 +271,8 @@ export default function TrainingApp({ onVolver }) {
         <div className="entrenamiento-aviso">
           <strong>Modo prueba</strong>
           <span>
-            Esta pantalla ya puede leer actividades reales de OpenField. Sigue bloqueada toda
-            acción de escritura: no crea, edita ni borra períodos.
+            Esta pantalla ya puede leer actividades y períodos reales de OpenField. Sigue bloqueada
+            toda acción de escritura: no crea, edita ni borra períodos.
           </span>
         </div>
 
@@ -241,7 +344,7 @@ export default function TrainingApp({ onVolver }) {
                 <span>02</span>
                 <div>
                   <h2>Elegir actividad</h2>
-                  <p>Seleccioná explícitamente la actividad sobre la que trabajaremos.</p>
+                  <p>Seleccioná la actividad y la app leerá sus períodos reales automáticamente.</p>
                 </div>
               </div>
 
@@ -289,7 +392,7 @@ export default function TrainingApp({ onVolver }) {
                             key={actividad.id}
                             type="button"
                             className={`entrenamiento-actividad ${seleccionada ? "seleccionada" : ""}`}
-                            onClick={() => setActividadSeleccionadaId(actividad.id)}
+                            onClick={() => seleccionarActividad(actividad.id)}
                             aria-pressed={seleccionada}
                           >
                             <div>
@@ -307,20 +410,100 @@ export default function TrainingApp({ onVolver }) {
                   )}
 
                   {actividadSeleccionada && (
-                    <div className="entrenamiento-seleccion-confirmada">
-                      <div>
-                        <span>Actividad seleccionada</span>
-                        <strong>{actividadSeleccionada.name}</strong>
-                        <small>{actividadSeleccionada.id}</small>
+                    <>
+                      <div className="entrenamiento-seleccion-confirmada">
+                        <div>
+                          <span>Actividad seleccionada</span>
+                          <strong>{actividadSeleccionada.name}</strong>
+                          <small>{actividadSeleccionada.id}</small>
+                        </div>
+                        <a
+                          href={`${OPENFIELD_EDITOR_BASE}/${actividadSeleccionada.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Abrir en OpenField ↗
+                        </a>
                       </div>
-                      <a
-                        href={`${OPENFIELD_EDITOR_BASE}/${actividadSeleccionada.id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Abrir en OpenField ↗
-                      </a>
-                    </div>
+
+                      <div className="entrenamiento-periodos-bloque">
+                        <div className="entrenamiento-periodos-cabecera">
+                          <div>
+                            <span>Períodos reales</span>
+                            <strong>
+                              {estadoPeriodos === "cargando"
+                                ? "Leyendo OpenField…"
+                                : periodosListos
+                                  ? `${periodos.length} períodos leídos`
+                                  : estadoPeriodos === "error"
+                                    ? "No se pudieron leer"
+                                    : "Pendiente"}
+                            </strong>
+                          </div>
+                          <button
+                            type="button"
+                            className="entrenamiento-boton-secundario"
+                            onClick={() => cargarPeriodos(actividadSeleccionada.id)}
+                            disabled={estadoPeriodos === "cargando"}
+                          >
+                            {estadoPeriodos === "cargando" ? "Leyendo…" : "Actualizar períodos"}
+                          </button>
+                        </div>
+
+                        {estadoPeriodos === "cargando" && (
+                          <div className="entrenamiento-vacio">
+                            Consultando los períodos guardados en OpenField…
+                          </div>
+                        )}
+
+                        {estadoPeriodos === "error" && (
+                          <div className="entrenamiento-estado error">{errorPeriodos}</div>
+                        )}
+
+                        {diferenciaCantidad && (
+                          <div className="entrenamiento-estado advertencia">
+                            OpenField informó {cantidadEsperada} períodos en el listado, pero la
+                            lectura actual devolvió {periodos.length}. Actualizá antes de continuar.
+                          </div>
+                        )}
+
+                        {periodosListos && periodos.length === 0 && (
+                          <div className="entrenamiento-vacio">
+                            Esta actividad no tiene períodos guardados en OpenField.
+                          </div>
+                        )}
+
+                        {periodosListos && periodos.length > 0 && (
+                          <div className="entrenamiento-lista-periodos">
+                            {periodos.map((periodo, indice) => (
+                              <article className="entrenamiento-periodo" key={periodo.id}>
+                                <div className="entrenamiento-periodo-identidad">
+                                  <span>{String(indice + 1).padStart(2, "0")}</span>
+                                  <div>
+                                    <strong>{periodo.name || "Sin nombre"}</strong>
+                                    <small>{periodo.id}</small>
+                                  </div>
+                                </div>
+                                <div className="entrenamiento-periodo-horarios">
+                                  <div>
+                                    <span>Inicio</span>
+                                    <strong>{formatearHoraPeriodo(periodo.start_time)}</strong>
+                                  </div>
+                                  <div>
+                                    <span>Fin</span>
+                                    <strong>{formatearHoraPeriodo(periodo.end_time)}</strong>
+                                  </div>
+                                  <div>
+                                    <span>Duración</span>
+                                    <strong>{segundosATiempoPreciso(periodo.duration_seconds)}</strong>
+                                  </div>
+                                </div>
+                              </article>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </>
               )}
@@ -429,7 +612,7 @@ export default function TrainingApp({ onVolver }) {
               <span>04</span>
               <div>
                 <h2>Vista previa</h2>
-                <p>Actividad real + corte calculado antes de habilitar escritura.</p>
+                <p>Actividad real + períodos reales + corte calculado antes de habilitar escritura.</p>
               </div>
             </div>
 
@@ -439,6 +622,20 @@ export default function TrainingApp({ onVolver }) {
               </div>
             ) : (
               <div className="entrenamiento-estado pendiente">Elegí una actividad de OpenField.</div>
+            )}
+
+            {actividadSeleccionada && estadoPeriodos === "cargando" && (
+              <div className="entrenamiento-estado pendiente">Leyendo períodos reales…</div>
+            )}
+
+            {actividadSeleccionada && periodosListos && !diferenciaCantidad && (
+              <div className="entrenamiento-estado correcto">
+                ✓ {periodos.length} períodos reales leídos
+              </div>
+            )}
+
+            {actividadSeleccionada && estadoPeriodos === "error" && (
+              <div className="entrenamiento-estado error">{errorPeriodos}</div>
             )}
 
             {evaluacion.corte ? (
@@ -469,14 +666,14 @@ export default function TrainingApp({ onVolver }) {
 
             <div className="entrenamiento-siguiente">
               <strong>
-                {actividadSeleccionada && evaluacion.corte
-                  ? "Lectura lista para validar"
+                {actividadSeleccionada && periodosListos && evaluacion.corte && !diferenciaCantidad
+                  ? "Lectura real validada"
                   : "Todavía no se puede aplicar"}
               </strong>
               <span>
-                {actividadSeleccionada && evaluacion.corte
-                  ? "Ya tenemos una actividad real y un corte calculado. El siguiente paso será leer los períodos de esa actividad y validar sus límites antes de cualquier escritura."
-                  : "Necesitamos una actividad real seleccionada y un corte válido. La app sigue sin enviar modificaciones a OpenField."}
+                {actividadSeleccionada && periodosListos && evaluacion.corte && !diferenciaCantidad
+                  ? "Ya tenemos la actividad, sus períodos reales y el corte calculado. El próximo paso será comprobar que el corte cae dentro de los límites correctos antes de cualquier prueba de escritura."
+                  : "Necesitamos una actividad, sus períodos leídos correctamente y un corte válido. La app sigue sin enviar modificaciones a OpenField."}
               </span>
             </div>
           </section>
