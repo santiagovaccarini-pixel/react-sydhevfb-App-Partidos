@@ -77,6 +77,7 @@ export default async function handler(request, response) {
     return response.status(200).json({
       ok: true,
       source: "catapult-connect",
+      version: "read-v1",
       count: actividades.length,
       activities: actividades,
     });
