@@ -2547,6 +2547,69 @@ describe("interfaz operativa", () => {
     );
   });
 
+  test("los penales siguen a los escudos y se guardan nuestros primero", async () => {
+    // Guardado hay un 2-2 (3-5) nuestro. De visitante va primero el local, que
+    // en este partido es el rival, así que en pantalla se lee 2 (5) - 2 (3).
+    doblesSupabase.filasHistorial = [
+      {
+        ...filaTransmisionGuardada(),
+        id: 31,
+        resultado: "2-2 (3-5)",
+        localia: "visitante",
+      },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+
+    expect(
+      contenedor.querySelector(".resultado-registro").textContent.trim(),
+    ).toBe("2-2 (5-3)");
+
+    await act(async () =>
+      contenedor.querySelector(".registro-guardado button").click(),
+    );
+
+    expect(
+      contenedor.querySelector(".resultado-ficha").textContent.replace(/\s+/g, ""),
+    ).toBe("2(5)—2(3)");
+
+    const boton = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll("button")).find((item) =>
+        item.textContent.includes(etiqueta),
+      );
+    await act(async () => boton("Editar registro").click());
+
+    const penales = contenedor.querySelectorAll(".penal-ficha input");
+    expect(penales[0].getAttribute("aria-label")).toBe("Penales de Santos");
+    expect([penales[0].value, penales[1].value]).toEqual(["5", "3"]);
+
+    // Ponerle 6 al de la izquierda son 6 penales del rival, no nuestros.
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    await act(async () => {
+      escribir.call(penales[0], "6");
+      penales[0].dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      boton("Guardar cambios").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(doblesSupabase.actualizar.mock.calls[0][0].resultado).toBe(
+      "2-2 (3-6)",
+    );
+  });
+
   test("editando de visitante, la casilla de la izquierda es la del rival", async () => {
     // El marcador de la pantalla de editar sigue a los escudos, pero lo que se
     // guarda es siempre nuestros goles primero. Si las casillas se leyeran por

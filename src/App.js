@@ -77,12 +77,15 @@ import {
   LOCALIA,
   LOCALIAS,
   enOrdenDeCancha,
+  armarResultado,
   etiquetaLocalia,
   golesDelRegistro,
   golesEnPantalla,
   leerLocalia,
   marcadorEnPantalla,
   otraLocalia,
+  penalesDelRegistro,
+  penalesEnPantalla,
 } from "./domain/localia";
 import {
   COMPARADOR,
@@ -118,6 +121,12 @@ const NOMBRES_PERIODO = {
 };
 
 const nombrePeriodo = (tipo) => NOMBRES_PERIODO[tipo] || tipo;
+
+/** Lo que se escribe en un marcador: dos dígitos como mucho. */
+const soloDigitos = (valor) =>
+  String(valor ?? "")
+    .replace(/[^0-9]/g, "")
+    .slice(0, 2);
 
 // La ficha muestra un tiempo o el partido entero.
 const TOTAL = "total";
@@ -183,7 +192,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.17.2";
+const APP_VERSION = "2026.09.17.3";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1432,6 +1441,8 @@ export default function App() {
   }, []);
 
   const [confirmacion, setConfirmacion] = useState(null);
+  // La tanda de penales ocupa lugar: se muestra solo si hace falta.
+  const [penalesAbiertos, setPenalesAbiertos] = useState(false);
 
   const cerrarConfirmacion = () => setConfirmacion(null);
 
@@ -4388,6 +4399,7 @@ export default function App() {
     const resumen = resumenDeTiempos(item);
 
     const [golesCam, golesContra] = golesEnPantalla(item.resultado, item);
+    const penalesFicha = penalesEnPantalla(item.resultado, item);
 
     // Los botones de tiempo están siempre, aunque uno no tenga datos: si no, un
     // registro viejo a medio cargar se queda sin nada que tocar.
@@ -4631,9 +4643,19 @@ export default function App() {
                   ? [
                       lado,
                       <div className="resultado-ficha" key="resultado">
-                        <b>{golesCam || "0"}</b>
-                        <span>—</span>
-                        <b>{golesContra || "0"}</b>
+                        {[golesCam, golesContra].map((goles, lado) => (
+                          <React.Fragment key={`lado-${lado}`}>
+                            {lado === 1 && <span>—</span>}
+                            <span className="lado-ficha">
+                              <b>{goles || "0"}</b>
+                              {penalesFicha && (
+                                <span className="penal-ficha">
+                                  ({penalesFicha[lado]})
+                                </span>
+                              )}
+                            </span>
+                          </React.Fragment>
+                        ))}
                       </div>,
                     ]
                   : [lado],
@@ -4865,21 +4887,14 @@ export default function App() {
     // importar de qué lado le tocó caer.
     const [golesPropios, golesAjenos] = golesDelRegistro(editado.resultado);
 
-    const ponerResultado = (propios, ajenos) => {
-      const soloNumero = (valor) =>
-        String(valor ?? "")
-          .replace(/[^0-9]/g, "")
-          .slice(0, 2);
-      const nuestros = soloNumero(propios);
-      const suyos = soloNumero(ajenos);
-
+    const ponerResultado = (propios, ajenos) =>
       actualizarEditado(
         "resultado",
-        nuestros === "" && suyos === ""
-          ? ""
-          : `${nuestros || "0"}-${suyos || "0"}`,
+        armarResultado(
+          [soloDigitos(propios), soloDigitos(ajenos)],
+          penalesDelRegistro(editado.resultado),
+        ),
       );
-    };
 
     const casillaGol = (valor, alCambiar, etiqueta) => (
       <input
@@ -4896,6 +4911,74 @@ export default function App() {
 
     // Las dos casillas ya puestas en el orden en que van en pantalla. Cada una
     // sigue escribiendo en su mitad del resultado guardado.
+    const penalesEditados = penalesDelRegistro(editado.resultado);
+    const [penalesPropios = "", penalesAjenos = ""] = penalesEditados || [];
+
+    const ponerPenales = (propios, ajenos) =>
+      actualizarEditado(
+        "resultado",
+        armarResultado(
+          [golesPropios, golesAjenos],
+          [soloDigitos(propios), soloDigitos(ajenos)],
+        ),
+      );
+
+    const casillaPenal = (valor, alCambiar, etiqueta) => (
+      <span className="penal-ficha">
+        (
+        <input
+          type="text"
+          inputMode="numeric"
+          value={valor}
+          aria-label={etiqueta}
+          onChange={(evento) => alCambiar(evento.target.value)}
+          onKeyDown={manejarEnter}
+        />
+        )
+      </span>
+    );
+
+    const [penalIzquierda, penalDerecha] = enOrdenDeCancha(
+      editado,
+      casillaPenal(
+        penalesPropios,
+        (valor) => ponerPenales(valor, penalesAjenos),
+        `Penales de ${equipoPropio}`,
+      ),
+      casillaPenal(
+        penalesAjenos,
+        (valor) => ponerPenales(penalesPropios, valor),
+        `Penales de ${nombreRival}`,
+      ),
+    );
+
+    const hayPenalesEditados = Boolean(penalesEditados) || penalesAbiertos;
+
+    const alternarPenalesEditados = () => {
+      if (!hayPenalesEditados) {
+        setPenalesAbiertos(true);
+        return;
+      }
+
+      if (!penalesEditados) {
+        setPenalesAbiertos(false);
+        return;
+      }
+
+      setConfirmacion({
+        titulo: "¿Borrar los penales?",
+        descripcion: `Se van los ${penalesPropios}-${penalesAjenos} de la tanda. El resultado de los 90 queda igual.`,
+        etiquetaConfirmar: "Sí, borrar",
+        onConfirmar: () => {
+          setPenalesAbiertos(false);
+          actualizarEditado(
+            "resultado",
+            armarResultado([golesPropios, golesAjenos], null),
+          );
+        },
+      });
+    };
+
     const [casillaIzquierda, casillaDerecha] = enOrdenDeCancha(
       editado,
       casillaGol(
@@ -5070,9 +5153,15 @@ export default function App() {
                   ? [
                       lado,
                       <div className="resultado-ficha" key="resultado">
-                        {casillaIzquierda}
+                        <span className="lado-ficha">
+                          {casillaIzquierda}
+                          {hayPenalesEditados && penalIzquierda}
+                        </span>
                         <span>—</span>
-                        {casillaDerecha}
+                        <span className="lado-ficha">
+                          {casillaDerecha}
+                          {hayPenalesEditados && penalDerecha}
+                        </span>
                       </div>,
                     ]
                   : [lado],
@@ -5080,6 +5169,17 @@ export default function App() {
             </div>
 
             <div className="localia-ficha">
+              <button
+                type="button"
+                className={`boton-penales ${
+                  hayPenalesEditados ? "activo" : ""
+                }`}
+                onClick={alternarPenalesEditados}
+                aria-pressed={hayPenalesEditados}
+              >
+                Penales
+              </button>
+
               <button
                 type="button"
                 className={`boton-localia ${leerLocalia(editado.localia)}`}
@@ -5868,17 +5968,69 @@ export default function App() {
       .replace(".", "");
   };
 
-  const [golesAtletico = "", golesRival = ""] = String(registro.resultado || "")
-    .split(/\s*[-–:]\s*/)
-    .slice(0, 2);
+  const [golesAtletico = "", golesRival = ""] = golesDelRegistro(
+    registro.resultado,
+  );
+  const penalesCargados = penalesDelRegistro(registro.resultado);
+  const [penalesAtletico = "", penalesRival = ""] = penalesCargados || [];
 
   const actualizarMarcador = (equipo, valor) => {
-    const goles = String(valor || "")
-      .replace(/\D/g, "")
-      .slice(0, 2);
-    const local = equipo === "atletico" ? goles : golesAtletico || "0";
-    const visita = equipo === "rival" ? goles : golesRival || "0";
-    actualizar("resultado", `${local || 0}-${visita || 0}`);
+    const goles = soloDigitos(valor);
+    actualizar(
+      "resultado",
+      armarResultado(
+        [
+          equipo === "atletico" ? goles : golesAtletico,
+          equipo === "rival" ? goles : golesRival,
+        ],
+        penalesCargados,
+      ),
+    );
+  };
+
+  const actualizarPenales = (equipo, valor) => {
+    const tiros = soloDigitos(valor);
+    actualizar(
+      "resultado",
+      armarResultado(
+        [golesAtletico, golesRival],
+        [
+          equipo === "atletico" ? tiros : penalesAtletico,
+          equipo === "rival" ? tiros : penalesRival,
+        ],
+      ),
+    );
+  };
+
+  // La tanda se muestra si el partido ya la tiene cargada o si se pidió verla.
+  const hayPenales = Boolean(penalesCargados) || penalesAbiertos;
+
+  const alternarPenales = () => {
+    if (!hayPenales) {
+      setPenalesAbiertos(true);
+      return;
+    }
+
+    // Apagarlos con la tanda cargada la borra, así que se pregunta antes.
+    const borrar = () => {
+      setPenalesAbiertos(false);
+      actualizar(
+        "resultado",
+        armarResultado([golesAtletico, golesRival], null),
+      );
+    };
+
+    if (!penalesCargados) {
+      setPenalesAbiertos(false);
+      return;
+    }
+
+    setConfirmacion({
+      titulo: "¿Borrar los penales?",
+      descripcion: `Se van los ${penalesAtletico}-${penalesRival} de la tanda. El resultado de los 90 queda igual.`,
+      etiquetaConfirmar: "Sí, borrar",
+      onConfirmar: borrar,
+    });
   };
 
   const datosPeriodoVista = obtenerConfigPeriodo(periodoVista);
@@ -6630,6 +6782,14 @@ export default function App() {
                               etiqueta: "Perdidos",
                             },
                             {
+                              valor: MODO_RESULTADO.GANADO_PENALES,
+                              etiqueta: "Ganados por penales",
+                            },
+                            {
+                              valor: MODO_RESULTADO.PERDIDO_PENALES,
+                              etiqueta: "Perdidos por penales",
+                            },
+                            {
                               valor: MODO_RESULTADO.EXACTO,
                               etiqueta: "Marcador exacto",
                             },
@@ -7080,6 +7240,7 @@ export default function App() {
               ),
               campo: "atletico",
               goles: golesAtletico,
+              penales: penalesAtletico,
             };
             const rival = {
               nombre: registro.rival || "Rival",
@@ -7088,6 +7249,7 @@ export default function App() {
               ),
               campo: "rival",
               goles: golesRival,
+              penales: penalesRival,
             };
             const [izquierda, derecha] = enOrdenDeCancha(
               registro,
@@ -7106,15 +7268,36 @@ export default function App() {
                   {[izquierda, derecha].map((quien, lugar) => (
                     <Fragment key={quien.campo}>
                       {lugar === 1 && <span>—</span>}
-                      <input
-                        inputMode="numeric"
-                        aria-label={`Goles de ${quien.nombre}`}
-                        value={quien.goles === "0" ? "" : quien.goles}
-                        placeholder="0"
-                        onChange={(evento) =>
-                          actualizarMarcador(quien.campo, evento.target.value)
-                        }
-                      />
+                      <div className="lado-marcador">
+                        <input
+                          inputMode="numeric"
+                          aria-label={`Goles de ${quien.nombre}`}
+                          value={quien.goles === "0" ? "" : quien.goles}
+                          placeholder="0"
+                          onChange={(evento) =>
+                            actualizarMarcador(quien.campo, evento.target.value)
+                          }
+                        />
+
+                        {hayPenales && (
+                          <span className="penal-lado">
+                            (
+                            <input
+                              inputMode="numeric"
+                              aria-label={`Penales de ${quien.nombre}`}
+                              value={quien.penales}
+                              placeholder="0"
+                              onChange={(evento) =>
+                                actualizarPenales(
+                                  quien.campo,
+                                  evento.target.value,
+                                )
+                              }
+                            />
+                            )
+                          </span>
+                        )}
+                      </div>
                     </Fragment>
                   ))}
                 </div>
@@ -7122,6 +7305,17 @@ export default function App() {
                 <div className="equipo-marcador equipo-visitante">
                   <strong>{derecha.nombre}</strong>
                   {derecha.escudo}
+                </div>
+
+                <div className="fila-penales">
+                  <button
+                    type="button"
+                    className={`boton-penales ${hayPenales ? "activo" : ""}`}
+                    onClick={alternarPenales}
+                    aria-pressed={hayPenales}
+                  >
+                    Penales
+                  </button>
                 </div>
               </>
             );
