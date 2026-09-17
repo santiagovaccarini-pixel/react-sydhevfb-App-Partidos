@@ -9,7 +9,6 @@ const limpiarActividad = (actividad) => ({
   end_time: actividad?.end_time ?? null,
   venue: actividad?.venue?.name || actividad?.venue_name || "",
   period_count: Array.isArray(actividad?.periods) ? actividad.periods.length : 0,
-  tag_list: Array.isArray(actividad?.tag_list) ? actividad.tag_list : [],
 });
 
 const normalizarLista = (payload) => {
@@ -21,6 +20,7 @@ const normalizarLista = (payload) => {
 
 export default async function handler(request, response) {
   response.setHeader("Cache-Control", "private, no-store");
+  response.setHeader("X-Robots-Tag", "noindex");
 
   if (request.method !== "GET") {
     response.setHeader("Allow", "GET");
@@ -77,7 +77,7 @@ export default async function handler(request, response) {
     return response.status(200).json({
       ok: true,
       source: "catapult-connect",
-      version: "read-v1",
+      version: "read-v2",
       count: actividades.length,
       activities: actividades,
     });
