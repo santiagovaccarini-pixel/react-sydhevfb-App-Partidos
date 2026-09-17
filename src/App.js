@@ -123,6 +123,46 @@ const nombrePeriodo = (tipo) => NOMBRES_PERIODO[tipo] || tipo;
 const TOTAL = "total";
 
 /**
+ * Un renglón por cambio y por jugador. El que entra y más tarde sale aparece
+ * dos veces, cada una en su horario: colgándole la salida al renglón en que
+ * entró, el cambio en que se fue se leía como un ingreso sin nadie saliendo.
+ *
+ * Los minutos van en el último cambio de cada uno —la salida si se fue, el
+ * ingreso si terminó adentro—, que es cuando quedan cerrados. Así ningún
+ * jugador muestra su número dos veces.
+ */
+const momentosJugados = (jugadores) =>
+  jugadores
+    .flatMap((jugador) => {
+      const eventos =
+        jugador.eventos?.length > 0
+          ? jugador.eventos
+          : [
+              {
+                tipo: jugador.entro ? "entra" : "sale",
+                hora: jugador.hora,
+                juego: jugador.juego,
+                momento: 0,
+              },
+            ];
+
+      return eventos.map((evento, indice) => ({
+        nombre: jugador.nombre,
+        entro: evento.tipo === "entra",
+        hora: evento.hora,
+        juego: evento.juego || "",
+        momento: evento.momento ?? 0,
+        conMedida: indice === eventos.length - 1,
+        bruto: jugador.bruto,
+        neto: jugador.neto,
+      }));
+    })
+    // Solo por el momento del cambio. El orden en que vienen ya deja a cada
+    // par junto —primero el que sale, después el que entra—, y el sort es
+    // estable, así que dos cambios a la misma hora no se mezclan entre sí.
+    .sort((uno, otro) => uno.momento - otro.momento);
+
+/**
  * Junta a los jugadores de un mismo cambio bajo un solo horario, como en la
  * línea de tiempo. Vienen ya ordenados por el cambio que los trajo, así que
  * alcanza con cortar cuando cambia la hora de referencia.
@@ -143,7 +183,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.17.1";
+const APP_VERSION = "2026.09.17.2";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4731,7 +4771,7 @@ export default function App() {
               </div>
 
               <ul className="cortes jugados">
-                {agruparJugados(jugadores).map((grupo, i) => (
+                {agruparJugados(momentosJugados(jugadores)).map((grupo, i) => (
                   <li className="jugado" key={`grupo-${i}`}>
                     <span className="hora-corte">
                       {fichaEnJuego ? grupo.juego : grupo.hora}
@@ -4748,26 +4788,15 @@ export default function App() {
                             {jugador.entro ? "↑" : "↓"} {jugador.nombre}
                           </span>
 
-                          {/* Entró y más tarde salió: la otra punta de su
-                              tramo no entra en el horario del grupo. Va con el
-                              nombre, porque si no, mirando el cambio en que
-                              salió no se leía quién se fue. */}
-                          {jugador.entro && jugador.salio && (
-                            <span className="hasta-jugado sale-corte">
-                              ↓ {jugador.nombre}{" "}
-                              <b>
-                                {fichaEnJuego
-                                  ? jugador.juegoSalida
-                                  : jugador.salio}
-                              </b>
+                          {jugador.conMedida && (
+                            <span
+                              className={`valor-jugado ${
+                                fichaEnNeto ? "neto" : ""
+                              }`}
+                            >
+                              {duracion(enModo(jugador))}
                             </span>
                           )}
-
-                          <span
-                            className={`valor-jugado ${fichaEnNeto ? "neto" : ""}`}
-                          >
-                            {duracion(enModo(jugador))}
-                          </span>
                         </span>
                       ))}
                     </span>

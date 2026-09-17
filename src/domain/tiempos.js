@@ -301,6 +301,7 @@ export const tiempoJugado = (registro, opciones = {}) => {
         hora: cambio.hora,
         juego: cambio.juego,
         periodo: cambio.periodo,
+        momento: cambio.momento,
       });
     }
 
@@ -311,6 +312,7 @@ export const tiempoJugado = (registro, opciones = {}) => {
         hora: cambio.hora,
         juego: cambio.juego,
         periodo: cambio.periodo,
+        momento: cambio.momento,
       });
     }
   });
@@ -352,6 +354,11 @@ export const tiempoJugado = (registro, opciones = {}) => {
         juegoSalida: salida?.juego || "",
         hora: eventos[0].hora,
         juego: eventos[0].juego || "",
+        // Los cambios en que estuvo, en orden. El que entra y más tarde sale
+        // tiene dos, y cada uno va en su horario: si la salida colgara del
+        // ingreso, el cambio en que se fue se leería como un ingreso sin
+        // nadie saliendo.
+        eventos,
         ...medir(tramos.get(quien.id) || []),
       };
     })
