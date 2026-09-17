@@ -143,7 +143,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.15.2";
+const APP_VERSION = "2026.09.17.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1395,6 +1395,27 @@ export default function App() {
 
   const cerrarConfirmacion = () => setConfirmacion(null);
 
+  /**
+   * "Ahora" pisa lo que haya en el campo. Si ya había un horario cargado se
+   * pregunta antes: el dato anterior no se puede recuperar, y en un partido en
+   * curso el botón está al lado del pulgar.
+   */
+  const alPisarHorario = (valorActual, descripcion, hacerlo) => {
+    if (!String(valorActual ?? "").trim()) {
+      hacerlo();
+      return;
+    }
+
+    setConfirmacion({
+      titulo: "¿Querés reemplazar este tiempo?",
+      descripcion,
+      icono: "reloj",
+      etiquetaConfirmar: "Sí",
+      etiquetaCancelar: "No",
+      onConfirmar: hacerlo,
+    });
+  };
+
   const confirmarAccion = () => {
     const accion = confirmacion?.onConfirmar;
     setConfirmacion(null);
@@ -2420,8 +2441,17 @@ export default function App() {
       return;
     }
 
-    actualizarVar(tipo, campo, valor);
-    setTimeout(quitarFoco, 0);
+    alPisarHorario(
+      (() => {
+        const config = obtenerConfigPeriodo(tipo);
+        return registro[config.vars]?.[registro[config.activo] || 0]?.[campo];
+      })(),
+      "Ya hay un horario cargado en este VAR. Si seguís, se pisa con la hora de ahora.",
+      () => {
+        actualizarVar(tipo, campo, valor);
+        setTimeout(quitarFoco, 0);
+      },
+    );
   };
 
   const actualizarFormacion = (nuevaFormacion) => {
@@ -2713,7 +2743,14 @@ export default function App() {
 
   const ponerAhora = (campo) => {
     quitarFoco();
+    alPisarHorario(
+      registro[campo],
+      "Ya hay un horario cargado en este campo. Si seguís, se pisa con la hora de ahora.",
+      () => ponerAhoraSinPreguntar(campo),
+    );
+  };
 
+  const ponerAhoraSinPreguntar = (campo) => {
     if (registro.modoTiempo === "transmision") {
       const tipo = obtenerPeriodoCampo(campo);
       const config = obtenerConfigPeriodo(tipo);
@@ -2775,8 +2812,14 @@ export default function App() {
       return;
     }
 
-    mantenerPosicion(() => actualizarCambio(index, "hora", valor, tipo));
-    setTimeout(quitarFoco, 0);
+    alPisarHorario(
+      (registro.cambios || [])[index]?.hora,
+      `El cambio ${index + 1} ya tiene un horario cargado. Si seguís, se pisa con ${valor}.`,
+      () => {
+        mantenerPosicion(() => actualizarCambio(index, "hora", valor, tipo));
+        setTimeout(quitarFoco, 0);
+      },
+    );
   };
   const ponerHoraCambioRival = (index, periodoForzado = "") => {
     quitarFoco();
@@ -2789,8 +2832,16 @@ export default function App() {
       return;
     }
 
-    mantenerPosicion(() => actualizarCambioRival(index, "hora", valor, tipo));
-    setTimeout(quitarFoco, 0);
+    alPisarHorario(
+      (registro.cambiosRival || [])[index]?.hora,
+      `El cambio ${index + 1} ya tiene un horario cargado. Si seguís, se pisa con ${valor}.`,
+      () => {
+        mantenerPosicion(() =>
+          actualizarCambioRival(index, "hora", valor, tipo),
+        );
+        setTimeout(quitarFoco, 0);
+      },
+    );
   };
   const obtenerMarcaEntreTiempos = () =>
     registro.inicioSTE || registro.inicioPTE || registro.inicioST || "";
@@ -4698,13 +4749,17 @@ export default function App() {
                           </span>
 
                           {/* Entró y más tarde salió: la otra punta de su
-                              tramo no entra en el horario del grupo. */}
+                              tramo no entra en el horario del grupo. Va con el
+                              nombre, porque si no, mirando el cambio en que
+                              salió no se leía quién se fue. */}
                           {jugador.entro && jugador.salio && (
                             <span className="hasta-jugado sale-corte">
-                              ↓{" "}
-                              {fichaEnJuego
-                                ? jugador.juegoSalida
-                                : jugador.salio}
+                              ↓ {jugador.nombre}{" "}
+                              <b>
+                                {fichaEnJuego
+                                  ? jugador.juegoSalida
+                                  : jugador.salio}
+                              </b>
                             </span>
                           )}
 
@@ -6118,12 +6173,7 @@ export default function App() {
             className={!esRival ? "activo" : ""}
             onClick={() => alCambiarEquipo("atletico")}
           >
-            <EscudoClub
-              equipo="cam"
-              nombre={equipoPropio}
-              url={escudoCam.url}
-              compacto
-            />{" "}
+            <EscudoDeClub equipo="cam" nombre={equipoPropio} compacto />{" "}
             {equipoPropio}
           </button>
           <button
@@ -6133,11 +6183,7 @@ export default function App() {
             className={esRival ? "activo rival" : ""}
             onClick={() => alCambiarEquipo("rival")}
           >
-            <EscudoClub
-              nombre={registroPanel.rival}
-              url={escudoRival.url}
-              mini
-            />{" "}
+            <EscudoDeClub nombre={registroPanel.rival} mini />{" "}
             {registroPanel.rival || "Rival"}
           </button>
         </div>
@@ -6284,6 +6330,8 @@ export default function App() {
       descripcion={confirmacion?.descripcion}
       detalle={confirmacion?.detalle}
       etiquetaConfirmar={confirmacion?.etiquetaConfirmar}
+      etiquetaCancelar={confirmacion?.etiquetaCancelar}
+      icono={confirmacion?.icono}
       onConfirmar={confirmarAccion}
       onCancelar={cerrarConfirmacion}
     />
@@ -7151,7 +7199,13 @@ export default function App() {
 
             <button
               type="button"
-              className={`accion-periodo ${periodoIniciado ? "finalizar" : ""}`}
+              className={`accion-periodo ${
+                periodoFinalizado
+                  ? "reanudar"
+                  : periodoIniciado
+                    ? "finalizar"
+                    : ""
+              }`}
               onClick={ejecutarAccionPeriodo}
             >
               <span className="simbolo-accion-periodo" />{" "}

@@ -2849,6 +2849,18 @@ button:disabled {
   box-shadow: 0 6px 18px rgba(223, 36, 54, 0.3);
 }
 
+/* Reanudar no es finalizar: el tiempo ya terminó. En rojo parecía que todavía
+   estaba corriendo y que faltaba cerrarlo. */
+.accion-periodo.reanudar {
+  border-color: #111827;
+  background: #111827;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.26);
+}
+.accion-periodo.reanudar:hover:not(:disabled) {
+  background: #1f2937;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.32);
+}
+
 .accion-periodo:disabled {
   border-color: var(--cam-linea);
   background: #fff;
@@ -4850,6 +4862,12 @@ button:disabled {
 .hasta-jugado.sale-corte {
   color: #b91c1c;
 }
+/* La hora de la salida, al lado del nombre del que se fue. */
+.hasta-jugado b {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
 
 .hasta-jugado.entra-corte {
   color: #15803d;
@@ -5608,6 +5626,9 @@ button:disabled {
 
 .puesto-cancha {
   position: absolute;
+  /* El cuadro mide lo que mide el nombre: un apellido largo lo ensancha en vez
+     de quedar cortado. El único tope es la cancha. */
+  max-width: 94%;
   padding: 0;
   border: 0;
   background: none;
@@ -5638,6 +5659,15 @@ button.puesto-cancha {
 .puesto-cancha.moviendo {
   z-index: 5;
   transition: none;
+}
+
+/* Fila apretada: los de adentro bajan y los de afuera suben, para que los
+   nombres largos entren enteros sin encimarse. */
+.puesto-cancha.baja {
+  transform: translate(-50%, calc(-50% + 13px));
+}
+.puesto-cancha.sube {
+  transform: translate(-50%, calc(-50% - 13px));
 }
 
 .ficha-cancha {

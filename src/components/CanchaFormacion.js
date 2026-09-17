@@ -1,9 +1,10 @@
-import React, { useRef, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 
 import {
   FRANJAS,
   MAXIMO_EN_CANCHA,
   apellido,
+  escalonarFila,
   jugadoresDeLaFranja,
   cambiarLinea,
   hayPuestosAMano,
@@ -33,6 +34,19 @@ const DIBUJO = (
  * Un puesto de la cancha. Se arrastra para dejarlo donde quieras y un toque
  * sin mover abre la lista de jugadores.
  */
+const mismosEscalones = (uno, otro) => {
+  const clavesUno = Object.keys(uno);
+  const clavesOtro = Object.keys(otro);
+  return (
+    clavesUno.length === clavesOtro.length &&
+    clavesUno.every(
+      (clave) =>
+        uno[clave]?.nivel === otro[clave]?.nivel &&
+        uno[clave]?.dx === otro[clave]?.dx,
+    )
+  );
+};
+
 const Puesto = ({
   puesto,
   cancha,
@@ -40,6 +54,7 @@ const Puesto = ({
   onCambiar,
   onTocar,
   soloLectura,
+  escalon = null,
 }) => {
   const boton = useRef(null);
   const arrastre = useRef({ activo: false, movio: false, desde: null });
@@ -142,16 +157,25 @@ const Puesto = ({
     <span className="ficha-cancha vacia">{puesto.numero}</span>
   );
 
+  // El puesto mide lo que mide el nombre. Antes se lo recortaba al lugar que le
+  // tocaba en la fila y los apellidos largos quedaban cortados; ahora el cuadro
+  // se agranda hacia los costados. El único tope es la cancha.
   const estilo = {
     left: `${puesto.x}%`,
     top: `${puesto.y}%`,
-    maxWidth: `${puesto.ancho}%`,
   };
+
+  if (escalon?.dx) {
+    estilo.marginLeft = `${escalon.dx}px`;
+  }
+
+  const claseEscalon = escalon?.nivel || "";
 
   if (soloLectura) {
     return (
       <span
-        className={`puesto-cancha ${cambio ? "con-cambio" : ""}`}
+        data-puesto={puesto.id}
+        className={`puesto-cancha ${cambio ? "con-cambio" : ""} ${claseEscalon}`}
         style={estilo}
         title={etiqueta}
       >
@@ -164,9 +188,10 @@ const Puesto = ({
     <button
       ref={boton}
       type="button"
+      data-puesto={puesto.id}
       className={`puesto-cancha ${puesto.aMano ? "a-mano" : ""} ${
         moviendo ? "moviendo" : ""
-      } ${cambio ? "con-cambio" : ""}`}
+      } ${cambio ? "con-cambio" : ""} ${claseEscalon}`}
       style={estilo}
       aria-label={etiqueta}
       onClick={tocar}
@@ -195,6 +220,10 @@ const CanchaFormacion = ({
   const [panelAbierto, setPanelAbierto] = useState(false);
   const [eligiendo, setEligiendo] = useState(null);
   const [verTodos, setVerTodos] = useState(false);
+  const pista = useRef(null);
+  // Qué puesto se corre para arriba y cuál para abajo cuando los nombres de una
+  // fila no entran de corrido. Se llena midiendo lo ya dibujado.
+  const [escalones, setEscalones] = useState({});
 
   const normalizada = normalizarCancha(cancha);
   const puestos = puestosDeCancha(normalizada);
@@ -212,6 +241,58 @@ const CanchaFormacion = ({
   const delSector = jugadoresDeLaFranja(plantel, enElPuesto?.franja);
   const aElegir = verTodos || delSector.length === 0 ? plantel : delSector;
   const faltan = plantel.length - delSector.length;
+
+  /**
+   * Un apellido largo agranda su cuadro, y en una fila cargada los cuadros se
+   * terminan pisando. Cuando eso pasa, la fila se escalona: los de adentro
+   * bajan y los de afuera suben, que es como se paran en la cancha —los dos
+   * centrales atrás de los laterales, los dos volantes del medio atrás de los
+   * externos—. Solo se mueve la fila que lo necesita.
+   *
+   * Se mide lo dibujado, así que hace falta el layout; las filas se arman con
+   * la `y` del puesto y no con la posición en pantalla, que es justamente lo
+   * que este efecto cambia.
+   */
+  useLayoutEffect(() => {
+    const cancha = pista.current;
+    if (!cancha) return;
+
+    const anchoCancha = cancha.getBoundingClientRect().width;
+    // Sin layout no hay nada que medir: la cancha todavía no se dibujó, está
+    // escondida, o el entorno no calcula tamaños.
+    if (!anchoCancha) return;
+
+    const filas = new Map();
+
+    puestos.forEach((puesto) => {
+      const nodo = cancha.querySelector(`[data-puesto="${puesto.id}"]`);
+      if (!nodo) return;
+
+      // El centro sale del dato y el ancho del dibujo. Ninguno de los dos
+      // depende del corrimiento ya aplicado, así que la cuenta no se persigue
+      // a sí misma.
+      const ancho = nodo.getBoundingClientRect().width;
+      if (!ancho) return;
+
+      const centro = (puesto.x / 100) * anchoCancha;
+      const fila = Math.round(puesto.y);
+      if (!filas.has(fila)) filas.set(fila, []);
+      filas.get(fila).push({
+        id: puesto.id,
+        x: puesto.x,
+        ancho,
+        izquierda: centro - ancho / 2,
+        derecha: centro + ancho / 2,
+      });
+    });
+
+    const nuevos = {};
+    filas.forEach((fila) => Object.assign(nuevos, escalonarFila(fila)));
+
+    setEscalones((previos) =>
+      mismosEscalones(previos, nuevos) ? previos : nuevos,
+    );
+  });
 
   const aplicar = (nueva) => {
     onCambiar?.(nueva);
@@ -296,7 +377,7 @@ const CanchaFormacion = ({
         </div>
       )}
 
-      <div className="pista">
+      <div className="pista" ref={pista}>
         {DIBUJO}
         <div className="franja-cancha ata">
           <span>Ataque</span>
@@ -315,6 +396,7 @@ const CanchaFormacion = ({
             cancha={normalizada}
             cambio={puesto.nombre ? cambios[puesto.nombre] : null}
             soloLectura={soloLectura}
+            escalon={escalones[puesto.id]}
             onCambiar={aplicar}
             onTocar={abrirPuesto}
           />
