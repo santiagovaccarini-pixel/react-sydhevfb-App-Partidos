@@ -20,6 +20,9 @@ const HISTORIAL = [
   partido("2026-08-17", "Flamengo", "3-0", undefined),
   partido("2026-08-10", "Gremio", "", "local"),
   partido("2026-08-03", "Boca", "1-1", "neutral"),
+  // Dos de copa: uno ganado en los penales y otro perdido.
+  partido("2026-07-27", "River", "1-1 (4-3)", "neutral"),
+  partido("2026-07-20", "Racing", "2-2 (3-5)", "local"),
 ];
 
 const rivales = (opciones) =>
@@ -29,8 +32,8 @@ describe("recortar los partidos del equipo", () => {
   test("sin filtro no recorta nada", () => {
     expect(
       filtrarRegistros(HISTORIAL, { filtro: FILTRO_EQUIPO.TODOS }),
-    ).toHaveLength(6);
-    expect(filtrarRegistros(HISTORIAL, {})).toHaveLength(6);
+    ).toHaveLength(8);
+    expect(filtrarRegistros(HISTORIAL, {})).toHaveLength(8);
   });
 
   test("por rival deja los de ese equipo, sin importar cómo se escriba", () => {
@@ -41,7 +44,7 @@ describe("recortar los partidos del equipo", () => {
       rivales({ filtro: FILTRO_EQUIPO.RIVAL, rival: "cruzeiro" }),
     ).toHaveLength(2);
     // Sin rival elegido todavía, no recorta.
-    expect(rivales({ filtro: FILTRO_EQUIPO.RIVAL, rival: "" })).toHaveLength(6);
+    expect(rivales({ filtro: FILTRO_EQUIPO.RIVAL, rival: "" })).toHaveLength(8);
   });
 
   test("por fecha, cada punta es opcional", () => {
@@ -50,7 +53,7 @@ describe("recortar los partidos del equipo", () => {
     ).toEqual(["Cruzeiro", "Palmeiras"]);
     expect(
       rivales({ filtro: FILTRO_EQUIPO.FECHA, hasta: "2026-08-17" }),
-    ).toEqual(["Flamengo", "Gremio", "Boca"]);
+    ).toEqual(["Flamengo", "Gremio", "Boca", "River", "Racing"]);
     // Las dos puntas entran.
     expect(
       rivales({
@@ -80,6 +83,39 @@ describe("recortar los partidos del equipo", () => {
     ).toEqual(["Cruzeiro", "Boca"]);
   });
 
+  test("los de penales van aparte y no ensucian el empate", () => {
+    // Un 1-1 (4-3) no es un empate: el partido se ganó.
+    expect(
+      rivales({
+        filtro: FILTRO_EQUIPO.RESULTADO,
+        modo: MODO_RESULTADO.GANADO_PENALES,
+      }),
+    ).toEqual(["River"]);
+    expect(
+      rivales({
+        filtro: FILTRO_EQUIPO.RESULTADO,
+        modo: MODO_RESULTADO.PERDIDO_PENALES,
+      }),
+    ).toEqual(["Racing"]);
+    // Y no aparecen entre los ganados, los perdidos ni los empatados.
+    ["GANADO", "PERDIDO", "EMPATADO"].forEach((modo) => {
+      expect(
+        rivales({ filtro: FILTRO_EQUIPO.RESULTADO, modo: MODO_RESULTADO[modo] }),
+      ).not.toContain("River");
+    });
+  });
+
+  test("el marcador exacto ignora los penales", () => {
+    // Escribiendo 1-1 tiene que salir también el que se definió por penales.
+    expect(
+      rivales({
+        filtro: FILTRO_EQUIPO.RESULTADO,
+        modo: MODO_RESULTADO.EXACTO,
+        marcador: "1-1",
+      }),
+    ).toEqual(["Cruzeiro", "Boca", "River"]);
+  });
+
   test("por marcador exacto", () => {
     expect(
       rivales({
@@ -95,20 +131,20 @@ describe("recortar los partidos del equipo", () => {
         modo: MODO_RESULTADO.EXACTO,
         marcador: "2-",
       }),
-    ).toHaveLength(6);
+    ).toHaveLength(8);
   });
 
   test("por local, visitante o neutral, y lo viejo cuenta como local", () => {
     expect(
       rivales({ filtro: FILTRO_EQUIPO.LOCALIA, localia: "local" }),
-    ).toEqual(["Cruzeiro", "Flamengo", "Gremio"]);
+    ).toEqual(["Cruzeiro", "Flamengo", "Gremio", "Racing"]);
     expect(
       rivales({ filtro: FILTRO_EQUIPO.LOCALIA, localia: "visitante" }),
     ).toEqual(["Palmeiras", "Cruzeiro"]);
     // La cancha neutral no se mezcla con ninguna de las otras dos.
     expect(
       rivales({ filtro: FILTRO_EQUIPO.LOCALIA, localia: "neutral" }),
-    ).toEqual(["Boca"]);
+    ).toEqual(["Boca", "River"]);
   });
 });
 
@@ -120,6 +156,8 @@ describe("los rivales que pasaron por el historial", () => {
       { nombre: "Flamengo", partidos: 1 },
       { nombre: "Gremio", partidos: 1 },
       { nombre: "Palmeiras", partidos: 1 },
+      { nombre: "Racing", partidos: 1 },
+      { nombre: "River", partidos: 1 },
     ]);
   });
 

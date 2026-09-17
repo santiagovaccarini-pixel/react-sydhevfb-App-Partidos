@@ -28,7 +28,13 @@ const archivosDeAssets = fs.existsSync(path.join(dist, "assets"))
       .map((nombre) => `/assets/${nombre}`)
   : [];
 
-const sueltos = ["/index.html", "/manifest.json", "/cam-mark.svg"].filter(
+const sueltos = [
+  "/index.html",
+  "/manifest.json",
+  "/icono-app-192.png",
+  "/icono-app-512.png",
+  "/icono-app-180.png",
+].filter(
   (archivo) => fs.existsSync(path.join(dist, archivo.slice(1))),
 );
 
