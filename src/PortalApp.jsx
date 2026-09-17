@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import App from "./App";
-import TrainingApp from "./TrainingApp";
+import TrainingModule from "./TrainingModule";
 import TrainingAccessGate from "./TrainingAccessGate";
 import "./portal.css";
 
@@ -100,7 +100,7 @@ export default function PortalApp() {
 
     return (
       <TrainingAccessGate onVolver={volver}>
-        <TrainingApp onVolver={volver} />
+        <TrainingModule onVolver={volver} />
       </TrainingAccessGate>
     );
   }
