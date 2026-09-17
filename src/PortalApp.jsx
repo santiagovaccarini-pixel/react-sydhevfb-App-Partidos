@@ -10,6 +10,15 @@ const MODOS = {
   ENTRENAMIENTO: "entrenamiento",
 };
 
+const modoInicial = () => {
+  if (typeof window === "undefined") return MODOS.PORTAL;
+
+  const params = new URLSearchParams(window.location.search);
+  return params.get("training_recovery") === "1"
+    ? MODOS.ENTRENAMIENTO
+    : MODOS.PORTAL;
+};
+
 const IconoPartido = () => (
   <svg viewBox="0 0 64 64" aria-hidden="true">
     <circle cx="32" cy="32" r="21" />
@@ -73,14 +82,21 @@ const Portal = ({ onElegir }) => (
 );
 
 export default function PortalApp() {
-  const [modo, setModo] = useState(MODOS.PORTAL);
+  const [modo, setModo] = useState(modoInicial);
 
   if (modo === MODOS.PARTIDO) {
     return <App />;
   }
 
   if (modo === MODOS.ENTRENAMIENTO) {
-    const volver = () => setModo(MODOS.PORTAL);
+    const volver = () => {
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("training_recovery");
+        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+      }
+      setModo(MODOS.PORTAL);
+    };
 
     return (
       <TrainingAccessGate onVolver={volver}>
