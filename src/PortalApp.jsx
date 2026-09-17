@@ -53,13 +53,14 @@ const Portal = ({ onElegir }) => (
 
         <button
           type="button"
-          className="portal-tarjeta"
+          className="portal-tarjeta portal-tarjeta-beta"
           onClick={() => onElegir(MODOS.ENTRENAMIENTO)}
         >
           <span className="portal-icono">
             <IconoEntrenamiento />
           </span>
           <span className="portal-tarjeta-texto">
+            <span className="portal-beta">FASE BETA</span>
             <strong>Entrenamiento</strong>
             <small>Tareas, pausas, participantes y procesamiento OpenField.</small>
           </span>
