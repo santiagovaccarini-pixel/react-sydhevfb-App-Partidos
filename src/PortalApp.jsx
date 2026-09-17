@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import App from "./App";
 import TrainingApp from "./TrainingApp";
+import TrainingAccessGate from "./TrainingAccessGate";
 import "./portal.css";
 
 const MODOS = {
@@ -79,7 +80,13 @@ export default function PortalApp() {
   }
 
   if (modo === MODOS.ENTRENAMIENTO) {
-    return <TrainingApp onVolver={() => setModo(MODOS.PORTAL)} />;
+    const volver = () => setModo(MODOS.PORTAL);
+
+    return (
+      <TrainingAccessGate onVolver={volver}>
+        <TrainingApp onVolver={volver} />
+      </TrainingAccessGate>
+    );
   }
 
   return <Portal onElegir={setModo} />;
