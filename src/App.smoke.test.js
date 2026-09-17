@@ -1942,7 +1942,10 @@ describe("interfaz operativa", () => {
     expect(primero.firstElementChild.className).toContain("hora-corte");
   });
 
-  test("al que entra y más tarde sale se le muestran las dos puntas", async () => {
+  test("el que entra y más tarde sale aparece en los dos cambios", async () => {
+    // BERNARD entra en el primer cambio y sale en el segundo. Si su salida
+    // colgara del renglón en que entró, el segundo cambio se leería como un
+    // ingreso sin nadie saliendo.
     const fila = filaTransmisionGuardada();
     fila.cambio_2_sale = "BERNARD";
     fila.captura_tiempo.cambios[1].sale = "BERNARD";
@@ -1952,19 +1955,33 @@ describe("interfaz operativa", () => {
     await abrirFicha();
     await abrirInfo();
 
-    const bernard = Array.from(contenedor.querySelectorAll(".fila-jugado")).find(
-      (fila2) => fila2.textContent.includes("BERNARD"),
+    const grupos = Array.from(contenedor.querySelectorAll(".jugado")).map(
+      (grupo) => [
+        grupo.querySelector(".hora-corte").textContent.trim(),
+        Array.from(grupo.querySelectorAll(".fila-jugado")).map((fila2) => [
+          fila2.querySelector(".quien-jugado").textContent.trim(),
+          fila2.querySelector(".valor-jugado")?.textContent.trim() ?? null,
+        ]),
+      ],
     );
 
-    // Va agrupado bajo el horario en que entró, con su salida al costado. La
-    // salida lleva el nombre: sin él, mirando el cambio en que se fue no se
-    // leía quién había salido, solo la hora suelta.
-    expect(bernard.querySelector(".quien-jugado").textContent.trim()).toBe(
-      "↑ BERNARD",
-    );
-    expect(bernard.querySelector(".hasta-jugado").textContent.trim()).toBe(
-      "↓ BERNARD 22:18:00",
-    );
+    expect(grupos).toEqual([
+      [
+        "21:23:14",
+        [
+          ["↓ ALONSO", "23:14"],
+          // Entrando todavía no tiene minutos: se cierran cuando se va.
+          ["↑ BERNARD", null],
+        ],
+      ],
+      [
+        "22:18:00",
+        [
+          ["↓ BERNARD", "39:16"],
+          ["↑ DUDU", "32:10"],
+        ],
+      ],
+    ]);
   });
 
   test("con el rival prendido, el tiempo jugado es el de sus jugadores", async () => {
