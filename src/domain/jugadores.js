@@ -154,6 +154,7 @@ export const FILTRO = {
   TODOS: "todos",
   TITULAR: "titular",
   ENTRO: "entro",
+  NO_SALIO: "noSalio",
   BANCO: "banco",
   MINUTOS: "minutos",
 };
@@ -171,6 +172,18 @@ export const filtrarPartidosDeJugador = (partidos, opciones = {}) => {
     return lista.filter((fila) =>
       pasaPorMinutos(fila.participacion.bruto, opciones),
     );
+  }
+
+  // Estaba en la cancha cuando terminó el partido. No es un papel: vale para el
+  // titular que jugó los noventa y también para el que entró y se quedó hasta
+  // el final. El que miró desde el banco no cuenta: nunca estuvo.
+  if (opciones.filtro === FILTRO.NO_SALIO) {
+    return lista.filter(({ participacion }) => {
+      if (participacion.papel === PAPELES.BANCO) return false;
+      // Al titular que salió lo dice su papel; al que entró y después salió,
+      // que también se fue, hay que mirarle el horario de salida.
+      return participacion.papel !== PAPELES.SALIO && !participacion.salio;
+    });
   }
 
   const papeles = PAPELES_DEL_FILTRO[opciones.filtro];

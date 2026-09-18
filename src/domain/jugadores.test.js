@@ -172,6 +172,20 @@ describe("recortar los partidos de un jugador", () => {
     expect(papeles(FILTRO.BANCO)).toEqual([PAPEL.BANCO]);
   });
 
+  test("no salió deja a los que terminaron el partido en cancha", () => {
+    // El que jugó todo y el que entró y se quedó. Al que lo cambiaron no, y al
+    // que miró desde el banco tampoco: nunca estuvo.
+    expect(papeles(FILTRO.NO_SALIO)).toEqual([PAPEL.COMPLETO, PAPEL.ENTRO]);
+
+    // Y si el que entró después salió, tampoco cuenta.
+    const conSalida = [
+      { participacion: { papel: PAPEL.ENTRO, bruto: 900, salio: "22:40" } },
+    ];
+    expect(
+      filtrarPartidosDeJugador(conSalida, { filtro: FILTRO.NO_SALIO }),
+    ).toEqual([]);
+  });
+
   test("mayor deja los que pasaron ese piso, sin contarlo", () => {
     // Los partidos duran 94:40, 62:30, 32:10 y 00:00.
     expect(porMinutos(COMPARADOR.MAYOR, 60)).toEqual([
