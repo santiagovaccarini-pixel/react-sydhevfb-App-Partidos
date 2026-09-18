@@ -89,3 +89,18 @@ describe("el botón de volver", () => {
     expect(bloque(".flecha-volver")).toContain("border-radius: 50%");
   });
 });
+
+describe("la cancha neutral se ve en la tarjeta de inicio", () => {
+  it("le pone fondo ámbar, y sólo a esa tarjeta", () => {
+    // En cancha neutral no hay local ni visitante y la pastilla sola se pasa
+    // por alto: el fondo avisa de un vistazo. Va sólo acá; el marcador del
+    // partido y las fichas guardadas siguen blancos.
+    const regla = reglaCon(".hero-partido.neutral");
+    expect(regla).not.toBeNull();
+    expect(regla).toContain("rgba(234, 179, 8, 0.3)");
+    expect(regla).toContain("rgba(84, 65, 24, 0.72)");
+
+    expect(reglaCon(".marcador-partido.neutral")).toBeNull();
+    expect(reglaCon(".marcador-ficha.neutral")).toBeNull();
+  });
+});
