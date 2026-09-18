@@ -101,7 +101,9 @@ describe("recortar los partidos del equipo", () => {
       "River",
     ]);
     // Y en "solo penales" queda únicamente ese.
-    expect(porResultado(MODO_RESULTADO.GANADO, PENALES.SOLO)).toEqual(["River"]);
+    expect(porResultado(MODO_RESULTADO.GANADO, PENALES.SOLO)).toEqual([
+      "River",
+    ]);
 
     // Lo mismo del otro lado: el 2-2 (3-5) contra Racing.
     expect(porResultado(MODO_RESULTADO.PERDIDO, PENALES.SIN)).toEqual([
@@ -209,6 +211,61 @@ describe("recortar los partidos del equipo", () => {
         duracion: { comparador: COMPARADOR.MAYOR, desde: "90", hasta: "120" },
       }),
     ).toEqual(["Cruzeiro", "Palmeiras"]);
+  });
+
+  test("varios criterios a la vez se cumplen todos", () => {
+    // Contra Cruzeiro Y de local: de los dos con Cruzeiro queda uno.
+    expect(
+      rivales({
+        filtros: [FILTRO_EQUIPO.RIVAL, FILTRO_EQUIPO.LOCALIA],
+        rival: "Cruzeiro",
+        localia: "local",
+      }),
+    ).toEqual(["Cruzeiro"]);
+
+    // Sumando ganados no queda ninguno: el de local contra Cruzeiro salió 2-1,
+    // así que sí queda.
+    expect(
+      rivales({
+        filtros: [
+          FILTRO_EQUIPO.RIVAL,
+          FILTRO_EQUIPO.LOCALIA,
+          FILTRO_EQUIPO.RESULTADO,
+        ],
+        rival: "Cruzeiro",
+        localia: "local",
+        modos: [MODO_RESULTADO.PERDIDO],
+      }),
+    ).toEqual([]);
+
+    // Una lista vacía no recorta nada, igual que un criterio que no existe.
+    expect(rivales({ filtros: [] })).toHaveLength(8);
+    expect(rivales({ filtros: ["inventado"] })).toHaveLength(8);
+  });
+
+  test("el resultado admite varios a la vez", () => {
+    const porModos = (modos, penales) =>
+      rivales({ filtro: FILTRO_EQUIPO.RESULTADO, modos, penales });
+
+    expect(porModos([MODO_RESULTADO.GANADO, MODO_RESULTADO.EMPATADO])).toEqual([
+      "Cruzeiro",
+      "Cruzeiro",
+      "Flamengo",
+      "Boca",
+    ]);
+
+    // Y el botón de penales sigue valiendo para los que lo admiten.
+    expect(
+      porModos([MODO_RESULTADO.GANADO, MODO_RESULTADO.EMPATADO], PENALES.CON),
+    ).toEqual(["Cruzeiro", "Cruzeiro", "Flamengo", "Boca", "River"]);
+
+    // Sin lista, sigue andando el modo suelto de siempre.
+    expect(
+      rivales({
+        filtro: FILTRO_EQUIPO.RESULTADO,
+        modo: MODO_RESULTADO.EMPATADO,
+      }),
+    ).toEqual(["Cruzeiro", "Boca"]);
   });
 
   test("por local, visitante o neutral, y lo viejo cuenta como local", () => {

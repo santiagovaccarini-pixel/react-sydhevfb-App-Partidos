@@ -220,7 +220,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.09.18.13";
+const APP_VERSION = "2026.09.18.14";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1345,19 +1345,21 @@ export default function App() {
   const [modoRegistros, setModoRegistros] = useState("equipo");
   const [jugadorElegido, setJugadorElegido] = useState(null);
   // El filtro de la vista de Equipo: qué se mira y con qué valor.
-  const [filtroEquipo, setFiltroEquipo] = useState(FILTRO_EQUIPO.TODOS);
+  // Varios criterios a la vez: el partido tiene que cumplirlos todos.
+  const [filtrosEquipo, setFiltrosEquipo] = useState([]);
   const [rivalElegido, setRivalElegido] = useState("");
   const [buscadorRival, setBuscadorRival] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
-  const [modoResultado, setModoResultado] = useState(MODO_RESULTADO.GANADO);
+  // Y el resultado también admite varios: ganados y empatados, por ejemplo.
+  const [modosResultado, setModosResultado] = useState([MODO_RESULTADO.GANADO]);
   // Los partidos de copa no son una opción más de la lista: son una vuelta de
   // tuerca sobre ganar o perder, y se eligen con un botón al lado.
   const [penalesResultado, setPenalesResultado] = useState(PENALES.SIN);
   const [marcadorExacto, setMarcadorExacto] = useState("");
   const [localiaElegida, setLocaliaElegida] = useState(LOCALIA.LOCAL);
 
-  const [filtroJugador, setFiltroJugador] = useState(FILTRO.TODOS);
+  const [filtrosJugador, setFiltrosJugador] = useState([]);
   const [filtroAbierto, setFiltroAbierto] = useState(false);
   // Una sola hoja para todo lo que se elige de una lista: el criterio, el
   // resultado, el orden y los comparadores.
@@ -2154,11 +2156,11 @@ export default function App() {
   const registrosVisibles = useMemo(
     () =>
       filtrarRegistros(registrosBuscados, {
-        filtro: filtroEquipo,
+        filtros: filtrosEquipo,
         rival: rivalElegido,
         desde: fechaDesde,
         hasta: fechaHasta,
-        modo: modoResultado,
+        modos: modosResultado,
         penales: penalesResultado,
         marcador: marcadorExacto,
         localia: localiaElegida,
@@ -2172,11 +2174,11 @@ export default function App() {
       }),
     [
       registrosBuscados,
-      filtroEquipo,
+      filtrosEquipo,
       rivalElegido,
       fechaDesde,
       fechaHasta,
-      modoResultado,
+      modosResultado,
       penalesResultado,
       marcadorExacto,
       localiaElegida,
@@ -2300,7 +2302,7 @@ export default function App() {
   const partidosFiltrados = useMemo(
     () =>
       filtrarPartidosDeJugador(partidosDelJugador, {
-        filtro: filtroJugador,
+        filtros: filtrosJugador,
         comparador: comparadorMinutos,
         desde: minutosDesde,
         hasta: minutosHasta,
@@ -2309,7 +2311,7 @@ export default function App() {
       }),
     [
       partidosDelJugador,
-      filtroJugador,
+      filtrosJugador,
       comparadorMinutos,
       minutosDesde,
       minutosHasta,
@@ -2328,8 +2330,8 @@ export default function App() {
   // Un partido de penales vale 3 o 1 según lo que esté diciendo el filtro: si
   // el botón lo está contando como ganado, la cuenta lo acompaña.
   const penalesCuentan =
-    filtroEquipo === FILTRO_EQUIPO.RESULTADO &&
-    ADMITE_PENALES.includes(modoResultado) &&
+    filtrosEquipo.includes(FILTRO_EQUIPO.RESULTADO) &&
+    modosResultado.some((cual) => ADMITE_PENALES.includes(cual)) &&
     penalesResultado !== PENALES.SIN;
 
   const puntosEquipo = useMemo(
@@ -2375,7 +2377,7 @@ export default function App() {
   const limpiarFiltros = () => {
     setFiltroAbierto(false);
     setHojaSelector(null);
-    setFiltroEquipo(FILTRO_EQUIPO.TODOS);
+    setFiltrosEquipo([]);
     setRivalElegido("");
     setBuscadorRival("");
     setFechaDesde("");
@@ -2384,7 +2386,7 @@ export default function App() {
     setPenalesResultado(PENALES.SIN);
     setDuracionDesde("");
     setDuracionHasta("");
-    setFiltroJugador(FILTRO.TODOS);
+    setFiltrosJugador([]);
   };
 
   const CRITERIOS_EQUIPO = [
@@ -2405,25 +2407,67 @@ export default function App() {
 
   const enEquipo = modoRegistros === "equipo";
   const criteriosDelFiltro = enEquipo ? CRITERIOS_EQUIPO : CRITERIOS_JUGADOR;
-  const criterioElegido = enEquipo ? filtroEquipo : filtroJugador;
-  const nombreDelCriterio = (
-    criteriosDelFiltro.find((uno) => uno.valor === criterioElegido) || {}
-  ).etiqueta;
+  const criteriosPrendidos = enEquipo ? filtrosEquipo : filtrosJugador;
+  const tieneCriterio = (cual) => criteriosPrendidos.includes(cual);
 
-  // Elegido el criterio, la hoja se va y abajo quedan sus controles.
-  const elegirCriterio = (cual) => {
-    if (enEquipo) setFiltroEquipo(cual);
-    else setFiltroJugador(cual);
-    setFiltroAbierto(true);
+  // Los criterios se prenden y se apagan. El que está prendido aporta lo suyo
+  // y el partido tiene que cumplirlos todos.
+  const alternarCriterio = (cual) => {
+    const cambiar = enEquipo ? setFiltrosEquipo : setFiltrosJugador;
+
+    cambiar((previos) =>
+      previos.includes(cual)
+        ? previos.filter((uno) => uno !== cual)
+        : [...previos, cual],
+    );
   };
 
-  const abrirHojaDeCriterios = () =>
-    setHojaSelector({
-      titulo: "Filtrar por",
-      opciones: criteriosDelFiltro,
-      valor: criterioElegido,
-      alElegir: elegirCriterio,
+  // Lo mismo para el resultado, que adentro suyo también admite varios: basta
+  // con que el partido entre en alguno de los marcados.
+  const alternarModoResultado = (cual) =>
+    setModosResultado((previos) => {
+      // El marcador exacto es otra pregunta: no se mezcla con los demás.
+      if (cual === MODO_RESULTADO.EXACTO) {
+        return previos.includes(cual) ? [] : [cual];
+      }
+
+      const sinExacto = previos.filter((uno) => uno !== MODO_RESULTADO.EXACTO);
+
+      return sinExacto.includes(cual)
+        ? sinExacto.filter((uno) => uno !== cual)
+        : [...sinExacto, cual];
     });
+
+  // Los controles de un criterio, con su nombre arriba: con varios prendidos a
+  // la vez hay que poder decir de cuál es cada cosa.
+  const conRotulo = (rotulo, contenido) => (
+    <div className="bloque-criterio">
+      <p className="rotulo-criterio">{rotulo}</p>
+      {contenido}
+    </div>
+  );
+
+  // La grilla con todos los criterios de la vista. El prendido queda en verde
+  // y abajo aparecen sus controles: se ve de un vistazo qué hay y qué está
+  // filtrando.
+  const renderCriteriosDelFiltro = () => (
+    <>
+      <p className="rotulo-criterio">Filtrar por</p>
+      <div className="grilla-criterios">
+        {criteriosDelFiltro.map(({ valor, etiqueta }) => (
+          <button
+            type="button"
+            key={valor}
+            className={`chip-criterio ${tieneCriterio(valor) ? "prendido" : ""}`}
+            aria-pressed={tieneCriterio(valor)}
+            onClick={() => alternarCriterio(valor)}
+          >
+            {etiqueta}
+          </button>
+        ))}
+      </div>
+    </>
+  );
 
   // El botón negro que muestra lo elegido y sube la hoja para cambiarlo. Es
   // lo que reemplaza a los desplegables del sistema adentro del filtro.
@@ -7051,8 +7095,8 @@ export default function App() {
                       className={`boton-filtro ${
                         (
                           modoRegistros === "equipo"
-                            ? filtroEquipo === FILTRO_EQUIPO.TODOS
-                            : filtroJugador === FILTRO.TODOS
+                            ? filtrosEquipo.length === 0
+                            : filtrosJugador.length === 0
                         )
                           ? ""
                           : "con-filtro"
@@ -7066,7 +7110,7 @@ export default function App() {
                       onClick={() =>
                         filtroAbierto
                           ? limpiarFiltros()
-                          : abrirHojaDeCriterios()
+                          : setFiltroAbierto(true)
                       }
                     >
                       <Icono nombre="filtro" size={20} />
@@ -7076,170 +7120,183 @@ export default function App() {
 
                 {modoRegistros === "equipo" && filtroAbierto && (
                   <div className="panel-filtro">
-                    {/* Qué se está filtrando. Se toca para volver a la hoja y
-                        cambiar de criterio sin borrar todo. */}
-                    <button
-                      type="button"
-                      className="criterio-elegido"
-                      onClick={abrirHojaDeCriterios}
-                    >
-                      <b>{nombreDelCriterio}</b>
-                      <span>Cambiar</span>
-                    </button>
+                    {renderCriteriosDelFiltro()}
 
-                    {filtroEquipo === FILTRO_EQUIPO.RIVAL &&
-                      (rivalElegido ? (
-                        // Ya elegido, la lista se retrae: queda el equipo y se
-                        // toca para volver a abrirla.
-                        <button
-                          type="button"
-                          className="rival-elegido"
-                          onClick={() => setRivalElegido("")}
-                        >
-                          <EscudoDeClub nombre={rivalElegido} mini />
-                          <b>{rivalElegido}</b>
-                          <span>Cambiar</span>
-                        </button>
-                      ) : (
+                    {tieneCriterio(FILTRO_EQUIPO.RIVAL) &&
+                      conRotulo(
+                        "Equipo",
+                        rivalElegido ? (
+                          // Ya elegido, la lista se retrae: queda el equipo y se
+                          // toca para volver a abrirla.
+                          <button
+                            type="button"
+                            className="rival-elegido"
+                            onClick={() => setRivalElegido("")}
+                          >
+                            <EscudoDeClub nombre={rivalElegido} mini />
+                            <b>{rivalElegido}</b>
+                            <span>Cambiar</span>
+                          </button>
+                        ) : (
+                          <>
+                            <input
+                              value={buscadorRival}
+                              onChange={(e) => setBuscadorRival(e.target.value)}
+                              onKeyDown={manejarEnter}
+                              placeholder="Buscar un equipo..."
+                              aria-label="Buscar un equipo"
+                            />
+
+                            <div className="lista-rivales">
+                              {rivalesVisibles.length === 0 ? (
+                                <p className="sin-resultados">
+                                  Ningún equipo con ese nombre.
+                                </p>
+                              ) : (
+                                rivalesVisibles.map((quien) => (
+                                  <button
+                                    type="button"
+                                    key={quien.nombre}
+                                    onClick={() =>
+                                      setRivalElegido(quien.nombre)
+                                    }
+                                  >
+                                    <EscudoDeClub nombre={quien.nombre} mini />
+                                    <b>{quien.nombre}</b>
+                                    <span>
+                                      {quien.partidos}{" "}
+                                      {quien.partidos === 1
+                                        ? "partido"
+                                        : "partidos"}
+                                    </span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </>
+                        ),
+                      )}
+
+                    {tieneCriterio(FILTRO_EQUIPO.FECHA) &&
+                      conRotulo(
+                        "Fecha",
+                        <div className="rango-fechas">
+                          <label>
+                            <span>Desde</span>
+                            <input
+                              type="date"
+                              value={fechaDesde}
+                              onChange={(e) => setFechaDesde(e.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Hasta</span>
+                            <input
+                              type="date"
+                              value={fechaHasta}
+                              onChange={(e) => setFechaHasta(e.target.value)}
+                            />
+                          </label>
+                        </div>,
+                      )}
+
+                    {tieneCriterio(FILTRO_EQUIPO.RESULTADO) &&
+                      conRotulo(
+                        "Resultado",
                         <>
-                          <input
-                            value={buscadorRival}
-                            onChange={(e) => setBuscadorRival(e.target.value)}
-                            onKeyDown={manejarEnter}
-                            placeholder="Buscar un equipo..."
-                            aria-label="Buscar un equipo"
-                          />
-
-                          <div className="lista-rivales">
-                            {rivalesVisibles.length === 0 ? (
-                              <p className="sin-resultados">
-                                Ningún equipo con ese nombre.
-                              </p>
-                            ) : (
-                              rivalesVisibles.map((quien) => (
-                                <button
-                                  type="button"
-                                  key={quien.nombre}
-                                  onClick={() => setRivalElegido(quien.nombre)}
-                                >
-                                  <EscudoDeClub nombre={quien.nombre} mini />
-                                  <b>{quien.nombre}</b>
-                                  <span>
-                                    {quien.partidos}{" "}
-                                    {quien.partidos === 1
-                                      ? "partido"
-                                      : "partidos"}
-                                  </span>
-                                </button>
-                              ))
-                            )}
+                          {/* Se pueden marcar varios: ganados y empatados, por
+                            ejemplo. El marcador exacto es otra pregunta y no
+                            se mezcla con los demás. */}
+                          <div className="grilla-criterios">
+                            {[
+                              [MODO_RESULTADO.GANADO, "Ganados"],
+                              [MODO_RESULTADO.EMPATADO, "Empatados"],
+                              [MODO_RESULTADO.PERDIDO, "Perdidos"],
+                              [MODO_RESULTADO.EXACTO, "Marcador exacto"],
+                            ].map(([valor, etiqueta]) => (
+                              <button
+                                type="button"
+                                key={valor}
+                                className={`chip-criterio ${
+                                  modosResultado.includes(valor)
+                                    ? "prendido"
+                                    : ""
+                                }`}
+                                aria-pressed={modosResultado.includes(valor)}
+                                onClick={() => alternarModoResultado(valor)}
+                              >
+                                {etiqueta}
+                              </button>
+                            ))}
                           </div>
-                        </>
-                      ))}
 
-                    {filtroEquipo === FILTRO_EQUIPO.FECHA && (
-                      <div className="rango-fechas">
-                        <label>
-                          <span>Desde</span>
-                          <input
-                            type="date"
-                            value={fechaDesde}
-                            onChange={(e) => setFechaDesde(e.target.value)}
-                          />
-                        </label>
-                        <label>
-                          <span>Hasta</span>
-                          <input
-                            type="date"
-                            value={fechaHasta}
-                            onChange={(e) => setFechaHasta(e.target.value)}
-                          />
-                        </label>
-                      </div>
-                    )}
+                          {modosResultado.some((cual) =>
+                            ADMITE_PENALES.includes(cual),
+                          ) && (
+                            <button
+                              type="button"
+                              className={`boton-penales ${ESTILO_PENALES[penalesResultado]}`}
+                              onClick={() =>
+                                setPenalesResultado(
+                                  SIGUIENTE_PENALES[penalesResultado],
+                                )
+                              }
+                              aria-label={`Partidos de penales: ${ETIQUETA_PENALES[penalesResultado]}. Tocá para cambiar.`}
+                            >
+                              {ETIQUETA_PENALES[penalesResultado]}
+                            </button>
+                          )}
 
-                    {filtroEquipo === FILTRO_EQUIPO.RESULTADO && (
-                      <div className="minutos-filtro">
-                        {selectorConHoja({
-                          titulo: "Cómo mirar el resultado",
-                          opciones: [
-                            {
-                              valor: MODO_RESULTADO.GANADO,
-                              etiqueta: "Ganados",
-                            },
-                            {
-                              valor: MODO_RESULTADO.EMPATADO,
-                              etiqueta: "Empatados",
-                            },
-                            {
-                              valor: MODO_RESULTADO.PERDIDO,
-                              etiqueta: "Perdidos",
-                            },
-                            {
-                              valor: MODO_RESULTADO.EXACTO,
-                              etiqueta: "Marcador exacto",
-                            },
-                          ],
-                          valor: modoResultado,
-                          alElegir: setModoResultado,
-                        })}
+                          {modosResultado.includes(MODO_RESULTADO.EXACTO) && (
+                            <input
+                              value={marcadorExacto}
+                              onChange={(e) =>
+                                setMarcadorExacto(e.target.value)
+                              }
+                              onKeyDown={manejarEnter}
+                              placeholder="2-1"
+                              aria-label="Marcador, nuestros goles primero"
+                            />
+                          )}
+                        </>,
+                      )}
 
-                        {ADMITE_PENALES.includes(modoResultado) && (
-                          <button
-                            type="button"
-                            className={`boton-penales ${ESTILO_PENALES[penalesResultado]}`}
-                            onClick={() =>
-                              setPenalesResultado(
-                                SIGUIENTE_PENALES[penalesResultado],
-                              )
-                            }
-                            aria-label={`Partidos de penales: ${ETIQUETA_PENALES[penalesResultado]}. Tocá para cambiar.`}
-                          >
-                            {ETIQUETA_PENALES[penalesResultado]}
-                          </button>
-                        )}
+                    {tieneCriterio(FILTRO_EQUIPO.DURACION) &&
+                      conRotulo(
+                        "Cuánto duró",
+                        renderFiltroDeMinutos({
+                          titulo: "Cómo comparar la duración",
+                          comparador: comparadorDuracion,
+                          alElegirComparador: setComparadorDuracion,
+                          desde: duracionDesde,
+                          alEscribirDesde: setDuracionDesde,
+                          hasta: duracionHasta,
+                          alEscribirHasta: setDuracionHasta,
+                          desdeIgual: duracionDesdeIgual,
+                          alCambiarDesdeIgual: setDuracionDesdeIgual,
+                          hastaIgual: duracionHastaIgual,
+                          alCambiarHastaIgual: setDuracionHastaIgual,
+                        }),
+                      )}
 
-                        {modoResultado === MODO_RESULTADO.EXACTO && (
-                          <input
-                            value={marcadorExacto}
-                            onChange={(e) => setMarcadorExacto(e.target.value)}
-                            onKeyDown={manejarEnter}
-                            placeholder="2-1"
-                            aria-label="Marcador, nuestros goles primero"
-                          />
-                        )}
-                      </div>
-                    )}
-
-                    {filtroEquipo === FILTRO_EQUIPO.DURACION &&
-                      renderFiltroDeMinutos({
-                        titulo: "Cómo comparar la duración",
-                        comparador: comparadorDuracion,
-                        alElegirComparador: setComparadorDuracion,
-                        desde: duracionDesde,
-                        alEscribirDesde: setDuracionDesde,
-                        hasta: duracionHasta,
-                        alEscribirHasta: setDuracionHasta,
-                        desdeIgual: duracionDesdeIgual,
-                        alCambiarDesdeIgual: setDuracionDesdeIgual,
-                        hastaIgual: duracionHastaIgual,
-                        alCambiarHastaIgual: setDuracionHastaIgual,
-                      })}
-
-                    {filtroEquipo === FILTRO_EQUIPO.LOCALIA && (
-                      <div className="cambiar-vista">
-                        {LOCALIAS.map((cual) => (
-                          <button
-                            key={cual}
-                            type="button"
-                            className={localiaElegida === cual ? "activo" : ""}
-                            onClick={() => setLocaliaElegida(cual)}
-                          >
-                            {etiquetaLocalia(cual)}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {tieneCriterio(FILTRO_EQUIPO.LOCALIA) &&
+                      conRotulo(
+                        "Dónde se jugó",
+                        <div className="cambiar-vista">
+                          {LOCALIAS.map((cual) => (
+                            <button
+                              key={cual}
+                              type="button"
+                              className={
+                                localiaElegida === cual ? "activo" : ""
+                              }
+                              onClick={() => setLocaliaElegida(cual)}
+                            >
+                              {etiquetaLocalia(cual)}
+                            </button>
+                          ))}
+                        </div>,
+                      )}
 
                     {selectorConHoja({
                       titulo: "En qué orden",
@@ -7257,29 +7314,25 @@ export default function App() {
                   jugadorElegido &&
                   filtroAbierto && (
                     <div className="panel-filtro">
-                      <button
-                        type="button"
-                        className="criterio-elegido"
-                        onClick={abrirHojaDeCriterios}
-                      >
-                        <b>{nombreDelCriterio}</b>
-                        <span>Cambiar</span>
-                      </button>
+                      {renderCriteriosDelFiltro()}
 
-                      {filtroJugador === FILTRO.MINUTOS &&
-                        renderFiltroDeMinutos({
-                          titulo: "Cómo comparar los minutos",
-                          comparador: comparadorMinutos,
-                          alElegirComparador: setComparadorMinutos,
-                          desde: minutosDesde,
-                          alEscribirDesde: setMinutosDesde,
-                          hasta: minutosHasta,
-                          alEscribirHasta: setMinutosHasta,
-                          desdeIgual,
-                          alCambiarDesdeIgual: setDesdeIgual,
-                          hastaIgual,
-                          alCambiarHastaIgual: setHastaIgual,
-                        })}
+                      {tieneCriterio(FILTRO.MINUTOS) &&
+                        conRotulo(
+                          "Minutos jugados",
+                          renderFiltroDeMinutos({
+                            titulo: "Cómo comparar los minutos",
+                            comparador: comparadorMinutos,
+                            alElegirComparador: setComparadorMinutos,
+                            desde: minutosDesde,
+                            alEscribirDesde: setMinutosDesde,
+                            hasta: minutosHasta,
+                            alEscribirHasta: setMinutosHasta,
+                            desdeIgual,
+                            alCambiarDesdeIgual: setDesdeIgual,
+                            hastaIgual,
+                            alCambiarHastaIgual: setHastaIgual,
+                          }),
+                        )}
                     </div>
                   )}
               </div>
@@ -7334,7 +7387,7 @@ export default function App() {
 
                   {renderPuntos(puntosJugador)}
 
-                  {filtroJugador !== FILTRO.TODOS && (
+                  {filtrosJugador.length > 0 && (
                     <p className="contador-registros">
                       Mostrando {partidosFiltrados.length} de{" "}
                       {partidosDelJugador.length}{" "}

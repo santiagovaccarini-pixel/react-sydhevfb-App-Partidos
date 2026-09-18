@@ -2331,15 +2331,19 @@ describe("interfaz operativa", () => {
     // El orden dejó de estar suelto abajo del buscador.
     expect(contenedor.querySelector(".buscador-registros > select")).toBeNull();
 
-    // El icono sube la hoja con los criterios, sin panel todavía.
+    // El icono abre el panel con todos los criterios a la vista.
     await act(async () => contenedor.querySelector(".boton-filtro").click());
-    expect(contenedor.querySelector(".panel-filtro")).toBeNull();
+    expect(contenedor.querySelector(".panel-filtro")).not.toBeNull();
 
-    const opcionesDeLaHoja = () =>
-      Array.from(document.querySelectorAll(".opcion-hoja"));
     const criterio = (etiqueta) =>
-      opcionesDeLaHoja().find((boton) => boton.textContent === etiqueta);
-    expect(opcionesDeLaHoja().map((boton) => boton.textContent)).toEqual([
+      Array.from(contenedor.querySelectorAll(".chip-criterio")).find(
+        (boton) => boton.textContent === etiqueta,
+      );
+    expect(
+      Array.from(contenedor.querySelectorAll(".chip-criterio")).map(
+        (boton) => boton.textContent,
+      ),
+    ).toEqual([
       "Equipo",
       "Fecha",
       "Resultado",
@@ -2347,13 +2351,9 @@ describe("interfaz operativa", () => {
       "Cuánto duró",
     ]);
 
-    // Elegido el criterio, la hoja se va y abajo quedan sus controles.
+    // Prendido el criterio, abajo aparecen sus controles.
     await act(async () => criterio("Equipo").click());
-    expect(document.querySelector(".hoja-opciones")).toBeNull();
-    expect(contenedor.querySelector(".panel-filtro")).not.toBeNull();
-    expect(contenedor.querySelector(".criterio-elegido").textContent).toContain(
-      "Equipo",
-    );
+    expect(criterio("Equipo").className).toContain("prendido");
     const rivales = () =>
       Array.from(contenedor.querySelectorAll(".lista-rivales button")).map(
         (boton) => ({
@@ -2387,7 +2387,7 @@ describe("interfaz operativa", () => {
     );
 
     // Por fecha, con las dos puntas incluidas.
-    await act(async () => contenedor.querySelector(".criterio-elegido").click());
+    await act(async () => criterio("Equipo").click());
     await act(async () => criterio("Fecha").click());
     const puntas = () => contenedor.querySelectorAll(".rango-fechas input");
     await act(async () => {
@@ -2397,13 +2397,17 @@ describe("interfaz operativa", () => {
     expect(fechas()).toHaveLength(2);
 
     // Por resultado: el 0-2 es derrota aunque de visitante se muestre 2-0.
-    await act(async () => contenedor.querySelector(".criterio-elegido").click());
+    await act(async () => criterio("Fecha").click());
     await act(async () => criterio("Resultado").click());
-    await enLaHoja(".minutos-filtro .selector-hoja", "Perdidos");
+    const modo = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".bloque-criterio .chip-criterio"))
+        .find((boton) => boton.textContent === etiqueta);
+    await act(async () => modo("Ganados").click());
+    await act(async () => modo("Perdidos").click());
     expect(fechas()).toEqual(["03 de sept de 2026"]);
 
-    await enLaHoja(".minutos-filtro .selector-hoja", "Marcador exacto");
-    const marcador = contenedor.querySelector(".minutos-filtro input");
+    await act(async () => modo("Marcador exacto").click());
+    const marcador = contenedor.querySelector(".bloque-criterio input");
     await act(async () => {
       escribir.call(marcador, "1-1");
       marcador.dispatchEvent(new Event("input", { bubbles: true }));
@@ -2411,7 +2415,7 @@ describe("interfaz operativa", () => {
     expect(fechas()).toEqual(["27 de ago de 2026"]);
 
     // Por local o visitante.
-    await act(async () => contenedor.querySelector(".criterio-elegido").click());
+    await act(async () => criterio("Resultado").click());
     await act(async () => criterio("Dónde se jugó").click());
     expect(fechas()).toHaveLength(2);
     await act(async () =>
@@ -2841,9 +2845,9 @@ describe("interfaz operativa", () => {
     // El icono sube la hoja con los criterios; el panel aparece al elegir uno.
     expect(contenedor.querySelector(".panel-filtro")).toBeNull();
     await act(async () => contenedor.querySelector(".boton-filtro").click());
-    expect(document.querySelector(".hoja-opciones")).not.toBeNull();
+    expect(contenedor.querySelector(".panel-filtro")).not.toBeNull();
     expect(
-      Array.from(document.querySelectorAll(".opcion-hoja")).map(
+      Array.from(contenedor.querySelectorAll(".chip-criterio")).map(
         (boton) => boton.textContent,
       ),
     ).toEqual([
@@ -2862,15 +2866,17 @@ describe("interfaz operativa", () => {
           .click(),
       );
     };
-    // Los criterios suben en la hoja; se vuelve a ella desde el encabezado.
-    const filtrar = async (etiqueta) => {
-      const volverALaHoja = contenedor.querySelector(".criterio-elegido");
-      if (volverALaHoja) await act(async () => volverALaHoja.click());
-      await act(async () =>
-        Array.from(document.querySelectorAll(".opcion-hoja"))
-          .find((boton) => boton.textContent === etiqueta)
-          .click(),
+    // Los criterios se prenden y se apagan; acá se mira de a uno, así que antes
+    // de prender el siguiente se apaga el anterior.
+    const chip = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".chip-criterio")).find(
+        (boton) => boton.textContent === etiqueta,
       );
+    let prendido = null;
+    const filtrar = async (etiqueta) => {
+      if (prendido) await act(async () => chip(prendido).click());
+      await act(async () => chip(etiqueta).click());
+      prendido = etiqueta;
     };
     const rivales = () =>
       Array.from(contenedor.querySelectorAll(".registro-de-jugador")).map(
@@ -3603,7 +3609,7 @@ describe("interfaz operativa", () => {
     // En Equipo se filtra por rival: quedan los dos de Santos.
     await act(async () => contenedor.querySelector(".boton-filtro").click());
     await act(async () =>
-      Array.from(document.querySelectorAll(".opcion-hoja"))
+      Array.from(contenedor.querySelectorAll(".chip-criterio"))
         .find((boton) => boton.textContent === "Equipo")
         .click(),
     );
@@ -3659,25 +3665,22 @@ describe("interfaz operativa", () => {
 
     await act(async () => contenedor.querySelector(".boton-filtro").click());
     await act(async () =>
-      Array.from(document.querySelectorAll(".opcion-hoja"))
+      Array.from(contenedor.querySelectorAll(".chip-criterio"))
         .find((boton) => boton.textContent === "Resultado")
         .click(),
     );
 
-    // "Ganados por penales" ya no está en la lista: ahora es un botón.
-    await act(async () =>
-      contenedor.querySelector(".minutos-filtro .selector-hoja").click(),
-    );
-    expect(
-      Array.from(document.querySelectorAll(".opcion-hoja")).map(
-        (boton) => boton.textContent,
-      ),
-    ).toEqual(["Ganados", "Empatados", "Perdidos", "Marcador exacto"]);
-    await act(async () =>
-      Array.from(document.querySelectorAll(".opcion-hoja"))
-        .find((boton) => boton.textContent === "Ganados")
-        .click(),
-    );
+    // "Ganados por penales" ya no está: ahora es un botón al lado.
+    const modos = () =>
+      Array.from(
+        contenedor.querySelectorAll(".bloque-criterio .chip-criterio"),
+      ).map((boton) => boton.textContent);
+    expect(modos()).toEqual([
+      "Ganados",
+      "Empatados",
+      "Perdidos",
+      "Marcador exacto",
+    ]);
 
     const penales = () => contenedor.querySelector(".boton-penales");
 
@@ -3700,15 +3703,14 @@ describe("interfaz operativa", () => {
     expect(penales().textContent).toBe("Sin penales");
     expect(rivales()).toEqual(["Santos"]);
 
-    // En "Empatados" el botón no aparece: un partido de penales no es empate.
-    await act(async () =>
-      contenedor.querySelector(".minutos-filtro .selector-hoja").click(),
-    );
-    await act(async () =>
-      Array.from(document.querySelectorAll(".opcion-hoja"))
-        .find((boton) => boton.textContent === "Empatados")
-        .click(),
-    );
+    // Con sólo "Empatados" el botón no aparece: un partido de penales no es
+    // un empate.
+    const chipModo = (etiqueta) =>
+      Array.from(
+        contenedor.querySelectorAll(".bloque-criterio .chip-criterio"),
+      ).find((boton) => boton.textContent === etiqueta);
+    await act(async () => chipModo("Ganados").click());
+    await act(async () => chipModo("Empatados").click());
     expect(contenedor.querySelector(".boton-penales")).toBeNull();
     expect(rivales()).toEqual([]);
   });

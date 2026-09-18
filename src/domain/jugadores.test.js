@@ -172,18 +172,33 @@ describe("recortar los partidos de un jugador", () => {
     expect(papeles(FILTRO.BANCO)).toEqual([PAPEL.BANCO]);
   });
 
-  test("no salió deja a los que terminaron el partido en cancha", () => {
-    // El que jugó todo y el que entró y se quedó. Al que lo cambiaron no, y al
-    // que miró desde el banco tampoco: nunca estuvo.
-    expect(papeles(FILTRO.NO_SALIO)).toEqual([PAPEL.COMPLETO, PAPEL.ENTRO]);
-
-    // Y si el que entró después salió, tampoco cuenta.
-    const conSalida = [
-      { participacion: { papel: PAPEL.ENTRO, bruto: 900, salio: "22:40" } },
-    ];
+  test("varios criterios a la vez se cumplen todos", () => {
+    // Titular Y más de una hora: el que jugó todo (5680) entra, el que salió
+    // (3750) también, el que ingresó no es titular.
     expect(
-      filtrarPartidosDeJugador(conSalida, { filtro: FILTRO.NO_SALIO }),
-    ).toEqual([]);
+      papeles(undefined, {
+        filtros: [FILTRO.TITULAR, FILTRO.MINUTOS],
+        comparador: COMPARADOR.MAYOR,
+        desde: "60",
+      }),
+    ).toEqual([PAPEL.COMPLETO, PAPEL.SALIO]);
+
+    // Subiendo el piso queda sólo el que jugó el partido entero.
+    expect(
+      papeles(undefined, {
+        filtros: [FILTRO.TITULAR, FILTRO.MINUTOS],
+        comparador: COMPARADOR.MAYOR,
+        desde: "90",
+      }),
+    ).toEqual([PAPEL.COMPLETO]);
+
+    expect(papeles(undefined, { filtros: [] })).toHaveLength(4);
+  });
+
+  test("no salió deja sólo al que jugó el partido entero", () => {
+    // Arrancó de titular y no lo cambiaron. No entra el que ingresó, ni el que
+    // salió, ni el que miró desde el banco.
+    expect(papeles(FILTRO.NO_SALIO)).toEqual([PAPEL.COMPLETO]);
   });
 
   test("mayor deja los que pasaron ese piso, sin contarlo", () => {
