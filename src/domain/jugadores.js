@@ -1,5 +1,10 @@
 import { limpiarLista, normalizarTexto } from "./match";
+import { COMPARADOR, pasaPorMinutos } from "./minutos";
 import { tiempoJugado } from "./tiempos";
+
+// Se reexporta para no obligar a los que ya lo importaban de acá a cambiar de
+// puerta: la pregunta sigue siendo de este módulo, la cuenta es compartida.
+export { COMPARADOR };
 
 /**
  * Qué hizo un jugador en un partido y todo lo que hizo alguno a lo largo del
@@ -159,77 +164,16 @@ const PAPELES_DEL_FILTRO = {
   [FILTRO.BANCO]: [PAPELES.BANCO],
 };
 
-/**
- * Cómo comparar los minutos jugados contra lo que se escribió.
- */
-export const COMPARADOR = {
-  MAYOR: "mayor",
-  MAYOR_IGUAL: "mayorIgual",
-  MENOR: "menor",
-  MENOR_IGUAL: "menorIgual",
-  ENTRE: "entre",
-};
-
-/**
- * Los minutos escritos, pasados a segundos. Una casilla vacía o con cualquier
- * cosa devuelve null, que acá quiere decir "sin tope": mientras se borra para
- * escribir otro número no se puede vaciar la pantalla. Ojo que Number("") da 0
- * y ese sí es un tope, que se llevaría puestos a los que no ingresaron.
- */
-const enSegundos = (minutos) => {
-  const escrito = String(minutos ?? "").trim();
-  if (escrito === "") return null;
-
-  const valor = Number(escrito);
-  return Number.isFinite(valor) ? valor * 60 : null;
-};
-
-const COMPARACIONES = {
-  [COMPARADOR.MAYOR]: (jugados, desde) => jugados > desde,
-  [COMPARADOR.MAYOR_IGUAL]: (jugados, desde) => jugados >= desde,
-  [COMPARADOR.MENOR]: (jugados, desde) => jugados < desde,
-  [COMPARADOR.MENOR_IGUAL]: (jugados, desde) => jugados <= desde,
-};
-
-export const filtrarPartidosDeJugador = (
-  partidos,
-  {
-    filtro,
-    comparador,
-    desde,
-    hasta,
-    desdeIgual = true,
-    hastaIgual = true,
-  } = {},
-) => {
+export const filtrarPartidosDeJugador = (partidos, opciones = {}) => {
   const lista = Array.isArray(partidos) ? partidos : [];
 
-  if (filtro === FILTRO.MINUTOS) {
-    const piso = enSegundos(desde);
-    const techo = enSegundos(hasta);
-
-    if (comparador === COMPARADOR.ENTRE) {
-      // Un "entre" con una sola punta no es un entre: hasta que estén los dos
-      // números no se recorta nada.
-      if (piso === null || techo === null) return lista;
-
-      return lista.filter((fila) => {
-        const jugados = fila.participacion.bruto;
-        // Cada punta dice en su botón si se incluye o no; se respeta tal cual,
-        // aunque el de abajo sea más grande que el de arriba y no quede nada.
-        const pasaAbajo = desdeIgual ? jugados >= piso : jugados > piso;
-        const pasaArriba = hastaIgual ? jugados <= techo : jugados < techo;
-        return pasaAbajo && pasaArriba;
-      });
-    }
-
-    const comparar =
-      COMPARACIONES[comparador] || COMPARACIONES[COMPARADOR.MAYOR];
-    if (piso === null) return lista;
-    return lista.filter((fila) => comparar(fila.participacion.bruto, piso));
+  if (opciones.filtro === FILTRO.MINUTOS) {
+    return lista.filter((fila) =>
+      pasaPorMinutos(fila.participacion.bruto, opciones),
+    );
   }
 
-  const papeles = PAPELES_DEL_FILTRO[filtro];
+  const papeles = PAPELES_DEL_FILTRO[opciones.filtro];
   if (!papeles) return lista;
   return lista.filter((fila) => papeles.includes(fila.participacion.papel));
 };

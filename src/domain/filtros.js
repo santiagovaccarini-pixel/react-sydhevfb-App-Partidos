@@ -1,4 +1,6 @@
 import { normalizarTexto } from "./match";
+import { pasaPorMinutos } from "./minutos";
+import { resumenDeTiempos } from "./tiempos";
 import {
   RESULTADO,
   comoTermino,
@@ -18,6 +20,7 @@ export const FILTRO_EQUIPO = {
   FECHA: "fecha",
   RESULTADO: "resultado",
   LOCALIA: "localia",
+  DURACION: "duracion",
 };
 
 /** Cómo se mira el resultado: por cómo terminó, o por el marcador exacto. */
@@ -114,6 +117,14 @@ const PASAN = {
 
   [FILTRO_EQUIPO.LOCALIA]: (registro, { localia }) =>
     leerLocalia(registro?.localia) === leerLocalia(localia),
+
+  // Cuánto duró el partido de punta a punta, con el reloj corrido: es lo que
+  // separa un partido normal de uno que se fue a cien minutos de tanto VAR.
+  //
+  // Lo suyo viaja en su propia bolsa: por fecha también hay un "desde" y un
+  // "hasta", y compartiendo nombre uno le pisaba el rango al otro.
+  [FILTRO_EQUIPO.DURACION]: (registro, { duracion }) =>
+    pasaPorMinutos(resumenDeTiempos(registro).total.bruto, duracion),
 };
 
 /**

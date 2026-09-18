@@ -2293,7 +2293,7 @@ describe("interfaz operativa", () => {
     });
   });
 
-  test("Equipo tiene el mismo filtro, con equipo, fecha, resultado y localía", async () => {
+  test("Equipo tiene el mismo filtro, con equipo, fecha, resultado, localía y duración", async () => {
     doblesSupabase.filasHistorial = [
       { ...filaTransmisionGuardada(), id: 21, fecha: "2026-09-10", rival: "Santos", resultado: "2-1", localia: "local" },
       { ...filaTransmisionGuardada(), id: 22, fecha: "2026-09-03", rival: "Vasco", resultado: "0-2", localia: "visitante" },
@@ -2344,6 +2344,7 @@ describe("interfaz operativa", () => {
       "Fecha",
       "Resultado",
       "Dónde se jugó",
+      "Cuánto duró",
     ]);
 
     // Elegido el criterio, la hoja se va y abajo quedan sus controles.
