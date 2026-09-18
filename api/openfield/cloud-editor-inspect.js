@@ -3,10 +3,12 @@ import {
   ACTIVIDAD_PRUEBA,
   abrirEditorActividad,
   abrirNavegador,
+  capturarPantalla,
   cerrarNavegador,
   clasificarErrorNavegador,
   iniciarSesionCatapult,
   leerBodyJson,
+  resumirError,
   textoSeguro,
 } from "../../lib/catapultCloud.js";
 import {
@@ -59,11 +61,12 @@ export default async function handler(request, response) {
   const capturas = [];
   const porRequest = new Map();
   let nav = null;
+  let etapa = "inicio";
 
-  const limpiar = () =>
-    capturas.map(({ request: _omitido, ...resto }) => resto);
+  const limpiar = () => capturas.map(({ request: _omitido, ...resto }) => resto);
 
   try {
+    etapa = "lanzar-navegador";
     nav = await abrirNavegador();
     const { page, context } = nav;
 
@@ -83,6 +86,7 @@ export default async function handler(request, response) {
 
       const entrada = {
         id: capturas.length + 1,
+        etapa,
         metodo: req.method(),
         host: url.hostname,
         path: url.pathname.slice(0, 200),
@@ -127,6 +131,7 @@ export default async function handler(request, response) {
       }
     });
 
+    etapa = "login";
     const login = await iniciarSesionCatapult(page, { username, password });
 
     if (!login.ok) {
@@ -134,16 +139,22 @@ export default async function handler(request, response) {
         ok: false,
         code: login.code,
         error: login.error,
+        etapa,
+        paginaActual: page.url(),
+        captura: await capturarPantalla(page),
         solicitudes: limpiar(),
         resumen: resumirCapturas(limpiar()),
       });
     }
 
+    etapa = "abrir-editor";
     const editor = await abrirEditorActividad(page, ACTIVIDAD_PRUEBA);
 
+    etapa = "escuchar-red";
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(1500);
 
+    etapa = "leer-almacenamiento";
     const almacenamiento = await page
       .evaluate(() => ({
         localStorage: Object.keys(window.localStorage),
@@ -159,6 +170,7 @@ export default async function handler(request, response) {
       expires: cookie.expires > 0 ? new Date(cookie.expires * 1000).toISOString() : null,
     }));
 
+    const captura = await capturarPantalla(page);
     const solicitudes = limpiar();
 
     return response.status(200).json({
@@ -180,19 +192,31 @@ export default async function handler(request, response) {
       solicitudes,
       almacenamiento,
       cookies,
+      captura,
       resumen: resumirCapturas(solicitudes),
       message:
         "Inspección terminada. No se modificó ningún período ni se guardó ninguna credencial.",
     });
   } catch (error) {
     const { timeout } = clasificarErrorNavegador(error);
+    const captura = await capturarPantalla(nav?.page);
 
     return response.status(timeout ? 504 : 502).json({
       ok: false,
       code: timeout ? "CATAPULT_TIMEOUT" : "CATAPULT_BROWSER_ERROR",
       error: timeout
-        ? "Catapult demoró demasiado en responder durante la inspección."
-        : "No se pudo completar la inspección automatizada del Cloud Editor.",
+        ? `Catapult demoró demasiado en responder durante la inspección (etapa: ${etapa}).`
+        : `No se pudo completar la inspección del Cloud Editor (etapa: ${etapa}).`,
+      etapa,
+      detalle: resumirError(error),
+      paginaActual: (() => {
+        try {
+          return nav?.page ? nav.page.url() : null;
+        } catch {
+          return null;
+        }
+      })(),
+      captura,
       solicitudes: limpiar(),
     });
   } finally {

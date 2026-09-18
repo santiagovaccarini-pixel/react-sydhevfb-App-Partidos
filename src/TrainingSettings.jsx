@@ -86,6 +86,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
   const [estadoInspeccion, setEstadoInspeccion] = useState("idle");
   const [inspeccion, setInspeccion] = useState(null);
   const [errorInspeccion, setErrorInspeccion] = useState("");
+  const [fallaInspeccion, setFallaInspeccion] = useState(null);
   const [copiaInspeccion, setCopiaInspeccion] = useState("");
 
   const inspeccionarEditor = async () => {
@@ -100,6 +101,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
     setEstadoInspeccion("inspeccionando");
     setInspeccion(null);
     setErrorInspeccion("");
+    setFallaInspeccion(null);
     setCopiaInspeccion("");
 
     try {
@@ -118,6 +120,9 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
       setPassword("");
 
       if (!respuesta.ok || !payload?.ok) {
+        // El backend cuenta en qué etapa falló y adjunta la pantalla que vio:
+        // sin eso el mensaje genérico no permite diagnosticar nada.
+        setFallaInspeccion(payload && typeof payload === "object" ? payload : null);
         throw new Error(payload?.error || "No se pudo inspeccionar el Cloud Editor.");
       }
 
@@ -132,6 +137,18 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
       setInspeccion(null);
       setEstadoInspeccion("error");
       setErrorInspeccion(error?.message || "No se pudo inspeccionar el Cloud Editor.");
+    }
+  };
+
+  const copiarFallaInspeccion = async () => {
+    if (!fallaInspeccion) return;
+
+    try {
+      const { captura: _omitida, ...sinImagen } = fallaInspeccion;
+      await navigator.clipboard.writeText(JSON.stringify(sinImagen, null, 2));
+      setCopiaInspeccion("ok");
+    } catch {
+      setCopiaInspeccion("error");
     }
   };
 
@@ -565,13 +582,49 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
             )}
 
             {estadoInspeccion === "error" && (
-              <div className="entrenamiento-ajustes-resultado error" aria-live="polite">
-                <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
-                <div>
-                  <strong>La inspección no pudo completarse</strong>
-                  <span>{errorInspeccion}</span>
+              <>
+                <div className="entrenamiento-ajustes-resultado error" aria-live="polite">
+                  <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                  <div>
+                    <strong>La inspección no pudo completarse</strong>
+                    <span>{errorInspeccion}</span>
+                  </div>
                 </div>
-              </div>
+
+                {fallaInspeccion && (
+                  <>
+                    <p className="entrenamiento-sonda-control">
+                      {fallaInspeccion.etapa ? `Etapa: ${fallaInspeccion.etapa}` : "Etapa desconocida"}
+                      {fallaInspeccion.code ? ` · Código: ${fallaInspeccion.code}` : ""}
+                      {fallaInspeccion.detalle?.tipo ? ` · ${fallaInspeccion.detalle.tipo}` : ""}
+                      {fallaInspeccion.detalle?.mensaje ? ` · ${fallaInspeccion.detalle.mensaje}` : ""}
+                      {fallaInspeccion.paginaActual
+                        ? ` · Página al fallar: ${fallaInspeccion.paginaActual}`
+                        : ""}
+                    </p>
+
+                    {fallaInspeccion.captura && (
+                      <figure className="entrenamiento-inspeccion-captura">
+                        <img
+                          src={fallaInspeccion.captura}
+                          alt="Pantalla que vio el navegador automatizado al fallar"
+                        />
+                        <figcaption>Lo que vio el navegador automatizado en el momento del error.</figcaption>
+                      </figure>
+                    )}
+
+                    <div className="entrenamiento-sonda-acciones">
+                      <button
+                        type="button"
+                        className="entrenamiento-boton-secundario"
+                        onClick={copiarFallaInspeccion}
+                      >
+                        {copiaInspeccion === "ok" ? "Copiado ✓" : "Copiar detalle del error"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
             )}
 
             {inspeccion && (
@@ -682,6 +735,16 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
                     .map((cookie) => `${cookie.name}${cookie.httpOnly ? " (httpOnly)" : ""}`)
                     .join(", ") || "ninguna"}
                 </p>
+
+                {inspeccion.captura && (
+                  <details className="entrenamiento-sonda-json">
+                    <summary>Ver pantalla del editor</summary>
+                    <figure className="entrenamiento-inspeccion-captura">
+                      <img src={inspeccion.captura} alt="Pantalla del Cloud Editor con 26-05 T" />
+                      <figcaption>Lo que vio el navegador automatizado al terminar.</figcaption>
+                    </figure>
+                  </details>
+                )}
 
                 <div className="entrenamiento-sonda-acciones">
                   <button

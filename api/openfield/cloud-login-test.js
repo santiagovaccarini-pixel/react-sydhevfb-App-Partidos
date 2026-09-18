@@ -3,10 +3,12 @@ import {
   ACTIVIDAD_PRUEBA,
   abrirEditorActividad,
   abrirNavegador,
+  capturarPantalla,
   cerrarNavegador,
   clasificarErrorNavegador,
   iniciarSesionCatapult,
   leerBodyJson,
+  resumirError,
   textoSeguro,
 } from "../../lib/catapultCloud.js";
 
@@ -41,19 +43,25 @@ export default async function handler(request, response) {
   }
 
   let nav = null;
+  let etapa = "inicio";
 
   try {
+    etapa = "lanzar-navegador";
     nav = await abrirNavegador();
 
+    etapa = "login";
     const login = await iniciarSesionCatapult(nav.page, { username, password });
     if (!login.ok) {
       return response.status(login.status).json({
         ok: false,
         code: login.code,
         error: login.error,
+        etapa,
+        captura: await capturarPantalla(nav.page),
       });
     }
 
+    etapa = "abrir-editor";
     const editor = await abrirEditorActividad(nav.page, ACTIVIDAD_PRUEBA);
 
     if (!editor.enEditor || !editor.nombreVisible) {
@@ -80,8 +88,11 @@ export default async function handler(request, response) {
       ok: false,
       code: timeout ? "CATAPULT_TIMEOUT" : "CATAPULT_BROWSER_ERROR",
       error: timeout
-        ? "Catapult demoró demasiado en responder durante la prueba de conexión."
-        : "No se pudo completar la prueba de acceso automatizado a Catapult.",
+        ? `Catapult demoró demasiado en responder durante la prueba de conexión (etapa: ${etapa}).`
+        : `No se pudo completar la prueba de acceso automatizado a Catapult (etapa: ${etapa}).`,
+      etapa,
+      detalle: resumirError(error),
+      captura: await capturarPantalla(nav?.page),
     });
   } finally {
     await cerrarNavegador(nav);
