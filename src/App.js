@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import jugadores from "./jugadores";
 import CanchaFormacion from "./components/CanchaFormacion";
+import { vaciarCacheEscudos } from "./domain/crests";
 import {
   EQUIPO_POR_DEFECTO,
   cargarEquipos,
@@ -195,7 +196,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.18.5";
+const APP_VERSION = "2026.09.18.6";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1416,6 +1417,7 @@ export default function App() {
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [buscadorPlantel, setBuscadorPlantel] = useState("");
   const [avisoPlantel, setAvisoPlantel] = useState("");
+  const [avisoEscudos, setAvisoEscudos] = useState("");
   const [nombreEquipoEditado, setNombreEquipoEditado] = useState("");
   const [nombreEquipoNuevo, setNombreEquipoNuevo] = useState("");
   const [avisoEquipo, setAvisoEquipo] = useState("");
@@ -5628,6 +5630,24 @@ export default function App() {
     return cambiarPuestos(jugador, { puestos });
   };
 
+  // Los escudos quedan guardados en el teléfono para que aparezcan sin señal.
+  // Si alguna vez se guardó el equivocado, esto los tira para que se bajen de
+  // nuevo, sin esperar el mes que tardan en renovarse solos.
+  const pedirVaciarEscudos = () =>
+    setConfirmacion({
+      titulo: "¿Volver a bajar los escudos?",
+      descripcion:
+        "Se borran las imágenes guardadas en el teléfono y se buscan de nuevo cuando haya señal. No toca ningún partido ni ningún dato tuyo.",
+      icono: "escudo",
+      etiquetaConfirmar: "Sí, bajarlos de nuevo",
+      etiquetaCancelar: "Cancelar",
+      onConfirmar: () => {
+        vaciarCacheEscudos();
+        setAvisoEscudos("Escudos borrados · se bajan de nuevo con señal");
+        window.setTimeout(() => setAvisoEscudos(""), 4000);
+      },
+    });
+
   const renderAjustes = () => (
     <div className="app">
       <div className="contenedor">
@@ -5670,6 +5690,27 @@ export default function App() {
           </span>
           <span className="flecha-ajuste">›</span>
         </button>
+
+        <button
+          type="button"
+          className="opcion-ajuste"
+          onClick={pedirVaciarEscudos}
+        >
+          <span className="icono-ajuste">
+            <Icono nombre="escudo" size={18} />
+          </span>
+          <span className="texto-ajuste">
+            <b>Escudos</b>
+            <span>Volver a bajarlos si alguno quedó mal</span>
+          </span>
+          <span className="flecha-ajuste">›</span>
+        </button>
+
+        {avisoEscudos && (
+          <div className="notificacion-guardado" role="status">
+            <Icono nombre="check" size={18} /> {avisoEscudos}
+          </div>
+        )}
       </div>
     </div>
   );

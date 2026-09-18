@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { EscudoCAM, EscudoRival } from "./AppChrome";
-import { claveEscudo, escudoGuardado, obtenerEscudo } from "../domain/crests";
+import {
+  alVaciarEscudos,
+  claveEscudo,
+  escudoGuardado,
+  escudoVencido,
+  obtenerEscudo,
+} from "../domain/crests";
 import { esElCam } from "../domain/equipo";
 
 export const NOMBRE_CAM = "Atlético Mineiro";
@@ -21,6 +27,14 @@ const VACIO = { situacion: "vacio", url: "", nombreOficial: "" };
  */
 export const useEscudoClub = (nombre, { demora = ESPERA_TIPEO } = {}) => {
   const [estado, setEstado] = useState(VACIO);
+  // Vaciar los escudos desde Ajustes tiene que verse en el momento, sin
+  // recargar la app.
+  const [vaciados, setVaciados] = useState(0);
+
+  useEffect(
+    () => alVaciarEscudos(() => setVaciados((cuenta) => cuenta + 1)),
+    [],
+  );
 
   useEffect(() => {
     const clave = claveEscudo(nombre);
@@ -31,7 +45,9 @@ export const useEscudoClub = (nombre, { demora = ESPERA_TIPEO } = {}) => {
       return undefined;
     }
 
-    // Si ya está guardado no hay nada que esperar ni que pedir.
+    // Lo guardado se muestra al toque. Si ya cumplió su tiempo igual se sale a
+    // buscarlo por atrás y recién se reemplaza cuando llega otro: así no
+    // parpadea, y sin señal te quedás con el de antes en vez de con ninguno.
     const guardado = escudoGuardado(texto);
     if (guardado) {
       setEstado({
@@ -39,19 +55,21 @@ export const useEscudoClub = (nombre, { demora = ESPERA_TIPEO } = {}) => {
         url: guardado.url,
         nombreOficial: guardado.nombreOficial,
       });
-      return undefined;
+      if (!escudoVencido(texto)) return undefined;
     }
 
     let vigente = true;
 
     const temporizador = window.setTimeout(async () => {
-      if (vigente) {
+      if (vigente && !guardado) {
         setEstado({ situacion: "buscando", url: "", nombreOficial: "" });
       }
 
       try {
         const encontrado = await obtenerEscudo(texto);
         if (!vigente) return;
+        // Si no vino nada nuevo, se queda el que ya estaba a la vista.
+        if (!encontrado && guardado) return;
 
         setEstado(
           encontrado
@@ -63,7 +81,7 @@ export const useEscudoClub = (nombre, { demora = ESPERA_TIPEO } = {}) => {
             : { situacion: "sin-resultado", url: "", nombreOficial: "" },
         );
       } catch (error) {
-        if (vigente) {
+        if (vigente && !guardado) {
           setEstado({ situacion: "sin-resultado", url: "", nombreOficial: "" });
         }
       }
@@ -73,7 +91,7 @@ export const useEscudoClub = (nombre, { demora = ESPERA_TIPEO } = {}) => {
       vigente = false;
       window.clearTimeout(temporizador);
     };
-  }, [nombre, demora]);
+  }, [nombre, demora, vaciados]);
 
   return estado;
 };
