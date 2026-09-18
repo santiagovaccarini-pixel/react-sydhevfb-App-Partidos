@@ -61,6 +61,7 @@ import {
   sumarDuracionesEventos,
   validarRegistroBasico,
 } from "./domain/match";
+import { puntosDeRegistros } from "./domain/puntos";
 import {
   cortesDelPartido,
   cortesDePeriodo,
@@ -219,7 +220,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.09.18.10";
+const APP_VERSION = "2026.09.18.11";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -2298,6 +2299,47 @@ export default function App() {
     () => resumenDeJugador(partidosFiltrados),
     [partidosFiltrados],
   );
+
+  // Un partido de penales vale 3 o 1 según lo que esté diciendo el filtro: si
+  // el botón lo está contando como ganado, la cuenta lo acompaña.
+  const penalesCuentan =
+    filtroEquipo === FILTRO_EQUIPO.RESULTADO &&
+    ADMITE_PENALES.includes(modoResultado) &&
+    penalesResultado !== PENALES.SIN;
+
+  const puntosEquipo = useMemo(
+    () =>
+      puntosDeRegistros(
+        registrosVisibles.map((fila) => fila.item),
+        { penalesCuentan },
+      ),
+    [registrosVisibles, penalesCuentan],
+  );
+
+  const puntosJugador = useMemo(
+    () =>
+      puntosDeRegistros(
+        partidosFiltrados.map((fila) => fila.item),
+        { penalesCuentan },
+      ),
+    [partidosFiltrados, penalesCuentan],
+  );
+
+  // El porcentaje de puntos, con el desglose abajo. Va igual en Equipo y en
+  // Jugador: la cuenta es la misma, cambia sobre qué partidos se hace.
+  const renderPuntos = (cuenta) =>
+    cuenta.porcentaje === null ? null : (
+      <div className="puntos-obtenidos">
+        <span>
+          Puntos obtenidos
+          <small>
+            {cuenta.puntos} de {cuenta.posibles} · {cuenta.ganados}G{" "}
+            {cuenta.empatados}E {cuenta.perdidos}P
+          </small>
+        </span>
+        <strong>{cuenta.porcentaje}%</strong>
+      </div>
+    );
 
   // Cambiar de vista no borra nada: cada lado se acuerda de lo suyo, así ir y
   // volver entre Equipo y Jugador no obliga a rearmar el filtro cada vez. Para
@@ -7227,6 +7269,8 @@ export default function App() {
                     ))}
                   </div>
 
+                  {renderPuntos(puntosJugador)}
+
                   {filtroJugador !== FILTRO.TODOS && (
                     <p className="contador-registros">
                       Mostrando {partidosFiltrados.length} de{" "}
@@ -7311,6 +7355,8 @@ export default function App() {
               )
             ) : (
               <>
+                {renderPuntos(puntosEquipo)}
+
                 <div className="historial-titulo">
                   <p className="contador-registros">
                     Mostrando {registrosVisibles.length} de {guardados.length}{" "}
