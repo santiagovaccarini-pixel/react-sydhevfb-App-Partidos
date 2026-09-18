@@ -195,7 +195,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.18.4";
+const APP_VERSION = "2026.09.18.5";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -3434,30 +3434,11 @@ export default function App() {
     };
   };
 
-  const guardarRegistro = async () => {
+  // Todo el archivado en sí. Vive aparte de guardarRegistro porque puede
+  // arrancar en dos momentos: derecho, o después de que aceptes reemplazar
+  // un partido que ya estaba guardado.
+  const archivarRegistro = async (nuevoRegistro, coincidente) => {
     if (guardandoRef.current) return;
-
-    const erroresBasicos = validarRegistroBasico(registro);
-    if (erroresBasicos.length > 0) {
-      alert(erroresBasicos.join("\n"));
-      return;
-    }
-
-    const nuevoRegistro = {
-      ...registro,
-      ...calcularTiemposRegistro(registro),
-      varsPT: registro.varsPT || [{ inicio: "", final: "" }],
-      varsST: registro.varsST || [{ inicio: "", final: "" }],
-      varsPTE: registro.varsPTE || [{ inicio: "", final: "" }],
-      varsSTE: registro.varsSTE || [{ inicio: "", final: "" }],
-      noIngresaron: calcularNoIngresaron(registro.formacion, registro.cambios),
-      guardadoEn: new Date().toISOString(),
-    };
-    const errorHorasInicio = validarHorasInicioTransmision(nuevoRegistro);
-    if (errorHorasInicio) {
-      alert(errorHorasInicio);
-      return;
-    }
 
     guardandoRef.current = true;
     setGuardando(true);
@@ -3465,9 +3446,6 @@ export default function App() {
     const registroSupabase = construirFilaSupabase(nuevoRegistro);
 
     try {
-      const coincidente = guardados.find(
-        (item) => clavePartido(item) === clavePartido(nuevoRegistro),
-      );
       const idExistente = nuevoRegistro.idSupabase || coincidente?.idSupabase;
 
       let respuesta = idExistente
@@ -3576,6 +3554,66 @@ export default function App() {
       guardandoRef.current = false;
       setGuardando(false);
     }
+  };
+
+  const guardarRegistro = async () => {
+    if (guardandoRef.current) return;
+
+    const erroresBasicos = validarRegistroBasico(registro);
+    if (erroresBasicos.length > 0) {
+      alert(erroresBasicos.join("\n"));
+      return;
+    }
+
+    const nuevoRegistro = {
+      ...registro,
+      ...calcularTiemposRegistro(registro),
+      varsPT: registro.varsPT || [{ inicio: "", final: "" }],
+      varsST: registro.varsST || [{ inicio: "", final: "" }],
+      varsPTE: registro.varsPTE || [{ inicio: "", final: "" }],
+      varsSTE: registro.varsSTE || [{ inicio: "", final: "" }],
+      noIngresaron: calcularNoIngresaron(registro.formacion, registro.cambios),
+      guardadoEn: new Date().toISOString(),
+    };
+    const errorHorasInicio = validarHorasInicioTransmision(nuevoRegistro);
+    if (errorHorasInicio) {
+      alert(errorHorasInicio);
+      return;
+    }
+
+    // La fecha y el rival alcanzan para que dos partidos distintos se
+    // confundan, y el que se reemplaza no vuelve. Si el guardado no es este
+    // mismo partido, se pregunta antes de pisarlo.
+    const coincidente = guardados.find(
+      (item) => clavePartido(item) === clavePartido(nuevoRegistro),
+    );
+
+    if (coincidente && coincidente.idSupabase !== nuevoRegistro.idSupabase) {
+      setConfirmacion({
+        titulo: "¿Reemplazar el partido que ya tenés?",
+        descripcion:
+          "Ya hay uno guardado con esta misma fecha y este mismo rival. Si lo reemplazás, lo que tenía cargado se pierde.",
+        icono: "cambio",
+        detalle: (
+          <>
+            <Icono nombre="cambio" size={15} />
+            {coincidente.rival?.trim() || "Sin rival"}
+            <span>
+              · {formatearFechaPantalla(coincidente.fecha)}
+              {coincidente.resultado?.trim()
+                ? ` · ${coincidente.resultado.trim()}`
+                : ""}
+            </span>
+          </>
+        ),
+        etiquetaConfirmar: "Sí, reemplazar",
+        etiquetaCancelar: "No guardar",
+        onConfirmar: () => archivarRegistro(nuevoRegistro, coincidente),
+      });
+      return;
+    }
+
+    await archivarRegistro(nuevoRegistro, coincidente);
   };
 
   // Detalle de lo que está por borrarse, para no limpiar un partido por error.
