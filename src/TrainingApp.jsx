@@ -103,6 +103,11 @@ export default function TrainingApp({ onVolver }) {
   const [errorPeriodos, setErrorPeriodos] = useState("");
   const solicitudPeriodosRef = useRef(0);
 
+  const [estadoSnapshot, setEstadoSnapshot] = useState("idle");
+  const [snapshot, setSnapshot] = useState(null);
+  const [errorSnapshot, setErrorSnapshot] = useState("");
+  const solicitudSnapshotRef = useRef(0);
+
   const evaluacion = useMemo(() => {
     if (!inicio || !fin) {
       return { corte: null, error: "Completá inicio y fin para validar el corte." };
@@ -143,6 +148,19 @@ export default function TrainingApp({ onVolver }) {
     [actividades, actividadSeleccionadaId],
   );
 
+  const participantesPorPeriodo = useMemo(
+    () => new Map((snapshot?.periods || []).map((periodo) => [periodo.id, periodo])),
+    [snapshot],
+  );
+
+  // Los participantes se leen aparte y quedan viejos apenas cambian los períodos.
+  const descartarSnapshot = () => {
+    solicitudSnapshotRef.current += 1;
+    setSnapshot(null);
+    setEstadoSnapshot("idle");
+    setErrorSnapshot("");
+  };
+
   const cargarPeriodos = async (activityId) => {
     if (!activityId) return;
 
@@ -151,6 +169,7 @@ export default function TrainingApp({ onVolver }) {
     setEstadoPeriodos("cargando");
     setPeriodos([]);
     setErrorPeriodos("");
+    descartarSnapshot();
 
     try {
       const respuesta = await fetch(
@@ -181,6 +200,47 @@ export default function TrainingApp({ onVolver }) {
       setPeriodos([]);
       setEstadoPeriodos("error");
       setErrorPeriodos(error?.message || "No se pudieron leer los períodos de OpenField.");
+    }
+  };
+
+  const cargarParticipantes = async (activityId) => {
+    if (!activityId) return;
+
+    const solicitudActual = solicitudSnapshotRef.current + 1;
+    solicitudSnapshotRef.current = solicitudActual;
+    setEstadoSnapshot("cargando");
+    setErrorSnapshot("");
+
+    try {
+      const respuesta = await fetch(
+        `/api/openfield/snapshot?activityId=${encodeURIComponent(activityId)}`,
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        },
+      );
+
+      const payload = await respuesta.json().catch(() => null);
+
+      if (!respuesta.ok || !payload?.ok) {
+        const detalle = payload?.upstreamStatus
+          ? ` Código OpenField: ${payload.upstreamStatus}.`
+          : "";
+        throw new Error(
+          `${payload?.error || "No se pudieron leer los participantes."}${detalle}`,
+        );
+      }
+
+      if (solicitudActual !== solicitudSnapshotRef.current) return;
+
+      setSnapshot(payload);
+      setEstadoSnapshot("listo");
+    } catch (error) {
+      if (solicitudActual !== solicitudSnapshotRef.current) return;
+      setSnapshot(null);
+      setEstadoSnapshot("error");
+      setErrorSnapshot(error?.message || "No se pudieron leer los participantes de OpenField.");
     }
   };
 
@@ -220,6 +280,7 @@ export default function TrainingApp({ onVolver }) {
         !lista.some((actividad) => actividad.id === actividadSeleccionadaId)
       ) {
         solicitudPeriodosRef.current += 1;
+        descartarSnapshot();
         setActividadSeleccionadaId("");
         setPeriodos([]);
         setEstadoPeriodos("idle");
@@ -229,6 +290,7 @@ export default function TrainingApp({ onVolver }) {
       }
     } catch (error) {
       solicitudPeriodosRef.current += 1;
+      descartarSnapshot();
       setActividades([]);
       setActividadSeleccionadaId("");
       setPeriodos([]);
@@ -248,6 +310,7 @@ export default function TrainingApp({ onVolver }) {
 
   const conexionLista = estadoOpenField === "conectado";
   const periodosListos = estadoPeriodos === "listo";
+  const snapshotListo = estadoSnapshot === "listo" && Boolean(snapshot);
   const cantidadEsperada = Number(actividadSeleccionada?.period_count);
   const diferenciaCantidad =
     actividadSeleccionada &&
@@ -474,37 +537,102 @@ export default function TrainingApp({ onVolver }) {
                         )}
 
                         {periodosListos && periodos.length > 0 && (
-                          <div className="entrenamiento-lista-periodos">
-                            {periodos.map((periodo, indice) => (
-                              <article className="entrenamiento-periodo" key={periodo.id}>
-                                <div className="entrenamiento-periodo-identidad">
-                                  <span>{String(indice + 1).padStart(2, "0")}</span>
-                                  <div>
-                                    <strong>{periodo.name || "Sin nombre"}</strong>
-                                    <small>{periodo.id}</small>
-                                  </div>
-                                </div>
-                                <div className="entrenamiento-periodo-horarios">
-                                  <div>
-                                    <span>Inicio</span>
-                                    <strong>
-                                      {formatearHoraPeriodo(periodo.start_ms ?? periodo.start_time)}
-                                    </strong>
-                                  </div>
-                                  <div>
-                                    <span>Fin</span>
-                                    <strong>
-                                      {formatearHoraPeriodo(periodo.end_ms ?? periodo.end_time)}
-                                    </strong>
-                                  </div>
-                                  <div>
-                                    <span>Duración</span>
-                                    <strong>{segundosATiempoPreciso(periodo.duration_seconds)}</strong>
-                                  </div>
-                                </div>
-                              </article>
-                            ))}
-                          </div>
+                          <>
+                            <div className="entrenamiento-participantes-barra">
+                              <span>
+                                {estadoSnapshot === "cargando"
+                                  ? "Leyendo participantes de cada período…"
+                                  : snapshotListo
+                                    ? `Participantes leídos · plantel ${
+                                        snapshot.athletes?.length ?? "?"
+                                      } · huella ${snapshot.huella.slice(0, 8)}`
+                                    : estadoSnapshot === "error"
+                                      ? errorSnapshot
+                                      : "Participantes por período: todavía no leídos."}
+                              </span>
+                              <button
+                                type="button"
+                                className="entrenamiento-boton-secundario"
+                                onClick={() => cargarParticipantes(actividadSeleccionada.id)}
+                                disabled={estadoSnapshot === "cargando"}
+                              >
+                                {estadoSnapshot === "cargando"
+                                  ? "Leyendo…"
+                                  : snapshotListo
+                                    ? "Releer participantes"
+                                    : "Leer participantes"}
+                              </button>
+                            </div>
+
+                            {snapshotListo && snapshot.incompleto && (
+                              <div className="entrenamiento-estado advertencia">
+                                OpenField no devolvió los participantes de todos los períodos. Con
+                                este snapshot no se puede validar una escritura.
+                              </div>
+                            )}
+
+                            <div className="entrenamiento-lista-periodos">
+                              {periodos.map((periodo, indice) => {
+                                const detalle = participantesPorPeriodo.get(periodo.id);
+                                const atletas = Array.isArray(detalle?.athletes)
+                                  ? [...detalle.athletes].sort((a, b) =>
+                                      a.nombre.localeCompare(b.nombre, "es"),
+                                    )
+                                  : null;
+
+                                return (
+                                  <article className="entrenamiento-periodo" key={periodo.id}>
+                                    <div className="entrenamiento-periodo-identidad">
+                                      <span>{String(indice + 1).padStart(2, "0")}</span>
+                                      <div>
+                                        <strong>{periodo.name || "Sin nombre"}</strong>
+                                        <small>{periodo.id}</small>
+                                      </div>
+                                    </div>
+                                    <div className="entrenamiento-periodo-horarios">
+                                      <div>
+                                        <span>Inicio</span>
+                                        <strong>
+                                          {formatearHoraPeriodo(periodo.start_ms ?? periodo.start_time)}
+                                        </strong>
+                                      </div>
+                                      <div>
+                                        <span>Fin</span>
+                                        <strong>
+                                          {formatearHoraPeriodo(periodo.end_ms ?? periodo.end_time)}
+                                        </strong>
+                                      </div>
+                                      <div>
+                                        <span>Duración</span>
+                                        <strong>
+                                          {segundosATiempoPreciso(periodo.duration_seconds)}
+                                        </strong>
+                                      </div>
+                                    </div>
+                                    {detalle && (
+                                      <details className="entrenamiento-periodo-participantes">
+                                        <summary>
+                                          {atletas
+                                            ? `${atletas.length} participantes`
+                                            : "Participantes sin leer"}
+                                        </summary>
+                                        {atletas && atletas.length > 0 && (
+                                          <ul>
+                                            {atletas.map((atleta) => (
+                                              <li key={atleta.id}>
+                                                {atleta.jersey != null ? `${atleta.jersey} · ` : ""}
+                                                {atleta.nombre}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </details>
+                                    )}
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          </>
                         )}
                       </div>
                     </>

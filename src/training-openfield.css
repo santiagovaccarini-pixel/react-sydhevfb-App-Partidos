@@ -367,3 +367,60 @@
     gap: 8px;
   }
 }
+
+.entrenamiento-participantes-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.entrenamiento-participantes-barra > span {
+  color: var(--portal-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-participantes-barra .entrenamiento-boton-secundario {
+  flex: 0 0 auto;
+}
+
+.entrenamiento-participantes-barra .entrenamiento-boton-secundario:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.entrenamiento-periodo-participantes {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.entrenamiento-periodo-participantes summary {
+  color: var(--portal-accent);
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.entrenamiento-periodo-participantes ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  columns: 2;
+  column-gap: 16px;
+  color: var(--portal-muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+  .entrenamiento-participantes-barra {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .entrenamiento-periodo-participantes ul {
+    columns: 1;
+  }
+}

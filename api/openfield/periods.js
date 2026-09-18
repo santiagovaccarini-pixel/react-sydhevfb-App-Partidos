@@ -1,4 +1,5 @@
 import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+import { limpiarPeriodo, ordenarPeriodos } from "../../lib/openfieldPeriods.js";
 
 const OPENFIELD_BASE_URL =
   process.env.OPENFIELD_API_BASE_URL ||
@@ -10,45 +11,6 @@ const normalizarActivityId = (valor) => {
   if (!id || id.length > 128) return "";
   return id;
 };
-
-// OpenField guarda cada tiempo como segundos Unix + centésimas (0-99).
-// La resolución real es 10 ms: cualquier comparación exacta tiene que hacerse
-// sobre esta suma y no sobre start_time solo, que trunca al segundo.
-const centesimas = (valor) => {
-  const numero = Number(valor);
-  return Number.isInteger(numero) && numero >= 0 && numero < 100 ? numero : null;
-};
-
-const aMilisegundos = (segundos, centi) => {
-  const base = Number(segundos);
-  if (!Number.isFinite(base)) return null;
-  return base * 1000 + (centesimas(centi) ?? 0) * 10;
-};
-
-const limpiarPeriodo = (periodo) => {
-  const startMs = aMilisegundos(periodo?.start_time, periodo?.start_centiseconds);
-  const endMs = aMilisegundos(periodo?.end_time, periodo?.end_centiseconds);
-  const duracionValida = startMs !== null && endMs !== null && endMs >= startMs;
-
-  return {
-    id: String(periodo?.id || ""),
-    name: String(periodo?.name || periodo?.period_name || "Sin nombre"),
-    start_time: periodo?.start_time ?? null,
-    end_time: periodo?.end_time ?? null,
-    start_centiseconds: centesimas(periodo?.start_centiseconds),
-    end_centiseconds: centesimas(periodo?.end_centiseconds),
-    start_ms: startMs,
-    end_ms: endMs,
-    duration_seconds: duracionValida ? (endMs - startMs) / 1000 : null,
-    // Los períodos forman un árbol (nested set): lft/rgt ordenan padres e hijos.
-    period_depth_id: periodo?.period_depth_id ?? null,
-    lft: periodo?.lft ?? null,
-    rgt: periodo?.rgt ?? null,
-  };
-};
-
-const ordenarPeriodos = (a, b) =>
-  Number(a.start_ms || 0) - Number(b.start_ms || 0) || Number(a.lft || 0) - Number(b.lft || 0);
 
 export default async function handler(request, response) {
   response.setHeader("Cache-Control", "private, no-store");
