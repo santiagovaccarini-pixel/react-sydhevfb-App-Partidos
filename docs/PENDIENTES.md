@@ -6,9 +6,12 @@ de lo hecho está en los commits, no en esta lista.
 
 ## De la lista de mejoras de la app
 
-- **Sacar los cortes de la app.** Un botón que copie la línea de tiempo del
-  partido para pegarla en la consola de OpenField, en vez de retipear los
-  horarios uno por uno. Es lo de mayor valor de toda la lista.
+- **Mandar los cortes solos a OpenField.** No es un botón de copiar: la idea es
+  que los cortes del partido se escriban en OpenField sin retipear nada, igual
+  que lo que se está armando en Entrenamiento. Se trabaja en otro lado (18/09);
+  acá queda anotado para no duplicarlo. Falta definir qué es un período —los
+  cortes del partido, cada jugador con sus minutos, o las dos cosas— porque eso
+  decide el traductor de partido a períodos.
 
 - **Guardar el partido en curso en la base.** Hoy lo que se está cargando vive
   solo en ese teléfono: si se muere la batería a mitad de partido, se pierde, y
@@ -17,6 +20,16 @@ de lo hecho está en los commits, no en esta lista.
 - **Chicos.** Avisar antes de pisar un partido que ya existe con la misma fecha y
   rival; deshacer el último corte; y "Borrar historial", que hoy está a dos
   toques de distancia sin mucha barrera.
+
+## Anotadas para más adelante
+
+- **Partir la descarga de la app.** Hoy Partido y Entrenamiento vienen en un
+  solo paquete: abrir la app para un partido se baja también todo el módulo de
+  Entrenamiento. Medido el 18/09 con `React.lazy` en `PortalApp.jsx`: son 14 kB
+  comprimidos, un 8%, así que hoy no se justifica. Conviene hacerlo cuando
+  Entrenamiento crezca, o si la app empieza a tardar en abrir. Son unas diez
+  líneas y no se vuelve más difícil por esperar. De paso aísla las fallas: hoy
+  un error de Entrenamiento se lleva puesta la pantalla de partido.
 
 ## Esperando una decisión tuya
 
