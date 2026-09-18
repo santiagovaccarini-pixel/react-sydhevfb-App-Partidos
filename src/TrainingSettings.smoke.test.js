@@ -296,4 +296,41 @@ describe("TrainingSettings · inspección del Cloud Editor", () => {
     expect(clave.value).toBe("");
     expect(window.localStorage.getItem("catapult_openfield_username")).toBe("santi");
   });
+  test("muestra etapa, detalle y captura cuando el backend informa la falla", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 502,
+        json: async () => ({
+          ok: false,
+          code: "CATAPULT_BROWSER_ERROR",
+          error: "No se pudo completar la inspección del Cloud Editor (etapa: login).",
+          etapa: "login",
+          detalle: { tipo: "TimeoutError", mensaje: "page.goto: net::ERR_FAILED" },
+          paginaActual: "https://us.openfield.catapultsports.com/login",
+          captura: "data:image/jpeg;base64,AAAA",
+        }),
+      })),
+    );
+
+    await montar();
+    const usuario = contenedor.querySelector("input[autocomplete='username']");
+    const clave = contenedor.querySelector("input[autocomplete='current-password']");
+    await act(async () => {
+      escribir(usuario, "santi");
+      escribir(clave, "secreta");
+    });
+    await act(async () => botonPorTexto("Inspeccionar Cloud Editor (solo lectura)").click());
+
+    const texto = contenedor.textContent;
+    expect(texto).toContain("La inspección no pudo completarse");
+    expect(texto).toContain("Etapa: login");
+    expect(texto).toContain("CATAPULT_BROWSER_ERROR");
+    expect(texto).toContain("page.goto: net::ERR_FAILED");
+    const imagen = contenedor.querySelector(".entrenamiento-inspeccion-captura img");
+    expect(imagen?.getAttribute("src")).toBe("data:image/jpeg;base64,AAAA");
+    expect(botonPorTexto("Copiar detalle del error")).toBeDefined();
+    expect(clave.value).toBe("");
+  });
 });

@@ -376,3 +376,22 @@
   cursor: wait;
   opacity: 0.6;
 }
+
+.entrenamiento-inspeccion-captura {
+  margin: 12px 0 0;
+}
+
+.entrenamiento-inspeccion-captura img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #0c1014;
+}
+
+.entrenamiento-inspeccion-captura figcaption {
+  margin-top: 6px;
+  color: var(--portal-muted);
+  font-size: 0.72rem;
+}
