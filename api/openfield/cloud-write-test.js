@@ -13,7 +13,7 @@ import {
 import { describirAutorizacion } from "../../lib/catapultInspect.js";
 import { ACTIVITY_SERVICE_BASE_DEFAULT, extraerTokenOauth } from "../../lib/catapultInternal.js";
 import {
-  armarBatch,
+  armarBatchCompleto,
   armarPeriodoNuevo,
   elegirNombreLibre,
   elegirVentanaPrueba,
@@ -294,7 +294,12 @@ export default async function handler(request, response) {
       endMs: ventana.endMs,
       athletes,
     });
-    const batch = armarBatch(nuevo);
+    // El batch reemplaza todos los períodos: van los actuales más el nuevo.
+    const batch = armarBatchCompleto({
+      periodosInternos: internoAntesRaw.payload.periods,
+      periodosConnect: connectAntes.snapshot.periods,
+      nuevo,
+    });
     const esperado = {
       nombre,
       inicioMs: ventana.startMs,
@@ -362,6 +367,7 @@ export default async function handler(request, response) {
         metodo: "PUT",
         host: new URL(baseServicio()).hostname,
         path: `${rutaActividad}/batch`,
+        periodosEnviados: batch.periods.length,
         periodo: {
           id: nuevo.id,
           name: nuevo.name,
