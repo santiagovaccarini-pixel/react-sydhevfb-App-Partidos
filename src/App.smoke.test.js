@@ -3567,4 +3567,64 @@ describe("interfaz operativa", () => {
     expect(localStorage.getItem("escudos_rivales")).toBeNull();
     expect(contenedor.textContent).toContain("Escudos borrados");
   });
+
+  test("ir y volver entre Equipo y Jugador no borra el filtro de cada uno", async () => {
+    doblesSupabase.filasHistorial = [
+      { ...filaTransmisionGuardada(), id: 21, fecha: "2026-09-10", rival: "Santos", resultado: "2-1", localia: "local" },
+      { ...filaTransmisionGuardada(), id: 22, fecha: "2026-09-03", rival: "Vasco", resultado: "0-2", localia: "visitante" },
+      { ...filaTransmisionGuardada(), id: 23, fecha: "2026-08-27", rival: "Santos", resultado: "1-1", localia: "local" },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    const verPor = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".cambiar-vista button")).find(
+        (boton) => boton.textContent === etiqueta,
+      );
+    const fechas = () =>
+      Array.from(contenedor.querySelectorAll(".fecha-registro")).map((nodo) =>
+        nodo.textContent.trim(),
+      );
+
+    await act(async () => irA("Registros").click());
+    expect(fechas()).toHaveLength(3);
+
+    // En Equipo se filtra por rival: quedan los dos de Santos.
+    await act(async () => contenedor.querySelector(".boton-filtro").click());
+    await act(async () =>
+      Array.from(document.querySelectorAll(".opcion-hoja"))
+        .find((boton) => boton.textContent === "Equipo")
+        .click(),
+    );
+    await act(async () =>
+      contenedor.querySelectorAll(".lista-rivales button")[0].click(),
+    );
+    expect(fechas()).toHaveLength(2);
+
+    // Se pasa a Jugador y se elige uno.
+    await act(async () => verPor("Jugador").click());
+    await act(async () => contenedor.querySelector(".fila-jugador").click());
+    const jugador = contenedor.querySelector(".ficha-jugador h2").textContent;
+    expect(jugador).toBeTruthy();
+
+    // Al volver a Equipo el filtro de rival sigue puesto.
+    await act(async () => verPor("Equipo").click());
+    expect(contenedor.querySelector(".rival-elegido").textContent).toContain(
+      "Santos",
+    );
+    expect(fechas()).toHaveLength(2);
+    expect(contenedor.querySelector(".boton-filtro").className).toContain(
+      "con-filtro",
+    );
+
+    // Y el jugador elegido también sigue donde estaba.
+    await act(async () => verPor("Jugador").click());
+    expect(contenedor.querySelector(".ficha-jugador h2").textContent).toBe(
+      jugador,
+    );
+  });
 });

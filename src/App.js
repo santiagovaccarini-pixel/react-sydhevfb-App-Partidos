@@ -196,7 +196,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.18.7";
+const APP_VERSION = "2026.09.18.8";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -2271,16 +2271,10 @@ export default function App() {
     [partidosFiltrados],
   );
 
-  // Cambiar de vista o tocar el buscador arranca de cero: quedarse con el
-  // jugador anterior mientras se escribe otro nombre confunde.
-  const mirarRegistrosPor = (modo) => {
-    setModoRegistros(modo);
-    setBusquedaRegistros("");
-    setJugadorElegido(null);
-    setFiltroJugador(FILTRO.TODOS);
-    setFiltroEquipo(FILTRO_EQUIPO.TODOS);
-    setFiltroAbierto(false);
-  };
+  // Cambiar de vista no borra nada: cada lado se acuerda de lo suyo, así ir y
+  // volver entre Equipo y Jugador no obliga a rearmar el filtro cada vez. Para
+  // limpiar está el icono del filtro, que es explícito.
+  const mirarRegistrosPor = (modo) => setModoRegistros(modo);
 
   // Volver a tocar el icono deja todo como al entrar: sin filtro y cerrado.
   const limpiarFiltros = () => {
