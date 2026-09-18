@@ -195,7 +195,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.18.2";
+const APP_VERSION = "2026.09.18.3";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -5150,10 +5150,24 @@ export default function App() {
 
     // Los VAR de un período son varios. Se muestran los cargados y uno vacío
     // más, para poder sumar otro sin salir de la pantalla.
+    //
+    // Cada uno viaja con el lugar que ocupa en el array de verdad: la lista de
+    // arriba saltea los vacíos, así que el renglón en pantalla no sirve para
+    // escribir. Si no, borrar el primero y corregir el segundo escribía en el
+    // hueco que quedó.
     const varsDelPeriodo = (() => {
-      const lista = (editado[`vars${periodo}`] || []).filter(Boolean);
-      const cargados = lista.filter((uno) => uno.inicio || uno.final);
-      return [...cargados, { inicio: "", final: "" }];
+      const lista = editado[`vars${periodo}`] || [];
+      const cargados = lista
+        .map((uno, indice) => ({
+          dato: uno || { inicio: "", final: "" },
+          indice,
+        }))
+        .filter(({ dato }) => dato.inicio || dato.final);
+
+      return [
+        ...cargados,
+        { dato: { inicio: "", final: "" }, indice: lista.length },
+      ];
     })();
 
     const actualizarVar = (varIndex, campo, valor) =>
@@ -5334,24 +5348,24 @@ export default function App() {
                   tiemposEditados[`tiempoVar${periodo}`] || "-",
                 )}
 
-                {varsDelPeriodo.map((unVar, varIndex) => (
+                {varsDelPeriodo.map(({ dato, indice }, renglon) => (
                   <div
                     className="campos-editables en-dos"
-                    key={`var-${periodo}-${varIndex}`}
+                    key={`var-${periodo}-${indice}`}
                   >
                     {renderCampoDetalleEditable({
-                      label: `Inicio ${varIndex + 1}`,
+                      label: `Inicio ${renglon + 1}`,
                       type: "time",
-                      value: unVar.inicio || "",
+                      value: dato.inicio || "",
                       onChange: (valor) =>
-                        actualizarVar(varIndex, "inicio", valor),
+                        actualizarVar(indice, "inicio", valor),
                     })}
                     {renderCampoDetalleEditable({
-                      label: `Final ${varIndex + 1}`,
+                      label: `Final ${renglon + 1}`,
                       type: "time",
-                      value: unVar.final || "",
+                      value: dato.final || "",
                       onChange: (valor) =>
-                        actualizarVar(varIndex, "final", valor),
+                        actualizarVar(indice, "final", valor),
                     })}
                   </div>
                 ))}

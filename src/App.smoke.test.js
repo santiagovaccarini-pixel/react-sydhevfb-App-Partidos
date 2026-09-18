@@ -3327,4 +3327,77 @@ describe("interfaz operativa", () => {
     expect(pastilla().textContent).toContain("Local");
     expect(hero().className).not.toContain("neutral");
   });
+
+  test("editar un VAR después de borrar otro toca el que estás mirando", async () => {
+    doblesSupabase.filasHistorial = [filaTransmisionGuardada()];
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Registros").click());
+    await act(async () =>
+      contenedor.querySelector(".registro-guardado button").click(),
+    );
+
+    const boton = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll("button")).find((item) =>
+        item.textContent.includes(etiqueta),
+      );
+    await act(async () => boton("Editar registro").click());
+
+    const pestana = (etiqueta) =>
+      Array.from(
+        contenedor.querySelectorAll('.selector-periodos [role="tab"]'),
+      ).find((item) => item.textContent.trim() === etiqueta);
+    await act(async () => pestana("Tiempos").click());
+
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+
+    // La tarjeta de VAR: cada fila trae Inicio y Final.
+    const filasVar = () => {
+      const tarjeta = Array.from(
+        contenedor.querySelectorAll(".tarjeta-ficha"),
+      ).find((nodo) => nodo.querySelector(".cabeza-ficha b")?.textContent === "VAR");
+      return Array.from(tarjeta.querySelectorAll(".campos-editables.en-dos")).map(
+        (fila) => Array.from(fila.querySelectorAll("input")),
+      );
+    };
+
+    const poner = async (entrada, valor) => {
+      await act(async () => {
+        escribir.call(entrada, valor);
+        entrada.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+
+    // Arranca con el VAR cargado del partido y un lugar libre abajo.
+    expect(filasVar()).toHaveLength(2);
+    expect(filasVar()[0][0].value).toBe("21:12:00");
+
+    // Se suma un segundo VAR.
+    await poner(filasVar()[1][0], "21:40:00");
+    await poner(filasVar()[1][1], "21:42:00");
+    expect(filasVar()).toHaveLength(3);
+
+    // Y se borra el primero, que era el que estaba cargado de antes.
+    await poner(filasVar()[0][0], "");
+    await poner(filasVar()[0][1], "");
+
+    // Ahora queda sólo el segundo, arriba, con su lugar libre abajo.
+    expect(filasVar()).toHaveLength(2);
+    expect(filasVar()[0][0].value).toBe("21:40:00");
+    expect(filasVar()[0][1].value).toBe("21:42:00");
+
+    // Corregirle el inicio tiene que tocar ESE, no el hueco que quedó.
+    await poner(filasVar()[0][0], "21:41:00");
+
+    expect(filasVar()).toHaveLength(2);
+    expect(filasVar()[0][0].value).toBe("21:41:00");
+    expect(filasVar()[0][1].value).toBe("21:42:00");
+  });
 });
