@@ -119,6 +119,12 @@ const leerControl = async ({ token, activityId }) => {
   );
   const periodos = Array.isArray(actividad?.periods) ? actividad.periods : [];
 
+  // is_injected distingue una actividad creada por inyección de una grabada
+  // con chalecos. Es la señal read-only de si la vía /injection podría tocar
+  // esta actividad: una actividad real (is_injected=false) probablemente sea
+  // rechazada por el PUT de inyección.
+  const marca = (valor) => (valor === true ? true : valor === false ? false : null);
+
   return {
     ruta: "/activities",
     status: respuesta.status,
@@ -128,6 +134,8 @@ const leerControl = async ({ token, activityId }) => {
     actividadNombre: actividad ? String(actividad.name || actividad.activity_name || "") : "",
     periodos: periodos.length,
     primerPeriodoId: periodos[0]?.id ? String(periodos[0].id) : "",
+    is_injected: actividad ? marca(actividad.is_injected) : null,
+    process_status: actividad?.process_status ?? null,
     ...(respuesta.error ? { error: respuesta.error } : {}),
   };
 };
@@ -213,7 +221,7 @@ export default async function handler(request, response) {
   return response.status(200).json({
     ok: true,
     probe: "capability-read-only",
-    version: "capability-probe-v2",
+    version: "capability-probe-v3",
     metodosEnviados: METODOS_SONDA,
     baseUrl: OPENFIELD_BASE_URL,
     activityId,

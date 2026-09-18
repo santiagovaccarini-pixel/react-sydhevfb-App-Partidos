@@ -350,6 +350,11 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
                   {sonda.control.actividadEncontrada
                     ? ` · ${sonda.control.actividadNombre || "actividad"} encontrada · ${sonda.control.periodos} períodos`
                     : " · la actividad de prueba no apareció en el listado"}
+                  {sonda.control.is_injected === true
+                    ? " · actividad INYECTADA (is_injected: sí)"
+                    : sonda.control.is_injected === false
+                      ? " · actividad real de chalecos (is_injected: no)"
+                      : ""}
                   {sonda.periodId ? "" : " · sin período para sondear /periods/{id}"}
                 </p>
 
