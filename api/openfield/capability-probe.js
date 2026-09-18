@@ -213,7 +213,7 @@ export default async function handler(request, response) {
   return response.status(200).json({
     ok: true,
     probe: "capability-read-only",
-    version: "capability-probe-v1",
+    version: "capability-probe-v2",
     metodosEnviados: METODOS_SONDA,
     baseUrl: OPENFIELD_BASE_URL,
     activityId,
