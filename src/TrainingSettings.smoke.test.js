@@ -50,11 +50,11 @@ const armarSonda = () => {
     activityId: ACTIVIDAD,
     periodId: PERIODO,
     tokens: [
-      { clave: "lectura", env: "OPENFIELD_API_TOKEN", configurado: true },
-      { clave: "escritura", env: "OPENFIELD_API_TOKEN_WRITE", configurado: false },
+      { clave: "principal", env: "OPENFIELD_API_TOKEN", configurado: true },
+      { clave: "alternativo", env: "OPENFIELD_API_TOKEN_WRITE", configurado: false },
     ],
     control: {
-      token: "lectura",
+      token: "principal",
       ruta: "/activities",
       status: 200,
       ms: 800,
@@ -64,7 +64,7 @@ const armarSonda = () => {
       periodos: 7,
       primerPeriodoId: PERIODO,
     },
-    sondas: { lectura: { resultados, resumen: resumirSonda(resultados) } },
+    sondas: { principal: { resultados, resumen: resumirSonda(resultados) } },
   };
 };
 

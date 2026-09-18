@@ -18,11 +18,11 @@ const OPENFIELD_BASE_URL =
 // 26-05 T: la única actividad autorizada para pruebas.
 const ACTIVIDAD_PRUEBA_ID = "9dffa100-99e5-4ce6-921f-226e9e01e264";
 
-// El token de lectura ya funciona en producción. El segundo es el generado con
-// scopes nuevos: se compara contra el primero sin pisarlo.
+// OPENFIELD_API_TOKEN es el token en uso. OPENFIELD_API_TOKEN_WRITE es opcional:
+// permite comparar un segundo token (por ejemplo con otros scopes) sin pisar el primero.
 const TOKENS = [
-  { clave: "lectura", env: "OPENFIELD_API_TOKEN" },
-  { clave: "escritura", env: "OPENFIELD_API_TOKEN_WRITE" },
+  { clave: "principal", env: "OPENFIELD_API_TOKEN" },
+  { clave: "alternativo", env: "OPENFIELD_API_TOKEN_WRITE" },
 ];
 
 const TIMEOUT_RUTA_MS = 8000;

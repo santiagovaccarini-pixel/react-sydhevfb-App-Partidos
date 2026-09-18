@@ -345,7 +345,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
                 </div>
 
                 <p className="entrenamiento-sonda-control">
-                  Control con token de {sonda.control.token}: GET /activities →{" "}
+                  Control con el token {sonda.control.token}: GET /activities →{" "}
                   {sonda.control.status || "sin respuesta"}
                   {sonda.control.actividadEncontrada
                     ? ` · ${sonda.control.actividadNombre || "actividad"} encontrada · ${sonda.control.periodos} períodos`
@@ -356,7 +356,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
                 {Object.entries(sonda.sondas).map(([clave, datos]) => (
                   <article className="entrenamiento-sonda-token" key={clave}>
                     <header>
-                      <span>Token de {clave}</span>
+                      <span>Token {clave}</span>
                       <strong>
                         {sonda.tokens.find((token) => token.clave === clave)?.env || clave}
                       </strong>
