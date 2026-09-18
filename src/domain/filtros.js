@@ -95,24 +95,31 @@ const PASAN = {
 
   [FILTRO_EQUIPO.RESULTADO]: (
     registro,
-    { modo, marcador, penales = PENALES.SIN },
+    { modo, modos, marcador, penales = PENALES.SIN },
   ) => {
-    if (modo === MODO_RESULTADO.EXACTO) {
+    // Se pueden pedir varios a la vez: ganados y empatados, por ejemplo. Basta
+    // con que el partido entre en alguno.
+    const pedidos = Array.isArray(modos) && modos.length > 0 ? modos : [modo];
+
+    if (pedidos.includes(MODO_RESULTADO.EXACTO)) {
       return mismoMarcador(marcador, registro?.resultado);
     }
 
     const termino = comoTermino(registro?.resultado);
-    const desempatado = EN_PENALES[modo];
 
-    // "Empatados" no tiene vuelta de penales: un partido que se definió desde
-    // el punto no terminó empatado, terminó ganado o perdido.
-    if (!desempatado) return termino === modo;
+    return pedidos.some((cual) => {
+      const desempatado = EN_PENALES[cual];
 
-    if (penales === PENALES.SOLO) return termino === desempatado;
-    if (penales === PENALES.CON) {
-      return termino === modo || termino === desempatado;
-    }
-    return termino === modo;
+      // "Empatados" no tiene vuelta de penales: un partido que se definió
+      // desde el punto no terminó empatado, terminó ganado o perdido.
+      if (!desempatado) return termino === cual;
+
+      if (penales === PENALES.SOLO) return termino === desempatado;
+      if (penales === PENALES.CON) {
+        return termino === cual || termino === desempatado;
+      }
+      return termino === cual;
+    });
   },
 
   [FILTRO_EQUIPO.LOCALIA]: (registro, { localia }) =>
@@ -128,12 +135,23 @@ const PASAN = {
 };
 
 /**
- * Recorta los partidos con el filtro elegido. Cada fila es { item, index },
+ * Recorta los partidos con los criterios elegidos. Cada fila es { item, index },
  * igual que la lista que ya arma la pantalla.
+ *
+ * Se pueden pedir varios a la vez y el partido los tiene que cumplir todos:
+ * contra Santos Y de local Y ganados. Un criterio que no existe —"todos", o
+ * uno que se quitó— no recorta nada, así que no hace falta limpiarlo antes.
  */
-export const filtrarRegistros = (filas, { filtro, ...opciones } = {}) => {
+export const filtrarRegistros = (
+  filas,
+  { filtro, filtros, ...opciones } = {},
+) => {
   const lista = Array.isArray(filas) ? filas : [];
-  const pasa = PASAN[filtro];
-  if (!pasa) return lista;
-  return lista.filter((fila) => pasa(fila.item, opciones));
+  const pedidos = Array.isArray(filtros) ? filtros : filtro ? [filtro] : [];
+  const activos = pedidos.map((cual) => PASAN[cual]).filter(Boolean);
+
+  if (activos.length === 0) return lista;
+  return lista.filter((fila) =>
+    activos.every((pasa) => pasa(fila.item, opciones)),
+  );
 };

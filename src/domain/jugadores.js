@@ -162,33 +162,40 @@ export const FILTRO = {
 const PAPELES_DEL_FILTRO = {
   [FILTRO.TITULAR]: [PAPELES.COMPLETO, PAPELES.SALIO],
   [FILTRO.ENTRO]: [PAPELES.ENTRO],
+  // Jugó el partido entero: arrancó de titular y no lo cambiaron. No entra el
+  // que ingresó, ni el que salió, ni el que miró desde el banco.
+  [FILTRO.NO_SALIO]: [PAPELES.COMPLETO],
   [FILTRO.BANCO]: [PAPELES.BANCO],
 };
 
+const PASA_EL_JUGADOR = {
+  [FILTRO.MINUTOS]: (participacion, opciones) =>
+    pasaPorMinutos(participacion.bruto, opciones),
+};
+
+Object.entries(PAPELES_DEL_FILTRO).forEach(([cual, papeles]) => {
+  PASA_EL_JUGADOR[cual] = (participacion) =>
+    papeles.includes(participacion.papel);
+});
+
+/**
+ * Recorta los partidos de un jugador. Se pueden pedir varios criterios a la
+ * vez y los tiene que cumplir todos: titular Y más de sesenta minutos. Uno que
+ * no existe —"todos", o uno que se quitó— no recorta nada.
+ */
 export const filtrarPartidosDeJugador = (partidos, opciones = {}) => {
   const lista = Array.isArray(partidos) ? partidos : [];
+  const pedidos = Array.isArray(opciones.filtros)
+    ? opciones.filtros
+    : opciones.filtro
+      ? [opciones.filtro]
+      : [];
+  const activos = pedidos.map((cual) => PASA_EL_JUGADOR[cual]).filter(Boolean);
 
-  if (opciones.filtro === FILTRO.MINUTOS) {
-    return lista.filter((fila) =>
-      pasaPorMinutos(fila.participacion.bruto, opciones),
-    );
-  }
-
-  // Estaba en la cancha cuando terminó el partido. No es un papel: vale para el
-  // titular que jugó los noventa y también para el que entró y se quedó hasta
-  // el final. El que miró desde el banco no cuenta: nunca estuvo.
-  if (opciones.filtro === FILTRO.NO_SALIO) {
-    return lista.filter(({ participacion }) => {
-      if (participacion.papel === PAPELES.BANCO) return false;
-      // Al titular que salió lo dice su papel; al que entró y después salió,
-      // que también se fue, hay que mirarle el horario de salida.
-      return participacion.papel !== PAPELES.SALIO && !participacion.salio;
-    });
-  }
-
-  const papeles = PAPELES_DEL_FILTRO[opciones.filtro];
-  if (!papeles) return lista;
-  return lista.filter((fila) => papeles.includes(fila.participacion.papel));
+  if (activos.length === 0) return lista;
+  return lista.filter((fila) =>
+    activos.every((pasa) => pasa(fila.participacion, opciones)),
+  );
 };
 
 /**
