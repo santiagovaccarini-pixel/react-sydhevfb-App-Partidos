@@ -196,7 +196,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.18.6";
+const APP_VERSION = "2026.09.18.7";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -5697,7 +5697,7 @@ export default function App() {
           onClick={pedirVaciarEscudos}
         >
           <span className="icono-ajuste">
-            <Icono nombre="escudo" size={18} />
+            <Icono nombre="refrescar" size={18} />
           </span>
           <span className="texto-ajuste">
             <b>Escudos</b>

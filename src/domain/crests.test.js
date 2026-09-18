@@ -326,6 +326,14 @@ describe("resolver el escudo de muchos clubes a la vez", () => {
       "https://escudo/viejo.png",
     );
     expect(escudoGuardado("Cruzeiro")?.url).toBe("https://escudo/viejo.png");
+
+    // Y al día siguiente se vuelve a intentar, no al mes: sin señal en la
+    // cancha, reiniciar el mes entero dejaba el escudo viejo para siempre.
+    const guardado = leerCacheEscudos()[claveEscudo("Cruzeiro")];
+    expect(entradaVencida(guardado, Date.now() + ESPERA_REINTENTO + 1)).toBe(
+      true,
+    );
+    expect(entradaVencida(guardado, Date.now() + 60_000)).toBe(false);
   });
 
   test("pedir el mismo club cuatro veces busca una sola", async () => {
