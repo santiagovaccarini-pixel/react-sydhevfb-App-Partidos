@@ -220,7 +220,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.09.18.12";
+const APP_VERSION = "2026.09.18.13";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1335,7 +1335,11 @@ export default function App() {
   const [pestanaEdicion, setPestanaEdicion] = useState("partido");
   const [periodoEdicion, setPeriodoEdicion] = useState("PT");
   const [edicionDelRival, setEdicionDelRival] = useState(false);
-  const [busquedaRegistros, setBusquedaRegistros] = useState("");
+  // Un buscador por vista. En Equipo se busca un partido y en Jugador un
+  // nombre: con uno solo, elegir un jugador dejaba su nombre puesto y al
+  // volver a Equipo la lista aparecía recortada por él.
+  const [busquedaEquipo, setBusquedaEquipo] = useState("");
+  const [busquedaJugador, setBusquedaJugador] = useState("");
   // Registros se puede mirar de dos maneras: por partido, que es lo de
   // siempre, o por jugador, para ver en cuáles estuvo y cuánto jugó.
   const [modoRegistros, setModoRegistros] = useState("equipo");
@@ -2131,7 +2135,7 @@ export default function App() {
 
   // Lo que el buscador de texto deja pasar, antes del filtro.
   const registrosBuscados = useMemo(() => {
-    const textoBuscado = normalizarTexto(busquedaRegistros);
+    const textoBuscado = normalizarTexto(busquedaEquipo);
 
     return guardados
       .map((item, index) => ({ item, index }))
@@ -2145,7 +2149,7 @@ export default function App() {
         if (ordenRegistros === "reciente") return a.index - b.index;
         return b.index - a.index;
       });
-  }, [guardados, busquedaRegistros, ordenRegistros]);
+  }, [guardados, busquedaEquipo, ordenRegistros]);
 
   const registrosVisibles = useMemo(
     () =>
@@ -2280,13 +2284,13 @@ export default function App() {
 
   // Mirando por jugador, el buscador filtra nombres en vez de partidos.
   const jugadoresVisibles = useMemo(() => {
-    const buscado = normalizarTexto(busquedaRegistros);
+    const buscado = normalizarTexto(busquedaJugador);
     const todos = jugadoresDelHistorial(guardados);
     if (!buscado) return todos;
     return todos.filter((quien) =>
       normalizarTexto(quien.nombre).includes(buscado),
     );
-  }, [guardados, busquedaRegistros]);
+  }, [guardados, busquedaJugador]);
 
   const partidosDelJugador = useMemo(
     () => (jugadorElegido ? partidosDeJugador(guardados, jugadorElegido) : []),
@@ -2394,6 +2398,7 @@ export default function App() {
   const CRITERIOS_JUGADOR = [
     { valor: FILTRO.TITULAR, etiqueta: "Titular" },
     { valor: FILTRO.ENTRO, etiqueta: "Ingresó" },
+    { valor: FILTRO.NO_SALIO, etiqueta: "No salió" },
     { valor: FILTRO.BANCO, etiqueta: "No ingresó" },
     { valor: FILTRO.MINUTOS, etiqueta: "Minutos jugados" },
   ];
@@ -2440,11 +2445,16 @@ export default function App() {
 
   const elegirJugador = (nombre) => {
     setJugadorElegido(nombre);
-    setBusquedaRegistros(nombre);
+    setBusquedaJugador(nombre);
   };
 
   const escribirEnElBuscador = (texto) => {
-    setBusquedaRegistros(texto);
+    if (enEquipo) {
+      setBusquedaEquipo(texto);
+      return;
+    }
+
+    setBusquedaJugador(texto);
     // Editar el nombre es volver a la lista de jugadores.
     if (jugadorElegido && texto !== jugadorElegido) setJugadorElegido(null);
   };
@@ -7022,7 +7032,7 @@ export default function App() {
               <div className="buscador-registros">
                 <div className="linea-buscador">
                   <input
-                    value={busquedaRegistros}
+                    value={enEquipo ? busquedaEquipo : busquedaJugador}
                     onChange={(e) => escribirEnElBuscador(e.target.value)}
                     onKeyDown={manejarEnter}
                     placeholder={

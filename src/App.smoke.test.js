@@ -2846,7 +2846,13 @@ describe("interfaz operativa", () => {
       Array.from(document.querySelectorAll(".opcion-hoja")).map(
         (boton) => boton.textContent,
       ),
-    ).toEqual(["Titular", "Ingresó", "No ingresó", "Minutos jugados"]);
+    ).toEqual([
+      "Titular",
+      "Ingresó",
+      "No salió",
+      "No ingresó",
+      "Minutos jugados",
+    ]);
 
     const enLaHojaJugador = async (selectorDelBoton, etiqueta) => {
       await act(async () => contenedor.querySelector(selectorDelBoton).click());
@@ -3705,5 +3711,80 @@ describe("interfaz operativa", () => {
     );
     expect(contenedor.querySelector(".boton-penales")).toBeNull();
     expect(rivales()).toEqual([]);
+  });
+
+  test("cada vista tiene su buscador: elegir un jugador no recorta Equipo", async () => {
+    // BERNARD estuvo en uno solo de los tres partidos.
+    const conPlantel = (id, fecha, rival, convocados) => ({
+      ...filaTransmisionGuardada(),
+      id,
+      fecha,
+      rival,
+      titulares: ["ALONSO", "SCARPA"],
+      convocados,
+      cambio_1_tiempo: "",
+      cambio_1_sale: "",
+      cambio_1_entra: "",
+      cambio_2_tiempo: "",
+      cambio_2_sale: "",
+      cambio_2_entra: "",
+      captura_tiempo: null,
+    });
+    doblesSupabase.filasHistorial = [
+      conPlantel(91, "2026-09-10", "Santos", ["BERNARD"]),
+      conPlantel(92, "2026-09-03", "Vasco", ["DUDU"]),
+      conPlantel(93, "2026-08-27", "Gremio", ["DUDU"]),
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    const verPor = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".cambiar-vista button")).find(
+        (boton) => boton.textContent === etiqueta,
+      );
+    const buscador = () =>
+      contenedor.querySelector(".buscador-registros input");
+    const cuantos = () =>
+      contenedor.querySelectorAll(".registro-guardado").length;
+
+    await act(async () => irA("Registros").click());
+    expect(cuantos()).toBe(3);
+
+    // Se elige BERNARD en Jugador: su nombre queda en el buscador de esa vista.
+    await act(async () => verPor("Jugador").click());
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".fila-jugador"))
+        .find((fila) => fila.textContent.includes("BERNARD"))
+        .click(),
+    );
+    expect(buscador().value).toBe("BERNARD");
+    expect(cuantos()).toBe(1);
+
+    // Al volver a Equipo el buscador es el suyo, vacío, con los tres partidos.
+    await act(async () => verPor("Equipo").click());
+    expect(buscador().value).toBe("");
+    expect(cuantos()).toBe(3);
+
+    // Y lo que se escriba en Equipo se queda en Equipo.
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    await act(async () => {
+      escribir.call(buscador(), "Vasco");
+      buscador().dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(cuantos()).toBe(1);
+
+    await act(async () => verPor("Jugador").click());
+    expect(buscador().value).toBe("BERNARD");
+    expect(cuantos()).toBe(1);
+
+    await act(async () => verPor("Equipo").click());
+    expect(buscador().value).toBe("Vasco");
   });
 });
