@@ -60,6 +60,30 @@ const tonoPase = (veredicto) => {
   return "advertencia";
 };
 
+const ETIQUETAS_ESCRITURA = {
+  "escritura-validada": "✓ Escritura validada",
+  "escritura-rechazada": "OpenField rechazó el batch",
+  "sin-cambios": "OpenField aceptó el batch pero no cambió nada",
+  "escritura-con-diferencias": "Escribió, pero no exactamente lo pedido",
+};
+
+const tonoEscritura = (codigo) => {
+  if (codigo === "escritura-validada") return "correcto";
+  if (codigo === "escritura-con-diferencias") return "error";
+  return "advertencia";
+};
+
+const formatearHoraMs = (ms) => {
+  const numero = Number(ms);
+  if (!Number.isFinite(numero) || numero <= 0) return "—";
+  return new Intl.DateTimeFormat("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(numero));
+};
+
 const tonoStatus = (status) => {
   if (status === null || status === undefined) return "advertencia";
   if (status >= 200 && status < 400) return "correcto";
@@ -238,6 +262,76 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
     }
   };
 
+  const [confirmacion, setConfirmacion] = useState("");
+  const [estadoEscritura, setEstadoEscritura] = useState("idle");
+  const [escritura, setEscritura] = useState(null);
+  const [errorEscritura, setErrorEscritura] = useState("");
+  const [fallaEscritura, setFallaEscritura] = useState(null);
+  const [copiaEscritura, setCopiaEscritura] = useState("");
+
+  const ocupado =
+    estado === "probando" || estadoInspeccion === "inspeccionando" || estadoPase === "probando";
+  const confirmacionValida = confirmacion.trim() === "26-05 T";
+  const escrituraHabilitada =
+    confirmacionValida && Boolean(username.trim()) && Boolean(password) && !ocupado;
+
+  const ejecutarEscritura = async () => {
+    if (!escrituraHabilitada || estadoEscritura === "escribiendo") return;
+
+    setEstadoEscritura("escribiendo");
+    setEscritura(null);
+    setErrorEscritura("");
+    setFallaEscritura(null);
+    setCopiaEscritura("");
+
+    try {
+      const respuesta = await fetch("/api/openfield/cloud-write-test", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+          confirmacion: confirmacion.trim(),
+        }),
+      });
+
+      const payload = await respuesta.json().catch(() => null);
+      setPassword("");
+      setConfirmacion("");
+
+      if (!respuesta.ok || !payload?.ok) {
+        setFallaEscritura(payload && typeof payload === "object" ? payload : null);
+        throw new Error(payload?.error || "El write test no pudo completarse.");
+      }
+
+      setEscritura(payload);
+      setEstadoEscritura("ok");
+    } catch (error) {
+      setPassword("");
+      setConfirmacion("");
+      setEscritura(null);
+      setEstadoEscritura("error");
+      setErrorEscritura(error?.message || "El write test no pudo completarse.");
+    }
+  };
+
+  const copiarEscritura = async () => {
+    const fuente = escritura || fallaEscritura;
+    if (!fuente) return;
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(fuente, null, 2));
+      setCopiaEscritura("ok");
+    } catch {
+      setCopiaEscritura("error");
+    }
+  };
+
   const copiarInspeccion = async () => {
     if (!inspeccion) return;
 
@@ -289,7 +383,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
   };
 
   const probarConexion = async (event) => {
-    event.preventDefault();
+    event?.preventDefault?.();
 
     const usuarioLimpio = username.trim();
     if (!usuarioLimpio || !password) {
@@ -339,6 +433,11 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
     }
   };
 
+  const enviarVerificacion = (event) => {
+    event.preventDefault();
+    probarPase();
+  };
+
   return (
     <main className="entrenamiento-app entrenamiento-ajustes-pagina">
       <header className="entrenamiento-barra">
@@ -363,8 +462,8 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
           <span>Integraciones</span>
           <h1>Catapult OpenField</h1>
           <p>
-            Conectá la cuenta que usará la automatización del Cloud Editor. En esta primera prueba
-            solo validamos el inicio de sesión y que podamos abrir la actividad 26-05 T.
+            Primero verificá el acceso con tu cuenta. Después, el write test sobre 26-05 T. Los
+            diagnósticos que ya usamos quedan plegados abajo.
           </p>
         </div>
 
@@ -374,11 +473,11 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
               <span>01</span>
               <div>
                 <h2>Cuenta de Catapult</h2>
-                <p>La contraseña se usa únicamente durante la prueba y no se guarda.</p>
+                <p>La contraseña se usa solo durante cada prueba y no se guarda en ningún lado.</p>
               </div>
             </div>
 
-            <form onSubmit={probarConexion}>
+            <form onSubmit={enviarVerificacion}>
               <label>
                 Usuario
                 <input
@@ -406,39 +505,9 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
               <button
                 type="submit"
                 className="entrenamiento-boton-principal"
-                disabled={estado === "probando" || estadoInspeccion === "inspeccionando"}
+                disabled={ocupado || estadoEscritura === "escribiendo"}
               >
-                {estado === "probando" ? "Comprobando acceso…" : "Conectar Catapult"}
-              </button>
-
-              <button
-                type="button"
-                className="entrenamiento-boton-secundario entrenamiento-ajustes-boton-ancho"
-                onClick={inspeccionarEditor}
-                disabled={
-                  estado === "probando" ||
-                  estadoInspeccion === "inspeccionando" ||
-                  estadoPase === "probando"
-                }
-              >
-                {estadoInspeccion === "inspeccionando"
-                  ? "Inspeccionando el editor…"
-                  : "Inspeccionar Cloud Editor (solo lectura)"}
-              </button>
-
-              <button
-                type="button"
-                className="entrenamiento-boton-secundario entrenamiento-ajustes-boton-ancho"
-                onClick={probarPase}
-                disabled={
-                  estado === "probando" ||
-                  estadoInspeccion === "inspeccionando" ||
-                  estadoPase === "probando"
-                }
-              >
-                {estadoPase === "probando"
-                  ? "Probando el pase interno…"
-                  : "Probar el pase interno (solo lectura)"}
+                {estadoPase === "probando" ? "Verificando acceso…" : "Verificar acceso (solo lectura)"}
               </button>
             </form>
 
@@ -455,10 +524,398 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
             <div className="entrenamiento-panel-titulo">
               <span>02</span>
               <div>
-                <h2>Prueba controlada</h2>
+                <h2>Acceso al editor</h2>
+                <p>
+                  Inicia sesión, captura el pase que devuelve /oauth/token apenas llega, cierra el
+                  navegador y con ese pase lee 26-05 T por los servicios internos. Solo GET. El pase
+                  no se muestra ni se guarda.
+                </p>
+              </div>
+            </div>
+
+            {estadoPase === "idle" && (
+              <div className="entrenamiento-ajustes-limites">
+                <strong>Cómo se usa</strong>
+                <span>
+                  Completá usuario y contraseña en el panel 01 y tocá "Verificar acceso".
+                  Tarda menos de un minuto. El resultado dice si el pase abre la puerta que usa el
+                  editor para escribir y qué forma tiene una actividad ahí adentro.
+                </span>
+              </div>
+            )}
+
+            {estadoPase === "probando" && (
+              <div className="entrenamiento-ajustes-resultado" aria-live="polite">
+                <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                <div>
+                  <strong>Probando el pase</strong>
+                  <span>Iniciando sesión, capturando el pase y leyendo 26-05 T por dentro…</span>
+                </div>
+              </div>
+            )}
+
+            {estadoPase === "error" && (
+              <>
+                <div className="entrenamiento-ajustes-resultado error" aria-live="polite">
+                  <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                  <div>
+                    <strong>La prueba del pase no pudo completarse</strong>
+                    <span>{errorPase}</span>
+                  </div>
+                </div>
+
+                {fallaPase && (
+                  <>
+                    <p className="entrenamiento-sonda-control">
+                      {fallaPase.etapa ? `Etapa: ${fallaPase.etapa}` : "Etapa desconocida"}
+                      {fallaPase.code ? ` · Código: ${fallaPase.code}` : ""}
+                      {fallaPase.detalle?.tipo ? ` · ${fallaPase.detalle.tipo}` : ""}
+                      {fallaPase.detalle?.mensaje ? ` · ${fallaPase.detalle.mensaje}` : ""}
+                    </p>
+                    {fallaPase.captura && (
+                      <figure className="entrenamiento-inspeccion-captura">
+                        <img src={fallaPase.captura} alt="Pantalla al fallar la prueba del pase" />
+                        <figcaption>Lo que vio el navegador automatizado en el momento del error.</figcaption>
+                      </figure>
+                    )}
+                    <div className="entrenamiento-sonda-acciones">
+                      <button type="button" className="entrenamiento-boton-secundario" onClick={copiarPase}>
+                        {copiaPase === "ok" ? "Copiado ✓" : "Copiar detalle del error"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {pase && (
+              <>
+                <div
+                  className={`entrenamiento-ajustes-resultado ${tonoPase(pase.resumen?.veredicto)}`}
+                  aria-live="polite"
+                >
+                  <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                  <div>
+                    <strong>
+                      {ETIQUETAS_PASE[pase.resumen?.veredicto] || pase.resumen?.veredicto || "Sin veredicto"}
+                    </strong>
+                    <span>{pase.resumen?.detalle}</span>
+                  </div>
+                </div>
+
+                <div className="entrenamiento-sonda-tokens">
+                  <span
+                    className={`entrenamiento-sonda-chip ${pase.pase?.capturado ? "correcto" : "error"}`}
+                  >
+                    {pase.pase?.capturado ? "Pase capturado" : "Pase no capturado"}
+                  </span>
+                  {pase.pase?.capturado && (
+                    <>
+                      <span className="entrenamiento-sonda-chip">
+                        {pase.pase.tipo} · {pase.pase.formato} · {pase.pase.largo} car.
+                      </span>
+                      {pase.pase.expira && (
+                        <span className="entrenamiento-sonda-chip">
+                          Vence {formatearFechaHora(pase.pase.expira)}
+                        </span>
+                      )}
+                      <span className={`entrenamiento-sonda-chip ${pase.pase.tieneRefresh ? "correcto" : "advertencia"}`}>
+                        {pase.pase.tieneRefresh ? "Con refresh token" : "Sin refresh token"}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <ul className="entrenamiento-sonda-rutas">
+                  {(pase.resultados || []).map((resultado) => (
+                    <li key={resultado.clave}>
+                      <code>
+                        {resultado.metodo} {resultado.host}
+                        {resultado.path}
+                        {resultado.conCookies ? " (con sesión)" : " (con pase)"}
+                      </code>
+                      <span className={`entrenamiento-sonda-chip ${tonoStatus(resultado.status || null)}`}>
+                        {resultado.status || "sin respuesta"} ·{" "}
+                        {resultado.error || resultado.contentType || resultado.descripcion}
+                      </span>
+                      {resultado.cuerpo?.tipo === "objeto" && (
+                        <small>Respuesta: {resultado.cuerpo.claves.join(", ")}</small>
+                      )}
+                      {resultado.cuerpo?.tipo === "array" && (
+                        <small>
+                          Lista de {resultado.cuerpo.largo} ·{" "}
+                          {(resultado.cuerpo.clavesPrimero || []).join(", ")}
+                        </small>
+                      )}
+                      {resultado.cuerpo?.muestraPeriodo && (
+                        <small>Período: {resultado.cuerpo.muestraPeriodo.claves.join(", ")}</small>
+                      )}
+                      {resultado.cuerpo?.message && <small>{resultado.cuerpo.message}</small>}
+                    </li>
+                  ))}
+                </ul>
+
+                {pase.captura && (
+                  <details className="entrenamiento-sonda-json">
+                    <summary>Ver pantalla tras el login</summary>
+                    <figure className="entrenamiento-inspeccion-captura">
+                      <img src={pase.captura} alt="Pantalla de Catapult tras iniciar sesión" />
+                      <figcaption>Lo que vio el navegador automatizado justo antes de cerrarse.</figcaption>
+                    </figure>
+                  </details>
+                )}
+
+                <div className="entrenamiento-sonda-acciones">
+                  <button type="button" className="entrenamiento-boton-secundario" onClick={copiarPase}>
+                    {copiaPase === "ok" ? "Copiado ✓" : "Copiar resultado"}
+                  </button>
+                </div>
+
+                {copiaPase === "error" && (
+                  <div className="entrenamiento-estado advertencia">
+                    No se pudo copiar automáticamente. Abrí el JSON completo y copialo a mano.
+                  </div>
+                )}
+
+                <details className="entrenamiento-sonda-json">
+                  <summary>Ver JSON completo</summary>
+                  <pre>{JSON.stringify({ ...pase, captura: undefined }, null, 2)}</pre>
+                </details>
+              </>
+            )}
+          </section>
+
+          <section className="entrenamiento-panel entrenamiento-ajustes-panel entrenamiento-ajustes-panel-ancho">
+            <div className="entrenamiento-panel-titulo">
+              <span>03</span>
+              <div>
+                <h2>Write test · Modo Prueba</h2>
+                <p>
+                  La primera escritura real de la app en OpenField. Solo sobre 26-05 T. Agrega un
+                  período de prueba por la misma puerta que usa el editor y después verifica por
+                  las dos vías que quedó exacto y que nada más cambió.
+                </p>
+              </div>
+            </div>
+
+            <div className="entrenamiento-ajustes-limites">
+              <strong>Qué hace, paso por paso</strong>
+              <span>
+                1. Inicia sesión y captura el pase. 2. Toma un snapshot por el servicio interno y por
+                la API oficial. 3. Arma UN período nuevo (TEST APP NN, 10 minutos, 10 minutos
+                después del inicio, con los participantes del primer período). 4. Manda el batch
+                con solo ese período. 5. Relee todo. 6. Compara: tiene que aparecer exactamente ese
+                período, con 0 ms de diferencia, y ningún otro tocado. No borra el período de
+                prueba: se saca a mano desde el editor.
+              </span>
+            </div>
+
+            <label>
+              Escribí 26-05 T para habilitar el botón
+              <input
+                type="text"
+                value={confirmacion}
+                onChange={(event) => setConfirmacion(event.target.value)}
+                placeholder="26-05 T"
+                autoComplete="off"
+                disabled={estadoEscritura === "escribiendo"}
+              />
+            </label>
+
+            <button
+              type="button"
+              className="entrenamiento-boton-principal"
+              onClick={ejecutarEscritura}
+              disabled={!escrituraHabilitada || estadoEscritura === "escribiendo"}
+            >
+              {estadoEscritura === "escribiendo"
+                ? "Escribiendo y verificando…"
+                : "Escribir TEST APP en 26-05 T"}
+            </button>
+
+            {!escrituraHabilitada && estadoEscritura !== "escribiendo" && (
+              <p className="entrenamiento-sonda-control">
+                {!username.trim() || !password
+                  ? "Completá usuario y contraseña de Catapult en el panel 01."
+                  : !confirmacionValida
+                    ? "Falta la confirmación exacta."
+                    : "Esperá a que termine la otra prueba."}
+              </p>
+            )}
+
+            {estadoEscritura === "escribiendo" && (
+              <div className="entrenamiento-ajustes-resultado" aria-live="polite">
+                <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                <div>
+                  <strong>Escribiendo</strong>
+                  <span>Login, snapshot, batch, relectura y comparación. Hasta un minuto.</span>
+                </div>
+              </div>
+            )}
+
+            {estadoEscritura === "error" && (
+              <>
+                <div className="entrenamiento-ajustes-resultado error" aria-live="polite">
+                  <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                  <div>
+                    <strong>El write test no pudo completarse</strong>
+                    <span>{errorEscritura}</span>
+                  </div>
+                </div>
+                {fallaEscritura && (
+                  <>
+                    <p className="entrenamiento-sonda-control">
+                      {fallaEscritura.etapa ? `Etapa: ${fallaEscritura.etapa}` : ""}
+                      {fallaEscritura.code ? ` · Código: ${fallaEscritura.code}` : ""}
+                      {fallaEscritura.detalle?.mensaje ? ` · ${fallaEscritura.detalle.mensaje}` : ""}
+                      {fallaEscritura.escribio === true
+                        ? " · ATENCIÓN: el batch ya se había enviado cuando falló; revisá 26-05 T en el editor."
+                        : fallaEscritura.escribio === false
+                          ? " · No se escribió nada."
+                          : ""}
+                    </p>
+                    <div className="entrenamiento-sonda-acciones">
+                      <button type="button" className="entrenamiento-boton-secundario" onClick={copiarEscritura}>
+                        {copiaEscritura === "ok" ? "Copiado ✓" : "Copiar detalle del error"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {escritura && (
+              <>
+                <div
+                  className={`entrenamiento-ajustes-resultado ${tonoEscritura(escritura.veredicto?.codigo)}`}
+                  aria-live="polite"
+                >
+                  <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                  <div>
+                    <strong>
+                      {ETIQUETAS_ESCRITURA[escritura.veredicto?.codigo] ||
+                        escritura.veredicto?.codigo ||
+                        "Sin veredicto"}
+                    </strong>
+                    <span>{escritura.veredicto?.detalle}</span>
+                  </div>
+                </div>
+
+                <div className="entrenamiento-sonda-tokens">
+                  <span className={`entrenamiento-sonda-chip ${tonoStatus(escritura.put?.status || null)}`}>
+                    PUT batch → {escritura.put?.status || "sin respuesta"}
+                  </span>
+                  <span className="entrenamiento-sonda-chip">
+                    {escritura.enviado?.periodo?.name} ·{" "}
+                    {formatearHoraMs(escritura.enviado?.periodo?.start_time_ms)} →{" "}
+                    {formatearHoraMs(escritura.enviado?.periodo?.end_time_ms)} ·{" "}
+                    {escritura.enviado?.periodo?.participantes} participantes
+                  </span>
+                  <span className="entrenamiento-sonda-chip">
+                    Interno: {escritura.antes?.interno?.periods?.length ?? "?"} →{" "}
+                    {escritura.despues?.interno?.periods?.length ?? "?"} períodos
+                  </span>
+                  <span className="entrenamiento-sonda-chip">
+                    API oficial: {escritura.antes?.connect?.count ?? "?"} →{" "}
+                    {escritura.despues?.connect?.count ?? "?"} períodos
+                  </span>
+                </div>
+
+                <ul className="entrenamiento-sonda-rutas">
+                  {[
+                    ["Servicio interno", escritura.validacion?.interna],
+                    ["API oficial", escritura.validacion?.connect],
+                  ].map(([nombre, validacion]) => (
+                    <li key={nombre}>
+                      <code>{nombre}</code>
+                      {validacion ? (
+                        <>
+                          <span
+                            className={`entrenamiento-sonda-chip ${validacion.valido ? "correcto" : "error"}`}
+                          >
+                            {validacion.valido ? "Exacto" : "Con diferencias"} · +
+                            {validacion.diff?.agregados?.length ?? 0} · −
+                            {validacion.diff?.eliminados?.length ?? 0} · ~
+                            {validacion.diff?.modificados?.length ?? 0}
+                          </span>
+                          {validacion.corte && (
+                            <small>
+                              {validacion.corte.motivo === "ok"
+                                ? "Inicio y fin: 0 ms de diferencia."
+                                : validacion.corte.motivo === "no-encontrado"
+                                  ? "El período de prueba no apareció."
+                                  : `Inicio ${validacion.corte.diferenciaInicioMs ?? "?"} ms · fin ${
+                                      validacion.corte.diferenciaFinMs ?? "?"
+                                    } ms respecto de lo pedido.`}
+                            </small>
+                          )}
+                          {validacion.participantes && (
+                            <small>
+                              Participantes:{" "}
+                              {validacion.participantes.valido
+                                ? "coinciden"
+                                : `faltan ${validacion.participantes.detalle?.faltantes?.length ?? "?"}, sobran ${
+                                    validacion.participantes.detalle?.sobrantes?.length ?? "?"
+                                  }`}
+                            </small>
+                          )}
+                          {(validacion.diff?.modificados || []).map((modificado) => (
+                            <small key={modificado.id}>
+                              Modificado: {modificado.name} ·{" "}
+                              {Object.keys(modificado.cambios || {}).join(", ")}
+                            </small>
+                          ))}
+                          {(validacion.diff?.eliminados || []).map((eliminado) => (
+                            <small key={eliminado.id}>Eliminado: {eliminado.name}</small>
+                          ))}
+                        </>
+                      ) : (
+                        <span className="entrenamiento-sonda-chip advertencia">Sin relectura</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="entrenamiento-sonda-acciones">
+                  <button type="button" className="entrenamiento-boton-secundario" onClick={copiarEscritura}>
+                    {copiaEscritura === "ok" ? "Copiado ✓" : "Copiar resultado"}
+                  </button>
+                </div>
+
+                {copiaEscritura === "error" && (
+                  <div className="entrenamiento-estado advertencia">
+                    No se pudo copiar automáticamente. Abrí el JSON completo y copialo a mano.
+                  </div>
+                )}
+
+                <details className="entrenamiento-sonda-json">
+                  <summary>Ver JSON completo</summary>
+                  <pre>{JSON.stringify(escritura, null, 2)}</pre>
+                </details>
+              </>
+            )}
+          </section>
+
+          <details className="entrenamiento-ajustes-avanzado">
+            <summary>Diagnóstico avanzado · pruebas que ya cumplieron su función</summary>
+
+          <section className="entrenamiento-panel entrenamiento-ajustes-panel">
+            <div className="entrenamiento-panel-titulo">
+              <span>A</span>
+              <div>
+                <h2>Prueba de login del editor</h2>
                 <p>Antes de habilitar cualquier escritura.</p>
               </div>
             </div>
+
+            <button
+              type="button"
+              className="entrenamiento-boton-secundario entrenamiento-ajustes-boton-ancho"
+              onClick={probarConexion}
+              disabled={ocupado || estadoEscritura === "escribiendo"}
+            >
+              {estado === "probando" ? "Comprobando acceso…" : "Probar login del editor (solo lectura)"}
+            </button>
 
             <div className="entrenamiento-ajustes-objetivo">
               <span>Actividad de prueba</span>
@@ -501,7 +958,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
 
           <section className="entrenamiento-panel entrenamiento-ajustes-panel entrenamiento-ajustes-panel-ancho">
             <div className="entrenamiento-panel-titulo">
-              <span>03</span>
+              <span>B</span>
               <div>
                 <h2>Sonda de la Connect API</h2>
                 <p>
@@ -654,7 +1111,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
 
           <section className="entrenamiento-panel entrenamiento-ajustes-panel entrenamiento-ajustes-panel-ancho">
             <div className="entrenamiento-panel-titulo">
-              <span>04</span>
+              <span>C</span>
               <div>
                 <h2>Inspección del Cloud Editor</h2>
                 <p>
@@ -664,6 +1121,17 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
                 </p>
               </div>
             </div>
+
+            <button
+              type="button"
+              className="entrenamiento-boton-secundario entrenamiento-ajustes-boton-ancho"
+              onClick={inspeccionarEditor}
+              disabled={ocupado || estadoEscritura === "escribiendo"}
+            >
+              {estadoInspeccion === "inspeccionando"
+                ? "Inspeccionando el editor…"
+                : "Inspeccionar Cloud Editor (solo lectura)"}
+            </button>
 
             {estadoInspeccion === "idle" && (
               <div className="entrenamiento-ajustes-limites">
@@ -874,171 +1342,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
               </>
             )}
           </section>
-
-          <section className="entrenamiento-panel entrenamiento-ajustes-panel entrenamiento-ajustes-panel-ancho">
-            <div className="entrenamiento-panel-titulo">
-              <span>05</span>
-              <div>
-                <h2>Pase interno del editor</h2>
-                <p>
-                  Inicia sesión, captura el pase que devuelve /oauth/token apenas llega, cierra el
-                  navegador y con ese pase lee 26-05 T por los servicios internos. Solo GET. El pase
-                  no se muestra ni se guarda.
-                </p>
-              </div>
-            </div>
-
-            {estadoPase === "idle" && (
-              <div className="entrenamiento-ajustes-limites">
-                <strong>Cómo se usa</strong>
-                <span>
-                  Completá usuario y contraseña en el panel 01 y tocá "Probar el pase interno".
-                  Tarda menos de un minuto. El resultado dice si el pase abre la puerta que usa el
-                  editor para escribir y qué forma tiene una actividad ahí adentro.
-                </span>
-              </div>
-            )}
-
-            {estadoPase === "probando" && (
-              <div className="entrenamiento-ajustes-resultado" aria-live="polite">
-                <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
-                <div>
-                  <strong>Probando el pase</strong>
-                  <span>Iniciando sesión, capturando el pase y leyendo 26-05 T por dentro…</span>
-                </div>
-              </div>
-            )}
-
-            {estadoPase === "error" && (
-              <>
-                <div className="entrenamiento-ajustes-resultado error" aria-live="polite">
-                  <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
-                  <div>
-                    <strong>La prueba del pase no pudo completarse</strong>
-                    <span>{errorPase}</span>
-                  </div>
-                </div>
-
-                {fallaPase && (
-                  <>
-                    <p className="entrenamiento-sonda-control">
-                      {fallaPase.etapa ? `Etapa: ${fallaPase.etapa}` : "Etapa desconocida"}
-                      {fallaPase.code ? ` · Código: ${fallaPase.code}` : ""}
-                      {fallaPase.detalle?.tipo ? ` · ${fallaPase.detalle.tipo}` : ""}
-                      {fallaPase.detalle?.mensaje ? ` · ${fallaPase.detalle.mensaje}` : ""}
-                    </p>
-                    {fallaPase.captura && (
-                      <figure className="entrenamiento-inspeccion-captura">
-                        <img src={fallaPase.captura} alt="Pantalla al fallar la prueba del pase" />
-                        <figcaption>Lo que vio el navegador automatizado en el momento del error.</figcaption>
-                      </figure>
-                    )}
-                    <div className="entrenamiento-sonda-acciones">
-                      <button type="button" className="entrenamiento-boton-secundario" onClick={copiarPase}>
-                        {copiaPase === "ok" ? "Copiado ✓" : "Copiar detalle del error"}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-
-            {pase && (
-              <>
-                <div
-                  className={`entrenamiento-ajustes-resultado ${tonoPase(pase.resumen?.veredicto)}`}
-                  aria-live="polite"
-                >
-                  <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
-                  <div>
-                    <strong>
-                      {ETIQUETAS_PASE[pase.resumen?.veredicto] || pase.resumen?.veredicto || "Sin veredicto"}
-                    </strong>
-                    <span>{pase.resumen?.detalle}</span>
-                  </div>
-                </div>
-
-                <div className="entrenamiento-sonda-tokens">
-                  <span
-                    className={`entrenamiento-sonda-chip ${pase.pase?.capturado ? "correcto" : "error"}`}
-                  >
-                    {pase.pase?.capturado ? "Pase capturado" : "Pase no capturado"}
-                  </span>
-                  {pase.pase?.capturado && (
-                    <>
-                      <span className="entrenamiento-sonda-chip">
-                        {pase.pase.tipo} · {pase.pase.formato} · {pase.pase.largo} car.
-                      </span>
-                      {pase.pase.expira && (
-                        <span className="entrenamiento-sonda-chip">
-                          Vence {formatearFechaHora(pase.pase.expira)}
-                        </span>
-                      )}
-                      <span className={`entrenamiento-sonda-chip ${pase.pase.tieneRefresh ? "correcto" : "advertencia"}`}>
-                        {pase.pase.tieneRefresh ? "Con refresh token" : "Sin refresh token"}
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                <ul className="entrenamiento-sonda-rutas">
-                  {(pase.resultados || []).map((resultado) => (
-                    <li key={resultado.clave}>
-                      <code>
-                        {resultado.metodo} {resultado.host}
-                        {resultado.path}
-                        {resultado.conCookies ? " (con sesión)" : " (con pase)"}
-                      </code>
-                      <span className={`entrenamiento-sonda-chip ${tonoStatus(resultado.status || null)}`}>
-                        {resultado.status || "sin respuesta"} ·{" "}
-                        {resultado.error || resultado.contentType || resultado.descripcion}
-                      </span>
-                      {resultado.cuerpo?.tipo === "objeto" && (
-                        <small>Respuesta: {resultado.cuerpo.claves.join(", ")}</small>
-                      )}
-                      {resultado.cuerpo?.tipo === "array" && (
-                        <small>
-                          Lista de {resultado.cuerpo.largo} ·{" "}
-                          {(resultado.cuerpo.clavesPrimero || []).join(", ")}
-                        </small>
-                      )}
-                      {resultado.cuerpo?.muestraPeriodo && (
-                        <small>Período: {resultado.cuerpo.muestraPeriodo.claves.join(", ")}</small>
-                      )}
-                      {resultado.cuerpo?.message && <small>{resultado.cuerpo.message}</small>}
-                    </li>
-                  ))}
-                </ul>
-
-                {pase.captura && (
-                  <details className="entrenamiento-sonda-json">
-                    <summary>Ver pantalla tras el login</summary>
-                    <figure className="entrenamiento-inspeccion-captura">
-                      <img src={pase.captura} alt="Pantalla de Catapult tras iniciar sesión" />
-                      <figcaption>Lo que vio el navegador automatizado justo antes de cerrarse.</figcaption>
-                    </figure>
-                  </details>
-                )}
-
-                <div className="entrenamiento-sonda-acciones">
-                  <button type="button" className="entrenamiento-boton-secundario" onClick={copiarPase}>
-                    {copiaPase === "ok" ? "Copiado ✓" : "Copiar resultado"}
-                  </button>
-                </div>
-
-                {copiaPase === "error" && (
-                  <div className="entrenamiento-estado advertencia">
-                    No se pudo copiar automáticamente. Abrí el JSON completo y copialo a mano.
-                  </div>
-                )}
-
-                <details className="entrenamiento-sonda-json">
-                  <summary>Ver JSON completo</summary>
-                  <pre>{JSON.stringify({ ...pase, captura: undefined }, null, 2)}</pre>
-                </details>
-              </>
-            )}
-          </section>
+          </details>
         </div>
       </section>
     </main>
