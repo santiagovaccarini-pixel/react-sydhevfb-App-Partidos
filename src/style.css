@@ -483,10 +483,13 @@ button:active {
   letter-spacing: -0.2px;
 }
 
+/* El elegido va con el degradado de la app, el mismo del botón de ingresar
+   formación. Vale para los dos selectores con esta forma: el de Equipo y
+   Jugador, y el de localía adentro del filtro. */
 .cambiar-vista button.activo {
-  background: white;
-  color: #0f172a;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14);
+  background: linear-gradient(135deg, #000000, #16a34a);
+  color: var(--cam-blanco);
+  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.32);
 }
 
 /* Sin esto el botón salta al tocarlo y el selector entero se mueve. */
@@ -498,7 +501,8 @@ button:active {
 
 .cambiar-vista button.activo:hover,
 .cambiar-vista button.activo:active {
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14);
+  background: linear-gradient(135deg, #000000, #16a34a);
+  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.32);
 }
 
 .buscador-registros {
