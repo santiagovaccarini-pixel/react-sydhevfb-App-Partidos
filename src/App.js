@@ -195,7 +195,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.18.3";
+const APP_VERSION = "2026.09.18.4";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -3499,6 +3499,34 @@ export default function App() {
               .select();
       }
 
+      // Reemplazar una fila que ya no existe no es un error: la base contesta
+      // sin quejarse y sin ninguna fila tocada. Pasa cuando se borra el
+      // registro y después se vuelve a guardar el mismo partido, que sigue con
+      // el número de fila anotado. El partido está entero acá, así que se
+      // archiva de nuevo en vez de darlo por guardado.
+      const filaDesaparecida =
+        Boolean(idExistente) &&
+        !respuesta.error &&
+        (respuesta.data?.length ?? 0) === 0;
+
+      if (filaDesaparecida) {
+        respuesta = await supabase
+          .from("registros_partido")
+          .insert([registroSupabase])
+          .select();
+
+        if (
+          respuesta.error &&
+          esErrorColumnasExtendidas(respuesta.error) &&
+          !tieneDatosExtendidos(nuevoRegistro)
+        ) {
+          respuesta = await supabase
+            .from("registros_partido")
+            .insert([quitarCamposExtendidos(registroSupabase)])
+            .select();
+        }
+      }
+
       if (respuesta.error) {
         if (esErrorColumnasExtendidas(respuesta.error)) {
           console.error(
@@ -3525,15 +3553,21 @@ export default function App() {
         return;
       }
 
-      const idGuardado = respuesta.data?.[0]?.id || idExistente;
+      const idGuardado = filaDesaparecida
+        ? respuesta.data?.[0]?.id
+        : respuesta.data?.[0]?.id || idExistente;
       if (idGuardado) {
         setRegistro((prev) => ({ ...prev, idSupabase: idGuardado }));
       }
 
       await cargarRegistrosSupabase();
-      avisarGuardado(
-        idExistente ? "Partido actualizado" : "Partido guardado con éxito",
-      );
+      if (filaDesaparecida) {
+        avisarGuardado("Ya no estaba en la base · se guardó de nuevo", 6000);
+      } else {
+        avisarGuardado(
+          idExistente ? "Partido actualizado" : "Partido guardado con éxito",
+        );
+      }
     } catch (error) {
       console.error("Error de red al guardar el partido:", error);
       establecerGuardados(guardarPendiente(nuevoRegistro));
