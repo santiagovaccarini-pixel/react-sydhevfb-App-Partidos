@@ -138,6 +138,30 @@ export const fechaLocalISO = (fecha = new Date()) => {
   return `${anio}-${mes}-${dia}`;
 };
 
+const PERIODOS_DEL_PARTIDO = ["PT", "ST", "PTE", "STE"];
+
+// Un período arrancado y sin terminar: el partido se está jugando ahora mismo.
+export const periodoEnJuego = (registro) =>
+  PERIODOS_DEL_PARTIDO.find(
+    (periodo) =>
+      registro?.[`inicio${periodo}`] && !registro?.[`final${periodo}`],
+  ) || null;
+
+// Al entrar a la app la fecha tiene que ser la de hoy. El borrador sobrevive
+// de un día para el otro, así que sin esto se seguía viendo la del último
+// partido cargado. Dos cosas la respetan: que la hayas elegido a mano en esta
+// visita, y un partido en juego, porque el que arranca de noche y sigue
+// pasada la medianoche no tiene por qué cambiar de día a mitad de registro.
+export const fechaAlEntrar = (
+  registro,
+  { hoy = fechaLocalISO(), elegidaAMano = false } = {},
+) => {
+  const actual = String(registro?.fecha ?? "");
+  if (!actual) return hoy;
+  if (elegidaAMano) return actual;
+  return periodoEnJuego(registro) ? actual : hoy;
+};
+
 export const esFormatoTransmision = (valor) => {
   const coincidencia = String(valor ?? "")
     .trim()

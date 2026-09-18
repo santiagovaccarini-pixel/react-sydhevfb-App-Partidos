@@ -44,6 +44,7 @@ import {
   convertirNombreJugador,
   esFormatoHoraReal,
   esFormatoTransmision,
+  fechaAlEntrar,
   fechaLocalISO,
   formatearDuracion,
   formatearTiempoTransmision,
@@ -53,6 +54,7 @@ import {
   normalizarTexto,
   normalizarTextoBase,
   periodoDesdeMinutoPartido,
+  periodoEnJuego,
   segundosDesdeHora,
   segundosEntre,
   sumarDuracionesEventos,
@@ -192,7 +194,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.17.3";
+const APP_VERSION = "2026.09.18.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1483,6 +1485,54 @@ export default function App() {
   );
 
   const [fechaFormacion, setFechaFormacion] = useState(fechaLocalISO());
+
+  // Si la elegiste a mano, manda la tuya. Vive sólo mientras la app está
+  // abierta: al volver a entrar arranca de nuevo en la fecha de hoy.
+  const fechaElegidaAMano = useRef(false);
+
+  // La fecha se guarda en dos lugares (el registro y el campo de la pantalla
+  // de formación), así que se cambian juntos o quedan diciendo cosas
+  // distintas.
+  const ponerFecha = (fecha) => {
+    setRegistro((prev) => (prev.fecha === fecha ? prev : { ...prev, fecha }));
+    setFechaFormacion(fecha);
+  };
+
+  const elegirFechaAMano = (fecha) => {
+    fechaElegidaAMano.current = true;
+    ponerFecha(fecha);
+  };
+
+  // El handler de abajo corre mucho después del render que lo creó, así que
+  // lee el registro de acá y no de una copia vieja.
+  const registroVigente = useRef(registro);
+  useEffect(() => {
+    registroVigente.current = registro;
+  }, [registro]);
+
+  // Al entrar a la app la fecha tiene que ser la de hoy. El borrador sobrevive
+  // de un día para el otro, así que sin esto seguía apareciendo la del último
+  // partido cargado. Y en el celular la app no se reinicia: queda congelada y
+  // vuelve, por eso también se revisa cada vez que volvés a ella.
+  useEffect(() => {
+    const ponerLaDeHoy = () =>
+      ponerFecha(
+        fechaAlEntrar(registroVigente.current, {
+          hoy: fechaLocalISO(),
+          elegidaAMano: fechaElegidaAMano.current,
+        }),
+      );
+
+    ponerLaDeHoy();
+
+    const alVolver = () => {
+      if (document.visibilityState === "visible") ponerLaDeHoy();
+    };
+
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
+  }, []);
+
   const [formacionTemporal, setFormacionTemporal] = useState(() =>
     conCancha(registro.formacion),
   );
@@ -3530,6 +3580,8 @@ export default function App() {
   const confirmarLimpiarCarga = () => {
     const nuevoRegistro = crearRegistroVacio();
 
+    // Partido nuevo: la fecha vuelve a seguir al calendario.
+    fechaElegidaAMano.current = false;
     setRegistro(nuevoRegistro);
     setFormacionTemporal(nuevoRegistro.formacion);
     setFechaFormacion(nuevoRegistro.fecha);
@@ -4039,7 +4091,7 @@ export default function App() {
                 id="fecha-formacion"
                 type="date"
                 value={fechaFormacion}
-                onChange={(e) => setFechaFormacion(e.target.value)}
+                onChange={(e) => elegirFechaAMano(e.target.value)}
               />
             </div>
 
@@ -4111,9 +4163,7 @@ export default function App() {
   // el enfrentamiento con los escudos, el resultado y los tiempos.
   const partidoEnCursoResumen = (() => {
     const periodos = ["PT", "ST", "PTE", "STE"];
-    const enMarcha = periodos.find(
-      (periodo) => registro[`inicio${periodo}`] && !registro[`final${periodo}`],
-    );
+    const enMarcha = periodoEnJuego(registro);
 
     const cambiosCargados = [
       ...(registro.cambios || []),
@@ -4225,7 +4275,7 @@ export default function App() {
               id="campo-fecha-inicio"
               type="date"
               value={fechaFormacion}
-              onChange={(e) => setFechaFormacion(e.target.value)}
+              onChange={(e) => elegirFechaAMano(e.target.value)}
             />
           </div>
 

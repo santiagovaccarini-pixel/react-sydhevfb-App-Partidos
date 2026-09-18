@@ -1,10 +1,12 @@
 import {
   calcularNoIngresaron,
+  fechaAlEntrar,
   fechaLocalISO,
   formatearDuracion,
   jugadoresParaCambio,
   normalizarEntradaTiempoTransmision,
   periodoDesdeMinutoPartido,
+  periodoEnJuego,
   segundosDesdeHora,
   segundosEntre,
   sumarDuracionesEventos,
@@ -23,6 +25,43 @@ describe("motor de registro de partido", () => {
   test("usa la fecha local y no UTC", () => {
     const fecha = new Date(2026, 8, 8, 23, 30, 0);
     expect(fechaLocalISO(fecha)).toBe("2026-09-08");
+  });
+
+  test("al entrar, la fecha es la de hoy aunque el borrador sea viejo", () => {
+    expect(fechaAlEntrar({ fecha: "2026-09-08" }, { hoy: "2026-09-15" })).toBe(
+      "2026-09-15",
+    );
+    expect(fechaAlEntrar({ fecha: "" }, { hoy: "2026-09-15" })).toBe(
+      "2026-09-15",
+    );
+  });
+
+  test("un partido en juego no cambia de día a mitad de registro", () => {
+    // Arrancó el ST a la noche y todavía no terminó: pasada la medianoche la
+    // fecha tiene que seguir siendo la del arranque.
+    const enJuego = {
+      fecha: "2026-09-15",
+      inicioPT: "000:00",
+      finalPT: "047:30",
+      inicioST: "000:00",
+      finalST: "",
+    };
+    expect(periodoEnJuego(enJuego)).toBe("ST");
+    expect(fechaAlEntrar(enJuego, { hoy: "2026-09-16" })).toBe("2026-09-15");
+
+    // Terminado, es el borrador de un partido de otro día: vuelve a hoy.
+    const terminado = { ...enJuego, finalST: "047:10" };
+    expect(periodoEnJuego(terminado)).toBeNull();
+    expect(fechaAlEntrar(terminado, { hoy: "2026-09-16" })).toBe("2026-09-16");
+  });
+
+  test("la fecha elegida a mano manda sobre la de hoy", () => {
+    expect(
+      fechaAlEntrar(
+        { fecha: "2026-09-12" },
+        { hoy: "2026-09-15", elegidaAMano: true },
+      ),
+    ).toBe("2026-09-12");
   });
 
   test("rechaza relojes y duraciones inválidas", () => {

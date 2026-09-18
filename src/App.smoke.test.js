@@ -3202,4 +3202,100 @@ describe("interfaz operativa", () => {
     expect(doblesSupabase.insertar).toHaveBeenCalledTimes(1);
     expect(contenedor.textContent).toContain("Partido guardado con éxito");
   });
+
+  const irAFormacion = async () => {
+    const boton = Array.from(
+      contenedor.querySelectorAll(".navegacion-movil button"),
+    ).find((item) => item.textContent.includes("Formación"));
+    await act(async () => boton.click());
+  };
+
+  test("al entrar, la fecha es la de hoy y no la del borrador viejo", async () => {
+    // El borrador sembrado es del 08/09 y sobrevive entre días: antes el campo
+    // seguía mostrando esa fecha en vez de la de hoy.
+    vi.setSystemTime(new Date(2026, 8, 15, 10, 0, 0));
+    await montarApp();
+    await irAFormacion();
+
+    expect(contenedor.querySelector("#campo-fecha-inicio").value).toBe(
+      "2026-09-15",
+    );
+    expect(
+      contenedor.querySelector(".tarjeta-en-curso .fecha-registro").textContent,
+    ).toContain("15");
+  });
+
+  test("al volver a la app después de medianoche, la fecha se corrige sola", async () => {
+    localStorage.clear();
+    vi.setSystemTime(new Date(2026, 8, 15, 23, 50, 0));
+    await montarApp();
+    await irAFormacion();
+    expect(contenedor.querySelector("#campo-fecha-inicio").value).toBe(
+      "2026-09-15",
+    );
+
+    // La app en el celular no se reinicia: queda congelada y vuelve.
+    vi.setSystemTime(new Date(2026, 8, 16, 0, 10, 0));
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    expect(contenedor.querySelector("#campo-fecha-inicio").value).toBe(
+      "2026-09-16",
+    );
+  });
+
+  test("un partido en juego no cambia de día a mitad de registro", async () => {
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify({
+        version: 2,
+        registro: {
+          fecha: "2026-09-15",
+          rival: "Cruzeiro",
+          inicioPT: "000:00",
+          finalPT: "047:30",
+          inicioST: "000:00",
+          finalST: "",
+          formacion: { titulares: ["ALONSO"], convocados: [] },
+        },
+      }),
+    );
+    vi.setSystemTime(new Date(2026, 8, 16, 0, 10, 0));
+    await montarApp();
+    await irAFormacion();
+
+    expect(contenedor.querySelector("#campo-fecha-inicio").value).toBe(
+      "2026-09-15",
+    );
+  });
+
+  test("la fecha elegida a mano no se pisa al volver a la app", async () => {
+    vi.setSystemTime(new Date(2026, 8, 15, 10, 0, 0));
+    await montarApp();
+    await irAFormacion();
+
+    const escribir = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    const campo = contenedor.querySelector("#campo-fecha-inicio");
+    await act(async () => {
+      escribir.call(campo, "2026-09-12");
+      campo.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(contenedor.querySelector("#campo-fecha-inicio").value).toBe(
+      "2026-09-12",
+    );
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    expect(contenedor.querySelector("#campo-fecha-inicio").value).toBe(
+      "2026-09-12",
+    );
+  });
 });
