@@ -30,6 +30,40 @@ const tonoClasificacion = (clasificacion) => {
   return "advertencia";
 };
 
+const ETIQUETAS_INSPECCION = {
+  "credencial-observada": "Credencial del editor identificada",
+  "sin-authorization-visible": "El editor no manda Authorization: sesión por cookie u otro header",
+  "sin-servicio-interno": "El editor no llamó al servicio interno de actividad",
+  "sin-trafico": "No hubo tráfico a Catapult",
+};
+
+const tonoInspeccion = (veredicto) => {
+  if (veredicto === "credencial-observada") return "correcto";
+  if (veredicto === "sin-trafico") return "error";
+  return "advertencia";
+};
+
+const tonoStatus = (status) => {
+  if (status === null || status === undefined) return "advertencia";
+  if (status >= 200 && status < 400) return "correcto";
+  if (status === 401 || status === 403) return "error";
+  return "advertencia";
+};
+
+const esHostCatapult = (host) => /(^|\.)catapultsports\.com$/i.test(String(host || ""));
+
+const formatearFechaHora = (iso) => {
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return "";
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(fecha);
+};
+
 // En el celular el UUID completo tapa lo importante: se muestra el patrón de la ruta.
 const abreviarRuta = (ruta, sonda) => {
   let texto = String(ruta || "");
@@ -48,6 +82,69 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
   const [sonda, setSonda] = useState(null);
   const [errorSonda, setErrorSonda] = useState("");
   const [copia, setCopia] = useState("");
+
+  const [estadoInspeccion, setEstadoInspeccion] = useState("idle");
+  const [inspeccion, setInspeccion] = useState(null);
+  const [errorInspeccion, setErrorInspeccion] = useState("");
+  const [copiaInspeccion, setCopiaInspeccion] = useState("");
+
+  const inspeccionarEditor = async () => {
+    const usuarioLimpio = username.trim();
+    if (!usuarioLimpio || !password) {
+      setEstadoInspeccion("error");
+      setInspeccion(null);
+      setErrorInspeccion("Completá usuario y contraseña de Catapult en el panel 01.");
+      return;
+    }
+
+    setEstadoInspeccion("inspeccionando");
+    setInspeccion(null);
+    setErrorInspeccion("");
+    setCopiaInspeccion("");
+
+    try {
+      const respuesta = await fetch("/api/openfield/cloud-editor-inspect", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username: usuarioLimpio, password }),
+      });
+
+      const payload = await respuesta.json().catch(() => null);
+      setPassword("");
+
+      if (!respuesta.ok || !payload?.ok) {
+        throw new Error(payload?.error || "No se pudo inspeccionar el Cloud Editor.");
+      }
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("catapult_openfield_username", usuarioLimpio);
+      }
+
+      setInspeccion(payload);
+      setEstadoInspeccion("ok");
+    } catch (error) {
+      setPassword("");
+      setInspeccion(null);
+      setEstadoInspeccion("error");
+      setErrorInspeccion(error?.message || "No se pudo inspeccionar el Cloud Editor.");
+    }
+  };
+
+  const copiarInspeccion = async () => {
+    if (!inspeccion) return;
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(inspeccion, null, 2));
+      setCopiaInspeccion("ok");
+    } catch {
+      setCopiaInspeccion("error");
+    }
+  };
 
   const ejecutarSonda = async () => {
     setEstadoSonda("sondeando");
@@ -206,9 +303,20 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
               <button
                 type="submit"
                 className="entrenamiento-boton-principal"
-                disabled={estado === "probando"}
+                disabled={estado === "probando" || estadoInspeccion === "inspeccionando"}
               >
                 {estado === "probando" ? "Comprobando acceso…" : "Conectar Catapult"}
+              </button>
+
+              <button
+                type="button"
+                className="entrenamiento-boton-secundario entrenamiento-ajustes-boton-ancho"
+                onClick={inspeccionarEditor}
+                disabled={estado === "probando" || estadoInspeccion === "inspeccionando"}
+              >
+                {estadoInspeccion === "inspeccionando"
+                  ? "Inspeccionando el editor…"
+                  : "Inspeccionar Cloud Editor (solo lectura)"}
               </button>
             </form>
 
@@ -417,6 +525,183 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
                 <details className="entrenamiento-sonda-json">
                   <summary>Ver JSON completo</summary>
                   <pre>{JSON.stringify(sonda, null, 2)}</pre>
+                </details>
+              </>
+            )}
+          </section>
+
+          <section className="entrenamiento-panel entrenamiento-ajustes-panel entrenamiento-ajustes-panel-ancho">
+            <div className="entrenamiento-panel-titulo">
+              <span>04</span>
+              <div>
+                <h2>Inspección del Cloud Editor</h2>
+                <p>
+                  Entra con tu usuario, abre 26-05 T en el editor y anota qué pedidos hace y con
+                  qué credencial. No guarda la contraseña, no muestra el valor de ningún token y
+                  no modifica nada.
+                </p>
+              </div>
+            </div>
+
+            {estadoInspeccion === "idle" && (
+              <div className="entrenamiento-ajustes-limites">
+                <strong>Cómo se usa</strong>
+                <span>
+                  Completá usuario y contraseña en el panel 01 y tocá "Inspeccionar Cloud Editor".
+                  Tarda menos de un minuto. El resultado dice por qué puerta y con qué credencial
+                  escribe el editor.
+                </span>
+              </div>
+            )}
+
+            {estadoInspeccion === "inspeccionando" && (
+              <div className="entrenamiento-ajustes-resultado" aria-live="polite">
+                <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                <div>
+                  <strong>Inspeccionando</strong>
+                  <span>Iniciando sesión, abriendo 26-05 T y escuchando la red del editor…</span>
+                </div>
+              </div>
+            )}
+
+            {estadoInspeccion === "error" && (
+              <div className="entrenamiento-ajustes-resultado error" aria-live="polite">
+                <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                <div>
+                  <strong>La inspección no pudo completarse</strong>
+                  <span>{errorInspeccion}</span>
+                </div>
+              </div>
+            )}
+
+            {inspeccion && (
+              <>
+                <div
+                  className={`entrenamiento-ajustes-resultado ${tonoInspeccion(
+                    inspeccion.resumen?.veredicto,
+                  )}`}
+                  aria-live="polite"
+                >
+                  <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
+                  <div>
+                    <strong>
+                      {ETIQUETAS_INSPECCION[inspeccion.resumen?.veredicto] ||
+                        inspeccion.resumen?.veredicto ||
+                        "Sin veredicto"}
+                    </strong>
+                    <span>{inspeccion.resumen?.detalle}</span>
+                  </div>
+                </div>
+
+                <div className="entrenamiento-sonda-tokens">
+                  <span
+                    className={`entrenamiento-sonda-chip ${
+                      inspeccion.editor?.alcanzado ? "correcto" : "advertencia"
+                    }`}
+                  >
+                    {inspeccion.editor?.alcanzado
+                      ? inspeccion.editor?.nombreVisible
+                        ? "Editor de 26-05 T abierto"
+                        : "Editor abierto, título no confirmado"
+                      : "No se llegó al editor"}
+                  </span>
+                  <span className="entrenamiento-sonda-chip">
+                    {inspeccion.resumen?.solicitudesCatapult ?? 0} pedidos a Catapult
+                  </span>
+                  {(inspeccion.resumen?.esquemas || []).map((esquema) => (
+                    <span key={esquema} className="entrenamiento-sonda-chip correcto">
+                      Authorization: {esquema}
+                    </span>
+                  ))}
+                  {(inspeccion.resumen?.proveedorAuth || []).map((host) => (
+                    <span key={host} className="entrenamiento-sonda-chip">
+                      Identidad vía {host}
+                    </span>
+                  ))}
+                </div>
+
+                {inspeccion.resumen?.autorizacionEjemplo?.esquema && (
+                  <p className="entrenamiento-sonda-control">
+                    Credencial observada: {inspeccion.resumen.autorizacionEjemplo.esquema} ·{" "}
+                    {inspeccion.resumen.autorizacionEjemplo.formato} ·{" "}
+                    {inspeccion.resumen.autorizacionEjemplo.largo} caracteres
+                    {inspeccion.resumen.autorizacionEjemplo.expira
+                      ? ` · vence ${formatearFechaHora(inspeccion.resumen.autorizacionEjemplo.expira)}`
+                      : ""}
+                    {inspeccion.resumen.autorizacionEjemplo.claims?.iss
+                      ? ` · emisor ${inspeccion.resumen.autorizacionEjemplo.claims.iss}`
+                      : ""}
+                  </p>
+                )}
+
+                <ul className="entrenamiento-sonda-rutas">
+                  {(inspeccion.solicitudes || [])
+                    .filter((solicitud) => esHostCatapult(solicitud.host))
+                    .slice(0, 40)
+                    .map((solicitud) => (
+                      <li key={solicitud.id}>
+                        <code>
+                          {solicitud.metodo} {solicitud.host}
+                          {solicitud.path}
+                        </code>
+                        <span
+                          className={`entrenamiento-sonda-chip ${tonoStatus(solicitud.status)}`}
+                        >
+                          {solicitud.status ?? "sin respuesta"} ·{" "}
+                          {solicitud.responseType || solicitud.tipo}
+                        </span>
+                        {solicitud.autorizacion?.esquema && (
+                          <small>
+                            Authorization: {solicitud.autorizacion.esquema} (
+                            {solicitud.autorizacion.formato}, {solicitud.autorizacion.largo} car.)
+                          </small>
+                        )}
+                        {solicitud.autorizacion?.headersEspeciales?.length > 0 && (
+                          <small>
+                            Headers especiales: {solicitud.autorizacion.headersEspeciales.join(", ")}
+                          </small>
+                        )}
+                        {solicitud.envio?.claves && (
+                          <small>Enviado: {solicitud.envio.claves.join(", ")}</small>
+                        )}
+                        {solicitud.cuerpo?.tipo === "objeto" && (
+                          <small>Respuesta: {solicitud.cuerpo.claves.join(", ")}</small>
+                        )}
+                        {solicitud.cuerpo?.muestraPeriodo && (
+                          <small>Período: {solicitud.cuerpo.muestraPeriodo.claves.join(", ")}</small>
+                        )}
+                      </li>
+                    ))}
+                </ul>
+
+                <p className="entrenamiento-sonda-control">
+                  localStorage: {(inspeccion.almacenamiento?.localStorage || []).join(", ") || "vacío"}{" "}
+                  · sessionStorage:{" "}
+                  {(inspeccion.almacenamiento?.sessionStorage || []).join(", ") || "vacío"} · cookies:{" "}
+                  {(inspeccion.cookies || [])
+                    .map((cookie) => `${cookie.name}${cookie.httpOnly ? " (httpOnly)" : ""}`)
+                    .join(", ") || "ninguna"}
+                </p>
+
+                <div className="entrenamiento-sonda-acciones">
+                  <button
+                    type="button"
+                    className="entrenamiento-boton-secundario"
+                    onClick={copiarInspeccion}
+                  >
+                    {copiaInspeccion === "ok" ? "Copiado ✓" : "Copiar resultado"}
+                  </button>
+                </div>
+
+                {copiaInspeccion === "error" && (
+                  <div className="entrenamiento-estado advertencia">
+                    No se pudo copiar automáticamente. Abrí el JSON completo y copialo a mano.
+                  </div>
+                )}
+
+                <details className="entrenamiento-sonda-json">
+                  <summary>Ver JSON completo</summary>
+                  <pre>{JSON.stringify(inspeccion, null, 2)}</pre>
                 </details>
               </>
             )}

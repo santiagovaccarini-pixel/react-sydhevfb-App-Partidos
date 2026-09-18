@@ -3,6 +3,7 @@ import {
   METODOS_SONDA,
   describirCuerpo,
   interpretarRespuesta,
+  marcaBooleana,
   resumirSonda,
   rutasSonda,
 } from "../../lib/openfieldProbe.js";
@@ -122,8 +123,8 @@ const leerControl = async ({ token, activityId }) => {
   // is_injected distingue una actividad creada por inyección de una grabada
   // con chalecos. Es la señal read-only de si la vía /injection podría tocar
   // esta actividad: una actividad real (is_injected=false) probablemente sea
-  // rechazada por el PUT de inyección.
-  const marca = (valor) => (valor === true ? true : valor === false ? false : null);
+  // rechazada por el PUT de inyección. OpenField lo manda como 0/1.
+  const marca = marcaBooleana;
 
   return {
     ruta: "/activities",

@@ -365,3 +365,14 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.entrenamiento-ajustes-boton-ancho {
+  margin-top: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.entrenamiento-ajustes-boton-ancho:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}

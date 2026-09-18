@@ -165,3 +165,135 @@ describe("TrainingSettings · sonda de capacidades", () => {
     expect(contenedor.querySelector(".entrenamiento-sonda-token")).toBeNull();
   });
 });
+
+describe("TrainingSettings · inspección del Cloud Editor", () => {
+  let contenedor;
+  let raiz;
+
+  beforeEach(() => {
+    contenedor = document.createElement("div");
+    document.body.appendChild(contenedor);
+  });
+
+  afterEach(async () => {
+    if (raiz) await act(async () => raiz.unmount());
+    contenedor.remove();
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+  });
+
+  const montar = async () => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<TrainingSettings onVolverRegistro={() => {}} onVolverModulos={() => {}} />);
+    });
+  };
+
+  const botonPorTexto = (texto) =>
+    [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim() === texto);
+
+  // React escucha el evento nativo "input"; hay que pasar por el setter del
+  // prototipo para que el valor controlado se entere del cambio.
+  const escribir = (input, valor) => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(input, valor);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  const inspeccionFalsa = () => ({
+    ok: true,
+    result: "cloud-editor-inspected",
+    editor: { alcanzado: true, nombreVisible: true, path: "/editor/x" },
+    solicitudes: [
+      {
+        id: 1,
+        metodo: "GET",
+        host: "of-uw1-prod-activity-service.openfield.catapultsports.com",
+        path: "/activities/abc",
+        status: 200,
+        responseType: "application/json",
+        tipo: "fetch",
+        autorizacion: {
+          esquema: "Bearer",
+          formato: "JWT",
+          largo: 912,
+          expira: "2027-01-01T00:00:00.000Z",
+          claims: { iss: "https://login.catapultsports.com/" },
+          headersEspeciales: [],
+        },
+        cuerpo: { tipo: "objeto", claves: ["id", "periods"] },
+      },
+      { id: 2, metodo: "GET", host: "cdn.segment.com", path: "/x", status: 200, tipo: "fetch" },
+    ],
+    almacenamiento: { localStorage: ["auth"], sessionStorage: [] },
+    cookies: [{ name: "sid", httpOnly: true }],
+    resumen: {
+      veredicto: "credencial-observada",
+      detalle: "El servicio interno de actividad recibe Authorization Bearer (JWT).",
+      solicitudesCatapult: 1,
+      esquemas: ["Bearer (JWT)"],
+      proveedorAuth: ["catapult.auth0.com"],
+      autorizacionEjemplo: {
+        esquema: "Bearer",
+        formato: "JWT",
+        largo: 912,
+        expira: "2027-01-01T00:00:00.000Z",
+        claims: { iss: "https://login.catapultsports.com/" },
+      },
+    },
+  });
+
+  test("pide credenciales antes de inspeccionar y no llama al backend", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await montar();
+    await act(async () => botonPorTexto("Inspeccionar Cloud Editor (solo lectura)").click());
+
+    expect(contenedor.textContent).toContain("Completá usuario y contraseña de Catapult en el panel 01");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("inspecciona, muestra la credencial observada y descarta la contraseña", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => inspeccionFalsa(),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await montar();
+
+    const usuario = contenedor.querySelector("input[autocomplete='username']");
+    const clave = contenedor.querySelector("input[autocomplete='current-password']");
+    await act(async () => {
+      escribir(usuario, "santi");
+      escribir(clave, "secreta");
+    });
+
+    await act(async () => botonPorTexto("Inspeccionar Cloud Editor (solo lectura)").click());
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/openfield/cloud-editor-inspect");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      username: "santi",
+      password: "secreta",
+    });
+
+    const texto = contenedor.textContent;
+    expect(texto).toContain("Credencial del editor identificada");
+    expect(texto).toContain("Authorization: Bearer (JWT)");
+    expect(texto).toContain("Editor de 26-05 T abierto");
+    expect(texto).toContain("Identidad vía catapult.auth0.com");
+
+    const rutas = [...contenedor.querySelectorAll(".entrenamiento-sonda-rutas code")].map(
+      (nodo) => nodo.textContent,
+    );
+    expect(rutas).toEqual([
+      "GET of-uw1-prod-activity-service.openfield.catapultsports.com/activities/abc",
+    ]);
+
+    expect(clave.value).toBe("");
+    expect(window.localStorage.getItem("catapult_openfield_username")).toBe("santi");
+  });
+});
