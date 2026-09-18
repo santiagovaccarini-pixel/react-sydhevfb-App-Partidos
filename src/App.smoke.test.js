@@ -3447,4 +3447,89 @@ describe("interfaz operativa", () => {
     expect(contenedor.textContent).not.toContain("Partido actualizado");
     expect(contenedor.textContent).toContain("Ya no estaba en la base");
   });
+
+  test("guardar sobre un partido que ya existe pregunta antes de pisarlo", async () => {
+    // Ya hay un Cruzeiro del 08/09 guardado, y el partido en curso es de la
+    // misma fecha contra el mismo rival: para la app son el mismo y lo iba a
+    // reemplazar sin decir nada.
+    doblesSupabase.filasHistorial = [
+      {
+        ...filaTransmisionGuardada(),
+        id: 31,
+        fecha: "2026-09-08",
+        rival: "Cruzeiro",
+        resultado: "3-0",
+      },
+    ];
+
+    await montarApp();
+
+    const guardar = () =>
+      Array.from(contenedor.querySelectorAll("button")).find((boton) =>
+        boton.textContent.includes("Guardar partido"),
+      );
+
+    await act(async () => {
+      guardar().click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Todavía no tocó nada: primero pregunta, y muestra cuál va a reemplazar.
+    expect(doblesSupabase.actualizar).not.toHaveBeenCalled();
+    const cartel = contenedor.querySelector(".hoja-confirmar");
+    expect(cartel).not.toBeNull();
+    expect(cartel.textContent).toContain("Cruzeiro");
+    expect(cartel.textContent).toContain("3-0");
+
+    // Si se acepta, ahí sí reemplaza.
+    await act(async () => {
+      Array.from(contenedor.querySelectorAll(".hoja-confirmar button"))
+        .find((boton) => boton.textContent.includes("Sí, reemplazar"))
+        .click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(doblesSupabase.actualizar).toHaveBeenCalledTimes(1);
+    expect(doblesSupabase.insertar).not.toHaveBeenCalled();
+  });
+
+  test("si no se acepta el reemplazo no se guarda nada", async () => {
+    doblesSupabase.filasHistorial = [
+      {
+        ...filaTransmisionGuardada(),
+        id: 31,
+        fecha: "2026-09-08",
+        rival: "Cruzeiro",
+        resultado: "3-0",
+      },
+    ];
+
+    await montarApp();
+
+    await act(async () => {
+      Array.from(contenedor.querySelectorAll("button"))
+        .find((boton) => boton.textContent.includes("Guardar partido"))
+        .click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      Array.from(contenedor.querySelectorAll(".hoja-confirmar button"))
+        .find((boton) => boton.textContent.includes("No guardar"))
+        .click();
+      await Promise.resolve();
+    });
+
+    expect(doblesSupabase.actualizar).not.toHaveBeenCalled();
+    expect(doblesSupabase.insertar).not.toHaveBeenCalled();
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    // El botón vuelve a quedar disponible: no se queda trabado en "Guardando".
+    expect(
+      Array.from(contenedor.querySelectorAll("button")).find((boton) =>
+        boton.textContent.includes("Guardar partido"),
+      ).disabled,
+    ).toBe(false);
+  });
 });
