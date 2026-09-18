@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   FILTRO_EQUIPO,
   MODO_RESULTADO,
+  PENALES,
   filtrarRegistros,
   rivalesDelHistorial,
 } from "./filtros";
@@ -83,25 +84,53 @@ describe("recortar los partidos del equipo", () => {
     ).toEqual(["Cruzeiro", "Boca"]);
   });
 
-  test("los de penales van aparte y no ensucian el empate", () => {
-    // Un 1-1 (4-3) no es un empate: el partido se ganó.
+  test("el botón de penales decide si los de copa entran", () => {
+    const porResultado = (modo, penales) =>
+      rivales({ filtro: FILTRO_EQUIPO.RESULTADO, modo, penales });
+
+    // Sin penales, los ganados son los de los 90 y nada más.
+    expect(porResultado(MODO_RESULTADO.GANADO, PENALES.SIN)).toEqual([
+      "Cruzeiro",
+      "Flamengo",
+    ]);
+    // Con penales se suma el 1-1 (4-3) contra River.
+    expect(porResultado(MODO_RESULTADO.GANADO, PENALES.CON)).toEqual([
+      "Cruzeiro",
+      "Flamengo",
+      "River",
+    ]);
+    // Y en "solo penales" queda únicamente ese.
+    expect(porResultado(MODO_RESULTADO.GANADO, PENALES.SOLO)).toEqual(["River"]);
+
+    // Lo mismo del otro lado: el 2-2 (3-5) contra Racing.
+    expect(porResultado(MODO_RESULTADO.PERDIDO, PENALES.SIN)).toEqual([
+      "Palmeiras",
+    ]);
+    expect(porResultado(MODO_RESULTADO.PERDIDO, PENALES.CON)).toEqual([
+      "Palmeiras",
+      "Racing",
+    ]);
+    expect(porResultado(MODO_RESULTADO.PERDIDO, PENALES.SOLO)).toEqual([
+      "Racing",
+    ]);
+
+    // Sin decir nada, se comporta como "sin penales".
     expect(
-      rivales({
-        filtro: FILTRO_EQUIPO.RESULTADO,
-        modo: MODO_RESULTADO.GANADO_PENALES,
-      }),
-    ).toEqual(["River"]);
-    expect(
-      rivales({
-        filtro: FILTRO_EQUIPO.RESULTADO,
-        modo: MODO_RESULTADO.PERDIDO_PENALES,
-      }),
-    ).toEqual(["Racing"]);
-    // Y no aparecen entre los ganados, los perdidos ni los empatados.
-    ["GANADO", "PERDIDO", "EMPATADO"].forEach((modo) => {
+      rivales({ filtro: FILTRO_EQUIPO.RESULTADO, modo: MODO_RESULTADO.GANADO }),
+    ).toEqual(["Cruzeiro", "Flamengo"]);
+  });
+
+  test("un partido definido por penales nunca es un empate", () => {
+    // Terminó ganado o perdido: no ensucia la lista de empatados, con el botón
+    // de penales en cualquiera de sus tres posiciones.
+    [PENALES.SIN, PENALES.CON, PENALES.SOLO].forEach((penales) => {
       expect(
-        rivales({ filtro: FILTRO_EQUIPO.RESULTADO, modo: MODO_RESULTADO[modo] }),
-      ).not.toContain("River");
+        rivales({
+          filtro: FILTRO_EQUIPO.RESULTADO,
+          modo: MODO_RESULTADO.EMPATADO,
+          penales,
+        }),
+      ).toEqual(["Cruzeiro", "Boca"]);
     });
   });
 

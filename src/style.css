@@ -6187,6 +6187,9 @@ button.puesto-cancha {
   align-items: center;
   height: 26px;
   padding: 0 12px;
+  /* "Solo penales" no puede partirse en dos renglones: la pastilla crece y se
+     desalinea del selector que tiene al lado. */
+  white-space: nowrap;
   border: 1px solid var(--cam-linea);
   border-radius: 999px;
   background: #f7f9f8;
@@ -6202,6 +6205,21 @@ button.puesto-cancha {
   border-color: #111827;
   background: #111827;
   color: var(--cam-blanco);
+}
+
+/* En el filtro el botón convive con el selector, que es bastante más alto:
+   sin esto queda como una pastilla flotando en el medio del renglón. */
+.minutos-filtro .boton-penales {
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 14px;
+}
+
+/* La tercera posición del botón: solo los de penales. Va en verde para que se
+   distinga de "con penales" de un vistazo, sin tener que leer. */
+.boton-penales.solo {
+  border-color: var(--cam-verde);
+  background: var(--cam-verde);
 }
 
 .boton-penales:hover,

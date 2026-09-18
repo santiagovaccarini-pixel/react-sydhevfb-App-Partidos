@@ -25,10 +25,24 @@ export const MODO_RESULTADO = {
   GANADO: RESULTADO.GANADO,
   EMPATADO: RESULTADO.EMPATADO,
   PERDIDO: RESULTADO.PERDIDO,
-  // Los de penales van aparte: un 1-1 (4-3) no aparece en "Empatado".
-  GANADO_PENALES: RESULTADO.GANADO_PENALES,
-  PERDIDO_PENALES: RESULTADO.PERDIDO_PENALES,
   EXACTO: "exacto",
+};
+
+/**
+ * Qué hace el botón de penales que acompaña a "Ganados" y a "Perdidos". Los
+ * de penales no son una opción más de la lista: son una vuelta de tuerca sobre
+ * ganar o perder, y se eligen ahí mismo en vez de tener su propio renglón.
+ */
+export const PENALES = {
+  SIN: "sin",
+  CON: "con",
+  SOLO: "solo",
+};
+
+// Un 1-1 (4-3) lo clasifica comoTermino aparte; acá se dice a qué se suma.
+const EN_PENALES = {
+  [MODO_RESULTADO.GANADO]: RESULTADO.GANADO_PENALES,
+  [MODO_RESULTADO.PERDIDO]: RESULTADO.PERDIDO_PENALES,
 };
 
 const vacio = (valor) => String(valor ?? "").trim() === "";
@@ -76,10 +90,27 @@ const PASAN = {
     return true;
   },
 
-  [FILTRO_EQUIPO.RESULTADO]: (registro, { modo, marcador }) =>
-    modo === MODO_RESULTADO.EXACTO
-      ? mismoMarcador(marcador, registro?.resultado)
-      : comoTermino(registro?.resultado) === modo,
+  [FILTRO_EQUIPO.RESULTADO]: (
+    registro,
+    { modo, marcador, penales = PENALES.SIN },
+  ) => {
+    if (modo === MODO_RESULTADO.EXACTO) {
+      return mismoMarcador(marcador, registro?.resultado);
+    }
+
+    const termino = comoTermino(registro?.resultado);
+    const desempatado = EN_PENALES[modo];
+
+    // "Empatados" no tiene vuelta de penales: un partido que se definió desde
+    // el punto no terminó empatado, terminó ganado o perdido.
+    if (!desempatado) return termino === modo;
+
+    if (penales === PENALES.SOLO) return termino === desempatado;
+    if (penales === PENALES.CON) {
+      return termino === modo || termino === desempatado;
+    }
+    return termino === modo;
+  },
 
   [FILTRO_EQUIPO.LOCALIA]: (registro, { localia }) =>
     leerLocalia(registro?.localia) === leerLocalia(localia),
