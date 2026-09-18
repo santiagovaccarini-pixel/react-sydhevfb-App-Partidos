@@ -213,3 +213,155 @@
     padding-inline: 10px;
   }
 }
+
+.entrenamiento-ajustes-panel-ancho {
+  grid-column: 1 / -1;
+}
+
+.entrenamiento-ajustes-resultado.advertencia {
+  border-color: rgba(211, 173, 98, 0.35);
+  background: rgba(211, 173, 98, 0.07);
+}
+
+.entrenamiento-sonda-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.entrenamiento-sonda-acciones .entrenamiento-boton-principal {
+  flex: 1 1 220px;
+}
+
+.entrenamiento-sonda-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.entrenamiento-sonda-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 9px;
+  border: 1px solid var(--portal-border);
+  border-radius: 999px;
+  background: #101419;
+  color: var(--portal-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-sonda-chip.correcto {
+  border-color: rgba(113, 213, 155, 0.35);
+  color: #8be0ae;
+}
+
+.entrenamiento-sonda-chip.advertencia {
+  border-color: rgba(211, 173, 98, 0.4);
+  color: #e6c986;
+}
+
+.entrenamiento-sonda-chip.error {
+  border-color: rgba(225, 114, 114, 0.35);
+  color: #f0a1a1;
+}
+
+.entrenamiento-sonda-control {
+  margin: 12px 0 0;
+  color: var(--portal-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.entrenamiento-sonda-token {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  background: #101419;
+}
+
+.entrenamiento-sonda-token > header {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.entrenamiento-sonda-token > header span {
+  color: var(--portal-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.entrenamiento-sonda-token > header strong {
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-sonda-token .entrenamiento-ajustes-resultado {
+  margin-top: 0;
+  background: #0c1014;
+}
+
+.entrenamiento-sonda-rutas {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entrenamiento-sonda-rutas li {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #0c1014;
+}
+
+.entrenamiento-sonda-rutas code {
+  font-size: 0.78rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-sonda-rutas small {
+  color: var(--portal-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-sonda-json {
+  margin-top: 12px;
+}
+
+.entrenamiento-sonda-json summary {
+  color: var(--portal-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.entrenamiento-sonda-json pre {
+  max-height: 360px;
+  overflow: auto;
+  margin: 10px 0 0;
+  padding: 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #0c1014;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

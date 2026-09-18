@@ -487,11 +487,15 @@ export default function TrainingApp({ onVolver }) {
                                 <div className="entrenamiento-periodo-horarios">
                                   <div>
                                     <span>Inicio</span>
-                                    <strong>{formatearHoraPeriodo(periodo.start_time)}</strong>
+                                    <strong>
+                                      {formatearHoraPeriodo(periodo.start_ms ?? periodo.start_time)}
+                                    </strong>
                                   </div>
                                   <div>
                                     <span>Fin</span>
-                                    <strong>{formatearHoraPeriodo(periodo.end_time)}</strong>
+                                    <strong>
+                                      {formatearHoraPeriodo(periodo.end_ms ?? periodo.end_time)}
+                                    </strong>
                                   </div>
                                   <div>
                                     <span>Duración</span>
