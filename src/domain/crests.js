@@ -275,7 +275,13 @@ const buscarYGuardar = async (nombre, clave) => {
       const anterior = desdeCache(previa);
 
       if (anterior) {
-        guardarEnCacheEscudos(clave, { ...previa, ts: Date.now() });
+        // El reloj se corre un día, no un mes: si el intento falló por falta
+        // de señal, que es lo normal en la cancha, mañana se vuelve a probar
+        // en vez de esperar otro mes entero.
+        guardarEnCacheEscudos(clave, {
+          ...previa,
+          ts: Date.now() - ESPERA_REFRESCO + ESPERA_REINTENTO,
+        });
         return anterior;
       }
 

@@ -93,6 +93,14 @@ const trazos = {
   flecha: <path d="m9 18 6-6-6-6" />,
   subir: <path d="M12 19V5m0 0-7 7m7-7 7 7" />,
   escudo: <path d="M12 3 4 6v6c0 4.4 3.2 7.9 8 9 4.8-1.1 8-4.6 8-9V6l-8-3Z" />,
+  refrescar: (
+    <>
+      <path d="M21 4v6h-6" />
+      <path d="M3 20v-6h6" />
+      <path d="M3.5 9a9 9 0 0 1 14.9-3.4L21 10" />
+      <path d="M3 14l4.6 4.4A9 9 0 0 0 20.5 15" />
+    </>
+  ),
 };
 
 export const Icono = ({ nombre, size = 22, className = "" }) => (
