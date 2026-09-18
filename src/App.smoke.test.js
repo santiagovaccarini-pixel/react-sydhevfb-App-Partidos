@@ -3298,4 +3298,33 @@ describe("interfaz operativa", () => {
       "2026-09-12",
     );
   });
+
+  test("en cancha neutral la tarjeta de inicio cambia de color", async () => {
+    await montarApp();
+    await irAFormacion();
+
+    const hero = () => contenedor.querySelector(".hero-partido");
+    const pastilla = () => contenedor.querySelector(".boton-localia");
+
+    // Arranca de local: la tarjeta va como siempre.
+    expect(pastilla().textContent).toContain("Local");
+    expect(hero().className).not.toContain("neutral");
+
+    await act(async () => pastilla().click());
+    expect(pastilla().textContent).toContain("Visitante");
+    expect(hero().className).not.toContain("neutral");
+
+    await act(async () => pastilla().click());
+    expect(pastilla().textContent).toContain("Neutral");
+    expect(hero().className).toContain("neutral");
+
+    // Y la del marcador del partido no se toca en ningún caso.
+    expect(
+      contenedor.querySelector(".marcador-partido")?.className || "",
+    ).not.toContain("neutral");
+
+    await act(async () => pastilla().click());
+    expect(pastilla().textContent).toContain("Local");
+    expect(hero().className).not.toContain("neutral");
+  });
 });

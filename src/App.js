@@ -80,6 +80,7 @@ import {
   LOCALIAS,
   enOrdenDeCancha,
   armarResultado,
+  esNeutral,
   etiquetaLocalia,
   golesDelRegistro,
   golesEnPantalla,
@@ -194,7 +195,7 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.18.1";
+const APP_VERSION = "2026.09.18.2";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4201,7 +4202,11 @@ export default function App() {
   const renderPantallaInicioFormacion = () => (
     <div className="app app-inicio">
       <div className="contenedor contenedor-inicio-formacion">
-        <header className="hero-partido">
+        {/* En cancha neutral la tarjeta cambia de color: es lo único que
+            distingue un partido sin local de uno de local. */}
+        <header
+          className={`hero-partido ${esNeutral(registro) ? "neutral" : ""}`}
+        >
           <span className="etiqueta-hero">Próximo partido</span>
 
           <div className="enfrentamiento">
