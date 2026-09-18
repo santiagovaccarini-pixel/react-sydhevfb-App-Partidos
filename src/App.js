@@ -73,6 +73,7 @@ import {
 import {
   FILTRO_EQUIPO,
   MODO_RESULTADO,
+  PENALES,
   filtrarRegistros,
   rivalesDelHistorial,
 } from "./domain/filtros";
@@ -196,7 +197,29 @@ const agruparJugados = (jugadores) =>
     ];
   }, []);
 
-const APP_VERSION = "2026.09.18.9";
+// El botón de penales que acompaña a "Ganados" y a "Perdidos". Da la vuelta
+// entre sus tres posiciones y cada una dice en el propio botón lo que hace.
+const ADMITE_PENALES = [MODO_RESULTADO.GANADO, MODO_RESULTADO.PERDIDO];
+
+const ETIQUETA_PENALES = {
+  [PENALES.SIN]: "Sin penales",
+  [PENALES.CON]: "Con penales",
+  [PENALES.SOLO]: "Solo penales",
+};
+
+const SIGUIENTE_PENALES = {
+  [PENALES.SIN]: PENALES.CON,
+  [PENALES.CON]: PENALES.SOLO,
+  [PENALES.SOLO]: PENALES.SIN,
+};
+
+const ESTILO_PENALES = {
+  [PENALES.SIN]: "",
+  [PENALES.CON]: "activo",
+  [PENALES.SOLO]: "activo solo",
+};
+
+const APP_VERSION = "2026.09.18.10";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1323,6 +1346,9 @@ export default function App() {
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [modoResultado, setModoResultado] = useState(MODO_RESULTADO.GANADO);
+  // Los partidos de copa no son una opción más de la lista: son una vuelta de
+  // tuerca sobre ganar o perder, y se eligen con un botón al lado.
+  const [penalesResultado, setPenalesResultado] = useState(PENALES.SIN);
   const [marcadorExacto, setMarcadorExacto] = useState("");
   const [localiaElegida, setLocaliaElegida] = useState(LOCALIA.LOCAL);
 
@@ -2119,6 +2145,7 @@ export default function App() {
         desde: fechaDesde,
         hasta: fechaHasta,
         modo: modoResultado,
+        penales: penalesResultado,
         marcador: marcadorExacto,
         localia: localiaElegida,
       }),
@@ -2129,6 +2156,7 @@ export default function App() {
       fechaDesde,
       fechaHasta,
       modoResultado,
+      penalesResultado,
       marcadorExacto,
       localiaElegida,
     ],
@@ -2286,6 +2314,7 @@ export default function App() {
     setFechaDesde("");
     setFechaHasta("");
     setMarcadorExacto("");
+    setPenalesResultado(PENALES.SIN);
     setFiltroJugador(FILTRO.TODOS);
   };
 
@@ -6958,14 +6987,6 @@ export default function App() {
                               etiqueta: "Perdidos",
                             },
                             {
-                              valor: MODO_RESULTADO.GANADO_PENALES,
-                              etiqueta: "Ganados por penales",
-                            },
-                            {
-                              valor: MODO_RESULTADO.PERDIDO_PENALES,
-                              etiqueta: "Perdidos por penales",
-                            },
-                            {
                               valor: MODO_RESULTADO.EXACTO,
                               etiqueta: "Marcador exacto",
                             },
@@ -6973,6 +6994,21 @@ export default function App() {
                           valor: modoResultado,
                           alElegir: setModoResultado,
                         })}
+
+                        {ADMITE_PENALES.includes(modoResultado) && (
+                          <button
+                            type="button"
+                            className={`boton-penales ${ESTILO_PENALES[penalesResultado]}`}
+                            onClick={() =>
+                              setPenalesResultado(
+                                SIGUIENTE_PENALES[penalesResultado],
+                              )
+                            }
+                            aria-label={`Partidos de penales: ${ETIQUETA_PENALES[penalesResultado]}. Tocá para cambiar.`}
+                          >
+                            {ETIQUETA_PENALES[penalesResultado]}
+                          </button>
+                        )}
 
                         {modoResultado === MODO_RESULTADO.EXACTO && (
                           <input

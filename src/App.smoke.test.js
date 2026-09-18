@@ -3627,4 +3627,82 @@ describe("interfaz operativa", () => {
       jugador,
     );
   });
+
+  test("el botón de penales suma o aísla los partidos de copa", async () => {
+    doblesSupabase.filasHistorial = [
+      { ...filaTransmisionGuardada(), id: 41, fecha: "2026-09-10", rival: "Santos", resultado: "2-1" },
+      { ...filaTransmisionGuardada(), id: 42, fecha: "2026-09-03", rival: "River", resultado: "1-1 (4-3)" },
+      { ...filaTransmisionGuardada(), id: 43, fecha: "2026-08-27", rival: "Vasco", resultado: "0-2" },
+    ];
+
+    await montarApp();
+
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (item) => item.textContent.includes(etiqueta),
+      );
+    const rivales = () =>
+      Array.from(
+        contenedor.querySelectorAll(".enfrentamiento-registro strong"),
+      )
+        .map((nodo) => nodo.textContent.trim())
+        .filter((nombre) => nombre !== "Atlético Mineiro");
+
+    await act(async () => irA("Registros").click());
+
+    await act(async () => contenedor.querySelector(".boton-filtro").click());
+    await act(async () =>
+      Array.from(document.querySelectorAll(".opcion-hoja"))
+        .find((boton) => boton.textContent === "Resultado")
+        .click(),
+    );
+
+    // "Ganados por penales" ya no está en la lista: ahora es un botón.
+    await act(async () =>
+      contenedor.querySelector(".minutos-filtro .selector-hoja").click(),
+    );
+    expect(
+      Array.from(document.querySelectorAll(".opcion-hoja")).map(
+        (boton) => boton.textContent,
+      ),
+    ).toEqual(["Ganados", "Empatados", "Perdidos", "Marcador exacto"]);
+    await act(async () =>
+      Array.from(document.querySelectorAll(".opcion-hoja"))
+        .find((boton) => boton.textContent === "Ganados")
+        .click(),
+    );
+
+    const penales = () => contenedor.querySelector(".boton-penales");
+
+    // Arranca sin penales: solo el 2-1 de los 90.
+    expect(penales().textContent).toBe("Sin penales");
+    expect(rivales()).toEqual(["Santos"]);
+
+    // Con penales entra también el 1-1 (4-3).
+    await act(async () => penales().click());
+    expect(penales().textContent).toBe("Con penales");
+    expect(rivales()).toEqual(["Santos", "River"]);
+
+    // Y en solo penales queda únicamente ese.
+    await act(async () => penales().click());
+    expect(penales().textContent).toBe("Solo penales");
+    expect(rivales()).toEqual(["River"]);
+
+    // La vuelta completa lo deja donde arrancó.
+    await act(async () => penales().click());
+    expect(penales().textContent).toBe("Sin penales");
+    expect(rivales()).toEqual(["Santos"]);
+
+    // En "Empatados" el botón no aparece: un partido de penales no es empate.
+    await act(async () =>
+      contenedor.querySelector(".minutos-filtro .selector-hoja").click(),
+    );
+    await act(async () =>
+      Array.from(document.querySelectorAll(".opcion-hoja"))
+        .find((boton) => boton.textContent === "Empatados")
+        .click(),
+    );
+    expect(contenedor.querySelector(".boton-penales")).toBeNull();
+    expect(rivales()).toEqual([]);
+  });
 });
