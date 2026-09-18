@@ -3532,4 +3532,39 @@ describe("interfaz operativa", () => {
       ).disabled,
     ).toBe(false);
   });
+
+  test("desde Ajustes se pueden tirar los escudos guardados", async () => {
+    localStorage.setItem(
+      "escudos_rivales",
+      JSON.stringify({ cruzeiro: { url: "https://escudo/viejo.png", ts: 1 } }),
+    );
+
+    await montarApp();
+
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button"))
+        .find((boton) => boton.textContent.includes("Ajustes"))
+        .click(),
+    );
+
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste"))
+        .find((boton) => boton.textContent.includes("Escudos"))
+        .click(),
+    );
+
+    // Pregunta antes, y aclara que no toca ningún partido.
+    const cartel = contenedor.querySelector(".hoja-confirmar");
+    expect(cartel.textContent).toContain("No toca ningún partido");
+    expect(localStorage.getItem("escudos_rivales")).not.toBeNull();
+
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".hoja-confirmar button"))
+        .find((boton) => boton.textContent.includes("Sí, bajarlos"))
+        .click(),
+    );
+
+    expect(localStorage.getItem("escudos_rivales")).toBeNull();
+    expect(contenedor.textContent).toContain("Escudos borrados");
+  });
 });

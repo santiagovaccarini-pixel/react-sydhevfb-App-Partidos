@@ -2,10 +2,14 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   CLAVE_ESCUDOS,
+  ESPERA_REFRESCO,
   ESPERA_REINTENTO,
   buscarEscudo,
   claveEscudo,
+  alVaciarEscudos,
   entradaVencida,
+  escudoVencido,
+  vaciarCacheEscudos,
   escudoGuardado,
   guardarEnCacheEscudos,
   incrustarImagen,
@@ -65,10 +69,45 @@ describe("cache de escudos", () => {
 
     expect(entradaVencida(fallido, ahora + 60_000)).toBe(false);
     expect(entradaVencida(fallido, ahora + ESPERA_REINTENTO + 1)).toBe(true);
-    // Un escudo encontrado no vence nunca.
-    expect(
-      entradaVencida({ url: "u", ts: 0 }, ahora + ESPERA_REINTENTO * 10),
-    ).toBe(false);
+  });
+
+  test("uno encontrado se vuelve a buscar recién al mes", () => {
+    // Antes no vencía nunca: un escudo equivocado quedaba para siempre y no
+    // había forma de corregirlo sin borrar los datos del navegador.
+    const ahora = 1_000_000_000;
+    const bueno = { url: "u", ts: ahora };
+
+    expect(entradaVencida(bueno, ahora + ESPERA_REINTENTO * 10)).toBe(false);
+    expect(entradaVencida(bueno, ahora + ESPERA_REFRESCO + 1)).toBe(true);
+  });
+
+  test("escudoVencido mira lo guardado con la clave del club", () => {
+    guardarEnCacheEscudos("cruzeiro", { url: "u", ts: Date.now() });
+    expect(escudoVencido("Cruzeiro Esporte Clube")).toBe(false);
+
+    guardarEnCacheEscudos("cruzeiro", {
+      url: "u",
+      ts: Date.now() - ESPERA_REFRESCO - 1,
+    });
+    expect(escudoVencido("Cruzeiro EC")).toBe(true);
+  });
+
+  test("vaciar el cache lo deja limpio y avisa a los que están mirando", () => {
+    guardarEnCacheEscudos("cruzeiro", { url: "u", ts: 1 });
+    let avisos = 0;
+    const dejarDeMirar = alVaciarEscudos(() => {
+      avisos += 1;
+    });
+
+    vaciarCacheEscudos();
+
+    expect(leerCacheEscudos()).toEqual({});
+    expect(avisos).toBe(1);
+
+    // Y al soltarlo deja de avisar.
+    dejarDeMirar();
+    vaciarCacheEscudos();
+    expect(avisos).toBe(1);
   });
 });
 
@@ -250,6 +289,43 @@ describe("resolver el escudo de muchos clubes a la vez", () => {
     expect(escudoGuardado("cruzeiro esporte clube")?.url).toBe(
       "https://escudo/viejo.png",
     );
+  });
+
+  test("al mes lo vuelve a buscar, y si lo encuentra distinto lo reemplaza", async () => {
+    guardarEnCacheEscudos(claveEscudo("Cruzeiro"), {
+      url: "https://escudo/equivocado.png",
+      nombreOficial: "Otro",
+      ts: Date.now() - ESPERA_REFRESCO - 1,
+    });
+    const traer = vi.fn(async (url) =>
+      String(url).includes("searchteams")
+        ? conBadge("Cruzeiro")
+        : { ok: false, status: 404 },
+    );
+    vi.stubGlobal("fetch", traer);
+
+    expect((await obtenerEscudo("Cruzeiro"))?.url).toBe(
+      "https://escudo/Cruzeiro.png",
+    );
+  });
+
+  test("si el mes venció y la búsqueda falla, se queda el que ya tenías", async () => {
+    // Es el caso de la cancha sin señal: perder el escudo que ya estaba sería
+    // peor que mostrarlo un mes de más.
+    guardarEnCacheEscudos(claveEscudo("Cruzeiro"), {
+      url: "https://escudo/viejo.png",
+      nombreOficial: "Cruzeiro EC",
+      ts: Date.now() - ESPERA_REFRESCO - 1,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 503 })),
+    );
+
+    expect((await obtenerEscudo("Cruzeiro"))?.url).toBe(
+      "https://escudo/viejo.png",
+    );
+    expect(escudoGuardado("Cruzeiro")?.url).toBe("https://escudo/viejo.png");
   });
 
   test("pedir el mismo club cuatro veces busca una sola", async () => {

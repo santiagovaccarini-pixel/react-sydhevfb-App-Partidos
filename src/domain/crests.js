@@ -6,6 +6,11 @@ export const CLAVE_ESCUDOS = "escudos_rivales";
 // volver a preguntar en cada tecla, pero tampoco quedarse pegado para siempre.
 export const ESPERA_REINTENTO = 24 * 60 * 60 * 1000;
 
+// Uno encontrado se vuelve a buscar al mes. Un club puede cambiar el escudo, y
+// alguna vez se guardó el de otro con nombre parecido: sin esto ese quedaba
+// para siempre y no había forma de corregirlo.
+export const ESPERA_REFRESCO = 30 * 24 * 60 * 60 * 1000;
+
 const LIMITE_BYTES_GUARDADOS = 150 * 1024;
 
 /**
@@ -202,8 +207,12 @@ export const buscarEscudo = async (nombre, { senal } = {}) => {
   return null;
 };
 
-export const entradaVencida = (entrada, ahora = Date.now()) =>
-  !entrada || (!entrada.url && ahora - (entrada.ts || 0) > ESPERA_REINTENTO);
+export const entradaVencida = (entrada, ahora = Date.now()) => {
+  if (!entrada) return true;
+
+  const edad = ahora - (entrada.ts || 0);
+  return entrada.url ? edad > ESPERA_REFRESCO : edad > ESPERA_REINTENTO;
+};
 
 const TIEMPO_LIMITE = 8000;
 
@@ -222,6 +231,33 @@ export const escudoGuardado = (nombre) => {
   return clave ? desdeCache(leerCacheEscudos()[clave]) : null;
 };
 
+/** Si lo guardado ya cumplió su tiempo y conviene volver a buscarlo. */
+export const escudoVencido = (nombre) => {
+  const clave = claveEscudo(nombre);
+  if (!clave) return false;
+  return entradaVencida(leerCacheEscudos()[clave]);
+};
+
+// Vaciar el cache tiene que verse en el momento, y los escudos están repartidos
+// por toda la app. Cada uno se anota acá y se entera.
+const alVaciar = new Set();
+
+export const alVaciarEscudos = (oyente) => {
+  alVaciar.add(oyente);
+  return () => alVaciar.delete(oyente);
+};
+
+/** Tira todos los escudos guardados para que se vuelvan a bajar. */
+export const vaciarCacheEscudos = () => {
+  try {
+    localStorage.removeItem(CLAVE_ESCUDOS);
+  } catch (error) {
+    console.warn("No se pudo vaciar el cache de escudos.");
+  }
+
+  alVaciar.forEach((oyente) => oyente());
+};
+
 const enVuelo = new Map();
 let cola = Promise.resolve();
 
@@ -233,6 +269,16 @@ const buscarYGuardar = async (nombre, clave) => {
     const encontrado = await buscarEscudo(nombre, { senal: controlador.signal });
 
     if (!encontrado) {
+      // Si ya había uno bueno, que la búsqueda falle no es motivo para
+      // borrarlo: en la cancha sin señal es mejor el de antes que ninguno.
+      const previa = leerCacheEscudos()[clave];
+      const anterior = desdeCache(previa);
+
+      if (anterior) {
+        guardarEnCacheEscudos(clave, { ...previa, ts: Date.now() });
+        return anterior;
+      }
+
       guardarEnCacheEscudos(clave, { url: "", ts: Date.now() });
       return null;
     }
@@ -265,15 +311,22 @@ export const obtenerEscudo = (nombre) => {
   if (!clave) return Promise.resolve(null);
 
   const guardado = leerCacheEscudos()[clave];
-  const yaEstaba = desdeCache(guardado);
+  const vencida = entradaVencida(guardado);
+  const yaEstaba = vencida ? null : desdeCache(guardado);
   if (yaEstaba) return Promise.resolve(yaEstaba);
-  if (guardado && !entradaVencida(guardado)) return Promise.resolve(null);
+  if (guardado && !vencida) return Promise.resolve(null);
 
   if (enVuelo.has(clave)) return enVuelo.get(clave);
 
+  // Mientras esperaba el turno, otro pudo haberlo guardado. Pero uno vencido
+  // no sirve: es justo el que se venía a renovar.
+  const recienGuardado = () => {
+    const entrada = leerCacheEscudos()[clave];
+    return entradaVencida(entrada) ? null : desdeCache(entrada);
+  };
+
   const tarea = cola.then(
-    // Mientras esperaba el turno, otro pudo haberlo guardado.
-    () => desdeCache(leerCacheEscudos()[clave]) || buscarYGuardar(nombre, clave),
+    () => recienGuardado() || buscarYGuardar(nombre, clave),
     () => buscarYGuardar(nombre, clave),
   );
 
