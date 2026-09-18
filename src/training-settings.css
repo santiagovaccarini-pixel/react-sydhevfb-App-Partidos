@@ -395,3 +395,26 @@
   color: var(--portal-muted);
   font-size: 0.72rem;
 }
+
+.entrenamiento-ajustes-avanzado {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.entrenamiento-ajustes-avanzado > summary {
+  padding: 12px 14px;
+  border: 1px dashed var(--portal-border);
+  border-radius: 14px;
+  color: var(--portal-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.entrenamiento-ajustes-avanzado[open] > summary {
+  margin-bottom: 14px;
+}
+
+.entrenamiento-ajustes-avanzado > .entrenamiento-panel + .entrenamiento-panel {
+  margin-top: 16px;
+}

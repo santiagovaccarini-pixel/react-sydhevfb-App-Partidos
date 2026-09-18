@@ -99,14 +99,17 @@ describe("TrainingSettings · sonda de capacidades", () => {
   const botonPorTexto = (texto) =>
     [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim() === texto);
 
-  test("convive con la prueba de login y no se ejecuta sola", async () => {
+  test("muestra cuenta, acceso y write test arriba y pliega los diagnósticos", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
     await montar();
 
-    expect(botonPorTexto("Conectar Catapult")).toBeDefined();
+    expect(botonPorTexto("Verificar acceso (solo lectura)")).toBeDefined();
+    expect(botonPorTexto("Escribir TEST APP en 26-05 T")).toBeDefined();
+    expect(botonPorTexto("Probar login del editor (solo lectura)")).toBeDefined();
     expect(botonPorTexto("Sondear capacidades")).toBeDefined();
+    expect(contenedor.querySelector(".entrenamiento-ajustes-avanzado")?.open).toBe(false);
     expect(contenedor.textContent).toContain("Solo envía GET y OPTIONS");
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -332,5 +335,64 @@ describe("TrainingSettings · inspección del Cloud Editor", () => {
     expect(imagen?.getAttribute("src")).toBe("data:image/jpeg;base64,AAAA");
     expect(botonPorTexto("Copiar detalle del error")).toBeDefined();
     expect(clave.value).toBe("");
+  });
+  test("el write test exige credenciales y la confirmación exacta antes de habilitarse", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        result: "cloud-write-tested",
+        veredicto: { codigo: "escritura-validada", detalle: "Quedó exacto." },
+        enviado: {
+          periodo: { name: "TEST APP 01", start_time_ms: 1779823358000, end_time_ms: 1779823958000, participantes: 13 },
+        },
+        put: { status: 200 },
+        antes: { interno: { periods: [{}, {}] }, connect: { count: 2 } },
+        despues: { interno: { periods: [{}, {}, {}] }, connect: { count: 3 } },
+        validacion: {
+          interna: { valido: true, diff: { agregados: [{}], eliminados: [], modificados: [] }, corte: { motivo: "ok" }, participantes: { valido: true } },
+          connect: { valido: true, diff: { agregados: [{}], eliminados: [], modificados: [] }, corte: { motivo: "ok" }, participantes: { valido: false, detalle: { faltantes: ["a"], sobrantes: [] } } },
+        },
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await montar();
+    const boton = botonPorTexto("Escribir TEST APP en 26-05 T");
+    expect(boton).toBeDefined();
+    expect(boton.disabled).toBe(true);
+
+    const usuario = contenedor.querySelector("input[autocomplete='username']");
+    const clave = contenedor.querySelector("input[autocomplete='current-password']");
+    const confirmacion = contenedor.querySelector("input[placeholder='26-05 T']");
+    await act(async () => {
+      escribir(usuario, "santi");
+      escribir(clave, "secreta");
+      escribir(confirmacion, "26-05 t");
+    });
+    expect(botonPorTexto("Escribir TEST APP en 26-05 T").disabled).toBe(true);
+
+    await act(async () => escribir(confirmacion, "26-05 T"));
+    expect(botonPorTexto("Escribir TEST APP en 26-05 T").disabled).toBe(false);
+
+    await act(async () => botonPorTexto("Escribir TEST APP en 26-05 T").click());
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/openfield/cloud-write-test");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      username: "santi",
+      password: "secreta",
+      confirmacion: "26-05 T",
+    });
+
+    const texto = contenedor.textContent;
+    expect(texto).toContain("Escritura validada");
+    expect(texto).toContain("PUT batch → 200");
+    expect(texto).toContain("TEST APP 01");
+    expect(texto).toContain("Interno: 2 → 3 períodos");
+    expect(texto).toContain("Participantes: faltan 1, sobran 0");
+    expect(clave.value).toBe("");
+    expect(confirmacion.value).toBe("");
   });
 });
