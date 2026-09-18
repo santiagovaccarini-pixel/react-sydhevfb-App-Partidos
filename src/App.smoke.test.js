@@ -115,11 +115,18 @@ vi.mock("./supabase.js", () => ({
         update: (fila) => {
           doblesSupabase.actualizar(fila);
           return {
-            eq: () => ({
-              select: async () => ({
-                data: [{ id: 9, ...fila }],
-                error: null,
-              }),
+            // Reemplazar una fila que ya no existe no es un error para
+            // Postgres: contesta sin quejarse y sin ninguna fila tocada.
+            eq: (campo, valor) => ({
+              select: async () => {
+                const existe = doblesSupabase.filasHistorial.some(
+                  (item) => String(item.id) === String(valor),
+                );
+                return {
+                  data: existe ? [{ id: valor, ...fila }] : [],
+                  error: null,
+                };
+              },
             }),
           };
         },
@@ -3399,5 +3406,45 @@ describe("interfaz operativa", () => {
     expect(filasVar()).toHaveLength(2);
     expect(filasVar()[0][0].value).toBe("21:41:00");
     expect(filasVar()[0][1].value).toBe("21:42:00");
+  });
+
+  test("si el partido ya no está en la base, guardar lo vuelve a cargar", async () => {
+    // El partido se guardó antes, así que el borrador quedó con el número de
+    // fila de la base. Después se borró ese registro: la fila ya no existe,
+    // pero el borrador sigue con el número anotado.
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify({
+        version: 2,
+        registro: {
+          fecha: "2026-09-08",
+          rival: "Cruzeiro",
+          resultado: "1-0",
+          idSupabase: 9,
+          formacion: { titulares: ["ALONSO", "SCARPA"], convocados: ["BERNARD"] },
+        },
+      }),
+    );
+    doblesSupabase.filasHistorial = [];
+
+    await montarApp();
+
+    const guardar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Guardar partido"),
+    );
+
+    await act(async () => {
+      guardar.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Reemplazar la fila borrada no toca nada y no da error, así que el
+    // partido tiene que archivarse de nuevo en vez de perderse en silencio.
+    expect(doblesSupabase.insertar).toHaveBeenCalledTimes(1);
+    expect(doblesSupabase.insertar.mock.calls[0][0][0].rival).toBe("Cruzeiro");
+    expect(contenedor.textContent).not.toContain("Partido actualizado");
+    expect(contenedor.textContent).toContain("Ya no estaba en la base");
   });
 });
