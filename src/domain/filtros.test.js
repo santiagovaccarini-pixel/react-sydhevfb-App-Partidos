@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { COMPARADOR } from "./minutos";
 import {
   FILTRO_EQUIPO,
   MODO_RESULTADO,
@@ -161,6 +162,53 @@ describe("recortar los partidos del equipo", () => {
         marcador: "2-",
       }),
     ).toHaveLength(8);
+  });
+
+  test("por cuánto duró el partido", () => {
+    // Tres partidos medidos: uno corto, uno normal y uno largo de tanto VAR.
+    const conTiempos = [
+      { inicioPT: "21:00:00", finalPT: "21:40:00", rival: "Corto" },
+      { inicioPT: "21:00:00", finalPT: "21:47:30", rival: "Normal" },
+      { inicioPT: "21:00:00", finalPT: "22:05:00", rival: "Largo" },
+    ].map((item) => ({ item, index: 0 }));
+
+    const porDuracion = (duracion) =>
+      filtrarRegistros(conTiempos, {
+        filtro: FILTRO_EQUIPO.DURACION,
+        duracion,
+      }).map((fila) => fila.item.rival);
+
+    expect(porDuracion({ comparador: COMPARADOR.MAYOR, desde: "50" })).toEqual([
+      "Largo",
+    ]);
+    expect(porDuracion({ comparador: COMPARADOR.MENOR, desde: "45" })).toEqual([
+      "Corto",
+    ]);
+    // El largo son 65 minutos, así que no entra en "entre 45 y 60".
+    expect(
+      porDuracion({ comparador: COMPARADOR.ENTRE, desde: "45", hasta: "60" }),
+    ).toEqual(["Normal"]);
+    expect(
+      porDuracion({ comparador: COMPARADOR.ENTRE, desde: "45", hasta: "70" }),
+    ).toEqual(["Normal", "Largo"]);
+    // Sin número escrito no recorta nada.
+    expect(porDuracion({ comparador: COMPARADOR.MAYOR, desde: "" })).toEqual([
+      "Corto",
+      "Normal",
+      "Largo",
+    ]);
+  });
+
+  test("el rango de fechas y el de duración no se pisan", () => {
+    // Los dos hablan de un "desde" y un "hasta". Si compartieran nombre, poner
+    // minutos le cambiaría el rango a las fechas.
+    expect(
+      rivales({
+        filtro: FILTRO_EQUIPO.FECHA,
+        desde: "2026-09-01",
+        duracion: { comparador: COMPARADOR.MAYOR, desde: "90", hasta: "120" },
+      }),
+    ).toEqual(["Cruzeiro", "Palmeiras"]);
   });
 
   test("por local, visitante o neutral, y lo viejo cuenta como local", () => {

@@ -220,7 +220,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.09.18.11";
+const APP_VERSION = "2026.09.18.12";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1359,6 +1359,15 @@ export default function App() {
   // resultado, el orden y los comparadores.
   const [hojaSelector, setHojaSelector] = useState(null);
   const [comparadorMinutos, setComparadorMinutos] = useState(COMPARADOR.MAYOR);
+  // La duración del partido lleva su propio número: "más de 60" en Jugador
+  // habla de lo que jugó él, y en Equipo de lo que duró el partido.
+  const [comparadorDuracion, setComparadorDuracion] = useState(
+    COMPARADOR.MAYOR,
+  );
+  const [duracionDesde, setDuracionDesde] = useState("");
+  const [duracionHasta, setDuracionHasta] = useState("");
+  const [duracionDesdeIgual, setDuracionDesdeIgual] = useState(true);
+  const [duracionHastaIgual, setDuracionHastaIgual] = useState(true);
   const [minutosDesde, setMinutosDesde] = useState("60");
   const [minutosHasta, setMinutosHasta] = useState("90");
   // En "entre", cada punta elige su símbolo: ≥ o >, ≤ o <.
@@ -2149,6 +2158,13 @@ export default function App() {
         penales: penalesResultado,
         marcador: marcadorExacto,
         localia: localiaElegida,
+        duracion: {
+          comparador: comparadorDuracion,
+          desde: duracionDesde,
+          hasta: duracionHasta,
+          desdeIgual: duracionDesdeIgual,
+          hastaIgual: duracionHastaIgual,
+        },
       }),
     [
       registrosBuscados,
@@ -2160,6 +2176,11 @@ export default function App() {
       penalesResultado,
       marcadorExacto,
       localiaElegida,
+      comparadorDuracion,
+      duracionDesde,
+      duracionHasta,
+      duracionDesdeIgual,
+      duracionHastaIgual,
     ],
   );
 
@@ -2357,6 +2378,8 @@ export default function App() {
     setFechaHasta("");
     setMarcadorExacto("");
     setPenalesResultado(PENALES.SIN);
+    setDuracionDesde("");
+    setDuracionHasta("");
     setFiltroJugador(FILTRO.TODOS);
   };
 
@@ -2365,6 +2388,7 @@ export default function App() {
     { valor: FILTRO_EQUIPO.FECHA, etiqueta: "Fecha" },
     { valor: FILTRO_EQUIPO.RESULTADO, etiqueta: "Resultado" },
     { valor: FILTRO_EQUIPO.LOCALIA, etiqueta: "Dónde se jugó" },
+    { valor: FILTRO_EQUIPO.DURACION, etiqueta: "Cuánto duró" },
   ];
 
   const CRITERIOS_JUGADOR = [
@@ -5713,6 +5737,119 @@ export default function App() {
       },
     });
 
+  // El control de minutos: el comparador y una o dos casillas. Lo usan los
+  // minutos de un jugador y la duración de un partido, que preguntan lo
+  // mismo sobre números distintos.
+  const renderFiltroDeMinutos = ({
+    titulo,
+    comparador,
+    alElegirComparador,
+    desde,
+    alEscribirDesde,
+    hasta,
+    alEscribirHasta,
+    desdeIgual,
+    alCambiarDesdeIgual,
+    hastaIgual,
+    alCambiarHastaIgual,
+  }) => (
+    <div className="minutos-filtro">
+      {selectorConHoja({
+        titulo,
+        opciones: [
+          { valor: COMPARADOR.MAYOR, etiqueta: "Más de" },
+          {
+            valor: COMPARADOR.MAYOR_IGUAL,
+            etiqueta: "Al menos",
+          },
+          { valor: COMPARADOR.MENOR, etiqueta: "Menos de" },
+          {
+            valor: COMPARADOR.MENOR_IGUAL,
+            etiqueta: "Como mucho",
+          },
+          { valor: COMPARADOR.ENTRE, etiqueta: "Entre" },
+        ],
+        valor: comparador,
+        alElegir: alElegirComparador,
+        ancho: "medio",
+      })}
+
+      {comparador === COMPARADOR.ENTRE ? (
+        <>
+          {[
+            {
+              igual: desdeIgual,
+              cambiar: alCambiarDesdeIgual,
+              simbolos: ["≥", ">"],
+              valor: desde,
+              escribir: alEscribirDesde,
+              desde: true,
+            },
+            {
+              igual: hastaIgual,
+              cambiar: alCambiarHastaIgual,
+              simbolos: ["≤", "<"],
+              valor: hasta,
+              escribir: alEscribirHasta,
+              desde: false,
+            },
+          ].map((punta) => {
+            const simbolo = (
+              <button
+                type="button"
+                className="simbolo-minutos"
+                onClick={() => punta.cambiar((igual) => !igual)}
+                aria-label={`${punta.desde ? "Desde" : "Hasta"}: ${
+                  punta.igual ? "incluido" : "sin incluir"
+                }`}
+              >
+                {punta.igual ? punta.simbolos[0] : punta.simbolos[1]}
+              </button>
+            );
+
+            const numero = (
+              <input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                value={punta.valor}
+                onChange={(e) => punta.escribir(e.target.value)}
+                onKeyDown={manejarEnter}
+                aria-label={punta.desde ? "Minutos, desde" : "Minutos, hasta"}
+              />
+            );
+
+            // Los dos símbolos van por fuera y los números
+            // en el medio: 60 y 90 quedan uno al lado del
+            // otro, que es lo que se compara de un vistazo.
+            return (
+              <span
+                className={`punta-minutos ${punta.desde ? "" : "al-reves"}`}
+                key={punta.desde ? "desde" : "hasta"}
+              >
+                {punta.desde ? simbolo : numero}
+                {punta.desde ? numero : simbolo}
+              </span>
+            );
+          })}
+        </>
+      ) : (
+        <>
+          <input
+            type="number"
+            inputMode="numeric"
+            min="0"
+            value={desde}
+            onChange={(e) => alEscribirDesde(e.target.value)}
+            onKeyDown={manejarEnter}
+            aria-label="Minutos"
+          />
+          <span>min</span>
+        </>
+      )}
+    </div>
+  );
+
   const renderAjustes = () => (
     <div className="app">
       <div className="contenedor">
@@ -7064,6 +7201,21 @@ export default function App() {
                       </div>
                     )}
 
+                    {filtroEquipo === FILTRO_EQUIPO.DURACION &&
+                      renderFiltroDeMinutos({
+                        titulo: "Cómo comparar la duración",
+                        comparador: comparadorDuracion,
+                        alElegirComparador: setComparadorDuracion,
+                        desde: duracionDesde,
+                        alEscribirDesde: setDuracionDesde,
+                        hasta: duracionHasta,
+                        alEscribirHasta: setDuracionHasta,
+                        desdeIgual: duracionDesdeIgual,
+                        alCambiarDesdeIgual: setDuracionDesdeIgual,
+                        hastaIgual: duracionHastaIgual,
+                        alCambiarHastaIgual: setDuracionHastaIgual,
+                      })}
+
                     {filtroEquipo === FILTRO_EQUIPO.LOCALIA && (
                       <div className="cambiar-vista">
                         {LOCALIAS.map((cual) => (
@@ -7104,119 +7256,20 @@ export default function App() {
                         <span>Cambiar</span>
                       </button>
 
-                      {filtroJugador === FILTRO.MINUTOS && (
-                        <div className="minutos-filtro">
-                          {selectorConHoja({
-                            titulo: "Cómo comparar los minutos",
-                            opciones: [
-                              { valor: COMPARADOR.MAYOR, etiqueta: "Más de" },
-                              {
-                                valor: COMPARADOR.MAYOR_IGUAL,
-                                etiqueta: "Al menos",
-                              },
-                              { valor: COMPARADOR.MENOR, etiqueta: "Menos de" },
-                              {
-                                valor: COMPARADOR.MENOR_IGUAL,
-                                etiqueta: "Como mucho",
-                              },
-                              { valor: COMPARADOR.ENTRE, etiqueta: "Entre" },
-                            ],
-                            valor: comparadorMinutos,
-                            alElegir: setComparadorMinutos,
-                            ancho: "medio",
-                          })}
-
-                          {comparadorMinutos === COMPARADOR.ENTRE ? (
-                            <>
-                              {[
-                                {
-                                  igual: desdeIgual,
-                                  cambiar: setDesdeIgual,
-                                  simbolos: ["≥", ">"],
-                                  valor: minutosDesde,
-                                  escribir: setMinutosDesde,
-                                  desde: true,
-                                },
-                                {
-                                  igual: hastaIgual,
-                                  cambiar: setHastaIgual,
-                                  simbolos: ["≤", "<"],
-                                  valor: minutosHasta,
-                                  escribir: setMinutosHasta,
-                                  desde: false,
-                                },
-                              ].map((punta) => {
-                                const simbolo = (
-                                  <button
-                                    type="button"
-                                    className="simbolo-minutos"
-                                    onClick={() =>
-                                      punta.cambiar((igual) => !igual)
-                                    }
-                                    aria-label={`${
-                                      punta.desde ? "Desde" : "Hasta"
-                                    }: ${
-                                      punta.igual ? "incluido" : "sin incluir"
-                                    }`}
-                                  >
-                                    {punta.igual
-                                      ? punta.simbolos[0]
-                                      : punta.simbolos[1]}
-                                  </button>
-                                );
-
-                                const numero = (
-                                  <input
-                                    type="number"
-                                    inputMode="numeric"
-                                    min="0"
-                                    value={punta.valor}
-                                    onChange={(e) =>
-                                      punta.escribir(e.target.value)
-                                    }
-                                    onKeyDown={manejarEnter}
-                                    aria-label={
-                                      punta.desde
-                                        ? "Minutos, desde"
-                                        : "Minutos, hasta"
-                                    }
-                                  />
-                                );
-
-                                // Los dos símbolos van por fuera y los números
-                                // en el medio: 60 y 90 quedan uno al lado del
-                                // otro, que es lo que se compara de un vistazo.
-                                return (
-                                  <span
-                                    className={`punta-minutos ${
-                                      punta.desde ? "" : "al-reves"
-                                    }`}
-                                    key={punta.desde ? "desde" : "hasta"}
-                                  >
-                                    {punta.desde ? simbolo : numero}
-                                    {punta.desde ? numero : simbolo}
-                                  </span>
-                                );
-                              })}
-                            </>
-                          ) : (
-                            <>
-                              <input
-                                type="number"
-                                inputMode="numeric"
-                                min="0"
-                                value={minutosDesde}
-                                onChange={(e) =>
-                                  setMinutosDesde(e.target.value)
-                                }
-                                onKeyDown={manejarEnter}
-                                aria-label="Minutos"
-                              />
-                              <span>min</span>
-                            </>
-                          )}
-                        </div>
-                      )}
+                      {filtroJugador === FILTRO.MINUTOS &&
+                        renderFiltroDeMinutos({
+                          titulo: "Cómo comparar los minutos",
+                          comparador: comparadorMinutos,
+                          alElegirComparador: setComparadorMinutos,
+                          desde: minutosDesde,
+                          alEscribirDesde: setMinutosDesde,
+                          hasta: minutosHasta,
+                          alEscribirHasta: setMinutosHasta,
+                          desdeIgual,
+                          alCambiarDesdeIgual: setDesdeIgual,
+                          hastaIgual,
+                          alCambiarHastaIgual: setHastaIgual,
+                        })}
                     </div>
                   )}
               </div>
