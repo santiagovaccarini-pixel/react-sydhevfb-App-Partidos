@@ -202,6 +202,24 @@ const agruparJugados = (jugadores) =>
 // entre sus tres posiciones y cada una dice en el propio botón lo que hace.
 const ADMITE_PENALES = [MODO_RESULTADO.GANADO, MODO_RESULTADO.PERDIDO];
 
+// Una opción más de la hoja, no un criterio del dominio: elegirla deja prender
+// varios de los otros a la vez.
+const MULTI_FILTRO = "multi";
+
+// Los modos que se combinan entre sí. El marcador exacto no está: pregunta
+// cuánto salió, no cómo terminó, así que no se suma a los otros.
+const MODOS_COMBINABLES = [
+  { valor: MODO_RESULTADO.GANADO, etiqueta: "Ganados" },
+  { valor: MODO_RESULTADO.EMPATADO, etiqueta: "Empatados" },
+  { valor: MODO_RESULTADO.PERDIDO, etiqueta: "Perdidos" },
+];
+
+const MODOS_DEL_RESULTADO = [
+  ...MODOS_COMBINABLES,
+  { valor: MODO_RESULTADO.EXACTO, etiqueta: "Marcador exacto" },
+  { valor: MULTI_FILTRO, etiqueta: "Multi-Filtro" },
+];
+
 const ETIQUETA_PENALES = {
   [PENALES.SIN]: "Sin penales",
   [PENALES.CON]: "Con penales",
@@ -220,7 +238,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.09.18.14";
+const APP_VERSION = "2026.09.19.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1345,13 +1363,17 @@ export default function App() {
   const [modoRegistros, setModoRegistros] = useState("equipo");
   const [jugadorElegido, setJugadorElegido] = useState(null);
   // El filtro de la vista de Equipo: qué se mira y con qué valor.
-  // Varios criterios a la vez: el partido tiene que cumplirlos todos.
+  // El criterio elegido en la hoja. "multi" es uno más de la lista: con ese se
+  // prenden varios a la vez, y ahí manda filtrosEquipo.
+  const [criterioEquipo, setCriterioEquipo] = useState(FILTRO_EQUIPO.TODOS);
   const [filtrosEquipo, setFiltrosEquipo] = useState([]);
   const [rivalElegido, setRivalElegido] = useState("");
   const [buscadorRival, setBuscadorRival] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
-  // Y el resultado también admite varios: ganados y empatados, por ejemplo.
+  // El resultado sigue el mismo camino: la hoja de siempre, con un
+  // "Multi-Filtro" adentro que deja marcar varios.
+  const [modoResultado, setModoResultado] = useState(MODO_RESULTADO.GANADO);
   const [modosResultado, setModosResultado] = useState([MODO_RESULTADO.GANADO]);
   // Los partidos de copa no son una opción más de la lista: son una vuelta de
   // tuerca sobre ganar o perder, y se eligen con un botón al lado.
@@ -1359,6 +1381,7 @@ export default function App() {
   const [marcadorExacto, setMarcadorExacto] = useState("");
   const [localiaElegida, setLocaliaElegida] = useState(LOCALIA.LOCAL);
 
+  const [criterioJugador, setCriterioJugador] = useState(FILTRO.TODOS);
   const [filtrosJugador, setFiltrosJugador] = useState([]);
   const [filtroAbierto, setFiltroAbierto] = useState(false);
   // Una sola hoja para todo lo que se elige de una lista: el criterio, el
@@ -2135,6 +2158,46 @@ export default function App() {
     ].join(" ");
   };
 
+  const CRITERIOS_EQUIPO = [
+    { valor: FILTRO_EQUIPO.RIVAL, etiqueta: "Equipo" },
+    { valor: FILTRO_EQUIPO.FECHA, etiqueta: "Fecha" },
+    { valor: FILTRO_EQUIPO.RESULTADO, etiqueta: "Resultado" },
+    { valor: FILTRO_EQUIPO.LOCALIA, etiqueta: "Dónde se jugó" },
+    { valor: FILTRO_EQUIPO.DURACION, etiqueta: "Cuánto duró" },
+    { valor: MULTI_FILTRO, etiqueta: "Multi-Filtro" },
+  ];
+
+  const CRITERIOS_JUGADOR = [
+    { valor: FILTRO.TITULAR, etiqueta: "Titular" },
+    { valor: FILTRO.ENTRO, etiqueta: "Ingresó" },
+    { valor: FILTRO.NO_SALIO, etiqueta: "No salió" },
+    { valor: FILTRO.BANCO, etiqueta: "No ingresó" },
+    { valor: FILTRO.MINUTOS, etiqueta: "Minutos jugados" },
+    { valor: MULTI_FILTRO, etiqueta: "Multi-Filtro" },
+  ];
+
+  const enEquipo = modoRegistros === "equipo";
+  const criteriosDelFiltro = enEquipo ? CRITERIOS_EQUIPO : CRITERIOS_JUGADOR;
+  const criterioElegido = enEquipo ? criterioEquipo : criterioJugador;
+  const enMultiFiltro = criterioElegido === MULTI_FILTRO;
+  const nombreDelCriterio = (
+    criteriosDelFiltro.find((uno) => uno.valor === criterioElegido) || {}
+  ).etiqueta;
+
+  // Con un criterio suelto filtra ese; con "Multi-Filtro", los que estén
+  // prendidos, y el partido tiene que cumplirlos todos.
+  const enMultiResultado = modoResultado === MULTI_FILTRO;
+  const modosActivos = enMultiResultado ? modosResultado : [modoResultado];
+
+  const criteriosActivos = enMultiFiltro
+    ? enEquipo
+      ? filtrosEquipo
+      : filtrosJugador
+    : // "Todos" no es un criterio: es no haber elegido ninguno todavía.
+      [criterioElegido].filter((cual) => cual !== FILTRO_EQUIPO.TODOS);
+
+  const tieneCriterio = (cual) => criteriosActivos.includes(cual);
+
   // Lo que el buscador de texto deja pasar, antes del filtro.
   const registrosBuscados = useMemo(() => {
     const textoBuscado = normalizarTexto(busquedaEquipo);
@@ -2156,11 +2219,11 @@ export default function App() {
   const registrosVisibles = useMemo(
     () =>
       filtrarRegistros(registrosBuscados, {
-        filtros: filtrosEquipo,
+        filtros: criteriosActivos,
         rival: rivalElegido,
         desde: fechaDesde,
         hasta: fechaHasta,
-        modos: modosResultado,
+        modos: modosActivos,
         penales: penalesResultado,
         marcador: marcadorExacto,
         localia: localiaElegida,
@@ -2174,11 +2237,11 @@ export default function App() {
       }),
     [
       registrosBuscados,
-      filtrosEquipo,
+      criteriosActivos,
       rivalElegido,
       fechaDesde,
       fechaHasta,
-      modosResultado,
+      modosActivos,
       penalesResultado,
       marcadorExacto,
       localiaElegida,
@@ -2302,7 +2365,7 @@ export default function App() {
   const partidosFiltrados = useMemo(
     () =>
       filtrarPartidosDeJugador(partidosDelJugador, {
-        filtros: filtrosJugador,
+        filtros: criteriosActivos,
         comparador: comparadorMinutos,
         desde: minutosDesde,
         hasta: minutosHasta,
@@ -2311,7 +2374,7 @@ export default function App() {
       }),
     [
       partidosDelJugador,
-      filtrosJugador,
+      criteriosActivos,
       comparadorMinutos,
       minutosDesde,
       minutosHasta,
@@ -2330,8 +2393,8 @@ export default function App() {
   // Un partido de penales vale 3 o 1 según lo que esté diciendo el filtro: si
   // el botón lo está contando como ganado, la cuenta lo acompaña.
   const penalesCuentan =
-    filtrosEquipo.includes(FILTRO_EQUIPO.RESULTADO) &&
-    modosResultado.some((cual) => ADMITE_PENALES.includes(cual)) &&
+    criteriosActivos.includes(FILTRO_EQUIPO.RESULTADO) &&
+    modosActivos.some((cual) => ADMITE_PENALES.includes(cual)) &&
     penalesResultado !== PENALES.SIN;
 
   const puntosEquipo = useMemo(
@@ -2377,6 +2440,7 @@ export default function App() {
   const limpiarFiltros = () => {
     setFiltroAbierto(false);
     setHojaSelector(null);
+    setCriterioEquipo(FILTRO_EQUIPO.TODOS);
     setFiltrosEquipo([]);
     setRivalElegido("");
     setBuscadorRival("");
@@ -2386,32 +2450,26 @@ export default function App() {
     setPenalesResultado(PENALES.SIN);
     setDuracionDesde("");
     setDuracionHasta("");
+    setCriterioJugador(FILTRO.TODOS);
     setFiltrosJugador([]);
   };
 
-  const CRITERIOS_EQUIPO = [
-    { valor: FILTRO_EQUIPO.RIVAL, etiqueta: "Equipo" },
-    { valor: FILTRO_EQUIPO.FECHA, etiqueta: "Fecha" },
-    { valor: FILTRO_EQUIPO.RESULTADO, etiqueta: "Resultado" },
-    { valor: FILTRO_EQUIPO.LOCALIA, etiqueta: "Dónde se jugó" },
-    { valor: FILTRO_EQUIPO.DURACION, etiqueta: "Cuánto duró" },
-  ];
+  // Elegido el criterio, la hoja se va y abajo quedan sus controles.
+  const elegirCriterio = (cual) => {
+    if (enEquipo) setCriterioEquipo(cual);
+    else setCriterioJugador(cual);
+    setFiltroAbierto(true);
+  };
 
-  const CRITERIOS_JUGADOR = [
-    { valor: FILTRO.TITULAR, etiqueta: "Titular" },
-    { valor: FILTRO.ENTRO, etiqueta: "Ingresó" },
-    { valor: FILTRO.NO_SALIO, etiqueta: "No salió" },
-    { valor: FILTRO.BANCO, etiqueta: "No ingresó" },
-    { valor: FILTRO.MINUTOS, etiqueta: "Minutos jugados" },
-  ];
+  const abrirHojaDeCriterios = () =>
+    setHojaSelector({
+      titulo: "Filtrar por",
+      opciones: criteriosDelFiltro,
+      valor: criterioElegido,
+      alElegir: elegirCriterio,
+    });
 
-  const enEquipo = modoRegistros === "equipo";
-  const criteriosDelFiltro = enEquipo ? CRITERIOS_EQUIPO : CRITERIOS_JUGADOR;
-  const criteriosPrendidos = enEquipo ? filtrosEquipo : filtrosJugador;
-  const tieneCriterio = (cual) => criteriosPrendidos.includes(cual);
-
-  // Los criterios se prenden y se apagan. El que está prendido aporta lo suyo
-  // y el partido tiene que cumplirlos todos.
+  // Dentro del multi, cada criterio se prende y se apaga.
   const alternarCriterio = (cual) => {
     const cambiar = enEquipo ? setFiltrosEquipo : setFiltrosJugador;
 
@@ -2422,21 +2480,14 @@ export default function App() {
     );
   };
 
-  // Lo mismo para el resultado, que adentro suyo también admite varios: basta
-  // con que el partido entre en alguno de los marcados.
+  // Dentro del multi del resultado, cada modo se marca y se desmarca: basta con
+  // que el partido entre en alguno.
   const alternarModoResultado = (cual) =>
-    setModosResultado((previos) => {
-      // El marcador exacto es otra pregunta: no se mezcla con los demás.
-      if (cual === MODO_RESULTADO.EXACTO) {
-        return previos.includes(cual) ? [] : [cual];
-      }
-
-      const sinExacto = previos.filter((uno) => uno !== MODO_RESULTADO.EXACTO);
-
-      return sinExacto.includes(cual)
-        ? sinExacto.filter((uno) => uno !== cual)
-        : [...sinExacto, cual];
-    });
+    setModosResultado((previos) =>
+      previos.includes(cual)
+        ? previos.filter((uno) => uno !== cual)
+        : [...previos, cual],
+    );
 
   // Los controles de un criterio, con su nombre arriba: con varios prendidos a
   // la vez hay que poder decir de cuál es cada cosa.
@@ -2450,11 +2501,15 @@ export default function App() {
   // La grilla con todos los criterios de la vista. El prendido queda en verde
   // y abajo aparecen sus controles: se ve de un vistazo qué hay y qué está
   // filtrando.
+  const criteriosSinMulti = criteriosDelFiltro.filter(
+    ({ valor }) => valor !== MULTI_FILTRO,
+  );
+
   const renderCriteriosDelFiltro = () => (
     <>
-      <p className="rotulo-criterio">Filtrar por</p>
+      <p className="rotulo-criterio">Con cuáles</p>
       <div className="grilla-criterios">
-        {criteriosDelFiltro.map(({ valor, etiqueta }) => (
+        {criteriosSinMulti.map(({ valor, etiqueta }) => (
           <button
             type="button"
             key={valor}
@@ -7095,8 +7150,8 @@ export default function App() {
                       className={`boton-filtro ${
                         (
                           modoRegistros === "equipo"
-                            ? filtrosEquipo.length === 0
-                            : filtrosJugador.length === 0
+                            ? criterioEquipo === FILTRO_EQUIPO.TODOS
+                            : criterioJugador === FILTRO.TODOS
                         )
                           ? ""
                           : "con-filtro"
@@ -7110,7 +7165,7 @@ export default function App() {
                       onClick={() =>
                         filtroAbierto
                           ? limpiarFiltros()
-                          : setFiltroAbierto(true)
+                          : abrirHojaDeCriterios()
                       }
                     >
                       <Icono nombre="filtro" size={20} />
@@ -7120,7 +7175,18 @@ export default function App() {
 
                 {modoRegistros === "equipo" && filtroAbierto && (
                   <div className="panel-filtro">
-                    {renderCriteriosDelFiltro()}
+                    {/* Qué se está filtrando. Se toca para volver a la hoja y
+                        cambiar de criterio sin borrar todo. */}
+                    <button
+                      type="button"
+                      className="criterio-elegido"
+                      onClick={abrirHojaDeCriterios}
+                    >
+                      <b>{nombreDelCriterio}</b>
+                      <span>Cambiar</span>
+                    </button>
+
+                    {enMultiFiltro && renderCriteriosDelFiltro()}
 
                     {tieneCriterio(FILTRO_EQUIPO.RIVAL) &&
                       conRotulo(
@@ -7204,33 +7270,37 @@ export default function App() {
                       conRotulo(
                         "Resultado",
                         <>
-                          {/* Se pueden marcar varios: ganados y empatados, por
-                            ejemplo. El marcador exacto es otra pregunta y no
-                            se mezcla con los demás. */}
-                          <div className="grilla-criterios">
-                            {[
-                              [MODO_RESULTADO.GANADO, "Ganados"],
-                              [MODO_RESULTADO.EMPATADO, "Empatados"],
-                              [MODO_RESULTADO.PERDIDO, "Perdidos"],
-                              [MODO_RESULTADO.EXACTO, "Marcador exacto"],
-                            ].map(([valor, etiqueta]) => (
-                              <button
-                                type="button"
-                                key={valor}
-                                className={`chip-criterio ${
-                                  modosResultado.includes(valor)
-                                    ? "prendido"
-                                    : ""
-                                }`}
-                                aria-pressed={modosResultado.includes(valor)}
-                                onClick={() => alternarModoResultado(valor)}
-                              >
-                                {etiqueta}
-                              </button>
-                            ))}
-                          </div>
+                          {selectorConHoja({
+                            titulo: "Cómo mirar el resultado",
+                            opciones: MODOS_DEL_RESULTADO,
+                            valor: modoResultado,
+                            alElegir: setModoResultado,
+                          })}
 
-                          {modosResultado.some((cual) =>
+                          {/* Con "Multi-Filtro" se marcan varios y basta con
+                            que el partido entre en alguno. El marcador exacto
+                            queda afuera: es otra pregunta. */}
+                          {enMultiResultado && (
+                            <div className="grilla-criterios">
+                              {MODOS_COMBINABLES.map(({ valor, etiqueta }) => (
+                                <button
+                                  type="button"
+                                  key={valor}
+                                  className={`chip-criterio ${
+                                    modosResultado.includes(valor)
+                                      ? "prendido"
+                                      : ""
+                                  }`}
+                                  aria-pressed={modosResultado.includes(valor)}
+                                  onClick={() => alternarModoResultado(valor)}
+                                >
+                                  {etiqueta}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {modosActivos.some((cual) =>
                             ADMITE_PENALES.includes(cual),
                           ) && (
                             <button
@@ -7247,7 +7317,7 @@ export default function App() {
                             </button>
                           )}
 
-                          {modosResultado.includes(MODO_RESULTADO.EXACTO) && (
+                          {modosActivos.includes(MODO_RESULTADO.EXACTO) && (
                             <input
                               value={marcadorExacto}
                               onChange={(e) =>
@@ -7314,7 +7384,18 @@ export default function App() {
                   jugadorElegido &&
                   filtroAbierto && (
                     <div className="panel-filtro">
-                      {renderCriteriosDelFiltro()}
+                      {/* Qué se está filtrando. Se toca para volver a la hoja y
+                          cambiar de criterio sin borrar todo. */}
+                      <button
+                        type="button"
+                        className="criterio-elegido"
+                        onClick={abrirHojaDeCriterios}
+                      >
+                        <b>{nombreDelCriterio}</b>
+                        <span>Cambiar</span>
+                      </button>
+
+                      {enMultiFiltro && renderCriteriosDelFiltro()}
 
                       {tieneCriterio(FILTRO.MINUTOS) &&
                         conRotulo(
@@ -7387,7 +7468,7 @@ export default function App() {
 
                   {renderPuntos(puntosJugador)}
 
-                  {filtrosJugador.length > 0 && (
+                  {criteriosActivos.length > 0 && (
                     <p className="contador-registros">
                       Mostrando {partidosFiltrados.length} de{" "}
                       {partidosDelJugador.length}{" "}
