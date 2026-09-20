@@ -63,6 +63,33 @@ const mensajeDeError = (payload, porDefecto) =>
 
 const huellaEnvio = (tareas) => JSON.stringify(tareas.map(huellaTarea));
 
+// Lo que hace falta para entender un rechazo de OpenField sin abrir Vercel:
+// el código HTTP de la respuesta, el status y el cuerpo del PUT, la etapa y
+// el detalle del error. Se muestra plegado, solo cuando algo falló.
+const detalleTecnico = (payload, status) => {
+  const partes = [];
+  if (status) partes.push(`Respuesta del servidor: ${status}`);
+  if (payload?.code) partes.push(`Código: ${payload.code}`);
+  if (payload?.etapa) partes.push(`Etapa: ${payload.etapa}`);
+  if (payload?.put) {
+    partes.push(`PUT batch: ${payload.put.status ?? "sin respuesta"}${payload.put.error ? ` (${payload.put.error})` : ""}`);
+    if (payload.put.cuerpo) partes.push(`Cuerpo del PUT: ${JSON.stringify(payload.put.cuerpo)}`);
+  }
+  if (payload?.detalle) partes.push(`Detalle: ${typeof payload.detalle === "string" ? payload.detalle : JSON.stringify(payload.detalle)}`);
+  if (payload?.veredicto?.codigo) partes.push(`Veredicto: ${payload.veredicto.codigo}`);
+  if (payload?.evaluacion?.interna?.resumen) partes.push(`Interna: ${JSON.stringify(payload.evaluacion.interna.resumen)}`);
+  if (payload?.evaluacion?.connect?.resumen) partes.push(`Connect: ${JSON.stringify(payload.evaluacion.connect.resumen)}`);
+  return partes.join("\n");
+};
+
+const DetalleTecnico = ({ texto }) =>
+  texto ? (
+    <details className="tareas-detalle-tecnico">
+      <summary>Ver detalle técnico (para pegar en el chat)</summary>
+      <pre>{texto}</pre>
+    </details>
+  ) : null;
+
 const formatearFechaHora = (iso) => {
   const fecha = new Date(iso);
   if (!iso || Number.isNaN(fecha.getTime())) return "";
@@ -307,6 +334,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
         error: mensajeDeError(payload, "No se pudo enviar a OpenField."),
         errores: Array.isArray(payload?.errores) ? payload.errores : [],
         escribio: payload?.escribio === true,
+        detalle: detalleTecnico(payload, respuesta.status),
       });
     } catch (error) {
       setEnvio({ estado: "error", error: error?.message || "No hubo respuesta de OpenField.", escribio: null });
@@ -721,6 +749,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                   ))}
                 </ul>
               )}
+              <DetalleTecnico texto={envio.detalle} />
             </div>
           )}
 
@@ -805,11 +834,12 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                   <li key={tarea.tareaId} className={tarea.ok ? "ok" : "fallo"}>
                     {tarea.ok ? "✓" : "✗"} {tarea.nombre}
                     {!tarea.ok && tarea.fallidos?.length > 0
-                      ? ` — ${tarea.fallidos.map((fallo) => MOTIVOS_FALLO[fallo.motivo] || fallo.motivo).join(", ")}`
+                      ? ` — ${[...new Set(tarea.fallidos.map((fallo) => MOTIVOS_FALLO[fallo.motivo] || fallo.motivo))].join(", ")}`
                       : ""}
                   </li>
                 ))}
               </ul>
+              {!envio.resultado.ok && <DetalleTecnico texto={detalleTecnico(envio.resultado)} />}
             </div>
           )}
 
