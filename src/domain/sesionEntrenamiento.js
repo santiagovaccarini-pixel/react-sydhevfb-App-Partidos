@@ -186,7 +186,9 @@ export const resumenTarea = (tarea) => {
 };
 
 // Lo que falta para poder enviar una tarea. Vacío = lista.
-export const problemasDeTarea = (tarea, plantel = [], { atletasActividad = null } = {}) => {
+// `ventana` es el rango de datos de la sesión según OpenField ({ inicioMs,
+// finMs }); un corte fuera de ese rango lo rechaza el servicio.
+export const problemasDeTarea = (tarea, plantel = [], { atletasActividad = null, ventana = null } = {}) => {
   const conDatos = (jugador) =>
     !(atletasActividad instanceof Set) ||
     atletasActividad.size === 0 ||
@@ -196,6 +198,10 @@ export const problemasDeTarea = (tarea, plantel = [], { atletasActividad = null 
 
   if (!tarea.nombre) problemas.push("Falta el nombre.");
   if (!valida) problemas.push("Falta el inicio o el fin, o el fin no es posterior al inicio.");
+  if (valida && ventana) {
+    if (inicioMs < ventana.inicioMs) problemas.push(`Empieza antes de los datos de la sesión (${msAHora(ventana.inicioMs)}).`);
+    if (finMs > ventana.finMs) problemas.push(`Termina después de los datos de la sesión (${msAHora(ventana.finMs)}).`);
+  }
 
   tarea.pausas.forEach((pausa, indice) => {
     const pInicio = horaAMs(tarea.fecha, pausa.inicio);
@@ -231,13 +237,13 @@ export const problemasDeTarea = (tarea, plantel = [], { atletasActividad = null 
 // Tareas en el formato del envío: instantes en ms y participantes con su id
 // de Catapult. Devuelve también los problemas por tarea; con problemas no
 // se arma nada de esa tarea.
-export const armarEnvio = ({ tareas, plantel = [], atletasActividad = null }) => {
+export const armarEnvio = ({ tareas, plantel = [], atletasActividad = null, ventana = null }) => {
   const porId = new Map(plantel.map((jugador) => [String(jugador.id), jugador]));
   const listas = [];
   const problemas = [];
 
   tareas.forEach((tarea) => {
-    const faltantes = problemasDeTarea(tarea, plantel, { atletasActividad });
+    const faltantes = problemasDeTarea(tarea, plantel, { atletasActividad, ventana });
     if (faltantes.length > 0) {
       problemas.push({ tareaId: tarea.id, nombre: tarea.nombre, problemas: faltantes });
       return;

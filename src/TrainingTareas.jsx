@@ -115,9 +115,13 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   const [plantel, setPlantel] = useState([]);
   const [estadoPlantel, setEstadoPlantel] = useState("cargando");
   const [errorPlantel, setErrorPlantel] = useState("");
-  // Atletas con datos en esta sesión según OpenField (ids de Catapult).
+  // Lo que OpenField sabe de la sesión: quiénes tienen datos (ids de
+  // Catapult) y el rango de tiempo de esos datos. Es contra eso que valida
+  // el envío, así que se frena acá antes.
   const [atletasActividad, setAtletasActividad] = useState(null);
+  const [ventana, setVentana] = useState(null);
   const [estadoAtletas, setEstadoAtletas] = useState("cargando");
+  const [errorConsulta, setErrorConsulta] = useState("");
   const [abierta, setAbierta] = useState("");
   const [borrando, setBorrando] = useState("");
   const [envio, setEnvio] = useState({ estado: "idle" });
@@ -135,37 +139,6 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   useEffect(() => {
     if (sesion?.activityId) guardarSesion(sesion);
   }, [sesion]);
-
-  // Quiénes tienen datos en esta sesión: sin eso, "Todos" manda jugadores
-  // que OpenField no acepta en la actividad y rechaza el envío entero.
-  useEffect(() => {
-    if (!activityId) return undefined;
-    let activo = true;
-    setAtletasActividad(null);
-    setEstadoAtletas("cargando");
-
-    const cargar = async () => {
-      try {
-        const { respuesta, payload } = await pedirJson(
-          `/api/openfield/snapshot?activityId=${encodeURIComponent(activityId)}`,
-        );
-        if (!activo) return;
-        if (!respuesta.ok || !payload?.ok || !Array.isArray(payload.athletes)) {
-          setEstadoAtletas("error");
-          return;
-        }
-        setAtletasActividad(new Set(payload.athletes.map((atleta) => String(atleta?.id || "")).filter(Boolean)));
-        setEstadoAtletas("listo");
-      } catch {
-        if (activo) setEstadoAtletas("error");
-      }
-    };
-
-    cargar();
-    return () => {
-      activo = false;
-    };
-  }, [activityId]);
 
   useEffect(() => {
     let activo = true;
@@ -191,6 +164,45 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     };
   }, []);
 
+  // Lo que OpenField sabe de la sesión, leído con la cuenta de Catapult.
+  useEffect(() => {
+    if (!activityId) return undefined;
+    let activo = true;
+    setAtletasActividad(null);
+    setVentana(null);
+    setEstadoAtletas("cargando");
+    setErrorConsulta("");
+
+    const cargar = async () => {
+      try {
+        const { respuesta, payload } = await pedirJson("/api/openfield/cortes", {
+          method: "POST",
+          body: { activityId, soloPlan: true, tareas: [] },
+        });
+        if (!activo) return;
+        if (!respuesta.ok || payload?.result !== "consulta") {
+          setEstadoAtletas("error");
+          setErrorConsulta(mensajeDeError(payload, "No se pudo leer la sesión en OpenField."));
+          return;
+        }
+        setAtletasActividad(new Set((Array.isArray(payload.atletas) ? payload.atletas : []).map(String)));
+        const inicioMs = Number(payload.activity?.start_time_ms);
+        const finMs = Number(payload.activity?.end_time_ms);
+        setVentana(Number.isFinite(inicioMs) && Number.isFinite(finMs) && finMs > inicioMs ? { inicioMs, finMs } : null);
+        setEstadoAtletas("listo");
+      } catch (error) {
+        if (!activo) return;
+        setEstadoAtletas("error");
+        setErrorConsulta(error?.message || "No se pudo leer la sesión en OpenField.");
+      }
+    };
+
+    cargar();
+    return () => {
+      activo = false;
+    };
+  }, [activityId]);
+
   const tareas = sesion?.tareas || [];
   const rosterConocido = atletasActividad instanceof Set && atletasActividad.size > 0;
   const tieneDatos = (jugador) => !rosterConocido || atletasActividad.has(String(jugador.catapult_id));
@@ -206,8 +218,8 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   );
 
   const problemas = useMemo(
-    () => new Map(tareas.map((tarea) => [tarea.id, problemasDeTarea(tarea, plantel, { atletasActividad })])),
-    [tareas, plantel, atletasActividad],
+    () => new Map(tareas.map((tarea) => [tarea.id, problemasDeTarea(tarea, plantel, { atletasActividad, ventana })])),
+    [tareas, plantel, atletasActividad, ventana],
   );
   const conProblemas = tareas.filter((tarea) => problemas.get(tarea.id).length > 0);
   const estados = tareas.map(estadoEnvioTarea);
@@ -301,7 +313,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   };
 
   const pedirPlan = async () => {
-    const { tareas: payloadTareas } = armarEnvio({ tareas, plantel, atletasActividad });
+    const { tareas: payloadTareas } = armarEnvio({ tareas, plantel, atletasActividad, ventana });
     setEnvio({ estado: "planificando" });
 
     try {
@@ -328,7 +340,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   };
 
   const enviar = async () => {
-    const { tareas: payloadTareas } = armarEnvio({ tareas, plantel, atletasActividad });
+    const { tareas: payloadTareas } = armarEnvio({ tareas, plantel, atletasActividad, ventana });
     setEnvio((actual) => ({ ...actual, estado: "enviando", error: "" }));
 
     try {
@@ -589,7 +601,8 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
               )}
               {estadoAtletas === "error" && (
                 <div className="entrenamiento-estado advertencia">
-                  No se pudo leer qué jugadores tienen datos en esta sesión. OpenField lo controla al enviar.
+                  No se pudo leer qué jugadores tienen datos en esta sesión ({errorConsulta}). OpenField lo
+                  controla al enviar.
                 </div>
               )}
 
@@ -737,7 +750,14 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
           <div>
             <span>Sesión</span>
             <strong>{actividad.name || "Sin nombre"}</strong>
-            <small>{plural(tareas.length, "tarea", "tareas")}</small>
+            <small>
+              {ventana
+                ? `Datos en OpenField de ${msAHora(ventana.inicioMs)} a ${msAHora(ventana.finMs)} · `
+                : estadoAtletas === "cargando"
+                  ? "Leyendo la sesión en OpenField… · "
+                  : ""}
+              {plural(tareas.length, "tarea", "tareas")}
+            </small>
           </div>
           <button type="button" className="entrenamiento-boton-principal tareas-boton-nueva" onClick={agregarTarea}>
             + Nueva tarea
@@ -804,6 +824,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                       {Array.isArray(item.atletasFuera) && item.atletasFuera.length > 0
                         ? ` Sin datos: ${item.atletasFuera.map((id) => nombrePorCatapultId.get(String(id)) || id).join(", ")}.`
                         : ""}
+                      {item.ventana ? ` Datos de ${msAHora(item.ventana.inicioMs)} a ${msAHora(item.ventana.finMs)}.` : ""}
                     </li>
                   ))}
                 </ul>
@@ -838,15 +859,6 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                   </li>
                 ))}
               </ol>
-
-              {envio.plan.avisos?.length > 0 && (
-                <div className="entrenamiento-estado advertencia">
-                  OpenField informa la actividad de {msAHora(envio.plan.activity?.start_time_ms) || "?"} a{" "}
-                  {msAHora(envio.plan.activity?.end_time_ms) || "?"}. Fuera de ese horario quedan:{" "}
-                  {envio.plan.avisos.map((aviso) => aviso.nombre || "tarea sin nombre").join(", ")}. OpenField las
-                  acepta igual; revisá que la fecha y la hora sean las correctas antes de enviar.
-                </div>
-              )}
 
               {!planVigente ? (
                 <div className="entrenamiento-estado advertencia">

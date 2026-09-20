@@ -31,11 +31,19 @@ const respuesta = (status, cuerpo) => ({ ok: status < 300, status, json: async (
 // llegan en el cuerpo, así el test no fija ids generados en la pantalla.
 const fetchDeCortes = ({ plan, envio } = {}) =>
   vi.fn(async (url, opciones) => {
-    if (String(url).startsWith("/api/openfield/snapshot?activityId=")) {
-      return respuesta(200, { ok: true, athletes: [{ id: "a1", nombre: "A MINDA" }, { id: "a2", nombre: "IGOR GOMES" }], periods: [] });
-    }
     if (url !== "/api/openfield/cortes") return respuesta(500, { ok: false, error: "sin ruta" });
     const body = JSON.parse(opciones.body);
+
+    // Consulta: sin tareas. Lo que OpenField sabe de la sesión.
+    if (body.soloPlan && body.tareas.length === 0) {
+      if (plan) return plan(body);
+      return respuesta(200, {
+        ok: true,
+        result: "consulta",
+        activity: { id: ACTIVIDAD.id, name: "26-05 T", start_time_ms: horaAMs("2026-05-26", "09:00:00"), end_time_ms: horaAMs("2026-05-26", "11:00:00") },
+        atletas: ["a1", "a2"],
+      });
+    }
     const tareasPlan = body.tareas.map((tarea) => ({
       tareaId: tarea.id,
       nombre: tarea.nombre,
@@ -58,7 +66,6 @@ const fetchDeCortes = ({ plan, envio } = {}) =>
           end_time_ms: horaAMs("2026-05-26", "10:07:00"),
         },
         resumen: { actuales: 8, preservados: 8, reemplazados: 0, nuevos: 2, eliminados: 0, total: 10 },
-        avisos: body.tareas.map((tarea) => ({ tareaId: tarea.id, nombre: tarea.nombre, aviso: "Queda fuera del horario que OpenField informa para la actividad." })),
         tareas: tareasPlan,
         confirmacionRequerida: "26-05 T",
       });
@@ -153,6 +160,9 @@ describe("TrainingTareas", () => {
     await montar();
 
     expect(dobles.cargar).toHaveBeenCalledWith("eq-1");
+    const consulta = fetchMock.mock.calls.find(([url, opciones]) => url === "/api/openfield/cortes" && JSON.parse(opciones.body).tareas.length === 0);
+    expect(JSON.parse(consulta[1].body)).toEqual({ activityId: ACTIVIDAD.id, soloPlan: true, tareas: [] });
+    expect(contenedor.textContent).toContain("Datos en OpenField de 09:00:00 a 11:00:00");
     expect(contenedor.textContent).toContain("Todavía no hay tareas");
     expect(botonPorTexto("Vista previa del envío").disabled).toBe(true);
 
@@ -202,7 +212,10 @@ describe("TrainingTareas", () => {
 
     await act(async () => botonPorTexto("Vista previa del envío").click());
 
-    const llamadaPlan = fetchMock.mock.calls.find(([url, opciones]) => url === "/api/openfield/cortes" && JSON.parse(opciones.body).soloPlan);
+    const llamadaPlan = fetchMock.mock.calls.find(([url, opciones]) => {
+      const cuerpo = url === "/api/openfield/cortes" ? JSON.parse(opciones.body) : null;
+      return cuerpo?.soloPlan && cuerpo.tareas.length > 0;
+    });
     expect(llamadaPlan[1].headers.Authorization).toBe("Bearer tok");
     const cuerpoPlan = JSON.parse(llamadaPlan[1].body);
     expect(cuerpoPlan.activityId).toBe(ACTIVIDAD.id);
@@ -224,8 +237,6 @@ describe("TrainingTareas", () => {
     expect(texto).toContain("2 períodos nuevos");
     expect(texto).toContain("8 períodos que no son de la app quedan igual");
     expect(texto).toContain("2 períodos · 2 jugadores");
-    // El horario informado por OpenField es un aviso, no un bloqueo.
-    expect(texto).toContain("OpenField informa la actividad de 10:00:00 a 10:07:00. Fuera de ese horario quedan: 2. POSSE.");
 
     const confirmacion = contenedor.querySelector("input[placeholder='26-05 T']");
     expect(botonPorTexto("Enviar a OpenField").disabled).toBe(true);
@@ -263,6 +274,19 @@ describe("TrainingTareas", () => {
     const texto = contenedor.textContent;
     expect(texto).toContain("Antes de enviar, completá: Rondo (Falta el inicio o el fin");
     expect(texto).toContain("No hay participantes.");
+    expect(botonPorTexto("Vista previa del envío").disabled).toBe(true);
+  });
+
+  test("una tarea que termina después de los datos de la sesión queda incompleta y lo dice", async () => {
+    window.localStorage.setItem(
+      `${CLAVE_SESION}:${ACTIVIDAD.id}`,
+      JSON.stringify({ activityId: ACTIVIDAD.id, activityName: "26-05 T", tareas: [tareaGuardada({ fin: "11:05:00" })], asignaciones: {}, ultimoEnvio: null }),
+    );
+    vi.stubGlobal("fetch", fetchDeCortes());
+    await montar();
+
+    expect(contenedor.querySelector(".tarea-estado").textContent).toBe("Incompleta");
+    expect(contenedor.textContent).toContain("Antes de enviar, completá: 2. POSSE (Termina después de los datos de la sesión (11:00:00).)");
     expect(botonPorTexto("Vista previa del envío").disabled).toBe(true);
   });
 
