@@ -48,7 +48,14 @@ const fetchDeCortes = ({ plan, envio } = {}) =>
         ok: true,
         result: "plan",
         escribio: false,
+        activity: {
+          id: ACTIVIDAD.id,
+          name: "26-05 T",
+          start_time_ms: horaAMs("2026-05-26", "10:00:00"),
+          end_time_ms: horaAMs("2026-05-26", "10:07:00"),
+        },
         resumen: { actuales: 8, preservados: 8, reemplazados: 0, nuevos: 2, eliminados: 0, total: 10 },
+        avisos: body.tareas.map((tarea) => ({ tareaId: tarea.id, nombre: tarea.nombre, aviso: "Queda fuera del horario que OpenField informa para la actividad." })),
         tareas: tareasPlan,
         confirmacionRequerida: "26-05 T",
       });
@@ -209,6 +216,8 @@ describe("TrainingTareas", () => {
     expect(texto).toContain("2 períodos nuevos");
     expect(texto).toContain("8 períodos que no son de la app quedan igual");
     expect(texto).toContain("2 períodos · 2 jugadores");
+    // El horario informado por OpenField es un aviso, no un bloqueo.
+    expect(texto).toContain("OpenField informa la actividad de 10:00:00 a 10:07:00. Fuera de ese horario quedan: 2. POSSE.");
 
     const confirmacion = contenedor.querySelector("input[placeholder='26-05 T']");
     expect(botonPorTexto("Enviar a OpenField").disabled).toBe(true);

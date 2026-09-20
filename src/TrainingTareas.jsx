@@ -12,6 +12,7 @@ import {
   horaAMs,
   horaLocal,
   huellaTarea,
+  msAHora,
   nuevaTarea,
   problemasDeTarea,
   resumenTarea,
@@ -749,6 +750,15 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                   </li>
                 ))}
               </ol>
+
+              {envio.plan.avisos?.length > 0 && (
+                <div className="entrenamiento-estado advertencia">
+                  OpenField informa la actividad de {msAHora(envio.plan.activity?.start_time_ms) || "?"} a{" "}
+                  {msAHora(envio.plan.activity?.end_time_ms) || "?"}. Fuera de ese horario quedan:{" "}
+                  {envio.plan.avisos.map((aviso) => aviso.nombre || "tarea sin nombre").join(", ")}. OpenField las
+                  acepta igual; revisá que la fecha y la hora sean las correctas antes de enviar.
+                </div>
+              )}
 
               {!planVigente ? (
                 <div className="entrenamiento-estado advertencia">

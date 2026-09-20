@@ -137,6 +137,7 @@ export default async function handler(request, response) {
         etapa,
         ...base,
         errores: plan.errores,
+        avisos: plan.avisos,
         tareas: plan.tareas,
       });
     }
@@ -148,6 +149,7 @@ export default async function handler(request, response) {
         escribio: false,
         ...base,
         resumen: plan.resumen,
+        avisos: plan.avisos,
         tareas: plan.tareas,
         asignaciones: plan.asignaciones,
         confirmacionRequerida: nombreReal,
@@ -230,6 +232,7 @@ export default async function handler(request, response) {
         ...(put.error ? { error: put.error } : {}),
       },
       resumen: plan.resumen,
+      avisos: plan.avisos,
       asignaciones: plan.asignaciones,
       tareas: tareasResultado,
       evaluacion: {
