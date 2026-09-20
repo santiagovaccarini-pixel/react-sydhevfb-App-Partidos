@@ -424,3 +424,34 @@
     columns: 1;
   }
 }
+
+.entrenamiento-sesion {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.entrenamiento-sesion-acciones {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.entrenamiento-sesion-acciones .entrenamiento-boton-secundario {
+  min-height: 44px;
+  text-align: center;
+}
+
+.entrenamiento-sesion-acciones .entrenamiento-boton-secundario:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.entrenamiento-sesion-lista {
+  margin-top: 16px;
+}
+
+.entrenamiento-sesion + .entrenamiento-estado,
+.entrenamiento-sesion-acciones + .entrenamiento-estado {
+  margin-top: 12px;
+}

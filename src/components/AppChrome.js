@@ -188,17 +188,22 @@ export const EscudoRival = ({ nombre = "", mini = false }) => {
   );
 };
 
-const destinos = [
+export const DESTINOS_PARTIDO = [
   { id: "partido", etiqueta: "Partido", icono: "partido" },
   { id: "formacion", etiqueta: "Formación", icono: "formacion" },
   { id: "registros", etiqueta: "Registros", icono: "registros" },
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
 
+// El mismo marco (barra lateral en escritorio, barra inferior en el celular)
+// sirve para Partido y para Entrenamiento: cambian los destinos y la marca.
 export const MarcoAplicacion = ({
   activo = "partido",
   onNavigate,
   hayPartido = true,
+  destinos = DESTINOS_PARTIDO,
+  marca = "Registro Partido",
+  className = "",
   children,
 }) => {
   // Sin un partido cargado, el tablero no tiene nada que mostrar.
@@ -207,14 +212,14 @@ export const MarcoAplicacion = ({
   );
 
   return (
-    <div className="marco-aplicacion">
+    <div className={`marco-aplicacion ${className}`.trim()}>
       <aside
         className="navegacion-escritorio"
         aria-label="Navegación principal"
       >
         <div className="marca-aplicacion">
-          <EscudoCAM etiqueta="Registro Partido" />
-          <strong>Registro Partido</strong>
+          <EscudoCAM etiqueta={marca} />
+          <strong>{marca}</strong>
         </div>
 
         <nav>

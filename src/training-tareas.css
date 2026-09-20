@@ -1,0 +1,686 @@
+/* Tareas de la sesión: lista de tarjetas plegables y el bloque de envío. */
+
+.entrenamiento-tareas .entrenamiento-contenido {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.tareas-sesion-chip {
+  margin-left: auto;
+  max-width: 45%;
+  overflow: hidden;
+  padding: 6px 10px;
+  border: 1px solid rgba(211, 173, 98, 0.3);
+  border-radius: 999px;
+  background: rgba(211, 173, 98, 0.08);
+  color: var(--portal-accent) !important;
+  font-size: 0.72rem !important;
+  font-weight: 800;
+  letter-spacing: 0 !important;
+  text-overflow: ellipsis;
+  text-transform: none !important;
+  white-space: nowrap;
+}
+
+.tareas-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.tareas-cabecera > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tareas-cabecera > div > span,
+.tareas-cabecera > div > small {
+  color: var(--portal-muted);
+  font-size: 0.72rem;
+}
+
+.tareas-cabecera > div > span {
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tareas-cabecera > div > strong {
+  overflow: hidden;
+  font-size: 1.1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tareas-boton-nueva,
+.tareas-boton-ir {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0 16px;
+}
+
+.tareas-boton-ir {
+  margin-top: 14px;
+}
+
+.entrenamiento-tareas .entrenamiento-panel > h2 {
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+}
+
+.tareas-lista {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tarea {
+  border: 1px solid var(--portal-border);
+  border-radius: 18px;
+  background: linear-gradient(165deg, rgba(26, 31, 37, 0.98), rgba(18, 22, 27, 0.98));
+  overflow: hidden;
+}
+
+.tarea.abierta {
+  border-color: rgba(211, 173, 98, 0.45);
+}
+
+.tarea.con-problemas:not(.abierta) {
+  border-color: rgba(211, 173, 98, 0.25);
+}
+
+.tarea-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tarea-cabecera:hover {
+  transform: none;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.tarea-numero {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: rgba(211, 173, 98, 0.1);
+  color: var(--portal-accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.tarea-titulo {
+  display: grid;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tarea-titulo strong {
+  font-size: 0.95rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.tarea-titulo small {
+  color: var(--portal-muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarea-estado {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid var(--portal-border);
+  border-radius: 999px;
+  color: var(--portal-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tarea-estado.enviada {
+  border-color: rgba(113, 213, 155, 0.35);
+  color: #8be0ae;
+}
+
+.tarea-estado.modificada,
+.tarea-estado.incompleta {
+  border-color: rgba(211, 173, 98, 0.4);
+  color: #e6c986;
+}
+
+.tarea-cuerpo {
+  display: grid;
+  gap: 14px;
+  padding: 4px 14px 16px;
+  border-top: 1px solid var(--portal-border);
+}
+
+.tarea-cuerpo > label:first-child {
+  margin-top: 14px;
+}
+
+.tarea-cuerpo label {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  color: #d8dde2;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.tarea-cuerpo input[type="text"],
+.tarea-cuerpo input[type="date"],
+.tarea-cuerpo input[type="time"] {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #0f1317;
+  color: var(--portal-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarea-cuerpo input:focus {
+  border-color: rgba(211, 173, 98, 0.6);
+  outline: none;
+}
+
+.tarea-horario {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr);
+  gap: 10px;
+}
+
+.tarea-hora {
+  display: grid;
+  gap: 7px;
+  color: #d8dde2;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.tarea-hora > div {
+  display: flex;
+  gap: 6px;
+}
+
+.tarea-hora > div > input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tarea-hora > div > button,
+.tarea-jugador-parcial > button {
+  flex: 0 0 auto;
+  padding: 0 11px;
+  border: 1px solid rgba(211, 173, 98, 0.35);
+  border-radius: 12px;
+  background: rgba(211, 173, 98, 0.12);
+  color: var(--portal-accent);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.tarea-seccion {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.tarea-seccion-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tarea-seccion-cabecera > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tarea-seccion-cabecera strong {
+  font-size: 0.88rem;
+}
+
+.tarea-seccion-cabecera span {
+  color: var(--portal-muted);
+  font-size: 0.74rem;
+}
+
+.tarea-seccion-botones {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.tarea-boton-pausa {
+  width: auto;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.tarea-pausa {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #101419;
+}
+
+.tarea-pausa > span:first-child {
+  color: var(--portal-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.tarea-pausa input {
+  margin: 0;
+  padding: 8px !important;
+}
+
+.tarea-pausa strong {
+  min-width: 46px;
+  text-align: right;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarea-pausa button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e9edf1;
+  cursor: pointer;
+}
+
+.tarea-jugadores {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tarea-jugadores li {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #101419;
+}
+
+.tarea-jugadores li.elegido {
+  background: rgba(211, 173, 98, 0.08);
+}
+
+.tarea-jugador {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.tarea-jugador input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--portal-accent);
+}
+
+.tarea-jugador > span {
+  flex: 1 1 auto;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.tarea-jugador > small {
+  color: var(--portal-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.tarea-jugador-tiempo {
+  display: grid;
+  gap: 8px;
+}
+
+.tarea-jugador-tiempo select {
+  width: 100%;
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--portal-border);
+  border-radius: 10px;
+  background: #15191e;
+  color: var(--portal-text);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.tarea-jugador-parcial {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.tarea-jugador-parcial > span {
+  color: var(--portal-muted);
+  font-size: 0.8rem;
+}
+
+.tarea-jugador-parcial input {
+  padding: 8px !important;
+}
+
+.tarea-resumen {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 0;
+  border-radius: 14px;
+  background: var(--portal-border);
+}
+
+.tarea-resumen > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  background: #101419;
+}
+
+.tarea-resumen dt {
+  color: var(--portal-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tarea-resumen dd {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarea-problemas {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 14px 12px 30px;
+  border: 1px solid rgba(211, 173, 98, 0.35);
+  border-radius: 14px;
+  background: rgba(211, 173, 98, 0.08);
+  color: #e6c986;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.tarea-cuerpo .entrenamiento-estado.correcto {
+  margin: 0;
+}
+
+.tarea-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tarea-confirmar-borrado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #f0a1a1;
+  font-size: 0.8rem;
+}
+
+.tarea-boton-borrar {
+  padding: 9px 11px;
+  border: 1px solid rgba(225, 114, 114, 0.35);
+  border-radius: 12px;
+  background: rgba(225, 114, 114, 0.08);
+  color: #f0a1a1;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tareas-envio {
+  display: grid;
+  gap: 12px;
+}
+
+.tareas-envio .entrenamiento-panel-titulo {
+  margin-bottom: 4px;
+}
+
+.tareas-envio-resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tareas-envio-resumen span {
+  padding: 5px 9px;
+  border: 1px solid var(--portal-border);
+  border-radius: 999px;
+  color: var(--portal-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.tareas-envio .entrenamiento-estado {
+  margin: 0;
+}
+
+.tareas-envio .entrenamiento-estado ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.tareas-envio .entrenamiento-boton-principal:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.tareas-plan {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(211, 173, 98, 0.3);
+  border-radius: 14px;
+  background: rgba(211, 173, 98, 0.06);
+}
+
+.tareas-plan > strong {
+  font-size: 0.9rem;
+}
+
+.tareas-plan-resumen,
+.tareas-plan-tareas {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 20px;
+  color: #d8dde2;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.tareas-plan-tareas li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.tareas-plan-tareas span {
+  color: var(--portal-muted);
+}
+
+.tareas-plan label {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  color: #d8dde2;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.tareas-plan label strong {
+  color: var(--portal-accent);
+}
+
+.tareas-plan input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #0f1317;
+  color: var(--portal-text);
+  font: inherit;
+}
+
+.tareas-resultado {
+  display: grid;
+  gap: 10px;
+}
+
+.tareas-resultado ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tareas-resultado li {
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: #101419;
+  font-size: 0.84rem;
+}
+
+.tareas-resultado li.ok {
+  color: #8be0ae;
+}
+
+.tareas-resultado li.fallo {
+  color: #f0a1a1;
+}
+
+.tareas-ultimo-envio {
+  color: var(--portal-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  .tareas-cabecera {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tareas-boton-nueva {
+    width: 100%;
+  }
+
+  .tarea-horario {
+    grid-template-columns: 1fr;
+  }
+
+  /* En el celular las dos horas no entran en una fila: inicio arriba, fin
+     abajo, con la duración a la derecha del fin. */
+  .tarea-pausa {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .tarea-pausa > span:nth-child(3) {
+    display: none;
+  }
+
+  .tarea-pausa > span:first-child {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
+  .tarea-pausa > input:nth-child(2) {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
+  .tarea-pausa > input:nth-child(4) {
+    grid-row: 2;
+    grid-column: 2;
+  }
+
+  .tarea-pausa strong {
+    grid-row: 2;
+    grid-column: 3;
+    min-width: 0;
+  }
+
+  .tarea-pausa button {
+    grid-row: 1;
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .tarea-jugador-parcial {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tarea-jugador-parcial > span {
+    display: none;
+  }
+
+  .tarea-seccion-cabecera {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tarea-resumen {
+    grid-template-columns: 1fr;
+  }
+}

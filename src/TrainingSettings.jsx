@@ -116,7 +116,7 @@ const abreviarRuta = (ruta, sonda) => {
   return texto;
 };
 
-export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) {
+export default function TrainingSettings({ onVolverModulos }) {
   const [username, setUsername] = useState(usuarioInicial);
   const [password, setPassword] = useState("");
   const [estado, setEstado] = useState("idle");
@@ -413,9 +413,6 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
   return (
     <main className="entrenamiento-app entrenamiento-ajustes-pagina">
       <header className="entrenamiento-barra">
-        <button type="button" className="entrenamiento-volver" onClick={onVolverRegistro}>
-          ← Registro
-        </button>
         <div>
           <span>Entrenamiento</span>
           <strong>Ajustes</strong>
@@ -431,11 +428,11 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
 
       <section className="entrenamiento-contenido entrenamiento-ajustes-contenido">
         <div className="entrenamiento-ajustes-encabezado">
-          <span>Integraciones</span>
-          <h1>Catapult OpenField</h1>
+          <span>Catapult OpenField</span>
+          <h1>Ajustes</h1>
           <p>
-            Primero verificá el acceso con tu cuenta. Después, el write test sobre 26-05 T. Los
-            diagnósticos que ya usamos quedan plegados abajo.
+            Tu cuenta de Catapult y la lista de jugadores, compartida con Partido. Las pruebas
+            técnicas quedan más abajo.
           </p>
         </div>
 
