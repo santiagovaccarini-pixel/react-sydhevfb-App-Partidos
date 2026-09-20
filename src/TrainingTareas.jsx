@@ -73,7 +73,8 @@ const detalleTecnico = (payload, status) => {
   if (payload?.etapa) partes.push(`Etapa: ${payload.etapa}`);
   if (payload?.put) {
     partes.push(`PUT batch: ${payload.put.status ?? "sin respuesta"}${payload.put.error ? ` (${payload.put.error})` : ""}`);
-    if (payload.put.cuerpo) partes.push(`Cuerpo del PUT: ${JSON.stringify(payload.put.cuerpo)}`);
+    if (payload.put.cuerpoCrudo) partes.push(`Respuesta de OpenField: ${payload.put.cuerpoCrudo}`);
+    else if (payload.put.cuerpo) partes.push(`Cuerpo del PUT: ${JSON.stringify(payload.put.cuerpo)}`);
   }
   if (payload?.detalle) partes.push(`Detalle: ${typeof payload.detalle === "string" ? payload.detalle : JSON.stringify(payload.detalle)}`);
   if (payload?.veredicto?.codigo) partes.push(`Veredicto: ${payload.veredicto.codigo}`);
@@ -114,6 +115,9 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   const [plantel, setPlantel] = useState([]);
   const [estadoPlantel, setEstadoPlantel] = useState("cargando");
   const [errorPlantel, setErrorPlantel] = useState("");
+  // Atletas con datos en esta sesión según OpenField (ids de Catapult).
+  const [atletasActividad, setAtletasActividad] = useState(null);
+  const [estadoAtletas, setEstadoAtletas] = useState("cargando");
   const [abierta, setAbierta] = useState("");
   const [borrando, setBorrando] = useState("");
   const [envio, setEnvio] = useState({ estado: "idle" });
@@ -131,6 +135,37 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   useEffect(() => {
     if (sesion?.activityId) guardarSesion(sesion);
   }, [sesion]);
+
+  // Quiénes tienen datos en esta sesión: sin eso, "Todos" manda jugadores
+  // que OpenField no acepta en la actividad y rechaza el envío entero.
+  useEffect(() => {
+    if (!activityId) return undefined;
+    let activo = true;
+    setAtletasActividad(null);
+    setEstadoAtletas("cargando");
+
+    const cargar = async () => {
+      try {
+        const { respuesta, payload } = await pedirJson(
+          `/api/openfield/snapshot?activityId=${encodeURIComponent(activityId)}`,
+        );
+        if (!activo) return;
+        if (!respuesta.ok || !payload?.ok || !Array.isArray(payload.athletes)) {
+          setEstadoAtletas("error");
+          return;
+        }
+        setAtletasActividad(new Set(payload.athletes.map((atleta) => String(atleta?.id || "")).filter(Boolean)));
+        setEstadoAtletas("listo");
+      } catch {
+        if (activo) setEstadoAtletas("error");
+      }
+    };
+
+    cargar();
+    return () => {
+      activo = false;
+    };
+  }, [activityId]);
 
   useEffect(() => {
     let activo = true;
@@ -157,11 +192,22 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   }, []);
 
   const tareas = sesion?.tareas || [];
-  const vinculados = useMemo(() => plantel.filter((jugador) => jugador.catapult_id), [plantel]);
+  const rosterConocido = atletasActividad instanceof Set && atletasActividad.size > 0;
+  const tieneDatos = (jugador) => !rosterConocido || atletasActividad.has(String(jugador.catapult_id));
+  // Elegibles: vinculados con Catapult y, si se pudo leer, con datos en la sesión.
+  const elegibles = useMemo(
+    () => plantel.filter((jugador) => jugador.catapult_id && tieneDatos(jugador)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plantel, atletasActividad],
+  );
+  const nombrePorCatapultId = useMemo(
+    () => new Map(plantel.filter((jugador) => jugador.catapult_id).map((jugador) => [String(jugador.catapult_id), jugador.nombre])),
+    [plantel],
+  );
 
   const problemas = useMemo(
-    () => new Map(tareas.map((tarea) => [tarea.id, problemasDeTarea(tarea, plantel)])),
-    [tareas, plantel],
+    () => new Map(tareas.map((tarea) => [tarea.id, problemasDeTarea(tarea, plantel, { atletasActividad })])),
+    [tareas, plantel, atletasActividad],
   );
   const conProblemas = tareas.filter((tarea) => problemas.get(tarea.id).length > 0);
   const estados = tareas.map(estadoEnvioTarea);
@@ -224,10 +270,12 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
       return { participantes };
     });
 
+  // "Todos" deja exactamente a los elegibles: saca a los que no tienen datos
+  // en la sesión y conserva el tiempo parcial de los que ya estaban.
   const marcarTodos = (id) =>
     actualizarTarea(id, (tarea) => ({
       participantes: Object.fromEntries(
-        vinculados.map((jugador) => [
+        elegibles.map((jugador) => [
           String(jugador.id),
           tarea.participantes[String(jugador.id)] || { modo: MODO_TOTAL, inicio: "", fin: "" },
         ]),
@@ -253,7 +301,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   };
 
   const pedirPlan = async () => {
-    const { tareas: payloadTareas } = armarEnvio({ tareas, plantel });
+    const { tareas: payloadTareas } = armarEnvio({ tareas, plantel, atletasActividad });
     setEnvio({ estado: "planificando" });
 
     try {
@@ -280,7 +328,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   };
 
   const enviar = async () => {
-    const { tareas: payloadTareas } = armarEnvio({ tareas, plantel });
+    const { tareas: payloadTareas } = armarEnvio({ tareas, plantel, atletasActividad });
     setEnvio((actual) => ({ ...actual, estado: "enviando", error: "" }));
 
     try {
@@ -519,7 +567,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                 <div>
                   <strong>Jugadores</strong>
                   <span>
-                    {seleccionados} de {vinculados.length} en la tarea
+                    {seleccionados} de {elegibles.length} en la tarea
                   </span>
                 </div>
                 <div className="tarea-seccion-botones">
@@ -539,12 +587,18 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
               {estadoPlantel === "listo" && plantel.length === 0 && (
                 <div className="entrenamiento-vacio">La lista de jugadores está vacía. Cargala en Ajustes.</div>
               )}
+              {estadoAtletas === "error" && (
+                <div className="entrenamiento-estado advertencia">
+                  No se pudo leer qué jugadores tienen datos en esta sesión. OpenField lo controla al enviar.
+                </div>
+              )}
 
               <ul className="tarea-jugadores">
                 {plantel.map((jugador) => {
                   const clave = String(jugador.id);
                   const datos = tarea.participantes[clave];
                   const vinculado = Boolean(jugador.catapult_id);
+                  const sinDatos = vinculado && !tieneDatos(jugador);
 
                   return (
                     <li key={clave} className={datos ? "elegido" : ""}>
@@ -552,11 +606,13 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                         <input
                           type="checkbox"
                           checked={Boolean(datos)}
-                          disabled={!vinculado}
+                          // Sin datos en la sesión no se puede agregar, pero sí sacar.
+                          disabled={!vinculado || (sinDatos && !datos)}
                           onChange={() => alternarJugador(tarea.id, clave)}
                         />
                         <span>{jugador.nombre}</span>
                         {!vinculado && <small>Sin vincular con Catapult</small>}
+                        {sinDatos && <small>Sin datos en esta sesión</small>}
                       </label>
 
                       {datos && (
@@ -745,6 +801,9 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                     <li key={`${item.tareaId || "general"}-${i}`}>
                       {item.nombre ? `${item.nombre}: ` : ""}
                       {item.error}
+                      {Array.isArray(item.atletasFuera) && item.atletasFuera.length > 0
+                        ? ` Sin datos: ${item.atletasFuera.map((id) => nombrePorCatapultId.get(String(id)) || id).join(", ")}.`
+                        : ""}
                     </li>
                   ))}
                 </ul>

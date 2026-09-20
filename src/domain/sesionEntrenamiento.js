@@ -186,7 +186,11 @@ export const resumenTarea = (tarea) => {
 };
 
 // Lo que falta para poder enviar una tarea. Vacío = lista.
-export const problemasDeTarea = (tarea, plantel = []) => {
+export const problemasDeTarea = (tarea, plantel = [], { atletasActividad = null } = {}) => {
+  const conDatos = (jugador) =>
+    !(atletasActividad instanceof Set) ||
+    atletasActividad.size === 0 ||
+    atletasActividad.has(String(jugador.catapult_id));
   const problemas = [];
   const { valida, inicioMs, finMs } = resumenTarea(tarea);
 
@@ -210,6 +214,7 @@ export const problemasDeTarea = (tarea, plantel = []) => {
     const nombre = jugador?.nombre || `jugador ${jugadorId}`;
     if (!jugador) problemas.push(`${nombre} ya no está en la lista.`);
     else if (!jugador.catapult_id) problemas.push(`${nombre} no está vinculado con Catapult.`);
+    else if (!conDatos(jugador)) problemas.push(`${nombre} no tiene datos en esta sesión.`);
 
     if (datos.modo === MODO_PARCIAL) {
       const pInicio = horaAMs(tarea.fecha, datos.inicio);
@@ -226,13 +231,13 @@ export const problemasDeTarea = (tarea, plantel = []) => {
 // Tareas en el formato del envío: instantes en ms y participantes con su id
 // de Catapult. Devuelve también los problemas por tarea; con problemas no
 // se arma nada de esa tarea.
-export const armarEnvio = ({ tareas, plantel = [] }) => {
+export const armarEnvio = ({ tareas, plantel = [], atletasActividad = null }) => {
   const porId = new Map(plantel.map((jugador) => [String(jugador.id), jugador]));
   const listas = [];
   const problemas = [];
 
   tareas.forEach((tarea) => {
-    const faltantes = problemasDeTarea(tarea, plantel);
+    const faltantes = problemasDeTarea(tarea, plantel, { atletasActividad });
     if (faltantes.length > 0) {
       problemas.push({ tareaId: tarea.id, nombre: tarea.nombre, problemas: faltantes });
       return;

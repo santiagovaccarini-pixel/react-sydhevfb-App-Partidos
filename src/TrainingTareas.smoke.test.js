@@ -31,6 +31,9 @@ const respuesta = (status, cuerpo) => ({ ok: status < 300, status, json: async (
 // llegan en el cuerpo, así el test no fija ids generados en la pantalla.
 const fetchDeCortes = ({ plan, envio } = {}) =>
   vi.fn(async (url, opciones) => {
+    if (String(url).startsWith("/api/openfield/snapshot?activityId=")) {
+      return respuesta(200, { ok: true, athletes: [{ id: "a1", nombre: "A MINDA" }, { id: "a2", nombre: "IGOR GOMES" }], periods: [] });
+    }
     if (url !== "/api/openfield/cortes") return respuesta(500, { ok: false, error: "sin ruta" });
     const body = JSON.parse(opciones.body);
     const tareasPlan = body.tareas.map((tarea) => ({
@@ -109,6 +112,8 @@ describe("TrainingTareas", () => {
       { id: 1, nombre: "A MINDA", roles: [], puestos: [], catapult_id: "a1", catapult_nombre: "A MINDA (MIN)" },
       { id: 2, nombre: "IGOR GOMES", roles: [], puestos: [], catapult_id: "a2", catapult_nombre: "IGOR GOMES (GOM)" },
       { id: 3, nombre: "LEMOS", roles: [], puestos: [], catapult_id: null, catapult_nombre: null },
+      // Vinculado, pero sin datos en 26-05 T.
+      { id: 4, nombre: "ZARACHO", roles: [], puestos: [], catapult_id: "a9", catapult_nombre: "ZARACHO (ZAR)" },
     ];
     dobles.cargar.mockReset().mockImplementation(async () => ({ plantel: dobles.plantel }));
   });
@@ -175,11 +180,14 @@ describe("TrainingTareas", () => {
     });
     expect(contenedor.textContent).toContain("1 pausa · total 0:50");
 
-    // Jugadores: "Todos" marca solo a los vinculados; LEMOS queda deshabilitado.
+    // Jugadores: "Todos" marca solo a los vinculados con datos en la sesión;
+    // LEMOS (sin vincular) y ZARACHO (sin datos en 26-05 T) quedan deshabilitados.
     await act(async () => botonPorTexto("Todos").click());
     const casillas = [...contenedor.querySelectorAll("input[type='checkbox']")];
-    expect(casillas.map((casilla) => casilla.checked)).toEqual([true, true, false]);
+    expect(casillas.map((casilla) => casilla.checked)).toEqual([true, true, false, false]);
     expect(casillas[2].disabled).toBe(true);
+    expect(casillas[3].disabled).toBe(true);
+    expect(contenedor.textContent).toContain("Sin datos en esta sesión");
     expect(contenedor.textContent).toContain("2 de 2 en la tarea");
 
     // IGOR con menos tiempo: arranca con el horario de la tarea y se corrige el inicio.
