@@ -418,3 +418,55 @@
 .entrenamiento-ajustes-avanzado > .entrenamiento-panel + .entrenamiento-panel {
   margin-top: 16px;
 }
+
+.entrenamiento-jugadores-agregar {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.entrenamiento-jugadores-agregar input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.entrenamiento-jugadores-lista {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entrenamiento-jugadores-lista li {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #0c1014;
+}
+
+.entrenamiento-jugadores-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.entrenamiento-jugadores-fila strong {
+  font-size: 0.9rem;
+}
+
+.entrenamiento-jugadores-lista select {
+  width: 100%;
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--portal-border);
+  border-radius: 10px;
+  background: #15191e;
+  color: var(--portal-text);
+  font: inherit;
+}

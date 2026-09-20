@@ -50,6 +50,15 @@ export const normalizarJugador = (fila) => ({
     .slice(0, MAXIMO_PUESTOS),
 });
 
+// Lo que Entrenamiento suma a cada jugador: su atleta en Catapult. Va aparte
+// de normalizarJugador para que la forma que usa Partido no cambie.
+export const normalizarJugadorConCatapult = (fila) => ({
+  ...normalizarJugador(fila),
+  catapult_id: fila?.catapult_id ? String(fila.catapult_id) : null,
+  catapult_nombre: limpiar(fila?.catapult_nombre) || null,
+  catapult_vinculado_en: fila?.catapult_vinculado_en || null,
+});
+
 /**
  * El plantel que hoy vive en el código, por si la base todavía no respondió o
  * no está disponible. Así los desplegables nunca quedan vacíos.
@@ -154,6 +163,56 @@ export const agregarJugador = async (nombre, equipoId = null) => {
 export const quitarJugador = async (id) => {
   const { error } = await supabase.from("jugadores").delete().eq("id", id);
   return error ? { error: error.message } : {};
+};
+
+/**
+ * La misma lista que Partido, con el vínculo a Catapult de cada jugador. Va
+ * aparte de cargarPlantel para que Partido no dependa de la migración del
+ * vínculo: si las columnas todavía no existen, acá se avisa en vez de caer.
+ */
+export const cargarPlantelConCatapult = async (equipoId = null) => {
+  let consulta = supabase
+    .from("jugadores")
+    .select("id, nombre, roles, puestos, catapult_id, catapult_nombre, catapult_vinculado_en");
+
+  if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
+
+  const { data, error } = await consulta.order("nombre", { ascending: true });
+
+  if (error) {
+    const faltaColumna = /catapult_/i.test(error.message || "") && /column|does not exist/i.test(error.message || "");
+    return {
+      plantel: [],
+      error: faltaColumna
+        ? "La lista de jugadores todavía no tiene el vínculo con Catapult: falta ejecutar la migración 20260920_jugadores_catapult.sql en Supabase."
+        : error.message,
+    };
+  }
+
+  return { plantel: ordenarPorNombre((data || []).map(normalizarJugadorConCatapult)) };
+};
+
+export const guardarVinculoCatapult = async (id, { catapultId, catapultNombre }) => {
+  const { error } = await supabase
+    .from("jugadores")
+    .update({
+      catapult_id: catapultId ? String(catapultId) : null,
+      catapult_nombre: catapultId ? limpiar(catapultNombre) || null : null,
+      catapult_vinculado_en: catapultId ? new Date().toISOString() : null,
+      actualizado_en: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    const repetido = /duplicate key|unique/i.test(error.message || "");
+    return {
+      error: repetido
+        ? "Ese atleta de Catapult ya está vinculado a otro jugador."
+        : error.message,
+    };
+  }
+
+  return {};
 };
 
 export const guardarPuestos = async (id, { roles, puestos }) => {
