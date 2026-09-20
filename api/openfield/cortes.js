@@ -56,7 +56,12 @@ export default async function handler(request, response) {
   if (!activityId) {
     return response.status(400).json({ ok: false, error: "Falta un activityId válido." });
   }
-  if (tareas.length === 0) {
+  // Sin tareas y soloPlan: consulta. Devuelve el rango de datos de la
+  // actividad y quiénes tienen datos en ella, tal como los ve el servicio que
+  // después valida el batch. Es lo que la pantalla de Tareas necesita para
+  // frenar antes de enviar.
+  const consulta = soloPlan && tareas.length === 0;
+  if (tareas.length === 0 && !consulta) {
     return response.status(400).json({ ok: false, error: "No hay tareas para enviar." });
   }
   if (tareas.length > MAX_TAREAS) {
@@ -109,24 +114,6 @@ export default async function handler(request, response) {
     const actividadInterna = internoAntesRaw.payload;
     const nombreReal = String(actividadInterna.name || "").trim();
 
-    etapa = "planificar";
-    // Quiénes tienen datos en esta actividad: el plantel que informa Connect
-    // más los que ya figuran en algún período según el servicio interno.
-    const atletasPermitidos = new Set([
-      ...(Array.isArray(connectAntes.snapshot.athletes)
-        ? connectAntes.snapshot.athletes.map((atleta) => String(atleta?.id || "")).filter(Boolean)
-        : []),
-      ...atletasDeActividad(actividadInterna).keys(),
-    ]);
-    const plan = planificarCortes({
-      tareas,
-      asignaciones,
-      actividadInterna,
-      periodosConnect: connectAntes.snapshot.periods,
-      generarId: randomUUID,
-      atletasPermitidos: atletasPermitidos.size > 0 ? atletasPermitidos : null,
-    });
-
     const base = {
       activity: {
         id: String(actividadInterna.id),
@@ -139,6 +126,35 @@ export default async function handler(request, response) {
       origenPase: acceso.origen,
     };
 
+    // Quiénes tienen datos en esta actividad: el plantel que informa Connect
+    // más los que ya figuran en algún período según el servicio interno.
+    const atletasPermitidos = new Set([
+      ...(Array.isArray(connectAntes.snapshot.athletes)
+        ? connectAntes.snapshot.athletes.map((atleta) => String(atleta?.id || "")).filter(Boolean)
+        : []),
+      ...atletasDeActividad(actividadInterna).keys(),
+    ]);
+
+    if (consulta) {
+      return response.status(200).json({
+        ok: true,
+        result: "consulta",
+        escribio: false,
+        ...base,
+        atletas: [...atletasPermitidos],
+      });
+    }
+
+    etapa = "planificar";
+    const plan = planificarCortes({
+      tareas,
+      asignaciones,
+      actividadInterna,
+      periodosConnect: connectAntes.snapshot.periods,
+      generarId: randomUUID,
+      atletasPermitidos: atletasPermitidos.size > 0 ? atletasPermitidos : null,
+    });
+
     if (!plan.ok) {
       return response.status(422).json({
         ok: false,
@@ -147,7 +163,6 @@ export default async function handler(request, response) {
         etapa,
         ...base,
         errores: plan.errores,
-        avisos: plan.avisos,
         tareas: plan.tareas,
       });
     }
@@ -159,7 +174,6 @@ export default async function handler(request, response) {
         escribio: false,
         ...base,
         resumen: plan.resumen,
-        avisos: plan.avisos,
         tareas: plan.tareas,
         asignaciones: plan.asignaciones,
         confirmacionRequerida: nombreReal,
@@ -245,7 +259,6 @@ export default async function handler(request, response) {
         ...(put.error ? { error: put.error } : {}),
       },
       resumen: plan.resumen,
-      avisos: plan.avisos,
       asignaciones: plan.asignaciones,
       tareas: tareasResultado,
       evaluacion: {
