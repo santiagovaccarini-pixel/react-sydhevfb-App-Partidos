@@ -610,6 +610,31 @@
   color: #f0a1a1;
 }
 
+.tareas-detalle-tecnico {
+  margin-top: 4px;
+}
+
+.tareas-detalle-tecnico summary {
+  color: var(--portal-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tareas-detalle-tecnico pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #0c1014;
+  color: #d8dde2;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
 .tareas-ultimo-envio {
   color: var(--portal-muted);
   font-size: 0.76rem;
