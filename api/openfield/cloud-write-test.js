@@ -1,17 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
-import {
-  ACTIVIDAD_PRUEBA,
-  abrirNavegador,
-  cerrarNavegador,
-  clasificarErrorNavegador,
-  iniciarSesionCatapult,
-  leerBodyJson,
-  resumirError,
-  textoSeguro,
-} from "../../lib/catapultCloud.js";
+import { resolverPase } from "../../lib/catapultAcceso.js";
+import { ACTIVIDAD_PRUEBA, leerBodyJson, resumirError, textoSeguro } from "../../lib/catapultCloud.js";
 import { describirAutorizacion } from "../../lib/catapultInspect.js";
-import { ACTIVITY_SERVICE_BASE_DEFAULT, extraerTokenOauth } from "../../lib/catapultInternal.js";
+import { ACTIVITY_SERVICE_BASE_DEFAULT } from "../../lib/catapultInternal.js";
 import {
   armarBatchCompleto,
   armarPeriodoNuevo,
@@ -128,13 +120,6 @@ export default async function handler(request, response) {
   const password = textoSeguro(body?.password, 512);
   const confirmacion = textoSeguro(body?.confirmacion, 64);
 
-  if (!username || !password) {
-    return response.status(400).json({
-      ok: false,
-      error: "Completá usuario y contraseña de Catapult.",
-    });
-  }
-
   if (confirmacion !== ACTIVIDAD_PRUEBA.name) {
     return response.status(400).json({
       ok: false,
@@ -153,55 +138,23 @@ export default async function handler(request, response) {
 
   const activityId = ACTIVIDAD_PRUEBA.id;
   const rutaActividad = `/activities/${activityId}`;
-  let nav = null;
   let etapa = "inicio";
-  let pase = null;
 
   try {
-    etapa = "lanzar-navegador";
-    nav = await abrirNavegador();
-
-    nav.page.on("response", async (res) => {
-      try {
-        const url = new URL(res.url());
-        if (!/\/oauth\/token$/.test(url.pathname)) return;
-        if (res.status() < 200 || res.status() >= 300) return;
-        const extraido = extraerTokenOauth(JSON.parse(await res.text()));
-        if (extraido) pase = extraido;
-      } catch {
-        // Respuesta no legible: se sigue esperando otra.
-      }
-    });
-
-    etapa = "login";
-    const login = await iniciarSesionCatapult(nav.page, { username, password });
-    if (!login.ok) {
-      return response.status(login.status).json({
+    // Pase: cuenta guardada del usuario, o usuario y contraseña si vienen.
+    etapa = "acceso";
+    const acceso = await resolverPase({ request, username, password });
+    if (!acceso.ok) {
+      return response.status(acceso.status || 502).json({
         ok: false,
-        code: login.code,
-        error: login.error,
-        etapa,
+        code: acceso.code || null,
+        error: `${acceso.error} No se escribió nada.`,
+        etapa: acceso.etapa || etapa,
       });
     }
 
-    etapa = "capturar-pase";
-    for (let intento = 0; intento < 10 && !pase; intento += 1) {
-      await nav.page.waitForTimeout(300);
-    }
-
-    await cerrarNavegador(nav);
-    nav = null;
-
-    if (!pase) {
-      return response.status(502).json({
-        ok: false,
-        code: "SIN_PASE",
-        error: "El login terminó pero no se vio la respuesta de /oauth/token. No se escribió nada.",
-        etapa,
-      });
-    }
-
-    const autorizacion = `${pase.tokenType} ${pase.accessToken}`;
+    const pase = acceso.pase;
+    const autorizacion = `${pase.tokenType || "Bearer"} ${pase.accessToken}`;
     const descripcionPase = describirAutorizacion({ authorization: autorizacion });
 
     etapa = "leer-antes";
@@ -358,10 +311,11 @@ export default async function handler(request, response) {
       result: "cloud-write-tested",
       mode: "modo-prueba",
       activity: ACTIVIDAD_PRUEBA,
+      usuario: acceso.usuario,
+      origenPase: acceso.origen,
       pase: {
         formato: descripcionPase?.formato || null,
-        expira: descripcionPase?.expira || null,
-        duraSegundos: pase.expiresIn,
+        expira: descripcionPase?.expira || pase.expira || null,
       },
       enviado: {
         metodo: "PUT",
@@ -402,19 +356,13 @@ export default async function handler(request, response) {
           : `El write test terminó con el resultado "${veredicto.codigo}". Revisá el detalle.`,
     });
   } catch (error) {
-    const { timeout } = clasificarErrorNavegador(error);
-
-    return response.status(timeout ? 504 : 502).json({
+    return response.status(502).json({
       ok: false,
-      code: timeout ? "CATAPULT_TIMEOUT" : "WRITE_TEST_ERROR",
-      error: timeout
-        ? `Catapult demoró demasiado durante el write test (etapa: ${etapa}).`
-        : `El write test no pudo completarse (etapa: ${etapa}).`,
+      code: "WRITE_TEST_ERROR",
+      error: `El write test no pudo completarse (etapa: ${etapa}).`,
       etapa,
       detalle: resumirError(error),
       escribio: ["esperar", "leer-despues", "validar"].includes(etapa),
     });
-  } finally {
-    await cerrarNavegador(nav);
   }
 }

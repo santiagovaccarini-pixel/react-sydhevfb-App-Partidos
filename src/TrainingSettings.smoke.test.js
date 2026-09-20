@@ -4,8 +4,35 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import TrainingSettings from "./TrainingSettings";
 import { interpretarRespuesta, resumirSonda } from "../lib/openfieldProbe.js";
 
+vi.mock("./supabase.js", () => ({
+  supabase: {
+    auth: {
+      getSession: async () => ({ data: { session: { access_token: "token-supabase" } } }),
+    },
+  },
+}));
+
 const ACTIVIDAD = "9dffa100-99e5-4ce6-921f-226e9e01e264";
 const PERIODO = "11111111-2222-4333-8444-555555555555";
+
+const respuestaJson = (status, cuerpo) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  json: async () => cuerpo,
+});
+
+const CUENTA_CONECTADA = { configurada: true, usuario: "santi", verificado_en: "2026-09-20T12:00:00Z" };
+const SIN_CUENTA = { configurada: false };
+
+// fetch de prueba: responde el estado de la cuenta en el montaje y delega el
+// resto en `resto(url, opciones)`.
+const fetchRuteado = (cuenta, resto = () => respuestaJson(500, { ok: false, error: "sin ruta" })) =>
+  vi.fn(async (url, opciones) => {
+    if (url === "/api/openfield/cuenta" && (!opciones?.method || opciones.method === "GET")) {
+      return respuestaJson(200, { ok: true, cuenta });
+    }
+    return resto(url, opciones);
+  });
 
 // Arma cada fila como lo haría el endpoint: la interpretación sale de la
 // misma lógica pura, así el test no inventa un formato paralelo.
@@ -68,108 +95,13 @@ const armarSonda = () => {
   };
 };
 
-const respuestaJson = (status, cuerpo) => ({
-  ok: status >= 200 && status < 300,
-  status,
-  json: async () => cuerpo,
-});
+const escribir = (input, valor) => {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+  setter.call(input, valor);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+};
 
-describe("TrainingSettings · sonda de capacidades", () => {
-  let contenedor;
-  let raiz;
-
-  beforeEach(() => {
-    contenedor = document.createElement("div");
-    document.body.appendChild(contenedor);
-  });
-
-  afterEach(async () => {
-    if (raiz) await act(async () => raiz.unmount());
-    contenedor.remove();
-    vi.unstubAllGlobals();
-  });
-
-  const montar = async () => {
-    await act(async () => {
-      raiz = createRoot(contenedor);
-      raiz.render(<TrainingSettings onVolverRegistro={() => {}} onVolverModulos={() => {}} />);
-    });
-  };
-
-  const botonPorTexto = (texto) =>
-    [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim() === texto);
-
-  test("muestra cuenta, acceso y write test arriba y pliega los diagnósticos", async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-
-    await montar();
-
-    expect(botonPorTexto("Verificar acceso (solo lectura)")).toBeDefined();
-    expect(botonPorTexto("Escribir TEST APP en 26-05 T")).toBeDefined();
-    expect(botonPorTexto("Probar login del editor (solo lectura)")).toBeDefined();
-    expect(botonPorTexto("Sondear capacidades")).toBeDefined();
-    expect(contenedor.querySelector(".entrenamiento-ajustes-avanzado")?.open).toBe(false);
-    expect(contenedor.textContent).toContain("Solo envía GET y OPTIONS");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  test("ejecuta la sonda y muestra veredicto, tokens y rutas abreviadas", async () => {
-    const fetchMock = vi.fn(async () => respuestaJson(200, armarSonda()));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await montar();
-    await act(async () => botonPorTexto("Sondear capacidades").click());
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/openfield/capability-probe");
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({
-      method: "GET",
-      credentials: "same-origin",
-    });
-
-    const texto = contenedor.textContent;
-    expect(texto).toContain("La API anuncia escritura");
-    expect(texto).toContain("OPENFIELD_API_TOKEN: configurado");
-    expect(texto).toContain("OPENFIELD_API_TOKEN_WRITE: no configurado");
-    expect(texto).toContain("26-05 T encontrada · 7 períodos");
-    expect(texto).toContain("Allow: GET, POST, OPTIONS");
-    expect(texto).toContain("Ruta inexistente (404)");
-    expect(texto).toContain("Not Found");
-
-    const rutas = [...contenedor.querySelectorAll(".entrenamiento-sonda-rutas code")].map(
-      (nodo) => nodo.textContent,
-    );
-    expect(rutas).toEqual([
-      "GET /activities/{actividad}",
-      "OPTIONS /periods",
-      "GET /periods/{período}",
-    ]);
-
-    expect(botonPorTexto("Copiar resultado")).toBeDefined();
-  });
-
-  test("informa cuando la sonda no puede ejecutarse", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        respuestaJson(503, {
-          ok: false,
-          error: "El acceso a OpenField todavía no tiene usuarios autorizados configurados.",
-        }),
-      ),
-    );
-
-    await montar();
-    await act(async () => botonPorTexto("Sondear capacidades").click());
-
-    expect(contenedor.textContent).toContain("La sonda no pudo ejecutarse");
-    expect(contenedor.textContent).toContain("no tiene usuarios autorizados");
-    expect(contenedor.querySelector(".entrenamiento-sonda-token")).toBeNull();
-  });
-});
-
-describe("TrainingSettings · inspección del Cloud Editor", () => {
+describe("TrainingSettings", () => {
   let contenedor;
   let raiz;
 
@@ -190,187 +122,102 @@ describe("TrainingSettings · inspección del Cloud Editor", () => {
       raiz = createRoot(contenedor);
       raiz.render(<TrainingSettings onVolverRegistro={() => {}} onVolverModulos={() => {}} />);
     });
+    await act(async () => Promise.resolve());
   };
 
   const botonPorTexto = (texto) =>
     [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim() === texto);
 
-  // React escucha el evento nativo "input"; hay que pasar por el setter del
-  // prototipo para que el valor controlado se entere del cambio.
-  const escribir = (input, valor) => {
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-    setter.call(input, valor);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  };
-
-  const inspeccionFalsa = () => ({
-    ok: true,
-    result: "cloud-editor-inspected",
-    editor: { alcanzado: true, nombreVisible: true, path: "/editor/x" },
-    solicitudes: [
-      {
-        id: 1,
-        metodo: "GET",
-        host: "of-uw1-prod-activity-service.openfield.catapultsports.com",
-        path: "/activities/abc",
-        status: 200,
-        responseType: "application/json",
-        tipo: "fetch",
-        autorizacion: {
-          esquema: "Bearer",
-          formato: "JWT",
-          largo: 912,
-          expira: "2027-01-01T00:00:00.000Z",
-          claims: { iss: "https://login.catapultsports.com/" },
-          headersEspeciales: [],
-        },
-        cuerpo: { tipo: "objeto", claves: ["id", "periods"] },
-      },
-      { id: 2, metodo: "GET", host: "cdn.segment.com", path: "/x", status: 200, tipo: "fetch" },
-    ],
-    almacenamiento: { localStorage: ["auth"], sessionStorage: [] },
-    cookies: [{ name: "sid", httpOnly: true }],
-    resumen: {
-      veredicto: "credencial-observada",
-      detalle: "El servicio interno de actividad recibe Authorization Bearer (JWT).",
-      solicitudesCatapult: 1,
-      esquemas: ["Bearer (JWT)"],
-      proveedorAuth: ["catapult.auth0.com"],
-      autorizacionEjemplo: {
-        esquema: "Bearer",
-        formato: "JWT",
-        largo: 912,
-        expira: "2027-01-01T00:00:00.000Z",
-        claims: { iss: "https://login.catapultsports.com/" },
-      },
-    },
-  });
-
-  test("pide credenciales antes de inspeccionar y no llama al backend", async () => {
-    const fetchMock = vi.fn();
+  test("sin cuenta: pide conectarla y deja bloqueados el acceso y el write test", async () => {
+    const fetchMock = fetchRuteado(SIN_CUENTA);
     vi.stubGlobal("fetch", fetchMock);
 
     await montar();
-    await act(async () => botonPorTexto("Inspeccionar Cloud Editor (solo lectura)").click());
-
-    expect(contenedor.textContent).toContain("Completá usuario y contraseña de Catapult en el panel 01");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  test("inspecciona, muestra la credencial observada y descarta la contraseña", async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => inspeccionFalsa(),
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await montar();
-
-    const usuario = contenedor.querySelector("input[autocomplete='username']");
-    const clave = contenedor.querySelector("input[autocomplete='current-password']");
-    await act(async () => {
-      escribir(usuario, "santi");
-      escribir(clave, "secreta");
-    });
-
-    await act(async () => botonPorTexto("Inspeccionar Cloud Editor (solo lectura)").click());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/openfield/cloud-editor-inspect");
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
-      username: "santi",
-      password: "secreta",
-    });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/openfield/cuenta");
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe("Bearer token-supabase");
 
-    const texto = contenedor.textContent;
-    expect(texto).toContain("Credencial del editor identificada");
-    expect(texto).toContain("Authorization: Bearer (JWT)");
-    expect(texto).toContain("Editor de 26-05 T abierto");
-    expect(texto).toContain("Identidad vía catapult.auth0.com");
+    expect(botonPorTexto("Conectar mi cuenta de Catapult")).toBeDefined();
+    expect(botonPorTexto("Probar conexión (solo lectura)").disabled).toBe(true);
+    expect(botonPorTexto("Escribir TEST APP en 26-05 T").disabled).toBe(true);
+    expect(contenedor.textContent).toContain("Primero conectá tu cuenta de Catapult");
 
-    const rutas = [...contenedor.querySelectorAll(".entrenamiento-sonda-rutas code")].map(
-      (nodo) => nodo.textContent,
-    );
-    expect(rutas).toEqual([
-      "GET of-uw1-prod-activity-service.openfield.catapultsports.com/activities/abc",
-    ]);
-
-    expect(clave.value).toBe("");
-    expect(window.localStorage.getItem("catapult_openfield_username")).toBe("santi");
+    expect(botonPorTexto("Probar login del editor (solo lectura)")).toBeDefined();
+    expect(botonPorTexto("Sondear capacidades")).toBeDefined();
+    expect(contenedor.querySelector(".entrenamiento-ajustes-avanzado")?.open).toBe(false);
   });
-  test("muestra etapa, detalle y captura cuando el backend informa la falla", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
-        ok: false,
-        status: 502,
-        json: async () => ({
-          ok: false,
-          code: "CATAPULT_BROWSER_ERROR",
-          error: "No se pudo completar la inspección del Cloud Editor (etapa: login).",
-          etapa: "login",
-          detalle: { tipo: "TimeoutError", mensaje: "page.goto: net::ERR_FAILED" },
-          paginaActual: "https://us.openfield.catapultsports.com/login",
-          captura: "data:image/jpeg;base64,AAAA",
-        }),
-      })),
+
+  test("con cuenta: prueba la conexión sin pedir contraseña y muestra el resultado", async () => {
+    const fetchMock = fetchRuteado(CUENTA_CONECTADA, (url) =>
+      url === "/api/openfield/cloud-token-probe"
+        ? respuestaJson(200, {
+            ok: true,
+            usuario: "santi",
+            origenPase: "cache",
+            pase: { capturado: true, tipo: "Bearer", formato: "JWT", largo: 1816, expira: "2026-09-20T13:00:00Z" },
+            resultados: [
+              {
+                clave: "servicio-actividad",
+                descripcion: "Servicio interno de actividad, con el pase",
+                metodo: "GET",
+                host: "of-uw1-prod-activity-service.openfield.catapultsports.com",
+                path: `/activities/${ACTIVIDAD}`,
+                conCookies: false,
+                status: 200,
+                contentType: "application/json",
+                cuerpo: { tipo: "objeto", claves: ["id", "name", "periods"] },
+              },
+            ],
+            resumen: { veredicto: "pase-abre-servicio", detalle: "El pase abre el servicio interno." },
+          })
+        : respuestaJson(500, { ok: false, error: "sin ruta" }),
     );
-
-    await montar();
-    const usuario = contenedor.querySelector("input[autocomplete='username']");
-    const clave = contenedor.querySelector("input[autocomplete='current-password']");
-    await act(async () => {
-      escribir(usuario, "santi");
-      escribir(clave, "secreta");
-    });
-    await act(async () => botonPorTexto("Inspeccionar Cloud Editor (solo lectura)").click());
-
-    const texto = contenedor.textContent;
-    expect(texto).toContain("La inspección no pudo completarse");
-    expect(texto).toContain("Etapa: login");
-    expect(texto).toContain("CATAPULT_BROWSER_ERROR");
-    expect(texto).toContain("page.goto: net::ERR_FAILED");
-    const imagen = contenedor.querySelector(".entrenamiento-inspeccion-captura img");
-    expect(imagen?.getAttribute("src")).toBe("data:image/jpeg;base64,AAAA");
-    expect(botonPorTexto("Copiar detalle del error")).toBeDefined();
-    expect(clave.value).toBe("");
-  });
-  test("el write test exige credenciales y la confirmación exacta antes de habilitarse", async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        ok: true,
-        result: "cloud-write-tested",
-        veredicto: { codigo: "escritura-validada", detalle: "Quedó exacto." },
-        enviado: {
-          periodo: { name: "TEST APP 01", start_time_ms: 1779823358000, end_time_ms: 1779823958000, participantes: 13 },
-        },
-        put: { status: 200 },
-        antes: { interno: { periods: [{}, {}] }, connect: { count: 2 } },
-        despues: { interno: { periods: [{}, {}, {}] }, connect: { count: 3 } },
-        validacion: {
-          interna: { valido: true, diff: { agregados: [{}], eliminados: [], modificados: [] }, corte: { motivo: "ok" }, participantes: { valido: true } },
-          connect: { valido: true, diff: { agregados: [{}], eliminados: [], modificados: [] }, corte: { motivo: "ok" }, participantes: { valido: false, detalle: { faltantes: ["a"], sobrantes: [] } } },
-        },
-      }),
-    }));
     vi.stubGlobal("fetch", fetchMock);
 
     await montar();
-    const boton = botonPorTexto("Escribir TEST APP en 26-05 T");
-    expect(boton).toBeDefined();
-    expect(boton.disabled).toBe(true);
+    expect(contenedor.textContent).toContain("Conectado como santi");
 
-    const usuario = contenedor.querySelector("input[autocomplete='username']");
-    const clave = contenedor.querySelector("input[autocomplete='current-password']");
+    const boton = botonPorTexto("Probar conexión (solo lectura)");
+    expect(boton.disabled).toBe(false);
+    await act(async () => boton.click());
+
+    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/cloud-token-probe");
+    expect(llamada[1].method).toBe("POST");
+    expect(llamada[1].headers.Authorization).toBe("Bearer token-supabase");
+    expect(JSON.parse(llamada[1].body)).toEqual({});
+
+    const texto = contenedor.textContent;
+    expect(texto).toContain("El pase abre el servicio interno de actividad");
+    expect(texto).toContain("Pase capturado");
+  });
+
+  test("con cuenta: el write test solo necesita la confirmación exacta", async () => {
+    const fetchMock = fetchRuteado(CUENTA_CONECTADA, (url) =>
+      url === "/api/openfield/cloud-write-test"
+        ? respuestaJson(200, {
+            ok: true,
+            result: "cloud-write-tested",
+            usuario: "santi",
+            origenPase: "cache",
+            veredicto: { codigo: "escritura-validada", detalle: "Quedó exacto." },
+            enviado: {
+              periodo: { name: "TEST APP 02", start_time_ms: 1779823358000, end_time_ms: 1779823958000, participantes: 13 },
+            },
+            put: { status: 200 },
+            antes: { interno: { periods: [{}] }, connect: { count: 1 } },
+            despues: { interno: { periods: [{}, {}] }, connect: { count: 2 } },
+            validacion: {
+              interna: { valido: true, diff: { agregados: [{}], eliminados: [], modificados: [] }, corte: { motivo: "ok" }, participantes: { valido: true } },
+              connect: { valido: true, diff: { agregados: [{}], eliminados: [], modificados: [] }, corte: { motivo: "ok" }, participantes: { valido: true } },
+            },
+          })
+        : respuestaJson(500, { ok: false, error: "sin ruta" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await montar();
     const confirmacion = contenedor.querySelector("input[placeholder='26-05 T']");
-    await act(async () => {
-      escribir(usuario, "santi");
-      escribir(clave, "secreta");
-      escribir(confirmacion, "26-05 t");
-    });
     expect(botonPorTexto("Escribir TEST APP en 26-05 T").disabled).toBe(true);
 
     await act(async () => escribir(confirmacion, "26-05 T"));
@@ -378,21 +225,115 @@ describe("TrainingSettings · inspección del Cloud Editor", () => {
 
     await act(async () => botonPorTexto("Escribir TEST APP en 26-05 T").click());
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/openfield/cloud-write-test");
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
-      username: "santi",
-      password: "secreta",
-      confirmacion: "26-05 T",
-    });
+    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/cloud-write-test");
+    expect(JSON.parse(llamada[1].body)).toEqual({ confirmacion: "26-05 T" });
+    expect(llamada[1].headers.Authorization).toBe("Bearer token-supabase");
 
     const texto = contenedor.textContent;
     expect(texto).toContain("Escritura validada");
     expect(texto).toContain("PUT batch → 200");
-    expect(texto).toContain("TEST APP 01");
-    expect(texto).toContain("Interno: 2 → 3 períodos");
-    expect(texto).toContain("Participantes: faltan 1, sobran 0");
-    expect(clave.value).toBe("");
+    expect(texto).toContain("Interno: 1 → 2 períodos");
     expect(confirmacion.value).toBe("");
+  });
+
+  test("la sonda de la Connect API sigue funcionando desde el diagnóstico avanzado", async () => {
+    const fetchMock = fetchRuteado(SIN_CUENTA, (url) =>
+      url === "/api/openfield/capability-probe"
+        ? respuestaJson(200, armarSonda())
+        : respuestaJson(500, { ok: false, error: "sin ruta" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await montar();
+    await act(async () => botonPorTexto("Sondear capacidades").click());
+
+    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/capability-probe");
+    expect(llamada[1]).toMatchObject({ method: "GET", credentials: "same-origin" });
+
+    const texto = contenedor.textContent;
+    expect(texto).toContain("La API anuncia escritura");
+    expect(texto).toContain("26-05 T encontrada · 7 períodos");
+    expect(texto).toContain("Allow: GET, POST, OPTIONS");
+
+    const rutas = [...contenedor.querySelectorAll(".entrenamiento-sonda-rutas code")].map(
+      (nodo) => nodo.textContent,
+    );
+    expect(rutas).toEqual(["GET /activities/{actividad}", "OPTIONS /periods", "GET /periods/{período}"]);
+  });
+
+  test("la inspección avanzada usa las credenciales del bloque avanzado y las descarta", async () => {
+    const fetchMock = fetchRuteado(CUENTA_CONECTADA, (url) =>
+      url === "/api/openfield/cloud-editor-inspect"
+        ? respuestaJson(200, {
+            ok: true,
+            result: "cloud-editor-inspected",
+            editor: { alcanzado: true, nombreVisible: true, path: "/editor/x" },
+            solicitudes: [
+              {
+                id: 1,
+                metodo: "GET",
+                host: "of-uw1-prod-activity-service.openfield.catapultsports.com",
+                path: "/activities/abc",
+                status: 200,
+                responseType: "application/json",
+                tipo: "fetch",
+                autorizacion: { esquema: "Bearer", formato: "JWT", largo: 912, expira: "2027-01-01T00:00:00.000Z", claims: {}, headersEspeciales: [] },
+                cuerpo: { tipo: "objeto", claves: ["id", "periods"] },
+              },
+            ],
+            almacenamiento: { localStorage: [], sessionStorage: [] },
+            cookies: [],
+            resumen: {
+              veredicto: "credencial-observada",
+              detalle: "El servicio interno recibe Authorization Bearer (JWT).",
+              solicitudesCatapult: 1,
+              esquemas: ["Bearer (JWT)"],
+              proveedorAuth: [],
+              autorizacionEjemplo: { esquema: "Bearer", formato: "JWT", largo: 912, expira: "2027-01-01T00:00:00.000Z", claims: {} },
+            },
+          })
+        : respuestaJson(500, { ok: false, error: "sin ruta" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await montar();
+
+    // Con la cuenta conectada, los únicos campos de usuario/contraseña son los del bloque avanzado.
+    const usuario = contenedor.querySelector("input[autocomplete='username']");
+    const clave = contenedor.querySelector("input[autocomplete='current-password']");
+    await act(async () => {
+      escribir(usuario, "santi");
+      escribir(clave, "secreta");
+    });
+    await act(async () => botonPorTexto("Inspeccionar Cloud Editor (solo lectura)").click());
+
+    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/cloud-editor-inspect");
+    expect(JSON.parse(llamada[1].body)).toEqual({ username: "santi", password: "secreta" });
+
+    expect(contenedor.textContent).toContain("Credencial del editor identificada");
+    expect(clave.value).toBe("");
+  });
+
+  test("informa etapa y detalle cuando una prueba falla", async () => {
+    const fetchMock = fetchRuteado(CUENTA_CONECTADA, (url) =>
+      url === "/api/openfield/cloud-token-probe"
+        ? respuestaJson(502, {
+            ok: false,
+            code: "CATAPULT_LOGIN_REJECTED",
+            error: "Catapult no aceptó la cuenta guardada.",
+            etapa: "login",
+          })
+        : respuestaJson(500, { ok: false, error: "sin ruta" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await montar();
+    await act(async () => botonPorTexto("Probar conexión (solo lectura)").click());
+
+    const texto = contenedor.textContent;
+    expect(texto).toContain("La prueba del pase no pudo completarse");
+    expect(texto).toContain("Catapult no aceptó la cuenta guardada");
+    expect(texto).toContain("Etapa: login");
+    expect(botonPorTexto("Copiar detalle del error")).toBeDefined();
   });
 });

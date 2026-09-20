@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { ETIQUETAS_CLASIFICACION } from "../lib/openfieldProbe.js";
+import TrainingCuenta from "./TrainingCuenta";
+import { pedirJson } from "./trainingApi.js";
 import "./training-settings.css";
 
 const usuarioInicial = () => {
@@ -118,6 +120,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
   const [password, setPassword] = useState("");
   const [estado, setEstado] = useState("idle");
   const [mensaje, setMensaje] = useState("");
+  const [cuenta, setCuenta] = useState(null);
 
   const [estadoSonda, setEstadoSonda] = useState("idle");
   const [sonda, setSonda] = useState(null);
@@ -135,7 +138,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
     if (!usuarioLimpio || !password) {
       setEstadoInspeccion("error");
       setInspeccion(null);
-      setErrorInspeccion("Completá usuario y contraseña de Catapult en el panel 01.");
+      setErrorInspeccion("Completá usuario y contraseña en el bloque de diagnóstico avanzado.");
       return;
     }
 
@@ -200,12 +203,11 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
   const [copiaPase, setCopiaPase] = useState("");
 
   const probarPase = async () => {
-    const usuarioLimpio = username.trim();
-    if (!usuarioLimpio || !password) {
+    if (!cuenta?.configurada) {
       setEstadoPase("error");
       setPase(null);
       setFallaPase(null);
-      setErrorPase("Completá usuario y contraseña de Catapult en el panel 01.");
+      setErrorPase("Primero conectá tu cuenta de Catapult en el panel 01.");
       return;
     }
 
@@ -216,36 +218,23 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
     setCopiaPase("");
 
     try {
-      const respuesta = await fetch("/api/openfield/cloud-token-probe", {
+      // Sin usuario ni contraseña: el backend usa la cuenta guardada.
+      const { respuesta, payload } = await pedirJson("/api/openfield/cloud-token-probe", {
         method: "POST",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username: usuarioLimpio, password }),
+        body: {},
       });
-
-      const payload = await respuesta.json().catch(() => null);
-      setPassword("");
 
       if (!respuesta.ok || !payload?.ok) {
         setFallaPase(payload && typeof payload === "object" ? payload : null);
-        throw new Error(payload?.error || "No se pudo probar el pase interno.");
-      }
-
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("catapult_openfield_username", usuarioLimpio);
+        throw new Error(payload?.error || "No se pudo comprobar el acceso al editor.");
       }
 
       setPase(payload);
       setEstadoPase("ok");
     } catch (error) {
-      setPassword("");
       setPase(null);
       setEstadoPase("error");
-      setErrorPase(error?.message || "No se pudo probar el pase interno.");
+      setErrorPase(error?.message || "No se pudo comprobar el acceso al editor.");
     }
   };
 
@@ -272,8 +261,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
   const ocupado =
     estado === "probando" || estadoInspeccion === "inspeccionando" || estadoPase === "probando";
   const confirmacionValida = confirmacion.trim() === "26-05 T";
-  const escrituraHabilitada =
-    confirmacionValida && Boolean(username.trim()) && Boolean(password) && !ocupado;
+  const escrituraHabilitada = confirmacionValida && Boolean(cuenta?.configurada) && !ocupado;
 
   const ejecutarEscritura = async () => {
     if (!escrituraHabilitada || estadoEscritura === "escribiendo") return;
@@ -285,23 +273,11 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
     setCopiaEscritura("");
 
     try {
-      const respuesta = await fetch("/api/openfield/cloud-write-test", {
+      // Sin usuario ni contraseña: el backend usa la cuenta guardada.
+      const { respuesta, payload } = await pedirJson("/api/openfield/cloud-write-test", {
         method: "POST",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: username.trim(),
-          password,
-          confirmacion: confirmacion.trim(),
-        }),
+        body: { confirmacion: confirmacion.trim() },
       });
-
-      const payload = await respuesta.json().catch(() => null);
-      setPassword("");
       setConfirmacion("");
 
       if (!respuesta.ok || !payload?.ok) {
@@ -312,7 +288,6 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
       setEscritura(payload);
       setEstadoEscritura("ok");
     } catch (error) {
-      setPassword("");
       setConfirmacion("");
       setEscritura(null);
       setEstadoEscritura("error");
@@ -433,10 +408,6 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
     }
   };
 
-  const enviarVerificacion = (event) => {
-    event.preventDefault();
-    probarPase();
-  };
 
   return (
     <main className="entrenamiento-app entrenamiento-ajustes-pagina">
@@ -473,51 +444,11 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
               <span>01</span>
               <div>
                 <h2>Cuenta de Catapult</h2>
-                <p>La contraseña se usa solo durante cada prueba y no se guarda en ningún lado.</p>
+                <p>Tu usuario de OpenField. Se conecta una vez y queda guardado cifrado.</p>
               </div>
             </div>
 
-            <form onSubmit={enviarVerificacion}>
-              <label>
-                Usuario
-                <input
-                  type="text"
-                  autoComplete="username"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  placeholder="Usuario o correo de Catapult"
-                  disabled={estado === "probando"}
-                />
-              </label>
-
-              <label>
-                Contraseña
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Contraseña de Catapult"
-                  disabled={estado === "probando"}
-                />
-              </label>
-
-              <button
-                type="submit"
-                className="entrenamiento-boton-principal"
-                disabled={ocupado || estadoEscritura === "escribiendo"}
-              >
-                {estadoPase === "probando" ? "Verificando acceso…" : "Verificar acceso (solo lectura)"}
-              </button>
-            </form>
-
-            <div className="entrenamiento-ajustes-seguridad">
-              <strong>Seguridad</strong>
-              <span>
-                La contraseña no se escribe en GitHub, Vercel, localStorage ni Supabase. El backend
-                la mantiene solo durante esta solicitud y cierra el navegador al terminar.
-              </span>
-            </div>
+            <TrainingCuenta onCambio={setCuenta} />
           </section>
 
           <section className="entrenamiento-panel entrenamiento-ajustes-panel">
@@ -533,11 +464,20 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
               </div>
             </div>
 
+            <button
+              type="button"
+              className="entrenamiento-boton-principal"
+              onClick={probarPase}
+              disabled={!cuenta?.configurada || ocupado || estadoEscritura === "escribiendo"}
+            >
+              {estadoPase === "probando" ? "Comprobando acceso…" : "Probar conexión (solo lectura)"}
+            </button>
+
             {estadoPase === "idle" && (
               <div className="entrenamiento-ajustes-limites">
                 <strong>Cómo se usa</strong>
                 <span>
-                  Completá usuario y contraseña en el panel 01 y tocá "Verificar acceso".
+                  Con tu cuenta conectada, tocá "Probar conexión". Tarda unos segundos, o hasta un minuto la primera vez.
                   Tarda menos de un minuto. El resultado dice si el pase abre la puerta que usa el
                   editor para escribir y qué forma tiene una actividad ahí adentro.
                 </span>
@@ -735,8 +675,8 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
 
             {!escrituraHabilitada && estadoEscritura !== "escribiendo" && (
               <p className="entrenamiento-sonda-control">
-                {!username.trim() || !password
-                  ? "Completá usuario y contraseña de Catapult en el panel 01."
+                {!cuenta?.configurada
+                  ? "Primero conectá tu cuenta de Catapult en el panel 01."
                   : !confirmacionValida
                     ? "Falta la confirmación exacta."
                     : "Esperá a que termine la otra prueba."}
@@ -898,6 +838,40 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
 
           <details className="entrenamiento-ajustes-avanzado">
             <summary>Diagnóstico avanzado · pruebas que ya cumplieron su función</summary>
+
+          <section className="entrenamiento-panel entrenamiento-ajustes-panel">
+            <div className="entrenamiento-panel-titulo">
+              <span>·</span>
+              <div>
+                <h2>Credenciales para estas pruebas</h2>
+                <p>Solo las usan las pruebas de abajo. No se guardan.</p>
+              </div>
+            </div>
+
+            <label>
+              Usuario
+              <input
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="Usuario o correo de Catapult"
+                disabled={ocupado}
+              />
+            </label>
+
+            <label>
+              Contraseña
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Contraseña de Catapult"
+                disabled={ocupado}
+              />
+            </label>
+          </section>
 
           <section className="entrenamiento-panel entrenamiento-ajustes-panel">
             <div className="entrenamiento-panel-titulo">

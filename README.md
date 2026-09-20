@@ -34,6 +34,9 @@ VITE_SUPABASE_PUBLISHABLE_KEY=...
 Antes de publicar esta versión, ejecutá en orden las migraciones de
 `supabase/migrations/`. La migración del 8 de septiembre agrega la captura del
 modo Transmisión y crea el índice de partido único sólo si no existen duplicados.
+La del 20 de septiembre crea `catapult_cuentas` (cuenta de Catapult OpenField
+por usuario, con contraseña y pase cifrados) y necesita en Vercel la variable
+`CATAPULT_SESSION_KEY` (una frase de al menos 32 caracteres, Production y Preview).
 
 ## Seguridad
 
