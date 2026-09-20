@@ -37,6 +37,8 @@ modo Transmisión y crea el índice de partido único sólo si no existen duplic
 La del 20 de septiembre crea `catapult_cuentas` (cuenta de Catapult OpenField
 por usuario, con contraseña y pase cifrados) y necesita en Vercel la variable
 `CATAPULT_SESSION_KEY` (una frase de al menos 32 caracteres, Production y Preview).
+La segunda del 20 de septiembre (`20260920_jugadores_catapult.sql`) agrega a
+`jugadores` el vínculo con el atleta de Catapult; Partido no la necesita, Entrenamiento sí.
 
 ## Seguridad
 

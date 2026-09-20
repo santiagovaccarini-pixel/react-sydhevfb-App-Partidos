@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import TrainingSettings from "./TrainingSettings";
 import { interpretarRespuesta, resumirSonda } from "../lib/openfieldProbe.js";
 
+// La lista de jugadores tiene sus propios tests; acá se aísla.
+vi.mock("./TrainingJugadores", () => ({ default: () => null }));
+
 vi.mock("./supabase.js", () => ({
   supabase: {
     auth: {

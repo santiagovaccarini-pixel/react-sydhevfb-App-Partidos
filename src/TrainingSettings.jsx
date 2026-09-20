@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ETIQUETAS_CLASIFICACION } from "../lib/openfieldProbe.js";
 import TrainingCuenta from "./TrainingCuenta";
+import TrainingJugadores from "./TrainingJugadores";
 import { pedirJson } from "./trainingApi.js";
 import "./training-settings.css";
 
@@ -451,9 +452,25 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
             <TrainingCuenta onCambio={setCuenta} />
           </section>
 
-          <section className="entrenamiento-panel entrenamiento-ajustes-panel">
+          <section className="entrenamiento-panel entrenamiento-ajustes-panel entrenamiento-ajustes-panel-ancho">
             <div className="entrenamiento-panel-titulo">
               <span>02</span>
+              <div>
+                <h2>Jugadores</h2>
+                <p>
+                  La misma lista que Partido: lo que agregás acá aparece allá, y al revés. Cada
+                  jugador se vincula una vez con su atleta de Catapult para que los cortes lleven a
+                  la persona correcta.
+                </p>
+              </div>
+            </div>
+
+            <TrainingJugadores />
+          </section>
+
+          <section className="entrenamiento-panel entrenamiento-ajustes-panel">
+            <div className="entrenamiento-panel-titulo">
+              <span>03</span>
               <div>
                 <h2>Acceso al editor</h2>
                 <p>
@@ -627,7 +644,7 @@ export default function TrainingSettings({ onVolverRegistro, onVolverModulos }) 
 
           <section className="entrenamiento-panel entrenamiento-ajustes-panel entrenamiento-ajustes-panel-ancho">
             <div className="entrenamiento-panel-titulo">
-              <span>03</span>
+              <span>04</span>
               <div>
                 <h2>Write test · Modo Prueba</h2>
                 <p>
