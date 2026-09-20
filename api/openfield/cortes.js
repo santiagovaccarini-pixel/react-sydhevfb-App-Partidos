@@ -9,6 +9,7 @@ import {
 } from "../../lib/catapultServicio.js";
 import { normalizarInterno } from "../../lib/catapultWrite.js";
 import { evaluarEnvio, planificarCortes } from "../../lib/openfieldEnvio.js";
+import { atletasDeActividad } from "../../lib/openfieldTareas.js";
 import { describirCuerpo } from "../../lib/openfieldProbe.js";
 import { tomarSnapshotConnect } from "../../lib/openfieldSnapshot.js";
 
@@ -109,12 +110,21 @@ export default async function handler(request, response) {
     const nombreReal = String(actividadInterna.name || "").trim();
 
     etapa = "planificar";
+    // Quiénes tienen datos en esta actividad: el plantel que informa Connect
+    // más los que ya figuran en algún período según el servicio interno.
+    const atletasPermitidos = new Set([
+      ...(Array.isArray(connectAntes.snapshot.athletes)
+        ? connectAntes.snapshot.athletes.map((atleta) => String(atleta?.id || "")).filter(Boolean)
+        : []),
+      ...atletasDeActividad(actividadInterna).keys(),
+    ]);
     const plan = planificarCortes({
       tareas,
       asignaciones,
       actividadInterna,
       periodosConnect: connectAntes.snapshot.periods,
       generarId: randomUUID,
+      atletasPermitidos: atletasPermitidos.size > 0 ? atletasPermitidos : null,
     });
 
     const base = {
@@ -229,6 +239,9 @@ export default async function handler(request, response) {
         status: put.status,
         ms: put.ms,
         cuerpo: describirCuerpo(put.texto),
+        // Con rechazo, la respuesta cruda de OpenField (acotada): es lo único
+        // que dice por qué.
+        ...(!putOk ? { cuerpoCrudo: String(put.texto || "").slice(0, 2000) } : {}),
         ...(put.error ? { error: put.error } : {}),
       },
       resumen: plan.resumen,

@@ -83,6 +83,14 @@ describe("resumenTarea y problemasDeTarea", () => {
     expect(problemas).toContain("IGOR GOMES: falta el inicio o el fin parcial.");
   });
 
+  it("con el plantel de la sesión conocido, un jugador sin datos ahí es un problema", () => {
+    expect(problemasDeTarea(tarea(), plantel, { atletasActividad: new Set(["a1"]) })).toEqual([
+      "IGOR GOMES no tiene datos en esta sesión.",
+    ]);
+    expect(problemasDeTarea(tarea(), plantel, { atletasActividad: new Set() })).toEqual([]);
+    expect(armarEnvio({ tareas: [tarea()], plantel, atletasActividad: new Set(["a1"]) }).tareas).toEqual([]);
+  });
+
   it("sin participantes también es un problema", () => {
     expect(problemasDeTarea(tarea({ participantes: {} }), plantel)).toContain("No hay participantes.");
   });
