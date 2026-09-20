@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { ETIQUETAS_CLASIFICACION } from "../lib/openfieldProbe.js";
 import TrainingCuenta from "./TrainingCuenta";
 import TrainingJugadores from "./TrainingJugadores";
-import { pedirJson } from "./trainingApi.js";
+import { mensajeDeRespuesta, pedirJson } from "./trainingApi.js";
 import "./training-settings.css";
 
 const usuarioInicial = () => {
@@ -168,7 +168,7 @@ export default function TrainingSettings({ onVolverModulos }) {
         // El backend cuenta en qué etapa falló y adjunta la pantalla que vio:
         // sin eso el mensaje genérico no permite diagnosticar nada.
         setFallaInspeccion(payload && typeof payload === "object" ? payload : null);
-        throw new Error(payload?.error || "No se pudo inspeccionar el Cloud Editor.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo inspeccionar el Cloud Editor."));
       }
 
       if (typeof window !== "undefined") {
@@ -227,7 +227,7 @@ export default function TrainingSettings({ onVolverModulos }) {
 
       if (!respuesta.ok || !payload?.ok) {
         setFallaPase(payload && typeof payload === "object" ? payload : null);
-        throw new Error(payload?.error || "No se pudo comprobar el acceso al editor.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo comprobar el acceso al editor."));
       }
 
       setPase(payload);
@@ -283,7 +283,7 @@ export default function TrainingSettings({ onVolverModulos }) {
 
       if (!respuesta.ok || !payload?.ok) {
         setFallaEscritura(payload && typeof payload === "object" ? payload : null);
-        throw new Error(payload?.error || "El write test no pudo completarse.");
+        throw new Error(mensajeDeRespuesta(payload, "El write test no pudo completarse."));
       }
 
       setEscritura(payload);
@@ -335,7 +335,7 @@ export default function TrainingSettings({ onVolverModulos }) {
       const payload = await respuesta.json().catch(() => null);
 
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(payload?.error || "La sonda no pudo consultar OpenField.");
+        throw new Error(mensajeDeRespuesta(payload, "La sonda no pudo consultar OpenField."));
       }
 
       setSonda(payload);
@@ -390,7 +390,7 @@ export default function TrainingSettings({ onVolverModulos }) {
       setPassword("");
 
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(payload?.error || "No se pudo validar el acceso a Catapult.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo validar el acceso a Catapult."));
       }
 
       if (typeof window !== "undefined") {

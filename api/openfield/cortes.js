@@ -1,16 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { autenticarCookieOpenField } from "../openfieldAuth.js";
-import { resolverPase } from "../catapultAcceso.js";
-import { leerBodyJson, resumirError, textoSeguro } from "../catapultCloud.js";
+import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+import { resolverPase } from "../../lib/catapultAcceso.js";
+import { leerBodyJson, resumirError, textoSeguro } from "../../lib/catapultCloud.js";
 import {
   escribirBatchInterno,
   leerActividadInterna,
   validarActivityId,
-} from "../catapultServicio.js";
-import { normalizarInterno } from "../catapultWrite.js";
-import { evaluarEnvio, planificarCortes } from "../openfieldEnvio.js";
-import { describirCuerpo } from "../openfieldProbe.js";
-import { tomarSnapshotConnect } from "../openfieldSnapshot.js";
+} from "../../lib/catapultServicio.js";
+import { normalizarInterno } from "../../lib/catapultWrite.js";
+import { evaluarEnvio, planificarCortes } from "../../lib/openfieldEnvio.js";
+import { describirCuerpo } from "../../lib/openfieldProbe.js";
+import { tomarSnapshotConnect } from "../../lib/openfieldSnapshot.js";
+
+export const config = {
+  maxDuration: 60,
+};
 
 const MAX_TAREAS = 60;
 const ESPERA_REPROCESO_MS = 2500;

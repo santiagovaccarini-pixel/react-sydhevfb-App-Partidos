@@ -1,5 +1,9 @@
-import { autenticarCookieOpenField } from "../openfieldAuth.js";
-import { tomarSnapshotConnect } from "../openfieldSnapshot.js";
+import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+import { tomarSnapshotConnect } from "../../lib/openfieldSnapshot.js";
+
+export const config = {
+  maxDuration: 30,
+};
 
 const normalizarActivityId = (valor) => {
   const candidato = Array.isArray(valor) ? valor[0] : valor;

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./training-openfield.css";
+import { mensajeDeRespuesta } from "./trainingApi.js";
 
 const OPENFIELD_EDITOR_BASE = "https://us.openfield.catapultsports.com/editor";
 
@@ -121,7 +122,7 @@ export default function TrainingApp({ actividad = null, onSeleccionar, onIrATare
       );
 
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(payload?.error || "No se pudieron leer los períodos de OpenField.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudieron leer los períodos de OpenField."));
       }
 
       if (solicitudActual !== solicitudPeriodosRef.current) return;
@@ -150,7 +151,7 @@ export default function TrainingApp({ actividad = null, onSeleccionar, onIrATare
       );
 
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(payload?.error || "No se pudieron leer los participantes.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudieron leer los participantes."));
       }
 
       if (solicitudActual !== solicitudSnapshotRef.current) return;
@@ -186,7 +187,7 @@ export default function TrainingApp({ actividad = null, onSeleccionar, onIrATare
       const { respuesta, payload } = await leerJson("/api/openfield/activities");
 
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(payload?.error || "No se pudo leer OpenField.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo leer OpenField."));
       }
 
       setActividades(Array.isArray(payload.activities) ? payload.activities : []);

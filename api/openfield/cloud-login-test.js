@@ -1,4 +1,4 @@
-import { autenticarCookieOpenField } from "../openfieldAuth.js";
+import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
 import {
   ACTIVIDAD_PRUEBA,
   abrirEditorActividad,
@@ -10,7 +10,11 @@ import {
   leerBodyJson,
   resumirError,
   textoSeguro,
-} from "../catapultCloud.js";
+} from "../../lib/catapultCloud.js";
+
+export const config = {
+  maxDuration: 60,
+};
 
 export default async function handler(request, response) {
   response.setHeader("Cache-Control", "private, no-store");

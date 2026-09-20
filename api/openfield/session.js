@@ -3,7 +3,7 @@ import {
   autenticarCookieOpenField,
   borrarCookieSesionOpenField,
   crearCookieSesionOpenField,
-} from "../openfieldAuth.js";
+} from "../../lib/openfieldAuth.js";
 
 export default async function handler(request, response) {
   response.setHeader("Cache-Control", "private, no-store");

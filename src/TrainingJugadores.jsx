@@ -6,7 +6,7 @@ import {
   guardarVinculoCatapult,
 } from "./domain/plantel.js";
 import { nombreVisibleAtleta, proponerVinculos, resumirVinculos } from "../lib/vinculoJugadores.js";
-import { pedirJson } from "./trainingApi.js";
+import { mensajeDeRespuesta, pedirJson } from "./trainingApi.js";
 
 const ETIQUETA_NIVEL = {
   exacto: "Propuesta exacta",
@@ -95,7 +95,7 @@ export default function TrainingJugadores() {
     try {
       const { respuesta, payload } = await pedirJson("/api/openfield/atletas");
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(payload?.error || "No se pudieron leer los atletas de Catapult.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudieron leer los atletas de Catapult."));
       }
 
       const lista = Array.isArray(payload.atletas) ? payload.atletas : [];

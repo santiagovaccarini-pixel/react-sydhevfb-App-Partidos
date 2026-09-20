@@ -1,4 +1,4 @@
-import { autenticarCookieOpenField } from "../openfieldAuth.js";
+import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
 import {
   METODOS_SONDA,
   describirCuerpo,
@@ -6,7 +6,11 @@ import {
   marcaBooleana,
   resumirSonda,
   rutasSonda,
-} from "../openfieldProbe.js";
+} from "../../lib/openfieldProbe.js";
+
+export const config = {
+  maxDuration: 30,
+};
 
 const OPENFIELD_BASE_URL =
   process.env.OPENFIELD_API_BASE_URL ||
