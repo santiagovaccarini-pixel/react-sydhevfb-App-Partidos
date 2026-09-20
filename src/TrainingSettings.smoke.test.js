@@ -123,7 +123,7 @@ describe("TrainingSettings", () => {
   const montar = async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<TrainingSettings onVolverRegistro={() => {}} onVolverModulos={() => {}} />);
+      raiz.render(<TrainingSettings onVolverModulos={() => {}} />);
     });
     await act(async () => Promise.resolve());
   };

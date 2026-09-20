@@ -1,33 +1,3 @@
-.entrenamiento-modulo-shell {
-  min-height: 100vh;
-}
-
-.entrenamiento-ajustes-acceso {
-  position: fixed;
-  top: 14px;
-  right: 18px;
-  z-index: 35;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 38px;
-  padding: 8px 12px;
-  border: 1px solid var(--portal-border);
-  border-radius: 12px;
-  background: rgba(21, 25, 30, 0.94);
-  color: var(--portal-text);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 800;
-  cursor: pointer;
-  backdrop-filter: blur(12px);
-}
-
-.entrenamiento-ajustes-acceso:hover {
-  border-color: rgba(211, 173, 98, 0.5);
-  color: var(--portal-accent);
-}
-
 .entrenamiento-ajustes-modulos {
   margin-left: auto;
   padding: 9px 12px;
@@ -194,16 +164,6 @@
 }
 
 @media (max-width: 560px) {
-  .entrenamiento-ajustes-acceso {
-    right: 10px;
-    top: 12px;
-    padding: 8px 10px;
-  }
-
-  .entrenamiento-ajustes-acceso span + * {
-    display: none;
-  }
-
   .entrenamiento-ajustes-pagina .entrenamiento-barra {
     gap: 8px;
     padding-inline: 10px;
