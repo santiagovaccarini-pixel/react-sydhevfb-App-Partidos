@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "./supabase.js";
 import "./training-access.css";
+import { mensajeDeRespuesta } from "./trainingApi.js";
 
 const esRecuperacionSolicitada = () => {
   if (typeof window === "undefined") return false;
@@ -47,7 +48,7 @@ export default function TrainingAccessGate({ children, onVolver }) {
 
     if (!respuesta.ok || !payload?.ok) {
       setAutorizado(false);
-      throw new Error(payload?.error || "No se pudo autorizar el acceso a OpenField.");
+      throw new Error(mensajeDeRespuesta(payload, "No se pudo autorizar el acceso a OpenField."));
     }
 
     setUsuario({ email: payload.email || session.user?.email || "" });

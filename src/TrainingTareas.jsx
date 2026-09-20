@@ -17,7 +17,7 @@ import {
   resumenTarea,
   segundosATexto,
 } from "./domain/sesionEntrenamiento.js";
-import { pedirJson } from "./trainingApi.js";
+import { mensajeDeRespuesta, pedirJson } from "./trainingApi.js";
 import "./training-tareas.css";
 
 const generarId = () =>
@@ -58,7 +58,7 @@ const MOTIVOS_FALLO = {
 };
 
 const mensajeDeError = (payload, porDefecto) =>
-  MENSAJES_CODIGO[payload?.code] || payload?.error || porDefecto;
+  MENSAJES_CODIGO[payload?.code] || mensajeDeRespuesta(payload, porDefecto);
 
 const huellaEnvio = (tareas) => JSON.stringify(tareas.map(huellaTarea));
 

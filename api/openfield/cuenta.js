@@ -1,12 +1,16 @@
-import { autenticarBearerSupabase, tokenBearer } from "../openfieldAuth.js";
-import { capturarPaseConLogin, leerBodyJson, textoSeguro } from "../catapultCloud.js";
+import { autenticarBearerSupabase, tokenBearer } from "../../lib/openfieldAuth.js";
+import { capturarPaseConLogin, leerBodyJson, textoSeguro } from "../../lib/catapultCloud.js";
 import {
   borrarCuenta,
   claveConfigurada,
   errorDeTabla,
   guardarCuenta,
   leerCuenta,
-} from "../catapultCuenta.js";
+} from "../../lib/catapultCuenta.js";
+
+export const config = {
+  maxDuration: 60,
+};
 
 // Cuenta de Catapult del usuario que hace el pedido.
 // GET: estado (sin secretos). POST: conectar (valida con un login real y

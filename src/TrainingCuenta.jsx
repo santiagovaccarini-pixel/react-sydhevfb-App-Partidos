@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { pedirJson } from "./trainingApi.js";
+import { mensajeDeRespuesta, pedirJson } from "./trainingApi.js";
 
 const formatearFecha = (iso) => {
   const fecha = new Date(iso);
@@ -37,7 +37,7 @@ export default function TrainingCuenta({ onCambio }) {
     try {
       const { respuesta, payload } = await pedirJson("/api/openfield/cuenta");
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(payload?.error || "No se pudo comprobar tu cuenta de Catapult.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo comprobar tu cuenta de Catapult."));
       }
       aplicar(payload.cuenta);
     } catch (errorCarga) {
@@ -72,7 +72,7 @@ export default function TrainingCuenta({ onCambio }) {
       setPassword("");
 
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(payload?.error || "No se pudo conectar la cuenta de Catapult.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo conectar la cuenta de Catapult."));
       }
 
       setMensaje(payload.message || "Cuenta conectada.");
@@ -97,7 +97,7 @@ export default function TrainingCuenta({ onCambio }) {
     try {
       const { respuesta, payload } = await pedirJson("/api/openfield/cuenta", { method: "DELETE" });
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(payload?.error || "No se pudo desconectar la cuenta.");
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo desconectar la cuenta."));
       }
       setMensaje("Cuenta desconectada. Podés volver a conectarla cuando quieras.");
       aplicar({ configurada: false });

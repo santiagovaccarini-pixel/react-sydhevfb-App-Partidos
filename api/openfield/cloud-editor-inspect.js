@@ -1,4 +1,4 @@
-import { autenticarCookieOpenField } from "../openfieldAuth.js";
+import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
 import {
   ACTIVIDAD_PRUEBA,
   abrirEditorActividad,
@@ -10,7 +10,7 @@ import {
   leerBodyJson,
   resumirError,
   textoSeguro,
-} from "../catapultCloud.js";
+} from "../../lib/catapultCloud.js";
 import {
   TIPOS_RED,
   describirAutorizacion,
@@ -18,8 +18,12 @@ import {
   esHostAuth,
   esHostCatapult,
   resumirCapturas,
-} from "../catapultInspect.js";
-import { describirCuerpo } from "../openfieldProbe.js";
+} from "../../lib/catapultInspect.js";
+import { describirCuerpo } from "../../lib/openfieldProbe.js";
+
+export const config = {
+  maxDuration: 60,
+};
 
 const MAX_SOLICITUDES = 200;
 const MAX_CUERPO = 3_000_000;

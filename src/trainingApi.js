@@ -21,6 +21,22 @@ export const cabecerasJson = async () => {
   };
 };
 
+// El texto de error de una respuesta. Los endpoints de la app mandan
+// `error` como texto; Vercel, cuando la función falla o no existe, manda un
+// objeto { code, message }. Sin esto, el celular mostraba "[object Object]".
+export const mensajeDeRespuesta = (payload, porDefecto) => {
+  const error = payload?.error;
+  if (typeof error === "string" && error.trim()) return error;
+  if (error && typeof error === "object") {
+    const mensaje = typeof error.message === "string" ? error.message.trim() : "";
+    const codigo = typeof error.code === "string" ? error.code.trim() : "";
+    if (mensaje && codigo) return `${mensaje} (${codigo})`;
+    if (mensaje) return mensaje;
+    if (codigo) return `${porDefecto} (${codigo})`;
+  }
+  return porDefecto;
+};
+
 // fetch con la sesión de la app puesta (cookie de OpenField + token de Supabase).
 export const pedirJson = async (url, { method = "GET", body } = {}) => {
   const respuesta = await fetch(url, {

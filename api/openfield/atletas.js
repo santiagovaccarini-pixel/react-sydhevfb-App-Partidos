@@ -1,5 +1,9 @@
-import { autenticarCookieOpenField } from "../openfieldAuth.js";
-import { leerJsonConnect, OPENFIELD_CONNECT_BASE_DEFAULT } from "../openfieldSnapshot.js";
+import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+import { leerJsonConnect, OPENFIELD_CONNECT_BASE_DEFAULT } from "../../lib/openfieldSnapshot.js";
+
+export const config = {
+  maxDuration: 30,
+};
 
 // Cuántas actividades recientes se recorren si la API no lista atletas directo.
 const ACTIVIDADES_RESPALDO = 8;

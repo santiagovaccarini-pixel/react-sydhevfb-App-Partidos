@@ -1,4 +1,4 @@
-import { autenticarCookieOpenField } from "../openfieldAuth.js";
+import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
 
 const OPENFIELD_BASE_URL =
   process.env.OPENFIELD_API_BASE_URL ||
