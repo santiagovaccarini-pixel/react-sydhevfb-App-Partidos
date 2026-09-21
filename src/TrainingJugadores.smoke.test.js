@@ -72,11 +72,17 @@ describe("TrainingJugadores", () => {
 
     expect(dobles.cargar).toHaveBeenCalledWith("eq-1");
     const texto = contenedor.textContent;
-    expect(texto).toContain("3 jugadores");
-    expect(texto).toContain("1 vinculados con Catapult");
-    expect(texto).toContain("Catapult: IGOR GOMES (GOM)");
-    expect(texto).toContain("Sin vincular");
-    expect(botonPorTexto("Vincular con Catapult")).toBeDefined();
+    expect(contenedor.querySelector("h1").textContent).toBe("Lista de jugadores");
+    expect(texto).toContain("3 jugadores · 1 con chaleco");
+    expect(texto).toContain("Chaleco: IGOR GOMES (GOM)");
+    expect(texto).toContain("Sin chaleco");
+    expect([...contenedor.querySelectorAll(".nombre-lista")].map((n) => n.textContent)).toEqual([
+      "A MINDA",
+      "IGOR GOMES",
+      "LEMOS",
+    ]);
+    expect(botonPorTexto("Buscar chalecos")).toBeDefined();
+    expect(botonPorTexto("Volver a Ajustes")).toBeDefined();
   });
 
   test("propone vínculos, deja corregirlos y guarda solo los cambios", async () => {
@@ -86,13 +92,13 @@ describe("TrainingJugadores", () => {
     );
     await montar();
 
-    await act(async () => botonPorTexto("Vincular con Catapult").click());
+    await act(async () => botonPorTexto("Buscar chalecos").click());
 
     const texto = contenedor.textContent;
-    expect(texto).toContain("3 atletas en Catapult");
-    expect(texto).toContain("Propuesta exacta");
+    expect(texto).toContain("3 chalecos encontrados");
+    expect(texto).toContain("Coincide solo");
     expect(texto).toContain("Guardado");
-    expect(botonPorTexto("Guardar 1 vínculo")).toBeDefined();
+    expect(botonPorTexto("Guardar 1 cambio")).toBeDefined();
 
     // LEMOS no tiene propuesta: se elige a mano.
     const selects = contenedor.querySelectorAll("select");
@@ -102,25 +108,26 @@ describe("TrainingJugadores", () => {
       setter.call(selects[2], "a3");
       selects[2].dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(botonPorTexto("Guardar 2 vínculos")).toBeDefined();
+    expect(selects[2].getAttribute("aria-label")).toBe("Chaleco de LEMOS");
+    expect(botonPorTexto("Guardar 2 cambios")).toBeDefined();
     expect(contenedor.textContent).toContain("Elegido a mano");
 
-    await act(async () => botonPorTexto("Guardar 2 vínculos").click());
+    await act(async () => botonPorTexto("Guardar 2 cambios").click());
 
     expect(dobles.guardar).toHaveBeenCalledTimes(2);
     expect(dobles.guardar).toHaveBeenCalledWith(1, { catapultId: "a1", catapultNombre: "A MINDA (MIN)" });
     expect(dobles.guardar).toHaveBeenCalledWith(3, { catapultId: "a3", catapultNombre: "CISSE (CIS)" });
-    expect(contenedor.textContent).toContain("2 vínculos guardados");
+    expect(contenedor.textContent).toContain("2 cambios guardados");
     expect(dobles.cargar).toHaveBeenCalledTimes(2);
   });
 
-  test("bloquea el guardado si dos jugadores eligen el mismo atleta", async () => {
+  test("bloquea el guardado si dos jugadores eligen el mismo chaleco", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => respuesta(200, { ok: true, fuente: "athletes", atletas: ATLETAS })),
     );
     await montar();
-    await act(async () => botonPorTexto("Vincular con Catapult").click());
+    await act(async () => botonPorTexto("Buscar chalecos").click());
 
     const selects = contenedor.querySelectorAll("select");
     await act(async () => {
@@ -129,8 +136,8 @@ describe("TrainingJugadores", () => {
       selects[2].dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    expect(contenedor.textContent).toContain("Hay un atleta elegido para más de un jugador");
-    expect(botonPorTexto("Guardar 2 vínculos").disabled).toBe(true);
+    expect(contenedor.textContent).toContain("Hay un chaleco elegido para más de un jugador");
+    expect(botonPorTexto("Guardar 2 cambios").disabled).toBe(true);
     expect(dobles.guardar).not.toHaveBeenCalled();
   });
 

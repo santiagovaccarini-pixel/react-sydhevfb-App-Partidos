@@ -1,57 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import "./training-openfield.css";
-import { mensajeDeRespuesta } from "./trainingApi.js";
 
-const OPENFIELD_EDITOR_BASE = "https://us.openfield.catapultsports.com/editor";
-
-const segundosATiempo = (segundos) => {
-  const total = Math.max(0, Math.round(Number(segundos) || 0));
-  const horas = Math.floor(total / 3600);
-  const minutos = Math.floor((total % 3600) / 60);
-  const segs = total % 60;
-
-  if (horas > 0) {
-    return `${horas}:${String(minutos).padStart(2, "0")}:${String(segs).padStart(2, "0")}`;
-  }
-
-  return `${minutos}:${String(segs).padStart(2, "0")}`;
-};
-
-const timestampAFecha = (valor) => {
-  const numero = Number(valor);
-  if (!Number.isFinite(numero) || numero <= 0) return null;
-
-  const fecha = new Date(numero < 1e12 ? numero * 1000 : numero);
-  return Number.isNaN(fecha.getTime()) ? null : fecha;
-};
-
-const formatearFechaHoraActividad = (valor) => {
-  const fecha = timestampAFecha(valor);
-  if (!fecha) return "Sin horario";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(fecha);
-};
-
-const formatearHoraPeriodo = (valor) => {
-  const fecha = timestampAFecha(valor);
-  if (!fecha) return "Sin horario";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(fecha);
-};
-
-const leerJson = async (url) => {
+// Lectura sin sesión de la app: estas rutas solo necesitan el acceso que ya
+// tiene el servidor. Se conserva tal cual (método, cabeceras y caché).
+export const leerJson = async (url) => {
   const respuesta = await fetch(url, {
     method: "GET",
     cache: "no-store",
@@ -61,408 +12,192 @@ const leerJson = async (url) => {
   return { respuesta, payload };
 };
 
-// Sesión: la actividad de OpenField sobre la que se trabaja. Se elige una vez
-// y queda guardada; desde acá también se ve lo que hoy tiene en OpenField.
-export default function TrainingApp({ actividad = null, onSeleccionar, onIrATareas, onVolver }) {
-  const [estadoOpenField, setEstadoOpenField] = useState("desconectado");
-  const [actividades, setActividades] = useState([]);
-  const [errorOpenField, setErrorOpenField] = useState("");
-  const [busqueda, setBusqueda] = useState("");
-  const [eligiendo, setEligiendo] = useState(false);
+// El servidor informa segundos o milisegundos según la ruta.
+export const marcaAFecha = (valor) => {
+  const numero = Number(valor);
+  if (!Number.isFinite(numero) || numero <= 0) return null;
 
-  const [estadoPeriodos, setEstadoPeriodos] = useState("idle");
-  const [periodos, setPeriodos] = useState([]);
-  const [errorPeriodos, setErrorPeriodos] = useState("");
-  const solicitudPeriodosRef = useRef(0);
+  const fecha = new Date(numero < 1e12 ? numero * 1000 : numero);
+  return Number.isNaN(fecha.getTime()) ? null : fecha;
+};
 
-  const [estadoSnapshot, setEstadoSnapshot] = useState("idle");
-  const [snapshot, setSnapshot] = useState(null);
-  const [errorSnapshot, setErrorSnapshot] = useState("");
-  const solicitudSnapshotRef = useRef(0);
+// "16:15", en la hora del celular.
+export const horaCorta = (valor) => {
+  const fecha = marcaAFecha(valor);
+  if (!fecha) return "";
+  return `${String(fecha.getHours()).padStart(2, "0")}:${String(fecha.getMinutes()).padStart(2, "0")}`;
+};
 
-  const actividadesFiltradas = useMemo(() => {
-    const texto = busqueda.trim().toLowerCase();
-    const base = texto
-      ? actividades.filter((item) =>
-          [item.name, item.id, item.venue]
-            .filter(Boolean)
-            .some((valor) => String(valor).toLowerCase().includes(texto)),
-        )
-      : actividades;
+const numeroDeBloque = (indice) => String(indice + 1).padStart(2, "0");
 
-    return base.slice(0, texto ? 50 : 20);
-  }, [actividades, busqueda]);
+const textoDeJugadores = (detalle) => {
+  const lista = Array.isArray(detalle?.athletes) ? detalle.athletes : [];
+  if (lista.length === 0) return "Sin jugadores";
 
-  const participantesPorPeriodo = useMemo(
-    () => new Map((snapshot?.periods || []).map((periodo) => [periodo.id, periodo])),
-    [snapshot],
+  const nombres = [...lista]
+    .sort((a, b) => String(a?.nombre || "").localeCompare(String(b?.nombre || ""), "es"))
+    .map((jugador) => (jugador?.jersey != null ? `${jugador.jersey} · ${jugador.nombre}` : jugador?.nombre || ""))
+    .filter(Boolean);
+
+  return `${lista.length} ${lista.length === 1 ? "jugador" : "jugadores"}: ${nombres.join(", ")}`;
+};
+
+// Los bloques que hoy tiene la sesión, tal como los ve el servidor. Se leen al
+// elegir la sesión; los jugadores de cada bloque se leen aparte, a pedido.
+export default function TrainingBloques({ actividad = null }) {
+  const [estadoBloques, setEstadoBloques] = useState("idle");
+  const [bloques, setBloques] = useState([]);
+  const solicitudBloquesRef = useRef(0);
+
+  const [estadoJugadores, setEstadoJugadores] = useState("idle");
+  const [jugadoresPorBloque, setJugadoresPorBloque] = useState(null);
+  const solicitudJugadoresRef = useRef(0);
+
+  const detallePorBloque = useMemo(
+    () => new Map((jugadoresPorBloque?.periods || []).map((bloque) => [bloque.id, bloque])),
+    [jugadoresPorBloque],
   );
 
-  // Los participantes se leen aparte y quedan viejos apenas cambian los períodos.
-  const descartarSnapshot = () => {
-    solicitudSnapshotRef.current += 1;
-    setSnapshot(null);
-    setEstadoSnapshot("idle");
-    setErrorSnapshot("");
+  // Los jugadores quedan viejos apenas cambian los bloques.
+  const descartarJugadores = () => {
+    solicitudJugadoresRef.current += 1;
+    setJugadoresPorBloque(null);
+    setEstadoJugadores("idle");
   };
 
-  const cargarPeriodos = async (activityId) => {
+  const cargarBloques = async (activityId) => {
     if (!activityId) return;
 
-    const solicitudActual = solicitudPeriodosRef.current + 1;
-    solicitudPeriodosRef.current = solicitudActual;
-    setEstadoPeriodos("cargando");
-    setPeriodos([]);
-    setErrorPeriodos("");
-    descartarSnapshot();
+    const solicitudActual = solicitudBloquesRef.current + 1;
+    solicitudBloquesRef.current = solicitudActual;
+    setEstadoBloques("cargando");
+    setBloques([]);
+    descartarJugadores();
 
     try {
       const { respuesta, payload } = await leerJson(
         `/api/openfield/periods?activityId=${encodeURIComponent(activityId)}`,
       );
 
-      if (!respuesta.ok || !payload?.ok) {
-        throw new Error(mensajeDeRespuesta(payload, "No se pudieron leer los períodos de OpenField."));
-      }
+      if (!respuesta.ok || !payload?.ok) throw new Error("bloques");
+      if (solicitudActual !== solicitudBloquesRef.current) return;
 
-      if (solicitudActual !== solicitudPeriodosRef.current) return;
-
-      setPeriodos(Array.isArray(payload.periods) ? payload.periods : []);
-      setEstadoPeriodos("listo");
-    } catch (error) {
-      if (solicitudActual !== solicitudPeriodosRef.current) return;
-      setPeriodos([]);
-      setEstadoPeriodos("error");
-      setErrorPeriodos(error?.message || "No se pudieron leer los períodos de OpenField.");
+      setBloques(Array.isArray(payload.periods) ? payload.periods : []);
+      setEstadoBloques("listo");
+    } catch {
+      if (solicitudActual !== solicitudBloquesRef.current) return;
+      setBloques([]);
+      setEstadoBloques("error");
     }
   };
 
-  const cargarParticipantes = async (activityId) => {
+  const cargarJugadores = async (activityId) => {
     if (!activityId) return;
 
-    const solicitudActual = solicitudSnapshotRef.current + 1;
-    solicitudSnapshotRef.current = solicitudActual;
-    setEstadoSnapshot("cargando");
-    setErrorSnapshot("");
+    const solicitudActual = solicitudJugadoresRef.current + 1;
+    solicitudJugadoresRef.current = solicitudActual;
+    setEstadoJugadores("cargando");
 
     try {
       const { respuesta, payload } = await leerJson(
         `/api/openfield/snapshot?activityId=${encodeURIComponent(activityId)}`,
       );
 
-      if (!respuesta.ok || !payload?.ok) {
-        throw new Error(mensajeDeRespuesta(payload, "No se pudieron leer los participantes."));
-      }
+      if (!respuesta.ok || !payload?.ok) throw new Error("jugadores");
+      if (solicitudActual !== solicitudJugadoresRef.current) return;
 
-      if (solicitudActual !== solicitudSnapshotRef.current) return;
-
-      setSnapshot(payload);
-      setEstadoSnapshot("listo");
-    } catch (error) {
-      if (solicitudActual !== solicitudSnapshotRef.current) return;
-      setSnapshot(null);
-      setEstadoSnapshot("error");
-      setErrorSnapshot(error?.message || "No se pudieron leer los participantes de OpenField.");
+      setJugadoresPorBloque(payload);
+      setEstadoJugadores("listo");
+    } catch {
+      if (solicitudActual !== solicitudJugadoresRef.current) return;
+      setJugadoresPorBloque(null);
+      setEstadoJugadores("error");
     }
   };
 
   useEffect(() => {
     if (actividad?.id) {
-      cargarPeriodos(actividad.id);
+      cargarBloques(actividad.id);
     } else {
-      solicitudPeriodosRef.current += 1;
-      descartarSnapshot();
-      setPeriodos([]);
-      setEstadoPeriodos("idle");
-      setErrorPeriodos("");
+      solicitudBloquesRef.current += 1;
+      descartarJugadores();
+      setBloques([]);
+      setEstadoBloques("idle");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actividad?.id]);
 
-  const buscarSesiones = async () => {
-    setEstadoOpenField("cargando");
-    setErrorOpenField("");
-
-    try {
-      const { respuesta, payload } = await leerJson("/api/openfield/activities");
-
-      if (!respuesta.ok || !payload?.ok) {
-        throw new Error(mensajeDeRespuesta(payload, "No se pudo leer OpenField."));
-      }
-
-      setActividades(Array.isArray(payload.activities) ? payload.activities : []);
-      setEstadoOpenField("conectado");
-      setEligiendo(true);
-    } catch (error) {
-      setActividades([]);
-      setEstadoOpenField("error");
-      setErrorOpenField(error?.message || "No se pudo conectar con OpenField.");
-    }
-  };
-
-  const elegir = (item) => {
-    onSeleccionar({
-      id: item.id,
-      name: item.name,
-      start_time: item.start_time,
-      end_time: item.end_time,
-    });
-    setEligiendo(false);
-    setBusqueda("");
-  };
-
-  const buscando = estadoOpenField === "cargando";
-  const periodosListos = estadoPeriodos === "listo";
-  const snapshotListo = estadoSnapshot === "listo" && Boolean(snapshot);
+  const leyendoBloques = estadoBloques === "cargando";
+  const bloquesListos = estadoBloques === "listo";
+  const leyendoJugadores = estadoJugadores === "cargando";
+  const jugadoresListos = estadoJugadores === "listo" && Boolean(jugadoresPorBloque);
 
   return (
-    <main className="entrenamiento-app">
-      <header className="entrenamiento-barra">
-        <button type="button" className="entrenamiento-volver" onClick={onVolver}>
-          ← Módulos
+    <section className="tarjeta tarjeta-ficha">
+      <div className="cabeza-ficha">
+        <b>Bloques de la sesión</b>
+        <span className="cuenta-ajuste">{bloquesListos ? bloques.length : "–"}</span>
+        <button
+          type="button"
+          className="boton-texto"
+          onClick={() => cargarBloques(actividad?.id)}
+          disabled={leyendoBloques || !actividad?.id}
+        >
+          {leyendoBloques ? "Leyendo…" : "Actualizar"}
         </button>
-        <div>
-          <span>Entrenamiento</span>
-          <strong>Sesión</strong>
-        </div>
-      </header>
+      </div>
 
-      <section className="entrenamiento-contenido entrenamiento-sesion">
-        <section className="entrenamiento-panel">
-          <div className="entrenamiento-panel-titulo">
-            <span>01</span>
-            <div>
-              <h1>Sesión de OpenField</h1>
-              <p>La actividad de OpenField sobre la que vas a cargar las tareas.</p>
+      {leyendoBloques && <p className="vacio-ficha">Leyendo los bloques…</p>}
+
+      {estadoBloques === "error" && (
+        <p className="error-equipo">No se pudieron leer los bloques. Fijate la señal y tocá Actualizar.</p>
+      )}
+
+      {bloquesListos && bloques.length === 0 && (
+        <p className="vacio-ficha">Esta sesión todavía no tiene bloques.</p>
+      )}
+
+      {bloquesListos && bloques.length > 0 && (
+        <>
+          {bloques.map((bloque, indice) => (
+            <div className="dato-detalle" key={bloque.id ?? indice}>
+              <span>
+                {numeroDeBloque(indice)} · {bloque.name || "Sin nombre"}
+              </span>
+              <strong>
+                {horaCorta(bloque.start_ms ?? bloque.start_time) || "--:--"} →{" "}
+                {horaCorta(bloque.end_ms ?? bloque.end_time) || "--:--"}
+              </strong>
             </div>
-          </div>
+          ))}
 
-          {actividad ? (
-            <div className="entrenamiento-seleccion-confirmada">
-              <div>
-                <span>Sesión elegida</span>
-                <strong>{actividad.name || "Sin nombre"}</strong>
-                <small>{formatearFechaHoraActividad(actividad.start_time)}</small>
-              </div>
-              <a
-                href={`${OPENFIELD_EDITOR_BASE}/${actividad.id}`}
-                target="_blank"
-                rel="noreferrer"
+          <details className="ajustes-periodo">
+            <summary>Ver jugadores de cada bloque</summary>
+            <div className="contenido-ajustes-periodo">
+              <button
+                type="button"
+                className="boton-texto"
+                onClick={() => cargarJugadores(actividad?.id)}
+                disabled={leyendoJugadores}
               >
-                Abrir en OpenField ↗
-              </a>
-            </div>
-          ) : (
-            <div className="entrenamiento-vacio">
-              Todavía no elegiste la sesión. Buscala en OpenField y tocala en la lista.
-            </div>
-          )}
-
-          <div className="entrenamiento-sesion-acciones">
-            {actividad && (
-              <button type="button" className="entrenamiento-boton-principal" onClick={onIrATareas}>
-                Ir a Tareas
+                {leyendoJugadores ? "Leyendo…" : jugadoresListos ? "Volver a leer" : "Leer jugadores"}
               </button>
-            )}
-            <button
-              type="button"
-              className={actividad ? "entrenamiento-boton-secundario" : "entrenamiento-boton-principal"}
-              onClick={buscarSesiones}
-              disabled={buscando}
-            >
-              {buscando
-                ? "Buscando…"
-                : actividad
-                  ? "Cambiar de sesión"
-                  : "Buscar sesiones en OpenField"}
-            </button>
-          </div>
 
-          {estadoOpenField === "error" && (
-            <div className="entrenamiento-estado error">{errorOpenField}</div>
-          )}
-
-          {estadoOpenField === "conectado" && eligiendo && (
-            <div className="entrenamiento-sesion-lista">
-              <label>
-                Buscar sesión
-                <input
-                  type="search"
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  placeholder="Nombre o sede"
-                />
-              </label>
-
-              <div className="entrenamiento-actividad-resumen">
-                <span>
-                  {busqueda.trim()
-                    ? `${actividadesFiltradas.length} coincidencias`
-                    : `Las ${Math.min(20, actividades.length)} más recientes`}
-                </span>
-                <span>{actividades.length} en total</span>
-              </div>
-
-              {actividadesFiltradas.length === 0 ? (
-                <div className="entrenamiento-vacio">No hay sesiones con ese nombre.</div>
-              ) : (
-                <div className="entrenamiento-lista-actividades">
-                  {actividadesFiltradas.map((item) => {
-                    const seleccionada = item.id === actividad?.id;
-                    const duracion =
-                      Number(item.end_time) > Number(item.start_time)
-                        ? Number(item.end_time) - Number(item.start_time)
-                        : 0;
-
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={`entrenamiento-actividad ${seleccionada ? "seleccionada" : ""}`}
-                        onClick={() => elegir(item)}
-                        aria-pressed={seleccionada}
-                      >
-                        <div>
-                          <strong>{item.name || "Sin nombre"}</strong>
-                          <span>{formatearFechaHoraActividad(item.start_time)}</span>
-                        </div>
-                        <div className="entrenamiento-actividad-datos">
-                          <span>{item.period_count ?? 0} períodos</span>
-                          <span>{segundosATiempo(duracion)}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        {actividad && (
-          <section className="entrenamiento-panel">
-            <div className="entrenamiento-panel-titulo">
-              <span>02</span>
-              <div>
-                <h2>Períodos en OpenField</h2>
-                <p>Lo que hoy tiene la sesión en OpenField, incluidos los cortes que mande la app.</p>
-              </div>
-            </div>
-
-            <div className="entrenamiento-periodos-bloque">
-              <div className="entrenamiento-periodos-cabecera">
-                <div>
-                  <span>Períodos</span>
-                  <strong>
-                    {estadoPeriodos === "cargando"
-                      ? "Leyendo OpenField…"
-                      : periodosListos
-                        ? `${periodos.length} períodos`
-                        : estadoPeriodos === "error"
-                          ? "No se pudieron leer"
-                          : "Pendiente"}
-                  </strong>
-                </div>
-                <button
-                  type="button"
-                  className="entrenamiento-boton-secundario"
-                  onClick={() => cargarPeriodos(actividad.id)}
-                  disabled={estadoPeriodos === "cargando"}
-                >
-                  {estadoPeriodos === "cargando" ? "Leyendo…" : "Actualizar"}
-                </button>
-              </div>
-
-              {estadoPeriodos === "error" && (
-                <div className="entrenamiento-estado error">{errorPeriodos}</div>
+              {estadoJugadores === "error" && (
+                <p className="error-equipo">No se pudieron leer los jugadores.</p>
               )}
 
-              {periodosListos && periodos.length === 0 && (
-                <div className="entrenamiento-vacio">Esta sesión no tiene períodos en OpenField.</div>
-              )}
-
-              {periodosListos && periodos.length > 0 && (
-                <>
-                  <div className="entrenamiento-participantes-barra">
-                    <span>
-                      {estadoSnapshot === "cargando"
-                        ? "Leyendo los jugadores de cada período…"
-                        : snapshotListo
-                          ? "Jugadores de cada período leídos."
-                          : estadoSnapshot === "error"
-                            ? errorSnapshot
-                            : "Los jugadores de cada período se leen aparte."}
-                    </span>
-                    <button
-                      type="button"
-                      className="entrenamiento-boton-secundario"
-                      onClick={() => cargarParticipantes(actividad.id)}
-                      disabled={estadoSnapshot === "cargando"}
-                    >
-                      {estadoSnapshot === "cargando"
-                        ? "Leyendo…"
-                        : snapshotListo
-                          ? "Releer jugadores"
-                          : "Ver jugadores"}
-                    </button>
+              {jugadoresListos &&
+                bloques.map((bloque, indice) => (
+                  <div key={`jugadores-${bloque.id ?? indice}`}>
+                    <b>{bloque.name || "Sin nombre"}</b>
+                    <p className="pista-equipo">{textoDeJugadores(detallePorBloque.get(bloque.id))}</p>
                   </div>
-
-                  <div className="entrenamiento-lista-periodos">
-                    {periodos.map((periodo, indice) => {
-                      const detalle = participantesPorPeriodo.get(periodo.id);
-                      const atletas = Array.isArray(detalle?.athletes)
-                        ? [...detalle.athletes].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
-                        : null;
-
-                      return (
-                        <article className="entrenamiento-periodo" key={periodo.id}>
-                          <div className="entrenamiento-periodo-identidad">
-                            <span>{String(indice + 1).padStart(2, "0")}</span>
-                            <div>
-                              <strong>{periodo.name || "Sin nombre"}</strong>
-                            </div>
-                          </div>
-                          <div className="entrenamiento-periodo-horarios">
-                            <div>
-                              <span>Inicio</span>
-                              <strong>{formatearHoraPeriodo(periodo.start_ms ?? periodo.start_time)}</strong>
-                            </div>
-                            <div>
-                              <span>Fin</span>
-                              <strong>{formatearHoraPeriodo(periodo.end_ms ?? periodo.end_time)}</strong>
-                            </div>
-                            <div>
-                              <span>Duración</span>
-                              <strong>{segundosATiempo(periodo.duration_seconds)}</strong>
-                            </div>
-                          </div>
-                          {detalle && (
-                            <details className="entrenamiento-periodo-participantes">
-                              <summary>
-                                {atletas ? `${atletas.length} jugadores` : "Jugadores sin leer"}
-                              </summary>
-                              {atletas && atletas.length > 0 && (
-                                <ul>
-                                  {atletas.map((atleta) => (
-                                    <li key={atleta.id}>
-                                      {atleta.jersey != null ? `${atleta.jersey} · ` : ""}
-                                      {atleta.nombre}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </details>
-                          )}
-                        </article>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+                ))}
             </div>
-          </section>
-        )}
-      </section>
-    </main>
+          </details>
+        </>
+      )}
+    </section>
   );
 }

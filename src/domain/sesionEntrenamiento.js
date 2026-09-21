@@ -203,10 +203,10 @@ export const problemasDeTarea = (tarea, plantel = [], { atletasActividad = null,
   // 16:39:01, el rango pasó de 16:19:32 a 16:39:01). Si los datos llegan más
   // lejos que el último período, se extiende desde el editor.
   if (valida && ventana) {
-    if (inicioMs < ventana.inicioMs) problemas.push(`Empieza antes de los datos de la sesión (${msAHora(ventana.inicioMs)}).`);
+    if (inicioMs < ventana.inicioMs) problemas.push(`Empieza antes de los datos de la sesión (${msAHora(ventana.inicioMs).slice(0, 5)}).`);
     if (finMs > ventana.finMs) {
       problemas.push(
-        `Termina después de los datos de la sesión (${msAHora(ventana.finMs)}). Si las curvas llegan más lejos, creá en el editor de OpenField un período hasta el final real y volvé a abrir Tareas.`,
+        `Termina después de los datos de la sesión (${msAHora(ventana.finMs).slice(0, 5)}). Si los datos llegan más lejos, creá en el editor de la nube un bloque hasta el final real y volvé a abrir Tareas.`,
       );
     }
   }
@@ -221,13 +221,13 @@ export const problemasDeTarea = (tarea, plantel = [], { atletasActividad = null,
 
   const porId = new Map(plantel.map((jugador) => [String(jugador.id), jugador]));
   const entradas = Object.entries(tarea.participantes);
-  if (entradas.length === 0) problemas.push("No hay participantes.");
+  if (entradas.length === 0) problemas.push("Elegí al menos un jugador.");
 
   entradas.forEach(([jugadorId, datos]) => {
     const jugador = porId.get(String(jugadorId));
     const nombre = jugador?.nombre || `jugador ${jugadorId}`;
     if (!jugador) problemas.push(`${nombre} ya no está en la lista.`);
-    else if (!jugador.catapult_id) problemas.push(`${nombre} no está vinculado con Catapult.`);
+    else if (!jugador.catapult_id) problemas.push(`${nombre} no tiene chaleco. Asignalo en Ajustes › Lista de jugadores.`);
     else if (!conDatos(jugador)) problemas.push(`${nombre} no tiene datos en esta sesión.`);
 
     if (datos.modo === MODO_PARCIAL) {

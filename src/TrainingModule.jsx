@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { MarcoAplicacion } from "./components/AppChrome";
-import TrainingApp from "./TrainingApp";
+import TrainingInicio from "./TrainingInicio";
+import TrainingElegirSesion from "./TrainingElegirSesion";
 import TrainingSettings from "./TrainingSettings";
 import TrainingTareas from "./TrainingTareas";
 import {
@@ -8,8 +9,6 @@ import {
   leerActividadElegida,
   normalizarActividad,
 } from "./domain/sesionEntrenamiento.js";
-import "./training-marco.css";
-import "./training-settings.css";
 
 export const DESTINOS_ENTRENAMIENTO = [
   { id: "sesion", etiqueta: "Sesión", icono: "partido" },
@@ -17,12 +16,58 @@ export const DESTINOS_ENTRENAMIENTO = [
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
 
+export const CLAVE_VISTA = "entrenamiento_vista";
+
+const VISTAS = ["sesion", "elegir-sesion", "tareas", "ajustes"];
+const VISTAS_AJUSTES = ["inicio", "cuenta", "jugadores", "pruebas"];
+
+// La pantalla en la que quedó el módulo, para volver ahí al reabrir la app.
+// "elegir-sesion" es una pantalla de paso: al releer cae a "sesion".
+export const leerVistaGuardada = () => {
+  try {
+    const guardada = JSON.parse(localStorage.getItem(CLAVE_VISTA) || "null") || {};
+    const vista = VISTAS.includes(guardada.vista) && guardada.vista !== "elegir-sesion" ? guardada.vista : "sesion";
+    const vistaAjustes = VISTAS_AJUSTES.includes(guardada.vistaAjustes) ? guardada.vistaAjustes : "inicio";
+    return { vista, vistaAjustes };
+  } catch {
+    return { vista: "sesion", vistaAjustes: "inicio" };
+  }
+};
+
+const guardarVista = (vista, vistaAjustes) => {
+  try {
+    localStorage.setItem(CLAVE_VISTA, JSON.stringify({ vista, vistaAjustes }));
+  } catch {
+    // Sin espacio o sin localStorage: la app sigue, solo no recuerda la pantalla.
+  }
+};
+
 // Entrenamiento con el mismo marco que Partido: barra lateral en escritorio y
-// barra inferior en el celular. Sesión elige la actividad de OpenField, Tareas
-// registra los cortes sobre ella y Ajustes guarda la cuenta y los jugadores.
-export default function TrainingModule({ onVolver }) {
-  const [vista, setVista] = useState("sesion");
+// barra inferior en el celular. Sesión elige la sesión de trabajo, Tareas
+// registra las tareas sobre ella y Ajustes guarda el usuario y los jugadores.
+export default function TrainingModule({ onVolver, email = "", onCerrarSesion }) {
+  const [vistaInicial] = useState(leerVistaGuardada);
+  const [vista, setVista] = useState(vistaInicial.vista);
+  const [vistaAjustes, setVistaAjustesEstado] = useState(vistaInicial.vistaAjustes);
   const [actividad, setActividad] = useState(leerActividadElegida);
+
+  const irA = (nueva) => {
+    setVista(nueva);
+    guardarVista(nueva, vistaAjustes);
+  };
+
+  const setVistaAjustes = (nueva) => {
+    const limpia = VISTAS_AJUSTES.includes(nueva) ? nueva : "inicio";
+    setVistaAjustesEstado(limpia);
+    guardarVista(vista, limpia);
+  };
+
+  // Tocar un destino de la barra siempre vuelve a la raíz de Ajustes.
+  const onNavigate = (id) => {
+    setVistaAjustesEstado("inicio");
+    setVista(id);
+    guardarVista(id, "inicio");
+  };
 
   const elegirActividad = (nueva) => {
     const limpia = normalizarActividad(nueva);
@@ -32,21 +77,41 @@ export default function TrainingModule({ onVolver }) {
 
   const pantallas = {
     sesion: (
-      <TrainingApp
+      <TrainingInicio
         actividad={actividad}
-        onSeleccionar={elegirActividad}
-        onIrATareas={() => setVista("tareas")}
-        onVolver={onVolver}
+        onElegirSesion={() => irA("elegir-sesion")}
+        onIrATareas={() => irA("tareas")}
       />
     ),
-    tareas: <TrainingTareas actividad={actividad} onIrASesion={() => setVista("sesion")} />,
-    ajustes: <TrainingSettings onVolverModulos={onVolver} />,
+    "elegir-sesion": (
+      <TrainingElegirSesion
+        actividad={actividad}
+        onSeleccionar={(nueva) => {
+          elegirActividad(nueva);
+          irA("sesion");
+        }}
+        onVolver={() => irA("sesion")}
+      />
+    ),
+    tareas: <TrainingTareas actividad={actividad} onIrASesion={() => irA("sesion")} />,
+    ajustes: (
+      <TrainingSettings
+        vista={vistaAjustes}
+        onCambiarVista={setVistaAjustes}
+        onVolverModulos={onVolver}
+        email={email}
+        onCerrarSesion={onCerrarSesion}
+      />
+    ),
   };
+
+  // En la barra, "Elegir sesión" cuenta como Sesión.
+  const activo = vista === "elegir-sesion" ? "sesion" : vista;
 
   return (
     <MarcoAplicacion
-      activo={vista}
-      onNavigate={setVista}
+      activo={activo}
+      onNavigate={onNavigate}
       destinos={DESTINOS_ENTRENAMIENTO}
       marca="Entrenamiento"
       className="entrenamiento-marco"

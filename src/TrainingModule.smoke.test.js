@@ -1,8 +1,8 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import TrainingModule from "./TrainingModule";
-import { CLAVE_ACTIVIDAD, leerActividadElegida } from "./domain/sesionEntrenamiento.js";
+import TrainingModule, { CLAVE_VISTA } from "./TrainingModule";
+import { CLAVE_ACTIVIDAD, CLAVE_SESION, leerActividadElegida } from "./domain/sesionEntrenamiento.js";
 
 vi.mock("./TrainingSettings", () => ({ default: () => <div>Ajustes de prueba</div> }));
 
@@ -29,6 +29,8 @@ const ACTIVIDAD = {
   venue: "",
 };
 
+const ACTIVIDAD_GUARDADA = { id: ACTIVIDAD.id, name: "26-05 T", start_time: 1779800400, end_time: 1779807600 };
+
 const fetchDeLectura = () =>
   vi.fn(async (url) => {
     if (url === "/api/openfield/activities") return respuesta(200, { ok: true, activities: [ACTIVIDAD] });
@@ -37,6 +39,17 @@ const fetchDeLectura = () =>
     }
     return respuesta(500, { ok: false, error: "sin ruta" });
   });
+
+const tarea = (id, nombre) => ({
+  id,
+  nombre,
+  fecha: "2026-05-26",
+  inicio: "10:10:00",
+  fin: "10:25:00",
+  pausas: [],
+  participantes: {},
+  envio: null,
+});
 
 describe("TrainingModule", () => {
   let contenedor;
@@ -58,7 +71,7 @@ describe("TrainingModule", () => {
   const montar = async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<TrainingModule onVolver={() => {}} />);
+      raiz.render(<TrainingModule onVolver={() => {}} email="x@y.z" onCerrarSesion={() => {}} />);
     });
     await act(async () => Promise.resolve());
   };
@@ -67,6 +80,7 @@ describe("TrainingModule", () => {
     [...contenedor.querySelectorAll(".navegacion-movil button")].find((boton) => boton.textContent.trim() === texto);
   const botonPorTexto = (texto) =>
     [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim() === texto);
+  const tituloActual = () => contenedor.querySelector("h1")?.textContent.trim();
 
   test("usa el marco de Partido con Sesión, Tareas y Ajustes", async () => {
     vi.stubGlobal("fetch", fetchDeLectura());
@@ -79,15 +93,17 @@ describe("TrainingModule", () => {
     ]);
     expect(contenedor.querySelector(".marca-aplicacion strong").textContent).toBe("Entrenamiento");
     expect(contenedor.querySelector(".marco-aplicacion").classList.contains("entrenamiento-marco")).toBe(true);
-    expect(contenedor.textContent).toContain("Sesión de OpenField");
+    expect(contenedor.textContent).toContain("SIN SESIÓN");
     expect(contenedor.textContent).toContain("Todavía no elegiste la sesión");
+    expect(contenedor.textContent).not.toContain("←");
 
     await act(async () => botonMovil("Tareas").click());
     expect(contenedor.textContent).toContain("Primero elegí la sesión");
     expect(botonMovil("Tareas").classList.contains("activo")).toBe(true);
 
     await act(async () => botonPorTexto("Ir a Sesión").click());
-    expect(contenedor.textContent).toContain("Sesión de OpenField");
+    expect(contenedor.textContent).toContain("SIN SESIÓN");
+    expect(botonMovil("Sesión").classList.contains("activo")).toBe(true);
 
     await act(async () => botonMovil("Ajustes").click());
     expect(contenedor.textContent).toContain("Ajustes de prueba");
@@ -98,27 +114,120 @@ describe("TrainingModule", () => {
     vi.stubGlobal("fetch", fetchMock);
     await montar();
 
-    await act(async () => botonPorTexto("Buscar sesiones en OpenField").click());
-    expect(contenedor.textContent).toContain("1 en total");
+    await act(async () => botonPorTexto("Elegir la sesión").click());
+    expect(fetchMock).toHaveBeenCalledWith("/api/openfield/activities", expect.anything());
+    expect(tituloActual()).toBe("Elegir sesión");
+    expect(botonMovil("Sesión").classList.contains("activo")).toBe(true);
+    expect(contenedor.querySelector(".cuenta-ajuste").textContent).toBe("1");
+    expect(contenedor.querySelector(".boton-volver").textContent.trim()).toBe("Volver a Sesión");
 
     await act(async () => contenedor.querySelector(".entrenamiento-actividad").click());
-    expect(leerActividadElegida()).toEqual({ id: ACTIVIDAD.id, name: "26-05 T", start_time: 1779800400, end_time: 1779807600 });
-    expect(contenedor.textContent).toContain("Sesión elegida");
+    expect(leerActividadElegida()).toEqual(ACTIVIDAD_GUARDADA);
+    expect(contenedor.textContent).toContain("SESIÓN ELEGIDA");
+    expect(contenedor.textContent).toContain("26-05 T");
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/openfield/periods?activityId="))).toBe(true);
+    expect(contenedor.textContent).toContain("Bloques de la sesión");
     expect(contenedor.textContent).toContain("WARM UP");
+    expect(contenedor.querySelector(".tarjeta-en-curso")).toBeNull();
 
-    await act(async () => botonPorTexto("Ir a Tareas").click());
-    expect(contenedor.querySelector(".tareas-sesion-chip").textContent).toBe("26-05 T");
+    await act(async () => botonPorTexto("Registrar tareas").click());
+    expect(tituloActual()).toBe("Tareas");
+    expect(botonMovil("Tareas").classList.contains("activo")).toBe(true);
     expect(botonPorTexto("+ Nueva tarea")).toBeDefined();
   });
 
-  test("al abrir con una sesión guardada arranca sobre ella", async () => {
-    window.localStorage.setItem(CLAVE_ACTIVIDAD, JSON.stringify({ id: ACTIVIDAD.id, name: "26-05 T", start_time: 1779800400, end_time: 1779807600 }));
+  test("desde Elegir sesión se vuelve a Sesión sin elegir nada", async () => {
     vi.stubGlobal("fetch", fetchDeLectura());
     await montar();
 
-    expect(contenedor.textContent).toContain("Sesión elegida");
+    await act(async () => botonPorTexto("Elegir la sesión").click());
+    expect(tituloActual()).toBe("Elegir sesión");
+
+    await act(async () => botonPorTexto("Volver a Sesión").click());
+    expect(contenedor.textContent).toContain("SIN SESIÓN");
+    expect(leerActividadElegida()).toBeNull();
+  });
+
+  test("si no se pueden leer las sesiones avisa y deja reintentar", async () => {
+    const fetchMock = vi.fn(async () => respuesta(500, { ok: false, error: "sin ruta" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await montar();
+
+    await act(async () => botonPorTexto("Elegir la sesión").click());
+    expect(contenedor.textContent).toContain("No se pudieron cargar las sesiones");
+    expect(contenedor.textContent).not.toContain("sin ruta");
+
+    fetchMock.mockImplementation(fetchDeLectura());
+    await act(async () => botonPorTexto("Reintentar").click());
+    expect(contenedor.querySelector(".entrenamiento-actividad")).not.toBeNull();
+  });
+
+  test("al abrir con una sesión guardada arranca sobre ella", async () => {
+    window.localStorage.setItem(CLAVE_ACTIVIDAD, JSON.stringify(ACTIVIDAD_GUARDADA));
+    vi.stubGlobal("fetch", fetchDeLectura());
+    await montar();
+
+    expect(contenedor.textContent).toContain("SESIÓN ELEGIDA");
     expect(contenedor.textContent).toContain("26-05 T");
     expect(botonPorTexto("Cambiar de sesión")).toBeDefined();
+    expect(botonPorTexto("Registrar tareas")).toBeDefined();
+    expect(contenedor.textContent).toContain("WARM UP");
+  });
+
+  test("con tareas registradas muestra la tarjeta que lleva a Tareas", async () => {
+    window.localStorage.setItem(CLAVE_ACTIVIDAD, JSON.stringify(ACTIVIDAD_GUARDADA));
+    window.localStorage.setItem(
+      `${CLAVE_SESION}:${ACTIVIDAD.id}`,
+      JSON.stringify({
+        activityId: ACTIVIDAD.id,
+        activityName: "26-05 T",
+        tareas: [tarea("t1", "Rondo"), tarea("t2", "Posesión")],
+        asignaciones: {},
+        ultimoEnvio: null,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchDeLectura());
+    await montar();
+
+    const tarjeta = contenedor.querySelector(".tarjeta-en-curso");
+    expect(tarjeta).not.toBeNull();
+    expect(tarjeta.textContent).toContain("SIN ENVIAR");
+    expect(tarjeta.textContent).toContain("26/05");
+    expect(tarjeta.querySelector(".pastilla-vivo").classList.contains("sin-empezar")).toBe(true);
+    expect(contenedor.querySelector(".estado-hero").textContent).toContain("SIN ENVIAR");
+    expect(botonPorTexto("Ver las tareas")).toBeDefined();
+
+    await act(async () => tarjeta.click());
+    expect(tituloActual()).toBe("Tareas");
+    expect(botonMovil("Tareas").classList.contains("activo")).toBe(true);
+  });
+
+  test("con una tarea en curso lo marca en el inicio", async () => {
+    window.localStorage.setItem(CLAVE_ACTIVIDAD, JSON.stringify(ACTIVIDAD_GUARDADA));
+    window.localStorage.setItem(
+      `${CLAVE_SESION}:${ACTIVIDAD.id}`,
+      JSON.stringify({
+        activityId: ACTIVIDAD.id,
+        activityName: "26-05 T",
+        tareas: [{ ...tarea("t1", "Rondo"), fin: "" }],
+        asignaciones: {},
+        ultimoEnvio: null,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchDeLectura());
+    await montar();
+
+    expect(contenedor.querySelector(".estado-hero").classList.contains("en-curso")).toBe(true);
+    expect(contenedor.querySelector(".estado-hero").textContent).toContain("EN CURSO");
+    expect(contenedor.querySelector(".pastilla-vivo").classList.contains("sin-empezar")).toBe(false);
+  });
+
+  test("al reabrir vuelve a la pantalla guardada", async () => {
+    window.localStorage.setItem(CLAVE_VISTA, JSON.stringify({ vista: "tareas" }));
+    vi.stubGlobal("fetch", fetchDeLectura());
+    await montar();
+
+    expect(contenedor.textContent).toContain("Primero elegí la sesión");
+    expect(botonMovil("Tareas").classList.contains("activo")).toBe(true);
   });
 });

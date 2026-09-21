@@ -6,16 +6,17 @@ de lo hecho está en los commits, no en esta lista.
 
 ## Entrenamiento (OpenField)
 
-### Para mañana: la interfaz (pedido el 21/09)
+### Interfaz (hecha el 21/09; queda lo fino)
 
-- **Estilizar mucho la interfaz** de Entrenamiento y hacerla más simple y más
-  cómoda de usar, en la línea de Partido.
-- **Cambiar el inicio de la pantalla**: lo primero que se ve al entrar a
-  Entrenamiento.
-- **Rehacer la interfaz de Ajustes**: opciones como en Partido (Usuario y
-  contraseña, Lista de jugadores) y las pruebas técnicas fuera de la vista.
-- **Reescribir las explicaciones** para que cualquiera entienda la app sin
-  conocer OpenField ni la cocina.
+- Entrenamiento ya tiene la cara de Partido: inicio con la sesión elegida,
+  Tareas con tarjetas plegables y una pantalla aparte para enviar, Ajustes con
+  opciones (Usuario y contraseña, Lista de jugadores, Pruebas técnicas,
+  Cambiar de módulo, Cerrar sesión) y textos sin jerga ("chaleco", "bloque").
+- **Pendiente de mirar en un celular real**: la altura de los campos de hora
+  con AM/PM (en la prueba de escritorio se ven apretados), y el aviso de
+  "sin señal" en la cancha.
+- **Pruebas técnicas** conserva los textos técnicos a propósito: son para
+  mandar por chat cuando algo falla.
 
 ### Qué falta probar (sobre 26-05 T, desde el celular)
 

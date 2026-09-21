@@ -1,4 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { Icono } from "./components/AppChrome";
+import { BotonVolver } from "./components/BotonVolver.jsx";
+import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { mensajeDeRespuesta, pedirJson } from "./trainingApi.js";
 
 const formatearFecha = (iso) => {
@@ -14,19 +17,37 @@ const formatearFecha = (iso) => {
   }).format(fecha);
 };
 
-// Cuenta de Catapult OpenField del usuario: se conecta una vez y queda
-// guardada cifrada. Desde acá solo se ve, se conecta o se desconecta.
-export default function TrainingCuenta({ onCambio }) {
-  const [estado, setEstado] = useState("cargando");
-  const [cuenta, setCuenta] = useState(null);
+const estadoDeCuenta = (cuenta) => (cuenta?.configurada ? "conectada" : "sin-cuenta");
+
+// El usuario con el que la app entra al sistema de los chalecos. Se carga una
+// vez y queda guardado; desde acá se ve, se conecta o se desconecta. Si
+// Ajustes ya leyó la cuenta la recibe en `cuentaInicial` y no la vuelve a pedir.
+export default function TrainingCuenta({ cuentaInicial, onCambio, onVolver }) {
+  const [estado, setEstado] = useState(cuentaInicial ? estadoDeCuenta(cuentaInicial) : "cargando");
+  const [cuenta, setCuenta] = useState(cuentaInicial || null);
   const [error, setError] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [mensaje, setMensaje] = useState("");
+  const [aviso, setAviso] = useState("");
+  const [confirmarDesconexion, setConfirmarDesconexion] = useState(false);
+  const temporizadorAviso = useRef(null);
+
+  const avisar = (texto) => {
+    setAviso(texto);
+    if (temporizadorAviso.current) window.clearTimeout(temporizadorAviso.current);
+    temporizadorAviso.current = window.setTimeout(() => setAviso(""), 2600);
+  };
+
+  useEffect(
+    () => () => {
+      if (temporizadorAviso.current) window.clearTimeout(temporizadorAviso.current);
+    },
+    [],
+  );
 
   const aplicar = (nuevaCuenta) => {
     setCuenta(nuevaCuenta);
-    setEstado(nuevaCuenta?.configurada ? "conectada" : "sin-cuenta");
+    setEstado(estadoDeCuenta(nuevaCuenta));
     if (typeof onCambio === "function") onCambio(nuevaCuenta);
   };
 
@@ -37,17 +58,17 @@ export default function TrainingCuenta({ onCambio }) {
     try {
       const { respuesta, payload } = await pedirJson("/api/openfield/cuenta");
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(mensajeDeRespuesta(payload, "No se pudo comprobar tu cuenta de Catapult."));
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo comprobar tu cuenta."));
       }
       aplicar(payload.cuenta);
     } catch (errorCarga) {
       setEstado("error");
-      setError(errorCarga?.message || "No se pudo comprobar tu cuenta de Catapult.");
+      setError(errorCarga?.message || "No se pudo comprobar tu cuenta.");
     }
   };
 
   useEffect(() => {
-    cargar();
+    if (!cuentaInicial) cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -56,13 +77,12 @@ export default function TrainingCuenta({ onCambio }) {
 
     const usuarioLimpio = username.trim();
     if (!usuarioLimpio || !password) {
-      setError("Completá tu usuario y contraseña de Catapult.");
+      setError("Completá tu usuario y contraseña.");
       return;
     }
 
     setEstado("guardando");
     setError("");
-    setMensaje("");
 
     try {
       const { respuesta, payload } = await pedirJson("/api/openfield/cuenta", {
@@ -72,144 +92,161 @@ export default function TrainingCuenta({ onCambio }) {
       setPassword("");
 
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(mensajeDeRespuesta(payload, "No se pudo conectar la cuenta de Catapult."));
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo conectar. Probá de nuevo."));
       }
 
-      setMensaje(payload.message || "Cuenta conectada.");
+      avisar(payload.message || "Cuenta conectada.");
       setUsername("");
       aplicar(payload.cuenta);
     } catch (errorConexion) {
       setPassword("");
       setEstado("sin-cuenta");
-      setError(errorConexion?.message || "No se pudo conectar la cuenta de Catapult.");
+      setError(errorConexion?.message || "No se pudo conectar. Probá de nuevo.");
     }
   };
 
   const desconectar = async () => {
-    if (typeof window !== "undefined" && !window.confirm("¿Desconectar tu cuenta de Catapult de la app?")) {
-      return;
-    }
-
+    setConfirmarDesconexion(false);
     setEstado("borrando");
     setError("");
-    setMensaje("");
 
     try {
       const { respuesta, payload } = await pedirJson("/api/openfield/cuenta", { method: "DELETE" });
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(mensajeDeRespuesta(payload, "No se pudo desconectar la cuenta."));
+        throw new Error(mensajeDeRespuesta(payload, "No se pudo desconectar."));
       }
-      setMensaje("Cuenta desconectada. Podés volver a conectarla cuando quieras.");
+      avisar("Cuenta desconectada.");
       aplicar({ configurada: false });
     } catch (errorBorrado) {
       setEstado("conectada");
-      setError(errorBorrado?.message || "No se pudo desconectar la cuenta.");
+      setError(errorBorrado?.message || "No se pudo desconectar.");
     }
   };
 
-  if (estado === "cargando") {
-    return (
-      <div className="entrenamiento-ajustes-resultado" aria-live="polite">
-        <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
-        <div>
-          <strong>Comprobando tu cuenta…</strong>
-          <span>Un momento.</span>
-        </div>
-      </div>
-    );
-  }
+  const renderContenido = () => {
+    if (estado === "cargando") {
+      return <p className="vacio-ficha">Comprobando tu cuenta…</p>;
+    }
 
-  if (estado === "error") {
-    return (
-      <>
-        <div className="entrenamiento-ajustes-resultado error" aria-live="polite">
-          <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
-          <div>
-            <strong>No se pudo comprobar tu cuenta</strong>
-            <span>{error}</span>
+    if (estado === "error") {
+      return (
+        <>
+          <p className="error-equipo">
+            <b>No se pudo comprobar tu cuenta.</b>
+            {error && error !== "No se pudo comprobar tu cuenta." ? ` ${error}` : ""}
+          </p>
+          <button type="button" className="boton-texto" onClick={cargar}>
+            Reintentar
+          </button>
+        </>
+      );
+    }
+
+    if (estado === "conectada" || estado === "borrando") {
+      return (
+        <>
+          <div className="equipo-propio">
+            <Icono nombre="usuario" size={22} />
+            <strong>{cuenta?.usuario}</strong>
           </div>
-        </div>
-        <button type="button" className="entrenamiento-boton-secundario entrenamiento-ajustes-boton-ancho" onClick={cargar}>
-          Reintentar
-        </button>
-      </>
-    );
-  }
+          <p className="pista-equipo">
+            {cuenta?.verificado_en
+              ? `Comprobada el ${formatearFecha(cuenta.verificado_en)}. La app entra sola cuando hace falta.`
+              : "Cuenta guardada. La app entra sola cuando hace falta."}
+          </p>
+          {error && <p className="error-equipo">{error}</p>}
+          <button
+            type="button"
+            className="boton-principal"
+            onClick={() => setConfirmarDesconexion(true)}
+            disabled={estado === "borrando"}
+          >
+            {estado === "borrando" ? "Desconectando…" : "Desconectar"}
+          </button>
+        </>
+      );
+    }
 
-  if (estado === "conectada" || estado === "borrando") {
     return (
-      <>
-        <div className="entrenamiento-ajustes-resultado correcto" aria-live="polite">
-          <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
-          <div>
-            <strong>Conectado como {cuenta?.usuario}</strong>
-            <span>
-              {cuenta?.verificado_en
-                ? `Acceso comprobado el ${formatearFecha(cuenta.verificado_en)}.`
-                : "Cuenta guardada."}{" "}
-              La app entra sola cuando hace falta.
-            </span>
-          </div>
-        </div>
-
-        {mensaje && <div className="entrenamiento-estado correcto">{mensaje}</div>}
-        {error && <div className="entrenamiento-estado error">{error}</div>}
-
-        <button
-          type="button"
-          className="entrenamiento-boton-secundario entrenamiento-ajustes-boton-ancho"
-          onClick={desconectar}
-          disabled={estado === "borrando"}
-        >
-          {estado === "borrando" ? "Desconectando…" : "Desconectar cuenta"}
-        </button>
-      </>
-    );
-  }
-
-  return (
-    <>
-      {mensaje && <div className="entrenamiento-estado correcto">{mensaje}</div>}
-
       <form onSubmit={conectar}>
-        <label>
-          Usuario de Catapult
-          <input
-            type="text"
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            placeholder="El que usás para entrar a OpenField"
-            disabled={estado === "guardando"}
-          />
+        <label className="etiqueta-equipo" htmlFor="cuenta-usuario">
+          Usuario
         </label>
+        <input
+          id="cuenta-usuario"
+          type="text"
+          autoComplete="username"
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+          placeholder="El que usás para entrar al sistema de los chalecos"
+          disabled={estado === "guardando"}
+        />
 
-        <label>
-          Contraseña de Catapult
+        <label className="etiqueta-equipo" htmlFor="cuenta-contrasena">
+          Contraseña
+        </label>
+        <div className="campo-con-escudo">
+          <span className="campo-icono">
+            <Icono nombre="candado" size={18} />
+          </span>
           <input
+            id="cuenta-contrasena"
             type="password"
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="Contraseña de OpenField"
+            placeholder="Tu contraseña"
             disabled={estado === "guardando"}
           />
-        </label>
+        </div>
 
-        {error && <div className="entrenamiento-estado error">{error}</div>}
+        <p className="pista-equipo">Se guarda una sola vez. Después la app entra sola.</p>
+        {error && <p className="error-equipo">{error}</p>}
 
-        <button type="submit" className="entrenamiento-boton-principal" disabled={estado === "guardando"}>
-          {estado === "guardando" ? "Comprobando con Catapult…" : "Conectar mi cuenta de Catapult"}
+        <button type="submit" className="boton-principal" disabled={estado === "guardando"}>
+          {estado === "guardando" ? "Comprobando…" : "Conectar"}
         </button>
       </form>
+    );
+  };
 
-      <div className="entrenamiento-ajustes-seguridad">
-        <strong>Una sola vez</strong>
-        <span>
-          La app comprueba que Catapult acepte la cuenta y la guarda cifrada. No hace falta volver a
-          cargarla, y podés desconectarla cuando quieras.
-        </span>
+  return (
+    <div className="app">
+      <div className="contenedor">
+        <header className="encabezado">
+          <h1>Usuario y contraseña</h1>
+          <p>Ajustes · Usuario y contraseña</p>
+        </header>
+
+        {aviso && (
+          <div className="notificacion-guardado" role="status">
+            <Icono nombre="check" size={18} /> {aviso}
+          </div>
+        )}
+
+        <section className="tarjeta tarjeta-ficha">
+          <div className="cabeza-ficha">
+            <b>Tu cuenta</b>
+          </div>
+          {renderContenido()}
+        </section>
+
+        {onVolver && (
+          <div className="acciones-dobles">
+            <BotonVolver onClick={onVolver}>Volver a Ajustes</BotonVolver>
+          </div>
+        )}
+
+        <HojaConfirmar
+          abierta={confirmarDesconexion}
+          titulo="¿Desconectar tu usuario?"
+          descripcion="Vas a tener que cargarlo de nuevo para enviar tareas."
+          icono="usuario"
+          etiquetaConfirmar="Sí, desconectar"
+          onConfirmar={desconectar}
+          onCancelar={() => setConfirmarDesconexion(false)}
+        />
       </div>
-    </>
+    </div>
   );
 }

@@ -32,10 +32,10 @@ describe("TrainingCuenta", () => {
     vi.unstubAllGlobals();
   });
 
-  const montar = async (onCambio = () => {}) => {
+  const montar = async (onCambio = () => {}, props = {}) => {
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<TrainingCuenta onCambio={onCambio} />);
+      raiz.render(<TrainingCuenta onCambio={onCambio} {...props} />);
     });
     await act(async () => Promise.resolve());
   };
@@ -57,7 +57,7 @@ describe("TrainingCuenta", () => {
         return respuesta(200, {
           ok: true,
           cuenta: { configurada: true, usuario: "santi", verificado_en: "2026-09-20T12:00:00Z" },
-          message: "Cuenta de Catapult conectada como santi.",
+          message: "Cuenta conectada.",
         });
       }
       return respuesta(200, { ok: true, cuenta: { configurada: false } });
@@ -68,7 +68,8 @@ describe("TrainingCuenta", () => {
     await montar(onCambio);
 
     expect(llamadas[0]).toEqual({ url: "/api/openfield/cuenta", metodo: "GET", auth: "Bearer token-supabase" });
-    expect(botonPorTexto("Conectar mi cuenta de Catapult")).toBeDefined();
+    expect(contenedor.querySelector("h1").textContent).toBe("Usuario y contraseña");
+    expect(botonPorTexto("Conectar")).toBeDefined();
     expect(onCambio).toHaveBeenLastCalledWith({ configurada: false });
 
     const usuario = contenedor.querySelector("input[autocomplete='username']");
@@ -77,42 +78,69 @@ describe("TrainingCuenta", () => {
       escribir(usuario, "santi");
       escribir(clave, "secreta");
     });
-    await act(async () => botonPorTexto("Conectar mi cuenta de Catapult").click());
+    await act(async () => botonPorTexto("Conectar").click());
 
     expect(llamadas[1].metodo).toBe("POST");
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ username: "santi", password: "secreta" });
-    expect(contenedor.textContent).toContain("Conectado como santi");
-    expect(contenedor.textContent).toContain("Acceso comprobado el");
-    expect(botonPorTexto("Desconectar cuenta")).toBeDefined();
+    expect(contenedor.querySelector(".equipo-propio").textContent).toContain("santi");
+    expect(contenedor.textContent).toContain("Comprobada el");
+    expect(contenedor.querySelector(".notificacion-guardado").textContent).toContain("Cuenta conectada.");
+    expect(botonPorTexto("Desconectar")).toBeDefined();
     expect(contenedor.querySelector("input[autocomplete='current-password']")).toBeNull();
     expect(onCambio).toHaveBeenLastCalledWith(expect.objectContaining({ configurada: true, usuario: "santi" }));
   });
 
-  test("con cuenta muestra conectado y permite desconectar", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url, opciones) =>
-        opciones?.method === "DELETE"
-          ? respuesta(200, { ok: true, cuenta: { configurada: false } })
-          : respuesta(200, { ok: true, cuenta: { configurada: true, usuario: "santi", verificado_en: null } }),
-      ),
+  test("con cuenta muestra conectado y permite desconectar con confirmación", async () => {
+    const fetchMock = vi.fn(async (url, opciones) =>
+      opciones?.method === "DELETE"
+        ? respuesta(200, { ok: true, cuenta: { configurada: false } })
+        : respuesta(200, { ok: true, cuenta: { configurada: true, usuario: "santi", verificado_en: null } }),
     );
-    vi.stubGlobal("confirm", vi.fn(() => true));
+    vi.stubGlobal("fetch", fetchMock);
     const onCambio = vi.fn();
 
     await montar(onCambio);
-    expect(contenedor.textContent).toContain("Conectado como santi");
+    expect(contenedor.querySelector(".equipo-propio").textContent).toContain("santi");
     expect(contenedor.textContent).toContain("Cuenta guardada.");
 
-    await act(async () => botonPorTexto("Desconectar cuenta").click());
+    await act(async () => botonPorTexto("Desconectar").click());
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Desconectar tu usuario?");
+    expect(fetchMock.mock.calls.some(([, opciones]) => opciones?.method === "DELETE")).toBe(false);
 
-    expect(window.confirm).toHaveBeenCalled();
-    expect(contenedor.textContent).toContain("Cuenta desconectada");
-    expect(botonPorTexto("Conectar mi cuenta de Catapult")).toBeDefined();
+    await act(async () => contenedor.querySelector(".boton-cancelar-hoja").click());
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(botonPorTexto("Desconectar")).toBeDefined();
+
+    await act(async () => botonPorTexto("Desconectar").click());
+    await act(async () => contenedor.querySelector(".boton-confirmar-hoja").click());
+
+    const borrado = fetchMock.mock.calls.find(([, opciones]) => opciones?.method === "DELETE");
+    expect(borrado[0]).toBe("/api/openfield/cuenta");
+    expect(borrado[1].headers.Authorization).toBe("Bearer token-supabase");
+    expect(contenedor.textContent).toContain("Cuenta desconectada.");
+    expect(botonPorTexto("Conectar")).toBeDefined();
     expect(onCambio).toHaveBeenLastCalledWith({ configurada: false });
   });
 
-  test("si Catapult rechaza la cuenta lo dice y no la da por conectada", async () => {
+  test("con cuentaInicial no vuelve a pedir la cuenta", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const onVolver = vi.fn();
+
+    await montar(() => {}, {
+      cuentaInicial: { configurada: true, usuario: "santi", verificado_en: "2026-09-20T12:00:00Z" },
+      onVolver,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(contenedor.querySelector(".equipo-propio").textContent).toContain("santi");
+    expect(botonPorTexto("Desconectar")).toBeDefined();
+
+    await act(async () => botonPorTexto("Volver a Ajustes").click());
+    expect(onVolver).toHaveBeenCalledTimes(1);
+  });
+
+  test("si rechazan la cuenta lo dice y no la da por conectada", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url, opciones) =>
@@ -127,10 +155,10 @@ describe("TrainingCuenta", () => {
       escribir(contenedor.querySelector("input[autocomplete='username']"), "santi");
       escribir(contenedor.querySelector("input[autocomplete='current-password']"), "mala");
     });
-    await act(async () => botonPorTexto("Conectar mi cuenta de Catapult").click());
+    await act(async () => botonPorTexto("Conectar").click());
 
     expect(contenedor.textContent).toContain("Catapult no aceptó ese usuario y contraseña");
-    expect(botonPorTexto("Conectar mi cuenta de Catapult")).toBeDefined();
+    expect(botonPorTexto("Conectar")).toBeDefined();
     expect(contenedor.querySelector("input[autocomplete='current-password']").value).toBe("");
   });
 
