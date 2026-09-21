@@ -4,6 +4,65 @@ Lo que quedó pedido y todavía no está hecho. El orden es de más a menos valo
 no el orden en que se pidió. Lo que se va haciendo se borra de acá: el historial
 de lo hecho está en los commits, no en esta lista.
 
+## Entrenamiento (OpenField)
+
+### Para mañana: la interfaz (pedido el 21/09)
+
+- **Estilizar mucho la interfaz** de Entrenamiento y hacerla más simple y más
+  cómoda de usar, en la línea de Partido.
+- **Cambiar el inicio de la pantalla**: lo primero que se ve al entrar a
+  Entrenamiento.
+- **Rehacer la interfaz de Ajustes**: opciones como en Partido (Usuario y
+  contraseña, Lista de jugadores) y las pruebas técnicas fuera de la vista.
+- **Reescribir las explicaciones** para que cualquiera entienda la app sin
+  conocer OpenField ni la cocina.
+
+### Qué falta probar (sobre 26-05 T, desde el celular)
+
+1. Enviar las dos tareas de prueba con "Todos": tilde en las dos, verlas en
+   Sesión → Actualizar y en el editor. (En curso al cierre del 21/09.)
+2. Corregir una tarea ya enviada (cambiar el fin un minuto): queda "Con
+   cambios", se envía, y en el editor el mismo período se actualiza, sin
+   duplicarse.
+3. Un jugador con "Menos tiempo": en el editor aparecen dos períodos con el
+   mismo nombre, uno con la ventana de ese jugador.
+4. Borrar una tarea en la app y enviar: el período se retira de OpenField y el
+   resto queda igual.
+5. Pausas con los botones: segundos por pausa, total y tiempo efectivo. No van a
+   OpenField; quedan en el celular.
+6. Una sesión de verdad, o un ensayo: registrar en vivo con "Ahora" y enviar al
+   final.
+7. Otra persona desde otro celular: su cuenta de Catapult en Ajustes, jugadores
+   ya vinculados, envío. Ahí se ve la limitación de "un celular por sesión".
+8. Sin señal: cargar tareas funciona; enviar tiene que avisar de forma legible.
+9. Que Partido siga igual: marco compartido y lista de jugadores.
+
+### Pendientes de producto
+
+- **Acceso desde la app.** Hoy entra quien está en la lista de correos de
+  Vercel (`OPENFIELD_ALLOWED_EMAILS`); tiene que poder darse y quitarse desde la
+  app. Al agregar la ruta hay que juntar rutas: Vercel admite 12 funciones y ya
+  son 12. Probarlo en un despliegue de prueba antes de `main`.
+- **Guardar las sesiones en la base**, no solo en el celular: para trabajar
+  desde más de un celular y no perder las pausas.
+- **Candado a 26-05 T** mientras dure la prueba. Opcional, a decisión.
+- **Detectar pausas desde los datos GPS** ("Orión"), más adelante.
+
+### Lo que aprendimos de OpenField (comprobado, no suposiciones)
+
+- El batch del servicio interno **reemplaza todos los períodos** de la
+  actividad. La app siempre manda el set completo y preserva los ajenos.
+- OpenField toma como **fin de la actividad el fin de su último período**. Un
+  corte fuera de ese rango vuelve con 422. Si las curvas llegan más lejos, un
+  período creado en el editor hasta el final real extiende el rango (21/09:
+  de 16:19:32 a 16:39:01).
+- Un período **solo admite atletas con datos en la actividad**; con otros,
+  422. Los participantes van con `athlete_id`.
+- Los horarios se convierten **en el celular** (hora local) a instantes
+  absolutos. El servidor corre en UTC y no convierte nada.
+- La Connect API oficial **solo lee**; escribir es únicamente con el pase del
+  editor, con la cuenta de Catapult de cada persona.
+
 ## De la lista de mejoras de la app
 
 - **Mandar los cortes solos a OpenField.** No es un botón de copiar: la idea es
