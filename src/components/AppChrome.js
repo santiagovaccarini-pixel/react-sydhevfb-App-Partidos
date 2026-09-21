@@ -101,6 +101,37 @@ const trazos = {
       <path d="M3 14l4.6 4.4A9 9 0 0 0 20.5 15" />
     </>
   ),
+  // Íconos de Entrenamiento (Ajustes y tareas). Aditivos: no cambian los de arriba.
+  usuario: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21v-1a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7v1" />
+    </>
+  ),
+  candado: (
+    <>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      <path d="M12 15v2" />
+    </>
+  ),
+  llave: (
+    <>
+      <circle cx="8" cy="14" r="4" />
+      <path d="m11 11 9-9M17 5l2 2M14 8l2 2" />
+    </>
+  ),
+  salir: (
+    <>
+      <path d="M10 4H5v16h5" />
+      <path d="M14 8l4 4-4 4M18 12H9" />
+    </>
+  ),
+  pausa: (
+    <>
+      <path d="M8 5v14M16 5v14" />
+    </>
+  ),
 };
 
 export const Icono = ({ nombre, size = 22, className = "" }) => (

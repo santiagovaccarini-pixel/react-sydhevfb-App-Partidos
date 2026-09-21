@@ -1,4 +1,4 @@
-import React, { act } from "react";
+import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import TrainingSettings from "./TrainingSettings";
@@ -6,6 +6,20 @@ import { interpretarRespuesta, resumirSonda } from "../lib/openfieldProbe.js";
 
 // La lista de jugadores tiene sus propios tests; acá se aísla.
 vi.mock("./TrainingJugadores", () => ({ default: () => null }));
+
+// Como en el módulo: la subpantalla de Ajustes vive en el padre.
+const Ajustes = ({ onVolverModulos = () => {}, onCerrarSesion = () => {} }) => {
+  const [vista, setVista] = useState("inicio");
+  return (
+    <TrainingSettings
+      vista={vista}
+      onCambiarVista={setVista}
+      onVolverModulos={onVolverModulos}
+      email="x@y"
+      onCerrarSesion={onCerrarSesion}
+    />
+  );
+};
 
 vi.mock("./supabase.js", () => ({
   supabase: {
@@ -120,16 +134,26 @@ describe("TrainingSettings", () => {
     window.localStorage.clear();
   });
 
-  const montar = async () => {
+  const montar = async (props = {}) => {
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<TrainingSettings onVolverModulos={() => {}} />);
+      raiz.render(<Ajustes {...props} />);
     });
     await act(async () => Promise.resolve());
   };
 
   const botonPorTexto = (texto) =>
     [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim() === texto);
+
+  const opcion = (titulo) =>
+    [...contenedor.querySelectorAll(".opcion-ajuste")].find((boton) =>
+      boton.querySelector(".texto-ajuste b")?.textContent === titulo,
+    );
+
+  const entrarA = async (titulo) => {
+    await act(async () => opcion(titulo).click());
+    await act(async () => Promise.resolve());
+  };
 
   test("sin cuenta: pide conectarla y deja bloqueados el acceso y el write test", async () => {
     const fetchMock = fetchRuteado(SIN_CUENTA);
@@ -141,7 +165,29 @@ describe("TrainingSettings", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/openfield/cuenta");
     expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe("Bearer token-supabase");
 
-    expect(botonPorTexto("Conectar mi cuenta de Catapult")).toBeDefined();
+    expect(contenedor.querySelector("h1").textContent).toBe("Ajustes");
+    expect([...contenedor.querySelectorAll(".opcion-ajuste .texto-ajuste b")].map((b) => b.textContent)).toEqual([
+      "Usuario y contraseña",
+      "Lista de jugadores",
+      "Pruebas técnicas",
+      "Cambiar de módulo",
+      "Cerrar sesión",
+    ]);
+    expect(opcion("Usuario y contraseña").textContent).toContain("Todavía no conectaste tu usuario");
+    expect(opcion("Cerrar sesión").textContent).toContain("x@y");
+
+    // La cuenta ya se leyó: entrar a "Usuario y contraseña" no la vuelve a pedir.
+    await entrarA("Usuario y contraseña");
+    expect(contenedor.querySelector("h1").textContent).toBe("Usuario y contraseña");
+    expect(botonPorTexto("Conectar")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => botonPorTexto("Volver a Ajustes").click());
+    expect(contenedor.querySelector("h1").textContent).toBe("Ajustes");
+
+    await entrarA("Pruebas técnicas");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(contenedor.querySelector("h1").textContent).toBe("Pruebas técnicas");
+    expect(botonPorTexto("Volver a Ajustes")).toBeDefined();
     expect(botonPorTexto("Probar conexión (solo lectura)").disabled).toBe(true);
     expect(botonPorTexto("Escribir TEST APP en 26-05 T").disabled).toBe(true);
     expect(contenedor.textContent).toContain("Primero conectá tu cuenta de Catapult");
@@ -179,7 +225,8 @@ describe("TrainingSettings", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await montar();
-    expect(contenedor.textContent).toContain("Conectado como santi");
+    expect(opcion("Usuario y contraseña").textContent).toContain("Conectado como santi");
+    await entrarA("Pruebas técnicas");
 
     const boton = botonPorTexto("Probar conexión (solo lectura)");
     expect(boton.disabled).toBe(false);
@@ -220,6 +267,7 @@ describe("TrainingSettings", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await montar();
+    await entrarA("Pruebas técnicas");
     const confirmacion = contenedor.querySelector("input[placeholder='26-05 T']");
     expect(botonPorTexto("Escribir TEST APP en 26-05 T").disabled).toBe(true);
 
@@ -248,6 +296,7 @@ describe("TrainingSettings", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await montar();
+    await entrarA("Pruebas técnicas");
     await act(async () => botonPorTexto("Sondear capacidades").click());
 
     const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/capability-probe");
@@ -300,8 +349,9 @@ describe("TrainingSettings", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await montar();
+    await entrarA("Pruebas técnicas");
 
-    // Con la cuenta conectada, los únicos campos de usuario/contraseña son los del bloque avanzado.
+    // En Pruebas técnicas los únicos campos de usuario/contraseña son los del bloque avanzado.
     const usuario = contenedor.querySelector("input[autocomplete='username']");
     const clave = contenedor.querySelector("input[autocomplete='current-password']");
     await act(async () => {
@@ -331,6 +381,7 @@ describe("TrainingSettings", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await montar();
+    await entrarA("Pruebas técnicas");
     await act(async () => botonPorTexto("Probar conexión (solo lectura)").click());
 
     const texto = contenedor.textContent;
@@ -338,5 +389,54 @@ describe("TrainingSettings", () => {
     expect(texto).toContain("Catapult no aceptó la cuenta guardada");
     expect(texto).toContain("Etapa: login");
     expect(botonPorTexto("Copiar detalle del error")).toBeDefined();
+  });
+
+  test("conectar desde Usuario y contraseña actualiza el subtexto del menú", async () => {
+    const fetchMock = fetchRuteado(SIN_CUENTA, (url, opciones) =>
+      url === "/api/openfield/cuenta" && opciones?.method === "POST"
+        ? respuestaJson(200, { ok: true, cuenta: CUENTA_CONECTADA, message: "Cuenta conectada." })
+        : respuestaJson(500, { ok: false, error: "sin ruta" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await montar();
+    await entrarA("Usuario y contraseña");
+
+    await act(async () => {
+      escribir(contenedor.querySelector("input[autocomplete='username']"), "santi");
+      escribir(contenedor.querySelector("input[autocomplete='current-password']"), "secreta");
+    });
+    await act(async () => botonPorTexto("Conectar").click());
+
+    const llamada = fetchMock.mock.calls.find(([, opciones]) => opciones?.method === "POST");
+    expect(llamada[0]).toBe("/api/openfield/cuenta");
+    expect(JSON.parse(llamada[1].body)).toEqual({ username: "santi", password: "secreta" });
+    expect(contenedor.querySelector(".equipo-propio").textContent).toContain("santi");
+    expect(botonPorTexto("Desconectar")).toBeDefined();
+
+    await act(async () => botonPorTexto("Volver a Ajustes").click());
+    expect(opcion("Usuario y contraseña").textContent).toContain("Conectado como santi");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("cambiar de módulo y cerrar sesión salen por Ajustes", async () => {
+    vi.stubGlobal("fetch", fetchRuteado(SIN_CUENTA));
+    const onVolverModulos = vi.fn();
+    const onCerrarSesion = vi.fn();
+
+    await montar({ onVolverModulos, onCerrarSesion });
+
+    await act(async () => opcion("Cambiar de módulo").click());
+    expect(onVolverModulos).toHaveBeenCalledTimes(1);
+
+    await act(async () => opcion("Cerrar sesión").click());
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Cerrar sesión?");
+    await act(async () => contenedor.querySelector(".boton-cancelar-hoja").click());
+    expect(onCerrarSesion).not.toHaveBeenCalled();
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+
+    await act(async () => opcion("Cerrar sesión").click());
+    await act(async () => contenedor.querySelector(".boton-confirmar-hoja").click());
+    expect(onCerrarSesion).toHaveBeenCalledTimes(1);
   });
 });

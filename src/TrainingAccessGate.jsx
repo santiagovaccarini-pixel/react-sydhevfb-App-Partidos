@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "./supabase.js";
-import "./training-access.css";
 import { mensajeDeRespuesta } from "./trainingApi.js";
 
 const esRecuperacionSolicitada = () => {
@@ -13,6 +12,14 @@ const limpiarParametroRecuperacion = () => {
   const url = new URL(window.location.href);
   url.searchParams.delete("training_recovery");
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+};
+
+// Supabase contesta en inglés; acá se traduce lo que puede pasarle a quien entra.
+const textoDeErrorDeAcceso = (error, porDefecto) => {
+  const texto = String(error?.message || "");
+  if (/invalid login credentials/i.test(texto)) return "El correo o la contraseña no son correctos.";
+  if (/email not confirmed/i.test(texto)) return "Todavía no confirmaste tu correo. Revisá la casilla.";
+  return porDefecto;
 };
 
 export default function TrainingAccessGate({ children, onVolver }) {
@@ -48,7 +55,7 @@ export default function TrainingAccessGate({ children, onVolver }) {
 
     if (!respuesta.ok || !payload?.ok) {
       setAutorizado(false);
-      throw new Error(mensajeDeRespuesta(payload, "No se pudo autorizar el acceso a OpenField."));
+      throw new Error(mensajeDeRespuesta(payload, "No se pudo comprobar tu acceso. Probá de nuevo."));
     }
 
     setUsuario({ email: payload.email || session.user?.email || "" });
@@ -86,7 +93,7 @@ export default function TrainingAccessGate({ children, onVolver }) {
           }
         }
       } catch (errorInicio) {
-        if (activo) setError(errorInicio?.message || "No se pudo revisar la sesión.");
+        if (activo) setError(errorInicio?.message || "No se pudo comprobar tu acceso. Probá de nuevo.");
       } finally {
         if (activo) setCargando(false);
       }
@@ -140,7 +147,7 @@ export default function TrainingAccessGate({ children, onVolver }) {
       await abrirSesionBackend(data.session);
       setPassword("");
     } catch (errorLogin) {
-      setError(errorLogin?.message || "No se pudo iniciar sesión.");
+      setError(textoDeErrorDeAcceso(errorLogin, "No se pudo entrar. Probá de nuevo."));
     } finally {
       setAccion("");
     }
@@ -168,10 +175,10 @@ export default function TrainingAccessGate({ children, onVolver }) {
         await abrirSesionBackend(data.session);
         setPassword("");
       } else {
-        setMensaje("Cuenta creada. Revisá tu correo para confirmar el acceso y después iniciá sesión.");
+        setMensaje("Cuenta creada. Revisá tu correo para confirmarla y después entrá.");
       }
     } catch (errorRegistro) {
-      setError(errorRegistro?.message || "No se pudo crear la cuenta.");
+      setError(textoDeErrorDeAcceso(errorRegistro, errorRegistro?.message || "No se pudo crear la cuenta."));
     } finally {
       setAccion("");
     }
@@ -185,7 +192,7 @@ export default function TrainingAccessGate({ children, onVolver }) {
     try {
       const correo = email.trim();
       if (!correo) {
-        throw new Error("Ingresá tu correo primero.");
+        throw new Error("Escribí tu correo primero.");
       }
 
       const redirectTo = `${window.location.origin}/?training_recovery=1`;
@@ -269,13 +276,10 @@ export default function TrainingAccessGate({ children, onVolver }) {
   if (cargando) {
     return (
       <main className="training-access-page">
-        <button type="button" className="training-access-back" onClick={onVolver}>
-          ← Módulos
-        </button>
         <section className="training-access-card">
-          <span className="training-access-lock">🔒</span>
-          <h1>Verificando acceso</h1>
-          <p>Comprobando la sesión segura del módulo Entrenamiento…</p>
+          <span className="training-access-kicker">ENTRENAMIENTO</span>
+          <h1>Un momento</h1>
+          <p>Estamos comprobando tu acceso.</p>
         </section>
       </main>
     );
@@ -284,15 +288,10 @@ export default function TrainingAccessGate({ children, onVolver }) {
   if (modoRecuperacion) {
     return (
       <main className="training-access-page">
-        <button type="button" className="training-access-back" onClick={onVolver}>
-          ← Módulos
-        </button>
-
         <section className="training-access-card">
-          <span className="training-access-kicker">ENTRENAMIENTO · SEGURIDAD</span>
-          <span className="training-access-lock">🔐</span>
-          <h1>Elegir contraseña nueva</h1>
-          <p>Definí una contraseña nueva para tu cuenta de la app.</p>
+          <span className="training-access-kicker">ENTRENAMIENTO</span>
+          <h1>Elegí una contraseña nueva</h1>
+          <p>Después vas a entrar con esta.</p>
 
           <form onSubmit={guardarNuevaPassword} className="training-access-form">
             <label>
@@ -329,39 +328,27 @@ export default function TrainingAccessGate({ children, onVolver }) {
               {accion === "cambiar-password" ? "Guardando…" : "Guardar contraseña"}
             </button>
           </form>
+
+          <button type="button" className="training-access-secondary" onClick={onVolver}>
+            Volver al portal
+          </button>
         </section>
       </main>
     );
   }
 
   if (autorizado) {
-    return (
-      <div className="training-access-shell">
-        <div className="training-access-status">
-          <span>🔒 OpenField protegido · {usuario?.email}</span>
-          <button type="button" onClick={salir} disabled={accion === "salir"}>
-            {accion === "salir" ? "Saliendo…" : "Cerrar sesión"}
-          </button>
-        </div>
-        {children}
-      </div>
-    );
+    return typeof children === "function"
+      ? children({ email: usuario?.email || "", cerrarSesion: salir })
+      : children;
   }
 
   return (
     <main className="training-access-page">
-      <button type="button" className="training-access-back" onClick={onVolver}>
-        ← Módulos
-      </button>
-
       <section className="training-access-card">
-        <span className="training-access-kicker">ENTRENAMIENTO · FASE BETA</span>
-        <span className="training-access-lock">🔒</span>
-        <h1>Acceso protegido</h1>
-        <p>
-          Iniciá sesión para consultar los datos reales de OpenField. El token de Catapult nunca
-          sale del servidor.
-        </p>
+        <span className="training-access-kicker">ENTRENAMIENTO</span>
+        <h1>Entrar</h1>
+        <p>Entrá con tu correo y contraseña de la app.</p>
 
         <form onSubmit={ingresar} className="training-access-form">
           <label>
@@ -392,7 +379,7 @@ export default function TrainingAccessGate({ children, onVolver }) {
           {mensaje && <div className="training-access-message ok">{mensaje}</div>}
 
           <button type="submit" className="training-access-primary" disabled={Boolean(accion)}>
-            {accion === "ingresar" ? "Ingresando…" : "Ingresar"}
+            {accion === "ingresar" ? "Entrando…" : "Entrar"}
           </button>
 
           <button
@@ -415,9 +402,12 @@ export default function TrainingAccessGate({ children, onVolver }) {
         </form>
 
         <small>
-          Crear una cuenta no otorga acceso automáticamente: el correo también debe estar
-          autorizado en el servidor.
+          Si creás una cuenta, todavía hay que autorizarla. Avisale a quien mantiene la app.
         </small>
+
+        <button type="button" className="training-access-secondary" onClick={onVolver}>
+          Volver al portal
+        </button>
       </section>
     </main>
   );

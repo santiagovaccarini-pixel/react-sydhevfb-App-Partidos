@@ -1,0 +1,989 @@
+/* Entrenamiento con la cara de Partido. style.css ya está cargada siempre
+   (App.js la importa y PortalApp importa App), así que las pantallas usan sus
+   clases tal cual. Acá va solo lo nuevo y lo que hay que neutralizar, siempre
+   bajo `.entrenamiento-marco` (0,2,0: gana a style.css y a portal.css sin
+   forzar nada) o `.training-access-` (la pantalla de acceso, fuera del marco). */
+
+/* 1. Neutralizar globales de style.css */
+.entrenamiento-marco button:hover,
+.entrenamiento-marco button:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.entrenamiento-marco .boton-principal:hover {
+  box-shadow: 0 10px 22px rgba(34, 197, 94, 0.35);
+}
+
+.entrenamiento-marco .accion-periodo:hover {
+  box-shadow: 0 6px 18px rgba(0, 138, 75, 0.22);
+}
+
+.entrenamiento-marco .boton-texto {
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+.entrenamiento-marco .boton-ahora-cambio {
+  height: 44px;
+}
+
+.entrenamiento-marco .quitar-jugador {
+  width: 44px;
+  height: 44px;
+}
+
+/* 2. Hero de sesión (sobre .hero-partido) */
+.entrenamiento-marco .hero-sesion {
+  display: grid;
+  gap: 8px;
+}
+
+.entrenamiento-marco .nombre-sesion {
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--cam-blanco);
+  letter-spacing: -0.02em;
+  word-break: break-word;
+}
+
+.entrenamiento-marco .estado-hero {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--cam-blanco);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.entrenamiento-marco .estado-hero i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.entrenamiento-marco .estado-hero.en-curso i {
+  background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25);
+}
+
+/* 3. Plegables dentro de tarjeta (summary legible sobre blanco) */
+.entrenamiento-marco .tarjeta .ajustes-periodo > summary {
+  color: var(--cam-verde-oscuro);
+  font-size: 12px;
+  font-weight: 850;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+/* 4. Tareas */
+.entrenamiento-marco .tarea-cabecera {
+  display: grid;
+  gap: 9px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.entrenamiento-marco .tarea-nombre {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.entrenamiento-marco .registro-guardado.abierta {
+  border-color: var(--cam-verde);
+  box-shadow: 0 0 0 3px rgba(0, 138, 75, 0.12);
+}
+
+.entrenamiento-marco .marca-enviada {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--cam-verde-suave);
+  color: var(--cam-verde-oscuro);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.entrenamiento-marco .marca-incompleta {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #fdecee;
+  color: #c1121f;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.entrenamiento-marco .campos-hora {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.entrenamiento-marco .campos-hora input[type="time"] {
+  font-variant-numeric: tabular-nums;
+  height: 44px;
+  border-radius: 11px;
+}
+
+.entrenamiento-marco .campo-inicio > label {
+  min-height: 0;
+}
+
+.entrenamiento-marco .fila-pausa {
+  display: grid;
+  grid-template-columns: 19px minmax(0, 1fr) auto minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f4;
+}
+
+.entrenamiento-marco .fila-pausa input[type="time"] {
+  height: 44px;
+  border-radius: 10px;
+  font-size: 13px;
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.entrenamiento-marco .chips-jugadores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.entrenamiento-marco .chip-jugador {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 999px;
+  background: var(--cam-blanco);
+  color: var(--cam-gris);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  user-select: none;
+}
+
+.entrenamiento-marco .chip-jugador input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.entrenamiento-marco .chip-jugador.activo {
+  border-color: var(--cam-tinta);
+  background: var(--cam-tinta);
+  color: #fff;
+}
+
+.entrenamiento-marco .chip-jugador.apagado {
+  border-style: dashed;
+  color: #9aa4a0;
+  background: #f7f9f8;
+  cursor: not-allowed;
+}
+
+.entrenamiento-marco .chip-jugador.apagado small {
+  margin-left: 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.entrenamiento-marco .fila-tiempo {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f4;
+}
+
+.entrenamiento-marco .fila-tiempo > b {
+  font-size: 12.5px;
+}
+
+.entrenamiento-marco .selector-tiempo,
+.entrenamiento-marco .selector-chaleco {
+  width: auto;
+  min-width: 150px;
+  height: 44px;
+  border-radius: 11px;
+  border: 1px solid var(--cam-linea);
+  background: #f7f9f8;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.entrenamiento-marco .fila-parcial {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.entrenamiento-marco .fila-parcial input[type="time"] {
+  height: 44px;
+  border-radius: 10px;
+  font-size: 13px;
+  padding: 0 8px;
+}
+
+.entrenamiento-marco .resumen-tarea {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.entrenamiento-marco .resumen-tarea span {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--cam-gris);
+  text-transform: uppercase;
+}
+
+.entrenamiento-marco .resumen-tarea strong {
+  font-size: 14px;
+  color: var(--cam-tinta);
+  font-variant-numeric: tabular-nums;
+}
+
+.entrenamiento-marco .chips-envio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.entrenamiento-marco .aviso-base.listo {
+  border-left-color: var(--cam-verde);
+}
+
+.entrenamiento-marco .lista-resultado li.ok {
+  color: var(--cam-verde-oscuro);
+}
+
+.entrenamiento-marco .lista-resultado li.fallo {
+  color: #c1121f;
+}
+
+.entrenamiento-marco .detalle-tecnico pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  background: #f6f8fa;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+/* 5. Ajustes */
+.entrenamiento-marco .lista-plantel li {
+  flex-wrap: wrap;
+  gap: 6px 9px;
+}
+
+.entrenamiento-marco .lista-plantel .selector-chaleco {
+  flex: 1 0 100%;
+}
+
+.entrenamiento-marco .estado-vinculo {
+  flex: 1 0 100%;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--cam-gris);
+}
+
+.entrenamiento-marco .estado-vinculo.ok {
+  color: var(--cam-verde-oscuro);
+}
+
+.entrenamiento-marco .estado-vinculo.error {
+  color: #c1121f;
+}
+
+.entrenamiento-marco .campo-icono {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--cam-gris);
+  pointer-events: none;
+}
+
+/* 6. Diagnóstico (antes training-settings.css): las mismas reglas, tal cual,
+   con el prefijo del marco. Viven en Ajustes › Pruebas técnicas. */
+.entrenamiento-marco .entrenamiento-ajustes-modulos {
+  margin-left: auto;
+  padding: 9px 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #15191e;
+  color: var(--portal-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-contenido {
+  width: min(920px, calc(100% - 32px));
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-encabezado {
+  margin-bottom: 18px;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-encabezado > span {
+  color: var(--portal-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-encabezado h1 {
+  margin: 5px 0 7px;
+  font-size: clamp(1.55rem, 4vw, 2.15rem);
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-encabezado p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--portal-muted);
+  line-height: 1.55;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-panel form {
+  display: grid;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-seguridad,
+.entrenamiento-marco .entrenamiento-ajustes-limites,
+.entrenamiento-marco .entrenamiento-ajustes-objetivo,
+.entrenamiento-marco .entrenamiento-ajustes-resultado {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  background: #101419;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-seguridad,
+.entrenamiento-marco .entrenamiento-ajustes-limites {
+  display: grid;
+  gap: 4px;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-seguridad strong,
+.entrenamiento-marco .entrenamiento-ajustes-limites strong {
+  font-size: 0.8rem;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-seguridad span,
+.entrenamiento-marco .entrenamiento-ajustes-limites span {
+  color: var(--portal-muted);
+  font-size: 0.76rem;
+  line-height: 1.48;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-objetivo {
+  display: grid;
+  gap: 3px;
+  margin-top: 0;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-objetivo span,
+.entrenamiento-marco .entrenamiento-ajustes-objetivo small {
+  color: var(--portal-muted);
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-objetivo span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-objetivo strong {
+  font-size: 1rem;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-objetivo small {
+  overflow-wrap: anywhere;
+  font-size: 0.68rem;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-resultado {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-resultado > div {
+  display: grid;
+  gap: 3px;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-resultado > div > strong {
+  font-size: 0.86rem;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-resultado > div > span {
+  color: var(--portal-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-estado-punto {
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #d3ad62;
+  box-shadow: 0 0 0 4px rgba(211, 173, 98, 0.12);
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-resultado.correcto {
+  border-color: rgba(113, 213, 155, 0.3);
+  background: rgba(113, 213, 155, 0.06);
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-resultado.correcto .entrenamiento-ajustes-estado-punto {
+  background: #71d59b;
+  box-shadow: 0 0 0 4px rgba(113, 213, 155, 0.12);
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-resultado.error {
+  border-color: rgba(225, 114, 114, 0.32);
+  background: rgba(225, 114, 114, 0.07);
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-resultado.error .entrenamiento-ajustes-estado-punto {
+  background: #e17272;
+  box-shadow: 0 0 0 4px rgba(225, 114, 114, 0.12);
+}
+
+@media (max-width: 760px) {
+  .entrenamiento-marco .entrenamiento-ajustes-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .entrenamiento-marco .entrenamiento-ajustes-pagina .entrenamiento-barra {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .entrenamiento-marco .entrenamiento-ajustes-modulos {
+    padding-inline: 10px;
+  }
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-panel-ancho {
+  grid-column: 1 / -1;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-resultado.advertencia {
+  border-color: rgba(211, 173, 98, 0.35);
+  background: rgba(211, 173, 98, 0.07);
+}
+
+.entrenamiento-marco .entrenamiento-sonda-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-acciones .boton-principal {
+  flex: 1 1 220px;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 9px;
+  border: 1px solid var(--portal-border);
+  border-radius: 999px;
+  background: #101419;
+  color: var(--portal-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-chip.correcto {
+  border-color: rgba(113, 213, 155, 0.35);
+  color: #8be0ae;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-chip.advertencia {
+  border-color: rgba(211, 173, 98, 0.4);
+  color: #e6c986;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-chip.error {
+  border-color: rgba(225, 114, 114, 0.35);
+  color: #f0a1a1;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-control {
+  margin: 12px 0 0;
+  color: var(--portal-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-token {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  background: #101419;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-token > header {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-token > header span {
+  color: var(--portal-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-token > header strong {
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-token .entrenamiento-ajustes-resultado {
+  margin-top: 0;
+  background: #0c1014;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-rutas {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-rutas li {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #0c1014;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-rutas code {
+  font-size: 0.78rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-rutas small {
+  color: var(--portal-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-json {
+  margin-top: 12px;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-json summary {
+  color: var(--portal-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.entrenamiento-marco .entrenamiento-sonda-json pre {
+  max-height: 360px;
+  overflow: auto;
+  margin: 10px 0 0;
+  padding: 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #0c1014;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-boton-ancho {
+  margin-top: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-boton-ancho:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.entrenamiento-marco .entrenamiento-inspeccion-captura {
+  margin: 12px 0 0;
+}
+
+.entrenamiento-marco .entrenamiento-inspeccion-captura img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  background: #0c1014;
+}
+
+.entrenamiento-marco .entrenamiento-inspeccion-captura figcaption {
+  margin-top: 6px;
+  color: var(--portal-muted);
+  font-size: 0.72rem;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-avanzado {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-avanzado > summary {
+  padding: 12px 14px;
+  border: 1px dashed var(--portal-border);
+  border-radius: 14px;
+  color: var(--portal-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-avanzado[open] > summary {
+  margin-bottom: 14px;
+}
+
+.entrenamiento-marco .entrenamiento-ajustes-avanzado > .entrenamiento-panel + .entrenamiento-panel {
+  margin-top: 16px;
+}
+
+
+/* 7. Acceso (fuera del marco, antes training-access.css): mismas clases,
+   repintadas con el tema de Partido. */
+.training-access-page {
+  min-height: 100vh;
+  background: var(--cam-fondo);
+  padding: 24px 16px;
+  color: var(--cam-tinta);
+}
+
+.training-access-card {
+  background: var(--cam-blanco);
+  border: 1px solid var(--cam-linea);
+  border-radius: 14px;
+  padding: 18px 15px;
+  max-width: 420px;
+  margin: 40px auto 0;
+  color: var(--cam-tinta);
+  box-shadow: var(--cam-sombra);
+}
+
+.training-access-kicker {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--cam-verde-oscuro);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.training-access-card h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--cam-tinta);
+}
+
+.training-access-card p,
+.training-access-card small {
+  margin: 0;
+  color: var(--cam-gris);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.training-access-card small {
+  display: block;
+  margin-top: 12px;
+  font-size: 11.5px;
+}
+
+.training-access-form {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+}
+
+.training-access-form label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  color: var(--cam-gris);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.training-access-form input {
+  width: 100%;
+  height: 46px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 11px;
+  padding: 0 13px;
+  background: #f7f9f8;
+  color: var(--cam-tinta);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.training-access-primary,
+.training-access-secondary {
+  width: 100%;
+  border-radius: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.training-access-primary {
+  height: 50px;
+  border: 0;
+  background: linear-gradient(135deg, #000000, #16a34a);
+  color: #fff;
+  font-size: 15px;
+  box-shadow: 0 10px 22px rgba(34, 197, 94, 0.35);
+}
+
+.training-access-secondary {
+  height: 46px;
+  border: 1px solid #cbd5e1;
+  background: var(--cam-blanco);
+  color: var(--cam-tinta);
+  font-size: 14px;
+}
+
+.training-access-card .training-access-form + .training-access-secondary,
+.training-access-card small + .training-access-secondary {
+  margin-top: 12px;
+}
+
+.training-access-primary:hover,
+.training-access-primary:active,
+.training-access-secondary:hover,
+.training-access-secondary:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.training-access-primary:hover {
+  box-shadow: 0 10px 22px rgba(34, 197, 94, 0.35);
+}
+
+.training-access-message {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.training-access-message.error {
+  background: #fdecee;
+  color: #c1121f;
+}
+
+.training-access-message.ok {
+  border: 1px solid #b8dec9;
+  background: var(--cam-verde-suave);
+  color: var(--cam-verde-oscuro);
+}
+
+@media (max-width: 720px) {
+  .entrenamiento-marco .campos-hora {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 8. Ajustes finos después de las capturas a 390 px */
+
+/* Nada dentro del marco puede empujar el ancho del celular: los inputs de
+   hora tienen un ancho mínimo intrínseco grande y desbordaban la tarjeta. */
+.entrenamiento-marco .tarjeta,
+.entrenamiento-marco .registro-guardado,
+.entrenamiento-marco .campo-inicio,
+.entrenamiento-marco .fila-hora-cambio,
+.entrenamiento-marco .fila-pausa,
+.entrenamiento-marco .fila-parcial {
+  min-width: 0;
+  max-width: 100%;
+}
+.entrenamiento-marco input,
+.entrenamiento-marco select {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.entrenamiento-marco .registro-guardado {
+  overflow: hidden;
+}
+
+/* Inicio y fin de la tarea: hora + Ahora, sin la columna del rótulo de Partido. */
+.entrenamiento-marco .fila-hora-cambio {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.entrenamiento-marco .fila-pausa > small {
+  grid-column: 1 / -1;
+  color: var(--cam-gris);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Objetivos táctiles de 44 px que style.css deja más chicos. */
+.entrenamiento-marco .aviso-base button {
+  min-height: 44px;
+}
+.entrenamiento-marco .buscador-plantel {
+  height: 44px;
+}
+.entrenamiento-marco .agregar-jugador input,
+.entrenamiento-marco .agregar-jugador button {
+  height: 44px;
+}
+.entrenamiento-marco .chip-jugador {
+  margin: 0;
+  position: relative;
+}
+
+/* La sesión ya elegida, en la lista de sesiones. */
+.entrenamiento-marco .entrenamiento-actividad.seleccionada {
+  border-color: var(--cam-verde);
+  background: var(--cam-verde-suave);
+}
+
+/* Pruebas técnicas: las cajas venían oscuras; dentro de tarjetas blancas van claras. */
+.entrenamiento-marco .entrenamiento-ajustes-seguridad,
+.entrenamiento-marco .entrenamiento-ajustes-limites,
+.entrenamiento-marco .entrenamiento-ajustes-objetivo,
+.entrenamiento-marco .entrenamiento-ajustes-resultado,
+.entrenamiento-marco .entrenamiento-sonda-token,
+.entrenamiento-marco .entrenamiento-sonda-rutas li,
+.entrenamiento-marco .entrenamiento-sonda-json pre,
+.entrenamiento-marco .entrenamiento-sonda-chip,
+.entrenamiento-marco .entrenamiento-sonda-token .entrenamiento-ajustes-resultado,
+.entrenamiento-marco .entrenamiento-inspeccion-captura img {
+  border-color: var(--cam-linea);
+  background: #f6f8fa;
+  color: inherit;
+}
+.entrenamiento-marco .entrenamiento-ajustes-seguridad span,
+.entrenamiento-marco .entrenamiento-ajustes-limites span,
+.entrenamiento-marco .entrenamiento-ajustes-objetivo span,
+.entrenamiento-marco .entrenamiento-ajustes-objetivo small,
+.entrenamiento-marco .entrenamiento-ajustes-resultado > div > span,
+.entrenamiento-marco .entrenamiento-sonda-rutas small,
+.entrenamiento-marco .entrenamiento-sonda-control,
+.entrenamiento-marco .entrenamiento-sonda-token > header span,
+.entrenamiento-marco .entrenamiento-inspeccion-captura figcaption,
+.entrenamiento-marco .entrenamiento-ajustes-avanzado > summary {
+  color: var(--cam-gris);
+}
+.entrenamiento-marco .entrenamiento-sonda-json summary,
+.entrenamiento-marco .entrenamiento-sonda-chip {
+  color: var(--cam-verde-oscuro);
+}
+
+/* En celulares angostos la flecha entre las dos horas de una pausa se saca
+   para que las horas entren enteras. */
+@media (max-width: 420px) {
+  .entrenamiento-marco .fila-pausa {
+    grid-template-columns: 19px minmax(0, 1fr) minmax(0, 1fr) 44px;
+  }
+  .entrenamiento-marco .fila-pausa > span:nth-child(3) {
+    display: none;
+  }
+}
+
+/* Medido a 390 px: lo que style.css deja entre 26 y 42 px sube a 44. */
+.entrenamiento-marco .agregar-cambio-operativo,
+.entrenamiento-marco .acciones-registro button,
+.entrenamiento-marco .campo-inicio input:not([type="checkbox"]) {
+  min-height: 44px;
+}
+.entrenamiento-marco .registro-guardado .ajustes-periodo > summary,
+.entrenamiento-marco .ajustes-periodo > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}

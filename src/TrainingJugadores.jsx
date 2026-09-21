@@ -1,56 +1,80 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Icono } from "./components/AppChrome";
+import { BotonVolver } from "./components/BotonVolver.jsx";
 import { leerEquipoElegido } from "./domain/equipo.js";
 import {
   agregarJugador,
   cargarPlantelConCatapult,
   guardarVinculoCatapult,
 } from "./domain/plantel.js";
-import { nombreVisibleAtleta, proponerVinculos, resumirVinculos } from "../lib/vinculoJugadores.js";
+import {
+  nombreVisibleAtleta,
+  normalizarNombre,
+  proponerVinculos,
+  resumirVinculos,
+} from "../lib/vinculoJugadores.js";
 import { mensajeDeRespuesta, pedirJson } from "./trainingApi.js";
 
 const ETIQUETA_NIVEL = {
-  exacto: "Propuesta exacta",
-  probable: "Probable, revisá",
+  exacto: "Coincide solo",
+  probable: "Parecido, revisalo",
 };
 
-// La misma lista de jugadores que Partido, con el vínculo de cada uno a su
-// atleta de Catapult. Se vincula una vez y queda guardado.
-export default function TrainingJugadores() {
+const plural = (cantidad, singular, muchos) => `${cantidad} ${cantidad === 1 ? singular : muchos}`;
+
+// La misma lista de jugadores que Partido. Cada jugador se empareja una vez
+// con su chaleco para que los datos lleguen a la persona correcta.
+export default function TrainingJugadores({ onVolver }) {
   const equipo = useMemo(() => leerEquipoElegido(), []);
   const equipoId = equipo?.id || null;
 
   const [estado, setEstado] = useState("cargando");
   const [plantel, setPlantel] = useState([]);
+  const [errorCarga, setErrorCarga] = useState("");
+  const [errorPlantel, setErrorPlantel] = useState("");
   const [error, setError] = useState("");
-  const [mensaje, setMensaje] = useState("");
+  const [aviso, setAviso] = useState("");
+  const temporizadorAviso = useRef(null);
 
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [agregando, setAgregando] = useState(false);
 
   const [estadoAtletas, setEstadoAtletas] = useState("idle");
   const [atletas, setAtletas] = useState([]);
-  const [fuenteAtletas, setFuenteAtletas] = useState("");
   const [elecciones, setElecciones] = useState({});
   const [guardando, setGuardando] = useState(false);
 
+  const avisar = (texto) => {
+    setAviso(texto);
+    if (temporizadorAviso.current) window.clearTimeout(temporizadorAviso.current);
+    temporizadorAviso.current = window.setTimeout(() => setAviso(""), 2600);
+  };
+
+  useEffect(
+    () => () => {
+      if (temporizadorAviso.current) window.clearTimeout(temporizadorAviso.current);
+    },
+    [],
+  );
+
   const cargar = async () => {
     setEstado("cargando");
-    setError("");
+    setErrorCarga("");
 
     try {
       const resultado = await cargarPlantelConCatapult(equipoId);
       if (resultado.error) {
         setPlantel([]);
         setEstado("error");
-        setError(resultado.error);
+        setErrorCarga(resultado.error);
         return;
       }
       setPlantel(resultado.plantel);
       setEstado("listo");
-    } catch (errorCarga) {
+    } catch (errorLectura) {
       setPlantel([]);
       setEstado("error");
-      setError(errorCarga?.message || "No se pudo leer la lista de jugadores.");
+      setErrorCarga(errorLectura?.message || "No se pudo leer la lista de jugadores.");
     }
   };
 
@@ -67,19 +91,26 @@ export default function TrainingJugadores() {
 
   const sumarJugador = async () => {
     const nombre = nombreNuevo.trim();
-    if (!nombre || agregando) return;
+    if (agregando) return;
+    if (!nombre) {
+      setErrorPlantel("Escribí un nombre.");
+      return;
+    }
+    if (plantel.some((jugador) => normalizarNombre(jugador.nombre) === normalizarNombre(nombre))) {
+      setErrorPlantel("Ese jugador ya está en la lista.");
+      return;
+    }
 
     setAgregando(true);
-    setMensaje("");
-    setError("");
+    setErrorPlantel("");
 
     try {
       const resultado = await agregarJugador(nombre, equipoId);
       if (resultado.error) {
-        setError(resultado.error);
+        setErrorPlantel(resultado.error);
       } else {
         setNombreNuevo("");
-        setMensaje(`${nombre} agregado a la lista (también en Partido).`);
+        avisar(`${nombre} agregado a la lista (también en Partido).`);
         await cargar();
       }
     } finally {
@@ -90,17 +121,15 @@ export default function TrainingJugadores() {
   const traerAtletas = async () => {
     setEstadoAtletas("cargando");
     setError("");
-    setMensaje("");
 
     try {
       const { respuesta, payload } = await pedirJson("/api/openfield/atletas");
       if (!respuesta.ok || !payload?.ok) {
-        throw new Error(mensajeDeRespuesta(payload, "No se pudieron leer los atletas de Catapult."));
+        throw new Error(mensajeDeRespuesta(payload, "No se pudieron leer los chalecos."));
       }
 
       const lista = Array.isArray(payload.atletas) ? payload.atletas : [];
       setAtletas(lista);
-      setFuenteAtletas(payload.fuente || "");
 
       // Punto de partida: lo guardado; si no hay, la propuesta.
       const propuestas = proponerVinculos({ jugadores: plantel, atletas: lista });
@@ -113,7 +142,7 @@ export default function TrainingJugadores() {
     } catch (errorAtletas) {
       setAtletas([]);
       setEstadoAtletas("error");
-      setError(errorAtletas?.message || "No se pudieron leer los atletas de Catapult.");
+      setError(errorAtletas?.message || "No se pudieron leer los chalecos.");
     }
   };
 
@@ -139,7 +168,6 @@ export default function TrainingJugadores() {
 
     setGuardando(true);
     setError("");
-    setMensaje("");
 
     const atletasPorId = new Map(atletas.map((atleta) => [String(atleta.id), atleta]));
     const errores = [];
@@ -159,7 +187,7 @@ export default function TrainingJugadores() {
 
     setGuardando(false);
     if (errores.length > 0) setError(errores.join(" · "));
-    setMensaje(guardados > 0 ? `${guardados} vínculo${guardados === 1 ? "" : "s"} guardado${guardados === 1 ? "" : "s"}.` : "");
+    if (guardados > 0) avisar(`${plural(guardados, "cambio guardado", "cambios guardados")}.`);
     await cargar();
   };
 
@@ -169,161 +197,205 @@ export default function TrainingJugadores() {
     [atletas],
   );
 
+  const conChaleco = plantel.filter((jugador) => jugador.catapult_id).length;
+
+  const estadoDeFila = (jugador) => {
+    if (estadoAtletas !== "listo") {
+      return jugador.catapult_id
+        ? { texto: `Chaleco: ${jugador.catapult_nombre || jugador.catapult_id}`, tono: "ok" }
+        : { texto: "Sin chaleco", tono: "" };
+    }
+
+    const fila = filas.find((f) => f.jugadorId === jugador.id);
+    const eleccion = elecciones[jugador.id] ?? (jugador.catapult_id || "");
+
+    if (eleccion && eleccionesRepetidas.has(eleccion)) return { texto: "Repetido", tono: "error" };
+    if (!eleccion) return { texto: "Sin chaleco", tono: "" };
+    if (fila?.vinculo && eleccion === fila.vinculo.atletaId) {
+      return fila.vinculo.ausente
+        ? { texto: "Ese chaleco ya no existe", tono: "error" }
+        : { texto: "Guardado", tono: "ok" };
+    }
+    if (fila?.propuesta && eleccion === fila.propuesta.atletaId) {
+      return {
+        texto: ETIQUETA_NIVEL[fila.propuesta.nivel],
+        tono: fila.propuesta.nivel === "exacto" ? "ok" : "",
+      };
+    }
+    return { texto: "Elegido a mano", tono: "ok" };
+  };
+
+  const etiquetaGuardar = guardando
+    ? "Guardando…"
+    : cambios.length === 0
+      ? "Sin cambios para guardar"
+      : `Guardar ${plural(cambios.length, "cambio", "cambios")}`;
+
   return (
-    <>
-      {!equipoId && (
-        <div className="entrenamiento-estado advertencia">
-          No hay un equipo elegido en Partido. Elegí el equipo en Partido → Ajustes → Equipo y volvé.
-        </div>
-      )}
+    <div className="app">
+      <div className="contenedor">
+        <header className="encabezado">
+          <h1>Lista de jugadores</h1>
+          <p>Ajustes · Lista de jugadores</p>
+        </header>
 
-      {estado === "cargando" && (
-        <div className="entrenamiento-ajustes-resultado" aria-live="polite">
-          <span className="entrenamiento-ajustes-estado-punto" aria-hidden="true" />
-          <div>
-            <strong>Leyendo la lista…</strong>
-            <span>Es la misma lista de jugadores de Partido.</span>
+        {aviso && (
+          <div className="notificacion-guardado" role="status">
+            <Icono nombre="check" size={18} /> {aviso}
           </div>
-        </div>
-      )}
+        )}
 
-      {estado === "error" && (
-        <>
-          <div className="entrenamiento-estado error">{error}</div>
-          <button type="button" className="entrenamiento-boton-secundario entrenamiento-ajustes-boton-ancho" onClick={cargar}>
-            Reintentar
-          </button>
-        </>
-      )}
+        {!equipoId && (
+          <div className="aviso-base">
+            <div>
+              <b>Primero elegí tu equipo</b>
+              <p>Hacelo en Partido › Ajustes › Equipo y volvé.</p>
+            </div>
+          </div>
+        )}
 
-      {estado === "listo" && (
-        <>
-          <div className="entrenamiento-sonda-tokens">
-            <span className="entrenamiento-sonda-chip">{plantel.length} jugadores</span>
-            <span className={`entrenamiento-sonda-chip ${plantel.some((j) => !j.catapult_id) ? "advertencia" : "correcto"}`}>
-              {plantel.filter((j) => j.catapult_id).length} vinculados con Catapult
-            </span>
-            {equipo?.nombre && <span className="entrenamiento-sonda-chip">{equipo.nombre}</span>}
+        <section className="tarjeta tarjeta-ficha">
+          <div className="cabeza-ficha">
+            <b>Plantel</b>
+            <span className="cuenta-ajuste">{plantel.length}</span>
           </div>
 
-          <div className="entrenamiento-jugadores-agregar">
-            <input
-              type="text"
-              value={nombreNuevo}
-              placeholder="Agregar jugador (también aparece en Partido)"
-              onChange={(event) => setNombreNuevo(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") sumarJugador();
-              }}
-              disabled={agregando}
-            />
-            <button type="button" className="entrenamiento-boton-secundario" onClick={sumarJugador} disabled={agregando || !nombreNuevo.trim()}>
-              {agregando ? "Agregando…" : "Agregar"}
-            </button>
-          </div>
+          <p className="pista-equipo">
+            La misma lista que Partido. Cada jugador se empareja una vez con su chaleco para que los
+            datos lleguen a la persona correcta.
+          </p>
 
-          {mensaje && <div className="entrenamiento-estado correcto">{mensaje}</div>}
-          {error && <div className="entrenamiento-estado error">{error}</div>}
+          {estado === "cargando" && <p className="vacio-ficha">Leyendo la lista…</p>}
 
-          {estadoAtletas !== "listo" && (
-            <button
-              type="button"
-              className="entrenamiento-boton-principal"
-              onClick={traerAtletas}
-              disabled={estadoAtletas === "cargando" || plantel.length === 0}
-            >
-              {estadoAtletas === "cargando" ? "Leyendo atletas de Catapult…" : "Vincular con Catapult"}
-            </button>
-          )}
-
-          {estadoAtletas === "listo" && (
+          {estado === "error" && (
             <>
-              <p className="entrenamiento-sonda-control">
-                {atletas.length} atletas en Catapult
-                {fuenteAtletas === "actividades" ? " (de las últimas actividades)" : ""} ·{" "}
-                {resumen.exactos} propuestas exactas · {resumen.probables} probables · {resumen.sinPropuesta} sin
-                propuesta{resumen.ausentes > 0 ? ` · ${resumen.ausentes} con atleta que ya no está` : ""}
-              </p>
-
-              {eleccionesRepetidas.size > 0 && (
-                <div className="entrenamiento-estado error">
-                  Hay un atleta elegido para más de un jugador. Corregilo antes de guardar.
-                </div>
-              )}
-
-              <button
-                type="button"
-                className="entrenamiento-boton-principal"
-                onClick={guardarVinculos}
-                disabled={cambios.length === 0 || guardando || eleccionesRepetidas.size > 0}
-              >
-                {guardando
-                  ? "Guardando…"
-                  : cambios.length === 0
-                    ? "Sin cambios para guardar"
-                    : `Guardar ${cambios.length} vínculo${cambios.length === 1 ? "" : "s"}`}
+              <p className="error-equipo">{errorCarga}</p>
+              <button type="button" className="boton-texto" onClick={cargar}>
+                Reintentar
               </button>
             </>
           )}
 
-          <ul className="entrenamiento-jugadores-lista">
-            {plantel.map((jugador) => {
-              const fila = filas.find((f) => f.jugadorId === jugador.id);
-              const eleccion = elecciones[jugador.id] ?? (jugador.catapult_id || "");
-              const repetida = eleccion && eleccionesRepetidas.has(eleccion);
+          {estado === "listo" && (
+            <>
+              <p className="pista-equipo">
+                {plural(plantel.length, "jugador", "jugadores")} · {conChaleco} con chaleco
+              </p>
 
-              return (
-                <li key={jugador.id ?? jugador.nombre}>
-                  <div className="entrenamiento-jugadores-fila">
-                    <strong>{jugador.nombre}</strong>
-                    {estadoAtletas !== "listo" ? (
-                      <span className={`entrenamiento-sonda-chip ${jugador.catapult_id ? "correcto" : "advertencia"}`}>
-                        {jugador.catapult_id ? `Catapult: ${jugador.catapult_nombre || jugador.catapult_id}` : "Sin vincular"}
-                      </span>
-                    ) : (
-                      <span
-                        className={`entrenamiento-sonda-chip ${
-                          repetida ? "error" : eleccion ? (fila?.vinculo && !fila.vinculo.ausente ? "correcto" : fila?.propuesta?.nivel === "exacto" ? "correcto" : "advertencia") : "advertencia"
-                        }`}
-                      >
-                        {repetida
-                          ? "Repetido"
-                          : fila?.vinculo && !fila.vinculo.ausente && eleccion === fila.vinculo.atletaId
-                            ? "Guardado"
-                            : fila?.vinculo?.ausente && eleccion === fila.vinculo.atletaId
-                              ? "El atleta ya no está en Catapult"
-                              : eleccion && fila?.propuesta && eleccion === fila.propuesta.atletaId
-                                ? ETIQUETA_NIVEL[fila.propuesta.nivel]
-                                : eleccion
-                                  ? "Elegido a mano"
-                                  : "Sin vincular"}
-                      </span>
-                    )}
-                  </div>
+              <div className="agregar-jugador">
+                <input
+                  type="text"
+                  value={nombreNuevo}
+                  placeholder="Nombre del jugador"
+                  onChange={(event) => {
+                    setNombreNuevo(event.target.value);
+                    if (errorPlantel) setErrorPlantel("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") sumarJugador();
+                  }}
+                  disabled={agregando}
+                />
+                <button type="button" onClick={sumarJugador} disabled={agregando}>
+                  {agregando ? "Agregando…" : "Agregar"}
+                </button>
+              </div>
 
-                  {estadoAtletas === "listo" && (
-                    <select
-                      aria-label={`Atleta de Catapult para ${jugador.nombre}`}
-                      value={eleccion}
-                      onChange={(event) =>
-                        setElecciones((actuales) => ({ ...actuales, [jugador.id]: event.target.value }))
-                      }
-                      disabled={guardando}
-                    >
-                      <option value="">— Sin vincular —</option>
-                      {opcionesAtletas.map((atleta) => (
-                        <option key={atleta.id} value={String(atleta.id)}>
-                          {nombreVisibleAtleta(atleta)}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-    </>
+              {errorPlantel && <p className="error-equipo">{errorPlantel}</p>}
+
+              {plantel.length === 0 ? (
+                <p className="vacio-ficha">Todavía no hay jugadores cargados.</p>
+              ) : (
+                <ul className="lista-plantel">
+                  {plantel.map((jugador, indice) => {
+                    const estadoFila = estadoDeFila(jugador);
+                    const eleccion = elecciones[jugador.id] ?? (jugador.catapult_id || "");
+
+                    return (
+                      <li key={jugador.id ?? jugador.nombre}>
+                        <span className="numero-lista">{indice + 1}</span>
+                        <span className="nombre-lista">{jugador.nombre}</span>
+                        <span className={`estado-vinculo ${estadoFila.tono}`.trim()}>{estadoFila.texto}</span>
+
+                        {estadoAtletas === "listo" && (
+                          <select
+                            className="selector-chaleco"
+                            aria-label={`Chaleco de ${jugador.nombre}`}
+                            value={eleccion}
+                            onChange={(event) =>
+                              setElecciones((actuales) => ({ ...actuales, [jugador.id]: event.target.value }))
+                            }
+                            disabled={guardando}
+                          >
+                            <option value="">— Sin chaleco —</option>
+                            {opcionesAtletas.map((atleta) => (
+                              <option key={atleta.id} value={String(atleta.id)}>
+                                {nombreVisibleAtleta(atleta)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
+          )}
+        </section>
+
+        {estado === "listo" && (
+          <section className="tarjeta tarjeta-ficha">
+            <div className="cabeza-ficha">
+              <b>Emparejar con los chalecos</b>
+            </div>
+
+            <p className="pista-equipo">
+              Busca los chalecos de las últimas sesiones y propone quién es quién. Después guardás.
+            </p>
+
+            {estadoAtletas !== "listo" && (
+              <button
+                type="button"
+                className="boton-principal"
+                onClick={traerAtletas}
+                disabled={estadoAtletas === "cargando" || plantel.length === 0}
+              >
+                {estadoAtletas === "cargando" ? "Buscando…" : "Buscar chalecos"}
+              </button>
+            )}
+
+            {estadoAtletas === "listo" && (
+              <p className="pista-equipo">
+                {plural(atletas.length, "chaleco encontrado", "chalecos encontrados")} ·{" "}
+                {plural(resumen.exactos, "coincide solo", "coinciden solos")} ·{" "}
+                {plural(resumen.probables, "parecido", "parecidos")} · {resumen.sinPropuesta} sin propuesta ·{" "}
+                {plural(resumen.ausentes, "ya no existe", "ya no existen")}
+              </p>
+            )}
+
+            {eleccionesRepetidas.size > 0 && (
+              <p className="error-equipo">Hay un chaleco elegido para más de un jugador. Corregilo antes de guardar.</p>
+            )}
+            {error && <p className="error-equipo">{error}</p>}
+
+            {estadoAtletas === "listo" && (
+              <button
+                type="button"
+                className="boton-principal"
+                onClick={guardarVinculos}
+                disabled={cambios.length === 0 || guardando || eleccionesRepetidas.size > 0}
+              >
+                {etiquetaGuardar}
+              </button>
+            )}
+          </section>
+        )}
+
+        <div className="acciones-dobles">
+          <BotonVolver onClick={onVolver}>Volver a Ajustes</BotonVolver>
+        </div>
+      </div>
+    </div>
   );
 }

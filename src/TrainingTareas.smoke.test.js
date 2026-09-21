@@ -119,7 +119,7 @@ describe("TrainingTareas", () => {
       { id: 1, nombre: "A MINDA", roles: [], puestos: [], catapult_id: "a1", catapult_nombre: "A MINDA (MIN)" },
       { id: 2, nombre: "IGOR GOMES", roles: [], puestos: [], catapult_id: "a2", catapult_nombre: "IGOR GOMES (GOM)" },
       { id: 3, nombre: "LEMOS", roles: [], puestos: [], catapult_id: null, catapult_nombre: null },
-      // Vinculado, pero sin datos en 26-05 T.
+      // Con chaleco, pero sin datos en 26-05 T.
       { id: 4, nombre: "ZARACHO", roles: [], puestos: [], catapult_id: "a9", catapult_nombre: "ZARACHO (ZAR)" },
     ];
     dobles.cargar.mockReset().mockImplementation(async () => ({ plantel: dobles.plantel }));
@@ -129,6 +129,7 @@ describe("TrainingTareas", () => {
     if (raiz) await act(async () => raiz.unmount());
     contenedor.remove();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
     window.localStorage.clear();
   });
 
@@ -154,7 +155,7 @@ describe("TrainingTareas", () => {
     expect(irASesion).toHaveBeenCalledTimes(1);
   });
 
-  test("carga una tarea completa, pide la vista previa y la envía confirmando el nombre", async () => {
+  test("carga una tarea completa, revisa el resumen y la envía confirmando el nombre", async () => {
     const fetchMock = fetchDeCortes();
     vi.stubGlobal("fetch", fetchMock);
     await montar();
@@ -162,9 +163,9 @@ describe("TrainingTareas", () => {
     expect(dobles.cargar).toHaveBeenCalledWith("eq-1");
     const consulta = fetchMock.mock.calls.find(([url, opciones]) => url === "/api/openfield/cortes" && JSON.parse(opciones.body).tareas.length === 0);
     expect(JSON.parse(consulta[1].body)).toEqual({ activityId: ACTIVIDAD.id, soloPlan: true, tareas: [] });
-    expect(contenedor.textContent).toContain("Datos en OpenField de 09:00:00 a 11:00:00");
+    expect(contenedor.textContent).toContain("datos de 09:00 a 11:00");
     expect(contenedor.textContent).toContain("Todavía no hay tareas");
-    expect(botonPorTexto("Vista previa del envío").disabled).toBe(true);
+    expect(botonPorTexto("Revisar y enviar").disabled).toBe(true);
 
     await act(async () => botonPorTexto("+ Nueva tarea").click());
     expect(contenedor.textContent).toContain("Incompleta");
@@ -190,14 +191,16 @@ describe("TrainingTareas", () => {
     });
     expect(contenedor.textContent).toContain("1 pausa · total 0:50");
 
-    // Jugadores: "Todos" marca solo a los vinculados con datos en la sesión;
-    // LEMOS (sin vincular) y ZARACHO (sin datos en 26-05 T) quedan deshabilitados.
+    // Jugadores: "Todos" marca solo a los que tienen chaleco y datos en la
+    // sesión; LEMOS (sin chaleco) y ZARACHO (sin datos en 26-05 T) quedan
+    // apagados.
     await act(async () => botonPorTexto("Todos").click());
     const casillas = [...contenedor.querySelectorAll("input[type='checkbox']")];
     expect(casillas.map((casilla) => casilla.checked)).toEqual([true, true, false, false]);
     expect(casillas[2].disabled).toBe(true);
     expect(casillas[3].disabled).toBe(true);
-    expect(contenedor.textContent).toContain("Sin datos en esta sesión");
+    expect(contenedor.textContent).toContain("sin chaleco");
+    expect(contenedor.textContent).toContain("sin datos");
     expect(contenedor.textContent).toContain("2 de 2 en la tarea");
 
     // IGOR con menos tiempo: arranca con el horario de la tarea y se corrige el inicio.
@@ -208,9 +211,9 @@ describe("TrainingTareas", () => {
 
     expect(contenedor.textContent).toContain("✓ Lista para enviar");
     expect(contenedor.textContent).toContain("14:10");
-    expect(botonPorTexto("Vista previa del envío").disabled).toBe(false);
+    expect(botonPorTexto("Revisar y enviar").disabled).toBe(false);
 
-    await act(async () => botonPorTexto("Vista previa del envío").click());
+    await act(async () => botonPorTexto("Revisar y enviar").click());
 
     const llamadaPlan = fetchMock.mock.calls.find(([url, opciones]) => {
       const cuerpo = url === "/api/openfield/cortes" ? JSON.parse(opciones.body) : null;
@@ -233,38 +236,46 @@ describe("TrainingTareas", () => {
     });
     const tareaId = cuerpoPlan.tareas[0].id;
 
-    const texto = contenedor.textContent;
-    expect(texto).toContain("2 períodos nuevos");
-    expect(texto).toContain("8 períodos que no son de la app quedan igual");
-    expect(texto).toContain("2 períodos · 2 jugadores");
+    // La subpantalla de envío: qué va a pasar y la confirmación.
+    expect(contenedor.querySelector("h1").textContent).toBe("Enviar");
+    const datos = [...contenedor.querySelectorAll(".dato-detalle")].map((fila) => [fila.querySelector("span").textContent, fila.querySelector("strong").textContent]);
+    expect(datos).toContainEqual(["Tareas nuevas", "2"]);
+    expect(datos).toContainEqual(["Lo que ya estaba y queda igual", "8"]);
+    expect(contenedor.textContent).toContain("2 bloques · 2 jugadores");
 
     const confirmacion = contenedor.querySelector("input[placeholder='26-05 T']");
-    expect(botonPorTexto("Enviar a OpenField").disabled).toBe(true);
+    expect(botonPorTexto("Enviar").disabled).toBe(true);
     await act(async () => escribir(confirmacion, "26-05 T"));
-    expect(botonPorTexto("Enviar a OpenField").disabled).toBe(false);
+    expect(botonPorTexto("Enviar").disabled).toBe(false);
 
-    await act(async () => botonPorTexto("Enviar a OpenField").click());
+    await act(async () => botonPorTexto("Enviar").click());
 
     const llamadaEnvio = fetchMock.mock.calls.find(([url, opciones]) => url === "/api/openfield/cortes" && !JSON.parse(opciones.body).soloPlan);
     const cuerpoEnvio = JSON.parse(llamadaEnvio[1].body);
     expect(cuerpoEnvio.confirmacion).toBe("26-05 T");
     expect(cuerpoEnvio.tareas[0].id).toBe(tareaId);
 
-    expect(contenedor.textContent).toContain("Todo quedó en OpenField tal cual se pidió");
+    expect(contenedor.textContent).toContain("Todo quedó guardado en la sesión");
     expect(contenedor.textContent).toContain("✓ 2. POSSE");
-    expect(contenedor.querySelector(".tarea-estado").textContent).toBe("Enviada");
+    // Después del resultado queda solo Volver.
+    expect(botonPorTexto("Enviar")).toBeUndefined();
 
     const guardada = cargarSesion(ACTIVIDAD.id);
     expect(guardada.asignaciones).toEqual({ [`${tareaId}|a-b`]: `p-${tareaId}-1` });
     expect(guardada.tareas[0].envio.ok).toBe(true);
     expect(guardada.ultimoEnvio.codigo).toBe("cortes-validados");
 
+    await act(async () => botonPorTexto("Volver a Tareas").click());
+    expect(contenedor.querySelector("h1").textContent).toBe("Tareas");
+    expect(contenedor.querySelector(".tarea-estado").textContent).toBe("Enviada");
+    expect(contenedor.textContent).toContain("Último envío");
+
     // Tocar la tarea después del envío la marca como cambiada.
     await act(async () => escribir(porEtiqueta("Fin de la tarea"), "10:26:00"));
     expect(contenedor.querySelector(".tarea-estado").textContent).toBe("Con cambios");
   });
 
-  test("con una tarea incompleta no deja pedir la vista previa y dice qué falta", async () => {
+  test("con una tarea incompleta no deja revisar y dice qué falta", async () => {
     vi.stubGlobal("fetch", fetchDeCortes());
     await montar();
 
@@ -272,9 +283,9 @@ describe("TrainingTareas", () => {
     await act(async () => escribir(contenedor.querySelector("input[type='text']"), "Rondo"));
 
     const texto = contenedor.textContent;
-    expect(texto).toContain("Antes de enviar, completá: Rondo (Falta el inicio o el fin");
-    expect(texto).toContain("No hay participantes.");
-    expect(botonPorTexto("Vista previa del envío").disabled).toBe(true);
+    expect(texto).toContain("Antes de enviar, completá la tarea marcada: Rondo. Abrila para ver qué falta.");
+    expect(texto).toContain("Elegí al menos un jugador.");
+    expect(botonPorTexto("Revisar y enviar").disabled).toBe(true);
   });
 
   test("una tarea que termina después de los datos de la sesión queda incompleta y lo dice", async () => {
@@ -286,8 +297,10 @@ describe("TrainingTareas", () => {
     await montar();
 
     expect(contenedor.querySelector(".tarea-estado").textContent).toBe("Incompleta");
-    expect(contenedor.textContent).toContain("Antes de enviar, completá: 2. POSSE (Termina después de los datos de la sesión (11:00:00).");
-    expect(botonPorTexto("Vista previa del envío").disabled).toBe(true);
+    expect(contenedor.textContent).toContain("Antes de enviar, completá la tarea marcada: 2. POSSE.");
+    await act(async () => contenedor.querySelector(".tarea-cabecera").click());
+    expect(contenedor.textContent).toContain("Termina después de los datos de la sesión (11:00).");
+    expect(botonPorTexto("Revisar y enviar").disabled).toBe(true);
   });
 
   test("vuelve a mostrar lo guardado en el celular y traduce los errores del servidor", async () => {
@@ -304,14 +317,101 @@ describe("TrainingTareas", () => {
     await montar();
 
     expect(contenedor.textContent).toContain("2. POSSE");
-    expect(contenedor.textContent).toContain("10:10:00 → 10:25:00 · 1 jugador");
+    expect(contenedor.textContent).toContain("10:10 → 10:25");
+    const chips = [...contenedor.querySelectorAll(".tiempos-registro span")].map((chip) => chip.textContent.replace(/\s+/g, " ").trim());
+    expect(chips).toContain("Jugadores 1");
     expect(contenedor.querySelector(".tarea-estado").textContent).toBe("Sin enviar");
 
-    await act(async () => botonPorTexto("Vista previa del envío").click());
-    expect(contenedor.textContent).toContain("Todavía no conectaste tu cuenta de Catapult. Hacelo en Ajustes.");
+    await act(async () => botonPorTexto("Revisar y enviar").click());
+    expect(contenedor.textContent).toContain("Todavía no conectaste tu usuario. Hacelo en Ajustes › Usuario y contraseña.");
+    // Con error no se pasa a la subpantalla de envío.
+    expect(contenedor.querySelector("h1").textContent).toBe("Tareas");
   });
 
-  test("borrar una tarea pide confirmación y avisa si ya estaba en OpenField", async () => {
+  test("sin señal avisa una sola vez y deja seguir registrando", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    await montar();
+
+    expect(contenedor.textContent).toContain("Sin conexión");
+    expect(contenedor.textContent).toContain("26-05 T");
+    expect(contenedor.textContent).not.toContain("leyendo la sesión…");
+    expect(contenedor.querySelectorAll(".aviso-base")).toHaveLength(1);
+    expect(botonPorTexto("Reintentar")).toBeDefined();
+
+    await act(async () => botonPorTexto("+ Nueva tarea").click());
+    expect(contenedor.querySelectorAll(".aviso-base")).toHaveLength(1);
+    expect(contenedor.querySelector("input[type='text']").value).toBe("Tarea 1");
+  });
+
+  test("+ Nueva tarea pone la hora actual solo dentro de la ventana de la sesión", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-26T10:30:15"));
+    vi.stubGlobal("fetch", fetchDeCortes());
+    await montar();
+
+    await act(async () => botonPorTexto("+ Nueva tarea").click());
+    expect(porEtiqueta("Inicio de la tarea").value).toBe("10:30:15");
+    expect(botonPorTexto("Terminar tarea")).toBeDefined();
+    expect(botonPorTexto("Empezar tarea")).toBeUndefined();
+
+    // Fuera de los datos de la sesión, el inicio queda vacío.
+    vi.setSystemTime(new Date("2026-05-26T12:00:00"));
+    await act(async () => botonPorTexto("+ Nueva tarea").click());
+    expect(porEtiqueta("Inicio de la tarea").value).toBe("");
+    expect(botonPorTexto("Empezar tarea")).toBeDefined();
+    expect(porEtiqueta("Fin de la tarea").value).toBe("");
+
+    // Los botones grandes ponen la hora actual sin mirar la ventana.
+    await act(async () => botonPorTexto("Empezar tarea").click());
+    expect(porEtiqueta("Inicio de la tarea").value).toBe("12:00:00");
+    await act(async () => botonPorTexto("Terminar tarea").click());
+    expect(porEtiqueta("Fin de la tarea").value).toBe("12:00:00");
+    expect(botonPorTexto("Terminar tarea")).toBeUndefined();
+  });
+
+  test("la segunda tarea nace con los jugadores elegibles de la primera", async () => {
+    // La primera tarea tiene a A MINDA (elegible), LEMOS (sin chaleco) y
+    // ZARACHO (sin datos en la sesión): solo el primero pasa a la siguiente.
+    window.localStorage.setItem(
+      `${CLAVE_SESION}:${ACTIVIDAD.id}`,
+      JSON.stringify({
+        activityId: ACTIVIDAD.id,
+        activityName: "26-05 T",
+        tareas: [
+          tareaGuardada({
+            participantes: {
+              1: { modo: "parcial", inicio: "10:12:00", fin: "10:20:00" },
+              3: { modo: "total", inicio: "", fin: "" },
+              4: { modo: "total", inicio: "", fin: "" },
+            },
+          }),
+        ],
+        asignaciones: {},
+        ultimoEnvio: null,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchDeCortes());
+    await montar();
+
+    await act(async () => botonPorTexto("+ Nueva tarea").click());
+    expect(contenedor.textContent).toContain("Tarea 2");
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(2);
+    expect(contenedor.querySelectorAll(".registro-guardado.abierta")).toHaveLength(1);
+    const casillas = [...contenedor.querySelectorAll("input[type='checkbox']")];
+    expect(casillas.map((c) => c.checked)).toEqual([true, false, false, false]);
+    expect(contenedor.textContent).toContain("1 de 2 en la tarea");
+
+    // Entra con toda la tarea, sin arrastrar el tiempo parcial de la anterior.
+    const guardada = cargarSesion(ACTIVIDAD.id);
+    expect(guardada.tareas[1].participantes).toEqual({ 1: { modo: "total", inicio: "", fin: "" } });
+  });
+
+  test("borrar una tarea pide confirmación y avisa que también se saca de la sesión", async () => {
     const enviada = tareaGuardada();
     window.localStorage.setItem(
       `${CLAVE_SESION}:${ACTIVIDAD.id}`,
@@ -327,17 +427,20 @@ describe("TrainingTareas", () => {
     await montar();
 
     expect(contenedor.textContent).toContain("Último envío");
+    expect(contenedor.textContent).toContain("todo bien");
     await act(async () => contenedor.querySelector(".tarea-cabecera").click());
-    await act(async () => botonPorTexto("Borrar tarea").click());
-    expect(contenedor.textContent).toContain("también se retira de OpenField");
+    await act(async () => porEtiqueta("Borrar tarea").click());
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Borrar esta tarea?");
+    expect(contenedor.textContent).toContain("también se saca de la sesión");
     await act(async () => botonPorTexto("No").click());
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
     expect(contenedor.textContent).toContain("2. POSSE");
 
-    await act(async () => botonPorTexto("Borrar tarea").click());
+    await act(async () => porEtiqueta("Borrar tarea").click());
     await act(async () => botonPorTexto("Sí, borrar").click());
     expect(contenedor.textContent).toContain("Todavía no hay tareas");
     expect(cargarSesion(ACTIVIDAD.id).tareas).toEqual([]);
-    // Las asignaciones se conservan: el próximo envío retira ese período.
+    // Las asignaciones se conservan: el próximo envío saca esa tarea de la sesión.
     expect(cargarSesion(ACTIVIDAD.id).asignaciones).toEqual({ "t1|a-b": "p1" });
   });
 });

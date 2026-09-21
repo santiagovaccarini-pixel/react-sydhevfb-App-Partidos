@@ -78,7 +78,7 @@ describe("resumenTarea y problemasDeTarea", () => {
     expect(problemas).toContain("Falta el nombre.");
     expect(problemas).toContain("Falta el inicio o el fin, o el fin no es posterior al inicio.");
     expect(problemas).toContain("La pausa 1 está incompleta.");
-    expect(problemas).toContain("LEMOS no está vinculado con Catapult.");
+    expect(problemas).toContain("LEMOS no tiene chaleco. Asignalo en Ajustes › Lista de jugadores.");
     expect(problemas).toContain("jugador 9 ya no está en la lista.");
     expect(problemas).toContain("IGOR GOMES: falta el inicio o el fin parcial.");
   });
@@ -94,15 +94,15 @@ describe("resumenTarea y problemasDeTarea", () => {
   it("con el rango de datos de la sesión, una tarea que se sale lo dice con la hora", () => {
     const ventana = { inicioMs: horaAMs("2026-09-20", "10:00:00"), finMs: horaAMs("2026-09-20", "10:20:00") };
     expect(problemasDeTarea(tarea(), plantel, { ventana })).toEqual([
-      "Termina después de los datos de la sesión (10:20:00). Si las curvas llegan más lejos, creá en el editor de OpenField un período hasta el final real y volvé a abrir Tareas.",
+      "Termina después de los datos de la sesión (10:20). Si los datos llegan más lejos, creá en el editor de la nube un bloque hasta el final real y volvé a abrir Tareas.",
     ]);
     const temprana = tarea({ inicio: "09:50:00", fin: "10:05:00", pausas: [], participantes: { 1: { modo: "total" } } });
-    expect(problemasDeTarea(temprana, plantel, { ventana })).toEqual(["Empieza antes de los datos de la sesión (10:00:00)."]);
+    expect(problemasDeTarea(temprana, plantel, { ventana })).toEqual(["Empieza antes de los datos de la sesión (10:00)."]);
     expect(armarEnvio({ tareas: [tarea()], plantel, ventana }).problemas).toHaveLength(1);
   });
 
   it("sin participantes también es un problema", () => {
-    expect(problemasDeTarea(tarea({ participantes: {} }), plantel)).toContain("No hay participantes.");
+    expect(problemasDeTarea(tarea({ participantes: {} }), plantel)).toContain("Elegí al menos un jugador.");
   });
 });
 

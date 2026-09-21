@@ -3,6 +3,7 @@ import App from "./App";
 import TrainingModule from "./TrainingModule";
 import TrainingAccessGate from "./TrainingAccessGate";
 import "./portal.css";
+import "./training.css";
 
 const MODOS = {
   PORTAL: "portal",
@@ -72,7 +73,7 @@ const Portal = ({ onElegir }) => (
           <span className="portal-tarjeta-texto">
             <span className="portal-beta">FASE BETA</span>
             <strong>Entrenamiento</strong>
-            <small>Tareas, pausas, participantes y procesamiento OpenField.</small>
+            <small>Tareas de cada sesión con los chalecos.</small>
           </span>
           <span className="portal-flecha" aria-hidden="true">›</span>
         </button>
@@ -100,7 +101,9 @@ export default function PortalApp() {
 
     return (
       <TrainingAccessGate onVolver={volver}>
-        <TrainingModule onVolver={volver} />
+        {({ email, cerrarSesion }) => (
+          <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />
+        )}
       </TrainingAccessGate>
     );
   }
