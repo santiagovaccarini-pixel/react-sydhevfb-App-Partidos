@@ -286,7 +286,7 @@ describe("TrainingTareas", () => {
     await montar();
 
     expect(contenedor.querySelector(".tarea-estado").textContent).toBe("Incompleta");
-    expect(contenedor.textContent).toContain("Antes de enviar, completá: 2. POSSE (Termina después de los datos de la sesión (11:00:00).)");
+    expect(contenedor.textContent).toContain("Antes de enviar, completá: 2. POSSE (Termina después de los datos de la sesión (11:00:00).");
     expect(botonPorTexto("Vista previa del envío").disabled).toBe(true);
   });
 

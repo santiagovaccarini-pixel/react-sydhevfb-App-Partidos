@@ -198,9 +198,17 @@ export const problemasDeTarea = (tarea, plantel = [], { atletasActividad = null,
 
   if (!tarea.nombre) problemas.push("Falta el nombre.");
   if (!valida) problemas.push("Falta el inicio o el fin, o el fin no es posterior al inicio.");
+  // OpenField toma como fin de la actividad el fin de su último período
+  // (comprobado en 26-05 T el 21/09: con un período creado en el editor hasta
+  // 16:39:01, el rango pasó de 16:19:32 a 16:39:01). Si los datos llegan más
+  // lejos que el último período, se extiende desde el editor.
   if (valida && ventana) {
     if (inicioMs < ventana.inicioMs) problemas.push(`Empieza antes de los datos de la sesión (${msAHora(ventana.inicioMs)}).`);
-    if (finMs > ventana.finMs) problemas.push(`Termina después de los datos de la sesión (${msAHora(ventana.finMs)}).`);
+    if (finMs > ventana.finMs) {
+      problemas.push(
+        `Termina después de los datos de la sesión (${msAHora(ventana.finMs)}). Si las curvas llegan más lejos, creá en el editor de OpenField un período hasta el final real y volvé a abrir Tareas.`,
+      );
+    }
   }
 
   tarea.pausas.forEach((pausa, indice) => {

@@ -93,7 +93,9 @@ describe("resumenTarea y problemasDeTarea", () => {
 
   it("con el rango de datos de la sesión, una tarea que se sale lo dice con la hora", () => {
     const ventana = { inicioMs: horaAMs("2026-09-20", "10:00:00"), finMs: horaAMs("2026-09-20", "10:20:00") };
-    expect(problemasDeTarea(tarea(), plantel, { ventana })).toEqual(["Termina después de los datos de la sesión (10:20:00)."]);
+    expect(problemasDeTarea(tarea(), plantel, { ventana })).toEqual([
+      "Termina después de los datos de la sesión (10:20:00). Si las curvas llegan más lejos, creá en el editor de OpenField un período hasta el final real y volvé a abrir Tareas.",
+    ]);
     const temprana = tarea({ inicio: "09:50:00", fin: "10:05:00", pausas: [], participantes: { 1: { modo: "total" } } });
     expect(problemasDeTarea(temprana, plantel, { ventana })).toEqual(["Empieza antes de los datos de la sesión (10:00:00)."]);
     expect(armarEnvio({ tareas: [tarea()], plantel, ventana }).problemas).toHaveLength(1);
