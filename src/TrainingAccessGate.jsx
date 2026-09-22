@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "./supabase.js";
 import { mensajeDeRespuesta } from "./trainingApi.js";
+import { IconoFlujo } from "./components/PortalArt.jsx";
 
 const esRecuperacionSolicitada = () => {
   if (typeof window === "undefined") return false;
@@ -21,6 +22,44 @@ const textoDeErrorDeAcceso = (error, porDefecto) => {
   if (/email not confirmed/i.test(texto)) return "Todavía no confirmaste tu correo. Revisá la casilla.";
   return porDefecto;
 };
+
+// La foto del módulo, borrosa, de fondo: la parada en el celular y la
+// apaisada en la computadora (las mismas de la portada).
+const fotoDeFondo = () =>
+  typeof window !== "undefined" && window.innerHeight > window.innerWidth
+    ? "/portal/flujo-parada.webp"
+    : "/portal/flujo.webp";
+
+// La puerta de Flujo diario, con la misma pinta que el portal: la foto del
+// módulo borrosa atrás, la nube dorada y una tarjeta oscura con lo que haya
+// que completar. Arriba, el botón para volver al portal.
+const PantallaAcceso = ({ titulo, texto, onVolver, children }) => (
+  <main className="training-access-page">
+    <div className="training-access-fondo" aria-hidden="true">
+      <img src={fotoDeFondo()} alt="" decoding="async" />
+    </div>
+    {onVolver ? (
+      <button type="button" className="training-access-volver" onClick={onVolver}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5" />
+          <path d="m12 19-7-7 7-7" />
+        </svg>
+        Volver al portal
+      </button>
+    ) : (
+      <span />
+    )}
+    <section className="training-access-card">
+      <span className="portal-icono" aria-hidden="true">
+        <IconoFlujo />
+      </span>
+      <span className="training-access-kicker">Flujo diario</span>
+      <h1>{titulo}</h1>
+      {texto && <p>{texto}</p>}
+      {children}
+    </section>
+  </main>
+);
 
 export default function TrainingAccessGate({ children, onVolver }) {
   const [email, setEmail] = useState("");
@@ -275,65 +314,55 @@ export default function TrainingAccessGate({ children, onVolver }) {
 
   if (cargando) {
     return (
-      <main className="training-access-page">
-        <section className="training-access-card">
-          <span className="training-access-kicker">FLUJO DIARIO</span>
-          <h1>Un momento</h1>
-          <p>Estamos comprobando tu acceso.</p>
-        </section>
-      </main>
+      <PantallaAcceso titulo="Un momento…" texto="Comprobando tu acceso." onVolver={onVolver}>
+        <span className="training-access-espera" aria-hidden="true" />
+      </PantallaAcceso>
     );
   }
 
   if (modoRecuperacion) {
     return (
-      <main className="training-access-page">
-        <section className="training-access-card">
-          <span className="training-access-kicker">FLUJO DIARIO</span>
-          <h1>Elegí una contraseña nueva</h1>
-          <p>Después vas a entrar con esta.</p>
+      <PantallaAcceso
+        titulo="Elegí una contraseña nueva"
+        texto="Después vas a entrar con esta."
+        onVolver={onVolver}
+      >
+        <form onSubmit={guardarNuevaPassword} className="training-access-form">
+          <label>
+            Nueva contraseña
+            <input
+              type="password"
+              value={nuevaPassword}
+              onChange={(event) => setNuevaPassword(event.target.value)}
+              autoComplete="new-password"
+              minLength="8"
+              required
+            />
+          </label>
 
-          <form onSubmit={guardarNuevaPassword} className="training-access-form">
-            <label>
-              Nueva contraseña
-              <input
-                type="password"
-                value={nuevaPassword}
-                onChange={(event) => setNuevaPassword(event.target.value)}
-                autoComplete="new-password"
-                minLength="8"
-                required
-              />
-            </label>
+          <label>
+            Repetir contraseña
+            <input
+              type="password"
+              value={confirmarPassword}
+              onChange={(event) => setConfirmarPassword(event.target.value)}
+              autoComplete="new-password"
+              minLength="8"
+              required
+            />
+          </label>
 
-            <label>
-              Repetir contraseña
-              <input
-                type="password"
-                value={confirmarPassword}
-                onChange={(event) => setConfirmarPassword(event.target.value)}
-                autoComplete="new-password"
-                minLength="8"
-                required
-              />
-            </label>
+          {error && <div className="training-access-message error">{error}</div>}
 
-            {error && <div className="training-access-message error">{error}</div>}
-
-            <button
-              type="submit"
-              className="training-access-primary"
-              disabled={Boolean(accion) || !sesionRecuperacion}
-            >
-              {accion === "cambiar-password" ? "Guardando…" : "Guardar contraseña"}
-            </button>
-          </form>
-
-          <button type="button" className="training-access-secondary" onClick={onVolver}>
-            Volver al portal
+          <button
+            type="submit"
+            className="training-access-primary"
+            disabled={Boolean(accion) || !sesionRecuperacion}
+          >
+            {accion === "cambiar-password" ? "Guardando…" : "Guardar contraseña"}
           </button>
-        </section>
-      </main>
+        </form>
+      </PantallaAcceso>
     );
   }
 
@@ -344,47 +373,47 @@ export default function TrainingAccessGate({ children, onVolver }) {
   }
 
   return (
-    <main className="training-access-page">
-      <section className="training-access-card">
-        <span className="training-access-kicker">FLUJO DIARIO</span>
-        <h1>Entrar</h1>
-        <p>Entrá con tu correo y contraseña de la app.</p>
+    <PantallaAcceso
+      titulo="Entrá con tu cuenta"
+      texto="Tu correo y tu contraseña de la app."
+      onVolver={onVolver}
+    >
+      <form onSubmit={ingresar} className="training-access-form">
+        <label>
+          Correo
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            placeholder="nombre@club.com"
+            required
+          />
+        </label>
 
-        <form onSubmit={ingresar} className="training-access-form">
-          <label>
-            Correo
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              autoComplete="email"
-              placeholder="nombre@club.com"
-              required
-            />
-          </label>
+        <label>
+          Contraseña
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            minLength="8"
+            required
+          />
+        </label>
 
-          <label>
-            Contraseña
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              minLength="8"
-              required
-            />
-          </label>
+        {error && <div className="training-access-message error">{error}</div>}
+        {mensaje && <div className="training-access-message ok">{mensaje}</div>}
 
-          {error && <div className="training-access-message error">{error}</div>}
-          {mensaje && <div className="training-access-message ok">{mensaje}</div>}
+        <button type="submit" className="training-access-primary" disabled={Boolean(accion)}>
+          {accion === "ingresar" ? "Entrando…" : "Entrar"}
+        </button>
 
-          <button type="submit" className="training-access-primary" disabled={Boolean(accion)}>
-            {accion === "ingresar" ? "Entrando…" : "Entrar"}
-          </button>
-
+        <div className="training-access-enlaces">
           <button
             type="button"
-            className="training-access-secondary"
+            className="training-access-enlace"
             onClick={solicitarRestablecimiento}
             disabled={Boolean(accion)}
           >
@@ -393,22 +422,16 @@ export default function TrainingAccessGate({ children, onVolver }) {
 
           <button
             type="button"
-            className="training-access-secondary"
+            className="training-access-enlace"
             onClick={crearCuenta}
             disabled={Boolean(accion)}
           >
-            {accion === "crear" ? "Creando…" : "Crear cuenta"}
+            {accion === "crear" ? "Creando…" : "Crear una cuenta"}
           </button>
-        </form>
+        </div>
+      </form>
 
-        <small>
-          Si creás una cuenta, todavía hay que autorizarla. Avisale a quien mantiene la app.
-        </small>
-
-        <button type="button" className="training-access-secondary" onClick={onVolver}>
-          Volver al portal
-        </button>
-      </section>
-    </main>
+      <small>Si creás una cuenta nueva, hay que autorizarla antes de que pueda entrar.</small>
+    </PantallaAcceso>
   );
 }
