@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { MarcoAplicacion } from "./components/AppChrome";
 import TrainingInicio from "./TrainingInicio";
 import TrainingElegirSesion from "./TrainingElegirSesion";
@@ -18,27 +18,16 @@ export const DESTINOS_ENTRENAMIENTO = [
 
 export const CLAVE_VISTA = "entrenamiento_vista";
 
-const VISTAS = ["sesion", "elegir-sesion", "tareas", "ajustes"];
 const VISTAS_AJUSTES = ["inicio", "cuenta", "jugadores", "pruebas"];
 
-// La pantalla en la que quedó el módulo, para volver ahí al reabrir la app.
-// "elegir-sesion" es una pantalla de paso: al releer cae a "sesion".
-export const leerVistaGuardada = () => {
+// La app arranca siempre en Sesión: al reabrirla no tiene que aparecer en
+// Ajustes ni en el medio de otra cosa. La clave quedó de una versión que
+// recordaba la pantalla; se limpia para no dejar basura en el celular.
+const olvidarVistaGuardada = () => {
   try {
-    const guardada = JSON.parse(localStorage.getItem(CLAVE_VISTA) || "null") || {};
-    const vista = VISTAS.includes(guardada.vista) && guardada.vista !== "elegir-sesion" ? guardada.vista : "sesion";
-    const vistaAjustes = VISTAS_AJUSTES.includes(guardada.vistaAjustes) ? guardada.vistaAjustes : "inicio";
-    return { vista, vistaAjustes };
+    localStorage.removeItem(CLAVE_VISTA);
   } catch {
-    return { vista: "sesion", vistaAjustes: "inicio" };
-  }
-};
-
-const guardarVista = (vista, vistaAjustes) => {
-  try {
-    localStorage.setItem(CLAVE_VISTA, JSON.stringify({ vista, vistaAjustes }));
-  } catch {
-    // Sin espacio o sin localStorage: la app sigue, solo no recuerda la pantalla.
+    // Sin localStorage no hay nada que limpiar.
   }
 };
 
@@ -46,27 +35,22 @@ const guardarVista = (vista, vistaAjustes) => {
 // barra inferior en el celular. Sesión elige la sesión de trabajo, Tareas
 // registra las tareas sobre ella y Ajustes guarda el usuario y los jugadores.
 export default function TrainingModule({ onVolver, email = "", onCerrarSesion }) {
-  const [vistaInicial] = useState(leerVistaGuardada);
-  const [vista, setVista] = useState(vistaInicial.vista);
-  const [vistaAjustes, setVistaAjustesEstado] = useState(vistaInicial.vistaAjustes);
+  const [vista, setVista] = useState("sesion");
+  const [vistaAjustes, setVistaAjustesEstado] = useState("inicio");
   const [actividad, setActividad] = useState(leerActividadElegida);
 
-  const irA = (nueva) => {
-    setVista(nueva);
-    guardarVista(nueva, vistaAjustes);
-  };
+  useEffect(olvidarVistaGuardada, []);
+
+  const irA = (nueva) => setVista(nueva);
 
   const setVistaAjustes = (nueva) => {
-    const limpia = VISTAS_AJUSTES.includes(nueva) ? nueva : "inicio";
-    setVistaAjustesEstado(limpia);
-    guardarVista(vista, limpia);
+    setVistaAjustesEstado(VISTAS_AJUSTES.includes(nueva) ? nueva : "inicio");
   };
 
   // Tocar un destino de la barra siempre vuelve a la raíz de Ajustes.
   const onNavigate = (id) => {
     setVistaAjustesEstado("inicio");
     setVista(id);
-    guardarVista(id, "inicio");
   };
 
   const elegirActividad = (nueva) => {
@@ -81,6 +65,7 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
         actividad={actividad}
         onElegirSesion={() => irA("elegir-sesion")}
         onIrATareas={() => irA("tareas")}
+        onVolverModulos={onVolver}
       />
     ),
     "elegir-sesion": (
@@ -98,7 +83,6 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
       <TrainingSettings
         vista={vistaAjustes}
         onCambiarVista={setVistaAjustes}
-        onVolverModulos={onVolver}
         email={email}
         onCerrarSesion={onCerrarSesion}
       />

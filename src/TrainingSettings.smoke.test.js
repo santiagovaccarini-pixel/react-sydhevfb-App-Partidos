@@ -170,7 +170,6 @@ describe("TrainingSettings", () => {
       "Usuario y contraseña",
       "Lista de jugadores",
       "Pruebas técnicas",
-      "Cambiar de módulo",
       "Cerrar sesión",
     ]);
     expect(opcion("Usuario y contraseña").textContent).toContain("Todavía no conectaste tu usuario");
@@ -419,15 +418,11 @@ describe("TrainingSettings", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  test("cambiar de módulo y cerrar sesión salen por Ajustes", async () => {
+  test("cerrar sesión sale por Ajustes con confirmación", async () => {
     vi.stubGlobal("fetch", fetchRuteado(SIN_CUENTA));
-    const onVolverModulos = vi.fn();
     const onCerrarSesion = vi.fn();
 
-    await montar({ onVolverModulos, onCerrarSesion });
-
-    await act(async () => opcion("Cambiar de módulo").click());
-    expect(onVolverModulos).toHaveBeenCalledTimes(1);
+    await montar({ onCerrarSesion });
 
     await act(async () => opcion("Cerrar sesión").click());
     expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Cerrar sesión?");

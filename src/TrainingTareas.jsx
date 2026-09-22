@@ -265,8 +265,12 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     setSesion((actual) => {
       const anterior = actual.tareas[actual.tareas.length - 1];
       const elegiblesIds = new Set(elegibles.map((jugador) => String(jugador.id)));
+      // La primera tarea arranca con todos los que tienen datos; las
+      // siguientes, con los de la tarea anterior (lo habitual es repetir el
+      // grupo). En los dos casos entran con toda la tarea.
+      const base = anterior ? Object.keys(anterior.participantes || {}) : [...elegiblesIds];
       const participantes = Object.fromEntries(
-        Object.keys(anterior?.participantes || {})
+        base
           .filter((jugadorId) => elegiblesIds.has(jugadorId))
           .map((jugadorId) => [jugadorId, { modo: MODO_TOTAL, inicio: "", fin: "" }]),
       );
@@ -331,6 +335,46 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     }));
 
   const marcarNinguno = (id) => actualizarTarea(id, { participantes: {} });
+
+  // Copia los jugadores de otra tarea (los elegibles), con toda la tarea.
+  const copiarJugadoresDe = (id, origen) =>
+    actualizarTarea(id, (tarea) => ({
+      participantes: Object.fromEntries(
+        elegibles
+          .filter((jugador) => origen.participantes[String(jugador.id)])
+          .map((jugador) => [
+            String(jugador.id),
+            tarea.participantes[String(jugador.id)] || { modo: MODO_TOTAL, inicio: "", fin: "" },
+          ]),
+      ),
+    }));
+
+  // Un grupo (por ejemplo los defensores): si ya están todos, los saca; si
+  // falta alguno, los agrega.
+  const alternarGrupo = (id, ids) =>
+    actualizarTarea(id, (tarea) => {
+      const participantes = { ...tarea.participantes };
+      const faltan = ids.filter((jugadorId) => !participantes[jugadorId]);
+      if (faltan.length === 0) {
+        ids.forEach((jugadorId) => delete participantes[jugadorId]);
+      } else {
+        faltan.forEach((jugadorId) => {
+          participantes[jugadorId] = { modo: MODO_TOTAL, inicio: "", fin: "" };
+        });
+      }
+      return { participantes };
+    });
+
+  const GRUPOS = [
+    ["Defensa", "Defensores"],
+    ["Mediocampo", "Medios"],
+    ["Ataque", "Delanteros"],
+  ];
+  const gruposDeRol = GRUPOS.map(([rol, etiqueta]) => ({
+    rol,
+    etiqueta,
+    ids: elegibles.filter((jugador) => (jugador.roles || []).includes(rol)).map((jugador) => String(jugador.id)),
+  })).filter((grupo) => grupo.ids.length > 0);
 
   const cambiarParticipante = (id, jugadorId, cambios) =>
     actualizarTarea(id, (tarea) => ({
@@ -504,6 +548,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   );
 
   const renderTarea = (tarea, indice) => {
+    const tareaAnterior = indice > 0 ? tareas[indice - 1] : null;
     const abiertaEsta = abierta === tarea.id;
     const resumen = resumenTarea(tarea);
     const faltantes = problemas.get(tarea.id) || [];
@@ -662,12 +707,30 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
               <span>
                 {seleccionados} de {elegibles.length} en la tarea
               </span>
+            </div>
+
+            <div className="atajos-jugadores">
               <button type="button" className="boton-texto" onClick={() => marcarTodos(tarea.id)}>
                 Todos
               </button>
               <button type="button" className="boton-texto" onClick={() => marcarNinguno(tarea.id)}>
                 Ninguno
               </button>
+              {tareaAnterior && (
+                <button type="button" className="boton-texto" onClick={() => copiarJugadoresDe(tarea.id, tareaAnterior)}>
+                  Como la anterior
+                </button>
+              )}
+              {gruposDeRol.map((grupo) => (
+                <button
+                  key={grupo.rol}
+                  type="button"
+                  className="boton-texto"
+                  onClick={() => alternarGrupo(tarea.id, grupo.ids)}
+                >
+                  {grupo.etiqueta}
+                </button>
+              ))}
             </div>
 
             {estadoPlantel === "cargando" && <p className="vacio-ficha">Leyendo la lista de jugadores…</p>}
@@ -676,7 +739,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
               <p className="vacio-ficha">La lista de jugadores está vacía. Cargala en Ajustes › Lista de jugadores.</p>
             )}
 
-            <div className="chips-jugadores">
+            <div className="lista-jugadores-tarea">
               {plantel.map((jugador) => {
                 const clave = String(jugador.id);
                 const datos = tarea.participantes[clave];
@@ -684,11 +747,12 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                 const sinDatos = conChaleco && !tieneDatos(jugador);
                 // Sin datos en la sesión no se puede agregar, pero sí sacar.
                 const apagado = !conChaleco || (sinDatos && !datos);
+                const puestos = Array.isArray(jugador.puestos) ? jugador.puestos.join(" ") : "";
 
                 return (
                   <label
                     key={clave}
-                    className={`chip-jugador ${datos ? "activo" : ""} ${apagado ? "apagado" : ""}`.replace(/\s+/g, " ").trim()}
+                    className={`fila-jugador ${datos ? "activo" : ""} ${apagado ? "apagado" : ""}`.replace(/\s+/g, " ").trim()}
                   >
                     <input
                       type="checkbox"
@@ -696,9 +760,14 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                       disabled={apagado}
                       onChange={() => alternarJugador(tarea.id, clave)}
                     />
-                    {jugador.nombre}
-                    {!conChaleco && <small>sin chaleco</small>}
-                    {sinDatos && <small>sin datos</small>}
+                    <span className="nombre-fila-jugador">{jugador.nombre}</span>
+                    {!conChaleco ? (
+                      <small>sin chaleco</small>
+                    ) : sinDatos ? (
+                      <small>sin datos</small>
+                    ) : puestos ? (
+                      <small>{puestos}</small>
+                    ) : null}
                   </label>
                 );
               })}

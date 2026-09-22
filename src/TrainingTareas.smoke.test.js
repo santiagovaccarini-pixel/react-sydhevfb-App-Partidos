@@ -284,7 +284,12 @@ describe("TrainingTareas", () => {
 
     const texto = contenedor.textContent;
     expect(texto).toContain("Antes de enviar, completá la tarea marcada: Rondo. Abrila para ver qué falta.");
-    expect(texto).toContain("Elegí al menos un jugador.");
+    expect(texto).toContain("Falta el inicio o el fin");
+    // La primera tarea arranca con todos los que tienen chaleco y datos.
+    const casillas = [...contenedor.querySelectorAll("input[type='checkbox']")];
+    expect(casillas.map((c) => c.checked)).toEqual([true, true, false, false]);
+    await act(async () => botonPorTexto("Ninguno").click());
+    expect(contenedor.textContent).toContain("Elegí al menos un jugador.");
     expect(botonPorTexto("Revisar y enviar").disabled).toBe(true);
   });
 
@@ -409,6 +414,12 @@ describe("TrainingTareas", () => {
     // Entra con toda la tarea, sin arrastrar el tiempo parcial de la anterior.
     const guardada = cargarSesion(ACTIVIDAD.id);
     expect(guardada.tareas[1].participantes).toEqual({ 1: { modo: "total", inicio: "", fin: "" } });
+
+    // "Ninguno" y "Como la anterior" vuelven a dejar a los mismos.
+    await act(async () => botonPorTexto("Ninguno").click());
+    expect(contenedor.textContent).toContain("0 de 2 en la tarea");
+    await act(async () => botonPorTexto("Como la anterior").click());
+    expect(contenedor.textContent).toContain("1 de 2 en la tarea");
   });
 
   test("borrar una tarea pide confirmación y avisa que también se saca de la sesión", async () => {

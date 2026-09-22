@@ -12,7 +12,6 @@ import { pedirJson } from "./trainingApi.js";
 export default function TrainingSettings({
   vista = "inicio",
   onCambiarVista = () => {},
-  onVolverModulos = () => {},
   email = "",
   onCerrarSesion = () => {},
 }) {
@@ -96,13 +95,6 @@ export default function TrainingSettings({
       titulo: "Pruebas técnicas",
       detalle: "Solo si te lo piden por chat",
       alTocar: () => onCambiarVista("pruebas"),
-    },
-    {
-      id: "modulos",
-      icono: "escudo",
-      titulo: "Cambiar de módulo",
-      detalle: "Volver al portal para elegir Partido",
-      alTocar: onVolverModulos,
     },
     {
       id: "salir",
