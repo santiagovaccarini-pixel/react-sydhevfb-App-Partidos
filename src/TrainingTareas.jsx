@@ -747,7 +747,6 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                 const sinDatos = conChaleco && !tieneDatos(jugador);
                 // Sin datos en la sesión no se puede agregar, pero sí sacar.
                 const apagado = !conChaleco || (sinDatos && !datos);
-                const puestos = Array.isArray(jugador.puestos) ? jugador.puestos.join(" ") : "";
 
                 return (
                   <label
@@ -761,13 +760,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                       onChange={() => alternarJugador(tarea.id, clave)}
                     />
                     <span className="nombre-fila-jugador">{jugador.nombre}</span>
-                    {!conChaleco ? (
-                      <small>sin chaleco</small>
-                    ) : sinDatos ? (
-                      <small>sin datos</small>
-                    ) : puestos ? (
-                      <small>{puestos}</small>
-                    ) : null}
+                    {!conChaleco ? <small>sin chaleco</small> : sinDatos ? <small>sin datos</small> : null}
                   </label>
                 );
               })}
