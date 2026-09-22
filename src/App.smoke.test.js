@@ -313,6 +313,18 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelector(".navegacion-movil")).not.toBeNull();
   });
 
+  test("desde el portal, con la intro apagada, entra directo", async () => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App intro={false} />);
+    });
+    await act(async () => Promise.resolve());
+
+    // La portada del portal ya mostró la foto: acá no hay estadio que esperar.
+    expect(contenedor.querySelector(".intro-pantalla")).toBeNull();
+    expect(contenedor.querySelector(".navegacion-movil")).not.toBeNull();
+  });
+
   test("renderiza PC y móvil y registra acciones rápidas sin perder datos", async () => {
     await montarApp();
 

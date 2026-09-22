@@ -49,6 +49,13 @@ de lo hecho está en los commits, no en esta lista.
   con las fotos que mandó Santi (`public/portal/*.webp`, también sin señal),
   íconos nuevos y descripciones en criollo. Si una foto no carga, va el
   dibujo en código de `src/components/PortalArt.jsx`.
+- **Portada de entrada (hecho)**: al tocar una tarjeta, su foto crece hasta
+  tapar la pantalla, se queda un momento con el ícono y el nombre del módulo
+  y se desvanece sobre el módulo, que ya se cargó abajo (`Portada` en
+  `src/PortalApp.jsx`; tiempos en `TIEMPOS_PORTADA`, unos 2,4 s en total).
+  Partido entra sin su intro del estadio cuando viene del portal (`intro`
+  en `App`), para no mostrar dos imágenes seguidas; la intro sigue en el
+  código por si la app se abre sola.
 
 ### Entrenamiento por fecha y guardado en la base (hecho el 22/09)
 
