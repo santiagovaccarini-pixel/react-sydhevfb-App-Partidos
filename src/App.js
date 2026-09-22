@@ -238,7 +238,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.09.22.8";
+const APP_VERSION = "2026.09.22.9";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1131,7 +1131,10 @@ const EstadoVersionApp = ({ actualizacionDisponible, onActualizar }) => (
   </div>
 );
 
-export default function App() {
+// Desde el portal, la portada de la tarjeta ya hizo de imagen de entrada, así
+// que Partido entra directo (intro=false). Sola, la app sigue abriendo con
+// la foto del estadio.
+export default function App({ intro = true } = {}) {
   const crearCambioVacio = () => ({
     sale: "",
     entra: "",
@@ -1500,15 +1503,16 @@ export default function App() {
 
   // Una sola hoja para todas las confirmaciones: la que esté pedida en el
   // momento. Reemplaza a los window.confirm del navegador.
-  const [mostrarApp, setMostrarApp] = useState(false);
+  const [mostrarApp, setMostrarApp] = useState(!intro);
 
   useEffect(() => {
+    if (!intro) return undefined;
     const temporizador = window.setTimeout(
       () => setMostrarApp(true),
       DURACION_INTRO,
     );
     return () => window.clearTimeout(temporizador);
-  }, []);
+  }, [intro]);
 
   const [confirmacion, setConfirmacion] = useState(null);
   // La tanda de penales ocupa lugar: se muestra solo si hace falta.

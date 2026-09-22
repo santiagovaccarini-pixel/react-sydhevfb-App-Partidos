@@ -240,3 +240,125 @@
     font-size: 0.9rem;
   }
 }
+
+/* La portada de entrada. Al tocar una tarjeta, su foto crece desde donde
+   estaba hasta tapar la pantalla, se queda un momento con el nombre del
+   módulo y se desvanece sobre el módulo, que ya se cargó abajo. Arranca con el
+   lugar de la foto puesto en línea (top, left, ancho y alto) y la transición
+   la lleva a la pantalla entera. */
+.portal-portada {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  border-radius: 0;
+  background: var(--portal-bg);
+  opacity: 1;
+  transition:
+    top 450ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    left 450ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 450ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 450ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-radius 450ms ease,
+    opacity 350ms ease;
+}
+
+/* Recién tocada, tiene las puntas redondeadas de la tarjeta. */
+.portal-portada.inicio {
+  border-radius: 26px 26px 0 0;
+}
+
+.portal-portada.saliendo {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.portal-portada .portal-foto {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+}
+
+/* La foto sigue acercándose despacio mientras está quieta. */
+.portal-portada img,
+.portal-portada .portal-arte {
+  transform: scale(1);
+  transition: transform 2400ms ease-out;
+}
+
+.portal-portada.llena img,
+.portal-portada.llena .portal-arte,
+.portal-portada.saliendo img,
+.portal-portada.saliendo .portal-arte {
+  transform: scale(1.06);
+}
+
+/* Abajo, oscuro, para que se lea el nombre. */
+.portal-portada .portal-foto::after {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 45%, rgba(0, 0, 0, 0.78) 100%);
+}
+
+.portal-portada-texto {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 30px);
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 400ms ease 250ms, transform 400ms ease 250ms;
+}
+
+.portal-portada.llena .portal-portada-texto,
+.portal-portada.saliendo .portal-portada-texto {
+  opacity: 1;
+  transform: none;
+}
+
+.portal-portada-texto .portal-icono {
+  position: static;
+}
+
+.portal-portada-texto strong {
+  font-size: clamp(2.4rem, 9vw, 3.6rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+}
+
+.portal-portada-texto small {
+  color: #dfe5ec;
+  font-size: 1rem;
+  font-weight: 600;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
+}
+
+@media (max-width: 720px) {
+  .portal-portada.inicio {
+    border-radius: 22px 22px 0 0;
+  }
+}
+
+/* Si el teléfono pide menos movimiento, la portada aparece y se va sin zoom. */
+@media (prefers-reduced-motion: reduce) {
+  .portal-portada,
+  .portal-portada img,
+  .portal-portada .portal-arte,
+  .portal-portada-texto {
+    transition: none;
+  }
+
+  .portal-portada.llena img,
+  .portal-portada.llena .portal-arte,
+  .portal-portada.saliendo img,
+  .portal-portada.saliendo .portal-arte {
+    transform: none;
+  }
+}

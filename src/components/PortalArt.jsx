@@ -102,7 +102,7 @@ export const ArteFlujo = () => (
   </svg>
 );
 
-// Íconos de las tarjetas: la pelota y el ciclo del día.
+// Íconos de las tarjetas: la pelota y la nube.
 export const IconoPartido = () => (
   <svg viewBox="0 0 64 64" aria-hidden="true">
     <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" strokeWidth="3" />
@@ -117,23 +117,24 @@ export const IconoPartido = () => (
   </svg>
 );
 
+// La nube con la flecha de subir: lo del día termina en la nube. Trazos
+// limpios y gruesos para que se lea chico, sobre la foto.
 export const IconoFlujo = () => (
   <svg viewBox="0 0 64 64" aria-hidden="true">
     <path
-      d="M17 44h29a12 12 0 0 0 1-24 17 17 0 0 0-33-4 13 13 0 0 0 3 28z"
+      d="M47 27h-3.15A20 20 0 1 0 24.5 52H47a12.5 12.5 0 0 0 0-25z"
       fill="none"
       stroke="currentColor"
-      strokeWidth="3"
+      strokeWidth="3.5"
       strokeLinejoin="round"
     />
     <path
-      d="M24 33a8 8 0 0 1 14-5m2 6a8 8 0 0 1-14 5"
+      d="M32 43V28m-7 7 7-7 7 7"
       fill="none"
       stroke="currentColor"
-      strokeWidth="3"
+      strokeWidth="3.5"
       strokeLinecap="round"
+      strokeLinejoin="round"
     />
-    <path d="M38 22v6h-6M26 40v-6h6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M20 54h24" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
   </svg>
 );
