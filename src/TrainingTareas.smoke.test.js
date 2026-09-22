@@ -1,8 +1,9 @@
-import React, { act } from "react";
+import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import TrainingTareas from "./TrainingTareas";
-import { CLAVE_SESION, cargarSesion, horaAMs } from "./domain/sesionEntrenamiento.js";
+import { etiquetaEntrenamiento } from "./domain/entrenamiento.js";
+import { horaAMs } from "./domain/sesionEntrenamiento.js";
 
 const dobles = vi.hoisted(() => ({ plantel: [], cargar: vi.fn() }));
 
@@ -32,6 +33,9 @@ const respuesta = (status, cuerpo) => ({ ok: status < 300, status, json: async (
 // llegan en el cuerpo, así el test no fija ids generados en la pantalla.
 const fetchDeCortes = ({ plan, envio } = {}) =>
   vi.fn(async (url, opciones) => {
+    if (url === "/api/openfield/activities") {
+      return respuesta(200, { ok: true, activities: [{ ...ACTIVIDAD, period_count: 3, venue: "Cidade do Galo" }] });
+    }
     if (url !== "/api/openfield/cortes") return respuesta(500, { ok: false, error: "sin ruta" });
     const body = JSON.parse(opciones.body);
 
@@ -108,22 +112,54 @@ const tareaGuardada = (extra = {}) => ({
   ...extra,
 });
 
-const guardarSesionDePrueba = (tareas, extra = {}) =>
-  window.localStorage.setItem(
-    `${CLAVE_SESION}:${ACTIVIDAD.id}`,
-    JSON.stringify({ activityId: ACTIVIDAD.id, activityName: "26-05 T", tareas, asignaciones: {}, ultimoEnvio: null, ...extra }),
-  );
+// El entrenamiento sobre el que trabaja la pantalla, con la sesión 26-05 T ya
+// vinculada salvo que se diga otra cosa.
+const entrenamientoDePrueba = (tareas = [], extra = {}) => ({
+  id: "11111111-2222-4333-8444-555555555555",
+  equipoId: "eq-1",
+  fecha: "2026-05-26",
+  nombre: "",
+  tareas,
+  actividad: { id: ACTIVIDAD.id, name: "26-05 T", start_time: ACTIVIDAD.start_time, end_time: ACTIVIDAD.end_time },
+  asignaciones: {},
+  ultimoEnvio: null,
+  creadoEn: "2026-05-26T12:00:00.000Z",
+  actualizadoEn: "2026-05-26T12:00:00.000Z",
+  guardadoEn: "",
+  ...extra,
+});
+
+const TITULO = etiquetaEntrenamiento({ fecha: "2026-05-26", nombre: "" });
 
 const hora = (texto) => new Date(`2026-05-26T${texto}`);
+
+// La pantalla recibe el entrenamiento y avisa los cambios; acá los guarda un
+// estado de prueba y `ultimo` deja ver el último valor.
+const ultimo = { current: null };
+function Arnes({ entrenamiento, ...resto }) {
+  const [estado, setEstado] = useState(entrenamiento);
+  ultimo.current = estado;
+  return (
+    <TrainingTareas
+      entrenamiento={estado}
+      onCambiar={(cambio) => setEstado((previo) => (typeof cambio === "function" ? cambio(previo) : { ...previo, ...cambio }))}
+      onIrAInicio={() => {}}
+      {...resto}
+    />
+  );
+}
 
 describe("TrainingTareas", () => {
   let contenedor;
   let raiz;
+  let inicial;
 
   beforeEach(() => {
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     window.localStorage.clear();
+    inicial = entrenamientoDePrueba();
+    ultimo.current = null;
     // LEMOS va primero en la lista para comprobar que, sin chaleco, queda al final.
     dobles.plantel = [
       { id: 3, nombre: "LEMOS", roles: [], puestos: [], catapult_id: null, catapult_nombre: null },
@@ -144,9 +180,10 @@ describe("TrainingTareas", () => {
   });
 
   const montar = async (props = {}) => {
+    const entrenamiento = "entrenamiento" in props ? props.entrenamiento : inicial;
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<TrainingTareas actividad={ACTIVIDAD} onIrASesion={() => {}} {...props} />);
+      raiz.render(<Arnes {...props} entrenamiento={entrenamiento} />);
     });
     await act(async () => Promise.resolve());
   };
@@ -163,16 +200,43 @@ describe("TrainingTareas", () => {
   const pastilla = () => contenedor.querySelector(".estado-tarea").textContent;
   const casillas = () => [...contenedor.querySelectorAll("input[type='checkbox']")];
   const nombresDeLaHoja = () => [...contenedor.querySelectorAll(".fila-jugador .nombre-fila-jugador")].map((n) => n.textContent);
-  const participantesGuardados = (indice = 0) => cargarSesion(ACTIVIDAD.id).tareas[indice].participantes;
+  const participantesGuardados = (indice = 0) => ultimo.current.tareas[indice].participantes;
 
-  test("sin sesión elegida manda a elegirla", async () => {
+  test("sin entrenamiento manda a empezar uno en Inicio", async () => {
     vi.stubGlobal("fetch", vi.fn());
-    const irASesion = vi.fn();
-    await montar({ actividad: null, onIrASesion: irASesion });
+    const irAInicio = vi.fn();
+    await montar({ entrenamiento: null, onIrAInicio: irAInicio });
 
-    expect(contenedor.textContent).toContain("Primero elegí la sesión");
-    await act(async () => botonPorTexto("Ir a Sesión").click());
-    expect(irASesion).toHaveBeenCalledTimes(1);
+    expect(contenedor.textContent).toContain("Primero empezá un entrenamiento");
+    await act(async () => botonPorTexto("Ir a Inicio").click());
+    expect(irAInicio).toHaveBeenCalledTimes(1);
+  });
+
+  test("sin sesión de OpenField, Enviar pide elegirla y recién después arma el resumen", async () => {
+    inicial = entrenamientoDePrueba([tareaGuardada()], { actividad: null });
+    const fetchMock = fetchDeCortes();
+    vi.stubGlobal("fetch", fetchMock);
+    await montar({ guardado: { estado: "guardado", hora: "10:12" } });
+
+    expect(contenedor.textContent).toContain("Sin sesión de OpenField: se elige al enviar.");
+    expect(contenedor.textContent).toContain("Guardado en la base 10:12.");
+    // Sin sesión no hay nada que consultar.
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/openfield/cortes")).toBe(false);
+
+    await act(async () => botonPorTexto("Enviar 1 tarea").click());
+    expect(contenedor.querySelector("h1").textContent).toBe("¿A qué sesión van los cortes?");
+    expect(botonPorTexto("Volver a Tareas")).toBeDefined();
+
+    await act(async () => contenedor.querySelector(".entrenamiento-actividad").click());
+    await act(async () => Promise.resolve());
+    expect(ultimo.current.actividad.id).toBe(ACTIVIDAD.id);
+    const llamadaPlan = fetchMock.mock.calls.find(([url, opciones]) => {
+      const cuerpo = url === "/api/openfield/cortes" ? JSON.parse(opciones.body) : null;
+      return cuerpo?.soloPlan && cuerpo.tareas.length > 0;
+    });
+    expect(JSON.parse(llamadaPlan[1].body).activityId).toBe(ACTIVIDAD.id);
+    expect(contenedor.querySelector("h1").textContent).toBe("Enviar");
+    expect(contenedor.textContent).toContain("26-05 T");
   });
 
   test("registra una tarea con los botones, la revisa y la envía confirmando el nombre", async () => {
@@ -184,7 +248,7 @@ describe("TrainingTareas", () => {
     expect(dobles.cargar).toHaveBeenCalledWith("eq-1");
     const consulta = fetchMock.mock.calls.find(([url, opciones]) => url === "/api/openfield/cortes" && JSON.parse(opciones.body).tareas.length === 0);
     expect(JSON.parse(consulta[1].body)).toEqual({ activityId: ACTIVIDAD.id, soloPlan: true, tareas: [] });
-    expect(contenedor.querySelector("h1").textContent).toBe("26-05 T");
+    expect(contenedor.querySelector("h1").textContent).toBe(TITULO);
     expect(contenedor.textContent).toContain("Todavía no hay tareas");
     expect(botonPorTexto("Enviar").disabled).toBe(true);
 
@@ -302,13 +366,13 @@ describe("TrainingTareas", () => {
     // Después del resultado queda solo Volver.
     expect(botonPorTexto("Enviar")).toBeUndefined();
 
-    const guardada = cargarSesion(ACTIVIDAD.id);
+    const guardada = ultimo.current;
     expect(guardada.asignaciones).toEqual({ [`${tareaId}|a-b`]: `p-${tareaId}-1` });
     expect(guardada.tareas[0].envio.ok).toBe(true);
     expect(guardada.ultimoEnvio.codigo).toBe("cortes-validados");
 
     await act(async () => botonPorTexto("Volver a Tareas").click());
-    expect(contenedor.querySelector("h1").textContent).toBe("26-05 T");
+    expect(contenedor.querySelector("h1").textContent).toBe(TITULO);
     expect(pastilla()).toBe("Enviada");
     expect(contenedor.textContent).toContain("Último envío");
 
@@ -341,16 +405,16 @@ describe("TrainingTareas", () => {
     expect(contenedor.textContent).toContain("Elegí al menos un jugador.");
 
     await act(async () => botonPorTexto("Enviar 1 tarea").click());
-    expect(contenedor.querySelector(".hoja-inferior h3").textContent).toBe("Tareas de 26-05 T");
+    expect(contenedor.querySelector(".hoja-inferior h3").textContent).toBe(`Tareas de ${TITULO}`);
     expect(contenedor.textContent).toContain("Antes de enviar, completá: Tarea 1.");
     // No se pidió el resumen ni se pasó a la pantalla de envío.
     expect(fetchMock.mock.calls.some(([url, opciones]) => url === "/api/openfield/cortes" && JSON.parse(opciones.body).tareas.length > 0)).toBe(false);
     await act(async () => botonPorTexto("Cerrar").click());
-    expect(contenedor.querySelector("h1").textContent).toBe("26-05 T");
+    expect(contenedor.querySelector("h1").textContent).toBe(TITULO);
   });
 
   test("una tarea que termina después de los datos de la sesión queda incompleta y lo dice", async () => {
-    guardarSesionDePrueba([tareaGuardada({ fin: "11:05:00" })]);
+    inicial = entrenamientoDePrueba([tareaGuardada({ fin: "11:05:00" })]);
     vi.stubGlobal("fetch", fetchDeCortes());
     await montar();
 
@@ -361,7 +425,7 @@ describe("TrainingTareas", () => {
   });
 
   test("vuelve a mostrar lo guardado en el celular y traduce los errores del servidor", async () => {
-    guardarSesionDePrueba([tareaGuardada()]);
+    inicial = entrenamientoDePrueba([tareaGuardada()]);
     vi.stubGlobal(
       "fetch",
       fetchDeCortes({
@@ -379,7 +443,7 @@ describe("TrainingTareas", () => {
     await act(async () => botonPorTexto("Enviar 1 tarea").click());
     expect(contenedor.textContent).toContain("Todavía no conectaste tu usuario. Hacelo en Ajustes › Usuario y contraseña.");
     // Con error no se pasa a la subpantalla de envío, y el aviso se puede cerrar.
-    expect(contenedor.querySelector("h1").textContent).toBe("26-05 T");
+    expect(contenedor.querySelector("h1").textContent).toBe(TITULO);
     await act(async () => botonPorTexto("Cerrar").click());
     expect(contenedor.textContent).not.toContain("No se pudo enviar");
   });
@@ -394,7 +458,7 @@ describe("TrainingTareas", () => {
     await montar();
 
     expect(contenedor.textContent).toContain("Sin conexión");
-    expect(contenedor.textContent).toContain("26-05 T");
+    expect(contenedor.textContent).toContain("Sesión de OpenField: 26-05 T");
     expect(contenedor.querySelectorAll(".aviso-base")).toHaveLength(1);
     expect(botonPorTexto("Reintentar")).toBeDefined();
 
@@ -428,7 +492,7 @@ describe("TrainingTareas", () => {
   test("la segunda tarea nace con los jugadores elegibles de la primera, y Ver todas cambia de solapa", async () => {
     // La primera tarea tiene a A MINDA (elegible), LEMOS (sin chaleco) y
     // ZARACHO (sin datos en la sesión): solo el primero pasa a la siguiente.
-    guardarSesionDePrueba([
+    inicial = entrenamientoDePrueba([
       tareaGuardada({
         participantes: {
           1: { modo: "parcial", inicio: "10:12:00", fin: "10:20:00" },
@@ -514,7 +578,7 @@ describe("TrainingTareas", () => {
   test("el reloj cuenta desde la hora de hoy aunque la sesión sea de otro día, y el tachito saca la pausa", async () => {
     // Prueba sobre 26-05 T hecha otro día: la tarea guarda la fecha de la
     // sesión, pero el reloj corre con la hora de hoy.
-    guardarSesionDePrueba([tareaGuardada({ fin: "", pausas: [{ inicio: "10:12:00", fin: "10:13:00" }, { inicio: "10:14:00", fin: "" }] })]);
+    inicial = entrenamientoDePrueba([tareaGuardada({ fin: "", pausas: [{ inicio: "10:12:00", fin: "10:13:00" }, { inicio: "10:14:00", fin: "" }] })]);
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-22T10:16:00"));
     vi.stubGlobal("fetch", fetchDeCortes());
@@ -528,14 +592,14 @@ describe("TrainingTareas", () => {
     await act(async () => contenedor.querySelector(".lista-pausas .quitar-pausa").click());
     expect(contenedor.querySelector(".badge-vivo").textContent).toContain("En curso");
     expect(contenedor.querySelector(".cabeza-pausas").textContent).toContain("1 pausa · 01:00");
-    expect(cargarSesion(ACTIVIDAD.id).tareas[0].pausas).toEqual([{ inicio: "10:12:00", fin: "10:13:00" }]);
+    expect(ultimo.current.tareas[0].pausas).toEqual([{ inicio: "10:12:00", fin: "10:13:00" }]);
     await act(async () => contenedor.querySelector(".lista-pausas .quitar-pausa").click());
     expect(contenedor.textContent).toContain("Sin pausas");
     expect(contenedor.querySelector(".valor-reloj").textContent).toBe("06:00");
   });
 
   test("borrar una tarea pide confirmación y avisa que también se saca de la sesión", async () => {
-    guardarSesionDePrueba([{ ...tareaGuardada(), envio: { ok: true, fecha: "2026-05-26T13:00:00Z", huella: "vieja", fallidos: [] } }], {
+    inicial = entrenamientoDePrueba([{ ...tareaGuardada(), envio: { ok: true, fecha: "2026-05-26T13:00:00Z", huella: "vieja", fallidos: [] } }], {
       asignaciones: { "t1|a-b": "p1" },
       ultimoEnvio: { fecha: "2026-05-26T13:00:00Z", ok: true, codigo: "cortes-validados", detalle: "" },
     });
@@ -556,8 +620,8 @@ describe("TrainingTareas", () => {
     expect(contenedor.textContent).toContain("Todavía no hay tareas");
     // Sin tareas, el botón de la cabecera queda apagado.
     expect(porEtiqueta("Borrar tarea").disabled).toBe(true);
-    expect(cargarSesion(ACTIVIDAD.id).tareas).toEqual([]);
+    expect(ultimo.current.tareas).toEqual([]);
     // Las asignaciones se conservan: el próximo envío saca esa tarea de la sesión.
-    expect(cargarSesion(ACTIVIDAD.id).asignaciones).toEqual({ "t1|a-b": "p1" });
+    expect(ultimo.current.asignaciones).toEqual({ "t1|a-b": "p1" });
   });
 });

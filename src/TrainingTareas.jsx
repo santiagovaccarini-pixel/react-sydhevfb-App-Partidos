@@ -1,15 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { leerEquipoElegido } from "./domain/equipo.js";
 import { cargarPlantelConCatapult } from "./domain/plantel.js";
+import { etiquetaEntrenamiento, vincularActividad } from "./domain/entrenamiento.js";
 import {
   MODO_PARCIAL,
   MODO_TOTAL,
   armarEnvio,
-  cargarSesion,
   estadoDeTarea,
   estadoEnvioTarea,
-  fechaDeActividad,
-  guardarSesion,
   horaAMs,
   horaLocal,
   huellaTarea,
@@ -37,6 +35,7 @@ import { pedirJson } from "./trainingApi.js";
 import { ETIQUETAS_VEREDICTO, MOTIVOS_FALLO, mensajeDeError } from "./textosEntrenamiento.js";
 import { BotonVolver, DatoDetalle } from "./components/BotonVolver.jsx";
 import { useEscudoClub } from "./components/ClubCrest";
+import TrainingElegirSesion from "./TrainingElegirSesion";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { Icono } from "./components/AppChrome";
 
@@ -121,15 +120,17 @@ const Aviso = ({ tono = "", titulo, texto, accion, onAccion, children }) => (
   </div>
 );
 
-// Tareas de la sesión, registradas como los tiempos de un partido: una solapa
-// por tarea, el reloj arriba y la tarjeta con Iniciar/Terminar, Pausa,
-// Jugadores y Entra/Sale. Todo queda guardado en el celular por sesión; al
-// servidor va cuando se revisa el resumen y se confirma con el nombre de la
-// sesión.
-export default function TrainingTareas({ actividad = null, onIrASesion }) {
-  const activityId = actividad?.id || "";
+// Tareas del entrenamiento, registradas como los tiempos de un partido: una
+// solapa por tarea, el reloj arriba y la tarjeta con Iniciar/Terminar, Pausa,
+// Jugadores y Entra/Sale. El entrenamiento llega de arriba y cada cambio se
+// avisa con onCambiar (quien lo tiene lo guarda en el celular y en la base).
+// La sesión de OpenField se elige recién al enviar; ahí se revisa el resumen
+// y se confirma con el nombre de la sesión.
+export default function TrainingTareas({ entrenamiento = null, onCambiar = () => {}, onIrAInicio, guardado = null }) {
+  const activityId = entrenamiento?.actividad?.id || "";
+  const sesion = entrenamiento;
+  const setSesion = onCambiar;
 
-  const [sesion, setSesion] = useState(() => (activityId ? cargarSesion(activityId, actividad?.name) : null));
   const [equipo] = useState(() => leerEquipoElegido());
   const escudo = useEscudoClub(equipo?.nombre || "", { demora: 0 });
   const [plantel, setPlantel] = useState([]);
@@ -140,7 +141,9 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   // el envío, así que se frena acá antes.
   const [atletasActividad, setAtletasActividad] = useState(null);
   const [ventana, setVentana] = useState(null);
-  const [estadoAtletas, setEstadoAtletas] = useState("cargando");
+  const [estadoAtletas, setEstadoAtletas] = useState(activityId ? "cargando" : "idle");
+  // Enviar sin sesión de OpenField: primero se elige, y al volver se pide el plan.
+  const [enviarAlVincular, setEnviarAlVincular] = useState(false);
   // "red": sin señal o sin respuesta. "codigo": el servidor contestó un error.
   const [errorConsulta, setErrorConsulta] = useState({ tipo: "", mensaje: "" });
   const [reintento, setReintento] = useState(0);
@@ -156,7 +159,6 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   const [confirmacion, setConfirmacion] = useState("");
 
   useEffect(() => {
-    setSesion(activityId ? cargarSesion(activityId, actividad?.name) : null);
     setPantalla("tablero");
     setActivaId("");
     setHoja("");
@@ -164,12 +166,9 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     setBorrando("");
     setEnvio({ estado: "idle" });
     setConfirmacion("");
+    setEnviarAlVincular(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activityId]);
-
-  useEffect(() => {
-    if (sesion?.activityId) guardarSesion(sesion);
-  }, [sesion]);
+  }, [entrenamiento?.id]);
 
   useEffect(() => {
     const intervalo = window.setInterval(() => setAhora(Date.now()), 1000);
@@ -200,9 +199,16 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     };
   }, []);
 
-  // Lo que el servidor sabe de la sesión, leído con el usuario guardado.
+  // Lo que el servidor sabe de la sesión, leído con el usuario guardado. Sin
+  // sesión de OpenField todavía no hay nada que leer.
   useEffect(() => {
-    if (!activityId) return undefined;
+    if (!activityId) {
+      setAtletasActividad(null);
+      setVentana(null);
+      setEstadoAtletas("idle");
+      setErrorConsulta({ tipo: "", mensaje: "" });
+      return undefined;
+    }
     let activo = true;
     setAtletasActividad(null);
     setVentana(null);
@@ -304,7 +310,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
         tareas: [
           ...actual.tareas,
           {
-            ...nuevaTarea({ id, nombre: "", fecha: fechaDeActividad(actividad) }),
+            ...nuevaTarea({ id, nombre: "", fecha: actual.fecha }),
             participantes,
           },
         ],
@@ -493,6 +499,14 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     }
   };
 
+  useEffect(() => {
+    if (enviarAlVincular && activityId) {
+      setEnviarAlVincular(false);
+      pedirPlan();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enviarAlVincular, activityId]);
+
   const enviar = async () => {
     const { tareas: payloadTareas } = armarEnvio({ tareas, plantel, atletasActividad, ventana });
     setEnvio((actual) => ({ ...actual, estado: "enviando", error: "" }));
@@ -563,18 +577,18 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     setConfirmacion("");
   };
 
-  if (!actividad) {
+  if (!entrenamiento) {
     return (
       <div className="app">
         <div className="contenedor">
           <header className="encabezado">
             <h1>Tareas</h1>
-            <p>Primero elegí la sesión</p>
+            <p>Primero empezá un entrenamiento</p>
           </header>
           <section className="tarjeta tarjeta-ficha">
-            <p className="vacio-ficha">Las tareas se registran sobre una sesión. Elegila en Sesión y volvé.</p>
-            <button type="button" className="boton-principal" onClick={onIrASesion}>
-              Ir a Sesión
+            <p className="vacio-ficha">Las tareas se registran sobre un entrenamiento. Empezalo en Inicio y volvé.</p>
+            <button type="button" className="boton-principal" onClick={onIrAInicio}>
+              Ir a Inicio
             </button>
           </section>
         </div>
@@ -582,9 +596,8 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     );
   }
 
-  if (!sesion) return null;
-
-  const nombreSesion = actividad.name || "Sin nombre";
+  const nombreSesion = etiquetaEntrenamiento(entrenamiento) || "Entrenamiento";
+  const nombreActividad = entrenamiento.actividad?.name || "";
   const planVigente = envio.plan && envio.huella === huellaEnvio(tareas);
   const puedeRevisar =
     tareas.length > 0 && conProblemas.length === 0 && envio.estado !== "planificando" && envio.estado !== "enviando";
@@ -780,9 +793,11 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     const etiquetaEnviar =
       envio.estado === "planificando" ? "Armando…" : pendientes > 0 ? `Enviar ${plural(pendientes, "tarea", "tareas")}` : "Enviar";
 
-    // Con algo incompleto, Enviar abre la lista y dice qué falta.
+    // Con algo incompleto, Enviar abre la lista y dice qué falta. Sin sesión
+    // de OpenField todavía, primero se elige a cuál van los cortes.
     const alEnviar = () => {
       if (conProblemas.length > 0) setHoja("todas");
+      else if (!activityId) setPantalla("elegir-sesion");
       else pedirPlan();
     };
 
@@ -934,12 +949,19 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
           </section>
         </div>
 
-        {envio.estado === "idle" && sesion.ultimoEnvio && (
-          <p className="pie-tablero">
-            Último envío: {formatearFechaHora(sesion.ultimoEnvio.fecha)} ·{" "}
-            {sesion.ultimoEnvio.ok ? "todo bien" : "con problemas"}
-          </p>
-        )}
+        <div className="pie-tablero">
+          <p>{nombreActividad ? `Sesión de OpenField: ${nombreActividad}` : "Sin sesión de OpenField: se elige al enviar."}</p>
+          {envio.estado === "idle" && sesion.ultimoEnvio && (
+            <p>
+              Último envío: {formatearFechaHora(sesion.ultimoEnvio.fecha)} ·{" "}
+              {sesion.ultimoEnvio.ok ? "todo bien" : "con problemas"}
+            </p>
+          )}
+          {guardado?.estado === "guardando" && <p>Guardando en la base…</p>}
+          {guardado?.estado === "guardado" && <p>Guardado en la base {guardado.hora}.</p>}
+          {guardado?.estado === "sin-senal" && <p>Sin señal: guardado en este aparato. Sube solo cuando vuelva.</p>}
+          {guardado?.estado === "error" && <p>No se pudo guardar en la base. Quedó en este aparato y se reintenta solo.</p>}
+        </div>
 
         <HojaJugadores
           abierta={hoja === "jugadores"}
@@ -1091,9 +1113,31 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     );
   };
 
+  const renderElegirSesion = () => (
+    <TrainingElegirSesion
+      actividad={entrenamiento.actividad}
+      fecha={entrenamiento.fecha}
+      titulo="¿A qué sesión van los cortes?"
+      subtitulo="Tareas · Enviar"
+      etiquetaVolver="Volver a Tareas"
+      onSeleccionar={(nueva) => {
+        onCambiar((actual) => vincularActividad(actual, nueva));
+        setEnviarAlVincular(true);
+        setPantalla("tablero");
+      }}
+      onVolver={() => setPantalla("tablero")}
+    />
+  );
+
   return (
     <>
-      {pantalla === "enviar" ? <div className="app">{renderEnviar()}</div> : renderTablero()}
+      {pantalla === "enviar" ? (
+        <div className="app">{renderEnviar()}</div>
+      ) : pantalla === "elegir-sesion" ? (
+        renderElegirSesion()
+      ) : (
+        renderTablero()
+      )}
 
       <HojaConfirmar
         abierta={Boolean(borrando)}

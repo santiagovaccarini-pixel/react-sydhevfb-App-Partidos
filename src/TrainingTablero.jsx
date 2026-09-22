@@ -33,6 +33,7 @@ const enMarcha = (estado) => estado === "en-curso" || estado === "en-pausa";
 // encontró), la sesión, y a la derecha Borrar y Enviar, como Limpiar y Guardar.
 export const CabeceraTablero = ({
   nombreSesion,
+  rotulo = "ENTRENAMIENTO",
   nombreEquipo = "",
   escudoUrl = "",
   enCurso,
@@ -49,7 +50,7 @@ export const CabeceraTablero = ({
       </span>
       <span className={`punto-estado ${enCurso ? "en-curso" : ""}`.trim()} />
       <div>
-        <span className="sobrelinea">SESIÓN</span>
+        <span className="sobrelinea">{rotulo}</span>
         <h1>{nombreSesion}</h1>
       </div>
     </div>

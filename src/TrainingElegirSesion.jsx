@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { horaCorta, leerJson, marcaAFecha } from "./TrainingApp.jsx";
+import { hoyLocal } from "./domain/sesionEntrenamiento.js";
 
 const esHoy = (fecha, ahora = new Date()) =>
   Boolean(fecha) &&
@@ -38,9 +39,18 @@ const bloquesDe = (item) => {
 
 const detalleDe = (item) => [cuandoEmpieza(item?.start_time), duracionDe(item), bloquesDe(item)].filter(Boolean).join(" · ");
 
-// La lista de sesiones para elegir sobre cuál se registran las tareas. Se
+// La lista de sesiones de OpenField para elegir a cuál van los cortes. Se
 // busca sola al entrar; se muestran las más recientes y se filtra escribiendo.
-export default function TrainingElegirSesion({ actividad = null, onSeleccionar, onVolver }) {
+// Con la fecha del entrenamiento, las sesiones de ese día van primero.
+export default function TrainingElegirSesion({
+  actividad = null,
+  fecha = "",
+  titulo = "Elegir sesión",
+  subtitulo = "Sesión · Elegir",
+  etiquetaVolver = "Volver a Sesión",
+  onSeleccionar,
+  onVolver,
+}) {
   const [estado, setEstado] = useState("cargando");
   const [actividades, setActividades] = useState([]);
   const [busqueda, setBusqueda] = useState("");
@@ -75,8 +85,16 @@ export default function TrainingElegirSesion({ actividad = null, onSeleccionar, 
         )
       : actividades;
 
-    return base.slice(0, texto ? 50 : 20);
-  }, [actividades, texto]);
+    const delDia = (item) => {
+      const inicio = marcaAFecha(item?.start_time);
+      return Boolean(fecha) && Boolean(inicio) && hoyLocal(inicio) === fecha;
+    };
+    const ordenadas = fecha
+      ? base.map((item, orden) => ({ item, orden })).sort((a, b) => Number(delDia(b.item)) - Number(delDia(a.item)) || a.orden - b.orden).map(({ item }) => item)
+      : base;
+
+    return ordenadas.slice(0, texto ? 50 : 20);
+  }, [actividades, texto, fecha]);
 
   const elegir = (item) => {
     onSeleccionar({
@@ -91,8 +109,8 @@ export default function TrainingElegirSesion({ actividad = null, onSeleccionar, 
     <div className="app">
       <div className="contenedor">
         <header className="encabezado">
-          <h1>Elegir sesión</h1>
-          <p>Sesión · Elegir</p>
+          <h1>{titulo}</h1>
+          <p>{subtitulo}</p>
         </header>
 
         <section className="tarjeta tarjeta-ficha">
@@ -160,7 +178,7 @@ export default function TrainingElegirSesion({ actividad = null, onSeleccionar, 
         </section>
 
         <div className="acciones-dobles">
-          <BotonVolver onClick={onVolver}>Volver a Sesión</BotonVolver>
+          <BotonVolver onClick={onVolver}>{etiquetaVolver}</BotonVolver>
         </div>
       </div>
     </div>
