@@ -23,11 +23,17 @@ const modoInicial = () => {
 };
 
 // Las dos puertas de la app, contadas en una línea: lo esencial de cada una.
+// `foco` es qué parte de la foto queda a la vista cuando hay que recortarla
+// (0 izquierda, 1 derecha; 0 arriba, 1 abajo): en el celular, parado, la foto
+// apaisada no entra entera. `fotoParada` es una versión vertical de la foto
+// para la portada del celular, si la hay.
 const TARJETAS = [
   {
     modo: MODOS.PARTIDO,
     clase: "tarjeta-partido",
     foto: "/portal/partido.webp",
+    fotoParada: null,
+    foco: [0.5, 0.5],
     Arte: ArtePartido,
     Icono: IconoPartido,
     titulo: "Partido",
@@ -37,6 +43,8 @@ const TARJETAS = [
     modo: MODOS.ENTRENAMIENTO,
     clase: "tarjeta-flujo",
     foto: "/portal/flujo.webp",
+    fotoParada: null,
+    foco: [0.18, 0.5],
     Arte: ArteFlujo,
     Icono: IconoFlujo,
     titulo: "Flujo diario",
@@ -72,11 +80,46 @@ const lugarDeLaFoto = (boton) => {
   return { top, left, width, height };
 };
 
-// La portada de entrada: la foto de la tarjeta que se tocó crece hasta tapar
-// la pantalla, se queda unos segundos con el nombre del módulo y se desvanece.
+// Dónde termina la foto de la portada: tapando la pantalla entera, como el
+// fondo de una pantalla de bloqueo. Si la foto no tiene la forma de la
+// pantalla, se agranda hasta cubrirla y lo que sobra queda afuera, del lado
+// que dice el foco. `proporcion` es ancho / alto de la foto.
+const enPixeles = (numero) => Math.round(numero * 100) / 100 + 0;
+
+export const lugarEnPantalla = (ancho, alto, { proporcion = 16 / 9, foco = [0.5, 0.5] } = {}) => {
+  const anchoFoto = Math.max(ancho, alto * proporcion);
+  const altoFoto = anchoFoto / proporcion;
+  return {
+    top: enPixeles(-(altoFoto - alto) * foco[1]),
+    left: enPixeles(-(anchoFoto - ancho) * foco[0]),
+    width: enPixeles(anchoFoto),
+    height: enPixeles(altoFoto),
+    borderRadius: 0,
+  };
+};
+
+// Qué foto va en la portada: en el celular, parado, la versión parada si la
+// tarjeta la tiene; si no, la foto de la tarjeta.
+export const fotoDePortada = (tarjeta, ancho, alto) => {
+  const parada = alto > ancho && Boolean(tarjeta.fotoParada);
+  return { src: parada ? tarjeta.fotoParada : tarjeta.foto, parada };
+};
+
+// La portada de entrada: la foto de la tarjeta que se tocó crece desde donde
+// estaba hasta tapar la pantalla (un zoom de verdad: la foto se agranda
+// entera, no se recorta de a poco), mientras atrás aparece la misma foto
+// borrosa. Se queda unos segundos con el nombre del módulo y se desvanece.
 // Mientras tanto el módulo ya se cargó abajo, así que al irse está listo.
+// Con una foto parada no hay de dónde arrancar el zoom: aparece de una.
 export const Portada = ({ tarjeta, desde, onTerminar }) => {
-  const [fase, setFase] = useState(desde ? "inicio" : "llena");
+  const [foto] = useState(() => fotoDePortada(tarjeta, window.innerWidth, window.innerHeight));
+  const [lugar] = useState(() =>
+    lugarEnPantalla(window.innerWidth, window.innerHeight, {
+      proporcion: foto.parada ? 9 / 16 : 16 / 9,
+      foco: tarjeta.foco,
+    }),
+  );
+  const [fase, setFase] = useState(desde && !foto.parada ? "inicio" : "llena");
   const ref = useRef(null);
 
   // Se pinta primero del tamaño de la tarjeta y, ya medida, se le pide la
@@ -97,15 +140,21 @@ export const Portada = ({ tarjeta, desde, onTerminar }) => {
     };
   }, [onTerminar]);
 
-  const { foto, Arte, Icono, titulo, clase } = tarjeta;
-  const estilo =
+  const { Arte, Icono, titulo, clase } = tarjeta;
+  const lugarFoto =
     fase === "inicio" && desde
-      ? { top: desde.top, left: desde.left, width: desde.width, height: desde.height }
-      : undefined;
+      ? { top: desde.top, left: desde.left, width: desde.width, height: desde.height, borderRadius: "22px 22px 0 0" }
+      : lugar;
 
   return (
-    <div ref={ref} className={`portal-portada ${clase} ${fase}`} style={estilo} aria-hidden="true">
-      <FotoTarjeta src={foto} Arte={Arte} />
+    <div className={`portal-portada ${clase} ${fase}${foto.parada ? " de-una" : ""}`} aria-hidden="true">
+      <div className="portal-portada-fondo">
+        <FotoTarjeta src={foto.src} Arte={Arte} />
+      </div>
+      <div ref={ref} className="portal-portada-foto" style={lugarFoto}>
+        <FotoTarjeta src={foto.src} Arte={Arte} />
+      </div>
+      <div className="portal-portada-velo" />
       <div className="portal-portada-texto">
         <span className="portal-icono">
           <Icono />
