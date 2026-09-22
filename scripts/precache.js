@@ -37,6 +37,8 @@ const sueltos = [
   // Las fotos del portal: son lo primero que se ve, también sin señal.
   "/portal/partido.webp",
   "/portal/flujo.webp",
+  "/portal/partido-parada.webp",
+  "/portal/flujo-parada.webp",
 ].filter(
   (archivo) => fs.existsSync(path.join(dist, archivo.slice(1))),
 );

@@ -304,22 +304,15 @@
     border-radius 450ms ease;
 }
 
-/* Con una foto parada no hay de dónde arrancar el zoom: aparece de una,
-   acercándose apenas. */
-.portal-portada.de-una .portal-portada-foto {
-  animation: portada-de-una 450ms ease-out both;
+/* Con una foto parada, el zoom arranca desde la foto de la tarjeta (abajo) y
+   en el camino se funde con la parada (arriba), que es la que queda. */
+.portal-portada-foto .foto-parada {
+  opacity: 1;
+  transition: opacity 450ms ease;
 }
 
-@keyframes portada-de-una {
-  from {
-    opacity: 0;
-    transform: scale(1.06);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.portal-portada.inicio .portal-portada-foto .foto-parada {
+  opacity: 0;
 }
 
 /* Abajo, oscuro, para que se lea el nombre; aparece con el zoom. */
@@ -378,12 +371,9 @@
   .portal-portada,
   .portal-portada-fondo,
   .portal-portada-foto,
+  .portal-portada-foto .foto-parada,
   .portal-portada-velo,
   .portal-portada-texto {
     transition: none;
-  }
-
-  .portal-portada.de-una .portal-portada-foto {
-    animation: none;
   }
 }
