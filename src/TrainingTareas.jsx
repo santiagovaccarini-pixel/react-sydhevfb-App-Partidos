@@ -36,6 +36,7 @@ import {
 import { pedirJson } from "./trainingApi.js";
 import { ETIQUETAS_VEREDICTO, MOTIVOS_FALLO, mensajeDeError } from "./textosEntrenamiento.js";
 import { BotonVolver, DatoDetalle } from "./components/BotonVolver.jsx";
+import { useEscudoClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { Icono } from "./components/AppChrome";
 
@@ -129,6 +130,8 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   const activityId = actividad?.id || "";
 
   const [sesion, setSesion] = useState(() => (activityId ? cargarSesion(activityId, actividad?.name) : null));
+  const [equipo] = useState(() => leerEquipoElegido());
+  const escudo = useEscudoClub(equipo?.nombre || "", { demora: 0 });
   const [plantel, setPlantel] = useState([]);
   const [estadoPlantel, setEstadoPlantel] = useState("cargando");
   const [errorPlantel, setErrorPlantel] = useState("");
@@ -178,7 +181,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
 
     const cargar = async () => {
       try {
-        const { plantel: lista, error } = await cargarPlantelConCatapult(leerEquipoElegido()?.id || null);
+        const { plantel: lista, error } = await cargarPlantelConCatapult(equipo?.id || null);
         if (!activo) return;
         setPlantel(Array.isArray(lista) ? lista : []);
         setEstadoPlantel(error ? "error" : "listo");
@@ -765,15 +768,6 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
             onChange={(e) => actualizarTarea(tarea.id, { fecha: e.target.value })}
           />
         </div>
-
-        <button
-          type="button"
-          className="boton-borrar-tarea"
-          onClick={() => setBorrando(tarea.id)}
-          aria-label="Borrar tarea"
-        >
-          Borrar esta tarea
-        </button>
       </>
     );
   };
@@ -842,9 +836,13 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
       <div className="tablero-partido tablero-tareas">
         <CabeceraTablero
           nombreSesion={nombreSesion}
+          nombreEquipo={equipo?.nombre || ""}
+          escudoUrl={escudo.url}
           enCurso={tareas.some(corriendo)}
           etiquetaEnviar={etiquetaEnviar}
           onEnviar={alEnviar}
+          onBorrar={() => activa && setBorrando(activa.id)}
+          puedeBorrar={Boolean(activa)}
           deshabilitado={tareas.length === 0 || envio.estado === "planificando" || envio.estado === "enviando"}
         />
 
@@ -881,6 +879,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
                   ahora={ahora}
                   desplegada={pausasDesplegadas}
                   onAlternar={() => setPausasDesplegadas((valor) => !valor)}
+                  onQuitar={(indice) => quitarPausa(activa.id, indice)}
                 />
               </>
             )}

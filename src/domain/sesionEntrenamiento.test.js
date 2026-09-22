@@ -17,7 +17,7 @@ import {
   segundosATexto,
   sesionVacia,
 } from "./sesionEntrenamiento.js";
-import { estadoDeTarea, pausaAbierta, relojTexto, tiemposDeTarea } from "./sesionEntrenamiento.js";
+import { estadoDeTarea, pausaAbierta, relojTexto, segundosDePausa, tiemposDeTarea } from "./sesionEntrenamiento.js";
 
 const plantel = [
   { id: 1, nombre: "A MINDA", catapult_id: "a1" },
@@ -209,6 +209,19 @@ describe("estado y tiempos en vivo de una tarea", () => {
     expect(tiemposDeTarea({ ...tarea, fin: "10:20:00" }, ms("11:00:00"))).toEqual({ brutoSegundos: 600, pausasSegundos: 350, efectivoSegundos: 250 });
     // Sin iniciar no hay nada que contar.
     expect(tiemposDeTarea({ ...base, inicio: "" }, ms("10:16:00"))).toEqual({ brutoSegundos: 0, pausasSegundos: 0, efectivoSegundos: 0 });
+  });
+
+  test("mientras corre, el reloj cuenta la hora de hoy aunque la sesión sea de otro día", () => {
+    // Una prueba sobre 26-05 T hecha el 22/09: la tarea guarda la fecha de la
+    // sesión, pero el reloj tiene que contar desde las 10:10 de hoy.
+    const hoy = new Date("2026-09-22T10:16:00").getTime();
+    const tarea = { ...base, pausas: [{ inicio: "10:12:00", fin: "" }] };
+    expect(tiemposDeTarea(tarea, hoy)).toEqual({ brutoSegundos: 360, pausasSegundos: 240, efectivoSegundos: 120 });
+    expect(segundosDePausa(tarea, tarea.pausas[0], hoy)).toBe(240);
+    // Terminada, cuenta lo guardado, del día que sea.
+    expect(tiemposDeTarea({ ...tarea, fin: "10:20:00", pausas: [{ inicio: "10:12:00", fin: "10:13:00" }] }, hoy)).toEqual({ brutoSegundos: 600, pausasSegundos: 60, efectivoSegundos: 540 });
+    expect(segundosDePausa({ ...base, fin: "10:20:00" }, { inicio: "10:12:00", fin: "10:13:00" }, hoy)).toBe(60);
+    expect(segundosDePausa(base, { inicio: "", fin: "" }, hoy)).toBeNull();
   });
 
   test("relojTexto muestra minutos y segundos con dos cifras y pasa de la hora", () => {

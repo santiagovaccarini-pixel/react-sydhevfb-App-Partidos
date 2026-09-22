@@ -1,13 +1,14 @@
 import React, { useEffect, useRef } from "react";
-import { EscudoCAM, Icono } from "./components/AppChrome";
+import { Icono } from "./components/AppChrome";
+import { EscudoClub } from "./components/ClubCrest";
 import { HojaInferior } from "./components/SheetPanel.js";
 import {
   MODO_PARCIAL,
   estadoDeTarea,
-  horaAMs,
   horaLocal,
   pausaAbierta,
   relojTexto,
+  segundosDePausa,
   tiemposDeTarea,
 } from "./domain/sesionEntrenamiento.js";
 
@@ -28,18 +29,23 @@ const horaCorta = (hora) => String(hora || "").slice(0, 5);
 const plural = (cantidad, singular, pluralTexto) => `${cantidad} ${cantidad === 1 ? singular : pluralTexto}`;
 const enMarcha = (estado) => estado === "en-curso" || estado === "en-pausa";
 
-const segundosDePausa = (tarea, pausa, ahoraMs) => {
-  const inicioMs = horaAMs(tarea.fecha, pausa.inicio);
-  if (inicioMs === null) return null;
-  const finMs = pausa.fin ? horaAMs(tarea.fecha, pausa.fin) : ahoraMs;
-  return finMs !== null && finMs > inicioMs ? (finMs - inicioMs) / 1000 : 0;
-};
-
-export const CabeceraTablero = ({ nombreSesion, enCurso, etiquetaEnviar, onEnviar, deshabilitado = false }) => (
+// La cabecera de la pantalla de partido: el escudo del club (el real si se
+// encontró), la sesión, y a la derecha Borrar y Enviar, como Limpiar y Guardar.
+export const CabeceraTablero = ({
+  nombreSesion,
+  nombreEquipo = "",
+  escudoUrl = "",
+  enCurso,
+  etiquetaEnviar,
+  onEnviar,
+  onBorrar,
+  puedeBorrar = false,
+  deshabilitado = false,
+}) => (
   <header className="cabecera-tablero">
     <div className="titulo-estado-partido">
       <span className="marca-movil-cabecera">
-        <EscudoCAM compacto etiqueta="Entrenamiento" />
+        <EscudoClub equipo="cam" nombre={nombreEquipo} url={escudoUrl} compacto />
       </span>
       <span className={`punto-estado ${enCurso ? "en-curso" : ""}`.trim()} />
       <div>
@@ -48,6 +54,16 @@ export const CabeceraTablero = ({ nombreSesion, enCurso, etiquetaEnviar, onEnvia
       </div>
     </div>
     <div className="acciones-cabecera">
+      <button
+        type="button"
+        className="boton-limpiar-cabecera"
+        onClick={onBorrar}
+        disabled={!puedeBorrar}
+        aria-label="Borrar tarea"
+      >
+        <Icono nombre="borrar" size={17} />
+        <span>Borrar</span>
+      </button>
       <button type="button" className="boton-guardar-cabecera" onClick={onEnviar} disabled={deshabilitado}>
         <Icono nombre="subir" size={18} />
         {etiquetaEnviar}
@@ -98,7 +114,7 @@ export const RelojTarea = ({ tarea, numero, ahora }) => {
 // Solo la última pausa a la vista (la abierta, o la que acaba de terminar);
 // las anteriores se despliegan a pedido. Así con diez pausas ocupa lo mismo
 // que con una.
-export const TarjetaPausas = ({ tarea, ahora, desplegada, onAlternar }) => {
+export const TarjetaPausas = ({ tarea, ahora, desplegada, onAlternar, onQuitar }) => {
   const estado = estadoDeTarea(tarea);
   const pausas = tarea.pausas;
 
@@ -142,6 +158,14 @@ export const TarjetaPausas = ({ tarea, ahora, desplegada, onAlternar }) => {
           const segundos = segundosDePausa(tarea, pausa, ahora);
           return (
             <li key={i} className={abierta ? "abierta" : ""}>
+              <button
+                type="button"
+                className="quitar-pausa"
+                aria-label={`Quitar pausa ${i + 1}`}
+                onClick={() => onQuitar(i)}
+              >
+                <Icono nombre="borrar" size={14} />
+              </button>
               <span>Pausa {i + 1}</span>
               <strong>
                 {pausa.inicio || "--:--"} → {abierta ? "en curso" : pausa.fin || "--:--"}
@@ -339,6 +363,11 @@ export const HojaJugadores = ({
 }) => {
   if (!abierta || !tarea) return null;
   const seleccionados = Object.keys(tarea.participantes).length;
+  // Los que se pueden tildar primero; sin chaleco o sin datos, al final.
+  const ordenados = plantel
+    .map((jugador, orden) => ({ jugador, orden, apagado: !jugador.catapult_id || !tieneDatos(jugador) }))
+    .sort((a, b) => Number(a.apagado) - Number(b.apagado) || a.orden - b.orden)
+    .map(({ jugador }) => jugador);
 
   return (
     <HojaInferior
@@ -368,7 +397,7 @@ export const HojaJugadores = ({
       )}
 
       <div className="lista-jugadores-tarea">
-        {plantel.map((jugador) => {
+        {ordenados.map((jugador) => {
           const clave = String(jugador.id);
           const datos = tarea.participantes[clave];
           const conChaleco = Boolean(jugador.catapult_id);

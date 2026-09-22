@@ -1036,8 +1036,12 @@
    Las clases del tablero (.tablero-partido, .reloj-principal,
    .selector-periodos, .panel-operativo, .accion-periodo, .acciones-rapidas)
    son las de style.css tal cual; acá va lo propio de Entrenamiento. */
-.entrenamiento-marco .boton-guardar-cabecera {
+.entrenamiento-marco .boton-guardar-cabecera,
+.entrenamiento-marco .boton-limpiar-cabecera {
   min-height: 44px;
+}
+.entrenamiento-marco .boton-limpiar-cabecera:disabled {
+  opacity: 0.45;
 }
 .entrenamiento-marco .cabecera-tablero h1 {
   overflow: hidden;
@@ -1098,7 +1102,7 @@
 }
 .entrenamiento-marco .lista-pausas li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   min-height: 36px;
@@ -1119,6 +1123,23 @@
   color: var(--cam-tinta);
   font-style: normal;
   font-weight: 900;
+}
+/* Tachito a la izquierda de cada pausa, como el de los cambios del partido. */
+.entrenamiento-marco .quitar-pausa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--cam-linea);
+  border-radius: 8px;
+  background: #fff;
+  color: #a24049;
+}
+.entrenamiento-marco .quitar-pausa:hover {
+  border-color: #e0b4b9;
+  background: #fff6f6;
 }
 .entrenamiento-marco .lista-pausas li.abierta span,
 .entrenamiento-marco .lista-pausas li.abierta strong,
@@ -1295,17 +1316,6 @@
   font-size: 13px;
   font-weight: 650;
   line-height: 1.45;
-}
-.entrenamiento-marco .boton-borrar-tarea {
-  width: 100%;
-  min-height: 44px;
-  margin-top: 12px;
-  border: 1px solid #f1c3c8;
-  border-radius: 10px;
-  background: #fff5f5;
-  color: #b91c1c;
-  font-size: 12px;
-  font-weight: 850;
 }
 .entrenamiento-marco .contenido-ajustes-periodo .cabeza-ficha {
   margin-top: 12px;

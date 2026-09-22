@@ -8,6 +8,7 @@ const dobles = vi.hoisted(() => ({ plantel: [], cargar: vi.fn() }));
 
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => ({ id: "eq-1", nombre: "Atlético Mineiro" }),
+  esElCam: (nombre) => /mineiro/i.test(String(nombre || "")),
 }));
 
 vi.mock("./domain/plantel.js", () => ({
@@ -123,10 +124,11 @@ describe("TrainingTareas", () => {
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     window.localStorage.clear();
+    // LEMOS va primero en la lista para comprobar que, sin chaleco, queda al final.
     dobles.plantel = [
+      { id: 3, nombre: "LEMOS", roles: [], puestos: [], catapult_id: null, catapult_nombre: null },
       { id: 1, nombre: "A MINDA", roles: [], puestos: [], catapult_id: "a1", catapult_nombre: "A MINDA (MIN)" },
       { id: 2, nombre: "IGOR GOMES", roles: [], puestos: [], catapult_id: "a2", catapult_nombre: "IGOR GOMES (GOM)" },
-      { id: 3, nombre: "LEMOS", roles: [], puestos: [], catapult_id: null, catapult_nombre: null },
       // Con chaleco, pero sin datos en 26-05 T.
       { id: 4, nombre: "ZARACHO", roles: [], puestos: [], catapult_id: "a9", catapult_nombre: "ZARACHO (ZAR)" },
     ];
@@ -160,6 +162,7 @@ describe("TrainingTareas", () => {
   const porEtiqueta = (etiqueta) => contenedor.querySelector(`[aria-label='${etiqueta}']`);
   const pastilla = () => contenedor.querySelector(".estado-tarea").textContent;
   const casillas = () => [...contenedor.querySelectorAll("input[type='checkbox']")];
+  const nombresDeLaHoja = () => [...contenedor.querySelectorAll(".fila-jugador .nombre-fila-jugador")].map((n) => n.textContent);
   const participantesGuardados = (indice = 0) => cargarSesion(ACTIVIDAD.id).tareas[indice].participantes;
 
   test("sin sesión elegida manda a elegirla", async () => {
@@ -223,6 +226,8 @@ describe("TrainingTareas", () => {
     await act(async () => botonQueEmpieza("Jugadores").click());
     expect(contenedor.querySelector(".hoja-inferior h3").textContent).toBe("Jugadores en 2. POSSE");
     await act(async () => botonPorTexto("Todos").click());
+    // Los que se pueden tildar primero; sin chaleco o sin datos, al final.
+    expect(nombresDeLaHoja()).toEqual(["A MINDA", "IGOR GOMES", "LEMOS", "ZARACHO"]);
     expect(casillas().map((casilla) => casilla.checked)).toEqual([true, true, false, false]);
     expect(casillas()[2].disabled).toBe(true);
     expect(casillas()[3].disabled).toBe(true);
@@ -339,7 +344,7 @@ describe("TrainingTareas", () => {
     expect(contenedor.querySelector(".hoja-inferior h3").textContent).toBe("Tareas de 26-05 T");
     expect(contenedor.textContent).toContain("Antes de enviar, completá: Tarea 1.");
     // No se pidió el resumen ni se pasó a la pantalla de envío.
-    expect(fetchMock.mock.calls.some(([, opciones]) => JSON.parse(opciones.body).tareas.length > 0)).toBe(false);
+    expect(fetchMock.mock.calls.some(([url, opciones]) => url === "/api/openfield/cortes" && JSON.parse(opciones.body).tareas.length > 0)).toBe(false);
     await act(async () => botonPorTexto("Cerrar").click());
     expect(contenedor.querySelector("h1").textContent).toBe("26-05 T");
   });
@@ -506,6 +511,29 @@ describe("TrainingTareas", () => {
     expect(participantesGuardados()[1]).toEqual({ modo: "parcial", inicio: "10:15:00", fin: "10:25:00" });
   });
 
+  test("el reloj cuenta desde la hora de hoy aunque la sesión sea de otro día, y el tachito saca la pausa", async () => {
+    // Prueba sobre 26-05 T hecha otro día: la tarea guarda la fecha de la
+    // sesión, pero el reloj corre con la hora de hoy.
+    guardarSesionDePrueba([tareaGuardada({ fin: "", pausas: [{ inicio: "10:12:00", fin: "10:13:00" }, { inicio: "10:14:00", fin: "" }] })]);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-22T10:16:00"));
+    vi.stubGlobal("fetch", fetchDeCortes());
+    await montar();
+
+    expect(contenedor.querySelector(".valor-reloj").textContent).toBe("06:00");
+    expect(contenedor.querySelector(".efectivo-reloj").textContent).toContain("Efectivo 03:00 · en pausa desde 10:14:00");
+    expect(contenedor.querySelector(".lista-pausas").textContent).toContain("02:00");
+
+    // El tachito de la pausa abierta la saca: la tarea sigue en curso, sin pausa.
+    await act(async () => contenedor.querySelector(".lista-pausas .quitar-pausa").click());
+    expect(contenedor.querySelector(".badge-vivo").textContent).toContain("En curso");
+    expect(contenedor.querySelector(".cabeza-pausas").textContent).toContain("1 pausa · 01:00");
+    expect(cargarSesion(ACTIVIDAD.id).tareas[0].pausas).toEqual([{ inicio: "10:12:00", fin: "10:13:00" }]);
+    await act(async () => contenedor.querySelector(".lista-pausas .quitar-pausa").click());
+    expect(contenedor.textContent).toContain("Sin pausas");
+    expect(contenedor.querySelector(".valor-reloj").textContent).toBe("06:00");
+  });
+
   test("borrar una tarea pide confirmación y avisa que también se saca de la sesión", async () => {
     guardarSesionDePrueba([{ ...tareaGuardada(), envio: { ok: true, fecha: "2026-05-26T13:00:00Z", huella: "vieja", fallidos: [] } }], {
       asignaciones: { "t1|a-b": "p1" },
@@ -526,6 +554,8 @@ describe("TrainingTareas", () => {
     await act(async () => porEtiqueta("Borrar tarea").click());
     await act(async () => botonPorTexto("Sí, borrar").click());
     expect(contenedor.textContent).toContain("Todavía no hay tareas");
+    // Sin tareas, el botón de la cabecera queda apagado.
+    expect(porEtiqueta("Borrar tarea").disabled).toBe(true);
     expect(cargarSesion(ACTIVIDAD.id).tareas).toEqual([]);
     // Las asignaciones se conservan: el próximo envío saca esa tarea de la sesión.
     expect(cargarSesion(ACTIVIDAD.id).asignaciones).toEqual({ "t1|a-b": "p1" });
