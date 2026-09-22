@@ -66,7 +66,7 @@ const Portal = ({ onElegir }) => {
     <main className="portal-modulos">
       <section className="portal-contenido">
         <div className="portal-encabezado">
-          <span className="portal-kicker">{equipo?.nombre || "Registro deportivo"}</span>
+          {equipo?.nombre && <span className="portal-kicker">{equipo.nombre}</span>}
           <h1>¿Qué vas a hacer hoy?</h1>
           <p>Elegí por dónde arrancar.</p>
         </div>

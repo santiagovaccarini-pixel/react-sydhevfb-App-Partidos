@@ -33,6 +33,7 @@
 
 .portal-kicker {
   display: block;
+  margin-bottom: 8px;
   color: var(--portal-accent);
   font-size: 0.75rem;
   font-weight: 800;
@@ -41,7 +42,7 @@
 }
 
 .portal-encabezado h1 {
-  margin: 8px 0 6px;
+  margin: 0 0 6px;
   font-size: clamp(2rem, 7vw, 3.2rem);
   letter-spacing: -0.03em;
   line-height: 0.98;
@@ -145,16 +146,11 @@
   height: 36px;
 }
 
-.tarjeta-partido .portal-icono {
-  border-color: rgba(74, 222, 128, 0.55);
-  background: rgba(22, 163, 74, 0.26);
-  color: #d1fae5;
-}
-
-.tarjeta-flujo .portal-icono {
-  border-color: rgba(125, 211, 252, 0.55);
-  background: rgba(14, 165, 233, 0.24);
-  color: #e0f2fe;
+/* Los íconos van en dorado sobre negro, como el club y como las fotos. */
+.portal-icono {
+  border-color: rgba(240, 201, 120, 0.7);
+  background: rgba(11, 13, 16, 0.72);
+  color: #f0c978;
 }
 
 .portal-tarjeta-texto {
