@@ -947,8 +947,8 @@
   align-items: center;
   gap: 6px;
   justify-self: start;
-  min-height: 36px;
-  padding: 0 12px 0 8px;
+  min-height: 44px;
+  padding: 0 14px 0 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
