@@ -682,148 +682,258 @@
 }
 
 
-/* 7. Acceso (fuera del marco, antes training-access.css): mismas clases,
-   repintadas con el tema de Partido. */
+/* 7. Acceso (fuera del marco): la puerta de Flujo diario, con la misma pinta
+   que el portal: la foto del módulo borrosa de fondo, la nube dorada y una
+   tarjeta oscura con lo que haya que completar. */
 .training-access-page {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 18px;
   min-height: 100vh;
-  background: var(--cam-fondo);
-  padding: 24px 16px;
-  color: var(--cam-tinta);
+  min-height: 100dvh;
+  padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 28px);
+  background: var(--portal-bg, #0b0d10);
+  color: var(--portal-text, #f4f6f8);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.training-access-fondo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.training-access-fondo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(26px) brightness(0.62);
+  transform: scale(1.15);
+}
+
+.training-access-fondo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 13, 16, 0.15), rgba(11, 13, 16, 0.75));
+}
+
+.training-access-volver {
+  position: relative;
+  z-index: 1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(11, 13, 16, 0.55);
+  color: #fff;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.training-access-volver svg {
+  width: 16px;
+  height: 16px;
 }
 
 .training-access-card {
-  background: var(--cam-blanco);
-  border: 1px solid var(--cam-linea);
-  border-radius: 14px;
-  padding: 18px 15px;
-  max-width: 420px;
-  margin: 40px auto 0;
-  color: var(--cam-tinta);
-  box-shadow: var(--cam-sombra);
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  width: min(440px, 100%);
+  margin: 0 auto;
+  padding: 22px 20px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  background: rgba(20, 24, 29, 0.86);
+  color: var(--portal-text, #f4f6f8);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+}
+
+/* La nube, como en la tarjeta del portal pero en su lugar. */
+.training-access-card .portal-icono {
+  position: static;
+  margin-bottom: 14px;
 }
 
 .training-access-kicker {
   display: block;
-  margin-bottom: 10px;
-  color: var(--cam-verde-oscuro);
-  font-size: 10px;
+  margin-bottom: 6px;
+  color: var(--portal-accent, #d3ad62);
+  font-size: 0.72rem;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .training-access-card h1 {
   margin: 0 0 6px;
-  font-size: 22px;
+  font-size: clamp(1.7rem, 6vw, 2.1rem);
   font-weight: 900;
-  letter-spacing: -0.02em;
-  color: var(--cam-tinta);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: #fff;
 }
 
-.training-access-card p,
-.training-access-card small {
+.training-access-card p {
   margin: 0;
-  color: var(--cam-gris);
-  font-size: 13px;
+  color: #c3ccd6;
+  font-size: 0.98rem;
   line-height: 1.5;
 }
 
 .training-access-card small {
   display: block;
-  margin-top: 12px;
-  font-size: 11.5px;
+  margin-top: 14px;
+  color: #9ca5af;
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .training-access-form {
   display: grid;
-  gap: 12px;
-  margin: 18px 0 0;
+  gap: 14px;
+  margin: 20px 0 0;
 }
 
 .training-access-form label {
   display: grid;
-  gap: 6px;
+  gap: 7px;
   margin: 0;
-  color: var(--cam-gris);
-  font-size: 10px;
+  color: #9ca5af;
+  font-size: 0.7rem;
   font-weight: 900;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .training-access-form input {
   width: 100%;
-  height: 46px;
-  border: 1px solid var(--cam-linea);
-  border-radius: 11px;
-  padding: 0 13px;
-  background: #f7f9f8;
-  color: var(--cam-tinta);
-  font-size: 15px;
+  height: 50px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(11, 13, 16, 0.8);
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
 }
 
-.training-access-primary,
-.training-access-secondary {
+.training-access-form input::placeholder {
+  color: #6b7681;
+  font-weight: 500;
+}
+
+.training-access-form input:focus {
+  outline: none;
+  border-color: rgba(240, 201, 120, 0.8);
+  box-shadow: 0 0 0 3px rgba(240, 201, 120, 0.2);
+}
+
+/* El botón principal es blanco, como "Entrar" en las tarjetas del portal. */
+.training-access-primary {
   width: 100%;
+  min-height: 52px;
+  margin-top: 4px;
+  border: 0;
   border-radius: 14px;
-  font-weight: 800;
+  background: #fff;
+  color: #0b0d10;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 900;
   cursor: pointer;
 }
 
-.training-access-primary {
-  height: 50px;
+.training-access-primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Las otras dos cosas que se pueden hacer van como enlaces dorados. */
+.training-access-enlaces {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 14px;
+}
+
+.training-access-enlace {
+  min-height: 44px;
+  padding: 0 4px;
   border: 0;
-  background: linear-gradient(135deg, #000000, #16a34a);
-  color: #fff;
-  font-size: 15px;
-  box-shadow: 0 10px 22px rgba(34, 197, 94, 0.35);
+  background: none;
+  color: #f0c978;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-color: rgba(240, 201, 120, 0.45);
+  text-underline-offset: 4px;
+  cursor: pointer;
 }
 
-.training-access-secondary {
-  height: 46px;
-  border: 1px solid #cbd5e1;
-  background: var(--cam-blanco);
-  color: var(--cam-tinta);
-  font-size: 14px;
-}
-
-.training-access-card .training-access-form + .training-access-secondary,
-.training-access-card small + .training-access-secondary {
-  margin-top: 12px;
-}
-
-.training-access-primary:hover,
-.training-access-primary:active,
-.training-access-secondary:hover,
-.training-access-secondary:active {
-  transform: none;
-  box-shadow: none;
-}
-
-.training-access-primary:hover {
-  box-shadow: 0 10px 22px rgba(34, 197, 94, 0.35);
+.training-access-enlace:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .training-access-message {
-  padding: 10px 12px;
-  border-radius: 10px;
-  font-size: 12px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  font-size: 0.86rem;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .training-access-message.error {
-  background: #fdecee;
-  color: #c1121f;
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  background: rgba(190, 40, 50, 0.22);
+  color: #ffb3b3;
 }
 
 .training-access-message.ok {
-  border: 1px solid #b8dec9;
-  background: var(--cam-verde-suave);
-  color: var(--cam-verde-oscuro);
+  border: 1px solid rgba(240, 201, 120, 0.4);
+  background: rgba(211, 173, 98, 0.16);
+  color: #f0c978;
+}
+
+/* Mientras se comprueba el acceso, una ruedita. */
+.training-access-espera {
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin-top: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: #f0c978;
+  border-radius: 50%;
+  animation: training-access-girar 900ms linear infinite;
+}
+
+@keyframes training-access-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .training-access-espera {
+    animation: none;
+  }
 }
 
 @media (max-width: 720px) {

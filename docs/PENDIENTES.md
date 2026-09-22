@@ -60,6 +60,13 @@ de lo hecho está en los commits, no en esta lista.
   en el camino se funde con la vertical, que tapa la pantalla casi entera.
   Apaisado (computadora) va la foto de la tarjeta, recortada apenas según el
   `foco`.
+- **Acceso (hecho)**: la puerta de Flujo diario con la misma pinta que el
+  portal: la foto del módulo borrosa de fondo, la nube dorada, tarjeta oscura,
+  botón principal blanco, "Olvidé mi contraseña" y "Crear una cuenta" como
+  enlaces dorados y "Volver al portal" arriba. Textos en criollo ("Entrá con
+  tu cuenta", "Tu correo y tu contraseña de la app") y una ruedita mientras
+  se comprueba el acceso. La lógica (Supabase Auth + `/api/openfield/session`)
+  no cambió; ahora tiene pruebas (`src/TrainingAccessGate.smoke.test.jsx`).
   Partido entra sin su intro del estadio cuando viene del portal (`intro`
   en `App`), para no mostrar dos imágenes seguidas; la intro sigue en el
   código por si la app se abre sola.
