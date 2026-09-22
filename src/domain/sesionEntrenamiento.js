@@ -322,17 +322,24 @@ export const estadoDeTarea = (tarea) => {
 // Tiempos de una tarea "en vivo": lo que todavía no cerró (la tarea o una
 // pausa) se cuenta hasta `ahoraMs`. Sirve para el reloj de la pantalla; para
 // validar y enviar se usa resumenTarea, que solo cuenta lo cerrado.
+//
+// Mientras la tarea corre, el reloj cuenta la hora del día de hoy: la fecha
+// guardada es la de la sesión en OpenField y puede ser otra (una prueba sobre
+// una sesión vieja). Cerrada, cuenta lo guardado.
+const fechaDelReloj = (tarea, ahoraMs) => (tarea?.fin ? tarea?.fecha : hoyLocal(new Date(ahoraMs)));
+
 export const tiemposDeTarea = (tarea, ahoraMs = Date.now()) => {
-  const inicioMs = horaAMs(tarea?.fecha, tarea?.inicio);
-  const finMs = tarea?.fin ? horaAMs(tarea.fecha, tarea.fin) : null;
+  const fecha = fechaDelReloj(tarea, ahoraMs);
+  const inicioMs = horaAMs(fecha, tarea?.inicio);
+  const finMs = tarea?.fin ? horaAMs(fecha, tarea.fin) : null;
   const hasta = finMs ?? ahoraMs;
   const brutoSegundos = inicioMs !== null && hasta > inicioMs ? (hasta - inicioMs) / 1000 : 0;
 
   let pausasSegundos = 0;
   (tarea?.pausas || []).forEach((pausa) => {
-    const pInicio = horaAMs(tarea.fecha, pausa.inicio);
+    const pInicio = horaAMs(fecha, pausa.inicio);
     if (pInicio === null) return;
-    const pFin = pausa.fin ? horaAMs(tarea.fecha, pausa.fin) : hasta;
+    const pFin = pausa.fin ? horaAMs(fecha, pausa.fin) : hasta;
     if (pFin !== null && pFin > pInicio) pausasSegundos += (pFin - pInicio) / 1000;
   });
 
@@ -341,6 +348,16 @@ export const tiemposDeTarea = (tarea, ahoraMs = Date.now()) => {
     pausasSegundos,
     efectivoSegundos: Math.max(0, brutoSegundos - pausasSegundos),
   };
+};
+
+// Lo que dura una pausa: cerrada, lo guardado; abierta, hasta ahora (o hasta
+// el fin de la tarea si ya terminó). null si no tiene ni inicio.
+export const segundosDePausa = (tarea, pausa, ahoraMs = Date.now()) => {
+  const fecha = fechaDelReloj(tarea, ahoraMs);
+  const inicioMs = horaAMs(fecha, pausa?.inicio);
+  if (inicioMs === null) return null;
+  const finMs = pausa?.fin ? horaAMs(fecha, pausa.fin) : tarea?.fin ? horaAMs(fecha, tarea.fin) : ahoraMs;
+  return finMs !== null && finMs > inicioMs ? (finMs - inicioMs) / 1000 : 0;
 };
 
 // "05:12" para el reloj grande; pasa de la hora como "75:03".
