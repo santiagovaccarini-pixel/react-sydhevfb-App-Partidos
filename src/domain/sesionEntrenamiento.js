@@ -308,3 +308,43 @@ export const segundosATexto = (segundos) => {
   const segs = total % 60;
   return `${minutos}:${String(segs).padStart(2, "0")}`;
 };
+
+// Estado de una tarea según lo cargado: sin iniciar, en curso, en pausa o
+// terminada. Una pausa abierta es la que tiene inicio y todavía no tiene fin.
+export const pausaAbierta = (tarea) => (tarea?.pausas || []).find((pausa) => pausa.inicio && !pausa.fin) || null;
+
+export const estadoDeTarea = (tarea) => {
+  if (!tarea?.inicio) return "sin-iniciar";
+  if (tarea.fin) return "terminada";
+  return pausaAbierta(tarea) ? "en-pausa" : "en-curso";
+};
+
+// Tiempos de una tarea "en vivo": lo que todavía no cerró (la tarea o una
+// pausa) se cuenta hasta `ahoraMs`. Sirve para el reloj de la pantalla; para
+// validar y enviar se usa resumenTarea, que solo cuenta lo cerrado.
+export const tiemposDeTarea = (tarea, ahoraMs = Date.now()) => {
+  const inicioMs = horaAMs(tarea?.fecha, tarea?.inicio);
+  const finMs = tarea?.fin ? horaAMs(tarea.fecha, tarea.fin) : null;
+  const hasta = finMs ?? ahoraMs;
+  const brutoSegundos = inicioMs !== null && hasta > inicioMs ? (hasta - inicioMs) / 1000 : 0;
+
+  let pausasSegundos = 0;
+  (tarea?.pausas || []).forEach((pausa) => {
+    const pInicio = horaAMs(tarea.fecha, pausa.inicio);
+    if (pInicio === null) return;
+    const pFin = pausa.fin ? horaAMs(tarea.fecha, pausa.fin) : hasta;
+    if (pFin !== null && pFin > pInicio) pausasSegundos += (pFin - pInicio) / 1000;
+  });
+
+  return {
+    brutoSegundos,
+    pausasSegundos,
+    efectivoSegundos: Math.max(0, brutoSegundos - pausasSegundos),
+  };
+};
+
+// "05:12" para el reloj grande; pasa de la hora como "75:03".
+export const relojTexto = (segundos) => {
+  const total = Math.max(0, Math.floor(Number(segundos) || 0));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+};

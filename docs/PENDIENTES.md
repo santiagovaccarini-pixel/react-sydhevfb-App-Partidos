@@ -38,13 +38,24 @@ de lo hecho está en los commits, no en esta lista.
 8. Sin señal: cargar tareas funciona; enviar tiene que avisar de forma legible.
 9. Que Partido siga igual: marco compartido y lista de jugadores.
 
+### Tareas como un partido (hecho el 22/09; queda probarlo en la cancha)
+
+- Tareas ya se registra como los tiempos de un partido: una solapa por tarea
+  (se deslizan cuando son muchas, el + fijo a la derecha), el reloj de la
+  tarea arriba con el tiempo efectivo, la tarjeta de pausas debajo (muestra
+  solo la última; "Ver anteriores" despliega el resto) y el panel con Iniciar
+  / Terminar tarea, Jugadores (hoja desde abajo), Pausa y Entra / Sale.
+  Enviar está arriba a la derecha; con algo incompleto abre "Ver todas" y dice
+  qué falta. En la computadora la lista de tareas va al lado del panel.
+- Lo que se corrige a mano (horas, pausas, menos tiempo, fecha, borrar) quedó
+  plegado en "Ajustar horarios y pausas".
+- **Probar en 26-05 T desde el celular**: registrar dos tareas con los botones,
+  una pausa, un Entra / Sale, y enviar. Mirar que el reloj no se trabe con la
+  pantalla apagada (el tiempo sale de la hora, no de un contador, así que
+  tendría que volver bien).
+
 ### Pendientes de producto
 
-- **Tareas como un partido** (propuesta del 22/09, maqueta mandada por chat; a
-  decidir antes de armarla): una solapa por tarea (1, 2, 3, +), reloj arriba,
-  y la tarjeta de Partido con Iniciar/Terminar tarea, Pausa, Jugadores (hoja
-  desde abajo con los tildes) y Entra/Sale para el que se suma tarde o se va
-  antes. Enviar queda arriba a la derecha, como Guardar partido.
 - **Modo tutorial la primera vez** en cada módulo (propuesta del 22/09, maqueta
   mandada por chat): hoja de bienvenida con "Ver cómo funciona" / "Ahora no",
   después pasos que oscurecen la pantalla y señalan el botón a tocar. Una vez

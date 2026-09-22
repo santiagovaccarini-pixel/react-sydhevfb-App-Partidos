@@ -17,6 +17,7 @@ import {
   segundosATexto,
   sesionVacia,
 } from "./sesionEntrenamiento.js";
+import { estadoDeTarea, pausaAbierta, relojTexto, tiemposDeTarea } from "./sesionEntrenamiento.js";
 
 const plantel = [
   { id: 1, nombre: "A MINDA", catapult_id: "a1" },
@@ -183,5 +184,37 @@ describe("actividad elegida y estado de envío", () => {
     // El orden de los participantes no cambia la huella.
     const alReves = { ...base, participantes: Object.fromEntries(Object.entries(base.participantes).reverse()) };
     expect(huellaTarea(alReves)).toBe(huellaTarea(base));
+  });
+});
+
+describe("estado y tiempos en vivo de una tarea", () => {
+  const base = { fecha: "2026-05-26", inicio: "10:10:00", fin: "", pausas: [], participantes: {} };
+  const ms = (hora) => new Date(`2026-05-26T${hora}`).getTime();
+
+  test("estadoDeTarea distingue sin iniciar, en curso, en pausa y terminada", () => {
+    expect(estadoDeTarea({ ...base, inicio: "" })).toBe("sin-iniciar");
+    expect(estadoDeTarea(base)).toBe("en-curso");
+    expect(estadoDeTarea({ ...base, pausas: [{ inicio: "10:12:00", fin: "" }] })).toBe("en-pausa");
+    expect(estadoDeTarea({ ...base, pausas: [{ inicio: "10:12:00", fin: "10:13:00" }] })).toBe("en-curso");
+    expect(estadoDeTarea({ ...base, fin: "10:20:00" })).toBe("terminada");
+    expect(pausaAbierta({ ...base, pausas: [{ inicio: "10:12:00", fin: "" }] })).toEqual({ inicio: "10:12:00", fin: "" });
+    expect(pausaAbierta(base)).toBeNull();
+  });
+
+  test("tiemposDeTarea cuenta hasta ahora lo que no cerró y descuenta las pausas", () => {
+    // En curso, con una pausa cerrada y otra abierta.
+    const tarea = { ...base, pausas: [{ inicio: "10:12:00", fin: "10:12:50" }, { inicio: "10:15:00", fin: "" }] };
+    expect(tiemposDeTarea(tarea, ms("10:16:00"))).toEqual({ brutoSegundos: 360, pausasSegundos: 110, efectivoSegundos: 250 });
+    // Terminada: la pausa que quedó abierta se corta en el fin de la tarea.
+    expect(tiemposDeTarea({ ...tarea, fin: "10:20:00" }, ms("11:00:00"))).toEqual({ brutoSegundos: 600, pausasSegundos: 350, efectivoSegundos: 250 });
+    // Sin iniciar no hay nada que contar.
+    expect(tiemposDeTarea({ ...base, inicio: "" }, ms("10:16:00"))).toEqual({ brutoSegundos: 0, pausasSegundos: 0, efectivoSegundos: 0 });
+  });
+
+  test("relojTexto muestra minutos y segundos con dos cifras y pasa de la hora", () => {
+    expect(relojTexto(0)).toBe("00:00");
+    expect(relojTexto(312.7)).toBe("05:12");
+    expect(relojTexto(4503)).toBe("75:03");
+    expect(relojTexto(-5)).toBe("00:00");
   });
 });
