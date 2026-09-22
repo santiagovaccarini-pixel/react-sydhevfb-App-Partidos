@@ -222,12 +222,26 @@ describe("TrainingModule", () => {
     expect(contenedor.querySelector(".pastilla-vivo").classList.contains("sin-empezar")).toBe(false);
   });
 
-  test("al reabrir vuelve a la pantalla guardada", async () => {
-    window.localStorage.setItem(CLAVE_VISTA, JSON.stringify({ vista: "tareas" }));
+  test("al reabrir arranca siempre en Sesión, aunque haya quedado una pantalla guardada", async () => {
+    window.localStorage.setItem(CLAVE_VISTA, JSON.stringify({ vista: "ajustes", vistaAjustes: "cuenta" }));
     vi.stubGlobal("fetch", fetchDeLectura());
     await montar();
 
-    expect(contenedor.textContent).toContain("Primero elegí la sesión");
-    expect(botonMovil("Tareas").classList.contains("activo")).toBe(true);
+    expect(contenedor.textContent).toContain("SIN SESIÓN");
+    expect(botonMovil("Sesión").classList.contains("activo")).toBe(true);
+    expect(window.localStorage.getItem(CLAVE_VISTA)).toBeNull();
+  });
+
+  test("el botón Módulos del inicio vuelve al portal", async () => {
+    vi.stubGlobal("fetch", fetchDeLectura());
+    const onVolver = vi.fn();
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<TrainingModule onVolver={onVolver} email="x@y" onCerrarSesion={() => {}} />);
+    });
+    await act(async () => Promise.resolve());
+
+    await act(async () => botonPorTexto("Módulos").click());
+    expect(onVolver).toHaveBeenCalledTimes(1);
   });
 });

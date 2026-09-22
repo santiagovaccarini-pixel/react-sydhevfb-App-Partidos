@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { Icono } from "./components/AppChrome";
 import TrainingBloques, { horaCorta, marcaAFecha } from "./TrainingApp.jsx";
 import { cargarSesion, estadoEnvioTarea } from "./domain/sesionEntrenamiento.js";
 
@@ -38,7 +39,7 @@ const diaCorto = (actividad, tareas) => {
 // Inicio de Entrenamiento, con la misma cara que el inicio de Partido: la
 // sesión elegida arriba, el botón principal en la tarjeta blanca y, si ya hay
 // tareas registradas, una tarjeta que lleva directo a seguir con ellas.
-export default function TrainingInicio({ actividad = null, onElegirSesion, onIrATareas }) {
+export default function TrainingInicio({ actividad = null, onElegirSesion, onIrATareas, onVolverModulos }) {
   const resumen = useMemo(() => {
     if (!actividad?.id) return { tareas: [], enCurso: false, sinEnviar: 0, conCambios: 0, pendientes: 0 };
 
@@ -64,6 +65,12 @@ export default function TrainingInicio({ actividad = null, onElegirSesion, onIrA
     <div className="app app-inicio">
       <div className="contenedor contenedor-inicio-formacion">
         <header className="hero-partido hero-sesion">
+          {onVolverModulos && (
+            <button type="button" className="boton-modulos" onClick={onVolverModulos}>
+              <Icono nombre="flecha" size={14} />
+              Módulos
+            </button>
+          )}
           <span className="etiqueta-hero">{actividad ? "SESIÓN ELEGIDA" : "SIN SESIÓN"}</span>
           <strong className="nombre-sesion">
             {actividad ? actividad.name || "Sin nombre" : "Todavía no elegiste la sesión"}

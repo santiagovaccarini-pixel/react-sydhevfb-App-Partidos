@@ -43,7 +43,8 @@ const textoDeJugadores = (detalle) => {
 };
 
 // Los bloques que hoy tiene la sesión, tal como los ve el servidor. Se leen al
-// elegir la sesión; los jugadores de cada bloque se leen aparte, a pedido.
+// elegir la sesión; los jugadores de cada bloque se leen enseguida, aparte,
+// para mostrar cuántos hay; los nombres quedan plegados.
 export default function TrainingBloques({ actividad = null }) {
   const [estadoBloques, setEstadoBloques] = useState("idle");
   const [bloques, setBloques] = useState([]);
@@ -82,8 +83,11 @@ export default function TrainingBloques({ actividad = null }) {
       if (!respuesta.ok || !payload?.ok) throw new Error("bloques");
       if (solicitudActual !== solicitudBloquesRef.current) return;
 
-      setBloques(Array.isArray(payload.periods) ? payload.periods : []);
+      const lista = Array.isArray(payload.periods) ? payload.periods : [];
+      setBloques(lista);
       setEstadoBloques("listo");
+      // La cantidad de jugadores de cada bloque se lee enseguida, aparte.
+      if (lista.length > 0) cargarJugadores(activityId);
     } catch {
       if (solicitudActual !== solicitudBloquesRef.current) return;
       setBloques([]);
@@ -159,20 +163,33 @@ export default function TrainingBloques({ actividad = null }) {
 
       {bloquesListos && bloques.length > 0 && (
         <>
-          {bloques.map((bloque, indice) => (
-            <div className="dato-detalle" key={bloque.id ?? indice}>
-              <span>
-                {numeroDeBloque(indice)} · {bloque.name || "Sin nombre"}
-              </span>
-              <strong>
-                {horaCorta(bloque.start_ms ?? bloque.start_time) || "--:--"} →{" "}
-                {horaCorta(bloque.end_ms ?? bloque.end_time) || "--:--"}
-              </strong>
-            </div>
-          ))}
+          {bloques.map((bloque, indice) => {
+            const detalle = detallePorBloque.get(bloque.id);
+            const cantidad = Array.isArray(detalle?.athletes) ? detalle.athletes.length : null;
+            return (
+              <div className="dato-detalle" key={bloque.id ?? indice}>
+                <span>
+                  {numeroDeBloque(indice)} · {bloque.name || "Sin nombre"}
+                  <small className="jugadores-bloque">
+                    {cantidad !== null
+                      ? `${cantidad} ${cantidad === 1 ? "jugador" : "jugadores"}`
+                      : leyendoJugadores
+                        ? "leyendo jugadores…"
+                        : estadoJugadores === "error"
+                          ? "jugadores sin leer"
+                          : ""}
+                  </small>
+                </span>
+                <strong>
+                  {horaCorta(bloque.start_ms ?? bloque.start_time) || "--:--"} →{" "}
+                  {horaCorta(bloque.end_ms ?? bloque.end_time) || "--:--"}
+                </strong>
+              </div>
+            );
+          })}
 
           <details className="ajustes-periodo">
-            <summary>Ver jugadores de cada bloque</summary>
+            <summary>Ver quiénes están en cada bloque</summary>
             <div className="contenido-ajustes-periodo">
               <button
                 type="button"
