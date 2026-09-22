@@ -212,12 +212,13 @@ describe("la portada con foto parada", () => {
     vi.useRealTimers();
   });
 
-  test("aparece de una, tapando la pantalla, sin zoom desde la tarjeta", async () => {
+  test("arranca desde la foto de la tarjeta y se funde con la parada, que tapa la pantalla", async () => {
     const tarjeta = {
       clase: "tarjeta-prueba",
       foto: "/portal/x.webp",
       fotoParada: "/portal/x-parada.webp",
       foco: [0.5, 0.5],
+      focoParada: [0.2, 0.5],
       Arte: () => <svg className="portal-arte" />,
       Icono: () => <svg />,
       titulo: "Prueba",
@@ -229,16 +230,63 @@ describe("la portada con foto parada", () => {
     });
 
     const cubierta = contenedor.querySelector(".portal-portada");
-    expect(cubierta.classList.contains("de-una")).toBe(true);
     expect(cubierta.classList.contains("llena")).toBe(true);
-    expect(cubierta.querySelector(".portal-portada-foto img").getAttribute("src")).toBe("/portal/x-parada.webp");
+    // Abajo la foto de la tarjeta (de donde arranca el zoom), arriba la parada.
+    const fotos = cubierta.querySelectorAll(".portal-portada-foto .portal-foto");
+    expect(fotos).toHaveLength(2);
+    expect(fotos[0].querySelector("img").getAttribute("src")).toBe("/portal/x.webp");
+    expect(fotos[1].classList.contains("foto-parada")).toBe(true);
+    expect(fotos[1].querySelector("img").getAttribute("src")).toBe("/portal/x-parada.webp");
+    // Y atrás, borrosa, la parada.
+    expect(cubierta.querySelector(".portal-portada-fondo img").getAttribute("src")).toBe("/portal/x-parada.webp");
+    // La caja termina tan alta como la pantalla y apenas más ancha, corrida
+    // según el foco de la foto parada.
     const caja = cubierta.querySelector(".portal-portada-foto");
     expect(parseFloat(caja.style.height)).toBe(844);
     expect(parseFloat(caja.style.width)).toBeCloseTo(474.75, 1);
+    expect(parseFloat(caja.style.left)).toBeCloseTo(-(474.75 - 390) * 0.2, 1);
 
     await act(async () =>
       vi.advanceTimersByTime(TIEMPOS_PORTADA.zoom + TIEMPOS_PORTADA.quieta + TIEMPOS_PORTADA.salida),
     );
     expect(terminar).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("el portal en el celular, parado", () => {
+  let contenedor;
+  let raiz;
+  let tamano;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    tamano = [window.innerWidth, window.innerHeight];
+    window.innerWidth = 390;
+    window.innerHeight = 844;
+    contenedor = document.createElement("div");
+    document.body.appendChild(contenedor);
+  });
+
+  afterEach(async () => {
+    if (raiz) await act(async () => raiz.unmount());
+    raiz = null;
+    contenedor.remove();
+    [window.innerWidth, window.innerHeight] = tamano;
+    vi.useRealTimers();
+  });
+
+  test("la portada de cada tarjeta usa su foto parada", async () => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<PortalApp />);
+    });
+    await act(async () => contenedor.querySelector('button[aria-label="Entrar a Flujo diario"]').click());
+
+    const cubierta = contenedor.querySelector(".portal-portada");
+    expect(cubierta.querySelector(".portal-portada-foto .foto-parada img").getAttribute("src")).toBe("/portal/flujo-parada.webp");
+    expect(cubierta.querySelector(".portal-portada-fondo img").getAttribute("src")).toBe("/portal/flujo-parada.webp");
+    const caja = cubierta.querySelector(".portal-portada-foto");
+    expect(parseFloat(caja.style.height)).toBe(844);
+    expect(parseFloat(caja.style.width)).toBeCloseTo(474.75, 1);
   });
 });

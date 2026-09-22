@@ -54,12 +54,12 @@ de lo hecho está en los commits, no en esta lista.
   lo que no entra queda afuera), se queda un momento con el ícono y el nombre
   del módulo y se desvanece sobre el módulo, que ya se cargó abajo (`Portada`
   y `lugarEnPantalla` en `src/PortalApp.jsx`; tiempos en `TIEMPOS_PORTADA`,
-  unos 2,4 s en total). En el celular, parado, la foto apaisada no entra
-  entera: se ve la parte que dice el `foco` de cada tarjeta (Flujo diario
-  muestra la tablet con el PSE). **Para que se vea entera y a pantalla
-  completa hacen falta versiones verticales (9:16) de las dos fotos**: van en
-  `public/portal/*-parada.webp`, se enganchan en `fotoParada` de cada tarjeta
-  y en la lista del `scripts/precache.js`.
+  unos 2,4 s en total). En el celular, parado, la portada usa la versión
+  vertical de cada foto (`public/portal/*-parada.webp`, `fotoParada` en cada
+  tarjeta, también sin señal): el zoom arranca desde la foto de la tarjeta y
+  en el camino se funde con la vertical, que tapa la pantalla casi entera.
+  Apaisado (computadora) va la foto de la tarjeta, recortada apenas según el
+  `foco`.
   Partido entra sin su intro del estadio cuando viene del portal (`intro`
   en `App`), para no mostrar dos imágenes seguidas; la intro sigue en el
   código por si la app se abre sola.
