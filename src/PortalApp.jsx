@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import App from "./App";
 import TrainingModule from "./TrainingModule";
 import TrainingAccessGate from "./TrainingAccessGate";
+import { ArteFlujo, ArtePartido, IconoFlujo, IconoPartido } from "./components/PortalArt.jsx";
+import { leerEquipoElegido } from "./domain/equipo.js";
 import "./portal.css";
 import "./training.css";
 
@@ -20,67 +22,81 @@ const modoInicial = () => {
     : MODOS.PORTAL;
 };
 
-const IconoPartido = () => (
-  <svg viewBox="0 0 64 64" aria-hidden="true">
-    <circle cx="32" cy="32" r="21" />
-    <path d="m32 20 8 6-3 9H27l-3-9 8-6Z" />
-    <path d="m24 26-8 2M40 26l8 2M27 35l-5 8M37 35l5 8" />
-  </svg>
-);
+// Las dos puertas de la app, contadas en criollo: qué se hace en cada una y
+// por qué pasos se va. Nada técnico: eso queda para adentro.
+const TARJETAS = [
+  {
+    modo: MODOS.PARTIDO,
+    clase: "tarjeta-partido",
+    Arte: ArtePartido,
+    Icono: IconoPartido,
+    titulo: "Partido",
+    texto:
+      "El día del partido, en vivo desde la cancha: la formación, los tiempos de cada período, los cambios, el VAR y la hidratación. Al final se guarda todo con un botón.",
+    pasos: ["Formación", "Tiempos", "Cambios", "Guardar"],
+  },
+  {
+    modo: MODOS.ENTRENAMIENTO,
+    clase: "tarjeta-flujo",
+    Arte: ArteFlujo,
+    Icono: IconoFlujo,
+    titulo: "Flujo diario",
+    etiqueta: "En prueba",
+    texto:
+      "Lo de todos los días después de entrenar: las tareas de la sesión y sus cortes en la nube, la descarga de los datos, la planilla de Excel, el PSE y los archivos para cargar.",
+    pasos: ["Tareas", "Cortes", "Descarga", "Planilla", "PSE", "Carga"],
+    nota: "Hoy están las tareas y los cortes. El resto se va sumando.",
+  },
+];
 
-const IconoEntrenamiento = () => (
-  <svg viewBox="0 0 64 64" aria-hidden="true">
-    <path d="M14 46h36" />
-    <path d="m20 46 8-27h8l8 27" />
-    <path d="M24 34h16" />
-    <path d="M27 26h10" />
-  </svg>
-);
+const Portal = ({ onElegir }) => {
+  const equipo = leerEquipoElegido();
 
-const Portal = ({ onElegir }) => (
-  <main className="portal-modulos">
-    <section className="portal-contenido">
-      <div className="portal-encabezado">
-        <span className="portal-kicker">Registro deportivo</span>
-        <h1>¿Qué vas a registrar?</h1>
-        <p>Elegí el módulo de trabajo para continuar.</p>
-      </div>
+  return (
+    <main className="portal-modulos">
+      <section className="portal-contenido">
+        <div className="portal-encabezado">
+          <span className="portal-kicker">{equipo?.nombre || "Registro deportivo"}</span>
+          <h1>¿Qué vas a hacer hoy?</h1>
+          <p>Elegí por dónde arrancar.</p>
+        </div>
 
-      <div className="portal-opciones">
-        <button
-          type="button"
-          className="portal-tarjeta"
-          onClick={() => onElegir(MODOS.PARTIDO)}
-        >
-          <span className="portal-icono">
-            <IconoPartido />
-          </span>
-          <span className="portal-tarjeta-texto">
-            <strong>Partido</strong>
-            <small>Registro en vivo, formaciones, cambios y tiempos.</small>
-          </span>
-          <span className="portal-flecha" aria-hidden="true">›</span>
-        </button>
-
-        <button
-          type="button"
-          className="portal-tarjeta portal-tarjeta-beta"
-          onClick={() => onElegir(MODOS.ENTRENAMIENTO)}
-        >
-          <span className="portal-icono">
-            <IconoEntrenamiento />
-          </span>
-          <span className="portal-tarjeta-texto">
-            <span className="portal-beta">FASE BETA</span>
-            <strong>Entrenamiento</strong>
-            <small>Tareas de cada sesión con los chalecos.</small>
-          </span>
-          <span className="portal-flecha" aria-hidden="true">›</span>
-        </button>
-      </div>
-    </section>
-  </main>
-);
+        <div className="portal-opciones">
+          {TARJETAS.map(({ modo, clase, Arte, Icono, titulo, etiqueta, texto, pasos, nota }) => (
+            <button
+              type="button"
+              key={modo}
+              className={`portal-tarjeta ${clase}`}
+              onClick={() => onElegir(modo)}
+              aria-label={`Entrar a ${titulo}`}
+            >
+              <Arte />
+              <span className="portal-icono">
+                <Icono />
+              </span>
+              <span className="portal-tarjeta-texto">
+                <strong>
+                  {titulo}
+                  {etiqueta && <em className="portal-beta">{etiqueta}</em>}
+                </strong>
+                <small>{texto}</small>
+                <span className="portal-pasos" aria-label="Pasos">
+                  {pasos.map((paso) => (
+                    <i key={paso}>{paso}</i>
+                  ))}
+                </span>
+                {nota && <span className="portal-nota">{nota}</span>}
+              </span>
+              <span className="portal-entrar" aria-hidden="true">
+                Entrar <span>›</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+};
 
 export default function PortalApp() {
   const [modo, setModo] = useState(modoInicial);

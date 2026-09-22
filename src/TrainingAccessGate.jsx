@@ -277,7 +277,7 @@ export default function TrainingAccessGate({ children, onVolver }) {
     return (
       <main className="training-access-page">
         <section className="training-access-card">
-          <span className="training-access-kicker">ENTRENAMIENTO</span>
+          <span className="training-access-kicker">FLUJO DIARIO</span>
           <h1>Un momento</h1>
           <p>Estamos comprobando tu acceso.</p>
         </section>
@@ -289,7 +289,7 @@ export default function TrainingAccessGate({ children, onVolver }) {
     return (
       <main className="training-access-page">
         <section className="training-access-card">
-          <span className="training-access-kicker">ENTRENAMIENTO</span>
+          <span className="training-access-kicker">FLUJO DIARIO</span>
           <h1>Elegí una contraseña nueva</h1>
           <p>Después vas a entrar con esta.</p>
 
@@ -346,7 +346,7 @@ export default function TrainingAccessGate({ children, onVolver }) {
   return (
     <main className="training-access-page">
       <section className="training-access-card">
-        <span className="training-access-kicker">ENTRENAMIENTO</span>
+        <span className="training-access-kicker">FLUJO DIARIO</span>
         <h1>Entrar</h1>
         <p>Entrá con tu correo y contraseña de la app.</p>
 

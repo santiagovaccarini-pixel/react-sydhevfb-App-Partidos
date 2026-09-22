@@ -38,6 +38,17 @@ de lo hecho está en los commits, no en esta lista.
 8. Sin señal: cargar tareas funciona; enviar tiene que avisar de forma legible.
 9. Que Partido siga igual: marco compartido y lista de jugadores.
 
+### Repaso pantalla por pantalla (empezado el 22/09)
+
+- Se recorren las pantallas en orden: portal, acceso, inicio, sesión de
+  OpenField, tablero de tareas, hojas y ajustar, enviar, ajustes, y al final
+  el tutorial. Cada una se cierra antes de pasar a la siguiente.
+- **Portal (hecho)**: el módulo pasa a llamarse **Flujo diario** (representa
+  todo el día: tareas y cortes en la nube, descarga de datos, planilla, PSE y
+  archivos para cargar; hoy la app hace tareas y cortes). Tarjetas con fondo
+  ilustrado en código (SVG), íconos nuevos y descripciones en criollo. Si el
+  club manda fotos, se cambian por ellas en `src/components/PortalArt.jsx`.
+
 ### Entrenamiento por fecha y guardado en la base (hecho el 22/09)
 
 - El entrenamiento se empieza por fecha desde Inicio ("Ir a Entrenamiento"),
