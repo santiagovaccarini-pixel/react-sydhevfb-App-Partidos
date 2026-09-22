@@ -40,6 +40,16 @@ de lo hecho está en los commits, no en esta lista.
 
 ### Pendientes de producto
 
+- **Tareas como un partido** (propuesta del 22/09, maqueta mandada por chat; a
+  decidir antes de armarla): una solapa por tarea (1, 2, 3, +), reloj arriba,
+  y la tarjeta de Partido con Iniciar/Terminar tarea, Pausa, Jugadores (hoja
+  desde abajo con los tildes) y Entra/Sale para el que se suma tarde o se va
+  antes. Enviar queda arriba a la derecha, como Guardar partido.
+- **Modo tutorial la primera vez** en cada módulo (propuesta del 22/09, maqueta
+  mandada por chat): hoja de bienvenida con "Ver cómo funciona" / "Ahora no",
+  después pasos que oscurecen la pantalla y señalan el botón a tocar. Una vez
+  por módulo y por celular; se salta; se vuelve a ver desde Ajustes. Vale para
+  Partido y para Entrenamiento, cada uno con sus pasos.
 - **Acceso desde la app.** Hoy entra quien está en la lista de correos de
   Vercel (`OPENFIELD_ALLOWED_EMAILS`); tiene que poder darse y quitarse desde la
   app. Al agregar la ruta hay que juntar rutas: Vercel admite 12 funciones y ya
