@@ -38,6 +38,23 @@ de lo hecho está en los commits, no en esta lista.
 8. Sin señal: cargar tareas funciona; enviar tiene que avisar de forma legible.
 9. Que Partido siga igual: marco compartido y lista de jugadores.
 
+### Entrenamiento por fecha y guardado en la base (hecho el 22/09)
+
+- El entrenamiento se empieza por fecha desde Inicio ("Ir a Entrenamiento"),
+  sin depender de OpenField. La sesión de OpenField se elige recién al enviar
+  (o desde Inicio), y queda recordada. Cambiarla deja las tareas como sin
+  enviar.
+- Cada cambio se guarda en el celular al toque y en la base un momento
+  después (tabla `entrenamientos`); sin señal queda pendiente y sube solo. La
+  lista de Inicio mezcla lo del celular con lo de la base; abrir uno de la
+  base lo trae entero. Entre dos aparatos gana el último que guardó.
+- **Hay que correr la migración** `supabase/migrations/20260922_entrenamientos.sql`
+  en Supabase › SQL Editor (y `20260922_revisar_entrenamientos.sql` para
+  comprobar). Hasta entonces la app funciona solo con el celular y avisa
+  "No se pudo guardar en la base".
+- Lo registrado con el formato anterior (por sesión de OpenField) se migra
+  solo al abrir la app, con esa sesión ya vinculada.
+
 ### Tareas como un partido (hecho el 22/09; queda probarlo en la cancha)
 
 - Tareas ya se registra como los tiempos de un partido: una solapa por tarea
@@ -65,8 +82,6 @@ de lo hecho está en los commits, no en esta lista.
   Vercel (`OPENFIELD_ALLOWED_EMAILS`); tiene que poder darse y quitarse desde la
   app. Al agregar la ruta hay que juntar rutas: Vercel admite 12 funciones y ya
   son 12. Probarlo en un despliegue de prueba antes de `main`.
-- **Guardar las sesiones en la base**, no solo en el celular: para trabajar
-  desde más de un celular y no perder las pausas.
 - **Candado a 26-05 T** mientras dure la prueba. Opcional, a decisión.
 - **Detectar pausas desde los datos GPS** ("Orión"), más adelante.
 

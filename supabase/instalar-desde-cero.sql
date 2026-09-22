@@ -174,6 +174,31 @@ create table if not exists public.ajustes (
 -- pasó a la tabla equipos. Se deja porque una base migrada la tiene, y así las
 -- dos quedan con la misma forma.
 
+-- ----------------------------------------------------------- Entrenamientos --
+
+create table if not exists public.entrenamientos (
+  id uuid primary key,
+  equipo_id uuid references public.equipos (id) on delete set null,
+  fecha text not null default '',
+  nombre text not null default '',
+  actividad_id text not null default '',
+  actividad_nombre text not null default '',
+  estado text not null default 'vacio',
+  tareas_cantidad integer not null default 0,
+  datos jsonb not null default '{}'::jsonb,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+  actualizado_por text not null default ''
+);
+
+-- Entrenamientos registrados desde el módulo Entrenamiento: una fila por
+-- entrenamiento, con las tareas adentro (datos) y unas columnas sueltas para
+-- listar. Se guarda desde cualquier aparato con usuario; gana el último que
+-- guardó. Ver supabase/migrations/20260922_entrenamientos.sql.
+
+create index if not exists entrenamientos_equipo_fecha
+  on public.entrenamientos (equipo_id, fecha desc);
+
 -- ------------------------------------------------------ Acceso de la app --
 --
 -- La app se conecta con la clave pública y sin sesión: el rol es anon. Si no
@@ -184,11 +209,15 @@ alter table public.equipos enable row level security;
 alter table public.registros_partido enable row level security;
 alter table public.jugadores enable row level security;
 alter table public.ajustes enable row level security;
+alter table public.entrenamientos enable row level security;
 
 grant select, insert, update, delete
   on table public.equipos, public.registros_partido, public.jugadores,
      public.ajustes
   to anon, authenticated;
+
+-- Entrenamiento solo se usa con usuario; el rol anon no lo necesita.
+grant select, insert, update, delete on table public.entrenamientos to authenticated;
 
 grant usage, select on all sequences in schema public to anon, authenticated;
 
@@ -216,18 +245,25 @@ create policy ajustes_acceso_app
   for all to anon, authenticated
   using (true) with check (true);
 
+drop policy if exists entrenamientos_acceso_app on public.entrenamientos;
+create policy entrenamientos_acceso_app
+  on public.entrenamientos
+  for all to authenticated
+  using (true) with check (true);
+
 commit;
 
 -- --------------------------------------------------------------- Revisión --
 --
 -- Esto no cambia nada: se corre aparte para ver que quedó todo. Tienen que
--- salir cuatro tablas, sus cuatro políticas y cuatro permisos por rol y tabla.
+-- salir cinco tablas y sus cinco políticas (entrenamientos solo para
+-- authenticated).
 -- La lista de equipos arranca vacía a propósito.
 
 select 'tabla' as revision, table_name as detalle
 from information_schema.tables
 where table_schema = 'public'
-  and table_name in ('equipos', 'registros_partido', 'jugadores', 'ajustes')
+  and table_name in ('equipos', 'registros_partido', 'jugadores', 'ajustes', 'entrenamientos')
 
 union all
 
@@ -241,7 +277,7 @@ union all
 select 'permisos de ' || grantee, table_name || ': ' || count(*) || ' de 4'
 from information_schema.role_table_grants
 where table_schema = 'public'
-  and table_name in ('equipos', 'registros_partido', 'jugadores', 'ajustes')
+  and table_name in ('equipos', 'registros_partido', 'jugadores', 'ajustes', 'entrenamientos')
   and grantee in ('anon', 'authenticated')
   and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
 group by grantee, table_name

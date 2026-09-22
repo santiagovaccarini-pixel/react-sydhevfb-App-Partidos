@@ -4,14 +4,12 @@ import TrainingInicio from "./TrainingInicio";
 import TrainingElegirSesion from "./TrainingElegirSesion";
 import TrainingSettings from "./TrainingSettings";
 import TrainingTareas from "./TrainingTareas";
-import {
-  guardarActividadElegida,
-  leerActividadElegida,
-  normalizarActividad,
-} from "./domain/sesionEntrenamiento.js";
+import useEntrenamientos from "./useEntrenamientos.js";
+import { vincularActividad } from "./domain/entrenamiento.js";
+import { leerEquipoElegido } from "./domain/equipo.js";
 
 export const DESTINOS_ENTRENAMIENTO = [
-  { id: "sesion", etiqueta: "Sesión", icono: "partido" },
+  { id: "inicio", etiqueta: "Inicio", icono: "partido" },
   { id: "tareas", etiqueta: "Tareas", icono: "registros" },
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
@@ -20,7 +18,7 @@ export const CLAVE_VISTA = "entrenamiento_vista";
 
 const VISTAS_AJUSTES = ["inicio", "cuenta", "jugadores", "pruebas"];
 
-// La app arranca siempre en Sesión: al reabrirla no tiene que aparecer en
+// La app arranca siempre en Inicio: al reabrirla no tiene que aparecer en
 // Ajustes ni en el medio de otra cosa. La clave quedó de una versión que
 // recordaba la pantalla; se limpia para no dejar basura en el celular.
 const olvidarVistaGuardada = () => {
@@ -32,12 +30,15 @@ const olvidarVistaGuardada = () => {
 };
 
 // Entrenamiento con el mismo marco que Partido: barra lateral en escritorio y
-// barra inferior en el celular. Sesión elige la sesión de trabajo, Tareas
-// registra las tareas sobre ella y Ajustes guarda el usuario y los jugadores.
+// barra inferior en el celular. Inicio empieza o reabre un entrenamiento (por
+// fecha), Tareas lo registra y Ajustes guarda el usuario y los jugadores. La
+// sesión de OpenField se elige recién al enviar los cortes.
 export default function TrainingModule({ onVolver, email = "", onCerrarSesion }) {
-  const [vista, setVista] = useState("sesion");
+  const [vista, setVista] = useState("inicio");
   const [vistaAjustes, setVistaAjustesEstado] = useState("inicio");
-  const [actividad, setActividad] = useState(leerActividadElegida);
+  const [equipo] = useState(() => leerEquipoElegido());
+  const entrenamientos = useEntrenamientos({ equipoId: equipo?.id || null, email });
+  const { actual } = entrenamientos;
 
   useEffect(olvidarVistaGuardada, []);
 
@@ -53,32 +54,52 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
     setVista(id);
   };
 
-  const elegirActividad = (nueva) => {
-    const limpia = normalizarActividad(nueva);
-    guardarActividadElegida(limpia);
-    setActividad(limpia);
+  const abrirYRegistrar = async (id) => {
+    const pudo = await entrenamientos.abrir(id);
+    if (pudo) irA("tareas");
+    return pudo;
   };
 
   const pantallas = {
-    sesion: (
+    inicio: (
       <TrainingInicio
-        actividad={actividad}
-        onElegirSesion={() => irA("elegir-sesion")}
+        resumenes={entrenamientos.resumenes}
+        actual={actual}
+        actualId={entrenamientos.actualId}
+        estadoBase={entrenamientos.estadoBase}
+        onCrear={(datos) => {
+          entrenamientos.crear(datos);
+          irA("tareas");
+        }}
+        onAbrir={abrirYRegistrar}
         onIrATareas={() => irA("tareas")}
+        onElegirSesion={() => irA("elegir-sesion")}
+        onRecargar={entrenamientos.recargarBase}
         onVolverModulos={onVolver}
       />
     ),
     "elegir-sesion": (
       <TrainingElegirSesion
-        actividad={actividad}
+        actividad={actual?.actividad || null}
+        fecha={actual?.fecha || ""}
+        titulo="Sesión de OpenField"
+        subtitulo="Inicio · Sesión de OpenField"
+        etiquetaVolver="Volver a Inicio"
         onSeleccionar={(nueva) => {
-          elegirActividad(nueva);
-          irA("sesion");
+          if (actual) entrenamientos.cambiar(actual.id, (entrenamiento) => vincularActividad(entrenamiento, nueva));
+          irA("inicio");
         }}
-        onVolver={() => irA("sesion")}
+        onVolver={() => irA("inicio")}
       />
     ),
-    tareas: <TrainingTareas actividad={actividad} onIrASesion={() => irA("sesion")} />,
+    tareas: (
+      <TrainingTareas
+        entrenamiento={actual}
+        onCambiar={(cambio) => actual && entrenamientos.cambiar(actual.id, cambio)}
+        onIrAInicio={() => irA("inicio")}
+        guardado={entrenamientos.guardado}
+      />
+    ),
     ajustes: (
       <TrainingSettings
         vista={vistaAjustes}
@@ -89,8 +110,8 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
     ),
   };
 
-  // En la barra, "Elegir sesión" cuenta como Sesión.
-  const activo = vista === "elegir-sesion" ? "sesion" : vista;
+  // En la barra, elegir la sesión de OpenField cuenta como Inicio.
+  const activo = vista === "elegir-sesion" ? "inicio" : vista;
 
   return (
     <MarcoAplicacion
@@ -100,7 +121,7 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
       marca="Entrenamiento"
       className="entrenamiento-marco"
     >
-      {pantallas[vista] || pantallas.sesion}
+      {pantallas[vista] || pantallas.inicio}
     </MarcoAplicacion>
   );
 }

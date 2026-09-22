@@ -1,65 +1,59 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Icono } from "./components/AppChrome";
-import TrainingBloques, { horaCorta, marcaAFecha } from "./TrainingApp.jsx";
-import { cargarSesion, estadoEnvioTarea } from "./domain/sesionEntrenamiento.js";
+import TrainingBloques from "./TrainingApp.jsx";
+import {
+  ETIQUETAS_ESTADO_ENTRENAMIENTO,
+  fechaCorta,
+  fechaLarga,
+  resumenEntrenamiento,
+} from "./domain/entrenamiento.js";
+import { hoyLocal } from "./domain/sesionEntrenamiento.js";
 
-const esHoy = (fecha, ahora = new Date()) =>
-  Boolean(fecha) &&
-  fecha.getFullYear() === ahora.getFullYear() &&
-  fecha.getMonth() === ahora.getMonth() &&
-  fecha.getDate() === ahora.getDate();
+const primeraMayuscula = (texto) => (texto ? texto[0].toUpperCase() + texto.slice(1) : "");
 
-// "Hoy · 16:12 a 18:05" | "martes 26 de mayo · 16:12 a 18:05" | "Hoy".
-const fechaDelHero = (actividad) => {
-  const inicio = marcaAFecha(actividad?.start_time);
-  if (!inicio) return "Hoy";
-
-  const dia = esHoy(inicio)
-    ? "Hoy"
-    : inicio.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
-  const desde = horaCorta(actividad.start_time);
-  const hasta = horaCorta(actividad.end_time);
-
-  if (desde && hasta) return `${dia} · ${desde} a ${hasta}`;
-  if (desde) return `${dia} · ${desde}`;
-  return dia;
+const diaYMes = (fecha) => {
+  const partes = String(fecha || "").split("-");
+  if (partes.length !== 3) return { dia: "--", mes: "" };
+  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  return { dia: partes[2], mes: meses[Number(partes[1]) - 1] || "" };
 };
 
-// "26/05" para la tarjeta de tareas.
-const diaCorto = (actividad, tareas) => {
-  const inicio = marcaAFecha(actividad?.start_time);
-  if (inicio) {
-    return `${String(inicio.getDate()).padStart(2, "0")}/${String(inicio.getMonth() + 1).padStart(2, "0")}`;
-  }
-  const fecha = tareas.find((tarea) => tarea.fecha)?.fecha || "";
-  const partes = fecha.split("-");
-  return partes.length === 3 ? `${partes[2]}/${partes[1]}` : "";
-};
+// Inicio de Entrenamiento, con la misma cara que el inicio de Partido: el
+// entrenamiento actual arriba, la fecha para empezar otro, y la lista de los
+// anteriores (los de este aparato y los de la base) para volver a abrir uno.
+export default function TrainingInicio({
+  resumenes = [],
+  actual = null,
+  actualId = "",
+  estadoBase = "idle",
+  onCrear,
+  onAbrir,
+  onIrATareas,
+  onElegirSesion,
+  onRecargar,
+  onVolverModulos,
+}) {
+  const [fecha, setFecha] = useState(hoyLocal);
+  const [nombre, setNombre] = useState("");
+  const [abriendo, setAbriendo] = useState("");
+  const [aviso, setAviso] = useState("");
 
-// Inicio de Entrenamiento, con la misma cara que el inicio de Partido: la
-// sesión elegida arriba, el botón principal en la tarjeta blanca y, si ya hay
-// tareas registradas, una tarjeta que lleva directo a seguir con ellas.
-export default function TrainingInicio({ actividad = null, onElegirSesion, onIrATareas, onVolverModulos }) {
-  const resumen = useMemo(() => {
-    if (!actividad?.id) return { tareas: [], enCurso: false, sinEnviar: 0, conCambios: 0, pendientes: 0 };
+  const resumen = useMemo(() => (actual ? resumenEntrenamiento(actual) : null), [actual]);
+  const hayTareas = Boolean(resumen && resumen.tareas > 0);
+  const estadoHero = resumen ? ETIQUETAS_ESTADO_ENTRENAMIENTO[resumen.estado] : "";
 
-    const { tareas } = cargarSesion(actividad.id, actividad.name);
-    const estados = tareas.map((tarea) => estadoEnvioTarea(tarea));
+  const empezar = () => {
+    onCrear({ fecha, nombre });
+    setNombre("");
+  };
 
-    return {
-      tareas,
-      enCurso: tareas.some((tarea) => tarea.inicio && !tarea.fin),
-      sinEnviar: estados.filter((estado) => estado !== "enviada").length,
-      conCambios: estados.filter((estado) => estado === "modificada").length,
-      pendientes: estados.filter((estado) => estado === "pendiente").length,
-    };
-  }, [actividad?.id]);
-
-  const hayTareas = resumen.tareas.length > 0;
-  const estadoHero = resumen.enCurso ? "EN CURSO" : resumen.sinEnviar > 0 ? "SIN ENVIAR" : "TODO ENVIADO";
-  const estadoTarjeta = resumen.enCurso ? "EN CURSO" : resumen.sinEnviar > 0 ? "SIN ENVIAR" : "ENVIADO";
-
-  const textoPrincipal = !actividad ? "Elegir la sesión" : hayTareas ? "Ver las tareas" : "Registrar tareas";
+  const abrir = async (id) => {
+    setAviso("");
+    setAbriendo(id);
+    const pudo = await onAbrir(id);
+    setAbriendo("");
+    if (!pudo) setAviso("No se pudo abrir ese entrenamiento: está en la base y ahora no hay señal.");
+  };
 
   return (
     <div className="app app-inicio">
@@ -71,51 +65,50 @@ export default function TrainingInicio({ actividad = null, onElegirSesion, onIrA
               Módulos
             </button>
           )}
-          <span className="etiqueta-hero">{actividad ? "SESIÓN ELEGIDA" : "SIN SESIÓN"}</span>
+          <span className="etiqueta-hero">{actual ? "ENTRENAMIENTO" : "SIN ENTRENAMIENTO"}</span>
           <strong className="nombre-sesion">
-            {actividad ? actividad.name || "Sin nombre" : "Todavía no elegiste la sesión"}
+            {actual ? primeraMayuscula(fechaLarga(actual.fecha)) : "Empezá el de hoy"}
           </strong>
-          <p className="fecha-hero">{fechaDelHero(actividad)}</p>
-          {actividad && hayTareas && (
+          <p className="fecha-hero">
+            {actual
+              ? [actual.nombre, actual.actividad ? `Sesión de OpenField: ${actual.actividad.name || "sin nombre"}` : "Sin sesión de OpenField todavía"]
+                  .filter(Boolean)
+                  .join(" · ")
+              : primeraMayuscula(fechaLarga(hoyLocal()))}
+          </p>
+          {actual && hayTareas && (
             <span className={`estado-hero ${resumen.enCurso ? "en-curso" : ""}`}>
               <i aria-hidden="true" />
-              {estadoHero}
+              {estadoHero.toUpperCase()}
             </span>
           )}
         </header>
 
-        <section className="tarjeta tarjeta-inicio">
-          {!actividad && (
-            <p className="pista-equipo">Elegí la sesión sobre la que vas a registrar las tareas.</p>
-          )}
-          <div className="acciones-inicio">
-            <button
-              type="button"
-              className="boton-principal boton-formacion-grande"
-              onClick={actividad ? onIrATareas : onElegirSesion}
-            >
-              {textoPrincipal}
-            </button>
-            {actividad && (
-              <button type="button" className="boton-secundario" onClick={onElegirSesion}>
-                Cambiar de sesión
+        {actual && (
+          <section className="tarjeta tarjeta-inicio">
+            <div className="acciones-inicio">
+              <button type="button" className="boton-principal boton-formacion-grande" onClick={onIrATareas}>
+                {hayTareas ? "Seguir registrando" : "Ir a Entrenamiento"}
               </button>
-            )}
-          </div>
-        </section>
+              <button type="button" className="boton-secundario" onClick={onElegirSesion}>
+                {actual.actividad ? "Cambiar la sesión de OpenField" : "Elegir la sesión de OpenField"}
+              </button>
+            </div>
+          </section>
+        )}
 
-        {actividad && hayTareas && (
+        {actual && hayTareas && (
           <button type="button" className="tarjeta-en-curso" onClick={onIrATareas}>
             <span className="cabecera-en-curso">
               <span className={`pastilla-vivo ${resumen.enCurso ? "" : "sin-empezar"}`}>
                 <i aria-hidden="true" />
-                {estadoTarjeta}
+                {estadoHero.toUpperCase()}
               </span>
-              <span className="fecha-registro">{diaCorto(actividad, resumen.tareas)}</span>
+              <span className="fecha-registro">{fechaCorta(actual.fecha)}</span>
             </span>
             <span className="tiempos-registro">
               <span>
-                Tareas <strong>{resumen.tareas.length}</strong>
+                Tareas <strong>{resumen.tareas}</strong>
               </span>
               <span>
                 Sin enviar <strong>{resumen.pendientes}</strong>
@@ -133,7 +126,85 @@ export default function TrainingInicio({ actividad = null, onElegirSesion, onIrA
           </button>
         )}
 
-        {actividad && <TrainingBloques actividad={actividad} />}
+        <section className="tarjeta tarjeta-inicio formulario-entrenamiento">
+          <div className="cabeza-ficha">
+            <b>{actual ? "Otro entrenamiento" : "Nuevo entrenamiento"}</b>
+          </div>
+          <div className="campo-inicio">
+            <label htmlFor="fecha-entrenamiento">Fecha</label>
+            <input id="fecha-entrenamiento" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+          </div>
+          <div className="campo-inicio">
+            <label htmlFor="nombre-entrenamiento">Nombre (opcional)</label>
+            <input
+              id="nombre-entrenamiento"
+              type="text"
+              value={nombre}
+              placeholder="Turno tarde"
+              autoComplete="off"
+              onChange={(e) => setNombre(e.target.value)}
+            />
+          </div>
+          <div className="acciones-inicio">
+            <button type="button" className="boton-principal boton-formacion-grande" onClick={empezar}>
+              Ir a Entrenamiento
+            </button>
+          </div>
+        </section>
+
+        <section className="tarjeta tarjeta-ficha">
+          <div className="cabeza-ficha">
+            <b>Entrenamientos anteriores</b>
+            <span className="cuenta-ajuste">{resumenes.length}</span>
+            <button type="button" className="boton-texto" onClick={onRecargar} disabled={estadoBase === "cargando"}>
+              {estadoBase === "cargando" ? "Buscando…" : "Actualizar"}
+            </button>
+          </div>
+
+          {estadoBase === "error" && (
+            <p className="pista-equipo">Sin conexión con la base. Se muestran los guardados en este aparato.</p>
+          )}
+          {aviso && <p className="error-equipo">{aviso}</p>}
+
+          {resumenes.length === 0 ? (
+            <p className="vacio-ficha">
+              {estadoBase === "cargando" ? "Buscando en la base…" : "Todavía no hay entrenamientos."}
+            </p>
+          ) : (
+            <div className="lista-entrenamientos">
+              {resumenes.map((item) => {
+                const { dia, mes } = diaYMes(item.fecha);
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={`fila-entrenamiento ${item.id === actualId ? "elegido" : ""}`.trim()}
+                    onClick={() => abrir(item.id)}
+                    disabled={abriendo === item.id}
+                  >
+                    <span className="dia-entrenamiento">
+                      {dia}
+                      <small>{mes}</small>
+                    </span>
+                    <span className="texto">
+                      <b>{item.nombre || primeraMayuscula(fechaLarga(item.fecha))}</b>
+                      <small>
+                        {item.tareas} {item.tareas === 1 ? "tarea" : "tareas"} ·{" "}
+                        {item.actividadNombre ? `Sesión ${item.actividadNombre}` : "sin sesión de OpenField"}
+                        {!item.local ? " · en la base" : ""}
+                      </small>
+                    </span>
+                    <span className={`estado-entrenamiento ${item.estado}`}>
+                      {abriendo === item.id ? "Abriendo…" : ETIQUETAS_ESTADO_ENTRENAMIENTO[item.estado] || ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {actual?.actividad && <TrainingBloques actividad={actual.actividad} />}
       </div>
     </div>
   );

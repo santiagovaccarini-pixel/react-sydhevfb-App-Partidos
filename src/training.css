@@ -1501,3 +1501,141 @@
     display: none;
   }
 }
+
+/* 10. Inicio por fecha y lista de entrenamientos (celular y base). */
+.entrenamiento-marco .formulario-entrenamiento .cabeza-ficha {
+  margin-bottom: 10px;
+}
+.entrenamiento-marco .formulario-entrenamiento .campo-inicio + .campo-inicio {
+  margin-top: 10px;
+}
+.entrenamiento-marco .formulario-entrenamiento .acciones-inicio {
+  margin-top: 14px;
+}
+.entrenamiento-marco .lista-entrenamientos {
+  display: grid;
+  margin-top: 6px;
+}
+.entrenamiento-marco .fila-entrenamiento {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 7px 2px;
+  border: 0;
+  border-top: 1px solid #edf0ee;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  box-shadow: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.entrenamiento-marco .fila-entrenamiento:first-child {
+  border-top: 0;
+}
+.entrenamiento-marco .fila-entrenamiento.elegido {
+  background: #f4f9f6;
+}
+.entrenamiento-marco .fila-entrenamiento:disabled {
+  opacity: 0.6;
+}
+.entrenamiento-marco .dia-entrenamiento {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #edf0ee;
+  color: #202623;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+}
+.entrenamiento-marco .dia-entrenamiento small {
+  margin-top: 2px;
+  color: #69736e;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.entrenamiento-marco .fila-entrenamiento .texto {
+  min-width: 0;
+}
+.entrenamiento-marco .fila-entrenamiento b {
+  display: block;
+  overflow: hidden;
+  color: var(--cam-tinta);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entrenamiento-marco .fila-entrenamiento small {
+  display: block;
+  color: #69736e;
+  font-size: 11px;
+  font-weight: 700;
+}
+.entrenamiento-marco .estado-entrenamiento {
+  flex: 0 0 auto;
+  color: #7b8580;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.entrenamiento-marco .estado-entrenamiento.en-curso,
+.entrenamiento-marco .estado-entrenamiento.enviado {
+  color: var(--cam-verde-oscuro);
+}
+.entrenamiento-marco .estado-entrenamiento.sin-enviar {
+  color: #8a6412;
+}
+.entrenamiento-marco .pie-tablero {
+  display: grid;
+  gap: 3px;
+}
+.entrenamiento-marco .pie-tablero p {
+  margin: 0;
+}
+
+/* La cabecera del tablero no puede empujar el ancho del celular: el título se
+   recorta y, en pantallas angostas, Borrar queda solo con el ícono. */
+.entrenamiento-marco .cabecera-tablero {
+  min-width: 0;
+  gap: 10px;
+}
+.entrenamiento-marco .titulo-estado-partido {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.entrenamiento-marco .titulo-estado-partido > div {
+  min-width: 0;
+}
+.entrenamiento-marco .acciones-cabecera {
+  flex: 0 0 auto;
+}
+.entrenamiento-marco .boton-guardar-cabecera {
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .entrenamiento-marco .boton-limpiar-cabecera {
+    justify-content: center;
+    width: 44px;
+    padding: 0;
+  }
+  .entrenamiento-marco .boton-limpiar-cabecera span {
+    display: none;
+  }
+}
+/* En una columna flexible el título no se achica solo: se le pone tope. */
+.entrenamiento-marco .titulo-estado-partido h1 {
+  display: block;
+  max-width: 100%;
+}
