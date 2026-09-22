@@ -59,8 +59,8 @@
   gap: 16px;
 }
 
-/* Cada tarjeta es un botón grande: la foto arriba, entera, y el texto abajo
-   sobre fondo oscuro. La insignia del ícono pisa el borde de la foto. */
+/* Cada tarjeta es un botón grande: la foto arriba, entera, con el ícono en
+   la esquina, y abajo el nombre, una línea de qué hay adentro y Entrar. */
 .portal-tarjeta {
   position: relative;
   overflow: hidden;
@@ -118,13 +118,17 @@
 
 .portal-cuerpo {
   position: relative;
-  display: grid;
-  gap: 12px;
-  padding: 0 20px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 20px 18px;
 }
 
 .portal-icono {
-  margin-top: -30px;
+  position: absolute;
+  top: 14px;
+  left: 14px;
   display: grid;
   place-items: center;
   width: 58px;
@@ -155,7 +159,9 @@
 
 .portal-tarjeta-texto {
   display: grid;
-  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 6px;
 }
 
 .portal-tarjeta-texto strong {
@@ -163,7 +169,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 1.7rem;
+  font-size: 1.55rem;
   letter-spacing: -0.02em;
   line-height: 1.05;
 }
@@ -189,38 +195,13 @@
   line-height: 1.5;
 }
 
-.portal-pasos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.portal-pasos i {
-  padding: 5px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #f4f6f8;
-  font-size: 0.7rem;
-  font-style: normal;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.portal-nota {
-  color: var(--portal-muted);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
 .portal-entrar {
-  justify-self: start;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-height: 44px;
-  padding: 0 18px;
+  padding: 0 16px;
   border-radius: 12px;
   background: #fff;
   color: #0b0d10;
@@ -248,7 +229,11 @@
   }
 
   .portal-cuerpo {
-    padding: 0 16px 18px;
+    padding: 12px 16px 16px;
+  }
+
+  .portal-tarjeta-texto strong {
+    font-size: 1.35rem;
   }
 
   .portal-tarjeta-texto strong {
