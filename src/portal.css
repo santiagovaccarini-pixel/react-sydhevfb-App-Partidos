@@ -59,17 +59,14 @@
   gap: 16px;
 }
 
-/* Cada tarjeta es un botón grande con un dibujo de fondo. El dibujo se ve
-   entero a la derecha y se oscurece hacia la izquierda, donde va el texto. */
+/* Cada tarjeta es un botón grande: la foto arriba, entera, con el ícono en
+   la esquina, y abajo el nombre, una línea de qué hay adentro y Entrar. */
 .portal-tarjeta {
   position: relative;
-  isolation: isolate;
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 16px;
-  min-height: 330px;
-  padding: 22px;
+  grid-template-rows: auto 1fr;
+  padding: 0;
   border: 1px solid var(--portal-border);
   border-radius: 26px;
   background: var(--portal-card);
@@ -93,25 +90,45 @@
   transform: translateY(0);
 }
 
-.portal-arte {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  width: 100%;
-  height: 100%;
+.portal-foto {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #0b0d10;
 }
 
-.portal-tarjeta::before {
+.portal-foto img,
+.portal-foto .portal-arte {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* La foto se funde con el fondo de la tarjeta justo donde arranca el texto. */
+.portal-foto::after {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: -1;
-  background:
-    linear-gradient(90deg, rgba(9, 12, 16, 0.94) 0%, rgba(9, 12, 16, 0.78) 38%, rgba(9, 12, 16, 0.08) 100%),
-    linear-gradient(0deg, rgba(9, 12, 16, 0.72) 0%, rgba(9, 12, 16, 0) 48%);
+  background: linear-gradient(180deg, rgba(20, 24, 29, 0) 60%, rgba(20, 24, 29, 0.7) 88%, var(--portal-card) 100%);
+}
+
+.portal-cuerpo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 20px 18px;
 }
 
 .portal-icono {
+  position: absolute;
+  top: 14px;
+  left: 14px;
   display: grid;
   place-items: center;
   width: 58px;
@@ -141,10 +158,10 @@
 }
 
 .portal-tarjeta-texto {
-  align-self: end;
   display: grid;
-  gap: 10px;
-  max-width: 36ch;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 6px;
 }
 
 .portal-tarjeta-texto strong {
@@ -152,10 +169,9 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 1.7rem;
+  font-size: 1.55rem;
   letter-spacing: -0.02em;
   line-height: 1.05;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
 
 .portal-beta {
@@ -177,42 +193,15 @@
   font-size: 0.94rem;
   font-weight: 500;
   line-height: 1.5;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
-}
-
-.portal-pasos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.portal-pasos i {
-  padding: 5px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #f4f6f8;
-  font-size: 0.7rem;
-  font-style: normal;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  backdrop-filter: blur(4px);
-}
-
-.portal-nota {
-  color: var(--portal-muted);
-  font-size: 0.8rem;
-  font-weight: 600;
 }
 
 .portal-entrar {
-  justify-self: start;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-height: 44px;
-  padding: 0 18px;
+  padding: 0 16px;
   border-radius: 12px;
   background: #fff;
   color: #0b0d10;
@@ -236,9 +225,15 @@
   }
 
   .portal-tarjeta {
-    min-height: 280px;
-    padding: 18px;
     border-radius: 22px;
+  }
+
+  .portal-cuerpo {
+    padding: 12px 16px 16px;
+  }
+
+  .portal-tarjeta-texto strong {
+    font-size: 1.35rem;
   }
 
   .portal-tarjeta-texto strong {
