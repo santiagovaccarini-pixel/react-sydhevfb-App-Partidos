@@ -6,6 +6,7 @@ import {
   MODO_TOTAL,
   armarEnvio,
   cargarSesion,
+  estadoDeTarea,
   estadoEnvioTarea,
   fechaDeActividad,
   guardarSesion,
@@ -13,11 +14,25 @@ import {
   horaLocal,
   huellaTarea,
   msAHora,
+  nuevaPausa,
   nuevaTarea,
+  pausaAbierta,
   problemasDeTarea,
   resumenTarea,
   segundosATexto,
 } from "./domain/sesionEntrenamiento.js";
+import {
+  CabeceraTablero,
+  HojaEntraSale,
+  HojaJugadores,
+  HojaTodasLasTareas,
+  ListaTareas,
+  PanelSinTareas,
+  PanelTarea,
+  RelojTarea,
+  SolapasTareas,
+  TarjetaPausas,
+} from "./TrainingTablero.jsx";
 import { pedirJson } from "./trainingApi.js";
 import { ETIQUETAS_VEREDICTO, MOTIVOS_FALLO, mensajeDeError } from "./textosEntrenamiento.js";
 import { BotonVolver, DatoDetalle } from "./components/BotonVolver.jsx";
@@ -29,13 +44,13 @@ const generarId = () =>
     ? globalThis.crypto.randomUUID()
     : `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-// Etiqueta y pastilla de cada estado de envío, con la clase de Partido que le
-// da el color (gris, verde, ámbar) más `tarea-estado` para encontrarla.
+// Etiqueta y color (clase de `.estado-tarea`) de cada estado de envío de una
+// tarea terminada.
 const ESTADOS = {
-  pendiente: { etiqueta: "Sin enviar", clase: "marca-localia" },
-  enviada: { etiqueta: "Enviada", clase: "marca-enviada" },
-  modificada: { etiqueta: "Con cambios", clase: "marca-sin-sincronizar" },
-  incompleta: { etiqueta: "Incompleta", clase: "marca-incompleta" },
+  pendiente: { etiqueta: "Sin enviar", clase: "pendiente" },
+  enviada: { etiqueta: "Enviada", clase: "enviada" },
+  modificada: { etiqueta: "Con cambios", clase: "modificada" },
+  incompleta: { etiqueta: "Incompleta", clase: "incompleta" },
 };
 
 const huellaEnvio = (tareas) => JSON.stringify(tareas.map(huellaTarea));
@@ -105,9 +120,11 @@ const Aviso = ({ tono = "", titulo, texto, accion, onAccion, children }) => (
   </div>
 );
 
-// Tareas de la sesión: cada una con su horario, sus pausas y sus jugadores.
-// Todo queda guardado en el celular por sesión; al servidor va cuando se
-// revisa el resumen y se confirma con el nombre de la sesión.
+// Tareas de la sesión, registradas como los tiempos de un partido: una solapa
+// por tarea, el reloj arriba y la tarjeta con Iniciar/Terminar, Pausa,
+// Jugadores y Entra/Sale. Todo queda guardado en el celular por sesión; al
+// servidor va cuando se revisa el resumen y se confirma con el nombre de la
+// sesión.
 export default function TrainingTareas({ actividad = null, onIrASesion }) {
   const activityId = actividad?.id || "";
 
@@ -124,16 +141,23 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   // "red": sin señal o sin respuesta. "codigo": el servidor contestó un error.
   const [errorConsulta, setErrorConsulta] = useState({ tipo: "", mensaje: "" });
   const [reintento, setReintento] = useState(0);
-  const [pantalla, setPantalla] = useState("lista");
-  const [abierta, setAbierta] = useState("");
+  const [pantalla, setPantalla] = useState("tablero");
+  // La tarea que se ve en el tablero; sin elegir, la última.
+  const [activaId, setActivaId] = useState("");
+  const [hoja, setHoja] = useState("");
+  const [pausasDesplegadas, setPausasDesplegadas] = useState(false);
   const [borrando, setBorrando] = useState("");
+  // El reloj de la pantalla avanza solo, como el del partido.
+  const [ahora, setAhora] = useState(() => Date.now());
   const [envio, setEnvio] = useState({ estado: "idle" });
   const [confirmacion, setConfirmacion] = useState("");
 
   useEffect(() => {
     setSesion(activityId ? cargarSesion(activityId, actividad?.name) : null);
-    setPantalla("lista");
-    setAbierta("");
+    setPantalla("tablero");
+    setActivaId("");
+    setHoja("");
+    setPausasDesplegadas(false);
     setBorrando("");
     setEnvio({ estado: "idle" });
     setConfirmacion("");
@@ -143,6 +167,11 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   useEffect(() => {
     if (sesion?.activityId) guardarSesion(sesion);
   }, [sesion]);
+
+  useEffect(() => {
+    const intervalo = window.setInterval(() => setAhora(Date.now()), 1000);
+    return () => window.clearInterval(intervalo);
+  }, []);
 
   useEffect(() => {
     let activo = true;
@@ -251,17 +280,10 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
         : actual,
     );
 
-  // La hora actual, solo si cae dentro de los datos de la sesión: si se
-  // cargan tareas después, el inicio queda vacío y se completa a mano.
-  const inicioAutomatico = () => {
-    if (!ventana) return "";
-    const ahora = Date.now();
-    return ahora >= ventana.inicioMs && ahora <= ventana.finMs ? horaLocal() : "";
-  };
-
+  // La tarea nueva nace sin nombre y sin hora: el nombre se toca de las
+  // sugerencias o se escribe, y la hora la pone Iniciar tarea.
   const agregarTarea = () => {
     const id = generarId();
-    const inicio = inicioAutomatico();
     setSesion((actual) => {
       const anterior = actual.tareas[actual.tareas.length - 1];
       const elegiblesIds = new Set(elegibles.map((jugador) => String(jugador.id)));
@@ -279,22 +301,43 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
         tareas: [
           ...actual.tareas,
           {
-            ...nuevaTarea({ id, nombre: `Tarea ${actual.tareas.length + 1}`, fecha: fechaDeActividad(actividad) }),
-            inicio,
+            ...nuevaTarea({ id, nombre: "", fecha: fechaDeActividad(actividad) }),
             participantes,
           },
         ],
       };
     });
-    setAbierta(id);
+    setActivaId(id);
+    setPausasDesplegadas(false);
+    setHoja("");
     setBorrando("");
   };
 
   const borrarTarea = (id) => {
     setSesion((actual) => ({ ...actual, tareas: actual.tareas.filter((tarea) => tarea.id !== id) }));
     setBorrando("");
-    if (abierta === id) setAbierta("");
+    if (activaId === id) setActivaId("");
   };
+
+  const iniciarTarea = (id) => actualizarTarea(id, { inicio: horaLocal() });
+
+  // Terminar cierra también la pausa abierta y completa el tiempo del que
+  // entró tarde y no tenía fin: la tarea no queda con cabos sueltos.
+  const terminarTarea = (id) =>
+    actualizarTarea(id, (tarea) => {
+      const fin = horaLocal();
+      return {
+        fin,
+        pausas: tarea.pausas.map((pausa) => (pausa.inicio && !pausa.fin ? { ...pausa, fin } : pausa)),
+        participantes: Object.fromEntries(
+          Object.entries(tarea.participantes).map(([jugadorId, datos]) =>
+            datos.modo === MODO_PARCIAL
+              ? [jugadorId, { ...datos, inicio: datos.inicio || tarea.inicio, fin: datos.fin || fin }]
+              : [jugadorId, datos],
+          ),
+        ),
+      };
+    });
 
   const empezarPausa = (id) =>
     actualizarTarea(id, (tarea) => ({ pausas: [...tarea.pausas, { inicio: horaLocal(), fin: "" }] }));
@@ -392,6 +435,32 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     );
   };
 
+  const alternarPausa = (tarea) => (pausaAbierta(tarea) ? terminarPausa(tarea.id) : empezarPausa(tarea.id));
+
+  const agregarPausaVacia = (id) => actualizarTarea(id, (tarea) => ({ pausas: [...tarea.pausas, nuevaPausa()] }));
+
+  // Entra / Sale: el que se suma tarde entra desde ahora; el que se va antes
+  // queda hasta ahora. Deshacer vuelve a como estaba.
+  const entrarAhora = (id, jugadorId) =>
+    cambiarParticipante(id, jugadorId, { modo: MODO_PARCIAL, inicio: horaLocal(), fin: "" });
+
+  const salirAhora = (id, jugadorId) =>
+    actualizarTarea(id, (tarea) => {
+      const datos = tarea.participantes[jugadorId] || { modo: MODO_TOTAL, inicio: "", fin: "" };
+      const inicio = datos.modo === MODO_PARCIAL && datos.inicio ? datos.inicio : tarea.inicio;
+      return { participantes: { ...tarea.participantes, [jugadorId]: { modo: MODO_PARCIAL, inicio, fin: horaLocal() } } };
+    });
+
+  const deshacerEntraSale = (id, jugadorId) =>
+    actualizarTarea(id, (tarea) => {
+      const datos = tarea.participantes[jugadorId];
+      const participantes = { ...tarea.participantes };
+      // Entró tarde y no salió: no estaba en la tarea. Si salió, estaba entera.
+      if (datos?.modo === MODO_PARCIAL && !datos.fin) delete participantes[jugadorId];
+      else participantes[jugadorId] = { modo: MODO_TOTAL, inicio: "", fin: "" };
+      return { participantes };
+    });
+
   const pedirPlan = async () => {
     const { tareas: payloadTareas } = armarEnvio({ tareas, plantel, atletasActividad, ventana });
     setEnvio({ estado: "planificando" });
@@ -483,8 +552,8 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     }
   };
 
-  const volverALista = () => {
-    setPantalla("lista");
+  const volverAlTablero = () => {
+    setPantalla("tablero");
     // El resultado ya quedó como "Último envío"; el error se sigue mostrando
     // en la tarjeta de envío hasta el próximo intento.
     setEnvio((actual) => (actual.estado === "error" ? actual : { estado: "idle" }));
@@ -518,9 +587,11 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     tareas.length > 0 && conProblemas.length === 0 && envio.estado !== "planificando" && envio.estado !== "enviando";
   const enviando = envio.estado === "enviando";
 
-  const renderErrorEnvio = () => (
+  const renderErrorEnvio = ({ conCerrar = false } = {}) => (
     <Aviso
       titulo="No se pudo enviar"
+      accion={conCerrar ? "Cerrar" : undefined}
+      onAccion={conCerrar ? () => setEnvio({ estado: "idle" }) : undefined}
       texto={`${envio.error || ""}${
         envio.escribio === true
           ? " Puede que algo haya quedado guardado: revisá la sesión antes de volver a enviar."
@@ -547,421 +618,363 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
     </Aviso>
   );
 
-  const renderTarea = (tarea, indice) => {
-    const tareaAnterior = indice > 0 ? tareas[indice - 1] : null;
-    const abiertaEsta = abierta === tarea.id;
-    const resumen = resumenTarea(tarea);
-    const faltantes = problemas.get(tarea.id) || [];
-    const estado = faltantes.length > 0 ? ESTADOS.incompleta : ESTADOS[estadoEnvioTarea(tarea)];
-    const seleccionados = Object.keys(tarea.participantes).length;
-    const pausaEnCurso = tarea.pausas.some((pausa) => pausa.inicio && !pausa.fin);
-    const horario = tarea.inicio && tarea.fin ? `${horaCorta(tarea.inicio)} → ${horaCorta(tarea.fin)}` : "Sin horario";
-    const idNombre = `tarea-nombre-${tarea.id}`;
+  // Lo que se corrige a mano, plegado bajo "Ajustar horarios y pausas".
+  const renderAjustes = (tarea) => {
     const idFecha = `tarea-fecha-${tarea.id}`;
     const elegidos = plantel.filter((jugador) => tarea.participantes[String(jugador.id)]);
+    const resumen = resumenTarea(tarea);
 
     return (
-      <div key={tarea.id} className={`registro-guardado ${abiertaEsta ? "abierta" : ""}`.trim()}>
-        <button
-          type="button"
-          className="tarea-cabecera"
-          onClick={() => setAbierta(abiertaEsta ? "" : tarea.id)}
-          aria-expanded={abiertaEsta}
-        >
-          <span className="cabecera-registro">
-            <span className="fecha-registro">
-              Tarea {indice + 1} · {horario}
-            </span>
-            <span className={`tarea-estado ${estado.clase}`}>{estado.etiqueta}</span>
+      <>
+        <div className="campos-hora">
+          {[
+            ["inicio", "Inicio", "Inicio de la tarea"],
+            ["fin", "Fin", "Fin de la tarea"],
+          ].map(([campo, rotulo, etiqueta]) => (
+            <div className="campo-inicio" key={campo}>
+              <label>{rotulo}</label>
+              <div className="fila-hora-cambio">
+                <input
+                  aria-label={etiqueta}
+                  type="time"
+                  step="1"
+                  value={tarea[campo]}
+                  onChange={(e) => actualizarTarea(tarea.id, { [campo]: e.target.value })}
+                />
+                <button
+                  type="button"
+                  className="boton-ahora-cambio"
+                  onClick={() => actualizarTarea(tarea.id, { [campo]: horaLocal() })}
+                >
+                  Ahora
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="cabeza-ficha">
+          <b>Pausas</b>
+          <span>
+            {tarea.pausas.length === 0
+              ? "Sin pausas"
+              : `${plural(tarea.pausas.length, "pausa", "pausas")} · total ${segundosATexto(resumen.pausasSegundos)}`}
           </span>
-          <span className="tarea-nombre">{tarea.nombre || "Sin nombre"}</span>
-          <span className="tiempos-registro">
-            <span>
-              Jugadores <strong>{seleccionados}</strong>
-            </span>
-            <span>
-              Pausas <strong>{tarea.pausas.length}</strong>
-            </span>
-            <span>
-              Efectivo <strong>{segundosATexto(resumen.duracionEfectivaSegundos)}</strong>
-            </span>
-          </span>
+        </div>
+
+        {tarea.pausas.map((pausa, i) => (
+          <div className="fila-pausa" key={`pausa-${i}`}>
+            <span className="numero-lista">{i + 1}</span>
+            <input
+              aria-label={`Inicio pausa ${i + 1}`}
+              type="time"
+              step="1"
+              value={pausa.inicio}
+              onChange={(e) => cambiarPausa(tarea.id, i, { inicio: e.target.value })}
+            />
+            <span aria-hidden="true">→</span>
+            <input
+              aria-label={`Fin pausa ${i + 1}`}
+              type="time"
+              step="1"
+              value={pausa.fin}
+              onChange={(e) => cambiarPausa(tarea.id, i, { fin: e.target.value })}
+            />
+            <button
+              type="button"
+              className="quitar-jugador"
+              aria-label={`Quitar pausa ${i + 1}`}
+              onClick={() => quitarPausa(tarea.id, i)}
+            >
+              ×
+            </button>
+            <small>{pausa.inicio && !pausa.fin ? "en curso" : duracionDePausa(tarea, pausa)}</small>
+          </div>
+        ))}
+
+        <button type="button" className="agregar-cambio-operativo" onClick={() => agregarPausaVacia(tarea.id)}>
+          <Icono nombre="plus" size={16} />
+          Agregar una pausa a mano
         </button>
 
-        {abiertaEsta && (
-          <>
-            <div className="campo-inicio">
-              <label htmlFor={idNombre}>Nombre</label>
-              <input
-                id={idNombre}
-                type="text"
-                value={tarea.nombre}
-                onChange={(e) => actualizarTarea(tarea.id, { nombre: e.target.value })}
-                placeholder="Ej. Posesión 6v6+3"
-              />
-            </div>
-
-            <div className="campos-hora">
-              {[
-                ["inicio", "Inicio", "Inicio de la tarea"],
-                ["fin", "Fin", "Fin de la tarea"],
-              ].map(([campo, rotulo, etiqueta]) => (
-                <div className="campo-inicio" key={campo}>
-                  <label>{rotulo}</label>
-                  <div className="fila-hora-cambio">
-                    <input
-                      aria-label={etiqueta}
-                      type="time"
-                      step="1"
-                      value={tarea[campo]}
-                      onChange={(e) => actualizarTarea(tarea.id, { [campo]: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      className="boton-ahora-cambio"
-                      onClick={() => actualizarTarea(tarea.id, { [campo]: horaLocal() })}
-                    >
-                      Ahora
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {!tarea.inicio && (
-              <button
-                type="button"
-                className="accion-periodo"
-                onClick={() => actualizarTarea(tarea.id, { inicio: horaLocal() })}
-              >
-                <span className="simbolo-accion-periodo" aria-hidden="true" />
-                Empezar tarea
-              </button>
-            )}
-            {tarea.inicio && !tarea.fin && (
-              <button
-                type="button"
-                className="accion-periodo finalizar"
-                onClick={() => actualizarTarea(tarea.id, { fin: horaLocal() })}
-              >
-                <span className="simbolo-accion-periodo" aria-hidden="true" />
-                Terminar tarea
-              </button>
-            )}
-
-            <div className="cabeza-ficha">
-              <b>Pausas</b>
-              <span>
-                {tarea.pausas.length === 0
-                  ? "Sin pausas"
-                  : `${plural(tarea.pausas.length, "pausa", "pausas")} · total ${segundosATexto(resumen.pausasSegundos)}`}
-              </span>
-            </div>
-
-            {tarea.pausas.map((pausa, i) => (
-              <div className="fila-pausa" key={`pausa-${i}`}>
-                <span className="numero-lista">{i + 1}</span>
-                <input
-                  aria-label={`Inicio pausa ${i + 1}`}
-                  type="time"
-                  step="1"
-                  value={pausa.inicio}
-                  onChange={(e) => cambiarPausa(tarea.id, i, { inicio: e.target.value })}
-                />
-                <span aria-hidden="true">→</span>
-                <input
-                  aria-label={`Fin pausa ${i + 1}`}
-                  type="time"
-                  step="1"
-                  value={pausa.fin}
-                  onChange={(e) => cambiarPausa(tarea.id, i, { fin: e.target.value })}
-                />
-                <button
-                  type="button"
-                  className="quitar-jugador"
-                  aria-label={`Quitar pausa ${i + 1}`}
-                  onClick={() => quitarPausa(tarea.id, i)}
-                >
-                  ×
-                </button>
-                <small>
-                  {pausa.inicio && !pausa.fin ? "en curso" : duracionDePausa(tarea, pausa)}
-                </small>
-              </div>
-            ))}
-
-            {pausaEnCurso ? (
-              <button type="button" className="accion-periodo finalizar" onClick={() => terminarPausa(tarea.id)}>
-                <Icono nombre="pausa" size={18} />
-                Terminar pausa
-              </button>
-            ) : (
-              <button type="button" className="accion-periodo reanudar" onClick={() => empezarPausa(tarea.id)}>
-                <Icono nombre="pausa" size={18} />
-                Empezar pausa
-              </button>
-            )}
-
-            <div className="cabeza-ficha">
-              <b>Jugadores</b>
-              <span>
-                {seleccionados} de {elegibles.length} en la tarea
-              </span>
-            </div>
-
-            <div className="atajos-jugadores">
-              <button type="button" className="boton-texto" onClick={() => marcarTodos(tarea.id)}>
-                Todos
-              </button>
-              <button type="button" className="boton-texto" onClick={() => marcarNinguno(tarea.id)}>
-                Ninguno
-              </button>
-              {tareaAnterior && (
-                <button type="button" className="boton-texto" onClick={() => copiarJugadoresDe(tarea.id, tareaAnterior)}>
-                  Como la anterior
-                </button>
-              )}
-              {gruposDeRol.map((grupo) => (
-                <button
-                  key={grupo.rol}
-                  type="button"
-                  className="boton-texto"
-                  onClick={() => alternarGrupo(tarea.id, grupo.ids)}
-                >
-                  {grupo.etiqueta}
-                </button>
-              ))}
-            </div>
-
-            {estadoPlantel === "cargando" && <p className="vacio-ficha">Leyendo la lista de jugadores…</p>}
-            {estadoPlantel === "error" && <p className="error-equipo">{errorPlantel}</p>}
-            {estadoPlantel === "listo" && plantel.length === 0 && (
-              <p className="vacio-ficha">La lista de jugadores está vacía. Cargala en Ajustes › Lista de jugadores.</p>
-            )}
-
-            <div className="lista-jugadores-tarea">
-              {plantel.map((jugador) => {
+        {elegidos.length > 0 && (
+          <details className="ajustes-periodo">
+            <summary>Alguno jugó menos tiempo</summary>
+            <div className="contenido-ajustes-periodo">
+              {elegidos.map((jugador) => {
                 const clave = String(jugador.id);
                 const datos = tarea.participantes[clave];
-                const conChaleco = Boolean(jugador.catapult_id);
-                const sinDatos = conChaleco && !tieneDatos(jugador);
-                // Sin datos en la sesión no se puede agregar, pero sí sacar.
-                const apagado = !conChaleco || (sinDatos && !datos);
-
                 return (
-                  <label
-                    key={clave}
-                    className={`fila-jugador ${datos ? "activo" : ""} ${apagado ? "apagado" : ""}`.replace(/\s+/g, " ").trim()}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(datos)}
-                      disabled={apagado}
-                      onChange={() => alternarJugador(tarea.id, clave)}
-                    />
-                    <span className="nombre-fila-jugador">{jugador.nombre}</span>
-                    {!conChaleco ? <small>sin chaleco</small> : sinDatos ? <small>sin datos</small> : null}
-                  </label>
+                  <div className="fila-tiempo" key={clave}>
+                    <b>{jugador.nombre}</b>
+                    <select
+                      className="selector-tiempo"
+                      aria-label={`Tiempo de ${jugador.nombre}`}
+                      value={datos.modo}
+                      onChange={(e) => cambiarModo(tarea, clave, e.target.value)}
+                    >
+                      <option value={MODO_TOTAL}>Toda la tarea</option>
+                      <option value={MODO_PARCIAL}>Menos tiempo</option>
+                    </select>
+
+                    {datos.modo === MODO_PARCIAL && (
+                      <div className="fila-parcial">
+                        <input
+                          aria-label={`Desde, ${jugador.nombre}`}
+                          type="time"
+                          step="1"
+                          value={datos.inicio}
+                          onChange={(e) => cambiarParticipante(tarea.id, clave, { inicio: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          className="boton-ahora-cambio"
+                          onClick={() => cambiarParticipante(tarea.id, clave, { inicio: horaLocal() })}
+                        >
+                          Ahora
+                        </button>
+                        <input
+                          aria-label={`Hasta, ${jugador.nombre}`}
+                          type="time"
+                          step="1"
+                          value={datos.fin}
+                          onChange={(e) => cambiarParticipante(tarea.id, clave, { fin: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          className="boton-ahora-cambio"
+                          onClick={() => cambiarParticipante(tarea.id, clave, { fin: horaLocal() })}
+                        >
+                          Ahora
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
-
-            {elegidos.length > 0 && (
-              <details className="ajustes-periodo">
-                <summary>Alguno jugó menos tiempo</summary>
-                <div className="contenido-ajustes-periodo">
-                  {elegidos.map((jugador) => {
-                    const clave = String(jugador.id);
-                    const datos = tarea.participantes[clave];
-                    return (
-                      <div className="fila-tiempo" key={clave}>
-                        <b>{jugador.nombre}</b>
-                        <select
-                          className="selector-tiempo"
-                          aria-label={`Tiempo de ${jugador.nombre}`}
-                          value={datos.modo}
-                          onChange={(e) => cambiarModo(tarea, clave, e.target.value)}
-                        >
-                          <option value={MODO_TOTAL}>Toda la tarea</option>
-                          <option value={MODO_PARCIAL}>Menos tiempo</option>
-                        </select>
-
-                        {datos.modo === MODO_PARCIAL && (
-                          <div className="fila-parcial">
-                            <input
-                              aria-label={`Desde, ${jugador.nombre}`}
-                              type="time"
-                              step="1"
-                              value={datos.inicio}
-                              onChange={(e) => cambiarParticipante(tarea.id, clave, { inicio: e.target.value })}
-                            />
-                            <button
-                              type="button"
-                              className="boton-ahora-cambio"
-                              onClick={() => cambiarParticipante(tarea.id, clave, { inicio: horaLocal() })}
-                            >
-                              Ahora
-                            </button>
-                            <input
-                              aria-label={`Hasta, ${jugador.nombre}`}
-                              type="time"
-                              step="1"
-                              value={datos.fin}
-                              onChange={(e) => cambiarParticipante(tarea.id, clave, { fin: e.target.value })}
-                            />
-                            <button
-                              type="button"
-                              className="boton-ahora-cambio"
-                              onClick={() => cambiarParticipante(tarea.id, clave, { fin: horaLocal() })}
-                            >
-                              Ahora
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </details>
-            )}
-
-            <details className="ajustes-periodo">
-              <summary>Cambiar la fecha</summary>
-              <div className="contenido-ajustes-periodo">
-                <div className="campo-inicio">
-                  <label htmlFor={idFecha}>Fecha de la tarea</label>
-                  <input
-                    id={idFecha}
-                    type="date"
-                    value={tarea.fecha}
-                    onChange={(e) => actualizarTarea(tarea.id, { fecha: e.target.value })}
-                  />
-                </div>
-              </div>
-            </details>
-
-            <div className="resumen-tarea">
-              <span>
-                Duración
-                <strong>{segundosATexto(resumen.duracionBrutaSegundos)}</strong>
-              </span>
-              <span>
-                Pausas
-                <strong>{segundosATexto(resumen.pausasSegundos)}</strong>
-              </span>
-              <span>
-                Efectivo
-                <strong>{segundosATexto(resumen.duracionEfectivaSegundos)}</strong>
-              </span>
-            </div>
-
-            {faltantes.length > 0 ? (
-              <div className="aviso-formacion">
-                {faltantes.map((problema) => (
-                  <div key={problema}>{problema}</div>
-                ))}
-              </div>
-            ) : (
-              <span className="modo-captura">✓ Lista para enviar</span>
-            )}
-
-            <div className="acciones-registro">
-              <button type="button" className="boton-detalle" onClick={() => setAbierta("")}>
-                Cerrar
-              </button>
-              <button
-                type="button"
-                className="boton-eliminar-registro"
-                onClick={() => setBorrando(tarea.id)}
-                aria-label="Borrar tarea"
-              >
-                <Icono nombre="borrar" size={18} />
-              </button>
-            </div>
-          </>
+          </details>
         )}
-      </div>
+
+        <div className="campo-inicio">
+          <label htmlFor={idFecha}>Fecha de la tarea</label>
+          <input
+            id={idFecha}
+            type="date"
+            value={tarea.fecha}
+            onChange={(e) => actualizarTarea(tarea.id, { fecha: e.target.value })}
+          />
+        </div>
+
+        <button
+          type="button"
+          className="boton-borrar-tarea"
+          onClick={() => setBorrando(tarea.id)}
+          aria-label="Borrar tarea"
+        >
+          Borrar esta tarea
+        </button>
+      </>
     );
   };
 
-  const renderLista = () => {
-    const subtitulo =
-      estadoAtletas === "cargando"
-        ? `${nombreSesion} · leyendo la sesión…`
-        : ventana
-          ? `${nombreSesion} · datos de ${horaCortaDeMs(ventana.inicioMs)} a ${horaCortaDeMs(ventana.finMs)} · ${plural(tareas.length, "tarea", "tareas")}`
-          : `${nombreSesion} · ${plural(tareas.length, "tarea", "tareas")}`;
+  const renderTablero = () => {
+    const activa = tareas.find((tarea) => tarea.id === activaId) || tareas[tareas.length - 1] || null;
+    const indiceActiva = activa ? tareas.indexOf(activa) : -1;
+    const corriendo = (tarea) => ["en-curso", "en-pausa"].includes(estadoDeTarea(tarea));
     const pendientes = cuenta("pendiente") + cuenta("modificada");
+    const etiquetaEnviar =
+      envio.estado === "planificando" ? "Armando…" : pendientes > 0 ? `Enviar ${plural(pendientes, "tarea", "tareas")}` : "Enviar";
+
+    // Con algo incompleto, Enviar abre la lista y dice qué falta.
+    const alEnviar = () => {
+      if (conProblemas.length > 0) setHoja("todas");
+      else pedirPlan();
+    };
+
+    const pastillaDe = (tarea) => {
+      const estado = estadoDeTarea(tarea);
+      if (estado === "terminada") {
+        return (problemas.get(tarea.id) || []).length > 0 ? ESTADOS.incompleta : ESTADOS[estadoEnvioTarea(tarea)];
+      }
+      if (estado === "en-pausa") return { etiqueta: "En pausa", clase: "pausa" };
+      if (estado === "en-curso") return { etiqueta: "En curso", clase: "en-curso" };
+      return { etiqueta: "Nueva", clase: "" };
+    };
+
+    const filaDeTarea = (tarea) => {
+      const estado = estadoDeTarea(tarea);
+      if (corriendo(tarea)) return { etiqueta: estado === "en-pausa" ? "En pausa" : "En curso", clase: "viva" };
+      if (estado === "sin-iniciar") return { etiqueta: "Sin iniciar", clase: "" };
+      return pastillaDe(tarea);
+    };
+
+    const textoPie = activa
+      ? `Tarea ${indiceActiva + 1} de ${tareas.length} · ${activa.inicio ? `${activa.inicio} → ${activa.fin || "en curso"}` : "sin empezar"}`
+      : "Sin tareas";
+    const avisoLista =
+      conProblemas.length > 0
+        ? `Antes de enviar, completá: ${conProblemas.map((tarea) => tarea.nombre || `Tarea ${tareas.indexOf(tarea) + 1}`).join(", ")}. Abrí la tarea para ver qué falta.`
+        : "";
+    const descripcionLista =
+      tareas.length === 0
+        ? "Tocá Nueva tarea cuando arranque la primera."
+        : `${plural(tareas.length, "tarea", "tareas")} · ${plural(cuenta("enviada"), "enviada", "enviadas")} · ${pendientes} sin enviar. Tocá una para ir a su solapa.`;
+
+    const irATarea = (id) => {
+      setActivaId(id);
+      setPausasDesplegadas(false);
+      setHoja("");
+    };
+
+    const atajos = activa
+      ? [
+          { etiqueta: "Todos", onClick: () => marcarTodos(activa.id) },
+          { etiqueta: "Ninguno", onClick: () => marcarNinguno(activa.id) },
+          ...(indiceActiva > 0
+            ? [{ etiqueta: "Como la anterior", onClick: () => copiarJugadoresDe(activa.id, tareas[indiceActiva - 1]) }]
+            : []),
+          ...gruposDeRol.map((grupo) => ({ etiqueta: grupo.etiqueta, onClick: () => alternarGrupo(activa.id, grupo.ids) })),
+        ]
+      : [];
 
     return (
-      <div className="contenedor">
-        <header className="encabezado">
-          <h1>Tareas</h1>
-          <p>{subtitulo}</p>
-        </header>
+      <div className="tablero-partido tablero-tareas">
+        <CabeceraTablero
+          nombreSesion={nombreSesion}
+          enCurso={tareas.some(corriendo)}
+          etiquetaEnviar={etiquetaEnviar}
+          onEnviar={alEnviar}
+          deshabilitado={tareas.length === 0 || envio.estado === "planificando" || envio.estado === "enviando"}
+        />
 
-        {estadoAtletas === "error" && errorConsulta.tipo === "red" && (
-          <Aviso
-            tono="espera"
-            titulo="Sin conexión"
-            texto="Podés seguir registrando. Enviá cuando vuelva la señal."
-            accion="Reintentar"
-            onAccion={() => setReintento((n) => n + 1)}
-          />
+        {(estadoAtletas === "error" || envio.estado === "error") && (
+          <div className="avisos-tablero">
+            {estadoAtletas === "error" && errorConsulta.tipo === "red" && (
+              <Aviso
+                tono="espera"
+                titulo="Sin conexión"
+                texto="Podés seguir registrando. Enviá cuando vuelva la señal."
+                accion="Reintentar"
+                onAccion={() => setReintento((n) => n + 1)}
+              />
+            )}
+            {estadoAtletas === "error" && errorConsulta.tipo === "codigo" && (
+              <Aviso
+                titulo="No se pudo leer la sesión"
+                texto={errorConsulta.mensaje}
+                accion="Reintentar"
+                onAccion={() => setReintento((n) => n + 1)}
+              />
+            )}
+            {envio.estado === "error" && renderErrorEnvio({ conCerrar: true })}
+          </div>
         )}
-        {estadoAtletas === "error" && errorConsulta.tipo === "codigo" && (
-          <Aviso
-            titulo="No se pudo leer la sesión"
-            texto={errorConsulta.mensaje}
-            accion="Reintentar"
-            onAccion={() => setReintento((n) => n + 1)}
-          />
-        )}
 
-        {tareas.length === 0 && (
-          <p className="vacio-ficha">Todavía no hay tareas. Tocá "Nueva tarea" cuando arranque la primera.</p>
-        )}
-        {tareas.map(renderTarea)}
-
-        <button type="button" className="agregar-cambio-operativo" onClick={agregarTarea}>
-          <Icono nombre="plus" size={16} />
-          + Nueva tarea
-        </button>
-
-        <section className="tarjeta tarjeta-ficha">
-          <div className="cabeza-ficha">
-            <b>Enviar</b>
-            <span className="cuenta-ajuste">{pendientes}</span>
+        <div className="resumen-operativo">
+          <div className="columna-reloj">
+            {activa && (
+              <>
+                <RelojTarea tarea={activa} numero={indiceActiva + 1} ahora={ahora} />
+                <TarjetaPausas
+                  tarea={activa}
+                  ahora={ahora}
+                  desplegada={pausasDesplegadas}
+                  onAlternar={() => setPausasDesplegadas((valor) => !valor)}
+                />
+              </>
+            )}
           </div>
 
-          {tareas.length > 0 && (
-            <div className="chips-envio">
-              <span className="modo-captura">{plural(cuenta("enviada"), "enviada", "enviadas")}</span>
-              <span className="modo-captura">{cuenta("modificada")} con cambios</span>
-              <span className="modo-captura">{cuenta("pendiente")} sin enviar</span>
+          <SolapasTareas
+            tareas={tareas}
+            activaId={activa?.id || ""}
+            textoPie={textoPie}
+            onElegir={irATarea}
+            onNueva={agregarTarea}
+            onVerTodas={() => setHoja("todas")}
+          />
+        </div>
+
+        <div className="grilla-operativa">
+          {activa ? (
+            <PanelTarea
+              tarea={activa}
+              numero={indiceActiva + 1}
+              total={tareas.length}
+              pastilla={pastillaDe(activa)}
+              faltantes={problemas.get(activa.id) || []}
+              cantidadJugadores={Object.keys(activa.participantes).length}
+              onNombre={(nombre) => actualizarTarea(activa.id, { nombre })}
+              onIniciar={() => iniciarTarea(activa.id)}
+              onTerminar={() => terminarTarea(activa.id)}
+              onNueva={agregarTarea}
+              onJugadores={() => setHoja("jugadores")}
+              onPausa={() => alternarPausa(activa)}
+              onEntraSale={() => setHoja("entra-sale")}
+            >
+              {renderAjustes(activa)}
+            </PanelTarea>
+          ) : (
+            <PanelSinTareas onNueva={agregarTarea} />
+          )}
+
+          <section className="panel-operativo panel-lista-tareas" aria-label="Todas las tareas">
+            <div className="panel-titulo">
+              <div>
+                <span className="sobrelinea">TODAS LAS TAREAS</span>
+                <h2>{plural(tareas.length, "tarea", "tareas")}</h2>
+              </div>
             </div>
-          )}
+            {avisoLista && <p className="aviso-hoja">{avisoLista}</p>}
+            {tareas.length === 0 ? (
+              <p className="vacio-ficha">Todavía no hay tareas.</p>
+            ) : (
+              <ListaTareas tareas={tareas} activaId={activa?.id || ""} filaDeTarea={filaDeTarea} onElegir={irATarea} />
+            )}
+          </section>
+        </div>
 
-          {conProblemas.length > 0 && (
-            <p className="error-equipo">
-              Antes de enviar, completá {conProblemas.length === 1 ? "la tarea marcada" : "las tareas marcadas"}:{" "}
-              {conProblemas.map((tarea) => tarea.nombre || "sin nombre").join(", ")}. Abrila para ver qué falta.
-            </p>
-          )}
+        {envio.estado === "idle" && sesion.ultimoEnvio && (
+          <p className="pie-tablero">
+            Último envío: {formatearFechaHora(sesion.ultimoEnvio.fecha)} ·{" "}
+            {sesion.ultimoEnvio.ok ? "todo bien" : "con problemas"}
+          </p>
+        )}
 
-          {envio.estado === "error" && renderErrorEnvio()}
-
-          <button type="button" className="boton-principal" onClick={pedirPlan} disabled={!puedeRevisar}>
-            {envio.estado === "planificando" ? "Armando el resumen…" : "Revisar y enviar"}
-          </button>
-
-          {envio.estado === "idle" && sesion.ultimoEnvio && (
-            <p className="pista-equipo">
-              Último envío: {formatearFechaHora(sesion.ultimoEnvio.fecha)} ·{" "}
-              {sesion.ultimoEnvio.ok ? "todo bien" : "con problemas"}
-            </p>
-          )}
-        </section>
+        <HojaJugadores
+          abierta={hoja === "jugadores"}
+          tarea={activa}
+          plantel={plantel}
+          elegibles={elegibles}
+          estadoPlantel={estadoPlantel}
+          errorPlantel={errorPlantel}
+          tieneDatos={tieneDatos}
+          atajos={atajos}
+          onAlternar={(clave) => alternarJugador(activa.id, clave)}
+          onCerrar={() => setHoja("")}
+        />
+        <HojaEntraSale
+          abierta={hoja === "entra-sale"}
+          tarea={activa}
+          elegibles={elegibles}
+          onEntra={(clave) => entrarAhora(activa.id, clave)}
+          onSale={(clave) => salirAhora(activa.id, clave)}
+          onDeshacer={(clave) => deshacerEntraSale(activa.id, clave)}
+          onCerrar={() => setHoja("")}
+        />
+        <HojaTodasLasTareas
+          abierta={hoja === "todas"}
+          nombreSesion={nombreSesion}
+          tareas={tareas}
+          activaId={activa?.id || ""}
+          descripcion={descripcionLista}
+          aviso={avisoLista}
+          filaDeTarea={filaDeTarea}
+          onElegir={irATarea}
+          onNueva={agregarTarea}
+          onCerrar={() => setHoja("")}
+        />
       </div>
     );
   };
@@ -1063,7 +1076,7 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
         )}
 
         <div className="acciones-dobles">
-          <BotonVolver onClick={volverALista}>Volver a Tareas</BotonVolver>
+          <BotonVolver onClick={volverAlTablero}>Volver a Tareas</BotonVolver>
           {mostrarPlan && planVigente && (
             <button
               type="button"
@@ -1080,8 +1093,8 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
   };
 
   return (
-    <div className="app">
-      {pantalla === "enviar" ? renderEnviar() : renderLista()}
+    <>
+      {pantalla === "enviar" ? <div className="app">{renderEnviar()}</div> : renderTablero()}
 
       <HojaConfirmar
         abierta={Boolean(borrando)}
@@ -1092,6 +1105,6 @@ export default function TrainingTareas({ actividad = null, onIrASesion }) {
         onConfirmar={() => borrarTarea(borrando)}
         onCancelar={() => setBorrando("")}
       />
-    </div>
+    </>
   );
 }

@@ -131,9 +131,9 @@ describe("TrainingModule", () => {
     expect(contenedor.querySelector(".tarjeta-en-curso")).toBeNull();
 
     await act(async () => botonPorTexto("Registrar tareas").click());
-    expect(tituloActual()).toBe("Tareas");
+    expect(tituloActual()).toBe("26-05 T");
     expect(botonMovil("Tareas").classList.contains("activo")).toBe(true);
-    expect(botonPorTexto("+ Nueva tarea")).toBeDefined();
+    expect(botonPorTexto("Nueva tarea")).toBeDefined();
   });
 
   test("desde Elegir sesión se vuelve a Sesión sin elegir nada", async () => {
@@ -198,7 +198,7 @@ describe("TrainingModule", () => {
     expect(botonPorTexto("Ver las tareas")).toBeDefined();
 
     await act(async () => tarjeta.click());
-    expect(tituloActual()).toBe("Tareas");
+    expect(tituloActual()).toBe("26-05 T");
     expect(botonMovil("Tareas").classList.contains("activo")).toBe(true);
   });
 

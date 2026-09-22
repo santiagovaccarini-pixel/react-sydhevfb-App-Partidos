@@ -1031,3 +1031,463 @@
   font-weight: 700;
   color: var(--cam-gris);
 }
+
+/* 9. Tablero de tareas: la pantalla de partido, con tareas en vez de tiempos.
+   Las clases del tablero (.tablero-partido, .reloj-principal,
+   .selector-periodos, .panel-operativo, .accion-periodo, .acciones-rapidas)
+   son las de style.css tal cual; acá va lo propio de Entrenamiento. */
+.entrenamiento-marco .boton-guardar-cabecera {
+  min-height: 44px;
+}
+.entrenamiento-marco .cabecera-tablero h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entrenamiento-marco .avisos-tablero {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.entrenamiento-marco .avisos-tablero .aviso-base {
+  margin-bottom: 0;
+}
+
+/* Reloj de la tarea */
+.entrenamiento-marco .efectivo-reloj {
+  display: block;
+  margin-top: 7px;
+  color: var(--cam-gris);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.entrenamiento-marco .badge-vivo.pausa {
+  background: #fde68a;
+  color: #78350f;
+}
+
+/* Pausas: tarjeta propia debajo del reloj, del mismo ancho. */
+.entrenamiento-marco .tarjeta-pausas {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 10px;
+  background: var(--cam-blanco);
+  box-shadow: 0 3px 14px rgba(25, 38, 31, 0.035);
+}
+.entrenamiento-marco .cabeza-pausas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.entrenamiento-marco .cabeza-pausas b {
+  display: block;
+  margin-top: 3px;
+  color: var(--cam-tinta);
+  font-size: 14px;
+}
+.entrenamiento-marco .cabeza-pausas .boton-texto {
+  flex: 0 0 auto;
+}
+.entrenamiento-marco .lista-pausas {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.entrenamiento-marco .lista-pausas li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 0;
+  border-top: 1px solid #edf0ee;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.entrenamiento-marco .lista-pausas li span {
+  color: #69736e;
+  font-weight: 800;
+}
+.entrenamiento-marco .lista-pausas li strong {
+  color: var(--cam-tinta);
+  font-weight: 800;
+}
+.entrenamiento-marco .lista-pausas li em {
+  color: var(--cam-tinta);
+  font-style: normal;
+  font-weight: 900;
+}
+.entrenamiento-marco .lista-pausas li.abierta span,
+.entrenamiento-marco .lista-pausas li.abierta strong,
+.entrenamiento-marco .lista-pausas li.abierta em {
+  color: #92400e;
+}
+.entrenamiento-marco .vacio-pausas {
+  margin: 8px 0 0;
+  color: #9aa4a0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Solapas: una por tarea, se deslizan de costado; el + queda fijo. */
+.entrenamiento-marco .resumen-operativo,
+.entrenamiento-marco .selector-periodos {
+  min-width: 0;
+}
+.entrenamiento-marco .selector-periodos > .fila-solapas {
+  display: flex;
+  min-height: 46px;
+  max-width: 100%;
+}
+.entrenamiento-marco .cinta-solapas {
+  display: flex;
+  flex: 1 1 0px;
+  width: 0;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  contain: inline-size;
+  scroll-behavior: smooth;
+}
+.entrenamiento-marco .cinta-solapas::-webkit-scrollbar {
+  display: none;
+}
+/* Pocas solapas se reparten el ancho, como PT y ST; muchas no se achican:
+   se deslizan. */
+.entrenamiento-marco .selector-periodos .cinta-solapas button {
+  position: relative;
+  flex: 1 0 60px;
+  min-width: 60px;
+}
+.entrenamiento-marco .selector-periodos .fila-solapas > .agregar-prorroga {
+  flex: 0 0 54px;
+  min-width: 54px;
+  border-left: 1px solid #d9dfdc;
+}
+.entrenamiento-marco .punto-solapa {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cam-rojo);
+}
+.entrenamiento-marco .cinta-solapas button.activo .punto-solapa {
+  background: #fff;
+}
+.entrenamiento-marco .selector-periodos > .pie-solapas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 0;
+  margin-top: 9px;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.entrenamiento-marco .pie-solapas p {
+  min-width: 0;
+  margin: 0;
+  font-size: 11px;
+}
+.entrenamiento-marco .selector-periodos .pie-solapas .boton-texto {
+  flex: 0 0 auto;
+  min-width: 0;
+  border: 1px solid #dce2df;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 11px;
+}
+
+/* Panel de la tarea activa */
+.entrenamiento-marco .panel-titulo > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.entrenamiento-marco .nombre-tarea {
+  width: 100%;
+  min-height: 44px;
+  margin: 4px 0 0;
+  padding: 0 12px;
+  border: 1px solid var(--cam-linea);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--cam-tinta);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.entrenamiento-marco .nombre-tarea::placeholder {
+  color: #9aa4a0;
+  font-weight: 700;
+}
+.entrenamiento-marco .sugerencias-nombre {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.entrenamiento-marco .sugerencias-nombre button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #dce2df;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--cam-tinta);
+  font-size: 11px;
+  font-weight: 800;
+}
+.entrenamiento-marco .estado-tarea {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.entrenamiento-marco .estado-tarea.en-curso,
+.entrenamiento-marco .estado-tarea.enviada {
+  background: var(--cam-verde-suave);
+  color: var(--cam-verde-oscuro);
+}
+.entrenamiento-marco .estado-tarea.pausa {
+  background: #fde68a;
+  color: #78350f;
+}
+.entrenamiento-marco .estado-tarea.modificada {
+  background: #fdf6e6;
+  color: #8a6412;
+}
+.entrenamiento-marco .estado-tarea.incompleta {
+  background: #fdecee;
+  color: #c1121f;
+}
+.entrenamiento-marco .acciones-rapidas button.activa {
+  border-color: #d97706;
+  background: #fff7e6;
+  color: #92400e;
+}
+.entrenamiento-marco .acciones-rapidas button:disabled {
+  opacity: 0.55;
+}
+.entrenamiento-marco .panel-tarea .aviso-formacion {
+  margin-top: 10px;
+}
+.entrenamiento-marco .panel-vacio h2 {
+  margin: 2px 0 0;
+  font-size: 18px;
+  letter-spacing: -0.035em;
+}
+.entrenamiento-marco .panel-vacio p {
+  margin: 8px 0 0;
+  color: var(--cam-gris);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.entrenamiento-marco .boton-borrar-tarea {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+  border: 1px solid #f1c3c8;
+  border-radius: 10px;
+  background: #fff5f5;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 850;
+}
+.entrenamiento-marco .contenido-ajustes-periodo .cabeza-ficha {
+  margin-top: 12px;
+}
+.entrenamiento-marco .contenido-ajustes-periodo .campo-inicio {
+  margin-top: 12px;
+}
+.entrenamiento-marco .pie-tablero {
+  margin: 12px 4px 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+/* Hoja desde abajo con contenido propio (jugadores, entra/sale, lista). */
+.entrenamiento-marco .hoja-inferior {
+  display: flex;
+  flex-direction: column;
+  max-height: 86dvh;
+  text-align: left;
+}
+.entrenamiento-marco .hoja-inferior h3,
+.entrenamiento-marco .hoja-inferior > p {
+  text-align: center;
+}
+.entrenamiento-marco .cuerpo-hoja {
+  min-height: 0;
+  margin-top: 12px;
+  overflow: auto;
+}
+.entrenamiento-marco .hoja-inferior .acciones-hoja {
+  margin-top: 12px;
+}
+.entrenamiento-marco .hoja-inferior .acciones-hoja:has(> :only-child) {
+  grid-template-columns: 1fr;
+}
+.entrenamiento-marco .hoja-inferior .boton-confirmar-hoja {
+  border-color: #008a4b;
+  background: #008a4b;
+}
+.entrenamiento-marco .hoja-inferior .boton-confirmar-hoja:hover {
+  box-shadow: none;
+}
+.entrenamiento-marco .hoja-inferior .atajos-jugadores {
+  margin: 0 0 10px;
+}
+.entrenamiento-marco .hoja-inferior .lista-jugadores-tarea {
+  margin: 0;
+}
+.entrenamiento-marco .aviso-hoja {
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fdecee;
+  color: #c1121f;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+/* Lista de tareas (en la hoja y, en la computadora, al lado del panel). */
+.entrenamiento-marco .fila-tarea-lista {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 46px;
+  padding: 5px 2px;
+  border: 0;
+  border-top: 1px solid #edf0ee;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  box-shadow: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.entrenamiento-marco .fila-tarea-lista.elegida {
+  background: #f4f9f6;
+}
+.entrenamiento-marco .fila-tarea-lista .num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #edf0ee;
+  color: #202623;
+  font-size: 11px;
+  font-weight: 900;
+}
+.entrenamiento-marco .fila-tarea-lista .num.enviada {
+  background: var(--cam-verde-suave);
+  color: var(--cam-verde-oscuro);
+}
+.entrenamiento-marco .fila-tarea-lista .num.viva {
+  background: var(--cam-verde);
+  color: #fff;
+}
+.entrenamiento-marco .fila-tarea-lista .texto {
+  min-width: 0;
+}
+.entrenamiento-marco .fila-tarea-lista b {
+  display: block;
+  overflow: hidden;
+  color: var(--cam-tinta);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entrenamiento-marco .fila-tarea-lista small {
+  display: block;
+  color: #69736e;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.entrenamiento-marco .fila-tarea-lista .estado {
+  color: #7b8580;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.entrenamiento-marco .fila-tarea-lista .estado.viva,
+.entrenamiento-marco .fila-tarea-lista .estado.enviada {
+  color: var(--cam-verde-oscuro);
+}
+.entrenamiento-marco .fila-tarea-lista .estado.incompleta {
+  color: #c1121f;
+}
+.entrenamiento-marco .fila-tarea-lista .estado.modificada {
+  color: #8a6412;
+}
+
+/* Entra / Sale */
+.entrenamiento-marco .fila-entra-sale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 6px 0;
+  border-top: 1px solid #edf0ee;
+}
+.entrenamiento-marco .fila-entra-sale .texto {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.entrenamiento-marco .fila-entra-sale b {
+  display: block;
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entrenamiento-marco .fila-entra-sale small {
+  display: block;
+  color: #69736e;
+  font-size: 11px;
+  font-weight: 700;
+}
+.entrenamiento-marco .fila-entra-sale .boton-texto {
+  flex: 0 0 auto;
+  padding: 0 10px;
+}
+
+/* En la computadora la lista de tareas va al lado del panel; en el celular
+   es una hoja que abre "Ver todas". */
+.entrenamiento-marco .panel-lista-tareas {
+  display: none;
+}
+.entrenamiento-marco .panel-lista-tareas .lista-tareas-hoja {
+  margin-top: 10px;
+}
+@media (min-width: 981px) {
+  .entrenamiento-marco .panel-lista-tareas {
+    display: block;
+  }
+  .entrenamiento-marco .boton-ver-todas {
+    display: none;
+  }
+}
