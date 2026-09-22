@@ -1,7 +1,7 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import PortalApp, { TIEMPOS_PORTADA } from "./PortalApp.jsx";
+import PortalApp, { TIEMPOS_PORTADA, lugarEnPantalla } from "./PortalApp.jsx";
 
 // El equipo elegido, cambiable por prueba (vi.mock se iza: va con hoisted).
 const equipo = vi.hoisted(() => ({ actual: { id: "eq-1", nombre: "Atlético Mineiro" } }));
@@ -72,16 +72,23 @@ describe("el portal", () => {
     await montar();
     await tocar("Entrar a Partido");
 
-    // La portada tapa la pantalla con la foto de la tarjeta y el nombre...
+    // La portada tapa la pantalla: atrás la foto de la tarjeta borrosa, adelante
+    // la misma foto entera y el nombre...
     const cubierta = portada();
     expect(cubierta).not.toBeNull();
     expect(cubierta.classList.contains("tarjeta-partido")).toBe(true);
-    expect(cubierta.querySelector("img").getAttribute("src")).toBe("/portal/partido.webp");
+    expect(cubierta.querySelector(".portal-portada-fondo img").getAttribute("src")).toBe("/portal/partido.webp");
+    expect(cubierta.querySelector(".portal-portada-foto img").getAttribute("src")).toBe("/portal/partido.webp");
     expect(cubierta.querySelector(".portal-portada-texto strong").textContent).toBe("Partido");
-    // ...ya pedida a pantalla entera (el zoom lo hace la hoja de estilos).
+    // ...con la foto ya pedida en su lugar final, entera, de lado a lado (el
+    // zoom desde la tarjeta lo hace la hoja de estilos).
     expect(cubierta.classList.contains("llena")).toBe(true);
-    expect(cubierta.style.width).toBe("");
-    expect(cubierta.style.top).toBe("");
+    const lugar = lugarEnPantalla(window.innerWidth, window.innerHeight);
+    const caja = cubierta.querySelector(".portal-portada-foto");
+    expect(caja.style.width).toBe(`${lugar.foto.width}px`);
+    expect(caja.style.top).toBe(`${lugar.foto.top}px`);
+    expect(Math.round((lugar.foto.width * 9) / 16)).toBe(Math.round(lugar.foto.height));
+    expect(cubierta.querySelector(".portal-portada-texto").style.top).toBe(`${lugar.texto.top}px`);
     // Mientras tanto Partido ya está cargado abajo, sin su propia intro.
     expect(contenedor.querySelector(".partido-de-prueba").textContent).toContain("sin intro");
     expect(contenedor.querySelector(".portal-tarjeta")).toBeNull();
@@ -102,7 +109,7 @@ describe("el portal", () => {
 
     const cubierta = portada();
     expect(cubierta.classList.contains("tarjeta-flujo")).toBe(true);
-    expect(cubierta.querySelector("img").getAttribute("src")).toBe("/portal/flujo.webp");
+    expect(cubierta.querySelector(".portal-portada-foto img").getAttribute("src")).toBe("/portal/flujo.webp");
     expect(cubierta.querySelector(".portal-portada-texto strong").textContent).toBe("Flujo diario");
     expect(contenedor.querySelector(".acceso-de-prueba .flujo-de-prueba")).not.toBeNull();
 
@@ -126,9 +133,32 @@ describe("el portal", () => {
     await montar();
     await tocar("Entrar a Partido");
 
-    const imagen = portada().querySelector("img");
+    const imagen = portada().querySelector(".portal-portada-foto img");
     await act(async () => imagen.dispatchEvent(new Event("error")));
-    expect(portada().querySelector("img")).toBeNull();
-    expect(portada().querySelector(".portal-arte")).not.toBeNull();
+    expect(portada().querySelector(".portal-portada-foto img")).toBeNull();
+    expect(portada().querySelector(".portal-portada-foto .portal-arte")).not.toBeNull();
+  });
+});
+
+describe("el lugar de la foto en la portada", () => {
+  test("en el celular parado va de lado a lado, entera, con el nombre debajo", () => {
+    const { foto, texto } = lugarEnPantalla(390, 844);
+    expect(foto.left).toBe(0);
+    expect(foto.width).toBe(390);
+    expect(foto.height).toBeCloseTo(219.4, 0);
+    expect(foto.borderRadius).toBe(0);
+    // Centrada a lo alto junto con el nombre, y el nombre debajo de la foto.
+    expect(foto.top).toBeGreaterThan(200);
+    expect(foto.top + foto.height).toBeLessThan(texto.top);
+    expect(texto.left).toBe(22);
+  });
+
+  test("en la computadora queda como una tarjeta grande, sin llegar a los bordes", () => {
+    const { foto, texto } = lugarEnPantalla(1280, 860);
+    expect(foto.width).toBeLessThan(1280);
+    expect(foto.left).toBeGreaterThan(0);
+    expect(foto.borderRadius).toBe(26);
+    expect(foto.top + foto.height + 24).toBe(texto.top);
+    expect(texto.top + 150).toBeLessThanOrEqual(860);
   });
 });

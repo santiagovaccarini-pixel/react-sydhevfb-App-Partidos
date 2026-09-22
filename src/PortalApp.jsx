@@ -72,15 +72,37 @@ const lugarDeLaFoto = (boton) => {
   return { top, left, width, height };
 };
 
-// La portada de entrada: la foto de la tarjeta que se tocó crece hasta tapar
-// la pantalla, se queda unos segundos con el nombre del módulo y se desvanece.
-// Mientras tanto el módulo ya se cargó abajo, así que al irse está listo.
+// Cómo se acomoda la portada en la pantalla: la foto entera (16:9), de lado a
+// lado si entra, y debajo el ícono con el nombre; todo centrado a lo alto. En
+// pantallas anchas la foto no llega a los bordes y queda con puntas
+// redondeadas, como una tarjeta grande.
+const MARGEN_PORTADA = 28;
+const ALTO_TEXTO_PORTADA = 174;
+
+export const lugarEnPantalla = (ancho, alto) => {
+  const libre = Math.max(alto - MARGEN_PORTADA * 2 - ALTO_TEXTO_PORTADA, 0);
+  const anchoFoto = Math.max(Math.min(ancho, (libre * 16) / 9), 200);
+  const altoFoto = (anchoFoto * 9) / 16;
+  const top = Math.max((alto - (altoFoto + ALTO_TEXTO_PORTADA)) / 2, MARGEN_PORTADA);
+  const left = (ancho - anchoFoto) / 2;
+  return {
+    foto: { top, left, width: anchoFoto, height: altoFoto, borderRadius: anchoFoto < ancho ? 26 : 0 },
+    texto: { top: top + altoFoto + 24, left: Math.max(left, 22) },
+  };
+};
+
+// La portada de entrada: la foto de la tarjeta que se tocó crece desde donde
+// estaba hasta su lugar en la pantalla, entera, mientras atrás aparece la
+// misma foto borrosa llenando todo. Se queda unos segundos con el nombre del
+// módulo y se desvanece. Mientras tanto el módulo ya se cargó abajo, así que
+// al irse está listo.
 export const Portada = ({ tarjeta, desde, onTerminar }) => {
   const [fase, setFase] = useState(desde ? "inicio" : "llena");
+  const [lugar] = useState(() => lugarEnPantalla(window.innerWidth, window.innerHeight));
   const ref = useRef(null);
 
-  // Se pinta primero del tamaño de la tarjeta y, ya medida, se le pide la
-  // pantalla entera: la transición de la hoja de estilos hace el zoom.
+  // Se pinta primero del tamaño de la tarjeta y, ya medida, se le pide su
+  // lugar final: la transición de la hoja de estilos hace el zoom.
   useLayoutEffect(() => {
     if (fase !== "inicio") return;
     if (ref.current) ref.current.getBoundingClientRect();
@@ -98,15 +120,20 @@ export const Portada = ({ tarjeta, desde, onTerminar }) => {
   }, [onTerminar]);
 
   const { foto, Arte, Icono, titulo, clase } = tarjeta;
-  const estilo =
+  const lugarFoto =
     fase === "inicio" && desde
-      ? { top: desde.top, left: desde.left, width: desde.width, height: desde.height }
-      : undefined;
+      ? { top: desde.top, left: desde.left, width: desde.width, height: desde.height, borderRadius: "22px 22px 0 0" }
+      : lugar.foto;
 
   return (
-    <div ref={ref} className={`portal-portada ${clase} ${fase}`} style={estilo} aria-hidden="true">
-      <FotoTarjeta src={foto} Arte={Arte} />
-      <div className="portal-portada-texto">
+    <div className={`portal-portada ${clase} ${fase}`} aria-hidden="true">
+      <div className="portal-portada-fondo">
+        <FotoTarjeta src={foto} Arte={Arte} />
+      </div>
+      <div ref={ref} className="portal-portada-foto" style={lugarFoto}>
+        <FotoTarjeta src={foto} Arte={Arte} />
+      </div>
+      <div className="portal-portada-texto" style={lugar.texto}>
         <span className="portal-icono">
           <Icono />
         </span>
