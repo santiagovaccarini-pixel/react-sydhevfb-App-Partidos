@@ -50,12 +50,16 @@ de lo hecho está en los commits, no en esta lista.
   íconos nuevos y descripciones en criollo. Si una foto no carga, va el
   dibujo en código de `src/components/PortalArt.jsx`.
 - **Portada de entrada (hecho)**: al tocar una tarjeta, su foto crece desde
-  la tarjeta hasta su lugar en la pantalla, entera y de lado a lado (en el
-  celular la pantalla es parada y la foto apaisada: no se recorta), con la
-  misma foto borrosa llenando el fondo; se queda un momento con el ícono y el
-  nombre del módulo debajo y se desvanece sobre el módulo, que ya se cargó
-  abajo (`Portada` y `lugarEnPantalla` en `src/PortalApp.jsx`; tiempos en
-  `TIEMPOS_PORTADA`, unos 2,4 s en total).
+  la tarjeta hasta tapar la pantalla entera (se agranda entera, como un zoom;
+  lo que no entra queda afuera), se queda un momento con el ícono y el nombre
+  del módulo y se desvanece sobre el módulo, que ya se cargó abajo (`Portada`
+  y `lugarEnPantalla` en `src/PortalApp.jsx`; tiempos en `TIEMPOS_PORTADA`,
+  unos 2,4 s en total). En el celular, parado, la foto apaisada no entra
+  entera: se ve la parte que dice el `foco` de cada tarjeta (Flujo diario
+  muestra la tablet con el PSE). **Para que se vea entera y a pantalla
+  completa hacen falta versiones verticales (9:16) de las dos fotos**: van en
+  `public/portal/*-parada.webp`, se enganchan en `fotoParada` de cada tarjeta
+  y en la lista del `scripts/precache.js`.
   Partido entra sin su intro del estadio cuando viene del portal (`intro`
   en `App`), para no mostrar dos imágenes seguidas; la intro sigue en el
   código por si la app se abre sola.

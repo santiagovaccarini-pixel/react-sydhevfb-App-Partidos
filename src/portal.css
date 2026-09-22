@@ -242,11 +242,11 @@
 }
 
 /* La portada de entrada. Al tocar una tarjeta, su foto crece desde donde
-   estaba hasta su lugar en la pantalla, entera (la pantalla del celular es
-   parada y la foto apaisada: no se recorta), mientras atrás aparece la misma
-   foto borrosa llenando todo. Se queda un momento con el nombre del módulo y
-   se desvanece sobre el módulo, que ya se cargó abajo. Los lugares (de dónde
-   arranca y dónde termina) van en línea; la transición hace el zoom. */
+   estaba hasta tapar la pantalla entera (se agranda entera, como un zoom, y
+   lo que no entra queda afuera), mientras atrás aparece la misma foto borrosa.
+   Se queda un momento con el nombre del módulo y se desvanece sobre el
+   módulo, que ya se cargó abajo. Los lugares (de dónde arranca y dónde
+   termina) van en línea; la transición hace el zoom. */
 .portal-portada {
   position: fixed;
   inset: 0;
@@ -267,8 +267,12 @@
   aspect-ratio: auto;
 }
 
+.portal-portada .portal-foto::after {
+  background: none;
+}
+
 /* Atrás: la foto borrosa y oscura llenando la pantalla, que aparece con el
-   zoom y sigue acercándose despacio mientras la portada está quieta. */
+   zoom (mientras la foto todavía no tapa todo). */
 .portal-portada-fondo {
   position: absolute;
   inset: 0;
@@ -285,25 +289,13 @@
 .portal-portada-fondo .portal-arte {
   filter: blur(26px) brightness(0.55);
   transform: scale(1.15);
-  transition: transform 2400ms ease-out;
 }
 
-.portal-portada.llena .portal-portada-fondo img,
-.portal-portada.llena .portal-portada-fondo .portal-arte,
-.portal-portada.saliendo .portal-portada-fondo img,
-.portal-portada.saliendo .portal-portada-fondo .portal-arte {
-  transform: scale(1.25);
-}
-
-.portal-portada-fondo .portal-foto::after {
-  background: rgba(0, 0, 0, 0.35);
-}
-
-/* Adelante: la foto nítida y entera, que arranca del tamaño de la tarjeta. */
+/* Adelante: la foto nítida, que arranca del tamaño de la tarjeta y termina
+   más grande que la pantalla; lo que sobra lo recorta la portada. */
 .portal-portada-foto {
   position: absolute;
   overflow: hidden;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
   transition:
     top 450ms cubic-bezier(0.2, 0.8, 0.2, 1),
     left 450ms cubic-bezier(0.2, 0.8, 0.2, 1),
@@ -312,13 +304,42 @@
     border-radius 450ms ease;
 }
 
-.portal-portada-foto .portal-foto::after {
-  background: none;
+/* Con una foto parada no hay de dónde arrancar el zoom: aparece de una,
+   acercándose apenas. */
+.portal-portada.de-una .portal-portada-foto {
+  animation: portada-de-una 450ms ease-out both;
+}
+
+@keyframes portada-de-una {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Abajo, oscuro, para que se lea el nombre; aparece con el zoom. */
+.portal-portada-velo {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.78) 100%);
+  opacity: 1;
+  transition: opacity 450ms ease;
+}
+
+.portal-portada.inicio .portal-portada-velo {
+  opacity: 0;
 }
 
 .portal-portada-texto {
   position: absolute;
+  left: 22px;
   right: 22px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 30px);
   display: grid;
   justify-items: start;
   gap: 12px;
@@ -356,17 +377,13 @@
 @media (prefers-reduced-motion: reduce) {
   .portal-portada,
   .portal-portada-fondo,
-  .portal-portada-fondo img,
-  .portal-portada-fondo .portal-arte,
   .portal-portada-foto,
+  .portal-portada-velo,
   .portal-portada-texto {
     transition: none;
   }
 
-  .portal-portada.llena .portal-portada-fondo img,
-  .portal-portada.llena .portal-portada-fondo .portal-arte,
-  .portal-portada.saliendo .portal-portada-fondo img,
-  .portal-portada.saliendo .portal-portada-fondo .portal-arte {
-    transform: scale(1.15);
+  .portal-portada.de-una .portal-portada-foto {
+    animation: none;
   }
 }
