@@ -118,7 +118,7 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
       activo={activo}
       onNavigate={onNavigate}
       destinos={DESTINOS_ENTRENAMIENTO}
-      marca="Entrenamiento"
+      marca="Flujo diario"
       className="entrenamiento-marco"
     >
       {pantallas[vista] || pantallas.inicio}

@@ -148,7 +148,7 @@ describe("TrainingModule", () => {
       "Tareas",
       "Ajustes",
     ]);
-    expect(contenedor.querySelector(".marca-aplicacion strong").textContent).toBe("Entrenamiento");
+    expect(contenedor.querySelector(".marca-aplicacion strong").textContent).toBe("Flujo diario");
     expect(contenedor.querySelector(".marco-aplicacion").classList.contains("entrenamiento-marco")).toBe(true);
     expect(contenedor.textContent).toContain("SIN ENTRENAMIENTO");
     expect(contenedor.textContent).toContain("Empezá el de hoy");

@@ -110,7 +110,7 @@ export default function TrainingSettings({
       <div className="contenedor">
         <header className="encabezado">
           <h1>Ajustes</h1>
-          <p>Lo que la app usa en Entrenamiento.</p>
+          <p>Lo que la app usa en Flujo diario.</p>
         </header>
 
         {opciones.map((opcion) => (
