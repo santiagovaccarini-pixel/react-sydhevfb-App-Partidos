@@ -46,8 +46,9 @@ de lo hecho está en los commits, no en esta lista.
 - **Portal (hecho)**: el módulo pasa a llamarse **Flujo diario** (representa
   todo el día: tareas y cortes en la nube, descarga de datos, planilla, PSE y
   archivos para cargar; hoy la app hace tareas y cortes). Tarjetas con fondo
-  ilustrado en código (SVG), íconos nuevos y descripciones en criollo. Si el
-  club manda fotos, se cambian por ellas en `src/components/PortalArt.jsx`.
+  con las fotos que mandó Santi (`public/portal/*.webp`, también sin señal),
+  íconos nuevos y descripciones en criollo. Si una foto no carga, va el
+  dibujo en código de `src/components/PortalArt.jsx`.
 
 ### Entrenamiento por fecha y guardado en la base (hecho el 22/09)
 

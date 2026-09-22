@@ -28,6 +28,7 @@ const TARJETAS = [
   {
     modo: MODOS.PARTIDO,
     clase: "tarjeta-partido",
+    foto: "/portal/partido.webp",
     Arte: ArtePartido,
     Icono: IconoPartido,
     titulo: "Partido",
@@ -38,6 +39,7 @@ const TARJETAS = [
   {
     modo: MODOS.ENTRENAMIENTO,
     clase: "tarjeta-flujo",
+    foto: "/portal/flujo.webp",
     Arte: ArteFlujo,
     Icono: IconoFlujo,
     titulo: "Flujo diario",
@@ -48,6 +50,16 @@ const TARJETAS = [
     nota: "Hoy están las tareas y los cortes. El resto se va sumando.",
   },
 ];
+
+// La foto de la tarjeta; si no carga (primera vez sin señal), el dibujo.
+const FotoTarjeta = ({ src, Arte }) => {
+  const [fallo, setFallo] = useState(false);
+  return (
+    <span className="portal-foto">
+      {fallo ? <Arte /> : <img src={src} alt="" decoding="async" onError={() => setFallo(true)} />}
+    </span>
+  );
+};
 
 const Portal = ({ onElegir }) => {
   const equipo = leerEquipoElegido();
@@ -62,7 +74,7 @@ const Portal = ({ onElegir }) => {
         </div>
 
         <div className="portal-opciones">
-          {TARJETAS.map(({ modo, clase, Arte, Icono, titulo, etiqueta, texto, pasos, nota }) => (
+          {TARJETAS.map(({ modo, clase, foto, Arte, Icono, titulo, etiqueta, texto, pasos, nota }) => (
             <button
               type="button"
               key={modo}
@@ -70,25 +82,27 @@ const Portal = ({ onElegir }) => {
               onClick={() => onElegir(modo)}
               aria-label={`Entrar a ${titulo}`}
             >
-              <Arte />
-              <span className="portal-icono">
-                <Icono />
-              </span>
-              <span className="portal-tarjeta-texto">
-                <strong>
-                  {titulo}
-                  {etiqueta && <em className="portal-beta">{etiqueta}</em>}
-                </strong>
-                <small>{texto}</small>
-                <span className="portal-pasos" aria-label="Pasos">
-                  {pasos.map((paso) => (
-                    <i key={paso}>{paso}</i>
-                  ))}
+              <FotoTarjeta src={foto} Arte={Arte} />
+              <span className="portal-cuerpo">
+                <span className="portal-icono">
+                  <Icono />
                 </span>
-                {nota && <span className="portal-nota">{nota}</span>}
-              </span>
-              <span className="portal-entrar" aria-hidden="true">
-                Entrar <span>›</span>
+                <span className="portal-tarjeta-texto">
+                  <strong>
+                    {titulo}
+                    {etiqueta && <em className="portal-beta">{etiqueta}</em>}
+                  </strong>
+                  <small>{texto}</small>
+                  <span className="portal-pasos" aria-label="Pasos">
+                    {pasos.map((paso) => (
+                      <i key={paso}>{paso}</i>
+                    ))}
+                  </span>
+                  {nota && <span className="portal-nota">{nota}</span>}
+                </span>
+                <span className="portal-entrar" aria-hidden="true">
+                  Entrar <span>›</span>
+                </span>
               </span>
             </button>
           ))}
