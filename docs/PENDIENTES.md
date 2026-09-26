@@ -133,6 +133,21 @@ de lo hecho está en los commits, no en esta lista.
 - La Connect API oficial **solo lee**; escribir es únicamente con el pase del
   editor, con la cuenta de Catapult de cada persona.
 
+## Valor Referencial del Excel de GPS (anotado el 26/09)
+
+El proceso de armar los valores referenciales por jugador (filtrar la base por
+jugador y categoría de tiempo, copiar Excelente…Malo a la hoja VR) quedó
+automatizado en `excel/generar_vr_jugadores.py` y `excel/GenerarVR_Jugadores.bas`;
+el detalle está en `excel/VALOR_REFERENCIAL.md`. Queda:
+
+- **Mínimo de 5 casos.** Cuando un jugador no llega a 5 casos en una categoría,
+  se completan con casos de otro intervalo y/o de otro puesto, y esas celdas
+  van en amarillo. Hay que definir el orden en que se toman prestados y si se
+  completa hasta 5 o se suma todo el intervalo prestado; con eso el script se
+  adapta cambiando solo qué filas alimentan cada combinación.
+- **Llevarlo a la app** para que sea más fácil y accesible, sin depender de
+  Excel: subir la base, calcular, ver la tabla y bajar la hoja VR.
+
 ## De la lista de mejoras de la app
 
 - **Mandar los cortes solos a OpenField.** No es un botón de copiar: la idea es
