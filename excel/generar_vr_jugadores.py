@@ -492,10 +492,18 @@ for r, data in zip(needed, out_rows):
     attrs, inner = m.group(2), m.group(3) or ''
     cells = {cm.group(1): (cm.group(3), cm.group(0)) for cm in cell_re.finditer(inner)}
 
+    row_style = re.search(r' s="(\d+)"', attrs)
+    row_style = row_style.group(1) if row_style else None
+
     def s_of(col):
         a = cells.get(col, ('', ''))[0]
         sm = re.search(r's="(\d+)"', a)
-        return sm.group(1) if sm else None
+        if sm:
+            return sm.group(1)
+        # la fila plantilla no tiene esa celda: usar el estilo de la fila (o el de la celda C vecina)
+        if col in cells or col == 'C':
+            return row_style
+        return s_of('C') or row_style
 
     new_cells = {col: whole for col, (a, whole) in cells.items()}
     a_existing = cells.get('A', (None, None))[1]
