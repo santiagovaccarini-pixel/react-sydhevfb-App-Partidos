@@ -67,18 +67,39 @@ Bueno y Cuenta, el resto vacío.
 
 ### Categorías que se juntan por jugador (celdas pintadas)
 
-Cuando un jugador no tiene casos suficientes en una categoría, se juntan sus
-casos con los de otra categoría. Eso se indica **pintando celdas en la hoja
-`Tiempos por jugador`**: en la fila del jugador, las categorías (columnas B:H)
-pintadas **del mismo color** forman un grupo. Cada categoría del grupo se
-calcula con los casos de todas las del grupo (por ejemplo, `>=85` y
-`>=70 y <85` pintadas juntas dan el mismo VR para las dos, con 6 casos si eran
-2 + 4) y sus filas quedan **en amarillo** en VR, que es la convención que ya
-tenía el libro ("casos duplicados de otro intervalo y/o puesto"). Vale
-cualquier color; dos colores distintos en la misma fila son dos grupos
-distintos. Una celda pintada sola, sin compañera del mismo color, se ignora y
-el script lo avisa. El Item (columna C) sigue siendo el de cada categoría; el
-Puesto y la Cuenta salen del grupo completo.
+Cuando un jugador no tiene casos suficientes en una categoría (la regla de
+trabajo es llegar a 5), se juntan sus casos con los de otra categoría. Eso se
+indica **pintando celdas en la hoja `Tiempos por jugador`**: en la fila del
+jugador, las categorías (columnas B:H) pintadas **una al lado de la otra y del
+mismo color** forman un grupo; una columna sin pintar en el medio separa dos
+grupos (ALAN FRANCO tiene `>=30 y Final ST` + `>=10 y <30 ST` por un lado y
+`>=70 y <85` + `PT + <25` por otro). Una celda pintada sola se ignora y el
+script lo avisa. La columna I con "Juntar" es sólo una ayuda visual; lo que
+manda es la pintura.
+
+Por cada grupo el script escribe **un solo bloque** de seis filas en VR:
+
+- se calcula con los casos de todas las categorías del grupo (A MINDA: 2 + 4
+  + 3 = 9 casos);
+- en la columna de categoría (F) va **la categoría con más casos propios** del
+  grupo (para A MINDA, `>=70 y <85`); si empatan, la primera en el orden de las
+  columnas. Las otras categorías del grupo no tienen bloque propio;
+- la celda de cantidad de casos (H) lleva una **nota** que dice qué categorías
+  se juntaron y con cuántos casos cada una, y por qué se muestra con esa
+  etiqueta;
+- las seis filas quedan **en amarillo**, la convención que ya tenía el libro
+  ("casos duplicados de otro intervalo y/o puesto").
+
+El Item (columna C) es el de la categoría mostrada; el Puesto y la Cuenta salen
+del grupo completo.
+
+Grupos aplicados el 28/09/2026, tomados de la captura de pantalla de la hoja
+pintada (filas 2 a 25; las filas 26 a 32, VICTOR en adelante, no se veían):
+A MINDA `>=85`+`>=70 y <85`+`PT + <25`; A PRECIADO `>=30 y Final ST`+`>=10 y <30 ST`
+(pintada pero sin "Juntar" en la columna I; se juntó igual porque así llega a
+5); ALAN FRANCO dos grupos; ALEXSANDER, IGOR GOMES, M CASSIERRA y RUAN
+`>=70 y <85`+`PT + <25`; CISSE `>=85`+`>=70 y <85`+`PT + <25`; KAUA PASCINI y
+MAYCON `>=30 y Final ST`+`>=10 y <30 ST`.
 
 ### Validación por cuartiles (valores atípicos)
 
@@ -134,14 +155,14 @@ caso.
 
 ## Pendiente
 
-1. **Correr el script con el archivo pintado.** El juntado de categorías ya
-   está programado, pero el archivo que se recibió el 26/09 no tiene celdas
-   pintadas en `Tiempos por jugador`, así que la corrida del 28/09 no juntó
-   nada. Falta recibir el `.xlsm` con las celdas pintadas y volver a correrlo.
-   El criterio de fondo sigue siendo llegar a **al menos 5 casos** por VR; hoy
-   lo decide la persona pintando, el script no lo impone. Si más adelante se
-   quiere que lo proponga solo, la hoja `Notas` (filas 4 a 13) tiene el mapa
-   de intervalos equivalentes según PT, ST o Total.
+1. **Confirmar las filas 26 a 32 de la hoja pintada.** Los grupos del 28/09 se
+   copiaron de una captura de pantalla que llegaba hasta V HUGO (fila 25). Si
+   VICTOR, VITAO, GUTTE, KEVIN CASTANO, FRED, SAMUEL o LEMOS tienen celdas
+   pintadas, hay que correr el script con el `.xlsm` pintado real. El criterio
+   de fondo sigue siendo llegar a **al menos 5 casos** por VR; lo decide la
+   persona pintando, el script no lo impone. Si más adelante se quiere que lo
+   proponga solo, la hoja `Notas` (filas 4 a 13) tiene el mapa de intervalos
+   equivalentes según PT, ST o Total.
 2. **La macro VBA no junta ni descarta atípicos**: hace el proceso básico
    (filtrar y copiar las filas 5 a 9). Si se usa la macro, esas dos cosas hay
    que hacerlas a mano o pasar al script.

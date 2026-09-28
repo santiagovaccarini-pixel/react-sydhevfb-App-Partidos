@@ -153,22 +153,31 @@ if not ARGS.sin_juntar:
         name = cell_text(cells['A']).strip() if 'A' in cells and cell_text(cells['A']) else None
         if not name:
             continue
-        by_fill = defaultdict(list)
-        for col, cat in cats_by_col.items():
+        # corridas de celdas pintadas contiguas (mismo color) en el orden de las columnas = un grupo
+        runs, cur = [], None
+        for col in sorted(cats_by_col, key=C):
+            cat = cats_by_col[col]
             c = cells.get(col)
-            if c is None:
-                continue
-            sm = re.search(r' s="(\d+)"', c)
+            sm = re.search(r' s="(\d+)"', c) if c is not None else None
             fid = xf_fill[int(sm.group(1))] if sm else 0
             if fid not in (0, 1):
-                by_fill[fid].append(cat)
+                if cur is not None and cur[0] == fid:
+                    cur[1].append(cat)
+                else:
+                    if cur is not None:
+                        runs.append(cur)
+                    cur = [fid, [cat]]
+            elif cur is not None:
+                runs.append(cur); cur = None
+        if cur is not None:
+            runs.append(cur)
         groups = {}
-        for fid, cats in by_fill.items():
+        for fid, cats in runs:
             if len(cats) >= 2:
                 for cat in cats:
                     groups[cat] = cats
             else:
-                print(f'  Aviso: {name} / {cats[0]} esta pintada sola (sin otra categoria del mismo color); se ignora.')
+                print(f'  Aviso: {name} / {cats[0]} esta pintada sola (sin una categoria vecina del mismo color); se ignora.')
         if groups:
             merge_groups[name] = groups
     print('Jugadores con categorias a juntar:', len(merge_groups))
@@ -333,17 +342,30 @@ metric_name = {d: str(hdr13[C(d) - 1]).strip() for d in col_map}
 # ---------------------------------------------------------------- 6. calcular por jugador x categoria
 out_rows, review, skipped, outliers, combos = [], [], [], [], []
 for p in players:
-    for cat in CATS:
-        own = ((T == p) & (DG == cat)).to_numpy()
-        n_own = int(own.sum())
-        group = merge_groups.get(p, {}).get(cat)
+    done = set()
+    for cat0 in CATS:
+        if cat0 in done:
+            continue
+        group = merge_groups.get(p, {}).get(cat0)
         if group:
+            # un solo bloque por grupo, etiquetado con la categoria que mas casos propios tiene
+            # (empate: la primera en el orden de las columnas)
+            own_counts = {g: int(((T == p) & (DG == g)).sum()) for g in group}
+            done.update(group)
+            cat = max(group, key=lambda g: (own_counts[g], -group.index(g)))
             mask = ((T == p) & DG.isin(group)).to_numpy()
+            n_own = own_counts[cat]
         else:
-            mask = own
+            cat = cat0
+            mask = ((T == p) & (DG == cat)).to_numpy()
+            n_own = int(mask.sum())
         n = int(mask.sum())
         if n == 0:
             skipped.append((p, cat)); continue
+        note = ''
+        if group:
+            note = ('Categorías juntadas: ' + ' + '.join(f'{g} ({own_counts[g]})' for g in group)
+                    + f' = {n} casos. Se muestra como "{cat}" por ser la de más casos.')
 
         # --- atipicos por cuartiles, metrica por metrica
         excl, n_out_by_col = {}, {}
@@ -375,8 +397,9 @@ for p in players:
         puesto = Counter(u for u in U[mask] if u).most_common(1)
         puesto = puesto[0][0] if puesto else ''
         item = ITEM_BY_CAT.get(cat, 'Jugador Total')
+        juntada = ' + '.join(f'{g} ({own_counts[g]})' for g in group if g != cat) if group else ''
         combos.append({'Jugador': p, 'Categoría': cat, 'Casos propios': n_own, 'Casos usados': n,
-                       'Juntada con': ' + '.join(c for c in group if c != cat) if group else '',
+                       'Juntada con': juntada, 'Nota en VR': note,
                        'Métricas con atípicos': len(n_out_by_col), 'Valores atípicos excluidos': sum(n_out_by_col.values())})
         for nivel, frow in NIVELES:
             row = {'C': item, 'D': p, 'E': puesto, 'F': cat, 'G': nivel, 'H': cnt, 'B': TODAY_SERIAL}
@@ -384,10 +407,11 @@ for p in players:
                 row[vcol] = calc.std(dcol) if frow is None else calc.value(frow, dcol)
             row['_key'] = f'{item}{p}{puesto}{cat}{nivel}'
             row['_merged'] = bool(group)
+            row['_note'] = note
             row['_outcols'] = {col_map[d] for d in n_out_by_col}
             out_rows.append(row)
             review.append({'Item': item, 'Nombre': p, 'Puesto': puesto, 'Minutos': cat, 'Categoría': nivel, 'Cuenta': cnt,
-                           'Juntada con': combos[-1]['Juntada con'], 'Atípicos excluidos': combos[-1]['Valores atípicos excluidos'],
+                           'Juntada con': juntada, 'Atípicos excluidos': combos[-1]['Valores atípicos excluidos'],
                            **{metric_name[d]: row[v] for d, v in col_map.items()}})
 print(f'Combinaciones con datos: {len(combos)}  (filas VR: {len(out_rows)});  sin casos: {len(skipped)}')
 print(f'Combinaciones juntadas: {sum(1 for c in combos if c["Juntada con"])};  valores atipicos excluidos: {len(outliers)}'
@@ -506,17 +530,73 @@ if len(xfs_new) != len(xfs_list):
     styles_new = styles_new.replace(xfs_block.group(0), f'<cellXfs count="{len(xfs_new)}">' + ''.join(xfs_new) + '</cellXfs>', 1)
 print(f'Estilos: {len(xfs_new) - len(xfs_list)} variantes de relleno agregadas')
 
+# ---------------------------------------------------------------- 9. notas en la celda de casos (H) de las categorias juntadas
+notes = [(f'H{r}', d['_note']) for r, d in zip(needed, out_rows) if d['_note']]
+changed_parts = {}
+if notes:
+    sheet_rels_name = re.sub(r'worksheets/(sheet\d+\.xml)$', r'worksheets/_rels/\1.rels', vr_part)
+    srels = zin.read(sheet_rels_name).decode('utf-8') if sheet_rels_name in zin.namelist() else ''
+    def rel_target(kind):
+        m = re.search(r'<Relationship [^>]*Type="[^"]*/%s"[^>]*Target="([^"]+)"' % kind, srels) or \
+            re.search(r'<Relationship [^>]*Target="([^"]+)"[^>]*Type="[^"]*/%s"' % kind, srels)
+        if not m:
+            return None
+        t = m.group(1)
+        return t.lstrip('/') if t.startswith('/') else 'xl/worksheets/' + t if not t.startswith('../') else 'xl/' + t[3:]
+    comments_part, vml_part = rel_target('comments'), rel_target('vmlDrawing')
+    if not comments_part or not vml_part or comments_part not in zin.namelist() or vml_part not in zin.namelist():
+        print('Aviso: la hoja VR no tiene parte de comentarios/VML; las notas de categorias juntadas quedan solo en el resumen.')
+    else:
+        cx = zin.read(comments_part).decode('utf-8')
+        vx = zin.read(vml_part).decode('utf-8')
+        existing_refs = set(re.findall(r'<comment ref="([A-Z]+\d+)"', cx))
+        author = 'Generador VR'
+        authors = re.findall(r'<author>(.*?)</author>', cx, re.S)
+        if author in authors:
+            aid = authors.index(author)
+        else:
+            aid = len(authors)
+            cx = cx.replace('</authors>', f'<author>{author}</author></authors>', 1)
+        sids = [int(x) for x in re.findall(r'id="_x0000_s(\d+)"', vx)]
+        next_sid = (max(sids) + 1) if sids else 1025
+        zmax = max([int(z) for z in re.findall(r'z-index:(\d+)', vx)] or [0])
+        new_comments, new_shapes = [], []
+        for ref, text in notes:
+            if ref in existing_refs:
+                print(f'Aviso: {ref} ya tenia una nota; no se reemplaza.')
+                continue
+            col_i, row_i = C(re.match(r'[A-Z]+', ref).group(0)), int(re.sub(r'[A-Z]+', '', ref))
+            t = html.escape(text, quote=False)
+            new_comments.append(
+                f'<comment ref="{ref}" authorId="{aid}" shapeId="0"><text>'
+                f'<r><rPr><b/><sz val="9"/><color indexed="81"/><rFont val="Tahoma"/><family val="2"/></rPr><t>{author}:</t></r>'
+                f'<r><rPr><sz val="9"/><color indexed="81"/><rFont val="Tahoma"/><family val="2"/></rPr><t xml:space="preserve">\n{t}</t></r>'
+                f'</text></comment>')
+            zmax += 1
+            new_shapes.append(
+                f'<v:shape id="_x0000_s{next_sid}" type="#_x0000_t202" style=\'position:absolute;margin-left:500pt;margin-top:10pt;'
+                f'width:300pt;height:60pt;z-index:{zmax};visibility:hidden\' fillcolor="infoBackground [80]" strokecolor="none [81]" o:insetmode="auto">'
+                f'<v:fill color2="infoBackground [80]"/><v:shadow color="none [81]" obscured="t"/><v:path o:connecttype="none"/>'
+                f'<v:textbox style=\'mso-direction-alt:auto\'><div style=\'text-align:left\'></div></v:textbox>'
+                f'<x:ClientData ObjectType="Note"><x:MoveWithCells/><x:SizeWithCells/>'
+                f'<x:Anchor>{col_i}, 15, {max(row_i - 2, 0)}, 10, {col_i + 5}, 15, {row_i + 3}, 4</x:Anchor>'
+                f'<x:AutoFill>False</x:AutoFill><x:Row>{row_i - 1}</x:Row><x:Column>{col_i - 1}</x:Column></x:ClientData></v:shape>')
+            next_sid += 1
+        if new_comments:
+            cx = cx.replace('</commentList>', ''.join(new_comments) + '</commentList>', 1)
+            vx = vx.replace('</xml>', ''.join(new_shapes) + '</xml>', 1)
+            changed_parts[comments_part] = cx
+            changed_parts[vml_part] = vx
+        print(f'Notas agregadas en VR: {len(new_comments)}')
+
 # recalculo completo al abrir (para que A y las VLOOKUP de 'Data GPS Partido' tomen las filas nuevas)
 wbxml_new = wbxml if 'fullCalcOnLoad' in wbxml else re.sub(r'<calcPr([^>]*?)/>', r'<calcPr\1 fullCalcOnLoad="1"/>', wbxml, count=1)
+changed_parts.update({vr_part: sx_new, 'xl/workbook.xml': wbxml_new, 'xl/styles.xml': styles_new})
 
 zout = zipfile.ZipFile(DST, 'w', zipfile.ZIP_DEFLATED)
 for item in zin.infolist():
-    if item.filename == vr_part:
-        zout.writestr(item, sx_new.encode('utf-8'))
-    elif item.filename == 'xl/workbook.xml':
-        zout.writestr(item, wbxml_new.encode('utf-8'))
-    elif item.filename == 'xl/styles.xml':
-        zout.writestr(item, styles_new.encode('utf-8'))
+    if item.filename in changed_parts:
+        zout.writestr(item, changed_parts[item.filename].encode('utf-8'))
     else:
         zout.writestr(item, zin.read(item.filename))
 zout.close()

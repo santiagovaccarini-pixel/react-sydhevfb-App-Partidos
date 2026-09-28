@@ -140,12 +140,14 @@ jugador y categoría de tiempo, copiar Excelente…Malo a la hoja VR) quedó
 automatizado en `excel/generar_vr_jugadores.py` y `excel/GenerarVR_Jugadores.bas`;
 el detalle está en `excel/VALOR_REFERENCIAL.md`. Queda:
 
-- **Correr el script con el archivo pintado (28/09).** El juntado de
+- **Confirmar las filas 26 a 32 de la hoja pintada (28/09).** El juntado de
   categorías por jugador ya está: se pintan en `Tiempos por jugador` las
-  categorías a juntar (mismo color = mismo grupo) y las filas salen en amarillo
-  en VR. También quedó la validación por cuartiles, que descarta valores
-  atípicos métrica por métrica (celdas en naranja, detalle en el resumen). El
-  archivo recibido no tiene celdas pintadas: falta recibirlo pintado y correr.
+  categorías a juntar (contiguas y del mismo color = un grupo), el bloque sale
+  con la categoría de más casos, en amarillo y con una nota en la cantidad de
+  casos. También quedó la validación por cuartiles, que descarta valores
+  atípicos métrica por métrica (celdas en naranja, detalle en el resumen). Los
+  grupos se copiaron de una captura que llegaba hasta la fila 25; si hay más
+  pintadas abajo, correr el script con el `.xlsm` pintado real.
 - **Llevarlo a la app** para que sea más fácil y accesible, sin depender de
   Excel: subir la base, calcular, ver la tabla y bajar la hoja VR.
 
