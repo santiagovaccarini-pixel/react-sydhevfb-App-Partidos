@@ -65,18 +65,57 @@ con `U2&V1&V2&V3&nivel`.
 Combinaciones sin casos no se escriben. Con un solo caso no hay desvío: queda
 Bueno y Cuenta, el resto vacío.
 
+### Categorías que se juntan por jugador (celdas pintadas)
+
+Cuando un jugador no tiene casos suficientes en una categoría, se juntan sus
+casos con los de otra categoría. Eso se indica **pintando celdas en la hoja
+`Tiempos por jugador`**: en la fila del jugador, las categorías (columnas B:H)
+pintadas **del mismo color** forman un grupo. Cada categoría del grupo se
+calcula con los casos de todas las del grupo (por ejemplo, `>=85` y
+`>=70 y <85` pintadas juntas dan el mismo VR para las dos, con 6 casos si eran
+2 + 4) y sus filas quedan **en amarillo** en VR, que es la convención que ya
+tenía el libro ("casos duplicados de otro intervalo y/o puesto"). Vale
+cualquier color; dos colores distintos en la misma fila son dos grupos
+distintos. Una celda pintada sola, sin compañera del mismo color, se ignora y
+el script lo avisa. El Item (columna C) sigue siendo el de cada categoría; el
+Puesto y la Cuenta salen del grupo completo.
+
+### Validación por cuartiles (valores atípicos)
+
+Antes de calcular, cada métrica de cada combinación pasa por la regla de
+Tukey: se calculan Q1 y Q3 (como `CUARTIL.INC` de Excel) y se descartan los
+valores fuera de `[Q1 − 1,5·IQR, Q3 + 1,5·IQR]`. Se aplica sólo con **4 o más
+casos** y si `IQR > 0`. El descarte es **métrica por métrica**: un partido con
+una distancia atípica sale del cálculo de la distancia, pero sigue contando en
+las demás métricas. En las métricas que son cociente de sumas (caídas
+relativas y caídas pp), la fila descartada sale de todas las sumas de esa
+métrica. Las celdas de VR calculadas con algún descarte quedan **en naranja**
+(`F4B183`), y el detalle de cada valor descartado (jugador, categoría, partido,
+métrica, valor y límites) va a la hoja `Atípicos` del resumen. La Cuenta
+(columna H) es la cantidad de casos del grupo, sin descontar atípicos.
+
+En la corrida del 28/09/2026 se descartó el 2,3 % de los valores (3.812 sobre
+172 combinaciones × 71 métricas); la métrica con más descartes es `Tiempo`.
+
+Leyenda de colores en VR: **amarillo** = categoría calculada juntando casos de
+otra categoría; **naranja** = métrica calculada sin sus valores atípicos.
+
 ## Archivos
 
 - `generar_vr_jugadores.py` — hace todo desde afuera de Excel. Lee el `.xlsm`,
+  arma los grupos a juntar a partir de las celdas pintadas, descarta atípicos,
   calcula las 6 filas por combinación replicando las fórmulas de las filas 5 a 9
   (las traduce y las evalúa; primero valida que sin filtro den lo mismo que los
   valores guardados por Excel), escribe las filas en el XML de la hoja VR sin
   tocar nada más del archivo (macros, tablas dinámicas, formatos y desplegables
-  quedan intactos) y deja un `<salida>_resumen.xlsx` para controlar.
+  quedan intactos; sólo agrega a los estilos las variantes amarilla y naranja) y
+  deja un `<salida>_resumen.xlsx` con las hojas `VR`, `Combinaciones`,
+  `Atípicos` y `Leyenda` para controlar.
 
   ```bash
   pip install openpyxl pandas numpy
   python excel/generar_vr_jugadores.py GPS_BD_Partido_CAM.xlsm GPS_BD_Partido_CAM_VR.xlsm
+  # opciones: --sin-atipicos  --iqr-k 1.5  --min-n-iqr 4  --sin-juntar
   ```
 
   Tarda alrededor de un minuto. Marca el libro para recalcular al abrirlo.
@@ -95,22 +134,18 @@ caso.
 
 ## Pendiente
 
-1. **Mínimo de 5 casos.** Hoy se escribe cualquier combinación con al menos
-   un caso. La regla de trabajo es que un VR necesita **al menos 5 casos**; si
-   el jugador no llega, se completan con casos de **otro intervalo de tiempo
-   y/o de otro puesto**, y las celdas quedan **en amarillo** para avisar que
-   son prestados (así lo dice la nota de la fila 6 de VR y de "Análisis Casos
-   VR"). La hoja `Notas` (filas 4 a 13) tiene el mapa de qué intervalo equivale
-   a cuál según se mire PT, ST o Total. Falta definir, antes de programarlo:
-   - el orden en que se toman prestados los casos (primero otro intervalo del
-     mismo jugador, después mismo puesto de otros jugadores, o al revés);
-   - si se completa hasta 5 justo o se suman todos los casos del intervalo
-     prestado;
-   - si con menos de 5 sin posibilidad de completar se deja vacío o se escribe
-     igual, marcado.
-   Con eso definido, el script ya tiene la base: la máscara de filas que
-   alimenta cada combinación es lo único que cambia.
-2. **Llevarlo a la app.** El cálculo es sencillo (promedio y desvío por
+1. **Correr el script con el archivo pintado.** El juntado de categorías ya
+   está programado, pero el archivo que se recibió el 26/09 no tiene celdas
+   pintadas en `Tiempos por jugador`, así que la corrida del 28/09 no juntó
+   nada. Falta recibir el `.xlsm` con las celdas pintadas y volver a correrlo.
+   El criterio de fondo sigue siendo llegar a **al menos 5 casos** por VR; hoy
+   lo decide la persona pintando, el script no lo impone. Si más adelante se
+   quiere que lo proponga solo, la hoja `Notas` (filas 4 a 13) tiene el mapa
+   de intervalos equivalentes según PT, ST o Total.
+2. **La macro VBA no junta ni descarta atípicos**: hace el proceso básico
+   (filtrar y copiar las filas 5 a 9). Si se usa la macro, esas dos cosas hay
+   que hacerlas a mano o pasar al script.
+3. **Llevarlo a la app.** El cálculo es sencillo (promedio y desvío por
    columna sobre un subconjunto de filas), así que puede vivir en la app y
    quedar accesible sin Excel. Camino sugerido: subir el `.xlsm` (o un CSV de
    `Data GPS Partido`), calcular en el navegador o en una función de la API,
