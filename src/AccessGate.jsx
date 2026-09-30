@@ -37,6 +37,25 @@ const textoDeErrorDeAcceso = (error, porDefecto) => {
   const texto = String(error?.message || "");
   if (/invalid login credentials/i.test(texto)) return "El correo o la contraseña no son correctos.";
   if (/email not confirmed/i.test(texto)) return "Todavía no confirmaste tu correo. Revisá la casilla.";
+  if (/user already registered|already been registered/i.test(texto)) {
+    return "Ese correo ya tiene una cuenta. Entrá con tu contraseña o pedí una nueva.";
+  }
+  if (/rate limit|too many requests/i.test(texto)) return "Demasiados intentos seguidos. Esperá un rato y probá de nuevo.";
+  return textoDeErrorDeContrasena(error, porDefecto);
+};
+
+// Lo que Supabase puede objetar de una contraseña nueva.
+const textoDeErrorDeContrasena = (error, porDefecto) => {
+  const texto = `${error?.code || ""} ${error?.message || ""}`;
+  if (/same_password|should be different|different from the old/i.test(texto)) {
+    return "La contraseña nueva tiene que ser distinta de la anterior.";
+  }
+  if (/weak_password|at least \d+ characters|weak|should contain/i.test(texto)) {
+    return "La contraseña es muy fácil de adivinar. Usá al menos 8 caracteres, mezclando letras y números.";
+  }
+  if (/reauthentication|re-authenticate|session/i.test(texto)) {
+    return "Por seguridad, pedí un enlace nuevo desde Olvidé mi contraseña y probá otra vez.";
+  }
   return porDefecto;
 };
 
@@ -321,7 +340,7 @@ export default function AccessGate({ children }) {
       }
 
       if (nuevaPassword.length < 8) {
-        throw new Error("La nueva contraseña debe tener al menos 8 caracteres.");
+        throw new Error("La contraseña nueva tiene que tener al menos 8 caracteres.");
       }
 
       if (nuevaPassword !== confirmarPassword) {
@@ -346,7 +365,7 @@ export default function AccessGate({ children }) {
       ponerSesion(data.session);
       await resolverPerfil(data.session);
     } catch (errorUpdate) {
-      setError(errorUpdate?.message || "No se pudo cambiar la contraseña.");
+      setError(textoDeErrorDeContrasena(errorUpdate, errorUpdate?.message || "No se pudo cambiar la contraseña."));
     } finally {
       setAccion("");
     }
@@ -409,7 +428,7 @@ export default function AccessGate({ children }) {
     return (
       <PantallaAcceso
         titulo="Elegí una contraseña nueva"
-        texto="Después vas a entrar con esta."
+        texto="De ahora en más vas a entrar con esta contraseña."
         onVolver={cancelarRecuperacion}
         etiquetaVolver="Volver"
       >

@@ -302,6 +302,31 @@ describe("la puerta de la app", () => {
     expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
   });
 
+  test("si la contraseña nueva es igual a la anterior, Supabase lo objeta y se avisa en castellano", async () => {
+    supa.enlace = { tipo: "recovery", error: "", descripcion: "" };
+    supa.sesion = SESION;
+    supa.updateUser = vi.fn(async () => ({
+      error: { code: "same_password", message: "New password should be different from the old password." },
+    }));
+    await montar();
+
+    const [nueva, repetida] = contenedor.querySelectorAll('input[type="password"]');
+    await escribir(nueva, "lamismadesiempre1");
+    await escribir(repetida, "lamismadesiempre1");
+    await act(async () => {
+      contenedor.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await act(async () => Promise.resolve());
+
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "La contraseña nueva tiene que ser distinta de la anterior.",
+    );
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+    expect(contenedor.querySelector(".training-access-card p").textContent).toBe(
+      "De ahora en más vas a entrar con esta contraseña.",
+    );
+  });
+
   test("si las contraseñas no coinciden, no guarda y avisa", async () => {
     supa.enlace = { tipo: "recovery", error: "", descripcion: "" };
     supa.sesion = SESION;
