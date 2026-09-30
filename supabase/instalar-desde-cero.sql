@@ -256,9 +256,13 @@ commit;
 -- ---------------------------------------------------------------- Cuentas --
 --
 -- Quién entra y qué puede usar cada cuenta vive en public.perfiles. Después
--- de este archivo hay que correr supabase/migrations/20260930_cuentas.sql
--- (crea perfiles, sus disparadores y funciones, y cambia la política de
--- entrenamientos para que solo la usen cuentas autorizadas con Flujo diario).
+-- de este archivo hay que correr, en orden:
+--   1. supabase/migrations/20260930_cuentas.sql (crea perfiles, sus
+--      disparadores y funciones, y cierra entrenamientos a cuentas con Flujo
+--      diario);
+--   2. supabase/migrations/20260930_partido_solo_autorizados.sql (cierra las
+--      tablas de Partido a cuentas autorizadas y le saca todo al rol anon).
+-- Las políticas abiertas de arriba son solo el punto de partida.
 
 -- --------------------------------------------------------------- Revisión --
 --
