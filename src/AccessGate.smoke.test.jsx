@@ -15,10 +15,16 @@ const supa = vi.hoisted(() => ({
   resetPasswordForEmail: null,
   signUp: null,
   signOut: null,
+  updateUser: null,
   consultas: [],
+  // Lo que trajo la URL al abrirse (enlace del correo), cambiable por prueba.
+  enlace: { tipo: "", error: "", descripcion: "" },
 }));
 
 vi.mock("./supabase.js", () => ({
+  get ENLACE_DE_ACCESO() {
+    return supa.enlace;
+  },
   supabase: {
     auth: {
       getSession: async () => ({ data: { session: supa.sesion }, error: supa.errorSesion }),
@@ -27,7 +33,7 @@ vi.mock("./supabase.js", () => ({
       resetPasswordForEmail: (...args) => supa.resetPasswordForEmail(...args),
       signUp: (...args) => supa.signUp(...args),
       signOut: (...args) => supa.signOut(...args),
-      updateUser: async () => ({ error: null }),
+      updateUser: (...args) => supa.updateUser(...args),
     },
     from: (tabla) => {
       const cadena = {
@@ -60,6 +66,8 @@ describe("la puerta de la app", () => {
     supa.resetPasswordForEmail = vi.fn(async () => ({ error: null }));
     supa.signUp = vi.fn(async () => ({ data: { session: null }, error: null }));
     supa.signOut = vi.fn(async () => ({ error: null }));
+    supa.updateUser = vi.fn(async () => ({ error: null }));
+    supa.enlace = { tipo: "", error: "", descripcion: "" };
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ ok: true }) })));
     localStorage.clear();
     contenedor = document.createElement("div");
@@ -269,5 +277,77 @@ describe("la puerta de la app", () => {
     await act(async () => boton("Volver").click());
     expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
     expect(window.location.search).toBe("");
+    expect(supa.signOut).not.toHaveBeenCalled();
+  });
+
+  test("el enlace de recuperación se reconoce por su marca aunque Supabase pierda el parámetro, y guardar la contraseña entra", async () => {
+    supa.enlace = { tipo: "recovery", error: "", descripcion: "" };
+    supa.sesion = SESION;
+    supa.perfil = AUTORIZADO;
+    await montar();
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Elegí una contraseña nueva");
+    expect(boton("Guardar contraseña").disabled).toBe(false);
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+
+    const [nueva, repetida] = contenedor.querySelectorAll('input[type="password"]');
+    await escribir(nueva, "nuevaclave123");
+    await escribir(repetida, "nuevaclave123");
+    await act(async () => {
+      contenedor.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await act(async () => Promise.resolve());
+
+    expect(supa.updateUser).toHaveBeenCalledWith({ password: "nuevaclave123" });
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+  });
+
+  test("si las contraseñas no coinciden, no guarda y avisa", async () => {
+    supa.enlace = { tipo: "recovery", error: "", descripcion: "" };
+    supa.sesion = SESION;
+    await montar();
+
+    const [nueva, repetida] = contenedor.querySelectorAll('input[type="password"]');
+    await escribir(nueva, "nuevaclave123");
+    await escribir(repetida, "otraclave123");
+    await act(async () => {
+      contenedor.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(supa.updateUser).not.toHaveBeenCalled();
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe("Las contraseñas no coinciden.");
+  });
+
+  test("Volver desde la recuperación descarta la sesión que abrió el enlace", async () => {
+    supa.enlace = { tipo: "recovery", error: "", descripcion: "" };
+    supa.sesion = SESION;
+    await montar();
+
+    await act(async () => boton("Volver").click());
+    await act(async () => Promise.resolve());
+    expect(supa.signOut).toHaveBeenCalledTimes(1);
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+  });
+
+  test("un enlace vencido lo dice claro en la puerta", async () => {
+    supa.enlace = { tipo: "", error: "otp_expired", descripcion: "Email link is invalid or has expired" };
+    await montar();
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "El enlace del correo venció o ya se usó. Pedí uno nuevo.",
+    );
+  });
+
+  test("un enlace de recuperación vencido, con el parámetro de la app, lo dice en la pantalla de contraseña nueva", async () => {
+    window.history.replaceState({}, "", "/?training_recovery=1");
+    supa.enlace = { tipo: "", error: "otp_expired", descripcion: "Email link is invalid or has expired" };
+    await montar();
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Elegí una contraseña nueva");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "El enlace del correo venció o ya se usó. Pedí uno nuevo.",
+    );
+    expect(boton("Guardar contraseña").disabled).toBe(true);
   });
 });
