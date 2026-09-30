@@ -43,6 +43,15 @@ La del 30 de septiembre (`20260930_cuentas.sql`) crea `perfiles`: quién entra a
 app y qué puede usar. Antes de correrla hay que completar sus dos líneas de
 "Semilla" (el correo del administrador y los correos que hasta entonces estaban
 en `OPENFIELD_ALLOWED_EMAILS`); la app con esta versión no funciona sin ella.
+La segunda del 30 de septiembre (`20260930_partido_solo_autorizados.sql`) cierra
+las tablas de Partido a cuentas autorizadas y le saca todo al rol anon; ya está
+aplicada en producción. Si alguna vez hiciera falta volver atrás,
+`20260930_partido_abierto_de_nuevo.sql` las deja abiertas como antes.
+
+En Supabase › Authentication hay que tener "Confirm email" prendido (Providers ›
+Email) y, en URL Configuration, el Site URL de producción y
+`https://react-sydhevfb-app-partidos.vercel.app/**` en Redirect URLs, para que
+el correo de "Olvidé mi contraseña" vuelva a la app.
 
 Variables del servidor (Vercel › Settings › Environment Variables, Production y
 Preview; solo los nombres): `OPENFIELD_API_BASE_URL`, `OPENFIELD_API_TOKEN`,
@@ -63,9 +72,9 @@ administrador; hasta entonces no entra a la app ni ve datos de Flujo diario (las
 políticas de `entrenamientos` y `catapult_cuentas` piden `puede_usar('flujo')`).
 Nombrar otro administrador es una línea en el SQL Editor:
 `update public.perfiles set estado = 'autorizado', admin = true where email = '…';`.
-Borrar una cuenta es desde Supabase › Authentication › Users. Con
-`20260930_partido_solo_autorizados.sql`, las tablas de Partido también quedan
-cerradas: `registros_partido` solo para cuentas con Partido, `equipos` y
-`jugadores` para cualquier cuenta autorizada, y el rol anon sin permisos.
+Borrar una cuenta es desde Supabase › Authentication › Users. Las tablas de
+Partido también están cerradas (`20260930_partido_solo_autorizados.sql`):
+`registros_partido` solo para cuentas con Partido, `equipos`, `jugadores` y
+`ajustes` para cualquier cuenta autorizada, y el rol anon sin permisos.
 
 Más detalle en [docs/AUDITORIA_2026-09-08.md](docs/AUDITORIA_2026-09-08.md).
