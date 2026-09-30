@@ -19,7 +19,7 @@ export const ETIQUETAS_VEREDICTO = {
   "ajenos-tocados": "Cambió algo de la sesión que la app no maneja. Avisá por chat.",
   "obsoletos-no-retirados": "Las tareas quedaron bien, pero una tarea vieja no se pudo sacar.",
   "sin-relectura": "Se envió, pero no se pudo confirmar. Fijate la señal y revisá más tarde.",
-  "escritura-rechazada": "No se pudo enviar. Nada cambió; probá de nuevo.",
+  "escritura-rechazada": "OpenField no aceptó el envío. Probá de nuevo.",
 };
 
 // Por qué una tarea quedó mal después del envío.

@@ -113,6 +113,8 @@ describe("entrenamiento: modelo", () => {
     }));
     const recortada = recortarLocales(lista, 3);
     expect(recortada.map((e) => e.id)).toEqual(["e5", "e4", "e1"]);
+    // El que se acaba de abrir desde la base, aunque sea el más viejo, se queda.
+    expect(recortarLocales(lista, 3, { conservar: "e2" }).map((e) => e.id)).toEqual(["e5", "e2", "e1"]);
     expect(sinSubir(lista[0])).toBe(true);
     expect(sinSubir(lista[1])).toBe(false);
     expect(sinSubir({ ...lista[1], actualizadoEn: "2026-09-02T11:00:00.000Z" })).toBe(true);

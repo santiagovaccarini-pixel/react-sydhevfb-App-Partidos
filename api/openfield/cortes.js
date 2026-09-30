@@ -52,6 +52,10 @@ export default async function handler(request, response) {
     body?.asignaciones && typeof body.asignaciones === "object" && !Array.isArray(body.asignaciones)
       ? body.asignaciones
       : {};
+  // Tareas que la app borró desde el último envío: sus períodos se retiran.
+  const tareasBorradas = Array.isArray(body?.tareasBorradas)
+    ? body.tareasBorradas.slice(0, 200).map((id) => textoSeguro(id, 80)).filter(Boolean)
+    : [];
 
   if (!activityId) {
     return response.status(400).json({ ok: false, error: "Falta un activityId válido." });
@@ -149,6 +153,7 @@ export default async function handler(request, response) {
     const plan = planificarCortes({
       tareas,
       asignaciones,
+      tareasBorradas,
       actividadInterna,
       periodosConnect: connectAntes.snapshot.periods,
       generarId: randomUUID,

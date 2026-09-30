@@ -144,13 +144,15 @@ export const ordenarEntrenamientos = (lista) =>
   );
 
 // Se conservan los últimos `maximo`, pero nunca se suelta uno que todavía no
-// subió a la base: eso sería perderlo.
-export const recortarLocales = (lista, maximo = MAXIMO_LOCALES) => {
+// subió a la base (eso sería perderlo) ni el que se pide conservar: el que
+// se acaba de abrir, aunque sea viejo, tiene que quedar para trabajarlo.
+export const recortarLocales = (lista, maximo = MAXIMO_LOCALES, { conservar = null } = {}) => {
   const ordenada = ordenarEntrenamientos(lista);
   if (ordenada.length <= maximo) return ordenada;
-  const pendientes = ordenada.filter(sinSubir);
-  const guardados = ordenada.filter((entrenamiento) => !sinSubir(entrenamiento));
-  return ordenarEntrenamientos([...pendientes, ...guardados.slice(0, Math.max(0, maximo - pendientes.length))]);
+  const seQueda = (entrenamiento) => sinSubir(entrenamiento) || (conservar && entrenamiento.id === conservar);
+  const fijos = ordenada.filter(seQueda);
+  const recortables = ordenada.filter((entrenamiento) => !seQueda(entrenamiento));
+  return ordenarEntrenamientos([...fijos, ...recortables.slice(0, Math.max(0, maximo - fijos.length))]);
 };
 
 // Vincular (o cambiar) la sesión de OpenField. Cambiarla deja las tareas como

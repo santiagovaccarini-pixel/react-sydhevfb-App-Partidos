@@ -164,14 +164,33 @@ de lo hecho está en los commits, no en esta lista.
   líneas y no se vuelve más difícil por esperar. De paso aísla las fallas: hoy
   un error de Entrenamiento se lleva puesta la pantalla de partido.
 
-## Esperando una decisión tuya
+## Lo que dejó la revisión completa del 30/09
 
-- **La app no tiene inicio de sesión.** Quien consiga la URL puede leer o tocar
-  los partidos: las políticas de la base permiten todo al rol anónimo. Viene de
-  la auditoría del 8 de septiembre y sigue igual. Para cerrarlo hace falta
-  decidir quiénes entran —los correos o el criterio— antes de poner Supabase
-  Auth y políticas RLS; una política genérica podría dejarte afuera a vos mismo.
-  El detalle está en `AUDITORIA_2026-09-08.md`.
+Se revisó toda la app (pruebas automáticas, recorrido en navegador de cada
+pantalla y lectura módulo por módulo). Lo que se encontró roto se arregló en
+cuatro tandas (versiones 2026.09.30.6 a .9). Esto es lo que quedó anotado sin
+arreglar, de menor a mayor esfuerzo:
+
+- **Botón de quitar pausa** en Tareas: 34 px de alto, chico para el dedo.
+- **Cuentas, dos filas seguidas.** Si se toca una fila mientras la anterior
+  todavía se está guardando, la segunda se habilita antes de tiempo y podría
+  mandar el cambio dos veces. Raro, y sin daño real.
+- **Ícono de Android "maskable".** Es el mismo dibujo que el ícono común, así
+  que en los launchers redondos se recortan las esquinas y el borde dorado.
+  Hace falta un ícono aparte con el logo más chico sobre fondo negro.
+- **Bordes del iPhone (`viewport-fit=cover`).** La hoja de estilos ya
+  contempla los bordes seguros, pero la etiqueta viewport no lo pide, así que
+  las barras no llegan hasta el borde de la pantalla. Cambiarlo mueve el alto
+  de las barras: probarlo en el teléfono antes de subirlo.
+- **La sesión de OpenField dura hasta 8 h como tope** (normalmente 75 min):
+  bloquear una cuenta tarda eso en aplicarse a las pantallas de lectura de
+  Flujo diario. Enviar cortes sí se comprueba en el momento.
+- **El envío de cortes puede pasar los 60 s de Vercel** en el peor caso (login
+  en Catapult + dos lecturas + escritura). Si se corta después de escribir, la
+  app no se entera; al reintentar ya no duplica los períodos (los reconoce por
+  nombre y ventana), pero sigue siendo mejor acortar el presupuesto.
+- **Tareas que cruzan la medianoche** no se contemplan (el fin tiene que ser
+  posterior al inicio del mismo día).
 
 ## Chicas del filtro
 
