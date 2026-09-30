@@ -147,19 +147,53 @@ export const periodoEnJuego = (registro) =>
       registro?.[`inicio${periodo}`] && !registro?.[`final${periodo}`],
   ) || null;
 
+// Cuánto se le da a un partido terminado para seguir siendo del día en que
+// se jugó: el que termina 23:20 y se guarda 00:10 no cambia de fecha.
+export const HORAS_DE_GRACIA_TRAS_EL_FINAL = 6;
+
+const horaRealValida = (valor) => {
+  const partes = String(valor ?? "")
+    .trim()
+    .match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!partes) return null;
+  const [, hh, mm, ss = "00"] = partes;
+  if (Number(hh) > 23 || Number(mm) > 59 || Number(ss) > 59) return null;
+  return `${hh}:${mm}:${ss}`;
+};
+
+// El fin del último período jugado, como hora real; null si no hay o si la
+// hora es una guía de transmisión (minutos de juego, no reloj).
+const finDelUltimoPeriodo = (registro) => {
+  for (const periodo of [...PERIODOS_DEL_PARTIDO].reverse()) {
+    const final = registro?.[`final${periodo}`];
+    if (final) return horaRealValida(final);
+  }
+  return null;
+};
+
 // Al entrar a la app la fecha tiene que ser la de hoy. El borrador sobrevive
 // de un día para el otro, así que sin esto se seguía viendo la del último
-// partido cargado. Dos cosas la respetan: que la hayas elegido a mano en esta
-// visita, y un partido en juego, porque el que arranca de noche y sigue
-// pasada la medianoche no tiene por qué cambiar de día a mitad de registro.
+// partido cargado. Tres cosas la respetan: que la hayas elegido a mano en
+// esta visita; un partido en juego, porque el que arranca de noche y sigue
+// pasada la medianoche no tiene por qué cambiar de día a mitad de registro;
+// y un partido terminado hace poco, que todavía se está guardando.
 export const fechaAlEntrar = (
   registro,
-  { hoy = fechaLocalISO(), elegidaAMano = false } = {},
+  { hoy = fechaLocalISO(), elegidaAMano = false, ahora = new Date() } = {},
 ) => {
   const actual = String(registro?.fecha ?? "");
   if (!actual) return hoy;
   if (elegidaAMano) return actual;
-  return periodoEnJuego(registro) ? actual : hoy;
+  if (periodoEnJuego(registro)) return actual;
+
+  const fin = finDelUltimoPeriodo(registro);
+  if (fin) {
+    const horas = (ahora.getTime() - new Date(`${actual}T${fin}`).getTime()) / 3600000;
+    if (Number.isFinite(horas) && horas >= 0 && horas < HORAS_DE_GRACIA_TRAS_EL_FINAL) {
+      return actual;
+    }
+  }
+  return hoy;
 };
 
 export const esFormatoTransmision = (valor) => {

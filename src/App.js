@@ -238,7 +238,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.09.30.7";
+const APP_VERSION = "2026.09.30.8";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1134,7 +1134,7 @@ const EstadoVersionApp = ({ actualizacionDisponible, onActualizar }) => (
 // Desde el portal, la portada de la tarjeta ya hizo de imagen de entrada, así
 // que Partido entra directo (intro=false). Sola, la app sigue abriendo con
 // la foto del estadio.
-export default function App({ intro = true } = {}) {
+export default function App({ intro = true, onVolver = null, onCerrarSesion = null } = {}) {
   const crearCambioVacio = () => ({
     sale: "",
     entra: "",
@@ -1908,14 +1908,29 @@ export default function App({ intro = true } = {}) {
     return actualizados;
   };
 
+  // El partido queda en la cola del celular y arriba de la lista, sin sacar
+  // de la vista los que ya estaban: antes la lista pasaba a ser solo el
+  // pendiente, y el respaldo del celular se escribía así de pelado.
+  const guardarEnElCelular = (registroNuevo) => {
+    const pendientes = guardarPendiente(registroNuevo);
+    const clavesPendientes = new Set(pendientes.map(clavePartido));
+    establecerGuardados([
+      ...pendientes,
+      ...guardados.filter(
+        (item) =>
+          !item.sinSincronizar && !clavesPendientes.has(clavePartido(item)),
+      ),
+    ]);
+  };
+
   // Guardar un partido con la base caída lo dejaba a salvo, pero nadie lo
   // volvía a intentar: quedaba marcado "sin sincronizar" para siempre. Cuando
   // la base contesta, se suben los que faltan.
   const subirPendientes = async (registrosDeLaBase) => {
-    const clavesEnLaBase = new Set(registrosDeLaBase.map(clavePartido));
-    const porSubir = leerPendientes().filter(
-      (item) => !clavesEnLaBase.has(clavePartido(item)),
+    const enLaBasePorClave = new Map(
+      registrosDeLaBase.map((item) => [clavePartido(item), item]),
     );
+    const porSubir = leerPendientes();
 
     if (porSubir.length === 0) return { subioAlguno: false };
 
@@ -1924,10 +1939,22 @@ export default function App({ intro = true } = {}) {
 
     for (const pendiente of porSubir) {
       try {
-        const { error } = await supabase
-          .from("registros_partido")
-          .insert([construirFilaSupabase(pendiente)])
-          .select();
+        // Si ese partido ya está en la base (se había guardado con señal y
+        // después se volvió a guardar sin ella), lo que vale es lo del
+        // celular, que es lo último: se reemplaza la fila en vez de saltearla.
+        // Antes se descartaba el pendiente y el segundo tiempo se perdía.
+        const existente = enLaBasePorClave.get(clavePartido(pendiente));
+        const fila = construirFilaSupabase(pendiente);
+        const { error } = existente?.idSupabase
+          ? await supabase
+              .from("registros_partido")
+              .update(fila)
+              .eq("id", existente.idSupabase)
+              .select()
+          : await supabase
+              .from("registros_partido")
+              .insert([fila])
+              .select();
 
         if (error) {
           console.warn(
@@ -1949,16 +1976,17 @@ export default function App({ intro = true } = {}) {
     return { subioAlguno };
   };
 
-  // Al volver la base, los que ya llegaron dejan de estar pendientes; los que
-  // no, se muestran igual arriba de la lista.
+  // Los que todavía no llegaron a la base van arriba de la lista, y tapan a
+  // la fila vieja del mismo partido si la hay: lo del celular es lo último.
   const mezclarPendientes = (registrosDeLaBase) => {
-    const clavesEnLaBase = new Set(registrosDeLaBase.map(clavePartido));
-    const pendientes = leerPendientes().filter(
-      (item) => !clavesEnLaBase.has(clavePartido(item)),
-    );
-
-    escribirPendientes(pendientes);
-    return [...pendientes, ...registrosDeLaBase];
+    const pendientes = leerPendientes();
+    const clavesPendientes = new Set(pendientes.map(clavePartido));
+    return [
+      ...pendientes,
+      ...registrosDeLaBase.filter(
+        (item) => !clavesPendientes.has(clavePartido(item)),
+      ),
+    ];
   };
 
   const cargarRegistrosSupabase = async ({ reintentar = true } = {}) => {
@@ -1981,32 +2009,38 @@ export default function App({ intro = true } = {}) {
 
     const registrosConvertidos = (data || []).map(convertirSupabaseARegistro);
 
-    // Si la base contesta bien pero sin nada, y en el celular hay historial,
-    // NO se pisa: una respuesta vacía puede ser un permiso o una tabla que
-    // cambió, y antes eso borraba todos los partidos guardados.
-    if (registrosConvertidos.length === 0) {
-      const respaldo = leerRespaldoHistorial();
-
-      if (respaldo.length > 0) {
-        console.warn(
-          "La base no devolvió ningún partido. Se conserva el historial del celular.",
-        );
-        establecerGuardados(respaldo);
-        // La base contestó bien pero sin nada, y acá hay partidos: casi seguro
-        // es un permiso, como en septiembre. Se avisa en vez de disimularlo.
-        setEstadoHistorial("sospechoso");
-        setHistorialCargado(true);
-        return;
-      }
-    }
-
     // Con la base respondiendo, se aprovecha para subir lo que había quedado.
+    // Va antes de mirar si la respuesta vino vacía: el primer partido de un
+    // club nuevo, guardado sin señal, es justamente eso (base vacía y un
+    // pendiente) y antes se quedaba sin subir para siempre.
     if (reintentar) {
       const { subioAlguno } = await subirPendientes(registrosConvertidos);
 
       if (subioAlguno) {
         // Se vuelve a leer para traerlos ya con su id, sin reintentar de nuevo.
         await cargarRegistrosSupabase({ reintentar: false });
+        return;
+      }
+    }
+
+    // Si la base contesta bien pero sin nada, y en el celular hay historial
+    // que ya había llegado a la base, NO se pisa: una respuesta vacía puede
+    // ser un permiso o una tabla que cambió, y antes eso borraba todos los
+    // partidos guardados. Los pendientes no cuentan: todavía no están allá.
+    if (registrosConvertidos.length === 0) {
+      const respaldo = leerRespaldoHistorial().filter(
+        (item) => !item.sinSincronizar,
+      );
+
+      if (respaldo.length > 0) {
+        console.warn(
+          "La base no devolvió ningún partido. Se conserva el historial del celular.",
+        );
+        establecerGuardados(mezclarPendientes(respaldo));
+        // La base contestó bien pero sin nada, y acá hay partidos: casi seguro
+        // es un permiso, como en septiembre. Se avisa en vez de disimularlo.
+        setEstadoHistorial("sospechoso");
+        setHistorialCargado(true);
         return;
       }
     }
@@ -2020,6 +2054,22 @@ export default function App({ intro = true } = {}) {
     setEstadoHistorial("cargando");
     cargarRegistrosSupabase();
   };
+
+  // Lo que quedó sin sincronizar se sube apenas vuelve la señal, que es lo
+  // que promete la pantalla de Registros: antes había que reabrir la app o
+  // tocar Reintentar.
+  const releerAlVolverLaSenal = useRef(() => {});
+  releerAlVolverLaSenal.current = () => {
+    if (!equipoId || guardandoRef.current) return;
+    if (leerPendientes().length === 0) return;
+    releerHistorial();
+  };
+
+  useEffect(() => {
+    const alVolverLaSenal = () => releerAlVolverLaSenal.current();
+    window.addEventListener("online", alVolverLaSenal);
+    return () => window.removeEventListener("online", alVolverLaSenal);
+  }, []);
 
   useEffect(() => {
     // Se espera a saber de qué equipo es este teléfono: si no, la primera
@@ -3715,7 +3765,7 @@ export default function App({ intro = true } = {}) {
             "Faltan columnas en Supabase:",
             respuesta.error?.message || respuesta.error,
           );
-          establecerGuardados(guardarPendiente(nuevoRegistro));
+          guardarEnElCelular(nuevoRegistro);
           avisarGuardado("Falta actualizar la base de datos", 6000);
           alert(
             "Falta ejecutar la migración de captura de tiempos en Supabase. El partido quedó guardado en este dispositivo.",
@@ -3730,7 +3780,7 @@ export default function App({ intro = true } = {}) {
           respuesta.error?.message || respuesta.error,
           respuesta.error,
         );
-        establecerGuardados(guardarPendiente(nuevoRegistro));
+        guardarEnElCelular(nuevoRegistro);
         avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
         return;
       }
@@ -3752,7 +3802,7 @@ export default function App({ intro = true } = {}) {
       }
     } catch (error) {
       console.error("Error de red al guardar el partido:", error);
-      establecerGuardados(guardarPendiente(nuevoRegistro));
+      guardarEnElCelular(nuevoRegistro);
       avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
     } finally {
       guardandoRef.current = false;
@@ -3783,6 +3833,20 @@ export default function App({ intro = true } = {}) {
     if (errorHorasInicio) {
       alert(errorHorasInicio);
       return;
+    }
+
+    // El borrador de un partido ya guardado sigue teniendo el número de fila
+    // de ese partido. Si sobre él se cargó otro (otra fecha u otro rival,
+    // como pasa cuando se arranca el siguiente sin Limpiar), no se reemplaza
+    // el anterior: se guarda como un partido nuevo.
+    const guardadoConEseId = nuevoRegistro.idSupabase
+      ? guardados.find((item) => item.idSupabase === nuevoRegistro.idSupabase)
+      : null;
+    if (
+      guardadoConEseId &&
+      clavePartido(guardadoConEseId) !== clavePartido(nuevoRegistro)
+    ) {
+      nuevoRegistro.idSupabase = null;
     }
 
     // La fecha y el rival alcanzan para que dos partidos distintos se
@@ -4033,8 +4097,28 @@ export default function App({ intro = true } = {}) {
     });
   };
 
+  // Un pendiente (guardado sin señal) se saca de la cola y del respaldo del
+  // celular; si además ya tenía fila en la base, esa se borra abajo como
+  // cualquier otro.
+  const quitarPendienteLocal = (registroAEliminar) => {
+    const clave = clavePartido(registroAEliminar);
+    escribirPendientes(
+      leerPendientes().filter((item) => clavePartido(item) !== clave),
+    );
+    establecerGuardados(
+      guardados.filter((item) => clavePartido(item) !== clave),
+    );
+    setRegistroSeleccionado(null);
+  };
+
   const confirmarEliminarRegistro = async (indexAEliminar) => {
     const registroAEliminar = guardados[indexAEliminar];
+
+    if (registroAEliminar?.sinSincronizar && !registroAEliminar.idSupabase) {
+      quitarPendienteLocal(registroAEliminar);
+      avisarGuardado("Registro eliminado del celular");
+      return;
+    }
 
     if (!registroAEliminar?.idSupabase) {
       alert(
@@ -4050,7 +4134,11 @@ export default function App({ intro = true } = {}) {
 
     if (error) {
       console.error("Error eliminando registro en Supabase:", error);
-      alert("No se pudo eliminar el registro en Supabase");
+      alert(
+        registroAEliminar.sinSincronizar
+          ? "No hay conexión: este partido ya está en la base y se borra de ahí cuando vuelva la señal. Probá de nuevo más tarde."
+          : "No se pudo eliminar el registro en Supabase",
+      );
       return;
     }
 
@@ -4077,10 +4165,10 @@ export default function App({ intro = true } = {}) {
   };
 
   const actualizarRegistroGuardado = async (indexAEditar, registroEditado) => {
-    const idRegistro =
-      registroEditado.idSupabase || guardados[indexAEditar]?.idSupabase;
+    const anterior = guardados[indexAEditar];
+    const idRegistro = registroEditado.idSupabase || anterior?.idSupabase;
 
-    if (!idRegistro) {
+    if (!idRegistro && !anterior?.sinSincronizar) {
       alert("Este registro no tiene ID de Supabase. No se puede editar.");
       return false;
     }
@@ -4093,8 +4181,32 @@ export default function App({ intro = true } = {}) {
         registroEditado.cambios,
       ),
       editadoEn: new Date().toISOString(),
-      idSupabase: idRegistro,
+      idSupabase: idRegistro || null,
     };
+
+    // Un pendiente (guardado sin señal) se corrige en el celular: la versión
+    // corregida es la que se sube cuando vuelva la base.
+    if (anterior?.sinSincronizar) {
+      const claveAnterior = clavePartido(anterior);
+      escribirPendientes(
+        leerPendientes().filter((item) => clavePartido(item) !== claveAnterior),
+      );
+      const pendientes = guardarPendiente(registroConTiempos);
+      const clavesPendientes = new Set(pendientes.map(clavePartido));
+      const editado = pendientes[0];
+      establecerGuardados([
+        ...pendientes,
+        ...guardados.filter(
+          (item) =>
+            !item.sinSincronizar && !clavesPendientes.has(clavePartido(item)),
+        ),
+      ]);
+      setRegistroSeleccionado({ item: editado, index: 0 });
+      setDetalleBorrador(editado);
+      setDetalleEditando(false);
+      avisarGuardado("Cambios guardados en el celular · sin sincronizar", 6000);
+      return true;
+    }
 
     const registroSupabase = convertirRegistroASupabase(registroConTiempos);
 
@@ -6036,6 +6148,44 @@ export default function App({ intro = true } = {}) {
           <span className="flecha-ajuste">›</span>
         </button>
 
+        {onVolver && (
+          <button type="button" className="opcion-ajuste" onClick={onVolver}>
+            <span className="icono-ajuste">
+              <Icono nombre="partido" size={18} />
+            </span>
+            <span className="texto-ajuste">
+              <b>Cambiar de módulo</b>
+              <span>Volver al portal, a Flujo diario o a Cuentas</span>
+            </span>
+            <span className="flecha-ajuste">›</span>
+          </button>
+        )}
+
+        {onCerrarSesion && (
+          <button
+            type="button"
+            className="opcion-ajuste"
+            onClick={() =>
+              setConfirmacion({
+                titulo: "¿Cerrar sesión?",
+                descripcion:
+                  "Vas a tener que volver a entrar con tu correo y tu contraseña. Lo que está guardado en este celular no se pierde.",
+                etiquetaConfirmar: "Sí, cerrar sesión",
+                onConfirmar: onCerrarSesion,
+              })
+            }
+          >
+            <span className="icono-ajuste">
+              <Icono nombre="salir" size={18} />
+            </span>
+            <span className="texto-ajuste">
+              <b>Cerrar sesión</b>
+              <span>Salir de la cuenta en este celular</span>
+            </span>
+            <span className="flecha-ajuste">›</span>
+          </button>
+        )}
+
         {avisoEscudos && (
           <div className="notificacion-guardado" role="status">
             <Icono nombre="check" size={18} /> {avisoEscudos}
@@ -6079,15 +6229,17 @@ export default function App({ intro = true } = {}) {
     setErrorEquipo("");
     setNombreEquipoNuevo("");
     await releerEquipos();
-    cambiarDeEquipo(equipo.id);
+    cambiarDeEquipo(equipo.id, equipo);
     avisarEquipo(`Ahora estás en ${equipo.nombre}`);
   };
 
   // Cambiar de equipo cambia lo que se ve en toda la app, así que se vuelven a
   // leer los partidos y el plantel: de eso se encargan los efectos que miran
   // equipoId.
-  const cambiarDeEquipo = (id) => {
-    const elegido = equipos.find((equipo) => equipo.id === id);
+  const cambiarDeEquipo = (id, recienCreado = null) => {
+    // El recién creado todavía no está en la lista de este render: si se lo
+    // buscara ahí, el celular se quedaría con el club sin nombre.
+    const elegido = equipos.find((equipo) => equipo.id === id) || recienCreado;
 
     guardarEquipoElegido(elegido || { id });
     setEquipoGuardado(elegido || { id, nombre: "" });

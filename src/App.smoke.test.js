@@ -1174,6 +1174,194 @@ describe("interfaz operativa", () => {
     ).toHaveLength(0);
   });
 
+  const irAPestana = (etiqueta) =>
+    Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+      (boton) => boton.textContent.includes(etiqueta),
+    );
+
+  test("un partido guardado con señal y vuelto a guardar sin ella reemplaza la fila al volver la base", async () => {
+    // Se guardó 1-0 en el entretiempo, se perdió la señal y al final se
+    // volvió a guardar 2-1: lo del celular es lo último y tiene que subir.
+    doblesSupabase.filasHistorial = [
+      { id: 9, equipo_id: "eq-1", fecha: "2026-09-10", rival: "Santos", resultado: "1-0" },
+    ];
+    localStorage.setItem(
+      "registros_sin_sincronizar:eq-1",
+      JSON.stringify([
+        { fecha: "2026-09-10", rival: "Santos", resultado: "2-1", idSupabase: 9, sinSincronizar: true },
+      ]),
+    );
+
+    await montarApp();
+
+    expect(doblesSupabase.insertar).not.toHaveBeenCalled();
+    expect(doblesSupabase.actualizar).toHaveBeenCalledTimes(1);
+    expect(doblesSupabase.actualizar.mock.calls[0][0].resultado).toBe("2-1");
+    expect(
+      JSON.parse(localStorage.getItem("registros_sin_sincronizar:eq-1")),
+    ).toHaveLength(0);
+  });
+
+  test("el primer partido de un club nuevo, guardado sin señal, se sube aunque la base esté vacía", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const pendiente = { fecha: "2026-09-10", rival: "Santos", resultado: "2-1", sinSincronizar: true };
+    localStorage.setItem(
+      "backup_registros_partidos:eq-1",
+      JSON.stringify({ version: 2, registros: [pendiente] }),
+    );
+    localStorage.setItem("registros_sin_sincronizar:eq-1", JSON.stringify([pendiente]));
+
+    await montarApp();
+
+    expect(doblesSupabase.insertar).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(localStorage.getItem("registros_sin_sincronizar:eq-1")),
+    ).toHaveLength(0);
+    await act(async () => irAPestana("Registros").click());
+    expect(contenedor.textContent).not.toContain("permisos");
+  });
+
+  test("guardar sin señal no saca de la vista los partidos que ya estaban", async () => {
+    doblesSupabase.filasHistorial = [
+      { id: 1, equipo_id: "eq-1", fecha: "2026-09-01", rival: "Flamengo", resultado: "2-2" },
+    ];
+    doblesSupabase.errorGuardado = { message: "sin señal" };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await montarApp();
+    const guardar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Guardar partido"),
+    );
+    await act(async () => {
+      guardar.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => irAPestana("Registros").click());
+
+    const registros = contenedor.querySelectorAll(".registro-guardado");
+    expect(registros).toHaveLength(2);
+    expect(registros[0].textContent).toContain("Cruzeiro");
+    expect(registros[1].textContent).toContain("Flamengo");
+    // Y el respaldo del celular conserva los dos.
+    const respaldo = JSON.parse(localStorage.getItem("backup_registros_partidos:eq-1"));
+    expect(respaldo.registros.map((item) => item.rival)).toEqual(["Cruzeiro", "Flamengo"]);
+  });
+
+  test("arrancar otro partido sobre el borrador de uno guardado no pisa el anterior", async () => {
+    doblesSupabase.filasHistorial = [
+      { id: 9, equipo_id: "eq-1", fecha: "2026-09-08", rival: "Cruzeiro", resultado: "1-0" },
+    ];
+    // El borrador todavía lleva el número de fila del Cruzeiro guardado, pero
+    // ya tiene cargado el rival siguiente.
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify({
+        version: 2,
+        registro: {
+          fecha: "2026-09-08",
+          rival: "Santos",
+          resultado: "0-0",
+          idSupabase: 9,
+          formacion: { titulares: ["ALONSO", "SCARPA"], convocados: ["BERNARD"] },
+        },
+      }),
+    );
+
+    await montarApp();
+    const guardar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.includes("Guardar partido"),
+    );
+    await act(async () => {
+      guardar.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(doblesSupabase.actualizar).not.toHaveBeenCalled();
+    expect(doblesSupabase.insertar).toHaveBeenCalledTimes(1);
+    expect(doblesSupabase.insertar.mock.calls[0][0][0].rival).toBe("Santos");
+  });
+
+  test("un partido guardado sin señal se puede borrar del celular", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const pendiente = { fecha: "2026-09-10", rival: "Santos", resultado: "2-1", sinSincronizar: true };
+    doblesSupabase.errorHistorial = { message: "sin señal" };
+    localStorage.setItem(
+      "backup_registros_partidos:eq-1",
+      JSON.stringify({ version: 2, registros: [pendiente] }),
+    );
+    localStorage.setItem("registros_sin_sincronizar:eq-1", JSON.stringify([pendiente]));
+
+    await montarApp();
+    await act(async () => irAPestana("Registros").click());
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
+
+    await act(async () => contenedor.querySelector(".boton-eliminar-registro").click());
+    const confirmar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.trim() === "Sí, eliminar",
+    );
+    await act(async () => confirmar.click());
+    await act(async () => Promise.resolve());
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(0);
+    expect(
+      JSON.parse(localStorage.getItem("registros_sin_sincronizar:eq-1")),
+    ).toHaveLength(0);
+  });
+
+  test("un club creado desde Ajustes queda guardado en el celular con su nombre", async () => {
+    await montarApp();
+    await act(async () => irAPestana("Ajustes").click());
+    const opcionEquipo = Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find(
+      (boton) => boton.textContent.includes("Equipo"),
+    );
+    await act(async () => opcionEquipo.click());
+
+    const campo = contenedor.querySelector('input[placeholder="Nombre del equipo nuevo"]');
+    const poner = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    await act(async () => {
+      poner.call(campo, "Club Nuevo");
+      campo.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const crear = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.trim() === "Crear",
+    );
+    await act(async () => crear.click());
+    await act(async () => Promise.resolve());
+
+    expect(doblesSupabase.crearEquipo).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem("equipo_elegido")).nombre).toBe("Club Nuevo");
+  });
+
+  test("desde Ajustes se vuelve al portal y se cierra la sesión (con confirmación)", async () => {
+    const onVolver = vi.fn();
+    const onCerrarSesion = vi.fn();
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<App onVolver={onVolver} onCerrarSesion={onCerrarSesion} />);
+    });
+    await act(async () => Promise.resolve());
+    await act(async () => vi.runOnlyPendingTimers());
+    await act(async () => irAPestana("Ajustes").click());
+
+    const opcion = (texto) =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
+        boton.textContent.includes(texto),
+      );
+    await act(async () => opcion("Cambiar de módulo").click());
+    expect(onVolver).toHaveBeenCalledTimes(1);
+
+    await act(async () => opcion("Cerrar sesión").click());
+    expect(onCerrarSesion).not.toHaveBeenCalled();
+    const confirmar = Array.from(contenedor.querySelectorAll("button")).find(
+      (boton) => boton.textContent.trim() === "Sí, cerrar sesión",
+    );
+    await act(async () => confirmar.click());
+    expect(onCerrarSesion).toHaveBeenCalledTimes(1);
+  });
+
   test("en transmisión se guardan horarios reales, no minutos de juego", async () => {
     // El partido se anota en minutos de juego, pero lo que tiene que quedar
     // guardado son horarios, calculados desde la hora en que arrancó cada
