@@ -111,24 +111,14 @@ de lo hecho está en los commits, no en esta lista.
   después pasos que oscurecen la pantalla y señalan el botón a tocar. Una vez
   por módulo y por celular; se salta; se vuelve a ver desde Ajustes. Vale para
   Partido y para Entrenamiento, cada uno con sus pasos.
-- **Cuentas desde la app (en curso, 30/09).** Decidido con Santi: un solo
-  login antes del portal y permisos por cuenta (Partido, Flujo diario,
-  administrador), que él marca al autorizar. Etapa 1 (hecha): tabla `perfiles`
-  con disparadores y funciones (`20260930_cuentas.sql`), la puerta de la app
-  (`src/AccessGate.jsx`) antes del portal con copia local para entrar sin
-  señal, el portal mostrando solo lo habilitado y quién entró, la sesión de
-  OpenField abierta al entrar a Flujo diario (`src/OpenFieldSession.jsx`), el
-  servidor leyendo `perfiles` en vez de `OPENFIELD_ALLOWED_EMAILS`, cookie con
-  versión y rol atada al vencimiento del token (se renueva sola; `pedirJson`
-  reintenta una vez ante 401 de sesión) y firmada con `OPENFIELD_SESSION_SECRET`
-  si está cargada. "Olvidé mi contraseña" blindado: la vuelta del correo se reconoce por la
-  marca `type=recovery` del enlace aunque Supabase pierda el parámetro de la
-  app, un enlace vencido lo dice claro, y Volver descarta la sesión que abrió
-  el enlace. Hay que tener en Supabase › Authentication › URL Configuration
-  el Site URL de producción y `https://react-sydhevfb-app-partidos.vercel.app/**`
-  en Redirect URLs. Etapa 2 (hecha, 30/09): pantalla Cuentas desde el portal (`src/CuentasAdmin.jsx`, solo admin), con Por autorizar / Con acceso / Sin acceso, los módulos como fichas (Partido, Flujo diario, Administrador), Autorizar, Rechazar y Quitar acceso con confirmación; el portal muestra cuántas esperan. Etapa 3 (SQL listo, 30/09): `20260930_partido_solo_autorizados.sql` cierra registros_partido a cuentas con Partido, equipos y jugadores a cualquier cuenta autorizada, y le saca todo al rol anon; vuelta atrás en `20260930_partido_abierto_de_nuevo.sql`. Queda correrlo y probar Partido con y sin señal. Precondiciones
-  verificadas por la investigación: "Confirm email" prendido en Supabase ›
-  Authentication › Providers › Email; no dar por sentado cuánto dura el JWT.
+- **Cuentas: probar el circuito completo con una segunda cuenta** (registrarla
+  desde la app, verla en Por autorizar, autorizarla con un solo módulo, entrar
+  con ella y confirmar que ve solo ese módulo; después quitarle el acceso).
+  Lo demás quedó hecho el 30/09: un solo login antes del portal, permisos por
+  cuenta (Partido, Flujo diario, administrador), pantalla Cuentas para
+  autorizar, y las tablas de Partido y de Flujo diario cerradas a cuentas
+  autorizadas (etapa 3 aplicada y probada en producción, con y sin señal). Lo
+  que hay que tener configurado en Supabase está en el README.
 - **Candado a 26-05 T** mientras dure la prueba. Opcional, a decisión.
 - **Detectar pausas desde los datos GPS** ("Orión"), más adelante.
 
