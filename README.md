@@ -63,7 +63,9 @@ administrador; hasta entonces no entra a la app ni ve datos de Flujo diario (las
 políticas de `entrenamientos` y `catapult_cuentas` piden `puede_usar('flujo')`).
 Nombrar otro administrador es una línea en el SQL Editor:
 `update public.perfiles set estado = 'autorizado', admin = true where email = '…';`.
-Borrar una cuenta es desde Supabase › Authentication › Users. Las tablas de Partido
-siguen abiertas al rol anon (pendiente: cerrarlas a cuentas con Partido).
+Borrar una cuenta es desde Supabase › Authentication › Users. Con
+`20260930_partido_solo_autorizados.sql`, las tablas de Partido también quedan
+cerradas: `registros_partido` solo para cuentas con Partido, `equipos` y
+`jugadores` para cualquier cuenta autorizada, y el rol anon sin permisos.
 
 Más detalle en [docs/AUDITORIA_2026-09-08.md](docs/AUDITORIA_2026-09-08.md).
