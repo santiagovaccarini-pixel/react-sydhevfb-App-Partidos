@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "./supabase.js";
+import { ENLACE_DE_ACCESO, supabase } from "./supabase.js";
+import { esEnlaceDeRecuperacion, textoDeEnlaceFallido } from "./domain/enlaceAcceso.js";
 import {
   guardarPerfilLocal,
   leerMiPerfil,
@@ -15,8 +16,12 @@ import { RUTA_SESION_OPENFIELD } from "./trainingApi.js";
 // sin señal se usa la copia guardada en el celular, así en la cancha se
 // entra igual.
 
+// Se vuelve del correo de "Olvidé mi contraseña": por el parámetro que la app
+// pone en el enlace o, si Supabase lo perdió al redirigir, por la marca
+// `type=recovery` que el enlace trae en el fragmento.
 const esRecuperacionSolicitada = () => {
   if (typeof window === "undefined") return false;
+  if (esEnlaceDeRecuperacion(ENLACE_DE_ACCESO)) return true;
   return new URLSearchParams(window.location.search).get("training_recovery") === "1";
 };
 
@@ -24,7 +29,7 @@ export const limpiarParametroRecuperacion = () => {
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
   url.searchParams.delete("training_recovery");
-  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  window.history.replaceState({}, "", `${url.pathname}${url.search}`);
 };
 
 // Supabase contesta en inglés; acá se traduce lo que puede pasarle a quien entra.
@@ -144,9 +149,20 @@ export default function AccessGate({ children }) {
           setModoRecuperacion(true);
           setSesionRecuperacion(session);
           if (!session) {
-            setError("El enlace de recuperación no pudo validarse o venció. Pedí uno nuevo.");
+            setError(
+              textoDeEnlaceFallido(ENLACE_DE_ACCESO) ||
+                "El enlace de recuperación no pudo validarse o venció. Pedí uno nuevo.",
+            );
           }
           return;
+        }
+
+        // Un enlace del correo que no sirvió (vencido, ya usado): se avisa en
+        // la puerta, sin dejar afuera a quien ya tenía la sesión abierta.
+        if (ENLACE_DE_ACCESO.error) {
+          setMensaje("");
+          setError(textoDeEnlaceFallido(ENLACE_DE_ACCESO));
+          limpiarParametroRecuperacion();
         }
 
         if (errorSesion && !session) {
@@ -336,10 +352,15 @@ export default function AccessGate({ children }) {
     }
   };
 
-  const cancelarRecuperacion = () => {
+  // Volver sin cambiar la contraseña: el enlace ya había abierto una sesión,
+  // y no tiene sentido quedar adentro por un correo que no se terminó de usar.
+  const cancelarRecuperacion = async () => {
     limpiarParametroRecuperacion();
+    if (sesionRecuperacion) await supabase.auth.signOut().catch(() => null);
     setModoRecuperacion(false);
     setSesionRecuperacion(null);
+    ponerSesion(null);
+    setPerfil(null);
     setError("");
   };
 

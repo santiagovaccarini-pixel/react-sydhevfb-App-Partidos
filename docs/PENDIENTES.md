@@ -121,7 +121,12 @@ de lo hecho está en los commits, no en esta lista.
   servidor leyendo `perfiles` en vez de `OPENFIELD_ALLOWED_EMAILS`, cookie con
   versión y rol atada al vencimiento del token (se renueva sola; `pedirJson`
   reintenta una vez ante 401 de sesión) y firmada con `OPENFIELD_SESSION_SECRET`
-  si está cargada. Etapa 2: pantalla Cuentas (solo admin) con Autorizar /
+  si está cargada. "Olvidé mi contraseña" blindado: la vuelta del correo se reconoce por la
+  marca `type=recovery` del enlace aunque Supabase pierda el parámetro de la
+  app, un enlace vencido lo dice claro, y Volver descarta la sesión que abrió
+  el enlace. Hay que tener en Supabase › Authentication › URL Configuration
+  el Site URL de producción y `https://react-sydhevfb-app-partidos.vercel.app/**`
+  en Redirect URLs. Etapa 2: pantalla Cuentas (solo admin) con Autorizar /
   Quitar y los permisos por módulo. Etapa 3: cerrar las tablas de Partido al
   rol anon (`puede_usar('partido')`), probado en vista previa. Precondiciones
   verificadas por la investigación: "Confirm email" prendido en Supabase ›
