@@ -80,7 +80,7 @@ describe("la pantalla Cuentas", () => {
 
     const propia = fila("santi@club.com");
     expect(propia.classList.contains("propia")).toBe(true);
-    expect(propia.querySelector(".cuenta-etiqueta").textContent).toBe("Vos");
+    expect(propia.querySelector(".cuenta-etiqueta").textContent).toBe("Tu cuenta");
     expect(propia.querySelector("button")).toBeNull();
 
     expect(fila("analista@club.com").querySelector(".cuenta-etiqueta.alerta").textContent).toBe("Correo sin confirmar");
@@ -158,7 +158,7 @@ describe("la pantalla Cuentas", () => {
   });
 
   test("si la base no deja, lo dice sin cambiar la lista", async () => {
-    datos.errorDecision = "No se pudo cambiar: no tenés permiso o la cuenta ya no existe.";
+    datos.errorDecision = "No se pudo guardar el cambio: no tenés permiso o la cuenta ya no existe.";
     await montar();
     await act(async () => botonDe(fila("pf@club.com"), "Autorizar").click());
     await act(async () => Promise.resolve());

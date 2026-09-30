@@ -99,7 +99,7 @@ export const decidirPerfil = async (userId, cambios) => {
     .select(`${COLUMNAS_PERFIL}, creado_en, decidido_en`);
   if (error) throw new Error(error.message || "No se pudo cambiar la cuenta.");
   if (!data || data.length === 0) {
-    throw new Error("No se pudo cambiar: no tenés permiso o la cuenta ya no existe.");
+    throw new Error("No se pudo guardar el cambio: no tenés permiso o la cuenta ya no existe.");
   }
   return data[0];
 };

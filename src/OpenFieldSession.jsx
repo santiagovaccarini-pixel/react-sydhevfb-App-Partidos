@@ -51,7 +51,7 @@ export default function OpenFieldSession({ children, onVolver }) {
 
   if (estado.fase === "error") {
     return (
-      <PantallaAcceso titulo="No se pudo conectar" texto={estado.error} onVolver={onVolver}>
+      <PantallaAcceso titulo="No pudimos conectar con OpenField" texto={estado.error} onVolver={onVolver}>
         <div className="training-access-form">
           <button type="button" className="training-access-primary" onClick={() => abrir()}>
             Reintentar
@@ -62,7 +62,7 @@ export default function OpenFieldSession({ children, onVolver }) {
   }
 
   return (
-    <PantallaAcceso titulo="Un momento…" texto="Conectando con OpenField." onVolver={onVolver}>
+    <PantallaAcceso titulo="Un momento…" texto="Estamos conectando con OpenField." onVolver={onVolver}>
       <span className="training-access-espera" aria-hidden="true" />
     </PantallaAcceso>
   );

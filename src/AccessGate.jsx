@@ -36,11 +36,11 @@ export const limpiarParametroRecuperacion = () => {
 const textoDeErrorDeAcceso = (error, porDefecto) => {
   const texto = String(error?.message || "");
   if (/invalid login credentials/i.test(texto)) return "El correo o la contraseña no son correctos.";
-  if (/email not confirmed/i.test(texto)) return "Todavía no confirmaste tu correo. Revisá la casilla.";
+  if (/email not confirmed/i.test(texto)) return "Todavía no confirmaste tu correo. Buscá el mensaje en tu casilla (también en spam).";
   if (/user already registered|already been registered/i.test(texto)) {
     return "Ese correo ya tiene una cuenta. Entrá con tu contraseña o pedí una nueva.";
   }
-  if (/rate limit|too many requests/i.test(texto)) return "Demasiados intentos seguidos. Esperá un rato y probá de nuevo.";
+  if (/rate limit|too many requests/i.test(texto)) return "Hubo demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.";
   return textoDeErrorDeContrasena(error, porDefecto);
 };
 
@@ -146,7 +146,7 @@ export default function AccessGate({ children }) {
       setPerfil(null);
       throw new Error(
         sinSenal()
-          ? "Sin señal no se pudo comprobar tu cuenta. Probá cuando tengas conexión."
+          ? "No hay conexión y no pudimos comprobar tu cuenta. Probá de nuevo cuando tengas señal."
           : errorLectura?.message || "No se pudo comprobar tu cuenta. Probá de nuevo.",
       );
     }
@@ -170,7 +170,7 @@ export default function AccessGate({ children }) {
           if (!session) {
             setError(
               textoDeEnlaceFallido(ENLACE_DE_ACCESO) ||
-                "El enlace de recuperación no pudo validarse o venció. Pedí uno nuevo.",
+                "El enlace de recuperación no es válido o ya venció. Pedí uno nuevo desde Olvidé mi contraseña.",
             );
           }
           return;
@@ -274,7 +274,7 @@ export default function AccessGate({ children }) {
     try {
       const correo = email.trim();
       if (!correo || !password) {
-        throw new Error("Completá correo y contraseña.");
+        throw new Error("Completá el correo y la contraseña.");
       }
 
       const { data, error: errorRegistro } = await supabase.auth.signUp({
@@ -290,7 +290,7 @@ export default function AccessGate({ children }) {
         await resolverPerfil(data.session);
       } else {
         setMensaje(
-          "Cuenta creada. Confirmá tu correo desde la casilla y entrá; después quien administra la app tiene que autorizarla.",
+          "Cuenta creada. Te mandamos un correo para confirmarla: abrí el enlace y volvé a entrar. Después el administrador tiene que autorizarla.",
         );
       }
     } catch (errorRegistro) {
@@ -308,7 +308,7 @@ export default function AccessGate({ children }) {
     try {
       const correo = email.trim();
       if (!correo) {
-        throw new Error("Escribí tu correo primero.");
+        throw new Error("Primero escribí tu correo, así te mandamos el enlace.");
       }
 
       const redirectTo = `${window.location.origin}/?training_recovery=1`;
@@ -319,7 +319,7 @@ export default function AccessGate({ children }) {
       if (errorReset) throw errorReset;
 
       setMensaje(
-        "Si ese correo tiene una cuenta, vas a recibir un enlace para elegir una contraseña nueva.",
+        "Si ese correo tiene una cuenta, te va a llegar un enlace para elegir una contraseña nueva. Revisá también la carpeta de spam.",
       );
     } catch (errorReset) {
       setError(errorReset?.message || "No se pudo enviar el correo de recuperación.");
@@ -418,7 +418,7 @@ export default function AccessGate({ children }) {
 
   if (cargando) {
     return (
-      <PantallaAcceso titulo="Un momento…" texto="Comprobando tu cuenta.">
+      <PantallaAcceso titulo="Un momento…" texto="Estamos comprobando tu cuenta.">
         <Espera />
       </PantallaAcceso>
     );
@@ -490,16 +490,16 @@ export default function AccessGate({ children }) {
 
     const textos = {
       pendiente: {
-        titulo: "Tu cuenta está pendiente",
-        texto: `Ya quedó creada con ${correo}. Avisale a quien administra la app; cuando la autorice, tocá Volver a comprobar.`,
+        titulo: "Tu cuenta está pendiente de autorización",
+        texto: `La cuenta ${correo} ya está creada. Cuando el administrador la autorice vas a poder entrar; si ya te avisó, tocá Volver a comprobar.`,
       },
       bloqueado: {
         titulo: "Tu cuenta no tiene acceso",
-        texto: "Si creés que es un error, hablá con quien administra la app.",
+        texto: "El administrador le quitó el acceso a esta cuenta. Si creés que es un error, hablá con él.",
       },
       "sin-modulos": {
-        titulo: "Tu cuenta no tiene nada habilitado",
-        texto: "Quien administra la app tiene que marcarte Partido o Flujo diario. Después tocá Volver a comprobar.",
+        titulo: "Tu cuenta no tiene módulos habilitados",
+        texto: "El administrador todavía no te habilitó Partido ni Flujo diario. Cuando lo haga, tocá Volver a comprobar.",
       },
     }[situacion];
 
@@ -522,7 +522,7 @@ export default function AccessGate({ children }) {
 
   if (sesion && !perfil) {
     return (
-      <PantallaAcceso titulo="No se pudo comprobar tu cuenta" texto={error || "Probá de nuevo en un momento."}>
+      <PantallaAcceso titulo="No pudimos comprobar tu cuenta" texto={error || "Probá de nuevo en un momento."}>
         <div className="training-access-form">
           <button type="button" className="training-access-primary" onClick={volverAComprobar} disabled={Boolean(accion)}>
             {accion === "comprobar" ? "Comprobando…" : "Reintentar"}
@@ -538,7 +538,7 @@ export default function AccessGate({ children }) {
   }
 
   return (
-    <PantallaAcceso titulo="Entrá con tu cuenta" texto="Tu correo y tu contraseña de la app.">
+    <PantallaAcceso titulo="Entrá con tu cuenta" texto="Usá el correo y la contraseña con los que te registraste.">
       <form onSubmit={ingresar} className="training-access-form">
         <label>
           Correo
@@ -592,7 +592,7 @@ export default function AccessGate({ children }) {
         </div>
       </form>
 
-      <small>Si creás una cuenta nueva, hay que autorizarla antes de que pueda entrar.</small>
+      <small>Las cuentas nuevas necesitan la autorización del administrador antes de poder entrar.</small>
     </PantallaAcceso>
   );
 }

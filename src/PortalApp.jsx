@@ -211,7 +211,7 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
         <div className="portal-encabezado">
           {equipo?.nombre && <span className="portal-kicker">{equipo.nombre}</span>}
           <h1>¿Qué vas a hacer hoy?</h1>
-          <p>{tarjetas.length > 1 ? "Elegí por dónde arrancar." : "Esto es lo que tenés habilitado."}</p>
+          <p>{tarjetas.length > 1 ? "Elegí por dónde arrancar." : "Por ahora tenés habilitado este módulo."}</p>
         </div>
 
         <div className="portal-opciones">

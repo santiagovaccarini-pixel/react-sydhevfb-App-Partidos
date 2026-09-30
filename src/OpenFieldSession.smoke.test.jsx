@@ -80,7 +80,7 @@ describe("la sesión de OpenField antes de Flujo diario", () => {
   test("si el servidor falla, avisa y Reintentar vuelve a probar", async () => {
     api.respuesta = { respuesta: { ok: false, status: 503 }, payload: { ok: false, code: "PERFIL_NO_LEGIBLE", error: "No se pudo comprobar tu cuenta." } };
     await montar();
-    expect(contenedor.querySelector("h1").textContent).toBe("No se pudo conectar");
+    expect(contenedor.querySelector("h1").textContent).toBe("No pudimos conectar con OpenField");
 
     api.respuesta = { respuesta: { ok: true, status: 200 }, payload: { ok: true, rol: "usuario" } };
     const reintentar = Array.from(contenedor.querySelectorAll("button")).find((b) => b.textContent.trim() === "Reintentar");
