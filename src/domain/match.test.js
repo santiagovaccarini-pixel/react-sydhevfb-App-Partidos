@@ -36,6 +36,25 @@ describe("motor de registro de partido", () => {
     );
   });
 
+  test("un partido terminado hace poco sigue siendo del día en que se jugó", () => {
+    // Terminó 23:22 y se guarda 00:10: la fecha no salta al día siguiente.
+    const terminado = { fecha: "2026-09-15", inicioPT: "21:30:00", finalPT: "22:17:00", inicioST: "22:33:00", finalST: "23:22:10" };
+    expect(
+      fechaAlEntrar(terminado, { hoy: "2026-09-16", ahora: new Date(2026, 8, 16, 0, 10, 0) }),
+    ).toBe("2026-09-15");
+    // A la tarde siguiente ya es otro día: el borrador viejo no manda.
+    expect(
+      fechaAlEntrar(terminado, { hoy: "2026-09-16", ahora: new Date(2026, 8, 16, 15, 0, 0) }),
+    ).toBe("2026-09-16");
+    // Con la guía de transmisión (minutos de juego) no hay hora real que mirar.
+    expect(
+      fechaAlEntrar(
+        { ...terminado, finalST: "047:10", modoTiempo: "transmision" },
+        { hoy: "2026-09-16", ahora: new Date(2026, 8, 16, 0, 10, 0) },
+      ),
+    ).toBe("2026-09-16");
+  });
+
   test("un partido en juego no cambia de día a mitad de registro", () => {
     // Arrancó el ST a la noche y todavía no terminó: pasada la medianoche la
     // fecha tiene que seguir siendo la del arranque.

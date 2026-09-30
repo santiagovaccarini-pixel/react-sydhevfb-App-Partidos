@@ -268,8 +268,9 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   let contenido;
 
   if (modo === MODOS.PARTIDO && permisos?.partido) {
-    // La portada ya mostró la foto: Partido entra sin su intro.
-    contenido = <App intro={false} />;
+    // La portada ya mostró la foto: Partido entra sin su intro. Desde sus
+    // Ajustes se vuelve al portal o se cierra la sesión.
+    contenido = <App intro={false} onVolver={volver} onCerrarSesion={cerrarSesion} />;
   } else if (modo === MODOS.ENTRENAMIENTO && permisos?.flujo) {
     contenido = (
       // Quien entró con la copia de su cuenta (sin señal) no espera a que el
