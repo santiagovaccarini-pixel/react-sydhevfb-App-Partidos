@@ -584,6 +584,37 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
   });
 
+  test("actualizar la app sin señal avisa y no borra lo guardado para abrir sin red", async () => {
+    // El aviso de versión nueva queda en pantalla aunque se pierda la señal.
+    // Tocarlo sin conexión no puede vaciar el cache: la app quedaría sin poder
+    // abrir hasta que volviera la red.
+    const caches = { keys: vi.fn(async () => ["registro-partido-vieja"]), delete: vi.fn() };
+    vi.stubGlobal("caches", caches);
+
+    await montarApp();
+    // El bloque de versión vive en la pantalla de Formación.
+    const irA = (etiqueta) =>
+      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
+        (boton) => boton.textContent.includes(etiqueta),
+      );
+    await act(async () => irA("Formación").click());
+
+    expect(contenedor.querySelector(".indicador-modo-texto strong").textContent).toBe(
+      "Nueva versión disponible",
+    );
+    const boton = contenedor.querySelector(".boton-actualizar-version");
+    expect(boton).not.toBeNull();
+
+    fetch.mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => boton.click());
+    await act(async () => Promise.resolve());
+
+    expect(caches.delete).not.toHaveBeenCalled();
+    expect(contenedor.querySelector(".notificacion-guardado").textContent).toContain(
+      "Sin señal",
+    );
+  });
+
   test("sin rival cargado la pantalla principal no queda rota", async () => {
     localStorage.removeItem("registro_actual_partido");
 

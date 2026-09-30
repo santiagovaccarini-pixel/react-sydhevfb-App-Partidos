@@ -1,8 +1,9 @@
 import { autenticarCookieOpenField, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 
-const OPENFIELD_BASE_URL =
+const OPENFIELD_BASE_URL = (
   process.env.OPENFIELD_API_BASE_URL ||
-  "https://connect-us.catapultsports.com/api/v6";
+  "https://connect-us.catapultsports.com/api/v6"
+).replace(/\/+$/, "");
 
 const limpiarActividad = (actividad) => ({
   id: actividad?.id || "",

@@ -1,6 +1,6 @@
 import { autenticarCookieOpenField, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 import { resolverPase } from "../../lib/catapultAcceso.js";
-import { ACTIVIDAD_PRUEBA, leerBodyJson, textoSeguro } from "../../lib/catapultCloud.js";
+import { ACTIVIDAD_PRUEBA, leerBodyJson, textoSeguro, textoSecreto } from "../../lib/catapultCloud.js";
 import { describirAutorizacion } from "../../lib/catapultInspect.js";
 import { candidatosInternos, resumirInterno } from "../../lib/catapultInternal.js";
 import { describirCuerpo } from "../../lib/openfieldProbe.js";
@@ -32,7 +32,7 @@ export default async function handler(request, response) {
 
   const body = leerBodyJson(request);
   const username = textoSeguro(body?.username, 254);
-  const password = textoSeguro(body?.password, 512);
+  const password = textoSecreto(body?.password, 512);
 
   const acceso = await resolverPase({ request, username, password });
   if (!acceso.ok) {

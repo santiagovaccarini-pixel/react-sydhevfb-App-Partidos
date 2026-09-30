@@ -28,6 +28,22 @@ describe("la app guardada para usar sin señal", () => {
     expect(sw).toContain("caches.delete");
   });
 
+  it("nunca guarda ni sirve desde el cache lo que contesta /api/", () => {
+    // Son respuestas de cada cuenta y de cada momento: servirlas guardadas
+    // mostraría datos viejos (o de otra cuenta) como si fueran de ahora.
+    expect(sw).toContain('url.pathname.startsWith("/api/")) return;');
+  });
+
+  it("abre la app sin señal desde la portada precargada, no desde /index.html", () => {
+    // El servidor redirige /index.html a "/", y el navegador no acepta una
+    // respuesta redirigida para abrir la página: la reserva tiene que ser "/".
+    expect(sw).toContain('reserva: "/"');
+    expect(sw).not.toContain("/index.html");
+    expect(sw).toContain("respuesta.redirected");
+    const precache = readFileSync(join(raiz, "scripts", "precache.js"), "utf8");
+    expect(precache).not.toContain('"/index.html"');
+  });
+
   it("no se registra en desarrollo", () => {
     // Si no, serviría archivos viejos y ningún cambio se vería.
     expect(arranque).toContain("import.meta.env.PROD");

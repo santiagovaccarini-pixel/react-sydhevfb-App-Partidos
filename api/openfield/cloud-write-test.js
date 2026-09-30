@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { autenticarCookieOpenField, exigirAdmin, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 import { resolverPase } from "../../lib/catapultAcceso.js";
-import { ACTIVIDAD_PRUEBA, leerBodyJson, resumirError, textoSeguro } from "../../lib/catapultCloud.js";
+import { ACTIVIDAD_PRUEBA, leerBodyJson, resumirError, textoSeguro, textoSecreto } from "../../lib/catapultCloud.js";
 import { describirAutorizacion } from "../../lib/catapultInspect.js";
 import { ACTIVITY_SERVICE_BASE_DEFAULT } from "../../lib/catapultInternal.js";
 import {
@@ -118,7 +118,7 @@ export default async function handler(request, response) {
 
   const body = leerBodyJson(request);
   const username = textoSeguro(body?.username, 254);
-  const password = textoSeguro(body?.password, 512);
+  const password = textoSecreto(body?.password, 512);
   const confirmacion = textoSeguro(body?.confirmacion, 64);
 
   if (confirmacion !== ACTIVIDAD_PRUEBA.name) {

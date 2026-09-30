@@ -1,5 +1,5 @@
 import { autenticarBearerSupabase, responderNoAutenticado, tokenBearer } from "../../lib/openfieldAuth.js";
-import { capturarPaseConLogin, leerBodyJson, textoSeguro } from "../../lib/catapultCloud.js";
+import { capturarPaseConLogin, leerBodyJson, textoSeguro, textoSecreto } from "../../lib/catapultCloud.js";
 import {
   borrarCuenta,
   claveConfigurada,
@@ -60,7 +60,7 @@ export default async function handler(request, response) {
 
   const body = leerBodyJson(request);
   const usuario = textoSeguro(body?.username, 254);
-  const password = textoSeguro(body?.password, 512);
+  const password = textoSecreto(body?.password, 512);
 
   if (!usuario || !password) {
     return response.status(400).json({

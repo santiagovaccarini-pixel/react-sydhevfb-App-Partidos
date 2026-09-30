@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
@@ -28,8 +29,10 @@ const archivosDeAssets = fs.existsSync(path.join(dist, "assets"))
       .map((nombre) => `/assets/${nombre}`)
   : [];
 
+// La página de inicio no se lista por su nombre de archivo: el servidor lo
+// redirige a "/" y una respuesta redirigida no sirve para abrir la app sin
+// señal. "/" ya está en la lista.
 const sueltos = [
-  "/index.html",
   "/manifest.json",
   "/icono-app-192.png",
   "/icono-app-512.png",
@@ -39,16 +42,33 @@ const sueltos = [
   "/portal/flujo.webp",
   "/portal/partido-parada.webp",
   "/portal/flujo-parada.webp",
-].filter(
-  (archivo) => fs.existsSync(path.join(dist, archivo.slice(1))),
+];
+
+// Un archivo que falte dejaría la app sin esa parte cuando no hay señal, y
+// nadie se enteraría hasta estar en la cancha: mejor que falle la compilación.
+const faltantes = sueltos.filter(
+  (archivo) => !fs.existsSync(path.join(dist, archivo.slice(1))),
 );
+if (faltantes.length) {
+  throw new Error(`Faltan en dist/ archivos de la precarga: ${faltantes.join(", ")}`);
+}
 
 // "/" es lo que pide el navegador al abrir la app instalada.
 const precarga = ["/", ...sueltos, ...archivosDeAssets];
 
+// El nombre del cache lleva la versión y una huella de la lista: así una
+// compilación distinta con la misma versión también estrena cache y el service
+// worker borra el anterior al activarse.
+const huella = crypto
+  .createHash("sha256")
+  .update(precarga.join("\n"))
+  .digest("hex")
+  .slice(0, 8);
+const nombreCache = `registro-partido-${version}-${huella}`;
+
 const contenido = fs
   .readFileSync(rutaSw, "utf8")
-  .replace('"__CACHE__"', JSON.stringify(`registro-partido-${version}`))
+  .replace('"__CACHE__"', JSON.stringify(nombreCache))
   .replace('["__PRECARGA__"]', JSON.stringify(precarga));
 
 if (contenido.includes("__CACHE__") || contenido.includes("__PRECARGA__")) {
@@ -58,5 +78,5 @@ if (contenido.includes("__CACHE__") || contenido.includes("__PRECARGA__")) {
 fs.writeFileSync(rutaSw, contenido);
 
 console.log(
-  `Service worker listo: ${precarga.length} archivos, cache registro-partido-${version}`,
+  `Service worker listo: ${precarga.length} archivos, cache ${nombreCache}`,
 );

@@ -238,7 +238,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.09.30.5";
+const APP_VERSION = "2026.09.30.6";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4660,15 +4660,30 @@ export default function App({ intro = true } = {}) {
   );
 
   const actualizarAplicacion = async () => {
+    // Sin señal no hay versión nueva que traer. Antes se borraba el cache
+    // igual, y la app quedaba sin poder abrir hasta que volviera la conexión.
     try {
-      if ("caches" in window) {
-        const nombresCache = await window.caches.keys();
-        await Promise.all(
-          nombresCache.map((nombreCache) => window.caches.delete(nombreCache)),
-        );
-      }
+      const prueba = await fetch(`/version.json?t=${Date.now()}`, {
+        cache: "no-store",
+      });
+      if (!prueba.ok) throw new Error(`HTTP ${prueba.status}`);
     } catch (error) {
-      console.warn("No se pudo limpiar la caché antes de actualizar:", error);
+      console.warn("No hay señal para actualizar la app:", error);
+      avisarGuardado(
+        "Sin señal: la app se actualiza cuando vuelva la conexión.",
+        5000,
+      );
+      return;
+    }
+
+    // El service worker nuevo baja la versión nueva y, al activarse, borra la
+    // anterior. Acá solo se le pide que se fije y se recarga la página; el
+    // cache vigente no se toca, por si la descarga se corta a mitad de camino.
+    try {
+      const registro = await navigator.serviceWorker?.getRegistration?.();
+      await registro?.update?.();
+    } catch (error) {
+      console.warn("No se pudo pedir la actualización de la app:", error);
     }
 
     const urlActualizada = new URL(window.location.href);
@@ -7022,6 +7037,14 @@ export default function App({ intro = true } = {}) {
         onNavigate={navegarAplicacion}
         hayPartido={partidoEnCurso}
       >
+        {/* El aviso de "guardado" también fuera del tablero: al editar un
+            registro o al actualizar la app, la confirmación se veía solo si
+            se estaba en la pantalla del partido. */}
+        {mensajeGuardado && (
+          <div className="notificacion-guardado" role="status">
+            <Icono nombre="check" size={18} /> {mensajeGuardado}
+          </div>
+        )}
         {contenido}
         {renderHojaConfirmar()}
         {renderHojaDelFiltro()}
