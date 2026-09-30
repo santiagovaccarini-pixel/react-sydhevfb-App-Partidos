@@ -250,7 +250,7 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
 // Con la sesión abierta: el portal y los dos módulos, cada uno detrás de su
 // portada. Partido entra directo (la puerta ya comprobó la cuenta); Flujo
 // diario abre además su sesión de OpenField en el servidor.
-const AppConSesion = ({ email, userId, permisos, cerrarSesion }) => {
+const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = false }) => {
   const [modo, setModo] = useState(MODOS.PORTAL);
   // La portada que se está mostrando (tarjeta y desde dónde arranca el zoom),
   // o nada. Se muestra encima del módulo mientras este se carga.
@@ -272,7 +272,9 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion }) => {
     contenido = <App intro={false} />;
   } else if (modo === MODOS.ENTRENAMIENTO && permisos?.flujo) {
     contenido = (
-      <OpenFieldSession onVolver={volver}>
+      // Quien entró con la copia de su cuenta (sin señal) no espera a que el
+      // servidor abra la sesión de OpenField: entra y se abre cuando haya red.
+      <OpenFieldSession onVolver={volver} sinSenal={desdeCache}>
         {() => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />}
       </OpenFieldSession>
     );
@@ -301,8 +303,14 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion }) => {
 export default function PortalApp() {
   return (
     <AccessGate>
-      {({ email, userId, permisos, cerrarSesion }) => (
-        <AppConSesion email={email} userId={userId} permisos={permisos} cerrarSesion={cerrarSesion} />
+      {({ email, userId, permisos, cerrarSesion, desdeCache }) => (
+        <AppConSesion
+          email={email}
+          userId={userId}
+          permisos={permisos}
+          cerrarSesion={cerrarSesion}
+          desdeCache={desdeCache}
+        />
       )}
     </AccessGate>
   );
