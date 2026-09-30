@@ -111,10 +111,21 @@ de lo hecho está en los commits, no en esta lista.
   después pasos que oscurecen la pantalla y señalan el botón a tocar. Una vez
   por módulo y por celular; se salta; se vuelve a ver desde Ajustes. Vale para
   Partido y para Entrenamiento, cada uno con sus pasos.
-- **Acceso desde la app.** Hoy entra quien está en la lista de correos de
-  Vercel (`OPENFIELD_ALLOWED_EMAILS`); tiene que poder darse y quitarse desde la
-  app. Al agregar la ruta hay que juntar rutas: Vercel admite 12 funciones y ya
-  son 12. Probarlo en un despliegue de prueba antes de `main`.
+- **Cuentas desde la app (en curso, 30/09).** Decidido con Santi: un solo
+  login antes del portal y permisos por cuenta (Partido, Flujo diario,
+  administrador), que él marca al autorizar. Etapa 1 (hecha): tabla `perfiles`
+  con disparadores y funciones (`20260930_cuentas.sql`), la puerta de la app
+  (`src/AccessGate.jsx`) antes del portal con copia local para entrar sin
+  señal, el portal mostrando solo lo habilitado y quién entró, la sesión de
+  OpenField abierta al entrar a Flujo diario (`src/OpenFieldSession.jsx`), el
+  servidor leyendo `perfiles` en vez de `OPENFIELD_ALLOWED_EMAILS`, cookie con
+  versión y rol atada al vencimiento del token (se renueva sola; `pedirJson`
+  reintenta una vez ante 401 de sesión) y firmada con `OPENFIELD_SESSION_SECRET`
+  si está cargada. Etapa 2: pantalla Cuentas (solo admin) con Autorizar /
+  Quitar y los permisos por módulo. Etapa 3: cerrar las tablas de Partido al
+  rol anon (`puede_usar('partido')`), probado en vista previa. Precondiciones
+  verificadas por la investigación: "Confirm email" prendido en Supabase ›
+  Authentication › Providers › Email; no dar por sentado cuánto dura el JWT.
 - **Candado a 26-05 T** mientras dure la prueba. Opcional, a decisión.
 - **Detectar pausas desde los datos GPS** ("Orión"), más adelante.
 

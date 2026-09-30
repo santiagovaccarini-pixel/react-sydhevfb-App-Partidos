@@ -1,4 +1,4 @@
-import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+import { autenticarCookieOpenField, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 import {
   ACTIVIDAD_PRUEBA,
   abrirEditorActividad,
@@ -28,7 +28,7 @@ export default async function handler(request, response) {
 
   const auth = autenticarCookieOpenField(request);
   if (!auth.ok) {
-    return response.status(auth.status).json({ ok: false, error: auth.error });
+    return responderNoAutenticado(response, auth);
   }
 
   const body = leerBodyJson(request);

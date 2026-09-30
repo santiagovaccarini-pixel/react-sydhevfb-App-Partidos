@@ -3,6 +3,7 @@ import {
   autenticarCookieOpenField,
   borrarCookieSesionOpenField,
   crearCookieSesionOpenField,
+  responderNoAutenticado,
 } from "../../lib/openfieldAuth.js";
 
 export default async function handler(request, response) {
@@ -12,35 +13,26 @@ export default async function handler(request, response) {
 
   if (request.method === "GET") {
     const auth = autenticarCookieOpenField(request);
-    if (!auth.ok) {
-      return response.status(auth.status).json({ ok: false, error: auth.error });
-    }
+    if (!auth.ok) return responderNoAutenticado(response, auth);
 
-    return response.status(200).json({
-      ok: true,
-      email: auth.user.email,
-    });
+    return response.status(200).json({ ok: true, email: auth.user.email, rol: auth.user.rol });
   }
 
   if (request.method === "POST") {
     const auth = await autenticarBearerSupabase(request);
-    if (!auth.ok) {
-      return response.status(auth.status).json({ ok: false, error: auth.error });
-    }
+    if (!auth.ok) return responderNoAutenticado(response, auth);
 
-    const cookie = crearCookieSesionOpenField(auth.user);
+    const cookie = crearCookieSesionOpenField(auth.user, { jwtExp: auth.jwtExp });
     if (!cookie) {
       return response.status(500).json({
         ok: false,
+        code: "SIN_SECRETO",
         error: "No se pudo crear la sesión segura de OpenField.",
       });
     }
 
     response.setHeader("Set-Cookie", cookie);
-    return response.status(200).json({
-      ok: true,
-      email: auth.user.email,
-    });
+    return response.status(200).json({ ok: true, email: auth.user.email, rol: auth.user.rol });
   }
 
   if (request.method === "DELETE") {

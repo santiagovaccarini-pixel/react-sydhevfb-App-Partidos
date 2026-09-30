@@ -1,4 +1,4 @@
-import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+import { autenticarCookieOpenField, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 
 const OPENFIELD_BASE_URL =
   process.env.OPENFIELD_API_BASE_URL ||
@@ -35,7 +35,7 @@ export default async function handler(request, response) {
 
   const auth = autenticarCookieOpenField(request);
   if (!auth.ok) {
-    return response.status(auth.status).json({ ok: false, error: auth.error });
+    return responderNoAutenticado(response, auth);
   }
 
   const token = process.env.OPENFIELD_API_TOKEN;

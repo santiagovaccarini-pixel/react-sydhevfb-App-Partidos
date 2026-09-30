@@ -1,16 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { pedirJson } from "./trainingApi.js";
 
-// Lectura sin sesión de la app: estas rutas solo necesitan el acceso que ya
-// tiene el servidor. Se conserva tal cual (método, cabeceras y caché).
-export const leerJson = async (url) => {
-  const respuesta = await fetch(url, {
-    method: "GET",
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-  });
-  const payload = await respuesta.json().catch(() => null);
-  return { respuesta, payload };
-};
+// Lecturas de OpenField (actividades, períodos, datos): van con la sesión de
+// la app y, si la cookie venció, se renuevan solas y se repiten una vez.
+export const leerJson = (url) => pedirJson(url);
 
 // El servidor informa segundos o milisegundos según la ruta.
 export const marcaAFecha = (valor) => {

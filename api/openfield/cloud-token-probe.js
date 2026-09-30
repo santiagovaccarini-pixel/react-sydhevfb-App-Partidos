@@ -1,4 +1,4 @@
-import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+import { autenticarCookieOpenField, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 import { resolverPase } from "../../lib/catapultAcceso.js";
 import { ACTIVIDAD_PRUEBA, leerBodyJson, textoSeguro } from "../../lib/catapultCloud.js";
 import { describirAutorizacion } from "../../lib/catapultInspect.js";
@@ -27,7 +27,7 @@ export default async function handler(request, response) {
 
   const auth = autenticarCookieOpenField(request);
   if (!auth.ok) {
-    return response.status(auth.status).json({ ok: false, error: auth.error });
+    return responderNoAutenticado(response, auth);
   }
 
   const body = leerBodyJson(request);

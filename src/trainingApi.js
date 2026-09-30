@@ -37,8 +37,27 @@ export const mensajeDeRespuesta = (payload, porDefecto) => {
   return porDefecto;
 };
 
-// fetch con la sesión de la app puesta (cookie de OpenField + token de Supabase).
-export const pedirJson = async (url, { method = "GET", body } = {}) => {
+// Respuestas del servidor que quieren decir "la sesión de OpenField no
+// sirve": se pide una nueva con el token de Supabase y se repite el pedido.
+export const CODIGOS_SESION_OPENFIELD = new Set(["SIN_SESION", "SESION_INVALIDA", "SESION_VENCIDA"]);
+
+export const RUTA_SESION_OPENFIELD = "/api/openfield/session";
+
+// Abre (o renueva) la sesión de OpenField del servidor con el token de
+// Supabase de quien entró. Devuelve la respuesta y el cuerpo.
+export const abrirSesionOpenField = async () => {
+  const token = await tokenSesion();
+  if (!token) return { respuesta: null, payload: null };
+  const respuesta = await fetch(RUTA_SESION_OPENFIELD, {
+    method: "POST",
+    cache: "no-store",
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+  });
+  const payload = await respuesta.json().catch(() => null);
+  return { respuesta, payload };
+};
+
+const pedirUnaVez = async (url, { method, body }) => {
   const respuesta = await fetch(url, {
     method,
     credentials: "same-origin",
@@ -49,4 +68,19 @@ export const pedirJson = async (url, { method = "GET", body } = {}) => {
 
   const payload = await respuesta.json().catch(() => null);
   return { respuesta, payload };
+};
+
+// fetch con la sesión de la app puesta (cookie de OpenField + token de
+// Supabase). Si la cookie venció (la app estuvo en el fondo del celular más
+// de una hora), se renueva sola y se repite el pedido una vez.
+export const pedirJson = async (url, { method = "GET", body } = {}) => {
+  const primero = await pedirUnaVez(url, { method, body });
+  const codigo = primero.payload?.code;
+  const sesionVencida =
+    primero.respuesta.status === 401 && CODIGOS_SESION_OPENFIELD.has(codigo) && !url.startsWith(RUTA_SESION_OPENFIELD);
+  if (!sesionVencida) return primero;
+
+  const { respuesta } = await abrirSesionOpenField();
+  if (!respuesta?.ok) return primero;
+  return pedirUnaVez(url, { method, body });
 };

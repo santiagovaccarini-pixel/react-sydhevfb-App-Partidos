@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+import { autenticarCookieOpenField, exigirAdmin, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 import { resolverPase } from "../../lib/catapultAcceso.js";
 import { ACTIVIDAD_PRUEBA, leerBodyJson, resumirError, textoSeguro } from "../../lib/catapultCloud.js";
 import { describirAutorizacion } from "../../lib/catapultInspect.js";
@@ -110,9 +110,10 @@ export default async function handler(request, response) {
     return response.status(405).json({ ok: false, error: "Método no permitido" });
   }
 
-  const auth = autenticarCookieOpenField(request);
+  // Escribe de prueba en OpenField: solo el administrador.
+  const auth = exigirAdmin(autenticarCookieOpenField(request));
   if (!auth.ok) {
-    return response.status(auth.status).json({ ok: false, error: auth.error });
+    return responderNoAutenticado(response, auth);
   }
 
   const body = leerBodyJson(request);

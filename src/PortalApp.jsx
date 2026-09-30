@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import App from "./App";
 import TrainingModule from "./TrainingModule";
-import TrainingAccessGate from "./TrainingAccessGate";
+import AccessGate from "./AccessGate.jsx";
+import OpenFieldSession from "./OpenFieldSession.jsx";
 import { ArteFlujo, ArtePartido, IconoFlujo, IconoPartido } from "./components/PortalArt.jsx";
 import { leerEquipoElegido } from "./domain/equipo.js";
 import "./portal.css";
@@ -13,15 +14,6 @@ const MODOS = {
   ENTRENAMIENTO: "entrenamiento",
 };
 
-const modoInicial = () => {
-  if (typeof window === "undefined") return MODOS.PORTAL;
-
-  const params = new URLSearchParams(window.location.search);
-  return params.get("training_recovery") === "1"
-    ? MODOS.ENTRENAMIENTO
-    : MODOS.PORTAL;
-};
-
 // Las dos puertas de la app, contadas en una línea: lo esencial de cada una.
 // `foco` es qué parte de la foto queda a la vista cuando hay que recortarla
 // (0 izquierda, 1 derecha; 0 arriba, 1 abajo): en el celular, parado, la foto
@@ -30,6 +22,7 @@ const modoInicial = () => {
 const TARJETAS = [
   {
     modo: MODOS.PARTIDO,
+    permiso: "partido",
     clase: "tarjeta-partido",
     foto: "/portal/partido.webp",
     fotoParada: "/portal/partido-parada.webp",
@@ -42,6 +35,7 @@ const TARJETAS = [
   },
   {
     modo: MODOS.ENTRENAMIENTO,
+    permiso: "flujo",
     clase: "tarjeta-flujo",
     foto: "/portal/flujo.webp",
     fotoParada: "/portal/flujo-parada.webp",
@@ -172,20 +166,30 @@ export const Portada = ({ tarjeta, desde, onTerminar }) => {
   );
 };
 
-const Portal = ({ onElegir }) => {
+const Portal = ({ onElegir, permisos, email, onSalir }) => {
   const equipo = leerEquipoElegido();
+  const tarjetas = TARJETAS.filter((tarjeta) => permisos?.[tarjeta.permiso]);
 
   return (
     <main className="portal-modulos">
       <section className="portal-contenido">
+        <div className="portal-cuenta">
+          <span className="portal-cuenta-correo" title={email}>
+            {email}
+          </span>
+          <button type="button" className="portal-salir" onClick={onSalir}>
+            Salir
+          </button>
+        </div>
+
         <div className="portal-encabezado">
           {equipo?.nombre && <span className="portal-kicker">{equipo.nombre}</span>}
           <h1>¿Qué vas a hacer hoy?</h1>
-          <p>Elegí por dónde arrancar.</p>
+          <p>{tarjetas.length > 1 ? "Elegí por dónde arrancar." : "Esto es lo que tenés habilitado."}</p>
         </div>
 
         <div className="portal-opciones">
-          {TARJETAS.map((tarjeta) => {
+          {tarjetas.map((tarjeta) => {
             const { modo, clase, foto, Arte, Icono, titulo, etiqueta, texto } = tarjeta;
             return (
               <button
@@ -217,42 +221,37 @@ const Portal = ({ onElegir }) => {
   );
 };
 
-export default function PortalApp() {
-  const [modo, setModo] = useState(modoInicial);
+// Con la sesión abierta: el portal y los dos módulos, cada uno detrás de su
+// portada. Partido entra directo (la puerta ya comprobó la cuenta); Flujo
+// diario abre además su sesión de OpenField en el servidor.
+const AppConSesion = ({ email, userId, permisos, cerrarSesion }) => {
+  const [modo, setModo] = useState(MODOS.PORTAL);
   // La portada que se está mostrando (tarjeta y desde dónde arranca el zoom),
   // o nada. Se muestra encima del módulo mientras este se carga.
   const [portada, setPortada] = useState(null);
   const terminarPortada = useCallback(() => setPortada(null), []);
 
   const elegir = (tarjeta, desde) => {
+    if (!permisos?.[tarjeta.permiso]) return;
     setPortada({ tarjeta, desde });
     setModo(tarjeta.modo);
   };
 
+  const volver = () => setModo(MODOS.PORTAL);
+
   let contenido;
 
-  if (modo === MODOS.PARTIDO) {
+  if (modo === MODOS.PARTIDO && permisos?.partido) {
     // La portada ya mostró la foto: Partido entra sin su intro.
     contenido = <App intro={false} />;
-  } else if (modo === MODOS.ENTRENAMIENTO) {
-    const volver = () => {
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("training_recovery");
-        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-      }
-      setModo(MODOS.PORTAL);
-    };
-
+  } else if (modo === MODOS.ENTRENAMIENTO && permisos?.flujo) {
     contenido = (
-      <TrainingAccessGate onVolver={volver}>
-        {({ email, cerrarSesion }) => (
-          <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />
-        )}
-      </TrainingAccessGate>
+      <OpenFieldSession onVolver={volver}>
+        {() => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />}
+      </OpenFieldSession>
     );
   } else {
-    contenido = <Portal onElegir={elegir} />;
+    contenido = <Portal onElegir={elegir} permisos={permisos} email={email} onSalir={cerrarSesion} />;
   }
 
   return (
@@ -260,5 +259,15 @@ export default function PortalApp() {
       {contenido}
       {portada && <Portada tarjeta={portada.tarjeta} desde={portada.desde} onTerminar={terminarPortada} />}
     </>
+  );
+};
+
+export default function PortalApp() {
+  return (
+    <AccessGate>
+      {({ email, userId, permisos, cerrarSesion }) => (
+        <AppConSesion email={email} userId={userId} permisos={permisos} cerrarSesion={cerrarSesion} />
+      )}
+    </AccessGate>
   );
 }

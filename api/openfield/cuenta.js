@@ -1,4 +1,4 @@
-import { autenticarBearerSupabase, tokenBearer } from "../../lib/openfieldAuth.js";
+import { autenticarBearerSupabase, responderNoAutenticado, tokenBearer } from "../../lib/openfieldAuth.js";
 import { capturarPaseConLogin, leerBodyJson, textoSeguro } from "../../lib/catapultCloud.js";
 import {
   borrarCuenta,
@@ -28,7 +28,7 @@ export default async function handler(request, response) {
 
   const auth = await autenticarBearerSupabase(request);
   if (!auth.ok) {
-    return response.status(auth.status).json({ ok: false, error: auth.error });
+    return responderNoAutenticado(response, auth);
   }
 
   if (!claveConfigurada()) {

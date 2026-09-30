@@ -27,6 +27,39 @@
   width: min(820px, 100%);
 }
 
+/* Quién entró, con el botón para salir, arriba de todo. */
+.portal-cuenta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.portal-cuenta-correo {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--portal-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-salir {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(11, 13, 16, 0.55);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .portal-encabezado {
   margin-bottom: 22px;
 }
