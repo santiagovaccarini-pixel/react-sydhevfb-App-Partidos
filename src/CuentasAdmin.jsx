@@ -49,14 +49,14 @@ const Fila = ({ perfil, seleccion, ocupada, onCambiarModulo, onAutorizar, onQuit
     <li className={`cuenta-fila${perfil.esMia ? " propia" : ""}`}>
       <div className="cuenta-encabezado">
         <span className="cuenta-correo">{perfil.email || "(sin correo)"}</span>
-        {perfil.esMia && <span className="cuenta-etiqueta">Vos</span>}
+        {perfil.esMia && <span className="cuenta-etiqueta">Tu cuenta</span>}
         {!perfil.esMia && perfil.admin && autorizada && <span className="cuenta-etiqueta">Administrador</span>}
         {!perfil.confirmado_en && <span className="cuenta-etiqueta alerta">Correo sin confirmar</span>}
       </div>
       {(fechaCorta(perfil.creado_en) || fechaCorta(perfil.decidido_en)) && (
         <div className="cuenta-meta">
           {fechaCorta(perfil.creado_en) && <span>Creada el {fechaCorta(perfil.creado_en)}</span>}
-          {fechaCorta(perfil.decidido_en) && <span>· Última decisión el {fechaCorta(perfil.decidido_en)}</span>}
+          {fechaCorta(perfil.decidido_en) && <span>· Último cambio el {fechaCorta(perfil.decidido_en)}</span>}
         </div>
       )}
 
@@ -205,7 +205,7 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
         <header className="cuentas-titulo">
           <span className="portal-kicker">Administración</span>
           <h1>Cuentas</h1>
-          <p>Quién puede entrar a la app y qué puede usar. Los cambios valen al toque.</p>
+          <p>Acá decidís quién puede entrar a la app y qué módulos usa cada uno. Los cambios se aplican en el momento.</p>
         </header>
 
         {error && (
@@ -222,7 +222,7 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
           <>
             <Grupo
               titulo="Por autorizar"
-              vacio={cargando ? "Cargando…" : "No hay cuentas esperando."}
+              vacio={cargando ? "Cargando…" : "No hay cuentas esperando autorización."}
               perfiles={grupos.pendientes}
               {...acciones}
             />
@@ -234,7 +234,7 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
             />
             <Grupo
               titulo="Sin acceso"
-              vacio={cargando ? "Cargando…" : "Ninguna cuenta bloqueada."}
+              vacio={cargando ? "Cargando…" : "No hay cuentas sin acceso."}
               perfiles={grupos.sinAcceso}
               {...acciones}
             />
@@ -248,8 +248,8 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
         titulo={aQuitar?.estado === "pendiente" ? "¿Rechazar esta cuenta?" : "¿Quitar el acceso?"}
         descripcion={
           aQuitar?.estado === "pendiente"
-            ? `${aQuitar?.email || "La cuenta"} no va a poder entrar. La podés autorizar más adelante desde "Sin acceso".`
-            : `${aQuitar?.email || "La cuenta"} deja de entrar a la app al toque. La podés volver a autorizar cuando quieras.`
+            ? `${aQuitar?.email || "La cuenta"} no va a poder entrar a la app. Si cambiás de idea, la podés autorizar desde Sin acceso.`
+            : `${aQuitar?.email || "La cuenta"} deja de tener acceso a la app en el momento. Podés volver a autorizarla cuando quieras.`
         }
         etiquetaConfirmar={aQuitar?.estado === "pendiente" ? "Sí, rechazar" : "Sí, quitar"}
         onConfirmar={confirmarQuitar}

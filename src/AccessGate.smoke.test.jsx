@@ -164,7 +164,7 @@ describe("la puerta de la app", () => {
     supa.perfil = null;
     await montar();
 
-    expect(contenedor.querySelector("h1").textContent).toBe("Tu cuenta está pendiente");
+    expect(contenedor.querySelector("h1").textContent).toBe("Tu cuenta está pendiente de autorización");
     expect(contenedor.querySelector(".training-access-card p").textContent).toContain("dt@club.com");
     expect(contenedor.querySelector(".adentro")).toBeNull();
 
@@ -185,7 +185,7 @@ describe("la puerta de la app", () => {
     raiz = null;
     supa.perfil = { ...AUTORIZADO, partido: false, flujo: false };
     await montar();
-    expect(contenedor.querySelector("h1").textContent).toBe("Tu cuenta no tiene nada habilitado");
+    expect(contenedor.querySelector("h1").textContent).toBe("Tu cuenta no tiene módulos habilitados");
   });
 
   test("Salir cierra la sesión de OpenField y la de Supabase, y borra la copia", async () => {
@@ -217,7 +217,7 @@ describe("la puerta de la app", () => {
     supa.errorPerfil = { message: "Failed to fetch" };
     await montar();
 
-    expect(contenedor.querySelector("h1").textContent).toBe("No se pudo comprobar tu cuenta");
+    expect(contenedor.querySelector("h1").textContent).toBe("No pudimos comprobar tu cuenta");
     expect(boton("Reintentar")).not.toBeNull();
 
     supa.errorPerfil = null;
@@ -246,7 +246,7 @@ describe("la puerta de la app", () => {
     await montar();
 
     await act(async () => boton("Olvidé mi contraseña").click());
-    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe("Escribí tu correo primero.");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe("Primero escribí tu correo, así te mandamos el enlace.");
 
     await escribir(contenedor.querySelector('input[type="email"]'), "dt@club.com");
     await act(async () => boton("Olvidé mi contraseña").click());

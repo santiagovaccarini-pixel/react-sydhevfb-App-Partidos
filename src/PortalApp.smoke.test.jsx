@@ -171,7 +171,7 @@ describe("el portal", () => {
 
     expect(contenedor.querySelector('button[aria-label="Entrar a Partido"]')).not.toBeNull();
     expect(contenedor.querySelector('button[aria-label="Entrar a Flujo diario"]')).toBeNull();
-    expect(contenedor.querySelector(".portal-encabezado p").textContent).toBe("Esto es lo que tenés habilitado.");
+    expect(contenedor.querySelector(".portal-encabezado p").textContent).toBe("Por ahora tenés habilitado este módulo.");
   });
 
   test("si la foto no carga, la portada muestra el dibujo", async () => {
