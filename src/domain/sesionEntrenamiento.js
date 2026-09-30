@@ -12,6 +12,14 @@ const claveDeSesion = (activityId) => `${CLAVE_SESION}:${activityId}`;
 
 const limpiar = (valor) => String(valor ?? "").trim();
 
+// Las horas se guardan siempre con segundos. Safari en el iPhone devuelve
+// "HH:MM" en los campos de hora aunque se le pidan segundos, y sin esto una
+// tarea enviada aparecía "Con cambios" solo por cambiar de formato.
+export const horaConSegundos = (valor) => {
+  const hora = limpiar(valor);
+  return /^\d{2}:\d{2}$/.test(hora) ? `${hora}:00` : hora;
+};
+
 // La actividad de OpenField elegida como sesión de trabajo. Se guarda en el
 // celular para que Tareas siga sabiendo sobre qué actividad trabaja aunque se
 // cierre la app o se pase por Ajustes.
@@ -102,11 +110,11 @@ export const normalizarTarea = (tarea, fechaPorDefecto = hoyLocal()) => ({
   id: limpiar(tarea?.id),
   nombre: limpiar(tarea?.nombre),
   fecha: /^\d{4}-\d{2}-\d{2}$/.test(limpiar(tarea?.fecha)) ? limpiar(tarea.fecha) : fechaPorDefecto,
-  inicio: limpiar(tarea?.inicio),
-  fin: limpiar(tarea?.fin),
+  inicio: horaConSegundos(tarea?.inicio),
+  fin: horaConSegundos(tarea?.fin),
   pausas: (Array.isArray(tarea?.pausas) ? tarea.pausas : []).map((pausa) => ({
-    inicio: limpiar(pausa?.inicio),
-    fin: limpiar(pausa?.fin),
+    inicio: horaConSegundos(pausa?.inicio),
+    fin: horaConSegundos(pausa?.fin),
   })),
   participantes: Object.fromEntries(
     Object.entries(tarea?.participantes && typeof tarea.participantes === "object" ? tarea.participantes : {})
@@ -115,8 +123,8 @@ export const normalizarTarea = (tarea, fechaPorDefecto = hoyLocal()) => ({
         limpiar(jugadorId),
         {
           modo: datos?.modo === MODO_PARCIAL ? MODO_PARCIAL : MODO_TOTAL,
-          inicio: limpiar(datos?.inicio),
-          fin: limpiar(datos?.fin),
+          inicio: horaConSegundos(datos?.inicio),
+          fin: horaConSegundos(datos?.fin),
         },
       ]),
   ),
@@ -285,11 +293,19 @@ export const huellaTarea = (tarea) =>
   JSON.stringify({
     nombre: limpiar(tarea?.nombre),
     fecha: tarea?.fecha ?? "",
-    inicio: tarea?.inicio ?? "",
-    fin: tarea?.fin ?? "",
-    pausas: tarea?.pausas ?? [],
+    inicio: horaConSegundos(tarea?.inicio),
+    fin: horaConSegundos(tarea?.fin),
+    pausas: (tarea?.pausas ?? []).map((pausa) => ({
+      inicio: horaConSegundos(pausa?.inicio),
+      fin: horaConSegundos(pausa?.fin),
+    })),
     participantes: Object.fromEntries(
-      Object.entries(tarea?.participantes || {}).sort(([a], [b]) => a.localeCompare(b)),
+      Object.entries(tarea?.participantes || {})
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([id, datos]) => [
+          id,
+          { modo: datos?.modo, inicio: horaConSegundos(datos?.inicio), fin: horaConSegundos(datos?.fin) },
+        ]),
     ),
   });
 

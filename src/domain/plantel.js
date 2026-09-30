@@ -2,11 +2,15 @@ import { supabase } from "../supabase.js";
 import jugadoresDelCodigo from "../jugadores";
 
 export const CLAVE_PLANTEL = "plantel_jugadores";
+// La lista con el chaleco de cada uno (Flujo diario), también por club.
+export const CLAVE_PLANTEL_CATAPULT = "plantel_catapult";
 
 // Una copia por club: sin esto, al cambiar de equipo quedaban a la vista los
 // jugadores del anterior.
 const claveDelPlantel = (equipoId) =>
   equipoId ? `${CLAVE_PLANTEL}:${equipoId}` : CLAVE_PLANTEL;
+const claveDelPlantelCatapult = (equipoId) =>
+  equipoId ? `${CLAVE_PLANTEL_CATAPULT}:${equipoId}` : CLAVE_PLANTEL_CATAPULT;
 
 // Los tres roles gruesos. Un jugador puede tener más de uno.
 export const ROLES = ["Defensa", "Mediocampo", "Ataque"];
@@ -86,6 +90,29 @@ export const guardarPlantelLocal = (plantel, equipoId = null) => {
     localStorage.setItem(claveDelPlantel(equipoId), JSON.stringify(plantel));
   } catch (error) {
     console.warn("No se pudo guardar el plantel en el celular:", error);
+  }
+};
+
+// La copia de la lista con chalecos: sin señal, Flujo diario arma las tareas
+// con ella (antes se quedaba sin jugadores y todo pasaba a "Incompleta").
+export const leerPlantelCatapultGuardado = (equipoId = null) => {
+  try {
+    const guardado = JSON.parse(
+      localStorage.getItem(claveDelPlantelCatapult(equipoId)) || "null",
+    );
+    if (!Array.isArray(guardado) || guardado.length === 0) return null;
+    return ordenarPorNombre(guardado.map(normalizarJugadorConCatapult));
+  } catch (error) {
+    console.warn("No se pudo leer la lista con chalecos guardada:", error);
+    return null;
+  }
+};
+
+export const guardarPlantelCatapultLocal = (plantel, equipoId = null) => {
+  try {
+    localStorage.setItem(claveDelPlantelCatapult(equipoId), JSON.stringify(plantel));
+  } catch (error) {
+    console.warn("No se pudo guardar la lista con chalecos en el celular:", error);
   }
 };
 
@@ -181,15 +208,22 @@ export const cargarPlantelConCatapult = async (equipoId = null) => {
 
   if (error) {
     const faltaColumna = /catapult_/i.test(error.message || "") && /column|does not exist/i.test(error.message || "");
+    // Con la base fuera de alcance vale la última copia de ESE club: sin
+    // ella, en la cancha no habría a quién ponerle una tarea.
+    const guardado = faltaColumna ? null : leerPlantelCatapultGuardado(equipoId);
+    if (guardado) return { plantel: guardado, desde: "respaldo", error: "" };
     return {
       plantel: [],
+      desde: "base",
       error: faltaColumna
         ? "La lista de jugadores todavía no tiene el vínculo con Catapult: falta ejecutar la migración 20260920_jugadores_catapult.sql en Supabase."
         : error.message,
     };
   }
 
-  return { plantel: ordenarPorNombre((data || []).map(normalizarJugadorConCatapult)) };
+  const plantel = ordenarPorNombre((data || []).map(normalizarJugadorConCatapult));
+  guardarPlantelCatapultLocal(plantel, equipoId);
+  return { plantel, desde: "base", error: "" };
 };
 
 export const guardarVinculoCatapult = async (id, { catapultId, catapultNombre }) => {

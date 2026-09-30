@@ -150,18 +150,11 @@ export default function TrainingDiagnostico({ cuenta, onVolver }) {
     setCopiaInspeccion("");
 
     try {
-      const respuesta = await fetch("/api/openfield/cloud-editor-inspect", {
+      // Con pedirJson: si la sesión de OpenField venció, se renueva sola.
+      const { respuesta, payload } = await pedirJson("/api/openfield/cloud-editor-inspect", {
         method: "POST",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username: usuarioLimpio, password }),
+        body: { username: usuarioLimpio, password },
       });
-
-      const payload = await respuesta.json().catch(() => null);
       setPassword("");
 
       if (!respuesta.ok || !payload?.ok) {
@@ -325,14 +318,7 @@ export default function TrainingDiagnostico({ cuenta, onVolver }) {
     setCopia("");
 
     try {
-      const respuesta = await fetch("/api/openfield/capability-probe", {
-        method: "GET",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      });
-
-      const payload = await respuesta.json().catch(() => null);
+      const { respuesta, payload } = await pedirJson("/api/openfield/capability-probe");
 
       if (!respuesta.ok || !payload?.ok) {
         throw new Error(mensajeDeRespuesta(payload, "La sonda no pudo consultar OpenField."));
@@ -372,21 +358,10 @@ export default function TrainingDiagnostico({ cuenta, onVolver }) {
     setMensaje("Abriendo Catapult y comprobando el acceso a 26-05 T…");
 
     try {
-      const respuesta = await fetch("/api/openfield/cloud-login-test", {
+      const { respuesta, payload } = await pedirJson("/api/openfield/cloud-login-test", {
         method: "POST",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: usuarioLimpio,
-          password,
-        }),
+        body: { username: usuarioLimpio, password },
       });
-
-      const payload = await respuesta.json().catch(() => null);
       setPassword("");
 
       if (!respuesta.ok || !payload?.ok) {

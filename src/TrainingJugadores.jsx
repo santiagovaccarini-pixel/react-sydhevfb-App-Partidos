@@ -135,7 +135,11 @@ export default function TrainingJugadores({ onVolver }) {
       const propuestas = proponerVinculos({ jugadores: plantel, atletas: lista });
       const iniciales = {};
       propuestas.forEach((fila) => {
-        iniciales[fila.jugadorId] = fila.vinculo?.atletaId || fila.propuesta?.atletaId || "";
+        // Un chaleco guardado que ya no existe no tiene opción en la lista:
+        // arranca en "Sin chaleco", así guardar lo desvincula.
+        iniciales[fila.jugadorId] = fila.vinculo?.ausente
+          ? ""
+          : fila.vinculo?.atletaId || fila.propuesta?.atletaId || "";
       });
       setElecciones(iniciales);
       setEstadoAtletas("listo");

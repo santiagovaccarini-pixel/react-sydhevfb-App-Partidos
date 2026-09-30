@@ -598,6 +598,84 @@ describe("TrainingTareas", () => {
     expect(contenedor.querySelector(".valor-reloj").textContent).toBe("06:00");
   });
 
+  test("una tarea borrada después de enviada viaja como borrada en el próximo envío", async () => {
+    // t1 ya está en la sesión (asignación "p1"); t2 es nueva. Se borra t1 y
+    // se envía: el pedido tiene que decir que t1 se saca.
+    inicial = entrenamientoDePrueba(
+      [
+        { ...tareaGuardada(), envio: { ok: true, fecha: "2026-05-26T13:00:00Z", huella: "vieja", fallidos: [] } },
+        tareaGuardada({ id: "t2", nombre: "3. PJ RED", inicio: "10:30:00", fin: "10:40:00" }),
+      ],
+      { asignaciones: { "t1|a-b": "p1" } },
+    );
+    const cuerpos = [];
+    vi.stubGlobal(
+      "fetch",
+      fetchDeCortes({
+        plan: (body) => {
+          cuerpos.push(body);
+          return respuesta(200, {
+            ok: true,
+            result: "plan",
+            activity: { id: ACTIVIDAD.id, name: "26-05 T" },
+            resumen: { actuales: 2, preservados: 1, reemplazados: 0, nuevos: 1, eliminados: 1, total: 2 },
+            tareas: body.tareas.map((tarea) => ({ tareaId: tarea.id, nombre: tarea.nombre, periodos: [] })),
+            confirmacionRequerida: "26-05 T",
+          });
+        },
+      }),
+    );
+    await montar();
+
+    await act(async () => porEtiqueta("Tarea 1").click());
+    await act(async () => porEtiqueta("Borrar tarea").click());
+    await act(async () => botonPorTexto("Sí, borrar").click());
+    expect(ultimo.current.tareas.map((tarea) => tarea.id)).toEqual(["t2"]);
+
+    await act(async () => botonQueEmpieza("Enviar 1 tarea").click());
+    await act(async () => Promise.resolve());
+    const plan = cuerpos.find((body) => body.soloPlan && body.tareas.length > 0);
+    expect(plan.tareasBorradas).toEqual(["t1"]);
+    expect(plan.tareas.map((tarea) => tarea.id)).toEqual(["t2"]);
+    // Y el resumen muestra que se saca una.
+    expect(contenedor.textContent).toContain("Tareas que se sacan");
+  });
+
+  test("sin señal la lista de jugadores no se pierde: se conserva la que había y Reintentar la vuelve a pedir", async () => {
+    // Primera lectura bien; después la base no contesta (sin señal) y no hay
+    // copia: la lista que ya estaba a la vista se conserva.
+    dobles.cargar
+      .mockReset()
+      .mockImplementationOnce(async () => ({ plantel: dobles.plantel, error: "" }))
+      .mockImplementationOnce(async () => ({ plantel: [], error: "TypeError: Failed to fetch" }))
+      .mockImplementation(async () => ({ plantel: dobles.plantel, error: "" }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    await montar();
+    expect(dobles.cargar).toHaveBeenCalledTimes(1);
+
+    // Reintentar vuelve a pedir la lista; aunque falle, lo que había sigue.
+    await act(async () => botonPorTexto("Reintentar").click());
+    await act(async () => Promise.resolve());
+    expect(dobles.cargar).toHaveBeenCalledTimes(2);
+    await act(async () => botonPorTexto("Nueva tarea").click());
+    await act(async () => botonQueEmpieza("Jugadores").click());
+    expect(nombresDeLaHoja()).toContain("A MINDA");
+    expect(contenedor.querySelector(".error-equipo")).toBeNull();
+    await act(async () => botonPorTexto("Listo").click());
+
+    // Al volver la señal se vuelve a leer sola.
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await act(async () => Promise.resolve());
+    expect(dobles.cargar).toHaveBeenCalledTimes(3);
+  });
+
   test("borrar una tarea pide confirmación y avisa que también se saca de la sesión", async () => {
     inicial = entrenamientoDePrueba([{ ...tareaGuardada(), envio: { ok: true, fecha: "2026-05-26T13:00:00Z", huella: "vieja", fallidos: [] } }], {
       asignaciones: { "t1|a-b": "p1" },

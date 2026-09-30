@@ -175,29 +175,40 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
     return () => window.clearInterval(intervalo);
   }, []);
 
+  // La lista de jugadores con su chaleco. Sin señal viene la copia del
+  // celular; si tampoco hay copia, lo que ya estaba a la vista se conserva.
+  // Se vuelve a leer con Reintentar y cuando vuelve la señal.
   useEffect(() => {
     let activo = true;
+
+    const aplicar = ({ lista, error }) => {
+      const nueva = Array.isArray(lista) ? lista : [];
+      const fallo = Boolean(error) && nueva.length === 0;
+      setPlantel((anterior) => (fallo && anterior.length > 0 ? anterior : nueva));
+      setEstadoPlantel((anterior) => (fallo ? (anterior === "listo" ? "listo" : "error") : "listo"));
+      setErrorPlantel(fallo ? error : "");
+    };
 
     const cargar = async () => {
       try {
         const { plantel: lista, error } = await cargarPlantelConCatapult(equipo?.id || null);
         if (!activo) return;
-        setPlantel(Array.isArray(lista) ? lista : []);
-        setEstadoPlantel(error ? "error" : "listo");
-        setErrorPlantel(error || "");
+        aplicar({ lista, error: error || "" });
       } catch (errorCarga) {
         if (!activo) return;
-        setPlantel([]);
-        setEstadoPlantel("error");
-        setErrorPlantel(errorCarga?.message || "No se pudo leer la lista de jugadores.");
+        aplicar({ lista: [], error: errorCarga?.message || "No se pudo leer la lista de jugadores." });
       }
     };
 
     cargar();
+    const alVolverLaSenal = () => cargar();
+    window.addEventListener("online", alVolverLaSenal);
     return () => {
       activo = false;
+      window.removeEventListener("online", alVolverLaSenal);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reintento]);
 
   // Lo que el servidor sabe de la sesión, leído con el usuario guardado. Sin
   // sesión de OpenField todavía no hay nada que leer.
@@ -256,6 +267,18 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
   }, [activityId, reintento]);
 
   const tareas = sesion?.tareas || [];
+  // Tareas que se enviaron alguna vez (tienen períodos asignados) y ya no
+  // están: el próximo envío las saca de la sesión, como promete el borrado.
+  const tareasBorradas = useMemo(() => {
+    const vivas = new Set(tareas.map((tarea) => String(tarea.id)));
+    return [
+      ...new Set(
+        Object.keys(sesion?.asignaciones || {})
+          .map((clave) => clave.split("|")[0])
+          .filter((id) => id && !vivas.has(id)),
+      ),
+    ];
+  }, [tareas, sesion?.asignaciones]);
   const rosterConocido = atletasActividad instanceof Set && atletasActividad.size > 0;
   const tieneDatos = (jugador) => !rosterConocido || atletasActividad.has(String(jugador.catapult_id));
   // Elegibles: con chaleco y, si se pudo leer, con datos en la sesión.
@@ -477,7 +500,7 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
     try {
       const { respuesta, payload } = await pedirJson("/api/openfield/cortes", {
         method: "POST",
-        body: { activityId, tareas: payloadTareas, asignaciones: sesion.asignaciones, soloPlan: true },
+        body: { activityId, tareas: payloadTareas, asignaciones: sesion.asignaciones, tareasBorradas, soloPlan: true },
       });
 
       if (!respuesta.ok || !payload?.ok || payload.result !== "plan") {
@@ -519,6 +542,7 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
           confirmacion: confirmacion.trim(),
           tareas: payloadTareas,
           asignaciones: sesion.asignaciones,
+          tareasBorradas,
         },
       });
 
@@ -1080,7 +1104,14 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
           <Aviso
             tono={resultado.ok ? "listo" : ""}
             titulo={ETIQUETAS_VEREDICTO[resultado.veredicto?.codigo] || resultado.veredicto?.detalle || "Envío terminado."}
-            texto={formatearFechaHora(envio.fecha)}
+            texto={[
+              formatearFechaHora(envio.fecha),
+              // Cuando OpenField rechazó la escritura, el detalle dice si se
+              // pudo comprobar que nada cambió o si hay que revisar la sesión.
+              resultado.veredicto?.codigo === "escritura-rechazada" ? resultado.veredicto?.detalle : "",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           >
             <ul className="lista-resultado">
               {(resultado.tareas || []).map((tarea) => (

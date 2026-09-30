@@ -172,6 +172,23 @@ describe("actividad elegida y estado de envío", () => {
     expect(fechaDeActividad({}, new Date("2026-09-20T08:00:00"))).toBe("2026-09-20");
   });
 
+  it("una hora sin segundos (Safari en el iPhone) no cambia la huella ni lo guardado", () => {
+    const base = {
+      id: "t1", nombre: "2. POSSE", fecha: "2026-05-26", inicio: "10:10:00", fin: "10:25:00",
+      pausas: [{ inicio: "10:15:00", fin: "10:16:00" }],
+      participantes: { 1: { modo: "parcial", inicio: "10:12:00", fin: "10:25:00" } },
+    };
+    const sinSegundos = {
+      ...base, inicio: "10:10", fin: "10:25", pausas: [{ inicio: "10:15", fin: "10:16" }],
+      participantes: { 1: { modo: "parcial", inicio: "10:12", fin: "10:25" } },
+    };
+    expect(huellaTarea(sinSegundos)).toBe(huellaTarea(base));
+    expect(normalizarTarea(sinSegundos)).toMatchObject({ inicio: "10:10:00", fin: "10:25:00", pausas: [{ inicio: "10:15:00", fin: "10:16:00" }] });
+    expect(normalizarTarea(sinSegundos).participantes[1]).toEqual({ modo: "parcial", inicio: "10:12:00", fin: "10:25:00" });
+    // Un cambio real sí cambia la huella.
+    expect(huellaTarea({ ...base, fin: "10:26:00" })).not.toBe(huellaTarea(base));
+  });
+
   it("distingue tarea pendiente, enviada y modificada después del envío", () => {
     const base = tarea();
     expect(estadoEnvioTarea(base)).toBe("pendiente");

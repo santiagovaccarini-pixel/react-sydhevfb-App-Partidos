@@ -150,7 +150,11 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
         try {
           const completo = await leerEntrenamientoDb(id);
           if (completo) {
-            setLista((actual) => recortarLocales([completo, ...actual.filter((entrenamiento) => entrenamiento.id !== id)]));
+            setLista((actual) =>
+              recortarLocales([completo, ...actual.filter((entrenamiento) => entrenamiento.id !== id)], undefined, {
+                conservar: id,
+              }),
+            );
           } else if (!local) {
             return false;
           }
