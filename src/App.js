@@ -238,7 +238,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.09.30.9";
+const APP_VERSION = "2026.09.30.10";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -4595,6 +4595,14 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
         <header
           className={`hero-partido ${esNeutral(registro) ? "neutral" : ""}`}
         >
+          {/* Vuelve al portal, a la vista y no escondido en Ajustes: igual
+              que en Flujo diario. */}
+          {onVolver && (
+            <button type="button" className="boton-modulos" onClick={onVolver}>
+              <Icono nombre="flecha" size={14} />
+              Módulos
+            </button>
+          )}
           <span className="etiqueta-hero">Próximo partido</span>
 
           <div className="enfrentamiento">
@@ -6147,19 +6155,6 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           </span>
           <span className="flecha-ajuste">›</span>
         </button>
-
-        {onVolver && (
-          <button type="button" className="opcion-ajuste" onClick={onVolver}>
-            <span className="icono-ajuste">
-              <Icono nombre="partido" size={18} />
-            </span>
-            <span className="texto-ajuste">
-              <b>Cambiar de módulo</b>
-              <span>Volver al portal, a Flujo diario o a Cuentas</span>
-            </span>
-            <span className="flecha-ajuste">›</span>
-          </button>
-        )}
 
         {onCerrarSesion && (
           <button

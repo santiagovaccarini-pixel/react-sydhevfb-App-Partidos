@@ -1335,7 +1335,7 @@ describe("interfaz operativa", () => {
     expect(JSON.parse(localStorage.getItem("equipo_elegido")).nombre).toBe("Club Nuevo");
   });
 
-  test("desde Ajustes se vuelve al portal y se cierra la sesión (con confirmación)", async () => {
+  test("el botón Módulos del inicio vuelve al portal, y desde Ajustes se cierra la sesión (con confirmación)", async () => {
     const onVolver = vi.fn();
     const onCerrarSesion = vi.fn();
     await act(async () => {
@@ -1344,15 +1344,21 @@ describe("interfaz operativa", () => {
     });
     await act(async () => Promise.resolve());
     await act(async () => vi.runOnlyPendingTimers());
-    await act(async () => irAPestana("Ajustes").click());
 
+    // Como en Flujo diario: a la vista, arriba del inicio, no escondido en
+    // Ajustes.
+    await act(async () => irAPestana("Formación").click());
+    const modulos = contenedor.querySelector(".hero-partido .boton-modulos");
+    expect(modulos.textContent).toContain("Módulos");
+    await act(async () => modulos.click());
+    expect(onVolver).toHaveBeenCalledTimes(1);
+
+    await act(async () => irAPestana("Ajustes").click());
     const opcion = (texto) =>
       Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
         boton.textContent.includes(texto),
       );
-    await act(async () => opcion("Cambiar de módulo").click());
-    expect(onVolver).toHaveBeenCalledTimes(1);
-
+    expect(opcion("Cambiar de módulo")).toBeUndefined();
     await act(async () => opcion("Cerrar sesión").click());
     expect(onCerrarSesion).not.toHaveBeenCalled();
     const confirmar = Array.from(contenedor.querySelectorAll("button")).find(
