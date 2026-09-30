@@ -41,14 +41,32 @@ describe("la sesión de OpenField antes de Flujo diario", () => {
     contenedor.remove();
   });
 
-  const montar = async (onVolver = () => {}) => {
+  const montar = async (onVolver = () => {}, props = {}) => {
     await act(async () => {
       raiz = createRoot(contenedor);
       raiz.render(
-        <OpenFieldSession onVolver={onVolver}>{({ rol }) => <div className="modulo">Flujo diario como {rol}</div>}</OpenFieldSession>,
+        <OpenFieldSession onVolver={onVolver} {...props}>
+          {({ rol, sinSenal }) => (
+            <div className="modulo">
+              Flujo diario como {rol}
+              {sinSenal ? " (sin señal)" : ""}
+            </div>
+          )}
+        </OpenFieldSession>,
       );
     });
     await act(async () => Promise.resolve());
+  };
+
+  const conSenal = async (valor, prueba) => {
+    const enLinea = Object.getOwnPropertyDescriptor(navigator, "onLine");
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: valor });
+    try {
+      await prueba();
+    } finally {
+      if (enLinea) Object.defineProperty(navigator, "onLine", enLinea);
+      else delete navigator.onLine;
+    }
   };
 
   test("abre la sesión en el servidor y muestra el módulo con el rol", async () => {
@@ -75,6 +93,47 @@ describe("la sesión de OpenField antes de Flujo diario", () => {
     expect(contenedor.querySelector(".training-access-card p").textContent).toBe("Tu cuenta no tiene habilitado Flujo diario.");
     await act(async () => contenedor.querySelector(".training-access-volver").click());
     expect(onVolver).toHaveBeenCalledTimes(1);
+  });
+
+  test("sin señal no espera al servidor: entra como usuario y avisa, y abre la sesión al volver la conexión", async () => {
+    await conSenal(false, async () => {
+      await montar(undefined, {});
+      expect(abrirSesionOpenField).not.toHaveBeenCalled();
+      expect(contenedor.querySelector(".modulo").textContent).toBe("Flujo diario como usuario (sin señal)");
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await act(async () => Promise.resolve());
+    expect(abrirSesionOpenField).toHaveBeenCalledTimes(1);
+    expect(contenedor.querySelector(".modulo").textContent).toBe("Flujo diario como admin");
+  });
+
+  test("quien entró con la copia de su cuenta tampoco espera al servidor", async () => {
+    await montar(undefined, { sinSenal: true });
+    expect(abrirSesionOpenField).not.toHaveBeenCalled();
+    expect(contenedor.querySelector(".modulo").textContent).toContain("(sin señal)");
+  });
+
+  test("si el pedido falla por la red (hay barras pero no pasan datos), entra igual", async () => {
+    abrirSesionOpenField.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await montar();
+    expect(contenedor.querySelector(".modulo").textContent).toBe("Flujo diario como usuario (sin señal)");
+  });
+
+  test("sin token y sin señal entra igual; sin token con señal pide entrar", async () => {
+    api.respuesta = { respuesta: null, payload: null };
+    await conSenal(false, async () => {
+      await montar();
+      expect(contenedor.querySelector(".modulo")).not.toBeNull();
+    });
+    await act(async () => raiz.unmount());
+    raiz = null;
+
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("No pudimos conectar con OpenField");
+    expect(contenedor.querySelector(".training-access-card p").textContent).toBe("Iniciá sesión para acceder a OpenField.");
   });
 
   test("si el servidor falla, avisa y Reintentar vuelve a probar", async () => {

@@ -17,6 +17,8 @@ const supa = vi.hoisted(() => ({
   signOut: null,
   updateUser: null,
   consultas: [],
+  // Los avisos de sesión de Supabase (onAuthStateChange) que la puerta escucha.
+  cambios: [],
   // Lo que trajo la URL al abrirse (enlace del correo), cambiable por prueba.
   enlace: { tipo: "", error: "", descripcion: "" },
 }));
@@ -28,7 +30,10 @@ vi.mock("./supabase.js", () => ({
   supabase: {
     auth: {
       getSession: async () => ({ data: { session: supa.sesion }, error: supa.errorSesion }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      onAuthStateChange: (cb) => {
+        supa.cambios.push(cb);
+        return { data: { subscription: { unsubscribe() {} } } };
+      },
       signInWithPassword: (...args) => supa.signInWithPassword(...args),
       resetPasswordForEmail: (...args) => supa.resetPasswordForEmail(...args),
       signUp: (...args) => supa.signUp(...args),
@@ -62,10 +67,16 @@ describe("la puerta de la app", () => {
     supa.perfil = null;
     supa.errorPerfil = null;
     supa.consultas = [];
+    supa.cambios = [];
     supa.signInWithPassword = vi.fn(async () => ({ data: { session: SESION }, error: null }));
     supa.resetPasswordForEmail = vi.fn(async () => ({ error: null }));
     supa.signUp = vi.fn(async () => ({ data: { session: null }, error: null }));
-    supa.signOut = vi.fn(async () => ({ error: null }));
+    // Como Supabase de verdad: cerrar la sesión la deja en nada.
+    supa.signOut = vi.fn(async () => {
+      supa.sesion = null;
+      return { error: null };
+    });
+    supa.cambios = [];
     supa.updateUser = vi.fn(async () => ({ error: null }));
     supa.enlace = { tipo: "", error: "", descripcion: "" };
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ ok: true }) })));
@@ -362,6 +373,161 @@ describe("la puerta de la app", () => {
     expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
       "El enlace del correo venció o ya se usó. Pedí uno nuevo.",
     );
+  });
+
+  const avisar = async (evento, session) => {
+    await act(async () => {
+      supa.cambios.forEach((cb) => cb(evento, session));
+    });
+    await act(async () => Promise.resolve());
+  };
+
+  const conSenal = async (valor, prueba) => {
+    const enLinea = Object.getOwnPropertyDescriptor(navigator, "onLine");
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: valor });
+    try {
+      await prueba();
+    } finally {
+      if (enLinea) Object.defineProperty(navigator, "onLine", enLinea);
+      else delete navigator.onLine;
+    }
+  };
+
+  test("sin señal, el aviso inicial vacío de Supabase no echa a quien entró con la copia", async () => {
+    supa.errorSesion = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
+    localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(AUTORIZADO));
+    await conSenal(false, async () => {
+      await montar();
+      expect(contenedor.querySelector(".adentro").textContent).toContain("sin señal");
+
+      // Supabase manda este aviso después de rendirse con la renovación.
+      await avisar("INITIAL_SESSION", null);
+      expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+    });
+  });
+
+  test("con barras pero sin datos (el celular se cree conectado), la copia también vale", async () => {
+    supa.errorSesion = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
+    localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(AUTORIZADO));
+    await conSenal(true, async () => {
+      await montar();
+      expect(contenedor.querySelector(".adentro").textContent).toContain("sin señal");
+    });
+  });
+
+  test("sin señal y sin copia, la puerta lo dice en castellano", async () => {
+    supa.errorSesion = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
+    await montar();
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "No hay conexión. Fijate la señal y probá de nuevo.",
+    );
+  });
+
+  test("al volver la señal, la cuenta que entró con la copia se vuelve a comprobar", async () => {
+    supa.errorSesion = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
+    localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(AUTORIZADO));
+    await conSenal(false, async () => {
+      await montar();
+      expect(contenedor.querySelector(".adentro").textContent).toContain("sin señal");
+      expect(supa.consultas).toHaveLength(0);
+    });
+
+    supa.errorSesion = null;
+    supa.sesion = SESION;
+    supa.perfil = { ...AUTORIZADO, flujo: true };
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await act(async () => Promise.resolve());
+    await act(async () => Promise.resolve());
+
+    expect(supa.consultas).toHaveLength(1);
+    expect(contenedor.querySelector(".adentro").textContent).toContain("en línea");
+    expect(contenedor.querySelector(".adentro").textContent).toContain('"flujo":true');
+  });
+
+  test("después de cambiar la contraseña, los avisos de sesión no vuelven a pedirla", async () => {
+    supa.enlace = { tipo: "recovery", error: "", descripcion: "" };
+    supa.sesion = SESION;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Elegí una contraseña nueva");
+
+    const [nueva, repetida] = contenedor.querySelectorAll('input[type="password"]');
+    await escribir(nueva, "nuevaclave123");
+    await escribir(repetida, "nuevaclave123");
+    await act(async () => {
+      contenedor.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+
+    // Al volver a la pestaña o al renovarse el token, Supabase avisa así.
+    await avisar("SIGNED_IN", SESION);
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+    await avisar("TOKEN_REFRESHED", SESION);
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+  });
+
+  test("un enlace vencido con otra sesión abierta no deja cambiarle la contraseña a esa cuenta", async () => {
+    window.history.replaceState({}, "", "/?training_recovery=1");
+    supa.enlace = { tipo: "", error: "otp_expired", descripcion: "Email link is invalid or has expired" };
+    supa.sesion = SESION;
+    supa.perfil = AUTORIZADO;
+    await montar();
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Elegí una contraseña nueva");
+    expect(boton("Guardar contraseña").disabled).toBe(true);
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toContain("venció");
+
+    // Volver no cierra la sesión que ya había: sigue adentro con ella.
+    await act(async () => boton("Volver").click());
+    await act(async () => Promise.resolve());
+    expect(supa.signOut).not.toHaveBeenCalled();
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+  });
+
+  test("Salir cierra solo en este celular y, si Supabase no pudo, borra la sesión guardada igual", async () => {
+    supa.sesion = SESION;
+    // Sin perfil legible queda la pantalla de "no pudimos comprobar", que
+    // tiene el botón Salir a mano.
+    supa.perfil = null;
+    await montar();
+    localStorage.setItem("sb-proyecto-auth-token", JSON.stringify({ access_token: "tok" }));
+    // Sin señal Supabase no llega a cerrar nada y contesta con error.
+    supa.signOut = vi.fn(async () => ({ error: { name: "AuthRetryableFetchError" } }));
+
+    await act(async () => boton("Salir").click());
+    await act(async () => Promise.resolve());
+
+    expect(supa.signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(localStorage.getItem("sb-proyecto-auth-token")).toBeNull();
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+
+    // Un token renovado tarde, con nadie adentro, no abre nada.
+    await avisar("TOKEN_REFRESHED", SESION);
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+  });
+
+  test("entrar lee la cuenta una sola vez aunque Supabase avise que entró", async () => {
+    supa.perfil = AUTORIZADO;
+    supa.signInWithPassword = vi.fn(async () => {
+      supa.cambios.forEach((cb) => cb("SIGNED_IN", SESION));
+      return { data: { session: SESION }, error: null };
+    });
+    await montar();
+
+    await escribir(contenedor.querySelector('input[type="email"]'), "dt@club.com");
+    await escribir(contenedor.querySelector('input[type="password"]'), "clave1234");
+    await act(async () => {
+      contenedor.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await act(async () => Promise.resolve());
+
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+    expect(supa.consultas).toHaveLength(1);
   });
 
   test("un enlace de recuperación vencido, con el parámetro de la app, lo dice en la pantalla de contraseña nueva", async () => {

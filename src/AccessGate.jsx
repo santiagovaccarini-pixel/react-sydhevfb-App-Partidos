@@ -35,6 +35,7 @@ export const limpiarParametroRecuperacion = () => {
 // Supabase contesta en inglés; acá se traduce lo que puede pasarle a quien entra.
 const textoDeErrorDeAcceso = (error, porDefecto) => {
   const texto = String(error?.message || "");
+  if (esFalloDeRed(error)) return TEXTO_SIN_CONEXION;
   if (/invalid login credentials/i.test(texto)) return "El correo o la contraseña no son correctos.";
   if (/email not confirmed/i.test(texto)) return "Todavía no confirmaste tu correo. Buscá el mensaje en tu casilla (también en spam).";
   if (/user already registered|already been registered/i.test(texto)) {
@@ -60,6 +61,33 @@ const textoDeErrorDeContrasena = (error, porDefecto) => {
 };
 
 const sinSenal = () => typeof navigator !== "undefined" && navigator.onLine === false;
+
+// Un fallo de red: no hay señal, o hay barras pero los datos no pasan.
+// Supabase lo marca como reintentable; el navegador, como un fetch que falló.
+export const esFalloDeRed = (error) =>
+  sinSenal() ||
+  error?.name === "AuthRetryableFetchError" ||
+  error?.status === 0 ||
+  /failed to fetch|load failed|networkerror|network request failed|fetch failed|AuthRetryableFetchError/i.test(
+    String(error?.message || ""),
+  );
+
+const TEXTO_SIN_CONEXION = "No hay conexión. Fijate la señal y probá de nuevo.";
+
+// La sesión que Supabase deja guardada en el celular. Se borra a mano al
+// salir, porque sin señal Supabase no llega a cerrarla y, al volver la
+// conexión, la cuenta reaparecía sola.
+export const borrarSesionGuardada = () => {
+  if (typeof localStorage === "undefined") return;
+  Object.keys(localStorage)
+    .filter((clave) => /^sb-.*-auth-token/.test(clave))
+    .forEach((clave) => localStorage.removeItem(clave));
+};
+
+// Cerrar la sesión de Supabase puede tardar medio minuto sin señal (intenta
+// renovar el token antes de cerrarla): se le da un rato y se sigue.
+const conTope = (promesa, milisegundos) =>
+  Promise.race([promesa, new Promise((resolver) => setTimeout(resolver, milisegundos))]);
 
 // La foto del estadio, borrosa, de fondo: la parada en el celular y la
 // apaisada en la computadora (las mismas de la portada de Partido).
@@ -108,6 +136,7 @@ export default function AccessGate({ children }) {
   const [perfil, setPerfil] = useState(null);
   const [desdeCache, setDesdeCache] = useState(false);
   const [cargando, setCargando] = useState(true);
+  const [tardando, setTardando] = useState(false);
   const [accion, setAccion] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
@@ -116,11 +145,46 @@ export default function AccessGate({ children }) {
   const [nuevaPassword, setNuevaPassword] = useState("");
   const [confirmarPassword, setConfirmarPassword] = useState("");
   const sesionActual = useRef(null);
+  const desdeCacheActual = useRef(false);
+  const accionActual = useRef("");
+  const montado = useRef(true);
+  // Se vuelve del correo de "Olvidé mi contraseña". Se apaga al terminar (o
+  // al cancelar): la marca del enlace queda en la URL de la pestaña, y sin
+  // esto cada aviso de sesión de Supabase volvía a pedir la contraseña nueva.
+  const recuperacionPendiente = useRef(esRecuperacionSolicitada());
 
   const ponerSesion = (nueva) => {
     sesionActual.current = nueva;
     setSesion(nueva);
   };
+
+  const marcarDesdeCache = (valor) => {
+    desdeCacheActual.current = valor;
+    setDesdeCache(valor);
+  };
+
+  const cambiarAccion = (valor) => {
+    accionActual.current = valor;
+    setAccion(valor);
+  };
+
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
+
+  // Si comprobar la cuenta tarda (sin señal, Supabase insiste un rato antes
+  // de rendirse), se avisa que no está trabado.
+  useEffect(() => {
+    if (!cargando) return undefined;
+    const reloj = window.setTimeout(() => setTardando(true), 6000);
+    return () => {
+      window.clearTimeout(reloj);
+      setTardando(false);
+    };
+  }, [cargando]);
 
   // La cuenta de quien entró: su fila de perfiles. Sin señal, la copia del
   // celular; sin copia, se avisa.
@@ -135,81 +199,123 @@ export default function AccessGate({ children }) {
       const cuenta = fila || { user_id: userId, email: session.user?.email || "", estado: "pendiente" };
       guardarPerfilLocal(fila ? cuenta : null);
       setPerfil(cuenta);
-      setDesdeCache(false);
+      marcarDesdeCache(false);
     } catch (errorLectura) {
       const guardado = leerPerfilLocal(userId);
       if (guardado) {
         setPerfil(guardado);
-        setDesdeCache(true);
+        marcarDesdeCache(true);
         return;
       }
       setPerfil(null);
       throw new Error(
-        sinSenal()
+        esFalloDeRed(errorLectura)
           ? "No hay conexión y no pudimos comprobar tu cuenta. Probá de nuevo cuando tengas señal."
           : errorLectura?.message || "No se pudo comprobar tu cuenta. Probá de nuevo.",
       );
     }
   }, []);
 
+  // Entrar con la última cuenta que entró en este celular, sin sesión viva:
+  // es lo que vale en la cancha sin señal.
+  const entrarConCopia = (guardado) => {
+    ponerSesion({ user: { id: guardado.user_id, email: guardado.email || "" }, sinSenal: true });
+    setPerfil(guardado);
+    marcarDesdeCache(true);
+  };
+
+  const iniciar = useCallback(async () => {
+    setCargando(true);
+    setError("");
+    let entroConCopia = false;
+
+    try {
+      // Sin señal y con una cuenta guardada se entra ya, sin esperar a que
+      // Supabase termine de intentar renovar la sesión (tarda hasta medio
+      // minuto en rendirse).
+      if (sinSenal() && !recuperacionPendiente.current) {
+        const guardado = leerPerfilLocal();
+        if (guardado) {
+          entrarConCopia(guardado);
+          entroConCopia = true;
+          setCargando(false);
+        }
+      }
+
+      const { data, error: errorSesion } = await supabase.auth.getSession();
+      if (!montado.current) return;
+      const session = data?.session || null;
+
+      if (recuperacionPendiente.current) {
+        setModoRecuperacion(true);
+        // Un enlace vencido o ya usado no abre nada, aunque en este celular
+        // hubiera otra sesión abierta: no se le cambia la contraseña a esa.
+        if (ENLACE_DE_ACCESO.error || !session) {
+          setSesionRecuperacion(null);
+          setError(
+            textoDeEnlaceFallido(ENLACE_DE_ACCESO) ||
+              "El enlace de recuperación no es válido o ya venció. Pedí uno nuevo desde Olvidé mi contraseña.",
+          );
+        } else {
+          setSesionRecuperacion(session);
+        }
+        return;
+      }
+
+      // Un enlace del correo que no sirvió (vencido, ya usado): se avisa en
+      // la puerta, sin dejar afuera a quien ya tenía la sesión abierta.
+      if (ENLACE_DE_ACCESO.error) {
+        setMensaje("");
+        setError(textoDeEnlaceFallido(ENLACE_DE_ACCESO));
+        limpiarParametroRecuperacion();
+      }
+
+      if (errorSesion && !session) {
+        if (entroConCopia) return;
+        // Sin señal (o con barras pero sin datos) y con la sesión vencida,
+        // Supabase no la puede renovar: vale la última cuenta que entró acá.
+        const guardado = esFalloDeRed(errorSesion) ? leerPerfilLocal() : null;
+        if (!guardado) throw errorSesion;
+        entrarConCopia(guardado);
+        return;
+      }
+
+      ponerSesion(session);
+      if (session) {
+        await resolverPerfil(session);
+      } else {
+        // Supabase contestó bien y no hay sesión: nadie entró en este celular,
+        // así que la copia (si quedó alguna) no vale.
+        setPerfil(null);
+        marcarDesdeCache(false);
+      }
+    } catch (errorInicio) {
+      if (!montado.current) return;
+      setError(
+        esFalloDeRed(errorInicio)
+          ? TEXTO_SIN_CONEXION
+          : errorInicio?.message || "No se pudo comprobar tu cuenta. Probá de nuevo.",
+      );
+    } finally {
+      if (montado.current) setCargando(false);
+    }
+  }, [resolverPerfil]);
+
   useEffect(() => {
     let activo = true;
-
-    const iniciar = async () => {
-      setCargando(true);
-      setError("");
-
-      try {
-        const { data, error: errorSesion } = await supabase.auth.getSession();
-        if (!activo) return;
-        const session = data?.session || null;
-
-        if (esRecuperacionSolicitada()) {
-          setModoRecuperacion(true);
-          setSesionRecuperacion(session);
-          if (!session) {
-            setError(
-              textoDeEnlaceFallido(ENLACE_DE_ACCESO) ||
-                "El enlace de recuperación no es válido o ya venció. Pedí uno nuevo desde Olvidé mi contraseña.",
-            );
-          }
-          return;
-        }
-
-        // Un enlace del correo que no sirvió (vencido, ya usado): se avisa en
-        // la puerta, sin dejar afuera a quien ya tenía la sesión abierta.
-        if (ENLACE_DE_ACCESO.error) {
-          setMensaje("");
-          setError(textoDeEnlaceFallido(ENLACE_DE_ACCESO));
-          limpiarParametroRecuperacion();
-        }
-
-        if (errorSesion && !session) {
-          // Sin señal y con la sesión vencida, Supabase no la puede renovar:
-          // vale la última cuenta que entró en este celular.
-          const guardado = sinSenal() ? leerPerfilLocal() : null;
-          if (!guardado) throw errorSesion;
-          ponerSesion({ user: { id: guardado.user_id, email: guardado.email || "" }, sinSenal: true });
-          setPerfil(guardado);
-          setDesdeCache(true);
-          return;
-        }
-
-        ponerSesion(session);
-        if (session) await resolverPerfil(session);
-      } catch (errorInicio) {
-        if (activo) setError(errorInicio?.message || "No se pudo comprobar tu cuenta. Probá de nuevo.");
-      } finally {
-        if (activo) setCargando(false);
-      }
-    };
 
     iniciar();
 
     const { data } = supabase.auth.onAuthStateChange((evento, session) => {
       if (!activo) return;
 
-      if (evento === "PASSWORD_RECOVERY" || (esRecuperacionSolicitada() && session)) {
+      // La sesión inicial ya la resolvió iniciar(). Este aviso llega también
+      // sin señal, con la sesión vacía, y no puede echar a quien entró con
+      // la copia del celular.
+      if (evento === "INITIAL_SESSION") return;
+
+      if (evento === "PASSWORD_RECOVERY") recuperacionPendiente.current = true;
+      if (evento === "PASSWORD_RECOVERY" || (recuperacionPendiente.current && session)) {
         setModoRecuperacion(true);
         setSesionRecuperacion(session || null);
         setError("");
@@ -220,32 +326,64 @@ export default function AccessGate({ children }) {
       if (evento === "SIGNED_OUT" || !session) {
         ponerSesion(null);
         setPerfil(null);
+        marcarDesdeCache(false);
         return;
       }
 
       if (evento === "TOKEN_REFRESHED") {
+        // Un token renovado sin nadie adentro (se salió sin señal) no abre nada.
+        if (!sesionActual.current) return;
         ponerSesion(session);
+        // Si se había entrado con la copia, ahora hay señal: se comprueba.
+        if (desdeCacheActual.current) resolverPerfil(session).catch(() => {});
         return;
       }
 
-      // Entró en otra pestaña, o volvió una sesión que no teníamos.
-      if (evento === "SIGNED_IN" && sesionActual.current?.user?.id !== session.user?.id) {
-        ponerSesion(session);
-        resolverPerfil(session).catch((errorPerfil) => {
-          if (activo) setError(errorPerfil.message);
-        });
+      if (evento === "SIGNED_IN") {
+        // Entrar desde el formulario ya lee la cuenta: no hace falta dos veces.
+        if (accionActual.current === "ingresar" || accionActual.current === "crear") return;
+
+        const actual = sesionActual.current;
+        const otraCuenta = actual?.user?.id !== session.user?.id;
+        // Entró en otra pestaña, volvió una sesión que no teníamos, o la que
+        // había entrado con la copia ahora tiene señal: se comprueba la cuenta.
+        if (otraCuenta || actual?.sinSenal || desdeCacheActual.current) {
+          ponerSesion(session);
+          resolverPerfil(session).catch((errorPerfil) => {
+            if (activo && otraCuenta) setError(errorPerfil.message);
+          });
+        }
       }
     });
+
+    // Al volver la señal, quien entró con la copia del celular se vuelve a
+    // comprobar contra la base (permisos vigentes, cuenta bloqueada, etc.).
+    const alVolverLaSenal = async () => {
+      if (!activo) return;
+      const actual = sesionActual.current;
+      if (!actual || (!actual.sinSenal && !desdeCacheActual.current)) return;
+      try {
+        const { data: datos } = await supabase.auth.getSession();
+        const session = datos?.session;
+        if (!activo || !session) return;
+        ponerSesion(session);
+        await resolverPerfil(session);
+      } catch {
+        // Se vuelve a intentar con la próxima señal.
+      }
+    };
+    window.addEventListener("online", alVolverLaSenal);
 
     return () => {
       activo = false;
       data?.subscription?.unsubscribe();
+      window.removeEventListener("online", alVolverLaSenal);
     };
-  }, [resolverPerfil]);
+  }, [iniciar, resolverPerfil]);
 
   const ingresar = async (event) => {
     event.preventDefault();
-    setAccion("ingresar");
+    cambiarAccion("ingresar");
     setError("");
     setMensaje("");
 
@@ -262,12 +400,12 @@ export default function AccessGate({ children }) {
     } catch (errorLogin) {
       setError(textoDeErrorDeAcceso(errorLogin, errorLogin?.message || "No se pudo entrar. Probá de nuevo."));
     } finally {
-      setAccion("");
+      cambiarAccion("");
     }
   };
 
   const crearCuenta = async () => {
-    setAccion("crear");
+    cambiarAccion("crear");
     setError("");
     setMensaje("");
 
@@ -296,12 +434,12 @@ export default function AccessGate({ children }) {
     } catch (errorRegistro) {
       setError(textoDeErrorDeAcceso(errorRegistro, errorRegistro?.message || "No se pudo crear la cuenta."));
     } finally {
-      setAccion("");
+      cambiarAccion("");
     }
   };
 
   const solicitarRestablecimiento = async () => {
-    setAccion("recuperar");
+    cambiarAccion("recuperar");
     setError("");
     setMensaje("");
 
@@ -322,15 +460,15 @@ export default function AccessGate({ children }) {
         "Si ese correo tiene una cuenta, te va a llegar un enlace para elegir una contraseña nueva. Revisá también la carpeta de spam.",
       );
     } catch (errorReset) {
-      setError(errorReset?.message || "No se pudo enviar el correo de recuperación.");
+      setError(textoDeErrorDeAcceso(errorReset, errorReset?.message || "No se pudo enviar el correo de recuperación."));
     } finally {
-      setAccion("");
+      cambiarAccion("");
     }
   };
 
   const guardarNuevaPassword = async (event) => {
     event.preventDefault();
-    setAccion("cambiar-password");
+    cambiarAccion("cambiar-password");
     setError("");
     setMensaje("");
 
@@ -358,6 +496,7 @@ export default function AccessGate({ children }) {
       if (!data?.session) throw new Error("No se pudo abrir la sesión después de cambiar la contraseña.");
 
       limpiarParametroRecuperacion();
+      recuperacionPendiente.current = false;
       setModoRecuperacion(false);
       setSesionRecuperacion(null);
       setNuevaPassword("");
@@ -367,36 +506,42 @@ export default function AccessGate({ children }) {
     } catch (errorUpdate) {
       setError(textoDeErrorDeContrasena(errorUpdate, errorUpdate?.message || "No se pudo cambiar la contraseña."));
     } finally {
-      setAccion("");
+      cambiarAccion("");
     }
   };
 
   // Volver sin cambiar la contraseña: el enlace ya había abierto una sesión,
   // y no tiene sentido quedar adentro por un correo que no se terminó de usar.
+  // Se cierra solo en este celular. Si el enlace no abrió nada (vencido) y en
+  // el celular ya había otra sesión, se sigue con esa.
   const cancelarRecuperacion = async () => {
     limpiarParametroRecuperacion();
-    if (sesionRecuperacion) await supabase.auth.signOut().catch(() => null);
+    recuperacionPendiente.current = false;
+    if (sesionRecuperacion) {
+      await conTope(supabase.auth.signOut({ scope: "local" }).catch(() => null), 4000);
+      borrarSesionGuardada();
+      guardarPerfilLocal(null);
+    }
     setModoRecuperacion(false);
     setSesionRecuperacion(null);
-    ponerSesion(null);
-    setPerfil(null);
     setError("");
+    await iniciar();
   };
 
   const volverAComprobar = async () => {
-    setAccion("comprobar");
+    cambiarAccion("comprobar");
     setError("");
     try {
       await resolverPerfil(sesionActual.current);
     } catch (errorPerfil) {
       setError(errorPerfil.message);
     } finally {
-      setAccion("");
+      cambiarAccion("");
     }
   };
 
   const salir = async () => {
-    setAccion("salir");
+    cambiarAccion("salir");
     setError("");
 
     try {
@@ -405,20 +550,31 @@ export default function AccessGate({ children }) {
         cache: "no-store",
         headers: { Accept: "application/json" },
       }).catch(() => null);
-      await supabase.auth.signOut().catch(() => null);
+      // Solo este celular: en la tablet o en otro teléfono la cuenta sigue
+      // abierta. Sin señal Supabase no llega a cerrar nada, así que la sesión
+      // guardada se borra a mano abajo.
+      await conTope(supabase.auth.signOut({ scope: "local" }).catch(() => null), 4000);
     } finally {
+      borrarSesionGuardada();
       guardarPerfilLocal(null);
       ponerSesion(null);
       setPerfil(null);
-      setDesdeCache(false);
+      marcarDesdeCache(false);
       setPassword("");
-      setAccion("");
+      cambiarAccion("");
     }
   };
 
   if (cargando) {
     return (
-      <PantallaAcceso titulo="Un momento…" texto="Estamos comprobando tu cuenta.">
+      <PantallaAcceso
+        titulo="Un momento…"
+        texto={
+          tardando
+            ? "Está tardando más de lo normal. Si no tenés señal, puede demorar hasta medio minuto."
+            : "Estamos comprobando tu cuenta."
+        }
+      >
         <Espera />
       </PantallaAcceso>
     );
