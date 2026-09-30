@@ -3,15 +3,29 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import PortalApp, { Portada, TIEMPOS_PORTADA, fotoDePortada, lugarEnPantalla } from "./PortalApp.jsx";
 
-// El equipo elegido, cambiable por prueba (vi.mock se iza: va con hoisted).
+// El equipo elegido y la cuenta que entró, cambiables por prueba (vi.mock se
+// iza: van con hoisted).
 const equipo = vi.hoisted(() => ({ actual: { id: "eq-1", nombre: "Atlético Mineiro" } }));
+const cuenta = vi.hoisted(() => ({
+  email: "dt@club.com",
+  userId: "u1",
+  permisos: { partido: true, flujo: true, admin: false },
+  cerrarSesion: null,
+}));
 
 vi.mock("./App", () => ({
   default: ({ intro }) => <div className="partido-de-prueba">Partido de prueba {intro === false ? "sin intro" : "con intro"}</div>,
 }));
 vi.mock("./TrainingModule", () => ({ default: () => <div className="flujo-de-prueba">Flujo de prueba</div> }));
-vi.mock("./TrainingAccessGate", () => ({
-  default: ({ children }) => <div className="acceso-de-prueba">{children({ email: "dt@club.com", cerrarSesion: () => {} })}</div>,
+vi.mock("./AccessGate.jsx", () => ({
+  default: ({ children }) => (
+    <div className="puerta-de-prueba">
+      {children({ email: cuenta.email, userId: cuenta.userId, permisos: cuenta.permisos, cerrarSesion: cuenta.cerrarSesion })}
+    </div>
+  ),
+}));
+vi.mock("./OpenFieldSession.jsx", () => ({
+  default: ({ children }) => <div className="acceso-de-prueba">{typeof children === "function" ? children({ rol: "usuario" }) : children}</div>,
 }));
 vi.mock("./domain/equipo.js", () => ({ leerEquipoElegido: () => equipo.actual }));
 
@@ -22,6 +36,8 @@ describe("el portal", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro" };
+    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    cuenta.cerrarSesion = vi.fn();
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
   });
@@ -47,9 +63,12 @@ describe("el portal", () => {
 
   const portada = () => contenedor.querySelector(".portal-portada");
 
-  test("muestra las dos tarjetas y el equipo elegido", async () => {
+  test("muestra quién entró, Salir, las dos tarjetas y el equipo elegido", async () => {
     await montar();
 
+    expect(contenedor.querySelector(".portal-cuenta-correo").textContent).toBe("dt@club.com");
+    await act(async () => contenedor.querySelector(".portal-salir").click());
+    expect(cuenta.cerrarSesion).toHaveBeenCalledTimes(1);
     expect(contenedor.querySelector(".portal-kicker").textContent).toBe("Atlético Mineiro");
     expect(contenedor.querySelector('button[aria-label="Entrar a Partido"]')).not.toBeNull();
     expect(contenedor.querySelector('button[aria-label="Entrar a Flujo diario"]')).not.toBeNull();
@@ -122,13 +141,13 @@ describe("el portal", () => {
     expect(contenedor.querySelector(".flujo-de-prueba")).not.toBeNull();
   });
 
-  test("si vuelve de la recuperación de OpenField entra directo a Flujo diario, sin portada", async () => {
-    window.history.replaceState({}, "", "/?training_recovery=1");
+  test("solo muestra las tarjetas que la cuenta tiene habilitadas", async () => {
+    cuenta.permisos = { partido: true, flujo: false, admin: false };
     await montar();
 
-    expect(contenedor.querySelector(".flujo-de-prueba")).not.toBeNull();
-    expect(portada()).toBeNull();
-    expect(contenedor.querySelector(".portal-tarjeta")).toBeNull();
+    expect(contenedor.querySelector('button[aria-label="Entrar a Partido"]')).not.toBeNull();
+    expect(contenedor.querySelector('button[aria-label="Entrar a Flujo diario"]')).toBeNull();
+    expect(contenedor.querySelector(".portal-encabezado p").textContent).toBe("Esto es lo que tenés habilitado.");
   });
 
   test("si la foto no carga, la portada muestra el dibujo", async () => {

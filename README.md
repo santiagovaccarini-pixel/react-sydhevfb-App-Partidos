@@ -39,12 +39,31 @@ por usuario, con contraseña y pase cifrados) y necesita en Vercel la variable
 `CATAPULT_SESSION_KEY` (una frase de al menos 32 caracteres, Production y Preview).
 La segunda del 20 de septiembre (`20260920_jugadores_catapult.sql`) agrega a
 `jugadores` el vínculo con el atleta de Catapult; Partido no la necesita, Entrenamiento sí.
+La del 30 de septiembre (`20260930_cuentas.sql`) crea `perfiles`: quién entra a la
+app y qué puede usar. Antes de correrla hay que completar sus dos líneas de
+"Semilla" (el correo del administrador y los correos que hasta entonces estaban
+en `OPENFIELD_ALLOWED_EMAILS`); la app con esta versión no funciona sin ella.
+
+Variables del servidor (Vercel › Settings › Environment Variables, Production y
+Preview; solo los nombres): `OPENFIELD_API_BASE_URL`, `OPENFIELD_API_TOKEN`,
+`CATAPULT_SESSION_KEY` y `OPENFIELD_SESSION_SECRET` (una frase al azar de al menos
+32 caracteres, con la que se firma la sesión de OpenField; mientras no esté, la
+firma se deriva del token de Catapult como antes). `OPENFIELD_ALLOWED_EMAILS` ya
+no se usa: se puede borrar.
 
 ## Seguridad
 
 La clave publishable puede estar en el navegador: no es una clave administrativa.
 La protección efectiva de las filas depende de Supabase Auth y Row Level Security.
-Antes de exponer la app públicamente hay que definir qué usuarios o roles podrán
-leer, crear, editar y borrar partidos y aplicar políticas RLS para esa lista.
+
+Se entra con correo y contraseña antes del portal. Cada cuenta tiene una fila en
+`perfiles` (estado pendiente / autorizado / bloqueado, y qué puede usar: Partido,
+Flujo diario, administrador). Una cuenta nueva nace pendiente y la autoriza el
+administrador; hasta entonces no entra a la app ni ve datos de Flujo diario (las
+políticas de `entrenamientos` y `catapult_cuentas` piden `puede_usar('flujo')`).
+Nombrar otro administrador es una línea en el SQL Editor:
+`update public.perfiles set estado = 'autorizado', admin = true where email = '…';`.
+Borrar una cuenta es desde Supabase › Authentication › Users. Las tablas de Partido
+siguen abiertas al rol anon (pendiente: cerrarlas a cuentas con Partido).
 
 Más detalle en [docs/AUDITORIA_2026-09-08.md](docs/AUDITORIA_2026-09-08.md).

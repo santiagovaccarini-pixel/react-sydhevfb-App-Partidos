@@ -253,6 +253,13 @@ create policy entrenamientos_acceso_app
 
 commit;
 
+-- ---------------------------------------------------------------- Cuentas --
+--
+-- Quién entra y qué puede usar cada cuenta vive en public.perfiles. Después
+-- de este archivo hay que correr supabase/migrations/20260930_cuentas.sql
+-- (crea perfiles, sus disparadores y funciones, y cambia la política de
+-- entrenamientos para que solo la usen cuentas autorizadas con Flujo diario).
+
 -- --------------------------------------------------------------- Revisión --
 --
 -- Esto no cambia nada: se corre aparte para ver que quedó todo. Tienen que

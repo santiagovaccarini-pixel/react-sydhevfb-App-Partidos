@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { autenticarCookieOpenField } from "../../lib/openfieldAuth.js";
+import { autenticarCookieOpenField, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 import { resolverPase } from "../../lib/catapultAcceso.js";
 import { leerBodyJson, resumirError, textoSeguro } from "../../lib/catapultCloud.js";
 import {
@@ -40,7 +40,7 @@ export default async function handler(request, response) {
 
   const auth = autenticarCookieOpenField(request);
   if (!auth.ok) {
-    return response.status(auth.status).json({ ok: false, error: auth.error });
+    return responderNoAutenticado(response, auth);
   }
 
   const body = leerBodyJson(request);
