@@ -28,6 +28,8 @@ vi.mock("./OpenFieldSession.jsx", () => ({
   default: ({ children }) => <div className="acceso-de-prueba">{typeof children === "function" ? children({ rol: "usuario" }) : children}</div>,
 }));
 vi.mock("./domain/equipo.js", () => ({ leerEquipoElegido: () => equipo.actual }));
+vi.mock("./CuentasAdmin.jsx", () => ({ default: ({ onVolver }) => <div className="cuentas-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
+vi.mock("./domain/perfilesDb.js", () => ({ contarPendientes: async () => 2 }));
 
 describe("el portal", () => {
   let contenedor;
@@ -139,6 +141,28 @@ describe("el portal", () => {
     );
     expect(portada()).toBeNull();
     expect(contenedor.querySelector(".flujo-de-prueba")).not.toBeNull();
+  });
+
+  test("el administrador ve Cuentas con las pendientes, entra y vuelve; los demás no lo ven", async () => {
+    cuenta.permisos = { partido: true, flujo: true, admin: true };
+    await montar();
+    await act(async () => Promise.resolve());
+
+    const cuentas = contenedor.querySelector(".portal-cuentas");
+    expect(cuentas).not.toBeNull();
+    expect(cuentas.querySelector(".portal-pendientes").textContent).toBe("2");
+    await act(async () => cuentas.click());
+    expect(contenedor.querySelector(".cuentas-de-prueba")).not.toBeNull();
+    expect(contenedor.querySelector(".portal-tarjeta")).toBeNull();
+
+    await act(async () => contenedor.querySelector(".cuentas-de-prueba button").click());
+    expect(contenedor.querySelector(".portal-tarjeta")).not.toBeNull();
+
+    await act(async () => raiz.unmount());
+    raiz = null;
+    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    await montar();
+    expect(contenedor.querySelector(".portal-cuentas")).toBeNull();
   });
 
   test("solo muestra las tarjetas que la cuenta tiene habilitadas", async () => {

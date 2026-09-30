@@ -126,8 +126,7 @@ de lo hecho está en los commits, no en esta lista.
   app, un enlace vencido lo dice claro, y Volver descarta la sesión que abrió
   el enlace. Hay que tener en Supabase › Authentication › URL Configuration
   el Site URL de producción y `https://react-sydhevfb-app-partidos.vercel.app/**`
-  en Redirect URLs. Etapa 2: pantalla Cuentas (solo admin) con Autorizar /
-  Quitar y los permisos por módulo. Etapa 3: cerrar las tablas de Partido al
+  en Redirect URLs. Etapa 2 (hecha, 30/09): pantalla Cuentas desde el portal (`src/CuentasAdmin.jsx`, solo admin), con Por autorizar / Con acceso / Sin acceso, los módulos como fichas (Partido, Flujo diario, Administrador), Autorizar, Rechazar y Quitar acceso con confirmación; el portal muestra cuántas esperan. Etapa 3: cerrar las tablas de Partido al
   rol anon (`puede_usar('partido')`), probado en vista previa. Precondiciones
   verificadas por la investigación: "Confirm email" prendido en Supabase ›
   Authentication › Providers › Email; no dar por sentado cuánto dura el JWT.

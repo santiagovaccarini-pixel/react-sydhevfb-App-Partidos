@@ -3,6 +3,8 @@ import App from "./App";
 import TrainingModule from "./TrainingModule";
 import AccessGate from "./AccessGate.jsx";
 import OpenFieldSession from "./OpenFieldSession.jsx";
+import CuentasAdmin from "./CuentasAdmin.jsx";
+import { contarPendientes } from "./domain/perfilesDb.js";
 import { ArteFlujo, ArtePartido, IconoFlujo, IconoPartido } from "./components/PortalArt.jsx";
 import { leerEquipoElegido } from "./domain/equipo.js";
 import "./portal.css";
@@ -12,6 +14,7 @@ const MODOS = {
   PORTAL: "portal",
   PARTIDO: "partido",
   ENTRENAMIENTO: "entrenamiento",
+  CUENTAS: "cuentas",
 };
 
 // Las dos puertas de la app, contadas en una línea: lo esencial de cada una.
@@ -166,9 +169,22 @@ export const Portada = ({ tarjeta, desde, onTerminar }) => {
   );
 };
 
-const Portal = ({ onElegir, permisos, email, onSalir }) => {
+const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
   const equipo = leerEquipoElegido();
   const tarjetas = TARJETAS.filter((tarjeta) => permisos?.[tarjeta.permiso]);
+  const [pendientes, setPendientes] = useState(0);
+
+  // El administrador ve cuántas cuentas esperan que las autorice.
+  useEffect(() => {
+    if (!permisos?.admin) return undefined;
+    let activo = true;
+    contarPendientes()
+      .then((cantidad) => activo && setPendientes(cantidad))
+      .catch(() => {});
+    return () => {
+      activo = false;
+    };
+  }, [permisos?.admin]);
 
   return (
     <main className="portal-modulos">
@@ -177,6 +193,16 @@ const Portal = ({ onElegir, permisos, email, onSalir }) => {
           <span className="portal-cuenta-correo" title={email}>
             {email}
           </span>
+          {permisos?.admin && (
+            <button
+              type="button"
+              className={`portal-salir portal-cuentas${pendientes > 0 ? " con-pendientes" : ""}`}
+              onClick={onCuentas}
+            >
+              Cuentas
+              {pendientes > 0 && <span className="portal-pendientes">{pendientes}</span>}
+            </button>
+          )}
           <button type="button" className="portal-salir" onClick={onSalir}>
             Salir
           </button>
@@ -250,8 +276,18 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion }) => {
         {() => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />}
       </OpenFieldSession>
     );
+  } else if (modo === MODOS.CUENTAS && permisos?.admin) {
+    contenido = <CuentasAdmin miUserId={userId} onVolver={volver} />;
   } else {
-    contenido = <Portal onElegir={elegir} permisos={permisos} email={email} onSalir={cerrarSesion} />;
+    contenido = (
+      <Portal
+        onElegir={elegir}
+        permisos={permisos}
+        email={email}
+        onSalir={cerrarSesion}
+        onCuentas={() => setModo(MODOS.CUENTAS)}
+      />
+    );
   }
 
   return (

@@ -61,3 +61,57 @@ export const leerPerfilLocal = (userId = null) => {
     return null;
   }
 };
+
+// ------------------------------------------------ Para el administrador --
+// La base le muestra todas las filas solo a un administrador autorizado; a
+// cualquier otro, únicamente la suya (y no le deja cambiar nada).
+
+export const listarPerfiles = async () => {
+  const { data, error } = await supabase
+    .from(TABLA_PERFILES)
+    .select(`${COLUMNAS_PERFIL}, creado_en, decidido_en`)
+    .order("creado_en", { ascending: true });
+  if (error) throw new Error(error.message || "No se pudieron leer las cuentas.");
+  return data || [];
+};
+
+export const contarPendientes = async () => {
+  const { count, error } = await supabase
+    .from(TABLA_PERFILES)
+    .select("user_id", { count: "exact", head: true })
+    .eq("estado", "pendiente");
+  if (error) throw new Error(error.message || "No se pudieron contar las cuentas.");
+  return count || 0;
+};
+
+// Cambia el estado o los módulos de una cuenta ajena. Si la base no dejó
+// (no sos administrador, es tu propia fila o la cuenta ya no existe), no
+// actualiza ninguna fila y no da error: por eso se mira cuántas volvieron.
+export const decidirPerfil = async (userId, cambios) => {
+  const permitidos = {};
+  for (const clave of ["estado", "partido", "flujo", "admin"]) {
+    if (clave in cambios) permitidos[clave] = cambios[clave];
+  }
+  const { data, error } = await supabase
+    .from(TABLA_PERFILES)
+    .update(permitidos)
+    .eq("user_id", userId)
+    .select(`${COLUMNAS_PERFIL}, creado_en, decidido_en`);
+  if (error) throw new Error(error.message || "No se pudo cambiar la cuenta.");
+  if (!data || data.length === 0) {
+    throw new Error("No se pudo cambiar: no tenés permiso o la cuenta ya no existe.");
+  }
+  return data[0];
+};
+
+// Las cuentas en tres listas, la propia marcada, para la pantalla Cuentas.
+export const agruparPerfiles = (perfiles, miUserId) => {
+  const grupos = { pendientes: [], conAcceso: [], sinAcceso: [] };
+  for (const perfil of perfiles || []) {
+    const fila = { ...perfil, esMia: perfil.user_id === miUserId };
+    if (perfil.estado === "autorizado") grupos.conAcceso.push(fila);
+    else if (perfil.estado === "bloqueado") grupos.sinAcceso.push(fila);
+    else grupos.pendientes.push(fila);
+  }
+  return grupos;
+};
