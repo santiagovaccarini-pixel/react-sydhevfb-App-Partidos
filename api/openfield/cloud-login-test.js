@@ -10,6 +10,7 @@ import {
   leerBodyJson,
   resumirError,
   textoSeguro,
+  textoSecreto,
 } from "../../lib/catapultCloud.js";
 
 export const config = {
@@ -33,7 +34,7 @@ export default async function handler(request, response) {
 
   const body = leerBodyJson(request);
   const username = textoSeguro(body?.username, 254);
-  const password = textoSeguro(body?.password, 512);
+  const password = textoSecreto(body?.password, 512);
 
   if (!username || !password) {
     return response.status(400).json({
@@ -91,7 +92,7 @@ export default async function handler(request, response) {
         ? `Catapult demoró demasiado en responder durante la prueba de conexión (etapa: ${etapa}).`
         : `No se pudo completar la prueba de acceso automatizado a Catapult (etapa: ${etapa}).`,
       etapa,
-      detalle: resumirError(error),
+      detalle: resumirError(error, { ocultar: [password, username] }),
       captura: await capturarPantalla(nav?.page),
     });
   } finally {

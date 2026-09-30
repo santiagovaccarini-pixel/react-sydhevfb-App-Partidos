@@ -10,6 +10,7 @@ import {
   leerBodyJson,
   resumirError,
   textoSeguro,
+  textoSecreto,
 } from "../../lib/catapultCloud.js";
 import {
   TIPOS_RED,
@@ -49,7 +50,7 @@ export default async function handler(request, response) {
 
   const body = leerBodyJson(request);
   const username = textoSeguro(body?.username, 254);
-  const password = textoSeguro(body?.password, 512);
+  const password = textoSecreto(body?.password, 512);
 
   if (!username || !password) {
     return response.status(400).json({
@@ -208,7 +209,7 @@ export default async function handler(request, response) {
         ? `Catapult demoró demasiado en responder durante la inspección (etapa: ${etapa}).`
         : `No se pudo completar la inspección del Cloud Editor (etapa: ${etapa}).`,
       etapa,
-      detalle: resumirError(error),
+      detalle: resumirError(error, { ocultar: [password, username] }),
       paginaActual: (() => {
         try {
           return nav?.page ? nav.page.url() : null;

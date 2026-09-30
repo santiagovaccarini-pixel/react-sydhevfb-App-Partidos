@@ -38,23 +38,32 @@ self.addEventListener("activate", (evento) => {
   );
 });
 
-const guardar = async (pedido, respuesta) => {
-  // Solo lo que sirve para volver a abrir: una respuesta parcial o de otro
-  // dominio no se guarda.
-  if (!respuesta || !respuesta.ok || respuesta.type !== "basic")
+const guardar = async (clave, respuesta) => {
+  // Solo lo que sirve para volver a abrir: una respuesta parcial, de otro
+  // dominio o que vino de una redirección no se guarda (el navegador se niega
+  // a usar una respuesta redirigida para abrir la app).
+  if (
+    !respuesta ||
+    !respuesta.ok ||
+    respuesta.type !== "basic" ||
+    respuesta.redirected
+  )
     return respuesta;
   const cache = await caches.open(CACHE);
-  cache.put(pedido, respuesta.clone());
+  cache.put(clave, respuesta.clone());
   return respuesta;
 };
 
 // Primero la red y, si no hay, lo guardado. Para el HTML, que tiene que poder
 // traer una versión nueva apenas haya señal.
-const redPrimero = async (pedido, reserva) => {
+const redPrimero = async (
+  pedido,
+  { clave = pedido, reserva = null, sinParametros = false } = {},
+) => {
   try {
-    return await guardar(pedido, await fetch(pedido));
+    return await guardar(clave, await fetch(pedido));
   } catch (error) {
-    const guardado = await caches.match(pedido);
+    const guardado = await caches.match(clave, { ignoreSearch: sinParametros });
     if (guardado) return guardado;
     if (reserva) {
       const deReserva = await caches.match(reserva);
@@ -83,8 +92,20 @@ self.addEventListener("fetch", (evento) => {
   // guardada lo dejaría diciendo siempre lo mismo.
   if (url.pathname === "/version.json") return;
 
+  // Lo que contesta el servidor propio (/api/…) es de cada cuenta y de cada
+  // momento: nunca se guarda ni se sirve desde el cache, aunque no haya señal.
+  if (url.pathname.startsWith("/api/")) return;
+
   if (pedido.mode === "navigate") {
-    evento.respondWith(redPrimero(pedido, "/index.html"));
+    // La app vive en "/" con parámetros que van cambiando (?actualizar=…):
+    // se guarda y se busca sin ellos, y la reserva es la portada precargada.
+    evento.respondWith(
+      redPrimero(pedido, {
+        clave: url.origin + url.pathname,
+        reserva: "/",
+        sinParametros: true,
+      }),
+    );
     return;
   }
 

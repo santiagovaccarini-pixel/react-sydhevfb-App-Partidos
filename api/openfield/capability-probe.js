@@ -12,9 +12,10 @@ export const config = {
   maxDuration: 30,
 };
 
-const OPENFIELD_BASE_URL =
+const OPENFIELD_BASE_URL = (
   process.env.OPENFIELD_API_BASE_URL ||
-  "https://connect-us.catapultsports.com/api/v6";
+  "https://connect-us.catapultsports.com/api/v6"
+).replace(/\/+$/, "");
 
 // 26-05 T: la única actividad autorizada para pruebas.
 const ACTIVIDAD_PRUEBA_ID = "9dffa100-99e5-4ce6-921f-226e9e01e264";

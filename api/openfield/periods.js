@@ -1,9 +1,10 @@
 import { autenticarCookieOpenField, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 import { limpiarPeriodo, ordenarPeriodos } from "../../lib/openfieldPeriods.js";
 
-const OPENFIELD_BASE_URL =
+const OPENFIELD_BASE_URL = (
   process.env.OPENFIELD_API_BASE_URL ||
-  "https://connect-us.catapultsports.com/api/v6";
+  "https://connect-us.catapultsports.com/api/v6"
+).replace(/\/+$/, "");
 
 const normalizarActivityId = (valor) => {
   const candidato = Array.isArray(valor) ? valor[0] : valor;
