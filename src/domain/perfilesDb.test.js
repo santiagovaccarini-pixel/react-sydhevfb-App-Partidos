@@ -34,9 +34,9 @@ const {
 
 describe("permisos y situación de una cuenta", () => {
   it("el administrador puede todo; los demás, lo marcado", () => {
-    expect(permisosDePerfil({ admin: true })).toEqual({ partido: true, flujo: true, admin: true });
-    expect(permisosDePerfil({ partido: true, flujo: false, admin: false })).toEqual({ partido: true, flujo: false, admin: false });
-    expect(permisosDePerfil(null)).toEqual({ partido: false, flujo: false, admin: false });
+    expect(permisosDePerfil({ admin: true })).toEqual({ partido: true, flujo: true, lesiones: true, admin: true });
+    expect(permisosDePerfil({ partido: true, flujo: false, admin: false })).toEqual({ partido: true, flujo: false, lesiones: false, admin: false });
+    expect(permisosDePerfil(null)).toEqual({ partido: false, flujo: false, lesiones: false, admin: false });
   });
 
   it("pendiente, bloqueada, sin módulos u ok", () => {

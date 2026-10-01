@@ -138,3 +138,40 @@ export const IconoFlujo = () => (
     />
   </svg>
 );
+
+// Una cruz de primeros auxilios sobre un fondo granate: el fondo de la
+// tarjeta Lesiones mientras no haya una foto del club para ella.
+export const ArteLesiones = () => (
+  <svg className="portal-arte" viewBox="0 0 420 260" aria-hidden="true" preserveAspectRatio="xMaxYMid slice">
+    <defs>
+      <linearGradient id="granate" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#7f1d1d" />
+        <stop offset="1" stopColor="#2a0a0a" />
+      </linearGradient>
+      <radialGradient id="luz-lesiones" cx="0.72" cy="0.3" r="0.6">
+        <stop offset="0" stopColor="#ffffff" stopOpacity="0.2" />
+        <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+    <rect width="420" height="260" fill="url(#granate)" />
+    <g fill="#ffffff" fillOpacity="0.1">
+      {[0, 1, 2, 3].map((i) => (
+        <rect key={i} x={120 + i * 70} y="36" width="30" height="188" rx="6" />
+      ))}
+    </g>
+    <g transform="translate(300 128)">
+      <circle r="62" fill="#fef2f2" />
+      <rect x="-14" y="-40" width="28" height="80" rx="6" fill="#b91c1c" />
+      <rect x="-40" y="-14" width="80" height="28" rx="6" fill="#b91c1c" />
+    </g>
+    <rect width="420" height="260" fill="url(#luz-lesiones)" />
+  </svg>
+);
+
+export const IconoLesiones = () => (
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <rect x="10" y="18" width="44" height="32" rx="7" fill="none" stroke="currentColor" strokeWidth="3.5" />
+    <path d="M26 18v-4a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v4" fill="none" stroke="currentColor" strokeWidth="3.5" />
+    <path d="M32 27v14M25 34h14" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+  </svg>
+);

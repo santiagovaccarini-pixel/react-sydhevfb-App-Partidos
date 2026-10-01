@@ -141,9 +141,9 @@ describe("la puerta de la app", () => {
     await montar();
 
     expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
-    expect(contenedor.querySelector(".adentro").textContent).toContain('{"partido":true,"flujo":false,"admin":false}');
+    expect(contenedor.querySelector(".adentro").textContent).toContain('{"partido":true,"flujo":false,"lesiones":false,"admin":false}');
     expect(contenedor.querySelector(".adentro").textContent).toContain("en línea");
-    expect(supa.consultas).toEqual([{ tabla: "perfiles", columnas: "user_id, email, estado, partido, flujo, admin, confirmado_en" }]);
+    expect(supa.consultas).toEqual([{ tabla: "perfiles", columnas: "*" }]);
     // Y guarda la copia para la próxima vez sin señal.
     expect(JSON.parse(localStorage.getItem(CLAVE_PERFIL_LOCAL)).user_id).toBe("u1");
   });
@@ -152,7 +152,7 @@ describe("la puerta de la app", () => {
     supa.sesion = SESION;
     supa.perfil = { ...AUTORIZADO, partido: false, flujo: false, admin: true };
     await montar();
-    expect(contenedor.querySelector(".adentro").textContent).toContain('{"partido":true,"flujo":true,"admin":true}');
+    expect(contenedor.querySelector(".adentro").textContent).toContain('{"partido":true,"flujo":true,"lesiones":true,"admin":true}');
   });
 
   test("entrar con correo y contraseña lee la cuenta y deja pasar", async () => {

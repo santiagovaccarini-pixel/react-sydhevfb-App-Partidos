@@ -9,7 +9,9 @@ import { supabase } from "../supabase.js";
 export const TABLA_PERFILES = "perfiles";
 export const CLAVE_PERFIL_LOCAL = "perfil_cuenta";
 
-export const COLUMNAS_PERFIL = "user_id, email, estado, partido, flujo, admin, confirmado_en";
+// Todas las columnas: así una columna nueva (lesiones) no rompe la lectura
+// en un celular con la app nueva y la base vieja, ni al revés.
+export const COLUMNAS_PERFIL = "*";
 
 // Qué puede usar: el administrador, todo.
 export const permisosDePerfil = (perfil) => {
@@ -17,6 +19,7 @@ export const permisosDePerfil = (perfil) => {
   return {
     partido: admin || Boolean(perfil?.partido),
     flujo: admin || Boolean(perfil?.flujo),
+    lesiones: admin || Boolean(perfil?.lesiones),
     admin,
   };
 };
@@ -28,7 +31,7 @@ export const situacionDePerfil = (perfil) => {
   if (estado === "bloqueado") return "bloqueado";
   if (estado !== "autorizado") return "pendiente";
   const permisos = permisosDePerfil(perfil);
-  return permisos.partido || permisos.flujo ? "ok" : "sin-modulos";
+  return permisos.partido || permisos.flujo || permisos.lesiones ? "ok" : "sin-modulos";
 };
 
 export const leerMiPerfil = async (userId) => {
@@ -69,7 +72,7 @@ export const leerPerfilLocal = (userId = null) => {
 export const listarPerfiles = async () => {
   const { data, error } = await supabase
     .from(TABLA_PERFILES)
-    .select(`${COLUMNAS_PERFIL}, creado_en, decidido_en`)
+    .select(COLUMNAS_PERFIL)
     .order("creado_en", { ascending: true });
   if (error) throw new Error(error.message || "No se pudieron leer las cuentas.");
   return data || [];
@@ -89,14 +92,14 @@ export const contarPendientes = async () => {
 // actualiza ninguna fila y no da error: por eso se mira cuántas volvieron.
 export const decidirPerfil = async (userId, cambios) => {
   const permitidos = {};
-  for (const clave of ["estado", "partido", "flujo", "admin"]) {
+  for (const clave of ["estado", "partido", "flujo", "lesiones", "admin"]) {
     if (clave in cambios) permitidos[clave] = cambios[clave];
   }
   const { data, error } = await supabase
     .from(TABLA_PERFILES)
     .update(permitidos)
     .eq("user_id", userId)
-    .select(`${COLUMNAS_PERFIL}, creado_en, decidido_en`);
+    .select(COLUMNAS_PERFIL);
   if (error) throw new Error(error.message || "No se pudo cambiar la cuenta.");
   if (!data || data.length === 0) {
     throw new Error("No se pudo guardar el cambio: no tenés permiso o la cuenta ya no existe.");

@@ -668,3 +668,42 @@
   text-underline-offset: 4px;
   cursor: pointer;
 }
+
+/* Selector de idioma: dos pastillas, cada una escrita en su idioma. */
+.selector-idioma {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.selector-idioma button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.selector-idioma button.activo {
+  background: #fff;
+  color: #0b1220;
+}
+.training-access-card .selector-idioma {
+  align-self: center;
+  margin: 0 0 14px;
+}
+.portal-pie {
+  display: flex;
+  justify-content: center;
+  padding: 22px 0 8px;
+}
+
+/* La tarjeta de Lesiones, granate como su dibujo. */
+.portal-tarjeta.tarjeta-lesiones .portal-foto {
+  background: linear-gradient(135deg, #7f1d1d, #2a0a0a);
+}

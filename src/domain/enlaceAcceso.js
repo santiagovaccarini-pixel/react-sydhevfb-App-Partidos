@@ -24,6 +24,14 @@ export const leerEnlaceDeAcceso = (href) => {
 export const esEnlaceDeRecuperacion = (enlace) => enlace?.tipo === "recovery";
 
 // Qué decirle a la persona cuando el enlace no sirvió.
+// La misma decisión que textoDeEnlaceFallido, pero como clave del diccionario
+// de idioma (acceso.error.*), para mostrarla en el idioma de quien entra.
+export const claveDeEnlaceFallido = (enlace) => {
+  const texto = textoDeEnlaceFallido(enlace);
+  if (!texto) return "";
+  return /venció/.test(texto) ? "acceso.error.enlaceVencido" : "acceso.error.enlaceInvalido";
+};
+
 export const textoDeEnlaceFallido = (enlace) => {
   if (!enlace?.error) return "";
   if (/expired|otp_expired/i.test(`${enlace.error} ${enlace.descripcion}`)) {

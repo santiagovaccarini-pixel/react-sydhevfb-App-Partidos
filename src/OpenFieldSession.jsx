@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase.js";
 import { abrirSesionOpenField, mensajeDeRespuesta } from "./trainingApi.js";
 import { PantallaAcceso, esFalloDeRed } from "./AccessGate.jsx";
+import { t, useIdioma } from "./idioma/index.js";
 
 // Antes de entrar a Flujo diario, el servidor abre su sesión de OpenField
 // (una cookie) con el token de Supabase de quien entró: ahí comprueba en la
@@ -15,6 +16,7 @@ const SIN_SENAL = { fase: "lista", rol: "usuario", sinSenal: true };
 
 export default function OpenFieldSession({ children, onVolver, sinSenal = false }) {
   const [estado, setEstado] = useState({ fase: "abriendo" });
+  useIdioma();
   const estadoActual = useRef(estado);
   estadoActual.current = estado;
 
@@ -34,12 +36,12 @@ export default function OpenFieldSession({ children, onVolver, sinSenal = false 
           setEstado(SIN_SENAL);
           return;
         }
-        throw new Error("Iniciá sesión para acceder a OpenField.");
+        throw new Error(t("openfield.iniciaSesion"));
       }
       setEstado({
         fase: respuesta.status === 403 ? "sin-acceso" : "error",
         code: payload?.code || "",
-        error: mensajeDeRespuesta(payload, "No se pudo abrir la sesión de OpenField. Probá de nuevo."),
+        error: mensajeDeRespuesta(payload, t("openfield.errorTexto")),
       });
     } catch (errorApertura) {
       if (silencioso) return;
@@ -47,7 +49,7 @@ export default function OpenFieldSession({ children, onVolver, sinSenal = false 
         setEstado(SIN_SENAL);
         return;
       }
-      setEstado({ fase: "error", error: errorApertura?.message || "No se pudo abrir la sesión de OpenField. Probá de nuevo." });
+      setEstado({ fase: "error", error: errorApertura?.message || t("openfield.errorTexto") });
     }
   }, []);
 
@@ -78,16 +80,16 @@ export default function OpenFieldSession({ children, onVolver, sinSenal = false 
 
   if (estado.fase === "sin-acceso") {
     return (
-      <PantallaAcceso titulo="Sin acceso a Flujo diario" texto={estado.error} onVolver={onVolver} />
+      <PantallaAcceso titulo={t("openfield.sinAccesoTitulo")} texto={estado.error} onVolver={onVolver} />
     );
   }
 
   if (estado.fase === "error") {
     return (
-      <PantallaAcceso titulo="No pudimos conectar con OpenField" texto={estado.error} onVolver={onVolver}>
+      <PantallaAcceso titulo={t("openfield.errorTitulo")} texto={estado.error} onVolver={onVolver}>
         <div className="training-access-form">
           <button type="button" className="training-access-primary" onClick={() => abrir()}>
-            Reintentar
+            {t("comun.reintentar")}
           </button>
         </div>
       </PantallaAcceso>
@@ -95,7 +97,7 @@ export default function OpenFieldSession({ children, onVolver, sinSenal = false 
   }
 
   return (
-    <PantallaAcceso titulo="Un momento…" texto="Estamos conectando con OpenField." onVolver={onVolver}>
+    <PantallaAcceso titulo={t("openfield.abriendoTitulo")} texto={t("openfield.abriendoTexto")} onVolver={onVolver}>
       <span className="training-access-espera" aria-hidden="true" />
     </PantallaAcceso>
   );

@@ -164,6 +164,19 @@ de lo hecho está en los commits, no en esta lista.
   líneas y no se vuelve más difícil por esperar. De paso aísla las fallas: hoy
   un error de Entrenamiento se lleva puesta la pantalla de partido.
 
+## Idioma y Lesiones (maqueta del 01/10)
+
+- La app tiene diccionario propio en `src/idioma/` (es-AR y pt-BR). Está traducido lo que
+  rodea a los módulos: puerta de acceso, portal, Cuentas, barra de navegación, OpenField y el
+  módulo Lesiones entero. **Partido y Flujo diario siguen en castellano** aunque se elija
+  portugués: funcionan igual, solo falta pasar sus textos al diccionario (mucho texto; va de a
+  pantallas). Regla: texto nuevo = clave nueva en los dos archivos (la prueba lo exige).
+- Lesiones guarda en `public.lesiones` (migración `20261001_lesiones.sql`). Pendiente para más
+  adelante: borrar una lesión (hoy solo se edita o se da el alta), exportar/reportes, y la
+  foto propia de la tarjeta del portal (hoy va un dibujo).
+- El permiso `lesiones` de perfiles lo habilita el administrador desde Cuentas; las cuentas
+  admin lo tienen prendido desde la migración.
+
 ## Lo que dejó la revisión completa del 30/09
 
 Se revisó toda la app (pruebas automáticas, recorrido en navegador de cada
