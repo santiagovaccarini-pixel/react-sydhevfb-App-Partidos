@@ -335,6 +335,16 @@ migraciones versionadas en `supabase/migrations`.
 - **Copias y exportación**: cada base dedicada tiene sus copias diarias (plan Pro) y
   `npm run club:exportar -- codigo` baja todo lo del club en un archivo. Lo mismo sirve
   para mudar un club de la base compartida a la suya.
+- **¿Plan gratuito con una cuenta por club?** Se puede (el directorio acepta cualquier
+  proyecto), pero no para vender: el proyecto gratuito se pausa a la semana sin uso, no
+  tiene copias de seguridad, el correo de acceso tiene un límite de pocos envíos por hora
+  y el club tendría que crear la cuenta, el proyecto y pasar las claves. Queda solo para
+  demostraciones y pruebas. Dos caminos serios: (a) proyectos dentro de la organización
+  propia en plan Pro (del orden de 10 USD por mes por club, va en el precio), con copias,
+  sin pausas y con control total para migrar; (b) para el club que exige ser dueño, su
+  propia cuenta paga y una invitación al operador (rol Developer) para correr las
+  migraciones; el club puede revocarla cuando quiera. El administrador del club no
+  necesita cuenta de Supabase: administra desde Cuentas en la app.
 - Lo que hay que preparar: organización de Supabase en plan Pro, un token de
   administración, la región (San Pablo), y un dominio con subdominio comodín en Vercel.
   Las funciones del servidor (`api/openfield`) reciben el código del club y validan la
