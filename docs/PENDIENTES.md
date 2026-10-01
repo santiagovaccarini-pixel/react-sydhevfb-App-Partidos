@@ -171,10 +171,18 @@ de lo hecho está en los commits, no en esta lista.
   módulo Lesiones entero. **Partido y Flujo diario siguen en castellano** aunque se elija
   portugués: funcionan igual, solo falta pasar sus textos al diccionario (mucho texto; va de a
   pantallas). Regla: texto nuevo = clave nueva en los dos archivos (la prueba lo exige).
-- Lesiones guarda en `public.lesiones` (migración `20261001_lesiones.sql`). Pendiente: las
-  **cabeceras del Excel original** (Santiago las pasa; con eso se agregan los campos y las
-  listas pasan a ser editables desde Ajustes › Listas, guardadas por club en la base),
-  exportar/reportes, y la foto propia de la tarjeta del portal (la pasa Santiago).
+- Lesiones tiene las 35 columnas del Excel original (`src/domain/lesionesCampos.js`,
+  migración `20261002_lesiones_excel.sql`): fechas en columnas, el resto en `datos` (jsonb)
+  con el código de cada opción; cabeceras y listas por club en `lesiones_campos` y
+  `lesiones_opciones`, editables desde Ajustes (la app las siembra con el Excel la primera
+  vez). La vista `v_lesiones_excel_v1` las devuelve con los textos en portugués para Power
+  Query. Faltan: las listas que el Excel mostró cortadas (tipo de lesión, músculo específico)
+  y las de Imágenes / Recorrência / Recidiva / Médico (Santiago las pasa), exportar/reportes,
+  la foto de la tarjeta del portal (la pasa Santiago), y pasar los datos del jugador
+  (n° de registro, categoría, nacimiento, pie) al editor de jugadores compartido.
+- Regla de oro del 01/10: lo que es igual en otro módulo tiene que ser igual en toda la web
+  (escudos descargados con `EscudoDeClub`, el filtro de Registros, fichas con "Ver detalle",
+  Ajustes con filas y "Volver a Ajustes").
 - Después de entrar, lo primero es elegir el club (`src/ElegirClub.jsx`); desde el portal se
   cambia con "Cambiar". Falta la etapa grande de aislamiento por club en la base (RLS por
   `club_miembros`), que está en el plan del proyecto Control de Carga.

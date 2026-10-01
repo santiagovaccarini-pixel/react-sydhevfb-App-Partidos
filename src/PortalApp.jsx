@@ -215,6 +215,8 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onCambiarClub }
           <span className="portal-cuenta-correo" title={email}>
             {email}
           </span>
+          <SelectorIdioma className="portal-idioma" />
+          <div className="portal-cuenta-acciones">
           {permisos?.admin && (
             <button
               type="button"
@@ -228,7 +230,7 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onCambiarClub }
           <button type="button" className="portal-salir" onClick={onSalir}>
             {t("portal.salir")}
           </button>
-          <SelectorIdioma className="portal-idioma" />
+          </div>
         </div>
 
         <div className="portal-encabezado">
