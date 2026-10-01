@@ -16,10 +16,15 @@ export const COLUMNAS_PERFIL = "*";
 // Qué puede usar: el administrador, todo.
 export const permisosDePerfil = (perfil) => {
   const admin = Boolean(perfil?.admin);
+  const partido = admin || Boolean(perfil?.partido);
+  const flujo = admin || Boolean(perfil?.flujo);
+  const lesiones = admin || Boolean(perfil?.lesiones);
   return {
-    partido: admin || Boolean(perfil?.partido),
-    flujo: admin || Boolean(perfil?.flujo),
-    lesiones: admin || Boolean(perfil?.lesiones),
+    partido,
+    flujo,
+    lesiones,
+    // Datos básicos (los jugadores) lo usa cualquiera que tenga algún módulo.
+    datos: partido || flujo || lesiones,
     admin,
   };
 };

@@ -45,6 +45,7 @@ vi.mock("./domain/equipo.js", () => ({
 }));
 vi.mock("./CuentasAdmin.jsx", () => ({ default: ({ onVolver }) => <div className="cuentas-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
 vi.mock("./domain/perfilesDb.js", () => ({ contarPendientes: async () => 2 }));
+vi.mock("./DatosBasicos.jsx", () => ({ default: ({ onVolver }) => <div className="datos-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
 
 describe("el portal", () => {
   let contenedor;
@@ -94,6 +95,22 @@ describe("el portal", () => {
     expect(contenedor.querySelector(".tarjeta-flujo .portal-foto img").getAttribute("src")).toBe("/portal/flujo.webp");
     expect(contenedor.querySelectorAll(".portal-tarjeta .portal-icono svg")).toHaveLength(2);
     expect(portada()).toBeNull();
+  });
+
+  test("con algún módulo aparece también Datos básicos, con su dibujo, y entra sin portada", async () => {
+    cuenta.permisos = { partido: true, flujo: true, datos: true, admin: false };
+    await montar();
+    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(3);
+    const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Datos básicos"]');
+    expect(tarjeta).not.toBeNull();
+    expect(tarjeta.classList.contains("tarjeta-datos")).toBe(true);
+    expect(tarjeta.querySelector(".portal-foto img")).toBeNull();
+    expect(tarjeta.querySelector(".portal-foto svg")).not.toBeNull();
+    await tocar("Entrar a Datos básicos");
+    await act(async () => vi.runAllTimers());
+    expect(contenedor.querySelector(".datos-de-prueba")).not.toBeNull();
+    await act(async () => contenedor.querySelector(".datos-de-prueba button").click());
+    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(3);
   });
 
   test("sin club elegido, lo primero es elegir el club; después aparece el portal con ese club", async () => {

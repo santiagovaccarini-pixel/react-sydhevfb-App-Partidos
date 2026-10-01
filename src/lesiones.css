@@ -329,3 +329,130 @@
 .lesiones-marco .lesiones-tabla tbody tr:hover td {
   background: #f8fafc;
 }
+
+/* La carga por pasos: la barra de progreso, el título del paso y los campos
+   con aire. */
+.lesiones-marco .lesiones-progreso {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.lesiones-marco .lesiones-progreso button {
+  flex: 1 1 0;
+  height: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+.lesiones-marco .lesiones-progreso button.hecho {
+  background: #16a34a;
+}
+.lesiones-marco .lesiones-progreso button.actual {
+  background: #fff;
+}
+.lesiones-marco .lesiones-progreso button:disabled {
+  cursor: default;
+}
+.lesiones-marco .lesiones-paso-numero {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lesiones-marco .lesiones-paso-titulo {
+  margin: 4px 0 12px;
+}
+.lesiones-marco .lesiones-paso-titulo h2 {
+  margin: 0 0 4px;
+  color: #fff;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.lesiones-marco .lesiones-paso-titulo p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.lesiones-marco .lesiones-campo-paso {
+  gap: 8px;
+}
+.lesiones-marco .lesiones-campo-paso > label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.lesiones-marco .lesiones-opcional {
+  color: #94a3b8;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.lesiones-marco .lesiones-chips .chip-criterio {
+  min-height: 46px;
+  font-size: 14px;
+}
+.lesiones-marco .lesiones-buscador-jugador {
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  font-size: 15px;
+  box-sizing: border-box;
+}
+.lesiones-marco .lesiones-lista-jugadores {
+  max-height: 46vh;
+  overflow: auto;
+}
+.lesiones-marco .lesiones-lista-jugadores button.elegido {
+  border-color: transparent;
+  background: linear-gradient(135deg, #000000, #16a34a);
+}
+.lesiones-marco .lesiones-lista-jugadores button.elegido b,
+.lesiones-marco .lesiones-lista-jugadores button.elegido span {
+  color: #fff;
+}
+.lesiones-marco .lesiones-jugador-elegido {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #e2e8f0;
+}
+.lesiones-marco .lesiones-calculados {
+  background: #f8fafc;
+}
+.lesiones-marco .lesiones-calculados .cabeza-ficha b {
+  color: #166534;
+}
+
+/* La base estilo Excel ocupa todo el ancho que haya. */
+.lesiones-marco .contenedor-base {
+  width: 100%;
+  max-width: none;
+}
+.datos-marco .datos-agregar input {
+  flex: 1 1 auto;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  font: inherit;
+  font-size: 15px;
+  color: #0f172a;
+}
+.datos-marco .datos-agregar .boton-principal {
+  flex: 0 0 auto;
+  height: 46px;
+  margin: 0;
+  padding: 0 16px;
+  font-size: 14px;
+}

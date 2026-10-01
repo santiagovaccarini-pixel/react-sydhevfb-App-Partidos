@@ -14,27 +14,28 @@ const op = (codigo, es, pt) => ({ codigo, etiquetas: et(es, pt) });
 
 export const CAMPOS = [
   { clave: "numero_caso", tipo: "auto", grupo: "registro", etiquetas: et("N° de caso", "N° de Caso") },
-  { clave: "numero_registro", tipo: "dato_jugador", grupo: "jugador", etiquetas: et("N° de registro", "N° de Registro") },
+  { clave: "numero_registro", tipo: "calculado", grupo: "jugador", etiquetas: et("N° de registro", "N° de Registro") },
   { clave: "jugador", tipo: "jugador", grupo: "jugador", obligatorio: true, etiquetas: et("Nombre y apellido", "Nome e Sobrenome") },
   { clave: "categoria", tipo: "dato_jugador", lista: true, grupo: "jugador", etiquetas: et("Categoría", "Categoria") },
   { clave: "fecha_nacimiento", tipo: "dato_jugador", grupo: "jugador", etiquetas: et("Fecha de nacimiento", "D. Nac. (DD/MM/AAAA)") },
   { clave: "pie_dominante", tipo: "dato_jugador", lista: true, grupo: "jugador", etiquetas: et("Pie dominante", "P. Dominante") },
-  { clave: "posicion", tipo: "dato_jugador", grupo: "jugador", etiquetas: et("Posición", "Posicao") },
+  { clave: "posicion", tipo: "dato_jugador", lista: true, grupo: "jugador", etiquetas: et("Posición", "Posicao") },
   { clave: "edad", tipo: "calculado", grupo: "jugador", etiquetas: et("Edad", "Idade") },
   { clave: "tipo_lesion", tipo: "lista", grupo: "lesion", etiquetas: et("Tipo de lesión", "Tipo de lesão") },
   { clave: "parte_cuerpo", tipo: "lista", grupo: "lesion", obligatorio: true, etiquetas: et("Parte del cuerpo lesionada", "Parte do Corpo Lesionada") },
   { clave: "lado", tipo: "lista", grupo: "lesion", obligatorio: true, etiquetas: et("Lado", "Lado") },
+  { clave: "lado_habil", tipo: "calculado", lista: true, grupo: "lesion", etiquetas: et("Lado hábil lesionado", "Lado habil Lesionado") },
   { clave: "hora_imagen", tipo: "fecha_hora", grupo: "imagen", etiquetas: et("Hora de la imagen", "HORA DA IMAGEM") },
-  { clave: "imagenes", tipo: "lista", grupo: "imagen", etiquetas: et("Imágenes", "IMAGENS") },
-  { clave: "horas_imagen", tipo: "calculado", grupo: "imagen", etiquetas: et("Horas entre la lesión y la imagen", 'Horas Passadas e/ "Imagem" e "Lesão"') },
-  { clave: "ligamento", tipo: "lista", grupo: "lesion", etiquetas: et("Ligamento específico", "Lig Específico") },
-  { clave: "musculo", tipo: "lista", grupo: "lesion", etiquetas: et("Músculo afectado", "Músculo afetado") },
-  { clave: "musculo_especifico", tipo: "lista", grupo: "lesion", etiquetas: et("Músculo específico", "Músculo Específico") },
-  { clave: "area", tipo: "lista", grupo: "lesion", etiquetas: et("Área", "Área") },
-  { clave: "producto", tipo: "lista", grupo: "lesion", etiquetas: et("Producto", "Produto") },
-  { clave: "mecanismo", tipo: "lista", grupo: "lesion", etiquetas: et("Mecanismo", "Mecanismo") },
-  { clave: "cuando", tipo: "lista", grupo: "lesion", etiquetas: et("Cuándo", "Quando") },
-  { clave: "localizacion", tipo: "lista", grupo: "lesion", etiquetas: et("Localización", "Localização") },
+  { clave: "imagenes", tipo: "texto", grupo: "imagen", etiquetas: et("Imágenes", "IMAGENS") },
+  { clave: "horas_imagen", tipo: "numero", grupo: "imagen", etiquetas: et("Horas entre la lesión y la imagen", 'Horas Passadas e/ "Imagem" e "Lesão"') },
+  { clave: "ligamento", tipo: "lista", grupo: "estructura", etiquetas: et("Ligamento específico", "Lig Específico") },
+  { clave: "musculo", tipo: "lista", grupo: "estructura", etiquetas: et("Músculo afectado", "Músculo afetado") },
+  { clave: "musculo_especifico", tipo: "lista", grupo: "estructura", etiquetas: et("Músculo específico", "Músculo Específico") },
+  { clave: "area", tipo: "lista", grupo: "estructura", etiquetas: et("Área", "Área") },
+  { clave: "producto", tipo: "lista", grupo: "contexto", etiquetas: et("Producto", "Produto") },
+  { clave: "mecanismo", tipo: "lista", grupo: "contexto", etiquetas: et("Mecanismo", "Mecanismo") },
+  { clave: "cuando", tipo: "lista", grupo: "contexto", etiquetas: et("Cuándo", "Quando") },
+  { clave: "localizacion", tipo: "lista", grupo: "contexto", etiquetas: et("Localización", "Localização") },
   { clave: "fecha_lesion", tipo: "fecha", grupo: "fechas", obligatorio: true, columna: true, etiquetas: et("Fecha de inicio de la lesión", "Data de Início da Lesão (DD/MM/YYYY)") },
   { clave: "fecha_transicion", tipo: "fecha", grupo: "fechas", columna: true, etiquetas: et("Pase a transición", "Passagem para o Transicao (DD/MM/YYYY)") },
   { clave: "recup_1", tipo: "calculado", grupo: "fechas", etiquetas: et("Recup 1", "Recup 1") },
@@ -42,10 +43,10 @@ export const CAMPOS = [
   { clave: "recup_2", tipo: "calculado", grupo: "fechas", etiquetas: et("Recup 2", "Recup 2") },
   { clave: "fecha_alta", tipo: "fecha", grupo: "fechas", columna: true, etiquetas: et("Retorno a la competencia (alta)", "Retorno à Data da Competição (DD/MM/YYYY)") },
   { clave: "recuperacion", tipo: "calculado", grupo: "fechas", etiquetas: et("Recuperación", "Recuperação") },
-  { clave: "severidad", tipo: "lista", grupo: "fechas", etiquetas: et("Severidad", "Severidade") },
-  { clave: "recurrencia", tipo: "lista", grupo: "fechas", etiquetas: et("Recurrencia", "Recorrência") },
-  { clave: "recidiva", tipo: "lista", grupo: "fechas", etiquetas: et("Recidiva", "Recidiva") },
-  { clave: "diagnostico", tipo: "texto", grupo: "notas", etiquetas: et("Diagnóstico", "Diagnóstico") },
+  { clave: "severidad", tipo: "calculado", lista: true, grupo: "fechas", etiquetas: et("Severidad", "Severidade") },
+  { clave: "recurrencia", tipo: "calculado", lista: true, grupo: "fechas", etiquetas: et("Recurrencia", "Recorrência") },
+  { clave: "recidiva", tipo: "calculado", lista: true, grupo: "fechas", etiquetas: et("Recidiva", "Recidiva") },
+  { clave: "diagnostico", tipo: "calculado", grupo: "notas", etiquetas: et("Diagnóstico", "Diagnóstico") },
   { clave: "comentarios", tipo: "texto_largo", grupo: "notas", etiquetas: et("Comentarios adicionales", "Comentários adicionais") },
   { clave: "medico", tipo: "texto", grupo: "notas", etiquetas: et("Médico", "Médico") },
 ];
@@ -56,14 +57,26 @@ export const CAMPOS = [
 // estaban sembrados (leerConfig completa lo que falte).
 export const OPCIONES = {
   categoria: [
-    op("profissional", "Profesional", "Profissional"),
+    op("profissional", "Mayor (profesional)", "Profissional"),
     op("sub23", "Sub-23", "Sub-23"),
     op("sub20", "Sub-20", "Sub-20"),
+    op("sub18", "Sub-18", "Sub-18"),
     op("sub17", "Sub-17", "Sub-17"),
     op("sub15", "Sub-15", "Sub-15"),
-    op("outro", "Otra", "Outro"),
   ],
-  pie_dominante: [op("direito", "Derecho", "Direito"), op("esquerdo", "Izquierdo", "Esquerdo"), op("ambos", "Ambos", "Ambos")],
+  pie_dominante: [op("direito", "Derecho", "Direito"), op("esquerdo", "Izquierdo", "Esquerdo")],
+  posicion: [
+    op("goleiro", "Arquero", "GOLEIRO"),
+    op("defensor_central", "Defensor central", "ZAGUEIRO"),
+    op("defensor_lateral", "Defensor lateral", "LATERAL"),
+    op("volante_central", "Volante central", "VOLANTE"),
+    op("volante_mixto", "Volante mixto", "MEIA"),
+    op("volante_ofensivo", "Volante ofensivo", "MEIA OFENSIVO"),
+    op("mediapunta", "Mediapunta", "MEIA-ATACANTE"),
+    op("extremo", "Extremo", "PONTA"),
+    op("delantero_central", "Delantero central", "CENTROAVANTE"),
+  ],
+  lado_habil: [op("sim", "Sí", "Sim"), op("nao", "No", "Não")],
   tipo_lesion: [
     op("abrasao", "Abrasión", "ABRASÃO"),
     op("concussao", "Conmoción cerebral con o sin pérdida de conciencia", "CONCUSSÃO CEREBRAL COM OU SEM PERDA DE CONSCIÊNCIA"),
@@ -270,19 +283,26 @@ export const OPCIONES = {
   recidiva: [op("sim", "Sí", "Sim"), op("nao", "No", "Não")],
 };
 
-export const GRUPOS = ["registro", "jugador", "lesion", "imagen", "fechas", "notas"];
+export const GRUPOS = ["registro", "jugador", "lesion", "estructura", "contexto", "imagen", "fechas", "notas"];
 
 export const campoPorClave = (clave) => CAMPOS.find((campo) => campo.clave === clave) || null;
 
-export const CAMPOS_CON_LISTA = CAMPOS.filter((campo) => campo.tipo === "lista" || campo.lista);
+// Los desplegables que el club puede editar desde Ajustes › Listas: los que
+// se cargan a mano más los de los datos del jugador. Las listas de las
+// columnas calculadas (severidad, recurrencia, recidiva, lado hábil) solo
+// dan el texto de cada valor.
+export const CAMPOS_CON_LISTA = CAMPOS.filter((campo) => campo.tipo === "lista" || (campo.lista && campo.tipo === "dato_jugador"));
 
-// Las columnas del Excel que el jugador trae puestas (se guardan en jugadores).
-export const DATOS_DEL_JUGADOR = ["numero_registro", "categoria", "fecha_nacimiento", "pie_dominante"];
+// Las columnas del Excel que el jugador trae puestas (se guardan en jugadores,
+// desde el módulo Datos básicos).
+export const DATOS_DEL_JUGADOR = ["categoria", "fecha_nacimiento", "pie_dominante", "posicion"];
 
-// Lo que se puede cargar a mano en una lesión (va en `datos` o en su columna).
-export const CAMPOS_EDITABLES = CAMPOS.filter((campo) =>
-  ["lista", "fecha", "fecha_hora", "texto", "texto_largo"].includes(campo.tipo),
-);
+// Lo que se carga a mano en una lesión (va en `datos` o en su columna). Es
+// exactamente lo que el Excel no calcula.
+export const TIPOS_MANUALES = ["lista", "fecha", "fecha_hora", "texto", "texto_largo", "numero"];
+export const CAMPOS_EDITABLES = CAMPOS.filter((campo) => TIPOS_MANUALES.includes(campo.tipo));
+export const CAMPOS_CALCULADOS = CAMPOS.filter((campo) => ["calculado", "auto", "dato_jugador"].includes(campo.tipo));
+export const esCalculado = (clave) => CAMPOS_CALCULADOS.some((campo) => campo.clave === clave);
 
 const idiomaCorto = (idioma) => (String(idioma || "").startsWith("pt") ? "pt" : "es");
 const idiomaLargo = (idioma) => (idiomaCorto(idioma) === "pt" ? "pt-BR" : "es-AR");

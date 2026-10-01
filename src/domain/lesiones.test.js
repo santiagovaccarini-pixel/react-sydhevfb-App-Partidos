@@ -3,6 +3,7 @@ import {
   calcular,
   claveDeErrorDeBase,
   conValor,
+  diagnosticoDe,
   diasDeBaja,
   estadoDelPlantel,
   etapaDe,
@@ -10,13 +11,16 @@ import {
   buscarEnLesiones,
   lesionVacia,
   lesionesActivas,
+  numeroDeRegistro,
   posibleRecidiva,
+  recidivaDe,
+  recurrenciaDe,
   seSolapa,
   severidadPorDias,
   validarLesion,
   valorDe,
 } from "./lesiones.js";
-import { CAMPOS, OPCIONES, armarConfig, etiquetaDeCampo, etiquetaDeOpcion, filasParaSembrar, opcionesDeCampo } from "./lesionesCampos.js";
+import { CAMPOS, CAMPOS_EDITABLES, OPCIONES, armarConfig, esCalculado, etiquetaDeCampo, etiquetaDeOpcion, filasParaSembrar, opcionesDeCampo } from "./lesionesCampos.js";
 
 const base = (extra = {}) =>
   lesionVacia({
@@ -28,13 +32,43 @@ const base = (extra = {}) =>
   });
 
 describe("el catálogo del Excel", () => {
-  test("tiene las 35 columnas, cada una con nombre en los dos idiomas", () => {
-    expect(CAMPOS).toHaveLength(35);
+  test("tiene las columnas del Excel (más la posición del jugador), cada una con nombre en los dos idiomas", () => {
+    expect(CAMPOS).toHaveLength(36);
     CAMPOS.forEach((campo) => {
       expect(campo.etiquetas["es-AR"]).toBeTruthy();
       expect(campo.etiquetas["pt-BR"]).toBeTruthy();
     });
     expect(CAMPOS.map((campo) => campo.clave).slice(0, 3)).toEqual(["numero_caso", "numero_registro", "jugador"]);
+  });
+
+  test("separa lo que se carga a mano de lo que el Excel calcula solo", () => {
+    expect(CAMPOS.find((campo) => campo.clave === "jugador").tipo).toBe("jugador");
+    expect(CAMPOS_EDITABLES.map((campo) => campo.clave)).toEqual([
+      "tipo_lesion",
+      "parte_cuerpo",
+      "lado",
+      "hora_imagen",
+      "imagenes",
+      "horas_imagen",
+      "ligamento",
+      "musculo",
+      "musculo_especifico",
+      "area",
+      "producto",
+      "mecanismo",
+      "cuando",
+      "localizacion",
+      "fecha_lesion",
+      "fecha_transicion",
+      "fecha_retorno_entrenamiento",
+      "fecha_alta",
+      "comentarios",
+      "medico",
+    ]);
+    ["numero_caso", "numero_registro", "categoria", "edad", "lado_habil", "recup_1", "recup_2", "recuperacion", "severidad", "recurrencia", "recidiva", "diagnostico"].forEach((clave) =>
+      expect(esCalculado(clave), clave).toBe(true),
+    );
+    expect(esCalculado("medico")).toBe(false);
   });
 
   test("cada desplegable tiene opciones con código único y texto en los dos idiomas", () => {
@@ -77,7 +111,7 @@ describe("el catálogo del Excel", () => {
 
   test("la semilla de un club trae todas las cabeceras y opciones", () => {
     const semilla = filasParaSembrar("eq-1");
-    expect(semilla.campos).toHaveLength(35);
+    expect(semilla.campos).toHaveLength(36);
     expect(semilla.campos[0]).toMatchObject({ equipo_id: "eq-1", campo: "numero_caso", etiqueta_pt: "N° de Caso", orden: 0 });
     expect(semilla.opciones.length).toBeGreaterThan(150);
   });
@@ -94,22 +128,63 @@ describe("etapas, días y severidad", () => {
   test("cuenta los días como el Excel", () => {
     const lesion = base({ fecha_transicion: "2026-09-05", fecha_retorno_entrenamiento: "2026-09-12", fecha_alta: "2026-09-20" });
     expect(calcular("recup_1", lesion)).toBe(4);
-    expect(calcular("recup_2", lesion)).toBe(7);
+    // Recup 2 en el Excel va desde el inicio (no desde la transición).
+    expect(calcular("recup_2", lesion)).toBe(11);
     expect(calcular("recuperacion", lesion)).toBe(19);
+    // Sin alta, cuenta hasta hoy.
+    expect(calcular("recuperacion", base(), null, { hoy: "2026-09-11" })).toBe(10);
     expect(diasDeBaja(lesion)).toBe(19);
     expect(diasDeBaja(base(), "2026-09-04")).toBe(3);
     expect(calcular("edad", base(), { fecha_nacimiento: "2000-09-02" })).toBe(25);
     expect(calcular("edad", base(), { fecha_nacimiento: "2000-09-01" })).toBe(26);
-    expect(calcular("horas_imagen", base({ datos: { hora_imagen: "2026-09-02T06:00" } }))).toBe(30);
+    // Las horas hasta la imagen las escribe el médico; no se calculan.
+    expect(calcular("horas_imagen", base({ datos: { hora_imagen: "2026-09-02T06:00" } }))).toBe(null);
+  });
+
+  test("lado hábil, n° de registro, recurrencia, recidiva y diagnóstico salen como en el Excel", () => {
+    expect(calcular("lado_habil", base(), { pie_dominante: "direito" })).toBe("sim");
+    expect(calcular("lado_habil", base(), { pie_dominante: "esquerdo" })).toBe("nao");
+    expect(calcular("lado_habil", base(), {})).toBe("");
+
+    const primera = base({ id: "p", numero_caso: 1, fecha_lesion: "2026-03-01", fecha_alta: "2026-03-20", datos: { parte_cuerpo: "coxa", lado: "direito", musculo: "isquiotibiais", musculo_especifico: "biceps_femoral", area: "medio" } });
+    const otra = base({ id: "o", numero_caso: 2, jugador_id: 8, fecha_lesion: "2026-04-01" });
+    const segunda = base({ id: "s", numero_caso: 3, fecha_lesion: "2026-05-01", datos: { parte_cuerpo: "coxa", lado: "direito", musculo: "isquiotibiais", musculo_especifico: "biceps_femoral", area: "medio" } });
+    const todas = [primera, otra, segunda];
+    expect(numeroDeRegistro(primera, todas)).toBe(1);
+    expect(numeroDeRegistro(segunda, todas)).toBe(2);
+    expect(numeroDeRegistro(otra, todas)).toBe(1);
+    expect(numeroDeRegistro(base({ id: null, numero_caso: null, fecha_lesion: "2026-09-01" }), todas)).toBe(3);
+
+    // Recurrencia: misma parte, lado y músculo, con la anterior terminada hace 60 días o menos.
+    expect(recurrenciaDe(segunda, todas)).toBe("sim");
+    expect(recurrenciaDe({ ...segunda, fecha_lesion: "2026-05-20" }, todas)).toBe("nao");
+    expect(recurrenciaDe({ ...segunda, datos: { ...segunda.datos, lado: "esquerdo" } }, todas)).toBe("nao");
+    // Recidiva: exactamente la misma estructura, en cualquier momento.
+    expect(recidivaDe({ ...segunda, fecha_lesion: "2026-12-01" }, todas)).toBe("sim");
+    expect(recidivaDe({ ...segunda, datos: { ...segunda.datos, area: "proximal" } }, todas)).toBe("nao");
+    expect(recidivaDe(primera, todas)).toBe("nao");
+    expect(calcular("recurrencia", segunda, null, { lesiones: todas })).toBe("sim");
+
+    const texto = (clave, codigo) => (codigo ? `${clave}:${codigo}` : "");
+    expect(diagnosticoDe(segunda, texto)).toBe("musculo_especifico:biceps_femoral musculo:isquiotibiais area:medio lado:direito");
+    expect(diagnosticoDe(base(), texto)).toBe("tipo_lesion:muscular_1a parte_cuerpo:coxa lado:direito");
+    expect(diagnosticoDe(base({ datos: { tipo_lesion: "entorse", ligamento: "lca", parte_cuerpo: "joelho", lado: "esquerdo" } }), texto)).toBe("tipo_lesion:entorse ligamento:lca parte_cuerpo:joelho lado:esquerdo");
+    expect(calcular("diagnostico", base({ datos: {} }))).toBe("");
   });
 
   test("severidad por días de recuperación con la escala del Excel", () => {
     expect(severidadPorDias(0)).toBe("registro");
+    expect(severidadPorDias(1)).toBe("leve");
     expect(severidadPorDias(3)).toBe("leve");
+    expect(severidadPorDias(5)).toBe("menor");
     expect(severidadPorDias(7)).toBe("menor");
+    expect(severidadPorDias(8)).toBe("moderado");
     expect(severidadPorDias(28)).toBe("moderado");
     expect(severidadPorDias(29)).toBe("mayor");
     expect(severidadPorDias(null)).toBe("");
+    // La severidad guardada no existe más: sale de las fechas, y solo con alta.
+    expect(calcular("severidad", base({ fecha_alta: "2026-09-04" }))).toBe("leve");
+    expect(calcular("severidad", base())).toBe("");
   });
 
   test("valorDe y conValor saben qué va en columna y qué en datos", () => {
@@ -132,6 +207,9 @@ describe("validar", () => {
     expect(validarLesion(base({ fecha_transicion: "2026-10-05" }), { hoy })).toBe("lesiones.error.fechaFuturaOtra");
     expect(validarLesion(base({ datos: { lado: "direito" } }), { hoy })).toBe("lesiones.error.parte");
     expect(validarLesion(base({ datos: { parte_cuerpo: "coxa" } }), { hoy })).toBe("lesiones.error.lado");
+    expect(validarLesion(base({ datos: { parte_cuerpo: "coxa", lado: "direito", horas_imagen: "-2" } }), { hoy })).toBe("lesiones.error.horas");
+    expect(validarLesion(base({ datos: { parte_cuerpo: "coxa", lado: "direito", horas_imagen: "12,5" } }), { hoy })).toBe("lesiones.error.horas");
+    expect(validarLesion(base({ datos: { parte_cuerpo: "coxa", lado: "direito", horas_imagen: 12.5 } }), { hoy })).toBe("");
     expect(validarLesion(base(), { hoy })).toBe("");
   });
 

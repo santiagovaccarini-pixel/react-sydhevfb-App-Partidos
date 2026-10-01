@@ -845,3 +845,8 @@
 .portal-tarjeta.tarjeta-lesiones .portal-foto {
   background: linear-gradient(135deg, #7f1d1d, #2a0a0a);
 }
+
+/* La tarjeta de Datos básicos, grafito como su dibujo. */
+.portal-tarjeta.tarjeta-datos .portal-foto {
+  background: linear-gradient(135deg, #1f2937, #0b0d10);
+}

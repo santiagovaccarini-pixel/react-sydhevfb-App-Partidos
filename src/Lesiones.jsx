@@ -5,8 +5,8 @@ import { BotonVolver, DatoDetalle } from "./components/BotonVolver.jsx";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
+import { TablaDatos } from "./components/TablaDatos.jsx";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
-import { nombrePuesto } from "./domain/plantel.js";
 import {
   ETAPAS,
   FILTRO,
@@ -14,9 +14,7 @@ import {
   calcular,
   conValor,
   diasDeBaja,
-  diasEntre,
   estaActiva,
-  estadoDelPlantel,
   etapaDe,
   filtrarLesiones,
   lesionVacia,
@@ -24,7 +22,6 @@ import {
   normalizarTexto,
   ordenarHistorial,
   posibleRecidiva,
-  severidadPorDias,
   validarLesion,
   valorDe,
 } from "./domain/lesiones.js";
@@ -32,6 +29,7 @@ import {
   CAMPOS,
   CAMPOS_CON_LISTA,
   GRUPOS,
+  TIPOS_MANUALES,
   campoOculto,
   campoPorClave,
   codigoNuevo,
@@ -45,7 +43,6 @@ import {
   cargarPlantelLesiones,
   crearLesion,
   guardarCampo,
-  guardarDatosJugador,
   guardarOpcion,
   historialDeLesion,
   leerConfig,
@@ -57,20 +54,32 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import "./lesiones.css";
 
 // El módulo Lesiones, con la misma cara que Partido: fichas con "Ver
-// detalle", el filtro de Registros (botón negro, hoja "Filtrar por" y chips),
-// Ajustes con filas y "Volver a Ajustes". Las columnas son las del Excel
-// original (lesionesCampos.js); cada club las renombra y arma sus listas
-// desde Ajustes. Lee y escribe directo en la base; sin señal avisa.
+// detalle", el filtro de Registros, la base estilo Excel y Ajustes con filas.
+// Las columnas son las del Excel original (lesionesCampos.js): se cargan a
+// mano solo las que el Excel no calcula; el resto se calcula igual que ahí.
 
 export const DESTINOS_LESIONES = [
   { id: "lesionados", etiqueta: "Lesionados", icono: "usuario" },
   { id: "historial", etiqueta: "Historial", icono: "registros" },
-  { id: "plantel", etiqueta: "Plantel", icono: "escudo" },
+  { id: "base", etiqueta: "Base", icono: "documento" },
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
+];
+
+// La carga de una lesión, de a un paso: lo que el médico tiene que escribir,
+// en el orden en que lo piensa. Lo calculado aparece al final.
+export const PASOS = [
+  { id: "jugador", campos: ["jugador"] },
+  { id: "lesion", campos: ["tipo_lesion", "parte_cuerpo", "lado", "fecha_lesion"] },
+  { id: "estructura", campos: ["ligamento", "musculo", "musculo_especifico", "area"] },
+  { id: "contexto", campos: ["producto", "mecanismo", "cuando", "localizacion"] },
+  { id: "evolucion", campos: ["fecha_transicion", "fecha_retorno_entrenamiento", "fecha_alta", "hora_imagen", "imagenes", "horas_imagen"] },
+  { id: "notas", campos: ["medico", "comentarios"] },
 ];
 
 const MULTI_FILTRO = "multi";
 const LISTAS_DEL_FILTRO = CAMPOS.filter((campo) => campo.tipo === "lista").map((campo) => campo.clave);
+// Hasta esta cantidad, las opciones van como botones a la vista; con más, en la hoja con buscador.
+const MAXIMO_CHIPS = 6;
 
 const primeraMayuscula = (texto) => (texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : "");
 
@@ -81,11 +90,12 @@ const EtapaChip = ({ lesion }) => {
 
 // Título de las pantallas que no son la principal, con el globo del idioma
 // a la derecha.
-const Encabezado = ({ titulo, texto }) => (
+const Encabezado = ({ titulo, texto, children = null }) => (
   <header className="encabezado lesiones-encabezado">
     <div className="lesiones-encabezado-texto">
       <h1>{titulo}</h1>
       {texto && <p>{texto}</p>}
+      {children}
     </div>
     <SelectorIdioma className="lesiones-idioma" />
   </header>
@@ -104,13 +114,14 @@ export default function Lesiones({ onVolver }) {
   const [ocupado, setOcupado] = useState(false);
   const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
 
-  // Pantallas encima de la vista: la ficha de una lesión, el formulario, los
-  // datos de un jugador.
+  // Pantallas encima de la vista: la ficha de una lesión y la carga por pasos.
   const [detalleId, setDetalleId] = useState(null);
   const [cambiosDetalle, setCambiosDetalle] = useState([]);
   const [formulario, setFormulario] = useState(null);
+  const [paso, setPaso] = useState(0);
+  const [pasoMaximo, setPasoMaximo] = useState(0);
   const [errorFormulario, setErrorFormulario] = useState("");
-  const [jugadorEditando, setJugadorEditando] = useState(null);
+  const [busquedaJugador, setBusquedaJugador] = useState("");
 
   // Hojas: elegir de una lista (como los desplegables de Partido), dar el
   // alta, borrar.
@@ -121,8 +132,6 @@ export default function Lesiones({ onVolver }) {
 
   // El filtro del historial, igual que el de Registros de Partido.
   const [busqueda, setBusqueda] = useState("");
-  // Fichas (como Registros de Partido) o tabla (como la base del Excel).
-  const [vistaHistorial, setVistaHistorial] = useState("fichas");
   const [filtroAbierto, setFiltroAbierto] = useState(false);
   const [criterio, setCriterio] = useState(FILTRO.TODOS);
   const [criteriosMulti, setCriteriosMulti] = useState([]);
@@ -215,6 +224,8 @@ export default function Lesiones({ onVolver }) {
   const opciones = (clave) => opcionesDeCampo(clave, config, idioma);
   const textoDeOpcion = (clave, codigo) => etiquetaDeOpcion(clave, codigo, config, idioma);
   const visible = (campo) => !campoOculto(campo.clave, config);
+  // Lo que necesita el cálculo de las columnas del Excel.
+  const contexto = useMemo(() => ({ lesiones, texto: textoDeOpcion, hoy: hoyISO() }), [lesiones, config, idioma]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cómo se muestra cada columna del Excel en una lesión.
   const enPantalla = (campo, lesion) => {
@@ -225,7 +236,6 @@ export default function Lesiones({ onVolver }) {
       case "jugador":
         return jugador?.nombre || "";
       case "dato_jugador": {
-        if (campo.clave === "posicion") return (jugador?.puestos || []).map(nombrePuesto).join(" / ");
         const valor = campo.clave === "categoria" ? lesion.datos?.categoria || jugador?.categoria : jugador?.[campo.clave];
         if (!valor) return "";
         if (campo.lista) return textoDeOpcion(campo.clave, valor);
@@ -233,11 +243,12 @@ export default function Lesiones({ onVolver }) {
         return String(valor);
       }
       case "calculado": {
-        const numero = calcular(campo.clave, lesion, jugador);
-        if (numero === null || numero === undefined) return "";
-        if (campo.clave === "edad") return plural("lesiones.anios", numero);
-        if (campo.clave === "horas_imagen") return plural("lesiones.horas", numero);
-        return plural("lesiones.dias", numero);
+        const resultado = calcular(campo.clave, lesion, jugador, contexto);
+        if (resultado === null || resultado === undefined || resultado === "") return "";
+        if (campo.lista) return textoDeOpcion(campo.clave, resultado);
+        if (campo.clave === "edad") return plural("lesiones.anios", resultado);
+        if (["recup_1", "recup_2", "recuperacion"].includes(campo.clave)) return plural("lesiones.dias", resultado);
+        return String(resultado);
       }
       case "lista":
         return textoDeOpcion(campo.clave, valorDe(lesion, campo.clave));
@@ -245,13 +256,16 @@ export default function Lesiones({ onVolver }) {
         return fechaCorta(valorDe(lesion, campo.clave));
       case "fecha_hora":
         return fechaYHora(valorDe(lesion, campo.clave));
+      case "numero": {
+        const valor = valorDe(lesion, campo.clave);
+        return valor === null || valor === undefined || valor === "" ? "" : String(valor);
+      }
       default:
         return String(valorDe(lesion, campo.clave) || "");
     }
   };
 
   const activas = useMemo(() => lesionesActivas(lesiones), [lesiones]);
-  const plantelConEstado = useMemo(() => estadoDelPlantel(plantel, lesiones), [plantel, lesiones]);
   const lesionDetalle = detalleId ? lesiones.find((lesion) => lesion.id === detalleId) || null : null;
 
   const avisarError = (clave, lesion) =>
@@ -289,12 +303,22 @@ export default function Lesiones({ onVolver }) {
 
   const abrirNueva = () => {
     setErrorFormulario("");
+    setBusquedaJugador("");
+    setPaso(0);
+    setPasoMaximo(0);
     setFormulario(lesionVacia());
   };
 
   const abrirEdicion = (lesion) => {
     setErrorFormulario("");
+    setPaso(1);
+    setPasoMaximo(PASOS.length - 1);
     setFormulario({ ...lesion, datos: { ...(lesion.datos || {}) } });
+  };
+
+  const cerrarFormulario = () => {
+    setFormulario(null);
+    setErrorFormulario("");
   };
 
   const guardarFormulario = async () => {
@@ -308,12 +332,9 @@ export default function Lesiones({ onVolver }) {
       return;
     }
     const jugador = jugadorDe(lesion.jugador_id);
-    const recidiva = posibleRecidiva(lesion, lesiones);
     const datos = { ...(lesion.datos || {}) };
-    // Lo que el Excel completa solo si no se cargó a mano.
+    // La categoría queda como estaba el día de la lesión.
     if (!datos.categoria && jugador?.categoria) datos.categoria = jugador.categoria;
-    if (lesion.fecha_alta && !datos.severidad) datos.severidad = severidadPorDias(diasEntre(lesion.fecha_lesion, lesion.fecha_alta));
-    if (recidiva && !datos.recidiva) datos.recidiva = "sim";
     const aGuardar = { ...lesion, datos };
     setOcupado(true);
     const respuesta = lesion.id ? await actualizarLesion(lesion.id, aGuardar) : await crearLesion(equipoId, aGuardar);
@@ -336,10 +357,8 @@ export default function Lesiones({ onVolver }) {
     const hoy = hoyISO();
     if (!fechaAlta || fechaAlta < lesion.fecha_lesion) return setAviso(t("lesiones.error.fechaAntes"));
     if (fechaAlta > hoy) return setAviso(t("lesiones.error.fechaFuturaOtra"));
-    const datos = { ...(lesion.datos || {}) };
-    if (!datos.severidad) datos.severidad = severidadPorDias(diasEntre(lesion.fecha_lesion, fechaAlta));
     setOcupado(true);
-    const respuesta = await actualizarLesion(lesion.id, { ...lesion, fecha_alta: fechaAlta, datos });
+    const respuesta = await actualizarLesion(lesion.id, { ...lesion, fecha_alta: fechaAlta });
     setOcupado(false);
     if (respuesta.error) return avisarError(respuesta.error, lesion);
     reemplazar(respuesta.lesion);
@@ -365,21 +384,6 @@ export default function Lesiones({ onVolver }) {
     setAviso(t("lesiones.borrada"));
   };
 
-  const guardarJugador = async () => {
-    const jugador = jugadorEditando;
-    if (!jugador) return;
-    setOcupado(true);
-    const respuesta = await guardarDatosJugador(jugador.id, jugador);
-    setOcupado(false);
-    if (respuesta.error) {
-      setAviso(t(respuesta.error));
-      return;
-    }
-    setPlantel((actual) => actual.map((uno) => (uno.id === respuesta.jugador.id ? respuesta.jugador : uno)));
-    setJugadorEditando(null);
-    setAviso(t("lesiones.plantel.guardados"));
-  };
-
   const recargarConfig = async () => {
     const respuesta = await leerConfig(equipoId);
     if (!respuesta.error) setConfig(respuesta.config);
@@ -388,7 +392,7 @@ export default function Lesiones({ onVolver }) {
   const guardarHojaCabecera = async () => {
     const hoja = hojaCabecera;
     if (!hoja) return;
-    if (!String(hoja.etiquetas["es-AR"] || "").trim() && !String(hoja.etiquetas["pt-BR"] || "").trim()) {
+    if (!String(hoja.etiquetas[idioma] || "").trim()) {
       setErrorHoja(t("lesiones.ajustes.faltaTexto"));
       return;
     }
@@ -407,16 +411,15 @@ export default function Lesiones({ onVolver }) {
   const guardarHojaOpcion = async () => {
     const hoja = hojaOpcion;
     if (!hoja) return;
-    const es = String(hoja.etiquetas["es-AR"] || "").trim();
-    const pt = String(hoja.etiquetas["pt-BR"] || "").trim();
-    if (!es && !pt) {
+    const propio = String(hoja.etiquetas[idioma] || "").trim();
+    if (!propio) {
       setErrorHoja(t("lesiones.ajustes.faltaTexto"));
       return;
     }
     setOcupado(true);
     const respuesta = await guardarOpcion(equipoId, hoja.campo, {
       ...hoja,
-      codigo: hoja.codigo || codigoNuevo(es || pt),
+      codigo: hoja.codigo || codigoNuevo(propio),
     });
     setOcupado(false);
     if (respuesta.error) {
@@ -549,19 +552,15 @@ export default function Lesiones({ onVolver }) {
       </span>
       <div className="lesiones-registro-cuerpo">
         <strong>{nombreDe(lesion.jugador_id) || "—"}</strong>
-        <span>
-          {[textoDeOpcion("parte_cuerpo", lesion.datos?.parte_cuerpo), textoDeOpcion("lado", lesion.datos?.lado), textoDeOpcion("tipo_lesion", lesion.datos?.tipo_lesion)]
-            .filter(Boolean)
-            .join(" · ")}
-        </span>
+        <span>{enPantalla(campoPorClave("diagnostico"), lesion) || textoDeOpcion("parte_cuerpo", lesion.datos?.parte_cuerpo)}</span>
       </div>
       <div className="tiempos-registro">
         <span>
           {etiqueta("recuperacion")} <strong>{plural("lesiones.dias", diasDeBaja(lesion))}</strong>
         </span>
-        {lesion.datos?.severidad && (
+        {lesion.fecha_alta && (
           <span>
-            {etiqueta("severidad")} <strong>{textoDeOpcion("severidad", lesion.datos.severidad)}</strong>
+            {etiqueta("severidad")} <strong>{enPantalla(campoPorClave("severidad"), lesion)}</strong>
           </span>
         )}
       </div>
@@ -632,24 +631,6 @@ export default function Lesiones({ onVolver }) {
         <Encabezado titulo={t("lesiones.historial.titulo")} texto={t("lesiones.historial.texto")} />
         {estado}
         <section className="tarjeta">
-          <div className="cambiar-vista" role="tablist">
-            {[
-              ["fichas", t("lesiones.historial.fichas")],
-              ["tabla", t("lesiones.historial.tabla")],
-            ].map(([modo, texto]) => (
-              <button
-                key={modo}
-                type="button"
-                role="tab"
-                aria-selected={vistaHistorial === modo}
-                className={vistaHistorial === modo ? "activo" : ""}
-                onClick={() => setVistaHistorial(modo)}
-              >
-                {texto}
-              </button>
-            ))}
-          </div>
-
           <div className="buscador-registros">
             <div className="linea-buscador">
               <input value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} placeholder={t("lesiones.historial.buscar")} />
@@ -751,75 +732,103 @@ export default function Lesiones({ onVolver }) {
             </p>
           )}
           {lesiones.length > 0 && historialVisible.length === 0 && <div className="sin-resultados">{t("lesiones.historial.sinResultados")}</div>}
-          {vistaHistorial === "tabla" && historialVisible.length > 0 ? (
-            // La base como en el Excel: una fila por lesión, una columna por
-            // cabecera, en su orden. Tocar una fila abre la ficha.
-            <div className="lesiones-tabla-marco">
-              <table className="lesiones-tabla">
-                <thead>
-                  <tr>
-                    {CAMPOS.filter(visible).map((campo) => (
-                      <th key={campo.clave}>{etiqueta(campo.clave)}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {historialVisible.map((lesion) => (
-                    <tr key={lesion.id} onClick={() => setDetalleId(lesion.id)}>
-                      {CAMPOS.filter(visible).map((campo) => (
-                        <td key={campo.clave}>{enPantalla(campo, lesion) || "—"}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="lesiones-lista">{historialVisible.map((lesion) => tarjetaLesion(lesion))}</div>
-          )}
+          <div className="lesiones-lista">{historialVisible.map((lesion) => tarjetaLesion(lesion))}</div>
         </section>
       </div>
     </div>
   );
 
-  const pantallaPlantel = (
+  // La base estilo Excel: una fila por lesión, una columna por cabecera.
+  const columnasBase = useMemo(
+    () =>
+      CAMPOS.filter(visible).map((campo) => ({
+        clave: campo.clave,
+        titulo: etiquetaDeCampo(campo.clave, config, idioma),
+        tipo: campo.tipo,
+        editable: TIPOS_MANUALES.includes(campo.tipo),
+        opciones:
+          campo.tipo === "lista"
+            ? opcionesDeCampo(campo.clave, config, idioma).map((opcion) => ({
+                ...opcion,
+                // Para pegar: también vale el texto en el otro idioma.
+                alias: [etiquetaDeOpcion(campo.clave, opcion.valor, config, idioma === "pt-BR" ? "es-AR" : "pt-BR")],
+              }))
+            : undefined,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config, idioma],
+  );
+
+  const filasBase = useMemo(
+    () =>
+      ordenarHistorial(lesiones).map((lesion) => ({
+        id: lesion.id,
+        valores: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo.tipo === "jugador" ? lesion.jugador_id : valorDe(lesion, campo.clave)])),
+        textos: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, enPantalla(campo, lesion)])),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lesiones, plantel, config, idioma],
+  );
+
+  const editarCelda = async (lesionId, clave, valor) => {
+    const lesion = lesiones.find((una) => una.id === lesionId);
+    if (!lesion) return { error: "lesiones.error.noGuardar" };
+    const nueva = conValor(lesion, clave, valor);
+    const falta = validarLesion(nueva, { hoy: hoyISO(), otras: lesiones });
+    if (falta) return { error: falta };
+    const respuesta = await actualizarLesion(lesion.id, nueva);
+    if (respuesta.error) return { error: respuesta.error };
+    reemplazar(respuesta.lesion);
+    return {};
+  };
+
+  const pegarEnBase = async (cambios) => {
+    const porLesion = new Map();
+    cambios.forEach((cambio) => {
+      if (!porLesion.has(cambio.filaId)) porLesion.set(cambio.filaId, []);
+      porLesion.get(cambio.filaId).push(cambio);
+    });
+    let hechos = 0;
+    let ultimoError = "";
+    for (const [lesionId, suyos] of porLesion) {
+      const lesion = lesiones.find((una) => una.id === lesionId);
+      if (!lesion) continue;
+      const nueva = suyos.reduce((acumulada, cambio) => conValor(acumulada, cambio.clave, cambio.valor), lesion);
+      const falta = validarLesion(nueva, { hoy: hoyISO(), otras: lesiones });
+      if (falta) {
+        ultimoError = falta;
+        continue;
+      }
+      const respuesta = await actualizarLesion(lesion.id, nueva); // eslint-disable-line no-await-in-loop
+      if (respuesta.error) {
+        ultimoError = respuesta.error;
+        continue;
+      }
+      reemplazar(respuesta.lesion);
+      hechos += suyos.length;
+    }
+    return { hechos, error: ultimoError };
+  };
+
+  const pantallaBase = (
     <div className="app">
-      <div className="contenedor">
-        <Encabezado
-          titulo={t("lesiones.plantel.titulo")}
-          texto={`${t("lesiones.plantel.texto")}${
-            plantel.length > 0
-              ? ` ${t("lesiones.plantel.disponibles", {
-                  n: plantelConEstado.filter((fila) => fila.situacion === "disponible").length,
-                  total: plantel.length,
-                })}`
-              : ""
-          }`}
-        />
+      <div className="contenedor contenedor-base">
+        <Encabezado titulo={t("nav.base")} texto={t("tabla.editar")} />
         {estado}
-        {!cargando && plantel.length === 0 && <p className="lesiones-vacio">{t("lesiones.plantel.sinPlantel")}</p>}
-        <div className="lesiones-plantel">
-          {plantelConEstado.map(({ jugador, lesiones: suyas, situacion }) => (
-            <button
-              type="button"
-              key={jugador.id}
-              className={`opcion-ajuste lesiones-plantel-fila ${situacion}`}
-              onClick={() => setJugadorEditando({ ...jugador })}
-            >
-              <span className="texto-ajuste">
-                <b>{jugador.nombre}</b>
-                <span>
-                  {suyas.length
-                    ? suyas.map((lesion) => textoDeOpcion("parte_cuerpo", lesion.datos?.parte_cuerpo)).filter(Boolean).join(", ") ||
-                      t(`lesiones.plantel.${situacion}`)
-                    : (jugador.puestos || []).map(nombrePuesto).join(" / ") || (jugador.numero_registro ? `N° ${jugador.numero_registro}` : "—")}
-                </span>
-              </span>
-              <span className={`lesiones-situacion ${situacion}`}>{t(`lesiones.plantel.${situacion}`)}</span>
-              <span className="flecha-ajuste">›</span>
-            </button>
-          ))}
-        </div>
+        <section className="tarjeta">
+          <TablaDatos
+            id="lesiones"
+            columnas={columnasBase}
+            filas={filasBase}
+            onEditar={editarCelda}
+            onPegar={pegarEnBase}
+            onAbrirFila={(id) => setDetalleId(id)}
+            onBorrarFila={(id) => {
+              const lesion = lesiones.find((una) => una.id === id);
+              if (lesion) setABorrar(lesion);
+            }}
+          />
+        </section>
       </div>
     </div>
   );
@@ -1024,86 +1033,226 @@ export default function Lesiones({ onVolver }) {
     );
   };
 
-  // El formulario: una tarjeta por grupo, con las columnas del Excel.
-  const campoDelFormulario = (campo, lesion) => {
+  // ------------------------------------------------- La carga por pasos --
+
+  const campoDelPaso = (campo, lesion) => {
     const cambiar = (valor) => setFormulario((actual) => conValor(actual, campo.clave, valor));
     const rotulo = etiqueta(campo.clave);
+    const valor = valorDe(lesion, campo.clave);
+    const opcional = !campo.obligatorio ? <em className="lesiones-opcional">{t("lesiones.pasos.opcional")}</em> : null;
     switch (campo.tipo) {
-      case "auto":
-        return <DatoDetalle key={campo.clave} label={rotulo} valor={enPantalla(campo, lesion) || t("lesiones.calculado")} />;
-      case "calculado":
-        return <DatoDetalle key={campo.clave} label={rotulo} valor={enPantalla(campo, lesion) || t("lesiones.calculado")} />;
-      case "dato_jugador":
-        return <DatoDetalle key={campo.clave} label={rotulo} valor={lesion.jugador_id ? enPantalla(campo, lesion) || "—" : t("lesiones.delJugador")} />;
-      case "jugador":
+      case "lista": {
+        const lista = opciones(campo.clave);
+        if (lista.length <= MAXIMO_CHIPS) {
+          return (
+            <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
+              <label>
+                {rotulo} {opcional}
+              </label>
+              <div className="grilla-criterios lesiones-chips">
+                {lista.map((opcion) => (
+                  <button
+                    type="button"
+                    key={opcion.valor}
+                    className={`chip-criterio ${valor === opcion.valor ? "prendido" : ""}`}
+                    aria-pressed={valor === opcion.valor}
+                    onClick={() => cambiar(valor === opcion.valor ? null : opcion.valor)}
+                  >
+                    {opcion.etiqueta}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        }
         return (
-          <div className="campo-inicio" key={campo.clave}>
-            <label>{rotulo}</label>
-            {lesion.id ? (
-              <strong className="lesiones-jugador-fijo">{nombreDe(lesion.jugador_id)}</strong>
-            ) : (
-              selectorConHoja({
-                titulo: t("lesiones.jugador"),
-                opciones: plantel.map((jugador) => ({ valor: String(jugador.id), etiqueta: jugador.nombre })),
-                valor: lesion.jugador_id ? String(lesion.jugador_id) : "",
-                alElegir: (valor) => cambiar(jugadorDe(valor)?.id ?? null),
-              })
-            )}
-            {plantel.length === 0 && <small className="lesiones-ayuda">{t("lesiones.sinJugadores")}</small>}
-          </div>
-        );
-      case "lista":
-        return (
-          <div className="campo-inicio" key={campo.clave}>
-            <label>{rotulo}</label>
+          <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
+            <label>
+              {rotulo} {opcional}
+            </label>
             {selectorConHoja({
               titulo: rotulo,
-              opciones: [...(campo.obligatorio ? [] : [{ valor: "", etiqueta: t("comun.sinDato") }]), ...opciones(campo.clave)],
-              valor: valorDe(lesion, campo.clave) || "",
-              alElegir: (valor) => cambiar(valor || null),
+              opciones: [...(campo.obligatorio ? [] : [{ valor: "", etiqueta: t("comun.sinDato") }]), ...lista],
+              valor: valor || "",
+              alElegir: (elegido) => cambiar(elegido || null),
             })}
           </div>
         );
+      }
       case "fecha":
         return (
-          <div className="campo-inicio" key={campo.clave}>
-            <label>{rotulo}</label>
-            <input type="date" value={valorDe(lesion, campo.clave) || ""} max={hoyISO()} onChange={(evento) => cambiar(evento.target.value)} />
+          <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
+            <label>
+              {rotulo} {opcional}
+            </label>
+            <input type="date" value={valor || ""} max={hoyISO()} onChange={(evento) => cambiar(evento.target.value)} />
           </div>
         );
       case "fecha_hora":
         return (
-          <div className="campo-inicio" key={campo.clave}>
-            <label>{rotulo}</label>
-            <input type="datetime-local" value={valorDe(lesion, campo.clave) || ""} onChange={(evento) => cambiar(evento.target.value)} />
+          <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
+            <label>
+              {rotulo} {opcional}
+            </label>
+            <input type="datetime-local" value={valor || ""} onChange={(evento) => cambiar(evento.target.value)} />
+          </div>
+        );
+      case "numero":
+        return (
+          <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
+            <label>
+              {rotulo} {opcional}
+            </label>
+            <input type="number" inputMode="decimal" min="0" step="0.5" value={valor ?? ""} onChange={(evento) => cambiar(evento.target.value === "" ? null : evento.target.value)} />
           </div>
         );
       case "texto_largo":
         return (
-          <div className="campo-inicio" key={campo.clave}>
-            <label>{rotulo}</label>
-            <textarea rows={3} maxLength={1000} value={valorDe(lesion, campo.clave) || ""} onChange={(evento) => cambiar(evento.target.value)} />
+          <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
+            <label>
+              {rotulo} {opcional}
+            </label>
+            <textarea rows={3} maxLength={1000} value={valor || ""} onChange={(evento) => cambiar(evento.target.value)} />
           </div>
         );
       default:
         return (
-          <div className="campo-inicio" key={campo.clave}>
-            <label>{rotulo}</label>
-            <input type="text" maxLength={200} value={valorDe(lesion, campo.clave) || ""} onChange={(evento) => cambiar(evento.target.value)} />
+          <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
+            <label>
+              {rotulo} {opcional}
+            </label>
+            <input type="text" maxLength={200} value={valor || ""} onChange={(evento) => cambiar(evento.target.value)} />
           </div>
         );
     }
   };
 
+  // El jugador se elige de una lista grande, buscando por el nombre.
+  const pasoJugador = (lesion) => {
+    const buscado = normalizarTexto(busquedaJugador);
+    const candidatos = plantel.filter((jugador) => !buscado || normalizarTexto(jugador.nombre).includes(buscado));
+    const elegido = jugadorDe(lesion.jugador_id);
+    if (lesion.id) {
+      return (
+        <section className="tarjeta tarjeta-ficha lesiones-grupo">
+          <DatoDetalle label={etiqueta("jugador")} valor={elegido?.nombre || "—"} />
+          {CAMPOS.filter((campo) => campo.tipo === "dato_jugador" && visible(campo)).map((campo) => (
+            <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion) || "—"} />
+          ))}
+        </section>
+      );
+    }
+    return (
+      <section className="tarjeta tarjeta-ficha lesiones-grupo">
+        <input
+          className="lesiones-buscador-jugador"
+          type="search"
+          value={busquedaJugador}
+          onChange={(evento) => setBusquedaJugador(evento.target.value)}
+          placeholder={t("lesiones.pasos.buscar")}
+          aria-label={t("lesiones.pasos.buscar")}
+          autoComplete="off"
+        />
+        {plantel.length === 0 && <p className="lesiones-ayuda">{t("lesiones.sinJugadores")}</p>}
+        <div className="lista-rivales lesiones-lista-jugadores">
+          {candidatos.length === 0 && plantel.length > 0 ? (
+            <p className="sin-resultados">{t("lesiones.filtro.ningunJugador")}</p>
+          ) : (
+            candidatos.map((jugador) => (
+              <button
+                type="button"
+                key={jugador.id}
+                className={String(lesion.jugador_id) === String(jugador.id) ? "elegido" : ""}
+                aria-pressed={String(lesion.jugador_id) === String(jugador.id)}
+                onClick={() => setFormulario((actual) => conValor(actual, "jugador", jugador.id))}
+              >
+                <b>{jugador.nombre}</b>
+                <span>{[jugador.posicion ? textoDeOpcion("posicion", jugador.posicion) : "", jugador.categoria ? textoDeOpcion("categoria", jugador.categoria) : ""].filter(Boolean).join(" · ")}</span>
+              </button>
+            ))
+          )}
+        </div>
+        {elegido && (
+          <div className="lesiones-jugador-elegido">
+            {CAMPOS.filter((campo) => campo.tipo === "dato_jugador" && visible(campo)).map((campo) => (
+              <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion) || "—"} />
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  // Lo que el Excel calcula solo, con los datos cargados hasta acá.
+  const resumenCalculado = (lesion) => (
+    <section className="tarjeta tarjeta-ficha lesiones-grupo lesiones-calculados">
+      <div className="cabeza-ficha">
+        <b>{t("lesiones.pasos.calculados")}</b>
+      </div>
+      {CAMPOS.filter((campo) => campo.tipo === "calculado" && visible(campo)).map((campo) => (
+        <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion) || "—"} />
+      ))}
+    </section>
+  );
+
+  const validarPaso = (indice, lesion) => {
+    if (indice === 0 && !lesion.jugador_id) return t("lesiones.pasos.sinJugador");
+    if (indice === 1) {
+      if (!lesion.fecha_lesion) return t("lesiones.error.fecha");
+      if (lesion.fecha_lesion > hoyISO()) return t("lesiones.error.fechaFutura");
+      if (!lesion.datos?.parte_cuerpo) return t("lesiones.error.parte");
+      if (!lesion.datos?.lado) return t("lesiones.error.lado");
+    }
+    return "";
+  };
+
+  const irAlPaso = (indice, lesion) => {
+    if (indice > paso) {
+      const falta = validarPaso(paso, lesion);
+      if (falta) {
+        setErrorFormulario(falta);
+        return;
+      }
+    }
+    setErrorFormulario("");
+    setPaso(indice);
+    setPasoMaximo((actual) => Math.max(actual, indice));
+  };
+
   const pantallaFormulario = (lesion) => {
+    const total = PASOS.length;
+    const actual = PASOS[paso];
+    const campos = actual.campos.map(campoPorClave).filter((campo) => campo && visible(campo));
     const recidiva = posibleRecidiva(lesion, lesiones);
-    const jugador = jugadorDe(lesion.jugador_id);
+    const ultimo = paso === total - 1;
     return (
       <div className="app">
         <div className="contenedor">
-          <Encabezado titulo={lesion.id ? t("lesiones.formEditar") : t("lesiones.formNueva")} texto={jugador?.nombre || ""} />
+          <Encabezado titulo={lesion.id ? t("lesiones.formEditar") : t("lesiones.formNueva")} texto={nombreDe(lesion.jugador_id)}>
+            <div className="lesiones-progreso" role="tablist" aria-label={t("lesiones.pasos.paso", { n: paso + 1, total })}>
+              {PASOS.map((unPaso, indice) => (
+                <button
+                  type="button"
+                  role="tab"
+                  key={unPaso.id}
+                  aria-selected={indice === paso}
+                  className={`${indice === paso ? "actual" : ""} ${indice < paso ? "hecho" : ""}`.trim()}
+                  disabled={indice > pasoMaximo + 1}
+                  onClick={() => irAlPaso(indice, lesion)}
+                  aria-label={t(`lesiones.pasos.${unPaso.id}`)}
+                />
+              ))}
+            </div>
+            <p className="lesiones-paso-numero">{t("lesiones.pasos.paso", { n: paso + 1, total })}</p>
+          </Encabezado>
+
+          <section className="lesiones-paso-titulo">
+            <h2>{t(`lesiones.pasos.${actual.id}`)}</h2>
+            <p>{t(`lesiones.pasos.${actual.id}Texto`)}</p>
+          </section>
+
           {errorFormulario && <div className="aviso-hoja">{errorFormulario}</div>}
-          {recidiva && (
+          {paso === 1 && recidiva && (
             <div className="lesiones-aviso-recidiva">
               {t("lesiones.avisoRecidiva", {
                 parte: textoDeOpcion("parte_cuerpo", recidiva.datos?.parte_cuerpo),
@@ -1112,35 +1261,28 @@ export default function Lesiones({ onVolver }) {
               })}
             </div>
           )}
-          {GRUPOS.map((grupo) => {
-            const campos = CAMPOS.filter((campo) => campo.grupo === grupo && visible(campo));
-            if (campos.length === 0) return null;
-            return (
-              <section className="tarjeta tarjeta-ficha lesiones-grupo" key={grupo}>
-                <div className="cabeza-ficha">
-                  <b>{t(`lesiones.grupos.${grupo}`)}</b>
-                </div>
-                {campos.map((campo) => campoDelFormulario(campo, lesion))}
-                {grupo === "jugador" && jugador && (
-                  <button type="button" className="boton-texto" onClick={() => setJugadorEditando({ ...jugador })}>
-                    {t("lesiones.plantel.datos")} ›
-                  </button>
-                )}
-              </section>
-            );
-          })}
+
+          {actual.id === "jugador" ? (
+            pasoJugador(lesion)
+          ) : (
+            <section className="tarjeta tarjeta-ficha lesiones-grupo">{campos.map((campo) => campoDelPaso(campo, lesion))}</section>
+          )}
+
+          {ultimo && resumenCalculado(lesion)}
+
           <div className="acciones-dobles">
-            <BotonVolver
-              onClick={() => {
-                setFormulario(null);
-                setErrorFormulario("");
-              }}
-            >
-              {t("comun.cancelar")}
+            <BotonVolver onClick={() => (paso === 0 ? cerrarFormulario() : irAlPaso(paso - 1, lesion))}>
+              {paso === 0 ? t("comun.cancelar") : t("lesiones.pasos.atras")}
             </BotonVolver>
-            <button type="button" className="boton-principal" onClick={guardarFormulario} disabled={ocupado}>
-              {ocupado ? t("comun.guardando") : t("comun.guardar")}
-            </button>
+            {ultimo ? (
+              <button type="button" className="boton-principal" onClick={guardarFormulario} disabled={ocupado}>
+                {ocupado ? t("comun.guardando") : t("lesiones.pasos.guardar")}
+              </button>
+            ) : (
+              <button type="button" className="boton-principal" onClick={() => irAlPaso(paso + 1, lesion)}>
+                {t("lesiones.pasos.siguiente")}
+              </button>
+            )}
           </div>
           {lesion.id && (
             <button type="button" className="lesiones-boton-borrar" disabled={ocupado} onClick={() => setABorrar(lesion)}>
@@ -1153,62 +1295,11 @@ export default function Lesiones({ onVolver }) {
     );
   };
 
-  // Los datos del Excel de un jugador (quedan en la lista de jugadores).
-  const pantallaJugador = (jugador) => {
-    const cambiar = (campo, valor) => setJugadorEditando((actual) => ({ ...actual, [campo]: valor }));
-    return (
-      <div className="app">
-        <div className="contenedor">
-          <Encabezado titulo={jugador.nombre} texto={t("lesiones.plantel.datosTexto")} />
-          <section className="tarjeta tarjeta-ficha lesiones-grupo">
-            <div className="cabeza-ficha">
-              <b>{t("lesiones.plantel.datos")}</b>
-            </div>
-            <div className="campo-inicio">
-              <label>{etiqueta("numero_registro")}</label>
-              <input type="text" maxLength={40} value={jugador.numero_registro || ""} onChange={(evento) => cambiar("numero_registro", evento.target.value)} />
-            </div>
-            <div className="campo-inicio">
-              <label>{etiqueta("categoria")}</label>
-              {selectorConHoja({
-                titulo: etiqueta("categoria"),
-                opciones: [{ valor: "", etiqueta: t("comun.sinDato") }, ...opciones("categoria")],
-                valor: jugador.categoria || "",
-                alElegir: (valor) => cambiar("categoria", valor || ""),
-              })}
-            </div>
-            <div className="campo-inicio">
-              <label>{etiqueta("fecha_nacimiento")}</label>
-              <input type="date" max={hoyISO()} value={jugador.fecha_nacimiento || ""} onChange={(evento) => cambiar("fecha_nacimiento", evento.target.value)} />
-            </div>
-            <div className="campo-inicio">
-              <label>{etiqueta("pie_dominante")}</label>
-              {selectorConHoja({
-                titulo: etiqueta("pie_dominante"),
-                opciones: [{ valor: "", etiqueta: t("comun.sinDato") }, ...opciones("pie_dominante")],
-                valor: jugador.pie_dominante || "",
-                alElegir: (valor) => cambiar("pie_dominante", valor || ""),
-              })}
-            </div>
-            <DatoDetalle label={etiqueta("posicion")} valor={(jugador.puestos || []).map(nombrePuesto).join(" / ")} />
-          </section>
-          <div className="acciones-dobles">
-            <BotonVolver onClick={() => setJugadorEditando(null)}>{t("comun.cancelar")}</BotonVolver>
-            <button type="button" className="boton-principal" onClick={guardarJugador} disabled={ocupado}>
-              {ocupado ? t("comun.guardando") : t("comun.guardar")}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   let contenido;
-  if (jugadorEditando) contenido = pantallaJugador(jugadorEditando);
-  else if (formulario) contenido = pantallaFormulario(formulario);
+  if (formulario) contenido = pantallaFormulario(formulario);
   else if (lesionDetalle) contenido = pantallaDetalle(lesionDetalle);
   else if (vista === "historial") contenido = pantallaHistorial;
-  else if (vista === "plantel") contenido = pantallaPlantel;
+  else if (vista === "base") contenido = pantallaBase;
   else if (vista === "ajustes") contenido = pantallaAjustes();
   else contenido = pantallaLesionados;
 
@@ -1216,11 +1307,12 @@ export default function Lesiones({ onVolver }) {
   const navegar = (id) => {
     setDetalleId(null);
     setFormulario(null);
-    setJugadorEditando(null);
     if (id === "ajustes") setVistaAjustes("inicio");
     setVista(id);
   };
 
+  // Cabeceras y opciones se renombran en el idioma que se está usando; el
+  // otro idioma guarda lo que tenía.
   const hojaDeTextos = ({ abierta, titulo, hoja, setHoja, onGuardar, onCerrar }) =>
     hoja ? (
       <HojaInferior
@@ -1241,22 +1333,14 @@ export default function Lesiones({ onVolver }) {
       >
         {errorHoja && <div className="aviso-hoja">{errorHoja}</div>}
         <div className="campo-inicio">
-          <label>{t("lesiones.ajustes.enEspanol")}</label>
+          <label>{t("lesiones.ajustes.nombre")}</label>
           <input
             type="text"
             maxLength={120}
-            value={hoja.etiquetas["es-AR"] || ""}
-            onChange={(evento) => setHoja({ ...hoja, etiquetas: { ...hoja.etiquetas, "es-AR": evento.target.value } })}
+            value={hoja.etiquetas[idioma] || ""}
+            onChange={(evento) => setHoja({ ...hoja, etiquetas: { ...hoja.etiquetas, [idioma]: evento.target.value } })}
           />
-        </div>
-        <div className="campo-inicio">
-          <label>{t("lesiones.ajustes.enPortugues")}</label>
-          <input
-            type="text"
-            maxLength={120}
-            value={hoja.etiquetas["pt-BR"] || ""}
-            onChange={(evento) => setHoja({ ...hoja, etiquetas: { ...hoja.etiquetas, "pt-BR": evento.target.value } })}
-          />
+          <small className="lesiones-ayuda">{t("lesiones.ajustes.nombreAyuda")}</small>
         </div>
         <div className="grilla-criterios">
           <button type="button" className={`chip-criterio ${!hoja.oculto ? "prendido" : ""}`} aria-pressed={!hoja.oculto} onClick={() => setHoja({ ...hoja, oculto: false })}>
