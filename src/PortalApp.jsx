@@ -5,6 +5,7 @@ import AccessGate from "./AccessGate.jsx";
 import OpenFieldSession from "./OpenFieldSession.jsx";
 import CuentasAdmin from "./CuentasAdmin.jsx";
 import Lesiones from "./Lesiones.jsx";
+import ElegirClub from "./ElegirClub.jsx";
 import { contarPendientes } from "./domain/perfilesDb.js";
 import { ArteFlujo, ArteLesiones, ArtePartido, IconoFlujo, IconoLesiones, IconoPartido } from "./components/PortalArt.jsx";
 import { t, useIdioma } from "./idioma/index.js";
@@ -189,7 +190,7 @@ export const Portada = ({ tarjeta, desde, onTerminar }) => {
   );
 };
 
-const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
+const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onCambiarClub }) => {
   useIdioma();
   const equipo = leerEquipoElegido();
   const tarjetas = TARJETAS.filter((tarjeta) => permisos?.[tarjeta.permiso]);
@@ -227,10 +228,20 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
           <button type="button" className="portal-salir" onClick={onSalir}>
             {t("portal.salir")}
           </button>
+          <SelectorIdioma className="portal-idioma" />
         </div>
 
         <div className="portal-encabezado">
-          {equipo?.nombre && <span className="portal-kicker">{equipo.nombre}</span>}
+          {equipo?.nombre && (
+            <span className="portal-kicker portal-club">
+              {equipo.nombre}
+              {onCambiarClub && (
+                <button type="button" className="portal-cambiar-club" onClick={onCambiarClub}>
+                  {t("comun.cambiar")}
+                </button>
+              )}
+            </span>
+          )}
           <h1>{t("portal.pregunta")}</h1>
           <p>{tarjetas.length > 1 ? t("portal.elegi") : t("portal.unSolo")}</p>
         </div>
@@ -263,10 +274,6 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
             );
           })}
         </div>
-
-        <div className="portal-pie">
-          <SelectorIdioma />
-        </div>
       </section>
     </main>
   );
@@ -277,6 +284,10 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
 // diario abre además su sesión de OpenField en el servidor.
 const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = false }) => {
   const [modo, setModo] = useState(MODOS.PORTAL);
+  // El club con el que se trabaja en este celular. Sin uno elegido, lo
+  // primero después de entrar es elegirlo.
+  const [club, setClub] = useState(() => leerEquipoElegido());
+  const [eligiendoClub, setEligiendoClub] = useState(false);
   // La portada que se está mostrando (tarjeta y desde dónde arranca el zoom),
   // o nada. Se muestra encima del módulo mientras este se carga.
   const [portada, setPortada] = useState(null);
@@ -292,7 +303,17 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
 
   let contenido;
 
-  if (modo === MODOS.PARTIDO && permisos?.partido) {
+  if (!club || eligiendoClub) {
+    contenido = (
+      <ElegirClub
+        onElegir={(elegido) => {
+          setClub(elegido);
+          setEligiendoClub(false);
+        }}
+        onSalir={eligiendoClub ? () => setEligiendoClub(false) : cerrarSesion}
+      />
+    );
+  } else if (modo === MODOS.PARTIDO && permisos?.partido) {
     // La portada ya mostró la foto: Partido entra sin su intro. Desde sus
     // Ajustes se vuelve al portal o se cierra la sesión.
     contenido = <App intro={false} onVolver={volver} onCerrarSesion={cerrarSesion} />;
@@ -316,6 +337,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         email={email}
         onSalir={cerrarSesion}
         onCuentas={() => setModo(MODOS.CUENTAS)}
+        onCambiarClub={() => setEligiendoClub(true)}
       />
     );
   }

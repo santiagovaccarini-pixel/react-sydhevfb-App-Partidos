@@ -669,38 +669,162 @@
   cursor: pointer;
 }
 
-/* Selector de idioma: dos pastillas, cada una escrita en su idioma. */
+/* Selector de idioma: un globo arriba a la derecha que despliega la lista
+   de idiomas, cada uno con su bandera. */
 .selector-idioma {
-  display: inline-flex;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  position: relative;
+  flex: 0 0 auto;
 }
-.selector-idioma button {
-  min-height: 36px;
-  padding: 0 14px;
-  border: 0;
+.selector-idioma-globo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 999px;
+  background: rgba(11, 13, 16, 0.55);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.selector-idioma-globo svg {
+  width: 22px;
+  height: 22px;
+}
+.selector-idioma-actual svg {
+  width: 20px;
+  height: 14px;
+  border-radius: 2px;
+}
+.selector-idioma-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 180px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: #15181d;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+.selector-idioma-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 13px;
+  color: #f4f6f8;
+  font: inherit;
+  font-size: 14px;
   font-weight: 700;
+  text-align: left;
   cursor: pointer;
 }
-.selector-idioma button.activo {
-  background: #fff;
-  color: #0b1220;
+.selector-idioma-menu button svg {
+  width: 24px;
+  height: 16px;
+  border-radius: 3px;
+  flex: 0 0 auto;
 }
-.training-access-card .selector-idioma {
-  align-self: center;
-  margin: 0 0 14px;
+.selector-idioma-menu button.activo {
+  background: rgba(255, 255, 255, 0.12);
 }
-.portal-pie {
+.selector-idioma-menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* En la puerta de acceso, pegado arriba a la derecha. */
+.training-access-idioma {
+  position: absolute;
+  top: 18px;
+  right: 16px;
+  z-index: 2;
+}
+.portal-cuenta {
+  margin-bottom: 34px;
+}
+.portal-club {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.portal-cambiar-club {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  cursor: pointer;
+}
+.cuentas-cabecera-derecha {
   display: flex;
-  justify-content: center;
-  padding: 22px 0 8px;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Elegir club: la lista de clubes dentro de la tarjeta de acceso. */
+.elegir-club-estado {
+  margin: 16px 0 0;
+  color: #9ca5af;
+  font-size: 0.92rem;
+}
+.elegir-club-lista {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.elegir-club-opcion {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+.elegir-club-nombre {
+  flex: 1 1 auto;
+}
+.elegir-club-opcion b {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.3rem;
+}
+.elegir-club-opcion .escudo-cam.compacto {
+  width: 30px;
+}
+.elegir-club-opcion .escudo-rival.mini {
+  width: 26px;
+}
+.elegir-club-crear {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* La tarjeta de Lesiones, granate como su dibujo. */

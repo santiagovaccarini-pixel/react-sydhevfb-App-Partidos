@@ -3,6 +3,7 @@ import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { agruparPerfiles, decidirPerfil, listarPerfiles } from "./domain/perfilesDb.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
+import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
 // La pantalla Cuentas, solo para el administrador: quién pidió entrar, quién
 // tiene acceso y quién no, y qué puede usar cada uno (Partido, Flujo diario,
@@ -200,9 +201,12 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
           <button type="button" className="portal-salir cuentas-volver" onClick={onVolver}>
             <FlechaVolver /> {t("acceso.volverPortal")}
           </button>
-          <button type="button" className="portal-salir" onClick={cargar} disabled={cargando}>
-            {cargando ? t("comun.actualizando") : t("comun.actualizar")}
-          </button>
+          <div className="cuentas-cabecera-derecha">
+            <button type="button" className="portal-salir" onClick={cargar} disabled={cargando}>
+              {cargando ? t("comun.actualizando") : t("comun.actualizar")}
+            </button>
+            <SelectorIdioma />
+          </div>
         </div>
 
         <header className="cuentas-titulo">

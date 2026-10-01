@@ -110,8 +110,8 @@ export const PantallaAcceso = ({ titulo, texto, onVolver, etiquetaVolver, childr
     ) : (
       <span />
     )}
+    <SelectorIdioma className="training-access-idioma" />
     <section className="training-access-card">
-      <SelectorIdioma className="training-access-idioma" />
       <span className="training-access-logo" aria-hidden="true">
         <img src="/icono-app-192.png" alt="" />
       </span>
