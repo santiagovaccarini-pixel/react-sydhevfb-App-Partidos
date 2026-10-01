@@ -313,6 +313,33 @@ migraciones versionadas en `supabase/migrations`.
    cambia: se suma un "directorio de clubes" que le dice a la app a qué base ir, y
    la exportación del punto 7 es la mudanza. Costo: un proyecto Pro por club.
 
+### Cómo dar una base por club sin que sea un trabajo (decidido el 02/10)
+
+- **Directorio de clubes**: un proyecto chico y central de Supabase con una sola tabla
+  (`clubes`: código, nombre, URL del proyecto, clave pública) y la lista de dueños de la
+  plataforma. La app arranca pidiendo el código del club (o lo saca del subdominio,
+  `cam.laapp.com`), busca en el directorio a qué base ir y recién ahí crea el cliente de
+  Supabase y pide usuario y contraseña. Todo lo demás (migraciones, políticas, membresías)
+  queda igual. Varios clubes pueden apuntar a la misma base (los chicos o los de prueba) y
+  un club pago tiene la suya: la app no distingue.
+- **Un comando para crear un club**: `npm run club:nuevo -- "Nombre del club" --dedicado`
+  usa la API de administración de Supabase (con un token guardado como secreto, nunca en
+  el repo) para crear el proyecto en la organización, esperar a que esté listo, correr
+  todas las migraciones de `supabase/migrations`, configurar el acceso (correo confirmado,
+  URL de la app), dejar la invitación del primer administrador y anotar el club en el
+  directorio. Minutos, sin tocar nada a mano. Sin `--dedicado`, solo anota el club en la
+  base compartida.
+- **Un comando para actualizar todos**: `npm run migrar:todos` corre lo que falte de
+  `supabase/migrations` en cada base del directorio, primero en la de prueba. Queda en
+  GitHub Actions para que no dependa de una computadora.
+- **Copias y exportación**: cada base dedicada tiene sus copias diarias (plan Pro) y
+  `npm run club:exportar -- codigo` baja todo lo del club en un archivo. Lo mismo sirve
+  para mudar un club de la base compartida a la suya.
+- Lo que hay que preparar: organización de Supabase en plan Pro, un token de
+  administración, la región (San Pablo), y un dominio con subdominio comodín en Vercel.
+  Las funciones del servidor (`api/openfield`) reciben el código del club y validan la
+  sesión contra esa base.
+
 ## Lo que dejó la revisión completa del 30/09
 
 Se revisó toda la app (pruebas automáticas, recorrido en navegador de cada
