@@ -19,6 +19,7 @@ import {
   leerEquipoElegido,
   renombrarEquipo,
 } from "./domain/equipo";
+import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import {
   canchaDesdeTitulares,
   normalizarCancha,
@@ -238,7 +239,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.02.4";
+const APP_VERSION = "2026.10.03.1";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1438,6 +1439,9 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   // Sin señal la lista de equipos viene vacía, así que el nombre sale de lo
   // que quedó guardado en el teléfono: mostrar el de por defecto sería mostrar
   // un club ajeno.
+  // Quien ya se fue del club ve los partidos hasta su último día y no carga.
+  const soloLectura = Boolean(equipoGuardado?.hasta);
+
   const equipoPropio =
     equipos.find((equipo) => equipo.id === equipoId)?.nombre ||
     (equipoGuardado?.id === equipoId ? equipoGuardado?.nombre : "") ||
@@ -4656,6 +4660,8 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           )}
         </header>
 
+        <AvisoSoloLectura hasta={equipoGuardado?.hasta} />
+
         <section className="tarjeta tarjeta-inicio">
           <div className="campo-inicio">
             <label htmlFor="campo-rival-inicio">Rival</label>
@@ -4684,15 +4690,17 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             <div className="aviso-formacion">{mensajeFormacion}</div>
           )}
 
-          <div className="acciones-inicio">
-            <button
-              type="button"
-              className="boton-principal boton-formacion-grande"
-              onClick={abrirCargaManual}
-            >
-              Ingresar Formación
-            </button>
-          </div>
+          {!soloLectura && (
+            <div className="acciones-inicio">
+              <button
+                type="button"
+                className="boton-principal boton-formacion-grande"
+                onClick={abrirCargaManual}
+              >
+                Ingresar Formación
+              </button>
+            </div>
+          )}
         </section>
 
         {partidoEnCurso && (

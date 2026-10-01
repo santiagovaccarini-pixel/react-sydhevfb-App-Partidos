@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
+import { HojaInferior } from "./components/SheetPanel.js";
+import { cargarEquipos, leerEquipoElegido } from "./domain/equipo.js";
+import { darDeBaja, estadoDeMembresia, listarMembresias, membresiaDe, reincorporar, sumarAlClub } from "./domain/membresiasDb.js";
 import { agruparPerfiles, decidirPerfil, listarPerfiles } from "./domain/perfilesDb.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta } from "./idioma/formatos.js";
+import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
 // La pantalla Cuentas, solo para el administrador: quién pidió entrar, quién
@@ -43,7 +46,26 @@ const FlechaVolver = () => (
   </svg>
 );
 
-const Fila = ({ perfil, seleccion, ocupada, onCambiarModulo, onAutorizar, onQuitar }) => {
+// Un error de la base viene como texto; uno nuestro, como clave del diccionario.
+const mensajeDe = (error, porDefecto) => {
+  const texto = error?.message || "";
+  return /^[a-z]+(\.[a-zA-Z]+)+$/.test(texto) ? t(texto) : texto || t(porDefecto);
+};
+
+const Fila = ({
+  perfil,
+  seleccion,
+  ocupada,
+  onCambiarModulo,
+  onAutorizar,
+  onQuitar,
+  clubes = [],
+  membresias = [],
+  ocupadaClub = "",
+  onSumar,
+  onDarBaja,
+  onReincorporar,
+}) => {
   const permisos = permisosDeFila(perfil, seleccion);
   const pendiente = perfil.estado === "pendiente";
   const autorizada = perfil.estado === "autorizado";
@@ -91,6 +113,36 @@ const Fila = ({ perfil, seleccion, ocupada, onCambiarModulo, onAutorizar, onQuit
               </button>
             )}
           </div>
+
+          {/* En qué clubes está, y hasta cuándo. Quien se fue sigue viendo lo
+              cargado hasta su último día, sin cambiar nada. */}
+          {autorizada && clubes.length > 0 && (
+            <div className="cuenta-clubes" role="group" aria-label={t("cuentas.clubesDe", { correo: perfil.email })}>
+              <span className="cuenta-clubes-titulo">{t("cuentas.clubes")}</span>
+              {clubes.map((club) => {
+                const membresia = membresiaDe(membresias, perfil.user_id, club.id);
+                const estado = estadoDeMembresia(membresia);
+                const ocupado = ocupadaClub === `${perfil.user_id}|${club.id}`;
+                const texto =
+                  estado === "activo"
+                    ? t("cuentas.enElClub")
+                    : estado === "hasta"
+                      ? t("cuentas.hastaEl", { fecha: fechaCorta(membresia.hasta) })
+                      : t("cuentas.noEsta");
+                const accion = estado === "activo" ? onDarBaja : estado === "hasta" ? onReincorporar : onSumar;
+                const etiqueta = estado === "activo" ? t("cuentas.darBaja") : estado === "hasta" ? t("cuentas.reincorporar") : t("cuentas.sumar");
+                return (
+                  <div className="cuenta-club" key={club.id}>
+                    <span className="cuenta-club-nombre">{club.nombre}</span>
+                    <span className={`cuenta-club-estado ${estado}`}>{texto}</span>
+                    <button type="button" className="cuenta-club-boton" disabled={ocupado} onClick={() => accion(perfil, club)}>
+                      {ocupado ? t("comun.guardando") : etiqueta}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
     </li>
@@ -131,12 +183,26 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
   // autorizarlas (se elige antes de tocar Autorizar).
   const [seleccion, setSeleccion] = useState({});
   const [aQuitar, setAQuitar] = useState(null);
+  // Los clubes y quién está en cada uno (y hasta cuándo).
+  const [clubes, setClubes] = useState([]);
+  const [membresias, setMembresias] = useState([]);
+  const [ocupadaClub, setOcupadaClub] = useState("");
+  const [aDarBaja, setADarBaja] = useState(null);
+  const [fechaBaja, setFechaBaja] = useState(hoyISO());
 
   const cargar = useCallback(async () => {
     setCargando(true);
     setError("");
     try {
       setPerfiles(await listarPerfiles());
+      const [respuestaClubes, lista] = await Promise.all([cargarEquipos(), listarMembresias().catch(() => null)]);
+      if (lista) {
+        setClubes(respuestaClubes.equipos || []);
+        setMembresias(lista);
+      } else {
+        setClubes([]);
+        setAviso(t("cuentas.errorClubes"));
+      }
     } catch (errorLectura) {
       setError(errorLectura?.message || t("cuentas.errorLeer"));
     } finally {
@@ -158,11 +224,33 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
         const { [perfil.user_id]: _descartada, ...resto } = actual;
         return resto;
       });
+      return fila;
     } catch (errorCambio) {
       setAviso(errorCambio?.message || t("cuentas.errorCambiar"));
+      return null;
     } finally {
       setOcupada("");
     }
+  };
+
+  const cambiarMembresia = async (perfil, club, accion) => {
+    setOcupadaClub(`${perfil.user_id}|${club.id}`);
+    setAviso("");
+    try {
+      const fila = await accion();
+      setMembresias((lista) => [...lista.filter((m) => !(m.user_id === fila.user_id && m.equipo_id === fila.equipo_id)), fila]);
+    } catch (errorClub) {
+      setAviso(mensajeDe(errorClub, "cuentas.errorClub"));
+    } finally {
+      setOcupadaClub("");
+    }
+  };
+
+  const confirmarBaja = async () => {
+    const pedido = aDarBaja;
+    setADarBaja(null);
+    if (!pedido || !fechaBaja) return;
+    await cambiarMembresia(pedido.perfil, pedido.club, () => darDeBaja(pedido.perfil.user_id, pedido.club.id, fechaBaja));
   };
 
   // En una cuenta con acceso, el cambio va a la base al toque; en una
@@ -176,13 +264,20 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
     setSeleccion((actual) => ({ ...actual, [perfil.user_id]: nuevos }));
   };
 
-  const autorizar = (perfil) => {
+  const autorizar = async (perfil) => {
     const permisos = permisosDeFila(perfil, seleccion[perfil.user_id]);
     if (!permisos.partido && !permisos.flujo && !permisos.lesiones && !permisos.admin) {
       setAviso(t("cuentas.marcaModulo"));
       return;
     }
-    aplicar(perfil, { estado: "autorizado", ...permisos });
+    const fila = await aplicar(perfil, { estado: "autorizado", ...permisos });
+    if (!fila) return;
+    // Una cuenta recién autorizada queda en el club con el que se está
+    // trabajando, para que no entre a una app sin clubes.
+    const actual = leerEquipoElegido();
+    const club = clubes.find((uno) => uno.id === actual?.id);
+    const yaEsta = membresias.some((m) => m.user_id === perfil.user_id && !m.hasta);
+    if (club && !yaEsta) await cambiarMembresia(perfil, club, () => sumarAlClub(perfil.user_id, club.id));
   };
 
   const confirmarQuitar = async () => {
@@ -192,7 +287,22 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
   };
 
   const grupos = agruparPerfiles(perfiles, miUserId);
-  const acciones = { seleccion, ocupada, onCambiarModulo: cambiarModulo, onAutorizar: autorizar, onQuitar: setAQuitar };
+  const acciones = {
+    seleccion,
+    ocupada,
+    onCambiarModulo: cambiarModulo,
+    onAutorizar: autorizar,
+    onQuitar: setAQuitar,
+    clubes,
+    membresias,
+    ocupadaClub,
+    onSumar: (perfil, club) => cambiarMembresia(perfil, club, () => sumarAlClub(perfil.user_id, club.id)),
+    onDarBaja: (perfil, club) => {
+      setFechaBaja(hoyISO());
+      setADarBaja({ perfil, club });
+    },
+    onReincorporar: (perfil, club) => cambiarMembresia(perfil, club, () => reincorporar(perfil.user_id, club.id)),
+  };
 
   return (
     <main className="cuentas-pantalla">
@@ -263,6 +373,31 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
         onConfirmar={confirmarQuitar}
         onCancelar={() => setAQuitar(null)}
       />
+
+      {aDarBaja && (
+        <HojaInferior
+          abierta
+          className="cuentas-hoja"
+          titulo={t("cuentas.bajaTitulo")}
+          descripcion={t("cuentas.bajaTexto", { correo: aDarBaja.perfil.email || t("cuentas.laCuenta"), club: aDarBaja.club.nombre })}
+          onCerrar={() => setADarBaja(null)}
+          acciones={
+            <>
+              <button type="button" className="boton-cancelar-hoja" onClick={() => setADarBaja(null)}>
+                {t("comun.cancelar")}
+              </button>
+              <button type="button" className="boton-confirmar-hoja" onClick={confirmarBaja} disabled={!fechaBaja}>
+                {t("cuentas.siBaja")}
+              </button>
+            </>
+          }
+        >
+          <div className="campo-inicio">
+            <label>{t("cuentas.bajaFecha")}</label>
+            <input type="date" value={fechaBaja} max={hoyISO()} onChange={(evento) => setFechaBaja(evento.target.value)} />
+          </div>
+        </HojaInferior>
+      )}
     </main>
   );
 }

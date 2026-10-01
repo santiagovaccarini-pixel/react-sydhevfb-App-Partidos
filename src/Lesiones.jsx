@@ -6,6 +6,7 @@ import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
+import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import {
   ETAPAS,
@@ -149,6 +150,8 @@ export default function Lesiones({ onVolver }) {
   const [errorHoja, setErrorHoja] = useState("");
 
   const equipoId = equipo?.id || null;
+  // Quien ya se fue del club ve lo cargado hasta su último día y no cambia nada.
+  const soloLectura = Boolean(equipo?.hasta);
 
   // Sin club elegido en este celular, se adopta el que diga la base, igual
   // que hace Partido al abrir.
@@ -571,7 +574,7 @@ export default function Lesiones({ onVolver }) {
         <button type="button" className="boton-detalle" onClick={() => setDetalleId(lesion.id)}>
           {t("lesiones.verDetalle")}
         </button>
-        {conAlta && estaActiva(lesion) && (
+        {conAlta && estaActiva(lesion) && !soloLectura && (
           <button
             type="button"
             className="boton-detalle"
@@ -583,9 +586,11 @@ export default function Lesiones({ onVolver }) {
             {t("lesiones.darAlta")}
           </button>
         )}
-        <button type="button" className="boton-eliminar-registro" aria-label={t("lesiones.borrar")} onClick={() => setABorrar(lesion)}>
-          <Icono nombre="borrar" size={18} />
-        </button>
+        {!soloLectura && (
+          <button type="button" className="boton-eliminar-registro" aria-label={t("lesiones.borrar")} onClick={() => setABorrar(lesion)}>
+            <Icono nombre="borrar" size={18} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -614,13 +619,16 @@ export default function Lesiones({ onVolver }) {
           </div>
         </header>
 
+        <AvisoSoloLectura hasta={equipo?.hasta} />
         {estado}
 
-        <div className="acciones-inicio lesiones-acciones">
-          <button type="button" className="boton-principal boton-formacion-grande" onClick={abrirNueva} disabled={!enLinea || Boolean(error) || cargando}>
-            {t("lesiones.nueva")}
-          </button>
-        </div>
+        {!soloLectura && (
+          <div className="acciones-inicio lesiones-acciones">
+            <button type="button" className="boton-principal boton-formacion-grande" onClick={abrirNueva} disabled={!enLinea || Boolean(error) || cargando}>
+              {t("lesiones.nueva")}
+            </button>
+          </div>
+        )}
 
         {!cargando && !error && activas.length === 0 && <p className="lesiones-vacio">{t("lesiones.sinActivas")}</p>}
         <div className="lesiones-lista">{activas.map((lesion) => tarjetaLesion(lesion, { conAlta: true }))}</div>
@@ -748,7 +756,7 @@ export default function Lesiones({ onVolver }) {
         clave: campo.clave,
         titulo: etiquetaDeCampo(campo.clave, config, idioma),
         tipo: campo.tipo,
-        editable: TIPOS_MANUALES.includes(campo.tipo),
+        editable: !soloLectura && TIPOS_MANUALES.includes(campo.tipo),
         opciones:
           campo.tipo === "lista"
             ? opcionesDeCampo(campo.clave, config, idioma).map((opcion) => ({
@@ -759,7 +767,7 @@ export default function Lesiones({ onVolver }) {
             : undefined,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config, idioma],
+    [config, idioma, soloLectura],
   );
 
   const filasBase = useMemo(
@@ -826,10 +834,14 @@ export default function Lesiones({ onVolver }) {
             onEditar={editarCelda}
             onPegar={pegarEnBase}
             onAbrirFila={(id) => setDetalleId(id)}
-            onBorrarFila={(id) => {
-              const lesion = lesiones.find((una) => una.id === id);
-              if (lesion) setABorrar(lesion);
-            }}
+            onBorrarFila={
+              soloLectura
+                ? undefined
+                : (id) => {
+                    const lesion = lesiones.find((una) => una.id === id);
+                    if (lesion) setABorrar(lesion);
+                  }
+            }
           />
         </section>
       </div>
@@ -839,7 +851,7 @@ export default function Lesiones({ onVolver }) {
   // Ajustes, con el mismo formato que en Flujo diario: filas, y adentro de
   // cada una su pantalla con "Volver a Ajustes".
   const filaAjuste = ({ id, icono, titulo, detalle, alTocar, extra = null }) => (
-    <button key={id} type="button" className="opcion-ajuste" onClick={alTocar}>
+    <button key={id} type="button" className="opcion-ajuste" onClick={alTocar} disabled={soloLectura}>
       {icono && (
         <span className="icono-ajuste">
           <Icono nombre={icono} size={18} />
@@ -950,6 +962,7 @@ export default function Lesiones({ onVolver }) {
       <div className="app">
         <div className="contenedor">
           <Encabezado titulo={t("lesiones.ajustes.titulo")} texto={t("lesiones.ajustes.texto")} />
+          <AvisoSoloLectura hasta={equipo?.hasta} />
           {filaAjuste({
             id: "cabeceras",
             icono: "documento",
@@ -1011,7 +1024,7 @@ export default function Lesiones({ onVolver }) {
               ))
             )}
           </section>
-          {activa && (
+          {activa && !soloLectura && (
             <div className="acciones-inicio">
               <button
                 type="button"
@@ -1027,9 +1040,11 @@ export default function Lesiones({ onVolver }) {
           )}
           <div className="acciones-dobles">
             <BotonVolver onClick={() => setDetalleId(null)}>{t("comun.volver")}</BotonVolver>
-            <button type="button" className="boton-principal" onClick={() => abrirEdicion(lesion)}>
-              {t("lesiones.editar")}
-            </button>
+            {!soloLectura && (
+              <button type="button" className="boton-principal" onClick={() => abrirEdicion(lesion)}>
+                {t("lesiones.editar")}
+              </button>
+            )}
           </div>
         </div>
       </div>

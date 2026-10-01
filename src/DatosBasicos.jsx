@@ -3,6 +3,7 @@ import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
+import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { diasEntre } from "./domain/lesiones.js";
 import { campoPorClave, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
@@ -47,6 +48,8 @@ export default function DatosBasicos({ onVolver }) {
   const [aBorrar, setABorrar] = useState(null);
 
   const equipoId = equipo?.id || null;
+  // Quien ya se fue del club ve a los jugadores de entonces y no cambia nada.
+  const soloLectura = Boolean(equipo?.hasta);
 
   useEffect(() => {
     if (equipoId) return undefined;
@@ -93,7 +96,7 @@ export default function DatosBasicos({ onVolver }) {
         clave: columna.clave,
         titulo: columna.rotulo === "foto" ? t("datos.foto") : etiquetaDeCampo(columna.rotulo || columna.clave, config, idioma),
         tipo: columna.tipo,
-        editable: columna.editable,
+        editable: columna.editable && !soloLectura,
         ancho: columna.clave === "nombre" ? 180 : undefined,
         opciones:
           columna.tipo === "lista"
@@ -104,7 +107,7 @@ export default function DatosBasicos({ onVolver }) {
             : undefined,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config, idioma],
+    [config, idioma, soloLectura],
   );
 
   const filas = useMemo(
@@ -233,8 +236,10 @@ export default function DatosBasicos({ onVolver }) {
             </div>
           </header>
 
+          <AvisoSoloLectura hasta={equipo?.hasta} />
           {estado}
 
+          {!soloLectura && (
           <section className="tarjeta tarjeta-inicio">
             <form className="agregar-jugador datos-agregar" onSubmit={agregar}>
               <input
@@ -251,6 +256,7 @@ export default function DatosBasicos({ onVolver }) {
               </button>
             </form>
           </section>
+          )}
 
           <section className="tarjeta">
             <TablaDatos
@@ -259,10 +265,14 @@ export default function DatosBasicos({ onVolver }) {
               filas={filas}
               onEditar={editarCelda}
               onPegar={pegar}
-              onBorrarFila={(id) => {
-                const jugador = plantel.find((uno) => uno.id === id);
-                if (jugador) setABorrar(jugador);
-              }}
+              onBorrarFila={
+                soloLectura
+                  ? undefined
+                  : (id) => {
+                      const jugador = plantel.find((uno) => uno.id === id);
+                      if (jugador) setABorrar(jugador);
+                    }
+              }
             />
           </section>
         </div>

@@ -3,6 +3,7 @@ import { PantallaAcceso } from "./AccessGate.jsx";
 import { cargarEquipos, crearEquipo, guardarEquipoElegido } from "./domain/equipo.js";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { t, useIdioma } from "./idioma/index.js";
+import { fechaCorta } from "./idioma/formatos.js";
 
 // Lo segundo que ve una cuenta nueva, después de entrar: con qué club va a
 // trabajar. Queda guardado en el celular; desde el portal se puede cambiar.
@@ -60,15 +61,29 @@ export default function ElegirClub({ onElegir, onSalir }) {
         <p className="elegir-club-estado">{t("club.cargando")}</p>
       ) : (
         <ul className="elegir-club-lista">
-          {equipos.map((equipo) => (
-            <li key={equipo.id}>
-              <button type="button" className="elegir-club-opcion" onClick={() => elegir(equipo)}>
-                <EscudoDeClub equipo="cam" nombre={equipo.nombre} compacto />
-                <span className="elegir-club-nombre">{equipo.nombre}</span>
-                <b aria-hidden="true">›</b>
-              </button>
-            </li>
-          ))}
+          {equipos.map((equipo) => {
+            // El administrador ve también clubes en los que no está: esos no
+            // se eligen (adentro no vería nada); se suma desde Cuentas.
+            const sinMembresia = equipo.miembro === false;
+            return (
+              <li key={equipo.id}>
+                <button
+                  type="button"
+                  className={`elegir-club-opcion ${equipo.hasta ? "solo-lectura" : ""}`.trim()}
+                  disabled={sinMembresia}
+                  onClick={() => elegir(equipo)}
+                >
+                  <EscudoDeClub equipo="cam" nombre={equipo.nombre} compacto />
+                  <span className="elegir-club-texto">
+                    <span className="elegir-club-nombre">{equipo.nombre}</span>
+                    {equipo.hasta && <small className="elegir-club-detalle">{t("club.hasta", { fecha: fechaCorta(equipo.hasta) })}</small>}
+                    {sinMembresia && <small className="elegir-club-detalle">{t("club.sinMembresia")}</small>}
+                  </span>
+                  <b aria-hidden="true">›</b>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
       {!cargando && !error && equipos.length === 0 && <p className="elegir-club-estado">{t("club.vacio")}</p>}

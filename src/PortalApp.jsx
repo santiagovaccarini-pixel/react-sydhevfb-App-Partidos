@@ -10,8 +10,9 @@ import ElegirClub from "./ElegirClub.jsx";
 import { contarPendientes } from "./domain/perfilesDb.js";
 import { ArteDatos, ArteFlujo, ArteLesiones, ArtePartido, IconoDatos, IconoFlujo, IconoLesiones, IconoPartido } from "./components/PortalArt.jsx";
 import { t, useIdioma } from "./idioma/index.js";
+import { fechaCorta } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
-import { leerEquipoElegido } from "./domain/equipo.js";
+import { cargarEquipos, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import "./portal.css";
 import "./training.css";
 
@@ -252,6 +253,7 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onCambiarClub }
           {equipo?.nombre && (
             <span className="portal-kicker portal-club">
               {equipo.nombre}
+              {equipo.hasta && <em className="portal-club-hasta">{t("club.hasta", { fecha: fechaCorta(equipo.hasta) })}</em>}
               {onCambiarClub && (
                 <button type="button" className="portal-cambiar-club" onClick={onCambiarClub}>
                   {t("comun.cambiar")}
@@ -309,6 +311,30 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   // o nada. Se muestra encima del módulo mientras este se carga.
   const [portada, setPortada] = useState(null);
   const terminarPortada = useCallback(() => setPortada(null), []);
+
+  // Al volver al portal se vuelve a leer la lista de clubes: si el
+  // administrador dio de baja a esta cuenta del club (o la reincorporó), el
+  // celular se entera acá. Sin señal se queda con lo que sabía.
+  useEffect(() => {
+    if (modo !== MODOS.PORTAL || !club?.id) return undefined;
+    let vigente = true;
+    cargarEquipos().then(({ equipos, error }) => {
+      if (!vigente || error) return;
+      const fresco = (equipos || []).find((uno) => uno.id === club.id);
+      if (!fresco) {
+        guardarEquipoElegido(null);
+        setClub(null);
+        return;
+      }
+      if ((fresco.hasta || null) !== (club.hasta || null) || fresco.nombre !== club.nombre) {
+        guardarEquipoElegido(fresco);
+        setClub(fresco);
+      }
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [modo, club?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const elegir = (tarjeta, desde) => {
     if (!permisos?.[tarjeta.permiso]) return;

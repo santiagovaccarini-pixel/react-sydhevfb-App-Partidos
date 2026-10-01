@@ -39,10 +39,10 @@ export const leerEquipoElegido = () => {
     if (!guardado) return null;
 
     // Antes se guardaba solo el id, pelado.
-    if (!guardado.startsWith("{")) return { id: guardado, nombre: "" };
+    if (!guardado.startsWith("{")) return { id: guardado, nombre: "", hasta: null };
 
     const leido = JSON.parse(guardado);
-    return leido?.id ? { id: leido.id, nombre: limpiar(leido.nombre) } : null;
+    return leido?.id ? { id: leido.id, nombre: limpiar(leido.nombre), hasta: leido.hasta || null } : null;
   } catch (error) {
     console.warn("No se pudo leer el equipo elegido:", error);
     return null;
@@ -54,7 +54,7 @@ export const guardarEquipoElegido = (equipo) => {
     if (equipo?.id) {
       localStorage.setItem(
         CLAVE_EQUIPO_ELEGIDO,
-        JSON.stringify({ id: equipo.id, nombre: limpiar(equipo.nombre) }),
+        JSON.stringify({ id: equipo.id, nombre: limpiar(equipo.nombre), hasta: equipo.hasta || null }),
       );
     } else {
       localStorage.removeItem(CLAVE_EQUIPO_ELEGIDO);
@@ -64,12 +64,38 @@ export const guardarEquipoElegido = (equipo) => {
   }
 };
 
+// Un club con lo que quien entró tiene en él: `hasta` es su último día si
+// ya se fue (vacío mientras sigue), `miembro` dice si está o estuvo (el
+// administrador ve también clubes en los que no está).
 const normalizarEquipo = (fila) => ({
   id: fila?.id ?? null,
   nombre: limpiar(fila?.nombre),
+  hasta: fila?.hasta || null,
+  miembro: fila?.desde === undefined ? true : Boolean(fila.desde),
 });
 
+/** Quien ya se fue del club: ve lo cargado hasta su último día y no cambia nada. */
+export const esSoloLectura = (equipo) => Boolean(equipo?.hasta);
+
+// Los clubes de quien consulta, con su membresía. Si la base todavía no
+// tiene la vista (o algo falló), no hay membresía que leer: devuelve null.
+const leerMisClubes = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("v_mis_clubes")
+      .select("id, nombre, desde, hasta")
+      .order("nombre", { ascending: true });
+    if (error) return null;
+    return (data || []).map(normalizarEquipo).filter((e) => e.id);
+  } catch {
+    return null;
+  }
+};
+
 export const cargarEquipos = async () => {
+  const misClubes = await leerMisClubes();
+  if (misClubes) return { equipos: misClubes };
+
   try {
     const { data, error } = await supabase
       .from("equipos")

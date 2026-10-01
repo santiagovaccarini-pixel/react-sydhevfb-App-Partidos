@@ -3,10 +3,10 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [] }));
+const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
 
 vi.mock("./domain/equipo.js", () => ({
-  leerEquipoElegido: () => ({ id: "eq-1", nombre: "Atlético Mineiro" }),
+  leerEquipoElegido: () => registro.equipo,
   cargarEquipos: async () => ({ equipos: [] }),
   elegirEquipoInicial: () => null,
   guardarEquipoElegido: () => {},
@@ -59,6 +59,7 @@ describe("el módulo Datos básicos", () => {
   beforeEach(() => {
     fijarIdiomaParaPruebas("es-AR");
     localStorage.clear();
+    registro.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -67,8 +68,8 @@ describe("el módulo Datos básicos", () => {
   afterEach(async () => {
     await act(async () => raiz.unmount());
     contenedor.remove();
-    Object.values(registro).forEach((lista) => {
-      lista.length = 0;
+    ["guardados", "agregados", "borrados"].forEach((clave) => {
+      registro[clave].length = 0;
     });
   });
 
@@ -94,6 +95,20 @@ describe("el módulo Datos básicos", () => {
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     expect(texto(contenedor)).toContain("2 jogadores");
     expect(contenedor.querySelector("tbody tr").textContent).toContain("Esquerdo");
+  });
+
+  test("quien ya se fue del club ve a los jugadores y no puede cambiar nada", async () => {
+    registro.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: "2026-09-25" };
+    await montar();
+    expect(texto(contenedor)).toContain("Dejaste este club el 25/09/2026.");
+    expect(texto(contenedor)).toContain("HULK");
+    expect(boton(contenedor, "Agregar jugador")).toBeUndefined();
+    expect(boton(contenedor, "Borrar fila")).toBeUndefined();
+    expect([...contenedor.querySelectorAll("th[data-columna]")].every((th) => th.classList.contains("fija"))).toBe(true);
+    await tocar(celda(contenedor, 1, 4));
+    await tocar(celda(contenedor, 1, 4));
+    expect(contenedor.querySelector(".opcion-hoja")).toBeNull();
+    expect(registro.guardados).toEqual([]);
   });
 
   test("se cambia el pie dominante desde la celda, se agrega un jugador y se borra otro", async () => {

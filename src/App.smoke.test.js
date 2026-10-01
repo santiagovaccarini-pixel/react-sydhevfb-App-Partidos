@@ -24,7 +24,9 @@ const doblesSupabase = vi.hoisted(() => ({
 
 vi.mock("./supabase.js", () => ({
   supabase: {
-    from: (tabla) => {
+    from: (tablaPedida) => {
+      // La vista de clubes con membresía contesta como la lista de equipos.
+      const tabla = tablaPedida === "v_mis_clubes" ? "equipos" : tablaPedida;
       if (tabla === "equipos") {
         const consulta = {
           select: () => consulta,

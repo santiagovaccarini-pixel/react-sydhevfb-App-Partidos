@@ -2,8 +2,30 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import CuentasAdmin, { PERMISOS_INICIALES, permisosDeFila } from "./CuentasAdmin.jsx";
+import { hoyISO } from "./idioma/formatos.js";
 
-const datos = vi.hoisted(() => ({ lista: [], errorLista: null, decisiones: [], errorDecision: null }));
+const datos = vi.hoisted(() => ({ lista: [], errorLista: null, decisiones: [], errorDecision: null, clubes: [], membresias: [], cambiosClub: [] }));
+
+vi.mock("./domain/equipo.js", () => ({
+  cargarEquipos: async () => ({ equipos: datos.clubes }),
+  leerEquipoElegido: () => ({ id: "eq-1", nombre: "Atlético Mineiro" }),
+}));
+vi.mock("./domain/membresiasDb.js", async () => {
+  const real = await vi.importActual("./domain/membresiasDb.js");
+  const escribir = (userId, equipoId, cambios) => {
+    datos.cambiosClub.push({ userId, equipoId, ...cambios });
+    const fila = { user_id: userId, equipo_id: equipoId, desde: "2026-10-01", ...cambios };
+    datos.membresias = [...datos.membresias.filter((m) => !(m.user_id === userId && m.equipo_id === equipoId)), fila];
+    return fila;
+  };
+  return {
+    ...real,
+    listarMembresias: async () => datos.membresias,
+    sumarAlClub: async (userId, equipoId) => escribir(userId, equipoId, { hasta: null }),
+    darDeBaja: async (userId, equipoId, hasta) => escribir(userId, equipoId, { hasta }),
+    reincorporar: async (userId, equipoId) => escribir(userId, equipoId, { hasta: null }),
+  };
+});
 
 vi.mock("./domain/perfilesDb.js", async () => {
   const real = await vi.importActual("./domain/perfilesDb.js");
@@ -49,6 +71,13 @@ describe("la pantalla Cuentas", () => {
     datos.errorLista = null;
     datos.decisiones = [];
     datos.errorDecision = null;
+    datos.clubes = [{ id: "eq-1", nombre: "Atlético Mineiro" }, { id: "eq-2", nombre: "Cruzeiro" }];
+    datos.membresias = [
+      { user_id: "yo", equipo_id: "eq-1", desde: "2026-09-01", hasta: null },
+      { user_id: "ayu", equipo_id: "eq-1", desde: "2026-09-20", hasta: null },
+      { user_id: "ayu", equipo_id: "eq-2", desde: "2026-06-01", hasta: "2026-08-31" },
+    ];
+    datos.cambiosClub = [];
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
   });
@@ -93,6 +122,52 @@ describe("la pantalla Cuentas", () => {
     expect(chip(pf, "Administrador").getAttribute("aria-pressed")).toBe("false");
     expect(botonDe(pf, "Autorizar")).not.toBeNull();
     expect(botonDe(pf, "Rechazar")).not.toBeNull();
+  });
+
+  test("cada cuenta con acceso muestra sus clubes; se da de baja con el último día, se reincorpora y se suma", async () => {
+    await montar();
+    await act(async () => Promise.resolve());
+    const ayu = fila("ayudante@club.com");
+    const clubes = Array.from(ayu.querySelectorAll(".cuenta-club")).map((div) => div.textContent.replace(/\s+/g, " ").trim());
+    expect(clubes).toEqual(["Atlético MineiroEn el clubDar de baja", "CruzeiroHasta el 31/08/2026Reincorporar"]);
+    // La propia no se toca.
+    expect(fila("santi@club.com").querySelector(".cuenta-club")).toBeNull();
+
+    // Dar de baja pide el último día (hoy, o antes).
+    await act(async () => botonDe(ayu, "Dar de baja").click());
+    expect(contenedor.textContent).toContain("¿Cuál fue su último día en el club?");
+    expect(contenedor.textContent).toContain("ayudante@club.com va a seguir viendo lo cargado en Atlético Mineiro hasta ese día");
+    const fecha = contenedor.querySelector('input[type="date"]');
+    expect(fecha.getAttribute("max")).toBe(hoyISO());
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(fecha, "2026-09-25");
+      fecha.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => botonDe(contenedor, "Sí, dar de baja").click());
+    await act(async () => Promise.resolve());
+    expect(datos.cambiosClub).toEqual([{ userId: "ayu", equipoId: "eq-1", hasta: "2026-09-25" }]);
+    expect(fila("ayudante@club.com").querySelector(".cuenta-club").textContent).toContain("Hasta el 25/09/2026");
+
+    // Reincorporar borra la fecha; sumar mete en el club.
+    await act(async () => botonDe(fila("ayudante@club.com"), "Reincorporar").click());
+    await act(async () => Promise.resolve());
+    expect(datos.cambiosClub.at(-1)).toEqual({ userId: "ayu", equipoId: "eq-1", hasta: null });
+    datos.membresias = datos.membresias.filter((m) => !(m.user_id === "ayu" && m.equipo_id === "eq-2"));
+    await act(async () => contenedor.querySelector(".portal-salir:not(.cuentas-volver)").click());
+    await act(async () => Promise.resolve());
+    await act(async () => botonDe(fila("ayudante@club.com"), "Sumar").click());
+    await act(async () => Promise.resolve());
+    expect(datos.cambiosClub.at(-1)).toEqual({ userId: "ayu", equipoId: "eq-2", hasta: null });
+  });
+
+  test("al autorizar una cuenta nueva queda en el club con el que se está trabajando", async () => {
+    await montar();
+    await act(async () => Promise.resolve());
+    await act(async () => botonDe(fila("pf@club.com"), "Autorizar").click());
+    await act(async () => Promise.resolve());
+    await act(async () => Promise.resolve());
+    expect(datos.cambiosClub).toEqual([{ userId: "pf", equipoId: "eq-1", hasta: null }]);
+    expect(fila("pf@club.com").querySelector(".cuenta-club").textContent).toContain("En el club");
   });
 
   test("autorizar una pendiente manda el estado y los módulos elegidos, y la pasa a Con acceso", async () => {
