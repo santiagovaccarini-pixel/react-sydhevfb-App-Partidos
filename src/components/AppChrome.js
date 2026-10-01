@@ -1,5 +1,7 @@
 import { t, useIdioma } from "../idioma/index.js";
 import React, { useId } from "react";
+import { EscudoDeClub } from "./ClubCrest";
+import { leerEquipoElegido } from "../domain/equipo";
 
 const trazos = {
   partido: (
@@ -251,7 +253,13 @@ export const MarcoAplicacion = ({
         aria-label="Navegación principal"
       >
         <div className="marca-aplicacion">
-          <EscudoCAM etiqueta={marca} />
+          {/* El escudo real del club elegido (bajado como en Partido); si no
+              hay club todavía, el dibujado de siempre. */}
+          {leerEquipoElegido()?.nombre ? (
+            <EscudoDeClub equipo="cam" nombre={leerEquipoElegido().nombre} />
+          ) : (
+            <EscudoCAM etiqueta={marca} />
+          )}
           <strong>{marca}</strong>
         </div>
 

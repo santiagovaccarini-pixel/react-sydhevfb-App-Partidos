@@ -121,6 +121,8 @@ export default function Lesiones({ onVolver }) {
 
   // El filtro del historial, igual que el de Registros de Partido.
   const [busqueda, setBusqueda] = useState("");
+  // Fichas (como Registros de Partido) o tabla (como la base del Excel).
+  const [vistaHistorial, setVistaHistorial] = useState("fichas");
   const [filtroAbierto, setFiltroAbierto] = useState(false);
   const [criterio, setCriterio] = useState(FILTRO.TODOS);
   const [criteriosMulti, setCriteriosMulti] = useState([]);
@@ -612,13 +614,11 @@ export default function Lesiones({ onVolver }) {
 
         {estado}
 
-        <section className="tarjeta tarjeta-inicio">
-          <div className="acciones-inicio">
-            <button type="button" className="boton-principal boton-formacion-grande" onClick={abrirNueva} disabled={!enLinea || Boolean(error) || cargando}>
-              {t("lesiones.nueva")}
-            </button>
-          </div>
-        </section>
+        <div className="acciones-inicio lesiones-acciones">
+          <button type="button" className="boton-principal boton-formacion-grande" onClick={abrirNueva} disabled={!enLinea || Boolean(error) || cargando}>
+            {t("lesiones.nueva")}
+          </button>
+        </div>
 
         {!cargando && !error && activas.length === 0 && <p className="lesiones-vacio">{t("lesiones.sinActivas")}</p>}
         <div className="lesiones-lista">{activas.map((lesion) => tarjetaLesion(lesion, { conAlta: true }))}</div>
@@ -632,6 +632,24 @@ export default function Lesiones({ onVolver }) {
         <Encabezado titulo={t("lesiones.historial.titulo")} texto={t("lesiones.historial.texto")} />
         {estado}
         <section className="tarjeta">
+          <div className="cambiar-vista" role="tablist">
+            {[
+              ["fichas", t("lesiones.historial.fichas")],
+              ["tabla", t("lesiones.historial.tabla")],
+            ].map(([modo, texto]) => (
+              <button
+                key={modo}
+                type="button"
+                role="tab"
+                aria-selected={vistaHistorial === modo}
+                className={vistaHistorial === modo ? "activo" : ""}
+                onClick={() => setVistaHistorial(modo)}
+              >
+                {texto}
+              </button>
+            ))}
+          </div>
+
           <div className="buscador-registros">
             <div className="linea-buscador">
               <input value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} placeholder={t("lesiones.historial.buscar")} />
@@ -733,7 +751,32 @@ export default function Lesiones({ onVolver }) {
             </p>
           )}
           {lesiones.length > 0 && historialVisible.length === 0 && <div className="sin-resultados">{t("lesiones.historial.sinResultados")}</div>}
-          <div className="lesiones-lista">{historialVisible.map((lesion) => tarjetaLesion(lesion))}</div>
+          {vistaHistorial === "tabla" && historialVisible.length > 0 ? (
+            // La base como en el Excel: una fila por lesión, una columna por
+            // cabecera, en su orden. Tocar una fila abre la ficha.
+            <div className="lesiones-tabla-marco">
+              <table className="lesiones-tabla">
+                <thead>
+                  <tr>
+                    {CAMPOS.filter(visible).map((campo) => (
+                      <th key={campo.clave}>{etiqueta(campo.clave)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {historialVisible.map((lesion) => (
+                    <tr key={lesion.id} onClick={() => setDetalleId(lesion.id)}>
+                      {CAMPOS.filter(visible).map((campo) => (
+                        <td key={campo.clave}>{enPantalla(campo, lesion) || "—"}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="lesiones-lista">{historialVisible.map((lesion) => tarjetaLesion(lesion))}</div>
+          )}
         </section>
       </div>
     </div>
