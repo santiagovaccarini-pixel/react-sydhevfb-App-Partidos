@@ -80,11 +80,96 @@ export const sinEntrenar = (lesion) => ["lesionado", "transicion"].includes(etap
 export const diasDeBaja = (lesion, hoy = hoyISO()) =>
   Math.max(0, diasEntre(lesion.fecha_lesion, lesion.fecha_alta || hoy) ?? 0);
 
-// Las columnas que el Excel calcula solo.
-export const calcular = (clave, lesion, jugador = null) => {
+// Días de ventana para la recurrencia (celda J5 de la tabla dinámica del Excel).
+export const DIAS_RECURRENCIA = 60;
+
+const mismo = (a, b) => String(a ?? "") === String(b ?? "");
+
+// Las lesiones anteriores del mismo jugador (inicio anterior), de la más
+// reciente a la más vieja.
+const anterioresDe = (lesion, lesiones = []) =>
+  lesiones
+    .filter(
+      (otra) =>
+        otra &&
+        otra.id !== lesion.id &&
+        String(otra.jugador_id) === String(lesion.jugador_id) &&
+        esFechaISO(otra.fecha_lesion) &&
+        otra.fecha_lesion < lesion.fecha_lesion,
+    )
+    .sort((a, b) => (a.fecha_lesion < b.fecha_lesion ? 1 : -1));
+
+// Recorrência (Excel): otra lesión anterior del mismo jugador, músculo, lado
+// y parte del cuerpo, cuyo fin (alta, o hoy si sigue abierta) fue hace 60
+// días o menos. "sim" / "nao"; vacío si faltan datos.
+export const recurrenciaDe = (lesion, lesiones = [], hoy = hoyISO()) => {
+  if (!lesion?.jugador_id || !esFechaISO(lesion?.fecha_lesion)) return "";
+  const d = lesion.datos || {};
+  const hay = anterioresDe(lesion, lesiones).some((otra) => {
+    const o = otra.datos || {};
+    if (!mismo(o.musculo, d.musculo) || !mismo(o.lado, d.lado) || !mismo(o.parte_cuerpo, d.parte_cuerpo)) return false;
+    const fin = otra.fecha_alta || hoy;
+    const dias = diasEntre(fin, lesion.fecha_lesion);
+    return dias !== null && dias <= DIAS_RECURRENCIA;
+  });
+  return hay ? "sim" : "nao";
+};
+
+// Recidiva (Excel): otra lesión anterior del mismo jugador en exactamente la
+// misma estructura (músculo, área, lado, músculo específico y parte), en
+// cualquier momento.
+export const recidivaDe = (lesion, lesiones = []) => {
+  if (!lesion?.jugador_id || !esFechaISO(lesion?.fecha_lesion)) return "";
+  const d = lesion.datos || {};
+  const hay = anterioresDe(lesion, lesiones).some((otra) => {
+    const o = otra.datos || {};
+    return (
+      mismo(o.musculo, d.musculo) &&
+      mismo(o.area, d.area) &&
+      mismo(o.lado, d.lado) &&
+      mismo(o.musculo_especifico, d.musculo_especifico) &&
+      mismo(o.parte_cuerpo, d.parte_cuerpo)
+    );
+  });
+  return hay ? "sim" : "nao";
+};
+
+// Diagnóstico (Excel): tipo + (ligamento, o si no el músculo específico) +
+// (músculo afectado, o si no la parte del cuerpo) + área + lado, en el idioma
+// que se esté mirando. `texto(clave, codigo)` da el texto de cada opción.
+export const diagnosticoDe = (lesion, texto = (clave, codigo) => codigo || "") => {
+  const d = lesion?.datos || {};
+  const partes = [
+    texto("tipo_lesion", d.tipo_lesion),
+    d.ligamento ? texto("ligamento", d.ligamento) : texto("musculo_especifico", d.musculo_especifico),
+    d.musculo ? texto("musculo", d.musculo) : texto("parte_cuerpo", d.parte_cuerpo),
+    texto("area", d.area),
+    texto("lado", d.lado),
+  ];
+  return partes.filter(Boolean).join(" ");
+};
+
+// N° de registro (Excel): la enésima lesión del jugador, contando por n° de
+// caso (o por fecha si todavía no tiene).
+export const numeroDeRegistro = (lesion, lesiones = []) => {
+  if (!lesion?.jugador_id) return null;
+  const suyas = lesiones
+    .filter((otra) => otra && String(otra.jugador_id) === String(lesion.jugador_id))
+    .sort((a, b) => (a.numero_caso ?? Infinity) - (b.numero_caso ?? Infinity) || (a.fecha_lesion < b.fecha_lesion ? -1 : 1));
+  const indice = suyas.findIndex((otra) => otra.id === lesion.id);
+  return indice >= 0 ? indice + 1 : suyas.length + 1;
+};
+
+// Las columnas que el Excel calcula solo. `contexto` trae las demás lesiones
+// del club (para n° de registro, recurrencia y recidiva) y cómo leer el texto
+// de una opción (para el diagnóstico).
+export const calcular = (clave, lesion, jugador = null, contexto = {}) => {
+  const lesiones = contexto.lesiones || [];
   switch (clave) {
     case "numero_caso":
       return lesion?.numero_caso ?? null;
+    case "numero_registro":
+      return numeroDeRegistro(lesion, lesiones);
     case "edad": {
       const nacimiento = jugador?.fecha_nacimiento;
       if (!esFechaISO(nacimiento) || !esFechaISO(lesion?.fecha_lesion)) return null;
@@ -94,39 +179,48 @@ export const calcular = (clave, lesion, jugador = null) => {
       if (ml < mn || (ml === mn && dl < dn)) edad -= 1;
       return edad >= 0 ? edad : null;
     }
-    case "horas_imagen": {
-      const hora = lesion?.datos?.hora_imagen;
-      if (!hora || !esFechaISO(lesion?.fecha_lesion)) return null;
-      const ms = new Date(hora) - new Date(`${lesion.fecha_lesion}T00:00:00`);
-      return Number.isNaN(ms) ? null : Math.round(ms / 3600000);
+    case "lado_habil": {
+      const lado = lesion?.datos?.lado;
+      const pie = jugador?.pie_dominante;
+      if (!lado || !pie) return "";
+      return lado === pie ? "sim" : "nao";
     }
     case "recup_1":
       return lesion?.fecha_transicion ? diasEntre(lesion.fecha_lesion, lesion.fecha_transicion) : null;
     case "recup_2":
-      return lesion?.fecha_retorno_entrenamiento
-        ? diasEntre(lesion.fecha_transicion || lesion.fecha_lesion, lesion.fecha_retorno_entrenamiento)
-        : null;
+      return lesion?.fecha_retorno_entrenamiento ? diasEntre(lesion.fecha_lesion, lesion.fecha_retorno_entrenamiento) : null;
     case "recuperacion":
-      return lesion?.fecha_alta ? diasEntre(lesion.fecha_lesion, lesion.fecha_alta) : null;
+      return esFechaISO(lesion?.fecha_lesion) ? diasEntre(lesion.fecha_lesion, lesion.fecha_alta || contexto.hoy || hoyISO()) : null;
+    case "severidad":
+      return lesion?.fecha_alta ? severidadPorDias(diasEntre(lesion.fecha_lesion, lesion.fecha_alta)) : "";
+    case "recurrencia":
+      return recurrenciaDe(lesion, lesiones, contexto.hoy);
+    case "recidiva":
+      return recidivaDe(lesion, lesiones);
+    case "diagnostico":
+      return diagnosticoDe(lesion, contexto.texto);
     default:
       return null;
   }
 };
 
 // Severidad según los días de recuperación, con la escala del Excel:
-// registro (0), leve (1-3), menor (4-7), moderado (8-28), mayor (más de 28).
+// registro (menos de 1), leve (1-4), menor (5-7), moderado (8-28), mayor (29 o más).
 export const severidadPorDias = (dias) => {
   if (dias === null || dias === undefined) return "";
-  if (dias <= 0) return "registro";
-  if (dias <= 3) return "leve";
+  if (dias <= 0.99) return "registro";
+  if (dias <= 4) return "leve";
   if (dias <= 7) return "menor";
   if (dias <= 28) return "moderado";
   return "mayor";
 };
 
-export const severidadSugerida = (lesion) => severidadPorDias(calcular("recuperacion", lesion));
+export const severidadSugerida = (lesion) => calcular("severidad", lesion);
 
 const FECHAS_POSTERIORES = ["fecha_transicion", "fecha_retorno_entrenamiento", "fecha_alta"];
+
+// Las horas entre la lesión y la imagen las escribe el médico (el Excel no las calcula).
+const esNumeroValido = (valor) => valor === null || valor === undefined || valor === "" || (Number.isFinite(Number(valor)) && Number(valor) >= 0);
 
 // Lo que hay que corregir antes de guardar, como clave del diccionario.
 // Devuelve "" si está todo bien.
@@ -142,6 +236,7 @@ export const validarLesion = (lesion, { hoy = hoyISO(), otras = [] } = {}) => {
   }
   if (!lesion.datos?.parte_cuerpo) return "lesiones.error.parte";
   if (!lesion.datos?.lado) return "lesiones.error.lado";
+  if (!esNumeroValido(lesion.datos?.horas_imagen)) return "lesiones.error.horas";
   if (seSolapa(lesion, otras)) return "lesiones.error.solapada";
   return "";
 };

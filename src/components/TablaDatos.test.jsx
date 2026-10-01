@@ -1,0 +1,172 @@
+import React from "react";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { TablaDatos } from "./TablaDatos.jsx";
+import { fijarIdiomaParaPruebas } from "../idioma/index.js";
+
+const columnas = [
+  { clave: "nombre", titulo: "Nombre", tipo: "texto", editable: true },
+  { clave: "edad", titulo: "Edad", tipo: "calculado", editable: false },
+  { clave: "pie", titulo: "Pie", tipo: "lista", editable: true, opciones: [{ valor: "direito", etiqueta: "Derecho" }, { valor: "esquerdo", etiqueta: "Izquierdo" }] },
+];
+const filas = [
+  { id: 1, valores: { nombre: "HULK", edad: 40, pie: "esquerdo" }, textos: { nombre: "HULK", edad: "40 años", pie: "Izquierdo" } },
+  { id: 2, valores: { nombre: "SCARPA", edad: 33, pie: "" }, textos: { nombre: "SCARPA", edad: "33 años", pie: "" } },
+];
+
+const celda = (contenedor, fila, columna) => contenedor.querySelectorAll("tbody tr")[fila].querySelectorAll("td")[columna];
+const cabeceras = (contenedor) => [...contenedor.querySelectorAll("th[data-columna]")].map((th) => th.textContent);
+const tocar = async (elemento) => act(async () => elemento.click());
+const puntero = (elemento, tipo, extra = {}) => {
+  const evento = new MouseEvent(tipo, { bubbles: true, cancelable: true, clientX: extra.x ?? 0, clientY: extra.y ?? 0, button: 0 });
+  Object.defineProperty(evento, "pointerType", { value: extra.pointerType || "mouse" });
+  Object.defineProperty(evento, "pointerId", { value: 1 });
+  return act(async () => elemento.dispatchEvent(evento));
+};
+
+describe("la tabla estilo Excel", () => {
+  let contenedor;
+  let raiz;
+  let editados;
+  let pegados;
+
+  beforeEach(() => {
+    fijarIdiomaParaPruebas("es-AR");
+    localStorage.clear();
+    editados = [];
+    pegados = [];
+    contenedor = document.createElement("div");
+    document.body.appendChild(contenedor);
+    raiz = createRoot(contenedor);
+  });
+
+  afterEach(async () => {
+    await act(async () => raiz.unmount());
+    contenedor.remove();
+    delete document.elementFromPoint;
+    vi.useRealTimers();
+  });
+
+  const montar = async (extra = {}) =>
+    act(async () =>
+      raiz.render(
+        <TablaDatos
+          id="prueba"
+          columnas={columnas}
+          filas={filas}
+          onEditar={async (filaId, clave, valor) => {
+            editados.push({ filaId, clave, valor });
+            return {};
+          }}
+          onPegar={async (cambios) => {
+            pegados.push(...cambios);
+            return { hechos: cambios.length };
+          }}
+          {...extra}
+        />,
+      ),
+    );
+
+  test("se eligen celdas, se editan tocando dos veces y las listas abren la hoja de opciones", async () => {
+    await montar();
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+    expect(contenedor.textContent).toContain("Tocá una celda para empezar");
+
+    await tocar(celda(contenedor, 0, 0));
+    expect(celda(contenedor, 0, 0).classList.contains("activa")).toBe(true);
+    expect(contenedor.textContent).toContain("1 celda elegida");
+    // El segundo toque edita.
+    await tocar(celda(contenedor, 0, 0));
+    const input = celda(contenedor, 0, 0).querySelector("input");
+    expect(input.value).toBe("HULK");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, "HULK PARAÍBA");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(editados).toEqual([{ filaId: 1, clave: "nombre", valor: "HULK PARAÍBA" }]);
+
+    // Una columna calculada no se edita.
+    await tocar(celda(contenedor, 0, 1));
+    await tocar(celda(contenedor, 0, 1));
+    expect(celda(contenedor, 0, 1).querySelector("input")).toBeNull();
+
+    // Una lista abre la hoja de opciones.
+    await tocar(celda(contenedor, 1, 2));
+    await tocar(celda(contenedor, 1, 2));
+    const opcion = [...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Derecho");
+    await tocar(opcion);
+    expect(editados.at(-1)).toEqual({ filaId: 2, clave: "pie", valor: "direito" });
+  });
+
+  test("copia la selección como texto con tabulaciones y pega lo que llega", async () => {
+    await montar();
+    const escrito = [];
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (texto) => escrito.push(texto), readText: async () => "SCARPA\t33\tDerecho" } });
+    // El número de fila elige la fila entera.
+    await tocar(contenedor.querySelectorAll("tbody th")[0]);
+    expect(contenedor.textContent).toContain("3 celdas elegidas");
+    await tocar([...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === "Copiar"));
+    expect(escrito).toEqual(["HULK\t40 años\tIzquierdo"]);
+    expect(contenedor.textContent).toContain("3 celdas copiadas");
+
+    await tocar(celda(contenedor, 1, 0));
+    await tocar([...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === "Pegar"));
+    expect(pegados).toEqual([
+      { filaId: 2, clave: "nombre", valor: "SCARPA" },
+      { filaId: 2, clave: "pie", valor: "direito" },
+    ]);
+    expect(contenedor.textContent).toContain("2 celdas pegadas · 1 no se entendió o no se puede cambiar");
+
+    // Ctrl+V dentro de la tabla manda el evento de pegado del navegador.
+    pegados.length = 0;
+    await tocar(celda(contenedor, 0, 2));
+    const marco = contenedor.querySelector(".tabla-datos-marco");
+    const evento = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(evento, "clipboardData", { value: { getData: () => "Derecho\nIzquierdo" } });
+    await act(async () => marco.dispatchEvent(evento));
+    expect(pegados).toEqual([
+      { filaId: 1, clave: "pie", valor: "direito" },
+      { filaId: 2, clave: "pie", valor: "esquerdo" },
+    ]);
+    delete navigator.clipboard;
+  });
+
+  test("las cabeceras se arrastran con el mouse y el orden queda guardado", async () => {
+    await montar();
+    const [primera, , tercera] = contenedor.querySelectorAll("th[data-columna]");
+    document.elementFromPoint = () => tercera;
+    await puntero(primera, "pointerdown", { x: 10, y: 10 });
+    await puntero(primera, "pointermove", { x: 40, y: 10 });
+    expect(contenedor.querySelector("table").classList.contains("arrastrando")).toBe(true);
+    await puntero(primera, "pointermove", { x: 200, y: 10 });
+    expect(tercera.classList.contains("destino")).toBe(true);
+    await puntero(primera, "pointerup", { x: 200, y: 10 });
+    expect(cabeceras(contenedor)).toEqual(["Edad", "Pie", "Nombre"]);
+    expect(JSON.parse(localStorage.getItem("tabla_columnas:prueba"))).toEqual(["edad", "pie", "nombre"]);
+    // Las celdas siguen a su columna.
+    expect(celda(contenedor, 0, 2).textContent).toBe("HULK");
+  });
+
+  test("en el celular hay que mantener apretada la cabecera; moverse antes es desplazar", async () => {
+    vi.useFakeTimers();
+    await montar();
+    const [primera, segunda] = contenedor.querySelectorAll("th[data-columna]");
+    document.elementFromPoint = () => segunda;
+    // Un toque corto que se mueve: nada.
+    await puntero(primera, "pointerdown", { x: 10, y: 10, pointerType: "touch" });
+    await puntero(primera, "pointermove", { x: 60, y: 10, pointerType: "touch" });
+    await act(async () => vi.advanceTimersByTime(500));
+    expect(contenedor.querySelector("table").classList.contains("arrastrando")).toBe(false);
+    await puntero(primera, "pointerup", { x: 60, y: 10, pointerType: "touch" });
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+    // Mantener apretado y después mover: se arrastra.
+    await puntero(primera, "pointerdown", { x: 10, y: 10, pointerType: "touch" });
+    await act(async () => vi.advanceTimersByTime(500));
+    expect(contenedor.querySelector("table").classList.contains("arrastrando")).toBe(true);
+    await puntero(primera, "pointermove", { x: 90, y: 10, pointerType: "touch" });
+    await puntero(primera, "pointerup", { x: 90, y: 10, pointerType: "touch" });
+    expect(cabeceras(contenedor)).toEqual(["Edad", "Nombre", "Pie"]);
+  });
+});

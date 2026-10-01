@@ -164,34 +164,47 @@ de lo hecho está en los commits, no en esta lista.
   líneas y no se vuelve más difícil por esperar. De paso aísla las fallas: hoy
   un error de Entrenamiento se lleva puesta la pantalla de partido.
 
-## Idioma y Lesiones (maqueta del 01/10)
+## Idioma, Lesiones y Datos básicos (01/10 y 02/10)
 
 - La app tiene diccionario propio en `src/idioma/` (es-AR y pt-BR). Está traducido lo que
-  rodea a los módulos: puerta de acceso, portal, Cuentas, barra de navegación, OpenField y el
-  módulo Lesiones entero. **Partido y Flujo diario siguen en castellano** aunque se elija
-  portugués: funcionan igual, solo falta pasar sus textos al diccionario (mucho texto; va de a
-  pantallas). Regla: texto nuevo = clave nueva en los dos archivos (la prueba lo exige).
-- Lesiones tiene las 35 columnas del Excel original (`src/domain/lesionesCampos.js`,
-  migración `20261002_lesiones_excel.sql`): fechas en columnas, el resto en `datos` (jsonb)
-  con el código de cada opción; cabeceras y listas por club en `lesiones_campos` y
-  `lesiones_opciones`, editables desde Ajustes (la app las siembra con el Excel la primera
-  vez). La vista `v_lesiones_excel_v1` las devuelve con los textos en portugués para Power
-  Query. Tipo de lesión y músculo específico ya están completos; Imágenes, Recorrência,
-  Recidiva y Médico siguen provisorios hasta que llegue el Excel entero (Santiago lo pasa
-  para revisar también qué se calcula solo). Faltan exportar/reportes y pasar los datos del
-  jugador (n° de registro, categoría, nacimiento, pie) al editor de jugadores compartido.
+  rodea a los módulos: puerta de acceso, portal, Cuentas, barra de navegación, OpenField,
+  Lesiones y Datos básicos enteros. **Partido y Flujo diario siguen en castellano** aunque se
+  elija portugués: funcionan igual, solo falta pasar sus textos al diccionario (mucho texto;
+  va de a pantallas). Regla: texto nuevo = clave nueva en los dos archivos (la prueba lo exige).
+- Lesiones tiene las columnas del Excel original (`src/domain/lesionesCampos.js`, más la
+  posición del jugador): fechas en columnas, el resto en `datos` (jsonb) con el código de cada
+  opción; cabeceras y listas por club en `lesiones_campos` y `lesiones_opciones`, editables
+  desde Ajustes en el idioma que se esté usando (la app las siembra con el Excel la primera
+  vez). Revisado el Excel entero (02/10): se cargan a mano 21 columnas y el resto se calcula
+  igual que ahí (`calcular` en `src/domain/lesiones.js`: n° de registro = enésima lesión del
+  jugador, edad, lado hábil, Recup 1/2, recuperación, severidad por días con alta, recorrência
+  a 60 días, recidiva por estructura exacta, diagnóstico armado). La vista
+  `v_lesiones_excel_v1` calcula lo mismo para Power Query (migración
+  `20261002_datos_basicos.sql`, **pendiente de correr en Supabase**: también agrega
+  `jugadores.posicion` y `jugadores.foto_url`).
+- La carga de una lesión va por pasos (quién, qué pasó, dónde, cómo y cuándo, evolución e
+  imágenes, notas) con solo lo manual; lo calculado se muestra al final. Hay una pantalla
+  **Base** estilo Excel (`src/components/TablaDatos.jsx`): cabeceras que se arrastran (en el
+  celular, manteniendo apretado), celdas que se eligen, se copian y se pegan como texto con
+  tabulaciones y se editan tocando dos veces. El orden de columnas queda en el celular.
+- **Datos básicos** (`src/DatosBasicos.jsx`) es un módulo más del portal, para cualquiera con
+  algún módulo: los jugadores del club (los mismos de Partido y Flujo diario) con nombre,
+  categoría, nacimiento, edad, pie dominante, posición y foto, en la misma tabla.
+- Del Excel quedan para más adelante: BD GPS (minutos para incidencia por 1000 h), la
+  evaluación de lesiones (ROM y valores de referencia) y los reportes con gráficos. El bloque
+  "Plan Agudo" del Excel está marcado "no usar" y no se trajo.
 - Lo que se suma al catálogo (`lesionesCampos.js`) llega solo a los clubes ya sembrados:
   `leerConfig` completa las cabeceras y opciones que falten sin pisar lo que el club cambió.
 - La hoja de opciones (`HojaOpciones`) se desplaza y, con más de ocho opciones, tiene un
-  buscador que acerca lo escrito. El historial de Lesiones se ve como fichas o como tabla.
+  buscador que acerca lo escrito.
 - Regla de oro del 01/10: lo que es igual en otro módulo tiene que ser igual en toda la web
   (escudos descargados con `EscudoDeClub`, el filtro de Registros, fichas con "Ver detalle",
   Ajustes con filas y "Volver a Ajustes").
 - Después de entrar, lo primero es elegir el club (`src/ElegirClub.jsx`); desde el portal se
   cambia con "Cambiar". Falta la etapa grande de aislamiento por club en la base (RLS por
   `club_miembros`), que está en el plan del proyecto Control de Carga.
-- El idioma se cambia desde el globo arriba a la derecha (puerta, portal, Cuentas y
-  Lesiones). Partido y Flujo diario no lo muestran todavía porque siguen en castellano.
+- El idioma se cambia desde el globo arriba a la derecha (puerta, portal, Cuentas, Lesiones y
+  Datos básicos). Partido y Flujo diario no lo muestran todavía porque siguen en castellano.
 - El permiso `lesiones` de perfiles lo habilita el administrador desde Cuentas; las cuentas
   admin lo tienen prendido desde la migración.
 

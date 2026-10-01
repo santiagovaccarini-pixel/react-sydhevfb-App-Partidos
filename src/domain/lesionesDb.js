@@ -3,8 +3,8 @@
 // { ..., error } con el error ya traducido a una clave del diccionario.
 import { supabase } from "../supabase.js";
 import { claveDeErrorDeBase, normalizarLesion } from "./lesiones.js";
-import { armarConfig, filasParaSembrar } from "./lesionesCampos.js";
-import { cargarPlantel, normalizarJugador } from "./plantel.js";
+import { armarConfig, esCalculado, filasParaSembrar } from "./lesionesCampos.js";
+import { agregarJugador, cargarPlantel, normalizarJugador, quitarJugador } from "./plantel.js";
 
 const COLUMNAS =
   "id, equipo_id, jugador_id, numero_caso, fecha_lesion, fecha_transicion, fecha_retorno_entrenamiento, fecha_alta, datos, creado_en, actualizado_en";
@@ -14,10 +14,12 @@ const fallo = (error, porDefecto) => ({
   detalle: error?.message || "",
 });
 
-// Los vacíos no se guardan: así `datos` tiene solo lo cargado.
+// Los vacíos no se guardan, y lo que el Excel calcula tampoco (se calcula
+// cada vez que se mira): así `datos` tiene solo lo cargado a mano.
 const limpiarDatos = (datos = {}) =>
   Object.fromEntries(
     Object.entries(datos || {})
+      .filter(([clave]) => !esCalculado(clave))
       .map(([clave, valor]) => [clave, typeof valor === "string" ? valor.trim() : valor])
       .filter(([, valor]) => valor !== null && valor !== undefined && valor !== ""),
   );
@@ -83,14 +85,15 @@ export const historialDeLesion = async (id) => {
 
 // ------------------------------------------------------------ Jugadores --
 
-const COLUMNAS_JUGADOR = "id, nombre, roles, puestos, numero_registro, categoria, fecha_nacimiento, pie_dominante";
+const COLUMNAS_JUGADOR = "id, nombre, roles, puestos, categoria, fecha_nacimiento, pie_dominante, posicion, foto_url";
 
 export const normalizarJugadorLesiones = (fila) => ({
   ...normalizarJugador(fila),
-  numero_registro: String(fila?.numero_registro ?? "").trim(),
   categoria: fila?.categoria || "",
   fecha_nacimiento: fila?.fecha_nacimiento || "",
   pie_dominante: fila?.pie_dominante || "",
+  posicion: fila?.posicion || "",
+  foto_url: fila?.foto_url || "",
 });
 
 const porNombre = (lista) => [...lista].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
@@ -109,21 +112,34 @@ export const cargarPlantelLesiones = async (equipoId) => {
   return { plantel: (respaldo.plantel || []).map(normalizarJugadorLesiones), error: "" };
 };
 
+// Solo lo que se mande: una celda de la tabla, o la ficha entera.
 export const guardarDatosJugador = async (id, datos) => {
-  const { data, error } = await supabase
-    .from("jugadores")
-    .update({
-      numero_registro: String(datos.numero_registro || "").trim() || null,
-      categoria: datos.categoria || null,
-      fecha_nacimiento: datos.fecha_nacimiento || null,
-      pie_dominante: datos.pie_dominante || null,
-      actualizado_en: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select(COLUMNAS_JUGADOR)
-    .single();
-  if (error) return fallo(error, "lesiones.plantel.errorGuardar");
+  const cambios = { actualizado_en: new Date().toISOString() };
+  if ("nombre" in datos) cambios.nombre = String(datos.nombre || "").trim();
+  if ("categoria" in datos) cambios.categoria = datos.categoria || null;
+  if ("fecha_nacimiento" in datos) cambios.fecha_nacimiento = datos.fecha_nacimiento || null;
+  if ("pie_dominante" in datos) cambios.pie_dominante = datos.pie_dominante || null;
+  if ("posicion" in datos) cambios.posicion = datos.posicion || null;
+  if ("foto_url" in datos) cambios.foto_url = String(datos.foto_url || "").trim() || null;
+  if (cambios.nombre === "") return { error: "datos.error.nombre" };
+  const { data, error } = await supabase.from("jugadores").update(cambios).eq("id", id).select(COLUMNAS_JUGADOR).single();
+  if (error) {
+    if (/duplicate key|unique/i.test(error.message || "")) return { error: "datos.error.repetido" };
+    return fallo(error, "datos.error.guardar");
+  }
   return { jugador: normalizarJugadorLesiones(data), error: "" };
+};
+
+// Alta y baja de jugadores desde Datos básicos: las mismas de Partido.
+export const agregarJugadorBasico = async (equipoId, nombre) => {
+  const respuesta = await agregarJugador(nombre, equipoId);
+  if (respuesta.error) return { error: respuesta.error };
+  return { jugador: normalizarJugadorLesiones(respuesta.jugador), error: "" };
+};
+
+export const quitarJugadorBasico = async (id) => {
+  const respuesta = await quitarJugador(id);
+  return respuesta.error ? { error: respuesta.error } : { error: "" };
 };
 
 // ------------------------------------------- Cabeceras y listas por club --

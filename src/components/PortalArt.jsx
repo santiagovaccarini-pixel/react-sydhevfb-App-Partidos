@@ -175,3 +175,37 @@ export const IconoLesiones = () => (
     <path d="M32 27v14M25 34h14" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
   </svg>
 );
+
+// Una planilla con filas y columnas: el fondo de la tarjeta Datos básicos.
+export const ArteDatos = () => (
+  <svg className="portal-arte" viewBox="0 0 420 260" aria-hidden="true" preserveAspectRatio="xMaxYMid slice">
+    <defs>
+      <linearGradient id="grafito" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#1f2937" />
+        <stop offset="1" stopColor="#0b0d10" />
+      </linearGradient>
+    </defs>
+    <rect width="420" height="260" fill="url(#grafito)" />
+    <g stroke="#c8a85a" strokeOpacity="0.35" strokeWidth="1.5">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <line key={`h${i}`} x1="150" y1={56 + i * 32} x2="400" y2={56 + i * 32} />
+      ))}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <line key={`v${i}`} x1={150 + i * 62} y1="56" x2={150 + i * 62} y2="216" />
+      ))}
+    </g>
+    <rect x="150" y="56" width="250" height="32" fill="#c8a85a" fillOpacity="0.28" />
+    {[1, 2, 3, 4].map((f) =>
+      [0, 1, 2, 3].map((c) => (
+        <rect key={`${f}-${c}`} x={158 + c * 62} y={66 + f * 32} width={30 + ((f * 7 + c * 11) % 20)} height="8" rx="4" fill="#f4f6f8" fillOpacity={0.18 + ((f + c) % 3) * 0.08} />
+      )),
+    )}
+  </svg>
+);
+
+export const IconoDatos = () => (
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <rect x="10" y="14" width="44" height="36" rx="6" fill="none" stroke="currentColor" strokeWidth="3.5" />
+    <path d="M10 26h44M10 38h44M26 14v36M42 14v36" fill="none" stroke="currentColor" strokeWidth="3" />
+  </svg>
+);

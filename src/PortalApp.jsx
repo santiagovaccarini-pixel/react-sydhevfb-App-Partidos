@@ -5,9 +5,10 @@ import AccessGate from "./AccessGate.jsx";
 import OpenFieldSession from "./OpenFieldSession.jsx";
 import CuentasAdmin from "./CuentasAdmin.jsx";
 import Lesiones from "./Lesiones.jsx";
+import DatosBasicos from "./DatosBasicos.jsx";
 import ElegirClub from "./ElegirClub.jsx";
 import { contarPendientes } from "./domain/perfilesDb.js";
-import { ArteFlujo, ArteLesiones, ArtePartido, IconoFlujo, IconoLesiones, IconoPartido } from "./components/PortalArt.jsx";
+import { ArteDatos, ArteFlujo, ArteLesiones, ArtePartido, IconoDatos, IconoFlujo, IconoLesiones, IconoPartido } from "./components/PortalArt.jsx";
 import { t, useIdioma } from "./idioma/index.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import { leerEquipoElegido } from "./domain/equipo.js";
@@ -19,6 +20,7 @@ const MODOS = {
   PARTIDO: "partido",
   ENTRENAMIENTO: "entrenamiento",
   LESIONES: "lesiones",
+  DATOS: "datos",
   CUENTAS: "cuentas",
 };
 
@@ -69,6 +71,19 @@ const TARJETAS = [
     titulo: "portal.lesionesTitulo",
     etiqueta: "portal.nuevo",
     texto: "portal.lesionesTexto",
+  },
+  {
+    modo: MODOS.DATOS,
+    permiso: "datos",
+    clase: "tarjeta-datos",
+    foto: null,
+    fotoParada: null,
+    foco: [0.5, 0.5],
+    Arte: ArteDatos,
+    Icono: IconoDatos,
+    titulo: "portal.datosTitulo",
+    etiqueta: "portal.nuevo",
+    texto: "portal.datosTexto",
   },
 ];
 
@@ -329,6 +344,8 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     );
   } else if (modo === MODOS.LESIONES && permisos?.lesiones) {
     contenido = <Lesiones userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} />;
+  } else if (modo === MODOS.DATOS && permisos?.datos) {
+    contenido = <DatosBasicos onVolver={volver} />;
   } else if (modo === MODOS.CUENTAS && permisos?.admin) {
     contenido = <CuentasAdmin miUserId={userId} onVolver={volver} />;
   } else {
