@@ -20,7 +20,7 @@ import {
   validarLesion,
   valorDe,
 } from "./lesiones.js";
-import { CAMPOS, CAMPOS_EDITABLES, OPCIONES, armarConfig, esCalculado, etiquetaDeCampo, etiquetaDeOpcion, filasParaSembrar, opcionesDeCampo } from "./lesionesCampos.js";
+import { CAMPOS, CAMPOS_EDITABLES, OPCIONES, armarConfig, campoOculto, esCalculado, etiquetaDeCampo, etiquetaDeOpcion, filasParaSembrar, opcionesDeCampo } from "./lesionesCampos.js";
 
 const base = (extra = {}) =>
   lesionVacia({
@@ -69,6 +69,19 @@ describe("el catálogo del Excel", () => {
       expect(esCalculado(clave), clave).toBe(true),
     );
     expect(esCalculado("medico")).toBe(false);
+  });
+
+  test("una columna obligatoria no se esconde aunque la configuración lo pida", () => {
+    const config = armarConfig(
+      [
+        { campo: "parte_cuerpo", etiqueta_es: "", etiqueta_pt: "", oculto: true, orden: 9 },
+        { campo: "producto", etiqueta_es: "", etiqueta_pt: "", oculto: true, orden: 19 },
+      ],
+      [],
+    );
+    expect(campoOculto("parte_cuerpo", config)).toBe(false);
+    expect(campoOculto("producto", config)).toBe(true);
+    expect(campoOculto("medico", config)).toBe(false);
   });
 
   test("cada desplegable tiene opciones con código único y texto en los dos idiomas", () => {
@@ -159,11 +172,17 @@ describe("etapas, días y severidad", () => {
     expect(recurrenciaDe(segunda, todas)).toBe("sim");
     expect(recurrenciaDe({ ...segunda, fecha_lesion: "2026-05-20" }, todas)).toBe("nao");
     expect(recurrenciaDe({ ...segunda, datos: { ...segunda.datos, lado: "esquerdo" } }, todas)).toBe("nao");
-    // Recidiva: exactamente la misma estructura, en cualquier momento.
-    expect(recidivaDe({ ...segunda, fecha_lesion: "2026-12-01" }, todas)).toBe("sim");
-    expect(recidivaDe({ ...segunda, datos: { ...segunda.datos, area: "proximal" } }, todas)).toBe("nao");
+    // Recidiva: exactamente la misma estructura, con la anterior terminada hace 30 días o menos.
+    expect(recidivaDe(segunda, todas)).toBe("nao"); // 42 días después del alta: ya no
+    expect(recidivaDe({ ...segunda, fecha_lesion: "2026-04-19" }, todas)).toBe("sim"); // 30 días justos
+    expect(recidivaDe({ ...segunda, fecha_lesion: "2026-04-20" }, todas)).toBe("nao"); // 31
+    expect(recidivaDe({ ...segunda, fecha_lesion: "2026-04-10", datos: { ...segunda.datos, area: "proximal" } }, todas)).toBe("nao");
     expect(recidivaDe(primera, todas)).toBe("nao");
+    // Si la anterior sigue abierta, cuenta desde hoy.
+    const abierta = { ...primera, fecha_alta: null };
+    expect(recidivaDe({ ...segunda, fecha_lesion: "2026-12-01" }, [abierta], "2026-12-01")).toBe("sim");
     expect(calcular("recurrencia", segunda, null, { lesiones: todas })).toBe("sim");
+    expect(calcular("recidiva", { ...segunda, fecha_lesion: "2026-04-15" }, null, { lesiones: todas })).toBe("sim");
 
     const texto = (clave, codigo) => (codigo ? `${clave}:${codigo}` : "");
     expect(diagnosticoDe(segunda, texto)).toBe("musculo_especifico:biceps_femoral musculo:isquiotibiais area:medio lado:direito");

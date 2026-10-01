@@ -9,9 +9,9 @@
 --     registro, lado hábil lesionado, Recup 2 (retorno al entrenamiento menos
 --     inicio), severidad (registro <1, leve 1-4, menor 5-7, moderado 8-28,
 --     mayor 29+), recorrência (misma parte, lado y músculo del mismo jugador
---     con fin hace 60 días o menos), recidiva (misma estructura exacta,
---     en cualquier momento) y diagnóstico (tipo + ligamento o músculo
---     específico + músculo o parte + área + lado).
+--     con fin hace 60 días o menos), recidiva (misma estructura exacta del
+--     mismo jugador con fin hace 30 días o menos) y diagnóstico (tipo +
+--     ligamento o músculo específico + músculo o parte + área + lado).
 --
 -- Requiere 20261002_lesiones_excel.sql. Se corre en Supabase > SQL Editor,
 -- entero y de una vez. Se puede volver a correr.
@@ -65,6 +65,7 @@ calc as (
               and coalesce(p.datos->>'musculo', '') = coalesce(a.datos->>'musculo', '')
               and coalesce(p.datos->>'area', '') = coalesce(a.datos->>'area', '')
               and coalesce(p.datos->>'musculo_especifico', '') = coalesce(a.datos->>'musculo_especifico', '')
+              and (a.fecha_lesion - coalesce(p.fecha_alta, current_date)) <= 30
          ) as recidivante
     from base a
 )

@@ -10,6 +10,7 @@ const datos = vi.hoisted(() => ({
   borradas: [],
   cabeceras: [],
   opciones: [],
+  config: { campos: {}, listas: {} },
 }));
 
 const lesionHulk = () => ({
@@ -40,7 +41,7 @@ vi.mock("./domain/lesionesDb.js", () => ({
     ],
     error: "",
   }),
-  leerConfig: async () => ({ config: { campos: {}, listas: {} }, error: "" }),
+  leerConfig: async () => ({ config: datos.config, error: "" }),
   crearLesion: async (equipoId, lesion) => {
     datos.guardadas.push({ equipoId, lesion });
     return { lesion: { ...lesion, id: "les-nueva", numero_caso: 2 }, error: "" };
@@ -104,6 +105,7 @@ describe("el módulo Lesiones", () => {
     fijarIdiomaParaPruebas("es-AR");
     localStorage.clear();
     datos.lesiones = [lesionHulk()];
+    datos.config = { campos: {}, listas: {} };
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -338,6 +340,55 @@ describe("el módulo Lesiones", () => {
     expect(datos.opciones[0].codigo).toMatch(/^cabezazo_/);
   });
 
+  test("una columna escondida no aparece, un paso sin columnas se saltea y las obligatorias no se esconden", async () => {
+    datos.config = {
+      campos: {
+        producto: { oculto: true },
+        mecanismo: { oculto: true },
+        cuando: { oculto: true },
+        localizacion: { oculto: true },
+        medico: { oculto: true },
+        parte_cuerpo: { oculto: true },
+      },
+      listas: {},
+    };
+    await montar();
+    await tocar(boton(contenedor, "Nueva lesión"));
+    expect(texto(contenedor)).toContain("Paso 1 de 5");
+    await tocar(botonQueEmpieza(contenedor, "HULK"));
+    await siguiente(contenedor);
+    // Parte del cuerpo es obligatoria: sigue a la vista aunque la configuración diga que no.
+    expect(contenedor.querySelector('.selector-hoja[aria-label="Parte del cuerpo lesionada"]')).toBeTruthy();
+    await elegirEnHoja(contenedor, "Parte del cuerpo lesionada", "Rodilla");
+    await tocar(chip(contenedor, "Izquierdo"));
+    await siguiente(contenedor);
+    expect(texto(contenedor)).toContain("¿Dónde exactamente?");
+    await siguiente(contenedor);
+    // "¿Cómo y cuándo?" quedó sin columnas y se saltea.
+    expect(texto(contenedor)).toContain("Evolución e imágenes");
+    expect(texto(contenedor)).toContain("Paso 4 de 5");
+    await siguiente(contenedor);
+    expect(texto(contenedor)).toContain("Notas y resumen");
+    expect(campoDeFormulario(contenedor, etiqueta("medico"))).toBeUndefined();
+    expect(campoDeFormulario(contenedor, etiqueta("comentarios"))).toBeTruthy();
+
+    // En la base tampoco está la columna escondida (la barra de abajo cierra la carga).
+    await navegar(contenedor, "Base");
+    const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")].map((th) => th.textContent);
+    expect(cabeceras).not.toContain("Mecanismo");
+    expect(cabeceras).toContain("Parte del cuerpo lesionada");
+
+    // Y en Ajustes, la cabecera obligatoria no ofrece esconderse.
+    await navegar(contenedor, "Ajustes");
+    await tocar(botonQueEmpieza(contenedor, "Cabeceras"));
+    await tocar(botonQueEmpieza(contenedor, "Lado"));
+    expect(texto(contenedor)).toContain("Esta columna hace falta para registrar la lesión");
+    expect(chip(contenedor, "Oculta")).toBeUndefined();
+    await tocar(boton(contenedor, "Cancelar"));
+    await tocar(botonQueEmpieza(contenedor, "Producto"));
+    expect(chip(contenedor, "Oculta")).toBeTruthy();
+  });
+
   test("la hoja de opciones larga tiene buscador que acerca lo escrito", async () => {
     // HULK ya tuvo el alta hace poco: una lesión igual es una posible recidiva.
     datos.lesiones = [{ ...lesionHulk(), fecha_alta: "2026-09-28" }];
@@ -358,6 +409,6 @@ describe("el módulo Lesiones", () => {
     // Si ya tuvo una lesión igual, avisa.
     await elegirEnHoja(contenedor, "Parte del cuerpo lesionada", "Muslo");
     await tocar(chip(contenedor, "Derecho"));
-    expect(texto(contenedor)).toContain("Posible recidiva");
+    expect(texto(contenedor)).toContain("Puede contar como recurrencia o recidiva");
   });
 });

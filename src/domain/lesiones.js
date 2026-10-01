@@ -7,9 +7,6 @@ import { campoPorClave, etiquetaDeOpcion } from "./lesionesCampos.js";
 
 export const ETAPAS = ["lesionado", "transicion", "entrenando", "alta"];
 
-// Una recaída "temprana": misma parte del cuerpo y lado, dentro de los dos
-// meses del alta anterior.
-export const DIAS_RECIDIVA = 60;
 
 const limpiar = (valor) => String(valor ?? "").trim();
 
@@ -80,8 +77,18 @@ export const sinEntrenar = (lesion) => ["lesionado", "transicion"].includes(etap
 export const diasDeBaja = (lesion, hoy = hoyISO()) =>
   Math.max(0, diasEntre(lesion.fecha_lesion, lesion.fecha_alta || hoy) ?? 0);
 
-// Días de ventana para la recurrencia (celda J5 de la tabla dinámica del Excel).
+// Ventanas, en días desde el fin de la lesión anterior (alta, o hoy si sigue
+// abierta) hasta el inicio de la nueva: recurrencia hasta 60 (celda J5 de la
+// tabla dinámica del Excel), recidiva hasta 30 (pedido del 02/10).
 export const DIAS_RECURRENCIA = 60;
+export const DIAS_RECIDIVA = 30;
+
+// Si el fin de `anterior` fue hace `maximo` días o menos respecto del inicio
+// de `lesion`.
+const dentroDe = (anterior, lesion, maximo, hoy) => {
+  const dias = diasEntre(anterior.fecha_alta || hoy, lesion.fecha_lesion);
+  return dias !== null && dias <= maximo;
+};
 
 const mismo = (a, b) => String(a ?? "") === String(b ?? "");
 
@@ -108,17 +115,15 @@ export const recurrenciaDe = (lesion, lesiones = [], hoy = hoyISO()) => {
   const hay = anterioresDe(lesion, lesiones).some((otra) => {
     const o = otra.datos || {};
     if (!mismo(o.musculo, d.musculo) || !mismo(o.lado, d.lado) || !mismo(o.parte_cuerpo, d.parte_cuerpo)) return false;
-    const fin = otra.fecha_alta || hoy;
-    const dias = diasEntre(fin, lesion.fecha_lesion);
-    return dias !== null && dias <= DIAS_RECURRENCIA;
+    return dentroDe(otra, lesion, DIAS_RECURRENCIA, hoy);
   });
   return hay ? "sim" : "nao";
 };
 
-// Recidiva (Excel): otra lesión anterior del mismo jugador en exactamente la
-// misma estructura (músculo, área, lado, músculo específico y parte), en
-// cualquier momento.
-export const recidivaDe = (lesion, lesiones = []) => {
+// Recidiva: otra lesión anterior del mismo jugador en exactamente la misma
+// estructura (músculo, área, lado, músculo específico y parte), cuyo fin fue
+// hace 30 días o menos.
+export const recidivaDe = (lesion, lesiones = [], hoy = hoyISO()) => {
   if (!lesion?.jugador_id || !esFechaISO(lesion?.fecha_lesion)) return "";
   const d = lesion.datos || {};
   const hay = anterioresDe(lesion, lesiones).some((otra) => {
@@ -128,7 +133,8 @@ export const recidivaDe = (lesion, lesiones = []) => {
       mismo(o.area, d.area) &&
       mismo(o.lado, d.lado) &&
       mismo(o.musculo_especifico, d.musculo_especifico) &&
-      mismo(o.parte_cuerpo, d.parte_cuerpo)
+      mismo(o.parte_cuerpo, d.parte_cuerpo) &&
+      dentroDe(otra, lesion, DIAS_RECIDIVA, hoy)
     );
   });
   return hay ? "sim" : "nao";
@@ -196,7 +202,7 @@ export const calcular = (clave, lesion, jugador = null, contexto = {}) => {
     case "recurrencia":
       return recurrenciaDe(lesion, lesiones, contexto.hoy);
     case "recidiva":
-      return recidivaDe(lesion, lesiones);
+      return recidivaDe(lesion, lesiones, contexto.hoy);
     case "diagnostico":
       return diagnosticoDe(lesion, contexto.texto);
     default:
@@ -254,8 +260,9 @@ export const seSolapa = (lesion, otras = []) =>
     return lesion.fecha_lesion < finB && otra.fecha_lesion < finA;
   });
 
-// Si es una recaída: la lesión anterior del mismo jugador, parte del cuerpo y
-// lado cuya alta fue hace menos de DIAS_RECIDIVA días. Devuelve esa lesión o null.
+// El aviso al cargar: la lesión anterior del mismo jugador, parte del cuerpo
+// y lado cuya alta fue hace DIAS_RECURRENCIA días o menos (puede terminar
+// contando como recurrencia o recidiva). Devuelve esa lesión o null.
 export const posibleRecidiva = (lesion, anteriores = []) => {
   const parte = lesion?.datos?.parte_cuerpo;
   const lado = lesion?.datos?.lado;
@@ -270,7 +277,7 @@ export const posibleRecidiva = (lesion, anteriores = []) => {
         otra.datos?.lado === lado &&
         otra.fecha_alta &&
         otra.fecha_alta <= lesion.fecha_lesion &&
-        (diasEntre(otra.fecha_alta, lesion.fecha_lesion) ?? Infinity) <= DIAS_RECIDIVA,
+        (diasEntre(otra.fecha_alta, lesion.fecha_lesion) ?? Infinity) <= DIAS_RECURRENCIA,
     )
     .sort((a, b) => (a.fecha_alta < b.fecha_alta ? 1 : -1));
   return candidatas[0] || null;

@@ -266,6 +266,9 @@ export default function Lesiones({ onVolver }) {
   };
 
   const activas = useMemo(() => lesionesActivas(lesiones), [lesiones]);
+  // Los pasos de la carga que tienen alguna columna a la vista (una columna
+  // escondida en Ajustes puede dejar un paso vacío, y ese paso se saltea).
+  const pasos = useMemo(() => PASOS.filter((unPaso) => unPaso.campos.some((clave) => !campoOculto(clave, config))), [config]);
   const lesionDetalle = detalleId ? lesiones.find((lesion) => lesion.id === detalleId) || null : null;
 
   const avisarError = (clave, lesion) =>
@@ -311,8 +314,8 @@ export default function Lesiones({ onVolver }) {
 
   const abrirEdicion = (lesion) => {
     setErrorFormulario("");
-    setPaso(1);
-    setPasoMaximo(PASOS.length - 1);
+    setPaso(Math.min(1, pasos.length - 1));
+    setPasoMaximo(pasos.length - 1);
     setFormulario({ ...lesion, datos: { ...(lesion.datos || {}) } });
   };
 
@@ -1196,8 +1199,9 @@ export default function Lesiones({ onVolver }) {
   );
 
   const validarPaso = (indice, lesion) => {
-    if (indice === 0 && !lesion.jugador_id) return t("lesiones.pasos.sinJugador");
-    if (indice === 1) {
+    const id = pasos[indice]?.id;
+    if (id === "jugador" && !lesion.jugador_id) return t("lesiones.pasos.sinJugador");
+    if (id === "lesion") {
       if (!lesion.fecha_lesion) return t("lesiones.error.fecha");
       if (lesion.fecha_lesion > hoyISO()) return t("lesiones.error.fechaFutura");
       if (!lesion.datos?.parte_cuerpo) return t("lesiones.error.parte");
@@ -1220,8 +1224,8 @@ export default function Lesiones({ onVolver }) {
   };
 
   const pantallaFormulario = (lesion) => {
-    const total = PASOS.length;
-    const actual = PASOS[paso];
+    const total = pasos.length;
+    const actual = pasos[Math.min(paso, total - 1)];
     const campos = actual.campos.map(campoPorClave).filter((campo) => campo && visible(campo));
     const recidiva = posibleRecidiva(lesion, lesiones);
     const ultimo = paso === total - 1;
@@ -1230,7 +1234,7 @@ export default function Lesiones({ onVolver }) {
         <div className="contenedor">
           <Encabezado titulo={lesion.id ? t("lesiones.formEditar") : t("lesiones.formNueva")} texto={nombreDe(lesion.jugador_id)}>
             <div className="lesiones-progreso" role="tablist" aria-label={t("lesiones.pasos.paso", { n: paso + 1, total })}>
-              {PASOS.map((unPaso, indice) => (
+              {pasos.map((unPaso, indice) => (
                 <button
                   type="button"
                   role="tab"
@@ -1252,7 +1256,7 @@ export default function Lesiones({ onVolver }) {
           </section>
 
           {errorFormulario && <div className="aviso-hoja">{errorFormulario}</div>}
-          {paso === 1 && recidiva && (
+          {actual.id === "lesion" && recidiva && (
             <div className="lesiones-aviso-recidiva">
               {t("lesiones.avisoRecidiva", {
                 parte: textoDeOpcion("parte_cuerpo", recidiva.datos?.parte_cuerpo),
@@ -1313,7 +1317,7 @@ export default function Lesiones({ onVolver }) {
 
   // Cabeceras y opciones se renombran en el idioma que se está usando; el
   // otro idioma guarda lo que tenía.
-  const hojaDeTextos = ({ abierta, titulo, hoja, setHoja, onGuardar, onCerrar }) =>
+  const hojaDeTextos = ({ abierta, titulo, hoja, setHoja, onGuardar, onCerrar, fija = false }) =>
     hoja ? (
       <HojaInferior
         abierta={abierta}
@@ -1342,14 +1346,18 @@ export default function Lesiones({ onVolver }) {
           />
           <small className="lesiones-ayuda">{t("lesiones.ajustes.nombreAyuda")}</small>
         </div>
-        <div className="grilla-criterios">
-          <button type="button" className={`chip-criterio ${!hoja.oculto ? "prendido" : ""}`} aria-pressed={!hoja.oculto} onClick={() => setHoja({ ...hoja, oculto: false })}>
-            {t("lesiones.ajustes.mostrar")}
-          </button>
-          <button type="button" className={`chip-criterio ${hoja.oculto ? "prendido" : ""}`} aria-pressed={hoja.oculto} onClick={() => setHoja({ ...hoja, oculto: true })}>
-            {t("lesiones.ajustes.oculto")}
-          </button>
-        </div>
+        {fija ? (
+          <p className="lesiones-ayuda lesiones-nota-fija">{t("lesiones.ajustes.noSeOculta")}</p>
+        ) : (
+          <div className="grilla-criterios">
+            <button type="button" className={`chip-criterio ${!hoja.oculto ? "prendido" : ""}`} aria-pressed={!hoja.oculto} onClick={() => setHoja({ ...hoja, oculto: false })}>
+              {t("lesiones.ajustes.mostrar")}
+            </button>
+            <button type="button" className={`chip-criterio ${hoja.oculto ? "prendido" : ""}`} aria-pressed={hoja.oculto} onClick={() => setHoja({ ...hoja, oculto: true })}>
+              {t("lesiones.ajustes.oculto")}
+            </button>
+          </div>
+        )}
       </HojaInferior>
     ) : null;
 
@@ -1407,6 +1415,7 @@ export default function Lesiones({ onVolver }) {
         setHoja: setHojaCabecera,
         onGuardar: guardarHojaCabecera,
         onCerrar: () => !ocupado && setHojaCabecera(null),
+        fija: Boolean(hojaCabecera && campoPorClave(hojaCabecera.clave)?.obligatorio),
       })}
 
       {hojaDeTextos({
