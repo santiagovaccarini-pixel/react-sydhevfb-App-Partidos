@@ -35,7 +35,7 @@ const CUENTAS = () => [
 describe("qué queda marcado en una fila", () => {
   test("una cuenta nueva sin nada arranca con Partido y Flujo diario; las demás, lo que dice la base", () => {
     expect(permisosDeFila({ estado: "pendiente", partido: false, flujo: false, admin: false })).toBe(PERMISOS_INICIALES);
-    expect(permisosDeFila({ estado: "autorizado", partido: true, flujo: false, admin: false })).toEqual({ partido: true, flujo: false, admin: false });
+    expect(permisosDeFila({ estado: "autorizado", partido: true, flujo: false, admin: false })).toEqual({ partido: true, flujo: false, lesiones: false, admin: false });
     expect(permisosDeFila({ estado: "pendiente" }, { partido: false, flujo: true, admin: false })).toEqual({ partido: false, flujo: true, admin: false });
   });
 });
@@ -104,7 +104,7 @@ describe("la pantalla Cuentas", () => {
     await act(async () => botonDe(pf, "Autorizar").click());
     await act(async () => Promise.resolve());
 
-    expect(datos.decisiones).toEqual([{ userId: "pf", cambios: { estado: "autorizado", partido: true, flujo: false, admin: false } }]);
+    expect(datos.decisiones).toEqual([{ userId: "pf", cambios: { estado: "autorizado", partido: true, flujo: false, lesiones: false, admin: false } }]);
     const grupos = Array.from(contenedor.querySelectorAll(".cuentas-grupo h2")).map((h) => h.textContent.replace(/\s+/g, " ").trim());
     expect(grupos).toEqual(["Por autorizar 1", "Con acceso 3", "Sin acceso 1"]);
     expect(botonDe(fila("pf@club.com"), "Quitar acceso")).not.toBeNull();
@@ -154,7 +154,7 @@ describe("la pantalla Cuentas", () => {
     await montar();
     await act(async () => botonDe(fila("ex@club.com"), "Autorizar").click());
     await act(async () => Promise.resolve());
-    expect(datos.decisiones).toEqual([{ userId: "ex", cambios: { estado: "autorizado", partido: true, flujo: true, admin: false } }]);
+    expect(datos.decisiones).toEqual([{ userId: "ex", cambios: { estado: "autorizado", partido: true, flujo: true, lesiones: false, admin: false } }]);
   });
 
   test("si la base no deja, lo dice sin cambiar la lista", async () => {

@@ -1,3 +1,4 @@
+import { t, useIdioma } from "../idioma/index.js";
 import React, { useId } from "react";
 
 const trazos = {
@@ -237,6 +238,7 @@ export const MarcoAplicacion = ({
   className = "",
   children,
 }) => {
+  useIdioma();
   // Sin un partido cargado, el tablero no tiene nada que mostrar.
   const destinosVisibles = destinos.filter(
     (destino) => destino.id !== "partido" || hayPartido,
@@ -262,7 +264,7 @@ export const MarcoAplicacion = ({
               onClick={() => onNavigate(destino.id)}
             >
               <Icono nombre={destino.icono} />
-              <span>{destino.etiqueta}</span>
+              <span>{t(`nav.${destino.id}`, {}, destino.etiqueta)}</span>
             </button>
           ))}
         </nav>
@@ -279,7 +281,7 @@ export const MarcoAplicacion = ({
             onClick={() => onNavigate(destino.id)}
           >
             <Icono nombre={destino.icono} size={21} />
-            <span>{destino.etiqueta}</span>
+            <span>{t(`nav.${destino.id}`, {}, destino.etiqueta)}</span>
           </button>
         ))}
       </nav>

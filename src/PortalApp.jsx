@@ -4,8 +4,11 @@ import TrainingModule from "./TrainingModule";
 import AccessGate from "./AccessGate.jsx";
 import OpenFieldSession from "./OpenFieldSession.jsx";
 import CuentasAdmin from "./CuentasAdmin.jsx";
+import Lesiones from "./Lesiones.jsx";
 import { contarPendientes } from "./domain/perfilesDb.js";
-import { ArteFlujo, ArtePartido, IconoFlujo, IconoPartido } from "./components/PortalArt.jsx";
+import { ArteFlujo, ArteLesiones, ArtePartido, IconoFlujo, IconoLesiones, IconoPartido } from "./components/PortalArt.jsx";
+import { t, useIdioma } from "./idioma/index.js";
+import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import { leerEquipoElegido } from "./domain/equipo.js";
 import "./portal.css";
 import "./training.css";
@@ -14,6 +17,7 @@ const MODOS = {
   PORTAL: "portal",
   PARTIDO: "partido",
   ENTRENAMIENTO: "entrenamiento",
+  LESIONES: "lesiones",
   CUENTAS: "cuentas",
 };
 
@@ -33,8 +37,9 @@ const TARJETAS = [
     focoParada: [0.2, 0.5],
     Arte: ArtePartido,
     Icono: IconoPartido,
-    titulo: "Partido",
-    texto: "Registrá el partido en vivo: formación, tiempos y cambios.",
+    // Títulos y textos: claves del diccionario de idioma.
+    titulo: "portal.partidoTitulo",
+    texto: "portal.partidoTexto",
   },
   {
     modo: MODOS.ENTRENAMIENTO,
@@ -46,9 +51,23 @@ const TARJETAS = [
     focoParada: [0.3, 0.5],
     Arte: ArteFlujo,
     Icono: IconoFlujo,
-    titulo: "Flujo diario",
-    etiqueta: "En prueba",
-    texto: "Todo lo del día después de entrenar: cortes, datos, planilla y PSE.",
+    titulo: "portal.flujoTitulo",
+    etiqueta: "portal.enPrueba",
+    texto: "portal.flujoTexto",
+  },
+  {
+    modo: MODOS.LESIONES,
+    permiso: "lesiones",
+    clase: "tarjeta-lesiones",
+    // Sin foto todavía: va el dibujo.
+    foto: null,
+    fotoParada: null,
+    foco: [0.5, 0.5],
+    Arte: ArteLesiones,
+    Icono: IconoLesiones,
+    titulo: "portal.lesionesTitulo",
+    etiqueta: "portal.nuevo",
+    texto: "portal.lesionesTexto",
   },
 ];
 
@@ -62,7 +81,7 @@ const FotoTarjeta = ({ src, Arte, Icono, className = "" }) => {
   const [fallo, setFallo] = useState(false);
   return (
     <span className={`portal-foto ${className}`.trim()}>
-      {fallo ? <Arte /> : <img src={src} alt="" decoding="async" onError={() => setFallo(true)} />}
+      {fallo || !src ? <Arte /> : <img src={src} alt="" decoding="async" onError={() => setFallo(true)} />}
       {Icono && (
         <span className="portal-icono">
           <Icono />
@@ -142,6 +161,7 @@ export const Portada = ({ tarjeta, desde, onTerminar }) => {
     };
   }, [onTerminar]);
 
+  useIdioma();
   const { Arte, Icono, titulo, clase } = tarjeta;
   const lugarFoto =
     fase === "inicio" && desde
@@ -162,14 +182,15 @@ export const Portada = ({ tarjeta, desde, onTerminar }) => {
         <span className="portal-icono">
           <Icono />
         </span>
-        <strong>{titulo}</strong>
-        <small>Entrando…</small>
+        <strong>{t(titulo)}</strong>
+        <small>{t("portal.entrando")}</small>
       </div>
     </div>
   );
 };
 
 const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
+  useIdioma();
   const equipo = leerEquipoElegido();
   const tarjetas = TARJETAS.filter((tarjeta) => permisos?.[tarjeta.permiso]);
   const [pendientes, setPendientes] = useState(0);
@@ -199,19 +220,19 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
               className={`portal-salir portal-cuentas${pendientes > 0 ? " con-pendientes" : ""}`}
               onClick={onCuentas}
             >
-              Cuentas
+              {t("portal.cuentas")}
               {pendientes > 0 && <span className="portal-pendientes">{pendientes}</span>}
             </button>
           )}
           <button type="button" className="portal-salir" onClick={onSalir}>
-            Salir
+            {t("portal.salir")}
           </button>
         </div>
 
         <div className="portal-encabezado">
           {equipo?.nombre && <span className="portal-kicker">{equipo.nombre}</span>}
-          <h1>¿Qué vas a hacer hoy?</h1>
-          <p>{tarjetas.length > 1 ? "Elegí por dónde arrancar." : "Por ahora tenés habilitado este módulo."}</p>
+          <h1>{t("portal.pregunta")}</h1>
+          <p>{tarjetas.length > 1 ? t("portal.elegi") : t("portal.unSolo")}</p>
         </div>
 
         <div className="portal-opciones">
@@ -223,24 +244,28 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas }) => {
                 key={modo}
                 className={`portal-tarjeta ${clase}`}
                 onClick={(evento) => onElegir(tarjeta, lugarDeLaFoto(evento.currentTarget))}
-                aria-label={`Entrar a ${titulo}`}
+                aria-label={t("portal.entrarA", { modulo: t(titulo) })}
               >
                 <FotoTarjeta src={foto} Arte={Arte} Icono={Icono} />
                 <span className="portal-cuerpo">
                   <span className="portal-tarjeta-texto">
                     <strong>
-                      {titulo}
-                      {etiqueta && <em className="portal-beta">{etiqueta}</em>}
+                      {t(titulo)}
+                      {etiqueta && <em className="portal-beta">{t(etiqueta)}</em>}
                     </strong>
-                    <small>{texto}</small>
+                    <small>{t(texto)}</small>
                   </span>
                   <span className="portal-entrar" aria-hidden="true">
-                    Entrar <span>›</span>
+                    {t("portal.entrar")} <span>›</span>
                   </span>
                 </span>
               </button>
             );
           })}
+        </div>
+
+        <div className="portal-pie">
+          <SelectorIdioma />
         </div>
       </section>
     </main>
@@ -279,6 +304,8 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         {() => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />}
       </OpenFieldSession>
     );
+  } else if (modo === MODOS.LESIONES && permisos?.lesiones) {
+    contenido = <Lesiones userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} />;
   } else if (modo === MODOS.CUENTAS && permisos?.admin) {
     contenido = <CuentasAdmin miUserId={userId} onVolver={volver} />;
   } else {

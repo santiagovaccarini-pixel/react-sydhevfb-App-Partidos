@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ENLACE_DE_ACCESO, supabase } from "./supabase.js";
-import { esEnlaceDeRecuperacion, textoDeEnlaceFallido } from "./domain/enlaceAcceso.js";
+import { claveDeEnlaceFallido, esEnlaceDeRecuperacion } from "./domain/enlaceAcceso.js";
+import { t, useIdioma } from "./idioma/index.js";
+import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import {
   guardarPerfilLocal,
   leerMiPerfil,
@@ -35,28 +37,20 @@ export const limpiarParametroRecuperacion = () => {
 // Supabase contesta en inglés; acá se traduce lo que puede pasarle a quien entra.
 const textoDeErrorDeAcceso = (error, porDefecto) => {
   const texto = String(error?.message || "");
-  if (esFalloDeRed(error)) return TEXTO_SIN_CONEXION;
-  if (/invalid login credentials/i.test(texto)) return "El correo o la contraseña no son correctos.";
-  if (/email not confirmed/i.test(texto)) return "Todavía no confirmaste tu correo. Buscá el mensaje en tu casilla (también en spam).";
-  if (/user already registered|already been registered/i.test(texto)) {
-    return "Ese correo ya tiene una cuenta. Entrá con tu contraseña o pedí una nueva.";
-  }
-  if (/rate limit|too many requests/i.test(texto)) return "Hubo demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.";
+  if (esFalloDeRed(error)) return t("comun.sinConexion");
+  if (/invalid login credentials/i.test(texto)) return t("acceso.error.credenciales");
+  if (/email not confirmed/i.test(texto)) return t("acceso.error.noConfirmado");
+  if (/user already registered|already been registered/i.test(texto)) return t("acceso.error.yaRegistrado");
+  if (/rate limit|too many requests/i.test(texto)) return t("acceso.error.demasiados");
   return textoDeErrorDeContrasena(error, porDefecto);
 };
 
 // Lo que Supabase puede objetar de una contraseña nueva.
 const textoDeErrorDeContrasena = (error, porDefecto) => {
   const texto = `${error?.code || ""} ${error?.message || ""}`;
-  if (/same_password|should be different|different from the old/i.test(texto)) {
-    return "La contraseña nueva tiene que ser distinta de la anterior.";
-  }
-  if (/weak_password|at least \d+ characters|weak|should contain/i.test(texto)) {
-    return "La contraseña es muy fácil de adivinar. Usá al menos 8 caracteres, mezclando letras y números.";
-  }
-  if (/reauthentication|re-authenticate|session/i.test(texto)) {
-    return "Por seguridad, pedí un enlace nuevo desde Olvidé mi contraseña y probá otra vez.";
-  }
+  if (/same_password|should be different|different from the old/i.test(texto)) return t("acceso.error.mismaContrasena");
+  if (/weak_password|at least \d+ characters|weak|should contain/i.test(texto)) return t("acceso.error.debil");
+  if (/reauthentication|re-authenticate|session/i.test(texto)) return t("acceso.error.reautenticar");
   return porDefecto;
 };
 
@@ -72,7 +66,6 @@ export const esFalloDeRed = (error) =>
     String(error?.message || ""),
   );
 
-const TEXTO_SIN_CONEXION = "No hay conexión. Fijate la señal y probá de nuevo.";
 
 // La sesión que Supabase deja guardada en el celular. Se borra a mano al
 // salir, porque sin señal Supabase no llega a cerrarla y, al volver la
@@ -99,7 +92,9 @@ const fotoDeFondo = () =>
 // La pantalla de la puerta, con la misma pinta que el portal: la foto
 // borrosa atrás, el ícono de la app y una tarjeta oscura con lo que haya que
 // completar. Arriba, si hay adónde volver, el botón para volver.
-export const PantallaAcceso = ({ titulo, texto, onVolver, etiquetaVolver = "Volver al portal", children }) => (
+export const PantallaAcceso = ({ titulo, texto, onVolver, etiquetaVolver, children }) => {
+  useIdioma();
+  return (
   <main className="training-access-page">
     <div className="training-access-fondo" aria-hidden="true">
       <img src={fotoDeFondo()} alt="" decoding="async" />
@@ -110,22 +105,24 @@ export const PantallaAcceso = ({ titulo, texto, onVolver, etiquetaVolver = "Volv
           <path d="M19 12H5" />
           <path d="m12 19-7-7 7-7" />
         </svg>
-        {etiquetaVolver}
+        {etiquetaVolver || t("acceso.volverPortal")}
       </button>
     ) : (
       <span />
     )}
     <section className="training-access-card">
+      <SelectorIdioma className="training-access-idioma" />
       <span className="training-access-logo" aria-hidden="true">
         <img src="/icono-app-192.png" alt="" />
       </span>
-      <span className="training-access-kicker">Registro Partido</span>
+      <span className="training-access-kicker">{t("acceso.marca")}</span>
       <h1>{titulo}</h1>
       {texto && <p>{texto}</p>}
       {children}
     </section>
   </main>
-);
+  );
+};
 
 const Espera = () => <span className="training-access-espera" aria-hidden="true" />;
 
@@ -145,6 +142,8 @@ export default function AccessGate({ children }) {
   const [nuevaPassword, setNuevaPassword] = useState("");
   const [confirmarPassword, setConfirmarPassword] = useState("");
   const sesionActual = useRef(null);
+  // Para que la puerta se vuelva a dibujar al cambiar el idioma.
+  useIdioma();
   const desdeCacheActual = useRef(false);
   const accionActual = useRef("");
   const montado = useRef(true);
@@ -210,8 +209,8 @@ export default function AccessGate({ children }) {
       setPerfil(null);
       throw new Error(
         esFalloDeRed(errorLectura)
-          ? "No hay conexión y no pudimos comprobar tu cuenta. Probá de nuevo cuando tengas señal."
-          : errorLectura?.message || "No se pudo comprobar tu cuenta. Probá de nuevo.",
+          ? t("acceso.error.sinConexionCuenta")
+          : errorLectura?.message || t("acceso.error.noComprobar"),
       );
     }
   }, []);
@@ -252,10 +251,7 @@ export default function AccessGate({ children }) {
         // hubiera otra sesión abierta: no se le cambia la contraseña a esa.
         if (ENLACE_DE_ACCESO.error || !session) {
           setSesionRecuperacion(null);
-          setError(
-            textoDeEnlaceFallido(ENLACE_DE_ACCESO) ||
-              "El enlace de recuperación no es válido o ya venció. Pedí uno nuevo desde Olvidé mi contraseña.",
-          );
+          setError(t(claveDeEnlaceFallido(ENLACE_DE_ACCESO) || "acceso.error.enlaceRecuperacion"));
         } else {
           setSesionRecuperacion(session);
         }
@@ -266,7 +262,7 @@ export default function AccessGate({ children }) {
       // la puerta, sin dejar afuera a quien ya tenía la sesión abierta.
       if (ENLACE_DE_ACCESO.error) {
         setMensaje("");
-        setError(textoDeEnlaceFallido(ENLACE_DE_ACCESO));
+        setError(t(claveDeEnlaceFallido(ENLACE_DE_ACCESO)));
         limpiarParametroRecuperacion();
       }
 
@@ -293,8 +289,8 @@ export default function AccessGate({ children }) {
       if (!montado.current) return;
       setError(
         esFalloDeRed(errorInicio)
-          ? TEXTO_SIN_CONEXION
-          : errorInicio?.message || "No se pudo comprobar tu cuenta. Probá de nuevo.",
+          ? t("comun.sinConexion")
+          : errorInicio?.message || t("acceso.error.noComprobar"),
       );
     } finally {
       if (montado.current) setCargando(false);
@@ -398,7 +394,7 @@ export default function AccessGate({ children }) {
       setPassword("");
       await resolverPerfil(data.session);
     } catch (errorLogin) {
-      setError(textoDeErrorDeAcceso(errorLogin, errorLogin?.message || "No se pudo entrar. Probá de nuevo."));
+      setError(textoDeErrorDeAcceso(errorLogin, errorLogin?.message || t("acceso.error.noEntrar")));
     } finally {
       cambiarAccion("");
     }
@@ -412,7 +408,7 @@ export default function AccessGate({ children }) {
     try {
       const correo = email.trim();
       if (!correo || !password) {
-        throw new Error("Completá el correo y la contraseña.");
+        throw new Error(t("acceso.error.completar"));
       }
 
       const { data, error: errorRegistro } = await supabase.auth.signUp({
@@ -427,12 +423,10 @@ export default function AccessGate({ children }) {
         setPassword("");
         await resolverPerfil(data.session);
       } else {
-        setMensaje(
-          "Cuenta creada. Te mandamos un correo para confirmarla: abrí el enlace y volvé a entrar. Después el administrador tiene que autorizarla.",
-        );
+        setMensaje(t("acceso.cuentaCreada"));
       }
     } catch (errorRegistro) {
-      setError(textoDeErrorDeAcceso(errorRegistro, errorRegistro?.message || "No se pudo crear la cuenta."));
+      setError(textoDeErrorDeAcceso(errorRegistro, errorRegistro?.message || t("acceso.error.noCrear")));
     } finally {
       cambiarAccion("");
     }
@@ -446,7 +440,7 @@ export default function AccessGate({ children }) {
     try {
       const correo = email.trim();
       if (!correo) {
-        throw new Error("Primero escribí tu correo, así te mandamos el enlace.");
+        throw new Error(t("acceso.error.escribiCorreo"));
       }
 
       const redirectTo = `${window.location.origin}/?training_recovery=1`;
@@ -456,11 +450,9 @@ export default function AccessGate({ children }) {
 
       if (errorReset) throw errorReset;
 
-      setMensaje(
-        "Si ese correo tiene una cuenta, te va a llegar un enlace para elegir una contraseña nueva. Revisá también la carpeta de spam.",
-      );
+      setMensaje(t("acceso.enlaceEnviado"));
     } catch (errorReset) {
-      setError(textoDeErrorDeAcceso(errorReset, errorReset?.message || "No se pudo enviar el correo de recuperación."));
+      setError(textoDeErrorDeAcceso(errorReset, errorReset?.message || t("acceso.error.noEnviarCorreo")));
     } finally {
       cambiarAccion("");
     }
@@ -473,17 +465,9 @@ export default function AccessGate({ children }) {
     setMensaje("");
 
     try {
-      if (!sesionRecuperacion) {
-        throw new Error("El enlace de recuperación no es válido. Pedí uno nuevo.");
-      }
-
-      if (nuevaPassword.length < 8) {
-        throw new Error("La contraseña nueva tiene que tener al menos 8 caracteres.");
-      }
-
-      if (nuevaPassword !== confirmarPassword) {
-        throw new Error("Las contraseñas no coinciden.");
-      }
+      if (!sesionRecuperacion) throw new Error(t("acceso.error.enlaceNoValido"));
+      if (nuevaPassword.length < 8) throw new Error(t("acceso.error.minimo8"));
+      if (nuevaPassword !== confirmarPassword) throw new Error(t("acceso.error.noCoinciden"));
 
       const { error: errorUpdate } = await supabase.auth.updateUser({
         password: nuevaPassword,
@@ -493,7 +477,7 @@ export default function AccessGate({ children }) {
 
       const { data, error: errorSesion } = await supabase.auth.getSession();
       if (errorSesion) throw errorSesion;
-      if (!data?.session) throw new Error("No se pudo abrir la sesión después de cambiar la contraseña.");
+      if (!data?.session) throw new Error(t("acceso.error.sesionNoAbierta"));
 
       limpiarParametroRecuperacion();
       recuperacionPendiente.current = false;
@@ -504,7 +488,7 @@ export default function AccessGate({ children }) {
       ponerSesion(data.session);
       await resolverPerfil(data.session);
     } catch (errorUpdate) {
-      setError(textoDeErrorDeContrasena(errorUpdate, errorUpdate?.message || "No se pudo cambiar la contraseña."));
+      setError(textoDeErrorDeContrasena(errorUpdate, errorUpdate?.message || t("acceso.error.noCambiarContrasena")));
     } finally {
       cambiarAccion("");
     }
@@ -567,14 +551,7 @@ export default function AccessGate({ children }) {
 
   if (cargando) {
     return (
-      <PantallaAcceso
-        titulo="Un momento…"
-        texto={
-          tardando
-            ? "Está tardando más de lo normal. Si no tenés señal, puede demorar hasta medio minuto."
-            : "Estamos comprobando tu cuenta."
-        }
-      >
+      <PantallaAcceso titulo={t("acceso.cargandoTitulo")} texto={tardando ? t("acceso.cargandoTarda") : t("acceso.cargandoTexto")}>
         <Espera />
       </PantallaAcceso>
     );
@@ -583,14 +560,14 @@ export default function AccessGate({ children }) {
   if (modoRecuperacion) {
     return (
       <PantallaAcceso
-        titulo="Elegí una contraseña nueva"
-        texto="De ahora en más vas a entrar con esta contraseña."
+        titulo={t("acceso.recuperarTitulo")}
+        texto={t("acceso.recuperarTexto")}
         onVolver={cancelarRecuperacion}
-        etiquetaVolver="Volver"
+        etiquetaVolver={t("comun.volver")}
       >
         <form onSubmit={guardarNuevaPassword} className="training-access-form">
           <label>
-            Nueva contraseña
+            {t("acceso.nuevaContrasena")}
             <input
               type="password"
               value={nuevaPassword}
@@ -602,7 +579,7 @@ export default function AccessGate({ children }) {
           </label>
 
           <label>
-            Repetir contraseña
+            {t("acceso.repetirContrasena")}
             <input
               type="password"
               value={confirmarPassword}
@@ -620,7 +597,7 @@ export default function AccessGate({ children }) {
             className="training-access-primary"
             disabled={Boolean(accion) || !sesionRecuperacion}
           >
-            {accion === "cambiar-password" ? "Guardando…" : "Guardar contraseña"}
+            {accion === "cambiar-password" ? t("comun.guardando") : t("acceso.guardarContrasena")}
           </button>
         </form>
       </PantallaAcceso>
@@ -645,18 +622,9 @@ export default function AccessGate({ children }) {
     }
 
     const textos = {
-      pendiente: {
-        titulo: "Tu cuenta está pendiente de autorización",
-        texto: `La cuenta ${correo} ya está creada. Cuando el administrador la autorice vas a poder entrar; si ya te avisó, tocá Volver a comprobar.`,
-      },
-      bloqueado: {
-        titulo: "Tu cuenta no tiene acceso",
-        texto: "El administrador le quitó el acceso a esta cuenta. Si creés que es un error, hablá con él.",
-      },
-      "sin-modulos": {
-        titulo: "Tu cuenta no tiene módulos habilitados",
-        texto: "El administrador todavía no te habilitó Partido ni Flujo diario. Cuando lo haga, tocá Volver a comprobar.",
-      },
+      pendiente: { titulo: t("acceso.pendienteTitulo"), texto: t("acceso.pendienteTexto", { correo }) },
+      bloqueado: { titulo: t("acceso.bloqueadoTitulo"), texto: t("acceso.bloqueadoTexto") },
+      "sin-modulos": { titulo: t("acceso.sinModulosTitulo"), texto: t("acceso.sinModulosTexto") },
     }[situacion];
 
     return (
@@ -664,11 +632,11 @@ export default function AccessGate({ children }) {
         <div className="training-access-form">
           {error && <div className="training-access-message error">{error}</div>}
           <button type="button" className="training-access-primary" onClick={volverAComprobar} disabled={Boolean(accion)}>
-            {accion === "comprobar" ? "Comprobando…" : "Volver a comprobar"}
+            {accion === "comprobar" ? t("acceso.comprobando") : t("acceso.comprobar")}
           </button>
           <div className="training-access-enlaces">
             <button type="button" className="training-access-enlace" onClick={salir} disabled={Boolean(accion)}>
-              {accion === "salir" ? "Saliendo…" : "Salir"}
+              {accion === "salir" ? t("comun.saliendo") : t("comun.salir")}
             </button>
           </div>
         </div>
@@ -678,14 +646,14 @@ export default function AccessGate({ children }) {
 
   if (sesion && !perfil) {
     return (
-      <PantallaAcceso titulo="No pudimos comprobar tu cuenta" texto={error || "Probá de nuevo en un momento."}>
+      <PantallaAcceso titulo={t("acceso.noPudimosTitulo")} texto={error || t("acceso.noPudimosTexto")}>
         <div className="training-access-form">
           <button type="button" className="training-access-primary" onClick={volverAComprobar} disabled={Boolean(accion)}>
-            {accion === "comprobar" ? "Comprobando…" : "Reintentar"}
+            {accion === "comprobar" ? t("acceso.comprobando") : t("comun.reintentar")}
           </button>
           <div className="training-access-enlaces">
             <button type="button" className="training-access-enlace" onClick={salir} disabled={Boolean(accion)}>
-              {accion === "salir" ? "Saliendo…" : "Salir"}
+              {accion === "salir" ? t("comun.saliendo") : t("comun.salir")}
             </button>
           </div>
         </div>
@@ -694,22 +662,22 @@ export default function AccessGate({ children }) {
   }
 
   return (
-    <PantallaAcceso titulo="Entrá con tu cuenta" texto="Usá el correo y la contraseña con los que te registraste.">
+    <PantallaAcceso titulo={t("acceso.entrarTitulo")} texto={t("acceso.entrarTexto")}>
       <form onSubmit={ingresar} className="training-access-form">
         <label>
-          Correo
+          {t("acceso.correo")}
           <input
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
-            placeholder="nombre@club.com"
+            placeholder={t("acceso.correoEjemplo")}
             required
           />
         </label>
 
         <label>
-          Contraseña
+          {t("acceso.contrasena")}
           <input
             type="password"
             value={password}
@@ -724,7 +692,7 @@ export default function AccessGate({ children }) {
         {mensaje && <div className="training-access-message ok">{mensaje}</div>}
 
         <button type="submit" className="training-access-primary" disabled={Boolean(accion)}>
-          {accion === "ingresar" ? "Entrando…" : "Entrar"}
+          {accion === "ingresar" ? t("acceso.entrando") : t("acceso.entrar")}
         </button>
 
         <div className="training-access-enlaces">
@@ -734,7 +702,7 @@ export default function AccessGate({ children }) {
             onClick={solicitarRestablecimiento}
             disabled={Boolean(accion)}
           >
-            {accion === "recuperar" ? "Enviando…" : "Olvidé mi contraseña"}
+            {accion === "recuperar" ? t("acceso.enviando") : t("acceso.olvide")}
           </button>
 
           <button
@@ -743,12 +711,12 @@ export default function AccessGate({ children }) {
             onClick={crearCuenta}
             disabled={Boolean(accion)}
           >
-            {accion === "crear" ? "Creando…" : "Crear una cuenta"}
+            {accion === "crear" ? t("acceso.creando") : t("acceso.crear")}
           </button>
         </div>
       </form>
 
-      <small>Las cuentas nuevas necesitan la autorización del administrador antes de poder entrar.</small>
+      <small>{t("acceso.notaAutorizacion")}</small>
     </PantallaAcceso>
   );
 }

@@ -189,7 +189,13 @@ export const agregarJugador = async (nombre, equipoId = null) => {
 
 export const quitarJugador = async (id) => {
   const { error } = await supabase.from("jugadores").delete().eq("id", id);
-  return error ? { error: error.message } : {};
+  if (!error) return {};
+  // Con lesiones cargadas la base no lo deja borrar (clave foránea): se
+  // explica en castellano en vez de mostrar el error crudo.
+  if (error.code === "23503" || /lesiones/i.test(error.message || "")) {
+    return { error: "Este jugador tiene lesiones cargadas y no se puede borrar. Si ya no está en el plantel, dejalo y no lo uses." };
+  }
+  return { error: error.message };
 };
 
 /**

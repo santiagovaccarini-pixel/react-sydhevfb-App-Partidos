@@ -1,0 +1,282 @@
+/* Lesiones: hereda el marco de Flujo diario (.entrenamiento-marco) y suma
+   lo suyo. Colores: verde disponible, granate lesionado. */
+
+.lesiones-marco .lesiones-boton-nueva {
+  width: 100%;
+  min-height: 50px;
+  margin: 14px 0 10px;
+  border: 0;
+  border-radius: 14px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.lesiones-marco .lesiones-boton-nueva:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.lesiones-marco .lesiones-estado {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.lesiones-marco .lesiones-estado.error {
+  background: #fdecee;
+  color: #c1121f;
+}
+.lesiones-marco .lesiones-estado button {
+  margin-left: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.lesiones-marco .lesiones-vacio {
+  margin: 14px 4px;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.lesiones-marco .lesiones-lista,
+.lesiones-marco .lesiones-plantel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.lesiones-marco .lesiones-tarjeta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: inset 5px 0 0 #94a3b8;
+}
+.lesiones-marco .lesiones-tarjeta.activa {
+  box-shadow: inset 5px 0 0 #b91c1c;
+}
+.lesiones-marco .lesiones-tarjeta-cuerpo {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px 12px 18px;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.lesiones-marco .lesiones-tarjeta-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lesiones-marco .lesiones-tarjeta-fila strong {
+  font-size: 15px;
+  font-weight: 800;
+}
+.lesiones-marco .lesiones-tarjeta-detalle {
+  font-size: 13px;
+  color: #334155;
+}
+.lesiones-marco .lesiones-tarjeta-fechas {
+  font-size: 12px;
+  color: #64748b;
+}
+.lesiones-marco .lesiones-tarjeta-fechas b {
+  color: #0f172a;
+}
+.lesiones-marco .lesiones-tarjeta-diagnostico {
+  font-size: 12px;
+  color: #475569;
+  font-style: italic;
+}
+.lesiones-marco .lesiones-boton-alta {
+  padding: 0 14px;
+  border: 0;
+  border-left: 1px solid #e2e8f0;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lesiones-marco .lesiones-gravedad {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: #e2e8f0;
+  color: #334155;
+  white-space: nowrap;
+}
+.lesiones-marco .lesiones-gravedad.activa { background: #fee2e2; color: #b91c1c; }
+.lesiones-marco .lesiones-gravedad.minima { background: #f1f5f9; color: #475569; }
+.lesiones-marco .lesiones-gravedad.leve { background: #dcfce7; color: #166534; }
+.lesiones-marco .lesiones-gravedad.moderada { background: #fef3c7; color: #92400e; }
+.lesiones-marco .lesiones-gravedad.grave { background: #fecaca; color: #7f1d1d; }
+
+.lesiones-marco .lesiones-filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin: 10px 0;
+  padding: 0 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.lesiones-marco .lesiones-plantel li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 12px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: inset 5px 0 0 #16a34a;
+}
+.lesiones-marco .lesiones-plantel li.lesionado {
+  box-shadow: inset 5px 0 0 #b91c1c;
+}
+.lesiones-marco .lesiones-plantel li span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #166534;
+  text-align: right;
+}
+.lesiones-marco .lesiones-plantel li.lesionado span {
+  color: #b91c1c;
+}
+
+/* El formulario dentro de la hoja. */
+.lesiones-marco .lesiones-hoja .cuerpo-hoja {
+  display: grid;
+  gap: 12px;
+}
+.lesiones-marco .lesiones-campo {
+  display: grid;
+  gap: 6px;
+}
+.lesiones-marco .lesiones-campo > span {
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lesiones-marco .lesiones-campo input,
+.lesiones-marco .lesiones-campo textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  font-size: 15px;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+.lesiones-marco .lesiones-campo textarea {
+  resize: vertical;
+}
+.lesiones-marco .lesiones-jugador-fijo {
+  font-size: 16px;
+}
+.lesiones-marco .lesiones-fechas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.lesiones-marco .lesiones-ayuda {
+  font-size: 11px;
+  color: #64748b;
+}
+.lesiones-marco .lesiones-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lesiones-marco .lesiones-jugadores {
+  max-height: 150px;
+  overflow: auto;
+}
+.lesiones-marco .lesiones-chip {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lesiones-marco .lesiones-chip.elegido {
+  border-color: #b91c1c;
+  background: #b91c1c;
+  color: #fff;
+}
+.lesiones-marco .lesiones-aviso-recidiva {
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+.lesiones-marco .lesiones-cambios > span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+}
+.lesiones-marco .lesiones-cambios ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.lesiones-marco .lesiones-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 750;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
+}

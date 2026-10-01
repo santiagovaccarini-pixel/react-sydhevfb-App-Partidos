@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { agruparPerfiles, decidirPerfil, listarPerfiles } from "./domain/perfilesDb.js";
+import { t, useIdioma } from "./idioma/index.js";
+import { fechaCorta } from "./idioma/formatos.js";
 
 // La pantalla Cuentas, solo para el administrador: quién pidió entrar, quién
 // tiene acceso y quién no, y qué puede usar cada uno (Partido, Flujo diario,
@@ -8,30 +10,30 @@ import { agruparPerfiles, decidirPerfil, listarPerfiles } from "./domain/perfile
 // la base es la que decide si puede.
 
 export const MODULOS = [
-  { clave: "partido", etiqueta: "Partido" },
-  { clave: "flujo", etiqueta: "Flujo diario" },
-  { clave: "admin", etiqueta: "Administrador" },
+  { clave: "partido" },
+  { clave: "flujo" },
+  { clave: "lesiones" },
+  { clave: "admin" },
 ];
 
 // Lo que se marca al autorizar una cuenta nueva si no se eligió otra cosa.
-export const PERMISOS_INICIALES = Object.freeze({ partido: true, flujo: true, admin: false });
+export const PERMISOS_INICIALES = Object.freeze({ partido: true, flujo: true, lesiones: false, admin: false });
 
 // Qué tiene marcado una fila: lo elegido a mano, o lo que dice la base, o
 // (cuenta nueva sin nada) lo inicial.
 export const permisosDeFila = (perfil, seleccion) => {
   if (seleccion) return seleccion;
-  if (perfil.estado === "pendiente" && !perfil.partido && !perfil.flujo && !perfil.admin) {
+  if (perfil.estado === "pendiente" && !perfil.partido && !perfil.flujo && !perfil.lesiones && !perfil.admin) {
     return PERMISOS_INICIALES;
   }
-  return { partido: Boolean(perfil.partido), flujo: Boolean(perfil.flujo), admin: Boolean(perfil.admin) };
+  return {
+    partido: Boolean(perfil.partido),
+    flujo: Boolean(perfil.flujo),
+    lesiones: Boolean(perfil.lesiones),
+    admin: Boolean(perfil.admin),
+  };
 };
 
-const fechaCorta = (valor) => {
-  if (!valor) return "";
-  const fecha = new Date(valor);
-  if (Number.isNaN(fecha.getTime())) return "";
-  return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(fecha);
-};
 
 const FlechaVolver = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
@@ -48,22 +50,22 @@ const Fila = ({ perfil, seleccion, ocupada, onCambiarModulo, onAutorizar, onQuit
   return (
     <li className={`cuenta-fila${perfil.esMia ? " propia" : ""}`}>
       <div className="cuenta-encabezado">
-        <span className="cuenta-correo">{perfil.email || "(sin correo)"}</span>
-        {perfil.esMia && <span className="cuenta-etiqueta">Tu cuenta</span>}
-        {!perfil.esMia && perfil.admin && autorizada && <span className="cuenta-etiqueta">Administrador</span>}
-        {!perfil.confirmado_en && <span className="cuenta-etiqueta alerta">Correo sin confirmar</span>}
+        <span className="cuenta-correo">{perfil.email || t("cuentas.sinCorreo")}</span>
+        {perfil.esMia && <span className="cuenta-etiqueta">{t("cuentas.tuCuenta")}</span>}
+        {!perfil.esMia && perfil.admin && autorizada && <span className="cuenta-etiqueta">{t("cuentas.administrador")}</span>}
+        {!perfil.confirmado_en && <span className="cuenta-etiqueta alerta">{t("cuentas.correoSinConfirmar")}</span>}
       </div>
       {(fechaCorta(perfil.creado_en) || fechaCorta(perfil.decidido_en)) && (
         <div className="cuenta-meta">
-          {fechaCorta(perfil.creado_en) && <span>Creada el {fechaCorta(perfil.creado_en)}</span>}
-          {fechaCorta(perfil.decidido_en) && <span>· Último cambio el {fechaCorta(perfil.decidido_en)}</span>}
+          {fechaCorta(perfil.creado_en) && <span>{t("cuentas.creadaEl", { fecha: fechaCorta(perfil.creado_en) })}</span>}
+          {fechaCorta(perfil.decidido_en) && <span>{t("cuentas.ultimoCambio", { fecha: fechaCorta(perfil.decidido_en) })}</span>}
         </div>
       )}
 
       {!perfil.esMia && (
         <>
-          <div className="cuenta-permisos" role="group" aria-label={`Qué puede usar ${perfil.email}`}>
-            {MODULOS.map(({ clave, etiqueta }) => (
+          <div className="cuenta-permisos" role="group" aria-label={t("cuentas.quePuedeUsar", { correo: perfil.email })}>
+            {MODULOS.map(({ clave }) => (
               <button
                 key={clave}
                 type="button"
@@ -72,19 +74,19 @@ const Fila = ({ perfil, seleccion, ocupada, onCambiarModulo, onAutorizar, onQuit
                 disabled={ocupada}
                 onClick={() => onCambiarModulo(perfil, clave, !permisos[clave])}
               >
-                {etiqueta}
+                {t(`cuentas.modulos.${clave}`)}
               </button>
             ))}
           </div>
           <div className="cuenta-acciones">
             {!autorizada && (
               <button type="button" className="cuenta-autorizar" disabled={ocupada} onClick={() => onAutorizar(perfil)}>
-                {ocupada ? "Guardando…" : "Autorizar"}
+                {ocupada ? t("comun.guardando") : t("cuentas.autorizar")}
               </button>
             )}
             {(autorizada || pendiente) && (
               <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onQuitar(perfil)}>
-                {pendiente ? "Rechazar" : "Quitar acceso"}
+                {pendiente ? t("cuentas.rechazar") : t("cuentas.quitarAcceso")}
               </button>
             )}
           </div>
@@ -118,6 +120,7 @@ const Grupo = ({ titulo, vacio, perfiles, seleccion, ocupada, ...acciones }) => 
 );
 
 export default function CuentasAdmin({ miUserId, onVolver }) {
+  useIdioma();
   const [perfiles, setPerfiles] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -134,7 +137,7 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
     try {
       setPerfiles(await listarPerfiles());
     } catch (errorLectura) {
-      setError(errorLectura?.message || "No se pudieron leer las cuentas.");
+      setError(errorLectura?.message || t("cuentas.errorLeer"));
     } finally {
       setCargando(false);
     }
@@ -155,7 +158,7 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
         return resto;
       });
     } catch (errorCambio) {
-      setAviso(errorCambio?.message || "No se pudo cambiar la cuenta.");
+      setAviso(errorCambio?.message || t("cuentas.errorCambiar"));
     } finally {
       setOcupada("");
     }
@@ -174,8 +177,8 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
 
   const autorizar = (perfil) => {
     const permisos = permisosDeFila(perfil, seleccion[perfil.user_id]);
-    if (!permisos.partido && !permisos.flujo && !permisos.admin) {
-      setAviso("Marcá al menos un módulo antes de autorizar.");
+    if (!permisos.partido && !permisos.flujo && !permisos.lesiones && !permisos.admin) {
+      setAviso(t("cuentas.marcaModulo"));
       return;
     }
     aplicar(perfil, { estado: "autorizado", ...permisos });
@@ -195,24 +198,24 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
       <div className="cuentas-contenido">
         <div className="cuentas-cabecera">
           <button type="button" className="portal-salir cuentas-volver" onClick={onVolver}>
-            <FlechaVolver /> Volver al portal
+            <FlechaVolver /> {t("acceso.volverPortal")}
           </button>
           <button type="button" className="portal-salir" onClick={cargar} disabled={cargando}>
-            {cargando ? "Actualizando…" : "Actualizar"}
+            {cargando ? t("comun.actualizando") : t("comun.actualizar")}
           </button>
         </div>
 
         <header className="cuentas-titulo">
-          <span className="portal-kicker">Administración</span>
-          <h1>Cuentas</h1>
-          <p>Acá decidís quién puede entrar a la app y qué módulos usa cada uno. Los cambios se aplican en el momento.</p>
+          <span className="portal-kicker">{t("cuentas.kicker")}</span>
+          <h1>{t("cuentas.titulo")}</h1>
+          <p>{t("cuentas.texto")}</p>
         </header>
 
         {error && (
           <div className="cuentas-aviso">
             {error}{" "}
             <button type="button" className="cuentas-reintentar" onClick={cargar}>
-              Reintentar
+              {t("comun.reintentar")}
             </button>
           </div>
         )}
@@ -221,20 +224,20 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
         {!error && (
           <>
             <Grupo
-              titulo="Por autorizar"
-              vacio={cargando ? "Cargando…" : "No hay cuentas esperando autorización."}
+              titulo={t("cuentas.porAutorizar")}
+              vacio={cargando ? t("comun.cargando") : t("cuentas.vacioPendientes")}
               perfiles={grupos.pendientes}
               {...acciones}
             />
             <Grupo
-              titulo="Con acceso"
-              vacio={cargando ? "Cargando…" : "Todavía no hay cuentas con acceso."}
+              titulo={t("cuentas.conAcceso")}
+              vacio={cargando ? t("comun.cargando") : t("cuentas.vacioConAcceso")}
               perfiles={grupos.conAcceso}
               {...acciones}
             />
             <Grupo
-              titulo="Sin acceso"
-              vacio={cargando ? "Cargando…" : "No hay cuentas sin acceso."}
+              titulo={t("cuentas.sinAcceso")}
+              vacio={cargando ? t("comun.cargando") : t("cuentas.vacioSinAcceso")}
               perfiles={grupos.sinAcceso}
               {...acciones}
             />
@@ -245,13 +248,14 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
       <HojaConfirmar
         abierta={Boolean(aQuitar)}
         icono="usuario"
-        titulo={aQuitar?.estado === "pendiente" ? "¿Rechazar esta cuenta?" : "¿Quitar el acceso?"}
+        titulo={aQuitar?.estado === "pendiente" ? t("cuentas.rechazarTitulo") : t("cuentas.quitarTitulo")}
         descripcion={
           aQuitar?.estado === "pendiente"
-            ? `${aQuitar?.email || "La cuenta"} no va a poder entrar a la app. Si cambiás de idea, la podés autorizar desde Sin acceso.`
-            : `${aQuitar?.email || "La cuenta"} deja de tener acceso a la app en el momento. Podés volver a autorizarla cuando quieras.`
+            ? t("cuentas.rechazarTexto", { correo: aQuitar?.email || t("cuentas.laCuenta") })
+            : t("cuentas.quitarTexto", { correo: aQuitar?.email || t("cuentas.laCuenta") })
         }
-        etiquetaConfirmar={aQuitar?.estado === "pendiente" ? "Sí, rechazar" : "Sí, quitar"}
+        etiquetaConfirmar={aQuitar?.estado === "pendiente" ? t("cuentas.siRechazar") : t("cuentas.siQuitar")}
+        etiquetaCancelar={t("comun.cancelar")}
         onConfirmar={confirmarQuitar}
         onCancelar={() => setAQuitar(null)}
       />
