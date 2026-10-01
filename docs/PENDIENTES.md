@@ -258,6 +258,61 @@ constantes; la vista lee las mismas reglas con una función
 restricción de la base pasa a depender de la regla. Mientras tanto, cada regla
 nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 
+## El siguiente nivel: un club entero usando esto (plan del 02/10)
+
+Santiago: "hoy tuve la noticia de que vamos a tener que hacer esto un software muy
+potente y muy seguro, para que un club entero lo use". Más allá de los módulos, lo
+que hay que resolver es la lógica de seguridad y confianza. Lo que ya está y lo
+que falta, en el orden en que conviene hacerlo:
+
+**Ya está**: cuentas con autorización y módulos; clubes con membresía y fecha de
+salida (quien se fue ve hasta su último día, decidido por la base, no por la
+pantalla); todo lo guardado lleva su club; historial de cambios en Lesiones;
+migraciones versionadas en `supabase/migrations`.
+
+**Lo que falta, por orden:**
+
+1. **Roles por club y entrada por invitación.** Hoy el permiso de cada módulo es
+   global (`perfiles.partido/flujo/lesiones`) y hay un solo administrador para todo.
+   Tiene que pasar a la membresía: `club_miembros` con rol (administrador del club o
+   staff) y módulos por club; `perfiles.admin` queda como dueño de la plataforma.
+   Entrar por invitación (`club_invitaciones`: correo, club, rol): al registrarse con
+   ese correo, la cuenta queda autorizada y adentro del club sola; sin invitación no
+   entra a ningún club. `puede_usar(modulo)` pasa a `puede_usar(club, modulo)`.
+2. **Pruebas de permisos contra una base de prueba.** Lo que protege los datos son
+   las políticas; hoy no hay pruebas automáticas de ellas. Falta un segundo proyecto
+   de Supabase (prueba) y una batería que entra con varias cuentas (admin, staff,
+   ex-miembro, otro club) y verifica fila por fila qué ve y qué puede cambiar cada
+   una. Las migraciones se corren primero ahí y después en producción (Supabase CLI,
+   no el editor a mano).
+3. **Fotos de los datos (historial en todas las tablas).** Hoy el ex-miembro ve las
+   filas de hasta su último día, pero con los cambios posteriores. Para que vea
+   exactamente lo que había ese día: un disparador genérico que guarde cada versión
+   (como `lesiones_historial`, pero para partidos, entrenamientos, jugadores y
+   lesiones) y vistas "al día X". Lo mismo da papelera en vez de borrado definitivo
+   (hoy "borrar historial" de Partido borra de verdad) y auditoría de quién cambió qué.
+4. **El celular.** Al cerrar sesión o al quedar fuera de un club, borrar las copias
+   locales de ese club (respaldo de partidos, pendientes, plantel, perfil). Sesiones
+   cortas con renovación, y revisar la membresía en cada apertura (hoy se hace al
+   volver al portal).
+5. **Cuentas más duras.** Correo confirmado obligatorio (ya), contraseñas fuertes,
+   segundo factor para administradores (Supabase lo trae), aviso por correo cuando
+   alguien entra desde un aparato nuevo.
+6. **Datos médicos.** Las lesiones son datos de salud (LGPD en Brasil, Ley 25.326 en
+   Argentina): solo el rol médico ve el detalle, el resto ve disponible o no;
+   registro de quién consultó; exportar y borrar a pedido del jugador.
+7. **Copias de seguridad y plan.** Producción no puede quedar en el plan gratuito
+   (se pausa por inactividad, sin copias automáticas). Plan Pro con copias diarias y
+   recuperación a un punto en el tiempo, más una exportación completa por club
+   (todo lo del club en un archivo) que el club pueda pedir cuando quiera.
+8. **Una base por club.** El volumen no es el problema (Postgres aguanta décadas de
+   partidos, entrenamientos y lesiones de un club); lo que vale es el aislamiento y
+   que cada club sea dueño de lo suyo. Como todo ya lleva su club, el camino es:
+   seguir con una base ahora, con las pruebas del punto 2; y cuando un club lo
+   pida (o por contrato), darle su propio proyecto de Supabase. El código no
+   cambia: se suma un "directorio de clubes" que le dice a la app a qué base ir, y
+   la exportación del punto 7 es la mudanza. Costo: un proyecto Pro por club.
+
 ## Lo que dejó la revisión completa del 30/09
 
 Se revisó toda la app (pruebas automáticas, recorrido en navegador de cada
