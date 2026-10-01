@@ -373,7 +373,9 @@ export const etiquetaDeCampo = (clave, config, idioma) => {
   return enIdioma(campoPorClave(clave)?.etiquetas, idioma) || clave;
 };
 
-export const campoOculto = (clave, config) => Boolean(config?.campos?.[clave]?.oculto);
+// Las columnas obligatorias (jugador, parte, lado, fecha) no se pueden esconder:
+// sin ellas no se registra la lesión.
+export const campoOculto = (clave, config) => !campoPorClave(clave)?.obligatorio && Boolean(config?.campos?.[clave]?.oculto);
 
 // Las opciones de un desplegable en este club (las de la base si las hay, si
 // no las del Excel), cada una con su texto en el idioma pedido.

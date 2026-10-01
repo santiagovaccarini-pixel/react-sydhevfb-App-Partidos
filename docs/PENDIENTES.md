@@ -178,7 +178,7 @@ de lo hecho está en los commits, no en esta lista.
   vez). Revisado el Excel entero (02/10): se cargan a mano 21 columnas y el resto se calcula
   igual que ahí (`calcular` en `src/domain/lesiones.js`: n° de registro = enésima lesión del
   jugador, edad, lado hábil, Recup 1/2, recuperación, severidad por días con alta, recorrência
-  a 60 días, recidiva por estructura exacta, diagnóstico armado). La vista
+  a 60 días, recidiva por estructura exacta a 30 días, diagnóstico armado). La vista
   `v_lesiones_excel_v1` calcula lo mismo para Power Query (migración
   `20261002_datos_basicos.sql`, **pendiente de correr en Supabase**: también agrega
   `jugadores.posicion` y `jugadores.foto_url`).

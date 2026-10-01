@@ -298,7 +298,7 @@ export default {
     sinDato: "—",
     guardado: "Lesión guardada",
     altaGuardada: "Alta guardada",
-    avisoRecidiva: "Posible recidiva: ya tuvo una lesión en {{parte}} ({{lado}}) el {{fecha}}.",
+    avisoRecidiva: "Ojo: ya tuvo una lesión en {{parte}} ({{lado}}) el {{fecha}}. Puede contar como recurrencia o recidiva.",
     error: {
       jugador: "Elegí un jugador.",
       fecha: "Cargá la fecha de inicio de la lesión.",
@@ -369,6 +369,7 @@ export default {
       opciones_other: "{{n}} opciones",
       porDefecto: "Del Excel: {{texto}}",
       faltaTexto: "Escribí el nombre.",
+      noSeOculta: "Esta columna hace falta para registrar la lesión: siempre se muestra.",
     },
     estado: {
       cargando: "Leyendo las lesiones…",

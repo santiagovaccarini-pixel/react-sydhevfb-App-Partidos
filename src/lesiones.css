@@ -456,3 +456,12 @@
   padding: 0 16px;
   font-size: 14px;
 }
+.lesiones-marco .lesiones-nota-fija {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.4;
+}
