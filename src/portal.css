@@ -750,8 +750,19 @@
   right: 16px;
   z-index: 2;
 }
+/* Arriba: el correo y el idioma; abajo, a la derecha, Cuentas y Salir. */
 .portal-cuenta {
-  margin-bottom: 34px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  row-gap: 12px;
+  margin-bottom: 30px;
+}
+.portal-cuenta-acciones {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .portal-club {
   display: inline-flex;
@@ -820,6 +831,9 @@
 }
 .elegir-club-opcion .escudo-rival.mini {
   width: 26px;
+}
+.elegir-club-opcion .escudo-club.escudo-real.compacto {
+  width: 30px;
 }
 .elegir-club-crear {
   margin-top: 22px;

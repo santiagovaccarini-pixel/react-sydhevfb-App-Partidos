@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { PantallaAcceso } from "./AccessGate.jsx";
-import { cargarEquipos, crearEquipo, esElCam, guardarEquipoElegido } from "./domain/equipo.js";
-import { EscudoCAM, EscudoRival } from "./components/AppChrome";
+import { cargarEquipos, crearEquipo, guardarEquipoElegido } from "./domain/equipo.js";
+import { EscudoDeClub } from "./components/ClubCrest";
 import { t, useIdioma } from "./idioma/index.js";
 
 // Lo segundo que ve una cuenta nueva, después de entrar: con qué club va a
@@ -63,7 +63,7 @@ export default function ElegirClub({ onElegir, onSalir }) {
           {equipos.map((equipo) => (
             <li key={equipo.id}>
               <button type="button" className="elegir-club-opcion" onClick={() => elegir(equipo)}>
-                {esElCam(equipo.nombre) ? <EscudoCAM compacto etiqueta={equipo.nombre} /> : <EscudoRival nombre={equipo.nombre} mini />}
+                <EscudoDeClub equipo="cam" nombre={equipo.nombre} compacto />
                 <span className="elegir-club-nombre">{equipo.nombre}</span>
                 <b aria-hidden="true">›</b>
               </button>
