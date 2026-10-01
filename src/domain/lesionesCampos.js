@@ -51,8 +51,9 @@ export const CAMPOS = [
 ];
 
 // Las opciones de cada desplegable, tal como están en el Excel (portugués) y
-// su traducción. Las que el Excel no mostró completas (tipo de lesión,
-// músculo específico, imágenes) se completan cuando lleguen.
+// su traducción. Imágenes, recurrencia y recidiva son provisorias hasta que
+// llegue el Excel entero. Lo que se agrega acá llega solo a los clubes que ya
+// estaban sembrados (leerConfig completa lo que falte).
 export const OPCIONES = {
   categoria: [
     op("profissional", "Profesional", "Profissional"),
@@ -89,6 +90,11 @@ export const OPCIONES = {
     op("muscular_3c", "Lesión muscular grado 3 C", "LESÃO MUSCULAR GRAU 3 C"),
     op("lombalgia", "Lumbalgia", "LOMBALGIA"),
     op("infecciosa", "Enfermedad infecciosa", "DOENÇA INFECCIOSA"),
+    op("trombose", "Trombosis", "TROMBOSE"),
+    op("cicatriz_aderida", "Cicatriz adherida", "CICATRIZ ADERIDA"),
+    op("edema_osseo", "Edema óseo", "EDEMA ÓSSEO"),
+    op("avulsao", "Avulsión", "AVULSÃO"),
+    op("fadiga", "Fatiga", "FADIGA"),
   ],
   parte_cuerpo: [
     op("abdomen", "Abdomen", "ABDÔMEN"),
@@ -180,6 +186,19 @@ export const OPCIONES = {
     op("piriforme", "Piriforme", "PIRIFORME"),
     op("vasto_medial", "Vasto medial", "VASTO MEDIAL"),
     op("vasto_lateral", "Vasto lateral", "VASTO LATERAL"),
+    op("vasto_intermedio", "Vasto intermedio", "VASTO INTERMÉDIO"),
+    op("biceps_femoral_curta", "Bíceps femoral (cabeza corta)", "BÍCEPS FEMORAL (CABEÇA CURTA)"),
+    op("biceps_femoral_longa", "Bíceps femoral (cabeza larga)", "BÍCEPS FEMORAL (CABEÇA LONGA)"),
+    op("tendao_conjunto_livre", "Tendón conjunto del bíceps femoral y semitendinoso (libre)", "TENDÃO CONJUNTO DO BÍCEPS FEMORAL E SEMITENDÍNEO (LIVRE)"),
+    op("tendao_conjunto_bf_st", "Tendón conjunto del bíceps femoral y semitendinoso", "TENDÃO CONJUNTO DO BÍCEPS FEMORAL E SEMITENDÍNEO"),
+    op("peitoral_menor", "Pectoral menor", "PEITORAL MENOR"),
+    op("peitoral_maior", "Pectoral mayor", "PEITORAL MAIOR"),
+    op("tendao_patelar", "Tendón rotuliano", "TENDÃO PATELAR"),
+    op("tendao_aquiles", "Tendón de Aquiles", "TENDÃO DE AQUILES"),
+    op("tendao_quadriceps", "Tendón del cuádriceps", "TENDÃO DO QUADRÍCEPS"),
+    op("gluteo_maximo", "Glúteo mayor", "GLÚTEO MÁXIMO"),
+    op("gluteo_minimo", "Glúteo menor", "GLÚTEO MÍNIMO"),
+    op("gluteo_medio", "Glúteo medio", "GLÚTEO MÉDIO"),
   ],
   area: [
     op("proximal_umtp", "Proximal – UMTP", "PROXIMAL – UMTP"),

@@ -276,4 +276,34 @@ describe("el módulo Lesiones", () => {
     expect(datos.opciones[0]).toMatchObject({ campo: "mecanismo", etiquetas: { "es-AR": "Cabezazo", "pt-BR": "" }, oculto: false });
     expect(datos.opciones[0].codigo).toMatch(/^cabezazo_/);
   });
+
+  test("la hoja de opciones larga tiene buscador que acerca lo escrito, y el historial se ve como tabla", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await tocar(contenedor.querySelector('.selector-hoja[aria-label="Tipo de lesión"]'));
+    const buscador = contenedor.querySelector(".hoja-opciones .buscador-hoja input");
+    expect(buscador).toBeTruthy();
+    expect(contenedor.querySelectorAll(".opcion-hoja").length).toBeGreaterThan(20);
+    await escribir(buscador, "fract");
+    expect([...contenedor.querySelectorAll(".opcion-hoja")].map((b) => b.textContent)).toEqual(["Fractura"]);
+    await escribir(buscador, "muscular grado 2");
+    expect(contenedor.querySelectorAll(".opcion-hoja")).toHaveLength(3);
+    await tocar(contenedor.querySelector(".opcion-hoja"));
+    expect(contenedor.querySelector('.selector-hoja[aria-label="Tipo de lesión"] b').textContent).toBe("Lesión muscular grado 2 A");
+    // Una hoja corta (Lado) no tiene buscador.
+    await tocar(contenedor.querySelector('.selector-hoja[aria-label="Lado"]'));
+    expect(contenedor.querySelector(".hoja-opciones .buscador-hoja")).toBeNull();
+    await tocar(boton(contenedor, "Cancelar"));
+
+    await navegar(contenedor, "Historial");
+    await tocar([...contenedor.querySelectorAll(".cambiar-vista button")].find((b) => b.textContent === "Tabla"));
+    const cabeceras = [...contenedor.querySelectorAll(".lesiones-tabla th")].map((th) => th.textContent);
+    expect(cabeceras.slice(0, 3)).toEqual(["N° de caso", "N° de registro", "Nombre y apellido"]);
+    expect(cabeceras).toHaveLength(35);
+    const fila = contenedor.querySelector(".lesiones-tabla tbody tr");
+    expect(fila.textContent).toContain("HULK");
+    expect(fila.textContent).toContain("Muslo");
+    await tocar(fila);
+    expect(texto(contenedor)).toContain("Caso 1 · 20/09/2026 · Lesionado");
+  });
 });

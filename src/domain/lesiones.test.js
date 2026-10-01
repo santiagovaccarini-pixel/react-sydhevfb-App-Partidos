@@ -47,6 +47,10 @@ describe("el catálogo del Excel", () => {
       });
     });
     expect(OPCIONES.lado.map((opcion) => opcion.etiquetas["pt-BR"])).toEqual(["Direito", "Esquerdo", "Não se aplica"]);
+    expect(OPCIONES.tipo_lesion).toHaveLength(30);
+    expect(OPCIONES.tipo_lesion.at(-1).etiquetas["pt-BR"]).toBe("FADIGA");
+    expect(OPCIONES.musculo_especifico).toHaveLength(38);
+    expect(OPCIONES.musculo_especifico.at(-1).etiquetas["pt-BR"]).toBe("GLÚTEO MÉDIO");
   });
 
   test("sin configuración del club valen los textos del Excel; con ella, los del club", () => {

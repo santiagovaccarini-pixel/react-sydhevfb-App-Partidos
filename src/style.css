@@ -2388,7 +2388,9 @@ button:disabled {
   text-align: center;
 }
 
-.marca-aplicacion .escudo-cam {
+.marca-aplicacion .escudo-cam,
+.marca-aplicacion .escudo-rival,
+.marca-aplicacion .escudo-club.escudo-real {
   width: 69px;
 }
 
@@ -6387,4 +6389,51 @@ button.puesto-cancha {
   font-size: 15px;
   font-weight: 800;
   text-align: center;
+}
+
+/* La hoja de opciones se achica a la pantalla y la lista se desplaza adentro:
+   con muchas opciones (las listas de Lesiones) no puede quedar cortada. Con
+   más de ocho, arriba hay un buscador que acerca lo escrito. */
+.hoja-opciones {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+}
+
+.hoja-opciones .lista-opciones-hoja {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px;
+}
+
+.hoja-opciones .buscador-hoja {
+  flex: 0 0 auto;
+  margin-bottom: 10px;
+}
+
+.hoja-opciones .buscador-hoja input {
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.hoja-opciones .lista-opciones-hoja .sin-resultados {
+  margin: 4px 0;
+  padding: 12px;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+}
+
+.hoja-opciones .boton-cancelar-hoja {
+  flex: 0 0 auto;
 }

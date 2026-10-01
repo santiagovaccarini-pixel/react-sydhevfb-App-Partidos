@@ -136,17 +136,35 @@ const leerFilasConfig = async (equipoId) => {
   return { campos, opciones, error: campos.error || opciones.error };
 };
 
-// La configuración del club. La primera vez, se siembra con el Excel.
+// Lo que el catálogo del Excel tiene y el club todavía no: la primera vez
+// es todo; después, lo que se haya sumado al catálogo. Nunca pisa lo que el
+// club ya cambió (los repetidos se ignoran).
+const completarSemilla = async (equipoId, filas) => {
+  const semilla = filasParaSembrar(equipoId);
+  const campos = new Set((filas.campos.data || []).map((fila) => fila.campo));
+  const opciones = new Set((filas.opciones.data || []).map((fila) => `${fila.campo}|${fila.codigo}`));
+  const camposNuevos = semilla.campos.filter((fila) => !campos.has(fila.campo));
+  const opcionesNuevas = semilla.opciones.filter((fila) => !opciones.has(`${fila.campo}|${fila.codigo}`));
+  if (camposNuevos.length) {
+    const { error } = await supabase.from("lesiones_campos").upsert(camposNuevos, { onConflict: "equipo_id,campo", ignoreDuplicates: true });
+    if (error) return { error };
+  }
+  if (opcionesNuevas.length) {
+    const { error } = await supabase.from("lesiones_opciones").upsert(opcionesNuevas, { onConflict: "equipo_id,campo,codigo", ignoreDuplicates: true });
+    if (error) return { error };
+  }
+  return { error: null, cambios: camposNuevos.length + opcionesNuevas.length };
+};
+
+// La configuración del club. La primera vez se siembra con el Excel; después
+// se completa con lo que se sume al catálogo.
 export const leerConfig = async (equipoId) => {
   if (!equipoId) return { config: armarConfig(), error: "" };
   let filas = await leerFilasConfig(equipoId);
   if (filas.error) return { config: armarConfig(), ...fallo(filas.error, "lesiones.error.noLeer") };
-  if ((filas.campos.data || []).length === 0) {
-    const semilla = filasParaSembrar(equipoId);
-    const sembrado = await supabase.from("lesiones_campos").upsert(semilla.campos, { onConflict: "equipo_id,campo", ignoreDuplicates: true });
-    if (sembrado.error) return { config: armarConfig(), ...fallo(sembrado.error, "lesiones.error.noLeer") };
-    const sembradas = await supabase.from("lesiones_opciones").upsert(semilla.opciones, { onConflict: "equipo_id,campo,codigo", ignoreDuplicates: true });
-    if (sembradas.error) return { config: armarConfig(), ...fallo(sembradas.error, "lesiones.error.noLeer") };
+  const completado = await completarSemilla(equipoId, filas);
+  if (completado.error) return { config: armarConfig(), ...fallo(completado.error, "lesiones.error.noLeer") };
+  if (completado.cambios) {
     filas = await leerFilasConfig(equipoId);
     if (filas.error) return { config: armarConfig(), ...fallo(filas.error, "lesiones.error.noLeer") };
   }

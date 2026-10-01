@@ -176,10 +176,14 @@ de lo hecho está en los commits, no en esta lista.
   con el código de cada opción; cabeceras y listas por club en `lesiones_campos` y
   `lesiones_opciones`, editables desde Ajustes (la app las siembra con el Excel la primera
   vez). La vista `v_lesiones_excel_v1` las devuelve con los textos en portugués para Power
-  Query. Faltan: las listas que el Excel mostró cortadas (tipo de lesión, músculo específico)
-  y las de Imágenes / Recorrência / Recidiva / Médico (Santiago las pasa), exportar/reportes,
-  la foto de la tarjeta del portal (la pasa Santiago), y pasar los datos del jugador
-  (n° de registro, categoría, nacimiento, pie) al editor de jugadores compartido.
+  Query. Tipo de lesión y músculo específico ya están completos; Imágenes, Recorrência,
+  Recidiva y Médico siguen provisorios hasta que llegue el Excel entero (Santiago lo pasa
+  para revisar también qué se calcula solo). Faltan exportar/reportes y pasar los datos del
+  jugador (n° de registro, categoría, nacimiento, pie) al editor de jugadores compartido.
+- Lo que se suma al catálogo (`lesionesCampos.js`) llega solo a los clubes ya sembrados:
+  `leerConfig` completa las cabeceras y opciones que falten sin pisar lo que el club cambió.
+- La hoja de opciones (`HojaOpciones`) se desplaza y, con más de ocho opciones, tiene un
+  buscador que acerca lo escrito. El historial de Lesiones se ve como fichas o como tabla.
 - Regla de oro del 01/10: lo que es igual en otro módulo tiene que ser igual en toda la web
   (escudos descargados con `EscudoDeClub`, el filtro de Registros, fichas con "Ver detalle",
   Ajustes con filas y "Volver a Ajustes").

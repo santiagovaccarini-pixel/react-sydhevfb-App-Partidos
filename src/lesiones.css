@@ -47,7 +47,7 @@
 /* Las otras pantallas: título a la izquierda, globo a la derecha. */
 .lesiones-marco .lesiones-encabezado {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
@@ -277,4 +277,55 @@
   font-size: 13px;
   font-weight: 750;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
+}
+
+/* El botón de cargar, debajo de la principal. */
+.lesiones-marco .lesiones-acciones {
+  margin: 12px 0 4px;
+}
+
+/* La vista de tabla del historial: como la base del Excel, con las columnas
+   en su orden; se desplaza de costado y la cabecera queda fija. */
+.lesiones-marco .lesiones-tabla-marco {
+  max-height: 70vh;
+  margin-top: 4px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+.lesiones-marco .lesiones-tabla {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+.lesiones-marco .lesiones-tabla th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 9px 10px;
+  background: #111827;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.lesiones-marco .lesiones-tabla td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #0f172a;
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lesiones-marco .lesiones-tabla tbody tr {
+  cursor: pointer;
+}
+.lesiones-marco .lesiones-tabla tbody tr:hover td {
+  background: #f8fafc;
 }
