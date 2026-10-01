@@ -11,6 +11,7 @@ const datos = vi.hoisted(() => ({
   cabeceras: [],
   opciones: [],
   config: { campos: {}, listas: {} },
+  equipo: { id: "eq-1", nombre: "Atlético Mineiro" },
 }));
 
 const lesionHulk = () => ({
@@ -26,7 +27,7 @@ const lesionHulk = () => ({
 });
 
 vi.mock("./domain/equipo.js", () => ({
-  leerEquipoElegido: () => ({ id: "eq-1", nombre: "Atlético Mineiro" }),
+  leerEquipoElegido: () => datos.equipo,
   cargarEquipos: async () => ({ equipos: [] }),
   elegirEquipoInicial: () => null,
   guardarEquipoElegido: () => {},
@@ -106,6 +107,7 @@ describe("el módulo Lesiones", () => {
     localStorage.clear();
     datos.lesiones = [lesionHulk()];
     datos.config = { campos: {}, listas: {} };
+    datos.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -387,6 +389,28 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Cancelar"));
     await tocar(botonQueEmpieza(contenedor, "Producto"));
     expect(chip(contenedor, "Oculta")).toBeTruthy();
+  });
+
+  test("quien ya se fue del club ve las lesiones hasta su último día y no puede cambiar nada", async () => {
+    datos.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: "2026-09-25" };
+    await montar();
+    expect(texto(contenedor)).toContain("Dejaste este club el 25/09/2026.");
+    expect(texto(contenedor)).toContain("HULK");
+    expect(boton(contenedor, "Nueva lesión")).toBeUndefined();
+    expect(boton(contenedor, "Alta médica")).toBeUndefined();
+    expect(contenedor.querySelector(".boton-eliminar-registro")).toBeNull();
+    await tocar(boton(contenedor, "Ver detalle"));
+    expect(boton(contenedor, "Editar")).toBeUndefined();
+    expect(boton(contenedor, "Volver")).toBeTruthy();
+
+    await navegar(contenedor, "Base");
+    const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")];
+    expect(cabeceras.every((th) => th.classList.contains("fija"))).toBe(true);
+    expect(boton(contenedor, "Borrar fila")).toBeUndefined();
+
+    await navegar(contenedor, "Ajustes");
+    expect(texto(contenedor)).toContain("Dejaste este club el 25/09/2026.");
+    expect([...contenedor.querySelectorAll(".opcion-ajuste")].every((b) => b.disabled)).toBe(true);
   });
 
   test("la hoja de opciones larga tiene buscador que acerca lo escrito", async () => {

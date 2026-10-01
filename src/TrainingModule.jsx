@@ -76,6 +76,7 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
         onElegirSesion={() => irA("elegir-sesion")}
         onRecargar={entrenamientos.recargarBase}
         onVolverModulos={onVolver}
+        hasta={equipo?.hasta || null}
       />
     ),
     "elegir-sesion": (

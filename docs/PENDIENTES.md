@@ -201,12 +201,62 @@ de lo hecho está en los commits, no en esta lista.
   (escudos descargados con `EscudoDeClub`, el filtro de Registros, fichas con "Ver detalle",
   Ajustes con filas y "Volver a Ajustes").
 - Después de entrar, lo primero es elegir el club (`src/ElegirClub.jsx`); desde el portal se
-  cambia con "Cambiar". Falta la etapa grande de aislamiento por club en la base (RLS por
-  `club_miembros`), que está en el plan del proyecto Control de Carga.
+  cambia con "Cambiar". Solo se ven los clubes en los que se está o se estuvo.
+- **Clubes con fecha de salida (02/10, migración `20261003_club_miembros.sql`, pendiente de
+  correr)**: la tabla `club_miembros` dice quién está en cada club y hasta cuándo. Quien se
+  fue sigue viendo lo cargado hasta su último día (partidos, entrenamientos, lesiones y los
+  jugadores que ya estaban) y no puede agregar ni cambiar nada: lo decide la base con las
+  políticas (`acceso_club`, `puede_ver_fecha`, `puede_editar`), así que vale también para
+  Power Query. La app lo muestra (aviso en cada módulo, botones de carga escondidos, tabla
+  sin edición) leyendo `v_mis_clubes`. El administrador lo maneja desde Cuentas (sumar, dar
+  de baja con el último día, reincorporar); una cuenta recién autorizada queda en el club con
+  el que se está trabajando; quien crea un club queda adentro. Las cuentas autorizadas de hoy
+  quedan en todos los clubes al correr la migración. Límite conocido: un cambio hecho después
+  de la salida sobre una lesión anterior (el alta, por ejemplo) se ve igual, porque la fila es
+  de antes.
 - El idioma se cambia desde el globo arriba a la derecha (puerta, portal, Cuentas, Lesiones y
   Datos básicos). Partido y Flujo diario no lo muestran todavía porque siguen en castellano.
 - El permiso `lesiones` de perfiles lo habilita el administrador desde Cuentas; las cuentas
   admin lo tienen prendido desde la migración.
+
+## Protocolo de lesiones: ninguna regla escrita en código (regla del 02/10)
+
+Regla de Santiago: **ninguna regla del protocolo tiene que quedar escrita en
+código**. Más adelante todo tiene que poder cambiarse desde la app, porque hay
+gente que trabaja con otro protocolo. Las cabeceras y las listas ya se cambian
+desde Ajustes; lo de abajo todavía está fijo en `src/domain/lesiones.js` (y
+repetido en la vista `v_lesiones_excel_v1` para Power Query) y es lo que falta
+mover a una configuración por club:
+
+- Ventanas: recurrencia hasta 60 días y recidiva hasta 30, contados desde el fin
+  de la lesión anterior (alta, o hoy si sigue abierta) hasta el inicio de la nueva.
+- Qué tiene que coincidir: recurrencia = parte + lado + músculo; recidiva = eso
+  más área y músculo específico.
+- Escala de severidad por días de recuperación: registro (menos de 1), leve (1 a
+  4), menor (5 a 7), moderado (8 a 28), mayor (29 o más); solo con alta.
+- Cómo se arma el diagnóstico: tipo + ligamento (o músculo específico) + músculo
+  (o parte) + área + lado.
+- Lado hábil = el lado lesionado es el pie dominante. Edad = años cumplidos a la
+  fecha de la lesión (en Datos básicos, a hoy). N° de registro = enésima lesión
+  del jugador, por n° de caso.
+- Recup 1 = transición − inicio; Recup 2 = retorno al entrenamiento − inicio;
+  recuperación = alta (o hoy) − inicio. Las etapas (lesionado, transición,
+  entrenando, alta) salen de esas fechas; "activa" = sin alta.
+- Validaciones: obligatorios jugador, parte, lado y fecha de inicio; fechas no
+  futuras y posteriores al inicio; no dos lesiones activas en la misma parte y
+  lado (también como restricción `lesiones_sin_solapar` en la base).
+- Los pasos de la carga y qué columna va en cada paso; el grupo de cada columna
+  en la ficha; el aviso al cargar (misma parte y lado, 60 días); horas hasta la
+  imagen manuales.
+
+Plan para moverlo: una tabla `lesiones_protocolo` por club (clave, valor) con
+los valores del Excel como semilla, igual que cabeceras y listas; se edita en
+Ajustes › Protocolo; `leerConfig` la trae junto con lo demás y `calcular`,
+`validarLesion` y el formulario reciben las reglas por contexto en vez de
+constantes; la vista lee las mismas reglas con una función
+`lesiones_regla(equipo, clave)` para que Power Query y la app coincidan; la
+restricción de la base pasa a depender de la regla. Mientras tanto, cada regla
+nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 
 ## Lo que dejó la revisión completa del 30/09
 

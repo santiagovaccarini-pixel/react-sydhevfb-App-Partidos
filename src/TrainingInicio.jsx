@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Icono } from "./components/AppChrome";
+import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import TrainingBloques from "./TrainingApp.jsx";
 import {
   ETIQUETAS_ESTADO_ENTRENAMIENTO,
@@ -32,6 +33,8 @@ export default function TrainingInicio({
   onElegirSesion,
   onRecargar,
   onVolverModulos,
+  // El último día en el club de quien entró, si ya se fue: solo mira.
+  hasta = null,
 }) {
   const [fecha, setFecha] = useState(hoyLocal);
   const [nombre, setNombre] = useState("");
@@ -40,6 +43,7 @@ export default function TrainingInicio({
 
   const resumen = useMemo(() => (actual ? resumenEntrenamiento(actual) : null), [actual]);
   const hayTareas = Boolean(resumen && resumen.tareas > 0);
+  const soloLectura = Boolean(hasta);
   const estadoHero = resumen ? ETIQUETAS_ESTADO_ENTRENAMIENTO[resumen.estado] : "";
 
   const empezar = () => {
@@ -84,7 +88,9 @@ export default function TrainingInicio({
           )}
         </header>
 
-        {actual && (
+        <AvisoSoloLectura hasta={hasta} />
+
+        {actual && !soloLectura && (
           <section className="tarjeta tarjeta-inicio">
             <div className="acciones-inicio">
               <button type="button" className="boton-principal boton-formacion-grande" onClick={onIrATareas}>
@@ -97,7 +103,7 @@ export default function TrainingInicio({
           </section>
         )}
 
-        {actual && hayTareas && (
+        {actual && hayTareas && !soloLectura && (
           <button type="button" className="tarjeta-en-curso" onClick={onIrATareas}>
             <span className="cabecera-en-curso">
               <span className={`pastilla-vivo ${resumen.enCurso ? "" : "sin-empezar"}`}>
@@ -126,6 +132,7 @@ export default function TrainingInicio({
           </button>
         )}
 
+        {!soloLectura && (
         <section className="tarjeta tarjeta-inicio formulario-entrenamiento">
           <div className="cabeza-ficha">
             <b>{actual ? "Otro entrenamiento" : "Nuevo entrenamiento"}</b>
@@ -151,6 +158,7 @@ export default function TrainingInicio({
             </button>
           </div>
         </section>
+        )}
 
         <section className="tarjeta tarjeta-ficha">
           <div className="cabeza-ficha">

@@ -161,13 +161,15 @@ const completarSemilla = async (equipoId, filas) => {
   const opciones = new Set((filas.opciones.data || []).map((fila) => `${fila.campo}|${fila.codigo}`));
   const camposNuevos = semilla.campos.filter((fila) => !campos.has(fila.campo));
   const opcionesNuevas = semilla.opciones.filter((fila) => !opciones.has(`${fila.campo}|${fila.codigo}`));
+  // Si no se puede sembrar (quien ya se fue del club no escribe), se sigue
+  // con lo que haya: para lo que falte valen los textos del Excel.
   if (camposNuevos.length) {
     const { error } = await supabase.from("lesiones_campos").upsert(camposNuevos, { onConflict: "equipo_id,campo", ignoreDuplicates: true });
-    if (error) return { error };
+    if (error) return { error: null, cambios: 0 };
   }
   if (opcionesNuevas.length) {
     const { error } = await supabase.from("lesiones_opciones").upsert(opcionesNuevas, { onConflict: "equipo_id,campo,codigo", ignoreDuplicates: true });
-    if (error) return { error };
+    if (error) return { error: null, cambios: 0 };
   }
   return { error: null, cambios: camposNuevos.length + opcionesNuevas.length };
 };

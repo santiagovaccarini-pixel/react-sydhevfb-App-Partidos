@@ -5,7 +5,10 @@ import PortalApp, { Portada, TIEMPOS_PORTADA, fotoDePortada, lugarEnPantalla } f
 
 // El equipo elegido y la cuenta que entró, cambiables por prueba (vi.mock se
 // iza: van con hoisted).
-const equipo = vi.hoisted(() => ({ actual: { id: "eq-1", nombre: "Atlético Mineiro" } }));
+const equipo = vi.hoisted(() => ({
+  actual: { id: "eq-1", nombre: "Atlético Mineiro" },
+  lista: [{ id: "eq-1", nombre: "Atlético Mineiro" }, { id: "eq-2", nombre: "Cruzeiro" }],
+}));
 const cuenta = vi.hoisted(() => ({
   email: "dt@club.com",
   userId: "u1",
@@ -39,7 +42,7 @@ vi.mock("./domain/equipo.js", () => ({
   guardarEquipoElegido: (elegido) => {
     equipo.actual = elegido;
   },
-  cargarEquipos: async () => ({ equipos: [{ id: "eq-1", nombre: "Atlético Mineiro" }, { id: "eq-2", nombre: "Cruzeiro" }] }),
+  cargarEquipos: async () => ({ equipos: equipo.lista }),
   crearEquipo: async (nombre) => ({ equipo: { id: "eq-nuevo", nombre } }),
   esElCam: (nombre) => nombre === "Atlético Mineiro",
 }));
@@ -54,6 +57,7 @@ describe("el portal", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro" };
+    equipo.lista = [{ id: "eq-1", nombre: "Atlético Mineiro" }, { id: "eq-2", nombre: "Cruzeiro" }];
     cuenta.permisos = { partido: true, flujo: true, admin: false };
     cuenta.cerrarSesion = vi.fn();
     contenedor = document.createElement("div");
@@ -111,6 +115,32 @@ describe("el portal", () => {
     expect(contenedor.querySelector(".datos-de-prueba")).not.toBeNull();
     await act(async () => contenedor.querySelector(".datos-de-prueba button").click());
     expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(3);
+  });
+
+  test("quien ya se fue del club lo ve marcado en el portal y al elegir club; sin membresía no se elige", async () => {
+    equipo.lista = [
+      { id: "eq-1", nombre: "Atlético Mineiro", hasta: "2026-09-25", miembro: true },
+      { id: "eq-2", nombre: "Cruzeiro", hasta: null, miembro: false },
+    ];
+    await montar();
+    await act(async () => Promise.resolve());
+    // Al volver al portal se relee la membresía y queda guardada en el celular.
+    expect(equipo.actual).toMatchObject({ id: "eq-1", hasta: "2026-09-25" });
+    expect(contenedor.querySelector(".portal-club-hasta").textContent).toBe("Hasta el 25/09/2026 · solo lectura");
+
+    await act(async () => contenedor.querySelector(".portal-cambiar-club").click());
+    const opciones = [...contenedor.querySelectorAll(".elegir-club-opcion")];
+    expect(opciones.map((boton) => boton.querySelector(".elegir-club-detalle")?.textContent)).toEqual(["Hasta el 25/09/2026 · solo lectura", "No estás en este club"]);
+    expect(opciones[0].disabled).toBe(false);
+    expect(opciones[1].disabled).toBe(true);
+  });
+
+  test("si el administrador sacó a la cuenta del club, al volver al portal hay que elegir otro", async () => {
+    equipo.lista = [{ id: "eq-2", nombre: "Cruzeiro" }];
+    await montar();
+    await act(async () => Promise.resolve());
+    expect(equipo.actual).toBeNull();
+    expect(contenedor.querySelector("h1").textContent).toBe("¿Con qué club trabajás?");
   });
 
   test("sin club elegido, lo primero es elegir el club; después aparece el portal con ese club", async () => {
