@@ -18,6 +18,13 @@ vi.mock("./App", () => ({
 }));
 vi.mock("./TrainingModule", () => ({ default: () => <div className="flujo-de-prueba">Flujo de prueba</div> }));
 vi.mock("./AccessGate.jsx", () => ({
+  PantallaAcceso: ({ titulo, texto, children }) => (
+    <main className="training-access-page">
+      <h1>{titulo}</h1>
+      <p>{texto}</p>
+      {children}
+    </main>
+  ),
   default: ({ children }) => (
     <div className="puerta-de-prueba">
       {children({ email: cuenta.email, userId: cuenta.userId, permisos: cuenta.permisos, cerrarSesion: cuenta.cerrarSesion })}
@@ -27,7 +34,15 @@ vi.mock("./AccessGate.jsx", () => ({
 vi.mock("./OpenFieldSession.jsx", () => ({
   default: ({ children }) => <div className="acceso-de-prueba">{typeof children === "function" ? children({ rol: "usuario" }) : children}</div>,
 }));
-vi.mock("./domain/equipo.js", () => ({ leerEquipoElegido: () => equipo.actual }));
+vi.mock("./domain/equipo.js", () => ({
+  leerEquipoElegido: () => equipo.actual,
+  guardarEquipoElegido: (elegido) => {
+    equipo.actual = elegido;
+  },
+  cargarEquipos: async () => ({ equipos: [{ id: "eq-1", nombre: "Atlético Mineiro" }, { id: "eq-2", nombre: "Cruzeiro" }] }),
+  crearEquipo: async (nombre) => ({ equipo: { id: "eq-nuevo", nombre } }),
+  esElCam: (nombre) => nombre === "Atlético Mineiro",
+}));
 vi.mock("./CuentasAdmin.jsx", () => ({ default: ({ onVolver }) => <div className="cuentas-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
 vi.mock("./domain/perfilesDb.js", () => ({ contarPendientes: async () => 2 }));
 
@@ -71,7 +86,7 @@ describe("el portal", () => {
     expect(contenedor.querySelector(".portal-cuenta-correo").textContent).toBe("dt@club.com");
     await act(async () => contenedor.querySelector(".portal-salir").click());
     expect(cuenta.cerrarSesion).toHaveBeenCalledTimes(1);
-    expect(contenedor.querySelector(".portal-kicker").textContent).toBe("Atlético Mineiro");
+    expect(contenedor.querySelector(".portal-kicker").textContent).toContain("Atlético Mineiro");
     expect(contenedor.querySelector('button[aria-label="Entrar a Partido"]')).not.toBeNull();
     expect(contenedor.querySelector('button[aria-label="Entrar a Flujo diario"]')).not.toBeNull();
     // Cada tarjeta lleva su foto y su ícono arriba a la izquierda.
@@ -81,12 +96,24 @@ describe("el portal", () => {
     expect(portada()).toBeNull();
   });
 
-  test("sin equipo elegido no muestra el renglón del equipo", async () => {
+  test("sin club elegido, lo primero es elegir el club; después aparece el portal con ese club", async () => {
     equipo.actual = null;
     await montar();
+    await act(async () => Promise.resolve());
 
-    expect(contenedor.querySelector(".portal-kicker")).toBeNull();
+    expect(contenedor.querySelector(".portal-encabezado")).toBeNull();
+    expect(contenedor.querySelector("h1").textContent).toBe("¿Con qué club trabajás?");
+    const opciones = [...contenedor.querySelectorAll(".elegir-club-opcion")];
+    expect(opciones.map((boton) => boton.querySelector(".elegir-club-nombre").textContent)).toEqual(["Atlético Mineiro", "Cruzeiro"]);
+
+    await act(async () => opciones[1].click());
+    expect(equipo.actual).toEqual({ id: "eq-2", nombre: "Cruzeiro" });
+    expect(contenedor.querySelector(".portal-kicker").textContent).toContain("Cruzeiro");
     expect(contenedor.querySelector(".portal-encabezado h1").textContent).toBe("¿Qué vas a hacer hoy?");
+
+    // Desde el portal se puede volver a elegir.
+    await act(async () => contenedor.querySelector(".portal-cambiar-club").click());
+    expect(contenedor.querySelector("h1").textContent).toBe("¿Con qué club trabajás?");
   });
 
   test("al tocar Partido muestra la portada con su foto y entra sin la intro", async () => {

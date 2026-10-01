@@ -81,3 +81,9 @@ export const historialDeLesion = async (id) => {
   if (error) return { cambios: [], ...fallo(error, "lesiones.error.noLeer") };
   return { cambios: data || [], error: "" };
 };
+
+export const borrarLesion = async (id) => {
+  const { error } = await supabase.from("lesiones").delete().eq("id", id);
+  if (error) return fallo(error, "lesiones.error.noBorrar");
+  return { error: "" };
+};
