@@ -9,7 +9,7 @@ import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
 import { CAMPOS_DE_ESTRUCTURA, ElegirEstructura, ElegirZona, vistaPara } from "./components/MapaCorporal.jsx";
-import { regionDe } from "./domain/mapaCorporal.js";
+import { estructurasQueNoSonDe, regionDe } from "./domain/mapaCorporal.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import {
   calcular,
@@ -123,8 +123,10 @@ export default function Lesiones({ onVolver }) {
   const [pasoMaximo, setPasoMaximo] = useState(0);
   const [errorFormulario, setErrorFormulario] = useState("");
   const [busquedaJugador, setBusquedaJugador] = useState("");
-  // Los pasos donde se eligió cargar de la lista en vez de con la figura.
+  // Los pasos donde se eligió cargar de la lista en vez de con la figura, y
+  // desde dónde se mira la figura (de frente o de espaldas).
   const [deLaLista, setDeLaLista] = useState({});
+  const [vistaCuerpo, setVistaCuerpo] = useState("frente");
 
   // Hojas: elegir de una lista (como los desplegables de Partido), dar el
   // alta, borrar.
@@ -317,6 +319,7 @@ export default function Lesiones({ onVolver }) {
     setErrorFormulario("");
     setBusquedaJugador("");
     setDeLaLista({});
+    setVistaCuerpo("frente");
     setSeccionFicha(null);
     setPaso(0);
     setPasoMaximo(0);
@@ -329,6 +332,7 @@ export default function Lesiones({ onVolver }) {
     const delGrupo = pasos.findIndex((unPaso) => unPaso.id === grupo);
     setErrorFormulario("");
     setDeLaLista({});
+    setVistaCuerpo(vistaPara(lesion.datos?.parte_cuerpo));
     setPaso(delGrupo >= 0 ? delGrupo : Math.min(1, pasos.length - 1));
     setPasoMaximo(pasos.length - 1);
     setFormulario({ ...lesion, datos: { ...(lesion.datos || {}) } });
@@ -1066,7 +1070,7 @@ export default function Lesiones({ onVolver }) {
   // ------------------------------------------------- La carga por pasos --
 
   const campoDelPaso = (campo, lesion) => {
-    const cambiar = (valor) => setFormulario((actual) => conValor(actual, campo.clave, valor));
+    const cambiar = (valor) => setFormulario((actual) => conCambios(actual, { [campo.clave]: valor }));
     const rotulo = etiqueta(campo.clave);
     const valor = valorDe(lesion, campo.clave);
     const opcional = !campo.obligatorio ? <em className="lesiones-opcional">{t("lesiones.pasos.opcional")}</em> : null;
@@ -1223,8 +1227,16 @@ export default function Lesiones({ onVolver }) {
     );
   };
 
-  const cambiarVarios = (cambios) =>
-    setFormulario((actual) => Object.entries(cambios).reduce((acumulada, [clave, valor]) => conValor(acumulada, clave, valor), actual));
+  // Los cambios de la carga. Si cambia la parte del cuerpo, lo que el mapa sabe
+  // que era de la parte anterior (músculo, ligamento, área) se borra.
+  const conCambios = (actual, cambios) => {
+    const aplicar = (lesion, pares) => Object.entries(pares).reduce((acumulada, [clave, valor]) => conValor(acumulada, clave, valor), lesion);
+    const nueva = aplicar(actual, cambios);
+    const parte = cambios.parte_cuerpo;
+    if (!parte || parte === actual.datos?.parte_cuerpo) return nueva;
+    return aplicar(nueva, estructurasQueNoSonDe(parte, nueva.datos || {}));
+  };
+  const cambiarVarios = (cambios) => setFormulario((actual) => conCambios(actual, cambios));
 
   // "Otro…" en la figura: la lista entera de esa columna, con su buscador.
   const abrirLista = (clave, lesion) =>
@@ -1248,6 +1260,8 @@ export default function Lesiones({ onVolver }) {
         lados={opciones("lado")}
         textoDeOpcion={textoDeOpcion}
         onCambiar={cambiarVarios}
+        vista={vistaCuerpo}
+        onVista={setVistaCuerpo}
       />
     </div>
   );
@@ -1258,6 +1272,7 @@ export default function Lesiones({ onVolver }) {
       key="estructura"
       parte={lesion.datos.parte_cuerpo}
       lado={lesion.datos?.lado || null}
+      vista={vistaCuerpo}
       valores={Object.fromEntries(CAMPOS_DE_ESTRUCTURA.map((clave) => [clave, valorDe(lesion, clave)]))}
       opciones={opciones}
       visible={(clave) => !campoOculto(clave, config)}

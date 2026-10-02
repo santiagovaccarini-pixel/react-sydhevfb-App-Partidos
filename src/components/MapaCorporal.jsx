@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { FiguraCuerpo } from "./FiguraCuerpo.jsx";
-import { AREAS_POR_TERCIO, especificosDe, estructurasDe, regionDe, regionPorClave, tercioDeArea } from "../domain/mapaCorporal.js";
+import { AREAS_POR_TERCIO, especificoQueNoEsDe, especificosDe, estructurasDe, regionDe, regionPorClave, tercioDeArea } from "../domain/mapaCorporal.js";
 import { t } from "../idioma/index.js";
 
 // La carga de una lesión con el cuerpo, de lo grande a lo chico:
@@ -44,15 +44,34 @@ const Chips = ({ opciones, elegida, onElegir, extra = null }) => (
 
 // parte, lado: lo cargado. partes: los códigos de parte del cuerpo que el
 // club tiene a la vista. lados: [{ valor, etiqueta }]. onCambiar recibe lo
-// que cambia ({ parte_cuerpo, lado }).
-export const ElegirZona = ({ parte, lado, partes, lados, textoDeOpcion, onCambiar }) => {
-  const [vista, setVista] = useState(() => vistaPara(parte));
+// que cambia ({ parte_cuerpo, lado }). vista y onVista (si se pasan) dejan
+// la figura de frente o de espaldas en manos de quien la usa, para que el
+// paso siguiente sepa desde dónde se eligió.
+export const ElegirZona = ({ parte, lado, partes, lados, textoDeOpcion, onCambiar, vista: vistaDeAfuera, onVista }) => {
+  const [vistaPropia, setVistaPropia] = useState(() => vistaPara(parte));
+  const vista = vistaDeAfuera || vistaPropia;
+  const setVista = (cual) => (onVista ? onVista(cual) : setVistaPropia(cual));
   const [region, setRegion] = useState(() => (parte ? regionDe(parte, lado) : null));
   const actual = region ? regionPorClave(region) : null;
   const regionElegida = parte ? regionDe(parte, lado) : null;
   const nombreDeRegion = (clave) => t(`lesiones.cuerpo.regiones.${clave}`);
   const nombreDeParte = (codigo) => textoDeOpcion("parte_cuerpo", codigo);
-  const delMedio = regionElegida && !regionPorClave(regionElegida)?.lado;
+  // El lado se elige a mano en las partes del medio, y también cuando la
+  // figura no puede decirlo (una parte que agregó el club, o un lado que no
+  // es derecho ni izquierdo).
+  const ladoAMano = Boolean(parte) && (!regionElegida || !regionPorClave(regionElegida)?.lado);
+  // Elegida una zona, el foco va a sus partes (el botón tocado desaparece).
+  const lista = useRef(null);
+  const enfocarLista = useRef(false);
+  const acercar = (clave) => {
+    enfocarLista.current = true;
+    setRegion(clave);
+  };
+  useEffect(() => {
+    if (!enfocarLista.current) return;
+    enfocarLista.current = false;
+    lista.current?.querySelector("button")?.focus({ preventScroll: true });
+  }, [region]);
 
   const elegirParte = (codigo, enRegion) => {
     const nueva = regionPorClave(enRegion);
@@ -118,14 +137,14 @@ export const ElegirZona = ({ parte, lado, partes, lados, textoDeOpcion, onCambia
             disponibles={partes}
             nombreDeRegion={nombreDeRegion}
             nombreDeParte={nombreDeParte}
-            onRegion={setRegion}
+            onRegion={acercar}
             onParte={elegirParte}
             etiquetas={etiquetasDeLaFigura()}
           />
           {!actual && <p className="mapa-cuerpo-ayuda">{t("lesiones.cuerpo.tocaZona")}</p>}
         </div>
         {actual && (
-          <ul className="mapa-cuerpo-partes" aria-label={nombreDeRegion(actual.clave)}>
+          <ul className="mapa-cuerpo-partes" aria-label={nombreDeRegion(actual.clave)} ref={lista}>
             {actual.partes
               .filter((codigo) => partes.includes(codigo))
               .map((codigo) => {
@@ -145,7 +164,7 @@ export const ElegirZona = ({ parte, lado, partes, lados, textoDeOpcion, onCambia
 
       {parte && (
         <div className="mapa-cuerpo-elegido">
-          {delMedio ? (
+          {ladoAMano ? (
             <>
               <p className="rotulo-criterio">{t("lesiones.cuerpo.queLado", { parte: nombreDeParte(parte) })}</p>
               <Chips opciones={lados} elegida={lado} onElegir={(valor) => onCambiar({ lado: valor })} />
@@ -170,28 +189,42 @@ export const CAMPOS_DE_ESTRUCTURA = ["musculo", "musculo_especifico", "ligamento
 // lo cargado; opciones(campo): las del club a la vista; visible(campo): si
 // la columna se muestra; onCambiar(cambios); onOtro(campo): elegir de la
 // lista entera.
-export const ElegirEstructura = ({ parte, lado, valores, opciones, visible, etiqueta, textoDeOpcion, onCambiar, onOtro }) => {
+export const ElegirEstructura = ({ parte, lado, vista = null, valores, opciones, visible, etiqueta, textoDeOpcion, onCambiar, onOtro }) => {
   const [tercio, setTercio] = useState(() => tercioDeArea(valores.area));
   const delClub = (campo, codigos) => {
     const aLaVista = opciones(campo);
     return codigos.map((codigo) => aLaVista.find((opcion) => opcion.valor === codigo)).filter(Boolean);
   };
-  const mapa = estructurasDe(parte, { vista: vistaPara(parte) });
+  // De espaldas, lo de atrás primero (si la zona se eligió de espaldas). Una
+  // parte que solo se ve de un lado se muestra siempre de ese lado.
+  const deUnSoloLado = SOLO_DE_ESPALDAS.includes(parte) || SOLO_DE_FRENTE.includes(parte);
+  const vistaDeLaParte = deUnSoloLado ? vistaPara(parte) : vista || vistaPara(parte);
+  const mapa = estructurasDe(parte, { vista: vistaDeLaParte });
+  // El grupo cargado filtra los músculos solo si su columna se ve.
+  const grupo = visible("musculo") ? valores.musculo : null;
   const listas = {
     musculo: delClub("musculo", mapa.musculos),
-    musculo_especifico: delClub("musculo_especifico", especificosDe(parte, valores.musculo)),
+    musculo_especifico: delClub("musculo_especifico", especificosDe(parte, grupo)),
     ligamento: delClub("ligamento", mapa.ligamentos),
     area: tercio ? delClub("area", AREAS_POR_TERCIO[tercio] || []) : [],
   };
 
   // Un músculo específico que en esta parte es de un solo grupo completa el
-  // grupo si estaba vacío (como se carga en el Excel).
+  // grupo si estaba vacío (como se carga en el Excel), si esa columna y ese
+  // grupo están a la vista en el club.
   const elegirEspecifico = (codigo) => {
     const cambios = { musculo_especifico: codigo };
-    if (codigo && !valores.musculo) {
-      const grupos = mapa.musculos.filter((grupo) => especificosDe(parte, grupo).includes(codigo));
-      if (grupos.length === 1) cambios.musculo = grupos[0];
+    if (codigo && !valores.musculo && visible("musculo")) {
+      const grupos = listas.musculo.filter((opcion) => especificosDe(parte, opcion.valor).includes(codigo));
+      if (grupos.length === 1) cambios.musculo = grupos[0].valor;
     }
+    onCambiar(cambios);
+  };
+
+  // Otro grupo: el músculo específico de otro grupo de esta parte ya no vale.
+  const elegirGrupo = (valor) => {
+    const cambios = { musculo: valor };
+    if (especificoQueNoEsDe(parte, valor, valores.musculo_especifico)) cambios.musculo_especifico = null;
     onCambiar(cambios);
   };
 
@@ -240,7 +273,7 @@ export const ElegirEstructura = ({ parte, lado, valores, opciones, visible, etiq
     <div className="mapa-cuerpo mapa-cuerpo-estructura">
       <div className="mapa-cuerpo-ubicacion">
         <div className="mapa-cuerpo-panel">
-          <FiguraCuerpo chica vista={vistaPara(parte)} elegida={{ parte, region: regionDe(parte, lado) }} etiquetas={{ figura: conLado }} />
+          <FiguraCuerpo chica vista={vistaDeLaParte} elegida={{ parte, region: regionDe(parte, lado) }} etiquetas={{ figura: conLado }} />
         </div>
         <div>
           <p className="rotulo-criterio">{t("lesiones.cuerpo.ubicacion")}</p>
@@ -249,7 +282,7 @@ export const ElegirEstructura = ({ parte, lado, valores, opciones, visible, etiq
         </div>
       </div>
 
-      {seccion("musculo", listas.musculo, (valor) => onCambiar({ musculo: valor }))}
+      {seccion("musculo", listas.musculo, elegirGrupo)}
       {seccion("musculo_especifico", listas.musculo_especifico, elegirEspecifico)}
       {seccion("ligamento", listas.ligamento, (valor) => onCambiar({ ligamento: valor }))}
 

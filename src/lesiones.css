@@ -831,6 +831,7 @@
 }
 .figura-cuerpo-region.apagada {
   opacity: 0.2;
+  pointer-events: none;
 }
 .figura-cuerpo-region.activa .figura-cuerpo-pieza {
   fill: #94a3b8;

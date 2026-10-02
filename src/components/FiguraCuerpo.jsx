@@ -91,7 +91,9 @@ export const FiguraCuerpo = ({
   const piezas = piezasDeLaFigura(vista);
   const zoom = zoomA(piezas, region);
   const sePuede = (pieza) => !disponibles || disponibles.includes(pieza.parte);
-  const regiones = [...new Set(piezas.map((pieza) => pieza.region))];
+  // La región acercada se dibuja al final, encima de las otras (que se
+  // enciman en los bordes al agrandar).
+  const regiones = [...new Set(piezas.map((pieza) => pieza.region))].sort((a, b) => (a === region) - (b === region));
   const tocar = (accion) => (evento) => {
     if (evento.type === "keydown" && evento.key !== "Enter" && evento.key !== " ") return;
     evento.preventDefault();
@@ -106,8 +108,9 @@ export const FiguraCuerpo = ({
             const suyas = piezas.filter((pieza) => pieza.region === clave);
             const activa = region === clave;
             const tocable = !chica && suyas.some(sePuede);
-            // Sin región elegida, la región entera es un botón.
-            const comoRegion = tocable && onRegion && !activa;
+            // Sin región elegida, la región entera es un botón. Con una
+            // acercada, las otras quedan de fondo: no se tocan.
+            const comoRegion = tocable && onRegion && !region;
             return (
               <g
                 key={clave}

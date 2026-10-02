@@ -28,7 +28,8 @@ export const ESTRUCTURAS = {
   coluna_lombar: { musculos: { psoas_iliaco: ["psoas"], dorsal: [] }, ligamentos: [] },
   ombro: { musculos: { deltoide: [], peitoral: ["peitoral_maior"], "": ["manguito_rotador"] }, ligamentos: [] },
   braco: { musculos: { biceps: [], triceps_braquial: [] }, ligamentos: [] },
-  cotovelo: { musculos: {}, ligamentos: [] },
+  // En el codo se insertan los tendones distales del bíceps y del tríceps.
+  cotovelo: { musculos: { biceps: [], triceps_braquial: [] }, ligamentos: [] },
   antebraco: { musculos: {}, ligamentos: [] },
   punho: { musculos: {}, ligamentos: [] },
   mao: { musculos: {}, ligamentos: [] },
@@ -118,11 +119,13 @@ const unicos = (lista) => [...new Set(lista)];
 export const regionPorClave = (clave) => REGIONES.find((region) => region.clave === clave) || null;
 
 // En qué región de la figura está una parte del cuerpo con su lado: el brazo
-// o la pierna de ese lado, o la del medio (cabeza y tronco).
+// o la pierna de ese lado, o la del medio (cabeza y tronco). Una parte de un
+// brazo o una pierna sin lado derecho o izquierdo no está en ninguna (null):
+// no se sabe cuál dibujar.
 export const regionDe = (parte, lado) => {
   const candidatas = REGIONES.filter((region) => region.partes.includes(parte));
   if (candidatas.length <= 1) return candidatas[0]?.clave || null;
-  return (candidatas.find((region) => region.lado === lado) || candidatas[0]).clave;
+  return candidatas.find((region) => region.lado === lado)?.clave || null;
 };
 
 // Lo que se ofrece en una parte, en orden: de espaldas, lo de atrás primero.
@@ -148,3 +151,35 @@ export const especificosDe = (parte, grupo) => {
 // El tercio de un área ("proximal", "medio", "distal" o "general"), o null
 // si es una opción que el mapa no conoce.
 export const tercioDeArea = (codigo) => Object.entries(AREAS_POR_TERCIO).find(([, areas]) => areas.includes(codigo))?.[0] || null;
+
+// Todo lo que el mapa conoce, para saber qué es de otra parte del cuerpo.
+const CONOCIDOS = {
+  musculo: new Set(Object.values(ESTRUCTURAS).flatMap((mapa) => Object.keys(mapa.musculos).filter(Boolean))),
+  musculo_especifico: new Set(Object.values(ESTRUCTURAS).flatMap((mapa) => Object.values(mapa.musculos).flat())),
+  ligamento: new Set(Object.values(ESTRUCTURAS).flatMap((mapa) => mapa.ligamentos)),
+};
+
+// Al cambiar de parte del cuerpo, lo cargado que el mapa sabe que es de otra
+// parte ya no vale y se borra ({ campo: null }); lo que el mapa no conoce (una
+// opción que agregó el club) queda. El área es de un músculo: si el músculo
+// se borra y no queda ninguno, se borra también.
+export const estructurasQueNoSonDe = (parte, valores = {}) => {
+  const deLaParte = estructurasDe(parte);
+  const tiene = { musculo: deLaParte.musculos, musculo_especifico: deLaParte.especificos, ligamento: deLaParte.ligamentos };
+  const cambios = {};
+  Object.keys(tiene).forEach((campo) => {
+    const valor = valores[campo];
+    if (valor && CONOCIDOS[campo].has(valor) && !tiene[campo].includes(valor)) cambios[campo] = null;
+  });
+  const quedaMusculo = ["musculo", "musculo_especifico"].some((campo) => valores[campo] && !(campo in cambios));
+  if (valores.area && ("musculo" in cambios || "musculo_especifico" in cambios) && !quedaMusculo) cambios.area = null;
+  return cambios;
+};
+
+// Al cambiar de grupo muscular, un músculo específico que el mapa conoce en
+// esa parte pero que no es de ese grupo se borra.
+export const especificoQueNoEsDe = (parte, grupo, especifico) => {
+  if (!grupo || !especifico) return false;
+  const deLaParte = estructurasDe(parte).especificos;
+  return deLaParte.includes(especifico) && !especificosDe(parte, grupo).includes(especifico);
+};
