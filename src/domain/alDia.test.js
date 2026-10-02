@@ -108,6 +108,21 @@ describe("quien ya se fue del club lee la foto, no las tablas", () => {
     expect(localStorage.getItem(`plantel_jugadores:${UNO}`)).toBeNull();
   });
 
+  test("si la foto no se puede leer, el plantel queda vacío: nada de la copia del celular", async () => {
+    localStorage.setItem(`plantel_jugadores:${UNO}`, JSON.stringify([{ id: 9, nombre: "NUEVO", roles: [], puestos: [] }]));
+    doble.error = { message: "Failed to fetch" };
+    const { plantel } = await cargarPlantel(UNO);
+    expect(plantel).toEqual([]);
+    expect(pidioTabla()).toBe(false);
+  });
+
+  test("la lista con chalecos, si falla, avisa sin el error crudo", async () => {
+    doble.error = { message: "Could not find the function public.datos_al_dia" };
+    const { plantel, error } = await cargarPlantelConCatapult(UNO);
+    expect(plantel).toEqual([]);
+    expect(error).toBe("No se pudo leer la lista de jugadores de este club. Probá de nuevo en un rato.");
+  });
+
   test("la lista con chalecos de Flujo diario, también de la foto", async () => {
     const { plantel, error } = await cargarPlantelConCatapult(UNO);
     expect(error).toBe("");

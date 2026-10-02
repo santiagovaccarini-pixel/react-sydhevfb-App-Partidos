@@ -173,7 +173,11 @@ export default function TrainingInicio({
           </div>
 
           {estadoBase === "error" && (
-            <p className="pista-equipo">Sin conexión con la base. Se muestran los guardados en este aparato.</p>
+            <p className="pista-equipo">
+              {soloLectura
+                ? "No se pudieron leer los entrenamientos de este club. Probá de nuevo con Actualizar."
+                : "Sin conexión con la base. Se muestran los guardados en este aparato."}
+            </p>
           )}
           {aviso && <p className="error-equipo">{aviso}</p>}
 

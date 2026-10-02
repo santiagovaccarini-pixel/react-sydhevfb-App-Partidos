@@ -9,13 +9,17 @@
 --   · datos_al_dia(tabla, club): lo que la cuenta puede ver de ese club. A
 --     quien sigue en el club, como está hoy; a quien se fue, la foto de su
 --     último día. Pide el módulo de la tabla (Partido, Flujo diario,
---     Lesiones; el plantel, cualquier membresía).
+--     Lesiones; el plantel, cualquier membresía). Una fila que se pasó a
+--     otro club deja de estar en la foto del anterior desde ese día.
 --   · Las tablas solo se leen directo estando en el club: quien se fue lee
 --     únicamente la foto.
---   · equipos.zona_horaria: dónde termina el día de cada club.
+--   · equipos.zona_horaria: dónde termina el día de cada club. Tiene que ser
+--     una zona que exista (se controla) y desde la app no se cambia: desde la
+--     app, de un club solo se cambia el nombre.
 --
--- Lo que ya estaba cargado arranca con una versión del día en que se creó
--- (las lesiones, con toda su historia). Requiere 20261004_cuentas_v2.sql.
+-- Lo que ya estaba cargado arranca así: las lesiones, con toda su historia;
+-- partidos y jugadores, desde el día en que se crearon; entrenamientos,
+-- desde su último cambio. Requiere 20261004_cuentas_v2.sql.
 -- Se corre en Supabase > SQL Editor, entero y de una vez. Se puede volver a
 -- correr.
 -- =====================================================================
@@ -34,7 +38,38 @@ alter table public.equipos
   add column if not exists zona_horaria text not null default 'America/Sao_Paulo';
 
 comment on column public.equipos.zona_horaria is
-  'Zona horaria del club (IANA): dónde termina su día para la foto de quien se va.';
+  'Zona horaria del club (IANA, como America/Sao_Paulo): dónde termina su día para la foto de quien se va.';
+
+-- La zona tiene que existir: una mal escrita no puede entrar.
+create or replace function public.equipos_validar_zona()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' then
+    if new.zona_horaria is not distinct from old.zona_horaria then
+      return new;
+    end if;
+  end if;
+  if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = new.zona_horaria) then
+    raise exception 'zona_horaria_invalida'
+      using errcode = 'P0001',
+            hint = 'Tiene que ser un nombre como America/Sao_Paulo o America/Argentina/Buenos_Aires.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists equipos_validar_zona on public.equipos;
+create trigger equipos_validar_zona
+  before insert or update of zona_horaria on public.equipos
+  for each row execute function public.equipos_validar_zona();
+
+-- Desde la app, de un club solo se cambia el nombre. La zona horaria (y lo
+-- que se sume) se cambia desde acá.
+revoke update on table public.equipos from authenticated;
+grant update (nombre) on table public.equipos to authenticated;
 
 -- ------------------------------------------------------- Las versiones --
 
@@ -57,19 +92,37 @@ create index if not exists versiones_por_fila on public.versiones_datos (tabla, 
 alter table public.versiones_datos enable row level security;
 revoke all on table public.versiones_datos from anon, authenticated;
 
--- El día de una fecha en la zona del club.
-create or replace function public.dia_del_club(p_equipo uuid, p_cuando timestamptz)
-returns date
-language sql
+-- Reemplazada por zona_del_club (una versión anterior de este archivo).
+drop function if exists public.dia_del_club(uuid, timestamptz);
+
+-- La zona del club, siempre una que existe (si no, la de siempre): así nada
+-- de esto puede frenar la carga de datos.
+create or replace function public.zona_del_club(p_equipo uuid)
+returns text
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select (p_cuando at time zone coalesce((select e.zona_horaria from public.equipos e where e.id = p_equipo), 'America/Sao_Paulo'))::date;
+declare
+  v_zona text;
+begin
+  select e.zona_horaria into v_zona from public.equipos e where e.id = p_equipo;
+  if v_zona is null then
+    return 'America/Sao_Paulo';
+  end if;
+  begin
+    perform now() at time zone v_zona;
+    return v_zona;
+  exception when others then
+    return 'America/Sao_Paulo';
+  end;
+end;
 $$;
 
--- Anota la versión: si la fila ya tiene una de hoy, la pisa (una por día
--- alcanza, la foto es de fin del día); si no, suma otra.
+-- Anota la versión. Una por fila y por día: si la última es de hoy, del
+-- mismo club y la fila no estaba borrada, se pisa (la foto es la del final
+-- del día); si no, se suma otra.
 create or replace function public.anotar_version()
 returns trigger
 language plpgsql
@@ -77,10 +130,13 @@ security definer
 set search_path = ''
 as $$
 declare
+  -- text y no name (como tg_table_name): así la búsqueda usa el índice.
+  v_tabla text := tg_table_name;
   v_fila jsonb;
   v_accion text;
   v_id text;
   v_equipo uuid;
+  v_zona text;
   v_ultima public.versiones_datos;
 begin
   if tg_op = 'DELETE' then
@@ -89,34 +145,41 @@ begin
   else
     v_fila := to_jsonb(new);
     v_accion := case when tg_op = 'INSERT' then 'creada' else 'editada' end;
-    if tg_op = 'UPDATE' and to_jsonb(old) = v_fila then
-      return new;
+    if tg_op = 'UPDATE' then
+      if to_jsonb(old) = v_fila then
+        return new;
+      end if;
     end if;
   end if;
   v_id := v_fila ->> 'id';
   v_equipo := nullif(v_fila ->> 'equipo_id', '')::uuid;
+  v_zona := public.zona_del_club(v_equipo);
 
   select * into v_ultima
     from public.versiones_datos v
-   where v.tabla = tg_table_name and v.fila_id = v_id
+   where v.tabla = v_tabla and v.fila_id = v_id
    order by v.cuando desc, v.id desc
    limit 1;
 
   if v_ultima.id is not null
      and v_ultima.accion <> 'borrada'
-     and public.dia_del_club(v_equipo, v_ultima.cuando) = public.dia_del_club(v_equipo, now()) then
+     and v_ultima.equipo_id is not distinct from v_equipo
+     and (v_ultima.cuando at time zone v_zona)::date = (now() at time zone v_zona)::date then
     update public.versiones_datos
        set fila = v_fila,
-           equipo_id = v_equipo,
            cuando = now(),
-           accion = case when v_accion = 'borrada' then 'borrada' when v_ultima.accion = 'creada' then 'creada' else v_accion end
+           accion = case when v_accion = 'borrada' then 'borrada'
+                         when v_ultima.accion = 'creada' then 'creada'
+                         else v_accion end
      where id = v_ultima.id;
   else
     insert into public.versiones_datos (tabla, fila_id, equipo_id, accion, fila)
-    values (tg_table_name, v_id, v_equipo, v_accion, v_fila);
+    values (v_tabla, v_id, v_equipo, v_accion, v_fila);
   end if;
 
-  if tg_op = 'DELETE' then return old; end if;
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
   return new;
 end;
 $$;
@@ -136,24 +199,40 @@ create trigger anotar_version after insert or update or delete on public.lesione
 
 -- --------------------------------------------- Lo que ya estaba cargado --
 
--- Lesiones: toda su historia (la tabla lesiones_historial la tiene completa).
+-- Lesiones: toda su historia (lesiones_historial la tiene completa), en orden.
 insert into public.versiones_datos (tabla, fila_id, equipo_id, accion, fila, cuando)
 select 'lesiones', h.lesion_id::text,
        nullif(coalesce(h.despues, h.antes) ->> 'equipo_id', '')::uuid,
        h.accion, coalesce(h.despues, h.antes), h.cuando
   from public.lesiones_historial h
- where not exists (select 1 from public.versiones_datos v where v.tabla = 'lesiones' and v.fila_id = h.lesion_id::text);
+ where not exists (select 1 from public.versiones_datos v where v.tabla = 'lesiones' and v.fila_id = h.lesion_id::text)
+ order by h.cuando, h.id;
 
--- El resto: una versión del día en que se creó cada fila, con lo que tiene hoy.
--- Sin fecha de creación cuenta como de hoy: así nunca aparece en la foto de
--- alguien que se fue antes.
-insert into public.versiones_datos (tabla, fila_id, equipo_id, accion, fila, cuando)
-select 'registros_partido', r.id::text, r.equipo_id, 'creada', to_jsonb(r), coalesce(r.created_at, now())
-  from public.registros_partido r
- where not exists (select 1 from public.versiones_datos v where v.tabla = 'registros_partido' and v.fila_id = r.id::text);
+-- El resto: una versión con lo que cada fila tiene hoy. Partidos y jugadores
+-- cuentan desde el día en que se crearon. Los entrenamientos, desde su último
+-- cambio: a quien se fue antes de ese cambio no le aparecen, en vez de
+-- aparecerle con lo de después. Sin fecha conocida, cuentan desde hoy.
+
+-- registros_partido viene de antes de las migraciones: se mira si tiene la
+-- fecha de creación antes de usarla.
+do $$
+declare
+  v_desde text := 'null::timestamptz';
+begin
+  if exists (select 1 from information_schema.columns c
+              where c.table_schema = 'public' and c.table_name = 'registros_partido' and c.column_name = 'created_at') then
+    v_desde := 'r.created_at';
+  end if;
+  execute format($sql$
+    insert into public.versiones_datos (tabla, fila_id, equipo_id, accion, fila, cuando)
+    select 'registros_partido', r.id::text, r.equipo_id, 'creada', to_jsonb(r), coalesce(%s, now())
+      from public.registros_partido r
+     where not exists (select 1 from public.versiones_datos v where v.tabla = 'registros_partido' and v.fila_id = r.id::text)
+  $sql$, v_desde);
+end $$;
 
 insert into public.versiones_datos (tabla, fila_id, equipo_id, accion, fila, cuando)
-select 'entrenamientos', e.id::text, e.equipo_id, 'creada', to_jsonb(e), coalesce(e.creado_en, now())
+select 'entrenamientos', e.id::text, e.equipo_id, 'creada', to_jsonb(e), coalesce(greatest(e.creado_en, e.actualizado_en), now())
   from public.entrenamientos e
  where not exists (select 1 from public.versiones_datos v where v.tabla = 'entrenamientos' and v.fila_id = e.id::text);
 
@@ -162,8 +241,9 @@ select 'jugadores', j.id::text, j.equipo_id, 'creada', to_jsonb(j), coalesce(j.c
   from public.jugadores j
  where not exists (select 1 from public.versiones_datos v where v.tabla = 'jugadores' and v.fila_id = j.id::text);
 
+-- Lesiones sin historia (no debería haber): desde su último cambio.
 insert into public.versiones_datos (tabla, fila_id, equipo_id, accion, fila, cuando)
-select 'lesiones', l.id::text, l.equipo_id, 'creada', to_jsonb(l), coalesce(l.creado_en, now())
+select 'lesiones', l.id::text, l.equipo_id, 'creada', to_jsonb(l), coalesce(greatest(l.creado_en, l.actualizado_en), now())
   from public.lesiones l
  where not exists (select 1 from public.versiones_datos v where v.tabla = 'lesiones' and v.fila_id = l.id::text);
 
@@ -197,25 +277,30 @@ begin
   if v_hasta = 'infinity'::date then
     v_corte := 'infinity'::timestamptz;
   else
-    v_corte := ((v_hasta + 1)::timestamp at time zone
-                coalesce((select e.zona_horaria from public.equipos e where e.id = p_equipo), 'America/Sao_Paulo'));
+    v_corte := (v_hasta + 1)::timestamp at time zone public.zona_del_club(p_equipo);
   end if;
-  -- Lo más nuevo primero: si la respuesta se corta (la API devuelve hasta
-  -- 1000 filas), lo que queda afuera es lo más viejo.
+  -- La última versión de cada fila antes del corte, sea del club que sea: si
+  -- para entonces la fila ya se había pasado a otro club, no va. Lo más nuevo
+  -- primero: si la respuesta se corta (la API devuelve hasta 1000 filas), lo
+  -- que queda afuera es lo más viejo.
   return query
     select x.fila
-      from (select distinct on (v.fila_id) v.fila, v.accion, v.cuando
+      from (select distinct on (v.fila_id) v.fila, v.accion, v.cuando, v.equipo_id
               from public.versiones_datos v
-             where v.tabla = p_tabla and v.equipo_id = p_equipo and v.cuando < v_corte
+             where v.tabla = p_tabla
+               and v.cuando < v_corte
+               and v.fila_id in (select w.fila_id from public.versiones_datos w
+                                  where w.tabla = p_tabla and w.equipo_id = p_equipo and w.cuando < v_corte)
              order by v.fila_id, v.cuando desc, v.id desc) x
      where x.accion <> 'borrada'
+       and x.equipo_id = p_equipo
      order by x.cuando desc;
 end;
 $$;
 
 revoke execute on function public.datos_al_dia(text, uuid) from public, anon;
 grant execute on function public.datos_al_dia(text, uuid) to authenticated;
-revoke execute on function public.anotar_version(), public.dia_del_club(uuid, timestamptz) from public, anon, authenticated;
+revoke execute on function public.anotar_version(), public.zona_del_club(uuid), public.equipos_validar_zona() from public, anon, authenticated;
 
 -- ------------------------------------- Las tablas, solo estando adentro --
 

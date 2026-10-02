@@ -397,4 +397,44 @@ select pruebas.esperar('El partido repetido es por club', (select count(*) from 
 insert into registros_partido (fecha, rival, equipo_id) values ('2026-02-10', 'Rival A', '00000000-0000-0000-0000-0000000000c2');
 select pruebas.debe_fallar('...pero en el mismo club no se repite', $$insert into registros_partido (fecha, rival, equipo_id) values ('2026-02-10', 'rival a ', '00000000-0000-0000-0000-0000000000c2')$$, 'duplicate key');
 
+-- ---------------------------------------------- La zona horaria del club --
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.debe_fallar('Un admin de club no cambia la zona horaria', $$update equipos set zona_horaria = 'Etc/GMT+12' where id = '00000000-0000-0000-0000-0000000000c1'$$, 'permission denied');
+select pruebas.esperar('...pero sí el nombre', pruebas.filas($$update equipos set nombre = 'Club Uno' where id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+
+select pruebas.debe_fallar('Una zona que no existe no entra', $$update equipos set zona_horaria = 'Hora/Mala' where id = '00000000-0000-0000-0000-0000000000c1'$$, 'zona_horaria_invalida');
+select pruebas.debe_fallar('...ni en un club nuevo', $$insert into equipos (nombre, zona_horaria) values ('Club Cuatro', 'Hora/Mala')$$, 'zona_horaria_invalida');
+select pruebas.esperar('Una que existe, sí', pruebas.filas($$update equipos set zona_horaria = 'America/Argentina/Buenos_Aires' where id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+
+-- Si igual quedara una mala (a mano, salteando el control), cargar no se frena.
+alter table equipos disable trigger equipos_validar_zona;
+update equipos set zona_horaria = 'Hora/Mala' where id = '00000000-0000-0000-0000-0000000000c1';
+alter table equipos enable trigger equipos_validar_zona;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Con la zona rota, Beto igual guarda un cambio', pruebas.filas($$update registros_partido set resultado = '4-1' where rival = 'Rival A' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('...y la foto se sigue armando', (select count(*) from datos_al_dia('registros_partido', :C1)), (select count(*) from registros_partido where equipo_id = :C1));
+reset role;
+alter table equipos disable trigger equipos_validar_zona;
+update equipos set zona_horaria = 'America/Sao_Paulo' where id = '00000000-0000-0000-0000-0000000000c1';
+alter table equipos enable trigger equipos_validar_zona;
+
+-- --------------------------------------- Una fila que se pasa a otro club --
+
+-- Beto cambia el resultado de Rival B hoy y después (a mano: la app no mueve
+-- filas) el partido pasa a Dos el mismo día.
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto corrige Rival B', pruebas.filas($$update registros_partido set resultado = '1-1' where rival = 'Rival B' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+update registros_partido set equipo_id = '00000000-0000-0000-0000-0000000000c2' where rival = 'Rival B' and equipo_id = '00000000-0000-0000-0000-0000000000c1';
+select pruebas.esperar('El cambio de club es otra versión: no pisa la de Uno', (select count(*) from versiones_datos where tabla = 'registros_partido' and fila ->> 'rival' = 'Rival B'), 3);
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('En la foto de Uno ya no está', (select count(*) from datos_al_dia('registros_partido', :C1) f where f ->> 'rival' = 'Rival B'), 0);
+select pruebas.esperar('...y la foto coincide con la tabla', (select count(*) from datos_al_dia('registros_partido', :C1)), (select count(*) from registros_partido where equipo_id = :C1));
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('En la de Dos, sí, con el resultado corregido', (select f ->> 'resultado' from datos_al_dia('registros_partido', :C2) f where f ->> 'rival' = 'Rival B'), '1-1');
+reset role;
+
 select 'ESCENARIOS: todos bien' as resultado;

@@ -391,14 +391,25 @@ migraciones versionadas en `supabase/migrations`.
     Pegar (no había nada que se pudiera cambiar) ni la ficha el historial de cambios.
 - Arreglo de paso: en Flujo diario, cada club ve solo sus entrenamientos aunque el
   celular tenga guardados los de otro club de la misma cuenta.
-- Lo que ya estaba cargado arranca con una versión del día en que se creó; las lesiones,
-  con toda su historia. Por eso, para filas viejas de partidos, entrenamientos y
-  jugadores que se editaron **antes** de correr la migración, la foto muestra cómo están
-  hoy (no hay forma de saber cómo estaban). De la migración en adelante es exacto.
+- Lo que ya estaba cargado arranca así: las lesiones, con toda su historia; partidos y
+  jugadores, desde el día en que se crearon; entrenamientos, desde su último cambio. Ver
+  "Limitaciones conocidas". De la migración en adelante es exacto.
+- La zona horaria del club (`equipos.zona_horaria`) tiene que existir (la base la
+  controla) y desde la app no se cambia: desde la app, de un club solo se cambia el
+  nombre. Si igual quedara una mala, la carga de datos no se frena (usa la de siempre).
+- Una fila que se pasa a otro club deja de estar en la foto del anterior desde ese día.
+- Las migraciones 20261003 y 20261004 se niegan a correr si ya está corrida una
+  posterior (desharían lo nuevo). Se comprueba en `supabase/pruebas/correr.sh`.
+- Guardar sigue siendo rápido con mucha historia: con 400.000 versiones, guardar una
+  fila tarda entre 0,5 y 2 ms (sin el ajuste del índice eran 18 a 38 ms).
 - Escenarios nuevos en `supabase/pruebas/escenarios.sql`: la foto de quien se fue
   (partido de las 23:30 de su último día sí, el de las 00:30 del día siguiente no), un
   resultado cambiado y un partido borrado después de su salida, sin el módulo, cuenta
-  pendiente y bloqueada, reincorporación.
+  pendiente y bloqueada, reincorporación, zona horaria (no la cambia un admin de club,
+  una inválida no entra, una rota no frena la carga) y un partido que pasa a otro club.
+- Orden para ponerlo en producción: primero se une el cambio (la app se publica sola) y
+  enseguida se corre la migración. Mientras tanto nadie se ve afectado: todavía no hay
+  nadie dado de baja en la base.
 
 **Lo que sigue en cuentas:**
 - Zona horaria del club editable desde la app (hoy queda America/Sao_Paulo; se cambia
@@ -494,9 +505,15 @@ arreglar, de menor a mayor esfuerzo:
 
 ## Limitaciones conocidas, que no son deudas
 
-- La **foto al día de salida** de filas viejas: partidos, entrenamientos y jugadores
-  que se editaron antes de correr `20261005_foto_al_dia.sql` aparecen como están hoy.
-  Las versiones se guardan desde esa migración; antes no había de dónde sacarlas.
+- La **foto al día de salida** de filas viejas (las versiones se guardan desde
+  `20261005_foto_al_dia.sql`; antes no había de dónde sacarlas):
+  - partidos y jugadores editados antes de la migración aparecen como están hoy;
+  - un entrenamiento editado antes de la migración aparece recién desde ese cambio: a
+    quien se fue antes no le aparece (mejor eso que mostrarle lo de después).
+- Para quien se fue, las cabeceras y listas de Lesiones y el nombre del club se ven como
+  están hoy (son la configuración del club, no datos).
+- Mientras se mira un club del que ya se fue, Flujo diario no sube nada pendiente, ni
+  siquiera de otro club: sube al volver a un club donde sigue.
 
 - Un partido guardado **sin formación cargada** no puede decir quién fue titular.
   En la vista de jugador aparece solo si el nombre figura en algún cambio. No es
