@@ -70,7 +70,11 @@ export const VistaAnatomica = ({ pieza, region, vista, capa = "superficie", titu
               ))}
               <g clipPath={`url(#${id}-${clave})`}>
                 {encima.map((estructura) => (
-                  <path key={estructura.clave} d={estructura.camino} className={`figura-anatomia-${estructura.tipo} apagada encima`} />
+                  <path
+                    key={estructura.clave}
+                    d={estructura.camino}
+                    className={`figura-anatomia-${estructura.tipo} ${estadoDe(estructura, clave) === "elegida" ? "elegida" : "apagada"} encima`}
+                  />
                 ))}
                 {deLaCapa.map((estructura) => (
                   <Estructura key={estructura.clave} estructura={estructura} region={clave} estado={estadoDe(estructura, clave)} nombre={nombreDe(estructura)} onTocar={onTocar} />

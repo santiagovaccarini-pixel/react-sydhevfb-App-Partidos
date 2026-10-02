@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FiguraCuerpo } from "./FiguraCuerpo.jsx";
 import { EsquemaAnatomico, VistaAnatomica } from "./FiguraAnatomica.jsx";
-import { ESQUEMAS, cajaDeParte, esquemasDe, estructurasDe } from "./anatomiaCuerpo.js";
+import { ESQUEMAS, cajaDeParte, esProfundo, esquemasDe, estructurasDe } from "./anatomiaCuerpo.js";
 import { ORDEN_DE_REGIONES, espejadaEn } from "./siluetaCuerpo.js";
 import { DE_ESPALDAS_PRIMERO, PARTES, REGIONES, TERCIOS, regionPorClave } from "../domain/mapaCorporal.js";
 import { t } from "../idioma/index.js";
@@ -219,7 +219,12 @@ const LADOS_DE_UN_LADO = ["direito", "esquerdo"];
 // opciones(campo): las del club a la vista; visible(campo): si la columna
 // se muestra; mapa: el del club; onCambiar(cambios).
 export const ElegirEstructura = ({ parte, lado, vista = null, valores, opciones, visible, mapa, etiqueta, textoDeOpcion, onCambiar }) => {
-  const [capa, setCapa] = useState("superficie");
+  // Con un músculo profundo elegido, la figura muestra los profundos (al
+  // volver al paso, al editar, o al elegirlo en los botones de abajo).
+  const [capa, setCapa] = useState(() => (esProfundo(valores.musculo_especifico) ? "profunda" : "superficie"));
+  useEffect(() => {
+    if (esProfundo(valores.musculo_especifico)) setCapa("profunda");
+  }, [valores.musculo_especifico]);
   const region = mapa.regionDe(parte, lado);
   const pieza = mapa.piezaDe(parte, region) || parte;
   const delClub = (campo, codigos) => {
@@ -249,16 +254,16 @@ export const ElegirEstructura = ({ parte, lado, vista = null, valores, opciones,
 
   // Un músculo específico que en esta parte es de un solo grupo completa el
   // grupo si estaba vacío (como se carga en el Excel), si esa columna y ese
-  // grupo están a la vista en el club. Si es de otro grupo (se tocó en la
-  // figura), pasa a su grupo, o queda sin grupo si no se sabe cuál.
+  // grupo están a la vista en el club. Si no está entre los del grupo
+  // elegido (se tocó en la figura uno de otro grupo), pasa a su grupo, o queda
+  // sin grupo si no se sabe cuál.
   const cambiosDeEspecifico = (codigo) => {
     const cambios = { musculo_especifico: codigo };
     if (codigo && visible("musculo")) {
-      const suyos = mapa.gruposDe(parte, codigo);
-      const aLaVista = suyos.filter((uno) => listas.musculo.some((opcion) => opcion.valor === uno));
+      const aLaVista = mapa.gruposDe(parte, codigo).filter((uno) => listas.musculo.some((opcion) => opcion.valor === uno));
       if (!valores.musculo) {
         if (aLaVista.length === 1) cambios.musculo = aLaVista[0];
-      } else if (!suyos.includes(valores.musculo)) {
+      } else if (!mapa.especificosDe(parte, valores.musculo).includes(codigo)) {
         cambios.musculo = aLaVista.length === 1 ? aLaVista[0] : null;
       }
     }
@@ -299,7 +304,7 @@ export const ElegirEstructura = ({ parte, lado, vista = null, valores, opciones,
     const delLado = Boolean(ladoDeLaParte) || !suLado || !LADOS_DE_UN_LADO.includes(lado) || suLado === lado;
     if (!delLado) return "";
     if (valores[estructura.campo] === estructura.codigo) return "elegida";
-    if (estructura.campo === "musculo_especifico" && grupo && mapa.especificosDe(parte, grupo).includes(estructura.codigo)) return "del-grupo";
+    if (estructura.campo === "musculo_especifico" && grupo && mapa.gruposDe(parte, estructura.codigo).includes(grupo)) return "del-grupo";
     return "";
   };
   const tocarEnLaFigura = (estructura, enRegion) => {

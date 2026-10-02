@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ESQUEMAS, cajaDeParte, codigosDibujados, esquemasDe, estructurasDe } from "./anatomiaCuerpo.js";
+import { ESQUEMAS, cajaDeParte, codigosDibujados, esProfundo, esquemasDe, estructurasDe } from "./anatomiaCuerpo.js";
 import { ALTO, ANCHO, ORDEN_DE_REGIONES } from "./siluetaCuerpo.js";
 import { OPCIONES } from "../domain/lesionesCampos.js";
 import { PARTES, crearMapa } from "../domain/mapaCorporal.js";
@@ -64,6 +64,9 @@ describe("los músculos, tendones y ligamentos de la figura", () => {
       ["adutor_curto", "gluteo_minimo", "obliquo_interno", "obturador_externo", "obturador_interno", "peitoral_menor", "piriforme", "vasto_intermedio"],
     );
     profundos.forEach((una) => expect(una.campo).toBe("musculo_especifico"));
+    expect(esProfundo("piriforme")).toBe(true);
+    expect(esProfundo("reto_femoral")).toBe(false);
+    expect(esProfundo(null)).toBe(false);
   });
 
   test("cada parte se ve de cerca, espejada del otro lado", () => {
@@ -76,7 +79,7 @@ describe("los músculos, tendones y ligamentos de la figura", () => {
 
   test("los esquemas: rodilla, tobillo por fuera y por dentro, y planta del pie, con sus rótulos en los dos idiomas", () => {
     expect(esquemasDe("joelho")).toEqual(["rodilla"]);
-    expect(esquemasDe("tornozelo_pe")).toEqual(["tobilloAfuera", "tobilloAdentro"]);
+    expect(esquemasDe("tornozelo_pe")).toEqual(["tobilloAfuera", "tobilloAdentro", "planta"]);
     expect(esquemasDe("pe_dedo")).toEqual(["planta"]);
     expect(esquemasDe("coxa")).toEqual([]);
     Object.entries(ESQUEMAS).forEach(([cual, esquema]) => {

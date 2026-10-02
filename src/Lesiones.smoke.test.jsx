@@ -444,6 +444,14 @@ describe("el módulo Lesiones", () => {
     await tocar(chip(contenedor, "Profundos"));
     await tocarFigura(enLaFigura(contenedor, "vasto_intermedio"));
     expect(chip(contenedor, "Vasto intermedio").getAttribute("aria-pressed")).toBe("true");
+    // Con uno de encima elegido, en "Profundos" se ve verde (como sombra).
+    await tocar(chip(contenedor, "Recto femoral"));
+    expect(contenedor.querySelector(".mapa-cuerpo-anatomia path.encima.elegida")).toBeTruthy();
+    // Y elegido abajo uno profundo, la figura pasa sola a los profundos.
+    await tocar(chip(contenedor, "Superficiales"));
+    await tocar(chip(contenedor, "Vasto intermedio"));
+    expect(chip(contenedor, "Profundos").getAttribute("aria-pressed")).toBe("true");
+    expect(pintadas(contenedor, "elegida")).toContain("vasto_intermedio");
     for (let i = 0; i < 3; i++) await siguiente(contenedor); // eslint-disable-line no-await-in-loop
     await tocar(boton(contenedor, "Guardar la lesión"));
     await act(async () => Promise.resolve());
@@ -479,6 +487,28 @@ describe("el módulo Lesiones", () => {
     await tocarFigura(enLaFigura(contenedor, "obliquo_externo", '[data-lado="esquerdo"]'));
     expect(contenedor.querySelector(".mapa-cuerpo-ubicacion b").textContent).toBe("Abdomen · Izquierdo");
     expect(chip(contenedor, "Oblicuo externo").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  test("en el tronco, con el lado en «No se aplica», tocar un lado no lo cambia", async () => {
+    await montar();
+    await irAEstructura(contenedor, "tronco", "Abdomen", "No se aplica");
+    await tocarFigura(enLaFigura(contenedor, "obliquo_externo", '[data-lado="esquerdo"]'));
+    expect(contenedor.querySelector(".mapa-cuerpo-ubicacion b").textContent).toBe("Abdomen");
+    expect(pintadas(contenedor, "elegida")).toEqual(["obliquo_externo", "obliquo_externo"]);
+  });
+
+  test("un músculo que agregó el club, elegido abajo, no le cambia el grupo", async () => {
+    const op = (codigo, es) => ({ codigo, etiquetas: { "es-AR": es, "pt-BR": "" }, oculto: false, orden: 99 });
+    const conLasDelExcel = (campo, ...agregadas) => [...OPCIONES[campo].map((opcion, orden) => ({ ...opcion, oculto: false, orden })), ...agregadas];
+    datos.config = { campos: {}, listas: { musculo_especifico: conLasDelExcel("musculo_especifico", op("recto_proximal_x", "Recto femoral proximal")) } };
+    await montar();
+    await irAEstructura(contenedor, "pierna_derecha", "Muslo");
+    await tocar(chip(contenedor, "Cuádriceps"));
+    await tocar(chip(contenedor, "Recto femoral proximal"));
+    expect(chip(contenedor, "Recto femoral proximal").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(contenedor, "Cuádriceps").getAttribute("aria-pressed")).toBe("true");
+    // Lo del grupo se pinta suave solo si de verdad es del grupo.
+    expect(pintadas(contenedor, "del-grupo")).not.toContain("semitendinoso");
   });
 
   test("con una columna escondida, lo suyo no se toca en la figura", async () => {

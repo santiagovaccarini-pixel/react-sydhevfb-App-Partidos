@@ -298,10 +298,16 @@ export const ESQUEMAS = {
 // Los esquemas que se muestran de cada parte del cuerpo.
 const ESQUEMAS_DE_PARTE = {
   joelho: ["rodilla"],
-  tornozelo_pe: ["tobilloAfuera", "tobilloAdentro"],
+  tornozelo_pe: ["tobilloAfuera", "tobilloAdentro", "planta"],
   pe_dedo: ["planta"],
 };
 export const esquemasDe = (pieza) => ESQUEMAS_DE_PARTE[pieza] || [];
+
+// Si un músculo específico se dibuja en la capa profunda.
+const PROFUNDOS = new Set(
+  ["frente", "espalda"].flatMap((vista) => [...PIERNA[vista], ...TRONCO[vista].mitad].filter((una) => una.capa === "profunda").map((una) => una.codigo)),
+);
+export const esProfundo = (codigo) => PROFUNDOS.has(codigo);
 
 // Todos los códigos dibujados, por columna.
 export const codigosDibujados = () => {

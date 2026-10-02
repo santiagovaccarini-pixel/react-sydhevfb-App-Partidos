@@ -331,7 +331,10 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   piriforme, obturadores, pectoral menor, oblicuo interno) están en "Profundos". Las opciones
   que son combinaciones (por ejemplo, "ligamento lateral externo anterior / medio") y las
   variantes del tendón conjunto se eligen con los botones de abajo. Las que agrega un club
-  todavía no tienen dibujo: se eligen con los botones.
+  todavía no tienen dibujo: se eligen con los botones. Los tendones que el catálogo no tiene
+  como opción propia (el del bíceps femoral, el del semitendinoso, los del bíceps y el
+  tríceps) están dibujados en blanco pero eligen su músculo; la parte del músculo (por
+  ejemplo, "Distal – tendón libre") va en el área.
 - **Los informes** (lo siguiente que pidió Santiago).
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
   la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa

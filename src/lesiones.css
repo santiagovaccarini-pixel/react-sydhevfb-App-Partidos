@@ -989,15 +989,17 @@
 .figura-anatomia-ligamento.apagada {
   fill: #2c4a5e;
 }
-/* Con los profundos a la vista, lo de encima queda como sombra. */
-.figura-anatomia .apagada.encima {
+/* Con los profundos a la vista, lo de encima queda como sombra (lo elegido,
+   verde). */
+.figura-anatomia .encima {
   opacity: 0.4;
+  pointer-events: none;
 }
 .figura-anatomia-tocable {
   cursor: pointer;
 }
 @media (hover: hover) {
-  .figura-anatomia-tocable:hover > path:first-of-type {
+  .figura-anatomia-tocable:hover > path:first-of-type:not(.elegida) {
     fill: #4ade80;
   }
 }
