@@ -179,3 +179,181 @@
   color: #64748b;
   text-align: center;
 }
+
+/* La fila de los grupos (como la del Excel arriba de las cabeceras). Cada
+   grupo tiene su tono, y sus cabeceras llevan una línea del mismo tono. */
+.tabla-datos-tabla thead tr.tabla-datos-grupos th {
+  height: 28px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-align: left;
+  cursor: default;
+  touch-action: auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.tabla-datos-tabla thead tr.tabla-datos-grupos th.sin-grupo {
+  background: #111827;
+}
+
+.tabla-datos-tabla.con-grupos thead tr.tabla-datos-cabeceras th {
+  top: 28px;
+}
+
+.tabla-datos-tabla thead tr.tabla-datos-grupos th.tono-0 { background: #1e3a5f; }
+.tabla-datos-tabla thead tr.tabla-datos-grupos th.tono-1 { background: #3f2a5c; }
+.tabla-datos-tabla thead tr.tabla-datos-grupos th.tono-2 { background: #1f4d3a; }
+.tabla-datos-tabla thead tr.tabla-datos-grupos th.tono-3 { background: #5c3a1e; }
+.tabla-datos-tabla thead tr.tabla-datos-grupos th.tono-4 { background: #5c1f3a; }
+.tabla-datos-tabla thead tr.tabla-datos-grupos th.tono-5 { background: #1f4a4d; }
+.tabla-datos-tabla thead tr.tabla-datos-grupos th.tono-6 { background: #4d4a1f; }
+
+.tabla-datos-tabla thead tr.tabla-datos-cabeceras th.tono-0 { box-shadow: inset 0 3px 0 #3b82f6; }
+.tabla-datos-tabla thead tr.tabla-datos-cabeceras th.tono-1 { box-shadow: inset 0 3px 0 #a78bfa; }
+.tabla-datos-tabla thead tr.tabla-datos-cabeceras th.tono-2 { box-shadow: inset 0 3px 0 #34d399; }
+.tabla-datos-tabla thead tr.tabla-datos-cabeceras th.tono-3 { box-shadow: inset 0 3px 0 #fb923c; }
+.tabla-datos-tabla thead tr.tabla-datos-cabeceras th.tono-4 { box-shadow: inset 0 3px 0 #f472b6; }
+.tabla-datos-tabla thead tr.tabla-datos-cabeceras th.tono-5 { box-shadow: inset 0 3px 0 #2dd4bf; }
+.tabla-datos-tabla thead tr.tabla-datos-cabeceras th.tono-6 { box-shadow: inset 0 3px 0 #facc15; }
+
+.tabla-datos-tabla thead tr.tabla-datos-cabeceras th.destino {
+  box-shadow: inset 4px 0 0 #16a34a;
+}
+
+/* Cada cabecera: el nombre y su botón de filtro. */
+.tabla-datos-cabecera {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tabla-datos-filtro {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 22px;
+  height: 22px;
+  margin: -4px -4px -4px 0;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+.tabla-datos-filtro:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.tabla-datos-filtro.activo {
+  background: #16a34a;
+  color: #fff;
+}
+
+.tabla-datos-flecha {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.tabla-datos-quitar-filtros {
+  color: #166534;
+}
+
+/* La hoja del filtro de una columna. */
+.tabla-datos-filtro-cuerpo {
+  display: grid;
+  gap: 10px;
+}
+
+.tabla-datos-orden {
+  margin: 0;
+}
+
+.tabla-datos-buscar-valor {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.tabla-datos-todos {
+  display: flex;
+  gap: 8px;
+}
+
+.tabla-datos-todos button {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tabla-datos-valores {
+  max-height: 40vh;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  list-style: none;
+}
+
+.tabla-datos-valores li + li {
+  border-top: 1px solid #f1f5f9;
+}
+
+.tabla-datos-valores label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: #0f172a;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tabla-datos-valores input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: #16a34a;
+}
+
+.tabla-datos-valores label span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tabla-datos-valores label span.vacias {
+  color: #64748b;
+  font-style: italic;
+}
+
+.tabla-datos-valores small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tabla-datos-sin-valores {
+  padding: 12px;
+  color: #64748b;
+  font-size: 13px;
+}

@@ -151,3 +151,83 @@ export const aplicarPegado = (matriz, { filas, columnas, filaInicial, columnaIni
   });
   return { cambios, ignoradas };
 };
+
+// ------------------------------------------------ Filtros y orden --
+// Como el filtro de las cabeceras de Excel: cada columna filtrada deja pasar
+// las filas cuyo texto está entre los elegidos. Las celdas vacías cuentan
+// como un valor más ("").
+
+const textoDeCelda = (fila, clave) => String(fila?.textos?.[clave] ?? "").trim();
+
+// Los valores distintos de una columna, con cuántas filas tiene cada uno, en
+// orden alfabético (las vacías al final).
+export const valoresDeColumna = (filas, clave) => {
+  const cuentas = new Map();
+  filas.forEach((fila) => {
+    const texto = textoDeCelda(fila, clave);
+    cuentas.set(texto, (cuentas.get(texto) || 0) + 1);
+  });
+  return [...cuentas.entries()]
+    .map(([texto, cantidad]) => ({ texto, cantidad }))
+    .sort((a, b) => {
+      if (!a.texto) return 1;
+      if (!b.texto) return -1;
+      return a.texto.localeCompare(b.texto, "es", { numeric: true, sensitivity: "base" });
+    });
+};
+
+// filtros: { clave: [textos elegidos] }. Una columna sin entrada no filtra.
+// `salvo` deja afuera una columna (para armar su propia lista de valores con
+// lo que dejan pasar las demás, como Excel).
+export const filtrarFilas = (filas, filtros = {}, { salvo = null } = {}) => {
+  const activos = Object.entries(filtros).filter(([clave, elegidos]) => clave !== salvo && Array.isArray(elegidos));
+  if (activos.length === 0) return filas;
+  const conjuntos = activos.map(([clave, elegidos]) => [clave, new Set(elegidos)]);
+  return filas.filter((fila) => conjuntos.every(([clave, elegidos]) => elegidos.has(textoDeCelda(fila, clave))));
+};
+
+const esFechaISO = (valor) => typeof valor === "string" && /^\d{4}-\d{2}-\d{2}/.test(valor);
+
+// Para ordenar: el valor guardado si es un número o una fecha; si no, el texto.
+const claveDeOrden = (fila, clave) => {
+  const valor = fila?.valores?.[clave];
+  if (typeof valor === "number" && Number.isFinite(valor)) return { tipo: "numero", valor };
+  if (esFechaISO(valor)) return { tipo: "fecha", valor };
+  const texto = textoDeCelda(fila, clave);
+  return texto ? { tipo: "texto", valor: texto } : null;
+};
+
+// orden: { clave, sentido: "asc" | "desc" }. Las vacías siempre al final.
+export const ordenarFilas = (filas, orden) => {
+  if (!orden?.clave) return filas;
+  const signo = orden.sentido === "desc" ? -1 : 1;
+  return filas
+    .map((fila, indice) => ({ fila, indice, clave: claveDeOrden(fila, orden.clave) }))
+    .sort((a, b) => {
+      if (!a.clave && !b.clave) return a.indice - b.indice;
+      if (!a.clave) return 1;
+      if (!b.clave) return -1;
+      let comparacion;
+      if (a.clave.tipo === "numero" && b.clave.tipo === "numero") comparacion = a.clave.valor - b.clave.valor;
+      else if (a.clave.tipo === "fecha" && b.clave.tipo === "fecha") comparacion = a.clave.valor.localeCompare(b.clave.valor);
+      else comparacion = String(a.clave.valor).localeCompare(String(b.clave.valor), "es", { numeric: true, sensitivity: "base" });
+      return comparacion * signo || a.indice - b.indice;
+    })
+    .map(({ fila }) => fila);
+};
+
+// Las columnas en tramos de un mismo grupo seguido (la fila de arriba de las
+// cabeceras). Si se mueve una columna a otro lado, su grupo se parte.
+export const tramosDeGrupos = (columnas) => {
+  const tramos = [];
+  columnas.forEach((columna, indice) => {
+    const grupo = columna.grupo || "";
+    const ultimo = tramos[tramos.length - 1];
+    if (ultimo && ultimo.grupo === grupo) {
+      ultimo.cantidad += 1;
+    } else {
+      tramos.push({ grupo, titulo: columna.grupoTitulo || "", desde: indice, cantidad: 1 });
+    }
+  });
+  return tramos;
+};

@@ -284,52 +284,6 @@
   margin: 12px 0 4px;
 }
 
-/* La vista de tabla del historial: como la base del Excel, con las columnas
-   en su orden; se desplaza de costado y la cabecera queda fija. */
-.lesiones-marco .lesiones-tabla-marco {
-  max-height: 70vh;
-  margin-top: 4px;
-  overflow: auto;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-}
-.lesiones-marco .lesiones-tabla {
-  min-width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 12px;
-}
-.lesiones-marco .lesiones-tabla th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 9px 10px;
-  background: #111827;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.lesiones-marco .lesiones-tabla td {
-  padding: 8px 10px;
-  border-bottom: 1px solid #e2e8f0;
-  color: #0f172a;
-  white-space: nowrap;
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.lesiones-marco .lesiones-tabla tbody tr {
-  cursor: pointer;
-}
-.lesiones-marco .lesiones-tabla tbody tr:hover td {
-  background: #f8fafc;
-}
-
 /* La carga por pasos: la barra de progreso, el título del paso y los campos
    con aire. */
 .lesiones-marco .lesiones-progreso {
@@ -413,24 +367,96 @@
   max-height: 46vh;
   overflow: auto;
 }
-.lesiones-marco .lesiones-lista-jugadores button.elegido {
-  border-color: transparent;
-  background: linear-gradient(135deg, #000000, #16a34a);
-}
-.lesiones-marco .lesiones-lista-jugadores button.elegido b,
-.lesiones-marco .lesiones-lista-jugadores button.elegido span {
-  color: #fff;
-}
 .lesiones-marco .lesiones-jugador-elegido {
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid #e2e8f0;
 }
-.lesiones-marco .lesiones-calculados {
-  background: #f8fafc;
+
+/* El historial: el buscador de jugador, arriba de su base. */
+.lesiones-marco .lesiones-elegir-jugador {
+  display: grid;
+  gap: 10px;
 }
-.lesiones-marco .lesiones-calculados .cabeza-ficha b {
-  color: #166534;
+
+/* La ficha, como la de un partido: el resumen arriba (diagnóstico y días de
+   baja) y una pestaña por grupo del Excel. Son más que en Partido, así que
+   la barra se desliza de costado en vez de apretarlas. */
+.lesiones-marco .lesiones-marcador {
+  align-items: stretch;
+}
+.lesiones-marco .lesiones-marcador-texto {
+  display: grid;
+  flex: 1;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+.lesiones-marco .lesiones-marcador-texto span {
+  color: var(--cam-gris, #64748b);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.lesiones-marco .lesiones-marcador-texto strong {
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.lesiones-marco .lesiones-marcador .total-ficha {
+  display: grid;
+  align-content: center;
+}
+.lesiones-marco .lesiones-secciones > div {
+  position: relative;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.lesiones-marco .lesiones-secciones > div::-webkit-scrollbar {
+  display: none;
+}
+.lesiones-marco .lesiones-secciones button {
+  flex: 1 0 auto;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+.lesiones-marco .lesiones-cambios {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lesiones-marco .lesiones-cambios li {
+  border-bottom: 1px solid #e2e8f0;
+}
+.lesiones-marco .lesiones-cambios li:last-child {
+  border-bottom: 0;
+}
+.lesiones-marco .lesiones-cambios .dato-detalle {
+  border-bottom: 0;
+}
+.lesiones-marco .lesiones-cambio-columnas {
+  margin: -4px 0 10px;
+  color: #475569;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+/* Ajustes › Cabeceras: cada grupo del Excel encabeza sus columnas. */
+.lesiones-marco .opcion-ajuste.lesiones-ajuste-grupo {
+  margin-top: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.lesiones-marco .opcion-ajuste.lesiones-ajuste-grupo .texto-ajuste b {
+  color: #fff;
+}
+.lesiones-marco .opcion-ajuste.lesiones-ajuste-grupo .texto-ajuste span,
+.lesiones-marco .opcion-ajuste.lesiones-ajuste-grupo .flecha-ajuste {
+  color: rgba(255, 255, 255, 0.65);
 }
 
 /* La base estilo Excel ocupa todo el ancho que haya. */
@@ -464,4 +490,136 @@
   color: #475569;
   font-size: 13px;
   line-height: 1.4;
+}
+
+/* Datos básicos › Pegar desde Excel: el botón debajo de agregar, lo pegado y
+   la vista previa de cada fila con quién es en la app. */
+.datos-marco .datos-pegar-excel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin: 10px 0 0;
+}
+.datos-marco .datos-importar-pegado {
+  display: grid;
+  gap: 10px;
+}
+.datos-marco .datos-importar-pegado textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.datos-marco .datos-importar-pegado .boton-secundario {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  margin: 0;
+}
+.datos-marco .datos-importar-fallas {
+  display: grid;
+  gap: 6px;
+}
+.datos-marco .datos-importar-fallas ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.datos-marco .datos-importar-resumen {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.datos-marco .datos-importar-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.datos-marco .datos-importar-lista li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+.datos-marco .datos-importar-lista li:last-child {
+  border-bottom: 0;
+}
+.datos-marco .datos-importar-lista li.apagada {
+  opacity: 0.55;
+}
+.datos-marco .datos-importar-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.datos-marco .datos-importar-fila b {
+  min-width: 0;
+  color: #0f172a;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.datos-marco .datos-importar-destino {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  max-width: 55%;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.datos-marco .datos-importar-destino span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.datos-marco .datos-importar-destino.nuevo {
+  border-color: #bbf7d0;
+  background: #dcfce7;
+  color: #166534;
+}
+.datos-marco .datos-importar-destino.existe {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1e40af;
+}
+.datos-marco .datos-importar-destino.dudoso {
+  border-color: #fde68a;
+  background: #fef3c7;
+  color: #92400e;
+}
+.datos-marco .datos-importar-destino.fuera {
+  color: #64748b;
+}
+.datos-marco .datos-importar-detalle,
+.datos-marco .datos-importar-aviso {
+  margin: 0;
+  color: #475569;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.datos-marco .datos-importar-aviso {
+  color: #92400e;
 }

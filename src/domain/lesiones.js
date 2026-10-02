@@ -3,7 +3,7 @@
 // a la competencia = alta) y el resto de las columnas del Excel en `datos`,
 // por clave de campo (ver lesionesCampos.js).
 import { hoyISO } from "../idioma/formatos.js";
-import { campoPorClave, etiquetaDeOpcion } from "./lesionesCampos.js";
+import { CAMPOS, TIPOS_MANUALES, campoPorClave } from "./lesionesCampos.js";
 
 export const ETAPAS = ["lesionado", "transicion", "entrenando", "alta"];
 
@@ -228,23 +228,46 @@ const FECHAS_POSTERIORES = ["fecha_transicion", "fecha_retorno_entrenamiento", "
 // Las horas entre la lesión y la imagen las escribe el médico (el Excel no las calcula).
 const esNumeroValido = (valor) => valor === null || valor === undefined || valor === "" || (Number.isFinite(Number(valor)) && Number(valor) >= 0);
 
+// Lo que está mal en una columna, como clave del diccionario ("" si nada).
+// La carga por pasos revisa así las columnas de cada paso.
+export const errorDeCampo = (lesion, clave, hoy = hoyISO()) => {
+  if (clave === "jugador") return lesion.jugador_id ? "" : "lesiones.error.jugador";
+  if (clave === "fecha_lesion") {
+    if (!esFechaISO(lesion.fecha_lesion)) return "lesiones.error.fecha";
+    return lesion.fecha_lesion > hoy ? "lesiones.error.fechaFutura" : "";
+  }
+  if (FECHAS_POSTERIORES.includes(clave)) {
+    const valor = lesion[clave];
+    if (!valor) return "";
+    if (!esFechaISO(valor) || (esFechaISO(lesion.fecha_lesion) && valor < lesion.fecha_lesion)) return "lesiones.error.fechaAntes";
+    return valor > hoy ? "lesiones.error.fechaFuturaOtra" : "";
+  }
+  if (clave === "parte_cuerpo") return lesion.datos?.parte_cuerpo ? "" : "lesiones.error.parte";
+  if (clave === "lado") return lesion.datos?.lado ? "" : "lesiones.error.lado";
+  if (clave === "horas_imagen") return esNumeroValido(lesion.datos?.horas_imagen) ? "" : "lesiones.error.horas";
+  return "";
+};
+
+const ORDEN_DE_VALIDACION = ["jugador", "fecha_lesion", ...FECHAS_POSTERIORES, "parte_cuerpo", "lado", "horas_imagen"];
+
 // Lo que hay que corregir antes de guardar, como clave del diccionario.
 // Devuelve "" si está todo bien.
 export const validarLesion = (lesion, { hoy = hoyISO(), otras = [] } = {}) => {
-  if (!lesion.jugador_id) return "lesiones.error.jugador";
-  if (!esFechaISO(lesion.fecha_lesion)) return "lesiones.error.fecha";
-  if (lesion.fecha_lesion > hoy) return "lesiones.error.fechaFutura";
-  for (const clave of FECHAS_POSTERIORES) {
-    const valor = lesion[clave];
-    if (!valor) continue;
-    if (!esFechaISO(valor) || valor < lesion.fecha_lesion) return "lesiones.error.fechaAntes";
-    if (valor > hoy) return "lesiones.error.fechaFuturaOtra";
+  for (const clave of ORDEN_DE_VALIDACION) {
+    const falta = errorDeCampo(lesion, clave, hoy);
+    if (falta) return falta;
   }
-  if (!lesion.datos?.parte_cuerpo) return "lesiones.error.parte";
-  if (!lesion.datos?.lado) return "lesiones.error.lado";
-  if (!esNumeroValido(lesion.datos?.horas_imagen)) return "lesiones.error.horas";
   if (seSolapa(lesion, otras)) return "lesiones.error.solapada";
   return "";
+};
+
+// Qué columnas cargadas a mano cambió una edición, comparando la lesión de
+// antes y la de después (como las guarda el historial de la base).
+const CAMPOS_DE_CARGA = CAMPOS.filter((campo) => campo.tipo === "jugador" || TIPOS_MANUALES.includes(campo.tipo)).map((campo) => campo.clave);
+export const camposCambiados = (antes, despues) => {
+  if (!antes || !despues) return [];
+  const texto = (lesion, clave) => String(valorDe(lesion, clave) ?? "").trim();
+  return CAMPOS_DE_CARGA.filter((clave) => texto(antes, clave) !== texto(despues, clave));
 };
 
 // Misma regla que el índice de exclusión de la base: el mismo jugador no
@@ -303,51 +326,12 @@ export const estadoDelPlantel = (plantel = [], lesiones = []) => {
   });
 };
 
-// --------------------------------------------------------------- Filtro --
-// Igual que el de Registros de Partido: se eligen criterios y la lesión tiene
-// que cumplir todos. Los criterios fijos son el jugador, la etapa y la fecha
-// de inicio; el resto son los desplegables del Excel, por su clave.
-
-export const FILTRO = Object.freeze({ TODOS: "todos", JUGADOR: "jugador", ETAPA: "etapa", FECHA: "fecha" });
-
-export const filtrarLesiones = (lesiones = [], { criterios = [], jugador = "", etapas = [], desde = "", hasta = "", listas = {} } = {}) =>
-  lesiones.filter((lesion) =>
-    criterios.every((cual) => {
-      if (cual === FILTRO.JUGADOR) return !jugador || String(lesion.jugador_id) === String(jugador);
-      if (cual === FILTRO.ETAPA) return etapas.length === 0 || etapas.includes(etapaDe(lesion));
-      if (cual === FILTRO.FECHA) {
-        return (!desde || lesion.fecha_lesion >= desde) && (!hasta || lesion.fecha_lesion <= hasta);
-      }
-      const elegidas = listas[cual] || [];
-      return elegidas.length === 0 || elegidas.includes(valorDe(lesion, cual));
-    }),
-  );
-
+// Para buscar por nombre sin que importen mayúsculas ni acentos.
 export const normalizarTexto = (texto) =>
   limpiar(texto)
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
-
-// El buscador de texto: por jugador, diagnóstico, comentarios, médico y los
-// textos de los desplegables.
-export const buscarEnLesiones = (lesiones = [], texto, { nombreDe = () => "", config = null, idioma = "es-AR" } = {}) => {
-  const buscado = normalizarTexto(texto);
-  if (!buscado) return lesiones;
-  return lesiones.filter((lesion) => {
-    const partes = [
-      nombreDe(lesion.jugador_id),
-      lesion.datos?.diagnostico,
-      lesion.datos?.comentarios,
-      lesion.datos?.medico,
-      String(lesion.numero_caso ?? ""),
-      ...Object.entries(lesion.datos || {}).map(([clave, valor]) =>
-        campoPorClave(clave)?.tipo === "lista" ? etiquetaDeOpcion(clave, valor, config, idioma) : "",
-      ),
-    ];
-    return normalizarTexto(partes.filter(Boolean).join(" ")).includes(buscado);
-  });
-};
 
 // Lo que dice la base, traducido a una clave del diccionario.
 export const claveDeErrorDeBase = (error) => {

@@ -1,7 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HojaOpciones } from "./HojaOpciones.js";
+import { HojaInferior } from "./SheetPanel.js";
 import { Icono } from "./AppChrome";
-import { aplicarPegado, aTexto, desdeTexto, ordenDeColumnas, reordenar } from "../domain/tabla.js";
+import {
+  aplicarPegado,
+  aTexto,
+  desdeTexto,
+  filtrarFilas,
+  ordenarFilas,
+  ordenDeColumnas,
+  reordenar,
+  tramosDeGrupos,
+  valoresDeColumna,
+} from "../domain/tabla.js";
+import { normalizarTextoBase } from "../domain/match";
 import { t, useIdioma } from "../idioma/index.js";
 import "./tablaDatos.css";
 
@@ -10,9 +22,11 @@ import "./tablaDatos.css";
 // celdas se eligen tocándolas (con Shift se elige un rango; el número de
 // fila elige la fila entera), se copian y se pegan como texto con
 // tabulaciones (lo que Excel y Google Sheets entienden) y se cambian tocando
-// dos veces. El orden de las columnas queda guardado en el celular.
+// dos veces. El orden de las columnas queda guardado en el celular. Cada
+// cabecera tiene su filtro, como en Excel (valores para elegir y orden), y
+// si las columnas traen grupo, arriba va la fila de los grupos.
 //
-// columnas: [{ clave, titulo, tipo, editable, opciones, ancho }]
+// columnas: [{ clave, titulo, tipo, editable, opciones, ancho, grupo, grupoTitulo }]
 // filas:    [{ id, valores: { clave: valor }, textos: { clave: texto } }]
 // onEditar(filaId, clave, valor) → Promise<{ error }>; onPegar(cambios) → Promise<{ error, hechos }>
 // onAbrirFila(filaId), onBorrarFila(filaId)
@@ -38,6 +52,9 @@ const guardarOrden = (id, orden) => {
 
 const rango = (a, b) => (a <= b ? [a, b] : [b, a]);
 
+// Tonos de la fila de grupos: uno por grupo, siempre el mismo para cada uno.
+const TONOS_DE_GRUPO = 7;
+
 export const TablaDatos = ({
   id,
   columnas = [],
@@ -57,9 +74,15 @@ export const TablaDatos = ({
   const [arrastre, setArrastre] = useState(null); // { desde, sobre }
   const [mensaje, setMensaje] = useState("");
   const [ocupada, setOcupada] = useState(false);
+  const [filtros, setFiltros] = useState({}); // { clave: [textos elegidos] }
+  const [ordenFilas, setOrdenFilas] = useState(null); // { clave, sentido }
+  const [hojaFiltro, setHojaFiltro] = useState(null); // { clave, titulo, elegidos, busqueda }
   const marco = useRef(null);
   const temporizador = useRef(null);
   const arrastreRef = useRef(null);
+  // La fila de la celda activa, por id: si un filtro u orden la mueve, la
+  // selección la sigue.
+  const idActiva = useRef(null);
 
   // Columnas nuevas o que ya no están, sin perder el orden elegido.
   useEffect(() => {
@@ -69,6 +92,42 @@ export const TablaDatos = ({
   const visibles = useMemo(() => orden.map((clave) => columnas.find((c) => c.clave === clave)).filter(Boolean), [orden, columnas]);
   // Sin ninguna columna que se pueda cambiar (solo lectura), Pegar no va.
   const algoEditable = visibles.some((columna) => columna.editable);
+
+  // Los filtros de las columnas que siguen existiendo.
+  const filtrosVigentes = useMemo(
+    () => Object.fromEntries(Object.entries(filtros).filter(([clave]) => columnas.some((columna) => columna.clave === clave))),
+    [filtros, columnas],
+  );
+  const hayFiltros = Object.keys(filtrosVigentes).length > 0;
+  // Las filas que se ven: filtradas y en el orden pedido. Todo lo que es
+  // "fila n" (elegir, copiar, pegar, editar) habla de estas.
+  const filasVista = useMemo(() => ordenarFilas(filtrarFilas(filas, filtrosVigentes), ordenFilas), [filas, filtrosVigentes, ordenFilas]);
+
+  // La fila de grupos, si las columnas los traen. El tono de cada grupo sale
+  // de su orden en las columnas originales, así no cambia al mover una.
+  const hayGrupos = columnas.some((columna) => columna.grupo);
+  const tramos = useMemo(() => (hayGrupos ? tramosDeGrupos(visibles) : []), [hayGrupos, visibles]);
+  const tonoDeGrupo = useMemo(() => {
+    const tonos = {};
+    columnas.forEach((columna) => {
+      if (columna.grupo && !(columna.grupo in tonos)) tonos[columna.grupo] = Object.keys(tonos).length % TONOS_DE_GRUPO;
+    });
+    return tonos;
+  }, [columnas]);
+
+  useEffect(() => {
+    if (!activa) return;
+    const nueva = filasVista.findIndex((fila) => fila.id === idActiva.current);
+    if (nueva === -1) {
+      setActiva(null);
+      setSeleccion(null);
+      setEditando(null);
+    } else if (nueva !== activa.f) {
+      setActiva({ f: nueva, c: activa.c });
+      setSeleccion({ f1: nueva, c1: activa.c, f2: nueva, c2: activa.c });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filasVista]);
 
   useEffect(() => {
     if (!mensaje) return undefined;
@@ -84,6 +143,7 @@ export const TablaDatos = ({
       setSeleccion({ f1: activa.f, c1: activa.c, f2: f, c2: c });
       return;
     }
+    idActiva.current = filasVista[f]?.id ?? null;
     setActiva({ f, c });
     setSeleccion({ f1: f, c1: c, f2: f, c2: c });
   };
@@ -95,6 +155,7 @@ export const TablaDatos = ({
       setSeleccion({ f1: activa.f, c1: 0, f2: f, c2: ultima });
       return;
     }
+    idActiva.current = filasVista[f]?.id ?? null;
     setActiva({ f, c: 0 });
     setSeleccion({ f1: f, c1: 0, f2: f, c2: ultima });
   };
@@ -121,7 +182,7 @@ export const TablaDatos = ({
     const [ca, cb] = rango(seleccion.c1, seleccion.c2);
     const matriz = [];
     for (let f = fa; f <= fb; f++) {
-      const fila = filas[f];
+      const fila = filasVista[f];
       if (!fila) continue;
       matriz.push(visibles.slice(ca, cb + 1).map((col) => fila.textos?.[col.clave] ?? ""));
     }
@@ -156,7 +217,7 @@ export const TablaDatos = ({
     }
     const matriz = desdeTexto(texto);
     const { cambios, ignoradas } = aplicarPegado(matriz, {
-      filas,
+      filas: filasVista,
       columnas: visibles,
       filaInicial: activa.f,
       columnaInicial: activa.c,
@@ -206,7 +267,7 @@ export const TablaDatos = ({
     if (!activa) return;
     const mover = (df, dc) => {
       evento.preventDefault();
-      const f = Math.min(Math.max(activa.f + df, 0), filas.length - 1);
+      const f = Math.min(Math.max(activa.f + df, 0), filasVista.length - 1);
       const c = Math.min(Math.max(activa.c + dc, 0), visibles.length - 1);
       elegir(f, c, evento.shiftKey);
     };
@@ -234,7 +295,7 @@ export const TablaDatos = ({
   // -------------------------------------------------------------- Editar --
 
   const empezarEdicion = (f, c) => {
-    const fila = filas[f];
+    const fila = filasVista[f];
     const col = visibles[c];
     if (!fila || !col || !col.editable) return;
     if (col.tipo === "lista") {
@@ -248,7 +309,7 @@ export const TablaDatos = ({
     const actual = editando;
     setEditando(null);
     if (!actual) return;
-    const fila = filas[actual.f];
+    const fila = filasVista[actual.f];
     const col = visibles[actual.c];
     if (!fila || !col) return;
     const nuevo = col.tipo === "numero" ? (valor === "" ? null : Number(String(valor).replace(",", "."))) : valor;
@@ -264,7 +325,7 @@ export const TablaDatos = ({
     const actual = hoja;
     setHoja(null);
     if (!actual) return;
-    const fila = filas[actual.f];
+    const fila = filasVista[actual.f];
     if (!fila) return;
     setOcupada(true);
     const respuesta = (await onEditar?.(fila.id, actual.col.clave, valor || null)) || {};
@@ -350,17 +411,108 @@ export const TablaDatos = ({
 
   useEffect(() => () => terminarArrastre(), [terminarArrastre]);
 
+  // ------------------------------------------------- Filtros y orden --
+
+  const olvidarSeleccion = () => {
+    setSeleccion(null);
+    setActiva(null);
+    setEditando(null);
+  };
+
+  const abrirFiltro = (col) => {
+    const todos = valoresDeColumna(filtrarFilas(filas, filtrosVigentes, { salvo: col.clave }), col.clave).map((valor) => valor.texto);
+    setHojaFiltro({ clave: col.clave, titulo: col.titulo, elegidos: filtrosVigentes[col.clave] ? [...filtrosVigentes[col.clave]] : todos, busqueda: "" });
+  };
+
+  // Lo que ofrece la hoja: los valores que dejan pasar los otros filtros.
+  const valoresDeLaHoja = useMemo(() => {
+    if (!hojaFiltro) return [];
+    return valoresDeColumna(filtrarFilas(filas, filtrosVigentes, { salvo: hojaFiltro.clave }), hojaFiltro.clave);
+  }, [hojaFiltro, filas, filtrosVigentes]);
+  const valoresBuscados = useMemo(() => {
+    const buscado = normalizarTextoBase(hojaFiltro?.busqueda || "");
+    if (!buscado) return valoresDeLaHoja;
+    return valoresDeLaHoja.filter((valor) => normalizarTextoBase(valor.texto || t("tabla.vacias")).includes(buscado));
+  }, [valoresDeLaHoja, hojaFiltro]);
+
+  const alternarValor = (texto) =>
+    setHojaFiltro((actual) => ({
+      ...actual,
+      elegidos: actual.elegidos.includes(texto) ? actual.elegidos.filter((uno) => uno !== texto) : [...actual.elegidos, texto],
+    }));
+  const elegirTodosLosBuscados = (prender) =>
+    setHojaFiltro((actual) => {
+      const buscados = valoresBuscados.map((valor) => valor.texto);
+      const resto = actual.elegidos.filter((texto) => !buscados.includes(texto));
+      return { ...actual, elegidos: prender ? [...resto, ...buscados] : resto };
+    });
+
+  const aplicarFiltro = () => {
+    const actual = hojaFiltro;
+    setHojaFiltro(null);
+    if (!actual) return;
+    const todos = valoresDeLaHoja.map((valor) => valor.texto);
+    const elegidos = todos.filter((texto) => actual.elegidos.includes(texto));
+    olvidarSeleccion();
+    setFiltros((previos) => {
+      const siguientes = { ...previos };
+      // Con todo elegido, la columna no filtra.
+      if (elegidos.length === todos.length) delete siguientes[actual.clave];
+      else siguientes[actual.clave] = elegidos;
+      return siguientes;
+    });
+  };
+
+  const quitarFiltro = () => {
+    const actual = hojaFiltro;
+    setHojaFiltro(null);
+    if (!actual) return;
+    olvidarSeleccion();
+    setFiltros((previos) => {
+      const siguientes = { ...previos };
+      delete siguientes[actual.clave];
+      return siguientes;
+    });
+    setOrdenFilas((previo) => (previo?.clave === actual.clave ? null : previo));
+  };
+
+  const ordenarPor = (sentido) => {
+    const actual = hojaFiltro;
+    setHojaFiltro(null);
+    if (!actual) return;
+    setOrdenFilas({ clave: actual.clave, sentido });
+  };
+
+  const quitarFiltros = () => {
+    olvidarSeleccion();
+    setFiltros({});
+    setOrdenFilas(null);
+  };
+
   // ------------------------------------------------------------- Dibujo --
 
-  const filaActiva = activa ? filas[activa.f] : null;
+  const filaActiva = activa ? filasVista[activa.f] : null;
+  const textoDeEstado = ocupada
+    ? t("tabla.guardando")
+    : mensaje ||
+      aviso ||
+      (celdasElegidas
+        ? plural("tabla.seleccion", celdasElegidas)
+        : hayFiltros
+          ? t("tabla.mostrando", { n: filasVista.length, total: filas.length })
+          : t("tabla.sinSeleccion"));
 
   return (
     <div className="tabla-datos" ref={marco}>
       <div className="tabla-datos-barra">
-        <span className="tabla-datos-estado">
-          {ocupada ? t("tabla.guardando") : mensaje || aviso || (celdasElegidas ? plural("tabla.seleccion", celdasElegidas) : t("tabla.sinSeleccion"))}
-        </span>
+        <span className="tabla-datos-estado">{textoDeEstado}</span>
         <div className="tabla-datos-acciones">
+          {(hayFiltros || ordenFilas) && (
+            <button type="button" className="boton-secundario tabla-datos-quitar-filtros" onClick={quitarFiltros}>
+              <Icono nombre="filtro" size={15} />
+              {t("tabla.quitarFiltros")}
+            </button>
+          )}
           <button type="button" className="boton-secundario" onClick={copiar} disabled={!seleccion}>
             <Icono nombre="documento" size={15} />
             {t("tabla.copiar")}
@@ -386,38 +538,78 @@ export const TablaDatos = ({
       </div>
 
       <div className="tabla-datos-marco" tabIndex={0} onKeyDown={alTeclear} onPaste={alPegarEvento}>
-        <table className={`tabla-datos-tabla ${arrastre ? "arrastrando" : ""}`}>
+        <table className={`tabla-datos-tabla ${arrastre ? "arrastrando" : ""} ${hayGrupos ? "con-grupos" : ""}`.trim()}>
           <thead>
-            <tr>
+            {hayGrupos && (
+              <tr className="tabla-datos-grupos">
+                <th className="tabla-datos-numero" aria-hidden="true" />
+                {tramos.map((tramo) => (
+                  <th
+                    key={`${tramo.grupo}-${tramo.desde}`}
+                    colSpan={tramo.cantidad}
+                    scope="colgroup"
+                    className={`tabla-datos-grupo ${tramo.grupo ? `tono-${tonoDeGrupo[tramo.grupo] ?? 0}` : "sin-grupo"}`}
+                    title={tramo.titulo}
+                  >
+                    {tramo.titulo}
+                  </th>
+                ))}
+              </tr>
+            )}
+            <tr className="tabla-datos-cabeceras">
               <th className="tabla-datos-numero" aria-label={t("tabla.fila")}>
                 #
               </th>
-              {visibles.map((col, indice) => (
-                <th
-                  key={col.clave}
-                  data-columna={indice}
-                  className={`${arrastre?.desde === indice ? "origen" : ""} ${arrastre?.sobre === indice ? "destino" : ""} ${col.editable ? "" : "fija"}`.trim()}
-                  style={col.ancho ? { minWidth: col.ancho } : undefined}
-                  onPointerDown={(evento) => alApretarCabecera(evento, indice)}
-                  onPointerMove={alMoverCabecera}
-                  onPointerUp={terminarArrastre}
-                  onPointerCancel={terminarArrastre}
-                  title={col.titulo}
-                >
-                  {col.titulo}
-                </th>
-              ))}
+              {visibles.map((col, indice) => {
+                const filtrada = Boolean(filtrosVigentes[col.clave]);
+                const ordenada = ordenFilas?.clave === col.clave;
+                return (
+                  <th
+                    key={col.clave}
+                    data-columna={indice}
+                    className={`${arrastre?.desde === indice ? "origen" : ""} ${arrastre?.sobre === indice ? "destino" : ""} ${col.editable ? "" : "fija"} ${col.grupo ? `tono-${tonoDeGrupo[col.grupo] ?? 0}` : ""}`.trim()}
+                    style={col.ancho ? { minWidth: col.ancho } : undefined}
+                    onPointerDown={(evento) => alApretarCabecera(evento, indice)}
+                    onPointerMove={alMoverCabecera}
+                    onPointerUp={terminarArrastre}
+                    onPointerCancel={terminarArrastre}
+                    title={col.titulo}
+                  >
+                    <span className="tabla-datos-cabecera">
+                      <span className="tabla-datos-titulo">{col.titulo}</span>
+                      <button
+                        type="button"
+                        className={`tabla-datos-filtro ${filtrada || ordenada ? "activo" : ""}`.trim()}
+                        aria-label={t("tabla.filtrar", { columna: col.titulo })}
+                        aria-pressed={filtrada}
+                        onPointerDown={(evento) => evento.stopPropagation()}
+                        onClick={(evento) => {
+                          evento.stopPropagation();
+                          abrirFiltro(col);
+                        }}
+                      >
+                        {ordenada ? (
+                          <span className="tabla-datos-flecha" aria-hidden="true">
+                            {ordenFilas.sentido === "desc" ? "↓" : "↑"}
+                          </span>
+                        ) : null}
+                        <Icono nombre="filtro" size={12} />
+                      </button>
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && (
+            {filasVista.length === 0 && (
               <tr>
                 <td colSpan={visibles.length + 1} className="tabla-datos-vacia">
-                  {t("tabla.vacio")}
+                  {filas.length === 0 ? t("tabla.vacio") : t("tabla.sinResultados")}
                 </td>
               </tr>
             )}
-            {filas.map((fila, f) => (
+            {filasVista.map((fila, f) => (
               <tr key={fila.id} className={activa?.f === f ? "activa" : ""}>
                 <th
                   className="tabla-datos-numero"
@@ -468,10 +660,79 @@ export const TablaDatos = ({
         abierta={Boolean(hoja)}
         titulo={hoja?.col.titulo}
         opciones={hoja ? [{ valor: "", etiqueta: t("comun.sinDato") }, ...(hoja.col.opciones || [])] : []}
-        elegida={hoja ? filas[hoja.f]?.valores?.[hoja.col.clave] || "" : ""}
+        elegida={hoja ? filasVista[hoja.f]?.valores?.[hoja.col.clave] || "" : ""}
         onElegir={elegirDeHoja}
         onCerrar={() => setHoja(null)}
       />
+
+      <HojaInferior
+        abierta={Boolean(hojaFiltro)}
+        className="tabla-datos-hoja-filtro"
+        titulo={hojaFiltro ? t("tabla.filtroTitulo", { columna: hojaFiltro.titulo }) : ""}
+        onCerrar={() => setHojaFiltro(null)}
+        acciones={
+          <>
+            <button type="button" className="boton-cancelar-hoja" onClick={quitarFiltro}>
+              {t("tabla.quitarFiltro")}
+            </button>
+            <button type="button" className="boton-confirmar-hoja" onClick={aplicarFiltro} disabled={!hojaFiltro?.elegidos.some((texto) => valoresDeLaHoja.some((valor) => valor.texto === texto))}>
+              {t("tabla.aplicar")}
+            </button>
+          </>
+        }
+      >
+        {hojaFiltro && (
+          <div className="tabla-datos-filtro-cuerpo">
+            <div className="grilla-criterios tabla-datos-orden">
+              <button
+                type="button"
+                className={`chip-criterio ${ordenFilas?.clave === hojaFiltro.clave && ordenFilas.sentido === "asc" ? "prendido" : ""}`}
+                onClick={() => ordenarPor("asc")}
+              >
+                {t("tabla.ordenarAsc")}
+              </button>
+              <button
+                type="button"
+                className={`chip-criterio ${ordenFilas?.clave === hojaFiltro.clave && ordenFilas.sentido === "desc" ? "prendido" : ""}`}
+                onClick={() => ordenarPor("desc")}
+              >
+                {t("tabla.ordenarDesc")}
+              </button>
+            </div>
+            <input
+              type="search"
+              className="tabla-datos-buscar-valor"
+              value={hojaFiltro.busqueda}
+              placeholder={t("tabla.buscarValor")}
+              aria-label={t("tabla.buscarValor")}
+              onChange={(evento) => {
+                const busqueda = evento.target.value;
+                setHojaFiltro((actual) => ({ ...actual, busqueda }));
+              }}
+            />
+            <div className="tabla-datos-todos">
+              <button type="button" onClick={() => elegirTodosLosBuscados(true)}>
+                {t("tabla.todos")}
+              </button>
+              <button type="button" onClick={() => elegirTodosLosBuscados(false)}>
+                {t("tabla.ninguno")}
+              </button>
+            </div>
+            <ul className="tabla-datos-valores">
+              {valoresBuscados.length === 0 && <li className="tabla-datos-sin-valores">{t("tabla.nadaEnLista")}</li>}
+              {valoresBuscados.map((valor) => (
+                <li key={valor.texto || "__vacias"}>
+                  <label>
+                    <input type="checkbox" checked={hojaFiltro.elegidos.includes(valor.texto)} onChange={() => alternarValor(valor.texto)} />
+                    <span className={valor.texto ? "" : "vacias"}>{valor.texto || t("tabla.vacias")}</span>
+                    <small>{valor.cantidad}</small>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </HojaInferior>
     </div>
   );
 };

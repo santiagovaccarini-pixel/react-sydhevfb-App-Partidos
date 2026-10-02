@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { BotonVolver, DatoDetalle } from "./components/BotonVolver.jsx";
@@ -9,15 +9,12 @@ import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import {
-  ETAPAS,
-  FILTRO,
-  buscarEnLesiones,
   calcular,
   conValor,
   diasDeBaja,
+  errorDeCampo,
   estaActiva,
   etapaDe,
-  filtrarLesiones,
   lesionVacia,
   lesionesActivas,
   normalizarTexto,
@@ -30,11 +27,14 @@ import {
   CAMPOS,
   CAMPOS_CON_LISTA,
   GRUPOS,
+  PASOS,
   TIPOS_MANUALES,
   campoOculto,
   campoPorClave,
+  claveDeGrupo,
   codigoNuevo,
   etiquetaDeCampo,
+  etiquetaDeGrupo,
   etiquetaDeOpcion,
   opcionesDeCampo,
 } from "./domain/lesionesCampos.js";
@@ -55,9 +55,11 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import "./lesiones.css";
 
 // El módulo Lesiones, con la misma cara que Partido: fichas con "Ver
-// detalle", el filtro de Registros, la base estilo Excel y Ajustes con filas.
-// Las columnas son las del Excel original (lesionesCampos.js): se cargan a
-// mano solo las que el Excel no calcula; el resto se calcula igual que ahí.
+// detalle", la base estilo Excel, el historial de cada jugador y Ajustes con
+// filas. Las columnas son las del Excel original (lesionesCampos.js),
+// ordenadas por los grupos del Excel (Dados Gerais, Descrição Geral...): se
+// cargan a mano solo las que el Excel no calcula; el resto se calcula igual
+// que ahí.
 
 export const DESTINOS_LESIONES = [
   { id: "lesionados", etiqueta: "Lesionados", icono: "usuario" },
@@ -66,21 +68,12 @@ export const DESTINOS_LESIONES = [
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
 
-// La carga de una lesión, de a un paso: lo que el médico tiene que escribir,
-// en el orden en que lo piensa. Lo calculado aparece al final.
-export const PASOS = [
-  { id: "jugador", campos: ["jugador"] },
-  { id: "lesion", campos: ["tipo_lesion", "parte_cuerpo", "lado", "fecha_lesion"] },
-  { id: "estructura", campos: ["ligamento", "musculo", "musculo_especifico", "area"] },
-  { id: "contexto", campos: ["producto", "mecanismo", "cuando", "localizacion"] },
-  { id: "evolucion", campos: ["fecha_transicion", "fecha_retorno_entrenamiento", "fecha_alta", "hora_imagen", "imagenes", "horas_imagen"] },
-  { id: "notas", campos: ["medico", "comentarios"] },
-];
-
-const MULTI_FILTRO = "multi";
-const LISTAS_DEL_FILTRO = CAMPOS.filter((campo) => campo.tipo === "lista").map((campo) => campo.clave);
 // Hasta esta cantidad, las opciones van como botones a la vista; con más, en la hoja con buscador.
 const MAXIMO_CHIPS = 6;
+// En la ficha, la pestaña de los cambios va después de las de los grupos.
+const SECCION_CAMBIOS = "cambios";
+// Las columnas que deciden si una lesión nueva puede ser recidiva.
+const CAMPOS_DE_RECIDIVA = ["parte_cuerpo", "lado", "fecha_lesion"];
 
 const primeraMayuscula = (texto) => (texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : "");
 
@@ -115,9 +108,13 @@ export default function Lesiones({ onVolver }) {
   const [ocupado, setOcupado] = useState(false);
   const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
 
-  // Pantallas encima de la vista: la ficha de una lesión y la carga por pasos.
+  // Pantallas encima de la vista: la ficha de una lesión (con la pestaña que
+  // se está mirando) y la carga por pasos.
   const [detalleId, setDetalleId] = useState(null);
+  const [seccionFicha, setSeccionFicha] = useState(null);
   const [cambiosDetalle, setCambiosDetalle] = useState([]);
+  // Sube con cada lesión guardada: la ficha vuelve a pedir sus cambios.
+  const [guardadas, setGuardadas] = useState(0);
   const [formulario, setFormulario] = useState(null);
   const [paso, setPaso] = useState(0);
   const [pasoMaximo, setPasoMaximo] = useState(0);
@@ -131,17 +128,9 @@ export default function Lesiones({ onVolver }) {
   const [fechaAlta, setFechaAlta] = useState(hoyISO());
   const [aBorrar, setABorrar] = useState(null);
 
-  // El filtro del historial, igual que el de Registros de Partido.
-  const [busqueda, setBusqueda] = useState("");
-  const [filtroAbierto, setFiltroAbierto] = useState(false);
-  const [criterio, setCriterio] = useState(FILTRO.TODOS);
-  const [criteriosMulti, setCriteriosMulti] = useState([]);
-  const [jugadorFiltro, setJugadorFiltro] = useState("");
-  const [buscadorJugador, setBuscadorJugador] = useState("");
-  const [etapasFiltro, setEtapasFiltro] = useState([]);
-  const [fechaDesde, setFechaDesde] = useState("");
-  const [fechaHasta, setFechaHasta] = useState("");
-  const [listasFiltro, setListasFiltro] = useState({});
+  // El historial es de un jugador: se lo busca por el nombre.
+  const [jugadorHistorial, setJugadorHistorial] = useState("");
+  const [busquedaHistorial, setBusquedaHistorial] = useState("");
 
   // Ajustes: cabeceras y listas del club.
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
@@ -208,17 +197,21 @@ export default function Lesiones({ onVolver }) {
     return () => clearTimeout(temporizador);
   }, [aviso]);
 
-  // La ficha trae sus cambios cuando se abre. Quien ya se fue del club no
-  // los ve: la lista tendría lo que se cambió después de su último día.
+  // La ficha trae sus últimos cambios cuando se abre y cada vez que se
+  // guarda algo. Quien ya se fue del club no los ve: la lista tendría lo que
+  // se cambió después de su último día.
   useEffect(() => {
     if (!detalleId || soloLectura) return undefined;
     let vigente = true;
-    setCambiosDetalle([]);
     historialDeLesion(detalleId).then((respuesta) => vigente && setCambiosDetalle(respuesta.cambios));
     return () => {
       vigente = false;
     };
-  }, [detalleId, soloLectura]);
+  }, [detalleId, soloLectura, guardadas]);
+
+  useEffect(() => {
+    setCambiosDetalle([]);
+  }, [detalleId]);
 
   // ------------------------------------------------------------- Ayudas --
 
@@ -283,11 +276,13 @@ export default function Lesiones({ onVolver }) {
       }),
     );
 
-  const reemplazar = (lesion) =>
+  const reemplazar = (lesion) => {
     setLesiones((actuales) => {
       const existe = actuales.some((otra) => otra.id === lesion.id);
       return existe ? actuales.map((otra) => (otra.id === lesion.id ? lesion : otra)) : [lesion, ...actuales];
     });
+    setGuardadas((cuantas) => cuantas + 1);
+  };
 
   // El botón negro que muestra lo elegido y sube la hoja para cambiarlo: lo
   // mismo que usa Partido en vez de los desplegables del sistema.
@@ -308,17 +303,26 @@ export default function Lesiones({ onVolver }) {
 
   // ------------------------------------------------------------ Acciones --
 
+  const abrirFicha = (id) => {
+    setSeccionFicha(null);
+    setDetalleId(id);
+  };
+
   const abrirNueva = () => {
     setErrorFormulario("");
     setBusquedaJugador("");
+    setSeccionFicha(null);
     setPaso(0);
     setPasoMaximo(0);
     setFormulario(lesionVacia());
   };
 
-  const abrirEdicion = (lesion) => {
+  // Al editar se abre en el paso del grupo que se estaba mirando en la ficha;
+  // si ese grupo no es un paso (Diagnóstico, Cambios), en el de la lesión.
+  const abrirEdicion = (lesion, grupo = null) => {
+    const delGrupo = pasos.findIndex((unPaso) => unPaso.id === grupo);
     setErrorFormulario("");
-    setPaso(Math.min(1, pasos.length - 1));
+    setPaso(delGrupo >= 0 ? delGrupo : Math.min(1, pasos.length - 1));
     setPasoMaximo(pasos.length - 1);
     setFormulario({ ...lesion, datos: { ...(lesion.datos || {}) } });
   };
@@ -438,99 +442,15 @@ export default function Lesiones({ onVolver }) {
     setAviso(t("lesiones.ajustes.guardado"));
   };
 
-  // -------------------------------------------------------------- Filtro --
+  // ----------------------------------------------- Historial por jugador --
 
-  const criteriosDelFiltro = useMemo(
-    () => [
-      { valor: FILTRO.TODOS, etiqueta: t("lesiones.filtro.todos") },
-      { valor: FILTRO.JUGADOR, etiqueta: t("lesiones.filtro.jugador") },
-      { valor: FILTRO.ETAPA, etiqueta: t("lesiones.filtro.etapa") },
-      { valor: FILTRO.FECHA, etiqueta: t("lesiones.filtro.fecha") },
-      ...LISTAS_DEL_FILTRO.filter((clave) => !campoOculto(clave, config)).map((clave) => ({ valor: clave, etiqueta: etiquetaDeCampo(clave, config, idioma) })),
-      { valor: MULTI_FILTRO, etiqueta: t("lesiones.filtro.multi") },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config, idioma],
-  );
-  const enMultiFiltro = criterio === MULTI_FILTRO;
-  const criteriosActivos = enMultiFiltro ? criteriosMulti : [criterio].filter((cual) => cual !== FILTRO.TODOS);
-  const tieneCriterio = (cual) => criteriosActivos.includes(cual);
-  const nombreDelCriterio = (criteriosDelFiltro.find((uno) => uno.valor === criterio) || {}).etiqueta;
-  const criteriosSinMulti = criteriosDelFiltro.filter(({ valor }) => valor !== MULTI_FILTRO && valor !== FILTRO.TODOS);
-
-  const limpiarFiltros = () => {
-    setFiltroAbierto(false);
-    setHojaSelector(null);
-    setCriterio(FILTRO.TODOS);
-    setCriteriosMulti([]);
-    setJugadorFiltro("");
-    setBuscadorJugador("");
-    setEtapasFiltro([]);
-    setFechaDesde("");
-    setFechaHasta("");
-    setListasFiltro({});
-  };
-
-  const elegirCriterio = (cual) => {
-    if (cual === FILTRO.TODOS) {
-      limpiarFiltros();
-      return;
-    }
-    setCriterio(cual);
-    setFiltroAbierto(true);
-  };
-
-  const abrirHojaDeCriterios = () =>
-    setHojaSelector({ titulo: t("lesiones.filtro.filtrarPor"), opciones: criteriosDelFiltro, valor: criterio, alElegir: elegirCriterio });
-
-  const alternar = (lista, cual) => (lista.includes(cual) ? lista.filter((uno) => uno !== cual) : [...lista, cual]);
-  const alternarCriterio = (cual) => setCriteriosMulti((previos) => alternar(previos, cual));
-  const alternarEtapa = (cual) => setEtapasFiltro((previas) => alternar(previas, cual));
-  const alternarOpcionFiltro = (clave, codigo) =>
-    setListasFiltro((previas) => ({ ...previas, [clave]: alternar(previas[clave] || [], codigo) }));
-
-  const historialVisible = useMemo(() => {
-    const filtradas = filtrarLesiones(ordenarHistorial(lesiones), {
-      criterios: criteriosActivos,
-      jugador: jugadorFiltro,
-      etapas: etapasFiltro,
-      desde: fechaDesde,
-      hasta: fechaHasta,
-      listas: listasFiltro,
-    });
-    return buscarEnLesiones(filtradas, busqueda, { nombreDe, config, idioma });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lesiones, criteriosActivos.join(","), jugadorFiltro, etapasFiltro, fechaDesde, fechaHasta, listasFiltro, busqueda, plantel, config, idioma]);
-
-  const jugadoresDelFiltro = useMemo(() => {
-    const buscado = normalizarTexto(buscadorJugador);
+  const jugadoresDelHistorial = useMemo(() => {
+    const buscado = normalizarTexto(busquedaHistorial);
     return plantel
-      .map((jugador) => ({ jugador, lesiones: lesiones.filter((lesion) => String(lesion.jugador_id) === String(jugador.id)).length }))
+      .map((jugador) => ({ jugador, cuantas: lesiones.filter((lesion) => String(lesion.jugador_id) === String(jugador.id)).length }))
       .filter(({ jugador }) => !buscado || normalizarTexto(jugador.nombre).includes(buscado));
-  }, [plantel, lesiones, buscadorJugador]);
-
-  const conRotulo = (rotulo, contenido, clave) => (
-    <div className="bloque-criterio" key={clave || rotulo}>
-      <p className="rotulo-criterio">{rotulo}</p>
-      {contenido}
-    </div>
-  );
-
-  const chips = (lista, prendidas, alTocar) => (
-    <div className="grilla-criterios">
-      {lista.map(({ valor, etiqueta: texto }) => (
-        <button
-          type="button"
-          key={valor}
-          className={`chip-criterio ${prendidas.includes(valor) ? "prendido" : ""}`}
-          aria-pressed={prendidas.includes(valor)}
-          onClick={() => alTocar(valor)}
-        >
-          {texto}
-        </button>
-      ))}
-    </div>
-  );
+  }, [plantel, lesiones, busquedaHistorial]);
+  const elegidoHistorial = jugadorHistorial ? jugadorDe(jugadorHistorial) : null;
 
   // ------------------------------------------------------------ Pantallas --
 
@@ -572,7 +492,7 @@ export default function Lesiones({ onVolver }) {
         )}
       </div>
       <div className="acciones-registro">
-        <button type="button" className="boton-detalle" onClick={() => setDetalleId(lesion.id)}>
+        <button type="button" className="boton-detalle" onClick={() => abrirFicha(lesion.id)}>
           {t("lesiones.verDetalle")}
         </button>
         {conAlta && estaActiva(lesion) && !soloLectura && (
@@ -637,125 +557,15 @@ export default function Lesiones({ onVolver }) {
     </div>
   );
 
-  const pantallaHistorial = (
-    <div className="app">
-      <div className="contenedor">
-        <Encabezado titulo={t("lesiones.historial.titulo")} texto={t("lesiones.historial.texto")} />
-        {estado}
-        <section className="tarjeta">
-          <div className="buscador-registros">
-            <div className="linea-buscador">
-              <input value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} placeholder={t("lesiones.historial.buscar")} />
-              <button
-                type="button"
-                className={`boton-filtro ${criterio === FILTRO.TODOS ? "" : "con-filtro"}`}
-                aria-label={filtroAbierto ? t("lesiones.filtro.borrar") : t("lesiones.filtro.filtrar")}
-                aria-expanded={filtroAbierto}
-                onClick={() => (filtroAbierto ? limpiarFiltros() : abrirHojaDeCriterios())}
-              >
-                <Icono nombre="filtro" size={20} />
-              </button>
-            </div>
-
-            {filtroAbierto && (
-              <div className="panel-filtro">
-                <button type="button" className="criterio-elegido" onClick={abrirHojaDeCriterios}>
-                  <b>{nombreDelCriterio}</b>
-                  <span>{t("lesiones.filtro.cambiar")}</span>
-                </button>
-
-                {enMultiFiltro && (
-                  <>
-                    <p className="rotulo-criterio">{t("lesiones.filtro.conCuales")}</p>
-                    {chips(criteriosSinMulti, criteriosMulti, alternarCriterio)}
-                  </>
-                )}
-
-                {tieneCriterio(FILTRO.JUGADOR) &&
-                  conRotulo(
-                    t("lesiones.filtro.jugador"),
-                    jugadorFiltro ? (
-                      <button type="button" className="rival-elegido" onClick={() => setJugadorFiltro("")}>
-                        <b>{nombreDe(jugadorFiltro)}</b>
-                        <span>{t("lesiones.filtro.cambiar")}</span>
-                      </button>
-                    ) : (
-                      <>
-                        <input
-                          value={buscadorJugador}
-                          onChange={(evento) => setBuscadorJugador(evento.target.value)}
-                          placeholder={t("lesiones.filtro.buscarJugador")}
-                          aria-label={t("lesiones.filtro.buscarJugador")}
-                        />
-                        <div className="lista-rivales">
-                          {jugadoresDelFiltro.length === 0 ? (
-                            <p className="sin-resultados">{t("lesiones.filtro.ningunJugador")}</p>
-                          ) : (
-                            jugadoresDelFiltro.map(({ jugador, lesiones: cuantas }) => (
-                              <button type="button" key={jugador.id} onClick={() => setJugadorFiltro(String(jugador.id))}>
-                                <b>{jugador.nombre}</b>
-                                <span>{plural("lesiones.historial.cantidad", cuantas)}</span>
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </>
-                    ),
-                    "jugador",
-                  )}
-
-                {tieneCriterio(FILTRO.ETAPA) &&
-                  conRotulo(
-                    t("lesiones.filtro.etapa"),
-                    chips(
-                      ETAPAS.map((etapa) => ({ valor: etapa, etiqueta: t(`lesiones.etapa.${etapa}`) })),
-                      etapasFiltro,
-                      alternarEtapa,
-                    ),
-                    "etapa",
-                  )}
-
-                {tieneCriterio(FILTRO.FECHA) &&
-                  conRotulo(
-                    t("lesiones.filtro.fecha"),
-                    <div className="rango-fechas">
-                      <label>
-                        <span>{t("lesiones.filtro.desde")}</span>
-                        <input type="date" value={fechaDesde} onChange={(evento) => setFechaDesde(evento.target.value)} />
-                      </label>
-                      <label>
-                        <span>{t("lesiones.filtro.hasta")}</span>
-                        <input type="date" value={fechaHasta} onChange={(evento) => setFechaHasta(evento.target.value)} />
-                      </label>
-                    </div>,
-                    "fecha",
-                  )}
-
-                {LISTAS_DEL_FILTRO.filter(tieneCriterio).map((clave) =>
-                  conRotulo(etiqueta(clave), chips(opciones(clave), listasFiltro[clave] || [], (codigo) => alternarOpcionFiltro(clave, codigo)), clave),
-                )}
-              </div>
-            )}
-          </div>
-
-          {!cargando && !error && (
-            <p className="lesiones-cantidad">
-              {lesiones.length === 0 ? t("lesiones.historial.vacio") : plural("lesiones.historial.cantidad", historialVisible.length)}
-            </p>
-          )}
-          {lesiones.length > 0 && historialVisible.length === 0 && <div className="sin-resultados">{t("lesiones.historial.sinResultados")}</div>}
-          <div className="lesiones-lista">{historialVisible.map((lesion) => tarjetaLesion(lesion))}</div>
-        </section>
-      </div>
-    </div>
-  );
-
-  // La base estilo Excel: una fila por lesión, una columna por cabecera.
+  // La base estilo Excel: una fila por lesión, una columna por cabecera, y
+  // arriba la fila de los grupos del Excel.
   const columnasBase = useMemo(
     () =>
       CAMPOS.filter(visible).map((campo) => ({
         clave: campo.clave,
         titulo: etiquetaDeCampo(campo.clave, config, idioma),
+        grupo: campo.grupo,
+        grupoTitulo: etiquetaDeGrupo(campo.grupo, config, idioma),
         tipo: campo.tipo,
         editable: !soloLectura && TIPOS_MANUALES.includes(campo.tipo),
         opciones:
@@ -780,6 +590,11 @@ export default function Lesiones({ onVolver }) {
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [lesiones, plantel, config, idioma],
+  );
+  // El historial de un jugador: la misma base, con sus lesiones nada más.
+  const filasHistorial = useMemo(
+    () => (jugadorHistorial ? filasBase.filter((fila) => String(fila.valores.jugador) === String(jugadorHistorial)) : []),
+    [filasBase, jugadorHistorial],
   );
 
   const editarCelda = async (lesionId, clave, valor) => {
@@ -822,37 +637,106 @@ export default function Lesiones({ onVolver }) {
     return { hechos, error: ultimoError };
   };
 
+  // La tabla de lesiones: la de la Base y la del historial de un jugador
+  // son la misma (mismas columnas, mismo orden guardado, mismos filtros).
+  const tablaDeLesiones = (filas, clave = "todas") => (
+    <TablaDatos
+      key={clave}
+      id="lesiones"
+      columnas={columnasBase}
+      filas={filas}
+      onEditar={editarCelda}
+      onPegar={pegarEnBase}
+      onAbrirFila={abrirFicha}
+      onBorrarFila={
+        soloLectura
+          ? undefined
+          : (id) => {
+              const lesion = lesiones.find((una) => una.id === id);
+              if (lesion) setABorrar(lesion);
+            }
+      }
+    />
+  );
+
   const pantallaBase = (
     <div className="app">
       <div className="contenedor contenedor-base">
         <Encabezado titulo={t("nav.base")} texto={t("tabla.editar")} />
         {estado}
-        <section className="tarjeta">
-          <TablaDatos
-            id="lesiones"
-            columnas={columnasBase}
-            filas={filasBase}
-            onEditar={editarCelda}
-            onPegar={pegarEnBase}
-            onAbrirFila={(id) => setDetalleId(id)}
-            onBorrarFila={
-              soloLectura
-                ? undefined
-                : (id) => {
-                    const lesion = lesiones.find((una) => una.id === id);
-                    if (lesion) setABorrar(lesion);
-                  }
-            }
-          />
+        <section className="tarjeta">{tablaDeLesiones(filasBase)}</section>
+      </div>
+    </div>
+  );
+
+  // El historial de un jugador: se busca por el nombre y queda su base, con
+  // sus lesiones nada más. Elegido, la lista se retrae como en Partido.
+  const pantallaHistorial = (
+    <div className="app">
+      <div className="contenedor contenedor-base">
+        <Encabezado titulo={t("lesiones.historial.titulo")} texto={t("lesiones.historial.texto")} />
+        {estado}
+        <section className="tarjeta lesiones-elegir-jugador">
+          {elegidoHistorial ? (
+            <button
+              type="button"
+              className="rival-elegido"
+              onClick={() => {
+                setJugadorHistorial("");
+                setBusquedaHistorial("");
+              }}
+            >
+              <b>{elegidoHistorial.nombre}</b>
+              <span>{t("lesiones.pasos.cambiar")}</span>
+            </button>
+          ) : (
+            <>
+              <input
+                className="lesiones-buscador-jugador"
+                type="search"
+                value={busquedaHistorial}
+                onChange={(evento) => setBusquedaHistorial(evento.target.value)}
+                placeholder={t("lesiones.historial.buscar")}
+                aria-label={t("lesiones.historial.buscar")}
+                autoComplete="off"
+              />
+              {!cargando && plantel.length === 0 && <p className="lesiones-ayuda">{t("lesiones.sinJugadores")}</p>}
+              {plantel.length > 0 && (
+                <div className="lista-rivales lesiones-lista-jugadores">
+                  {jugadoresDelHistorial.length === 0 ? (
+                    <p className="sin-resultados">{t("lesiones.pasos.ningunJugador")}</p>
+                  ) : (
+                    jugadoresDelHistorial.map(({ jugador, cuantas }) => (
+                      <button type="button" key={jugador.id} onClick={() => setJugadorHistorial(String(jugador.id))}>
+                        <b>{jugador.nombre}</b>
+                        <span>{plural("lesiones.historial.cantidad", cuantas)}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </section>
+
+        {elegidoHistorial && (
+          <section className="tarjeta">
+            <p className="lesiones-cantidad">{plural("lesiones.historial.cantidad", filasHistorial.length)}</p>
+            {filasHistorial.length === 0 ? (
+              <p className="vacio-ficha">{t("lesiones.historial.sinLesiones")}</p>
+            ) : (
+              tablaDeLesiones(filasHistorial, `jugador-${jugadorHistorial}`)
+            )}
+          </section>
+        )}
       </div>
     </div>
   );
 
   // Ajustes, con el mismo formato que en Flujo diario: filas, y adentro de
   // cada una su pantalla con "Volver a Ajustes".
-  const filaAjuste = ({ id, icono, titulo, detalle, alTocar, extra = null }) => (
-    <button key={id} type="button" className="opcion-ajuste" onClick={alTocar} disabled={soloLectura}>
+  const filaAjuste = ({ id, icono, titulo, detalle, alTocar, extra = null, clase = "" }) => (
+    <button key={id} type="button" className={`opcion-ajuste ${clase}`.trim()} onClick={alTocar} disabled={soloLectura}>
       {icono && (
         <span className="icono-ajuste">
           <Icono nombre={icono} size={18} />
@@ -873,24 +757,51 @@ export default function Lesiones({ onVolver }) {
         <div className="app">
           <div className="contenedor">
             <Encabezado titulo={t("lesiones.ajustes.cabeceras")} texto={t("lesiones.ajustes.cabecerasAyuda")} />
-            {CAMPOS.map((campo) =>
-              filaAjuste({
-                id: campo.clave,
-                titulo: etiqueta(campo.clave),
-                detalle: t("lesiones.ajustes.porDefecto", { texto: campo.etiquetas[idioma] || campo.etiquetas["es-AR"] }),
-                extra: campoOculto(campo.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
-                alTocar: () => {
-                  setErrorHoja("");
-                  const propio = config?.campos?.[campo.clave];
-                  setHojaCabecera({
-                    clave: campo.clave,
-                    etiquetas: { ...(propio?.etiquetas || campo.etiquetas) },
-                    oculto: Boolean(propio?.oculto),
-                    orden: propio?.orden ?? CAMPOS.indexOf(campo),
-                  });
-                },
-              }),
-            )}
+            {/* Cada grupo del Excel con sus columnas abajo: el grupo también
+                se renombra (es la fila de arriba de las cabeceras). */}
+            {GRUPOS.map((grupo, indiceGrupo) => {
+              const suyos = CAMPOS.filter((campo) => campo.grupo === grupo.clave);
+              const claveGrupo = claveDeGrupo(grupo.clave);
+              return (
+                <React.Fragment key={grupo.clave}>
+                  {filaAjuste({
+                    id: claveGrupo,
+                    clase: "lesiones-ajuste-grupo",
+                    titulo: etiquetaDeGrupo(grupo.clave, config, idioma),
+                    detalle: plural("lesiones.ajustes.grupoDe", suyos.length),
+                    alTocar: () => {
+                      setErrorHoja("");
+                      const propio = config?.campos?.[claveGrupo];
+                      setHojaCabecera({
+                        clave: claveGrupo,
+                        grupo: grupo.clave,
+                        etiquetas: { ...(propio?.etiquetas || grupo.etiquetas) },
+                        oculto: false,
+                        orden: propio?.orden ?? 1000 + indiceGrupo,
+                      });
+                    },
+                  })}
+                  {suyos.map((campo) =>
+                    filaAjuste({
+                      id: campo.clave,
+                      titulo: etiqueta(campo.clave),
+                      detalle: t("lesiones.ajustes.porDefecto", { texto: campo.etiquetas[idioma] || campo.etiquetas["es-AR"] }),
+                      extra: campoOculto(campo.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
+                      alTocar: () => {
+                        setErrorHoja("");
+                        const propio = config?.campos?.[campo.clave];
+                        setHojaCabecera({
+                          clave: campo.clave,
+                          etiquetas: { ...(propio?.etiquetas || campo.etiquetas) },
+                          oculto: Boolean(propio?.oculto),
+                          orden: propio?.orden ?? CAMPOS.indexOf(campo),
+                        });
+                      },
+                    }),
+                  )}
+                </React.Fragment>
+              );
+            })}
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
             </div>
@@ -983,50 +894,116 @@ export default function Lesiones({ onVolver }) {
     );
   };
 
-  // La ficha de una lesión: todas las columnas del Excel, por grupo.
+  // La ficha de una lesión, como la de un partido: arriba el resumen
+  // (diagnóstico y días de baja) y abajo una pestaña por grupo del Excel, más
+  // la de los últimos cambios. Se mira un grupo a la vez.
+  const seccionesDeFicha = () => [
+    ...GRUPOS.map((grupo) => ({
+      id: grupo.clave,
+      titulo: etiquetaDeGrupo(grupo.clave, config, idioma),
+      campos: CAMPOS.filter((campo) => campo.grupo === grupo.clave && visible(campo)),
+    })).filter((seccion) => seccion.campos.length > 0),
+    // Quien ya se fue del club no ve los cambios: tendrían lo que se tocó
+    // después de su último día.
+    ...(soloLectura ? [] : [{ id: SECCION_CAMBIOS, titulo: t("lesiones.ficha.cambios"), campos: [] }]),
+  ];
+
+  // La pestaña elegida queda a la vista en la barra, que se desliza de
+  // costado: solo cuando cambia, para no pelear con el dedo.
+  const pestanaVista = useRef("");
+  const mostrarPestana = (barra, clave) => {
+    if (!barra || pestanaVista.current === clave) return;
+    pestanaVista.current = clave;
+    const activa = barra.querySelector('[aria-selected="true"]');
+    if (!activa) return;
+    const desde = activa.offsetLeft;
+    const hasta = desde + activa.offsetWidth;
+    if (desde < barra.scrollLeft) barra.scrollLeft = desde;
+    else if (hasta > barra.scrollLeft + barra.clientWidth) barra.scrollLeft = hasta - barra.clientWidth;
+  };
+
+  const tarjetaCambios = () => (
+    <section className="tarjeta tarjeta-ficha" role="tabpanel" aria-label={t("lesiones.ficha.cambios")}>
+      <div className="cabeza-ficha">
+        <b>{t("lesiones.ficha.ultimos")}</b>
+        <span>{t("lesiones.ficha.ultimosTexto").toUpperCase()}</span>
+      </div>
+      {cambiosDetalle.length === 0 ? (
+        <p className="vacio-ficha">{t("lesiones.ficha.sinCambios")}</p>
+      ) : (
+        <ul className="lesiones-cambios">
+          {cambiosDetalle.map((cambio) => (
+            <li key={cambio.id}>
+              <div className="dato-detalle">
+                <span>{t(`lesiones.ficha.${cambio.accion === "creada" ? "creada" : "editada"}`)}</span>
+                <strong>{t("lesiones.ficha.cambio", { fecha: fechaYHora(cambio.cuando), quien: cambio.quien_email || "—" })}</strong>
+              </div>
+              {cambio.campos?.length > 0 && (
+                <p className="lesiones-cambio-columnas">{t("lesiones.ficha.columnas", { columnas: cambio.campos.map(etiqueta).join(", ") })}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+
   const pantallaDetalle = (lesion) => {
     const activa = estaActiva(lesion);
+    const secciones = seccionesDeFicha();
+    const seccion = secciones.find((una) => una.id === seccionFicha) || secciones[0];
+    const diagnostico = enPantalla(campoPorClave("diagnostico"), lesion) || textoDeOpcion("parte_cuerpo", lesion.datos?.parte_cuerpo);
     return (
       <div className="app">
-        <div className="contenedor">
+        <div className="contenedor ficha-registro lesiones-ficha">
           <Encabezado
             titulo={nombreDe(lesion.jugador_id) || t("lesiones.titulo")}
             texto={[lesion.numero_caso ? t("lesiones.caso", { n: lesion.numero_caso }) : "", fechaCorta(lesion.fecha_lesion), t(`lesiones.etapa.${etapaDe(lesion)}`)]
               .filter(Boolean)
               .join(" · ")}
           />
-          {GRUPOS.map((grupo) => {
-            const campos = CAMPOS.filter((campo) => campo.grupo === grupo && visible(campo));
-            if (campos.length === 0) return null;
-            return (
-              <section className="tarjeta tarjeta-ficha" key={grupo}>
-                <div className="cabeza-ficha">
-                  <b>{t(`lesiones.grupos.${grupo}`)}</b>
-                </div>
-                {campos.map((campo) => (
-                  <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion)} />
-                ))}
-              </section>
-            );
-          })}
-          {!soloLectura && (
-            <section className="tarjeta tarjeta-ficha">
+
+          <section className="marcador-ficha lesiones-marcador" aria-label={t("lesiones.ficha.resumen")}>
+            <div className="lesiones-marcador-texto">
+              <span>{etiqueta("diagnostico")}</span>
+              <strong>{diagnostico || "—"}</strong>
+            </div>
+            <div className="total-ficha">
+              <b>{diasDeBaja(lesion)}</b>
+              <small>{t("lesiones.ficha.diasDeBaja").toUpperCase()}</small>
+            </div>
+          </section>
+
+          <section className="selector-periodos en-ficha lesiones-secciones" aria-label={t("lesiones.ficha.secciones")}>
+            <div role="tablist" ref={(barra) => mostrarPestana(barra, `${lesion.id}:${seccion.id}`)}>
+              {secciones.map((una) => (
+                <button
+                  type="button"
+                  role="tab"
+                  key={una.id}
+                  aria-selected={una.id === seccion.id}
+                  className={una.id === seccion.id ? "activo" : ""}
+                  onClick={() => setSeccionFicha(una.id)}
+                >
+                  {una.titulo}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {seccion.id === SECCION_CAMBIOS ? (
+            tarjetaCambios()
+          ) : (
+            <section className="tarjeta tarjeta-ficha" role="tabpanel" aria-label={seccion.titulo}>
               <div className="cabeza-ficha">
-                <b>{t("lesiones.historial.cambios")}</b>
+                <b>{seccion.titulo}</b>
               </div>
-              {cambiosDetalle.length === 0 ? (
-                <p className="vacio-ficha">{t("lesiones.historial.sinCambios")}</p>
-              ) : (
-                cambiosDetalle.map((cambio) => (
-                  <DatoDetalle
-                    key={cambio.id}
-                    label={t(`lesiones.historial.${cambio.accion === "creada" ? "creada" : "editada"}`)}
-                    valor={t("lesiones.historial.cambio", { fecha: fechaYHora(cambio.cuando), quien: cambio.quien_email || "—" })}
-                  />
-                ))
-              )}
+              {seccion.campos.map((campo) => (
+                <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion)} />
+              ))}
             </section>
           )}
+
           {activa && !soloLectura && (
             <div className="acciones-inicio">
               <button
@@ -1044,7 +1021,7 @@ export default function Lesiones({ onVolver }) {
           <div className="acciones-dobles">
             <BotonVolver onClick={() => setDetalleId(null)}>{t("comun.volver")}</BotonVolver>
             {!soloLectura && (
-              <button type="button" className="boton-principal" onClick={() => abrirEdicion(lesion)}>
+              <button type="button" className="boton-principal" onClick={() => abrirEdicion(lesion, seccion.id)}>
                 {t("lesiones.editar")}
               </button>
             )}
@@ -1148,18 +1125,39 @@ export default function Lesiones({ onVolver }) {
     }
   };
 
-  // El jugador se elige de una lista grande, buscando por el nombre.
+  // El jugador se elige de una lista grande, buscando por el nombre. Elegido,
+  // la lista se retrae (como el equipo en el filtro de Partido): queda el
+  // nombre con "Cambiar" y abajo sus datos.
   const pasoJugador = (lesion) => {
     const buscado = normalizarTexto(busquedaJugador);
     const candidatos = plantel.filter((jugador) => !buscado || normalizarTexto(jugador.nombre).includes(buscado));
     const elegido = jugadorDe(lesion.jugador_id);
+    const datosDelJugador = CAMPOS.filter((campo) => campo.tipo === "dato_jugador" && visible(campo)).map((campo) => (
+      <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion) || "—"} />
+    ));
     if (lesion.id) {
       return (
         <section className="tarjeta tarjeta-ficha lesiones-grupo">
           <DatoDetalle label={etiqueta("jugador")} valor={elegido?.nombre || "—"} />
-          {CAMPOS.filter((campo) => campo.tipo === "dato_jugador" && visible(campo)).map((campo) => (
-            <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion) || "—"} />
-          ))}
+          {datosDelJugador}
+        </section>
+      );
+    }
+    if (elegido) {
+      return (
+        <section className="tarjeta tarjeta-ficha lesiones-grupo">
+          <button
+            type="button"
+            className="rival-elegido"
+            onClick={() => {
+              setBusquedaJugador("");
+              setFormulario((actual) => conValor(actual, "jugador", null));
+            }}
+          >
+            <b>{elegido.nombre}</b>
+            <span>{t("lesiones.pasos.cambiar")}</span>
+          </button>
+          <div className="lesiones-jugador-elegido">{datosDelJugador}</div>
         </section>
       );
     }
@@ -1175,55 +1173,32 @@ export default function Lesiones({ onVolver }) {
           autoComplete="off"
         />
         {plantel.length === 0 && <p className="lesiones-ayuda">{t("lesiones.sinJugadores")}</p>}
-        <div className="lista-rivales lesiones-lista-jugadores">
-          {candidatos.length === 0 && plantel.length > 0 ? (
-            <p className="sin-resultados">{t("lesiones.filtro.ningunJugador")}</p>
-          ) : (
-            candidatos.map((jugador) => (
-              <button
-                type="button"
-                key={jugador.id}
-                className={String(lesion.jugador_id) === String(jugador.id) ? "elegido" : ""}
-                aria-pressed={String(lesion.jugador_id) === String(jugador.id)}
-                onClick={() => setFormulario((actual) => conValor(actual, "jugador", jugador.id))}
-              >
-                <b>{jugador.nombre}</b>
-                <span>{[jugador.posicion ? textoDeOpcion("posicion", jugador.posicion) : "", jugador.categoria ? textoDeOpcion("categoria", jugador.categoria) : ""].filter(Boolean).join(" · ")}</span>
-              </button>
-            ))
-          )}
-        </div>
-        {elegido && (
-          <div className="lesiones-jugador-elegido">
-            {CAMPOS.filter((campo) => campo.tipo === "dato_jugador" && visible(campo)).map((campo) => (
-              <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion) || "—"} />
-            ))}
+        {plantel.length > 0 && (
+          <div className="lista-rivales lesiones-lista-jugadores">
+            {candidatos.length === 0 ? (
+              <p className="sin-resultados">{t("lesiones.pasos.ningunJugador")}</p>
+            ) : (
+              candidatos.map((jugador) => (
+                <button type="button" key={jugador.id} onClick={() => setFormulario((actual) => conValor(actual, "jugador", jugador.id))}>
+                  <b>{jugador.nombre}</b>
+                  <span>{[jugador.posicion ? textoDeOpcion("posicion", jugador.posicion) : "", jugador.categoria ? textoDeOpcion("categoria", jugador.categoria) : ""].filter(Boolean).join(" · ")}</span>
+                </button>
+              ))
+            )}
           </div>
         )}
       </section>
     );
   };
 
-  // Lo que el Excel calcula solo, con los datos cargados hasta acá.
-  const resumenCalculado = (lesion) => (
-    <section className="tarjeta tarjeta-ficha lesiones-grupo lesiones-calculados">
-      <div className="cabeza-ficha">
-        <b>{t("lesiones.pasos.calculados")}</b>
-      </div>
-      {CAMPOS.filter((campo) => campo.tipo === "calculado" && visible(campo)).map((campo) => (
-        <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion) || "—"} />
-      ))}
-    </section>
-  );
-
+  // Para pasar de paso se revisan las columnas de ese paso que están a la
+  // vista; al guardar se revisa todo.
   const validarPaso = (indice, lesion) => {
-    const id = pasos[indice]?.id;
-    if (id === "jugador" && !lesion.jugador_id) return t("lesiones.pasos.sinJugador");
-    if (id === "lesion") {
-      if (!lesion.fecha_lesion) return t("lesiones.error.fecha");
-      if (lesion.fecha_lesion > hoyISO()) return t("lesiones.error.fechaFutura");
-      if (!lesion.datos?.parte_cuerpo) return t("lesiones.error.parte");
-      if (!lesion.datos?.lado) return t("lesiones.error.lado");
+    const hoy = hoyISO();
+    for (const clave of pasos[indice]?.campos || []) {
+      if (campoOculto(clave, config)) continue;
+      const falta = errorDeCampo(lesion, clave, hoy);
+      if (falta) return t(falta === "lesiones.error.jugador" ? "lesiones.pasos.sinJugador" : falta);
     }
     return "";
   };
@@ -1245,7 +1220,8 @@ export default function Lesiones({ onVolver }) {
     const total = pasos.length;
     const actual = pasos[Math.min(paso, total - 1)];
     const campos = actual.campos.map(campoPorClave).filter((campo) => campo && visible(campo));
-    const recidiva = posibleRecidiva(lesion, lesiones);
+    // El aviso de recidiva va en los pasos donde se elige lo que la decide.
+    const recidiva = actual.campos.some((clave) => CAMPOS_DE_RECIDIVA.includes(clave)) ? posibleRecidiva(lesion, lesiones) : null;
     const ultimo = paso === total - 1;
     return (
       <div className="app">
@@ -1261,7 +1237,7 @@ export default function Lesiones({ onVolver }) {
                   className={`${indice === paso ? "actual" : ""} ${indice < paso ? "hecho" : ""}`.trim()}
                   disabled={indice > pasoMaximo + 1}
                   onClick={() => irAlPaso(indice, lesion)}
-                  aria-label={t(`lesiones.pasos.${unPaso.id}`)}
+                  aria-label={etiquetaDeGrupo(unPaso.id, config, idioma)}
                 />
               ))}
             </div>
@@ -1269,12 +1245,12 @@ export default function Lesiones({ onVolver }) {
           </Encabezado>
 
           <section className="lesiones-paso-titulo">
-            <h2>{t(`lesiones.pasos.${actual.id}`)}</h2>
-            <p>{t(`lesiones.pasos.${actual.id}Texto`)}</p>
+            <h2>{etiquetaDeGrupo(actual.id, config, idioma)}</h2>
+            <p>{t(`lesiones.pasos.${actual.id}Texto`, {}, "")}</p>
           </section>
 
           {errorFormulario && <div className="aviso-hoja">{errorFormulario}</div>}
-          {actual.id === "lesion" && recidiva && (
+          {recidiva && (
             <div className="lesiones-aviso-recidiva">
               {t("lesiones.avisoRecidiva", {
                 parte: textoDeOpcion("parte_cuerpo", recidiva.datos?.parte_cuerpo),
@@ -1284,13 +1260,12 @@ export default function Lesiones({ onVolver }) {
             </div>
           )}
 
-          {actual.id === "jugador" ? (
-            pasoJugador(lesion)
-          ) : (
-            <section className="tarjeta tarjeta-ficha lesiones-grupo">{campos.map((campo) => campoDelPaso(campo, lesion))}</section>
+          {actual.campos.includes("jugador") && pasoJugador(lesion)}
+          {campos.some((campo) => campo.clave !== "jugador") && (
+            <section className="tarjeta tarjeta-ficha lesiones-grupo">
+              {campos.filter((campo) => campo.clave !== "jugador").map((campo) => campoDelPaso(campo, lesion))}
+            </section>
           )}
-
-          {ultimo && resumenCalculado(lesion)}
 
           <div className="acciones-dobles">
             <BotonVolver onClick={() => (paso === 0 ? cerrarFormulario() : irAlPaso(paso - 1, lesion))}>
@@ -1335,7 +1310,7 @@ export default function Lesiones({ onVolver }) {
 
   // Cabeceras y opciones se renombran en el idioma que se está usando; el
   // otro idioma guarda lo que tenía.
-  const hojaDeTextos = ({ abierta, titulo, hoja, setHoja, onGuardar, onCerrar, fija = false }) =>
+  const hojaDeTextos = ({ abierta, titulo, hoja, setHoja, onGuardar, onCerrar, fija = false, nota = "" }) =>
     hoja ? (
       <HojaInferior
         abierta={abierta}
@@ -1364,7 +1339,9 @@ export default function Lesiones({ onVolver }) {
           />
           <small className="lesiones-ayuda">{t("lesiones.ajustes.nombreAyuda")}</small>
         </div>
-        {fija ? (
+        {nota ? (
+          <p className="lesiones-ayuda lesiones-nota-fija">{nota}</p>
+        ) : fija ? (
           <p className="lesiones-ayuda lesiones-nota-fija">{t("lesiones.ajustes.noSeOculta")}</p>
         ) : (
           <div className="grilla-criterios">
@@ -1428,12 +1405,18 @@ export default function Lesiones({ onVolver }) {
 
       {hojaDeTextos({
         abierta: Boolean(hojaCabecera),
-        titulo: hojaCabecera ? `${t("lesiones.ajustes.editarCabecera")}: ${etiqueta(hojaCabecera.clave)}` : "",
+        titulo: !hojaCabecera
+          ? ""
+          : hojaCabecera.grupo
+            ? `${t("lesiones.ajustes.editarGrupo")}: ${etiquetaDeGrupo(hojaCabecera.grupo, config, idioma)}`
+            : `${t("lesiones.ajustes.editarCabecera")}: ${etiqueta(hojaCabecera.clave)}`,
         hoja: hojaCabecera,
         setHoja: setHojaCabecera,
         onGuardar: guardarHojaCabecera,
         onCerrar: () => !ocupado && setHojaCabecera(null),
         fija: Boolean(hojaCabecera && campoPorClave(hojaCabecera.clave)?.obligatorio),
+        // Un grupo no se esconde: se esconden sus columnas.
+        nota: hojaCabecera?.grupo ? t("lesiones.ajustes.grupoAyuda") : "",
       })}
 
       {hojaDeTextos({

@@ -4,6 +4,7 @@ import { EscudoDeClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import ImportarJugadores from "./ImportarJugadores.jsx";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { diasEntre } from "./domain/lesiones.js";
 import { campoPorClave, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
@@ -15,7 +16,8 @@ import "./lesiones.css";
 
 // Datos básicos: los jugadores del club con lo que cada módulo necesita (la
 // hoja "Datos Básicos" del Excel), en la tabla estilo Excel que se copia y se
-// pega. Es la misma lista de jugadores de Partido y Flujo diario.
+// pega. Es la misma lista de jugadores de Partido y Flujo diario. La hoja
+// entera del Excel se trae con "Pegar desde Excel" (ImportarJugadores.jsx).
 
 export const DESTINOS_DATOS = [{ id: "jugadores", etiqueta: "Jugadores", icono: "usuario" }];
 
@@ -46,6 +48,7 @@ export default function DatosBasicos({ onVolver }) {
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [agregando, setAgregando] = useState(false);
   const [aBorrar, setABorrar] = useState(null);
+  const [importando, setImportando] = useState(false);
 
   const equipoId = equipo?.id || null;
   // Quien ya se fue del club ve a los jugadores de entonces y no cambia nada.
@@ -211,8 +214,29 @@ export default function DatosBasicos({ onVolver }) {
     <p className="lesiones-estado">{t("comun.cargando")}</p>
   ) : null;
 
+  const pantallaImportar = (
+    <ImportarJugadores
+      equipoId={equipoId}
+      plantel={plantel}
+      config={config}
+      onVolver={() => setImportando(false)}
+      onRecargar={cargar}
+      onListo={({ nuevos, actualizados }) => {
+        setImportando(false);
+        setAviso(t("datos.importar.listo", { nuevos: plural("datos.importar.nuevos", nuevos), actualizados: plural("datos.importar.actualizados", actualizados) }));
+      }}
+    />
+  );
+
   return (
-    <MarcoAplicacion activo="jugadores" onNavigate={() => {}} destinos={DESTINOS_DATOS} marca={t("datos.titulo")} className="entrenamiento-marco lesiones-marco datos-marco">
+    <MarcoAplicacion
+      activo="jugadores"
+      onNavigate={() => setImportando(false)}
+      destinos={DESTINOS_DATOS}
+      marca={t("datos.titulo")}
+      className="entrenamiento-marco lesiones-marco datos-marco"
+    >
+      {importando && !soloLectura ? pantallaImportar : (
       <div className="app app-inicio">
         <div className="contenedor contenedor-inicio-formacion contenedor-base">
           <header className="hero-partido hero-lesiones">
@@ -255,6 +279,10 @@ export default function DatosBasicos({ onVolver }) {
                 {agregando ? t("comun.guardando") : t("datos.agregar")}
               </button>
             </form>
+            <button type="button" className="boton-secundario datos-pegar-excel" onClick={() => setImportando(true)} disabled={cargando || Boolean(error)}>
+              <Icono nombre="documento" size={16} />
+              {t("datos.importar.boton")}
+            </button>
           </section>
           )}
 
@@ -277,6 +305,7 @@ export default function DatosBasicos({ onVolver }) {
           </section>
         </div>
       </div>
+      )}
 
       {aviso && (
         <div className="lesiones-toast" role="status">

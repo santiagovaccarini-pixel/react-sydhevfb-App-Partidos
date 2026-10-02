@@ -13,6 +13,7 @@ const datos = vi.hoisted(() => ({
   config: { campos: {}, listas: {} },
   equipo: { id: "eq-1", nombre: "Atlético Mineiro" },
   historialesPedidos: [],
+  cambios: [],
 }));
 
 const lesionHulk = () => ({
@@ -58,7 +59,7 @@ vi.mock("./domain/lesionesDb.js", () => ({
   },
   historialDeLesion: async (id) => {
     datos.historialesPedidos.push(id);
-    return { cambios: [], error: "" };
+    return { cambios: datos.cambios, error: "" };
   },
   guardarCampo: async (equipoId, campo, cambios) => {
     datos.cabeceras.push({ campo, ...cambios });
@@ -70,9 +71,9 @@ vi.mock("./domain/lesionesDb.js", () => ({
   },
 }));
 
-const { default: Lesiones, PASOS } = await import("./Lesiones.jsx");
+const { default: Lesiones } = await import("./Lesiones.jsx");
 const { fijarIdiomaParaPruebas } = await import("./idioma/index.js");
-const { CAMPOS, etiquetaDeCampo, etiquetaDeOpcion } = await import("./domain/lesionesCampos.js");
+const { CAMPOS, PASOS, etiquetaDeCampo, etiquetaDeOpcion } = await import("./domain/lesionesCampos.js");
 const { hoyISO } = await import("./idioma/formatos.js");
 
 const texto = (contenedor) => contenedor.textContent;
@@ -101,6 +102,10 @@ const navegar = async (contenedor, etiqueta) =>
   tocar([...contenedor.querySelectorAll(".navegacion-movil button")].find((b) => b.textContent.includes(etiqueta)));
 const siguiente = (contenedor) => tocar(boton(contenedor, "Siguiente"));
 const etiqueta = (clave) => etiquetaDeCampo(clave, null, "es-AR");
+const tituloDelPaso = (contenedor) => contenedor.querySelector(".lesiones-paso-titulo h2").textContent;
+const pestanas = (contenedor) => [...contenedor.querySelectorAll('.lesiones-secciones [role="tab"]')];
+const pestana = (contenedor, nombre) => pestanas(contenedor).find((b) => b.textContent === nombre);
+const GRUPOS_DEL_EXCEL = ["Datos generales", "Descripción general", "Descripción específica", "Descripción contextual", "Evolución y continuación", "Diagnóstico", "Observaciones"];
 
 describe("el módulo Lesiones", () => {
   let contenedor;
@@ -113,6 +118,7 @@ describe("el módulo Lesiones", () => {
     datos.config = { campos: {}, listas: {} };
     datos.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
     datos.historialesPedidos = [];
+    datos.cambios = [];
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -149,40 +155,73 @@ describe("el módulo Lesiones", () => {
     expect(boton(contenedor, "Ver detalhes")).toBeTruthy();
   });
 
-  test("la ficha muestra las columnas del Excel, las calculadas incluidas, y desde ahí se edita por pasos", async () => {
+  test("la ficha es como la de Partido: resumen arriba, una pestaña por grupo del Excel y los últimos cambios", async () => {
+    datos.cambios = [
+      { id: 3, accion: "editada", quien_email: "medico@club.com", cuando: "2026-09-22T14:30:00Z", campos: ["lado", "medico"] },
+      { id: 1, accion: "creada", quien_email: "medico@club.com", cuando: "2026-09-20T10:00:00Z", campos: [] },
+    ];
     await montar();
     await tocar(boton(contenedor, "Ver detalle"));
-    expect(texto(contenedor)).toContain("Caso 1");
-    expect(texto(contenedor)).toContain("Historial de cambios");
-    expect(datos.historialesPedidos).toEqual(["les-1"]);
+    expect(texto(contenedor)).toContain("Caso 1 · 20/09/2026 · Lesionado");
+    // El resumen: el diagnóstico y los días de baja.
+    const resumen = contenedor.querySelector(".lesiones-marcador");
+    expect(resumen.textContent).toContain("Lesión muscular grado 1 A Muslo Derecho");
+    expect(resumen.textContent).toContain("DÍAS DE BAJA");
+    // Una pestaña por grupo del Excel, y la de los cambios al final.
+    expect(pestanas(contenedor).map((b) => b.textContent)).toEqual([...GRUPOS_DEL_EXCEL, "Cambios"]);
+    expect(pestanas(contenedor)[0].getAttribute("aria-selected")).toBe("true");
+    // Se mira un grupo a la vez: el primero muestra al jugador.
     expect(texto(contenedor)).toContain(`${etiqueta("numero_registro")}1`);
     expect(texto(contenedor)).toContain(`${etiqueta("edad")}40 años`);
     expect(texto(contenedor)).toContain(`${etiqueta("pie_dominante")}Izquierdo`);
     expect(texto(contenedor)).toContain(`${etiqueta("posicion")}${etiquetaDeOpcion("posicion", "delantero_central", null, "es-AR")}`);
+    expect(texto(contenedor)).not.toContain(etiqueta("lado_habil"));
+    await tocar(pestana(contenedor, "Descripción general"));
     expect(texto(contenedor)).toContain(`${etiqueta("lado_habil")}No`);
+    expect(texto(contenedor)).not.toContain(etiqueta("edad"));
+    await tocar(pestana(contenedor, "Evolución y continuación"));
     expect(texto(contenedor)).toContain(`${etiqueta("recurrencia")}No`);
+    await tocar(pestana(contenedor, "Diagnóstico"));
     expect(texto(contenedor)).toContain(`${etiqueta("diagnostico")}Lesión muscular grado 1 A Muslo Derecho`);
 
+    // Los cambios: los últimos que manda la base, con qué columnas tocó cada uno.
+    expect(datos.historialesPedidos).toEqual(["les-1"]);
+    await tocar(pestana(contenedor, "Cambios"));
+    expect(texto(contenedor)).toContain("Últimos cambios");
+    expect(texto(contenedor)).toContain("LOS 5 MÁS RECIENTES");
+    expect(texto(contenedor)).toContain("Edición");
+    expect(texto(contenedor)).toContain("medico@club.com");
+    expect(texto(contenedor)).toContain(`Cambió: Lado, ${etiqueta("medico")}`);
+    expect(contenedor.querySelectorAll(".lesiones-cambios li")).toHaveLength(2);
+
+    // Editar desde una pestaña abre el paso de ese grupo.
+    await tocar(pestana(contenedor, "Observaciones"));
     await tocar(boton(contenedor, "Editar"));
     expect(texto(contenedor)).toContain("Editar lesión");
-    expect(texto(contenedor)).toContain("Paso 2 de 6");
-    // Al editar se puede saltar directo a cualquier paso.
-    await tocar(contenedor.querySelector('.lesiones-progreso button[aria-label="Notas y resumen"]'));
     expect(texto(contenedor)).toContain("Paso 6 de 6");
-    expect(texto(contenedor)).toContain("Se calcula solo");
+    expect(tituloDelPaso(contenedor)).toBe("Observaciones");
+    // Al final de la carga ya no está lo que se calcula solo.
+    expect(texto(contenedor)).not.toContain(etiqueta("numero_registro"));
+    expect(texto(contenedor)).not.toContain(etiqueta("severidad"));
     await escribir(campoDeFormulario(contenedor, etiqueta("medico")).querySelector("input"), "Dr. X");
     await tocar(boton(contenedor, "Guardar la lesión"));
     await act(async () => Promise.resolve());
     expect(datos.actualizadas).toHaveLength(1);
     expect(datos.actualizadas[0].lesion.datos.medico).toBe("Dr. X");
     expect(texto(contenedor)).toContain("Lesión guardada");
+    // Vuelve a la ficha, en la misma pestaña, y los cambios se piden de nuevo.
+    expect(pestana(contenedor, "Observaciones").getAttribute("aria-selected")).toBe("true");
+    expect(datos.historialesPedidos).toEqual(["les-1", "les-1"]);
   });
 
-  test("una lesión nueva se carga de a un paso, solo con lo que el Excel no calcula", async () => {
+  test("una lesión nueva se carga por los grupos del Excel, solo con lo que el Excel no calcula", async () => {
     await montar();
     await tocar(boton(contenedor, "Nueva lesión"));
-    expect(texto(contenedor)).toContain("¿Quién se lesionó?");
+    expect(tituloDelPaso(contenedor)).toBe("Datos generales");
+    expect(texto(contenedor)).toContain("¿Quién se lesionó? Buscá al jugador por el nombre.");
     expect(texto(contenedor)).toContain("Paso 1 de 6");
+    // Un paso por grupo con algo para cargar a mano (Diagnóstico es todo calculado).
+    expect(PASOS.map((paso) => paso.id)).toEqual(["dados_gerais", "descricao_geral", "descricao_especifica", "descricao_contextual", "evolucao", "observacoes"]);
     expect(PASOS.flatMap((paso) => paso.campos).every((clave) => !["calculado", "auto", "dato_jugador"].includes(CAMPOS.find((campo) => campo.clave === clave).tipo))).toBe(true);
 
     await siguiente(contenedor);
@@ -190,11 +229,18 @@ describe("el módulo Lesiones", () => {
     await escribir(contenedor.querySelector(".lesiones-buscador-jugador"), "sca");
     expect([...contenedor.querySelectorAll(".lesiones-lista-jugadores button")].map((b) => b.querySelector("b").textContent)).toEqual(["SCARPA"]);
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
-    // Los datos del jugador aparecen solos.
+    // Elegido, la lista se retrae: queda el nombre con "Cambiar" y sus datos.
+    expect(contenedor.querySelector(".lesiones-lista-jugadores")).toBeNull();
+    expect(contenedor.querySelector(".lesiones-buscador-jugador")).toBeNull();
+    expect(contenedor.querySelector(".rival-elegido").textContent).toBe("SCARPACambiar");
     expect(texto(contenedor)).toContain(etiquetaDeOpcion("posicion", "volante_central", null, "es-AR"));
+    // "Cambiar" la vuelve a abrir, entera.
+    await tocar(contenedor.querySelector(".rival-elegido"));
+    expect(contenedor.querySelectorAll(".lesiones-lista-jugadores button")).toHaveLength(2);
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
 
     await siguiente(contenedor);
-    expect(texto(contenedor)).toContain("¿Qué pasó?");
+    expect(tituloDelPaso(contenedor)).toBe("Descripción general");
     await siguiente(contenedor);
     expect(texto(contenedor)).toContain("Elegí la parte del cuerpo lesionada.");
     await elegirEnHoja(contenedor, "Parte del cuerpo lesionada", "Rodilla");
@@ -203,18 +249,23 @@ describe("el módulo Lesiones", () => {
     // Las listas cortas son botones a la vista; las largas, el selector con hoja.
     await tocar(chip(contenedor, "Izquierdo"));
     expect(contenedor.querySelector('.selector-hoja[aria-label="Tipo de lesión"]')).toBeTruthy();
-    await siguiente(contenedor);
-    expect(texto(contenedor)).toContain("¿Dónde exactamente?");
-    await siguiente(contenedor);
-    expect(texto(contenedor)).toContain("¿Cómo y cuándo?");
-    await elegirEnHoja(contenedor, "Mecanismo", "Sprint");
-    await siguiente(contenedor);
-    expect(texto(contenedor)).toContain("Evolución e imágenes");
+    // Las imágenes van en Descripción general, como en el Excel.
     await escribir(campoDeFormulario(contenedor, etiqueta("horas_imagen")).querySelector("input"), "12");
     await siguiente(contenedor);
-    expect(texto(contenedor)).toContain("Notas y resumen");
-    expect(texto(contenedor)).toContain(`${etiqueta("numero_registro")}1`);
-    expect(texto(contenedor)).toContain(`${etiqueta("diagnostico")}Rodilla Izquierdo`);
+    expect(tituloDelPaso(contenedor)).toBe("Descripción específica");
+    await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Descripción contextual");
+    await elegirEnHoja(contenedor, "Mecanismo", "Sprint");
+    await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Evolución y continuación");
+    // La fecha de inicio viene con la de hoy.
+    expect(campoDeFormulario(contenedor, etiqueta("fecha_lesion")).querySelector("input").value).toBe(hoyISO());
+    await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Observaciones");
+    // Lo que se calcula solo ya no aparece al final del formulario.
+    expect(texto(contenedor)).not.toContain("Se calcula solo");
+    expect(texto(contenedor)).not.toContain(etiqueta("numero_registro"));
+    expect(texto(contenedor)).not.toContain(etiqueta("diagnostico"));
     await tocar(boton(contenedor, "Guardar la lesión"));
     await act(async () => Promise.resolve());
     expect(datos.guardadas).toHaveLength(1);
@@ -223,9 +274,31 @@ describe("el módulo Lesiones", () => {
       lesion: { jugador_id: 8, fecha_alta: null, datos: { parte_cuerpo: "joelho", lado: "esquerdo", mecanismo: "sprint", horas_imagen: "12" } },
     });
     expect(datos.guardadas[0].lesion.datos.diagnostico).toBeUndefined();
-    // Después de guardar queda abierta la ficha.
+    // Después de guardar queda abierta la ficha, en su primera pestaña.
     expect(texto(contenedor)).toContain("Caso 2");
     expect(texto(contenedor)).toContain("SCARPA");
+    expect(pestanas(contenedor)[0].getAttribute("aria-selected")).toBe("true");
+  });
+
+  test("una fecha mal puesta frena el paso de la evolución", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
+    await siguiente(contenedor);
+    await elegirEnHoja(contenedor, "Parte del cuerpo lesionada", "Rodilla");
+    await tocar(chip(contenedor, "Izquierdo"));
+    await siguiente(contenedor);
+    await siguiente(contenedor);
+    await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Evolución y continuación");
+    await escribir(campoDeFormulario(contenedor, etiqueta("fecha_lesion")).querySelector("input"), "2026-09-10");
+    await escribir(campoDeFormulario(contenedor, etiqueta("fecha_transicion")).querySelector("input"), "2026-09-01");
+    await siguiente(contenedor);
+    expect(texto(contenedor)).toContain("Las fechas de transición, retorno y alta no pueden ser anteriores al inicio.");
+    expect(tituloDelPaso(contenedor)).toBe("Evolución y continuación");
+    await escribir(campoDeFormulario(contenedor, etiqueta("fecha_transicion")).querySelector("input"), "2026-09-12");
+    await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Observaciones");
   });
 
   test("el alta médica cierra la lesión; la severidad sale sola de las fechas", async () => {
@@ -251,33 +324,42 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain("Lesión borrada");
   });
 
-  test("el historial tiene el filtro de Partido: hoja de criterios y chips", async () => {
-    datos.lesiones = [lesionHulk(), { ...lesionHulk(), id: "les-2", numero_caso: 2, jugador_id: 8, fecha_lesion: "2026-08-01", fecha_alta: "2026-08-20", datos: { parte_cuerpo: "joelho", lado: "esquerdo" } }];
+  test("el historial es de un jugador: se lo busca por el nombre y queda su base", async () => {
+    datos.lesiones = [
+      { ...lesionHulk(), id: "les-2", numero_caso: 2, jugador_id: 8, fecha_lesion: "2026-08-01", fecha_alta: "2026-08-20", datos: { parte_cuerpo: "joelho", lado: "esquerdo" } },
+      { ...lesionHulk(), id: "les-3", numero_caso: 3, jugador_id: 8, fecha_lesion: "2026-06-01", fecha_alta: "2026-06-10", datos: { parte_cuerpo: "tornozelo_pe", lado: "direito" } },
+    ];
     await montar();
     await navegar(contenedor, "Historial");
+    // Primero se elige el jugador: todavía no hay tabla.
+    expect(contenedor.querySelector(".tabla-datos")).toBeNull();
+    const lista = () => [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")];
+    expect(lista().map((b) => b.textContent)).toEqual(["HULK0 lesiones", "SCARPA2 lesiones"]);
+    await escribir(contenedor.querySelector(".lesiones-buscador-jugador"), "scar");
+    expect(lista().map((b) => b.querySelector("b").textContent)).toEqual(["SCARPA"]);
+    await tocar(lista()[0]);
+    // Elegido, la lista se retrae como en Partido.
+    expect(contenedor.querySelector(".lesiones-lista-jugadores")).toBeNull();
+    expect(contenedor.querySelector(".rival-elegido").textContent).toBe("SCARPACambiar");
+    // Su base: solo sus lesiones, con la fila de grupos y los filtros de las cabeceras.
+    const filas = () => [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")];
+    expect(filas()).toHaveLength(2);
+    expect(filas().every((fila) => fila.textContent.includes("SCARPA"))).toBe(true);
     expect(texto(contenedor)).toContain("2 lesiones");
-    await tocar(contenedor.querySelector(".boton-filtro"));
-    expect(texto(contenedor)).toContain("Filtrar por");
-    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Etapa"));
-    expect(contenedor.querySelector(".criterio-elegido b").textContent).toBe("Etapa");
-    await tocar(chip(contenedor, "Con alta"));
-    expect(texto(contenedor)).toContain("1 lesión");
-    expect(texto(contenedor)).toContain("SCARPA");
-    expect(texto(contenedor)).not.toContain("HULK");
-    // El icono prendido borra todo.
-    await tocar(contenedor.querySelector(".boton-filtro"));
-    expect(texto(contenedor)).toContain("2 lesiones");
-    // Multi-Filtro: parte del cuerpo y jugador a la vez.
-    await tocar(contenedor.querySelector(".boton-filtro"));
-    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Multi-Filtro"));
-    await tocar(chip(contenedor, "Parte del cuerpo lesionada"));
-    await tocar(chip(contenedor, "Rodilla"));
-    expect(texto(contenedor)).toContain("SCARPA");
-    expect(texto(contenedor)).not.toContain("HULK");
-    // El buscador de texto.
-    const buscador = contenedor.querySelector(".linea-buscador input");
-    await escribir(buscador, "hulk");
-    expect(texto(contenedor)).toContain("Ninguna lesión entra en ese filtro.");
+    expect([...contenedor.querySelectorAll(".tabla-datos-grupos th")].map((th) => th.textContent).filter(Boolean)).toEqual(GRUPOS_DEL_EXCEL);
+    expect(contenedor.querySelectorAll(".tabla-datos-filtro").length).toBeGreaterThan(30);
+    // La ficha se abre desde la tabla, y al volver sigue el mismo jugador.
+    await tocar(filas()[1].querySelector("td"));
+    await tocar(boton(contenedor, "Ver ficha"));
+    expect(texto(contenedor)).toContain("Caso 3");
+    await tocar(boton(contenedor, "Volver"));
+    expect(contenedor.querySelector(".rival-elegido b").textContent).toBe("SCARPA");
+    // "Cambiar" vuelve a la lista; un jugador sin lesiones lo dice.
+    await tocar(contenedor.querySelector(".rival-elegido"));
+    expect(lista()).toHaveLength(2);
+    await tocar(lista()[0]);
+    expect(texto(contenedor)).toContain("Este jugador no tiene lesiones cargadas.");
+    expect(contenedor.querySelector(".tabla-datos")).toBeNull();
   });
 
   test("la base muestra las lesiones como el Excel y se edita y se pega en las celdas", async () => {
@@ -286,6 +368,10 @@ describe("el módulo Lesiones", () => {
     const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")];
     expect(cabeceras.map((th) => th.textContent).slice(0, 3)).toEqual(["N° de caso", "N° de registro", "Nombre y apellido"]);
     expect(cabeceras).toHaveLength(36);
+    // Arriba de las cabeceras, la fila de los grupos del Excel, cada uno sobre sus columnas.
+    const grupos = [...contenedor.querySelectorAll(".tabla-datos-grupos th")].slice(1);
+    expect(grupos.map((th) => th.textContent)).toEqual(GRUPOS_DEL_EXCEL);
+    expect(grupos.map((th) => Number(th.getAttribute("colspan")))).toEqual([8, 7, 4, 4, 10, 1, 2]);
     // Lo calculado se ve pero no se toca.
     expect(cabeceras[1].classList.contains("fija")).toBe(true);
     const fila = contenedor.querySelector(".tabla-datos-tabla tbody tr");
@@ -318,6 +404,45 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain("Caso 1 · 20/09/2026 · Lesionado");
   });
 
+  test("las cabeceras de la base filtran y ordenan como en Excel", async () => {
+    datos.lesiones = [
+      lesionHulk(),
+      { ...lesionHulk(), id: "les-2", numero_caso: 2, jugador_id: 8, fecha_lesion: "2026-08-01", fecha_alta: "2026-08-20", datos: { parte_cuerpo: "joelho", lado: "esquerdo" } },
+      { ...lesionHulk(), id: "les-3", numero_caso: 3, jugador_id: 8, fecha_lesion: "2026-06-01", fecha_alta: "2026-06-10", datos: { parte_cuerpo: "tornozelo_pe", lado: "direito" } },
+    ];
+    await montar();
+    await navegar(contenedor, "Base");
+    const casos = () => [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")].map((tr) => tr.querySelector("td").textContent);
+    expect(casos()).toEqual(["1", "2", "3"]);
+    const filtroDe = (columna) => contenedor.querySelector(`.tabla-datos-filtro[aria-label="Filtrar u ordenar ${columna}"]`);
+    const valores = () => [...contenedor.querySelectorAll(".tabla-datos-valores label")];
+
+    // El filtro de una columna: sus valores con cuántas filas tiene cada uno.
+    await tocar(filtroDe("Lado"));
+    expect(texto(contenedor)).toContain("Filtrar: Lado");
+    expect(valores().map((label) => label.textContent)).toEqual(["Derecho2", "Izquierdo1"]);
+    await tocar(boton(contenedor, "Ninguno"));
+    expect(boton(contenedor, "Aplicar").disabled).toBe(true);
+    await tocar(valores()[1].querySelector("input"));
+    await tocar(boton(contenedor, "Aplicar"));
+    expect(casos()).toEqual(["2"]);
+    expect(texto(contenedor)).toContain("Mostrando 1 de 3");
+    expect(filtroDe("Lado").classList.contains("activo")).toBe(true);
+
+    // Otro filtro ofrece solo lo que deja pasar el primero.
+    await tocar(filtroDe("Nombre y apellido"));
+    expect(valores().map((label) => label.textContent)).toEqual(["SCARPA1"]);
+    await tocar(contenedor.querySelector(".tabla-datos-hoja-filtro .boton-cancelar-hoja"));
+
+    // Quitar filtros vuelve a todas; ordenar de mayor a menor da vuelta el caso.
+    await tocar(botonQueEmpieza(contenedor, "Quitar filtros"));
+    expect(casos()).toEqual(["1", "2", "3"]);
+    await tocar(filtroDe("N° de caso"));
+    await tocar(chip(contenedor, "De mayor a menor"));
+    expect(casos()).toEqual(["3", "2", "1"]);
+    expect(filtroDe("N° de caso").textContent).toContain("↓");
+  });
+
   test("en Ajustes se renombran cabeceras y opciones en el idioma que se está usando", async () => {
     await montar();
     await navegar(contenedor, "Ajustes");
@@ -332,6 +457,20 @@ describe("el módulo Lesiones", () => {
     await act(async () => Promise.resolve());
     // El otro idioma queda como estaba.
     expect(datos.cabeceras[0]).toMatchObject({ campo: "parte_cuerpo", etiquetas: { "es-AR": "Zona lesionada", "pt-BR": "Parte do Corpo Lesionada" }, oculto: false });
+
+    // Cada grupo del Excel encabeza sus columnas y también se renombra.
+    const filasDeCabeceras = [...contenedor.querySelectorAll(".opcion-ajuste")].map((b) => b.querySelector("b").textContent);
+    expect(filasDeCabeceras.slice(0, 3)).toEqual(["Datos generales", "N° de caso", "N° de registro"]);
+    expect([...contenedor.querySelectorAll(".lesiones-ajuste-grupo b")].map((b) => b.textContent)).toEqual(GRUPOS_DEL_EXCEL);
+    expect(filasDeCabeceras).toHaveLength(36 + 7);
+    await tocar(botonQueEmpieza(contenedor, "Descripción general"));
+    expect(texto(contenedor)).toContain("Grupo: Descripción general");
+    expect(texto(contenedor)).toContain("Es la fila de arriba de las cabeceras");
+    expect(chip(contenedor, "Oculta")).toBeUndefined();
+    await escribir(contenedor.querySelector(".lesiones-hoja .campo-inicio input"), "Qué pasó");
+    await tocar(boton(contenedor, "Guardar"));
+    await act(async () => Promise.resolve());
+    expect(datos.cabeceras[1]).toMatchObject({ campo: "grupo:descricao_geral", etiquetas: { "es-AR": "Qué pasó", "pt-BR": "Descrição Geral" }, oculto: false, orden: 1001 });
 
     await tocar(boton(contenedor, "Volver a Ajustes"));
     await tocar(botonQueEmpieza(contenedor, "Listas"));
@@ -358,6 +497,8 @@ describe("el módulo Lesiones", () => {
         localizacion: { oculto: true },
         medico: { oculto: true },
         parte_cuerpo: { oculto: true },
+        // El club le cambió el nombre a un grupo.
+        "grupo:descricao_geral": { etiquetas: { "es-AR": "Qué pasó", "pt-BR": "" } },
       },
       listas: {},
     };
@@ -366,26 +507,31 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain("Paso 1 de 5");
     await tocar(botonQueEmpieza(contenedor, "HULK"));
     await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Qué pasó");
     // Parte del cuerpo es obligatoria: sigue a la vista aunque la configuración diga que no.
     expect(contenedor.querySelector('.selector-hoja[aria-label="Parte del cuerpo lesionada"]')).toBeTruthy();
     await elegirEnHoja(contenedor, "Parte del cuerpo lesionada", "Rodilla");
     await tocar(chip(contenedor, "Izquierdo"));
     await siguiente(contenedor);
-    expect(texto(contenedor)).toContain("¿Dónde exactamente?");
+    expect(tituloDelPaso(contenedor)).toBe("Descripción específica");
     await siguiente(contenedor);
-    // "¿Cómo y cuándo?" quedó sin columnas y se saltea.
-    expect(texto(contenedor)).toContain("Evolución e imágenes");
+    // "Descripción contextual" quedó sin columnas y se saltea.
+    expect(tituloDelPaso(contenedor)).toBe("Evolución y continuación");
     expect(texto(contenedor)).toContain("Paso 4 de 5");
     await siguiente(contenedor);
-    expect(texto(contenedor)).toContain("Notas y resumen");
+    expect(tituloDelPaso(contenedor)).toBe("Observaciones");
     expect(campoDeFormulario(contenedor, etiqueta("medico"))).toBeUndefined();
     expect(campoDeFormulario(contenedor, etiqueta("comentarios"))).toBeTruthy();
 
-    // En la base tampoco está la columna escondida (la barra de abajo cierra la carga).
+    // En la base tampoco está la columna escondida (la barra de abajo cierra la carga),
+    // y el grupo vacío no tiene lugar en la fila de los grupos.
     await navegar(contenedor, "Base");
     const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")].map((th) => th.textContent);
     expect(cabeceras).not.toContain("Mecanismo");
     expect(cabeceras).toContain("Parte del cuerpo lesionada");
+    const grupos = [...contenedor.querySelectorAll(".tabla-datos-grupos th")].map((th) => th.textContent);
+    expect(grupos).toContain("Qué pasó");
+    expect(grupos).not.toContain("Descripción contextual");
 
     // Y en Ajustes, la cabecera obligatoria no ofrece esconderse.
     await navegar(contenedor, "Ajustes");
@@ -410,7 +556,7 @@ describe("el módulo Lesiones", () => {
     expect(boton(contenedor, "Editar")).toBeUndefined();
     expect(boton(contenedor, "Volver")).toBeTruthy();
     // Los cambios tendrían lo que se tocó después de su último día: ni se piden.
-    expect(texto(contenedor)).not.toContain("Historial de cambios");
+    expect(pestanas(contenedor).map((b) => b.textContent)).toEqual(GRUPOS_DEL_EXCEL);
     expect(datos.historialesPedidos).toEqual([]);
 
     await navegar(contenedor, "Base");
