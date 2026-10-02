@@ -117,61 +117,67 @@ negativos y desvíos muy altos. Se usa la lógica de la planilla "Plantilla VR"
    fuera de 3 RIC. Los absolutos y relativos por minuto con promedio de 1 o
    menos no se limpian (regla de la planilla para variables chicas, como
    aceleraciones por minuto). El descarte es métrica por métrica.
-2. **Bueno** = promedio sin datos raros (absolutos y relativos vs equipo);
-   cociente de sumas de los casos que quedan (relativos por minuto: suma del
-   absoluto sobre suma de minutos `DB`); fórmula de la fila 7 de
-   `Data GPS Partido` sobre los casos que quedan (caídas relativas y caídas pp).
-3. **Desv. Estándar** = desvío muestral sin datos raros.
-4. **Muy Bueno** = Bueno + m·desvío, con m entre 0,25 y 1,75, elegido para que
-   entre Bueno y Muy Bueno quede lo más cerca posible del 34% de los casos (los
-   empates se resuelven como en la planilla, con `JERARQUÍA`).
-5. **Excelente** = Bueno + (m + 0,25·i)·desvío, sin pasar de 2 desvíos,
-   eligiendo i para acercarse a 2,5% de casos por encima de Excelente y 13,5%
-   entre Muy Bueno y Excelente.
-6. **Regular** = Bueno − m·desvío (34% de los casos entre Regular y Bueno) y
-   **Malo** = Regular − 0,25·desvío. En la planilla la búsqueda del lado de
-   abajo compara siempre la proporción por debajo de Regular, que es igual en
-   todas las opciones, así que siempre gana la primera: Malo queda 0,25
-   desvíos debajo de Regular. Se replicó tal cual.
-7. **Negativos.** En métricas que no pueden ser negativas (absolutos, Tiempo,
-   relativos por minuto y relativos vs equipo) un nivel que da negativo se
-   lleva a 0. Pasa en métricas con muchos partidos en cero, como distancia a
-   más de 7 m/s o aceleraciones mayores a 7 m/s. Las caídas sí pueden ser
-   negativas, igual que en los VR de Equipo.
-
-8. **Mínimo de 5 casos.** Una combinación de jugador y categoría (o grupo
+2. **Bueno** = promedio sin datos raros (absolutos, relativos vs equipo y
+   caídas) o cociente de sumas de los casos que quedan (relativos por minuto:
+   suma del absoluto sobre suma de minutos `DB`). En las caídas no se usa la
+   fórmula de la fila 7 de `Data GPS Partido`: en las caídas pp esa fórmula da
+   una fracción (por ejemplo −0,17) mientras los valores de cada partido están
+   en puntos porcentuales (desvío 7,25), así que el libro mezcla escalas al
+   armar Excelente y Malo; en las caídas relativas el cociente de sumas puede
+   quedar fuera del rango de los datos.
+3. **Reparto como una Gauss.** Los rangos se miden como pinta el libro:
+   Excelente desde Excelente para arriba, Muy Bueno, Bueno y Regular entre su
+   valor y el del nivel de arriba, y Malo todo lo que está debajo de Regular
+   (el valor de Malo no se usa para pintar). Con el desvío de la muestra sin
+   datos raros, se eligen los multiplicadores de a 0,25 desvíos (Excelente
+   hasta 2) para que la muestra se reparta lo más parecido a una distribución
+   normal: Excelente 2,5%, Muy Bueno 13,5%, Bueno 34%, Regular 34%, Malo 16%.
+   En empates se elige lo más cercano a 1 y 2 desvíos. Malo = Regular − 0,25
+   desvíos, como en la planilla. La hoja `Proceso` guarda también, como
+   referencia, los multiplicadores que elegía la planilla.
+4. **Reparto a mano.** Si con el desvío de la muestra Excelente queda con más
+   del 10% de la muestra, Malo con más del 20%, algún nivel negativo (salvo
+   caídas) o el desvío es más de 1,5 veces el del centro de la muestra
+   ((P84 − P16) / 2), el desvío se reparte a mano: los cortes se ponen entre
+   valores reales de la muestra, buscando el mismo reparto de Gauss sin pasar
+   del 10% en Excelente ni del 20% en Malo. Así los niveles nunca salen del
+   rango de los datos ni quedan negativos en métricas que no pueden serlo. El
+   Desv. Estándar que se escribe es el del centro de la muestra. Esas celdas
+   van en **celeste** y el detalle está en la hoja `A mano`.
+5. **Negativos.** En métricas que no pueden ser negativas (absolutos, Tiempo,
+   relativos por minuto y relativos vs equipo) ningún nivel es negativo; si el
+   valor de Malo da negativo se lleva a 0. Las caídas sí pueden ser negativas
+   (bajan del primer al segundo tiempo): cuando cumplen todo lo anterior se
+   escriben y se marcan con **letra roja**.
+6. **Mínimo de 5 casos.** Una combinación de jugador y categoría (o grupo
    juntado) con menos de 5 casos no tiene VR: no se escribe y queda listada en
    la hoja `Sin VR` del resumen. Una métrica con menos de 5 valores queda vacía.
-9. **Topes de Gauss.** Los rangos se miden como pinta el libro en
-   `Data GPS Partido`: Excelente = valores desde Excelente para arriba; Muy
-   Bueno, Bueno y Regular = entre su valor y el del nivel de arriba; Malo =
-   valores por debajo de Regular (el valor de Malo no se usa para pintar).
-   Sobre toda la muestra de la combinación, Excelente no puede tener más del
-   10% y Malo más del 20%. Si se pasan, Excelente sube de a 0,25 desvíos y
-   Regular baja de a 0,25 desvíos (Malo queda 0,25 desvíos debajo de
-   Regular). Con menos de 10 casos el 10% es menos de un partido, así que
-   Excelente queda por encima del mejor valor. Cuando más del 20% de los
-   partidos tiene 0 en una métrica, Regular termina en 0. La hoja `Proceso`
-   muestra los multiplicadores de la planilla, los finales y el % de la
-   muestra en cada rango.
+   Si Bueno da 0 o el desvío es 0, la métrica queda vacía, igual que en la
+   planilla.
 
 Decisiones propias al llevar la planilla a estos datos: la regla "promedio ≤ 1
 no se limpia" no se aplica a los relativos vs equipo ni a las caídas, porque
 son cocientes alrededor de 1 o de 0 y la regla los dejaría sin limpiar al
 azar; para el Tiempo se mide en minutos. Todas las métricas son "más es
-mejor", como en la planilla. Si Bueno da 0 o el desvío no se puede calcular
-(todos los valores iguales), la métrica queda vacía, igual que en la planilla.
+mejor", como en la planilla. El umbral de "desvío enorme" (1,5 veces el del
+centro de la muestra) se fijó mirando los datos: en la mitad de las métricas
+la relación es 1,1 o menos y sólo el 9% pasa de 1,5.
 
 Las celdas de VR con datos raros quitados quedan **en naranja** (`F4B183`).
 El resumen trae la hoja `Proceso` (regla aplicada, multiplicadores elegidos y
 asimetría por métrica) y `Atípicos` (cada valor quitado con sus límites).
 
-Resultado del 02/10/2026 contra la versión anterior: Malo negativo en
-métricas no negativas pasó de 1.627 a 428 casos antes de llevarlos a 0, y el
-desvío bajó más de un 20% en 980 de 6.661 combinaciones × métricas.
+Resultado del 02/10/2026 (archivo pintado de la captura): 119 combinaciones con
+VR y 40 sin VR por tener menos de 5 casos. Reparto medio de la muestra por rango:
+1,4 / 12,3 / 33,7 / 39,6 / 13,1 % (Excelente a Malo); ninguna métrica pasa del
+10% en Excelente ni del 20% en Malo. 2.231 de 5.559 métricas necesitaron el
+reparto a mano, sobre todo por muestras chicas (con 5 a 9 casos un partido ya
+es 11 a 20% de la muestra) y métricas con muchos ceros.
 
 Leyenda de colores en VR: **amarillo** = categoría calculada juntando casos de
-otra categoría; **naranja** = métrica a la que se le quitaron datos raros.
+otra categoría; **naranja** = métrica a la que se le quitaron datos raros;
+**celeste** = métrica con el desvío repartido a mano (tiene prioridad sobre los
+otros dos); **letra roja** = nivel negativo en una caída.
 
 ## Archivos
 
@@ -183,12 +189,12 @@ otra categoría; **naranja** = métrica a la que se le quitaron datos raros.
   tocar nada más del archivo (macros, tablas dinámicas, formatos y desplegables
   quedan intactos; sólo agrega a los estilos las variantes amarilla y naranja) y
   deja un `<salida>_resumen.xlsx` con las hojas `VR`, `Combinaciones`,
-  `Proceso`, `Sin VR`, `Atípicos` y `Leyenda` para controlar.
+  `Proceso`, `Sin VR`, `A mano`, `Atípicos` y `Leyenda` para controlar.
 
   ```bash
   pip install openpyxl pandas numpy
   python excel/generar_vr_jugadores.py GPS_BD_Partido_CAM.xlsm GPS_BD_Partido_CAM_VR.xlsm
-  # opciones: --sin-atipicos  --permitir-negativos  --sin-juntar
+  # opciones: --sin-atipicos  --permitir-negativos  --sin-a-mano  --sin-juntar
   ```
 
   Tarda alrededor de un minuto. Marca el libro para recalcular al abrirlo.

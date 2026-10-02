@@ -7,14 +7,17 @@ Los niveles se calculan con la logica de la 'Plantilla VR' (hojas 1.3 Proceso_Ab
   * Datos raros: si el 10% o menos de los valores cae fuera de 1,5 rangos intercuartilicos (RIC)
     se quitan los que estan fuera de 1,5 RIC; si cae mas del 10%, solo los que estan fuera de 3 RIC.
     Absolutos y relativos por minuto con promedio de 1 o menos no se limpian.
-  * Bueno = promedio sin datos raros (absolutos, relativos vs equipo), cociente de sumas
-    (relativos por minuto) o la formula de la fila 7 sobre los casos que quedan (caidas).
+  * Bueno = promedio sin datos raros (absolutos, relativos vs equipo, caidas) o cociente de sumas
+    (relativos por minuto).
   * Muy Bueno / Regular = Bueno +/- m*desvio, con m (0,25..1,75) elegido para dejar ~34% de casos
     entre Bueno y ese nivel; Excelente = Bueno + (m + 0,25*i)*desvio, hasta 2 desvios, buscando
     2,5% de casos por encima y 13,5% entre Muy Bueno y Excelente; Malo = Regular - 0,25*desvio.
   * Niveles negativos en metricas que no pueden serlo se llevan a 0 (las caidas pueden ser negativas).
-  * Con menos de 5 casos no se arma VR. Topes de Gauss sobre la muestra: Excelente (>= Excelente) hasta
-    10% y Malo (debajo de Regular) hasta 20%; si se pasan, el nivel se corre de a 0,25 desvios.
+  * Con menos de 5 casos no se arma VR. Los multiplicadores se eligen para que la muestra se reparta como
+    una Gauss: Excelente 2,5%, Muy Bueno 13,5%, Bueno 34%, Regular 34%, Malo 16% (Malo = debajo de Regular).
+  * Si la muestra se pasa de los estandares (Excelente > 10%, Malo > 20%, niveles negativos o desvio enorme)
+    el desvio se reparte a mano con cortes entre valores reales de la muestra (celdas celestes).
+  * Solo las caidas pueden tener niveles negativos; se marcan con letra roja.
 
 Ademas junta categorias por jugador segun las celdas PINTADAS en 'Tiempos por jugador' (contiguas
 y del mismo color = un grupo; un bloque por grupo con la categoria de mas casos, en amarillo y con
@@ -23,10 +26,11 @@ nota en la cantidad de casos). Las celdas con datos raros quitados quedan en nar
 Uso:  python excel/generar_vr_jugadores.py  <entrada.xlsm>  <salida.xlsm>  [opciones]
         --sin-atipicos         no quitar datos raros
         --permitir-negativos   no llevar a 0 los niveles negativos
+        --sin-a-mano           no aplicar el reparto a mano
         --sin-juntar           ignorar las celdas pintadas de 'Tiempos por jugador'
 Ver:  excel/VALOR_REFERENCIAL.md
 """
-import sys, re, zipfile, datetime, math, html, warnings, argparse
+import sys, os, re, zipfile, datetime, math, html, warnings, argparse
 warnings.filterwarnings('ignore')
 from collections import Counter, defaultdict
 import numpy as np
@@ -39,6 +43,7 @@ ap.add_argument('entrada', nargs='?', default='base.xlsm')
 ap.add_argument('salida', nargs='?', default='salida.xlsm')
 ap.add_argument('--sin-atipicos', action='store_true')
 ap.add_argument('--permitir-negativos', action='store_true')
+ap.add_argument('--sin-a-mano', action='store_true')
 ap.add_argument('--sin-juntar', action='store_true')
 ARGS = ap.parse_args()
 SRC, DST = ARGS.entrada, ARGS.salida
@@ -54,6 +59,7 @@ VR_FIRST_FREE_ROW = 166
 TODAY_SERIAL = (datetime.date.today() - datetime.date(1899, 12, 30)).days
 FILL_YELLOW_RGB = 'FFFFFF00'    # casos juntados de otra categoria (convencion del libro)
 FILL_ORANGE_RGB = 'FFF4B183'    # valores atipicos excluidos del calculo
+FILL_BLUE_RGB = 'FFBDD7EE'      # metrica con el desvio repartido a mano
 NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 
 
@@ -352,8 +358,14 @@ M_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
 M_OPTS = {m: 7 - k for k, m in enumerate(M_STEPS)}       # columna AD de la planilla: 7..1 opciones
 T_HALF, T_EXC, T_MB = 0.34, 0.025, 0.135                    # X37, X35, X36 de la planilla
 MIN_CASOS = 5            # con menos casos no se arma VR
-MAX_EXCELENTE = 0.10     # Excelente no puede tener mas del 10% de la muestra
-MAX_MALO = 0.20          # Malo (por debajo de Regular) no puede tener mas del 20% de la muestra
+# proporciones de una distribucion normal (Gauss) para cada rango, como en la planilla (X35..X39)
+GAUSS = {'Excelente': 0.025, 'Muy Bueno': 0.135, 'Bueno': 0.34, 'Regular': 0.34, 'Malo': 0.16}
+GAUSS_MULT = {'Muy Bueno': 1.0, 'Excelente': 2.0, 'Regular': 1.0}   # multiplicadores teoricos (desempate)
+M_MAX = float(os.environ.get('VR_M_MAX', '2'))   # hasta cuantos desvios puede ir Excelente / Malo
+# estandares: si la muestra se pasa, el reparto del desvio se hace "a mano" con los datos de la muestra
+MAX_EXCELENTE = 0.10     # Excelente con mas del 10% de la muestra
+MAX_MALO = 0.20          # Malo (debajo de Regular) con mas del 20% de la muestra
+MAX_DESVIO_RATIO = 1.5   # desvio de la muestra mas de 1,5 veces el desvio del centro de la muestra ((P84 - P16) / 2)
 KIND_NAME = {'abs': 'Absoluto', 'rel': 'Relativo por minuto', 'vseq': 'Relativo vs equipo', 'caida': 'Caída'}
 NONNEG = {'abs', 'rel', 'vseq'}
 NUM_OF = {L(c): L(c - (C('AU') - C('AF'))) for c in range(C('AU'), C('BH') + 1)}   # AU = AF / DB ...
@@ -405,6 +417,98 @@ def pick_exc(kept, b, sd, m_up):
     return best[1]
 
 
+def fit_gauss(kept, b, sd):
+    """Elige los multiplicadores (de a 0,25 desvios) para que la muestra se reparta en los rangos lo mas
+    parecido posible a una Gauss: Excelente 2,5%, Muy Bueno 13,5%, Bueno 34%, Regular 34%, Malo 16%.
+    Rangos como pinta el libro: Excelente >= E; Muy Bueno [MB, E); Bueno [B, MB); Regular [R, B); Malo < R.
+    Empates: lo mas cerca de los multiplicadores teoricos (1 y 2 desvios)."""
+    grid = [round(0.25 * k, 2) for k in range(1, int(M_MAX / 0.25) + 1)]
+    best_up = None
+    for mu in grid:
+        if mu > 1.75:
+            break
+        for me in grid:
+            if me <= mu:
+                continue
+            pe = np.mean(kept >= b + me * sd); pmb = np.mean((kept >= b + mu * sd) & (kept < b + me * sd))
+            pb = np.mean((kept >= b) & (kept < b + mu * sd))
+            err = abs(pe - GAUSS['Excelente']) + abs(pmb - GAUSS['Muy Bueno']) + abs(pb - GAUSS['Bueno'])
+            key = (round(err, 12), abs(mu - GAUSS_MULT['Muy Bueno']) + abs(me - GAUSS_MULT['Excelente']), me, mu)
+            if best_up is None or key < best_up[0]:
+                best_up = (key, mu, me)
+    best_lo = None
+    for ml in grid:
+        if ml + 0.25 > M_MAX + 1e-9:
+            break
+        pr = np.mean((kept >= b - ml * sd) & (kept < b)); pm = np.mean(kept < b - ml * sd)
+        err = abs(pr - GAUSS['Regular']) + abs(pm - GAUSS['Malo'])
+        key = (round(err, 12), abs(ml - GAUSS_MULT['Regular']), ml)
+        if best_lo is None or key < best_lo[0]:
+            best_lo = (key, ml)
+    return best_up[1], best_up[2], best_lo[1]
+
+
+def manual_levels(kept, b):
+    """Reparto del desvio "a mano": los cortes se ponen entre valores reales de la muestra (nunca fuera de su
+    rango, asi no hay negativos en metricas que no pueden serlo ni un desvio inflado), buscando el reparto de
+    Gauss (2,5 / 13,5 / 34 / 34 / 16 %) sin pasar del 10% en Excelente ni del 20% en Malo.
+    Devuelve (niveles, desvio_manual)."""
+    xs = np.sort(kept); n = len(xs)
+    cuts = [k for k in range(n + 1) if k in (0, n) or xs[k - 1] < xs[k]]      # k = valores que quedan debajo del corte
+    spread = (np.percentile(xs, 84) - np.percentile(xs, 16)) / 2 or (xs[-1] - xs[0]) / 4
+    def thr(k):
+        if k == 0:
+            return xs[0]
+        if k == n:
+            return xs[-1] + 0.25 * spread
+        return (xs[k - 1] + xs[k]) / 2
+    below_b = int(np.sum(xs < b))
+    # Regular: k valores quedan en Malo
+    best_r = None
+    for k in cuts:
+        if k >= n or k / n > MAX_MALO + 1e-9:
+            break
+        t = thr(k)
+        if t >= b:
+            break
+        pm, pr = k / n, (below_b - k) / n
+        key = (round(abs(pm - GAUSS['Malo']) + abs(pr - GAUSS['Regular']), 12), abs(pm - GAUSS['Malo']))
+        if best_r is None or key < best_r[0]:
+            best_r = (key, t)
+    R = best_r[1] if best_r else min(xs[0], b)
+    # Muy Bueno y Excelente
+    best_u = None
+    for k_mb in cuts:
+        t_mb = thr(k_mb)
+        if t_mb <= b:
+            continue
+        for k_e in cuts:
+            if k_e < k_mb or (k_e == k_mb and k_e < n):
+                continue
+            j = n - k_e
+            if j / n > MAX_EXCELENTE + 1e-9:
+                continue
+            pe, pmb, pb = j / n, (k_e - k_mb) / n, (k_mb - below_b) / n
+            err = abs(pe - GAUSS['Excelente']) + abs(pmb - GAUSS['Muy Bueno']) + abs(pb - GAUSS['Bueno'])
+            key = (round(err, 12), abs(pe - GAUSS['Excelente']), abs(pmb - GAUSS['Muy Bueno']))
+            if best_u is None or key < best_u[0]:
+                best_u = (key, k_mb, k_e)
+    if best_u is None:
+        MB = thr(n); E = MB + 0.25 * spread
+    else:
+        MB = thr(best_u[1])
+        E = thr(best_u[2]) if best_u[2] < n else max(b + 2 * (MB - b), thr(n))
+    sd_m = spread          # desvio del centro de la muestra: (P84 - P16) / 2
+    return {'Excelente': E, 'Muy Bueno': MB, 'Regular': R, 'Malo': R - 0.25 * sd_m}, sd_m
+
+
+def shares(x, b, lv):
+    E, MB, R = lv['Excelente'], lv['Muy Bueno'], lv['Regular']
+    return {'Excelente': float(np.mean(x >= E)), 'Muy Bueno': float(np.mean((x >= MB) & (x < E))),
+            'Bueno': float(np.mean((x >= b) & (x < MB))), 'Regular': float(np.mean((x >= R) & (x < b))),
+            'Malo': float(np.mean(x < R))}
+
+
 def xl_skew(x):
     n = len(x)
     if n < 3:
@@ -417,7 +521,7 @@ def xl_skew(x):
 
 # ---------------------------------------------------------------- 6. calcular por jugador x categoria
 out_rows, review, skipped, outliers, combos = [], [], [], [], []
-proceso, sin_vr = [], []
+proceso, sin_vr, revisar = [], [], []
 for p in players:
     done = set()
     for cat0 in CATS:
@@ -453,6 +557,7 @@ for p in players:
         # --- logica de la Plantilla VR, metrica por metrica
         idx = np.flatnonzero(mask)
         excl, n_out_by_col, levels, floored_cols = {}, {}, {}, set()
+        manual_cols, neg_cells = set(), set()
         for dcol in col_map:
             kind = metric_kind(dcol)
             vals = num[dcol].to_numpy()[idx]
@@ -502,9 +607,10 @@ for p in players:
             if kind == 'rel':
                 nume = num[NUM_OF[dcol]].to_numpy()[idx][keep_local]; deno = num['DB'].to_numpy()[idx][keep_local]
                 b = float(np.nansum(nume) / np.nansum(deno)) if np.nansum(deno) else None
-            elif kind == 'caida':
-                b = Calc(mask, {dcol: excl[dcol]} if dcol in excl else {}).value(7, dcol)
             else:
+                # absolutos, relativos vs equipo y caidas: promedio de los valores que quedan. En las caidas no se usa la
+                # formula de la fila 7 (cociente de sumas): en las caidas pp da una fraccion mientras los valores de cada
+                # partido estan en puntos porcentuales, y en las caidas relativas puede quedar fuera del rango de los datos.
                 b = float(np.mean(kept)) if len(kept) else None
             sd = float(np.std(kept, ddof=1)) if len(kept) > 1 else None
             info = {'Jugador': p, 'Categoría': cat, 'Métrica': metric_name[dcol], 'Columna': dcol, 'Tipo': KIND_NAME[kind],
@@ -512,7 +618,7 @@ for p in players:
                     'Bueno': b, 'Desv. Estándar': sd,
                     'Asimetría': xl_skew(kept), 'F10 (P95 en desvíos)': None, 'F11 (P5 en desvíos)': None,
                     'Mult. Muy Bueno': None, 'Mult. Excelente': None, 'Mult. Regular': None, 'Mult. Malo': None,
-                    'Niveles llevados a 0': 0, 'Mult. Excelente (planilla)': None, 'Mult. Regular (planilla)': None,
+                    'Niveles llevados a 0': 0, 'Mult. planilla (MB/Exc/Reg)': None,
                     '% Excelente': None, '% Muy Bueno': None, '% Bueno': None, '% Regular': None, '% Malo': None}
             # como la planilla: si Bueno es 0 o el desvio no se puede calcular (o es 0), el VR de la metrica queda vacio
             computable = b is not None and b != 0 and sd is not None and sd > 0 and len(kept) > 1
@@ -525,31 +631,54 @@ for p in players:
                 p95, p5 = np.percentile(kept, 95), np.percentile(kept, 5)
                 f10 = (float(np.mean(kept[kept >= p95])) - b) / sd
                 f11 = (b - float(np.mean(kept[kept <= p5]))) / sd
-                m_up = pick_m(kept, b, sd, f10, 'up')
-                m_ex = pick_exc(kept, b, sd, m_up)
-                m_lo = pick_m(kept, b, sd, f11, 'down')
-                m_ex_tpl, m_lo_tpl = m_ex, m_lo
-                # topes de distribucion sobre la muestra completa (como pinta el libro):
-                # Excelente = valores >= Excelente; Malo = valores por debajo de Regular
-                while np.mean(x >= b + m_ex * sd) > MAX_EXCELENTE:
-                    m_ex += 0.25
-                while np.mean(x < b - m_lo * sd) > MAX_MALO:
-                    m_lo += 0.25
+                t_up = pick_m(kept, b, sd, f10, 'up')                    # seleccion de la planilla (referencia)
+                t_ex = pick_exc(kept, b, sd, t_up)
+                t_lo = pick_m(kept, b, sd, f11, 'down')
+                m_up, m_ex, m_lo = fit_gauss(kept, b, sd)                   # ajuste a la distribucion de Gauss
                 m_ma = m_lo + 0.25
                 lv = {'Excelente': b + m_ex * sd, 'Muy Bueno': b + m_up * sd,
                       'Regular': b - m_lo * sd, 'Malo': b - m_ma * sd}
+                # estandares de la muestra: si se pasa, reparto del desvio a mano
+                p84, p16 = np.percentile(kept, [84, 16]); sig_r = (p84 - p16) / 2
+                sh = shares(kept, b, lv)
+                motivos = []
+                if sh['Excelente'] > MAX_EXCELENTE + 1e-9:
+                    motivos.append(f"Excelente {sh['Excelente']:.0%}")
+                if sh['Malo'] > MAX_MALO + 1e-9:
+                    motivos.append(f"Malo {sh['Malo']:.0%}")
+                if kind in NONNEG and min(lv.values()) < 0:
+                    motivos.append('niveles negativos')
+                if sig_r <= 0 or sd / sig_r > MAX_DESVIO_RATIO:
+                    motivos.append('desvío enorme (' + (f'{sd / sig_r:.1f} veces el del centro' if sig_r > 0 else 'centro sin variación') + ')')
+                info['Distribución'] = 'Gauss con el desvío de la muestra'
+                info['Desvío de la muestra'] = sd
+                if motivos and not ARGS.sin_a_mano:
+                    lv, sd_m = manual_levels(kept, b)
+                    levels[dcol]['Desv. Estándar'] = sd_m
+                    info['Distribución'] = 'a mano'; info['Motivo a mano'] = ', '.join(motivos)
+                    info['Desv. Estándar'] = sd_m
+                    m_up = m_ex = m_lo = m_ma = None
+                    manual_cols.add(dcol)
+                    revisar.append({'Jugador': p, 'Categoría': cat, 'Métrica': metric_name[dcol], 'Columna': dcol,
+                                    'Casos': int(len(kept)), 'Motivo': ', '.join(motivos),
+                                    'Desvío de la muestra': sd, 'Desvío a mano': sd_m})
                 if kind in NONNEG and not ARGS.permitir_negativos:
                     for k_, v_ in lv.items():
                         if v_ < 0:
                             lv[k_] = 0.0; info['Niveles llevados a 0'] += 1; floored_cols.add(dcol)
+                if kind == 'caida':
+                    for k_, v_ in lv.items():
+                        if v_ < 0:
+                            neg_cells.add((dcol, k_))
+                    if b < 0:
+                        neg_cells.add((dcol, 'Bueno'))
                 levels[dcol].update(lv)
-                E, MB, R = lv['Excelente'], lv['Muy Bueno'], lv['Regular']
+                sk, sf = shares(kept, b, lv), shares(x, b, lv)
                 info.update({'F10 (P95 en desvíos)': f10, 'F11 (P5 en desvíos)': f11, 'Mult. Muy Bueno': m_up,
                              'Mult. Excelente': m_ex, 'Mult. Regular': m_lo, 'Mult. Malo': m_ma,
-                             'Mult. Excelente (planilla)': m_ex_tpl, 'Mult. Regular (planilla)': m_lo_tpl,
-                             '% Excelente': float(np.mean(x >= E)), '% Muy Bueno': float(np.mean((x >= MB) & (x < E))),
-                             '% Bueno': float(np.mean((x >= b) & (x < MB))), '% Regular': float(np.mean((x >= R) & (x < b))),
-                             '% Malo': float(np.mean(x < R))})
+                             'Mult. planilla (MB/Exc/Reg)': f'{t_up:g} / {t_ex:g} / {t_lo:g}',
+                             **{f'% {k}': v for k, v in sk.items()},
+                             **{f'% {k} (con datos raros)': v for k, v in sf.items()}})
             proceso.append(info)
         puesto = Counter(u for u in U[mask] if u).most_common(1)
         puesto = puesto[0][0] if puesto else ''
@@ -558,7 +687,7 @@ for p in players:
         combos.append({'Jugador': p, 'Categoría': cat, 'Casos propios': n_own, 'Casos usados': n,
                        'Juntada con': juntada, 'Nota en VR': note,
                        'Métricas con atípicos': len(n_out_by_col), 'Valores atípicos excluidos': sum(n_out_by_col.values()),
-                       'Métricas con niveles llevados a 0': len(floored_cols)})
+                       'Métricas con niveles llevados a 0': len(floored_cols), 'Métricas repartidas a mano': len(manual_cols)})
         for nivel, _ in NIVELES:
             row = {'C': item, 'D': p, 'E': puesto, 'F': cat, 'G': nivel, 'H': cnt, 'B': TODAY_SERIAL}
             for dcol, vcol in col_map.items():
@@ -567,6 +696,8 @@ for p in players:
             row['_merged'] = bool(group)
             row['_note'] = note
             row['_outcols'] = {col_map[d] for d in n_out_by_col}
+            row['_manualcols'] = {col_map[d] for d in manual_cols}
+            row['_negcols'] = {col_map[d] for d, lvl in neg_cells if lvl == nivel}
             out_rows.append(row)
             review.append({'Item': item, 'Nombre': p, 'Puesto': puesto, 'Minutos': cat, 'Categoría': nivel, 'Cuenta': cnt,
                            'Juntada con': juntada, 'Atípicos excluidos': combos[-1]['Valores atípicos excluidos'],
@@ -575,18 +706,20 @@ print(f'Combinaciones con VR: {len(combos)}  (filas VR: {len(out_rows)});  sin c
 _pr = pd.DataFrame(proceso)
 if len(_pr):
     _ok = _pr['% Excelente'].notna()
-    print(f"Topes: Excelente subido en {int((_pr['Mult. Excelente'] > _pr['Mult. Excelente (planilla)']).sum())} y Regular bajado en "
-          f"{int((_pr['Mult. Regular'] > _pr['Mult. Regular (planilla)']).sum())} de {int(_ok.sum())} metricas; "
-          f"max % Excelente = {_pr.loc[_ok, '% Excelente'].max():.3f}, max % Malo = {_pr.loc[_ok, '% Malo'].max():.3f}")
+    print('Reparto medio de la muestra por rango (objetivo Gauss 2,5 / 13,5 / 34 / 34 / 16 %): ' +
+          ' / '.join(f"{100 * _pr.loc[_ok, f'% {k}'].mean():.1f}" for k in GAUSS) +
+          f" | metricas con Excelente > 10%: {int((_pr.loc[_ok, '% Excelente'] > 0.10).sum())}, con Malo > 20%: {int((_pr.loc[_ok, '% Malo'] > 0.20).sum())} de {int(_ok.sum())}")
 print(f'Combinaciones juntadas: {sum(1 for c in combos if c["Juntada con"])};  valores atipicos excluidos: {len(outliers)}'
       f' en {sum(1 for c in combos if c["Valores atípicos excluidos"])} combinaciones')
 print(f'Niveles llevados a 0 (metricas que no pueden ser negativas): {sum(i.get("Niveles llevados a 0") or 0 for i in proceso)}')
+print(f'Metricas con el desvio repartido a mano: {len(revisar)}')
 
 with pd.ExcelWriter(REVIEW) as xw:
     pd.DataFrame(review).to_excel(xw, sheet_name='VR', index=False)
     pd.DataFrame(combos).to_excel(xw, sheet_name='Combinaciones', index=False)
     pd.DataFrame(proceso).to_excel(xw, sheet_name='Proceso', index=False)
     pd.DataFrame(sin_vr, columns=['Jugador', 'Categoría', 'Casos', 'Juntada con', 'Motivo']).to_excel(xw, sheet_name='Sin VR', index=False)
+    pd.DataFrame(revisar, columns=['Jugador', 'Categoría', 'Métrica', 'Columna', 'Casos', 'Motivo', 'Desvío de la muestra', 'Desvío a mano']).to_excel(xw, sheet_name='A mano', index=False)
     df_out = pd.DataFrame(outliers)
     if len(df_out):
         df_out['Fecha'] = pd.to_datetime(df_out['Fecha'], errors='coerce').dt.date
@@ -594,16 +727,17 @@ with pd.ExcelWriter(REVIEW) as xw:
     pd.DataFrame({'Leyenda': [
         'Lógica de la Plantilla VR (hojas 1.3 Proceso_Absolutos y 2.3 Proceso_Relativos), métrica por métrica y por jugador y categoría:',
         '1) Datos raros: si el 10% o menos de los valores cae fuera de 1,5 rangos intercuartílicos (RIC), se quitan los que están fuera de 1,5 RIC; si cae más del 10%, se quitan sólo los que están fuera de 3 RIC. Absolutos y relativos con promedio de 1 o menos no se limpian.',
-        '2) Bueno = promedio sin datos raros (absolutos y relativos vs equipo); cociente de sumas de los casos que quedan (relativos por minuto); fórmula de la fila 7 de Data GPS Partido sobre los casos que quedan (caídas).',
+        '2) Bueno = promedio sin datos raros (absolutos, relativos vs equipo y caídas); cociente de sumas de los casos que quedan (relativos por minuto). En las caídas no se usa la fórmula de la fila 7: en las caídas pp da una fracción y los valores de cada partido están en puntos porcentuales.',
         '3) Desv. Estándar = desvío sin datos raros.',
-        '4) Muy Bueno = Bueno + m·desvío, con m entre 0,25 y 1,75 elegido para que entre Bueno y Muy Bueno quede lo más cerca posible del 34% de los casos.',
-        '5) Excelente = Bueno + (m + 0,25·i)·desvío, hasta 2 desvíos, eligiendo i para acercarse a 2,5% de casos por encima de Excelente y 13,5% entre Muy Bueno y Excelente.',
-        '6) Regular = Bueno − m·desvío (34% de casos entre Regular y Bueno); Malo = Regular − 0,25·desvío, como en la planilla.',
+        '4) Muy Bueno, Excelente y Regular = Bueno ± m·desvío, con m de a 0,25 desvíos elegido para que la muestra se reparta en los rangos como una distribución normal (Gauss): Excelente 2,5%, Muy Bueno 13,5%, Bueno 34%, Regular 34%, Malo 16%. Los rangos son los que pinta el libro: Excelente desde Excelente para arriba, Malo debajo de Regular. Excelente puede ir hasta 2 desvíos; en empates se elige lo más cercano a 1 y 2 desvíos.',
+        '5) Malo = Regular − 0,25·desvío, como en la planilla (el libro pinta Malo todo lo que está debajo de Regular).',
+        f'5b) Reparto a mano: si con el desvío de la muestra Excelente queda con más del {MAX_EXCELENTE:.0%}, Malo con más del {MAX_MALO:.0%}, algún nivel negativo (salvo caídas) o el desvío es más de {MAX_DESVIO_RATIO:g} veces el desvío del centro de la muestra ((P84 − P16) / 2), los cortes se ponen entre valores reales de la muestra buscando el reparto de Gauss sin pasar esos topes. El Desv. Estándar escrito es el del centro de la muestra: (P84 − P16) / 2. Celdas en celeste; detalle en la hoja A mano.',
+        '5c) Negativos: sólo las caídas pueden tener niveles negativos; cuando cumplen todo lo anterior se escriben y se marcan con letra roja.',
+        '6) La hoja Proceso trae también los multiplicadores que elegía la planilla, como referencia, y el reparto real de la muestra en cada rango, con y sin datos raros.',
         '7) En métricas que no pueden ser negativas (absolutos, relativos por minuto, relativos vs equipo, Tiempo) un nivel que da negativo se lleva a 0. Las caídas pueden ser negativas.',
         f'8) Con menos de {MIN_CASOS} casos no se arma VR: la combinación no se escribe (hoja Sin VR) y una métrica con menos de {MIN_CASOS} valores queda vacía.',
-        f'9) Topes de Gauss sobre la muestra completa, con los rangos como pinta el libro: Excelente (valores >= Excelente) no puede pasar del {MAX_EXCELENTE:.0%}; si pasa, Excelente sube de a 0,25 desvíos. Malo (valores por debajo de Regular) no puede pasar del {MAX_MALO:.0%}; si pasa, Regular baja de a 0,25 desvíos y Malo queda 0,25 desvíos debajo.',
-        'En la hoja Proceso: multiplicadores de la planilla y finales, y el % de la muestra en cada rango.',
-        'Amarillo en VR: categoría calculada juntando casos de otra(s) categoría(s) del mismo jugador. Naranja: métrica a la que se le quitaron datos raros.',
+
+        'Colores en VR: amarillo = categoría calculada juntando casos de otra(s) categoría(s); naranja = métrica a la que se le quitaron datos raros; celeste = métrica con el desvío repartido a mano (tiene prioridad sobre naranja y amarillo); letra roja = nivel negativo en una caída.',
         'Hoja Proceso: detalle por métrica (regla aplicada, multiplicadores elegidos, asimetría). Hoja Atípicos: cada valor quitado.']}).to_excel(xw, sheet_name='Leyenda', index=False)
 print('Resumen de control:', REVIEW)
 
@@ -615,19 +749,36 @@ def fill_id_for(rgb):
             return i
     fills_new.append(f'<fill><patternFill patternType="solid"><fgColor rgb="{rgb}"/><bgColor indexed="64"/></patternFill></fill>')
     return len(fills_new) - 1
-FILL_Y, FILL_O = fill_id_for(FILL_YELLOW_RGB), fill_id_for(FILL_ORANGE_RGB)
+FILL_Y, FILL_O, FILL_B = fill_id_for(FILL_YELLOW_RGB), fill_id_for(FILL_ORANGE_RGB), fill_id_for(FILL_BLUE_RGB)
+fonts_block = re.search(r'<fonts count="(\d+)"([^>]*)>(.*?)</fonts>', styles_xml, re.S)
+fonts_list = re.findall(r'<font>.*?</font>|<font/>', fonts_block.group(3), re.S)
+fonts_new = list(fonts_list)
+red_font_cache = {}
+def red_font(fid):
+    if fid not in red_font_cache:
+        f = fonts_new[fid] if fid < len(fonts_new) else '<font/>'
+        if f == '<font/>':
+            f = '<font></font>'
+        f = re.sub(r'<color [^>]*/>', '', f)
+        f = re.sub(r'(<font>(?:<b/>)?(?:<i/>)?(?:<strike/>)?(?:<condense[^>]*/>)?(?:<extend[^>]*/>)?(?:<outline[^>]*/>)?(?:<shadow[^>]*/>)?(?:<u[^>]*/>)?(?:<vertAlign[^>]*/>)?(?:<sz [^>]*/>)?)',
+                   r'\1<color rgb="FFC00000"/>', f, count=1)
+        fonts_new.append(f); red_font_cache[fid] = len(fonts_new) - 1
+    return red_font_cache[fid]
 xfs_new = list(xfs_list)
 variant_cache = {}
-def styled(s_attr, fill):
-    """id de estilo igual a s_attr pero con el relleno dado"""
-    key = (s_attr, fill)
+def styled(s_attr, fill=None, red=False):
+    """id de estilo igual a s_attr pero con el relleno dado y/o letra roja"""
+    key = (s_attr, fill, red)
     if key not in variant_cache:
         base = xfs_new[int(s_attr)] if s_attr else '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
-        x = re.sub(r'fillId="\d+"', f'fillId="{fill}"', base, count=1)
-        if 'applyFill=' in x:
-            x = re.sub(r'applyFill="\d"', 'applyFill="1"', x, count=1)
-        else:
-            x = x.replace('<xf ', '<xf applyFill="1" ', 1)
+        x = base
+        if fill is not None:
+            x = re.sub(r'fillId="\d+"', f'fillId="{fill}"', x, count=1)
+            x = re.sub(r'applyFill="\d"', 'applyFill="1"', x, count=1) if 'applyFill=' in x else x.replace('<xf ', '<xf applyFill="1" ', 1)
+        if red:
+            fid = int(re.search(r'fontId="(\d+)"', x).group(1))
+            x = re.sub(r'fontId="\d+"', f'fontId="{red_font(fid)}"', x, count=1)
+            x = re.sub(r'applyFont="\d"', 'applyFont="1"', x, count=1) if 'applyFont=' in x else x.replace('<xf ', '<xf applyFont="1" ', 1)
         xfs_new.append(x); variant_cache[key] = str(len(xfs_new) - 1)
     return variant_cache[key]
 
@@ -692,10 +843,10 @@ for r, data in zip(needed, out_rows):
         if col.startswith('_') or col == 'A':
             continue
         s = s_of(col)
-        if col in data['_outcols']:
-            s = styled(s, FILL_O)
-        elif data['_merged']:
-            s = styled(s, FILL_Y)
+        fill = FILL_B if col in data['_manualcols'] else FILL_O if col in data['_outcols'] else FILL_Y if data['_merged'] else None
+        red = col in data['_negcols']
+        if fill is not None or red:
+            s = styled(s, fill, red)
         new_cells[col] = render_cell(f'{col}{r}', s, v)
     ordered = ''.join(new_cells[c] for c in sorted(new_cells, key=C))
     replacements.append((m.start(), m.end(), f'<row r="{r}"{attrs}>{ordered}</row>'))
@@ -710,6 +861,8 @@ sx_new = ''.join(reversed(parts))
 styles_new = styles_xml
 if len(fills_new) != len(fills_list):
     styles_new = styles_new.replace(fills_block.group(0), f'<fills count="{len(fills_new)}">' + ''.join(fills_new) + '</fills>', 1)
+if len(fonts_new) != len(fonts_list):
+    styles_new = styles_new.replace(fonts_block.group(0), f'<fonts count="{len(fonts_new)}"{fonts_block.group(2)}>' + ''.join(fonts_new) + '</fonts>', 1)
 if len(xfs_new) != len(xfs_list):
     styles_new = styles_new.replace(xfs_block.group(0), f'<cellXfs count="{len(xfs_new)}">' + ''.join(xfs_new) + '</cellXfs>', 1)
 print(f'Estilos: {len(xfs_new) - len(xfs_list)} variantes de relleno agregadas')
