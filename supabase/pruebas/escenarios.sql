@@ -454,11 +454,13 @@ insert into public.lesiones (equipo_id, jugador_id, fecha_lesion, fecha_alta, da
   (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"mao","lado":"direito","medico":"horas-1","horas_imagen":"12"}'),
   (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"punho","lado":"direito","medico":"horas-2","horas_imagen":"12","hora_imagen":"2026-05-02T10:30"}'),
   (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"cotovelo","lado":"direito","medico":"horas-3","horas_imagen":"doce"}'),
-  (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"antebraco","lado":"direito","medico":"horas-4","horas_imagen":"6,5","hora_imagen":"2026-02-30T10:00"}');
+  (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"antebraco","lado":"direito","medico":"horas-4","horas_imagen":"6,5","hora_imagen":"2026-02-30T10:00"}'),
+  (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"cabeca_face","lado":"direito","medico":"horas-5","horas_imagen":".5"}');
 select pruebas.esperar('Vista: sin hora de la imagen, las horas escritas a mano', (select horas_passadas_imagem_lesao::text from v_lesiones_excel_v1 where medico = 'horas-1'), '12');
 select pruebas.esperar('...con hora de la imagen, la cuenta', (select horas_passadas_imagem_lesao::text from v_lesiones_excel_v1 where medico = 'horas-2'), '35');
 select pruebas.esperar('...lo que no es un número no rompe la vista', (select coalesce(horas_passadas_imagem_lesao::text, 'vacío') from v_lesiones_excel_v1 where medico = 'horas-3'), 'vacío');
 select pruebas.esperar('...y con una hora imposible, lo escrito a mano', (select horas_passadas_imagem_lesao::text from v_lesiones_excel_v1 where medico = 'horas-4'), '6.5');
+select pruebas.esperar('...y ".5", como lo aceptaba el campo de antes', (select horas_passadas_imagem_lesao::text from v_lesiones_excel_v1 where medico = 'horas-5'), '0.5');
 delete from public.lesiones where datos->>'medico' like 'horas-%';
 
 select 'ESCENARIOS: todos bien' as resultado;

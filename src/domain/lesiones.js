@@ -190,10 +190,13 @@ export const errorImagenAntes = (lesion) => {
 
 // Las horas que se cargaban a mano antes de que se calcularan solas: se
 // muestran si no hay hora de la imagen.
-const NUMERO = /^-?\d+([.,]\d+)?$/;
+// Lo que aceptaba el campo numérico de antes (".5", "12,5", "1e3"); igual
+// que en la vista de la base (20261006).
+const NUMERO = /^[+-]?(\d+([.,]\d*)?|[.,]\d+)([eE][+-]?\d+)?$/;
 const horasCargadasAMano = (lesion) => {
   const texto = String(lesion?.datos?.horas_imagen ?? "").trim();
-  return NUMERO.test(texto) ? Number(texto.replace(",", ".")) : null;
+  const numero = NUMERO.test(texto) ? Number(texto.replace(",", ".")) : NaN;
+  return Number.isFinite(numero) ? numero : null;
 };
 
 // N° de registro (Excel): la enésima lesión del jugador, contando por n° de
@@ -317,9 +320,17 @@ export const validarLesion = (lesion, opciones = {}) => erroresDeLesion(lesion, 
 // Lo que una edición rompe: los errores de después que no estaban antes. Una
 // celda se puede cambiar aunque a la lesión le falte otra cosa de antes
 // (por ejemplo, el tipo en una lesión vieja).
+// Un error que ya estaba cuenta como nuevo si la edición cambió alguna de las
+// columnas de las que depende (empeorar lo que ya estaba mal no pasa).
+const DEPENDE_DE = {
+  hora_imagen: ["hora_imagen", "fecha_lesion"],
+  ...Object.fromEntries(FECHAS_POSTERIORES.map((clave) => [clave, [clave, "fecha_lesion"]])),
+};
+const huella = (lesion, uno) =>
+  [uno.clave, uno.error, ...(DEPENDE_DE[uno.clave] || (uno.clave ? [uno.clave] : [])).map((clave) => String(valorDe(lesion, clave) ?? ""))].join("|");
 export const erroresNuevos = (antes, despues, opciones = {}) => {
-  const habia = new Set(erroresDeLesion(antes, opciones).map((uno) => `${uno.clave}:${uno.error}`));
-  return erroresDeLesion(despues, opciones).filter((uno) => !habia.has(`${uno.clave}:${uno.error}`));
+  const habia = new Set(erroresDeLesion(antes, opciones).map((uno) => huella(antes, uno)));
+  return erroresDeLesion(despues, opciones).filter((uno) => !habia.has(huella(despues, uno)));
 };
 
 // Qué columnas cargadas a mano cambió una edición, comparando la lesión de

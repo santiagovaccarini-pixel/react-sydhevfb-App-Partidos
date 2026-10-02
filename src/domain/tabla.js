@@ -95,14 +95,15 @@ export const interpretarFecha = (texto) => {
 export const interpretarFechaHora = (texto) => {
   const t = String(texto ?? "").trim();
   if (!t) return null;
-  const m = t.match(/^(.+?),?[ T](\d{1,2}):(\d{2})(?::\d{2}(?:[.,]\d+)?)?(.*)$/);
+  const m = t.match(/^(.+?),?[ T](\d{1,2}):(\d{2})(?::\d{2}(?:[.,]\d+)?)?([\s\S]*)$/);
   const fecha = interpretarFecha(m ? m[1] : t);
   if (!fecha) return fecha;
   if (!m) return `${fecha}T00:00`;
   let hora = Number(m[2]);
   const minuto = Number(m[3]);
-  const meridiano = (/^\s*([ap])\.?\s*m\.?\s*$/i.exec(m[4]) || [])[1]?.toLowerCase();
-  if (meridiano && (hora < 1 || hora > 12)) return undefined;
+  // "a. m." / "p. m." justo después de la hora; con una hora de 0 o de 13 a
+  // 23 sobra y no cambia nada.
+  const meridiano = hora >= 1 && hora <= 12 ? (/^\s*([ap])\.?\s*m(?![a-z])/i.exec(m[4]) || [])[1]?.toLowerCase() : null;
   if (meridiano === "p" && hora < 12) hora += 12;
   if (meridiano === "a" && hora === 12) hora = 0;
   if (hora > 23 || minuto > 59) return undefined;

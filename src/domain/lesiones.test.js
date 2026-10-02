@@ -330,6 +330,11 @@ describe("validar", () => {
     // Lo que la edición rompe, sí.
     expect(erroresNuevos(vieja, conValor(vieja, "lado", null), { hoy })).toEqual([{ clave: "lado", error: "lesiones.error.lado" }]);
     expect(erroresNuevos(base(), conValor(base(), "hora_imagen", "2026-08-31T22:00"), { hoy })).toEqual([{ clave: "hora_imagen", error: "lesiones.error.imagenAntes" }]);
+    // Empeorar lo que ya estaba mal tampoco: mover la lesión más lejos de la
+    // imagen, o cambiar una hora mala por otra mala.
+    expect(erroresNuevos(vieja, conValor(vieja, "fecha_lesion", "2026-09-05"), { hoy })).toEqual([{ clave: "hora_imagen", error: "lesiones.error.imagenAntes" }]);
+    const conHoraMala = conValor(vieja, "hora_imagen", "2026-09-01T25:00");
+    expect(erroresNuevos(conHoraMala, conValor(conHoraMala, "hora_imagen", "1850-10-01T10:00"), { hoy })).toEqual([{ clave: "hora_imagen", error: "lesiones.error.imagen" }]);
     const otra = base({ id: "otra" });
     expect(erroresNuevos(base({ id: "b", datos: { ...base().datos, lado: "esquerdo" } }), base({ id: "b" }), { hoy, otras: [otra] })).toEqual([
       { clave: null, error: "lesiones.error.solapada" },
@@ -357,6 +362,9 @@ describe("validar", () => {
     expect(calcular("horas_imagen", base({ datos: { horas_imagen: "12" } }))).toBe(12);
     expect(calcular("horas_imagen", base({ datos: { horas_imagen: "12,5" } }))).toBe(12.5);
     expect(calcular("horas_imagen", base({ datos: { horas_imagen: "doce" } }))).toBe(null);
+    expect(calcular("horas_imagen", base({ datos: { horas_imagen: ".5" } }))).toBe(0.5);
+    expect(calcular("horas_imagen", base({ datos: { horas_imagen: "1e3" } }))).toBe(1000);
+    expect(calcular("horas_imagen", base({ datos: { horas_imagen: "0x10" } }))).toBe(null);
     // Con hora de la imagen manda la cuenta.
     expect(calcular("horas_imagen", base({ datos: { horas_imagen: "12", hora_imagen: "2026-09-02T10:30" } }))).toBe(35);
   });

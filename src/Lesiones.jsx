@@ -306,6 +306,8 @@ export default function Lesiones({ onVolver }) {
   // Las horas hasta la imagen que se muestran al cargar (si esa columna se ve).
   const horasALaVista = (fecha, hora) => {
     if (oculto("horas_imagen") || oculto("hora_imagen")) return null;
+    // Con la imagen de antes del día de la lesión va el error, no las horas.
+    if (errorImagenAntes({ fecha_lesion: fecha, datos: { hora_imagen: hora } })) return null;
     const horas = horasHastaLaImagen(fecha, hora);
     return horas !== null && horas >= 0 ? horas : null;
   };

@@ -110,8 +110,8 @@ select c.numero_caso as n_de_caso,
        c.datos->>'hora_imagen' as hora_da_imagem,
        c.datos->>'imagenes' as imagens,
        coalesce(public.lesiones_horas_imagen(c.datos->>'hora_imagen', c.fecha_lesion)::numeric,
-                case when c.datos->>'horas_imagen' ~ '^-?\d+([.,]\d+)?$'
-                     then replace(c.datos->>'horas_imagen', ',', '.')::numeric end) as horas_passadas_imagem_lesao,
+                case when btrim(c.datos->>'horas_imagen') ~ '^[+-]?(\d+([.,]\d*)?|[.,]\d+)([eE][+-]?\d+)?$'
+                     then replace(btrim(c.datos->>'horas_imagen'), ',', '.')::numeric end) as horas_passadas_imagem_lesao,
        public.lesiones_etiqueta(c.equipo_id, 'ligamento', c.datos->>'ligamento') as lig_especifico,
        public.lesiones_etiqueta(c.equipo_id, 'musculo', c.datos->>'musculo') as musculo_afetado,
        public.lesiones_etiqueta(c.equipo_id, 'musculo_especifico', c.datos->>'musculo_especifico') as musculo_especifico,
