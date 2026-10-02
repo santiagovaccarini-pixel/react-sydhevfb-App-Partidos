@@ -22,7 +22,8 @@ Option Explicit
 '                 "Cuenta") y la fecha del VR (columna B). Amarillo = VR que junta
 '                 categorias (tiene la nota "Categorías juntadas" en la columna H).
 '  Tabla 2 (S:AA): casos actuales, contados en "Data GPS Partido" por jugador (T),
-'                 puesto (U) y categoria de tiempo (DG), en filas "Jugador PT/ST/Total".
+'                 puesto (U) y categoria de tiempo (DG), en filas "Jugador PT/ST/Total"
+'                 del equipo propio (columna G: el equipo con mas filas de jugadores).
 '                 Se cuentan todas las filas aunque la hoja tenga filtros.
 '
 '  Categorias juntadas: el VR esta en la categoria de mas casos del grupo; los casos
@@ -33,6 +34,7 @@ Option Explicit
 ' =====================================================================================
 
 Private Const COL_ITEM As String = "D"
+Private Const COL_EQUIPO As String = "G"
 Private Const COL_JUGADOR As String = "T"
 Private Const COL_PUESTO As String = "U"
 Private Const COL_CATEGORIA As String = "DG"
@@ -90,7 +92,7 @@ Private Function UmbralNuevoVR(ByVal casosVR As Long, ByRef regla As String) As 
 End Function
 
 Public Sub ActualizarColores_ManejoErrores()
-    Dim ws As Worksheet, wsD As Worksheet, wsVR As Worksheet, wsJ As Worksheet
+    Dim ws As Worksheet, wsD As Worksheet, wsVR As Worksheet
     Dim cats As Variant, nCat As Long, c As Long
     Dim calcPrev As XlCalculation
 
@@ -99,39 +101,45 @@ Public Sub ActualizarColores_ManejoErrores()
     Set ws = Hoja("Analisis Casos VR")
     Set wsD = Hoja("Data GPS Partido")
     Set wsVR = Hoja("VR")
-    Set wsJ = Hoja("Tiempos por jugador")
     cats = Categorias(): nCat = UBound(cats) + 1
 
     Application.ScreenUpdating = False
     calcPrev = Application.Calculation
     Application.Calculation = xlCalculationManual
 
-    paso = "leer los jugadores de Tiempos por jugador"
-    Dim plantel As Object: Set plantel = CreateObject("Scripting.Dictionary")
     Dim r As Long, nombre As String, puesto As String, cat As String, clave As String
-    For r = 2 To wsJ.Cells(wsJ.Rows.Count, "A").End(xlUp).Row
-        nombre = Trim(CStr(wsJ.Cells(r, "A").Value))
-        If Len(nombre) > 0 Then plantel(nombre) = True
-    Next r
 
     paso = "contar los casos actuales en Data GPS Partido"
-    Dim ultD As Long, vItem As Variant, vJug As Variant, vPue As Variant, vCat As Variant
+    Dim ultD As Long, vItem As Variant, vJug As Variant, vPue As Variant, vCat As Variant, vEq As Variant
     ultD = wsD.Cells(wsD.Rows.Count, COL_JUGADOR).End(xlUp).Row
     If ultD <= FILA_DATOS Then Err.Raise vbObjectError + 1, , "No hay datos en Data GPS Partido"
     vItem = wsD.Range(COL_ITEM & FILA_DATOS & ":" & COL_ITEM & ultD).Value
     vJug = wsD.Range(COL_JUGADOR & FILA_DATOS & ":" & COL_JUGADOR & ultD).Value
     vPue = wsD.Range(COL_PUESTO & FILA_DATOS & ":" & COL_PUESTO & ultD).Value
     vCat = wsD.Range(COL_CATEGORIA & FILA_DATOS & ":" & COL_CATEGORIA & ultD).Value
+    vEq = wsD.Range(COL_EQUIPO & FILA_DATOS & ":" & COL_EQUIPO & ultD).Value
+
+    ' equipo propio: el que tiene mas filas de jugadores en la base (los rivales tambien estan en la base)
+    Dim equipos As Object: Set equipos = CreateObject("Scripting.Dictionary")
+    Dim i As Long, eq As Variant, miEquipo As String, maxFilas As Long
+    For i = 1 To UBound(vJug, 1)
+        If Left$(CStr(vItem(i, 1)), 7) = "Jugador" Then
+            eq = Trim(CStr(vEq(i, 1)))
+            equipos(eq) = equipos(eq) + 1
+        End If
+    Next i
+    For Each eq In equipos.Keys
+        If equipos(eq) > maxFilas Then maxFilas = equipos(eq): miEquipo = eq
+    Next eq
 
     Dim esCat As Object: Set esCat = CreateObject("Scripting.Dictionary")
     For c = 0 To nCat - 1: esCat(cats(c)) = c: Next c
 
     Dim actuales As Object: Set actuales = CreateObject("Scripting.Dictionary")   ' nombre|puesto|cat -> casos
     Dim filas As Object: Set filas = CreateObject("Scripting.Dictionary")         ' nombre|puesto -> True (orden)
-    Dim i As Long
     For i = 1 To UBound(vJug, 1)
         nombre = Trim(CStr(vJug(i, 1)))
-        If plantel.Exists(nombre) And Left$(CStr(vItem(i, 1)), 7) = "Jugador" Then
+        If Len(nombre) > 0 And Left$(CStr(vItem(i, 1)), 7) = "Jugador" And Trim(CStr(vEq(i, 1))) = miEquipo Then
             cat = Trim(CStr(vCat(i, 1)))
             If esCat.Exists(cat) Then
                 puesto = Trim(CStr(vPue(i, 1)))
@@ -250,7 +258,7 @@ Public Sub ActualizarColores_ManejoErrores()
 
     Application.Calculation = calcPrev
     Application.ScreenUpdating = True
-    MsgBox "Listo: " & filas.Count & " jugadores/puestos revisados, " & nRojos & _
+    MsgBox "Listo (" & miEquipo & "): " & filas.Count & " jugadores/puestos revisados, " & nRojos & _
            " categorias en rojo (ya alcanzan para un VR nuevo).", vbInformation
     Exit Sub
 
