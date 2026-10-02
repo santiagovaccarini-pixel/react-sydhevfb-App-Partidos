@@ -18,6 +18,7 @@ import {
   errorDeCampo,
   estaActiva,
   etapaDe,
+  horasHastaLaImagen,
   lesionVacia,
   lesionesActivas,
   normalizarTexto,
@@ -272,6 +273,7 @@ export default function Lesiones({ onVolver }) {
         if (campo.lista) return textoDeOpcion(campo.clave, resultado);
         if (campo.clave === "edad") return plural("lesiones.anios", resultado);
         if (["recup_1", "recup_2", "recuperacion"].includes(campo.clave)) return plural("lesiones.dias", resultado);
+        if (campo.clave === "horas_imagen") return plural("lesiones.horas", resultado);
         return String(resultado);
       }
       case "lista":
@@ -1146,15 +1148,23 @@ export default function Lesiones({ onVolver }) {
             <input type="date" value={valor || ""} max={hoyISO()} onChange={(evento) => cambiar(evento.target.value)} />
           </div>
         );
-      case "fecha_hora":
+      case "fecha_hora": {
+        // La hora de la imagen: las horas desde la lesión salen solas.
+        const horas = campo.clave === "hora_imagen" ? horasHastaLaImagen(lesion.fecha_lesion, valor) : null;
         return (
           <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
             <label>
               {rotulo} {opcional}
             </label>
             <input type="datetime-local" value={valor || ""} onChange={(evento) => cambiar(evento.target.value)} />
+            {horas !== null && horas >= 0 && !campoOculto("horas_imagen", config) && (
+              <small className="lesiones-ayuda">
+                {etiqueta("horas_imagen")}: {plural("lesiones.horas", horas)}
+              </small>
+            )}
           </div>
         );
+      }
       case "numero":
         return (
           <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
@@ -1341,11 +1351,14 @@ export default function Lesiones({ onVolver }) {
     return "";
   };
 
+  // Para ir hacia adelante, cada paso del medio tiene que estar completo: no
+  // se puede saltear uno al que le falta algo (como el tipo de lesión).
   const irAlPaso = (indice, lesion) => {
-    if (indice > paso) {
-      const falta = validarPaso(paso, lesion);
+    for (let uno = paso; uno < indice; uno += 1) {
+      const falta = validarPaso(uno, lesion);
       if (falta) {
         setErrorFormulario(falta);
+        setPaso(uno);
         return;
       }
     }

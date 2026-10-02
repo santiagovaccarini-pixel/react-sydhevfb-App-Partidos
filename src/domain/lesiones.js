@@ -155,6 +155,17 @@ export const diagnosticoDe = (lesion, texto = (clave, codigo) => codigo || "") =
   return partes.filter(Boolean).join(" ");
 };
 
+// Horas entre la lesión y la imagen (Excel): desde el comienzo del día de
+// la lesión (la lesión tiene fecha, no hora) hasta la hora de la imagen.
+const HORA = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/;
+export const horasHastaLaImagen = (fechaLesion, horaImagen) => {
+  const imagen = HORA.exec(String(horaImagen || ""));
+  if (!imagen || !esFechaISO(fechaLesion)) return null;
+  const [anio, mes, dia] = fechaLesion.split("-").map(Number);
+  const [, ai, mi, di, hi, mini] = imagen.map(Number);
+  return Math.round((Date.UTC(ai, mi - 1, di, hi, mini) - Date.UTC(anio, mes - 1, dia)) / 3600000);
+};
+
 // N° de registro (Excel): la enésima lesión del jugador, contando por n° de
 // caso (o por fecha si todavía no tiene).
 export const numeroDeRegistro = (lesion, lesiones = []) => {
@@ -197,6 +208,8 @@ export const calcular = (clave, lesion, jugador = null, contexto = {}) => {
       return lesion?.fecha_retorno_entrenamiento ? diasEntre(lesion.fecha_lesion, lesion.fecha_retorno_entrenamiento) : null;
     case "recuperacion":
       return esFechaISO(lesion?.fecha_lesion) ? diasEntre(lesion.fecha_lesion, lesion.fecha_alta || contexto.hoy || hoyISO()) : null;
+    case "horas_imagen":
+      return horasHastaLaImagen(lesion?.fecha_lesion, lesion?.datos?.hora_imagen);
     case "severidad":
       return lesion?.fecha_alta ? severidadPorDias(diasEntre(lesion.fecha_lesion, lesion.fecha_alta)) : "";
     case "recurrencia":
@@ -225,9 +238,6 @@ export const severidadSugerida = (lesion) => calcular("severidad", lesion);
 
 const FECHAS_POSTERIORES = ["fecha_transicion", "fecha_retorno_entrenamiento", "fecha_alta"];
 
-// Las horas entre la lesión y la imagen las escribe el médico (el Excel no las calcula).
-const esNumeroValido = (valor) => valor === null || valor === undefined || valor === "" || (Number.isFinite(Number(valor)) && Number(valor) >= 0);
-
 // Lo que está mal en una columna, como clave del diccionario ("" si nada).
 // La carga por pasos revisa así las columnas de cada paso.
 export const errorDeCampo = (lesion, clave, hoy = hoyISO()) => {
@@ -242,13 +252,22 @@ export const errorDeCampo = (lesion, clave, hoy = hoyISO()) => {
     if (!esFechaISO(valor) || (esFechaISO(lesion.fecha_lesion) && valor < lesion.fecha_lesion)) return "lesiones.error.fechaAntes";
     return valor > hoy ? "lesiones.error.fechaFuturaOtra" : "";
   }
+  if (clave === "tipo_lesion") return lesion.datos?.tipo_lesion ? "" : "lesiones.error.tipo";
   if (clave === "parte_cuerpo") return lesion.datos?.parte_cuerpo ? "" : "lesiones.error.parte";
   if (clave === "lado") return lesion.datos?.lado ? "" : "lesiones.error.lado";
-  if (clave === "horas_imagen") return esNumeroValido(lesion.datos?.horas_imagen) ? "" : "lesiones.error.horas";
+  // La imagen no puede ser de antes del día de la lesión (las horas darían negativas).
+  if (clave === "hora_imagen") {
+    const hora = lesion.datos?.hora_imagen;
+    if (!hora) return "";
+    const horas = horasHastaLaImagen(lesion.fecha_lesion, hora);
+    if (horas === null) return esFechaISO(lesion.fecha_lesion) ? "lesiones.error.imagen" : "";
+    if (horas < 0) return "lesiones.error.imagenAntes";
+    return String(hora).slice(0, 10) > hoy ? "lesiones.error.fechaFuturaOtra" : "";
+  }
   return "";
 };
 
-const ORDEN_DE_VALIDACION = ["jugador", "fecha_lesion", ...FECHAS_POSTERIORES, "parte_cuerpo", "lado", "horas_imagen"];
+const ORDEN_DE_VALIDACION = ["jugador", "fecha_lesion", ...FECHAS_POSTERIORES, "tipo_lesion", "parte_cuerpo", "lado", "hora_imagen"];
 
 // Lo que hay que corregir antes de guardar, como clave del diccionario.
 // Devuelve "" si está todo bien.

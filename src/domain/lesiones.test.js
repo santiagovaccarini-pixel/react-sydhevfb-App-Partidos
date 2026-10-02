@@ -9,6 +9,7 @@ import {
   errorDeCampo,
   estadoDelPlantel,
   etapaDe,
+  horasHastaLaImagen,
   lesionVacia,
   lesionesActivas,
   numeroDeRegistro,
@@ -64,7 +65,6 @@ describe("el catálogo del Excel", () => {
       "lado",
       "hora_imagen",
       "imagenes",
-      "horas_imagen",
       "ligamento",
       "musculo",
       "musculo_especifico",
@@ -173,7 +173,7 @@ describe("el catálogo del Excel", () => {
   test("la carga tiene un paso por grupo, con lo que se escribe a mano", () => {
     expect(PASOS).toEqual([
       { id: "dados_gerais", campos: ["jugador"] },
-      { id: "descricao_geral", campos: ["tipo_lesion", "parte_cuerpo", "lado", "hora_imagen", "imagenes", "horas_imagen"] },
+      { id: "descricao_geral", campos: ["tipo_lesion", "parte_cuerpo", "lado", "hora_imagen", "imagenes"] },
       { id: "descricao_especifica", campos: ["ligamento", "musculo", "musculo_especifico", "area"] },
       { id: "descricao_contextual", campos: ["producto", "mecanismo", "cuando", "localizacion"] },
       { id: "evolucao", campos: ["fecha_lesion", "fecha_transicion", "fecha_retorno_entrenamiento", "fecha_alta"] },
@@ -213,8 +213,8 @@ describe("etapas, días y severidad", () => {
     expect(diasDeBaja(base(), "2026-09-04")).toBe(3);
     expect(calcular("edad", base(), { fecha_nacimiento: "2000-09-02" })).toBe(25);
     expect(calcular("edad", base(), { fecha_nacimiento: "2000-09-01" })).toBe(26);
-    // Las horas hasta la imagen las escribe el médico; no se calculan.
-    expect(calcular("horas_imagen", base({ datos: { hora_imagen: "2026-09-02T06:00" } }))).toBe(null);
+    // Las horas hasta la imagen salen solas: desde el comienzo del día de la lesión.
+    expect(calcular("horas_imagen", base({ datos: { hora_imagen: "2026-09-02T06:00" } }))).toBe(30);
   });
 
   test("lado hábil, n° de registro, recurrencia, recidiva y diagnóstico salen como en el Excel", () => {
@@ -281,18 +281,35 @@ describe("etapas, días y severidad", () => {
 
 describe("validar", () => {
   const hoy = "2026-10-01";
-  test("pide jugador, fecha, parte del cuerpo y lado, y no acepta fechas raras", () => {
+  test("pide jugador, fecha, tipo de lesión, parte del cuerpo y lado, y no acepta fechas raras", () => {
+    const conDatos = (datos) => base({ datos: { tipo_lesion: "muscular_1a", parte_cuerpo: "coxa", lado: "direito", ...datos } });
     expect(validarLesion(base({ jugador_id: null }), { hoy })).toBe("lesiones.error.jugador");
     expect(validarLesion(base({ fecha_lesion: "" }), { hoy })).toBe("lesiones.error.fecha");
     expect(validarLesion(base({ fecha_lesion: "2026-10-02" }), { hoy })).toBe("lesiones.error.fechaFutura");
     expect(validarLesion(base({ fecha_alta: "2026-08-30" }), { hoy })).toBe("lesiones.error.fechaAntes");
     expect(validarLesion(base({ fecha_transicion: "2026-10-05" }), { hoy })).toBe("lesiones.error.fechaFuturaOtra");
-    expect(validarLesion(base({ datos: { lado: "direito" } }), { hoy })).toBe("lesiones.error.parte");
-    expect(validarLesion(base({ datos: { parte_cuerpo: "coxa" } }), { hoy })).toBe("lesiones.error.lado");
-    expect(validarLesion(base({ datos: { parte_cuerpo: "coxa", lado: "direito", horas_imagen: "-2" } }), { hoy })).toBe("lesiones.error.horas");
-    expect(validarLesion(base({ datos: { parte_cuerpo: "coxa", lado: "direito", horas_imagen: "12,5" } }), { hoy })).toBe("lesiones.error.horas");
-    expect(validarLesion(base({ datos: { parte_cuerpo: "coxa", lado: "direito", horas_imagen: 12.5 } }), { hoy })).toBe("");
+    // El tipo de lesión no es opcional.
+    expect(validarLesion(conDatos({ tipo_lesion: null }), { hoy })).toBe("lesiones.error.tipo");
+    expect(validarLesion(conDatos({ parte_cuerpo: null }), { hoy })).toBe("lesiones.error.parte");
+    expect(validarLesion(conDatos({ lado: null }), { hoy })).toBe("lesiones.error.lado");
+    // La imagen no puede ser de antes del día de la lesión, ni del futuro.
+    expect(validarLesion(conDatos({ hora_imagen: "2026-08-31T23:00" }), { hoy })).toBe("lesiones.error.imagenAntes");
+    expect(validarLesion(conDatos({ hora_imagen: "2026-10-05T10:00" }), { hoy })).toBe("lesiones.error.fechaFuturaOtra");
+    expect(validarLesion(conDatos({ hora_imagen: "ayer a la tarde" }), { hoy })).toBe("lesiones.error.imagen");
+    expect(validarLesion(conDatos({ hora_imagen: "2026-09-02T10:30" }), { hoy })).toBe("");
     expect(validarLesion(base(), { hoy })).toBe("");
+  });
+
+  test("las horas entre la lesión y la imagen salen solas, desde el comienzo del día de la lesión", () => {
+    expect(horasHastaLaImagen("2026-09-01", "2026-09-01T00:00")).toBe(0);
+    expect(horasHastaLaImagen("2026-09-01", "2026-09-02T10:30")).toBe(35);
+    expect(horasHastaLaImagen("2026-09-01", "2026-09-01 18:14")).toBe(18);
+    // Sin imagen, o con algo que no es una hora, no hay horas.
+    expect(horasHastaLaImagen("2026-09-01", "")).toBe(null);
+    expect(horasHastaLaImagen("2026-09-01", "mañana")).toBe(null);
+    expect(horasHastaLaImagen("", "2026-09-02T10:30")).toBe(null);
+    expect(calcular("horas_imagen", base({ datos: { hora_imagen: "2026-09-03T08:00" } }))).toBe(56);
+    expect(calcular("horas_imagen", base())).toBe(null);
   });
 
   test("no deja dos lesiones a la vez en la misma parte del cuerpo y lado", () => {
@@ -331,7 +348,9 @@ describe("recidiva, plantel, revisión y cambios", () => {
     expect(errorDeCampo(base({ fecha_alta: null }), "fecha_alta", hoy)).toBe("");
     expect(errorDeCampo(base({ datos: { lado: "direito" } }), "parte_cuerpo", hoy)).toBe("lesiones.error.parte");
     expect(errorDeCampo(base({ datos: { parte_cuerpo: "coxa" } }), "lado", hoy)).toBe("lesiones.error.lado");
-    expect(errorDeCampo(base({ datos: { horas_imagen: "doce" } }), "horas_imagen", hoy)).toBe("lesiones.error.horas");
+    expect(errorDeCampo(base({ datos: {} }), "tipo_lesion", hoy)).toBe("lesiones.error.tipo");
+    expect(errorDeCampo(base({ datos: { hora_imagen: "2026-08-20T10:00" } }), "hora_imagen", hoy)).toBe("lesiones.error.imagenAntes");
+    expect(errorDeCampo(base({ datos: {} }), "hora_imagen", hoy)).toBe("");
     expect(errorDeCampo(base(), "medico", hoy)).toBe("");
   });
 

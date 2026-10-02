@@ -114,6 +114,9 @@ const elegirZona = async (contenedor, region, parte) => {
   await tocarFigura(contenedor.querySelector(`.figura-cuerpo [data-region="${region}"]`));
   await tocar(parteDeLaLista(contenedor, parte));
 };
+// El tipo de lesión es obligatorio: los recorridos que pasan por Descripción
+// general lo eligen.
+const elegirTipo = (contenedor, tipo = "Lesión muscular grado 1 A") => elegirEnHoja(contenedor, "Tipo de lesión", tipo);
 const navegar = async (contenedor, etiqueta) =>
   tocar([...contenedor.querySelectorAll(".navegacion-movil button")].find((b) => b.textContent.includes(etiqueta)));
 const siguiente = (contenedor) => tocar(boton(contenedor, "Siguiente"));
@@ -259,6 +262,12 @@ describe("el módulo Lesiones", () => {
 
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Descripción general");
+    // El tipo de lesión no es opcional: sin él no se sigue.
+    expect(campoDeFormulario(contenedor, etiqueta("tipo_lesion")).textContent).not.toContain("Opcional");
+    await siguiente(contenedor);
+    expect(texto(contenedor)).toContain("Elegí el tipo de lesión.");
+    expect(tituloDelPaso(contenedor)).toBe("Descripción general");
+    await elegirEnHoja(contenedor, "Tipo de lesión", "Esguince / lesión ligamentaria");
     await siguiente(contenedor);
     expect(texto(contenedor)).toContain("Elegí la parte del cuerpo lesionada.");
     // Dónde fue: la figura. Una parte del medio pide el lado.
@@ -272,8 +281,11 @@ describe("el módulo Lesiones", () => {
     expect(contenedor.querySelector('.figura-cuerpo [data-parte="joelho"]').getAttribute("aria-pressed")).toBe("true");
     // Las listas largas siguen con el selector con hoja.
     expect(contenedor.querySelector('.selector-hoja[aria-label="Tipo de lesión"]')).toBeTruthy();
-    // Las imágenes van en Descripción general, como en el Excel.
-    await escribir(campoDeFormulario(contenedor, etiqueta("horas_imagen")).querySelector("input"), "12");
+    // Las imágenes van en Descripción general, como en el Excel; las horas
+    // desde la lesión hasta la imagen salen solas.
+    expect(campoDeFormulario(contenedor, etiqueta("horas_imagen"))).toBeUndefined();
+    await escribir(campoDeFormulario(contenedor, etiqueta("hora_imagen")).querySelector("input"), `${hoyISO()}T03:00`);
+    expect(campoDeFormulario(contenedor, etiqueta("hora_imagen")).textContent).toContain("Horas entre la lesión y la imagen: 3 horas");
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Descripción específica");
     // En la rodilla: sus ligamentos y lo que el catálogo tiene de ella.
@@ -298,9 +310,10 @@ describe("el módulo Lesiones", () => {
     expect(datos.guardadas).toHaveLength(1);
     expect(datos.guardadas[0]).toMatchObject({
       equipoId: "eq-1",
-      lesion: { jugador_id: 8, fecha_alta: null, datos: { parte_cuerpo: "joelho", lado: "esquerdo", ligamento: "lca", mecanismo: "sprint", horas_imagen: "12" } },
+      lesion: { jugador_id: 8, fecha_alta: null, datos: { tipo_lesion: "entorse", parte_cuerpo: "joelho", lado: "esquerdo", ligamento: "lca", mecanismo: "sprint", hora_imagen: `${hoyISO()}T03:00` } },
     });
     expect(datos.guardadas[0].lesion.datos.diagnostico).toBeUndefined();
+    expect(datos.guardadas[0].lesion.datos.horas_imagen).toBeUndefined();
     // Después de guardar queda abierta la ficha, en su primera pestaña.
     expect(texto(contenedor)).toContain("Caso 2");
     expect(texto(contenedor)).toContain("SCARPA");
@@ -312,6 +325,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     // La figura entera: cada zona es un botón.
     const zonas = () => [...contenedor.querySelectorAll('.figura-cuerpo [role="button"][data-region]')].map((g) => g.getAttribute("aria-label"));
     expect(zonas()).toEqual(["Cabeza y cuello", "Tronco", "Brazo derecho", "Pierna derecha", "Brazo izquierdo", "Pierna izquierda"]);
@@ -390,6 +404,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     // Acercada una zona, las otras quedan de fondo: no se tocan.
     await tocarFigura(contenedor.querySelector('.figura-cuerpo [data-region="pierna_derecha"]'));
     expect(contenedor.querySelectorAll('.figura-cuerpo [role="button"][data-region]')).toHaveLength(0);
@@ -437,6 +452,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     await elegirZona(contenedor, "pierna_derecha", "Muslo");
     await siguiente(contenedor);
     expect(campoDeFormulario(contenedor, etiqueta("musculo"))).toBeUndefined();
@@ -479,6 +495,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     // La parte del club va en la pierna, al lado de la rodilla, y se pinta la rodilla.
     await tocarFigura(contenedor.querySelector('.figura-cuerpo [data-region="pierna_derecha"]'));
     expect([...contenedor.querySelectorAll(".mapa-cuerpo-partes b")].map((b) => b.textContent).slice(2, 4)).toEqual(["Rodilla", "Rótula"]);
@@ -530,6 +547,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     // Lo que se adelanta de cada parte es lo que el club tiene a la vista.
     await tocarFigura(contenedor.querySelector('.figura-cuerpo [data-region="pierna_derecha"]'));
     expect(parteDeLaLista(contenedor, "Muslo").textContent).toContain("Cuádriceps, Aductores");
@@ -558,6 +576,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     await elegirZona(contenedor, "pierna_izquierda", "Rodilla");
     await siguiente(contenedor);
     await siguiente(contenedor);
@@ -795,6 +814,7 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain("Paso 1 de 5");
     await tocar(botonQueEmpieza(contenedor, "HULK"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Qué pasó");
     // También se puede elegir de la lista, como antes de la figura. Parte del
     // cuerpo es obligatoria: sigue a la vista aunque la configuración diga que no.

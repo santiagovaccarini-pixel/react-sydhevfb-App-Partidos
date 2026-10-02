@@ -317,19 +317,23 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+/* El título de cada paso (los grupos del Excel), centrado y grande. */
 .lesiones-marco .lesiones-paso-titulo {
-  margin: 4px 0 12px;
+  margin: 8px 0 16px;
+  text-align: center;
 }
 .lesiones-marco .lesiones-paso-titulo h2 {
-  margin: 0 0 4px;
+  margin: 0 0 6px;
   color: #fff;
-  font-size: 22px;
+  font-size: clamp(27px, 7vw, 34px);
+  line-height: 1.15;
   letter-spacing: -0.02em;
 }
 .lesiones-marco .lesiones-paso-titulo p {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
+  max-width: 560px;
+  margin: 0 auto;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 15px;
   line-height: 1.4;
 }
 .lesiones-marco .lesiones-campo-paso {

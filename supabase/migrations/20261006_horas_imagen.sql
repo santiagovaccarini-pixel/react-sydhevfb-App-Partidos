@@ -1,39 +1,50 @@
 -- =====================================================================
--- Datos básicos y las columnas calculadas del Excel.
+-- Las horas entre la lesión y la imagen se calculan solas.
 --
---   · jugadores: suma posición (lista de Lesiones) y el enlace de la foto,
---     como la hoja "Datos Básicos" del Excel (nombre, categoría, nacimiento,
---     pie dominante, posición, foto). numero_registro deja de usarse: en el
---     Excel "N° de Registro" es la enésima lesión del jugador, y se calcula.
---   · v_lesiones_excel_v1 pasa a calcular lo mismo que el Excel: n° de
---     registro, lado hábil lesionado, Recup 2 (retorno al entrenamiento menos
---     inicio), severidad (registro <1, leve 1-4, menor 5-7, moderado 8-28,
---     mayor 29+), recorrência (misma parte, lado y músculo del mismo jugador
---     con fin hace 60 días o menos), recidiva (misma estructura exacta del
---     mismo jugador con fin hace 30 días o menos) y diagnóstico (tipo +
---     ligamento o músculo específico + músculo o parte + área + lado).
+--   · lesiones_horas_imagen(hora, fecha): las horas desde el comienzo del
+--     día de la lesión (la lesión tiene fecha, no hora) hasta la hora de la
+--     imagen, redondeadas; vacío si no hay imagen o si lo cargado no es una
+--     hora. Es la misma cuenta que hace la app.
+--   · v_lesiones_excel_v1 usa esa cuenta en "Horas Passadas e/ Imagem e
+--     Lesão" en vez de lo que se escribía a mano; el resto de la vista queda
+--     igual (mismas columnas, en el mismo orden, para Power Query).
 --
--- Requiere 20261002_lesiones_excel.sql. Se corre en Supabase > SQL Editor,
+-- Requiere 20261002b_datos_basicos.sql. Se corre en Supabase > SQL Editor,
 -- entero y de una vez. Se puede volver a correr.
 -- =====================================================================
 
 begin;
 
--- Corrida después de 20261006 volvería a las horas escritas a mano: se niega.
+-- Sin Datos básicos la vista no tiene la posición del jugador: se frena con un aviso claro.
 do $$
 begin
-  if to_regclass('public.v_lesiones_excel_v1') is not null
-     and coalesce(obj_description('public.v_lesiones_excel_v1'::regclass, 'pg_class'), '') like '%20261006%' then
-    raise exception 'Ya está corrida 20261006_horas_imagen.sql: esta es anterior y no hace falta volver a correrla.';
+  if not exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'jugadores' and column_name = 'posicion'
+  ) then
+    raise exception 'Primero hay que correr 20261002b_datos_basicos.sql.';
   end if;
 end $$;
 
-alter table public.jugadores
-  add column if not exists posicion text,
-  add column if not exists foto_url text;
+create or replace function public.lesiones_horas_imagen(p_hora text, p_desde date)
+returns integer
+language plpgsql
+immutable
+set search_path = ''
+as $$
+begin
+  if p_hora is null or p_desde is null or p_hora !~ '^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}' then
+    return null;
+  end if;
+  return round(extract(epoch from (left(replace(p_hora, 'T', ' '), 16)::timestamp - p_desde::timestamp)) / 3600)::integer;
+exception when others then
+  -- Una fecha imposible (como un mes 13) no rompe la vista: queda vacío.
+  return null;
+end;
+$$;
 
-comment on column public.jugadores.posicion is 'Código de la lista posicion de Lesiones (goleiro, defensor_central…).';
-comment on column public.jugadores.foto_url is 'Enlace a la foto del jugador (Excel: Links das fotos).';
+revoke execute on function public.lesiones_horas_imagen(text, date) from public, anon;
+grant execute on function public.lesiones_horas_imagen(text, date) to authenticated;
 
 drop view if exists public.v_lesiones_excel_v1;
 
@@ -95,7 +106,7 @@ select c.numero_caso as n_de_caso,
             else public.lesiones_etiqueta(c.equipo_id, 'lado_habil', 'nao') end as lado_habil_lesionado,
        c.datos->>'hora_imagen' as hora_da_imagem,
        c.datos->>'imagenes' as imagens,
-       nullif(c.datos->>'horas_imagen', '')::numeric as horas_passadas_imagem_lesao,
+       public.lesiones_horas_imagen(c.datos->>'hora_imagen', c.fecha_lesion) as horas_passadas_imagem_lesao,
        public.lesiones_etiqueta(c.equipo_id, 'ligamento', c.datos->>'ligamento') as lig_especifico,
        public.lesiones_etiqueta(c.equipo_id, 'musculo', c.datos->>'musculo') as musculo_afetado,
        public.lesiones_etiqueta(c.equipo_id, 'musculo_especifico', c.datos->>'musculo_especifico') as musculo_especifico,
@@ -137,8 +148,10 @@ select c.numero_caso as n_de_caso,
 revoke all on public.v_lesiones_excel_v1 from anon;
 grant select on public.v_lesiones_excel_v1 to authenticated;
 
+-- Para saber que esta ya está corrida (y que 20261002b no la deshaga).
+comment on view public.v_lesiones_excel_v1 is 'Las 35 columnas del Excel de lesiones para Power Query (horas hasta la imagen calculadas: 20261006).';
+
 commit;
 
-select column_name from information_schema.columns
- where table_schema = 'public' and table_name = 'jugadores' and column_name in ('posicion', 'foto_url');
+select public.lesiones_horas_imagen('2026-09-02T10:30', date '2026-09-01') as deberia_dar_35;
 select count(*) as filas_vista from public.v_lesiones_excel_v1;
