@@ -286,15 +286,18 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 
 ## Lesiones: lo que sigue (anotado el 02/10)
 
-- **El cuerpo humano para cargar la lesión** (pedido del 02/10, con video): una figura de
-  frente y de espaldas; se toca una zona (por ejemplo la pierna derecha), se hace zoom a esa
-  zona y adentro se eligen las opciones, de lo macro a lo micro, **solo con las variables del
-  catálogo**: región → parte del cuerpo → estructura (músculo, ligamento o tendón de esa
-  parte) → área (tercio proximal, medio o distal, o la unión). El lado sale de la zona
-  tocada (lo del medio queda "no se aplica" y se puede cambiar). Qué estructuras van con cada
-  parte del cuerpo es anatomía que hoy no está en el Excel: va como mapa por defecto en el
-  catálogo, con "Otras" para las opciones que un club agregue, y por la regla del 02/10 tiene
-  que poder cambiarse desde Ajustes más adelante. Va en su propia entrega, después de esta.
+- **El cuerpo humano para cargar la lesión (hecho el 02/10)**: en Descripción general, la
+  figura de frente o de espaldas (`src/components/FiguraCuerpo.jsx`): se toca la zona, la
+  figura se acerca y se elige la parte (el lado sale de la zona; en cabeza y tronco se
+  elige). En Descripción específica, lo que esa parte tiene en el catálogo, de lo grande a lo
+  chico: grupo muscular → músculo específico → tercio y unión del área, o el ligamento; lo
+  que no está, con "Otro…" (la lista entera). "Elegir de la lista" vuelve a los campos de
+  siempre. La ficha muestra la figura chica con la parte lesionada. Solo usa las opciones
+  del catálogo (`src/domain/mapaCorporal.js`; una prueba verifica que estén todas y que no
+  haya ninguna inventada). **Queda pendiente**: qué estructura va con cada parte es el mapa
+  por defecto, escrito en código; por la regla del 02/10 tiene que poder cambiarse por club
+  desde Ajustes (igual que cabeceras y listas), y una opción nueva que agregue un club cae
+  en "Otro…" hasta entonces.
 - **Los informes** (lo siguiente que pidió Santiago).
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
   la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa

@@ -100,6 +100,20 @@ const elegirEnHoja = async (contenedor, etiquetaCampo, etiquetaOpcion) => {
   await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === etiquetaOpcion));
 };
 const campoDeFormulario = (contenedor, etiqueta) => [...contenedor.querySelectorAll(".campo-inicio")].find((campo) => campo.textContent.startsWith(etiqueta));
+// La figura del cuerpo: las zonas y las partes son botones dibujados (SVG).
+const tocarFigura = async (elemento) => {
+  expect(elemento, "no se encontró la zona").toBeTruthy();
+  await act(async () => elemento.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+};
+const parteDeLaLista = (contenedor, nombre) => [...contenedor.querySelectorAll(".mapa-cuerpo-partes button")].find((b) => b.querySelector("b").textContent === nombre);
+// Se toca la zona en la figura y después la parte en la lista de al lado. Si
+// la figura está acercada a otra zona, primero se vuelve al cuerpo entero.
+const volverAlCuerpo = (contenedor) => tocar([...contenedor.querySelectorAll(".mapa-cuerpo-camino button")].find((b) => b.textContent === "Cuerpo"));
+const elegirZona = async (contenedor, region, parte) => {
+  if (contenedor.querySelector(".mapa-cuerpo-partes")) await volverAlCuerpo(contenedor);
+  await tocarFigura(contenedor.querySelector(`.figura-cuerpo [data-region="${region}"]`));
+  await tocar(parteDeLaLista(contenedor, parte));
+};
 const navegar = async (contenedor, etiqueta) =>
   tocar([...contenedor.querySelectorAll(".navegacion-movil button")].find((b) => b.textContent.includes(etiqueta)));
 const siguiente = (contenedor) => tocar(boton(contenedor, "Siguiente"));
@@ -165,10 +179,12 @@ describe("el módulo Lesiones", () => {
     await montar();
     await tocar(boton(contenedor, "Ver detalle"));
     expect(texto(contenedor)).toContain("Caso 1 · 20/09/2026 · Lesionado");
-    // El resumen: el diagnóstico y los días de baja.
+    // El resumen: la figura con la parte lesionada, el diagnóstico y los días de baja.
     const resumen = contenedor.querySelector(".lesiones-marcador");
     expect(resumen.textContent).toContain("Lesión muscular grado 1 A Muslo Derecho");
     expect(resumen.textContent).toContain("DÍAS DE BAJA");
+    expect(resumen.querySelector('.lesiones-marcador-figura [data-region="pierna_derecha"] .figura-cuerpo-pieza.elegida')).toBeTruthy();
+    expect(resumen.querySelectorAll(".figura-cuerpo-pieza.elegida")).toHaveLength(1);
     // Una pestaña por grupo del Excel, y la de los cambios al final.
     expect(pestanas(contenedor).map((b) => b.textContent)).toEqual([...GRUPOS_DEL_EXCEL, "Cambios"]);
     expect(pestanas(contenedor)[0].getAttribute("aria-selected")).toBe("true");
@@ -245,16 +261,25 @@ describe("el módulo Lesiones", () => {
     expect(tituloDelPaso(contenedor)).toBe("Descripción general");
     await siguiente(contenedor);
     expect(texto(contenedor)).toContain("Elegí la parte del cuerpo lesionada.");
-    await elegirEnHoja(contenedor, "Parte del cuerpo lesionada", "Rodilla");
+    // Dónde fue: la figura. Una parte del medio pide el lado.
+    await elegirZona(contenedor, "tronco", "Abdomen");
     await siguiente(contenedor);
     expect(texto(contenedor)).toContain("Elegí el lado.");
-    // Las listas cortas son botones a la vista; las largas, el selector con hoja.
-    await tocar(chip(contenedor, "Izquierdo"));
+    expect(texto(contenedor)).toContain("¿De qué lado?");
+    // Una de una pierna lo trae de la figura.
+    await elegirZona(contenedor, "pierna_izquierda", "Rodilla");
+    expect(contenedor.querySelector(".mapa-cuerpo-elegido").textContent).toBe("Rodilla · Izquierdo");
+    expect(contenedor.querySelector('.figura-cuerpo [data-parte="joelho"]').getAttribute("aria-pressed")).toBe("true");
+    // Las listas largas siguen con el selector con hoja.
     expect(contenedor.querySelector('.selector-hoja[aria-label="Tipo de lesión"]')).toBeTruthy();
     // Las imágenes van en Descripción general, como en el Excel.
     await escribir(campoDeFormulario(contenedor, etiqueta("horas_imagen")).querySelector("input"), "12");
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Descripción específica");
+    // En la rodilla: sus ligamentos y lo que el catálogo tiene de ella.
+    expect(texto(contenedor)).toContain("Rodilla · Izquierdo");
+    await tocar(chip(contenedor, "Ligamento cruzado anterior"));
+    expect(chip(contenedor, "Músculos del pie")).toBeUndefined();
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Descripción contextual");
     await elegirEnHoja(contenedor, "Mecanismo", "Sprint");
@@ -273,7 +298,7 @@ describe("el módulo Lesiones", () => {
     expect(datos.guardadas).toHaveLength(1);
     expect(datos.guardadas[0]).toMatchObject({
       equipoId: "eq-1",
-      lesion: { jugador_id: 8, fecha_alta: null, datos: { parte_cuerpo: "joelho", lado: "esquerdo", mecanismo: "sprint", horas_imagen: "12" } },
+      lesion: { jugador_id: 8, fecha_alta: null, datos: { parte_cuerpo: "joelho", lado: "esquerdo", ligamento: "lca", mecanismo: "sprint", horas_imagen: "12" } },
     });
     expect(datos.guardadas[0].lesion.datos.diagnostico).toBeUndefined();
     // Después de guardar queda abierta la ficha, en su primera pestaña.
@@ -282,13 +307,157 @@ describe("el módulo Lesiones", () => {
     expect(pestanas(contenedor)[0].getAttribute("aria-selected")).toBe("true");
   });
 
+  test("el cuerpo: de la zona a la parte, y en la parte el músculo, el tercio y la unión", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
+    await siguiente(contenedor);
+    // La figura entera: cada zona es un botón.
+    const zonas = () => [...contenedor.querySelectorAll('.figura-cuerpo [role="button"][data-region]')].map((g) => g.getAttribute("aria-label"));
+    expect(zonas()).toEqual(["Cabeza y cuello", "Tronco", "Brazo derecho", "Pierna derecha", "Brazo izquierdo", "Pierna izquierda"]);
+    expect(contenedor.querySelector(".mapa-cuerpo-partes")).toBeNull();
+    // La pierna derecha: se acerca y aparecen sus partes, con lo que tiene cada una.
+    await tocarFigura(contenedor.querySelector('.figura-cuerpo [data-region="pierna_derecha"]'));
+    expect(contenedor.querySelector(".mapa-cuerpo-camino").textContent).toBe("Cuerpo›Pierna derecha");
+    // El foco pasa a las partes (con el teclado se sigue de ahí).
+    expect(document.activeElement).toBe(contenedor.querySelector(".mapa-cuerpo-partes button"));
+    expect([...contenedor.querySelectorAll(".mapa-cuerpo-partes b")].map((b) => b.textContent)).toEqual([
+      "Cadera / ingle",
+      "Muslo",
+      "Rodilla",
+      "Pierna / tendón de Aquiles",
+      "Tobillo / pie",
+      "Pie / dedo",
+    ]);
+    expect(parteDeLaLista(contenedor, "Muslo").textContent).toContain("Cuádriceps, Isquiotibiales, Aductores");
+    // "Cuerpo" vuelve a la figura entera.
+    await volverAlCuerpo(contenedor);
+    expect(contenedor.querySelector(".mapa-cuerpo-partes")).toBeNull();
+    // La columna lumbar se ve de espaldas: la figura se da vuelta sola.
+    await elegirZona(contenedor, "tronco", "Columna lumbar / sacro / pelvis");
+    expect(chip(contenedor, "De espaldas").getAttribute("aria-pressed")).toBe("true");
+    await tocar(chip(contenedor, "No se aplica"));
+    expect(texto(contenedor)).toContain("¿De qué lado?");
+    // Al final, el muslo derecho.
+    await elegirZona(contenedor, "pierna_derecha", "Muslo");
+    expect(contenedor.querySelector(".mapa-cuerpo-elegido").textContent).toBe("Muslo · Derecho");
+    await siguiente(contenedor);
+
+    // Descripción específica: lo que el catálogo tiene del muslo. La figura
+    // quedó de espaldas (por la columna lumbar): los isquiotibiales primero.
+    expect(tituloDelPaso(contenedor)).toBe("Descripción específica");
+    const chipsDe = (campo) => [...campoDeFormulario(contenedor, etiqueta(campo)).querySelectorAll(".chip-criterio")].map((b) => b.textContent);
+    expect(chipsDe("musculo")).toEqual(["Isquiotibiales", "Cuádriceps", "Aductores", "Otro…"]);
+    expect(chipsDe("ligamento")).toEqual(["Otro…"]);
+    // Un músculo específico de un solo grupo completa el grupo.
+    await tocar(chip(contenedor, "Bíceps femoral (cabeza larga)"));
+    expect(chip(contenedor, "Isquiotibiales").getAttribute("aria-pressed")).toBe("true");
+    // Con el grupo elegido, solo sus músculos.
+    expect(chipsDe("musculo_especifico")).not.toContain("Recto femoral");
+    // El área: primero el tercio, después la unión.
+    expect(chip(contenedor, "Proximal – UMTC con compromiso del tendón")).toBeUndefined();
+    await tocar(chip(contenedor, "Proximal"));
+    await tocar(chip(contenedor, "Proximal – UMTC con compromiso del tendón"));
+    // Lo que no está en el mapa, con "Otro…": la lista entera de esa columna.
+    const otroDe = (campo) => [...campoDeFormulario(contenedor, etiqueta(campo)).querySelectorAll(".chip-criterio")].find((b) => b.textContent === "Otro…");
+    await tocar(otroDe("ligamento"));
+    expect(contenedor.querySelector(".hoja-opciones .buscador-hoja input")).toBeTruthy();
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Ligamento lateral interno"));
+    expect(chip(contenedor, "Ligamento lateral interno").getAttribute("aria-pressed")).toBe("true");
+
+    for (let i = 0; i < 3; i++) await siguiente(contenedor); // eslint-disable-line no-await-in-loop
+    await tocar(boton(contenedor, "Guardar la lesión"));
+    await act(async () => Promise.resolve());
+    expect(datos.guardadas[0].lesion.datos).toMatchObject({
+      parte_cuerpo: "coxa",
+      lado: "direito",
+      musculo: "isquiotibiais",
+      musculo_especifico: "biceps_femoral_longa",
+      area: "proximal_umtc_com",
+      ligamento: "lli",
+    });
+  });
+
+  test("el cuerpo no deja datos viejos: al cambiar de grupo o de parte, y con columnas escondidas", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
+    await siguiente(contenedor);
+    // Acercada una zona, las otras quedan de fondo: no se tocan.
+    await tocarFigura(contenedor.querySelector('.figura-cuerpo [data-region="pierna_derecha"]'));
+    expect(contenedor.querySelectorAll('.figura-cuerpo [role="button"][data-region]')).toHaveLength(0);
+    // Elegido de espaldas, en el muslo van primero los isquiotibiales.
+    await volverAlCuerpo(contenedor);
+    await tocar(chip(contenedor, "De espaldas"));
+    await elegirZona(contenedor, "pierna_derecha", "Muslo");
+    await siguiente(contenedor);
+    const chipsDe = (campo) => [...campoDeFormulario(contenedor, etiqueta(campo)).querySelectorAll(".chip-criterio")].map((b) => b.textContent);
+    expect(chipsDe("musculo")[0]).toBe("Isquiotibiales");
+    // Otro grupo: el músculo de otro grupo se borra.
+    await tocar(chip(contenedor, "Recto femoral"));
+    expect(chip(contenedor, "Cuádriceps").getAttribute("aria-pressed")).toBe("true");
+    await tocar(chip(contenedor, "Isquiotibiales"));
+    expect(contenedor.querySelector('.mapa-cuerpo-seccion .chip-criterio[aria-pressed="true"]').textContent).toBe("Isquiotibiales");
+    expect(chip(contenedor, "Recto femoral")).toBeUndefined();
+    await tocar(chip(contenedor, "Semitendinoso"));
+    await tocar(chip(contenedor, "Distal"));
+    await tocar(chip(contenedor, "Distal – UMTP"));
+    // Otra parte: lo del muslo se borra (en la rodilla no hay isquiotibiales).
+    await tocar(boton(contenedor, "Atrás"));
+    await volverAlCuerpo(contenedor);
+    await elegirZona(contenedor, "pierna_izquierda", "Rodilla");
+    await siguiente(contenedor);
+    expect(contenedor.querySelectorAll('.mapa-cuerpo-seccion .chip-criterio[aria-pressed="true"]')).toHaveLength(0);
+    for (let i = 0; i < 3; i++) await siguiente(contenedor); // eslint-disable-line no-await-in-loop
+    await tocar(boton(contenedor, "Guardar la lesión"));
+    await act(async () => Promise.resolve());
+    const guardados = datos.guardadas[0].lesion.datos;
+    expect(guardados).toMatchObject({ parte_cuerpo: "joelho", lado: "esquerdo" });
+    expect(guardados.musculo ?? null).toBe(null);
+    expect(guardados.musculo_especifico ?? null).toBe(null);
+    expect(guardados.area ?? null).toBe(null);
+  });
+
+  test("con el grupo muscular escondido, elegir un músculo no lo completa", async () => {
+    datos.config = { campos: { musculo: { oculto: true } }, listas: {} };
+    await montar();
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
+    await siguiente(contenedor);
+    await elegirZona(contenedor, "pierna_derecha", "Muslo");
+    await siguiente(contenedor);
+    expect(campoDeFormulario(contenedor, etiqueta("musculo"))).toBeUndefined();
+    await tocar(chip(contenedor, "Bíceps femoral (cabeza larga)"));
+    // Siguen todos los músculos del muslo a la vista.
+    expect(chip(contenedor, "Recto femoral")).toBeTruthy();
+    for (let i = 0; i < 3; i++) await siguiente(contenedor); // eslint-disable-line no-await-in-loop
+    await tocar(boton(contenedor, "Guardar la lesión"));
+    await act(async () => Promise.resolve());
+    expect(datos.guardadas[0].lesion.datos.musculo_especifico).toBe("biceps_femoral_longa");
+    expect(datos.guardadas[0].lesion.datos.musculo ?? null).toBe(null);
+  });
+
+  test("una rodilla sin lado derecho o izquierdo no se dibuja como la derecha y deja elegir el lado", async () => {
+    datos.lesiones = [{ ...lesionHulk(), datos: { parte_cuerpo: "joelho", lado: "nao_se_aplica" } }];
+    await montar();
+    await tocar(boton(contenedor, "Ver detalle"));
+    // En la ficha no va la figura: no se sabe qué rodilla es.
+    expect(contenedor.querySelector(".lesiones-marcador-figura")).toBeNull();
+    await tocar(pestana(contenedor, "Descripción general"));
+    await tocar(boton(contenedor, "Editar"));
+    expect(tituloDelPaso(contenedor)).toBe("Descripción general");
+    expect(contenedor.querySelector(".figura-cuerpo-pieza.elegida")).toBeNull();
+    expect(texto(contenedor)).toContain("¿De qué lado?");
+    await tocar(chip(contenedor, "Izquierdo"));
+    expect(contenedor.querySelector(".figura-cuerpo-pieza.elegida")).toBeTruthy();
+  });
+
   test("una fecha mal puesta frena el paso de la evolución", async () => {
     await montar();
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
-    await elegirEnHoja(contenedor, "Parte del cuerpo lesionada", "Rodilla");
-    await tocar(chip(contenedor, "Izquierdo"));
+    await elegirZona(contenedor, "pierna_izquierda", "Rodilla");
     await siguiente(contenedor);
     await siguiente(contenedor);
     await siguiente(contenedor);
@@ -526,10 +695,16 @@ describe("el módulo Lesiones", () => {
     await tocar(botonQueEmpieza(contenedor, "HULK"));
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Qué pasó");
-    // Parte del cuerpo es obligatoria: sigue a la vista aunque la configuración diga que no.
+    // También se puede elegir de la lista, como antes de la figura. Parte del
+    // cuerpo es obligatoria: sigue a la vista aunque la configuración diga que no.
+    await tocar(botonQueEmpieza(contenedor, "Elegir de la lista"));
+    expect(contenedor.querySelector(".mapa-cuerpo")).toBeNull();
     expect(contenedor.querySelector('.selector-hoja[aria-label="Parte del cuerpo lesionada"]')).toBeTruthy();
     await elegirEnHoja(contenedor, "Parte del cuerpo lesionada", "Rodilla");
     await tocar(chip(contenedor, "Izquierdo"));
+    // Y se vuelve a la figura con lo elegido.
+    await tocar(botonQueEmpieza(contenedor, "Elegir con la figura"));
+    expect(contenedor.querySelector(".mapa-cuerpo-elegido").textContent).toBe("Rodilla · Izquierdo");
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Descripción específica");
     await siguiente(contenedor);
@@ -606,8 +781,7 @@ describe("el módulo Lesiones", () => {
     await tocar(contenedor.querySelector(".opcion-hoja"));
     expect(contenedor.querySelector('.selector-hoja[aria-label="Tipo de lesión"] b').textContent).toBe("Lesión muscular grado 2 A");
     // Si ya tuvo una lesión igual, avisa.
-    await elegirEnHoja(contenedor, "Parte del cuerpo lesionada", "Muslo");
-    await tocar(chip(contenedor, "Derecho"));
+    await elegirZona(contenedor, "pierna_derecha", "Muslo");
     expect(texto(contenedor)).toContain("Puede contar como recurrencia o recidiva");
   });
 });

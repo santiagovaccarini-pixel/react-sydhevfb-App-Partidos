@@ -7,6 +7,9 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
+import { CAMPOS_DE_ESTRUCTURA, ElegirEstructura, ElegirZona, vistaPara } from "./components/MapaCorporal.jsx";
+import { estructurasQueNoSonDe, regionDe } from "./domain/mapaCorporal.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import {
   calcular,
@@ -120,6 +123,10 @@ export default function Lesiones({ onVolver }) {
   const [pasoMaximo, setPasoMaximo] = useState(0);
   const [errorFormulario, setErrorFormulario] = useState("");
   const [busquedaJugador, setBusquedaJugador] = useState("");
+  // Los pasos donde se eligió cargar de la lista en vez de con la figura, y
+  // desde dónde se mira la figura (de frente o de espaldas).
+  const [deLaLista, setDeLaLista] = useState({});
+  const [vistaCuerpo, setVistaCuerpo] = useState("frente");
 
   // Hojas: elegir de una lista (como los desplegables de Partido), dar el
   // alta, borrar.
@@ -311,6 +318,8 @@ export default function Lesiones({ onVolver }) {
   const abrirNueva = () => {
     setErrorFormulario("");
     setBusquedaJugador("");
+    setDeLaLista({});
+    setVistaCuerpo("frente");
     setSeccionFicha(null);
     setPaso(0);
     setPasoMaximo(0);
@@ -322,6 +331,8 @@ export default function Lesiones({ onVolver }) {
   const abrirEdicion = (lesion, grupo = null) => {
     const delGrupo = pasos.findIndex((unPaso) => unPaso.id === grupo);
     setErrorFormulario("");
+    setDeLaLista({});
+    setVistaCuerpo(vistaPara(lesion.datos?.parte_cuerpo));
     setPaso(delGrupo >= 0 ? delGrupo : Math.min(1, pasos.length - 1));
     setPasoMaximo(pasos.length - 1);
     setFormulario({ ...lesion, datos: { ...(lesion.datos || {}) } });
@@ -980,6 +991,15 @@ export default function Lesiones({ onVolver }) {
           />
 
           <section className="marcador-ficha lesiones-marcador" aria-label={t("lesiones.ficha.resumen")}>
+            {regionDe(lesion.datos?.parte_cuerpo, lesion.datos?.lado) && (
+              <div className="lesiones-marcador-figura" aria-hidden="true">
+                <FiguraCuerpo
+                  chica
+                  vista={vistaPara(lesion.datos.parte_cuerpo)}
+                  elegida={{ parte: lesion.datos.parte_cuerpo, region: regionDe(lesion.datos.parte_cuerpo, lesion.datos.lado) }}
+                />
+              </div>
+            )}
             <div className="lesiones-marcador-texto">
               <span>{etiqueta("diagnostico")}</span>
               <strong>{diagnostico || "—"}</strong>
@@ -1050,7 +1070,7 @@ export default function Lesiones({ onVolver }) {
   // ------------------------------------------------- La carga por pasos --
 
   const campoDelPaso = (campo, lesion) => {
-    const cambiar = (valor) => setFormulario((actual) => conValor(actual, campo.clave, valor));
+    const cambiar = (valor) => setFormulario((actual) => conCambios(actual, { [campo.clave]: valor }));
     const rotulo = etiqueta(campo.clave);
     const valor = valorDe(lesion, campo.clave);
     const opcional = !campo.obligatorio ? <em className="lesiones-opcional">{t("lesiones.pasos.opcional")}</em> : null;
@@ -1207,6 +1227,91 @@ export default function Lesiones({ onVolver }) {
     );
   };
 
+  // Los cambios de la carga. Si cambia la parte del cuerpo, lo que el mapa sabe
+  // que era de la parte anterior (músculo, ligamento, área) se borra.
+  const conCambios = (actual, cambios) => {
+    const aplicar = (lesion, pares) => Object.entries(pares).reduce((acumulada, [clave, valor]) => conValor(acumulada, clave, valor), lesion);
+    const nueva = aplicar(actual, cambios);
+    const parte = cambios.parte_cuerpo;
+    if (!parte || parte === actual.datos?.parte_cuerpo) return nueva;
+    return aplicar(nueva, estructurasQueNoSonDe(parte, nueva.datos || {}));
+  };
+  const cambiarVarios = (cambios) => setFormulario((actual) => conCambios(actual, cambios));
+
+  // "Otro…" en la figura: la lista entera de esa columna, con su buscador.
+  const abrirLista = (clave, lesion) =>
+    setHojaSelector({
+      titulo: etiqueta(clave),
+      opciones: [{ valor: "", etiqueta: t("comun.sinDato") }, ...opciones(clave)],
+      valor: valorDe(lesion, clave) || "",
+      alElegir: (elegido) => cambiarVarios({ [clave]: elegido || null }),
+    });
+
+  // Dónde fue: la figura del cuerpo en lugar de la parte y el lado.
+  const zonaDelPaso = (lesion) => (
+    <div className="campo-inicio lesiones-campo-paso" key="zona">
+      <label>
+        {etiqueta("parte_cuerpo")} · {etiqueta("lado")}
+      </label>
+      <ElegirZona
+        parte={lesion.datos?.parte_cuerpo || null}
+        lado={lesion.datos?.lado || null}
+        partes={opciones("parte_cuerpo").map((opcion) => opcion.valor)}
+        lados={opciones("lado")}
+        textoDeOpcion={textoDeOpcion}
+        onCambiar={cambiarVarios}
+        vista={vistaCuerpo}
+        onVista={setVistaCuerpo}
+      />
+    </div>
+  );
+
+  // Qué estructura: lo que tiene esa parte en el catálogo, con botones.
+  const estructuraDelPaso = (lesion) => (
+    <ElegirEstructura
+      key="estructura"
+      parte={lesion.datos.parte_cuerpo}
+      lado={lesion.datos?.lado || null}
+      vista={vistaCuerpo}
+      valores={Object.fromEntries(CAMPOS_DE_ESTRUCTURA.map((clave) => [clave, valorDe(lesion, clave)]))}
+      opciones={opciones}
+      visible={(clave) => !campoOculto(clave, config)}
+      etiqueta={etiqueta}
+      textoDeOpcion={textoDeOpcion}
+      onCambiar={cambiarVarios}
+      onOtro={(clave) => abrirLista(clave, lesion)}
+    />
+  );
+
+  // Las columnas de un paso. Donde se elige la parte del cuerpo va la figura,
+  // y donde se elige la estructura, sus botones; con "Elegir de la lista"
+  // vuelven los campos de siempre.
+  const camposDelPaso = (unPaso, campos, lesion) => {
+    const enLista = Boolean(deLaLista[unPaso.id]);
+    const manuales = campos.filter((campo) => campo.clave !== "jugador");
+    const conZona = manuales.some((campo) => campo.clave === "parte_cuerpo");
+    const conEstructura = Boolean(lesion.datos?.parte_cuerpo) && manuales.some((campo) => CAMPOS_DE_ESTRUCTURA.includes(campo.clave));
+    const primeraDeEstructura = manuales.find((campo) => CAMPOS_DE_ESTRUCTURA.includes(campo.clave))?.clave;
+    const piezas = manuales.map((campo) => {
+      if (!enLista && conZona && campo.clave === "parte_cuerpo") return zonaDelPaso(lesion);
+      if (!enLista && conZona && campo.clave === "lado") return null;
+      if (!enLista && conEstructura && CAMPOS_DE_ESTRUCTURA.includes(campo.clave)) return campo.clave === primeraDeEstructura ? estructuraDelPaso(lesion) : null;
+      return campoDelPaso(campo, lesion);
+    });
+    if (manuales.length === 0) return null;
+    return (
+      <section className="tarjeta tarjeta-ficha lesiones-grupo">
+        {piezas}
+        {(conZona || conEstructura) && (
+          <button type="button" className="lesiones-cambiar-modo" onClick={() => setDeLaLista((previos) => ({ ...previos, [unPaso.id]: !enLista }))}>
+            <Icono nombre={enLista ? "usuario" : "registros"} size={15} />
+            {enLista ? t("lesiones.cuerpo.conFigura") : t("lesiones.cuerpo.deLaLista")}
+          </button>
+        )}
+      </section>
+    );
+  };
+
   // Para pasar de paso se revisan las columnas de ese paso que están a la
   // vista; al guardar se revisa todo.
   const validarPaso = (indice, lesion) => {
@@ -1277,11 +1382,7 @@ export default function Lesiones({ onVolver }) {
           )}
 
           {actual.campos.includes("jugador") && pasoJugador(lesion)}
-          {campos.some((campo) => campo.clave !== "jugador") && (
-            <section className="tarjeta tarjeta-ficha lesiones-grupo">
-              {campos.filter((campo) => campo.clave !== "jugador").map((campo) => campoDelPaso(campo, lesion))}
-            </section>
-          )}
+          {camposDelPaso(actual, campos, lesion)}
 
           <div className="acciones-dobles">
             <BotonVolver onClick={() => (paso === 0 ? cerrarFormulario() : irAlPaso(paso - 1, lesion))}>
