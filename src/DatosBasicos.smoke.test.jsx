@@ -32,7 +32,7 @@ vi.mock("./domain/lesionesDb.js", () => ({
   },
   agregarJugadorBasico: async (equipoId, nombre) => {
     registro.agregados.push({ equipoId, nombre });
-    if (registro.fallarAgregar && nombre === registro.fallarAgregar) return { error: "Ese jugador ya está en la lista." };
+    if (registro.fallarAgregar && nombre === registro.fallarAgregar) return { error: "datos.error.repetido" };
     const jugador = { id: 9 + registro.agregados.length - 1, nombre: nombre.trim().toUpperCase(), roles: [], puestos: [], categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" };
     registro.plantel.push(jugador);
     return { jugador: { ...jugador }, error: "" };
@@ -173,15 +173,21 @@ describe("el módulo Datos básicos", () => {
       ].join("\n"),
     );
     expect(texto(contenedor)).toContain("4 jugadores en lo pegado");
-    expect(texto(contenedor)).toContain("2 nuevos · 1 con cambios · 1 sin cambios");
+    expect(texto(contenedor)).toContain("2 nuevos · 0 con cambios · 1 sin cambios · 1 para confirmar");
     const filas = () => [...contenedor.querySelectorAll(".datos-importar-lista li")];
     const destinos = () => filas().map((li) => li.querySelector(".datos-importar-destino").textContent);
     // HULK ya tiene todo; SCARPA se sugiere por el apellido; los otros dos son nuevos.
     expect(destinos()).toEqual(["Es HULK", "¿Es SCARPA?", "Jugador nuevo", "Jugador nuevo"]);
     expect(filas()[0].textContent).toContain("Ya tiene estos datos.");
-    expect(filas()[1].textContent).toContain("Cambia: Categoría, Fecha de nacimiento, Pie dominante, Posición, Foto (enlace)");
     expect(filas()[2].textContent).toContain("Trae: Categoría, Fecha de nacimiento, Pie dominante");
     expect(filas()[2].textContent).toContain("«CARRILERO» no se entendió en Posición: queda como está.");
+    // Un nombre solo parecido no se carga hasta que alguien confirma quién es.
+    expect(filas()[1].textContent).toContain("Si es él, cambia: Categoría, Fecha de nacimiento, Pie dominante, Posición, Foto (enlace)");
+    expect(boton(contenedor, "Cargar 2 jugadores")).toBeTruthy();
+    await tocar(boton(contenedor, "Sí, es SCARPA"));
+    expect(destinos()[1]).toBe("Es SCARPA");
+    expect(filas()[1].textContent).toContain("Cambia: Categoría, Fecha de nacimiento, Pie dominante, Posición, Foto (enlace)");
+    expect(texto(contenedor)).toContain("2 nuevos · 1 con cambios · 1 sin cambios");
     expect(boton(contenedor, "Cargar 3 jugadores")).toBeTruthy();
 
     // Quién es cada fila se corrige a mano: la última no se carga.
@@ -205,19 +211,38 @@ describe("el módulo Datos básicos", () => {
     expect([...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent)).toEqual(["HULK", "LEMOS NUEVO", "SCARPA"]);
   });
 
-  test("si una fila no se puede cargar, se dice cuál y por qué, y el resto queda cargado", async () => {
+  test("si una fila no se puede cargar, se dice cuál y por qué; lo cargado y lo elegido a mano quedan", async () => {
     registro.fallarAgregar = "Ana Rara";
     await montar();
     await tocar(boton(contenedor, "Pegar desde Excel"));
-    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), "Nome e Sobrenome\tCategoria\nAna Rara\tSub-20\nBea Bien\tSub-20");
+    await escribir(
+      contenedor.querySelector(".datos-importar-pegado textarea"),
+      "Nome e Sobrenome\tCategoria\nAna Rara\tSub-20\nBea Bien\tSub-20\nHulk Paraíba\tSub-20",
+    );
+    const destinos = () => [...contenedor.querySelectorAll(".datos-importar-destino")].map((b) => b.textContent);
+    // "Hulk Paraíba" parece HULK: alguien decide que no es él y que no se carga.
+    expect(destinos()).toEqual(["Jugador nuevo", "Jugador nuevo", "¿Es HULK?"]);
+    await tocar(contenedor.querySelectorAll(".datos-importar-destino")[2]);
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "No cargar"));
     await tocar(boton(contenedor, "Cargar 2 jugadores"));
     await act(async () => Promise.resolve());
     expect(texto(contenedor)).toContain("1 jugador no se pudo cargar:");
     expect(texto(contenedor)).toContain("Ana Rara: Ese jugador ya está en la lista.");
-    // Bea ya está: si se vuelve a cargar, solo queda Ana.
-    expect([...contenedor.querySelectorAll(".datos-importar-destino")].map((b) => b.textContent)).toEqual(["Jugador nuevo", "Es BEA BIEN"]);
+    // Bea ya está; lo elegido a mano para la otra fila se respeta: solo queda Ana.
+    expect(destinos()).toEqual(["Jugador nuevo", "Es BEA BIEN", "No cargar"]);
     expect(boton(contenedor, "Cargar 1 jugador")).toBeTruthy();
+    expect(registro.guardados).toEqual([{ id: 9 + 1, categoria: "sub20" }]);
     await tocar(boton(contenedor, "Volver"));
     expect(texto(contenedor)).toContain("3 jugadores");
+  });
+
+  test("un nombre que ya está en la lista no se agrega dos veces (y se dice en el idioma de la app)", async () => {
+    registro.fallarAgregar = "HULK";
+    await montar();
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    await escribir(contenedor.querySelector(".datos-agregar input"), "HULK");
+    await tocar(boton(contenedor, "Adicionar jogador"));
+    await act(async () => Promise.resolve());
+    expect(texto(contenedor)).toContain("Esse jogador já está na lista.");
   });
 });

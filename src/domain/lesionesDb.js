@@ -155,10 +155,16 @@ export const guardarDatosJugador = async (id, datos) => {
   return { jugador: normalizarJugadorLesiones(data), error: "" };
 };
 
-// Alta y baja de jugadores desde Datos básicos: las mismas de Partido.
+// Alta y baja de jugadores desde Datos básicos: las mismas de Partido. El
+// error del alta vuelve como clave del diccionario (Partido lo da en
+// castellano), para que se lea en el idioma de la app.
 export const agregarJugadorBasico = async (equipoId, nombre) => {
   const respuesta = await agregarJugador(nombre, equipoId);
-  if (respuesta.error) return { error: respuesta.error };
+  if (respuesta.error) {
+    if (respuesta.error === "Escribí un nombre.") return { error: "datos.error.nombre" };
+    if (/ya está en la lista/i.test(respuesta.error)) return { error: "datos.error.repetido" };
+    return { error: "datos.error.guardar", detalle: respuesta.error };
+  }
   return { jugador: normalizarJugadorLesiones(respuesta.jugador), error: "" };
 };
 

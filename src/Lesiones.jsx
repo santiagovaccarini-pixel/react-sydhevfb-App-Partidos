@@ -581,12 +581,26 @@ export default function Lesiones({ onVolver }) {
     [config, idioma, soloLectura],
   );
 
+  // Para ordenar, lo que no es el valor guardado: el nombre del jugador (no su
+  // id), su fecha de nacimiento y los números que se calculan.
+  const ordenDe = (campo, lesion) => {
+    const jugador = jugadorDe(lesion.jugador_id);
+    if (campo.tipo === "jugador") return jugador?.nombre || "";
+    if (campo.clave === "fecha_nacimiento") return jugador?.fecha_nacimiento || "";
+    if (campo.tipo === "calculado") {
+      const resultado = calcular(campo.clave, lesion, jugador, contexto);
+      return typeof resultado === "number" ? resultado : undefined;
+    }
+    return undefined;
+  };
+
   const filasBase = useMemo(
     () =>
       ordenarHistorial(lesiones).map((lesion) => ({
         id: lesion.id,
         valores: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo.tipo === "jugador" ? lesion.jugador_id : valorDe(lesion, campo.clave)])),
         textos: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, enPantalla(campo, lesion)])),
+        orden: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, ordenDe(campo, lesion)]).filter(([, valor]) => valor !== undefined)),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [lesiones, plantel, config, idioma],
@@ -638,11 +652,13 @@ export default function Lesiones({ onVolver }) {
   };
 
   // La tabla de lesiones: la de la Base y la del historial de un jugador
-  // son la misma (mismas columnas, mismo orden guardado, mismos filtros).
+  // son la misma (mismas columnas y mismo orden de columnas guardado). Cada
+  // una recuerda sus filtros al abrir una ficha y volver.
   const tablaDeLesiones = (filas, clave = "todas") => (
     <TablaDatos
       key={clave}
       id="lesiones"
+      recordar={`lesiones:${clave}`}
       columnas={columnasBase}
       filas={filas}
       onEditar={editarCelda}

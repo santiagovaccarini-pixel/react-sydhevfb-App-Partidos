@@ -182,7 +182,7 @@ export default function DatosBasicos({ onVolver }) {
     const respuesta = await agregarJugadorBasico(equipoId, nombreNuevo);
     setAgregando(false);
     if (respuesta.error) {
-      setAviso(respuesta.error);
+      setAviso(t(respuesta.error));
       return;
     }
     setPlantel((actual) => [...actual, respuesta.jugador].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
@@ -289,6 +289,7 @@ export default function DatosBasicos({ onVolver }) {
           <section className="tarjeta">
             <TablaDatos
               id="jugadores"
+              recordar="jugadores"
               columnas={columnas}
               filas={filas}
               onEditar={editarCelda}

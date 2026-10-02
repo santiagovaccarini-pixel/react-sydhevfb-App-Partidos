@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { CAMBIOS_EN_LA_FICHA, historialDeLesion } from "./lesionesDb.js";
+import { CAMBIOS_EN_LA_FICHA, agregarJugadorBasico, historialDeLesion } from "./lesionesDb.js";
 
 // Un doble de Supabase que anota la consulta y contesta lo configurado.
-const doble = vi.hoisted(() => ({ llamadas: [], filas: [], error: null }));
+const doble = vi.hoisted(() => ({ llamadas: [], filas: [], error: null, alta: null }));
+
+// El alta de jugadores es la de Partido: contesta lo que diga la prueba.
+vi.mock("./plantel.js", () => ({
+  agregarJugador: async (nombre) => doble.alta(nombre),
+  cargarPlantel: async () => ({ plantel: [] }),
+  normalizarJugador: (fila) => ({ id: fila?.id, nombre: fila?.nombre || "", roles: [], puestos: [] }),
+  quitarJugador: async () => ({}),
+}));
 
 vi.mock("../supabase.js", () => {
   const cadena = () => {
@@ -63,5 +71,18 @@ describe("los cambios de una lesión en la ficha", () => {
   test("si la base no deja leer, se dice", async () => {
     doble.error = { code: "42501", message: "permission denied for table lesiones_historial" };
     expect(await historialDeLesion("les-1")).toMatchObject({ cambios: [], error: "lesiones.error.sinPermiso" });
+  });
+});
+
+describe("agregar un jugador desde Datos básicos", () => {
+  test("los errores del alta de Partido vuelven como claves del diccionario", async () => {
+    doble.alta = async () => ({ error: "Ese jugador ya está en la lista." });
+    expect(await agregarJugadorBasico("eq-1", "HULK")).toEqual({ error: "datos.error.repetido" });
+    doble.alta = async () => ({ error: "Escribí un nombre." });
+    expect(await agregarJugadorBasico("eq-1", " ")).toEqual({ error: "datos.error.nombre" });
+    doble.alta = async () => ({ error: "new row violates row-level security policy" });
+    expect(await agregarJugadorBasico("eq-1", "LEMOS")).toMatchObject({ error: "datos.error.guardar" });
+    doble.alta = async (nombre) => ({ jugador: { id: 9, nombre } });
+    expect(await agregarJugadorBasico("eq-1", "LEMOS")).toMatchObject({ jugador: { id: 9, nombre: "LEMOS", categoria: "" }, error: "" });
   });
 });

@@ -132,6 +132,17 @@ describe("filtros y orden de las cabeceras", () => {
     expect(ordenarFilas(filas, null)).toBe(filas);
   });
 
+  test("si la fila dice cómo ordenar una columna, manda eso (el nombre y no el id, la fecha y no el texto)", () => {
+    const conOrden = [
+      { id: 1, valores: { jugador: 9 }, textos: { jugador: "ALFA", nacimiento: "25/07/1986" }, orden: { jugador: "ALFA", nacimiento: "1986-07-25" } },
+      { id: 2, valores: { jugador: 1 }, textos: { jugador: "ZETA", nacimiento: "02/12/2001" }, orden: { jugador: "ZETA", nacimiento: "2001-12-02" } },
+      { id: 3, valores: { jugador: 5 }, textos: { jugador: "MEDIO", nacimiento: "" }, orden: { jugador: "MEDIO", nacimiento: "" } },
+    ];
+    expect(ordenarFilas(conOrden, { clave: "jugador", sentido: "asc" }).map((f) => f.id)).toEqual([1, 3, 2]);
+    expect(ordenarFilas(conOrden, { clave: "nacimiento", sentido: "asc" }).map((f) => f.id)).toEqual([1, 2, 3]);
+    expect(ordenarFilas(conOrden, { clave: "nacimiento", sentido: "desc" }).map((f) => f.id)).toEqual([2, 1, 3]);
+  });
+
   test("la fila de grupos: tramos seguidos de columnas del mismo grupo", () => {
     const columnas = [
       { clave: "a", grupo: "uno", grupoTitulo: "Uno" },

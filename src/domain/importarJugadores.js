@@ -46,6 +46,8 @@ export const leerPegado = (texto, { alias = {} } = {}) => {
     Object.entries(CABECERAS).map(([campo, nombres]) => [campo, [...nombres, ...(alias[campo] || []).map(normalizarCabecera).filter(Boolean)]]),
   );
   const matriz = desdeTexto(texto);
+  // La fila de cabeceras es la que más cabeceras conocidas tiene (y una de
+  // ellas es el nombre): un título como "JUGADOR" arriba no la tapa.
   let filaCabeceras = -1;
   let columnas = {};
   for (let f = 0; f < Math.min(matriz.length, FILAS_PARA_BUSCAR_CABECERAS); f++) {
@@ -54,10 +56,9 @@ export const leerPegado = (texto, { alias = {} } = {}) => {
       const campo = campoDeCabecera(celda, todos);
       if (campo && !(campo in encontradas)) encontradas[campo] = c;
     });
-    if ("nombre" in encontradas) {
+    if ("nombre" in encontradas && Object.keys(encontradas).length > Object.keys(columnas).length) {
       filaCabeceras = f;
       columnas = encontradas;
-      break;
     }
   }
   if (filaCabeceras === -1) return { columnas: {}, filas: [], error: "datos.importar.sinCabeceras" };
@@ -83,46 +84,67 @@ const esFechaReal = (iso) => {
   return !Number.isNaN(fecha.getTime()) && fecha.toISOString().slice(0, 10) === iso;
 };
 
-const restarSiglo = (iso) => `${Number(iso.slice(0, 4)) - 100}${iso.slice(4)}`;
+const DIA_MS = 86400000;
+const CERO_DE_EXCEL = Date.UTC(1899, 11, 30);
+const conAnios = (iso, anios) => `${String(Number(iso.slice(0, 4)) + anios).padStart(4, "0")}${iso.slice(4)}`;
+const FECHA_CON_BARRAS = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/;
+
+// Cómo vienen las fechas de una columna: día/mes (lo del Excel, DD/MM/AAAA)
+// o mes/día (un Excel en inglés). Se decide por la columna entera, no fila
+// por fila: mes/día solo si alguna fecha no puede ser día/mes y ninguna
+// obliga a leerla como día/mes.
+export const formatoDeFechas = (textos = []) => {
+  let soloDiaMes = false;
+  let soloMesDia = false;
+  textos.forEach((texto) => {
+    const m = String(texto ?? "").trim().match(FECHA_CON_BARRAS);
+    if (!m) return;
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    if (a > 12 && b <= 12) soloDiaMes = true;
+    if (b > 12 && a <= 12) soloMesDia = true;
+  });
+  return soloMesDia && !soloDiaMes ? "mes_dia" : "dia_mes";
+};
 
 // La fecha de nacimiento como viene del Excel: "25/07/1986", "1986-07-25",
-// "25/07/86" (del siglo pasado si no, sería futura) o el número de serie de
-// Excel cuando la celda no tiene formato de fecha. Devuelve undefined si no
-// se entiende y null si está vacía.
-export const fechaDeNacimiento = (texto, hoy) => {
+// "25/07/86" o el número de serie de Excel (la celda sin formato de fecha).
+// Tiene que existir, no ser futura ni de hace más de cien años; con el año
+// en dos cifras se toma el siglo que no deja al jugador con menos de diez
+// años. Devuelve undefined si no se entiende y null si está vacía.
+export const fechaDeNacimiento = (texto, hoy, formato = "dia_mes") => {
   const t = String(texto ?? "").trim();
   if (!t) return null;
+  const desde = conAnios(hoy, -100);
+  const valida = (iso) => (esFechaReal(iso) && iso <= hoy && iso >= desde ? iso : undefined);
   if (/^\d+([.,]\d+)?$/.test(t)) {
     const serie = Math.floor(Number(t.replace(",", ".")));
-    // Entre 1910 y hoy, en días desde el 30/12/1899 (como cuenta Excel).
-    if (serie < 3653) return undefined;
-    const iso = new Date(Date.UTC(1899, 11, 30) + serie * 86400000).toISOString().slice(0, 10);
-    return iso <= hoy ? iso : undefined;
+    const serieDeHoy = Math.floor((Date.parse(`${hoy}T00:00:00Z`) - CERO_DE_EXCEL) / DIA_MS);
+    if (!Number.isFinite(serie) || serie < 1 || serie > serieDeHoy) return undefined;
+    return valida(new Date(CERO_DE_EXCEL + serie * DIA_MS).toISOString().slice(0, 10));
   }
-  let iso = interpretarFecha(t);
-  if (iso && /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2}$/.test(t) && iso > hoy) iso = restarSiglo(iso);
-  if (!esFechaReal(iso)) {
-    // Un Excel en inglés escribe mes/día: si día/mes no existe, se prueba así.
-    const m = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
-    if (!m) return undefined;
-    iso = `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
-    if (!esFechaReal(iso)) return undefined;
+  const m = t.match(FECHA_CON_BARRAS);
+  if (m) {
+    const [dia, mes] = formato === "mes_dia" ? [m[2], m[1]] : [m[1], m[2]];
+    let iso = `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+    if (m[3].length === 2 && esFechaReal(iso) && iso > conAnios(hoy, -10)) iso = conAnios(iso, -100);
+    return valida(iso);
   }
-  return iso <= hoy ? iso : undefined;
+  return valida(interpretarFecha(t));
 };
 
 const esEnlace = (texto) => /^https?:\/\/\S+$/i.test(texto);
 
 // Una fila leída, con los valores que guarda la app. Lo que no se entiende
 // no se toca y queda como aviso: { campo, valor }.
-// listas: { campo: [{ valor, etiqueta, alias }] } (las opciones del club).
-export const interpretarFila = (fila, { listas = {}, hoy }) => {
+// listas: { campo: [{ valor, etiqueta, alias }] } (las opciones del club);
+// formatoFecha: el de la columna entera (formatoDeFechas).
+export const interpretarFila = (fila, { listas = {}, hoy, formatoFecha = "dia_mes" }) => {
   const datos = {};
   const avisos = [];
   Object.entries(fila.textos).forEach(([campo, texto]) => {
     if (!texto) return;
     let valor;
-    if (campo === "fecha_nacimiento") valor = fechaDeNacimiento(texto, hoy);
+    if (campo === "fecha_nacimiento") valor = fechaDeNacimiento(texto, hoy, formatoFecha);
     else if (campo === "foto_url") valor = esEnlace(texto) ? texto : undefined;
     else valor = interpretarValor({ tipo: "lista", opciones: listas[campo] || [] }, texto);
     if (valor === undefined || valor === null) avisos.push({ campo, valor: texto });

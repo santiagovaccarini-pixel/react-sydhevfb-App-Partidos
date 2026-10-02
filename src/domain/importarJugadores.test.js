@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { NO_CARGAR, NUEVO, cambiosPara, emparejar, fechaDeNacimiento, interpretarFila, leerPegado, normalizarCabecera } from "./importarJugadores.js";
+import { NO_CARGAR, NUEVO, cambiosPara, emparejar, fechaDeNacimiento, formatoDeFechas, interpretarFila, leerPegado, normalizarCabecera } from "./importarJugadores.js";
 import { OPCIONES } from "./lesionesCampos.js";
 
 // Las listas como las arma la pantalla: el texto en español y, de alias, el
@@ -46,6 +46,12 @@ describe("leer lo pegado del Excel", () => {
     });
   });
 
+  test("la fila de cabeceras es la que más cabeceras tiene, aunque arriba haya un título parecido", () => {
+    const leido = leerPegado(["JUGADOR", "Nome e Sobrenome\tCategoria\tPosicao", "Ana Uno\tSub-20\tGOLEIRO"].join("\n"));
+    expect(leido.columnas).toEqual({ nombre: 0, categoria: 1, posicion: 2 });
+    expect(leido.filas.map((fila) => fila.nombre)).toEqual(["Ana Uno"]);
+  });
+
   test("sin la fila de cabeceras no adivina", () => {
     expect(leerPegado("Ana Uno\tProfissional\t25/07/1986").error).toBe("datos.importar.sinCabeceras");
     expect(leerPegado("Nome e Sobrenome\tCategoria\n\t\n").error).toBe("datos.importar.sinFilas");
@@ -79,19 +85,29 @@ describe("convertir cada fila a lo que guarda la app", () => {
   test("la fecha de nacimiento como venga del Excel", () => {
     expect(fechaDeNacimiento("25/07/1986", HOY)).toBe("1986-07-25");
     expect(fechaDeNacimiento("1986-07-25", HOY)).toBe("1986-07-25");
-    // Año con dos cifras: si en este siglo fuera futura, es del pasado.
+    expect(fechaDeNacimiento("25.07.1986", HOY)).toBe("1986-07-25");
+    // Año con dos cifras: el siglo que no deja al jugador con menos de diez años.
     expect(fechaDeNacimiento("25/07/86", HOY)).toBe("1986-07-25");
     expect(fechaDeNacimiento("03/02/04", HOY)).toBe("2004-02-03");
+    expect(fechaDeNacimiento("02/10/26", HOY)).toBe("1926-10-02");
     // La celda sin formato de fecha: el número de serie de Excel.
     expect(fechaDeNacimiento("31618", HOY)).toBe("1986-07-25");
     expect(fechaDeNacimiento("31618.0", HOY)).toBe("1986-07-25");
-    // Un Excel en inglés (mes/día) cuando día/mes no existe.
-    expect(fechaDeNacimiento("07/25/1986", HOY)).toBe("1986-07-25");
     expect(fechaDeNacimiento("", HOY)).toBe(null);
-    expect(fechaDeNacimiento("1986", HOY)).toBe(undefined);
-    expect(fechaDeNacimiento("31/02/2005", HOY)).toBe(undefined);
-    expect(fechaDeNacimiento("01/01/2030", HOY)).toBe(undefined);
-    expect(fechaDeNacimiento("ayer", HOY)).toBe(undefined);
+    // Lo que no es una fecha posible no se carga (ni rompe nada).
+    ["1986", "123456789", "20000101", "25071986", "31/02/2005", "01/01/2030", "01/01/1900", "ayer"].forEach((texto) =>
+      expect(fechaDeNacimiento(texto, HOY), texto).toBe(undefined),
+    );
+  });
+
+  test("mes/día (un Excel en inglés) se decide por la columna entera, no fila por fila", () => {
+    expect(formatoDeFechas(["07/25/1986", "05/01/1990", ""])).toBe("mes_dia");
+    expect(formatoDeFechas(["25/07/1986", "05/01/1990"])).toBe("dia_mes");
+    // Si unas obligan a leer día/mes y otras mes/día, queda lo del Excel (día/mes).
+    expect(formatoDeFechas(["07/25/1986", "25/07/1986"])).toBe("dia_mes");
+    expect(fechaDeNacimiento("07/25/1986", HOY)).toBe(undefined);
+    expect(fechaDeNacimiento("07/25/1986", HOY, "mes_dia")).toBe("1986-07-25");
+    expect(fechaDeNacimiento("05/01/1990", HOY, "mes_dia")).toBe("1990-05-01");
   });
 });
 

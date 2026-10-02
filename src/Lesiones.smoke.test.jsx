@@ -41,6 +41,8 @@ vi.mock("./domain/lesionesDb.js", () => ({
     plantel: [
       { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
       { id: 8, nombre: "SCARPA", roles: [], puestos: ["VOL"], categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "volante_central", foto_url: "" },
+      // El id más chico con el nombre más alto: ordenar por nombre no es ordenar por id.
+      { id: 5, nombre: "ZAGUEIRO", roles: [], puestos: ["DEF"], categoria: "", fecha_nacimiento: "2001-12-02", pie_dominante: "", posicion: "defensor_central", foto_url: "" },
     ],
     error: "",
   }),
@@ -236,7 +238,7 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain(etiquetaDeOpcion("posicion", "volante_central", null, "es-AR"));
     // "Cambiar" la vuelve a abrir, entera.
     await tocar(contenedor.querySelector(".rival-elegido"));
-    expect(contenedor.querySelectorAll(".lesiones-lista-jugadores button")).toHaveLength(2);
+    expect(contenedor.querySelectorAll(".lesiones-lista-jugadores button")).toHaveLength(3);
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
 
     await siguiente(contenedor);
@@ -334,7 +336,7 @@ describe("el módulo Lesiones", () => {
     // Primero se elige el jugador: todavía no hay tabla.
     expect(contenedor.querySelector(".tabla-datos")).toBeNull();
     const lista = () => [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")];
-    expect(lista().map((b) => b.textContent)).toEqual(["HULK0 lesiones", "SCARPA2 lesiones"]);
+    expect(lista().map((b) => b.textContent)).toEqual(["HULK0 lesiones", "SCARPA2 lesiones", "ZAGUEIRO0 lesiones"]);
     await escribir(contenedor.querySelector(".lesiones-buscador-jugador"), "scar");
     expect(lista().map((b) => b.querySelector("b").textContent)).toEqual(["SCARPA"]);
     await tocar(lista()[0]);
@@ -356,7 +358,7 @@ describe("el módulo Lesiones", () => {
     expect(contenedor.querySelector(".rival-elegido b").textContent).toBe("SCARPA");
     // "Cambiar" vuelve a la lista; un jugador sin lesiones lo dice.
     await tocar(contenedor.querySelector(".rival-elegido"));
-    expect(lista()).toHaveLength(2);
+    expect(lista()).toHaveLength(3);
     await tocar(lista()[0]);
     expect(texto(contenedor)).toContain("Este jugador no tiene lesiones cargadas.");
     expect(contenedor.querySelector(".tabla-datos")).toBeNull();
@@ -409,24 +411,25 @@ describe("el módulo Lesiones", () => {
       lesionHulk(),
       { ...lesionHulk(), id: "les-2", numero_caso: 2, jugador_id: 8, fecha_lesion: "2026-08-01", fecha_alta: "2026-08-20", datos: { parte_cuerpo: "joelho", lado: "esquerdo" } },
       { ...lesionHulk(), id: "les-3", numero_caso: 3, jugador_id: 8, fecha_lesion: "2026-06-01", fecha_alta: "2026-06-10", datos: { parte_cuerpo: "tornozelo_pe", lado: "direito" } },
+      { ...lesionHulk(), id: "les-4", numero_caso: 4, jugador_id: 5, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-10", datos: { parte_cuerpo: "coxa", lado: "nao_se_aplica" } },
     ];
     await montar();
     await navegar(contenedor, "Base");
     const casos = () => [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")].map((tr) => tr.querySelector("td").textContent);
-    expect(casos()).toEqual(["1", "2", "3"]);
+    expect(casos()).toEqual(["1", "2", "3", "4"]);
     const filtroDe = (columna) => contenedor.querySelector(`.tabla-datos-filtro[aria-label="Filtrar u ordenar ${columna}"]`);
     const valores = () => [...contenedor.querySelectorAll(".tabla-datos-valores label")];
 
     // El filtro de una columna: sus valores con cuántas filas tiene cada uno.
     await tocar(filtroDe("Lado"));
     expect(texto(contenedor)).toContain("Filtrar: Lado");
-    expect(valores().map((label) => label.textContent)).toEqual(["Derecho2", "Izquierdo1"]);
+    expect(valores().map((label) => label.textContent)).toEqual(["Derecho2", "Izquierdo1", "No se aplica1"]);
     await tocar(boton(contenedor, "Ninguno"));
     expect(boton(contenedor, "Aplicar").disabled).toBe(true);
     await tocar(valores()[1].querySelector("input"));
     await tocar(boton(contenedor, "Aplicar"));
     expect(casos()).toEqual(["2"]);
-    expect(texto(contenedor)).toContain("Mostrando 1 de 3");
+    expect(texto(contenedor)).toContain("Mostrando 1 de 4");
     expect(filtroDe("Lado").classList.contains("activo")).toBe(true);
 
     // Otro filtro ofrece solo lo que deja pasar el primero.
@@ -436,11 +439,26 @@ describe("el módulo Lesiones", () => {
 
     // Quitar filtros vuelve a todas; ordenar de mayor a menor da vuelta el caso.
     await tocar(botonQueEmpieza(contenedor, "Quitar filtros"));
-    expect(casos()).toEqual(["1", "2", "3"]);
+    expect(casos()).toEqual(["1", "2", "3", "4"]);
     await tocar(filtroDe("N° de caso"));
     await tocar(chip(contenedor, "De mayor a menor"));
-    expect(casos()).toEqual(["3", "2", "1"]);
+    expect(casos()).toEqual(["4", "3", "2", "1"]);
     expect(filtroDe("N° de caso").textContent).toContain("↓");
+
+    // El nombre se ordena por el nombre (no por el id) y la fecha de
+    // nacimiento por la fecha (no por el texto, que empieza con el día).
+    await tocar(filtroDe("Nombre y apellido"));
+    await tocar(chip(contenedor, "De menor a mayor"));
+    expect(casos()).toEqual(["1", "2", "3", "4"]);
+    await tocar(filtroDe("Fecha de nacimiento"));
+    await tocar(chip(contenedor, "De menor a mayor"));
+    expect(casos()).toEqual(["1", "4", "2", "3"]);
+
+    // Al abrir una ficha y volver, el orden y los filtros siguen.
+    await tocar(contenedor.querySelector(".tabla-datos-tabla tbody td"));
+    await tocar(boton(contenedor, "Ver ficha"));
+    await tocar(boton(contenedor, "Volver"));
+    expect(casos()).toEqual(["1", "4", "2", "3"]);
   });
 
   test("en Ajustes se renombran cabeceras y opciones en el idioma que se está usando", async () => {

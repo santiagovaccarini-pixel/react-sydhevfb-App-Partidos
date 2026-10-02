@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { HojaOpciones } from "./components/HojaOpciones.js";
-import { CAMPOS_IMPORTABLES, NO_CARGAR, NUEVO, cambiosPara, emparejar, interpretarFila, leerPegado } from "./domain/importarJugadores.js";
+import { CAMPOS_IMPORTABLES, NO_CARGAR, NUEVO, cambiosPara, emparejar, formatoDeFechas, interpretarFila, leerPegado } from "./domain/importarJugadores.js";
 import { etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
 import { agregarJugadorBasico, guardarDatosJugador } from "./domain/lesionesDb.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -12,7 +12,8 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 // Pegar desde Excel, en Datos básicos: se pega la tabla de la hoja "Datos
 // Básicos" (con su fila de cabeceras) y antes de guardar nada se ve qué pasa
 // con cada fila: si es un jugador nuevo, si ya está en la app (y qué le
-// cambia) o si no se carga. Quién es cada fila se puede corregir a mano.
+// cambia) o si no se carga. Quién es cada fila se puede corregir a mano, y
+// un nombre solo parecido no se carga hasta que alguien confirma quién es.
 
 const LISTAS = ["categoria", "pie_dominante", "posicion"];
 
@@ -43,41 +44,49 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
     [config, idioma],
   );
 
-  // Las cabeceras también valen con el nombre que el club les puso.
+  // Las cabeceras también valen con el nombre que el club les puso (en los
+  // dos idiomas); el del nombre es la cabecera del jugador en Lesiones.
   const alias = useMemo(
-    () =>
-      Object.fromEntries(
+    () => ({
+      nombre: [etiquetaDeCampo("jugador", config, "es-AR"), etiquetaDeCampo("jugador", config, "pt-BR")],
+      ...Object.fromEntries(
         CAMPOS_IMPORTABLES.filter((campo) => campo !== "foto_url").map((campo) => [
           campo,
           [etiquetaDeCampo(campo, config, "es-AR"), etiquetaDeCampo(campo, config, "pt-BR")],
         ]),
       ),
+    }),
     [config],
   );
 
   const leido = useMemo(() => (texto.trim() ? leerPegado(texto, { alias }) : null), [texto, alias]);
   const hoy = hoyISO();
+  // Las fechas se leen igual en toda la columna (día/mes o mes/día).
+  const formatoFecha = useMemo(() => formatoDeFechas((leido?.filas || []).map((fila) => fila.textos.fecha_nacimiento)), [leido]);
 
   const filas = useMemo(() => {
     if (!leido || leido.error) return [];
     const sugeridos = emparejar(leido.filas, plantel);
     return leido.filas.map((fila, i) => {
-      const { datos, avisos } = interpretarFila(fila, { listas, hoy });
+      const { datos, avisos } = interpretarFila(fila, { listas, hoy, formatoFecha });
       const destino = elegidos[fila.indice] ?? sugeridos[i].destino;
       const jugador = destino !== NUEVO && destino !== NO_CARGAR ? plantel.find((uno) => String(uno.id) === destino) || null : null;
       const cambios = destino === NUEVO ? datos : jugador ? cambiosPara(datos, jugador) : {};
-      const hayQueHacer = destino === NUEVO || Object.keys(cambios).length > 0;
       // Lo sugerido sin tocar: "igual", "parecido", "nuevo" o "repetido".
       const como = fila.indice in elegidos ? "elegido" : sugeridos[i].como;
-      return { ...fila, datos, avisos, destino, jugador, cambios, hayQueHacer, como };
+      // Un nombre solo parecido no se carga hasta confirmar quién es.
+      const porConfirmar = como === "parecido";
+      const hayQueHacer = !porConfirmar && (destino === NUEVO || Object.keys(cambios).length > 0);
+      return { ...fila, datos, avisos, destino, jugador, cambios, hayQueHacer, como, porConfirmar };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leido, plantel, listas, elegidos]);
+  }, [leido, plantel, listas, elegidos, formatoFecha]);
 
   const aCargar = filas.filter((fila) => fila.destino !== NO_CARGAR && fila.hayQueHacer);
   const nuevos = filas.filter((fila) => fila.destino === NUEVO).length;
-  const conCambios = filas.filter((fila) => fila.jugador && fila.hayQueHacer).length;
-  const iguales = filas.filter((fila) => fila.jugador && !fila.hayQueHacer).length;
+  const conCambios = filas.filter((fila) => fila.jugador && !fila.porConfirmar && fila.hayQueHacer).length;
+  const iguales = filas.filter((fila) => fila.jugador && !fila.porConfirmar && !fila.hayQueHacer).length;
+  const porConfirmar = filas.filter((fila) => fila.porConfirmar).length;
 
   const pegarTexto = (nuevo) => {
     setTexto(nuevo);
@@ -95,6 +104,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
   const detalleDe = (fila) => {
     if (fila.destino === NO_CARGAR) return "";
     const columnas = Object.keys(fila.cambios).map(columna).join(", ");
+    if (fila.porConfirmar) return columnas ? t("datos.importar.cambiaria", { columnas }) : t("datos.importar.sinCambios");
     if (fila.destino === NUEVO) return columnas ? t("datos.importar.trae", { columnas }) : t("datos.importar.sinDatos");
     return columnas ? t("datos.importar.cambia", { columnas }) : t("datos.importar.sinCambios");
   };
@@ -117,6 +127,8 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
     const lista = aCargar;
     if (lista.length === 0) return;
     const errores = [];
+    // Las filas que ya quedaron en la app (aunque sea sin sus datos).
+    const hechas = new Set();
     let creados = 0;
     let actualizados = 0;
     setFallas([]);
@@ -130,6 +142,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
           continue;
         }
         creados += 1;
+        hechas.add(fila.indice);
         if (Object.keys(fila.datos).length > 0) {
           const guardado = await guardarDatosJugador(creado.jugador.id, fila.datos); // eslint-disable-line no-await-in-loop
           if (guardado.error) errores.push({ nombre: fila.nombre, error: t("datos.importar.sinDatosGuardados", { error: t(guardado.error) }) });
@@ -141,12 +154,15 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
           continue;
         }
         actualizados += 1;
+        hechas.add(fila.indice);
       }
     }
-    // Con el plantel nuevo, lo que ya se cargó pasa a "Ya tiene estos datos".
+    // Con el plantel nuevo, lo que ya se cargó se reconoce solo ("Ya tiene
+    // estos datos"); lo elegido a mano en las filas que fallaron se respeta
+    // para volver a intentar.
     await onRecargar();
     setProgreso(null);
-    setElegidos({});
+    setElegidos((previos) => Object.fromEntries(Object.entries(previos).filter(([indice]) => !hechas.has(Number(indice)))));
     if (errores.length === 0) {
       onListo({ nuevos: creados, actualizados });
       return;
@@ -204,7 +220,12 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
               <b>{plural("datos.importar.jugadores", filas.length)}</b>
             </div>
             <p className="datos-importar-resumen">
-              {[plural("datos.importar.nuevos", nuevos), t("datos.importar.conCambios", { n: conCambios }), t("datos.importar.iguales", { n: iguales })].join(" · ")}
+              {[
+                plural("datos.importar.nuevos", nuevos),
+                t("datos.importar.conCambios", { n: conCambios }),
+                t("datos.importar.iguales", { n: iguales }),
+                ...(porConfirmar ? [plural("datos.importar.porConfirmar", porConfirmar)] : []),
+              ].join(" · ")}
             </p>
             <ul className="datos-importar-lista">
               {filas.map((fila) => (
@@ -222,6 +243,16 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
                     </button>
                   </div>
                   {detalleDe(fila) && <p className="datos-importar-detalle">{detalleDe(fila)}</p>}
+                  {fila.porConfirmar && fila.destino !== NO_CARGAR && (
+                    <button
+                      type="button"
+                      className="boton-secundario datos-importar-confirmar"
+                      onClick={() => setElegidos((previos) => ({ ...previos, [fila.indice]: fila.destino }))}
+                      disabled={ocupado}
+                    >
+                      {t("datos.importar.confirmar", { jugador: fila.jugador?.nombre || "—" })}
+                    </button>
+                  )}
                   {fila.destino !== NO_CARGAR &&
                     fila.avisos.map((aviso) => (
                       <p className="datos-importar-aviso" key={aviso.campo}>

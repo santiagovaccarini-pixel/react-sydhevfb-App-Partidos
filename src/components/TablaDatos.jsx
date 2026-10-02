@@ -27,9 +27,12 @@ import "./tablaDatos.css";
 // si las columnas traen grupo, arriba va la fila de los grupos.
 //
 // columnas: [{ clave, titulo, tipo, editable, opciones, ancho, grupo, grupoTitulo }]
-// filas:    [{ id, valores: { clave: valor }, textos: { clave: texto } }]
+// filas:    [{ id, valores: { clave: valor }, textos: { clave: texto }, orden?: { clave: valor } }]
+//           (`orden`, si está, es lo que se usa para ordenar esa columna)
 // onEditar(filaId, clave, valor) → Promise<{ error }>; onPegar(cambios) → Promise<{ error, hechos }>
 // onAbrirFila(filaId), onBorrarFila(filaId)
+// recordar: con qué nombre se guardan los filtros y el orden mientras la app
+// está abierta (al abrir una ficha y volver, siguen como estaban).
 
 const CLAVE_ORDEN = "tabla_columnas";
 const ESPERA_APRETAR = 380;
@@ -52,6 +55,9 @@ const guardarOrden = (id, orden) => {
 
 const rango = (a, b) => (a <= b ? [a, b] : [b, a]);
 
+// Los filtros y el orden de cada tabla, mientras la app está abierta.
+const memoria = new Map();
+
 // Tonos de la fila de grupos: uno por grupo, siempre el mismo para cada uno.
 const TONOS_DE_GRUPO = 7;
 
@@ -64,18 +70,21 @@ export const TablaDatos = ({
   onAbrirFila,
   onBorrarFila,
   aviso = "",
+  recordar = null,
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
   const [seleccion, setSeleccion] = useState(null); // { f1, c1, f2, c2 } en índices visibles
   const [activa, setActiva] = useState(null); // { f, c }
-  const [editando, setEditando] = useState(null); // { f, c, valor }
-  const [hoja, setHoja] = useState(null);
+  // Lo que se está editando, por fila (id) y columna (clave): si mientras
+  // tanto la tabla se reordena, lo escrito igual va a su fila.
+  const [editando, setEditando] = useState(null); // { filaId, clave, valor }
+  const [hoja, setHoja] = useState(null); // { filaId, col }
   const [arrastre, setArrastre] = useState(null); // { desde, sobre }
   const [mensaje, setMensaje] = useState("");
   const [ocupada, setOcupada] = useState(false);
-  const [filtros, setFiltros] = useState({}); // { clave: [textos elegidos] }
-  const [ordenFilas, setOrdenFilas] = useState(null); // { clave, sentido }
+  const [filtros, setFiltros] = useState(() => (recordar && memoria.get(recordar)?.filtros) || {}); // { clave: [textos elegidos] }
+  const [ordenFilas, setOrdenFilas] = useState(() => (recordar && memoria.get(recordar)?.orden) || null); // { clave, sentido }
   const [hojaFiltro, setHojaFiltro] = useState(null); // { clave, titulo, elegidos, busqueda }
   const marco = useRef(null);
   const temporizador = useRef(null);
@@ -116,6 +125,8 @@ export const TablaDatos = ({
   }, [columnas]);
 
   useEffect(() => {
+    // Lo que se estaba editando en una fila que ya no se ve se descarta.
+    setEditando((actual) => (actual && !filasVista.some((fila) => fila.id === actual.filaId) ? null : actual));
     if (!activa) return;
     const nueva = filasVista.findIndex((fila) => fila.id === idActiva.current);
     if (nueva === -1) {
@@ -134,6 +145,10 @@ export const TablaDatos = ({
     const temp = setTimeout(() => setMensaje(""), 2600);
     return () => clearTimeout(temp);
   }, [mensaje]);
+
+  useEffect(() => {
+    if (recordar) memoria.set(recordar, { filtros, orden: ordenFilas });
+  }, [recordar, filtros, ordenFilas]);
 
   // ----------------------------------------------------------- Selección --
 
@@ -253,6 +268,8 @@ export const TablaDatos = ({
   // ------------------------------------------------------------- Teclado --
 
   const alTeclear = (evento) => {
+    // Las teclas de un botón de la cabecera (el filtro) son de ese botón.
+    if (evento.target !== evento.currentTarget) return;
     if (editando) return;
     const ctrl = evento.ctrlKey || evento.metaKey;
     if (ctrl && evento.key.toLowerCase() === "c") {
@@ -299,18 +316,18 @@ export const TablaDatos = ({
     const col = visibles[c];
     if (!fila || !col || !col.editable) return;
     if (col.tipo === "lista") {
-      setHoja({ f, c, col });
+      setHoja({ filaId: fila.id, col });
       return;
     }
-    setEditando({ f, c, valor: fila.valores?.[col.clave] ?? "" });
+    setEditando({ filaId: fila.id, clave: col.clave, valor: fila.valores?.[col.clave] ?? "" });
   };
 
   const guardarEdicion = async (valor) => {
     const actual = editando;
     setEditando(null);
     if (!actual) return;
-    const fila = filasVista[actual.f];
-    const col = visibles[actual.c];
+    const fila = filas.find((una) => una.id === actual.filaId);
+    const col = columnas.find((una) => una.clave === actual.clave);
     if (!fila || !col) return;
     const nuevo = col.tipo === "numero" ? (valor === "" ? null : Number(String(valor).replace(",", "."))) : valor;
     if (col.tipo === "numero" && valor !== "" && !Number.isFinite(nuevo)) return;
@@ -325,7 +342,7 @@ export const TablaDatos = ({
     const actual = hoja;
     setHoja(null);
     if (!actual) return;
-    const fila = filasVista[actual.f];
+    const fila = filas.find((una) => una.id === actual.filaId);
     if (!fila) return;
     setOcupada(true);
     const respuesta = (await onEditar?.(fila.id, actual.col.clave, valor || null)) || {};
@@ -619,7 +636,7 @@ export const TablaDatos = ({
                   {f + 1}
                 </th>
                 {visibles.map((col, c) => {
-                  const enEdicion = editando && editando.f === f && editando.c === c;
+                  const enEdicion = editando && editando.filaId === fila.id && editando.clave === col.clave;
                   const esActiva = activa?.f === f && activa?.c === c;
                   return (
                     <td
@@ -660,7 +677,7 @@ export const TablaDatos = ({
         abierta={Boolean(hoja)}
         titulo={hoja?.col.titulo}
         opciones={hoja ? [{ valor: "", etiqueta: t("comun.sinDato") }, ...(hoja.col.opciones || [])] : []}
-        elegida={hoja ? filasVista[hoja.f]?.valores?.[hoja.col.clave] || "" : ""}
+        elegida={hoja ? filas.find((una) => una.id === hoja.filaId)?.valores?.[hoja.col.clave] || "" : ""}
         onElegir={elegirDeHoja}
         onCerrar={() => setHoja(null)}
       />

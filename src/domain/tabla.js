@@ -188,12 +188,16 @@ export const filtrarFilas = (filas, filtros = {}, { salvo = null } = {}) => {
 
 const esFechaISO = (valor) => typeof valor === "string" && /^\d{4}-\d{2}-\d{2}/.test(valor);
 
-// Para ordenar: el valor guardado si es un número o una fecha; si no, el texto.
+// Para ordenar: lo que la fila diga en `orden` para esa columna (si la
+// pantalla lo da: el nombre en vez del id del jugador, la fecha en vez del
+// texto); si no, el valor guardado si es un número o una fecha; si no, el
+// texto que se ve.
 const claveDeOrden = (fila, clave) => {
-  const valor = fila?.valores?.[clave];
+  const propio = Boolean(fila?.orden) && Object.prototype.hasOwnProperty.call(fila.orden, clave);
+  const valor = propio ? fila.orden[clave] : fila?.valores?.[clave];
   if (typeof valor === "number" && Number.isFinite(valor)) return { tipo: "numero", valor };
   if (esFechaISO(valor)) return { tipo: "fecha", valor };
-  const texto = textoDeCelda(fila, clave);
+  const texto = propio ? String(valor ?? "").trim() : textoDeCelda(fila, clave);
   return texto ? { tipo: "texto", valor: texto } : null;
 };
 
