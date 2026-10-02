@@ -304,6 +304,22 @@ const DIBUJOS = {
   },
 };
 
+// Los puntos del contorno de un brazo, una pierna o medio tronco (como están
+// dibujados, del lado izquierdo de la pantalla), para ubicar adentro los
+// músculos (anatomiaCuerpo.js).
+const CONTORNOS = { brazo: BRAZO, pierna: PIERNA, tronco: TRONCO };
+export const contornoDe = (tipo) => {
+  const contorno = CONTORNOS[tipo];
+  if (!contorno) return [];
+  const puntos = [contorno.inicio];
+  let desde = contorno.inicio;
+  contorno.tramos.forEach((tramo) => {
+    for (let paso = 1; paso <= 48; paso += 1) puntos.push(puntoEn(desde, tramo, paso / 48));
+    desde = fin(tramo);
+  });
+  return puntos;
+};
+
 // El orden de las regiones: el de lectura (con el teclado) y el del dibujo.
 // Cada una tapa a las anteriores donde se juntan: el tronco, la base del
 // cuello; el brazo, el borde del tronco en el hombro; la pierna, el borde

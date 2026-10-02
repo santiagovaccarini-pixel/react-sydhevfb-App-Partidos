@@ -401,6 +401,101 @@ describe("el módulo Lesiones", () => {
     });
   });
 
+  // La parte de cerca: lo que se toca en la figura (o en un esquema).
+  const enLaFigura = (contenedor, codigo, extra = "") => contenedor.querySelector(`.mapa-cuerpo-anatomia .figura-anatomia-tocable[data-codigo="${codigo}"]${extra}`);
+  const pintadas = (contenedor, clase) => [...contenedor.querySelectorAll(`.mapa-cuerpo-anatomia .figura-anatomia-tocable > path.${clase}`)].map((camino) => camino.parentNode.getAttribute("data-codigo"));
+  const irAEstructura = async (contenedor, region, parte, lado = null) => {
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
+    await siguiente(contenedor);
+    await elegirTipo(contenedor);
+    await elegirZona(contenedor, region, parte);
+    if (lado) await tocar(chip(contenedor, lado));
+    await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Descripción específica");
+  };
+
+  test("en la parte de cerca se toca el músculo, el tendón o el ligamento, y queda elegido abajo", async () => {
+    await montar();
+    await irAEstructura(contenedor, "pierna_derecha", "Muslo");
+    // De frente y de espaldas, con lo de la otra pierna apagado.
+    expect([...contenedor.querySelectorAll(".mapa-cuerpo-anatomia figcaption")].map((f) => f.textContent)).toEqual(["De frente", "De espaldas"]);
+    expect(contenedor.querySelectorAll('.figura-anatomia [data-region="pierna_derecha"] .figura-anatomia-tocable').length).toBeGreaterThan(10);
+    expect(contenedor.querySelectorAll('.figura-anatomia [data-region="pierna_izquierda"] .figura-anatomia-tocable')).toHaveLength(0);
+    // Un músculo: se elige con su grupo, y el resto del grupo se pinta suave.
+    await tocarFigura(enLaFigura(contenedor, "semitendinoso"));
+    expect(chip(contenedor, "Semitendinoso").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(contenedor, "Isquiotibiales").getAttribute("aria-pressed")).toBe("true");
+    expect(pintadas(contenedor, "elegida")).toContain("semitendinoso");
+    expect(pintadas(contenedor, "del-grupo")).toEqual(expect.arrayContaining(["biceps_femoral_longa", "semimembranoso"]));
+    // Uno de otro grupo cambia el grupo.
+    await tocarFigura(enLaFigura(contenedor, "reto_femoral"));
+    expect(chip(contenedor, "Cuádriceps").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(contenedor, "Recto femoral").getAttribute("aria-pressed")).toBe("true");
+    // Tocarlo otra vez lo saca.
+    await tocarFigura(enLaFigura(contenedor, "reto_femoral"));
+    expect(chip(contenedor, "Recto femoral").getAttribute("aria-pressed")).toBe("false");
+    expect(chip(contenedor, "Cuádriceps").getAttribute("aria-pressed")).toBe("true");
+    // Lo que no está en las listas de esta parte se ve apagado y no se toca.
+    expect(enLaFigura(contenedor, "gastrocnemio_lateral")).toBeNull();
+    expect(contenedor.querySelector(".mapa-cuerpo-anatomia .figura-anatomia-musculo.apagada")).toBeTruthy();
+    // Los músculos de debajo, en "Profundos".
+    expect(enLaFigura(contenedor, "vasto_intermedio")).toBeNull();
+    await tocar(chip(contenedor, "Profundos"));
+    await tocarFigura(enLaFigura(contenedor, "vasto_intermedio"));
+    expect(chip(contenedor, "Vasto intermedio").getAttribute("aria-pressed")).toBe("true");
+    for (let i = 0; i < 3; i++) await siguiente(contenedor); // eslint-disable-line no-await-in-loop
+    await tocar(boton(contenedor, "Guardar la lesión"));
+    await act(async () => Promise.resolve());
+    expect(datos.guardadas[0].lesion.datos).toMatchObject({ parte_cuerpo: "coxa", lado: "direito", musculo: "quadriceps", musculo_especifico: "vasto_intermedio" });
+  });
+
+  test("la rodilla y el tobillo tienen su esquema por dentro, espejado del lado izquierdo", async () => {
+    await montar();
+    await irAEstructura(contenedor, "pierna_izquierda", "Rodilla");
+    const esquema = contenedor.querySelector('.figura-anatomia-esquema[data-esquema="rodilla"]');
+    expect(esquema.querySelector("figcaption").textContent).toBe("Rodilla por dentro");
+    expect([...esquema.querySelectorAll("text")].map((texto) => texto.textContent).sort()).toEqual(["LCA", "LCP", "LLE", "LLI", "ML", "MM"]);
+    // Del lado izquierdo, lo lateral (LLE) queda a la derecha.
+    const xDe = (rotulo) => Number([...esquema.querySelectorAll("text")].find((texto) => texto.textContent === rotulo).getAttribute("x"));
+    expect(xDe("LLE")).toBeGreaterThan(xDe("LLI"));
+    await tocarFigura(enLaFigura(contenedor, "lca"));
+    expect(chip(contenedor, "Ligamento cruzado anterior").getAttribute("aria-pressed")).toBe("true");
+    await tocarFigura(enLaFigura(contenedor, "menisco_medial"));
+    expect(chip(contenedor, "Menisco medial").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(contenedor, "Ligamento cruzado anterior").getAttribute("aria-pressed")).toBe("false");
+  });
+
+  test("en el tronco se tocan los dos lados, y el lado tocado queda como el lado de la lesión", async () => {
+    await montar();
+    await irAEstructura(contenedor, "tronco", "Abdomen", "Derecho");
+    // El abdomen se ve de frente nada más.
+    expect([...contenedor.querySelectorAll(".mapa-cuerpo-anatomia figcaption")].map((f) => f.textContent)).toEqual(["De frente"]);
+    await tocarFigura(enLaFigura(contenedor, "obliquo_externo", '[data-lado="direito"]'));
+    expect(contenedor.querySelector(".mapa-cuerpo-ubicacion b").textContent).toBe("Abdomen · Derecho");
+    expect(enLaFigura(contenedor, "obliquo_externo", '[data-lado="direito"]').querySelector("path").classList.contains("elegida")).toBe(true);
+    expect(enLaFigura(contenedor, "obliquo_externo", '[data-lado="esquerdo"]').querySelector("path").classList.contains("elegida")).toBe(false);
+    // El del otro lado cambia el lado.
+    await tocarFigura(enLaFigura(contenedor, "obliquo_externo", '[data-lado="esquerdo"]'));
+    expect(contenedor.querySelector(".mapa-cuerpo-ubicacion b").textContent).toBe("Abdomen · Izquierdo");
+    expect(chip(contenedor, "Oblicuo externo").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  test("con una columna escondida, lo suyo no se toca en la figura", async () => {
+    datos.config = { campos: { musculo_especifico: { oculto: true } }, listas: {} };
+    await montar();
+    await irAEstructura(contenedor, "pierna_derecha", "Rodilla");
+    expect(enLaFigura(contenedor, "semitendinoso")).toBeNull();
+    expect(enLaFigura(contenedor, "lca")).toBeTruthy();
+  });
+
+  test("una parte sin nada para tocar sigue con la figura chica y los botones", async () => {
+    await montar();
+    await irAEstructura(contenedor, "cabeza", "Cabeza / cara", "No se aplica");
+    expect(contenedor.querySelector(".mapa-cuerpo-anatomia")).toBeNull();
+    expect(contenedor.querySelector(".mapa-cuerpo-ubicacion .figura-cuerpo")).toBeTruthy();
+  });
+
   test("el cuerpo no deja datos viejos: al cambiar de grupo o de parte, y con columnas escondidas", async () => {
     await montar();
     await tocar(boton(contenedor, "Nueva lesión"));

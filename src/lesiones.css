@@ -899,6 +899,178 @@
   }
 }
 
+/* Descripción específica: la parte de cerca, de frente y de espaldas, con
+   los músculos (gris azulado), los tendones (blanco) y los ligamentos
+   (celeste) que se tocan. Lo que no está en las listas de esta parte va
+   oscuro; lo elegido, verde, y lo del grupo elegido, verde suave. */
+.lesiones-marco .mapa-cuerpo-anatomia {
+  display: grid;
+  gap: 10px;
+}
+.lesiones-marco .mapa-cuerpo-anatomia > .mapa-cuerpo-vista {
+  justify-self: center;
+}
+.mapa-cuerpo-anatomia-vistas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.mapa-cuerpo-anatomia-vistas.una {
+  grid-template-columns: minmax(0, 1fr);
+  justify-self: center;
+  width: 100%;
+  max-width: 280px;
+}
+.mapa-cuerpo-anatomia-esquemas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+.figura-anatomia {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 6px 10px;
+  border-radius: 16px;
+  background: #0f172a;
+}
+.figura-anatomia figcaption {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.figura-anatomia svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 380px;
+  overflow: hidden;
+}
+.figura-anatomia-pieza {
+  fill: #475569;
+}
+.figura-anatomia-pieza.es-la-parte {
+  fill: #64748b;
+}
+.figura-anatomia-hueso,
+.figura-anatomia-musculo,
+.figura-anatomia-tendon,
+.figura-anatomia-ligamento {
+  stroke-width: 1px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  transition: fill 0.15s;
+}
+.figura-anatomia-hueso {
+  fill: #475569;
+  stroke: #1e293b;
+}
+.figura-anatomia-musculo {
+  fill: #8b98ab;
+  stroke: #1e293b;
+}
+.figura-anatomia-tendon {
+  fill: #e2e8f0;
+  stroke: #1e293b;
+}
+.figura-anatomia-ligamento {
+  fill: #7dd3fc;
+  stroke: #0c4a6e;
+}
+.figura-anatomia-musculo.apagada {
+  fill: #334155;
+}
+.figura-anatomia-tendon.apagada {
+  fill: #5b6676;
+}
+.figura-anatomia-ligamento.apagada {
+  fill: #2c4a5e;
+}
+/* Con los profundos a la vista, lo de encima queda como sombra. */
+.figura-anatomia .apagada.encima {
+  opacity: 0.4;
+}
+.figura-anatomia-tocable {
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .figura-anatomia-tocable:hover > path:first-of-type {
+    fill: #4ade80;
+  }
+}
+.figura-anatomia .del-grupo {
+  fill: #86efac;
+}
+.figura-anatomia .elegida {
+  fill: #16a34a;
+}
+/* Un borde invisible y ancho: los tendones y ligamentos se tocan con el dedo. */
+.figura-anatomia-dedo {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+/* El borde de la parte elegida, encima de todo. */
+.figura-anatomia-borde {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.8);
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.figura-anatomia-linea {
+  stroke: rgba(226, 232, 240, 0.6);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.figura-anatomia-rotulo {
+  fill: #f8fafc;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: #0f172a;
+  stroke-width: 0.24em;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.lesiones-marco .mapa-cuerpo-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+.mapa-cuerpo-leyenda span::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border: 1px solid #1e293b;
+  border-radius: 3px;
+  vertical-align: -1px;
+}
+.mapa-cuerpo-leyenda .musculos::before {
+  background: #8b98ab;
+}
+.mapa-cuerpo-leyenda .tendones::before {
+  background: #e2e8f0;
+}
+.mapa-cuerpo-leyenda .ligamentos::before {
+  background: #7dd3fc;
+}
+
 /* En la ficha, la figura chica con la parte lesionada al lado del diagnóstico. */
 .lesiones-marco .lesiones-marcador-figura {
   display: grid;

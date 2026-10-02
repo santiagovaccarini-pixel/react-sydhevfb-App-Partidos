@@ -319,6 +319,19 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   corregir a mano dónde va una opción (y el mapa entero) desde Ajustes, por la regla del 02/10
   de que ninguna regla quede escrita en código; hace falta guardar las partes de cada opción
   en `lesiones_opciones` (una columna nueva, con su migración).
+- **Músculos, tendones y ligamentos en la figura (02/10)**: en Descripción específica la
+  parte se ve de cerca, de frente y de espaldas, con los músculos (gris azulado), los
+  tendones (blanco) y los ligamentos (celeste) dibujados (`src/components/anatomiaCuerpo.js`,
+  `src/components/FiguraAnatomica.jsx`); la rodilla, el tobillo (por fuera y por dentro) y la
+  planta del pie tienen además su esquema por dentro, con rótulos (LCA, LCP, meniscos,
+  ligamentos del tobillo, fascia plantar). Se toca uno y queda elegido abajo, con su grupo;
+  tocar uno de otro grupo cambia el grupo; en el tronco se tocan los dos lados y el lado tocado
+  queda como el lado de la lesión. Lo que no está en las listas de esa parte se ve oscuro y
+  no se toca. Los músculos de debajo de otros (vasto intermedio, aductor corto, glúteo menor,
+  piriforme, obturadores, pectoral menor, oblicuo interno) están en "Profundos". Las opciones
+  que son combinaciones (por ejemplo, "ligamento lateral externo anterior / medio") y las
+  variantes del tendón conjunto se eligen con los botones de abajo. Las que agrega un club
+  todavía no tienen dibujo: se eligen con los botones.
 - **Los informes** (lo siguiente que pidió Santiago).
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
   la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa
