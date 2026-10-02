@@ -54,6 +54,26 @@ describe("copiar y pegar como Excel", () => {
     expect(interpretarFechaHora("1/10/2026 8:05")).toBe("2026-10-01T08:05");
     expect(interpretarFechaHora("2026-10-01T18:30")).toBe("2026-10-01T18:30");
     expect(interpretarFechaHora("2026-10-01")).toBe("2026-10-01T00:00");
+    // Lo que copia la app (con coma) y la hora con a. m. / p. m. o AM / PM.
+    expect(interpretarFechaHora("02/09/2026, 10:30 a. m.")).toBe("2026-09-02T10:30");
+    expect(interpretarFechaHora("02/09/2026, 06:30 p. m.")).toBe("2026-09-02T18:30");
+    expect(interpretarFechaHora("02/09/2026, 10:30")).toBe("2026-09-02T10:30");
+    expect(interpretarFechaHora("2/9/2026 6:00 PM")).toBe("2026-09-02T18:00");
+    expect(interpretarFechaHora("2/9/2026 12:15 AM")).toBe("2026-09-02T00:15");
+    expect(interpretarFechaHora("2/9/2026 12:15 p.m.")).toBe("2026-09-02T12:15");
+    expect(interpretarFechaHora("2026-10-01 18:30:59")).toBe("2026-10-01T18:30");
+    // Una fecha o una hora que no existe no se entiende (no se guarda otra).
+    expect(interpretarFecha("30/02/2026")).toBe(undefined);
+    expect(interpretarFecha("29/02/2024")).toBe("2024-02-29");
+    expect(interpretarFecha("2026-02-30")).toBe(undefined);
+    expect(interpretarFechaHora("30/02/2026 10:00")).toBe(undefined);
+    expect(interpretarFechaHora("9/13/2025 10:00")).toBe(undefined);
+    expect(interpretarFechaHora("1/9/2026 25:99")).toBe(undefined);
+    // Una marca que sobra no cambia nada; lo que sigue a la marca no la borra.
+    expect(interpretarFechaHora("1/9/2026 13:00 PM")).toBe("2026-09-01T13:00");
+    expect(interpretarFechaHora("1/9/2026 00:30 a. m.")).toBe("2026-09-01T00:30");
+    expect(interpretarFechaHora("1/9/2026 8:05 PM hs")).toBe("2026-09-01T20:05");
+    expect(interpretarFechaHora("2026-10-01 18:30\nx")).toBe("2026-10-01T18:30");
   });
 
   test("convierte el texto pegado al valor de cada columna", () => {

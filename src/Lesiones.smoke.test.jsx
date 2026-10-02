@@ -114,6 +114,9 @@ const elegirZona = async (contenedor, region, parte) => {
   await tocarFigura(contenedor.querySelector(`.figura-cuerpo [data-region="${region}"]`));
   await tocar(parteDeLaLista(contenedor, parte));
 };
+// El tipo de lesión es obligatorio: los recorridos que pasan por Descripción
+// general lo eligen.
+const elegirTipo = (contenedor, tipo = "Lesión muscular grado 1 A") => elegirEnHoja(contenedor, "Tipo de lesión", tipo);
 const navegar = async (contenedor, etiqueta) =>
   tocar([...contenedor.querySelectorAll(".navegacion-movil button")].find((b) => b.textContent.includes(etiqueta)));
 const siguiente = (contenedor) => tocar(boton(contenedor, "Siguiente"));
@@ -259,6 +262,12 @@ describe("el módulo Lesiones", () => {
 
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Descripción general");
+    // El tipo de lesión no es opcional: sin él no se sigue.
+    expect(campoDeFormulario(contenedor, etiqueta("tipo_lesion")).textContent).not.toContain("Opcional");
+    await siguiente(contenedor);
+    expect(texto(contenedor)).toContain("Elegí el tipo de lesión.");
+    expect(tituloDelPaso(contenedor)).toBe("Descripción general");
+    await elegirEnHoja(contenedor, "Tipo de lesión", "Esguince / lesión ligamentaria");
     await siguiente(contenedor);
     expect(texto(contenedor)).toContain("Elegí la parte del cuerpo lesionada.");
     // Dónde fue: la figura. Una parte del medio pide el lado.
@@ -272,8 +281,12 @@ describe("el módulo Lesiones", () => {
     expect(contenedor.querySelector('.figura-cuerpo [data-parte="joelho"]').getAttribute("aria-pressed")).toBe("true");
     // Las listas largas siguen con el selector con hoja.
     expect(contenedor.querySelector('.selector-hoja[aria-label="Tipo de lesión"]')).toBeTruthy();
-    // Las imágenes van en Descripción general, como en el Excel.
-    await escribir(campoDeFormulario(contenedor, etiqueta("horas_imagen")).querySelector("input"), "12");
+    // Las imágenes van en Descripción general, como en el Excel; las horas
+    // desde la lesión hasta la imagen salen solas, cuando ya se cargó el día
+    // de la lesión (va después, en Evolución).
+    expect(campoDeFormulario(contenedor, etiqueta("horas_imagen"))).toBeUndefined();
+    await escribir(campoDeFormulario(contenedor, etiqueta("hora_imagen")).querySelector("input"), `${hoyISO()}T03:00`);
+    expect(campoDeFormulario(contenedor, etiqueta("hora_imagen")).textContent).not.toContain("Horas entre la lesión y la imagen");
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Descripción específica");
     // En la rodilla: sus ligamentos y lo que el catálogo tiene de ella.
@@ -285,8 +298,9 @@ describe("el módulo Lesiones", () => {
     await elegirEnHoja(contenedor, "Mecanismo", "Sprint");
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Evolución y continuación");
-    // La fecha de inicio viene con la de hoy.
+    // La fecha de inicio viene con la de hoy; con ella, las horas hasta la imagen.
     expect(campoDeFormulario(contenedor, etiqueta("fecha_lesion")).querySelector("input").value).toBe(hoyISO());
+    expect(campoDeFormulario(contenedor, etiqueta("fecha_lesion")).textContent).toContain("Horas entre la lesión y la imagen: 3 horas");
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Observaciones");
     // Lo que se calcula solo ya no aparece al final del formulario.
@@ -298,9 +312,10 @@ describe("el módulo Lesiones", () => {
     expect(datos.guardadas).toHaveLength(1);
     expect(datos.guardadas[0]).toMatchObject({
       equipoId: "eq-1",
-      lesion: { jugador_id: 8, fecha_alta: null, datos: { parte_cuerpo: "joelho", lado: "esquerdo", ligamento: "lca", mecanismo: "sprint", horas_imagen: "12" } },
+      lesion: { jugador_id: 8, fecha_alta: null, datos: { tipo_lesion: "entorse", parte_cuerpo: "joelho", lado: "esquerdo", ligamento: "lca", mecanismo: "sprint", hora_imagen: `${hoyISO()}T03:00` } },
     });
     expect(datos.guardadas[0].lesion.datos.diagnostico).toBeUndefined();
+    expect(datos.guardadas[0].lesion.datos.horas_imagen).toBeUndefined();
     // Después de guardar queda abierta la ficha, en su primera pestaña.
     expect(texto(contenedor)).toContain("Caso 2");
     expect(texto(contenedor)).toContain("SCARPA");
@@ -312,6 +327,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     // La figura entera: cada zona es un botón.
     const zonas = () => [...contenedor.querySelectorAll('.figura-cuerpo [role="button"][data-region]')].map((g) => g.getAttribute("aria-label"));
     expect(zonas()).toEqual(["Cabeza y cuello", "Tronco", "Brazo derecho", "Pierna derecha", "Brazo izquierdo", "Pierna izquierda"]);
@@ -390,6 +406,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     // Acercada una zona, las otras quedan de fondo: no se tocan.
     await tocarFigura(contenedor.querySelector('.figura-cuerpo [data-region="pierna_derecha"]'));
     expect(contenedor.querySelectorAll('.figura-cuerpo [role="button"][data-region]')).toHaveLength(0);
@@ -437,6 +454,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     await elegirZona(contenedor, "pierna_derecha", "Muslo");
     await siguiente(contenedor);
     expect(campoDeFormulario(contenedor, etiqueta("musculo"))).toBeUndefined();
@@ -479,6 +497,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     // La parte del club va en la pierna, al lado de la rodilla, y se pinta la rodilla.
     await tocarFigura(contenedor.querySelector('.figura-cuerpo [data-region="pierna_derecha"]'));
     expect([...contenedor.querySelectorAll(".mapa-cuerpo-partes b")].map((b) => b.textContent).slice(2, 4)).toEqual(["Rodilla", "Rótula"]);
@@ -530,6 +549,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     // Lo que se adelanta de cada parte es lo que el club tiene a la vista.
     await tocarFigura(contenedor.querySelector('.figura-cuerpo [data-region="pierna_derecha"]'));
     expect(parteDeLaLista(contenedor, "Muslo").textContent).toContain("Cuádriceps, Aductores");
@@ -558,6 +578,7 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     await tocar(botonQueEmpieza(contenedor, "SCARPA"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     await elegirZona(contenedor, "pierna_izquierda", "Rodilla");
     await siguiente(contenedor);
     await siguiente(contenedor);
@@ -571,6 +592,83 @@ describe("el módulo Lesiones", () => {
     await escribir(campoDeFormulario(contenedor, etiqueta("fecha_transicion")).querySelector("input"), "2026-09-12");
     await siguiente(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Observaciones");
+  });
+
+  test("la imagen se compara con el día de la lesión recién cuando ese día ya se cargó", async () => {
+    const hace = (dias) => {
+      const fecha = new Date();
+      fecha.setDate(fecha.getDate() - dias);
+      return hoyISO(fecha);
+    };
+    await montar();
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
+    await siguiente(contenedor);
+    await elegirTipo(contenedor);
+    await elegirZona(contenedor, "pierna_izquierda", "Rodilla");
+    // Una imagen de hace dos días: el día de la lesión todavía no se cargó
+    // (viene el de hoy), así que no frena acá.
+    await escribir(campoDeFormulario(contenedor, etiqueta("hora_imagen")).querySelector("input"), `${hace(2)}T20:00`);
+    await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Descripción específica");
+    await siguiente(contenedor);
+    await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Evolución y continuación");
+    // Con el día de hoy, la lesión quedaría después de la imagen: frena acá.
+    expect(campoDeFormulario(contenedor, etiqueta("fecha_lesion")).textContent).not.toContain("Horas entre la lesión y la imagen");
+    await siguiente(contenedor);
+    expect(texto(contenedor)).toContain("La lesión no puede empezar después de la imagen (");
+    expect(tituloDelPaso(contenedor)).toBe("Evolución y continuación");
+    await escribir(campoDeFormulario(contenedor, etiqueta("fecha_lesion")).querySelector("input"), hace(3));
+    expect(campoDeFormulario(contenedor, etiqueta("fecha_lesion")).textContent).toContain("Horas entre la lesión y la imagen: 44 horas");
+    await siguiente(contenedor);
+    expect(tituloDelPaso(contenedor)).toBe("Observaciones");
+    // Ya cargado el día, las horas también se ven al volver a la imagen.
+    await tocar(contenedor.querySelectorAll(".lesiones-progreso button")[1]);
+    expect(tituloDelPaso(contenedor)).toBe("Descripción general");
+    expect(campoDeFormulario(contenedor, etiqueta("hora_imagen")).textContent).toContain("Horas entre la lesión y la imagen: 44 horas");
+    await tocar(contenedor.querySelectorAll(".lesiones-progreso button")[5]);
+    await tocar(boton(contenedor, "Guardar la lesión"));
+    await act(async () => Promise.resolve());
+    expect(datos.guardadas).toHaveLength(1);
+    expect(datos.guardadas[0].lesion).toMatchObject({ fecha_lesion: hace(3), datos: { hora_imagen: `${hace(2)}T20:00` } });
+  });
+
+  test("al guardar, lo que falta se muestra en el paso donde se corrige", async () => {
+    // Una lesión de antes de que el tipo fuera obligatorio.
+    datos.lesiones = [{ ...lesionHulk(), datos: { parte_cuerpo: "coxa", lado: "direito" } }];
+    await montar();
+    await tocar(boton(contenedor, "Ver detalle"));
+    await tocar(pestana(contenedor, "Observaciones"));
+    await tocar(boton(contenedor, "Editar"));
+    await escribir(campoDeFormulario(contenedor, etiqueta("medico")).querySelector("input"), "Dr. X");
+    await tocar(boton(contenedor, "Guardar la lesión"));
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(0);
+    expect(tituloDelPaso(contenedor)).toBe("Descripción general");
+    expect(texto(contenedor)).toContain("Elegí el tipo de lesión.");
+    await elegirTipo(contenedor);
+    await tocar(contenedor.querySelectorAll(".lesiones-progreso button")[5]);
+    expect(campoDeFormulario(contenedor, etiqueta("medico")).querySelector("input").value).toBe("Dr. X");
+    await tocar(boton(contenedor, "Guardar la lesión"));
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(1);
+    expect(datos.actualizadas[0].lesion.datos).toMatchObject({ tipo_lesion: "muscular_1a", medico: "Dr. X" });
+  });
+
+  test("con la hora de la imagen escondida, una imagen vieja no frena el guardado", async () => {
+    datos.config = { campos: { hora_imagen: { oculto: true } }, listas: {} };
+    datos.lesiones = [{ ...lesionHulk(), datos: { ...lesionHulk().datos, hora_imagen: "2026-09-20T10:00" } }];
+    await montar();
+    await tocar(boton(contenedor, "Ver detalle"));
+    await tocar(pestana(contenedor, "Evolución y continuación"));
+    await tocar(boton(contenedor, "Editar"));
+    await escribir(campoDeFormulario(contenedor, etiqueta("fecha_lesion")).querySelector("input"), "2026-09-21");
+    await tocar(contenedor.querySelectorAll(".lesiones-progreso button")[5]);
+    await tocar(boton(contenedor, "Guardar la lesión"));
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(1);
+    expect(datos.actualizadas[0].lesion.fecha_lesion).toBe("2026-09-21");
   });
 
   test("el alta médica cierra la lesión; la severidad sale sola de las fechas", async () => {
@@ -674,6 +772,29 @@ describe("el módulo Lesiones", () => {
 
     await tocar(boton(contenedor, "Ver ficha"));
     expect(texto(contenedor)).toContain("Caso 1 · 20/09/2026 · Lesionado");
+  });
+
+  test("en la base las lesiones nuevas van abajo, y a una vieja se le cambia una celda aunque le falte el tipo", async () => {
+    datos.lesiones = [
+      { ...lesionHulk(), id: "les-3", numero_caso: 3, fecha_lesion: "2026-09-25" },
+      { ...lesionHulk(), id: "les-2", numero_caso: 2, jugador_id: 8, fecha_lesion: "2026-09-28", datos: { parte_cuerpo: "joelho", lado: "esquerdo" } },
+      lesionHulk(),
+    ];
+    await montar();
+    await navegar(contenedor, "Base");
+    const filas = () => [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")];
+    expect(filas().map((tr) => tr.querySelector("td").textContent)).toEqual(["1", "2", "3"]);
+    // El caso 2 no tiene tipo de lesión: igual se le carga el médico.
+    const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")];
+    const indiceMedico = cabeceras.findIndex((th) => th.textContent === etiqueta("medico"));
+    const celda = () => filas()[1].querySelectorAll("td")[indiceMedico];
+    await tocar(celda());
+    await tocar(celda());
+    const input = celda().querySelector("input");
+    await escribir(input, "Dra. Pérez");
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(datos.actualizadas).toHaveLength(1);
+    expect(datos.actualizadas[0]).toMatchObject({ id: "les-2", lesion: { datos: { medico: "Dra. Pérez" } } });
   });
 
   test("las cabeceras de la base filtran y ordenan como en Excel", async () => {
@@ -795,6 +916,7 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain("Paso 1 de 5");
     await tocar(botonQueEmpieza(contenedor, "HULK"));
     await siguiente(contenedor);
+    await elegirTipo(contenedor);
     expect(tituloDelPaso(contenedor)).toBe("Qué pasó");
     // También se puede elegir de la lista, como antes de la figura. Parte del
     // cuerpo es obligatoria: sigue a la vista aunque la configuración diga que no.

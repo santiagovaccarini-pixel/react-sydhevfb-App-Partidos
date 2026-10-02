@@ -267,13 +267,21 @@ mover a una configuración por club:
 - Recup 1 = transición − inicio; Recup 2 = retorno al entrenamiento − inicio;
   recuperación = alta (o hoy) − inicio. Las etapas (lesionado, transición,
   entrenando, alta) salen de esas fechas; "activa" = sin alta.
-- Validaciones: obligatorios jugador, parte, lado y fecha de inicio; fechas no
-  futuras y posteriores al inicio; no dos lesiones activas en la misma parte y
-  lado (también como restricción `lesiones_sin_solapar` en la base).
+- Validaciones: obligatorios jugador, tipo de lesión (pedido del 02/10), parte,
+  lado y fecha de inicio; fechas no futuras y posteriores al inicio (también la
+  hora de la imagen: no antes del día de la lesión); no dos lesiones activas en
+  la misma parte y lado (también como restricción `lesiones_sin_solapar` en la
+  base).
 - Qué columna va en qué grupo del Excel (eso arma los pasos de la carga, la fila
   de grupos de la base y las pestañas de la ficha; el nombre de cada grupo ya se
-  cambia desde Ajustes); el aviso al cargar (misma parte y lado, 60 días); horas
-  hasta la imagen manuales.
+  cambia desde Ajustes); el aviso al cargar (misma parte y lado, 60 días); las
+  horas hasta la imagen se cuentan desde el comienzo del día de la lesión (la
+  lesión no tiene hora), en la app y en la vista (`lesiones_horas_imagen`,
+  migración 20261006); las que se escribían a mano antes quedan guardadas y se
+  muestran si no hay hora de la imagen. La imagen se compara con el día de la
+  lesión en el paso de Evolución (donde se carga ese día). El formulario pide
+  corregir todo al guardar (y lleva al paso donde está lo que falta); una
+  celda de la Base solo frena lo que esa edición rompe o empeora.
 
 Plan para moverlo: una tabla `lesiones_protocolo` por club (clave, valor) con
 los valores del Excel como semilla, igual que cabeceras y listas; se edita en

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { CAMBIOS_EN_LA_FICHA, agregarJugadorBasico, historialDeLesion } from "./lesionesDb.js";
+import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, historialDeLesion } from "./lesionesDb.js";
 
 // Un doble de Supabase que anota la consulta y contesta lo configurado.
 const doble = vi.hoisted(() => ({ llamadas: [], filas: [], error: null, alta: null }));
@@ -15,7 +15,7 @@ vi.mock("./plantel.js", () => ({
 vi.mock("../supabase.js", () => {
   const cadena = () => {
     const c = {};
-    ["select", "eq", "order", "limit"].forEach((metodo) => {
+    ["select", "eq", "order", "limit", "update", "single"].forEach((metodo) => {
       c[metodo] = (...args) => {
         doble.llamadas.push([metodo, ...args]);
         return c;
@@ -71,6 +71,21 @@ describe("los cambios de una lesión en la ficha", () => {
   test("si la base no deja leer, se dice", async () => {
     doble.error = { code: "42501", message: "permission denied for table lesiones_historial" };
     expect(await historialDeLesion("les-1")).toMatchObject({ cambios: [], error: "lesiones.error.sinPermiso" });
+  });
+});
+
+describe("guardar una lesión", () => {
+  test("lo calculado no se guarda, pero las horas que se cargaron a mano antes quedan", async () => {
+    doble.filas = { id: "les-1", jugador_id: 7, fecha_lesion: "2026-09-01", datos: {} };
+    await actualizarLesion("les-1", {
+      jugador_id: 7,
+      fecha_lesion: "2026-09-01",
+      fecha_alta: "2026-09-20",
+      datos: { parte_cuerpo: "coxa", lado: "direito", horas_imagen: "12", diagnostico: "viejo", edad: 30, medico: " " },
+    });
+    const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "update");
+    expect(enviado.datos).toEqual({ parte_cuerpo: "coxa", lado: "direito", horas_imagen: "12" });
+    expect(enviado.fecha_alta).toBe("2026-09-20");
   });
 });
 

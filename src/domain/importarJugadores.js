@@ -3,7 +3,7 @@
 // empareja con el plantel y queda armado lo que hay que crear o cambiar.
 // Nada de esto toca la base: la pantalla muestra el plan y guarda.
 import { normalizarTextoBase } from "./match";
-import { desdeTexto, interpretarFecha, interpretarValor } from "./tabla.js";
+import { desdeTexto, esFechaReal, interpretarFecha, interpretarValor } from "./tabla.js";
 
 export const CAMPOS_IMPORTABLES = ["categoria", "fecha_nacimiento", "pie_dominante", "posicion", "foto_url"];
 export const NUEVO = "nuevo";
@@ -76,12 +76,6 @@ export const leerPegado = (texto, { alias = {} } = {}) => {
   });
   if (filas.length === 0) return { columnas, filas, error: "datos.importar.sinFilas" };
   return { columnas, filas, error: "" };
-};
-
-const esFechaReal = (iso) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ""))) return false;
-  const fecha = new Date(`${iso}T00:00:00Z`);
-  return !Number.isNaN(fecha.getTime()) && fecha.toISOString().slice(0, 10) === iso;
 };
 
 const DIA_MS = 86400000;
