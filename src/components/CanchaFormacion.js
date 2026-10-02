@@ -446,8 +446,8 @@ const CanchaFormacion = ({
 
               {aElegir.length === 0 && (
                 <p className="sin-jugadores">
-                  No hay nadie cargado en el plantel. Se agregan en Ajustes ›
-                  Jugadores.
+                  No hay nadie cargado en el plantel. Se agregan en Datos
+                  básicos.
                 </p>
               )}
             </div>

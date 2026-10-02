@@ -1,27 +1,24 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import TrainingJugadores from "./TrainingJugadores";
+import { VinculosCatapult } from "./VinculosCatapult.jsx";
+import { fijarIdiomaParaPruebas } from "../idioma/index.js";
 
+// Los chalecos de Catapult de cada jugador, en Datos básicos (antes estaban
+// en Flujo diario › Ajustes › Lista de jugadores).
 const dobles = vi.hoisted(() => ({
   plantel: [],
   cargar: vi.fn(),
   guardar: vi.fn(),
-  agregar: vi.fn(),
-  equipo: { id: "eq-1", nombre: "Atlético Mineiro" },
+  aviso: vi.fn(),
 }));
 
-vi.mock("./domain/equipo.js", () => ({
-  leerEquipoElegido: () => dobles.equipo,
-}));
-
-vi.mock("./domain/plantel.js", () => ({
+vi.mock("../domain/plantel.js", () => ({
   cargarPlantelConCatapult: (...args) => dobles.cargar(...args),
   guardarVinculoCatapult: (...args) => dobles.guardar(...args),
-  agregarJugador: (...args) => dobles.agregar(...args),
 }));
 
-vi.mock("./supabase.js", () => ({
+vi.mock("../supabase.js", () => ({
   supabase: { auth: { getSession: async () => ({ data: { session: { access_token: "tok" } } }) } },
 }));
 
@@ -33,11 +30,12 @@ const ATLETAS = [
   { id: "a3", first_name: "Cisse", last_name: ".", jersey: "CIS", nombre: "Cisse ." },
 ];
 
-describe("TrainingJugadores", () => {
+describe("los chalecos de Catapult en Datos básicos", () => {
   let contenedor;
   let raiz;
 
   beforeEach(() => {
+    fijarIdiomaParaPruebas("es-AR");
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     dobles.plantel = [
@@ -47,8 +45,7 @@ describe("TrainingJugadores", () => {
     ];
     dobles.cargar.mockReset().mockImplementation(async () => ({ plantel: dobles.plantel }));
     dobles.guardar.mockReset().mockResolvedValue({});
-    dobles.agregar.mockReset();
-    dobles.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
+    dobles.aviso.mockReset();
   });
 
   afterEach(async () => {
@@ -57,10 +54,10 @@ describe("TrainingJugadores", () => {
     vi.unstubAllGlobals();
   });
 
-  const montar = async () => {
+  const montar = async (soloLectura = false) => {
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<TrainingJugadores />);
+      raiz.render(<VinculosCatapult equipoId="eq-1" soloLectura={soloLectura} onAviso={dobles.aviso} />);
     });
     await act(async () => Promise.resolve());
   };
@@ -70,10 +67,8 @@ describe("TrainingJugadores", () => {
 
   test("en un club del que ya se fue, la lista se mira y no se cambia", async () => {
     vi.stubGlobal("fetch", vi.fn());
-    dobles.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: "2026-03-31" };
-    await montar();
+    await montar(true);
 
-    expect(contenedor.textContent).toContain("Dejaste este club el");
     expect([...contenedor.querySelectorAll(".nombre-lista")]).toHaveLength(3);
     expect(contenedor.textContent).toContain("Chaleco: IGOR GOMES (GOM)");
     expect(contenedor.querySelector(".agregar-jugador")).toBeNull();
@@ -87,7 +82,7 @@ describe("TrainingJugadores", () => {
 
     expect(dobles.cargar).toHaveBeenCalledWith("eq-1");
     const texto = contenedor.textContent;
-    expect(contenedor.querySelector("h1").textContent).toBe("Lista de jugadores");
+    expect(contenedor.querySelector(".cabeza-ficha b").textContent).toBe("Chalecos de Catapult");
     expect(texto).toContain("3 jugadores · 1 con chaleco");
     expect(texto).toContain("Chaleco: IGOR GOMES (GOM)");
     expect(texto).toContain("Sin chaleco");
@@ -97,7 +92,8 @@ describe("TrainingJugadores", () => {
       "LEMOS",
     ]);
     expect(botonPorTexto("Buscar chalecos")).toBeDefined();
-    expect(botonPorTexto("Volver a Ajustes")).toBeDefined();
+    // Los jugadores se agregan en la tabla de Datos básicos, no acá.
+    expect(contenedor.querySelector(".agregar-jugador")).toBeNull();
   });
 
   test("propone vínculos, deja corregirlos y guarda solo los cambios", async () => {
@@ -110,7 +106,7 @@ describe("TrainingJugadores", () => {
     await act(async () => botonPorTexto("Buscar chalecos").click());
 
     const texto = contenedor.textContent;
-    expect(texto).toContain("3 chalecos encontrados");
+    expect(texto).toContain("Chalecos encontrados: 3");
     expect(texto).toContain("Coincide solo");
     expect(texto).toContain("Guardado");
     expect(botonPorTexto("Guardar 1 cambio")).toBeDefined();
@@ -132,7 +128,7 @@ describe("TrainingJugadores", () => {
     expect(dobles.guardar).toHaveBeenCalledTimes(2);
     expect(dobles.guardar).toHaveBeenCalledWith(1, { catapultId: "a1", catapultNombre: "A MINDA (MIN)" });
     expect(dobles.guardar).toHaveBeenCalledWith(3, { catapultId: "a3", catapultNombre: "CISSE (CIS)" });
-    expect(contenedor.textContent).toContain("2 cambios guardados");
+    expect(dobles.aviso).toHaveBeenCalledWith("2 cambios guardados.");
     expect(dobles.cargar).toHaveBeenCalledTimes(2);
   });
 
@@ -154,23 +150,6 @@ describe("TrainingJugadores", () => {
     expect(contenedor.textContent).toContain("Hay un chaleco elegido para más de un jugador");
     expect(botonPorTexto("Guardar 2 cambios").disabled).toBe(true);
     expect(dobles.guardar).not.toHaveBeenCalled();
-  });
-
-  test("agrega un jugador a la lista compartida", async () => {
-    vi.stubGlobal("fetch", vi.fn());
-    dobles.agregar.mockResolvedValue({ jugador: { id: 9, nombre: "NUEVO" } });
-    await montar();
-
-    const input = contenedor.querySelector("input[type='text']");
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-      setter.call(input, "NUEVO");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await act(async () => botonPorTexto("Agregar").click());
-
-    expect(dobles.agregar).toHaveBeenCalledWith("NUEVO", "eq-1");
-    expect(contenedor.textContent).toContain("NUEVO agregado a la lista (también en Partido)");
   });
 
   test("si falta la migración lo explica", async () => {

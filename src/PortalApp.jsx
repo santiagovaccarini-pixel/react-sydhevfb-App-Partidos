@@ -383,7 +383,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   } else if (modo === MODOS.LESIONES && enClub.lesiones) {
     contenido = <Lesiones userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} />;
   } else if (modo === MODOS.DATOS && enClub.datos) {
-    contenido = <DatosBasicos onVolver={volver} />;
+    contenido = <DatosBasicos onVolver={volver} permisos={enClub} />;
   } else if (modo === MODOS.CUENTAS && (enClub.admin || enClub.adminClub)) {
     contenido = <CuentasAdmin miUserId={userId} esDueno={enClub.admin} club={club} onVolver={volver} />;
   } else {
