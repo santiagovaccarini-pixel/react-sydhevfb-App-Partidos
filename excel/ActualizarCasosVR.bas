@@ -40,8 +40,29 @@ Private Const FILA_DATOS As Long = 15
 Private Const FILA_TITULOS As Long = 7          ' titulos de las dos tablas en "Análisis Casos VR"
 Private Const FILA_INICIO As Long = 8
 
-Private Function HojaAnalisis() As Worksheet
-    Set HojaAnalisis = ThisWorkbook.Sheets("An" & ChrW(225) & "lisis Casos VR")
+Private paso As String      ' en que parte va la macro (para el mensaje de error)
+
+' Quita tildes, espacios de mas y mayusculas para comparar nombres de hojas
+Private Function Normalizar(ByVal t As String) As String
+    Dim conTilde As String, sinTilde As String, i As Long
+    conTilde = ChrW(225) & ChrW(233) & ChrW(237) & ChrW(243) & ChrW(250) & ChrW(193) & ChrW(201) & ChrW(205) & ChrW(211) & ChrW(218)
+    sinTilde = "aeiouAEIOU"
+    For i = 1 To Len(conTilde)
+        t = Replace(t, Mid$(conTilde, i, 1), Mid$(sinTilde, i, 1))
+    Next i
+    t = Replace(t, ChrW(160), " ")
+    Do While InStr(t, "  ") > 0: t = Replace(t, "  ", " "): Loop
+    Normalizar = LCase$(Trim$(t))
+End Function
+
+' Busca una hoja por nombre sin importar tildes, mayusculas ni espacios
+Private Function Hoja(ByVal nombre As String) As Worksheet
+    Dim sh As Worksheet
+    For Each sh In ThisWorkbook.Worksheets
+        If Normalizar(sh.Name) = Normalizar(nombre) Then Set Hoja = sh: Exit Function
+    Next sh
+    Err.Raise vbObjectError + 9, , "No encuentro la hoja " & Chr(34) & nombre & Chr(34) & _
+        ". Revisa el nombre de la solapa."
 End Function
 
 Private Function Categorias() As Variant
@@ -74,17 +95,18 @@ Public Sub ActualizarColores_ManejoErrores()
     Dim calcPrev As XlCalculation
 
     On Error GoTo Fallo
-    Set ws = HojaAnalisis()
-    Set wsD = ThisWorkbook.Sheets("Data GPS Partido")
-    Set wsVR = ThisWorkbook.Sheets("VR")
-    Set wsJ = ThisWorkbook.Sheets("Tiempos por jugador")
+    paso = "buscar las hojas"
+    Set ws = Hoja("Analisis Casos VR")
+    Set wsD = Hoja("Data GPS Partido")
+    Set wsVR = Hoja("VR")
+    Set wsJ = Hoja("Tiempos por jugador")
     cats = Categorias(): nCat = UBound(cats) + 1
 
     Application.ScreenUpdating = False
     calcPrev = Application.Calculation
     Application.Calculation = xlCalculationManual
 
-    ' ---------- plantel: jugadores de "Tiempos por jugador"
+    paso = "leer los jugadores de Tiempos por jugador"
     Dim plantel As Object: Set plantel = CreateObject("Scripting.Dictionary")
     Dim r As Long, nombre As String, puesto As String, cat As String, clave As String
     For r = 2 To wsJ.Cells(wsJ.Rows.Count, "A").End(xlUp).Row
@@ -92,10 +114,10 @@ Public Sub ActualizarColores_ManejoErrores()
         If Len(nombre) > 0 Then plantel(nombre) = True
     Next r
 
-    ' ---------- casos actuales: Data GPS Partido (se lee todo, con o sin filtros)
+    paso = "contar los casos actuales en Data GPS Partido"
     Dim ultD As Long, vItem As Variant, vJug As Variant, vPue As Variant, vCat As Variant
     ultD = wsD.Cells(wsD.Rows.Count, COL_JUGADOR).End(xlUp).Row
-    If ultD < FILA_DATOS Then Err.Raise vbObjectError + 1, , "No hay datos en Data GPS Partido"
+    If ultD <= FILA_DATOS Then Err.Raise vbObjectError + 1, , "No hay datos en Data GPS Partido"
     vItem = wsD.Range(COL_ITEM & FILA_DATOS & ":" & COL_ITEM & ultD).Value
     vJug = wsD.Range(COL_JUGADOR & FILA_DATOS & ":" & COL_JUGADOR & ultD).Value
     vPue = wsD.Range(COL_PUESTO & FILA_DATOS & ":" & COL_PUESTO & ultD).Value
@@ -120,7 +142,7 @@ Public Sub ActualizarColores_ManejoErrores()
         End If
     Next i
 
-    ' ---------- casos de cada VR: hoja VR, filas "Bueno" de jugadores
+    paso = "leer los casos de cada VR en la hoja VR"
     Dim casosVR As Object: Set casosVR = CreateObject("Scripting.Dictionary")      ' nombre|puesto|cat -> casos
     Dim fechaVR As Object: Set fechaVR = CreateObject("Scripting.Dictionary")
     Dim grupoDe As Object: Set grupoDe = CreateObject("Scripting.Dictionary")      ' nombre|puesto|cat -> cat del VR
@@ -152,7 +174,7 @@ Public Sub ActualizarColores_ManejoErrores()
         End If
     Next r
 
-    ' ---------- limpiar las tablas anteriores (valores, colores y notas)
+    paso = "limpiar las tablas anteriores"
     Dim ultAnt As Long
     ultAnt = Application.WorksheetFunction.Max(ws.Cells(ws.Rows.Count, "A").End(xlUp).Row, _
                                                ws.Cells(ws.Rows.Count, "S").End(xlUp).Row, FILA_INICIO)
@@ -171,7 +193,7 @@ Public Sub ActualizarColores_ManejoErrores()
         ws.Cells(FILA_TITULOS, 21 + c).Value = cats(c)            ' U .. AA
     Next c
 
-    ' ---------- escribir y pintar
+    paso = "escribir y pintar las tablas"
     Dim fila As Long, vr As Long, act As Long, umbral As Long, regla As String
     Dim celda As Range, partes As Variant, m As Variant, catVR As String, nRojos As Long
     fila = FILA_INICIO
@@ -235,5 +257,5 @@ Public Sub ActualizarColores_ManejoErrores()
 Fallo:
     Application.Calculation = xlCalculationAutomatic
     Application.ScreenUpdating = True
-    MsgBox "Error " & Err.Number & ": " & Err.Description, vbCritical
+    MsgBox "Error " & (Err.Number And &HFFFF&) & " al " & paso & ":" & vbLf & Err.Description, vbCritical
 End Sub
