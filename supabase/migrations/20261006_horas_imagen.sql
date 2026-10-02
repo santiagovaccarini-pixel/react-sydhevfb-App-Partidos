@@ -4,10 +4,11 @@
 --   · lesiones_horas_imagen(hora, fecha): las horas desde el comienzo del
 --     día de la lesión (la lesión tiene fecha, no hora) hasta la hora de la
 --     imagen, redondeadas; vacío si no hay imagen o si lo cargado no es una
---     hora. Es la misma cuenta que hace la app.
+--     fecha y hora que exista. Es la misma cuenta que hace la app.
 --   · v_lesiones_excel_v1 usa esa cuenta en "Horas Passadas e/ Imagem e
---     Lesão" en vez de lo que se escribía a mano; el resto de la vista queda
---     igual (mismas columnas, en el mismo orden, para Power Query).
+--     Lesão". Lo que se escribía a mano antes queda para las lesiones sin
+--     hora de la imagen. El resto de la vista queda igual (mismas columnas,
+--     en el mismo orden, para Power Query).
 --
 -- Requiere 20261002b_datos_basicos.sql. Se corre en Supabase > SQL Editor,
 -- entero y de una vez. Se puede volver a correr.
@@ -33,12 +34,14 @@ immutable
 set search_path = ''
 as $$
 begin
-  if p_hora is null or p_desde is null or p_hora !~ '^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}' then
+  -- Año desde 1900 y hora hasta 23:59, como la app.
+  if p_hora is null or p_desde is null or p_hora !~ '^(19|20)\d{2}-\d{2}-\d{2}[T ]([01]\d|2[0-3]):[0-5]\d' then
     return null;
   end if;
-  return round(extract(epoch from (left(replace(p_hora, 'T', ' '), 16)::timestamp - p_desde::timestamp)) / 3600)::integer;
+  -- floor(x + 0,5): redondea igual que la app, también las negativas.
+  return floor(extract(epoch from (left(replace(p_hora, 'T', ' '), 16)::timestamp - p_desde::timestamp)) / 3600 + 0.5)::integer;
 exception when others then
-  -- Una fecha imposible (como un mes 13) no rompe la vista: queda vacío.
+  -- Una fecha imposible (como un 30 de febrero) no rompe la vista: queda vacío.
   return null;
 end;
 $$;
@@ -106,7 +109,9 @@ select c.numero_caso as n_de_caso,
             else public.lesiones_etiqueta(c.equipo_id, 'lado_habil', 'nao') end as lado_habil_lesionado,
        c.datos->>'hora_imagen' as hora_da_imagem,
        c.datos->>'imagenes' as imagens,
-       public.lesiones_horas_imagen(c.datos->>'hora_imagen', c.fecha_lesion) as horas_passadas_imagem_lesao,
+       coalesce(public.lesiones_horas_imagen(c.datos->>'hora_imagen', c.fecha_lesion)::numeric,
+                case when c.datos->>'horas_imagen' ~ '^-?\d+([.,]\d+)?$'
+                     then replace(c.datos->>'horas_imagen', ',', '.')::numeric end) as horas_passadas_imagem_lesao,
        public.lesiones_etiqueta(c.equipo_id, 'ligamento', c.datos->>'ligamento') as lig_especifico,
        public.lesiones_etiqueta(c.equipo_id, 'musculo', c.datos->>'musculo') as musculo_afetado,
        public.lesiones_etiqueta(c.equipo_id, 'musculo_especifico', c.datos->>'musculo_especifico') as musculo_especifico,
@@ -148,7 +153,8 @@ select c.numero_caso as n_de_caso,
 revoke all on public.v_lesiones_excel_v1 from anon;
 grant select on public.v_lesiones_excel_v1 to authenticated;
 
--- Para saber que esta ya está corrida (y que 20261002b no la deshaga).
+-- 20261002b se niega a correr si existe lesiones_horas_imagen (volvería a
+-- las horas escritas a mano).
 comment on view public.v_lesiones_excel_v1 is 'Las 35 columnas del Excel de lesiones para Power Query (horas hasta la imagen calculadas: 20261006).';
 
 commit;

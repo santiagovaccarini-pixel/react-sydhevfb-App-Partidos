@@ -419,6 +419,7 @@ export default {
       tipo: "Elegí el tipo de lesión.",
       imagen: "La hora de la imagen no es válida.",
       imagenAntes: "La imagen no puede ser de antes del día de la lesión.",
+      lesionDespuesDeImagen: "La lesión no puede empezar después de la imagen ({{imagen}}).",
       solapada: "Ya hay una lesión activa en {{parte}} ({{lado}}) para este jugador.",
       noGuardar: "No se pudo guardar la lesión.",
       noBorrar: "No se pudo borrar la lesión.",

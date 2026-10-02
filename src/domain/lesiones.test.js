@@ -7,12 +7,16 @@ import {
   diagnosticoDe,
   diasDeBaja,
   errorDeCampo,
+  errorImagenAntes,
+  erroresDeLesion,
+  erroresNuevos,
   estadoDelPlantel,
   etapaDe,
   horasHastaLaImagen,
   lesionVacia,
   lesionesActivas,
   numeroDeRegistro,
+  ordenarPorCaso,
   posibleRecidiva,
   recidivaDe,
   recurrenciaDe,
@@ -292,24 +296,87 @@ describe("validar", () => {
     expect(validarLesion(conDatos({ tipo_lesion: null }), { hoy })).toBe("lesiones.error.tipo");
     expect(validarLesion(conDatos({ parte_cuerpo: null }), { hoy })).toBe("lesiones.error.parte");
     expect(validarLesion(conDatos({ lado: null }), { hoy })).toBe("lesiones.error.lado");
-    // La imagen no puede ser de antes del día de la lesión, ni del futuro.
+    // La imagen no puede ser de antes del día de la lesión (ni media hora),
+    // ni del futuro, ni una fecha u hora que no existe.
     expect(validarLesion(conDatos({ hora_imagen: "2026-08-31T23:00" }), { hoy })).toBe("lesiones.error.imagenAntes");
+    expect(validarLesion(conDatos({ hora_imagen: "2026-08-31T23:45" }), { hoy })).toBe("lesiones.error.imagenAntes");
     expect(validarLesion(conDatos({ hora_imagen: "2026-10-05T10:00" }), { hoy })).toBe("lesiones.error.fechaFuturaOtra");
     expect(validarLesion(conDatos({ hora_imagen: "ayer a la tarde" }), { hoy })).toBe("lesiones.error.imagen");
+    ["2026-02-30T10:00", "2025-13-05T10:00", "2026-09-01T25:99", "2026-09-01T24:00", "0026-09-01T10:00"].forEach((hora) =>
+      expect(validarLesion(conDatos({ hora_imagen: hora }), { hoy }), hora).toBe("lesiones.error.imagen"),
+    );
     expect(validarLesion(conDatos({ hora_imagen: "2026-09-02T10:30" }), { hoy })).toBe("");
     expect(validarLesion(base(), { hoy })).toBe("");
+  });
+
+  test("lo que el club escondió no se revisa: no se ve ni se puede corregir", () => {
+    const conImagenVieja = base({ datos: { ...base().datos, hora_imagen: "2026-08-20T10:00" } });
+    expect(validarLesion(conImagenVieja, { hoy })).toBe("lesiones.error.imagenAntes");
+    expect(validarLesion(conImagenVieja, { hoy, oculto: (clave) => clave === "hora_imagen" })).toBe("");
+    expect(validarLesion(base({ fecha_alta: "2026-08-30" }), { hoy, oculto: (clave) => clave === "fecha_alta" })).toBe("");
+  });
+
+  test("de cada error se sabe en qué columna se corrige, y una edición solo frena lo que rompe", () => {
+    const vieja = base({ datos: { parte_cuerpo: "coxa", lado: "direito", hora_imagen: "2026-08-20T10:00" } });
+    expect(erroresDeLesion(vieja, { hoy })).toEqual([
+      { clave: "tipo_lesion", error: "lesiones.error.tipo" },
+      { clave: "hora_imagen", error: "lesiones.error.imagenAntes" },
+    ]);
+    // A una lesión vieja sin tipo se le puede cambiar el médico, o arreglar
+    // una cosa sin la otra.
+    expect(erroresNuevos(vieja, conValor(vieja, "medico", "Dr. X"), { hoy })).toEqual([]);
+    expect(erroresNuevos(vieja, conValor(vieja, "tipo_lesion", "entorse"), { hoy })).toEqual([]);
+    expect(erroresNuevos(vieja, conValor(vieja, "hora_imagen", "2026-09-01T10:00"), { hoy })).toEqual([]);
+    // Lo que la edición rompe, sí.
+    expect(erroresNuevos(vieja, conValor(vieja, "lado", null), { hoy })).toEqual([{ clave: "lado", error: "lesiones.error.lado" }]);
+    expect(erroresNuevos(base(), conValor(base(), "hora_imagen", "2026-08-31T22:00"), { hoy })).toEqual([{ clave: "hora_imagen", error: "lesiones.error.imagenAntes" }]);
+    const otra = base({ id: "otra" });
+    expect(erroresNuevos(base({ id: "b", datos: { ...base().datos, lado: "esquerdo" } }), base({ id: "b" }), { hoy, otras: [otra] })).toEqual([
+      { clave: null, error: "lesiones.error.solapada" },
+    ]);
   });
 
   test("las horas entre la lesión y la imagen salen solas, desde el comienzo del día de la lesión", () => {
     expect(horasHastaLaImagen("2026-09-01", "2026-09-01T00:00")).toBe(0);
     expect(horasHastaLaImagen("2026-09-01", "2026-09-02T10:30")).toBe(35);
     expect(horasHastaLaImagen("2026-09-01", "2026-09-01 18:14")).toBe(18);
-    // Sin imagen, o con algo que no es una hora, no hay horas.
+    expect(horasHastaLaImagen("2026-09-01", "2026-09-01T18:30:00Z")).toBe(19);
+    // Se redondea como en la base, floor(x + 0,5): sin "-0" y igual con las negativas.
+    expect(Object.is(horasHastaLaImagen("2026-09-01", "2026-08-31T23:30"), 0)).toBe(true);
+    expect(horasHastaLaImagen("2026-09-10", "2026-09-09T21:30")).toBe(-2);
+    // Sin imagen, o con algo que no es una fecha y hora que exista, no hay horas.
     expect(horasHastaLaImagen("2026-09-01", "")).toBe(null);
     expect(horasHastaLaImagen("2026-09-01", "mañana")).toBe(null);
     expect(horasHastaLaImagen("", "2026-09-02T10:30")).toBe(null);
+    ["2026-02-30T10:00", "2025-13-05T10:00", "2026-09-01T25:99", "2026-09-01T24:00"].forEach((hora) => expect(horasHastaLaImagen("2026-02-01", hora), hora).toBe(null));
     expect(calcular("horas_imagen", base({ datos: { hora_imagen: "2026-09-03T08:00" } }))).toBe(56);
     expect(calcular("horas_imagen", base())).toBe(null);
+  });
+
+  test("las horas que se cargaban a mano se siguen viendo si no hay hora de la imagen", () => {
+    expect(calcular("horas_imagen", base({ datos: { horas_imagen: "12" } }))).toBe(12);
+    expect(calcular("horas_imagen", base({ datos: { horas_imagen: "12,5" } }))).toBe(12.5);
+    expect(calcular("horas_imagen", base({ datos: { horas_imagen: "doce" } }))).toBe(null);
+    // Con hora de la imagen manda la cuenta.
+    expect(calcular("horas_imagen", base({ datos: { horas_imagen: "12", hora_imagen: "2026-09-02T10:30" } }))).toBe(35);
+  });
+
+  test("la imagen se compara con el día de la lesión, por fecha", () => {
+    expect(errorImagenAntes(base({ datos: { hora_imagen: "2026-08-31T23:59" } }))).toBe("lesiones.error.imagenAntes");
+    expect(errorImagenAntes(base({ datos: { hora_imagen: "2026-09-01T00:00" } }))).toBe("");
+    expect(errorImagenAntes(base({ datos: {} }))).toBe("");
+    // Si la hora no existe, eso lo dice la columna (no esto).
+    expect(errorImagenAntes(base({ datos: { hora_imagen: "2026-08-31T25:00" } }))).toBe("");
+  });
+
+  test("la base va por n° de caso, como el Excel: las nuevas abajo", () => {
+    const lesiones = [
+      base({ id: "c", numero_caso: 3, fecha_lesion: "2026-08-01" }),
+      base({ id: "sin", numero_caso: null, fecha_lesion: "2026-07-01" }),
+      base({ id: "a", numero_caso: 1, fecha_lesion: "2026-09-01" }),
+      base({ id: "b", numero_caso: 2, fecha_lesion: "2026-06-01" }),
+    ];
+    expect(ordenarPorCaso(lesiones).map((lesion) => lesion.id)).toEqual(["a", "b", "c", "sin"]);
   });
 
   test("no deja dos lesiones a la vez en la misma parte del cuerpo y lado", () => {
@@ -349,7 +416,10 @@ describe("recidiva, plantel, revisión y cambios", () => {
     expect(errorDeCampo(base({ datos: { lado: "direito" } }), "parte_cuerpo", hoy)).toBe("lesiones.error.parte");
     expect(errorDeCampo(base({ datos: { parte_cuerpo: "coxa" } }), "lado", hoy)).toBe("lesiones.error.lado");
     expect(errorDeCampo(base({ datos: {} }), "tipo_lesion", hoy)).toBe("lesiones.error.tipo");
-    expect(errorDeCampo(base({ datos: { hora_imagen: "2026-08-20T10:00" } }), "hora_imagen", hoy)).toBe("lesiones.error.imagenAntes");
+    // Que la imagen no sea de antes de la lesión lo dice errorImagenAntes:
+    // compara dos columnas que se cargan en pasos distintos.
+    expect(errorDeCampo(base({ datos: { hora_imagen: "2026-08-20T10:00" } }), "hora_imagen", hoy)).toBe("");
+    expect(errorDeCampo(base({ datos: { hora_imagen: "2026-08-20T25:00" } }), "hora_imagen", hoy)).toBe("lesiones.error.imagen");
     expect(errorDeCampo(base({ datos: {} }), "hora_imagen", hoy)).toBe("");
     expect(errorDeCampo(base(), "medico", hoy)).toBe("");
   });

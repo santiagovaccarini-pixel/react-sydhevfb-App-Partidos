@@ -65,28 +65,48 @@ export const desdeTexto = (texto) => {
   return filas;
 };
 
-// Una fecha escrita a mano ("1/10/2026", "2026-10-01", "01-10-26") como ISO.
+// Una fecha ISO (yyyy-mm-dd) que existe de verdad: no un 30 de febrero ni un
+// mes 13.
+export const esFechaReal = (iso) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ""))) return false;
+  const fecha = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(fecha.getTime()) && fecha.toISOString().slice(0, 10) === iso;
+};
+
+// Una fecha escrita a mano ("1/10/2026", "2026-10-01", "01-10-26") como ISO:
+// día y mes, en ese orden. Si la fecha no existe, no se entiende.
 export const interpretarFecha = (texto) => {
   const t = String(texto ?? "").trim();
   if (!t) return null;
+  let iso;
   let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
-  m = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
+  if (m) iso = `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = iso ? null : t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
   if (m) {
     const anio = m[3].length === 2 ? `20${m[3]}` : m[3];
-    return `${anio}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    iso = `${anio}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
   }
-  return undefined;
+  return iso && esFechaReal(iso) ? iso : undefined;
 };
 
+// Una fecha con hora ("1/10/2026 8:05", "02/10/2026, 06:30 p. m.",
+// "2026-10-01T18:30") como la guarda un campo de fecha y hora; sin hora, las
+// 00:00. La hora tiene que existir (no 25:99); "p. m." o "PM" suma 12.
 export const interpretarFechaHora = (texto) => {
   const t = String(texto ?? "").trim();
   if (!t) return null;
-  const m = t.match(/^(.+?)[ T](\d{1,2}):(\d{2})/);
+  const m = t.match(/^(.+?),?[ T](\d{1,2}):(\d{2})(?::\d{2}(?:[.,]\d+)?)?(.*)$/);
   const fecha = interpretarFecha(m ? m[1] : t);
   if (!fecha) return fecha;
-  const hora = m ? `${m[2].padStart(2, "0")}:${m[3]}` : "00:00";
-  return `${fecha}T${hora}`;
+  if (!m) return `${fecha}T00:00`;
+  let hora = Number(m[2]);
+  const minuto = Number(m[3]);
+  const meridiano = (/^\s*([ap])\.?\s*m\.?\s*$/i.exec(m[4]) || [])[1]?.toLowerCase();
+  if (meridiano && (hora < 1 || hora > 12)) return undefined;
+  if (meridiano === "p" && hora < 12) hora += 12;
+  if (meridiano === "a" && hora === 12) hora = 0;
+  if (hora > 23 || minuto > 59) return undefined;
+  return `${fecha}T${String(hora).padStart(2, "0")}:${String(minuto).padStart(2, "0")}`;
 };
 
 // Un texto pegado en una celda, convertido al valor que guarda esa columna.

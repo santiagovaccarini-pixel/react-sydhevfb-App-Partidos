@@ -16,13 +16,15 @@ import {
   conValor,
   diasDeBaja,
   errorDeCampo,
+  errorImagenAntes,
+  erroresNuevos,
   estaActiva,
   etapaDe,
   horasHastaLaImagen,
   lesionVacia,
   lesionesActivas,
   normalizarTexto,
-  ordenarHistorial,
+  ordenarPorCaso,
   posibleRecidiva,
   validarLesion,
   valorDe,
@@ -295,6 +297,18 @@ export default function Lesiones({ onVolver }) {
   // Los pasos de la carga que tienen alguna columna a la vista (una columna
   // escondida en Ajustes puede dejar un paso vacío, y ese paso se saltea).
   const pasos = useMemo(() => PASOS.filter((unPaso) => unPaso.campos.some((clave) => !campoOculto(clave, config))), [config]);
+  // Lo que el club escondió no se revisa: no se ve ni se puede corregir.
+  const oculto = (clave) => campoOculto(clave, config);
+  // El día de la lesión va en un paso posterior al de la imagen (Evolución):
+  // la imagen se compara con él en ese paso, cuando ya está cargado.
+  const pasoDe = (clave) => pasos.findIndex((unPaso) => unPaso.campos.includes(clave));
+  const claveDelCruce = pasoDe("fecha_lesion") > pasoDe("hora_imagen") ? "fecha_lesion" : "hora_imagen";
+  // Las horas hasta la imagen que se muestran al cargar (si esa columna se ve).
+  const horasALaVista = (fecha, hora) => {
+    if (oculto("horas_imagen") || oculto("hora_imagen")) return null;
+    const horas = horasHastaLaImagen(fecha, hora);
+    return horas !== null && horas >= 0 ? horas : null;
+  };
   const lesionDetalle = detalleId ? lesiones.find((lesion) => lesion.id === detalleId) || null : null;
 
   const avisarError = (clave, lesion) =>
@@ -369,7 +383,15 @@ export default function Lesiones({ onVolver }) {
   const guardarFormulario = async () => {
     const lesion = formulario;
     const hoy = hoyISO();
-    const falta = validarLesion(lesion, { hoy, otras: lesiones });
+    // Lo que falta se muestra en el paso donde se corrige (al editar se puede
+    // guardar desde cualquier paso).
+    const pasoConError = pasos.findIndex((_, indice) => validarPaso(indice, lesion));
+    if (pasoConError >= 0) {
+      setErrorFormulario(validarPaso(pasoConError, lesion));
+      setPaso(pasoConError);
+      return;
+    }
+    const falta = validarLesion(lesion, { hoy, otras: lesiones, oculto });
     if (falta) {
       setErrorFormulario(
         t(falta, { parte: textoDeOpcion("parte_cuerpo", lesion.datos?.parte_cuerpo), lado: textoDeOpcion("lado", lesion.datos?.lado) }),
@@ -628,9 +650,10 @@ export default function Lesiones({ onVolver }) {
     return undefined;
   };
 
+  // Como en el Excel: por n° de caso, las nuevas abajo.
   const filasBase = useMemo(
     () =>
-      ordenarHistorial(lesiones).map((lesion) => ({
+      ordenarPorCaso(lesiones).map((lesion) => ({
         id: lesion.id,
         valores: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo.tipo === "jugador" ? lesion.jugador_id : valorDe(lesion, campo.clave)])),
         textos: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, enPantalla(campo, lesion)])),
@@ -649,7 +672,8 @@ export default function Lesiones({ onVolver }) {
     const lesion = lesiones.find((una) => una.id === lesionId);
     if (!lesion) return { error: "lesiones.error.noGuardar" };
     const nueva = conValor(lesion, clave, valor);
-    const falta = validarLesion(nueva, { hoy: hoyISO(), otras: lesiones });
+    // Solo frena lo que rompe esta edición (no lo que ya le faltaba a la lesión).
+    const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: lesiones, oculto })[0]?.error;
     if (falta) return { error: falta };
     const respuesta = await actualizarLesion(lesion.id, nueva);
     if (respuesta.error) return { error: respuesta.error };
@@ -669,7 +693,7 @@ export default function Lesiones({ onVolver }) {
       const lesion = lesiones.find((una) => una.id === lesionId);
       if (!lesion) continue;
       const nueva = suyos.reduce((acumulada, cambio) => conValor(acumulada, cambio.clave, cambio.valor), lesion);
-      const falta = validarLesion(nueva, { hoy: hoyISO(), otras: lesiones });
+      const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: lesiones, oculto })[0]?.error;
       if (falta) {
         ultimoError = falta;
         continue;
@@ -1139,25 +1163,34 @@ export default function Lesiones({ onVolver }) {
           </div>
         );
       }
-      case "fecha":
+      case "fecha": {
+        // Si el día de la lesión se carga después de la imagen, las horas se ven acá.
+        const horas = campo.clave === "fecha_lesion" && claveDelCruce === "fecha_lesion" ? horasALaVista(valor, lesion.datos?.hora_imagen) : null;
         return (
           <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
             <label>
               {rotulo} {opcional}
             </label>
             <input type="date" value={valor || ""} max={hoyISO()} onChange={(evento) => cambiar(evento.target.value)} />
+            {horas !== null && (
+              <small className="lesiones-ayuda">
+                {etiqueta("horas_imagen")}: {plural("lesiones.horas", horas)}
+              </small>
+            )}
           </div>
         );
+      }
       case "fecha_hora": {
-        // La hora de la imagen: las horas desde la lesión salen solas.
-        const horas = campo.clave === "hora_imagen" ? horasHastaLaImagen(lesion.fecha_lesion, valor) : null;
+        // La hora de la imagen: las horas desde la lesión salen solas (si el
+        // día de la lesión ya se cargó; si no, todavía es el de hoy).
+        const horas = campo.clave === "hora_imagen" && pasoMaximo >= pasoDe("fecha_lesion") ? horasALaVista(lesion.fecha_lesion, valor) : null;
         return (
           <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
             <label>
               {rotulo} {opcional}
             </label>
             <input type="datetime-local" value={valor || ""} onChange={(evento) => cambiar(evento.target.value)} />
-            {horas !== null && horas >= 0 && !campoOculto("horas_imagen", config) && (
+            {horas !== null && (
               <small className="lesiones-ayuda">
                 {etiqueta("horas_imagen")}: {plural("lesiones.horas", horas)}
               </small>
@@ -1340,13 +1373,17 @@ export default function Lesiones({ onVolver }) {
   };
 
   // Para pasar de paso se revisan las columnas de ese paso que están a la
-  // vista; al guardar se revisa todo.
+  // vista; al guardar se revisa todo. Que la imagen no sea de antes de la
+  // lesión se revisa en el paso del que se carga último de los dos.
   const validarPaso = (indice, lesion) => {
     const hoy = hoyISO();
     for (const clave of pasos[indice]?.campos || []) {
-      if (campoOculto(clave, config)) continue;
-      const falta = errorDeCampo(lesion, clave, hoy);
-      if (falta) return t(falta === "lesiones.error.jugador" ? "lesiones.pasos.sinJugador" : falta);
+      if (oculto(clave)) continue;
+      let falta = errorDeCampo(lesion, clave, hoy);
+      if (!falta && clave === claveDelCruce && !oculto("hora_imagen") && errorImagenAntes(lesion)) {
+        falta = clave === "fecha_lesion" ? "lesiones.error.lesionDespuesDeImagen" : "lesiones.error.imagenAntes";
+      }
+      if (falta) return t(falta === "lesiones.error.jugador" ? "lesiones.pasos.sinJugador" : falta, { imagen: fechaYHora(lesion.datos?.hora_imagen) });
     }
     return "";
   };

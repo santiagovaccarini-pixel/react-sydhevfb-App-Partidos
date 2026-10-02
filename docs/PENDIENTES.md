@@ -277,7 +277,10 @@ mover a una configuración por club:
   cambia desde Ajustes); el aviso al cargar (misma parte y lado, 60 días); las
   horas hasta la imagen se cuentan desde el comienzo del día de la lesión (la
   lesión no tiene hora), en la app y en la vista (`lesiones_horas_imagen`,
-  migración 20261006).
+  migración 20261006); las que se escribían a mano antes quedan guardadas y se
+  muestran si no hay hora de la imagen. La imagen se compara con el día de la
+  lesión en el paso de Evolución (donde se carga ese día), y al guardar o al
+  editar una celda solo frena lo que la edición rompe.
 
 Plan para moverlo: una tabla `lesiones_protocolo` por club (clave, valor) con
 los valores del Excel como semilla, igual que cabeceras y listas; se edita en

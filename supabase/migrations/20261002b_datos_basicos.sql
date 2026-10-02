@@ -19,11 +19,11 @@
 
 begin;
 
--- Corrida después de 20261006 volvería a las horas escritas a mano: se niega.
+-- Corrida después de 20261006 volvería a las horas escritas a mano: se niega
+-- (20261006 es la que crea lesiones_horas_imagen).
 do $$
 begin
-  if to_regclass('public.v_lesiones_excel_v1') is not null
-     and coalesce(obj_description('public.v_lesiones_excel_v1'::regclass, 'pg_class'), '') like '%20261006%' then
+  if to_regprocedure('public.lesiones_horas_imagen(text, date)') is not null then
     raise exception 'Ya está corrida 20261006_horas_imagen.sql: esta es anterior y no hace falta volver a correrla.';
   end if;
 end $$;

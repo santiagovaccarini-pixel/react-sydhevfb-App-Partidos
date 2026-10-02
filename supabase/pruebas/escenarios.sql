@@ -437,4 +437,28 @@ select pruebas.ser('eva@dos.com'); set role authenticated;
 select pruebas.esperar('En la de Dos, sí, con el resultado corregido', (select f ->> 'resultado' from datos_al_dia('registros_partido', :C2) f where f ->> 'rival' = 'Rival B'), '1-1');
 reset role;
 
+-- ------------------------------------ Horas entre la lesión y la imagen --
+
+select pruebas.esperar('Horas: del comienzo del día de la lesión a la imagen', public.lesiones_horas_imagen('2026-09-02T10:30', date '2026-09-01'), 35);
+select pruebas.esperar('...redondeadas como en la app: media hora antes da 0', public.lesiones_horas_imagen('2026-08-31T23:30', date '2026-09-01'), 0);
+select pruebas.esperar('...y -2,5 da -2', public.lesiones_horas_imagen('2026-09-09T21:30', date '2026-09-10'), -2);
+select pruebas.esperar('...con espacio y segundos, igual', public.lesiones_horas_imagen('2026-09-01 18:14:59', date '2026-09-01'), 18);
+select pruebas.esperar('Un 30 de febrero no da horas', public.lesiones_horas_imagen('2026-02-30T10:00', date '2026-02-01'), null::bigint);
+select pruebas.esperar('...ni las 24:00', public.lesiones_horas_imagen('2026-09-01T24:00', date '2026-09-01'), null::bigint);
+select pruebas.esperar('...ni las 25:99', public.lesiones_horas_imagen('2026-09-01T25:99', date '2026-09-01'), null::bigint);
+select pruebas.esperar('...ni el año 50', public.lesiones_horas_imagen('0050-09-01T10:00', date '2026-09-01'), null::bigint);
+select pruebas.esperar('...ni un texto', public.lesiones_horas_imagen('ayer', date '2026-09-01'), null::bigint);
+
+-- Lo que se escribía a mano antes queda en la vista si no hay hora de la imagen.
+insert into public.lesiones (equipo_id, jugador_id, fecha_lesion, fecha_alta, datos) values
+  (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"mao","lado":"direito","medico":"horas-1","horas_imagen":"12"}'),
+  (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"punho","lado":"direito","medico":"horas-2","horas_imagen":"12","hora_imagen":"2026-05-02T10:30"}'),
+  (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"cotovelo","lado":"direito","medico":"horas-3","horas_imagen":"doce"}'),
+  (:C1, 9002, '2026-05-01', '2026-05-02', '{"parte_cuerpo":"antebraco","lado":"direito","medico":"horas-4","horas_imagen":"6,5","hora_imagen":"2026-02-30T10:00"}');
+select pruebas.esperar('Vista: sin hora de la imagen, las horas escritas a mano', (select horas_passadas_imagem_lesao::text from v_lesiones_excel_v1 where medico = 'horas-1'), '12');
+select pruebas.esperar('...con hora de la imagen, la cuenta', (select horas_passadas_imagem_lesao::text from v_lesiones_excel_v1 where medico = 'horas-2'), '35');
+select pruebas.esperar('...lo que no es un número no rompe la vista', (select coalesce(horas_passadas_imagem_lesao::text, 'vacío') from v_lesiones_excel_v1 where medico = 'horas-3'), 'vacío');
+select pruebas.esperar('...y con una hora imposible, lo escrito a mano', (select horas_passadas_imagem_lesao::text from v_lesiones_excel_v1 where medico = 'horas-4'), '6.5');
+delete from public.lesiones where datos->>'medico' like 'horas-%';
+
 select 'ESCENARIOS: todos bien' as resultado;

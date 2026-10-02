@@ -27,7 +27,8 @@ export const CAMPOS = [
   { clave: "lado_habil", tipo: "calculado", lista: true, grupo: "descricao_geral", etiquetas: et("Lado hábil lesionado", "Lado habil Lesionado") },
   { clave: "hora_imagen", tipo: "fecha_hora", grupo: "descricao_geral", etiquetas: et("Hora de la imagen", "HORA DA IMAGEM") },
   { clave: "imagenes", tipo: "texto", grupo: "descricao_geral", etiquetas: et("Imágenes", "IMAGENS") },
-  { clave: "horas_imagen", tipo: "calculado", grupo: "descricao_geral", etiquetas: et("Horas entre la lesión y la imagen", 'Horas Passadas e/ "Imagem" e "Lesão"') },
+  // Antes se cargaba a mano: lo cargado se guarda igual y se muestra si no hay hora de la imagen.
+  { clave: "horas_imagen", tipo: "calculado", cargadoAntes: true, grupo: "descricao_geral", etiquetas: et("Horas entre la lesión y la imagen", 'Horas Passadas e/ "Imagem" e "Lesão"') },
   { clave: "ligamento", tipo: "lista", grupo: "descricao_especifica", etiquetas: et("Ligamento específico", "Lig Específico") },
   { clave: "musculo", tipo: "lista", grupo: "descricao_especifica", etiquetas: et("Músculo afectado", "Músculo afetado") },
   { clave: "musculo_especifico", tipo: "lista", grupo: "descricao_especifica", etiquetas: et("Músculo específico", "Músculo Específico") },

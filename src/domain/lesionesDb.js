@@ -3,7 +3,7 @@
 // { ..., error } con el error ya traducido a una clave del diccionario.
 import { supabase } from "../supabase.js";
 import { camposCambiados, claveDeErrorDeBase, normalizarLesion } from "./lesiones.js";
-import { armarConfig, esCalculado, filasParaSembrar } from "./lesionesCampos.js";
+import { armarConfig, campoPorClave, esCalculado, filasParaSembrar } from "./lesionesCampos.js";
 import { agregarJugador, cargarPlantel, normalizarJugador, quitarJugador } from "./plantel.js";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./alDia.js";
 
@@ -16,11 +16,12 @@ const fallo = (error, porDefecto) => ({
 });
 
 // Los vacíos no se guardan, y lo que el Excel calcula tampoco (se calcula
-// cada vez que se mira): así `datos` tiene solo lo cargado a mano.
+// cada vez que se mira): así `datos` tiene solo lo cargado a mano. Lo que se
+// cargó a mano en una columna que después pasó a calcularse queda.
 const limpiarDatos = (datos = {}) =>
   Object.fromEntries(
     Object.entries(datos || {})
-      .filter(([clave]) => !esCalculado(clave))
+      .filter(([clave]) => !esCalculado(clave) || campoPorClave(clave)?.cargadoAntes)
       .map(([clave, valor]) => [clave, typeof valor === "string" ? valor.trim() : valor])
       .filter(([, valor]) => valor !== null && valor !== undefined && valor !== ""),
   );
