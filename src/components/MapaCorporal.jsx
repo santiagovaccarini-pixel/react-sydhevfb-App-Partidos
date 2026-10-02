@@ -1,14 +1,18 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FiguraCuerpo } from "./FiguraCuerpo.jsx";
+import { EsquemaAnatomico, VistaAnatomica } from "./FiguraAnatomica.jsx";
+import { ESQUEMAS, cajaDeParte, esProfundo, esquemasDe, estructurasDe } from "./anatomiaCuerpo.js";
+import { ORDEN_DE_REGIONES, espejadaEn } from "./siluetaCuerpo.js";
 import { DE_ESPALDAS_PRIMERO, PARTES, REGIONES, TERCIOS, regionPorClave } from "../domain/mapaCorporal.js";
 import { t } from "../idioma/index.js";
 
 // La carga de una lesión con el cuerpo, de lo grande a lo chico:
 // ElegirZona (región de la figura → parte del cuerpo, con su lado) y
-// ElegirEstructura (en esa parte: grupo muscular → músculo → área, o el
-// ligamento). Siempre y solo con las opciones de las listas del club que
-// están a la vista; `mapa` (crearMapa) dice dónde va cada una, también las
-// que agregó el club.
+// ElegirEstructura (en esa parte, de cerca: los músculos, tendones y
+// ligamentos dibujados, y abajo sus botones: grupo muscular → músculo →
+// área, o el ligamento). Siempre y solo con las opciones de las listas del
+// club que están a la vista; `mapa` (crearMapa) dice dónde va cada una,
+// también las que agregó el club.
 
 // Las partes que de frente no se ven (o al revés): al elegirlas desde la
 // lista, la figura se da vuelta para mostrarlas.
@@ -208,11 +212,19 @@ export const ElegirZona = ({ parte, lado, partes, lados, opciones, mapa, textoDe
 
 export const CAMPOS_DE_ESTRUCTURA = ["musculo", "musculo_especifico", "ligamento", "area"];
 
+const LADOS_DE_UN_LADO = ["direito", "esquerdo"];
+
 // En la parte ya elegida: grupo muscular, músculo específico, ligamento y
 // área, con los botones de lo que va en esa parte. valores: lo cargado;
 // opciones(campo): las del club a la vista; visible(campo): si la columna
 // se muestra; mapa: el del club; onCambiar(cambios).
 export const ElegirEstructura = ({ parte, lado, vista = null, valores, opciones, visible, mapa, etiqueta, textoDeOpcion, onCambiar }) => {
+  // Con un músculo profundo elegido, la figura muestra los profundos (al
+  // volver al paso, al editar, o al elegirlo en los botones de abajo).
+  const [capa, setCapa] = useState(() => (esProfundo(valores.musculo_especifico) ? "profunda" : "superficie"));
+  useEffect(() => {
+    if (esProfundo(valores.musculo_especifico)) setCapa("profunda");
+  }, [valores.musculo_especifico]);
   const region = mapa.regionDe(parte, lado);
   const pieza = mapa.piezaDe(parte, region) || parte;
   const delClub = (campo, codigos) => {
@@ -242,22 +254,70 @@ export const ElegirEstructura = ({ parte, lado, vista = null, valores, opciones,
 
   // Un músculo específico que en esta parte es de un solo grupo completa el
   // grupo si estaba vacío (como se carga en el Excel), si esa columna y ese
-  // grupo están a la vista en el club.
-  const elegirEspecifico = (codigo) => {
+  // grupo están a la vista en el club. Si no está entre los del grupo
+  // elegido (se tocó en la figura uno de otro grupo), pasa a su grupo, o queda
+  // sin grupo si no se sabe cuál.
+  const cambiosDeEspecifico = (codigo) => {
     const cambios = { musculo_especifico: codigo };
-    if (codigo && !valores.musculo && visible("musculo")) {
-      const grupos = mapa.gruposDe(parte, codigo).filter((uno) => listas.musculo.some((opcion) => opcion.valor === uno));
-      if (grupos.length === 1) cambios.musculo = grupos[0];
+    if (codigo && visible("musculo")) {
+      const aLaVista = mapa.gruposDe(parte, codigo).filter((uno) => listas.musculo.some((opcion) => opcion.valor === uno));
+      if (!valores.musculo) {
+        if (aLaVista.length === 1) cambios.musculo = aLaVista[0];
+      } else if (!mapa.especificosDe(parte, valores.musculo).includes(codigo)) {
+        cambios.musculo = aLaVista.length === 1 ? aLaVista[0] : null;
+      }
+    }
+    return cambios;
+  };
+  const elegirEspecifico = (codigo) => onCambiar(cambiosDeEspecifico(codigo));
+
+  // Otro grupo: el músculo específico de otro grupo de esta parte ya no vale.
+  const cambiosDeGrupo = (valor) => {
+    const cambios = { musculo: valor };
+    if (mapa.especificoQueNoEsDe(parte, valor, valores.musculo_especifico)) cambios.musculo_especifico = null;
+    return cambios;
+  };
+  const elegirGrupo = (valor) => onCambiar(cambiosDeGrupo(valor));
+
+  // ------------------------------------------------- La figura de cerca --
+  // Se toca lo que va en esta parte según las listas (de cualquier grupo:
+  // tocar un músculo de otro grupo cambia el grupo). En un brazo o una
+  // pierna, solo de su lado; en el tronco, de los dos (y tocar un lado elige
+  // ese lado).
+  const ladoDeLaParte = region ? regionPorClave(region)?.lado || null : null;
+  const ofrecidas = new Set([
+    ...(visible("musculo") ? listas.musculo : []).map((opcion) => `musculo:${opcion.valor}`),
+    ...(visible("musculo_especifico") ? delClub("musculo_especifico", mapa.especificosDe(parte, null)) : []).map((opcion) => `musculo_especifico:${opcion.valor}`),
+    ...(visible("ligamento") ? listas.ligamento : []).map((opcion) => `ligamento:${opcion.valor}`),
+  ]);
+  const ladoDe = (estructura, enRegion) => estructura.lado || regionPorClave(enRegion)?.lado || null;
+  const sePuedeTocar = (estructura, enRegion) => {
+    if (!ofrecidas.has(`${estructura.campo}:${estructura.codigo}`)) return false;
+    const suLado = ladoDe(estructura, enRegion);
+    return !ladoDeLaParte || !suLado || suLado === ladoDeLaParte;
+  };
+  // Pintada: la elegida (en el tronco, del lado cargado) y, más suave, los
+  // músculos del grupo elegido.
+  const estadoDe = (estructura, enRegion) => {
+    if (!sePuedeTocar(estructura, enRegion)) return "apagada";
+    const suLado = ladoDe(estructura, enRegion);
+    const delLado = Boolean(ladoDeLaParte) || !suLado || !LADOS_DE_UN_LADO.includes(lado) || suLado === lado;
+    if (!delLado) return "";
+    if (valores[estructura.campo] === estructura.codigo) return "elegida";
+    if (estructura.campo === "musculo_especifico" && grupo && mapa.gruposDe(parte, estructura.codigo).includes(grupo)) return "del-grupo";
+    return "";
+  };
+  const tocarEnLaFigura = (estructura, enRegion) => {
+    const valor = estadoDe(estructura, enRegion) === "elegida" ? null : estructura.codigo;
+    const cambios =
+      estructura.campo === "musculo" ? cambiosDeGrupo(valor) : estructura.campo === "musculo_especifico" ? cambiosDeEspecifico(valor) : { [estructura.campo]: valor };
+    const suLado = ladoDe(estructura, enRegion);
+    if (valor && !ladoDeLaParte && suLado && (!lado || LADOS_DE_UN_LADO.includes(lado)) && opciones("lado").some((opcion) => opcion.valor === suLado)) {
+      cambios.lado = suLado;
     }
     onCambiar(cambios);
   };
-
-  // Otro grupo: el músculo específico de otro grupo de esta parte ya no vale.
-  const elegirGrupo = (valor) => {
-    const cambios = { musculo: valor };
-    if (mapa.especificoQueNoEsDe(parte, valor, valores.musculo_especifico)) cambios.musculo_especifico = null;
-    onCambiar(cambios);
-  };
+  const nombreDe = (estructura) => textoDeOpcion(estructura.campo, estructura.codigo);
 
   // Lo cargado que no está entre los botones (de otra parte, o una opción
   // que se escondió) se ve igual, prendido, para poder sacarlo.
@@ -295,6 +355,23 @@ export const ElegirEstructura = ({ parte, lado, vista = null, valores, opciones,
   const nombreDeParte = textoDeOpcion("parte_cuerpo", parte);
   const conLado = lado && lado !== "nao_se_aplica" ? `${nombreDeParte} · ${textoDeOpcion("lado", lado)}` : nombreDeParte;
 
+  // La figura de cerca: de frente y de espaldas (primero desde donde se
+  // eligió la zona; una parte que se ve de un solo lado, de ese lado), los
+  // esquemas de la articulación y, si hay músculos debajo de otros, la capa
+  // profunda. Solo si hay algo para tocar.
+  const esquemas = region ? esquemasDe(pieza) : [];
+  const tocablesEn = (cual) =>
+    (region ? ORDEN_DE_REGIONES.flatMap((clave) => estructurasDe(clave, cual).map((estructura) => ({ estructura, clave }))) : []).filter(({ estructura, clave }) => sePuedeTocar(estructura, clave));
+  // Con esquemas (el pie), una vista sin nada para tocar no se muestra.
+  const vistas = (deUnSoloLado ? [vistaDeLaParte] : vistaDeLaParte === "espalda" ? ["espalda", "frente"] : ["frente", "espalda"]).filter((cual) => !esquemas.length || tocablesEn(cual).length);
+  const dibujadas = [
+    ...vistas.flatMap(tocablesEn),
+    ...esquemas.flatMap((cual) => ESQUEMAS[cual].piezas.filter((una) => una.codigo && sePuedeTocar(una, region)).map((estructura) => ({ estructura, clave: region }))),
+  ];
+  const conFigura = Boolean(region && (esquemas.length || cajaDeParte(pieza, region, vistas[0]))) && dibujadas.length > 0;
+  const conProfundos = conFigura && dibujadas.some(({ estructura }) => estructura.capa === "profunda");
+  const capaVisible = conProfundos ? capa : "superficie";
+
   return (
     <div className="mapa-cuerpo mapa-cuerpo-estructura">
       <div className="mapa-cuerpo-ubicacion">
@@ -304,9 +381,66 @@ export const ElegirEstructura = ({ parte, lado, vista = null, valores, opciones,
         <div>
           <p className="rotulo-criterio">{t("lesiones.cuerpo.ubicacion")}</p>
           <b>{conLado}</b>
-          <p className="mapa-cuerpo-ayuda">{secciones.length || conArea ? t("lesiones.cuerpo.estructuraTexto") : t("lesiones.cuerpo.sinEstructuras")}</p>
+          <p className="mapa-cuerpo-ayuda">
+            {conFigura ? t("lesiones.cuerpo.estructuraFigura") : secciones.length || conArea ? t("lesiones.cuerpo.estructuraTexto") : t("lesiones.cuerpo.sinEstructuras")}
+          </p>
         </div>
       </div>
+
+      {conFigura && (
+        <div className="mapa-cuerpo-anatomia">
+          {conProfundos && (
+            <div className="grilla-criterios mapa-cuerpo-vista" role="group" aria-label={t("lesiones.cuerpo.capa")}>
+              {["superficie", "profunda"].map((cual) => (
+                <button type="button" key={cual} className={`chip-criterio ${capaVisible === cual ? "prendido" : ""}`} aria-pressed={capaVisible === cual} onClick={() => setCapa(cual)}>
+                  {t(`lesiones.cuerpo.capas.${cual}`)}
+                </button>
+              ))}
+            </div>
+          )}
+          {vistas.length > 0 && (
+            <div className={`mapa-cuerpo-anatomia-vistas ${vistas.length === 1 ? "una" : ""}`.trim()}>
+              {vistas.map((cual) => (
+                <VistaAnatomica
+                  key={cual}
+                  pieza={pieza}
+                  region={region}
+                  vista={cual}
+                  capa={capaVisible}
+                  titulo={t(`lesiones.cuerpo.${cual}`)}
+                  estadoDe={estadoDe}
+                  nombreDe={nombreDe}
+                  onTocar={tocarEnLaFigura}
+                />
+              ))}
+            </div>
+          )}
+          {esquemas.length > 0 && (
+            <div className="mapa-cuerpo-anatomia-esquemas">
+              {esquemas.map((cual) => (
+                <EsquemaAnatomico
+                  key={cual}
+                  cual={cual}
+                  region={region}
+                  espejado={espejadaEn(region, "frente")}
+                  titulo={t(`lesiones.cuerpo.esquemas.${cual}`)}
+                  rotulo={(clave) => t(`lesiones.cuerpo.rotulos.${clave}`)}
+                  estadoDe={estadoDe}
+                  nombreDe={nombreDe}
+                  onTocar={tocarEnLaFigura}
+                />
+              ))}
+            </div>
+          )}
+          <p className="mapa-cuerpo-leyenda" aria-hidden="true">
+            {["musculos", "tendones", "ligamentos"].map((cual) => (
+              <span key={cual} className={cual}>
+                {t(`lesiones.cuerpo.leyenda.${cual}`)}
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
 
       {secciones}
 
