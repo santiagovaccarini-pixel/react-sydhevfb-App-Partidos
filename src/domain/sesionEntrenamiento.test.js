@@ -79,7 +79,7 @@ describe("resumenTarea y problemasDeTarea", () => {
     expect(problemas).toContain("Falta el nombre.");
     expect(problemas).toContain("Falta el inicio o el fin, o el fin no es posterior al inicio.");
     expect(problemas).toContain("La pausa 1 está incompleta.");
-    expect(problemas).toContain("LEMOS no tiene chaleco. Asignalo en Ajustes › Lista de jugadores.");
+    expect(problemas).toContain("LEMOS no tiene chaleco. Asignalo en Datos básicos › Catapult.");
     expect(problemas).toContain("jugador 9 ya no está en la lista.");
     expect(problemas).toContain("IGOR GOMES: falta el inicio o el fin parcial.");
   });

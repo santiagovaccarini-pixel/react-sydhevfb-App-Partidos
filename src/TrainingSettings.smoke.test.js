@@ -5,7 +5,6 @@ import TrainingSettings from "./TrainingSettings";
 import { interpretarRespuesta, resumirSonda } from "../lib/openfieldProbe.js";
 
 // La lista de jugadores tiene sus propios tests; acá se aísla.
-vi.mock("./TrainingJugadores", () => ({ default: () => null }));
 
 // Como en el módulo: la subpantalla de Ajustes vive en el padre.
 const Ajustes = ({ onVolverModulos = () => {}, onCerrarSesion = () => {} }) => {
@@ -168,7 +167,6 @@ describe("TrainingSettings", () => {
     expect(contenedor.querySelector("h1").textContent).toBe("Ajustes");
     expect([...contenedor.querySelectorAll(".opcion-ajuste .texto-ajuste b")].map((b) => b.textContent)).toEqual([
       "Usuario y contraseña",
-      "Lista de jugadores",
       "Pruebas técnicas",
       "Cerrar sesión",
     ]);

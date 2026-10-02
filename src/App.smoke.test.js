@@ -1363,12 +1363,12 @@ describe("interfaz operativa", () => {
     expect(contenedor.textContent).toContain("Santos");
     expect(Array.from(contenedor.querySelectorAll("button")).some((boton) => boton.textContent.includes("Editar registro"))).toBe(false);
 
-    // Ajustes: ni el equipo ni los jugadores se tocan.
+    // Ajustes: el equipo no se toca (los jugadores están en Datos básicos).
     await act(async () => irAPestana("Ajustes").click());
     const opcion = (texto) =>
       Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) => boton.textContent.includes(texto));
     expect(opcion("Equipo").disabled).toBe(true);
-    expect(opcion("Jugadores").disabled).toBe(true);
+    expect(opcion("Jugadores")).toBeUndefined();
 
     // Nada se subió, lo pendiente sigue guardado y la foto no quedó en el celular.
     expect(doblesSupabase.insertar).not.toHaveBeenCalled();
@@ -2522,7 +2522,18 @@ describe("interfaz operativa", () => {
     expect(renglones[1].textContent).toBe("↓ ARANA↑ HULK");
   });
 
-  test("Ajustes lleva al plantel y lo muestra desde la base", async () => {
+  // La lista de jugadores está en Datos básicos: Partido la usa (la cancha y
+  // los desplegables) pero no la edita.
+  const ofrecidosEnLaCancha = async (indice = 0) => {
+    const formacion = Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find((boton) => boton.textContent.includes("Formación"));
+    await act(async () => formacion.click());
+    const ingresar = Array.from(contenedor.querySelectorAll("button")).find((boton) => boton.textContent.includes("Ingresar Formación"));
+    await act(async () => ingresar.click());
+    await act(async () => contenedor.querySelectorAll(".pista .puesto-cancha")[indice].click());
+    return Array.from(contenedor.querySelectorAll(".lista-elegir button")).map((boton) => boton.textContent.replace("en cancha", "").trim());
+  };
+
+  test("la lista de jugadores ya no está en Ajustes y la cancha ofrece el plantel de la base", async () => {
     doblesSupabase.jugadores = [
       { id: 1, nombre: "ALONSO", roles: ["Mediocampo"], puestos: ["VM", "LAT"] },
       { id: 2, nombre: "HULK", roles: ["Ataque"], puestos: ["DEL"] },
@@ -2541,18 +2552,11 @@ describe("interfaz operativa", () => {
 
     await act(async () => irA("Ajustes").click());
     expect(contenedor.querySelector("h1").textContent).toBe("Ajustes");
+    expect(opcion("Jugadores")).toBeUndefined();
 
-    await act(async () => opcion("Jugadores").click());
-    await act(async () => opcion("Lista").click());
-
-    expect(contenedor.querySelector("h1").textContent).toBe("Lista");
-    expect(
-      Array.from(contenedor.querySelectorAll(".nombre-lista")).map((x) =>
-        x.textContent.trim(),
-      ),
-    ).toEqual(["ALONSO", "HULK"]);
+    // El primer puesto es de defensa: sin nadie de esa línea, se ofrecen todos.
+    expect(await ofrecidosEnLaCancha(0)).toEqual(["ALONSO", "HULK"]);
   });
-
   test("un partido se puede cargar de visitante y los escudos se dan vuelta", async () => {
     await montarApp();
 
@@ -3294,150 +3298,17 @@ describe("interfaz operativa", () => {
     const volver = () => contenedor.querySelector(".boton-volver");
 
     await act(async () => irA("Ajustes").click());
-    await act(async () => opcion("Jugadores").click());
-    await act(async () => opcion("Lista").click());
+    await act(async () => opcion("Equipo").click());
 
     // Cuando el botón va solo dice a dónde lleva, que es el dato que faltaba
     // cuando estaba al final de todo y decía nada más "Volver".
-    expect(volver().textContent).toContain("Volver a Jugadores");
+    expect(volver().textContent).toContain("Volver a Ajustes");
     // La flecha va dibujada: con el caracter "←" el botón parecía texto.
     expect(volver().querySelector("svg")).not.toBeNull();
 
     await act(async () => volver().click());
-    expect(contenedor.querySelector("h1").textContent).toBe("Jugadores");
-    expect(volver().textContent).toContain("Volver a Ajustes");
-
-    await act(async () => volver().click());
     expect(contenedor.querySelector("h1").textContent).toBe("Ajustes");
   });
-
-  test("agregar un jugador lo manda a la base y a la lista", async () => {
-    doblesSupabase.jugadores = [
-      { id: 1, nombre: "ALONSO", roles: [], puestos: [] },
-    ];
-
-    await montarApp();
-
-    const irA = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
-        (boton) => boton.textContent.includes(etiqueta),
-      );
-    const opcion = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
-        boton.textContent.includes(etiqueta),
-      );
-
-    await act(async () => irA("Ajustes").click());
-    await act(async () => opcion("Jugadores").click());
-    await act(async () => opcion("Lista").click());
-
-    const campo = contenedor.querySelector(".agregar-jugador input");
-    const escribir = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value",
-    ).set;
-    await act(async () => {
-      escribir.call(campo, "FRED");
-      campo.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-
-    await act(async () => {
-      contenedor.querySelector(".agregar-jugador button").click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(doblesSupabase.insertarJugador).toHaveBeenCalledTimes(1);
-    expect(doblesSupabase.insertarJugador.mock.calls[0][0][0]).toMatchObject({
-      nombre: "FRED",
-    });
-
-    // Y aparece en la lista, ordenado.
-    expect(
-      Array.from(contenedor.querySelectorAll(".nombre-lista")).map((x) =>
-        x.textContent.trim(),
-      ),
-    ).toEqual(["ALONSO", "FRED"]);
-  });
-
-  test("marcar un rol lo guarda sin botón de guardar", async () => {
-    doblesSupabase.jugadores = [
-      { id: 1, nombre: "ALONSO", roles: [], puestos: ["VM"] },
-    ];
-
-    await montarApp();
-
-    const irA = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
-        (boton) => boton.textContent.includes(etiqueta),
-      );
-    const opcion = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
-        boton.textContent.includes(etiqueta),
-      );
-
-    await act(async () => irA("Ajustes").click());
-    await act(async () => opcion("Jugadores").click());
-    await act(async () => opcion("Posiciones").click());
-
-    const rol = Array.from(contenedor.querySelectorAll(".chip-rol")).find(
-      (boton) => boton.textContent.trim() === "Mediocampo",
-    );
-    expect(rol.className).not.toContain("activo");
-
-    await act(async () => {
-      rol.click();
-      await Promise.resolve();
-    });
-
-    expect(doblesSupabase.actualizarJugador).toHaveBeenCalledTimes(1);
-    expect(doblesSupabase.actualizarJugador.mock.calls[0][0]).toMatchObject({
-      roles: ["Mediocampo"],
-      puestos: ["VM"],
-    });
-
-    // Y queda marcado en pantalla, sin recargar.
-    expect(
-      Array.from(contenedor.querySelectorAll(".chip-rol.activo")).map((x) =>
-        x.textContent.trim(),
-      ),
-    ).toEqual(["Mediocampo"]);
-  });
-
-  test("con cuatro puestos ya no se puede sumar otro", async () => {
-    doblesSupabase.jugadores = [
-      { id: 1, nombre: "ZARACHO", roles: [], puestos: ["VO", "VM", "MP", "EXT"] },
-      { id: 2, nombre: "HULK", roles: [], puestos: ["DEL"] },
-    ];
-
-    await montarApp();
-
-    const irA = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
-        (boton) => boton.textContent.includes(etiqueta),
-      );
-    const opcion = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
-        boton.textContent.includes(etiqueta),
-      );
-
-    await act(async () => irA("Ajustes").click());
-    await act(async () => opcion("Jugadores").click());
-    await act(async () => opcion("Posiciones").click());
-
-    const bloques = contenedor.querySelectorAll(".jugador-puestos");
-    const puestosDe = (bloque) =>
-      Array.from(bloque.querySelectorAll(".boton-puesto")).map((x) =>
-        x.textContent.trim(),
-      );
-
-    // El plantel viene alfabético, así que HULK va primero: con un solo
-    // puesto le queda el botón de agregar.
-    expect(puestosDe(bloques[0])).toEqual(["DEL", "+"]);
-    // Y ZARACHO, con los cuatro llenos, ya no lo tiene.
-    expect(puestosDe(bloques[1])).toEqual(["VO", "VM", "MP", "EXT"]);
-  });
-
   test("si la base no responde, quedan los nombres que se vieron de ese club", async () => {
     // La copia del teléfono es por club: con la base caída se muestra la de
     // este equipo, no la del que se estaba mirando antes.
@@ -3452,25 +3323,9 @@ describe("interfaz operativa", () => {
 
     await montarApp();
 
-    const irA = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
-        (boton) => boton.textContent.includes(etiqueta),
-      );
-    const opcion = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
-        boton.textContent.includes(etiqueta),
-      );
-
-    await act(async () => irA("Ajustes").click());
-    await act(async () => opcion("Jugadores").click());
-    await act(async () => opcion("Lista").click());
-
-    const nombres = Array.from(contenedor.querySelectorAll(".nombre-lista")).map(
-      (x) => x.textContent.trim(),
-    );
-    expect(nombres).toEqual(["VITAO", "SCARPA"]);
+    // El primer puesto es de defensa: ofrece a VITAO.
+    expect(await ofrecidosEnLaCancha(0)).toEqual(["VITAO"]);
   });
-
   test("un club sin plantel no muestra el de otro", async () => {
     // Antes, un equipo recién creado caía al plantel del código —el del
     // Mineiro— o al que hubiera quedado del club anterior.
@@ -3487,23 +3342,9 @@ describe("interfaz operativa", () => {
 
     await montarApp();
 
-    const irA = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".navegacion-movil button")).find(
-        (boton) => boton.textContent.includes(etiqueta),
-      );
-    const opcion = (etiqueta) =>
-      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) =>
-        boton.textContent.includes(etiqueta),
-      );
-
-    await act(async () => irA("Ajustes").click());
-    await act(async () => opcion("Jugadores").click());
-    await act(async () => opcion("Lista").click());
-
-    expect(contenedor.querySelectorAll(".nombre-lista")).toHaveLength(0);
-    expect(contenedor.textContent).toContain("Todavía no hay jugadores");
+    expect(await ofrecidosEnLaCancha(0)).toEqual([]);
+    expect(contenedor.textContent).toContain("No hay nadie cargado en el plantel. Se agregan en Datos básicos.");
   });
-
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await montarApp();
 

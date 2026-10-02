@@ -394,7 +394,7 @@ export const HojaJugadores = ({
       {estadoPlantel === "cargando" && <p className="vacio-ficha">Leyendo la lista de jugadores…</p>}
       {estadoPlantel === "error" && <p className="error-equipo">{errorPlantel}</p>}
       {estadoPlantel === "listo" && plantel.length === 0 && (
-        <p className="vacio-ficha">La lista de jugadores está vacía. Cargala en Ajustes › Lista de jugadores.</p>
+        <p className="vacio-ficha">La lista de jugadores está vacía. Cargala en Datos básicos.</p>
       )}
 
       <div className="lista-jugadores-tarea">

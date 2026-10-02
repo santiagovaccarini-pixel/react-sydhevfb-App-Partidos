@@ -10,8 +10,9 @@ de lo hecho está en los commits, no en esta lista.
 
 - Entrenamiento ya tiene la cara de Partido: inicio con la sesión elegida,
   Tareas con tarjetas plegables y una pantalla aparte para enviar, Ajustes con
-  opciones (Usuario y contraseña, Lista de jugadores, Pruebas técnicas,
-  Cambiar de módulo, Cerrar sesión) y textos sin jerga ("chaleco", "bloque").
+  opciones (Usuario y contraseña, Pruebas técnicas, Cambiar de módulo, Cerrar
+  sesión) y textos sin jerga ("chaleco", "bloque"). La lista de jugadores y sus
+  chalecos pasaron a Datos básicos (02/10).
 - **Pendiente de mirar en un celular real**: la altura de los campos de hora
   con AM/PM (en la prueba de escritorio se ven apretados), y el aviso de
   "sin señal" en la cancha.
@@ -205,6 +206,11 @@ de lo hecho está en los commits, no en esta lista.
 - **Datos básicos** (`src/DatosBasicos.jsx`) es un módulo más del portal, para cualquiera con
   algún módulo: los jugadores del club (los mismos de Partido y Flujo diario) con nombre,
   categoría, nacimiento, edad, pie dominante, posición y foto, en la misma tabla.
+  **Es el único lugar con la lista de jugadores (02/10)**: Partido ya no tiene Ajustes ›
+  Jugadores ni Flujo diario Ajustes › Lista de jugadores. Lo que estaba ahí se mudó igual:
+  la solapa **Posiciones** (los puestos y roles de Partido, `src/components/PosicionesPartido.jsx`)
+  y la solapa **Catapult** (el chaleco de cada jugador, `src/components/VinculosCatapult.jsx`;
+  solo para quien tiene Flujo diario, porque busca los chalecos con esa cuenta).
 - **Pegar desde Excel (02/10)**, en Datos básicos (`src/ImportarJugadores.jsx` y
   `src/domain/importarJugadores.js`): se copia la hoja "Datos Básicos" del Excel con su fila
   de cabeceras y se pega. Antes de guardar se ve qué pasa con cada fila: jugador nuevo, ya

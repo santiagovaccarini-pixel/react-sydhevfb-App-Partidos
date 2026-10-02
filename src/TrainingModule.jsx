@@ -16,7 +16,7 @@ export const DESTINOS_ENTRENAMIENTO = [
 
 export const CLAVE_VISTA = "entrenamiento_vista";
 
-const VISTAS_AJUSTES = ["inicio", "cuenta", "jugadores", "pruebas"];
+const VISTAS_AJUSTES = ["inicio", "cuenta", "pruebas"];
 
 // La app arranca siempre en Inicio: al reabrirla no tiene que aparecer en
 // Ajustes ni en el medio de otra cosa. La clave quedó de una versión que
@@ -31,8 +31,9 @@ const olvidarVistaGuardada = () => {
 
 // Entrenamiento con el mismo marco que Partido: barra lateral en escritorio y
 // barra inferior en el celular. Inicio empieza o reabre un entrenamiento (por
-// fecha), Tareas lo registra y Ajustes guarda el usuario y los jugadores. La
-// sesión de OpenField se elige recién al enviar los cortes.
+// fecha), Tareas lo registra y Ajustes guarda el usuario (los jugadores y
+// sus chalecos están en Datos básicos). La sesión de OpenField se elige
+// recién al enviar los cortes.
 export default function TrainingModule({ onVolver, email = "", onCerrarSesion }) {
   const [vista, setVista] = useState("inicio");
   const [vistaAjustes, setVistaAjustesEstado] = useState("inicio");

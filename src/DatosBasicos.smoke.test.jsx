@@ -7,7 +7,20 @@ const plantelInicial = () => [
   { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
   { id: 8, nombre: "SCARPA", roles: [], puestos: ["VOL"], categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
 ];
-const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], plantel: [], fallarAgregar: "", equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
+const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], puestos: [], plantel: [], fallarAgregar: "", fallarPuestos: false, equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
+
+// Las posiciones de Partido y los chalecos de Catapult (plantel.js).
+vi.mock("./domain/plantel.js", () => ({
+  MAXIMO_PUESTOS: 4,
+  ROLES: ["Defensa", "Mediocampo", "Ataque"],
+  PUESTOS: ["LAT", "CAR", "DEF", "VD", "VC", "VM", "VOL", "VO", "EXT", "MP", "DEL"].map((sigla) => ({ sigla, nombre: sigla })),
+  guardarPuestos: async (id, cambios) => {
+    registro.puestos.push({ id, ...cambios });
+    return registro.fallarPuestos ? { error: "sin conexión" } : {};
+  },
+  cargarPlantelConCatapult: async () => ({ plantel: registro.plantel.map((jugador) => ({ ...jugador, catapult_id: null, catapult_nombre: null })), error: "" }),
+  guardarVinculoCatapult: async () => ({}),
+}));
 
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => registro.equipo,
@@ -78,16 +91,68 @@ describe("el módulo Datos básicos", () => {
   afterEach(async () => {
     await act(async () => raiz.unmount());
     contenedor.remove();
-    ["guardados", "agregados", "borrados"].forEach((clave) => {
+    registro.fallarPuestos = false;
+    ["guardados", "agregados", "borrados", "puestos"].forEach((clave) => {
       registro[clave].length = 0;
     });
   });
 
-  const montar = async () => {
-    await act(async () => raiz.render(<DatosBasicos onVolver={() => {}} />));
+  const montar = async (permisos = null) => {
+    await act(async () => raiz.render(<DatosBasicos onVolver={() => {}} permisos={permisos} />));
     await act(async () => Promise.resolve());
     await act(async () => Promise.resolve());
   };
+
+  const irA = (contenedor, nombre) => tocar([...contenedor.querySelectorAll(".navegacion-movil button")].find((b) => b.textContent.includes(nombre)));
+
+  test("las posiciones de Partido se cargan acá: un rol se guarda al toque y con cuatro puestos no se suma otro", async () => {
+    registro.plantel = [
+      { ...plantelInicial()[0], puestos: ["VO", "VM", "MP", "EXT"], roles: [] },
+      { ...plantelInicial()[1], puestos: ["VM"], roles: [] },
+    ];
+    await montar();
+    await irA(contenedor, "Posiciones");
+    expect(texto(contenedor)).toContain("Dónde juega cada uno");
+    expect(contenedor.querySelector("table")).toBeNull();
+    const bloques = () => [...contenedor.querySelectorAll(".jugador-puestos")];
+    const puestosDe = (bloque) => [...bloque.querySelectorAll(".boton-puesto")].map((b) => b.textContent.trim());
+    expect(puestosDe(bloques()[0])).toEqual(["VO", "VM", "MP", "EXT"]);
+    expect(puestosDe(bloques()[1])).toEqual(["VM", "+"]);
+    // Un rol se guarda sin botón de guardar y queda marcado.
+    const mediocampo = [...bloques()[1].querySelectorAll(".chip-rol")].find((b) => b.textContent === "Mediocampo");
+    await tocar(mediocampo);
+    expect(registro.puestos).toEqual([{ id: 8, roles: ["Mediocampo"], puestos: ["VM"] }]);
+    expect([...bloques()[1].querySelectorAll(".chip-rol.activo")].map((b) => b.textContent)).toEqual(["Mediocampo"]);
+    // Un puesto nuevo, desde el "+".
+    await tocar(bloques()[1].querySelector(".boton-puesto.vacio"));
+    await tocar([...bloques()[1].querySelectorAll(".lista-puestos button")].find((b) => b.textContent.startsWith("DEL")));
+    expect(registro.puestos[1]).toEqual({ id: 8, roles: ["Mediocampo"], puestos: ["VM", "DEL"] });
+    // El buscador.
+    await escribir(contenedor.querySelector(".buscador-plantel"), "scar");
+    expect(bloques()).toHaveLength(1);
+  });
+
+  test("si un puesto no se puede guardar, se avisa y se vuelve a leer lo de la base", async () => {
+    registro.fallarPuestos = true;
+    await montar();
+    await irA(contenedor, "Posiciones");
+    const ataque = [...contenedor.querySelectorAll(".jugador-puestos")[0].querySelectorAll(".chip-rol")].find((b) => b.textContent === "Ataque");
+    await tocar(ataque);
+    await act(async () => Promise.resolve());
+    expect(texto(contenedor)).toContain("No se pudo guardar.");
+    expect(contenedor.querySelectorAll(".jugador-puestos")[0].querySelectorAll(".chip-rol.activo")).toHaveLength(0);
+  });
+
+  test("los chalecos de Catapult están acá para quien tiene Flujo diario", async () => {
+    await montar({ partido: true, flujo: true, lesiones: false, datos: true });
+    await irA(contenedor, "Catapult");
+    expect(texto(contenedor)).toContain("Chalecos de Catapult");
+    expect(texto(contenedor)).toContain("2 jugadores · 0 con chaleco");
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    await montar({ partido: true, flujo: false, lesiones: true, datos: true });
+    expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent)).toEqual(["Jugadores", "Posiciones"]);
+  });
 
   test("muestra los jugadores en la tabla estilo Excel con los datos que piden los módulos", async () => {
     await montar();

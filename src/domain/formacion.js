@@ -9,7 +9,7 @@
 
 export const MAXIMO_EN_CANCHA = 10;
 
-// El `rol` es el que se le carga a cada jugador en Ajustes › Posiciones, y es
+// El `rol` es el que se le carga a cada jugador en Datos básicos › Posiciones, y es
 // lo que decide a quién ofrece el desplegable de cada línea. Va aparte del
 // nombre a propósito: cambiarle el título a una franja no tiene por qué
 // romper el filtro.

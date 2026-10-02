@@ -3,7 +3,6 @@ import { Icono } from "./components/AppChrome";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import TrainingCuenta from "./TrainingCuenta";
 import TrainingDiagnostico from "./TrainingDiagnostico";
-import TrainingJugadores from "./TrainingJugadores";
 import { pedirJson } from "./trainingApi.js";
 
 // Ajustes de Entrenamiento con el mismo menú que Partido: una fila por
@@ -57,10 +56,6 @@ export default function TrainingSettings({
     return <TrainingCuenta cuentaInicial={cuenta} onCambio={alCambiarCuenta} onVolver={volverAlMenu} />;
   }
 
-  if (vista === "jugadores") {
-    return <TrainingJugadores onVolver={volverAlMenu} />;
-  }
-
   if (vista === "pruebas") {
     return <TrainingDiagnostico cuenta={cuenta} onVolver={volverAlMenu} />;
   }
@@ -81,13 +76,6 @@ export default function TrainingSettings({
       titulo: "Usuario y contraseña",
       detalle: subtextoCuenta,
       alTocar: () => onCambiarVista("cuenta"),
-    },
-    {
-      id: "jugadores",
-      icono: "formacion",
-      titulo: "Lista de jugadores",
-      detalle: "La misma lista que Partido",
-      alTocar: () => onCambiarVista("jugadores"),
     },
     {
       id: "pruebas",

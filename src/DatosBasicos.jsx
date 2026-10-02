@@ -5,6 +5,9 @@ import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarJugadores from "./ImportarJugadores.jsx";
+import { PosicionesJugadores } from "./components/PosicionesPartido.jsx";
+import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
+import { guardarPuestos } from "./domain/plantel.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { diasEntre } from "./domain/lesiones.js";
 import { campoPorClave, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
@@ -16,10 +19,16 @@ import "./lesiones.css";
 
 // Datos básicos: los jugadores del club con lo que cada módulo necesita (la
 // hoja "Datos Básicos" del Excel), en la tabla estilo Excel que se copia y se
-// pega. Es la misma lista de jugadores de Partido y Flujo diario. La hoja
-// entera del Excel se trae con "Pegar desde Excel" (ImportarJugadores.jsx).
+// pega. Es la única lista de jugadores: la usan Partido, Flujo diario y
+// Lesiones. La hoja entera del Excel se trae con "Pegar desde Excel"
+// (ImportarJugadores.jsx). Además, dónde juega cada uno en Partido
+// (Posiciones) y su chaleco de Catapult para Flujo diario (Catapult).
 
-export const DESTINOS_DATOS = [{ id: "jugadores", etiqueta: "Jugadores", icono: "usuario" }];
+export const DESTINOS_DATOS = [
+  { id: "jugadores", etiqueta: "Jugadores", icono: "usuario" },
+  { id: "posiciones", etiqueta: "Posiciones", icono: "formacion" },
+  { id: "catapult", etiqueta: "Catapult", icono: "llave" },
+];
 
 // Las columnas: el nombre, los datos del Excel y la edad de hoy.
 const COLUMNAS = [
@@ -37,8 +46,14 @@ const edadHoy = (nacimiento) => {
   return dias === null ? null : Math.floor(dias / 365.25);
 };
 
-export default function DatosBasicos({ onVolver }) {
+// permisos: los del club (sin ellos, todo a la vista). Los chalecos de
+// Catapult se buscan con la cuenta de Flujo diario: esa solapa es para quien
+// tiene ese módulo.
+export default function DatosBasicos({ onVolver, permisos = null }) {
   const { idioma, plural } = useIdioma();
+  const conCatapult = !permisos || Boolean(permisos.flujo || permisos.admin);
+  const destinos = DESTINOS_DATOS.filter((destino) => destino.id !== "catapult" || conCatapult);
+  const [vista, setVista] = useState("jugadores");
   const [equipo, setEquipo] = useState(() => leerEquipoElegido());
   const [plantel, setPlantel] = useState([]);
   const [config, setConfig] = useState(null);
@@ -145,6 +160,18 @@ export default function DatosBasicos({ onVolver }) {
 
   const reemplazar = (jugador) => setPlantel((actual) => actual.map((uno) => (uno.id === jugador.id ? jugador : uno)));
 
+  // Posiciones de Partido: se guardan al toque; si no se puede, se avisa y se
+  // vuelve a leer lo que quedó en la base.
+  const cambiarPuestos = async (jugador, cambios) => {
+    const actualizado = { ...jugador, ...cambios };
+    reemplazar(actualizado);
+    const respuesta = await guardarPuestos(jugador.id, { roles: actualizado.roles, puestos: actualizado.puestos });
+    if (respuesta.error) {
+      setAviso(t("datos.error.guardar"));
+      cargar();
+    }
+  };
+
   const editarCelda = async (jugadorId, clave, valor) => {
     const respuesta = await guardarDatosJugador(jugadorId, { [clave]: valor });
     if (respuesta.error) return { error: respuesta.error };
@@ -230,9 +257,12 @@ export default function DatosBasicos({ onVolver }) {
 
   return (
     <MarcoAplicacion
-      activo="jugadores"
-      onNavigate={() => setImportando(false)}
-      destinos={DESTINOS_DATOS}
+      activo={vista}
+      onNavigate={(destino) => {
+        setImportando(false);
+        if (destinos.some((uno) => uno.id === destino)) setVista(destino);
+      }}
+      destinos={destinos}
       marca={t("datos.titulo")}
       className="entrenamiento-marco lesiones-marco datos-marco"
     >
@@ -255,7 +285,7 @@ export default function DatosBasicos({ onVolver }) {
               <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
               <span className="etiqueta-hero">{t("datos.titulo").toUpperCase()}</span>
               <strong className="nombre-sesion">{equipo?.nombre || t("datos.titulo")}</strong>
-              <p className="fecha-hero">{t("datos.texto")}</p>
+              <p className="fecha-hero">{vista === "jugadores" ? t("datos.texto") : t("datos.textoCorto")}</p>
               <span className="estado-hero">{plural("datos.jugadores", plantel.length)}</span>
             </div>
           </header>
@@ -263,7 +293,11 @@ export default function DatosBasicos({ onVolver }) {
           <AvisoSoloLectura hasta={equipo?.hasta} />
           {estado}
 
-          {!soloLectura && (
+          {vista === "posiciones" && !cargando && !error && <PosicionesJugadores plantel={plantel} soloLectura={soloLectura} onCambiar={cambiarPuestos} />}
+
+          {vista === "catapult" && conCatapult && <VinculosCatapult equipoId={equipoId} soloLectura={soloLectura} onAviso={setAviso} />}
+
+          {vista === "jugadores" && !soloLectura && (
           <section className="tarjeta tarjeta-inicio">
             <form className="agregar-jugador datos-agregar" onSubmit={agregar}>
               <input
@@ -286,6 +320,7 @@ export default function DatosBasicos({ onVolver }) {
           </section>
           )}
 
+          {vista === "jugadores" && (
           <section className="tarjeta">
             <TablaDatos
               id="jugadores"
@@ -304,6 +339,7 @@ export default function DatosBasicos({ onVolver }) {
               }
             />
           </section>
+          )}
         </div>
       </div>
       )}

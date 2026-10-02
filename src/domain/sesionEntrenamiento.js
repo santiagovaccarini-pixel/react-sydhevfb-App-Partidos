@@ -235,7 +235,7 @@ export const problemasDeTarea = (tarea, plantel = [], { atletasActividad = null,
     const jugador = porId.get(String(jugadorId));
     const nombre = jugador?.nombre || `jugador ${jugadorId}`;
     if (!jugador) problemas.push(`${nombre} ya no está en la lista.`);
-    else if (!jugador.catapult_id) problemas.push(`${nombre} no tiene chaleco. Asignalo en Ajustes › Lista de jugadores.`);
+    else if (!jugador.catapult_id) problemas.push(`${nombre} no tiene chaleco. Asignalo en Datos básicos › Catapult.`);
     else if (!conDatos(jugador)) problemas.push(`${nombre} no tiene datos en esta sesión.`);
 
     if (datos.modo === MODO_PARCIAL) {
