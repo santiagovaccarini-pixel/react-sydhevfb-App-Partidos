@@ -40,7 +40,7 @@ Public Sub GenerarVR_Jugadores()
     Set wsJ = ThisWorkbook.Sheets(HOJA_JUG)
 
     Dim niveles As Variant, filasOrigen As Variant
-    niveles = Array("Excelente", "Muy Bueno", "Bueno", "Regular", "Malo", "Desv. Est√°ndar")
+    niveles = Array("Excelente", "Muy Bueno", "Bueno", "Regular", "Malo", "Desv. Est·ndar")
     filasOrigen = Array(5, 6, 7, 8, 9, 0)    ' 0 = se calcula (fila6 - fila7)
 
     Dim calcPrev As XlCalculation, eventsPrev As Boolean
@@ -116,8 +116,8 @@ Public Sub GenerarVR_Jugadores()
             If nCasos = 0 Then GoTo SigCat
 
             Select Case categoria
-                Case "S√≥lo PT": item = "Jugador PT"
-                Case "S√≥lo ST": item = "Jugador ST"
+                Case "SÛlo PT": item = "Jugador PT"
+                Case "SÛlo ST": item = "Jugador ST"
                 Case Else:      item = "Jugador Total"
             End Select
 

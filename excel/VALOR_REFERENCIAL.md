@@ -215,6 +215,44 @@ Resultado de la primera corrida (26/09/2026): 172 combinaciones con casos,
 datos en la base (LEO DUARTE, GUTTE, SAMUEL, LEMOS); 24 combinaciones con un solo
 caso.
 
+### Cuándo hace falta un VR nuevo (`ActualizarCasosVR.bas`)
+
+La macro `ActualizarColores_ManejoErrores` (versión corregida en
+`excel/ActualizarCasosVR.bas`) arma de nuevo las dos tablas de la hoja
+`Análisis Casos VR` y pinta de rojo las categorías que ya justifican un VR nuevo:
+
+- Tabla 1 (A:P): casos de cada VR, leídos de la hoja `VR` (fila "Bueno",
+  columna H) con su fecha. Amarillo = VR que junta categorías.
+- Tabla 2 (S:AA): casos actuales, contados en `Data GPS Partido` por jugador
+  (T), puesto (U) y categoría de tiempo (DG), sólo filas "Jugador PT/ST/Total"
+  y sólo jugadores de `Tiempos por jugador`. Cuenta todo aunque haya filtros.
+
+| Casos del VR actual | Casos actuales para pintar de rojo |
+|---|---|
+| 0 (y 1 a 3) | 5 o más |
+| 4 a 6 | 9 o más |
+| 7 a 10 | 11 o más |
+| 11 a 15 | 20 o más |
+| 16 a 20 | 25 o más |
+| 21 a 30 | 45 o más |
+| 31 a 59 | 60 o más |
+| 60 o más | 30 de diferencia: el VR anterior pasa a llamarse "1°" y se crea uno nuevo con mínimo 30 casos |
+
+En un VR con categorías juntadas se comparan los casos del VR con la suma de
+las categorías del grupo; las otras categorías del grupo quedan en gris. Cada
+celda roja lleva una nota con los casos y la regla aplicada.
+
+Errores que tenía la versión anterior: las condiciones estaban al revés
+(pintaba con `<=`), los rangos se pisaban, las categorías se leían por posición,
+no limpiaba los rojos de la corrida anterior, y la tabla de casos actuales se
+armaba con la columna CM en vez de DG (la categoría de tiempo).
+
+Instalación: en el editor de VBA (Alt+F11) borrar el contenido de `Módulo6`
+(o quitar el módulo) e importar `ActualizarCasosVR.bas`; la hoja `Hoja10` tiene
+una copia vieja con el mismo nombre que conviene borrar. No está probada en
+Excel (no hubo Excel en el entorno); la lógica se simuló en Python con los
+mismos datos.
+
 ## Pendiente
 
 1. **Confirmar las filas 26 a 32 de la hoja pintada.** Los grupos del 28/09 se
