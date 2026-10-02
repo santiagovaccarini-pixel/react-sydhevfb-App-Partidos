@@ -4280,6 +4280,11 @@ button:disabled {
   gap: 8px;
 }
 
+/* Solo lectura (un club del que ya se fue): el escudo propio, al centro. */
+.enfrentamiento.solo-propio {
+  grid-template-columns: 1fr;
+}
+
 .lado-enfrentamiento .escudo-cam,
 .lado-enfrentamiento .escudo-rival,
 .lado-enfrentamiento .escudo-club.escudo-real,

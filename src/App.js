@@ -20,6 +20,7 @@ import {
   renombrarEquipo,
 } from "./domain/equipo";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./domain/alDia.js";
 import {
   canchaDesdeTitulares,
   normalizarCancha,
@@ -239,7 +240,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.03.2";
+const APP_VERSION = "2026.10.03.3";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1557,8 +1558,16 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   const escudoRival = useEscudoClub(registro.rival);
 
   const [pantallaFormacion, setPantallaFormacion] = useState(
-    hayFormacionInicial ? "lista" : "inicio",
+    hayFormacionInicial && !soloLectura ? "lista" : "inicio",
   );
+
+  // Quien ya se fue del club no registra partidos: si estaba en el tablero o
+  // cargando la formación (o se enteró recién), vuelve al inicio.
+  useEffect(() => {
+    if (soloLectura && (pantallaFormacion === "lista" || pantallaFormacion === "manual")) {
+      setPantallaFormacion("inicio");
+    }
+  }, [soloLectura, pantallaFormacion]);
 
   const [fechaFormacion, setFechaFormacion] = useState(fechaLocalISO());
 
@@ -1646,7 +1655,8 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     return () => {
       vigente = false;
     };
-  }, [equiposCargados, equipoId]);
+    // soloLectura: si se entera de que ya no está en el club, pasa a la foto.
+  }, [equiposCargados, equipoId, soloLectura]);
 
   const posicionScrollPendiente = useRef(null);
   const convertirSupabaseARegistro = (fila) => {
@@ -1994,24 +2004,47 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   };
 
   const cargarRegistrosSupabase = async ({ reintentar = true } = {}) => {
-    let consulta = supabase.from("registros_partido").select("*");
+    // Quien ya se fue del club ve la foto de su último día, y no sube nada.
+    const deSoloLectura = esSoloLectura(equipoId);
+    let data = null;
+    let error = null;
 
-    // En una base con varios clubes, cada uno ve lo suyo. Sin equipo elegido no
-    // se trae nada: es preferible una lista vacía con su aviso a mezclar.
-    if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
+    if (deSoloLectura) {
+      try {
+        data = masNuevasPrimero(await leerAlDia("registros_partido", equipoId), "fecha");
+      } catch (fallo) {
+        error = fallo;
+      }
+    } else {
+      let consulta = supabase.from("registros_partido").select("*");
 
-    const { data, error } = await consulta.order("fecha", { ascending: false });
+      // En una base con varios clubes, cada uno ve lo suyo. Sin equipo elegido no
+      // se trae nada: es preferible una lista vacía con su aviso a mezclar.
+      if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
+
+      ({ data, error } = await consulta.order("fecha", { ascending: false }));
+    }
 
     if (error) {
       console.error("Error cargando registros desde Supabase:", error);
 
-      establecerGuardados(leerRespaldoHistorial());
+      // La copia del celular es de cuando estaba en el club: a quien ya se
+      // fue no se le muestra (podría tener partidos de después).
+      establecerGuardados(deSoloLectura ? [] : leerRespaldoHistorial());
       setEstadoHistorial("error");
       setHistorialCargado(true);
       return;
     }
 
     const registrosConvertidos = (data || []).map(convertirSupabaseARegistro);
+
+    // A quien ya se fue, la foto tal cual: sin pendientes ni copias del celular.
+    if (deSoloLectura) {
+      establecerGuardados(registrosConvertidos);
+      setEstadoHistorial("listo");
+      setHistorialCargado(true);
+      return;
+    }
 
     // Con la base respondiendo, se aprovecha para subir lo que había quedado.
     // Va antes de mirar si la respuesta vino vacía: el primer partido de un
@@ -2094,7 +2127,8 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     setHistorialCargado(false);
     setEstadoHistorial("cargando");
     cargarRegistrosSupabase();
-  }, [equiposCargados, equipoId]);
+    // soloLectura: si se entera de que ya no está en el club, pasa a la foto.
+  }, [equiposCargados, equipoId, soloLectura]);
 
   // Sin red, el pedido a la base puede quedarse colgado sin contestar nunca.
   // No se lo corta —si llega tarde, sirve igual—, pero a los doce segundos se
@@ -2151,8 +2185,9 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
   useEffect(() => {
     // Mientras lo que hay en memoria sea de otro club no se escribe nada: es
-    // lo que envenenaba el respaldo al cambiar de equipo.
-    if (!historialCargado || equipoDeGuardados !== equipoId) return;
+    // lo que envenenaba el respaldo al cambiar de equipo. La foto de un club
+    // del que ya se fue tampoco queda guardada en el celular.
+    if (!historialCargado || equipoDeGuardados !== equipoId || soloLectura) return;
 
     try {
       localStorage.setItem(
@@ -2162,7 +2197,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     } catch (error) {
       console.warn("No se pudo actualizar el respaldo local del historial.");
     }
-  }, [guardados, historialCargado, equipoId, equipoDeGuardados]);
+  }, [guardados, historialCargado, equipoId, equipoDeGuardados, soloLectura]);
 
   useEffect(() => {
     try {
@@ -4607,8 +4642,22 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
               Módulos
             </button>
           )}
-          <span className="etiqueta-hero">Próximo partido</span>
+          <span className="etiqueta-hero">
+            {soloLectura ? "Solo lectura" : "Próximo partido"}
+          </span>
 
+          {soloLectura ? (
+            <div className="enfrentamiento solo-propio">
+              <div className="lado-enfrentamiento">
+                <EscudoClub
+                  equipo="cam"
+                  nombre={equipoPropio}
+                  url={escudoCam.url}
+                />
+                <strong>{equipoPropio}</strong>
+              </div>
+            </div>
+          ) : (
           <div className="enfrentamiento">
             {enOrdenDeCancha(
               registro,
@@ -4640,28 +4689,46 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                 : [lado],
             )}
           </div>
+          )}
 
           {/* De qué lado jugamos. Se toca y cambia, como el botón de bruto y
               neto, y con eso se dan vuelta los escudos. */}
-          <button
-            type="button"
-            className="boton-localia"
-            onClick={() => actualizar("localia", otraLocalia(registro.localia))}
-            aria-label={`Jugamos de ${etiquetaLocalia(
-              registro.localia,
-            )}. Tocá para cambiar.`}
-          >
-            <Icono nombre={leerLocalia(registro.localia)} size={15} />
-            {etiquetaLocalia(registro.localia)}
-          </button>
+          {!soloLectura && (
+            <button
+              type="button"
+              className="boton-localia"
+              onClick={() => actualizar("localia", otraLocalia(registro.localia))}
+              aria-label={`Jugamos de ${etiquetaLocalia(
+                registro.localia,
+              )}. Tocá para cambiar.`}
+            >
+              <Icono nombre={leerLocalia(registro.localia)} size={15} />
+              {etiquetaLocalia(registro.localia)}
+            </button>
+          )}
 
-          {fechaLargaFormacion && (
+          {fechaLargaFormacion && !soloLectura && (
             <p className="fecha-hero">{fechaLargaFormacion}</p>
           )}
         </header>
 
         <AvisoSoloLectura hasta={equipoGuardado?.hasta} />
 
+        {soloLectura && (
+          <section className="tarjeta tarjeta-inicio">
+            <div className="acciones-inicio">
+              <button
+                type="button"
+                className="boton-principal boton-formacion-grande"
+                onClick={() => navegarAplicacion("registros")}
+              >
+                Ver registros
+              </button>
+            </div>
+          </section>
+        )}
+
+        {!soloLectura && (
         <section className="tarjeta tarjeta-inicio">
           <div className="campo-inicio">
             <label htmlFor="campo-rival-inicio">Rival</label>
@@ -4690,20 +4757,19 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             <div className="aviso-formacion">{mensajeFormacion}</div>
           )}
 
-          {!soloLectura && (
-            <div className="acciones-inicio">
-              <button
-                type="button"
-                className="boton-principal boton-formacion-grande"
-                onClick={abrirCargaManual}
-              >
-                Ingresar Formación
-              </button>
-            </div>
-          )}
+          <div className="acciones-inicio">
+            <button
+              type="button"
+              className="boton-principal boton-formacion-grande"
+              onClick={abrirCargaManual}
+            >
+              Ingresar Formación
+            </button>
+          </div>
         </section>
+        )}
 
-        {partidoEnCurso && (
+        {partidoEnCurso && !soloLectura && (
           <button
             type="button"
             className="tarjeta-en-curso"
@@ -5305,13 +5371,15 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           <div className="acciones-dobles">
             <BotonVolver onClick={alVolver} />
 
-            <button
-              type="button"
-              className="boton-principal"
-              onClick={alEditar}
-            >
-              Editar registro
-            </button>
+            {!soloLectura && (
+              <button
+                type="button"
+                className="boton-principal"
+                onClick={alEditar}
+              >
+                Editar registro
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -6114,9 +6182,12 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           <p>Lo que la app usa en todas las pantallas.</p>
         </header>
 
+        <AvisoSoloLectura hasta={equipoGuardado?.hasta} />
+
         <button
           type="button"
           className="opcion-ajuste"
+          disabled={soloLectura}
           onClick={() => {
             setNombreEquipoEditado(equipoPropio);
             setAvisoEquipo("");
@@ -6137,6 +6208,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
         <button
           type="button"
           className="opcion-ajuste"
+          disabled={soloLectura}
           onClick={() => setVistaAjustes("jugadores")}
         >
           <span className="icono-ajuste">
@@ -6610,7 +6682,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     setDetalleEditando(false);
 
     if (destino === "partido") {
-      setPantallaFormacion("lista");
+      setPantallaFormacion(soloLectura ? "inicio" : "lista");
     } else if (destino === "formacion") {
       volverAPantallaFormacion();
     } else if (destino === "registros") {
@@ -7190,7 +7262,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       <MarcoAplicacion
         activo={activo}
         onNavigate={navegarAplicacion}
-        hayPartido={partidoEnCurso}
+        hayPartido={partidoEnCurso && !soloLectura}
       >
         {/* El aviso de "guardado" también fuera del tablero: al editar un
             registro o al actualizar la app, la confirmación se veía solo si
@@ -7239,7 +7311,10 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     );
   }
 
-  if (pantallaFormacion === "inicio") {
+  if (
+    pantallaFormacion === "inicio" ||
+    (soloLectura && (pantallaFormacion === "lista" || pantallaFormacion === "manual"))
+  ) {
     return enMarcoAplicacion("formacion", renderPantallaInicioFormacion());
   }
 
@@ -7742,9 +7817,11 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                     registros
                   </p>
 
-                  <button type="button" onClick={borrarHistorial}>
-                    Borrar historial
-                  </button>
+                  {!soloLectura && (
+                    <button type="button" onClick={borrarHistorial}>
+                      Borrar historial
+                    </button>
+                  )}
                 </div>
 
                 {registrosVisibles.length === 0 && (
@@ -7775,14 +7852,16 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                         Ver detalle
                       </button>
 
-                      <button
-                        type="button"
-                        className="boton-eliminar-registro"
-                        onClick={() => eliminarRegistro(index)}
-                        aria-label="Eliminar registro"
-                      >
-                        <Icono nombre="borrar" size={18} />
-                      </button>
+                      {!soloLectura && (
+                        <button
+                          type="button"
+                          className="boton-eliminar-registro"
+                          onClick={() => eliminarRegistro(index)}
+                          aria-label="Eliminar registro"
+                        >
+                          <Icono nombre="borrar" size={18} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

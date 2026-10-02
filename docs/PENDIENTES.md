@@ -369,12 +369,40 @@ migraciones versionadas en `supabase/migrations`.
   (cada tipo de cuenta, qué ve y qué cambia). Corren en GitHub Actions en cada cambio
   (`.github/workflows/pruebas.yml`), junto con las de la app y la compilación.
 
+### Foto al día de salida: hecho el 02/10 (migración `20261005_foto_al_dia.sql`, pendiente de correr)
+
+- Quien se fue de un club ve cada partido, entrenamiento, jugador y lesión **tal como
+  estaba al terminar su último día** (en la zona horaria del club). No ve lo que se
+  cargó, se cambió ni se borró después.
+- La base guarda una versión por fila y por día en que se tocó (`versiones_datos`, la
+  escribe un disparador). `datos_al_dia(tabla, club)` arma la foto y pide el módulo
+  (Partido, Flujo diario, Lesiones; el plantel, cualquier membresía).
+- Las tablas solo se leen directo estando en el club: quien se fue lee únicamente la
+  foto. El historial de cambios de una lesión tampoco (tendría lo de después).
+- En la app, un club del que ya se fue es de solo lectura en todos los módulos:
+  - Partido: inicio con el aviso y "Ver registros"; sin tablero, sin cargar formación,
+    sin editar ni borrar registros, Ajustes de equipo y jugadores apagados. No sube
+    los partidos pendientes de ese club (quedan guardados en el celular) y no guarda
+    la foto en el celular.
+  - Flujo diario: la lista es la de la foto; se abre y se mira, pero cualquier cambio
+    muestra "Solo lectura" y no se guarda ni se sube. Sin Enviar ni Borrar. En Ajustes,
+    la lista de jugadores se mira sin agregar ni emparejar chalecos.
+  - Lesiones y Datos básicos: como antes, ahora con la foto; la tabla ya no ofrece
+    Pegar (no había nada que se pudiera cambiar) ni la ficha el historial de cambios.
+- Arreglo de paso: en Flujo diario, cada club ve solo sus entrenamientos aunque el
+  celular tenga guardados los de otro club de la misma cuenta.
+- Lo que ya estaba cargado arranca con una versión del día en que se creó; las lesiones,
+  con toda su historia. Por eso, para filas viejas de partidos, entrenamientos y
+  jugadores que se editaron **antes** de correr la migración, la foto muestra cómo están
+  hoy (no hay forma de saber cómo estaban). De la migración en adelante es exacto.
+- Escenarios nuevos en `supabase/pruebas/escenarios.sql`: la foto de quien se fue
+  (partido de las 23:30 de su último día sí, el de las 00:30 del día siguiente no), un
+  resultado cambiado y un partido borrado después de su salida, sin el módulo, cuenta
+  pendiente y bloqueada, reincorporación.
+
 **Lo que sigue en cuentas:**
-- Foto al día de salida: hoy quien se fue ve las filas con fecha hasta su último día,
-  pero con los cambios posteriores. Falta guardar las versiones de cada fila y que quien
-  se fue vea la versión de ese día (Lesiones ya tiene `lesiones_historial` completo).
-- Modo solo lectura también adentro de Partido (Registros, Ajustes) y Flujo diario
-  (Tareas): hoy se esconden los botones de carga del inicio y la base frena el resto.
+- Zona horaria del club editable desde la app (hoy queda America/Sao_Paulo; se cambia
+  en `equipos.zona_horaria`).
 - Segundo factor para administradores, aviso por aparato nuevo, cerrar sesión en todos.
 
 ### Cuentas v2: los escenarios que tiene que cubrir (decidido el 02/10)
@@ -465,6 +493,10 @@ arreglar, de menor a mayor esfuerzo:
   tiene que ser una hoja como el resto.
 
 ## Limitaciones conocidas, que no son deudas
+
+- La **foto al día de salida** de filas viejas: partidos, entrenamientos y jugadores
+  que se editaron antes de correr `20261005_foto_al_dia.sql` aparecen como están hoy.
+  Las versiones se guardan desde esa migración; antes no había de dónde sacarlas.
 
 - Un partido guardado **sin formación cargada** no puede decir quién fue titular.
   En la vista de jugador aparece solo si el nombre figura en algún cambio. No es

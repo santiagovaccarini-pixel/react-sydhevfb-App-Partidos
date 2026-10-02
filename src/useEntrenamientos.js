@@ -30,10 +30,15 @@ const sinSenal = () => typeof navigator !== "undefined" && navigator.onLine === 
  * celular al toque y en la base un momento después, solo; sin señal queda
  * pendiente y sube cuando vuelve. La lista mezcla lo de acá con lo que hay en
  * la base; al abrir uno, si la base lo tiene más nuevo, se trae entero.
+ *
+ * En el celular quedan los de todos los clubes de la cuenta, pero se muestran
+ * los del club elegido. Con soloLectura (quien ya se fue del club) se ve la
+ * foto de su último día: nada se crea, se cambia, se borra ni se sube.
  */
-export default function useEntrenamientos({ equipoId = null, email = "" } = {}) {
+export default function useEntrenamientos({ equipoId = null, email = "", soloLectura = false } = {}) {
   const [lista, setLista] = useState(() => {
-    const migrados = migrarSesionesViejas({ equipoId });
+    // En un club del que ya se fue no se crea nada, tampoco al migrar.
+    const migrados = soloLectura ? [] : migrarSesionesViejas({ equipoId });
     const locales = leerEntrenamientosLocales();
     return migrados.length > 0 ? recortarLocales([...migrados, ...locales]) : locales;
   });
@@ -43,6 +48,14 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
   const [actualId, setActualIdEstado] = useState(leerEntrenamientoActualId);
   // idle | guardando | guardado | sin-senal | error
   const [guardado, setGuardado] = useState({ estado: "idle", hora: "" });
+  // Solo lectura: el entrenamiento abierto de la foto. No va al celular.
+  const [vista, setVista] = useState(null);
+
+  // Los que no tienen club son de antes de que hubiera clubes: se ven en todos.
+  const delClub = useCallback(
+    (entrenamiento) => !equipoId || !entrenamiento?.equipoId || entrenamiento.equipoId === equipoId,
+    [equipoId],
+  );
 
   const listaRef = useRef(lista);
   listaRef.current = lista;
@@ -62,6 +75,7 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
   // Sube a la base lo que cambió. Lo que falla queda pendiente para la próxima.
   const subir = useCallback(
     async (ids) => {
+      if (soloLectura) return;
       const aSubir = [...new Set(ids)]
         .map((id) => listaRef.current.find((entrenamiento) => entrenamiento.id === id))
         .filter(Boolean);
@@ -90,7 +104,7 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
         fallo ? { estado: sinSenal() ? "sin-senal" : "error", hora: "" } : { estado: "guardado", hora: horaLocal().slice(0, 5) },
       );
     },
-    [email],
+    [email, soloLectura],
   );
   subirRef.current = subir;
 
@@ -115,6 +129,7 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
 
   const cambiar = useCallback(
     (id, cambio) => {
+      if (soloLectura) return;
       setLista((actual) =>
         actual.map((entrenamiento) =>
           entrenamiento.id === id
@@ -124,31 +139,42 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
       );
       programarSubida(id);
     },
-    [programarSubida],
+    [programarSubida, soloLectura],
   );
 
   const crear = useCallback(
     ({ fecha, nombre } = {}) => {
+      if (soloLectura) return null;
       const entrenamiento = nuevoEntrenamiento({ fecha, nombre, equipoId });
       setLista((actual) => recortarLocales([entrenamiento, ...actual]));
       setActualId(entrenamiento.id);
       programarSubida(entrenamiento.id);
       return entrenamiento;
     },
-    [equipoId, programarSubida, setActualId],
+    [equipoId, programarSubida, setActualId, soloLectura],
   );
 
   // Abre uno. Si la base lo tiene más nuevo, o no está en este aparato, lo
   // trae entero. Devuelve false si no se pudo (sin señal y sin copia local).
   const abrir = useCallback(
     async (id) => {
+      if (soloLectura) {
+        try {
+          const completo = await leerEntrenamientoDb(id, equipoId);
+          if (!completo) return false;
+          setVista(completo);
+          return true;
+        } catch {
+          return false;
+        }
+      }
       const local = listaRef.current.find((entrenamiento) => entrenamiento.id === id);
       const remoto = remotos.find((resumen) => resumen.id === id);
       const hayMasNuevo = Boolean(remoto) && (!local || String(remoto.actualizadoEn) > String(local.actualizadoEn));
 
       if (!local || hayMasNuevo) {
         try {
-          const completo = await leerEntrenamientoDb(id);
+          const completo = await leerEntrenamientoDb(id, equipoId);
           if (completo) {
             setLista((actual) =>
               recortarLocales([completo, ...actual.filter((entrenamiento) => entrenamiento.id !== id)], undefined, {
@@ -166,11 +192,12 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
       setActualId(id);
       return true;
     },
-    [remotos, setActualId],
+    [equipoId, remotos, setActualId, soloLectura],
   );
 
   const borrar = useCallback(
     async (id) => {
+      if (soloLectura) return;
       setLista((actual) => actual.filter((entrenamiento) => entrenamiento.id !== id));
       setRemotos((actual) => actual.filter((resumen) => resumen.id !== id));
       pendientes.current.delete(id);
@@ -181,7 +208,7 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
         // Sin señal queda en la base; se ve en la lista hasta borrarlo de nuevo.
       }
     },
-    [setActualId],
+    [setActualId, soloLectura],
   );
 
   const recargarBase = useCallback(async () => {
@@ -190,6 +217,8 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
       const filas = await listarEntrenamientosDb(equipoId);
       setRemotos(filas);
       setEstadoBase("listo");
+      // La foto no se mezcla con lo del celular ni hace subir nada.
+      if (soloLectura) return;
 
       // Lo que en la base está más nuevo que acá se trae entero.
       const masNuevos = filas.filter((resumen) => {
@@ -198,7 +227,7 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
       });
       for (const resumen of masNuevos) {
         try {
-          const completo = await leerEntrenamientoDb(resumen.id);
+          const completo = await leerEntrenamientoDb(resumen.id, equipoId);
           if (completo) {
             setLista((actual) => actual.map((entrenamiento) => (entrenamiento.id === resumen.id ? completo : entrenamiento)));
           }
@@ -213,7 +242,7 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
     } catch {
       setEstadoBase("error");
     }
-  }, [equipoId]);
+  }, [equipoId, soloLectura]);
 
   useEffect(() => {
     recargarBase();
@@ -242,14 +271,34 @@ export default function useEntrenamientos({ equipoId = null, email = "" } = {}) 
 
   const resumenes = useMemo(() => {
     const porId = new Map();
-    lista.forEach((entrenamiento) => porId.set(entrenamiento.id, { ...resumenLocal(entrenamiento), local: true }));
+    if (!soloLectura) {
+      lista
+        .filter(delClub)
+        .forEach((entrenamiento) => porId.set(entrenamiento.id, { ...resumenLocal(entrenamiento), local: true }));
+    }
     remotos.forEach((resumen) => {
       if (!porId.has(resumen.id)) porId.set(resumen.id, { ...resumen, local: false });
     });
     return ordenarEntrenamientos([...porId.values()]);
-  }, [lista, remotos]);
+  }, [lista, remotos, soloLectura, delClub]);
 
-  const actual = useMemo(() => lista.find((entrenamiento) => entrenamiento.id === actualId) || null, [lista, actualId]);
+  const actual = useMemo(() => {
+    if (soloLectura) return vista;
+    return lista.find((entrenamiento) => entrenamiento.id === actualId && delClub(entrenamiento)) || null;
+  }, [lista, actualId, soloLectura, vista, delClub]);
 
-  return { lista, resumenes, actual, actualId, estadoBase, guardado, crear, abrir, cambiar, borrar, setActualId, recargarBase };
+  return {
+    lista,
+    resumenes,
+    actual,
+    actualId: soloLectura ? vista?.id || "" : actualId,
+    estadoBase,
+    guardado,
+    crear,
+    abrir,
+    cambiar,
+    borrar,
+    setActualId,
+    recargarBase,
+  };
 }

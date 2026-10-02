@@ -104,6 +104,8 @@ describe("el módulo Datos básicos", () => {
     expect(texto(contenedor)).toContain("HULK");
     expect(boton(contenedor, "Agregar jugador")).toBeUndefined();
     expect(boton(contenedor, "Borrar fila")).toBeUndefined();
+    expect(boton(contenedor, "Pegar")).toBeUndefined();
+    expect(boton(contenedor, "Copiar")).toBeTruthy();
     expect([...contenedor.querySelectorAll("th[data-columna]")].every((th) => th.classList.contains("fija"))).toBe(true);
     await tocar(celda(contenedor, 1, 4));
     await tocar(celda(contenedor, 1, 4));

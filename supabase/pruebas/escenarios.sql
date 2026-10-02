@@ -111,18 +111,30 @@ insert into public.jugadores (id, nombre, equipo_id, creado_en) overriding syste
   (9002, 'NUEVO', '00000000-0000-0000-0000-0000000000c1', '2026-09-01'),
   (9003, 'DE DOS', '00000000-0000-0000-0000-0000000000c2', '2026-04-10');
 
-insert into public.registros_partido (fecha, rival, equipo_id) values
-  ('2026-02-10', 'Rival A', '00000000-0000-0000-0000-0000000000c1'),
-  ('2026-06-15', 'Rival B', '00000000-0000-0000-0000-0000000000c1'),
-  ('2026-05-05', 'Rival A', '00000000-0000-0000-0000-0000000000c2');
+insert into public.registros_partido (fecha, rival, equipo_id, created_at) values
+  ('2026-02-10', 'Rival A', '00000000-0000-0000-0000-0000000000c1', '2026-02-10 22:00-03'),
+  ('2026-06-15', 'Rival B', '00000000-0000-0000-0000-0000000000c1', '2026-06-15 22:00-03'),
+  ('2026-05-05', 'Rival A', '00000000-0000-0000-0000-0000000000c2', '2026-05-05 22:00-03');
 
-insert into public.entrenamientos (id, equipo_id, fecha) values
-  ('00000000-0000-0000-0000-0000000e0001', '00000000-0000-0000-0000-0000000000c1', '2026-03-01'),
-  ('00000000-0000-0000-0000-0000000e0002', '00000000-0000-0000-0000-0000000000c1', '2026-07-01');
+insert into public.entrenamientos (id, equipo_id, fecha, creado_en) values
+  ('00000000-0000-0000-0000-0000000e0001', '00000000-0000-0000-0000-0000000000c1', '2026-03-01', '2026-03-01 12:00-03'),
+  ('00000000-0000-0000-0000-0000000e0002', '00000000-0000-0000-0000-0000000000c1', '2026-07-01', '2026-07-01 12:00-03');
 
-insert into public.lesiones (equipo_id, jugador_id, fecha_lesion, datos) values
-  ('00000000-0000-0000-0000-0000000000c1', 9001, '2026-03-10', '{"parte_cuerpo":"coxa","lado":"direito"}'),
-  ('00000000-0000-0000-0000-0000000000c1', 9001, '2026-08-20', '{"parte_cuerpo":"joelho","lado":"esquerdo"}');
+insert into public.lesiones (equipo_id, jugador_id, fecha_lesion, datos, creado_en) values
+  ('00000000-0000-0000-0000-0000000000c1', 9001, '2026-03-10', '{"parte_cuerpo":"coxa","lado":"direito"}', '2026-03-10 18:00-03'),
+  ('00000000-0000-0000-0000-0000000000c1', 9001, '2026-08-20', '{"parte_cuerpo":"joelho","lado":"esquerdo"}', '2026-08-20 18:00-03');
+
+-- Las versiones se anotan con la hora de la carga: acá, el día de cada dato.
+-- Y un detalle: el último día de Darío (31/03) termina a las 23:59 de San
+-- Pablo, aunque en UTC ya sea 1/04.
+update public.versiones_datos
+   set cuando = coalesce((fila ->> 'creado_en')::timestamptz, (fila ->> 'created_at')::timestamptz);
+insert into public.registros_partido (fecha, rival, equipo_id, created_at) values
+  ('2026-03-31', 'Rival Noche', '00000000-0000-0000-0000-0000000000c1', '2026-03-31 23:30-03');
+update public.versiones_datos set cuando = '2026-03-31 23:30-03' where fila ->> 'rival' = 'Rival Noche';
+insert into public.registros_partido (fecha, rival, equipo_id, created_at) values
+  ('2026-04-01', 'Rival Madrugada', '00000000-0000-0000-0000-0000000000c1', '2026-04-01 00:30-03');
+update public.versiones_datos set cuando = '2026-04-01 00:30-03' where fila ->> 'rival' = 'Rival Madrugada';
 
 \set C1 '''00000000-0000-0000-0000-0000000000c1'''
 \set C2 '''00000000-0000-0000-0000-0000000000c2'''
@@ -130,14 +142,14 @@ insert into public.lesiones (equipo_id, jugador_id, fecha_lesion, datos) values
 -- ---------------------------------------------- Lo que ve cada cuenta --
 
 select pruebas.ser('ana@uno.com'); set role authenticated;
-select pruebas.esperar('Ana ve los dos partidos de Uno', (select count(*) from registros_partido where equipo_id = :C1), 2);
+select pruebas.esperar('Ana ve los cuatro partidos de Uno', (select count(*) from registros_partido where equipo_id = :C1), 4);
 select pruebas.esperar('Ana no ve nada de Dos', (select count(*) from registros_partido where equipo_id = :C2), 0);
 select pruebas.esperar('Ana ve las dos lesiones de Uno', (select count(*) from lesiones), 2);
 select pruebas.esperar('Ana ve solo su club', (select count(*) from equipos), 1);
 reset role;
 
 select pruebas.ser('beto@uno.com'); set role authenticated;
-select pruebas.esperar('Beto ve los partidos de Uno', (select count(*) from registros_partido), 2);
+select pruebas.esperar('Beto ve los partidos de Uno', (select count(*) from registros_partido), 4);
 select pruebas.esperar('Beto ve los entrenamientos de Uno', (select count(*) from entrenamientos), 2);
 select pruebas.esperar('Beto no tiene Lesiones: no ve ninguna', (select count(*) from lesiones), 0);
 select pruebas.esperar('Beto ve el plantel de Uno', (select count(*) from jugadores), 2);
@@ -150,12 +162,18 @@ select pruebas.esperar('Carla ve las lesiones', (select count(*) from lesiones),
 reset role;
 
 select pruebas.ser('dario@uno.com'); set role authenticated;
-select pruebas.esperar('Darío ve de Uno solo el partido de antes de irse', (select count(*) from registros_partido where equipo_id = :C1), 1);
-select pruebas.esperar('...que es el del 10/02', (select max(fecha) from registros_partido where equipo_id = :C1), '2026-02-10');
-select pruebas.esperar('Darío ve de Uno solo el entrenamiento de antes', (select count(*) from entrenamientos where equipo_id = :C1), 1);
-select pruebas.esperar('Darío ve de Uno solo la lesión de antes', (select count(*) from lesiones where equipo_id = :C1), 1);
-select pruebas.esperar('Darío ve de Uno solo el jugador que ya estaba', (select count(*) from jugadores where equipo_id = :C1), 1);
+select pruebas.esperar('Darío ya no lee las tablas de Uno', (select count(*) from registros_partido where equipo_id = :C1), 0);
+select pruebas.esperar('...ni lesiones', (select count(*) from lesiones where equipo_id = :C1), 0);
+select pruebas.esperar('...ni jugadores', (select count(*) from jugadores where equipo_id = :C1), 0);
+select pruebas.esperar('En la foto de su último día: dos partidos', (select count(*) from datos_al_dia('registros_partido', :C1)), 2);
+select pruebas.esperar('...el del 10/02 y el de esa noche, no el de la madrugada siguiente',
+  (select string_agg(f ->> 'rival', ',' order by f ->> 'fecha') from datos_al_dia('registros_partido', :C1) f), 'Rival A,Rival Noche');
+select pruebas.esperar('La foto tiene el entrenamiento de antes', (select count(*) from datos_al_dia('entrenamientos', :C1)), 1);
+select pruebas.esperar('...la lesión de antes', (select count(*) from datos_al_dia('lesiones', :C1)), 1);
+select pruebas.esperar('...y el jugador que ya estaba', (select string_agg(f ->> 'nombre', ',') from datos_al_dia('jugadores', :C1) f), 'VIEJO');
 select pruebas.esperar('Darío ve todo lo de Dos, donde sigue', (select count(*) from registros_partido where equipo_id = :C2), 1);
+select pruebas.esperar('...y en Dos la foto es lo de hoy', (select count(*) from datos_al_dia('registros_partido', :C2)), 1);
+select pruebas.debe_fallar('La foto es solo de esas cuatro tablas', $$select * from datos_al_dia('perfiles', '00000000-0000-0000-0000-0000000000c1')$$, 'tabla_invalida');
 select pruebas.esperar('Darío ve sus dos clubes', (select count(*) from equipos), 2);
 select pruebas.esperar('En sus clubes: Uno con fecha de salida', (select hasta::text from v_mis_clubes where id = :C1), '2026-03-31');
 select pruebas.esperar('...y Dos sin fecha', (select coalesce(hasta::text, 'sigue') from v_mis_clubes where id = :C2), 'sigue');
@@ -163,6 +181,7 @@ reset role;
 
 select pruebas.ser('eva@dos.com'); set role authenticated;
 select pruebas.esperar('Eva no ve nada de Uno', (select count(*) from registros_partido where equipo_id = :C1), 0);
+select pruebas.esperar('...ni con la foto', (select count(*) from datos_al_dia('registros_partido', :C1)), 0);
 select pruebas.esperar('Eva no ve jugadores de Uno', (select count(*) from jugadores where equipo_id = :C1), 0);
 select pruebas.esperar('Eva no ve la gente de Uno', (select count(*) from club_miembros where equipo_id = :C1), 0);
 reset role;
@@ -170,11 +189,14 @@ reset role;
 select pruebas.ser('fede@libre.com'); set role authenticated;
 select pruebas.esperar('Fede (pendiente) no ve clubes', (select count(*) from equipos), 0);
 select pruebas.esperar('Fede no ve partidos', (select count(*) from registros_partido), 0);
+select pruebas.esperar('...ni la foto de ningún club', (select count(*) from datos_al_dia('registros_partido', :C1)), 0);
 reset role;
 
 select pruebas.ser('gaby@uno.com'); set role authenticated;
 select pruebas.esperar('Gaby (bloqueada) no ve partidos aunque esté en Uno', (select count(*) from registros_partido), 0);
 select pruebas.esperar('Gaby no ve lesiones', (select count(*) from lesiones), 0);
+select pruebas.esperar('...ni la foto de partidos de Uno', (select count(*) from datos_al_dia('registros_partido', :C1)), 0);
+select pruebas.esperar('...ni la del plantel', (select count(*) from datos_al_dia('jugadores', :C1)), 0);
 reset role;
 
 select pruebas.ser('duenio@prueba.com'); set role authenticated;
@@ -186,6 +208,8 @@ reset role;
 
 set role anon;
 select pruebas.debe_fallar('Sin cuenta no se lee nada', 'select count(*) from registros_partido', 'permission denied');
+select pruebas.debe_fallar('...ni la foto', $$select * from datos_al_dia('registros_partido', '00000000-0000-0000-0000-0000000000c1')$$, 'permission denied');
+select pruebas.debe_fallar('...ni las versiones', 'select count(*) from versiones_datos', 'permission denied');
 select pruebas.debe_fallar('Sin cuenta no se ven las lesiones', 'select count(*) from lesiones', 'permission denied');
 reset role;
 
@@ -199,6 +223,20 @@ reset role;
 
 select pruebas.ser('carla@uno.com'); set role authenticated;
 select pruebas.esperar('Carla carga una lesión', pruebas.filas($$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, '2026-09-25', '{"parte_cuerpo":"pe","lado":"direito"}')$$), 1);
+reset role;
+
+-- Después de que Darío se fue, en Uno cambian y borran cosas.
+select pruebas.ser('ana@uno.com'); set role authenticated;
+select pruebas.esperar('Ana corrige el resultado del 10/02', pruebas.filas($$update registros_partido set resultado = '2-1' where rival = 'Rival A' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('...y lo vuelve a corregir el mismo día', pruebas.filas($$update registros_partido set resultado = '3-1' where rival = 'Rival A' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('Ana borra el partido de esa noche', pruebas.filas($$delete from registros_partido where rival = 'Rival Noche'$$), 1);
+select pruebas.esperar('Ana ve el resultado nuevo', (select resultado from registros_partido where rival = 'Rival A' and equipo_id = :C1), '3-1');
+reset role;
+select pruebas.esperar('Dos cambios el mismo día son una sola versión', (select count(*) from versiones_datos where tabla = 'registros_partido' and fila ->> 'rival' = 'Rival A' and equipo_id = :C1), 2);
+
+select pruebas.ser('dario@uno.com'); set role authenticated;
+select pruebas.esperar('Darío sigue viendo el resultado de su último día', (select f ->> 'resultado' from datos_al_dia('registros_partido', :C1) f where f ->> 'rival' = 'Rival A'), '');
+select pruebas.esperar('...y el partido que borraron después', (select count(*) from datos_al_dia('registros_partido', :C1) f where f ->> 'rival' = 'Rival Noche'), 1);
 reset role;
 
 select pruebas.ser('dario@uno.com'); set role authenticated;
@@ -244,7 +282,7 @@ select pruebas.esperar('Beto ahora ve las lesiones', (select count(*) from lesio
 reset role;
 
 select pruebas.ser('dario@uno.com'); set role authenticated;
-select pruebas.esperar('Darío sin Lesiones en Uno ya no ve las de antes', (select count(*) from lesiones where equipo_id = :C1), 0);
+select pruebas.esperar('Darío sin Lesiones en Uno ya no ve ni la foto de las de antes', (select count(*) from datos_al_dia('lesiones', :C1)), 0);
 reset role;
 
 -- Ana nombra a Beto administrador y recién ahí se puede ir.
@@ -253,7 +291,8 @@ select pruebas.esperar('Ana nombra a Beto administrador', pruebas.filas($$update
 select pruebas.esperar('Ahora Ana se puede ir', pruebas.filas($$update club_miembros set hasta = current_date where user_id = auth.uid()$$), 1);
 select pruebas.esperar('Y ya no administra nada', pruebas.filas($$update club_miembros set flujo = false where user_id = '00000000-0000-0000-0000-00000000000c'$$), 0);
 select pruebas.debe_fallar('Ni carga partidos', $$insert into registros_partido (fecha, rival, equipo_id) values ('2026-09-30', 'Rival G', '00000000-0000-0000-0000-0000000000c1')$$, 'row-level security');
-select pruebas.esperar('Pero ve todo lo de hasta hoy', (select count(*) from registros_partido), 3);
+select pruebas.esperar('Ya no lee las tablas', (select count(*) from registros_partido), 0);
+select pruebas.esperar('Pero en la foto de hoy está todo lo de Uno', (select count(*) from datos_al_dia('registros_partido', :C1)), 4);
 reset role;
 
 -- Beto reincorpora a Darío: vuelve a ver todo y a cargar.
@@ -262,7 +301,7 @@ select pruebas.esperar('Beto reincorpora a Darío', pruebas.filas($$update club_
 reset role;
 
 select pruebas.ser('dario@uno.com'); set role authenticated;
-select pruebas.esperar('Darío vuelve a ver todos los partidos de Uno', (select count(*) from registros_partido where equipo_id = :C1), 3);
+select pruebas.esperar('Darío vuelve a ver todos los partidos de Uno', (select count(*) from registros_partido where equipo_id = :C1), 4);
 select pruebas.esperar('...y a cargar', pruebas.filas($$insert into registros_partido (fecha, rival, equipo_id) values ('2026-10-01', 'Rival H', '00000000-0000-0000-0000-0000000000c1')$$), 1);
 select pruebas.esperar('Darío ve su historia en Uno, en orden',
   (select string_agg(accion, ',' order by id) from club_miembros_historial where equipo_id = :C1 and user_id = auth.uid()),
@@ -350,7 +389,7 @@ select pruebas.esperar('El dueño borra un club con gente adentro', pruebas.fila
 reset role;
 
 select pruebas.ser('beto@uno.com'); set role authenticated;
-select pruebas.esperar('Beto vuelve a ver todo', (select count(*) from registros_partido), 4);
+select pruebas.esperar('Beto vuelve a ver todo', (select count(*) from registros_partido), 5);
 reset role;
 
 -- Dos clubes pueden cargar el mismo día contra un rival del mismo nombre.

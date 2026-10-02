@@ -35,6 +35,7 @@ export default function TrainingInicio({
   onVolverModulos,
   // El último día en el club de quien entró, si ya se fue: solo mira.
   hasta = null,
+  nombreClub = "",
 }) {
   const [fecha, setFecha] = useState(hoyLocal);
   const [nombre, setNombre] = useState("");
@@ -69,17 +70,19 @@ export default function TrainingInicio({
               Módulos
             </button>
           )}
-          <span className="etiqueta-hero">{actual ? "ENTRENAMIENTO" : "SIN ENTRENAMIENTO"}</span>
+          <span className="etiqueta-hero">{actual ? "ENTRENAMIENTO" : soloLectura ? "SOLO LECTURA" : "SIN ENTRENAMIENTO"}</span>
           <strong className="nombre-sesion">
-            {actual ? primeraMayuscula(fechaLarga(actual.fecha)) : "Empezá el de hoy"}
+            {actual ? primeraMayuscula(fechaLarga(actual.fecha)) : soloLectura ? nombreClub || "Entrenamientos" : "Empezá el de hoy"}
           </strong>
-          <p className="fecha-hero">
-            {actual
-              ? [actual.nombre, actual.actividad ? `Sesión de OpenField: ${actual.actividad.name || "sin nombre"}` : "Sin sesión de OpenField todavía"]
-                  .filter(Boolean)
-                  .join(" · ")
-              : primeraMayuscula(fechaLarga(hoyLocal()))}
-          </p>
+          {(actual || !soloLectura) && (
+            <p className="fecha-hero">
+              {actual
+                ? [actual.nombre, actual.actividad ? `Sesión de OpenField: ${actual.actividad.name || "sin nombre"}` : "Sin sesión de OpenField todavía"]
+                    .filter(Boolean)
+                    .join(" · ")
+                : primeraMayuscula(fechaLarga(hoyLocal()))}
+            </p>
+          )}
           {actual && hayTareas && (
             <span className={`estado-hero ${resumen.enCurso ? "en-curso" : ""}`}>
               <i aria-hidden="true" />

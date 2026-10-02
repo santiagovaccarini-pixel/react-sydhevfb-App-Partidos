@@ -4,6 +4,8 @@
 // señal: acá solo se habla con la base.
 
 import { supabase } from "../supabase.js";
+import { esSoloLectura, leerAlDia } from "./alDia.js";
+import { leerEquipoElegido } from "./equipo.js";
 import { normalizarEntrenamiento, resumenEntrenamiento } from "./entrenamiento.js";
 
 export const TABLA_ENTRENAMIENTOS = "entrenamientos";
@@ -61,7 +63,16 @@ export const resumenDeFila = (fila) => ({
   guardadoEn: String(fila?.actualizado_en || ""),
 });
 
+// Quien ya se fue del club: los entrenamientos de la foto de su último día.
+const leerEntrenamientosAlDia = async (equipoId) =>
+  (await leerAlDia(TABLA_ENTRENAMIENTOS, equipoId)).sort(
+    (a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")) || String(b.actualizado_en || "").localeCompare(String(a.actualizado_en || "")),
+  );
+
 export const listarEntrenamientosDb = async (equipoId = null, { limite = 100 } = {}) => {
+  if (esSoloLectura(equipoId)) {
+    return (await leerEntrenamientosAlDia(equipoId)).slice(0, limite).map(resumenDeFila).filter((fila) => fila.id);
+  }
   let consulta = supabase.from(TABLA_ENTRENAMIENTOS).select(COLUMNAS_LISTA);
   if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
   const { data, error } = await consulta
@@ -72,7 +83,11 @@ export const listarEntrenamientosDb = async (equipoId = null, { limite = 100 } =
   return (Array.isArray(data) ? data : []).map(resumenDeFila).filter((fila) => fila.id);
 };
 
-export const leerEntrenamientoDb = async (id) => {
+export const leerEntrenamientoDb = async (id, equipoId = leerEquipoElegido()?.id || null) => {
+  if (esSoloLectura(equipoId)) {
+    const fila = (await leerEntrenamientosAlDia(equipoId)).find((una) => String(una.id) === String(id));
+    return fila ? entrenamientoDeFila(fila) : null;
+  }
   const { data, error } = await supabase.from(TABLA_ENTRENAMIENTOS).select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return data && data.id ? entrenamientoDeFila(data) : null;

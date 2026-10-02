@@ -37,7 +37,9 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
   const [vista, setVista] = useState("inicio");
   const [vistaAjustes, setVistaAjustesEstado] = useState("inicio");
   const [equipo] = useState(() => leerEquipoElegido());
-  const entrenamientos = useEntrenamientos({ equipoId: equipo?.id || null, email });
+  // Quien ya se fue del club mira la foto de su último día y no cambia nada.
+  const hasta = equipo?.hasta || null;
+  const entrenamientos = useEntrenamientos({ equipoId: equipo?.id || null, email, soloLectura: Boolean(hasta) });
   const { actual } = entrenamientos;
 
   useEffect(olvidarVistaGuardada, []);
@@ -76,7 +78,8 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
         onElegirSesion={() => irA("elegir-sesion")}
         onRecargar={entrenamientos.recargarBase}
         onVolverModulos={onVolver}
-        hasta={equipo?.hasta || null}
+        hasta={hasta}
+        nombreClub={equipo?.nombre || ""}
       />
     ),
     "elegir-sesion": (
@@ -87,7 +90,7 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
         subtitulo="Inicio · Sesión de OpenField"
         etiquetaVolver="Volver a Inicio"
         onSeleccionar={(nueva) => {
-          if (actual) entrenamientos.cambiar(actual.id, (entrenamiento) => vincularActividad(entrenamiento, nueva));
+          if (actual && !hasta) entrenamientos.cambiar(actual.id, (entrenamiento) => vincularActividad(entrenamiento, nueva));
           irA("inicio");
         }}
         onVolver={() => irA("inicio")}
@@ -99,6 +102,7 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
         onCambiar={(cambio) => actual && entrenamientos.cambiar(actual.id, cambio)}
         onIrAInicio={() => irA("inicio")}
         guardado={entrenamientos.guardado}
+        hasta={hasta}
       />
     ),
     ajustes: (

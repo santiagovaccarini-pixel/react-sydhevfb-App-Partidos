@@ -182,6 +182,7 @@ export default {
     sinMembresia: "No estás en este club",
     soloLecturaTitulo: "Dejaste este club el {{fecha}}.",
     soloLecturaTexto: "Ves lo cargado hasta ese día. No se puede agregar ni cambiar nada.",
+    soloLecturaCambio: "Solo lectura: dejaste este club.",
   },
   openfield: {
     abriendoTitulo: "Un momento…",

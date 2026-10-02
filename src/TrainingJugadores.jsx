@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { leerEquipoElegido } from "./domain/equipo.js";
+import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import {
   agregarJugador,
   cargarPlantelConCatapult,
@@ -27,6 +28,8 @@ const plural = (cantidad, singular, muchos) => `${cantidad} ${cantidad === 1 ? s
 export default function TrainingJugadores({ onVolver }) {
   const equipo = useMemo(() => leerEquipoElegido(), []);
   const equipoId = equipo?.id || null;
+  // Quien ya se fue del club ve la lista de su último día y no la cambia.
+  const soloLectura = Boolean(equipo?.hasta);
 
   const [estado, setEstado] = useState("cargando");
   const [plantel, setPlantel] = useState([]);
@@ -249,6 +252,8 @@ export default function TrainingJugadores({ onVolver }) {
           </div>
         )}
 
+        <AvisoSoloLectura hasta={equipo?.hasta} />
+
         {!equipoId && (
           <div className="aviso-base">
             <div>
@@ -286,6 +291,7 @@ export default function TrainingJugadores({ onVolver }) {
                 {plural(plantel.length, "jugador", "jugadores")} · {conChaleco} con chaleco
               </p>
 
+              {!soloLectura && (
               <div className="agregar-jugador">
                 <input
                   type="text"
@@ -304,6 +310,7 @@ export default function TrainingJugadores({ onVolver }) {
                   {agregando ? "Agregando…" : "Agregar"}
                 </button>
               </div>
+              )}
 
               {errorPlantel && <p className="error-equipo">{errorPlantel}</p>}
 
@@ -348,7 +355,7 @@ export default function TrainingJugadores({ onVolver }) {
           )}
         </section>
 
-        {estado === "listo" && (
+        {estado === "listo" && !soloLectura && (
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">
               <b>Emparejar con los chalecos</b>

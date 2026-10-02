@@ -12,6 +12,7 @@ const datos = vi.hoisted(() => ({
   opciones: [],
   config: { campos: {}, listas: {} },
   equipo: { id: "eq-1", nombre: "Atlético Mineiro" },
+  historialesPedidos: [],
 }));
 
 const lesionHulk = () => ({
@@ -55,7 +56,10 @@ vi.mock("./domain/lesionesDb.js", () => ({
     datos.borradas.push(id);
     return { error: "" };
   },
-  historialDeLesion: async () => ({ cambios: [], error: "" }),
+  historialDeLesion: async (id) => {
+    datos.historialesPedidos.push(id);
+    return { cambios: [], error: "" };
+  },
   guardarCampo: async (equipoId, campo, cambios) => {
     datos.cabeceras.push({ campo, ...cambios });
     return { error: "" };
@@ -108,6 +112,7 @@ describe("el módulo Lesiones", () => {
     datos.lesiones = [lesionHulk()];
     datos.config = { campos: {}, listas: {} };
     datos.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
+    datos.historialesPedidos = [];
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -148,6 +153,8 @@ describe("el módulo Lesiones", () => {
     await montar();
     await tocar(boton(contenedor, "Ver detalle"));
     expect(texto(contenedor)).toContain("Caso 1");
+    expect(texto(contenedor)).toContain("Historial de cambios");
+    expect(datos.historialesPedidos).toEqual(["les-1"]);
     expect(texto(contenedor)).toContain(`${etiqueta("numero_registro")}1`);
     expect(texto(contenedor)).toContain(`${etiqueta("edad")}40 años`);
     expect(texto(contenedor)).toContain(`${etiqueta("pie_dominante")}Izquierdo`);
@@ -402,11 +409,15 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Ver detalle"));
     expect(boton(contenedor, "Editar")).toBeUndefined();
     expect(boton(contenedor, "Volver")).toBeTruthy();
+    // Los cambios tendrían lo que se tocó después de su último día: ni se piden.
+    expect(texto(contenedor)).not.toContain("Historial de cambios");
+    expect(datos.historialesPedidos).toEqual([]);
 
     await navegar(contenedor, "Base");
     const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")];
     expect(cabeceras.every((th) => th.classList.contains("fija"))).toBe(true);
     expect(boton(contenedor, "Borrar fila")).toBeUndefined();
+    expect(boton(contenedor, "Pegar")).toBeUndefined();
 
     await navegar(contenedor, "Ajustes");
     expect(texto(contenedor)).toContain("Dejaste este club el 25/09/2026.");
