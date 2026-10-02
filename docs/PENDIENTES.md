@@ -180,7 +180,7 @@ de lo hecho está en los commits, no en esta lista.
   jugador, edad, lado hábil, Recup 1/2, recuperación, severidad por días con alta, recorrência
   a 60 días, recidiva por estructura exacta a 30 días, diagnóstico armado). La vista
   `v_lesiones_excel_v1` calcula lo mismo para Power Query (migración
-  `20261002_datos_basicos.sql`, **pendiente de correr en Supabase**: también agrega
+  `20261002b_datos_basicos.sql`, **pendiente de correr en Supabase**: también agrega
   `jugadores.posicion` y `jugadores.foto_url`).
 - La carga de una lesión va por pasos (quién, qué pasó, dónde, cómo y cuándo, evolución e
   imágenes, notas) con solo lo manual; lo calculado se muestra al final. Hay una pantalla
@@ -349,6 +349,33 @@ migraciones versionadas en `supabase/migrations`.
   administración, la región (San Pablo), y un dominio con subdominio comodín en Vercel.
   Las funciones del servidor (`api/openfield`) reciben el código del club y validan la
   sesión contra esa base.
+
+### Cuentas v2: hecho el 02/10 (migración `20261004_cuentas_v2.sql`, pendiente de correr)
+
+- Rol (admin del club o staff) y módulos por club en `club_miembros`; la cuenta solo
+  dice si está autorizada y si es dueña de la plataforma (`perfiles.admin`).
+- Invitaciones por correo (`club_invitaciones`): si la cuenta existe y confirmó el
+  correo, entra en el acto; si no, al confirmarlo. Vencen a los 14 días; se cancelan.
+- Historia de cada membresía (`club_miembros_historial`), con quién y cuándo.
+- Un club nunca queda sin administrador; la salida no puede ser futura; una membresía
+  no se muda de club; solo el dueño crea clubes; los ajustes generales los cambia el
+  dueño; un partido repetido es por club (antes chocaban dos clubes distintos).
+- Pantalla Cuentas: gente del club (invitar, rol, módulos, dar de baja con fecha,
+  reincorporar, historia) y, para el dueño, las cuentas de la app.
+- Al salir de la cuenta se borran del celular el club elegido y las copias de los
+  clubes (no lo que no se subió). Al dejar un club, las copias de ese club.
+- **Pruebas de permisos contra un Postgres de verdad** (`supabase/pruebas`,
+  `npm run pruebas:base`): todas las migraciones desde cero y más de 100 escenarios
+  (cada tipo de cuenta, qué ve y qué cambia). Corren en GitHub Actions en cada cambio
+  (`.github/workflows/pruebas.yml`), junto con las de la app y la compilación.
+
+**Lo que sigue en cuentas:**
+- Foto al día de salida: hoy quien se fue ve las filas con fecha hasta su último día,
+  pero con los cambios posteriores. Falta guardar las versiones de cada fila y que quien
+  se fue vea la versión de ese día (Lesiones ya tiene `lesiones_historial` completo).
+- Modo solo lectura también adentro de Partido (Registros, Ajustes) y Flujo diario
+  (Tareas): hoy se esconden los botones de carga del inicio y la base frena el resto.
+- Segundo factor para administradores, aviso por aparato nuevo, cerrar sesión en todos.
 
 ### Cuentas v2: los escenarios que tiene que cubrir (decidido el 02/10)
 

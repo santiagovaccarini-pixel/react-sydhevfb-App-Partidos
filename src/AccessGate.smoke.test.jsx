@@ -186,7 +186,7 @@ describe("la puerta de la app", () => {
     expect(contenedor.querySelector(".adentro")).not.toBeNull();
   });
 
-  test("bloqueada y autorizada sin módulos no entran", async () => {
+  test("bloqueada no entra; autorizada entra aunque la cuenta no tenga módulos (los da cada club)", async () => {
     supa.sesion = SESION;
     supa.perfil = { ...AUTORIZADO, estado: "bloqueado" };
     await montar();
@@ -196,7 +196,7 @@ describe("la puerta de la app", () => {
     raiz = null;
     supa.perfil = { ...AUTORIZADO, partido: false, flujo: false };
     await montar();
-    expect(contenedor.querySelector("h1").textContent).toBe("Tu cuenta no tiene módulos habilitados");
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
   });
 
   test("Salir cierra la sesión de OpenField y la de Supabase, y borra la copia", async () => {
@@ -204,6 +204,11 @@ describe("la puerta de la app", () => {
     supa.perfil = null;
     await montar();
     localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(AUTORIZADO));
+    // Copias de clubes que quedaron en el celular, y trabajo sin subir.
+    localStorage.setItem("equipo_elegido", JSON.stringify({ id: "eq-1", nombre: "Club" }));
+    localStorage.setItem("backup_registros_partidos:eq-1", "[]");
+    localStorage.setItem("plantel_jugadores:eq-1", "[]");
+    localStorage.setItem("registros_sin_sincronizar:eq-1", '[{"rival":"X"}]');
 
     await act(async () => boton("Salir").click());
     await act(async () => Promise.resolve());
@@ -211,6 +216,11 @@ describe("la puerta de la app", () => {
     expect(fetch).toHaveBeenCalledWith("/api/openfield/session", expect.objectContaining({ method: "DELETE" }));
     expect(supa.signOut).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem(CLAVE_PERFIL_LOCAL)).toBeNull();
+    // Se van el club elegido y las copias de los clubes; lo que no se subió queda.
+    expect(localStorage.getItem("equipo_elegido")).toBeNull();
+    expect(localStorage.getItem("backup_registros_partidos:eq-1")).toBeNull();
+    expect(localStorage.getItem("plantel_jugadores:eq-1")).toBeNull();
+    expect(localStorage.getItem("registros_sin_sincronizar:eq-1")).not.toBeNull();
     expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
   });
 

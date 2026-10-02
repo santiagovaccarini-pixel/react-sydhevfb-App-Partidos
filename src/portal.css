@@ -953,3 +953,115 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* Cuentas v2: pestañas, club elegido, invitar, ex miembros e historia. */
+.cuentas-pestanas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 18px;
+}
+.cuentas-pestanas .cuenta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.cuentas-club-elegido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--portal-border);
+  border-radius: 18px;
+  background: var(--portal-card);
+}
+.cuentas-club-elegido > div {
+  display: grid;
+  gap: 2px;
+}
+.cuentas-club-rotulo {
+  color: #f0c978;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cuentas-club-elegido strong {
+  font-size: 1.1rem;
+}
+.cuentas-ayuda {
+  margin: 10px 2px 0;
+  color: #9ca5af;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.cuentas-invitar {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--portal-border);
+  border-radius: 18px;
+  background: var(--portal-card);
+}
+.cuentas-invitar input {
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+}
+.cuentas-invitar .cuenta-autorizar {
+  justify-self: start;
+}
+.cuentas-invitar .cuentas-ayuda {
+  margin: 0;
+}
+.cuenta-fila.se-fue {
+  opacity: 0.85;
+  border-style: dashed;
+}
+.cuenta-meta-hasta {
+  color: #f0c978;
+  font-weight: 700;
+}
+.cuentas-historia {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cuentas-historia li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.cuentas-historia li span {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+.cuentas-historia-vacia {
+  margin: 0;
+  color: #64748b;
+}
+
+/* Las hojas de Cuentas son claras: el texto va oscuro aunque la pantalla sea
+   negra. Y en el celular la cabecera se acomoda en dos renglones. */
+.cuentas-hoja {
+  color: #0f172a;
+}
+@media (max-width: 520px) {
+  .cuentas-cabecera {
+    flex-wrap: wrap;
+  }
+  .cuentas-cabecera-derecha {
+    margin-left: auto;
+  }
+}

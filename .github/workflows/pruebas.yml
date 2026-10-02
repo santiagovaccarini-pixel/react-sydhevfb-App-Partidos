@@ -1,0 +1,41 @@
+# Las pruebas de cada cambio: las de la app, que compile, y las de permisos
+# contra un Postgres de verdad (supabase/pruebas). Un cambio que rompe quién
+# ve qué no llega a main sin que se note.
+name: Pruebas
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: App (pruebas y compilación)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  base:
+    name: Base (permisos y cuentas)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Postgres
+        run: ls /usr/lib/postgresql/*/bin/initdb || (sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib)
+      - run: bash supabase/pruebas/correr.sh

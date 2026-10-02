@@ -42,7 +42,7 @@ export const leerEquipoElegido = () => {
     if (!guardado.startsWith("{")) return { id: guardado, nombre: "", hasta: null };
 
     const leido = JSON.parse(guardado);
-    return leido?.id ? { id: leido.id, nombre: limpiar(leido.nombre), hasta: leido.hasta || null } : null;
+    return leido?.id ? { id: leido.id, nombre: limpiar(leido.nombre), hasta: leido.hasta || null, ...membresiaDe(leido) } : null;
   } catch (error) {
     console.warn("No se pudo leer el equipo elegido:", error);
     return null;
@@ -54,7 +54,7 @@ export const guardarEquipoElegido = (equipo) => {
     if (equipo?.id) {
       localStorage.setItem(
         CLAVE_EQUIPO_ELEGIDO,
-        JSON.stringify({ id: equipo.id, nombre: limpiar(equipo.nombre), hasta: equipo.hasta || null }),
+        JSON.stringify({ id: equipo.id, nombre: limpiar(equipo.nombre), hasta: equipo.hasta || null, ...membresiaDe(equipo) }),
       );
     } else {
       localStorage.removeItem(CLAVE_EQUIPO_ELEGIDO);
@@ -64,14 +64,27 @@ export const guardarEquipoElegido = (equipo) => {
   }
 };
 
+// El rol y los módulos de la cuenta en un club, solo si la base los trae
+// (una base sin la migración de cuentas v2 no los tiene: ahí manda la cuenta).
+function membresiaDe(fila) {
+  const resultado = {};
+  if (fila?.rol) resultado.rol = fila.rol;
+  ["partido", "flujo", "lesiones"].forEach((clave) => {
+    if (typeof fila?.[clave] === "boolean") resultado[clave] = fila[clave];
+  });
+  return resultado;
+}
+
 // Un club con lo que quien entró tiene en él: `hasta` es su último día si
 // ya se fue (vacío mientras sigue), `miembro` dice si está o estuvo (el
-// administrador ve también clubes en los que no está).
+// dueño de la plataforma ve también clubes en los que no está), y el rol y
+// los módulos de su membresía.
 const normalizarEquipo = (fila) => ({
   id: fila?.id ?? null,
   nombre: limpiar(fila?.nombre),
   hasta: fila?.hasta || null,
   miembro: fila?.desde === undefined ? true : Boolean(fila.desde),
+  ...membresiaDe(fila),
 });
 
 /** Quien ya se fue del club: ve lo cargado hasta su último día y no cambia nada. */
@@ -81,9 +94,11 @@ export const esSoloLectura = (equipo) => Boolean(equipo?.hasta);
 // tiene la vista (o algo falló), no hay membresía que leer: devuelve null.
 const leerMisClubes = async () => {
   try {
+    // Todas las columnas: así sirve con la vista vieja (sin rol ni módulos)
+    // y con la de cuentas v2.
     const { data, error } = await supabase
       .from("v_mis_clubes")
-      .select("id, nombre, desde, hasta")
+      .select("*")
       .order("nombre", { ascending: true });
     if (error) return null;
     return (data || []).map(normalizarEquipo).filter((e) => e.id);

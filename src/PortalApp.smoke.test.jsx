@@ -47,7 +47,10 @@ vi.mock("./domain/equipo.js", () => ({
   esElCam: (nombre) => nombre === "Atlético Mineiro",
 }));
 vi.mock("./CuentasAdmin.jsx", () => ({ default: ({ onVolver }) => <div className="cuentas-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
-vi.mock("./domain/perfilesDb.js", () => ({ contarPendientes: async () => 2 }));
+vi.mock("./domain/perfilesDb.js", async () => {
+  const real = await vi.importActual("./domain/perfilesDb.js");
+  return { permisosEnClub: real.permisosEnClub, contarPendientes: async () => 2 };
+});
 vi.mock("./DatosBasicos.jsx", () => ({ default: ({ onVolver }) => <div className="datos-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
 
 describe("el portal", () => {
@@ -85,7 +88,7 @@ describe("el portal", () => {
 
   const portada = () => contenedor.querySelector(".portal-portada");
 
-  test("muestra quién entró, Salir, las dos tarjetas y el equipo elegido", async () => {
+  test("muestra quién entró, Salir, las tarjetas y el equipo elegido", async () => {
     await montar();
 
     expect(contenedor.querySelector(".portal-cuenta-correo").textContent).toBe("dt@club.com");
@@ -97,7 +100,8 @@ describe("el portal", () => {
     // Cada tarjeta lleva su foto y su ícono arriba a la izquierda.
     expect(contenedor.querySelector(".tarjeta-partido .portal-foto img").getAttribute("src")).toBe("/portal/partido.webp");
     expect(contenedor.querySelector(".tarjeta-flujo .portal-foto img").getAttribute("src")).toBe("/portal/flujo.webp");
-    expect(contenedor.querySelectorAll(".portal-tarjeta .portal-icono svg")).toHaveLength(2);
+    // Partido, Flujo diario y Datos básicos (que va con cualquier módulo).
+    expect(contenedor.querySelectorAll(".portal-tarjeta .portal-icono svg")).toHaveLength(3);
     expect(portada()).toBeNull();
   });
 
@@ -239,13 +243,44 @@ describe("el portal", () => {
     expect(contenedor.querySelector(".portal-cuentas")).toBeNull();
   });
 
-  test("solo muestra las tarjetas que la cuenta tiene habilitadas", async () => {
+  test("solo muestra las tarjetas que la cuenta tiene habilitadas (y Datos básicos con cualquiera)", async () => {
     cuenta.permisos = { partido: true, flujo: false, admin: false };
     await montar();
 
     expect(contenedor.querySelector('button[aria-label="Entrar a Partido"]')).not.toBeNull();
     expect(contenedor.querySelector('button[aria-label="Entrar a Flujo diario"]')).toBeNull();
-    expect(contenedor.querySelector(".portal-encabezado p").textContent).toBe("Por ahora tenés habilitado este módulo.");
+    expect(contenedor.querySelector('button[aria-label="Entrar a Datos básicos"]')).not.toBeNull();
+  });
+
+  test("en cada club valen los módulos de la membresía, y su administrador ve Cuentas", async () => {
+    // La cuenta dice Partido y Flujo, pero en este club es admin con solo Lesiones.
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", partido: false, flujo: false, lesiones: true };
+    equipo.lista = [{ ...equipo.actual }];
+    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    await montar();
+    await act(async () => Promise.resolve());
+
+    expect(contenedor.querySelector('button[aria-label="Entrar a Partido"]')).toBeNull();
+    expect(contenedor.querySelector('button[aria-label="Entrar a Flujo diario"]')).toBeNull();
+    expect(contenedor.querySelector('button[aria-label="Entrar a Lesiones"]')).not.toBeNull();
+    const cuentas = contenedor.querySelector(".portal-cuentas");
+    expect(cuentas).not.toBeNull();
+    // Las pendientes de la app son cosa del dueño, no del admin del club.
+    expect(cuentas.querySelector(".portal-pendientes")).toBeNull();
+    await act(async () => cuentas.click());
+    expect(contenedor.querySelector(".cuentas-de-prueba")).not.toBeNull();
+  });
+
+  test("si el admin del club cambia los módulos, al volver al portal se ven los nuevos", async () => {
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false, lesiones: false };
+    equipo.lista = [{ ...equipo.actual, flujo: true }];
+    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    await montar();
+    await act(async () => Promise.resolve());
+
+    expect(equipo.actual.flujo).toBe(true);
+    expect(contenedor.querySelector('button[aria-label="Entrar a Flujo diario"]')).not.toBeNull();
+    expect(contenedor.querySelector(".portal-cuentas")).toBeNull();
   });
 
   test("si la foto no carga, la portada muestra el dibujo", async () => {

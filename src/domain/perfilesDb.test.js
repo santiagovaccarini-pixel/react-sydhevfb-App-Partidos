@@ -29,6 +29,7 @@ const {
   leerMiPerfil,
   listarPerfiles,
   permisosDePerfil,
+  permisosEnClub,
   situacionDePerfil,
 } = await import("./perfilesDb.js");
 
@@ -40,13 +41,33 @@ describe("permisos y situación de una cuenta", () => {
     expect(permisosDePerfil(null)).toEqual({ partido: false, flujo: false, lesiones: false, datos: false, admin: false });
   });
 
-  it("pendiente, bloqueada, sin módulos u ok", () => {
+  it("pendiente, bloqueada u ok: los módulos ya no los da la cuenta", () => {
     expect(situacionDePerfil(null)).toBe("pendiente");
     expect(situacionDePerfil({ estado: "pendiente" })).toBe("pendiente");
     expect(situacionDePerfil({ estado: "bloqueado", partido: true })).toBe("bloqueado");
-    expect(situacionDePerfil({ estado: "autorizado" })).toBe("sin-modulos");
-    expect(situacionDePerfil({ estado: "autorizado", flujo: true })).toBe("ok");
+    expect(situacionDePerfil({ estado: "autorizado" })).toBe("ok");
     expect(situacionDePerfil({ estado: "autorizado", admin: true })).toBe("ok");
+  });
+
+  it("en un club, manda la membresía: módulos, admin del club y solo lectura", () => {
+    const cuenta = permisosDePerfil({ partido: true, flujo: true });
+    // Base con cuentas v2: el club trae rol y módulos.
+    expect(permisosEnClub(cuenta, { id: "c1", rol: "staff", partido: false, flujo: false, lesiones: true })).toEqual({
+      partido: false,
+      flujo: false,
+      lesiones: true,
+      datos: true,
+      admin: false,
+      adminClub: false,
+    });
+    expect(permisosEnClub(cuenta, { id: "c1", rol: "admin", partido: true, flujo: false, lesiones: false }).adminClub).toBe(true);
+    // Quien ya se fue no administra.
+    expect(permisosEnClub(cuenta, { id: "c1", rol: "admin", hasta: "2026-09-25", partido: true }).adminClub).toBe(false);
+    // Base vieja (sin rol ni módulos en el club): vale lo de la cuenta.
+    expect(permisosEnClub(cuenta, { id: "c1" })).toMatchObject({ partido: true, flujo: true, lesiones: false, datos: true, adminClub: false });
+    // El dueño administra cualquier club de la base vieja; sin club, nada.
+    expect(permisosEnClub(permisosDePerfil({ admin: true }), { id: "c1" }).adminClub).toBe(true);
+    expect(permisosEnClub(cuenta, null)).toMatchObject({ partido: false, datos: false, adminClub: false });
   });
 });
 

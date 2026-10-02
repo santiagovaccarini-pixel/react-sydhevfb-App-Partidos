@@ -10,6 +10,7 @@ import {
   permisosDePerfil,
   situacionDePerfil,
 } from "./domain/perfilesDb.js";
+import { limpiarAlSalir } from "./domain/copiasLocales.js";
 import { RUTA_SESION_OPENFIELD } from "./trainingApi.js";
 
 // La puerta de la app. Se entra una vez con correo y contraseña (Supabase
@@ -541,6 +542,8 @@ export default function AccessGate({ children }) {
     } finally {
       borrarSesionGuardada();
       guardarPerfilLocal(null);
+      // Las copias de los clubes y el club elegido no quedan en el celular.
+      limpiarAlSalir();
       ponerSesion(null);
       setPerfil(null);
       marcarDesdeCache(false);

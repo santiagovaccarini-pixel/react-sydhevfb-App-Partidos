@@ -166,11 +166,14 @@ grant select on public.v_mis_clubes to authenticated;
 
 -- ------------------------------------------- Las cuentas que ya están --
 
+-- Solo la primera vez (con la tabla vacía): volver a correr esto después no
+-- puede meter a todas las cuentas en todos los clubes.
 insert into public.club_miembros (equipo_id, user_id, desde)
 select e.id, p.user_id, greatest(e.creado_en, p.creado_en)::date
   from public.equipos e
  cross join public.perfiles p
  where p.estado = 'autorizado'
+   and not exists (select 1 from public.club_miembros)
 on conflict do nothing;
 
 -- ------------------------------------------------------------ Permisos --

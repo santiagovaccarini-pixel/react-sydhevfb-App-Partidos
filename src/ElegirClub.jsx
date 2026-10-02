@@ -7,7 +7,9 @@ import { fechaCorta } from "./idioma/formatos.js";
 
 // Lo segundo que ve una cuenta nueva, después de entrar: con qué club va a
 // trabajar. Queda guardado en el celular; desde el portal se puede cambiar.
-export default function ElegirClub({ onElegir, onSalir }) {
+// Solo el dueño de la plataforma crea clubes; el resto entra a los clubes a
+// los que lo invitaron.
+export default function ElegirClub({ onElegir, onSalir, esDueno = false, email = "" }) {
   useIdioma();
   const [equipos, setEquipos] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -86,8 +88,11 @@ export default function ElegirClub({ onElegir, onSalir }) {
           })}
         </ul>
       )}
-      {!cargando && !error && equipos.length === 0 && <p className="elegir-club-estado">{t("club.vacio")}</p>}
+      {!cargando && !error && equipos.length === 0 && (
+        <p className="elegir-club-estado">{esDueno ? t("club.vacioDueno") : t("club.vacio", { correo: email })}</p>
+      )}
 
+      {esDueno && (
       <form className="training-access-form elegir-club-crear" onSubmit={crear}>
         <label>
           {t("club.crear")}
@@ -104,6 +109,7 @@ export default function ElegirClub({ onElegir, onSalir }) {
           {creando ? t("club.creando") : t("club.crearBoton")}
         </button>
       </form>
+      )}
     </PantallaAcceso>
   );
 }

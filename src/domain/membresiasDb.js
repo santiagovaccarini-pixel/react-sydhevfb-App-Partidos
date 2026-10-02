@@ -1,19 +1,42 @@
 import { supabase } from "../supabase.js";
 import { hoyISO } from "../idioma/formatos.js";
 
-// Quién está en cada club, y hasta cuándo (tabla `club_miembros`). Cada uno
-// lee las suyas; el administrador las lee y las decide todas. `hasta` vacío
-// es que sigue en el club; con fecha, ese fue su último día: ve lo cargado
-// hasta ahí y no cambia nada.
+// La gente de cada club (tabla `club_miembros`, vista `v_miembros_club`), su
+// historia y las invitaciones. Quién puede ver y cambiar qué lo decide la
+// base: el admin del club, la gente de su club; el dueño de la plataforma,
+// la de todos; cada uno, lo suyo.
 
 export const TABLA_MEMBRESIAS = "club_miembros";
-const COLUMNAS = "equipo_id, user_id, desde, hasta";
+export const MODULOS_DEL_CLUB = ["partido", "flujo", "lesiones"];
 
-const normalizar = (fila) => ({
+const COLUMNAS_MEMBRESIA = "equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones";
+
+// Los errores de la base como claves del diccionario.
+export const claveDeError = (error, porDefecto = "cuentas.errorClub") => {
+  const texto = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`;
+  if (/ultimo_admin/.test(texto)) return "cuentas.errorUltimoAdmin";
+  if (/hasta_futura/.test(texto)) return "cuentas.errorHastaFutura";
+  if (/correo_invalido/.test(texto)) return "cuentas.errorCorreo";
+  if (/club_invitaciones_abierta_unica|duplicate key/.test(texto)) return "cuentas.errorInvitacionRepetida";
+  if (error?.code === "42501" || /row-level security|permission denied/.test(texto)) return "cuentas.errorSinPermiso";
+  if (error?.code === "42P01" || /does not exist/.test(texto)) return "cuentas.errorFaltaMigracion";
+  return porDefecto;
+};
+
+const fallo = (error, porDefecto) => new Error(claveDeError(error, porDefecto));
+
+const normalizarMiembro = (fila) => ({
   equipo_id: fila.equipo_id,
   user_id: fila.user_id,
+  email: fila.email || "",
+  estado: fila.estado || "",
+  confirmado_en: fila.confirmado_en || null,
   desde: fila.desde || null,
   hasta: fila.hasta || null,
+  rol: fila.rol || "staff",
+  partido: Boolean(fila.partido),
+  flujo: Boolean(fila.flujo),
+  lesiones: Boolean(fila.lesiones),
 });
 
 // "activo" (sigue en el club), "hasta" (se fue) o "ninguno" (nunca estuvo).
@@ -22,27 +45,109 @@ export const estadoDeMembresia = (fila) => {
   return fila.hasta ? "hasta" : "activo";
 };
 
-export const membresiaDe = (lista, userId, equipoId) =>
-  (lista || []).find((fila) => fila.user_id === userId && fila.equipo_id === equipoId) || null;
+// Los miembros de un club: primero los activos (administradores arriba),
+// después los que se fueron (el más reciente primero).
+export const ordenarMiembros = (lista) =>
+  [...(lista || [])].sort((a, b) => {
+    if (Boolean(a.hasta) !== Boolean(b.hasta)) return a.hasta ? 1 : -1;
+    if (a.hasta && b.hasta && a.hasta !== b.hasta) return a.hasta < b.hasta ? 1 : -1;
+    if (a.rol !== b.rol) return a.rol === "admin" ? -1 : 1;
+    return a.email.localeCompare(b.email);
+  });
 
-export const listarMembresias = async () => {
-  const { data, error } = await supabase.from(TABLA_MEMBRESIAS).select(COLUMNAS);
-  if (error) throw new Error(error.message || "cuentas.errorClubes");
-  return (data || []).map(normalizar);
+export const listarMiembros = async (equipoId) => {
+  const { data, error } = await supabase.from("v_miembros_club").select("*").eq("equipo_id", equipoId);
+  if (error) throw fallo(error, "cuentas.errorClubes");
+  return ordenarMiembros((data || []).map(normalizarMiembro));
 };
 
-// Crea o cambia la fila de una cuenta en un club. Si la base no dejó (no
-// sos administrador), no vuelve ninguna fila y se avisa.
+// Todas las membresías que la cuenta puede ver (el dueño: todas), para el
+// resumen de clubes de cada cuenta.
+export const listarMembresias = async () => {
+  const { data, error } = await supabase.from(TABLA_MEMBRESIAS).select(COLUMNAS_MEMBRESIA);
+  if (error) throw fallo(error, "cuentas.errorClubes");
+  return (data || []).map(normalizarMiembro);
+};
+
+// Cambia una membresía que ya existe. Si la base no dejó (no administra ese
+// club), no vuelve ninguna fila y se avisa.
 const cambiar = async (userId, equipoId, cambios) => {
   const { data, error } = await supabase
     .from(TABLA_MEMBRESIAS)
-    .upsert({ equipo_id: equipoId, user_id: userId, ...cambios }, { onConflict: "equipo_id,user_id" })
-    .select(COLUMNAS);
-  if (error) throw new Error(error.message || "cuentas.errorClub");
-  if (!data || data.length === 0) throw new Error("cuentas.errorClub");
-  return normalizar(data[0]);
+    .update(cambios)
+    .eq("equipo_id", equipoId)
+    .eq("user_id", userId)
+    .select(COLUMNAS_MEMBRESIA);
+  if (error) throw fallo(error);
+  if (!data || data.length === 0) throw new Error("cuentas.errorSinPermiso");
+  return normalizarMiembro(data[0]);
 };
 
-export const sumarAlClub = (userId, equipoId) => cambiar(userId, equipoId, { desde: hoyISO(), hasta: null });
+export const cambiarRol = (userId, equipoId, rol) => cambiar(userId, equipoId, { rol });
+export const cambiarModulo = (userId, equipoId, modulo, valor) => {
+  if (!MODULOS_DEL_CLUB.includes(modulo)) throw new Error("cuentas.errorClub");
+  return cambiar(userId, equipoId, { [modulo]: Boolean(valor) });
+};
 export const darDeBaja = (userId, equipoId, hasta) => cambiar(userId, equipoId, { hasta });
-export const reincorporar = (userId, equipoId) => cambiar(userId, equipoId, { hasta: null });
+export const reincorporar = (userId, equipoId) => cambiar(userId, equipoId, { hasta: null, desde: hoyISO() });
+
+export const historialDeMiembro = async (equipoId, userId) => {
+  const { data, error } = await supabase
+    .from("club_miembros_historial")
+    .select("id, accion, detalle, quien_email, cuando")
+    .eq("equipo_id", equipoId)
+    .eq("user_id", userId)
+    .order("cuando", { ascending: false })
+    .order("id", { ascending: false });
+  if (error) throw fallo(error, "cuentas.errorHistorial");
+  return data || [];
+};
+
+// ------------------------------------------------------- Invitaciones --
+
+export const correoValido = (correo) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(correo || "").trim());
+
+export const listarInvitaciones = async (equipoId) => {
+  const { data, error } = await supabase
+    .from("club_invitaciones")
+    .select("id, email, rol, partido, flujo, lesiones, creado_en, vence_en, usada_en, cancelada_en")
+    .eq("equipo_id", equipoId)
+    .is("usada_en", null)
+    .is("cancelada_en", null)
+    .order("creado_en", { ascending: false });
+  if (error) throw fallo(error, "cuentas.errorInvitaciones");
+  return data || [];
+};
+
+// Invita un correo al club. Si la cuenta ya existe (y confirmó su correo),
+// la base la mete en el club en el acto y la invitación vuelve usada.
+export const invitar = async (equipoId, { email, rol = "staff", partido = true, flujo = true, lesiones = false }) => {
+  const correo = String(email || "").trim().toLowerCase();
+  if (!correoValido(correo)) throw new Error("cuentas.errorCorreo");
+  const { error } = await supabase
+    .from("club_invitaciones")
+    .insert({ equipo_id: equipoId, email: correo, rol, partido, flujo, lesiones });
+  if (error) throw fallo(error, "cuentas.errorInvitar");
+  // La fila se vuelve a leer aparte: si la cuenta entró en el acto, la
+  // invitación ya no está abierta (y no hace falta mostrarla).
+  const { data } = await supabase
+    .from("club_invitaciones")
+    .select("id, usada_en")
+    .eq("equipo_id", equipoId)
+    .eq("email", correo)
+    .order("creado_en", { ascending: false })
+    .limit(1);
+  return { usada: Boolean(data?.[0]?.usada_en) };
+};
+
+export const cancelarInvitacion = async (id) => {
+  const { data, error } = await supabase
+    .from("club_invitaciones")
+    .update({ cancelada_en: new Date().toISOString() })
+    .eq("id", id)
+    .select("id");
+  if (error) throw fallo(error, "cuentas.errorInvitar");
+  if (!data || data.length === 0) throw new Error("cuentas.errorSinPermiso");
+  return true;
+};
+
