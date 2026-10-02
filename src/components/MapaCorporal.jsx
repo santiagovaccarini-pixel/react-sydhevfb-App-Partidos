@@ -48,23 +48,31 @@ const Chips = ({ opciones, elegida, onElegir, extra = null }) => (
 // --------------------------------------------------------------- Zona --
 
 // parte, lado: lo cargado. partes: los códigos de parte del cuerpo que el
-// club tiene a la vista. lados: [{ valor, etiqueta }]. mapa: el del club.
-// onCambiar recibe lo que cambia ({ parte_cuerpo, lado }). vista y onVista
-// (si se pasan) dejan la figura de frente o de espaldas en manos de quien la
-// usa, para que el paso siguiente sepa desde dónde se eligió.
-export const ElegirZona = ({ parte, lado, partes, lados, mapa, textoDeOpcion, onCambiar, vista: vistaDeAfuera, onVista }) => {
+// club tiene a la vista. lados: [{ valor, etiqueta }]. opciones(campo): las
+// del club a la vista. mapa: el del club. onCambiar recibe lo que cambia
+// ({ parte_cuerpo, lado }). vista y onVista (si se pasan) dejan la figura de
+// frente o de espaldas en manos de quien la usa, para que el paso siguiente
+// sepa desde dónde se eligió.
+export const ElegirZona = ({ parte, lado, partes, lados, opciones, mapa, textoDeOpcion, onCambiar, vista: vistaDeAfuera, onVista }) => {
   const [vistaPropia, setVistaPropia] = useState(() => vistaPara(parte));
   const vista = vistaDeAfuera || vistaPropia;
   const setVista = (cual) => (onVista ? onVista(cual) : setVistaPropia(cual));
   const [region, setRegion] = useState(() => (parte ? mapa.regionDe(parte, lado) : null));
   const actual = region ? regionPorClave(region) : null;
-  const regionElegida = parte ? mapa.regionDe(parte, lado) : null;
   const nombreDeRegion = (clave) => t(`lesiones.cuerpo.regiones.${clave}`);
   const nombreDeParte = (codigo) => textoDeOpcion("parte_cuerpo", codigo);
   // Lo que se ofrece en cada región: sus partes a la vista, también las que
   // agregó el club. Se toca una región si tiene alguna.
   const deLaRegion = (clave) => mapa.partesDeRegion(clave).filter((codigo) => partes.includes(codigo));
   const regionesConPartes = REGIONES.filter((una) => deLaRegion(una.clave).length).map((una) => una.clave);
+  // La región de lo elegido: la que se está mirando, si la parte está ahí y
+  // es de ese lado (una parte del club puede estar en más de una: un dedo,
+  // de la mano o del pie); si no, la que dice el mapa.
+  const regionElegida = !parte
+    ? null
+    : actual && deLaRegion(actual.clave).includes(parte) && (!actual.lado || actual.lado === lado)
+      ? actual.clave
+      : mapa.regionDe(parte, lado);
   // El lado se elige a mano en las partes del medio, y también cuando la
   // figura no puede decirlo (una parte que no se sabe dónde va, o un lado
   // que no es derecho ni izquierdo).
@@ -84,7 +92,7 @@ export const ElegirZona = ({ parte, lado, partes, lados, mapa, textoDeOpcion, on
 
   const elegirParte = (codigo, enRegion) => {
     const nueva = regionPorClave(enRegion);
-    const anterior = parte ? regionPorClave(mapa.regionDe(parte, lado)) : null;
+    const anterior = regionElegida ? regionPorClave(regionElegida) : null;
     const cambios = { parte_cuerpo: codigo };
     // Brazo o pierna: el lado sale de la figura. Del medio, se elige abajo
     // (y si venía de un brazo o una pierna, ese lado ya no vale).
@@ -98,9 +106,16 @@ export const ElegirZona = ({ parte, lado, partes, lados, mapa, textoDeOpcion, on
   };
 
   // Lo que tiene cada parte, para ayudar a elegir: los grupos musculares (o
-  // los músculos, o los ligamentos) de las listas.
+  // los músculos, o los ligamentos) de las listas que están a la vista. Una
+  // parte que no se sabe dónde va ofrece de todo: no hay nada que adelantar.
   const pista = (codigo) => {
-    const { musculos, especificos, ligamentos } = mapa.estructurasDe(codigo);
+    if (!mapa.partesDeOpcion("parte_cuerpo", codigo)) return "";
+    const aLaVista = (campo, codigos) => {
+      const vistas = opciones(campo).map((opcion) => opcion.valor);
+      return codigos.filter((uno) => vistas.includes(uno));
+    };
+    const enLaParte = mapa.estructurasDe(codigo);
+    const [musculos, especificos, ligamentos] = [aLaVista("musculo", enLaParte.musculos), aLaVista("musculo_especifico", enLaParte.especificos), aLaVista("ligamento", enLaParte.ligamentos)];
     const textos = [
       ...musculos.map((grupo) => textoDeOpcion("musculo", grupo)),
       ...(musculos.length ? [] : especificos.map((uno) => textoDeOpcion("musculo_especifico", uno))),

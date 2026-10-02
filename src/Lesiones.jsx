@@ -1273,6 +1273,7 @@ export default function Lesiones({ onVolver }) {
         lado={lesion.datos?.lado || null}
         partes={opciones("parte_cuerpo").map((opcion) => opcion.valor)}
         lados={opciones("lado")}
+        opciones={opciones}
         mapa={mapa}
         textoDeOpcion={textoDeOpcion}
         onCambiar={cambiarVarios}
@@ -1443,7 +1444,7 @@ export default function Lesiones({ onVolver }) {
 
   // Cabeceras y opciones se renombran en el idioma que se está usando; el
   // otro idioma guarda lo que tenía.
-  const hojaDeTextos = ({ abierta, titulo, hoja, setHoja, onGuardar, onCerrar, fija = false, nota = "", dondeVaEn = "" }) =>
+  const hojaDeTextos = ({ abierta, titulo, hoja, setHoja, onGuardar, onCerrar, fija = false, nota = "", dondeVaEn = null }) =>
     hoja ? (
       <HojaInferior
         abierta={abierta}
@@ -1472,11 +1473,9 @@ export default function Lesiones({ onVolver }) {
           />
           <small className="lesiones-ayuda">{t("lesiones.ajustes.nombreAyuda")}</small>
         </div>
-        {dondeVaEn && (
-          <p className="lesiones-donde-va" aria-live="polite">
-            {dondeVaEn}
-          </p>
-        )}
+        {/* En las listas del cuerpo, dónde va la opción: el aviso está desde
+            que se abre la hoja, para que el lector de pantalla lo lea al cambiar. */}
+        {dondeVaEn !== null && <div aria-live="polite">{dondeVaEn && <p className="lesiones-donde-va">{dondeVaEn}</p>}</div>}
         {nota ? (
           <p className="lesiones-ayuda lesiones-nota-fija">{nota}</p>
         ) : fija ? (
@@ -1564,7 +1563,7 @@ export default function Lesiones({ onVolver }) {
         setHoja: setHojaOpcion,
         onGuardar: guardarHojaOpcion,
         onCerrar: () => !ocupado && setHojaOpcion(null),
-        dondeVaEn: hojaOpcion ? dondeVaAlEscribir(hojaOpcion) : "",
+        dondeVaEn: hojaOpcion && CAMPOS_DEL_CUERPO.includes(hojaOpcion.campo) ? dondeVaAlEscribir(hojaOpcion) : null,
       })}
 
       <HojaConfirmar

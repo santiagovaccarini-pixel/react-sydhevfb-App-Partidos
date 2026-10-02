@@ -182,6 +182,53 @@ describe("las opciones que agrega el club se ubican solas por su nombre", () => 
     expect(tercioPorNombre("Proximal y medio")).toBe(null);
   });
 
+  test("cabeza, cara y cuello también son partes de huesos: valen solo si nada más dice dónde va", () => {
+    expect(partesPorNombre("Cabeza")).toEqual(["cabeca_face"]);
+    expect(partesPorNombre("Cuello")).toEqual(["pescoco"]);
+    expect(partesPorNombre("Cabeça do úmero")).toEqual(["ombro", "braco"]);
+    expect(partesPorNombre("Cabeza del radio")).toEqual(["cotovelo", "antebraco", "punho"]);
+    expect(partesPorNombre("Cabeza de la tibia")).toEqual(["joelho"]);
+    expect(partesPorNombre("Cuello del escafoides")).toEqual(["punho"]);
+    expect(partesPorNombre("Cuello del quinto metatarsiano")).toEqual(["pe_dedo"]);
+    expect(partesPorNombre("Cuello del astrágalo")).toEqual(["tornozelo_pe"]);
+    expect(partesPorNombre("Cuello femoral")).toEqual(["quadril_virilha"]);
+    expect(partesPorNombre("Cuadrado femoral")).toEqual(["quadril_virilha"]);
+    expect(partesPorNombre("Face articular da patela")).toEqual(["joelho"]);
+    expect(partesPorNombre("Cara articular")).toEqual([]);
+  });
+
+  test("nombres que se parecen no se confunden", () => {
+    // El vasto medial oblicuo es del cuádriceps, no del abdomen.
+    expect(partesPorNombre("Vasto medial oblicuo")).toEqual(["coxa"]);
+    // Los ligamentos del esguince de tobillo y los colaterales de la rodilla.
+    expect(partesPorNombre("Ligamento peroneoastragalino anterior")).toEqual(["tornozelo_pe"]);
+    expect(partesPorNombre("Ligamento colateral fibular")).toEqual(["joelho"]);
+    expect(partesPorNombre("Ligamento colateral cubital")).toEqual(["cotovelo", "antebraco", "punho"]);
+    expect(partesPorNombre("Platillo tibial")).toEqual(["joelho"]);
+    // El escafoides del pie no es el de la muñeca.
+    expect(partesPorNombre("Escafoides tarsiano")).toEqual(["tornozelo_pe", "pe_dedo"]);
+    expect(partesPorNombre("Plantar delgado")).toEqual(["joelho", "perna_aquiles"]);
+    expect(partesPorNombre("Disco L5-S1")).toEqual(["coluna_lombar"]);
+  });
+
+  test("los nombres de todos los días, en los dos idiomas, y las siglas", () => {
+    expect(partesPorNombre("Espalda")).toEqual(["esterno", "coluna_lombar"]);
+    expect(partesPorNombre("Espalda baja")).toEqual(["coluna_lombar"]);
+    expect(partesPorNombre("Costas")).toEqual(["esterno", "coluna_lombar"]);
+    expect(partesPorNombre("Nalga")).toEqual(["quadril_virilha"]);
+    expect(partesPorNombre("Nádega")).toEqual(["quadril_virilha"]);
+    expect(partesPorNombre("Coxis")).toEqual(["coluna_lombar"]);
+    expect(partesPorNombre("Sacroileítis")).toEqual(["coluna_lombar"]);
+    expect(partesPorNombre("Antepé")).toEqual(["pe_dedo"]);
+    expect(partesPorNombre("Retropé")).toEqual(["tornozelo_pe"]);
+    expect(partesPorNombre("Tendinopatía aquílea")).toEqual(["perna_aquiles", "tornozelo_pe"]);
+    expect(partesPorNombre("Úmero")).toEqual(["braco"]);
+    expect(partesPorNombre("Intercostais")).toEqual(["esterno"]);
+    expect(partesPorNombre("LCA")).toEqual(["joelho"]);
+    expect(partesPorNombre("LLE")).toEqual(["joelho", "tornozelo_pe"]);
+    expect(partesPorNombre("LPAA")).toEqual(["tornozelo_pe"]);
+  });
+
   // Las listas como vienen de la configuración del club.
   const op = (codigo, es, pt = "") => ({ codigo, etiquetas: { "es-AR": es, "pt-BR": pt }, oculto: false });
   const delClub = (campo, ...agregadas) => [...OPCIONES[campo].map((opcion) => ({ ...opcion, oculto: false })), ...agregadas];
@@ -224,6 +271,32 @@ describe("las opciones que agrega el club se ubican solas por su nombre", () => 
     expect(mapa.regionDe("rara_x", "direito")).toBe(null);
     expect(mapa.piezaDe("rara_x", "pierna_derecha")).toBe(null);
     expect(mapa.estructurasDe("rara_x").ligamentos).toHaveLength(codigos("ligamento").length + 1);
+  });
+
+  test("una parte del club que puede estar en más de una región no se dibuja en ninguna", () => {
+    const conDedo = crearMapa({ parte_cuerpo: delClub("parte_cuerpo", op("dedo_x", "Dedo"), op("gluteo_x", "Glúteo")) });
+    expect(conDedo.partesDeRegion("brazo_derecho")).toContain("dedo_x");
+    expect(conDedo.partesDeRegion("pierna_derecha")).toContain("dedo_x");
+    // ¿La mano o el pie? No se sabe: mejor nada que la equivocada.
+    expect(conDedo.regionDe("dedo_x", "direito")).toBe(null);
+    // El glúteo del medio (tronco) sin lado; con lado, puede ser también la pierna.
+    expect(conDedo.regionDe("gluteo_x", null)).toBe("tronco");
+    expect(conDedo.regionDe("gluteo_x", "direito")).toBe(null);
+  });
+
+  test("lo que solo va en partes que el club escondió aparece en todas: con la figura siempre se llega", () => {
+    const sinRodilla = crearMapa({
+      parte_cuerpo: OPCIONES.parte_cuerpo.map((opcion) => ({ ...opcion, oculto: opcion.codigo === "joelho" })),
+      musculo_especifico: delClub("musculo_especifico", op("rotuliano_x", "Tendón rotuliano (club)")),
+    });
+    // Los ligamentos de la rodilla y el tendón del club van en todas las partes.
+    expect(sinRodilla.estructurasDe("tornozelo_pe").ligamentos).toEqual(expect.arrayContaining(["lca", "menisco_medial"]));
+    expect(sinRodilla.estructurasDe("ombro").especificos).toContain("rotuliano_x");
+    expect(sinRodilla.estructurasDe("ombro").especificos).toContain("tendao_patelar");
+    // Lo que también va en una parte a la vista sigue solo donde va.
+    expect(sinRodilla.estructurasDe("ombro").especificos).not.toContain("semitendinoso");
+    // En Ajustes sigue diciendo dónde va.
+    expect(sinRodilla.partesDeOpcion("musculo_especifico", "rotuliano_x")).toEqual(["joelho"]);
   });
 
   test("un área del club va en el tercio que nombra", () => {

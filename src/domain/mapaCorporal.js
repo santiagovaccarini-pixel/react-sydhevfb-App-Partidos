@@ -201,55 +201,149 @@ const estructurasDeLaParte = (parte, vista) => {
 // castellano o en portugués, sin tildes). Una palabra con * vale por todas
 // las que empiezan así; sin *, también en plural; varias palabras, seguidas.
 // `salvo`: la pista no vale si aparece alguna de esas; `con`: tiene que
-// aparecer además alguna de esas.
-const POSICIONES = ["anterior", "posterior", "lateral", "medial", "interna", "interno", "externa", "externo", "dorsal", "plantar", "palmar", "superior", "inferior"];
+// aparecer además alguna de esas. Las pistas `generica` (cabeza, cara,
+// cuello: también son partes de huesos, como la cabeza del húmero o el
+// cuello del fémur) valen solo si ninguna otra dijo dónde va.
+const numeradas = (letra, cuantas) => Array.from({ length: cuantas }, (_, i) => `${letra}${i + 1}`);
+const VERTEBRAS = {
+  pescoco: numeradas("c", 7),
+  esterno: [...numeradas("t", 12), ...numeradas("d", 12)],
+  coluna_lombar: [...numeradas("l", 5), ...numeradas("s", 5)],
+};
+const POSICIONES = ["anterior", "posterior", "lateral", "medial", "interna", "interno", "externa", "externo", "dorsal", "plantar", "palmar", "superior", "inferior", "articular"];
 const PISTAS = [
-  // Cabeza y cuello. "Cabeza larga" o "cara anterior" no son la cabeza.
-  { partes: ["cabeca_face"], palabras: ["cabeza", "cabeca"], salvo: ["larga", "corta", "longa", "curta", "humero", "humeral", "femur", "femoral", "radio", "perone", "fibula", "metatars*", "metacarp*", "biceps", "triceps", "gastrocnem*", "gemelo", "cuadricep*", "quadricep*"] },
-  { partes: ["cabeca_face"], palabras: ["cara", "face"], salvo: POSICIONES },
+  // Cabeza y cuello.
+  { partes: ["cabeca_face"], palabras: ["cabeza", "cabeca"], salvo: ["larga", "corta", "longa", "curta", "articular"], generica: true },
+  { partes: ["cabeca_face"], palabras: ["cara", "face"], salvo: POSICIONES, generica: true },
+  { partes: ["pescoco"], palabras: ["cuello"], generica: true },
   {
     partes: ["cabeca_face"],
     palabras: ["rostro", "rosto", "craneo", "cranio", "ojo", "olho", "orbita", "nariz", "nasal", "boca", "labio", "diente", "dente", "dental", "mandibul*", "maxilar*", "oreja", "orelha", "oido", "ouvido", "pomulo", "malar", "temporal", "masetero", "masseter"],
   },
-  { partes: ["pescoco"], palabras: ["cuello", "pescoco", "cervical*", "nuca", "esternocleido*", "escalen*"], salvo: ["femur", "femoral", "humero", "pie", "pe"] },
+  { partes: ["pescoco"], palabras: ["pescoco", "cervical*", "nuca", "esternocleido*", "escalen*", ...VERTEBRAS.pescoco] },
   { partes: ["pescoco", "esterno", "ombro"], palabras: ["trapecio", "trapezio"] },
   // Tronco.
   {
     partes: ["esterno"],
-    palabras: ["esternon", "esterno", "costilla", "costela", "costal*", "toracic*", "torax", "intercostal*", "serrato", "romboide*", "xifoide*", "pecho", "peito", "columna dorsal", "coluna dorsal"],
+    palabras: ["esternon", "esterno", "costilla", "costela", "costal*", "toracic*", "torax", "intercost*", "serrato", "serratil", "romboide*", "xifoide*", "pecho", "peito", "columna dorsal", "coluna dorsal", "dorsalgia", ...VERTEBRAS.esterno],
     salvo: ["pie", "pe"],
   },
   { partes: ["esterno", "coluna_lombar", "ombro"], palabras: ["dorsal", "dorsais", "latissimo", "latissimus"], salvo: ["pie", "pe", "mano", "mao", "dedo", "columna", "coluna", "vertebra*"] },
+  { partes: ["esterno", "coluna_lombar"], palabras: ["espalda", "costas"], salvo: ["alta", "alto", "superior", "baja", "baixa", "inferior", "lumbar*", "lombar*"] },
+  { partes: ["esterno"], palabras: ["espalda", "costas"], con: ["alta", "alto", "superior"] },
+  { partes: ["coluna_lombar"], palabras: ["espalda", "costas"], con: ["baja", "baixa", "inferior"] },
   { partes: ["esterno", "ombro"], palabras: ["pectoral*", "peitora*"] },
-  { partes: ["abdomen"], palabras: ["abdom*", "oblicu*", "obliqu*", "transverso", "umbilic*", "umbig*"], salvo: ["ligamento"] },
+  { partes: ["ombro", "esterno"], palabras: ["axila", "axilar"] },
+  { partes: ["abdomen"], palabras: ["abdom*", "oblicu*", "obliqu*", "transverso", "umbilic*", "umbig*", "ombligo"], salvo: ["ligamento", "vast*"] },
   {
     partes: ["coluna_lombar"],
-    palabras: ["lumbar*", "lombar*", "lumbalgia", "lombalgia", "sacro", "sacra", "sacral", "sacroiliac*", "coccix", "coccige", "pelvis", "pelve", "pelvic*", "multifido*", "erector*", "eretor*"],
+    palabras: [
+      "lumbar*",
+      "lombar*",
+      "lumbalgia",
+      "lombalgia",
+      "lumbo*",
+      "lombo*",
+      "sacro",
+      "sacra",
+      "sacral",
+      "sacroil*",
+      "coccix",
+      "coxis",
+      "coccige",
+      "pelvis",
+      "pelve",
+      "pelvic*",
+      "multifido*",
+      "erector*",
+      "eretor*",
+      ...VERTEBRAS.coluna_lombar,
+    ],
   },
-  { partes: ["pescoco", "esterno", "coluna_lombar"], palabras: ["columna", "coluna", "vertebra*", "paravertebral*", "espinal", "disco", "discal"], salvo: ["cervical*", "toracic*", "lumbar*", "lombar*", "dorsal", "sacr*"] },
+  {
+    partes: ["pescoco", "esterno", "coluna_lombar"],
+    palabras: ["columna", "coluna", "vertebra*", "paravertebra*", "espinal", "disco", "discal"],
+    salvo: ["cervical*", "toracic*", "lumbar*", "lombar*", "dorsal", "sacr*", ...Object.values(VERTEBRAS).flat()],
+  },
   { partes: ["coluna_lombar", "quadril_virilha", "coxa"], palabras: ["ciatic*"] },
   // Brazos.
   {
     partes: ["ombro"],
-    palabras: ["hombro", "ombro", "clavicul*", "acromi*", "manguito", "supraespin*", "supraspin*", "infraespin*", "subescapular*", "glenoid*", "glenohumeral", "glenoumeral", "coracoid*", "escapula*", "omoplato", "omoplata"],
+    palabras: [
+      "hombro",
+      "ombro",
+      "clavicul*",
+      "acromi*",
+      "manguito",
+      "supraespin*",
+      "supraspin*",
+      "infraespin*",
+      "subescapular*",
+      "glenoid*",
+      "glenohumeral",
+      "glenoumeral",
+      "coracoid*",
+      "escapula*",
+      "omoplato",
+      "omoplata",
+      "cabeza del humero",
+      "cabeca do umero",
+      "cabeza humeral",
+      "cabeca umeral",
+    ],
   },
   { partes: ["ombro"], palabras: ["labrum", "labral"], salvo: ["acetabul*", "cadera", "quadril", "coxofemoral"] },
   { partes: ["quadril_virilha"], palabras: ["labrum", "labral"], salvo: ["glenoid*", "hombro", "ombro"] },
   { partes: ["ombro", "braco"], palabras: ["deltoid*"], salvo: ["ligamento", "lig"] },
   { partes: ["ombro", "braco", "cotovelo"], palabras: ["biceps", "triceps"], salvo: ["femoral", "sural", "crural"] },
-  { partes: ["braco"], palabras: ["brazo", "braco", "humero", "humeral"] },
+  { partes: ["braco"], palabras: ["brazo", "braco", "humero", "humeral", "umero", "umeral"] },
   { partes: ["braco", "cotovelo"], palabras: ["braquial"] },
-  { partes: ["cotovelo"], palabras: ["codo", "cotovelo", "olecran*", "epicondil*", "epitrocle*"] },
+  { partes: ["cotovelo"], palabras: ["codo", "cotovelo", "olecran*", "epicondil*", "epitrocle*", "cabeza del radio", "cabeca do radio", "cabeza radial", "cabeca radial"] },
+  { partes: ["cotovelo"], palabras: ["colateral*"], con: ["cubit*", "ulnar", "radial"], salvo: ["pulgar", "polegar", "dedo", "mano", "mao", "muneca", "punho"] },
   { partes: ["antebraco", "cotovelo"], palabras: ["braquiorradial*", "pronador*", "supinador*"] },
   { partes: ["antebraco"], palabras: ["antebrazo", "antebraco"] },
   { partes: ["antebraco", "punho"], palabras: ["radio", "radial", "cubito", "cubital", "ulna", "ulnar"] },
-  { partes: ["punho"], palabras: ["muneca", "punho", "carpo", "carpiano", "carpal", "escafoide*", "semilunar"] },
+  { partes: ["punho"], palabras: ["muneca", "punho", "carpo", "carpiano", "carpal", "semilunar"] },
+  // El escafoides de la muñeca; el del pie (tarsiano) es otro hueso.
+  { partes: ["punho"], palabras: ["escafoide*"], salvo: ["tars*", "pie", "pe"] },
+  { partes: ["tornozelo_pe", "pe_dedo"], palabras: ["escafoide*"], con: ["tars*", "pie", "pe"] },
   { partes: ["mao"], palabras: ["mano", "mao", "pulgar", "polegar", "metacarp*", "palma", "tenar", "hipotenar"] },
   { partes: ["mao", "pe_dedo"], palabras: ["dedo", "falange*", "interfalang*", "interose*", "interosse*"], salvo: ["mano", "mao", "pie", "pe", "pulgar", "polegar", "halux", "hallux", "membrana"] },
   // Piernas.
   {
     partes: ["quadril_virilha"],
-    palabras: ["cadera", "quadril", "ingle", "virilha", "inguinal*", "pubi*", "pubalgia", "acetabul*", "trocanter*", "isquio", "isquion", "isquiatic*", "pectineo", "gemino*", "gemeo*", "obturador*", "coxofemoral"],
+    palabras: [
+      "cadera",
+      "quadril",
+      "ingle",
+      "virilha",
+      "inguinal*",
+      "pubi*",
+      "pube",
+      "pubalgia",
+      "acetabul*",
+      "trocanter*",
+      "isquio",
+      "isquion",
+      "isquiatic*",
+      "pectineo",
+      "gemino*",
+      "gemeo*",
+      "obturador*",
+      "coxofemoral",
+      "nalga",
+      "nadega",
+      "cabeza femoral",
+      "cabeca femoral",
+      "cabeza del femur",
+      "cabeca do femur",
+      "cuello femoral",
+      "cuello del femur",
+      "colo femoral",
+      "colo do femur",
+      "cuadrado femoral",
+      "quadrado femoral",
+    ],
   },
   { partes: ["quadril_virilha", "coluna_lombar"], palabras: ["glute*", "piriform*", "psoas", "iliopsoas", "iliaco", "iliaca"] },
   { partes: ["quadril_virilha", "coxa"], palabras: ["aductor*", "adutor*", "abductor*", "abdutor*"], salvo: ["halux", "hallux", "pulgar", "polegar", "dedo"] },
@@ -258,20 +352,82 @@ const PISTAS = [
     partes: ["quadril_virilha", "coxa", "joelho"],
     palabras: ["isquiotib*", "isquiosural*", "isquios", "semitendin*", "semimembran*", "sartori*", "gracil*", "recto interno", "reto interno", "tensor", "fascia lata", "iliotibial*", "cintilla", "biceps femoral", "cuadricep*", "quadricep*"],
   },
-  { partes: ["coxa"], palabras: ["muslo", "coxa", "femur", "femoral", "vast*", "crural"] },
-  { partes: ["joelho"], palabras: ["rodilla", "joelho", "rotul*", "patel*", "menisc*", "cruzad*", "poplite*", "anserin*", "pata de ganso", "hoffa", "osgood*", "meseta tibial", "plato tibial"] },
-  { partes: ["joelho"], palabras: ["colateral*"], salvo: ["cubit*", "ulnar", "codo", "cotovelo", "pulgar", "polegar", "mano", "mao", "dedo", "tobillo", "tornozelo"] },
-  { partes: ["joelho", "perna_aquiles"], palabras: ["gastrocnem*", "gemelo"] },
-  { partes: ["perna_aquiles"], palabras: ["pierna", "perna", "pantorrill*", "panturrilh*", "soleo", "sural", "tibia", "perone", "fibula", "canilla", "canela"] },
-  { partes: ["perna_aquiles", "tornozelo_pe"], palabras: ["aquiles", "aquileo", "aquiliano", "peroneo*", "fibular*", "tibial", "membrana interose*", "membrana interosse*"] },
-  { partes: ["perna_aquiles", "tornozelo_pe", "pe_dedo"], palabras: ["plantar"], salvo: ["fascia", "fascitis", "fascite", "planta"] },
+  // El fémur es del muslo, salvo su cabeza y su cuello (la cadera).
+  { partes: ["coxa"], palabras: ["muslo", "coxa", "femur", "femoral", "vast*", "crural"], salvo: ["cabeza", "cabeca", "cuello", "colo", "cuadrado", "quadrado"] },
+  {
+    partes: ["joelho"],
+    palabras: [
+      "rodilla",
+      "joelho",
+      "rotul*",
+      "patel*",
+      "menisc*",
+      "cruzad*",
+      "poplite*",
+      "anserin*",
+      "pata de ganso",
+      "hoffa",
+      "osgood*",
+      "meseta tibial",
+      "plato tibial",
+      "platillo tibial",
+      "planalto tibial",
+      "cabeza de la tibia",
+      "cabeca da tibia",
+      "lca",
+      "lcp",
+      "lcm",
+      "lcl",
+      "acl",
+      "pcl",
+      "mcl",
+    ],
+  },
+  { partes: ["joelho"], palabras: ["colateral*"], salvo: ["cubit*", "ulnar", "radial", "codo", "cotovelo", "pulgar", "polegar", "mano", "mao", "dedo", "tobillo", "tornozelo"] },
+  // Lateral interno y externo: los hay en la rodilla y en el tobillo.
+  { partes: ["joelho", "tornozelo_pe"], palabras: ["lli", "lle"] },
+  { partes: ["joelho", "perna_aquiles"], palabras: ["gastrocnem*", "gemelo", "plantar delgado"] },
+  { partes: ["perna_aquiles"], palabras: ["pierna", "perna", "pantorrill*", "panturrilh*", "soleo", "sural", "tibia", "perone", "fibula", "canilla", "canela"], salvo: ["cabeza", "cabeca", "meseta", "plato", "platillo", "planalto"] },
+  {
+    partes: ["perna_aquiles", "tornozelo_pe"],
+    palabras: ["aquile*", "aquiliano", "peroneo", "peronea", "fibular", "tibial", "membrana interose*", "membrana interosse*"],
+    salvo: ["colateral*", "meseta", "plato", "platillo", "planalto"],
+  },
+  { partes: ["perna_aquiles", "tornozelo_pe", "pe_dedo"], palabras: ["plantar"], salvo: ["fascia", "fascitis", "fascite", "planta", "delgado"] },
   {
     partes: ["tornozelo_pe"],
-    palabras: ["tobillo", "tornozelo", "maleol*", "astragal*", "talus", "talo", "tarso", "tarsal", "calcane*", "sindesm*", "tibioperone*", "tibiofibular*", "peroneoastragal*", "peroneocalcane*", "talofibular*", "calcaneofibular*", "subastragal*", "subtalar*"],
+    palabras: [
+      "tobillo",
+      "tornozelo",
+      "maleol*",
+      "astragal*",
+      "talus",
+      "talo",
+      "tarso",
+      "tarsal",
+      "tarsian*",
+      "calcane*",
+      "sindesm*",
+      "tibioperone*",
+      "tibiofibular*",
+      "peroneoastragal*",
+      "peroneocalcane*",
+      "talofibular*",
+      "calcaneofibular*",
+      "subastragal*",
+      "subtalar*",
+      "retropie",
+      "retrope",
+      "lpaa",
+      "lpap",
+      "lpc",
+      "atfl",
+      "cfl",
+    ],
   },
   { partes: ["tornozelo_pe"], palabras: ["deltoid*"], con: ["ligamento", "lig"] },
-  { partes: ["tornozelo_pe", "pe_dedo"], palabras: ["fascia plantar", "fascitis plantar", "fascite plantar", "planta", "talon", "calcanhar", "empeine", "peito do pe"] },
-  { partes: ["pe_dedo"], palabras: ["pie", "pe", "halux", "hallux", "metatars*", "sesamoid*", "juanete", "joanete", "morton"] },
+  { partes: ["tornozelo_pe", "pe_dedo"], palabras: ["fascia plantar", "fascitis plantar", "fascite plantar", "planta", "talon", "calcanhar", "empeine", "peito do pe", "navicular", "cuboide*", "mediopie", "mediope"] },
+  { partes: ["pe_dedo"], palabras: ["pie", "pe", "halux", "hallux", "metatars*", "sesamoid*", "juanete", "joanete", "morton", "antepie", "antepe"] },
 ];
 
 // El tercio del músculo que nombra un área.
@@ -304,7 +460,8 @@ export const partesPorNombre = (...textos) => {
   const halladas = new Set(
     textos.flatMap((texto) => {
       const palabras = palabrasDe(texto);
-      return PISTAS.filter((pista) => vale(palabras, pista)).flatMap((pista) => pista.partes);
+      const precisas = PISTAS.filter((pista) => !pista.generica && vale(palabras, pista));
+      return (precisas.length ? precisas : PISTAS.filter((pista) => pista.generica && vale(palabras, pista))).flatMap((pista) => pista.partes);
     }),
   );
   return PARTES.filter((parte) => halladas.has(parte));
@@ -329,20 +486,39 @@ export const tercioPorNombre = (...textos) => {
 // configuración ({ campo: [{ codigo, etiquetas }] }); sin listas, el catálogo.
 export const crearMapa = (listas = {}) => {
   const delCatalogo = (campo, codigo) => OPCIONES[campo].some((opcion) => opcion.codigo === codigo);
+  const textosDe = (opcion) => Object.values(opcion?.etiquetas || {});
+  // Las partes de la figura a las que se llega con las partes del cuerpo que
+  // el club tiene a la vista (una suya que no se sabe dónde va llega a todas).
+  const delClubALaVista = (listas?.parte_cuerpo || [])
+    .filter((opcion) => !opcion.oculto)
+    .map((opcion) => (ESTRUCTURAS[opcion.codigo] ? [opcion.codigo] : partesPorNombre(...textosDe(opcion))));
+  const alcanzadas =
+    !listas?.parte_cuerpo?.length || delClubALaVista.some((partes) => !partes.length) ? PARTES : PARTES.filter((parte) => delClubALaVista.some((partes) => partes.includes(parte)));
+  // Una opción que solo va en partes escondidas va en todas: si no, con la
+  // figura no habría cómo elegirla.
+  const aLaVista = (partes) => (partes.some((parte) => alcanzadas.includes(parte)) ? partes : []);
   const agregadas = Object.fromEntries(
     CAMPOS_DEL_CUERPO.map((campo) => [
       campo,
       (listas?.[campo] || [])
         .filter((opcion) => !delCatalogo(campo, opcion.codigo))
         .map((opcion) => {
-          const textos = Object.values(opcion.etiquetas || {});
-          return campo === "area" ? { codigo: opcion.codigo, partes: [], tercio: tercioPorNombre(...textos) } : { codigo: opcion.codigo, partes: partesPorNombre(...textos) };
+          if (campo === "area") return { codigo: opcion.codigo, partes: [], tercio: tercioPorNombre(...textosDe(opcion)) };
+          const detectadas = partesPorNombre(...textosDe(opcion));
+          return { codigo: opcion.codigo, detectadas, partes: campo === "parte_cuerpo" ? detectadas : aLaVista(detectadas) };
         }),
     ]),
   );
+  const sueltasDelCatalogo = Object.fromEntries(
+    ["musculo", "musculo_especifico", "ligamento"].map((campo) => [campo, Object.keys(PARTES_DE_OPCION[campo]).filter((codigo) => !aLaVista(PARTES_DE_OPCION[campo][codigo]).length)]),
+  );
   const agregada = (campo, codigo) => agregadas[campo].find((opcion) => opcion.codigo === codigo) || null;
-  // Lo del club que va en alguna de esas partes (o en todas).
-  const agregadasEn = (campo, partes) => agregadas[campo].filter((opcion) => !opcion.partes.length || opcion.partes.some((una) => partes.includes(una))).map((opcion) => opcion.codigo);
+  // Lo del club que va en alguna de esas partes (o en todas), y lo del
+  // catálogo que va en todas porque sus partes están escondidas.
+  const agregadasEn = (campo, partes) => [
+    ...agregadas[campo].filter((opcion) => !opcion.partes.length || opcion.partes.some((una) => partes.includes(una))).map((opcion) => opcion.codigo),
+    ...(sueltasDelCatalogo[campo] || []),
+  ];
 
   // Las partes del catálogo donde está una parte del cuerpo: ella misma, o
   // las que nombra la que agregó el club ([] si no se sabe).
@@ -412,13 +588,14 @@ export const crearMapa = (listas = {}) => {
   };
 
   // En qué región de la figura está una parte del cuerpo con su lado: el
-  // brazo o la pierna de ese lado, o la del medio (cabeza y tronco). Una
-  // parte de un brazo o una pierna sin lado derecho o izquierdo no está en
-  // ninguna (null): no se sabe cuál dibujar.
+  // brazo o la pierna de ese lado, o la del medio (cabeza y tronco). Si no
+  // se sabe cuál dibujar, en ninguna (null): una parte de un brazo o una
+  // pierna sin lado derecho o izquierdo, o una del club que puede estar en
+  // más de una región (un dedo: de la mano o del pie).
   const regionDe = (parte, lado) => {
     const partes = partesReconocidas(parte);
-    const candidatas = REGIONES.filter((region) => region.partes.some((una) => partes.includes(una)));
-    return (candidatas.find((region) => region.lado && region.lado === lado) || candidatas.find((region) => !region.lado))?.clave || null;
+    const posibles = REGIONES.filter((region) => region.partes.some((una) => partes.includes(una)) && (!region.lado || region.lado === lado));
+    return posibles.length === 1 ? posibles[0].clave : null;
   };
 
   // La parte de la figura que se pinta para una parte del cuerpo en esa
@@ -449,7 +626,7 @@ export const crearMapa = (listas = {}) => {
   const partesDeOpcion = (campo, codigo) => {
     if (campo === "parte_cuerpo") return partesReconocidas(codigo).length ? partesReconocidas(codigo) : null;
     if (PARTES_DE_OPCION[campo]?.[codigo]) return PARTES.filter((parte) => PARTES_DE_OPCION[campo][codigo].includes(parte));
-    return agregada(campo, codigo)?.partes.length ? agregada(campo, codigo).partes : null;
+    return agregada(campo, codigo)?.detectadas?.length ? agregada(campo, codigo).detectadas : null;
   };
 
   return { estructurasDe, especificosDe, gruposDe, especificoQueNoEsDe, estructurasQueNoSonDe, regionDe, piezaDe, partesDeRegion, tercioDeArea, partesDeOpcion };
