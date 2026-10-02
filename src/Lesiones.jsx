@@ -208,16 +208,17 @@ export default function Lesiones({ onVolver }) {
     return () => clearTimeout(temporizador);
   }, [aviso]);
 
-  // La ficha trae sus cambios cuando se abre.
+  // La ficha trae sus cambios cuando se abre. Quien ya se fue del club no
+  // los ve: la lista tendría lo que se cambió después de su último día.
   useEffect(() => {
-    if (!detalleId) return undefined;
+    if (!detalleId || soloLectura) return undefined;
     let vigente = true;
     setCambiosDetalle([]);
     historialDeLesion(detalleId).then((respuesta) => vigente && setCambiosDetalle(respuesta.cambios));
     return () => {
       vigente = false;
     };
-  }, [detalleId]);
+  }, [detalleId, soloLectura]);
 
   // ------------------------------------------------------------- Ayudas --
 
@@ -1008,22 +1009,24 @@ export default function Lesiones({ onVolver }) {
               </section>
             );
           })}
-          <section className="tarjeta tarjeta-ficha">
-            <div className="cabeza-ficha">
-              <b>{t("lesiones.historial.cambios")}</b>
-            </div>
-            {cambiosDetalle.length === 0 ? (
-              <p className="vacio-ficha">{t("lesiones.historial.sinCambios")}</p>
-            ) : (
-              cambiosDetalle.map((cambio) => (
-                <DatoDetalle
-                  key={cambio.id}
-                  label={t(`lesiones.historial.${cambio.accion === "creada" ? "creada" : "editada"}`)}
-                  valor={t("lesiones.historial.cambio", { fecha: fechaYHora(cambio.cuando), quien: cambio.quien_email || "—" })}
-                />
-              ))
-            )}
-          </section>
+          {!soloLectura && (
+            <section className="tarjeta tarjeta-ficha">
+              <div className="cabeza-ficha">
+                <b>{t("lesiones.historial.cambios")}</b>
+              </div>
+              {cambiosDetalle.length === 0 ? (
+                <p className="vacio-ficha">{t("lesiones.historial.sinCambios")}</p>
+              ) : (
+                cambiosDetalle.map((cambio) => (
+                  <DatoDetalle
+                    key={cambio.id}
+                    label={t(`lesiones.historial.${cambio.accion === "creada" ? "creada" : "editada"}`)}
+                    valor={t("lesiones.historial.cambio", { fecha: fechaYHora(cambio.cuando), quien: cambio.quien_email || "—" })}
+                  />
+                ))
+              )}
+            </section>
+          )}
           {activa && !soloLectura && (
             <div className="acciones-inicio">
               <button

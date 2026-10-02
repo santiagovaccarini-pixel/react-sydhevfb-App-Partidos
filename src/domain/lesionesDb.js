@@ -5,6 +5,7 @@ import { supabase } from "../supabase.js";
 import { claveDeErrorDeBase, normalizarLesion } from "./lesiones.js";
 import { armarConfig, esCalculado, filasParaSembrar } from "./lesionesCampos.js";
 import { agregarJugador, cargarPlantel, normalizarJugador, quitarJugador } from "./plantel.js";
+import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./alDia.js";
 
 const COLUMNAS =
   "id, equipo_id, jugador_id, numero_caso, fecha_lesion, fecha_transicion, fecha_retorno_entrenamiento, fecha_alta, datos, creado_en, actualizado_en";
@@ -36,6 +37,14 @@ const soloCampos = (lesion) => ({
 
 export const listarLesiones = async (equipoId) => {
   if (!equipoId) return { lesiones: [], error: "" };
+  // Quien ya se fue del club: las lesiones de la foto de su último día.
+  if (esSoloLectura(equipoId)) {
+    try {
+      return { lesiones: masNuevasPrimero(await leerAlDia("lesiones", equipoId), "fecha_lesion").map(normalizarLesion), error: "" };
+    } catch (error) {
+      return { lesiones: [], ...fallo(error, "lesiones.error.noLeer") };
+    }
+  }
   const { data, error } = await supabase
     .from("lesiones")
     .select(COLUMNAS)
@@ -102,6 +111,13 @@ const porNombre = (lista) => [...lista].sort((a, b) => a.nombre.localeCompare(b.
 // todavía no tiene esas columnas, vale la lista de siempre.
 export const cargarPlantelLesiones = async (equipoId) => {
   if (!equipoId) return { plantel: [], error: "" };
+  if (esSoloLectura(equipoId)) {
+    try {
+      return { plantel: porNombre((await leerAlDia("jugadores", equipoId)).map(normalizarJugadorLesiones)), error: "" };
+    } catch (error) {
+      return { plantel: [], ...fallo(error, "datos.error.leer") };
+    }
+  }
   const { data, error } = await supabase
     .from("jugadores")
     .select(COLUMNAS_JUGADOR)

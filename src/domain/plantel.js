@@ -1,4 +1,5 @@
 import { supabase } from "../supabase.js";
+import { esSoloLectura, leerAlDia } from "./alDia.js";
 import jugadoresDelCodigo from "../jugadores";
 
 export const CLAVE_PLANTEL = "plantel_jugadores";
@@ -122,6 +123,16 @@ export const guardarPlantelCatapultLocal = (plantel, equipoId = null) => {
  * nombres vacío deja la app inutilizable.
  */
 export const cargarPlantel = async (equipoId = null) => {
+  // Quien ya se fue del club ve el plantel de su último día. Si no se puede
+  // leer, nada: la copia del celular podría tener jugadores de después.
+  if (esSoloLectura(equipoId)) {
+    try {
+      return { plantel: ordenarPorNombre((await leerAlDia("jugadores", equipoId)).map(normalizarJugador)), desde: "base" };
+    } catch (error) {
+      console.warn("No se pudo leer el plantel de la base:", error);
+      return { plantel: [], desde: "respaldo" };
+    }
+  }
   try {
     let consulta = supabase
       .from("jugadores")
@@ -204,6 +215,15 @@ export const quitarJugador = async (id) => {
  * vínculo: si las columnas todavía no existen, acá se avisa en vez de caer.
  */
 export const cargarPlantelConCatapult = async (equipoId = null) => {
+  if (esSoloLectura(equipoId)) {
+    try {
+      const filas = await leerAlDia("jugadores", equipoId);
+      return { plantel: ordenarPorNombre(filas.map(normalizarJugadorConCatapult)), desde: "base", error: "" };
+    } catch (error) {
+      console.warn("No se pudo leer la lista de jugadores del club:", error);
+      return { plantel: [], desde: "base", error: "No se pudo leer la lista de jugadores de este club. Probá de nuevo en un rato." };
+    }
+  }
   let consulta = supabase
     .from("jugadores")
     .select("id, nombre, roles, puestos, catapult_id, catapult_nombre, catapult_vinculado_en");

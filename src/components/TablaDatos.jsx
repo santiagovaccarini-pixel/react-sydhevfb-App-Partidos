@@ -67,6 +67,8 @@ export const TablaDatos = ({
   }, [columnas]);
 
   const visibles = useMemo(() => orden.map((clave) => columnas.find((c) => c.clave === clave)).filter(Boolean), [orden, columnas]);
+  // Sin ninguna columna que se pueda cambiar (solo lectura), Pegar no va.
+  const algoEditable = visibles.some((columna) => columna.editable);
 
   useEffect(() => {
     if (!mensaje) return undefined;
@@ -363,10 +365,12 @@ export const TablaDatos = ({
             <Icono nombre="documento" size={15} />
             {t("tabla.copiar")}
           </button>
-          <button type="button" className="boton-secundario" onClick={pegar} disabled={!activa || ocupada}>
-            <Icono nombre="guardar" size={15} />
-            {t("tabla.pegar")}
-          </button>
+          {algoEditable && (
+            <button type="button" className="boton-secundario" onClick={pegar} disabled={!activa || ocupada}>
+              <Icono nombre="guardar" size={15} />
+              {t("tabla.pegar")}
+            </button>
+          )}
           {onAbrirFila && (
             <button type="button" className="boton-secundario" onClick={() => filaActiva && onAbrirFila(filaActiva.id)} disabled={!filaActiva}>
               {t("tabla.ficha")}

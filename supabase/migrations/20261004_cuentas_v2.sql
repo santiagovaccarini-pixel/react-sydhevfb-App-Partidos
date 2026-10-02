@@ -17,10 +17,19 @@
 --     cuenta.
 --
 -- Requiere 20261003_club_miembros.sql. Se corre en Supabase > SQL Editor,
--- entero y de una vez. Se puede volver a correr.
+-- entero y de una vez. Se puede volver a correr, salvo después de
+-- 20261005_foto_al_dia.sql: ahí se frena sola (desharía la foto).
 -- =====================================================================
 
 begin;
+
+-- Una migración vieja corrida después de una nueva deshace lo nuevo: se frena.
+do $$
+begin
+  if to_regclass('public.versiones_datos') is not null then
+    raise exception 'Ya está corrida 20261005_foto_al_dia.sql: esta es anterior y no hace falta volver a correrla.';
+  end if;
+end $$;
 
 -- Marcas de lo que se hace una sola vez. Nadie desde la app la ve ni la toca.
 create table if not exists public.migraciones_hechas (
@@ -592,10 +601,11 @@ create policy equipos_borrar on public.equipos
   for delete to authenticated
   using ((select public.es_admin()));
 
--- Partido.
+-- Partido. Las tablas de datos se leen directo solo estando en el club: quien
+-- se fue lee la foto de su último día (datos_al_dia, 20261005).
 create policy registros_ver on public.registros_partido
   for select to authenticated
-  using (public.puede_usar_en(equipo_id, 'partido') and public.puede_ver_fecha(equipo_id, public.fecha_segura(fecha::text)));
+  using (public.puede_usar_en(equipo_id, 'partido') and public.puede_editar(equipo_id));
 
 create policy registros_crear on public.registros_partido
   for insert to authenticated
@@ -610,10 +620,10 @@ create policy registros_borrar on public.registros_partido
   for delete to authenticated
   using (public.puede_usar_en(equipo_id, 'partido') and public.puede_editar(equipo_id));
 
--- Jugadores: cualquiera con membresía en el club.
+-- Jugadores: cualquiera que esté en el club.
 create policy jugadores_ver on public.jugadores
   for select to authenticated
-  using (public.puede_ver_fecha(equipo_id, creado_en::date));
+  using (public.puede_editar(equipo_id));
 
 create policy jugadores_crear on public.jugadores
   for insert to authenticated
@@ -642,7 +652,7 @@ create policy ajustes_cambiar on public.ajustes
 -- Flujo diario.
 create policy entrenamientos_ver on public.entrenamientos
   for select to authenticated
-  using (public.puede_usar_en(equipo_id, 'flujo') and public.puede_ver_fecha(equipo_id, public.fecha_segura(fecha)));
+  using (public.puede_usar_en(equipo_id, 'flujo') and public.puede_editar(equipo_id));
 
 create policy entrenamientos_crear on public.entrenamientos
   for insert to authenticated
@@ -665,7 +675,7 @@ create policy catapult_cuentas_propia on public.catapult_cuentas
 -- Lesiones.
 create policy lesiones_ver on public.lesiones
   for select to authenticated
-  using (public.puede_usar_en(equipo_id, 'lesiones') and public.puede_ver_fecha(equipo_id, fecha_lesion));
+  using (public.puede_usar_en(equipo_id, 'lesiones') and public.puede_editar(equipo_id));
 
 create policy lesiones_crear on public.lesiones
   for insert to authenticated
@@ -685,7 +695,7 @@ create policy lesiones_historial_ver on public.lesiones_historial
   using (exists (select 1 from public.lesiones l
                   where l.id = lesion_id
                     and public.puede_usar_en(l.equipo_id, 'lesiones')
-                    and public.puede_ver_fecha(l.equipo_id, cuando::date)));
+                    and public.puede_editar(l.equipo_id)));
 
 create policy lesiones_campos_ver on public.lesiones_campos
   for select to authenticated

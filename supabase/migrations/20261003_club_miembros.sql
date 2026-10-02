@@ -14,10 +14,19 @@
 --
 -- Todas las cuentas autorizadas quedan adentro de todos los clubes que ya
 -- existen: nada deja de verse al correrlo. Se corre en Supabase > SQL
--- Editor, entero y de una vez. Se puede volver a correr.
+-- Editor, entero y de una vez. Se puede volver a correr, salvo después de
+-- 20261004_cuentas_v2.sql: ahí se frena sola (desharía las cuentas v2).
 -- =====================================================================
 
 begin;
+
+-- Una migración vieja corrida después de una nueva deshace lo nuevo: se frena.
+do $$
+begin
+  if to_regprocedure('public.puede_usar_en(uuid, text)') is not null then
+    raise exception 'Ya está corrida 20261004_cuentas_v2.sql: esta es anterior y no hace falta volver a correrla.';
+  end if;
+end $$;
 
 -- ------------------------------------------------------------ La tabla --
 

@@ -20,10 +20,17 @@ const doblesSupabase = vi.hoisted(() => ({
   insertarJugador: vi.fn(),
   actualizarJugador: vi.fn(),
   borrarJugador: vi.fn(),
+  // La foto al día de salida (datos_al_dia), por tabla.
+  foto: {},
+  rpc: vi.fn(),
 }));
 
 vi.mock("./supabase.js", () => ({
   supabase: {
+    rpc: async (funcion, parametros) => {
+      doblesSupabase.rpc(funcion, parametros);
+      return { data: doblesSupabase.foto[parametros?.p_tabla] || [], error: null };
+    },
     from: (tablaPedida) => {
       // La vista de clubes con membresía contesta como la lista de equipos.
       const tabla = tablaPedida === "v_mis_clubes" ? "equipos" : tablaPedida;
@@ -231,6 +238,8 @@ describe("interfaz operativa", () => {
     doblesSupabase.errorHistorial = null;
     doblesSupabase.errorGuardado = null;
     doblesSupabase.filasHistorial = [];
+    doblesSupabase.foto = {};
+    doblesSupabase.rpc.mockClear();
     localStorage.clear();
     localStorage.setItem(
       "registro_actual_partido",
@@ -1311,6 +1320,61 @@ describe("interfaz operativa", () => {
     expect(
       JSON.parse(localStorage.getItem("registros_sin_sincronizar:eq-1")),
     ).toHaveLength(0);
+  });
+
+  test("en un club del que ya se fue ve la foto de su último día y no puede cambiar nada", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    doblesSupabase.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", hasta: "2026-03-31" }];
+    // Lo que la tabla tiene hoy no se ve: solo lo de la foto.
+    doblesSupabase.filasHistorial = [{ id: 1, equipo_id: "eq-1", fecha: "2026-09-01", rival: "Flamengo", resultado: "2-2" }];
+    doblesSupabase.foto.registros_partido = [filaTransmisionGuardada()];
+    doblesSupabase.foto.jugadores = [{ id: 1, nombre: "ALONSO", roles: [], puestos: [] }];
+    // Un partido que había quedado sin subir cuando estaba en el club.
+    localStorage.setItem(
+      "registros_sin_sincronizar:eq-1",
+      JSON.stringify([{ fecha: "2026-03-20", rival: "Bahia", resultado: "0-0", sinSincronizar: true }]),
+    );
+
+    await montarApp();
+
+    // Había un partido a medio cargar en el celular: igual no se ve el tablero.
+    expect(contenedor.textContent).toContain("Dejaste este club el");
+    expect(contenedor.textContent).not.toContain("Guardar partido");
+    expect(contenedor.textContent).not.toContain("Ingresar Formación");
+    expect(contenedor.querySelector(".boton-localia")).toBeNull();
+    expect(doblesSupabase.rpc).toHaveBeenCalledWith("datos_al_dia", { p_tabla: "registros_partido", p_equipo: "eq-1" });
+    expect(doblesSupabase.rpc).toHaveBeenCalledWith("datos_al_dia", { p_tabla: "jugadores", p_equipo: "eq-1" });
+
+    // Ni siquiera aparece la pestaña del tablero.
+    expect(irAPestana("Partido")).toBeUndefined();
+
+    const verRegistros = Array.from(contenedor.querySelectorAll("button")).find((boton) => boton.textContent.trim() === "Ver registros");
+    await act(async () => verRegistros.click());
+    const filas = contenedor.querySelectorAll(".registro-guardado");
+    expect(filas).toHaveLength(1);
+    expect(filas[0].textContent).toContain("Santos");
+    expect(contenedor.textContent).not.toContain("Flamengo");
+    expect(contenedor.textContent).not.toContain("Bahia");
+    expect(contenedor.querySelector(".boton-eliminar-registro")).toBeNull();
+    expect(contenedor.textContent).not.toContain("Borrar historial");
+
+    // La ficha se mira, no se edita.
+    await act(async () => contenedor.querySelector(".registro-guardado button").click());
+    expect(contenedor.textContent).toContain("Santos");
+    expect(Array.from(contenedor.querySelectorAll("button")).some((boton) => boton.textContent.includes("Editar registro"))).toBe(false);
+
+    // Ajustes: ni el equipo ni los jugadores se tocan.
+    await act(async () => irAPestana("Ajustes").click());
+    const opcion = (texto) =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) => boton.textContent.includes(texto));
+    expect(opcion("Equipo").disabled).toBe(true);
+    expect(opcion("Jugadores").disabled).toBe(true);
+
+    // Nada se subió, lo pendiente sigue guardado y la foto no quedó en el celular.
+    expect(doblesSupabase.insertar).not.toHaveBeenCalled();
+    expect(doblesSupabase.actualizar).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem("registros_sin_sincronizar:eq-1"))).toHaveLength(1);
+    expect(localStorage.getItem("backup_registros_partidos:eq-1")).toBeNull();
   });
 
   test("un club creado desde Ajustes queda guardado en el celular con su nombre", async () => {

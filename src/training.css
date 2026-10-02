@@ -1762,3 +1762,27 @@
   display: block;
   max-width: 100%;
 }
+
+/* Quien ya se fue del club: el aviso arriba del tablero y, si intenta cambiar
+   algo, uno flotante que se va solo. */
+.entrenamiento-marco .aviso-solo-lectura-tablero {
+  margin: 10px 16px 0;
+}
+.aviso-lectura-flotante {
+  position: fixed;
+  left: 50%;
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border: 1px solid rgba(240, 201, 120, 0.55);
+  border-radius: 999px;
+  background: #1c1a14;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: #f0c978;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  transform: translateX(-50%);
+}

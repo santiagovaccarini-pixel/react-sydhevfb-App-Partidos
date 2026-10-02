@@ -8,10 +8,11 @@ const dobles = vi.hoisted(() => ({
   cargar: vi.fn(),
   guardar: vi.fn(),
   agregar: vi.fn(),
+  equipo: { id: "eq-1", nombre: "Atlético Mineiro" },
 }));
 
 vi.mock("./domain/equipo.js", () => ({
-  leerEquipoElegido: () => ({ id: "eq-1", nombre: "Atlético Mineiro" }),
+  leerEquipoElegido: () => dobles.equipo,
 }));
 
 vi.mock("./domain/plantel.js", () => ({
@@ -47,6 +48,7 @@ describe("TrainingJugadores", () => {
     dobles.cargar.mockReset().mockImplementation(async () => ({ plantel: dobles.plantel }));
     dobles.guardar.mockReset().mockResolvedValue({});
     dobles.agregar.mockReset();
+    dobles.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
   });
 
   afterEach(async () => {
@@ -65,6 +67,19 @@ describe("TrainingJugadores", () => {
 
   const botonPorTexto = (texto) =>
     [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim() === texto);
+
+  test("en un club del que ya se fue, la lista se mira y no se cambia", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    dobles.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: "2026-03-31" };
+    await montar();
+
+    expect(contenedor.textContent).toContain("Dejaste este club el");
+    expect([...contenedor.querySelectorAll(".nombre-lista")]).toHaveLength(3);
+    expect(contenedor.textContent).toContain("Chaleco: IGOR GOMES (GOM)");
+    expect(contenedor.querySelector(".agregar-jugador")).toBeNull();
+    expect(botonPorTexto("Buscar chalecos")).toBeUndefined();
+    expect(contenedor.textContent).not.toContain("Emparejar con los chalecos");
+  });
 
   test("muestra la lista compartida con su estado de vínculo", async () => {
     vi.stubGlobal("fetch", vi.fn());

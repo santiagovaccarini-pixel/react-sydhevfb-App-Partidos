@@ -38,6 +38,8 @@ import { useEscudoClub } from "./components/ClubCrest";
 import TrainingElegirSesion from "./TrainingElegirSesion";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { Icono } from "./components/AppChrome";
+import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import { t } from "./idioma/index.js";
 
 const generarId = () =>
   typeof globalThis.crypto?.randomUUID === "function"
@@ -126,10 +128,14 @@ const Aviso = ({ tono = "", titulo, texto, accion, onAccion, children }) => (
 // avisa con onCambiar (quien lo tiene lo guarda en el celular y en la base).
 // La sesión de OpenField se elige recién al enviar; ahí se revisa el resumen
 // y se confirma con el nombre de la sesión.
-export default function TrainingTareas({ entrenamiento = null, onCambiar = () => {}, onIrAInicio, guardado = null }) {
+export default function TrainingTareas({ entrenamiento = null, onCambiar = () => {}, onIrAInicio, guardado = null, hasta = null }) {
   const activityId = entrenamiento?.actividad?.id || "";
   const sesion = entrenamiento;
-  const setSesion = onCambiar;
+  // Quien ya se fue del club mira: cualquier cambio se frena acá y se avisa.
+  const soloLectura = Boolean(hasta);
+  const [intentoEnLectura, setIntentoEnLectura] = useState(0);
+  const cambiar = soloLectura ? () => setIntentoEnLectura((veces) => veces + 1) : onCambiar;
+  const setSesion = cambiar;
 
   const [equipo] = useState(() => leerEquipoElegido());
   const escudo = useEscudoClub(equipo?.nombre || "", { demora: 0 });
@@ -169,6 +175,13 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
     setEnviarAlVincular(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entrenamiento?.id]);
+
+  // El aviso de "solo lectura" se va solo.
+  useEffect(() => {
+    if (!intentoEnLectura) return undefined;
+    const temporizador = window.setTimeout(() => setIntentoEnLectura(0), 2600);
+    return () => window.clearTimeout(temporizador);
+  }, [intentoEnLectura]);
 
   useEffect(() => {
     const intervalo = window.setInterval(() => setAhora(Date.now()), 1000);
@@ -881,9 +894,11 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
           etiquetaEnviar={etiquetaEnviar}
           onEnviar={alEnviar}
           onBorrar={() => activa && setBorrando(activa.id)}
-          puedeBorrar={Boolean(activa)}
-          deshabilitado={tareas.length === 0 || envio.estado === "planificando" || envio.estado === "enviando"}
+          puedeBorrar={Boolean(activa) && !soloLectura}
+          deshabilitado={soloLectura || tareas.length === 0 || envio.estado === "planificando" || envio.estado === "enviando"}
         />
+
+        <AvisoSoloLectura hasta={hasta} className="aviso-solo-lectura-tablero" />
 
         {(estadoAtletas === "error" || envio.estado === "error") && (
           <div className="avisos-tablero">
@@ -1152,7 +1167,7 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
       subtitulo="Tareas · Enviar"
       etiquetaVolver="Volver a Tareas"
       onSeleccionar={(nueva) => {
-        onCambiar((actual) => vincularActividad(actual, nueva));
+        cambiar((actual) => vincularActividad(actual, nueva));
         setEnviarAlVincular(true);
         setPantalla("tablero");
       }}
@@ -1179,6 +1194,12 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
         onConfirmar={() => borrarTarea(borrando)}
         onCancelar={() => setBorrando("")}
       />
+
+      {intentoEnLectura > 0 && (
+        <div className="aviso-lectura-flotante" role="status" key={intentoEnLectura}>
+          {t("club.soloLecturaCambio")}
+        </div>
+      )}
     </>
   );
 }
