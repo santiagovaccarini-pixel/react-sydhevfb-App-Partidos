@@ -139,12 +139,28 @@ negativos y desvíos muy altos. Se usa la lógica de la planilla "Plantilla VR"
    más de 7 m/s o aceleraciones mayores a 7 m/s. Las caídas sí pueden ser
    negativas, igual que en los VR de Equipo.
 
+8. **Mínimo de 5 casos.** Una combinación de jugador y categoría (o grupo
+   juntado) con menos de 5 casos no tiene VR: no se escribe y queda listada en
+   la hoja `Sin VR` del resumen. Una métrica con menos de 5 valores queda vacía.
+9. **Topes de Gauss.** Los rangos se miden como pinta el libro en
+   `Data GPS Partido`: Excelente = valores desde Excelente para arriba; Muy
+   Bueno, Bueno y Regular = entre su valor y el del nivel de arriba; Malo =
+   valores por debajo de Regular (el valor de Malo no se usa para pintar).
+   Sobre toda la muestra de la combinación, Excelente no puede tener más del
+   10% y Malo más del 20%. Si se pasan, Excelente sube de a 0,25 desvíos y
+   Regular baja de a 0,25 desvíos (Malo queda 0,25 desvíos debajo de
+   Regular). Con menos de 10 casos el 10% es menos de un partido, así que
+   Excelente queda por encima del mejor valor. Cuando más del 20% de los
+   partidos tiene 0 en una métrica, Regular termina en 0. La hoja `Proceso`
+   muestra los multiplicadores de la planilla, los finales y el % de la
+   muestra en cada rango.
+
 Decisiones propias al llevar la planilla a estos datos: la regla "promedio ≤ 1
 no se limpia" no se aplica a los relativos vs equipo ni a las caídas, porque
 son cocientes alrededor de 1 o de 0 y la regla los dejaría sin limpiar al
 azar; para el Tiempo se mide en minutos. Todas las métricas son "más es
-mejor", como en la planilla. Si el desvío no se puede calcular (un solo caso o
-todos iguales) se escribe sólo Bueno.
+mejor", como en la planilla. Si Bueno da 0 o el desvío no se puede calcular
+(todos los valores iguales), la métrica queda vacía, igual que en la planilla.
 
 Las celdas de VR con datos raros quitados quedan **en naranja** (`F4B183`).
 El resumen trae la hoja `Proceso` (regla aplicada, multiplicadores elegidos y
@@ -167,7 +183,7 @@ otra categoría; **naranja** = métrica a la que se le quitaron datos raros.
   tocar nada más del archivo (macros, tablas dinámicas, formatos y desplegables
   quedan intactos; sólo agrega a los estilos las variantes amarilla y naranja) y
   deja un `<salida>_resumen.xlsx` con las hojas `VR`, `Combinaciones`,
-  `Proceso`, `Atípicos` y `Leyenda` para controlar.
+  `Proceso`, `Sin VR`, `Atípicos` y `Leyenda` para controlar.
 
   ```bash
   pip install openpyxl pandas numpy

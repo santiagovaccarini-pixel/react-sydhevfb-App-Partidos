@@ -13,6 +13,8 @@ Los niveles se calculan con la logica de la 'Plantilla VR' (hojas 1.3 Proceso_Ab
     entre Bueno y ese nivel; Excelente = Bueno + (m + 0,25*i)*desvio, hasta 2 desvios, buscando
     2,5% de casos por encima y 13,5% entre Muy Bueno y Excelente; Malo = Regular - 0,25*desvio.
   * Niveles negativos en metricas que no pueden serlo se llevan a 0 (las caidas pueden ser negativas).
+  * Con menos de 5 casos no se arma VR. Topes de Gauss sobre la muestra: Excelente (>= Excelente) hasta
+    10% y Malo (debajo de Regular) hasta 20%; si se pasan, el nivel se corre de a 0,25 desvios.
 
 Ademas junta categorias por jugador segun las celdas PINTADAS en 'Tiempos por jugador' (contiguas
 y del mismo color = un grupo; un bloque por grupo con la categoria de mas casos, en amarillo y con
@@ -349,6 +351,9 @@ metric_name = {d: str(hdr13[C(d) - 1]).strip() for d in col_map}
 M_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
 M_OPTS = {m: 7 - k for k, m in enumerate(M_STEPS)}       # columna AD de la planilla: 7..1 opciones
 T_HALF, T_EXC, T_MB = 0.34, 0.025, 0.135                    # X37, X35, X36 de la planilla
+MIN_CASOS = 5            # con menos casos no se arma VR
+MAX_EXCELENTE = 0.10     # Excelente no puede tener mas del 10% de la muestra
+MAX_MALO = 0.20          # Malo (por debajo de Regular) no puede tener mas del 20% de la muestra
 KIND_NAME = {'abs': 'Absoluto', 'rel': 'Relativo por minuto', 'vseq': 'Relativo vs equipo', 'caida': 'Caída'}
 NONNEG = {'abs', 'rel', 'vseq'}
 NUM_OF = {L(c): L(c - (C('AU') - C('AF'))) for c in range(C('AU'), C('BH') + 1)}   # AU = AF / DB ...
@@ -412,7 +417,7 @@ def xl_skew(x):
 
 # ---------------------------------------------------------------- 6. calcular por jugador x categoria
 out_rows, review, skipped, outliers, combos = [], [], [], [], []
-proceso = []
+proceso, sin_vr = [], []
 for p in players:
     done = set()
     for cat0 in CATS:
@@ -434,6 +439,12 @@ for p in players:
         n = int(mask.sum())
         if n == 0:
             skipped.append((p, cat)); continue
+        cnt = int((~np.isnan(num['AF'].to_numpy()[np.flatnonzero(mask)])).sum())
+        if cnt < MIN_CASOS:
+            sin_vr.append({'Jugador': p, 'Categoría': cat, 'Casos': cnt,
+                           'Juntada con': ' + '.join(g for g in group if g != cat) if group else '',
+                           'Motivo': f'menos de {MIN_CASOS} casos'})
+            continue
         note = ''
         if group:
             note = ('Categorías juntadas: ' + ' + '.join(f'{g} ({own_counts[g]})' for g in group)
@@ -448,7 +459,10 @@ for p in players:
             ok = ~np.isnan(vals)
             x = vals[ok]
             levels[dcol] = {nv: None for nv, _ in NIVELES}
-            if len(x) == 0:
+            if len(x) < MIN_CASOS:
+                if len(x):
+                    proceso.append({'Jugador': p, 'Categoría': cat, 'Métrica': metric_name[dcol], 'Columna': dcol,
+                                    'Tipo': KIND_NAME[kind], 'Casos': int(len(x)), 'Regla': f'sin VR: menos de {MIN_CASOS} casos'})
                 continue
             # D7: promedio simple (absolutos) o cociente de sumas (relativos), sobre todos los datos
             if kind == 'rel':
@@ -498,16 +512,29 @@ for p in players:
                     'Bueno': b, 'Desv. Estándar': sd,
                     'Asimetría': xl_skew(kept), 'F10 (P95 en desvíos)': None, 'F11 (P5 en desvíos)': None,
                     'Mult. Muy Bueno': None, 'Mult. Excelente': None, 'Mult. Regular': None, 'Mult. Malo': None,
-                    'Niveles llevados a 0': 0}
-            levels[dcol]['Bueno'] = b
-            levels[dcol]['Desv. Estándar'] = sd
-            if b is not None and sd is not None and sd > 0 and len(kept) > 1:
+                    'Niveles llevados a 0': 0, 'Mult. Excelente (planilla)': None, 'Mult. Regular (planilla)': None,
+                    '% Excelente': None, '% Muy Bueno': None, '% Bueno': None, '% Regular': None, '% Malo': None}
+            # como la planilla: si Bueno es 0 o el desvio no se puede calcular (o es 0), el VR de la metrica queda vacio
+            computable = b is not None and b != 0 and sd is not None and sd > 0 and len(kept) > 1
+            if computable:
+                levels[dcol]['Bueno'] = b
+                levels[dcol]['Desv. Estándar'] = sd
+            else:
+                info['Regla'] = rule + ' | sin VR: Bueno = 0 o desvío 0'
+            if computable:
                 p95, p5 = np.percentile(kept, 95), np.percentile(kept, 5)
                 f10 = (float(np.mean(kept[kept >= p95])) - b) / sd
                 f11 = (b - float(np.mean(kept[kept <= p5]))) / sd
                 m_up = pick_m(kept, b, sd, f10, 'up')
                 m_ex = pick_exc(kept, b, sd, m_up)
                 m_lo = pick_m(kept, b, sd, f11, 'down')
+                m_ex_tpl, m_lo_tpl = m_ex, m_lo
+                # topes de distribucion sobre la muestra completa (como pinta el libro):
+                # Excelente = valores >= Excelente; Malo = valores por debajo de Regular
+                while np.mean(x >= b + m_ex * sd) > MAX_EXCELENTE:
+                    m_ex += 0.25
+                while np.mean(x < b - m_lo * sd) > MAX_MALO:
+                    m_lo += 0.25
                 m_ma = m_lo + 0.25
                 lv = {'Excelente': b + m_ex * sd, 'Muy Bueno': b + m_up * sd,
                       'Regular': b - m_lo * sd, 'Malo': b - m_ma * sd}
@@ -516,10 +543,14 @@ for p in players:
                         if v_ < 0:
                             lv[k_] = 0.0; info['Niveles llevados a 0'] += 1; floored_cols.add(dcol)
                 levels[dcol].update(lv)
+                E, MB, R = lv['Excelente'], lv['Muy Bueno'], lv['Regular']
                 info.update({'F10 (P95 en desvíos)': f10, 'F11 (P5 en desvíos)': f11, 'Mult. Muy Bueno': m_up,
-                             'Mult. Excelente': m_ex, 'Mult. Regular': m_lo, 'Mult. Malo': m_ma})
+                             'Mult. Excelente': m_ex, 'Mult. Regular': m_lo, 'Mult. Malo': m_ma,
+                             'Mult. Excelente (planilla)': m_ex_tpl, 'Mult. Regular (planilla)': m_lo_tpl,
+                             '% Excelente': float(np.mean(x >= E)), '% Muy Bueno': float(np.mean((x >= MB) & (x < E))),
+                             '% Bueno': float(np.mean((x >= b) & (x < MB))), '% Regular': float(np.mean((x >= R) & (x < b))),
+                             '% Malo': float(np.mean(x < R))})
             proceso.append(info)
-        cnt = int((~np.isnan(num['AF'].to_numpy()[idx])).sum())
         puesto = Counter(u for u in U[mask] if u).most_common(1)
         puesto = puesto[0][0] if puesto else ''
         item = ITEM_BY_CAT.get(cat, 'Jugador Total')
@@ -540,15 +571,22 @@ for p in players:
             review.append({'Item': item, 'Nombre': p, 'Puesto': puesto, 'Minutos': cat, 'Categoría': nivel, 'Cuenta': cnt,
                            'Juntada con': juntada, 'Atípicos excluidos': combos[-1]['Valores atípicos excluidos'],
                            **{metric_name[d]: row[v] for d, v in col_map.items()}})
-print(f'Combinaciones con datos: {len(combos)}  (filas VR: {len(out_rows)});  sin casos: {len(skipped)}')
+print(f'Combinaciones con VR: {len(combos)}  (filas VR: {len(out_rows)});  sin casos: {len(skipped)};  con menos de {MIN_CASOS} casos (sin VR): {len(sin_vr)}')
+_pr = pd.DataFrame(proceso)
+if len(_pr):
+    _ok = _pr['% Excelente'].notna()
+    print(f"Topes: Excelente subido en {int((_pr['Mult. Excelente'] > _pr['Mult. Excelente (planilla)']).sum())} y Regular bajado en "
+          f"{int((_pr['Mult. Regular'] > _pr['Mult. Regular (planilla)']).sum())} de {int(_ok.sum())} metricas; "
+          f"max % Excelente = {_pr.loc[_ok, '% Excelente'].max():.3f}, max % Malo = {_pr.loc[_ok, '% Malo'].max():.3f}")
 print(f'Combinaciones juntadas: {sum(1 for c in combos if c["Juntada con"])};  valores atipicos excluidos: {len(outliers)}'
       f' en {sum(1 for c in combos if c["Valores atípicos excluidos"])} combinaciones')
-print(f'Niveles llevados a 0 (metricas que no pueden ser negativas): {sum(i["Niveles llevados a 0"] for i in proceso)}')
+print(f'Niveles llevados a 0 (metricas que no pueden ser negativas): {sum(i.get("Niveles llevados a 0") or 0 for i in proceso)}')
 
 with pd.ExcelWriter(REVIEW) as xw:
     pd.DataFrame(review).to_excel(xw, sheet_name='VR', index=False)
     pd.DataFrame(combos).to_excel(xw, sheet_name='Combinaciones', index=False)
     pd.DataFrame(proceso).to_excel(xw, sheet_name='Proceso', index=False)
+    pd.DataFrame(sin_vr, columns=['Jugador', 'Categoría', 'Casos', 'Juntada con', 'Motivo']).to_excel(xw, sheet_name='Sin VR', index=False)
     df_out = pd.DataFrame(outliers)
     if len(df_out):
         df_out['Fecha'] = pd.to_datetime(df_out['Fecha'], errors='coerce').dt.date
@@ -562,6 +600,9 @@ with pd.ExcelWriter(REVIEW) as xw:
         '5) Excelente = Bueno + (m + 0,25·i)·desvío, hasta 2 desvíos, eligiendo i para acercarse a 2,5% de casos por encima de Excelente y 13,5% entre Muy Bueno y Excelente.',
         '6) Regular = Bueno − m·desvío (34% de casos entre Regular y Bueno); Malo = Regular − 0,25·desvío, como en la planilla.',
         '7) En métricas que no pueden ser negativas (absolutos, relativos por minuto, relativos vs equipo, Tiempo) un nivel que da negativo se lleva a 0. Las caídas pueden ser negativas.',
+        f'8) Con menos de {MIN_CASOS} casos no se arma VR: la combinación no se escribe (hoja Sin VR) y una métrica con menos de {MIN_CASOS} valores queda vacía.',
+        f'9) Topes de Gauss sobre la muestra completa, con los rangos como pinta el libro: Excelente (valores >= Excelente) no puede pasar del {MAX_EXCELENTE:.0%}; si pasa, Excelente sube de a 0,25 desvíos. Malo (valores por debajo de Regular) no puede pasar del {MAX_MALO:.0%}; si pasa, Regular baja de a 0,25 desvíos y Malo queda 0,25 desvíos debajo.',
+        'En la hoja Proceso: multiplicadores de la planilla y finales, y el % de la muestra en cada rango.',
         'Amarillo en VR: categoría calculada juntando casos de otra(s) categoría(s) del mismo jugador. Naranja: métrica a la que se le quitaron datos raros.',
         'Hoja Proceso: detalle por métrica (regla aplicada, multiplicadores elegidos, asimetría). Hoja Atípicos: cada valor quitado.']}).to_excel(xw, sheet_name='Leyenda', index=False)
 print('Resumen de control:', REVIEW)
