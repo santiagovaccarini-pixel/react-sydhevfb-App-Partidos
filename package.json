@@ -18,6 +18,7 @@
     "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "pruebas:base": "bash supabase/pruebas/correr.sh",
     "postbuild": "node scripts/precache.js"
   },
   "devDependencies": {

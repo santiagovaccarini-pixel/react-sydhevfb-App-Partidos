@@ -7,7 +7,8 @@ import CuentasAdmin from "./CuentasAdmin.jsx";
 import Lesiones from "./Lesiones.jsx";
 import DatosBasicos from "./DatosBasicos.jsx";
 import ElegirClub from "./ElegirClub.jsx";
-import { contarPendientes } from "./domain/perfilesDb.js";
+import { contarPendientes, permisosEnClub } from "./domain/perfilesDb.js";
+import { limpiarCopiasDelClub } from "./domain/copiasLocales.js";
 import { ArteDatos, ArteFlujo, ArteLesiones, ArtePartido, IconoDatos, IconoFlujo, IconoLesiones, IconoPartido } from "./components/PortalArt.jsx";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
@@ -233,7 +234,7 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onCambiarClub }
           </span>
           <SelectorIdioma className="portal-idioma" />
           <div className="portal-cuenta-acciones">
-          {permisos?.admin && (
+          {(permisos?.admin || permisos?.adminClub) && (
             <button
               type="button"
               className={`portal-salir portal-cuentas${pendientes > 0 ? " con-pendientes" : ""}`}
@@ -321,12 +322,17 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     cargarEquipos().then(({ equipos, error }) => {
       if (!vigente || error) return;
       const fresco = (equipos || []).find((uno) => uno.id === club.id);
-      if (!fresco) {
+      // Ya no está en el club, o lo dejó: las copias de ese club se van del
+      // celular (lo que se ve desde ahora sale de la base, hasta su último día).
+      if (!fresco || fresco.miembro === false) {
+        limpiarCopiasDelClub(club.id);
         guardarEquipoElegido(null);
         setClub(null);
         return;
       }
-      if ((fresco.hasta || null) !== (club.hasta || null) || fresco.nombre !== club.nombre) {
+      if (fresco.hasta && !club.hasta) limpiarCopiasDelClub(club.id);
+      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones"].some((clave) => (fresco[clave] ?? null) !== (club[clave] ?? null));
+      if (cambio) {
         guardarEquipoElegido(fresco);
         setClub(fresco);
       }
@@ -336,8 +342,12 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     };
   }, [modo, club?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Lo que se puede usar sale de la membresía en el club elegido (rol y
+  // módulos); la cuenta solo dice si es dueña de la plataforma.
+  const enClub = permisosEnClub(permisos, club);
+
   const elegir = (tarjeta, desde) => {
-    if (!permisos?.[tarjeta.permiso]) return;
+    if (!enClub?.[tarjeta.permiso]) return;
     setPortada({ tarjeta, desde });
     setModo(tarjeta.modo);
   };
@@ -349,6 +359,8 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   if (!club || eligiendoClub) {
     contenido = (
       <ElegirClub
+        esDueno={Boolean(permisos?.admin)}
+        email={email}
         onElegir={(elegido) => {
           setClub(elegido);
           setEligiendoClub(false);
@@ -356,11 +368,11 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         onSalir={eligiendoClub ? () => setEligiendoClub(false) : cerrarSesion}
       />
     );
-  } else if (modo === MODOS.PARTIDO && permisos?.partido) {
+  } else if (modo === MODOS.PARTIDO && enClub.partido) {
     // La portada ya mostró la foto: Partido entra sin su intro. Desde sus
     // Ajustes se vuelve al portal o se cierra la sesión.
     contenido = <App intro={false} onVolver={volver} onCerrarSesion={cerrarSesion} />;
-  } else if (modo === MODOS.ENTRENAMIENTO && permisos?.flujo) {
+  } else if (modo === MODOS.ENTRENAMIENTO && enClub.flujo) {
     contenido = (
       // Quien entró con la copia de su cuenta (sin señal) no espera a que el
       // servidor abra la sesión de OpenField: entra y se abre cuando haya red.
@@ -368,17 +380,17 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         {() => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />}
       </OpenFieldSession>
     );
-  } else if (modo === MODOS.LESIONES && permisos?.lesiones) {
+  } else if (modo === MODOS.LESIONES && enClub.lesiones) {
     contenido = <Lesiones userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} />;
-  } else if (modo === MODOS.DATOS && permisos?.datos) {
+  } else if (modo === MODOS.DATOS && enClub.datos) {
     contenido = <DatosBasicos onVolver={volver} />;
-  } else if (modo === MODOS.CUENTAS && permisos?.admin) {
-    contenido = <CuentasAdmin miUserId={userId} onVolver={volver} />;
+  } else if (modo === MODOS.CUENTAS && (enClub.admin || enClub.adminClub)) {
+    contenido = <CuentasAdmin miUserId={userId} esDueno={enClub.admin} club={club} onVolver={volver} />;
   } else {
     contenido = (
       <Portal
         onElegir={elegir}
-        permisos={permisos}
+        permisos={enClub}
         email={email}
         onSalir={cerrarSesion}
         onCuentas={() => setModo(MODOS.CUENTAS)}

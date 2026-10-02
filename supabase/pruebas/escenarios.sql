@@ -1,0 +1,361 @@
+-- =====================================================================
+-- Escenarios de cuentas y permisos, contra la base de verdad.
+--
+-- Dos clubes y una cuenta para cada caso. Cada línea entra como una cuenta
+-- (el "sub" del JWT, como hace Supabase) y comprueba qué ve y qué puede
+-- cambiar. Si algo no da lo esperado, se corta con FALLA y el motivo.
+-- =====================================================================
+
+\set ON_ERROR_STOP 1
+set client_min_messages = warning;
+
+-- ------------------------------------------------------- Herramientas --
+
+create schema if not exists pruebas;
+grant usage on schema pruebas to anon, authenticated;
+
+create or replace function pruebas.esperar(p_que text, p_obtenido bigint, p_esperado bigint)
+returns void language plpgsql as $$
+begin
+  if p_obtenido is distinct from p_esperado then
+    raise exception 'FALLA: % (se esperaba %, salió %)', p_que, p_esperado, p_obtenido;
+  end if;
+end $$;
+
+create or replace function pruebas.esperar(p_que text, p_obtenido text, p_esperado text)
+returns void language plpgsql as $$
+begin
+  if p_obtenido is distinct from p_esperado then
+    raise exception 'FALLA: % (se esperaba %, salió %)', p_que, p_esperado, p_obtenido;
+  end if;
+end $$;
+
+-- Cuántas filas tocó una sentencia (con permisos de quien la corre).
+create or replace function pruebas.filas(p_sql text)
+returns bigint language plpgsql as $$
+declare v bigint;
+begin
+  execute p_sql;
+  get diagnostics v = row_count;
+  return v;
+end $$;
+
+-- El error de una sentencia que tiene que fallar; null si no falló.
+create or replace function pruebas.error(p_sql text)
+returns text language plpgsql as $$
+begin
+  execute p_sql;
+  return null;
+exception when others then
+  return sqlerrm;
+end $$;
+
+create or replace function pruebas.debe_fallar(p_que text, p_sql text, p_motivo text default null)
+returns void language plpgsql as $$
+declare v text := pruebas.error(p_sql);
+begin
+  if v is null then
+    raise exception 'FALLA: % (tenía que fallar y no falló)', p_que;
+  end if;
+  if p_motivo is not null and position(p_motivo in v) = 0 then
+    raise exception 'FALLA: % (falló por otra cosa: %)', p_que, v;
+  end if;
+end $$;
+
+-- Entrar como una cuenta: el "sub" del JWT, como lo pone Supabase.
+create or replace function pruebas.ser(p_email text)
+returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', (select id from auth.users where email = p_email), 'role', 'authenticated')::text,
+    false);
+end $$;
+
+grant execute on all functions in schema pruebas to anon, authenticated;
+
+-- ------------------------------------------------------------ El elenco --
+
+insert into public.equipos (id, nombre) values
+  ('00000000-0000-0000-0000-0000000000c1', 'Club Uno'),
+  ('00000000-0000-0000-0000-0000000000c2', 'Club Dos');
+
+insert into auth.users (id, email, email_confirmed_at) values
+  ('00000000-0000-0000-0000-00000000000a', 'ana@uno.com', now()),
+  ('00000000-0000-0000-0000-00000000000b', 'beto@uno.com', now()),
+  ('00000000-0000-0000-0000-00000000000c', 'carla@uno.com', now()),
+  ('00000000-0000-0000-0000-00000000000d', 'dario@uno.com', now()),
+  ('00000000-0000-0000-0000-00000000000e', 'eva@dos.com', now()),
+  ('00000000-0000-0000-0000-00000000000f', 'fede@libre.com', now()),
+  ('00000000-0000-0000-0000-000000000010', 'gaby@uno.com', now()),
+  ('00000000-0000-0000-0000-000000000011', 'hugo@nuevo.com', null);
+
+update public.perfiles set estado = 'autorizado'
+ where email in ('ana@uno.com', 'beto@uno.com', 'carla@uno.com', 'dario@uno.com', 'eva@dos.com');
+update public.perfiles set estado = 'bloqueado' where email = 'gaby@uno.com';
+
+-- Ana administra Uno; Beto es staff de Partido y Flujo; Carla, médica (solo
+-- Lesiones); Darío estuvo en Uno hasta el 31/03 y hoy está en Dos; Eva
+-- administra Dos; Gaby está en Uno pero su cuenta está bloqueada.
+insert into public.club_miembros (equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones) values
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-00000000000a', '2026-01-01', null, 'admin', true, true, true),
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-00000000000b', '2026-01-01', null, 'staff', true, true, false),
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-00000000000c', '2026-01-01', null, 'staff', false, false, true),
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-00000000000d', '2026-01-01', '2026-03-31', 'staff', true, true, true),
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000010', '2026-01-01', null, 'staff', true, true, true),
+  ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-00000000000e', '2026-04-01', null, 'admin', true, true, true),
+  ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-00000000000d', '2026-04-01', null, 'staff', true, true, false);
+
+-- Los datos: en Uno, uno de antes y uno de después de que se fue Darío.
+insert into public.jugadores (id, nombre, equipo_id, creado_en) overriding system value values
+  (9001, 'VIEJO', '00000000-0000-0000-0000-0000000000c1', '2026-01-10'),
+  (9002, 'NUEVO', '00000000-0000-0000-0000-0000000000c1', '2026-09-01'),
+  (9003, 'DE DOS', '00000000-0000-0000-0000-0000000000c2', '2026-04-10');
+
+insert into public.registros_partido (fecha, rival, equipo_id) values
+  ('2026-02-10', 'Rival A', '00000000-0000-0000-0000-0000000000c1'),
+  ('2026-06-15', 'Rival B', '00000000-0000-0000-0000-0000000000c1'),
+  ('2026-05-05', 'Rival A', '00000000-0000-0000-0000-0000000000c2');
+
+insert into public.entrenamientos (id, equipo_id, fecha) values
+  ('00000000-0000-0000-0000-0000000e0001', '00000000-0000-0000-0000-0000000000c1', '2026-03-01'),
+  ('00000000-0000-0000-0000-0000000e0002', '00000000-0000-0000-0000-0000000000c1', '2026-07-01');
+
+insert into public.lesiones (equipo_id, jugador_id, fecha_lesion, datos) values
+  ('00000000-0000-0000-0000-0000000000c1', 9001, '2026-03-10', '{"parte_cuerpo":"coxa","lado":"direito"}'),
+  ('00000000-0000-0000-0000-0000000000c1', 9001, '2026-08-20', '{"parte_cuerpo":"joelho","lado":"esquerdo"}');
+
+\set C1 '''00000000-0000-0000-0000-0000000000c1'''
+\set C2 '''00000000-0000-0000-0000-0000000000c2'''
+
+-- ---------------------------------------------- Lo que ve cada cuenta --
+
+select pruebas.ser('ana@uno.com'); set role authenticated;
+select pruebas.esperar('Ana ve los dos partidos de Uno', (select count(*) from registros_partido where equipo_id = :C1), 2);
+select pruebas.esperar('Ana no ve nada de Dos', (select count(*) from registros_partido where equipo_id = :C2), 0);
+select pruebas.esperar('Ana ve las dos lesiones de Uno', (select count(*) from lesiones), 2);
+select pruebas.esperar('Ana ve solo su club', (select count(*) from equipos), 1);
+reset role;
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto ve los partidos de Uno', (select count(*) from registros_partido), 2);
+select pruebas.esperar('Beto ve los entrenamientos de Uno', (select count(*) from entrenamientos), 2);
+select pruebas.esperar('Beto no tiene Lesiones: no ve ninguna', (select count(*) from lesiones), 0);
+select pruebas.esperar('Beto ve el plantel de Uno', (select count(*) from jugadores), 2);
+reset role;
+
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla (solo Lesiones) no ve partidos', (select count(*) from registros_partido), 0);
+select pruebas.esperar('Carla no ve entrenamientos', (select count(*) from entrenamientos), 0);
+select pruebas.esperar('Carla ve las lesiones', (select count(*) from lesiones), 2);
+reset role;
+
+select pruebas.ser('dario@uno.com'); set role authenticated;
+select pruebas.esperar('Darío ve de Uno solo el partido de antes de irse', (select count(*) from registros_partido where equipo_id = :C1), 1);
+select pruebas.esperar('...que es el del 10/02', (select max(fecha) from registros_partido where equipo_id = :C1), '2026-02-10');
+select pruebas.esperar('Darío ve de Uno solo el entrenamiento de antes', (select count(*) from entrenamientos where equipo_id = :C1), 1);
+select pruebas.esperar('Darío ve de Uno solo la lesión de antes', (select count(*) from lesiones where equipo_id = :C1), 1);
+select pruebas.esperar('Darío ve de Uno solo el jugador que ya estaba', (select count(*) from jugadores where equipo_id = :C1), 1);
+select pruebas.esperar('Darío ve todo lo de Dos, donde sigue', (select count(*) from registros_partido where equipo_id = :C2), 1);
+select pruebas.esperar('Darío ve sus dos clubes', (select count(*) from equipos), 2);
+select pruebas.esperar('En sus clubes: Uno con fecha de salida', (select hasta::text from v_mis_clubes where id = :C1), '2026-03-31');
+select pruebas.esperar('...y Dos sin fecha', (select coalesce(hasta::text, 'sigue') from v_mis_clubes where id = :C2), 'sigue');
+reset role;
+
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva no ve nada de Uno', (select count(*) from registros_partido where equipo_id = :C1), 0);
+select pruebas.esperar('Eva no ve jugadores de Uno', (select count(*) from jugadores where equipo_id = :C1), 0);
+select pruebas.esperar('Eva no ve la gente de Uno', (select count(*) from club_miembros where equipo_id = :C1), 0);
+reset role;
+
+select pruebas.ser('fede@libre.com'); set role authenticated;
+select pruebas.esperar('Fede (pendiente) no ve clubes', (select count(*) from equipos), 0);
+select pruebas.esperar('Fede no ve partidos', (select count(*) from registros_partido), 0);
+reset role;
+
+select pruebas.ser('gaby@uno.com'); set role authenticated;
+select pruebas.esperar('Gaby (bloqueada) no ve partidos aunque esté en Uno', (select count(*) from registros_partido), 0);
+select pruebas.esperar('Gaby no ve lesiones', (select count(*) from lesiones), 0);
+reset role;
+
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('El dueño ve todos los clubes', (select count(*) from equipos where id in (:C1, :C2)), 2);
+select pruebas.esperar('...pero no los datos de un club donde no está', (select count(*) from registros_partido where equipo_id = :C1), 0);
+select pruebas.esperar('...ni sus lesiones', (select count(*) from lesiones where equipo_id = :C1), 0);
+select pruebas.esperar('...y sí la gente de cada club', (select count(*) from club_miembros where equipo_id = :C1), 5);
+reset role;
+
+set role anon;
+select pruebas.debe_fallar('Sin cuenta no se lee nada', 'select count(*) from registros_partido', 'permission denied');
+select pruebas.debe_fallar('Sin cuenta no se ven las lesiones', 'select count(*) from lesiones', 'permission denied');
+reset role;
+
+-- ------------------------------------------- Lo que cada uno cambia --
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto carga un partido en Uno', pruebas.filas($$insert into registros_partido (fecha, rival, equipo_id) values ('2026-09-20', 'Rival C', '00000000-0000-0000-0000-0000000000c1')$$), 1);
+select pruebas.debe_fallar('Beto no carga en Dos', $$insert into registros_partido (fecha, rival, equipo_id) values ('2026-09-21', 'Rival D', '00000000-0000-0000-0000-0000000000c2')$$, 'row-level security');
+select pruebas.debe_fallar('Beto no carga lesiones (no tiene el módulo)', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, '2026-09-25', '{"parte_cuerpo":"pe","lado":"direito"}')$$, 'row-level security');
+reset role;
+
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla carga una lesión', pruebas.filas($$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, '2026-09-25', '{"parte_cuerpo":"pe","lado":"direito"}')$$), 1);
+reset role;
+
+select pruebas.ser('dario@uno.com'); set role authenticated;
+select pruebas.debe_fallar('Darío ya no carga partidos en Uno', $$insert into registros_partido (fecha, rival, equipo_id) values ('2026-03-01', 'Rival E', '00000000-0000-0000-0000-0000000000c1')$$, 'row-level security');
+select pruebas.esperar('Darío no cambia un partido viejo de Uno', pruebas.filas($$update registros_partido set resultado = '9-0' where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
+select pruebas.esperar('Darío no borra nada de Uno', pruebas.filas($$delete from registros_partido where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
+select pruebas.debe_fallar('Darío no agrega jugadores en Uno', $$insert into jugadores (nombre, equipo_id) values ('INTRUSO', '00000000-0000-0000-0000-0000000000c1')$$, 'row-level security');
+select pruebas.esperar('Darío no toca las lesiones de Uno', pruebas.filas($$update lesiones set fecha_alta = '2026-03-20'$$), 0);
+select pruebas.esperar('Darío sí carga en Dos', pruebas.filas($$insert into registros_partido (fecha, rival, equipo_id) values ('2026-09-22', 'Rival F', '00000000-0000-0000-0000-0000000000c2')$$), 1);
+reset role;
+
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva no renombra Uno', pruebas.filas($$update equipos set nombre = 'Hackeado' where id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
+select pruebas.esperar('Eva renombra su club', pruebas.filas($$update equipos set nombre = 'Club Dos FC' where id = '00000000-0000-0000-0000-0000000000c2'$$), 1);
+reset role;
+
+-- ------------------------------------------ Membresías y administración --
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto ve solo su membresía', (select count(*) from club_miembros), 1);
+select pruebas.esperar('Beto no se hace administrador', pruebas.filas($$update club_miembros set rol = 'admin' where user_id = auth.uid()$$), 0);
+select pruebas.esperar('Beto no le saca nada a nadie', pruebas.filas($$update club_miembros set hasta = current_date$$), 0);
+select pruebas.debe_fallar('Beto no invita', $$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'amigo@x.com')$$, 'row-level security');
+select pruebas.esperar('Beto no ve correos de otros', (select count(*) from perfiles), 1);
+reset role;
+
+select pruebas.ser('ana@uno.com'); set role authenticated;
+select pruebas.esperar('Ana ve la gente de Uno, también la que se fue', (select count(*) from club_miembros where equipo_id = :C1), 5);
+select pruebas.esperar('Ana ve los correos de su gente', (select count(*) from v_miembros_club where equipo_id = :C1), 5);
+select pruebas.esperar('Ana no ve la cuenta de Eva', (select count(*) from perfiles where email = 'eva@dos.com'), 0);
+select pruebas.esperar('Ana no cambia el estado de una cuenta', pruebas.filas($$update perfiles set estado = 'bloqueado' where email = 'beto@uno.com'$$), 0);
+select pruebas.esperar('Ana le da Lesiones a Beto', pruebas.filas($$update club_miembros set lesiones = true where user_id = '00000000-0000-0000-0000-00000000000b'$$), 1);
+select pruebas.debe_fallar('Ana no pone una salida futura', $$update club_miembros set hasta = current_date + 5 where user_id = '00000000-0000-0000-0000-00000000000b'$$, 'hasta_futura');
+select pruebas.debe_fallar('Ana no muda una membresía a otro club', $$update club_miembros set equipo_id = '00000000-0000-0000-0000-0000000000c2' where user_id = '00000000-0000-0000-0000-00000000000b'$$);
+select pruebas.debe_fallar('Ana no se saca el rol: es la única administradora', $$update club_miembros set rol = 'staff' where user_id = auth.uid()$$, 'ultimo_admin');
+select pruebas.debe_fallar('Ana no se va: es la única administradora', $$update club_miembros set hasta = current_date where user_id = auth.uid()$$, 'ultimo_admin');
+select pruebas.esperar('Ana le saca Lesiones a Darío (ya se fue)', pruebas.filas($$update club_miembros set lesiones = false where user_id = '00000000-0000-0000-0000-00000000000d' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('Eva no está en Uno: Ana no la puede tocar en Dos', pruebas.filas($$update club_miembros set rol = 'staff' where equipo_id = '00000000-0000-0000-0000-0000000000c2'$$), 0);
+reset role;
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto ahora ve las lesiones', (select count(*) from lesiones), 3);
+reset role;
+
+select pruebas.ser('dario@uno.com'); set role authenticated;
+select pruebas.esperar('Darío sin Lesiones en Uno ya no ve las de antes', (select count(*) from lesiones where equipo_id = :C1), 0);
+reset role;
+
+-- Ana nombra a Beto administrador y recién ahí se puede ir.
+select pruebas.ser('ana@uno.com'); set role authenticated;
+select pruebas.esperar('Ana nombra a Beto administrador', pruebas.filas($$update club_miembros set rol = 'admin' where user_id = '00000000-0000-0000-0000-00000000000b'$$), 1);
+select pruebas.esperar('Ahora Ana se puede ir', pruebas.filas($$update club_miembros set hasta = current_date where user_id = auth.uid()$$), 1);
+select pruebas.esperar('Y ya no administra nada', pruebas.filas($$update club_miembros set flujo = false where user_id = '00000000-0000-0000-0000-00000000000c'$$), 0);
+select pruebas.debe_fallar('Ni carga partidos', $$insert into registros_partido (fecha, rival, equipo_id) values ('2026-09-30', 'Rival G', '00000000-0000-0000-0000-0000000000c1')$$, 'row-level security');
+select pruebas.esperar('Pero ve todo lo de hasta hoy', (select count(*) from registros_partido), 3);
+reset role;
+
+-- Beto reincorpora a Darío: vuelve a ver todo y a cargar.
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto reincorpora a Darío', pruebas.filas($$update club_miembros set hasta = null, desde = current_date, lesiones = true where user_id = '00000000-0000-0000-0000-00000000000d' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+
+select pruebas.ser('dario@uno.com'); set role authenticated;
+select pruebas.esperar('Darío vuelve a ver todos los partidos de Uno', (select count(*) from registros_partido where equipo_id = :C1), 3);
+select pruebas.esperar('...y a cargar', pruebas.filas($$insert into registros_partido (fecha, rival, equipo_id) values ('2026-10-01', 'Rival H', '00000000-0000-0000-0000-0000000000c1')$$), 1);
+select pruebas.esperar('Darío ve su historia en Uno, en orden',
+  (select string_agg(accion, ',' order by id) from club_miembros_historial where equipo_id = :C1 and user_id = auth.uid()),
+  'alta,modulos,reincorporacion,modulos');
+select pruebas.esperar('Darío no ve la historia de otros', (select count(*) from club_miembros_historial where user_id <> auth.uid()), 0);
+reset role;
+
+-- Lo que queda anotado: quién hizo cada cosa.
+select pruebas.esperar('La historia dice que Beto lo reincorporó',
+  (select quien_email from club_miembros_historial where user_id = '00000000-0000-0000-0000-00000000000d' and accion = 'reincorporacion'), 'beto@uno.com');
+select pruebas.esperar('...y que Ana se fue',
+  (select count(*) from club_miembros_historial where user_id = '00000000-0000-0000-0000-00000000000a' and accion = 'baja' and quien_email = 'ana@uno.com'), 1);
+
+-- --------------------------------------------------------- Invitaciones --
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto (admin) invita a alguien sin cuenta', pruebas.filas($$insert into club_invitaciones (equipo_id, email, rol, partido, flujo, lesiones) values ('00000000-0000-0000-0000-0000000000c1', ' Nuevo@Uno.com ', 'staff', false, false, true)$$), 1);
+select pruebas.debe_fallar('No hay dos invitaciones abiertas para el mismo correo', $$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'nuevo@uno.com')$$, 'duplicate key');
+select pruebas.debe_fallar('El correo tiene que ser un correo', $$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'cualquiera')$$, 'correo_invalido');
+select pruebas.esperar('Invita al pendiente de confirmar', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'hugo@nuevo.com')$$), 1);
+select pruebas.esperar('Invita a la cuenta bloqueada', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'gaby@uno.com')$$), 1);
+select pruebas.esperar('Una invitación vencida', pruebas.filas($$insert into club_invitaciones (equipo_id, email, vence_en) values ('00000000-0000-0000-0000-0000000000c1', 'tarde@uno.com', now() - interval '1 day')$$), 1);
+select pruebas.esperar('Una invitación cancelada', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'arrepentido@uno.com')$$), 1);
+select pruebas.esperar('...que se cancela', pruebas.filas($$update club_invitaciones set cancelada_en = now() where email = 'arrepentido@uno.com'$$), 1);
+reset role;
+
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.debe_fallar('Eva no invita a Uno', $$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'espia@dos.com')$$, 'row-level security');
+select pruebas.esperar('Eva no ve las invitaciones de Uno', (select count(*) from club_invitaciones where equipo_id = :C1), 0);
+select pruebas.esperar('Eva invita a Fede, que ya tiene cuenta', pruebas.filas($$insert into club_invitaciones (equipo_id, email, rol) values ('00000000-0000-0000-0000-0000000000c2', 'fede@libre.com', 'staff')$$), 1);
+reset role;
+
+-- La invitada sin cuenta se registra con ese correo (ya confirmado).
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000012', 'nuevo@uno.com', now());
+select pruebas.esperar('La cuenta nueva quedó autorizada', (select estado from perfiles where email = 'nuevo@uno.com'), 'autorizado');
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('...y adentro de Uno', (select count(*) from v_mis_clubes where id = :C1 and hasta is null), 1);
+select pruebas.esperar('...solo con Lesiones', (select count(*) from lesiones), 3);
+select pruebas.esperar('...sin Partido', (select count(*) from registros_partido), 0);
+reset role;
+
+select pruebas.esperar('Fede entró a Dos en el acto', (select count(*) from club_miembros where user_id = '00000000-0000-0000-0000-00000000000f' and equipo_id = :C2 and hasta is null), 1);
+select pruebas.esperar('...y quedó autorizado', (select estado from perfiles where email = 'fede@libre.com'), 'autorizado');
+
+select pruebas.esperar('Hugo no confirmó el correo: todavía no entra', (select count(*) from club_miembros where user_id = '00000000-0000-0000-0000-000000000011'), 0);
+update auth.users set email_confirmed_at = now() where email = 'hugo@nuevo.com';
+select pruebas.esperar('Al confirmar, Hugo entra a Uno', (select count(*) from club_miembros where user_id = '00000000-0000-0000-0000-000000000011' and equipo_id = :C1), 1);
+select pruebas.esperar('...y queda autorizado', (select estado from perfiles where email = 'hugo@nuevo.com'), 'autorizado');
+
+select pruebas.esperar('La invitación no desbloquea a Gaby', (select estado from perfiles where email = 'gaby@uno.com'), 'bloqueado');
+select pruebas.ser('gaby@uno.com'); set role authenticated;
+select pruebas.esperar('...que sigue sin ver nada', (select count(*) from registros_partido), 0);
+reset role;
+
+insert into auth.users (id, email, email_confirmed_at) values
+  ('00000000-0000-0000-0000-000000000013', 'tarde@uno.com', now()),
+  ('00000000-0000-0000-0000-000000000014', 'arrepentido@uno.com', now());
+select pruebas.esperar('La invitación vencida no hace entrar a nadie', (select count(*) from club_miembros where user_id = '00000000-0000-0000-0000-000000000013'), 0);
+select pruebas.esperar('...ni la cancelada', (select count(*) from club_miembros where user_id = '00000000-0000-0000-0000-000000000014'), 0);
+select pruebas.esperar('Sin invitación, la cuenta queda pendiente', (select estado from perfiles where email = 'tarde@uno.com'), 'pendiente');
+
+-- ------------------------------------------------------- Clubes y dueño --
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.debe_fallar('Un admin de club no crea clubes', $$insert into equipos (nombre) values ('Club Pirata')$$, 'row-level security');
+select pruebas.debe_fallar('Ni toca los ajustes generales', $$insert into ajustes (clave, valor) values ('x', 'y')$$, 'row-level security');
+reset role;
+
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('El dueño crea un club', pruebas.filas($$insert into equipos (id, nombre) values ('00000000-0000-0000-0000-0000000000c3', 'Club Tres')$$), 1);
+select pruebas.esperar('...y queda como su administrador', (select rol from club_miembros where equipo_id = '00000000-0000-0000-0000-0000000000c3' and user_id = auth.uid()), 'admin');
+select pruebas.esperar('El dueño bloquea una cuenta', pruebas.filas($$update perfiles set estado = 'bloqueado' where email = 'beto@uno.com'$$), 1);
+select pruebas.esperar('...pero no la suya', pruebas.filas($$update perfiles set estado = 'bloqueado' where user_id = auth.uid()$$), 0);
+reset role;
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto bloqueado no ve nada', (select count(*) from registros_partido), 0);
+select pruebas.esperar('...ni administra', pruebas.filas($$update club_miembros set partido = false$$), 0);
+reset role;
+
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('El dueño le devuelve el acceso', pruebas.filas($$update perfiles set estado = 'autorizado' where email = 'beto@uno.com'$$), 1);
+select pruebas.esperar('El dueño borra un club con gente adentro', pruebas.filas($$delete from equipos where id = '00000000-0000-0000-0000-0000000000c3'$$), 1);
+reset role;
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto vuelve a ver todo', (select count(*) from registros_partido), 4);
+reset role;
+
+-- Dos clubes pueden cargar el mismo día contra un rival del mismo nombre.
+select pruebas.esperar('El partido repetido es por club', (select count(*) from registros_partido where fecha in ('2026-02-10', '2026-05-05') and rival = 'Rival A'), 2);
+insert into registros_partido (fecha, rival, equipo_id) values ('2026-02-10', 'Rival A', '00000000-0000-0000-0000-0000000000c2');
+select pruebas.debe_fallar('...pero en el mismo club no se repite', $$insert into registros_partido (fecha, rival, equipo_id) values ('2026-02-10', 'rival a ', '00000000-0000-0000-0000-0000000000c2')$$, 'duplicate key');
+
+select 'ESCENARIOS: todos bien' as resultado;

@@ -1,43 +1,44 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaInferior } from "./components/SheetPanel.js";
-import { cargarEquipos, leerEquipoElegido } from "./domain/equipo.js";
-import { darDeBaja, estadoDeMembresia, listarMembresias, membresiaDe, reincorporar, sumarAlClub } from "./domain/membresiasDb.js";
+import { HojaOpciones } from "./components/HojaOpciones.js";
+import { cargarEquipos } from "./domain/equipo.js";
+import {
+  MODULOS_DEL_CLUB,
+  cambiarModulo,
+  cambiarRol,
+  cancelarInvitacion,
+  correoValido,
+  darDeBaja,
+  historialDeMiembro,
+  invitar,
+  listarInvitaciones,
+  listarMembresias,
+  listarMiembros,
+  reincorporar,
+} from "./domain/membresiasDb.js";
 import { agruparPerfiles, decidirPerfil, listarPerfiles } from "./domain/perfilesDb.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta, hoyISO } from "./idioma/formatos.js";
+import { fechaCorta, fechaYHora, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
-// La pantalla Cuentas, solo para el administrador: quién pidió entrar, quién
-// tiene acceso y quién no, y qué puede usar cada uno (Partido, Flujo diario,
-// administrador). Todo va directo a la base con la sesión del administrador;
-// la base es la que decide si puede.
+// Cuentas. Dos partes:
+//  · La gente del club (para su administrador y para el dueño): invitar por
+//    correo, rol, módulos, dar de baja con el último día, reincorporar y la
+//    historia de cada uno. Quien se va sigue viendo lo cargado hasta su
+//    último día, sin cambiar nada (eso lo cuida la base).
+//  · Las cuentas de la app (solo el dueño de la plataforma): quién pidió
+//    entrar, quién tiene acceso y quién no.
+// Todo va directo a la base con la sesión de quien entra; la base decide.
 
-export const MODULOS = [
-  { clave: "partido" },
-  { clave: "flujo" },
-  { clave: "lesiones" },
-  { clave: "admin" },
-];
+// Lo que se marca por defecto al invitar.
+export const INVITACION_INICIAL = Object.freeze({ rol: "staff", partido: true, flujo: true, lesiones: false });
 
-// Lo que se marca al autorizar una cuenta nueva si no se eligió otra cosa.
-export const PERMISOS_INICIALES = Object.freeze({ partido: true, flujo: true, lesiones: false, admin: false });
-
-// Qué tiene marcado una fila: lo elegido a mano, o lo que dice la base, o
-// (cuenta nueva sin nada) lo inicial.
-export const permisosDeFila = (perfil, seleccion) => {
-  if (seleccion) return seleccion;
-  if (perfil.estado === "pendiente" && !perfil.partido && !perfil.flujo && !perfil.lesiones && !perfil.admin) {
-    return PERMISOS_INICIALES;
-  }
-  return {
-    partido: Boolean(perfil.partido),
-    flujo: Boolean(perfil.flujo),
-    lesiones: Boolean(perfil.lesiones),
-    admin: Boolean(perfil.admin),
-  };
+// Un mensaje de error: una clave del diccionario o el texto de la base.
+const mensajeDe = (error, porDefecto) => {
+  const texto = error?.message || "";
+  return /^[a-z]+(\.[a-zA-Z]+)+$/.test(texto) ? t(texto) : texto || t(porDefecto);
 };
-
 
 const FlechaVolver = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
@@ -46,263 +47,526 @@ const FlechaVolver = () => (
   </svg>
 );
 
-// Un error de la base viene como texto; uno nuestro, como clave del diccionario.
-const mensajeDe = (error, porDefecto) => {
-  const texto = error?.message || "";
-  return /^[a-z]+(\.[a-zA-Z]+)+$/.test(texto) ? t(texto) : texto || t(porDefecto);
+const nombresDeModulos = (fila) => {
+  const lista = MODULOS_DEL_CLUB.filter((clave) => fila?.[clave]).map((clave) => t(`cuentas.modulos.${clave}`));
+  return lista.length ? lista.join(", ") : t("cuentas.ningunModulo");
 };
 
-const Fila = ({
-  perfil,
-  seleccion,
-  ocupada,
-  onCambiarModulo,
-  onAutorizar,
-  onQuitar,
-  clubes = [],
-  membresias = [],
-  ocupadaClub = "",
-  onSumar,
-  onDarBaja,
-  onReincorporar,
-}) => {
-  const permisos = permisosDeFila(perfil, seleccion);
+// Una línea de la historia de una membresía, en criollo.
+export const textoDeMovimiento = (movimiento) => {
+  const d = movimiento.detalle || {};
+  switch (movimiento.accion) {
+    case "alta":
+      return t("cuentas.movimientos.alta", { rol: t(`cuentas.roles.${d.rol || "staff"}`), modulos: nombresDeModulos(d) });
+    case "baja":
+      return t("cuentas.movimientos.baja", { fecha: fechaCorta(d.hasta) });
+    case "reincorporacion":
+      return t("cuentas.movimientos.reincorporacion");
+    case "rol":
+      return t("cuentas.movimientos.rol", { rol: t(`cuentas.roles.${d.rol || "staff"}`) });
+    case "modulos":
+      return t("cuentas.movimientos.modulos", { modulos: nombresDeModulos(d) });
+    default:
+      return t("cuentas.movimientos.borrado");
+  }
+};
+
+// ------------------------------------------------- La gente del club --
+
+const FilaMiembro = ({ miembro, esMio, ocupada, onRol, onModulo, onBaja, onReincorporar, onHistoria }) => {
+  const activo = !miembro.hasta;
+  return (
+    <li className={`cuenta-fila${esMio ? " propia" : ""}${activo ? "" : " se-fue"}`}>
+      <div className="cuenta-encabezado">
+        <span className="cuenta-correo">{miembro.email || t("cuentas.sinCorreo")}</span>
+        {esMio && <span className="cuenta-etiqueta">{t("cuentas.tuCuenta")}</span>}
+        {activo && miembro.rol === "admin" && <span className="cuenta-etiqueta">{t("cuentas.roles.admin")}</span>}
+        {miembro.estado === "bloqueado" && <span className="cuenta-etiqueta alerta">{t("cuentas.cuentaBloqueada")}</span>}
+        {miembro.estado === "pendiente" && <span className="cuenta-etiqueta alerta">{t("cuentas.cuentaPendiente")}</span>}
+      </div>
+      <div className="cuenta-meta">
+        {activo ? (
+          miembro.desde && <span>{t("cuentas.desdeEl", { fecha: fechaCorta(miembro.desde) })}</span>
+        ) : (
+          <span className="cuenta-meta-hasta">{t("cuentas.hastaEl", { fecha: fechaCorta(miembro.hasta) })}</span>
+        )}
+      </div>
+      <div className="cuenta-permisos" role="group" aria-label={t("cuentas.quePuedeUsar", { correo: miembro.email })}>
+        {activo && (
+          <button type="button" className="cuenta-chip" aria-pressed={miembro.rol === "admin"} disabled={ocupada} onClick={() => onRol(miembro)}>
+            {t("cuentas.roles.admin")}
+          </button>
+        )}
+        {MODULOS_DEL_CLUB.map((clave) => (
+          <button
+            key={clave}
+            type="button"
+            className="cuenta-chip"
+            aria-pressed={Boolean(miembro[clave])}
+            disabled={ocupada}
+            onClick={() => onModulo(miembro, clave)}
+          >
+            {t(`cuentas.modulos.${clave}`)}
+          </button>
+        ))}
+      </div>
+      <div className="cuenta-acciones">
+        {activo ? (
+          <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onBaja(miembro)}>
+            {t("cuentas.darBaja")}
+          </button>
+        ) : (
+          <button type="button" className="cuenta-autorizar" disabled={ocupada} onClick={() => onReincorporar(miembro)}>
+            {ocupada ? t("comun.guardando") : t("cuentas.reincorporar")}
+          </button>
+        )}
+        <button type="button" className="cuenta-quitar" onClick={() => onHistoria(miembro)}>
+          {t("cuentas.verHistoria")}
+        </button>
+      </div>
+    </li>
+  );
+};
+
+const FilaInvitacion = ({ invitacion, ocupada, onCopiar, onCancelar }) => (
+  <li className="cuenta-fila invitacion">
+    <div className="cuenta-encabezado">
+      <span className="cuenta-correo">{invitacion.email}</span>
+      {invitacion.rol === "admin" && <span className="cuenta-etiqueta">{t("cuentas.roles.admin")}</span>}
+    </div>
+    <div className="cuenta-meta">
+      <span>{nombresDeModulos(invitacion)}</span>
+      <span>{t("cuentas.venceEl", { fecha: fechaCorta(invitacion.vence_en) })}</span>
+    </div>
+    <div className="cuenta-acciones">
+      <button type="button" className="cuenta-autorizar" onClick={() => onCopiar(invitacion)}>
+        {t("cuentas.copiarMensaje")}
+      </button>
+      <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onCancelar(invitacion)}>
+        {t("cuentas.cancelarInvitacion")}
+      </button>
+    </div>
+  </li>
+);
+
+// ------------------------------------------- Las cuentas de la app --
+
+const FilaCuenta = ({ perfil, clubesDeLaCuenta, ocupada, clubParaSumar, onSumar, onBloquear, onDevolver }) => {
   const pendiente = perfil.estado === "pendiente";
   const autorizada = perfil.estado === "autorizado";
-
   return (
     <li className={`cuenta-fila${perfil.esMia ? " propia" : ""}`}>
       <div className="cuenta-encabezado">
         <span className="cuenta-correo">{perfil.email || t("cuentas.sinCorreo")}</span>
         {perfil.esMia && <span className="cuenta-etiqueta">{t("cuentas.tuCuenta")}</span>}
-        {!perfil.esMia && perfil.admin && autorizada && <span className="cuenta-etiqueta">{t("cuentas.administrador")}</span>}
+        {!perfil.esMia && perfil.admin && autorizada && <span className="cuenta-etiqueta">{t("cuentas.dueno")}</span>}
         {!perfil.confirmado_en && <span className="cuenta-etiqueta alerta">{t("cuentas.correoSinConfirmar")}</span>}
       </div>
-      {(fechaCorta(perfil.creado_en) || fechaCorta(perfil.decidido_en)) && (
-        <div className="cuenta-meta">
-          {fechaCorta(perfil.creado_en) && <span>{t("cuentas.creadaEl", { fecha: fechaCorta(perfil.creado_en) })}</span>}
-          {fechaCorta(perfil.decidido_en) && <span>{t("cuentas.ultimoCambio", { fecha: fechaCorta(perfil.decidido_en) })}</span>}
-        </div>
-      )}
-
+      <div className="cuenta-meta">
+        {fechaCorta(perfil.creado_en) && <span>{t("cuentas.creadaEl", { fecha: fechaCorta(perfil.creado_en) })}</span>}
+        <span>{clubesDeLaCuenta || t("cuentas.sinClub")}</span>
+      </div>
       {!perfil.esMia && (
-        <>
-          <div className="cuenta-permisos" role="group" aria-label={t("cuentas.quePuedeUsar", { correo: perfil.email })}>
-            {MODULOS.map(({ clave }) => (
-              <button
-                key={clave}
-                type="button"
-                className="cuenta-chip"
-                aria-pressed={Boolean(permisos[clave])}
-                disabled={ocupada}
-                onClick={() => onCambiarModulo(perfil, clave, !permisos[clave])}
-              >
-                {t(`cuentas.modulos.${clave}`)}
-              </button>
-            ))}
-          </div>
-          <div className="cuenta-acciones">
-            {!autorizada && (
-              <button type="button" className="cuenta-autorizar" disabled={ocupada} onClick={() => onAutorizar(perfil)}>
-                {ocupada ? t("comun.guardando") : t("cuentas.autorizar")}
-              </button>
-            )}
-            {(autorizada || pendiente) && (
-              <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onQuitar(perfil)}>
-                {pendiente ? t("cuentas.rechazar") : t("cuentas.quitarAcceso")}
-              </button>
-            )}
-          </div>
-
-          {/* En qué clubes está, y hasta cuándo. Quien se fue sigue viendo lo
-              cargado hasta su último día, sin cambiar nada. */}
-          {autorizada && clubes.length > 0 && (
-            <div className="cuenta-clubes" role="group" aria-label={t("cuentas.clubesDe", { correo: perfil.email })}>
-              <span className="cuenta-clubes-titulo">{t("cuentas.clubes")}</span>
-              {clubes.map((club) => {
-                const membresia = membresiaDe(membresias, perfil.user_id, club.id);
-                const estado = estadoDeMembresia(membresia);
-                const ocupado = ocupadaClub === `${perfil.user_id}|${club.id}`;
-                const texto =
-                  estado === "activo"
-                    ? t("cuentas.enElClub")
-                    : estado === "hasta"
-                      ? t("cuentas.hastaEl", { fecha: fechaCorta(membresia.hasta) })
-                      : t("cuentas.noEsta");
-                const accion = estado === "activo" ? onDarBaja : estado === "hasta" ? onReincorporar : onSumar;
-                const etiqueta = estado === "activo" ? t("cuentas.darBaja") : estado === "hasta" ? t("cuentas.reincorporar") : t("cuentas.sumar");
-                return (
-                  <div className="cuenta-club" key={club.id}>
-                    <span className="cuenta-club-nombre">{club.nombre}</span>
-                    <span className={`cuenta-club-estado ${estado}`}>{texto}</span>
-                    <button type="button" className="cuenta-club-boton" disabled={ocupado} onClick={() => accion(perfil, club)}>
-                      {ocupado ? t("comun.guardando") : etiqueta}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+        <div className="cuenta-acciones">
+          {pendiente && clubParaSumar && (
+            <button type="button" className="cuenta-autorizar" disabled={ocupada} onClick={() => onSumar(perfil)}>
+              {ocupada ? t("comun.guardando") : t("cuentas.sumarA", { club: clubParaSumar.nombre })}
+            </button>
           )}
-        </>
+          {(autorizada || pendiente) && (
+            <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onBloquear(perfil)}>
+              {pendiente ? t("cuentas.rechazar") : t("cuentas.quitarAcceso")}
+            </button>
+          )}
+          {perfil.estado === "bloqueado" && (
+            <button type="button" className="cuenta-autorizar" disabled={ocupada} onClick={() => onDevolver(perfil)}>
+              {ocupada ? t("comun.guardando") : t("cuentas.devolverAcceso")}
+            </button>
+          )}
+        </div>
       )}
     </li>
   );
 };
 
-const Grupo = ({ titulo, vacio, perfiles, seleccion, ocupada, ...acciones }) => (
+const Grupo = ({ titulo, cantidad, vacio, children }) => (
   <section className="cuentas-grupo">
     <h2>
-      {titulo} <span className="cuentas-cantidad">{perfiles.length}</span>
+      {titulo} <span className="cuentas-cantidad">{cantidad}</span>
     </h2>
-    {perfiles.length === 0 ? (
-      <p className="cuentas-vacio">{vacio}</p>
-    ) : (
-      <ul className="cuentas-lista">
-        {perfiles.map((perfil) => (
-          <Fila
-            key={perfil.user_id}
-            perfil={perfil}
-            seleccion={seleccion[perfil.user_id]}
-            ocupada={ocupada === perfil.user_id}
-            {...acciones}
-          />
-        ))}
-      </ul>
-    )}
+    {cantidad === 0 ? <p className="cuentas-vacio">{vacio}</p> : <ul className="cuentas-lista">{children}</ul>}
   </section>
 );
 
-export default function CuentasAdmin({ miUserId, onVolver }) {
+export default function CuentasAdmin({ miUserId, esDueno = false, club = null, onVolver }) {
   useIdioma();
-  const [perfiles, setPerfiles] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState("");
+  const [pestana, setPestana] = useState("club");
   const [aviso, setAviso] = useState("");
+  const [error, setError] = useState("");
+  const [cargando, setCargando] = useState(true);
   const [ocupada, setOcupada] = useState("");
-  // Para las cuentas pendientes o sin acceso: qué se va a habilitar al
-  // autorizarlas (se elige antes de tocar Autorizar).
-  const [seleccion, setSeleccion] = useState({});
-  const [aQuitar, setAQuitar] = useState(null);
-  // Los clubes y quién está en cada uno (y hasta cuándo).
+
+  // Los clubes que administra quien entró (el dueño: todos) y el elegido.
   const [clubes, setClubes] = useState([]);
-  const [membresias, setMembresias] = useState([]);
-  const [ocupadaClub, setOcupadaClub] = useState("");
+  const [clubId, setClubId] = useState(club?.id || null);
+  // El club elegido para "Actualizar" (que no vuelva al primero).
+  const clubIdRef = useRef(clubId);
+  clubIdRef.current = clubId;
+  const [eligiendoClub, setEligiendoClub] = useState(false);
+  const [errorClub, setErrorClub] = useState("");
+  const [miembros, setMiembros] = useState([]);
+  const [invitaciones, setInvitaciones] = useState([]);
+
+  // La invitación que se está armando.
+  const [correo, setCorreo] = useState("");
+  const [nueva, setNueva] = useState({ ...INVITACION_INICIAL });
+
+  // Hojas: dar de baja, historia, quitar acceso.
   const [aDarBaja, setADarBaja] = useState(null);
   const [fechaBaja, setFechaBaja] = useState(hoyISO());
+  const [historia, setHistoria] = useState(null);
+  const [aBloquear, setABloquear] = useState(null);
 
+  // Las cuentas de la app (solo el dueño).
+  const [perfiles, setPerfiles] = useState([]);
+  const [membresias, setMembresias] = useState([]);
+
+  const clubElegido = clubes.find((uno) => uno.id === clubId) || null;
+
+  const cargarClub = useCallback(async (id) => {
+    if (!id) {
+      setMiembros([]);
+      setInvitaciones([]);
+      return;
+    }
+    const [lista, abiertas] = await Promise.all([listarMiembros(id), listarInvitaciones(id)]);
+    setMiembros(lista);
+    setInvitaciones(abiertas);
+  }, []);
+
+  // La gente del club y las cuentas de la app se leen por separado: si una
+  // parte falla (por ejemplo, falta actualizar la base), la otra sigue.
   const cargar = useCallback(async () => {
     setCargando(true);
     setError("");
+    setErrorClub("");
     try {
-      setPerfiles(await listarPerfiles());
-      const [respuestaClubes, lista] = await Promise.all([cargarEquipos(), listarMembresias().catch(() => null)]);
-      if (lista) {
-        setClubes(respuestaClubes.equipos || []);
-        setMembresias(lista);
-      } else {
-        setClubes([]);
-        setAviso(t("cuentas.errorClubes"));
+      const { equipos } = await cargarEquipos();
+      // El admin de un club administra los suyos; el dueño, todos.
+      const propios = (equipos || []).filter((uno) => esDueno || (uno.rol === "admin" && !uno.hasta));
+      setClubes(propios);
+      const elegido = propios.find((uno) => uno.id === clubIdRef.current) || propios[0] || null;
+      setClubId(elegido?.id || null);
+      try {
+        await cargarClub(elegido?.id || null);
+      } catch (errorLectura) {
+        setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
+      }
+      if (esDueno) {
+        const [cuentas, todas] = await Promise.all([listarPerfiles(), listarMembresias().catch(() => [])]);
+        setPerfiles(cuentas);
+        setMembresias(todas);
       }
     } catch (errorLectura) {
-      setError(errorLectura?.message || t("cuentas.errorLeer"));
+      setError(mensajeDe(errorLectura, "cuentas.errorLeer"));
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [esDueno, cargarClub]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
 
-  const aplicar = async (perfil, cambios) => {
-    setOcupada(perfil.user_id);
+  const elegirClub = async (id) => {
+    setEligiendoClub(false);
+    setClubId(id);
+    setAviso("");
+    setErrorClub("");
+    try {
+      await cargarClub(id);
+    } catch (errorLectura) {
+      setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
+    }
+  };
+
+  // Hace un cambio sobre un miembro y lo reemplaza en la lista.
+  const aplicar = async (miembro, accion, avisoBien = "") => {
+    setOcupada(miembro.user_id);
     setAviso("");
     try {
-      const fila = await decidirPerfil(perfil.user_id, cambios);
-      setPerfiles((lista) => lista.map((actual) => (actual.user_id === fila.user_id ? fila : actual)));
-      setSeleccion((actual) => {
-        const { [perfil.user_id]: _descartada, ...resto } = actual;
-        return resto;
-      });
-      return fila;
+      const fila = await accion();
+      setMiembros((lista) => lista.map((uno) => (uno.user_id === fila.user_id ? { ...uno, ...fila } : uno)));
+      if (avisoBien) setAviso(avisoBien);
     } catch (errorCambio) {
-      setAviso(errorCambio?.message || t("cuentas.errorCambiar"));
-      return null;
+      setAviso(mensajeDe(errorCambio, "cuentas.errorClub"));
     } finally {
       setOcupada("");
     }
   };
 
-  const cambiarMembresia = async (perfil, club, accion) => {
-    setOcupadaClub(`${perfil.user_id}|${club.id}`);
-    setAviso("");
-    try {
-      const fila = await accion();
-      setMembresias((lista) => [...lista.filter((m) => !(m.user_id === fila.user_id && m.equipo_id === fila.equipo_id)), fila]);
-    } catch (errorClub) {
-      setAviso(mensajeDe(errorClub, "cuentas.errorClub"));
-    } finally {
-      setOcupadaClub("");
-    }
-  };
+  const alternarRol = (miembro) =>
+    aplicar(miembro, () => cambiarRol(miembro.user_id, clubId, miembro.rol === "admin" ? "staff" : "admin"));
+  const alternarModulo = (miembro, clave) => aplicar(miembro, () => cambiarModulo(miembro.user_id, clubId, clave, !miembro[clave]));
+  const volverAlClub = (miembro) =>
+    aplicar(miembro, () => reincorporar(miembro.user_id, clubId), t("cuentas.reincorporado", { correo: miembro.email }));
 
   const confirmarBaja = async () => {
-    const pedido = aDarBaja;
+    const miembro = aDarBaja;
     setADarBaja(null);
-    if (!pedido || !fechaBaja) return;
-    await cambiarMembresia(pedido.perfil, pedido.club, () => darDeBaja(pedido.perfil.user_id, pedido.club.id, fechaBaja));
+    if (!miembro || !fechaBaja) return;
+    await aplicar(miembro, () => darDeBaja(miembro.user_id, clubId, fechaBaja), t("cuentas.dadoDeBaja", { correo: miembro.email }));
   };
 
-  // En una cuenta con acceso, el cambio va a la base al toque; en una
-  // pendiente o sin acceso, queda elegido hasta que se la autoriza.
-  const cambiarModulo = (perfil, clave, valor) => {
-    if (perfil.estado === "autorizado") {
-      aplicar(perfil, { [clave]: valor });
+  const abrirHistoria = async (miembro) => {
+    setHistoria({ miembro, movimientos: null, error: "" });
+    try {
+      const movimientos = await historialDeMiembro(clubId, miembro.user_id);
+      setHistoria({ miembro, movimientos, error: "" });
+    } catch (errorLectura) {
+      setHistoria({ miembro, movimientos: [], error: mensajeDe(errorLectura, "cuentas.errorHistorial") });
+    }
+  };
+
+  const enviarInvitacion = async (evento) => {
+    evento.preventDefault();
+    setAviso("");
+    const limpio = correo.trim().toLowerCase();
+    if (!correoValido(limpio)) {
+      setAviso(t("cuentas.errorCorreo"));
       return;
     }
-    const nuevos = { ...permisosDeFila(perfil, seleccion[perfil.user_id]), [clave]: valor };
-    setSeleccion((actual) => ({ ...actual, [perfil.user_id]: nuevos }));
-  };
-
-  const autorizar = async (perfil) => {
-    const permisos = permisosDeFila(perfil, seleccion[perfil.user_id]);
-    if (!permisos.partido && !permisos.flujo && !permisos.lesiones && !permisos.admin) {
-      setAviso(t("cuentas.marcaModulo"));
+    if (miembros.some((uno) => uno.email === limpio && !uno.hasta)) {
+      setAviso(t("cuentas.yaEsta"));
       return;
     }
-    const fila = await aplicar(perfil, { estado: "autorizado", ...permisos });
-    if (!fila) return;
-    // Una cuenta recién autorizada queda en el club con el que se está
-    // trabajando, para que no entre a una app sin clubes.
-    const actual = leerEquipoElegido();
-    const club = clubes.find((uno) => uno.id === actual?.id);
-    const yaEsta = membresias.some((m) => m.user_id === perfil.user_id && !m.hasta);
-    if (club && !yaEsta) await cambiarMembresia(perfil, club, () => sumarAlClub(perfil.user_id, club.id));
+    setOcupada("invitar");
+    try {
+      const { usada } = await invitar(clubId, { email: limpio, ...nueva });
+      setCorreo("");
+      setNueva({ ...INVITACION_INICIAL });
+      setAviso(usada ? t("cuentas.entroYa", { correo: limpio }) : t("cuentas.invitado", { correo: limpio }));
+      await cargarClub(clubId);
+    } catch (errorInvitar) {
+      setAviso(mensajeDe(errorInvitar, "cuentas.errorInvitar"));
+    } finally {
+      setOcupada("");
+    }
   };
 
-  const confirmarQuitar = async () => {
-    const perfil = aQuitar;
-    setAQuitar(null);
-    if (perfil) await aplicar(perfil, { estado: "bloqueado" });
+  const copiarMensaje = async (invitacion) => {
+    const texto = t("cuentas.mensajeInvitacion", {
+      club: clubElegido?.nombre || "",
+      correo: invitacion.email,
+      enlace: typeof window === "undefined" ? "" : window.location.origin,
+    });
+    try {
+      await navigator.clipboard.writeText(texto);
+      setAviso(t("cuentas.copiado"));
+    } catch {
+      // Sin acceso al portapapeles, el mensaje queda a la vista para copiarlo a mano.
+      setAviso(texto);
+    }
   };
 
+  const cancelar = async (invitacion) => {
+    setOcupada(invitacion.id);
+    setAviso("");
+    try {
+      await cancelarInvitacion(invitacion.id);
+      setInvitaciones((lista) => lista.filter((una) => una.id !== invitacion.id));
+      setAviso(t("cuentas.invitacionCancelada"));
+    } catch (errorCancelar) {
+      setAviso(mensajeDe(errorCancelar, "cuentas.errorInvitar"));
+    } finally {
+      setOcupada("");
+    }
+  };
+
+  // ------------------------------------------ Cuentas de la app (dueño) --
+
+  const decidir = async (perfil, cambios) => {
+    setOcupada(perfil.user_id);
+    setAviso("");
+    try {
+      const fila = await decidirPerfil(perfil.user_id, cambios);
+      setPerfiles((lista) => lista.map((uno) => (uno.user_id === fila.user_id ? fila : uno)));
+    } catch (errorCambio) {
+      setAviso(errorCambio?.message || t("cuentas.errorCambiar"));
+    } finally {
+      setOcupada("");
+    }
+  };
+
+  // Sumar una cuenta pendiente al club elegido es invitarla: si ya confirmó
+  // su correo entra en el acto (y queda autorizada); si no, al confirmarlo.
+  const sumarAlClub = async (perfil) => {
+    if (!clubElegido) return;
+    setOcupada(perfil.user_id);
+    setAviso("");
+    try {
+      const { usada } = await invitar(clubElegido.id, { email: perfil.email, ...INVITACION_INICIAL });
+      setAviso(usada ? t("cuentas.entroYa", { correo: perfil.email }) : t("cuentas.invitado", { correo: perfil.email }));
+      await cargar();
+    } catch (errorSumar) {
+      setAviso(mensajeDe(errorSumar, "cuentas.errorInvitar"));
+    } finally {
+      setOcupada("");
+    }
+  };
+
+  const confirmarBloqueo = async () => {
+    const perfil = aBloquear;
+    setABloquear(null);
+    if (perfil) await decidir(perfil, { estado: "bloqueado" });
+  };
+
+  const clubesDe = useMemo(() => {
+    const nombres = new Map(clubes.map((uno) => [uno.id, uno.nombre]));
+    return (userId) =>
+      membresias
+        .filter((m) => m.user_id === userId && nombres.has(m.equipo_id))
+        .map((m) => {
+          const nombre = nombres.get(m.equipo_id);
+          if (m.hasta) return t("cuentas.clubHasta", { club: nombre, fecha: fechaCorta(m.hasta) });
+          return m.rol === "admin" ? t("cuentas.clubAdmin", { club: nombre }) : nombre;
+        })
+        .join(" · ");
+  }, [clubes, membresias]);
+
+  const activos = miembros.filter((uno) => !uno.hasta);
+  const seFueron = miembros.filter((uno) => uno.hasta);
   const grupos = agruparPerfiles(perfiles, miUserId);
-  const acciones = {
-    seleccion,
-    ocupada,
-    onCambiarModulo: cambiarModulo,
-    onAutorizar: autorizar,
-    onQuitar: setAQuitar,
-    clubes,
-    membresias,
-    ocupadaClub,
-    onSumar: (perfil, club) => cambiarMembresia(perfil, club, () => sumarAlClub(perfil.user_id, club.id)),
-    onDarBaja: (perfil, club) => {
+
+  const accionesMiembro = {
+    onRol: alternarRol,
+    onModulo: alternarModulo,
+    onBaja: (miembro) => {
       setFechaBaja(hoyISO());
-      setADarBaja({ perfil, club });
+      setADarBaja(miembro);
     },
-    onReincorporar: (perfil, club) => cambiarMembresia(perfil, club, () => reincorporar(perfil.user_id, club.id)),
+    onReincorporar: volverAlClub,
+    onHistoria: abrirHistoria,
   };
+
+  const parteClub = (
+    <>
+      {clubes.length === 0 ? (
+        <p className="cuentas-vacio">{cargando ? t("comun.cargando") : t("cuentas.sinClubes")}</p>
+      ) : (
+        <>
+          <div className="cuentas-club-elegido">
+            <div>
+              <span className="cuentas-club-rotulo">{t("cuentas.club")}</span>
+              <strong>{clubElegido?.nombre}</strong>
+            </div>
+            {clubes.length > 1 && (
+              <button type="button" className="portal-salir" onClick={() => setEligiendoClub(true)}>
+                {t("comun.cambiar")}
+              </button>
+            )}
+          </div>
+          <p className="cuentas-ayuda">{t("cuentas.clubTexto")}</p>
+
+          {errorClub ? (
+            <div className="cuentas-aviso">
+              {errorClub}{" "}
+              <button type="button" className="cuentas-reintentar" onClick={cargar}>
+                {t("comun.reintentar")}
+              </button>
+            </div>
+          ) : (
+          <>
+          <section className="cuentas-grupo">
+            <h2>{t("cuentas.invitarTitulo")}</h2>
+            <form className="cuentas-invitar" onSubmit={enviarInvitacion} noValidate>
+              <input
+                type="email"
+                value={correo}
+                placeholder={t("cuentas.correo")}
+                aria-label={t("cuentas.correo")}
+                autoComplete="off"
+                onChange={(evento) => setCorreo(evento.target.value)}
+              />
+              <div className="cuenta-permisos" role="group" aria-label={t("cuentas.invitarTitulo")}>
+                <button
+                  type="button"
+                  className="cuenta-chip"
+                  aria-pressed={nueva.rol === "admin"}
+                  onClick={() => setNueva((actual) => ({ ...actual, rol: actual.rol === "admin" ? "staff" : "admin" }))}
+                >
+                  {t("cuentas.roles.admin")}
+                </button>
+                {MODULOS_DEL_CLUB.map((clave) => (
+                  <button
+                    key={clave}
+                    type="button"
+                    className="cuenta-chip"
+                    aria-pressed={Boolean(nueva[clave])}
+                    onClick={() => setNueva((actual) => ({ ...actual, [clave]: !actual[clave] }))}
+                  >
+                    {t(`cuentas.modulos.${clave}`)}
+                  </button>
+                ))}
+              </div>
+              <button type="submit" className="cuenta-autorizar" disabled={ocupada === "invitar" || !correo.trim()}>
+                {ocupada === "invitar" ? t("cuentas.invitando") : t("cuentas.invitar")}
+              </button>
+              <p className="cuentas-ayuda">{t("cuentas.invitarTexto")}</p>
+            </form>
+          </section>
+
+          <Grupo titulo={t("cuentas.invitacionesTitulo")} cantidad={invitaciones.length} vacio={t("cuentas.vacioInvitaciones")}>
+            {invitaciones.map((invitacion) => (
+              <FilaInvitacion key={invitacion.id} invitacion={invitacion} ocupada={ocupada === invitacion.id} onCopiar={copiarMensaje} onCancelar={cancelar} />
+            ))}
+          </Grupo>
+
+          <Grupo titulo={t("cuentas.miembrosTitulo")} cantidad={activos.length} vacio={cargando ? t("comun.cargando") : t("cuentas.vacioMiembros")}>
+            {activos.map((miembro) => (
+              <FilaMiembro key={miembro.user_id} miembro={miembro} esMio={miembro.user_id === miUserId} ocupada={ocupada === miembro.user_id} {...accionesMiembro} />
+            ))}
+          </Grupo>
+
+          <Grupo titulo={t("cuentas.exMiembrosTitulo")} cantidad={seFueron.length} vacio={t("cuentas.vacioExMiembros")}>
+            {seFueron.map((miembro) => (
+              <FilaMiembro key={miembro.user_id} miembro={miembro} esMio={miembro.user_id === miUserId} ocupada={ocupada === miembro.user_id} {...accionesMiembro} />
+            ))}
+          </Grupo>
+          </>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  const accionesCuenta = {
+    clubParaSumar: clubElegido,
+    onSumar: sumarAlClub,
+    onBloquear: setABloquear,
+    onDevolver: (perfil) => decidir(perfil, { estado: "autorizado" }),
+  };
+
+  const partePlataforma = (
+    <>
+      <p className="cuentas-ayuda">{t("cuentas.plataformaTexto")}</p>
+      <Grupo titulo={t("cuentas.porAutorizar")} cantidad={grupos.pendientes.length} vacio={cargando ? t("comun.cargando") : t("cuentas.vacioPendientes")}>
+        {grupos.pendientes.map((perfil) => (
+          <FilaCuenta key={perfil.user_id} perfil={perfil} clubesDeLaCuenta={clubesDe(perfil.user_id)} ocupada={ocupada === perfil.user_id} {...accionesCuenta} />
+        ))}
+      </Grupo>
+      <Grupo titulo={t("cuentas.conAcceso")} cantidad={grupos.conAcceso.length} vacio={cargando ? t("comun.cargando") : t("cuentas.vacioConAcceso")}>
+        {grupos.conAcceso.map((perfil) => (
+          <FilaCuenta key={perfil.user_id} perfil={perfil} clubesDeLaCuenta={clubesDe(perfil.user_id)} ocupada={ocupada === perfil.user_id} {...accionesCuenta} />
+        ))}
+      </Grupo>
+      <Grupo titulo={t("cuentas.sinAcceso")} cantidad={grupos.sinAcceso.length} vacio={cargando ? t("comun.cargando") : t("cuentas.vacioSinAcceso")}>
+        {grupos.sinAcceso.map((perfil) => (
+          <FilaCuenta key={perfil.user_id} perfil={perfil} clubesDeLaCuenta={clubesDe(perfil.user_id)} ocupada={ocupada === perfil.user_id} {...accionesCuenta} />
+        ))}
+      </Grupo>
+    </>
+  );
 
   return (
     <main className="cuentas-pantalla">
@@ -312,7 +576,7 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
             <FlechaVolver /> {t("acceso.volverPortal")}
           </button>
           <div className="cuentas-cabecera-derecha">
-            <button type="button" className="portal-salir" onClick={cargar} disabled={cargando}>
+            <button type="button" className="portal-salir cuentas-actualizar" onClick={cargar} disabled={cargando}>
               {cargando ? t("comun.actualizando") : t("comun.actualizar")}
             </button>
             <SelectorIdioma />
@@ -325,6 +589,25 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
           <p>{t("cuentas.texto")}</p>
         </header>
 
+        {esDueno && (
+          <div className="cuentas-pestanas" role="tablist">
+            <button type="button" role="tab" className="cuenta-chip" aria-pressed={pestana === "club"} aria-selected={pestana === "club"} onClick={() => setPestana("club")}>
+              {t("cuentas.pestanaClub")}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className="cuenta-chip"
+              aria-pressed={pestana === "plataforma"}
+              aria-selected={pestana === "plataforma"}
+              onClick={() => setPestana("plataforma")}
+            >
+              {t("cuentas.pestanaPlataforma")}
+              {grupos.pendientes.length > 0 && <span className="portal-pendientes">{grupos.pendientes.length}</span>}
+            </button>
+          </div>
+        )}
+
         {error && (
           <div className="cuentas-aviso">
             {error}{" "}
@@ -333,45 +616,22 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
             </button>
           </div>
         )}
-        {aviso && <div className="cuentas-aviso">{aviso}</div>}
-
-        {!error && (
-          <>
-            <Grupo
-              titulo={t("cuentas.porAutorizar")}
-              vacio={cargando ? t("comun.cargando") : t("cuentas.vacioPendientes")}
-              perfiles={grupos.pendientes}
-              {...acciones}
-            />
-            <Grupo
-              titulo={t("cuentas.conAcceso")}
-              vacio={cargando ? t("comun.cargando") : t("cuentas.vacioConAcceso")}
-              perfiles={grupos.conAcceso}
-              {...acciones}
-            />
-            <Grupo
-              titulo={t("cuentas.sinAcceso")}
-              vacio={cargando ? t("comun.cargando") : t("cuentas.vacioSinAcceso")}
-              perfiles={grupos.sinAcceso}
-              {...acciones}
-            />
-          </>
+        {aviso && (
+          <div className="cuentas-aviso" role="status">
+            {aviso}
+          </div>
         )}
+
+        {!error && (pestana === "plataforma" && esDueno ? partePlataforma : parteClub)}
       </div>
 
-      <HojaConfirmar
-        abierta={Boolean(aQuitar)}
-        icono="usuario"
-        titulo={aQuitar?.estado === "pendiente" ? t("cuentas.rechazarTitulo") : t("cuentas.quitarTitulo")}
-        descripcion={
-          aQuitar?.estado === "pendiente"
-            ? t("cuentas.rechazarTexto", { correo: aQuitar?.email || t("cuentas.laCuenta") })
-            : t("cuentas.quitarTexto", { correo: aQuitar?.email || t("cuentas.laCuenta") })
-        }
-        etiquetaConfirmar={aQuitar?.estado === "pendiente" ? t("cuentas.siRechazar") : t("cuentas.siQuitar")}
-        etiquetaCancelar={t("comun.cancelar")}
-        onConfirmar={confirmarQuitar}
-        onCancelar={() => setAQuitar(null)}
+      <HojaOpciones
+        abierta={eligiendoClub}
+        titulo={t("cuentas.club")}
+        opciones={clubes.map((uno) => ({ valor: uno.id, etiqueta: uno.nombre }))}
+        elegida={clubId}
+        onElegir={elegirClub}
+        onCerrar={() => setEligiendoClub(false)}
       />
 
       {aDarBaja && (
@@ -379,7 +639,7 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
           abierta
           className="cuentas-hoja"
           titulo={t("cuentas.bajaTitulo")}
-          descripcion={t("cuentas.bajaTexto", { correo: aDarBaja.perfil.email || t("cuentas.laCuenta"), club: aDarBaja.club.nombre })}
+          descripcion={t("cuentas.bajaTexto", { correo: aDarBaja.email || t("cuentas.laCuenta"), club: clubElegido?.nombre || "" })}
           onCerrar={() => setADarBaja(null)}
           acciones={
             <>
@@ -398,6 +658,54 @@ export default function CuentasAdmin({ miUserId, onVolver }) {
           </div>
         </HojaInferior>
       )}
+
+      {historia && (
+        <HojaInferior
+          abierta
+          className="cuentas-hoja"
+          titulo={t("cuentas.historiaTitulo", { correo: historia.miembro.email, club: clubElegido?.nombre || "" })}
+          onCerrar={() => setHistoria(null)}
+          acciones={
+            <button type="button" className="boton-cancelar-hoja" onClick={() => setHistoria(null)}>
+              {t("comun.listo")}
+            </button>
+          }
+        >
+          {historia.error && <div className="aviso-hoja">{historia.error}</div>}
+          {historia.movimientos === null ? (
+            <p className="cuentas-historia-vacia">{t("comun.cargando")}</p>
+          ) : historia.movimientos.length === 0 ? (
+            <p className="cuentas-historia-vacia">{t("cuentas.sinHistoria")}</p>
+          ) : (
+            <ul className="cuentas-historia">
+              {historia.movimientos.map((movimiento) => (
+                <li key={movimiento.id}>
+                  <b>{textoDeMovimiento(movimiento)}</b>
+                  <span>
+                    {fechaYHora(movimiento.cuando)}
+                    {movimiento.quien_email ? ` · ${t("cuentas.porQuien", { correo: movimiento.quien_email })}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </HojaInferior>
+      )}
+
+      <HojaConfirmar
+        abierta={Boolean(aBloquear)}
+        icono="usuario"
+        titulo={aBloquear?.estado === "pendiente" ? t("cuentas.rechazarTitulo") : t("cuentas.quitarTitulo")}
+        descripcion={
+          aBloquear?.estado === "pendiente"
+            ? t("cuentas.rechazarTexto", { correo: aBloquear?.email || t("cuentas.laCuenta") })
+            : t("cuentas.quitarTexto", { correo: aBloquear?.email || t("cuentas.laCuenta") })
+        }
+        etiquetaConfirmar={aBloquear?.estado === "pendiente" ? t("cuentas.siRechazar") : t("cuentas.siQuitar")}
+        etiquetaCancelar={t("comun.cancelar")}
+        onConfirmar={confirmarBloqueo}
+        onCancelar={() => setABloquear(null)}
+      />
     </main>
   );
 }

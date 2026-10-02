@@ -29,14 +29,27 @@ export const permisosDePerfil = (perfil) => {
   };
 };
 
-// Cómo está la cuenta para entrar: pendiente, bloqueada, autorizada sin
-// ningún módulo ("sin-modulos") o lista ("ok").
+// Cómo está la cuenta para entrar: pendiente, bloqueada o lista ("ok"). Qué
+// módulos usa ya no lo dice la cuenta sino cada club (su membresía).
 export const situacionDePerfil = (perfil) => {
   const estado = perfil?.estado || "pendiente";
   if (estado === "bloqueado") return "bloqueado";
   if (estado !== "autorizado") return "pendiente";
-  const permisos = permisosDePerfil(perfil);
-  return permisos.partido || permisos.flujo || permisos.lesiones ? "ok" : "sin-modulos";
+  return "ok";
+};
+
+// Lo que la cuenta puede hacer en el club elegido: los módulos de su
+// membresía (si la base todavía no los tiene, los de la cuenta), si
+// administra la gente del club y si es dueña de la plataforma.
+export const permisosEnClub = (permisosCuenta, club) => {
+  const dueno = Boolean(permisosCuenta?.admin);
+  if (!club) return { partido: false, flujo: false, lesiones: false, datos: false, admin: dueno, adminClub: false };
+  const modulo = (clave) => (typeof club[clave] === "boolean" ? club[clave] : Boolean(permisosCuenta?.[clave]));
+  const partido = modulo("partido");
+  const flujo = modulo("flujo");
+  const lesiones = modulo("lesiones");
+  const adminClub = club.rol ? club.rol === "admin" && !club.hasta : dueno && !club.hasta;
+  return { partido, flujo, lesiones, datos: partido || flujo || lesiones, admin: dueno, adminClub };
 };
 
 export const leerMiPerfil = async (userId) => {

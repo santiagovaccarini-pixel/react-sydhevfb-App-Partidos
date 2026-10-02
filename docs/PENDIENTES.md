@@ -180,7 +180,7 @@ de lo hecho está en los commits, no en esta lista.
   jugador, edad, lado hábil, Recup 1/2, recuperación, severidad por días con alta, recorrência
   a 60 días, recidiva por estructura exacta a 30 días, diagnóstico armado). La vista
   `v_lesiones_excel_v1` calcula lo mismo para Power Query (migración
-  `20261002_datos_basicos.sql`, **pendiente de correr en Supabase**: también agrega
+  `20261002b_datos_basicos.sql`, **pendiente de correr en Supabase**: también agrega
   `jugadores.posicion` y `jugadores.foto_url`).
 - La carga de una lesión va por pasos (quién, qué pasó, dónde, cómo y cuándo, evolución e
   imágenes, notas) con solo lo manual; lo calculado se muestra al final. Hay una pantalla
@@ -257,6 +257,171 @@ constantes; la vista lee las mismas reglas con una función
 `lesiones_regla(equipo, clave)` para que Power Query y la app coincidan; la
 restricción de la base pasa a depender de la regla. Mientras tanto, cada regla
 nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
+
+## El siguiente nivel: un club entero usando esto (plan del 02/10)
+
+Santiago: "hoy tuve la noticia de que vamos a tener que hacer esto un software muy
+potente y muy seguro, para que un club entero lo use". Más allá de los módulos, lo
+que hay que resolver es la lógica de seguridad y confianza. Lo que ya está y lo
+que falta, en el orden en que conviene hacerlo:
+
+**Ya está**: cuentas con autorización y módulos; clubes con membresía y fecha de
+salida (quien se fue ve hasta su último día, decidido por la base, no por la
+pantalla); todo lo guardado lleva su club; historial de cambios en Lesiones;
+migraciones versionadas en `supabase/migrations`.
+
+**Lo que falta, por orden:**
+
+1. **Roles por club y entrada por invitación.** Hoy el permiso de cada módulo es
+   global (`perfiles.partido/flujo/lesiones`) y hay un solo administrador para todo.
+   Tiene que pasar a la membresía: `club_miembros` con rol (administrador del club o
+   staff) y módulos por club; `perfiles.admin` queda como dueño de la plataforma.
+   Entrar por invitación (`club_invitaciones`: correo, club, rol): al registrarse con
+   ese correo, la cuenta queda autorizada y adentro del club sola; sin invitación no
+   entra a ningún club. `puede_usar(modulo)` pasa a `puede_usar(club, modulo)`.
+2. **Pruebas de permisos contra una base de prueba.** Lo que protege los datos son
+   las políticas; hoy no hay pruebas automáticas de ellas. Falta un segundo proyecto
+   de Supabase (prueba) y una batería que entra con varias cuentas (admin, staff,
+   ex-miembro, otro club) y verifica fila por fila qué ve y qué puede cambiar cada
+   una. Las migraciones se corren primero ahí y después en producción (Supabase CLI,
+   no el editor a mano).
+3. **Fotos de los datos (historial en todas las tablas).** Hoy el ex-miembro ve las
+   filas de hasta su último día, pero con los cambios posteriores. Para que vea
+   exactamente lo que había ese día: un disparador genérico que guarde cada versión
+   (como `lesiones_historial`, pero para partidos, entrenamientos, jugadores y
+   lesiones) y vistas "al día X". Lo mismo da papelera en vez de borrado definitivo
+   (hoy "borrar historial" de Partido borra de verdad) y auditoría de quién cambió qué.
+4. **El celular.** Al cerrar sesión o al quedar fuera de un club, borrar las copias
+   locales de ese club (respaldo de partidos, pendientes, plantel, perfil). Sesiones
+   cortas con renovación, y revisar la membresía en cada apertura (hoy se hace al
+   volver al portal).
+5. **Cuentas más duras.** Correo confirmado obligatorio (ya), contraseñas fuertes,
+   segundo factor para administradores (Supabase lo trae), aviso por correo cuando
+   alguien entra desde un aparato nuevo.
+6. **Datos médicos.** Las lesiones son datos de salud (LGPD en Brasil, Ley 25.326 en
+   Argentina): solo el rol médico ve el detalle, el resto ve disponible o no;
+   registro de quién consultó; exportar y borrar a pedido del jugador.
+7. **Copias de seguridad y plan.** Producción no puede quedar en el plan gratuito
+   (se pausa por inactividad, sin copias automáticas). Plan Pro con copias diarias y
+   recuperación a un punto en el tiempo, más una exportación completa por club
+   (todo lo del club en un archivo) que el club pueda pedir cuando quiera.
+8. **Una base por club.** El volumen no es el problema (Postgres aguanta décadas de
+   partidos, entrenamientos y lesiones de un club); lo que vale es el aislamiento y
+   que cada club sea dueño de lo suyo. Como todo ya lleva su club, el camino es:
+   seguir con una base ahora, con las pruebas del punto 2; y cuando un club lo
+   pida (o por contrato), darle su propio proyecto de Supabase. El código no
+   cambia: se suma un "directorio de clubes" que le dice a la app a qué base ir, y
+   la exportación del punto 7 es la mudanza. Costo: un proyecto Pro por club.
+
+### Cómo dar una base por club sin que sea un trabajo (decidido el 02/10)
+
+- **Directorio de clubes**: un proyecto chico y central de Supabase con una sola tabla
+  (`clubes`: código, nombre, URL del proyecto, clave pública) y la lista de dueños de la
+  plataforma. La app arranca pidiendo el código del club (o lo saca del subdominio,
+  `cam.laapp.com`), busca en el directorio a qué base ir y recién ahí crea el cliente de
+  Supabase y pide usuario y contraseña. Todo lo demás (migraciones, políticas, membresías)
+  queda igual. Varios clubes pueden apuntar a la misma base (los chicos o los de prueba) y
+  un club pago tiene la suya: la app no distingue.
+- **Un comando para crear un club**: `npm run club:nuevo -- "Nombre del club" --dedicado`
+  usa la API de administración de Supabase (con un token guardado como secreto, nunca en
+  el repo) para crear el proyecto en la organización, esperar a que esté listo, correr
+  todas las migraciones de `supabase/migrations`, configurar el acceso (correo confirmado,
+  URL de la app), dejar la invitación del primer administrador y anotar el club en el
+  directorio. Minutos, sin tocar nada a mano. Sin `--dedicado`, solo anota el club en la
+  base compartida.
+- **Un comando para actualizar todos**: `npm run migrar:todos` corre lo que falte de
+  `supabase/migrations` en cada base del directorio, primero en la de prueba. Queda en
+  GitHub Actions para que no dependa de una computadora.
+- **Copias y exportación**: cada base dedicada tiene sus copias diarias (plan Pro) y
+  `npm run club:exportar -- codigo` baja todo lo del club en un archivo. Lo mismo sirve
+  para mudar un club de la base compartida a la suya.
+- **¿Plan gratuito con una cuenta por club?** Se puede (el directorio acepta cualquier
+  proyecto), pero no para vender: el proyecto gratuito se pausa a la semana sin uso, no
+  tiene copias de seguridad, el correo de acceso tiene un límite de pocos envíos por hora
+  y el club tendría que crear la cuenta, el proyecto y pasar las claves. Queda solo para
+  demostraciones y pruebas. Dos caminos serios: (a) proyectos dentro de la organización
+  propia en plan Pro (del orden de 10 USD por mes por club, va en el precio), con copias,
+  sin pausas y con control total para migrar; (b) para el club que exige ser dueño, su
+  propia cuenta paga y una invitación al operador (rol Developer) para correr las
+  migraciones; el club puede revocarla cuando quiera. El administrador del club no
+  necesita cuenta de Supabase: administra desde Cuentas en la app.
+- Lo que hay que preparar: organización de Supabase en plan Pro, un token de
+  administración, la región (San Pablo), y un dominio con subdominio comodín en Vercel.
+  Las funciones del servidor (`api/openfield`) reciben el código del club y validan la
+  sesión contra esa base.
+
+### Cuentas v2: hecho el 02/10 (migración `20261004_cuentas_v2.sql`, pendiente de correr)
+
+- Rol (admin del club o staff) y módulos por club en `club_miembros`; la cuenta solo
+  dice si está autorizada y si es dueña de la plataforma (`perfiles.admin`).
+- Invitaciones por correo (`club_invitaciones`): si la cuenta existe y confirmó el
+  correo, entra en el acto; si no, al confirmarlo. Vencen a los 14 días; se cancelan.
+- Historia de cada membresía (`club_miembros_historial`), con quién y cuándo.
+- Un club nunca queda sin administrador; la salida no puede ser futura; una membresía
+  no se muda de club; solo el dueño crea clubes; los ajustes generales los cambia el
+  dueño; un partido repetido es por club (antes chocaban dos clubes distintos).
+- Pantalla Cuentas: gente del club (invitar, rol, módulos, dar de baja con fecha,
+  reincorporar, historia) y, para el dueño, las cuentas de la app.
+- Al salir de la cuenta se borran del celular el club elegido y las copias de los
+  clubes (no lo que no se subió). Al dejar un club, las copias de ese club.
+- **Pruebas de permisos contra un Postgres de verdad** (`supabase/pruebas`,
+  `npm run pruebas:base`): todas las migraciones desde cero y más de 100 escenarios
+  (cada tipo de cuenta, qué ve y qué cambia). Corren en GitHub Actions en cada cambio
+  (`.github/workflows/pruebas.yml`), junto con las de la app y la compilación.
+
+**Lo que sigue en cuentas:**
+- Foto al día de salida: hoy quien se fue ve las filas con fecha hasta su último día,
+  pero con los cambios posteriores. Falta guardar las versiones de cada fila y que quien
+  se fue vea la versión de ese día (Lesiones ya tiene `lesiones_historial` completo).
+- Modo solo lectura también adentro de Partido (Registros, Ajustes) y Flujo diario
+  (Tareas): hoy se esconden los botones de carga del inicio y la base frena el resto.
+- Segundo factor para administradores, aviso por aparato nuevo, cerrar sesión en todos.
+
+### Cuentas v2: los escenarios que tiene que cubrir (decidido el 02/10)
+
+Modelo: **cuenta** (correo), **club**, **membresía** (cuenta × club, con rol, módulos y
+fecha de salida) y **historial de membresía** (cada alta, baja, cambio de rol, con quién
+y cuándo). `perfiles.admin` pasa a ser "dueño de la plataforma"; el administrador de
+cada club vive en la membresía.
+
+1. Invitar (correo + rol + módulos) → la persona se registra con ese correo y entra
+   solo a ese club. Invitación con vencimiento, reenviar, cancelar. Sin invitación no
+   se entra a ningún club.
+2. Cuenta que ya existe, invitada a otro club → le aparece en "Mis clubes".
+3. Cambiar rol o módulos → al momento, por club.
+4. Dar de baja con fecha (hoy, pasada o programada) → ve hasta ese día, no escribe;
+   el celular borra las copias locales de ese club; la sesión sigue pero limitada.
+5. Reincorporar la misma cuenta → vuelve con todo; el historial muestra los períodos.
+6. Bloquear la cuenta entera (dueño de la plataforma) → no entra a nada.
+7. Nunca queda un club sin administrador: traspaso antes de la baja del último.
+8. Mis clubes, cambiar contraseña, cerrar sesión en todos los aparatos, segundo factor
+   para administradores, aviso por aparato nuevo.
+9. Soporte: el dueño ve membresías, no datos; "modo soporte" con tiempo y registro.
+10. Auditoría de cada cambio de cuenta.
+11. Pruebas automáticas de permisos contra una base de prueba (segundo proyecto, gratis):
+    entra con cada tipo de cuenta y comprueba fila por fila qué ve y qué cambia.
+
+### Orion: la IA que vigila los datos (decidido el 02/10)
+
+- Capa 1, gratis: reglas automáticas cada noche (fechas fuera de orden, lesiones sin alta
+  hace mucho, jugadores repetidos, partidos sin resultado, valores imposibles) → tabla
+  `alertas_datos` → pantalla "Revisión de datos" donde el staff confirma o descarta.
+- Capa 2, Claude por API: cada noche revisa solo lo nuevo o cambiado de cada club, con
+  los nombres reemplazados por códigos antes de salir (datos de salud), y marca lo que
+  una regla no agarra (el comentario dice "izquierda" y la lesión dice derecha, un
+  diagnóstico que no cierra con la estructura). "Aprende" guardando lo que el staff
+  confirmó o descartó y usándolo de ejemplo; lo que se repite se vuelve regla. Costo:
+  centavos por día por club (Opus 5.5 ~3 USD/mes por club; con el modelo chico, menos
+  de 1; por lotes, la mitad). La API no usa los datos para entrenar.
+- Capa 3, después: preguntarle a los datos en lenguaje común, siempre con los permisos
+  de quien pregunta.
+
+### Costos reales para vender (02/10)
+
+Gratis: GitHub (repo privado, Actions, Dependabot), Supabase de prueba, Sentry para
+errores, captcha, segundo factor. Cuando se vende: Supabase Pro (25 USD/mes la
+organización, más ~10 por club dedicado), Vercel Pro (20 USD/mes: el plan gratuito
+prohíbe uso comercial), dominio. Todo lo demás, 0.
 
 ## Lo que dejó la revisión completa del 30/09
 
