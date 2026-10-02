@@ -148,12 +148,21 @@ negativos y desvíos muy altos. Se usa la lógica de la planilla "Plantilla VR"
    rango de los datos ni quedan negativos en métricas que no pueden serlo. El
    Desv. Estándar que se escribe es el del centro de la muestra. Esas celdas
    van en **celeste** y el detalle está en la hoja `A mano`.
-5. **Negativos.** En métricas que no pueden ser negativas (absolutos, Tiempo,
+5. **Muestras casi todas en 0.** Cuando casi todos los valores son 0 y hay uno
+   o pocos distintos (por ejemplo 0, 0, 49, 0, 0), el rango intercuartílico da
+   0 y la limpieza saca los valores distintos de 0: la muestra queda toda en 0
+   y el VR vacío. En esos casos no se quitan valores y el VR se arma con el
+   **25% del desvío**: Excelente = Bueno + 2 de ese desvío, Muy Bueno + 1,
+   Regular − 1 y Malo − 1,25. El relativo por minuto y el relativo vs equipo de
+   esa métrica siguen la misma regla. Van en celeste y se listan en la hoja
+   `Casi todo en 0` del resumen. Si los datos son todos 0 de verdad, la métrica
+   sigue vacía.
+6. **Negativos.** En métricas que no pueden ser negativas (absolutos, Tiempo,
    relativos por minuto y relativos vs equipo) ningún nivel es negativo; si el
    valor de Malo da negativo se lleva a 0. Las caídas sí pueden ser negativas
    (bajan del primer al segundo tiempo): cuando cumplen todo lo anterior se
    escriben y se marcan con **letra roja**.
-6. **Mínimo de 5 casos.** Una combinación de jugador y categoría (o grupo
+7. **Mínimo de 5 casos.** Una combinación de jugador y categoría (o grupo
    juntado) con menos de 5 casos no tiene VR: no se escribe y queda listada en
    la hoja `Sin VR` del resumen. Una métrica con menos de 5 valores queda vacía.
    Si Bueno da 0 o el desvío es 0, la métrica queda vacía, igual que en la
@@ -193,7 +202,7 @@ otros dos); **letra roja** = nivel negativo en una caída.
   tocar nada más del archivo (macros, tablas dinámicas, formatos y desplegables
   quedan intactos; sólo agrega a los estilos las variantes amarilla y naranja) y
   deja un `<salida>_resumen.xlsx` con las hojas `VR`, `Combinaciones`,
-  `Proceso`, `Sin VR`, `A mano`, `Atípicos` y `Leyenda` para controlar.
+  `Proceso`, `Sin VR`, `A mano`, `Casi todo en 0`, `Atípicos` y `Leyenda` para controlar.
 
   ```bash
   pip install openpyxl pandas numpy

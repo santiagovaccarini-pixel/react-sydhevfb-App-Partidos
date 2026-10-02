@@ -366,6 +366,7 @@ M_MAX = float(os.environ.get('VR_M_MAX', '2'))   # hasta cuantos desvios puede i
 MAX_EXCELENTE = 0.10     # Excelente con mas del 10% de la muestra
 MAX_MALO = 0.20          # Malo (debajo de Regular) con mas del 20% de la muestra
 MAX_DESVIO_RATIO = 1.5   # desvio de la muestra mas de 1,5 veces el desvio del centro de la muestra ((P84 - P16) / 2)
+PCT_DESVIO_CASI_CERO = 0.25   # muestras casi todas en 0: el VR se arma con el 25% del desvio
 KIND_NAME = {'abs': 'Absoluto', 'rel': 'Relativo por minuto', 'vseq': 'Relativo vs equipo', 'caida': 'Caída'}
 NONNEG = {'abs', 'rel', 'vseq'}
 NUM_OF = {L(c): L(c - (C('AU') - C('AF'))) for c in range(C('AU'), C('BH') + 1)}   # AU = AF / DB ...
@@ -526,7 +527,7 @@ def xl_skew(x):
 
 # ---------------------------------------------------------------- 6. calcular por jugador x categoria
 out_rows, review, skipped, outliers, combos = [], [], [], [], []
-proceso, sin_vr, revisar = [], [], []
+proceso, sin_vr, revisar, casi_cero_rows = [], [], [], []
 for p in players:
     done = set()
     for cat0 in CATS:
@@ -565,6 +566,7 @@ for p in players:
         manual_cols, neg_cells = set(), set()
         abs_keep = {}      # columna absoluta -> filas (indices globales) que quedaron despues de limpiar
         abs_blank = set()  # columnas absolutas sin VR (Bueno 0 o desvio 0)
+        casi_cero = set()  # columnas absolutas con la muestra casi toda en 0 (VR con el 25% del desvio)
         for dcol in col_map:
             kind = metric_kind(dcol)
             vals = num[dcol].to_numpy()[idx]
@@ -616,6 +618,21 @@ for p in players:
                 keep_local = ok & (vals >= lo - tol) & (vals <= hi + tol)
                 rule = f'{k:g} RIC' + (' (más del 10% fuera de 1,5 RIC)' if k == 3 else '')
             removed = idx[ok & ~keep_local]
+            # muestra casi toda en 0 (p. ej. 0, 0, 49, 0, 0): el rango intercuartilico da 0 y la limpieza saca los pocos
+            # valores distintos de 0, dejando todo en 0 (o todo igual) y el VR vacio. En esos casos no se limpia y el VR
+            # se arma con el 25% del desvio. El relativo y el relativo vs equipo de esa metrica siguen la misma regla.
+            casi_cero_m = False
+            if base is not None and base in casi_cero:
+                keep_local = ok.copy(); casi_cero_m = True
+            elif len(removed) and len(x) > 1 and np.std(x) > 0:
+                kv = vals[keep_local]
+                if len(kv) and np.all(kv == 0):
+                    keep_local = ok.copy(); casi_cero_m = True
+            if casi_cero_m:
+                removed = idx[ok & ~keep_local]
+                rule = rule + ' | casi todo en 0: sin limpieza, VR con el 25% del desvío'
+                if kind == 'abs':
+                    casi_cero.add(dcol)
             if kind == 'abs':
                 abs_keep[dcol] = idx[keep_local]
             if len(removed):
@@ -658,7 +675,34 @@ for p in players:
                 levels[dcol]['Desv. Estándar'] = sd
             else:
                 info['Regla'] = rule + (' | sin VR: su absoluto no tiene VR' if base in abs_blank and kind != 'abs' else ' | sin VR: Bueno = 0 o desvío 0')
-            if computable:
+            if computable and casi_cero_m:
+                s25 = PCT_DESVIO_CASI_CERO * sd
+                lv = {'Excelente': b + 2 * s25, 'Muy Bueno': b + s25, 'Regular': b - s25, 'Malo': b - 1.25 * s25}
+                if kind in NONNEG and not ARGS.permitir_negativos:
+                    for k_, v_ in lv.items():
+                        if v_ < 0:
+                            lv[k_] = 0.0; info['Niveles llevados a 0'] += 1; floored_cols.add(dcol)
+                if kind == 'caida':
+                    for k_, v_ in lv.items():
+                        if v_ < 0:
+                            neg_cells.add((dcol, k_))
+                    if b < 0:
+                        neg_cells.add((dcol, 'Bueno'))
+                levels[dcol].update(lv)
+                levels[dcol]['Desv. Estándar'] = s25
+                manual_cols.add(dcol)
+                sk = shares(kept, b, lv)
+                info.update({'Distribución': f'{PCT_DESVIO_CASI_CERO:.0%} del desvío (casi todo en 0)', 'Desvío de la muestra': sd,
+                             'Desv. Estándar': s25, 'Mult. Muy Bueno': 1.0, 'Mult. Excelente': 2.0, 'Mult. Regular': 1.0,
+                             'Mult. Malo': 1.25, **{f'% {k}': v for k, v in sk.items()},
+                             **{f'% {k} (con datos raros)': v for k, v in sk.items()}})
+                casi_cero_rows.append({'Jugador': p, 'Categoría': cat, 'Métrica': metric_name[dcol], 'Columna': dcol,
+                                       'Tipo': KIND_NAME[kind], 'Casos': int(len(x)),
+                                       'Valores': ', '.join(f'{v:g}' for v in x), 'Bueno': b,
+                                       'Desvío de la muestra': sd, 'Desvío usado (25%)': s25,
+                                       'Excelente': lv['Excelente'], 'Muy Bueno': lv['Muy Bueno'],
+                                       'Regular': lv['Regular'], 'Malo': lv['Malo']})
+            if computable and not casi_cero_m:
                 p95, p5 = np.percentile(kept, 95), np.percentile(kept, 5)
                 f10 = (float(np.mean(kept[kept >= p95])) - b) / sd
                 f11 = (b - float(np.mean(kept[kept <= p5]))) / sd
@@ -744,6 +788,7 @@ print(f'Combinaciones juntadas: {sum(1 for c in combos if c["Juntada con"])};  v
       f' en {sum(1 for c in combos if c["Valores atípicos excluidos"])} combinaciones')
 print(f'Niveles llevados a 0 (metricas que no pueden ser negativas): {sum(i.get("Niveles llevados a 0") or 0 for i in proceso)}')
 print(f'Metricas con el desvio repartido a mano: {len(revisar)}')
+print(f'Metricas casi todas en 0 (VR con el 25% del desvio): {len(casi_cero_rows)}')
 
 with pd.ExcelWriter(REVIEW) as xw:
     pd.DataFrame(review).to_excel(xw, sheet_name='VR', index=False)
@@ -751,6 +796,8 @@ with pd.ExcelWriter(REVIEW) as xw:
     pd.DataFrame(proceso).to_excel(xw, sheet_name='Proceso', index=False)
     pd.DataFrame(sin_vr, columns=['Jugador', 'Categoría', 'Casos', 'Juntada con', 'Motivo']).to_excel(xw, sheet_name='Sin VR', index=False)
     pd.DataFrame(revisar, columns=['Jugador', 'Categoría', 'Métrica', 'Columna', 'Casos', 'Motivo', 'Desvío de la muestra', 'Desvío a mano']).to_excel(xw, sheet_name='A mano', index=False)
+    pd.DataFrame(casi_cero_rows, columns=['Jugador', 'Categoría', 'Métrica', 'Columna', 'Tipo', 'Casos', 'Valores', 'Bueno', 'Desvío de la muestra',
+                                          'Desvío usado (25%)', 'Excelente', 'Muy Bueno', 'Regular', 'Malo']).to_excel(xw, sheet_name='Casi todo en 0', index=False)
     df_out = pd.DataFrame(outliers)
     if len(df_out):
         df_out['Fecha'] = pd.to_datetime(df_out['Fecha'], errors='coerce').dt.date
@@ -763,6 +810,7 @@ with pd.ExcelWriter(REVIEW) as xw:
         '4) Muy Bueno, Excelente y Regular = Bueno ± m·desvío, con m de a 0,25 desvíos elegido para que la muestra se reparta en los rangos como una distribución normal (Gauss): Excelente 2,5%, Muy Bueno 13,5%, Bueno 34%, Regular 34%, Malo 16%. Los rangos son los que pinta el libro: Excelente desde Excelente para arriba, Malo debajo de Regular. Excelente puede ir hasta 2 desvíos; en empates se elige lo más cercano a 1 y 2 desvíos.',
         '5) Malo = Regular − 0,25·desvío, como en la planilla (el libro pinta Malo todo lo que está debajo de Regular).',
         f'5b) Reparto a mano: si con el desvío de la muestra Excelente queda con más del {MAX_EXCELENTE:.0%}, Malo con más del {MAX_MALO:.0%}, algún nivel negativo (salvo caídas) o el desvío es más de {MAX_DESVIO_RATIO:g} veces el desvío del centro de la muestra ((P84 − P16) / 2), los cortes se ponen entre valores reales de la muestra buscando el reparto de Gauss sin pasar esos topes. El Desv. Estándar escrito es el del centro de la muestra: (P84 − P16) / 2. Celdas en celeste; detalle en la hoja A mano.',
+        f'5d) Muestras casi todas en 0 (por ejemplo 0, 0, 49, 0, 0): el rango intercuartílico da 0 y la limpieza dejaba todo en 0 y el VR vacío. En esos casos no se quitan valores y el VR se arma con el {PCT_DESVIO_CASI_CERO:.0%} del desvío: Excelente = Bueno + 2 de ese desvío, Muy Bueno + 1, Regular − 1, Malo − 1,25. El relativo y el relativo vs equipo de esa métrica siguen la misma regla. Celdas en celeste; detalle en la hoja Casi todo en 0.',
         '5c) Negativos: sólo las caídas pueden tener niveles negativos; cuando cumplen todo lo anterior se escriben y se marcan con letra roja.',
         '6) La hoja Proceso trae también los multiplicadores que elegía la planilla, como referencia, y el reparto real de la muestra en cada rango, con y sin datos raros.',
         '7) En métricas que no pueden ser negativas (absolutos, relativos por minuto, relativos vs equipo, Tiempo) un nivel que da negativo se lleva a 0. Las caídas pueden ser negativas.',
