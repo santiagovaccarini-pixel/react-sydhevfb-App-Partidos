@@ -350,6 +350,52 @@ migraciones versionadas en `supabase/migrations`.
   Las funciones del servidor (`api/openfield`) reciben el código del club y validan la
   sesión contra esa base.
 
+### Cuentas v2: los escenarios que tiene que cubrir (decidido el 02/10)
+
+Modelo: **cuenta** (correo), **club**, **membresía** (cuenta × club, con rol, módulos y
+fecha de salida) y **historial de membresía** (cada alta, baja, cambio de rol, con quién
+y cuándo). `perfiles.admin` pasa a ser "dueño de la plataforma"; el administrador de
+cada club vive en la membresía.
+
+1. Invitar (correo + rol + módulos) → la persona se registra con ese correo y entra
+   solo a ese club. Invitación con vencimiento, reenviar, cancelar. Sin invitación no
+   se entra a ningún club.
+2. Cuenta que ya existe, invitada a otro club → le aparece en "Mis clubes".
+3. Cambiar rol o módulos → al momento, por club.
+4. Dar de baja con fecha (hoy, pasada o programada) → ve hasta ese día, no escribe;
+   el celular borra las copias locales de ese club; la sesión sigue pero limitada.
+5. Reincorporar la misma cuenta → vuelve con todo; el historial muestra los períodos.
+6. Bloquear la cuenta entera (dueño de la plataforma) → no entra a nada.
+7. Nunca queda un club sin administrador: traspaso antes de la baja del último.
+8. Mis clubes, cambiar contraseña, cerrar sesión en todos los aparatos, segundo factor
+   para administradores, aviso por aparato nuevo.
+9. Soporte: el dueño ve membresías, no datos; "modo soporte" con tiempo y registro.
+10. Auditoría de cada cambio de cuenta.
+11. Pruebas automáticas de permisos contra una base de prueba (segundo proyecto, gratis):
+    entra con cada tipo de cuenta y comprueba fila por fila qué ve y qué cambia.
+
+### Orion: la IA que vigila los datos (decidido el 02/10)
+
+- Capa 1, gratis: reglas automáticas cada noche (fechas fuera de orden, lesiones sin alta
+  hace mucho, jugadores repetidos, partidos sin resultado, valores imposibles) → tabla
+  `alertas_datos` → pantalla "Revisión de datos" donde el staff confirma o descarta.
+- Capa 2, Claude por API: cada noche revisa solo lo nuevo o cambiado de cada club, con
+  los nombres reemplazados por códigos antes de salir (datos de salud), y marca lo que
+  una regla no agarra (el comentario dice "izquierda" y la lesión dice derecha, un
+  diagnóstico que no cierra con la estructura). "Aprende" guardando lo que el staff
+  confirmó o descartó y usándolo de ejemplo; lo que se repite se vuelve regla. Costo:
+  centavos por día por club (Opus 5.5 ~3 USD/mes por club; con el modelo chico, menos
+  de 1; por lotes, la mitad). La API no usa los datos para entrenar.
+- Capa 3, después: preguntarle a los datos en lenguaje común, siempre con los permisos
+  de quien pregunta.
+
+### Costos reales para vender (02/10)
+
+Gratis: GitHub (repo privado, Actions, Dependabot), Supabase de prueba, Sentry para
+errores, captcha, segundo factor. Cuando se vende: Supabase Pro (25 USD/mes la
+organización, más ~10 por club dedicado), Vercel Pro (20 USD/mes: el plan gratuito
+prohíbe uso comercial), dominio. Todo lo demás, 0.
+
 ## Lo que dejó la revisión completa del 30/09
 
 Se revisó toda la app (pruebas automáticas, recorrido en navegador de cada
