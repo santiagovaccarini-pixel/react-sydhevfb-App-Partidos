@@ -180,7 +180,7 @@ de lo hecho está en los commits, no en esta lista.
   jugador, edad, lado hábil, Recup 1/2, recuperación, severidad por días con alta, recorrência
   a 60 días, recidiva por estructura exacta a 30 días, diagnóstico armado). La vista
   `v_lesiones_excel_v1` calcula lo mismo para Power Query (migración
-  `20261002b_datos_basicos.sql`, **pendiente de correr en Supabase**: también agrega
+  `20261002b_datos_basicos.sql`, corrida en Supabase el 02/10: también agrega
   `jugadores.posicion` y `jugadores.foto_url`).
 - La carga de una lesión va por pasos (quién, qué pasó, dónde, cómo y cuándo, evolución e
   imágenes, notas) con solo lo manual; lo calculado se muestra al final. Hay una pantalla
@@ -202,8 +202,8 @@ de lo hecho está en los commits, no en esta lista.
   Ajustes con filas y "Volver a Ajustes").
 - Después de entrar, lo primero es elegir el club (`src/ElegirClub.jsx`); desde el portal se
   cambia con "Cambiar". Solo se ven los clubes en los que se está o se estuvo.
-- **Clubes con fecha de salida (02/10, migración `20261003_club_miembros.sql`, pendiente de
-  correr)**: la tabla `club_miembros` dice quién está en cada club y hasta cuándo. Quien se
+- **Clubes con fecha de salida (02/10, migración `20261003_club_miembros.sql`, corrida el
+  02/10)**: la tabla `club_miembros` dice quién está en cada club y hasta cuándo. Quien se
   fue sigue viendo lo cargado hasta su último día (partidos, entrenamientos, lesiones y los
   jugadores que ya estaban) y no puede agregar ni cambiar nada: lo decide la base con las
   políticas (`acceso_club`, `puede_ver_fecha`, `puede_editar`), así que vale también para
@@ -350,7 +350,7 @@ migraciones versionadas en `supabase/migrations`.
   Las funciones del servidor (`api/openfield`) reciben el código del club y validan la
   sesión contra esa base.
 
-### Cuentas v2: hecho el 02/10 (migración `20261004_cuentas_v2.sql`, pendiente de correr)
+### Cuentas v2: hecho el 02/10 (migración `20261004_cuentas_v2.sql`, corrida el 02/10)
 
 - Rol (admin del club o staff) y módulos por club en `club_miembros`; la cuenta solo
   dice si está autorizada y si es dueña de la plataforma (`perfiles.admin`).
@@ -369,7 +369,7 @@ migraciones versionadas en `supabase/migrations`.
   (cada tipo de cuenta, qué ve y qué cambia). Corren en GitHub Actions en cada cambio
   (`.github/workflows/pruebas.yml`), junto con las de la app y la compilación.
 
-### Foto al día de salida: hecho el 02/10 (migración `20261005_foto_al_dia.sql`, pendiente de correr)
+### Foto al día de salida: hecho el 02/10 (migración `20261005_foto_al_dia.sql`, corrida el 02/10)
 
 - Quien se fue de un club ve cada partido, entrenamiento, jugador y lesión **tal como
   estaba al terminar su último día** (en la zona horaria del club). No ve lo que se
@@ -439,6 +439,55 @@ cada club vive en la membresía.
 10. Auditoría de cada cambio de cuenta.
 11. Pruebas automáticas de permisos contra una base de prueba (segundo proyecto, gratis):
     entra con cada tipo de cuenta y comprueba fila por fila qué ve y qué cambia.
+
+### Entrada a la app: invitación y pedido de acceso (anotado el 02/10, después de Lesiones)
+
+Santiago lo deja para después de terminar cómo se ve Lesiones. La lógica que quiere
+para alguien que entra por primera vez:
+
+- **Sin invitación:** entra a la web, crea su cuenta y en la primera pantalla elige el
+  club. Le llega un pedido al administrador de ese club, que lo acepta (y le da los
+  permisos) o lo rechaza. Un pedido rechazado desaparece de la lista de Cuentas, para que
+  no se haga larga.
+- **Con invitación:** el enlace de la invitación lo lleva directo a crear la cuenta con el
+  correo invitado, que no se puede cambiar.
+
+Cómo está hoy (02/10):
+- Con invitación funciona casi así: el admin invita por correo y copia un mensaje con el
+  enlace a la app; la persona crea la cuenta con ese correo, lo confirma y entra sola al
+  club con los permisos elegidos (si ya tenía cuenta, entra en el acto). Falta que el
+  enlace abra "Crear cuenta" con el correo escrito y fijo: hoy lleva a la entrada común y,
+  si escribe otro correo, queda pendiente.
+- Sin invitación es distinto: la cuenta queda pendiente sin elegir club y la aprueba el
+  dueño de la plataforma desde "Cuentas de la app" (sumándola a un club). El admin del
+  club no la ve. "Rechazar" bloquea la cuenta entera y la deja en "Sin acceso".
+
+Lo que hay que sumar (propuesta del 02/10):
+- Pedido de acceso por club (tabla de solicitudes): solo con el correo confirmado, uno a
+  la vez por cuenta. Lo acepta o rechaza cualquier admin activo del club, eligiendo
+  módulos. Rechazado: desaparece de la lista del admin; la persona ve "Tu pedido no fue
+  aceptado" y puede pedirle a otro club, pero no otra vez al mismo (salvo que la
+  inviten). Bloquear una cuenta entera queda solo para el dueño.
+- Contador de pedidos en el portal y en Cuentas para el admin. Un mail automático
+  necesita un servicio de correo aparte: más adelante.
+- Enlace de invitación propio: abre "Crear cuenta" con el correo puesto y sin poder
+  cambiarlo. Invitación vencida o cuenta con otro correo: mensaje claro y la opción de
+  pedir acceso igual.
+- Nombres de club que no se repitan tampoco con tildes ("Atlético" y "Atletico"): hoy la
+  base solo compara sin mayúsculas ni espacios de más.
+- El dueño deja de aprobar cuentas una por una: le quedan crear clubes, bloquear cuentas
+  y ver todo.
+
+Para decidir antes de armarlo:
+1. ¿Lista con todos los clubes o buscador? Con lista, cualquiera que se registre ve los
+   nombres de todos los clubes que usan la app (información sensible entre clubes
+   rivales). Recomendado: buscador, que muestra el club solo al escribir su nombre.
+2. ¿Un solo administrador por club o varios? Hoy puede haber varios y la base no deja que
+   quede sin ninguno. Recomendado: varios (si el único se va, el club queda trabado).
+
+Chequeo de seguridad: en Supabase › Authentication › Email, "Confirm email" tiene que
+estar prendido. Si está apagado, cualquiera que sepa un correo invitado podría crear la
+cuenta con ese correo y entrar al club sin abrir ese mail.
 
 ### Orion: la IA que vigila los datos (decidido el 02/10)
 
