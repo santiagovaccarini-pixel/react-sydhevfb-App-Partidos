@@ -286,18 +286,31 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 
 ## Lesiones: lo que sigue (anotado el 02/10)
 
-- **El cuerpo humano para cargar la lesión (hecho el 02/10)**: en Descripción general, la
-  figura de frente o de espaldas (`src/components/FiguraCuerpo.jsx`): se toca la zona, la
-  figura se acerca y se elige la parte (el lado sale de la zona; en cabeza y tronco se
-  elige). En Descripción específica, lo que esa parte tiene en el catálogo, de lo grande a lo
-  chico: grupo muscular → músculo específico → tercio y unión del área, o el ligamento; lo
-  que no está, con "Otro…" (la lista entera). "Elegir de la lista" vuelve a los campos de
-  siempre. La ficha muestra la figura chica con la parte lesionada. Solo usa las opciones
-  del catálogo (`src/domain/mapaCorporal.js`; una prueba verifica que estén todas y que no
-  haya ninguna inventada). **Queda pendiente**: qué estructura va con cada parte es el mapa
-  por defecto, escrito en código; por la regla del 02/10 tiene que poder cambiarse por club
-  desde Ajustes (igual que cabeceras y listas), y una opción nueva que agregue un club cae
-  en "Otro…" hasta entonces.
+- **El cuerpo humano para cargar la lesión (hecho el 02/10, rehecho el 02/10)**: en
+  Descripción general, la figura de un cuerpo de verdad, de frente o de espaldas
+  (`src/components/siluetaCuerpo.js` dibuja la silueta y la parte en sus partes;
+  `src/components/FiguraCuerpo.jsx` la muestra): se toca la zona, la figura se acerca, se
+  marcan los bordes de sus partes y se elige la parte (el lado sale de la zona; en cabeza y
+  tronco se elige). En Descripción específica, solo las opciones de las listas que van en esa
+  parte, de lo grande a lo chico: grupo muscular → músculo específico → área (todas las del
+  área, ordenadas por tercio con su título; los títulos no son opciones), o el ligamento. No
+  hay "Otro…" ni opciones inventadas; una columna sin nada para esa parte no aparece; lo
+  cargado que no está entre los botones se ve prendido para poder sacarlo. "Elegir de la
+  lista" sigue llevando a los campos de siempre, con la lista entera. La ficha muestra la
+  figura chica con la parte lesionada (de espaldas si el músculo es de atrás).
+  En cada parte está lo que está en ella y lo que se inserta o nace ahí (en la rodilla, los
+  tendones de los isquiotibiales y el origen de los gemelos; en la cadera, el origen de los
+  isquiotibiales y la pared del abdomen que llega al pubis…): `src/domain/mapaCorporal.js`,
+  con una prueba que verifica que cada opción del catálogo tenga su lugar y que no haya
+  ninguna inventada.
+  **Las opciones que agrega un club se ubican solas por su nombre** (en castellano o en
+  portugués: "Gemelo interno" va en la rodilla y en la pierna, "Rótula" en la rodilla,
+  "Unión miotendinosa distal" en el tercio distal); la que no se reconoce aparece en todas
+  las partes, así ninguna queda afuera. En Ajustes › Listas cada opción del cuerpo dice dónde
+  va, y al escribir una nueva se ve en el momento. **Queda pendiente**: que el club pueda
+  corregir a mano dónde va una opción (y el mapa entero) desde Ajustes, por la regla del 02/10
+  de que ninguna regla quede escrita en código; hace falta guardar las partes de cada opción
+  en `lesiones_opciones` (una columna nueva, con su migración).
 - **Los informes** (lo siguiente que pidió Santiago).
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
   la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa

@@ -8,8 +8,8 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
-import { CAMPOS_DE_ESTRUCTURA, ElegirEstructura, ElegirZona, vistaPara } from "./components/MapaCorporal.jsx";
-import { estructurasQueNoSonDe, regionDe } from "./domain/mapaCorporal.js";
+import { CAMPOS_DE_ESTRUCTURA, ElegirEstructura, ElegirZona, vistaDeLesion } from "./components/MapaCorporal.jsx";
+import { CAMPOS_DEL_CUERPO, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre } from "./domain/mapaCorporal.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import {
   calcular,
@@ -30,6 +30,7 @@ import {
   CAMPOS,
   CAMPOS_CON_LISTA,
   GRUPOS,
+  OPCIONES,
   PASOS,
   TIPOS_MANUALES,
   campoOculto,
@@ -228,6 +229,25 @@ export default function Lesiones({ onVolver }) {
   const opciones = (clave) => opcionesDeCampo(clave, config, idioma);
   const textoDeOpcion = (clave, codigo) => etiquetaDeOpcion(clave, codigo, config, idioma);
   const visible = (campo) => !campoOculto(campo.clave, config);
+  // Dónde va en el cuerpo cada opción de las listas, también las que agregó el club.
+  const mapa = useMemo(() => crearMapa(config?.listas), [config]);
+  const delCatalogo = (clave, codigo) => (OPCIONES[clave] || []).some((opcion) => opcion.codigo === codigo);
+  // Cómo se dice en Ajustes dónde va una opción: las partes del cuerpo (o
+  // que va en todas, si no se reconoce) o, en el área, el tercio.
+  const textoDondeVa = (clave, partes, tercio) => {
+    if (clave === "area") return TERCIOS.includes(tercio) ? t("lesiones.ajustes.vaConTercio", { tercio: t(`lesiones.cuerpo.tercios.${tercio}`) }) : t("lesiones.ajustes.sinTercio");
+    return partes?.length ? t("lesiones.ajustes.vaEn", { partes: partes.map((parte) => textoDeOpcion("parte_cuerpo", parte)).join(", ") }) : t("lesiones.ajustes.vaEnTodas");
+  };
+  // Las partes del cuerpo del catálogo son la figura: no hace falta decir dónde van.
+  const dondeVa = (clave, codigo) =>
+    CAMPOS_DEL_CUERPO.includes(clave) && !(clave === "parte_cuerpo" && delCatalogo(clave, codigo)) ? textoDondeVa(clave, mapa.partesDeOpcion(clave, codigo), mapa.tercioDeArea(codigo)) : "";
+  // Mientras se escribe una opción nueva (o una del club), dónde va a ir.
+  const dondeVaAlEscribir = (hoja) => {
+    if (!CAMPOS_DEL_CUERPO.includes(hoja.campo)) return "";
+    if (delCatalogo(hoja.campo, hoja.codigo)) return dondeVa(hoja.campo, hoja.codigo);
+    const textos = Object.values(hoja.etiquetas || {}).filter((texto) => String(texto || "").trim());
+    return textos.length ? textoDondeVa(hoja.campo, partesPorNombre(...textos), tercioPorNombre(...textos)) : "";
+  };
   // Lo que necesita el cálculo de las columnas del Excel.
   const contexto = useMemo(() => ({ lesiones, texto: textoDeOpcion, hoy: hoyISO() }), [lesiones, config, idioma]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -332,7 +352,8 @@ export default function Lesiones({ onVolver }) {
     const delGrupo = pasos.findIndex((unPaso) => unPaso.id === grupo);
     setErrorFormulario("");
     setDeLaLista({});
-    setVistaCuerpo(vistaPara(lesion.datos?.parte_cuerpo));
+    // La figura, como en la ficha: de espaldas si la lesión es de atrás.
+    setVistaCuerpo(vistaDeLesion(mapa.piezaDe(lesion.datos?.parte_cuerpo, mapa.regionDe(lesion.datos?.parte_cuerpo, lesion.datos?.lado)), lesion.datos?.musculo));
     setPaso(delGrupo >= 0 ? delGrupo : Math.min(1, pasos.length - 1));
     setPasoMaximo(pasos.length - 1);
     setFormulario({ ...lesion, datos: { ...(lesion.datos || {}) } });
@@ -855,12 +876,16 @@ export default function Lesiones({ onVolver }) {
       return (
         <div className="app">
           <div className="contenedor">
-            <Encabezado titulo={etiqueta(clave)} texto={plural("lesiones.ajustes.opciones", todas.length)} />
+            <Encabezado
+              titulo={etiqueta(clave)}
+              texto={CAMPOS_DEL_CUERPO.includes(clave) ? `${plural("lesiones.ajustes.opciones", todas.length)}. ${t("lesiones.ajustes.seUbicanSolas")}` : plural("lesiones.ajustes.opciones", todas.length)}
+            />
             {todas.map((opcion) =>
               filaAjuste({
                 id: opcion.valor,
                 titulo: opcion.etiqueta,
-                detalle: opcion.oculto ? t("lesiones.ajustes.oculto") : t("lesiones.ajustes.mostrar"),
+                // En las listas del cuerpo, dónde va cada una.
+                detalle: dondeVa(clave, opcion.valor) || (opcion.oculto ? t("lesiones.ajustes.oculto") : t("lesiones.ajustes.mostrar")),
                 extra: opcion.oculto ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
                 alTocar: () => abrirOpcion(opcion),
               }),
@@ -980,6 +1005,9 @@ export default function Lesiones({ onVolver }) {
     const secciones = seccionesDeFicha();
     const seccion = secciones.find((una) => una.id === seccionFicha) || secciones[0];
     const diagnostico = enPantalla(campoPorClave("diagnostico"), lesion) || textoDeOpcion("parte_cuerpo", lesion.datos?.parte_cuerpo);
+    // La figura chica con la parte lesionada (de espaldas si es de atrás).
+    const regionLesion = mapa.regionDe(lesion.datos?.parte_cuerpo, lesion.datos?.lado);
+    const piezaLesion = mapa.piezaDe(lesion.datos?.parte_cuerpo, regionLesion);
     return (
       <div className="app">
         <div className="contenedor ficha-registro lesiones-ficha">
@@ -991,13 +1019,9 @@ export default function Lesiones({ onVolver }) {
           />
 
           <section className="marcador-ficha lesiones-marcador" aria-label={t("lesiones.ficha.resumen")}>
-            {regionDe(lesion.datos?.parte_cuerpo, lesion.datos?.lado) && (
+            {piezaLesion && (
               <div className="lesiones-marcador-figura" aria-hidden="true">
-                <FiguraCuerpo
-                  chica
-                  vista={vistaPara(lesion.datos.parte_cuerpo)}
-                  elegida={{ parte: lesion.datos.parte_cuerpo, region: regionDe(lesion.datos.parte_cuerpo, lesion.datos.lado) }}
-                />
+                <FiguraCuerpo chica vista={vistaDeLesion(piezaLesion, lesion.datos?.musculo)} elegida={{ parte: piezaLesion, region: regionLesion }} />
               </div>
             )}
             <div className="lesiones-marcador-texto">
@@ -1234,18 +1258,9 @@ export default function Lesiones({ onVolver }) {
     const nueva = aplicar(actual, cambios);
     const parte = cambios.parte_cuerpo;
     if (!parte || parte === actual.datos?.parte_cuerpo) return nueva;
-    return aplicar(nueva, estructurasQueNoSonDe(parte, nueva.datos || {}));
+    return aplicar(nueva, mapa.estructurasQueNoSonDe(parte, nueva.datos || {}));
   };
   const cambiarVarios = (cambios) => setFormulario((actual) => conCambios(actual, cambios));
-
-  // "Otro…" en la figura: la lista entera de esa columna, con su buscador.
-  const abrirLista = (clave, lesion) =>
-    setHojaSelector({
-      titulo: etiqueta(clave),
-      opciones: [{ valor: "", etiqueta: t("comun.sinDato") }, ...opciones(clave)],
-      valor: valorDe(lesion, clave) || "",
-      alElegir: (elegido) => cambiarVarios({ [clave]: elegido || null }),
-    });
 
   // Dónde fue: la figura del cuerpo en lugar de la parte y el lado.
   const zonaDelPaso = (lesion) => (
@@ -1258,6 +1273,7 @@ export default function Lesiones({ onVolver }) {
         lado={lesion.datos?.lado || null}
         partes={opciones("parte_cuerpo").map((opcion) => opcion.valor)}
         lados={opciones("lado")}
+        mapa={mapa}
         textoDeOpcion={textoDeOpcion}
         onCambiar={cambiarVarios}
         vista={vistaCuerpo}
@@ -1266,7 +1282,7 @@ export default function Lesiones({ onVolver }) {
     </div>
   );
 
-  // Qué estructura: lo que tiene esa parte en el catálogo, con botones.
+  // Qué estructura: lo que va en esa parte, con botones.
   const estructuraDelPaso = (lesion) => (
     <ElegirEstructura
       key="estructura"
@@ -1276,10 +1292,10 @@ export default function Lesiones({ onVolver }) {
       valores={Object.fromEntries(CAMPOS_DE_ESTRUCTURA.map((clave) => [clave, valorDe(lesion, clave)]))}
       opciones={opciones}
       visible={(clave) => !campoOculto(clave, config)}
+      mapa={mapa}
       etiqueta={etiqueta}
       textoDeOpcion={textoDeOpcion}
       onCambiar={cambiarVarios}
-      onOtro={(clave) => abrirLista(clave, lesion)}
     />
   );
 
@@ -1427,7 +1443,7 @@ export default function Lesiones({ onVolver }) {
 
   // Cabeceras y opciones se renombran en el idioma que se está usando; el
   // otro idioma guarda lo que tenía.
-  const hojaDeTextos = ({ abierta, titulo, hoja, setHoja, onGuardar, onCerrar, fija = false, nota = "" }) =>
+  const hojaDeTextos = ({ abierta, titulo, hoja, setHoja, onGuardar, onCerrar, fija = false, nota = "", dondeVaEn = "" }) =>
     hoja ? (
       <HojaInferior
         abierta={abierta}
@@ -1456,6 +1472,11 @@ export default function Lesiones({ onVolver }) {
           />
           <small className="lesiones-ayuda">{t("lesiones.ajustes.nombreAyuda")}</small>
         </div>
+        {dondeVaEn && (
+          <p className="lesiones-donde-va" aria-live="polite">
+            {dondeVaEn}
+          </p>
+        )}
         {nota ? (
           <p className="lesiones-ayuda lesiones-nota-fija">{nota}</p>
         ) : fija ? (
@@ -1543,6 +1564,7 @@ export default function Lesiones({ onVolver }) {
         setHoja: setHojaOpcion,
         onGuardar: guardarHojaOpcion,
         onCerrar: () => !ocupado && setHojaOpcion(null),
+        dondeVaEn: hojaOpcion ? dondeVaAlEscribir(hojaOpcion) : "",
       })}
 
       <HojaConfirmar

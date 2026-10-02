@@ -773,11 +773,29 @@
 .lesiones-marco .mapa-cuerpo-ubicacion .rotulo-criterio {
   margin: 0 0 2px;
 }
-.lesiones-marco .mapa-cuerpo-otro {
-  border-style: dashed;
+/* El área, por tercio del músculo: cada tercio con su título arriba. */
+.lesiones-marco .mapa-cuerpo-tercio + .mapa-cuerpo-tercio {
+  margin-top: 10px;
 }
-.lesiones-marco .mapa-cuerpo-tercios {
-  margin-bottom: 8px;
+.lesiones-marco .mapa-cuerpo-tercio-titulo {
+  margin: 0 0 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* En Ajustes, dónde va en el cuerpo la opción que se está escribiendo. */
+.lesiones-marco .lesiones-donde-va,
+.lesiones-hoja .lesiones-donde-va {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 .lesiones-marco .lesiones-cambiar-modo {
   display: inline-flex;
@@ -819,11 +837,13 @@
   fill: #64748b;
   transition: fill 0.2s, opacity 0.2s;
 }
-.figura-cuerpo-columna {
+/* Las líneas del cuerpo: clavículas, rótulas, omóplatos… */
+.figura-cuerpo-detalle {
   fill: none;
-  stroke: rgba(15, 23, 42, 0.55);
-  stroke-width: 1.6;
-  stroke-dasharray: 3 2.5;
+  stroke: rgba(15, 23, 42, 0.42);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   pointer-events: none;
 }
 .figura-cuerpo-pieza.sin-opcion {
@@ -833,8 +853,14 @@
   opacity: 0.2;
   pointer-events: none;
 }
+/* La región acercada, con el borde de cada parte marcado (del color del
+   panel, así afuera no se ve). */
 .figura-cuerpo-region.activa .figura-cuerpo-pieza {
   fill: #94a3b8;
+  stroke: #0f172a;
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 .figura-cuerpo-region.tocable,
 .figura-cuerpo-parte.tocable {
