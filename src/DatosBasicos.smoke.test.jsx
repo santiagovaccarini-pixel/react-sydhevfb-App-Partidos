@@ -3,7 +3,11 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
+const plantelInicial = () => [
+  { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
+  { id: 8, nombre: "SCARPA", roles: [], puestos: ["VOL"], categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
+];
+const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], plantel: [], fallarAgregar: "", equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
 
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => registro.equipo,
@@ -12,22 +16,26 @@ vi.mock("./domain/equipo.js", () => ({
   guardarEquipoElegido: () => {},
   esElCam: (nombre) => nombre === "Atlético Mineiro",
 }));
+// La base de mentira: el plantel cambia con lo que se agrega y se guarda.
 vi.mock("./domain/lesionesDb.js", () => ({
+  // Como la de verdad: ordenado por nombre.
   cargarPlantelLesiones: async () => ({
-    plantel: [
-      { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
-      { id: 8, nombre: "SCARPA", roles: [], puestos: ["VOL"], categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
-    ],
+    plantel: registro.plantel.map((jugador) => ({ ...jugador })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
     error: "",
   }),
   leerConfig: async () => ({ config: { campos: {}, listas: {} }, error: "" }),
   guardarDatosJugador: async (id, cambios) => {
     registro.guardados.push({ id, ...cambios });
-    return { jugador: { id, nombre: id === 7 ? "HULK" : "SCARPA", roles: [], puestos: [], ...cambios }, error: "" };
+    const jugador = registro.plantel.find((uno) => uno.id === id);
+    Object.assign(jugador, cambios);
+    return { jugador: { ...jugador }, error: "" };
   },
   agregarJugadorBasico: async (equipoId, nombre) => {
     registro.agregados.push({ equipoId, nombre });
-    return { jugador: { id: 9, nombre: nombre.trim().toUpperCase(), roles: [], puestos: [] }, error: "" };
+    if (registro.fallarAgregar && nombre === registro.fallarAgregar) return { error: "datos.error.repetido" };
+    const jugador = { id: 9 + registro.agregados.length - 1, nombre: nombre.trim().toUpperCase(), roles: [], puestos: [], categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" };
+    registro.plantel.push(jugador);
+    return { jugador: { ...jugador }, error: "" };
   },
   quitarJugadorBasico: async (id) => {
     registro.borrados.push(id);
@@ -46,7 +54,7 @@ const tocar = async (elemento) => {
 };
 const escribir = async (input, valor) => {
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, valor);
+    Object.getOwnPropertyDescriptor(input.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, "value").set.call(input, valor);
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
 };
@@ -60,6 +68,8 @@ describe("el módulo Datos básicos", () => {
     fijarIdiomaParaPruebas("es-AR");
     localStorage.clear();
     registro.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
+    registro.plantel = plantelInicial();
+    registro.fallarAgregar = "";
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -105,6 +115,7 @@ describe("el módulo Datos básicos", () => {
     expect(boton(contenedor, "Agregar jugador")).toBeUndefined();
     expect(boton(contenedor, "Borrar fila")).toBeUndefined();
     expect(boton(contenedor, "Pegar")).toBeUndefined();
+    expect(boton(contenedor, "Pegar desde Excel")).toBeUndefined();
     expect(boton(contenedor, "Copiar")).toBeTruthy();
     expect([...contenedor.querySelectorAll("th[data-columna]")].every((th) => th.classList.contains("fija"))).toBe(true);
     await tocar(celda(contenedor, 1, 4));
@@ -138,5 +149,100 @@ describe("el módulo Datos básicos", () => {
     await act(async () => Promise.resolve());
     expect(registro.borrados).toEqual([9]);
     expect(texto(contenedor)).toContain("2 jugadores");
+  });
+
+  test("se pega la hoja Datos Básicos del Excel: antes de cargar se ve qué pasa con cada jugador", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    expect(texto(contenedor)).toContain("copiá la tabla de Datos Básicos junto con la fila de cabeceras");
+    expect(boton(contenedor, "Nada para cargar").disabled).toBe(true);
+    const textarea = contenedor.querySelector(".datos-importar-pegado textarea");
+
+    // Sin cabeceras no se adivina.
+    await escribir(textarea, "Ana Uno\tProfissional");
+    expect(texto(contenedor)).toContain("No encontré la fila de cabeceras");
+
+    await escribir(
+      textarea,
+      [
+        "Voltar ao menu inicial\tNome e Sobrenome\tCategoria\tD. Nac. (DD/MM/AAAA)\tP. Dominante\tPosicao\tLinks das fotos",
+        "\tHulk\tProfissional\t25/07/1986\tEsquerdo\tDELANTERO CENTRAL\t",
+        "\tGustavo Scarpa\tProfissional\t05/01/1994\tEsquerdo\tVOLANTE OFENSIVO\thttps://fotos.example/scarpa.jpg",
+        "\tLemos Nuevo\tSub-20\t10/03/2006\tDireito\tCARRILERO\t",
+        "\tOtro Nuevo\tProfissional\t\t\t\t",
+      ].join("\n"),
+    );
+    expect(texto(contenedor)).toContain("4 jugadores en lo pegado");
+    expect(texto(contenedor)).toContain("2 nuevos · 0 con cambios · 1 sin cambios · 1 para confirmar");
+    const filas = () => [...contenedor.querySelectorAll(".datos-importar-lista li")];
+    const destinos = () => filas().map((li) => li.querySelector(".datos-importar-destino").textContent);
+    // HULK ya tiene todo; SCARPA se sugiere por el apellido; los otros dos son nuevos.
+    expect(destinos()).toEqual(["Es HULK", "¿Es SCARPA?", "Jugador nuevo", "Jugador nuevo"]);
+    expect(filas()[0].textContent).toContain("Ya tiene estos datos.");
+    expect(filas()[2].textContent).toContain("Trae: Categoría, Fecha de nacimiento, Pie dominante");
+    expect(filas()[2].textContent).toContain("«CARRILERO» no se entendió en Posición: queda como está.");
+    // Un nombre solo parecido no se carga hasta que alguien confirma quién es.
+    expect(filas()[1].textContent).toContain("Si es él, cambia: Categoría, Fecha de nacimiento, Pie dominante, Posición, Foto (enlace)");
+    expect(boton(contenedor, "Cargar 2 jugadores")).toBeTruthy();
+    await tocar(boton(contenedor, "Sí, es SCARPA"));
+    expect(destinos()[1]).toBe("Es SCARPA");
+    expect(filas()[1].textContent).toContain("Cambia: Categoría, Fecha de nacimiento, Pie dominante, Posición, Foto (enlace)");
+    expect(texto(contenedor)).toContain("2 nuevos · 1 con cambios · 1 sin cambios");
+    expect(boton(contenedor, "Cargar 3 jugadores")).toBeTruthy();
+
+    // Quién es cada fila se corrige a mano: la última no se carga.
+    await tocar(filas()[3].querySelector(".datos-importar-destino"));
+    expect(texto(contenedor)).toContain("¿Quién es Otro Nuevo en la app?");
+    // HULK y SCARPA ya son de otras filas: no se ofrecen.
+    expect([...contenedor.querySelectorAll(".opcion-hoja")].map((b) => b.textContent.trim())).toEqual(["Jugador nuevo", "No cargar"]);
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "No cargar"));
+    expect(destinos()[3]).toBe("No cargar");
+
+    await tocar(boton(contenedor, "Cargar 2 jugadores"));
+    await act(async () => Promise.resolve());
+    expect(registro.agregados).toEqual([{ equipoId: "eq-1", nombre: "Lemos Nuevo" }]);
+    expect(registro.guardados).toEqual([
+      { id: 8, categoria: "profissional", fecha_nacimiento: "1994-01-05", pie_dominante: "esquerdo", posicion: "volante_ofensivo", foto_url: "https://fotos.example/scarpa.jpg" },
+      { id: 9, categoria: "sub20", fecha_nacimiento: "2006-03-10", pie_dominante: "direito" },
+    ]);
+    // Termina en la tabla, con el plantel nuevo.
+    expect(texto(contenedor)).toContain("Listo: 1 nuevo y 1 actualizado.");
+    expect(texto(contenedor)).toContain("3 jugadores");
+    expect([...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent)).toEqual(["HULK", "LEMOS NUEVO", "SCARPA"]);
+  });
+
+  test("si una fila no se puede cargar, se dice cuál y por qué; lo cargado y lo elegido a mano quedan", async () => {
+    registro.fallarAgregar = "Ana Rara";
+    await montar();
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    await escribir(
+      contenedor.querySelector(".datos-importar-pegado textarea"),
+      "Nome e Sobrenome\tCategoria\nAna Rara\tSub-20\nBea Bien\tSub-20\nHulk Paraíba\tSub-20",
+    );
+    const destinos = () => [...contenedor.querySelectorAll(".datos-importar-destino")].map((b) => b.textContent);
+    // "Hulk Paraíba" parece HULK: alguien decide que no es él y que no se carga.
+    expect(destinos()).toEqual(["Jugador nuevo", "Jugador nuevo", "¿Es HULK?"]);
+    await tocar(contenedor.querySelectorAll(".datos-importar-destino")[2]);
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "No cargar"));
+    await tocar(boton(contenedor, "Cargar 2 jugadores"));
+    await act(async () => Promise.resolve());
+    expect(texto(contenedor)).toContain("1 jugador no se pudo cargar:");
+    expect(texto(contenedor)).toContain("Ana Rara: Ese jugador ya está en la lista.");
+    // Bea ya está; lo elegido a mano para la otra fila se respeta: solo queda Ana.
+    expect(destinos()).toEqual(["Jugador nuevo", "Es BEA BIEN", "No cargar"]);
+    expect(boton(contenedor, "Cargar 1 jugador")).toBeTruthy();
+    expect(registro.guardados).toEqual([{ id: 9 + 1, categoria: "sub20" }]);
+    await tocar(boton(contenedor, "Volver"));
+    expect(texto(contenedor)).toContain("3 jugadores");
+  });
+
+  test("un nombre que ya está en la lista no se agrega dos veces (y se dice en el idioma de la app)", async () => {
+    registro.fallarAgregar = "HULK";
+    await montar();
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    await escribir(contenedor.querySelector(".datos-agregar input"), "HULK");
+    await tocar(boton(contenedor, "Adicionar jogador"));
+    await act(async () => Promise.resolve());
+    expect(texto(contenedor)).toContain("Esse jogador já está na lista.");
   });
 });

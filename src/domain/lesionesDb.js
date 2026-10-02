@@ -2,7 +2,7 @@
 // (RLS + puede_usar('lesiones')) decide si puede. Cada función devuelve
 // { ..., error } con el error ya traducido a una clave del diccionario.
 import { supabase } from "../supabase.js";
-import { claveDeErrorDeBase, normalizarLesion } from "./lesiones.js";
+import { camposCambiados, claveDeErrorDeBase, normalizarLesion } from "./lesiones.js";
 import { armarConfig, esCalculado, filasParaSembrar } from "./lesionesCampos.js";
 import { agregarJugador, cargarPlantel, normalizarJugador, quitarJugador } from "./plantel.js";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./alDia.js";
@@ -81,15 +81,24 @@ export const borrarLesion = async (id) => {
   return { error: "" };
 };
 
-// Los cambios de una lesión, del más nuevo al más viejo.
+// Los últimos cambios de una lesión, del más nuevo al más viejo, con las
+// columnas que tocó cada edición.
+export const CAMBIOS_EN_LA_FICHA = 5;
+
 export const historialDeLesion = async (id) => {
   const { data, error } = await supabase
     .from("lesiones_historial")
-    .select("id, accion, quien_email, cuando")
+    .select("id, accion, quien_email, cuando, antes, despues")
     .eq("lesion_id", id)
-    .order("cuando", { ascending: false });
+    .order("cuando", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(CAMBIOS_EN_LA_FICHA);
   if (error) return { cambios: [], ...fallo(error, "lesiones.error.noLeer") };
-  return { cambios: data || [], error: "" };
+  const cambios = (data || []).map(({ antes, despues, ...cambio }) => ({
+    ...cambio,
+    campos: cambio.accion === "editada" ? camposCambiados(antes, despues) : [],
+  }));
+  return { cambios, error: "" };
 };
 
 // ------------------------------------------------------------ Jugadores --
@@ -146,10 +155,16 @@ export const guardarDatosJugador = async (id, datos) => {
   return { jugador: normalizarJugadorLesiones(data), error: "" };
 };
 
-// Alta y baja de jugadores desde Datos básicos: las mismas de Partido.
+// Alta y baja de jugadores desde Datos básicos: las mismas de Partido. El
+// error del alta vuelve como clave del diccionario (Partido lo da en
+// castellano), para que se lea en el idioma de la app.
 export const agregarJugadorBasico = async (equipoId, nombre) => {
   const respuesta = await agregarJugador(nombre, equipoId);
-  if (respuesta.error) return { error: respuesta.error };
+  if (respuesta.error) {
+    if (respuesta.error === "Escribí un nombre.") return { error: "datos.error.nombre" };
+    if (/ya está en la lista/i.test(respuesta.error)) return { error: "datos.error.repetido" };
+    return { error: "datos.error.guardar", detalle: respuesta.error };
+  }
   return { jugador: normalizarJugadorLesiones(respuesta.jugador), error: "" };
 };
 

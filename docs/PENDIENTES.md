@@ -182,14 +182,39 @@ de lo hecho está en los commits, no en esta lista.
   `v_lesiones_excel_v1` calcula lo mismo para Power Query (migración
   `20261002b_datos_basicos.sql`, corrida en Supabase el 02/10: también agrega
   `jugadores.posicion` y `jugadores.foto_url`).
-- La carga de una lesión va por pasos (quién, qué pasó, dónde, cómo y cuándo, evolución e
-  imágenes, notas) con solo lo manual; lo calculado se muestra al final. Hay una pantalla
-  **Base** estilo Excel (`src/components/TablaDatos.jsx`): cabeceras que se arrastran (en el
-  celular, manteniendo apretado), celdas que se eligen, se copian y se pegan como texto con
-  tabulaciones y se editan tocando dos veces. El orden de columnas queda en el celular.
+- **Los grupos del Excel (02/10)**: la fila de arriba de las cabeceras (Datos generales,
+  Descripción general, Descripción específica, Descripción contextual, Evolución y
+  continuación, Diagnóstico, Observaciones) ordena todo: la carga va de a un paso por grupo
+  con solo lo manual (Diagnóstico es todo calculado y no es paso; lo calculado ya no aparece
+  al final del formulario), la Base y el historial muestran la fila de grupos arriba de las
+  cabeceras, y la ficha tiene una pestaña por grupo. El nombre de cada grupo se cambia en
+  Ajustes › Cabeceras (se guarda como `grupo:<clave>` en `lesiones_campos`).
+- La pantalla **Base** estilo Excel (`src/components/TablaDatos.jsx`): cabeceras que se
+  arrastran (en el celular, manteniendo apretado), celdas que se eligen, se copian y se pegan
+  como texto con tabulaciones y se editan tocando dos veces. El orden de columnas queda en el
+  celular. Cada cabecera tiene su filtro como en Excel (valores con su cantidad, buscador,
+  Todos/Ninguno, ordenar de menor a mayor o al revés) y "Quitar filtros" vuelve a todo. Vale
+  igual en Datos básicos.
+- **La ficha de una lesión (02/10)** es como la de Partido: arriba el resumen (diagnóstico y
+  días de baja) y abajo una pestaña por grupo; se mira uno a la vez. La pestaña Cambios
+  muestra solo los últimos 5 (quién, cuándo y qué columnas tocó cada edición). "Editar" abre
+  la carga en el paso del grupo que se estaba mirando.
+- **El historial es de un jugador (02/10)**: se busca por el nombre y queda su base (la misma
+  tabla, con sus lesiones nada más). Elegido, el buscador se retrae como el de equipo en
+  Partido; en la carga de una lesión, el jugador elegido también.
 - **Datos básicos** (`src/DatosBasicos.jsx`) es un módulo más del portal, para cualquiera con
   algún módulo: los jugadores del club (los mismos de Partido y Flujo diario) con nombre,
   categoría, nacimiento, edad, pie dominante, posición y foto, en la misma tabla.
+- **Pegar desde Excel (02/10)**, en Datos básicos (`src/ImportarJugadores.jsx` y
+  `src/domain/importarJugadores.js`): se copia la hoja "Datos Básicos" del Excel con su fila
+  de cabeceras y se pega. Antes de guardar se ve qué pasa con cada fila: jugador nuevo, ya
+  está en la app (y qué le cambia) o no se carga; quién es cada uno se corrige a mano (el
+  mismo nombre se reconoce sin importar acentos ni mayúsculas, y se sugiere uno parecido
+  cuando el nombre de la app está entero adentro del otro, como "SCARPA" en "Gustavo
+  Scarpa"). Lo que el Excel trae vacío no borra nada; lo que no se entiende queda avisado.
+  Probado en local con la hoja real: entran los 38 jugadores con todas sus columnas. Los
+  datos no pasan por el repositorio ni por el chat: la carga la hace alguien del club desde
+  la app.
 - Del Excel quedan para más adelante: BD GPS (minutos para incidencia por 1000 h), la
   evaluación de lesiones (ROM y valores de referencia) y los reportes con gráficos. El bloque
   "Plan Agudo" del Excel está marcado "no usar" y no se trajo.
@@ -245,9 +270,10 @@ mover a una configuración por club:
 - Validaciones: obligatorios jugador, parte, lado y fecha de inicio; fechas no
   futuras y posteriores al inicio; no dos lesiones activas en la misma parte y
   lado (también como restricción `lesiones_sin_solapar` en la base).
-- Los pasos de la carga y qué columna va en cada paso; el grupo de cada columna
-  en la ficha; el aviso al cargar (misma parte y lado, 60 días); horas hasta la
-  imagen manuales.
+- Qué columna va en qué grupo del Excel (eso arma los pasos de la carga, la fila
+  de grupos de la base y las pestañas de la ficha; el nombre de cada grupo ya se
+  cambia desde Ajustes); el aviso al cargar (misma parte y lado, 60 días); horas
+  hasta la imagen manuales.
 
 Plan para moverlo: una tabla `lesiones_protocolo` por club (clave, valor) con
 los valores del Excel como semilla, igual que cabeceras y listas; se edita en
@@ -257,6 +283,24 @@ constantes; la vista lee las mismas reglas con una función
 `lesiones_regla(equipo, clave)` para que Power Query y la app coincidan; la
 restricción de la base pasa a depender de la regla. Mientras tanto, cada regla
 nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
+
+## Lesiones: lo que sigue (anotado el 02/10)
+
+- **El cuerpo humano para cargar la lesión** (pedido del 02/10, con video): una figura de
+  frente y de espaldas; se toca una zona (por ejemplo la pierna derecha), se hace zoom a esa
+  zona y adentro se eligen las opciones, de lo macro a lo micro, **solo con las variables del
+  catálogo**: región → parte del cuerpo → estructura (músculo, ligamento o tendón de esa
+  parte) → área (tercio proximal, medio o distal, o la unión). El lado sale de la zona
+  tocada (lo del medio queda "no se aplica" y se puede cambiar). Qué estructuras van con cada
+  parte del cuerpo es anatomía que hoy no está en el Excel: va como mapa por defecto en el
+  catálogo, con "Otras" para las opciones que un club agregue, y por la regla del 02/10 tiene
+  que poder cambiarse desde Ajustes más adelante. Va en su propia entrega, después de esta.
+- **Los informes** (lo siguiente que pidió Santiago).
+- Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
+  la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa
+  columna no se guarda porque cuenta como calculada); y "Imágenes" se carga como texto libre
+  aunque el catálogo tiene la lista del Excel (resonancia, ecografía, radiografía,
+  tomografía, sin imagen).
 
 ## El siguiente nivel: un club entero usando esto (plan del 02/10)
 

@@ -149,6 +149,122 @@ describe("la tabla estilo Excel", () => {
     expect(celda(contenedor, 0, 2).textContent).toBe("HULK");
   });
 
+  test("arriba de las cabeceras va la fila de los grupos, y cada cabecera filtra y ordena como Excel", async () => {
+    const conGrupos = columnas.map((columna, i) => ({ ...columna, grupo: i < 2 ? "jugador" : "cuerpo", grupoTitulo: i < 2 ? "Jugador" : "Cuerpo" }));
+    await montar({ columnas: conGrupos });
+    const grupos = [...contenedor.querySelectorAll(".tabla-datos-grupos th")];
+    expect(grupos.map((th) => th.textContent)).toEqual(["", "Jugador", "Cuerpo"]);
+    expect(grupos.map((th) => th.getAttribute("colspan"))).toEqual([null, "2", "1"]);
+    // El botón del filtro no arrastra la cabecera ni cambia su nombre.
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+
+    const filtro = (columna) => contenedor.querySelector(`.tabla-datos-filtro[aria-label="Filtrar u ordenar ${columna}"]`);
+    const valores = () => [...contenedor.querySelectorAll(".tabla-datos-valores label")];
+    const nombres = () => [...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent);
+    const botonDe = (texto) => [...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === texto);
+
+    // Ordenar: la celda elegida sigue a su fila.
+    await tocar(celda(contenedor, 1, 0));
+    await tocar(filtro("Nombre"));
+    await tocar([...contenedor.querySelectorAll(".chip-criterio")].find((b) => b.textContent === "De mayor a menor"));
+    expect(nombres()).toEqual(["SCARPA", "HULK"]);
+    expect(celda(contenedor, 0, 0).classList.contains("activa")).toBe(true);
+
+    // Filtrar: las vacías también son un valor.
+    await tocar(filtro("Pie"));
+    expect(valores().map((label) => label.textContent)).toEqual(["Izquierdo1", "(Vacías)1"]);
+    await tocar(botonDe("Ninguno"));
+    await tocar(valores()[1].querySelector("input"));
+    await tocar(botonDe("Aplicar"));
+    expect(nombres()).toEqual(["SCARPA"]);
+    expect(contenedor.textContent).toContain("Mostrando 1 de 2");
+
+    // Lo que se pega cae en las filas que se ven.
+    const marco = contenedor.querySelector(".tabla-datos-marco");
+    await tocar(celda(contenedor, 0, 2));
+    const evento = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(evento, "clipboardData", { value: { getData: () => "Derecho" } });
+    await act(async () => marco.dispatchEvent(evento));
+    expect(pegados).toEqual([{ filaId: 2, clave: "pie", valor: "direito" }]);
+
+    // Un filtro que no deja nada lo dice; "Quitar filtros" vuelve a todas.
+    await tocar(filtro("Nombre"));
+    await act(async () => {
+      const buscador = contenedor.querySelector(".tabla-datos-buscar-valor");
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(buscador, "zzz");
+      buscador.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(contenedor.textContent).toContain("Ningún valor coincide.");
+    await tocar(botonDe("Quitar filtro"));
+    await tocar(botonDe("Quitar filtros"));
+    expect(nombres()).toEqual(["HULK", "SCARPA"]);
+    expect(contenedor.textContent).not.toContain("Mostrando");
+  });
+
+  test("lo que se edita va a su fila aunque la tabla se reordene mientras tanto", async () => {
+    await montar();
+    // Se empieza a editar el nombre de SCARPA (segunda fila).
+    await tocar(celda(contenedor, 1, 0));
+    await tocar(celda(contenedor, 1, 0));
+    expect(celda(contenedor, 1, 0).querySelector("input").value).toBe("SCARPA");
+    // Mientras tanto la tabla cambia de orden (otro guardado que terminó).
+    await act(async () =>
+      raiz.render(
+        <TablaDatos
+          id="prueba"
+          columnas={columnas}
+          filas={[filas[1], filas[0]]}
+          onEditar={async (filaId, clave, valor) => {
+            editados.push({ filaId, clave, valor });
+            return {};
+          }}
+        />,
+      ),
+    );
+    // La edición siguió a SCARPA, que ahora es la primera fila.
+    expect(celda(contenedor, 1, 0).querySelector("input")).toBeNull();
+    const input = celda(contenedor, 0, 0).querySelector("input");
+    expect(input.value).toBe("SCARPA");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, "SCARPA 2");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(editados).toEqual([{ filaId: 2, clave: "nombre", valor: "SCARPA 2" }]);
+  });
+
+  test("las teclas en el botón de filtro no mueven ni editan la celda elegida", async () => {
+    await montar();
+    await tocar(celda(contenedor, 0, 0));
+    const filtro = contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Pie"]');
+    await act(async () => filtro.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    await act(async () => filtro.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+    expect(celda(contenedor, 0, 0).querySelector("input")).toBeNull();
+    expect(celda(contenedor, 0, 0).classList.contains("activa")).toBe(true);
+    // En la tabla misma, Enter sí edita.
+    const marco = contenedor.querySelector(".tabla-datos-marco");
+    await act(async () => marco.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(celda(contenedor, 0, 0).querySelector("input")).toBeTruthy();
+  });
+
+  test("con nombre para recordar, los filtros siguen al volver a la tabla", async () => {
+    await montar({ recordar: "prueba-memoria" });
+    await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Nombre"]'));
+    await tocar([...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === "Ninguno"));
+    await tocar(contenedor.querySelectorAll(".tabla-datos-valores input")[0]);
+    await tocar([...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === "Aplicar"));
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(1);
+    // Se va de la tabla (se abre una ficha) y se vuelve.
+    await act(async () => raiz.render(<div />));
+    await montar({ recordar: "prueba-memoria" });
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(contenedor.textContent).toContain("Mostrando 1 de 2");
+    // Sin nombre para recordar, empieza sin filtros.
+    await act(async () => raiz.render(<div />));
+    await montar();
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(2);
+  });
+
   test("en el celular hay que mantener apretada la cabecera; moverse antes es desplazar", async () => {
     vi.useFakeTimers();
     await montar();

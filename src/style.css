@@ -4038,6 +4038,14 @@ button:disabled {
   letter-spacing: -0.02em;
 }
 
+/* Una hoja que se abre desde adentro de una tarjeta (la tabla de la base)
+   no se lleva el título verde de las tarjetas: queda como todas las hojas. */
+.tarjeta .hoja-confirmar h3 {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
 .hoja-confirmar p {
   margin: 0;
   color: var(--cam-gris);
@@ -4681,9 +4689,11 @@ button:disabled {
 }
 
 /* La barra reusa el aspecto del selector de la pantalla de partido; acá va
-   suelta, sin la tarjeta que la envuelve allá. */
+   suelta, sin la tarjeta que la envuelve allá (ni su alto: en la PC dejaba
+   un hueco vacío debajo de cada barra). */
 .selector-periodos.en-ficha {
   display: block;
+  min-height: 0;
   margin-bottom: 10px;
   padding: 0;
   border: 0;

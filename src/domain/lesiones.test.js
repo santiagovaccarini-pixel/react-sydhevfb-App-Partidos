@@ -1,14 +1,14 @@
 import { describe, expect, test } from "vitest";
 import {
   calcular,
+  camposCambiados,
   claveDeErrorDeBase,
   conValor,
   diagnosticoDe,
   diasDeBaja,
+  errorDeCampo,
   estadoDelPlantel,
   etapaDe,
-  filtrarLesiones,
-  buscarEnLesiones,
   lesionVacia,
   lesionesActivas,
   numeroDeRegistro,
@@ -20,7 +20,22 @@ import {
   validarLesion,
   valorDe,
 } from "./lesiones.js";
-import { CAMPOS, CAMPOS_EDITABLES, OPCIONES, armarConfig, campoOculto, esCalculado, etiquetaDeCampo, etiquetaDeOpcion, filasParaSembrar, opcionesDeCampo } from "./lesionesCampos.js";
+import {
+  CAMPOS,
+  CAMPOS_EDITABLES,
+  GRUPOS,
+  OPCIONES,
+  PASOS,
+  armarConfig,
+  campoOculto,
+  claveDeGrupo,
+  esCalculado,
+  etiquetaDeCampo,
+  etiquetaDeGrupo,
+  etiquetaDeOpcion,
+  filasParaSembrar,
+  opcionesDeCampo,
+} from "./lesionesCampos.js";
 
 const base = (extra = {}) =>
   lesionVacia({
@@ -122,11 +137,59 @@ describe("el catálogo del Excel", () => {
     expect(etiquetaDeOpcion("lado", "inventado", config, "es-AR")).toBe("inventado");
   });
 
-  test("la semilla de un club trae todas las cabeceras y opciones", () => {
+  test("la semilla de un club trae todas las cabeceras, los grupos y las opciones", () => {
     const semilla = filasParaSembrar("eq-1");
-    expect(semilla.campos).toHaveLength(36);
+    expect(semilla.campos).toHaveLength(36 + 7);
     expect(semilla.campos[0]).toMatchObject({ equipo_id: "eq-1", campo: "numero_caso", etiqueta_pt: "N° de Caso", orden: 0 });
+    expect(semilla.campos.at(-7)).toMatchObject({ campo: "grupo:dados_gerais", etiqueta_es: "Datos generales", etiqueta_pt: "Dados Gerais", orden: 1000 });
     expect(semilla.opciones.length).toBeGreaterThan(150);
+  });
+
+  test("las columnas van en los grupos del Excel, en orden y sin saltos", () => {
+    expect(GRUPOS.map((grupo) => grupo.etiquetas["pt-BR"])).toEqual([
+      "Dados Gerais",
+      "Descrição Geral",
+      "Descrição Específica",
+      "Descrição Contextual",
+      "Evolução e Continuação",
+      "Diagnóstico",
+      "Observações",
+    ]);
+    CAMPOS.forEach((campo) => expect(GRUPOS.some((grupo) => grupo.clave === campo.grupo), campo.clave).toBe(true));
+    // Como en el Excel: cada grupo es un tramo seguido de columnas.
+    const tramos = CAMPOS.map((campo) => campo.grupo).filter((grupo, i, todos) => grupo !== todos[i - 1]);
+    expect(tramos).toEqual(GRUPOS.map((grupo) => grupo.clave));
+    expect(CAMPOS.filter((campo) => campo.grupo === "descricao_geral").map((campo) => campo.clave)).toEqual([
+      "tipo_lesion",
+      "parte_cuerpo",
+      "lado",
+      "lado_habil",
+      "hora_imagen",
+      "imagenes",
+      "horas_imagen",
+    ]);
+  });
+
+  test("la carga tiene un paso por grupo, con lo que se escribe a mano", () => {
+    expect(PASOS).toEqual([
+      { id: "dados_gerais", campos: ["jugador"] },
+      { id: "descricao_geral", campos: ["tipo_lesion", "parte_cuerpo", "lado", "hora_imagen", "imagenes", "horas_imagen"] },
+      { id: "descricao_especifica", campos: ["ligamento", "musculo", "musculo_especifico", "area"] },
+      { id: "descricao_contextual", campos: ["producto", "mecanismo", "cuando", "localizacion"] },
+      { id: "evolucao", campos: ["fecha_lesion", "fecha_transicion", "fecha_retorno_entrenamiento", "fecha_alta"] },
+      { id: "observacoes", campos: ["comentarios", "medico"] },
+    ]);
+  });
+
+  test("el nombre de un grupo: el del Excel, o el que le puso el club", () => {
+    expect(claveDeGrupo("evolucao")).toBe("grupo:evolucao");
+    expect(etiquetaDeGrupo("evolucao", null, "es-AR")).toBe("Evolución y continuación");
+    expect(etiquetaDeGrupo("evolucao", null, "pt-BR")).toBe("Evolução e Continuação");
+    const config = armarConfig([{ campo: "grupo:evolucao", etiqueta_es: "Fechas", etiqueta_pt: "", oculto: false, orden: 1004 }], []);
+    expect(etiquetaDeGrupo("evolucao", config, "es-AR")).toBe("Fechas");
+    // Sin texto en portugués, el del otro idioma antes que nada.
+    expect(etiquetaDeGrupo("evolucao", config, "pt-BR")).toBe("Fechas");
+    expect(etiquetaDeGrupo("inventado", null, "es-AR")).toBe("inventado");
   });
 });
 
@@ -244,7 +307,7 @@ describe("validar", () => {
   });
 });
 
-describe("recidiva, plantel, filtro y buscador", () => {
+describe("recidiva, plantel, revisión y cambios", () => {
   test("avisa si hubo una lesión igual con alta hace menos de dos meses", () => {
     const anterior = base({ id: "vieja", fecha_lesion: "2026-07-01", fecha_alta: "2026-08-01" });
     expect(posibleRecidiva(base({ id: null, fecha_lesion: "2026-09-15" }), [anterior])?.id).toBe("vieja");
@@ -258,27 +321,27 @@ describe("recidiva, plantel, filtro y buscador", () => {
     expect(estadoDelPlantel(plantel, lesiones).map((fila) => fila.situacion)).toEqual(["lesionado", "reintegrandose", "disponible"]);
   });
 
-  test("el filtro combina criterios como el de Partido", () => {
-    const lesiones = [
-      base({ id: "1" }),
-      base({ id: "2", jugador_id: 8, fecha_lesion: "2026-08-10", fecha_alta: "2026-08-20", datos: { parte_cuerpo: "joelho", lado: "esquerdo" } }),
-    ];
-    expect(filtrarLesiones(lesiones, { criterios: [] })).toHaveLength(2);
-    expect(filtrarLesiones(lesiones, { criterios: ["jugador"], jugador: "8" }).map((l) => l.id)).toEqual(["2"]);
-    expect(filtrarLesiones(lesiones, { criterios: ["etapa"], etapas: ["alta"] }).map((l) => l.id)).toEqual(["2"]);
-    expect(filtrarLesiones(lesiones, { criterios: ["fecha"], desde: "2026-09-01" }).map((l) => l.id)).toEqual(["1"]);
-    expect(filtrarLesiones(lesiones, { criterios: ["parte_cuerpo"], listas: { parte_cuerpo: ["joelho"] } }).map((l) => l.id)).toEqual(["2"]);
-    expect(filtrarLesiones(lesiones, { criterios: ["parte_cuerpo", "etapa"], listas: { parte_cuerpo: ["joelho"] }, etapas: ["lesionado"] })).toHaveLength(0);
+  test("cada columna se revisa sola, para frenar el paso donde está", () => {
+    const hoy = "2026-10-02";
+    expect(errorDeCampo(base({ jugador_id: null }), "jugador", hoy)).toBe("lesiones.error.jugador");
+    expect(errorDeCampo(base({ fecha_lesion: "" }), "fecha_lesion", hoy)).toBe("lesiones.error.fecha");
+    expect(errorDeCampo(base({ fecha_lesion: "2026-10-03" }), "fecha_lesion", hoy)).toBe("lesiones.error.fechaFutura");
+    expect(errorDeCampo(base({ fecha_transicion: "2026-08-01" }), "fecha_transicion", hoy)).toBe("lesiones.error.fechaAntes");
+    expect(errorDeCampo(base({ fecha_alta: "2026-10-05" }), "fecha_alta", hoy)).toBe("lesiones.error.fechaFuturaOtra");
+    expect(errorDeCampo(base({ fecha_alta: null }), "fecha_alta", hoy)).toBe("");
+    expect(errorDeCampo(base({ datos: { lado: "direito" } }), "parte_cuerpo", hoy)).toBe("lesiones.error.parte");
+    expect(errorDeCampo(base({ datos: { parte_cuerpo: "coxa" } }), "lado", hoy)).toBe("lesiones.error.lado");
+    expect(errorDeCampo(base({ datos: { horas_imagen: "doce" } }), "horas_imagen", hoy)).toBe("lesiones.error.horas");
+    expect(errorDeCampo(base(), "medico", hoy)).toBe("");
   });
 
-  test("el buscador mira el jugador, el diagnóstico y los textos de las listas", () => {
-    const lesiones = [base({ datos: { parte_cuerpo: "joelho", lado: "direito", diagnostico: "Ruptura LCA" } })];
-    const nombreDe = () => "HULK";
-    expect(buscarEnLesiones(lesiones, "hulk", { nombreDe })).toHaveLength(1);
-    expect(buscarEnLesiones(lesiones, "lca", { nombreDe })).toHaveLength(1);
-    expect(buscarEnLesiones(lesiones, "rodilla", { nombreDe, idioma: "es-AR" })).toHaveLength(1);
-    expect(buscarEnLesiones(lesiones, "joelho", { nombreDe, idioma: "pt-BR" })).toHaveLength(1);
-    expect(buscarEnLesiones(lesiones, "tobillo", { nombreDe })).toHaveLength(0);
+  test("de una edición se sabe qué columnas cargadas a mano cambió", () => {
+    const antes = { ...base(), datos: { parte_cuerpo: "coxa", lado: "direito", medico: "Dr. X", diagnostico: "viejo" } };
+    const despues = { ...base(), fecha_alta: "2026-09-20", datos: { parte_cuerpo: "coxa", lado: "esquerdo", medico: " Dr. X ", diagnostico: "nuevo" } };
+    // Lo calculado (el diagnóstico) no cuenta, y los espacios tampoco.
+    expect(camposCambiados(antes, despues)).toEqual(["lado", "fecha_alta"]);
+    expect(camposCambiados(antes, { ...antes, jugador_id: 8 })).toEqual(["jugador"]);
+    expect(camposCambiados(null, despues)).toEqual([]);
   });
 
   test("los errores de la base se traducen a claves", () => {
