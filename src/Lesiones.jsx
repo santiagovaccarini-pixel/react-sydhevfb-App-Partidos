@@ -7,6 +7,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import ReportesLesiones from "./ReportesLesiones.jsx";
 import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
 import { CAMPOS_DE_ESTRUCTURA, ElegirEstructura, ElegirZona, vistaDeLesion } from "./components/MapaCorporal.jsx";
 import { CAMPOS_DEL_CUERPO, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre } from "./domain/mapaCorporal.js";
@@ -72,6 +73,7 @@ export const DESTINOS_LESIONES = [
   { id: "lesionados", etiqueta: "Lesionados", icono: "usuario" },
   { id: "historial", etiqueta: "Historial", icono: "registros" },
   { id: "base", etiqueta: "Base", icono: "documento" },
+  { id: "reportes", etiqueta: "Reportes", icono: "grafico" },
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
 
@@ -1483,6 +1485,10 @@ export default function Lesiones({ onVolver }) {
   else if (lesionDetalle) contenido = pantallaDetalle(lesionDetalle);
   else if (vista === "historial") contenido = pantallaHistorial;
   else if (vista === "base") contenido = pantallaBase;
+  else if (vista === "reportes")
+    contenido = (
+      <ReportesLesiones lesiones={lesiones} plantel={plantel} config={config} equipo={equipo} mapa={mapa} hoy={hoyISO()} etiqueta={etiqueta} textoDeOpcion={textoDeOpcion} />
+    );
   else if (vista === "ajustes") contenido = pantallaAjustes();
   else contenido = pantallaLesionados;
 

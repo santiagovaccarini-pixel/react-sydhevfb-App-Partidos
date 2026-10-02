@@ -221,8 +221,9 @@ de lo hecho está en los commits, no en esta lista.
   Probado en local con la hoja real: entran los 38 jugadores con todas sus columnas. Los
   datos no pasan por el repositorio ni por el chat: la carga la hace alguien del club desde
   la app.
-- Del Excel quedan para más adelante: BD GPS (minutos para incidencia por 1000 h), la
-  evaluación de lesiones (ROM y valores de referencia) y los reportes con gráficos. El bloque
+- Del Excel quedan para más adelante: BD GPS (los reportes cuentan las horas con lo
+  cargado en Partido y Flujo diario) y la evaluación de lesiones (ROM y valores de
+  referencia). El bloque
   "Plan Agudo" del Excel está marcado "no usar" y no se trajo.
 - Lo que se suma al catálogo (`lesionesCampos.js`) llega solo a los clubes ya sembrados:
   `leerConfig` completa las cabeceras y opciones que falten sin pisar lo que el club cambió.
@@ -273,6 +274,9 @@ mover a una configuración por club:
 - Recup 1 = transición − inicio; Recup 2 = retorno al entrenamiento − inicio;
   recuperación = alta (o hoy) − inicio. Las etapas (lesionado, transición,
   entrenando, alta) salen de esas fechas; "activa" = sin alta.
+- Reportes: "sin leves" deja afuera las de severidad registro y leve; "solo musculares" son
+  los tipos "Lesión muscular…" del catálogo y los del club con ese nombre
+  (`src/domain/reportes.js`).
 - Validaciones: obligatorios jugador, tipo de lesión (pedido del 02/10), parte,
   lado y fecha de inicio; fechas no futuras y posteriores al inicio (también la
   hora de la imagen: no antes del día de la lesión); no dos lesiones activas en
@@ -341,7 +345,24 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   como opción propia (el del bíceps femoral, el del semitendinoso, los del bíceps y el
   tríceps) están dibujados en blanco pero eligen su músculo; la parte del músculo (por
   ejemplo, "Distal – tendón libre") va en el área.
-- **Los informes** (lo siguiente que pidió Santiago).
+- **Reportes (02/10)**: solapa nueva "Reportes" en Lesiones (`src/ReportesLesiones.jsx`; las
+  cuentas en `src/domain/reportes.js` y las horas en `src/domain/exposicion.js`). Ver reportes
+  tiene dos: el **individual** (la estética del "Reporte de Lesiones IND" del Excel, mejorada:
+  portada con escudo y jugador, números grandes, el cuadro cada 1000 horas del jugador contra
+  el equipo con la diferencia en verde o rojo, la figura con dónde se lesionó, cada lesión en
+  el tiempo y la tabla de sus lesiones con columnas que se suman) y el **grupal** (lesiones,
+  jugadores, días, activas, promedio y recurrentes; cada 1000 horas en total, entrenamiento y
+  partido; lesiones por mes con colores por severidad; la figura de calor; por parte, tipo,
+  severidad, mecanismo, cuándo, producto y posición; quiénes perdieron más días). Período
+  (este año, últimos 12 meses, todo o fechas a elección) y los filtros del Excel "sin leves"
+  y "solo musculares". Se imprime o se guarda en PDF.
+  Las horas salen de lo cargado en Partido (minutos jugados de cada uno, sin VAR ni
+  hidratación) y en Flujo diario (las tareas en las que participó, sin pausas). **Límite**:
+  una cuenta que tiene solo Lesiones no puede leer partidos ni entrenamientos, así que ve los
+  reportes sin las cuentas cada 1000 horas (con un aviso); hace falta una función en la base
+  que devuelva solo las horas por jugador y día.
+  **Lo que sigue: Crear reportes**, un lienzo con bloques (número, gráfico, tabla) donde se
+  elige la medida, cómo separarla y los filtros, y se guarda por club.
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
   la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa
   columna no se guarda porque cuenta como calculada); y "Imágenes" se carga como texto libre

@@ -36,6 +36,47 @@ const soloCampos = (lesion) => ({
   datos: limpiarDatos(lesion.datos),
 });
 
+// Para los reportes: los partidos y los entrenamientos del club, con lo que
+// hace falta para contar los minutos de cada jugador (exposicion.js). La base
+// no se los da a una cuenta sin Partido o sin Flujo diario: entonces vienen
+// vacíos y el reporte lo dice.
+const COLUMNAS_PARTIDO_EXPOSICION = [
+  "fecha",
+  "titulares",
+  "convocados",
+  "inicio_pt",
+  "final_pt",
+  "inicio_st",
+  "final_st",
+  ...["pt", "st"].flatMap((periodo) => [1, 2, 3].flatMap((n) => [`inicio_var_${periodo}_${n}`, `final_var_${periodo}_${n}`])),
+  "inicio_hid_pt",
+  "final_hid_pt",
+  "inicio_hid_st",
+  "final_hid_st",
+  ...[1, 2, 3, 4, 5].flatMap((n) => [`cambio_${n}_sale`, `cambio_${n}_entra`, `cambio_${n}_tiempo`]),
+  "cambios_extra",
+  "prorroga",
+].join(", ");
+
+export const leerExposicion = async (equipoId) => {
+  if (!equipoId) return { partidos: [], entrenamientos: [] };
+  if (esSoloLectura(equipoId)) {
+    const [partidos, entrenamientos] = await Promise.all([
+      leerAlDia("registros_partido", equipoId).catch(() => []),
+      leerAlDia("entrenamientos", equipoId).catch(() => []),
+    ]);
+    return { partidos, entrenamientos };
+  }
+  const [partidos, entrenamientos] = await Promise.all([
+    supabase.from("registros_partido").select(COLUMNAS_PARTIDO_EXPOSICION).eq("equipo_id", equipoId),
+    supabase.from("entrenamientos").select("fecha, datos").eq("equipo_id", equipoId),
+  ]);
+  return {
+    partidos: partidos.error ? [] : partidos.data || [],
+    entrenamientos: entrenamientos.error ? [] : entrenamientos.data || [],
+  };
+};
+
 export const listarLesiones = async (equipoId) => {
   if (!equipoId) return { lesiones: [], error: "" };
   // Quien ya se fue del club: las lesiones de la foto de su último día.
