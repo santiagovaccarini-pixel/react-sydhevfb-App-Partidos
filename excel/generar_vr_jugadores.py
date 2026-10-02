@@ -369,6 +369,8 @@ MAX_DESVIO_RATIO = 1.5   # desvio de la muestra mas de 1,5 veces el desvio del c
 KIND_NAME = {'abs': 'Absoluto', 'rel': 'Relativo por minuto', 'vseq': 'Relativo vs equipo', 'caida': 'Caída'}
 NONNEG = {'abs', 'rel', 'vseq'}
 NUM_OF = {L(c): L(c - (C('AU') - C('AF'))) for c in range(C('AU'), C('BH') + 1)}   # AU = AF / DB ...
+BASE_ABS = dict(NUM_OF)                                                           # relativo -> su absoluto
+BASE_ABS.update({L(c): L(c - (C('BY') - C('AF'))) for c in range(C('BY'), C('CL') + 1)})   # vs equipo -> su absoluto
 
 
 def metric_kind(col):
@@ -561,6 +563,8 @@ for p in players:
         idx = np.flatnonzero(mask)
         excl, n_out_by_col, levels, floored_cols = {}, {}, {}, set()
         manual_cols, neg_cells = set(), set()
+        abs_keep = {}      # columna absoluta -> filas (indices globales) que quedaron despues de limpiar
+        abs_blank = set()  # columnas absolutas sin VR (Bueno 0 o desvio 0)
         for dcol in col_map:
             kind = metric_kind(dcol)
             vals = num[dcol].to_numpy()[idx]
@@ -584,7 +588,23 @@ for p in players:
             exempt = kind in ('abs', 'rel') and not np.isnan(d7) and d7 <= 1
             keep_local = ok.copy()
             rule, lo, hi, q1, q3, p15 = 'sin limpieza (promedio <= 1)', None, None, None, None, None
-            if ARGS.sin_atipicos:
+            base = BASE_ABS.get(dcol)
+            if base is not None and base in abs_keep:
+                # relativos (absoluto / minutos) y relativos vs equipo salen del absoluto: usan los mismos partidos
+                # que quedaron en el absoluto, asi un partido quitado en el absoluto tambien sale del relativo
+                in_abs = np.isin(idx, abs_keep[base])
+                keep_local = ok & in_abs
+                rule = f'mismos partidos que {metric_name[base]}'
+                if kind == 'vseq' and not ARGS.sin_atipicos and keep_local.sum() >= MIN_CASOS:
+                    xv = vals[keep_local]
+                    q1, q3 = np.percentile(xv, [25, 75]); iqr = q3 - q1
+                    tol = 1e-9 * max(abs(q1), abs(q3), iqr, 1e-300)
+                    p15 = float(np.sum((xv < q1 - 1.5 * iqr - tol) | (xv > q3 + 1.5 * iqr + tol)) / len(xv))
+                    k = 1.5 if p15 <= 0.1 + 1e-12 else 3.0
+                    lo, hi = q1 - k * iqr, q3 + k * iqr
+                    keep_local = keep_local & (vals >= lo - tol) & (vals <= hi + tol)
+                    rule += f' + {k:g} RIC'
+            elif ARGS.sin_atipicos:
                 rule = 'sin limpieza (--sin-atipicos)'
             elif not exempt:
                 q1, q3 = np.percentile(x, [25, 75])       # = CUARTIL / QUARTILE de Excel
@@ -596,6 +616,8 @@ for p in players:
                 keep_local = ok & (vals >= lo - tol) & (vals <= hi + tol)
                 rule = f'{k:g} RIC' + (' (más del 10% fuera de 1,5 RIC)' if k == 3 else '')
             removed = idx[ok & ~keep_local]
+            if kind == 'abs':
+                abs_keep[dcol] = idx[keep_local]
             if len(removed):
                 m_ = np.zeros(len(num), dtype=bool); m_[removed] = True
                 excl[dcol] = m_; n_out_by_col[dcol] = len(removed)
@@ -626,11 +648,16 @@ for p in players:
                     '% Excelente': None, '% Muy Bueno': None, '% Bueno': None, '% Regular': None, '% Malo': None}
             # como la planilla: si Bueno es 0 o el desvio no se puede calcular (o es 0), el VR de la metrica queda vacio
             computable = b is not None and b != 0 and sd is not None and sd > 0 and len(kept) > 1
+            base = BASE_ABS.get(dcol)
+            if base is not None and base in abs_keep and base in abs_blank:
+                computable = False          # si el absoluto no tiene VR, su relativo tampoco
+            if kind == 'abs' and not computable:
+                abs_blank.add(dcol)
             if computable:
                 levels[dcol]['Bueno'] = b
                 levels[dcol]['Desv. Estándar'] = sd
             else:
-                info['Regla'] = rule + ' | sin VR: Bueno = 0 o desvío 0'
+                info['Regla'] = rule + (' | sin VR: su absoluto no tiene VR' if base in abs_blank and kind != 'abs' else ' | sin VR: Bueno = 0 o desvío 0')
             if computable:
                 p95, p5 = np.percentile(kept, 95), np.percentile(kept, 5)
                 f10 = (float(np.mean(kept[kept >= p95])) - b) / sd
@@ -730,7 +757,7 @@ with pd.ExcelWriter(REVIEW) as xw:
     df_out.to_excel(xw, sheet_name='Atípicos', index=False)
     pd.DataFrame({'Leyenda': [
         'Lógica de la Plantilla VR (hojas 1.3 Proceso_Absolutos y 2.3 Proceso_Relativos), métrica por métrica y por jugador y categoría:',
-        '1) Datos raros: si el 10% o menos de los valores cae fuera de 1,5 rangos intercuartílicos (RIC), se quitan los que están fuera de 1,5 RIC; si cae más del 10%, se quitan sólo los que están fuera de 3 RIC. Absolutos y relativos con promedio de 1 o menos no se limpian.',
+        '1) Datos raros: si el 10% o menos de los valores cae fuera de 1,5 rangos intercuartílicos (RIC), se quitan los que están fuera de 1,5 RIC; si cae más del 10%, se quitan sólo los que están fuera de 3 RIC. Absolutos con promedio de 1 o menos no se limpian. Los relativos por minuto usan los mismos partidos que quedaron en su absoluto (relativo = absoluto / minutos), y los relativos vs equipo también, más su propia limpieza.',
         '2) Bueno = promedio sin datos raros (absolutos, relativos vs equipo y caídas); cociente de sumas de los casos que quedan (relativos por minuto). En las caídas no se usa la fórmula de la fila 7: en las caídas pp da una fracción y los valores de cada partido están en puntos porcentuales.',
         '3) Desv. Estándar = desvío sin datos raros.',
         '4) Muy Bueno, Excelente y Regular = Bueno ± m·desvío, con m de a 0,25 desvíos elegido para que la muestra se reparta en los rangos como una distribución normal (Gauss): Excelente 2,5%, Muy Bueno 13,5%, Bueno 34%, Regular 34%, Malo 16%. Los rangos son los que pinta el libro: Excelente desde Excelente para arriba, Malo debajo de Regular. Excelente puede ir hasta 2 desvíos; en empates se elige lo más cercano a 1 y 2 desvíos.',

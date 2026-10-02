@@ -116,7 +116,11 @@ negativos y desvíos muy altos. Se usa la lógica de la planilla "Plantilla VR"
    se quitan los que están fuera de 1,5 RIC; si es más, sólo los que están
    fuera de 3 RIC. Los absolutos y relativos por minuto con promedio de 1 o
    menos no se limpian (regla de la planilla para variables chicas, como
-   aceleraciones por minuto). El descarte es métrica por métrica.
+   aceleraciones por minuto). El descarte es métrica por métrica, salvo en
+   los relativos: el relativo por minuto es el absoluto dividido los minutos,
+   así que usa exactamente los partidos que quedaron en su absoluto, y el
+   relativo vs equipo también (más su propia limpieza). Si el absoluto no
+   tiene VR, su relativo y su relativo vs equipo tampoco.
 2. **Bueno** = promedio sin datos raros (absolutos, relativos vs equipo y
    caídas) o cociente de sumas de los casos que quedan (relativos por minuto:
    suma del absoluto sobre suma de minutos `DB`). En las caídas no se usa la
