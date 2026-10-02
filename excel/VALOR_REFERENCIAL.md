@@ -169,8 +169,8 @@ asimetría por métrica) y `Atípicos` (cada valor quitado con sus límites).
 
 Resultado del 02/10/2026 (archivo pintado de la captura): 119 combinaciones con
 VR y 40 sin VR por tener menos de 5 casos. Reparto medio de la muestra por rango:
-1,4 / 12,3 / 33,7 / 39,6 / 13,1 % (Excelente a Malo); ninguna métrica pasa del
-10% en Excelente ni del 20% en Malo. 2.231 de 5.559 métricas necesitaron el
+1,4 / 12,3 / 33,6 / 39,6 / 13,1 % (Excelente a Malo); ninguna métrica pasa del
+10% en Excelente ni del 20% en Malo. 2.230 de 5.559 métricas necesitaron el
 reparto a mano, sobre todo por muestras chicas (con 5 a 9 casos un partido ya
 es 11 a 20% de la muestra) y métricas con muchos ceros.
 

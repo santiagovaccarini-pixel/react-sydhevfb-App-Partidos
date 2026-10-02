@@ -458,7 +458,10 @@ def manual_levels(kept, b):
     spread = (np.percentile(xs, 84) - np.percentile(xs, 16)) / 2 or (xs[-1] - xs[0]) / 4
     def thr(k):
         if k == 0:
-            return xs[0]
+            # debajo del menor valor, a media distancia del siguiente (igual que los otros cortes), para que
+            # ningun redondeo de Excel deje al menor valor en Malo
+            nxt = xs[xs > xs[0]]
+            return xs[0] - (0.5 * (nxt[0] - xs[0]) if len(nxt) else 0.25 * spread)
         if k == n:
             return xs[-1] + 0.25 * spread
         return (xs[k - 1] + xs[k]) / 2
@@ -586,10 +589,11 @@ for p in players:
             elif not exempt:
                 q1, q3 = np.percentile(x, [25, 75])       # = CUARTIL / QUARTILE de Excel
                 iqr = q3 - q1
-                p15 = float(np.sum((x < q1 - 1.5 * iqr) | (x > q3 + 1.5 * iqr)) / len(x))
-                k = 1.5 if p15 <= 0.1 else 3.0
+                tol = 1e-9 * max(abs(q1), abs(q3), iqr, 1e-300)   # limites inclusivos sin errores de redondeo
+                p15 = float(np.sum((x < q1 - 1.5 * iqr - tol) | (x > q3 + 1.5 * iqr + tol)) / len(x))
+                k = 1.5 if p15 <= 0.1 + 1e-12 else 3.0
                 lo, hi = q1 - k * iqr, q3 + k * iqr
-                keep_local = ok & (vals >= lo) & (vals <= hi)
+                keep_local = ok & (vals >= lo - tol) & (vals <= hi + tol)
                 rule = f'{k:g} RIC' + (' (más del 10% fuera de 1,5 RIC)' if k == 3 else '')
             removed = idx[ok & ~keep_local]
             if len(removed):
