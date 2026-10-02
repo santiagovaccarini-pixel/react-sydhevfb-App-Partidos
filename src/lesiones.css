@@ -634,3 +634,247 @@
   font-size: 12.5px;
   font-weight: 800;
 }
+
+/* El cuerpo para cargar la lesión: la figura (de frente o de espaldas) en un
+   panel oscuro, el camino de lo elegido arriba y, al acercarse a una zona,
+   sus partes al lado (en el celular, al lado de la figura igual). */
+.lesiones-marco .mapa-cuerpo {
+  display: grid;
+  gap: 10px;
+}
+.lesiones-marco .mapa-cuerpo-cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lesiones-marco .mapa-cuerpo-camino {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+  font-size: 13px;
+}
+.lesiones-marco .mapa-cuerpo-camino button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #16a34a;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.lesiones-marco .mapa-cuerpo-camino button:disabled {
+  color: #0f172a;
+  cursor: default;
+}
+.lesiones-marco .mapa-cuerpo-camino b {
+  color: #0f172a;
+}
+.lesiones-marco .mapa-cuerpo-vista {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+}
+.lesiones-marco .mapa-cuerpo-vista .chip-criterio {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+.lesiones-marco .mapa-cuerpo-cuerpo {
+  display: grid;
+  gap: 10px;
+}
+.lesiones-marco .mapa-cuerpo-cuerpo.con-region {
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
+  align-items: start;
+}
+.lesiones-marco .mapa-cuerpo-panel {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 12px 10px 10px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #0f172a;
+}
+.lesiones-marco .mapa-cuerpo-ayuda {
+  margin: 0;
+  color: #64748b;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.lesiones-marco .mapa-cuerpo-panel .mapa-cuerpo-ayuda {
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+.lesiones-marco .mapa-cuerpo-partes {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lesiones-marco .mapa-cuerpo-partes button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lesiones-marco .mapa-cuerpo-partes button b {
+  font-size: 14px;
+}
+.lesiones-marco .mapa-cuerpo-partes button span {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lesiones-marco .mapa-cuerpo-partes button.elegida {
+  border-color: #16a34a;
+  background: #dcfce7;
+  box-shadow: inset 0 0 0 1px #16a34a;
+}
+.lesiones-marco .mapa-cuerpo-elegido p {
+  margin: 0;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+}
+.lesiones-marco .mapa-cuerpo-elegido .rotulo-criterio {
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.lesiones-marco .mapa-cuerpo-ubicacion {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.lesiones-marco .mapa-cuerpo-ubicacion .mapa-cuerpo-panel {
+  padding: 8px 6px;
+}
+.lesiones-marco .mapa-cuerpo-ubicacion b {
+  display: block;
+  color: #0f172a;
+  font-size: 16px;
+}
+.lesiones-marco .mapa-cuerpo-ubicacion .rotulo-criterio {
+  margin: 0 0 2px;
+}
+.lesiones-marco .mapa-cuerpo-otro {
+  border-style: dashed;
+}
+.lesiones-marco .mapa-cuerpo-tercios {
+  margin-bottom: 8px;
+}
+.lesiones-marco .lesiones-cambiar-modo {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: #166534;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* La figura: piezas grises; la región se pinta al pasar o tocar, y la parte
+   elegida queda verde. */
+.figura-cuerpo {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.figura-cuerpo svg {
+  width: 100%;
+  max-width: 170px;
+  height: auto;
+  overflow: hidden;
+}
+.figura-cuerpo.chica svg {
+  max-width: 52px;
+}
+.figura-cuerpo-zoom {
+  transform-origin: 0 0;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.figura-cuerpo-pieza {
+  fill: #64748b;
+  transition: fill 0.2s, opacity 0.2s;
+}
+.figura-cuerpo-columna {
+  fill: none;
+  stroke: rgba(15, 23, 42, 0.55);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 2.5;
+  pointer-events: none;
+}
+.figura-cuerpo-pieza.sin-opcion {
+  opacity: 0.35;
+}
+.figura-cuerpo-region.apagada {
+  opacity: 0.2;
+}
+.figura-cuerpo-region.activa .figura-cuerpo-pieza {
+  fill: #94a3b8;
+}
+.figura-cuerpo-region.tocable,
+.figura-cuerpo-parte.tocable {
+  cursor: pointer;
+  outline: none;
+}
+.figura-cuerpo-region.tocable:hover .figura-cuerpo-pieza,
+.figura-cuerpo-region.tocable:focus-visible .figura-cuerpo-pieza,
+.figura-cuerpo-parte.tocable:hover .figura-cuerpo-pieza,
+.figura-cuerpo-parte.tocable:focus-visible .figura-cuerpo-pieza {
+  fill: #4ade80;
+}
+.figura-cuerpo .figura-cuerpo-pieza.elegida {
+  fill: #16a34a;
+}
+.figura-cuerpo-lados {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 170px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.figura-cuerpo-lados.de-espaldas {
+  flex-direction: row-reverse;
+}
+@media (prefers-reduced-motion: reduce) {
+  .figura-cuerpo-zoom {
+    transition: none;
+  }
+}
+
+/* En la ficha, la figura chica con la parte lesionada al lado del diagnóstico. */
+.lesiones-marco .lesiones-marcador-figura {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #0f172a;
+}
