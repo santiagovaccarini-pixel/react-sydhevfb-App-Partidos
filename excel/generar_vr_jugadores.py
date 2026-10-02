@@ -1,21 +1,27 @@
 """
-Genera las filas de Valor Referencial (hoja VR) para cada jugador x categoria de tiempo,
-replicando exactamente lo que muestran las filas 5..9 (Excelente..Malo) de la hoja
-'Data GPS Partido' cuando se filtra por columna T (jugador) y columna DG (categoria).
+Genera las filas de Valor Referencial (hoja VR) para cada jugador x categoria de tiempo a partir
+de la hoja 'Data GPS Partido' (columna T = jugador, columna DG = categoria de tiempo).
 
-Ademas:
-  * Junta categorias por jugador segun las celdas PINTADAS en la hoja 'Tiempos por jugador'
-    (celdas de un mismo color en la fila del jugador = un mismo grupo; el VR de cada categoria
-    del grupo se calcula con los casos de todas las del grupo y queda en amarillo en VR).
-  * Valida los datos por cuartiles (regla de Tukey: fuera de [Q1 - k*IQR, Q3 + k*IQR]) y
-    excluye los valores atipicos del calculo, metrica por metrica. Las celdas afectadas quedan
-    en naranja en VR y el detalle va a la hoja 'Atipicos' del resumen.
+Los niveles se calculan con la logica de la 'Plantilla VR' (hojas 1.3 Proceso_Absolutos y
+2.3 Proceso_Relativos), metrica por metrica:
+  * Datos raros: si el 10% o menos de los valores cae fuera de 1,5 rangos intercuartilicos (RIC)
+    se quitan los que estan fuera de 1,5 RIC; si cae mas del 10%, solo los que estan fuera de 3 RIC.
+    Absolutos y relativos por minuto con promedio de 1 o menos no se limpian.
+  * Bueno = promedio sin datos raros (absolutos, relativos vs equipo), cociente de sumas
+    (relativos por minuto) o la formula de la fila 7 sobre los casos que quedan (caidas).
+  * Muy Bueno / Regular = Bueno +/- m*desvio, con m (0,25..1,75) elegido para dejar ~34% de casos
+    entre Bueno y ese nivel; Excelente = Bueno + (m + 0,25*i)*desvio, hasta 2 desvios, buscando
+    2,5% de casos por encima y 13,5% entre Muy Bueno y Excelente; Malo = Regular - 0,25*desvio.
+  * Niveles negativos en metricas que no pueden serlo se llevan a 0 (las caidas pueden ser negativas).
+
+Ademas junta categorias por jugador segun las celdas PINTADAS en 'Tiempos por jugador' (contiguas
+y del mismo color = un grupo; un bloque por grupo con la categoria de mas casos, en amarillo y con
+nota en la cantidad de casos). Las celdas con datos raros quitados quedan en naranja.
 
 Uso:  python excel/generar_vr_jugadores.py  <entrada.xlsm>  <salida.xlsm>  [opciones]
-        --sin-atipicos        no excluir valores atipicos
-        --iqr-k 1.5           multiplicador del rango intercuartil (1.5 = regla clasica)
-        --min-n-iqr 4         minimo de casos para aplicar la deteccion
-        --sin-juntar          ignorar las celdas pintadas de 'Tiempos por jugador'
+        --sin-atipicos         no quitar datos raros
+        --permitir-negativos   no llevar a 0 los niveles negativos
+        --sin-juntar           ignorar las celdas pintadas de 'Tiempos por jugador'
 Ver:  excel/VALOR_REFERENCIAL.md
 """
 import sys, re, zipfile, datetime, math, html, warnings, argparse
@@ -30,8 +36,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('entrada', nargs='?', default='base.xlsm')
 ap.add_argument('salida', nargs='?', default='salida.xlsm')
 ap.add_argument('--sin-atipicos', action='store_true')
-ap.add_argument('--iqr-k', type=float, default=1.5)
-ap.add_argument('--min-n-iqr', type=int, default=4)
+ap.add_argument('--permitir-negativos', action='store_true')
 ap.add_argument('--sin-juntar', action='store_true')
 ARGS = ap.parse_args()
 SRC, DST = ARGS.entrada, ARGS.salida
@@ -339,8 +344,75 @@ if any(c in bad_cols for c in col_map):
 print('Columnas mapeadas a VR:', len(col_map), '| sin correspondencia en VR:', unmatched)
 metric_name = {d: str(hdr13[C(d) - 1]).strip() for d in col_map}
 
+
+# ---------------------------------------------------------------- 5b. logica de la Plantilla VR
+M_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
+M_OPTS = {m: 7 - k for k, m in enumerate(M_STEPS)}       # columna AD de la planilla: 7..1 opciones
+T_HALF, T_EXC, T_MB = 0.34, 0.025, 0.135                    # X37, X35, X36 de la planilla
+KIND_NAME = {'abs': 'Absoluto', 'rel': 'Relativo por minuto', 'vseq': 'Relativo vs equipo', 'caida': 'Caída'}
+NONNEG = {'abs', 'rel', 'vseq'}
+NUM_OF = {L(c): L(c - (C('AU') - C('AF'))) for c in range(C('AU'), C('BH') + 1)}   # AU = AF / DB ...
+
+
+def metric_kind(col):
+    c = C(col)
+    if C('AU') <= c <= C('BH'):
+        return 'rel'
+    if C('BJ') <= c <= C('BW') or C('CN') <= c <= C('DA'):
+        return 'caida'
+    if C('BY') <= c <= C('CL'):
+        return 'vseq'
+    return 'abs'
+
+
+def xl_rank(vals, i):
+    """RANK de Excel (orden descendente): 1 + cantidad de valores mayores."""
+    return 1 + sum(1 for v in vals if v > vals[i])
+
+
+def pick_m(kept, b, sd, f, side):
+    """Multiplicador de Muy Bueno (side='up') o Regular (side='down'), filas 35..49 de la planilla."""
+    n = len(kept)
+    Z, Y = [], []
+    for m in M_STEPS:
+        if side == 'up':
+            prop = np.sum((kept >= b) & (kept < b + m * sd)) / n
+        else:
+            prop = np.sum((kept < b) & (kept >= b - m * sd)) / n
+        Z.append(abs(T_HALF - prop)); Y.append(m - f)
+    AA = [xl_rank(Z, i) for i in range(len(M_STEPS))]
+    AB = [AA[i] + xl_rank(Y, i) if AA[i] == max(AA) else None for i in range(len(M_STEPS))]
+    best = max(v for v in AB if v is not None)
+    return M_STEPS[AB.index(best)]
+
+
+def pick_exc(kept, b, sd, m_up):
+    """Multiplicador de Excelente: opciones m+0.25, m+0.5, ... hasta 2 (filas 1..3 y 14..15 de la planilla)."""
+    n = len(kept); best = None
+    for i in range(1, 8):
+        mult = m_up + 0.25 * i
+        if M_OPTS[m_up] < i or mult > 2:
+            break
+        exc, mb = b + mult * sd, b + m_up * sd
+        err = abs(T_EXC - np.sum(kept >= exc) / n) + abs(T_MB - np.sum((kept >= mb) & (kept < exc)) / n)
+        if best is None or err < best[0]:
+            best = (err, mult)
+    return best[1]
+
+
+def xl_skew(x):
+    n = len(x)
+    if n < 3:
+        return None
+    s = np.std(x, ddof=1)
+    if not s:
+        return None
+    return float(n / ((n - 1) * (n - 2)) * np.sum(((x - np.mean(x)) / s) ** 3))
+
+
 # ---------------------------------------------------------------- 6. calcular por jugador x categoria
 out_rows, review, skipped, outliers, combos = [], [], [], [], []
+proceso = []
 for p in players:
     done = set()
     for cat0 in CATS:
@@ -367,44 +439,99 @@ for p in players:
             note = ('Categorías juntadas: ' + ' + '.join(f'{g} ({own_counts[g]})' for g in group)
                     + f' = {n} casos. Se muestra como "{cat}" por ser la de más casos.')
 
-        # --- atipicos por cuartiles, metrica por metrica
-        excl, n_out_by_col = {}, {}
-        if not ARGS.sin_atipicos:
-            idx = np.flatnonzero(mask)
-            for dcol in col_map:
-                vals = num[dcol].to_numpy()[idx]
-                ok = ~np.isnan(vals)
-                if ok.sum() < ARGS.min_n_iqr:
-                    continue
-                q1, q3 = np.percentile(vals[ok], [25, 75])      # = CUARTIL.INC de Excel
+        # --- logica de la Plantilla VR, metrica por metrica
+        idx = np.flatnonzero(mask)
+        excl, n_out_by_col, levels, floored_cols = {}, {}, {}, set()
+        for dcol in col_map:
+            kind = metric_kind(dcol)
+            vals = num[dcol].to_numpy()[idx]
+            ok = ~np.isnan(vals)
+            x = vals[ok]
+            levels[dcol] = {nv: None for nv, _ in NIVELES}
+            if len(x) == 0:
+                continue
+            # D7: promedio simple (absolutos) o cociente de sumas (relativos), sobre todos los datos
+            if kind == 'rel':
+                nume = num[NUM_OF[dcol]].to_numpy()[idx][ok]; deno = num['DB'].to_numpy()[idx][ok]
+                sb, sc = np.nansum(nume), np.nansum(deno)
+                d7 = (0.01 / sc if sb == 0 else sb / sc) if sc else np.nan
+            elif dcol == 'AE':
+                d7 = float(np.mean(x)) * 1440          # Tiempo en minutos (en el libro esta en dias)
+            else:
+                d7 = float(np.mean(x))
+            exempt = kind in ('abs', 'rel') and not np.isnan(d7) and d7 <= 1
+            keep_local = ok.copy()
+            rule, lo, hi, q1, q3, p15 = 'sin limpieza (promedio <= 1)', None, None, None, None, None
+            if ARGS.sin_atipicos:
+                rule = 'sin limpieza (--sin-atipicos)'
+            elif not exempt:
+                q1, q3 = np.percentile(x, [25, 75])       # = CUARTIL / QUARTILE de Excel
                 iqr = q3 - q1
-                if iqr == 0:            # sin dispersion entre cuartiles no hay con que juzgar: no se marca nada
-                    continue
-                lo, hi = q1 - ARGS.iqr_k * iqr, q3 + ARGS.iqr_k * iqr
-                bad_rows = idx[ok & ((vals < lo) | (vals > hi))]
-                if len(bad_rows):
-                    m = np.zeros(len(num), dtype=bool); m[bad_rows] = True
-                    excl[dcol] = m; n_out_by_col[dcol] = len(bad_rows)
-                    for ridx in bad_rows:
-                        outliers.append({'Jugador': p, 'Categoría VR': cat,
-                                         'Categoría del caso': DG[ridx], 'Item': META.Item[ridx],
-                                         'Caso': META.Caso[ridx], 'Fecha': META.Fecha[ridx], 'Rival': META.Rival[ridx],
-                                         'Métrica': metric_name[dcol], 'Columna': dcol,
-                                         'Valor': float(num[dcol][ridx]), 'Límite inferior': lo, 'Límite superior': hi,
-                                         'Q1': q1, 'Q3': q3, 'n': int(ok.sum())})
-        calc = Calc(mask, excl)
-        cnt = calc.count('AF')
+                p15 = float(np.sum((x < q1 - 1.5 * iqr) | (x > q3 + 1.5 * iqr)) / len(x))
+                k = 1.5 if p15 <= 0.1 else 3.0
+                lo, hi = q1 - k * iqr, q3 + k * iqr
+                keep_local = ok & (vals >= lo) & (vals <= hi)
+                rule = f'{k:g} RIC' + (' (más del 10% fuera de 1,5 RIC)' if k == 3 else '')
+            removed = idx[ok & ~keep_local]
+            if len(removed):
+                m_ = np.zeros(len(num), dtype=bool); m_[removed] = True
+                excl[dcol] = m_; n_out_by_col[dcol] = len(removed)
+                for ridx in removed:
+                    outliers.append({'Jugador': p, 'Categoría VR': cat,
+                                     'Categoría del caso': DG[ridx], 'Item': META.Item[ridx],
+                                     'Caso': META.Caso[ridx], 'Fecha': META.Fecha[ridx], 'Rival': META.Rival[ridx],
+                                     'Métrica': metric_name[dcol], 'Columna': dcol, 'Regla': rule,
+                                     'Valor': float(num[dcol][ridx]), 'Límite inferior': lo, 'Límite superior': hi,
+                                     'Q1': q1, 'Q3': q3, 'n': int(ok.sum())})
+            kept = vals[keep_local]
+            # F7 (Bueno)
+            if kind == 'rel':
+                nume = num[NUM_OF[dcol]].to_numpy()[idx][keep_local]; deno = num['DB'].to_numpy()[idx][keep_local]
+                b = float(np.nansum(nume) / np.nansum(deno)) if np.nansum(deno) else None
+            elif kind == 'caida':
+                b = Calc(mask, {dcol: excl[dcol]} if dcol in excl else {}).value(7, dcol)
+            else:
+                b = float(np.mean(kept)) if len(kept) else None
+            sd = float(np.std(kept, ddof=1)) if len(kept) > 1 else None
+            info = {'Jugador': p, 'Categoría': cat, 'Métrica': metric_name[dcol], 'Columna': dcol, 'Tipo': KIND_NAME[kind],
+                    'Casos': int(ok.sum()), '% fuera de 1,5 RIC': p15, 'Regla': rule, 'Valores quitados': int(len(removed)),
+                    'Bueno': b, 'Desv. Estándar': sd,
+                    'Asimetría': xl_skew(kept), 'F10 (P95 en desvíos)': None, 'F11 (P5 en desvíos)': None,
+                    'Mult. Muy Bueno': None, 'Mult. Excelente': None, 'Mult. Regular': None, 'Mult. Malo': None,
+                    'Niveles llevados a 0': 0}
+            levels[dcol]['Bueno'] = b
+            levels[dcol]['Desv. Estándar'] = sd
+            if b is not None and sd is not None and sd > 0 and len(kept) > 1:
+                p95, p5 = np.percentile(kept, 95), np.percentile(kept, 5)
+                f10 = (float(np.mean(kept[kept >= p95])) - b) / sd
+                f11 = (b - float(np.mean(kept[kept <= p5]))) / sd
+                m_up = pick_m(kept, b, sd, f10, 'up')
+                m_ex = pick_exc(kept, b, sd, m_up)
+                m_lo = pick_m(kept, b, sd, f11, 'down')
+                m_ma = m_lo + 0.25
+                lv = {'Excelente': b + m_ex * sd, 'Muy Bueno': b + m_up * sd,
+                      'Regular': b - m_lo * sd, 'Malo': b - m_ma * sd}
+                if kind in NONNEG and not ARGS.permitir_negativos:
+                    for k_, v_ in lv.items():
+                        if v_ < 0:
+                            lv[k_] = 0.0; info['Niveles llevados a 0'] += 1; floored_cols.add(dcol)
+                levels[dcol].update(lv)
+                info.update({'F10 (P95 en desvíos)': f10, 'F11 (P5 en desvíos)': f11, 'Mult. Muy Bueno': m_up,
+                             'Mult. Excelente': m_ex, 'Mult. Regular': m_lo, 'Mult. Malo': m_ma})
+            proceso.append(info)
+        cnt = int((~np.isnan(num['AF'].to_numpy()[idx])).sum())
         puesto = Counter(u for u in U[mask] if u).most_common(1)
         puesto = puesto[0][0] if puesto else ''
         item = ITEM_BY_CAT.get(cat, 'Jugador Total')
         juntada = ' + '.join(f'{g} ({own_counts[g]})' for g in group if g != cat) if group else ''
         combos.append({'Jugador': p, 'Categoría': cat, 'Casos propios': n_own, 'Casos usados': n,
                        'Juntada con': juntada, 'Nota en VR': note,
-                       'Métricas con atípicos': len(n_out_by_col), 'Valores atípicos excluidos': sum(n_out_by_col.values())})
-        for nivel, frow in NIVELES:
+                       'Métricas con atípicos': len(n_out_by_col), 'Valores atípicos excluidos': sum(n_out_by_col.values()),
+                       'Métricas con niveles llevados a 0': len(floored_cols)})
+        for nivel, _ in NIVELES:
             row = {'C': item, 'D': p, 'E': puesto, 'F': cat, 'G': nivel, 'H': cnt, 'B': TODAY_SERIAL}
             for dcol, vcol in col_map.items():
-                row[vcol] = calc.std(dcol) if frow is None else calc.value(frow, dcol)
+                row[vcol] = levels[dcol][nivel]
             row['_key'] = f'{item}{p}{puesto}{cat}{nivel}'
             row['_merged'] = bool(group)
             row['_note'] = note
@@ -416,19 +543,27 @@ for p in players:
 print(f'Combinaciones con datos: {len(combos)}  (filas VR: {len(out_rows)});  sin casos: {len(skipped)}')
 print(f'Combinaciones juntadas: {sum(1 for c in combos if c["Juntada con"])};  valores atipicos excluidos: {len(outliers)}'
       f' en {sum(1 for c in combos if c["Valores atípicos excluidos"])} combinaciones')
+print(f'Niveles llevados a 0 (metricas que no pueden ser negativas): {sum(i["Niveles llevados a 0"] for i in proceso)}')
 
 with pd.ExcelWriter(REVIEW) as xw:
     pd.DataFrame(review).to_excel(xw, sheet_name='VR', index=False)
     pd.DataFrame(combos).to_excel(xw, sheet_name='Combinaciones', index=False)
+    pd.DataFrame(proceso).to_excel(xw, sheet_name='Proceso', index=False)
     df_out = pd.DataFrame(outliers)
     if len(df_out):
         df_out['Fecha'] = pd.to_datetime(df_out['Fecha'], errors='coerce').dt.date
     df_out.to_excel(xw, sheet_name='Atípicos', index=False)
     pd.DataFrame({'Leyenda': [
-        'Amarillo en VR: la categoría se calculó juntando sus casos con otra(s) categoría(s) del mismo jugador (celdas pintadas en Tiempos por jugador).',
-        f'Naranja en VR: en esa métrica se excluyeron valores atípicos (fuera de Q1 - {ARGS.iqr_k}·IQR, Q3 + {ARGS.iqr_k}·IQR; se aplica con {ARGS.min_n_iqr} o más casos).',
-        'Cuenta (H) es la cantidad de casos usados; el detalle de cada valor excluido está en la hoja Atípicos.',
-        'Excelente/Muy Bueno/Regular/Malo = Bueno ± 2/1 desvíos; Desv. Estándar = desvío muestral, igual que las filas 5..9 de Data GPS Partido.']}).to_excel(xw, sheet_name='Leyenda', index=False)
+        'Lógica de la Plantilla VR (hojas 1.3 Proceso_Absolutos y 2.3 Proceso_Relativos), métrica por métrica y por jugador y categoría:',
+        '1) Datos raros: si el 10% o menos de los valores cae fuera de 1,5 rangos intercuartílicos (RIC), se quitan los que están fuera de 1,5 RIC; si cae más del 10%, se quitan sólo los que están fuera de 3 RIC. Absolutos y relativos con promedio de 1 o menos no se limpian.',
+        '2) Bueno = promedio sin datos raros (absolutos y relativos vs equipo); cociente de sumas de los casos que quedan (relativos por minuto); fórmula de la fila 7 de Data GPS Partido sobre los casos que quedan (caídas).',
+        '3) Desv. Estándar = desvío sin datos raros.',
+        '4) Muy Bueno = Bueno + m·desvío, con m entre 0,25 y 1,75 elegido para que entre Bueno y Muy Bueno quede lo más cerca posible del 34% de los casos.',
+        '5) Excelente = Bueno + (m + 0,25·i)·desvío, hasta 2 desvíos, eligiendo i para acercarse a 2,5% de casos por encima de Excelente y 13,5% entre Muy Bueno y Excelente.',
+        '6) Regular = Bueno − m·desvío (34% de casos entre Regular y Bueno); Malo = Regular − 0,25·desvío, como en la planilla.',
+        '7) En métricas que no pueden ser negativas (absolutos, relativos por minuto, relativos vs equipo, Tiempo) un nivel que da negativo se lleva a 0. Las caídas pueden ser negativas.',
+        'Amarillo en VR: categoría calculada juntando casos de otra(s) categoría(s) del mismo jugador. Naranja: métrica a la que se le quitaron datos raros.',
+        'Hoja Proceso: detalle por métrica (regla aplicada, multiplicadores elegidos, asimetría). Hoja Atípicos: cada valor quitado.']}).to_excel(xw, sheet_name='Leyenda', index=False)
 print('Resumen de control:', REVIEW)
 
 # ---------------------------------------------------------------- 7. estilos: variantes con relleno amarillo / naranja
