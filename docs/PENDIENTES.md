@@ -409,9 +409,13 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   nombre que no está en Datos básicos, un N° de caso que en la app es de otra lesión, o lo
   mismo que frena la carga a mano). Se traen solo las columnas que se cargan a mano; lo
   calculado lo calcula la app (con el Excel de Santiago dan iguales los 24 casos cerrados).
-  Cada lesión entra con su N° de caso del Excel. Las fechas se leen como las copie el Excel
-  de quien copia (día/mes o mes/día, por columna, y las escritas como texto también); un
-  valor de una lista que no se entiende deja esa columna vacía y avisa. No se traen los
+  Cada lesión entra con su N° de caso del Excel (las que no lo traen, después del más alto de
+  lo pegado). Las fechas se leen como las copie el Excel de quien copia (día/mes o mes/día,
+  decidido con todas las fechas juntas; las escritas como texto en el otro orden también). El
+  jugador se busca por el nombre igual y, si no, sin acentos ni signos (si dos se parecen, no
+  se adivina). Las listas: primero las opciones del club, después el texto original del
+  Excel y al final las equivalencias; un valor que no se entiende deja esa columna vacía y
+  avisa. No se traen los
   planes ni los tests (columnas AN en adelante). Antes de pegar hay que correr
   `20261008_lesiones_recaida.sql`.
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
