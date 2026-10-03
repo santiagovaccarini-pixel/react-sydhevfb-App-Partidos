@@ -78,6 +78,8 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
     return textoDeOpcion(campo, valor);
   };
   const tituloDeCampo = (campo) => etiqueta(campo);
+  // "Parte del cuerpo" dentro de una frase: "Por parte del cuerpo".
+  const enMinuscula = (texto) => String(texto || "").charAt(0).toLocaleLowerCase(idioma) + String(texto || "").slice(1);
   const { series: campoSeries } = REGLAS_GRAFICOS.momentos;
 
   // Un color por parte del cuerpo, igual en todos los gráficos y con
@@ -216,9 +218,11 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
               )}
             </div>
           )}
-          {!gps && <p className="informe-aviso">{t("lesiones.cadaMil.faltaGps")}</p>}
-          <p className="informe-criterio">{t("lesiones.reportes.cuentan", { criterio })}</p>
-          <p className="informe-criterio">{t(`lesiones.graficos.anioNota.${REGLAS_GRAFICOS.anioDelPeriodo}`)}</p>
+          <div className="reporte-graficos-notas">
+            {!gps && <p className="informe-aviso">{t("lesiones.cadaMil.faltaGps")}</p>}
+            <p className="informe-criterio">{t("lesiones.reportes.cuentan", { criterio })}</p>
+            <p className="informe-criterio">{t(`lesiones.graficos.anioNota.${REGLAS_GRAFICOS.anioDelPeriodo}`)}</p>
+          </div>
         </>
       );
     return bloque(id, t(`lesiones.graficos.secciones.${id}`), elegidos(id, [], anio), contenido);
@@ -248,7 +252,9 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
           tarjeta(textoDeOpcion(REGLAS_GRAFICOS.tortas.campo, valor), <Torta titulo={textoDeOpcion(REGLAS_GRAFICOS.tortas.campo, valor)} porciones={porcionesDe(valor)} vacio={t("lesiones.graficos.sinLesiones")} />, valor),
         )}
       </div>
-      <p className="informe-criterio">{t("lesiones.graficos.cuentanTodas", { campo: etiqueta(REGLAS_GRAFICOS.campoContado) })}</p>
+      <div className="reporte-graficos-notas">
+        <p className="informe-criterio">{t("lesiones.graficos.cuentanTodas", { campo: etiqueta(REGLAS_GRAFICOS.campoContado) })}</p>
+      </div>
     </>,
   );
 
@@ -268,10 +274,12 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
     <>
       {lineaDeFiltros("jugador", camposJugador)}
       {tarjeta(
-        t("lesiones.graficos.porParte", { campo: etiqueta(REGLAS_GRAFICOS.porJugador.series) }),
+        t("lesiones.graficos.porParte", { campo: enMinuscula(etiqueta(REGLAS_GRAFICOS.porJugador.series)) }),
         <BarrasApiladas filas={filasJugador} series={seriesDe(porJugador.flatMap((fila) => Object.keys(fila.porSerie)))} vacio={t("lesiones.graficos.sinLesiones")} />,
       )}
-      <p className="informe-criterio">{t("lesiones.graficos.cuentanTodas", { campo: etiqueta(REGLAS_GRAFICOS.campoContado) })}</p>
+      <div className="reporte-graficos-notas">
+        <p className="informe-criterio">{t("lesiones.graficos.cuentanTodas", { campo: etiqueta(REGLAS_GRAFICOS.campoContado) })}</p>
+      </div>
     </>,
   );
 
@@ -288,7 +296,8 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
     clave: fila.valor,
     etiqueta: textoDe(categoria, fila.valor),
     detalle: plural("lesiones.historial.cantidad", fila.total),
-    valores: Object.fromEntries(seriesMomentos.map((serie) => [serie.clave, fila.porSerie[serie.clave] || 0])),
+    // Una parte sin lesiones en ese momento no lleva columna (ni una raya en cero).
+    valores: Object.fromEntries(seriesMomentos.map((serie) => [serie.clave, fila.porSerie[serie.clave] || null])),
   }));
   const tituloMomentos = anioMomentosElegido === null ? t("lesiones.graficos.todosLosAnios") : String(anioMomentosElegido);
   const bloqueMomentos = bloque(
@@ -299,7 +308,9 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
       {chipsDeAnios(aniosMomentos, anioMomentosElegido, setAnioMomentos)}
       {lineaDeFiltros("momentos", camposMomentos)}
       {tarjeta(tituloMomentos, <Columnas titulo={tituloMomentos} filas={filasMomentos} series={seriesMomentos} formato={(valor) => (valor ? String(valor) : "")} vacio={t("lesiones.graficos.sinLesiones")} />)}
-      <p className="informe-criterio">{t("lesiones.graficos.cuentanMomentos", { campo: etiqueta(categoria), contado: etiqueta(REGLAS_GRAFICOS.campoContado) })}</p>
+      <div className="reporte-graficos-notas">
+        <p className="informe-criterio">{t("lesiones.graficos.cuentanMomentos", { campo: etiqueta(categoria), contado: etiqueta(REGLAS_GRAFICOS.campoContado) })}</p>
+      </div>
     </>,
   );
 

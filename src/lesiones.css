@@ -2217,14 +2217,30 @@
 .lesiones-marco .reporte-graficos-filtros {
   margin: 0 0 10px;
 }
+/* Los cuatro gráficos de los bloques 1 y 2, de a dos (como en el Excel). */
 .lesiones-marco .reporte-graficos-cuatro {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
   gap: 12px;
 }
+@media (max-width: 700px) {
+  .lesiones-marco .reporte-graficos-cuatro {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .lesiones-marco .reporte-graficos-cuatro > .tarjeta {
   margin: 0;
+}
+/* Las notas de cada bloque, sobre el fondo oscuro. */
+.lesiones-marco .reporte-graficos-notas {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+}
+.lesiones-marco .reporte-graficos-notas .informe-criterio {
+  margin: 0;
+  color: #cbd5e1;
 }
 .lesiones-marco .reporte-graficos-sin-periodos {
   display: grid;
@@ -2560,7 +2576,8 @@
   .lesiones-marco .reporte-graficos-cabeza h2 {
     color: #0f172a;
   }
-  .lesiones-marco .reporte-graficos-filtrado {
+  .lesiones-marco .reporte-graficos-filtrado,
+  .lesiones-marco .reporte-graficos-notas .informe-criterio {
     color: #475569;
   }
   .lesiones-marco .reporte-columnas-grafico {
