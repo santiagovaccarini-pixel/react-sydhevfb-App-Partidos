@@ -1239,6 +1239,44 @@
   padding-left: 50px;
   background: #3f3f46;
 }
+/* La foto sin el fondo: el jugador de la cabeza a la cintura, parado sobre
+   la cabecera, y atrás el escudo grande, apenas marcado. */
+.lesiones-marco .informe-recorte {
+  position: absolute;
+  right: 40px;
+  bottom: 0;
+  width: 250px;
+  height: 100%;
+  overflow: hidden;
+}
+.lesiones-marco .informe-recorte img {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 100%;
+  height: auto;
+  transform: translateX(-50%);
+}
+.lesiones-marco .informe-marca-agua {
+  position: absolute;
+  top: 50%;
+  right: -46px;
+  width: 300px;
+  opacity: 0.07;
+  filter: grayscale(1) brightness(1.8);
+  transform: translateY(-50%) rotate(-8deg);
+  pointer-events: none;
+}
+.lesiones-marco .informe-marca-agua .escudo-cam,
+.lesiones-marco .informe-marca-agua .escudo-club,
+.lesiones-marco .informe-marca-agua img {
+  width: 100%;
+  height: auto;
+}
+.lesiones-marco .informe-escudo,
+.lesiones-marco .informe-identidad {
+  position: relative;
+}
 .lesiones-marco .informe-iniciales {
   color: #e4e4e7;
   font-size: 52px;
@@ -1539,6 +1577,10 @@
   .lesiones-marco .informe-foto {
     width: 190px;
   }
+  .lesiones-marco .informe-recorte {
+    right: 10px;
+    width: 200px;
+  }
   .lesiones-marco .informe-medio {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1591,6 +1633,20 @@
   }
   .lesiones-marco .informe-foto {
     width: 130px;
+  }
+  .lesiones-marco .informe-recorte {
+    right: 0;
+    width: 150px;
+  }
+  /* La cabecera es más alta que la foto: va apoyada abajo, donde queda
+     cortada. */
+  .lesiones-marco .informe-recorte img {
+    top: auto;
+    bottom: 0;
+  }
+  .lesiones-marco .informe-marca-agua {
+    right: -60px;
+    width: 220px;
   }
   .lesiones-marco .informe-foto.sin-foto {
     padding-left: 30px;
@@ -1859,25 +1915,6 @@
   height: auto;
   margin: 0 auto;
 }
-.lesiones-marco .cuerpo-calor-piel {
-  fill: #c9c9ce;
-}
-.lesiones-marco .cuerpo-calor-musculo {
-  stroke: rgba(63, 63, 70, 0.4);
-  stroke-width: 0.55;
-}
-.lesiones-marco .cuerpo-calor-tendon {
-  fill: #e7e7ea;
-  stroke: rgba(63, 63, 70, 0.32);
-  stroke-width: 0.5;
-}
-.lesiones-marco .cuerpo-calor-detalle {
-  fill: none;
-  stroke: rgba(63, 63, 70, 0.45);
-  stroke-width: 0.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 .lesiones-marco .cuerpo-calor-nombre line {
   stroke: #111827;
   stroke-width: 0.8;
@@ -2061,6 +2098,10 @@
   .lesiones-marco .informe-foto {
     width: 200px;
   }
+  .lesiones-marco .informe-recorte {
+    right: 24px;
+    width: 190px;
+  }
   .lesiones-marco .informe-medio {
     gap: 16px;
     padding: 12px 20px 0;
@@ -2170,6 +2211,8 @@
   }
   .lesiones-marco .informe-cabecera,
   .lesiones-marco .informe-foto,
+  .lesiones-marco .informe-recorte,
+  .lesiones-marco .informe-marca-agua,
   .lesiones-marco .informe-indicador,
   .lesiones-marco .informe-mapa,
   .lesiones-marco .reporte-mapa,

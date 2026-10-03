@@ -1,10 +1,12 @@
 import React, { useId } from "react";
 import { ALTO, ANCHO, ORDEN_DE_REGIONES, dibujoDe } from "./siluetaCuerpo.js";
-import { estructurasDe } from "./anatomiaCuerpo.js";
+import cuerpoDeFrente from "../assets/cuerpo-frente.webp";
+import cuerpoDeEspaldas from "../assets/cuerpo-espalda.webp";
 
 // El mapa corporal de los reportes: la figura del cuerpo (la de cargar una
-// lesión, con sus músculos y tendones dibujados) con relieve, de frente y de
-// espaldas una al lado de la otra, y una mancha de calor donde hubo lesiones
+// lesión) con relieve, como una escultura gris con sus músculos (las
+// imágenes las arma scripts/cuerpo-3d/ a partir del mismo dibujo, así que
+// las coordenadas coinciden), de frente y de espaldas una al lado de la otra, y una mancha de calor donde hubo lesiones
 // (más grande cuantas más), cada una con una línea al nombre de lo
 // lesionado: los de la vista de frente a la izquierda, los de la de espaldas
 // a la derecha. manchas: { frente, espalda } (manchasDe en
@@ -13,6 +15,10 @@ import { estructurasDe } from "./anatomiaCuerpo.js";
 // vistas: { frente, espalda } con el texto debajo de cada una.
 
 const ESPEJO = `matrix(-1 0 0 1 ${ANCHO} 0)`;
+// Las imágenes cubren de x = 20 a 180 del lienzo de la figura, todo el alto.
+const IMAGEN = { frente: cuerpoDeFrente, espalda: cuerpoDeEspaldas };
+const IMAGEN_DESDE = 20;
+const IMAGEN_ANCHO = 160;
 // La silueta ocupa de x = 32 a 168 del lienzo de la figura.
 const DESDE = 32;
 const CUERPO = 136;
@@ -32,7 +38,7 @@ const ANCHO_DE_LETRA = 0.58;
 const LUGAR_DEL_NOMBRE = COSTADO - 14;
 const ajusteDe = (renglon) => (renglon.length * LETRA * ANCHO_DE_LETRA > LUGAR_DEL_NOMBRE ? { textLength: LUGAR_DEL_NOMBRE, lengthAdjust: "spacingAndGlyphs" } : {});
 // El tamaño de la mancha: más lesiones, más grande (hasta cuatro).
-const radioDe = (cantidad) => 15 + 4 * Math.min(cantidad - 1, 3);
+const radioDe = (cantidad) => 18 + 5 * Math.min(cantidad - 1, 3);
 
 // Un id que sirve adentro de url(#…).
 const useIdLimpio = () => `calor-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -84,7 +90,8 @@ const nombresDe = (manchas, nombreDe, maxNombres) => {
   return grupos;
 };
 
-// Una vista: el cuerpo con relieve, las manchas y los nombres al costado.
+// Una vista: el cuerpo con relieve, las manchas (solo adentro del cuerpo) y
+// los nombres al costado.
 const Vista = ({ id, vista, manchas, nombreDe, maxNombres, texto }) => {
   const dibujos = ORDEN_DE_REGIONES.map((region) => ({ region, dibujo: dibujoDe(region, vista) })).filter(({ dibujo }) => dibujo);
   const corrida = CORRIDA[vista];
@@ -98,36 +105,11 @@ const Vista = ({ id, vista, manchas, nombreDe, maxNombres, texto }) => {
   return (
     <g data-vista={vista} transform={`translate(${corrida} 0)`}>
       <defs>
-        {dibujos.map(({ region, dibujo }) => (
-          <clipPath id={`${clave}-${region}`} key={region}>
-            {dibujo.piezas.map((pieza) => (
-              <path key={pieza.parte} d={pieza.camino} />
-            ))}
-          </clipPath>
-        ))}
         <clipPath id={`${clave}-cuerpo`}>
           {dibujos.flatMap(({ region, dibujo }) => dibujo.piezas.map((pieza) => <path key={`${region}-${pieza.parte}`} d={pieza.camino} transform={dibujo.espejada ? ESPEJO : undefined} />))}
         </clipPath>
       </defs>
-      <g filter={`url(#${id}-relieve)`}>
-        {dibujos.map(({ region, dibujo }) => (
-          <g key={region} transform={dibujo.espejada ? ESPEJO : undefined}>
-            {dibujo.piezas.map((pieza) => (
-              <path key={pieza.parte} d={pieza.camino} className="cuerpo-calor-piel" />
-            ))}
-            <g clipPath={`url(#${clave}-${region})`}>
-              {estructurasDe(region, vista)
-                .filter((una) => una.capa !== "profunda" && una.tipo !== "ligamento")
-                .map((una) => (
-                  <path key={una.clave} d={una.camino} className={`cuerpo-calor-${una.tipo}`} fill={una.tipo === "musculo" ? `url(#${id}-musculo)` : undefined} />
-                ))}
-            </g>
-            {dibujo.detalles.map((camino) => (
-              <path key={camino} d={camino} className="cuerpo-calor-detalle" />
-            ))}
-          </g>
-        ))}
-      </g>
+      <image className="cuerpo-calor-figura" href={IMAGEN[vista]} x={IMAGEN_DESDE} y={0} width={IMAGEN_ANCHO} height={ALTO} preserveAspectRatio="none" />
       <g clipPath={`url(#${clave}-cuerpo)`}>
         {manchas.map((mancha) => (
           <circle key={mancha.clave} className="cuerpo-calor-mancha" cx={mancha.x} cy={mancha.y} r={radioDe(mancha.cantidad)} fill={`url(#${id}-calor)`} />
@@ -139,7 +121,7 @@ const Vista = ({ id, vista, manchas, nombreDe, maxNombres, texto }) => {
             <line key={mancha.clave} x1={mancha.x} y1={mancha.y} x2={borde} y2={grupo.arriba + LETRA * 0.6} />
           ))}
           {grupo.renglones.map((renglon, indice) => (
-            <text key={renglon} x={xNombre} y={grupo.arriba + LETRA * 0.95 + indice * RENGLON} fontSize={LETRA} textAnchor={aLaIzquierda ? "end" : "start"} {...ajusteDe(renglon)}>
+            <text key={indice} x={xNombre} y={grupo.arriba + LETRA * 0.95 + indice * RENGLON} fontSize={LETRA} textAnchor={aLaIzquierda ? "end" : "start"} {...ajusteDe(renglon)}>
               {renglon}
             </text>
           ))}
@@ -163,29 +145,11 @@ export const CuerpoConCalor = ({ manchas, nombreDe, maxNombres = Infinity, vista
   return (
     <svg className="cuerpo-calor" viewBox={`0 0 ${ANCHO_TOTAL} ${ALTO_TOTAL}`} role="img" aria-label={titulo}>
       <defs>
-        {/* El relieve: la silueta como una superficie, iluminada de arriba a la izquierda. */}
-        <filter id={`${id}-relieve`} x="-8%" y="-3%" width="116%" height="106%" colorInterpolationFilters="sRGB">
-          <feGaussianBlur in="SourceAlpha" stdDeviation="3.6" result="alto" />
-          <feDiffuseLighting in="alto" surfaceScale="4.5" diffuseConstant="1.12" lightingColor="#ffffff" result="luz">
-            <feDistantLight azimuth="230" elevation="52" />
-          </feDiffuseLighting>
-          <feComposite in="luz" in2="SourceAlpha" operator="in" result="luzAdentro" />
-          <feBlend in="SourceGraphic" in2="luzAdentro" mode="multiply" result="sombreado" />
-          <feSpecularLighting in="alto" surfaceScale="4.5" specularConstant="0.5" specularExponent="16" lightingColor="#ffffff" result="brillo">
-            <feDistantLight azimuth="230" elevation="58" />
-          </feSpecularLighting>
-          <feComposite in="brillo" in2="SourceAlpha" operator="in" result="brilloAdentro" />
-          <feComposite in="sombreado" in2="brilloAdentro" operator="arithmetic" k2="1" k3="0.55" />
-        </filter>
-        <radialGradient id={`${id}-musculo`} cx="0.42" cy="0.38" r="0.7">
-          <stop offset="0" stopColor="#ececef" />
-          <stop offset="0.65" stopColor="#c9c9ce" />
-          <stop offset="1" stopColor="#a6a6ad" />
-        </radialGradient>
         <radialGradient id={`${id}-calor`}>
-          <stop offset="0" stopColor="#fff6c2" stopOpacity="1" />
-          <stop offset="0.2" stopColor="#ffb21e" stopOpacity="0.95" />
-          <stop offset="0.5" stopColor="#f2541b" stopOpacity="0.72" />
+          <stop offset="0" stopColor="#fff8cf" stopOpacity="1" />
+          <stop offset="0.18" stopColor="#ffbe2e" stopOpacity="1" />
+          <stop offset="0.45" stopColor="#f5641f" stopOpacity="0.82" />
+          <stop offset="0.72" stopColor="#e3342a" stopOpacity="0.38" />
           <stop offset="1" stopColor="#dc2626" stopOpacity="0" />
         </radialGradient>
       </defs>

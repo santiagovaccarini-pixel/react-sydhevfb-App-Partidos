@@ -352,15 +352,20 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   dos. El **individual** es la hoja "Reporte de Lesiones IND" del Excel con las mismas
   cuentas, solo mejor presentada (pedido de Santiago del 03/10: "las lógicas no se
   cambian"). Desde el 03/10 tiene el diseño que propuso Santiago (dos imágenes de muestra):
-  cabecera negra con el escudo, el título, el jugador, su posición, nacimiento y pie (de
-  Datos básicos) y la foto en un panel cortado en diagonal (las fotos del club vienen con
-  fondo gris claro); "Lesiones / 1000 h" y "Días perdidos / 1000 h", cuatro tarjetas cada
+  cabecera negra con el escudo (y el escudo grande de marca de agua), el título, el
+  jugador, su posición, nacimiento y pie (de Datos básicos) y la foto: a las del club
+  (fondo gris liso) se les saca el fondo en el navegador (`src/domain/recorteFoto.js`) y
+  el jugador queda parado sobre el negro; si una foto no tiene fondo liso o el sitio no
+  deja leerla, va entera en un panel cortado en diagonal; "Lesiones / 1000 h" y "Días perdidos / 1000 h", cuatro tarjetas cada
   una con los nombres de las columnas del Excel ("Severidad (TODAS) y Tipos (TODOS)", "…
   (SIN LEVES) y Tipos (SOLO LM)"; en portugués, los del Excel), con el valor del jugador,
   la referencia (el VR del plantel) y el "jugador vs VR" (superior o inferior a la
   referencia y el porcentaje sobre el valor del jugador, como la fórmula del Excel; rojo
   arriba, verde abajo); al lado, el "Mapa corporal de lesiones": la figura de cargar una
-  lesión, de frente y de espaldas, con relieve, una mancha de calor sobre el músculo,
+  lesión, de frente y de espaldas, como una escultura gris con relieve (dos imágenes WebP
+  en `src/assets/` que arma `scripts/cuerpo-3d/generar.sh` a partir del mismo dibujo del
+  cuerpo, con músculos de adorno como el trapecio o los abdominales; si cambia el dibujo
+  del cuerpo hay que volver a correrlo), una mancha de calor sobre el músculo,
   tendón o ligamento lesionado si está dibujado (si no, en el medio de la parte; más
   grande cuantas más lesiones) y una línea a su nombre (`src/components/CuerpoConCalor.jsx`
   y `manchasCuerpo.js`); abajo, el historial con doce columnas todas a la vista (en el

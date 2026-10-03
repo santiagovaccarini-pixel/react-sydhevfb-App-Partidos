@@ -4,6 +4,7 @@ import { EscudoDeClub } from "./components/ClubCrest";
 import { CuerpoConCalor } from "./components/CuerpoConCalor.jsx";
 import { manchasDe } from "./components/manchasCuerpo.js";
 import { calcular, esFechaISO, normalizarTexto } from "./domain/lesiones.js";
+import { sacarFondo } from "./domain/recorteFoto.js";
 import { CAMPOS } from "./domain/lesionesCampos.js";
 import {
   PERIODOS,
@@ -213,11 +214,57 @@ const CuadroCadaMil = ({ titulo, filas }) => (
   </div>
 );
 
-// La foto del jugador (la de Datos básicos); si no hay o no carga, sus
+// La foto del jugador (la de Datos básicos). Si tiene un fondo liso y claro
+// (las del club) se le saca y el jugador queda parado sobre la cabecera
+// negra; si no se puede (otra clase de foto, o un sitio que no deja leerla),
+// va entera en un panel cortado en diagonal; si no hay o no carga, sus
 // iniciales.
+const ALTO_PARA_RECORTAR = 640;
 const FotoDelJugador = ({ jugador }) => {
-  const [fallo, setFallo] = useState(false);
-  useEffect(() => setFallo(false), [jugador.foto_url]);
+  const url = jugador.foto_url || "";
+  const [estado, setEstado] = useState({ url, como: url ? "cargando" : "iniciales", recorte: "" });
+  useEffect(() => {
+    setEstado({ url, como: url ? "cargando" : "iniciales", recorte: "" });
+    if (!url) return undefined;
+    let vigente = true;
+    const terminar = (como, recorte = "") => vigente && setEstado({ url, como, recorte });
+    const imagen = new Image();
+    imagen.crossOrigin = "anonymous";
+    imagen.onload = () => {
+      try {
+        const escala = Math.min(1, ALTO_PARA_RECORTAR / imagen.naturalHeight);
+        const ancho = Math.max(1, Math.round(imagen.naturalWidth * escala));
+        const alto = Math.max(1, Math.round(imagen.naturalHeight * escala));
+        const lienzo = document.createElement("canvas");
+        lienzo.width = ancho;
+        lienzo.height = alto;
+        const contexto = lienzo.getContext("2d");
+        if (!contexto) return terminar("panel");
+        contexto.drawImage(imagen, 0, 0, ancho, alto);
+        const puntos = contexto.getImageData(0, 0, ancho, alto);
+        if (!sacarFondo(puntos.data, ancho, alto)) return terminar("panel");
+        contexto.putImageData(puntos, 0, 0);
+        return terminar("recorte", lienzo.toDataURL("image/png"));
+      } catch {
+        // Un sitio que no deja leer sus fotos: va entera.
+        return terminar("panel");
+      }
+    };
+    imagen.onerror = () => terminar("panel");
+    imagen.src = url;
+    return () => {
+      vigente = false;
+    };
+  }, [url]);
+  const como = estado.url === url ? estado.como : url ? "cargando" : "iniciales";
+  if (como === "recorte") {
+    return (
+      <div className="informe-recorte">
+        <img src={estado.recorte} alt="" />
+      </div>
+    );
+  }
+  if (como === "cargando") return <div className="informe-recorte" />;
   const iniciales = String(jugador.nombre || "")
     .split(/\s+/)
     .filter(Boolean)
@@ -225,10 +272,10 @@ const FotoDelJugador = ({ jugador }) => {
     .map((palabra) => palabra[0])
     .join("")
     .toUpperCase();
-  const conFoto = Boolean(jugador.foto_url) && !fallo;
+  const conFoto = como === "panel";
   return (
     <div className={`informe-foto ${conFoto ? "" : "sin-foto"}`.trim()}>
-      {conFoto ? <img src={jugador.foto_url} alt="" onError={() => setFallo(true)} /> : <span className="informe-iniciales">{iniciales}</span>}
+      {conFoto ? <img src={url} alt="" onError={() => setEstado({ url, como: "iniciales", recorte: "" })} /> : <span className="informe-iniciales">{iniciales}</span>}
     </div>
   );
 };
@@ -424,6 +471,9 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
           {estado}
           <article className="informe">
             <header className="informe-cabecera">
+              <div className="informe-marca-agua" aria-hidden="true">
+                <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
+              </div>
               <div className="informe-escudo">
                 <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
               </div>
