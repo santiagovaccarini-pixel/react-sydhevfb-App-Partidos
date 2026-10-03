@@ -31,12 +31,15 @@ export const DESTINOS_DATOS = [
   { id: "catapult", etiqueta: "Catapult", icono: "llave" },
 ];
 
-// Las columnas: el nombre, los datos del Excel y la edad de hoy. Las horas
-// previas son las de entrenamiento de antes de que llegara el cuerpo técnico
-// (la columna A de la hoja del Excel): los reportes de Lesiones las suman a
-// las del GPS.
+// Las columnas: el nombre, si está hoy en el plantel, los datos del Excel y
+// la edad de hoy. En Datos básicos quedan todos los que pasaron por el club:
+// "Actual" marca los del plantel de hoy (al lado del nombre, para verla en el
+// celular sin correr la tabla). Las horas previas son las de entrenamiento de
+// antes de que llegara el cuerpo técnico (la columna A de la hoja del Excel):
+// los reportes de Lesiones las suman a las del GPS.
 const COLUMNAS = [
   { clave: "nombre", tipo: "texto", editable: true, rotulo: "jugador" },
+  { clave: "actual", tipo: "casilla", editable: true, texto: "datos.actual" },
   { clave: "categoria", tipo: "lista", editable: true },
   { clave: "fecha_nacimiento", tipo: "fecha", editable: true },
   { clave: "edad", tipo: "calculado", editable: false },
@@ -141,6 +144,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
           id: jugador.id,
           valores: {
             nombre: jugador.nombre,
+            actual: jugador.actual !== false,
             categoria: jugador.categoria || "",
             fecha_nacimiento: jugador.fecha_nacimiento || "",
             edad,
@@ -151,6 +155,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
           },
           textos: {
             nombre: jugador.nombre,
+            actual: t(jugador.actual !== false ? "comun.si" : "comun.no"),
             categoria: textoDeOpcion("categoria", jugador.categoria),
             fecha_nacimiento: fechaCorta(jugador.fecha_nacimiento),
             edad: edad === null ? "" : plural("lesiones.anios", edad),
@@ -165,7 +170,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     [plantel, config, idioma],
   );
 
-  const reemplazar = (jugador) => setPlantel((actual) => actual.map((uno) => (uno.id === jugador.id ? jugador : uno)));
+  const reemplazar = (jugador) => setPlantel((antes) => antes.map((uno) => (uno.id === jugador.id ? jugador : uno)));
 
   // Posiciones de Partido: se guardan al toque; si no se puede, se avisa y se
   // vuelve a leer lo que quedó en la base.
@@ -221,7 +226,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       setAviso(t(respuesta.error));
       return;
     }
-    setPlantel((actual) => [...actual, respuesta.jugador].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
+    setPlantel((antes) => [...antes, respuesta.jugador].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
     setNombreNuevo("");
     setAviso(t("datos.agregado"));
   };
@@ -232,10 +237,10 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     if (!jugador) return;
     const respuesta = await quitarJugadorBasico(jugador.id);
     if (respuesta.error) {
-      setAviso(respuesta.error);
+      setAviso(t(respuesta.error));
       return;
     }
-    setPlantel((actual) => actual.filter((uno) => uno.id !== jugador.id));
+    setPlantel((antes) => antes.filter((uno) => uno.id !== jugador.id));
     setAviso(t("datos.borrado"));
   };
 
@@ -295,7 +300,9 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
               <span className="etiqueta-hero">{t("datos.titulo").toUpperCase()}</span>
               <strong className="nombre-sesion">{equipo?.nombre || t("datos.titulo")}</strong>
               <p className="fecha-hero">{vista === "jugadores" ? t("datos.texto") : t("datos.textoCorto")}</p>
-              <span className="estado-hero">{plural("datos.jugadores", plantel.length)}</span>
+              <span className="estado-hero">
+                {plural("datos.jugadores", plantel.length)} · {plural("datos.actuales", plantel.filter((jugador) => jugador.actual !== false).length)}
+              </span>
             </div>
           </header>
 

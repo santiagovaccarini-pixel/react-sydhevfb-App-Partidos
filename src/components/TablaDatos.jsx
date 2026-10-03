@@ -85,6 +85,9 @@ export const TablaDatos = ({
   const [arrastre, setArrastre] = useState(null); // { desde, sobre }
   const [mensaje, setMensaje] = useState("");
   const [ocupada, setOcupada] = useState(false);
+  // Las casillas que se están guardando: { "fila:clave": valor nuevo }. Se ven
+  // marcadas (o no) al toque, sin esperar a la base.
+  const [pendientes, setPendientes] = useState({});
   const [filtros, setFiltros] = useState(() => (recordar && memoria.get(recordar)?.filtros) || {}); // { clave: [textos elegidos] }
   const [ordenFilas, setOrdenFilas] = useState(() => (recordar && memoria.get(recordar)?.orden) || null); // { clave, sentido }
   const [hojaFiltro, setHojaFiltro] = useState(null); // { clave, titulo, elegidos, busqueda }
@@ -294,7 +297,7 @@ export const TablaDatos = ({
     else if (evento.key === "ArrowUp") mover(-1, 0);
     else if (evento.key === "ArrowRight") mover(0, 1);
     else if (evento.key === "ArrowLeft") mover(0, -1);
-    else if (evento.key === "Enter" || evento.key === "F2") {
+    else if (evento.key === "Enter" || evento.key === "F2" || (evento.key === " " && visibles[activa.c]?.tipo === "casilla")) {
       evento.preventDefault();
       empezarEdicion(activa.f, activa.c);
     } else if (evento.key === "Escape") {
@@ -319,6 +322,11 @@ export const TablaDatos = ({
     if (!fila || !col || !col.editable) return;
     if (col.tipo === "lista") {
       setHoja({ filaId: fila.id, col });
+      return;
+    }
+    // Una casilla no se escribe: se marca o se desmarca.
+    if (col.tipo === "casilla") {
+      alternarCasilla(fila, col);
       return;
     }
     // Las horas se escriben como en el Excel: "30:14:20".
@@ -352,6 +360,21 @@ export const TablaDatos = ({
     setOcupada(true);
     const respuesta = (await onEditar?.(fila.id, col.clave, nuevo)) || {};
     setOcupada(false);
+    if (respuesta.error) setMensaje(t(respuesta.error, respuesta.variables));
+  };
+
+  const marcada = (fila, col) => pendientes[`${fila.id}:${col.clave}`] ?? Boolean(fila.valores?.[col.clave]);
+  // Marca o desmarca y guarda al toque. Mientras se guarda, otro toque en la
+  // misma casilla no hace nada (no se manda dos veces).
+  const alternarCasilla = async (fila, col) => {
+    const clave = `${fila.id}:${col.clave}`;
+    if (!col.editable || clave in pendientes) return;
+    const valor = !marcada(fila, col);
+    setPendientes((antes) => ({ ...antes, [clave]: valor }));
+    setOcupada(true);
+    const respuesta = (await onEditar?.(fila.id, col.clave, valor)) || {};
+    setOcupada(false);
+    setPendientes(({ [clave]: _guardada, ...resto }) => resto);
     if (respuesta.error) setMensaje(t(respuesta.error, respuesta.variables));
   };
 
@@ -658,14 +681,32 @@ export const TablaDatos = ({
                   return (
                     <td
                       key={col.clave}
-                      className={`${estaElegida(f, c) ? "elegida" : ""} ${esActiva ? "activa" : ""} ${col.editable ? "" : "fija"}`.trim()}
+                      className={`${estaElegida(f, c) ? "elegida" : ""} ${esActiva ? "activa" : ""} ${col.editable ? "" : "fija"} ${col.tipo === "casilla" ? "casilla" : ""}`.trim()}
                       onClick={(evento) => {
                         if (esActiva && !evento.shiftKey && !enEdicion) empezarEdicion(f, c);
                         else elegir(f, c, evento.shiftKey);
                       }}
-                      onDoubleClick={() => empezarEdicion(f, c)}
+                      // En una casilla, el doble toque ya la marcó y desmarcó.
+                      onDoubleClick={() => col.tipo !== "casilla" && empezarEdicion(f, c)}
                     >
-                      {enEdicion ? (
+                      {col.tipo === "casilla" ? (
+                        <input
+                          type="checkbox"
+                          className="tabla-datos-casilla"
+                          checked={marcada(fila, col)}
+                          disabled={!col.editable}
+                          aria-label={`${col.titulo}: ${fila.textos?.[col.clave] ?? ""}`}
+                          onClick={(evento) => {
+                            // Un toque en la casilla la marca (y elige la celda),
+                            // y el teclado sigue en la tabla.
+                            evento.stopPropagation();
+                            elegir(f, c);
+                            evento.currentTarget.closest(".tabla-datos-marco")?.focus({ preventScroll: true });
+                          }}
+                          onChange={() => alternarCasilla(fila, col)}
+                          onDoubleClick={(evento) => evento.stopPropagation()}
+                        />
+                      ) : enEdicion ? (
                         <input
                           autoFocus
                           type={col.tipo === "fecha" ? "date" : col.tipo === "fecha_hora" ? "datetime-local" : col.tipo === "numero" ? "number" : "text"}

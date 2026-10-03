@@ -159,12 +159,21 @@ export const historialDeLesion = async (id) => {
 
 // ------------------------------------------------------------ Jugadores --
 
-// Las horas previas (de entrenamiento, de antes de que llegara el cuerpo
-// técnico) llegan con 20261007_horas_previas.sql: mientras no se corra, se
-// lee y se guarda sin ellas.
-const COLUMNAS_JUGADOR_SIN_HORAS = "id, nombre, roles, puestos, categoria, fecha_nacimiento, pie_dominante, posicion, foto_url";
-const COLUMNAS_JUGADOR = `${COLUMNAS_JUGADOR_SIN_HORAS}, horas_previas`;
-const faltanHorasPrevias = (error) => /horas_previas/.test(error?.message || "");
+// Columnas que llegan con un SQL nuevo: mientras no se corra, se lee y se
+// guarda sin ellas. Las horas previas (de entrenamiento, de antes de que
+// llegara el cuerpo técnico) con 20261007_horas_previas.sql; si está hoy en
+// el plantel (actual) con 20261011_jugadores_actual.sql. Cómo se reconoce en
+// el error que falta cada una (actual, como palabra: "actualizado_en" va en
+// cada cambio) y qué se avisa si se quería guardar.
+const COLUMNAS_NUEVAS = {
+  horas_previas: { falta: /horas_previas/, aviso: "datos.error.faltanHorasPrevias" },
+  actual: { falta: /\bactual\b/, aviso: "datos.error.faltaActual" },
+};
+const COLUMNAS_JUGADOR_SIEMPRE = "id, nombre, roles, puestos, categoria, fecha_nacimiento, pie_dominante, posicion, foto_url";
+const columnasJugador = (sin = []) => [COLUMNAS_JUGADOR_SIEMPRE, ...Object.keys(COLUMNAS_NUEVAS).filter((columna) => !sin.includes(columna))].join(", ");
+// La columna nueva que falta en la base, según el error (o null).
+const columnaQueFalta = (error, sin = []) =>
+  Object.keys(COLUMNAS_NUEVAS).find((columna) => !sin.includes(columna) && COLUMNAS_NUEVAS[columna].falta.test(error?.message || "")) || null;
 
 const horasPrevias = (valor) => {
   if (valor === null || valor === undefined || valor === "") return null;
@@ -174,6 +183,8 @@ const horasPrevias = (valor) => {
 
 export const normalizarJugadorLesiones = (fila) => ({
   ...normalizarJugador(fila),
+  // Sin el dato (antes del SQL, o una foto del último día de antes), está.
+  actual: fila?.actual !== false,
   categoria: fila?.categoria || "",
   fecha_nacimiento: fila?.fecha_nacimiento || "",
   pie_dominante: fila?.pie_dominante || "",
@@ -196,8 +207,12 @@ export const cargarPlantelLesiones = async (equipoId) => {
     }
   }
   const leer = (columnas) => supabase.from("jugadores").select(columnas).eq("equipo_id", equipoId).order("nombre", { ascending: true });
-  let { data, error } = await leer(COLUMNAS_JUGADOR);
-  if (error && faltanHorasPrevias(error)) ({ data, error } = await leer(COLUMNAS_JUGADOR_SIN_HORAS));
+  const sin = [];
+  let { data, error } = await leer(columnasJugador(sin));
+  for (let falta = columnaQueFalta(error, sin); falta; falta = columnaQueFalta(error, sin)) {
+    sin.push(falta);
+    ({ data, error } = await leer(columnasJugador(sin))); // eslint-disable-line no-await-in-loop
+  }
   if (!error) return { plantel: porNombre((data || []).map(normalizarJugadorLesiones)), error: "" };
   const respaldo = await cargarPlantel(equipoId);
   // deRespaldo: la base no respondió y es la última copia guardada (o nada).
@@ -217,18 +232,24 @@ export const guardarDatosJugador = async (id, datos) => {
     cambios.horas_previas = horasPrevias(datos.horas_previas);
     if ((datos.horas_previas ?? "") !== "" && (cambios.horas_previas === null || cambios.horas_previas < 0)) return { error: "datos.error.horas" };
   }
+  if ("actual" in datos) cambios.actual = datos.actual !== false;
   if (cambios.nombre === "") return { error: "datos.error.nombre" };
   const guardar = (valores, columnas) => supabase.from("jugadores").update(valores).eq("id", id).select(columnas).single();
-  let { data, error } = await guardar(cambios, COLUMNAS_JUGADOR);
-  // Sin el SQL de las horas previas: lo demás se guarda igual y, si había
-  // horas para guardar, se avisa. Si solo eran las horas, no se guarda nada.
+  const sin = [];
+  let valores = cambios;
+  let { data, error } = await guardar(valores, columnasJugador(sin));
+  // Sin el SQL de una columna nueva: lo demás se guarda igual y, si había
+  // algo para guardar en ella, se avisa. Si solo era eso, no se guarda nada.
+  // (Vaciar las horas sin la columna no pierde nada: no avisa.)
   let aviso = "";
-  if (error && faltanHorasPrevias(error)) {
-    const { horas_previas: horas, ...resto } = cambios;
-    const conHoras = horas !== null && horas !== undefined;
-    if (conHoras && !Object.keys(resto).some((clave) => clave !== "actualizado_en")) return { error: "datos.error.faltanHorasPrevias" };
-    if (conHoras) aviso = "datos.error.faltanHorasPrevias";
-    ({ data, error } = await guardar(resto, COLUMNAS_JUGADOR_SIN_HORAS));
+  for (let falta = columnaQueFalta(error, sin); falta; falta = columnaQueFalta(error, sin)) {
+    sin.push(falta);
+    const { [falta]: valor, ...resto } = valores;
+    const seQueria = falta in valores && valor !== null && valor !== undefined;
+    if (seQueria && !Object.keys(resto).some((clave) => clave !== "actualizado_en")) return { error: COLUMNAS_NUEVAS[falta].aviso };
+    if (seQueria) aviso = COLUMNAS_NUEVAS[falta].aviso;
+    valores = resto;
+    ({ data, error } = await guardar(valores, columnasJugador(sin))); // eslint-disable-line no-await-in-loop
   }
   if (error) {
     if (/duplicate key|unique/i.test(error.message || "")) return { error: "datos.error.repetido" };
@@ -252,7 +273,9 @@ export const agregarJugadorBasico = async (equipoId, nombre) => {
 
 export const quitarJugadorBasico = async (id) => {
   const respuesta = await quitarJugador(id);
-  return respuesta.error ? { error: respuesta.error } : { error: "" };
+  if (!respuesta.error) return { error: "" };
+  // Con lesiones cargadas no se borra: se desmarca "Actual".
+  return { error: /lesiones/i.test(respuesta.error) ? "datos.error.borrarConLesiones" : respuesta.error };
 };
 
 // ------------------------------------------- Cabeceras y listas por club --

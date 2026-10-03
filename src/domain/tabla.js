@@ -132,6 +132,13 @@ export const textoDeHoras = (horas) => {
   return segundos % 60 ? `${reloj}:${dos(segundos % 60)}` : reloj;
 };
 
+// Cómo se escribe una casilla marcada o vacía al pegar (en los dos idiomas,
+// sin mayúsculas ni acentos). Lo copiado de la tabla es Sí/No (Sim/Não).
+const TEXTOS_DE_CASILLA = {
+  marcada: ["si", "sim", "s", "x", "1", "true", "verdadero", "✓", "✔"],
+  vacia: ["no", "nao", "n", "0", "false", "falso"],
+};
+
 // Un texto pegado en una celda, convertido al valor que guarda esa columna.
 // Devuelve undefined cuando no se entiende (y la celda no se toca).
 export const interpretarValor = (columna, texto) => {
@@ -156,6 +163,13 @@ export const interpretarValor = (columna, texto) => {
     }
     case "horas":
       return interpretarHoras(t);
+    case "casilla": {
+      // Una celda vacía no desmarca a nadie: se deja como está.
+      const buscado = normalizarTextoBase(t);
+      if (TEXTOS_DE_CASILLA.marcada.includes(buscado)) return true;
+      if (TEXTOS_DE_CASILLA.vacia.includes(buscado)) return false;
+      return undefined;
+    }
     case "texto":
     case "texto_largo":
       return t;

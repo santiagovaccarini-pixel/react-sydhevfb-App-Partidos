@@ -85,6 +85,12 @@ describe("copiar y pegar como Excel", () => {
     expect(interpretarValor(lado, "esquerdo")).toBe("esquerdo");
     expect(interpretarValor(lado, "arriba")).toBe(undefined);
     expect(interpretarValor(lado, "")).toBe(null);
+    // Una casilla: Sí / No (y Sim / Não, x, 1, 0...). Vacía no se toca.
+    const casilla = { tipo: "casilla" };
+    expect(["Sí", "sim", "SI", "x", "1", "✓"].map((texto) => interpretarValor(casilla, texto))).toEqual([true, true, true, true, true, true]);
+    expect(["No", "Não", "nao", "0"].map((texto) => interpretarValor(casilla, texto))).toEqual([false, false, false, false]);
+    expect(interpretarValor(casilla, "")).toBe(undefined);
+    expect(interpretarValor(casilla, "quizás")).toBe(undefined);
     expect(interpretarValor({ tipo: "numero" }, "12,5")).toBe(12.5);
     expect(interpretarValor({ tipo: "numero" }, "doce")).toBe(undefined);
     expect(interpretarValor({ tipo: "texto" }, "  Dr. X ")).toBe("Dr. X");

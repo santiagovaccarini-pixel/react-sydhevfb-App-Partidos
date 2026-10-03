@@ -44,9 +44,13 @@ const ordenarPorNombre = (lista) =>
     limpiar(uno.nombre).localeCompare(limpiar(otro.nombre), "es"),
   );
 
+// actual: si está hoy en el plantel (Datos básicos › Actual,
+// 20261011_jugadores_actual.sql). Sin el dato (antes del SQL, una copia
+// vieja del celular o la lista del código), está.
 export const normalizarJugador = (fila) => ({
   id: fila?.id ?? null,
   nombre: limpiar(fila?.nombre),
+  actual: fila?.actual !== false,
   roles: (Array.isArray(fila?.roles) ? fila.roles : []).filter((rol) =>
     ROLES.includes(rol),
   ),
@@ -63,6 +67,16 @@ export const normalizarJugadorConCatapult = (fila) => ({
   catapult_nombre: limpiar(fila?.catapult_nombre) || null,
   catapult_vinculado_en: fila?.catapult_vinculado_en || null,
 });
+
+// La columna actual llega con 20261011_jugadores_actual.sql: mientras no se
+// corra, la lista se lee sin ella (todos están). Como palabra:
+// "actualizado_en" no cuenta.
+const faltaActual = (error) => /\bactual\b/.test(error?.message || "");
+// Lee con la columna actual y, si la base todavía no la tiene, sin ella.
+const conActual = async (leer, columnas) => {
+  const respuesta = await leer(`${columnas}, actual`);
+  return respuesta.error && faltaActual(respuesta.error) ? leer(columnas) : respuesta;
+};
 
 /**
  * El plantel que hoy vive en el código, por si la base todavía no respondió o
@@ -134,15 +148,15 @@ export const cargarPlantel = async (equipoId = null) => {
     }
   }
   try {
-    let consulta = supabase
-      .from("jugadores")
-      .select("id, nombre, roles, puestos");
+    const leer = (columnas) => {
+      let consulta = supabase.from("jugadores").select(columnas);
+      // Sin equipo elegido todavía no hay plantel que traer: en una base con
+      // varios clubes, traerlos todos mezclaría los desplegables.
+      if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
+      return consulta.order("nombre", { ascending: true });
+    };
 
-    // Sin equipo elegido todavía no hay plantel que traer: en una base con
-    // varios clubes, traerlos todos mezclaría los desplegables.
-    if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
-
-    const { data, error } = await consulta.order("nombre", { ascending: true });
+    const { data, error } = await conActual(leer, "id, nombre, roles, puestos");
 
     if (error) throw error;
 
@@ -204,7 +218,7 @@ export const quitarJugador = async (id) => {
   // Con lesiones cargadas la base no lo deja borrar (clave foránea): se
   // explica en castellano en vez de mostrar el error crudo.
   if (error.code === "23503" || /lesiones/i.test(error.message || "")) {
-    return { error: "Este jugador tiene lesiones cargadas y no se puede borrar. Si ya no está en el plantel, dejalo y no lo uses." };
+    return { error: "Este jugador tiene lesiones cargadas y no se puede borrar. Si ya no está en el club, desmarcá Actual en Datos básicos." };
   }
   return { error: error.message };
 };
@@ -224,13 +238,13 @@ export const cargarPlantelConCatapult = async (equipoId = null) => {
       return { plantel: [], desde: "base", error: "No se pudo leer la lista de jugadores de este club. Probá de nuevo en un rato." };
     }
   }
-  let consulta = supabase
-    .from("jugadores")
-    .select("id, nombre, roles, puestos, catapult_id, catapult_nombre, catapult_vinculado_en");
+  const leer = (columnas) => {
+    let consulta = supabase.from("jugadores").select(columnas);
+    if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
+    return consulta.order("nombre", { ascending: true });
+  };
 
-  if (equipoId) consulta = consulta.eq("equipo_id", equipoId);
-
-  const { data, error } = await consulta.order("nombre", { ascending: true });
+  const { data, error } = await conActual(leer, "id, nombre, roles, puestos, catapult_id, catapult_nombre, catapult_vinculado_en");
 
   if (error) {
     const faltaColumna = /catapult_/i.test(error.message || "") && /column|does not exist/i.test(error.message || "");

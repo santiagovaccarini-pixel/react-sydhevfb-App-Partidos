@@ -22,6 +22,7 @@ describe("plantel", () => {
     expect(jugador).toEqual({
       id: 3,
       nombre: "ALONSO",
+      actual: true,
       roles: ["Mediocampo", "Defensa"],
       puestos: ["VM", "LAT"],
     });
@@ -41,6 +42,7 @@ describe("plantel", () => {
     expect(normalizarJugador(null)).toEqual({
       id: null,
       nombre: "",
+      actual: true,
       roles: [],
       puestos: [],
     });
