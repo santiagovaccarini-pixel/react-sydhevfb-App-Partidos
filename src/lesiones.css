@@ -1118,6 +1118,7 @@
    cada 1000 horas en tarjetas chicas junto al mapa de calor del cuerpo, y el
    historial de sus lesiones con todas las columnas a la vista. */
 .lesiones-marco .informe {
+  container: informe / inline-size;
   overflow: hidden;
   max-width: 1240px;
   font-family: "Roboto Condensed", Arial, sans-serif;
@@ -1327,16 +1328,24 @@
   gap: 14px;
   min-width: 0;
 }
+/* Las partes de cada tarjeta (título, número, unidad, referencia y
+   comparación) quedan a la misma altura en toda la fila, aunque un título
+   ocupe más renglones que otro. */
 .lesiones-marco .informe-tarjetas {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 0;
 }
 .lesiones-marco .informe-indicador {
   display: grid;
+  grid-row: span 5;
+  grid-template-rows: subgrid;
+  row-gap: 0;
   justify-items: center;
   align-content: start;
   min-width: 0;
+  margin-bottom: 8px;
   padding: 10px 6px 9px;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
@@ -1559,7 +1568,9 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
-@media screen and (max-width: 980px) {
+/* Angosto (cuenta el ancho de la hoja, no el de la pantalla: en la compu,
+   la barra de la app le saca lugar): una columna. */
+@container informe (max-width: 900px) {
   .lesiones-marco .informe-cabecera {
     padding-right: 210px;
   }
@@ -2076,10 +2087,21 @@
     overflow: visible;
   }
   /* En papel, la cabecera y los indicadores más bajos: así el historial
-     empieza en la primera hoja. */
+     empieza en la primera hoja (y un jugador con pocas lesiones entra en
+     una). */
+  .lesiones-marco .app.reporte {
+    min-height: 0;
+    padding: 0;
+  }
   .lesiones-marco .informe-cabecera {
     min-height: 0;
-    padding: 12px 220px 12px 22px;
+    padding: 9px 200px 9px 20px;
+  }
+  .lesiones-marco .informe-dato dd {
+    font-size: 15px;
+  }
+  .lesiones-marco .informe-criterio {
+    font-size: 9.5px;
   }
   .lesiones-marco .informe-escudo {
     padding-right: 20px;
@@ -2090,10 +2112,11 @@
     width: 56px;
   }
   .lesiones-marco .informe-cabecera h1 {
-    font-size: 34px;
+    margin: 3px 0 2px;
+    font-size: 30px;
   }
   .lesiones-marco .informe-datos {
-    margin-top: 10px;
+    margin-top: 6px;
   }
   .lesiones-marco .informe-foto {
     width: 200px;
@@ -2104,7 +2127,7 @@
   }
   .lesiones-marco .informe-medio {
     gap: 16px;
-    padding: 12px 20px 0;
+    padding: 10px 20px 0;
   }
   .lesiones-marco .informe-indicadores {
     gap: 10px;
@@ -2132,10 +2155,12 @@
     font-size: 11px;
   }
   .lesiones-marco .informe-indicador-ref {
+    display: block;
     margin-top: 4px;
     padding-top: 4px;
   }
   .lesiones-marco .informe-indicador-ref b {
+    margin-left: 4px;
     font-size: 14px;
   }
   .lesiones-marco .informe-indicador-contra {
@@ -2150,33 +2175,24 @@
     box-shadow: none;
   }
   .lesiones-marco .cuerpo-calor {
-    max-width: 300px;
+    max-width: 270px;
   }
   .lesiones-marco .informe-lesiones {
-    padding: 14px 20px 0;
+    padding: 8px 20px 0;
   }
   .lesiones-marco .informe-seccion {
     margin-bottom: 8px;
     padding-bottom: 6px;
   }
   .lesiones-marco .informe-pie {
-    margin: 12px 20px 0;
+    margin: 8px 20px 0;
+    padding: 6px 0 0;
   }
   .lesiones-marco .informe-tabla-marco {
     border: 0;
   }
   .lesiones-marco .informe-tabla tbody tr:last-child td {
     border-bottom: 1px solid #ececec;
-  }
-  .lesiones-marco .informe-lesiones {
-    padding: 14px 20px 0;
-  }
-  .lesiones-marco .informe-seccion {
-    margin-bottom: 8px;
-    padding-bottom: 6px;
-  }
-  .lesiones-marco .informe-pie {
-    margin: 12px 20px 0;
   }
   .lesiones-marco .informe-tabla {
     min-width: 0;
