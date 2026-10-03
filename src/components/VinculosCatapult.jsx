@@ -66,10 +66,13 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
       setAtletas(lista);
       // Punto de partida: lo guardado; si no hay, la propuesta.
       const iniciales = {};
+      const actuales = new Set(plantel.filter(esActual).map((jugador) => jugador.id));
       conPropuestas(plantel, lista).forEach((fila) => {
-        // Un chaleco guardado que ya no existe no tiene opción en la lista:
-        // arranca en "Sin chaleco", así guardar lo desvincula.
-        iniciales[fila.jugadorId] = fila.vinculo?.ausente ? "" : fila.vinculo?.atletaId || fila.propuesta?.atletaId || "";
+        // Un chaleco guardado que ya no existe arranca en "Sin chaleco", así
+        // guardar lo desvincula. El de quien ya se fue queda (sus sesiones
+        // viejas lo necesitan); se puede sacar a mano.
+        const queda = fila.vinculo?.ausente && !actuales.has(fila.jugadorId);
+        iniciales[fila.jugadorId] = queda ? fila.vinculo.atletaId : fila.vinculo?.ausente ? "" : fila.vinculo?.atletaId || fila.propuesta?.atletaId || "";
       });
       setElecciones(iniciales);
       setEstadoAtletas("listo");
@@ -189,6 +192,10 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
                           disabled={guardando}
                         >
                           <option value="">{t("datos.catapult.opcionSin")}</option>
+                          {/* El chaleco guardado que ya no está en la cuenta (de quien se fue). */}
+                          {jugador.catapult_id && !opcionesAtletas.some((atleta) => String(atleta.id) === String(jugador.catapult_id)) && (
+                            <option value={String(jugador.catapult_id)}>{jugador.catapult_nombre || jugador.catapult_id}</option>
+                          )}
                           {opcionesAtletas.map((atleta) => (
                             <option key={atleta.id} value={String(atleta.id)}>
                               {nombreVisibleAtleta(atleta)}

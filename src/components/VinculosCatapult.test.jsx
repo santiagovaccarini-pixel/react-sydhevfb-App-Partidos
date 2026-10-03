@@ -149,6 +149,21 @@ describe("los chalecos de Catapult en Datos básicos", () => {
     expect(botonPorTexto("Sin cambios para guardar")).toBeDefined();
   });
 
+  test("el chaleco de quien se fue queda aunque ya no esté en la cuenta de Catapult", async () => {
+    dobles.plantel = dobles.plantel.map((jugador) => (jugador.id === 2 ? { ...jugador, actual: false, catapult_id: "a9", catapult_nombre: "IGOR GOMES (GOM)" } : jugador));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respuesta(200, { ok: true, fuente: "athletes", atletas: ATLETAS })),
+    );
+    await montar();
+    await act(async () => botonPorTexto("Buscar chalecos").click());
+    expect(contenedor.querySelector('select[aria-label="Chaleco de IGOR GOMES"]').value).toBe("a9");
+    // Guardar otros cambios no lo desvincula.
+    const guardar = [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim().startsWith("Guardar"));
+    if (guardar && !guardar.disabled) await act(async () => guardar.click());
+    expect(dobles.guardar).not.toHaveBeenCalledWith(2, expect.anything());
+  });
+
   test("bloquea el guardado si dos jugadores eligen el mismo chaleco", async () => {
     vi.stubGlobal(
       "fetch",
