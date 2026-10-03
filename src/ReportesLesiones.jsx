@@ -5,6 +5,7 @@ import { CuerpoConCalor } from "./components/CuerpoConCalor.jsx";
 import { manchasDe } from "./components/manchasCuerpo.js";
 import { CuadroCadaMil, tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import ReporteCadaMil from "./ReporteCadaMil.jsx";
+import ReporteGraficos from "./ReporteGraficos.jsx";
 import { calcular, claveDeQuien, esFechaISO, normalizarTexto, tieneFecha } from "./domain/lesiones.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { sacarFondo } from "./domain/recorteFoto.js";
@@ -18,6 +19,7 @@ import {
   cuadroCadaMil,
   lesionesDelReporte,
   minutosGps,
+  nombresDeQuien,
   periodoDe,
   porMes,
   resumenDeLesiones,
@@ -267,7 +269,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
             {t("lesiones.reportes.cambiarJugador")}
           </button>
         )}
-        {datosListos && (modo === "grupal" || modo === "cadaMil" || jugador) && (
+        {datosListos && (modo === "grupal" || modo === "cadaMil" || modo === "graficos" || jugador) && (
           <button type="button" className="boton-principal" onClick={() => window.print()}>
             <Icono nombre="documento" size={16} />
             {t("lesiones.reportes.imprimir")}
@@ -308,6 +310,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
             {tarjeta("individual", "usuario", t("lesiones.reportes.individual"), t("lesiones.reportes.individualTexto"))}
             {tarjeta("grupal", "formacion", t("lesiones.reportes.grupal"), t("lesiones.reportes.grupalTexto"))}
             {tarjeta("cadaMil", "grafico", t("lesiones.cadaMil.opcion"), t("lesiones.cadaMil.opcionTexto"))}
+            {tarjeta("graficos", "torta", t("lesiones.graficos.opcion"), t("lesiones.graficos.opcionTexto"))}
           </section>
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">
@@ -336,6 +339,26 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
   // ------------------------------------- Lesiones c/1000h y días perdidos --
   if (modo === "cadaMil") {
     return <ReporteCadaMil lesiones={lesiones} gps={gps} hoy={hoy} equipo={equipo} acciones={acciones} estado={estado} numero={numero} criterio={criterio} onAviso={onAviso} />;
+  }
+
+  // ---------------------------------------------------- Informes gráficos --
+  if (modo === "graficos") {
+    return (
+      <ReporteGraficos
+        lesiones={lesiones}
+        plantel={plantel}
+        gps={gps}
+        hoy={hoy}
+        equipo={equipo}
+        acciones={acciones}
+        estado={estado}
+        numero={numero}
+        criterio={criterio}
+        etiqueta={etiqueta}
+        textoDeOpcion={texto}
+        onIrA={setModo}
+      />
+    );
   }
 
   // --------------------------------------------------------- Individual --
@@ -568,7 +591,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
     const conteo = (clave) =>
       contarPor(delEquipo, (lesion) => lesion.datos?.[clave], hoy).map((fila) => ({ clave: fila.valor, etiqueta: texto(clave, fila.valor), valor: fila.cantidad, detalle: plural("lesiones.dias", fila.dias) }));
     // Por jugador, y también quien no está en Datos básicos (con su nombre).
-    const nombreDeQuien = new Map(delEquipo.map((lesion) => [claveDeQuien(lesion), plantel.find((uno) => String(uno.id) === String(lesion.jugador_id))?.nombre || lesion.persona || "—"]));
+    const nombreDeQuien = nombresDeQuien(delEquipo, plantel);
     const porJugador = contarPor(delEquipo, claveDeQuien, hoy)
       .sort((a, b) => b.dias - a.dias)
       .slice(0, 10)

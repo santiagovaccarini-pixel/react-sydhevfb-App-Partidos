@@ -298,6 +298,13 @@ mover a una configuración por club:
   de partidos oficiales, amistosos y entrenamientos (R7:R9) del profesional (S7); "sin
   leves" saca solo la severidad leve (T8: las de registro quedan); LM son los grados 1A a
   3C y la sobrecarga muscular / calambre.
+- Informes gráficos (`REGLAS_GRAFICOS` en `src/domain/reportes.js`, de la hoja "Informes
+  Graficos" del Excel): el año de un período guardado es el de su fecha final; en las
+  tortas, por jugador y entrenamiento y partidos cuentan las que tienen tipo de lesión
+  ("Cuenta de Tipo de lesão"); una torta por producto (no traumática, traumática) con una
+  porción por parte del cuerpo; por jugador y por cuándo, apiladas o agrupadas por parte;
+  qué filtros tiene cada bloque (las segmentaciones del Excel) y si la parte vacía cuenta
+  como "Sin dato".
 - Validaciones: obligatorios jugador, tipo de lesión (pedido del 02/10), parte,
   lado y fecha de inicio; fechas no futuras y posteriores al inicio (también la
   hora de la imagen: no antes del día de la lesión); la misma lesión no se
@@ -432,8 +439,28 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   `lesiones_periodos` (migración `20261009_lesiones_periodos.sql`): solo nombre y fechas, los
   números se calculan cada vez (Santiago, 03/10); el nombre no se repite en el club, sin
   límite de 16. Lo ve quien usa Lesiones (también quien ya se fue); lo cambia quien puede
-  editar. Los períodos guardados son los que van a comparar los gráficos de "Informes
-  Graficos" (lo que sigue).
+  editar. Los períodos guardados son los que comparan los Informes gráficos.
+- **Informes gráficos (03/10)**, en Reportes (`src/ReporteGraficos.jsx`, los gráficos en
+  `src/components/GraficosReporte.jsx`): la hoja "Informes Graficos" del Excel, los reportes
+  del plantel que no son de un jugador, en cinco bloques con un atajo a cada uno arriba:
+  1. N° de lesiones c/1000 h y 2. N° de días perdidos c/1000 h: una columna por período
+     guardado (en el orden de las fechas) en los cuatro gráficos del Excel (severidad todas
+     o sin leves, tipos todos o solo LM), con el filtro del año de cada bloque. Sin los
+     minutos del GPS (todavía no están en la app) no hay columnas: dice "—", cuántas
+     lesiones o días tiene cada período y el aviso. Sin períodos guardados, lleva a
+     guardarlos.
+  3. Partes del cuerpo: una torta de no traumáticas y otra de traumáticas, con los filtros
+     del Excel (parte, músculo, músculo específico, ligamento, área, lado, tipo y posición).
+  4. Lesiones por jugador, apiladas por parte del cuerpo (también quien no está en Datos
+     básicos; todos, actuales o no), con filtro de jugador, tipo y producto.
+  5. Entrenamiento y partidos: cuándo, por parte del cuerpo, del año (el de hoy si tiene
+     lesiones), con filtro de cuándo y parte.
+  Las sin fecha nunca cuentan. Cada parte tiene el mismo color en todos los gráficos. Se
+  imprime con un bloque por hoja. **Diferencias con el Excel** (para decidir si hace
+  falta): los filtros eligen uno o todos (en el Excel, varios); bloque 4 en barras
+  horizontales (se leen los nombres en el celular); las tortas con la leyenda al lado en
+  vez del nombre sobre la porción; "Base completa", si se guardó como período, también se
+  grafica (en el Excel nunca); el Excel imprimía solo los bloques 1 y 2.
 - **Pegar desde Excel en Lesiones (03/10)**, en Base (`src/ImportarLesiones.jsx` y
   `src/domain/importarLesiones.js`): se copia la hoja "Antecedentes BD" desde la fila de
   cabeceras hasta la última lesión y se pega. Antes de cargar se ve qué pasa con cada fila:

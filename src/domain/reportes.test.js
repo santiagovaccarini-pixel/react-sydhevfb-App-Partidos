@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
+  REGLAS_GRAFICOS,
   VARIANTES,
+  aniosDeMomentos,
+  aniosDePeriodos,
   contadorDelPeriodo,
   contarPor,
   contraVR,
@@ -10,13 +13,22 @@ import {
   entraEnElCuadro,
   esLeve,
   esMuscular,
+  graficosPorPeriodo,
+  lesionesDeLosGraficos,
   lesionesDelReporte,
+  lesionesPorJugador,
   mesesEntre,
   minutosGps,
+  momentosPorParte,
+  nombresDeQuien,
+  opcionesDeFiltro,
   ordenarPeriodos,
+  ordenarPorEtiqueta,
   periodoDe,
   porMes,
   resumenDeLesiones,
+  serieCadaMil,
+  tortaPorParte,
 } from "./reportes.js";
 
 const hoy = "2026-10-02";
@@ -234,3 +246,139 @@ describe("lesiones sin fecha y de personas fuera de Datos básicos en los report
   });
 });
 
+describe("Informes gráficos: bloques 1 y 2 (c/1000 h por período guardado)", () => {
+  const lesiones = [
+    lesion({ id: "l1" }),
+    lesion({ id: "l2", fecha_lesion: "2026-03-10", fecha_alta: "2026-03-13", datos: { tipo_lesion: "entorse_ligamentar" } }),
+    lesion({ id: "l3", fecha_lesion: "2026-05-01", fecha_alta: null, datos: { tipo_lesion: "muscular_2a" } }),
+    lesion({ id: "l4", fecha_lesion: "2026-04-01", fecha_alta: "2026-04-11", datos: { producto: "traumatica" } }),
+    lesion({ id: "l5", fecha_lesion: null, fecha_alta: null }),
+  ];
+  const periodos = [
+    { id: "p1", nombre: "1º semestre", desde: "2026-01-01", hasta: "2026-06-30" },
+    { id: "p2", nombre: "2º semestre", desde: "2026-07-01", hasta: "2026-12-31" },
+    { id: "p3", nombre: "2025", desde: "2025-01-01", hasta: "2025-12-31" },
+    { id: "p4", nombre: "Base completa", desde: null, hasta: "2026-10-02" },
+  ];
+  const gps = [
+    { jugadorId: 7, fecha: "2026-02-01", minutos: 6000 },
+    { jugadorId: 8, fecha: "2026-08-01", minutos: 12000 },
+  ];
+  const columna = (fila, medida) => fila.filas.map((una) => una[medida]);
+
+  test("los períodos en el orden de las fechas, y los de un año (el de su fecha final)", () => {
+    expect(aniosDePeriodos(periodos)).toEqual([2025, 2026]);
+    expect(graficosPorPeriodo(lesiones, gps, periodos).map((fila) => fila.periodo.id)).toEqual(["p4", "p3", "p1", "p2"]);
+    expect(graficosPorPeriodo(lesiones, gps, periodos, { anio: 2026 }).map((fila) => fila.periodo.id)).toEqual(["p4", "p1", "p2"]);
+    expect(REGLAS_GRAFICOS.anioDelPeriodo).toBe("hasta");
+  });
+
+  test("cada período se calcula como el contador del Excel (sin las sin fecha ni las traumáticas)", () => {
+    const [p4, p3, p1, p2] = graficosPorPeriodo(lesiones, gps, periodos);
+    expect(columna(p1, "cantidad")).toEqual([2, 1, 1, 1]);
+    expect(columna(p1, "dias")).toEqual([63, 60, 60, 60]);
+    expect(columna(p1, "lesionesCadaMil")).toEqual([20, 10, 10, 10]);
+    expect(columna(p1, "diasCadaMil")).toEqual([630, 600, 600, 600]);
+    // Una abierta cuenta desde su inicio (la columna CQ del Excel).
+    expect(columna(p2, "dias")).toEqual([264, 264, 264, 264]);
+    expect(columna(p2, "lesionesCadaMil")).toEqual([5, 5, 5, 5]);
+    // Sin minutos: los números, sin cada 1000 horas.
+    expect(columna(p3, "cantidad")).toEqual([0, 0, 0, 0]);
+    expect(columna(p3, "lesionesCadaMil")).toEqual([null, null, null, null]);
+    expect(columna(p4, "cantidad")).toEqual([3, 2, 2, 2]);
+    expect(columna(p4, "dias")).toEqual([177, 174, 174, 174]);
+    expect(columna(p4, "diasCadaMil")).toEqual([590, 580, 580, 580]);
+    expect(p4.horas).toBe(300);
+  });
+
+  test("sin GPS, las lesiones y los días; cada 1000 horas, nada", () => {
+    const [, , p1] = graficosPorPeriodo(lesiones, null, periodos);
+    expect(columna(p1, "cantidad")).toEqual([2, 1, 1, 1]);
+    expect(columna(p1, "lesionesCadaMil")).toEqual([null, null, null, null]);
+    expect(p1.horas).toBe(null);
+  });
+
+  test("la serie de un gráfico: una columna por período", () => {
+    const porPeriodo = graficosPorPeriodo(lesiones, gps, periodos, { anio: 2026 });
+    expect(serieCadaMil(porPeriodo, "todas", "dias")[1]).toEqual({ clave: "p1", etiqueta: "1º semestre", valor: 630, detalle: 63 });
+    expect(serieCadaMil(porPeriodo, "sinLeves", "lesiones")[1]).toEqual({ clave: "p1", etiqueta: "1º semestre", valor: 10, detalle: 1 });
+  });
+});
+
+describe("Informes gráficos: bloques 3 a 5 (partes del cuerpo, por jugador, entrenamiento y partidos)", () => {
+  const POSICIONES = { 7: "extremo", 8: "goleiro" };
+  const posicionDe = (una) => POSICIONES[una.jugador_id] || null;
+  const lesiones = [
+    lesion({ id: "A" }),
+    lesion({ id: "B", jugador_id: 8, fecha_lesion: "2026-03-01", datos: { parte_cuerpo: "joelho", lado: "esquerdo", cuando: "partida_oficial", tipo_lesion: "entorse_ligamentar" } }),
+    lesion({ id: "C", jugador_id: 8, fecha_lesion: "2025-11-10", datos: { cuando: "partida_oficial" } }),
+    lesion({ id: "D", fecha_lesion: "2026-06-01", datos: { parte_cuerpo: "joelho", producto: "traumatica", cuando: "partida_oficial" } }),
+    lesion({ id: "E", jugador_id: null, persona: "Persona Externa", fecha_lesion: "2026-02-01", datos: { parte_cuerpo: "tornozelo_pe", producto: "traumatica", cuando: "" } }),
+    lesion({ id: "F", fecha_lesion: "2026-04-01", datos: { parte_cuerpo: "", cuando: "partida_oficial" } }),
+    // Sin fecha: nunca cuenta, aunque tenga todo lo demás.
+    lesion({ id: "G", fecha_lesion: null, fecha_alta: null }),
+    // Sin tipo de lesión: no cuenta ("Cuenta de Tipo de lesão").
+    lesion({ id: "H", fecha_lesion: "2026-05-01", datos: { tipo_lesion: "" } }),
+    lesion({ id: "I", jugador_id: 8, fecha_lesion: "2026-07-01", datos: { producto: "trauma_indireto" } }),
+    // De la Selección: no entra en el cuadro c/1000 h, pero sí acá.
+    lesion({ id: "J", fecha_lesion: "2026-08-01", datos: { localizacion: "selecao", cuando: "partida_oficial" } }),
+  ];
+  const ids = (lista) => lista.map((una) => una.id);
+  const torta = (filas) => Object.fromEntries(filas.map((fila) => [fila.valor, [fila.cantidad, Math.round(fila.porcentaje)]]));
+  const porValor = (filas) => Object.fromEntries(filas.map((fila) => [fila.valor, { total: fila.total, ...fila.porSerie }]));
+
+  test("cuentan las que tienen fecha y tipo de lesión, de cualquier localización", () => {
+    expect(ids(lesionesDeLosGraficos(lesiones))).toEqual(["A", "B", "C", "D", "E", "F", "I", "J"]);
+  });
+
+  test("las tortas por parte del cuerpo, con sus filtros (también la posición del plantel)", () => {
+    expect(torta(tortaPorParte(lesiones, "nao_traumatica"))).toEqual({ coxa: [3, 60], joelho: [1, 20], "": [1, 20] });
+    expect(torta(tortaPorParte(lesiones, "traumatica"))).toEqual({ joelho: [1, 50], tornozelo_pe: [1, 50] });
+    expect(torta(tortaPorParte(lesiones, "nao_traumatica", { filtros: { lado: "esquerdo" } }))).toEqual({ joelho: [1, 100] });
+    expect(torta(tortaPorParte(lesiones, "nao_traumatica", { filtros: { posicion: "goleiro" }, posicionDe }))).toEqual({ joelho: [1, 50], coxa: [1, 50] });
+    // Fuera de Datos básicos no hay posición.
+    expect(tortaPorParte(lesiones, "traumatica", { filtros: { posicion: "goleiro" }, posicionDe })).toEqual([]);
+    expect(REGLAS_GRAFICOS.tortas.valores).toEqual(["nao_traumatica", "traumatica"]);
+    expect(Object.isFrozen(REGLAS_GRAFICOS)).toBe(true);
+  });
+
+  test("por jugador: cada persona (también fuera de Datos básicos), apilada por parte; sin parte no cuenta", () => {
+    expect(porValor(lesionesPorJugador(lesiones))).toEqual({
+      "j:7": { total: 3, coxa: 2, joelho: 1 },
+      "j:8": { total: 3, joelho: 1, coxa: 2 },
+      "p:persona externa": { total: 1, tornozelo_pe: 1 },
+    });
+    expect(porValor(lesionesPorJugador(lesiones, { filtros: { producto: "traumatica" } }))).toEqual({
+      "j:7": { total: 1, joelho: 1 },
+      "p:persona externa": { total: 1, tornozelo_pe: 1 },
+    });
+    expect(Object.keys(porValor(lesionesPorJugador(lesiones, { filtros: { jugador: "j:8" } })))).toEqual(["j:8"]);
+  });
+
+  test("entrenamiento y partidos: por el año de la fecha de inicio, sin las que no dicen cuándo", () => {
+    expect(aniosDeMomentos(lesiones)).toEqual([2025, 2026]);
+    expect(porValor(momentosPorParte(lesiones, { anio: 2026 }))).toEqual({
+      treinamento: { total: 2, coxa: 2 },
+      partida_oficial: { total: 4, joelho: 2, "": 1, coxa: 1 },
+    });
+    expect(porValor(momentosPorParte(lesiones))).toEqual({
+      treinamento: { total: 2, coxa: 2 },
+      partida_oficial: { total: 5, joelho: 2, coxa: 2, "": 1 },
+    });
+    const bordes = [lesion({ id: "fin", fecha_lesion: "2026-12-31" }), lesion({ id: "inicio", fecha_lesion: "2027-01-01" })];
+    expect(momentosPorParte(bordes, { anio: 2026 })[0].total).toBe(1);
+    expect(momentosPorParte(bordes, { anio: 2027 })[0].total).toBe(1);
+  });
+
+  test("las opciones de un filtro, el orden por cómo se lee y el nombre de cada quien", () => {
+    expect(opcionesDeFiltro(lesiones, "lado")).toEqual(["direito", "esquerdo"]);
+    expect(opcionesDeFiltro(lesiones, "posicion", posicionDe).sort()).toEqual(["extremo", "goleiro"]);
+    const PT = { coxa: "COXA", joelho: "JOELHO", pe_dedo: "PÉ/DEDO", tornozelo_pe: "TORNOZELO/PÉ", perna_aquiles: "PERNA/TENDÃO DE AQUILES" };
+    const ES = { coxa: "Muslo", joelho: "Rodilla", pe_dedo: "Pie / dedo", tornozelo_pe: "Tobillo / pie", perna_aquiles: "Pierna / tendón de Aquiles" };
+    const filas = ["tornozelo_pe", "", "joelho", "pe_dedo", "coxa", "perna_aquiles"].map((valor) => ({ valor }));
+    expect(ordenarPorEtiqueta(filas, (valor) => PT[valor] || "", "pt-BR").map((fila) => fila.valor)).toEqual(["coxa", "joelho", "pe_dedo", "perna_aquiles", "tornozelo_pe", ""]);
+    expect(ordenarPorEtiqueta(filas, (valor) => ES[valor] || "", "es-AR").map((fila) => fila.valor)).toEqual(["coxa", "pe_dedo", "perna_aquiles", "joelho", "tornozelo_pe", ""]);
+    const nombres = nombresDeQuien([...lesiones, lesion({ id: "otro", jugador_id: 99 })], [{ id: 7, nombre: "HULK" }]);
+    expect([nombres.get("j:7"), nombres.get("p:persona externa"), nombres.get("j:99")]).toEqual(["HULK", "Persona Externa", "—"]);
+  });
+});

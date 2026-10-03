@@ -2187,6 +2187,176 @@
   font-size: 10.5px;
   white-space: nowrap;
 }
+/* ---- Informes gráficos (los gráficos del plantel de la hoja del Excel) -- */
+.lesiones-marco .reporte-graficos-nav {
+  margin: 0 0 12px;
+}
+.lesiones-marco .reporte-graficos-bloque {
+  margin: 0 0 18px;
+  scroll-margin-top: 12px;
+}
+.lesiones-marco .reporte-graficos-cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 8px;
+}
+.lesiones-marco .reporte-graficos-cabeza h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.lesiones-marco .reporte-graficos-filtrado {
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+}
+.lesiones-marco .reporte-graficos-filtros {
+  margin: 0 0 10px;
+}
+.lesiones-marco .reporte-graficos-cuatro {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.lesiones-marco .reporte-graficos-cuatro > .tarjeta {
+  margin: 0;
+}
+.lesiones-marco .reporte-graficos-sin-periodos {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+.lesiones-marco .reporte-columnas-grafico {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  height: 190px;
+  overflow-x: auto;
+}
+.lesiones-marco .reporte-columnas-grupo {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  flex: 1 0 44px;
+  min-width: 44px;
+  text-align: center;
+}
+.lesiones-marco .reporte-columnas-barras {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2px;
+  min-height: 0;
+  border-bottom: 1px solid #cbd5e1;
+}
+.lesiones-marco .reporte-columnas-lugar {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 10px;
+  max-width: 48px;
+}
+.lesiones-marco .reporte-columnas-valor {
+  color: #0f172a;
+  font-size: 11.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.lesiones-marco .reporte-columnas-barra {
+  display: block;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+}
+.lesiones-marco .reporte-columnas-etiqueta {
+  margin-top: 4px;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.lesiones-marco .reporte-columnas-detalle {
+  color: #64748b;
+  font-size: 10.5px;
+}
+.lesiones-marco .reporte-apiladas .reporte-barras li {
+  grid-template-columns: minmax(0, 1fr) 34px;
+}
+.lesiones-marco .reporte-apiladas .reporte-barras-pista {
+  display: flex;
+  height: 18px;
+  border-radius: 6px;
+}
+.lesiones-marco .reporte-apiladas .reporte-apiladas-tramo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  border-radius: 0;
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+}
+.lesiones-marco .reporte-torta {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+}
+.lesiones-marco .reporte-torta svg {
+  width: 180px;
+  height: 180px;
+}
+.lesiones-marco .reporte-torta-porcion {
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+.lesiones-marco .reporte-torta-leyenda {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lesiones-marco .reporte-torta-leyenda li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 8px;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.lesiones-marco .reporte-torta-leyenda i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.lesiones-marco .reporte-torta-leyenda b {
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.lesiones-marco .reporte-torta-leyenda small {
+  grid-column: 2 / 4;
+  color: #64748b;
+  font-size: 11px;
+}
+@media (max-width: 760px) {
+  .lesiones-marco .reporte-torta {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .lesiones-marco .reporte-torta-leyenda {
+    width: 100%;
+  }
+}
 /* Impresos, los reportes van en una hoja A4 apaisada (solo ellos: el resto
    de la app imprime como siempre), sin la barra de la app y con la tabla
    entera adentro de la hoja. */
@@ -2375,8 +2545,30 @@
   .lesiones-marco .informe-leyenda i,
   .lesiones-marco .informe-tabla,
   .lesiones-marco .reporte-portada,
-  .lesiones-marco .reporte-meses {
+  .lesiones-marco .reporte-meses,
+  .lesiones-marco .reporte-columnas,
+  .lesiones-marco .reporte-apiladas,
+  .lesiones-marco .reporte-torta,
+  .lesiones-marco .reporte-leyenda {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  /* Informes gráficos: cada bloque en su hoja, los títulos en negro. */
+  .lesiones-marco .reporte-graficos-bloque + .reporte-graficos-bloque {
+    break-before: page;
+  }
+  .lesiones-marco .reporte-graficos-cabeza h2 {
+    color: #0f172a;
+  }
+  .lesiones-marco .reporte-graficos-filtrado {
+    color: #475569;
+  }
+  .lesiones-marco .reporte-columnas-grafico {
+    overflow: visible;
+    height: 150px;
+  }
+  .lesiones-marco .reporte-apiladas li,
+  .lesiones-marco .reporte-graficos-cuatro > .tarjeta {
+    break-inside: avoid;
   }
 }
