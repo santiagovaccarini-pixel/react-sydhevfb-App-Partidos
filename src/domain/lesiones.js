@@ -7,6 +7,27 @@ import { CAMPOS, TIPOS_MANUALES, campoPorClave } from "./lesionesCampos.js";
 
 export const ETAPAS = ["lesionado", "transicion", "entrenando", "alta"];
 
+// Quién se lesionó: un jugador de Datos básicos (jugador_id) o alguien que no
+// está ahí (persona: el nombre como vino en una base pegada; no se agrega a
+// Datos básicos). La clave sirve para comparar: dos lesiones son de la misma
+// persona si dan la misma clave; sin ninguno, null (no es de nadie).
+export const claveDeQuien = (lesion) => {
+  const jugador = lesion?.jugador_id;
+  if (jugador !== null && jugador !== undefined && jugador !== "") return `j:${jugador}`;
+  const persona = String(lesion?.persona ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  return persona ? `p:${persona}` : null;
+};
+export const mismaPersona = (a, b) => {
+  const clave = claveDeQuien(a);
+  return clave !== null && clave === claveDeQuien(b);
+};
+// Tiene fecha de inicio: sin ella es un caso sin terminar de cargar (vino así
+// del Excel) y no cuenta como activa, ni en días perdidos, ni en reportes.
+export const tieneFecha = (lesion) => /^\d{4}-\d{2}-\d{2}$/.test(String(lesion?.fecha_lesion || ""));
+
 
 const limpiar = (valor) => String(valor ?? "").trim();
 
@@ -23,6 +44,7 @@ export const lesionVacia = (extra = {}) => ({
   id: null,
   equipo_id: null,
   jugador_id: null,
+  persona: null,
   numero_caso: null,
   fecha_lesion: hoyISO(),
   fecha_transicion: null,
@@ -37,6 +59,10 @@ export const normalizarLesion = (fila) => ({
   ...lesionVacia(),
   ...fila,
   jugador_id: fila?.jugador_id ?? null,
+  persona: fila?.persona || null,
+  // Lo que viene de la base no toma la fecha de hoy: sin fecha, es un caso
+  // sin terminar.
+  fecha_lesion: fila?.fecha_lesion || null,
   fecha_transicion: fila?.fecha_transicion || null,
   fecha_retorno_entrenamiento: fila?.fecha_retorno_entrenamiento || null,
   fecha_alta: fila?.fecha_alta || null,
@@ -53,21 +79,24 @@ export const valorDe = (lesion, clave) => {
 };
 
 export const conValor = (lesion, clave, valor) => {
-  if (clave === "jugador") return { ...lesion, jugador_id: valor || null };
+  // Elegir un jugador de Datos básicos deja de lado el nombre de la persona.
+  if (clave === "jugador") return { ...lesion, jugador_id: valor || null, persona: valor ? null : lesion.persona ?? null };
   const campo = campoPorClave(clave);
   if (campo?.columna) return { ...lesion, [clave]: valor || null };
   return { ...lesion, datos: { ...(lesion.datos || {}), [clave]: valor ?? null } };
 };
 
-// En qué etapa está: lesionado → en transición → entrenando → con alta.
+// En qué etapa está: lesionado → en transición → entrenando → con alta. Sin
+// fecha de inicio, "sinFecha" hasta que se complete.
 export const etapaDe = (lesion) => {
+  if (!tieneFecha(lesion)) return "sinFecha";
   if (lesion?.fecha_alta) return "alta";
   if (lesion?.fecha_retorno_entrenamiento) return "entrenando";
   if (lesion?.fecha_transicion) return "transicion";
   return "lesionado";
 };
 
-export const estaActiva = (lesion) => etapaDe(lesion) !== "alta";
+export const estaActiva = (lesion) => !["alta", "sinFecha"].includes(etapaDe(lesion));
 
 // Sin retorno al entrenamiento no puede entrenar: para el plantel sigue
 // lesionado. Entrenando pero sin competir, se está reintegrando.
@@ -92,15 +121,15 @@ const dentroDe = (anterior, lesion, maximo, hoy) => {
 
 const mismo = (a, b) => String(a ?? "") === String(b ?? "");
 
-// Las lesiones anteriores del mismo jugador (inicio anterior), de la más
-// reciente a la más vieja.
+// Las lesiones anteriores del mismo jugador o persona (inicio anterior), de
+// la más reciente a la más vieja.
 const anterioresDe = (lesion, lesiones = []) =>
   lesiones
     .filter(
       (otra) =>
         otra &&
         otra.id !== lesion.id &&
-        String(otra.jugador_id) === String(lesion.jugador_id) &&
+        mismaPersona(otra, lesion) &&
         esFechaISO(otra.fecha_lesion) &&
         otra.fecha_lesion < lesion.fecha_lesion,
     )
@@ -110,7 +139,7 @@ const anterioresDe = (lesion, lesiones = []) =>
 // y parte del cuerpo, cuyo fin (alta, o hoy si sigue abierta) fue hace 60
 // días o menos. "sim" / "nao"; vacío si faltan datos.
 export const recurrenciaDe = (lesion, lesiones = [], hoy = hoyISO()) => {
-  if (!lesion?.jugador_id || !esFechaISO(lesion?.fecha_lesion)) return "";
+  if (!claveDeQuien(lesion) || !esFechaISO(lesion?.fecha_lesion)) return "";
   const d = lesion.datos || {};
   const hay = anterioresDe(lesion, lesiones).some((otra) => {
     const o = otra.datos || {};
@@ -124,7 +153,7 @@ export const recurrenciaDe = (lesion, lesiones = [], hoy = hoyISO()) => {
 // estructura (músculo, área, lado, músculo específico y parte), cuyo fin fue
 // hace 30 días o menos.
 export const recidivaDe = (lesion, lesiones = [], hoy = hoyISO()) => {
-  if (!lesion?.jugador_id || !esFechaISO(lesion?.fecha_lesion)) return "";
+  if (!claveDeQuien(lesion) || !esFechaISO(lesion?.fecha_lesion)) return "";
   const d = lesion.datos || {};
   const hay = anterioresDe(lesion, lesiones).some((otra) => {
     const o = otra.datos || {};
@@ -199,13 +228,13 @@ const horasCargadasAMano = (lesion) => {
   return Number.isFinite(numero) ? numero : null;
 };
 
-// N° de registro (Excel): la enésima lesión del jugador, contando por n° de
-// caso (o por fecha si todavía no tiene).
+// N° de registro (Excel): la enésima lesión del jugador (o de la persona),
+// contando por n° de caso (o por fecha si todavía no tiene).
 export const numeroDeRegistro = (lesion, lesiones = []) => {
-  if (!lesion?.jugador_id) return null;
+  if (!claveDeQuien(lesion)) return null;
   const suyas = lesiones
-    .filter((otra) => otra && String(otra.jugador_id) === String(lesion.jugador_id))
-    .sort((a, b) => (a.numero_caso ?? Infinity) - (b.numero_caso ?? Infinity) || (a.fecha_lesion < b.fecha_lesion ? -1 : 1));
+    .filter((otra) => otra && mismaPersona(otra, lesion))
+    .sort((a, b) => (a.numero_caso ?? Infinity) - (b.numero_caso ?? Infinity) || String(a.fecha_lesion || "").localeCompare(String(b.fecha_lesion || "")));
   const indice = suyas.findIndex((otra) => otra.id === lesion.id);
   return indice >= 0 ? indice + 1 : suyas.length + 1;
 };
@@ -274,7 +303,7 @@ const FECHAS_POSTERIORES = ["fecha_transicion", "fecha_retorno_entrenamiento", "
 // Lo que está mal en una columna, como clave del diccionario ("" si nada).
 // La carga por pasos revisa así las columnas de cada paso.
 export const errorDeCampo = (lesion, clave, hoy = hoyISO()) => {
-  if (clave === "jugador") return lesion.jugador_id ? "" : "lesiones.error.jugador";
+  if (clave === "jugador") return claveDeQuien(lesion) ? "" : "lesiones.error.jugador";
   if (clave === "fecha_lesion") {
     if (!esFechaISO(lesion.fecha_lesion)) return "lesiones.error.fecha";
     return lesion.fecha_lesion > hoy ? "lesiones.error.fechaFutura" : "";
@@ -338,22 +367,26 @@ export const erroresNuevos = (antes, despues, opciones = {}) => {
 const CAMPOS_DE_CARGA = CAMPOS.filter((campo) => campo.tipo === "jugador" || TIPOS_MANUALES.includes(campo.tipo)).map((campo) => campo.clave);
 export const camposCambiados = (antes, despues) => {
   if (!antes || !despues) return [];
-  const texto = (lesion, clave) => String(valorDe(lesion, clave) ?? "").trim();
+  // De quién es: el jugador o la persona (un cambio de una a otra también cuenta).
+  const texto = (lesion, clave) => (clave === "jugador" ? claveDeQuien(lesion) || "" : String(valorDe(lesion, clave) ?? "").trim());
   return CAMPOS_DE_CARGA.filter((clave) => texto(antes, clave) !== texto(despues, clave));
 };
 
-// Misma regla que la base (lesiones_sin_repetir): la misma lesión no se
-// carga dos veces, es decir, mismo jugador, parte del cuerpo, lado y fecha
-// de inicio. Una recaída durante la recuperación (otra fecha) sí se puede
-// cargar (Santiago, 03/10: el Excel la cuenta como recurrencia y recidiva).
+// Misma regla que la base (lesiones_sin_repetir y lesiones_sin_repetir_
+// persona): la misma lesión no se carga dos veces, es decir, mismo jugador
+// (o persona), parte del cuerpo, lado y fecha de inicio. Una recaída durante
+// la recuperación (otra fecha) sí se puede cargar (Santiago, 03/10: el Excel
+// la cuenta como recurrencia y recidiva). Sin fecha de inicio no se compara
+// (en la base tampoco: un vacío no choca con nada).
 export const seRepite = (lesion, otras = []) =>
+  tieneFecha(lesion) &&
   otras.some(
     (otra) =>
       otra &&
       otra.id !== lesion.id &&
-      String(otra.jugador_id) === String(lesion.jugador_id) &&
-      otra.datos?.parte_cuerpo === lesion.datos?.parte_cuerpo &&
-      otra.datos?.lado === lesion.datos?.lado &&
+      mismaPersona(otra, lesion) &&
+      (otra.datos?.parte_cuerpo ?? null) === (lesion.datos?.parte_cuerpo ?? null) &&
+      (otra.datos?.lado ?? null) === (lesion.datos?.lado ?? null) &&
       otra.fecha_lesion === lesion.fecha_lesion,
   );
 
@@ -364,13 +397,13 @@ export const seRepite = (lesion, otras = []) =>
 export const posibleRecidiva = (lesion, anteriores = []) => {
   const parte = lesion?.datos?.parte_cuerpo;
   const lado = lesion?.datos?.lado;
-  if (!lesion?.jugador_id || !parte || !lado || !esFechaISO(lesion.fecha_lesion)) return null;
+  if (!claveDeQuien(lesion) || !parte || !lado || !esFechaISO(lesion.fecha_lesion)) return null;
   const candidatas = anteriores
     .filter(
       (otra) =>
         otra &&
         otra.id !== lesion.id &&
-        String(otra.jugador_id) === String(lesion.jugador_id) &&
+        mismaPersona(otra, lesion) &&
         otra.datos?.parte_cuerpo === parte &&
         otra.datos?.lado === lado &&
         esFechaISO(otra.fecha_lesion) &&
@@ -383,6 +416,10 @@ export const posibleRecidiva = (lesion, anteriores = []) => {
 
 export const lesionesActivas = (lesiones = []) =>
   lesiones.filter(estaActiva).sort((a, b) => (a.fecha_lesion < b.fecha_lesion ? -1 : 1));
+
+// Las que vinieron sin fecha de inicio (casos sin terminar): para
+// completarlas.
+export const lesionesSinFecha = (lesiones = []) => ordenarPorCaso(lesiones.filter((lesion) => !tieneFecha(lesion)));
 
 // La Base, como el Excel: por n° de caso, de menor a mayor (las nuevas
 // abajo). Las que todavía no tienen n° van al final, por fecha.
@@ -415,6 +452,11 @@ export const normalizarTexto = (texto) =>
 export const claveDeErrorDeBase = (error) => {
   const mensaje = String(error?.message || "");
   const codigo = String(error?.code || "");
+  // Sin 20261010: una lesión sin fecha de inicio o de alguien que no está en
+  // Datos básicos todavía no se puede guardar.
+  if ((codigo === "23502" && /fecha_lesion|jugador_id/i.test(mensaje)) || ((codigo === "42703" || codigo === "PGRST204") && /persona/.test(mensaje))) {
+    return "lesiones.error.faltaMigracionPersonas";
+  }
   if (
     codigo === "42P01" ||
     codigo === "42703" ||
@@ -425,6 +467,7 @@ export const claveDeErrorDeBase = (error) => {
   if (codigo === "42501" || /row-level security|permission denied/i.test(mensaje)) {
     return "lesiones.error.sinPermiso";
   }
+  if (codigo === "23514" && /lesiones_de_quien/i.test(mensaje)) return "lesiones.error.jugador";
   if (codigo === "23505" && /lesiones_sin_repetir/i.test(mensaje)) return "lesiones.error.repetida";
   if (codigo === "23505" && /lesiones_numero_caso_unico/i.test(mensaje)) return "lesiones.importar.casoOcupado";
   // La regla de antes (hasta correr 20261008_lesiones_recaida.sql).

@@ -7,8 +7,34 @@ import { armarConfig, campoPorClave, esCalculado, filasParaSembrar } from "./les
 import { agregarJugador, cargarPlantel, normalizarJugador, quitarJugador } from "./plantel.js";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./alDia.js";
 
-const COLUMNAS =
+const COLUMNAS_SIN_PERSONA =
   "id, equipo_id, jugador_id, numero_caso, fecha_lesion, fecha_transicion, fecha_retorno_entrenamiento, fecha_alta, datos, creado_en, actualizado_en";
+const COLUMNAS = `${COLUMNAS_SIN_PERSONA}, persona`;
+
+// El nombre de quien no está en Datos básicos (persona) llega con
+// 20261010_lesiones_sin_fecha_y_personas.sql: mientras no se corra, se lee y
+// se guarda sin él (lo que no lo necesita sigue andando). Se recuerda para no
+// preguntar dos veces.
+let sinPersona = false;
+const faltaPersona = (error) => /persona/.test(error?.message || "") && /42703|PGRST204/.test(String(error?.code || ""));
+
+// Pide algo a la base con la columna persona y, si la base todavía no la
+// tiene, otra vez sin ella. armar(conPersona) arma la consulta. Lo que es de
+// una persona va siempre con la columna (sin ella no se puede guardar): si
+// sale bien, la base ya la tiene (se corrió el SQL con la app abierta). La
+// lista se pide siempre primero con la columna (probar): así, si se corre el
+// SQL con la app abierta, al recargar ya se ven los nombres.
+const conOSinPersona = async (armar, { dePersona = false, probar = false } = {}) => {
+  const conPersona = !sinPersona || dePersona || probar;
+  const respuesta = await armar(conPersona);
+  if (!respuesta.error) {
+    if (conPersona) sinPersona = false;
+    return respuesta;
+  }
+  if (!conPersona || dePersona || !faltaPersona(respuesta.error)) return respuesta;
+  sinPersona = true;
+  return armar(false);
+};
 
 const fallo = (error, porDefecto) => ({
   error: claveDeErrorDeBase(error) || porDefecto,
@@ -26,10 +52,13 @@ const limpiarDatos = (datos = {}) =>
       .filter(([, valor]) => valor !== null && valor !== undefined && valor !== ""),
   );
 
-// Solo las columnas que la app puede decidir.
-const soloCampos = (lesion) => ({
-  jugador_id: lesion.jugador_id,
-  fecha_lesion: lesion.fecha_lesion,
+// Solo las columnas que la app puede decidir. Sin la columna persona en la
+// base, va solo si la lesión es de una persona (y la base dice que falta el
+// SQL).
+const soloCampos = (lesion, conPersona = true) => ({
+  jugador_id: lesion.jugador_id || null,
+  ...(conPersona || lesion.persona ? { persona: lesion.jugador_id ? null : String(lesion.persona || "").replace(/\s+/g, " ").trim() || null } : {}),
+  fecha_lesion: lesion.fecha_lesion || null,
   fecha_transicion: lesion.fecha_transicion || null,
   fecha_retorno_entrenamiento: lesion.fecha_retorno_entrenamiento || null,
   fecha_alta: lesion.fecha_alta || null,
@@ -46,21 +75,28 @@ export const listarLesiones = async (equipoId) => {
       return { lesiones: [], ...fallo(error, "lesiones.error.noLeer") };
     }
   }
-  const { data, error } = await supabase
-    .from("lesiones")
-    .select(COLUMNAS)
-    .eq("equipo_id", equipoId)
-    .order("fecha_lesion", { ascending: false });
+  const { data, error } = await conOSinPersona((conPersona) =>
+    supabase
+      .from("lesiones")
+      .select(conPersona ? COLUMNAS : COLUMNAS_SIN_PERSONA)
+      .eq("equipo_id", equipoId)
+      // Las sin fecha (casos sin terminar) al final, como en la foto del último día.
+      .order("fecha_lesion", { ascending: false, nullsFirst: false }),
+    { probar: true },
+  );
   if (error) return { lesiones: [], ...fallo(error, "lesiones.error.noLeer") };
   return { lesiones: (data || []).map(normalizarLesion), error: "" };
 };
 
 export const crearLesion = async (equipoId, lesion) => {
-  const { data, error } = await supabase
-    .from("lesiones")
-    .insert({ equipo_id: equipoId, ...soloCampos(lesion) })
-    .select(COLUMNAS)
-    .single();
+  const { data, error } = await conOSinPersona((conPersona) =>
+    supabase
+      .from("lesiones")
+      .insert({ equipo_id: equipoId, ...soloCampos(lesion, conPersona) })
+      .select(conPersona ? COLUMNAS : COLUMNAS_SIN_PERSONA)
+      .single(),
+    { dePersona: Boolean(lesion.persona && !lesion.jugador_id) },
+  );
   if (error) return fallo(error, "lesiones.error.noGuardar");
   return { lesion: normalizarLesion(data), error: "" };
 };
@@ -69,22 +105,28 @@ export const crearLesion = async (equipoId, lesion) => {
 // pone la base, como a las cargadas a mano).
 export const importarLesion = async (equipoId, lesion) => {
   const numeroCaso = Number.isInteger(lesion.numero_caso) && lesion.numero_caso > 0 ? { numero_caso: lesion.numero_caso } : {};
-  const { data, error } = await supabase
-    .from("lesiones")
-    .insert({ equipo_id: equipoId, ...numeroCaso, ...soloCampos(lesion) })
-    .select(COLUMNAS)
-    .single();
+  const { data, error } = await conOSinPersona((conPersona) =>
+    supabase
+      .from("lesiones")
+      .insert({ equipo_id: equipoId, ...numeroCaso, ...soloCampos(lesion, conPersona) })
+      .select(conPersona ? COLUMNAS : COLUMNAS_SIN_PERSONA)
+      .single(),
+    { dePersona: Boolean(lesion.persona && !lesion.jugador_id) },
+  );
   if (error) return fallo(error, "lesiones.error.noGuardar");
   return { lesion: normalizarLesion(data), error: "" };
 };
 
 export const actualizarLesion = async (id, lesion) => {
-  const { data, error } = await supabase
-    .from("lesiones")
-    .update(soloCampos(lesion))
-    .eq("id", id)
-    .select(COLUMNAS)
-    .single();
+  const { data, error } = await conOSinPersona((conPersona) =>
+    supabase
+      .from("lesiones")
+      .update(soloCampos(lesion, conPersona))
+      .eq("id", id)
+      .select(conPersona ? COLUMNAS : COLUMNAS_SIN_PERSONA)
+      .single(),
+    { dePersona: Boolean(lesion.persona && !lesion.jugador_id) },
+  );
   if (error) return fallo(error, "lesiones.error.noGuardar");
   return { lesion: normalizarLesion(data), error: "" };
 };
@@ -158,7 +200,8 @@ export const cargarPlantelLesiones = async (equipoId) => {
   if (error && faltanHorasPrevias(error)) ({ data, error } = await leer(COLUMNAS_JUGADOR_SIN_HORAS));
   if (!error) return { plantel: porNombre((data || []).map(normalizarJugadorLesiones)), error: "" };
   const respaldo = await cargarPlantel(equipoId);
-  return { plantel: (respaldo.plantel || []).map(normalizarJugadorLesiones), error: "" };
+  // deRespaldo: la base no respondió y es la última copia guardada (o nada).
+  return { plantel: (respaldo.plantel || []).map(normalizarJugadorLesiones), error: "", deRespaldo: respaldo.desde !== "base" };
 };
 
 // Solo lo que se mande: una celda de la tabla, o la ficha entera.
