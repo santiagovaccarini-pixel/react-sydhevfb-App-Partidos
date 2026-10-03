@@ -459,17 +459,22 @@ describe("permisos del navegador", () => {
     expect(conexiones).toContain("https://upload.wikimedia.org");
   });
 
-  test("se pueden mostrar los escudos guardados y los remotos", () => {
-    const imagenes = directiva("img-src");
+  // Imágenes de cualquier sitio seguro: los escudos (guardados y remotos) y
+  // las fotos de los jugadores, que cada club tiene en su propia web
+  // (Datos básicos › Foto). Una imagen no corre código.
+  test("se pueden mostrar los escudos y las fotos de cualquier sitio seguro", () => {
+    const imagenes = directiva("img-src").split(/\s+/);
 
     expect(imagenes).toContain("data:");
-    expect(imagenes).toContain("https://upload.wikimedia.org");
-    expect(imagenes).toContain("thesportsdb.com");
+    expect(imagenes).toContain("https:");
+    expect(imagenes).not.toContain("http:");
+    expect(imagenes).not.toContain("*");
   });
 
-  test("sigue sin permitirse cualquier origen", () => {
+  test("las conexiones y el código siguen cerrados", () => {
     expect(directiva("connect-src")).toContain("https://*.supabase.co");
-    expect(directiva("img-src")).not.toContain(" https:;");
+    expect(directiva("connect-src").split(/\s+/)).not.toContain("https:");
+    expect(directiva("script-src")).toBe("script-src 'self'");
     expect(csp).toContain("object-src 'none'");
   });
 });

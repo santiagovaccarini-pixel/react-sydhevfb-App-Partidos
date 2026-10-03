@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
-import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
+import { CuerpoConCalor } from "./components/CuerpoConCalor.jsx";
+import { manchasDe } from "./components/manchasCuerpo.js";
 import { calcular, esFechaISO, normalizarTexto } from "./domain/lesiones.js";
+import { sacarFondo } from "./domain/recorteFoto.js";
 import { CAMPOS } from "./domain/lesionesCampos.js";
 import {
   PERIODOS,
@@ -19,6 +21,11 @@ import {
 } from "./domain/reportes.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
+// La letra angosta de los títulos y los números del reporte (solo la latina,
+// que alcanza para el castellano y el portugués).
+import "@fontsource/roboto-condensed/latin-400.css";
+import "@fontsource/roboto-condensed/latin-500.css";
+import "@fontsource/roboto-condensed/latin-700.css";
 
 // Los reportes de Lesiones. "Ver reportes": el individual (la hoja "Reporte
 // de Lesiones IND" del Excel, con las mismas cuentas y mejor presentada) y el
@@ -33,27 +40,23 @@ import { fechaCorta } from "./idioma/formatos.js";
 const COLOR_SEVERIDAD = { registro: "#94a3b8", leve: "#facc15", menor: "#fb923c", moderado: "#ef4444", mayor: "#7c3aed", abierta: "#64748b" };
 const ORDEN_SEVERIDAD = ["registro", "leve", "menor", "moderado", "mayor", "abierta"];
 
-// La tabla del jugador, como en el Excel ("cabeceras móviles"): doce columnas
-// que se cambian desde su cabecera. Lo elegido queda en el celular.
-const COLUMNAS_DEL_EXCEL = ["numero_registro", "parte_cuerpo", "tipo_lesion", "mecanismo", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_transicion", "recuperacion", "fecha_alta", "musculo"];
-const CLAVE_COLUMNAS = "lesiones_reporte_columnas";
-const leerColumnas = () => {
-  try {
-    const guardadas = JSON.parse(window.localStorage.getItem(CLAVE_COLUMNAS) || "null");
-    return Array.isArray(guardadas) && guardadas.length === COLUMNAS_DEL_EXCEL.length ? guardadas : COLUMNAS_DEL_EXCEL;
-  } catch {
-    return COLUMNAS_DEL_EXCEL;
-  }
-};
-const guardarColumnas = (columnas) => {
-  try {
-    window.localStorage.setItem(CLAVE_COLUMNAS, JSON.stringify(columnas));
-  } catch {
-    // Sin dónde guardarlas, duran hasta cerrar la app.
-  }
-};
+// La tabla del jugador: doce columnas, todas a la vista (en el Excel se
+// cambiaban desde la cabecera por falta de lugar). Son las del diseño de
+// Santiago: las del Excel con "Músculo específico" en lugar de "Pase a
+// transición". Las cortas (números, fechas, sí o no) no se parten en
+// renglones: el lugar que sobra queda para los textos.
+const COLUMNAS_DEL_REPORTE = ["numero_registro", "parte_cuerpo", "tipo_lesion", "mecanismo", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_alta", "recuperacion", "musculo", "musculo_especifico"];
+const COLUMNAS_CORTAS = new Set(["numero_registro", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_alta", "recuperacion"]);
 
 const CAMPO_POR_CLAVE = Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo]));
+
+// El nombre de cada columna del cuadro, el del Excel: "Severidad (SIN
+// LEVES) y Tipos (SOLO LM)".
+const tituloDeVariante = (variante) =>
+  t("lesiones.reportes.variante", {
+    severidad: t(variante.sinLeves ? "lesiones.reportes.severidadSinLeves" : "lesiones.reportes.severidadTodas"),
+    tipos: t(variante.soloMusculares ? "lesiones.reportes.tiposLM" : "lesiones.reportes.tiposTodos"),
+  });
 
 // Más que el VR, en rojo; menos, en verde (la leyenda del Excel).
 const tonoContraVR = (delJugador, vr) => {
@@ -126,36 +129,47 @@ const BarrasPorMes = ({ meses, textoSeveridad, idioma }) => {
   );
 };
 
-// La figura de frente y de espaldas, con cada parte más roja cuantas más
-// lesiones tuvo.
-const FiguraDeCalor = ({ lesiones, mapa, textoDeOpcion }) => {
-  const conteo = new Map();
-  lesiones.forEach((lesion) => {
-    const parte = lesion.datos?.parte_cuerpo;
-    if (!parte) return;
-    const region = mapa.regionDe(parte, lesion.datos?.lado);
-    if (!region) return;
-    const clave = `${region}:${mapa.piezaDe(parte, region) || parte}`;
-    conteo.set(clave, (conteo.get(clave) || 0) + 1);
-  });
-  const maximo = Math.max(...conteo.values(), 1);
-  const colorDe = (region, pieza) => {
-    const cantidad = conteo.get(`${region}:${pieza}`);
-    if (!cantidad) return null;
-    const fuerza = 0.35 + 0.65 * (cantidad / maximo);
-    return `rgba(239, 68, 68, ${fuerza.toFixed(2)})`;
-  };
-  return (
-    <div className="reporte-figuras">
-      {["frente", "espalda"].map((vista) => (
-        <div className="reporte-figura" key={vista}>
-          <FiguraCuerpo vista={vista} colorDe={colorDe} nombreDeParte={(codigo) => textoDeOpcion("parte_cuerpo", codigo)} etiquetas={{ figura: t(`lesiones.cuerpo.${vista}`) }} />
-          <small>{t(`lesiones.cuerpo.${vista}`)}</small>
-        </div>
-      ))}
-    </div>
-  );
-};
+// El mapa corporal: el cuerpo de frente y de espaldas con una mancha de
+// calor donde hubo lesiones y el nombre de lo lesionado (el músculo, el
+// tendón, el ligamento o la parte del cuerpo). El mismo en el individual y
+// en el grupal (ahí, con los nombres de los lugares con más lesiones).
+const NOMBRES_EN_EL_GRUPAL = 6;
+const MapaCorporal = ({ lesiones, mapa, textoDeOpcion, maxNombres = Infinity }) => (
+  <div className="reporte-mapa">
+    <CuerpoConCalor
+      manchas={manchasDe(lesiones, mapa)}
+      nombreDe={(mancha) => textoDeOpcion(mancha.campo, mancha.codigo)}
+      maxNombres={maxNombres}
+      vistas={{ frente: t("lesiones.reportes.vistas.frente"), espalda: t("lesiones.reportes.vistas.espalda") }}
+      titulo={t("lesiones.reportes.mapaCorporal")}
+    />
+    <p className="reporte-mapa-nota">
+      <i aria-hidden="true" />
+      {t("lesiones.reportes.mapaNota")}
+    </p>
+  </div>
+);
+
+// Un número del cuadro cada 1000 horas en el individual: el del jugador, la
+// referencia (el VR del plantel) y cómo da contra ella (la fila "Jugador vs
+// VR" del Excel: el porcentaje y el color de la leyenda).
+const Indicador = ({ titulo, valor, unidad, referencia, comparado, porcentaje, tono }) => (
+  <div className={`informe-indicador ${tono}`.trim()}>
+    <span className="informe-indicador-titulo">{titulo}</span>
+    <b className="informe-indicador-valor">{valor}</b>
+    <span className="informe-indicador-unidad">{unidad}</span>
+    <span className="informe-indicador-ref">
+      {t("lesiones.reportes.referencia")}
+      <b>{referencia}</b>
+    </span>
+    {comparado && (
+      <span className="informe-indicador-contra">
+        <span>{comparado}</span>
+        <small>{porcentaje}</small>
+      </span>
+    )}
+  </div>
+);
 
 // El cuadro del Excel: las cuatro columnas (severidad todas o sin leves, de
 // todos los tipos o solo LM) y una fila por medida: [{ id, rotulo, clase?,
@@ -200,11 +214,57 @@ const CuadroCadaMil = ({ titulo, filas }) => (
   </div>
 );
 
-// La foto del jugador (la de Datos básicos); si no hay o no carga, sus
+// La foto del jugador (la de Datos básicos). Si tiene un fondo liso y claro
+// (las del club) se le saca y el jugador queda parado sobre la cabecera
+// negra; si no se puede (otra clase de foto, o un sitio que no deja leerla),
+// va entera en un panel cortado en diagonal; si no hay o no carga, sus
 // iniciales.
+const ALTO_PARA_RECORTAR = 640;
 const FotoDelJugador = ({ jugador }) => {
-  const [fallo, setFallo] = useState(false);
-  useEffect(() => setFallo(false), [jugador.foto_url]);
+  const url = jugador.foto_url || "";
+  const [estado, setEstado] = useState({ url, como: url ? "cargando" : "iniciales", recorte: "" });
+  useEffect(() => {
+    setEstado({ url, como: url ? "cargando" : "iniciales", recorte: "" });
+    if (!url) return undefined;
+    let vigente = true;
+    const terminar = (como, recorte = "") => vigente && setEstado({ url, como, recorte });
+    const imagen = new Image();
+    imagen.crossOrigin = "anonymous";
+    imagen.onload = () => {
+      try {
+        const escala = Math.min(1, ALTO_PARA_RECORTAR / imagen.naturalHeight);
+        const ancho = Math.max(1, Math.round(imagen.naturalWidth * escala));
+        const alto = Math.max(1, Math.round(imagen.naturalHeight * escala));
+        const lienzo = document.createElement("canvas");
+        lienzo.width = ancho;
+        lienzo.height = alto;
+        const contexto = lienzo.getContext("2d");
+        if (!contexto) return terminar("panel");
+        contexto.drawImage(imagen, 0, 0, ancho, alto);
+        const puntos = contexto.getImageData(0, 0, ancho, alto);
+        if (!sacarFondo(puntos.data, ancho, alto)) return terminar("panel");
+        contexto.putImageData(puntos, 0, 0);
+        return terminar("recorte", lienzo.toDataURL("image/png"));
+      } catch {
+        // Un sitio que no deja leer sus fotos: va entera.
+        return terminar("panel");
+      }
+    };
+    imagen.onerror = () => terminar("panel");
+    imagen.src = url;
+    return () => {
+      vigente = false;
+    };
+  }, [url]);
+  const como = estado.url === url ? estado.como : url ? "cargando" : "iniciales";
+  if (como === "recorte") {
+    return (
+      <div className="informe-recorte">
+        <img src={estado.recorte} alt="" />
+      </div>
+    );
+  }
+  if (como === "cargando") return <div className="informe-recorte" />;
   const iniciales = String(jugador.nombre || "")
     .split(/\s+/)
     .filter(Boolean)
@@ -212,9 +272,10 @@ const FotoDelJugador = ({ jugador }) => {
     .map((palabra) => palabra[0])
     .join("")
     .toUpperCase();
+  const conFoto = como === "panel";
   return (
-    <div className="informe-foto">
-      {jugador.foto_url && !fallo ? <img src={jugador.foto_url} alt="" onError={() => setFallo(true)} /> : <span className="informe-iniciales">{iniciales}</span>}
+    <div className={`informe-foto ${conFoto ? "" : "sin-foto"}`.trim()}>
+      {conFoto ? <img src={url} alt="" onError={() => setEstado({ url, como: "iniciales", recorte: "" })} /> : <span className="informe-iniciales">{iniciales}</span>}
     </div>
   );
 };
@@ -226,7 +287,6 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
   const [modo, setModo] = useState("menu");
   const [jugadorId, setJugadorId] = useState("");
   const [busqueda, setBusqueda] = useState("");
-  const [columnas, setColumnas] = useState(leerColumnas);
   // El período y los filtros del grupal.
   const [periodo, setPeriodo] = useState("anio");
   const [rango, setRango] = useState(() => periodoDe("anio", hoy, lesiones));
@@ -360,37 +420,49 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
     const minutosDelJugador = gps ? minutosGps(gps, { jugadorId: jugador.id }) + (jugador.horas_previas || 0) * 60 : 0;
     const delJugador = cuadroCadaMil(deJugador, minutosDelJugador, { hasta: hoy });
     const delPlantel = cuadroCadaMil(lesiones, minutosGps(gps, { hasta: hoy }), { hasta: hoy });
-    const filasDe = (medida) => {
-      const tonos = delJugador.map((fila, indice) => tonoContraVR(fila[medida], delPlantel[indice][medida]));
-      const textoContra = (fila, indice) => {
-        const contra = contraVR(fila[medida], delPlantel[indice][medida]);
-        if (!contra) return "—";
-        return t("lesiones.reportes.valorVsVR", { valor: contra.signo ? `${contra.signo}${numero(contra.porcentaje, 1)}%` : "0%" });
-      };
-      return [
-        { id: "jugador", clase: "informe-fila-jugador", rotulo: t("lesiones.reportes.jugador"), celdas: delJugador.map((fila, indice) => ({ texto: numero(fila[medida]), tono: tonos[indice] })) },
-        { id: "vr", rotulo: t("lesiones.reportes.vr"), celdas: delPlantel.map((fila) => ({ texto: numero(fila[medida]) })) },
-        { id: "contra", clase: "informe-fila-contra", rotulo: t("lesiones.reportes.jugadorVsVR"), celdas: delJugador.map((fila, indice) => ({ texto: textoContra(fila, indice), tono: tonos[indice] })) },
-      ];
-    };
-
-    const datosDelJugador = [
-      { icono: "calendario", rotulo: t("lesiones.reportes.nacimiento"), valor: esFechaISO(jugador.fecha_nacimiento) ? fechaCorta(jugador.fecha_nacimiento) : "—" },
-      { icono: "huellas", rotulo: t("lesiones.reportes.pie"), valor: jugador.pie_dominante ? texto("pie_dominante", jugador.pie_dominante) : "—" },
-      { icono: "cancha", rotulo: t("lesiones.reportes.posicion"), valor: jugador.posicion ? texto("posicion", jugador.posicion) : "—" },
+    // Cada medida, una fila de cuatro números (las columnas del Excel): el
+    // del jugador, la referencia y el "Jugador vs VR".
+    const indicadoresDe = (medida) =>
+      delJugador.map((fila, indice) => {
+        const referencia = delPlantel[indice][medida.id];
+        const tono = tonoContraVR(fila[medida.id], referencia);
+        const contra = contraVR(fila[medida.id], referencia);
+        return {
+          id: VARIANTES[indice].id,
+          titulo: tituloDeVariante(VARIANTES[indice]),
+          valor: numero(fila[medida.id]),
+          unidad: medida.unidad,
+          referencia: numero(referencia),
+          tono,
+          comparado: contra && t(`lesiones.reportes.comparado.${tono || "igual"}`),
+          porcentaje: contra && t("lesiones.reportes.porcentajeVsRef", { valor: contra.signo ? `${contra.signo}${numero(contra.porcentaje, 1)}%` : "0%" }),
+        };
+      });
+    const MEDIDAS = [
+      { id: "lesionesCadaMil", titulo: t("lesiones.reportes.lesionesPorMil"), unidad: t("lesiones.reportes.unidadLesiones") },
+      { id: "diasCadaMil", titulo: t("lesiones.reportes.diasPorMil"), unidad: t("lesiones.reportes.unidadDias") },
     ];
 
-    // La tabla: todas sus lesiones, por n° de registro.
-    const opciones = camposVisibles.filter((campo) => campo.clave !== "jugador");
-    const hay = new Set(opciones.map((campo) => campo.clave));
-    const columnasAVer = columnas.map((clave, indice) => (hay.has(clave) ? clave : hay.has(COLUMNAS_DEL_EXCEL[indice]) ? COLUMNAS_DEL_EXCEL[indice] : opciones[0]?.clave)).filter(Boolean);
-    const cambiarColumna = (indice, clave) => {
-      const nuevas = columnasAVer.map((actual, cual) => (cual === indice ? clave : actual));
-      setColumnas(nuevas);
-      guardarColumnas(nuevas);
-    };
+    const posicion = jugador.posicion ? texto("posicion", jugador.posicion) : "";
+    const datosDelJugador = [
+      { clave: "nacimiento", rotulo: t("lesiones.reportes.nacimiento"), valor: esFechaISO(jugador.fecha_nacimiento) ? fechaCorta(jugador.fecha_nacimiento) : "—" },
+      { clave: "pie", rotulo: t("lesiones.reportes.pie"), valor: jugador.pie_dominante ? texto("pie_dominante", jugador.pie_dominante) : "—" },
+    ];
+
+    // La tabla: todas sus lesiones, por n° de registro, con las columnas del
+    // reporte que el club tiene a la vista.
+    const visibles = new Set(camposVisibles.map((campo) => campo.clave));
+    const columnasAVer = COLUMNAS_DEL_REPORTE.filter((clave) => visibles.has(clave) && CAMPO_POR_CLAVE[clave]);
     const registro = (lesion) => calcular("numero_registro", lesion, null, { lesiones }) ?? 0;
     const ordenadas = [...deJugador].sort((a, b) => registro(a) - registro(b) || String(a.fecha_lesion).localeCompare(String(b.fecha_lesion)));
+    // Las opciones del club que vienen pegadas con barras (ENTORSE/LESÃO
+    // LIGAMENTAR) se pueden partir después de cada barra.
+    const celda = (clave, lesion) => {
+      const valor = enPantalla(CAMPO_POR_CLAVE[clave], lesion);
+      if (valor === "" || valor === null || valor === undefined) return <span className="informe-vacio">—</span>;
+      if (clave === "severidad") return <span className="informe-severidad">{valor}</span>;
+      return typeof valor === "string" ? valor.replace(/\//g, "/\u200b") : valor;
+    };
 
     return (
       <div className="app reporte">
@@ -399,60 +471,73 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
           {estado}
           <article className="informe">
             <header className="informe-cabecera">
+              <div className="informe-marca-agua" aria-hidden="true">
+                <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
+              </div>
+              <div className="informe-escudo">
+                <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
+              </div>
               <div className="informe-identidad">
-                <div className="informe-club">
-                  <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} compacto />
-                  <span>{equipo?.nombre || ""}</span>
-                </div>
-                <h1>{jugador.nombre}</h1>
                 <p className="informe-subtitulo">{t("lesiones.reportes.individualTitulo")}</p>
+                <h1>{jugador.nombre}</h1>
+                {posicion && <p className="informe-posicion">{posicion}</p>}
+                <dl className="informe-datos">
+                  {datosDelJugador.map((dato) => (
+                    <div className="informe-dato" key={dato.clave}>
+                      <dt>{dato.rotulo}</dt>
+                      <dd>{dato.valor}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
               <FotoDelJugador jugador={jugador} />
             </header>
 
-            <div className="informe-cuerpo">
-              <dl className="informe-datos">
-                {datosDelJugador.map((dato) => (
-                  <div className="informe-dato" key={dato.icono}>
-                    <span className="informe-dato-icono" aria-hidden="true">
-                      <Icono nombre={dato.icono} size={20} />
-                    </span>
-                    <div>
-                      <dt>{dato.rotulo}</dt>
-                      <dd>{dato.valor}</dd>
+            <div className="informe-medio">
+              <section className="informe-indicadores" aria-label={t("lesiones.reportes.indicadores")}>
+                {MEDIDAS.map((medida, cual) => (
+                  <div className="informe-medida" key={medida.id}>
+                    <div className="informe-seccion">
+                      <h2>
+                        {medida.titulo} <span className="informe-por-mil">{t("lesiones.reportes.porMil")}</span>
+                      </h2>
+                      {cual === 0 && <span>{t("lesiones.reportes.tasas")}</span>}
+                    </div>
+                    <div className="informe-tarjetas">
+                      {indicadoresDe(medida).map((indicador) => (
+                        <Indicador key={indicador.id} {...indicador} />
+                      ))}
                     </div>
                   </div>
                 ))}
-              </dl>
-
-              <div className="informe-indices">
-                <CuadroCadaMil titulo={t("lesiones.reportes.lesionesMil")} filas={filasDe("lesionesCadaMil")} />
-                <CuadroCadaMil titulo={t("lesiones.reportes.diasMil")} filas={filasDe("diasCadaMil")} />
                 {!gps && <p className="informe-aviso">{t("lesiones.reportes.faltaGps")}</p>}
                 <ul className="informe-leyenda">
                   <li>
                     <i className="peor" />
-                    {t("lesiones.reportes.superiorVR")}
+                    {t("lesiones.reportes.superiorRef")}
                   </li>
                   <li>
                     <i className="mejor" />
-                    {t("lesiones.reportes.inferiorVR")}
+                    {t("lesiones.reportes.inferiorRef")}
                   </li>
-                  <li>
-                    <i className="lm" />
-                    {t("lesiones.reportes.queEsLM")}
-                  </li>
-                  <li>{t("lesiones.reportes.queEsVR")}</li>
+                  <li>{t("lesiones.reportes.queEsRef")}</li>
                 </ul>
                 <p className="informe-criterio">{t("lesiones.reportes.cuentan", { criterio })}</p>
-              </div>
+              </section>
+
+              <section className="informe-mapa">
+                <div className="informe-seccion">
+                  <h2>{t("lesiones.reportes.mapaCorporal")}</h2>
+                </div>
+                <MapaCorporal lesiones={deJugador} mapa={mapa} textoDeOpcion={texto} />
+              </section>
             </div>
 
             <section className="informe-lesiones">
-              <h2>
-                {t("lesiones.reportes.susLesiones")}
-                <span>{deJugador.length}</span>
-              </h2>
+              <div className="informe-seccion">
+                <h2>{t("lesiones.reportes.historialLesiones")}</h2>
+                <span>{plural("lesiones.reportes.registros", deJugador.length)}</span>
+              </div>
               {deJugador.length === 0 ? (
                 <p className="vacio-ficha">{t("lesiones.reportes.sinLesionesJugador")}</p>
               ) : (
@@ -460,21 +545,9 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
                   <table className="informe-tabla">
                     <thead>
                       <tr>
-                        {columnasAVer.map((clave, indice) => (
-                          <th scope="col" key={indice}>
-                            <label className="informe-columna">
-                              <span>{etiqueta(clave)}</span>
-                              <svg className="no-imprimir" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-                                <path d="m2 4 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                              <select value={clave} onChange={(evento) => cambiarColumna(indice, evento.target.value)} aria-label={t("lesiones.reportes.columna", { n: indice + 1 })}>
-                                {opciones.map((campo) => (
-                                  <option key={campo.clave} value={campo.clave}>
-                                    {etiqueta(campo.clave)}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                        {columnasAVer.map((clave) => (
+                          <th scope="col" key={clave} className={COLUMNAS_CORTAS.has(clave) ? "informe-corta" : undefined}>
+                            {etiqueta(clave)}
                           </th>
                         ))}
                       </tr>
@@ -482,8 +555,10 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
                     <tbody>
                       {ordenadas.map((lesion) => (
                         <tr key={lesion.id}>
-                          {columnasAVer.map((clave, indice) => (
-                            <td key={indice}>{CAMPO_POR_CLAVE[clave] ? enPantalla(CAMPO_POR_CLAVE[clave], lesion) : ""}</td>
+                          {columnasAVer.map((clave) => (
+                            <td key={clave} className={COLUMNAS_CORTAS.has(clave) ? "informe-corta" : undefined}>
+                              {celda(clave, lesion)}
+                            </td>
                           ))}
                         </tr>
                       ))}
@@ -492,6 +567,11 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
                 </div>
               )}
             </section>
+
+            <footer className="informe-pie">
+              <span>{[equipo?.nombre, t("lesiones.reportes.individual")].filter(Boolean).join(" · ")}</span>
+              <span>{fechaCorta(hoy)}</span>
+            </footer>
           </article>
         </div>
       </div>
@@ -614,7 +694,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
           {bloque(t("lesiones.reportes.porMes"), <BarrasPorMes meses={porMes(delEquipo, desde, hasta)} textoSeveridad={textoSeveridad} idioma={idioma} />)}
 
           <section className="reporte-dos">
-            {bloque(t("lesiones.reportes.dondeSeLesionan"), <FiguraDeCalor lesiones={delEquipo} mapa={mapa} textoDeOpcion={texto} />)}
+            {bloque(t("lesiones.reportes.dondeSeLesionan"), <MapaCorporal lesiones={delEquipo} mapa={mapa} textoDeOpcion={texto} maxNombres={NOMBRES_EN_EL_GRUPAL} />)}
             {bloque(etiqueta("parte_cuerpo"), <Barras filas={conteo("parte_cuerpo")} vacio={vacio} color="#ef4444" />)}
           </section>
 

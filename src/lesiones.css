@@ -1113,126 +1113,568 @@
   transform: rotate(180deg);
 }
 
-/* El individual: una hoja blanca con el encabezado negro (el club, el
-   jugador y su foto), el panel gris con sus datos, el cuadro cada 1000 horas
-   con la leyenda y la tabla de sus lesiones. */
+/* El individual: una hoja blanca con la cabecera negra (el escudo, el
+   jugador con sus datos y su foto cortada en diagonal), los indicadores
+   cada 1000 horas en tarjetas chicas junto al mapa de calor del cuerpo, y el
+   historial de sus lesiones con todas las columnas a la vista. */
 .lesiones-marco .informe {
   overflow: hidden;
-  margin-bottom: 16px;
-  border-radius: 22px;
+  max-width: 1240px;
+  font-family: "Roboto Condensed", Arial, sans-serif;
+  margin: 0 auto 16px;
+  border-radius: 18px;
   background: #fff;
   color: #111827;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06), 0 18px 40px rgba(2, 6, 23, 0.28);
 }
 .lesiones-marco .informe-cabecera {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
-  padding: 22px;
-  background: linear-gradient(135deg, #000 0%, #111827 60%, #1f2937 100%);
+  min-height: 200px;
+  padding: 26px 300px 26px 30px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(118deg, rgba(255, 255, 255, 0.022) 0 70px, transparent 70px 150px),
+    linear-gradient(105deg, #09090b 0%, #18181b 55%, #27272a 100%);
   color: #fff;
 }
-.lesiones-marco .informe-club {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #d1d5db;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+.lesiones-marco .informe-escudo {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  padding-right: 26px;
+  margin-right: 26px;
+  border-right: 1px solid rgba(255, 255, 255, 0.22);
 }
-.lesiones-marco .informe-club .escudo-cam,
-.lesiones-marco .informe-club .escudo-club,
-.lesiones-marco .informe-club svg {
-  width: 34px;
+.lesiones-marco .informe-escudo .escudo-cam,
+.lesiones-marco .informe-escudo .escudo-club {
+  width: 72px;
   height: auto;
-  flex: none;
 }
-.lesiones-marco .informe-cabecera h1 {
-  margin: 12px 0 6px;
-  color: #fff;
-  font-size: clamp(26px, 6.5vw, 40px);
-  line-height: 1.02;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
-  overflow-wrap: anywhere;
+.lesiones-marco .informe-escudo .escudo-club img {
+  width: 100%;
+  height: auto;
+}
+.lesiones-marco .informe-identidad {
+  min-width: 0;
 }
 .lesiones-marco .informe-subtitulo {
   margin: 0;
-  color: #9ca3af;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.22em;
+  color: #d4d4d8;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
 }
-.lesiones-marco .informe-foto {
-  display: grid;
-  place-items: center;
-  width: 108px;
-  height: 108px;
-  overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  background: #1f2937;
+.lesiones-marco .informe-cabecera h1 {
+  margin: 6px 0 4px;
+  color: #fff;
+  font-family: "Inter", Arial, sans-serif;
+  font-size: clamp(30px, 5vw, 54px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
-.lesiones-marco .informe-foto img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.lesiones-marco .informe-iniciales {
-  color: #e5e7eb;
-  font-size: 34px;
-  font-weight: 800;
-}
-.lesiones-marco .informe-cuerpo {
-  display: grid;
-  grid-template-columns: minmax(210px, 250px) minmax(0, 1fr);
-  align-items: start;
-  gap: 18px;
-  padding: 18px;
+.lesiones-marco .informe-posicion {
+  margin: 0;
+  color: #a1a1aa;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
 }
 .lesiones-marco .informe-datos {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 8px;
-  border-radius: 18px;
-  background: #f3f4f6;
+  display: flex;
+  flex-wrap: wrap;
+  margin: 16px 0 0;
 }
 .lesiones-marco .informe-dato {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  padding: 10px;
+  padding: 0 22px;
+}
+.lesiones-marco .informe-dato:first-child {
+  padding-left: 0;
 }
 .lesiones-marco .informe-dato + .informe-dato {
-  border-top: 1px solid #e5e7eb;
-}
-.lesiones-marco .informe-dato-icono {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
-  background: #111827;
-  color: #fff;
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
 }
 .lesiones-marco .informe-dato dt {
-  color: #6b7280;
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  color: #d4d4d8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 .lesiones-marco .informe-dato dd {
-  margin: 2px 0 0;
+  margin: 3px 0 0;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 400;
+}
+/* La foto: las del club vienen con fondo gris claro, así que va en un panel
+   cortado en diagonal a la derecha de la cabecera, de la cara al pecho. */
+.lesiones-marco .informe-foto {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 270px;
+  overflow: hidden;
+  background: #e5e5e5;
+  clip-path: polygon(24% 0, 100% 0, 100% 100%, 0 100%);
+}
+.lesiones-marco .informe-foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 60% 6%;
+}
+.lesiones-marco .informe-foto.sin-foto {
+  display: grid;
+  place-items: center;
+  padding-left: 50px;
+  background: #3f3f46;
+}
+/* La foto sin el fondo: el jugador de la cabeza a la cintura, parado sobre
+   la cabecera, y atrás el escudo grande, apenas marcado. */
+.lesiones-marco .informe-recorte {
+  position: absolute;
+  right: 40px;
+  bottom: 0;
+  width: 250px;
+  height: 100%;
+  overflow: hidden;
+}
+.lesiones-marco .informe-recorte img {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 100%;
+  height: auto;
+  transform: translateX(-50%);
+}
+.lesiones-marco .informe-marca-agua {
+  position: absolute;
+  top: 50%;
+  right: -46px;
+  width: 300px;
+  opacity: 0.07;
+  filter: grayscale(1) brightness(1.8);
+  transform: translateY(-50%) rotate(-8deg);
+  pointer-events: none;
+}
+.lesiones-marco .informe-marca-agua .escudo-cam,
+.lesiones-marco .informe-marca-agua .escudo-club,
+.lesiones-marco .informe-marca-agua img {
+  width: 100%;
+  height: auto;
+}
+.lesiones-marco .informe-escudo,
+.lesiones-marco .informe-identidad {
+  position: relative;
+}
+.lesiones-marco .informe-iniciales {
+  color: #e4e4e7;
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+/* Los títulos de cada parte de la hoja, con un dato a la derecha. */
+.lesiones-marco .informe-seccion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.lesiones-marco .informe-seccion h2 {
+  margin: 0;
   color: #111827;
-  font-size: 15px;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+.lesiones-marco .informe-seccion h2 .informe-por-mil {
+  text-transform: none;
+}
+.lesiones-marco .informe-seccion > span {
+  color: #4b5563;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+/* Al medio: los indicadores cada 1000 horas (dos filas de cuatro tarjetas) y
+   el mapa corporal al lado. */
+.lesiones-marco .informe-medio {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 22px;
+  padding: 20px 26px 0;
+}
+.lesiones-marco .informe-indicadores {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+}
+.lesiones-marco .informe-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.lesiones-marco .informe-indicador {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  min-width: 0;
+  padding: 10px 6px 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  text-align: center;
+}
+.lesiones-marco .informe-indicador-titulo {
+  display: grid;
+  align-items: end;
+  min-height: 2.3em;
+  color: #111827;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.lesiones-marco .informe-indicador-valor {
+  margin-top: 4px;
+  color: #111827;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.lesiones-marco .informe-indicador-unidad {
+  color: #374151;
+  font-size: 12px;
+}
+.lesiones-marco .informe-indicador-ref {
+  display: grid;
+  justify-items: center;
+  width: 88%;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid #e5e7eb;
+  color: #374151;
+  font-size: 12px;
+}
+.lesiones-marco .informe-indicador-ref b {
+  color: #111827;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.lesiones-marco .informe-indicador-contra {
+  display: grid;
+  justify-items: center;
+  margin-top: 5px;
+  color: #6b7280;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.lesiones-marco .informe-indicador-contra span::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 0;
+}
+.lesiones-marco .informe-indicador-contra small {
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.lesiones-marco .informe-indicador.peor .informe-indicador-contra {
+  color: #c81e1e;
+}
+.lesiones-marco .informe-indicador.mejor .informe-indicador-contra {
+  color: #15803d;
+}
+.lesiones-marco .informe-aviso {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 700;
+}
+.lesiones-marco .informe-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: -4px 0 0;
+  padding: 0;
+  list-style: none;
+  color: #374151;
+  font-size: 12.5px;
+}
+.lesiones-marco .informe-leyenda i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: 0;
+}
+.lesiones-marco .informe-leyenda i.peor {
+  background: #c81e1e;
+}
+.lesiones-marco .informe-leyenda i.mejor {
+  background: #15803d;
+}
+.lesiones-marco .informe-criterio {
+  margin: -8px 0 0;
+  color: #6b7280;
+  font-size: 11.5px;
+}
+.lesiones-marco .informe-mapa {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  padding: 12px 14px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+.lesiones-marco .informe-mapa .informe-seccion {
+  margin-bottom: 4px;
+  border-bottom: 0;
+}
+
+/* El historial: la tabla con las columnas del reporte, centrada, con la
+   cabecera oscura como la de la base. */
+.lesiones-marco .informe-lesiones {
+  padding: 22px 26px 0;
+}
+.lesiones-marco .informe-tabla-marco {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+}
+.lesiones-marco .informe-tabla {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.lesiones-marco .informe-tabla th {
+  padding: 10px 8px;
+  background: #27272a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  vertical-align: middle;
+}
+.lesiones-marco .informe-tabla th + th {
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+.lesiones-marco .informe-tabla td {
+  padding: 10px 8px;
+  border-top: 1px solid #ececec;
+  color: #1f2937;
+  text-align: center;
+  vertical-align: middle;
+}
+/* Las columnas cortas, del ancho de lo que llevan. */
+.lesiones-marco .informe-tabla .informe-corta {
+  width: 1%;
+}
+.lesiones-marco .informe-tabla td.informe-corta {
+  white-space: nowrap;
+}
+.lesiones-marco .informe-tabla tbody tr:nth-child(even) td {
+  background: #f7f7f7;
+}
+.lesiones-marco .informe-tabla td:first-child {
   font-weight: 800;
 }
+/* Si la tabla se desliza de costado, el n° de registro queda fijo. */
+@media screen {
+  .lesiones-marco .informe-tabla th:first-child,
+  .lesiones-marco .informe-tabla td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    box-shadow: 1px 0 0 #e5e7eb;
+  }
+  .lesiones-marco .informe-tabla tbody tr:nth-child(odd) td:first-child {
+    background: #fff;
+  }
+}
+.lesiones-marco .informe-vacio {
+  color: #9ca3af;
+}
+.lesiones-marco .informe-severidad {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid #a1a1aa;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.lesiones-marco .informe-lesiones .vacio-ficha {
+  margin: 0;
+}
+.lesiones-marco .informe-pie {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 18px 26px 0;
+  padding: 10px 0 16px;
+  border-top: 1px solid #e5e7eb;
+  color: #6b7280;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+@media screen and (max-width: 980px) {
+  .lesiones-marco .informe-cabecera {
+    padding-right: 210px;
+  }
+  .lesiones-marco .informe-escudo {
+    padding-right: 20px;
+    margin-right: 20px;
+  }
+  .lesiones-marco .informe-escudo .escudo-cam,
+  .lesiones-marco .informe-escudo .escudo-club {
+    width: 56px;
+  }
+  .lesiones-marco .informe-cabecera h1 {
+    font-size: 38px;
+  }
+  .lesiones-marco .informe-foto {
+    width: 190px;
+  }
+  .lesiones-marco .informe-recorte {
+    right: 10px;
+    width: 200px;
+  }
+  .lesiones-marco .informe-medio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media screen and (max-width: 760px) {
+  .lesiones-marco .informe {
+    border-radius: 16px;
+  }
+  .lesiones-marco .informe-cabecera {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    min-height: 0;
+    padding: 18px 128px 18px 16px;
+  }
+  .lesiones-marco .informe-escudo {
+    justify-items: start;
+    margin: 0 0 10px;
+    padding: 0;
+    border: 0;
+  }
+  .lesiones-marco .informe-escudo .escudo-cam,
+  .lesiones-marco .informe-escudo .escudo-club {
+    width: 40px;
+  }
+  .lesiones-marco .informe-subtitulo {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+  }
+  .lesiones-marco .informe-cabecera h1 {
+    font-size: 28px;
+  }
+  .lesiones-marco .informe-posicion {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+  }
+  .lesiones-marco .informe-datos {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .lesiones-marco .informe-dato,
+  .lesiones-marco .informe-dato:first-child {
+    padding: 0;
+  }
+  .lesiones-marco .informe-dato + .informe-dato {
+    border-left: 0;
+  }
+  .lesiones-marco .informe-dato dd {
+    font-size: 15px;
+  }
+  .lesiones-marco .informe-foto {
+    width: 130px;
+  }
+  .lesiones-marco .informe-recorte {
+    right: 0;
+    width: 150px;
+  }
+  /* La cabecera es más alta que la foto: va apoyada abajo, donde queda
+     cortada. */
+  .lesiones-marco .informe-recorte img {
+    top: auto;
+    bottom: 0;
+  }
+  .lesiones-marco .informe-marca-agua {
+    right: -60px;
+    width: 220px;
+  }
+  .lesiones-marco .informe-foto.sin-foto {
+    padding-left: 30px;
+  }
+  .lesiones-marco .informe-iniciales {
+    font-size: 30px;
+  }
+  .lesiones-marco .informe-medio,
+  .lesiones-marco .informe-lesiones {
+    padding: 18px 14px 0;
+  }
+  .lesiones-marco .informe-seccion h2 {
+    font-size: 19px;
+  }
+  .lesiones-marco .informe-tarjetas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .lesiones-marco .informe-indicador-valor {
+    font-size: 30px;
+  }
+  .lesiones-marco .informe-pie {
+    margin: 16px 14px 0;
+    letter-spacing: 0.08em;
+  }
+}
+
+/* El cuadro cada 1000 horas del grupal (el del Excel: cuatro columnas,
+   una fila por medida). */
 .lesiones-marco .informe-indices {
   display: grid;
   gap: 14px;
@@ -1320,173 +1762,7 @@
   background: #f0fdf4;
   color: #15803d;
 }
-.lesiones-marco .informe-aviso {
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid #fde68a;
-  border-radius: 12px;
-  background: #fffbeb;
-  color: #92400e;
-  font-size: 12.5px;
-  font-weight: 700;
-}
-.lesiones-marco .informe-leyenda {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: #4b5563;
-  font-size: 12px;
-  font-weight: 700;
-}
-.lesiones-marco .informe-leyenda i {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  margin-right: 6px;
-  border-radius: 4px;
-  vertical-align: -2px;
-}
-.lesiones-marco .informe-leyenda i.peor {
-  background: #dc2626;
-}
-.lesiones-marco .informe-leyenda i.mejor {
-  background: #16a34a;
-}
-.lesiones-marco .informe-leyenda i.lm {
-  background: #6b7280;
-}
-.lesiones-marco .informe-criterio {
-  margin: 0;
-  color: #6b7280;
-  font-size: 11.5px;
-}
-.lesiones-marco .informe-lesiones {
-  padding: 0 18px 18px;
-}
-.lesiones-marco .informe-lesiones h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
-  color: #111827;
-  font-size: 12.5px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.lesiones-marco .informe-lesiones h2 span {
-  min-width: 22px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: #111827;
-  color: #fff;
-  font-size: 11px;
-  letter-spacing: 0;
-  text-align: center;
-}
-.lesiones-marco .informe-tabla-marco {
-  overflow-x: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-}
-.lesiones-marco .informe-tabla {
-  width: 100%;
-  min-width: 960px;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-.lesiones-marco .informe-tabla th {
-  padding: 0;
-  background: #374151;
-  vertical-align: bottom;
-}
-.lesiones-marco .informe-tabla th + th {
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
-}
-/* La cabecera móvil: se ve el nombre de la columna (que puede ocupar dos
-   renglones) y el selector, invisible, la cubre entera. */
-.lesiones-marco .informe-columna {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 6px;
-  min-height: 46px;
-  padding: 8px 10px;
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 1.25;
-  text-align: left;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-.lesiones-marco .informe-columna svg {
-  flex: none;
-  margin-bottom: 2px;
-  opacity: 0.7;
-}
-.lesiones-marco .informe-columna select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-.lesiones-marco .informe-columna:focus-within {
-  outline: 2px solid #86efac;
-  outline-offset: -2px;
-}
-.lesiones-marco .informe-tabla td {
-  padding: 9px 10px;
-  border-top: 1px solid #f3f4f6;
-  color: #1f2937;
-  vertical-align: top;
-}
-.lesiones-marco .informe-tabla tbody tr:nth-child(even) td {
-  background: #f9fafb;
-}
-.lesiones-marco .informe-tabla td:first-child {
-  font-weight: 800;
-}
-@media (max-width: 760px) {
-  .lesiones-marco .informe-cabecera {
-    padding: 18px;
-  }
-  .lesiones-marco .informe-foto {
-    width: 76px;
-    height: 76px;
-    border-radius: 16px;
-  }
-  .lesiones-marco .informe-iniciales {
-    font-size: 26px;
-  }
-  .lesiones-marco .informe-cuerpo {
-    grid-template-columns: minmax(0, 1fr);
-    padding: 14px;
-  }
-  .lesiones-marco .informe-datos {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .lesiones-marco .informe-dato {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    gap: 6px;
-    padding: 8px 4px;
-    text-align: center;
-  }
-  .lesiones-marco .informe-dato + .informe-dato {
-    border-top: 0;
-    border-left: 1px solid #e5e7eb;
-  }
-  .lesiones-marco .informe-dato dd {
-    font-size: 13.5px;
-  }
+@media screen and (max-width: 760px) {
   .lesiones-marco .informe-cuadro thead th {
     padding: 6px 3px;
     font-size: 9.5px;
@@ -1506,9 +1782,6 @@
   }
   .lesiones-marco .informe-fila-contra td {
     font-size: 10.5px;
-  }
-  .lesiones-marco .informe-lesiones {
-    padding: 0 14px 14px;
   }
 }
 
@@ -1624,28 +1897,64 @@
 .lesiones-marco .reporte-dos > .tarjeta {
   margin-bottom: 12px;
 }
-.lesiones-marco .reporte-figuras {
+/* El mapa corporal (el mismo en el individual y en el grupal): el cuerpo
+   con relieve de frente y de espaldas, las manchas de calor y los nombres de
+   lo lesionado. */
+.lesiones-marco .reporte-mapa {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 8px;
-  padding: 10px;
-  border-radius: 16px;
-  background: #0f172a;
 }
-.lesiones-marco .reporte-figura {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
+.lesiones-marco .reporte-mapa .cuerpo-calor {
+  align-self: center;
 }
-.lesiones-marco .reporte-figura small {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+.lesiones-marco .cuerpo-calor {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+  margin: 0 auto;
+}
+.lesiones-marco .cuerpo-calor-nombre line {
+  stroke: #111827;
+  stroke-width: 0.8;
+}
+.lesiones-marco .cuerpo-calor-nombre text {
+  fill: #111827;
+  font-family: "Roboto Condensed", Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.lesiones-marco .cuerpo-calor-vista rect {
+  fill: #e5e7eb;
+}
+.lesiones-marco .cuerpo-calor-vista text {
+  fill: #111827;
+  font-family: "Roboto Condensed", Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
-.lesiones-marco .reporte-figura .figura-cuerpo svg {
-  max-width: 150px;
+.lesiones-marco .cuerpo-calor-punto {
+  fill: #7f1d1d;
+  stroke: #fff;
+  stroke-width: 0.6;
+}
+.lesiones-marco .reporte-mapa-nota {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #4b5563;
+  font-family: "Roboto Condensed", Arial, sans-serif;
+  font-size: 12px;
+}
+.lesiones-marco .reporte-mapa-nota i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6c2 0, #ffb21e 25%, #f2541b 55%, rgba(220, 38, 38, 0) 100%);
 }
 .lesiones-marco .reporte-barras {
   display: grid;
@@ -1766,31 +2075,133 @@
   .lesiones-marco .informe-tabla-marco {
     overflow: visible;
   }
-  .lesiones-marco .informe-tabla {
-    min-width: 0;
-    table-layout: fixed;
+  /* En papel, la cabecera y los indicadores más bajos: así el historial
+     empieza en la primera hoja. */
+  .lesiones-marco .informe-cabecera {
+    min-height: 0;
+    padding: 12px 220px 12px 22px;
+  }
+  .lesiones-marco .informe-escudo {
+    padding-right: 20px;
+    margin-right: 20px;
+  }
+  .lesiones-marco .informe-escudo .escudo-cam,
+  .lesiones-marco .informe-escudo .escudo-club {
+    width: 56px;
+  }
+  .lesiones-marco .informe-cabecera h1 {
+    font-size: 34px;
+  }
+  .lesiones-marco .informe-datos {
+    margin-top: 10px;
+  }
+  .lesiones-marco .informe-foto {
+    width: 200px;
+  }
+  .lesiones-marco .informe-recorte {
+    right: 24px;
+    width: 190px;
+  }
+  .lesiones-marco .informe-medio {
+    gap: 16px;
+    padding: 12px 20px 0;
+  }
+  .lesiones-marco .informe-indicadores {
+    gap: 10px;
+  }
+  .lesiones-marco .informe-seccion h2 {
+    font-size: 16px;
+  }
+  .lesiones-marco .informe-indicadores .informe-seccion {
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+  }
+  .lesiones-marco .informe-indicador {
+    padding: 7px 5px 6px;
+    box-shadow: none;
+  }
+  .lesiones-marco .informe-indicador-titulo {
+    font-size: 9.5px;
+  }
+  .lesiones-marco .informe-indicador-valor {
+    margin-top: 1px;
+    font-size: 21px;
+  }
+  .lesiones-marco .informe-indicador-unidad,
+  .lesiones-marco .informe-indicador-ref {
+    font-size: 11px;
+  }
+  .lesiones-marco .informe-indicador-ref {
+    margin-top: 4px;
+    padding-top: 4px;
+  }
+  .lesiones-marco .informe-indicador-ref b {
+    font-size: 14px;
+  }
+  .lesiones-marco .informe-indicador-contra {
+    margin-top: 3px;
+    font-size: 10.5px;
+  }
+  .lesiones-marco .informe-indicador-contra small {
     font-size: 10px;
   }
-  .lesiones-marco .informe-columna {
-    min-height: 0;
-    padding: 5px;
-    font-size: 7.5px;
-    letter-spacing: 0;
+  .lesiones-marco .informe-mapa {
+    padding: 8px 10px;
+    box-shadow: none;
+  }
+  .lesiones-marco .cuerpo-calor {
+    max-width: 300px;
+  }
+  .lesiones-marco .informe-lesiones {
+    padding: 14px 20px 0;
+  }
+  .lesiones-marco .informe-seccion {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+  }
+  .lesiones-marco .informe-pie {
+    margin: 12px 20px 0;
+  }
+  .lesiones-marco .informe-tabla-marco {
+    border: 0;
+  }
+  .lesiones-marco .informe-tabla tbody tr:last-child td {
+    border-bottom: 1px solid #ececec;
+  }
+  .lesiones-marco .informe-lesiones {
+    padding: 14px 20px 0;
+  }
+  .lesiones-marco .informe-seccion {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+  }
+  .lesiones-marco .informe-pie {
+    margin: 12px 20px 0;
+  }
+  .lesiones-marco .informe-tabla {
+    min-width: 0;
+    font-size: 10px;
+  }
+  .lesiones-marco .informe-tabla th {
+    padding: 7px 5px;
+    font-size: 9.5px;
   }
   .lesiones-marco .informe-tabla td {
-    padding: 5px 6px;
-  }
-  .lesiones-marco .informe-tabla td,
-  .lesiones-marco .informe-columna span {
+    padding: 6px 5px;
     overflow-wrap: anywhere;
   }
-  .lesiones-marco .informe-lesiones h2 {
+  .lesiones-marco .informe-severidad {
+    padding: 2px 7px;
+    font-size: 9px;
+  }
+  .lesiones-marco .informe-seccion {
     break-after: avoid;
   }
   .lesiones-marco .reporte .tarjeta,
   .lesiones-marco .reporte-kpi,
   .lesiones-marco .reporte-portada,
   .lesiones-marco .informe-cabecera,
+  .lesiones-marco .informe-medio,
   .lesiones-marco .informe-indices {
     break-inside: avoid;
     box-shadow: none;
@@ -1799,12 +2210,17 @@
     break-inside: avoid;
   }
   .lesiones-marco .informe-cabecera,
-  .lesiones-marco .informe-dato-icono,
+  .lesiones-marco .informe-foto,
+  .lesiones-marco .informe-recorte,
+  .lesiones-marco .informe-marca-agua,
+  .lesiones-marco .informe-indicador,
+  .lesiones-marco .informe-mapa,
+  .lesiones-marco .reporte-mapa,
+  .lesiones-marco .informe-aviso,
   .lesiones-marco .informe-cuadro,
   .lesiones-marco .informe-leyenda i,
   .lesiones-marco .informe-tabla,
   .lesiones-marco .reporte-portada,
-  .lesiones-marco .reporte-figuras,
   .lesiones-marco .reporte-meses {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

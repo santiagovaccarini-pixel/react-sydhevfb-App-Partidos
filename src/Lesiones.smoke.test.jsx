@@ -830,34 +830,34 @@ describe("el módulo Lesiones", () => {
 
     await tocar(botonQueEmpieza(contenedor, "Reporte individual"));
     await tocar(botonQueEmpieza(contenedor, "HULK"));
-    // El encabezado del Excel: el club, el jugador y el título; el panel con
-    // nacimiento, pie y posición.
+    // La cabecera: el título, el jugador, su posición, nacimiento y pie.
     expect(contenedor.querySelector(".informe-cabecera h1").textContent).toBe("HULK");
-    expect(contenedor.querySelector(".informe-cabecera").textContent).toContain("Atlético Mineiro");
-    expect(contenedor.querySelector(".informe-cabecera").textContent).toContain("REPORTE DE LESIONES");
+    expect(contenedor.querySelector(".informe-subtitulo").textContent).toBe("Reporte individual de lesiones");
     const datosDelJugador = [...contenedor.querySelectorAll(".informe-dato dt")].map((dt) => dt.textContent);
-    expect(datosDelJugador).toEqual(["Fecha de nacimiento", "Pie dominante", "Posición"]);
-    // El cuadro cada 1000 horas: las cuatro columnas y, sin los minutos del
-    // GPS, sin números y con el aviso.
-    const cuadros = contenedor.querySelectorAll(".informe-cuadro");
-    expect(cuadros).toHaveLength(2);
-    expect([...cuadros[0].querySelectorAll("thead tr:last-child th")].map((th) => th.textContent)).toEqual(["Todas", "Sin leves", "Todas", "Sin leves"]);
-    expect([...cuadros[0].querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["Jugador", "VR", "Jugador vs VR"]);
-    expect([...cuadros[0].querySelectorAll("tbody td")].every((td) => td.textContent === "—")).toBe(true);
+    expect(datosDelJugador).toEqual(["Nacimiento", "Pie dominante"]);
+    // Los indicadores cada 1000 horas: las cuatro columnas del Excel en cada
+    // medida y, sin los minutos del GPS, sin números y con el aviso.
+    const medidas = contenedor.querySelectorAll(".informe-medida");
+    expect([...medidas].map((medida) => medida.querySelector("h2").textContent)).toEqual(["Lesiones / 1000 h", "Días perdidos / 1000 h"]);
+    expect([...medidas[1].querySelectorAll(".informe-indicador-titulo")].map((titulo) => titulo.textContent)).toEqual([
+      "Severidad (TODAS) y Tipos (TODOS)",
+      "Severidad (SIN LEVES) y Tipos (TODOS)",
+      "Severidad (TODAS) y Tipos (SOLO LM)",
+      "Severidad (SIN LEVES) y Tipos (SOLO LM)",
+    ]);
+    expect([...contenedor.querySelectorAll(".informe-indicador-valor")].every((valor) => valor.textContent === "—")).toBe(true);
+    expect(contenedor.querySelectorAll(".informe-indicador-contra")).toHaveLength(0);
     expect(texto(contenedor)).toContain("Faltan los minutos del GPS");
-    expect(texto(contenedor)).toContain("Superior al VR");
-    // La tabla: sus lesiones, con las columnas del Excel, que se cambian desde
-    // la cabecera.
+    expect(texto(contenedor)).toContain("Superior a la referencia");
+    // El mapa corporal: una mancha donde se lesionó, con su nombre.
+    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-mancha")).toHaveLength(1);
+    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-nombre")).toHaveLength(1);
+    // El historial: sus lesiones, con las doce columnas del reporte a la vista.
     expect(contenedor.querySelectorAll(".informe-tabla tbody tr")).toHaveLength(1);
-    const cabeceras = () => [...contenedor.querySelectorAll(".informe-tabla th .informe-columna span")].map((span) => span.textContent);
-    expect(cabeceras()).toHaveLength(12);
-    expect(cabeceras().slice(0, 3)).toEqual([etiqueta("numero_registro"), etiqueta("parte_cuerpo"), etiqueta("tipo_lesion")]);
-    const selector = contenedor.querySelectorAll(".informe-tabla th select")[1];
-    await act(async () => {
-      selector.value = "medico";
-      selector.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    expect(cabeceras()[1]).toBe(etiqueta("medico"));
+    const cabeceras = [...contenedor.querySelectorAll(".informe-tabla th")].map((th) => th.textContent);
+    expect(cabeceras).toHaveLength(12);
+    expect(cabeceras.slice(0, 3)).toEqual([etiqueta("numero_registro"), etiqueta("parte_cuerpo"), etiqueta("tipo_lesion")]);
+    expect(contenedor.querySelectorAll(".informe-tabla select")).toHaveLength(0);
 
     await tocar(contenedor.querySelector(".reporte-volver"));
     await tocar(botonQueEmpieza(contenedor, "Reporte grupal"));
@@ -870,7 +870,8 @@ describe("el módulo Lesiones", () => {
     expect([...cuadro.querySelector("tbody tr").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["1", "1", "1", "1"]);
     expect(texto(contenedor)).toContain("Lesiones por mes");
     expect(texto(contenedor)).toContain("Quiénes perdieron más días");
-    expect(contenedor.querySelectorAll(".reporte-figuras .figura-cuerpo-pieza[style]").length).toBeGreaterThan(0);
+    // El mismo mapa corporal que el individual, con las dos lesiones.
+    expect(contenedor.querySelectorAll(".reporte-mapa .cuerpo-calor-mancha")).toHaveLength(2);
   });
 
   test("los reportes no muestran ceros si las lesiones no se pudieron leer", async () => {
