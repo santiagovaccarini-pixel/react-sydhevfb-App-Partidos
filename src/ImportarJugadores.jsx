@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { HojaOpciones } from "./components/HojaOpciones.js";
@@ -28,6 +28,15 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
   const [hojaFila, setHojaFila] = useState(null);
   const [progreso, setProgreso] = useState(null);
   const [fallas, setFallas] = useState([]);
+  // Si se sale de la pantalla en medio de la carga, la carga se corta ahí
+  // (como en Pegar lesiones): lo cargado queda.
+  const enPantalla = useRef(true);
+  useEffect(() => {
+    enPantalla.current = true;
+    return () => {
+      enPantalla.current = false;
+    };
+  }, []);
 
   const columna = (campo) => (TEXTOS_PROPIOS[campo] ? t(TEXTOS_PROPIOS[campo]) : etiquetaDeCampo(campo, config, idioma));
 
@@ -139,6 +148,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
     let sinHoras = false;
     setFallas([]);
     for (let i = 0; i < lista.length; i++) {
+      if (!enPantalla.current) break;
       const fila = lista[i];
       setProgreso({ n: i + 1, total: lista.length });
       if (fila.destino === NUEVO) {
@@ -169,6 +179,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
     // estos datos"); lo elegido a mano en las filas que fallaron se respeta
     // para volver a intentar.
     await onRecargar();
+    if (!enPantalla.current) return;
     setProgreso(null);
     setElegidos((previos) => Object.fromEntries(Object.entries(previos).filter(([indice]) => !hechas.has(Number(indice)))));
     if (sinHoras) errores.push({ nombre: t("datos.horasPrevias"), error: t("datos.error.faltanHorasPrevias") });
@@ -275,7 +286,9 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
         )}
 
         <div className="acciones-dobles">
-          <BotonVolver onClick={onVolver}>{t("comun.volver")}</BotonVolver>
+          <BotonVolver onClick={onVolver} disabled={ocupado}>
+            {t("comun.volver")}
+          </BotonVolver>
           <button type="button" className="boton-principal" onClick={cargar} disabled={ocupado || aCargar.length === 0}>
             {progreso
               ? t("datos.importar.cargando", progreso)

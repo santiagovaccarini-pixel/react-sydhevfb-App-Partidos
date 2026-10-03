@@ -249,7 +249,7 @@ export const TablaDatos = ({
     const hechos = respuesta.hechos ?? cambios.length;
     const partes = [plural("tabla.pegado", hechos)];
     if (ignoradas) partes.push(plural("tabla.ignoradas", ignoradas));
-    if (respuesta.error) partes.push(t(respuesta.error));
+    if (respuesta.error) partes.push(t(respuesta.error, respuesta.variables));
     setMensaje(partes.join(" · "));
   };
 
@@ -343,7 +343,7 @@ export const TablaDatos = ({
       setOcupada(true);
       const respuesta = (await onEditar?.(fila.id, col.clave, horas)) || {};
       setOcupada(false);
-      if (respuesta.error) setMensaje(t(respuesta.error));
+      if (respuesta.error) setMensaje(t(respuesta.error, respuesta.variables));
       return;
     }
     const nuevo = col.tipo === "numero" ? (valor === "" ? null : Number(String(valor).replace(",", "."))) : valor;
@@ -352,7 +352,7 @@ export const TablaDatos = ({
     setOcupada(true);
     const respuesta = (await onEditar?.(fila.id, col.clave, nuevo)) || {};
     setOcupada(false);
-    if (respuesta.error) setMensaje(t(respuesta.error));
+    if (respuesta.error) setMensaje(t(respuesta.error, respuesta.variables));
   };
 
   const elegirDeHoja = async (valor) => {
@@ -364,7 +364,7 @@ export const TablaDatos = ({
     setOcupada(true);
     const respuesta = (await onEditar?.(fila.id, actual.col.clave, valor || null)) || {};
     setOcupada(false);
-    if (respuesta.error) setMensaje(t(respuesta.error));
+    if (respuesta.error) setMensaje(t(respuesta.error, respuesta.variables));
   };
 
   // ------------------------------------------- Arrastrar las cabeceras --

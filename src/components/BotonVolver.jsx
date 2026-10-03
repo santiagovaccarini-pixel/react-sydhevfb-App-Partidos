@@ -14,11 +14,12 @@ export const DatoDetalle = ({ label, valor }) => (
 // El botón para salir de una pantalla. La flecha va dibujada y no como el
 // caracter de flecha del teclado, que en el teléfono sale tan fino que el
 // botón termina leyéndose como un renglón de texto más.
-export const BotonVolver = ({ onClick, children = "Volver" }) => (
+export const BotonVolver = ({ onClick, children = "Volver", disabled = false }) => (
   <button
     type="button"
     className="boton-secundario boton-volver"
     onClick={onClick}
+    disabled={disabled}
   >
     <span className="flecha-volver" aria-hidden="true">
       <svg

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { ESTADOS, leerLesionesPegadas, ordenDeCarga, planDeImportacion } from "./domain/importarLesiones.js";
@@ -27,6 +27,16 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
   const [texto, setTexto] = useState("");
   const [progreso, setProgreso] = useState(null);
   const [fallas, setFallas] = useState([]);
+  // Si se sale de la pantalla en medio de la carga (otra pestaña de la
+  // barra), la carga se corta ahí: lo cargado queda y lo que falta se ve al
+  // volver a pegar.
+  const enPantalla = useRef(true);
+  useEffect(() => {
+    enPantalla.current = true;
+    return () => {
+      enPantalla.current = false;
+    };
+  }, []);
 
   const columna = (campo) => etiquetaDeCampo(campo, config, idioma);
   const textoDeOpcion = (campo, codigo) => etiquetaDeOpcion(campo, codigo, config, idioma);
@@ -74,6 +84,7 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
     let cargadas = 0;
     setFallas([]);
     for (let i = 0; i < lista.length; i++) {
+      if (!enPantalla.current) break;
       const fila = lista[i];
       setProgreso({ n: i + 1, total: lista.length });
       const guardado = await importarLesion(equipoId, fila.lesion); // eslint-disable-line no-await-in-loop
@@ -83,6 +94,7 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
     // Con las lesiones de nuevo, las que ya quedaron se ven como "Ya está en
     // la app" y las que fallaron se pueden volver a intentar.
     await onRecargar();
+    if (!enPantalla.current) return;
     setProgreso(null);
     if (errores.length === 0) {
       onListo({ cargadas });
@@ -179,7 +191,9 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
         )}
 
         <div className="acciones-dobles">
-          <BotonVolver onClick={onVolver}>{t("comun.volver")}</BotonVolver>
+          <BotonVolver onClick={onVolver} disabled={ocupado}>
+            {t("comun.volver")}
+          </BotonVolver>
           <button type="button" className="boton-principal" onClick={cargar} disabled={ocupado || aCargar.length === 0}>
             {progreso
               ? t("lesiones.importar.cargando", progreso)

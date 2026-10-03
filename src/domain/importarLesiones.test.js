@@ -170,7 +170,42 @@ describe("qué pasa con cada fila", () => {
     Object.entries(EQUIVALENCIAS_DEL_EXCEL).forEach(([campo, equivalencias]) =>
       Object.values(equivalencias).forEach((codigo) => expect(OPCIONES[campo].some((opcion) => opcion.codigo === codigo)).toBe(true)),
     );
-    expect(listasParaImportar(null).tipo_lesion.find((opcion) => opcion.valor === "laceracao").alias).toContain("LACERAÇÃO/ ABRASÃO");
+    const [, , equivalencias] = listasParaImportar(null).tipo_lesion;
+    expect(equivalencias).toContainEqual({ valor: "laceracao", etiqueta: "LACERAÇÃO/ ABRASÃO" });
+  });
+
+  // La configuración de un club: las listas del Excel con lo que el club cambió.
+  const configCon = ({ listas = {}, campos = {} }) => ({
+    campos,
+    listas: Object.fromEntries(
+      Object.entries(OPCIONES).map(([campo, opciones]) => [
+        campo,
+        [...opciones.map((opcion, orden) => ({ codigo: opcion.codigo, etiquetas: { ...opcion.etiquetas }, oculto: false, orden })), ...(listas[campo] || [])].map((opcion) =>
+          listas.renombrar?.[opcion.codigo] ? { ...opcion, etiquetas: listas.renombrar[opcion.codigo] } : opcion,
+        ),
+      ]),
+    ),
+  });
+
+  test("una opción del club con el mismo texto gana sobre las equivalencias del Excel", () => {
+    const config = configCon({ listas: { tipo_lesion: [{ codigo: "tendinopatia_club", etiquetas: { "es-AR": "Tendinopatía", "pt-BR": "TENDINOPATIA" }, oculto: false, orden: 99 }] } });
+    const segunda = planDeImportacion(leer().filas, { plantel: PLANTEL, lesiones: [], config, hoy: HOY })[1];
+    expect(segunda.lesion.datos.tipo_lesion).toBe("tendinopatia_club");
+  });
+
+  test("si el club renombró una opción, el texto original del Excel se sigue entendiendo", () => {
+    const config = configCon({ listas: { renombrar: { coxa: { "es-AR": "Muslo (cara posterior)", "pt-BR": "Coxa / posterior" } } } });
+    const [primera] = planDeImportacion(leer().filas, { plantel: PLANTEL, lesiones: [], config, hoy: HOY });
+    expect(primera.lesion.datos.parte_cuerpo).toBe("coxa");
+    expect(primera.avisos).toEqual([]);
+  });
+
+  test("las fechas se revisan aunque el club haya escondido la columna (la base las revisa igual)", () => {
+    const config = configCon({ campos: { fecha_transicion: { etiquetas: {}, oculto: true } } });
+    const alReves = { ...LESION_1, "Passagem para o Transicao (DD/MM/YYYY)": "10/01/2026" };
+    const leido = leer([CABECERAS.join("\t"), fila(alReves)].join("\n"));
+    const [primera] = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config, hoy: HOY });
+    expect(primera.problemas).toEqual(["lesiones.error.fechaAntes"]);
   });
 
   test("un nombre que no está en el plantel no se carga", () => {
@@ -227,6 +262,50 @@ describe("qué pasa con cada fila", () => {
     const leido = leer([CABECERAS.join("\t"), fila(sinNumero), fila(tarde), fila(LESION_1)].join("\n"));
     const filas = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
     expect(ordenDeCarga(filas).map((una) => una.numeroCaso)).toEqual([1, 9, null]);
+    // La que no trae número va después del más alto de lo pegado.
+    expect(ordenDeCarga(filas).map((una) => una.lesion.numero_caso)).toEqual([1, 9, 10]);
+  });
+
+  test("sin N° de caso no le quita el número a un caso del Excel que todavía no se carga", () => {
+    const sinNumero = { ...LESION_1, "N° de Caso": "" };
+    const sinTerminar = { "N° de Caso": "40", "Nome e Sobrenome": "Ana Uno" };
+    const leido = leer([CABECERAS.join("\t"), fila(sinNumero), fila(sinTerminar)].join("\n"));
+    const yaEnLaApp = [{ id: "x", numero_caso: 12, jugador_id: 2, fecha_lesion: "2026-05-01", datos: { parte_cuerpo: "joelho", lado: "direito" } }];
+    const [primera] = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: yaEnLaApp, config: null, hoy: HOY });
+    expect(primera.lesion.numero_caso).toBe(41);
+  });
+
+  test("el mismo problema en dos columnas se dice una vez", () => {
+    const dosAntes = { ...LESION_1, "Passagem para o Transicao (DD/MM/YYYY)": "10/01/2026", "Retorno à Data da Competição (DD/MM/YYYY)": "11/01/2026" };
+    const leido = leer([CABECERAS.join("\t"), fila(dosAntes)].join("\n"));
+    const [primera] = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
+    expect(primera.problemas).toEqual(["lesiones.error.fechaAntes"]);
+  });
+
+  test("todas las fechas se leen en el mismo orden: una columna con pocas fechas sigue a las otras", () => {
+    // Un Excel en inglés: el inicio dice que es mes/día (1/21); el alta solo
+    // tiene fechas que podrían ser las dos cosas (2/10 = 10 de febrero).
+    const enIngles = { ...LESION_1, "Data de Início da Lesão (DD/MM/YYYY)": "1/21/26", "Passagem para o Transicao (DD/MM/YYYY)": "", "Retorno à Data de Treinamento (DD/MM/YYYY)": "", "Retorno à Data da Competição (DD/MM/YYYY)": "2/10/26 0:00", "HORA DA IMAGEM": "1/22/2026 18:30" };
+    const leido = leer([CABECERAS.join("\t"), fila(enIngles)].join("\n"));
+    const [primera] = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
+    expect(primera.lesion).toMatchObject({ fecha_lesion: "2026-01-21", fecha_alta: "2026-02-10" });
+    expect(primera.lesion.datos.hora_imagen).toBe("2026-01-22T18:30");
+    // Una hora escrita a mano en el otro orden también se entiende.
+    expect(fechaHoraDelExcel("22/01/2026 10:00", "mes_dia")).toBe("2026-01-22T10:00");
+  });
+
+  test("el jugador: primero el nombre igual; si dos se parecen y ninguno es igual, no se adivina", () => {
+    const plantel = [
+      { id: 1, nombre: "Joao Silva" },
+      { id: 2, nombre: "João Silva" },
+      { id: 3, nombre: "Pedro-Henrique" },
+      { id: 4, nombre: "Pedro Henrique" },
+    ];
+    const conNombre = (nombre, caso) => fila({ ...LESION_1, "N° de Caso": caso, "Nome e Sobrenome": nombre });
+    const leido = leer([CABECERAS.join("\t"), conNombre("joao silva", "1"), conNombre("JOÃO SILVA", "2"), conNombre("Pedro  Henrique", "3"), conNombre("PEDRO HENRÍQUE", "4")].join("\n"));
+    const filas = planDeImportacion(leido.filas, { plantel, lesiones: [], config: null, hoy: HOY });
+    expect(filas.map((una) => una.jugador?.id ?? null)).toEqual([1, 2, 4, null]);
+    expect(filas[3].problemas).toEqual(["lesiones.importar.jugadorDudoso"]);
   });
 
   test("las fechas de una columna en mes/día (un Excel en inglés) se leen bien", () => {

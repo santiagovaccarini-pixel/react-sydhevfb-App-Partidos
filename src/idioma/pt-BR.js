@@ -498,6 +498,7 @@ export default {
         conProblemas: "Não é carregada",
       },
       sinJugador: "Este nome não está em Dados básicos. Adicione lá (ou corrija o nome no Excel) e cole de novo.",
+      jugadorDudoso: "Em Dados básicos há mais de um jogador com um nome assim. Escreva no Excel igual a Dados básicos e cole de novo.",
       casoOcupado: "Já há outra lesão com este N° de caso no app.",
       casoRepetido: "Este N° de caso aparece duas vezes no colado.",
       aviso: "«{{valor}}» não foi entendido em {{columna}}: fica vazio.",

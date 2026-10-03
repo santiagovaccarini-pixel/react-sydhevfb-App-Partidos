@@ -11,7 +11,7 @@
 import { normalizarTextoBase } from "./match";
 import { normalizarCabecera } from "./importarJugadores.js";
 import { erroresDeLesion } from "./lesiones.js";
-import { CAMPOS, campoOculto, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./lesionesCampos.js";
+import { CAMPOS, OPCIONES, campoOculto, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./lesionesCampos.js";
 import { desdeTexto, esFechaReal, interpretarFechaHora, interpretarValor } from "./tabla.js";
 
 const TIPOS_QUE_SE_TRAEN = ["auto", "jugador", "lista", "fecha", "fecha_hora", "texto", "texto_largo"];
@@ -51,13 +51,14 @@ const HORA_AL_FINAL = /[ ,T]+\d{1,2}:\d{2}(:\d{2})?(\s*[ap]\.?\s*m\.?)?$/i;
 // El día de un número de serie del Excel (una celda sin formato de fecha).
 const diaDeSerie = (serie) => new Date(CERO_DE_EXCEL + Math.floor(serie) * DIA_MS).toISOString().slice(0, 10);
 
-// Cómo vienen las fechas de una columna: día/mes (lo del Excel en castellano
+// Cómo vienen las fechas de lo pegado: día/mes (lo del Excel en castellano
 // o portugués) o mes/día (un Excel en inglés). Como en Datos básicos
-// (formatoDeFechas), se decide por la columna entera; pero si unas fechas
-// obligan a leer día/mes y otras mes/día, gana la mayoría: en Antecedentes
-// BD hay fechas escritas como texto (día/mes) entre las de verdad, que se
-// copian como las muestra el Excel de quien copia.
-export const formatoDeLaColumna = (textos = []) => {
+// (formatoDeFechas), se decide con todas juntas, porque el Excel de quien
+// copia las escribe todas igual (una columna con pocas fechas sola no
+// alcanza para saberlo); pero si unas obligan a leer día/mes y otras
+// mes/día, gana la mayoría: en Antecedentes BD hay fechas escritas como
+// texto (día/mes) entre las de verdad.
+export const formatoDeLasFechas = (textos = []) => {
   let diaMes = 0;
   let mesDia = 0;
   textos.forEach((texto) => {
@@ -74,8 +75,8 @@ export const formatoDeLaColumna = (textos = []) => {
 };
 
 // Una fecha del Excel: "21/01/2026", "21/01/2026 00:00" (las columnas con
-// hora), "2026-01-21" o el número de serie. formato: el de la columna entera
-// (formatoDeLaColumna); una fecha que así no existe y al revés sí (la
+// hora), "2026-01-21" o el número de serie. formato: el de todas las fechas
+// (formatoDeLasFechas); una fecha que así no existe y al revés sí (la
 // escrita como texto en otro orden) se lee al revés. Devuelve la fecha ISO,
 // null si está vacía o undefined si no se entiende.
 export const fechaDelExcel = (texto, formato = "dia_mes") => {
@@ -110,9 +111,12 @@ export const fechaHoraDelExcel = (texto, formato = "dia_mes") => {
     if (minutos >= 24 * 60) return `${diaDeSerie(serie + 1)}T00:00`;
     return `${diaDeSerie(serie)}T${String(Math.floor(minutos / 60)).padStart(2, "0")}:${String(minutos % 60).padStart(2, "0")}`;
   }
-  // Con la columna en mes/día, se da vuelta antes de leerla.
-  const dadaVuelta = formato === "mes_dia" ? t.replace(/^(\d{1,2})([/.-])(\d{1,2})(?=[/.-])/, "$3$2$1") : t;
-  return interpretarFechaHora(dadaVuelta);
+  // interpretarFechaHora lee día/mes: con las fechas en mes/día, se da
+  // vuelta antes; y como en fechaDelExcel, si así no existe, al revés.
+  const dadaVuelta = t.replace(/^(\d{1,2})([/.-])(\d{1,2})(?=[/.-])/, "$3$2$1");
+  const [comoVa, alReves] = formato === "mes_dia" ? [dadaVuelta, t] : [t, dadaVuelta];
+  const leida = interpretarFechaHora(comoVa);
+  return leida === undefined ? interpretarFechaHora(alReves) : leida;
 };
 
 const campoDeCabecera = (texto, alias) => {
@@ -185,29 +189,64 @@ export const leerLesionesPegadas = (texto, { config = null } = {}) => {
   return { columnas, filas, error: "" };
 };
 
-// Las opciones de cada lista del club para leer lo pegado: con el texto de
-// los dos idiomas (el Excel escribe en portugués) y las equivalencias del
-// Excel. Las escondidas también valen: lo cargado antes no se pierde.
+// Cómo se lee el valor de cada lista, de a pasos, para que lo más propio
+// gane: primero las opciones del club con su texto de hoy (en los dos
+// idiomas; el Excel escribe en portugués), después el texto original del
+// Excel de cada opción (si el club la renombró) y al final las
+// equivalencias del Excel. Las escondidas también valen: lo cargado antes no
+// se pierde. { campo: [opciones de cada paso] }.
 export const listasParaImportar = (config) =>
   Object.fromEntries(
     LISTAS.map((campo) => {
-      const equivalencias = Object.entries(EQUIVALENCIAS_DEL_EXCEL[campo] || {});
-      const opciones = opcionesDeCampo(campo, config, "es-AR", { conOcultas: true }).map((opcion) => ({
+      const delClub = opcionesDeCampo(campo, config, "es-AR", { conOcultas: true }).map((opcion) => ({
         ...opcion,
-        alias: [
-          etiquetaDeOpcion(campo, opcion.valor, config, "pt-BR"),
-          ...equivalencias.filter(([, codigo]) => codigo === opcion.valor).map(([texto]) => texto),
-        ],
+        alias: [etiquetaDeOpcion(campo, opcion.valor, config, "pt-BR")],
       }));
-      return [campo, opciones];
+      const codigos = new Set(delClub.map((opcion) => opcion.valor));
+      const delExcel = (OPCIONES[campo] || [])
+        .filter((opcion) => codigos.has(opcion.codigo))
+        .map((opcion) => ({ valor: opcion.codigo, etiqueta: opcion.etiquetas["pt-BR"], alias: [opcion.etiquetas["es-AR"]] }));
+      const equivalencias = Object.entries(EQUIVALENCIAS_DEL_EXCEL[campo] || {})
+        .filter(([, codigo]) => codigos.has(codigo))
+        .map(([texto, codigo]) => ({ valor: codigo, etiqueta: texto }));
+      return [campo, [delClub, delExcel, equivalencias]];
     }),
   );
 
-// El nombre para comparar: sin acentos, mayúsculas ni signos.
-const nombreParaComparar = (nombre) =>
+const valorDeLista = (pasos, texto) => {
+  for (const opciones of pasos) {
+    const valor = interpretarValor({ tipo: "lista", opciones }, texto);
+    if (valor !== undefined && valor !== null) return valor;
+  }
+  return undefined;
+};
+
+// Quién es cada nombre en el plantel: el mismo nombre (sin mayúsculas ni
+// espacios de más, como lo distingue la base) y si no hay, el mismo sin
+// acentos ni signos. Si dos jugadores dan lo mismo, no se adivina: DUDOSO.
+const DUDOSO = "dudoso";
+const nombreIgual = (nombre) =>
+  String(nombre ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+const nombreParecido = (nombre) =>
   normalizarTextoBase(nombre)
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+const buscadorDeJugadores = (plantel) => {
+  const indice = (clave) => {
+    const mapa = new Map();
+    plantel.forEach((jugador) => {
+      const llave = clave(jugador.nombre);
+      mapa.set(llave, mapa.has(llave) ? DUDOSO : jugador);
+    });
+    return mapa;
+  };
+  const iguales = indice(nombreIgual);
+  const parecidos = indice(nombreParecido);
+  return (nombre) => iguales.get(nombreIgual(nombre)) || parecidos.get(nombreParecido(nombre)) || null;
+};
 
 // La misma lesión: mismo jugador, parte del cuerpo, lado y fecha de inicio
 // (la regla de la base, lesiones_sin_repetir).
@@ -236,20 +275,30 @@ export const ESTADOS = {
 // plantel: los jugadores de la app; lesiones: las que ya están; config: la
 // del club (leerConfig); hoy: ISO.
 export const planDeImportacion = (filas, { plantel = [], lesiones = [], config = null, hoy }) => {
-  const porNombre = new Map(plantel.map((jugador) => [nombreParaComparar(jugador.nombre), jugador]));
+  const jugadorDe = buscadorDeJugadores(plantel);
   const listas = listasParaImportar(config);
-  // Cada columna de fechas se lee igual entera (día/mes o mes/día).
-  const formatos = Object.fromEntries(
-    [...FECHAS, "hora_imagen"].map((clave) => [clave, formatoDeLaColumna(filas.map((fila) => fila.textos[clave]))]),
-  );
-  const oculto = (clave) => campoOculto(clave, config);
+  // Todas las fechas se leen igual (día/mes o mes/día).
+  const formato = formatoDeLasFechas(filas.flatMap((fila) => [...FECHAS, "hora_imagen"].map((clave) => fila.textos[clave])));
+  // Las fechas se revisan aunque el club haya escondido la columna: la base
+  // las revisa igual (fechas en orden y no futuras).
+  const oculto = (clave) => !FECHAS.includes(clave) && campoOculto(clave, config);
+  // Las que no traen N° de caso van después del más alto de todo lo pegado
+  // (también de los casos que no se cargan, para no quitarles el número) y
+  // de los de la app.
+  let siguienteCaso =
+    Math.max(
+      0,
+      ...lesiones.map((otra) => Number(otra.numero_caso) || 0),
+      ...filas.map((fila) => (/^\d+$/.test(fila.textos.numero_caso || "") ? Number(fila.textos.numero_caso) : 0)),
+    ) + 1;
   const aCargar = [];
   const casosDeLoPegado = new Set();
 
   return filas.map((fila) => {
     const problemas = [];
     const avisos = [];
-    const jugador = porNombre.get(nombreParaComparar(fila.nombre)) || null;
+    const encontrado = jugadorDe(fila.nombre);
+    const jugador = encontrado === DUDOSO ? null : encontrado;
     const textoCaso = fila.textos.numero_caso || "";
     const numeroCaso = /^\d+$/.test(textoCaso) && Number(textoCaso) > 0 ? Number(textoCaso) : null;
     if (textoCaso && numeroCaso === null) avisos.push({ campo: "numero_caso", valor: textoCaso });
@@ -267,9 +316,9 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
     Object.entries(fila.textos).forEach(([campo, texto]) => {
       if (!texto || campo === "jugador" || campo === "numero_caso") return;
       let valor;
-      if (FECHAS.includes(campo)) valor = fechaDelExcel(texto, formatos[campo]);
-      else if (campo === "hora_imagen") valor = fechaHoraDelExcel(texto, formatos.hora_imagen);
-      else if (LISTAS.includes(campo)) valor = interpretarValor({ tipo: "lista", opciones: listas[campo] }, texto);
+      if (FECHAS.includes(campo)) valor = fechaDelExcel(texto, formato);
+      else if (campo === "hora_imagen") valor = fechaHoraDelExcel(texto, formato);
+      else if (LISTAS.includes(campo)) valor = valorDeLista(listas[campo], texto);
       else valor = texto;
       if (valor === undefined || valor === null) avisos.push({ campo, valor: texto });
       else if (FECHAS.includes(campo)) lesion[campo] = valor;
@@ -278,7 +327,7 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
     const plan = { ...fila, numeroCaso, jugador, lesion, problemas, avisos };
 
     if (!fila.textos.fecha_lesion) return { ...plan, estado: ESTADOS.sinFecha };
-    if (!jugador) return { ...plan, estado: ESTADOS.conProblemas, problemas: ["lesiones.importar.sinJugador"] };
+    if (!jugador) return { ...plan, estado: ESTADOS.conProblemas, problemas: [encontrado === DUDOSO ? "lesiones.importar.jugadorDudoso" : "lesiones.importar.sinJugador"] };
     if (lesion.fecha_lesion && lesiones.some((otra) => esLaMisma(otra, lesion))) return { ...plan, estado: ESTADOS.yaEsta };
 
     if (numeroCaso !== null) {
@@ -288,8 +337,9 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
     }
     // Lo mismo que se revisa al cargar una a mano (fechas, tipo, parte, lado,
     // la misma lesión dos veces), contra las de la app y las de más arriba.
-    erroresDeLesion(lesion, { hoy, otras: [...lesiones, ...aCargar], oculto }).forEach((uno) => problemas.push(uno.error));
+    erroresDeLesion(lesion, { hoy, otras: [...lesiones, ...aCargar], oculto }).forEach((uno) => problemas.includes(uno.error) || problemas.push(uno.error));
     if (problemas.length) return { ...plan, estado: ESTADOS.conProblemas };
+    if (numeroCaso === null) lesion.numero_caso = siguienteCaso++;
     aCargar.push({ ...lesion, id: `pegada-${fila.indice}` });
     return { ...plan, estado: ESTADOS.nueva };
   });
