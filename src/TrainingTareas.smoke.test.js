@@ -12,7 +12,10 @@ vi.mock("./domain/equipo.js", () => ({
   esElCam: (nombre) => /mineiro/i.test(String(nombre || "")),
 }));
 
-vi.mock("./domain/plantel.js", () => ({
+// La lista viene de la prueba; lo demás (quién está en el plantel actual) es
+// el de verdad.
+vi.mock("./domain/plantel.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   cargarPlantelConCatapult: (...args) => dobles.cargar(...args),
 }));
 
@@ -538,6 +541,33 @@ describe("TrainingTareas", () => {
     // La solapa lleva a la otra tarea.
     await act(async () => porEtiqueta("Tarea 2").click());
     expect(contenedor.querySelector(".panel-tarea .sobrelinea").textContent).toBe("TAREA 2 DE 2");
+  });
+
+  test("quien ya no está en el plantel actual no se ofrece para una tarea nueva", async () => {
+    dobles.plantel = dobles.plantel.map((jugador) => (jugador.id === 2 ? { ...jugador, actual: false } : jugador));
+    vi.stubGlobal("fetch", fetchDeCortes());
+    await montar();
+
+    await act(async () => botonPorTexto("Nueva tarea").click());
+    expect(participantesGuardados(0)).toEqual({ 1: { modo: "total", inicio: "", fin: "" } });
+    await act(async () => botonQueEmpieza("Jugadores").click());
+    expect(nombresDeLaHoja()).not.toContain("IGOR GOMES");
+    expect(nombresDeLaHoja()).toContain("A MINDA");
+  });
+
+  test("una sesión vieja no pierde a quien ya estaba en sus tareas, aunque se haya ido", async () => {
+    dobles.plantel = dobles.plantel.map((jugador) => (jugador.id === 2 ? { ...jugador, actual: false } : jugador));
+    inicial = entrenamientoDePrueba([tareaGuardada({ participantes: { 2: { modo: "total", inicio: "", fin: "" } } })]);
+    vi.stubGlobal("fetch", fetchDeCortes());
+    await montar();
+
+    await act(async () => botonQueEmpieza("Jugadores").click());
+    expect(nombresDeLaHoja()).toContain("IGOR GOMES");
+    expect(casillas()[nombresDeLaHoja().indexOf("IGOR GOMES")].checked).toBe(true);
+    await act(async () => botonPorTexto("Listo").click());
+    // La tarea siguiente lo sigue ofreciendo (está en la sesión).
+    await act(async () => botonPorTexto("Nueva tarea").click());
+    expect(Object.keys(participantesGuardados(1))).toContain("2");
   });
 
   test("Entra / Sale deja al jugador con menos tiempo desde o hasta ahora, y Deshacer lo revierte", async () => {

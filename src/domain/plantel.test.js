@@ -2,10 +2,13 @@ import { describe, expect, test, vi } from "vitest";
 import {
   MAXIMO_PUESTOS,
   PUESTOS,
+  actualesPrimero,
+  esActual,
   nombrePuesto,
   nombresDelPlantel,
   normalizarJugador,
   plantelDeRespaldo,
+  plantelParaElegir,
 } from "./plantel";
 
 vi.mock("../supabase.js", () => ({ supabase: {} }));
@@ -73,5 +76,21 @@ describe("plantel", () => {
     expect(nombrePuesto("VM")).toBe("Volante Mixto");
     // Una sigla desconocida se muestra tal cual antes que romper.
     expect(nombrePuesto("XX")).toBe("XX");
+  });
+
+  test("el plantel actual: sin el dato, está; para elegir, los de hoy y los que ya están en lo que se edita", () => {
+    const plantel = [
+      { id: 1, nombre: "ALONSO", actual: true },
+      { id: 2, nombre: "HULK", actual: false },
+      { id: 3, nombre: "SCARPA" },
+      { id: 4, nombre: "VITAO", actual: false },
+    ];
+    expect(plantel.map(esActual)).toEqual([true, false, true, false]);
+    expect(normalizarJugador({ nombre: "HULK", actual: false }).actual).toBe(false);
+    expect(plantelParaElegir(plantel).map((j) => j.nombre)).toEqual(["ALONSO", "SCARPA"]);
+    // Un partido viejo (por nombre, sin importar mayúsculas) o una sesión (por id).
+    expect(plantelParaElegir(plantel, { nombres: [" hulk ", "", null] }).map((j) => j.nombre)).toEqual(["ALONSO", "HULK", "SCARPA"]);
+    expect(plantelParaElegir(plantel, { ids: ["4"] }).map((j) => j.nombre)).toEqual(["ALONSO", "SCARPA", "VITAO"]);
+    expect(actualesPrimero(plantel).map((j) => j.nombre)).toEqual(["ALONSO", "SCARPA", "HULK", "VITAO"]);
   });
 });

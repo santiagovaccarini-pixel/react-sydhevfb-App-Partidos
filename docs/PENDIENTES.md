@@ -211,6 +211,25 @@ de lo hecho está en los commits, no en esta lista.
   la solapa **Posiciones** (los puestos y roles de Partido, `src/components/PosicionesPartido.jsx`)
   y la solapa **Catapult** (el chaleco de cada jugador, `src/components/VinculosCatapult.jsx`;
   solo para quien tiene Flujo diario, porque busca los chalecos con esa cuenta).
+- **Actual (03/10)**, en Datos básicos: quedan todos los jugadores que pasaron por el club, y
+  la casilla "Actual" (al lado del nombre) marca los del plantel de hoy; se marca y desmarca
+  con un toque y se guarda al toque (`jugadores.actual`, migración
+  `20261011_jugadores_actual.sql`; los que ya estaban quedan marcados, los nuevos entran
+  marcados). Un jugador que se fue no se borra: se desmarca. La regla en toda la app: **se
+  carga siempre a todos** (los partidos guardan nombres; Flujo diario y Lesiones, ids: un ex
+  jugador tiene que seguir apareciendo en lo suyo) y "Actual" solo decide a quién se ofrece
+  para elegir (`esActual`, `plantelParaElegir`, `actualesPrimero` en `src/domain/plantel.js`):
+  - Partido: la cancha y los desplegables, solo el plantel actual; al editar un partido
+    viejo, también los que jugaron ese partido.
+  - Flujo diario: para una tarea, solo el plantel actual, más los que ya están en alguna
+    tarea de la sesión (una sesión vieja no los pierde).
+  - Lesiones (lesión nueva, Historial, reporte individual), Posiciones, Catapult y los
+    importadores: el plantel actual primero; los que se fueron, abajo y marcados "Ya no
+    está" (en el Historial y el reporte, solo si tienen lesiones). A quien se fue no se le
+    propone chaleco.
+  - Reportes del plantel y la Base: todos (sus lesiones son historia del club).
+  Mientras no se corra el SQL, todos cuentan como actuales y marcar la casilla avisa qué SQL
+  falta. Con lesiones cargadas, borrar no se puede: se avisa que se desmarque Actual.
 - **Pegar desde Excel (02/10)**, en Datos básicos (`src/ImportarJugadores.jsx` y
   `src/domain/importarJugadores.js`): se copia la hoja "Datos Básicos" del Excel con su fila
   de cabeceras y se pega. Antes de guardar se ve qué pasa con cada fila: jugador nuevo, ya

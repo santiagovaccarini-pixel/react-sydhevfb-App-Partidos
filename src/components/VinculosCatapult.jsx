@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { cargarPlantelConCatapult, guardarVinculoCatapult } from "../domain/plantel.js";
+import { actualesPrimero, cargarPlantelConCatapult, esActual, guardarVinculoCatapult } from "../domain/plantel.js";
 import { nombreVisibleAtleta, proponerVinculos, resumirVinculos } from "../../lib/vinculoJugadores.js";
 import { mensajeDeRespuesta, pedirJson } from "../trainingApi.js";
 import { t, useIdioma } from "../idioma/index.js";
@@ -60,10 +60,13 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
       setAtletas(lista);
       // Punto de partida: lo guardado; si no hay, la propuesta.
       const iniciales = {};
+      const actuales = new Set(plantel.filter(esActual).map((jugador) => jugador.id));
       proponerVinculos({ jugadores: plantel, atletas: lista }).forEach((fila) => {
         // Un chaleco guardado que ya no existe no tiene opción en la lista:
-        // arranca en "Sin chaleco", así guardar lo desvincula.
-        iniciales[fila.jugadorId] = fila.vinculo?.ausente ? "" : fila.vinculo?.atletaId || fila.propuesta?.atletaId || "";
+        // arranca en "Sin chaleco", así guardar lo desvincula. A quien ya no
+        // está en el plantel actual no se le propone un chaleco.
+        const propuesta = actuales.has(fila.jugadorId) ? fila.propuesta?.atletaId : "";
+        iniciales[fila.jugadorId] = fila.vinculo?.ausente ? "" : fila.vinculo?.atletaId || propuesta || "";
       });
       setElecciones(iniciales);
       setEstadoAtletas("listo");
@@ -163,13 +166,16 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
               <p className="vacio-ficha">{t("datos.vacio")}</p>
             ) : (
               <ul className="lista-plantel">
-                {plantel.map((jugador, indice) => {
+                {actualesPrimero(plantel).map((jugador, indice) => {
                   const estadoFila = estadoDeFila(jugador);
                   const eleccion = elecciones[jugador.id] ?? (jugador.catapult_id || "");
                   return (
                     <li key={jugador.id ?? jugador.nombre}>
                       <span className="numero-lista">{indice + 1}</span>
-                      <span className="nombre-lista">{jugador.nombre}</span>
+                      <span className="nombre-lista">
+                        {jugador.nombre}
+                        {!esActual(jugador) && <small className="ya-no-esta"> · {t("datos.yaNoEsta")}</small>}
+                      </span>
                       <span className={`estado-vinculo ${estadoFila.tono}`.trim()}>{estadoFila.texto}</span>
                       {estadoAtletas === "listo" && (
                         <select

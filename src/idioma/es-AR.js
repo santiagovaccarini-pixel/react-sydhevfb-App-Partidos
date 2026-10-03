@@ -171,6 +171,7 @@ export default {
     foto: "Foto (enlace)",
     horasPrevias: "Horas previas",
     actual: "Actual",
+    yaNoEsta: "Ya no está",
     actuales_one: "{{n}} en el plantel actual",
     actuales_other: "{{n}} en el plantel actual",
     agregado: "Jugador agregado",
@@ -224,7 +225,7 @@ export default {
     },
     error: {
       nombre: "Escribí el nombre.",
-      repetido: "Ese jugador ya está en la lista.",
+      repetido: "Ese jugador ya está en la lista. Si volvió al club, marcá Actual.",
       guardar: "No se pudo guardar.",
       leer: "No se pudieron leer los jugadores.",
       horas: "Las horas se escriben como en el Excel: 30:14:20, 30:14 o 30,5.",

@@ -48,7 +48,7 @@ ULTIMA=$(ls "$RAIZ"/supabase/migrations/*.sql | grep -v revisar | sort | tail -1
 echo "→ $(basename "$ULTIMA") (otra vez)"
 $PSQL -f "$ULTIMA" >/dev/null
 # Las que dicen que se pueden volver a correr, también después de las nuevas.
-for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos; do
+for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas; do
   echo "→ $otra_vez.sql (otra vez, después de la última)"
   $PSQL -f "$RAIZ/supabase/migrations/$otra_vez.sql" >/dev/null
 done

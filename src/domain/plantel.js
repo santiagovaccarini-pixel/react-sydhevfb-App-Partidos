@@ -300,6 +300,25 @@ export const guardarPuestos = async (id, { roles, puestos }) => {
 
 // Lo que esperan los desplegables de nombre: una lista de textos con el vacío
 // adelante, como la que había en el código.
+// Está hoy en el plantel (Datos básicos › Actual). Sin el dato, está.
+export const esActual = (jugador) => jugador?.actual !== false;
+
+// A quién se ofrece para elegir: el plantel de hoy y, además, los que ya
+// están en lo que se edita (Partido los guarda por nombre; Flujo diario, por
+// id), aunque se hayan ido: un partido o una sesión vieja no pierde a nadie.
+// La lista completa se sigue usando para leer lo guardado (nombres,
+// chalecos, lesiones).
+const mismoNombre = (nombre) => limpiar(nombre).toLowerCase();
+export const plantelParaElegir = (plantel, { nombres = [], ids = [] } = {}) => {
+  const conNombre = new Set(nombres.map(mismoNombre).filter(Boolean));
+  const conId = new Set(ids.filter((id) => id !== null && id !== undefined && id !== "").map(String));
+  return (plantel || []).filter((jugador) => esActual(jugador) || conId.has(String(jugador.id)) || conNombre.has(mismoNombre(jugador.nombre)));
+};
+
+// Los del plantel de hoy primero y después los que se fueron (cada grupo en
+// el orden que traía).
+export const actualesPrimero = (plantel) => [...(plantel || []).filter(esActual), ...(plantel || []).filter((jugador) => !esActual(jugador))];
+
 export const nombresDelPlantel = (plantel) => [
   "",
   ...plantel.map((jugador) => jugador.nombre).filter(Boolean),

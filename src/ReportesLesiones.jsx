@@ -6,6 +6,7 @@ import { manchasDe } from "./components/manchasCuerpo.js";
 import { CuadroCadaMil, tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import ReporteCadaMil from "./ReporteCadaMil.jsx";
 import { calcular, claveDeQuien, esFechaISO, normalizarTexto, tieneFecha } from "./domain/lesiones.js";
+import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { sacarFondo } from "./domain/recorteFoto.js";
 import { CAMPOS } from "./domain/lesionesCampos.js";
 import {
@@ -341,7 +342,10 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
   if (modo === "individual") {
     if (!jugador) {
       const buscado = normalizarTexto(busqueda);
-      const lista = plantel.filter((uno) => !buscado || normalizarTexto(uno.nombre).includes(buscado));
+      const cuantasDe = (uno) => lesiones.filter((lesion) => tieneFecha(lesion) && String(lesion.jugador_id) === String(uno.id)).length;
+      // El plantel actual primero; de los que se fueron, los que tienen
+      // lesiones (su informe sigue valiendo como historia), marcados.
+      const lista = actualesPrimero(plantel).filter((uno) => (esActual(uno) || cuantasDe(uno) > 0) && (!buscado || normalizarTexto(uno.nombre).includes(buscado)));
       return (
         <div className="app reporte">
           <div className="contenedor contenedor-base">
@@ -357,7 +361,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
                   lista.map((uno) => (
                     <button type="button" key={uno.id} onClick={() => setJugadorId(String(uno.id))}>
                       <b>{uno.nombre}</b>
-                      <span>{plural("lesiones.historial.cantidad", lesiones.filter((lesion) => tieneFecha(lesion) && String(lesion.jugador_id) === String(uno.id)).length)}</span>
+                      <span>{[plural("lesiones.historial.cantidad", cuantasDe(uno)), esActual(uno) ? "" : t("datos.yaNoEsta")].filter(Boolean).join(" · ")}</span>
                     </button>
                   ))
                 )}

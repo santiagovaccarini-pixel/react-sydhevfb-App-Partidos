@@ -10,7 +10,8 @@ const plantelInicial = () => [
 const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], puestos: [], plantel: [], fallarAgregar: "", fallarPuestos: false, equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
 
 // Las posiciones de Partido y los chalecos de Catapult (plantel.js).
-vi.mock("./domain/plantel.js", () => ({
+vi.mock("./domain/plantel.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   MAXIMO_PUESTOS: 4,
   ROLES: ["Defensa", "Mediocampo", "Ataque"],
   PUESTOS: ["LAT", "CAR", "DEF", "VD", "VC", "VM", "VOL", "VO", "EXT", "MP", "DEL"].map((sigla) => ({ sigla, nombre: sigla })),
