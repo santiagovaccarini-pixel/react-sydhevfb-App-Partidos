@@ -110,6 +110,28 @@ export const interpretarFechaHora = (texto) => {
   return `${fecha}T${String(hora).padStart(2, "0")}:${String(minuto).padStart(2, "0")}`;
 };
 
+// Horas como las escribe el Excel ([h]:mm:ss): "30:14:20", "30:14" (o
+// "1:5", que el Excel lee 1:05), o en número, "30,5" o "30". Devuelve las horas (30,24 para "30:14:20"), null
+// si está vacío y undefined si no se entiende.
+export const interpretarHoras = (texto) => {
+  const t = String(texto ?? "").trim();
+  if (!t) return null;
+  const reloj = /^(\d{1,6}):([0-5]?\d)(?::([0-5]?\d))?$/.exec(t);
+  if (reloj) return Number(reloj[1]) + Number(reloj[2]) / 60 + Number(reloj[3] || 0) / 3600;
+  if (/^\d{1,6}([.,]\d+)?$/.test(t)) return Number(t.replace(",", "."));
+  return undefined;
+};
+
+// Las horas para mostrar, como en el Excel: "30:14:20" (o "30:14" si no hay
+// segundos). Vacío si no hay horas.
+export const textoDeHoras = (horas) => {
+  if (horas === null || horas === undefined || horas === "" || !Number.isFinite(Number(horas))) return "";
+  const segundos = Math.round(Number(horas) * 3600);
+  const dos = (numero) => String(numero).padStart(2, "0");
+  const reloj = `${Math.floor(segundos / 3600)}:${dos(Math.floor((segundos % 3600) / 60))}`;
+  return segundos % 60 ? `${reloj}:${dos(segundos % 60)}` : reloj;
+};
+
 // Un texto pegado en una celda, convertido al valor que guarda esa columna.
 // Devuelve undefined cuando no se entiende (y la celda no se toca).
 export const interpretarValor = (columna, texto) => {
@@ -132,6 +154,8 @@ export const interpretarValor = (columna, texto) => {
       const n = Number(t.replace(",", "."));
       return Number.isFinite(n) ? n : undefined;
     }
+    case "horas":
+      return interpretarHoras(t);
     case "texto":
     case "texto_largo":
       return t;

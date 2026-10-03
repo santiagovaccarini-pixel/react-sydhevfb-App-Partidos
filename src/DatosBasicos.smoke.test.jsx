@@ -158,7 +158,7 @@ describe("el módulo Datos básicos", () => {
     await montar();
     expect(texto(contenedor)).toContain("2 jugadores");
     const cabeceras = [...contenedor.querySelectorAll("th[data-columna]")].map((th) => th.textContent);
-    expect(cabeceras).toEqual(["Nombre y apellido", "Categoría", "Fecha de nacimiento", "Edad", "Pie dominante", "Posición", "Foto (enlace)"]);
+    expect(cabeceras).toEqual(["Nombre y apellido", "Categoría", "Fecha de nacimiento", "Edad", "Pie dominante", "Posición", "Foto (enlace)", "Horas previas"]);
     const hulk = contenedor.querySelector("tbody tr");
     expect(hulk.textContent).toContain("HULK");
     expect(hulk.textContent).toContain("25/07/1986");
@@ -170,6 +170,28 @@ describe("el módulo Datos básicos", () => {
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     expect(texto(contenedor)).toContain("2 jogadores");
     expect(contenedor.querySelector("tbody tr").textContent).toContain("Esquerdo");
+  });
+
+  test("las horas previas se escriben como en el Excel (30:14:20) y se guardan como horas", async () => {
+    await montar();
+    const horas = () => celda(contenedor, 0, 7);
+    await tocar(horas());
+    await tocar(horas());
+    const entrada = horas().querySelector("input");
+    expect(entrada.placeholder).toBe("0:00");
+    await escribir(entrada, "30:14:20");
+    await act(async () => entrada.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(registro.guardados).toHaveLength(1);
+    expect(registro.guardados[0].id).toBe(7);
+    expect(registro.guardados[0].horas_previas).toBeCloseTo(30 + 14 / 60 + 20 / 3600, 10);
+    expect(horas().textContent).toBe("30:14:20");
+    // Lo que no son horas no se guarda (la celda ya está elegida: un toque la abre).
+    await tocar(horas());
+    await escribir(horas().querySelector("input"), "muchas");
+    await act(async () => horas().querySelector("input").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(registro.guardados).toHaveLength(1);
+    expect(horas().textContent).toBe("30:14:20");
+    expect(texto(contenedor)).toContain("Las horas se escriben como en el Excel");
   });
 
   test("quien ya se fue del club ve a los jugadores y no puede cambiar nada", async () => {

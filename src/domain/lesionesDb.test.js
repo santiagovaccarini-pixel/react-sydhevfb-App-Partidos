@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, historialDeLesion } from "./lesionesDb.js";
+import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, cargarPlantelLesiones, guardarDatosJugador, historialDeLesion } from "./lesionesDb.js";
 
-// Un doble de Supabase que anota la consulta y contesta lo configurado.
-const doble = vi.hoisted(() => ({ llamadas: [], filas: [], error: null, alta: null }));
+// Un doble de Supabase que anota la consulta y contesta lo configurado (o,
+// si hay, la próxima de "respuestas", una por consulta).
+const doble = vi.hoisted(() => ({ llamadas: [], filas: [], error: null, alta: null, respuestas: [] }));
 
 // El alta de jugadores es la de Partido: contesta lo que diga la prueba.
 vi.mock("./plantel.js", () => ({
@@ -21,7 +22,8 @@ vi.mock("../supabase.js", () => {
         return c;
       };
     });
-    c.then = (resolver, rechazar) => Promise.resolve({ data: doble.error ? null : doble.filas, error: doble.error }).then(resolver, rechazar);
+    c.then = (resolver, rechazar) =>
+      Promise.resolve(doble.respuestas.length ? doble.respuestas.shift() : { data: doble.error ? null : doble.filas, error: doble.error }).then(resolver, rechazar);
     return c;
   };
   return {
@@ -38,6 +40,7 @@ beforeEach(() => {
   doble.llamadas.length = 0;
   doble.filas = [];
   doble.error = null;
+  doble.respuestas = [];
 });
 
 describe("los cambios de una lesión en la ficha", () => {
@@ -99,5 +102,52 @@ describe("agregar un jugador desde Datos básicos", () => {
     expect(await agregarJugadorBasico("eq-1", "LEMOS")).toMatchObject({ error: "datos.error.guardar" });
     doble.alta = async (nombre) => ({ jugador: { id: 9, nombre } });
     expect(await agregarJugadorBasico("eq-1", "LEMOS")).toMatchObject({ jugador: { id: 9, nombre: "LEMOS", categoria: "" }, error: "" });
+  });
+});
+
+describe("las horas previas de cada jugador", () => {
+  const sinColumna = { data: null, error: { code: "42703", message: "column jugadores.horas_previas does not exist" } };
+  const selects = () => doble.llamadas.filter(([metodo]) => metodo === "select").map(([, columnas]) => columnas);
+
+  test("se leen con el plantel, como número", async () => {
+    doble.filas = [{ id: 7, nombre: "HULK", horas_previas: "30.25" }];
+    const { plantel } = await cargarPlantelLesiones("eq-1");
+    expect(plantel[0].horas_previas).toBe(30.25);
+    expect(selects()[0]).toContain("horas_previas");
+  });
+
+  test("mientras no se corra el SQL nuevo, el plantel se lee sin ellas", async () => {
+    doble.respuestas = [sinColumna, { data: [{ id: 7, nombre: "HULK", categoria: "profissional" }], error: null }];
+    const { plantel, error } = await cargarPlantelLesiones("eq-1");
+    expect(error).toBe("");
+    expect(plantel[0]).toMatchObject({ nombre: "HULK", categoria: "profissional", horas_previas: null });
+    expect(selects()).toHaveLength(2);
+    expect(selects()[1]).not.toContain("horas_previas");
+  });
+
+  test("se guardan como horas; sin el SQL nuevo se avisa, y lo demás se sigue guardando", async () => {
+    doble.filas = { id: 7, nombre: "HULK", horas_previas: 30.25 };
+    expect(await guardarDatosJugador(7, { horas_previas: 30.25 })).toMatchObject({ jugador: { horas_previas: 30.25 }, error: "" });
+    expect(doble.llamadas.find(([metodo]) => metodo === "update")[1]).toMatchObject({ horas_previas: 30.25 });
+    expect(await guardarDatosJugador(7, { horas_previas: -2 })).toEqual({ error: "datos.error.horas" });
+    doble.respuestas = [sinColumna];
+    expect(await guardarDatosJugador(7, { horas_previas: 12 })).toEqual({ error: "datos.error.faltanHorasPrevias" });
+    doble.respuestas = [sinColumna, { data: { id: 7, nombre: "HULK", categoria: "sub20" }, error: null }];
+    expect(await guardarDatosJugador(7, { categoria: "sub20" })).toEqual({ jugador: expect.objectContaining({ categoria: "sub20", horas_previas: null }), error: "" });
+    // Las horas con otros datos (el Excel pegado): lo demás se guarda y se avisa.
+    doble.llamadas.length = 0;
+    doble.respuestas = [sinColumna, { data: { id: 7, nombre: "HULK", categoria: "sub20" }, error: null }];
+    expect(await guardarDatosJugador(7, { categoria: "sub20", horas_previas: 12 })).toMatchObject({ jugador: { categoria: "sub20" }, error: "", aviso: "datos.error.faltanHorasPrevias" });
+    const updates = doble.llamadas.filter(([metodo]) => metodo === "update").map(([, valores]) => valores);
+    expect(updates[1]).not.toHaveProperty("horas_previas");
+    expect(updates[1]).toMatchObject({ categoria: "sub20" });
+    // Celdas de horas vacías junto a otras: se guarda lo demás sin aviso.
+    doble.respuestas = [sinColumna, { data: { id: 7, nombre: "HULK", foto_url: "http://b" }, error: null }];
+    expect(await guardarDatosJugador(7, { foto_url: "http://b", horas_previas: null })).toEqual({ jugador: expect.objectContaining({ foto_url: "http://b" }), error: "" });
+    // Vaciar la celda borra las horas.
+    doble.filas = { id: 7, nombre: "HULK", horas_previas: null };
+    doble.llamadas.length = 0;
+    await guardarDatosJugador(7, { horas_previas: null });
+    expect(doble.llamadas.find(([metodo]) => metodo === "update")[1]).toMatchObject({ horas_previas: null });
   });
 });

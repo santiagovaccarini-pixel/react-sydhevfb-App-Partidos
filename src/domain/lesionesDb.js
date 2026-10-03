@@ -104,7 +104,18 @@ export const historialDeLesion = async (id) => {
 
 // ------------------------------------------------------------ Jugadores --
 
-const COLUMNAS_JUGADOR = "id, nombre, roles, puestos, categoria, fecha_nacimiento, pie_dominante, posicion, foto_url";
+// Las horas previas (de entrenamiento, de antes de que llegara el cuerpo
+// técnico) llegan con 20261007_horas_previas.sql: mientras no se corra, se
+// lee y se guarda sin ellas.
+const COLUMNAS_JUGADOR_SIN_HORAS = "id, nombre, roles, puestos, categoria, fecha_nacimiento, pie_dominante, posicion, foto_url";
+const COLUMNAS_JUGADOR = `${COLUMNAS_JUGADOR_SIN_HORAS}, horas_previas`;
+const faltanHorasPrevias = (error) => /horas_previas/.test(error?.message || "");
+
+const horasPrevias = (valor) => {
+  if (valor === null || valor === undefined || valor === "") return null;
+  const horas = Number(valor);
+  return Number.isFinite(horas) ? horas : null;
+};
 
 export const normalizarJugadorLesiones = (fila) => ({
   ...normalizarJugador(fila),
@@ -113,6 +124,7 @@ export const normalizarJugadorLesiones = (fila) => ({
   pie_dominante: fila?.pie_dominante || "",
   posicion: fila?.posicion || "",
   foto_url: fila?.foto_url || "",
+  horas_previas: horasPrevias(fila?.horas_previas),
 });
 
 const porNombre = (lista) => [...lista].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
@@ -128,11 +140,9 @@ export const cargarPlantelLesiones = async (equipoId) => {
       return { plantel: [], ...fallo(error, "datos.error.leer") };
     }
   }
-  const { data, error } = await supabase
-    .from("jugadores")
-    .select(COLUMNAS_JUGADOR)
-    .eq("equipo_id", equipoId)
-    .order("nombre", { ascending: true });
+  const leer = (columnas) => supabase.from("jugadores").select(columnas).eq("equipo_id", equipoId).order("nombre", { ascending: true });
+  let { data, error } = await leer(COLUMNAS_JUGADOR);
+  if (error && faltanHorasPrevias(error)) ({ data, error } = await leer(COLUMNAS_JUGADOR_SIN_HORAS));
   if (!error) return { plantel: porNombre((data || []).map(normalizarJugadorLesiones)), error: "" };
   const respaldo = await cargarPlantel(equipoId);
   return { plantel: (respaldo.plantel || []).map(normalizarJugadorLesiones), error: "" };
@@ -147,13 +157,28 @@ export const guardarDatosJugador = async (id, datos) => {
   if ("pie_dominante" in datos) cambios.pie_dominante = datos.pie_dominante || null;
   if ("posicion" in datos) cambios.posicion = datos.posicion || null;
   if ("foto_url" in datos) cambios.foto_url = String(datos.foto_url || "").trim() || null;
+  if ("horas_previas" in datos) {
+    cambios.horas_previas = horasPrevias(datos.horas_previas);
+    if ((datos.horas_previas ?? "") !== "" && (cambios.horas_previas === null || cambios.horas_previas < 0)) return { error: "datos.error.horas" };
+  }
   if (cambios.nombre === "") return { error: "datos.error.nombre" };
-  const { data, error } = await supabase.from("jugadores").update(cambios).eq("id", id).select(COLUMNAS_JUGADOR).single();
+  const guardar = (valores, columnas) => supabase.from("jugadores").update(valores).eq("id", id).select(columnas).single();
+  let { data, error } = await guardar(cambios, COLUMNAS_JUGADOR);
+  // Sin el SQL de las horas previas: lo demás se guarda igual y, si había
+  // horas para guardar, se avisa. Si solo eran las horas, no se guarda nada.
+  let aviso = "";
+  if (error && faltanHorasPrevias(error)) {
+    const { horas_previas: horas, ...resto } = cambios;
+    const conHoras = horas !== null && horas !== undefined;
+    if (conHoras && !Object.keys(resto).some((clave) => clave !== "actualizado_en")) return { error: "datos.error.faltanHorasPrevias" };
+    if (conHoras) aviso = "datos.error.faltanHorasPrevias";
+    ({ data, error } = await guardar(resto, COLUMNAS_JUGADOR_SIN_HORAS));
+  }
   if (error) {
     if (/duplicate key|unique/i.test(error.message || "")) return { error: "datos.error.repetido" };
     return fallo(error, "datos.error.guardar");
   }
-  return { jugador: normalizarJugadorLesiones(data), error: "" };
+  return { jugador: normalizarJugadorLesiones(data), error: "", ...(aviso ? { aviso } : {}) };
 };
 
 // Alta y baja de jugadores desde Datos básicos: las mismas de Partido. El

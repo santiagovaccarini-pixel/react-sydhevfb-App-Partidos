@@ -13,15 +13,16 @@ const listas = Object.fromEntries(
 const HOY = "2026-10-02";
 
 // Como sale del Excel al copiar: títulos arriba, la fila de cabeceras y los
-// jugadores (con columnas que no interesan en el medio).
+// jugadores. La columna A son las horas previas: no tiene título y en su
+// cabecera está el botón "Voltar ao menu inicial".
 const PEGADO = [
   "\tDatos Básicos",
   "",
   "Voltar ao menu inicial\tNome e Sobrenome\tCategoria\tD. Nac. (DD/MM/AAAA)\tP. Dominante\tPosicao\tLinks das fotos",
-  "\tAna Uno\tProfissional\t25/07/1986\tEsquerdo\tDELANTERO CENTRAL\thttps://fotos.example/ana.jpg",
+  "30:14:20\tAna Uno\tProfissional\t25/07/1986\tEsquerdo\tDELANTERO CENTRAL\thttps://fotos.example/ana.jpg",
   "\tBea  Dos\tProfissional\t03/02/2004\tDireito\tGOLEIRO\t",
   "\t\t\t\t\t\t",
-  "\tCata Tres\tSub-20\t31/02/2005\tAmbos\tCARRILERO\tsin foto",
+  "muchas\tCata Tres\tSub-20\t31/02/2005\tAmbos\tCARRILERO\tsin foto",
 ].join("\n");
 
 describe("leer lo pegado del Excel", () => {
@@ -34,7 +35,7 @@ describe("leer lo pegado del Excel", () => {
   test("busca la fila de cabeceras debajo de los títulos y lee cada jugador", () => {
     const leido = leerPegado(PEGADO);
     expect(leido.error).toBe("");
-    expect(leido.columnas).toEqual({ nombre: 1, categoria: 2, fecha_nacimiento: 3, pie_dominante: 4, posicion: 5, foto_url: 6 });
+    expect(leido.columnas).toEqual({ horas_previas: 0, nombre: 1, categoria: 2, fecha_nacimiento: 3, pie_dominante: 4, posicion: 5, foto_url: 6 });
     // La fila vacía no cuenta; los espacios de más del nombre se van.
     expect(leido.filas.map((fila) => fila.nombre)).toEqual(["Ana Uno", "Bea Dos", "Cata Tres"]);
     expect(leido.filas[0].textos).toEqual({
@@ -43,6 +44,7 @@ describe("leer lo pegado del Excel", () => {
       pie_dominante: "Esquerdo",
       posicion: "DELANTERO CENTRAL",
       foto_url: "https://fotos.example/ana.jpg",
+      horas_previas: "30:14:20",
     });
   });
 
@@ -67,10 +69,10 @@ describe("leer lo pegado del Excel", () => {
 describe("convertir cada fila a lo que guarda la app", () => {
   test("listas por su texto en cualquiera de los dos idiomas, fechas y enlaces", () => {
     const [ana, bea, cata] = leerPegado(PEGADO).filas.map((fila) => interpretarFila(fila, { listas, hoy: HOY }));
-    expect(ana).toEqual({
-      datos: { categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "https://fotos.example/ana.jpg" },
-      avisos: [],
-    });
+    expect(ana.datos).toMatchObject({ categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "https://fotos.example/ana.jpg" });
+    // Las horas previas, como horas: 30:14:20 son 30 horas y cuarto (y un poco).
+    expect(ana.datos.horas_previas).toBeCloseTo(30 + 14 / 60 + 20 / 3600, 10);
+    expect(ana.avisos).toEqual([]);
     expect(bea.datos).toEqual({ categoria: "profissional", fecha_nacimiento: "2004-02-03", pie_dominante: "direito", posicion: "goleiro" });
     // Lo que no se entiende no se carga y queda avisado.
     expect(cata.datos).toEqual({ categoria: "sub20" });
@@ -79,6 +81,7 @@ describe("convertir cada fila a lo que guarda la app", () => {
       { campo: "pie_dominante", valor: "Ambos" },
       { campo: "posicion", valor: "CARRILERO" },
       { campo: "foto_url", valor: "sin foto" },
+      { campo: "horas_previas", valor: "muchas" },
     ]);
   });
 
@@ -148,5 +151,8 @@ describe("quién es cada fila en la app", () => {
       posicion: "delantero_central",
     });
     expect(cambiosPara({}, jugador)).toEqual({});
+    // Las horas se comparan como se ven: un decimal de más no es un cambio.
+    expect(cambiosPara({ horas_previas: 30 + 14 / 60 + 20 / 3600 }, { ...jugador, horas_previas: 30.238889 })).toEqual({});
+    expect(cambiosPara({ horas_previas: 31 }, { ...jugador, horas_previas: 30.238889 })).toEqual({ horas_previas: 31 });
   });
 });

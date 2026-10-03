@@ -3,9 +3,9 @@
 // empareja con el plantel y queda armado lo que hay que crear o cambiar.
 // Nada de esto toca la base: la pantalla muestra el plan y guarda.
 import { normalizarTextoBase } from "./match";
-import { desdeTexto, esFechaReal, interpretarFecha, interpretarValor } from "./tabla.js";
+import { desdeTexto, esFechaReal, interpretarFecha, interpretarHoras, interpretarValor, textoDeHoras } from "./tabla.js";
 
-export const CAMPOS_IMPORTABLES = ["categoria", "fecha_nacimiento", "pie_dominante", "posicion", "foto_url"];
+export const CAMPOS_IMPORTABLES = ["categoria", "fecha_nacimiento", "pie_dominante", "posicion", "foto_url", "horas_previas"];
 export const NUEVO = "nuevo";
 export const NO_CARGAR = "no_cargar";
 
@@ -26,6 +26,10 @@ const CABECERAS = {
   pie_dominante: ["p dominante", "pe dominante", "pie dominante"],
   posicion: ["posicao", "posicion", "puesto"],
   foto_url: ["links das fotos", "link das fotos", "link da foto", "links de las fotos", "fotos", "foto", "foto enlace", "foto link"],
+  // En el Excel la columna A (las horas de entrenamiento de antes de que
+  // llegara el cuerpo técnico) no tiene título: en su cabecera está el botón
+  // "Voltar ao menu inicial".
+  horas_previas: ["voltar ao menu inicial", "horas previas", "horas anteriores", "horas de entrenamiento previas", "horas de treino anteriores"],
 };
 
 // Hasta qué fila se busca la de las cabeceras (el Excel tiene títulos arriba).
@@ -140,6 +144,7 @@ export const interpretarFila = (fila, { listas = {}, hoy, formatoFecha = "dia_me
     let valor;
     if (campo === "fecha_nacimiento") valor = fechaDeNacimiento(texto, hoy, formatoFecha);
     else if (campo === "foto_url") valor = esEnlace(texto) ? texto : undefined;
+    else if (campo === "horas_previas") valor = interpretarHoras(texto);
     else valor = interpretarValor({ tipo: "lista", opciones: listas[campo] || [] }, texto);
     if (valor === undefined || valor === null) avisos.push({ campo, valor: texto });
     else datos[campo] = valor;
@@ -200,4 +205,10 @@ export const emparejar = (filas, plantel = []) => {
 // Qué cambia en un jugador de la app: los datos del Excel que no tiene o que
 // tiene distintos. Lo que el Excel trae vacío no borra nada.
 export const cambiosPara = (datos, jugador) =>
-  Object.fromEntries(Object.entries(datos).filter(([campo, valor]) => String(jugador?.[campo] ?? "") !== String(valor)));
+  Object.fromEntries(
+    Object.entries(datos).filter(([campo, valor]) =>
+      // Las horas se comparan como se ven (30:14:20): el número guardado puede
+      // tener más decimales.
+      campo === "horas_previas" ? textoDeHoras(jugador?.[campo]) !== textoDeHoras(valor) : String(jugador?.[campo] ?? "") !== String(valor),
+    ),
+  );

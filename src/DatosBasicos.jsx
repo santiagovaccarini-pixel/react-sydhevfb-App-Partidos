@@ -10,6 +10,7 @@ import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
 import { guardarPuestos } from "./domain/plantel.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { diasEntre } from "./domain/lesiones.js";
+import { textoDeHoras } from "./domain/tabla.js";
 import { campoPorClave, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
 import { agregarJugadorBasico, cargarPlantelLesiones, guardarDatosJugador, leerConfig, quitarJugadorBasico } from "./domain/lesionesDb.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -30,7 +31,10 @@ export const DESTINOS_DATOS = [
   { id: "catapult", etiqueta: "Catapult", icono: "llave" },
 ];
 
-// Las columnas: el nombre, los datos del Excel y la edad de hoy.
+// Las columnas: el nombre, los datos del Excel y la edad de hoy. Las horas
+// previas son las de entrenamiento de antes de que llegara el cuerpo técnico
+// (la columna A de la hoja del Excel): los reportes de Lesiones las suman a
+// las del GPS.
 const COLUMNAS = [
   { clave: "nombre", tipo: "texto", editable: true, rotulo: "jugador" },
   { clave: "categoria", tipo: "lista", editable: true },
@@ -38,7 +42,8 @@ const COLUMNAS = [
   { clave: "edad", tipo: "calculado", editable: false },
   { clave: "pie_dominante", tipo: "lista", editable: true },
   { clave: "posicion", tipo: "lista", editable: true },
-  { clave: "foto_url", tipo: "texto", editable: true, rotulo: "foto" },
+  { clave: "foto_url", tipo: "texto", editable: true, texto: "datos.foto" },
+  { clave: "horas_previas", tipo: "horas", editable: true, texto: "datos.horasPrevias" },
 ];
 
 const edadHoy = (nacimiento) => {
@@ -112,7 +117,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     () =>
       COLUMNAS.map((columna) => ({
         clave: columna.clave,
-        titulo: columna.rotulo === "foto" ? t("datos.foto") : etiquetaDeCampo(columna.rotulo || columna.clave, config, idioma),
+        titulo: columna.texto ? t(columna.texto) : etiquetaDeCampo(columna.rotulo || columna.clave, config, idioma),
         tipo: columna.tipo,
         editable: columna.editable && !soloLectura,
         ancho: columna.clave === "nombre" ? 180 : undefined,
@@ -142,6 +147,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
             pie_dominante: jugador.pie_dominante || "",
             posicion: jugador.posicion || "",
             foto_url: jugador.foto_url || "",
+            horas_previas: jugador.horas_previas ?? null,
           },
           textos: {
             nombre: jugador.nombre,
@@ -151,6 +157,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
             pie_dominante: textoDeOpcion("pie_dominante", jugador.pie_dominante),
             posicion: textoDeOpcion("posicion", jugador.posicion),
             foto_url: jugador.foto_url || "",
+            horas_previas: textoDeHoras(jugador.horas_previas),
           },
         };
       }),
@@ -194,7 +201,9 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         continue;
       }
       reemplazar(respuesta.jugador);
-      hechos += Object.keys(datos).length;
+      // Lo demás se guardó; las horas, no (falta el SQL de las horas previas).
+      if (respuesta.aviso) ultimoError = respuesta.aviso;
+      hechos += Object.keys(datos).length - (respuesta.aviso ? 1 : 0);
     }
     return { hechos, error: ultimoError };
   };

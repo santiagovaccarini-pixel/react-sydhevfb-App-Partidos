@@ -7,9 +7,11 @@ import {
   aTexto,
   desdeTexto,
   filtrarFilas,
+  interpretarHoras,
   ordenarFilas,
   ordenDeColumnas,
   reordenar,
+  textoDeHoras,
   tramosDeGrupos,
   valoresDeColumna,
 } from "../domain/tabla.js";
@@ -319,7 +321,9 @@ export const TablaDatos = ({
       setHoja({ filaId: fila.id, col });
       return;
     }
-    setEditando({ filaId: fila.id, clave: col.clave, valor: fila.valores?.[col.clave] ?? "" });
+    // Las horas se escriben como en el Excel: "30:14:20".
+    const valor = col.tipo === "horas" ? textoDeHoras(fila.valores?.[col.clave]) : fila.valores?.[col.clave] ?? "";
+    setEditando({ filaId: fila.id, clave: col.clave, valor });
   };
 
   const guardarEdicion = async (valor) => {
@@ -329,6 +333,19 @@ export const TablaDatos = ({
     const fila = filas.find((una) => una.id === actual.filaId);
     const col = columnas.find((una) => una.clave === actual.clave);
     if (!fila || !col) return;
+    if (col.tipo === "horas") {
+      const horas = interpretarHoras(valor);
+      if (horas === undefined) {
+        setMensaje(t("tabla.horasMalEscritas"));
+        return;
+      }
+      if (textoDeHoras(fila.valores?.[col.clave]) === textoDeHoras(horas)) return;
+      setOcupada(true);
+      const respuesta = (await onEditar?.(fila.id, col.clave, horas)) || {};
+      setOcupada(false);
+      if (respuesta.error) setMensaje(t(respuesta.error));
+      return;
+    }
     const nuevo = col.tipo === "numero" ? (valor === "" ? null : Number(String(valor).replace(",", "."))) : valor;
     if (col.tipo === "numero" && valor !== "" && !Number.isFinite(nuevo)) return;
     if ((fila.valores?.[col.clave] ?? "") === (nuevo ?? "")) return;
@@ -652,6 +669,7 @@ export const TablaDatos = ({
                         <input
                           autoFocus
                           type={col.tipo === "fecha" ? "date" : col.tipo === "fecha_hora" ? "datetime-local" : col.tipo === "numero" ? "number" : "text"}
+                          placeholder={col.tipo === "horas" ? "0:00" : undefined}
                           value={editando.valor ?? ""}
                           onChange={(evento) => setEditando({ ...editando, valor: evento.target.value })}
                           onBlur={(evento) => guardarEdicion(evento.target.value)}
