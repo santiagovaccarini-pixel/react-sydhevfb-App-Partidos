@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { BarrasApiladas, COLORES_DE_SERIE, COLOR_SIN_DATO, Columnas, Torta, arcosDeTorta, coloresDeSeries } from "./GraficosReporte.jsx";
+import { OPCIONES } from "../domain/lesionesCampos.js";
 
 describe("los gráficos de los informes", () => {
   let contenedor;
@@ -104,6 +105,53 @@ describe("los gráficos de los informes", () => {
       ["1", "33.33333333333333%"],
     ]);
     expect(contenedor.querySelector(".reporte-barras b").textContent).toBe("3");
+  });
+
+  test("las columnas: todas en una grilla; cada una se lee entera; un valor vacío no se nombra", async () => {
+    await dibujar(
+      <Columnas
+        titulo="2026"
+        formato={(valor) => (valor ? String(valor) : "")}
+        leyenda
+        series={[
+          { clave: "coxa", etiqueta: "Muslo", color: "#2a78d6" },
+          { clave: "joelho", etiqueta: "Rodilla", color: "#eb6834" },
+        ]}
+        filas={[{ clave: "t", etiqueta: "Entrenamiento", detalle: "3 lesiones", valores: { coxa: null, joelho: 3 } }]}
+      />,
+    );
+    const grafico = contenedor.querySelector(".reporte-columnas-grafico");
+    expect(grafico.getAttribute("role")).toBe("group");
+    expect(grafico.getAttribute("aria-label")).toBe("2026");
+    // Las barras, el nombre y el detalle de cada columna van directo en la grilla.
+    expect([...grafico.children].map((hijo) => hijo.className)).toEqual(["reporte-columnas-barras", "reporte-columnas-etiqueta", "reporte-columnas-detalle"]);
+    const columna = grafico.querySelector(".reporte-columnas-barras");
+    expect(columna.getAttribute("role")).toBe("img");
+    expect(columna.getAttribute("aria-label")).toBe("Entrenamiento · Rodilla: 3 · 3 lesiones");
+    expect(columna.title).toBe("Entrenamiento · Rodilla: 3 · 3 lesiones");
+    // El número va dentro de su barra (arriba de ella): no le quita alto.
+    expect(contenedor.querySelector(".reporte-columnas-barra .reporte-columnas-valor").textContent).toBe("3");
+    expect(contenedor.querySelector(".reporte-columnas-barra").style.height).toBe("100%");
+    // Una sola serie, con leyenda si se pide.
+    await dibujar(<Columnas leyenda series={[{ clave: "coxa", etiqueta: "Muslo", color: "#2a78d6" }]} filas={[{ clave: "t", etiqueta: "T", valores: { coxa: 1 } }]} />);
+    expect(contenedor.querySelector(".reporte-leyenda").textContent).toBe("Muslo");
+  });
+
+  test("las barras apiladas llevan leyenda aunque sea una sola parte", async () => {
+    await dibujar(<BarrasApiladas series={[{ clave: "coxa", etiqueta: "Muslo", color: "#2a78d6" }]} filas={[{ clave: "j:7", etiqueta: "HULK", total: 2, valores: { coxa: 2 } }]} />);
+    expect(contenedor.querySelector(".reporte-leyenda").textContent).toBe("Muslo");
+  });
+
+  test("los colores no se repiten: las 17 partes del catálogo y más", () => {
+    const partes = OPCIONES.parte_cuerpo.map((opcion) => opcion.codigo);
+    expect(partes.length).toBeGreaterThanOrEqual(17);
+    const colorDe = coloresDeSeries(["", ...partes]);
+    const deLasPartes = partes.map(colorDe);
+    expect(new Set(deLasPartes).size).toBe(partes.length);
+    expect(deLasPartes).not.toContain(COLOR_SIN_DATO);
+    const muchas = Array.from({ length: 40 }, (_, i) => `parte${i}`);
+    const colorDeMuchas = coloresDeSeries(muchas);
+    expect(new Set(muchas.map(colorDeMuchas)).size).toBe(40);
   });
 
   test("los colores: uno por clave, en el orden en que llegan; Sin dato en gris; después de los ocho, otros", () => {

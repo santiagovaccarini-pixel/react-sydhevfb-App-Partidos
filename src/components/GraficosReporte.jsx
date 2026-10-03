@@ -6,14 +6,18 @@ import React from "react";
 
 // Los colores de las series (una parte del cuerpo, por ejemplo): el mismo
 // color para lo mismo en todos los gráficos. Probados para que se distingan
-// también con daltonismo. Después de los ocho, los mismos más oscuros (como
-// el Excel con sus colores de acento).
+// también con daltonismo. Después de los ocho, los mismos más oscuros y
+// después más claros (como el Excel con sus colores de acento): 24 sin
+// repetir, más que las partes del cuerpo del catálogo. Si hubiera más, se
+// arman otros que tampoco repiten.
 export const COLORES_DE_SERIE = Object.freeze(["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]);
 const COLORES_OSCUROS = Object.freeze(["#1b5296", "#b04718", "#127a55", "#a87200", "#b8547a", "#005c00", "#30247a", "#a82e2e"]);
+const COLORES_CLAROS = Object.freeze(["#7fb0ea", "#f4a07e", "#6fd3ae", "#f5c55c", "#f2b3cb", "#4fb14f", "#8f84d0", "#ef8f8e"]);
+const PALETAS = [COLORES_DE_SERIE, COLORES_OSCUROS, COLORES_CLAROS];
 // El texto que se lee arriba de cada color.
 const TINTA_CLARA = "#ffffff";
 const TINTA_OSCURA = "#0f172a";
-const CON_TINTA_OSCURA = new Set(["#1baf7a", "#eda100", "#e87ba4"]);
+const CON_TINTA_OSCURA = new Set(["#1baf7a", "#eda100", "#e87ba4", ...COLORES_CLAROS]);
 export const COLOR_SIN_DATO = "#94a3b8";
 
 export const tintaDe = (color) => (CON_TINTA_OSCURA.has(color) ? TINTA_OSCURA : TINTA_CLARA);
@@ -29,15 +33,20 @@ export const coloresDeSeries = (claves) => {
       colores.set(clave ?? "", COLOR_SIN_DATO);
       return;
     }
-    const vuelta = Math.floor(siguiente / COLORES_DE_SERIE.length) % 2;
-    colores.set(clave, (vuelta ? COLORES_OSCUROS : COLORES_DE_SERIE)[siguiente % COLORES_DE_SERIE.length]);
+    // Cada vuelta corre los colores tres lugares: así la novena no es la
+    // primera más oscura (dos tonos del mismo color, uno al lado del otro).
+    const vuelta = Math.floor(siguiente / COLORES_DE_SERIE.length);
+    const paleta = PALETAS[vuelta];
+    colores.set(clave, paleta ? paleta[(siguiente + vuelta * 3) % COLORES_DE_SERIE.length] : `hsl(${Math.round((siguiente * 137.508) % 360)} 55% 40%)`);
     siguiente += 1;
   });
   return (clave) => colores.get(clave ?? "") || COLOR_SIN_DATO;
 };
 
-const Leyenda = ({ series }) =>
-  series.length > 1 ? (
+// La leyenda: de qué es cada color. Con una sola serie, solo si se pide (en
+// los bloques 1 y 2 la serie es el título del gráfico, como en el Excel).
+const Leyenda = ({ series, mostrar = series.length > 1 }) =>
+  mostrar && series.length ? (
     <p className="reporte-leyenda">
       {series.map((serie) => (
         <span key={serie.clave}>
@@ -51,46 +60,72 @@ const Leyenda = ({ series }) =>
 // Columnas: filas [{ clave, etiqueta, detalle?, valores: { serie: número | null } }]
 // y series [{ clave, etiqueta, color }]. Varias series van una al lado de la
 // otra. null es que no hay valor (no se dibuja la columna; dice "—"), no un
-// cero. formato(valor) escribe el número.
-export const Columnas = ({ filas, series, formato = (valor) => (valor === null || valor === undefined ? "—" : String(valor)), titulo = "", vacio = "" }) => {
+// cero. formato(valor) escribe el número. leyenda: si va la leyenda (de
+// entrada, con más de una serie).
+//
+// Es una sola grilla: las barras, los nombres y los detalles de todas las
+// columnas van en las mismas filas, así todas tienen la misma base y la misma
+// escala aunque un nombre ocupe más renglones. El número va arriba de su
+// barra, sin quitarle alto.
+export const Columnas = ({ filas, series, formato = (valor) => (valor === null || valor === undefined ? "—" : String(valor)), titulo = "", vacio = "", leyenda = series.length > 1 }) => {
   if (!filas.length) return <p className="vacio-ficha">{vacio}</p>;
   const valores = filas.flatMap((fila) => series.map((serie) => fila.valores?.[serie.clave])).filter((valor) => typeof valor === "number" && Number.isFinite(valor));
   // Sin piso en 1: valores cada 1000 horas menores que 1 también se ven.
   const tope = Math.max(0, ...valores) || 1;
+  // Lo que dice cada columna, al pasar el mouse y para quien no ve la pantalla.
+  const textoDe = (fila) =>
+    [
+      fila.etiqueta,
+      ...series.map((serie) => {
+        const texto = formato(fila.valores?.[serie.clave] ?? null);
+        return texto === "" ? "" : `${leyenda ? `${serie.etiqueta}: ` : ""}${texto}`;
+      }),
+      fila.detalle,
+    ]
+      .filter(Boolean)
+      .join(" · ");
   return (
     <div className="reporte-columnas">
-      <div className="reporte-columnas-grafico" role="img" aria-label={titulo}>
-        {filas.map((fila) => (
-          <div
-            className="reporte-columnas-grupo"
-            key={fila.clave}
-            style={{ maxWidth: `${Math.max(64, series.length * 26)}px` }}
-            title={[fila.etiqueta, ...series.map((serie) => `${series.length > 1 ? `${serie.etiqueta}: ` : ""}${formato(fila.valores?.[serie.clave] ?? null)}`), fila.detalle].filter(Boolean).join(" · ")}
-          >
-            <div className="reporte-columnas-barras">
-              {series.map((serie) => {
-                const valor = fila.valores?.[serie.clave];
-                const hay = typeof valor === "number" && Number.isFinite(valor);
-                return (
-                  <div className="reporte-columnas-lugar" key={serie.clave}>
-                    <span className="reporte-columnas-valor">{formato(hay ? valor : null)}</span>
-                    {hay && <span className="reporte-columnas-barra" style={{ height: `${(valor / tope) * 100}%`, background: serie.color }} />}
-                  </div>
-                );
-              })}
-            </div>
-            <small className="reporte-columnas-etiqueta">{fila.etiqueta}</small>
-            {fila.detalle && <small className="reporte-columnas-detalle">{fila.detalle}</small>}
-          </div>
-        ))}
+      <div className="reporte-columnas-grafico" role="group" aria-label={titulo} style={{ "--ancho-columna": `${Math.max(64, series.length * 26)}px` }}>
+        {filas.map((fila) => {
+          const texto = textoDe(fila);
+          return (
+            <React.Fragment key={fila.clave}>
+              <div className="reporte-columnas-barras" role="img" aria-label={texto} title={texto}>
+                {series.map((serie) => {
+                  const valor = fila.valores?.[serie.clave];
+                  const hay = typeof valor === "number" && Number.isFinite(valor);
+                  return (
+                    <div className="reporte-columnas-lugar" key={serie.clave}>
+                      {hay ? (
+                        <span className="reporte-columnas-barra" style={{ height: `${(valor / tope) * 100}%`, background: serie.color }}>
+                          <span className="reporte-columnas-valor">{formato(valor)}</span>
+                        </span>
+                      ) : (
+                        <span className="reporte-columnas-valor">{formato(null)}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <small className="reporte-columnas-etiqueta" aria-hidden="true" title={texto}>
+                {fila.etiqueta}
+              </small>
+              <small className="reporte-columnas-detalle" aria-hidden="true">
+                {fila.detalle || ""}
+              </small>
+            </React.Fragment>
+          );
+        })}
       </div>
-      <Leyenda series={series} />
+      <Leyenda series={series} mostrar={leyenda} />
     </div>
   );
 };
 
 // Barras horizontales apiladas: filas [{ clave, etiqueta, total, valores: { serie: n } }].
-// Cada tramo dice su número (si entra) y el total va al final.
+// Cada tramo dice su número (si entra) y el total va al final. La leyenda va
+// siempre (aunque sea una sola serie: si no, el color no dice de qué es).
 const PARTE_PARA_NUMERO = 0.08;
 export const BarrasApiladas = ({ filas, series, vacio = "" }) => {
   if (!filas.length) return <p className="vacio-ficha">{vacio}</p>;
@@ -122,7 +157,7 @@ export const BarrasApiladas = ({ filas, series, vacio = "" }) => {
           </li>
         ))}
       </ul>
-      <Leyenda series={series} />
+      <Leyenda series={series} mostrar />
     </div>
   );
 };

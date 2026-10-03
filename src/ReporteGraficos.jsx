@@ -4,6 +4,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { BarrasApiladas, Columnas, Torta, coloresDeSeries } from "./components/GraficosReporte.jsx";
 import { tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import { listarPeriodos } from "./domain/periodosDb.js";
+import { OPCIONES } from "./domain/lesionesCampos.js";
 import {
   REGLAS_GRAFICOS,
   VARIANTES,
@@ -78,17 +79,19 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
     return textoDeOpcion(campo, valor);
   };
   const tituloDeCampo = (campo) => etiqueta(campo);
-  // "Parte del cuerpo" dentro de una frase: "Por parte del cuerpo".
-  const enMinuscula = (texto) => String(texto || "").charAt(0).toLocaleLowerCase(idioma) + String(texto || "").slice(1);
   const { series: campoSeries } = REGLAS_GRAFICOS.momentos;
 
-  // Un color por parte del cuerpo, igual en todos los gráficos y con
-  // cualquier filtro: se arma con todas las que cuentan.
+  // Un color por parte del cuerpo, igual en todos los gráficos, con cualquier
+  // filtro, en los dos idiomas y aunque aparezca una parte nueva: va por el
+  // catálogo (los códigos) de abajo para arriba, así las de las piernas, las
+  // más comunes, toman los primeros colores; las que agregó el club, después.
   const colorDe = useMemo(() => {
-    const partes = [...opcionesDeFiltro(lesiones, campoSeries).map((valor) => ({ valor })), { valor: "" }];
-    return coloresDeSeries(ordenarPorEtiqueta(partes, (valor) => textoDe(campoSeries, valor), idioma).map((fila) => fila.valor));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lesiones, idioma]);
+    const catalogo = (OPCIONES[campoSeries] || []).map((opcion) => opcion.codigo).reverse();
+    const otras = opcionesDeFiltro(lesiones, campoSeries)
+      .filter((valor) => !catalogo.includes(valor))
+      .sort();
+    return coloresDeSeries([...catalogo, ...otras, ""]);
+  }, [lesiones, campoSeries]);
   const seriesDe = (valores) =>
     ordenarPorEtiqueta([...new Set(valores)].map((valor) => ({ valor })), (valor) => textoDe(campoSeries, valor), idioma).map(({ valor }) => ({
       clave: valor,
@@ -163,8 +166,8 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
       {contenido}
     </section>
   );
-  const tarjeta = (titulo, contenido, clave = titulo) => (
-    <section className="tarjeta tarjeta-ficha" key={clave}>
+  const tarjeta = (titulo, contenido, clave = titulo, clase = "") => (
+    <section className={`tarjeta tarjeta-ficha ${clase}`.trim()} key={clave}>
       <div className="cabeza-ficha">
         <b>{titulo}</b>
       </div>
@@ -273,12 +276,19 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
     elegidos("jugador", camposJugador),
     <>
       {lineaDeFiltros("jugador", camposJugador)}
+      {/* Puede ser más alta que una hoja: impresa, se corta entre jugadores. */}
       {tarjeta(
-        t("lesiones.graficos.porParte", { campo: enMinuscula(etiqueta(REGLAS_GRAFICOS.porJugador.series)) }),
+        etiqueta(REGLAS_GRAFICOS.porJugador.series),
         <BarrasApiladas filas={filasJugador} series={seriesDe(porJugador.flatMap((fila) => Object.keys(fila.porSerie)))} vacio={t("lesiones.graficos.sinLesiones")} />,
+        "jugador",
+        "reporte-graficos-larga",
       )}
       <div className="reporte-graficos-notas">
-        <p className="informe-criterio">{t("lesiones.graficos.cuentanTodas", { campo: etiqueta(REGLAS_GRAFICOS.campoContado) })}</p>
+        <p className="informe-criterio">
+          {REGLAS_GRAFICOS.porJugador.vaciaCuenta
+            ? t("lesiones.graficos.cuentanTodas", { campo: etiqueta(REGLAS_GRAFICOS.campoContado) })
+            : t("lesiones.graficos.cuentanConSerie", { contado: etiqueta(REGLAS_GRAFICOS.campoContado), campo: etiqueta(REGLAS_GRAFICOS.porJugador.series) })}
+        </p>
       </div>
     </>,
   );
@@ -307,7 +317,7 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
     <>
       {chipsDeAnios(aniosMomentos, anioMomentosElegido, setAnioMomentos)}
       {lineaDeFiltros("momentos", camposMomentos)}
-      {tarjeta(tituloMomentos, <Columnas titulo={tituloMomentos} filas={filasMomentos} series={seriesMomentos} formato={(valor) => (valor ? String(valor) : "")} vacio={t("lesiones.graficos.sinLesiones")} />)}
+      {tarjeta(tituloMomentos, <Columnas titulo={tituloMomentos} filas={filasMomentos} series={seriesMomentos} formato={(valor) => (valor ? String(valor) : "")} vacio={t("lesiones.graficos.sinLesiones")} leyenda />)}
       <div className="reporte-graficos-notas">
         <p className="informe-criterio">{t("lesiones.graficos.cuentanMomentos", { campo: etiqueta(categoria), contado: etiqueta(REGLAS_GRAFICOS.campoContado) })}</p>
       </div>

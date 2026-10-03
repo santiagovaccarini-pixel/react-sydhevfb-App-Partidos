@@ -455,8 +455,11 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
      básicos; todos, actuales o no), con filtro de jugador, tipo y producto.
   5. Entrenamiento y partidos: cuándo, por parte del cuerpo, del año (el de hoy si tiene
      lesiones), con filtro de cuándo y parte.
-  Las sin fecha nunca cuentan. Cada parte tiene el mismo color en todos los gráficos. Se
-  imprime con un bloque por hoja. **Diferencias con el Excel** (para decidir si hace
+  Las sin fecha nunca cuentan. Cada parte tiene siempre el mismo color (en todos los
+  gráficos, en los dos idiomas y aunque aparezca una parte nueva; ninguna repite). Las
+  columnas comparten la base y la escala. Se imprime con un bloque por hoja (los 16
+  períodos del Excel entran en cada gráfico; el de jugadores se corta entre jugadores).
+  **Diferencias con el Excel** (para decidir si hace
   falta): los filtros eligen uno o todos (en el Excel, varios); bloque 4 en barras
   horizontales (se leen los nombres en el celular); las tortas con la leyenda al lado en
   vez del nombre sobre la porción; "Base completa", si se guardó como período, también se

@@ -511,8 +511,8 @@ export default {
       filtro: "{{campo}}: {{valor}}",
       sinDato: "Sin dato",
       sinLesiones: "No hay lesiones con estos filtros.",
-      porParte: "Por {{campo}}",
       cuentanTodas: "Cuentan todas las lesiones con fecha de inicio y «{{campo}}» cargado, de cualquier fecha.",
+      cuentanConSerie: "Cuentan las lesiones con fecha de inicio, «{{contado}}» y «{{campo}}» cargados, de cualquier fecha.",
       cuentanMomentos: "Cuentan las lesiones con fecha de inicio, «{{contado}}» y «{{campo}}» cargados, por el año de la fecha de inicio.",
     },
     cadaMil: {

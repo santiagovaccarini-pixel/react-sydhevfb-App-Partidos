@@ -422,5 +422,57 @@ describe("los reportes con los minutos del GPS", () => {
     ]);
   });
 
+  test("Informes gráficos: la posición sale del plantel, y el año del bloque 5 es el último si hoy no tiene", async () => {
+    periodosGuardados.lista = [];
+    const plantel = [PLANTEL[0], { ...PLANTEL[1], posicion: "goleiro" }];
+    const lesiones = [
+      { ...LESIONES[0], fecha_lesion: "2024-03-01", fecha_alta: "2024-03-21" },
+      { ...LESIONES[1], fecha_lesion: "2025-06-01", fecha_alta: "2025-06-11" },
+      { ...LESIONES[2], fecha_lesion: "2025-04-01", fecha_alta: "2025-04-04" },
+    ];
+    await abrirGraficos(GPS, plantel, lesiones);
+    // Sin lesiones de 2026 (el año de hoy): el último año con lesiones.
+    expect(bloqueDe("Entrenamiento y partidos").querySelector(".cabeza-ficha b").textContent).toBe("2025");
+    // Posición: la del plantel (en el Excel, el Puesto de Datos Básicos).
+    await tocar([...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Posición")));
+    await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "goleiro"));
+    expect(leyendaDeTorta(0)).toEqual(["tornozelo_pe 100%"]);
+    // Por jugador, el filtro del jugador (como el del Excel): solo SCARPA.
+    await tocar([...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Nombre y apellido")));
+    await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "SCARPA"));
+    expect([...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-barras li .reporte-barras-etiqueta")].map((etiqueta) => etiqueta.textContent)).toEqual(["SCARPA"]);
+  });
+
+  test("Informes gráficos: por jugador, el título es el campo, con su leyenda aunque sea una parte, y la nota dice qué cuenta", async () => {
+    periodosGuardados.lista = [];
+    const sinParte = { id: "les-sp", jugador_id: 8, numero_caso: 4, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-03", datos: { lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO } };
+    await abrirGraficos(GPS, PLANTEL, [LESIONES[0], sinParte]);
+    const porJugador = bloqueDe("Lesiones por jugador");
+    expect(porJugador.querySelector(".cabeza-ficha b").textContent).toBe("Parte del cuerpo lesionada");
+    // Una sola parte (la lesión sin parte no cuenta acá): igual va la leyenda.
+    expect(porJugador.querySelector(".reporte-leyenda").textContent).toBe("coxa");
+    expect([...porJugador.querySelectorAll(".reporte-barras li .reporte-barras-etiqueta")].map((etiqueta) => etiqueta.textContent)).toEqual(["HULK"]);
+    expect(porJugador.querySelector(".reporte-graficos-notas").textContent).toBe("Cuentan las lesiones con fecha de inicio, «Tipo de lesión» y «Parte del cuerpo lesionada» cargados, de cualquier fecha.");
+    // En la torta, la de sin parte sí cuenta (Sin dato).
+    expect(leyendaDeTorta(0)).toEqual(["coxa 50%", "Sin dato 50%"]);
+    // Entrenamiento y partidos: una sola parte, con su leyenda.
+    expect(bloqueDe("Entrenamiento y partidos").querySelector(".reporte-leyenda")).not.toBeNull();
+  });
+
+  test("Informes gráficos: el color de cada parte no cambia cuando aparece otra parte", async () => {
+    periodosGuardados.lista = [];
+    const colorDeLaParte = (parte) =>
+      [...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-torta-leyenda li")].find((li) => li.querySelector("span").textContent === parte).querySelector("i").style.background;
+    await abrirGraficos();
+    const muslo = colorDeLaParte("coxa");
+    const tobillo = colorDeLaParte("tornozelo_pe");
+    expect(muslo).not.toBe(tobillo);
+    await act(async () => raiz.unmount());
+    const abdomen = { id: "les-ab", jugador_id: 8, numero_caso: 5, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-03", datos: { parte_cuerpo: "abdomen", lado: "direito", tipo_lesion: "muscular_1a", ...DEL_CUADRO } };
+    await abrirGraficos(GPS, PLANTEL, [...LESIONES, abdomen]);
+    expect(colorDeLaParte("coxa")).toBe(muslo);
+    expect(colorDeLaParte("tornozelo_pe")).toBe(tobillo);
+  });
+
   const texto = () => contenedor.textContent;
 });

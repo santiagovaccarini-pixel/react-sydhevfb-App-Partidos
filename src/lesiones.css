@@ -2247,18 +2247,25 @@
   justify-items: start;
   gap: 8px;
 }
+/* Lo que no hay (sin períodos, cargando), sobre el fondo oscuro como las notas. */
+.lesiones-marco .reporte-graficos-bloque > .vacio-ficha,
+.lesiones-marco .reporte-graficos-sin-periodos > .vacio-ficha {
+  color: #cbd5e1;
+}
+/* Las columnas: una sola grilla (barras, nombres y detalles en las mismas
+   filas), así todas comparten la base y la escala. */
 .lesiones-marco .reporte-columnas-grafico {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(44px, var(--ancho-columna, 64px));
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  /* Centradas; si no entran, desde la izquierda (y se desplaza sin cortar
+     la primera). */
+  justify-content: start;
+  justify-content: safe center;
+  column-gap: 8px;
   height: 190px;
   overflow-x: auto;
-}
-.lesiones-marco .reporte-columnas-grupo {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
-  flex: 1 0 44px;
-  min-width: 44px;
   text-align: center;
 }
 .lesiones-marco .reporte-columnas-barras {
@@ -2267,6 +2274,8 @@
   justify-content: center;
   gap: 2px;
   min-height: 0;
+  /* Lugar para el número arriba de la barra más alta. */
+  padding-top: 18px;
   border-bottom: 1px solid #cbd5e1;
 }
 .lesiones-marco .reporte-columnas-lugar {
@@ -2276,18 +2285,29 @@
   justify-content: flex-end;
   min-width: 10px;
   max-width: 48px;
+  min-height: 0;
 }
 .lesiones-marco .reporte-columnas-valor {
   color: #0f172a;
   font-size: 11.5px;
   font-weight: 800;
+  line-height: 1.3;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .lesiones-marco .reporte-columnas-barra {
+  position: relative;
   display: block;
+  flex: none;
   min-height: 2px;
   border-radius: 4px 4px 0 0;
+}
+/* El número de una barra va arriba de ella (no le quita alto). */
+.lesiones-marco .reporte-columnas-barra > .reporte-columnas-valor {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
 }
 .lesiones-marco .reporte-columnas-etiqueta {
   margin-top: 4px;
@@ -2577,15 +2597,42 @@
     color: #0f172a;
   }
   .lesiones-marco .reporte-graficos-filtrado,
-  .lesiones-marco .reporte-graficos-notas .informe-criterio {
+  .lesiones-marco .reporte-graficos-notas .informe-criterio,
+  .lesiones-marco .reporte-graficos-bloque > .vacio-ficha,
+  .lesiones-marco .reporte-graficos-sin-periodos > .vacio-ficha {
     color: #475569;
   }
+  /* En la hoja no hay desplazamiento: las columnas se achican para entrar
+     (los 16 períodos del Excel entran en cada gráfico). */
   .lesiones-marco .reporte-columnas-grafico {
     overflow: visible;
     height: 150px;
+    grid-auto-columns: minmax(0, var(--ancho-columna, 64px));
+    column-gap: 4px;
+  }
+  .lesiones-marco .reporte-columnas-lugar {
+    min-width: 0;
+  }
+  .lesiones-marco .reporte-columnas-valor {
+    font-size: 9px;
+  }
+  .lesiones-marco .reporte-columnas-etiqueta {
+    font-size: 8.5px;
+  }
+  .lesiones-marco .reporte-columnas-detalle {
+    font-size: 8px;
   }
   .lesiones-marco .reporte-apiladas li,
   .lesiones-marco .reporte-graficos-cuatro > .tarjeta {
     break-inside: avoid;
+  }
+  /* Lesiones por jugador puede ser más alta que una hoja: se corta entre
+     jugadores (cada uno entero) y el título queda con su gráfico. */
+  .lesiones-marco .reporte .tarjeta.reporte-graficos-larga {
+    break-inside: auto;
+  }
+  .lesiones-marco .reporte-graficos-cabeza,
+  .lesiones-marco .reporte-graficos-larga .cabeza-ficha {
+    break-after: avoid;
   }
 }

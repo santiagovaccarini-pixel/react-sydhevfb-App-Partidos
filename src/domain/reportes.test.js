@@ -368,6 +368,16 @@ describe("Informes gráficos: bloques 3 a 5 (partes del cuerpo, por jugador, ent
     const bordes = [lesion({ id: "fin", fecha_lesion: "2026-12-31" }), lesion({ id: "inicio", fecha_lesion: "2027-01-01" })];
     expect(momentosPorParte(bordes, { anio: 2026 })[0].total).toBe(1);
     expect(momentosPorParte(bordes, { anio: 2027 })[0].total).toBe(1);
+    // Todo "cuándo" cargado cuenta (también transición y fuera), y un año con
+    // solo lesiones sin "cuándo" no tiene chip.
+    const otros = [
+      lesion({ id: "K", fecha_lesion: "2026-09-01", datos: { cuando: "transicao" } }),
+      lesion({ id: "L", fecha_lesion: "2026-09-02", datos: { cuando: "fora" } }),
+      lesion({ id: "M", fecha_lesion: "2024-05-01", datos: { cuando: "" } }),
+    ];
+    expect(REGLAS_GRAFICOS.momentos.valores).toBeNull();
+    expect(aniosDeMomentos([...lesiones, ...otros])).toEqual([2025, 2026]);
+    expect(Object.keys(porValor(momentosPorParte(otros, { anio: 2026 }))).sort()).toEqual(["fora", "transicao"]);
   });
 
   test("las opciones de un filtro, el orden por cómo se lee y el nombre de cada quien", () => {
