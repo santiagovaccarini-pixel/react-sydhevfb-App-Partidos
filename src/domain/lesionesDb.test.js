@@ -133,7 +133,17 @@ describe("las horas previas de cada jugador", () => {
     doble.respuestas = [sinColumna];
     expect(await guardarDatosJugador(7, { horas_previas: 12 })).toEqual({ error: "datos.error.faltanHorasPrevias" });
     doble.respuestas = [sinColumna, { data: { id: 7, nombre: "HULK", categoria: "sub20" }, error: null }];
-    expect(await guardarDatosJugador(7, { categoria: "sub20" })).toMatchObject({ jugador: { categoria: "sub20", horas_previas: null }, error: "" });
+    expect(await guardarDatosJugador(7, { categoria: "sub20" })).toEqual({ jugador: expect.objectContaining({ categoria: "sub20", horas_previas: null }), error: "" });
+    // Las horas con otros datos (el Excel pegado): lo demás se guarda y se avisa.
+    doble.llamadas.length = 0;
+    doble.respuestas = [sinColumna, { data: { id: 7, nombre: "HULK", categoria: "sub20" }, error: null }];
+    expect(await guardarDatosJugador(7, { categoria: "sub20", horas_previas: 12 })).toMatchObject({ jugador: { categoria: "sub20" }, error: "", aviso: "datos.error.faltanHorasPrevias" });
+    const updates = doble.llamadas.filter(([metodo]) => metodo === "update").map(([, valores]) => valores);
+    expect(updates[1]).not.toHaveProperty("horas_previas");
+    expect(updates[1]).toMatchObject({ categoria: "sub20" });
+    // Celdas de horas vacías junto a otras: se guarda lo demás sin aviso.
+    doble.respuestas = [sinColumna, { data: { id: 7, nombre: "HULK", foto_url: "http://b" }, error: null }];
+    expect(await guardarDatosJugador(7, { foto_url: "http://b", horas_previas: null })).toEqual({ jugador: expect.objectContaining({ foto_url: "http://b" }), error: "" });
     // Vaciar la celda borra las horas.
     doble.filas = { id: 7, nombre: "HULK", horas_previas: null };
     doble.llamadas.length = 0;

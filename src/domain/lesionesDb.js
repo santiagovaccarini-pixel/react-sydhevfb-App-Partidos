@@ -162,17 +162,23 @@ export const guardarDatosJugador = async (id, datos) => {
     if ((datos.horas_previas ?? "") !== "" && (cambios.horas_previas === null || cambios.horas_previas < 0)) return { error: "datos.error.horas" };
   }
   if (cambios.nombre === "") return { error: "datos.error.nombre" };
-  const guardar = (columnas) => supabase.from("jugadores").update(cambios).eq("id", id).select(columnas).single();
-  let { data, error } = await guardar(COLUMNAS_JUGADOR);
+  const guardar = (valores, columnas) => supabase.from("jugadores").update(valores).eq("id", id).select(columnas).single();
+  let { data, error } = await guardar(cambios, COLUMNAS_JUGADOR);
+  // Sin el SQL de las horas previas: lo demás se guarda igual y, si había
+  // horas para guardar, se avisa. Si solo eran las horas, no se guarda nada.
+  let aviso = "";
   if (error && faltanHorasPrevias(error)) {
-    if ("horas_previas" in cambios) return { error: "datos.error.faltanHorasPrevias" };
-    ({ data, error } = await guardar(COLUMNAS_JUGADOR_SIN_HORAS));
+    const { horas_previas: horas, ...resto } = cambios;
+    const conHoras = horas !== null && horas !== undefined;
+    if (conHoras && !Object.keys(resto).some((clave) => clave !== "actualizado_en")) return { error: "datos.error.faltanHorasPrevias" };
+    if (conHoras) aviso = "datos.error.faltanHorasPrevias";
+    ({ data, error } = await guardar(resto, COLUMNAS_JUGADOR_SIN_HORAS));
   }
   if (error) {
     if (/duplicate key|unique/i.test(error.message || "")) return { error: "datos.error.repetido" };
     return fallo(error, "datos.error.guardar");
   }
-  return { jugador: normalizarJugadorLesiones(data), error: "" };
+  return { jugador: normalizarJugadorLesiones(data), error: "", ...(aviso ? { aviso } : {}) };
 };
 
 // Alta y baja de jugadores desde Datos básicos: las mismas de Partido. El

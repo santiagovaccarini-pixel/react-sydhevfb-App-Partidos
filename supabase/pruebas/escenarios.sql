@@ -468,6 +468,8 @@ delete from public.lesiones where datos->>'medico' like 'horas-%';
 select pruebas.ser('carla@uno.com'); set role authenticated;
 select pruebas.esperar('Carla anota las horas previas de un jugador de Uno', pruebas.filas($$update jugadores set horas_previas = 30.25 where id = 9002$$), 1);
 select pruebas.debe_fallar('...pero no horas negativas', $$update jugadores set horas_previas = -1 where id = 9002$$, 'jugadores_horas_previas_no_negativas');
+select pruebas.debe_fallar('...ni NaN', $$update jugadores set horas_previas = 'NaN' where id = 9002$$, 'jugadores_horas_previas_no_negativas');
+select pruebas.debe_fallar('...ni infinitas', $$update jugadores set horas_previas = 'Infinity' where id = 9002$$, 'jugadores_horas_previas_no_negativas');
 reset role;
 select pruebas.ser('gaby@uno.com'); set role authenticated;
 select pruebas.esperar('Gaby (bloqueada) no las cambia', pruebas.filas($$update jugadores set horas_previas = 99 where id = 9002$$), 0);

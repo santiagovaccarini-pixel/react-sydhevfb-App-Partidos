@@ -110,13 +110,13 @@ export const interpretarFechaHora = (texto) => {
   return `${fecha}T${String(hora).padStart(2, "0")}:${String(minuto).padStart(2, "0")}`;
 };
 
-// Horas como las escribe el Excel ([h]:mm:ss): "30:14:20", "30:14", o
-// en número, "30,5" o "30". Devuelve las horas (30,24 para "30:14:20"), null
+// Horas como las escribe el Excel ([h]:mm:ss): "30:14:20", "30:14" (o
+// "1:5", que el Excel lee 1:05), o en número, "30,5" o "30". Devuelve las horas (30,24 para "30:14:20"), null
 // si está vacío y undefined si no se entiende.
 export const interpretarHoras = (texto) => {
   const t = String(texto ?? "").trim();
   if (!t) return null;
-  const reloj = /^(\d{1,6}):([0-5]\d)(?::([0-5]\d))?$/.exec(t);
+  const reloj = /^(\d{1,6}):([0-5]?\d)(?::([0-5]?\d))?$/.exec(t);
   if (reloj) return Number(reloj[1]) + Number(reloj[2]) / 60 + Number(reloj[3] || 0) / 3600;
   if (/^\d{1,6}([.,]\d+)?$/.test(t)) return Number(t.replace(",", "."));
   return undefined;

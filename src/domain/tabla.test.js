@@ -191,7 +191,10 @@ describe("las horas, como en el Excel", () => {
     expect(interpretarHoras("30,5")).toBe(30.5);
     expect(interpretarHoras("12")).toBe(12);
     expect(interpretarHoras("")).toBe(null);
-    ["30:75", "30:14:99", "-3", "treinta", "1:2", "30h"].forEach((texto) => expect(interpretarHoras(texto), texto).toBe(undefined));
+    // Como el Excel, "1:5" es 1:05.
+    expect(interpretarHoras("1:5")).toBeCloseTo(1 + 5 / 60, 10);
+    expect(interpretarHoras("1:05:3")).toBeCloseTo(1 + 5 / 60 + 3 / 3600, 10);
+    ["30:75", "5:60", "30:14:99", "-3", "treinta", "30h", "1.000,5", ":30", "1::5"].forEach((texto) => expect(interpretarHoras(texto), texto).toBe(undefined));
     expect(interpretarValor({ tipo: "horas" }, " 1:30 ")).toBe(1.5);
   });
 

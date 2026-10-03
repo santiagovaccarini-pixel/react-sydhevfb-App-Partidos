@@ -134,6 +134,9 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
     const hechas = new Set();
     let creados = 0;
     let actualizados = 0;
+    // Si la base todavía no tiene las horas previas, lo demás se guarda igual
+    // y se avisa una vez.
+    let sinHoras = false;
     setFallas([]);
     for (let i = 0; i < lista.length; i++) {
       const fila = lista[i];
@@ -149,6 +152,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
         if (Object.keys(fila.datos).length > 0) {
           const guardado = await guardarDatosJugador(creado.jugador.id, fila.datos); // eslint-disable-line no-await-in-loop
           if (guardado.error) errores.push({ nombre: fila.nombre, error: t("datos.importar.sinDatosGuardados", { error: t(guardado.error) }) });
+          if (guardado.aviso) sinHoras = true;
         }
       } else {
         const guardado = await guardarDatosJugador(fila.jugador.id, fila.cambios); // eslint-disable-line no-await-in-loop
@@ -156,6 +160,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
           errores.push({ nombre: fila.nombre, error: t(guardado.error) });
           continue;
         }
+        if (guardado.aviso) sinHoras = true;
         actualizados += 1;
         hechas.add(fila.indice);
       }
@@ -166,6 +171,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
     await onRecargar();
     setProgreso(null);
     setElegidos((previos) => Object.fromEntries(Object.entries(previos).filter(([indice]) => !hechas.has(Number(indice)))));
+    if (sinHoras) errores.push({ nombre: t("datos.horasPrevias"), error: t("datos.error.faltanHorasPrevias") });
     if (errores.length === 0) {
       onListo({ nuevos: creados, actualizados });
       return;

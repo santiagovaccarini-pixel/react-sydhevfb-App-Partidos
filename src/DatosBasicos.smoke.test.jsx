@@ -191,6 +191,7 @@ describe("el módulo Datos básicos", () => {
     await act(async () => horas().querySelector("input").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     expect(registro.guardados).toHaveLength(1);
     expect(horas().textContent).toBe("30:14:20");
+    expect(texto(contenedor)).toContain("Las horas se escriben como en el Excel");
   });
 
   test("quien ya se fue del club ve a los jugadores y no puede cambiar nada", async () => {

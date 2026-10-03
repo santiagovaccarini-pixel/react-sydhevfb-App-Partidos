@@ -16,9 +16,10 @@ begin;
 alter table public.jugadores
   add column if not exists horas_previas numeric;
 
+-- Ni negativas, ni "NaN", ni "Infinity" (numeric los acepta y NaN pasa el >= 0).
 alter table public.jugadores drop constraint if exists jugadores_horas_previas_no_negativas;
 alter table public.jugadores
-  add constraint jugadores_horas_previas_no_negativas check (horas_previas is null or horas_previas >= 0);
+  add constraint jugadores_horas_previas_no_negativas check (horas_previas is null or (horas_previas >= 0 and horas_previas < 'Infinity'));
 
 comment on column public.jugadores.horas_previas is 'Horas de entrenamiento de antes de que llegara el cuerpo técnico (Excel: columna A de Datos Básicos). Los reportes de Lesiones las suman a las del GPS.';
 

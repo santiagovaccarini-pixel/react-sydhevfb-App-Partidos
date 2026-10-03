@@ -335,7 +335,11 @@ export const TablaDatos = ({
     if (!fila || !col) return;
     if (col.tipo === "horas") {
       const horas = interpretarHoras(valor);
-      if (horas === undefined || textoDeHoras(fila.valores?.[col.clave]) === textoDeHoras(horas)) return;
+      if (horas === undefined) {
+        setMensaje(t("tabla.horasMalEscritas"));
+        return;
+      }
+      if (textoDeHoras(fila.valores?.[col.clave]) === textoDeHoras(horas)) return;
       setOcupada(true);
       const respuesta = (await onEditar?.(fila.id, col.clave, horas)) || {};
       setOcupada(false);

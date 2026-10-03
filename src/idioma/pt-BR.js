@@ -140,6 +140,7 @@ export default {
     pegado_other: "{{n}} células coladas",
     ignoradas_one: "{{n}} não foi entendida ou não pode mudar",
     ignoradas_other: "{{n}} não foram entendidas ou não podem mudar",
+    horasMalEscritas: "As horas se escrevem como no Excel: 30:14:20, 30:14 ou 30,5.",
     nadaQuePegar: "Não há nada para colar. Copie células do Excel ou desta tabela.",
     sinPermisoPegar: "O celular não deixa ler o que foi copiado. Cole com Ctrl+V dentro de uma célula.",
     editar: "Toque duas vezes em uma célula para mudá-la.",

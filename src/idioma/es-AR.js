@@ -140,6 +140,7 @@ export default {
     pegado_other: "{{n}} celdas pegadas",
     ignoradas_one: "{{n}} no se entendió o no se puede cambiar",
     ignoradas_other: "{{n}} no se entendieron o no se pueden cambiar",
+    horasMalEscritas: "Las horas se escriben como en el Excel: 30:14:20, 30:14 o 30,5.",
     nadaQuePegar: "No hay nada para pegar. Copiá celdas de Excel o de esta tabla.",
     sinPermisoPegar: "El celular no deja leer lo copiado. Pegá con Ctrl+V dentro de una celda.",
     editar: "Tocá dos veces una celda para cambiarla.",
