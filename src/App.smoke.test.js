@@ -426,6 +426,31 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(5);
   });
 
+  test("\"Agregar cambio\" suma ranuras después de las cinco, y se cargan", async () => {
+    await montarApp();
+    const agregar = () => contenedor.querySelector(".panel-cambios-operativo .boton-agregar-cambio");
+    expect(agregar().textContent).toContain("Agregar cambio");
+    await act(async () => agregar().click());
+    await act(async () => agregar().click());
+    expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(7);
+    expect(contenedor.querySelectorAll(".ranura-cambio")[6].querySelector(".numero-ranura").textContent).toBe("7");
+
+    // La séptima se carga como cualquier otra.
+    const accionPeriodo = contenedor.querySelector(".accion-periodo");
+    await act(async () => accionPeriodo.click());
+    const septima = contenedor.querySelectorAll(".ranura-cambio")[6];
+    await act(async () => septima.querySelector(".boton-ahora-cambio").click());
+    expect(contenedor.querySelectorAll(".ranura-cambio")[6].classList.contains("cargada")).toBe(true);
+    expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(7);
+
+    // El rival tiene las suyas.
+    const pestanaRival = contenedor.querySelectorAll(".selector-equipo button")[1];
+    await act(async () => pestanaRival.click());
+    expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(5);
+    await act(async () => agregar().click());
+    expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(6);
+  });
+
   test("\"Ahora\" sobre un horario ya cargado pregunta antes de pisarlo", async () => {
     // Un toque de más sobre un cambio ya marcado borraba el horario sin aviso,
     // y no había manera de recuperarlo.
@@ -2790,6 +2815,11 @@ describe("interfaz operativa", () => {
       contenedor.querySelectorAll(".ranura-cambio").length,
     );
     expect(contenedor.querySelectorAll(".boton-ahora-cambio")).toHaveLength(0);
+
+    // También acá se agrega un cambio más.
+    const antes = contenedor.querySelectorAll(".ranura-cambio").length;
+    await act(async () => contenedor.querySelector(".panel-cambios-operativo .boton-agregar-cambio").click());
+    expect(contenedor.querySelectorAll(".ranura-cambio")).toHaveLength(antes + 1);
   });
 
   test("la prórroga se puede corregir, y solo aparece si el partido la tuvo", async () => {
