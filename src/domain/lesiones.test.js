@@ -20,7 +20,7 @@ import {
   posibleRecidiva,
   recidivaDe,
   recurrenciaDe,
-  seSolapa,
+  seRepite,
   severidadPorDias,
   validarLesion,
   valorDe,
@@ -337,7 +337,7 @@ describe("validar", () => {
     expect(erroresNuevos(conHoraMala, conValor(conHoraMala, "hora_imagen", "1850-10-01T10:00"), { hoy })).toEqual([{ clave: "hora_imagen", error: "lesiones.error.imagen" }]);
     const otra = base({ id: "otra" });
     expect(erroresNuevos(base({ id: "b", datos: { ...base().datos, lado: "esquerdo" } }), base({ id: "b" }), { hoy, otras: [otra] })).toEqual([
-      { clave: null, error: "lesiones.error.solapada" },
+      { clave: null, error: "lesiones.error.repetida" },
     ]);
   });
 
@@ -387,15 +387,17 @@ describe("validar", () => {
     expect(ordenarPorCaso(lesiones).map((lesion) => lesion.id)).toEqual(["a", "b", "c", "sin"]);
   });
 
-  test("no deja dos lesiones a la vez en la misma parte del cuerpo y lado", () => {
+  test("una recaída durante la recuperación se puede cargar; la misma lesión dos veces, no", () => {
     const activa = base({ id: "otra" });
-    expect(seSolapa(base({ id: "nueva", fecha_lesion: "2026-09-20" }), [activa])).toBe(true);
-    expect(seSolapa(base({ id: "nueva", fecha_lesion: "2026-09-20", datos: { parte_cuerpo: "coxa", lado: "esquerdo" } }), [activa])).toBe(false);
-    const cerrada = base({ id: "otra", fecha_alta: "2026-09-10" });
-    expect(seSolapa(base({ id: "nueva", fecha_lesion: "2026-09-10" }), [cerrada])).toBe(false);
-    expect(seSolapa(base({ id: "nueva", fecha_lesion: "2026-09-09" }), [cerrada])).toBe(true);
-    expect(validarLesion(base({ id: "nueva", fecha_lesion: "2026-09-20" }), { hoy, otras: [activa] })).toBe("lesiones.error.solapada");
-    expect(seSolapa(activa, [activa])).toBe(false);
+    // Otra fecha de inicio, aunque la anterior siga abierta: se puede.
+    expect(seRepite(base({ id: "nueva", fecha_lesion: "2026-09-20" }), [activa])).toBe(false);
+    expect(validarLesion(base({ id: "nueva", fecha_lesion: "2026-09-20" }), { hoy, otras: [activa] })).toBe("");
+    // El mismo jugador, parte, lado y día: es la misma.
+    expect(seRepite(base({ id: "nueva" }), [activa])).toBe(true);
+    expect(validarLesion(base({ id: "nueva" }), { hoy, otras: [activa] })).toBe("lesiones.error.repetida");
+    expect(seRepite(base({ id: "nueva", datos: { parte_cuerpo: "coxa", lado: "esquerdo" } }), [activa])).toBe(false);
+    expect(seRepite(base({ id: "nueva", jugador_id: 99 }), [activa])).toBe(false);
+    expect(seRepite(activa, [activa])).toBe(false);
   });
 });
 
@@ -404,6 +406,12 @@ describe("recidiva, plantel, revisión y cambios", () => {
     const anterior = base({ id: "vieja", fecha_lesion: "2026-07-01", fecha_alta: "2026-08-01" });
     expect(posibleRecidiva(base({ id: null, fecha_lesion: "2026-09-15" }), [anterior])?.id).toBe("vieja");
     expect(posibleRecidiva(base({ id: null, fecha_lesion: "2026-10-15" }), [anterior])).toBe(null);
+    // También si la anterior todavía seguía (una recaída durante la recuperación).
+    const abierta = base({ id: "abierta", fecha_lesion: "2026-08-20", fecha_alta: null });
+    expect(posibleRecidiva(base({ id: null, fecha_lesion: "2026-09-15" }), [abierta])?.id).toBe("abierta");
+    expect(posibleRecidiva(base({ id: null, fecha_lesion: "2026-09-15" }), [anterior, abierta])?.id).toBe("abierta");
+    // Una que empezó después, no.
+    expect(posibleRecidiva(base({ id: null, fecha_lesion: "2026-08-01" }), [abierta])).toBe(null);
   });
 
   test("el plantel dice quién está lesionado, reintegrándose o disponible", () => {
@@ -446,6 +454,7 @@ describe("recidiva, plantel, revisión y cambios", () => {
     expect(claveDeErrorDeBase({ code: "42703", message: "column jugadores.numero_registro does not exist" })).toBe("lesiones.error.faltaMigracion");
     expect(claveDeErrorDeBase({ code: "42501", message: "new row violates row-level security policy" })).toBe("lesiones.error.sinPermiso");
     expect(claveDeErrorDeBase({ code: "23P01", message: "conflicting key value violates exclusion constraint lesiones_sin_solapar" })).toBe("lesiones.error.solapada");
+    expect(claveDeErrorDeBase({ code: "23505", message: 'duplicate key value violates unique constraint "lesiones_sin_repetir"' })).toBe("lesiones.error.repetida");
     expect(claveDeErrorDeBase({ message: "otra cosa" })).toBe("");
   });
 });

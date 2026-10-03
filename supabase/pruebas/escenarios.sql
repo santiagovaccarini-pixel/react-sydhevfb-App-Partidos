@@ -479,4 +479,14 @@ select pruebas.esperar('...ni Eva, que es de otro club', pruebas.filas($$update 
 reset role;
 select pruebas.esperar('Quedan las de Carla', (select horas_previas::text from jugadores where id = 9002), '30.25');
 
+-- ------------------------------------- Recaída durante la recuperación --
+
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla carga una lesión con su N° de caso (como el importador del Excel)', pruebas.filas($$insert into lesiones (equipo_id, jugador_id, numero_caso, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 500, '2026-06-01', '{"parte_cuerpo":"coxa","lado":"esquerdo"}')$$), 1);
+select pruebas.esperar('...y queda con ese número', (select count(*) from lesiones where numero_caso = 500 and jugador_id = 9002), 1);
+select pruebas.esperar('Una recaída en la misma parte y lado, antes del alta, se puede cargar', pruebas.filas($$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, '2026-06-09', '{"parte_cuerpo":"coxa","lado":"esquerdo"}')$$), 1);
+select pruebas.debe_fallar('...pero la misma lesión dos veces (mismo día), no', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, '2026-06-01', '{"parte_cuerpo":"coxa","lado":"esquerdo"}')$$, 'lesiones_sin_repetir');
+select pruebas.debe_fallar('...ni con un N° de caso que ya existe', $$insert into lesiones (equipo_id, jugador_id, numero_caso, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 500, '2026-07-01', '{"parte_cuerpo":"joelho","lado":"esquerdo"}')$$, 'lesiones_numero_caso_unico');
+reset role;
+
 select 'ESCENARIOS: todos bien' as resultado;

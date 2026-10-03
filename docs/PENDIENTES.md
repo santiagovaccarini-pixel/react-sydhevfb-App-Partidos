@@ -281,9 +281,17 @@ mover a una configuración por club:
   3C y la sobrecarga muscular / calambre.
 - Validaciones: obligatorios jugador, tipo de lesión (pedido del 02/10), parte,
   lado y fecha de inicio; fechas no futuras y posteriores al inicio (también la
-  hora de la imagen: no antes del día de la lesión); no dos lesiones activas en
-  la misma parte y lado (también como restricción `lesiones_sin_solapar` en la
-  base).
+  hora de la imagen: no antes del día de la lesión); la misma lesión no se
+  carga dos veces: mismo jugador, parte, lado y fecha de inicio (también como
+  restricción `lesiones_sin_repetir` en la base, migración 20261008). Una
+  recaída durante la recuperación sí se carga (Santiago, 03/10: el Excel la
+  tiene así, casos 16 y 17); antes la base no dejaba dos activas en la misma
+  parte y lado (`lesiones_sin_solapar`).
+- Pegar desde Excel en Lesiones: los valores que en el Excel se escribieron
+  fuera de sus listas y a qué opción van (`EQUIVALENCIAS_DEL_EXCEL` en
+  `src/domain/importarLesiones.js`; decidido el 03/10: RUPTURA DE TENDÃO y
+  TENDINOPATIA → lesión tendinosa, PE → pie/dedo, LACERAÇÃO/ ABRASÃO →
+  laceración). Van con las listas del club cuando se muden.
 - Qué columna va en qué grupo del Excel (eso arma los pasos de la carga, la fila
   de grupos de la base y las pestañas de la ficha; el nombre de cada grupo ya se
   cambia desde Ajustes); el aviso al cargar (misma parte y lado, 60 días); las
@@ -393,6 +401,19 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   en la app cuentan como horas. Santiago, 03/10: "por ahora dejalo".
   **Lo que sigue: Crear reportes**, un lienzo con bloques (número, gráfico, tabla) donde se
   elige la medida, cómo separarla y los filtros, y se guarda por club.
+- **Pegar desde Excel en Lesiones (03/10)**, en Base (`src/ImportarLesiones.jsx` y
+  `src/domain/importarLesiones.js`): se copia la hoja "Antecedentes BD" desde la fila de
+  cabeceras hasta la última lesión y se pega. Antes de cargar se ve qué pasa con cada fila:
+  se carga, ya está en la app (mismo jugador, parte, lado y fecha de inicio), no tiene fecha
+  de inicio (no se carga: en el Excel son casos sin terminar) o qué le impide cargarse (un
+  nombre que no está en Datos básicos, un N° de caso que en la app es de otra lesión, o lo
+  mismo que frena la carga a mano). Se traen solo las columnas que se cargan a mano; lo
+  calculado lo calcula la app (con el Excel de Santiago dan iguales los 24 casos cerrados).
+  Cada lesión entra con su N° de caso del Excel. Las fechas se leen como las copie el Excel
+  de quien copia (día/mes o mes/día, por columna, y las escritas como texto también); un
+  valor de una lista que no se entiende deja esa columna vacía y avisa. No se traen los
+  planes ni los tests (columnas AN en adelante). Antes de pegar hay que correr
+  `20261008_lesiones_recaida.sql`.
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
   la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa
   columna no se guarda porque cuenta como calculada); y "Imágenes" se carga como texto libre

@@ -303,13 +303,13 @@ export const errorDeCampo = (lesion, clave, hoy = hoyISO()) => {
 const ORDEN_DE_VALIDACION = ["jugador", "fecha_lesion", ...FECHAS_POSTERIORES, "tipo_lesion", "parte_cuerpo", "lado", "hora_imagen"];
 
 // Todo lo que está mal en una lesión, en orden: [{ clave, error }] (clave:
-// la columna donde se corrige; null si es de varias, como la superposición
-// con otra lesión). Las columnas que el club escondió (oculto) no se
+// la columna donde se corrige; null si es de varias, como la misma lesión
+// cargada dos veces). Las columnas que el club escondió (oculto) no se
 // revisan: no se ven ni se pueden corregir.
 export const erroresDeLesion = (lesion, { hoy = hoyISO(), otras = [], oculto = () => false } = {}) => {
   const errores = ORDEN_DE_VALIDACION.filter((clave) => !oculto(clave)).map((clave) => ({ clave, error: errorDeCampo(lesion, clave, hoy) }));
   if (!oculto("hora_imagen")) errores.push({ clave: "hora_imagen", error: errorImagenAntes(lesion) });
-  if (seSolapa(lesion, otras)) errores.push({ clave: null, error: "lesiones.error.solapada" });
+  if (seRepite(lesion, otras)) errores.push({ clave: null, error: "lesiones.error.repetida" });
   return errores.filter((uno) => uno.error);
 };
 
@@ -342,22 +342,25 @@ export const camposCambiados = (antes, despues) => {
   return CAMPOS_DE_CARGA.filter((clave) => texto(antes, clave) !== texto(despues, clave));
 };
 
-// Misma regla que el índice de exclusión de la base: el mismo jugador no
-// puede tener dos lesiones a la vez en la misma parte del cuerpo y lado.
-// Rango [inicio, alta); sin alta, abierto hacia adelante.
-export const seSolapa = (lesion, otras = []) =>
-  otras.some((otra) => {
-    if (!otra || otra.id === lesion.id) return false;
-    if (String(otra.jugador_id) !== String(lesion.jugador_id)) return false;
-    if (otra.datos?.parte_cuerpo !== lesion.datos?.parte_cuerpo || otra.datos?.lado !== lesion.datos?.lado) return false;
-    const finA = lesion.fecha_alta || "9999-12-31";
-    const finB = otra.fecha_alta || "9999-12-31";
-    return lesion.fecha_lesion < finB && otra.fecha_lesion < finA;
-  });
+// Misma regla que la base (lesiones_sin_repetir): la misma lesión no se
+// carga dos veces, es decir, mismo jugador, parte del cuerpo, lado y fecha
+// de inicio. Una recaída durante la recuperación (otra fecha) sí se puede
+// cargar (Santiago, 03/10: el Excel la cuenta como recurrencia y recidiva).
+export const seRepite = (lesion, otras = []) =>
+  otras.some(
+    (otra) =>
+      otra &&
+      otra.id !== lesion.id &&
+      String(otra.jugador_id) === String(lesion.jugador_id) &&
+      otra.datos?.parte_cuerpo === lesion.datos?.parte_cuerpo &&
+      otra.datos?.lado === lesion.datos?.lado &&
+      otra.fecha_lesion === lesion.fecha_lesion,
+  );
 
 // El aviso al cargar: la lesión anterior del mismo jugador, parte del cuerpo
-// y lado cuya alta fue hace DIAS_RECURRENCIA días o menos (puede terminar
-// contando como recurrencia o recidiva). Devuelve esa lesión o null.
+// y lado que todavía seguía (una recaída durante la recuperación) o cuya
+// alta fue hace DIAS_RECURRENCIA días o menos (puede terminar contando como
+// recurrencia o recidiva). Devuelve la más reciente o null.
 export const posibleRecidiva = (lesion, anteriores = []) => {
   const parte = lesion?.datos?.parte_cuerpo;
   const lado = lesion?.datos?.lado;
@@ -370,11 +373,11 @@ export const posibleRecidiva = (lesion, anteriores = []) => {
         String(otra.jugador_id) === String(lesion.jugador_id) &&
         otra.datos?.parte_cuerpo === parte &&
         otra.datos?.lado === lado &&
-        otra.fecha_alta &&
-        otra.fecha_alta <= lesion.fecha_lesion &&
-        (diasEntre(otra.fecha_alta, lesion.fecha_lesion) ?? Infinity) <= DIAS_RECURRENCIA,
+        esFechaISO(otra.fecha_lesion) &&
+        otra.fecha_lesion < lesion.fecha_lesion &&
+        (!otra.fecha_alta || otra.fecha_alta > lesion.fecha_lesion || (diasEntre(otra.fecha_alta, lesion.fecha_lesion) ?? Infinity) <= DIAS_RECURRENCIA),
     )
-    .sort((a, b) => (a.fecha_alta < b.fecha_alta ? 1 : -1));
+    .sort((a, b) => (a.fecha_lesion < b.fecha_lesion ? 1 : -1));
   return candidatas[0] || null;
 };
 
@@ -422,6 +425,9 @@ export const claveDeErrorDeBase = (error) => {
   if (codigo === "42501" || /row-level security|permission denied/i.test(mensaje)) {
     return "lesiones.error.sinPermiso";
   }
+  if (codigo === "23505" && /lesiones_sin_repetir/i.test(mensaje)) return "lesiones.error.repetida";
+  if (codigo === "23505" && /lesiones_numero_caso_unico/i.test(mensaje)) return "lesiones.importar.casoOcupado";
+  // La regla de antes (hasta correr 20261008_lesiones_recaida.sql).
   if (codigo === "23P01" || /lesiones_sin_solapar/i.test(mensaje)) return "lesiones.error.solapada";
   if (codigo === "23514" && /sin_futuro/i.test(mensaje)) return "lesiones.error.fechaFuturaOtra";
   if (codigo === "23514" && /fechas_en_orden/i.test(mensaje)) return "lesiones.error.fechaAntes";

@@ -65,6 +65,19 @@ export const crearLesion = async (equipoId, lesion) => {
   return { lesion: normalizarLesion(data), error: "" };
 };
 
+// Una lesión que viene del Excel: con su N° de caso, si lo trae (si no, lo
+// pone la base, como a las cargadas a mano).
+export const importarLesion = async (equipoId, lesion) => {
+  const numeroCaso = Number.isInteger(lesion.numero_caso) && lesion.numero_caso > 0 ? { numero_caso: lesion.numero_caso } : {};
+  const { data, error } = await supabase
+    .from("lesiones")
+    .insert({ equipo_id: equipoId, ...numeroCaso, ...soloCampos(lesion) })
+    .select(COLUMNAS)
+    .single();
+  if (error) return fallo(error, "lesiones.error.noGuardar");
+  return { lesion: normalizarLesion(data), error: "" };
+};
+
 export const actualizarLesion = async (id, lesion) => {
   const { data, error } = await supabase
     .from("lesiones")

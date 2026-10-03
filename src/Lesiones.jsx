@@ -8,6 +8,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ReportesLesiones from "./ReportesLesiones.jsx";
+import ImportarLesiones from "./ImportarLesiones.jsx";
 import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
 import { CAMPOS_DE_ESTRUCTURA, ElegirEstructura, ElegirZona, vistaDeLesion } from "./components/MapaCorporal.jsx";
 import { CAMPOS_DEL_CUERPO, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre } from "./domain/mapaCorporal.js";
@@ -147,6 +148,8 @@ export default function Lesiones({ onVolver }) {
 
   // Ajustes: cabeceras y listas del club.
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
+  // Base › Pegar desde Excel.
+  const [importando, setImportando] = useState(false);
   const [hojaCabecera, setHojaCabecera] = useState(null);
   const [hojaOpcion, setHojaOpcion] = useState(null);
   const [errorHoja, setErrorHoja] = useState("");
@@ -742,6 +745,12 @@ export default function Lesiones({ onVolver }) {
       <div className="contenedor contenedor-base">
         <Encabezado titulo={t("nav.base")} texto={t("tabla.editar")} />
         {estado}
+        {!soloLectura && (
+          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
+            <Icono nombre="documento" size={16} />
+            {t("lesiones.importar.boton")}
+          </button>
+        )}
         <section className="tarjeta">{tablaDeLesiones(filasBase)}</section>
       </div>
     </div>
@@ -1484,7 +1493,24 @@ export default function Lesiones({ onVolver }) {
   if (formulario) contenido = pantallaFormulario(formulario);
   else if (lesionDetalle) contenido = pantallaDetalle(lesionDetalle);
   else if (vista === "historial") contenido = pantallaHistorial;
-  else if (vista === "base") contenido = pantallaBase;
+  else if (vista === "base")
+    contenido =
+      importando && !soloLectura ? (
+        <ImportarLesiones
+          equipoId={equipoId}
+          plantel={plantel}
+          lesiones={lesiones}
+          config={config}
+          onVolver={() => setImportando(false)}
+          onRecargar={cargar}
+          onListo={({ cargadas }) => {
+            setImportando(false);
+            setAviso(plural("lesiones.importar.listo", cargadas));
+          }}
+        />
+      ) : (
+        pantallaBase
+      );
   // Los reportes: gps son los minutos del GPS, que la app todavía no tiene.
   else if (vista === "reportes")
     contenido = (
@@ -1515,6 +1541,7 @@ export default function Lesiones({ onVolver }) {
   const navegar = (id) => {
     setDetalleId(null);
     setFormulario(null);
+    setImportando(false);
     if (id === "ajustes") setVistaAjustes("inicio");
     setVista(id);
   };
