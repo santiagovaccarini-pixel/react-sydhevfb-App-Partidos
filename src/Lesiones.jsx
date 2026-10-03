@@ -113,6 +113,9 @@ export default function Lesiones({ onVolver }) {
   const [equipo, setEquipo] = useState(() => leerEquipoElegido());
   const [vista, setVista] = useState("lesionados");
   const [plantel, setPlantel] = useState([]);
+  // Datos básicos no se pudo leer de la base (se ve la última copia o nada):
+  // para ver alcanza, para pegar lesiones no.
+  const [plantelSinLeer, setPlantelSinLeer] = useState(false);
   const [lesiones, setLesiones] = useState([]);
   const [config, setConfig] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -187,6 +190,7 @@ export default function Lesiones({ onVolver }) {
       leerConfig(equipoId),
     ]);
     setPlantel(respuestaPlantel.plantel || []);
+    setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
     setConfig(respuestaConfig.config);
     if (respuestaLesiones.error || respuestaConfig.error) {
       setError(respuestaLesiones.error || respuestaConfig.error);
@@ -1548,6 +1552,7 @@ export default function Lesiones({ onVolver }) {
         <ImportarLesiones
           equipoId={equipoId}
           plantel={plantel}
+          plantelSinLeer={plantelSinLeer}
           lesiones={lesiones}
           config={config}
           onVolver={() => setImportando(false)}

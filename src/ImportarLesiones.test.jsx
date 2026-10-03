@@ -50,12 +50,13 @@ describe("pegar lesiones: nombres fuera de Datos básicos y casos sin fecha", ()
     contenedor.remove();
   });
 
-  const montar = () =>
+  const montar = ({ plantelSinLeer = false } = {}) =>
     act(async () =>
       raiz.render(
         <ImportarLesiones
           equipoId="eq-1"
           plantel={PLANTEL}
+          plantelSinLeer={plantelSinLeer}
           lesiones={[]}
           config={null}
           onVolver={() => {}}
@@ -111,5 +112,26 @@ describe("pegar lesiones: nombres fuera de Datos básicos y casos sin fecha", ()
     await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "No cargar"));
     expect(destinos()[1]).toBe("No se carga");
     expect(contenedor.querySelector(".acciones-dobles .boton-principal").textContent).toBe("Cargar 2 lesiones");
+  });
+
+  test("si quedan nombres sin elegir se avisa, y después de cargar la pantalla sigue con ellos", async () => {
+    await montar();
+    await pegar(PEGADO);
+    expect(contenedor.querySelector(".datos-importar-sin-elegir").textContent).toBe(
+      "2 nombres siguen sin elegir: esas lesiones no se cargan hasta que elijas qué hacer.",
+    );
+    await tocar(contenedor.querySelector(".acciones-dobles .boton-principal"));
+    expect(base.cargadas).toHaveLength(2);
+    expect(listo).toBeNull();
+    expect(contenedor.textContent).toContain("Listo: se cargaron 2 lesiones.");
+    expect(contenedor.querySelector(".datos-importar-elegir-todos")).not.toBeNull();
+  });
+
+  test("sin Datos básicos leído de la base no se carga nada", async () => {
+    await montar({ plantelSinLeer: true });
+    await pegar(PEGADO);
+    expect(contenedor.textContent).toContain("No se pudo leer Datos básicos");
+    expect(contenedor.querySelector(".datos-importar-lista")).toBeNull();
+    expect(contenedor.querySelector(".acciones-dobles .boton-principal").disabled).toBe(true);
   });
 });

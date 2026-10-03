@@ -180,9 +180,14 @@ export const leerLesionesPegadas = (texto, { config = null } = {}) => {
     const nombre = String(celdas[columnas.jugador] ?? "")
       .replace(/\s+/g, " ")
       .trim();
-    // Filas vacías o una fila de cabeceras (la del filtro, o si se pegó dos veces).
-    if (!nombre || campoDeCabecera(nombre, alias) === "jugador") return;
+    // Una fila de cabeceras (la del filtro, o si se pegó dos veces) no es una
+    // lesión.
+    if (nombre && campoDeCabecera(nombre, alias) === "jugador") return;
     const textos = Object.fromEntries(Object.entries(columnas).map(([campo, c]) => [campo, String(celdas[c] ?? "").trim()]));
+    // Sin nombre: una fila vacía (o con solo el N° de caso, como las de
+    // abajo de la planilla) no se lee; con algún dato sí, para avisar que le
+    // falta el nombre.
+    if (!nombre && !Object.entries(textos).some(([campo, valor]) => valor && campo !== "numero_caso")) return;
     filas.push({ indice: filaCabeceras + 1 + i, nombre, textos });
   });
   if (filas.length === 0) return { columnas, filas, error: "lesiones.importar.sinFilas" };
@@ -250,30 +255,62 @@ const buscadorDeJugadores = (plantel) => {
 
 // La misma persona: el mismo jugador o el mismo nombre fuera de Datos
 // básicos, o (si alguien se guardó con su nombre y después lo agregaron a
-// Datos básicos) el mismo nombre. nombreDe(lesion) da el nombre de cada una.
+// Datos básicos) el mismo nombre. Dos jugadores de Datos básicos con el
+// mismo nombre son dos personas. nombreDe(lesion) da el nombre de cada una.
 const deLaMismaPersona = (una, otra, nombreDe) =>
-  mismaPersona(una, otra) || (nombreIgual(nombreDe(una)) !== "" && nombreIgual(nombreDe(una)) === nombreIgual(nombreDe(otra)));
+  mismaPersona(una, otra) ||
+  (Boolean(una.persona || otra.persona) && nombreIgual(nombreDe(una)) !== "" && nombreIgual(nombreDe(una)) === nombreIgual(nombreDe(otra)));
 
-// Los datos de dos lesiones sin fecha, para reconocer la misma: lo cargado
-// en las listas y los textos.
-const huellaDeDatos = (lesion) =>
-  JSON.stringify(
-    Object.keys(lesion.datos || {})
+// Lo cargado en una lesión aparte de quién es, el N° de caso y la fecha de
+// inicio: las listas, los textos y las otras fechas. Para reconocer la misma
+// lesión sin fecha de inicio.
+const OTRAS_FECHAS = ["fecha_transicion", "fecha_retorno_entrenamiento", "fecha_alta"];
+const loCargado = (lesion) => {
+  const cargado = { ...(lesion.datos || {}) };
+  OTRAS_FECHAS.forEach((campo) => {
+    if (lesion[campo]) cargado[campo] = lesion[campo];
+  });
+  return cargado;
+};
+const huellaDeDatos = (lesion) => {
+  const cargado = loCargado(lesion);
+  return JSON.stringify(
+    Object.keys(cargado)
       .sort()
-      .map((clave) => [clave, lesion.datos[clave]]),
+      .map((clave) => [clave, cargado[clave]]),
   );
+};
 
-// Ya está en la app: la misma persona con el mismo N° de caso (aunque en el
-// Excel le hayan cambiado algo después, o no tenga fecha); la misma lesión
-// (misma persona, parte del cuerpo, lado y fecha de inicio: la regla de la
-// base, lesiones_sin_repetir); o, sin fecha ni N° de caso, la misma persona
-// con los mismos datos y también sin fecha.
-const yaEstaEnLaApp = (lesion, lesiones, nombreDe) =>
+// Todo lo que trae una lesión sin fecha ni N° de caso está igual en otra:
+// así se reconoce la que se cargó así y después se completó en la app (con
+// la fecha, y el N° de caso que le puso la carga).
+const conLoMismo = (lesion, otra) => {
+  const pegado = loCargado(lesion);
+  const enLaOtra = loCargado(otra);
+  const claves = Object.keys(pegado);
+  return claves.length > 0 && claves.every((clave) => enLaOtra[clave] === pegado[clave]);
+};
+
+// Dos fechas de inicio que no se contradicen: la misma, o alguna sin fecha.
+const mismaFechaOSinFecha = (una, otra) => !tieneFecha(una) || !tieneFecha(otra) || una.fecha_lesion === otra.fecha_lesion;
+
+// Ya está en la app: la misma persona con el mismo N° de caso y sin otra
+// fecha de inicio (aunque en el Excel le hayan cambiado algo después, o le
+// hayan puesto la fecha; con otra fecha es otra lesión y el N° de caso está
+// ocupado); la misma lesión (misma persona, parte del cuerpo, lado y fecha
+// de inicio: la regla de la base, lesiones_sin_repetir); o, sin fecha ni N°
+// de caso, la misma persona con lo mismo cargado y también sin fecha, o con
+// todo lo de la fila igual aunque ya la hayan completado (enLaApp: contra
+// las de la app, no contra las de más arriba en lo pegado, que son otras
+// filas del Excel).
+const yaEstaEnLaApp = (lesion, lesiones, nombreDe, { enLaApp = true } = {}) =>
   lesiones.some((otra) => {
     if (!deLaMismaPersona(otra, lesion, nombreDe)) return false;
-    if (lesion.numero_caso !== null) return Number(otra.numero_caso) === lesion.numero_caso || (tieneFecha(lesion) && laMismaLesion(otra, lesion));
+    if (lesion.numero_caso !== null) {
+      return (Number(otra.numero_caso) === lesion.numero_caso && mismaFechaOSinFecha(otra, lesion)) || (tieneFecha(lesion) && laMismaLesion(otra, lesion));
+    }
     if (tieneFecha(lesion)) return laMismaLesion(otra, lesion);
-    return !tieneFecha(otra) && huellaDeDatos(otra) === huellaDeDatos(lesion);
+    return (!tieneFecha(otra) && huellaDeDatos(otra) === huellaDeDatos(lesion)) || (enLaApp && conLoMismo(lesion, otra));
   });
 const laMismaLesion = (una, otra) =>
   una.fecha_lesion === otra.fecha_lesion &&
@@ -344,6 +381,17 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
     ) + 1;
   const aCargar = [];
   const casosDeLoPegado = new Set();
+  // El mismo nombre fuera de Datos básicos escrito de otra forma (con o sin
+  // acentos, mayúsculas o signos) es la misma persona: se guarda como está
+  // escrito en la app, o como en la primera fila que lo trae.
+  const comoEstaEscrito = new Map();
+  const escrituraDe = (nombre) => {
+    const llave = nombreParecido(nombre);
+    if (!llave) return nombre;
+    if (!comoEstaEscrito.has(llave)) comoEstaEscrito.set(llave, nombre);
+    return comoEstaEscrito.get(llave);
+  };
+  lesiones.forEach((otra) => otra.persona && escrituraDe(String(otra.persona).replace(/\s+/g, " ").trim()));
 
   return filas.map((fila) => {
     const problemas = [];
@@ -361,7 +409,7 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
     const lesion = {
       id: null,
       jugador_id: jugador ? jugador.id : null,
-      persona: jugador ? null : fila.nombre,
+      persona: jugador ? null : escrituraDe(fila.nombre),
       numero_caso: numeroCaso,
       fecha_lesion: null,
       fecha_transicion: null,
@@ -383,24 +431,28 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
     const faltan = [];
     const plan = { ...fila, numeroCaso, jugador, lesion, problemas, avisos, faltan, destino, dudoso: encontrado === DUDOSO, fueraDeDatos: !jugador };
 
+    // Sin nombre no se sabe de quién es.
+    if (!fila.nombre) return { ...plan, fueraDeDatos: false, problemas: ["lesiones.importar.sinNombre"], estado: ESTADOS.conProblemas };
     // Ya cargada antes (también con este nombre, fuera de Datos básicos).
     if (yaEstaEnLaApp(lesion, lesiones, nombreDe)) return { ...plan, estado: ESTADOS.yaEsta };
     if (destino === NO_CARGAR) return { ...plan, estado: ESTADOS.noVa };
     if (!jugador && !comoPersona) return { ...plan, estado: ESTADOS.sinJugador };
 
-    if (comoPersona && fila.nombre.length > LARGO_DEL_NOMBRE) problemas.push("lesiones.importar.nombreLargo");
+    if (comoPersona && lesion.persona.length > LARGO_DEL_NOMBRE) problemas.push("lesiones.importar.nombreLargo");
     if (numeroCaso !== null) {
       if (lesiones.some((otra) => Number(otra.numero_caso) === numeroCaso)) problemas.push("lesiones.importar.casoOcupado");
       else if (casosDeLoPegado.has(numeroCaso)) problemas.push("lesiones.importar.casoRepetido");
       casosDeLoPegado.add(numeroCaso);
-    } else if (!tieneFecha(lesion) && yaEstaEnLaApp(lesion, aCargar, nombreDe)) {
+    } else if (!tieneFecha(lesion) && yaEstaEnLaApp(lesion, aCargar, nombreDe, { enLaApp: false })) {
       // La misma fila sin fecha ni N° de caso dos veces en lo pegado.
       problemas.push("lesiones.error.repetida");
     }
     // Lo mismo que se revisa al cargar una a mano (fechas, la misma lesión dos
     // veces), contra las de la app y las de más arriba. Lo que falta para
-    // estar completa no frena: queda para completar.
-    const sinTerminar = !tieneFecha(lesion);
+    // estar completa no frena: queda para completar. Sin terminar es la que
+    // no trae fecha de inicio; una que trae una fecha que no se entiende no:
+    // esa no se carga (se ve el aviso de la fecha).
+    const sinTerminar = !fila.textos.fecha_lesion;
     erroresDeLesion(lesion, { hoy, otras: [...lesiones, ...aCargar], oculto }).forEach((uno) => {
       if (sinTerminar && PARA_COMPLETAR[uno.error]) faltan.includes(PARA_COMPLETAR[uno.error]) || faltan.push(PARA_COMPLETAR[uno.error]);
       else if (!problemas.includes(uno.error)) problemas.push(uno.error);
@@ -413,13 +465,16 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
 };
 
 // Las que se cargan, en orden: por N° de caso (así el N° de registro de cada
-// jugador queda como en el Excel), y las que no traen número, al final.
+// jugador queda como en el Excel), y las que no traen número, al final (por
+// fecha, y las sin fecha después).
+const NUMERO_AL_FINAL = Number.MAX_SAFE_INTEGER;
 export const ordenDeCarga = (plan) =>
   plan
     .filter((fila) => fila.estado === ESTADOS.nueva)
     .sort(
       (a, b) =>
-        (a.numeroCaso ?? Infinity) - (b.numeroCaso ?? Infinity) ||
-        String(a.lesion.fecha_lesion).localeCompare(String(b.lesion.fecha_lesion)) ||
+        (a.numeroCaso ?? NUMERO_AL_FINAL) - (b.numeroCaso ?? NUMERO_AL_FINAL) ||
+        Number(!a.lesion.fecha_lesion) - Number(!b.lesion.fecha_lesion) ||
+        String(a.lesion.fecha_lesion || "").localeCompare(String(b.lesion.fecha_lesion || "")) ||
         a.indice - b.indice,
     );

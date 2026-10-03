@@ -251,4 +251,29 @@ describe("con una base que todavía no tiene la columna persona (falta 20261010)
     await listar("eq-1");
     expect(doble.llamadas.find(([metodo]) => metodo === "select")[1]).toContain("persona");
   });
+
+  test("si el SQL se corre con la app abierta, al recargar la lista ya trae los nombres", async () => {
+    const { listarLesiones: listar } = await moduloNuevo();
+    doble.respuestas = [sinColumna, { data: [], error: null }];
+    await listar("eq-1");
+    doble.llamadas.length = 0;
+    doble.filas = [{ id: "les-4", jugador_id: null, persona: "Cata Tres", fecha_lesion: "2026-02-03", datos: {} }];
+    const { lesiones } = await listar("eq-1");
+    expect(doble.llamadas.filter(([metodo]) => metodo === "select")).toHaveLength(1);
+    expect(doble.llamadas.find(([metodo]) => metodo === "select")[1]).toContain("persona");
+    expect(lesiones[0]).toMatchObject({ persona: "Cata Tres" });
+  });
+});
+
+describe("Datos básicos sin leer", () => {
+  test("si la base no contesta, el plantel es la copia de respaldo y se avisa", async () => {
+    doble.error = { code: "08000", message: "sin conexión" };
+    const respuesta = await cargarPlantelLesiones("eq-1");
+    expect(respuesta).toMatchObject({ plantel: [], error: "", deRespaldo: true });
+  });
+
+  test("leído de la base, no es de respaldo", async () => {
+    doble.filas = [{ id: 7, nombre: "HULK" }];
+    expect((await cargarPlantelLesiones("eq-1")).deRespaldo).toBeFalsy();
+  });
 });

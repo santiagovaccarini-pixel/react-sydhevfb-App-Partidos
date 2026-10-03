@@ -21,9 +21,11 @@ const faltaPersona = (error) => /persona/.test(error?.message || "") && /42703|P
 // Pide algo a la base con la columna persona y, si la base todavía no la
 // tiene, otra vez sin ella. armar(conPersona) arma la consulta. Lo que es de
 // una persona va siempre con la columna (sin ella no se puede guardar): si
-// sale bien, la base ya la tiene (se corrió el SQL con la app abierta).
-const conOSinPersona = async (armar, { dePersona = false } = {}) => {
-  const conPersona = !sinPersona || dePersona;
+// sale bien, la base ya la tiene (se corrió el SQL con la app abierta). La
+// lista se pide siempre primero con la columna (probar): así, si se corre el
+// SQL con la app abierta, al recargar ya se ven los nombres.
+const conOSinPersona = async (armar, { dePersona = false, probar = false } = {}) => {
+  const conPersona = !sinPersona || dePersona || probar;
   const respuesta = await armar(conPersona);
   if (!respuesta.error) {
     if (conPersona) sinPersona = false;
@@ -80,6 +82,7 @@ export const listarLesiones = async (equipoId) => {
       .eq("equipo_id", equipoId)
       // Las sin fecha (casos sin terminar) al final, como en la foto del último día.
       .order("fecha_lesion", { ascending: false, nullsFirst: false }),
+    { probar: true },
   );
   if (error) return { lesiones: [], ...fallo(error, "lesiones.error.noLeer") };
   return { lesiones: (data || []).map(normalizarLesion), error: "" };
@@ -197,7 +200,8 @@ export const cargarPlantelLesiones = async (equipoId) => {
   if (error && faltanHorasPrevias(error)) ({ data, error } = await leer(COLUMNAS_JUGADOR_SIN_HORAS));
   if (!error) return { plantel: porNombre((data || []).map(normalizarJugadorLesiones)), error: "" };
   const respaldo = await cargarPlantel(equipoId);
-  return { plantel: (respaldo.plantel || []).map(normalizarJugadorLesiones), error: "" };
+  // deRespaldo: la base no respondió y es la última copia guardada (o nada).
+  return { plantel: (respaldo.plantel || []).map(normalizarJugadorLesiones), error: "", deRespaldo: respaldo.desde !== "base" };
 };
 
 // Solo lo que se mande: una celda de la tabla, o la ficha entera.

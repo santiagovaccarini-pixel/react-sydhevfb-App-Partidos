@@ -16,7 +16,8 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 // Un nombre que no está en Datos básicos se elige qué es: se guarda con ese
 // nombre (sin agregarlo a Datos básicos), es un jugador de la lista o no se
 // carga. Se ve igual que Pegar desde Excel en Datos básicos
-// (ImportarJugadores.jsx).
+// (ImportarJugadores.jsx). Sin Datos básicos leído de la base no se sabe
+// quién es cada uno (todos parecerían de afuera): no se carga nada.
 
 // Cómo se ve cada estado (las clases del de Datos básicos).
 const CLASE_DEL_ESTADO = {
@@ -27,11 +28,14 @@ const CLASE_DEL_ESTADO = {
   [ESTADOS.conProblemas]: "problema",
 };
 
-export default function ImportarLesiones({ equipoId, plantel, lesiones, config, onVolver, onRecargar, onListo }) {
+export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = false, lesiones, config, onVolver, onRecargar, onListo }) {
   const { idioma, plural } = useIdioma();
   const [texto, setTexto] = useState("");
   const [progreso, setProgreso] = useState(null);
   const [fallas, setFallas] = useState([]);
+  // Cuántas se cargaron, si quedaron nombres sin elegir (la pantalla sigue
+  // abierta para elegirlos).
+  const [cargadasAntes, setCargadasAntes] = useState(null);
   // Lo elegido para los nombres que no están en Datos básicos: { indice de
   // la fila: destino }.
   const [elegidos, setElegidos] = useState({});
@@ -53,9 +57,9 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
   const leido = useMemo(() => (texto.trim() ? leerLesionesPegadas(texto, { config }) : null), [texto, config]);
   const hoy = hoyISO();
   const plan = useMemo(
-    () => (leido && !leido.error ? planDeImportacion(leido.filas, { plantel, lesiones, config, hoy, elegidos }) : []),
+    () => (leido && !leido.error && !plantelSinLeer ? planDeImportacion(leido.filas, { plantel, lesiones, config, hoy, elegidos }) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [leido, plantel, lesiones, config, elegidos],
+    [leido, plantel, plantelSinLeer, lesiones, config, elegidos],
   );
   const aCargar = useMemo(() => ordenDeCarga(plan), [plan]);
   const cuantas = (estado) => plan.filter((fila) => fila.estado === estado).length;
@@ -70,6 +74,7 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
   const pegarTexto = (nuevo) => {
     setTexto(nuevo);
     setFallas([]);
+    setCargadasAntes(null);
     setElegidos({});
   };
 
@@ -94,7 +99,7 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
   };
   // Se puede elegir qué es una fila si su nombre no está en Datos básicos
   // (o se eligió a mano), mientras no esté ya en la app.
-  const sePuedeElegir = (fila) => fila.estado !== ESTADOS.yaEsta && (fila.destino !== null || !fila.jugador || fila.dudoso);
+  const sePuedeElegir = (fila) => Boolean(fila.nombre) && fila.estado !== ESTADOS.yaEsta && (fila.destino !== null || !fila.jugador || fila.dudoso);
 
   // Un problema en palabras: los de la carga a mano dicen la parte y el lado.
   const textoDelProblema = (fila, clave) =>
@@ -120,9 +125,13 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
   const cargar = async () => {
     const lista = aCargar;
     if (lista.length === 0) return;
+    // Los nombres que siguen sin elegir no se cargan: la pantalla queda
+    // abierta con ellos.
+    const quedanSinElegir = sinElegir.length;
     const errores = [];
     let cargadas = 0;
     setFallas([]);
+    setCargadasAntes(null);
     for (let i = 0; i < lista.length; i++) {
       if (!enPantalla.current) break;
       const fila = lista[i];
@@ -136,11 +145,12 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
     await onRecargar();
     if (!enPantalla.current) return;
     setProgreso(null);
-    if (errores.length === 0) {
+    if (errores.length === 0 && quedanSinElegir === 0) {
       onListo({ cargadas });
       return;
     }
     setFallas(errores);
+    setCargadasAntes(cargadas);
   };
 
   const ocupado = Boolean(progreso);
@@ -174,7 +184,14 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
           )}
         </section>
 
+        {plantelSinLeer && texto.trim() && <div className="lesiones-estado error">{t("lesiones.importar.plantelSinLeer")}</div>}
         {leido?.error && <div className="lesiones-estado error">{t(leido.error)}</div>}
+
+        {cargadasAntes > 0 && (
+          <p className="lesiones-estado" role="status">
+            {plural("lesiones.importar.listo", cargadasAntes)}
+          </p>
+        )}
 
         {fallas.length > 0 && (
           <div className="lesiones-estado error datos-importar-fallas" role="alert">
@@ -220,7 +237,7 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
                 <li key={fila.indice} className={fila.estado === ESTADOS.noVa || fila.estado === ESTADOS.yaEsta ? "apagada" : ""}>
                   <div className="datos-importar-fila">
                     <b>
-                      {casoDe(fila)} · {fila.nombre}
+                      {casoDe(fila)} · {fila.nombre || t("lesiones.importar.sinNombreFila")}
                     </b>
                     {sePuedeElegir(fila) ? (
                       <button
@@ -242,7 +259,13 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
                   {fila.estado === ESTADOS.sinJugador && (
                     <p className="datos-importar-aviso">{t(fila.dudoso ? "lesiones.importar.jugadorDudoso" : "lesiones.importar.sinJugador")}</p>
                   )}
-                  {fila.estado === ESTADOS.nueva && fila.fueraDeDatos && <p className="datos-importar-detalle">{t("lesiones.importar.seGuardaComoPersona")}</p>}
+                  {fila.estado === ESTADOS.nueva && fila.fueraDeDatos && (
+                    <p className="datos-importar-detalle">
+                      {fila.lesion.persona === fila.nombre
+                        ? t("lesiones.importar.seGuardaComoPersona")
+                        : t("lesiones.importar.seGuardaComo", { nombre: fila.lesion.persona })}
+                    </p>
+                  )}
                   {fila.problemas.map((clave) => (
                     <p className="datos-importar-problema" key={clave}>
                       {textoDelProblema(fila, clave)}
@@ -261,6 +284,9 @@ export default function ImportarLesiones({ equipoId, plantel, lesiones, config, 
                 </li>
               ))}
             </ul>
+            {sinElegir.length > 0 && aCargar.length > 0 && (
+              <p className="datos-importar-aviso datos-importar-sin-elegir">{plural("lesiones.importar.quedanSinElegir", sinElegir.length)}</p>
+            )}
           </section>
         )}
 

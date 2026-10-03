@@ -668,6 +668,15 @@
   margin: 0;
   color: #92400e;
 }
+/* Los nombres que quedan sin elegir, al pie de la lista. */
+.lesiones-marco .datos-importar-sin-elegir {
+  margin-top: 10px;
+  font-weight: 700;
+}
+/* Los avisos de la carga (listo, fallas) separados de la lista. */
+.lesiones-marco .datos-importar > .lesiones-estado {
+  margin-bottom: 12px;
+}
 .lesiones-marco .datos-importar-problema {
   margin: 0;
   color: #b91c1c;

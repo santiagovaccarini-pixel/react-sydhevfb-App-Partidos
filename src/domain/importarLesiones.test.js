@@ -385,5 +385,81 @@ describe("qué pasa con cada fila", () => {
     const [primera] = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY, elegidos: { [leido.filas[0].indice]: COMO_PERSONA } });
     expect(primera.problemas).toEqual(["lesiones.importar.nombreLargo"]);
   });
-});
 
+  test("una fecha de inicio que no se entiende no es un caso sin terminar: no se carga", () => {
+    const rara = { ...LESION_1, "Data de Início da Lesão (DD/MM/YYYY)": "ontem" };
+    const leido = leer([CABECERAS.join("\t"), fila(rara)].join("\n"));
+    const [primera] = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
+    expect(primera.estado).toBe(ESTADOS.conProblemas);
+    expect(primera.problemas).toContain("lesiones.error.fecha");
+    expect(primera.faltan).toEqual([]);
+    expect(primera.avisos).toContainEqual({ campo: "fecha_lesion", valor: "ontem" });
+  });
+
+  test("una fila con datos y sin nombre se ve, y no se carga; con solo el N° de caso no se lee", () => {
+    const sinNombre = { ...LESION_1, "Nome e Sobrenome": "" };
+    const leido = leer([CABECERAS.join("\t"), fila(sinNombre), fila({ "N° de Caso": "7" })].join("\n"));
+    expect(leido.filas).toHaveLength(1);
+    const [primera] = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
+    expect(primera.estado).toBe(ESTADOS.conProblemas);
+    expect(primera.problemas).toEqual(["lesiones.importar.sinNombre"]);
+    expect(primera.fueraDeDatos).toBe(false);
+    expect(ordenDeCarga([primera])).toEqual([]);
+  });
+
+  test("el mismo nombre de afuera escrito de otra forma es la misma persona: se guarda como ya está escrito", () => {
+    const de = (nombre, caso, fecha) => fila({ ...LESION_1, "N° de Caso": caso, "Nome e Sobrenome": nombre, "Data de Início da Lesão (DD/MM/YYYY)": fecha, "Passagem para o Transicao (DD/MM/YYYY)": "", "Retorno à Data de Treinamento (DD/MM/YYYY)": "", "Retorno à Data da Competição (DD/MM/YYYY)": "", "HORA DA IMAGEM": "" });
+    const leido = leer([CABECERAS.join("\t"), de("João Sousa", "1", "01/02/2026"), de("JOAO SOUSA", "2", "01/03/2026")].join("\n"));
+    const elegidos = Object.fromEntries(leido.filas.map((una) => [una.indice, COMO_PERSONA]));
+    const filas = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY, elegidos });
+    expect(filas.map((una) => una.lesion.persona)).toEqual(["João Sousa", "João Sousa"]);
+    // Ya en la app, escrito de otra forma: manda el de la app, y lo mismo ya está.
+    const enLaApp = { id: "x", numero_caso: 1, jugador_id: null, persona: "Joao Sousa", fecha_lesion: "2026-02-01", datos: { parte_cuerpo: "coxa", lado: "direito" } };
+    const otraVez = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [enLaApp], config: null, hoy: HOY, elegidos });
+    expect(otraVez.map((una) => una.estado)).toEqual([ESTADOS.yaEsta, ESTADOS.nueva]);
+    expect(otraVez[1].lesion.persona).toBe("Joao Sousa");
+  });
+
+  test("sin N° de caso: primero las que tienen fecha y después las sin fecha", () => {
+    const conFecha = { ...LESION_1, "N° de Caso": "", "Passagem para o Transicao (DD/MM/YYYY)": "", "Retorno à Data de Treinamento (DD/MM/YYYY)": "", "Retorno à Data da Competição (DD/MM/YYYY)": "", "HORA DA IMAGEM": "" };
+    const sinFecha = { "Nome e Sobrenome": "Bea Dos", "Parte do Corpo Lesionada": "COXA" };
+    const leido = leer([CABECERAS.join("\t"), fila(sinFecha), fila(conFecha)].join("\n"));
+    const filas = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
+    expect(ordenDeCarga(filas).map((una) => una.lesion.fecha_lesion)).toEqual(["2026-01-21", null]);
+  });
+
+  test("sin fecha ni N° de caso, cargada y después completada en la app: ya está", () => {
+    const pendiente = { "Nome e Sobrenome": "Ana Uno", "Parte do Corpo Lesionada": "COXA", Lado: "Direito" };
+    const leido = leer([CABECERAS.join("\t"), fila(pendiente)].join("\n"));
+    const completada = { id: "x", numero_caso: 12, jugador_id: 1, fecha_lesion: "2026-02-01", datos: { parte_cuerpo: "coxa", lado: "direito", tipo_lesion: "contusao" } };
+    expect(planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [completada], config: null, hoy: HOY })[0].estado).toBe(ESTADOS.yaEsta);
+    // Otra parte del cuerpo es otra lesión.
+    const otra = { ...completada, datos: { ...completada.datos, parte_cuerpo: "joelho" } };
+    expect(planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [otra], config: null, hoy: HOY })[0].estado).toBe(ESTADOS.nueva);
+  });
+
+  test("dos jugadores de Datos básicos con el mismo nombre son dos personas", () => {
+    const mellizos = [{ id: 5, nombre: "Lucas Silva" }, { id: 6, nombre: "Lucas Silva" }];
+    const leido = leer([CABECERAS.join("\t"), fila({ ...LESION_1, "Nome e Sobrenome": "Lucas Silva" })].join("\n"));
+    const delOtro = { id: "x", numero_caso: 1, jugador_id: 5, fecha_lesion: "2026-01-21", datos: { parte_cuerpo: "coxa", lado: "direito" } };
+    const [primera] = planDeImportacion(leido.filas, { plantel: mellizos, lesiones: [delOtro], config: null, hoy: HOY, elegidos: { [leido.filas[0].indice]: "6" } });
+    expect(primera.estado).not.toBe(ESTADOS.yaEsta);
+    expect(primera.problemas).toEqual(["lesiones.importar.casoOcupado"]);
+  });
+
+  test("el mismo N° de caso y la misma persona con otra fecha de inicio es otra lesión: no se pisa, se avisa", () => {
+    const enLaApp = { id: "x", numero_caso: 1, jugador_id: 1, fecha_lesion: "2026-09-01", datos: { parte_cuerpo: "joelho", lado: "direito" } };
+    const [primera] = plan({ lesiones: [enLaApp] });
+    expect(primera.estado).toBe(ESTADOS.conProblemas);
+    expect(primera.problemas).toEqual(["lesiones.importar.casoOcupado"]);
+    // Cargada sin fecha y después completada en el Excel: es la misma.
+    expect(plan({ lesiones: [{ ...enLaApp, fecha_lesion: null }] })[0].estado).toBe(ESTADOS.yaEsta);
+  });
+
+  test("sin fecha ni N° de caso, con otras fechas de alta son dos lesiones distintas", () => {
+    const pendiente = (alta) => ({ "Nome e Sobrenome": "Ana Uno", "Parte do Corpo Lesionada": "COXA", "Retorno à Data da Competição (DD/MM/YYYY)": alta });
+    const leido = leer([CABECERAS.join("\t"), fila(pendiente("10/05/2026")), fila(pendiente("20/06/2026"))].join("\n"));
+    const filas = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
+    expect(filas.map((una) => una.estado)).toEqual([ESTADOS.nueva, ESTADOS.nueva]);
+  });
+});
