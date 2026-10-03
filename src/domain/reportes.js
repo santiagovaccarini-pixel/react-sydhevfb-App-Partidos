@@ -130,20 +130,20 @@ export const contarPor = (lesiones, valor, hoy) => {
   return [...mapa.values()].sort((a, b) => b.cantidad - a.cantidad || b.dias - a.dias || String(a.valor).localeCompare(String(b.valor)));
 };
 
-// Los meses del período ("2026-01"…), en orden.
+// Los meses del período ("2026-01"…), en orden. Con un período muy largo,
+// los últimos 240 (veinte años).
 export const mesesEntre = (desde, hasta) => {
   if (!esFechaISO(desde) || !esFechaISO(hasta) || desde > hasta) return [];
   const meses = [];
-  let [anio, mes] = desde.split("-").map(Number);
-  const [anioFin, mesFin] = hasta.split("-").map(Number);
-  while (anio < anioFin || (anio === anioFin && mes <= mesFin)) {
-    meses.push(`${anio}-${String(mes).padStart(2, "0")}`);
-    mes += 1;
-    if (mes > 12) {
-      mes = 1;
-      anio += 1;
+  let [anio, mes] = hasta.split("-").map(Number);
+  const [anioInicio, mesInicio] = desde.split("-").map(Number);
+  while ((anio > anioInicio || (anio === anioInicio && mes >= mesInicio)) && meses.length < 240) {
+    meses.unshift(`${anio}-${String(mes).padStart(2, "0")}`);
+    mes -= 1;
+    if (mes < 1) {
+      mes = 12;
+      anio -= 1;
     }
-    if (meses.length > 240) break;
   }
   return meses;
 };
@@ -180,8 +180,10 @@ export const PERIODOS = ["anio", "doce", "todo"];
 export const periodoDe = (cual, hoy, lesiones = []) => {
   if (cual === "anio") return { desde: `${hoy.slice(0, 4)}-01-01`, hasta: hoy };
   if (cual === "doce") {
+    // El día siguiente al de hace un año (del 29/02, el 01/03).
     const [anio, mes, dia] = hoy.split("-").map(Number);
-    const desde = new Date(Date.UTC(anio - 1, mes - 1, dia + 1)).toISOString().slice(0, 10);
+    const ultimoDelMes = new Date(Date.UTC(anio - 1, mes, 0)).getUTCDate();
+    const desde = new Date(Date.UTC(anio - 1, mes - 1, Math.min(dia, ultimoDelMes) + 1)).toISOString().slice(0, 10);
     return { desde, hasta: hoy };
   }
   const primera = (lesiones || []).map((lesion) => lesion.fecha_lesion).filter(esFechaISO).sort()[0];

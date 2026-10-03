@@ -155,6 +155,11 @@ describe("el reporte grupal", () => {
       ["joelho", 1],
     ]);
     expect(mesesEntre("2025-11-15", "2026-02-01")).toEqual(["2025-11", "2025-12", "2026-01", "2026-02"]);
+    // Con un período muy largo quedan los últimos veinte años, hasta el final.
+    const largo = mesesEntre("1990-01-01", "2026-10-02");
+    expect(largo).toHaveLength(240);
+    expect(largo[239]).toBe("2026-10");
+    expect(largo[0]).toBe("2006-11");
     const meses = porMes(lesiones, "2026-07-01", "2026-09-30");
     expect(meses.map((mes) => mes.total)).toEqual([1, 0, 2]);
     expect(meses[0].porSeveridad).toEqual({ abierta: 1 });
@@ -167,6 +172,7 @@ describe("el reporte grupal", () => {
   test("los períodos: este año, los últimos 12 meses y todo", () => {
     expect(periodoDe("anio", hoy)).toEqual({ desde: "2026-01-01", hasta: hoy });
     expect(periodoDe("doce", hoy)).toEqual({ desde: "2025-10-03", hasta: hoy });
+    expect(periodoDe("doce", "2028-02-29")).toEqual({ desde: "2027-03-01", hasta: "2028-02-29" });
     expect(periodoDe("todo", hoy, [lesion({ fecha_lesion: "2024-03-01" })])).toEqual({ desde: "2024-03-01", hasta: hoy });
   });
 });

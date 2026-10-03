@@ -14,6 +14,7 @@ const datos = vi.hoisted(() => ({
   equipo: { id: "eq-1", nombre: "Atlético Mineiro" },
   historialesPedidos: [],
   cambios: [],
+  errorAlLeer: "",
 }));
 
 const lesionHulk = () => ({
@@ -36,7 +37,7 @@ vi.mock("./domain/equipo.js", () => ({
   esElCam: (nombre) => nombre === "Atlético Mineiro",
 }));
 vi.mock("./domain/lesionesDb.js", () => ({
-  listarLesiones: async () => ({ lesiones: datos.lesiones.map((l) => ({ ...l, datos: { ...l.datos } })), error: "" }),
+  listarLesiones: async () => (datos.errorAlLeer ? { lesiones: [], error: datos.errorAlLeer } : { lesiones: datos.lesiones.map((l) => ({ ...l, datos: { ...l.datos } })), error: "" }),
   cargarPlantelLesiones: async () => ({
     plantel: [
       { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
@@ -138,6 +139,7 @@ describe("el módulo Lesiones", () => {
     datos.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
     datos.historialesPedidos = [];
     datos.cambios = [];
+    datos.errorAlLeer = "";
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -810,12 +812,16 @@ describe("el módulo Lesiones", () => {
   });
 
   test("los reportes: el individual como el del Excel y el grupal", async () => {
-    const hoy = hoyISO();
-    const anio = hoy.slice(0, 4);
+    // Fechas contadas desde hoy, para que la prueba ande cualquier día del año.
+    const haceDias = (dias) => {
+      const fecha = new Date(`${hoyISO()}T12:00:00Z`);
+      fecha.setUTCDate(fecha.getUTCDate() - dias);
+      return fecha.toISOString().slice(0, 10);
+    };
     const contexto = { producto: "nao_traumatica", cuando: "treinamento", localizacion: "profissional" };
     datos.lesiones = [
-      { ...lesionHulk(), fecha_lesion: `${anio}-01-10`, fecha_alta: `${anio}-01-20`, datos: { ...lesionHulk().datos, ...contexto } },
-      { ...lesionHulk(), id: "les-2", numero_caso: 2, jugador_id: 8, fecha_lesion: `${anio}-01-05`, fecha_alta: `${anio}-01-07`, datos: { parte_cuerpo: "joelho", lado: "esquerdo", tipo_lesion: "entorse", cuando: "treinamento" } },
+      { ...lesionHulk(), fecha_lesion: haceDias(20), fecha_alta: haceDias(10), datos: { ...lesionHulk().datos, ...contexto } },
+      { ...lesionHulk(), id: "les-2", numero_caso: 2, jugador_id: 8, fecha_lesion: haceDias(15), fecha_alta: haceDias(13), datos: { parte_cuerpo: "joelho", lado: "esquerdo", tipo_lesion: "entorse", cuando: "treinamento" } },
     ];
     await montar();
     await navegar(contenedor, "Reportes");
@@ -855,6 +861,7 @@ describe("el módulo Lesiones", () => {
 
     await tocar(contenedor.querySelector(".reporte-volver"));
     await tocar(botonQueEmpieza(contenedor, "Reporte grupal"));
+    await tocar(chip(contenedor, "Todo"));
     const kpis = () => [...contenedor.querySelectorAll(".reporte-kpi")].map((kpi) => kpi.textContent);
     expect(kpis().slice(0, 3)).toEqual(["2Lesiones", "2Jugadores lesionados", "12Días perdidos"]);
     // El cuadro del plantel: entra solo la de HULK (no traumática, en
@@ -864,6 +871,18 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain("Lesiones por mes");
     expect(texto(contenedor)).toContain("Quiénes perdieron más días");
     expect(contenedor.querySelectorAll(".reporte-figuras .figura-cuerpo-pieza[style]").length).toBeGreaterThan(0);
+  });
+
+  test("los reportes no muestran ceros si las lesiones no se pudieron leer", async () => {
+    datos.errorAlLeer = "lesiones.error.noLeer";
+    await montar();
+    await navegar(contenedor, "Reportes");
+    expect(contenedor.querySelector(".lesiones-estado.error")).not.toBe(null);
+    await tocar(botonQueEmpieza(contenedor, "Reporte individual"));
+    expect(contenedor.querySelector(".lesiones-estado.error")).not.toBe(null);
+    expect(contenedor.querySelector(".lesiones-elegir-jugador")).toBe(null);
+    expect(contenedor.querySelector(".informe")).toBe(null);
+    expect(texto(contenedor)).not.toContain("Imprimir o guardar en PDF");
   });
 
   test("una lesión se borra desde la ficha con confirmación", async () => {

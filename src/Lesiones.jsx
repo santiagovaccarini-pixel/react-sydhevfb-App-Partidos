@@ -1499,6 +1499,13 @@ export default function Lesiones({ onVolver }) {
         enPantalla={enPantalla}
         camposVisibles={CAMPOS.filter(visible)}
         gps={null}
+        estado={
+          <>
+            <AvisoSoloLectura hasta={equipo?.hasta} />
+            {estado}
+          </>
+        }
+        datosListos={!cargando && !error}
       />
     );
   else if (vista === "ajustes") contenido = pantallaAjustes();

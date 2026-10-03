@@ -24,7 +24,9 @@ import { fechaCorta } from "./idioma/formatos.js";
 // de Lesiones IND" del Excel, con las mismas cuentas y mejor presentada) y el
 // grupal; "Crear reportes", lo que sigue. Las cuentas cada 1000 horas usan
 // los minutos del GPS: gps es [{ jugadorId, fecha, minutos }], o null
-// mientras la app no los tenga.
+// mientras la app no los tenga. estado: los avisos de la carga (sin conexión,
+// error, cargando), como en las otras pantallas; sin datosListos no se
+// muestra ningún reporte (serían ceros que no son).
 
 // Los colores de la severidad (como en los gráficos del Excel: amarillo,
 // naranja, rojo, violeta).
@@ -70,14 +72,14 @@ const Kpi = ({ valor, rotulo, detalle = null, tono = "" }) => (
   </div>
 );
 
-// Barras horizontales: [{ etiqueta, valor, detalle? }].
+// Barras horizontales: [{ clave, etiqueta, valor, detalle?, color? }].
 const Barras = ({ filas, maximo = null, color = "#16a34a", vacio }) => {
   if (!filas.length) return <p className="vacio-ficha">{vacio}</p>;
   const tope = maximo || Math.max(...filas.map((fila) => fila.valor), 1);
   return (
     <ul className="reporte-barras">
       {filas.map((fila) => (
-        <li key={fila.etiqueta}>
+        <li key={fila.clave}>
           <span className="reporte-barras-etiqueta">{fila.etiqueta}</span>
           <span className="reporte-barras-pista">
             <span style={{ width: `${Math.max(2, (fila.valor / tope) * 100)}%`, background: fila.color || color }} />
@@ -91,9 +93,9 @@ const Barras = ({ filas, maximo = null, color = "#16a34a", vacio }) => {
 };
 
 // Lesiones por mes, apiladas por severidad.
-const BarrasPorMes = ({ meses, textoSeveridad }) => {
+const BarrasPorMes = ({ meses, textoSeveridad, idioma }) => {
   const tope = Math.max(...meses.map((mes) => mes.total), 1);
-  const nombreDelMes = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString(undefined, { month: "short", year: meses.length > 12 ? "2-digit" : undefined });
+  const nombreDelMes = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString(idioma, { month: "short", year: meses.length > 12 ? "2-digit" : undefined });
   const presentes = ORDEN_SEVERIDAD.filter((severidad) => meses.some((mes) => mes.porSeveridad[severidad]));
   return (
     <div className="reporte-meses">
@@ -219,7 +221,7 @@ const FotoDelJugador = ({ jugador }) => {
 
 // ------------------------------------------------------------- Reportes --
 
-export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy, etiqueta, textoDeOpcion, enPantalla, camposVisibles, gps = null }) {
+export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy, etiqueta, textoDeOpcion, enPantalla, camposVisibles, gps = null, estado = null, datosListos = true }) {
   const { idioma, plural } = useIdioma();
   const [modo, setModo] = useState("menu");
   const [jugadorId, setJugadorId] = useState("");
@@ -252,7 +254,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
             {t("lesiones.reportes.cambiarJugador")}
           </button>
         )}
-        {(modo === "grupal" || jugador) && (
+        {datosListos && (modo === "grupal" || jugador) && (
           <button type="button" className="boton-principal" onClick={() => window.print()}>
             <Icono nombre="documento" size={16} />
             {t("lesiones.reportes.imprimir")}
@@ -285,6 +287,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
               <p>{t("lesiones.reportes.texto")}</p>
             </div>
           </header>
+          {estado}
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">
               <b>{t("lesiones.reportes.ver")}</b>
@@ -303,6 +306,19 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
     );
   }
 
+  // Mientras se cargan las lesiones, o si no se pudieron leer, ningún
+  // reporte: solo el aviso.
+  if (!datosListos) {
+    return (
+      <div className="app reporte">
+        <div className="contenedor contenedor-base">
+          {acciones}
+          {estado}
+        </div>
+      </div>
+    );
+  }
+
   // --------------------------------------------------------- Individual --
   if (modo === "individual") {
     if (!jugador) {
@@ -312,6 +328,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
         <div className="app reporte">
           <div className="contenedor contenedor-base">
             {acciones}
+            {estado}
             <section className="tarjeta lesiones-elegir-jugador">
               <p className="rotulo-criterio">{t("lesiones.reportes.elegirJugador")}</p>
               <input className="lesiones-buscador-jugador" type="search" value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} placeholder={t("lesiones.historial.buscar")} aria-label={t("lesiones.historial.buscar")} autoComplete="off" />
@@ -374,6 +391,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
       <div className="app reporte">
         <div className="contenedor contenedor-base">
           {acciones}
+          {estado}
           <article className="informe">
             <header className="informe-cabecera">
               <div className="informe-identidad">
@@ -493,18 +511,20 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
       { id: "diasMil", clase: "informe-fila-jugador", rotulo: t("lesiones.reportes.diasMil"), celdas: cuadro.map((fila) => ({ texto: numero(fila.diasCadaMil) })) },
     ];
     const conteo = (clave) =>
-      contarPor(delEquipo, (lesion) => lesion.datos?.[clave], hoy).map((fila) => ({ etiqueta: texto(clave, fila.valor), valor: fila.cantidad, detalle: plural("lesiones.dias", fila.dias) }));
+      contarPor(delEquipo, (lesion) => lesion.datos?.[clave], hoy).map((fila) => ({ clave: fila.valor, etiqueta: texto(clave, fila.valor), valor: fila.cantidad, detalle: plural("lesiones.dias", fila.dias) }));
     const porJugador = contarPor(delEquipo, (lesion) => String(lesion.jugador_id), hoy)
       .map((fila) => ({ ...fila, jugador: plantel.find((uno) => String(uno.id) === fila.valor) }))
       .sort((a, b) => b.dias - a.dias)
       .slice(0, 10)
-      .map((fila) => ({ etiqueta: fila.jugador?.nombre || "—", valor: fila.dias, detalle: plural("lesiones.historial.cantidad", fila.cantidad) }));
+      .map((fila) => ({ clave: fila.valor, etiqueta: fila.jugador?.nombre || "—", valor: fila.dias, detalle: plural("lesiones.historial.cantidad", fila.cantidad) }));
     const porPosicion = contarPor(delEquipo, (lesion) => plantel.find((uno) => String(uno.id) === String(lesion.jugador_id))?.posicion, hoy).map((fila) => ({
+      clave: fila.valor,
       etiqueta: texto("posicion", fila.valor),
       valor: fila.cantidad,
       detalle: plural("lesiones.dias", fila.dias),
     }));
     const porSeveridad = ORDEN_SEVERIDAD.map((clave) => ({
+      clave,
       etiqueta: textoSeveridad(clave),
       valor: delEquipo.filter((lesion) => (calcular("severidad", lesion) || "abierta") === clave).length,
       color: COLOR_SEVERIDAD[clave],
@@ -524,6 +544,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
       <div className="app reporte">
         <div className="contenedor contenedor-base">
           {acciones}
+          {estado}
           <header className="reporte-portada">
             <div className="reporte-portada-club">
               <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
@@ -585,7 +606,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
             </div>,
           )}
 
-          {bloque(t("lesiones.reportes.porMes"), <BarrasPorMes meses={porMes(delEquipo, desde, hasta)} textoSeveridad={textoSeveridad} />)}
+          {bloque(t("lesiones.reportes.porMes"), <BarrasPorMes meses={porMes(delEquipo, desde, hasta)} textoSeveridad={textoSeveridad} idioma={idioma} />)}
 
           <section className="reporte-dos">
             {bloque(t("lesiones.reportes.dondeSeLesionan"), <FiguraDeCalor lesiones={delEquipo} mapa={mapa} textoDeOpcion={texto} />)}
