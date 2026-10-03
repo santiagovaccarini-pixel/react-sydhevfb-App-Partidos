@@ -784,6 +784,7 @@ export default function Lesiones({ onVolver }) {
       onEditar={editarCelda}
       onPegar={pegarEnBase}
       leyenda={t("datos.leyendaYaNoEsta")}
+      rotuloApagada={t("datos.yaNoEsta")}
       onAbrirFila={abrirFicha}
       onBorrarFila={
         soloLectura

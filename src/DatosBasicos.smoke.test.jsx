@@ -212,7 +212,8 @@ describe("el módulo Datos básicos", () => {
     await montar();
     const fila = (n) => contenedor.querySelectorAll("tbody tr")[n];
     const casilla = (n) => celda(contenedor, n, 1).querySelector("input[type=checkbox]");
-    expect(contenedor.querySelector(".tabla-datos-leyenda")).toBeNull();
+    // Sin nadie desmarcado, la leyenda no se ve pero guarda su lugar.
+    expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(true);
     expect(fila(0).classList.contains("apagada")).toBe(false);
 
     let soltar;
@@ -225,6 +226,8 @@ describe("el módulo Datos básicos", () => {
     expect(fila(0).classList.contains("apagada")).toBe(true);
     expect(fila(1).classList.contains("apagada")).toBe(false);
     expect(contenedor.querySelector(".tabla-datos-leyenda").textContent).toBe("En este color, los que ya no están en el plantel actual (Datos básicos › Actual).");
+    expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(false);
+    expect(fila(0).querySelector("th").title).toBe("Ya no está");
     expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
     await act(async () => soltar());
     registro.esperaGuardar = null;

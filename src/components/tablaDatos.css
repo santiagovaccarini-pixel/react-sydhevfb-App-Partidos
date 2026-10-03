@@ -56,9 +56,18 @@
   box-shadow: 0 0 0 2px #16a34a;
 }
 
+.tabla-datos {
+  /* El color de una fila apagada (en las bases, quien ya no está en el
+     plantel actual): un gris cálido, que no usa ningún estado de Lesiones.
+     Lo usan las filas y la muestra de la leyenda. */
+  --tabla-datos-apagada: #e4ded5;
+}
+
 .tabla-datos-tabla {
   /* El alto de la fila de los grupos: las cabeceras quedan fijas debajo. */
   --tabla-datos-alto-grupos: 34px;
+  /* El ancho de la columna del número de fila (fija a la izquierda). */
+  --tabla-datos-ancho-numero: 40px;
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -107,8 +116,8 @@
   position: sticky;
   left: 0;
   z-index: 1;
-  width: 40px;
-  min-width: 40px;
+  width: var(--tabla-datos-ancho-numero);
+  min-width: var(--tabla-datos-ancho-numero);
   padding: 8px 6px;
   background: #f1f5f9;
   color: #64748b;
@@ -201,34 +210,46 @@
 }
 
 /* Una fila apagada (en las bases, alguien que ya no está en el plantel
-   actual): otro color, sin tapar lo elegido ni la fila activa. */
+   actual): otro color, sin tapar lo elegido ni la fila activa. Las celdas
+   que no se cambian siguen viéndose distintas de las que sí. */
 .tabla-datos-tabla tr.apagada td:not(.elegida) {
-  background: #fcebc6;
+  background: var(--tabla-datos-apagada);
+  color: #44403c;
+}
+
+.tabla-datos-tabla tr.apagada td.fija:not(.elegida) {
+  background: #dbd4c9;
   color: #57534e;
 }
 
 .tabla-datos-tabla tr.apagada:not(.activa) th {
-  background: #f4d998;
-  color: #78591c;
+  background: #d3cbbf;
+  color: #57534e;
 }
 
+/* La leyenda guarda su lugar aunque no haya filas apagadas a la vista: así
+   la tabla no se corre bajo el dedo al marcar o desmarcar. */
 .tabla-datos-leyenda {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0;
-  color: #64748b;
+  color: #475569;
   font-size: 12px;
   font-weight: 700;
+}
+
+.tabla-datos-leyenda.oculta {
+  visibility: hidden;
 }
 
 .tabla-datos-muestra {
   flex: none;
   width: 14px;
   height: 14px;
-  border: 1px solid #e9c97f;
+  border: 1px solid #8c857d;
   border-radius: 4px;
-  background: #fcebc6;
+  background: var(--tabla-datos-apagada);
 }
 
 .tabla-datos-vacia {
@@ -256,7 +277,7 @@
    (sin taparse con el número de fila). */
 .tabla-datos-grupo-titulo {
   position: sticky;
-  left: 60px;
+  left: calc(var(--tabla-datos-ancho-numero) + 20px);
   right: 8px;
   display: inline-block;
 }

@@ -998,7 +998,26 @@ describe("el módulo Lesiones", () => {
     await navegar(contenedor, "Base");
     const filas = [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")];
     expect(filas.map((fila) => fila.classList.contains("apagada"))).toEqual([false, false, false]);
-    expect(contenedor.querySelector(".tabla-datos-leyenda")).toBeNull();
+    expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(true);
+  });
+
+  test("en la Base y en el historial, cada lesión va en el color de su jugador", async () => {
+    datos.plantel = [
+      { id: 7, nombre: "HULK", roles: [], puestos: [], actual: false, categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
+      { id: 8, nombre: "SCARPA", roles: [], puestos: [], actual: true, categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
+    ];
+    datos.lesiones = [...datos.lesiones, { ...datos.lesiones[0], id: "les-scarpa", jugador_id: 8, numero_caso: 2 }];
+    await montar();
+    await navegar(contenedor, "Base");
+    const apagadas = () => [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")].map((fila) => [fila.querySelectorAll("td")[2].textContent, fila.classList.contains("apagada")]);
+    expect(apagadas()).toEqual([
+      ["HULK", true],
+      ["SCARPA", false],
+    ]);
+    // El historial de cada uno, igual.
+    await navegar(contenedor, "Historial");
+    await tocar([...contenedor.querySelectorAll(".lesiones-lista-jugadores button")].find((b) => b.textContent.startsWith("SCARPA")));
+    expect(apagadas()).toEqual([["SCARPA", false]]);
   });
 
   test("la base muestra las lesiones como el Excel y se edita y se pega en las celdas", async () => {

@@ -33,7 +33,9 @@ import "./tablaDatos.css";
 //           (`orden`, si está, es lo que se usa para ordenar esa columna;
 //           `apagada`, una fila que va en otro color: en las bases, alguien
 //           que ya no está en el plantel actual)
-// leyenda: qué quiere decir ese color (se ve si hay alguna fila apagada)
+// leyenda: qué quiere decir ese color (se ve si hay alguna fila apagada a la
+// vista; si no, guarda su lugar); rotuloApagada: lo que dice el número de una
+// fila apagada al pasar el mouse
 // onEditar(filaId, clave, valor) → Promise<{ error }>; onPegar(cambios) → Promise<{ error, hechos }>
 // onAbrirFila(filaId), onBorrarFila(filaId)
 // recordar: con qué nombre se guardan los filtros y el orden mientras la app
@@ -77,6 +79,7 @@ export const TablaDatos = ({
   aviso = "",
   recordar = null,
   leyenda = "",
+  rotuloApagada = "",
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -598,8 +601,8 @@ export const TablaDatos = ({
         </div>
       </div>
 
-      {leyenda && filas.some((fila) => fila.apagada) && (
-        <p className="tabla-datos-leyenda">
+      {leyenda && (
+        <p className={`tabla-datos-leyenda ${filasVista.some((fila) => fila.apagada) ? "" : "oculta"}`.trim()}>
           <i className="tabla-datos-muestra" aria-hidden="true" />
           {leyenda}
         </p>
@@ -681,7 +684,7 @@ export const TablaDatos = ({
               <tr key={fila.id} className={`${activa?.f === f ? "activa" : ""} ${fila.apagada ? "apagada" : ""}`.trim() || undefined}>
                 <th
                   className="tabla-datos-numero"
-                  title={fila.apagada && leyenda ? leyenda : undefined}
+                  title={fila.apagada ? rotuloApagada || leyenda || undefined : undefined}
                   onClick={(evento) => elegirFila(f, evento.shiftKey)}
                   onDoubleClick={() => onAbrirFila?.(fila.id)}
                 >

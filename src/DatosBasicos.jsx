@@ -123,7 +123,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         titulo: columna.texto ? t(columna.texto) : etiquetaDeCampo(columna.rotulo || columna.clave, config, idioma),
         tipo: columna.tipo,
         editable: columna.editable && !soloLectura,
-        ancho: columna.clave === "nombre" ? 180 : undefined,
+        // Que en el celular (360 px) entren el nombre y Actual sin correr la tabla.
+        ancho: columna.clave === "nombre" ? 160 : undefined,
         opciones:
           columna.tipo === "lista"
             ? opcionesDeCampo(columna.clave, config, idioma).map((opcion) => ({
@@ -191,11 +192,13 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   const editarCelda = async (jugadorId, clave, valor) => {
     const alToque = COLUMNAS.find((columna) => columna.clave === clave)?.tipo === "casilla";
     const antes = plantel.find((uno) => uno.id === jugadorId);
-    const cambiarSoloEso = (nuevo) => setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: nuevo } : uno)));
-    if (alToque && antes) cambiarSoloEso(valor);
+    if (alToque && antes) setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: valor } : uno)));
     const respuesta = await guardarDatosJugador(jugadorId, { [clave]: valor });
     if (respuesta.error) {
-      if (alToque && antes) cambiarSoloEso(antes[clave]);
+      // Vuelve a como estaba, salvo que mientras tanto ya se haya cambiado
+      // (y guardado) otra cosa.
+      if (alToque && antes)
+        setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId && uno[clave] === valor ? { ...uno, [clave]: antes[clave] } : uno)));
       return { error: respuesta.error };
     }
     reemplazar(respuesta.jugador);
@@ -357,6 +360,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
               onEditar={editarCelda}
               onPegar={pegar}
               leyenda={t("datos.leyendaYaNoEsta")}
+              rotuloApagada={t("datos.yaNoEsta")}
               onBorrarFila={
                 soloLectura
                   ? undefined
