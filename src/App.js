@@ -236,7 +236,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.03.20";
+const APP_VERSION = "2026.10.03.21";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -273,6 +273,15 @@ const mudarCopiasLocales = (equipoId, claves) => {
 };
 // Los cinco cambios reglamentarios se muestran siempre, aunque estén vacíos.
 const CAMBIOS_SIEMPRE_VISIBLES = 5;
+
+// "Agregar cambio": la lista de cambios con una ranura vacía más, después de
+// las que se ven (rellena las que se ven, así no quedan huecos en el medio).
+const conRanuraNueva = (lista, visibles, crearVacio) => {
+  const nueva = [...(lista || [])];
+  while (nueva.length < visibles) nueva.push(crearVacio());
+  nueva.push(crearVacio());
+  return nueva;
+};
 
 const opcionesMinutosTransmision = Array.from({ length: 121 }, (_, minuto) =>
   String(minuto).padStart(3, "0"),
@@ -5504,6 +5513,19 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
         return { ...prev, cambiosRival: lista };
       });
 
+    const agregarCambioEditado = (tipo, visibles) =>
+      setEditado((prev) => {
+        const clave = tipo === "rival" ? "cambiosRival" : "cambios";
+        return {
+          ...prev,
+          [clave]: conRanuraNueva(
+            prev[clave] || crearCambiosVacios(),
+            visibles,
+            crearCambioVacio,
+          ),
+        };
+      });
+
     const limpiarCambioEditado = (tipo, cambioIndex) =>
       setEditado((prev) => {
         const clave = tipo === "rival" ? "cambiosRival" : "cambios";
@@ -5874,6 +5896,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
               alActualizar: actualizarCambioEditado,
               alActualizarRival: actualizarCambioRivalEditado,
               alLimpiar: limpiarCambioEditado,
+              alAgregar: agregarCambioEditado,
               alPonerEntreTiempo: (cambioIndex) =>
                 ponerEntreTiempoEditado(cambioIndex, false),
               alPonerEntreTiempoRival: (cambioIndex) =>
@@ -6634,6 +6657,14 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     );
   };
 
+  const agregarRanuraCambio = (tipo, visibles) => {
+    const clave = tipo === "rival" ? "cambiosRival" : "cambios";
+    setRegistro((prev) => ({
+      ...prev,
+      [clave]: conRanuraNueva(prev[clave], visibles, crearCambioVacio),
+    }));
+  };
+
   const limpiarFilaCambio = (tipo, index) => {
     const clave = tipo === "rival" ? "cambiosRival" : "cambios";
     setRegistro((prev) => {
@@ -6660,6 +6691,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       alActualizar = actualizarCambio,
       alActualizarRival = actualizarCambioRival,
       alLimpiar = limpiarFilaCambio,
+      alAgregar = agregarRanuraCambio,
       alPonerAhora = ponerHoraCambio,
       alPonerAhoraRival = ponerHoraCambioRival,
       alPonerEntreTiempo = ponerHoraEntreTiempo,
@@ -6678,10 +6710,15 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       -1,
     );
     // Cinco cambios reglamentarios, más el sexto habilitado por la prórroga.
-    // Si un registro viejo trae más, se muestran igual para no esconder datos.
+    // Con "Agregar cambio" se suman más (amistosos), y si un registro trae
+    // más, se muestran igual para no esconder datos.
     const minimoRanuras =
       CAMBIOS_SIEMPRE_VISIBLES + (registroPanel.prorrogaActiva ? 1 : 0);
-    const cantidad = Math.max(minimoRanuras, ultimoConDatos + 1);
+    const cantidad = Math.max(
+      minimoRanuras,
+      ultimoConDatos + 1,
+      (lista || []).length,
+    );
     const ranuras = Array.from(
       { length: cantidad },
       (_, indice) => (lista || [])[indice] || crearCambioVacio(),
@@ -6860,6 +6897,23 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             );
           })}
         </div>
+
+        <button
+          type="button"
+          className="boton-agregar-jugador boton-agregar-cambio"
+          onClick={() => {
+            alAgregar(esRival ? "rival" : "atletico", cantidad);
+            window.setTimeout(
+              () =>
+                document
+                  .querySelector("#panel-cambios .ranura-cambio:last-child")
+                  ?.scrollIntoView?.({ behavior: "smooth", block: "center" }),
+              0,
+            );
+          }}
+        >
+          + Agregar cambio
+        </button>
       </section>
     );
   };
