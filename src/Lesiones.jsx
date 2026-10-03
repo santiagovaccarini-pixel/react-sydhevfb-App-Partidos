@@ -1485,9 +1485,21 @@ export default function Lesiones({ onVolver }) {
   else if (lesionDetalle) contenido = pantallaDetalle(lesionDetalle);
   else if (vista === "historial") contenido = pantallaHistorial;
   else if (vista === "base") contenido = pantallaBase;
+  // Los reportes: gps son los minutos del GPS, que la app todavía no tiene.
   else if (vista === "reportes")
     contenido = (
-      <ReportesLesiones lesiones={lesiones} plantel={plantel} config={config} equipo={equipo} mapa={mapa} hoy={hoyISO()} etiqueta={etiqueta} textoDeOpcion={textoDeOpcion} />
+      <ReportesLesiones
+        lesiones={lesiones}
+        plantel={plantel}
+        equipo={equipo}
+        mapa={mapa}
+        hoy={hoyISO()}
+        etiqueta={etiqueta}
+        textoDeOpcion={textoDeOpcion}
+        enPantalla={enPantalla}
+        camposVisibles={CAMPOS.filter(visible)}
+        gps={null}
+      />
     );
   else if (vista === "ajustes") contenido = pantallaAjustes();
   else contenido = pantallaLesionados;
