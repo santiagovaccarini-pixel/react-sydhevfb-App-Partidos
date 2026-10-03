@@ -462,4 +462,14 @@ describe("qué pasa con cada fila", () => {
     const filas = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
     expect(filas.map((una) => una.estado)).toEqual([ESTADOS.nueva, ESTADOS.nueva]);
   });
+
+  test("sin N° de caso, cargada sin fecha y después completada en el Excel: ya está", () => {
+    const completa = { ...LESION_1, "N° de Caso": "", "Passagem para o Transicao (DD/MM/YYYY)": "", "Retorno à Data de Treinamento (DD/MM/YYYY)": "", "Retorno à Data da Competição (DD/MM/YYYY)": "", "HORA DA IMAGEM": "" };
+    const leido = leer([CABECERAS.join("\t"), fila(completa)].join("\n"));
+    const sinFecha = { id: "x", numero_caso: 12, jugador_id: 1, fecha_lesion: null, datos: { parte_cuerpo: "coxa", lado: "direito" } };
+    expect(planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [sinFecha], config: null, hoy: HOY })[0].estado).toBe(ESTADOS.yaEsta);
+    // Si la de la app tiene algo distinto, es otra.
+    const otra = { ...sinFecha, datos: { parte_cuerpo: "joelho" } };
+    expect(planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [otra], config: null, hoy: HOY })[0].estado).toBe(ESTADOS.nueva);
+  });
 });

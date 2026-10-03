@@ -281,9 +281,9 @@ const huellaDeDatos = (lesion) => {
   );
 };
 
-// Todo lo que trae una lesión sin fecha ni N° de caso está igual en otra:
-// así se reconoce la que se cargó así y después se completó en la app (con
-// la fecha, y el N° de caso que le puso la carga).
+// Todo lo cargado en una lesión (sin contar la fecha de inicio ni el N° de
+// caso) está igual en otra: así se reconoce una sin fecha que después se
+// completó.
 const conLoMismo = (lesion, otra) => {
   const pegado = loCargado(lesion);
   const enLaOtra = loCargado(otra);
@@ -298,18 +298,20 @@ const mismaFechaOSinFecha = (una, otra) => !tieneFecha(una) || !tieneFecha(otra)
 // fecha de inicio (aunque en el Excel le hayan cambiado algo después, o le
 // hayan puesto la fecha; con otra fecha es otra lesión y el N° de caso está
 // ocupado); la misma lesión (misma persona, parte del cuerpo, lado y fecha
-// de inicio: la regla de la base, lesiones_sin_repetir); o, sin fecha ni N°
-// de caso, la misma persona con lo mismo cargado y también sin fecha, o con
-// todo lo de la fila igual aunque ya la hayan completado (enLaApp: contra
-// las de la app, no contra las de más arriba en lo pegado, que son otras
-// filas del Excel).
+// de inicio: la regla de la base, lesiones_sin_repetir); o, sin N° de caso,
+// la que se cargó sin fecha y después se completó (en la app o en el Excel):
+// sin fecha, la misma persona con lo mismo cargado y también sin fecha, o
+// con todo lo de la fila igual aunque ya la hayan completado; con fecha, una
+// sin fecha de la misma persona con todo lo suyo igual en la fila (enLaApp:
+// contra las de la app, no contra las de más arriba en lo pegado, que son
+// otras filas del Excel).
 const yaEstaEnLaApp = (lesion, lesiones, nombreDe, { enLaApp = true } = {}) =>
   lesiones.some((otra) => {
     if (!deLaMismaPersona(otra, lesion, nombreDe)) return false;
     if (lesion.numero_caso !== null) {
       return (Number(otra.numero_caso) === lesion.numero_caso && mismaFechaOSinFecha(otra, lesion)) || (tieneFecha(lesion) && laMismaLesion(otra, lesion));
     }
-    if (tieneFecha(lesion)) return laMismaLesion(otra, lesion);
+    if (tieneFecha(lesion)) return laMismaLesion(otra, lesion) || (enLaApp && !tieneFecha(otra) && conLoMismo(otra, lesion));
     return (!tieneFecha(otra) && huellaDeDatos(otra) === huellaDeDatos(lesion)) || (enLaApp && conLoMismo(lesion, otra));
   });
 const laMismaLesion = (una, otra) =>

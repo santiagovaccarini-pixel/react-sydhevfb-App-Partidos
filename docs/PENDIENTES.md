@@ -446,7 +446,8 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
     nacimiento), así que no entra en lo que se cuenta por posición ni tiene edad.
     Una sin fecha ni N° de caso que después se completó en la app se reconoce al volver a
     pegar si todo lo que trae la fila (también las fechas de transición, retorno y alta)
-    está igual en una lesión de esa persona. Se traen solo las columnas que se cargan a mano; lo
+    está igual en una lesión de esa persona; y si se completó en el Excel, si todo lo que
+    tiene la de la app está igual en la fila. Se traen solo las columnas que se cargan a mano; lo
   calculado lo calcula la app (con el Excel de Santiago dan iguales los 24 casos cerrados).
   Cada lesión entra con su N° de caso del Excel (las que no lo traen, después del más alto de
   lo pegado). Las fechas se leen como las copie el Excel de quien copia (día/mes o mes/día,
