@@ -496,9 +496,9 @@
   line-height: 1.4;
 }
 
-/* Datos básicos › Pegar desde Excel: el botón debajo de agregar, lo pegado y
-   la vista previa de cada fila con quién es en la app. */
-.datos-marco .datos-pegar-excel {
+/* Pegar desde Excel (Datos básicos y Lesiones › Base): el botón, lo pegado
+   y la vista previa de cada fila con qué pasa en la app. */
+.lesiones-marco .datos-pegar-excel {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -507,11 +507,11 @@
   min-height: 44px;
   margin: 10px 0 0;
 }
-.datos-marco .datos-importar-pegado {
+.lesiones-marco .datos-importar-pegado {
   display: grid;
   gap: 10px;
 }
-.datos-marco .datos-importar-pegado textarea {
+.lesiones-marco .datos-importar-pegado textarea {
   width: 100%;
   min-height: 120px;
   padding: 10px 12px;
@@ -527,57 +527,57 @@
   box-sizing: border-box;
   resize: vertical;
 }
-.datos-marco .datos-importar-pegado .boton-secundario {
+.lesiones-marco .datos-importar-pegado .boton-secundario {
   display: inline-flex;
   align-items: center;
   justify-self: start;
   gap: 6px;
   margin: 0;
 }
-.datos-marco .datos-importar-fallas {
+.lesiones-marco .datos-importar-fallas {
   display: grid;
   gap: 6px;
 }
-.datos-marco .datos-importar-fallas ul {
+.lesiones-marco .datos-importar-fallas ul {
   margin: 0;
   padding-left: 18px;
 }
-.datos-marco .datos-importar-resumen {
+.lesiones-marco .datos-importar-resumen {
   margin: 8px 0 0;
   color: #475569;
   font-size: 12.5px;
   font-weight: 700;
 }
-.datos-marco .datos-importar-lista {
+.lesiones-marco .datos-importar-lista {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.datos-marco .datos-importar-lista li {
+.lesiones-marco .datos-importar-lista li {
   display: grid;
   gap: 4px;
   padding: 10px 0;
   border-bottom: 1px solid #e2e8f0;
 }
-.datos-marco .datos-importar-lista li:last-child {
+.lesiones-marco .datos-importar-lista li:last-child {
   border-bottom: 0;
 }
-.datos-marco .datos-importar-lista li.apagada {
+.lesiones-marco .datos-importar-lista li.apagada {
   opacity: 0.55;
 }
-.datos-marco .datos-importar-fila {
+.lesiones-marco .datos-importar-fila {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
-.datos-marco .datos-importar-fila b {
+.lesiones-marco .datos-importar-fila b {
   min-width: 0;
   color: #0f172a;
   font-size: 14px;
   overflow-wrap: anywhere;
 }
-.datos-marco .datos-importar-destino {
+.lesiones-marco .datos-importar-destino {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -594,40 +594,60 @@
   font-weight: 800;
   cursor: pointer;
 }
-.datos-marco .datos-importar-destino span {
+.lesiones-marco .datos-importar-destino span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.datos-marco .datos-importar-destino.nuevo {
+.lesiones-marco .datos-importar-destino.nuevo {
   border-color: #bbf7d0;
   background: #dcfce7;
   color: #166534;
 }
-.datos-marco .datos-importar-destino.existe {
+.lesiones-marco .datos-importar-destino.existe {
   border-color: #bfdbfe;
   background: #eff6ff;
   color: #1e40af;
 }
-.datos-marco .datos-importar-destino.dudoso {
+.lesiones-marco .datos-importar-destino.dudoso {
   border-color: #fde68a;
   background: #fef3c7;
   color: #92400e;
 }
-.datos-marco .datos-importar-destino.fuera {
+.lesiones-marco .datos-importar-destino.fuera {
   color: #64748b;
 }
-.datos-marco .datos-importar-detalle,
-.datos-marco .datos-importar-aviso {
+.lesiones-marco .datos-importar-destino.problema {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+/* En las lesiones pegadas el estado no se elige: se lee. */
+.lesiones-marco span.datos-importar-destino {
+  cursor: default;
+}
+.lesiones-marco .datos-importar-detalle,
+.lesiones-marco .datos-importar-aviso {
   margin: 0;
   color: #475569;
   font-size: 12.5px;
   line-height: 1.4;
 }
-.datos-marco .datos-importar-aviso {
+.lesiones-marco .datos-importar-aviso {
   color: #92400e;
 }
-.datos-marco .datos-importar-confirmar {
+.lesiones-marco .datos-importar-problema {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+/* Lesiones › Base: Pegar desde Excel, arriba de la tabla. */
+.lesiones-marco .lesiones-pegar-excel {
+  margin: 0 0 12px;
+}
+.lesiones-marco .datos-importar-confirmar {
   display: inline-flex;
   align-items: center;
   justify-self: start;

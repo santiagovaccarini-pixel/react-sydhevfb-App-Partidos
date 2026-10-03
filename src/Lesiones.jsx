@@ -8,6 +8,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ReportesLesiones from "./ReportesLesiones.jsx";
+import ImportarLesiones from "./ImportarLesiones.jsx";
 import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
 import { CAMPOS_DE_ESTRUCTURA, ElegirEstructura, ElegirZona, vistaDeLesion } from "./components/MapaCorporal.jsx";
 import { CAMPOS_DEL_CUERPO, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre } from "./domain/mapaCorporal.js";
@@ -147,6 +148,8 @@ export default function Lesiones({ onVolver }) {
 
   // Ajustes: cabeceras y listas del club.
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
+  // Base › Pegar desde Excel.
+  const [importando, setImportando] = useState(false);
   const [hojaCabecera, setHojaCabecera] = useState(null);
   const [hojaOpcion, setHojaOpcion] = useState(null);
   const [errorHoja, setErrorHoja] = useState("");
@@ -672,15 +675,19 @@ export default function Lesiones({ onVolver }) {
     [filasBase, jugadorHistorial],
   );
 
+  // Lo que necesitan los errores que nombran la lesión (la misma lesión dos
+  // veces): su parte y su lado.
+  const variablesDelError = (lesion) => ({ parte: textoDeOpcion("parte_cuerpo", lesion?.datos?.parte_cuerpo), lado: textoDeOpcion("lado", lesion?.datos?.lado) });
+
   const editarCelda = async (lesionId, clave, valor) => {
     const lesion = lesiones.find((una) => una.id === lesionId);
     if (!lesion) return { error: "lesiones.error.noGuardar" };
     const nueva = conValor(lesion, clave, valor);
     // Solo frena lo que rompe esta edición (no lo que ya le faltaba a la lesión).
     const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: lesiones, oculto })[0]?.error;
-    if (falta) return { error: falta };
+    if (falta) return { error: falta, variables: variablesDelError(nueva) };
     const respuesta = await actualizarLesion(lesion.id, nueva);
-    if (respuesta.error) return { error: respuesta.error };
+    if (respuesta.error) return { error: respuesta.error, variables: variablesDelError(nueva) };
     reemplazar(respuesta.lesion);
     return {};
   };
@@ -693,6 +700,7 @@ export default function Lesiones({ onVolver }) {
     });
     let hechos = 0;
     let ultimoError = "";
+    let variables;
     for (const [lesionId, suyos] of porLesion) {
       const lesion = lesiones.find((una) => una.id === lesionId);
       if (!lesion) continue;
@@ -700,17 +708,19 @@ export default function Lesiones({ onVolver }) {
       const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: lesiones, oculto })[0]?.error;
       if (falta) {
         ultimoError = falta;
+        variables = variablesDelError(nueva);
         continue;
       }
       const respuesta = await actualizarLesion(lesion.id, nueva); // eslint-disable-line no-await-in-loop
       if (respuesta.error) {
         ultimoError = respuesta.error;
+        variables = variablesDelError(nueva);
         continue;
       }
       reemplazar(respuesta.lesion);
       hechos += suyos.length;
     }
-    return { hechos, error: ultimoError };
+    return { hechos, error: ultimoError, variables };
   };
 
   // La tabla de lesiones: la de la Base y la del historial de un jugador
@@ -742,6 +752,12 @@ export default function Lesiones({ onVolver }) {
       <div className="contenedor contenedor-base">
         <Encabezado titulo={t("nav.base")} texto={t("tabla.editar")} />
         {estado}
+        {!soloLectura && (
+          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
+            <Icono nombre="documento" size={16} />
+            {t("lesiones.importar.boton")}
+          </button>
+        )}
         <section className="tarjeta">{tablaDeLesiones(filasBase)}</section>
       </div>
     </div>
@@ -1484,7 +1500,24 @@ export default function Lesiones({ onVolver }) {
   if (formulario) contenido = pantallaFormulario(formulario);
   else if (lesionDetalle) contenido = pantallaDetalle(lesionDetalle);
   else if (vista === "historial") contenido = pantallaHistorial;
-  else if (vista === "base") contenido = pantallaBase;
+  else if (vista === "base")
+    contenido =
+      importando && !soloLectura ? (
+        <ImportarLesiones
+          equipoId={equipoId}
+          plantel={plantel}
+          lesiones={lesiones}
+          config={config}
+          onVolver={() => setImportando(false)}
+          onRecargar={cargar}
+          onListo={({ cargadas }) => {
+            setImportando(false);
+            setAviso(plural("lesiones.importar.listo", cargadas));
+          }}
+        />
+      ) : (
+        pantallaBase
+      );
   // Los reportes: gps son los minutos del GPS, que la app todavía no tiene.
   else if (vista === "reportes")
     contenido = (
@@ -1515,6 +1548,7 @@ export default function Lesiones({ onVolver }) {
   const navegar = (id) => {
     setDetalleId(null);
     setFormulario(null);
+    setImportando(false);
     if (id === "ajustes") setVistaAjustes("inicio");
     setVista(id);
   };

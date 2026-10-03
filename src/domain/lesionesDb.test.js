@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, cargarPlantelLesiones, guardarDatosJugador, historialDeLesion } from "./lesionesDb.js";
+import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, cargarPlantelLesiones, guardarDatosJugador, historialDeLesion, importarLesion } from "./lesionesDb.js";
 
 // Un doble de Supabase que anota la consulta y contesta lo configurado (o,
 // si hay, la próxima de "respuestas", una por consulta).
@@ -16,7 +16,7 @@ vi.mock("./plantel.js", () => ({
 vi.mock("../supabase.js", () => {
   const cadena = () => {
     const c = {};
-    ["select", "eq", "order", "limit", "update", "single"].forEach((metodo) => {
+    ["select", "eq", "order", "limit", "insert", "update", "single"].forEach((metodo) => {
       c[metodo] = (...args) => {
         doble.llamadas.push([metodo, ...args]);
         return c;
@@ -89,6 +89,47 @@ describe("guardar una lesión", () => {
     const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "update");
     expect(enviado.datos).toEqual({ parte_cuerpo: "coxa", lado: "direito", horas_imagen: "12" });
     expect(enviado.fecha_alta).toBe("2026-09-20");
+  });
+});
+
+describe("cargar una lesión del Excel", () => {
+  test("va con su N° de caso, y lo calculado no se guarda", async () => {
+    doble.filas = { id: "les-1", numero_caso: 12, jugador_id: 7, fecha_lesion: "2026-02-03", datos: {} };
+    const { lesion, error } = await importarLesion("eq-1", {
+      id: null,
+      numero_caso: 12,
+      jugador_id: 7,
+      fecha_lesion: "2026-02-03",
+      fecha_alta: "2026-02-20",
+      datos: { parte_cuerpo: "coxa", lado: "direito", severidad: "moderada" },
+    });
+    expect(error).toBe("");
+    expect(lesion).toMatchObject({ id: "les-1", numero_caso: 12 });
+    const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "insert");
+    expect(enviado).toEqual({
+      equipo_id: "eq-1",
+      numero_caso: 12,
+      jugador_id: 7,
+      fecha_lesion: "2026-02-03",
+      fecha_transicion: null,
+      fecha_retorno_entrenamiento: null,
+      fecha_alta: "2026-02-20",
+      datos: { parte_cuerpo: "coxa", lado: "direito" },
+    });
+  });
+
+  test("sin N° de caso lo pone la base", async () => {
+    doble.filas = { id: "les-2", numero_caso: 13, jugador_id: 7, fecha_lesion: "2026-02-03", datos: {} };
+    await importarLesion("eq-1", { numero_caso: null, jugador_id: 7, fecha_lesion: "2026-02-03", datos: {} });
+    const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "insert");
+    expect(enviado).not.toHaveProperty("numero_caso");
+  });
+
+  test("un N° de caso ocupado o la misma lesión vuelven como claves del diccionario", async () => {
+    doble.error = { code: "23505", message: 'duplicate key value violates unique constraint "lesiones_sin_repetir"' };
+    expect(await importarLesion("eq-1", { numero_caso: 3, jugador_id: 7, fecha_lesion: "2026-02-03", datos: {} })).toMatchObject({ error: "lesiones.error.repetida" });
+    doble.error = { code: "23505", message: 'duplicate key value violates unique constraint "lesiones_numero_caso_unico"' };
+    expect(await importarLesion("eq-1", { numero_caso: 3, jugador_id: 7, fecha_lesion: "2026-02-03", datos: {} })).toMatchObject({ error: "lesiones.importar.casoOcupado" });
   });
 });
 
