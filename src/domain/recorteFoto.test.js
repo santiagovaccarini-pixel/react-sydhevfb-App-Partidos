@@ -48,6 +48,32 @@ describe("sacar el fondo de la foto del jugador", () => {
     expect(datos[i]).toBeLessThan(205);
   });
 
+  test("el fondo encerrado entre el brazo y el cuerpo también se saca; lo blanco con textura, no", () => {
+    // Un "jugador" de 40 x 40 con dos huecos adentro: uno del gris liso del
+    // estudio y otro blanco con textura (como la camiseta).
+    const ancho = 60;
+    const datos = foto(ancho, ancho, (x, y) => {
+      if (x < 10 || x > 49 || y < 8) return GRIS;
+      if (x >= 15 && x <= 24 && y >= 20 && y <= 29) return GRIS;
+      if (x >= 32 && x <= 41 && y >= 20 && y <= 29) return (x + y) % 2 ? [236, 236, 238] : [244, 241, 235];
+      return [30, 30, 32];
+    });
+    sacarFondo(datos, ancho, ancho);
+    expect(alfa(datos, ancho, 20, 25)).toBe(0);
+    expect(alfa(datos, ancho, 36, 25)).toBe(255);
+    expect(alfa(datos, ancho, 12, 40)).toBe(255);
+  });
+
+  test("donde el jugador toca el costado de la foto, se desvanece", () => {
+    // Abajo, de lado a lado (como los brazos cortados por el encuadre).
+    const datos = foto(60, 60, (x, y) => (y >= 55 ? [30, 30, 32] : GRIS));
+    expect(sacarFondo(datos, 60, 60)).toBe(true);
+    expect(alfa(datos, 60, 0, 57)).toBeLessThan(40);
+    expect(alfa(datos, 60, 59, 57)).toBeLessThan(40);
+    expect(alfa(datos, 60, 2, 57)).toBeGreaterThan(alfa(datos, 60, 0, 57));
+    expect(alfa(datos, 60, 30, 57)).toBe(255);
+  });
+
   test("una foto sin fondo liso, o con fondo oscuro, no se toca", () => {
     const rayada = foto(32, 32, (x) => (x % 2 ? [229, 229, 229] : [20, 20, 20]));
     const copia = new Uint8ClampedArray(rayada);
