@@ -14,6 +14,16 @@ const BORDE_SUAVE = 40;
 // de abajo no cuenta: ahí el jugador queda cortado).
 const PAREJO = 0.9;
 const CLARO = 170;
+// El fondo que queda encerrado (entre el brazo y el cuerpo, con la mano en
+// la cintura) no toca el borde: se saca si es un pedazo del gris liso del
+// estudio (casi todo exacto, sin la textura de lo blanco de la camiseta) y no
+// es una pizca. Las proporciones, de la cantidad de puntos de la foto.
+const EXACTO = 3;
+const CASI_TODO_EXACTO = 0.85;
+const MINIMO_ENCERRADO = 0.0004;
+// Donde el jugador toca el costado de la foto (un codo cortado por el
+// encuadre), se desvanece en este ancho para que no quede un corte recto.
+const DESVANECER = 0.07;
 
 const distancia = (datos, i, fondo) => {
   const r = datos[i] - fondo[0];
@@ -50,9 +60,10 @@ export const fondoParejo = (datos, ancho, alto) => {
 
 // La foto sin el fondo: el fondo que se toca con el borde (de a vecinos,
 // para no comerse lo claro del jugador que no llega al borde, como las rayas
-// blancas de la camiseta) queda transparente; en el contorno, a medias y
-// sin el gris del fondo mezclado. Cambia los datos y devuelve true, o
-// devuelve false si la foto no tiene un fondo liso.
+// blancas de la camiseta) y los pedazos de fondo encerrados quedan
+// transparentes; en el contorno, a medias y sin el gris del fondo mezclado;
+// en los costados, el jugador se desvanece. Cambia los datos y devuelve
+// true, o devuelve false si la foto no tiene un fondo liso.
 export const sacarFondo = (datos, ancho, alto) => {
   const fondo = fondoParejo(datos, ancho, alto);
   if (!fondo) return false;
@@ -67,16 +78,40 @@ export const sacarFondo = (datos, ancho, alto) => {
       cola[entra++] = punto;
     }
   });
-  while (sale < entra) {
-    const punto = cola[sale++];
-    const x = punto % ancho;
-    const vecinos = [x > 0 ? punto - 1 : -1, x < ancho - 1 ? punto + 1 : -1, punto - ancho, punto + ancho];
-    vecinos.forEach((vecino) => {
-      if (vecino < 0 || vecino >= total || esFondo[vecino]) return;
-      if (distancia(datos, vecino * 4, fondo) > TOLERANCIA) return;
-      esFondo[vecino] = 1;
-      cola[entra++] = vecino;
-    });
+  // Desde unos puntos, todos los parecidos al fondo que se tocan con ellos
+  // (marcados con `marca`); devuelve cuántos son y cuántos son exactos.
+  const expandir = (marcas, marca) => {
+    let exactos = 0;
+    while (sale < entra) {
+      const punto = cola[sale++];
+      if (distancia(datos, punto * 4, fondo) <= EXACTO) exactos += 1;
+      const x = punto % ancho;
+      const vecinos = [x > 0 ? punto - 1 : -1, x < ancho - 1 ? punto + 1 : -1, punto - ancho, punto + ancho];
+      vecinos.forEach((vecino) => {
+        if (vecino < 0 || vecino >= total || marcas[vecino]) return;
+        if (distancia(datos, vecino * 4, fondo) > TOLERANCIA) return;
+        marcas[vecino] = marca;
+        cola[entra++] = vecino;
+      });
+    }
+    return exactos;
+  };
+  expandir(esFondo, 1);
+  // Los pedazos encerrados: cada grupo de puntos parecidos al fondo que
+  // quedó suelto; si es gris liso y no es una pizca, también es fondo.
+  const minimo = Math.max(20, Math.round(total * MINIMO_ENCERRADO));
+  const visto = new Uint8Array(esFondo);
+  for (let punto = 0; punto < total; punto += 1) {
+    if (visto[punto] || distancia(datos, punto * 4, fondo) > TOLERANCIA) continue;
+    entra = 0;
+    sale = 0;
+    visto[punto] = 1;
+    cola[entra++] = punto;
+    const exactos = expandir(visto, 1);
+    const cuantos = entra;
+    if (cuantos >= minimo && exactos / cuantos >= CASI_TODO_EXACTO) {
+      for (let k = 0; k < cuantos; k += 1) esFondo[cola[k]] = 1;
+    }
   }
   for (let punto = 0; punto < total; punto += 1) {
     const i = punto * 4;
@@ -94,6 +129,18 @@ export const sacarFondo = (datos, ancho, alto) => {
       datos[i + canal] = Math.max(0, Math.min(255, Math.round((datos[i + canal] - (1 - opaco) * fondo[canal]) / opaco)));
     }
     datos[i + 3] = Math.round(opaco * datos[i + 3]);
+  }
+  // Los costados: el jugador cortado por el encuadre se desvanece.
+  const anchoDesvanecido = Math.max(1, Math.round(ancho * DESVANECER));
+  for (let y = 0; y < alto; y += 1) {
+    for (let x = 0; x < anchoDesvanecido; x += 1) {
+      const suave = (x + 0.5) / anchoDesvanecido;
+      const factor = suave * suave * (3 - 2 * suave);
+      const izquierda = (y * ancho + x) * 4 + 3;
+      const derecha = (y * ancho + (ancho - 1 - x)) * 4 + 3;
+      datos[izquierda] = Math.round(datos[izquierda] * factor);
+      datos[derecha] = Math.round(datos[derecha] * factor);
+    }
   }
   return true;
 };
