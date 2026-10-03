@@ -59,12 +59,12 @@ describe("los reportes con los minutos del GPS", () => {
     contenedor.remove();
   });
 
-  const montar = async (gps = GPS, plantel = PLANTEL) => {
+  const montar = async (gps = GPS, plantel = PLANTEL, lesiones = LESIONES) => {
     await act(async () => {
       raiz = createRoot(contenedor);
       raiz.render(
         <ReportesLesiones
-          lesiones={LESIONES}
+          lesiones={lesiones}
           plantel={plantel}
           equipo={{ id: "eq-1", nombre: "Atlético Mineiro" }}
           mapa={crearMapa()}
@@ -267,6 +267,30 @@ describe("los reportes con los minutos del GPS", () => {
     expect([...contenedor.querySelectorAll(".reporte-kpis-dos b")].map((b) => b.textContent)).toEqual(["—", "—"]);
     expect(filas(contenedor.querySelector(".informe-cuadro"))[1]).toEqual(["—", "—", "—", "—"]);
     expect(contenedor.querySelector(".informe-aviso").textContent).toContain("Faltan los minutos del GPS");
+  });
+
+  test("las sin fecha no cuentan en los reportes; las de alguien fuera de Datos básicos, sí (cada persona aparte)", async () => {
+    const conMas = [
+      ...LESIONES,
+      // Un caso sin terminar de HULK: no cuenta en nada.
+      { id: "les-sin-fecha", jugador_id: 7, numero_caso: 9, fecha_lesion: null, fecha_alta: null, datos: { parte_cuerpo: "joelho", lado: "direito", ...DEL_CUADRO } },
+      // Dos personas que no están en Datos básicos.
+      { id: "les-p1", jugador_id: null, persona: "Persona Uno", numero_caso: 10, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-31", datos: { parte_cuerpo: "coxa", lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO } },
+      { id: "les-p2", jugador_id: null, persona: "Persona Dos", numero_caso: 11, fecha_lesion: "2026-05-02", fecha_alta: "2026-05-04", datos: { parte_cuerpo: "coxa", lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO } },
+    ];
+    await montar(GPS, PLANTEL, conMas);
+    await tocar(botonQueEmpieza("Reporte individual"));
+    await tocar(botonQueEmpieza("HULK"));
+    // Sus lesiones con fecha: las dos de antes, no la sin fecha.
+    expect(contenedor.querySelectorAll(".informe-tabla tbody tr")).toHaveLength(2);
+    await tocar(botonQueEmpieza("Reportes"));
+    await tocar(botonQueEmpieza("Reporte grupal"));
+    await tocar([...contenedor.querySelectorAll(".chip-criterio")].find((chip) => chip.textContent === "Todo"));
+    // Cada persona por su lado en "Quiénes perdieron más días".
+    const masDias = [...contenedor.querySelectorAll(".tarjeta")].find((tarjeta) => tarjeta.textContent.startsWith("Quiénes perdieron más días"));
+    expect(masDias.textContent).toContain("Persona Uno");
+    expect(masDias.textContent).toContain("Persona Dos");
+    expect([...contenedor.querySelectorAll(".reporte-kpi")].find((kpi) => kpi.textContent.includes("Jugadores lesionados")).querySelector("b").textContent).toBe("4");
   });
 
   const texto = () => contenedor.textContent;

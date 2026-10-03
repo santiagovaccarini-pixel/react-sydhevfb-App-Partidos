@@ -489,6 +489,28 @@ select pruebas.debe_fallar('...pero la misma lesión dos veces (mismo día), no'
 select pruebas.debe_fallar('...ni con un N° de caso que ya existe', $$insert into lesiones (equipo_id, jugador_id, numero_caso, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 500, '2026-07-01', '{"parte_cuerpo":"joelho","lado":"esquerdo"}')$$, 'lesiones_numero_caso_unico');
 reset role;
 
+-- ------------------- Sin fecha de inicio y personas fuera de Datos básicos --
+
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla carga una lesión sin fecha de inicio (un caso sin terminar del Excel)', pruebas.filas($$insert into lesiones (equipo_id, jugador_id, numero_caso, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 600, '{"parte_cuerpo":"coxa","lado":"esquerdo"}')$$), 1);
+select pruebas.esperar('...y otra igual, también sin fecha (sin fecha no se compara)', pruebas.filas($$insert into lesiones (equipo_id, jugador_id, numero_caso, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 601, '{"parte_cuerpo":"coxa","lado":"esquerdo"}')$$), 1);
+select pruebas.esperar('Carla carga la lesión de alguien que no está en Datos básicos', pruebas.filas($$insert into lesiones (equipo_id, persona, numero_caso, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 'Cata Tres', 602, '2026-05-01', '{"parte_cuerpo":"joelho","lado":"direito"}')$$), 1);
+select pruebas.esperar('...y otra de la misma persona, después', pruebas.filas($$insert into lesiones (equipo_id, persona, numero_caso, fecha_lesion, fecha_alta, datos) values ('00000000-0000-0000-0000-0000000000c1', 'Cata Tres', 603, '2026-04-01', '2026-04-20', '{"parte_cuerpo":"joelho","lado":"direito"}')$$), 1);
+select pruebas.debe_fallar('La misma lesión de esa persona dos veces, no (sin importar mayúsculas)', $$insert into lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', ' cata tres ', '2026-05-01', '{"parte_cuerpo":"joelho","lado":"direito"}')$$, 'lesiones_sin_repetir_persona');
+select pruebas.debe_fallar('Una lesión es de un jugador o de una persona: de nadie, no', $$insert into lesiones (equipo_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', '2026-05-02', '{}')$$, 'lesiones_de_quien');
+select pruebas.debe_fallar('...ni de los dos', $$insert into lesiones (equipo_id, jugador_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 'Cata Tres', '2026-05-03', '{}')$$, 'lesiones_de_quien');
+select pruebas.debe_fallar('...ni con un nombre en blanco', $$insert into lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', '   ', '2026-05-04', '{}')$$, 'lesiones_de_quien');
+select pruebas.esperar('Power Query ve a la persona con su nombre', (select count(*) from v_lesiones_excel_v1 where nome_e_sobrenome = 'Cata Tres'), 2);
+select pruebas.esperar('...numerada aparte de los jugadores', (select string_agg(n_de_registro::text, ',' order by n_de_caso) from v_lesiones_excel_v1 where nome_e_sobrenome = 'Cata Tres'), '1,2');
+select pruebas.esperar('...con su recurrencia (la de abril, dentro de los 60 días)', (select recorrencia from v_lesiones_excel_v1 where n_de_caso = 602), 'sim');
+select pruebas.esperar('...y sin datos de Datos básicos', (select count(*) from v_lesiones_excel_v1 where nome_e_sobrenome = 'Cata Tres' and d_nac is null and posicao is null), 2);
+select pruebas.esperar('Power Query ve también las sin fecha, sin días ni severidad', (select count(*) from v_lesiones_excel_v1 where n_de_caso in (600, 601) and data_de_inicio_da_lesao is null and recuperacao is null and severidade is null), 2);
+reset role;
+
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva no ve las lesiones de la persona de Uno', (select count(*) from lesiones where persona is not null), 0);
+reset role;
+
 -- ------------------------------------------------ Períodos guardados --
 
 select pruebas.ser('carla@uno.com'); set role authenticated;

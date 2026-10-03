@@ -60,6 +60,7 @@ vi.mock("./domain/lesionesDb.js", () => ({
     datos.borradas.push(id);
     return { error: "" };
   },
+  importarLesion: async () => ({ error: "" }),
   historialDeLesion: async (id) => {
     datos.historialesPedidos.push(id);
     return { cambios: datos.cambios, error: "" };
@@ -894,6 +895,34 @@ describe("el módulo Lesiones", () => {
     await act(async () => Promise.resolve());
     expect(datos.borradas).toEqual(["les-1"]);
     expect(texto(contenedor)).toContain("Lesión borrada");
+  });
+
+  test("una lesión sin fecha de inicio queda para completar, y la de alguien fuera de Datos básicos se ve con su nombre", async () => {
+    datos.lesiones = [
+      lesionHulk(),
+      { ...lesionHulk(), id: "les-sin-fecha", jugador_id: 8, numero_caso: 29, fecha_lesion: null, datos: {} },
+      { ...lesionHulk(), id: "les-persona", jugador_id: null, persona: "Cata Tres", numero_caso: 30, fecha_lesion: "2026-09-22", datos: { parte_cuerpo: "joelho", lado: "direito", tipo_lesion: "entorse" } },
+    ];
+    await montar();
+    // Activas: la de HULK y la de la persona; la sin fecha no cuenta.
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("2 lesiones activas");
+    const nombresActivas = [...contenedor.querySelectorAll(".lesiones-lista")[0].querySelectorAll(".lesiones-registro-cuerpo strong")].map((nombre) => nombre.textContent);
+    expect(nombresActivas).toContain("Cata Tres");
+    const sinFecha = contenedor.querySelector(".lesiones-sin-fecha");
+    expect(sinFecha.querySelector("h2").textContent).toBe("1 lesión sin fecha de inicio");
+    expect(sinFecha.querySelector(".lesiones-registro-cuerpo strong").textContent).toBe("SCARPA");
+    expect(sinFecha.querySelector(".lesiones-etapa").textContent).toBe("Sin fecha de inicio");
+    expect(boton(sinFecha, "Alta médica")).toBeUndefined();
+    // Su ficha: sin días de baja inventados.
+    await tocar(boton(sinFecha, "Ver detalle"));
+    expect(contenedor.querySelector(".total-ficha b").textContent).toBe("—");
+    // En el historial, la persona fuera de Datos básicos también está.
+    await navegar(contenedor, "Historial");
+    await escribir(contenedor.querySelector(".lesiones-buscador-jugador"), "cata");
+    const encontrados = [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")];
+    expect(encontrados.map((uno) => uno.textContent)).toEqual(["Cata Tres1 lesión · No está en Datos básicos"]);
+    await tocar(encontrados[0]);
+    expect(contenedor.querySelector(".lesiones-cantidad").textContent).toBe("1 lesión");
   });
 
   test("el historial es de un jugador: se lo busca por el nombre y queda su base", async () => {

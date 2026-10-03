@@ -10,7 +10,7 @@
 // posición) lo pone la app, con las mismas cuentas.
 import { normalizarTextoBase } from "./match";
 import { normalizarCabecera } from "./importarJugadores.js";
-import { erroresDeLesion } from "./lesiones.js";
+import { erroresDeLesion, mismaPersona, tieneFecha } from "./lesiones.js";
 import { CAMPOS, OPCIONES, campoOculto, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./lesionesCampos.js";
 import { desdeTexto, esFechaReal, interpretarFechaHora, interpretarValor } from "./tabla.js";
 
@@ -248,13 +248,40 @@ const buscadorDeJugadores = (plantel) => {
   return (nombre) => iguales.get(nombreIgual(nombre)) || parecidos.get(nombreParecido(nombre)) || null;
 };
 
-// La misma lesión: mismo jugador, parte del cuerpo, lado y fecha de inicio
-// (la regla de la base, lesiones_sin_repetir).
-const esLaMisma = (una, otra) =>
-  String(una.jugador_id) === String(otra.jugador_id) &&
+// La misma persona: el mismo jugador o el mismo nombre fuera de Datos
+// básicos, o (si alguien se guardó con su nombre y después lo agregaron a
+// Datos básicos) el mismo nombre. nombreDe(lesion) da el nombre de cada una.
+const deLaMismaPersona = (una, otra, nombreDe) =>
+  mismaPersona(una, otra) || (nombreIgual(nombreDe(una)) !== "" && nombreIgual(nombreDe(una)) === nombreIgual(nombreDe(otra)));
+
+// Los datos de dos lesiones sin fecha, para reconocer la misma: lo cargado
+// en las listas y los textos.
+const huellaDeDatos = (lesion) =>
+  JSON.stringify(
+    Object.keys(lesion.datos || {})
+      .sort()
+      .map((clave) => [clave, lesion.datos[clave]]),
+  );
+
+// Ya está en la app: la misma persona con el mismo N° de caso (aunque en el
+// Excel le hayan cambiado algo después, o no tenga fecha); la misma lesión
+// (misma persona, parte del cuerpo, lado y fecha de inicio: la regla de la
+// base, lesiones_sin_repetir); o, sin fecha ni N° de caso, la misma persona
+// con los mismos datos y también sin fecha.
+const yaEstaEnLaApp = (lesion, lesiones, nombreDe) =>
+  lesiones.some((otra) => {
+    if (!deLaMismaPersona(otra, lesion, nombreDe)) return false;
+    if (lesion.numero_caso !== null) return Number(otra.numero_caso) === lesion.numero_caso || (tieneFecha(lesion) && laMismaLesion(otra, lesion));
+    if (tieneFecha(lesion)) return laMismaLesion(otra, lesion);
+    return !tieneFecha(otra) && huellaDeDatos(otra) === huellaDeDatos(lesion);
+  });
+const laMismaLesion = (una, otra) =>
   una.fecha_lesion === otra.fecha_lesion &&
   (una.datos?.parte_cuerpo ?? null) === (otra.datos?.parte_cuerpo ?? null) &&
   (una.datos?.lado ?? null) === (otra.datos?.lado ?? null);
+
+// El nombre más largo que guarda la base para alguien fuera de Datos básicos.
+const LARGO_DEL_NOMBRE = 120;
 
 // Qué pasa con cada fila.
 export const ESTADOS = {
@@ -262,20 +289,44 @@ export const ESTADOS = {
   nueva: "nueva",
   // Ya está en la app: no se toca.
   yaEsta: "yaEsta",
-  // Sin fecha de inicio: no se carga (en el Excel son casos sin terminar).
-  sinFecha: "sinFecha",
+  // El nombre no está en Datos básicos (o se parece a dos): hay que elegir
+  // si se guarda con ese nombre, si es un jugador de la lista o si no va.
+  sinJugador: "sinJugador",
+  // Se eligió no cargarla.
+  noVa: "noVa",
   // Algo impide cargarla: `problemas` dice qué.
   conProblemas: "conProblemas",
 };
 
+// Lo que se elige para un nombre que no está en Datos básicos: guardarlo
+// con ese nombre (sin agregarlo a Datos básicos), no cargar la fila, o el id
+// de un jugador de la lista.
+export const COMO_PERSONA = "persona";
+export const NO_CARGAR = "no";
+
+// Lo que falta para que una lesión sin fecha de inicio esté completa (lo que
+// pide la carga a mano). En un caso sin terminar del Excel (sin fecha) no
+// frena: se carga y queda para completar (pedido de Santiago del 03/10:
+// entran todas, también las que no tienen fecha). Con fecha, lo de siempre:
+// sin tipo, parte o lado no se carga.
+const PARA_COMPLETAR = {
+  "lesiones.error.fecha": "fecha_lesion",
+  "lesiones.error.tipo": "tipo_lesion",
+  "lesiones.error.parte": "parte_cuerpo",
+  "lesiones.error.lado": "lado",
+};
+
 // El plan: cada fila con { ...fila, numeroCaso, jugador, lesion, estado,
-// problemas: [clave del diccionario], avisos: [{ campo, valor }] }. Los
-// avisos son valores que no se entendieron: esa columna queda vacía, pero la
-// lesión se carga igual (si no es una de las obligatorias).
+// problemas: [clave del diccionario], avisos: [{ campo, valor }], faltan:
+// [campo], destino }. Los avisos son valores que no se entendieron: esa
+// columna queda vacía. faltan: lo que le falta para estar completa (se carga
+// igual). destino: lo elegido para un nombre fuera de Datos básicos.
 // plantel: los jugadores de la app; lesiones: las que ya están; config: la
-// del club (leerConfig); hoy: ISO.
-export const planDeImportacion = (filas, { plantel = [], lesiones = [], config = null, hoy }) => {
+// del club (leerConfig); hoy: ISO; elegidos: { indice de la fila: destino }.
+export const planDeImportacion = (filas, { plantel = [], lesiones = [], config = null, hoy, elegidos = {} }) => {
   const jugadorDe = buscadorDeJugadores(plantel);
+  const porId = new Map(plantel.map((jugador) => [String(jugador.id), jugador]));
+  const nombreDe = (lesion) => (lesion.jugador_id !== null && lesion.jugador_id !== undefined ? porId.get(String(lesion.jugador_id))?.nombre : lesion.persona) || "";
   const listas = listasParaImportar(config);
   // Todas las fechas se leen igual (día/mes o mes/día).
   const formato = formatoDeLasFechas(filas.flatMap((fila) => [...FECHAS, "hora_imagen"].map((clave) => fila.textos[clave])));
@@ -298,7 +349,11 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
     const problemas = [];
     const avisos = [];
     const encontrado = jugadorDe(fila.nombre);
-    const jugador = encontrado === DUDOSO ? null : encontrado;
+    // Lo elegido a mano manda; si no, el jugador con ese nombre.
+    const destino = elegidos[fila.indice] ?? null;
+    const elegido = destino && destino !== COMO_PERSONA && destino !== NO_CARGAR ? plantel.find((uno) => String(uno.id) === String(destino)) || null : null;
+    const jugador = elegido || (destino ? null : encontrado === DUDOSO ? null : encontrado);
+    const comoPersona = !jugador && destino === COMO_PERSONA;
     const textoCaso = fila.textos.numero_caso || "";
     const numeroCaso = /^\d+$/.test(textoCaso) && Number(textoCaso) > 0 ? Number(textoCaso) : null;
     if (textoCaso && numeroCaso === null) avisos.push({ campo: "numero_caso", valor: textoCaso });
@@ -306,6 +361,7 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
     const lesion = {
       id: null,
       jugador_id: jugador ? jugador.id : null,
+      persona: jugador ? null : fila.nombre,
       numero_caso: numeroCaso,
       fecha_lesion: null,
       fecha_transicion: null,
@@ -324,20 +380,31 @@ export const planDeImportacion = (filas, { plantel = [], lesiones = [], config =
       else if (FECHAS.includes(campo)) lesion[campo] = valor;
       else lesion.datos[campo] = valor;
     });
-    const plan = { ...fila, numeroCaso, jugador, lesion, problemas, avisos };
+    const faltan = [];
+    const plan = { ...fila, numeroCaso, jugador, lesion, problemas, avisos, faltan, destino, dudoso: encontrado === DUDOSO, fueraDeDatos: !jugador };
 
-    if (!fila.textos.fecha_lesion) return { ...plan, estado: ESTADOS.sinFecha };
-    if (!jugador) return { ...plan, estado: ESTADOS.conProblemas, problemas: [encontrado === DUDOSO ? "lesiones.importar.jugadorDudoso" : "lesiones.importar.sinJugador"] };
-    if (lesion.fecha_lesion && lesiones.some((otra) => esLaMisma(otra, lesion))) return { ...plan, estado: ESTADOS.yaEsta };
+    // Ya cargada antes (también con este nombre, fuera de Datos básicos).
+    if (yaEstaEnLaApp(lesion, lesiones, nombreDe)) return { ...plan, estado: ESTADOS.yaEsta };
+    if (destino === NO_CARGAR) return { ...plan, estado: ESTADOS.noVa };
+    if (!jugador && !comoPersona) return { ...plan, estado: ESTADOS.sinJugador };
 
+    if (comoPersona && fila.nombre.length > LARGO_DEL_NOMBRE) problemas.push("lesiones.importar.nombreLargo");
     if (numeroCaso !== null) {
       if (lesiones.some((otra) => Number(otra.numero_caso) === numeroCaso)) problemas.push("lesiones.importar.casoOcupado");
       else if (casosDeLoPegado.has(numeroCaso)) problemas.push("lesiones.importar.casoRepetido");
       casosDeLoPegado.add(numeroCaso);
+    } else if (!tieneFecha(lesion) && yaEstaEnLaApp(lesion, aCargar, nombreDe)) {
+      // La misma fila sin fecha ni N° de caso dos veces en lo pegado.
+      problemas.push("lesiones.error.repetida");
     }
-    // Lo mismo que se revisa al cargar una a mano (fechas, tipo, parte, lado,
-    // la misma lesión dos veces), contra las de la app y las de más arriba.
-    erroresDeLesion(lesion, { hoy, otras: [...lesiones, ...aCargar], oculto }).forEach((uno) => problemas.includes(uno.error) || problemas.push(uno.error));
+    // Lo mismo que se revisa al cargar una a mano (fechas, la misma lesión dos
+    // veces), contra las de la app y las de más arriba. Lo que falta para
+    // estar completa no frena: queda para completar.
+    const sinTerminar = !tieneFecha(lesion);
+    erroresDeLesion(lesion, { hoy, otras: [...lesiones, ...aCargar], oculto }).forEach((uno) => {
+      if (sinTerminar && PARA_COMPLETAR[uno.error]) faltan.includes(PARA_COMPLETAR[uno.error]) || faltan.push(PARA_COMPLETAR[uno.error]);
+      else if (!problemas.includes(uno.error)) problemas.push(uno.error);
+    });
     if (problemas.length) return { ...plan, estado: ESTADOS.conProblemas };
     if (numeroCaso === null) lesion.numero_caso = siguienteCaso++;
     aCargar.push({ ...lesion, id: `pegada-${fila.indice}` });

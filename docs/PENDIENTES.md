@@ -418,10 +418,22 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 - **Pegar desde Excel en Lesiones (03/10)**, en Base (`src/ImportarLesiones.jsx` y
   `src/domain/importarLesiones.js`): se copia la hoja "Antecedentes BD" desde la fila de
   cabeceras hasta la última lesión y se pega. Antes de cargar se ve qué pasa con cada fila:
-  se carga, ya está en la app (mismo jugador, parte, lado y fecha de inicio), no tiene fecha
-  de inicio (no se carga: en el Excel son casos sin terminar) o qué le impide cargarse (un
-  nombre que no está en Datos básicos, un N° de caso que en la app es de otra lesión, o lo
-  mismo que frena la carga a mano). Se traen solo las columnas que se cargan a mano; lo
+  se carga, ya está en la app (la misma persona con el mismo N° de caso, o mismo jugador,
+  parte, lado y fecha de inicio), o qué le impide cargarse (un N° de caso que en la app es de
+  otra lesión, o lo mismo que frena la carga a mano). **Entran todas (Santiago, 03/10)**:
+  - Las que no tienen fecha de inicio (casos sin terminar del Excel) se cargan y quedan
+    "sin fecha de inicio": no cuentan como activas, ni en días perdidos, ni en recurrencias,
+    ni en los reportes hasta completar la fecha (en Lesionados hay una lista para
+    completarlas). A esas no se les pide tipo, parte ni lado; a las que tienen fecha, sí.
+  - Un nombre que no está en Datos básicos: se elige si se guarda con ese nombre (sin
+    agregarlo a Datos básicos), si es un jugador de la lista o si no se carga ("Guardar
+    igual" las elige todas; las que se parecen a dos jugadores se eligen una por una). En la
+    base, la lesión queda con `persona` (el nombre) y sin `jugador_id` (migración
+    `20261010_lesiones_sin_fecha_y_personas.sql`). Se ve en Lesionados, la Base, el
+    Historial y la vista para Power Query, y cuenta en los reportes del plantel (como en el
+    Excel) cada persona por su lado; el reporte individual es solo de Datos básicos.
+    **Falta**: si después se agrega esa persona a Datos básicos, sus lesiones no se pasan
+    solas al jugador (al volver a pegar, el importador las reconoce y no las duplica). Se traen solo las columnas que se cargan a mano; lo
   calculado lo calcula la app (con el Excel de Santiago dan iguales los 24 casos cerrados).
   Cada lesión entra con su N° de caso del Excel (las que no lo traen, después del más alto de
   lo pegado). Las fechas se leen como las copie el Excel de quien copia (día/mes o mes/día,
@@ -431,7 +443,7 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   Excel y al final las equivalencias; un valor que no se entiende deja esa columna vacía y
   avisa. No se traen los
   planes ni los tests (columnas AN en adelante). Antes de pegar hay que correr
-  `20261008_lesiones_recaida.sql`.
+  `20261008_lesiones_recaida.sql` y `20261010_lesiones_sin_fecha_y_personas.sql`.
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
   la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa
   columna no se guarda porque cuenta como calculada); y "Imágenes" se carga como texto libre

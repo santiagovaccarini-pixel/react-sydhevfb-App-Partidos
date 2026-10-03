@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, cargarPlantelLesiones, guardarDatosJugador, historialDeLesion, importarLesion } from "./lesionesDb.js";
+import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, cargarPlantelLesiones, crearLesion, guardarDatosJugador, historialDeLesion, importarLesion, listarLesiones } from "./lesionesDb.js";
 
 // Un doble de Supabase que anota la consulta y contesta lo configurado (o,
 // si hay, la próxima de "respuestas", una por consulta).
@@ -110,12 +110,21 @@ describe("cargar una lesión del Excel", () => {
       equipo_id: "eq-1",
       numero_caso: 12,
       jugador_id: 7,
+      persona: null,
       fecha_lesion: "2026-02-03",
       fecha_transicion: null,
       fecha_retorno_entrenamiento: null,
       fecha_alta: "2026-02-20",
       datos: { parte_cuerpo: "coxa", lado: "direito" },
     });
+  });
+
+  test("de alguien que no está en Datos básicos: va con su nombre y sin jugador; sin fecha, vacía", async () => {
+    doble.filas = { id: "les-3", numero_caso: 14, jugador_id: null, persona: "Cata Tres", fecha_lesion: null, datos: {} };
+    const { lesion } = await importarLesion("eq-1", { numero_caso: 14, jugador_id: null, persona: "  Cata   Tres ", fecha_lesion: null, datos: {} });
+    const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "insert");
+    expect(enviado).toMatchObject({ jugador_id: null, persona: "Cata Tres", fecha_lesion: null });
+    expect(lesion).toMatchObject({ persona: "Cata Tres", fecha_lesion: null });
   });
 
   test("sin N° de caso lo pone la base", async () => {
@@ -190,5 +199,56 @@ describe("las horas previas de cada jugador", () => {
     doble.llamadas.length = 0;
     await guardarDatosJugador(7, { horas_previas: null });
     expect(doble.llamadas.find(([metodo]) => metodo === "update")[1]).toMatchObject({ horas_previas: null });
+  });
+});
+
+// Una base que todavía no tiene la columna persona: cada prueba con el
+// módulo recién cargado (recuerda si a la base le falta la columna).
+describe("con una base que todavía no tiene la columna persona (falta 20261010)", () => {
+  const moduloNuevo = async () => {
+    vi.resetModules();
+    return import("./lesionesDb.js");
+  };
+  const sinColumna = { data: null, error: { code: "42703", message: "column lesiones.persona does not exist" } };
+
+  test("las lesiones se leen igual, sin ella", async () => {
+    const { listarLesiones: listar } = await moduloNuevo();
+    doble.respuestas = [sinColumna, { data: [{ id: "les-1", jugador_id: 7, fecha_lesion: "2026-02-03", datos: {} }], error: null }];
+    const { lesiones, error } = await listar("eq-1");
+    expect(error).toBe("");
+    expect(lesiones).toHaveLength(1);
+    const selects = doble.llamadas.filter(([metodo]) => metodo === "select").map(([, columnas]) => columnas);
+    expect(selects[0]).toContain("persona");
+    expect(selects[1]).not.toContain("persona");
+    // Las sin fecha, al final.
+    expect(doble.llamadas).toContainEqual(["order", "fecha_lesion", { ascending: false, nullsFirst: false }]);
+  });
+
+  test("una lesión de un jugador se guarda igual; una de alguien fuera de Datos básicos o sin fecha avisa qué SQL falta", async () => {
+    const { crearLesion: crear, listarLesiones: listar } = await moduloNuevo();
+    doble.respuestas = [sinColumna, { data: [], error: null }];
+    await listar("eq-1");
+    doble.llamadas.length = 0;
+    doble.filas = { id: "les-2", jugador_id: 7, fecha_lesion: "2026-02-03", datos: {} };
+    expect(await crear("eq-1", { jugador_id: 7, fecha_lesion: "2026-02-03", datos: {} })).toMatchObject({ error: "" });
+    const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "insert");
+    expect(enviado).not.toHaveProperty("persona");
+    doble.error = { code: "PGRST204", message: "Could not find the 'persona' column of 'lesiones' in the schema cache" };
+    expect(await crear("eq-1", { jugador_id: null, persona: "Cata Tres", fecha_lesion: "2026-02-03", datos: {} })).toMatchObject({ error: "lesiones.error.faltaMigracionPersonas" });
+    doble.error = { code: "23502", message: 'null value in column "fecha_lesion" of relation "lesiones" violates not-null constraint' };
+    expect(await crear("eq-1", { jugador_id: 7, fecha_lesion: null, datos: {} })).toMatchObject({ error: "lesiones.error.faltaMigracionPersonas" });
+  });
+
+  test("si el SQL se corre con la app abierta, la lesión de una persona se guarda y la columna vuelve", async () => {
+    const { crearLesion: crear, listarLesiones: listar } = await moduloNuevo();
+    doble.respuestas = [sinColumna, { data: [], error: null }];
+    await listar("eq-1");
+    doble.llamadas.length = 0;
+    doble.filas = { id: "les-3", jugador_id: null, persona: "Cata Tres", fecha_lesion: "2026-02-03", datos: {} };
+    expect(await crear("eq-1", { jugador_id: null, persona: "Cata Tres", fecha_lesion: "2026-02-03", datos: {} })).toMatchObject({ lesion: { persona: "Cata Tres" }, error: "" });
+    doble.llamadas.length = 0;
+    doble.filas = [];
+    await listar("eq-1");
+    expect(doble.llamadas.find(([metodo]) => metodo === "select")[1]).toContain("persona");
   });
 });

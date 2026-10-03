@@ -49,7 +49,7 @@ echo "→ $(basename "$ULTIMA") (otra vez)"
 $PSQL -f "$ULTIMA" >/dev/null
 # Una migración vieja corrida después de una nueva desharía lo nuevo: las que
 # tienen ese riesgo se tienen que negar solas, con un aviso claro.
-for vieja in 20261002b_datos_basicos 20261003_club_miembros 20261004_cuentas_v2; do
+for vieja in 20261002b_datos_basicos 20261003_club_miembros 20261004_cuentas_v2 20261006_horas_imagen; do
   echo "→ $vieja.sql después de la última (se tiene que negar)"
   if $PSQL -f "$RAIZ/supabase/migrations/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
     echo "ERROR: $vieja.sql corrió después de una más nueva"

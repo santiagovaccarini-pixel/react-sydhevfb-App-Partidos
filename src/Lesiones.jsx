@@ -15,6 +15,7 @@ import { CAMPOS_DEL_CUERPO, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import {
   calcular,
+  claveDeQuien,
   conValor,
   diasDeBaja,
   errorDeCampo,
@@ -25,6 +26,8 @@ import {
   horasHastaLaImagen,
   lesionVacia,
   lesionesActivas,
+  lesionesSinFecha,
+  tieneFecha,
   normalizarTexto,
   ordenarPorCaso,
   posibleRecidiva,
@@ -232,7 +235,9 @@ export default function Lesiones({ onVolver }) {
   // ------------------------------------------------------------- Ayudas --
 
   const jugadorDe = (id) => plantel.find((jugador) => String(jugador.id) === String(id)) || null;
-  const nombreDe = (id) => jugadorDe(id)?.nombre || "";
+  // De quién es una lesión: el jugador de Datos básicos, o el nombre de la
+  // persona que no está ahí (vino en una base pegada).
+  const nombreDeLesion = (lesion) => jugadorDe(lesion?.jugador_id)?.nombre || lesion?.persona || "";
   const etiqueta = (clave) => etiquetaDeCampo(clave, config, idioma);
   const opciones = (clave) => opcionesDeCampo(clave, config, idioma);
   const textoDeOpcion = (clave, codigo) => etiquetaDeOpcion(clave, codigo, config, idioma);
@@ -266,7 +271,7 @@ export default function Lesiones({ onVolver }) {
       case "auto":
         return lesion.numero_caso ? String(lesion.numero_caso) : "";
       case "jugador":
-        return jugador?.nombre || "";
+        return jugador?.nombre || lesion.persona || "";
       case "dato_jugador": {
         const valor = campo.clave === "categoria" ? lesion.datos?.categoria || jugador?.categoria : jugador?.[campo.clave];
         if (!valor) return "";
@@ -299,6 +304,8 @@ export default function Lesiones({ onVolver }) {
   };
 
   const activas = useMemo(() => lesionesActivas(lesiones), [lesiones]);
+  // Las que vinieron sin fecha de inicio: quedan para completar.
+  const sinFecha = useMemo(() => lesionesSinFecha(lesiones), [lesiones]);
   // Los pasos de la carga que tienen alguna columna a la vista (una columna
   // escondida en Ajustes puede dejar un paso vacío, y ese paso se saltea).
   const pasos = useMemo(() => PASOS.filter((unPaso) => unPaso.campos.some((clave) => !campoOculto(clave, config))), [config]);
@@ -429,6 +436,8 @@ export default function Lesiones({ onVolver }) {
     const lesion = aDarAlta;
     if (!lesion) return;
     const hoy = hoyISO();
+    // Sin fecha de inicio, primero hay que completarla (editando la lesión).
+    if (!tieneFecha(lesion)) return setAviso(t("lesiones.error.fecha"));
     if (!fechaAlta || fechaAlta < lesion.fecha_lesion) return setAviso(t("lesiones.error.fechaAntes"));
     if (fechaAlta > hoy) return setAviso(t("lesiones.error.fechaFuturaOtra"));
     setOcupado(true);
@@ -507,13 +516,29 @@ export default function Lesiones({ onVolver }) {
 
   // ----------------------------------------------- Historial por jugador --
 
+  // Los del plantel y, después, quienes no están en Datos básicos pero tienen
+  // lesiones (vinieron en una base pegada), cada uno con su clave.
+  const todosDelHistorial = useMemo(() => {
+    const cuantas = new Map();
+    const personas = new Map();
+    lesiones.forEach((lesion) => {
+      const clave = claveDeQuien(lesion);
+      if (!clave) return;
+      cuantas.set(clave, (cuantas.get(clave) || 0) + 1);
+      if (!lesion.jugador_id && !personas.has(clave)) personas.set(clave, lesion.persona);
+    });
+    return [
+      ...plantel.map((jugador) => ({ clave: `j:${jugador.id}`, nombre: jugador.nombre, cuantas: cuantas.get(`j:${jugador.id}`) || 0, fuera: false })),
+      ...[...personas.entries()]
+        .map(([clave, nombre]) => ({ clave, nombre, cuantas: cuantas.get(clave), fuera: true }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    ];
+  }, [plantel, lesiones]);
   const jugadoresDelHistorial = useMemo(() => {
     const buscado = normalizarTexto(busquedaHistorial);
-    return plantel
-      .map((jugador) => ({ jugador, cuantas: lesiones.filter((lesion) => String(lesion.jugador_id) === String(jugador.id)).length }))
-      .filter(({ jugador }) => !buscado || normalizarTexto(jugador.nombre).includes(buscado));
-  }, [plantel, lesiones, busquedaHistorial]);
-  const elegidoHistorial = jugadorHistorial ? jugadorDe(jugadorHistorial) : null;
+    return todosDelHistorial.filter((uno) => !buscado || normalizarTexto(uno.nombre).includes(buscado));
+  }, [todosDelHistorial, busquedaHistorial]);
+  const elegidoHistorial = jugadorHistorial ? todosDelHistorial.find((uno) => uno.clave === jugadorHistorial) || null : null;
 
   // ------------------------------------------------------------ Pantallas --
 
@@ -536,19 +561,21 @@ export default function Lesiones({ onVolver }) {
   const tarjetaLesion = (lesion, { conAlta = false } = {}) => (
     <div className="registro-guardado lesiones-registro" key={lesion.id}>
       <span className="cabecera-registro">
-        <span className="fecha-registro">{fechaCorta(lesion.fecha_lesion)}</span>
+        <span className="fecha-registro">{lesion.fecha_lesion ? fechaCorta(lesion.fecha_lesion) : "—"}</span>
         <EtapaChip lesion={lesion} />
         {lesion.numero_caso && <span className="lesiones-caso">{t("lesiones.caso", { n: lesion.numero_caso })}</span>}
       </span>
       <div className="lesiones-registro-cuerpo">
-        <strong>{nombreDe(lesion.jugador_id) || "—"}</strong>
+        <strong>{nombreDeLesion(lesion) || "—"}</strong>
         <span>{enPantalla(campoPorClave("diagnostico"), lesion) || textoDeOpcion("parte_cuerpo", lesion.datos?.parte_cuerpo)}</span>
       </div>
       <div className="tiempos-registro">
-        <span>
-          {etiqueta("recuperacion")} <strong>{plural("lesiones.dias", diasDeBaja(lesion))}</strong>
-        </span>
-        {lesion.fecha_alta && (
+        {lesion.fecha_lesion && (
+          <span>
+            {etiqueta("recuperacion")} <strong>{plural("lesiones.dias", diasDeBaja(lesion))}</strong>
+          </span>
+        )}
+        {lesion.fecha_alta && tieneFecha(lesion) && (
           <span>
             {etiqueta("severidad")} <strong>{enPantalla(campoPorClave("severidad"), lesion)}</strong>
           </span>
@@ -616,6 +643,14 @@ export default function Lesiones({ onVolver }) {
 
         {!cargando && !error && activas.length === 0 && <p className="lesiones-vacio">{t("lesiones.sinActivas")}</p>}
         <div className="lesiones-lista">{activas.map((lesion) => tarjetaLesion(lesion, { conAlta: true }))}</div>
+
+        {sinFecha.length > 0 && (
+          <section className="lesiones-sin-fecha">
+            <h2>{plural("lesiones.sinFecha.titulo", sinFecha.length)}</h2>
+            <p className="lesiones-ayuda">{t("lesiones.sinFecha.texto")}</p>
+            <div className="lesiones-lista">{sinFecha.map((lesion) => tarjetaLesion(lesion))}</div>
+          </section>
+        )}
       </div>
     </div>
   );
@@ -648,7 +683,7 @@ export default function Lesiones({ onVolver }) {
   // id), su fecha de nacimiento y los números que se calculan.
   const ordenDe = (campo, lesion) => {
     const jugador = jugadorDe(lesion.jugador_id);
-    if (campo.tipo === "jugador") return jugador?.nombre || "";
+    if (campo.tipo === "jugador") return jugador?.nombre || lesion.persona || "";
     if (campo.clave === "fecha_nacimiento") return jugador?.fecha_nacimiento || "";
     if (campo.tipo === "calculado") {
       const resultado = calcular(campo.clave, lesion, jugador, contexto);
@@ -662,6 +697,8 @@ export default function Lesiones({ onVolver }) {
     () =>
       ordenarPorCaso(lesiones).map((lesion) => ({
         id: lesion.id,
+        // De quién es (jugador o persona), para el historial.
+        quien: claveDeQuien(lesion),
         valores: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo.tipo === "jugador" ? lesion.jugador_id : valorDe(lesion, campo.clave)])),
         textos: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, enPantalla(campo, lesion)])),
         orden: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, ordenDe(campo, lesion)]).filter(([, valor]) => valor !== undefined)),
@@ -671,7 +708,7 @@ export default function Lesiones({ onVolver }) {
   );
   // El historial de un jugador: la misma base, con sus lesiones nada más.
   const filasHistorial = useMemo(
-    () => (jugadorHistorial ? filasBase.filter((fila) => String(fila.valores.jugador) === String(jugadorHistorial)) : []),
+    () => (jugadorHistorial ? filasBase.filter((fila) => fila.quien === jugadorHistorial) : []),
     [filasBase, jugadorHistorial],
   );
 
@@ -794,16 +831,16 @@ export default function Lesiones({ onVolver }) {
                 aria-label={t("lesiones.historial.buscar")}
                 autoComplete="off"
               />
-              {!cargando && plantel.length === 0 && <p className="lesiones-ayuda">{t("lesiones.sinJugadores")}</p>}
-              {plantel.length > 0 && (
+              {!cargando && todosDelHistorial.length === 0 && <p className="lesiones-ayuda">{t("lesiones.sinJugadores")}</p>}
+              {todosDelHistorial.length > 0 && (
                 <div className="lista-rivales lesiones-lista-jugadores">
                   {jugadoresDelHistorial.length === 0 ? (
                     <p className="sin-resultados">{t("lesiones.pasos.ningunJugador")}</p>
                   ) : (
-                    jugadoresDelHistorial.map(({ jugador, cuantas }) => (
-                      <button type="button" key={jugador.id} onClick={() => setJugadorHistorial(String(jugador.id))}>
-                        <b>{jugador.nombre}</b>
-                        <span>{plural("lesiones.historial.cantidad", cuantas)}</span>
+                    jugadoresDelHistorial.map((uno) => (
+                      <button type="button" key={uno.clave} onClick={() => setJugadorHistorial(uno.clave)}>
+                        <b>{uno.nombre}</b>
+                        <span>{[plural("lesiones.historial.cantidad", uno.cuantas), uno.fuera ? t("lesiones.fueraDeDatos") : ""].filter(Boolean).join(" · ")}</span>
                       </button>
                     ))
                   )}
@@ -1058,8 +1095,13 @@ export default function Lesiones({ onVolver }) {
       <div className="app">
         <div className="contenedor ficha-registro lesiones-ficha">
           <Encabezado
-            titulo={nombreDe(lesion.jugador_id) || t("lesiones.titulo")}
-            texto={[lesion.numero_caso ? t("lesiones.caso", { n: lesion.numero_caso }) : "", fechaCorta(lesion.fecha_lesion), t(`lesiones.etapa.${etapaDe(lesion)}`)]
+            titulo={nombreDeLesion(lesion) || t("lesiones.titulo")}
+            texto={[
+              lesion.numero_caso ? t("lesiones.caso", { n: lesion.numero_caso }) : "",
+              lesion.fecha_lesion ? fechaCorta(lesion.fecha_lesion) : "",
+              t(`lesiones.etapa.${etapaDe(lesion)}`),
+              lesion.jugador_id ? "" : t("lesiones.fueraDeDatos"),
+            ]
               .filter(Boolean)
               .join(" · ")}
           />
@@ -1075,7 +1117,7 @@ export default function Lesiones({ onVolver }) {
               <strong>{diagnostico || "—"}</strong>
             </div>
             <div className="total-ficha">
-              <b>{diasDeBaja(lesion)}</b>
+              <b>{tieneFecha(lesion) ? diasDeBaja(lesion) : "—"}</b>
               <small>{t("lesiones.ficha.diasDeBaja").toUpperCase()}</small>
             </div>
           </section>
@@ -1261,7 +1303,7 @@ export default function Lesiones({ onVolver }) {
     if (lesion.id) {
       return (
         <section className="tarjeta tarjeta-ficha lesiones-grupo">
-          <DatoDetalle label={etiqueta("jugador")} valor={elegido?.nombre || "—"} />
+          <DatoDetalle label={etiqueta("jugador")} valor={elegido?.nombre || lesion.persona || "—"} />
           {datosDelJugador}
         </section>
       );
@@ -1434,7 +1476,7 @@ export default function Lesiones({ onVolver }) {
     return (
       <div className="app">
         <div className="contenedor">
-          <Encabezado titulo={lesion.id ? t("lesiones.formEditar") : t("lesiones.formNueva")} texto={nombreDe(lesion.jugador_id)}>
+          <Encabezado titulo={lesion.id ? t("lesiones.formEditar") : t("lesiones.formNueva")} texto={nombreDeLesion(lesion)}>
             <div className="lesiones-progreso" role="tablist" aria-label={t("lesiones.pasos.paso", { n: paso + 1, total })}>
               {pasos.map((unPaso, indice) => (
                 <button
@@ -1632,7 +1674,7 @@ export default function Lesiones({ onVolver }) {
           abierta
           className="lesiones-hoja"
           titulo={t("lesiones.altaTitulo")}
-          descripcion={t("lesiones.altaTexto", { jugador: nombreDe(aDarAlta.jugador_id) })}
+          descripcion={t("lesiones.altaTexto", { jugador: nombreDeLesion(aDarAlta) })}
           onCerrar={() => !ocupado && setADarAlta(null)}
           acciones={
             <>
@@ -1681,7 +1723,7 @@ export default function Lesiones({ onVolver }) {
       <HojaConfirmar
         abierta={Boolean(aBorrar)}
         titulo={t("lesiones.borrarTitulo")}
-        descripcion={t("lesiones.borrarTexto", { jugador: nombreDe(aBorrar?.jugador_id) })}
+        descripcion={t("lesiones.borrarTexto", { jugador: nombreDeLesion(aBorrar) })}
         icono="borrar"
         etiquetaConfirmar={t("lesiones.siBorrar")}
         etiquetaCancelar={t("comun.cancelar")}

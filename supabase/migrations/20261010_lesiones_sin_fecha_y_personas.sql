@@ -1,66 +1,58 @@
 -- =====================================================================
--- Las horas entre la lesión y la imagen se calculan solas.
+-- Todas las lesiones de una base se pueden cargar (pedido de Santiago del
+-- 03/10, al pegar el Excel):
 --
---   · lesiones_horas_imagen(hora, fecha): las horas desde el comienzo del
---     día de la lesión (la lesión tiene fecha, no hora) hasta la hora de la
---     imagen, redondeadas; vacío si no hay imagen o si lo cargado no es una
---     fecha y hora que exista. Es la misma cuenta que hace la app.
---   · v_lesiones_excel_v1 usa esa cuenta en "Horas Passadas e/ Imagem e
---     Lesão". Lo que se escribía a mano antes queda para las lesiones sin
---     hora de la imagen. El resto de la vista queda igual (mismas columnas,
---     en el mismo orden, para Power Query).
+--   · Sin fecha de inicio: en el Excel hay casos sin terminar de cargar.
+--     Se guardan y quedan "sin fecha de inicio" hasta que se complete; no
+--     cuentan como activas, ni en días perdidos, ni en los reportes.
+--   · De alguien que no está en Datos básicos: la lesión se guarda con ese
+--     nombre (persona) y el nombre NO se agrega a Datos básicos. Una lesión
+--     es de un jugador (jugador_id) o de una persona (persona), nunca de los
+--     dos ni de ninguno.
+--   · La misma lesión no se carga dos veces tampoco para una persona (mismo
+--     nombre, parte, lado y fecha de inicio).
+--   · v_lesiones_excel_v1 (Power Query) muestra también estas lesiones: el
+--     nombre de la persona va en "Nome e Sobrenome" y lo que sale de Datos
+--     básicos (categoría, nacimiento, pie, posición) queda vacío.
 --
--- Requiere 20261002b_datos_basicos.sql. Se corre en Supabase > SQL Editor,
+-- Requiere 20261008_lesiones_recaida.sql. Se corre en Supabase > SQL Editor,
 -- entero y de una vez. Se puede volver a correr.
 -- =====================================================================
 
 begin;
 
--- Corrida después de 20261010 volvería a la vista sin las lesiones de
--- personas fuera de Datos básicos: se niega (20261010 crea lesiones.persona).
+-- Con la regla vieja (lesiones_sin_solapar), una lesión sin fecha chocaría
+-- con todas las de esa parte y lado del jugador: primero va 20261008.
 do $$
 begin
-  if exists (
-    select 1 from information_schema.columns
-     where table_schema = 'public' and table_name = 'lesiones' and column_name = 'persona'
-  ) then
-    raise exception 'Ya está corrida 20261010_lesiones_sin_fecha_y_personas.sql: esta es anterior y no hace falta volver a correrla.';
+  if exists (select 1 from pg_constraint where conname = 'lesiones_sin_solapar' and conrelid = 'public.lesiones'::regclass)
+     or to_regclass('public.lesiones_sin_repetir') is null then
+    raise exception 'Primero hay que correr 20261008_lesiones_recaida.sql.';
   end if;
 end $$;
 
--- Sin Datos básicos la vista no tiene la posición del jugador: se frena con un aviso claro.
-do $$
-begin
-  if not exists (
-    select 1 from information_schema.columns
-     where table_schema = 'public' and table_name = 'jugadores' and column_name = 'posicion'
-  ) then
-    raise exception 'Primero hay que correr 20261002b_datos_basicos.sql.';
-  end if;
-end $$;
+alter table public.lesiones add column if not exists persona text;
+alter table public.lesiones alter column jugador_id drop not null;
+alter table public.lesiones alter column fecha_lesion drop not null;
 
-create or replace function public.lesiones_horas_imagen(p_hora text, p_desde date)
-returns integer
-language plpgsql
-immutable
-set search_path = ''
-as $$
-begin
-  -- Año desde 1900 y hora hasta 23:59, como la app.
-  if p_hora is null or p_desde is null or p_hora !~ '^(19|20)\d{2}-\d{2}-\d{2}[T ]([01]\d|2[0-3]):[0-5]\d' then
-    return null;
-  end if;
-  -- floor(x + 0,5): redondea igual que la app, también las negativas.
-  return floor(extract(epoch from (left(replace(p_hora, 'T', ' '), 16)::timestamp - p_desde::timestamp)) / 3600 + 0.5)::integer;
-exception when others then
-  -- Una fecha imposible (como un 30 de febrero) no rompe la vista: queda vacío.
-  return null;
-end;
-$$;
+-- De un jugador o de una persona: uno de los dos, nunca los dos.
+alter table public.lesiones drop constraint if exists lesiones_de_quien;
+alter table public.lesiones
+  add constraint lesiones_de_quien check (
+    (jugador_id is not null) <> (nullif(btrim(persona), '') is not null)
+    and (persona is null or length(btrim(persona)) <= 120));
 
-revoke execute on function public.lesiones_horas_imagen(text, date) from public, anon;
-grant execute on function public.lesiones_horas_imagen(text, date) to authenticated;
+create unique index if not exists lesiones_sin_repetir_persona
+  on public.lesiones (equipo_id, lower(btrim(persona)), (datos->>'parte_cuerpo'), (datos->>'lado'), fecha_lesion)
+  where jugador_id is null;
 
+comment on column public.lesiones.persona is
+  'El nombre de quien se lesionó cuando no está en Datos básicos (vino en una base pegada). Sin jugador_id. El nombre no se agrega a Datos básicos.';
+comment on column public.lesiones.fecha_lesion is
+  'Fecha de inicio. Vacía: un caso sin terminar de cargar; no cuenta como activa ni en los reportes hasta que se complete.';
+
+-- La vista para Power Query, con las lesiones de personas fuera de Datos
+-- básicos y las que no tienen fecha (mismas columnas, en el mismo orden).
 drop view if exists public.v_lesiones_excel_v1;
 
 create view public.v_lesiones_excel_v1
@@ -68,15 +60,18 @@ with (security_invoker = true)
 as
 with base as (
   select l.*,
-         j.nombre as jugador_nombre,
+         coalesce(j.nombre, l.persona) as jugador_nombre,
+         -- Quién es, para numerar sus lesiones y buscar recurrencias: el
+         -- jugador, o la persona (sin mayúsculas ni espacios de más).
+         coalesce('j:' || l.jugador_id::text, 'p:' || lower(btrim(l.persona))) as quien,
          j.categoria as jugador_categoria,
          j.fecha_nacimiento,
          j.pie_dominante,
          j.posicion as jugador_posicion,
          e.nombre as clube,
-         row_number() over (partition by l.equipo_id, l.jugador_id order by l.numero_caso, l.fecha_lesion) as n_registro
+         row_number() over (partition by l.equipo_id, coalesce('j:' || l.jugador_id::text, 'p:' || lower(btrim(l.persona))) order by l.numero_caso, l.fecha_lesion) as n_registro
     from public.lesiones l
-    join public.jugadores j on j.id = l.jugador_id
+    left join public.jugadores j on j.id = l.jugador_id
     join public.equipos e on e.id = l.equipo_id
 ),
 calc as (
@@ -84,7 +79,7 @@ calc as (
          (a.fecha_alta - a.fecha_lesion) as dias_recuperacao,
          exists (
            select 1 from base p
-            where p.equipo_id = a.equipo_id and p.jugador_id = a.jugador_id and p.id <> a.id
+            where p.equipo_id = a.equipo_id and p.quien = a.quien and p.id <> a.id
               and p.fecha_lesion < a.fecha_lesion
               and coalesce(p.datos->>'parte_cuerpo', '') = coalesce(a.datos->>'parte_cuerpo', '')
               and coalesce(p.datos->>'lado', '') = coalesce(a.datos->>'lado', '')
@@ -93,7 +88,7 @@ calc as (
          ) as recorrente,
          exists (
            select 1 from base p
-            where p.equipo_id = a.equipo_id and p.jugador_id = a.jugador_id and p.id <> a.id
+            where p.equipo_id = a.equipo_id and p.quien = a.quien and p.id <> a.id
               and p.fecha_lesion < a.fecha_lesion
               and coalesce(p.datos->>'parte_cuerpo', '') = coalesce(a.datos->>'parte_cuerpo', '')
               and coalesce(p.datos->>'lado', '') = coalesce(a.datos->>'lado', '')
@@ -111,7 +106,7 @@ select c.numero_caso as n_de_caso,
        c.fecha_nacimiento as d_nac,
        public.lesiones_etiqueta(c.equipo_id, 'pie_dominante', c.pie_dominante) as p_dominante,
        public.lesiones_etiqueta(c.equipo_id, 'posicion', c.jugador_posicion) as posicao,
-       case when c.fecha_nacimiento is null then null
+       case when c.fecha_nacimiento is null or c.fecha_lesion is null then null
             else extract(year from age(c.fecha_lesion, c.fecha_nacimiento))::int end as idade,
        public.lesiones_etiqueta(c.equipo_id, 'tipo_lesion', c.datos->>'tipo_lesion') as tipo_de_lesao,
        public.lesiones_etiqueta(c.equipo_id, 'parte_cuerpo', c.datos->>'parte_cuerpo') as parte_do_corpo_lesionada,
@@ -139,7 +134,7 @@ select c.numero_caso as n_de_caso,
        (c.fecha_retorno_entrenamiento - c.fecha_lesion) as recup_2,
        c.fecha_alta as retorno_a_data_da_competicao,
        (coalesce(c.fecha_alta, current_date) - c.fecha_lesion) as recuperacao,
-       case when c.fecha_alta is null then null
+       case when c.fecha_alta is null or c.fecha_lesion is null then null
             when c.dias_recuperacao <= 0 then public.lesiones_etiqueta(c.equipo_id, 'severidad', 'registro')
             when c.dias_recuperacao <= 4 then public.lesiones_etiqueta(c.equipo_id, 'severidad', 'leve')
             when c.dias_recuperacao <= 7 then public.lesiones_etiqueta(c.equipo_id, 'severidad', 'menor')
@@ -165,11 +160,6 @@ select c.numero_caso as n_de_caso,
 revoke all on public.v_lesiones_excel_v1 from anon;
 grant select on public.v_lesiones_excel_v1 to authenticated;
 
--- 20261002b se niega a correr si existe lesiones_horas_imagen (volvería a
--- las horas escritas a mano).
-comment on view public.v_lesiones_excel_v1 is 'Las 35 columnas del Excel de lesiones para Power Query (horas hasta la imagen calculadas: 20261006).';
+comment on view public.v_lesiones_excel_v1 is 'Las 35 columnas del Excel de lesiones para Power Query (horas hasta la imagen calculadas: 20261006; con las lesiones sin fecha y las de personas fuera de Datos básicos: 20261010).';
 
 commit;
-
-select public.lesiones_horas_imagen('2026-09-02T10:30', date '2026-09-01') as deberia_dar_35;
-select count(*) as filas_vista from public.v_lesiones_excel_v1;

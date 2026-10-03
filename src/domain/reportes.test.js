@@ -212,3 +212,25 @@ describe("Lesiones c/1000h y días perdidos", () => {
     expect(ordenarPeriodos(periodos).map((periodo) => periodo.id)).toEqual([1, 2, 3]);
   });
 });
+
+describe("lesiones sin fecha y de personas fuera de Datos básicos en los reportes", () => {
+  test("el resumen cuenta a cada persona una vez, y las activas solo con fecha", () => {
+    const lesiones = [
+      lesion({ id: "a", fecha_alta: null }),
+      lesion({ id: "b", jugador_id: null, persona: "Persona Uno", fecha_alta: null }),
+      lesion({ id: "c", jugador_id: null, persona: "Persona Dos" }),
+      lesion({ id: "d", jugador_id: null, persona: "persona uno " }),
+      lesion({ id: "e", fecha_lesion: null, fecha_alta: null }),
+    ];
+    const resumen = resumenDeLesiones(lesiones, { hoy });
+    expect(resumen.jugadores).toBe(3);
+    expect(resumen.activas).toBe(2);
+  });
+
+  test("contar por algo no cuenta las sin fecha", () => {
+    const lesiones = [lesion({ id: "a" }), lesion({ id: "b", fecha_lesion: null })];
+    expect(contarPor(lesiones, (una) => una.datos.parte_cuerpo, hoy)).toEqual([{ valor: "coxa", cantidad: 1, dias: 20 }]);
+    expect(lesionesDelReporte(lesiones, { hasta: hoy }).map((una) => una.id)).toEqual(["a"]);
+  });
+});
+

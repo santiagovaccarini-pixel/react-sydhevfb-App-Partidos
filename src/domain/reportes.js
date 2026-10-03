@@ -3,7 +3,7 @@
 // VR, el valor de referencia del plantel) y el contador por período de
 // "Antecedentes BD", que arma la hoja "Incidencias c 1000h". Las horas son
 // las del GPS. Además, los conteos del reporte grupal.
-import { calcular, diasEntre, esFechaISO } from "./lesiones.js";
+import { calcular, claveDeQuien, diasEntre, esFechaISO, estaActiva, tieneFecha } from "./lesiones.js";
 
 // Las reglas del cuadro, como están en el Excel: qué lesiones entran (las
 // celdas de Datos Básicos P8, R7:R9 y S7), qué es leve para "sin leves" (T8:
@@ -143,10 +143,12 @@ export const lesionesDelReporte = (lesiones, { desde = "", hasta = "", sinLeves 
 export const diasPerdidos = (lesion, hoy) => Math.max(0, diasEntre(lesion.fecha_lesion, lesion.fecha_alta || hoy) ?? 0);
 
 // Cuántas hay de cada valor de una columna (o de lo que diga `valor`), de
-// mayor a menor: [{ valor, cantidad, dias }]. Las vacías no cuentan.
+// mayor a menor: [{ valor, cantidad, dias }]. Las vacías no cuentan, ni las
+// lesiones sin fecha de inicio (casos sin terminar).
 export const contarPor = (lesiones, valor, hoy) => {
   const mapa = new Map();
   lesiones.forEach((lesion) => {
+    if (!tieneFecha(lesion)) return;
     const clave = valor(lesion);
     if (clave === null || clave === undefined || clave === "") return;
     const actual = mapa.get(clave) || { valor: clave, cantidad: 0, dias: 0 };
@@ -179,7 +181,7 @@ export const mesesEntre = (desde, hasta) => {
 // [{ mes, total, porSeveridad: { leve: 2, … } }]. Sin alta, "abierta".
 export const porMes = (lesiones, desde, hasta) =>
   mesesEntre(desde, hasta).map((mes) => {
-    const delMes = lesiones.filter((lesion) => lesion.fecha_lesion.slice(0, 7) === mes);
+    const delMes = lesiones.filter((lesion) => String(lesion.fecha_lesion || "").slice(0, 7) === mes);
     const porSeveridad = {};
     delMes.forEach((lesion) => {
       const severidad = calcular("severidad", lesion) || "abierta";
@@ -195,8 +197,9 @@ export const resumenDeLesiones = (lesiones, { hoy, todas = lesiones } = {}) => {
   return {
     cantidad: lesiones.length,
     dias: lesiones.reduce((suma, lesion) => suma + diasPerdidos(lesion, hoy), 0),
-    activas: lesiones.filter((lesion) => !lesion.fecha_alta).length,
-    jugadores: new Set(lesiones.map((lesion) => String(lesion.jugador_id))).size,
+    activas: lesiones.filter(estaActiva).length,
+    // Los jugadores y las personas fuera de Datos básicos, cada uno una vez.
+    jugadores: new Set(lesiones.map(claveDeQuien).filter(Boolean)).size,
     promedioDias: conAlta.length ? conAlta.reduce((suma, lesion) => suma + diasPerdidos(lesion, hoy), 0) / conAlta.length : null,
     recurrentes: lesiones.filter((lesion) => calcular("recurrencia", lesion, null, { lesiones: todas, hoy }) === "sim").length,
   };

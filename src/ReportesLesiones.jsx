@@ -5,7 +5,7 @@ import { CuerpoConCalor } from "./components/CuerpoConCalor.jsx";
 import { manchasDe } from "./components/manchasCuerpo.js";
 import { CuadroCadaMil, tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import ReporteCadaMil from "./ReporteCadaMil.jsx";
-import { calcular, esFechaISO, normalizarTexto } from "./domain/lesiones.js";
+import { calcular, claveDeQuien, esFechaISO, normalizarTexto, tieneFecha } from "./domain/lesiones.js";
 import { sacarFondo } from "./domain/recorteFoto.js";
 import { CAMPOS } from "./domain/lesionesCampos.js";
 import {
@@ -357,7 +357,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
                   lista.map((uno) => (
                     <button type="button" key={uno.id} onClick={() => setJugadorId(String(uno.id))}>
                       <b>{uno.nombre}</b>
-                      <span>{plural("lesiones.historial.cantidad", lesiones.filter((lesion) => String(lesion.jugador_id) === String(uno.id)).length)}</span>
+                      <span>{plural("lesiones.historial.cantidad", lesiones.filter((lesion) => tieneFecha(lesion) && String(lesion.jugador_id) === String(uno.id)).length)}</span>
                     </button>
                   ))
                 )}
@@ -370,7 +370,8 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
 
     // El cuadro: el jugador con sus minutos de GPS contra el plantel entero
     // hasta hoy (en el Excel, la fila "BASE COMPLETA" de "Incidencias c 1000h").
-    const deJugador = lesiones.filter((lesion) => String(lesion.jugador_id) === String(jugador.id));
+    // Sus lesiones con fecha de inicio (las que no tienen todavía no cuentan).
+    const deJugador = lesiones.filter((lesion) => tieneFecha(lesion) && String(lesion.jugador_id) === String(jugador.id));
     // Sus horas: las del GPS más las previas (las de entrenamiento de antes de
     // que llegara el cuerpo técnico, de Datos básicos). En el Excel la columna
     // A se suma a los minutos sin pasarla a minutos, así que casi no cuenta;
@@ -562,11 +563,12 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
     ];
     const conteo = (clave) =>
       contarPor(delEquipo, (lesion) => lesion.datos?.[clave], hoy).map((fila) => ({ clave: fila.valor, etiqueta: texto(clave, fila.valor), valor: fila.cantidad, detalle: plural("lesiones.dias", fila.dias) }));
-    const porJugador = contarPor(delEquipo, (lesion) => String(lesion.jugador_id), hoy)
-      .map((fila) => ({ ...fila, jugador: plantel.find((uno) => String(uno.id) === fila.valor) }))
+    // Por jugador, y también quien no está en Datos básicos (con su nombre).
+    const nombreDeQuien = new Map(delEquipo.map((lesion) => [claveDeQuien(lesion), plantel.find((uno) => String(uno.id) === String(lesion.jugador_id))?.nombre || lesion.persona || "—"]));
+    const porJugador = contarPor(delEquipo, claveDeQuien, hoy)
       .sort((a, b) => b.dias - a.dias)
       .slice(0, 10)
-      .map((fila) => ({ clave: fila.valor, etiqueta: fila.jugador?.nombre || "—", valor: fila.dias, detalle: plural("lesiones.historial.cantidad", fila.cantidad) }));
+      .map((fila) => ({ clave: fila.valor, etiqueta: nombreDeQuien.get(fila.valor) || "—", valor: fila.dias, detalle: plural("lesiones.historial.cantidad", fila.cantidad) }));
     const porPosicion = contarPor(delEquipo, (lesion) => plantel.find((uno) => String(uno.id) === String(lesion.jugador_id))?.posicion, hoy).map((fila) => ({
       clave: fila.valor,
       etiqueta: texto("posicion", fila.valor),

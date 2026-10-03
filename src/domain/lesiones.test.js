@@ -3,6 +3,7 @@ import {
   calcular,
   camposCambiados,
   claveDeErrorDeBase,
+  claveDeQuien,
   conValor,
   diagnosticoDe,
   diasDeBaja,
@@ -15,6 +16,8 @@ import {
   horasHastaLaImagen,
   lesionVacia,
   lesionesActivas,
+  lesionesSinFecha,
+  mismaPersona,
   numeroDeRegistro,
   ordenarPorCaso,
   posibleRecidiva,
@@ -456,5 +459,57 @@ describe("recidiva, plantel, revisión y cambios", () => {
     expect(claveDeErrorDeBase({ code: "23P01", message: "conflicting key value violates exclusion constraint lesiones_sin_solapar" })).toBe("lesiones.error.solapada");
     expect(claveDeErrorDeBase({ code: "23505", message: 'duplicate key value violates unique constraint "lesiones_sin_repetir"' })).toBe("lesiones.error.repetida");
     expect(claveDeErrorDeBase({ message: "otra cosa" })).toBe("");
+  });
+});
+
+describe("lesiones de alguien fuera de Datos básicos y sin fecha de inicio", () => {
+  const dePersona = (extra = {}) => ({ id: extra.id || "p1", jugador_id: null, persona: "Cata Tres", fecha_lesion: "2026-03-01", fecha_alta: "2026-03-10", ...extra, datos: { parte_cuerpo: "coxa", lado: "direito", musculo: "isquiotibiais", ...(extra.datos || {}) } });
+
+  test("de quién es: el jugador o la persona (sin mayúsculas ni espacios de más); sin ninguno, de nadie", () => {
+    expect(claveDeQuien({ jugador_id: 7 })).toBe("j:7");
+    expect(claveDeQuien({ jugador_id: null, persona: "  Cata   TRES " })).toBe("p:cata tres");
+    expect(claveDeQuien({ jugador_id: null, persona: "" })).toBeNull();
+    expect(mismaPersona(dePersona(), dePersona({ persona: "cata tres" }))).toBe(true);
+    // Dos lesiones sin jugador ni persona no son de la misma persona.
+    expect(mismaPersona({ jugador_id: null }, { jugador_id: null })).toBe(false);
+    // Elegir un jugador deja de lado el nombre de la persona.
+    expect(conValor(dePersona(), "jugador", 7)).toMatchObject({ jugador_id: 7, persona: null });
+  });
+
+  test("la recurrencia y el n° de registro son por persona: dos personas distintas sin jugador no se mezclan", () => {
+    const anterior = dePersona({ id: "a", fecha_lesion: "2026-02-01", fecha_alta: "2026-02-20" });
+    const otraPersona = dePersona({ id: "b", persona: "Otra Persona", fecha_lesion: "2026-02-05", fecha_alta: "2026-02-25" });
+    const nueva = dePersona({ id: "c" });
+    const todas = [anterior, otraPersona, nueva];
+    expect(recurrenciaDe(nueva, todas, "2026-10-03")).toBe("sim");
+    expect(recurrenciaDe(otraPersona, todas, "2026-10-03")).toBe("nao");
+    expect(numeroDeRegistro(nueva, todas)).toBe(2);
+    expect(numeroDeRegistro(otraPersona, todas)).toBe(1);
+    expect(errorDeCampo(nueva, "jugador")).toBe("");
+    expect(seRepite(dePersona({ id: "d", persona: "CATA TRES" }), todas)).toBe(true);
+  });
+
+  test("sin fecha de inicio: no está activa, no suma días ni recurrencias, y queda en la lista para completar", () => {
+    const sinFecha = { id: "s", jugador_id: 7, numero_caso: 29, fecha_lesion: null, fecha_alta: null, datos: { parte_cuerpo: "coxa", lado: "direito" } };
+    const conFecha = { id: "f", jugador_id: 7, numero_caso: 3, fecha_lesion: "2026-09-20", fecha_alta: null, datos: { parte_cuerpo: "coxa", lado: "direito" } };
+    expect(etapaDe(sinFecha)).toBe("sinFecha");
+    expect(lesionesActivas([sinFecha, conFecha]).map((una) => una.id)).toEqual(["f"]);
+    expect(lesionesSinFecha([conFecha, sinFecha]).map((una) => una.id)).toEqual(["s"]);
+    expect(diasDeBaja(sinFecha, "2026-10-03")).toBe(0);
+    expect(recurrenciaDe(sinFecha, [sinFecha, conFecha], "2026-10-03")).toBe("");
+    expect(recurrenciaDe(conFecha, [sinFecha, conFecha], "2026-10-03")).toBe("nao");
+    expect(seRepite(sinFecha, [{ ...sinFecha, id: "otra" }])).toBe(false);
+    expect(calcular("severidad", { ...sinFecha, fecha_alta: "2026-09-30" })).toBe("");
+    expect(estadoDelPlantel([{ id: 7, nombre: "HULK" }], [sinFecha])[0].situacion).toBe("disponible");
+    // Al editarla, falta la fecha (para completarla), pero no frena otros cambios.
+    expect(errorDeCampo(sinFecha, "fecha_lesion")).toBe("lesiones.error.fecha");
+    expect(erroresNuevos(sinFecha, conValor(sinFecha, "medico", "Dr. X"), { hoy: "2026-10-03" })).toEqual([]);
+  });
+
+  test("lo que dice la base si todavía no se corrió 20261010", () => {
+    expect(claveDeErrorDeBase({ code: "23502", message: 'null value in column "fecha_lesion" of relation "lesiones" violates not-null constraint' })).toBe("lesiones.error.faltaMigracionPersonas");
+    expect(claveDeErrorDeBase({ code: "PGRST204", message: "Could not find the 'persona' column of 'lesiones' in the schema cache" })).toBe("lesiones.error.faltaMigracionPersonas");
+    expect(claveDeErrorDeBase({ code: "23514", message: 'violates check constraint "lesiones_de_quien"' })).toBe("lesiones.error.jugador");
+    expect(claveDeErrorDeBase({ code: "23505", message: 'duplicate key value violates unique constraint "lesiones_sin_repetir_persona"' })).toBe("lesiones.error.repetida");
   });
 });

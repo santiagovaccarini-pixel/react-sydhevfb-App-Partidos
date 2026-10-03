@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
+  COMO_PERSONA,
   ESTADOS,
   EQUIVALENCIAS_DEL_EXCEL,
+  NO_CARGAR,
   fechaDelExcel,
   fechaHoraDelExcel,
   leerLesionesPegadas,
@@ -138,6 +140,7 @@ describe("qué pasa con cada fila", () => {
     expect(primera.lesion).toEqual({
       id: null,
       jugador_id: 1,
+      persona: null,
       numero_caso: 1,
       fecha_lesion: "2026-01-21",
       fecha_transicion: "2026-01-30",
@@ -208,14 +211,41 @@ describe("qué pasa con cada fila", () => {
     expect(primera.problemas).toEqual(["lesiones.error.fechaAntes"]);
   });
 
-  test("un nombre que no está en el plantel no se carga", () => {
+  test("un nombre que no está en Datos básicos espera que se elija qué es; no se carga solo", () => {
     const tercera = plan()[2];
-    expect(tercera.estado).toBe(ESTADOS.conProblemas);
-    expect(tercera.problemas).toEqual(["lesiones.importar.sinJugador"]);
+    expect(tercera.estado).toBe(ESTADOS.sinJugador);
+    expect(tercera.problemas).toEqual([]);
+    expect(ordenDeCarga(plan()).map((una) => una.nombre)).not.toContain("Cata Tres");
   });
 
-  test("sin fecha de inicio no se carga", () => {
-    expect(plan()[3].estado).toBe(ESTADOS.sinFecha);
+  test("elegido: se guarda con ese nombre (sin agregarlo a Datos básicos), es un jugador de la lista, o no se carga", () => {
+    const { indice } = plan()[2];
+    const comoPersona = plan({ elegidos: { [indice]: COMO_PERSONA } })[2];
+    expect(comoPersona.estado).toBe(ESTADOS.nueva);
+    expect(comoPersona.fueraDeDatos).toBe(true);
+    expect(comoPersona.lesion).toMatchObject({ jugador_id: null, persona: "Cata Tres", fecha_lesion: "2026-04-01", datos: { parte_cuerpo: "tornozelo_pe", lado: "direito" } });
+    const esDelPlantel = plan({ elegidos: { [indice]: "2" } })[2];
+    expect(esDelPlantel.estado).toBe(ESTADOS.nueva);
+    expect(esDelPlantel.lesion).toMatchObject({ jugador_id: 2, persona: null });
+    expect(plan({ elegidos: { [indice]: NO_CARGAR } })[2].estado).toBe(ESTADOS.noVa);
+  });
+
+  test("sin fecha de inicio también se carga, y queda para completar", () => {
+    const cuarta = plan()[3];
+    expect(cuarta.estado).toBe(ESTADOS.nueva);
+    expect(cuarta.lesion).toMatchObject({ jugador_id: 1, fecha_lesion: null, numero_caso: 4 });
+    expect(cuarta.faltan).toEqual(["fecha_lesion", "tipo_lesion", "parte_cuerpo", "lado"]);
+    expect(cuarta.problemas).toEqual([]);
+  });
+
+  test("lo ya cargado con este nombre fuera de Datos básicos, o sin fecha con el mismo N° de caso, ya está", () => {
+    const yaCargadas = [
+      { id: "x", numero_caso: 3, jugador_id: null, persona: "cata  tres", fecha_lesion: "2026-04-01", datos: { parte_cuerpo: "tornozelo_pe", lado: "direito" } },
+      { id: "y", numero_caso: 4, jugador_id: 1, fecha_lesion: null, datos: {} },
+    ];
+    const filas = plan({ lesiones: yaCargadas });
+    expect(filas[2].estado).toBe(ESTADOS.yaEsta);
+    expect(filas[3].estado).toBe(ESTADOS.yaEsta);
   });
 
   test("lo que ya está en la app no se vuelve a cargar", () => {
@@ -305,7 +335,7 @@ describe("qué pasa con cada fila", () => {
     const leido = leer([CABECERAS.join("\t"), conNombre("joao silva", "1"), conNombre("JOÃO SILVA", "2"), conNombre("Pedro  Henrique", "3"), conNombre("PEDRO HENRÍQUE", "4")].join("\n"));
     const filas = planDeImportacion(leido.filas, { plantel, lesiones: [], config: null, hoy: HOY });
     expect(filas.map((una) => una.jugador?.id ?? null)).toEqual([1, 2, 4, null]);
-    expect(filas[3].problemas).toEqual(["lesiones.importar.jugadorDudoso"]);
+    expect(filas[3]).toMatchObject({ estado: ESTADOS.sinJugador, dudoso: true, problemas: [] });
   });
 
   test("las fechas de una columna en mes/día (un Excel en inglés) se leen bien", () => {
@@ -314,4 +344,46 @@ describe("qué pasa con cada fila", () => {
     const filas = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
     expect(filas.map((una) => una.lesion.fecha_lesion)).toEqual(["2026-01-21", "2026-03-05"]);
   });
+
+  test("personas fuera de Datos básicos: dos distintas con la misma lesión entran las dos; la misma dos veces, no", () => {
+    const de = (nombre, caso) => fila({ ...LESION_1, "N° de Caso": caso, "Nome e Sobrenome": nombre });
+    const leido = leer([CABECERAS.join("\t"), de("Persona Uno", "1"), de("Persona Dos", "2"), de("PERSONA UNO", "3")].join("\n"));
+    const elegidos = Object.fromEntries(leido.filas.map((una) => [una.indice, COMO_PERSONA]));
+    const filas = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY, elegidos });
+    expect(filas.map((una) => una.estado)).toEqual([ESTADOS.nueva, ESTADOS.nueva, ESTADOS.conProblemas]);
+    expect(filas[2].problemas).toEqual(["lesiones.error.repetida"]);
+  });
+
+  test("con fecha de inicio, sin tipo, parte o lado no se carga (como siempre); solo las sin fecha entran incompletas", () => {
+    const sinTipo = { ...LESION_1, "Tipo de lesão": "" };
+    const leido = leer([CABECERAS.join("\t"), fila(sinTipo)].join("\n"));
+    const [primera] = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
+    expect(primera.estado).toBe(ESTADOS.conProblemas);
+    expect(primera.problemas).toEqual(["lesiones.error.tipo"]);
+  });
+
+  test("sin fecha ni N° de caso: pegar dos veces no la duplica", () => {
+    const pendiente = { "Nome e Sobrenome": "Ana Uno", "Parte do Corpo Lesionada": "COXA" };
+    const leido = leer([CABECERAS.join("\t"), fila(pendiente), fila(pendiente)].join("\n"));
+    const primeraVez = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY });
+    expect(primeraVez.map((una) => una.estado)).toEqual([ESTADOS.nueva, ESTADOS.conProblemas]);
+    const cargada = { ...primeraVez[0].lesion, id: "x" };
+    const segundaVez = planDeImportacion(leido.filas.slice(0, 1), { plantel: PLANTEL, lesiones: [cargada], config: null, hoy: HOY });
+    expect(segundaVez[0].estado).toBe(ESTADOS.yaEsta);
+  });
+
+  test("alguien guardado con su nombre y después agregado a Datos básicos: su lesión ya está", () => {
+    const yaCargada = { id: "x", numero_caso: 3, jugador_id: null, persona: "Cata Tres", fecha_lesion: "2026-04-01", datos: { parte_cuerpo: "tornozelo_pe", lado: "direito" } };
+    const conCata = [...PLANTEL, { id: 9, nombre: "Cata Tres" }];
+    const tercera = planDeImportacion(leer().filas, { plantel: conCata, lesiones: [yaCargada], config: null, hoy: HOY })[2];
+    expect(tercera.estado).toBe(ESTADOS.yaEsta);
+  });
+
+  test("un nombre demasiado largo para la base no se guarda como persona", () => {
+    const largo = "N".repeat(130);
+    const leido = leer([CABECERAS.join("\t"), fila({ ...LESION_1, "Nome e Sobrenome": largo })].join("\n"));
+    const [primera] = planDeImportacion(leido.filas, { plantel: PLANTEL, lesiones: [], config: null, hoy: HOY, elegidos: { [leido.filas[0].indice]: COMO_PERSONA } });
+    expect(primera.problemas).toEqual(["lesiones.importar.nombreLargo"]);
+  });
 });
+
