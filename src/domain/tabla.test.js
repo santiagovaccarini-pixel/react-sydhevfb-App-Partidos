@@ -6,10 +6,12 @@ import {
   filtrarFilas,
   interpretarFecha,
   interpretarFechaHora,
+  interpretarHoras,
   interpretarValor,
   ordenDeColumnas,
   ordenarFilas,
   reordenar,
+  textoDeHoras,
   tramosDeGrupos,
   valoresDeColumna,
 } from "./tabla.js";
@@ -178,5 +180,26 @@ describe("filtros y orden de las cabeceras", () => {
       // Una columna movida lejos de su grupo arma su propio tramo.
       { grupo: "uno", titulo: "Uno", desde: 4, cantidad: 1 },
     ]);
+  });
+});
+
+describe("las horas, como en el Excel", () => {
+  test("se escriben con dos puntos ([h]:mm:ss) o con decimales", () => {
+    expect(interpretarHoras("30:14:20")).toBeCloseTo(30 + 14 / 60 + 20 / 3600, 10);
+    expect(interpretarHoras("30:15")).toBe(30.25);
+    expect(interpretarHoras("0:45")).toBe(0.75);
+    expect(interpretarHoras("30,5")).toBe(30.5);
+    expect(interpretarHoras("12")).toBe(12);
+    expect(interpretarHoras("")).toBe(null);
+    ["30:75", "30:14:99", "-3", "treinta", "1:2", "30h"].forEach((texto) => expect(interpretarHoras(texto), texto).toBe(undefined));
+    expect(interpretarValor({ tipo: "horas" }, " 1:30 ")).toBe(1.5);
+  });
+
+  test("se muestran como en el Excel", () => {
+    expect(textoDeHoras(30 + 14 / 60 + 20 / 3600)).toBe("30:14:20");
+    expect(textoDeHoras(30.25)).toBe("30:15");
+    expect(textoDeHoras(0)).toBe("0:00");
+    expect(textoDeHoras(null)).toBe("");
+    expect(textoDeHoras("x")).toBe("");
   });
 });

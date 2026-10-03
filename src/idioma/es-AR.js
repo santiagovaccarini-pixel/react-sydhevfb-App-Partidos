@@ -168,6 +168,7 @@ export default {
     agregar: "Agregar jugador",
     nombre: "Nombre y apellido",
     foto: "Foto (enlace)",
+    horasPrevias: "Horas previas",
     agregado: "Jugador agregado",
     borrarTitulo: "¿Borrar al jugador?",
     borrarTexto: "{{jugador}} sale de la lista de jugadores de todos los módulos. Si tiene lesiones cargadas, no se puede.",
@@ -222,6 +223,8 @@ export default {
       repetido: "Ese jugador ya está en la lista.",
       guardar: "No se pudo guardar.",
       leer: "No se pudieron leer los jugadores.",
+      horas: "Las horas se escriben como en el Excel: 30:14:20, 30:14 o 30,5.",
+      faltanHorasPrevias: "Para guardar las horas previas falta correr en Supabase el SQL de las horas previas.",
     },
     vacio: "Todavía no hay jugadores cargados.",
     posiciones: {

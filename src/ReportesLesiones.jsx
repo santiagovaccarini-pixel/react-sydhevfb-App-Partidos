@@ -353,7 +353,12 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
     // El cuadro: el jugador con sus minutos de GPS contra el plantel entero
     // hasta hoy (en el Excel, la fila "BASE COMPLETA" de "Incidencias c 1000h").
     const deJugador = lesiones.filter((lesion) => String(lesion.jugador_id) === String(jugador.id));
-    const delJugador = cuadroCadaMil(deJugador, minutosGps(gps, { jugadorId: jugador.id }), { hasta: hoy });
+    // Sus horas: las del GPS más las previas (las de entrenamiento de antes de
+    // que llegara el cuerpo técnico, de Datos básicos). En el Excel la columna
+    // A se suma a los minutos sin pasarla a minutos, así que casi no cuenta;
+    // acá cuentan como lo que son, horas de entrenamiento (Santiago, 03/10).
+    const minutosDelJugador = gps ? minutosGps(gps, { jugadorId: jugador.id }) + (jugador.horas_previas || 0) * 60 : 0;
+    const delJugador = cuadroCadaMil(deJugador, minutosDelJugador, { hasta: hoy });
     const delPlantel = cuadroCadaMil(lesiones, minutosGps(gps, { hasta: hoy }), { hasta: hoy });
     const filasDe = (medida) => {
       const tonos = delJugador.map((fila, indice) => tonoContraVR(fila[medida], delPlantel[indice][medida]));

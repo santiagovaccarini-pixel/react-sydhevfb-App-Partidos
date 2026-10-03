@@ -367,9 +367,14 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   del Excel (minutos de cada jugador por día). **Falta decidir cómo llegan a la app**: pegar
   la hoja "BD GPS" (como se pegan los jugadores en Datos básicos) o leerlos directo de
   Catapult (la app hoy solo lee actividades, períodos y atletas; los minutos no). Mientras
-  tanto el cuadro muestra "—" y avisa que faltan los minutos del GPS. En el Excel, a los
-  minutos del GPS del jugador se les suma la columna A de "Datos Básicos" (sin título, con
-  valores de 0 a 2): no se trajo, hay que preguntar qué es.
+  tanto el cuadro muestra "—" y avisa que faltan los minutos del GPS.
+  **Horas previas (03/10, migración `20261007_horas_previas.sql`)**: la columna A de "Datos
+  Básicos" del Excel (sin título, en [h]:mm:ss) son las horas de entrenamiento de antes de
+  que llegara el cuerpo técnico al Mineiro. Están en Datos básicos ("Horas previas", se
+  escriben o se pegan como en el Excel: 30:14:20) y el reporte individual las suma a las
+  horas del GPS del jugador (al VR no, como en el Excel). En el Excel la fórmula las suma a
+  los minutos sin pasarlas a minutos, así que casi no cuentan (30 horas valen 1 minuto);
+  en la app cuentan como horas. Santiago, 03/10: "por ahora dejalo".
   **Lo que sigue: Crear reportes**, un lienzo con bloques (número, gráfico, tabla) donde se
   elige la medida, cómo separarla y los filtros, y se guarda por club.
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con

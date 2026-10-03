@@ -48,13 +48,13 @@ describe("los reportes con los minutos del GPS", () => {
     contenedor.remove();
   });
 
-  const montar = async (gps = GPS) => {
+  const montar = async (gps = GPS, plantel = PLANTEL) => {
     await act(async () => {
       raiz = createRoot(contenedor);
       raiz.render(
         <ReportesLesiones
           lesiones={LESIONES}
-          plantel={PLANTEL}
+          plantel={plantel}
           equipo={{ id: "eq-1", nombre: "Atlético Mineiro" }}
           mapa={crearMapa()}
           hoy={hoy}
@@ -108,6 +108,22 @@ describe("los reportes con los minutos del GPS", () => {
     expect(filas(lesionesMil)[0]).toEqual(["10,00", "0,00", "0,00", "0,00"]);
     expect(filas(lesionesMil)[2]).toEqual(["+0,0% vs VR", "0% vs VR", "0% vs VR", "0% vs VR"]);
     expect(tonos(lesionesMil, 0)).toEqual(["", "mejor", "mejor", "mejor"]);
+  });
+
+  test("a las horas del GPS del jugador se le suman sus horas previas (de antes del cuerpo técnico); al VR, no", async () => {
+    await montar(GPS, PLANTEL.map((jugador) => (jugador.id === 7 ? { ...jugador, horas_previas: 100 } : jugador)));
+    await tocar(botonQueEmpieza("Reporte individual"));
+    await tocar(botonQueEmpieza("HULK"));
+    const [lesionesMil] = contenedor.querySelectorAll(".informe-cuadro");
+    // 100 horas del GPS y 100 previas: 1 lesión en 200 horas.
+    expect(filas(lesionesMil)[0]).toEqual(["5,00", "5,00", "5,00", "5,00"]);
+    expect(filas(lesionesMil)[1]).toEqual(["10,00", "5,00", "5,00", "5,00"]);
+    // Sin minutos del GPS en la app, no hay cuentas aunque haya horas previas.
+    await act(async () => raiz.unmount());
+    await montar(null, PLANTEL.map((jugador) => ({ ...jugador, horas_previas: 100 })));
+    await tocar(botonQueEmpieza("Reporte individual"));
+    await tocar(botonQueEmpieza("HULK"));
+    expect(filas(contenedor.querySelector(".informe-cuadro"))[0]).toEqual(["—", "—", "—", "—"]);
   });
 
   test("las columnas de la tabla se cambian desde la cabecera y quedan para la próxima", async () => {

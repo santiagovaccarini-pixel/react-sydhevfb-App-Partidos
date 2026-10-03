@@ -17,6 +17,9 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
 const LISTAS = ["categoria", "pie_dominante", "posicion"];
 
+// Las columnas que no son de Lesiones tienen su propio texto.
+const TEXTOS_PROPIOS = { foto_url: "datos.foto", horas_previas: "datos.horasPrevias" };
+
 export default function ImportarJugadores({ equipoId, plantel, config, onVolver, onRecargar, onListo }) {
   const { idioma, plural } = useIdioma();
   const [texto, setTexto] = useState("");
@@ -26,7 +29,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
   const [progreso, setProgreso] = useState(null);
   const [fallas, setFallas] = useState([]);
 
-  const columna = (campo) => (campo === "foto_url" ? t("datos.foto") : etiquetaDeCampo(campo, config, idioma));
+  const columna = (campo) => (TEXTOS_PROPIOS[campo] ? t(TEXTOS_PROPIOS[campo]) : etiquetaDeCampo(campo, config, idioma));
 
   // Las opciones de cada lista, con el texto de los dos idiomas: el Excel
   // escribe en portugués o en español.
@@ -50,7 +53,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
     () => ({
       nombre: [etiquetaDeCampo("jugador", config, "es-AR"), etiquetaDeCampo("jugador", config, "pt-BR")],
       ...Object.fromEntries(
-        CAMPOS_IMPORTABLES.filter((campo) => campo !== "foto_url").map((campo) => [
+        CAMPOS_IMPORTABLES.filter((campo) => !["foto_url", "horas_previas"].includes(campo)).map((campo) => [
           campo,
           [etiquetaDeCampo(campo, config, "es-AR"), etiquetaDeCampo(campo, config, "pt-BR")],
         ]),

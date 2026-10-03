@@ -463,4 +463,18 @@ select pruebas.esperar('...y con una hora imposible, lo escrito a mano', (select
 select pruebas.esperar('...y ".5", como lo aceptaba el campo de antes', (select horas_passadas_imagem_lesao::text from v_lesiones_excel_v1 where medico = 'horas-5'), '0.5');
 delete from public.lesiones where datos->>'medico' like 'horas-%';
 
+-- --------------------------------------- Horas de entrenamiento previas --
+
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla anota las horas previas de un jugador de Uno', pruebas.filas($$update jugadores set horas_previas = 30.25 where id = 9002$$), 1);
+select pruebas.debe_fallar('...pero no horas negativas', $$update jugadores set horas_previas = -1 where id = 9002$$, 'jugadores_horas_previas_no_negativas');
+reset role;
+select pruebas.ser('gaby@uno.com'); set role authenticated;
+select pruebas.esperar('Gaby (bloqueada) no las cambia', pruebas.filas($$update jugadores set horas_previas = 99 where id = 9002$$), 0);
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('...ni Eva, que es de otro club', pruebas.filas($$update jugadores set horas_previas = 99 where id = 9002$$), 0);
+reset role;
+select pruebas.esperar('Quedan las de Carla', (select horas_previas::text from jugadores where id = 9002), '30.25');
+
 select 'ESCENARIOS: todos bien' as resultado;
