@@ -838,15 +838,20 @@ describe("el módulo Lesiones", () => {
     // Los indicadores cada 1000 horas: las cuatro columnas del Excel en cada
     // medida y, sin los minutos del GPS, sin números y con el aviso.
     const medidas = contenedor.querySelectorAll(".informe-medida");
-    expect([...medidas].map((medida) => medida.querySelector("h3").textContent)).toEqual(["Lesiones c/ 1000 h", "Días perdidos c/ 1000 h"]);
-    expect([...medidas[0].querySelectorAll(".informe-indicador-titulo")].map((titulo) => titulo.textContent)).toEqual(["Todas", "Sin leves", "Musculares (LM)", "LM sin leves"]);
+    expect([...medidas].map((medida) => medida.querySelector("h2").textContent)).toEqual(["Lesiones / 1000 h", "Días perdidos / 1000 h"]);
+    expect([...medidas[1].querySelectorAll(".informe-indicador-titulo")].map((titulo) => titulo.textContent)).toEqual([
+      "Severidad (TODAS) y Tipos (TODOS)",
+      "Severidad (SIN LEVES) y Tipos (TODOS)",
+      "Severidad (TODAS) y Tipos (SOLO LM)",
+      "Severidad (SIN LEVES) y Tipos (SOLO LM)",
+    ]);
     expect([...contenedor.querySelectorAll(".informe-indicador-valor")].every((valor) => valor.textContent === "—")).toBe(true);
     expect(contenedor.querySelectorAll(".informe-indicador-contra")).toHaveLength(0);
     expect(texto(contenedor)).toContain("Faltan los minutos del GPS");
     expect(texto(contenedor)).toContain("Superior a la referencia");
-    // Dónde se lesionó: la figura con su lesión pintada.
-    expect(contenedor.querySelectorAll(".informe-mapa .figura-cuerpo-pieza[style]").length).toBeGreaterThan(0);
-    expect(contenedor.querySelectorAll(".informe-mapa .reporte-calor-zonas li")).toHaveLength(1);
+    // El mapa corporal: una mancha donde se lesionó, con su nombre.
+    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-mancha")).toHaveLength(1);
+    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-nombre")).toHaveLength(1);
     // El historial: sus lesiones, con las doce columnas del reporte a la vista.
     expect(contenedor.querySelectorAll(".informe-tabla tbody tr")).toHaveLength(1);
     const cabeceras = [...contenedor.querySelectorAll(".informe-tabla th")].map((th) => th.textContent);
@@ -865,7 +870,8 @@ describe("el módulo Lesiones", () => {
     expect([...cuadro.querySelector("tbody tr").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["1", "1", "1", "1"]);
     expect(texto(contenedor)).toContain("Lesiones por mes");
     expect(texto(contenedor)).toContain("Quiénes perdieron más días");
-    expect(contenedor.querySelectorAll(".reporte-figuras .figura-cuerpo-pieza[style]").length).toBeGreaterThan(0);
+    // El mismo mapa corporal que el individual, con las dos lesiones.
+    expect(contenedor.querySelectorAll(".reporte-mapa .cuerpo-calor-mancha")).toHaveLength(2);
   });
 
   test("los reportes no muestran ceros si las lesiones no se pudieron leer", async () => {

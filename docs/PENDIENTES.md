@@ -351,18 +351,24 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   (`src/ReportesLesiones.jsx`; las cuentas en `src/domain/reportes.js`). Ver reportes tiene
   dos. El **individual** es la hoja "Reporte de Lesiones IND" del Excel con las mismas
   cuentas, solo mejor presentada (pedido de Santiago del 03/10: "las lógicas no se
-  cambian"). Desde el 03/10 tiene el diseño que propuso Santiago: cabecera negra con el
-  escudo, el título, el jugador, su posición, nacimiento y pie (de Datos básicos) y la foto
-  en un panel cortado en diagonal (las fotos del club vienen con fondo gris claro); los
-  indicadores de lesiones y de días perdidos cada 1000 horas en tarjetas chicas, las cuatro
-  columnas del Excel (todas / sin leves / musculares / LM sin leves), cada una con el valor
-  del jugador, la referencia (el VR del plantel) y el "jugador vs VR" (el porcentaje sobre
-  el valor del jugador, como la fórmula del Excel; en rojo si está arriba, en verde si está
-  abajo); al lado, "Dónde se lesionó": la figura de cargar una lesión como mapa de calor
-  (más rojo, más lesiones en esa parte) y las tres zonas con más lesiones (pedido del
-  03/10); abajo, el historial con doce columnas todas a la vista (en el Excel se elegían
-  desde la cabecera por falta de lugar): las del diseño de Santiago, que son las del Excel
-  con "Músculo específico" en lugar de "Pase a transición"; menos las que el club escondió. El mapa de calor es el mismo en el grupal. El VR se calcula con toda la base hasta hoy (en el Excel es la fila
+  cambian"). Desde el 03/10 tiene el diseño que propuso Santiago (dos imágenes de muestra):
+  cabecera negra con el escudo, el título, el jugador, su posición, nacimiento y pie (de
+  Datos básicos) y la foto en un panel cortado en diagonal (las fotos del club vienen con
+  fondo gris claro); "Lesiones / 1000 h" y "Días perdidos / 1000 h", cuatro tarjetas cada
+  una con los nombres de las columnas del Excel ("Severidad (TODAS) y Tipos (TODOS)", "…
+  (SIN LEVES) y Tipos (SOLO LM)"; en portugués, los del Excel), con el valor del jugador,
+  la referencia (el VR del plantel) y el "jugador vs VR" (superior o inferior a la
+  referencia y el porcentaje sobre el valor del jugador, como la fórmula del Excel; rojo
+  arriba, verde abajo); al lado, el "Mapa corporal de lesiones": la figura de cargar una
+  lesión, de frente y de espaldas, con relieve, una mancha de calor sobre el músculo,
+  tendón o ligamento lesionado si está dibujado (si no, en el medio de la parte; más
+  grande cuantas más lesiones) y una línea a su nombre (`src/components/CuerpoConCalor.jsx`
+  y `manchasCuerpo.js`); abajo, el historial con doce columnas todas a la vista (en el
+  Excel se elegían desde la cabecera por falta de lugar): las del diseño de Santiago, que
+  son las del Excel con "Músculo específico" en lugar de "Pase a transición"; menos las
+  que el club escondió. Títulos y números en Roboto Condensed (`@fontsource`, solo la
+  parte latina). El mapa corporal es el mismo en el grupal (con los seis nombres con más
+  lesiones de cada vista). El VR se calcula con toda la base hasta hoy (en el Excel es la fila
   "BASE COMPLETA" de "Incidencias c 1000h", que pega una macro). El **grupal** suma el
   mismo cuadro para el plantel en el período elegido (el contador por período de
   "Antecedentes BD": cuentan las empezadas en el período y los días que caen adentro),

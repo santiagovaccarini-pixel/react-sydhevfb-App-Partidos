@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
-import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
+import { CuerpoConCalor } from "./components/CuerpoConCalor.jsx";
+import { manchasDe } from "./components/manchasCuerpo.js";
 import { calcular, esFechaISO, normalizarTexto } from "./domain/lesiones.js";
 import { CAMPOS } from "./domain/lesionesCampos.js";
 import {
@@ -19,6 +20,11 @@ import {
 } from "./domain/reportes.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
+// La letra angosta de los títulos y los números del reporte (solo la latina,
+// que alcanza para el castellano y el portugués).
+import "@fontsource/roboto-condensed/latin-400.css";
+import "@fontsource/roboto-condensed/latin-500.css";
+import "@fontsource/roboto-condensed/latin-700.css";
 
 // Los reportes de Lesiones. "Ver reportes": el individual (la hoja "Reporte
 // de Lesiones IND" del Excel, con las mismas cuentas y mejor presentada) y el
@@ -42,6 +48,14 @@ const COLUMNAS_DEL_REPORTE = ["numero_registro", "parte_cuerpo", "tipo_lesion", 
 const COLUMNAS_CORTAS = new Set(["numero_registro", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_alta", "recuperacion"]);
 
 const CAMPO_POR_CLAVE = Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo]));
+
+// El nombre de cada columna del cuadro, el del Excel: "Severidad (SIN
+// LEVES) y Tipos (SOLO LM)".
+const tituloDeVariante = (variante) =>
+  t("lesiones.reportes.variante", {
+    severidad: t(variante.sinLeves ? "lesiones.reportes.severidadSinLeves" : "lesiones.reportes.severidadTodas"),
+    tipos: t(variante.soloMusculares ? "lesiones.reportes.tiposLM" : "lesiones.reportes.tiposTodos"),
+  });
 
 // Más que el VR, en rojo; menos, en verde (la leyenda del Excel).
 const tonoContraVR = (delJugador, vr) => {
@@ -114,88 +128,45 @@ const BarrasPorMes = ({ meses, textoSeveridad, idioma }) => {
   );
 };
 
-// El mapa de calor: la figura de frente y de espaldas (la de cargar una
-// lesión), con cada parte más roja cuantas más lesiones tuvo, la escala y,
-// si se pide, las zonas donde hubo más (parte y lado).
-const ZONAS_A_LA_VISTA = 3;
-const CALOR_POCO = [252, 165, 165];
-const CALOR_MUCHO = [185, 28, 28];
-const colorDeCalor = (cantidad, maximo) => {
-  const fuerza = maximo > 1 ? (cantidad - 1) / (maximo - 1) : 1;
-  const mezcla = CALOR_POCO.map((poco, indice) => Math.round(poco + (CALOR_MUCHO[indice] - poco) * fuerza));
-  return `rgb(${mezcla.join(", ")})`;
-};
-const MapaDeCalor = ({ lesiones, mapa, textoDeOpcion, conZonas = false }) => {
-  const { plural } = useIdioma();
-  const conteo = new Map();
-  const zonas = new Map();
-  lesiones.forEach((lesion) => {
-    const parte = lesion.datos?.parte_cuerpo;
-    if (!parte) return;
-    const lado = lesion.datos?.lado;
-    const zona = `${parte}|${lado && lado !== "nao_se_aplica" ? lado : ""}`;
-    zonas.set(zona, (zonas.get(zona) || 0) + 1);
-    const region = mapa.regionDe(parte, lado);
-    if (!region) return;
-    const clave = `${region}:${mapa.piezaDe(parte, region) || parte}`;
-    conteo.set(clave, (conteo.get(clave) || 0) + 1);
-  });
-  const maximo = Math.max(...conteo.values(), ...zonas.values(), 0);
-  const colorDe = (region, pieza) => {
-    const cantidad = conteo.get(`${region}:${pieza}`);
-    return cantidad ? colorDeCalor(cantidad, maximo) : null;
-  };
-  const masVeces = [...zonas.entries()]
-    .map(([zona, cantidad]) => {
-      const [parte, lado] = zona.split("|");
-      return { zona, cantidad, nombre: [textoDeOpcion("parte_cuerpo", parte), lado && textoDeOpcion("lado", lado)].filter(Boolean).join(" · ") };
-    })
-    .sort((a, b) => b.cantidad - a.cantidad || a.nombre.localeCompare(b.nombre));
-  const etiquetas = (vista) => ({ figura: t(`lesiones.cuerpo.${vista}`), derecha: t("lesiones.cuerpo.derecha"), izquierda: t("lesiones.cuerpo.izquierda") });
-  return (
-    <div className="reporte-calor">
-      <div className="reporte-figuras">
-        {["frente", "espalda"].map((vista) => (
-          <div className="reporte-figura" key={vista}>
-            <FiguraCuerpo vista={vista} colorDe={colorDe} nombreDeParte={(codigo) => textoDeOpcion("parte_cuerpo", codigo)} etiquetas={etiquetas(vista)} />
-            <small>{t(`lesiones.cuerpo.${vista}`)}</small>
-          </div>
-        ))}
-      </div>
-      {maximo > 0 && !conZonas && (
-        <div className="reporte-calor-escala">
-          <span>{t("lesiones.reportes.calorEscala")}</span>
-          <i style={{ background: maximo > 1 ? `linear-gradient(90deg, ${colorDeCalor(1, maximo)}, ${colorDeCalor(maximo, maximo)})` : colorDeCalor(1, 1) }} />
-          <small>{maximo > 1 ? `1 – ${maximo}` : "1"}</small>
-        </div>
-      )}
-      {conZonas && masVeces.length > 0 && (
-        <ol className="reporte-calor-zonas" aria-label={t("lesiones.reportes.masVeces")}>
-          {masVeces.slice(0, ZONAS_A_LA_VISTA).map((zona) => (
-            <li key={zona.zona}>
-              <i style={{ background: colorDeCalor(zona.cantidad, maximo) }} />
-              <span>{zona.nombre}</span>
-              <b>{plural("lesiones.historial.cantidad", zona.cantidad)}</b>
-            </li>
-          ))}
-          {masVeces.length > ZONAS_A_LA_VISTA && <li className="reporte-calor-mas">{plural("lesiones.reportes.zonasMas", masVeces.length - ZONAS_A_LA_VISTA)}</li>}
-        </ol>
-      )}
-    </div>
-  );
-};
+// El mapa corporal: el cuerpo de frente y de espaldas con una mancha de
+// calor donde hubo lesiones y el nombre de lo lesionado (el músculo, el
+// tendón, el ligamento o la parte del cuerpo). El mismo en el individual y
+// en el grupal (ahí, con los nombres de los lugares con más lesiones).
+const NOMBRES_EN_EL_GRUPAL = 6;
+const MapaCorporal = ({ lesiones, mapa, textoDeOpcion, maxNombres = Infinity }) => (
+  <div className="reporte-mapa">
+    <CuerpoConCalor
+      manchas={manchasDe(lesiones, mapa)}
+      nombreDe={(mancha) => textoDeOpcion(mancha.campo, mancha.codigo)}
+      maxNombres={maxNombres}
+      vistas={{ frente: t("lesiones.reportes.vistas.frente"), espalda: t("lesiones.reportes.vistas.espalda") }}
+      titulo={t("lesiones.reportes.mapaCorporal")}
+    />
+    <p className="reporte-mapa-nota">
+      <i aria-hidden="true" />
+      {t("lesiones.reportes.mapaNota")}
+    </p>
+  </div>
+);
 
 // Un número del cuadro cada 1000 horas en el individual: el del jugador, la
-// referencia (el VR del plantel) y cuánto más o menos (la fila "Jugador vs
-// VR" del Excel), con el color de la leyenda.
-const Indicador = ({ titulo, valor, referencia, contra, tono }) => (
+// referencia (el VR del plantel) y cómo da contra ella (la fila "Jugador vs
+// VR" del Excel: el porcentaje y el color de la leyenda).
+const Indicador = ({ titulo, valor, unidad, referencia, comparado, porcentaje, tono }) => (
   <div className={`informe-indicador ${tono}`.trim()}>
     <span className="informe-indicador-titulo">{titulo}</span>
     <b className="informe-indicador-valor">{valor}</b>
+    <span className="informe-indicador-unidad">{unidad}</span>
     <span className="informe-indicador-ref">
-      {t("lesiones.reportes.referencia")} <b>{referencia}</b>
+      {t("lesiones.reportes.referencia")}
+      <b>{referencia}</b>
     </span>
-    {contra && <span className="informe-indicador-contra">{contra}</span>}
+    {comparado && (
+      <span className="informe-indicador-contra">
+        <span>{comparado}</span>
+        <small>{porcentaje}</small>
+      </span>
+    )}
   </div>
 );
 
@@ -406,22 +377,23 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
     // del jugador, la referencia y el "Jugador vs VR".
     const indicadoresDe = (medida) =>
       delJugador.map((fila, indice) => {
-        const referencia = delPlantel[indice][medida];
-        const tono = tonoContraVR(fila[medida], referencia);
-        const contra = contraVR(fila[medida], referencia);
-        const porcentaje = contra && (contra.signo ? `${contra.signo}${numero(contra.porcentaje, 1)}%` : "0%");
+        const referencia = delPlantel[indice][medida.id];
+        const tono = tonoContraVR(fila[medida.id], referencia);
+        const contra = contraVR(fila[medida.id], referencia);
         return {
           id: VARIANTES[indice].id,
-          titulo: t(`lesiones.reportes.variantes.${VARIANTES[indice].id}`),
-          valor: numero(fila[medida]),
+          titulo: tituloDeVariante(VARIANTES[indice]),
+          valor: numero(fila[medida.id]),
+          unidad: medida.unidad,
           referencia: numero(referencia),
           tono,
-          contra: contra && t(`lesiones.reportes.comparado.${tono || "igual"}`, { valor: porcentaje }),
+          comparado: contra && t(`lesiones.reportes.comparado.${tono || "igual"}`),
+          porcentaje: contra && t("lesiones.reportes.porcentajeVsRef", { valor: contra.signo ? `${contra.signo}${numero(contra.porcentaje, 1)}%` : "0%" }),
         };
       });
     const MEDIDAS = [
-      { id: "lesionesCadaMil", titulo: t("lesiones.reportes.lesionesMil") },
-      { id: "diasCadaMil", titulo: t("lesiones.reportes.diasMil") },
+      { id: "lesionesCadaMil", titulo: t("lesiones.reportes.lesionesPorMil"), unidad: t("lesiones.reportes.unidadLesiones") },
+      { id: "diasCadaMil", titulo: t("lesiones.reportes.diasPorMil"), unidad: t("lesiones.reportes.unidadDias") },
     ];
 
     const posicion = jugador.posicion ? texto("posicion", jugador.posicion) : "";
@@ -469,16 +441,17 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
             </header>
 
             <div className="informe-medio">
-              <section className="informe-indicadores">
-                <div className="informe-seccion">
-                  <h2>{t("lesiones.reportes.indicadores")}</h2>
-                  <span>{t("lesiones.reportes.tasas")}</span>
-                </div>
-                {MEDIDAS.map((medida) => (
+              <section className="informe-indicadores" aria-label={t("lesiones.reportes.indicadores")}>
+                {MEDIDAS.map((medida, cual) => (
                   <div className="informe-medida" key={medida.id}>
-                    <h3>{medida.titulo}</h3>
+                    <div className="informe-seccion">
+                      <h2>
+                        {medida.titulo} <span className="informe-por-mil">{t("lesiones.reportes.porMil")}</span>
+                      </h2>
+                      {cual === 0 && <span>{t("lesiones.reportes.tasas")}</span>}
+                    </div>
                     <div className="informe-tarjetas">
-                      {indicadoresDe(medida.id).map((indicador) => (
+                      {indicadoresDe(medida).map((indicador) => (
                         <Indicador key={indicador.id} {...indicador} />
                       ))}
                     </div>
@@ -494,7 +467,6 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
                     <i className="mejor" />
                     {t("lesiones.reportes.inferiorRef")}
                   </li>
-                  <li>{t("lesiones.reportes.queEsLM")}</li>
                   <li>{t("lesiones.reportes.queEsRef")}</li>
                 </ul>
                 <p className="informe-criterio">{t("lesiones.reportes.cuentan", { criterio })}</p>
@@ -502,9 +474,9 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
 
               <section className="informe-mapa">
                 <div className="informe-seccion">
-                  <h2>{t("lesiones.reportes.dondeSeLesiono")}</h2>
+                  <h2>{t("lesiones.reportes.mapaCorporal")}</h2>
                 </div>
-                <MapaDeCalor lesiones={deJugador} mapa={mapa} textoDeOpcion={texto} conZonas />
+                <MapaCorporal lesiones={deJugador} mapa={mapa} textoDeOpcion={texto} />
               </section>
             </div>
 
@@ -669,7 +641,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
           {bloque(t("lesiones.reportes.porMes"), <BarrasPorMes meses={porMes(delEquipo, desde, hasta)} textoSeveridad={textoSeveridad} idioma={idioma} />)}
 
           <section className="reporte-dos">
-            {bloque(t("lesiones.reportes.dondeSeLesionan"), <MapaDeCalor lesiones={delEquipo} mapa={mapa} textoDeOpcion={texto} />)}
+            {bloque(t("lesiones.reportes.dondeSeLesionan"), <MapaCorporal lesiones={delEquipo} mapa={mapa} textoDeOpcion={texto} maxNombres={NOMBRES_EN_EL_GRUPAL} />)}
             {bloque(etiqueta("parte_cuerpo"), <Barras filas={conteo("parte_cuerpo")} vacio={vacio} color="#ef4444" />)}
           </section>
 

@@ -80,7 +80,10 @@ describe("los reportes con los minutos del GPS", () => {
     return {
       valores: tarjetas.map((tarjeta) => tarjeta.querySelector(".informe-indicador-valor").textContent),
       referencias: tarjetas.map((tarjeta) => tarjeta.querySelector(".informe-indicador-ref b").textContent),
-      contra: tarjetas.map((tarjeta) => tarjeta.querySelector(".informe-indicador-contra")?.textContent ?? null),
+      contra: tarjetas.map((tarjeta) => {
+        const contra = tarjeta.querySelector(".informe-indicador-contra");
+        return contra ? `${contra.querySelector("span").textContent} | ${contra.querySelector("small").textContent}` : null;
+      }),
       tonos: tarjetas.map((tarjeta) => tarjeta.className.replace("informe-indicador", "").trim()),
     };
   };
@@ -94,17 +97,25 @@ describe("los reportes con los minutos del GPS", () => {
     expect(indicadores(0)).toEqual({
       valores: ["10,00", "10,00", "10,00", "10,00"],
       referencias: ["10,00", "5,00", "5,00", "5,00"],
-      contra: ["+0,0% igual", "+50,0% superior", "+50,0% superior", "+50,0% superior"],
+      contra: ["Igual a la referencia | +0,0% vs referencia", "Superior a la referencia | +50,0% vs referencia", "Superior a la referencia | +50,0% vs referencia", "Superior a la referencia | +50,0% vs referencia"],
       tonos: ["", "peor", "peor", "peor"],
     });
     // Días: HULK 20 en 100 h; el plantel 23 (o 20) en 200 h.
     expect(indicadores(1)).toEqual({
       valores: ["200,00", "200,00", "200,00", "200,00"],
       referencias: ["115,00", "100,00", "100,00", "100,00"],
-      contra: ["+42,5% superior", "+50,0% superior", "+50,0% superior", "+50,0% superior"],
+      contra: ["Superior a la referencia | +42,5% vs referencia", "Superior a la referencia | +50,0% vs referencia", "Superior a la referencia | +50,0% vs referencia", "Superior a la referencia | +50,0% vs referencia"],
       tonos: ["peor", "peor", "peor", "peor"],
     });
     expect(texto()).not.toContain("Faltan los minutos del GPS");
+    // Las columnas, con los nombres del Excel.
+    expect([...contenedor.querySelectorAll(".informe-medida")[0].querySelectorAll(".informe-indicador-titulo")].map((titulo) => titulo.textContent)).toEqual([
+      "Severidad (TODAS) y Tipos (TODOS)",
+      "Severidad (SIN LEVES) y Tipos (TODOS)",
+      "Severidad (TODAS) y Tipos (SOLO LM)",
+      "Severidad (SIN LEVES) y Tipos (SOLO LM)",
+    ]);
+    expect([...contenedor.querySelectorAll(".informe-medida .informe-seccion h2")].map((h2) => h2.textContent)).toEqual(["Lesiones / 1000 h", "Días perdidos / 1000 h"]);
     // Sus datos y sus dos lesiones (la traumática también), por n° de registro.
     expect(contenedor.querySelector(".informe-posicion").textContent).toBe("centroavante");
     expect([...contenedor.querySelectorAll(".informe-dato dd")].map((dd) => dd.textContent)).toEqual(["25/07/1986", "esquerdo"]);
@@ -117,7 +128,7 @@ describe("los reportes con los minutos del GPS", () => {
     await tocar(botonQueEmpieza("SCARPA"));
     const { valores, contra, tonos } = indicadores(0);
     expect(valores).toEqual(["10,00", "0,00", "0,00", "0,00"]);
-    expect(contra).toEqual(["+0,0% igual", "0% inferior", "0% inferior", "0% inferior"]);
+    expect(contra).toEqual(["Igual a la referencia | +0,0% vs referencia", "Inferior a la referencia | 0% vs referencia", "Inferior a la referencia | 0% vs referencia", "Inferior a la referencia | 0% vs referencia"]);
     expect(tonos).toEqual(["", "mejor", "mejor", "mejor"]);
   });
 
@@ -172,14 +183,18 @@ describe("los reportes con los minutos del GPS", () => {
     expect(contenedor.querySelector(".informe-tabla tbody tr").children[10].textContent).toBe("—");
   });
 
-  test("dónde se lesionó: la figura pintada y las zonas con más lesiones", async () => {
+  test("el mapa corporal: una mancha donde se lesionó, con el nombre de lo lesionado", async () => {
     await montar(GPS, PLANTEL);
     await tocar(botonQueEmpieza("Reporte individual"));
     await tocar(botonQueEmpieza("HULK"));
     const mapa = contenedor.querySelector(".informe-mapa");
-    // El muslo y la rodilla derechos, en las dos vistas.
-    expect(mapa.querySelectorAll(".figura-cuerpo-pieza[style]").length).toBeGreaterThan(0);
-    expect([...mapa.querySelectorAll(".reporte-calor-zonas li")].map((li) => li.textContent)).toEqual(["coxa · direito1 lesión", "joelho · direito1 lesión"]);
+    // El muslo y la rodilla derechos, de frente (sin músculo cargado, en el
+    // medio de la parte).
+    const frente = mapa.querySelector('[data-vista="frente"]');
+    expect(frente.querySelectorAll(".cuerpo-calor-mancha")).toHaveLength(2);
+    expect([...frente.querySelectorAll(".cuerpo-calor-nombre")].map((nombre) => nombre.textContent)).toEqual(["COXA", "JOELHO"]);
+    expect(mapa.querySelectorAll('[data-vista="espalda"] .cuerpo-calor-mancha')).toHaveLength(0);
+    expect(mapa.querySelectorAll(".cuerpo-calor-vista text")[0].textContent).toBe("Anterior");
   });
 
   test("el grupal: el cuadro del plantel en el período", async () => {
