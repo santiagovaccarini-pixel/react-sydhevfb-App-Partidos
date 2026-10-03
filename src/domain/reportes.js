@@ -87,6 +87,33 @@ export const cuadroCadaMil = (lesiones, minutos, { desde = "", hasta }) => {
   });
 };
 
+// ------------------------------------- Lesiones c/1000h y días perdidos --
+
+// El contador de "Antecedentes BD" para un período: los minutos de
+// entrenamiento (todos los del GPS en esas fechas, como la hoja "BD GPS"), las
+// horas y el cuadro (lesiones y días perdidos, y cada 1000 horas, como
+// "Incidencias c 1000h"). gps null: la app todavía no tiene los minutos, y
+// minutos y horas quedan null. Sin "desde", desde la primera lesión.
+export const contadorDelPeriodo = (lesiones, gps, { desde = "", hasta }) => {
+  const minutos = gps ? minutosGps(gps, { desde, hasta }) : null;
+  return {
+    minutos,
+    horas: minutos === null ? null : minutos / 60,
+    filas: cuadroCadaMil(lesiones, minutos || 0, { desde, hasta }),
+  };
+};
+
+// Los períodos guardados en el orden de las fechas (en el Excel, el de las
+// letras A a P): por inicio (los que no tienen, primero: van desde la
+// primera lesión), después por final y por nombre.
+export const ordenarPeriodos = (periodos = []) =>
+  [...periodos].sort(
+    (a, b) =>
+      String(a.desde || "").localeCompare(String(b.desde || "")) ||
+      String(a.hasta || "").localeCompare(String(b.hasta || "")) ||
+      String(a.nombre || "").localeCompare(String(b.nombre || "")),
+  );
+
 // "Jugador vs VR", como en el Excel: el signo dice si el jugador está arriba
 // (o igual) del VR y el porcentaje es la diferencia sobre el valor del
 // jugador. Si el jugador está en cero, el Excel muestra "0 %": porcentaje 0.

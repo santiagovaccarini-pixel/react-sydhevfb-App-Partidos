@@ -9,6 +9,17 @@ import { fijarIdiomaParaPruebas } from "./idioma/index.js";
 // El escudo se busca por internet: acá, uno quieto.
 vi.mock("./components/ClubCrest", () => ({ EscudoDeClub: () => <span className="escudo-club" /> }));
 
+// Los períodos guardados de Lesiones c/1000h: en memoria.
+const periodosGuardados = vi.hoisted(() => ({ lista: [], guardados: [] }));
+vi.mock("./domain/periodosDb.js", () => ({
+  listarPeriodos: async () => ({ periodos: [...periodosGuardados.lista], error: "" }),
+  guardarPeriodo: async (equipoId, periodo) => {
+    periodosGuardados.guardados.push({ equipoId, ...periodo });
+    return { periodo: { id: `p-${periodosGuardados.guardados.length}`, nombre: periodo.nombre.trim(), desde: periodo.desde || "", hasta: periodo.hasta }, error: "" };
+  },
+  borrarPeriodo: async () => ({ error: "" }),
+}));
+
 // Los reportes con minutos de GPS: los números del cuadro cada 1000 horas,
 // sus colores y la tabla con las columnas que se cambian.
 const hoy = "2026-10-02";
@@ -214,6 +225,48 @@ describe("los reportes con los minutos del GPS", () => {
       ["23", "20", "20", "20"],
       ["115,00", "100,00", "100,00", "100,00"],
     ]);
+  });
+
+  test("Lesiones c/1000h y días perdidos: el período, los minutos, el cuadro y guardarlo con un nombre", async () => {
+    periodosGuardados.lista = [{ id: "p-0", nombre: "Primer trimestre", desde: "2026-01-01", hasta: "2026-03-31" }];
+    periodosGuardados.guardados = [];
+    await montar();
+    await tocar(botonQueEmpieza("Lesiones c/1000h y días perdidos"));
+    // Arranca con la base completa: desde la primera lesión hasta hoy.
+    expect(contenedor.querySelector(".reporte-portada small").textContent).toBe("01/03/2026 – 02/10/2026");
+    expect([...contenedor.querySelectorAll(".reporte-kpis-dos b")].map((b) => b.textContent)).toEqual(["12.000", "200,0"]);
+    expect(filas(contenedor.querySelector(".informe-cuadro"))).toEqual([
+      ["2", "1", "1", "1"],
+      ["10,00", "5,00", "5,00", "5,00"],
+      ["23", "20", "20", "20"],
+      ["115,00", "100,00", "100,00", "100,00"],
+    ]);
+    // Sin nombre no se guarda (como el Excel).
+    await tocar(botonQueEmpieza("Guardar el período"));
+    expect(contenedor.querySelector(".reporte-contador-guardar [role=alert]").textContent).toBe("Falta el nombre del período.");
+    expect(periodosGuardados.guardados).toEqual([]);
+    const nombre = contenedor.querySelector(".reporte-contador-nombre input");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(nombre, "Temporada 2026");
+      nombre.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await tocar(botonQueEmpieza("Guardar el período"));
+    expect(periodosGuardados.guardados).toEqual([{ equipoId: "eq-1", nombre: "Temporada 2026", desde: "", hasta: hoy }]);
+    expect([...contenedor.querySelectorAll(".reporte-periodo b")].map((b) => b.textContent)).toEqual(["Temporada 2026", "Primer trimestre"]);
+    // Tocar uno guardado lo vuelve a calcular con sus fechas.
+    await tocar(contenedor.querySelectorAll(".reporte-periodo")[1]);
+    expect(contenedor.querySelector(".reporte-portada small").textContent).toBe("01/01/2026 – 31/03/2026");
+    // En el primer trimestre, solo la muscular de HULK (moderada).
+    expect(filas(contenedor.querySelector(".informe-cuadro"))[0]).toEqual(["1", "1", "1", "1"]);
+  });
+
+  test("Lesiones c/1000h sin los minutos del GPS: los números del período y un aviso", async () => {
+    periodosGuardados.lista = [];
+    await montar(null);
+    await tocar(botonQueEmpieza("Lesiones c/1000h y días perdidos"));
+    expect([...contenedor.querySelectorAll(".reporte-kpis-dos b")].map((b) => b.textContent)).toEqual(["—", "—"]);
+    expect(filas(contenedor.querySelector(".informe-cuadro"))[1]).toEqual(["—", "—", "—", "—"]);
+    expect(contenedor.querySelector(".informe-aviso").textContent).toContain("Faltan los minutos del GPS");
   });
 
   const texto = () => contenedor.textContent;

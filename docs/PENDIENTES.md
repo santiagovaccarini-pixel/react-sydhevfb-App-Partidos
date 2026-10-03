@@ -388,10 +388,11 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   más los gráficos por mes, zona, tipo, severidad, mecanismo, cuándo, producto y posición.
   Se imprimen o se guardan en PDF (apaisado).
   **Las horas salen del GPS (decisión de Santiago del 03/10)**, como en la hoja "BD GPS"
-  del Excel (minutos de cada jugador por día). **Falta decidir cómo llegan a la app**: pegar
-  la hoja "BD GPS" (como se pegan los jugadores en Datos básicos) o leerlos directo de
-  Catapult (la app hoy solo lee actividades, períodos y atletas; los minutos no). Mientras
-  tanto el cuadro muestra "—" y avisa que faltan los minutos del GPS.
+  del Excel (minutos de cada jugador por día). **Cómo llegan (Santiago, 03/10): "después
+  vamos a meter todas las bases dentro de la web y ahí se van a conectar entre sí"**: la base
+  del GPS va a estar en la app y los reportes la leen (`gps`: [{ jugadorId, fecha, minutos }];
+  en el Excel, minutos = las columnas C + D de "BD GPS", de todos los que aparecen, estén o no
+  en el plantel). Mientras tanto los cuadros muestran "—" y avisan que faltan los minutos.
   **Horas previas (03/10, migración `20261007_horas_previas.sql`)**: la columna A de "Datos
   Básicos" del Excel (sin título, en [h]:mm:ss) son las horas de entrenamiento de antes de
   que llegara el cuerpo técnico al Mineiro. Están en Datos básicos ("Horas previas", se
@@ -401,6 +402,19 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   en la app cuentan como horas. Santiago, 03/10: "por ahora dejalo".
   **Lo que sigue: Crear reportes**, un lienzo con bloques (número, gráfico, tabla) donde se
   elige la medida, cómo separarla y los filtros, y se guarda por club.
+- **Lesiones c/1000h y días perdidos (03/10)**, en Reportes (`src/ReporteCadaMil.jsx`): el
+  contador de la derecha de "Antecedentes BD". Se eligen inicio (sin inicio, desde la primera
+  lesión), final y un nombre; salen las lesiones y los días perdidos de las cuatro columnas
+  (severidad todas o sin leves, tipos todos o solo LM), los minutos y las horas de
+  entrenamiento y lo cada 1000 horas (lo de "Incidencias c 1000h"), con las mismas cuentas
+  (`contadorDelPeriodo` en `src/domain/reportes.js`: una lesión sin alta cuenta sus días
+  desde su inicio aunque sea de antes del período, como la columna CQ). "Base completa" es el
+  botón ATUALIZAR VR. El período se guarda con su nombre (en el Excel, las letras A a P) en
+  `lesiones_periodos` (migración `20261009_lesiones_periodos.sql`): solo nombre y fechas, los
+  números se calculan cada vez (Santiago, 03/10); el nombre no se repite en el club, sin
+  límite de 16. Lo ve quien usa Lesiones (también quien ya se fue); lo cambia quien puede
+  editar. Los períodos guardados son los que van a comparar los gráficos de "Informes
+  Graficos" (lo que sigue).
 - **Pegar desde Excel en Lesiones (03/10)**, en Base (`src/ImportarLesiones.jsx` y
   `src/domain/importarLesiones.js`): se copia la hoja "Antecedentes BD" desde la fila de
   cabeceras hasta la última lesión y se pega. Antes de cargar se ve qué pasa con cada fila:

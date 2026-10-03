@@ -3,6 +3,8 @@ import { Icono } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { CuerpoConCalor } from "./components/CuerpoConCalor.jsx";
 import { manchasDe } from "./components/manchasCuerpo.js";
+import { CuadroCadaMil, tituloDeVariante } from "./components/CuadroCadaMil.jsx";
+import ReporteCadaMil from "./ReporteCadaMil.jsx";
 import { calcular, esFechaISO, normalizarTexto } from "./domain/lesiones.js";
 import { sacarFondo } from "./domain/recorteFoto.js";
 import { CAMPOS } from "./domain/lesionesCampos.js";
@@ -28,8 +30,9 @@ import "@fontsource/roboto-condensed/latin-500.css";
 import "@fontsource/roboto-condensed/latin-700.css";
 
 // Los reportes de Lesiones. "Ver reportes": el individual (la hoja "Reporte
-// de Lesiones IND" del Excel, con las mismas cuentas y mejor presentada) y el
-// grupal; "Crear reportes", lo que sigue. Las cuentas cada 1000 horas usan
+// de Lesiones IND" del Excel, con las mismas cuentas y mejor presentada), el
+// grupal y "Lesiones c/1000h y días perdidos" (el contador por período de
+// "Antecedentes BD", ReporteCadaMil.jsx); "Crear reportes", lo que sigue. Las cuentas cada 1000 horas usan
 // los minutos del GPS: gps es [{ jugadorId, fecha, minutos }], o null
 // mientras la app no los tenga. estado: los avisos de la carga (sin conexión,
 // error, cargando), como en las otras pantallas; sin datosListos no se
@@ -49,14 +52,6 @@ const COLUMNAS_DEL_REPORTE = ["numero_registro", "parte_cuerpo", "tipo_lesion", 
 const COLUMNAS_CORTAS = new Set(["numero_registro", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_alta", "recuperacion"]);
 
 const CAMPO_POR_CLAVE = Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo]));
-
-// El nombre de cada columna del cuadro, el del Excel: "Severidad (SIN
-// LEVES) y Tipos (SOLO LM)".
-const tituloDeVariante = (variante) =>
-  t("lesiones.reportes.variante", {
-    severidad: t(variante.sinLeves ? "lesiones.reportes.severidadSinLeves" : "lesiones.reportes.severidadTodas"),
-    tipos: t(variante.soloMusculares ? "lesiones.reportes.tiposLM" : "lesiones.reportes.tiposTodos"),
-  });
 
 // Más que el VR, en rojo; menos, en verde (la leyenda del Excel).
 const tonoContraVR = (delJugador, vr) => {
@@ -171,49 +166,6 @@ const Indicador = ({ titulo, valor, unidad, referencia, comparado, porcentaje, t
   </div>
 );
 
-// El cuadro del Excel: las cuatro columnas (severidad todas o sin leves, de
-// todos los tipos o solo LM) y una fila por medida: [{ id, rotulo, clase?,
-// celdas: [{ texto, tono? }] }].
-const CuadroCadaMil = ({ titulo, filas }) => (
-  <div className="informe-bloque">
-    <h3 className="informe-cuadro-titulo">{titulo}</h3>
-    <div className="informe-cuadro-marco">
-      <table className="informe-cuadro" aria-label={titulo}>
-        <thead>
-          <tr>
-            <td rowSpan={2} />
-            <th scope="colgroup" colSpan={2}>
-              {t("lesiones.reportes.tiposTodos")}
-            </th>
-            <th scope="colgroup" colSpan={2} className="informe-lm">
-              {t("lesiones.reportes.tiposLM")}
-            </th>
-          </tr>
-          <tr>
-            {VARIANTES.map((variante) => (
-              <th scope="col" key={variante.id}>
-                {t(variante.sinLeves ? "lesiones.reportes.severidadSinLeves" : "lesiones.reportes.severidadTodas")}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filas.map((fila) => (
-            <tr key={fila.id} className={fila.clase}>
-              <th scope="row">{fila.rotulo}</th>
-              {fila.celdas.map((celda, indice) => (
-                <td key={VARIANTES[indice].id} className={celda.tono || undefined}>
-                  {celda.texto}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-);
-
 // La foto del jugador (la de Datos básicos). Si tiene un fondo liso y claro
 // (las del club) se le saca y el jugador queda parado sobre la cabecera
 // negra; si no se puede (otra clase de foto, o un sitio que no deja leerla),
@@ -282,7 +234,7 @@ const FotoDelJugador = ({ jugador }) => {
 
 // ------------------------------------------------------------- Reportes --
 
-export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy, etiqueta, textoDeOpcion, enPantalla, camposVisibles, gps = null, estado = null, datosListos = true }) {
+export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy, etiqueta, textoDeOpcion, enPantalla, camposVisibles, gps = null, estado = null, datosListos = true, onAviso = null }) {
   const { idioma, plural } = useIdioma();
   const [modo, setModo] = useState("menu");
   const [jugadorId, setJugadorId] = useState("");
@@ -314,7 +266,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
             {t("lesiones.reportes.cambiarJugador")}
           </button>
         )}
-        {datosListos && (modo === "grupal" || jugador) && (
+        {datosListos && (modo === "grupal" || modo === "cadaMil" || jugador) && (
           <button type="button" className="boton-principal" onClick={() => window.print()}>
             <Icono nombre="documento" size={16} />
             {t("lesiones.reportes.imprimir")}
@@ -354,6 +306,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
             </div>
             {tarjeta("individual", "usuario", t("lesiones.reportes.individual"), t("lesiones.reportes.individualTexto"))}
             {tarjeta("grupal", "formacion", t("lesiones.reportes.grupal"), t("lesiones.reportes.grupalTexto"))}
+            {tarjeta("cadaMil", "grafico", t("lesiones.cadaMil.opcion"), t("lesiones.cadaMil.opcionTexto"))}
           </section>
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">
@@ -377,6 +330,11 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
         </div>
       </div>
     );
+  }
+
+  // ------------------------------------- Lesiones c/1000h y días perdidos --
+  if (modo === "cadaMil") {
+    return <ReporteCadaMil lesiones={lesiones} gps={gps} hoy={hoy} equipo={equipo} acciones={acciones} estado={estado} numero={numero} criterio={criterio} onAviso={onAviso} />;
   }
 
   // --------------------------------------------------------- Individual --
