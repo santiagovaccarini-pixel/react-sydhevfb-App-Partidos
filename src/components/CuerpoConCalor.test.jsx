@@ -62,6 +62,21 @@ describe("CuerpoConCalor", () => {
     expect(contenedor.querySelector('[data-vista="frente"] .cuerpo-calor-nombre text').getAttribute("lengthAdjust")).toBe("spacingAndGlyphs");
   });
 
+  test("los nombres se parten después de una barra, y si son muchos no se salen por arriba", async () => {
+    const muchas = Array.from({ length: 30 }, (_, i) => mancha(`m${i}`, 90, 20 + i, 30 - i, `nombre largo numero ${i}`));
+    await montar({ manchas: { frente: [mancha("q", 90, 220, 1, "QUADRIL/VIRILHA")], espalda: muchas } });
+    const frente = contenedor.querySelector('[data-vista="frente"]');
+    expect([...frente.querySelectorAll(".cuerpo-calor-nombre text")].map((texto) => texto.textContent)).toEqual(["QUADRIL/", "VIRILHA"]);
+    const espalda = contenedor.querySelector('[data-vista="espalda"]');
+    const alturas = [...espalda.querySelectorAll(".cuerpo-calor-nombre text")].map((texto) => Number(texto.getAttribute("y")));
+    expect(alturas.length).toBeGreaterThan(5);
+    expect(alturas.length).toBeLessThan(30);
+    expect(Math.min(...alturas)).toBeGreaterThan(0);
+    expect(Math.max(...alturas)).toBeLessThan(440);
+    // Las 30 manchas se ven igual, aunque algunas queden sin nombre.
+    expect(espalda.querySelectorAll(".cuerpo-calor-mancha")).toHaveLength(30);
+  });
+
   test("como mucho maxNombres nombres por vista: las otras manchas, sin nombre", async () => {
     await montar({ maxNombres: 1, manchas: { frente: [mancha("a", 90, 250, 2), mancha("b", 110, 320)], espalda: [] } });
     const frente = contenedor.querySelector('[data-vista="frente"]');

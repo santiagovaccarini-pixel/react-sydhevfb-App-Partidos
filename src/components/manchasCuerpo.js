@@ -14,15 +14,19 @@ const SOLO_DE_ESPALDAS = ["coluna_lombar"];
 // El medio de unos puntos.
 const medioDe = (puntos) => [puntos.reduce((suma, [x]) => suma + x, 0) / puntos.length, puntos.reduce((suma, [, y]) => suma + y, 0) / puntos.length];
 
-// El medio del rectángulo que ocupa un camino (las partes de la figura son
-// rectas y curvas con coordenadas absolutas).
-const medioDeCamino = (camino) => {
+// El rectángulo que ocupa un camino (las partes de la figura son rectas y
+// curvas con coordenadas absolutas): { x0, x1, y0, y1 }.
+const cajaDeCamino = (camino) => {
   const numeros = (String(camino).match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
   const xs = numeros.filter((_, i) => i % 2 === 0);
   const ys = numeros.filter((_, i) => i % 2 === 1);
   if (!xs.length || !ys.length) return null;
-  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
 };
+
+// Cuánto se puede pasar un músculo del alto de la parte lesionada y seguir
+// contando (el borde de un músculo que llega a la rodilla, por ejemplo).
+const MARGEN_DE_LA_PARTE = 4;
 
 // Lo que se busca dibujado, de lo más chico a lo más grande: el músculo o
 // tendón específico, el ligamento y el grupo muscular (sus músculos de esa
@@ -58,19 +62,39 @@ export const dondeVa = (lesion, mapa) => {
   // En el tronco cada mitad tiene su lado; lo del medio, ninguno.
   const delLado = (una) => !una.lado || !["direito", "esquerdo"].includes(lado) || una.lado === lado;
 
+  // La parte lesionada en cada vista (sin espejar, como están dibujadas).
+  const cajaDeLaParte = (vista) => {
+    const laPieza = dibujoDe(region, vista)?.piezas.find((una) => una.parte === pieza);
+    return laPieza ? cajaDeCamino(laPieza.camino) : null;
+  };
+  // El medio de la parte; en el tronco y la cabeza (que no tienen lado),
+  // corrido a la mitad del lado del jugador.
+  const medioDeLaParte = (vista, caja) => {
+    let x = (caja.x0 + caja.x1) / 2;
+    if (!dibujoDe(region, vista)?.espejada && !region.includes("_") && ["direito", "esquerdo"].includes(lado)) {
+      const aLaIzquierda = (lado === "direito") === (vista === "frente");
+      x = aLaIzquierda ? (caja.x0 + ANCHO / 2) / 2 : (ANCHO / 2 + caja.x1) / 2;
+    }
+    return [x, (caja.y0 + caja.y1) / 2];
+  };
+
   for (const buscado of buscadosDe(datos, pieza)) {
     for (const vista of vistas) {
       const encontradas = estructurasDe(region, vista).filter((una) => buscado.es(una) && delLado(una));
       if (!encontradas.length) continue;
-      const [x, y] = espejar(vista, medioDe(encontradas.flatMap((una) => una.puntos)));
+      // Solo lo que cae en la parte lesionada: un isquiotibial cargado en la
+      // rodilla va en la rodilla, no en el medio del muslo.
+      const caja = cajaDeLaParte(vista);
+      const puntos = encontradas.flatMap((una) => una.puntos);
+      const enLaParte = caja ? puntos.filter(([, y]) => y >= caja.y0 - MARGEN_DE_LA_PARTE && y <= caja.y1 + MARGEN_DE_LA_PARTE) : puntos;
+      const [x, y] = espejar(vista, enLaParte.length >= 3 ? medioDe(enLaParte) : caja ? medioDeLaParte(vista, caja) : medioDe(puntos));
       return { vista, x, y, campo: buscado.campo, codigo: buscado.nombre };
     }
   }
   for (const vista of vistas) {
-    const laPieza = dibujoDe(region, vista)?.piezas.find((una) => una.parte === pieza);
-    const medio = laPieza && medioDeCamino(laPieza.camino);
-    if (!medio) continue;
-    const [x, y] = espejar(vista, medio);
+    const caja = cajaDeLaParte(vista);
+    if (!caja) continue;
+    const [x, y] = espejar(vista, medioDeLaParte(vista, caja));
     return { vista, x, y, campo: "parte_cuerpo", codigo: parte };
   }
   return null;

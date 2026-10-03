@@ -1,4 +1,4 @@
-import React, { useId } from "react";
+import React, { useId, useLayoutEffect, useRef } from "react";
 import { ALTO, ANCHO, ORDEN_DE_REGIONES, dibujoDe } from "./siluetaCuerpo.js";
 import cuerpoDeFrente from "../assets/cuerpo-frente.webp";
 import cuerpoDeEspaldas from "../assets/cuerpo-espalda.webp";
@@ -32,27 +32,50 @@ const LETRA = 13.5;
 const RENGLON = 15;
 const ENTRE_NOMBRES = 7;
 const LETRAS_POR_RENGLON = 13;
-// Lo que ocupa cada letra de la letra angosta en mayúsculas (aproximado): un
-// renglón que no entra en su costado se angosta para que no quede cortado.
-const ANCHO_DE_LETRA = 0.58;
+// Un renglón que no entra en su costado se angosta para que no quede
+// cortado. Primero se calcula con lo que ocupa cada letra de la letra
+// angosta en mayúsculas (de más: solo los que seguro no entran) y después,
+// en el navegador, se mide de verdad.
+const ANCHO_DE_LETRA = 0.62;
 const LUGAR_DEL_NOMBRE = COSTADO - 14;
 const ajusteDe = (renglon) => (renglon.length * LETRA * ANCHO_DE_LETRA > LUGAR_DEL_NOMBRE ? { textLength: LUGAR_DEL_NOMBRE, lengthAdjust: "spacingAndGlyphs" } : {});
+const ajustarMedidos = (svg) => {
+  if (!svg?.isConnected) return;
+  svg.querySelectorAll(".cuerpo-calor-nombre text").forEach((texto) => {
+    if (typeof texto.getComputedTextLength !== "function") return;
+    texto.removeAttribute("textLength");
+    texto.removeAttribute("lengthAdjust");
+    let largo = 0;
+    try {
+      largo = texto.getComputedTextLength();
+    } catch {
+      return;
+    }
+    if (largo > LUGAR_DEL_NOMBRE) {
+      texto.setAttribute("textLength", String(LUGAR_DEL_NOMBRE));
+      texto.setAttribute("lengthAdjust", "spacingAndGlyphs");
+    }
+  });
+};
 // El tamaño de la mancha: más lesiones, más grande (hasta cuatro).
 const radioDe = (cantidad) => 18 + 5 * Math.min(cantidad - 1, 3);
 
 // Un id que sirve adentro de url(#…).
 const useIdLimpio = () => `calor-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
-// El nombre partido en renglones cortos.
+// El nombre partido en renglones cortos: entre palabras o después de una
+// barra (TORNOZELO/PÉ).
 const renglonesDe = (texto) =>
   String(texto || "")
     .toUpperCase()
     .split(/\s+/)
     .filter(Boolean)
-    .reduce((renglones, palabra) => {
+    .flatMap((palabra) => palabra.split(/(?<=\/)/).map((pedazo, indice) => ({ pedazo, pegado: indice > 0 })))
+    .reduce((renglones, { pedazo, pegado }) => {
       const ultimo = renglones[renglones.length - 1];
-      if (ultimo && `${ultimo} ${palabra}`.length <= LETRAS_POR_RENGLON) renglones[renglones.length - 1] = `${ultimo} ${palabra}`;
-      else renglones.push(palabra);
+      const junto = ultimo === undefined ? pedazo : `${ultimo}${pegado ? "" : " "}${pedazo}`;
+      if (ultimo !== undefined && junto.length <= LETRAS_POR_RENGLON) renglones[renglones.length - 1] = junto;
+      else renglones.push(pedazo);
       return renglones;
     }, []);
 
@@ -68,14 +91,18 @@ const nombresDe = (manchas, nombreDe, maxNombres) => {
     grupo.cantidad += mancha.cantidad;
     porNombre.set(nombre, grupo);
   });
-  const grupos = [...porNombre.values()]
+  const conMasLesiones = [...porNombre.values()]
     .sort((a, b) => b.cantidad - a.cantidad)
     .slice(0, maxNombres)
     .map((grupo) => {
       const renglones = renglonesDe(grupo.cantidad > 1 ? `${grupo.nombre} ×${grupo.cantidad}` : grupo.nombre);
       return { ...grupo, renglones, alto: renglones.length * RENGLON, y: grupo.manchas.reduce((suma, mancha) => suma + mancha.y, 0) / grupo.manchas.length };
-    })
-    .sort((a, b) => a.y - b.y);
+    });
+  // Los que no entran en el alto de la figura quedan sin nombre (los de
+  // menos lesiones): si no, se saldrían por arriba.
+  const ocupan = (lista) => lista.reduce((suma, grupo) => suma + grupo.alto, 0) + ENTRE_NOMBRES * Math.max(lista.length - 1, 0);
+  while (conMasLesiones.length > 1 && ocupan(conMasLesiones) > ALTO - 8) conMasLesiones.pop();
+  const grupos = conMasLesiones.sort((a, b) => a.y - b.y);
   let piso = 6;
   grupos.forEach((grupo) => {
     grupo.arriba = Math.max(grupo.y - grupo.alto / 2, piso);
@@ -142,8 +169,15 @@ const Vista = ({ id, vista, manchas, nombreDe, maxNombres, texto }) => {
 
 export const CuerpoConCalor = ({ manchas, nombreDe, maxNombres = Infinity, vistas, titulo }) => {
   const id = useIdLimpio();
+  const svg = useRef(null);
+  // Los nombres medidos de verdad (y de nuevo cuando llega la letra).
+  useLayoutEffect(() => {
+    const actual = svg.current;
+    ajustarMedidos(actual);
+    document.fonts?.ready?.then(() => ajustarMedidos(actual));
+  });
   return (
-    <svg className="cuerpo-calor" viewBox={`0 0 ${ANCHO_TOTAL} ${ALTO_TOTAL}`} role="img" aria-label={titulo}>
+    <svg ref={svg} className="cuerpo-calor" viewBox={`0 0 ${ANCHO_TOTAL} ${ALTO_TOTAL}`} role="img" aria-label={titulo}>
       <defs>
         <radialGradient id={`${id}-calor`}>
           <stop offset="0" stopColor="#fff8cf" stopOpacity="1" />
