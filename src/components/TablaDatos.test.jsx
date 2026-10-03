@@ -353,4 +353,42 @@ describe("la tabla estilo Excel", () => {
     await tocar(celda(contenedor, 0, 3));
     expect(editados).toEqual([]);
   });
+
+  test("una fila apagada va en otro color, con la leyenda arriba; sin ninguna a la vista, la leyenda guarda su lugar", async () => {
+    const leyenda = "En este color, los que ya no están";
+    await montar({ leyenda, rotuloApagada: "Ya no está" });
+    expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(true);
+    // No se ve pero guarda su lugar (visibility, no display: la tabla no se corre).
+    expect(getComputedStyle(contenedor.querySelector(".tabla-datos-leyenda")).visibility).toBe("hidden");
+    expect(getComputedStyle(contenedor.querySelector(".tabla-datos-leyenda")).display).not.toBe("none");
+    expect(contenedor.querySelectorAll("tbody tr.apagada")).toHaveLength(0);
+
+    await montar({ leyenda, rotuloApagada: "Ya no está", filas: [filas[0], { ...filas[1], apagada: true }] });
+    expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(false);
+    expect(getComputedStyle(contenedor.querySelector(".tabla-datos-leyenda")).visibility).toBe("visible");
+    expect(contenedor.querySelector(".tabla-datos-leyenda").textContent).toBe(leyenda);
+    const [hulk, scarpa] = contenedor.querySelectorAll("tbody tr");
+    expect(hulk.classList.contains("apagada")).toBe(false);
+    expect(scarpa.classList.contains("apagada")).toBe(true);
+    expect(scarpa.querySelector("th").title).toBe("Ya no está");
+    const fondo = (elemento) => getComputedStyle(elemento).backgroundColor;
+    // Una celda fija (Edad) de la fila apagada va en su tono, distinto del de
+    // una fija de una fila común. (jsdom no resuelve var(): el color de las
+    // que se cambian se mira en el navegador.)
+    expect(fondo(celda(contenedor, 1, 1))).toBe("rgb(219, 212, 201)");
+    expect(fondo(celda(contenedor, 0, 1))).toBe("rgb(250, 250, 250)");
+    // Elegida, la celda se ve elegida (no del color de la fila).
+    await tocar(celda(contenedor, 1, 0));
+    expect(celda(contenedor, 1, 0).classList.contains("elegida")).toBe(true);
+    expect(fondo(celda(contenedor, 1, 0))).toBe("rgb(220, 252, 231)");
+    expect(scarpa.classList.contains("activa")).toBe(true);
+
+    // Un filtro que deja afuera a las apagadas: la leyenda no se ve (y no corre la tabla).
+    await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Nombre"]'));
+    await tocar([...document.querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
+    await tocar([...document.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent.startsWith("HULK")).querySelector("input"));
+    await tocar([...document.querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(true);
+  });
 });

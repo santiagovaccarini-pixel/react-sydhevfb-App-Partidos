@@ -711,6 +711,8 @@ export default function Lesiones({ onVolver }) {
         valores: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo.tipo === "jugador" ? lesion.jugador_id : valorDe(lesion, campo.clave)])),
         textos: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, enPantalla(campo, lesion)])),
         orden: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, ordenDe(campo, lesion)]).filter(([, valor]) => valor !== undefined)),
+        // La lesión de alguien que ya no está en el plantel actual, en otro color.
+        apagada: Boolean(lesion.jugador_id && jugadorDe(lesion.jugador_id) && !esActual(jugadorDe(lesion.jugador_id))),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [lesiones, plantel, config, idioma],
@@ -781,6 +783,8 @@ export default function Lesiones({ onVolver }) {
       filas={filas}
       onEditar={editarCelda}
       onPegar={pegarEnBase}
+      leyenda={t("datos.leyendaYaNoEsta")}
+      rotuloApagada={t("datos.yaNoEsta")}
       onAbrirFila={abrirFicha}
       onBorrarFila={
         soloLectura

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
@@ -7,7 +7,7 @@ import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarJugadores from "./ImportarJugadores.jsx";
 import { PosicionesJugadores } from "./components/PosicionesPartido.jsx";
 import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
-import { guardarPuestos } from "./domain/plantel.js";
+import { esActual, guardarPuestos } from "./domain/plantel.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { diasEntre } from "./domain/lesiones.js";
 import { textoDeHoras } from "./domain/tabla.js";
@@ -144,7 +144,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
           id: jugador.id,
           valores: {
             nombre: jugador.nombre,
-            actual: jugador.actual !== false,
+            actual: esActual(jugador),
             categoria: jugador.categoria || "",
             fecha_nacimiento: jugador.fecha_nacimiento || "",
             edad,
@@ -155,7 +155,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
           },
           textos: {
             nombre: jugador.nombre,
-            actual: t(jugador.actual !== false ? "comun.si" : "comun.no"),
+            actual: t(esActual(jugador) ? "comun.si" : "comun.no"),
             categoria: textoDeOpcion("categoria", jugador.categoria),
             fecha_nacimiento: fechaCorta(jugador.fecha_nacimiento),
             edad: edad === null ? "" : plural("lesiones.anios", edad),
@@ -164,6 +164,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
             foto_url: jugador.foto_url || "",
             horas_previas: textoDeHoras(jugador.horas_previas),
           },
+          // Quien ya no está en el plantel actual, en otro color.
+          apagada: !esActual(jugador),
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,9 +186,28 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     }
   };
 
+  // Cuántas veces se guardó algo de cada jugador: lo que no se pudo guardar
+  // solo vuelve atrás si mientras tanto no se guardó otra cosa de él.
+  const guardadosBien = useRef(new Map());
+  const guardar = async (jugadorId, datos) => {
+    const respuesta = await guardarDatosJugador(jugadorId, datos);
+    if (!respuesta.error) guardadosBien.current.set(jugadorId, (guardadosBien.current.get(jugadorId) || 0) + 1);
+    return respuesta;
+  };
+
+  // Una casilla (Actual) se ve cambiada al toque, con el color de la fila y
+  // el contador; si no se puede guardar, vuelve a como estaba.
   const editarCelda = async (jugadorId, clave, valor) => {
-    const respuesta = await guardarDatosJugador(jugadorId, { [clave]: valor });
-    if (respuesta.error) return { error: respuesta.error };
+    const alToque = COLUMNAS.find((columna) => columna.clave === clave)?.tipo === "casilla";
+    const antes = plantel.find((uno) => uno.id === jugadorId);
+    const vez = guardadosBien.current.get(jugadorId) || 0;
+    if (alToque && antes) setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: valor } : uno)));
+    const respuesta = await guardar(jugadorId, { [clave]: valor });
+    if (respuesta.error) {
+      if (alToque && antes && (guardadosBien.current.get(jugadorId) || 0) === vez)
+        setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: antes[clave] } : uno)));
+      return { error: respuesta.error };
+    }
     reemplazar(respuesta.jugador);
     return {};
   };
@@ -200,7 +221,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     let hechos = 0;
     let ultimoError = "";
     for (const [jugadorId, datos] of porJugador) {
-      const respuesta = await guardarDatosJugador(jugadorId, datos); // eslint-disable-line no-await-in-loop
+      const respuesta = await guardar(jugadorId, datos); // eslint-disable-line no-await-in-loop
       if (respuesta.error) {
         ultimoError = respuesta.error;
         continue;
@@ -301,7 +322,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
               <strong className="nombre-sesion">{equipo?.nombre || t("datos.titulo")}</strong>
               <p className="fecha-hero">{vista === "jugadores" ? t("datos.texto") : t("datos.textoCorto")}</p>
               <span className="estado-hero">
-                {plural("datos.jugadores", plantel.length)} · {plural("datos.actuales", plantel.filter((jugador) => jugador.actual !== false).length)}
+                {plural("datos.jugadores", plantel.length)} · {plural("datos.actuales", plantel.filter(esActual).length)}
               </span>
             </div>
           </header>
@@ -345,6 +366,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
               filas={filas}
               onEditar={editarCelda}
               onPegar={pegar}
+              leyenda={t("datos.leyendaYaNoEsta")}
+              rotuloApagada={t("datos.yaNoEsta")}
               onBorrarFila={
                 soloLectura
                   ? undefined

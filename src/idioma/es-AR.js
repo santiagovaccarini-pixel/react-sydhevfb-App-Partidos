@@ -172,6 +172,7 @@ export default {
     horasPrevias: "Horas previas",
     actual: "Actual",
     yaNoEsta: "Ya no está",
+    leyendaYaNoEsta: "En este color, los que ya no están en el plantel actual (Datos básicos › Actual).",
     actuales_one: "{{n}} en el plantel actual",
     actuales_other: "{{n}} en el plantel actual",
     agregado: "Jugador agregado",
