@@ -408,10 +408,13 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
     const columnasAVer = COLUMNAS_DEL_REPORTE.filter((clave) => visibles.has(clave) && CAMPO_POR_CLAVE[clave]);
     const registro = (lesion) => calcular("numero_registro", lesion, null, { lesiones }) ?? 0;
     const ordenadas = [...deJugador].sort((a, b) => registro(a) - registro(b) || String(a.fecha_lesion).localeCompare(String(b.fecha_lesion)));
+    // Las opciones del club que vienen pegadas con barras (ENTORSE/LESÃO
+    // LIGAMENTAR) se pueden partir después de cada barra.
     const celda = (clave, lesion) => {
       const valor = enPantalla(CAMPO_POR_CLAVE[clave], lesion);
       if (valor === "" || valor === null || valor === undefined) return <span className="informe-vacio">—</span>;
-      return clave === "severidad" ? <span className="informe-severidad">{valor}</span> : valor;
+      if (clave === "severidad") return <span className="informe-severidad">{valor}</span>;
+      return typeof valor === "string" ? valor.replace(/\//g, "/\u200b") : valor;
     };
 
     return (
