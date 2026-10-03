@@ -353,4 +353,21 @@ describe("la tabla estilo Excel", () => {
     await tocar(celda(contenedor, 0, 3));
     expect(editados).toEqual([]);
   });
+
+  test("una fila apagada va en otro color, con la leyenda arriba; si no hay ninguna, no hay leyenda", async () => {
+    await montar({ leyenda: "Ya no está en el plantel actual" });
+    expect(contenedor.querySelector(".tabla-datos-leyenda")).toBeNull();
+    expect(contenedor.querySelectorAll("tbody tr.apagada")).toHaveLength(0);
+
+    await montar({ leyenda: "Ya no está en el plantel actual", filas: [filas[0], { ...filas[1], apagada: true }] });
+    expect(contenedor.querySelector(".tabla-datos-leyenda").textContent).toBe("Ya no está en el plantel actual");
+    const [hulk, scarpa] = contenedor.querySelectorAll("tbody tr");
+    expect(hulk.classList.contains("apagada")).toBe(false);
+    expect(scarpa.classList.contains("apagada")).toBe(true);
+    expect(scarpa.querySelector("th").title).toBe("Ya no está en el plantel actual");
+    // Elegida, la celda se ve elegida igual.
+    await tocar(celda(contenedor, 1, 0));
+    expect(celda(contenedor, 1, 0).classList.contains("elegida")).toBe(true);
+    expect(scarpa.classList.contains("activa")).toBe(true);
+  });
 });

@@ -57,6 +57,8 @@
 }
 
 .tabla-datos-tabla {
+  /* El alto de la fila de los grupos: las cabeceras quedan fijas debajo. */
+  --tabla-datos-alto-grupos: 34px;
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -70,10 +72,11 @@
   padding: 9px 10px;
   background: #111827;
   color: #fff;
-  font-size: 10px;
+  /* Los títulos de las bases: centrados y bien legibles. */
+  font-size: 11.5px;
   font-weight: 800;
   letter-spacing: 0.06em;
-  text-align: left;
+  text-align: center;
   text-transform: uppercase;
   white-space: nowrap;
   cursor: grab;
@@ -197,6 +200,37 @@
   pointer-events: none;
 }
 
+/* Una fila apagada (en las bases, alguien que ya no está en el plantel
+   actual): otro color, sin tapar lo elegido ni la fila activa. */
+.tabla-datos-tabla tr.apagada td:not(.elegida) {
+  background: #fcebc6;
+  color: #57534e;
+}
+
+.tabla-datos-tabla tr.apagada:not(.activa) th {
+  background: #f4d998;
+  color: #78591c;
+}
+
+.tabla-datos-leyenda {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tabla-datos-muestra {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #e9c97f;
+  border-radius: 4px;
+  background: #fcebc6;
+}
+
 .tabla-datos-vacia {
   padding: 18px;
   color: #64748b;
@@ -206,15 +240,25 @@
 /* La fila de los grupos (como la del Excel arriba de las cabeceras). Cada
    grupo tiene su tono, y sus cabeceras llevan una línea del mismo tono. */
 .tabla-datos-tabla thead tr.tabla-datos-grupos th {
-  height: 28px;
+  height: var(--tabla-datos-alto-grupos);
   padding: 0 10px;
   box-sizing: border-box;
-  font-size: 9.5px;
+  font-size: 13px;
   letter-spacing: 0.08em;
-  text-align: left;
+  text-align: center;
   cursor: default;
   touch-action: auto;
   border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* El título del grupo, centrado sobre sus columnas. Si el grupo es más ancho
+   que lo que se ve (en el celular), el título se corre para quedar a la vista
+   (sin taparse con el número de fila). */
+.tabla-datos-grupo-titulo {
+  position: sticky;
+  left: 60px;
+  right: 8px;
+  display: inline-block;
 }
 
 .tabla-datos-tabla thead tr.tabla-datos-grupos th.sin-grupo {
@@ -222,7 +266,7 @@
 }
 
 .tabla-datos-tabla.con-grupos thead tr.tabla-datos-cabeceras th {
-  top: 28px;
+  top: var(--tabla-datos-alto-grupos);
 }
 
 .tabla-datos-tabla thead tr.tabla-datos-grupos th.tono-0 { background: #1e3a5f; }

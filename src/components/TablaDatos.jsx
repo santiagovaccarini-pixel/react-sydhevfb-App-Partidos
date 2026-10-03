@@ -29,8 +29,11 @@ import "./tablaDatos.css";
 // si las columnas traen grupo, arriba va la fila de los grupos.
 //
 // columnas: [{ clave, titulo, tipo, editable, opciones, ancho, grupo, grupoTitulo }]
-// filas:    [{ id, valores: { clave: valor }, textos: { clave: texto }, orden?: { clave: valor } }]
-//           (`orden`, si está, es lo que se usa para ordenar esa columna)
+// filas:    [{ id, valores: { clave: valor }, textos: { clave: texto }, orden?: { clave: valor }, apagada? }]
+//           (`orden`, si está, es lo que se usa para ordenar esa columna;
+//           `apagada`, una fila que va en otro color: en las bases, alguien
+//           que ya no está en el plantel actual)
+// leyenda: qué quiere decir ese color (se ve si hay alguna fila apagada)
 // onEditar(filaId, clave, valor) → Promise<{ error }>; onPegar(cambios) → Promise<{ error, hechos }>
 // onAbrirFila(filaId), onBorrarFila(filaId)
 // recordar: con qué nombre se guardan los filtros y el orden mientras la app
@@ -73,6 +76,7 @@ export const TablaDatos = ({
   onBorrarFila,
   aviso = "",
   recordar = null,
+  leyenda = "",
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -594,6 +598,13 @@ export const TablaDatos = ({
         </div>
       </div>
 
+      {leyenda && filas.some((fila) => fila.apagada) && (
+        <p className="tabla-datos-leyenda">
+          <i className="tabla-datos-muestra" aria-hidden="true" />
+          {leyenda}
+        </p>
+      )}
+
       <div className="tabla-datos-marco" tabIndex={0} onKeyDown={alTeclear} onPaste={alPegarEvento}>
         <table className={`tabla-datos-tabla ${arrastre ? "arrastrando" : ""} ${hayGrupos ? "con-grupos" : ""}`.trim()}>
           <thead>
@@ -608,7 +619,7 @@ export const TablaDatos = ({
                     className={`tabla-datos-grupo ${tramo.grupo ? `tono-${tonoDeGrupo[tramo.grupo] ?? 0}` : "sin-grupo"}`}
                     title={tramo.titulo}
                   >
-                    {tramo.titulo}
+                    <span className="tabla-datos-grupo-titulo">{tramo.titulo}</span>
                   </th>
                 ))}
               </tr>
@@ -667,9 +678,10 @@ export const TablaDatos = ({
               </tr>
             )}
             {filasVista.map((fila, f) => (
-              <tr key={fila.id} className={activa?.f === f ? "activa" : ""}>
+              <tr key={fila.id} className={`${activa?.f === f ? "activa" : ""} ${fila.apagada ? "apagada" : ""}`.trim() || undefined}>
                 <th
                   className="tabla-datos-numero"
+                  title={fila.apagada && leyenda ? leyenda : undefined}
                   onClick={(evento) => elegirFila(f, evento.shiftKey)}
                   onDoubleClick={() => onAbrirFila?.(fila.id)}
                 >

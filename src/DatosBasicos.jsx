@@ -7,7 +7,7 @@ import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarJugadores from "./ImportarJugadores.jsx";
 import { PosicionesJugadores } from "./components/PosicionesPartido.jsx";
 import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
-import { guardarPuestos } from "./domain/plantel.js";
+import { esActual, guardarPuestos } from "./domain/plantel.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { diasEntre } from "./domain/lesiones.js";
 import { textoDeHoras } from "./domain/tabla.js";
@@ -144,7 +144,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
           id: jugador.id,
           valores: {
             nombre: jugador.nombre,
-            actual: jugador.actual !== false,
+            actual: esActual(jugador),
             categoria: jugador.categoria || "",
             fecha_nacimiento: jugador.fecha_nacimiento || "",
             edad,
@@ -155,7 +155,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
           },
           textos: {
             nombre: jugador.nombre,
-            actual: t(jugador.actual !== false ? "comun.si" : "comun.no"),
+            actual: t(esActual(jugador) ? "comun.si" : "comun.no"),
             categoria: textoDeOpcion("categoria", jugador.categoria),
             fecha_nacimiento: fechaCorta(jugador.fecha_nacimiento),
             edad: edad === null ? "" : plural("lesiones.anios", edad),
@@ -164,6 +164,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
             foto_url: jugador.foto_url || "",
             horas_previas: textoDeHoras(jugador.horas_previas),
           },
+          // Quien ya no está en el plantel actual, en otro color.
+          apagada: !esActual(jugador),
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,9 +186,18 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     }
   };
 
+  // Una casilla (Actual) se ve cambiada al toque, con el color de la fila y
+  // el contador; si no se puede guardar, vuelve a como estaba.
   const editarCelda = async (jugadorId, clave, valor) => {
+    const alToque = COLUMNAS.find((columna) => columna.clave === clave)?.tipo === "casilla";
+    const antes = plantel.find((uno) => uno.id === jugadorId);
+    const cambiarSoloEso = (nuevo) => setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: nuevo } : uno)));
+    if (alToque && antes) cambiarSoloEso(valor);
     const respuesta = await guardarDatosJugador(jugadorId, { [clave]: valor });
-    if (respuesta.error) return { error: respuesta.error };
+    if (respuesta.error) {
+      if (alToque && antes) cambiarSoloEso(antes[clave]);
+      return { error: respuesta.error };
+    }
     reemplazar(respuesta.jugador);
     return {};
   };
@@ -301,7 +312,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
               <strong className="nombre-sesion">{equipo?.nombre || t("datos.titulo")}</strong>
               <p className="fecha-hero">{vista === "jugadores" ? t("datos.texto") : t("datos.textoCorto")}</p>
               <span className="estado-hero">
-                {plural("datos.jugadores", plantel.length)} · {plural("datos.actuales", plantel.filter((jugador) => jugador.actual !== false).length)}
+                {plural("datos.jugadores", plantel.length)} · {plural("datos.actuales", plantel.filter(esActual).length)}
               </span>
             </div>
           </header>
@@ -345,6 +356,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
               filas={filas}
               onEditar={editarCelda}
               onPegar={pegar}
+              leyenda={t("datos.leyendaYaNoEsta")}
               onBorrarFila={
                 soloLectura
                   ? undefined

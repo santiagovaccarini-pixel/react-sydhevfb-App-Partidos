@@ -172,6 +172,7 @@ export default {
     horasPrevias: "Horas anteriores",
     actual: "Atual",
     yaNoEsta: "Já não está",
+    leyendaYaNoEsta: "Nesta cor, os que já não estão no elenco atual (Dados básicos › Atual).",
     actuales_one: "{{n}} no elenco atual",
     actuales_other: "{{n}} no elenco atual",
     agregado: "Jogador adicionado",

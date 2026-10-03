@@ -980,6 +980,25 @@ describe("el módulo Lesiones", () => {
     await tocar(boton(contenedor, "Nueva lesión"));
     const candidatos = [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")].map((b) => b.textContent);
     expect(candidatos).toEqual(["SCARPA", "HULKYa no está", "ZAGUEIROYa no está"]);
+    await tocar(boton(contenedor, "Cancelar"));
+    // En la Base, la lesión de quien se fue va en otro color, con la leyenda.
+    await navegar(contenedor, "Base");
+    const filas = [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")];
+    expect(filas.map((fila) => [fila.querySelectorAll("td")[2].textContent, fila.classList.contains("apagada")])).toEqual([["HULK", true]]);
+    expect(contenedor.querySelector(".tabla-datos-leyenda").textContent).toContain("ya no están en el plantel actual");
+  });
+
+  test("en la Base, solo va en otro color la lesión de quien desmarcaron en Actual", async () => {
+    datos.lesiones = [
+      ...datos.lesiones,
+      { ...datos.lesiones[0], id: "les-scarpa", jugador_id: 8, numero_caso: 2 },
+      { ...datos.lesiones[0], id: "les-persona", jugador_id: null, persona: "ALGUIEN DE AFUERA", numero_caso: 3 },
+    ];
+    await montar();
+    await navegar(contenedor, "Base");
+    const filas = [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")];
+    expect(filas.map((fila) => fila.classList.contains("apagada"))).toEqual([false, false, false]);
+    expect(contenedor.querySelector(".tabla-datos-leyenda")).toBeNull();
   });
 
   test("la base muestra las lesiones como el Excel y se edita y se pega en las celdas", async () => {

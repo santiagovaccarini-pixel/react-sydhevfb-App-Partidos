@@ -7,7 +7,7 @@ const plantelInicial = () => [
   { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
   { id: 8, nombre: "SCARPA", roles: [], puestos: ["VOL"], categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
 ];
-const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], puestos: [], plantel: [], fallarAgregar: "", fallarPuestos: false, equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
+const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], puestos: [], plantel: [], fallarAgregar: "", fallarPuestos: false, fallarGuardar: "", esperaGuardar: null, equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
 
 // Las posiciones de Partido y los chalecos de Catapult (plantel.js).
 vi.mock("./domain/plantel.js", async (importOriginal) => ({
@@ -40,6 +40,8 @@ vi.mock("./domain/lesionesDb.js", () => ({
   leerConfig: async () => ({ config: { campos: {}, listas: {} }, error: "" }),
   guardarDatosJugador: async (id, cambios) => {
     registro.guardados.push({ id, ...cambios });
+    if (registro.esperaGuardar) await registro.esperaGuardar;
+    if (registro.fallarGuardar) return { error: registro.fallarGuardar };
     const jugador = registro.plantel.find((uno) => uno.id === id);
     Object.assign(jugador, cambios);
     return { jugador: { ...jugador }, error: "" };
@@ -93,6 +95,8 @@ describe("el módulo Datos básicos", () => {
     await act(async () => raiz.unmount());
     contenedor.remove();
     registro.fallarPuestos = false;
+    registro.fallarGuardar = "";
+    registro.esperaGuardar = null;
     ["guardados", "agregados", "borrados", "puestos"].forEach((clave) => {
       registro[clave].length = 0;
     });
@@ -202,6 +206,37 @@ describe("el módulo Datos básicos", () => {
       { id: 7, actual: true },
     ]);
     expect(casilla(0).checked).toBe(true);
+  });
+
+  test("Actual: quien ya no está va en otro color al toque, con la leyenda; si no se guarda, vuelve como estaba", async () => {
+    await montar();
+    const fila = (n) => contenedor.querySelectorAll("tbody tr")[n];
+    const casilla = (n) => celda(contenedor, n, 1).querySelector("input[type=checkbox]");
+    expect(contenedor.querySelector(".tabla-datos-leyenda")).toBeNull();
+    expect(fila(0).classList.contains("apagada")).toBe(false);
+
+    let soltar;
+    registro.esperaGuardar = new Promise((resolver) => {
+      soltar = resolver;
+    });
+    await tocar(casilla(0));
+    // Mientras se guarda, ya se ve: el color, la leyenda y el contador.
+    expect(registro.guardados).toEqual([{ id: 7, actual: false }]);
+    expect(fila(0).classList.contains("apagada")).toBe(true);
+    expect(fila(1).classList.contains("apagada")).toBe(false);
+    expect(contenedor.querySelector(".tabla-datos-leyenda").textContent).toBe("En este color, los que ya no están en el plantel actual (Datos básicos › Actual).");
+    expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
+    await act(async () => soltar());
+    registro.esperaGuardar = null;
+    expect(fila(0).classList.contains("apagada")).toBe(true);
+
+    // Sin el SQL, marcarlo de nuevo no se guarda: vuelve a como estaba.
+    registro.fallarGuardar = "datos.error.faltaActual";
+    await tocar(casilla(0));
+    expect(casilla(0).checked).toBe(false);
+    expect(fila(0).classList.contains("apagada")).toBe(true);
+    expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
+    expect(texto(contenedor)).toContain("20261011_jugadores_actual.sql");
   });
 
   test("las horas previas se escriben como en el Excel (30:14:20) y se guardan como horas", async () => {
