@@ -247,11 +247,16 @@ describe("los reportes con los minutos del GPS", () => {
     expect(periodosGuardados.guardados).toEqual([]);
     const nombre = contenedor.querySelector(".reporte-contador-nombre input");
     await act(async () => {
-      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(nombre, "Temporada 2026");
+      // Con el espacio que deja el teclado del celular.
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(nombre, "Temporada 2026 ");
       nombre.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await tocar(botonQueEmpieza("Guardar el período"));
-    expect(periodosGuardados.guardados).toEqual([{ equipoId: "eq-1", nombre: "Temporada 2026", desde: "", hasta: hoy }]);
+    expect(periodosGuardados.guardados).toEqual([{ equipoId: "eq-1", nombre: "Temporada 2026 ", desde: "", hasta: hoy }]);
+    // Queda reconocido como guardado: no se ofrece guardarlo otra vez.
+    const guardar = contenedor.querySelector(".reporte-contador-guardar .boton-principal");
+    expect(guardar.textContent).toBe("Período guardado");
+    expect(guardar.disabled).toBe(true);
     expect([...contenedor.querySelectorAll(".reporte-periodo b")].map((b) => b.textContent)).toEqual(["Temporada 2026", "Primer trimestre"]);
     // Tocar uno guardado lo vuelve a calcular con sus fechas.
     await tocar(contenedor.querySelectorAll(".reporte-periodo")[1]);

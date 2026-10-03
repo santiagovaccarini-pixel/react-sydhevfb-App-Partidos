@@ -33,6 +33,8 @@ export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, e
   const [periodos, setPeriodos] = useState([]);
   const [errorPeriodos, setErrorPeriodos] = useState("");
   const [errorGuardar, setErrorGuardar] = useState("");
+  // El error al borrar uno va aparte del de leer la lista: se va cuando algo sale bien.
+  const [errorBorrar, setErrorBorrar] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [aBorrar, setABorrar] = useState(null);
 
@@ -70,6 +72,9 @@ export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, e
     setGuardando(false);
     if (respuesta.error) return setErrorGuardar(t(respuesta.error));
     setErrorGuardar("");
+    setErrorBorrar("");
+    // Como quedó guardado (sin espacios de más).
+    setNombre(respuesta.periodo.nombre);
     setPeriodos((anteriores) => [...anteriores, respuesta.periodo]);
     onAviso?.(t("lesiones.cadaMil.guardado"));
     return undefined;
@@ -80,7 +85,8 @@ export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, e
     setABorrar(null);
     if (!periodo) return;
     const respuesta = await borrarPeriodo(periodo.id);
-    if (respuesta.error) return setErrorPeriodos(respuesta.error);
+    if (respuesta.error) return setErrorBorrar(respuesta.error);
+    setErrorBorrar("");
     setPeriodos((anteriores) => anteriores.filter((uno) => uno.id !== periodo.id));
     onAviso?.(t("lesiones.cadaMil.borrado"));
     return undefined;
@@ -94,7 +100,7 @@ export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, e
         { id: "diasMil", clase: "informe-fila-jugador", rotulo: t("lesiones.reportes.diasMil"), celdas: contador.filas.map((fila) => ({ texto: numero(fila.diasCadaMil) })) },
       ]
     : [];
-  const elegido = periodos.find((periodo) => periodo.nombre === nombre && (periodo.desde || "") === desde && periodo.hasta === hasta) || null;
+  const elegido = periodos.find((periodo) => periodo.nombre === nombre.trim() && (periodo.desde || "") === desde && periodo.hasta === hasta) || null;
 
   return (
     <div className="app reporte">
@@ -186,6 +192,11 @@ export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, e
             <b>{t("lesiones.cadaMil.guardados")}</b>
           </div>
           {errorPeriodos && <div className="lesiones-estado error">{t(errorPeriodos)}</div>}
+          {errorBorrar && (
+            <div className="lesiones-estado error" role="alert">
+              {t(errorBorrar)}
+            </div>
+          )}
           {!errorPeriodos && periodos.length === 0 && <p className="vacio-ficha">{t("lesiones.cadaMil.sinGuardados")}</p>}
           <ul className="reporte-periodos-lista">
             {ordenarPeriodos(periodos).map((periodo) => {
