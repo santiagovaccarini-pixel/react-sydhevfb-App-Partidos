@@ -27,11 +27,14 @@ import {
   ponerJugador,
   puestosDeCancha,
   titularesDeCancha,
+  nombresDelRegistro,
 } from "./domain/formacion";
 import {
   CLAVE_PLANTEL,
   cargarPlantel,
   nombresDelPlantel,
+  esActual,
+  plantelParaElegir,
   plantelDeRespaldo,
 } from "./domain/plantel";
 import {
@@ -233,7 +236,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.03.18";
+const APP_VERSION = "2026.10.03.19";
 const VERSION_BORRADOR = 2;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
@@ -1417,8 +1420,11 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   const [avisoEquipo, setAvisoEquipo] = useState("");
   const [errorEquipo, setErrorEquipo] = useState("");
 
-  // Los desplegables de nombre de toda la app leen el plantel de acá.
-  const nombresPlantel = useMemo(() => nombresDelPlantel(plantel), [plantel]);
+  // Los desplegables de nombre de toda la app leen el plantel de acá: el de
+  // hoy (Datos básicos › Actual). Los partidos guardan los nombres como
+  // texto, así que uno viejo sigue mostrando a quien se fue.
+  const plantelActual = useMemo(() => plantel.filter(esActual), [plantel]);
+  const nombresPlantel = useMemo(() => nombresDelPlantel(plantelActual), [plantelActual]);
   const [equipoCambios, setEquipoCambios] = useState("atletico");
   const formacionInicial = registro.formacion || crearFormacionVacia();
   const hayFormacionInicial =
@@ -4453,7 +4459,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             <CanchaFormacion
               titulo="Titulares de campo"
               cancha={formacionTemporal.cancha}
-              plantel={plantel}
+              plantel={plantelActual}
               onCambiar={actualizarCanchaTemporal}
             />
           </section>
@@ -5604,6 +5610,10 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     ];
 
     const convocadosEditados = editado.formacion?.convocados || [];
+    // Para elegir en un partido viejo: el plantel de hoy y los que jugaron
+    // ese partido (lo guardado y lo que se está editando), aunque ya no estén.
+    const plantelDelPartidoEditado = plantelParaElegir(plantel, { nombres: [...nombresDelRegistro(item), ...nombresDelRegistro(editado)] });
+    const nombresDelPartidoEditado = nombresDelPlantel(plantelDelPartidoEditado);
 
     return (
       <div className="app">
@@ -5800,7 +5810,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                 <CanchaFormacion
                   titulo="Titulares de campo"
                   cancha={editado.formacion?.cancha}
-                  plantel={plantel}
+                  plantel={plantelDelPartidoEditado}
                   onCambiar={actualizarCanchaEditada}
                 />
               </section>
@@ -5836,6 +5846,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                       <InputJugador
                         value={jugador}
                         placeholder={`Convocado ${convocadoIndex + 1}`}
+                        opciones={nombresDelPartidoEditado}
                         onChange={(valor) =>
                           actualizarConvocadoEditado(convocadoIndex, valor)
                         }

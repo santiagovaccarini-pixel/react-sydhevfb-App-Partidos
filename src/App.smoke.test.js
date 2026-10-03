@@ -2557,6 +2557,17 @@ describe("interfaz operativa", () => {
     // El primer puesto es de defensa: sin nadie de esa línea, se ofrecen todos.
     expect(await ofrecidosEnLaCancha(0)).toEqual(["ALONSO", "HULK"]);
   });
+  test("la cancha ofrece solo el plantel actual (Datos básicos › Actual)", async () => {
+    doblesSupabase.jugadores = [
+      { id: 1, nombre: "ALONSO", roles: ["Mediocampo"], puestos: ["VM"], actual: true },
+      { id: 2, nombre: "HULK", roles: ["Ataque"], puestos: ["DEL"], actual: false },
+      { id: 3, nombre: "SCARPA", roles: [], puestos: [] },
+    ];
+
+    await montarApp();
+
+    expect(await ofrecidosEnLaCancha(0)).toEqual(["ALONSO", "SCARPA"]);
+  });
   test("un partido se puede cargar de visitante y los escudos se dan vuelta", async () => {
     await montarApp();
 
@@ -3343,7 +3354,7 @@ describe("interfaz operativa", () => {
     await montarApp();
 
     expect(await ofrecidosEnLaCancha(0)).toEqual([]);
-    expect(contenedor.textContent).toContain("No hay nadie cargado en el plantel. Se agregan en Datos básicos.");
+    expect(contenedor.textContent).toContain("No hay nadie en el plantel actual. Se agregan (y se marcan en Actual) en Datos básicos.");
   });
   test("bloquea el doble guardado y confirma la sincronización", async () => {
     await montarApp();

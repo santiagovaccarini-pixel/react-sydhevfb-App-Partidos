@@ -196,6 +196,16 @@ export const puestosDeCancha = (cancha) => {
 export const titularesDeCancha = (cancha) =>
   puestosDeCancha(cancha).map((puesto) => puesto.nombre);
 
+// Todos los nombres de un partido guardado: la cancha, los titulares, los
+// convocados y los cambios (los que entraron y salieron).
+export const nombresDelRegistro = (registro) =>
+  [
+    ...(registro?.formacion?.cancha ? titularesDeCancha(registro.formacion.cancha) : []),
+    ...(Array.isArray(registro?.formacion?.titulares) ? registro.formacion.titulares : []),
+    ...(Array.isArray(registro?.formacion?.convocados) ? registro.formacion.convocados : []),
+    ...(Array.isArray(registro?.cambios) ? registro.cambios.flatMap((cambio) => [cambio?.entra, cambio?.sale]) : []),
+  ].filter((nombre) => typeof nombre === "string" && nombre.trim());
+
 /**
  * Para un registro viejo, que tiene titulares pero todavía no tiene cancha:
  * los acomoda en la formación por defecto respetando el orden en que estaban.

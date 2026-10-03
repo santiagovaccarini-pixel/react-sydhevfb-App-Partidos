@@ -13,6 +13,7 @@ import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
 import { CAMPOS_DE_ESTRUCTURA, ElegirEstructura, ElegirZona, vistaDeLesion } from "./components/MapaCorporal.jsx";
 import { CAMPOS_DEL_CUERPO, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre } from "./domain/mapaCorporal.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
+import { actualesPrimero, esActual } from "./domain/plantel.js";
 import {
   calcular,
   claveDeQuien,
@@ -531,8 +532,12 @@ export default function Lesiones({ onVolver }) {
       cuantas.set(clave, (cuantas.get(clave) || 0) + 1);
       if (!lesion.jugador_id && !personas.has(clave)) personas.set(clave, lesion.persona);
     });
+    // El plantel actual (aunque no tenga lesiones), después los que se fueron
+    // y tienen lesiones, y al final las personas fuera de Datos básicos.
     return [
-      ...plantel.map((jugador) => ({ clave: `j:${jugador.id}`, nombre: jugador.nombre, cuantas: cuantas.get(`j:${jugador.id}`) || 0, fuera: false })),
+      ...actualesPrimero(plantel)
+        .filter((jugador) => esActual(jugador) || cuantas.get(`j:${jugador.id}`))
+        .map((jugador) => ({ clave: `j:${jugador.id}`, nombre: jugador.nombre, cuantas: cuantas.get(`j:${jugador.id}`) || 0, fuera: false, seFue: !esActual(jugador) })),
       ...[...personas.entries()]
         .map(([clave, nombre]) => ({ clave, nombre, cuantas: cuantas.get(clave), fuera: true }))
         .sort((a, b) => a.nombre.localeCompare(b.nombre)),
@@ -844,7 +849,9 @@ export default function Lesiones({ onVolver }) {
                     jugadoresDelHistorial.map((uno) => (
                       <button type="button" key={uno.clave} onClick={() => setJugadorHistorial(uno.clave)}>
                         <b>{uno.nombre}</b>
-                        <span>{[plural("lesiones.historial.cantidad", uno.cuantas), uno.fuera ? t("lesiones.fueraDeDatos") : ""].filter(Boolean).join(" · ")}</span>
+                        <span>
+                          {[plural("lesiones.historial.cantidad", uno.cuantas), uno.fuera ? t("lesiones.fueraDeDatos") : "", uno.seFue ? t("datos.yaNoEsta") : ""].filter(Boolean).join(" · ")}
+                        </span>
                       </button>
                     ))
                   )}
@@ -1299,7 +1306,9 @@ export default function Lesiones({ onVolver }) {
   // nombre con "Cambiar" y abajo sus datos.
   const pasoJugador = (lesion) => {
     const buscado = normalizarTexto(busquedaJugador);
-    const candidatos = plantel.filter((jugador) => !buscado || normalizarTexto(jugador.nombre).includes(buscado));
+    // Los del plantel actual primero; los que se fueron, abajo y marcados (una
+    // lesión vieja de alguien que ya no está también se carga).
+    const candidatos = actualesPrimero(plantel).filter((jugador) => !buscado || normalizarTexto(jugador.nombre).includes(buscado));
     const elegido = jugadorDe(lesion.jugador_id);
     const datosDelJugador = CAMPOS.filter((campo) => campo.tipo === "dato_jugador" && visible(campo)).map((campo) => (
       <DatoDetalle key={campo.clave} label={etiqueta(campo.clave)} valor={enPantalla(campo, lesion) || "—"} />
@@ -1350,7 +1359,15 @@ export default function Lesiones({ onVolver }) {
               candidatos.map((jugador) => (
                 <button type="button" key={jugador.id} onClick={() => setFormulario((actual) => conValor(actual, "jugador", jugador.id))}>
                   <b>{jugador.nombre}</b>
-                  <span>{[jugador.posicion ? textoDeOpcion("posicion", jugador.posicion) : "", jugador.categoria ? textoDeOpcion("categoria", jugador.categoria) : ""].filter(Boolean).join(" · ")}</span>
+                  <span>
+                    {[
+                      jugador.posicion ? textoDeOpcion("posicion", jugador.posicion) : "",
+                      jugador.categoria ? textoDeOpcion("categoria", jugador.categoria) : "",
+                      esActual(jugador) ? "" : t("datos.yaNoEsta"),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
                 </button>
               ))
             )}

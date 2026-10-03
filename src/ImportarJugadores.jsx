@@ -5,6 +5,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { CAMPOS_IMPORTABLES, NO_CARGAR, NUEVO, cambiosPara, emparejar, formatoDeFechas, interpretarFila, leerPegado } from "./domain/importarJugadores.js";
 import { etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
 import { agregarJugadorBasico, guardarDatosJugador } from "./domain/lesionesDb.js";
+import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
@@ -130,7 +131,9 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
     return [
       { valor: NUEVO, etiqueta: t("datos.importar.nuevo") },
       { valor: NO_CARGAR, etiqueta: t("datos.importar.noCargar") },
-      ...plantel.filter((jugador) => !tomados.has(String(jugador.id))).map((jugador) => ({ valor: String(jugador.id), etiqueta: jugador.nombre })),
+      ...actualesPrimero(plantel)
+        .filter((jugador) => !tomados.has(String(jugador.id)))
+        .map((jugador) => ({ valor: String(jugador.id), etiqueta: esActual(jugador) ? jugador.nombre : `${jugador.nombre} · ${t("datos.yaNoEsta")}` })),
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filaDeLaHoja, filas, plantel, idioma]);

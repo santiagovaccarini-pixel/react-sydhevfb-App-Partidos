@@ -39,7 +39,7 @@ vi.mock("./domain/equipo.js", () => ({
 vi.mock("./domain/lesionesDb.js", () => ({
   listarLesiones: async () => (datos.errorAlLeer ? { lesiones: [], error: datos.errorAlLeer } : { lesiones: datos.lesiones.map((l) => ({ ...l, datos: { ...l.datos } })), error: "" }),
   cargarPlantelLesiones: async () => ({
-    plantel: [
+    plantel: datos.plantel || [
       { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
       { id: 8, nombre: "SCARPA", roles: [], puestos: ["VOL"], categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "volante_central", foto_url: "" },
       // El id más chico con el nombre más alto: ordenar por nombre no es ordenar por id.
@@ -141,6 +141,7 @@ describe("el módulo Lesiones", () => {
     datos.historialesPedidos = [];
     datos.cambios = [];
     datos.errorAlLeer = "";
+    datos.plantel = null;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -961,6 +962,24 @@ describe("el módulo Lesiones", () => {
     await tocar(lista()[0]);
     expect(texto(contenedor)).toContain("Este jugador no tiene lesiones cargadas.");
     expect(contenedor.querySelector(".tabla-datos")).toBeNull();
+  });
+
+  test("los del plantel actual van primero; los que se fueron, abajo y marcados (y sin lesiones no están en el historial)", async () => {
+    datos.plantel = [
+      { id: 7, nombre: "HULK", roles: [], puestos: [], actual: false, categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
+      { id: 8, nombre: "SCARPA", roles: [], puestos: [], actual: true, categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
+      { id: 5, nombre: "ZAGUEIRO", roles: [], puestos: [], actual: false, categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
+    ];
+    await montar();
+    // Historial: el de HULK (se fue, con lesiones) se sigue abriendo; ZAGUEIRO (se fue, sin lesiones) no está.
+    await navegar(contenedor, "Historial");
+    const lista = () => [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")].map((b) => b.textContent);
+    expect(lista()).toEqual(["SCARPA0 lesiones", "HULK1 lesión · Ya no está"]);
+    // Una lesión nueva: primero el plantel actual; también se puede cargar una vieja de quien se fue.
+    await navegar(contenedor, "Lesionados");
+    await tocar(boton(contenedor, "Nueva lesión"));
+    const candidatos = [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")].map((b) => b.textContent);
+    expect(candidatos).toEqual(["SCARPA", "HULKYa no está", "ZAGUEIROYa no está"]);
   });
 
   test("la base muestra las lesiones como el Excel y se edita y se pega en las celdas", async () => {

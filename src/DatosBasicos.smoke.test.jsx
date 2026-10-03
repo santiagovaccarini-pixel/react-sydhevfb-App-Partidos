@@ -10,7 +10,8 @@ const plantelInicial = () => [
 const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], puestos: [], plantel: [], fallarAgregar: "", fallarPuestos: false, equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
 
 // Las posiciones de Partido y los chalecos de Catapult (plantel.js).
-vi.mock("./domain/plantel.js", () => ({
+vi.mock("./domain/plantel.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   MAXIMO_PUESTOS: 4,
   ROLES: ["Defensa", "Mediocampo", "Ataque"],
   PUESTOS: ["LAT", "CAR", "DEF", "VD", "VC", "VM", "VOL", "VO", "EXT", "MP", "DEL"].map((sigla) => ({ sigla, nombre: sigla })),
@@ -158,23 +159,54 @@ describe("el módulo Datos básicos", () => {
     await montar();
     expect(texto(contenedor)).toContain("2 jugadores");
     const cabeceras = [...contenedor.querySelectorAll("th[data-columna]")].map((th) => th.textContent);
-    expect(cabeceras).toEqual(["Nombre y apellido", "Categoría", "Fecha de nacimiento", "Edad", "Pie dominante", "Posición", "Foto (enlace)", "Horas previas"]);
+    expect(cabeceras).toEqual(["Nombre y apellido", "Actual", "Categoría", "Fecha de nacimiento", "Edad", "Pie dominante", "Posición", "Foto (enlace)", "Horas previas"]);
     const hulk = contenedor.querySelector("tbody tr");
     expect(hulk.textContent).toContain("HULK");
     expect(hulk.textContent).toContain("25/07/1986");
     expect(hulk.textContent).toContain("Izquierdo");
     expect(hulk.textContent).toMatch(/\d\d años/);
     // La edad se calcula sola.
-    expect(celda(contenedor, 0, 3).classList.contains("fija")).toBe(true);
+    expect(celda(contenedor, 0, 4).classList.contains("fija")).toBe(true);
 
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     expect(texto(contenedor)).toContain("2 jogadores");
     expect(contenedor.querySelector("tbody tr").textContent).toContain("Esquerdo");
   });
 
+  test("Actual: un toque marca o desmarca al jugador y se guarda al toque; el filtro deja solo el plantel de hoy", async () => {
+    await montar();
+    expect(texto(contenedor)).toContain("2 jugadores · 2 en el plantel actual");
+    const casilla = (fila) => celda(contenedor, fila, 1).querySelector("input[type=checkbox]");
+    expect(casilla(0).checked).toBe(true);
+    await tocar(casilla(0));
+    expect(registro.guardados).toEqual([{ id: 7, actual: false }]);
+    expect(casilla(0).checked).toBe(false);
+    expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
+
+    // El filtro de la cabecera: Sí / No.
+    const filtro = contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Actual"]');
+    const valores = () => [...contenedor.querySelectorAll(".tabla-datos-valores label")];
+    const botonDe = (etiqueta) => [...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === etiqueta);
+    await tocar(filtro);
+    expect(valores().map((label) => label.textContent)).toEqual(["No1", "Sí1"]);
+    await tocar(botonDe("Ninguno"));
+    await tocar(valores()[1].querySelector("input"));
+    await tocar(botonDe("Aplicar"));
+    expect([...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent)).toEqual(["SCARPA"]);
+    await tocar(botonDe("Quitar filtros"));
+
+    // Se vuelve a marcar.
+    await tocar(casilla(0));
+    expect(registro.guardados).toEqual([
+      { id: 7, actual: false },
+      { id: 7, actual: true },
+    ]);
+    expect(casilla(0).checked).toBe(true);
+  });
+
   test("las horas previas se escriben como en el Excel (30:14:20) y se guardan como horas", async () => {
     await montar();
-    const horas = () => celda(contenedor, 0, 7);
+    const horas = () => celda(contenedor, 0, 8);
     await tocar(horas());
     await tocar(horas());
     const entrada = horas().querySelector("input");
@@ -205,8 +237,10 @@ describe("el módulo Datos básicos", () => {
     expect(boton(contenedor, "Pegar desde Excel")).toBeUndefined();
     expect(boton(contenedor, "Copiar")).toBeTruthy();
     expect([...contenedor.querySelectorAll("th[data-columna]")].every((th) => th.classList.contains("fija"))).toBe(true);
-    await tocar(celda(contenedor, 1, 4));
-    await tocar(celda(contenedor, 1, 4));
+    // Actual se ve, pero no se cambia.
+    expect(celda(contenedor, 0, 1).querySelector("input[type=checkbox]").disabled).toBe(true);
+    await tocar(celda(contenedor, 1, 5));
+    await tocar(celda(contenedor, 1, 5));
     expect(contenedor.querySelector(".opcion-hoja")).toBeNull();
     expect(registro.guardados).toEqual([]);
   });
@@ -214,11 +248,11 @@ describe("el módulo Datos básicos", () => {
   test("se cambia el pie dominante desde la celda, se agrega un jugador y se borra otro", async () => {
     await montar();
     // Dos toques en una celda de lista abren la hoja de opciones.
-    await tocar(celda(contenedor, 1, 4));
-    await tocar(celda(contenedor, 1, 4));
+    await tocar(celda(contenedor, 1, 5));
+    await tocar(celda(contenedor, 1, 5));
     await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Derecho"));
     expect(registro.guardados).toEqual([{ id: 8, pie_dominante: "direito" }]);
-    expect(celda(contenedor, 1, 4).textContent).toBe("Derecho");
+    expect(celda(contenedor, 1, 5).textContent).toBe("Derecho");
 
     await escribir(contenedor.querySelector(".datos-agregar input"), "lemos");
     await tocar(boton(contenedor, "Agregar jugador"));

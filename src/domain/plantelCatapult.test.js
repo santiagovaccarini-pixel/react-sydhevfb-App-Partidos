@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // La base de mentira: contesta lo que diga `respuesta`.
-const doble = vi.hoisted(() => ({ respuesta: { data: [], error: null } }));
+// respuestas: una por consulta, antes de `respuesta`; selects: lo pedido.
+const doble = vi.hoisted(() => ({ respuesta: { data: [], error: null }, respuestas: [], selects: [] }));
 
 vi.mock("../supabase.js", () => ({
   supabase: {
     from: () => {
       const cadena = {
-        select: () => cadena,
+        select: (columnas) => {
+          doble.selects.push(columnas);
+          return cadena;
+        },
         eq: () => cadena,
-        order: async () => doble.respuesta,
+        order: async () => (doble.respuestas.length ? doble.respuestas.shift() : doble.respuesta),
       };
       return cadena;
     },
@@ -27,6 +31,26 @@ describe("la lista con chalecos sin señal", () => {
   beforeEach(() => {
     localStorage.clear();
     doble.respuesta = { data: filas, error: null };
+    doble.respuestas = [];
+    doble.selects = [];
+  });
+
+  it("trae si cada uno está en el plantel actual; sin el SQL de Actual, se lee sin él (todos están)", async () => {
+    doble.respuesta = { data: [{ ...filas[0], actual: false }, filas[1]], error: null };
+    const { plantel } = await cargarPlantelConCatapult("eq-1");
+    expect(plantel.map((j) => [j.nombre, j.actual])).toEqual([
+      ["A MINDA", true],
+      ["IGOR GOMES", false],
+    ]);
+    expect(doble.selects[0]).toMatch(/\bactual\b/);
+
+    doble.selects = [];
+    doble.respuestas = [{ data: null, error: { code: "42703", message: "column jugadores.actual does not exist" } }];
+    doble.respuesta = { data: filas, error: null };
+    const sinColumna = await cargarPlantelConCatapult("eq-1");
+    expect(sinColumna.desde).toBe("base");
+    expect(sinColumna.plantel.every((j) => j.actual)).toBe(true);
+    expect(doble.selects[1]).not.toMatch(/\bactual\b/);
   });
 
   it("con la base a mano, la lee, la ordena y deja una copia por club", async () => {

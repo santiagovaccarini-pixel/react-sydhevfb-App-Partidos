@@ -13,7 +13,8 @@ const dobles = vi.hoisted(() => ({
   aviso: vi.fn(),
 }));
 
-vi.mock("../domain/plantel.js", () => ({
+vi.mock("../domain/plantel.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   cargarPlantelConCatapult: (...args) => dobles.cargar(...args),
   guardarVinculoCatapult: (...args) => dobles.guardar(...args),
 }));
@@ -130,6 +131,37 @@ describe("los chalecos de Catapult en Datos básicos", () => {
     expect(dobles.guardar).toHaveBeenCalledWith(3, { catapultId: "a3", catapultNombre: "CISSE (CIS)" });
     expect(dobles.aviso).toHaveBeenCalledWith("2 cambios guardados.");
     expect(dobles.cargar).toHaveBeenCalledTimes(2);
+  });
+
+  test("a quien ya no está en el plantel actual no se le propone chaleco, y va abajo marcado", async () => {
+    dobles.plantel = dobles.plantel.map((jugador) => (jugador.id === 1 ? { ...jugador, actual: false } : jugador));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respuesta(200, { ok: true, fuente: "athletes", atletas: ATLETAS })),
+    );
+    await montar();
+    await act(async () => botonPorTexto("Buscar chalecos").click());
+
+    const nombres = [...contenedor.querySelectorAll(".nombre-lista")].map((nombre) => nombre.textContent);
+    expect(nombres).toEqual(["IGOR GOMES", "LEMOS", "A MINDA · Ya no está"]);
+    // A MINDA coincide con un chaleco, pero no se le propone: nada para guardar.
+    expect(contenedor.querySelector('select[aria-label="Chaleco de A MINDA"]').value).toBe("");
+    expect(botonPorTexto("Sin cambios para guardar")).toBeDefined();
+  });
+
+  test("el chaleco de quien se fue queda aunque ya no esté en la cuenta de Catapult", async () => {
+    dobles.plantel = dobles.plantel.map((jugador) => (jugador.id === 2 ? { ...jugador, actual: false, catapult_id: "a9", catapult_nombre: "IGOR GOMES (GOM)" } : jugador));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respuesta(200, { ok: true, fuente: "athletes", atletas: ATLETAS })),
+    );
+    await montar();
+    await act(async () => botonPorTexto("Buscar chalecos").click());
+    expect(contenedor.querySelector('select[aria-label="Chaleco de IGOR GOMES"]').value).toBe("a9");
+    // Guardar otros cambios no lo desvincula.
+    const guardar = [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim().startsWith("Guardar"));
+    if (guardar && !guardar.disabled) await act(async () => guardar.click());
+    expect(dobles.guardar).not.toHaveBeenCalledWith(2, expect.anything());
   });
 
   test("bloquea el guardado si dos jugadores eligen el mismo chaleco", async () => {

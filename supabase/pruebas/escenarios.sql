@@ -543,4 +543,23 @@ select pruebas.debe_fallar('Sin cuenta no se ven los períodos', 'select count(*
 reset role;
 select pruebas.esperar('Quedan los dos de Uno', (select count(*) from lesiones_periodos where equipo_id = :C1), 2);
 
+-- ------------------------------------------- Quién está en el plantel actual --
+
+select pruebas.esperar('Los jugadores que ya estaban quedan en el plantel actual', (select count(*) from jugadores where not actual), 0);
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla desmarca a un jugador de Uno que se fue', pruebas.filas($$update jugadores set actual = false where id = 9001$$), 1);
+select pruebas.debe_fallar('...y no se puede dejar sin dato', $$update jugadores set actual = null where id = 9001$$, 'null value');
+reset role;
+select pruebas.ser('gaby@uno.com'); set role authenticated;
+select pruebas.esperar('Gaby (bloqueada) no lo vuelve a marcar', pruebas.filas($$update jugadores set actual = true where id = 9001$$), 0);
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('...ni Eva, que es de otro club', pruebas.filas($$update jugadores set actual = true where id = 9001$$), 0);
+reset role;
+select pruebas.esperar('Sigue desmarcado, y sus lesiones siguen a su nombre', (select count(*) from jugadores j where j.id = 9001 and not j.actual and exists (select 1 from lesiones l where l.jugador_id = j.id)), 1);
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Uno nuevo entra marcado', pruebas.filas($$insert into jugadores (nombre, equipo_id) values ('RECIEN LLEGADO', '00000000-0000-0000-0000-0000000000c1')$$), 1);
+select pruebas.esperar('...en el plantel actual', (select count(*) from jugadores where nombre = 'RECIEN LLEGADO' and actual), 1);
+reset role;
+
 select 'ESCENARIOS: todos bien' as resultado;

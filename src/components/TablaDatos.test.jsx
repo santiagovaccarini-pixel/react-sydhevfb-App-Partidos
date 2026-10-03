@@ -285,4 +285,72 @@ describe("la tabla estilo Excel", () => {
     await puntero(primera, "pointerup", { x: 90, y: 10, pointerType: "touch" });
     expect(cabeceras(contenedor)).toEqual(["Edad", "Nombre", "Pie"]);
   });
+
+  test("una casilla se marca y se desmarca con un toque, se ve al toque y no se guarda dos veces", async () => {
+    const conCasilla = [...columnas, { clave: "actual", titulo: "Actual", tipo: "casilla", editable: true }];
+    const filasConCasilla = filas.map((fila, i) => ({ ...fila, valores: { ...fila.valores, actual: i === 0 }, textos: { ...fila.textos, actual: i === 0 ? "Sí" : "No" } }));
+    let terminar;
+    await montar({
+      columnas: conCasilla,
+      filas: filasConCasilla,
+      onEditar: (filaId, clave, valor) => {
+        editados.push({ filaId, clave, valor });
+        return new Promise((resolver) => {
+          terminar = () => resolver({});
+        });
+      },
+    });
+    const casilla = (fila) => celda(contenedor, fila, 3).querySelector("input[type=checkbox]");
+    expect(casilla(0).checked).toBe(true);
+    expect(casilla(1).checked).toBe(false);
+
+    // Un toque: se ve desmarcada mientras se guarda, y otro toque no manda nada.
+    await tocar(casilla(0));
+    expect(casilla(0).checked).toBe(false);
+    expect(celda(contenedor, 0, 3).classList.contains("activa")).toBe(true);
+    await tocar(casilla(0));
+    expect(editados).toEqual([{ filaId: 1, clave: "actual", valor: false }]);
+    await act(async () => terminar());
+
+    // Con el teclado: la barra espaciadora (o Enter) en la celda elegida.
+    const marco = contenedor.querySelector(".tabla-datos-marco");
+    await tocar(celda(contenedor, 1, 3));
+    await act(async () => marco.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+    expect(editados.at(-1)).toEqual({ filaId: 2, clave: "actual", valor: true });
+    await act(async () => terminar());
+
+    // Lo pegado: Sí / No en los dos idiomas; una celda vacía no la toca.
+    const pegar = async (texto) => {
+      const evento = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(evento, "clipboardData", { value: { getData: () => texto } });
+      await act(async () => marco.dispatchEvent(evento));
+    };
+    await tocar(celda(contenedor, 0, 3));
+    await pegar("Não\nSim");
+    expect(pegados).toEqual([
+      { filaId: 1, clave: "actual", valor: false },
+      { filaId: 2, clave: "actual", valor: true },
+    ]);
+  });
+
+  test("con Mayúscula, un toque en la casilla extiende la selección y no la cambia", async () => {
+    const conCasilla = [...columnas, { clave: "actual", titulo: "Actual", tipo: "casilla", editable: true }];
+    await montar({ columnas: conCasilla, filas: filas.map((fila) => ({ ...fila, valores: { ...fila.valores, actual: true }, textos: { ...fila.textos, actual: "Sí" } })) });
+    await tocar(celda(contenedor, 0, 0));
+    const casilla = celda(contenedor, 1, 3).querySelector("input[type=checkbox]");
+    await act(async () => casilla.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true })));
+    expect(casilla.checked).toBe(true);
+    expect(editados).toEqual([]);
+    expect(contenedor.querySelectorAll("td.elegida").length).toBeGreaterThan(1);
+  });
+
+  test("sin permiso, la casilla se ve pero no se cambia", async () => {
+    const conCasilla = [...columnas, { clave: "actual", titulo: "Actual", tipo: "casilla", editable: false }];
+    await montar({ columnas: conCasilla, filas: filas.map((fila) => ({ ...fila, valores: { ...fila.valores, actual: true }, textos: { ...fila.textos, actual: "Sí" } })) });
+    const casilla = celda(contenedor, 0, 3).querySelector("input[type=checkbox]");
+    expect(casilla.disabled).toBe(true);
+    await tocar(celda(contenedor, 0, 3));
+    await tocar(celda(contenedor, 0, 3));
+    expect(editados).toEqual([]);
+  });
 });

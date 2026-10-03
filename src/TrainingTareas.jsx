@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { leerEquipoElegido } from "./domain/equipo.js";
-import { cargarPlantelConCatapult } from "./domain/plantel.js";
+import { cargarPlantelConCatapult, esActual, plantelParaElegir } from "./domain/plantel.js";
 import { etiquetaEntrenamiento, vincularActividad } from "./domain/entrenamiento.js";
 import {
   MODO_PARCIAL,
@@ -294,11 +294,22 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
   }, [tareas, sesion?.asignaciones]);
   const rosterConocido = atletasActividad instanceof Set && atletasActividad.size > 0;
   const tieneDatos = (jugador) => !rosterConocido || atletasActividad.has(String(jugador.catapult_id));
-  // Elegibles: con chaleco y, si se pudo leer, con datos en la sesión.
-  const elegibles = useMemo(
-    () => plantel.filter((jugador) => jugador.catapult_id && tieneDatos(jugador)),
+  // Los que estuvieron en alguna tarea de esta sesión mientras se la mira:
+  // aunque se hayan ido del plantel (Datos básicos › Actual), una sesión vieja
+  // no los pierde, ni si se destildan por error.
+  const vistosEnLaSesion = useRef({ id: null, ids: new Set() });
+  const enLaSesion = useMemo(() => {
+    if (vistosEnLaSesion.current.id !== (entrenamiento?.id ?? null)) vistosEnLaSesion.current = { id: entrenamiento?.id ?? null, ids: new Set() };
+    tareas.forEach((tarea) => Object.keys(tarea.participantes || {}).forEach((id) => vistosEnLaSesion.current.ids.add(id)));
+    return new Set(vistosEnLaSesion.current.ids);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [plantel, atletasActividad],
+  }, [tareas, entrenamiento?.id]);
+  // Elegibles: del plantel actual (o ya en la sesión), con chaleco y, si se
+  // pudo leer, con datos en la sesión.
+  const elegibles = useMemo(
+    () => plantel.filter((jugador) => (esActual(jugador) || enLaSesion.has(String(jugador.id))) && jugador.catapult_id && tieneDatos(jugador)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plantel, atletasActividad, enLaSesion],
   );
   const nombrePorCatapultId = useMemo(
     () => new Map(plantel.filter((jugador) => jugador.catapult_id).map((jugador) => [String(jugador.catapult_id), jugador.nombre])),
@@ -1005,7 +1016,7 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
         <HojaJugadores
           abierta={hoja === "jugadores"}
           tarea={activa}
-          plantel={plantel}
+          plantel={plantelParaElegir(plantel, { ids: [...enLaSesion] })}
           elegibles={elegibles}
           estadoPlantel={estadoPlantel}
           errorPlantel={errorPlantel}

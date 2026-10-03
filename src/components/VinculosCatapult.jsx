@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { cargarPlantelConCatapult, guardarVinculoCatapult } from "../domain/plantel.js";
+import { actualesPrimero, cargarPlantelConCatapult, esActual, guardarVinculoCatapult } from "../domain/plantel.js";
 import { nombreVisibleAtleta, proponerVinculos, resumirVinculos } from "../../lib/vinculoJugadores.js";
 import { mensajeDeRespuesta, pedirJson } from "../trainingApi.js";
 import { t, useIdioma } from "../idioma/index.js";
@@ -47,7 +47,13 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [equipoId]);
 
-  const filas = useMemo(() => (atletas.length > 0 ? proponerVinculos({ jugadores: plantel, atletas }) : []), [plantel, atletas]);
+  // A quien ya no está en el plantel actual no se le propone un chaleco
+  // (su chaleco guardado se ve igual).
+  const conPropuestas = (jugadores, lista) => {
+    const actuales = new Set(jugadores.filter(esActual).map((jugador) => jugador.id));
+    return proponerVinculos({ jugadores, atletas: lista }).map((fila) => (actuales.has(fila.jugadorId) ? fila : { ...fila, propuesta: null }));
+  };
+  const filas = useMemo(() => (atletas.length > 0 ? conPropuestas(plantel, atletas) : []), [plantel, atletas]);
   const resumen = useMemo(() => resumirVinculos(filas), [filas]);
 
   const traerAtletas = async () => {
@@ -60,10 +66,13 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
       setAtletas(lista);
       // Punto de partida: lo guardado; si no hay, la propuesta.
       const iniciales = {};
-      proponerVinculos({ jugadores: plantel, atletas: lista }).forEach((fila) => {
-        // Un chaleco guardado que ya no existe no tiene opción en la lista:
-        // arranca en "Sin chaleco", así guardar lo desvincula.
-        iniciales[fila.jugadorId] = fila.vinculo?.ausente ? "" : fila.vinculo?.atletaId || fila.propuesta?.atletaId || "";
+      const actuales = new Set(plantel.filter(esActual).map((jugador) => jugador.id));
+      conPropuestas(plantel, lista).forEach((fila) => {
+        // Un chaleco guardado que ya no existe arranca en "Sin chaleco", así
+        // guardar lo desvincula. El de quien ya se fue queda (sus sesiones
+        // viejas lo necesitan); se puede sacar a mano.
+        const queda = fila.vinculo?.ausente && !actuales.has(fila.jugadorId);
+        iniciales[fila.jugadorId] = queda ? fila.vinculo.atletaId : fila.vinculo?.ausente ? "" : fila.vinculo?.atletaId || fila.propuesta?.atletaId || "";
       });
       setElecciones(iniciales);
       setEstadoAtletas("listo");
@@ -163,13 +172,16 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
               <p className="vacio-ficha">{t("datos.vacio")}</p>
             ) : (
               <ul className="lista-plantel">
-                {plantel.map((jugador, indice) => {
+                {actualesPrimero(plantel).map((jugador, indice) => {
                   const estadoFila = estadoDeFila(jugador);
                   const eleccion = elecciones[jugador.id] ?? (jugador.catapult_id || "");
                   return (
                     <li key={jugador.id ?? jugador.nombre}>
                       <span className="numero-lista">{indice + 1}</span>
-                      <span className="nombre-lista">{jugador.nombre}</span>
+                      <span className="nombre-lista">
+                        {jugador.nombre}
+                        {!esActual(jugador) && <small className="ya-no-esta"> · {t("datos.yaNoEsta")}</small>}
+                      </span>
                       <span className={`estado-vinculo ${estadoFila.tono}`.trim()}>{estadoFila.texto}</span>
                       {estadoAtletas === "listo" && (
                         <select
@@ -180,6 +192,10 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
                           disabled={guardando}
                         >
                           <option value="">{t("datos.catapult.opcionSin")}</option>
+                          {/* El chaleco guardado que ya no está en la cuenta (de quien se fue). */}
+                          {jugador.catapult_id && !opcionesAtletas.some((atleta) => String(atleta.id) === String(jugador.catapult_id)) && (
+                            <option value={String(jugador.catapult_id)}>{jugador.catapult_nombre || jugador.catapult_id}</option>
+                          )}
                           {opcionesAtletas.map((atleta) => (
                             <option key={atleta.id} value={String(atleta.id)}>
                               {nombreVisibleAtleta(atleta)}

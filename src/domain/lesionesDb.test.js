@@ -277,3 +277,71 @@ describe("Datos básicos sin leer", () => {
     expect((await cargarPlantelLesiones("eq-1")).deRespaldo).toBeFalsy();
   });
 });
+
+describe("si está en el plantel actual (Datos básicos › Actual)", () => {
+  const sinActual = { data: null, error: { code: "42703", message: "column jugadores.actual does not exist" } };
+  const selects = () => doble.llamadas.filter(([metodo]) => metodo === "select").map(([, columnas]) => columnas);
+
+  test("se lee con el plantel; sin el dato, está", async () => {
+    doble.filas = [
+      { id: 7, nombre: "HULK", actual: false },
+      { id: 8, nombre: "SCARPA" },
+    ];
+    const { plantel } = await cargarPlantelLesiones("eq-1");
+    expect(plantel.map((jugador) => [jugador.nombre, jugador.actual])).toEqual([
+      ["HULK", false],
+      ["SCARPA", true],
+    ]);
+    expect(selects()[0]).toMatch(/\bactual\b/);
+  });
+
+  test("mientras no se corra el SQL, se lee sin la columna (todos están)", async () => {
+    doble.respuestas = [sinActual, { data: [{ id: 7, nombre: "HULK", horas_previas: 3 }], error: null }];
+    const { plantel, error } = await cargarPlantelLesiones("eq-1");
+    expect(error).toBe("");
+    expect(plantel[0]).toMatchObject({ nombre: "HULK", actual: true, horas_previas: 3 });
+    expect(selects()[1]).not.toMatch(/\bactual\b/);
+    expect(selects()[1]).toContain("horas_previas");
+  });
+
+  test("sin ninguna de las dos columnas nuevas, también", async () => {
+    const sinHoras = { data: null, error: { code: "42703", message: "column jugadores.horas_previas does not exist" } };
+    doble.respuestas = [sinHoras, sinActual, { data: [{ id: 7, nombre: "HULK" }], error: null }];
+    const { plantel } = await cargarPlantelLesiones("eq-1");
+    expect(plantel[0]).toMatchObject({ nombre: "HULK", actual: true, horas_previas: null });
+    expect(selects()).toHaveLength(3);
+    expect(selects()[2]).not.toMatch(/horas_previas|\bactual\b/);
+  });
+
+  test("se guarda al marcar o desmarcar; sin el SQL se dice cuál falta y no se guarda nada", async () => {
+    doble.filas = { id: 7, nombre: "HULK", actual: false };
+    expect(await guardarDatosJugador(7, { actual: false })).toMatchObject({ jugador: { actual: false }, error: "" });
+    expect(doble.llamadas.find(([metodo]) => metodo === "update")[1]).toMatchObject({ actual: false });
+
+    doble.llamadas.length = 0;
+    doble.respuestas = [{ data: null, error: { code: "PGRST204", message: "Could not find the 'actual' column of 'jugadores' in the schema cache" } }];
+    expect(await guardarDatosJugador(7, { actual: true })).toEqual({ error: "datos.error.faltaActual" });
+    expect(doble.llamadas.filter(([metodo]) => metodo === "update")).toHaveLength(1);
+  });
+
+  test("sin los dos SQL, lo demás se guarda y se avisa lo primero que faltó (y cuántos datos no se guardaron)", async () => {
+    const sinHoras = { data: null, error: { code: "PGRST204", message: "Could not find the 'horas_previas' column of 'jugadores' in the schema cache" } };
+    const sinActualAlGuardar = { data: null, error: { code: "PGRST204", message: "Could not find the 'actual' column of 'jugadores' in the schema cache" } };
+    doble.respuestas = [sinHoras, sinActualAlGuardar, { data: { id: 7, nombre: "HULK", categoria: "sub20" }, error: null }];
+    expect(await guardarDatosJugador(7, { categoria: "sub20", horas_previas: 12, actual: false })).toMatchObject({
+      jugador: { categoria: "sub20" },
+      error: "",
+      aviso: "datos.error.faltanHorasPrevias",
+      sinGuardar: 2,
+    });
+    const updates = doble.llamadas.filter(([metodo]) => metodo === "update").map(([, valores]) => valores);
+    expect(updates[2]).not.toHaveProperty("horas_previas");
+    expect(updates[2]).not.toHaveProperty("actual");
+  });
+
+  test("actualizado_en no es la columna actual: un error de otra cosa no se confunde", async () => {
+    doble.error = { code: "23514", message: 'new row for relation "jugadores" violates check constraint "jugadores_actualizado_en_check"' };
+    expect(await guardarDatosJugador(7, { nombre: "HULK" })).toMatchObject({ error: "datos.error.guardar" });
+    expect(doble.llamadas.filter(([metodo]) => metodo === "update")).toHaveLength(1);
+  });
+});

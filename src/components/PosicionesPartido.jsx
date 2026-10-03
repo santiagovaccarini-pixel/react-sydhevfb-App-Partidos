@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { MAXIMO_PUESTOS, PUESTOS, ROLES } from "../domain/plantel.js";
+import { MAXIMO_PUESTOS, PUESTOS, ROLES, actualesPrimero, esActual } from "../domain/plantel.js";
 import { normalizarTextoBase } from "../domain/match";
 import { t } from "../idioma/index.js";
 
@@ -80,7 +80,9 @@ export const SelectorPuesto = ({ sigla = "", elegidos = [], onElegir, deshabilit
 export const PosicionesJugadores = ({ plantel, soloLectura = false, onCambiar }) => {
   const [buscador, setBuscador] = useState("");
   const busqueda = normalizarTextoBase(buscador);
-  const visibles = busqueda ? plantel.filter((jugador) => normalizarTextoBase(jugador.nombre).includes(busqueda)) : plantel;
+  // El plantel actual primero; los que se fueron, abajo y marcados.
+  const ordenados = actualesPrimero(plantel);
+  const visibles = busqueda ? ordenados.filter((jugador) => normalizarTextoBase(jugador.nombre).includes(busqueda)) : ordenados;
 
   const cambiarPuesto = (jugador, indice, sigla) => {
     const puestos = [...jugador.puestos];
@@ -113,7 +115,10 @@ export const PosicionesJugadores = ({ plantel, soloLectura = false, onCambiar })
         visibles.map((jugador) => (
           <div className="jugador-puestos" key={jugador.id ?? jugador.nombre}>
             <div className="arriba-puestos">
-              <b>{jugador.nombre}</b>
+              <b>
+                {jugador.nombre}
+                {!esActual(jugador) && <small className="ya-no-esta"> · {t("datos.yaNoEsta")}</small>}
+              </b>
               {jugador.puestos.map((sigla, i) => (
                 <SelectorPuesto
                   key={`${jugador.id}-${i}`}

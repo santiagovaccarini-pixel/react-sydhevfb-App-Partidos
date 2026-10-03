@@ -5,6 +5,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { COMO_PERSONA, ESTADOS, NO_CARGAR, leerLesionesPegadas, ordenDeCarga, planDeImportacion } from "./domain/importarLesiones.js";
 import { etiquetaDeCampo, etiquetaDeOpcion } from "./domain/lesionesCampos.js";
 import { importarLesion } from "./domain/lesionesDb.js";
+import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
@@ -84,7 +85,7 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
     ? [
         { valor: COMO_PERSONA, etiqueta: t("lesiones.importar.comoPersona") },
         { valor: NO_CARGAR, etiqueta: t("lesiones.importar.noCargar") },
-        ...plantel.map((jugador) => ({ valor: String(jugador.id), etiqueta: jugador.nombre })),
+        ...actualesPrimero(plantel).map((jugador) => ({ valor: String(jugador.id), etiqueta: esActual(jugador) ? jugador.nombre : `${jugador.nombre} · ${t("datos.yaNoEsta")}` })),
       ]
     : [];
   const elegidoDeLaHoja = filaDeLaHoja ? (filaDeLaHoja.destino ?? (filaDeLaHoja.jugador ? String(filaDeLaHoja.jugador.id) : null)) : null;

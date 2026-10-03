@@ -33,7 +33,8 @@ vi.mock("./domain/equipo.js", () => ({
   esElCam: (nombre) => /mineiro/i.test(String(nombre || "")),
 }));
 
-vi.mock("./domain/plantel.js", () => ({
+vi.mock("./domain/plantel.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   cargarPlantelConCatapult: async () => ({ plantel: [] }),
 }));
 

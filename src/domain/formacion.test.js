@@ -18,6 +18,7 @@ import {
   repartirFranja,
   titularesDeCancha,
   totalEnCancha,
+  nombresDelRegistro,
 } from "./formacion.js";
 
 const franja = (id) => FRANJAS.find((f) => f.id === id);
@@ -423,5 +424,16 @@ describe("escalonar una fila para que entren los nombres", () => {
   it("una fila de uno no se escalona", () => {
     expect(escalonarFila(fila([80]))).toEqual({});
     expect(escalonarFila([])).toEqual({});
+  });
+});
+
+describe("los nombres de un partido guardado", () => {
+  it("junta la cancha, los titulares, los convocados y los cambios", () => {
+    const registro = {
+      formacion: { cancha: canchaDesdeTitulares(["HULK", "ALONSO"]), titulares: ["HULK", "ALONSO"], convocados: ["SCARPA", ""] },
+      cambios: [{ entra: "SCARPA", sale: "HULK" }, { entra: "", sale: null }],
+    };
+    expect([...new Set(nombresDelRegistro(registro))].sort()).toEqual(["ALONSO", "HULK", "SCARPA"]);
+    expect(nombresDelRegistro(null)).toEqual([]);
   });
 });

@@ -15,16 +15,21 @@
 --     nombre de la persona va en "Nome e Sobrenome" y lo que sale de Datos
 --     básicos (categoría, nacimiento, pie, posición) queda vacío.
 --
--- Requiere 20261008_lesiones_recaida.sql. Se corre en Supabase > SQL Editor,
--- entero y de una vez. Se puede volver a correr.
+-- Requiere 20261006_horas_imagen.sql y 20261008_lesiones_recaida.sql. Se
+-- corre en Supabase > SQL Editor, entero y de una vez. Se puede volver a
+-- correr.
 -- =====================================================================
 
 begin;
 
 -- Con la regla vieja (lesiones_sin_solapar), una lesión sin fecha chocaría
--- con todas las de esa parte y lado del jugador: primero va 20261008.
+-- con todas las de esa parte y lado del jugador: primero va 20261008. Y la
+-- vista para Power Query usa la cuenta de horas de 20261006.
 do $$
 begin
+  if to_regprocedure('public.lesiones_horas_imagen(text,date)') is null then
+    raise exception 'Primero hay que correr 20261006_horas_imagen.sql.';
+  end if;
   if exists (select 1 from pg_constraint where conname = 'lesiones_sin_solapar' and conrelid = 'public.lesiones'::regclass)
      or to_regclass('public.lesiones_sin_repetir') is null then
     raise exception 'Primero hay que correr 20261008_lesiones_recaida.sql.';
