@@ -467,6 +467,12 @@ describe("permisos del navegador", () => {
     expect(imagenes).toContain("thesportsdb.com");
   });
 
+  // Las fotos de los jugadores (Datos básicos › Foto) están en la web del
+  // club: sin su sitio acá, el reporte de Lesiones muestra las iniciales.
+  test("se pueden mostrar las fotos de los jugadores del Mineiro", () => {
+    expect(directiva("img-src")).toContain("https://atletico.com.br");
+  });
+
   test("sigue sin permitirse cualquier origen", () => {
     expect(directiva("connect-src")).toContain("https://*.supabase.co");
     expect(directiva("img-src")).not.toContain(" https:;");
