@@ -298,5 +298,181 @@ describe("los reportes con los minutos del GPS", () => {
     expect([...contenedor.querySelectorAll(".reporte-kpi")].find((kpi) => kpi.textContent.includes("Jugadores lesionados")).querySelector("b").textContent).toBe("4");
   });
 
+  // ------------------------------------------------- Informes gráficos --
+  const PERIODOS = [
+    { id: "p1", nombre: "1º semestre", desde: "2026-01-01", hasta: "2026-06-30" },
+    { id: "p2", nombre: "2º semestre", desde: "2026-07-01", hasta: "2026-12-31" },
+  ];
+  const bloqueDe = (titulo) => contenedor.querySelector(`section.reporte-graficos-bloque[aria-label="${titulo}"]`);
+  const graficosDe = (titulo) => [...bloqueDe(titulo).querySelectorAll(".reporte-graficos-cuatro > .tarjeta")];
+  const valores = (grafico) => [...grafico.querySelectorAll(".reporte-columnas-valor")].map((valor) => valor.textContent);
+  const detalles = (grafico) => [...grafico.querySelectorAll(".reporte-columnas-detalle")].map((detalle) => detalle.textContent);
+  const leyendaDeTorta = (indice) =>
+    [...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-dos > .tarjeta")[indice].querySelectorAll(".reporte-torta-leyenda li")].map((li) => `${li.querySelector("span").textContent} ${li.querySelector("b").textContent}`);
+  const abrirGraficos = async (gps = GPS, plantel = PLANTEL, lesiones = LESIONES) => {
+    await montar(gps, plantel, lesiones);
+    await tocar(botonQueEmpieza("Informes gráficos"));
+  };
+
+  test("Informes gráficos: el menú lo abre con sus cinco bloques, y se imprime", async () => {
+    periodosGuardados.lista = [...PERIODOS];
+    await abrirGraficos();
+    expect(texto()).toContain("INFORMES GRÁFICOS DE LESIONES");
+    expect([...contenedor.querySelectorAll(".reporte-graficos-nav button")].map((boton) => boton.textContent)).toEqual([
+      "N° de lesiones c/1000 h",
+      "N° de días perdidos c/1000 h",
+      "Partes del cuerpo",
+      "Lesiones por jugador",
+      "Entrenamiento y partidos",
+    ]);
+    expect(botonQueEmpieza("Imprimir")).toBeTruthy();
+  });
+
+  test("Informes gráficos, bloques 1 y 2: cada período guardado, con los minutos del GPS", async () => {
+    periodosGuardados.lista = [...PERIODOS];
+    await abrirGraficos();
+    const [todas, sinLeves] = graficosDe("N° de lesiones c/1000 h");
+    // 1º semestre: 2 lesiones del cuadro en 200 h; el 2º, sin minutos.
+    expect(valores(todas)).toEqual(["10,00", "—"]);
+    expect(detalles(todas)).toEqual(["2 lesiones", "0 lesiones"]);
+    expect(todas.querySelectorAll(".reporte-columnas-barra")).toHaveLength(1);
+    expect(valores(sinLeves)).toEqual(["5,00", "—"]);
+    const [diasTodas, diasSinLeves] = graficosDe("N° de días perdidos c/1000 h");
+    expect(valores(diasTodas)).toEqual(["115,00", "—"]);
+    expect(detalles(diasTodas)).toEqual(["23 días", "0 días"]);
+    expect(valores(diasSinLeves)).toEqual(["100,00", "—"]);
+    expect(texto()).not.toContain("Faltan los minutos del GPS");
+  });
+
+  test("Informes gráficos: el año de cada bloque, por separado", async () => {
+    periodosGuardados.lista = [...PERIODOS, { id: "p0", nombre: "2025", desde: "2025-01-01", hasta: "2025-12-31" }];
+    await abrirGraficos();
+    const chips = (titulo) => [...bloqueDe(titulo).querySelectorAll(".reporte-graficos-filtros button")];
+    expect(chips("N° de lesiones c/1000 h").map((chip) => chip.textContent)).toEqual(["Todos los años", "2025", "2026"]);
+    await tocar(chips("N° de lesiones c/1000 h")[1]);
+    expect(valores(graficosDe("N° de lesiones c/1000 h")[0])).toHaveLength(1);
+    expect(valores(graficosDe("N° de días perdidos c/1000 h")[0])).toHaveLength(3);
+  });
+
+  test("Informes gráficos sin los minutos del GPS: las lesiones y los días, sin barras, y el aviso", async () => {
+    periodosGuardados.lista = [...PERIODOS];
+    await abrirGraficos(null);
+    [...graficosDe("N° de lesiones c/1000 h"), ...graficosDe("N° de días perdidos c/1000 h")].forEach((grafico) => {
+      expect(valores(grafico)).toEqual(["—", "—"]);
+      expect(grafico.querySelectorAll(".reporte-columnas-barra")).toHaveLength(0);
+    });
+    expect(detalles(graficosDe("N° de lesiones c/1000 h")[0])).toEqual(["2 lesiones", "0 lesiones"]);
+    expect(detalles(graficosDe("N° de días perdidos c/1000 h")[0])).toEqual(["23 días", "0 días"]);
+    expect([...contenedor.querySelectorAll(".informe-aviso")].filter((aviso) => aviso.textContent.includes("Faltan los minutos del GPS"))).toHaveLength(2);
+  });
+
+  test("Informes gráficos sin períodos guardados: se dice dónde se guardan, y se va", async () => {
+    periodosGuardados.lista = [];
+    await abrirGraficos();
+    expect(bloqueDe("N° de lesiones c/1000 h").textContent).toContain("Todavía no hay períodos guardados");
+    await tocar(bloqueDe("N° de lesiones c/1000 h").querySelector("button"));
+    expect(texto()).toContain("LESIONES C/1000 H Y DÍAS PERDIDOS");
+  });
+
+  test("Informes gráficos: las tortas por parte del cuerpo y sus filtros", async () => {
+    periodosGuardados.lista = [];
+    await abrirGraficos();
+    expect(leyendaDeTorta(0)).toEqual(["coxa 50%", "tornozelo_pe 50%"]);
+    expect(leyendaDeTorta(1)).toEqual(["joelho 100%"]);
+    expect(bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-dos > .tarjeta")[1].querySelector("svg circle")).not.toBeNull();
+    // Lado: izquierdo.
+    const filtroLado = [...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Lado"));
+    await tocar(filtroLado);
+    await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "esquerdo"));
+    expect(leyendaDeTorta(0)).toEqual(["tornozelo_pe 100%"]);
+    expect(bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-dos > .tarjeta")[1].textContent).toContain("No hay lesiones con estos filtros.");
+    expect(bloqueDe("Partes del cuerpo").querySelector(".reporte-graficos-filtrado").textContent).toContain("Lado: esquerdo");
+  });
+
+  test("Informes gráficos: lesiones por jugador y entrenamiento y partidos", async () => {
+    periodosGuardados.lista = [];
+    await abrirGraficos();
+    const filasJugador = [...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-barras li")].map((li) => [li.querySelector(".reporte-barras-etiqueta").textContent, li.querySelector("b").textContent]);
+    expect(filasJugador).toEqual([
+      ["HULK", "2"],
+      ["SCARPA", "1"],
+    ]);
+    const momentos = bloqueDe("Entrenamiento y partidos");
+    expect(momentos.querySelector(".cabeza-ficha b").textContent).toBe("2026");
+    expect([...momentos.querySelectorAll(".reporte-columnas-etiqueta")].map((etiqueta) => etiqueta.textContent)).toEqual(["treinamento"]);
+    expect(valores(momentos)).toEqual(["1", "1", "1"]);
+    await tocar([...momentos.querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent === "Todos los años"));
+    expect(momentos.querySelector(".cabeza-ficha b").textContent).toBe("Todos los años");
+  });
+
+  test("Informes gráficos: las sin fecha no cuentan; las de alguien fuera de Datos básicos, sí", async () => {
+    periodosGuardados.lista = [...PERIODOS];
+    const sinFecha = { id: "les-sf", jugador_id: 7, numero_caso: 9, fecha_lesion: null, fecha_alta: null, datos: { parte_cuerpo: "coxa", lado: "direito", tipo_lesion: "muscular_1a", ...DEL_CUADRO } };
+    const deAfuera = { id: "les-af", jugador_id: null, persona: "Persona De Afuera", numero_caso: 10, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-03", datos: { parte_cuerpo: "coxa", lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO } };
+    await abrirGraficos(GPS, PLANTEL, [...LESIONES, sinFecha, deAfuera]);
+    expect(valores(graficosDe("N° de lesiones c/1000 h")[0])[0]).toBe("15,00");
+    expect(valores(graficosDe("N° de lesiones c/1000 h")[1])[0]).toBe("5,00");
+    expect(valores(graficosDe("N° de días perdidos c/1000 h")[0])[0]).toBe("125,00");
+    expect(leyendaDeTorta(0)).toEqual(["coxa 67%", "tornozelo_pe 33%"]);
+    const filasJugador = [...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-barras li")].map((li) => [li.querySelector(".reporte-barras-etiqueta").textContent, li.querySelector("b").textContent]);
+    expect(filasJugador).toEqual([
+      ["HULK", "2"],
+      ["Persona De Afuera", "1"],
+      ["SCARPA", "1"],
+    ]);
+  });
+
+  test("Informes gráficos: la posición sale del plantel, y el año del bloque 5 es el último si hoy no tiene", async () => {
+    periodosGuardados.lista = [];
+    const plantel = [PLANTEL[0], { ...PLANTEL[1], posicion: "goleiro" }];
+    const lesiones = [
+      { ...LESIONES[0], fecha_lesion: "2024-03-01", fecha_alta: "2024-03-21" },
+      { ...LESIONES[1], fecha_lesion: "2025-06-01", fecha_alta: "2025-06-11" },
+      { ...LESIONES[2], fecha_lesion: "2025-04-01", fecha_alta: "2025-04-04" },
+    ];
+    await abrirGraficos(GPS, plantel, lesiones);
+    // Sin lesiones de 2026 (el año de hoy): el último año con lesiones.
+    expect(bloqueDe("Entrenamiento y partidos").querySelector(".cabeza-ficha b").textContent).toBe("2025");
+    // Posición: la del plantel (en el Excel, el Puesto de Datos Básicos).
+    await tocar([...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Posición")));
+    await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "goleiro"));
+    expect(leyendaDeTorta(0)).toEqual(["tornozelo_pe 100%"]);
+    // Por jugador, el filtro del jugador (como el del Excel): solo SCARPA.
+    await tocar([...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Nombre y apellido")));
+    await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "SCARPA"));
+    expect([...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-barras li .reporte-barras-etiqueta")].map((etiqueta) => etiqueta.textContent)).toEqual(["SCARPA"]);
+  });
+
+  test("Informes gráficos: por jugador, el título es el campo, con su leyenda aunque sea una parte, y la nota dice qué cuenta", async () => {
+    periodosGuardados.lista = [];
+    const sinParte = { id: "les-sp", jugador_id: 8, numero_caso: 4, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-03", datos: { lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO } };
+    await abrirGraficos(GPS, PLANTEL, [LESIONES[0], sinParte]);
+    const porJugador = bloqueDe("Lesiones por jugador");
+    expect(porJugador.querySelector(".cabeza-ficha b").textContent).toBe("Parte del cuerpo lesionada");
+    // Una sola parte (la lesión sin parte no cuenta acá): igual va la leyenda.
+    expect(porJugador.querySelector(".reporte-leyenda").textContent).toBe("coxa");
+    expect([...porJugador.querySelectorAll(".reporte-barras li .reporte-barras-etiqueta")].map((etiqueta) => etiqueta.textContent)).toEqual(["HULK"]);
+    expect(porJugador.querySelector(".reporte-graficos-notas").textContent).toBe("Cuentan las lesiones con fecha de inicio, «Tipo de lesión» y «Parte del cuerpo lesionada» cargados, de cualquier fecha.");
+    // En la torta, la de sin parte sí cuenta (Sin dato).
+    expect(leyendaDeTorta(0)).toEqual(["coxa 50%", "Sin dato 50%"]);
+    // Entrenamiento y partidos: una sola parte, con su leyenda.
+    expect(bloqueDe("Entrenamiento y partidos").querySelector(".reporte-leyenda")).not.toBeNull();
+  });
+
+  test("Informes gráficos: el color de cada parte no cambia cuando aparece otra parte", async () => {
+    periodosGuardados.lista = [];
+    const colorDeLaParte = (parte) =>
+      [...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-torta-leyenda li")].find((li) => li.querySelector("span").textContent === parte).querySelector("i").style.background;
+    await abrirGraficos();
+    const muslo = colorDeLaParte("coxa");
+    const tobillo = colorDeLaParte("tornozelo_pe");
+    expect(muslo).not.toBe(tobillo);
+    await act(async () => raiz.unmount());
+    const abdomen = { id: "les-ab", jugador_id: 8, numero_caso: 5, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-03", datos: { parte_cuerpo: "abdomen", lado: "direito", tipo_lesion: "muscular_1a", ...DEL_CUADRO } };
+    await abrirGraficos(GPS, PLANTEL, [...LESIONES, abdomen]);
+    expect(colorDeLaParte("coxa")).toBe(muslo);
+    expect(colorDeLaParte("tornozelo_pe")).toBe(tobillo);
+  });
+
   const texto = () => contenedor.textContent;
 });

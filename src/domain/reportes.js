@@ -219,3 +219,177 @@ export const periodoDe = (cual, hoy, lesiones = []) => {
   const primera = (lesiones || []).map((lesion) => lesion.fecha_lesion).filter(esFechaISO).sort()[0];
   return { desde: primera || `${hoy.slice(0, 4)}-01-01`, hasta: hoy };
 };
+
+// ---------------------------------------------------- Informes gráficos --
+
+// Los gráficos del plantel de la hoja "Informes Graficos" del Excel. Qué
+// cuenta cada uno, junto y con nombre para mudarlo a la configuración del
+// club (regla del 02/10):
+//   · Bloques 1 y 2 (lesiones y días perdidos c/1000 h por período guardado):
+//     el año de cada período, para el filtro AÑO (en el Excel era fijo por la
+//     letra del período; acá, el de esta fecha del período).
+//   · Bloques 3 a 5: "Cuenta de Tipo de lesão" (cuentan las que tienen este
+//     campo cargado).
+//   · Bloque 3: una torta por cada valor de "campo", con una porción por
+//     "porcion"; bloque 4: una fila por persona, apilada por "series";
+//     bloque 5: una columna por "categoria" (los valores de "valores", o
+//     todos los cargados si es null), agrupadas por "series".
+//   · filtros: las segmentaciones del Excel de cada bloque.
+//   · vaciaCuenta: si la porción o serie vacía (sin parte del cuerpo) cuenta
+//     como "Sin dato" (tortas y momentos) o no cuenta (por jugador), como
+//     cada tabla del Excel.
+export const REGLAS_GRAFICOS = Object.freeze({
+  anioDelPeriodo: "hasta",
+  campoContado: "tipo_lesion",
+  tortas: Object.freeze({ campo: "producto", valores: Object.freeze(["nao_traumatica", "traumatica"]), porcion: "parte_cuerpo", vaciaCuenta: true }),
+  porJugador: Object.freeze({ series: "parte_cuerpo", vaciaCuenta: false }),
+  momentos: Object.freeze({ categoria: "cuando", valores: null, series: "parte_cuerpo", vaciaCuenta: true }),
+  filtros: Object.freeze({
+    tortas: Object.freeze(["parte_cuerpo", "musculo", "musculo_especifico", "ligamento", "area", "lado", "tipo_lesion", "posicion"]),
+    porJugador: Object.freeze(["jugador", "tipo_lesion", "producto"]),
+    momentos: Object.freeze(["cuando", "parte_cuerpo"]),
+  }),
+});
+
+const vacio = (valor) => valor === null || valor === undefined || valor === "";
+
+// ---- Bloques 1 y 2
+
+export const anioDelPeriodo = (periodo) => Number(String(periodo?.[REGLAS_GRAFICOS.anioDelPeriodo] || "").slice(0, 4)) || null;
+export const aniosDePeriodos = (periodos = []) => [...new Set((periodos || []).map(anioDelPeriodo).filter(Boolean))].sort((a, b) => a - b);
+
+// Cada período guardado (los de un año, o todos) con su contador:
+// [{ periodo, anio, minutos, horas, filas }] (filas: las cuatro variantes).
+export const graficosPorPeriodo = (lesiones, gps, periodos, { anio = null } = {}) =>
+  ordenarPeriodos(periodos || [])
+    .filter((periodo) => anio === null || anioDelPeriodo(periodo) === anio)
+    .map((periodo) => ({ periodo, anio: anioDelPeriodo(periodo), ...contadorDelPeriodo(lesiones, gps, periodo) }));
+
+// Una columna por período para una variante: medida "lesiones" o "dias".
+// valor: cada 1000 horas (null sin minutos); detalle: las lesiones o los días.
+export const serieCadaMil = (porPeriodo, varianteId, medida) =>
+  porPeriodo.map(({ periodo, filas }) => {
+    const fila = filas.find((una) => una.variante === varianteId);
+    return {
+      clave: periodo.id ?? periodo.nombre,
+      etiqueta: periodo.nombre,
+      valor: medida === "dias" ? fila.diasCadaMil : fila.lesionesCadaMil,
+      detalle: medida === "dias" ? fila.dias : fila.cantidad,
+    };
+  });
+
+// ---- Bloques 3 a 5
+
+// Lo que vale una lesión para un filtro o un gráfico: la posición sale del
+// plantel (en el Excel, de Datos Básicos; fuera de ahí, vacía), el jugador es
+// quién es (claveDeQuien) y lo demás, lo cargado.
+export const valorParaGrafico = (lesion, campo, posicionDe = () => null) => {
+  if (campo === "posicion") return posicionDe(lesion) ?? "";
+  if (campo === "jugador") return claveDeQuien(lesion) ?? "";
+  return lesion?.datos?.[campo] ?? "";
+};
+
+// Las que entran en los bloques 3 a 5: con fecha de inicio (las sin fecha
+// nunca), con el campo contado y con lo elegido en los filtros
+// ({ campo: valor }; vacío = todos).
+export const lesionesDeLosGraficos = (lesiones, { filtros = {}, posicionDe } = {}) =>
+  (lesiones || []).filter(
+    (lesion) =>
+      tieneFecha(lesion) &&
+      !vacio(lesion.datos?.[REGLAS_GRAFICOS.campoContado]) &&
+      Object.entries(filtros).every(([campo, valor]) => vacio(valor) || valorParaGrafico(lesion, campo, posicionDe) === valor),
+  );
+
+// Los valores que hay para un filtro (sin los otros filtros): distintos y no vacíos.
+export const opcionesDeFiltro = (lesiones, campo, posicionDe) => [
+  ...new Set(lesionesDeLosGraficos(lesiones, { posicionDe }).map((lesion) => valorParaGrafico(lesion, campo, posicionDe)).filter((valor) => !vacio(valor))),
+];
+
+// Cuántas de cada valor de un campo: { valor: n } (la vacía como "", si cuenta).
+const contarSeries = (lista, campo, vaciaCuenta) => {
+  const cuenta = {};
+  lista.forEach((lesion) => {
+    const valor = lesion.datos?.[campo] ?? "";
+    if (vacio(valor) && !vaciaCuenta) return;
+    cuenta[valor] = (cuenta[valor] || 0) + 1;
+  });
+  return cuenta;
+};
+
+// Bloque 3: la torta de un valor (No traumática, Traumática):
+// [{ valor: parte, cantidad, porcentaje }] (sobre el total de esa torta).
+export const tortaPorParte = (lesiones, valorDeLaTorta, opciones = {}) => {
+  const { campo, porcion, vaciaCuenta } = REGLAS_GRAFICOS.tortas;
+  const cuenta = contarSeries(
+    lesionesDeLosGraficos(lesiones, opciones).filter((lesion) => lesion.datos?.[campo] === valorDeLaTorta),
+    porcion,
+    vaciaCuenta,
+  );
+  const total = Object.values(cuenta).reduce((suma, n) => suma + n, 0);
+  return Object.entries(cuenta).map(([valor, cantidad]) => ({ valor, cantidad, porcentaje: (cantidad / total) * 100 }));
+};
+
+// Bloque 4: [{ valor: quién (claveDeQuien), total, porSerie: { parte: n } }].
+// Sin quién o sin parte (según la regla), no cuenta.
+export const lesionesPorJugador = (lesiones, opciones = {}) => {
+  const { series, vaciaCuenta } = REGLAS_GRAFICOS.porJugador;
+  const porQuien = new Map();
+  lesionesDeLosGraficos(lesiones, opciones).forEach((lesion) => {
+    const quien = claveDeQuien(lesion);
+    if (!quien) return;
+    if (!porQuien.has(quien)) porQuien.set(quien, []);
+    porQuien.get(quien).push(lesion);
+  });
+  return [...porQuien.entries()]
+    .map(([valor, lista]) => {
+      const porSerie = contarSeries(lista, series, vaciaCuenta);
+      return { valor, total: Object.values(porSerie).reduce((suma, n) => suma + n, 0), porSerie };
+    })
+    .filter((fila) => fila.total > 0);
+};
+
+// Bloque 5: las que cuentan (con el campo de la categoría cargado y, si la
+// regla los nombra, solo esos valores), del año de su fecha de inicio.
+const deLosMomentos = (lesiones, { anio = null, ...opciones } = {}) => {
+  const { categoria, valores } = REGLAS_GRAFICOS.momentos;
+  return lesionesDeLosGraficos(lesiones, opciones).filter((lesion) => {
+    const valor = lesion.datos?.[categoria];
+    if (vacio(valor) || (valores && !valores.includes(valor))) return false;
+    return anio === null || Number(lesion.fecha_lesion.slice(0, 4)) === anio;
+  });
+};
+export const aniosDeMomentos = (lesiones, opciones = {}) =>
+  [...new Set(deLosMomentos(lesiones, { ...opciones, anio: null }).map((lesion) => Number(lesion.fecha_lesion.slice(0, 4))))].sort((a, b) => a - b);
+// [{ valor: cuándo, total, porSerie: { parte: n } }].
+export const momentosPorParte = (lesiones, opciones = {}) => {
+  const { categoria, series, vaciaCuenta } = REGLAS_GRAFICOS.momentos;
+  const porCategoria = new Map();
+  deLosMomentos(lesiones, opciones).forEach((lesion) => {
+    const valor = lesion.datos[categoria];
+    if (!porCategoria.has(valor)) porCategoria.set(valor, []);
+    porCategoria.get(valor).push(lesion);
+  });
+  return [...porCategoria.entries()].map(([valor, lista]) => {
+    const porSerie = contarSeries(lista, series, vaciaCuenta);
+    return { valor, total: Object.values(porSerie).reduce((suma, n) => suma + n, 0), porSerie };
+  });
+};
+
+// El orden de las categorías y las series: alfabético por cómo se lee en el
+// idioma (sin importar acentos), y "" (Sin dato) al final. En portugués da
+// el orden del Excel.
+export const ordenarPorEtiqueta = (filas, etiquetaDe, idioma) => {
+  const comparar = new Intl.Collator(idioma, { sensitivity: "base" }).compare;
+  return [...filas].sort(
+    (a, b) => Number(vacio(a.valor)) - Number(vacio(b.valor)) || comparar(etiquetaDe(a.valor), etiquetaDe(b.valor)) || String(a.valor).localeCompare(String(b.valor)),
+  );
+};
+
+// El nombre de cada quien (claveDeQuien) de unas lesiones: el del plantel o,
+// fuera de Datos básicos, el suyo. Map(clave → nombre).
+export const nombresDeQuien = (lesiones, plantel = []) =>
+  new Map(
+    (lesiones || [])
+      .filter((lesion) => claveDeQuien(lesion))
+      .map((lesion) => [claveDeQuien(lesion), (plantel || []).find((uno) => String(uno.id) === String(lesion.jugador_id))?.nombre || lesion.persona || "—"]),
+  );

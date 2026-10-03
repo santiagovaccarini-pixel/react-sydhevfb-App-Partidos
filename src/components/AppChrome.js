@@ -4,6 +4,12 @@ import { EscudoDeClub } from "./ClubCrest";
 import { leerEquipoElegido } from "../domain/equipo";
 
 const trazos = {
+  torta: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 3.5V12l6 6" />
+    </>
+  ),
   grafico: (
     <>
       <path d="M4 20h16" />
