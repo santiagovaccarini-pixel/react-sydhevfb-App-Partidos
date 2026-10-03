@@ -221,8 +221,9 @@ de lo hecho está en los commits, no en esta lista.
   Probado en local con la hoja real: entran los 38 jugadores con todas sus columnas. Los
   datos no pasan por el repositorio ni por el chat: la carga la hace alguien del club desde
   la app.
-- Del Excel quedan para más adelante: BD GPS (minutos para incidencia por 1000 h), la
-  evaluación de lesiones (ROM y valores de referencia) y los reportes con gráficos. El bloque
+- Del Excel quedan para más adelante: BD GPS (los minutos para las cuentas cada 1000
+  horas de los reportes; falta decidir cómo llegan) y la evaluación de lesiones (ROM y
+  valores de referencia). El bloque
   "Plan Agudo" del Excel está marcado "no usar" y no se trajo.
 - Lo que se suma al catálogo (`lesionesCampos.js`) llega solo a los clubes ya sembrados:
   `leerConfig` completa las cabeceras y opciones que falten sin pisar lo que el club cambió.
@@ -273,6 +274,11 @@ mover a una configuración por club:
 - Recup 1 = transición − inicio; Recup 2 = retorno al entrenamiento − inicio;
   recuperación = alta (o hoy) − inicio. Las etapas (lesionado, transición,
   entrenando, alta) salen de esas fechas; "activa" = sin alta.
+- Reportes (`REGLAS_INCIDENCIA` en `src/domain/reportes.js`, copiadas de las fórmulas del
+  Excel): el cuadro cada 1000 horas cuenta las lesiones no traumáticas (Datos Básicos P8)
+  de partidos oficiales, amistosos y entrenamientos (R7:R9) del profesional (S7); "sin
+  leves" saca solo la severidad leve (T8: las de registro quedan); LM son los grados 1A a
+  3C y la sobrecarga muscular / calambre.
 - Validaciones: obligatorios jugador, tipo de lesión (pedido del 02/10), parte,
   lado y fecha de inicio; fechas no futuras y posteriores al inicio (también la
   hora de la imagen: no antes del día de la lesión); no dos lesiones activas en
@@ -341,7 +347,31 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   como opción propia (el del bíceps femoral, el del semitendinoso, los del bíceps y el
   tríceps) están dibujados en blanco pero eligen su músculo; la parte del músculo (por
   ejemplo, "Distal – tendón libre") va en el área.
-- **Los informes** (lo siguiente que pidió Santiago).
+- **Reportes (02/10, rehechos el 03/10)**: solapa "Reportes" en Lesiones
+  (`src/ReportesLesiones.jsx`; las cuentas en `src/domain/reportes.js`). Ver reportes tiene
+  dos. El **individual** es la hoja "Reporte de Lesiones IND" del Excel con las mismas
+  cuentas, solo mejor presentada (pedido de Santiago del 03/10: "las lógicas no se
+  cambian"): encabezado con el club, el jugador y su foto; nacimiento, pie y posición (de
+  Datos básicos); el cuadro de lesiones y de días perdidos cada 1000 horas en sus cuatro
+  columnas (todas / sin leves, de todos los tipos / solo LM) con el jugador, el VR del
+  plantel y "jugador vs VR" (el porcentaje sobre el valor del jugador, como la fórmula del
+  Excel; en rojo si está arriba del VR, en verde si está abajo); la leyenda, y la tabla de
+  todas sus lesiones con doce columnas que se cambian desde la cabecera, como las cabeceras
+  móviles del Excel. El VR se calcula con toda la base hasta hoy (en el Excel es la fila
+  "BASE COMPLETA" de "Incidencias c 1000h", que pega una macro). El **grupal** suma el
+  mismo cuadro para el plantel en el período elegido (el contador por período de
+  "Antecedentes BD": cuentan las empezadas en el período y los días que caen adentro),
+  más los gráficos por mes, zona, tipo, severidad, mecanismo, cuándo, producto y posición.
+  Se imprimen o se guardan en PDF (apaisado).
+  **Las horas salen del GPS (decisión de Santiago del 03/10)**, como en la hoja "BD GPS"
+  del Excel (minutos de cada jugador por día). **Falta decidir cómo llegan a la app**: pegar
+  la hoja "BD GPS" (como se pegan los jugadores en Datos básicos) o leerlos directo de
+  Catapult (la app hoy solo lee actividades, períodos y atletas; los minutos no). Mientras
+  tanto el cuadro muestra "—" y avisa que faltan los minutos del GPS. En el Excel, a los
+  minutos del GPS del jugador se les suma la columna A de "Datos Básicos" (sin título, con
+  valores de 0 a 2): no se trajo, hay que preguntar qué es.
+  **Lo que sigue: Crear reportes**, un lienzo con bloques (número, gráfico, tabla) donde se
+  elige la medida, cómo separarla y los filtros, y se guarda por club.
 - Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
   la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa
   columna no se guarda porque cuenta como calculada); y "Imágenes" se carga como texto libre

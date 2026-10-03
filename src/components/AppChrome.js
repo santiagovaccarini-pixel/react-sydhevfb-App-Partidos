@@ -4,6 +4,33 @@ import { EscudoDeClub } from "./ClubCrest";
 import { leerEquipoElegido } from "../domain/equipo";
 
 const trazos = {
+  grafico: (
+    <>
+      <path d="M4 20h16" />
+      <path d="M7 16v-5M12 16V6M17 16V9" />
+    </>
+  ),
+  calendario: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+      <path d="M3.5 10h17M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01" />
+    </>
+  ),
+  huellas: (
+    <>
+      <path d="M7.5 3.5c-1.6 0-2.6 1.8-2.6 4.1 0 1.8.6 3 .8 4.2h3.6c.2-1.2.8-2.4.8-4.2 0-2.3-1-4.1-2.6-4.1Z" />
+      <path d="M5.8 14.2h3.5v.9a1.75 1.75 0 0 1-3.5 0Z" />
+      <path d="M16.5 7.5c1.6 0 2.6 1.8 2.6 4.1 0 1.8-.6 3-.8 4.2h-3.6c-.2-1.2-.8-2.4-.8-4.2 0-2.3 1-4.1 2.6-4.1Z" />
+      <path d="M14.7 18.2h3.5v.9a1.75 1.75 0 0 1-3.5 0Z" />
+    </>
+  ),
+  cancha: (
+    <>
+      <rect x="2.5" y="5" width="19" height="14" rx="1.5" />
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M12 5v14M2.5 9.5h2.8v5H2.5M21.5 9.5h-2.8v5h2.8" />
+    </>
+  ),
   partido: (
     <>
       <circle cx="12" cy="12" r="9" />

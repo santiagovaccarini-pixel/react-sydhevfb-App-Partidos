@@ -14,7 +14,9 @@ import { ALTO, ANCHO, ORDEN_DE_REGIONES, dibujoDe, zoomA } from "./siluetaCuerpo
 // figura que se pueden tocar (las que el club no escondió);
 // regionesDisponibles: las regiones que se pueden tocar (si no se pasan, las
 // que tienen alguna parte disponible). onRegion / onParte reciben la región
-// o la parte tocada; sin ellas la figura es solo para mirar.
+// o la parte tocada; sin ellas la figura es solo para mirar. colorDe(region,
+// parte), si se pasa, pinta cada parte (los reportes: más lesiones, más
+// fuerte).
 export const FiguraCuerpo = ({
   vista = "frente",
   region = null,
@@ -27,6 +29,7 @@ export const FiguraCuerpo = ({
   onParte,
   chica = false,
   etiquetas = null,
+  colorDe = null,
 }) => {
   const zoom = zoomA(region, vista);
   const sePuede = (parte) => !disponibles || disponibles.includes(parte);
@@ -66,7 +69,14 @@ export const FiguraCuerpo = ({
                   const puede = sePuede(pieza.parte);
                   // Con la región acercada, cada parte es un botón.
                   const comoParte = !chica && activa && puede && onParte;
-                  const forma = <path d={pieza.camino} className={`figura-cuerpo-pieza ${esLaElegida ? "elegida" : ""} ${puede ? "" : "sin-opcion"}`.trim()} />;
+                  const color = colorDe ? colorDe(clave, pieza.parte) : null;
+                  const forma = (
+                    <path
+                      d={pieza.camino}
+                      className={`figura-cuerpo-pieza ${esLaElegida ? "elegida" : ""} ${puede ? "" : "sin-opcion"}`.trim()}
+                      style={color ? { fill: color } : undefined}
+                    />
+                  );
                   return comoParte ? (
                     <g
                       key={pieza.parte}

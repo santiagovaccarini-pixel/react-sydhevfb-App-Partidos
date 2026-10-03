@@ -14,6 +14,7 @@ const datos = vi.hoisted(() => ({
   equipo: { id: "eq-1", nombre: "Atlético Mineiro" },
   historialesPedidos: [],
   cambios: [],
+  errorAlLeer: "",
 }));
 
 const lesionHulk = () => ({
@@ -36,7 +37,7 @@ vi.mock("./domain/equipo.js", () => ({
   esElCam: (nombre) => nombre === "Atlético Mineiro",
 }));
 vi.mock("./domain/lesionesDb.js", () => ({
-  listarLesiones: async () => ({ lesiones: datos.lesiones.map((l) => ({ ...l, datos: { ...l.datos } })), error: "" }),
+  listarLesiones: async () => (datos.errorAlLeer ? { lesiones: [], error: datos.errorAlLeer } : { lesiones: datos.lesiones.map((l) => ({ ...l, datos: { ...l.datos } })), error: "" }),
   cargarPlantelLesiones: async () => ({
     plantel: [
       { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
@@ -138,6 +139,7 @@ describe("el módulo Lesiones", () => {
     datos.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
     datos.historialesPedidos = [];
     datos.cambios = [];
+    datos.errorAlLeer = "";
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -166,7 +168,7 @@ describe("el módulo Lesiones", () => {
     expect(boton(contenedor, "Ver detalle")).toBeTruthy();
     expect(boton(contenedor, "Alta médica")).toBeTruthy();
     // Sin pantalla de plantel: la barra tiene Lesionados, Historial, Base y Ajustes.
-    expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent.trim())).toEqual(["Lesionados", "Historial", "Base", "Ajustes"]);
+    expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent.trim())).toEqual(["Lesionados", "Historial", "Base", "Reportes", "Ajustes"]);
 
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     expect(texto(contenedor)).toContain("1 lesão ativa");
@@ -807,6 +809,80 @@ describe("el módulo Lesiones", () => {
     expect(datos.actualizadas[0].lesion.datos.severidad).toBeUndefined();
     expect(texto(contenedor)).toContain("Alta guardada");
     expect(texto(contenedor)).toContain("No hay lesiones activas");
+  });
+
+  test("los reportes: el individual como el del Excel y el grupal", async () => {
+    // Fechas contadas desde hoy, para que la prueba ande cualquier día del año.
+    const haceDias = (dias) => {
+      const fecha = new Date(`${hoyISO()}T12:00:00Z`);
+      fecha.setUTCDate(fecha.getUTCDate() - dias);
+      return fecha.toISOString().slice(0, 10);
+    };
+    const contexto = { producto: "nao_traumatica", cuando: "treinamento", localizacion: "profissional" };
+    datos.lesiones = [
+      { ...lesionHulk(), fecha_lesion: haceDias(20), fecha_alta: haceDias(10), datos: { ...lesionHulk().datos, ...contexto } },
+      { ...lesionHulk(), id: "les-2", numero_caso: 2, jugador_id: 8, fecha_lesion: haceDias(15), fecha_alta: haceDias(13), datos: { parte_cuerpo: "joelho", lado: "esquerdo", tipo_lesion: "entorse", cuando: "treinamento" } },
+    ];
+    await montar();
+    await navegar(contenedor, "Reportes");
+    expect(texto(contenedor)).toContain("Ver reportes");
+    expect(texto(contenedor)).toContain("Crear reportes");
+
+    await tocar(botonQueEmpieza(contenedor, "Reporte individual"));
+    await tocar(botonQueEmpieza(contenedor, "HULK"));
+    // El encabezado del Excel: el club, el jugador y el título; el panel con
+    // nacimiento, pie y posición.
+    expect(contenedor.querySelector(".informe-cabecera h1").textContent).toBe("HULK");
+    expect(contenedor.querySelector(".informe-cabecera").textContent).toContain("Atlético Mineiro");
+    expect(contenedor.querySelector(".informe-cabecera").textContent).toContain("REPORTE DE LESIONES");
+    const datosDelJugador = [...contenedor.querySelectorAll(".informe-dato dt")].map((dt) => dt.textContent);
+    expect(datosDelJugador).toEqual(["Fecha de nacimiento", "Pie dominante", "Posición"]);
+    // El cuadro cada 1000 horas: las cuatro columnas y, sin los minutos del
+    // GPS, sin números y con el aviso.
+    const cuadros = contenedor.querySelectorAll(".informe-cuadro");
+    expect(cuadros).toHaveLength(2);
+    expect([...cuadros[0].querySelectorAll("thead tr:last-child th")].map((th) => th.textContent)).toEqual(["Todas", "Sin leves", "Todas", "Sin leves"]);
+    expect([...cuadros[0].querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["Jugador", "VR", "Jugador vs VR"]);
+    expect([...cuadros[0].querySelectorAll("tbody td")].every((td) => td.textContent === "—")).toBe(true);
+    expect(texto(contenedor)).toContain("Faltan los minutos del GPS");
+    expect(texto(contenedor)).toContain("Superior al VR");
+    // La tabla: sus lesiones, con las columnas del Excel, que se cambian desde
+    // la cabecera.
+    expect(contenedor.querySelectorAll(".informe-tabla tbody tr")).toHaveLength(1);
+    const cabeceras = () => [...contenedor.querySelectorAll(".informe-tabla th .informe-columna span")].map((span) => span.textContent);
+    expect(cabeceras()).toHaveLength(12);
+    expect(cabeceras().slice(0, 3)).toEqual([etiqueta("numero_registro"), etiqueta("parte_cuerpo"), etiqueta("tipo_lesion")]);
+    const selector = contenedor.querySelectorAll(".informe-tabla th select")[1];
+    await act(async () => {
+      selector.value = "medico";
+      selector.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(cabeceras()[1]).toBe(etiqueta("medico"));
+
+    await tocar(contenedor.querySelector(".reporte-volver"));
+    await tocar(botonQueEmpieza(contenedor, "Reporte grupal"));
+    await tocar(chip(contenedor, "Todo"));
+    const kpis = () => [...contenedor.querySelectorAll(".reporte-kpi")].map((kpi) => kpi.textContent);
+    expect(kpis().slice(0, 3)).toEqual(["2Lesiones", "2Jugadores lesionados", "12Días perdidos"]);
+    // El cuadro del plantel: entra solo la de HULK (no traumática, en
+    // entrenamiento, del profesional), que es muscular y no es leve.
+    const cuadro = contenedor.querySelector(".informe-cuadro");
+    expect([...cuadro.querySelector("tbody tr").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["1", "1", "1", "1"]);
+    expect(texto(contenedor)).toContain("Lesiones por mes");
+    expect(texto(contenedor)).toContain("Quiénes perdieron más días");
+    expect(contenedor.querySelectorAll(".reporte-figuras .figura-cuerpo-pieza[style]").length).toBeGreaterThan(0);
+  });
+
+  test("los reportes no muestran ceros si las lesiones no se pudieron leer", async () => {
+    datos.errorAlLeer = "lesiones.error.noLeer";
+    await montar();
+    await navegar(contenedor, "Reportes");
+    expect(contenedor.querySelector(".lesiones-estado.error")).not.toBe(null);
+    await tocar(botonQueEmpieza(contenedor, "Reporte individual"));
+    expect(contenedor.querySelector(".lesiones-estado.error")).not.toBe(null);
+    expect(contenedor.querySelector(".lesiones-elegir-jugador")).toBe(null);
+    expect(contenedor.querySelector(".informe")).toBe(null);
+    expect(texto(contenedor)).not.toContain("Imprimir o guardar en PDF");
   });
 
   test("una lesión se borra desde la ficha con confirmación", async () => {
