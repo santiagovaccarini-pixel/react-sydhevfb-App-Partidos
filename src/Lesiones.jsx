@@ -1539,6 +1539,7 @@ export default function Lesiones({ onVolver }) {
           </>
         }
         datosListos={!cargando && !error}
+        onAviso={setAviso}
       />
     );
   else if (vista === "ajustes") contenido = pantallaAjustes();

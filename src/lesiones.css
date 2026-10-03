@@ -1876,6 +1876,83 @@
   gap: 10px;
   margin-bottom: 12px;
 }
+/* Lesiones c/1000h y días perdidos: el nombre del período, guardarlo y la
+   lista de los guardados (se toca uno para verlo). */
+.lesiones-marco .reporte-contador-nombre {
+  display: grid;
+  gap: 4px;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.lesiones-marco .reporte-contador-nombre input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.lesiones-marco .reporte-kpis-dos {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.lesiones-marco .reporte-contador-guardar {
+  display: grid;
+  gap: 10px;
+}
+.lesiones-marco .reporte-contador-guardar .boton-principal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.lesiones-marco .reporte-periodos-lista {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lesiones-marco .reporte-periodos-lista li {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.lesiones-marco .reporte-periodo {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lesiones-marco .reporte-periodo b {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.lesiones-marco .reporte-periodo span,
+.lesiones-marco .reporte-periodo small {
+  color: #475569;
+  font-size: 12.5px;
+}
+.lesiones-marco .reporte-periodos-lista li.elegido .reporte-periodo {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+.lesiones-marco .reporte-periodo-borrar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  background: #fff;
+  color: #b91c1c;
+  cursor: pointer;
+}
 .lesiones-marco .reporte-kpi {
   display: grid;
   gap: 2px;

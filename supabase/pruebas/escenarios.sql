@@ -489,4 +489,31 @@ select pruebas.debe_fallar('...pero la misma lesión dos veces (mismo día), no'
 select pruebas.debe_fallar('...ni con un N° de caso que ya existe', $$insert into lesiones (equipo_id, jugador_id, numero_caso, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 500, '2026-07-01', '{"parte_cuerpo":"joelho","lado":"esquerdo"}')$$, 'lesiones_numero_caso_unico');
 reset role;
 
+-- ------------------------------------------------ Períodos guardados --
+
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla guarda un período de Lesiones c/1000h', pruebas.filas($$insert into lesiones_periodos (equipo_id, nombre, desde, hasta) values ('00000000-0000-0000-0000-0000000000c1', 'Primer semestre', '2026-01-01', '2026-06-30')$$), 1);
+select pruebas.esperar('...y uno sin fecha de inicio (desde la primera lesión)', pruebas.filas($$insert into lesiones_periodos (equipo_id, nombre, hasta) values ('00000000-0000-0000-0000-0000000000c1', 'Base completa', '2026-10-01')$$), 1);
+select pruebas.esperar('...y los ve', (select count(*) from lesiones_periodos), 2);
+select pruebas.debe_fallar('El mismo nombre no se repite (ni con otras mayúsculas)', $$insert into lesiones_periodos (equipo_id, nombre, hasta) values ('00000000-0000-0000-0000-0000000000c1', ' primer SEMESTRE ', '2026-07-01')$$, 'lesiones_periodos_nombre_unico');
+select pruebas.debe_fallar('...ni sin nombre', $$insert into lesiones_periodos (equipo_id, nombre, hasta) values ('00000000-0000-0000-0000-0000000000c1', '   ', '2026-07-01')$$, 'lesiones_periodos_nombre');
+select pruebas.debe_fallar('...ni con el final antes del inicio', $$insert into lesiones_periodos (equipo_id, nombre, desde, hasta) values ('00000000-0000-0000-0000-0000000000c1', 'Al revés', '2026-07-01', '2026-06-01')$$, 'lesiones_periodos_fechas');
+select pruebas.esperar('Carla lo renombra', pruebas.filas($$update lesiones_periodos set nombre = '1° semestre' where nombre = 'Primer semestre'$$), 1);
+reset role;
+
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva no ve los períodos de Uno', (select count(*) from lesiones_periodos where equipo_id = :C1), 0);
+select pruebas.debe_fallar('...ni guarda uno en Uno', $$insert into lesiones_periodos (equipo_id, nombre, hasta) values ('00000000-0000-0000-0000-0000000000c1', 'Espía', '2026-07-01')$$, 'row-level security');
+select pruebas.esperar('...ni borra los de Uno', pruebas.filas($$delete from lesiones_periodos$$), 0);
+reset role;
+
+select pruebas.ser('gaby@uno.com'); set role authenticated;
+select pruebas.esperar('Gaby (bloqueada) no ve los períodos', (select count(*) from lesiones_periodos), 0);
+reset role;
+
+set role anon;
+select pruebas.debe_fallar('Sin cuenta no se ven los períodos', 'select count(*) from lesiones_periodos', 'permission denied');
+reset role;
+select pruebas.esperar('Quedan los dos de Uno', (select count(*) from lesiones_periodos where equipo_id = :C1), 2);
+
 select 'ESCENARIOS: todos bien' as resultado;

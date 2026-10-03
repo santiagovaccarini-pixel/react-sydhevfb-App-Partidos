@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   VARIANTES,
+  contadorDelPeriodo,
   contarPor,
   contraVR,
   cuadroCadaMil,
@@ -12,6 +13,7 @@ import {
   lesionesDelReporte,
   mesesEntre,
   minutosGps,
+  ordenarPeriodos,
   periodoDe,
   porMes,
   resumenDeLesiones,
@@ -174,5 +176,39 @@ describe("el reporte grupal", () => {
     expect(periodoDe("doce", hoy)).toEqual({ desde: "2025-10-03", hasta: hoy });
     expect(periodoDe("doce", "2028-02-29")).toEqual({ desde: "2027-03-01", hasta: "2028-02-29" });
     expect(periodoDe("todo", hoy, [lesion({ fecha_lesion: "2024-03-01" })])).toEqual({ desde: "2024-03-01", hasta: hoy });
+  });
+});
+
+describe("Lesiones c/1000h y días perdidos", () => {
+  const lesiones = [lesion({ id: "a" }), lesion({ id: "b", fecha_lesion: "2026-03-01", fecha_alta: "2026-03-04", datos: { tipo_lesion: "entorse" } })];
+  const gps = [
+    { jugadorId: "7", fecha: "2026-02-10", minutos: 3000 },
+    { jugadorId: "99", fecha: "2026-09-10", minutos: 3000 },
+    { jugadorId: "7", fecha: "2026-11-01", minutos: 600 },
+  ];
+
+  test("el contador del período: los minutos de todos (también de quien no está en el plantel), las horas y el cuadro", () => {
+    const contador = contadorDelPeriodo(lesiones, gps, { desde: "2026-01-01", hasta: hoy });
+    expect(contador.minutos).toBe(6000);
+    expect(contador.horas).toBe(100);
+    expect(contador.filas[0]).toMatchObject({ variante: "todas", cantidad: 2, dias: 23, lesionesCadaMil: 20, diasCadaMil: 230 });
+    // Solo LM: el esguince no cuenta.
+    expect(contador.filas[2]).toMatchObject({ variante: "musculares", cantidad: 1, dias: 20 });
+  });
+
+  test("sin los minutos del GPS: minutos y horas vacíos, y lo cada 1000 horas también", () => {
+    const contador = contadorDelPeriodo(lesiones, null, { hasta: hoy });
+    expect(contador.minutos).toBeNull();
+    expect(contador.horas).toBeNull();
+    expect(contador.filas[0]).toMatchObject({ cantidad: 2, dias: 23, lesionesCadaMil: null, diasCadaMil: null });
+  });
+
+  test("los períodos guardados, por fecha: los que no tienen inicio primero", () => {
+    const periodos = [
+      { id: 3, nombre: "Segundo semestre", desde: "2026-07-01", hasta: "2026-12-31" },
+      { id: 1, nombre: "Base completa", desde: "", hasta: "2026-10-01" },
+      { id: 2, nombre: "Primer semestre", desde: "2026-01-01", hasta: "2026-06-30" },
+    ];
+    expect(ordenarPeriodos(periodos).map((periodo) => periodo.id)).toEqual([1, 2, 3]);
   });
 });
