@@ -58,6 +58,26 @@ describe("dondeVa", () => {
     expect(dondeVa(lesion({ parte_cuerpo: "abdomen", musculo_especifico: "abdominal" }), mapa)).toMatchObject({ vista: "frente", codigo: "abdominal" });
   });
 
+  test("un grupo cargado en otra parte va en esa parte: los isquiotibiales en la rodilla, no en el medio del muslo", () => {
+    const enLaRodilla = dondeVa(lesion({ parte_cuerpo: "joelho", lado: "direito", musculo: "isquiotibiais" }), mapa);
+    expect(enLaRodilla).toMatchObject({ vista: "espalda", campo: "musculo", codigo: "isquiotibiais" });
+    expect(enLaRodilla.y).toBeGreaterThan(295);
+    expect(enLaRodilla.y).toBeLessThan(335);
+    const enElMuslo = dondeVa(lesion({ parte_cuerpo: "coxa", lado: "direito", musculo: "isquiotibiais" }), mapa);
+    expect(enElMuslo.y).toBeLessThan(enLaRodilla.y - 15);
+  });
+
+  test("el tronco sin músculo cargado: del lado del jugador, no en el medio", () => {
+    const abdomenIzquierdo = dondeVa(lesion({ parte_cuerpo: "abdomen", lado: "esquerdo" }), mapa);
+    expect(abdomenIzquierdo).toMatchObject({ vista: "frente", campo: "parte_cuerpo" });
+    expect(abdomenIzquierdo.x).toBeGreaterThan(ANCHO / 2 + 5);
+    // De espaldas, la derecha del jugador queda a la derecha.
+    const lumbarDerecha = dondeVa(lesion({ parte_cuerpo: "coluna_lombar", lado: "direito" }), mapa);
+    expect(lumbarDerecha.vista).toBe("espalda");
+    expect(lumbarDerecha.x).toBeGreaterThan(ANCHO / 2 + 5);
+    expect(dondeVa(lesion({ parte_cuerpo: "coluna_lombar" }), mapa).x).toBeCloseTo(ANCHO / 2, 0);
+  });
+
   test("sin parte, o una pierna sin lado: no se sabe dónde va", () => {
     expect(dondeVa(lesion({}), mapa)).toBe(null);
     expect(dondeVa(lesion({ parte_cuerpo: "coxa" }), mapa)).toBe(null);

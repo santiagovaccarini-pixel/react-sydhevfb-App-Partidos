@@ -2188,7 +2188,7 @@
   }
   .lesiones-marco .informe-tabla td {
     padding: 6px 5px;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .lesiones-marco .informe-severidad {
     padding: 2px 7px;

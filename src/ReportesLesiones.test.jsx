@@ -170,7 +170,7 @@ describe("los reportes con los minutos del GPS", () => {
           hoy={hoy}
           etiqueta={(clave) => etiquetaDeCampo(clave, null, "es-AR")}
           textoDeOpcion={(campo, codigo) => codigo || ""}
-          enPantalla={(campo, lesion) => (campo.clave === "musculo" ? "" : `${campo.clave}:${lesion.id}`)}
+          enPantalla={(campo, lesion) => (campo.clave === "musculo" ? "" : campo.clave === "tipo_lesion" ? "ENTORSE/LESÃO" : campo.clave === "fecha_lesion" ? "01/03/2026" : `${campo.clave}:${lesion.id}`)}
           camposVisibles={CAMPOS.filter((campo) => campo.clave !== "musculo_especifico")}
           gps={GPS}
         />,
@@ -180,7 +180,14 @@ describe("los reportes con los minutos del GPS", () => {
     await tocar(botonQueEmpieza("HULK"));
     expect(cabeceras()).toEqual(etiquetas.slice(0, 11));
     // Lo vacío, con una raya.
-    expect(contenedor.querySelector(".informe-tabla tbody tr").children[10].textContent).toBe("—");
+    const fila = contenedor.querySelector(".informe-tabla tbody tr").children;
+    expect(fila[10].textContent).toBe("—");
+    // Lo pegado con barras se puede partir después de la barra (sin cambiar
+    // el texto); las fechas, no.
+    expect(fila[2].textContent).toBe("ENTORSE/LESÃO");
+    expect(fila[2].querySelectorAll("wbr")).toHaveLength(1);
+    expect(fila[7].textContent).toBe("01/03/2026");
+    expect(fila[7].querySelectorAll("wbr")).toHaveLength(0);
   });
 
   test("el mapa corporal: una mancha donde se lesionó, con el nombre de lo lesionado", async () => {
