@@ -333,6 +333,17 @@ describe("la tabla estilo Excel", () => {
     ]);
   });
 
+  test("con Mayúscula, un toque en la casilla extiende la selección y no la cambia", async () => {
+    const conCasilla = [...columnas, { clave: "actual", titulo: "Actual", tipo: "casilla", editable: true }];
+    await montar({ columnas: conCasilla, filas: filas.map((fila) => ({ ...fila, valores: { ...fila.valores, actual: true }, textos: { ...fila.textos, actual: "Sí" } })) });
+    await tocar(celda(contenedor, 0, 0));
+    const casilla = celda(contenedor, 1, 3).querySelector("input[type=checkbox]");
+    await act(async () => casilla.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true })));
+    expect(casilla.checked).toBe(true);
+    expect(editados).toEqual([]);
+    expect(contenedor.querySelectorAll("td.elegida").length).toBeGreaterThan(1);
+  });
+
   test("sin permiso, la casilla se ve pero no se cambia", async () => {
     const conCasilla = [...columnas, { clave: "actual", titulo: "Actual", tipo: "casilla", editable: false }];
     await montar({ columnas: conCasilla, filas: filas.map((fila) => ({ ...fila, valores: { ...fila.valores, actual: true }, textos: { ...fila.textos, actual: "Sí" } })) });

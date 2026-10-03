@@ -176,7 +176,7 @@ export default {
     actuales_other: "{{n}} en el plantel actual",
     agregado: "Jugador agregado",
     borrarTitulo: "¿Borrar al jugador?",
-    borrarTexto: "{{jugador}} sale de la lista de jugadores de todos los módulos. Si tiene lesiones cargadas, no se puede: si ya no está en el club, desmarcá Actual.",
+    borrarTexto: "Borrar es para un jugador cargado por error: {{jugador}} sale de la lista de todos los módulos. Si ya no está en el club, mejor desmarcá Actual (sus datos quedan). Con lesiones cargadas no se puede borrar.",
     siBorrar: "Sí, borrar",
     borrado: "Jugador borrado",
     guardado: "Guardado",

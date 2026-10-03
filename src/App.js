@@ -5610,6 +5610,10 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     ];
 
     const convocadosEditados = editado.formacion?.convocados || [];
+    // Para elegir en un partido viejo: el plantel de hoy y los que jugaron
+    // ese partido (lo guardado y lo que se está editando), aunque ya no estén.
+    const plantelDelPartidoEditado = plantelParaElegir(plantel, { nombres: [...nombresDelRegistro(item), ...nombresDelRegistro(editado)] });
+    const nombresDelPartidoEditado = nombresDelPlantel(plantelDelPartidoEditado);
 
     return (
       <div className="app">
@@ -5803,12 +5807,10 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           {pestanaEdicion === "formacion" && (
             <>
               <section className="tarjeta">
-                {/* Un partido viejo: el plantel de hoy y los que jugaron ese
-                    partido, aunque ya no estén. */}
                 <CanchaFormacion
                   titulo="Titulares de campo"
                   cancha={editado.formacion?.cancha}
-                  plantel={plantelParaElegir(plantel, { nombres: nombresDelRegistro(editado) })}
+                  plantel={plantelDelPartidoEditado}
                   onCambiar={actualizarCanchaEditada}
                 />
               </section>
@@ -5844,6 +5846,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                       <InputJugador
                         value={jugador}
                         placeholder={`Convocado ${convocadoIndex + 1}`}
+                        opciones={nombresDelPartidoEditado}
                         onChange={(valor) =>
                           actualizarConvocadoEditado(convocadoIndex, valor)
                         }

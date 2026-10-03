@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { leerEquipoElegido } from "./domain/equipo.js";
 import { cargarPlantelConCatapult, esActual, plantelParaElegir } from "./domain/plantel.js";
 import { etiquetaEntrenamiento, vincularActividad } from "./domain/entrenamiento.js";
@@ -294,9 +294,16 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
   }, [tareas, sesion?.asignaciones]);
   const rosterConocido = atletasActividad instanceof Set && atletasActividad.size > 0;
   const tieneDatos = (jugador) => !rosterConocido || atletasActividad.has(String(jugador.catapult_id));
-  // Los que ya están en alguna tarea de la sesión: aunque se hayan ido del
-  // plantel (Datos básicos › Actual), una sesión vieja no los pierde.
-  const enLaSesion = useMemo(() => new Set(tareas.flatMap((tarea) => Object.keys(tarea.participantes || {}))), [tareas]);
+  // Los que estuvieron en alguna tarea de esta sesión mientras se la mira:
+  // aunque se hayan ido del plantel (Datos básicos › Actual), una sesión vieja
+  // no los pierde, ni si se destildan por error.
+  const vistosEnLaSesion = useRef({ id: null, ids: new Set() });
+  const enLaSesion = useMemo(() => {
+    if (vistosEnLaSesion.current.id !== (entrenamiento?.id ?? null)) vistosEnLaSesion.current = { id: entrenamiento?.id ?? null, ids: new Set() };
+    tareas.forEach((tarea) => Object.keys(tarea.participantes || {}).forEach((id) => vistosEnLaSesion.current.ids.add(id)));
+    return new Set(vistosEnLaSesion.current.ids);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tareas, entrenamiento?.id]);
   // Elegibles: del plantel actual (o ya en la sesión), con chaleco y, si se
   // pudo leer, con datos en la sesión.
   const elegibles = useMemo(
@@ -1009,7 +1016,7 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
         <HojaJugadores
           abierta={hoja === "jugadores"}
           tarea={activa}
-          plantel={plantelParaElegir(plantel, { ids: Object.keys(activa?.participantes || {}) })}
+          plantel={plantelParaElegir(plantel, { ids: [...enLaSesion] })}
           elegibles={elegibles}
           estadoPlantel={estadoPlantel}
           errorPlantel={errorPlantel}

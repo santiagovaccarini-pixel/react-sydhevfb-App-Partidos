@@ -208,7 +208,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       reemplazar(respuesta.jugador);
       // Lo demás se guardó; las horas, no (falta el SQL de las horas previas).
       if (respuesta.aviso) ultimoError = respuesta.aviso;
-      hechos += Object.keys(datos).length - (respuesta.aviso ? 1 : 0);
+      hechos += Object.keys(datos).length - (respuesta.sinGuardar || 0);
     }
     return { hechos, error: ultimoError };
   };

@@ -240,14 +240,15 @@ export const guardarDatosJugador = async (id, datos) => {
   let { data, error } = await guardar(valores, columnasJugador(sin));
   // Sin el SQL de una columna nueva: lo demás se guarda igual y, si había
   // algo para guardar en ella, se avisa. Si solo era eso, no se guarda nada.
-  // (Vaciar las horas sin la columna no pierde nada: no avisa.)
-  let aviso = "";
+  // (Vaciar las horas sin la columna no pierde nada: no avisa.) avisos: lo
+  // que no se guardó; se avisa el primero y sinGuardar dice cuántos datos.
+  const avisos = [];
   for (let falta = columnaQueFalta(error, sin); falta; falta = columnaQueFalta(error, sin)) {
     sin.push(falta);
     const { [falta]: valor, ...resto } = valores;
     const seQueria = falta in valores && valor !== null && valor !== undefined;
-    if (seQueria && !Object.keys(resto).some((clave) => clave !== "actualizado_en")) return { error: COLUMNAS_NUEVAS[falta].aviso };
-    if (seQueria) aviso = COLUMNAS_NUEVAS[falta].aviso;
+    if (seQueria && !Object.keys(resto).some((clave) => clave !== "actualizado_en")) return { error: avisos[0] || COLUMNAS_NUEVAS[falta].aviso };
+    if (seQueria) avisos.push(COLUMNAS_NUEVAS[falta].aviso);
     valores = resto;
     ({ data, error } = await guardar(valores, columnasJugador(sin))); // eslint-disable-line no-await-in-loop
   }
@@ -255,7 +256,7 @@ export const guardarDatosJugador = async (id, datos) => {
     if (/duplicate key|unique/i.test(error.message || "")) return { error: "datos.error.repetido" };
     return fallo(error, "datos.error.guardar");
   }
-  return { jugador: normalizarJugadorLesiones(data), error: "", ...(aviso ? { aviso } : {}) };
+  return { jugador: normalizarJugadorLesiones(data), error: "", ...(avisos.length ? { aviso: avisos[0], sinGuardar: avisos.length } : {}) };
 };
 
 // Alta y baja de jugadores desde Datos básicos: las mismas de Partido. El

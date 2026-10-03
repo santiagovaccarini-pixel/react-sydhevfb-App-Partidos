@@ -47,7 +47,13 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [equipoId]);
 
-  const filas = useMemo(() => (atletas.length > 0 ? proponerVinculos({ jugadores: plantel, atletas }) : []), [plantel, atletas]);
+  // A quien ya no está en el plantel actual no se le propone un chaleco
+  // (su chaleco guardado se ve igual).
+  const conPropuestas = (jugadores, lista) => {
+    const actuales = new Set(jugadores.filter(esActual).map((jugador) => jugador.id));
+    return proponerVinculos({ jugadores, atletas: lista }).map((fila) => (actuales.has(fila.jugadorId) ? fila : { ...fila, propuesta: null }));
+  };
+  const filas = useMemo(() => (atletas.length > 0 ? conPropuestas(plantel, atletas) : []), [plantel, atletas]);
   const resumen = useMemo(() => resumirVinculos(filas), [filas]);
 
   const traerAtletas = async () => {
@@ -60,13 +66,10 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
       setAtletas(lista);
       // Punto de partida: lo guardado; si no hay, la propuesta.
       const iniciales = {};
-      const actuales = new Set(plantel.filter(esActual).map((jugador) => jugador.id));
-      proponerVinculos({ jugadores: plantel, atletas: lista }).forEach((fila) => {
+      conPropuestas(plantel, lista).forEach((fila) => {
         // Un chaleco guardado que ya no existe no tiene opción en la lista:
-        // arranca en "Sin chaleco", así guardar lo desvincula. A quien ya no
-        // está en el plantel actual no se le propone un chaleco.
-        const propuesta = actuales.has(fila.jugadorId) ? fila.propuesta?.atletaId : "";
-        iniciales[fila.jugadorId] = fila.vinculo?.ausente ? "" : fila.vinculo?.atletaId || propuesta || "";
+        // arranca en "Sin chaleco", así guardar lo desvincula.
+        iniciales[fila.jugadorId] = fila.vinculo?.ausente ? "" : fila.vinculo?.atletaId || fila.propuesta?.atletaId || "";
       });
       setElecciones(iniciales);
       setEstadoAtletas("listo");

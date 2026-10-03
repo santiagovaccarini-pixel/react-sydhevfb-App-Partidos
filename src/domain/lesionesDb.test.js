@@ -324,6 +324,21 @@ describe("si está en el plantel actual (Datos básicos › Actual)", () => {
     expect(doble.llamadas.filter(([metodo]) => metodo === "update")).toHaveLength(1);
   });
 
+  test("sin los dos SQL, lo demás se guarda y se avisa lo primero que faltó (y cuántos datos no se guardaron)", async () => {
+    const sinHoras = { data: null, error: { code: "PGRST204", message: "Could not find the 'horas_previas' column of 'jugadores' in the schema cache" } };
+    const sinActualAlGuardar = { data: null, error: { code: "PGRST204", message: "Could not find the 'actual' column of 'jugadores' in the schema cache" } };
+    doble.respuestas = [sinHoras, sinActualAlGuardar, { data: { id: 7, nombre: "HULK", categoria: "sub20" }, error: null }];
+    expect(await guardarDatosJugador(7, { categoria: "sub20", horas_previas: 12, actual: false })).toMatchObject({
+      jugador: { categoria: "sub20" },
+      error: "",
+      aviso: "datos.error.faltanHorasPrevias",
+      sinGuardar: 2,
+    });
+    const updates = doble.llamadas.filter(([metodo]) => metodo === "update").map(([, valores]) => valores);
+    expect(updates[2]).not.toHaveProperty("horas_previas");
+    expect(updates[2]).not.toHaveProperty("actual");
+  });
+
   test("actualizado_en no es la columna actual: un error de otra cosa no se confunde", async () => {
     doble.error = { code: "23514", message: 'new row for relation "jugadores" violates check constraint "jugadores_actualizado_en_check"' };
     expect(await guardarDatosJugador(7, { nombre: "HULK" })).toMatchObject({ error: "datos.error.guardar" });

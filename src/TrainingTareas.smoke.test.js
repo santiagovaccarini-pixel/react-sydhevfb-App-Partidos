@@ -564,6 +564,11 @@ describe("TrainingTareas", () => {
     await act(async () => botonQueEmpieza("Jugadores").click());
     expect(nombresDeLaHoja()).toContain("IGOR GOMES");
     expect(casillas()[nombresDeLaHoja().indexOf("IGOR GOMES")].checked).toBe(true);
+    // Destildado por error, sigue en la lista para volver a tildarlo.
+    await act(async () => casillas()[nombresDeLaHoja().indexOf("IGOR GOMES")].click());
+    expect(nombresDeLaHoja()).toContain("IGOR GOMES");
+    await act(async () => casillas()[nombresDeLaHoja().indexOf("IGOR GOMES")].click());
+    expect(casillas()[nombresDeLaHoja().indexOf("IGOR GOMES")].checked).toBe(true);
     await act(async () => botonPorTexto("Listo").click());
     // La tarea siguiente lo sigue ofreciendo (está en la sesión).
     await act(async () => botonPorTexto("Nueva tarea").click());

@@ -13,12 +13,18 @@ export const reordenar = (lista, desde, hasta) => {
 };
 
 // El orden guardado para una tabla, completado con las columnas nuevas y sin
-// las que ya no existen.
+// las que ya no existen. Una columna nueva va después de la que la precede
+// en el orden de siempre (como "Actual" al lado del nombre); si no hay, al
+// principio.
 export const ordenDeColumnas = (claves, guardado) => {
   const existentes = new Set(claves);
-  const primero = (Array.isArray(guardado) ? guardado : []).filter((clave) => existentes.has(clave));
-  const faltan = claves.filter((clave) => !primero.includes(clave));
-  return [...primero, ...faltan];
+  const orden = (Array.isArray(guardado) ? guardado : []).filter((clave) => existentes.has(clave));
+  claves.forEach((clave, indice) => {
+    if (orden.includes(clave)) return;
+    const anterior = claves.slice(0, indice).reverse().find((otra) => orden.includes(otra));
+    orden.splice(anterior === undefined ? 0 : orden.indexOf(anterior) + 1, 0, clave);
+  });
+  return orden;
 };
 
 // Un rectángulo de celdas como texto: filas con salto de línea, celdas con
@@ -135,7 +141,7 @@ export const textoDeHoras = (horas) => {
 // Cómo se escribe una casilla marcada o vacía al pegar (en los dos idiomas,
 // sin mayúsculas ni acentos). Lo copiado de la tabla es Sí/No (Sim/Não).
 const TEXTOS_DE_CASILLA = {
-  marcada: ["si", "sim", "s", "x", "1", "true", "verdadero", "✓", "✔"],
+  marcada: ["si", "sim", "s", "x", "1", "true", "verdadero", "verdadeiro", "✓", "✔"],
   vacia: ["no", "nao", "n", "0", "false", "falso"],
 };
 

@@ -698,12 +698,20 @@ export const TablaDatos = ({
                           aria-label={`${col.titulo}: ${fila.textos?.[col.clave] ?? ""}`}
                           onClick={(evento) => {
                             // Un toque en la casilla la marca (y elige la celda),
-                            // y el teclado sigue en la tabla.
+                            // y el teclado sigue en la tabla. Con Mayúscula se
+                            // extiende la selección, sin marcar nada.
                             evento.stopPropagation();
+                            // (Sin cambiar el estado, React la deja como estaba.)
+                            if (evento.shiftKey) {
+                              elegir(f, c, true);
+                              return;
+                            }
                             elegir(f, c);
                             evento.currentTarget.closest(".tabla-datos-marco")?.focus({ preventScroll: true });
+                            alternarCasilla(fila, col);
                           }}
-                          onChange={() => alternarCasilla(fila, col)}
+                          // Se cambia en el toque (arriba): así Mayúscula no la cambia.
+                          onChange={() => {}}
                           onDoubleClick={(evento) => evento.stopPropagation()}
                         />
                       ) : enEdicion ? (

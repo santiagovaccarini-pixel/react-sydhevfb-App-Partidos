@@ -176,7 +176,7 @@ export default {
     actuales_other: "{{n}} no elenco atual",
     agregado: "Jogador adicionado",
     borrarTitulo: "Excluir o jogador?",
-    borrarTexto: "{{jugador}} sai da lista de jogadores de todos os módulos. Se tiver lesões registradas, não dá: se ele já não está no clube, desmarque Atual.",
+    borrarTexto: "Excluir é para um jogador cadastrado por engano: {{jugador}} sai da lista de todos os módulos. Se ele já não está no clube, melhor desmarcar Atual (os dados ficam). Com lesões registradas não dá para excluir.",
     siBorrar: "Sim, excluir",
     borrado: "Jogador excluído",
     guardado: "Salvo",
