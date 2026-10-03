@@ -358,10 +358,14 @@ describe("la tabla estilo Excel", () => {
     const leyenda = "En este color, los que ya no están";
     await montar({ leyenda, rotuloApagada: "Ya no está" });
     expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(true);
+    // No se ve pero guarda su lugar (visibility, no display: la tabla no se corre).
+    expect(getComputedStyle(contenedor.querySelector(".tabla-datos-leyenda")).visibility).toBe("hidden");
+    expect(getComputedStyle(contenedor.querySelector(".tabla-datos-leyenda")).display).not.toBe("none");
     expect(contenedor.querySelectorAll("tbody tr.apagada")).toHaveLength(0);
 
     await montar({ leyenda, rotuloApagada: "Ya no está", filas: [filas[0], { ...filas[1], apagada: true }] });
     expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(false);
+    expect(getComputedStyle(contenedor.querySelector(".tabla-datos-leyenda")).visibility).toBe("visible");
     expect(contenedor.querySelector(".tabla-datos-leyenda").textContent).toBe(leyenda);
     const [hulk, scarpa] = contenedor.querySelectorAll("tbody tr");
     expect(hulk.classList.contains("apagada")).toBe(false);

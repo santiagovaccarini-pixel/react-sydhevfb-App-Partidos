@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
@@ -123,8 +123,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         titulo: columna.texto ? t(columna.texto) : etiquetaDeCampo(columna.rotulo || columna.clave, config, idioma),
         tipo: columna.tipo,
         editable: columna.editable && !soloLectura,
-        // Que en el celular (360 px) entren el nombre y Actual sin correr la tabla.
-        ancho: columna.clave === "nombre" ? 160 : undefined,
+        ancho: columna.clave === "nombre" ? 180 : undefined,
         opciones:
           columna.tipo === "lista"
             ? opcionesDeCampo(columna.clave, config, idioma).map((opcion) => ({
@@ -187,18 +186,26 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     }
   };
 
+  // Cuántas veces se guardó algo de cada jugador: lo que no se pudo guardar
+  // solo vuelve atrás si mientras tanto no se guardó otra cosa de él.
+  const guardadosBien = useRef(new Map());
+  const guardar = async (jugadorId, datos) => {
+    const respuesta = await guardarDatosJugador(jugadorId, datos);
+    if (!respuesta.error) guardadosBien.current.set(jugadorId, (guardadosBien.current.get(jugadorId) || 0) + 1);
+    return respuesta;
+  };
+
   // Una casilla (Actual) se ve cambiada al toque, con el color de la fila y
   // el contador; si no se puede guardar, vuelve a como estaba.
   const editarCelda = async (jugadorId, clave, valor) => {
     const alToque = COLUMNAS.find((columna) => columna.clave === clave)?.tipo === "casilla";
     const antes = plantel.find((uno) => uno.id === jugadorId);
+    const vez = guardadosBien.current.get(jugadorId) || 0;
     if (alToque && antes) setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: valor } : uno)));
-    const respuesta = await guardarDatosJugador(jugadorId, { [clave]: valor });
+    const respuesta = await guardar(jugadorId, { [clave]: valor });
     if (respuesta.error) {
-      // Vuelve a como estaba, salvo que mientras tanto ya se haya cambiado
-      // (y guardado) otra cosa.
-      if (alToque && antes)
-        setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId && uno[clave] === valor ? { ...uno, [clave]: antes[clave] } : uno)));
+      if (alToque && antes && (guardadosBien.current.get(jugadorId) || 0) === vez)
+        setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: antes[clave] } : uno)));
       return { error: respuesta.error };
     }
     reemplazar(respuesta.jugador);
@@ -214,7 +221,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     let hechos = 0;
     let ultimoError = "";
     for (const [jugadorId, datos] of porJugador) {
-      const respuesta = await guardarDatosJugador(jugadorId, datos); // eslint-disable-line no-await-in-loop
+      const respuesta = await guardar(jugadorId, datos); // eslint-disable-line no-await-in-loop
       if (respuesta.error) {
         ultimoError = respuesta.error;
         continue;

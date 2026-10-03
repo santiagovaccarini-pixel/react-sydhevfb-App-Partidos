@@ -7,7 +7,7 @@ const plantelInicial = () => [
   { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
   { id: 8, nombre: "SCARPA", roles: [], puestos: ["VOL"], categoria: "", fecha_nacimiento: "", pie_dominante: "", posicion: "", foto_url: "" },
 ];
-const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], puestos: [], plantel: [], fallarAgregar: "", fallarPuestos: false, fallarGuardar: "", esperaGuardar: null, equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
+const registro = vi.hoisted(() => ({ guardados: [], agregados: [], borrados: [], puestos: [], plantel: [], fallarAgregar: "", fallarPuestos: false, fallarGuardar: "", esperaGuardar: null, plan: [], equipo: { id: "eq-1", nombre: "Atlético Mineiro" } }));
 
 // Las posiciones de Partido y los chalecos de Catapult (plantel.js).
 vi.mock("./domain/plantel.js", async (importOriginal) => ({
@@ -40,6 +40,10 @@ vi.mock("./domain/lesionesDb.js", () => ({
   leerConfig: async () => ({ config: { campos: {}, listas: {} }, error: "" }),
   guardarDatosJugador: async (id, cambios) => {
     registro.guardados.push({ id, ...cambios });
+    // Un plan por llamada (esperar y/o fallar), para probar guardados cruzados.
+    const paso = registro.plan.shift();
+    if (paso?.esperar) await paso.esperar;
+    if (paso?.error) return { error: paso.error };
     if (registro.esperaGuardar) await registro.esperaGuardar;
     if (registro.fallarGuardar) return { error: registro.fallarGuardar };
     const jugador = registro.plantel.find((uno) => uno.id === id);
@@ -97,6 +101,7 @@ describe("el módulo Datos básicos", () => {
     registro.fallarPuestos = false;
     registro.fallarGuardar = "";
     registro.esperaGuardar = null;
+    registro.plan = [];
     ["guardados", "agregados", "borrados", "puestos"].forEach((clave) => {
       registro[clave].length = 0;
     });
@@ -240,6 +245,31 @@ describe("el módulo Datos básicos", () => {
     expect(fila(0).classList.contains("apagada")).toBe(true);
     expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
     expect(texto(contenedor)).toContain("20261011_jugadores_actual.sql");
+  });
+
+  test("Actual: si no se guarda pero mientras tanto se pegó y guardó lo mismo, no vuelve atrás", async () => {
+    await montar();
+    const fila = (n) => contenedor.querySelectorAll("tbody tr")[n];
+    const casilla = (n) => celda(contenedor, n, 1).querySelector("input[type=checkbox]");
+    let soltar;
+    const esperar = new Promise((resolver) => {
+      soltar = resolver;
+    });
+    // El toque tarda y falla; lo pegado (No) se guarda bien.
+    registro.plan = [{ esperar, error: "datos.error.guardar" }, {}];
+    await tocar(casilla(0));
+    const pegado = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pegado, "clipboardData", { value: { getData: () => "No" } });
+    await act(async () => contenedor.querySelector(".tabla-datos-marco").dispatchEvent(pegado));
+    expect(registro.guardados).toEqual([
+      { id: 7, actual: false },
+      { id: 7, actual: false },
+    ]);
+    await act(async () => soltar());
+    // En la base quedó false: la pantalla también.
+    expect(casilla(0).checked).toBe(false);
+    expect(fila(0).classList.contains("apagada")).toBe(true);
+    expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
   });
 
   test("las horas previas se escriben como en el Excel (30:14:20) y se guardan como horas", async () => {
