@@ -33,25 +33,13 @@ import { fechaCorta } from "./idioma/formatos.js";
 const COLOR_SEVERIDAD = { registro: "#94a3b8", leve: "#facc15", menor: "#fb923c", moderado: "#ef4444", mayor: "#7c3aed", abierta: "#64748b" };
 const ORDEN_SEVERIDAD = ["registro", "leve", "menor", "moderado", "mayor", "abierta"];
 
-// La tabla del jugador, como en el Excel ("cabeceras móviles"): doce columnas
-// que se cambian desde su cabecera. Lo elegido queda en el celular.
-const COLUMNAS_DEL_EXCEL = ["numero_registro", "parte_cuerpo", "tipo_lesion", "mecanismo", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_transicion", "recuperacion", "fecha_alta", "musculo"];
-const CLAVE_COLUMNAS = "lesiones_reporte_columnas";
-const leerColumnas = () => {
-  try {
-    const guardadas = JSON.parse(window.localStorage.getItem(CLAVE_COLUMNAS) || "null");
-    return Array.isArray(guardadas) && guardadas.length === COLUMNAS_DEL_EXCEL.length ? guardadas : COLUMNAS_DEL_EXCEL;
-  } catch {
-    return COLUMNAS_DEL_EXCEL;
-  }
-};
-const guardarColumnas = (columnas) => {
-  try {
-    window.localStorage.setItem(CLAVE_COLUMNAS, JSON.stringify(columnas));
-  } catch {
-    // Sin dónde guardarlas, duran hasta cerrar la app.
-  }
-};
+// La tabla del jugador: doce columnas, todas a la vista (en el Excel se
+// cambiaban desde la cabecera por falta de lugar). Son las del diseño de
+// Santiago: las del Excel con "Músculo específico" en lugar de "Pase a
+// transición". Las cortas (números, fechas, sí o no) no se parten en
+// renglones: el lugar que sobra queda para los textos.
+const COLUMNAS_DEL_REPORTE = ["numero_registro", "parte_cuerpo", "tipo_lesion", "mecanismo", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_alta", "recuperacion", "musculo", "musculo_especifico"];
+const COLUMNAS_CORTAS = new Set(["numero_registro", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_alta", "recuperacion"]);
 
 const CAMPO_POR_CLAVE = Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo]));
 
@@ -126,36 +114,90 @@ const BarrasPorMes = ({ meses, textoSeveridad, idioma }) => {
   );
 };
 
-// La figura de frente y de espaldas, con cada parte más roja cuantas más
-// lesiones tuvo.
-const FiguraDeCalor = ({ lesiones, mapa, textoDeOpcion }) => {
+// El mapa de calor: la figura de frente y de espaldas (la de cargar una
+// lesión), con cada parte más roja cuantas más lesiones tuvo, la escala y,
+// si se pide, las zonas donde hubo más (parte y lado).
+const ZONAS_A_LA_VISTA = 3;
+const CALOR_POCO = [252, 165, 165];
+const CALOR_MUCHO = [185, 28, 28];
+const colorDeCalor = (cantidad, maximo) => {
+  const fuerza = maximo > 1 ? (cantidad - 1) / (maximo - 1) : 1;
+  const mezcla = CALOR_POCO.map((poco, indice) => Math.round(poco + (CALOR_MUCHO[indice] - poco) * fuerza));
+  return `rgb(${mezcla.join(", ")})`;
+};
+const MapaDeCalor = ({ lesiones, mapa, textoDeOpcion, conZonas = false }) => {
+  const { plural } = useIdioma();
   const conteo = new Map();
+  const zonas = new Map();
   lesiones.forEach((lesion) => {
     const parte = lesion.datos?.parte_cuerpo;
     if (!parte) return;
-    const region = mapa.regionDe(parte, lesion.datos?.lado);
+    const lado = lesion.datos?.lado;
+    const zona = `${parte}|${lado && lado !== "nao_se_aplica" ? lado : ""}`;
+    zonas.set(zona, (zonas.get(zona) || 0) + 1);
+    const region = mapa.regionDe(parte, lado);
     if (!region) return;
     const clave = `${region}:${mapa.piezaDe(parte, region) || parte}`;
     conteo.set(clave, (conteo.get(clave) || 0) + 1);
   });
-  const maximo = Math.max(...conteo.values(), 1);
+  const maximo = Math.max(...conteo.values(), ...zonas.values(), 0);
   const colorDe = (region, pieza) => {
     const cantidad = conteo.get(`${region}:${pieza}`);
-    if (!cantidad) return null;
-    const fuerza = 0.35 + 0.65 * (cantidad / maximo);
-    return `rgba(239, 68, 68, ${fuerza.toFixed(2)})`;
+    return cantidad ? colorDeCalor(cantidad, maximo) : null;
   };
+  const masVeces = [...zonas.entries()]
+    .map(([zona, cantidad]) => {
+      const [parte, lado] = zona.split("|");
+      return { zona, cantidad, nombre: [textoDeOpcion("parte_cuerpo", parte), lado && textoDeOpcion("lado", lado)].filter(Boolean).join(" · ") };
+    })
+    .sort((a, b) => b.cantidad - a.cantidad || a.nombre.localeCompare(b.nombre));
+  const etiquetas = (vista) => ({ figura: t(`lesiones.cuerpo.${vista}`), derecha: t("lesiones.cuerpo.derecha"), izquierda: t("lesiones.cuerpo.izquierda") });
   return (
-    <div className="reporte-figuras">
-      {["frente", "espalda"].map((vista) => (
-        <div className="reporte-figura" key={vista}>
-          <FiguraCuerpo vista={vista} colorDe={colorDe} nombreDeParte={(codigo) => textoDeOpcion("parte_cuerpo", codigo)} etiquetas={{ figura: t(`lesiones.cuerpo.${vista}`) }} />
-          <small>{t(`lesiones.cuerpo.${vista}`)}</small>
+    <div className="reporte-calor">
+      <div className="reporte-figuras">
+        {["frente", "espalda"].map((vista) => (
+          <div className="reporte-figura" key={vista}>
+            <FiguraCuerpo vista={vista} colorDe={colorDe} nombreDeParte={(codigo) => textoDeOpcion("parte_cuerpo", codigo)} etiquetas={etiquetas(vista)} />
+            <small>{t(`lesiones.cuerpo.${vista}`)}</small>
+          </div>
+        ))}
+      </div>
+      {maximo > 0 && !conZonas && (
+        <div className="reporte-calor-escala">
+          <span>{t("lesiones.reportes.calorEscala")}</span>
+          <i style={{ background: maximo > 1 ? `linear-gradient(90deg, ${colorDeCalor(1, maximo)}, ${colorDeCalor(maximo, maximo)})` : colorDeCalor(1, 1) }} />
+          <small>{maximo > 1 ? `1 – ${maximo}` : "1"}</small>
         </div>
-      ))}
+      )}
+      {conZonas && masVeces.length > 0 && (
+        <ol className="reporte-calor-zonas" aria-label={t("lesiones.reportes.masVeces")}>
+          {masVeces.slice(0, ZONAS_A_LA_VISTA).map((zona) => (
+            <li key={zona.zona}>
+              <i style={{ background: colorDeCalor(zona.cantidad, maximo) }} />
+              <span>{zona.nombre}</span>
+              <b>{plural("lesiones.historial.cantidad", zona.cantidad)}</b>
+            </li>
+          ))}
+          {masVeces.length > ZONAS_A_LA_VISTA && <li className="reporte-calor-mas">{plural("lesiones.reportes.zonasMas", masVeces.length - ZONAS_A_LA_VISTA)}</li>}
+        </ol>
+      )}
     </div>
   );
 };
+
+// Un número del cuadro cada 1000 horas en el individual: el del jugador, la
+// referencia (el VR del plantel) y cuánto más o menos (la fila "Jugador vs
+// VR" del Excel), con el color de la leyenda.
+const Indicador = ({ titulo, valor, referencia, contra, tono }) => (
+  <div className={`informe-indicador ${tono}`.trim()}>
+    <span className="informe-indicador-titulo">{titulo}</span>
+    <b className="informe-indicador-valor">{valor}</b>
+    <span className="informe-indicador-ref">
+      {t("lesiones.reportes.referencia")} <b>{referencia}</b>
+    </span>
+    {contra && <span className="informe-indicador-contra">{contra}</span>}
+  </div>
+);
 
 // El cuadro del Excel: las cuatro columnas (severidad todas o sin leves, de
 // todos los tipos o solo LM) y una fila por medida: [{ id, rotulo, clase?,
@@ -212,9 +254,10 @@ const FotoDelJugador = ({ jugador }) => {
     .map((palabra) => palabra[0])
     .join("")
     .toUpperCase();
+  const conFoto = Boolean(jugador.foto_url) && !fallo;
   return (
-    <div className="informe-foto">
-      {jugador.foto_url && !fallo ? <img src={jugador.foto_url} alt="" onError={() => setFallo(true)} /> : <span className="informe-iniciales">{iniciales}</span>}
+    <div className={`informe-foto ${conFoto ? "" : "sin-foto"}`.trim()}>
+      {conFoto ? <img src={jugador.foto_url} alt="" onError={() => setFallo(true)} /> : <span className="informe-iniciales">{iniciales}</span>}
     </div>
   );
 };
@@ -226,7 +269,6 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
   const [modo, setModo] = useState("menu");
   const [jugadorId, setJugadorId] = useState("");
   const [busqueda, setBusqueda] = useState("");
-  const [columnas, setColumnas] = useState(leerColumnas);
   // El período y los filtros del grupal.
   const [periodo, setPeriodo] = useState("anio");
   const [rango, setRango] = useState(() => periodoDe("anio", hoy, lesiones));
@@ -360,37 +402,45 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
     const minutosDelJugador = gps ? minutosGps(gps, { jugadorId: jugador.id }) + (jugador.horas_previas || 0) * 60 : 0;
     const delJugador = cuadroCadaMil(deJugador, minutosDelJugador, { hasta: hoy });
     const delPlantel = cuadroCadaMil(lesiones, minutosGps(gps, { hasta: hoy }), { hasta: hoy });
-    const filasDe = (medida) => {
-      const tonos = delJugador.map((fila, indice) => tonoContraVR(fila[medida], delPlantel[indice][medida]));
-      const textoContra = (fila, indice) => {
-        const contra = contraVR(fila[medida], delPlantel[indice][medida]);
-        if (!contra) return "—";
-        return t("lesiones.reportes.valorVsVR", { valor: contra.signo ? `${contra.signo}${numero(contra.porcentaje, 1)}%` : "0%" });
-      };
-      return [
-        { id: "jugador", clase: "informe-fila-jugador", rotulo: t("lesiones.reportes.jugador"), celdas: delJugador.map((fila, indice) => ({ texto: numero(fila[medida]), tono: tonos[indice] })) },
-        { id: "vr", rotulo: t("lesiones.reportes.vr"), celdas: delPlantel.map((fila) => ({ texto: numero(fila[medida]) })) },
-        { id: "contra", clase: "informe-fila-contra", rotulo: t("lesiones.reportes.jugadorVsVR"), celdas: delJugador.map((fila, indice) => ({ texto: textoContra(fila, indice), tono: tonos[indice] })) },
-      ];
-    };
-
-    const datosDelJugador = [
-      { icono: "calendario", rotulo: t("lesiones.reportes.nacimiento"), valor: esFechaISO(jugador.fecha_nacimiento) ? fechaCorta(jugador.fecha_nacimiento) : "—" },
-      { icono: "huellas", rotulo: t("lesiones.reportes.pie"), valor: jugador.pie_dominante ? texto("pie_dominante", jugador.pie_dominante) : "—" },
-      { icono: "cancha", rotulo: t("lesiones.reportes.posicion"), valor: jugador.posicion ? texto("posicion", jugador.posicion) : "—" },
+    // Cada medida, una fila de cuatro números (las columnas del Excel): el
+    // del jugador, la referencia y el "Jugador vs VR".
+    const indicadoresDe = (medida) =>
+      delJugador.map((fila, indice) => {
+        const referencia = delPlantel[indice][medida];
+        const tono = tonoContraVR(fila[medida], referencia);
+        const contra = contraVR(fila[medida], referencia);
+        const porcentaje = contra && (contra.signo ? `${contra.signo}${numero(contra.porcentaje, 1)}%` : "0%");
+        return {
+          id: VARIANTES[indice].id,
+          titulo: t(`lesiones.reportes.variantes.${VARIANTES[indice].id}`),
+          valor: numero(fila[medida]),
+          referencia: numero(referencia),
+          tono,
+          contra: contra && t(`lesiones.reportes.comparado.${tono || "igual"}`, { valor: porcentaje }),
+        };
+      });
+    const MEDIDAS = [
+      { id: "lesionesCadaMil", titulo: t("lesiones.reportes.lesionesMil") },
+      { id: "diasCadaMil", titulo: t("lesiones.reportes.diasMil") },
     ];
 
-    // La tabla: todas sus lesiones, por n° de registro.
-    const opciones = camposVisibles.filter((campo) => campo.clave !== "jugador");
-    const hay = new Set(opciones.map((campo) => campo.clave));
-    const columnasAVer = columnas.map((clave, indice) => (hay.has(clave) ? clave : hay.has(COLUMNAS_DEL_EXCEL[indice]) ? COLUMNAS_DEL_EXCEL[indice] : opciones[0]?.clave)).filter(Boolean);
-    const cambiarColumna = (indice, clave) => {
-      const nuevas = columnasAVer.map((actual, cual) => (cual === indice ? clave : actual));
-      setColumnas(nuevas);
-      guardarColumnas(nuevas);
-    };
+    const posicion = jugador.posicion ? texto("posicion", jugador.posicion) : "";
+    const datosDelJugador = [
+      { clave: "nacimiento", rotulo: t("lesiones.reportes.nacimiento"), valor: esFechaISO(jugador.fecha_nacimiento) ? fechaCorta(jugador.fecha_nacimiento) : "—" },
+      { clave: "pie", rotulo: t("lesiones.reportes.pie"), valor: jugador.pie_dominante ? texto("pie_dominante", jugador.pie_dominante) : "—" },
+    ];
+
+    // La tabla: todas sus lesiones, por n° de registro, con las columnas del
+    // reporte que el club tiene a la vista.
+    const visibles = new Set(camposVisibles.map((campo) => campo.clave));
+    const columnasAVer = COLUMNAS_DEL_REPORTE.filter((clave) => visibles.has(clave) && CAMPO_POR_CLAVE[clave]);
     const registro = (lesion) => calcular("numero_registro", lesion, null, { lesiones }) ?? 0;
     const ordenadas = [...deJugador].sort((a, b) => registro(a) - registro(b) || String(a.fecha_lesion).localeCompare(String(b.fecha_lesion)));
+    const celda = (clave, lesion) => {
+      const valor = enPantalla(CAMPO_POR_CLAVE[clave], lesion);
+      if (valor === "" || valor === null || valor === undefined) return <span className="informe-vacio">—</span>;
+      return clave === "severidad" ? <span className="informe-severidad">{valor}</span> : valor;
+    };
 
     return (
       <div className="app reporte">
@@ -399,60 +449,70 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
           {estado}
           <article className="informe">
             <header className="informe-cabecera">
+              <div className="informe-escudo">
+                <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
+              </div>
               <div className="informe-identidad">
-                <div className="informe-club">
-                  <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} compacto />
-                  <span>{equipo?.nombre || ""}</span>
-                </div>
-                <h1>{jugador.nombre}</h1>
                 <p className="informe-subtitulo">{t("lesiones.reportes.individualTitulo")}</p>
+                <h1>{jugador.nombre}</h1>
+                {posicion && <p className="informe-posicion">{posicion}</p>}
+                <dl className="informe-datos">
+                  {datosDelJugador.map((dato) => (
+                    <div className="informe-dato" key={dato.clave}>
+                      <dt>{dato.rotulo}</dt>
+                      <dd>{dato.valor}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
               <FotoDelJugador jugador={jugador} />
             </header>
 
-            <div className="informe-cuerpo">
-              <dl className="informe-datos">
-                {datosDelJugador.map((dato) => (
-                  <div className="informe-dato" key={dato.icono}>
-                    <span className="informe-dato-icono" aria-hidden="true">
-                      <Icono nombre={dato.icono} size={20} />
-                    </span>
-                    <div>
-                      <dt>{dato.rotulo}</dt>
-                      <dd>{dato.valor}</dd>
+            <div className="informe-medio">
+              <section className="informe-indicadores">
+                <div className="informe-seccion">
+                  <h2>{t("lesiones.reportes.indicadores")}</h2>
+                  <span>{t("lesiones.reportes.tasas")}</span>
+                </div>
+                {MEDIDAS.map((medida) => (
+                  <div className="informe-medida" key={medida.id}>
+                    <h3>{medida.titulo}</h3>
+                    <div className="informe-tarjetas">
+                      {indicadoresDe(medida.id).map((indicador) => (
+                        <Indicador key={indicador.id} {...indicador} />
+                      ))}
                     </div>
                   </div>
                 ))}
-              </dl>
-
-              <div className="informe-indices">
-                <CuadroCadaMil titulo={t("lesiones.reportes.lesionesMil")} filas={filasDe("lesionesCadaMil")} />
-                <CuadroCadaMil titulo={t("lesiones.reportes.diasMil")} filas={filasDe("diasCadaMil")} />
                 {!gps && <p className="informe-aviso">{t("lesiones.reportes.faltaGps")}</p>}
                 <ul className="informe-leyenda">
                   <li>
                     <i className="peor" />
-                    {t("lesiones.reportes.superiorVR")}
+                    {t("lesiones.reportes.superiorRef")}
                   </li>
                   <li>
                     <i className="mejor" />
-                    {t("lesiones.reportes.inferiorVR")}
+                    {t("lesiones.reportes.inferiorRef")}
                   </li>
-                  <li>
-                    <i className="lm" />
-                    {t("lesiones.reportes.queEsLM")}
-                  </li>
-                  <li>{t("lesiones.reportes.queEsVR")}</li>
+                  <li>{t("lesiones.reportes.queEsLM")}</li>
+                  <li>{t("lesiones.reportes.queEsRef")}</li>
                 </ul>
                 <p className="informe-criterio">{t("lesiones.reportes.cuentan", { criterio })}</p>
-              </div>
+              </section>
+
+              <section className="informe-mapa">
+                <div className="informe-seccion">
+                  <h2>{t("lesiones.reportes.dondeSeLesiono")}</h2>
+                </div>
+                <MapaDeCalor lesiones={deJugador} mapa={mapa} textoDeOpcion={texto} conZonas />
+              </section>
             </div>
 
             <section className="informe-lesiones">
-              <h2>
-                {t("lesiones.reportes.susLesiones")}
-                <span>{deJugador.length}</span>
-              </h2>
+              <div className="informe-seccion">
+                <h2>{t("lesiones.reportes.historialLesiones")}</h2>
+                <span>{plural("lesiones.reportes.registros", deJugador.length)}</span>
+              </div>
               {deJugador.length === 0 ? (
                 <p className="vacio-ficha">{t("lesiones.reportes.sinLesionesJugador")}</p>
               ) : (
@@ -460,21 +520,9 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
                   <table className="informe-tabla">
                     <thead>
                       <tr>
-                        {columnasAVer.map((clave, indice) => (
-                          <th scope="col" key={indice}>
-                            <label className="informe-columna">
-                              <span>{etiqueta(clave)}</span>
-                              <svg className="no-imprimir" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-                                <path d="m2 4 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                              <select value={clave} onChange={(evento) => cambiarColumna(indice, evento.target.value)} aria-label={t("lesiones.reportes.columna", { n: indice + 1 })}>
-                                {opciones.map((campo) => (
-                                  <option key={campo.clave} value={campo.clave}>
-                                    {etiqueta(campo.clave)}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                        {columnasAVer.map((clave) => (
+                          <th scope="col" key={clave} className={COLUMNAS_CORTAS.has(clave) ? "informe-corta" : undefined}>
+                            {etiqueta(clave)}
                           </th>
                         ))}
                       </tr>
@@ -482,8 +530,10 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
                     <tbody>
                       {ordenadas.map((lesion) => (
                         <tr key={lesion.id}>
-                          {columnasAVer.map((clave, indice) => (
-                            <td key={indice}>{CAMPO_POR_CLAVE[clave] ? enPantalla(CAMPO_POR_CLAVE[clave], lesion) : ""}</td>
+                          {columnasAVer.map((clave) => (
+                            <td key={clave} className={COLUMNAS_CORTAS.has(clave) ? "informe-corta" : undefined}>
+                              {celda(clave, lesion)}
+                            </td>
                           ))}
                         </tr>
                       ))}
@@ -492,6 +542,11 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
                 </div>
               )}
             </section>
+
+            <footer className="informe-pie">
+              <span>{[equipo?.nombre, t("lesiones.reportes.individual")].filter(Boolean).join(" · ")}</span>
+              <span>{fechaCorta(hoy)}</span>
+            </footer>
           </article>
         </div>
       </div>
@@ -614,7 +669,7 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
           {bloque(t("lesiones.reportes.porMes"), <BarrasPorMes meses={porMes(delEquipo, desde, hasta)} textoSeveridad={textoSeveridad} idioma={idioma} />)}
 
           <section className="reporte-dos">
-            {bloque(t("lesiones.reportes.dondeSeLesionan"), <FiguraDeCalor lesiones={delEquipo} mapa={mapa} textoDeOpcion={texto} />)}
+            {bloque(t("lesiones.reportes.dondeSeLesionan"), <MapaDeCalor lesiones={delEquipo} mapa={mapa} textoDeOpcion={texto} />)}
             {bloque(etiqueta("parte_cuerpo"), <Barras filas={conteo("parte_cuerpo")} vacio={vacio} color="#ef4444" />)}
           </section>
 

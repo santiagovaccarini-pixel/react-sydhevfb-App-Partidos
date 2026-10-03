@@ -351,13 +351,18 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   (`src/ReportesLesiones.jsx`; las cuentas en `src/domain/reportes.js`). Ver reportes tiene
   dos. El **individual** es la hoja "Reporte de Lesiones IND" del Excel con las mismas
   cuentas, solo mejor presentada (pedido de Santiago del 03/10: "las lógicas no se
-  cambian"): encabezado con el club, el jugador y su foto; nacimiento, pie y posición (de
-  Datos básicos); el cuadro de lesiones y de días perdidos cada 1000 horas en sus cuatro
-  columnas (todas / sin leves, de todos los tipos / solo LM) con el jugador, el VR del
-  plantel y "jugador vs VR" (el porcentaje sobre el valor del jugador, como la fórmula del
-  Excel; en rojo si está arriba del VR, en verde si está abajo); la leyenda, y la tabla de
-  todas sus lesiones con doce columnas que se cambian desde la cabecera, como las cabeceras
-  móviles del Excel. El VR se calcula con toda la base hasta hoy (en el Excel es la fila
+  cambian"). Desde el 03/10 tiene el diseño que propuso Santiago: cabecera negra con el
+  escudo, el título, el jugador, su posición, nacimiento y pie (de Datos básicos) y la foto
+  en un panel cortado en diagonal (las fotos del club vienen con fondo gris claro); los
+  indicadores de lesiones y de días perdidos cada 1000 horas en tarjetas chicas, las cuatro
+  columnas del Excel (todas / sin leves / musculares / LM sin leves), cada una con el valor
+  del jugador, la referencia (el VR del plantel) y el "jugador vs VR" (el porcentaje sobre
+  el valor del jugador, como la fórmula del Excel; en rojo si está arriba, en verde si está
+  abajo); al lado, "Dónde se lesionó": la figura de cargar una lesión como mapa de calor
+  (más rojo, más lesiones en esa parte) y las tres zonas con más lesiones (pedido del
+  03/10); abajo, el historial con doce columnas todas a la vista (en el Excel se elegían
+  desde la cabecera por falta de lugar): las del diseño de Santiago, que son las del Excel
+  con "Músculo específico" en lugar de "Pase a transición"; menos las que el club escondió. El mapa de calor es el mismo en el grupal. El VR se calcula con toda la base hasta hoy (en el Excel es la fila
   "BASE COMPLETA" de "Incidencias c 1000h", que pega una macro). El **grupal** suma el
   mismo cuadro para el plantel en el período elegido (el contador por período de
   "Antecedentes BD": cuentan las empezadas en el período y los días que caen adentro),
