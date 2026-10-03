@@ -47,6 +47,11 @@ done
 ULTIMA=$(ls "$RAIZ"/supabase/migrations/*.sql | grep -v revisar | sort | tail -1)
 echo "→ $(basename "$ULTIMA") (otra vez)"
 $PSQL -f "$ULTIMA" >/dev/null
+# Las que dicen que se pueden volver a correr, también después de las nuevas.
+for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos; do
+  echo "→ $otra_vez.sql (otra vez, después de la última)"
+  $PSQL -f "$RAIZ/supabase/migrations/$otra_vez.sql" >/dev/null
+done
 # Una migración vieja corrida después de una nueva desharía lo nuevo: las que
 # tienen ese riesgo se tienen que negar solas, con un aviso claro.
 for vieja in 20261002b_datos_basicos 20261003_club_miembros 20261004_cuentas_v2 20261006_horas_imagen; do

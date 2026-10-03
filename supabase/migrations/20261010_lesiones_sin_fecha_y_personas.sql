@@ -39,8 +39,8 @@ alter table public.lesiones alter column fecha_lesion drop not null;
 alter table public.lesiones drop constraint if exists lesiones_de_quien;
 alter table public.lesiones
   add constraint lesiones_de_quien check (
-    (jugador_id is not null) <> (nullif(btrim(persona), '') is not null)
-    and (persona is null or length(btrim(persona)) <= 120));
+    (jugador_id is null) = (persona is not null)
+    and (persona is null or length(btrim(persona)) between 1 and 120));
 
 create unique index if not exists lesiones_sin_repetir_persona
   on public.lesiones (equipo_id, lower(btrim(persona)), (datos->>'parte_cuerpo'), (datos->>'lado'), fecha_lesion)
@@ -50,6 +50,35 @@ comment on column public.lesiones.persona is
   'El nombre de quien se lesionó cuando no está en Datos básicos (vino en una base pegada). Sin jugador_id. El nombre no se agrega a Datos básicos.';
 comment on column public.lesiones.fecha_lesion is
   'Fecha de inicio. Vacía: un caso sin terminar de cargar; no cuenta como activa ni en los reportes hasta que se complete.';
+
+-- La vista general de lesiones (20261002), también con las de personas
+-- fuera de Datos básicos; una sin fecha de inicio no está activa.
+drop view if exists public.v_lesiones;
+
+create view public.v_lesiones
+with (security_invoker = true)
+as
+select l.*,
+       coalesce(j.nombre, l.persona) as jugador,
+       e.nombre as equipo,
+       (l.fecha_transicion - l.fecha_lesion) as recup_1,
+       (l.fecha_retorno_entrenamiento - coalesce(l.fecha_transicion, l.fecha_lesion)) as recup_2,
+       (l.fecha_alta - l.fecha_lesion) as recuperacion,
+       (coalesce(l.fecha_alta, current_date) - l.fecha_lesion) as dias_baja,
+       (l.fecha_lesion is not null and l.fecha_alta is null) as activa,
+       case
+         when l.fecha_lesion is null then 'sin_fecha'
+         when l.fecha_alta is not null then 'alta'
+         when l.fecha_retorno_entrenamiento is not null then 'entrenando'
+         when l.fecha_transicion is not null then 'transicion'
+         else 'lesionado'
+       end as etapa
+  from public.lesiones l
+  left join public.jugadores j on j.id = l.jugador_id
+  join public.equipos e on e.id = l.equipo_id;
+
+revoke all on public.v_lesiones from anon;
+grant select on public.v_lesiones to authenticated;
 
 -- La vista para Power Query, con las lesiones de personas fuera de Datos
 -- básicos y las que no tienen fecha (mismas columnas, en el mismo orden).
@@ -140,8 +169,11 @@ select c.numero_caso as n_de_caso,
             when c.dias_recuperacao <= 7 then public.lesiones_etiqueta(c.equipo_id, 'severidad', 'menor')
             when c.dias_recuperacao <= 28 then public.lesiones_etiqueta(c.equipo_id, 'severidad', 'moderado')
             else public.lesiones_etiqueta(c.equipo_id, 'severidad', 'mayor') end as severidade,
-       public.lesiones_etiqueta(c.equipo_id, 'recurrencia', case when c.recorrente then 'sim' else 'nao' end) as recorrencia,
-       public.lesiones_etiqueta(c.equipo_id, 'recidiva', case when c.recidivante then 'sim' else 'nao' end) as recidiva,
+       -- Sin fecha de inicio todavía no se sabe (como en la app).
+       case when c.fecha_lesion is null then null
+            else public.lesiones_etiqueta(c.equipo_id, 'recurrencia', case when c.recorrente then 'sim' else 'nao' end) end as recorrencia,
+       case when c.fecha_lesion is null then null
+            else public.lesiones_etiqueta(c.equipo_id, 'recidiva', case when c.recidivante then 'sim' else 'nao' end) end as recidiva,
        concat_ws(' ',
          nullif(public.lesiones_etiqueta(c.equipo_id, 'tipo_lesion', c.datos->>'tipo_lesion'), ''),
          coalesce(nullif(public.lesiones_etiqueta(c.equipo_id, 'ligamento', c.datos->>'ligamento'), ''),
@@ -163,3 +195,6 @@ grant select on public.v_lesiones_excel_v1 to authenticated;
 comment on view public.v_lesiones_excel_v1 is 'Las 35 columnas del Excel de lesiones para Power Query (horas hasta la imagen calculadas: 20261006; con las lesiones sin fecha y las de personas fuera de Datos básicos: 20261010).';
 
 commit;
+
+-- Que la app vea la columna nueva sin esperar.
+notify pgrst, 'reload schema';

@@ -505,6 +505,11 @@ select pruebas.esperar('...numerada aparte de los jugadores', (select string_agg
 select pruebas.esperar('...con su recurrencia (la de abril, dentro de los 60 días)', (select recorrencia from v_lesiones_excel_v1 where n_de_caso = 602), 'sim');
 select pruebas.esperar('...y sin datos de Datos básicos', (select count(*) from v_lesiones_excel_v1 where nome_e_sobrenome = 'Cata Tres' and d_nac is null and posicao is null), 2);
 select pruebas.esperar('Power Query ve también las sin fecha, sin días ni severidad', (select count(*) from v_lesiones_excel_v1 where n_de_caso in (600, 601) and data_de_inicio_da_lesao is null and recuperacao is null and severidade is null), 2);
+select pruebas.esperar('...ni recurrencia ni recidiva (todavía no se sabe)', (select count(*) from v_lesiones_excel_v1 where n_de_caso in (600, 601) and recorrencia is null and recidiva is null), 2);
+select pruebas.esperar('Una sin fecha pero con alta no tiene severidad', pruebas.filas($$insert into lesiones (equipo_id, jugador_id, numero_caso, fecha_alta, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 604, '2026-05-10', '{}')$$), 1);
+select pruebas.esperar('...(ni "mayor")', (select coalesce(severidade, 'vacía') from v_lesiones_excel_v1 where n_de_caso = 604), 'vacía');
+select pruebas.esperar('La vista general: la persona con su nombre', (select count(*) from v_lesiones where jugador = 'Cata Tres'), 2);
+select pruebas.esperar('...y las sin fecha no están activas', (select count(*) from v_lesiones where numero_caso in (600, 601, 604) and not activa and etapa = 'sin_fecha'), 3);
 reset role;
 
 select pruebas.ser('eva@dos.com'); set role authenticated;

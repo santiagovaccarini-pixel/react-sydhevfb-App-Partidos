@@ -24,6 +24,9 @@ begin
   select count(*) into repetidas
     from (select 1
             from public.lesiones
+           -- Las de personas fuera de Datos básicos y las sin fecha (20261010)
+           -- no cuentan acá: tienen su propia regla.
+           where jugador_id is not null and fecha_lesion is not null
            group by jugador_id, datos->>'parte_cuerpo', datos->>'lado', fecha_lesion
           having count(*) > 1) as dobles;
   if repetidas > 0 then
