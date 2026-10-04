@@ -179,6 +179,24 @@ describe("la tabla estilo Excel", () => {
     expect(nombres()).toEqual(["SCARPA"]);
     expect(contenedor.textContent).toContain("Mostrando 1 de 2");
 
+    // Al volver a abrir, lo elegido sigue marcado; con todo marcado, el filtro se quita.
+    const marcados = () => valores().map((label) => [label.textContent, label.querySelector("input").checked]);
+    await tocar(filtro("Pie"));
+    expect(marcados()).toEqual([
+      ["Izquierdo1", false],
+      ["(Vacías)1", true],
+    ]);
+    await tocar(botonDe("Todos"));
+    await tocar(botonDe("Aplicar"));
+    expect(nombres()).toEqual(["SCARPA", "HULK"]);
+    expect(contenedor.textContent).not.toContain("Mostrando");
+    // De nuevo solo las vacías, para lo que sigue.
+    await tocar(filtro("Pie"));
+    await tocar(botonDe("Ninguno"));
+    await tocar(valores()[1].querySelector("input"));
+    await tocar(botonDe("Aplicar"));
+    expect(nombres()).toEqual(["SCARPA"]);
+
     // Lo que se pega cae en las filas que se ven.
     const marco = contenedor.querySelector(".tabla-datos-marco");
     await tocar(celda(contenedor, 0, 2));

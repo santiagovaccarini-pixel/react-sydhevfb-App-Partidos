@@ -2394,7 +2394,14 @@
   color: #64748b;
   font-size: 11px;
 }
-@media (max-width: 760px) {
+/* Si el cuadro de la torta es angosto (el celular, o dos cuadros en una
+   pantalla mediana), la leyenda va abajo de la torta: se mira el cuadro, no
+   la pantalla. Y un nombre largo sin espacios (QUADRIL/VIRILHA) se corta
+   antes de pisar el porcentaje. */
+.lesiones-marco .reporte-graficos-bloque .reporte-dos > .tarjeta {
+  container: torta / inline-size;
+}
+@container torta (max-width: 449px) {
   .lesiones-marco .reporte-torta {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
@@ -2402,6 +2409,9 @@
   .lesiones-marco .reporte-torta-leyenda {
     width: 100%;
   }
+}
+.lesiones-marco .reporte-torta-leyenda span {
+  overflow-wrap: anywhere;
 }
 /* Impresos, los reportes van en una hoja A4 apaisada (solo ellos: el resto
    de la app imprime como siempre), sin la barra de la app y con la tabla
