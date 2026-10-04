@@ -17,6 +17,7 @@ import {
   cuantasPorValor,
   elegidosDelFiltro,
   lesionesDeLosGraficos,
+  lesionesDelBloque,
   lesionesDelReporte,
   lesionesPorJugador,
   mesesEntre,
@@ -383,7 +384,9 @@ describe("Informes gráficos: bloques 3 a 5 (partes del cuerpo, por jugador, ent
   });
 
   test("un filtro elige varios valores (como las segmentaciones del Excel); sin ninguno, todos", () => {
-    expect(elegidosDelFiltro(["direito", "", null])).toEqual(["direito"]);
+    // En una lista, "" es "Sin dato" y se puede elegir.
+    expect(elegidosDelFiltro(["direito", "", null])).toEqual(["direito", ""]);
+    expect(elegidosDelFiltro("")).toEqual([]);
     expect(elegidosDelFiltro("esquerdo")).toEqual(["esquerdo"]);
     expect(elegidosDelFiltro(undefined)).toEqual([]);
     const todas = lesionesDeLosGraficos(lesiones).length;
@@ -398,6 +401,32 @@ describe("Informes gráficos: bloques 3 a 5 (partes del cuerpo, por jugador, ent
     expect(porLado).toEqual({ direito: derechas, esquerdo: izquierdas });
     const conOtro = cuantasPorValor(lesiones, "lado", { filtros: { parte_cuerpo: ["coxa"] } });
     expect(Object.values(conOtro).reduce((a, b) => a + b, 0)).toBe(lesionesDeLosGraficos(lesiones, { filtros: { parte_cuerpo: ["coxa"] } }).filter((una) => una.datos.lado).length);
+  });
+
+  test("las listas de los filtros cuentan lo que cuenta su gráfico, también Sin dato; desmarcar uno deja las sin dato", () => {
+    const propias = [
+      lesion({ id: "p1", jugador_id: 7, datos: { parte_cuerpo: "coxa", musculo: "isquiotibiais" } }),
+      lesion({ id: "p2", jugador_id: 7, datos: { parte_cuerpo: "coxa", musculo: "quadriceps" } }),
+      // Sin parte: en la torta es "Sin dato"; por jugador no cuenta.
+      lesion({ id: "p3", jugador_id: 8, datos: { parte_cuerpo: "", musculo: "" } }),
+      // Sin producto de las tortas: en ninguna torta.
+      lesion({ id: "p4", jugador_id: 8, datos: { producto: "", parte_cuerpo: "joelho" } }),
+      // Otro año y sin "cuándo".
+      lesion({ id: "p5", jugador_id: 7, fecha_lesion: "2025-05-01", fecha_alta: "2025-05-03", datos: { parte_cuerpo: "joelho" } }),
+      lesion({ id: "p6", jugador_id: 7, datos: { parte_cuerpo: "tornozelo_pe", cuando: "" } }),
+    ];
+    // Por jugador: la lista y las barras dicen lo mismo.
+    const barras = Object.fromEntries(lesionesPorJugador(propias).map((fila) => [fila.valor, fila.total]));
+    expect(cuantasPorValor(propias, "jugador", { bloque: "jugador" })).toEqual(barras);
+    // Entrenamiento y partidos: el año y la regla de "cuándo".
+    expect(cuantasPorValor(propias, "parte_cuerpo", { bloque: "momentos", anio: 2026 })).toEqual({ coxa: 2, "": 1, joelho: 1 });
+    expect(lesionesDelBloque("momentos", propias, { anio: 2025 }).map((una) => una.id)).toEqual(["p5"]);
+    // Las tortas: sin las de otro producto, con Sin dato.
+    expect(cuantasPorValor(propias, "musculo", { bloque: "partes" })).toEqual({ isquiotibiais: 1, quadriceps: 1, "": 3 });
+    // Desmarcar un músculo deja las sin músculo (como en el Excel y en la Base).
+    const sinQuadriceps = { musculo: ["isquiotibiais", ""] };
+    expect(lesionesDelBloque("partes", propias, { filtros: sinQuadriceps }).map((una) => una.id)).toEqual(["p1", "p3", "p5", "p6"]);
+    expect(tortaPorParte(propias, "nao_traumatica", { filtros: sinQuadriceps }).map((fila) => fila.valor).sort()).toEqual(["", "coxa", "joelho", "tornozelo_pe"]);
   });
 
   test("las opciones de un filtro, el orden por cómo se lee y el nombre de cada quien", () => {

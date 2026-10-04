@@ -466,6 +466,9 @@ describe("los reportes con los minutos del GPS", () => {
       ["SCARPA", true, "1"],
     ]);
     await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    // Con todo marcado no filtra.
+    expect(chip().textContent).toBe("Nombre y apellido: Todos");
+    expect(chip().getAttribute("aria-pressed")).toBe("false");
     // Dos de tres: van esos dos.
     await filtrar("Lesiones por jugador", "Nombre y apellido", ["HULK", "SCARPA"]);
     expect(filas()).toEqual(["HULK", "SCARPA"]);
@@ -473,6 +476,30 @@ describe("los reportes con los minutos del GPS", () => {
     expect(chip().getAttribute("aria-pressed")).toBe("true");
     // Impreso se leen todos los elegidos.
     expect(bloqueDe("Lesiones por jugador").querySelector(".reporte-graficos-filtrado").textContent).toBe("Nombre y apellido: HULK, SCARPA");
+    // Al volver a abrir, lo elegido sigue marcado; Ninguno solo toca lo buscado.
+    await tocar(chip());
+    expect(lista().map(([nombre, marcado]) => [nombre, marcado])).toEqual([
+      ["HULK", true],
+      ["Persona De Afuera", false],
+      ["SCARPA", true],
+    ]);
+    const buscar = async (texto) =>
+      act(async () => {
+        const campo = hojaDelFiltro().querySelector(".tabla-datos-buscar-valor");
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(campo, texto);
+        campo.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    await buscar("scar");
+    await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
+    await buscar("");
+    expect(lista().map(([nombre, marcado]) => [nombre, marcado])).toEqual([
+      ["HULK", true],
+      ["Persona De Afuera", false],
+      ["SCARPA", false],
+    ]);
+    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    expect(filas()).toEqual(["HULK"]);
+    await filtrar("Lesiones por jugador", "Nombre y apellido", ["HULK", "SCARPA"]);
     // Con otro filtro, la lista ofrece solo a quienes les queda alguna.
     await filtrar("Lesiones por jugador", "Producto", ["traumatica"]);
     expect(filas()).toEqual(["HULK"]);
@@ -485,6 +512,28 @@ describe("los reportes con los minutos del GPS", () => {
     await tocar(chip());
     await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
     expect([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar").disabled).toBe(true);
+  });
+
+  test("Informes gráficos: las listas ofrecen Sin dato y cuentan lo de su gráfico (el año de Entrenamiento y partidos)", async () => {
+    periodosGuardados.lista = [];
+    const sinMusculo = { id: "les-sm", jugador_id: 8, numero_caso: 4, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-03", datos: { parte_cuerpo: "coxa", lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO, musculo: "" } };
+    const conMusculo = { ...LESIONES[0], datos: { ...LESIONES[0].datos, musculo: "isquiotibiais" } };
+    const otroAnio = { id: "les-25", jugador_id: 7, numero_caso: 5, fecha_lesion: "2025-05-01", fecha_alta: "2025-05-03", datos: { parte_cuerpo: "pe_dedo", lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO } };
+    await abrirGraficos(GPS, PLANTEL, [conMusculo, sinMusculo, otroAnio]);
+    // Músculo: con "Sin dato" (las que no lo tienen), que se puede dejar marcado.
+    await tocar([...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Músculo afectado")));
+    const lista = () => [...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].map((label) => [label.querySelector("span").textContent, label.querySelector("small").textContent]);
+    expect(lista()).toEqual([
+      ["isquiotibiais", "1"],
+      ["Sin dato", "2"],
+    ]);
+    await tocar(hojaDelFiltro().querySelector(".tabla-datos-valores input"));
+    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    // Sin isquiotibiais: quedan las sin músculo (no se pierden).
+    expect(leyendaDeTorta(0)).toEqual(["coxa 50%", "pe_dedo 50%"]);
+    // Entrenamiento y partidos (2026): la lista de partes no ofrece la de 2025.
+    await tocar([...bloqueDe("Entrenamiento y partidos").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Parte del cuerpo")));
+    expect(lista()).toEqual([["coxa", "2"]]);
   });
 
   test("Informes gráficos: por jugador, el título es el campo, con su leyenda aunque sea una parte, y la nota dice qué cuenta", async () => {

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { EscudoDeClub } from "./components/ClubCrest";
-import { HojaInferior } from "./components/SheetPanel.js";
-import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
+import { HojaDeFiltro, elegidosAlAbrir } from "./components/ListaParaMarcar.jsx";
 import { BarrasApiladas, Columnas, Torta, coloresDeSeries } from "./components/GraficosReporte.jsx";
 import { tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import { listarPeriodos } from "./domain/periodosDb.js";
@@ -103,6 +102,12 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
       color: colorDe(valor),
     }));
 
+  // El año del bloque 5 (lo usan su gráfico y las listas de sus filtros).
+  // Como el Excel: el de hoy si tiene lesiones; si no, el último.
+  const aniosMomentos = aniosDeMomentos(lesiones, { posicionDe });
+  const anioDeHoy = Number(String(hoy || "").slice(0, 4));
+  const anioMomentosElegido = anioMomentos !== undefined ? anioMomentos : aniosMomentos.includes(anioDeHoy) ? anioDeHoy : aniosMomentos.at(-1) ?? null;
+
   // ------------------------------------------------------- Filtros --
   const filtrosDe = (bloque) => filtros[bloque] || {};
   const elegidosEn = (bloque, campo) => elegidosDelFiltro(filtrosDe(bloque)[campo]);
@@ -121,29 +126,25 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
     if (valores.length === 1 || completo) return valores.map((valor) => textoDe(campo, valor)).join(", ");
     return plural("lesiones.graficos.elegidos", valores.length);
   };
-  // Lo que ofrece la lista de un filtro: los valores que dejan pasar los
-  // otros filtros del bloque, con cuántas lesiones tiene cada uno.
+  // Lo que ofrece la lista de un filtro: los valores de las lesiones que
+  // cuenta su gráfico (con el año del bloque 5) y que dejan pasar los otros
+  // filtros del bloque, con cuántas tiene cada uno (también "Sin dato").
   const valoresDelFiltro = (bloque, campo) => {
-    const cuantas = cuantasPorValor(lesiones, campo, { filtros: filtrosDe(bloque), posicionDe });
+    const cuantas = cuantasPorValor(lesiones, campo, { bloque, anio: bloque === "momentos" ? anioMomentosElegido : null, filtros: filtrosDe(bloque), posicionDe });
     return ordenarPorEtiqueta(
       Object.keys(cuantas).map((valor) => ({ valor })),
       (valor) => textoDe(campo, valor),
       idioma,
-    ).map(({ valor }) => ({ clave: valor, texto: textoDe(campo, valor), cantidad: cuantas[valor] }));
+    ).map(({ valor }) => ({ clave: valor, texto: valor === "" ? "" : textoDe(campo, valor), cantidad: cuantas[valor] }));
   };
-  const abrirFiltro = (bloque, campo) => {
-    const ya = elegidosEn(bloque, campo);
-    setHoja({ bloque, campo, elegidos: ya.length ? ya : valoresDelFiltro(bloque, campo).map((valor) => valor.clave), busqueda: "" });
-  };
+  const abrirFiltro = (bloque, campo) =>
+    setHoja({ bloque, campo, elegidos: elegidosAlAbrir(elegidosEn(bloque, campo), valoresDelFiltro(bloque, campo)), busqueda: "" });
   const valoresDeLaHoja = hoja ? valoresDelFiltro(hoja.bloque, hoja.campo) : [];
-  const aplicarFiltro = () => {
+  // marcados: null con todo marcado (no filtra).
+  const aplicarFiltro = (marcados) => {
     const actual = hoja;
     setHoja(null);
-    if (!actual) return;
-    const ofrecidos = valoresDelFiltro(actual.bloque, actual.campo).map((valor) => valor.clave);
-    const marcados = ofrecidos.filter((valor) => actual.elegidos.includes(valor));
-    // Con todo marcado, no filtra.
-    cambiarFiltro(actual.bloque, actual.campo, marcados.length === ofrecidos.length ? [] : marcados);
+    if (actual) cambiarFiltro(actual.bloque, actual.campo, marcados || []);
   };
   const quitarFiltro = () => {
     const actual = hoja;
@@ -332,10 +333,6 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
 
   // ------------------------------------------------- Bloque 5 --
   const camposMomentos = REGLAS_GRAFICOS.filtros.momentos;
-  const aniosMomentos = aniosDeMomentos(lesiones, { posicionDe });
-  // Como el Excel: el año de hoy si tiene lesiones; si no, el último.
-  const anioDeHoy = Number(String(hoy || "").slice(0, 4));
-  const anioMomentosElegido = anioMomentos !== undefined ? anioMomentos : aniosMomentos.includes(anioDeHoy) ? anioDeHoy : aniosMomentos.at(-1) ?? null;
   const momentos = momentosPorParte(lesiones, { anio: anioMomentosElegido, filtros: filtrosDe("momentos"), posicionDe });
   const { categoria } = REGLAS_GRAFICOS.momentos;
   const seriesMomentos = seriesDe(momentos.flatMap((fila) => Object.keys(fila.porSerie)));
@@ -394,39 +391,20 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
 
       {/* El filtro: se marcan varios, como en el Excel (y como el filtro de
           las columnas de la Base). */}
-      <HojaInferior
+      <HojaDeFiltro
         abierta={Boolean(hoja)}
-        className="tabla-datos-hoja-filtro reporte-graficos-hoja-filtro"
-        titulo={hoja ? t("tabla.filtroTitulo", { columna: tituloDeCampo(hoja.campo) }) : ""}
+        className="reporte-graficos-hoja-filtro"
+        columna={hoja ? tituloDeCampo(hoja.campo) : ""}
+        valores={valoresDeLaHoja}
+        elegidos={hoja?.elegidos || []}
+        busqueda={hoja?.busqueda || ""}
+        textoVacio={t("lesiones.graficos.sinDato")}
+        onCambiar={(elegidos) => setHoja((actual) => ({ ...actual, elegidos }))}
+        onBuscar={(busqueda) => setHoja((actual) => ({ ...actual, busqueda }))}
+        onAplicar={aplicarFiltro}
+        onQuitar={quitarFiltro}
         onCerrar={() => setHoja(null)}
-        acciones={
-          <>
-            <button type="button" className="boton-cancelar-hoja" onClick={quitarFiltro}>
-              {t("tabla.quitarFiltro")}
-            </button>
-            <button
-              type="button"
-              className="boton-confirmar-hoja"
-              onClick={aplicarFiltro}
-              disabled={!hoja?.elegidos.some((valor) => valoresDeLaHoja.some((uno) => uno.clave === valor))}
-            >
-              {t("tabla.aplicar")}
-            </button>
-          </>
-        }
-      >
-        {hoja && (
-          <div className="tabla-datos-filtro-cuerpo">
-            <ListaParaMarcar
-              valores={valoresDeLaHoja}
-              elegidos={hoja.elegidos}
-              onCambiar={(elegidos) => setHoja((actual) => ({ ...actual, elegidos }))}
-              busqueda={hoja.busqueda}
-              onBuscar={(busqueda) => setHoja((actual) => ({ ...actual, busqueda }))}
-            />
-          </div>
-        )}
-      </HojaInferior>
+      />
     </div>
   );
 }

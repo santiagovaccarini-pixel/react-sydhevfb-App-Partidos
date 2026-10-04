@@ -290,8 +290,12 @@ export const valorParaGrafico = (lesion, campo, posicionDe = () => null) => {
 };
 
 // Lo elegido en un filtro: varios valores, como las segmentaciones del Excel
-// (también vale uno solo); sin ninguno, todos.
-export const elegidosDelFiltro = (valor) => (Array.isArray(valor) ? valor : [valor]).filter((uno) => !vacio(uno));
+// (también vale uno solo); sin ninguno, todos. En una lista, "" es "Sin dato"
+// (como el "(en blanco)" del Excel) y también se puede elegir.
+export const elegidosDelFiltro = (valor) => {
+  if (Array.isArray(valor)) return valor.filter((uno) => uno !== null && uno !== undefined);
+  return vacio(valor) ? [] : [valor];
+};
 
 // Las que entran en los bloques 3 a 5: con fecha de inicio (las sin fecha
 // nunca), con el campo contado y con lo elegido en los filtros
@@ -312,14 +316,43 @@ export const opcionesDeFiltro = (lesiones, campo, posicionDe) => [
   ...new Set(lesionesDeLosGraficos(lesiones, { posicionDe }).map((lesion) => valorParaGrafico(lesion, campo, posicionDe)).filter((valor) => !vacio(valor))),
 ];
 
-// Para la lista de un filtro: cuántas lesiones hay de cada valor con los otros
-// filtros del bloque (como el filtro de una columna en Excel). { valor: n }.
-export const cuantasPorValor = (lesiones, campo, { filtros = {}, posicionDe } = {}) => {
+// Las que cuenta el gráfico de cada bloque, con sus reglas (en un solo
+// lugar: lo usan el gráfico y la lista de sus filtros).
+//   · partes: las de los valores de las tortas (y sin porción, si cuenta).
+//   · jugador: las de alguien (y sin serie, si cuenta).
+//   · momentos: con la categoría cargada (y de los valores de la regla, si
+//     los nombra), del año de su fecha de inicio.
+export const lesionesDelBloque = (bloque, lesiones, { anio = null, ...opciones } = {}) => {
+  const base = lesionesDeLosGraficos(lesiones, opciones);
+  if (bloque === "partes") {
+    const { campo, valores, porcion, vaciaCuenta } = REGLAS_GRAFICOS.tortas;
+    return base.filter((lesion) => valores.includes(lesion.datos?.[campo]) && (vaciaCuenta || !vacio(lesion.datos?.[porcion])));
+  }
+  if (bloque === "jugador") {
+    const { series, vaciaCuenta } = REGLAS_GRAFICOS.porJugador;
+    return base.filter((lesion) => claveDeQuien(lesion) && (vaciaCuenta || !vacio(lesion.datos?.[series])));
+  }
+  if (bloque === "momentos") {
+    const { categoria, valores, series, vaciaCuenta } = REGLAS_GRAFICOS.momentos;
+    return base.filter((lesion) => {
+      const valor = lesion.datos?.[categoria];
+      if (vacio(valor) || (valores && !valores.includes(valor))) return false;
+      if (!vaciaCuenta && vacio(lesion.datos?.[series])) return false;
+      return anio === null || Number(lesion.fecha_lesion.slice(0, 4)) === anio;
+    });
+  }
+  return base;
+};
+
+// Para la lista de un filtro: cuántas lesiones de su bloque hay de cada valor
+// con los otros filtros del bloque (como el filtro de una columna en Excel),
+// también las que no tienen dato (""). { valor: n }.
+export const cuantasPorValor = (lesiones, campo, { bloque = null, anio = null, filtros = {}, posicionDe } = {}) => {
   const otros = Object.fromEntries(Object.entries(filtros).filter(([otro]) => otro !== campo));
   const cuenta = {};
-  lesionesDeLosGraficos(lesiones, { filtros: otros, posicionDe }).forEach((lesion) => {
-    const valor = valorParaGrafico(lesion, campo, posicionDe);
-    if (!vacio(valor)) cuenta[valor] = (cuenta[valor] || 0) + 1;
+  lesionesDelBloque(bloque, lesiones, { anio, filtros: otros, posicionDe }).forEach((lesion) => {
+    const valor = valorParaGrafico(lesion, campo, posicionDe) ?? "";
+    cuenta[valor] = (cuenta[valor] || 0) + 1;
   });
   return cuenta;
 };
@@ -340,7 +373,7 @@ const contarSeries = (lista, campo, vaciaCuenta) => {
 export const tortaPorParte = (lesiones, valorDeLaTorta, opciones = {}) => {
   const { campo, porcion, vaciaCuenta } = REGLAS_GRAFICOS.tortas;
   const cuenta = contarSeries(
-    lesionesDeLosGraficos(lesiones, opciones).filter((lesion) => lesion.datos?.[campo] === valorDeLaTorta),
+    lesionesDelBloque("partes", lesiones, opciones).filter((lesion) => lesion.datos?.[campo] === valorDeLaTorta),
     porcion,
     vaciaCuenta,
   );
@@ -353,9 +386,8 @@ export const tortaPorParte = (lesiones, valorDeLaTorta, opciones = {}) => {
 export const lesionesPorJugador = (lesiones, opciones = {}) => {
   const { series, vaciaCuenta } = REGLAS_GRAFICOS.porJugador;
   const porQuien = new Map();
-  lesionesDeLosGraficos(lesiones, opciones).forEach((lesion) => {
+  lesionesDelBloque("jugador", lesiones, opciones).forEach((lesion) => {
     const quien = claveDeQuien(lesion);
-    if (!quien) return;
     if (!porQuien.has(quien)) porQuien.set(quien, []);
     porQuien.get(quien).push(lesion);
   });
@@ -367,16 +399,8 @@ export const lesionesPorJugador = (lesiones, opciones = {}) => {
     .filter((fila) => fila.total > 0);
 };
 
-// Bloque 5: las que cuentan (con el campo de la categoría cargado y, si la
-// regla los nombra, solo esos valores), del año de su fecha de inicio.
-const deLosMomentos = (lesiones, { anio = null, ...opciones } = {}) => {
-  const { categoria, valores } = REGLAS_GRAFICOS.momentos;
-  return lesionesDeLosGraficos(lesiones, opciones).filter((lesion) => {
-    const valor = lesion.datos?.[categoria];
-    if (vacio(valor) || (valores && !valores.includes(valor))) return false;
-    return anio === null || Number(lesion.fecha_lesion.slice(0, 4)) === anio;
-  });
-};
+// Bloque 5: las que cuentan (lesionesDelBloque "momentos"), del año pedido.
+const deLosMomentos = (lesiones, opciones = {}) => lesionesDelBloque("momentos", lesiones, opciones);
 export const aniosDeMomentos = (lesiones, opciones = {}) =>
   [...new Set(deLosMomentos(lesiones, { ...opciones, anio: null }).map((lesion) => Number(lesion.fecha_lesion.slice(0, 4))))].sort((a, b) => a - b);
 // [{ valor: cuándo, total, porSerie: { parte: n } }].
