@@ -2253,20 +2253,23 @@
   color: #cbd5e1;
 }
 /* Las columnas: una sola grilla (barras, nombres y detalles en las mismas
-   filas), así todas comparten la base y la escala. */
+   filas), así todas comparten la base y la escala. Ocupan todo el cuadro y
+   se achican hasta un mínimo; si ni así entran, se desplazan. */
 .lesiones-marco .reporte-columnas-grafico {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(44px, var(--ancho-columna, 64px));
+  grid-auto-columns: minmax(var(--minimo-columna, 44px), 1fr);
   grid-template-rows: minmax(0, 1fr) auto auto;
-  /* Centradas; si no entran, desde la izquierda (y se desplaza sin cortar
-     la primera). */
-  justify-content: start;
-  justify-content: safe center;
   column-gap: 8px;
-  height: 190px;
+  height: 250px;
   overflow-x: auto;
   text-align: center;
+}
+@media (max-width: 520px) {
+  .lesiones-marco .reporte-columnas-grafico {
+    column-gap: 4px;
+    height: 220px;
+  }
 }
 .lesiones-marco .reporte-columnas-barras {
   display: flex;
@@ -2284,12 +2287,12 @@
   flex-direction: column;
   justify-content: flex-end;
   min-width: 10px;
-  max-width: 48px;
+  max-width: 96px;
   min-height: 0;
 }
 .lesiones-marco .reporte-columnas-valor {
   color: #0f172a;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 800;
   line-height: 1.3;
   font-variant-numeric: tabular-nums;
@@ -2312,7 +2315,7 @@
 .lesiones-marco .reporte-columnas-etiqueta {
   margin-top: 4px;
   color: #334155;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
   overflow-wrap: anywhere;
@@ -2324,9 +2327,12 @@
 .lesiones-marco .reporte-apiladas .reporte-barras li {
   grid-template-columns: minmax(0, 1fr) 34px;
 }
+.lesiones-marco .reporte-apiladas .reporte-barras {
+  gap: 10px;
+}
 .lesiones-marco .reporte-apiladas .reporte-barras-pista {
   display: flex;
-  height: 18px;
+  height: 24px;
   border-radius: 6px;
 }
 .lesiones-marco .reporte-apiladas .reporte-apiladas-tramo {
@@ -2335,20 +2341,24 @@
   justify-content: center;
   height: 100%;
   border-radius: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   overflow: hidden;
 }
 .lesiones-marco .reporte-torta {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  /* La leyenda tiene su lugar; la torta se achica si el cuadro es angosto. */
+  grid-template-columns: minmax(0, 260px) minmax(120px, 1fr);
   align-items: center;
-  gap: 14px;
+  gap: 18px;
   margin: 0;
 }
+/* La torta crece con el cuadro (hasta 260 px) y se achica si no entra. */
 .lesiones-marco .reporte-torta svg {
-  width: 180px;
-  height: 180px;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  aspect-ratio: 1;
 }
 .lesiones-marco .reporte-torta-porcion {
   stroke: #ffffff;
@@ -2384,14 +2394,24 @@
   color: #64748b;
   font-size: 11px;
 }
-@media (max-width: 760px) {
+/* Si el cuadro de la torta es angosto (el celular, o dos cuadros en una
+   pantalla mediana), la leyenda va abajo de la torta: se mira el cuadro, no
+   la pantalla. Y un nombre largo sin espacios (QUADRIL/VIRILHA) se corta
+   antes de pisar el porcentaje. */
+.lesiones-marco .reporte-graficos-bloque .reporte-dos > .tarjeta {
+  container: torta / inline-size;
+}
+@container torta (max-width: 449px) {
   .lesiones-marco .reporte-torta {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     justify-items: center;
   }
   .lesiones-marco .reporte-torta-leyenda {
     width: 100%;
   }
+}
+.lesiones-marco .reporte-torta-leyenda span {
+  overflow-wrap: anywhere;
 }
 /* Impresos, los reportes van en una hoja A4 apaisada (solo ellos: el resto
    de la app imprime como siempre), sin la barra de la app y con la tabla
@@ -2606,8 +2626,8 @@
      (los 16 períodos del Excel entran en cada gráfico). */
   .lesiones-marco .reporte-columnas-grafico {
     overflow: visible;
-    height: 150px;
-    grid-auto-columns: minmax(0, var(--ancho-columna, 64px));
+    height: 160px;
+    grid-auto-columns: minmax(0, 1fr);
     column-gap: 4px;
   }
   .lesiones-marco .reporte-columnas-lugar {

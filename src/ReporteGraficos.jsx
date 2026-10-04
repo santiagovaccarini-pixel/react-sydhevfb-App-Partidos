@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { EscudoDeClub } from "./components/ClubCrest";
-import { HojaOpciones } from "./components/HojaOpciones.js";
+import { HojaDeFiltro, elegidosAlAbrir } from "./components/ListaParaMarcar.jsx";
 import { BarrasApiladas, Columnas, Torta, coloresDeSeries } from "./components/GraficosReporte.jsx";
 import { tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import { listarPeriodos } from "./domain/periodosDb.js";
@@ -10,6 +10,8 @@ import {
   VARIANTES,
   aniosDeMomentos,
   aniosDePeriodos,
+  cuantasPorValor,
+  elegidosDelFiltro,
   graficosPorPeriodo,
   lesionesPorJugador,
   momentosPorParte,
@@ -52,9 +54,10 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
   const [anioLesiones, setAnioLesiones] = useState(null);
   const [anioDias, setAnioDias] = useState(null);
   const [anioMomentos, setAnioMomentos] = useState(undefined);
-  // Los filtros de cada bloque: { campo: valor } (sin valor, todos).
+  // Los filtros de cada bloque: { campo: [valores] } (sin ninguno, todos),
+  // como las segmentaciones del Excel: se marcan varios.
   const [filtros, setFiltros] = useState({ partes: {}, jugador: {}, momentos: {} });
-  const [hoja, setHoja] = useState(null);
+  const [hoja, setHoja] = useState(null); // { bloque, campo, elegidos, busqueda }
   const lugares = useRef({});
 
   useEffect(() => {
@@ -99,12 +102,54 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
       color: colorDe(valor),
     }));
 
+  // El año del bloque 5 (lo usan su gráfico y las listas de sus filtros).
+  // Como el Excel: el de hoy si tiene lesiones; si no, el último.
+  const aniosMomentos = aniosDeMomentos(lesiones, { posicionDe });
+  const anioDeHoy = Number(String(hoy || "").slice(0, 4));
+  const anioMomentosElegido = anioMomentos !== undefined ? anioMomentos : aniosMomentos.includes(anioDeHoy) ? anioDeHoy : aniosMomentos.at(-1) ?? null;
+
   // ------------------------------------------------------- Filtros --
   const filtrosDe = (bloque) => filtros[bloque] || {};
-  const cambiarFiltro = (bloque, campo, valor) => setFiltros((antes) => ({ ...antes, [bloque]: { ...antes[bloque], [campo]: valor } }));
-  const textoDelFiltro = (bloque, campo) => {
-    const valor = filtrosDe(bloque)[campo];
-    return valor ? textoDe(campo, valor) : t("lesiones.graficos.todos");
+  const elegidosEn = (bloque, campo) => elegidosDelFiltro(filtrosDe(bloque)[campo]);
+  // Sin ninguno elegido, el campo no filtra.
+  const cambiarFiltro = (bloque, campo, valores) =>
+    setFiltros((antes) => {
+      const delBloque = { ...antes[bloque] };
+      if (valores.length) delBloque[campo] = valores;
+      else delete delBloque[campo];
+      return { ...antes, [bloque]: delBloque };
+    });
+  // En el botón: "Todos", el elegido o cuántos; impreso, todos los elegidos.
+  const textoDelFiltro = (bloque, campo, { completo = false } = {}) => {
+    const valores = elegidosEn(bloque, campo);
+    if (!valores.length) return t("lesiones.graficos.todos");
+    if (valores.length === 1 || completo) return valores.map((valor) => textoDe(campo, valor)).join(", ");
+    return plural("lesiones.graficos.elegidos", valores.length);
+  };
+  // Lo que ofrece la lista de un filtro: los valores de las lesiones que
+  // cuenta su gráfico (con el año del bloque 5) y que dejan pasar los otros
+  // filtros del bloque, con cuántas tiene cada uno (también "Sin dato").
+  const valoresDelFiltro = (bloque, campo) => {
+    const cuantas = cuantasPorValor(lesiones, campo, { bloque, anio: bloque === "momentos" ? anioMomentosElegido : null, filtros: filtrosDe(bloque), posicionDe });
+    return ordenarPorEtiqueta(
+      Object.keys(cuantas).map((valor) => ({ valor })),
+      (valor) => textoDe(campo, valor),
+      idioma,
+    ).map(({ valor }) => ({ clave: valor, texto: valor === "" ? "" : textoDe(campo, valor), cantidad: cuantas[valor] }));
+  };
+  const abrirFiltro = (bloque, campo) =>
+    setHoja({ bloque, campo, elegidos: elegidosAlAbrir(elegidosEn(bloque, campo), valoresDelFiltro(bloque, campo)), busqueda: "" });
+  const valoresDeLaHoja = hoja ? valoresDelFiltro(hoja.bloque, hoja.campo) : [];
+  // marcados: null con todo marcado (no filtra).
+  const aplicarFiltro = (marcados) => {
+    const actual = hoja;
+    setHoja(null);
+    if (actual) cambiarFiltro(actual.bloque, actual.campo, marcados || []);
+  };
+  const quitarFiltro = () => {
+    const actual = hoja;
+    setHoja(null);
+    if (actual) cambiarFiltro(actual.bloque, actual.campo, []);
   };
   const lineaDeFiltros = (bloque, campos) => (
     <div className="grilla-criterios reporte-graficos-filtros no-imprimir" role="group" aria-label={t("lesiones.graficos.filtros")}>
@@ -112,33 +157,26 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
         <button
           type="button"
           key={campo}
-          className={`chip-criterio ${filtrosDe(bloque)[campo] ? "prendido" : ""}`}
-          aria-pressed={Boolean(filtrosDe(bloque)[campo])}
-          onClick={() => setHoja({ bloque, campo })}
+          className={`chip-criterio ${elegidosEn(bloque, campo).length ? "prendido" : ""}`}
+          aria-pressed={elegidosEn(bloque, campo).length > 0}
+          aria-haspopup="dialog"
+          onClick={() => abrirFiltro(bloque, campo)}
         >
           {t("lesiones.graficos.filtro", { campo: tituloDeCampo(campo), valor: textoDelFiltro(bloque, campo) })}
         </button>
       ))}
     </div>
   );
-  // Lo elegido, también en lo impreso.
+  // Lo elegido, también en lo impreso (con todos los nombres).
   const elegidos = (bloque, campos, anio) =>
     [
       anio !== undefined ? (anio === null ? t("lesiones.graficos.todosLosAnios") : String(anio)) : "",
-      ...campos.filter((campo) => filtrosDe(bloque)[campo]).map((campo) => t("lesiones.graficos.filtro", { campo: tituloDeCampo(campo), valor: textoDelFiltro(bloque, campo) })),
+      ...campos
+        .filter((campo) => elegidosEn(bloque, campo).length)
+        .map((campo) => t("lesiones.graficos.filtro", { campo: tituloDeCampo(campo), valor: textoDelFiltro(bloque, campo, { completo: true }) })),
     ]
       .filter(Boolean)
       .join(" · ");
-  const opcionesDeLaHoja = hoja
-    ? [
-        { valor: "", etiqueta: t("lesiones.graficos.todos") },
-        ...ordenarPorEtiqueta(
-          opcionesDeFiltro(lesiones, hoja.campo, posicionDe).map((valor) => ({ valor })),
-          (valor) => textoDe(hoja.campo, valor),
-          idioma,
-        ).map(({ valor }) => ({ valor, etiqueta: textoDe(hoja.campo, valor) })),
-      ]
-    : [];
 
   const chipsDeAnios = (anios, elegido, elegir) => (
     <div className="grilla-criterios reporte-graficos-filtros no-imprimir" role="group" aria-label={t("lesiones.graficos.anio")}>
@@ -295,10 +333,6 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
 
   // ------------------------------------------------- Bloque 5 --
   const camposMomentos = REGLAS_GRAFICOS.filtros.momentos;
-  const aniosMomentos = aniosDeMomentos(lesiones, { posicionDe });
-  // Como el Excel: el año de hoy si tiene lesiones; si no, el último.
-  const anioDeHoy = Number(String(hoy || "").slice(0, 4));
-  const anioMomentosElegido = anioMomentos !== undefined ? anioMomentos : aniosMomentos.includes(anioDeHoy) ? anioDeHoy : aniosMomentos.at(-1) ?? null;
   const momentos = momentosPorParte(lesiones, { anio: anioMomentosElegido, filtros: filtrosDe("momentos"), posicionDe });
   const { categoria } = REGLAS_GRAFICOS.momentos;
   const seriesMomentos = seriesDe(momentos.flatMap((fila) => Object.keys(fila.porSerie)));
@@ -355,17 +389,20 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
         {bloqueMomentos}
       </div>
 
-      <HojaOpciones
+      {/* El filtro: se marcan varios, como en el Excel (y como el filtro de
+          las columnas de la Base). */}
+      <HojaDeFiltro
         abierta={Boolean(hoja)}
-        titulo={hoja ? tituloDeCampo(hoja.campo) : ""}
-        opciones={opcionesDeLaHoja}
-        elegida={hoja ? filtrosDe(hoja.bloque)[hoja.campo] || "" : ""}
-        buscador
-        onElegir={(valor) => {
-          const actual = hoja;
-          setHoja(null);
-          if (actual) cambiarFiltro(actual.bloque, actual.campo, valor);
-        }}
+        className="reporte-graficos-hoja-filtro"
+        columna={hoja ? tituloDeCampo(hoja.campo) : ""}
+        valores={valoresDeLaHoja}
+        elegidos={hoja?.elegidos || []}
+        busqueda={hoja?.busqueda || ""}
+        textoVacio={t("lesiones.graficos.sinDato")}
+        onCambiar={(elegidos) => setHoja((actual) => ({ ...actual, elegidos }))}
+        onBuscar={(busqueda) => setHoja((actual) => ({ ...actual, busqueda }))}
+        onAplicar={aplicarFiltro}
+        onQuitar={quitarFiltro}
         onCerrar={() => setHoja(null)}
       />
     </div>

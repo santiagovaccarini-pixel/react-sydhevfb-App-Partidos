@@ -309,6 +309,17 @@ describe("los reportes con los minutos del GPS", () => {
   const detalles = (grafico) => [...grafico.querySelectorAll(".reporte-columnas-detalle")].map((detalle) => detalle.textContent);
   const leyendaDeTorta = (indice) =>
     [...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-dos > .tarjeta")[indice].querySelectorAll(".reporte-torta-leyenda li")].map((li) => `${li.querySelector("span").textContent} ${li.querySelector("b").textContent}`);
+  // Un filtro de los gráficos: se abre, se marca solo lo pedido y se aplica.
+  const hojaDelFiltro = () => document.querySelector(".reporte-graficos-hoja-filtro");
+  const filtrar = async (bloque, campo, valores) => {
+    await tocar([...bloqueDe(bloque).querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith(campo)));
+    await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
+    for (const valor of valores) {
+      // eslint-disable-next-line no-await-in-loop
+      await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].find((label) => label.querySelector("span").textContent === valor).querySelector("input"));
+    }
+    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+  };
   const abrirGraficos = async (gps = GPS, plantel = PLANTEL, lesiones = LESIONES) => {
     await montar(gps, plantel, lesiones);
     await tocar(botonQueEmpieza("Informes gráficos"));
@@ -381,9 +392,7 @@ describe("los reportes con los minutos del GPS", () => {
     expect(leyendaDeTorta(1)).toEqual(["joelho 100%"]);
     expect(bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-dos > .tarjeta")[1].querySelector("svg circle")).not.toBeNull();
     // Lado: izquierdo.
-    const filtroLado = [...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Lado"));
-    await tocar(filtroLado);
-    await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "esquerdo"));
+    await filtrar("Partes del cuerpo", "Lado", ["esquerdo"]);
     expect(leyendaDeTorta(0)).toEqual(["tornozelo_pe 100%"]);
     expect(bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-dos > .tarjeta")[1].textContent).toContain("No hay lesiones con estos filtros.");
     expect(bloqueDe("Partes del cuerpo").querySelector(".reporte-graficos-filtrado").textContent).toContain("Lado: esquerdo");
@@ -434,13 +443,97 @@ describe("los reportes con los minutos del GPS", () => {
     // Sin lesiones de 2026 (el año de hoy): el último año con lesiones.
     expect(bloqueDe("Entrenamiento y partidos").querySelector(".cabeza-ficha b").textContent).toBe("2025");
     // Posición: la del plantel (en el Excel, el Puesto de Datos Básicos).
-    await tocar([...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Posición")));
-    await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "goleiro"));
+    await filtrar("Partes del cuerpo", "Posición", ["goleiro"]);
     expect(leyendaDeTorta(0)).toEqual(["tornozelo_pe 100%"]);
     // Por jugador, el filtro del jugador (como el del Excel): solo SCARPA.
-    await tocar([...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Nombre y apellido")));
-    await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "SCARPA"));
+    await filtrar("Lesiones por jugador", "Nombre y apellido", ["SCARPA"]);
     expect([...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-barras li .reporte-barras-etiqueta")].map((etiqueta) => etiqueta.textContent)).toEqual(["SCARPA"]);
+  });
+
+  test("Informes gráficos: en los filtros se marcan varios (los jugadores que van y los que no), con cuántas tiene cada uno", async () => {
+    periodosGuardados.lista = [];
+    const deAfuera = { id: "les-af", jugador_id: null, persona: "Persona De Afuera", numero_caso: 10, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-03", datos: { parte_cuerpo: "coxa", lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO } };
+    await abrirGraficos(GPS, PLANTEL, [...LESIONES, deAfuera]);
+    const filas = () => [...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-barras li .reporte-barras-etiqueta")].map((etiqueta) => etiqueta.textContent);
+    expect(filas()).toEqual(["HULK", "Persona De Afuera", "SCARPA"]);
+    // La lista: todos marcados al abrir, con cuántas lesiones tiene cada uno.
+    const chip = () => [...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Nombre y apellido"));
+    await tocar(chip());
+    const lista = () => [...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].map((label) => [label.querySelector("span").textContent, label.querySelector("input").checked, label.querySelector("small").textContent]);
+    expect(lista()).toEqual([
+      ["HULK", true, "2"],
+      ["Persona De Afuera", true, "1"],
+      ["SCARPA", true, "1"],
+    ]);
+    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    // Con todo marcado no filtra.
+    expect(chip().textContent).toBe("Nombre y apellido: Todos");
+    expect(chip().getAttribute("aria-pressed")).toBe("false");
+    // Dos de tres: van esos dos.
+    await filtrar("Lesiones por jugador", "Nombre y apellido", ["HULK", "SCARPA"]);
+    expect(filas()).toEqual(["HULK", "SCARPA"]);
+    expect(chip().textContent).toBe("Nombre y apellido: 2 elegidos");
+    expect(chip().getAttribute("aria-pressed")).toBe("true");
+    // Impreso se leen todos los elegidos.
+    expect(bloqueDe("Lesiones por jugador").querySelector(".reporte-graficos-filtrado").textContent).toBe("Nombre y apellido: HULK, SCARPA");
+    // Al volver a abrir, lo elegido sigue marcado; Ninguno solo toca lo buscado.
+    await tocar(chip());
+    expect(lista().map(([nombre, marcado]) => [nombre, marcado])).toEqual([
+      ["HULK", true],
+      ["Persona De Afuera", false],
+      ["SCARPA", true],
+    ]);
+    const buscar = async (texto) =>
+      act(async () => {
+        const campo = hojaDelFiltro().querySelector(".tabla-datos-buscar-valor");
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(campo, texto);
+        campo.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    await buscar("scar");
+    await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
+    await buscar("");
+    expect(lista().map(([nombre, marcado]) => [nombre, marcado])).toEqual([
+      ["HULK", true],
+      ["Persona De Afuera", false],
+      ["SCARPA", false],
+    ]);
+    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    expect(filas()).toEqual(["HULK"]);
+    await filtrar("Lesiones por jugador", "Nombre y apellido", ["HULK", "SCARPA"]);
+    // Con otro filtro, la lista ofrece solo a quienes les queda alguna.
+    await filtrar("Lesiones por jugador", "Producto", ["traumatica"]);
+    expect(filas()).toEqual(["HULK"]);
+    await tocar(chip());
+    expect(lista()).toEqual([["HULK", true, "1"]]);
+    // Quitar el filtro: vuelven todos los que deja el otro filtro.
+    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Quitar filtro"));
+    expect(chip().textContent).toBe("Nombre y apellido: Todos");
+    // Ninguno marcado: no se puede aplicar.
+    await tocar(chip());
+    await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
+    expect([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar").disabled).toBe(true);
+  });
+
+  test("Informes gráficos: las listas ofrecen Sin dato y cuentan lo de su gráfico (el año de Entrenamiento y partidos)", async () => {
+    periodosGuardados.lista = [];
+    const sinMusculo = { id: "les-sm", jugador_id: 8, numero_caso: 4, fecha_lesion: "2026-05-01", fecha_alta: "2026-05-03", datos: { parte_cuerpo: "coxa", lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO, musculo: "" } };
+    const conMusculo = { ...LESIONES[0], datos: { ...LESIONES[0].datos, musculo: "isquiotibiais" } };
+    const otroAnio = { id: "les-25", jugador_id: 7, numero_caso: 5, fecha_lesion: "2025-05-01", fecha_alta: "2025-05-03", datos: { parte_cuerpo: "pe_dedo", lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO } };
+    await abrirGraficos(GPS, PLANTEL, [conMusculo, sinMusculo, otroAnio]);
+    // Músculo: con "Sin dato" (las que no lo tienen), que se puede dejar marcado.
+    await tocar([...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Músculo afectado")));
+    const lista = () => [...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].map((label) => [label.querySelector("span").textContent, label.querySelector("small").textContent]);
+    expect(lista()).toEqual([
+      ["isquiotibiais", "1"],
+      ["Sin dato", "2"],
+    ]);
+    await tocar(hojaDelFiltro().querySelector(".tabla-datos-valores input"));
+    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    // Sin isquiotibiais: quedan las sin músculo (no se pierden).
+    expect(leyendaDeTorta(0)).toEqual(["coxa 50%", "pe_dedo 50%"]);
+    // Entrenamiento y partidos (2026): la lista de partes no ofrece la de 2025.
+    await tocar([...bloqueDe("Entrenamiento y partidos").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Parte del cuerpo")));
+    expect(lista()).toEqual([["coxa", "2"]]);
   });
 
   test("Informes gráficos: por jugador, el título es el campo, con su leyenda aunque sea una parte, y la nota dice qué cuenta", async () => {
