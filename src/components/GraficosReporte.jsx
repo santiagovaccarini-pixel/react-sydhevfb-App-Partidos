@@ -86,7 +86,7 @@ export const Columnas = ({ filas, series, formato = (valor) => (valor === null |
       .join(" · ");
   return (
     <div className="reporte-columnas">
-      <div className="reporte-columnas-grafico" role="group" aria-label={titulo} style={{ "--ancho-columna": `${Math.max(64, series.length * 26)}px` }}>
+      <div className="reporte-columnas-grafico" role="group" aria-label={titulo} style={{ "--minimo-columna": `${Math.max(32, series.length * 14)}px` }}>
         {filas.map((fila) => {
           const texto = textoDe(fila);
           return (

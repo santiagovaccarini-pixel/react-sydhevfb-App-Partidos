@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HojaOpciones } from "./HojaOpciones.js";
 import { HojaInferior } from "./SheetPanel.js";
+import { ListaParaMarcar } from "./ListaParaMarcar.jsx";
 import { Icono } from "./AppChrome";
 import {
   aplicarPegado,
@@ -15,7 +16,6 @@ import {
   tramosDeGrupos,
   valoresDeColumna,
 } from "../domain/tabla.js";
-import { normalizarTextoBase } from "../domain/match";
 import { t, useIdioma } from "../idioma/index.js";
 import "./tablaDatos.css";
 
@@ -493,23 +493,6 @@ export const TablaDatos = ({
     if (!hojaFiltro) return [];
     return valoresDeColumna(filtrarFilas(filas, filtrosVigentes, { salvo: hojaFiltro.clave }), hojaFiltro.clave);
   }, [hojaFiltro, filas, filtrosVigentes]);
-  const valoresBuscados = useMemo(() => {
-    const buscado = normalizarTextoBase(hojaFiltro?.busqueda || "");
-    if (!buscado) return valoresDeLaHoja;
-    return valoresDeLaHoja.filter((valor) => normalizarTextoBase(valor.texto || t("tabla.vacias")).includes(buscado));
-  }, [valoresDeLaHoja, hojaFiltro]);
-
-  const alternarValor = (texto) =>
-    setHojaFiltro((actual) => ({
-      ...actual,
-      elegidos: actual.elegidos.includes(texto) ? actual.elegidos.filter((uno) => uno !== texto) : [...actual.elegidos, texto],
-    }));
-  const elegirTodosLosBuscados = (prender) =>
-    setHojaFiltro((actual) => {
-      const buscados = valoresBuscados.map((valor) => valor.texto);
-      const resto = actual.elegidos.filter((texto) => !buscados.includes(texto));
-      return { ...actual, elegidos: prender ? [...resto, ...buscados] : resto };
-    });
 
   const aplicarFiltro = () => {
     const actual = hojaFiltro;
@@ -798,37 +781,13 @@ export const TablaDatos = ({
                 {t("tabla.ordenarDesc")}
               </button>
             </div>
-            <input
-              type="search"
-              className="tabla-datos-buscar-valor"
-              value={hojaFiltro.busqueda}
-              placeholder={t("tabla.buscarValor")}
-              aria-label={t("tabla.buscarValor")}
-              onChange={(evento) => {
-                const busqueda = evento.target.value;
-                setHojaFiltro((actual) => ({ ...actual, busqueda }));
-              }}
+            <ListaParaMarcar
+              valores={valoresDeLaHoja.map((valor) => ({ clave: valor.texto, texto: valor.texto, cantidad: valor.cantidad }))}
+              elegidos={hojaFiltro.elegidos}
+              onCambiar={(elegidos) => setHojaFiltro((actual) => ({ ...actual, elegidos }))}
+              busqueda={hojaFiltro.busqueda}
+              onBuscar={(busqueda) => setHojaFiltro((actual) => ({ ...actual, busqueda }))}
             />
-            <div className="tabla-datos-todos">
-              <button type="button" onClick={() => elegirTodosLosBuscados(true)}>
-                {t("tabla.todos")}
-              </button>
-              <button type="button" onClick={() => elegirTodosLosBuscados(false)}>
-                {t("tabla.ninguno")}
-              </button>
-            </div>
-            <ul className="tabla-datos-valores">
-              {valoresBuscados.length === 0 && <li className="tabla-datos-sin-valores">{t("tabla.nadaEnLista")}</li>}
-              {valoresBuscados.map((valor) => (
-                <li key={valor.texto || "__vacias"}>
-                  <label>
-                    <input type="checkbox" checked={hojaFiltro.elegidos.includes(valor.texto)} onChange={() => alternarValor(valor.texto)} />
-                    <span className={valor.texto ? "" : "vacias"}>{valor.texto || t("tabla.vacias")}</span>
-                    <small>{valor.cantidad}</small>
-                  </label>
-                </li>
-              ))}
-            </ul>
           </div>
         )}
       </HojaInferior>

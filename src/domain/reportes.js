@@ -289,21 +289,40 @@ export const valorParaGrafico = (lesion, campo, posicionDe = () => null) => {
   return lesion?.datos?.[campo] ?? "";
 };
 
+// Lo elegido en un filtro: varios valores, como las segmentaciones del Excel
+// (también vale uno solo); sin ninguno, todos.
+export const elegidosDelFiltro = (valor) => (Array.isArray(valor) ? valor : [valor]).filter((uno) => !vacio(uno));
+
 // Las que entran en los bloques 3 a 5: con fecha de inicio (las sin fecha
 // nunca), con el campo contado y con lo elegido en los filtros
-// ({ campo: valor }; vacío = todos).
+// ({ campo: [valores] }; vacío = todos).
 export const lesionesDeLosGraficos = (lesiones, { filtros = {}, posicionDe } = {}) =>
   (lesiones || []).filter(
     (lesion) =>
       tieneFecha(lesion) &&
       !vacio(lesion.datos?.[REGLAS_GRAFICOS.campoContado]) &&
-      Object.entries(filtros).every(([campo, valor]) => vacio(valor) || valorParaGrafico(lesion, campo, posicionDe) === valor),
+      Object.entries(filtros).every(([campo, valor]) => {
+        const elegidos = elegidosDelFiltro(valor);
+        return !elegidos.length || elegidos.includes(valorParaGrafico(lesion, campo, posicionDe));
+      }),
   );
 
 // Los valores que hay para un filtro (sin los otros filtros): distintos y no vacíos.
 export const opcionesDeFiltro = (lesiones, campo, posicionDe) => [
   ...new Set(lesionesDeLosGraficos(lesiones, { posicionDe }).map((lesion) => valorParaGrafico(lesion, campo, posicionDe)).filter((valor) => !vacio(valor))),
 ];
+
+// Para la lista de un filtro: cuántas lesiones hay de cada valor con los otros
+// filtros del bloque (como el filtro de una columna en Excel). { valor: n }.
+export const cuantasPorValor = (lesiones, campo, { filtros = {}, posicionDe } = {}) => {
+  const otros = Object.fromEntries(Object.entries(filtros).filter(([otro]) => otro !== campo));
+  const cuenta = {};
+  lesionesDeLosGraficos(lesiones, { filtros: otros, posicionDe }).forEach((lesion) => {
+    const valor = valorParaGrafico(lesion, campo, posicionDe);
+    if (!vacio(valor)) cuenta[valor] = (cuenta[valor] || 0) + 1;
+  });
+  return cuenta;
+};
 
 // Cuántas de cada valor de un campo: { valor: n } (la vacía como "", si cuenta).
 const contarSeries = (lista, campo, vaciaCuenta) => {

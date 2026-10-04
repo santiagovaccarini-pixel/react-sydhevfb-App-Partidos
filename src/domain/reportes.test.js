@@ -14,6 +14,8 @@ import {
   esLeve,
   esMuscular,
   graficosPorPeriodo,
+  cuantasPorValor,
+  elegidosDelFiltro,
   lesionesDeLosGraficos,
   lesionesDelReporte,
   lesionesPorJugador,
@@ -378,6 +380,24 @@ describe("Informes gráficos: bloques 3 a 5 (partes del cuerpo, por jugador, ent
     expect(REGLAS_GRAFICOS.momentos.valores).toBeNull();
     expect(aniosDeMomentos([...lesiones, ...otros])).toEqual([2025, 2026]);
     expect(Object.keys(porValor(momentosPorParte(otros, { anio: 2026 }))).sort()).toEqual(["fora", "transicao"]);
+  });
+
+  test("un filtro elige varios valores (como las segmentaciones del Excel); sin ninguno, todos", () => {
+    expect(elegidosDelFiltro(["direito", "", null])).toEqual(["direito"]);
+    expect(elegidosDelFiltro("esquerdo")).toEqual(["esquerdo"]);
+    expect(elegidosDelFiltro(undefined)).toEqual([]);
+    const todas = lesionesDeLosGraficos(lesiones).length;
+    expect(lesionesDeLosGraficos(lesiones, { filtros: { lado: [] } })).toHaveLength(todas);
+    const derechas = lesionesDeLosGraficos(lesiones, { filtros: { lado: ["direito"] } }).length;
+    const izquierdas = lesionesDeLosGraficos(lesiones, { filtros: { lado: ["esquerdo"] } }).length;
+    expect(lesionesDeLosGraficos(lesiones, { filtros: { lado: ["direito", "esquerdo"] } })).toHaveLength(derechas + izquierdas);
+    // Un solo valor (como antes) vale igual.
+    expect(lesionesDeLosGraficos(lesiones, { filtros: { lado: "direito" } })).toHaveLength(derechas);
+    // Cuántas de cada valor: con los otros filtros, sin el suyo.
+    const porLado = cuantasPorValor(lesiones, "lado", { filtros: { lado: ["direito"] } });
+    expect(porLado).toEqual({ direito: derechas, esquerdo: izquierdas });
+    const conOtro = cuantasPorValor(lesiones, "lado", { filtros: { parte_cuerpo: ["coxa"] } });
+    expect(Object.values(conOtro).reduce((a, b) => a + b, 0)).toBe(lesionesDeLosGraficos(lesiones, { filtros: { parte_cuerpo: ["coxa"] } }).filter((una) => una.datos.lado).length);
   });
 
   test("las opciones de un filtro, el orden por cómo se lee y el nombre de cada quien", () => {

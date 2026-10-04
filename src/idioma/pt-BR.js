@@ -513,6 +513,8 @@ export default {
       sinDato: "Sem dado",
       sinLesiones: "Não há lesões com estes filtros.",
       cuentanTodas: "Contam todas as lesões com data de início e «{{campo}}» preenchido, de qualquer data.",
+      elegidos_one: "{{n}} selecionado",
+      elegidos_other: "{{n}} selecionados",
       cuentanConSerie: "Contam as lesões com data de início, «{{contado}}» e «{{campo}}» preenchidos, de qualquer data.",
       cuentanMomentos: "Contam as lesões com data de início, «{{contado}}» e «{{campo}}» preenchidos, pelo ano da data de início.",
     },
