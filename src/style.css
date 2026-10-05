@@ -3722,17 +3722,21 @@ button:disabled {
     backdrop-filter: blur(16px);
   }
 
+  /* Los íconos arriba, todos a la misma altura aunque un nombre ocupe dos
+     renglones (Historial individual, en Lesiones). */
   .navegacion-movil button {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex-direction: column;
     gap: 3px;
+    padding-top: 10px;
     border-radius: 8px;
     background: transparent;
     color: #606a65;
     font-size: 9px;
     font-weight: 750;
+    line-height: 1.2;
   }
 
   .navegacion-movil button:hover,

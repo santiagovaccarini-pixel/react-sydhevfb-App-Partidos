@@ -224,9 +224,9 @@ de lo hecho está en los commits, no en esta lista.
     viejo, también los que jugaron ese partido.
   - Flujo diario: para una tarea, solo el plantel actual, más los que ya están en alguna
     tarea de la sesión (una sesión vieja no los pierde).
-  - Lesiones (lesión nueva, Historial, reporte individual), Posiciones, Catapult y los
+  - Lesiones (lesión nueva, Historial individual, reporte individual), Posiciones, Catapult y los
     importadores: el plantel actual primero; los que se fueron, abajo y marcados "Ya no
-    está" (en el Historial y el reporte, solo si tienen lesiones). A quien se fue no se le
+    está" (en el Historial individual y el reporte, solo si tienen lesiones). A quien se fue no se le
     propone chaleco.
   - Reportes del plantel y la Base: todos (sus lesiones son historia del club).
   Mientras no se corra el SQL, todos cuentan como actuales y marcar la casilla avisa qué SQL
@@ -492,7 +492,7 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
     igual" las elige todas; las que se parecen a dos jugadores se eligen una por una). En la
     base, la lesión queda con `persona` (el nombre) y sin `jugador_id` (migración
     `20261010_lesiones_sin_fecha_y_personas.sql`). Se ve en Lesionados, la Base, el
-    Historial y la vista para Power Query, y cuenta en los reportes del plantel (como en el
+    Historial individual y la vista para Power Query, y cuenta en los reportes del plantel (como en el
     Excel) cada persona por su lado; el reporte individual es solo de Datos básicos. El
     mismo nombre escrito de otra forma (con o sin acentos, mayúsculas o signos) es la misma
     persona: se guarda como ya está escrito en la app, o como en la primera fila que lo
@@ -525,6 +525,9 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 
 ## Bases de Datos (05/10)
 
+- Lesiones, la barra (pedido de Santiago, 05/10): Nuevos casos (lo que antes decía Lesionados:
+  las activas y "Nueva lesión"), Base, Historial individual, Reportes y Ajustes. En el celular
+  los íconos de la barra quedan a la misma altura aunque un nombre ocupe dos renglones.
 - El módulo Lesiones del portal pasó a llamarse **Bases de Datos** (pedido de Santiago, 05/10):
   adentro tiene la cara de la pantalla principal, una tarjeta por base, con la misma portada al
   entrar. Lesiones es la primera; las próximas (GPS, ROM, las que se definan) se suman ahí.

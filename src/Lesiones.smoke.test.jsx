@@ -169,8 +169,9 @@ describe("el módulo Lesiones", () => {
     expect(contenedor.querySelector(".registro-guardado .lesiones-etapa").textContent).toBe("Lesionado");
     expect(boton(contenedor, "Ver detalle")).toBeTruthy();
     expect(boton(contenedor, "Alta médica")).toBeTruthy();
-    // Sin pantalla de plantel: la barra tiene Lesionados, Historial, Base y Ajustes.
-    expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent.trim())).toEqual(["Lesionados", "Historial", "Base", "Reportes", "Ajustes"]);
+    // Sin pantalla de plantel: la barra tiene Nuevos casos, Base, Historial
+    // individual, Reportes y Ajustes (pedido de Santiago, 05/10).
+    expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent.trim())).toEqual(["Nuevos casos", "Base", "Historial individual", "Reportes", "Ajustes"]);
 
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     expect(texto(contenedor)).toContain("1 lesão ativa");
@@ -983,7 +984,7 @@ describe("el módulo Lesiones", () => {
     const lista = () => [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")].map((b) => b.textContent);
     expect(lista()).toEqual(["SCARPA0 lesiones", "HULK1 lesión · Ya no está"]);
     // Una lesión nueva: primero el plantel actual; también se puede cargar una vieja de quien se fue.
-    await navegar(contenedor, "Lesionados");
+    await navegar(contenedor, "Nuevos casos");
     await tocar(boton(contenedor, "Nueva lesión"));
     const candidatos = [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")].map((b) => b.textContent);
     expect(candidatos).toEqual(["SCARPA", "HULKYa no está", "ZAGUEIROYa no está"]);
