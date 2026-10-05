@@ -1,5 +1,5 @@
-/* La tabla estilo Excel: cabecera fija, número de fila fijo, celdas que se
-   eligen y se editan, cabeceras que se arrastran. */
+/* La tabla estilo Excel: cabecera fija, celdas que se eligen y se editan,
+   cabeceras que se arrastran y columnas que se achican desde su borde. */
 .tabla-datos {
   display: grid;
   gap: 8px;
@@ -11,6 +11,18 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+/* Cuántas filas hay (la tabla no lleva una columna que las cuente). */
+.tabla-datos-cuantas {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .tabla-datos-estado {
@@ -66,8 +78,9 @@
 .tabla-datos-tabla {
   /* El alto de la fila de los grupos: las cabeceras quedan fijas debajo. */
   --tabla-datos-alto-grupos: 34px;
-  /* El ancho de la columna del número de fila (fija a la izquierda). */
-  --tabla-datos-ancho-numero: 40px;
+  /* El ancho del borde de cada cabecera que se arrastra para cambiar el
+     ancho de su columna (con el dedo, más ancho). */
+  --tabla-datos-borde: 8px;
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -111,29 +124,62 @@
   box-shadow: inset 4px 0 0 #16a34a;
 }
 
-.tabla-datos-tabla th.tabla-datos-numero,
-.tabla-datos-tabla td.tabla-datos-numero,
-.tabla-datos-tabla tbody th {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  width: var(--tabla-datos-ancho-numero);
-  min-width: var(--tabla-datos-ancho-numero);
-  padding: 8px 6px;
-  background: #f1f5f9;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 800;
-  text-align: center;
-  cursor: pointer;
-  touch-action: auto;
+/* Cada cabecera deja a la derecha el lugar de su borde, y si su columna se
+   achica, el nombre se corta con "…" (el botón del filtro queda). */
+.tabla-datos-tabla thead tr.tabla-datos-cabeceras th {
+  padding-right: var(--tabla-datos-borde);
+  overflow: hidden;
 }
 
-.tabla-datos-tabla thead th.tabla-datos-numero {
-  z-index: 3;
-  background: #111827;
-  color: rgba(255, 255, 255, 0.6);
-  cursor: default;
+/* El borde que se arrastra, como el de las columnas de Excel. */
+.tabla-datos-borde {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--tabla-datos-borde);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.tabla-datos-borde::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 2px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.tabla-datos-tabla thead th:hover > .tabla-datos-borde::after {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.tabla-datos-tabla thead th > .tabla-datos-borde:hover::after,
+.tabla-datos-tabla thead th.ajustada > .tabla-datos-borde::after {
+  background: #22c55e;
+}
+
+/* Mientras se arrastra un borde, el cursor es el del borde en toda la tabla. */
+.tabla-datos-tabla.ajustando,
+.tabla-datos-tabla.ajustando th {
+  cursor: col-resize;
+}
+
+@media (pointer: coarse) {
+  .tabla-datos-tabla {
+    --tabla-datos-borde: 14px;
+  }
+}
+
+/* Lo que va adentro de una celda que abarca varias columnas y no tiene que
+   ensancharlas (el rótulo sobre las fijas, el título de un grupo con una
+   columna achicada): ocupa lo que mida la celda; si no entra, se corta. */
+.tabla-datos-envoltura {
+  width: 0;
+  min-width: 100%;
 }
 
 .tabla-datos-tabla td {
@@ -189,9 +235,15 @@
   box-shadow: inset 0 0 0 2px #16a34a;
 }
 
-.tabla-datos-tabla tr.activa th {
-  background: #dcfce7;
-  color: #166534;
+/* La celda que se está escribiendo: si su columna es angosta, lo que se
+   escribe se ve entero, por encima de las de al lado. */
+.tabla-datos-tabla td.editando {
+  overflow: visible;
+}
+
+.tabla-datos-tabla td.editando input {
+  position: relative;
+  z-index: 1;
 }
 
 .tabla-datos-tabla td input {
@@ -242,11 +294,6 @@
 
 .tabla-datos-tabla tr.apagada td.fija:not(.elegida) {
   background: #dbd4c9;
-  color: #57534e;
-}
-
-.tabla-datos-tabla tr.apagada:not(.activa) th {
-  background: #d3cbbf;
   color: #57534e;
 }
 
@@ -315,13 +362,17 @@
 }
 
 /* El título del grupo, centrado sobre sus columnas. Si el grupo es más ancho
-   que lo que se ve (en el celular), el título se corre para quedar a la vista
-   (sin taparse con el número de fila). */
+   que lo que se ve (en el celular), el título se corre para quedar a la
+   vista; si es más angosto (una columna achicada), se corta con "…". */
 .tabla-datos-grupo-titulo {
   position: sticky;
-  left: calc(var(--tabla-datos-ancho-numero) + 20px);
+  left: 20px;
   right: 8px;
   display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
 }
 
 .tabla-datos-tabla thead tr.tabla-datos-grupos th.sin-grupo {
@@ -357,6 +408,13 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
+}
+
+.tabla-datos-titulo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tabla-datos-filtro {
@@ -367,7 +425,7 @@
   gap: 2px;
   min-width: 22px;
   height: 22px;
-  margin: -4px -4px -4px 0;
+  margin: -4px 0;
   padding: 0 4px;
   border: 0;
   border-radius: 6px;
@@ -488,9 +546,9 @@
   font-size: 13px;
 }
 
-/* Las columnas fijas: en la compu quedan a la vista al correr la tabla, a la
-   derecha del número de fila; en el celular corren con las demás (no
-   entrarían todas en la pantalla). */
+/* Las columnas fijas: en la compu quedan a la vista al correr la tabla, desde
+   el borde izquierdo; en el celular corren con las demás (no entrarían todas
+   en la pantalla). */
 @media (min-width: 900px) {
   .tabla-datos-tabla .inmovil {
     position: sticky;
@@ -499,6 +557,11 @@
 
   .tabla-datos-tabla thead th.inmovil {
     z-index: 3;
+  }
+
+  /* Lo que se escribe en una fija angosta pasa por encima de la de al lado. */
+  .tabla-datos-tabla td.inmovil.editando {
+    z-index: 2;
   }
 
   .tabla-datos-tabla .ultima-inmovil {
@@ -533,19 +596,18 @@
   touch-action: auto;
 }
 
+/* En una columna achicada, el dato se corta con "…" como en la tabla. */
+.tabla-datos-tabla thead tr.tabla-datos-arriba td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tabla-datos-tabla thead tr.tabla-datos-arriba td.centrada {
   text-align: center;
 }
 
-.tabla-datos-tabla thead tr.tabla-datos-arriba th.tabla-datos-numero {
-  position: sticky;
-  top: auto;
-  left: 0;
-  z-index: 1;
-  background: #f1f5f9;
-}
-
 .tabla-datos-tabla thead tr.tabla-datos-arriba th.tabla-datos-arriba-rotulo {
+  overflow: hidden;
   color: #475569;
   text-align: right;
   vertical-align: middle;

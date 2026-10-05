@@ -11,8 +11,7 @@ import { calcularFilas, estadisticas, estilosDeFilas, estilosDeUnaFila } from ".
 import { TESTS } from "./domain/evaluaciones/tests/index.js";
 import { actualizarEvaluacion, borrarEvaluacion, crearEvaluacion, leerReferencias, listarEvaluaciones } from "./domain/evaluacionesDb.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
-import { etiquetaDeOpcion } from "./domain/lesionesCampos.js";
-import { cargarPlantelLesiones, leerConfig } from "./domain/lesionesDb.js";
+import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { textoDeMinutos } from "./domain/tabla.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -41,7 +40,7 @@ const TIPO_EN_LA_TABLA = { calculado: "calculado", dato_jugador: "calculado", fe
 // Lo que se carga a mano (lo demás lo calcula la app o sale de Datos básicos).
 const SE_CARGAN = ["fecha", "jugador", "lista", "tiempo", "texto"];
 // Van alineadas a la izquierda, como en el Excel; el resto, centrado.
-const A_LA_IZQUIERDA = ["jugador", "posicion", "nota"];
+const A_LA_IZQUIERDA = ["jugador", "nota"];
 
 const textoDeCategoria = (codigo, idioma) => categoriaPorCodigo(codigo)?.etiquetas[idioma] || codigo || "";
 
@@ -57,9 +56,6 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const [plantelSinLeer, setPlantelSinLeer] = useState(false);
   const [evaluaciones, setEvaluaciones] = useState([]);
   const [referencias, setReferencias] = useState(null);
-  // La configuración de Lesiones del club: los nombres de las posiciones,
-  // como en Datos básicos.
-  const [config, setConfig] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
@@ -97,16 +93,13 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const cargar = useCallback(async () => {
     setCargando(true);
     setError("");
-    const [respuestaPlantel, respuestaEvaluaciones, respuestaReferencias, respuestaConfig] = await Promise.all([
+    const [respuestaPlantel, respuestaEvaluaciones, respuestaReferencias] = await Promise.all([
       cargarPlantelLesiones(equipoId),
       listarEvaluaciones(equipoId, testId),
       leerReferencias(equipoId, testId),
-      leerConfig(equipoId),
     ]);
     setPlantel(respuestaPlantel.plantel || []);
     setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
-    // Sin la configuración (o sin permiso de Lesiones), valen los textos del Excel.
-    setConfig(respuestaConfig.error ? null : respuestaConfig.config);
     if (respuestaEvaluaciones.error || respuestaReferencias.error) {
       setError(respuestaEvaluaciones.error || respuestaReferencias.error);
     } else {
@@ -208,7 +201,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
               if (clave === "fecha_nac") {
                 textos[clave] = fechaCorta(jugador?.fecha_nacimiento);
                 orden[clave] = jugador?.fecha_nacimiento || "";
-              } else textos[clave] = jugador?.posicion ? etiquetaDeOpcion("posicion", jugador.posicion, config, idioma) : "";
+              }
               break;
             case "tiempo":
               valores[clave] = typeof fila.datos?.[clave] === "number" ? fila.datos[clave] : null;
@@ -234,7 +227,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           apagada: Boolean(jugador && !esActual(jugador)),
         };
       }),
-    [calculadas, test, jugadorDe, config, idioma],
+    [calculadas, test, jugadorDe, idioma],
   );
 
   // Paso 2, con las filas que se ven: el informe de arriba y los colores.

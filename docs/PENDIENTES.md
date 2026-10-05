@@ -317,8 +317,7 @@ mover a una configuración por club:
   debajo de la otra: de Datos generales a Descripción específica arriba, y de Descripción
   contextual a Observaciones abajo (un grupo que no esté en ninguna va a la última). Cada tabla
   arranca con el N° de registro (o el N° de caso, si el registro está escondido), adelante y
-  fijo como el número de fila de la base, y lleva la fila de los grupos con los mismos tonos que
-  la base. En pantalla entran enteras desde una compu de 1366 px; más chica, se deslizan.
+  fijo al deslizar, y lleva la fila de los grupos con los mismos tonos que la base. En pantalla entran enteras desde una compu de 1366 px; más chica, se deslizan.
   Impreso (A4 apaisado), la segunda tabla va entera a la hoja siguiente si no entra: un jugador
   con pocas lesiones ocupa dos hojas (antes, con 12 columnas, entraba en una).
 - Validaciones: obligatorios jugador, tipo de lesión (pedido del 02/10), parte,
@@ -569,6 +568,17 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 - Datos básicos sigue en la pantalla principal: lo ve cualquiera con algún módulo (Partido y
   Flujo diario también usan los jugadores), y adentro de Bases de Datos lo verían solo los que
   tienen ese permiso. Si se quiere adentro, hay que decidir quién lo ve.
+- **Regla para todas las bases (Santiago, 05/10): ninguna columna cuenta las filas.** Arriba de
+  cada tabla va cuántas filas hay ("29 filas"; con filtros, "13 de 29 filas"). Se sacó la columna
+  # de la tabla (`src/components/TablaDatos.jsx`, la misma en Lesiones, Datos básicos y
+  Evaluaciones); la fila entera se elige con Mayúscula + barra espaciadora, como en Excel. Las
+  columnas con un número propio de cada fila (N° de caso, N° de registro, nº Eva) no son
+  contadores y quedan.
+- Ancho de las columnas (Santiago, 05/10): en todas las bases se achican o se agrandan a mano
+  arrastrando el borde derecho de la cabecera, como en Excel (con el dedo también); dos clics en
+  el borde la devuelven a su ancho. Queda guardado en cada celular, por tabla
+  (`tabla_anchos:<tabla>`, como el orden de las columnas en `tabla_columnas:<tabla>`). Las fijas
+  llevan su `ancho` de borde a borde.
 
 ## Evaluaciones (05/10)
 
@@ -591,7 +601,10 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
 - **Regla para todos los tests (Santiago, 05/10): las columnas que solo existen para que las use
   un BUSCARV, BUSCARH, BUSCARX o cualquier BUSCAR no se usan** (en Zona Media, las claves ocultas
   A y B; en Funcional, las claves ocultas de cada test). Las que tienen un resultado propio sí
-  van, con su fórmula y su formato (en Zona Media, "A" y "PRO??").
+  van, con su fórmula y su formato (en Zona Media, "PRO??"). La "A" de Zona Media (la asimetría
+  con signo) se juntó con "Deficit Lateral %", que es el mismo valor sin signo (Santiago, 05/10):
+  no se muestra, el déficit se calcula igual que antes.
+- Posición no se usa en Evaluaciones (Santiago, 05/10): salió de Zona Media.
 - Lo que decidió Santiago el 05/10 (lo que el Excel hacía por sus límites, la app lo hace como
   se quiso):
   - % mejora: cada medida contra la misma de la evaluación anterior del jugador que la tenga,
@@ -608,8 +621,7 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   - Los tiempos son minutos y segundos: "3:04" es 3 min 04 s (en el Excel están como horas y
     minutos, h:mm). La app los guarda en segundos y los cuenta en la unidad del Excel
     (segundos ÷ 1440), así cada cuenta da igual.
-  - Fecha Nac y Posición salen de Datos básicos (en el Excel, de "Lista Jugadores" del otro
-    archivo).
+  - Fecha Nac sale de Datos básicos (en el Excel, de "Lista Jugadores" del otro archivo).
 - Los valores de referencia (V.R.) **no van al código** (el repositorio es público): se cargan
   con un SQL que se pasa en el chat, en `evaluaciones_referencias` (una fila por club y test;
   `datos` = `{ categorias: { <categoría>: { titulo, rotulo, n, excelente, muy_bueno, bueno,

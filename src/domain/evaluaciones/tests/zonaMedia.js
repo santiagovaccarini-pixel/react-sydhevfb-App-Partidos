@@ -152,11 +152,12 @@ const calcularFila = ({ entrada: e, numero, total, anterior, referencias }) => {
     return siError(restar(dividir(e[medida], previa), 1), "");
   };
 
-  // A: IFERROR(IF(($Q-$N)<0,(($Q-$N)/$Q)*100,(($Q-$N)/$N)*100),"").
+  // Deficit Lateral %: IFERROR(ABS(T),""), con T, la columna "A" del Excel:
+  // IFERROR(IF(($Q-$N)<0,(($Q-$N)/$Q)*100,(($Q-$N)/$N)*100),""). La "A" no
+  // se muestra: es el mismo valor con signo (Santiago, 05/10).
   const diferencia = restar(e.lateral_i, e.lateral_d);
   const negativa = menor(diferencia, 0);
   const asimetria = esError(negativa) ? "" : siError(multiplicar(dividir(diferencia, negativa ? e.lateral_i : e.lateral_d), 100), "");
-  // Deficit Lateral %: IFERROR(ABS(T),"").
   const deficit = siError(absoluto(asimetria), "");
 
   // Ratio: IFERROR(W/J,""). Sin Prono, vacío (Santiago, 05/10: el Excel daba
@@ -187,7 +188,6 @@ const calcularFila = ({ entrada: e, numero, total, anterior, referencias }) => {
     lateral_d_mejora: mejora("lateral_d"),
     lateral_i_clas: lateralIClas,
     lateral_i_mejora: mejora("lateral_i"),
-    asimetria,
     deficit,
     deficit_clas: deficitClas,
     prono_clas: pronoClas,
@@ -205,14 +205,14 @@ const calcularFila = ({ entrada: e, numero, total, anterior, referencias }) => {
 // dato_jugador (sale de Datos básicos, como en el Excel salía de "Lista
 // Jugadores"), tiempo (minutos y segundos) o texto. formato: el del Excel.
 // fija: queda a la vista al correr la tabla (el Excel inmovilizado), con su
-// ancho.
+// ancho (en píxeles, de borde a borde). Posición no va: no se usa
+// (Santiago, 05/10).
 export const COLUMNAS = Object.freeze([
-  { clave: "numero", titulo: et("nº Eva", "nº Aval."), tipo: "calculado", formato: "General", fija: true, ancho: 96 },
-  { clave: "fecha", titulo: et("Fecha", "Data"), tipo: "fecha", fija: true, ancho: 160 },
-  { clave: "jugador", titulo: et("Jugador", "Jogador"), tipo: "jugador", fija: true, ancho: 168 },
-  { clave: "seleccion", titulo: et("Seleccion", "Seleção"), tipo: "lista", fija: true, ancho: 104 },
-  { clave: "fecha_nac", titulo: et("Fecha Nac", "Data Nasc."), tipo: "dato_jugador", fija: true, ancho: 104 },
-  { clave: "posicion", titulo: et("Posición", "Posição"), tipo: "dato_jugador", fija: true, ancho: 120 },
+  { clave: "numero", titulo: et("nº Eva", "nº Aval."), tipo: "calculado", formato: "General", fija: true, ancho: 116 },
+  { clave: "fecha", titulo: et("Fecha", "Data"), tipo: "fecha", fija: true, ancho: 180 },
+  { clave: "jugador", titulo: et("Jugador", "Jogador"), tipo: "jugador", fija: true, ancho: 188 },
+  { clave: "seleccion", titulo: et("Seleccion", "Seleção"), tipo: "lista", fija: true, ancho: 124 },
+  { clave: "fecha_nac", titulo: et("Fecha Nac", "Data Nasc."), tipo: "dato_jugador", fija: true, ancho: 124 },
   { clave: "lumbar", titulo: et("Lumbar", "Lombar"), tipo: "tiempo", formato: "tiempo" },
   { clave: "lumbar_clas", titulo: et("L. Clas", "L. Clas"), tipo: "calculado", formato: "General" },
   { clave: "lumbar_mejora", titulo: et("% mejora", "% melhora"), tipo: "calculado", formato: "0.0%" },
@@ -222,7 +222,6 @@ export const COLUMNAS = Object.freeze([
   { clave: "lateral_i", titulo: et("Lateral I", "Lateral E"), tipo: "tiempo", formato: "tiempo" },
   { clave: "lateral_i_clas", titulo: et("L.I. Clas", "L.E. Clas"), tipo: "calculado", formato: "General" },
   { clave: "lateral_i_mejora", titulo: et("% mejora", "% melhora"), tipo: "calculado", formato: "0.0%" },
-  { clave: "asimetria", titulo: et("A", "A"), tipo: "calculado", formato: "0.0" },
   { clave: "deficit", titulo: et("Deficit Lateral %", "Déficit Lateral %"), tipo: "calculado", formato: "0.0" },
   { clave: "deficit_clas", titulo: et("Deficit. Clas", "Déficit. Clas"), tipo: "calculado", formato: "0" },
   { clave: "prono", titulo: et("Prono", "Prono"), tipo: "tiempo", formato: "tiempo" },

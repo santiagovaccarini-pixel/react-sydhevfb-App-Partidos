@@ -232,7 +232,7 @@ describe("el módulo Datos básicos", () => {
     expect(fila(1).classList.contains("apagada")).toBe(false);
     expect(contenedor.querySelector(".tabla-datos-leyenda").textContent).toBe("En este color, los que ya no están en el plantel actual (Datos básicos › Actual).");
     expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(false);
-    expect(fila(0).querySelector("th").title).toBe("Ya no está");
+    expect(fila(0).title).toBe("Ya no está");
     expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
     await act(async () => soltar());
     registro.esperaGuardar = null;
@@ -330,7 +330,7 @@ describe("el módulo Datos básicos", () => {
     expect(texto(contenedor)).toContain("3 jugadores");
     expect([...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent)).toEqual(["HULK", "LEMOS", "SCARPA"]);
 
-    await tocar(contenedor.querySelectorAll("tbody th")[1]);
+    await tocar(celda(contenedor, 1, 0));
     await tocar(boton(contenedor, "Borrar fila"));
     expect(texto(contenedor)).toContain("¿Borrar al jugador?");
     expect(texto(contenedor)).toContain("LEMOS sale de la lista");

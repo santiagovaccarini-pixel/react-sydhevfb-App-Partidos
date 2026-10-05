@@ -483,7 +483,7 @@ export default function ReportesLesiones({
     const tono = (grupo) => `tono-${tonoDeGrupo[grupo] ?? 0}`;
     const claseDeColumna = (clave, ...otras) => [clave === tramos[0]?.id ? "informe-id" : "", COLUMNAS_CORTAS.has(clave) ? "informe-corta" : "", ...otras].filter(Boolean).join(" ") || undefined;
     // El n° de registro va adelante en las dos tablas, fuera de los grupos y
-    // fijo al deslizar, como el número de fila de la base.
+    // fijo al deslizar.
     const registro = (lesion) => calcular("numero_registro", lesion, null, { lesiones }) ?? 0;
     const ordenadas = [...deJugador].sort((a, b) => registro(a) - registro(b) || String(a.fecha_lesion).localeCompare(String(b.fecha_lesion)));
     // Las opciones del club que vienen pegadas con barras (ENTORSE/LESÃO
