@@ -698,6 +698,35 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(ofrecidos[0]).toContain("Club de hoy");
   });
 
+  // ----------------------------------------------------------------- 11 --
+  test("si la base tarda y se cambia de club, los partidos del club anterior no aparecen en el nuevo", async () => {
+    dosClubes();
+    elegirClub("eq-1", "Atlético Mineiro");
+    db.filas = [
+      { id: 1, equipo_id: "eq-1", fecha: "2026-09-01", rival: "Flamengo", resultado: "2-2" },
+      { id: 2, equipo_id: "eq-2", fecha: "2026-09-02", rival: "Santos", resultado: "1-0" },
+    ];
+    // La lectura de eq-1 queda colgada.
+    db.retenerHistorialDe = "eq-1";
+    await montar();
+
+    await abrirAjustesEquipo();
+    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
+    await vaciarPromesas();
+
+    // Llega tarde la respuesta de eq-1.
+    await act(async () => {
+      db.soltarHistorial?.();
+    });
+    await vaciarPromesas();
+
+    await irA("Registros");
+    const filas = Array.from(contenedor.querySelectorAll(".registro-guardado")).map((f) => f.textContent);
+    expect(filas).toHaveLength(1);
+    expect(filas[0]).toContain("Santos");
+    expect(contenedor.textContent).not.toContain("Flamengo");
+  });
+
   // ----------------------------------------------------------------- 14 --
   test("un borrador escrito por otra versión de la app no se abre vacío ni se pisa sin copia", async () => {
     // Como si una versión más nueva hubiera cambiado el formato y se hubiera

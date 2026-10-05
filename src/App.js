@@ -1414,6 +1414,10 @@ export default function App({
   const [equipoId, setEquipoId] = useState(
     () => leerEquipoElegido()?.id || null,
   );
+  // El club elegido ahora, para lo que llega tarde (una respuesta de la base
+  // pedida con el club anterior).
+  const equipoVigente = useRef(equipoId);
+  equipoVigente.current = equipoId;
   const [equiposCargados, setEquiposCargados] = useState(false);
   const [fallaronEquipos, setFallaronEquipos] = useState(false);
 
@@ -1953,10 +1957,13 @@ export default function App({
   // tomaba por otro partido y preguntaba si reemplazarlo.
   const avisarAlBorrador = (pendiente, idFila) => {
     if (!idFila) return;
-    filasSubidasPorClave.current.set(clavePartido(pendiente), {
+    filasSubidasPorClave.current.set(`${equipoId}|${clavePartido(pendiente)}`, {
       ...pendiente,
       idSupabase: idFila,
     });
+    // La cola es de un club (el de esta subida): si mientras tanto se cambió
+    // de club, el borrador en pantalla es de otro y no se toca.
+    if (equipoId !== clubDelBorrador.current) return;
     setRegistro((prev) =>
       borradorRecibeId(prev, pendiente) ? { ...prev, idSupabase: idFila } : prev,
     );
@@ -2056,6 +2063,11 @@ export default function App({
     const deSoloLectura = esSoloLectura(equipoId);
     let data = null;
     let error = null;
+    // Si mientras la base contestaba se eligió otro club, esta respuesta ya
+    // no se muestra: antes los partidos del club anterior aparecían en el
+    // nuevo, y editar uno lo pasaba a ese club.
+    const deEsteClub = equipoId;
+    const sigueElClub = () => equipoVigente.current === deEsteClub;
 
     if (deSoloLectura) {
       try {
@@ -2072,6 +2084,9 @@ export default function App({
 
       ({ data, error } = await consulta.order("fecha", { ascending: false }));
     }
+
+    // De ese club se ocupa la próxima vez que se lo elija.
+    if (!sigueElClub()) return;
 
     if (error) {
       console.error("Error cargando registros desde Supabase:", error);
@@ -2100,6 +2115,7 @@ export default function App({
     // pendiente) y antes se quedaba sin subir para siempre.
     if (reintentar) {
       const { subioAlguno } = await subirPendientes(registrosConvertidos);
+      if (!sigueElClub()) return;
 
       if (subioAlguno) {
         // Se vuelve a leer para traerlos ya con su id, sin reintentar de nuevo.
@@ -3837,9 +3853,8 @@ export default function App({
 
       // Lo que la cola acaba de subir de este partido ya tiene fila: se
       // actualiza esa en vez de crear otra.
-      const subidoRecien = filasSubidasPorClave.current.get(
-        clavePartido(nuevoRegistro),
-      );
+      const claveSubida = `${equipoId}|${clavePartido(nuevoRegistro)}`;
+      const subidoRecien = filasSubidasPorClave.current.get(claveSubida);
       const idSubidoRecien =
         subidoRecien && borradorRecibeId(nuevoRegistro, subidoRecien)
           ? subidoRecien.idSupabase
@@ -3942,7 +3957,7 @@ export default function App({
             : { ...prev, idSupabase: idGuardado },
         );
       }
-      filasSubidasPorClave.current.delete(clavePartido(nuevoRegistro));
+      filasSubidasPorClave.current.delete(claveSubida);
 
       // Lo que había quedado en la cola de este mismo partido es más viejo
       // que lo que se acaba de guardar. Si se quedaba, la relectura de abajo
