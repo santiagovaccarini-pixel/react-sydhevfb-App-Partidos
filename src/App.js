@@ -59,6 +59,15 @@ import {
   sumarDuracionesEventos,
   validarRegistroBasico,
 } from "./domain/match";
+import {
+  borradorRecibeId,
+  comoPendiente,
+  idAlAzar,
+  identidadPendiente,
+  quitarSubidos,
+  sigueEnLaCola,
+  sinVersionesDelPartido,
+} from "./domain/pendientes";
 import { puntosDeRegistros } from "./domain/puntos";
 import {
   cortesDelPartido,
@@ -238,6 +247,9 @@ const ESTILO_PENALES = {
 
 const APP_VERSION = "2026.10.05.9";
 const VERSION_BORRADOR = 2;
+// Cuánto espera Guardar a que termine de subirse la cola del celular antes de
+// dejar el partido a salvo en el teléfono (ver archivarRegistro).
+const ESPERA_SUBIDA_MS = 8000;
 const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
 const CLAVE_PENDIENTES = "registros_sin_sincronizar";
@@ -1141,6 +1153,9 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   };
 
   const crearRegistroVacio = () => ({
+    // De qué borrador sale cada cosa que va a la cola del celular: así, un
+    // partido empezado de cero después de Limpiar no hereda la fila de otro.
+    idLocal: idAlAzar(),
     fecha: fechaLocalISO(),
     rival: "",
     resultado: "",
@@ -1849,10 +1864,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     const pendientes = leerPendientes().filter(
       (item) => clavePartido(item) !== clave,
     );
-    const actualizados = [
-      { ...registroNuevo, sinSincronizar: true },
-      ...pendientes,
-    ];
+    const actualizados = [comoPendiente(registroNuevo), ...pendientes];
 
     escribirPendientes(actualizados);
     return actualizados;
@@ -1873,10 +1885,47 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     ]);
   };
 
+  // La subida de la cola y el guardado del partido escriben en la misma
+  // tabla, así que van de a uno. Una subida en marcha queda acá (el guardado
+  // la espera un rato), y mientras el guardado escribe no arranca ninguna.
+  const subidaEnCurso = useRef(null);
+  const guardadoEscribiendo = useRef(false);
+  // Fecha y rival → número de fila de lo que la cola subió sola. Si el
+  // guardado esperó a una subida del mismo partido, actualiza esa fila en vez
+  // de crear otra.
+  const filasSubidasPorClave = useRef(new Map());
+
+  // Si el pendiente que subió es el partido que está en pantalla, el
+  // borrador se queda con su número de fila. Si no, el próximo Guardar lo
+  // tomaba por otro partido y preguntaba si reemplazarlo.
+  const avisarAlBorrador = (pendiente, idFila) => {
+    if (!idFila) return;
+    filasSubidasPorClave.current.set(clavePartido(pendiente), {
+      ...pendiente,
+      idSupabase: idFila,
+    });
+    setRegistro((prev) =>
+      borradorRecibeId(prev, pendiente) ? { ...prev, idSupabase: idFila } : prev,
+    );
+  };
+
   // Guardar un partido con la base caída lo dejaba a salvo, pero nadie lo
   // volvía a intentar: quedaba marcado "sin sincronizar" para siempre. Cuando
   // la base contesta, se suben los que faltan.
-  const subirPendientes = async (registrosDeLaBase) => {
+  const subirPendientes = (registrosDeLaBase) => {
+    // El guardado que está escribiendo vuelve a leer (y a subir) al terminar.
+    if (guardadoEscribiendo.current) return Promise.resolve({ subioAlguno: false });
+    // Dos subidas a la vez mandaban dos veces el mismo partido.
+    if (subidaEnCurso.current) return subidaEnCurso.current;
+
+    const tarea = subirLaCola(registrosDeLaBase).finally(() => {
+      if (subidaEnCurso.current === tarea) subidaEnCurso.current = null;
+    });
+    subidaEnCurso.current = tarea;
+    return tarea;
+  };
+
+  const subirLaCola = async (registrosDeLaBase) => {
     const enLaBasePorClave = new Map(
       registrosDeLaBase.map((item) => [clavePartido(item), item]),
     );
@@ -1884,10 +1933,13 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
     if (porSubir.length === 0) return { subioAlguno: false };
 
-    const quedan = [];
-    let subioAlguno = false;
+    const subidos = [];
 
     for (const pendiente of porSubir) {
+      // Mientras se subían los anteriores puede haberse guardado ese partido
+      // (con señal, o una versión más nueva sin ella): lo viejo ya no va.
+      if (!sigueEnLaCola(leerPendientes(), pendiente)) continue;
+
       try {
         // Si ese partido ya está en la base (se había guardado con señal y
         // después se volvió a guardar sin ella), lo que vale es lo del
@@ -1895,7 +1947,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
         // Antes se descartaba el pendiente y el segundo tiempo se perdía.
         const existente = enLaBasePorClave.get(clavePartido(pendiente));
         const fila = construirFilaSupabase(pendiente);
-        const { error } = existente?.idSupabase
+        const { data, error } = existente?.idSupabase
           ? await supabase
               .from("registros_partido")
               .update(fila)
@@ -1911,19 +1963,26 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             "Sigue sin poder subirse un partido:",
             error.message || error,
           );
-          quedan.push(pendiente);
           continue;
         }
 
-        subioAlguno = true;
+        // Reemplazar una fila que ya no está no es un error para la base,
+        // pero tampoco guarda nada: queda en la cola para la próxima.
+        if (existente?.idSupabase && (data?.length ?? 0) === 0) continue;
+
+        subidos.push(identidadPendiente(pendiente));
+        avisarAlBorrador(pendiente, data?.[0]?.id || existente?.idSupabase);
       } catch (error) {
         console.warn("Sigue sin poder subirse un partido:", error);
-        quedan.push(pendiente);
       }
     }
 
-    escribirPendientes(quedan);
-    return { subioAlguno };
+    // Se vuelve a leer la cola y se saca solo lo que subió: lo que se guardó
+    // sin señal mientras tanto se queda.
+    if (subidos.length > 0) {
+      escribirPendientes(quitarSubidos(leerPendientes(), subidos));
+    }
+    return { subioAlguno: subidos.length > 0 };
   };
 
   // Los que todavía no llegaron a la base van arriba de la lista, y tapan a
@@ -3675,7 +3734,42 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     const registroSupabase = construirFilaSupabase(nuevoRegistro);
 
     try {
-      const idExistente = nuevoRegistro.idSupabase || coincidente?.idSupabase;
+      // Si la cola del celular se está subiendo, se la deja terminar: si no,
+      // un pendiente viejo de este mismo partido podía llegar a la base
+      // después que este guardado y pisarlo. Se espera un rato nomás: si la
+      // red está colgada, el partido queda en el celular (a salvo) y sube
+      // con la próxima vuelta de la cola, después de lo viejo.
+      if (subidaEnCurso.current) {
+        const termino = await Promise.race([
+          subidaEnCurso.current.then(
+            () => true,
+            () => true,
+          ),
+          new Promise((resolver) =>
+            window.setTimeout(() => resolver(false), ESPERA_SUBIDA_MS),
+          ),
+        ]);
+
+        if (!termino) {
+          guardarEnElCelular(nuevoRegistro);
+          avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
+          return;
+        }
+      }
+
+      guardadoEscribiendo.current = true;
+
+      // Lo que la cola acaba de subir de este partido ya tiene fila: se
+      // actualiza esa en vez de crear otra.
+      const subidoRecien = filasSubidasPorClave.current.get(
+        clavePartido(nuevoRegistro),
+      );
+      const idSubidoRecien =
+        subidoRecien && borradorRecibeId(nuevoRegistro, subidoRecien)
+          ? subidoRecien.idSupabase
+          : null;
+      const idExistente =
+        nuevoRegistro.idSupabase || coincidente?.idSupabase || idSubidoRecien;
 
       let respuesta = idExistente
         ? await supabase
@@ -3764,8 +3858,24 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
         ? respuesta.data?.[0]?.id
         : respuesta.data?.[0]?.id || idExistente;
       if (idGuardado) {
-        setRegistro((prev) => ({ ...prev, idSupabase: idGuardado }));
+        // Si mientras guardaba se limpió el borrador para otro partido, ese
+        // no se queda con la fila de este.
+        setRegistro((prev) =>
+          prev.idLocal && nuevoRegistro.idLocal && prev.idLocal !== nuevoRegistro.idLocal
+            ? prev
+            : { ...prev, idSupabase: idGuardado },
+        );
       }
+      filasSubidasPorClave.current.delete(clavePartido(nuevoRegistro));
+
+      // Lo que había quedado en la cola de este mismo partido es más viejo
+      // que lo que se acaba de guardar. Si se quedaba, la relectura de abajo
+      // lo subía encima: la base terminaba con el resultado del entretiempo
+      // mientras la pantalla decía "guardado con éxito".
+      escribirPendientes(
+        sinVersionesDelPartido(leerPendientes(), nuevoRegistro, idGuardado),
+      );
+      guardadoEscribiendo.current = false;
 
       await cargarRegistrosSupabase();
       if (filaDesaparecida) {
@@ -3780,6 +3890,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       guardarEnElCelular(nuevoRegistro);
       avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
     } finally {
+      guardadoEscribiendo.current = false;
       guardandoRef.current = false;
       setGuardando(false);
     }
