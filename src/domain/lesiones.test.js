@@ -458,6 +458,7 @@ describe("recidiva, plantel, revisión y cambios", () => {
     expect(claveDeErrorDeBase({ code: "42501", message: "new row violates row-level security policy" })).toBe("lesiones.error.sinPermiso");
     expect(claveDeErrorDeBase({ code: "23P01", message: "conflicting key value violates exclusion constraint lesiones_sin_solapar" })).toBe("lesiones.error.solapada");
     expect(claveDeErrorDeBase({ code: "23505", message: 'duplicate key value violates unique constraint "lesiones_sin_repetir"' })).toBe("lesiones.error.repetida");
+    expect(claveDeErrorDeBase({ code: "P0001", message: "jugador_de_otro_club" })).toBe("evaluaciones.error.jugadorDeOtroClub");
     expect(claveDeErrorDeBase({ message: "otra cosa" })).toBe("");
   });
 });

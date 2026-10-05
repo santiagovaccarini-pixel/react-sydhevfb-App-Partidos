@@ -693,6 +693,25 @@ select pruebas.esperar('...con lo que se corrigió', (select count(*) from lesio
 reset role;
 select pruebas.esperar('Todo cambio de lesión queda con su club', (select count(*) from lesiones_historial where equipo_id is null), 0);
 
+-- Una lesión es de un jugador de su club (como una evaluación).
+select set_config('request.jwt.claims', '', false);
+insert into jugadores (id, nombre, equipo_id) overriding system value values
+  (9005, 'SE VA A DOS', '00000000-0000-0000-0000-0000000000c1');
+insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos)
+values (:C1, 9005, '2026-07-01', '{"parte_cuerpo":"pe","lado":"direito"}');
+update jugadores set equipo_id = :C2 where id = 9005;
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.debe_fallar('No se carga en Uno una lesión de un jugador de Dos', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9003, '2026-09-02', '{"parte_cuerpo":"pe","lado":"esquerdo"}')$$, 'jugador_de_otro_club');
+select pruebas.debe_fallar('...ni se le pasa a una lesión de Uno', $$update lesiones set jugador_id = 9003 where jugador_id = 9002 and numero_caso = 600$$, 'jugador_de_otro_club');
+select pruebas.esperar('La lesión de un jugador que después se fue a Dos se sigue editando', pruebas.filas($$update lesiones set fecha_alta = '2026-07-20' where jugador_id = 9005$$), 1);
+select pruebas.esperar('...y la de un jugador de Uno, también al cambiarle el jugador', pruebas.filas($$update lesiones set jugador_id = 9001 where jugador_id = 9002 and numero_caso = 601$$), 1);
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.debe_fallar('A quien no es de Uno, Uno no le contesta si el jugador es de ahí', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9003, '2026-09-03', '{}')$$, 'row-level security');
+reset role;
+select set_config('request.jwt.claims', '', false);
+select pruebas.debe_fallar('Tampoco a mano desde el SQL Editor', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9003, '2026-09-04', '{}')$$, 'jugador_de_otro_club');
+
 -- La API de OpenField (lib/openfieldAuth.js) pregunta puede_usar('flujo')
 -- con el token de cada uno: sale de las membresías, no de los permisos
 -- viejos de perfiles.

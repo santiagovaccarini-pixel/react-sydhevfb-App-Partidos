@@ -468,6 +468,9 @@ export const claveDeErrorDeBase = (error) => {
     return "lesiones.error.sinPermiso";
   }
   if (codigo === "23514" && /lesiones_de_quien/i.test(mensaje)) return "lesiones.error.jugador";
+  // El jugador es de otro club (20261013_seguridad.sql). El texto es el mismo
+  // que en Evaluaciones ("Ese jugador no es de este club.").
+  if (/jugador_de_otro_club/.test(mensaje)) return "evaluaciones.error.jugadorDeOtroClub";
   if (codigo === "23505" && /lesiones_sin_repetir/i.test(mensaje)) return "lesiones.error.repetida";
   if (codigo === "23505" && /lesiones_numero_caso_unico/i.test(mensaje)) return "lesiones.importar.casoOcupado";
   // La regla de antes (hasta correr 20261008_lesiones_recaida.sql).

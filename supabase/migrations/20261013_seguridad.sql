@@ -7,6 +7,9 @@
 --     una lesión borrada ya no se abre creando en otro club una lesión con
 --     el mismo id. Y desde la app, el id de una lesión nueva lo pone la base
 --     (la app nunca lo elige).
+--   · Una lesión es de un jugador de su club (como una evaluación): al
+--     cargarla o al cambiarle el jugador, uno de otro club no entra
+--     (jugador_de_otro_club). Lo que ya estaba cargado no se toca.
 --
 -- Requiere 20261012_evaluaciones.sql. Se corre en Supabase > SQL Editor,
 -- entero y de una vez. Solo agrega o ajusta: la app de antes sigue andando.
@@ -80,9 +83,6 @@ create policy lesiones_historial_ver on public.lesiones_historial
 
 -- ------------------------------------- Lesiones: lo que pone la base --
 
--- Una lesión nueva desde la app tiene siempre un id nuevo: la app nunca lo
--- elige (lesionesDb.js no lo manda), así nadie repite el de una borrada.
--- Sin nadie conectado (el SQL Editor, una restauración) queda el que venga.
 create or replace function public.lesiones_preparar()
 returns trigger
 language plpgsql
@@ -90,8 +90,22 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Una lesión nueva desde la app tiene siempre un id nuevo: la app nunca lo
+  -- elige (lesionesDb.js no lo manda), así nadie repite el de una borrada.
+  -- Sin nadie conectado (el SQL Editor, una restauración) queda el que venga.
   if tg_op = 'INSERT' and auth.uid() is not null then
     new.id := gen_random_uuid();
+  end if;
+  -- El jugador, del club de la lesión (como en Evaluaciones): al cargarla o
+  -- al cambiarle el jugador o el club. Lo que ya estaba (por ejemplo, de un
+  -- jugador que después pasó a otro club) se sigue pudiendo editar. A quien
+  -- no puede cargar en ese club no se le contesta nada de ese club: lo frena
+  -- la política, como siempre.
+  if new.jugador_id is not null
+     and (tg_op = 'INSERT' or new.jugador_id is distinct from old.jugador_id or new.equipo_id is distinct from old.equipo_id)
+     and (auth.uid() is null or public.puede_editar(new.equipo_id))
+     and not exists (select 1 from public.jugadores j where j.id = new.jugador_id and j.equipo_id = new.equipo_id) then
+    raise exception 'jugador_de_otro_club' using errcode = 'P0001';
   end if;
   return new;
 end;
@@ -110,3 +124,10 @@ commit;
 -- dar 0) y las políticas del historial (una sola).
 select count(*) as historial_sin_club from public.lesiones_historial where equipo_id is null;
 select policyname from pg_policies where schemaname = 'public' and tablename = 'lesiones_historial';
+-- Lesiones de un jugador que hoy es de otro club: las de un jugador que se
+-- pasó de club después están bien; si aparece alguna más, mirarla a mano.
+select l.equipo_id as club_de_la_lesion, j.equipo_id as club_del_jugador, count(*) as lesiones
+  from public.lesiones l
+  join public.jugadores j on j.id = l.jugador_id
+ where j.equipo_id <> l.equipo_id
+ group by 1, 2;
