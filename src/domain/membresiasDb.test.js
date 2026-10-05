@@ -112,6 +112,12 @@ describe("la membresía de una cuenta en un club", () => {
     ]);
     expect(base.pedidos[0]).toMatchObject({ tabla: "club_miembros", op: "update", filtros: [["eq", "equipo_id", "c1"], ["eq", "user_id", "u2"]] });
     expect(vuelto.hasta).toBeNull();
+    // Sin el correo ni el estado de la cuenta (no están en club_miembros):
+    // así Cuentas no los borra de la lista al cambiar un módulo.
+    const cambiado = await cambiarModulo("u2", "c1", "evaluaciones", true);
+    expect(cambiado).toMatchObject({ user_id: "u2", evaluaciones: true });
+    expect(cambiado).not.toHaveProperty("email");
+    expect(cambiado).not.toHaveProperty("estado");
     expect(() => cambiarModulo("u2", "c1", "admin", true)).toThrow("cuentas.errorClub");
   });
 

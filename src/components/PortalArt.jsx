@@ -277,6 +277,93 @@ export const IconoLesiones = () => (
   </svg>
 );
 
+// Un cronómetro dorado y la escala de las clases del Excel de evaluaciones
+// (de 5, verde oscuro, a 1, rojo), con el degradé de su formato
+// condicional: el dibujo de la tarjeta Evaluaciones mientras no tenga foto.
+const CLASES_EVALUACIONES = [
+  { color: "#4f6228", largo: 92 },
+  { color: "#92d050", largo: 74 },
+  { color: "#ffff00", largo: 58 },
+  { color: "#f79646", largo: 40 },
+  { color: "#ff0000", largo: 26 },
+];
+
+export const ArteEvaluaciones = () => (
+  <svg className="portal-arte" viewBox="0 0 420 260" aria-hidden="true" preserveAspectRatio="xMaxYMid slice">
+    <defs>
+      <linearGradient id="noche-evaluaciones" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#141a12" />
+        <stop offset="1" stopColor="#050605" />
+      </linearGradient>
+      <radialGradient id="luz-evaluaciones" cx="0.76" cy="0.52" r="0.5">
+        <stop offset="0" stopColor="#f0c978" stopOpacity="0.26" />
+        <stop offset="1" stopColor="#f0c978" stopOpacity="0" />
+      </radialGradient>
+      <radialGradient id="esfera-evaluaciones" cx="0.4" cy="0.35" r="0.75">
+        <stop offset="0" stopColor="#2a2418" />
+        <stop offset="1" stopColor="#0b0906" />
+      </radialGradient>
+      {CLASES_EVALUACIONES.map((clase, i) => (
+        <linearGradient key={clase.color} id={`clase-evaluaciones-${i}`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.85" />
+          <stop offset="1" stopColor={clase.color} />
+        </linearGradient>
+      ))}
+    </defs>
+    <rect width="420" height="260" fill="url(#noche-evaluaciones)" />
+    <rect width="420" height="260" fill="url(#luz-evaluaciones)" />
+    <g fill="#0b0906" fillOpacity="0.6" stroke="#f0c978" strokeOpacity="0.35" strokeWidth="1.5">
+      <rect x="128" y="64" width="126" height="138" rx="8" />
+    </g>
+    {CLASES_EVALUACIONES.map((clase, i) => (
+      <g key={clase.color}>
+        <rect x="140" y={78 + i * 24} width="16" height="16" rx="3" fill="#d9d9d9" fillOpacity="0.9" />
+        <text x="148" y={90.5 + i * 24} textAnchor="middle" fontSize="12" fontWeight="700" fill={clase.color}>
+          {5 - i}
+        </text>
+        <rect x="164" y={80 + i * 24} width={clase.largo} height="12" rx="3" fill={`url(#clase-evaluaciones-${i})`} fillOpacity="0.85" />
+      </g>
+    ))}
+    <g fill="none" stroke="#f0c978">
+      <circle cx="326" cy="140" r="104" strokeOpacity="0.1" />
+      <rect x="314" y="26" width="24" height="14" rx="3" fill="#2b2316" strokeOpacity="0.75" strokeWidth="2" />
+      <path d="M326 40v12" strokeOpacity="0.75" strokeWidth="5" />
+      <path d="M380 66l10-10" strokeOpacity="0.6" strokeWidth="5" strokeLinecap="round" />
+    </g>
+    <circle cx="326" cy="140" r="78" fill="url(#esfera-evaluaciones)" stroke="#f0c978" strokeOpacity="0.8" strokeWidth="3" />
+    <g stroke="#f0c978" strokeLinecap="round">
+      {Array.from({ length: 12 }, (_, i) => {
+        const angulo = (i * Math.PI) / 6;
+        const largo = i % 3 === 0 ? 12 : 6;
+        return (
+          <line
+            key={i}
+            x1={326 + Math.sin(angulo) * 66}
+            y1={140 - Math.cos(angulo) * 66}
+            x2={326 + Math.sin(angulo) * (66 - largo)}
+            y2={140 - Math.cos(angulo) * (66 - largo)}
+            strokeOpacity={i % 3 === 0 ? 0.85 : 0.45}
+            strokeWidth={i % 3 === 0 ? 3 : 2}
+          />
+        );
+      })}
+    </g>
+    <path d="M326 140 L326 90" stroke="#f0c978" strokeWidth="3" strokeLinecap="round" />
+    <path d="M326 140 L362 160" stroke="#f0c978" strokeOpacity="0.7" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M326 76 A64 64 0 0 1 388 124" fill="none" stroke="#92d050" strokeOpacity="0.55" strokeWidth="5" strokeLinecap="round" />
+    <circle cx="326" cy="140" r="5" fill="#f0c978" />
+  </svg>
+);
+
+// Un cronómetro.
+export const IconoEvaluaciones = () => (
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <circle cx="32" cy="36" r="20" fill="none" stroke="currentColor" strokeWidth="3.5" />
+    <path d="M26 8h12M32 8v8M47 19l4-4" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
+    <path d="M32 36V24M32 36l8 5" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
+  </svg>
+);
+
 // Una planilla con filas y columnas: el fondo de la tarjeta Datos básicos.
 export const ArteDatos = () => (
   <svg className="portal-arte" viewBox="0 0 420 260" aria-hidden="true" preserveAspectRatio="xMaxYMid slice">

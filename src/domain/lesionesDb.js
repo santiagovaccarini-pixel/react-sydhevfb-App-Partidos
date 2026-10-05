@@ -275,8 +275,8 @@ export const agregarJugadorBasico = async (equipoId, nombre) => {
 export const quitarJugadorBasico = async (id) => {
   const respuesta = await quitarJugador(id);
   if (!respuesta.error) return { error: "" };
-  // Con lesiones cargadas no se borra: se desmarca "Actual".
-  return { error: /lesiones/i.test(respuesta.error) ? "datos.error.borrarConLesiones" : respuesta.error };
+  // Con lesiones o evaluaciones cargadas no se borra: se desmarca "Actual".
+  return { error: /lesiones|evaluaciones/i.test(respuesta.error) ? "datos.error.borrarConDatos" : respuesta.error };
 };
 
 // ------------------------------------------- Cabeceras y listas por club --

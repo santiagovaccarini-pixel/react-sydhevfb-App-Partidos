@@ -23,8 +23,10 @@ vi.mock("./domain/equipo.js", () => ({
 
 vi.mock("./domain/membresiasDb.js", async () => {
   const real = await vi.importActual("./domain/membresiasDb.js");
-  const cambiar = (userId, equipoId, cambios) => {
+  const cambiar = async (userId, equipoId, cambios) => {
     datos.llamadas.push({ que: "cambiar", userId, equipoId, cambios });
+    // Una conexión lenta: el cambio vuelve cuando se abre la compuerta.
+    if (datos.compuerta) await datos.compuerta;
     if (datos.errorCambio) throw new Error(datos.errorCambio);
     const fila = { ...datos.miembros[equipoId].find((m) => m.user_id === userId), ...cambios };
     datos.miembros[equipoId] = datos.miembros[equipoId].map((m) => (m.user_id === userId ? fila : m));
@@ -121,6 +123,7 @@ describe("Cuentas", () => {
     datos.errorCambio = null;
     datos.errorLeer = null;
     datos.usada = false;
+    datos.compuerta = null;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
   });
@@ -165,7 +168,8 @@ describe("Cuentas", () => {
 
     const ana = fila("ana@uno.com");
     expect([...ana.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Tu cuenta", "Administrador del club"]);
-    expect(chip(ana, "Bases de Datos").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(ana, "Lesiones").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(ana, "Evaluaciones").getAttribute("aria-pressed")).toBe("false");
     expect(fila("gaby@uno.com").querySelector(".cuenta-etiqueta.alerta").textContent).toBe("Cuenta bloqueada");
 
     const dario = fila("dario@uno.com");
@@ -194,13 +198,14 @@ describe("Cuentas", () => {
     expect(datos.llamadas).toEqual([]);
 
     await escribir(correo, "nuevo@uno.com");
-    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Bases de Datos"));
+    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Lesiones"));
+    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Evaluaciones"));
     await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Flujo diario"));
     await tocar(invitarBoton);
     expect(datos.llamadas.at(-1)).toEqual({
       que: "invitar",
       equipoId: "c1",
-      invitacion: { email: "nuevo@uno.com", rol: "staff", partido: true, flujo: false, lesiones: true },
+      invitacion: { email: "nuevo@uno.com", rol: "staff", partido: true, flujo: false, lesiones: true, evaluaciones: true },
     });
     expect(texto()).toContain("Invitación lista. Avisale a nuevo@uno.com que se registre con ese correo.");
     expect(grupos()).toContain("Invitaciones abiertas 2");
@@ -215,9 +220,13 @@ describe("Cuentas", () => {
 
   test("rol y módulos van a la base al toque; el último admin no se puede sacar", async () => {
     await montar();
-    await tocar(chip(fila("beto@uno.com"), "Bases de Datos"));
+    await tocar(chip(fila("beto@uno.com"), "Lesiones"));
     expect(datos.llamadas.at(-1)).toEqual({ que: "cambiar", userId: "beto", equipoId: "c1", cambios: { lesiones: true } });
-    expect(chip(fila("beto@uno.com"), "Bases de Datos").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(fila("beto@uno.com"), "Lesiones").getAttribute("aria-pressed")).toBe("true");
+    // Evaluaciones es un permiso aparte.
+    await tocar(chip(fila("beto@uno.com"), "Evaluaciones"));
+    expect(datos.llamadas.at(-1)).toEqual({ que: "cambiar", userId: "beto", equipoId: "c1", cambios: { evaluaciones: true } });
+    expect(chip(fila("beto@uno.com"), "Evaluaciones").getAttribute("aria-pressed")).toBe("true");
 
     await tocar(chip(fila("beto@uno.com"), "Administrador del club"));
     expect(datos.llamadas.at(-1).cambios).toEqual({ rol: "admin" });
@@ -279,6 +288,24 @@ describe("Cuentas", () => {
     expect(texto()).toContain("Invitación cancelada.");
   });
 
+  test("un cambio que vuelve después de elegir otro club no toca la lista de ese club", async () => {
+    datos.clubes = [UNO, DOS];
+    datos.miembros.c2.push(miembro({ user_id: "beto", equipo_id: "c2", email: "beto@uno.com" }));
+    await montar();
+    let abrir;
+    datos.compuerta = new Promise((resolver) => {
+      abrir = resolver;
+    });
+    await tocar(chip(fila("beto@uno.com"), "Lesiones"));
+    await tocar(boton(contenedor, "Cambiar"));
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Club Dos"));
+    await act(async () => abrir());
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".cuentas-club-elegido strong").textContent).toBe("Club Dos");
+    // En Club Dos, Beto sigue sin Lesiones: el cambio fue en Club Uno.
+    expect(chip(fila("beto@uno.com"), "Lesiones").getAttribute("aria-pressed")).toBe("false");
+  });
+
   test("con varios clubes se elige cuál administrar", async () => {
     datos.clubes = [UNO, DOS, { id: "c3", nombre: "Club Tres", rol: "staff", hasta: null }];
     await montar();
@@ -317,7 +344,7 @@ describe("Cuentas", () => {
     expect(datos.llamadas.find((l) => l.que === "invitar")).toEqual({
       que: "invitar",
       equipoId: "c1",
-      invitacion: { email: "nuevo@x.com", rol: "staff", partido: true, flujo: true, lesiones: false },
+      invitacion: { email: "nuevo@x.com", rol: "staff", partido: true, flujo: true, lesiones: false, evaluaciones: false },
     });
 
     await tocar(pestanas[1]);

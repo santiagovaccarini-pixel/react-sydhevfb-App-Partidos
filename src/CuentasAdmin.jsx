@@ -33,7 +33,7 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 // Todo va directo a la base con la sesión de quien entra; la base decide.
 
 // Lo que se marca por defecto al invitar.
-export const INVITACION_INICIAL = Object.freeze({ rol: "staff", partido: true, flujo: true, lesiones: false });
+export const INVITACION_INICIAL = Object.freeze({ rol: "staff", partido: true, flujo: true, lesiones: false, evaluaciones: false });
 
 // Un mensaje de error: una clave del diccionario o el texto de la base.
 const mensajeDe = (error, porDefecto) => {
@@ -286,11 +286,14 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
 
   // Hace un cambio sobre un miembro y lo reemplaza en la lista.
   const aplicar = async (miembro, accion, avisoBien = "") => {
+    // El club del cambio: si mientras tanto se eligió otro, la fila que vuelve
+    // no es de la lista que se está viendo.
+    const delClub = clubIdRef.current;
     setOcupada(miembro.user_id);
     setAviso("");
     try {
       const fila = await accion();
-      setMiembros((lista) => lista.map((uno) => (uno.user_id === fila.user_id ? { ...uno, ...fila } : uno)));
+      if (clubIdRef.current === delClub) setMiembros((lista) => lista.map((uno) => (uno.user_id === fila.user_id ? { ...uno, ...fila } : uno)));
       if (avisoBien) setAviso(avisoBien);
     } catch (errorCambio) {
       setAviso(mensajeDe(errorCambio, "cuentas.errorClub"));

@@ -8,11 +8,13 @@
 // Excel calcula (N° de registro, edad, recuperación, severidad, recurrencia,
 // recidiva, diagnóstico…) o trae del jugador (categoría, nacimiento, pie,
 // posición) lo pone la app, con las mismas cuentas.
-import { normalizarTextoBase } from "./match";
 import { normalizarCabecera } from "./importarJugadores.js";
+import { COMO_PERSONA, DUDOSO, ESTADOS, LARGO_DEL_NOMBRE, NO_CARGAR, buscadorDeJugadores, nombreIgual, nombreParecido } from "./importarPersonas.js";
 import { erroresDeLesion, mismaPersona, tieneFecha } from "./lesiones.js";
 import { CAMPOS, OPCIONES, campoOculto, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./lesionesCampos.js";
 import { desdeTexto, esFechaReal, interpretarFechaHora, interpretarValor } from "./tabla.js";
+
+export { COMO_PERSONA, ESTADOS, NO_CARGAR };
 
 const TIPOS_QUE_SE_TRAEN = ["auto", "jugador", "lista", "fecha", "fecha_hora", "texto", "texto_largo"];
 export const CAMPOS_QUE_SE_TRAEN = CAMPOS.filter((campo) => TIPOS_QUE_SE_TRAEN.includes(campo.tipo)).map((campo) => campo.clave);
@@ -226,33 +228,6 @@ const valorDeLista = (pasos, texto) => {
   return undefined;
 };
 
-// Quién es cada nombre en el plantel: el mismo nombre (sin mayúsculas ni
-// espacios de más, como lo distingue la base) y si no hay, el mismo sin
-// acentos ni signos. Si dos jugadores dan lo mismo, no se adivina: DUDOSO.
-const DUDOSO = "dudoso";
-const nombreIgual = (nombre) =>
-  String(nombre ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-const nombreParecido = (nombre) =>
-  normalizarTextoBase(nombre)
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-const buscadorDeJugadores = (plantel) => {
-  const indice = (clave) => {
-    const mapa = new Map();
-    plantel.forEach((jugador) => {
-      const llave = clave(jugador.nombre);
-      mapa.set(llave, mapa.has(llave) ? DUDOSO : jugador);
-    });
-    return mapa;
-  };
-  const iguales = indice(nombreIgual);
-  const parecidos = indice(nombreParecido);
-  return (nombre) => iguales.get(nombreIgual(nombre)) || parecidos.get(nombreParecido(nombre)) || null;
-};
-
 // La misma persona: el mismo jugador o el mismo nombre fuera de Datos
 // básicos, o (si alguien se guardó con su nombre y después lo agregaron a
 // Datos básicos) el mismo nombre. Dos jugadores de Datos básicos con el
@@ -318,30 +293,6 @@ const laMismaLesion = (una, otra) =>
   una.fecha_lesion === otra.fecha_lesion &&
   (una.datos?.parte_cuerpo ?? null) === (otra.datos?.parte_cuerpo ?? null) &&
   (una.datos?.lado ?? null) === (otra.datos?.lado ?? null);
-
-// El nombre más largo que guarda la base para alguien fuera de Datos básicos.
-const LARGO_DEL_NOMBRE = 120;
-
-// Qué pasa con cada fila.
-export const ESTADOS = {
-  // Se carga.
-  nueva: "nueva",
-  // Ya está en la app: no se toca.
-  yaEsta: "yaEsta",
-  // El nombre no está en Datos básicos (o se parece a dos): hay que elegir
-  // si se guarda con ese nombre, si es un jugador de la lista o si no va.
-  sinJugador: "sinJugador",
-  // Se eligió no cargarla.
-  noVa: "noVa",
-  // Algo impide cargarla: `problemas` dice qué.
-  conProblemas: "conProblemas",
-};
-
-// Lo que se elige para un nombre que no está en Datos básicos: guardarlo
-// con ese nombre (sin agregarlo a Datos básicos), no cargar la fila, o el id
-// de un jugador de la lista.
-export const COMO_PERSONA = "persona";
-export const NO_CARGAR = "no";
 
 // Lo que falta para que una lesión sin fecha de inicio esté completa (lo que
 // pide la carga a mano). En un caso sin terminar del Excel (sin fecha) no

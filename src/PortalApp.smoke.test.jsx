@@ -66,6 +66,8 @@ vi.mock("./Lesiones.jsx", async () => {
   };
 });
 
+vi.mock("./Evaluaciones.jsx", () => ({ default: () => <div className="evaluaciones-de-prueba" /> }));
+
 describe("el portal", () => {
   let contenedor;
   let raiz;
@@ -273,6 +275,28 @@ describe("el portal", () => {
     await act(async () => contenedor.querySelector(".bases-volver").click());
     expect(contenedor.querySelector(".portal-encabezado h1").textContent).toBe("¿Qué vas a hacer hoy?");
     expect(contenedor.querySelector('button[aria-label="Entrar a Bases de Datos"]')).not.toBeNull();
+  });
+
+  test("Bases de Datos se abre también con Evaluaciones sola, y adentro está solo esa base", async () => {
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false, lesiones: false, evaluaciones: true };
+    equipo.lista = [{ ...equipo.actual }];
+    await montar();
+    await act(async () => Promise.resolve());
+
+    await tocar("Entrar a Bases de Datos");
+    await act(async () => vi.runAllTimers());
+    expect([...contenedor.querySelectorAll(".bases-datos .portal-tarjeta")].map((boton) => boton.getAttribute("aria-label"))).toEqual(["Entrar a Evaluaciones"]);
+  });
+
+  test("si el admin del club le saca Evaluaciones (y no tiene Lesiones), al volver al portal ya no está Bases de Datos", async () => {
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false, lesiones: false, evaluaciones: true };
+    equipo.lista = [{ ...equipo.actual, evaluaciones: false }];
+    await montar();
+    await act(async () => Promise.resolve());
+
+    expect(equipo.actual.evaluaciones).toBe(false);
+    expect(contenedor.querySelector('button[aria-label="Entrar a Bases de Datos"]')).toBeNull();
+    expect(contenedor.querySelector('button[aria-label="Entrar a Partido"]')).not.toBeNull();
   });
 
   test("al volver de Lesiones a Bases de Datos se relee el club, como al volver al portal", async () => {

@@ -138,6 +138,27 @@ export const textoDeHoras = (horas) => {
   return segundos % 60 ? `${reloj}:${dos(segundos % 60)}` : reloj;
 };
 
+// Un tiempo de minutos y segundos, como los del Excel de evaluaciones: "3:04"
+// (o "3.04", "3,04" como sale del teclado numérico del celular, o "3:04:00"
+// como lo copia Excel, que lo cree horas) son 184 segundos, y "45" son 45.
+// Solo segundos, hasta dos cifras: "304" no se adivina (¿3:04 o 5:04?).
+// Devuelve null si está vacío y undefined si no se entiende.
+export const interpretarMinutos = (texto) => {
+  const t = String(texto ?? "").trim();
+  if (!t) return null;
+  const partes = /^(\d{1,3})[:.,](\d{2})(?::00)?$/.exec(t);
+  if (partes) {
+    const segundos = Number(partes[2]);
+    return segundos < 60 ? Number(partes[1]) * 60 + segundos : undefined;
+  }
+  if (/^\d{1,2}$/.test(t)) return Number(t);
+  return undefined;
+};
+
+// Los segundos como se escriben: 184 → "3:04".
+export const textoDeMinutos = (segundos) =>
+  typeof segundos === "number" && Number.isFinite(segundos) ? `${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, "0")}` : "";
+
 // Cómo se escribe una casilla marcada o vacía al pegar (en los dos idiomas,
 // sin mayúsculas ni acentos). Lo copiado de la tabla es Sí/No (Sim/Não).
 const TEXTOS_DE_CASILLA = {
@@ -169,6 +190,8 @@ export const interpretarValor = (columna, texto) => {
     }
     case "horas":
       return interpretarHoras(t);
+    case "tiempo":
+      return interpretarMinutos(t);
     case "casilla": {
       // Una celda vacía no desmarca a nadie: se deja como está.
       const buscado = normalizarTextoBase(t);

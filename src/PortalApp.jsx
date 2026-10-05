@@ -4,7 +4,7 @@ import TrainingModule from "./TrainingModule";
 import AccessGate from "./AccessGate.jsx";
 import OpenFieldSession from "./OpenFieldSession.jsx";
 import CuentasAdmin from "./CuentasAdmin.jsx";
-import BasesDeDatos from "./BasesDeDatos.jsx";
+import BasesDeDatos, { basesHabilitadas } from "./BasesDeDatos.jsx";
 import DatosBasicos from "./DatosBasicos.jsx";
 import ElegirClub from "./ElegirClub.jsx";
 import { contarPendientes, permisosEnClub } from "./domain/perfilesDb.js";
@@ -58,11 +58,11 @@ const TARJETAS = [
     texto: "portal.flujoTexto",
   },
   {
-    // Las bases del club (Lesiones y las que vengan): adentro, una tarjeta por
-    // base (BasesDeDatos.jsx). El permiso es la columna `lesiones` de la
-    // membresía, que hoy abre Bases de Datos entero.
+    // Las bases del club (Lesiones, Evaluaciones y las que vengan): adentro,
+    // una tarjeta por base (BasesDeDatos.jsx), cada una con su permiso. La
+    // tarjeta se ve si la cuenta tiene alguna (`bases`, abajo).
     modo: MODOS.BASES,
-    permiso: "lesiones",
+    permiso: "bases",
     clase: "tarjeta-bases",
     foto: "/portal/bases.webp",
     fotoParada: "/portal/bases-parada.webp",
@@ -184,7 +184,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         return;
       }
       if (fresco.hasta && !leido.hasta) limpiarCopiasDelClub(leido.id);
-      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null));
+      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones", "evaluaciones"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null));
       if (cambio) {
         guardarEquipoElegido(fresco);
         setClub(fresco);
@@ -198,8 +198,10 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   useEffect(() => (modo === MODOS.PORTAL ? releerClub() : undefined), [modo, club?.id, releerClub]);
 
   // Lo que se puede usar sale de la membresía en el club elegido (rol y
-  // módulos); la cuenta solo dice si es dueña de la plataforma.
-  const enClub = permisosEnClub(permisos, club);
+  // módulos); la cuenta solo dice si es dueña de la plataforma. Bases de
+  // Datos se abre con el permiso de alguna de sus bases.
+  const delClub = permisosEnClub(permisos, club);
+  const enClub = { ...delClub, bases: basesHabilitadas(delClub).length > 0 };
 
   const elegir = (tarjeta, desde) => {
     if (!enClub?.[tarjeta.permiso]) return;
@@ -236,7 +238,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         {() => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />}
       </OpenFieldSession>
     );
-  } else if (modo === MODOS.BASES && enClub.lesiones) {
+  } else if (modo === MODOS.BASES && enClub.bases) {
     contenido = <BasesDeDatos permisos={enClub} userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} onTarjetas={releerClub} />;
   } else if (modo === MODOS.DATOS && enClub.datos) {
     contenido = <DatosBasicos onVolver={volver} permisos={enClub} />;
