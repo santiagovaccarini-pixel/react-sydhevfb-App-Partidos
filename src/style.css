@@ -3377,6 +3377,9 @@ button:disabled {
 
 .app .registro-guardado {
   display: grid;
+  /* Sin columna explícita, la implícita crece con el contenido que no se
+     corta y la tarjeta se salía de un teléfono de 360 px. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 9px;
   padding: 14px;
   border: 1px solid var(--cam-linea);
@@ -3433,6 +3436,7 @@ button:disabled {
 
 .tiempos-registro {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -4152,6 +4156,7 @@ button:disabled {
    color del cartel de actualización de la app. */
 .tarjeta-en-curso {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   width: 100%;
   padding: 13px;
