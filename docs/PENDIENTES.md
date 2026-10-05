@@ -902,6 +902,68 @@ errores, captcha, segundo factor. Cuando se vende: Supabase Pro (25 USD/mes la
 organización, más ~10 por club dedicado), Vercel Pro (20 USD/mes: el plan gratuito
 prohíbe uso comercial), dominio. Todo lo demás, 0.
 
+## Revisión de privacidad del 05/10 (migración `20261013_seguridad.sql`)
+
+Ningún dato de un club (y menos los médicos) se puede ver desde otro club. Lo que
+encontró la revisión y cómo quedó:
+
+- **Historial de lesiones por club.** `lesiones_historial` se abría si existía hoy una
+  lesión con ese id en un club propio; el historial queda cuando la lesión se borra, así
+  que creando en el club propio una lesión con el id de una borrada de otro club se leía
+  toda su historia. Ahora cada cambio guarda su club (`equipo_id`, lo que ya estaba sale
+  de la fila guardada en el mismo cambio) y se ve con la regla de las lesiones mirando
+  ese club. Desde la app, el id de una lesión nueva lo pone la base. Se repasó el resto:
+  ninguna otra política autoriza por el id de otra tabla (la foto al día ya miraba el
+  club de cada versión). Las migraciones 20261001 y 20261002 se niegan a correr después
+  de esta (20261002 borraría todas las lesiones).
+  - De paso: quien sigue en el club con Lesiones ve también el historial de una lesión
+    borrada de su club (antes desaparecía con la lesión). La app no lo muestra.
+- **Una lesión es de un jugador de su club** (como una evaluación): al cargarla o al
+  cambiarle el jugador, uno de otro club no entra (`jugador_de_otro_club`; la app lo
+  muestra con el texto de Evaluaciones). Lo que ya estaba se sigue editando (por ejemplo,
+  de un jugador que después pasó a otro club). La migración lista al final las lesiones
+  con jugador de otro club, para mirarlas.
+- **Quién cargó y quién cambió lo pone la base.** Desde la app, al cargar una lesión la
+  base pone el autor y la fecha (antes la app podía mandar otros); después, quién la
+  cargó y cuándo no cambian. Al borrar una cuenta, sus lesiones quedan sin autor y el
+  resto (quién la cambió, cuándo) queda como estaba. Las invitaciones, al cambiarlas,
+  pasan por el mismo control de correo que al invitar, y quién invitó no cambia (antes
+  un administrador podía poner a alguien de otro club como autor y así figuraba en la
+  historia del alta).
+- **Al club se entra por invitación.** Un administrador de club podía sumar a su club
+  cualquier cuenta de la que supiera el id (sin invitación) y con eso leer su perfil
+  (correo, estado). La app nunca suma a mano: invitación, el creador del club y
+  reincorporar (que cambia la membresía que ya está) siguen igual. Sumar a mano queda
+  solo para el dueño de la plataforma. Se eligió esto y no recortar lo que el
+  administrador ve de su gente: la pantalla Cuentas necesita el correo y el estado.
+- **Orden para ponerlo en producción:** la migración y la app no dependen una de la otra
+  (la app de antes anda con la migración y la nueva sin ella). Conviene correr la
+  migración cuanto antes: es la que cierra lo de Lesiones. Al final muestra cuántos
+  cambios del historial quedaron sin club (tiene que dar 0) y las lesiones con jugador
+  de otro club, para mirarlas.
+- **OpenField (Flujo diario) mira la membresía.** La API de Catapult autorizaba con los
+  permisos viejos de `perfiles` (flujo, admin): quien se iba del club seguía leyendo y
+  quien entraba por invitación con Flujo diario quedaba afuera. Ahora decide
+  `puede_usar('flujo')` con el token de cada uno (Flujo diario en algún club donde
+  sigue); el dueño de la plataforma sigue entrando. La cookie de sesión de OpenField
+  dura 10 minutos como mucho (antes hasta 8 h): las rutas de lectura no le vuelven a
+  preguntar a la base, así que una baja, un módulo sacado o una cuenta bloqueada se
+  aplican en 10 minutos; enviar cortes y la cuenta de Catapult, en el momento. La app
+  la renueva sola. Las cookies de antes quedan vencidas al publicar (versión 3).
+- **Pruebas técnicas solo para el dueño.** Ajustes › Pruebas técnicas (sondas con los
+  tokens del servidor y un navegador en el servidor que entra a Catapult) las ve
+  cualquiera con Flujo diario, pero ahora el servidor solo se las corre al dueño de la
+  plataforma. Si hace falta que otra cuenta las corra (pedido por chat), se prende
+  `OPENFIELD_DIAGNOSTICO=1` en Vercel y se apaga después. La escritura de prueba sigue
+  siendo solo del dueño, con la variable o sin ella.
+
+**Queda anotado, sin hacer:**
+- Un solo `OPENFIELD_API_TOKEN` para todos los clubes: las lecturas de Catapult
+  (actividades, atletas, períodos) son las de esa cuenta, sea cual sea el club de quien
+  pregunta. Con un segundo club en Catapult hace falta un token por club.
+- En Supabase, Authentication › "Confirm email" tiene que quedar prendido: las
+  invitaciones dejan entrar a la cuenta que tenga ese correo confirmado.
+
 ## Lo que dejó la revisión completa del 30/09
 
 Se revisó toda la app (pruebas automáticas, recorrido en navegador de cada
@@ -920,9 +982,8 @@ arreglar, de menor a mayor esfuerzo:
   contempla los bordes seguros, pero la etiqueta viewport no lo pide, así que
   las barras no llegan hasta el borde de la pantalla. Cambiarlo mueve el alto
   de las barras: probarlo en el teléfono antes de subirlo.
-- **La sesión de OpenField dura hasta 8 h como tope** (normalmente 75 min):
-  bloquear una cuenta tarda eso en aplicarse a las pantallas de lectura de
-  Flujo diario. Enviar cortes sí se comprueba en el momento.
+- ~~**La sesión de OpenField dura hasta 8 h como tope** (normalmente 75 min)~~:
+  desde el 05/10 dura 10 minutos como mucho (ver "Revisión de privacidad del 05/10").
 - **El envío de cortes puede pasar los 60 s de Vercel** en el peor caso (login
   en Catapult + dos lecturas + escritura). Si se corta después de escribir, la
   app no se entera; al reintentar ya no duplica los períodos (los reconoce por

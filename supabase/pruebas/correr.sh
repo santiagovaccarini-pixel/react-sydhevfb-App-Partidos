@@ -48,13 +48,13 @@ ULTIMA=$(ls "$RAIZ"/supabase/migrations/*.sql | grep -v revisar | sort | tail -1
 echo "→ $(basename "$ULTIMA") (otra vez)"
 $PSQL -f "$ULTIMA" >/dev/null
 # Las que dicen que se pueden volver a correr, también después de las nuevas.
-for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas 20261011_jugadores_actual; do
+for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas 20261011_jugadores_actual 20261012_evaluaciones; do
   echo "→ $otra_vez.sql (otra vez, después de la última)"
   $PSQL -f "$RAIZ/supabase/migrations/$otra_vez.sql" >/dev/null
 done
 # Una migración vieja corrida después de una nueva desharía lo nuevo: las que
 # tienen ese riesgo se tienen que negar solas, con un aviso claro.
-for vieja in 20261002b_datos_basicos 20261003_club_miembros 20261004_cuentas_v2 20261005_foto_al_dia 20261006_horas_imagen; do
+for vieja in 20261001_lesiones 20261002_lesiones_excel 20261002b_datos_basicos 20261003_club_miembros 20261004_cuentas_v2 20261005_foto_al_dia 20261006_horas_imagen; do
   echo "→ $vieja.sql después de la última (se tiene que negar)"
   if $PSQL -f "$RAIZ/supabase/migrations/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
     echo "ERROR: $vieja.sql corrió después de una más nueva"

@@ -16,10 +16,20 @@
 --
 -- Requiere 20260930_cuentas.sql y 20260930_partido_solo_autorizados.sql.
 -- Se corre en Supabase > SQL Editor, entero y de una vez. Es una sola
--- transacción y se puede volver a correr: no pisa lo que ya está.
+-- transacción y se puede volver a correr, salvo después de
+-- 20261013_seguridad.sql: ahí se frena sola (desharía el historial por club
+-- y le abriría las lesiones de todos los clubes a cualquiera con Lesiones).
 -- =====================================================================
 
 begin;
+
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'lesiones_historial' and column_name = 'equipo_id') then
+    raise exception 'Ya está corrida 20261013_seguridad.sql: esta es anterior y no hace falta volver a correrla.';
+  end if;
+end $$;
 
 -- ---------------------------------------------------- El módulo en perfiles --
 

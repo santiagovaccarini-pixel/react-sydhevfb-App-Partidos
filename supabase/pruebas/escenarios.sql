@@ -664,4 +664,119 @@ select pruebas.esperar('...pero siguen estando', (select count(*) from evaluacio
 select pruebas.esperar('...y la que corrigió la preparadora sigue diciendo que la cambió ella', (select actualizado_por::text from evaluaciones where persona = 'Cata Tres'), '00000000-0000-0000-0000-000000000015');
 select pruebas.esperar('...con lo que cargó', (select datos ->> 'lumbar' from evaluaciones where persona = 'Cata Tres'), '201');
 
+-- ------------------------------------------------------------- Seguridad --
+
+-- El historial de una lesión borrada no se abre con su id desde otro club.
+-- Eva carga, corrige y borra una lesión en Dos; el historial queda.
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva carga una lesión en Dos', pruebas.filas($$insert into lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c2', 'Persona de Dos', '2026-08-01', '{"parte_cuerpo":"joelho","lado":"direito","comentarios":"dato clínico de Dos"}')$$), 1);
+select pruebas.esperar('...la corrige', pruebas.filas($$update lesiones set datos = datos || '{"comentarios":"dato clínico corregido de Dos"}' where persona = 'Persona de Dos'$$), 1);
+select pruebas.esperar('...y la borra', pruebas.filas($$delete from lesiones where persona = 'Persona de Dos'$$), 1);
+reset role;
+select lesion_id as id_borrada from lesiones_historial where accion = 'borrada' and antes ->> 'persona' = 'Persona de Dos' \gset
+-- El mismo id vuelve en Uno (a mano, sin sesión: desde la app la base pone
+-- uno nuevo).
+select set_config('request.jwt.claims', '', false);
+insert into lesiones (id, equipo_id, persona, fecha_lesion, datos)
+values (:'id_borrada', '00000000-0000-0000-0000-0000000000c1', 'Id repetido', '2026-08-02', '{}');
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('En Uno se ve la lesión con el id repetido', (select count(*) from lesiones where id = :'id_borrada'), 1);
+select pruebas.esperar('...y su propio historial', (select count(*) from lesiones_historial where lesion_id = :'id_borrada' and despues ->> 'persona' = 'Id repetido'), 1);
+select pruebas.esperar('...pero no el de la lesión borrada de Dos', (select count(*) from lesiones_historial where lesion_id = :'id_borrada' and coalesce(despues, antes) ->> 'equipo_id' = '00000000-0000-0000-0000-0000000000c2'), 0);
+-- Desde la app, el id de una lesión nueva lo pone la base.
+select pruebas.esperar('Una lesión con el id elegido por la app se guarda', pruebas.filas($$insert into lesiones (id, equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000c1', 'Id elegido', '2026-08-03', '{}')$$), 1);
+select pruebas.esperar('...pero con otro id', (select count(*) from lesiones where persona = 'Id elegido' and id <> '00000000-0000-0000-0000-00000000ee01'), 1);
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva ve el historial de su lesión borrada, solo el de Dos', (select count(*) from lesiones_historial where lesion_id = :'id_borrada'), 3);
+select pruebas.esperar('...con lo que se corrigió', (select count(*) from lesiones_historial where lesion_id = :'id_borrada' and accion = 'editada' and despues -> 'datos' ->> 'comentarios' = 'dato clínico corregido de Dos'), 1);
+reset role;
+select pruebas.esperar('Todo cambio de lesión queda con su club', (select count(*) from lesiones_historial where equipo_id is null), 0);
+
+-- Una lesión es de un jugador de su club (como una evaluación).
+select set_config('request.jwt.claims', '', false);
+insert into jugadores (id, nombre, equipo_id) overriding system value values
+  (9005, 'SE VA A DOS', '00000000-0000-0000-0000-0000000000c1');
+insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos)
+values (:C1, 9005, '2026-07-01', '{"parte_cuerpo":"pe","lado":"direito"}');
+update jugadores set equipo_id = :C2 where id = 9005;
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.debe_fallar('No se carga en Uno una lesión de un jugador de Dos', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9003, '2026-09-02', '{"parte_cuerpo":"pe","lado":"esquerdo"}')$$, 'jugador_de_otro_club');
+select pruebas.debe_fallar('...ni se le pasa a una lesión de Uno', $$update lesiones set jugador_id = 9003 where jugador_id = 9002 and numero_caso = 600$$, 'jugador_de_otro_club');
+select pruebas.esperar('La lesión de un jugador que después se fue a Dos se sigue editando', pruebas.filas($$update lesiones set fecha_alta = '2026-07-20' where jugador_id = 9005$$), 1);
+select pruebas.esperar('...y la de un jugador de Uno, también al cambiarle el jugador', pruebas.filas($$update lesiones set jugador_id = 9001 where jugador_id = 9002 and numero_caso = 601$$), 1);
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.debe_fallar('A quien no es de Uno, Uno no le contesta si el jugador es de ahí', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9003, '2026-09-03', '{}')$$, 'row-level security');
+reset role;
+select set_config('request.jwt.claims', '', false);
+select pruebas.debe_fallar('Tampoco a mano desde el SQL Editor', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9003, '2026-09-04', '{}')$$, 'jugador_de_otro_club');
+
+-- Quién cargó una lesión y quién la cambió lo pone la base.
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000017', 'temporal@uno.com', now());
+update perfiles set estado = 'autorizado' where email = 'temporal@uno.com';
+insert into club_miembros (equipo_id, user_id, rol, partido, flujo, lesiones)
+values (:C1, '00000000-0000-0000-0000-000000000017', 'staff', false, false, true);
+select pruebas.ser('temporal@uno.com'); set role authenticated;
+select pruebas.esperar('Una lesión con otro autor y otra fecha de carga se guarda', pruebas.filas($$insert into lesiones (equipo_id, persona, fecha_lesion, datos, creado_por, creado_en, actualizado_por) values ('00000000-0000-0000-0000-0000000000c1', 'Autor ajeno', '2026-07-05', '{}', '00000000-0000-0000-0000-00000000000e', '2020-01-01', '00000000-0000-0000-0000-00000000000e')$$), 1);
+select pruebas.esperar('...pero a nombre de quien la cargó, hoy', (select count(*) from lesiones where persona = 'Autor ajeno' and creado_por = auth.uid() and actualizado_por = auth.uid() and creado_en > now() - interval '1 hour'), 1);
+select pruebas.esperar('El autor no se cambia después', pruebas.filas($$update lesiones set creado_por = '00000000-0000-0000-0000-00000000000e', creado_en = '2020-01-01' where persona = 'Autor ajeno'$$), 1);
+select pruebas.esperar('...sigue siendo quien la cargó', (select count(*) from lesiones where persona = 'Autor ajeno' and creado_por = auth.uid() and creado_en > now() - interval '1 hour'), 1);
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto la corrige', pruebas.filas($$update lesiones set fecha_alta = '2026-07-10', actualizado_por = '00000000-0000-0000-0000-00000000000e' where persona = 'Autor ajeno'$$), 1);
+select pruebas.esperar('...y queda que la cambió él', (select actualizado_por::text from lesiones where persona = 'Autor ajeno'), '00000000-0000-0000-0000-00000000000b');
+reset role;
+select actualizado_en as cambio_de_beto from lesiones where persona = 'Autor ajeno' \gset
+-- Desde Supabase › Authentication › Users, sin la sesión de nadie.
+select set_config('request.jwt.claims', '', false);
+select pruebas.esperar('Se borra la cuenta de quien la cargó', pruebas.filas($$delete from auth.users where id = '00000000-0000-0000-0000-000000000017'$$), 1);
+select pruebas.esperar('...y la lesión queda sin autor, con quien la cambió y cuándo', (select count(*) from lesiones where persona = 'Autor ajeno' and creado_por is null and actualizado_por = '00000000-0000-0000-0000-00000000000b' and actualizado_en = :'cambio_de_beto'), 1);
+
+-- Una invitación cambiada pasa por el mismo control que al invitar, y quién
+-- invitó no cambia.
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto invita a alguien', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'cambiada@x.com')$$), 1);
+select pruebas.esperar('...le cambia el autor (a Eva, de otro club)', pruebas.filas($$update club_invitaciones set creado_por = '00000000-0000-0000-0000-00000000000e' where email = 'cambiada@x.com'$$), 1);
+select pruebas.esperar('...pero sigue diciendo que invitó Beto', (select creado_por::text from club_invitaciones where email = 'cambiada@x.com'), '00000000-0000-0000-0000-00000000000b');
+select pruebas.debe_fallar('Un correo inválido no entra al cambiarla', $$update club_invitaciones set email = 'NO ES UN CORREO' where email = 'cambiada@x.com'$$, 'correo_invalido');
+select pruebas.esperar('...y uno válido entra limpio', pruebas.filas($$update club_invitaciones set email = ' Cambiada2@X.com ' where email = 'cambiada@x.com'$$), 1);
+select pruebas.esperar('...en minúsculas y sin espacios', (select count(*) from club_invitaciones where email = 'cambiada2@x.com'), 1);
+reset role;
+-- Se registra (Supabase Auth, sin la sesión de nadie).
+select set_config('request.jwt.claims', '', false);
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000018', 'cambiada2@x.com', now());
+select pruebas.esperar('Al entrar, la historia dice que la invitó Beto', (select quien::text from club_miembros_historial where user_id = '00000000-0000-0000-0000-000000000018' and accion = 'alta'), '00000000-0000-0000-0000-00000000000b');
+
+-- La API de OpenField (lib/openfieldAuth.js) pregunta puede_usar('flujo')
+-- con el token de cada uno: sale de las membresías, no de los permisos
+-- viejos de perfiles.
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000016', 'vieja@uno.com', now());
+update perfiles set estado = 'autorizado', partido = true, flujo = true where email = 'vieja@uno.com';
+insert into club_miembros (equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones)
+values (:C1, '00000000-0000-0000-0000-000000000016', '2026-01-01', current_date - 1, 'staff', true, true, false);
+update perfiles set flujo = false where email = 'fede@libre.com';
+select pruebas.ser('vieja@uno.com'); set role authenticated;
+select pruebas.esperar('Quien se fue de su único club no tiene Flujo diario, aunque su perfil viejo lo diga', public.puede_usar('flujo')::text, 'false');
+reset role;
+select pruebas.ser('fede@libre.com'); set role authenticated;
+select pruebas.esperar('Quien entró por invitación con Flujo diario lo tiene, aunque su perfil viejo no', public.puede_usar('flujo')::text, 'true');
+reset role;
+
+-- Al club se entra por invitación: un administrador de club no suma a mano
+-- una cuenta cualquiera (y con eso leía su perfil).
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto no ve la cuenta de alguien ajeno a Uno', (select count(*) from perfiles where email = 'tarde@uno.com'), 0);
+select pruebas.debe_fallar('...ni la suma a Uno por su id, sin invitación', $$insert into club_miembros (equipo_id, user_id, hasta) values ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000013', current_date)$$, 'row-level security');
+select pruebas.esperar('...así que sigue sin verla', (select count(*) from perfiles where email = 'tarde@uno.com'), 0);
+select pruebas.esperar('Beto vuelve a invitar a quien se fue ayer', pruebas.filas($$insert into club_invitaciones (equipo_id, email, flujo) values ('00000000-0000-0000-0000-0000000000c1', 'vieja@uno.com', true)$$), 1);
+select pruebas.esperar('...y vuelve a estar en Uno en el acto', (select count(*) from club_miembros where user_id = '00000000-0000-0000-0000-000000000016' and equipo_id = :C1 and hasta is null), 1);
+reset role;
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('El dueño de la plataforma sí puede sumar a mano', pruebas.filas($$insert into club_miembros (equipo_id, user_id, partido, flujo) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-000000000013', false, false)$$), 1);
+reset role;
+
 select 'ESCENARIOS: todos bien' as resultado;
