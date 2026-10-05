@@ -186,9 +186,14 @@ const respaldoDelPlantel = (equipoId) => ({
   desde: "respaldo",
 });
 
+// Los errores de acá vuelven como clave del diccionario (no en castellano ni
+// en el inglés de la base), para que se lean en el idioma de la app; lo que
+// dijo la base va en `detalle`.
+const DE_RED = /failed to fetch|load failed|networkerror|network request failed|fetch failed/i;
+
 export const agregarJugador = async (nombre, equipoId = null) => {
   const limpio = limpiar(nombre);
-  if (!limpio) return { error: "Escribí un nombre." };
+  if (!limpio) return { error: "datos.error.nombre" };
 
   const { data, error } = await supabase
     .from("jugadores")
@@ -204,9 +209,7 @@ export const agregarJugador = async (nombre, equipoId = null) => {
 
   if (error) {
     const repetido = /duplicate key|unique/i.test(error.message || "");
-    return {
-      error: repetido ? "Ese jugador ya está en la lista." : error.message,
-    };
+    return repetido ? { error: "datos.error.repetido" } : { error: "datos.error.guardar", detalle: error.message || "" };
   }
 
   return { jugador: normalizarJugador(data?.[0]) };
@@ -216,11 +219,9 @@ export const quitarJugador = async (id) => {
   const { error } = await supabase.from("jugadores").delete().eq("id", id);
   if (!error) return {};
   // Con lesiones o evaluaciones cargadas la base no lo deja borrar (clave
-  // foránea): se explica en castellano en vez de mostrar el error crudo.
-  if (error.code === "23503" || /lesiones|evaluaciones/i.test(error.message || "")) {
-    return { error: "Este jugador tiene lesiones o evaluaciones cargadas y no se puede borrar. Si ya no está en el club, desmarcá Actual en Datos básicos." };
-  }
-  return { error: error.message };
+  // foránea): se explica en vez de mostrar el error crudo.
+  if (error.code === "23503" || /lesiones|evaluaciones/i.test(error.message || "")) return { error: "datos.error.borrarConDatos" };
+  return { error: "datos.error.borrar", detalle: error.message || "" };
 };
 
 /**
@@ -235,7 +236,7 @@ export const cargarPlantelConCatapult = async (equipoId = null) => {
       return { plantel: ordenarPorNombre(filas.map(normalizarJugadorConCatapult)), desde: "base", error: "" };
     } catch (error) {
       console.warn("No se pudo leer la lista de jugadores del club:", error);
-      return { plantel: [], desde: "base", error: "No se pudo leer la lista de jugadores de este club. Probá de nuevo en un rato." };
+      return { plantel: [], desde: "base", error: "datos.catapult.noLeer" };
     }
   }
   const leer = (columnas) => {
@@ -255,9 +256,8 @@ export const cargarPlantelConCatapult = async (equipoId = null) => {
     return {
       plantel: [],
       desde: "base",
-      error: faltaColumna
-        ? "La lista de jugadores todavía no tiene el vínculo con Catapult: falta ejecutar la migración 20260920_jugadores_catapult.sql en Supabase."
-        : error.message,
+      error: faltaColumna ? "datos.catapult.faltaMigracion" : DE_RED.test(error.message || "") ? "comun.sinConexion" : "datos.catapult.noLeer",
+      detalle: error.message || "",
     };
   }
 
@@ -279,11 +279,7 @@ export const guardarVinculoCatapult = async (id, { catapultId, catapultNombre })
 
   if (error) {
     const repetido = /duplicate key|unique/i.test(error.message || "");
-    return {
-      error: repetido
-        ? "Ese atleta de Catapult ya está vinculado a otro jugador."
-        : error.message,
-    };
+    return repetido ? { error: "datos.catapult.yaVinculado" } : { error: "datos.error.guardar", detalle: error.message || "" };
   }
 
   return {};
@@ -295,7 +291,7 @@ export const guardarPuestos = async (id, { roles, puestos }) => {
     .update({ roles, puestos, actualizado_en: new Date().toISOString() })
     .eq("id", id);
 
-  return error ? { error: error.message } : {};
+  return error ? { error: "datos.error.guardar", detalle: error.message || "" } : {};
 };
 
 // Lo que esperan los desplegables de nombre: una lista de textos con el vacío

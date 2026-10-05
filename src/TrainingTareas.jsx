@@ -199,7 +199,8 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
       const fallo = Boolean(error) && nueva.length === 0;
       setPlantel((anterior) => (fallo && anterior.length > 0 ? anterior : nueva));
       setEstadoPlantel((anterior) => (fallo ? (anterior === "listo" ? "listo" : "error") : "listo"));
-      setErrorPlantel(fallo ? error : "");
+      // El error viene como clave del diccionario (o ya en texto).
+      setErrorPlantel(fallo ? t(error) : "");
     };
 
     const cargar = async () => {
@@ -209,7 +210,7 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
         aplicar({ lista, error: error || "" });
       } catch (errorCarga) {
         if (!activo) return;
-        aplicar({ lista: [], error: errorCarga?.message || "No se pudo leer la lista de jugadores." });
+        aplicar({ lista: [], error: errorCarga?.message || "datos.catapult.noLeer" });
       }
     };
 

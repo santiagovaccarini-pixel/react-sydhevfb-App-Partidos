@@ -74,12 +74,12 @@ describe("la lista con chalecos sin señal", () => {
 
   it("sin señal y sin copia, avisa; y la migración faltante se sigue explicando", async () => {
     doble.respuesta = { data: null, error: { message: "TypeError: Failed to fetch" } };
-    expect(await cargarPlantelConCatapult("eq-1")).toMatchObject({ plantel: [], error: "TypeError: Failed to fetch" });
+    expect(await cargarPlantelConCatapult("eq-1")).toMatchObject({ plantel: [], error: "comun.sinConexion" });
 
     localStorage.setItem("plantel_catapult:eq-1", JSON.stringify(filas));
     doble.respuesta = { data: null, error: { message: 'column jugadores.catapult_id does not exist' } };
     const { plantel, error } = await cargarPlantelConCatapult("eq-1");
     expect(plantel).toEqual([]);
-    expect(error).toMatch(/migración/);
+    expect(error).toBe("datos.catapult.faltaMigracion");
   });
 });

@@ -144,10 +144,13 @@ describe("cargar una lesión del Excel", () => {
 
 describe("agregar un jugador desde Datos básicos", () => {
   test("los errores del alta de Partido vuelven como claves del diccionario", async () => {
-    doble.alta = async () => ({ error: "Ese jugador ya está en la lista." });
+    doble.alta = async () => ({ error: "datos.error.repetido" });
     expect(await agregarJugadorBasico("eq-1", "HULK")).toEqual({ error: "datos.error.repetido" });
-    doble.alta = async () => ({ error: "Escribí un nombre." });
+    doble.alta = async () => ({ error: "datos.error.nombre" });
     expect(await agregarJugadorBasico("eq-1", " ")).toEqual({ error: "datos.error.nombre" });
+    doble.alta = async () => ({ error: "datos.error.guardar", detalle: "new row violates row-level security policy" });
+    expect(await agregarJugadorBasico("eq-1", "LEMOS")).toEqual({ error: "datos.error.guardar", detalle: "new row violates row-level security policy" });
+    // Un texto que no es clave no llega a la pantalla: va el genérico.
     doble.alta = async () => ({ error: "new row violates row-level security policy" });
     expect(await agregarJugadorBasico("eq-1", "LEMOS")).toMatchObject({ error: "datos.error.guardar" });
     doble.alta = async (nombre) => ({ jugador: { id: 9, nombre } });

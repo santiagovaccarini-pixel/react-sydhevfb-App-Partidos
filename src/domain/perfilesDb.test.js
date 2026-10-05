@@ -120,8 +120,14 @@ describe("las cuentas para el administrador", () => {
       ["eq", "estado", "pendiente"],
     ]);
 
+    // Los errores de la base, como clave del diccionario (Supabase contesta en
+    // inglés); el de red, marcado como de red.
     supa.respuesta = { data: null, error: { message: "permission denied" }, count: null };
-    await expect(listarPerfiles()).rejects.toThrow("permission denied");
+    await expect(listarPerfiles()).rejects.toThrow("cuentas.errorLeer");
+    await expect(contarPendientes()).rejects.toThrow("cuentas.errorLeer");
+    await expect(leerMiPerfil("a")).rejects.toThrow("acceso.error.noComprobar");
+    supa.respuesta = { data: null, error: { message: "TypeError: Failed to fetch" }, count: null };
+    await expect(leerMiPerfil("a")).rejects.toMatchObject({ message: "comun.sinConexion", deRed: true });
   });
 
   it("lee la propia cuenta por user_id", async () => {
@@ -140,9 +146,9 @@ describe("las cuentas para el administrador", () => {
     expect(supa.pedidos[0].pasos[1]).toEqual(["eq", "user_id", "b"]);
 
     supa.respuesta = { data: [], error: null };
-    await expect(decidirPerfil("b", { estado: "bloqueado" })).rejects.toThrow("no tenés permiso");
+    await expect(decidirPerfil("b", { estado: "bloqueado" })).rejects.toThrow("cuentas.errorCambiarSinPermiso");
 
     supa.respuesta = { data: null, error: { message: "permission denied for table perfiles" } };
-    await expect(decidirPerfil("b", { admin: true })).rejects.toThrow("permission denied");
+    await expect(decidirPerfil("b", { admin: true })).rejects.toThrow("cuentas.errorCambiar");
   });
 });

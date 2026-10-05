@@ -84,6 +84,7 @@ vi.mock("./domain/perfilesDb.js", async () => {
     listarPerfiles: async () => datos.perfiles,
     decidirPerfil: async (userId, cambios) => {
       datos.llamadas.push({ que: "decidir", userId, cambios });
+      if (datos.errorDecidir) throw new Error(datos.errorDecidir);
       const fila = { ...datos.perfiles.find((p) => p.user_id === userId), ...cambios };
       datos.perfiles = datos.perfiles.map((p) => (p.user_id === userId ? fila : p));
       return fila;
@@ -136,6 +137,7 @@ describe("Cuentas", () => {
     datos.usada = false;
     datos.compuerta = null;
     datos.lenta = {};
+    datos.errorDecidir = null;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
   });
@@ -426,6 +428,17 @@ describe("Cuentas", () => {
 
     await tocar(boton(fila("ex@uno.com"), "Devolver acceso"));
     expect(datos.llamadas.at(-1)).toEqual({ que: "decidir", userId: "ex", cambios: { estado: "autorizado" } });
+  });
+
+  test("si no se puede cambiar una cuenta, lo dice en el idioma de la app", async () => {
+    datos.perfiles = [{ user_id: "ex", email: "ex@uno.com", estado: "bloqueado", confirmado_en: "2026-08-01", creado_en: "2026-08-01T10:00:00Z" }];
+    datos.errorDecidir = "cuentas.errorCambiarSinPermiso";
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    await montar({ esDueno: true });
+    await tocar(contenedor.querySelectorAll(".cuentas-pestanas button")[1]);
+    await tocar(boton(fila("ex@uno.com"), "Devolver acesso"));
+    expect(texto()).toContain("Não foi possível salvar a alteração: você não tem permissão ou a conta não existe mais.");
+    expect(texto()).not.toContain("cuentas.errorCambiarSinPermiso");
   });
 
   test("si falta actualizar la base, el dueño igual maneja las cuentas de la app", async () => {

@@ -61,6 +61,7 @@ const sinSenal = () => typeof navigator !== "undefined" && navigator.onLine === 
 // Supabase lo marca como reintentable; el navegador, como un fetch que falló.
 export const esFalloDeRed = (error) =>
   sinSenal() ||
+  error?.deRed === true ||
   error?.name === "AuthRetryableFetchError" ||
   error?.status === 0 ||
   /failed to fetch|load failed|networkerror|network request failed|fetch failed|AuthRetryableFetchError/i.test(
@@ -226,10 +227,13 @@ export default function AccessGate({ children }) {
         return;
       }
       setPerfil(null);
+      // La base contesta en inglés: se muestra el texto de la clave que vino
+      // (o el genérico), en el idioma de la app.
+      const clave = String(errorLectura?.message || "");
       throw new Error(
         esFalloDeRed(errorLectura)
           ? t("acceso.error.sinConexionCuenta")
-          : errorLectura?.message || t("acceso.error.noComprobar"),
+          : t(/^[a-z]+(\.[a-zA-Z0-9]+)+$/.test(clave) ? clave : "acceso.error.noComprobar"),
       );
     }
   }, []);

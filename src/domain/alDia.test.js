@@ -120,7 +120,8 @@ describe("quien ya se fue del club lee la foto, no las tablas", () => {
     doble.error = { message: "Could not find the function public.datos_al_dia" };
     const { plantel, error } = await cargarPlantelConCatapult(UNO);
     expect(plantel).toEqual([]);
-    expect(error).toBe("No se pudo leer la lista de jugadores de este club. Probá de nuevo en un rato.");
+    // Como clave del diccionario: se lee en el idioma de la app.
+    expect(error).toBe("datos.catapult.noLeer");
   });
 
   test("la lista con chalecos de Flujo diario, también de la foto", async () => {

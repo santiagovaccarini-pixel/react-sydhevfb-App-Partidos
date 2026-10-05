@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import AccessGate from "./AccessGate.jsx";
 import { CLAVE_PERFIL_LOCAL } from "./domain/perfilesDb.js";
+import { fijarIdiomaParaPruebas } from "./idioma/index.js";
 
 // La sesión de Supabase que hay al abrir, el perfil de esa cuenta en la
 // base y lo que se le pidió a Supabase.
@@ -239,6 +240,20 @@ describe("la puerta de la app", () => {
     await montar();
 
     expect(contenedor.querySelector(".adentro").textContent).toContain("sin señal");
+  });
+
+  test("si la base no deja leer la cuenta, lo dice en el idioma de la app (no el error en inglés)", async () => {
+    supa.sesion = SESION;
+    supa.errorPerfil = { message: "permission denied for table perfiles" };
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      await montar();
+      expect(contenedor.querySelector("h1").textContent).toBe("Não conseguimos verificar sua conta");
+      expect(contenedor.querySelector(".training-access-card p").textContent).toBe("Não foi possível verificar sua conta. Tente de novo.");
+      expect(contenedor.textContent).not.toContain("permission denied");
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
   });
 
   test("sin señal y sin copia, avisa y deja reintentar", async () => {

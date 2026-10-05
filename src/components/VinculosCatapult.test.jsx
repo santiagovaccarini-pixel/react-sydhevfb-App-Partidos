@@ -184,6 +184,15 @@ describe("los chalecos de Catapult en Datos básicos", () => {
     expect(dobles.guardar).not.toHaveBeenCalled();
   });
 
+  test("los errores de la lista se leen en el idioma de la app", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    fijarIdiomaParaPruebas("pt-BR");
+    dobles.cargar.mockResolvedValue({ plantel: [], error: "datos.catapult.faltaMigracion" });
+    await montar();
+    expect(contenedor.textContent).toContain("falta executar a migração 20260920_jugadores_catapult.sql");
+    expect(contenedor.textContent).not.toContain("datos.catapult");
+  });
+
   test("si falta la migración lo explica", async () => {
     vi.stubGlobal("fetch", vi.fn());
     dobles.cargar.mockResolvedValue({ plantel: [], error: "La lista de jugadores todavía no tiene el vínculo con Catapult: falta ejecutar la migración 20260920_jugadores_catapult.sql en Supabase." });

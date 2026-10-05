@@ -412,7 +412,7 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
       const fila = await decidirPerfil(perfil.user_id, cambios);
       setPerfiles((lista) => lista.map((uno) => (uno.user_id === fila.user_id ? fila : uno)));
     } catch (errorCambio) {
-      setAviso(errorCambio?.message || t("cuentas.errorCambiar"));
+      setAviso(mensajeDe(errorCambio, "cuentas.errorCambiar"));
     } finally {
       setOcupada("");
     }

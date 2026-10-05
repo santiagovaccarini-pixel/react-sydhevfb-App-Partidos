@@ -263,13 +263,14 @@ export const guardarDatosJugador = async (id, datos) => {
 };
 
 // Alta y baja de jugadores desde Datos básicos: las mismas de Partido. El
-// error del alta vuelve como clave del diccionario (Partido lo da en
-// castellano), para que se lea en el idioma de la app.
+// error vuelve como clave del diccionario, para que se lea en el idioma de
+// la app (si no es una, el genérico).
+const esClaveDeDatos = (texto) => /^datos\.error\.\w+$/.test(String(texto || ""));
+
 export const agregarJugadorBasico = async (equipoId, nombre) => {
   const respuesta = await agregarJugador(nombre, equipoId);
   if (respuesta.error) {
-    if (respuesta.error === "Escribí un nombre.") return { error: "datos.error.nombre" };
-    if (/ya está en la lista/i.test(respuesta.error)) return { error: "datos.error.repetido" };
+    if (esClaveDeDatos(respuesta.error)) return { error: respuesta.error, ...(respuesta.detalle ? { detalle: respuesta.detalle } : {}) };
     return { error: "datos.error.guardar", detalle: respuesta.error };
   }
   return { jugador: normalizarJugadorLesiones(respuesta.jugador), error: "" };
@@ -279,7 +280,7 @@ export const quitarJugadorBasico = async (id) => {
   const respuesta = await quitarJugador(id);
   if (!respuesta.error) return { error: "" };
   // Con lesiones o evaluaciones cargadas no se borra: se desmarca "Actual".
-  return { error: /lesiones|evaluaciones/i.test(respuesta.error) ? "datos.error.borrarConDatos" : respuesta.error };
+  return { error: esClaveDeDatos(respuesta.error) ? respuesta.error : "datos.error.borrar" };
 };
 
 // ------------------------------------------- Cabeceras y listas por club --
