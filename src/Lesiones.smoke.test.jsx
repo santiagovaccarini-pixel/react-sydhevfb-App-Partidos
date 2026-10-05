@@ -854,11 +854,18 @@ describe("el módulo Lesiones", () => {
     // El mapa corporal: una mancha donde se lesionó, con su nombre.
     expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-mancha")).toHaveLength(1);
     expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-nombre")).toHaveLength(1);
-    // El historial: sus lesiones, con las doce columnas del reporte a la vista.
-    expect(contenedor.querySelectorAll(".informe-tabla tbody tr")).toHaveLength(1);
-    const cabeceras = [...contenedor.querySelectorAll(".informe-tabla th")].map((th) => th.textContent);
-    expect(cabeceras).toHaveLength(12);
-    expect(cabeceras.slice(0, 3)).toEqual([etiqueta("numero_registro"), etiqueta("parte_cuerpo"), etiqueta("tipo_lesion")]);
+    // El historial: sus lesiones, con todas las columnas a la vista en dos
+    // tablas por grupo del Excel (con los nombres de los grupos del club).
+    const tablas = [...contenedor.querySelectorAll(".informe-tabla")];
+    expect(tablas).toHaveLength(2);
+    expect(tablas.map((tabla) => tabla.querySelectorAll("tbody tr").length)).toEqual([1, 1]);
+    const grupos = (tabla) => [...tabla.querySelectorAll(".informe-grupos th[data-grupo]")].map((th) => th.textContent);
+    expect(grupos(tablas[0])).toEqual(["Datos generales", "Descripción general", "Descripción específica"]);
+    expect(grupos(tablas[1])).toEqual(["Descripción contextual", "Evolución y continuación", "Diagnóstico", "Observaciones"]);
+    const cabeceras = (tabla) => [...tabla.querySelectorAll("th[data-columna]")].map((th) => th.textContent);
+    expect(cabeceras(tablas[0]).slice(0, 3)).toEqual([etiqueta("numero_registro"), etiqueta("numero_caso"), etiqueta("jugador")]);
+    expect(cabeceras(tablas[1]).slice(0, 2)).toEqual([etiqueta("numero_registro"), etiqueta("producto")]);
+    expect(cabeceras(tablas[0]).length + cabeceras(tablas[1]).length).toBe(CAMPOS.length + 1);
     expect(contenedor.querySelectorAll(".informe-tabla select")).toHaveLength(0);
 
     await tocar(contenedor.querySelector(".reporte-volver"));

@@ -1598,6 +1598,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         mapa={mapa}
         hoy={hoyISO()}
         etiqueta={etiqueta}
+        etiquetaDeGrupo={(grupo) => etiquetaDeGrupo(grupo, config, idioma)}
         textoDeOpcion={textoDeOpcion}
         enPantalla={enPantalla}
         camposVisibles={CAMPOS.filter(visible)}

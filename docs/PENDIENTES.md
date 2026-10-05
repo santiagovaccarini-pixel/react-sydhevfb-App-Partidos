@@ -305,6 +305,12 @@ mover a una configuración por club:
   porción por parte del cuerpo; por jugador y por cuándo, apiladas o agrupadas por parte;
   qué filtros tiene cada bloque (las segmentaciones del Excel) y si la parte vacía cuenta
   como "Sin dato".
+- La tabla del reporte individual (`TABLA_DEL_INDIVIDUAL` en `src/domain/reportes.js`, pedido
+  de Santiago del 05/10): todas las columnas que el club tiene a la vista, en dos tablas una
+  debajo de la otra: de Datos generales a Descripción específica arriba, y de Descripción
+  contextual a Observaciones abajo (un grupo que no esté en ninguna va a la última). Cada tabla
+  arranca con el N° de registro (o el N° de caso, si el registro está escondido) y lleva la fila
+  de los grupos con los mismos tonos que la base.
 - Validaciones: obligatorios jugador, tipo de lesión (pedido del 02/10), parte,
   lado y fecha de inicio; fechas no futuras y posteriores al inicio (también la
   hora de la imagen: no antes del día de la lesión); la misma lesión no se

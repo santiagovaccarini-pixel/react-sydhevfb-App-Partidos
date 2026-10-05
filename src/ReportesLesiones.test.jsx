@@ -2,7 +2,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import ReportesLesiones from "./ReportesLesiones.jsx";
-import { CAMPOS, etiquetaDeCampo } from "./domain/lesionesCampos.js";
+import { CAMPOS, etiquetaDeCampo, etiquetaDeGrupo } from "./domain/lesionesCampos.js";
 import { crearMapa } from "./domain/mapaCorporal.js";
 import { fijarIdiomaParaPruebas } from "./idioma/index.js";
 
@@ -70,6 +70,7 @@ describe("los reportes con los minutos del GPS", () => {
           mapa={crearMapa()}
           hoy={hoy}
           etiqueta={(clave) => etiquetaDeCampo(clave, null, "es-AR")}
+          etiquetaDeGrupo={(grupo) => etiquetaDeGrupo(grupo, null, "es-AR")}
           textoDeOpcion={(campo, codigo) => codigo || ""}
           enPantalla={(campo, lesion) => `${campo.clave}:${lesion.id}`}
           camposVisibles={CAMPOS}
@@ -130,7 +131,11 @@ describe("los reportes con los minutos del GPS", () => {
     // Sus datos y sus dos lesiones (la traumática también), por n° de registro.
     expect(contenedor.querySelector(".informe-posicion").textContent).toBe("centroavante");
     expect([...contenedor.querySelectorAll(".informe-dato dd")].map((dd) => dd.textContent)).toEqual(["25/07/1986", "esquerdo"]);
-    expect([...contenedor.querySelectorAll(".informe-tabla tbody tr td:first-child")].map((td) => td.textContent)).toEqual(["numero_registro:les-1", "numero_registro:les-2"]);
+    // Cada tabla arranca con el n° de registro.
+    expect([...contenedor.querySelectorAll(".informe-tabla")].map((tabla) => [...tabla.querySelectorAll("tbody tr td:first-child")].map((td) => td.textContent))).toEqual([
+      ["numero_registro:les-1", "numero_registro:les-2"],
+      ["numero_registro:les-1", "numero_registro:les-2"],
+    ]);
   });
 
   test("un jugador sin lesiones del cuadro: 0 y \"0%\", como el Excel", async () => {
@@ -159,16 +164,38 @@ describe("los reportes con los minutos del GPS", () => {
     expect(texto()).toContain("Faltan los minutos del GPS");
   });
 
-  test("el historial: las doce columnas del reporte a la vista, menos las que el club escondió", async () => {
+  test("el historial: todas las columnas a la vista, en dos tablas por grupo del Excel, menos las que el club escondió", async () => {
     await montar();
     await tocar(botonQueEmpieza("Reporte individual"));
     await tocar(botonQueEmpieza("HULK"));
-    const cabeceras = () => [...contenedor.querySelectorAll(".informe-tabla th")].map((th) => th.textContent);
-    const etiquetas = ["numero_registro", "parte_cuerpo", "tipo_lesion", "mecanismo", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_alta", "recuperacion", "musculo", "musculo_especifico"].map((clave) => etiquetaDeCampo(clave, null, "es-AR"));
-    expect(cabeceras()).toEqual(etiquetas);
+    const tablas = () => [...contenedor.querySelectorAll(".informe-tabla")];
+    const grupos = (tabla) => [...tabla.querySelectorAll(".informe-grupos th[data-grupo]")].map((th) => `${th.textContent}:${th.colSpan}`);
+    const cabeceras = (tabla) => [...tabla.querySelectorAll("th[data-columna]")].map((th) => th.dataset.columna);
+    const celdas = (tabla) => [...tabla.querySelector("tbody tr").querySelectorAll("td")].map((td) => td.dataset.columna);
+    const deGrupos = (...lista) => CAMPOS.filter((campo) => lista.includes(campo.grupo)).map((campo) => campo.clave);
+
+    expect(tablas()).toHaveLength(2);
+    // Arriba: Datos generales, Descripción general y Descripción específica,
+    // con el n° de registro primero.
+    const [arriba, abajo] = tablas();
+    expect(grupos(arriba)).toEqual(["Datos generales:8", "Descripción general:7", "Descripción específica:4"]);
+    const deArriba = ["numero_registro", ...deGrupos("dados_gerais", "descricao_geral", "descricao_especifica").filter((clave) => clave !== "numero_registro")];
+    expect(cabeceras(arriba)).toEqual(deArriba);
+    expect(celdas(arriba)).toEqual(deArriba);
+    // Abajo: de Descripción contextual a Observaciones, con el n° de
+    // registro repetido adelante (fuera de los grupos).
+    expect(grupos(abajo)).toEqual(["Descripción contextual:4", "Evolución y continuación:10", "Diagnóstico:1", "Observaciones:2"]);
+    const deAbajo = ["numero_registro", ...deGrupos("descricao_contextual", "evolucao", "diagnostico", "observacoes")];
+    expect(cabeceras(abajo)).toEqual(deAbajo);
+    expect(celdas(abajo)).toEqual(deAbajo);
+    expect(abajo.querySelector('.informe-grupos th[data-columna="numero_registro"]').rowSpan).toBe(2);
+    // Todas las columnas de la base están, una sola vez (menos el n° de registro, que se repite).
+    expect([...deArriba, ...deAbajo.slice(1)].sort()).toEqual(CAMPOS.map((campo) => campo.clave).sort());
     expect(contenedor.querySelectorAll(".informe-tabla select")).toHaveLength(0);
     // La severidad, en una píldora.
-    expect(contenedor.querySelector(".informe-tabla tbody tr .informe-severidad").textContent).toBe("severidad:les-1");
+    expect(contenedor.querySelector('.informe-tabla tbody tr td[data-columna="severidad"] .informe-severidad').textContent).toBe("severidad:les-1");
+
+    // Lo que el club escondió no está: una columna, y un grupo entero (Diagnóstico).
     await act(async () => raiz.unmount());
     await act(async () => {
       raiz = createRoot(contenedor);
@@ -180,25 +207,31 @@ describe("los reportes con los minutos del GPS", () => {
           mapa={crearMapa()}
           hoy={hoy}
           etiqueta={(clave) => etiquetaDeCampo(clave, null, "es-AR")}
+          etiquetaDeGrupo={(grupo) => etiquetaDeGrupo(grupo, null, "es-AR")}
           textoDeOpcion={(campo, codigo) => codigo || ""}
           enPantalla={(campo, lesion) => (campo.clave === "musculo" ? "" : campo.clave === "tipo_lesion" ? "ENTORSE/LESÃO" : campo.clave === "fecha_lesion" ? "01/03/2026" : `${campo.clave}:${lesion.id}`)}
-          camposVisibles={CAMPOS.filter((campo) => campo.clave !== "musculo_especifico")}
+          camposVisibles={CAMPOS.filter((campo) => !["musculo_especifico", "diagnostico"].includes(campo.clave))}
           gps={GPS}
         />,
       );
     });
     await tocar(botonQueEmpieza("Reporte individual"));
     await tocar(botonQueEmpieza("HULK"));
-    expect(cabeceras()).toEqual(etiquetas.slice(0, 11));
+    expect(cabeceras(tablas()[0])).not.toContain("musculo_especifico");
+    expect(grupos(tablas()[0]).at(-1)).toBe("Descripción específica:3");
+    expect(grupos(tablas()[1])).toEqual(["Descripción contextual:4", "Evolución y continuación:10", "Observaciones:2"]);
+    const celda = (clave) => contenedor.querySelector(`.informe-tabla tbody tr td[data-columna="${clave}"]`);
     // Lo vacío, con una raya.
-    const fila = contenedor.querySelector(".informe-tabla tbody tr").children;
-    expect(fila[10].textContent).toBe("—");
+    expect(celda("musculo").textContent).toBe("—");
     // Lo pegado con barras se puede partir después de la barra (sin cambiar
     // el texto); las fechas, no.
-    expect(fila[2].textContent).toBe("ENTORSE/LESÃO");
-    expect(fila[2].querySelectorAll("wbr")).toHaveLength(1);
-    expect(fila[7].textContent).toBe("01/03/2026");
-    expect(fila[7].querySelectorAll("wbr")).toHaveLength(0);
+    expect(celda("tipo_lesion").textContent).toBe("ENTORSE/LESÃO");
+    expect(celda("tipo_lesion").querySelectorAll("wbr")).toHaveLength(1);
+    expect(celda("fecha_lesion").textContent).toBe("01/03/2026");
+    expect(celda("fecha_lesion").querySelectorAll("wbr")).toHaveLength(0);
+    // Las cortas no se parten en renglones; los textos, sí.
+    expect(celda("fecha_lesion").classList.contains("informe-corta")).toBe(true);
+    expect(celda("tipo_lesion").classList.contains("informe-corta")).toBe(false);
   });
 
   test("el mapa corporal: una mancha donde se lesionó, con el nombre de lo lesionado", async () => {
@@ -287,7 +320,7 @@ describe("los reportes con los minutos del GPS", () => {
     await tocar(botonQueEmpieza("Reporte individual"));
     await tocar(botonQueEmpieza("HULK"));
     // Sus lesiones con fecha: las dos de antes, no la sin fecha.
-    expect(contenedor.querySelectorAll(".informe-tabla tbody tr")).toHaveLength(2);
+    expect(contenedor.querySelector(".informe-tabla").querySelectorAll("tbody tr")).toHaveLength(2);
     await tocar(botonQueEmpieza("Reportes"));
     await tocar(botonQueEmpieza("Reporte grupal"));
     await tocar([...contenedor.querySelectorAll(".chip-criterio")].find((chip) => chip.textContent === "Todo"));
