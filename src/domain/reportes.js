@@ -458,7 +458,7 @@ export const TABLA_DEL_INDIVIDUAL = Object.freeze({
 // Devuelve un tramo por tabla, sin los que quedan vacíos:
 // { id, grupos: [{ clave, columnas: [clave] }] }. `id` es la columna que
 // identifica la fila (o null): va adelante en todas las tablas, fuera de los
-// grupos, como el número de fila de la base.
+// grupos.
 export const tramosDeLaTabla = (campos, reglas = TABLA_DEL_INDIVIDUAL) => {
   const lista = campos || [];
   const claves = lista.map((campo) => campo.clave);

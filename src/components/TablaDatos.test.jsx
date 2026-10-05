@@ -68,6 +68,25 @@ describe("la tabla estilo Excel", () => {
       ),
     );
 
+  test("arriba dice cuántas filas hay y la tabla no lleva una columna que las cuente", async () => {
+    await montar();
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("2 filas");
+    // Cada fila tiene solo sus celdas: nada de número de fila.
+    expect(contenedor.querySelectorAll("thead tr.tabla-datos-cabeceras th")).toHaveLength(3);
+    expect([...contenedor.querySelectorAll("tbody tr")].every((tr) => tr.children.length === 3 && !tr.querySelector("th"))).toBe(true);
+    expect(contenedor.textContent).not.toContain("#");
+    // Una sola fila, en singular; sin filas, cero.
+    await montar({ filas: [filas[0]] });
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("1 fila");
+    await montar({ filas: [] });
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("0 filas");
+    expect(contenedor.querySelector(".tabla-datos-vacia").getAttribute("colspan")).toBe("3");
+    // En portugués.
+    fijarIdiomaParaPruebas("pt-BR");
+    await montar();
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("2 linhas");
+  });
+
   test("se eligen celdas, se editan tocando dos veces y las listas abren la hoja de opciones", async () => {
     await montar();
     expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
@@ -104,8 +123,9 @@ describe("la tabla estilo Excel", () => {
     await montar();
     const escrito = [];
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (texto) => escrito.push(texto), readText: async () => "SCARPA\t33\tDerecho" } });
-    // El número de fila elige la fila entera.
-    await tocar(contenedor.querySelectorAll("tbody th")[0]);
+    // Mayúscula + espacio elige la fila entera, como en Excel.
+    await tocar(celda(contenedor, 0, 1));
+    await act(async () => contenedor.querySelector(".tabla-datos-marco").dispatchEvent(new KeyboardEvent("keydown", { key: " ", shiftKey: true, bubbles: true })));
     expect(contenedor.textContent).toContain("3 celdas elegidas");
     await tocar([...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === "Copiar"));
     expect(escrito).toEqual(["HULK\t40 años\tIzquierdo"]);
@@ -153,8 +173,8 @@ describe("la tabla estilo Excel", () => {
     const conGrupos = columnas.map((columna, i) => ({ ...columna, grupo: i < 2 ? "jugador" : "cuerpo", grupoTitulo: i < 2 ? "Jugador" : "Cuerpo" }));
     await montar({ columnas: conGrupos });
     const grupos = [...contenedor.querySelectorAll(".tabla-datos-grupos th")];
-    expect(grupos.map((th) => th.textContent)).toEqual(["", "Jugador", "Cuerpo"]);
-    expect(grupos.map((th) => th.getAttribute("colspan"))).toEqual([null, "2", "1"]);
+    expect(grupos.map((th) => th.textContent)).toEqual(["Jugador", "Cuerpo"]);
+    expect(grupos.map((th) => th.getAttribute("colspan"))).toEqual(["2", "1"]);
     // El botón del filtro no arrastra la cabecera ni cambia su nombre.
     expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
 
@@ -177,7 +197,9 @@ describe("la tabla estilo Excel", () => {
     await tocar(valores()[1].querySelector("input"));
     await tocar(botonDe("Aplicar"));
     expect(nombres()).toEqual(["SCARPA"]);
-    expect(contenedor.textContent).toContain("Mostrando 1 de 2");
+    // Arriba, cuántas se ven de cuántas.
+    const cuantas = () => contenedor.querySelector(".tabla-datos-cuantas").textContent;
+    expect(cuantas()).toBe("1 de 2 filas");
 
     // Al volver a abrir, lo elegido sigue marcado; con todo marcado, el filtro se quita.
     const marcados = () => valores().map((label) => [label.textContent, label.querySelector("input").checked]);
@@ -189,7 +211,7 @@ describe("la tabla estilo Excel", () => {
     await tocar(botonDe("Todos"));
     await tocar(botonDe("Aplicar"));
     expect(nombres()).toEqual(["SCARPA", "HULK"]);
-    expect(contenedor.textContent).not.toContain("Mostrando");
+    expect(cuantas()).toBe("2 filas");
     // De nuevo solo las vacías, para lo que sigue.
     await tocar(filtro("Pie"));
     await tocar(botonDe("Ninguno"));
@@ -216,7 +238,7 @@ describe("la tabla estilo Excel", () => {
     await tocar(botonDe("Quitar filtro"));
     await tocar(botonDe("Quitar filtros"));
     expect(nombres()).toEqual(["HULK", "SCARPA"]);
-    expect(contenedor.textContent).not.toContain("Mostrando");
+    expect(cuantas()).toBe("2 filas");
   });
 
   test("una fila que se pide a la vista se ve aunque el filtro la deje afuera, hasta que se cambian los filtros", async () => {
@@ -299,7 +321,7 @@ describe("la tabla estilo Excel", () => {
     await act(async () => raiz.render(<div />));
     await montar({ recordar: "prueba-memoria" });
     expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(1);
-    expect(contenedor.textContent).toContain("Mostrando 1 de 2");
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("1 de 2 filas");
     // Sin nombre para recordar, empieza sin filtros.
     await act(async () => raiz.render(<div />));
     await montar();
@@ -411,7 +433,9 @@ describe("la tabla estilo Excel", () => {
     const [hulk, scarpa] = contenedor.querySelectorAll("tbody tr");
     expect(hulk.classList.contains("apagada")).toBe(false);
     expect(scarpa.classList.contains("apagada")).toBe(true);
-    expect(scarpa.querySelector("th").title).toBe("Ya no está");
+    // Al pasar el mouse por la fila, lo dice.
+    expect(scarpa.title).toBe("Ya no está");
+    expect(hulk.title).toBe("");
     const fondo = (elemento) => getComputedStyle(elemento).backgroundColor;
     // Una celda fija (Edad) de la fila apagada va en su tono, distinto del de
     // una fija de una fila común. (jsdom no resuelve var(): el color de las
@@ -439,8 +463,12 @@ describe("la tabla estilo Excel", () => {
     expect(cabeceras(contenedor)).toEqual(["Nombre", "Pie", "Edad"]);
     const [nombre, pie, edad] = contenedor.querySelectorAll("th[data-columna]");
     expect(nombre.classList.contains("inmovil")).toBe(true);
-    expect(nombre.style.width).toBe("150px");
-    expect(nombre.style.left).toContain("var(--tabla-datos-ancho-numero)");
+    // Su ancho, de borde a borde, y pegada al borde izquierdo (no hay número de fila).
+    expect(contenedor.querySelector("table").style.getPropertyValue("--tabla-ancho-nombre")).toBe("150px");
+    expect(nombre.style.width).toBe("var(--tabla-ancho-nombre)");
+    expect(nombre.style.boxSizing).toBe("border-box");
+    expect(nombre.style.left).toBe("0px");
+    expect(celda(contenedor, 0, 0).style.width).toBe("var(--tabla-ancho-nombre)");
     expect(celda(contenedor, 0, 0).classList.contains("inmovil")).toBe(true);
     expect(celda(contenedor, 0, 1).classList.contains("inmovil")).toBe(false);
     // Arrastrar: apretar y mover dos veces (la primera arranca el arrastre).
@@ -469,6 +497,107 @@ describe("la tabla estilo Excel", () => {
     expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
     expect(JSON.parse(localStorage.getItem("tabla_columnas:prueba"))).toEqual(["edad", "pie", "nombre"]);
     expect(celda(contenedor, 0, 1).textContent).toBe("40 años");
+
+    // Con dos fijas, la segunda queda a la derecha de la primera, con el
+    // ancho que tenga esa (aunque se cambie a mano).
+    await montar({ fijas: ["nombre", "edad"], columnas: [{ ...columnas[0], ancho: 150 }, { ...columnas[1], ancho: 90 }, columnas[2]] });
+    const [, segunda] = contenedor.querySelectorAll("th[data-columna]");
+    expect(segunda.style.left).toBe("calc(var(--tabla-ancho-nombre))");
+    expect(segunda.classList.contains("ultima-inmovil")).toBe(true);
+    expect(contenedor.querySelector("table").style.getPropertyValue("--tabla-ancho-edad")).toBe("90px");
+  });
+
+  // Medidas de mentira: jsdom no dibuja.
+  const conAncho = (elemento, ancho) => {
+    elemento.getBoundingClientRect = () => ({ width: ancho, height: 30, top: 0, left: 0, right: ancho, bottom: 30, x: 0, y: 0 });
+  };
+
+  test("el ancho de una columna se cambia arrastrando el borde de su cabecera y queda guardado", async () => {
+    await montar();
+    const tabla = () => contenedor.querySelector("table");
+    const cabecera = () => contenedor.querySelectorAll("th[data-columna]")[0];
+    const borde = () => cabecera().querySelector(".tabla-datos-borde");
+    // Sin ancho elegido, la columna se acomoda a lo que tiene.
+    expect(cabecera().style.width).toBe("");
+    expect(celda(contenedor, 0, 0).style.width).toBe("");
+    conAncho(cabecera(), 120);
+
+    await puntero(borde(), "pointerdown", { x: 200 });
+    // Agarrar el borde no arrastra la cabecera.
+    await puntero(borde(), "pointermove", { x: 150 });
+    expect(tabla().classList.contains("arrastrando")).toBe(false);
+    expect(tabla().classList.contains("ajustando")).toBe(true);
+    // Mientras se arrastra, cambia la variable de la columna: 120 − 50.
+    expect(tabla().style.getPropertyValue("--tabla-ancho-nombre")).toBe("70px");
+    expect(cabecera().style.width).toBe("var(--tabla-ancho-nombre)");
+    expect(celda(contenedor, 1, 0).style.maxWidth).toBe("var(--tabla-ancho-nombre)");
+    // No se achica menos que el botón del filtro.
+    await puntero(borde(), "pointermove", { x: -400 });
+    expect(tabla().style.getPropertyValue("--tabla-ancho-nombre")).toBe("44px");
+    await puntero(borde(), "pointermove", { x: 260 });
+    await puntero(borde(), "pointerup", { x: 260 });
+    expect(tabla().classList.contains("ajustando")).toBe(false);
+    expect(tabla().style.getPropertyValue("--tabla-ancho-nombre")).toBe("180px");
+    expect(JSON.parse(localStorage.getItem("tabla_anchos:prueba"))).toEqual({ nombre: 180 });
+    // El orden de las columnas no se tocó, y nada se eligió ni se editó.
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+    expect(contenedor.querySelector("td.activa")).toBeNull();
+
+    // Al volver a la tabla, sigue con ese ancho.
+    await act(async () => raiz.render(<div />));
+    await montar();
+    expect(tabla().style.getPropertyValue("--tabla-ancho-nombre")).toBe("180px");
+    expect(celda(contenedor, 0, 0).style.width).toBe("var(--tabla-ancho-nombre)");
+
+    // Dos clics en el borde: vuelve a acomodarse sola.
+    await act(async () => borde().dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    expect(tabla().style.getPropertyValue("--tabla-ancho-nombre")).toBe("");
+    expect(celda(contenedor, 0, 0).style.width).toBe("");
+    expect(JSON.parse(localStorage.getItem("tabla_anchos:prueba"))).toEqual({});
+  });
+
+  test("un toque en el borde sin moverlo no le fija el ancho; lo guardado que no se entiende no cuenta", async () => {
+    localStorage.setItem("tabla_anchos:prueba", JSON.stringify({ edad: "mucho", pie: 10 }));
+    await montar();
+    const tabla = contenedor.querySelector("table");
+    // Un ancho que no es número no va; uno muy chico queda en el mínimo.
+    expect(tabla.style.getPropertyValue("--tabla-ancho-edad")).toBe("");
+    expect(tabla.style.getPropertyValue("--tabla-ancho-pie")).toBe("44px");
+    const nombre = contenedor.querySelectorAll("th[data-columna]")[0];
+    conAncho(nombre, 120);
+    const borde = nombre.querySelector(".tabla-datos-borde");
+    await puntero(borde, "pointerdown", { x: 200 });
+    await puntero(borde, "pointerup", { x: 200 });
+    expect(tabla.style.getPropertyValue("--tabla-ancho-nombre")).toBe("");
+    expect(nombre.style.width).toBe("");
+    // Ni abre el filtro ni elige nada.
+    expect(contenedor.querySelector(".tabla-datos-valores")).toBeNull();
+    expect(contenedor.querySelector("td.activa")).toBeNull();
+  });
+
+  test("con una columna achicada a mano, el título de su grupo no la ensancha", async () => {
+    localStorage.setItem("tabla_anchos:prueba", JSON.stringify({ edad: 50 }));
+    const conGrupos = columnas.map((columna, i) => ({ ...columna, grupo: i < 2 ? "jugador" : "cuerpo", grupoTitulo: i < 2 ? "Jugador" : "Cuerpo" }));
+    await montar({ columnas: conGrupos });
+    const [jugador, cuerpo] = contenedor.querySelectorAll(".tabla-datos-grupos th");
+    expect(jugador.firstElementChild.classList.contains("tabla-datos-envoltura")).toBe(true);
+    expect(cuerpo.firstElementChild.classList.contains("tabla-datos-envoltura")).toBe(false);
+    expect(jugador.textContent).toBe("Jugador");
+  });
+
+  test("una columna fija también se achica, y las fijas de al lado la siguen", async () => {
+    await montar({ fijas: ["nombre", "edad"], columnas: [{ ...columnas[0], ancho: 150 }, { ...columnas[1], ancho: 90 }, columnas[2]] });
+    const tabla = contenedor.querySelector("table");
+    const [nombre, edad] = contenedor.querySelectorAll("th[data-columna]");
+    conAncho(nombre, 150);
+    const borde = nombre.querySelector(".tabla-datos-borde");
+    await puntero(borde, "pointerdown", { x: 300 });
+    await puntero(borde, "pointermove", { x: 240 });
+    await puntero(borde, "pointerup", { x: 240 });
+    expect(tabla.style.getPropertyValue("--tabla-ancho-nombre")).toBe("90px");
+    // La segunda fija se corre sola: su lugar sale del ancho de la primera.
+    expect(edad.style.left).toBe("calc(var(--tabla-ancho-nombre))");
+    expect(JSON.parse(localStorage.getItem("tabla_anchos:prueba"))).toEqual({ nombre: 90 });
   });
 
   test("con las filas que se ven: los colores de cada celda y las filas de arriba, alineadas con su columna", async () => {

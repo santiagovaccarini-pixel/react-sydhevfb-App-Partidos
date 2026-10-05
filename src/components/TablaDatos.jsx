@@ -22,12 +22,16 @@ import "./tablaDatos.css";
 
 // Una tabla estilo base de datos, parecida a Excel: las cabeceras se
 // arrastran para cambiar el orden (en el celular, manteniendo apretado), las
-// celdas se eligen tocándolas (con Shift se elige un rango; el número de
-// fila elige la fila entera), se copian y se pegan como texto con
-// tabulaciones (lo que Excel y Google Sheets entienden) y se cambian tocando
-// dos veces. El orden de las columnas queda guardado en el celular. Cada
+// celdas se eligen tocándolas (con Shift se elige un rango; con Shift y la
+// barra espaciadora, la fila entera, como en Excel), se copian y se pegan
+// como texto con tabulaciones (lo que Excel y Google Sheets entienden) y se
+// cambian tocando dos veces. Cada columna se achica o se agranda arrastrando
+// el borde derecho de su cabecera (dos clics en el borde: vuelve a su ancho).
+// El orden y el ancho de las columnas quedan guardados en el celular. Cada
 // cabecera tiene su filtro, como en Excel (valores para elegir y orden), y
-// si las columnas traen grupo, arriba va la fila de los grupos.
+// si las columnas traen grupo, arriba va la fila de los grupos. Arriba de la
+// tabla va cuántas filas hay (con filtros, cuántas se ven de cuántas): la
+// tabla no lleva una columna que cuente las filas (Santiago, 05/10).
 //
 // columnas: [{ clave, titulo, tipo, editable, opciones, ancho, grupo, grupoTitulo }]
 // filas:    [{ id, valores: { clave: valor }, textos: { clave: texto }, orden?: { clave: valor }, apagada? }]
@@ -35,15 +39,15 @@ import "./tablaDatos.css";
 //           `apagada`, una fila que va en otro color: en las bases, alguien
 //           que ya no está en el plantel actual)
 // leyenda: qué quiere decir ese color (se ve si hay alguna fila apagada a la
-// vista; si no, guarda su lugar); rotuloApagada: lo que dice el número de una
-// fila apagada al pasar el mouse
+// vista; si no, guarda su lugar); rotuloApagada: lo que dice una fila
+// apagada al pasar el mouse
 // onEditar(filaId, clave, valor) → Promise<{ error }>; onPegar(cambios) → Promise<{ error, hechos }>
 // onAbrirFila(filaId), onBorrarFila(filaId)
 // recordar: con qué nombre se guardan los filtros y el orden mientras la app
 // está abierta (al abrir una ficha y volver, siguen como estaban).
 // fijas: claves de las columnas que van primero y quedan a la vista al
 // correr la tabla en la compu (como inmovilizar en Excel). No se arrastran;
-// cada una lleva su `ancho` (en píxeles).
+// cada una lleva su `ancho` (en píxeles, de borde a borde).
 // vista(filasVista) → { estilos, arriba }: lo que depende de las filas que
 // se ven (las que dejan los filtros), como el SUBTOTAL y el formato
 // condicional de Excel. estilos: { id de fila: { clave: estilo } }; arriba:
@@ -57,23 +61,46 @@ import "./tablaDatos.css";
 // filtros: ahí vuelven a mandar los filtros.
 
 const CLAVE_ORDEN = "tabla_columnas";
+const CLAVE_ANCHOS = "tabla_anchos";
 const ESPERA_APRETAR = 380;
+// Lo más angosta que queda una columna: entra el botón del filtro.
+const ANCHO_MINIMO = 44;
+// El ancho de una columna fija que no trae el suyo.
+const ANCHO_FIJA = 120;
 
-const leerOrden = (id) => {
+const leerDelCelular = (clave, id) => {
   try {
-    return JSON.parse(localStorage.getItem(`${CLAVE_ORDEN}:${id}`) || "null");
+    return JSON.parse(localStorage.getItem(`${clave}:${id}`) || "null");
   } catch {
     return null;
   }
 };
 
-const guardarOrden = (id, orden) => {
+const guardarEnCelular = (clave, id, valor) => {
   try {
-    localStorage.setItem(`${CLAVE_ORDEN}:${id}`, JSON.stringify(orden));
+    localStorage.setItem(`${clave}:${id}`, JSON.stringify(valor));
   } catch {
-    // Sin localStorage, el orden dura lo que dura la pantalla.
+    // Sin localStorage, el orden y los anchos duran lo que dura la pantalla.
   }
 };
+
+const leerOrden = (id) => leerDelCelular(CLAVE_ORDEN, id);
+const guardarOrden = (id, orden) => guardarEnCelular(CLAVE_ORDEN, id, orden);
+
+// Los anchos elegidos a mano: { clave: píxeles } (lo que no se entiende, no).
+const leerAnchos = (id) => {
+  const guardados = leerDelCelular(CLAVE_ANCHOS, id);
+  if (!guardados || typeof guardados !== "object" || Array.isArray(guardados)) return {};
+  return Object.fromEntries(
+    Object.entries(guardados)
+      .filter(([, ancho]) => Number.isFinite(ancho))
+      .map(([clave, ancho]) => [clave, Math.max(ANCHO_MINIMO, Math.round(ancho))]),
+  );
+};
+
+// La variable de CSS con el ancho de una columna. Mientras se arrastra el
+// borde cambia solo la variable: la tabla no se vuelve a dibujar entera.
+const variableDeAncho = (clave) => `--tabla-ancho-${String(clave).replace(/[^A-Za-z0-9_-]/g, "_")}`;
 
 const rango = (a, b) => (a <= b ? [a, b] : [b, a]);
 
@@ -129,9 +156,15 @@ export const TablaDatos = ({
   const [filtros, setFiltros] = useState(() => (recordar && memoria.get(recordar)?.filtros) || {}); // { clave: [textos elegidos] }
   const [ordenFilas, setOrdenFilas] = useState(() => (recordar && memoria.get(recordar)?.orden) || null); // { clave, sentido }
   const [hojaFiltro, setHojaFiltro] = useState(null); // { clave, titulo, elegidos, busqueda }
+  // Los anchos elegidos a mano ({ clave: píxeles }) y la columna a la que se
+  // le está arrastrando el borde.
+  const [anchos, setAnchos] = useState(() => leerAnchos(id));
+  const [ajustando, setAjustando] = useState(null);
   const marco = useRef(null);
+  const tablaRef = useRef(null);
   const temporizador = useRef(null);
   const arrastreRef = useRef(null);
+  const ajusteRef = useRef(null);
   // La fila de la celda activa, por id: si un filtro u orden la mueve, la
   // selección la sigue.
   const idActiva = useRef(null);
@@ -150,22 +183,36 @@ export const TablaDatos = ({
   }, [orden, columnas, clavesFijas]);
   const visiblesRef = useRef(visibles);
   visiblesRef.current = visibles;
-  // Dónde queda cada columna fija: a la derecha del número de fila y de las
-  // fijas anteriores.
-  const lugarFijo = useMemo(() => {
-    const lugares = {};
-    let izquierda = 0;
-    clavesFijas.forEach((clave, indice) => {
-      const ancho = columnas.find((c) => c.clave === clave)?.ancho || 120;
-      lugares[clave] = {
-        estilo: { left: `calc(var(--tabla-datos-ancho-numero) + ${izquierda}px)`, width: ancho, minWidth: ancho, maxWidth: ancho },
-        ultima: indice === clavesFijas.length - 1,
-      };
-      izquierda += ancho;
+  // El ancho de cada columna que lo tiene: el elegido a mano o, en una fija,
+  // el suyo. Las demás se acomodan a lo que tienen adentro.
+  const anchosVigentes = useMemo(() => {
+    const vigentes = {};
+    columnas.forEach((col) => {
+      const ancho = anchos[col.clave] ?? (clavesFijas.includes(col.clave) ? col.ancho || ANCHO_FIJA : null);
+      if (ancho) vigentes[col.clave] = ancho;
     });
-    return lugares;
-  }, [clavesFijas, columnas]);
-  const claseFija = (clave) => (lugarFijo[clave] ? `inmovil ${lugarFijo[clave].ultima ? "ultima-inmovil" : ""}`.trim() : "");
+    return vigentes;
+  }, [columnas, anchos, clavesFijas]);
+  const variablesDeAncho = useMemo(
+    () => Object.fromEntries(Object.entries(anchosVigentes).map(([clave, ancho]) => [variableDeAncho(clave), `${ancho}px`])),
+    [anchosVigentes],
+  );
+  // Lo que lleva cada celda de una columna con ancho (de borde a borde) y,
+  // si es fija, dónde queda: a la derecha de las fijas anteriores.
+  const estiloDeColumna = useMemo(() => {
+    const estilos = {};
+    const antes = [];
+    clavesFijas.forEach((clave) => {
+      estilos[clave] = { left: antes.length ? `calc(${antes.map((otra) => `var(${variableDeAncho(otra)})`).join(" + ")})` : 0 };
+      antes.push(clave);
+    });
+    Object.keys(anchosVigentes).forEach((clave) => {
+      const ancho = `var(${variableDeAncho(clave)})`;
+      estilos[clave] = { ...estilos[clave], boxSizing: "border-box", width: ancho, minWidth: ancho, maxWidth: ancho };
+    });
+    return estilos;
+  }, [clavesFijas, anchosVigentes]);
+  const claseFija = (clave) => (clavesFijas.includes(clave) ? `inmovil ${clave === clavesFijas.at(-1) ? "ultima-inmovil" : ""}`.trim() : "");
   // Sin ninguna columna que se pueda cambiar (solo lectura), Pegar no va.
   const algoEditable = visibles.some((columna) => columna.editable);
 
@@ -247,18 +294,6 @@ export const TablaDatos = ({
     idActiva.current = filasVista[f]?.id ?? null;
     setActiva({ f, c });
     setSeleccion({ f1: f, c1: c, f2: f, c2: c });
-  };
-
-  const elegirFila = (f, extender = false) => {
-    setEditando(null);
-    const ultima = visibles.length - 1;
-    if (extender && activa) {
-      setSeleccion({ f1: activa.f, c1: 0, f2: f, c2: ultima });
-      return;
-    }
-    idActiva.current = filasVista[f]?.id ?? null;
-    setActiva({ f, c: 0 });
-    setSeleccion({ f1: f, c1: 0, f2: f, c2: ultima });
   };
 
   const estaElegida = (f, c) => {
@@ -378,7 +413,11 @@ export const TablaDatos = ({
     else if (evento.key === "ArrowUp") mover(-1, 0);
     else if (evento.key === "ArrowRight") mover(0, 1);
     else if (evento.key === "ArrowLeft") mover(0, -1);
-    else if (evento.key === "Enter" || evento.key === "F2" || (evento.key === " " && visibles[activa.c]?.tipo === "casilla")) {
+    else if (evento.key === " " && evento.shiftKey) {
+      // La fila entera, como en Excel.
+      evento.preventDefault();
+      setSeleccion({ f1: activa.f, c1: 0, f2: activa.f, c2: visibles.length - 1 });
+    } else if (evento.key === "Enter" || evento.key === "F2" || (evento.key === " " && visibles[activa.c]?.tipo === "casilla")) {
       evento.preventDefault();
       empezarEdicion(activa.f, activa.c);
     } else if (evento.key === "Escape") {
@@ -570,6 +609,65 @@ export const TablaDatos = ({
 
   useEffect(() => () => terminarArrastre(), [terminarArrastre]);
 
+  // ------------------------------------------- El ancho de las columnas --
+  // Como en Excel: se arrastra el borde derecho de la cabecera. Mientras se
+  // arrastra cambia solo la variable de CSS de esa columna; al soltar, queda
+  // guardado. El borde no arrastra la cabecera ni abre nada.
+
+  const empezarAncho = (evento, clave) => {
+    evento.stopPropagation();
+    if (evento.button !== undefined && evento.button !== 0) return;
+    evento.preventDefault();
+    const cabecera = evento.currentTarget.closest("th");
+    const inicial = Math.max(ANCHO_MINIMO, Math.round(cabecera?.getBoundingClientRect().width || 0));
+    ajusteRef.current = { clave, desde: evento.clientX, inicial, actual: inicial, tenia: clave in anchos };
+    try {
+      evento.currentTarget.setPointerCapture(evento.pointerId);
+    } catch {
+      // Sin captura igual se sigue mientras el puntero esté sobre el borde.
+    }
+    setAjustando(clave);
+    // Desde ya la columna tiene ancho: el que tiene ahora.
+    setAnchos((previos) => (previos[clave] === inicial ? previos : { ...previos, [clave]: inicial }));
+  };
+
+  const moverAncho = (evento) => {
+    const ajuste = ajusteRef.current;
+    if (!ajuste) return;
+    evento.stopPropagation();
+    evento.preventDefault();
+    const ancho = Math.max(ANCHO_MINIMO, Math.round(ajuste.inicial + evento.clientX - ajuste.desde));
+    if (ancho === ajuste.actual) return;
+    ajuste.actual = ancho;
+    tablaRef.current?.style.setProperty(variableDeAncho(ajuste.clave), `${ancho}px`);
+  };
+
+  const terminarAncho = (evento) => {
+    const ajuste = ajusteRef.current;
+    if (!ajuste) return;
+    evento.stopPropagation();
+    ajusteRef.current = null;
+    setAjustando(null);
+    setAnchos((previos) => {
+      const { [ajuste.clave]: _antes, ...resto } = previos;
+      // Un toque en el borde sin moverlo no le fija el ancho a una columna
+      // que no lo tenía.
+      const nuevos = ajuste.actual === ajuste.inicial && !ajuste.tenia ? resto : { ...resto, [ajuste.clave]: ajuste.actual };
+      guardarEnCelular(CLAVE_ANCHOS, id, nuevos);
+      return nuevos;
+    });
+  };
+
+  // Dos clics en el borde: la columna vuelve a su ancho.
+  const anchoDeEntrada = (clave) => {
+    setAnchos((previos) => {
+      if (!(clave in previos)) return previos;
+      const { [clave]: _quitado, ...resto } = previos;
+      guardarEnCelular(CLAVE_ANCHOS, id, resto);
+      return resto;
+    });
+  };
+
   // ------------------------------------------------- Filtros y orden --
 
   const olvidarSeleccion = () => {
@@ -634,17 +732,16 @@ export const TablaDatos = ({
   const filaActiva = activa ? filasVista[activa.f] : null;
   const textoDeEstado = ocupada
     ? t("tabla.guardando")
-    : mensaje ||
-      aviso ||
-      (celdasElegidas
-        ? plural("tabla.seleccion", celdasElegidas)
-        : hayFiltros
-          ? t("tabla.mostrando", { n: filasVista.length, total: filas.length })
-          : t("tabla.sinSeleccion"));
+    : mensaje || aviso || (celdasElegidas ? plural("tabla.seleccion", celdasElegidas) : t("tabla.sinSeleccion"));
+  // Cuántas filas hay; con filtros, cuántas se ven de cuántas.
+  const cuantasFilas = hayFiltros ? plural("tabla.filasDe", filas.length, { n: filasVista.length, total: filas.length }) : plural("tabla.filas", filas.length);
+  // El rótulo de las filas de arriba ocupa las fijas (o la primera columna).
+  const columnasDelRotulo = Math.max(clavesFijas.length, 1);
 
   return (
     <div className="tabla-datos" ref={marco}>
       <div className="tabla-datos-barra">
+        <span className="tabla-datos-cuantas">{cuantasFilas}</span>
         <span className="tabla-datos-estado">{textoDeEstado}</span>
         <div className="tabla-datos-acciones">
           {(hayFiltros || ordenFilas) && (
@@ -685,28 +782,35 @@ export const TablaDatos = ({
       )}
 
       <div className="tabla-datos-marco" tabIndex={0} onKeyDown={alTeclear} onPaste={alPegarEvento}>
-        <table className={`tabla-datos-tabla ${arrastre ? "arrastrando" : ""} ${hayGrupos ? "con-grupos" : ""}`.trim()}>
+        <table
+          ref={tablaRef}
+          className={`tabla-datos-tabla ${arrastre ? "arrastrando" : ""} ${ajustando ? "ajustando" : ""} ${hayGrupos ? "con-grupos" : ""}`.trim()}
+          style={variablesDeAncho}
+        >
           <thead>
             {filasArriba.map((filaArriba) => (
               <tr key={filaArriba.id} className="tabla-datos-arriba">
-                <th className="tabla-datos-numero" aria-hidden="true">
-                  {clavesFijas.length === 0 ? filaArriba.rotulo : null}
-                </th>
-                {clavesFijas.length > 0 && filaArriba.rotulo !== null && (
+                {filaArriba.rotulo !== null && (
                   <th
                     scope="row"
-                    colSpan={clavesFijas.length}
+                    colSpan={columnasDelRotulo}
                     rowSpan={filaArriba.alto || 1}
-                    className="tabla-datos-arriba-rotulo inmovil ultima-inmovil"
-                    style={{ left: "var(--tabla-datos-ancho-numero)" }}
+                    className={`tabla-datos-arriba-rotulo ${clavesFijas.length ? "inmovil ultima-inmovil" : ""}`.trim()}
+                    style={clavesFijas.length ? { left: 0 } : undefined}
                   >
-                    {filaArriba.rotulo}
+                    {/* Sobre las fijas no las ensancha: si no entra, se corta. */}
+                    {clavesFijas.length ? <div className="tabla-datos-envoltura">{filaArriba.rotulo}</div> : filaArriba.rotulo}
                   </th>
                 )}
-                {visibles.slice(clavesFijas.length).map((col) => {
+                {visibles.slice(columnasDelRotulo).map((col) => {
                   const celda = filaArriba.celdas?.[col.clave];
+                  const ancho = estiloDeColumna[col.clave];
                   return (
-                    <td key={col.clave} className={`tabla-datos-arriba-celda ${col.alinear === "centro" ? "centrada" : ""}`.trim()} style={celda?.estilo || undefined}>
+                    <td
+                      key={col.clave}
+                      className={`tabla-datos-arriba-celda ${col.alinear === "centro" ? "centrada" : ""}`.trim()}
+                      style={ancho && celda?.estilo ? { ...ancho, ...celda.estilo } : ancho || celda?.estilo || undefined}
+                    >
                       {celda?.texto ?? ""}
                     </td>
                   );
@@ -715,24 +819,27 @@ export const TablaDatos = ({
             ))}
             {hayGrupos && (
               <tr className="tabla-datos-grupos">
-                <th className="tabla-datos-numero" aria-hidden="true" />
-                {tramos.map((tramo) => (
-                  <th
-                    key={`${tramo.grupo}-${tramo.desde}`}
-                    colSpan={tramo.cantidad}
-                    scope="colgroup"
-                    className={`tabla-datos-grupo ${tramo.grupo ? `tono-${tonoDeGrupo[tramo.grupo] ?? 0}` : "sin-grupo"}`}
-                    title={tramo.titulo}
-                  >
-                    <span className="tabla-datos-grupo-titulo">{tramo.titulo}</span>
-                  </th>
-                ))}
+                {tramos.map((tramo) => {
+                  // Con una columna del grupo achicada a mano, el título del
+                  // grupo no la ensancha: si no entra, se corta.
+                  const achicado = visibles.slice(tramo.desde, tramo.desde + tramo.cantidad).some((col) => col.clave in anchos);
+                  return (
+                    <th
+                      key={`${tramo.grupo}-${tramo.desde}`}
+                      colSpan={tramo.cantidad}
+                      scope="colgroup"
+                      className={`tabla-datos-grupo ${tramo.grupo ? `tono-${tonoDeGrupo[tramo.grupo] ?? 0}` : "sin-grupo"}`}
+                      title={tramo.titulo}
+                    >
+                      <div className={achicado ? "tabla-datos-envoltura" : undefined}>
+                        <span className="tabla-datos-grupo-titulo">{tramo.titulo}</span>
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             )}
             <tr className="tabla-datos-cabeceras">
-              <th className="tabla-datos-numero" aria-label={t("tabla.fila")}>
-                #
-              </th>
               {visibles.map((col, indice) => {
                 const filtrada = Boolean(filtrosVigentes[col.clave]);
                 const ordenada = ordenFilas?.clave === col.clave;
@@ -740,8 +847,8 @@ export const TablaDatos = ({
                   <th
                     key={col.clave}
                     data-columna={indice}
-                    className={`${arrastre?.desde === indice ? "origen" : ""} ${arrastre?.sobre === indice ? "destino" : ""} ${col.editable ? "" : "fija"} ${col.grupo ? `tono-${tonoDeGrupo[col.grupo] ?? 0}` : ""} ${claseFija(col.clave)}`.trim()}
-                    style={lugarFijo[col.clave]?.estilo || (col.ancho ? { minWidth: col.ancho } : undefined)}
+                    className={`${arrastre?.desde === indice ? "origen" : ""} ${arrastre?.sobre === indice ? "destino" : ""} ${col.editable ? "" : "fija"} ${col.grupo ? `tono-${tonoDeGrupo[col.grupo] ?? 0}` : ""} ${claseFija(col.clave)} ${ajustando === col.clave ? "ajustada" : ""}`.trim()}
+                    style={estiloDeColumna[col.clave] || (col.ancho ? { minWidth: col.ancho } : undefined)}
                     onPointerDown={(evento) => alApretarCabecera(evento, indice)}
                     onPointerMove={alMoverCabecera}
                     onPointerUp={terminarArrastre}
@@ -769,6 +876,21 @@ export const TablaDatos = ({
                         <Icono nombre="filtro" size={12} />
                       </button>
                     </span>
+                    {/* El borde para achicarla o agrandarla, como en Excel. */}
+                    <span
+                      className="tabla-datos-borde"
+                      aria-hidden="true"
+                      title={t("tabla.ancho")}
+                      onPointerDown={(evento) => empezarAncho(evento, col.clave)}
+                      onPointerMove={moverAncho}
+                      onPointerUp={terminarAncho}
+                      onPointerCancel={terminarAncho}
+                      onClick={(evento) => evento.stopPropagation()}
+                      onDoubleClick={(evento) => {
+                        evento.stopPropagation();
+                        anchoDeEntrada(col.clave);
+                      }}
+                    />
                   </th>
                 );
               })}
@@ -777,31 +899,27 @@ export const TablaDatos = ({
           <tbody>
             {filasVista.length === 0 && (
               <tr>
-                <td colSpan={visibles.length + 1} className="tabla-datos-vacia">
+                <td colSpan={Math.max(visibles.length, 1)} className="tabla-datos-vacia">
                   {filas.length === 0 ? t("tabla.vacio") : t("tabla.sinResultados")}
                 </td>
               </tr>
             )}
             {filasVista.map((fila, f) => (
-              <tr key={fila.id} className={`${activa?.f === f ? "activa" : ""} ${fila.apagada ? "apagada" : ""}`.trim() || undefined}>
-                <th
-                  className="tabla-datos-numero"
-                  title={fila.apagada ? rotuloApagada || leyenda || undefined : undefined}
-                  onClick={(evento) => elegirFila(f, evento.shiftKey)}
-                  onDoubleClick={() => onAbrirFila?.(fila.id)}
-                >
-                  {f + 1}
-                </th>
+              <tr
+                key={fila.id}
+                className={`${activa?.f === f ? "activa" : ""} ${fila.apagada ? "apagada" : ""}`.trim() || undefined}
+                title={fila.apagada ? rotuloApagada || leyenda || undefined : undefined}
+              >
                 {visibles.map((col, c) => {
                   const enEdicion = editando && editando.filaId === fila.id && editando.clave === col.clave;
                   const esActiva = activa?.f === f && activa?.c === c;
                   const formato = estilosDeCeldas?.[fila.id]?.[col.clave] || null;
-                  const lugar = lugarFijo[col.clave]?.estilo;
+                  const ancho = estiloDeColumna[col.clave];
                   return (
                     <td
                       key={col.clave}
-                      className={`${estaElegida(f, c) ? "elegida" : ""} ${esActiva ? "activa" : ""} ${col.editable ? "" : "fija"} ${col.tipo === "casilla" ? "casilla" : ""} ${col.alinear === "centro" ? "centrada" : ""} ${formato ? "con-formato" : ""} ${claseFija(col.clave)}`.trim()}
-                      style={lugar || formato ? { ...lugar, ...formato } : undefined}
+                      className={`${estaElegida(f, c) ? "elegida" : ""} ${esActiva ? "activa" : ""} ${enEdicion ? "editando" : ""} ${col.editable ? "" : "fija"} ${col.tipo === "casilla" ? "casilla" : ""} ${col.alinear === "centro" ? "centrada" : ""} ${formato ? "con-formato" : ""} ${claseFija(col.clave)}`.trim()}
+                      style={ancho && formato ? { ...ancho, ...formato } : ancho || formato || undefined}
                       onClick={(evento) => {
                         if (esActiva && !evento.shiftKey && !enEdicion) empezarEdicion(f, c);
                         else elegir(f, c, evento.shiftKey);

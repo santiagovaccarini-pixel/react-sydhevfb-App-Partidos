@@ -190,7 +190,7 @@ describe("los reportes con los minutos del GPS", () => {
     expect(cabeceras(abajo)).toEqual(deAbajo);
     expect(celdas(abajo)).toEqual(deAbajo);
     // En las dos, el n° de registro va adelante fuera de los grupos (las dos
-    // filas de la cabecera), fijo y en negrita como el número de fila de la base.
+    // filas de la cabecera), fijo y en negrita.
     for (const tabla of tablas()) {
       expect(tabla.querySelector('.informe-grupos th[data-columna="numero_registro"]').rowSpan).toBe(2);
       expect(tabla.querySelector('.informe-grupos th[data-columna="numero_registro"]').classList.contains("informe-id")).toBe(true);

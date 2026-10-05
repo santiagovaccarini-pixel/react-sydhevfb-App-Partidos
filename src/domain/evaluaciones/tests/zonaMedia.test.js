@@ -35,7 +35,7 @@ const calcular = (filas, referencias = REFERENCIAS) => calcularFilas(ZONA_MEDIA,
 const celdasDe = (resultado, id) => resultado.find((uno) => uno.fila.id === id).celdas;
 
 describe("Zona Media: cada fila, como el Excel", () => {
-  it("las clases contra los V.R. de su categoría, la asimetría, el déficit, el ratio y PRO??", () => {
+  it("las clases contra los V.R. de su categoría, el déficit, el ratio y PRO??", () => {
     const fila = evaluacion({ lumbar: t(3, 30), lateral_d: t(2, 0), lateral_i: t(1, 40), prono: t(3, 0) });
     const celdas = celdasDe(calcular([fila]), fila.id);
     expect(celdas.numero).toBe(1);
@@ -44,9 +44,10 @@ describe("Zona Media: cada fila, como el Excel", () => {
     expect(celdas.lateral_d_clas).toBe(3);
     expect(celdas.lateral_i_clas).toBe(2);
     expect(celdas.prono_clas).toBe(4);
-    // A: (I − D) / el menor × 100, con signo; el déficit, sin signo y "menos es mejor".
-    expect(celdas.asimetria).toBeCloseTo(-20, 10);
+    // El déficit: (I − D) / el menor × 100, sin signo (la "A" del Excel, que no
+    // se muestra, es lo mismo con signo); "menos es mejor".
     expect(celdas.deficit).toBeCloseTo(20, 10);
+    expect(celdas).not.toHaveProperty("asimetria");
     // 20 %: entre Bueno (15) y Regular (21), "menos es mejor": 2.
     expect(celdas.deficit_clas).toBe(2);
     expect(celdas.ratio).toBeCloseTo(180 / 210, 12);
@@ -78,7 +79,6 @@ describe("Zona Media: cada fila, como el Excel", () => {
   it("sin uno de los laterales no hay déficit ni su clase; sin Prono no hay ratio", () => {
     const fila = evaluacion({ lumbar: t(3, 0), lateral_i: t(1, 50) });
     const celdas = celdasDe(calcular([fila]), fila.id);
-    expect(celdas.asimetria).toBe("");
     expect(celdas.deficit).toBe("");
     expect(celdas.deficit_clas).toBe("");
     expect(celdas.ratio).toBe("");

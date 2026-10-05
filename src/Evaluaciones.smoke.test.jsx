@@ -70,7 +70,6 @@ vi.mock("./domain/lesionesDb.js", () => ({
     ],
     error: "",
   }),
-  leerConfig: async () => ({ config: null, error: "" }),
 }));
 vi.mock("./domain/evaluacionesDb.js", () => ({
   listarEvaluaciones: async () => {
@@ -101,7 +100,6 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
 
 const { default: Evaluaciones } = await import("./Evaluaciones.jsx");
 const { fijarIdiomaParaPruebas } = await import("./idioma/index.js");
-const { etiquetaDeOpcion } = await import("./domain/lesionesCampos.js");
 const { hoyISO } = await import("./idioma/formatos.js");
 
 const botones = (contenedor) => [...document.body.querySelectorAll("button")];
@@ -123,8 +121,9 @@ const filas = (contenedor) => [...contenedor.querySelectorAll("tbody tr")];
 const celda = (contenedor, fila, titulo) => filas(contenedor)[fila].querySelectorAll("td")[columna(contenedor, titulo)];
 const filaDeArriba = (contenedor, rotulo) => [...contenedor.querySelectorAll("tr.tabla-datos-arriba")].find((tr) => tr.querySelector("th.tabla-datos-arriba-rotulo")?.textContent.includes(rotulo));
 // Las celdas del informe van debajo de la misma columna que en la tabla:
-// después del número y del rótulo (que ocupa las fijas).
-const celdaDeArriba = (contenedor, tr, titulo) => tr.querySelectorAll("td")[columna(contenedor, titulo) - 6];
+// después del rótulo (que ocupa las fijas).
+const fijas = (contenedor) => contenedor.querySelectorAll("thead tr.tabla-datos-cabeceras th.inmovil").length;
+const celdaDeArriba = (contenedor, tr, titulo) => tr.querySelectorAll("td")[columna(contenedor, titulo) - fijas(contenedor)];
 
 describe("Evaluaciones", () => {
   let contenedor;
@@ -167,15 +166,21 @@ describe("Evaluaciones", () => {
     await montar();
     expect(contenedor.querySelector("h1").textContent).toBe('Evaluación Zona Media "CORE"');
     expect(contenedor.textContent).toContain("*Los Valores pintados corresponden a la comparación");
-    expect(cabeceras(contenedor).slice(0, 8)).toEqual(["nº Eva", "Fecha", "Jugador", "Seleccion", "Fecha Nac", "Posición", "Lumbar", "L. Clas"]);
+    expect(cabeceras(contenedor).slice(0, 8)).toEqual(["nº Eva", "Fecha", "Jugador", "Seleccion", "Fecha Nac", "Lumbar", "L. Clas", "% mejora"]);
     expect(cabeceras(contenedor).at(-1)).toBe("Nota");
+    // Posición no se usa y la "A" del Excel queda en Deficit Lateral % (sin signo).
+    expect(cabeceras(contenedor)).not.toContain("Posición");
+    expect(cabeceras(contenedor)).not.toContain("A");
+    expect(cabeceras(contenedor).slice(cabeceras(contenedor).indexOf("% mejora", 8) + 1, cabeceras(contenedor).indexOf("Prono"))).toEqual(["Lateral I", "L.I. Clas", "% mejora", "Deficit Lateral %", "Deficit. Clas"]);
+    expect(fijas(contenedor)).toBe(5);
+    // Arriba de la base, cuántas filas hay (no hay columna que las cuente).
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("3 filas");
 
     // Por fecha: las dos del 01/06 en el orden de carga, después la del 01/07.
     expect(filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Jugador")].textContent)).toEqual(["ALFA", "BETA", "ALFA"]);
     expect(celda(contenedor, 0, "nº Eva").textContent).toBe("1");
     expect(celda(contenedor, 2, "nº Eva").textContent).toBe("2");
     expect(celda(contenedor, 0, "Fecha Nac").textContent).toBe("15/03/2000");
-    expect(celda(contenedor, 0, "Posición").textContent).toBe(etiquetaDeOpcion("posicion", "delantero_central", null, "es-AR"));
     expect(celda(contenedor, 0, "Seleccion").textContent).toBe("Mayor");
     expect(celda(contenedor, 0, "Lumbar").textContent).toBe("4:00");
     // La clase, con el número del color de su clase, en negrita, sobre gris.
@@ -199,8 +204,8 @@ describe("Evaluaciones", () => {
     const mejoras = cabeceras(contenedor).flatMap((titulo, i) => (titulo === "% mejora" ? [i] : []));
     expect(mejoras).toHaveLength(4);
     const promedios = filaDeArriba(contenedor, "Promedios").querySelectorAll("td");
-    expect(promedios[mejoras[3] - 6].textContent).toBe("");
-    expect(filaDeArriba(contenedor, "Mínimo").querySelectorAll("td")[mejoras[3] - 6].textContent).toBe("");
+    expect(promedios[mejoras[3] - fijas(contenedor)].textContent).toBe("");
+    expect(filaDeArriba(contenedor, "Mínimo").querySelectorAll("td")[mejoras[3] - fijas(contenedor)].textContent).toBe("");
   });
 
   test("la comparación con los V.R. de la categoría elegida (Vs Mayor al abrir)", async () => {

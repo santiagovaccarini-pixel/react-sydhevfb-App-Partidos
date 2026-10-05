@@ -1034,8 +1034,9 @@ describe("el módulo Lesiones", () => {
     const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")];
     expect(cabeceras.map((th) => th.textContent).slice(0, 3)).toEqual(["N° de caso", "N° de registro", "Nombre y apellido"]);
     expect(cabeceras).toHaveLength(36);
-    // Arriba de las cabeceras, la fila de los grupos del Excel, cada uno sobre sus columnas.
-    const grupos = [...contenedor.querySelectorAll(".tabla-datos-grupos th")].slice(1);
+    // Arriba de las cabeceras, la fila de los grupos del Excel, cada uno sobre
+    // sus columnas (sin columna de número de fila adelante).
+    const grupos = [...contenedor.querySelectorAll(".tabla-datos-grupos th")];
     expect(grupos.map((th) => th.textContent)).toEqual(GRUPOS_DEL_EXCEL);
     expect(grupos.map((th) => Number(th.getAttribute("colspan")))).toEqual([8, 7, 4, 4, 10, 1, 2]);
     // Lo calculado se ve pero no se toca.
@@ -1116,7 +1117,7 @@ describe("el módulo Lesiones", () => {
     await tocar(valores()[1].querySelector("input"));
     await tocar(boton(contenedor, "Aplicar"));
     expect(casos()).toEqual(["2"]);
-    expect(texto(contenedor)).toContain("Mostrando 1 de 4");
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("1 de 4 filas");
     expect(filtroDe("Lado").classList.contains("activo")).toBe(true);
 
     // Otro filtro ofrece solo lo que deja pasar el primero.
