@@ -19,10 +19,19 @@
 --
 -- ATENCIÓN: borra la tabla lesiones anterior (y las lesiones de prueba que
 -- tuviera). Requiere 20261001_lesiones.sql. Se corre en Supabase > SQL
--- Editor, entero y de una vez. Es una sola transacción.
+-- Editor, entero y de una vez. Es una sola transacción. Después de
+-- 20261013_seguridad.sql se frena sola (borraría todas las lesiones).
 -- =====================================================================
 
 begin;
+
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'lesiones_historial' and column_name = 'equipo_id') then
+    raise exception 'Ya está corrida 20261013_seguridad.sql: esta es anterior y no hace falta volver a correrla.';
+  end if;
+end $$;
 
 -- ---------------------------------------------------- Datos del jugador --
 

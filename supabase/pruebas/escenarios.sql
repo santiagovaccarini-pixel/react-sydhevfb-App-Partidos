@@ -664,4 +664,33 @@ select pruebas.esperar('...pero siguen estando', (select count(*) from evaluacio
 select pruebas.esperar('...y la que corrigió la preparadora sigue diciendo que la cambió ella', (select actualizado_por::text from evaluaciones where persona = 'Cata Tres'), '00000000-0000-0000-0000-000000000015');
 select pruebas.esperar('...con lo que cargó', (select datos ->> 'lumbar' from evaluaciones where persona = 'Cata Tres'), '201');
 
+-- ------------------------------------------------------------- Seguridad --
+
+-- El historial de una lesión borrada no se abre con su id desde otro club.
+-- Eva carga, corrige y borra una lesión en Dos; el historial queda.
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva carga una lesión en Dos', pruebas.filas($$insert into lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c2', 'Persona de Dos', '2026-08-01', '{"parte_cuerpo":"joelho","lado":"direito","comentarios":"dato clínico de Dos"}')$$), 1);
+select pruebas.esperar('...la corrige', pruebas.filas($$update lesiones set datos = datos || '{"comentarios":"dato clínico corregido de Dos"}' where persona = 'Persona de Dos'$$), 1);
+select pruebas.esperar('...y la borra', pruebas.filas($$delete from lesiones where persona = 'Persona de Dos'$$), 1);
+reset role;
+select lesion_id as id_borrada from lesiones_historial where accion = 'borrada' and antes ->> 'persona' = 'Persona de Dos' \gset
+-- El mismo id vuelve en Uno (a mano, sin sesión: desde la app la base pone
+-- uno nuevo).
+select set_config('request.jwt.claims', '', false);
+insert into lesiones (id, equipo_id, persona, fecha_lesion, datos)
+values (:'id_borrada', '00000000-0000-0000-0000-0000000000c1', 'Id repetido', '2026-08-02', '{}');
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('En Uno se ve la lesión con el id repetido', (select count(*) from lesiones where id = :'id_borrada'), 1);
+select pruebas.esperar('...y su propio historial', (select count(*) from lesiones_historial where lesion_id = :'id_borrada' and despues ->> 'persona' = 'Id repetido'), 1);
+select pruebas.esperar('...pero no el de la lesión borrada de Dos', (select count(*) from lesiones_historial where lesion_id = :'id_borrada' and coalesce(despues, antes) ->> 'equipo_id' = '00000000-0000-0000-0000-0000000000c2'), 0);
+-- Desde la app, el id de una lesión nueva lo pone la base.
+select pruebas.esperar('Una lesión con el id elegido por la app se guarda', pruebas.filas($$insert into lesiones (id, equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000c1', 'Id elegido', '2026-08-03', '{}')$$), 1);
+select pruebas.esperar('...pero con otro id', (select count(*) from lesiones where persona = 'Id elegido' and id <> '00000000-0000-0000-0000-00000000ee01'), 1);
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva ve el historial de su lesión borrada, solo el de Dos', (select count(*) from lesiones_historial where lesion_id = :'id_borrada'), 3);
+select pruebas.esperar('...con lo que se corrigió', (select count(*) from lesiones_historial where lesion_id = :'id_borrada' and accion = 'editada' and despues -> 'datos' ->> 'comentarios' = 'dato clínico corregido de Dos'), 1);
+reset role;
+select pruebas.esperar('Todo cambio de lesión queda con su club', (select count(*) from lesiones_historial where equipo_id is null), 0);
+
 select 'ESCENARIOS: todos bien' as resultado;
