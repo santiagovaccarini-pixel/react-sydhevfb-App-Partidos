@@ -754,6 +754,44 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(db.lecturasHistorial).toBe(lecturas);
   });
 
+  // ----------------------------------------------------------------- 13 --
+  test("al editar un registro, los jugadores del rival que se ofrecen son los de ese partido", async () => {
+    // El borrador (Cruzeiro) tiene sus propios cambios del rival.
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify(borradorCruzeiro({ cambiosRival: [{ sale: "MATHEUS PEREIRA", entra: "KAIO JORGE", hora: "" }] })),
+    );
+    db.filas = [
+      {
+        id: 50,
+        equipo_id: "eq-1",
+        fecha: "2026-09-01",
+        rival: "Bahia",
+        resultado: "3-0",
+        rival_cambio_sale1: "EVERTON RIBEIRO",
+        rival_cambio_entra1: "CAULY",
+        rival_cambio_horario1: "21:30:00",
+      },
+    ];
+    await montar();
+    await irA("Registros");
+    await act(async () => contenedor.querySelector(".registro-guardado .boton-detalle").click());
+    await act(async () => boton("Editar registro").click());
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll('.selector-periodos.en-ficha [role="tab"]')).find((b) => b.textContent.includes("Cambios")).click(),
+    );
+    await act(async () => contenedor.querySelectorAll(".selector-equipo button")[1].click());
+
+    // El segundo cambio está vacío: al tocar "Sale" se ofrecen los nombres.
+    const sale = contenedor.querySelectorAll(".ranura-cambio")[1].querySelector(".sale input");
+    await act(async () => sale.focus());
+    const ofrecidos = Array.from(contenedor.querySelectorAll(".selector-nombre-lista button")).map((b) => b.textContent);
+
+    expect(ofrecidos).toEqual(expect.arrayContaining(["EVERTON RIBEIRO", "CAULY"]));
+    expect(ofrecidos).not.toContain("MATHEUS PEREIRA");
+    expect(ofrecidos).not.toContain("KAIO JORGE");
+  });
+
   // ----------------------------------------------------------------- 14 --
   test("un borrador escrito por otra versión de la app no se abre vacío ni se pisa sin copia", async () => {
     // Como si una versión más nueva hubiera cambiado el formato y se hubiera

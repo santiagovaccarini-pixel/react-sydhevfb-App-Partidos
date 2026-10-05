@@ -1634,15 +1634,18 @@ export default function App({
 
   const [mensajeFormacion, setMensajeFormacion] = useState("");
 
+  // Los jugadores del rival que se ofrecen en sus cambios: los de ese partido.
+  const jugadoresRivalDe = (partido) =>
+    [
+      ...(partido?.jugadoresRival || []),
+      ...(partido?.titularesRival || []),
+      ...(partido?.convocadosRival || []),
+      ...(partido?.cambiosRival || []).map((cambio) => cambio?.sale),
+      ...(partido?.cambiosRival || []).map((cambio) => cambio?.entra),
+    ].filter((jugador) => jugador && String(jugador).trim() !== "");
+
   const opcionesJugadoresRival = useMemo(
-    () =>
-      [
-        ...(registro.jugadoresRival || []),
-        ...(registro.titularesRival || []),
-        ...(registro.convocadosRival || []),
-        ...(registro.cambiosRival || []).map((cambio) => cambio.sale),
-        ...(registro.cambiosRival || []).map((cambio) => cambio.entra),
-      ].filter((jugador) => jugador && String(jugador).trim() !== ""),
+    () => jugadoresRivalDe(registro),
     [
       registro.jugadoresRival,
       registro.titularesRival,
@@ -7147,6 +7150,12 @@ export default function App({
       cambios: registroPanel.cambios,
       plantel: nombresPlantel,
     });
+    // Al editar un registro guardado, los del rival de ese partido; antes se
+    // ofrecían los del partido que se está cargando ahora.
+    const opcionesRival =
+      registroPanel === registro
+        ? opcionesJugadoresRival
+        : jugadoresRivalDe(registroPanel);
 
     return (
       <section
@@ -7219,7 +7228,7 @@ export default function App({
                     <InputJugadorRival
                       className="sale"
                       placeholder="Sale"
-                      opciones={opcionesJugadoresRival}
+                      opciones={opcionesRival}
                       value={cambio.sale}
                       onChange={(valor) =>
                         alActualizarRival(index, "sale", valor)
@@ -7243,7 +7252,7 @@ export default function App({
                     <InputJugadorRival
                       className="entra"
                       placeholder="Entra"
-                      opciones={opcionesJugadoresRival}
+                      opciones={opcionesRival}
                       value={cambio.entra}
                       onChange={(valor) =>
                         alActualizarRival(index, "entra", valor)
