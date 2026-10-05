@@ -535,6 +535,33 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola()).toHaveLength(0);
   });
 
+  // ------------------------------------------------------------------ 7 --
+  test("un partido en juego sin formación cargada sigue en curso al reabrir la app", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 21, 30, 0));
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify({
+        version: 2,
+        registro: {
+          fecha: "2026-09-08",
+          rival: "Cruzeiro",
+          resultado: "1-0",
+          inicioPT: "21:00:00",
+          cambios: [{ sale: "ALONSO", entra: "BERNARD", hora: "21:20:00", periodo: "PT" }, {}, {}, {}, {}],
+          formacion: { titulares: [], convocados: [] },
+        },
+      }),
+    );
+    await montar();
+
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+    expect(pestanas()).toContain("Partido");
+    expect(boton("Guardar partido")).toBeDefined();
+
+    await irA("Formación");
+    expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("EN VIVO");
+  });
+
   // ----------------------------------------------------------------- 14 --
   test("un borrador escrito por otra versión de la app no se abre vacío ni se pisa sin copia", async () => {
     // Como si una versión más nueva hubiera cambiado el formato y se hubiera

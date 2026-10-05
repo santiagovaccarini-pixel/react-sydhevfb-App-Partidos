@@ -1471,12 +1471,13 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   const plantelActual = useMemo(() => plantel.filter(esActual), [plantel]);
   const nombresPlantel = useMemo(() => nombresDelPlantel(plantelActual), [plantelActual]);
   const [equipoCambios, setEquipoCambios] = useState("atletico");
-  const formacionInicial = registro.formacion || crearFormacionVacia();
-  const hayFormacionInicial =
-    (formacionInicial.titulares || []).some((j) => String(j || "").trim()) ||
-    (formacionInicial.convocados || []).some((j) => String(j || "").trim());
-
-  const [partidoEnCurso, setPartidoEnCurso] = useState(hayFormacionInicial);
+  // Al abrir, hay partido en curso si el borrador tiene la formación o algo
+  // registrado (horarios, cambios, VAR, goles). Antes se miraba solo la
+  // formación: uno cargado sin ella desaparecía del inicio con todo lo
+  // anotado, y no había cómo volver al tablero para guardarlo.
+  const [partidoEnCurso, setPartidoEnCurso] = useState(() =>
+    hayPartidoCargado(registro),
+  );
 
   // Una sola hoja para todas las confirmaciones: la que esté pedida en el
   // momento. Reemplaza a los window.confirm del navegador.
@@ -1529,8 +1530,8 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   const escudoCam = useEscudoClub(equipoPropio, { demora: 0 });
   const escudoRival = useEscudoClub(registro.rival);
 
-  const [pantallaFormacion, setPantallaFormacion] = useState(
-    hayFormacionInicial && !soloLectura ? "lista" : "inicio",
+  const [pantallaFormacion, setPantallaFormacion] = useState(() =>
+    partidoEnCurso && !soloLectura ? "lista" : "inicio",
   );
 
   // Quien ya se fue del club no registra partidos: si estaba en el tablero o
