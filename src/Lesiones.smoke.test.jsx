@@ -244,6 +244,41 @@ describe("el módulo Lesiones", () => {
     expect(datos.historialesPedidos).toEqual(["les-1", "les-1"]);
   });
 
+  test("irse por la barra con una lesión a medio cargar pregunta antes de perderla", async () => {
+    await montar();
+    // Sin nada cargado, se va sin preguntar.
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await navegar(contenedor, "Base");
+    expect(texto(contenedor)).not.toContain("¿Salir sin guardar?");
+    expect(contenedor.querySelector(".tabla-datos")).toBeTruthy();
+
+    await navegar(contenedor, "Nuevos casos");
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await escribir(contenedor.querySelector(".lesiones-buscador-jugador"), "sca");
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
+    await navegar(contenedor, "Base");
+    expect(texto(contenedor)).toContain("¿Salir sin guardar?");
+    expect(texto(contenedor)).toContain("Lo que cargaste en esta lesión se pierde.");
+    // Seguir cargando: queda todo como estaba.
+    await tocar(boton(contenedor, "Seguir cargando"));
+    expect(texto(contenedor)).not.toContain("¿Salir sin guardar?");
+    expect(contenedor.querySelector(".rival-elegido").textContent).toBe("SCARPACambiar");
+    expect(contenedor.querySelector(".tabla-datos")).toBeNull();
+    // Sí, salir: va adonde se tocó.
+    await navegar(contenedor, "Base");
+    await tocar(boton(contenedor, "Sí, salir"));
+    expect(contenedor.querySelector(".tabla-datos")).toBeTruthy();
+    expect(datos.guardadas).toHaveLength(0);
+
+    // Lo mismo al editar una que ya estaba.
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    await navegar(contenedor, "Novos casos");
+    await tocar(boton(contenedor, "Ver detalhes"));
+    await tocar(boton(contenedor, "Editar"));
+    await navegar(contenedor, "Base");
+    expect(contenedor.querySelector(".tabla-datos")).toBeTruthy();
+  });
+
   test("una lesión nueva se carga por los grupos del Excel, solo con lo que el Excel no calcula", async () => {
     await montar();
     await tocar(boton(contenedor, "Nueva lesión"));
@@ -650,8 +685,10 @@ describe("el módulo Lesiones", () => {
     expect(especificos()).not.toContain("Gemelo interno");
     expect(especificos()).toContain("Músculo raro");
 
-    // En Ajustes, cada opción dice dónde va, y al escribir una nueva se ve en el momento.
+    // En Ajustes, cada opción dice dónde va, y al escribir una nueva se ve en
+    // el momento (la carga a medio hacer se deja, confirmando).
     await navegar(contenedor, "Ajustes");
+    await tocar(boton(contenedor, "Sí, salir"));
     await tocar(botonQueEmpieza(contenedor, "Listas"));
     await tocar(botonQueEmpieza(contenedor, etiqueta("musculo_especifico")));
     const detalleDe = (nombre) => [...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === nombre).textContent;
@@ -1275,9 +1312,10 @@ describe("el módulo Lesiones", () => {
     expect(campoDeFormulario(contenedor, etiqueta("medico"))).toBeUndefined();
     expect(campoDeFormulario(contenedor, etiqueta("comentarios"))).toBeTruthy();
 
-    // En la base tampoco está la columna escondida (la barra de abajo cierra la carga),
-    // y el grupo vacío no tiene lugar en la fila de los grupos.
+    // En la base tampoco está la columna escondida (la barra de abajo cierra la
+    // carga, confirmando), y el grupo vacío no tiene lugar en la fila de los grupos.
     await navegar(contenedor, "Base");
+    await tocar(boton(contenedor, "Sí, salir"));
     const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")].map((th) => th.textContent);
     expect(cabeceras).not.toContain("Mecanismo");
     expect(cabeceras).toContain("Parte del cuerpo lesionada");
