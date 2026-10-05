@@ -11,6 +11,16 @@ const aFecha = (valor) => {
   return Number.isNaN(fecha.getTime()) ? null : fecha;
 };
 
+// Una lista en palabras, en el idioma activo: "a, b y c" ("a, b e c").
+export const enLista = (textos) => {
+  const lista = (textos || []).filter(Boolean);
+  try {
+    return new Intl.ListFormat(idiomaActual(), { style: "long", type: "conjunction" }).format(lista);
+  } catch {
+    return lista.join(", ");
+  }
+};
+
 export const fechaCorta = (valor) => {
   const fecha = aFecha(valor);
   if (!fecha) return "";

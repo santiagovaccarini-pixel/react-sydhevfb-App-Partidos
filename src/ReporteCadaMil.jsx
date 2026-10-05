@@ -21,9 +21,9 @@ import { fechaCorta } from "./idioma/formatos.js";
 //
 // gps: los minutos ([{ jugadorId, fecha, minutos }]) o null mientras la app
 // no los tenga; numero: cómo se escriben los números en los reportes;
-// criterio: qué lesiones cuentan, en palabras del club.
+// queCuenta: qué lesiones cuentan y cuáles son las LM, en palabras del club.
 
-export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, estado, numero, criterio, onAviso }) {
+export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, estado, numero, queCuenta, onAviso }) {
   const { plural } = useIdioma();
   const equipoId = equipo?.id || null;
   const soloLectura = Boolean(equipo?.hasta);
@@ -167,7 +167,7 @@ export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, e
               <div className="informe-indices">
                 <CuadroCadaMil titulo={textoDelRango(desde, hasta)} filas={filas} />
                 {!gps && <p className="informe-aviso">{t("lesiones.cadaMil.faltaGps")}</p>}
-                <p className="informe-criterio">{t("lesiones.reportes.cuentan", { criterio })}</p>
+                <p className="informe-criterio">{queCuenta}</p>
               </div>
             </section>
           </>

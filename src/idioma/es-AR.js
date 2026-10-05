@@ -724,6 +724,7 @@ export default {
       registros_one: "{{n}} registro",
       registros_other: "{{n}} registros",
       cuentan: "Cuentan las lesiones con {{criterio}}.",
+      cuentanLm: "En «{{lm}}», de esas, las de tipo {{tipos}}.",
       faltaGps: "Faltan los minutos del GPS: sin ellos no se pueden sacar las cuentas cada 1000 horas.",
       sinLesionesJugador: "No tiene lesiones cargadas.",
       sinLesiones: "No hay lesiones en este período con estos filtros.",

@@ -298,7 +298,13 @@ mover a una configuración por club:
   Excel): el cuadro cada 1000 horas cuenta las lesiones no traumáticas (Datos Básicos P8)
   de partidos oficiales, amistosos y entrenamientos (R7:R9) del profesional (S7); "sin
   leves" saca solo la severidad leve (T8: las de registro quedan); LM son los grados 1A a
-  3C y la sobrecarga muscular / calambre.
+  3C y la sobrecarga muscular / calambre. La regla vale también para las LM: una LM
+  traumática o de selección no entra (05/10: Santiago pidió dejarlo como el Excel y "solo
+  aclarar cuáles van"). La nota de cada cuadro dice cuáles cuentan y cuáles son las LM, con
+  los textos del club. Con los datos del Excel la app da lo mismo que "Incidencias c 1000h" fila 109;
+  ojo que en el Excel los títulos de la fila 108 están cruzados: las columnas que dicen
+  "Tipos (Solo LM)" (B, C, H, I, N, O, T, U) tienen todas las lesiones, y las que dicen
+  "Tipos (TODAS)", solo las LM.
 - Informes gráficos (`REGLAS_GRAFICOS` en `src/domain/reportes.js`, de la hoja "Informes
   Graficos" del Excel): el año de un período guardado es el de su fecha final; en las
   tortas, por jugador y entrenamiento y partidos cuentan las que tienen tipo de lesión

@@ -36,14 +36,14 @@ import { fechaCorta } from "./idioma/formatos.js";
 //   5. Entrenamiento y partidos: cuándo, por parte del cuerpo, del año.
 // Qué cuenta cada uno está en REGLAS_GRAFICOS (domain/reportes.js).
 //
-// numero: cómo se escriben los números; criterio: qué lesiones cuentan en
-// los bloques 1 y 2, en palabras del club; etiqueta(campo) y
+// numero: cómo se escriben los números; queCuenta: qué lesiones cuentan en
+// los bloques 1 y 2 y cuáles son las LM, en palabras del club; etiqueta(campo) y
 // textoDeOpcion(campo, código): los textos del club; onIrA(modo): ir a otro
 // reporte (para guardar períodos).
 
 const BLOQUES = ["lesiones", "dias", "partes", "jugador", "momentos"];
 
-export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, acciones, estado, numero, criterio, etiqueta, textoDeOpcion, onIrA }) {
+export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, acciones, estado, numero, queCuenta, etiqueta, textoDeOpcion, onIrA }) {
   const { idioma, plural } = useIdioma();
   const equipoId = equipo?.id || null;
   const soloLectura = Boolean(equipo?.hasta);
@@ -261,7 +261,7 @@ export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, a
           )}
           <div className="reporte-graficos-notas">
             {!gps && <p className="informe-aviso">{t("lesiones.cadaMil.faltaGps")}</p>}
-            <p className="informe-criterio">{t("lesiones.reportes.cuentan", { criterio })}</p>
+            <p className="informe-criterio">{queCuenta}</p>
             <p className="informe-criterio">{t(`lesiones.graficos.anioNota.${REGLAS_GRAFICOS.anioDelPeriodo}`)}</p>
           </div>
         </>
