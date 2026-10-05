@@ -223,6 +223,8 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
   const [errorClub, setErrorClub] = useState("");
   const [miembros, setMiembros] = useState([]);
   const [invitaciones, setInvitaciones] = useState([]);
+  // Se está leyendo el club recién elegido.
+  const [leyendoClub, setLeyendoClub] = useState(false);
 
   // La invitación que se está armando.
   const [correo, setCorreo] = useState("");
@@ -297,10 +299,13 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
     setMiembros([]);
     setInvitaciones([]);
     setHistoria(null);
+    setLeyendoClub(true);
     try {
       await cargarClub(id);
     } catch (errorLectura) {
       if (clubIdRef.current === id) setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
+    } finally {
+      if (clubIdRef.current === id) setLeyendoClub(false);
     }
   };
 
@@ -552,7 +557,7 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
             </Grupo>
           )}
 
-          <Grupo titulo={t("cuentas.miembrosTitulo")} cantidad={activos.length} vacio={cargando ? t("comun.cargando") : t("cuentas.vacioMiembros")}>
+          <Grupo titulo={t("cuentas.miembrosTitulo")} cantidad={activos.length} vacio={cargando || leyendoClub ? t("comun.cargando") : t("cuentas.vacioMiembros")}>
             {activos.map((miembro) => (
               <FilaMiembro key={miembro.user_id} miembro={miembro} esMio={miembro.user_id === miUserId} ocupada={ocupada === miembro.user_id} {...accionesMiembro} />
             ))}

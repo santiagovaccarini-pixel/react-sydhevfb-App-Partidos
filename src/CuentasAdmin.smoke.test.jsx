@@ -350,6 +350,8 @@ describe("Cuentas", () => {
     await elegir("Club Dos");
     // Mientras se lee Club Dos no queda a la vista la gente de Club Uno.
     expect(fila("beto@uno.com")).toBeUndefined();
+    expect(texto()).toContain("Cargando…");
+    expect(texto()).not.toContain("Todavía no hay nadie en el club.");
     await elegir("Club Uno");
     expect(fila("beto@uno.com")).toBeTruthy();
     // Club Dos contesta tarde: no pisa a Club Uno.
