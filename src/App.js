@@ -4220,9 +4220,31 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     setRegistroSeleccionado(null);
   };
 
-  const eliminarRegistro = (indexAEliminar) => {
-    const registro = guardados[indexAEliminar];
+  /**
+   * El registro que se abrió (o se eligió para borrar), buscado en la lista
+   * de ahora: por su fila si la tiene, y si todavía no subió, por su fecha y
+   * rival. Antes se usaba el lugar que ocupaba en la lista, y si mientras
+   * tanto la lista cambiaba (volvía la señal, subía un pendiente y se
+   * reordenaba), la edición o el borrado caían sobre otro partido.
+   */
+  const buscarEnGuardados = (elegido) => {
+    if (!elegido) return null;
+    if (elegido.idSupabase) {
+      return (
+        guardados.find(
+          (item) => String(item.idSupabase) === String(elegido.idSupabase),
+        ) || null
+      );
+    }
+    const clave = clavePartido(elegido);
+    return guardados.find((item) => clavePartido(item) === clave) || null;
+  };
 
+  // La hoja de confirmación guarda la función del momento en que se abrió;
+  // así llama a la de ahora, que ve la lista de ahora.
+  const eliminarConfirmado = useRef(() => {});
+
+  const eliminarRegistro = (registro) => {
     setConfirmacion({
       titulo: "¿Eliminar este registro?",
       descripcion:
@@ -4235,7 +4257,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
         </>
       ),
       etiquetaConfirmar: "Sí, eliminar",
-      onConfirmar: () => confirmarEliminarRegistro(indexAEliminar),
+      onConfirmar: () => eliminarConfirmado.current(registro),
     });
   };
 
@@ -4253,8 +4275,10 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     setRegistroSeleccionado(null);
   };
 
-  const confirmarEliminarRegistro = async (indexAEliminar) => {
-    const registroAEliminar = guardados[indexAEliminar];
+  const confirmarEliminarRegistro = async (elegido) => {
+    // El que se eligió, como está ahora en la lista (por ejemplo, un
+    // pendiente que subió mientras la hoja estaba abierta ya tiene fila).
+    const registroAEliminar = buscarEnGuardados(elegido) || elegido;
 
     if (registroAEliminar?.sinSincronizar && !registroAEliminar.idSupabase) {
       quitarPendienteLocal(registroAEliminar);
@@ -4305,10 +4329,21 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     await cargarRegistrosSupabase();
     setRegistroSeleccionado(null);
   };
+  eliminarConfirmado.current = confirmarEliminarRegistro;
 
-  const actualizarRegistroGuardado = async (indexAEditar, registroEditado) => {
-    const anterior = guardados[indexAEditar];
-    const idRegistro = registroEditado.idSupabase || anterior?.idSupabase;
+  // `abierto` es el registro tal como estaba al abrirlo: se busca cómo está
+  // ahora en la lista (ver buscarEnGuardados), nunca por su lugar en ella.
+  const actualizarRegistroGuardado = async (abierto, registroEditado) => {
+    const anterior =
+      buscarEnGuardados(abierto) ||
+      (abierto?.sinSincronizar && !abierto.idSupabase
+        ? leerPendientes().find(
+            (item) => clavePartido(item) === clavePartido(abierto),
+          )
+        : null);
+    // Un pendiente que subió mientras se editaba ya tiene su fila: esa es la
+    // que se actualiza.
+    const idRegistro = anterior?.idSupabase || registroEditado.idSupabase;
 
     if (!idRegistro && !anterior?.sinSincronizar) {
       alert("Este registro no tiene ID de Supabase. No se puede editar.");
@@ -4405,7 +4440,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
     setRegistroSeleccionado({
       item: registroActualizado,
-      index: indexAEditar,
+      index: guardados.findIndex((item) => item.idSupabase === idRegistro),
     });
     setDetalleBorrador(registroActualizado);
     setDetalleEditando(false);
@@ -5727,7 +5762,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     };
 
     const guardarCambiosEdicion = async () => {
-      const ok = await actualizarRegistroGuardado(index, editado);
+      const ok = await actualizarRegistroGuardado(item, editado);
 
       if (ok) {
         setMensajeGuardado("Cambios guardados correctamente");
@@ -7721,7 +7756,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                         <button
                           type="button"
                           className="boton-eliminar-registro"
-                          onClick={() => eliminarRegistro(index)}
+                          onClick={() => eliminarRegistro(item)}
                           aria-label="Eliminar registro"
                         >
                           <Icono nombre="borrar" size={18} />

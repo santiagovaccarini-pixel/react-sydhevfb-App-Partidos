@@ -112,7 +112,16 @@ vi.mock("./supabase.js", () => ({
             },
           }),
         }),
-        delete: () => c,
+        delete: () => ({
+          eq: async (campo, valor) => {
+            db.filas = db.filas.filter((f) => String(f[campo]) !== String(valor));
+            return { data: null, error: null };
+          },
+          in: async (campo, valores) => {
+            db.filas = db.filas.filter((f) => !valores.map(String).includes(String(f[campo])));
+            return { data: null, error: null };
+          },
+        }),
         eq: (campo, valor) => {
           if (campo === "equipo_id") filtroEquipo = valor;
           return c;
@@ -445,6 +454,85 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     await irA("Formación");
     expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("Cruzeiro");
     expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("1-2");
+  });
+
+  // ------------------------------------------------------------------ 6 --
+  // En la base: el partido del miércoles (cargado desde otro celular). En
+  // este celular: el del sábado, que quedó sin subir, y la copia del miércoles.
+  const sabadoPendiente = () => ({
+    fecha: "2026-09-27",
+    rival: "Santos",
+    resultado: "1-1",
+    sinSincronizar: true,
+    cambios: [],
+    cambiosRival: [],
+    formacion: { titulares: [], convocados: [] },
+  });
+  const sembrarSabadoYMiercoles = () => {
+    vi.setSystemTime(new Date(2026, 9, 2, 10, 0, 0));
+    localStorage.removeItem("registro_actual_partido");
+    db.filas = [{ id: 50, equipo_id: "eq-1", fecha: "2026-10-01", rival: "Bahia", resultado: "3-0" }];
+    localStorage.setItem("registros_sin_sincronizar:eq-1", JSON.stringify([sabadoPendiente()]));
+    localStorage.setItem(
+      "backup_registros_partidos:eq-1",
+      JSON.stringify({
+        version: 2,
+        registros: [sabadoPendiente(), { fecha: "2026-10-01", rival: "Bahia", resultado: "3-0", idSupabase: 50 }],
+      }),
+    );
+    db.errorHistorial = { message: "sin señal" };
+  };
+  const vuelveLaSenal = async () => {
+    db.errorHistorial = null;
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await vaciarPromesas();
+    await vaciarPromesas();
+  };
+
+  test("editar un pendiente mientras vuelve la señal guarda la edición en ese partido y no en otro", async () => {
+    sembrarSabadoYMiercoles();
+    await montar();
+    await irA("Registros");
+    const filas = Array.from(contenedor.querySelectorAll(".registro-guardado"));
+    expect(filas[0].textContent).toContain("Santos");
+
+    // Abre el del sábado (pendiente) y lo edita: el resultado pasa a 2-1.
+    await act(async () => filas[0].querySelector(".boton-detalle").click());
+    await act(async () => boton("Editar registro").click());
+    await escribir(contenedor.querySelectorAll(".resultado-ficha input")[0], "2");
+
+    // Vuelve la señal mientras edita: el sábado sube y la lista se reordena.
+    await vuelveLaSenal();
+    expect(db.filas.map((f) => f.rival).sort()).toEqual(["Bahia", "Santos"]);
+
+    await act(async () => {
+      boton("Guardar cambios").click();
+    });
+    await vaciarPromesas();
+
+    const miercoles = db.filas.find((f) => f.id === 50);
+    expect(miercoles).toMatchObject({ rival: "Bahia", resultado: "3-0", fecha: "2026-10-01" });
+    const sabado = db.filas.find((f) => f.rival === "Santos");
+    expect(sabado.resultado).toBe("2-1");
+  });
+
+  test("borrar un partido mientras la lista se reordena borra ese y no el que quedó en su lugar", async () => {
+    sembrarSabadoYMiercoles();
+    await montar();
+    await irA("Registros");
+    const santos = Array.from(contenedor.querySelectorAll(".registro-guardado")).find((f) => f.textContent.includes("Santos"));
+    await act(async () => santos.querySelector(".boton-eliminar-registro").click());
+
+    // Con la hoja abierta vuelve la señal: el sábado sube y cambia de lugar.
+    await vuelveLaSenal();
+    await act(async () => boton("Sí, eliminar").click());
+    await vaciarPromesas();
+
+    // Se va el que se eligió (que ya había subido), y el otro se queda.
+    expect(db.filas.map((f) => f.rival)).toEqual(["Bahia"]);
+    expect(cola()).toHaveLength(0);
   });
 
   // ----------------------------------------------------------------- 14 --
