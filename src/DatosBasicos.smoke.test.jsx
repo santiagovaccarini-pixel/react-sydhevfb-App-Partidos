@@ -288,6 +288,17 @@ describe("el módulo Datos básicos", () => {
     expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
   });
 
+  test("una fecha de nacimiento pegada con el año en dos cifras es del siglo pasado, no del que viene", async () => {
+    await montar();
+    // SCARPA, sin fecha de nacimiento todavía.
+    await tocar(celda(contenedor, 1, 3));
+    const pegado = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pegado, "clipboardData", { value: { getData: () => "25/07/86" } });
+    await act(async () => contenedor.querySelector(".tabla-datos-marco").dispatchEvent(pegado));
+    expect(registro.guardados).toEqual([{ id: 8, fecha_nacimiento: "1986-07-25" }]);
+    expect(celda(contenedor, 1, 3).textContent).toBe("25/07/1986");
+  });
+
   test("las horas previas se escriben como en el Excel (30:14:20) y se guardan como horas", async () => {
     await montar();
     const horas = () => celda(contenedor, 0, 8);

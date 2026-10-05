@@ -155,6 +155,18 @@ describe("agregar un jugador desde Datos básicos", () => {
   });
 });
 
+describe("la fecha de nacimiento de Datos básicos", () => {
+  test("una fecha futura no se guarda", async () => {
+    doble.llamadas.length = 0;
+    expect(await guardarDatosJugador(7, { fecha_nacimiento: "2999-01-01" })).toEqual({ error: "datos.error.nacimientoFuturo" });
+    expect(doble.llamadas.some(([metodo]) => metodo === "update")).toBe(false);
+    doble.filas = { id: 7, nombre: "HULK", fecha_nacimiento: "1986-07-25" };
+    expect(await guardarDatosJugador(7, { fecha_nacimiento: "1986-07-25" })).toMatchObject({ error: "" });
+    // Vaciarla, sí.
+    expect(await guardarDatosJugador(7, { fecha_nacimiento: null })).toMatchObject({ error: "" });
+  });
+});
+
 describe("las horas previas de cada jugador", () => {
   const sinColumna = { data: null, error: { code: "42703", message: "column jugadores.horas_previas does not exist" } };
   const selects = () => doble.llamadas.filter(([metodo]) => metodo === "select").map(([, columnas]) => columnas);

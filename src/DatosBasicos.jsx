@@ -41,7 +41,7 @@ const COLUMNAS = [
   { clave: "nombre", tipo: "texto", editable: true, rotulo: "jugador" },
   { clave: "actual", tipo: "casilla", editable: true, texto: "datos.actual" },
   { clave: "categoria", tipo: "lista", editable: true },
-  { clave: "fecha_nacimiento", tipo: "fecha", editable: true },
+  { clave: "fecha_nacimiento", tipo: "fecha", editable: true, nacimiento: true },
   { clave: "edad", tipo: "calculado", editable: false },
   { clave: "pie_dominante", tipo: "lista", editable: true },
   { clave: "posicion", tipo: "lista", editable: true },
@@ -120,6 +120,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         clave: columna.clave,
         titulo: columna.texto ? t(columna.texto) : etiquetaDeCampo(columna.rotulo || columna.clave, config, idioma),
         tipo: columna.tipo,
+        // La fecha de nacimiento pegada nunca queda en el futuro ("86" es 1986).
+        nacimiento: columna.nacimiento,
         editable: columna.editable && !soloLectura,
         ancho: columna.clave === "nombre" ? 180 : undefined,
         opciones:

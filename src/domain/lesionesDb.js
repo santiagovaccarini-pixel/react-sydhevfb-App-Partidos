@@ -6,6 +6,7 @@ import { camposCambiados, claveDeErrorDeBase, normalizarLesion } from "./lesione
 import { armarConfig, campoPorClave, esCalculado, filasParaSembrar } from "./lesionesCampos.js";
 import { agregarJugador, cargarPlantel, normalizarJugador, quitarJugador } from "./plantel.js";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./alDia.js";
+import { hoyISO } from "../idioma/formatos.js";
 
 const COLUMNAS_SIN_PERSONA =
   "id, equipo_id, jugador_id, numero_caso, fecha_lesion, fecha_transicion, fecha_retorno_entrenamiento, fecha_alta, datos, creado_en, actualizado_en";
@@ -234,6 +235,8 @@ export const guardarDatosJugador = async (id, datos) => {
   }
   if ("actual" in datos) cambios.actual = datos.actual !== false;
   if (cambios.nombre === "") return { error: "datos.error.nombre" };
+  // Nadie nace en el futuro (una fecha elegida en el calendario de la celda).
+  if (cambios.fecha_nacimiento && cambios.fecha_nacimiento > hoyISO()) return { error: "datos.error.nacimientoFuturo" };
   const guardar = (valores, columnas) => supabase.from("jugadores").update(valores).eq("id", id).select(columnas).single();
   const sin = [];
   let valores = cambios;

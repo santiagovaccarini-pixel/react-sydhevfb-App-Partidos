@@ -347,6 +347,7 @@ export default {
       guardar: "No se pudo guardar.",
       leer: "No se pudieron leer los jugadores.",
       horas: "Las horas se escriben como en el Excel: 30:14:20, 30:14 o 30,5.",
+      nacimientoFuturo: "La fecha de nacimiento no puede ser posterior a hoy.",
       faltanHorasPrevias: "Para guardar las horas previas falta correr en Supabase el SQL de las horas previas.",
       borrarConDatos: "Tiene lesiones o evaluaciones cargadas y no se puede borrar: si ya no está en el club, desmarcá Actual.",
       faltaActual: "Para marcar quién está en el plantel actual falta correr en Supabase el SQL 20261011_jugadores_actual.sql.",
