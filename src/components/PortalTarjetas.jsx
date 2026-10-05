@@ -76,7 +76,7 @@ const PROPORCION_PARADA = 9 / 16;
 // Mientras tanto el módulo ya se cargó abajo, así que al irse está listo.
 // Con una foto parada, el zoom arranca igual desde la foto de la tarjeta y
 // en el camino se funde con la parada, que es la que queda.
-export const Portada = ({ tarjeta, desde, onTerminar }) => {
+export const Portada = ({ tarjeta, desde, onTerminar, className = "" }) => {
   const [foto] = useState(() => fotoDePortada(tarjeta, window.innerWidth, window.innerHeight));
   const [lugar] = useState(() =>
     lugarEnPantalla(window.innerWidth, window.innerHeight, {
@@ -113,7 +113,7 @@ export const Portada = ({ tarjeta, desde, onTerminar }) => {
       : lugar;
 
   return (
-    <div className={`portal-portada ${clase} ${fase}`} aria-hidden="true">
+    <div className={`portal-portada ${clase} ${fase} ${className}`.trim()} aria-hidden="true">
       <div className="portal-portada-fondo">
         <FotoTarjeta src={foto.src} Arte={Arte} />
       </div>

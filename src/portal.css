@@ -323,6 +323,12 @@
   pointer-events: none;
 }
 
+/* La portada de una base (adentro de Bases de Datos) va encima de la de Bases
+   de Datos, si esa todavía se está yendo. */
+.portal-portada.portal-portada-encima {
+  z-index: 1001;
+}
+
 .portal-portada .portal-foto {
   position: absolute;
   inset: 0;
@@ -872,6 +878,8 @@
 
 /* Bases de Datos: la pantalla principal con una tarjeta por base. Arriba, en
    vez de la cuenta, el botón para volver a los módulos y el idioma. */
+/* Arriba, como se ve el portal con todas sus tarjetas: con una o dos bases,
+   centrado, quedaría flotando en el medio de la pantalla. */
 .portal-modulos.bases-datos {
   place-items: start center;
 }

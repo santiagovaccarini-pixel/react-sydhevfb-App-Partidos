@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import App from "./App";
 import TrainingModule from "./TrainingModule";
 import AccessGate from "./AccessGate.jsx";
@@ -153,30 +153,38 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   // primero después de entrar es elegirlo.
   const [club, setClub] = useState(() => leerEquipoElegido());
   const [eligiendoClub, setEligiendoClub] = useState(false);
-  // La portada que se está mostrando (tarjeta y desde dónde arranca el zoom),
-  // o nada. Se muestra encima del módulo mientras este se carga.
+  // La portada que se está mostrando (tarjeta, desde dónde arranca el zoom y
+  // un número para que cada entrada sea una portada nueva), o nada. Se
+  // muestra encima del módulo mientras este se carga.
   const [portada, setPortada] = useState(null);
+  const portadas = useRef(0);
   const terminarPortada = useCallback(() => setPortada(null), []);
 
-  // Al volver al portal se vuelve a leer la lista de clubes: si el
-  // administrador dio de baja a esta cuenta del club (o la reincorporó), el
-  // celular se entera acá. Sin señal se queda con lo que sabía.
-  useEffect(() => {
-    if (modo !== MODOS.PORTAL || !club?.id) return undefined;
+  // Cada vez que se ven las tarjetas (las del portal o, al volver de una
+  // base, las de Bases de Datos) se vuelve a leer la lista de clubes: si el
+  // administrador dio de baja a esta cuenta del club (o la reincorporó, o le
+  // cambió los módulos), el celular se entera acá. Sin señal se queda con lo
+  // que sabía. Devuelve con qué cortarla: lo que llega después de entrar a un
+  // módulo no se usa (no saca a nadie de lo que está haciendo).
+  const clubActual = useRef(club);
+  clubActual.current = club;
+  const releerClub = useCallback(() => {
+    const leido = clubActual.current;
+    if (!leido?.id) return undefined;
     let vigente = true;
     cargarEquipos().then(({ equipos, error }) => {
       if (!vigente || error) return;
-      const fresco = (equipos || []).find((uno) => uno.id === club.id);
+      const fresco = (equipos || []).find((uno) => uno.id === leido.id);
       // Ya no está en el club, o lo dejó: las copias de ese club se van del
       // celular (lo que se ve desde ahora sale de la base, hasta su último día).
       if (!fresco || fresco.miembro === false) {
-        limpiarCopiasDelClub(club.id);
+        limpiarCopiasDelClub(leido.id);
         guardarEquipoElegido(null);
         setClub(null);
         return;
       }
-      if (fresco.hasta && !club.hasta) limpiarCopiasDelClub(club.id);
-      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones"].some((clave) => (fresco[clave] ?? null) !== (club[clave] ?? null));
+      if (fresco.hasta && !leido.hasta) limpiarCopiasDelClub(leido.id);
+      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null));
       if (cambio) {
         guardarEquipoElegido(fresco);
         setClub(fresco);
@@ -185,7 +193,9 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     return () => {
       vigente = false;
     };
-  }, [modo, club?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => (modo === MODOS.PORTAL ? releerClub() : undefined), [modo, club?.id, releerClub]);
 
   // Lo que se puede usar sale de la membresía en el club elegido (rol y
   // módulos); la cuenta solo dice si es dueña de la plataforma.
@@ -193,7 +203,8 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
 
   const elegir = (tarjeta, desde) => {
     if (!enClub?.[tarjeta.permiso]) return;
-    setPortada({ tarjeta, desde });
+    portadas.current += 1;
+    setPortada({ tarjeta, desde, numero: portadas.current });
     setModo(tarjeta.modo);
   };
 
@@ -226,7 +237,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
       </OpenFieldSession>
     );
   } else if (modo === MODOS.BASES && enClub.lesiones) {
-    contenido = <BasesDeDatos permisos={enClub} userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} />;
+    contenido = <BasesDeDatos permisos={enClub} userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} onTarjetas={releerClub} />;
   } else if (modo === MODOS.DATOS && enClub.datos) {
     contenido = <DatosBasicos onVolver={volver} permisos={enClub} />;
   } else if (modo === MODOS.CUENTAS && (enClub.admin || enClub.adminClub)) {
@@ -247,7 +258,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   return (
     <>
       {contenido}
-      {portada && <Portada tarjeta={portada.tarjeta} desde={portada.desde} onTerminar={terminarPortada} />}
+      {portada && <Portada key={portada.numero} tarjeta={portada.tarjeta} desde={portada.desde} onTerminar={terminarPortada} />}
     </>
   );
 };

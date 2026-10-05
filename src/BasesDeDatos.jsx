@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Lesiones from "./Lesiones.jsx";
 import { ArteLesiones, IconoLesiones } from "./components/PortalArt.jsx";
 import { ClubDelPortal, FlechaVolver, Portada, TarjetasDelPortal } from "./components/PortalTarjetas.jsx";
@@ -17,7 +17,8 @@ import "./portal.css";
 // `Pantalla`, que recibe onVolver (vuelve acá) y volverA (el texto de ese
 // botón). `permiso` es el módulo de la membresía que la abre: hoy todas van
 // con `lesiones`, que es el que abre Bases de Datos; una base que no tenga que
-// ver todo el que entra acá tendrá su propio permiso.
+// ver todo el que entra acá tendrá su propio permiso (qué hay que tocar para
+// eso, en docs/PENDIENTES.md, "Bases de Datos").
 export const BASES = [
   {
     modo: "lesiones",
@@ -50,7 +51,7 @@ const Tablero = ({ bases, onElegir, onVolver }) => {
       <section className="portal-contenido">
         <div className="bases-barra">
           <button type="button" className="portal-salir bases-volver" onClick={onVolver}>
-            <FlechaVolver /> {t("portal.modulos")}
+            <FlechaVolver /> {t("acceso.volverPortal")}
           </button>
           <SelectorIdioma className="portal-idioma" />
         </div>
@@ -67,32 +68,52 @@ const Tablero = ({ bases, onElegir, onVolver }) => {
   );
 };
 
-export default function BasesDeDatos({ permisos, userId, email, onVolver, onCerrarSesion }) {
+// onTarjetas: se llama al volver de una base a las tarjetas (para releer el
+// club, como el portal); devuelve con qué cortar esa lectura al entrar a otra.
+export default function BasesDeDatos({ permisos, userId, email, onVolver, onCerrarSesion, onTarjetas = null }) {
   // La base abierta, o ninguna (las tarjetas).
   const [abierta, setAbierta] = useState(null);
-  // La portada que se está mostrando (tarjeta y desde dónde arranca el zoom).
+  // Cuántas veces se volvió de una base a las tarjetas.
+  const [vueltas, setVueltas] = useState(0);
+  // La portada que se está mostrando (tarjeta, desde dónde arranca el zoom y
+  // un número para que cada entrada sea una portada nueva).
   const [portada, setPortada] = useState(null);
+  const portadas = useRef(0);
   const terminarPortada = useCallback(() => setPortada(null), []);
   const bases = basesHabilitadas(permisos);
   // Solo se abre una base habilitada: si el permiso se fue, vuelven las tarjetas.
   const base = bases.find((una) => una.modo === abierta);
+  const hayBaseAbierta = Boolean(base);
+
+  useEffect(() => {
+    if (!vueltas || hayBaseAbierta || !onTarjetas) return undefined;
+    return onTarjetas();
+  }, [vueltas, hayBaseAbierta]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const elegir = (elegida, desde) => {
     if (!bases.some((una) => una.modo === elegida.modo)) return;
-    setPortada({ tarjeta: elegida, desde });
+    portadas.current += 1;
+    setPortada({ tarjeta: elegida, desde, numero: portadas.current });
     setAbierta(elegida.modo);
   };
 
+  const volverALasBases = () => {
+    setAbierta(null);
+    setVueltas((cuantas) => cuantas + 1);
+  };
+
   const contenido = base ? (
-    <base.Pantalla userId={userId} email={email} permisos={permisos} onVolver={() => setAbierta(null)} volverA="bases.volver" onCerrarSesion={onCerrarSesion} />
+    <base.Pantalla userId={userId} email={email} permisos={permisos} onVolver={volverALasBases} volverA="portal.basesTitulo" onCerrarSesion={onCerrarSesion} />
   ) : (
     <Tablero bases={bases} onElegir={elegir} onVolver={onVolver} />
   );
 
+  // La portada de una base va encima de la de Bases de Datos, si esa todavía
+  // se está yendo.
   return (
     <>
       {contenido}
-      {portada && <Portada tarjeta={portada.tarjeta} desde={portada.desde} onTerminar={terminarPortada} />}
+      {portada && <Portada key={portada.numero} tarjeta={portada.tarjeta} desde={portada.desde} onTerminar={terminarPortada} className="portal-portada-encima" />}
     </>
   );
 }

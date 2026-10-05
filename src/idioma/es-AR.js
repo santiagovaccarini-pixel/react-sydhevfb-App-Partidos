@@ -131,9 +131,8 @@ export default {
     elegi: "Elegí qué base abrir.",
     unaSola: "Por ahora hay una sola; las próximas bases se suman acá.",
     ninguna: "Tu cuenta no tiene ninguna base habilitada en este club.",
-    volver: "Bases",
     lesionesTitulo: "Lesiones",
-    lesionesTexto: "Quién está lesionado, desde cuándo y cuándo vuelve. Carga en cuatro toques.",
+    lesionesTexto: "Quién está lesionado, desde cuándo y cuándo vuelve, con la base y los reportes.",
   },
   tabla: {
     copiar: "Copiar",

@@ -54,7 +54,8 @@ de lo hecho está en los commits, no en esta lista.
   la tarjeta hasta tapar la pantalla entera (se agranda entera, como un zoom;
   lo que no entra queda afuera), se queda un momento con el ícono y el nombre
   del módulo y se desvanece sobre el módulo, que ya se cargó abajo (`Portada`
-  y `lugarEnPantalla` en `src/PortalApp.jsx`; tiempos en `TIEMPOS_PORTADA`,
+  y `lugarEnPantalla` en `src/components/PortalTarjetas.jsx`, compartidas con
+  Bases de Datos; tiempos en `TIEMPOS_PORTADA`,
   unos 2,4 s en total). En el celular, parado, la portada usa la versión
   vertical de cada foto (`public/portal/*-parada.webp`, `fotoParada` en cada
   tarjeta, también sin señal): el zoom arranca desde la foto de la tarjeta y
@@ -529,8 +530,16 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   (`src/components/PortalTarjetas.jsx`): una base nueva es una entrada más en `BASES`.
 - Permiso: lo abre la columna `lesiones` de la membresía (`club_miembros`), que en Cuentas ahora
   se lee "Bases de Datos" y abre todas las bases. Si alguna base no la tiene que ver todo el que
-  entra (por ejemplo, el detalle médico), lleva su propio permiso: columna nueva en la membresía
-  y en las invitaciones, en `v_mis_clubes` y en `MODULOS_DEL_CLUB`, y la base la pide en `permiso`.
+  entra (por ejemplo, el detalle médico), lleva su propio permiso, y hoy la lista de módulos está
+  escrita en varios lugares que hay que tocar juntos (o mejor, sacarlos de una sola lista):
+  - la base: columna nueva en `club_miembros` y en `club_invitaciones`, las vistas `v_mis_clubes`
+    y `v_miembros_club`, y los `case` de `puede_usar_en` y `puede_usar` (migración nueva);
+  - `MODULOS_DEL_CLUB`, `COLUMNAS_MEMBRESIA`, `normalizarMiembro` e `invitar` en
+    `src/domain/membresiasDb.js`, e `INVITACION_INICIAL` en `src/CuentasAdmin.jsx`;
+  - `membresiaDe` en `src/domain/equipo.js` (lo que se guarda del club en el celular) y
+    `permisosEnClub` en `src/domain/perfilesDb.js` (lo que puede cada uno en el club);
+  - la lista que compara el club al volver a las tarjetas, en `src/PortalApp.jsx`;
+  - los textos `cuentas.modulos.<permiso>` en los dos idiomas, y la base lo pide en `permiso`.
 - Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
   Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones va con un dibujo (la figura
   del cuerpo en dorado) hasta que haya una foto para ella: se pone en `foto`/`fotoParada` de su

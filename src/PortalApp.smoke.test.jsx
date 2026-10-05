@@ -265,7 +265,7 @@ describe("el portal", () => {
     expect(portada().querySelector(".portal-portada-texto strong").textContent).toBe("Lesiones");
     await act(async () => vi.runAllTimers());
     const volverALasBases = contenedor.querySelector(".lesiones-de-prueba button");
-    expect(volverALasBases.textContent).toBe("Bases");
+    expect(volverALasBases.textContent).toBe("Bases de Datos");
     await act(async () => volverALasBases.click());
     expect(contenedor.querySelector(".bases-datos h1").textContent).toBe("Bases de Datos");
 
@@ -273,6 +273,33 @@ describe("el portal", () => {
     await act(async () => contenedor.querySelector(".bases-volver").click());
     expect(contenedor.querySelector(".portal-encabezado h1").textContent).toBe("¿Qué vas a hacer hoy?");
     expect(contenedor.querySelector('button[aria-label="Entrar a Bases de Datos"]')).not.toBeNull();
+  });
+
+  test("al volver de Lesiones a Bases de Datos se relee el club, como al volver al portal", async () => {
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false, lesiones: true };
+    equipo.lista = [{ ...equipo.actual }];
+    await montar();
+    await act(async () => Promise.resolve());
+    await tocar("Entrar a Bases de Datos");
+    await act(async () => vi.runAllTimers());
+    await tocar("Entrar a Lesiones");
+    await act(async () => vi.runAllTimers());
+
+    // Mientras está en Lesiones, el administrador le pone el último día.
+    equipo.lista = [{ ...equipo.actual, hasta: "2026-10-05" }];
+    await act(async () => contenedor.querySelector(".lesiones-de-prueba button").click());
+    await act(async () => Promise.resolve());
+    expect(equipo.actual).toMatchObject({ id: "eq-1", hasta: "2026-10-05" });
+    expect(contenedor.querySelector(".bases-datos .portal-club-hasta").textContent).toBe("Hasta el 05/10/2026 · solo lectura");
+
+    // Y si le sacan Bases de Datos, al volver ya no hay bases para abrir.
+    await tocar("Entrar a Lesiones");
+    await act(async () => vi.runAllTimers());
+    equipo.lista = [{ ...equipo.actual, lesiones: false }];
+    await act(async () => contenedor.querySelector(".lesiones-de-prueba button").click());
+    await act(async () => Promise.resolve());
+    expect(equipo.actual.lesiones).toBe(false);
+    expect(contenedor.querySelector(".lesiones-de-prueba")).toBeNull();
   });
 
   test("el administrador ve Cuentas con las pendientes, entra y vuelve; los demás no lo ven", async () => {

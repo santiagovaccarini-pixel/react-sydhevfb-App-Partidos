@@ -81,6 +81,8 @@ describe("Bases de Datos", () => {
 
     const portada = contenedor.querySelector(".portal-portada");
     expect(portada.classList.contains("tarjeta-lesiones")).toBe(true);
+    // Va encima de la de Bases de Datos, si esa todavía se está yendo.
+    expect(portada.classList.contains("portal-portada-encima")).toBe(true);
     expect(portada.querySelector(".portal-portada-texto strong").textContent).toBe("Lesiones");
     expect(portada.querySelector(".portal-portada-foto .portal-arte")).not.toBeNull();
     expect(contenedor.querySelector(".lesiones-de-prueba")).not.toBeNull();
@@ -90,24 +92,60 @@ describe("Bases de Datos", () => {
     expect(contenedor.querySelector(".portal-portada")).toBeNull();
 
     const volver = contenedor.querySelector(".lesiones-de-prueba button");
-    expect(volver.textContent).toBe("Bases");
+    expect(volver.textContent).toBe("Bases de Datos");
     await act(async () => volver.click());
     expect(contenedor.querySelector(".lesiones-de-prueba")).toBeNull();
     expect(tarjetas()).toHaveLength(1);
   });
 
-  test("el botón de arriba vuelve a los módulos", async () => {
+  test("al volver de una base a las tarjetas se relee el club; si se entra a otra antes de que llegue, esa lectura se corta", async () => {
+    const cortes = [];
+    const onTarjetas = vi.fn(() => {
+      const corte = vi.fn();
+      cortes.push(corte);
+      return corte;
+    });
+    await montar({ onTarjetas });
+    // Entrar desde el portal no relee (ya lo hizo el portal).
+    expect(onTarjetas).not.toHaveBeenCalled();
+    await act(async () => tarjetas()[0].click());
+    await act(async () => vi.runAllTimers());
+    await act(async () => contenedor.querySelector(".lesiones-de-prueba button").click());
+    expect(onTarjetas).toHaveBeenCalledTimes(1);
+    expect(cortes[0]).not.toHaveBeenCalled();
+    // Se vuelve a entrar enseguida: lo que llegue de esa lectura ya no se usa.
+    await act(async () => tarjetas()[0].click());
+    expect(cortes[0]).toHaveBeenCalledTimes(1);
+    expect(onTarjetas).toHaveBeenCalledTimes(1);
+  });
+
+  test("volver a entrar mientras la portada anterior se va es una portada nueva, entera", async () => {
+    await montar();
+    await act(async () => tarjetas()[0].click());
+    await act(async () => vi.advanceTimersByTime(TIEMPOS_PORTADA.zoom + TIEMPOS_PORTADA.quieta + 100));
+    expect(contenedor.querySelector(".portal-portada").classList.contains("saliendo")).toBe(true);
+    await act(async () => contenedor.querySelector(".lesiones-de-prueba button").click());
+    await act(async () => tarjetas()[0].click());
+    // No la que se estaba yendo: una que arranca de nuevo y dura lo que dura.
+    expect(contenedor.querySelector(".portal-portada").classList.contains("saliendo")).toBe(false);
+    await act(async () => vi.advanceTimersByTime(TIEMPOS_PORTADA.zoom + TIEMPOS_PORTADA.quieta - 100));
+    expect(contenedor.querySelector(".portal-portada")).not.toBeNull();
+    await act(async () => vi.runAllTimers());
+    expect(contenedor.querySelector(".portal-portada")).toBeNull();
+  });
+
+  test("el botón de arriba vuelve al portal, igual que el de Cuentas", async () => {
     const onVolver = vi.fn();
     await montar({ onVolver });
     const volver = contenedor.querySelector(".bases-barra .bases-volver");
-    expect(volver.textContent.trim()).toBe("Módulos");
+    expect(volver.textContent.trim()).toBe("Volver al portal");
     expect(volver.querySelector("svg")).not.toBeNull();
     expect(contenedor.querySelector(".bases-barra .selector-idioma")).not.toBeNull();
     await act(async () => volver.click());
     expect(onVolver).toHaveBeenCalledTimes(1);
   });
 
-  test("sin permiso no hay bases para abrir, ni tocando", async () => {
+  test("sin permiso no hay bases para abrir", async () => {
     await montar({ permisos: { partido: true } });
     expect(tarjetas()).toHaveLength(0);
     expect(contenedor.querySelector(".portal-encabezado p").textContent).toBe("Tu cuenta no tiene ninguna base habilitada en este club.");
@@ -132,11 +170,11 @@ describe("Bases de Datos", () => {
     fijarIdiomaParaPruebas("pt-BR");
     await montar();
     expect(contenedor.querySelector("h1").textContent).toBe("Bases de Dados");
-    expect(contenedor.querySelector(".bases-volver").textContent.trim()).toBe("Módulos");
+    expect(contenedor.querySelector(".bases-volver").textContent.trim()).toBe("Voltar ao portal");
     expect(tarjetas()[0].getAttribute("aria-label")).toBe("Entrar em Lesões");
     await act(async () => tarjetas()[0].click());
     await act(async () => vi.runAllTimers());
-    expect(contenedor.querySelector(".lesiones-de-prueba button").textContent).toBe("Bases");
+    expect(contenedor.querySelector(".lesiones-de-prueba button").textContent).toBe("Bases de Dados");
   });
 
   test("cada base del catálogo está completa y con sus textos en los dos idiomas", () => {
