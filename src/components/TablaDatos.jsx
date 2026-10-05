@@ -52,6 +52,8 @@ import "./tablaDatos.css";
 // ocupa las columnas fijas (alto: cuántas filas); con rotulo: null, esa fila
 // queda bajo el rótulo de la de arriba.
 // Una columna con `alinear: "centro"` va centrada.
+// siempreAVista: ids de filas que se ven aunque los filtros las dejen afuera
+// (una fila recién agregada, para completarla ahí).
 
 const CLAVE_ORDEN = "tabla_columnas";
 const ESPERA_APRETAR = 380;
@@ -107,6 +109,7 @@ export const TablaDatos = ({
   rotuloApagada = "",
   fijas = SIN_FIJAS,
   vista = null,
+  siempreAVista = SIN_FIJAS,
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -173,7 +176,15 @@ export const TablaDatos = ({
   const hayFiltros = Object.keys(filtrosVigentes).length > 0;
   // Las filas que se ven: filtradas y en el orden pedido. Todo lo que es
   // "fila n" (elegir, copiar, pegar, editar) habla de estas.
-  const filasVista = useMemo(() => ordenarFilas(filtrarFilas(filas, filtrosVigentes), ordenFilas), [filas, filtrosVigentes, ordenFilas]);
+  const filasVista = useMemo(() => {
+    const filtradas = filtrarFilas(filas, filtrosVigentes);
+    if (siempreAVista.length === 0 || filtradas.length === filas.length) return ordenarFilas(filtradas, ordenFilas);
+    const pasan = new Set(filtradas.map((fila) => fila.id));
+    return ordenarFilas(
+      filas.filter((fila) => pasan.has(fila.id) || siempreAVista.includes(fila.id)),
+      ordenFilas,
+    );
+  }, [filas, filtrosVigentes, ordenFilas, siempreAVista]);
   // Lo que depende de las filas que se ven: los colores y las filas de arriba.
   const deLaVista = useMemo(() => (vista ? vista(filasVista) : null), [vista, filasVista]);
   const estilosDeCeldas = deLaVista?.estilos || null;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
@@ -69,6 +69,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const [importando, setImportando] = useState(false);
   const [eligiendoJugador, setEligiendoJugador] = useState(false);
   const [aBorrar, setABorrar] = useState(null);
+  // Las agregadas recién: se ven aunque el filtro las deje afuera, para
+  // completarlas en la tabla.
+  const [recienAgregadas, setRecienAgregadas] = useState([]);
   const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
 
   const equipoId = equipo?.id || null;
@@ -292,6 +295,31 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
 
   const reemplazar = (evaluacion) => setEvaluaciones((previas) => previas.map((una) => (una.id === evaluacion.id ? evaluacion : una)));
 
+  // Lo último de cada evaluación (lo que ya devolvió la base, aunque la
+  // pantalla todavía no se haya redibujado) y una cola por fila: dos celdas
+  // de la misma fila guardadas seguidas no se pisan, la segunda sale de lo
+  // que dejó la primera.
+  const ultimas = useRef(evaluaciones);
+  ultimas.current = evaluaciones;
+  const colas = useRef(new Map());
+  const guardarFila = (id, cambiar) => {
+    const paso = async () => {
+      const evaluacion = ultimas.current.find((una) => una.id === id);
+      if (!evaluacion) return { error: "evaluaciones.error.noGuardar" };
+      const { evaluacion: nueva, error: falta } = cambiar(evaluacion);
+      if (falta) return { error: falta };
+      if (!nueva) return {};
+      const respuesta = await actualizarEvaluacion(id, nueva);
+      if (respuesta.error) return { error: respuesta.error };
+      ultimas.current = ultimas.current.map((una) => (una.id === id ? respuesta.evaluacion : una));
+      reemplazar(respuesta.evaluacion);
+      return {};
+    };
+    const siguiente = (colas.current.get(id) || Promise.resolve()).then(paso, paso);
+    colas.current.set(id, siguiente);
+    return siguiente;
+  };
+
   // Una celda cambiada, sobre la evaluación: { evaluacion } o { error } (y
   // nada si no es de las que se cargan).
   const conCambio = (evaluacion, clave, valor) => {
@@ -303,17 +331,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     return { evaluacion: { ...evaluacion, datos: { ...evaluacion.datos, [clave]: valor === "" ? null : valor } } };
   };
 
-  const editarCelda = async (id, clave, valor) => {
-    const evaluacion = evaluaciones.find((una) => una.id === id);
-    if (!evaluacion) return { error: "evaluaciones.error.noGuardar" };
-    const { evaluacion: nueva, error: falta } = conCambio(evaluacion, clave, valor);
-    if (falta) return { error: falta };
-    if (!nueva) return {};
-    const respuesta = await actualizarEvaluacion(id, nueva);
-    if (respuesta.error) return { error: respuesta.error };
-    reemplazar(respuesta.evaluacion);
-    return {};
-  };
+  const editarCelda = (id, clave, valor) => guardarFila(id, (evaluacion) => conCambio(evaluacion, clave, valor));
 
   const pegarEnTabla = async (cambios) => {
     const porFila = new Map();
@@ -321,25 +339,18 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     let hechos = 0;
     let ultimoError = "";
     for (const [id, suyos] of porFila) {
-      const evaluacion = evaluaciones.find((una) => una.id === id);
-      if (!evaluacion) continue;
-      let falta = "";
-      const nueva = suyos.reduce((acumulada, cambio) => {
-        const resultado = conCambio(acumulada, cambio.clave, cambio.valor);
-        if (resultado.error) falta = resultado.error;
-        return resultado.evaluacion || acumulada;
-      }, evaluacion);
-      if (falta) {
-        ultimoError = falta;
-        continue;
-      }
-      const respuesta = await actualizarEvaluacion(id, nueva); // eslint-disable-line no-await-in-loop
-      if (respuesta.error) {
-        ultimoError = respuesta.error;
-        continue;
-      }
-      reemplazar(respuesta.evaluacion);
-      hechos += suyos.length;
+      // eslint-disable-next-line no-await-in-loop
+      const resultado = await guardarFila(id, (evaluacion) => {
+        let falta = "";
+        const nueva = suyos.reduce((acumulada, cambio) => {
+          const uno = conCambio(acumulada, cambio.clave, cambio.valor);
+          if (uno.error) falta = uno.error;
+          return uno.evaluacion || acumulada;
+        }, evaluacion);
+        return falta ? { error: falta } : { evaluacion: nueva };
+      });
+      if (resultado.error) ultimoError = resultado.error;
+      else hechos += suyos.length;
     }
     return { hechos, error: ultimoError };
   };
@@ -357,6 +368,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       return;
     }
     setEvaluaciones((previas) => [...previas, respuesta.evaluacion]);
+    setRecienAgregadas((previas) => [...previas, respuesta.evaluacion.id]);
     setAviso(t("evaluaciones.agregada"));
   };
 
@@ -462,6 +474,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             filas={filas}
             fijas={fijas}
             vista={informeYColores}
+            siempreAVista={recienAgregadas}
             onEditar={editarCelda}
             onPegar={pegarEnTabla}
             leyenda={t("datos.leyendaYaNoEsta")}
@@ -580,6 +593,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         evaluaciones={evaluaciones}
         onVolver={() => setImportando(false)}
         onRecargar={cargar}
+        // Cada una que se carga queda en la lista enseguida: si después falla
+        // la recarga, al reintentar se ve como "Ya está" y no se duplica.
+        onGuardada={(evaluacion) => setEvaluaciones((previas) => (previas.some((una) => una.id === evaluacion.id) ? previas : [...previas, evaluacion]))}
         onListo={({ cargadas }) => {
           setImportando(false);
           setAviso(plural("evaluaciones.importar.listo", cargadas));

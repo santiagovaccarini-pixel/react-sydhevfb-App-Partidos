@@ -25,12 +25,11 @@ export const claveDeError = (error, porDefecto = "cuentas.errorClub") => {
 
 const fallo = (error, porDefecto) => new Error(claveDeError(error, porDefecto));
 
-const normalizarMiembro = (fila) => ({
+// Lo que es de la membresía (la tabla club_miembros: no tiene el correo ni
+// el estado de la cuenta).
+const normalizarMembresia = (fila) => ({
   equipo_id: fila.equipo_id,
   user_id: fila.user_id,
-  email: fila.email || "",
-  estado: fila.estado || "",
-  confirmado_en: fila.confirmado_en || null,
   desde: fila.desde || null,
   hasta: fila.hasta || null,
   rol: fila.rol || "staff",
@@ -38,6 +37,15 @@ const normalizarMiembro = (fila) => ({
   flujo: Boolean(fila.flujo),
   lesiones: Boolean(fila.lesiones),
   evaluaciones: Boolean(fila.evaluaciones),
+});
+
+// Un miembro como lo muestra Cuentas (la vista v_miembros_club): la membresía
+// y su cuenta.
+const normalizarMiembro = (fila) => ({
+  ...normalizarMembresia(fila),
+  email: fila.email || "",
+  estado: fila.estado || "",
+  confirmado_en: fila.confirmado_en || null,
 });
 
 // "activo" (sigue en el club), "hasta" (se fue) o "ninguno" (nunca estuvo).
@@ -71,7 +79,9 @@ export const listarMembresias = async () => {
 };
 
 // Cambia una membresía que ya existe. Si la base no dejó (no administra ese
-// club), no vuelve ninguna fila y se avisa.
+// club), no vuelve ninguna fila y se avisa. Devuelve solo la membresía: lo
+// de la cuenta (correo, estado) no está en esa tabla y queda como estaba en
+// la lista.
 const cambiar = async (userId, equipoId, cambios) => {
   const { data, error } = await supabase
     .from(TABLA_MEMBRESIAS)
@@ -81,7 +91,7 @@ const cambiar = async (userId, equipoId, cambios) => {
     .select(COLUMNAS_MEMBRESIA);
   if (error) throw fallo(error);
   if (!data || data.length === 0) throw new Error("cuentas.errorSinPermiso");
-  return normalizarMiembro(data[0]);
+  return normalizarMembresia(data[0]);
 };
 
 export const cambiarRol = (userId, equipoId, rol) => cambiar(userId, equipoId, { rol });

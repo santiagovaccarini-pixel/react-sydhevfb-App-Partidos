@@ -219,6 +219,22 @@ describe("la tabla estilo Excel", () => {
     expect(contenedor.textContent).not.toContain("Mostrando");
   });
 
+  test("una fila que se pide a la vista se ve aunque el filtro la deje afuera", async () => {
+    await montar({ siempreAVista: [1] });
+    const filtro = (columna) => contenedor.querySelector(`.tabla-datos-filtro[aria-label="Filtrar u ordenar ${columna}"]`);
+    const botonDe = (texto) => [...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === texto);
+    const nombres = () => [...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent);
+    // Solo las de Pie vacío: HULK (izquierdo) quedaría afuera, pero se pidió a la vista.
+    await tocar(filtro("Pie"));
+    await tocar(botonDe("Ninguno"));
+    await tocar([...contenedor.querySelectorAll(".tabla-datos-valores label")][1].querySelector("input"));
+    await tocar(botonDe("Aplicar"));
+    expect(nombres()).toEqual(["HULK", "SCARPA"]);
+    // Sin pedirla, el filtro la saca como siempre.
+    await montar({ siempreAVista: [] });
+    expect(nombres()).toEqual(["SCARPA"]);
+  });
+
   test("lo que se edita va a su fila aunque la tabla se reordene mientras tanto", async () => {
     await montar();
     // Se empieza a editar el nombre de SCARPA (segunda fila).

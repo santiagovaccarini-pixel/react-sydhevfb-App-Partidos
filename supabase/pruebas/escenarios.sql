@@ -652,5 +652,10 @@ reset role;
 
 select pruebas.esperar('Las dos evaluaciones quedan en las versiones (un cambio el mismo día pisa la suya)', (select count(*) from versiones_datos where tabla = 'evaluaciones'), 2);
 select pruebas.esperar('...y quién la cargó', (select count(*) from evaluaciones where creado_por = '00000000-0000-0000-0000-00000000000c' and actualizado_por = '00000000-0000-0000-0000-00000000000c'), 2);
+-- Desde Supabase › Authentication › Users, sin la sesión de nadie.
+select set_config('request.jwt.claims', '', false);
+select pruebas.esperar('Se borra la cuenta de Carla', pruebas.filas($$delete from auth.users where id = '00000000-0000-0000-0000-00000000000c'$$), 1);
+select pruebas.esperar('...y sus evaluaciones quedan sin autor, no con una cuenta que ya no existe', (select count(*) from evaluaciones where creado_por is not null and not exists (select 1 from auth.users u where u.id = creado_por)), 0);
+select pruebas.esperar('...pero siguen estando', (select count(*) from evaluaciones), 2);
 
 select 'ESCENARIOS: todos bien' as resultado;

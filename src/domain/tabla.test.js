@@ -225,11 +225,13 @@ describe("los tiempos de minutos y segundos (Evaluaciones)", () => {
     expect(interpretarMinutos("3:04")).toBe(184);
     expect(interpretarMinutos(" 03:04 ")).toBe(184);
     expect(interpretarMinutos("3.04")).toBe(184);
+    // Con la coma del teclado numérico del celular.
+    expect(interpretarMinutos("3,04")).toBe(184);
     // Así lo copia Excel si la celda tiene horas, minutos y segundos.
     expect(interpretarMinutos("3:04:00")).toBe(184);
     expect(interpretarMinutos("45")).toBe(45);
     expect(interpretarMinutos("")).toBe(null);
-    ["3:75", "tres", "3:4", "-1:00", "3:04:30"].forEach((texto) => expect(interpretarMinutos(texto), texto).toBe(undefined));
+    ["3:75", "tres", "3:4", "-1:00", "3:04:30", "304", "3,4"].forEach((texto) => expect(interpretarMinutos(texto), texto).toBe(undefined));
     expect(interpretarValor({ tipo: "tiempo" }, "1:05")).toBe(65);
   });
 

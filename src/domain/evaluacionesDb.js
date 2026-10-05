@@ -20,7 +20,9 @@ export const claveDeErrorEvaluaciones = (error, porDefecto = "evaluaciones.error
   if (/evaluaciones_sin_futuro/.test(texto)) return "evaluaciones.error.fechaFutura";
   if (/evaluaciones_de_quien/.test(texto)) return "evaluaciones.error.sinJugador";
   if (error?.code === "42501" || /row-level security|permission denied/.test(texto)) return "evaluaciones.error.sinPermiso";
-  if (/Failed to fetch|NetworkError|Load failed/i.test(texto)) return "evaluaciones.error.sinConexion";
+  // Sin señal: al guardar, "no se pudo guardar"; al leer o borrar, el
+  // mensaje de lo que se estaba haciendo (como en Lesiones).
+  if (/Failed to fetch|NetworkError|Load failed/i.test(texto)) return porDefecto === "evaluaciones.error.noGuardar" ? "evaluaciones.error.sinConexion" : porDefecto;
   return porDefecto;
 };
 

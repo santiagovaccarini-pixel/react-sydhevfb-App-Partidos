@@ -139,6 +139,9 @@ describe("guardar una evaluación", () => {
     expect(clave({ code: "23514", message: 'violates check constraint "evaluaciones_de_quien"' })).toBe("evaluaciones.error.sinJugador");
     expect(clave({ code: "42501", message: 'new row violates row-level security policy for table "evaluaciones"' })).toBe("evaluaciones.error.sinPermiso");
     expect(clave({ message: "TypeError: Failed to fetch" })).toBe("evaluaciones.error.sinConexion");
+    // Sin señal al leer o al borrar, no dice "no se pudo guardar".
+    expect(claveDeErrorEvaluaciones({ message: "TypeError: Failed to fetch" }, "evaluaciones.error.noLeer")).toBe("evaluaciones.error.noLeer");
+    expect(claveDeErrorEvaluaciones({ message: "TypeError: Load failed" }, "evaluaciones.error.noBorrar")).toBe("evaluaciones.error.noBorrar");
     expect(clave({ code: "XX000", message: "otra cosa" })).toBe("evaluaciones.error.noGuardar");
     expect(claveDeErrorEvaluaciones({ code: "XX000" }, "evaluaciones.error.noBorrar")).toBe("evaluaciones.error.noBorrar");
   });

@@ -31,7 +31,9 @@ const CLASE_DEL_ESTADO = {
 // Los años que se pueden elegir para las fechas que vienen sin año.
 const PRIMER_ANIO = 2000;
 
-export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelSinLeer = false, evaluaciones, onVolver, onRecargar, onListo }) {
+// onGuardada(evaluacion): cada una que se cargó, en cuanto la base la
+// devuelve (antes de recargar todo).
+export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelSinLeer = false, evaluaciones, onVolver, onRecargar, onGuardada, onListo }) {
   const { idioma, plural } = useIdioma();
   const [texto, setTexto] = useState("");
   const [progreso, setProgreso] = useState(null);
@@ -135,7 +137,10 @@ export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelS
       setProgreso({ n: i + 1, total: lista.length });
       const guardado = await crearEvaluacion(equipoId, test.id, fila.evaluacion); // eslint-disable-line no-await-in-loop
       if (guardado.error) errores.push({ fecha: fechaDe(fila), nombre: fila.nombre, error: t(guardado.error) });
-      else cargadas += 1;
+      else {
+        cargadas += 1;
+        onGuardada?.(guardado.evaluacion);
+      }
     }
     // Con las evaluaciones de nuevo, las que ya quedaron se ven como "Ya está
     // en la app" y las que fallaron se pueden volver a intentar.

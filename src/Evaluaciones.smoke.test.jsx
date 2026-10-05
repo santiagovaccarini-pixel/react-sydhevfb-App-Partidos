@@ -12,6 +12,10 @@ const datos = vi.hoisted(() => ({
   creadas: [],
   actualizadas: [],
   borradas: [],
+  // Si está, cada guardado espera a que se abra (una conexión lenta).
+  compuerta: null,
+  // Si está, la próxima lectura falla (una recarga que no llega).
+  fallaLaProxima: "",
 }));
 
 // Los V.R. de prueba, en la unidad del Excel (los tiempos, segundos ÷ 1440).
@@ -69,8 +73,14 @@ vi.mock("./domain/lesionesDb.js", () => ({
   leerConfig: async () => ({ config: null, error: "" }),
 }));
 vi.mock("./domain/evaluacionesDb.js", () => ({
-  listarEvaluaciones: async () =>
-    datos.errorAlLeer ? { evaluaciones: [], error: datos.errorAlLeer } : { evaluaciones: datos.evaluaciones.map((una) => ({ ...una, datos: { ...una.datos } })), error: "" },
+  listarEvaluaciones: async () => {
+    if (datos.fallaLaProxima) {
+      const error = datos.fallaLaProxima;
+      datos.fallaLaProxima = "";
+      return { evaluaciones: [], error };
+    }
+    return datos.errorAlLeer ? { evaluaciones: [], error: datos.errorAlLeer } : { evaluaciones: datos.evaluaciones.map((una) => ({ ...una, datos: { ...una.datos } })), error: "" };
+  },
   leerReferencias: async () => ({ referencias: datos.referencias, error: "" }),
   crearEvaluacion: async (equipoId, test, ev) => {
     datos.creadas.push({ equipoId, test, ev });
@@ -80,6 +90,7 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
   },
   actualizarEvaluacion: async (id, ev) => {
     datos.actualizadas.push({ id, ev });
+    if (datos.compuerta) await datos.compuerta;
     return { evaluacion: { ...ev, id }, error: "" };
   },
   borrarEvaluacion: async (id) => {
@@ -131,6 +142,8 @@ describe("Evaluaciones", () => {
     datos.creadas = [];
     datos.actualizadas = [];
     datos.borradas = [];
+    datos.compuerta = null;
+    datos.fallaLaProxima = "";
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -251,6 +264,46 @@ describe("Evaluaciones", () => {
     expect(lumbar().textContent).toBe("2:40");
   });
 
+  test("dos celdas de la misma fila guardadas seguidas, con la conexión lenta: no se pisan", async () => {
+    await montar();
+    let abrir;
+    datos.compuerta = new Promise((resolver) => {
+      abrir = resolver;
+    });
+    const editar = async (titulo, valor) => {
+      const td = () => celda(contenedor, 1, titulo);
+      await tocar(td());
+      await tocar(td());
+      const input = td().querySelector("input");
+      await escribir(input, valor);
+      await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    };
+    await editar("Lumbar", "2:40");
+    await editar("Lateral D", "1,30");
+    await act(async () => abrir());
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(2);
+    // La segunda sale de lo que dejó la primera.
+    expect(datos.actualizadas[1].ev.datos).toEqual({ seleccion: "mayor", lumbar: 160, lateral_d: 90 });
+    expect(celda(contenedor, 1, "Lumbar").textContent).toBe("2:40");
+    expect(celda(contenedor, 1, "Lateral D").textContent).toBe("1:30");
+  });
+
+  test("agregar con un filtro puesto: la nueva se ve igual, para completarla", async () => {
+    await montar();
+    const boton = (texto) => [...document.body.querySelectorAll("button")].find((b) => b.textContent.trim() === texto);
+    await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Seleccion"]'));
+    await tocar(boton("Ninguno"));
+    await tocar([...contenedor.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent.startsWith("Mayor")).querySelector("input"));
+    await tocar(boton("Aplicar"));
+    expect(filas(contenedor)).toHaveLength(3);
+    await tocar(boton("Agregar evaluación"));
+    await tocar([...document.body.querySelectorAll(".opcion-hoja")].find((b) => b.textContent === "BETA"));
+    // Sin Selección todavía, el filtro la dejaría afuera.
+    expect(filas(contenedor)).toHaveLength(4);
+    expect(celda(contenedor, 3, "Jugador").textContent).toBe("BETA");
+  });
+
   test("borrar una fila pide confirmación", async () => {
     await montar();
     await tocar(celda(contenedor, 1, "Lumbar"));
@@ -285,6 +338,24 @@ describe("Evaluaciones", () => {
     expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 2, persona: null, fecha: "2026-06-02", datos: { seleccion: "mayor", lumbar: 190 } } }]);
     expect(document.body.textContent).toContain("Listo: se cargó 1 evaluación.");
     expect(filas(contenedor)).toHaveLength(4);
+  });
+
+  test("Pegar desde Excel: si falla la recarga, lo cargado igual se ve como \"Ya está\" y no se carga dos veces", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    const pegado = [
+      "nº Eva\tFecha\tJugador\tSeleccion\tLumbar\tNota",
+      "1\t02/06/2026\tBETA\tMayor\t3:10\t",
+      "1\t02/06/2026\tNombre Nuevo\tMayor\t3:20\t",
+    ].join("\n");
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), pegado);
+    expect(contenedor.textContent).toContain("1 para cargar");
+    datos.fallaLaProxima = "evaluaciones.error.noLeer";
+    await tocar(boton(contenedor, "Cargar 1 evaluación"));
+    expect(datos.creadas).toHaveLength(1);
+    // Queda abierta (falta elegir un nombre) y lo cargado ya figura como cargado.
+    expect(contenedor.textContent).toContain("1 ya está en la app");
+    expect(boton(contenedor, "Nada para cargar")).toBeTruthy();
   });
 
   test("los valores de referencia, por categoría, y el resumen con la columna Pro vacía", async () => {

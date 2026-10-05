@@ -275,7 +275,10 @@ begin
     new.creado_por := coalesce(auth.uid(), new.creado_por);
     new.creado_en := now();
   else
-    new.creado_por := old.creado_por;
+    -- Quién la cargó no cambia; si su cuenta se borró, queda vacío (el "on
+    -- delete set null" de la columna también pasa por acá y no tiene que
+    -- quedar el id de una cuenta que ya no existe).
+    new.creado_por := case when exists (select 1 from auth.users u where u.id = old.creado_por) then old.creado_por end;
     new.creado_en := old.creado_en;
   end if;
   new.actualizado_por := auth.uid();

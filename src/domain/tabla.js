@@ -139,18 +139,19 @@ export const textoDeHoras = (horas) => {
 };
 
 // Un tiempo de minutos y segundos, como los del Excel de evaluaciones: "3:04"
-// (o "3.04", o "3:04:00" como lo copia Excel, que lo cree horas) son 184
-// segundos, y "45" son 45. Devuelve null si está vacío y undefined si no se
-// entiende.
+// (o "3.04", "3,04" como sale del teclado numérico del celular, o "3:04:00"
+// como lo copia Excel, que lo cree horas) son 184 segundos, y "45" son 45.
+// Solo segundos, hasta dos cifras: "304" no se adivina (¿3:04 o 5:04?).
+// Devuelve null si está vacío y undefined si no se entiende.
 export const interpretarMinutos = (texto) => {
   const t = String(texto ?? "").trim();
   if (!t) return null;
-  const partes = /^(\d{1,3})[:.](\d{2})(?::00)?$/.exec(t);
+  const partes = /^(\d{1,3})[:.,](\d{2})(?::00)?$/.exec(t);
   if (partes) {
     const segundos = Number(partes[2]);
     return segundos < 60 ? Number(partes[1]) * 60 + segundos : undefined;
   }
-  if (/^\d{1,4}$/.test(t)) return Number(t);
+  if (/^\d{1,2}$/.test(t)) return Number(t);
   return undefined;
 };
 
