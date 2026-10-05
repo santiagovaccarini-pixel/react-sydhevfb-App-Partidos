@@ -693,4 +693,20 @@ select pruebas.esperar('...con lo que se corrigió', (select count(*) from lesio
 reset role;
 select pruebas.esperar('Todo cambio de lesión queda con su club', (select count(*) from lesiones_historial where equipo_id is null), 0);
 
+-- La API de OpenField (lib/openfieldAuth.js) pregunta puede_usar('flujo')
+-- con el token de cada uno: sale de las membresías, no de los permisos
+-- viejos de perfiles.
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000016', 'vieja@uno.com', now());
+update perfiles set estado = 'autorizado', partido = true, flujo = true where email = 'vieja@uno.com';
+insert into club_miembros (equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones)
+values (:C1, '00000000-0000-0000-0000-000000000016', '2026-01-01', current_date - 1, 'staff', true, true, false);
+update perfiles set flujo = false where email = 'fede@libre.com';
+select pruebas.ser('vieja@uno.com'); set role authenticated;
+select pruebas.esperar('Quien se fue de su único club no tiene Flujo diario, aunque su perfil viejo lo diga', public.puede_usar('flujo')::text, 'false');
+reset role;
+select pruebas.ser('fede@libre.com'); set role authenticated;
+select pruebas.esperar('Quien entró por invitación con Flujo diario lo tiene, aunque su perfil viejo no', public.puede_usar('flujo')::text, 'true');
+reset role;
+
 select 'ESCENARIOS: todos bien' as resultado;
