@@ -67,7 +67,10 @@ describe("Bases de Datos", () => {
     const lesiones = tarjetas()[0];
     expect(lesiones.getAttribute("aria-label")).toBe("Entrar a Lesiones");
     expect(lesiones.classList.contains("tarjeta-lesiones")).toBe(true);
-    // Sin foto todavía: va su dibujo, con el ícono arriba a la izquierda.
+    // Su foto, con el ícono arriba a la izquierda; si no carga, su dibujo.
+    const foto = lesiones.querySelector(".portal-foto img");
+    expect(foto.getAttribute("src")).toBe("/portal/lesiones.webp");
+    await act(async () => foto.dispatchEvent(new Event("error")));
     expect(lesiones.querySelector(".portal-foto img")).toBeNull();
     expect(lesiones.querySelector(".portal-foto .portal-arte")).not.toBeNull();
     expect(lesiones.querySelector(".portal-icono svg")).not.toBeNull();
@@ -84,7 +87,8 @@ describe("Bases de Datos", () => {
     // Va encima de la de Bases de Datos, si esa todavía se está yendo.
     expect(portada.classList.contains("portal-portada-encima")).toBe(true);
     expect(portada.querySelector(".portal-portada-texto strong").textContent).toBe("Lesiones");
-    expect(portada.querySelector(".portal-portada-foto .portal-arte")).not.toBeNull();
+    // La portada, con la foto de Lesiones (en la compu, la apaisada).
+    expect(portada.querySelector(".portal-portada-foto img").getAttribute("src")).toBe("/portal/lesiones.webp");
     expect(contenedor.querySelector(".lesiones-de-prueba")).not.toBeNull();
     expect(tarjetas()).toHaveLength(0);
 

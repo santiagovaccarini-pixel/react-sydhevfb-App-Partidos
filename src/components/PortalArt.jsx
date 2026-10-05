@@ -213,9 +213,8 @@ export const IconoBases = () => (
 
 // La figura del cuerpo (la misma de la carga de lesiones, siluetaCuerpo.js)
 // en dorado sobre negro, con una lesión encendida en el muslo derecho y las
-// líneas finas de las fotos: el dibujo de la tarjeta Lesiones mientras no
-// haya una foto para ella. La figura queda donde mira la portada en el
-// celular (el `foco` de la tarjeta, en BasesDeDatos.jsx).
+// líneas finas de las fotos: el dibujo de la tarjeta Lesiones si su foto no
+// carga (la primera vez sin señal).
 const SILUETA = ORDEN_DE_REGIONES.map((region) => dibujoDe(region, "frente"));
 const BARRAS_LESIONES = [16, 26, 20, 34, 24];
 
