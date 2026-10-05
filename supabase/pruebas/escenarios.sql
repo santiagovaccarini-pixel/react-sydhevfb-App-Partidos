@@ -712,6 +712,44 @@ reset role;
 select set_config('request.jwt.claims', '', false);
 select pruebas.debe_fallar('Tampoco a mano desde el SQL Editor', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9003, '2026-09-04', '{}')$$, 'jugador_de_otro_club');
 
+-- Quién cargó una lesión y quién la cambió lo pone la base.
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000017', 'temporal@uno.com', now());
+update perfiles set estado = 'autorizado' where email = 'temporal@uno.com';
+insert into club_miembros (equipo_id, user_id, rol, partido, flujo, lesiones)
+values (:C1, '00000000-0000-0000-0000-000000000017', 'staff', false, false, true);
+select pruebas.ser('temporal@uno.com'); set role authenticated;
+select pruebas.esperar('Una lesión con otro autor y otra fecha de carga se guarda', pruebas.filas($$insert into lesiones (equipo_id, persona, fecha_lesion, datos, creado_por, creado_en, actualizado_por) values ('00000000-0000-0000-0000-0000000000c1', 'Autor ajeno', '2026-07-05', '{}', '00000000-0000-0000-0000-00000000000e', '2020-01-01', '00000000-0000-0000-0000-00000000000e')$$), 1);
+select pruebas.esperar('...pero a nombre de quien la cargó, hoy', (select count(*) from lesiones where persona = 'Autor ajeno' and creado_por = auth.uid() and actualizado_por = auth.uid() and creado_en > now() - interval '1 hour'), 1);
+select pruebas.esperar('El autor no se cambia después', pruebas.filas($$update lesiones set creado_por = '00000000-0000-0000-0000-00000000000e', creado_en = '2020-01-01' where persona = 'Autor ajeno'$$), 1);
+select pruebas.esperar('...sigue siendo quien la cargó', (select count(*) from lesiones where persona = 'Autor ajeno' and creado_por = auth.uid() and creado_en > now() - interval '1 hour'), 1);
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto la corrige', pruebas.filas($$update lesiones set fecha_alta = '2026-07-10', actualizado_por = '00000000-0000-0000-0000-00000000000e' where persona = 'Autor ajeno'$$), 1);
+select pruebas.esperar('...y queda que la cambió él', (select actualizado_por::text from lesiones where persona = 'Autor ajeno'), '00000000-0000-0000-0000-00000000000b');
+reset role;
+select actualizado_en as cambio_de_beto from lesiones where persona = 'Autor ajeno' \gset
+-- Desde Supabase › Authentication › Users, sin la sesión de nadie.
+select set_config('request.jwt.claims', '', false);
+select pruebas.esperar('Se borra la cuenta de quien la cargó', pruebas.filas($$delete from auth.users where id = '00000000-0000-0000-0000-000000000017'$$), 1);
+select pruebas.esperar('...y la lesión queda sin autor, con quien la cambió y cuándo', (select count(*) from lesiones where persona = 'Autor ajeno' and creado_por is null and actualizado_por = '00000000-0000-0000-0000-00000000000b' and actualizado_en = :'cambio_de_beto'), 1);
+
+-- Una invitación cambiada pasa por el mismo control que al invitar, y quién
+-- invitó no cambia.
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto invita a alguien', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'cambiada@x.com')$$), 1);
+select pruebas.esperar('...le cambia el autor (a Eva, de otro club)', pruebas.filas($$update club_invitaciones set creado_por = '00000000-0000-0000-0000-00000000000e' where email = 'cambiada@x.com'$$), 1);
+select pruebas.esperar('...pero sigue diciendo que invitó Beto', (select creado_por::text from club_invitaciones where email = 'cambiada@x.com'), '00000000-0000-0000-0000-00000000000b');
+select pruebas.debe_fallar('Un correo inválido no entra al cambiarla', $$update club_invitaciones set email = 'NO ES UN CORREO' where email = 'cambiada@x.com'$$, 'correo_invalido');
+select pruebas.esperar('...y uno válido entra limpio', pruebas.filas($$update club_invitaciones set email = ' Cambiada2@X.com ' where email = 'cambiada@x.com'$$), 1);
+select pruebas.esperar('...en minúsculas y sin espacios', (select count(*) from club_invitaciones where email = 'cambiada2@x.com'), 1);
+reset role;
+-- Se registra (Supabase Auth, sin la sesión de nadie).
+select set_config('request.jwt.claims', '', false);
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000018', 'cambiada2@x.com', now());
+select pruebas.esperar('Al entrar, la historia dice que la invitó Beto', (select quien::text from club_miembros_historial where user_id = '00000000-0000-0000-0000-000000000018' and accion = 'alta'), '00000000-0000-0000-0000-00000000000b');
+
 -- La API de OpenField (lib/openfieldAuth.js) pregunta puede_usar('flujo')
 -- con el token de cada uno: sale de las membresías, no de los permisos
 -- viejos de perfiles.

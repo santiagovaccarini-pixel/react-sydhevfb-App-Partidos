@@ -918,6 +918,18 @@ encontró la revisión y cómo quedó:
   de esta (20261002 borraría todas las lesiones).
   - De paso: quien sigue en el club con Lesiones ve también el historial de una lesión
     borrada de su club (antes desaparecía con la lesión). La app no lo muestra.
+- **Una lesión es de un jugador de su club** (como una evaluación): al cargarla o al
+  cambiarle el jugador, uno de otro club no entra (`jugador_de_otro_club`; la app lo
+  muestra con el texto de Evaluaciones). Lo que ya estaba se sigue editando (por ejemplo,
+  de un jugador que después pasó a otro club). La migración lista al final las lesiones
+  con jugador de otro club, para mirarlas.
+- **Quién cargó y quién cambió lo pone la base.** Desde la app, al cargar una lesión la
+  base pone el autor y la fecha (antes la app podía mandar otros); después, quién la
+  cargó y cuándo no cambian. Al borrar una cuenta, sus lesiones quedan sin autor y el
+  resto (quién la cambió, cuándo) queda como estaba. Las invitaciones, al cambiarlas,
+  pasan por el mismo control de correo que al invitar, y quién invitó no cambia (antes
+  un administrador podía poner a alguien de otro club como autor y así figuraba en la
+  historia del alta).
 - **OpenField (Flujo diario) mira la membresía.** La API de Catapult autorizaba con los
   permisos viejos de `perfiles` (flujo, admin): quien se iba del club seguía leyendo y
   quien entraba por invitación con Flujo diario quedaba afuera. Ahora decide

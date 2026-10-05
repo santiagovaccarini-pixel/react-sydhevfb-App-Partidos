@@ -83,18 +83,49 @@ create policy lesiones_historial_ver on public.lesiones_historial
 
 -- ------------------------------------- Lesiones: lo que pone la base --
 
+-- Una sola regla para lo que la app no decide: el id, quién la cargó y
+-- quién la cambió (antes, al cargar, la app podía poner cualquier autor y
+-- cualquier fecha). Reemplaza a lesiones_anotar_cambio.
 create or replace function public.lesiones_preparar()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_autoria constant text[] := array['creado_por', 'creado_en', 'actualizado_por', 'actualizado_en'];
 begin
-  -- Una lesión nueva desde la app tiene siempre un id nuevo: la app nunca lo
-  -- elige (lesionesDb.js no lo manda), así nadie repite el de una borrada.
-  -- Sin nadie conectado (el SQL Editor, una restauración) queda el que venga.
-  if tg_op = 'INSERT' and auth.uid() is not null then
-    new.id := gen_random_uuid();
+  -- La base sola, sin nadie conectado y sin tocar lo cargado: es el "on
+  -- delete set null" de creado_por o actualizado_por al borrar una cuenta
+  -- (como en Evaluaciones). Quedan los autores cuyas cuentas siguen y las
+  -- fechas como estaban.
+  if tg_op = 'UPDATE' and auth.uid() is null
+     and (to_jsonb(new) - v_autoria) = (to_jsonb(old) - v_autoria) then
+    new.creado_por := case when exists (select 1 from auth.users u where u.id = old.creado_por) then old.creado_por end;
+    new.actualizado_por := case when exists (select 1 from auth.users u where u.id = old.actualizado_por) then old.actualizado_por end;
+    new.creado_en := old.creado_en;
+    new.actualizado_en := old.actualizado_en;
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    -- Desde la app: id nuevo siempre (la app nunca lo elige: lesionesDb.js no
+    -- lo manda), así nadie repite el de una borrada; y el autor es quien la
+    -- carga, ahora. Sin nadie conectado (el SQL Editor, una restauración)
+    -- queda lo que venga.
+    if auth.uid() is not null then
+      new.id := gen_random_uuid();
+      new.creado_por := auth.uid();
+      new.creado_en := now();
+      new.actualizado_por := auth.uid();
+      new.actualizado_en := now();
+    end if;
+  else
+    -- Quién la cargó y cuándo no cambia (si su cuenta ya no existe, queda
+    -- vacío); quién la cambió, sí, como hacía lesiones_anotar_cambio.
+    new.creado_por := case when exists (select 1 from auth.users u where u.id = old.creado_por) then old.creado_por end;
+    new.creado_en := old.creado_en;
+    new.actualizado_por := auth.uid();
+    new.actualizado_en := now();
   end if;
   -- El jugador, del club de la lesión (como en Evaluaciones): al cargarla o
   -- al cambiarle el jugador o el club. Lo que ya estaba (por ejemplo, de un
@@ -116,7 +147,49 @@ create trigger lesiones_preparar
   before insert or update on public.lesiones
   for each row execute function public.lesiones_preparar();
 
+-- Lo que hacía (quién la cambió y cuándo) lo hace ahora lesiones_preparar.
+drop trigger if exists lesiones_anotar_cambio on public.lesiones;
+drop function if exists public.lesiones_anotar_cambio();
+
 revoke execute on function public.lesiones_preparar(), public.lesiones_historial_anotar() from public, anon, authenticated;
+
+-- ---------------------------------------- Invitaciones: también al cambiar --
+
+-- El correo se limpiaba y se controlaba solo al invitar, y quién invitó se
+-- podía cambiar después: un administrador podía dejar un correo inválido o
+-- poner como autor a alguien de otro club (y así figuraba en la historia del
+-- alta). Ahora, al cambiar una invitación, el correo pasa por el mismo
+-- control y quién invitó y cuándo no cambian (si su cuenta ya no existe,
+-- queda vacío: es el "on delete set null" al borrar esa cuenta).
+create or replace function public.club_invitaciones_preparar()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' or new.email is distinct from old.email then
+    new.email := lower(btrim(new.email));
+    if new.email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
+      raise exception 'correo_invalido' using errcode = 'P0001';
+    end if;
+  end if;
+  if tg_op = 'INSERT' then
+    new.creado_por := coalesce(auth.uid(), new.creado_por);
+  else
+    new.creado_por := case when exists (select 1 from auth.users u where u.id = old.creado_por) then old.creado_por end;
+    new.creado_en := old.creado_en;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists club_invitaciones_preparar on public.club_invitaciones;
+create trigger club_invitaciones_preparar
+  before insert or update on public.club_invitaciones
+  for each row execute function public.club_invitaciones_preparar();
+
+revoke execute on function public.club_invitaciones_preparar() from public, anon, authenticated;
 
 commit;
 
