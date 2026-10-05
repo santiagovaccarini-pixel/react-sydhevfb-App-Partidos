@@ -434,6 +434,13 @@ export default {
     reanudarTitulo: "Retomar o {{periodo}}?",
     reanudarTexto: "O final registrado ({{final}}) é apagado e o relógio volta a correr. Se depois você tocar em Finalizar, fica a hora desse momento.",
     reanudarSi: "Sim, retomar",
+    seguirEditando: "Continuar editando",
+    salirSinGuardarTitulo: "Sair sem salvar as alterações?",
+    salirSinGuardarTexto: "O que você mudou neste registro ainda não foi salvo. Se sair, perde.",
+    salirSinGuardarSi: "Sim, sair",
+    descartarFormacionTitulo: "Descartar a escalação não salva?",
+    descartarFormacionTexto: "Você mudou a escalação e ainda não salvou. Se descartar, fica a que a partida tem.",
+    descartarFormacionSi: "Descartar",
   },
   openfield: {
     abriendoTitulo: "Um momento…",

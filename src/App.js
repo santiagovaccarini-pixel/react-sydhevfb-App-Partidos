@@ -1525,6 +1525,14 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     accion?.();
   };
 
+  // Cancelar cierra la hoja; algunas, además, llevan a algún lado (por
+  // ejemplo, "Seguir editando" vuelve a la formación sin guardar).
+  const cancelarConfirmacion = () => {
+    const accion = confirmacion?.onCancelar;
+    setConfirmacion(null);
+    accion?.();
+  };
+
   // Escudos reales. El nuestro es siempre el mismo, así que no hay nada que
   // esperar; el del rival se busca mientras se escribe el nombre.
   const escudoCam = useEscudoClub(equipoPropio, { demora: 0 });
@@ -6538,7 +6546,82 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     );
   };
 
-  const navegarAplicacion = (destino) => {
+  // Un registro guardado que se está editando y tiene cambios sin guardar.
+  const hayEdicionSinGuardar = () => {
+    if (!registroSeleccionado || !detalleEditando || !detalleBorrador) {
+      return false;
+    }
+    const { item } = registroSeleccionado;
+    const base = {
+      ...item,
+      cambios: item.cambios || crearCambiosVacios(),
+      cambiosRival: item.cambiosRival || crearCambiosVacios(),
+      formacion: item.formacion || crearFormacionVacia(),
+    };
+    return JSON.stringify(detalleBorrador) !== JSON.stringify(base);
+  };
+
+  // La formación que se está armando en "Ingresar formación" y todavía no se
+  // guardó en el partido. Los lugares vacíos no cuentan.
+  const formacionComparable = (formacion) => {
+    const base = conCancha(formacion);
+    return JSON.stringify({
+      titulares: limpiarLista(base.titulares),
+      convocados: limpiarLista(base.convocados),
+      cancha: normalizarCancha(base.cancha),
+    });
+  };
+  const hayFormacionSinGuardar = () =>
+    formacionComparable(formacionTemporal) !==
+    formacionComparable(registro.formacion);
+
+  // Las hojas guardan la función del momento en que se abrieron: así siguen
+  // con la de ahora.
+  const navegarVigente = useRef(() => {});
+
+  /**
+   * Antes de irse se pregunta si hay algo sin guardar que se perdería: un
+   * registro editado (salir lo tiraba) o una formación a medio cargar (la
+   * pestaña Formación la volvía a la del partido). Antes se perdía sin aviso.
+   */
+  const navegarAplicacion = (destino, confirmado = {}) => {
+    if (!confirmado.edicion && hayEdicionSinGuardar()) {
+      setConfirmacion({
+        titulo: t("partido.salirSinGuardarTitulo"),
+        descripcion: t("partido.salirSinGuardarTexto"),
+        icono: "cambio",
+        etiquetaConfirmar: t("partido.salirSinGuardarSi"),
+        etiquetaCancelar: t("comun.no"),
+        onConfirmar: () =>
+          navegarVigente.current(destino, { ...confirmado, edicion: true }),
+      });
+      return;
+    }
+
+    if (
+      destino === "formacion" &&
+      !confirmado.formacion &&
+      hayFormacionSinGuardar()
+    ) {
+      setConfirmacion({
+        titulo: t("partido.descartarFormacionTitulo"),
+        descripcion: t("partido.descartarFormacionTexto"),
+        icono: "cambio",
+        etiquetaConfirmar: t("partido.descartarFormacionSi"),
+        etiquetaCancelar: t("partido.seguirEditando"),
+        onConfirmar: () =>
+          navegarVigente.current(destino, { ...confirmado, formacion: true }),
+        // Seguir editando es volver a la formación, tal como quedó.
+        onCancelar: () => {
+          setRegistroSeleccionado(null);
+          setDetalleBorrador(null);
+          setDetalleEditando(false);
+          setPantallaFormacion("manual");
+        },
+      });
+      return;
+    }
+
     setRegistroSeleccionado(null);
     setDetalleBorrador(null);
     setDetalleEditando(false);
@@ -6554,6 +6637,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       setPantallaFormacion("ajustes");
     }
   };
+  navegarVigente.current = navegarAplicacion;
 
   const formatearFechaPantalla = (fecha) => {
     if (!fecha) return "Sin fecha";
@@ -7157,7 +7241,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       etiquetaCancelar={confirmacion?.etiquetaCancelar}
       icono={confirmacion?.icono}
       onConfirmar={confirmarAccion}
-      onCancelar={cerrarConfirmacion}
+      onCancelar={cancelarConfirmacion}
     />
   );
 

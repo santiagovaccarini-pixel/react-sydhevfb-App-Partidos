@@ -436,6 +436,13 @@ export default {
     reanudarTitulo: "¿Reanudar el {{periodo}}?",
     reanudarTexto: "Se borra el final cargado ({{final}}) y el reloj vuelve a correr. Si después tocás Finalizar, queda la hora de ese momento.",
     reanudarSi: "Sí, reanudar",
+    seguirEditando: "Seguir editando",
+    salirSinGuardarTitulo: "¿Salir sin guardar los cambios?",
+    salirSinGuardarTexto: "Lo que cambiaste en este registro todavía no se guardó. Si salís, se pierde.",
+    salirSinGuardarSi: "Sí, salir",
+    descartarFormacionTitulo: "¿Descartar la formación sin guardar?",
+    descartarFormacionTexto: "Cambiaste la formación y todavía no la guardaste. Si la descartás, queda la que tiene el partido.",
+    descartarFormacionSi: "Descartar",
   },
   openfield: {
     abriendoTitulo: "Un momento…",

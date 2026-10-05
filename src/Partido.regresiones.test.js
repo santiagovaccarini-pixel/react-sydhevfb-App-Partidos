@@ -562,6 +562,70 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("EN VIVO");
   });
 
+  // ------------------------------------------------------------------ 8 --
+  test("salir con un registro editado sin guardar pregunta antes de tirar los cambios", async () => {
+    db.filas = [{ id: 50, equipo_id: "eq-1", fecha: "2026-09-01", rival: "Bahia", resultado: "3-0" }];
+    await montar();
+    await irA("Registros");
+    await act(async () => contenedor.querySelector(".registro-guardado .boton-detalle").click());
+    await act(async () => boton("Editar registro").click());
+
+    // Sin cambios se sale sin preguntar nada.
+    await irA("Registros");
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(boton("Guardar cambios")).toBeUndefined();
+
+    await act(async () => contenedor.querySelector(".registro-guardado .boton-detalle").click());
+    await act(async () => boton("Editar registro").click());
+    await escribir(contenedor.querySelectorAll(".resultado-ficha input")[0], "4");
+
+    // Con cambios, pregunta; "No" deja seguir editando con lo cargado.
+    await irA("Formación");
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Salir sin guardar los cambios?");
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").click());
+    expect(boton("Guardar cambios")).toBeDefined();
+    expect(contenedor.querySelectorAll(".resultado-ficha input")[0].value).toBe("4");
+
+    // Y confirmando, sale (sin guardar).
+    await irA("Formación");
+    await act(async () => boton("Sí, salir").click());
+    expect(boton("Guardar cambios")).toBeUndefined();
+    expect(db.filas[0].resultado).toBe("3-0");
+  });
+
+  test("la pestaña Formación pregunta antes de tirar una formación sin guardar", async () => {
+    await montar();
+    await irA("Formación");
+    // Sin cambios no pregunta nada.
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+
+    await act(async () => boton("Ingresar Formación").click());
+    const convocado = contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0];
+    await escribir(convocado, "DUDU");
+
+    // Tocar Formación con la formación sin guardar: pregunta, y "Seguir
+    // editando" la deja como estaba.
+    await irA("Formación");
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Descartar la formación sin guardar?");
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").click());
+    expect(contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0].value).toBe("DUDU");
+
+    // Ir al tablero y volver a Formación también pregunta; "Seguir editando"
+    // vuelve a la formación con lo escrito.
+    await irA("Partido");
+    await irA("Formación");
+    expect(contenedor.querySelector(".hoja-confirmar")).not.toBeNull();
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").click());
+    expect(contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0].value).toBe("DUDU");
+
+    // Descartando, queda la del partido.
+    await irA("Formación");
+    await act(async () => boton("Descartar").click());
+    await act(async () => boton("Ingresar Formación").click());
+    expect(contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0].value).toBe("BERNARD");
+    expect(borrador().formacion.convocados).toEqual(expect.not.arrayContaining(["DUDU"]));
+  });
+
   // ----------------------------------------------------------------- 14 --
   test("un borrador escrito por otra versión de la app no se abre vacío ni se pisa sin copia", async () => {
     // Como si una versión más nueva hubiera cambiado el formato y se hubiera
