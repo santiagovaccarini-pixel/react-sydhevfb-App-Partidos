@@ -727,6 +727,33 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(contenedor.textContent).not.toContain("Flamengo");
   });
 
+  // ----------------------------------------------------------------- 12 --
+  test("con señal, la cola se vuelve a intentar sola cada tanto aunque no llegue el aviso de 'online'", async () => {
+    localStorage.setItem(
+      "registros_sin_sincronizar:eq-1",
+      JSON.stringify([{ fecha: "2026-09-07", rival: "Flamengo", resultado: "2-2", sinSincronizar: true }]),
+    );
+    // En la cancha la base no contesta, pero el teléfono dice que hay red.
+    db.errorHistorial = { message: "sin señal" };
+    await montar();
+    expect(db.filas).toHaveLength(0);
+
+    // Vuelve la base, sin evento 'online' (navigator.onLine nunca cambió).
+    db.errorHistorial = null;
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+    await vaciarPromesas();
+
+    expect(db.filas.map((f) => f.rival)).toEqual(["Flamengo"]);
+    expect(cola()).toHaveLength(0);
+
+    // Sin nada en la cola no se lee la base de nuevo.
+    const lecturas = db.lecturasHistorial;
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+    expect(db.lecturasHistorial).toBe(lecturas);
+  });
+
   // ----------------------------------------------------------------- 14 --
   test("un borrador escrito por otra versión de la app no se abre vacío ni se pisa sin copia", async () => {
     // Como si una versión más nueva hubiera cambiado el formato y se hubiera

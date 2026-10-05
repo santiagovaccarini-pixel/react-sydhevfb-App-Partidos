@@ -258,6 +258,8 @@ const APP_VERSION = "2026.10.05.9";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
+// Cada cuánto se reintenta sola la cola del celular mientras haya algo.
+const REINTENTO_COLA_MS = 60000;
 const CLAVE_RESPALDO = "backup_registros_partidos";
 const CLAVE_PENDIENTES = "registros_sin_sincronizar";
 
@@ -2170,6 +2172,37 @@ export default function App({
     const alVolverLaSenal = () => releerAlVolverLaSenal.current();
     window.addEventListener("online", alVolverLaSenal);
     return () => window.removeEventListener("online", alVolverLaSenal);
+  }, []);
+
+  // En la cancha el teléfono suele decir que hay red aunque la base no
+  // conteste, así que el aviso de "online" nunca llega: lo que quedó en la
+  // cola no se volvía a intentar hasta reabrir la app. Mientras haya algo en
+  // la cola y el teléfono diga que hay red, se reintenta cada minuto, sin
+  // pisarse con un guardado ni con otra subida en marcha.
+  const reintentoEnCurso = useRef(false);
+  const reintentarLaCola = useRef(() => {});
+  reintentarLaCola.current = () => {
+    if (!equipoId || soloLectura || !historialCargado) return;
+    if (guardandoRef.current || subidaEnCurso.current || reintentoEnCurso.current) {
+      return;
+    }
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    if (leerPendientes().length === 0) return;
+
+    reintentoEnCurso.current = true;
+    cargarRegistrosSupabase()
+      .catch((error) => console.warn("No se pudo reintentar la cola:", error))
+      .finally(() => {
+        reintentoEnCurso.current = false;
+      });
+  };
+
+  useEffect(() => {
+    const reloj = window.setInterval(
+      () => reintentarLaCola.current(),
+      REINTENTO_COLA_MS,
+    );
+    return () => window.clearInterval(reloj);
   }, []);
 
   useEffect(() => {
