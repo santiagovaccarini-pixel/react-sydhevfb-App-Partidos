@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
-import { CuerpoConCalor } from "./components/CuerpoConCalor.jsx";
+import { CuerpoConCalor, partirDespuesDeBarras } from "./components/CuerpoConCalor.jsx";
 import { manchasDe } from "./components/manchasCuerpo.js";
 import { CuadroCadaMil, tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import { tonosDeGrupos } from "./components/TablaDatos.jsx";
@@ -494,7 +494,7 @@ export default function ReportesLesiones({
       if (valor === "" || valor === null || valor === undefined) return <span className="informe-vacio">—</span>;
       if (clave === "severidad") return <span className="informe-severidad">{valor}</span>;
       if (typeof valor !== "string" || COLUMNAS_CORTAS.has(clave) || !valor.includes("/")) return valor;
-      return valor.split(/(?<=\/)/).map((pedazo, indice) => (
+      return partirDespuesDeBarras(valor).map((pedazo, indice) => (
         <React.Fragment key={indice}>
           {indice > 0 && <wbr />}
           {pedazo}

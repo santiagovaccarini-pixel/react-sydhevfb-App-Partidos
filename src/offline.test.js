@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
@@ -49,6 +49,25 @@ describe("la app guardada para usar sin señal", () => {
     // Si no, serviría archivos viejos y ningún cambio se vería.
     expect(arranque).toContain("import.meta.env.PROD");
     expect(arranque).toContain('navigator.serviceWorker.register("/sw.js")');
+  });
+});
+
+// En iPhones con iOS anterior al 16.4 una sola expresión regular que mire
+// hacia atrás (lookbehind) en el código hace que la app entera no arranque.
+describe("la app arranca en iPhones viejos", () => {
+  const archivos = (carpeta) =>
+    readdirSync(carpeta, { withFileTypes: true }).flatMap((entrada) => {
+      const ruta = join(carpeta, entrada.name);
+      if (entrada.isDirectory()) return archivos(ruta);
+      return /\.jsx?$/.test(entrada.name) && !/\.test\.jsx?$/.test(entrada.name) ? [ruta] : [];
+    });
+
+  it("no hay lookbehind en el código que va al navegador", () => {
+    const conLookbehind = ["src", "lib"]
+      .flatMap((carpeta) => archivos(join(raiz, carpeta)))
+      .filter((ruta) => /\(\?<[=!]/.test(readFileSync(ruta, "utf8")))
+      .map((ruta) => ruta.slice(raiz.length + 1));
+    expect(conLookbehind).toEqual([]);
   });
 });
 

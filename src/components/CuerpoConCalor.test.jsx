@@ -1,7 +1,7 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { CuerpoConCalor } from "./CuerpoConCalor.jsx";
+import { CuerpoConCalor, partirDespuesDeBarras } from "./CuerpoConCalor.jsx";
 
 // El mapa corporal: las dos vistas, una mancha por lugar y los nombres.
 describe("CuerpoConCalor", () => {
@@ -82,5 +82,13 @@ describe("CuerpoConCalor", () => {
     const frente = contenedor.querySelector('[data-vista="frente"]');
     expect(frente.querySelectorAll(".cuerpo-calor-mancha")).toHaveLength(2);
     expect([...frente.querySelectorAll(".cuerpo-calor-nombre")].map(renglones)).toEqual(["A ×2"]);
+  });
+
+  test("partir después de cada barra da lo mismo que la expresión con lookbehind que había antes", () => {
+    // La de antes se arma acá (en Node anda); en la app no puede estar.
+    const conLookbehind = new RegExp("(?<=\\/)");
+    ["", "A", "/", "//", "A/", "/A", "A/B", "A//B", "ENTORSE/LESÃO LIGAMENTAR", "QUADRIL/VIRILHA/", "TORNOZELO/PÉ", "a / b"].forEach((texto) => {
+      expect(partirDespuesDeBarras(texto), texto).toEqual(texto.split(conLookbehind));
+    });
   });
 });
