@@ -1,4 +1,4 @@
-import { autenticarCookieOpenField, responderNoAutenticado } from "../../lib/openfieldAuth.js";
+import { autenticarCookieOpenField, exigirDiagnostico, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 import { resolverPase } from "../../lib/catapultAcceso.js";
 import { ACTIVIDAD_PRUEBA, leerBodyJson, textoSeguro, textoSecreto } from "../../lib/catapultCloud.js";
 import { describirAutorizacion } from "../../lib/catapultInspect.js";
@@ -25,7 +25,8 @@ export default async function handler(request, response) {
     return response.status(405).json({ ok: false, error: "Método no permitido" });
   }
 
-  const auth = autenticarCookieOpenField(request);
+  // Prueba técnica: el dueño, o cualquiera con OPENFIELD_DIAGNOSTICO prendida.
+  const auth = exigirDiagnostico(autenticarCookieOpenField(request));
   if (!auth.ok) {
     return responderNoAutenticado(response, auth);
   }
