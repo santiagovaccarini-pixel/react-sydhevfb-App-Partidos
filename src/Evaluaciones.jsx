@@ -593,9 +593,14 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         evaluaciones={evaluaciones}
         onVolver={() => setImportando(false)}
         onRecargar={cargar}
-        // Cada una que se carga queda en la lista enseguida: si después falla
-        // la recarga, al reintentar se ve como "Ya está" y no se duplica.
-        onGuardada={(evaluacion) => setEvaluaciones((previas) => (previas.some((una) => una.id === evaluacion.id) ? previas : [...previas, evaluacion]))}
+        // Las cargadas quedan en la lista antes de recargar: si la recarga
+        // falla, al reintentar se ven como "Ya está" y no se duplican.
+        onGuardadas={(nuevas) =>
+          setEvaluaciones((previas) => {
+            const yaEstan = new Set(previas.map((una) => una.id));
+            return [...previas, ...nuevas.filter((una) => !yaEstan.has(una.id))];
+          })
+        }
         onListo={({ cargadas }) => {
           setImportando(false);
           setAviso(plural("evaluaciones.importar.listo", cargadas));

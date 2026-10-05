@@ -23,8 +23,10 @@ vi.mock("./domain/equipo.js", () => ({
 
 vi.mock("./domain/membresiasDb.js", async () => {
   const real = await vi.importActual("./domain/membresiasDb.js");
-  const cambiar = (userId, equipoId, cambios) => {
+  const cambiar = async (userId, equipoId, cambios) => {
     datos.llamadas.push({ que: "cambiar", userId, equipoId, cambios });
+    // Una conexión lenta: el cambio vuelve cuando se abre la compuerta.
+    if (datos.compuerta) await datos.compuerta;
     if (datos.errorCambio) throw new Error(datos.errorCambio);
     const fila = { ...datos.miembros[equipoId].find((m) => m.user_id === userId), ...cambios };
     datos.miembros[equipoId] = datos.miembros[equipoId].map((m) => (m.user_id === userId ? fila : m));
@@ -121,6 +123,7 @@ describe("Cuentas", () => {
     datos.errorCambio = null;
     datos.errorLeer = null;
     datos.usada = false;
+    datos.compuerta = null;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
   });
@@ -283,6 +286,24 @@ describe("Cuentas", () => {
     expect(datos.llamadas.at(-1)).toEqual({ que: "cancelar", id: "i1" });
     expect(fila("espera@uno.com")).toBeUndefined();
     expect(texto()).toContain("Invitación cancelada.");
+  });
+
+  test("un cambio que vuelve después de elegir otro club no toca la lista de ese club", async () => {
+    datos.clubes = [UNO, DOS];
+    datos.miembros.c2.push(miembro({ user_id: "beto", equipo_id: "c2", email: "beto@uno.com" }));
+    await montar();
+    let abrir;
+    datos.compuerta = new Promise((resolver) => {
+      abrir = resolver;
+    });
+    await tocar(chip(fila("beto@uno.com"), "Lesiones"));
+    await tocar(boton(contenedor, "Cambiar"));
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Club Dos"));
+    await act(async () => abrir());
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".cuentas-club-elegido strong").textContent).toBe("Club Dos");
+    // En Club Dos, Beto sigue sin Lesiones: el cambio fue en Club Uno.
+    expect(chip(fila("beto@uno.com"), "Lesiones").getAttribute("aria-pressed")).toBe("false");
   });
 
   test("con varios clubes se elige cuál administrar", async () => {

@@ -31,9 +31,9 @@ const CLASE_DEL_ESTADO = {
 // Los años que se pueden elegir para las fechas que vienen sin año.
 const PRIMER_ANIO = 2000;
 
-// onGuardada(evaluacion): cada una que se cargó, en cuanto la base la
-// devuelve (antes de recargar todo).
-export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelSinLeer = false, evaluaciones, onVolver, onRecargar, onGuardada, onListo }) {
+// onGuardadas(lista): las que se cargaron, todas juntas al terminar (antes de
+// recargar todo, por si la recarga falla).
+export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelSinLeer = false, evaluaciones, onVolver, onRecargar, onGuardadas, onListo }) {
   const { idioma, plural } = useIdioma();
   const [texto, setTexto] = useState("");
   const [progreso, setProgreso] = useState(null);
@@ -128,6 +128,7 @@ export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelS
     // abierta con ellos.
     const quedanSinElegir = sinElegir.length;
     const errores = [];
+    const guardadas = [];
     let cargadas = 0;
     setFallas([]);
     setCargadasAntes(null);
@@ -139,9 +140,13 @@ export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelS
       if (guardado.error) errores.push({ fecha: fechaDe(fila), nombre: fila.nombre, error: t(guardado.error) });
       else {
         cargadas += 1;
-        onGuardada?.(guardado.evaluacion);
+        guardadas.push(guardado.evaluacion);
       }
     }
+    // Lo cargado queda en la lista de una vez (no fila por fila: con cada
+    // cambio se rearma el plan); así, aunque la recarga falle, se ve como "Ya
+    // está en la app" y no se carga dos veces.
+    if (guardadas.length) onGuardadas?.(guardadas);
     // Con las evaluaciones de nuevo, las que ya quedaron se ven como "Ya está
     // en la app" y las que fallaron se pueden volver a intentar.
     await onRecargar();

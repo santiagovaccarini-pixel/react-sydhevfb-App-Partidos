@@ -267,7 +267,21 @@ begin
   if tg_op = 'UPDATE' and (new.equipo_id <> old.equipo_id or new.test <> old.test) then
     raise exception 'evaluacion_fija' using errcode = 'P0001';
   end if;
+  -- La base sola, sin nadie conectado y sin tocar lo cargado: es el "on
+  -- delete set null" de creado_por o actualizado_por al borrar una cuenta.
+  -- Quedan los autores cuyas cuentas siguen y las fechas como estaban.
+  if tg_op = 'UPDATE' and auth.uid() is null
+     and (new.jugador_id, new.persona, new.fecha, new.datos) is not distinct from (old.jugador_id, old.persona, old.fecha, old.datos) then
+    new.creado_por := case when exists (select 1 from auth.users u where u.id = old.creado_por) then old.creado_por end;
+    new.actualizado_por := case when exists (select 1 from auth.users u where u.id = old.actualizado_por) then old.actualizado_por end;
+    new.creado_en := old.creado_en;
+    new.actualizado_en := old.actualizado_en;
+    return new;
+  end if;
+  -- El jugador, del club de la evaluación: al cargarla o al cambiarle el
+  -- jugador.
   if new.jugador_id is not null
+     and (tg_op = 'INSERT' or new.jugador_id is distinct from old.jugador_id)
      and not exists (select 1 from public.jugadores j where j.id = new.jugador_id and j.equipo_id = new.equipo_id) then
     raise exception 'jugador_de_otro_club' using errcode = 'P0001';
   end if;
@@ -275,9 +289,7 @@ begin
     new.creado_por := coalesce(auth.uid(), new.creado_por);
     new.creado_en := now();
   else
-    -- Quién la cargó no cambia; si su cuenta se borró, queda vacío (el "on
-    -- delete set null" de la columna también pasa por acá y no tiene que
-    -- quedar el id de una cuenta que ya no existe).
+    -- Quién la cargó no cambia (si su cuenta ya no existe, queda vacío).
     new.creado_por := case when exists (select 1 from auth.users u where u.id = old.creado_por) then old.creado_por end;
     new.creado_en := old.creado_en;
   end if;

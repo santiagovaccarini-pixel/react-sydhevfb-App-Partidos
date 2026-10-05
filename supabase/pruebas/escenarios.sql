@@ -652,10 +652,16 @@ reset role;
 
 select pruebas.esperar('Las dos evaluaciones quedan en las versiones (un cambio el mismo día pisa la suya)', (select count(*) from versiones_datos where tabla = 'evaluaciones'), 2);
 select pruebas.esperar('...y quién la cargó', (select count(*) from evaluaciones where creado_por = '00000000-0000-0000-0000-00000000000c' and actualizado_por = '00000000-0000-0000-0000-00000000000c'), 2);
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('La preparadora corrige una de las que cargó Carla', pruebas.filas($$update evaluaciones set datos = datos || '{"lumbar":201}' where persona = 'Cata Tres'$$), 1);
+reset role;
+select pruebas.esperar('El jugador evaluado pasa a otro club', pruebas.filas($$update jugadores set equipo_id = '00000000-0000-0000-0000-0000000000c2' where id = 9004$$), 1);
 -- Desde Supabase › Authentication › Users, sin la sesión de nadie.
 select set_config('request.jwt.claims', '', false);
 select pruebas.esperar('Se borra la cuenta de Carla', pruebas.filas($$delete from auth.users where id = '00000000-0000-0000-0000-00000000000c'$$), 1);
 select pruebas.esperar('...y sus evaluaciones quedan sin autor, no con una cuenta que ya no existe', (select count(*) from evaluaciones where creado_por is not null and not exists (select 1 from auth.users u where u.id = creado_por)), 0);
 select pruebas.esperar('...pero siguen estando', (select count(*) from evaluaciones), 2);
+select pruebas.esperar('...y la que corrigió la preparadora sigue diciendo que la cambió ella', (select actualizado_por::text from evaluaciones where persona = 'Cata Tres'), '00000000-0000-0000-0000-000000000015');
+select pruebas.esperar('...con lo que cargó', (select datos ->> 'lumbar' from evaluaciones where persona = 'Cata Tres'), '201');
 
 select 'ESCENARIOS: todos bien' as resultado;
