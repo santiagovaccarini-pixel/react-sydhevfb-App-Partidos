@@ -52,15 +52,14 @@ const ORDEN_SEVERIDAD = ["registro", "leve", "menor", "moderado", "mayor", "abie
 // vista, en tramos por grupo del Excel, una tabla debajo de la otra
 // (TABLA_DEL_INDIVIDUAL en domain/reportes.js). Las columnas cortas
 // (números, fechas, sí o no, la severidad) no se parten en renglones: el
-// lugar que sobra queda para los textos.
+// lugar que sobra queda para los textos. La fecha y hora de la imagen sí se
+// parte (la hora abajo), para que las tablas entren a lo ancho.
 const COLUMNAS_CORTAS = new Set([
   "numero_caso",
   "numero_registro",
   "fecha_nacimiento",
   "edad",
-  "lado",
   "lado_habil",
-  "hora_imagen",
   "horas_imagen",
   "fecha_lesion",
   "fecha_transicion",
@@ -478,6 +477,8 @@ export default function ReportesLesiones({
     const tonoDeGrupo = tonosDeGrupos(conCampo);
     const tono = (grupo) => `tono-${tonoDeGrupo[grupo] ?? 0}`;
     const claseDeColumna = (clave, ...otras) => [clave === tramos[0]?.id ? "informe-id" : "", COLUMNAS_CORTAS.has(clave) ? "informe-corta" : "", ...otras].filter(Boolean).join(" ") || undefined;
+    // El n° de registro va adelante en las dos tablas, fuera de los grupos y
+    // fijo al deslizar, como el número de fila de la base.
     const registro = (lesion) => calcular("numero_registro", lesion, null, { lesiones }) ?? 0;
     const ordenadas = [...deJugador].sort((a, b) => registro(a) - registro(b) || String(a.fecha_lesion).localeCompare(String(b.fecha_lesion)));
     // Las opciones del club que vienen pegadas con barras (ENTORSE/LESÃO
@@ -577,10 +578,10 @@ export default function ReportesLesiones({
                   const columnas = tramo.grupos.flatMap((grupo) => grupo.columnas.map((clave) => ({ clave, grupo: grupo.clave })));
                   return (
                     <div className="informe-tabla-marco" key={indice}>
-                      <table className="informe-tabla" style={{ "--columnas": columnas.length + (tramo.repetida ? 1 : 0) }}>
+                      <table className="informe-tabla" style={{ "--columnas": columnas.length + (tramo.id ? 1 : 0) }}>
                         <thead>
                           <tr className="informe-grupos">
-                            {tramo.repetida && (
+                            {tramo.id && (
                               <th scope="col" rowSpan={2} className={claseDeColumna(tramo.id)} data-columna={tramo.id}>
                                 {etiqueta(tramo.id)}
                               </th>
@@ -602,7 +603,7 @@ export default function ReportesLesiones({
                         <tbody>
                           {ordenadas.map((lesion) => (
                             <tr key={lesion.id}>
-                              {tramo.repetida && (
+                              {tramo.id && (
                                 <td className={claseDeColumna(tramo.id)} data-columna={tramo.id}>
                                   {celda(tramo.id, lesion)}
                                 </td>

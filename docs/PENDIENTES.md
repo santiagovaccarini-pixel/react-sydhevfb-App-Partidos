@@ -310,8 +310,11 @@ mover a una configuración por club:
   de Santiago del 05/10): todas las columnas que el club tiene a la vista, en dos tablas una
   debajo de la otra: de Datos generales a Descripción específica arriba, y de Descripción
   contextual a Observaciones abajo (un grupo que no esté en ninguna va a la última). Cada tabla
-  arranca con el N° de registro (o el N° de caso, si el registro está escondido) y lleva la fila
-  de los grupos con los mismos tonos que la base.
+  arranca con el N° de registro (o el N° de caso, si el registro está escondido), adelante y
+  fijo como el número de fila de la base, y lleva la fila de los grupos con los mismos tonos que
+  la base. En pantalla entran enteras desde una compu de 1366 px; más chica, se deslizan.
+  Impreso (A4 apaisado), la segunda tabla va entera a la hoja siguiente si no entra: un jugador
+  con pocas lesiones ocupa dos hojas (antes, con 12 columnas, entraba en una).
 - Validaciones: obligatorios jugador, tipo de lesión (pedido del 02/10), parte,
   lado y fecha de inicio; fechas no futuras y posteriores al inicio (también la
   hora de la imagen: no antes del día de la lesión); la misma lesión no se

@@ -441,11 +441,11 @@ export const nombresDeQuien = (lesiones, plantel = []) =>
 
 // La tabla del reporte individual, partida en tramos (Santiago, 05/10): todas
 // las columnas de la base que el club tiene a la vista, por grupo del Excel,
-// una tabla debajo de la otra. Cada tramo es una lista de grupos; un grupo que
-// no esté en ninguno va al último (así siempre se ve todo). Cada tabla arranca
-// con la columna que dice de qué lesión es cada fila: la primera de
-// `identifican` que esté a la vista. Juntas y con nombre para mudarlas a la
-// configuración del club (regla del 02/10).
+// una tabla debajo de la otra. Cada tramo es una lista de grupos; un grupo va
+// en el primer tramo que lo nombra, y uno que no esté en ninguno va al último
+// (así siempre se ve todo). Cada tabla arranca con la columna que dice de qué
+// lesión es cada fila: la primera de `identifican` que esté a la vista. Juntas
+// y con nombre para mudarlas a la configuración del club (regla del 02/10).
 export const TABLA_DEL_INDIVIDUAL = Object.freeze({
   tramos: [
     ["dados_gerais", "descricao_geral", "descricao_especifica"],
@@ -456,27 +456,29 @@ export const TABLA_DEL_INDIVIDUAL = Object.freeze({
 
 // campos: las columnas a la vista ({ clave, grupo }), en el orden de la base.
 // Devuelve un tramo por tabla, sin los que quedan vacíos:
-// { id, repetida, grupos: [{ clave, columnas: [clave] }] }. `id` es la
-// columna que identifica la fila (o null): va primera en su grupo si el grupo
-// es de ese tramo; si no, va adelante, fuera de los grupos (`repetida`).
+// { id, grupos: [{ clave, columnas: [clave] }] }. `id` es la columna que
+// identifica la fila (o null): va adelante en todas las tablas, fuera de los
+// grupos, como el número de fila de la base.
 export const tramosDeLaTabla = (campos, reglas = TABLA_DEL_INDIVIDUAL) => {
   const lista = campos || [];
   const claves = lista.map((campo) => campo.clave);
   const grupoDe = Object.fromEntries(lista.map((campo) => [campo.clave, campo.grupo]));
   const id = reglas.identifican.find((clave) => claves.includes(clave)) || null;
-  const nombrados = new Set(reglas.tramos.flat());
-  const sueltos = [...new Set(lista.map((campo) => campo.grupo))].filter((grupo) => !nombrados.has(grupo));
-  const tramos = reglas.tramos.length ? reglas.tramos : [[]];
+  const usados = new Set();
+  const tramos = (reglas.tramos.length ? reglas.tramos : [[]]).map((grupos) =>
+    grupos.filter((grupo) => {
+      if (usados.has(grupo)) return false;
+      usados.add(grupo);
+      return true;
+    }),
+  );
+  const sueltos = [...new Set(lista.map((campo) => campo.grupo))].filter((grupo) => !usados.has(grupo));
+  tramos[tramos.length - 1] = [...tramos[tramos.length - 1], ...sueltos];
   return tramos
-    .map((grupos, indice) => (indice === tramos.length - 1 ? [...grupos, ...sueltos] : grupos))
     .map((grupos) => ({
       id,
-      repetida: Boolean(id) && !grupos.includes(grupoDe[id]),
       grupos: grupos
-        .map((grupo) => {
-          const columnas = claves.filter((clave) => grupoDe[clave] === grupo && clave !== id);
-          return { clave: grupo, columnas: id && grupoDe[id] === grupo ? [id, ...columnas] : columnas };
-        })
+        .map((grupo) => ({ clave: grupo, columnas: claves.filter((clave) => grupoDe[clave] === grupo && clave !== id) }))
         .filter((grupo) => grupo.columnas.length > 0),
     }))
     .filter((tramo) => tramo.grupos.length > 0);

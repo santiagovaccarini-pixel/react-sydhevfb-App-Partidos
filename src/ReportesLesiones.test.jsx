@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import ReportesLesiones from "./ReportesLesiones.jsx";
 import { CAMPOS, etiquetaDeCampo, etiquetaDeGrupo } from "./domain/lesionesCampos.js";
+import { tonosDeGrupos } from "./components/TablaDatos.jsx";
 import { crearMapa } from "./domain/mapaCorporal.js";
 import { fijarIdiomaParaPruebas } from "./idioma/index.js";
 
@@ -178,17 +179,28 @@ describe("los reportes con los minutos del GPS", () => {
     // Arriba: Datos generales, Descripción general y Descripción específica,
     // con el n° de registro primero.
     const [arriba, abajo] = tablas();
-    expect(grupos(arriba)).toEqual(["Datos generales:8", "Descripción general:7", "Descripción específica:4"]);
+    expect(grupos(arriba)).toEqual(["Datos generales:7", "Descripción general:7", "Descripción específica:4"]);
     const deArriba = ["numero_registro", ...deGrupos("dados_gerais", "descricao_geral", "descricao_especifica").filter((clave) => clave !== "numero_registro")];
     expect(cabeceras(arriba)).toEqual(deArriba);
     expect(celdas(arriba)).toEqual(deArriba);
     // Abajo: de Descripción contextual a Observaciones, con el n° de
-    // registro repetido adelante (fuera de los grupos).
+    // registro repetido adelante.
     expect(grupos(abajo)).toEqual(["Descripción contextual:4", "Evolución y continuación:10", "Diagnóstico:1", "Observaciones:2"]);
     const deAbajo = ["numero_registro", ...deGrupos("descricao_contextual", "evolucao", "diagnostico", "observacoes")];
     expect(cabeceras(abajo)).toEqual(deAbajo);
     expect(celdas(abajo)).toEqual(deAbajo);
-    expect(abajo.querySelector('.informe-grupos th[data-columna="numero_registro"]').rowSpan).toBe(2);
+    // En las dos, el n° de registro va adelante fuera de los grupos (las dos
+    // filas de la cabecera), fijo y en negrita como el número de fila de la base.
+    for (const tabla of tablas()) {
+      expect(tabla.querySelector('.informe-grupos th[data-columna="numero_registro"]').rowSpan).toBe(2);
+      expect(tabla.querySelector('.informe-grupos th[data-columna="numero_registro"]').classList.contains("informe-id")).toBe(true);
+      expect([...tabla.querySelectorAll("tbody tr")].every((tr) => tr.firstElementChild.classList.contains("informe-id"))).toBe(true);
+    }
+    // Cada grupo con el tono que tiene en la base.
+    const tonos = (tabla) => [...tabla.querySelectorAll(".informe-grupos th[data-grupo]")].map((th) => `${th.dataset.grupo}:${th.className}`);
+    const tonosDeLaBase = tonosDeGrupos(CAMPOS);
+    expect([...tonos(arriba), ...tonos(abajo)]).toEqual(Object.entries(tonosDeLaBase).map(([grupo, tono]) => `${grupo}:tono-${tono}`));
+    expect(tonos(arriba)).toEqual(["dados_gerais:tono-0", "descricao_geral:tono-1", "descricao_especifica:tono-2"]);
     // Todas las columnas de la base están, una sola vez (menos el n° de registro, que se repite).
     expect([...deArriba, ...deAbajo.slice(1)].sort()).toEqual(CAMPOS.map((campo) => campo.clave).sort());
     expect(contenedor.querySelectorAll(".informe-tabla select")).toHaveLength(0);
@@ -220,6 +232,10 @@ describe("los reportes con los minutos del GPS", () => {
     expect(cabeceras(tablas()[0])).not.toContain("musculo_especifico");
     expect(grupos(tablas()[0]).at(-1)).toBe("Descripción específica:3");
     expect(grupos(tablas()[1])).toEqual(["Descripción contextual:4", "Evolución y continuación:10", "Observaciones:2"]);
+    // Sin Diagnóstico, Observaciones toma el tono que le da la base con esas columnas.
+    const visibles = CAMPOS.filter((campo) => !["musculo_especifico", "diagnostico"].includes(campo.clave));
+    expect(tablas()[1].querySelector('th[data-grupo="observacoes"]').className).toBe(`tono-${tonosDeGrupos(visibles).observacoes}`);
+    expect(tonosDeGrupos(visibles).observacoes).toBe(5);
     const celda = (clave) => contenedor.querySelector(`.informe-tabla tbody tr td[data-columna="${clave}"]`);
     // Lo vacío, con una raya.
     expect(celda("musculo").textContent).toBe("—");

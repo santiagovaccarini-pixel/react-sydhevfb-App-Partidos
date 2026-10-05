@@ -1552,6 +1552,9 @@
   margin-top: 16px;
 }
 .lesiones-marco .informe-tabla {
+  /* El ancho de la columna del n° de registro (fija al deslizar): el
+     nombre de cada grupo se corre hasta al lado. */
+  --informe-ancho-id: 56px;
   width: 100%;
   min-width: calc(var(--columnas, 12) * 48px);
   border-collapse: collapse;
@@ -1582,13 +1585,16 @@
 .lesiones-marco .informe-tabla .informe-cabeceras th {
   border-left: 1px solid rgba(255, 255, 255, 0.14);
 }
-/* El n° de registro repetido adelante (en las tablas que no tienen su grupo)
-   se lee como las otras cabeceras. */
+/* El n° de registro, adelante en las dos tablas (ocupa las dos filas de la
+   cabecera), se lee como las otras cabeceras; si el club le cambió el nombre
+   por uno largo, se parte en vez de ensanchar la columna. */
 .lesiones-marco .informe-tabla .informe-grupos th.informe-id {
+  padding: 8px 5px;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
+  overflow-wrap: anywhere;
 }
 .lesiones-marco .informe-tabla .informe-grupos th.tono-0 { background: var(--grupo-fondo-0); }
 .lesiones-marco .informe-tabla .informe-grupos th.tono-1 { background: var(--grupo-fondo-1); }
@@ -1621,6 +1627,12 @@
 .lesiones-marco .informe-tabla tbody tr:nth-child(even) td {
   background: #f7f7f7;
 }
+/* La columna del n° de registro, del mismo ancho en las dos tablas (también
+   en papel). */
+.lesiones-marco .informe-tabla .informe-id {
+  width: var(--informe-ancho-id);
+  min-width: var(--informe-ancho-id);
+}
 .lesiones-marco .informe-tabla td.informe-id {
   font-weight: 800;
 }
@@ -1631,8 +1643,6 @@
     position: sticky;
     left: 0;
     z-index: 1;
-    width: 56px;
-    min-width: 56px;
   }
   .lesiones-marco .informe-tabla td.informe-id {
     box-shadow: 1px 0 0 #e5e7eb;
@@ -1642,7 +1652,7 @@
   }
   .lesiones-marco .informe-grupo-titulo {
     position: sticky;
-    left: 66px;
+    left: calc(var(--informe-ancho-id) + 10px);
     right: 8px;
     display: inline-block;
   }
@@ -1663,7 +1673,8 @@
   white-space: nowrap;
 }
 /* En una pantalla más angosta (una compu chica), las tablas un poco más
-   apretadas para que entren sin deslizarse. */
+   apretadas: así entran enteras en más compus. Si igual no entran (una
+   pantalla chica, nombres largos), se deslizan con el n° de registro fijo. */
 @container informe (max-width: 1160px) {
   .lesiones-marco .informe-tabla {
     font-size: 11px;
@@ -1676,6 +1687,7 @@
     padding: 7px 4px;
   }
   .lesiones-marco .informe-tabla .informe-grupos th.informe-id {
+    padding: 7px 4px;
     font-size: 10px;
   }
 }
@@ -2517,8 +2529,9 @@
     overflow: visible;
   }
   /* En papel, la cabecera y los indicadores más bajos: así el historial
-     empieza en la primera hoja (y un jugador con pocas lesiones entra en
-     una). */
+     empieza en la primera hoja. Con todas las columnas son dos tablas: la
+     segunda va entera a la hoja siguiente si no entra (un jugador con pocas
+     lesiones ocupa dos hojas, una por tabla). */
   .lesiones-marco .app.reporte {
     min-height: 0;
     padding: 0;
@@ -2629,21 +2642,23 @@
     font-size: 10px;
   }
   .lesiones-marco .informe-tabla th {
-    padding: 7px 5px;
+    padding: 7px 3px;
     font-size: 9.5px;
   }
   .lesiones-marco .informe-tabla .informe-grupos th {
-    padding: 4px 5px;
+    padding: 4px 3px;
     font-size: 8.5px;
   }
   .lesiones-marco .informe-tabla .informe-grupos th.informe-id {
+    padding: 7px 3px;
     font-size: 9.5px;
   }
   .lesiones-marco .informe-tabla-marco + .informe-tabla-marco {
     margin-top: 10px;
+    break-inside: avoid;
   }
   .lesiones-marco .informe-tabla td {
-    padding: 6px 5px;
+    padding: 6px 3px;
     overflow-wrap: break-word;
   }
   .lesiones-marco .informe-severidad {

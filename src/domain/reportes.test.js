@@ -446,7 +446,7 @@ describe("Informes gráficos: bloques 3 a 5 (partes del cuerpo, por jugador, ent
 });
 
 describe("la tabla del reporte individual, por tramos", () => {
-  const resumen = (tramos) => tramos.map((tramo) => ({ id: tramo.id, repetida: tramo.repetida, grupos: tramo.grupos.map((grupo) => `${grupo.clave}:${grupo.columnas.length}`) }));
+  const resumen = (tramos) => tramos.map((tramo) => ({ id: tramo.id, grupos: tramo.grupos.map((grupo) => `${grupo.clave}:${grupo.columnas.length}`) }));
 
   test("dos tablas: de Datos generales a Descripción específica, y de Descripción contextual a Observaciones; todo una vez", () => {
     expect(TABLA_DEL_INDIVIDUAL.tramos).toEqual([
@@ -454,13 +454,13 @@ describe("la tabla del reporte individual, por tramos", () => {
       ["descricao_contextual", "evolucao", "diagnostico", "observacoes"],
     ]);
     const tramos = tramosDeLaTabla(CAMPOS);
+    // El n° de registro va adelante en las dos, fuera de los grupos.
     expect(resumen(tramos)).toEqual([
-      { id: "numero_registro", repetida: false, grupos: ["dados_gerais:8", "descricao_geral:7", "descricao_especifica:4"] },
-      { id: "numero_registro", repetida: true, grupos: ["descricao_contextual:4", "evolucao:10", "diagnostico:1", "observacoes:2"] },
+      { id: "numero_registro", grupos: ["dados_gerais:7", "descricao_geral:7", "descricao_especifica:4"] },
+      { id: "numero_registro", grupos: ["descricao_contextual:4", "evolucao:10", "diagnostico:1", "observacoes:2"] },
     ]);
-    // El n° de registro va primero en su grupo; las demás, en el orden de la base.
-    expect(tramos[0].grupos[0].columnas).toEqual(["numero_registro", "numero_caso", "jugador", "categoria", "fecha_nacimiento", "pie_dominante", "posicion", "edad"]);
-    const todas = tramos.flatMap((tramo) => tramo.grupos.flatMap((grupo) => grupo.columnas));
+    expect(tramos[0].grupos[0].columnas).toEqual(["numero_caso", "jugador", "categoria", "fecha_nacimiento", "pie_dominante", "posicion", "edad"]);
+    const todas = [tramos[0].id, ...tramos.flatMap((tramo) => tramo.grupos.flatMap((grupo) => grupo.columnas))];
     expect(todas.sort()).toEqual(CAMPOS.map((campo) => campo.clave).sort());
   });
 
@@ -469,27 +469,25 @@ describe("la tabla del reporte individual, por tramos", () => {
     expect(resumen(tramosDeLaTabla(sin("diagnostico", "comentarios", "medico")))[1].grupos).toEqual(["descricao_contextual:4", "evolucao:10"]);
     const sinRegistro = tramosDeLaTabla(sin("numero_registro"));
     expect(sinRegistro.map((tramo) => tramo.id)).toEqual(["numero_caso", "numero_caso"]);
-    expect(sinRegistro[0].grupos[0].columnas[0]).toBe("numero_caso");
-    // Sin ninguna de las dos, las tablas no llevan columna repetida.
-    expect(resumen(tramosDeLaTabla(sin("numero_registro", "numero_caso"))).map((tramo) => [tramo.id, tramo.repetida])).toEqual([
-      [null, false],
-      [null, false],
-    ]);
+    expect(sinRegistro[0].grupos[0].columnas[0]).toBe("jugador");
+    // Sin ninguna de las dos, las tablas no llevan esa columna.
+    expect(resumen(tramosDeLaTabla(sin("numero_registro", "numero_caso"))).map((tramo) => tramo.id)).toEqual([null, null]);
     // Un tramo que se queda sin columnas no se muestra.
     const soloArriba = CAMPOS.filter((campo) => ["dados_gerais", "descricao_geral"].includes(campo.grupo));
-    expect(resumen(tramosDeLaTabla(soloArriba))).toEqual([{ id: "numero_registro", repetida: false, grupos: ["dados_gerais:8", "descricao_geral:7"] }]);
+    expect(resumen(tramosDeLaTabla(soloArriba))).toEqual([{ id: "numero_registro", grupos: ["dados_gerais:7", "descricao_geral:7"] }]);
     expect(tramosDeLaTabla([])).toEqual([]);
   });
 
-  test("un grupo que no está en ningún tramo va al último (siempre se ve todo)", () => {
+  test("un grupo que no está en ningún tramo va al último, y uno nombrado dos veces va en el primero (siempre se ve todo, una vez)", () => {
     const campos = [...CAMPOS, { clave: "nueva", grupo: "grupo_nuevo" }];
     const tramos = tramosDeLaTabla(campos);
     expect(tramos.at(-1).grupos.at(-1)).toEqual({ clave: "grupo_nuevo", columnas: ["nueva"] });
-    // Con otros tramos (lo que un club podría elegir).
-    const propios = { tramos: [["evolucao"], ["dados_gerais"]], identifican: ["numero_registro"] };
+    // Con otros tramos (lo que un club podría elegir): el n° de registro va
+    // adelante aunque su grupo no sea el primero, o no esté en el tramo.
+    const propios = { tramos: [["evolucao", "dados_gerais"], ["evolucao", "diagnostico"]], identifican: ["numero_registro"] };
     expect(resumen(tramosDeLaTabla(CAMPOS, propios))).toEqual([
-      { id: "numero_registro", repetida: true, grupos: ["evolucao:10"] },
-      { id: "numero_registro", repetida: false, grupos: ["dados_gerais:8", "descricao_geral:7", "descricao_especifica:4", "descricao_contextual:4", "diagnostico:1", "observacoes:2"] },
+      { id: "numero_registro", grupos: ["evolucao:10", "dados_gerais:7"] },
+      { id: "numero_registro", grupos: ["diagnostico:1", "descricao_geral:7", "descricao_especifica:4", "descricao_contextual:4", "observacoes:2"] },
     ]);
   });
 });
