@@ -114,6 +114,11 @@ describe("copiar y pegar como Excel", () => {
     expect(interpretarValor(lado, "esquerdo")).toBe("esquerdo");
     expect(interpretarValor(lado, "arriba")).toBe(undefined);
     expect(interpretarValor(lado, "")).toBe(null);
+    // Con o sin espacios alrededor de la barra, es la misma opción.
+    const tipo = { tipo: "lista", opciones: [{ valor: "sobrecarga", etiqueta: "SOBRECARGA MUSCULAR/CÃIBRA" }] };
+    expect(interpretarValor(tipo, "SOBRECARGA MUSCULAR / CÃIBRA")).toBe("sobrecarga");
+    expect(interpretarValor(tipo, "sobrecarga muscular/caibra")).toBe("sobrecarga");
+    expect(interpretarValor(tipo, "sobrecarga muscular  /  câibra")).toBe("sobrecarga");
     // Una casilla: Sí / No (y Sim / Não, x, 1, 0...). Vacía no se toca.
     const casilla = { tipo: "casilla" };
     expect(["Sí", "sim", "SI", "x", "1", "✓"].map((texto) => interpretarValor(casilla, texto))).toEqual([true, true, true, true, true, true]);

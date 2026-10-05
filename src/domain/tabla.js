@@ -180,6 +180,11 @@ const TEXTOS_DE_CASILLA = {
   vacia: ["no", "nao", "n", "0", "false", "falso"],
 };
 
+// Una opción como se compara al pegar: sin mayúsculas ni acentos, y con o
+// sin espacios alrededor de "/" (en el Excel aparece "SOBRECARGA MUSCULAR /
+// CÃIBRA" y también "…MUSCULAR/CÃIBRA").
+const textoDeOpcionComparable = (texto) => normalizarTextoBase(texto).replace(/\s*\/\s*/g, "/");
+
 // Un texto pegado en una celda, convertido al valor que guarda esa columna.
 // Devuelve undefined cuando no se entiende (y la celda no se toca).
 export const interpretarValor = (columna, texto) => {
@@ -187,9 +192,12 @@ export const interpretarValor = (columna, texto) => {
   switch (columna.tipo) {
     case "lista": {
       if (!t) return null;
-      const buscado = normalizarTextoBase(t);
+      const buscado = textoDeOpcionComparable(t);
       const opcion = (columna.opciones || []).find(
-        (una) => normalizarTextoBase(una.etiqueta) === buscado || normalizarTextoBase(una.valor) === buscado || (una.alias || []).some((a) => normalizarTextoBase(a) === buscado),
+        (una) =>
+          textoDeOpcionComparable(una.etiqueta) === buscado ||
+          textoDeOpcionComparable(una.valor) === buscado ||
+          (una.alias || []).some((a) => textoDeOpcionComparable(a) === buscado),
       );
       return opcion ? opcion.valor : undefined;
     }
