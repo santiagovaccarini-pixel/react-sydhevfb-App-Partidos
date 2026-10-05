@@ -729,17 +729,35 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // veces): su parte y su lado.
   const variablesDelError = (lesion) => ({ parte: textoDeOpcion("parte_cuerpo", lesion?.datos?.parte_cuerpo), lado: textoDeOpcion("lado", lesion?.datos?.lado) });
 
+  // Lo último de cada lesión (lo que ya devolvió la base, aunque la pantalla
+  // todavía no se haya redibujado) y una cola por lesión: dos celdas de la
+  // misma lesión guardadas seguidas no se pisan, la segunda sale de lo que
+  // dejó la primera (la base guarda la fila entera).
+  const ultimas = useRef(lesiones);
+  ultimas.current = lesiones;
+  const colas = useRef(new Map());
+  const guardarFila = (lesionId, cambiar) => {
+    const paso = async () => {
+      const lesion = ultimas.current.find((una) => una.id === lesionId);
+      if (!lesion) return { error: "lesiones.error.noGuardar", sinLesion: true };
+      const nueva = cambiar(lesion);
+      // Solo frena lo que rompe esta edición (no lo que ya le faltaba a la lesión).
+      const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: ultimas.current, oculto })[0]?.error;
+      if (falta) return { error: falta, variables: variablesDelError(nueva) };
+      const respuesta = await actualizarLesion(lesion.id, nueva);
+      if (respuesta.error) return { error: respuesta.error, variables: variablesDelError(nueva) };
+      ultimas.current = ultimas.current.map((una) => (una.id === lesionId ? respuesta.lesion : una));
+      reemplazar(respuesta.lesion);
+      return {};
+    };
+    const siguiente = (colas.current.get(lesionId) || Promise.resolve()).then(paso, paso);
+    colas.current.set(lesionId, siguiente);
+    return siguiente;
+  };
+
   const editarCelda = async (lesionId, clave, valor) => {
-    const lesion = lesiones.find((una) => una.id === lesionId);
-    if (!lesion) return { error: "lesiones.error.noGuardar" };
-    const nueva = conValor(lesion, clave, valor);
-    // Solo frena lo que rompe esta edición (no lo que ya le faltaba a la lesión).
-    const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: lesiones, oculto })[0]?.error;
-    if (falta) return { error: falta, variables: variablesDelError(nueva) };
-    const respuesta = await actualizarLesion(lesion.id, nueva);
-    if (respuesta.error) return { error: respuesta.error, variables: variablesDelError(nueva) };
-    reemplazar(respuesta.lesion);
-    return {};
+    const { error: falla, variables } = await guardarFila(lesionId, (lesion) => conValor(lesion, clave, valor));
+    return falla ? { error: falla, variables } : {};
   };
 
   const pegarEnBase = async (cambios) => {
@@ -752,22 +770,14 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     let ultimoError = "";
     let variables;
     for (const [lesionId, suyos] of porLesion) {
-      const lesion = lesiones.find((una) => una.id === lesionId);
-      if (!lesion) continue;
-      const nueva = suyos.reduce((acumulada, cambio) => conValor(acumulada, cambio.clave, cambio.valor), lesion);
-      const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: lesiones, oculto })[0]?.error;
-      if (falta) {
-        ultimoError = falta;
-        variables = variablesDelError(nueva);
+      // eslint-disable-next-line no-await-in-loop
+      const resultado = await guardarFila(lesionId, (lesion) => suyos.reduce((acumulada, cambio) => conValor(acumulada, cambio.clave, cambio.valor), lesion));
+      if (resultado.sinLesion) continue;
+      if (resultado.error) {
+        ultimoError = resultado.error;
+        variables = resultado.variables;
         continue;
       }
-      const respuesta = await actualizarLesion(lesion.id, nueva); // eslint-disable-line no-await-in-loop
-      if (respuesta.error) {
-        ultimoError = respuesta.error;
-        variables = variablesDelError(nueva);
-        continue;
-      }
-      reemplazar(respuesta.lesion);
       hechos += suyos.length;
     }
     return { hechos, error: ultimoError, variables };

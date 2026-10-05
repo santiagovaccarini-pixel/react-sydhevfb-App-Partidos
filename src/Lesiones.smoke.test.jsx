@@ -15,6 +15,8 @@ const datos = vi.hoisted(() => ({
   historialesPedidos: [],
   cambios: [],
   errorAlLeer: "",
+  // Si está, cada guardado espera a que se abra (una conexión lenta).
+  compuerta: null,
 }));
 
 const lesionHulk = () => ({
@@ -53,7 +55,8 @@ vi.mock("./domain/lesionesDb.js", () => ({
     return { lesion: { ...lesion, id: "les-nueva", numero_caso: 2 }, error: "" };
   },
   actualizarLesion: async (id, lesion) => {
-    datos.actualizadas.push({ id, lesion });
+    datos.actualizadas.push({ id, lesion: JSON.parse(JSON.stringify(lesion)) });
+    if (datos.compuerta) await datos.compuerta;
     return { lesion: { ...lesion, id }, error: "" };
   },
   borrarLesion: async (id) => {
@@ -142,6 +145,7 @@ describe("el módulo Lesiones", () => {
     datos.cambios = [];
     datos.errorAlLeer = "";
     datos.plantel = null;
+    datos.compuerta = null;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -1092,6 +1096,41 @@ describe("el módulo Lesiones", () => {
     await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     expect(datos.actualizadas).toHaveLength(1);
     expect(datos.actualizadas[0]).toMatchObject({ id: "les-2", lesion: { datos: { medico: "Dra. Pérez" } } });
+  });
+
+  test("dos celdas de la misma lesión guardadas seguidas, con la conexión lenta: no se pisan", async () => {
+    await montar();
+    await navegar(contenedor, "Base");
+    let abrir;
+    datos.compuerta = new Promise((resolver) => {
+      abrir = resolver;
+    });
+    const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")];
+    const celda = (titulo) => contenedor.querySelector(".tabla-datos-tabla tbody tr").querySelectorAll("td")[cabeceras.findIndex((th) => th.textContent === titulo)];
+    const pegar = async (titulo, valor) => {
+      await tocar(celda(titulo));
+      const evento = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(evento, "clipboardData", { value: { getData: () => valor } });
+      await act(async () => contenedor.querySelector(".tabla-datos-marco").dispatchEvent(evento));
+    };
+    // Se escribe el médico y, antes de que conteste la base, se pega el lado
+    // y después el tratamiento.
+    await tocar(celda(etiqueta("medico")));
+    await tocar(celda(etiqueta("medico")));
+    const input = celda(etiqueta("medico")).querySelector("input");
+    await escribir(input, "Dra. Pérez");
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    await pegar("Lado", "Izquierdo");
+    await pegar(etiqueta("medico"), "Dr. Gómez");
+    await act(async () => abrir());
+    await act(async () => Promise.resolve());
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(3);
+    // Cada guardado sale de lo que dejó el anterior.
+    expect(datos.actualizadas[1].lesion.datos).toMatchObject({ medico: "Dra. Pérez", lado: "esquerdo", parte_cuerpo: "coxa" });
+    expect(datos.actualizadas[2].lesion.datos).toMatchObject({ medico: "Dr. Gómez", lado: "esquerdo", parte_cuerpo: "coxa" });
+    expect(celda(etiqueta("medico")).textContent).toBe("Dr. Gómez");
+    expect(celda("Lado").textContent).toBe("Izquierdo");
   });
 
   test("las cabeceras de la base filtran y ordenan como en Excel", async () => {
