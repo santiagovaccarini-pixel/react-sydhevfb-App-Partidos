@@ -203,9 +203,16 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
   // Los clubes que administra quien entró (el dueño: todos) y el elegido.
   const [clubes, setClubes] = useState([]);
   const [clubId, setClubId] = useState(club?.id || null);
-  // El club elegido para "Actualizar" (que no vuelva al primero).
+  // El club elegido para "Actualizar" (que no vuelva al primero) y para
+  // saber si lo que vuelve de la base es del club que se está viendo. Se pone
+  // junto con el estado: una respuesta rápida puede llegar antes de que la
+  // pantalla se vuelva a dibujar.
   const clubIdRef = useRef(clubId);
   clubIdRef.current = clubId;
+  const ponerClub = (id) => {
+    clubIdRef.current = id;
+    setClubId(id);
+  };
   const [eligiendoClub, setEligiendoClub] = useState(false);
   const [errorClub, setErrorClub] = useState("");
   const [miembros, setMiembros] = useState([]);
@@ -234,6 +241,8 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
       return;
     }
     const [lista, abiertas] = await Promise.all([listarMiembros(id), listarInvitaciones(id)]);
+    // Si mientras tanto se eligió otro club, esto ya no es lo que se ve.
+    if (clubIdRef.current !== id) return;
     setMiembros(lista);
     setInvitaciones(abiertas);
   }, []);
@@ -250,11 +259,11 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
       const propios = (equipos || []).filter((uno) => esDueno || (uno.rol === "admin" && !uno.hasta));
       setClubes(propios);
       const elegido = propios.find((uno) => uno.id === clubIdRef.current) || propios[0] || null;
-      setClubId(elegido?.id || null);
+      ponerClub(elegido?.id || null);
       try {
         await cargarClub(elegido?.id || null);
       } catch (errorLectura) {
-        setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
+        if (clubIdRef.current === (elegido?.id || null)) setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
       }
       if (esDueno) {
         const [cuentas, todas] = await Promise.all([listarPerfiles(), listarMembresias().catch(() => [])]);
@@ -274,13 +283,18 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
 
   const elegirClub = async (id) => {
     setEligiendoClub(false);
-    setClubId(id);
+    ponerClub(id);
     setAviso("");
     setErrorClub("");
+    // Lo del club anterior no queda a la vista (ni para tocarlo) mientras se
+    // lee el nuevo.
+    setMiembros([]);
+    setInvitaciones([]);
+    setHistoria(null);
     try {
       await cargarClub(id);
     } catch (errorLectura) {
-      setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
+      if (clubIdRef.current === id) setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
     }
   };
 
@@ -317,11 +331,14 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
 
   const abrirHistoria = async (miembro) => {
     setHistoria({ miembro, movimientos: null, error: "" });
+    // Lo que vuelve va en la hoja si sigue abierta con esa persona (y en el
+    // mismo club: al elegir otro, la hoja se cierra).
+    const enLaHoja = (contenido) => setHistoria((actual) => (actual?.miembro === miembro ? { miembro, ...contenido } : actual));
     try {
       const movimientos = await historialDeMiembro(clubId, miembro.user_id);
-      setHistoria({ miembro, movimientos, error: "" });
+      enLaHoja({ movimientos, error: "" });
     } catch (errorLectura) {
-      setHistoria({ miembro, movimientos: [], error: mensajeDe(errorLectura, "cuentas.errorHistorial") });
+      enLaHoja({ movimientos: [], error: mensajeDe(errorLectura, "cuentas.errorHistorial") });
     }
   };
 

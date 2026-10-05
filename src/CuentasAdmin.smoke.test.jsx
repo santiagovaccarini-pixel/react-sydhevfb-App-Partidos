@@ -15,6 +15,8 @@ const datos = vi.hoisted(() => ({
   errorCambio: null,
   errorLeer: null,
   usada: false,
+  // Lecturas lentas: la de un club (o la historia) vuelve cuando se abre su compuerta.
+  lenta: {},
 }));
 
 vi.mock("./domain/equipo.js", () => ({
@@ -35,8 +37,10 @@ vi.mock("./domain/membresiasDb.js", async () => {
   return {
     ...real,
     listarMiembros: async (equipoId) => {
+      const lista = real.ordenarMiembros(datos.miembros[equipoId] || []);
+      if (datos.lenta[equipoId]) await datos.lenta[equipoId];
       if (datos.errorLeer) throw new Error(datos.errorLeer);
-      return real.ordenarMiembros(datos.miembros[equipoId] || []);
+      return lista;
     },
     listarInvitaciones: async (equipoId) => datos.invitaciones[equipoId] || [],
     listarMembresias: async () => datos.membresias,
@@ -46,7 +50,9 @@ vi.mock("./domain/membresiasDb.js", async () => {
     reincorporar: async (userId, equipoId) => cambiar(userId, equipoId, { hasta: null, desde: "2026-10-02" }),
     historialDeMiembro: async (equipoId, userId) => {
       datos.llamadas.push({ que: "historia", equipoId, userId });
-      return datos.historia;
+      const historia = datos.historia;
+      if (datos.lenta.historia) await datos.lenta.historia;
+      return historia;
     },
     invitar: async (equipoId, invitacion) => {
       datos.llamadas.push({ que: "invitar", equipoId, invitacion });
@@ -124,6 +130,7 @@ describe("Cuentas", () => {
     datos.errorLeer = null;
     datos.usada = false;
     datos.compuerta = null;
+    datos.lenta = {};
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
   });
@@ -304,6 +311,50 @@ describe("Cuentas", () => {
     expect(contenedor.querySelector(".cuentas-club-elegido strong").textContent).toBe("Club Dos");
     // En Club Dos, Beto sigue sin Lesiones: el cambio fue en Club Uno.
     expect(chip(fila("beto@uno.com"), "Lesiones").getAttribute("aria-pressed")).toBe("false");
+  });
+
+  test("elegir otro club rápido: lo que vuelve tarde del anterior no se mezcla", async () => {
+    datos.clubes = [UNO, DOS];
+    datos.invitaciones.c2 = [{ id: "i2", email: "otra@dos.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: "2026-10-10T12:00:00Z" }];
+    await montar();
+    let abrirDos;
+    datos.lenta.c2 = new Promise((resolver) => {
+      abrirDos = resolver;
+    });
+    const elegir = async (nombre) => {
+      await tocar(boton(contenedor, "Cambiar"));
+      await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === nombre));
+    };
+    await elegir("Club Dos");
+    // Mientras se lee Club Dos no queda a la vista la gente de Club Uno.
+    expect(fila("beto@uno.com")).toBeUndefined();
+    await elegir("Club Uno");
+    expect(fila("beto@uno.com")).toBeTruthy();
+    // Club Dos contesta tarde: no pisa a Club Uno.
+    await act(async () => abrirDos());
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".cuentas-club-elegido strong").textContent).toBe("Club Uno");
+    expect(fila("beto@uno.com")).toBeTruthy();
+    expect(fila("espera@uno.com")).toBeTruthy();
+    expect(fila("eva@dos.com")).toBeUndefined();
+    expect(fila("otra@dos.com")).toBeUndefined();
+  });
+
+  test("la historia que vuelve después de elegir otro club no se muestra", async () => {
+    datos.clubes = [UNO, DOS];
+    datos.historia = [{ id: 1, accion: "alta", detalle: { rol: "staff", partido: true, flujo: false, lesiones: false }, quien_email: "", cuando: "2026-01-01T15:00:00Z" }];
+    await montar();
+    let abrir;
+    datos.lenta.historia = new Promise((resolver) => {
+      abrir = resolver;
+    });
+    await tocar(boton(fila("dario@uno.com"), "Historia"));
+    await tocar(boton(contenedor, "Cambiar"));
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Club Dos"));
+    await act(async () => abrir());
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".cuentas-historia")).toBeNull();
+    expect(texto()).not.toContain("dario@uno.com");
   });
 
   test("con varios clubes se elige cuál administrar", async () => {
