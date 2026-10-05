@@ -503,7 +503,15 @@ describe("interfaz operativa", () => {
     expect(accionPeriodo.className).toContain("reanudar");
     expect(accionPeriodo.className).not.toContain("finalizar");
 
+    // Reanudar borra el final cargado: se pregunta antes.
     await act(async () => accionPeriodo.click());
+    const hoja = contenedor.querySelector(".hoja-confirmar");
+    expect(hoja.querySelector("h3").textContent).toBe("¿Reanudar el PT?");
+    expect(accionPeriodo.textContent).toContain("Reanudar PT");
+    const reanudar = Array.from(hoja.querySelectorAll("button")).find(
+      (boton) => boton.textContent.trim() === "Sí, reanudar",
+    );
+    await act(async () => reanudar.click());
 
     expect(accionPeriodo.textContent).toContain("Finalizar PT");
     expect(accionPeriodo.className).toContain("finalizar");

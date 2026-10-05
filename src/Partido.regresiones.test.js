@@ -339,6 +339,46 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(borrador().fecha).toBe("2026-09-05");
   });
 
+  // ------------------------------------------------------------------ 4 --
+  const enElSegundoTiempo = (extra = {}) =>
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify(
+        borradorCruzeiro({ inicioPT: "21:00:00", finalPT: "21:47:00", inicioST: "22:03:00", ...extra }),
+      ),
+    );
+
+  test("al reabrir en el segundo tiempo el tablero muestra el ST y 'Ahora' anota el cambio en el ST", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 30, 0));
+    enElSegundoTiempo();
+    await montar();
+
+    expect(contenedor.querySelector('.selector-periodos [role="tab"][aria-selected="true"]').textContent).toContain("ST");
+    expect(contenedor.querySelector(".accion-periodo").textContent).toContain("Finalizar ST");
+
+    await act(async () => contenedor.querySelector("#panel-cambios .boton-ahora-cambio").click());
+    expect(borrador().cambios[0].periodo).toBe("ST");
+  });
+
+  test("dos toques de más sobre un período terminado no pisan su final: Reanudar pregunta antes", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 40, 0));
+    enElSegundoTiempo();
+    await montar();
+
+    // Se mira el PT (terminado) y se toca dos veces el botón grande.
+    const pt = Array.from(contenedor.querySelectorAll('.selector-periodos [role="tab"]')).find((b) => b.textContent.includes("PT"));
+    await act(async () => pt.click());
+    const accion = () => contenedor.querySelector(".accion-periodo");
+    expect(accion().textContent).toContain("Reanudar PT");
+    await act(async () => accion().click());
+    expect(contenedor.querySelector(".hoja-confirmar")).not.toBeNull();
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").click());
+    await act(async () => accion().click());
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").click());
+
+    expect(borrador().finalPT).toBe("21:47:00");
+  });
+
   // ------------------------------------------------------------------ 2 --
   test("un partido que se guarda sin señal mientras se suben los pendientes no se pierde de la cola", async () => {
     // Un pendiente de ayer (Flamengo). La base responde, pero lenta.

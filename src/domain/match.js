@@ -147,6 +147,24 @@ export const periodoEnJuego = (registro) =>
       registro?.[`inicio${periodo}`] && !registro?.[`final${periodo}`],
   ) || null;
 
+/**
+ * El período que manda: el que está corriendo y, si no hay ninguno, el
+ * último que se arrancó. Es el que marca "Ahora" en un cambio y el que tiene
+ * que verse al abrir el tablero; antes el tablero abría siempre en el PT, y
+ * en pleno segundo tiempo "Ahora" anotaba el cambio en el primero.
+ */
+export const periodoActivo = (registro = {}) => {
+  const estado = registro || {};
+  if (estado.inicioSTE && !estado.finalSTE) return "STE";
+  if (estado.inicioPTE && !estado.finalPTE) return "PTE";
+  if (estado.inicioST && !estado.finalST) return "ST";
+  if (estado.inicioPT && !estado.finalPT) return "PT";
+  if (estado.inicioSTE || estado.referenciaRealSTE) return "STE";
+  if (estado.inicioPTE || estado.referenciaRealPTE) return "PTE";
+  if (estado.inicioST || estado.referenciaRealST) return "ST";
+  return "PT";
+};
+
 const conTexto = (valor) => String(valor ?? "").trim() !== "";
 
 const conMarca = (evento) => conTexto(evento?.inicio) || conTexto(evento?.final);

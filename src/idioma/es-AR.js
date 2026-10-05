@@ -430,6 +430,13 @@ export default {
     soloLecturaTexto: "Ves lo cargado hasta ese día. No se puede agregar ni cambiar nada.",
     soloLecturaCambio: "Solo lectura: dejaste este club.",
   },
+  // Textos nuevos del módulo Partido (App.js). El resto de esa pantalla
+  // todavía está escrito en castellano directamente en el código.
+  partido: {
+    reanudarTitulo: "¿Reanudar el {{periodo}}?",
+    reanudarTexto: "Se borra el final cargado ({{final}}) y el reloj vuelve a correr. Si después tocás Finalizar, queda la hora de ese momento.",
+    reanudarSi: "Sí, reanudar",
+  },
   openfield: {
     abriendoTitulo: "Un momento…",
     abriendoTexto: "Estamos conectando con OpenField.",

@@ -52,6 +52,7 @@ import {
   normalizarEntradaTiempoTransmision,
   normalizarTexto,
   normalizarTextoBase,
+  periodoActivo,
   periodoDesdeMinutoPartido,
   periodoEnJuego,
   segundosDesdeHora,
@@ -118,6 +119,7 @@ import {
   EscudoDeClub,
   useEscudoClub,
 } from "./components/ClubCrest";
+import { t } from "./idioma/index.js";
 import "./style.css";
 // Pantalla de intro: la imagen del estadio que la app mostraba al abrirse
 // desde el primer commit, hasta que el rediseño del 8 de septiembre la sacó
@@ -1361,7 +1363,9 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   const [ordenRegistros, setOrdenRegistros] = useState("reciente");
   const [mensajeGuardado, setMensajeGuardado] = useState("");
   const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
-  const [periodoVista, setPeriodoVista] = useState("PT");
+  // Al abrir, el tablero muestra el período que se está jugando (o el último
+  // que se arrancó), no siempre el PT.
+  const [periodoVista, setPeriodoVista] = useState(() => periodoActivo(registro));
   // Qué muestra la ficha de un registro guardado. El tiempo es una elección;
   // los otros tres son interruptores independientes.
   const [vistaFicha, setVistaFicha] = useState("PT");
@@ -3124,16 +3128,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     );
   };
 
-  const obtenerPeriodoActivo = (estado = registro) => {
-    if (estado.inicioSTE && !estado.finalSTE) return "STE";
-    if (estado.inicioPTE && !estado.finalPTE) return "PTE";
-    if (estado.inicioST && !estado.finalST) return "ST";
-    if (estado.inicioPT && !estado.finalPT) return "PT";
-    if (estado.inicioSTE || estado.referenciaRealSTE) return "STE";
-    if (estado.inicioPTE || estado.referenciaRealPTE) return "PTE";
-    if (estado.inicioST || estado.referenciaRealST) return "ST";
-    return "PT";
-  };
+  const obtenerPeriodoActivo = (estado = registro) => periodoActivo(estado);
 
   const quitarFoco = () => {
     if (document.activeElement && document.activeElement.blur) {
@@ -4029,6 +4024,8 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     setFechaFormacion(nuevoRegistro.fecha);
     setPartidoEnCurso(false);
     setPantallaFormacion("inicio");
+    // Un partido nuevo arranca por el PT, aunque se estuviera mirando otro.
+    setPeriodoVista("PT");
 
     try {
       localStorage.setItem(
@@ -6577,8 +6574,20 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       return;
     }
 
+    // Reanudar borra el final del período, que no se recupera, y el botón
+    // grande está justo debajo del pulgar: dos toques de más pisaban el final
+    // del PT con la hora de ese momento. Se pregunta antes.
     if (periodoFinalizado) {
-      reanudarPeriodo();
+      setConfirmacion({
+        titulo: t("partido.reanudarTitulo", { periodo: periodoVista }),
+        descripcion: t("partido.reanudarTexto", {
+          final: registro[datosPeriodoVista.final],
+        }),
+        icono: "reloj",
+        etiquetaConfirmar: t("partido.reanudarSi"),
+        etiquetaCancelar: t("comun.no"),
+        onConfirmar: reanudarPeriodo,
+      });
       return;
     }
 

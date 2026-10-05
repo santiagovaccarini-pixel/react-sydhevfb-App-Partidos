@@ -430,6 +430,11 @@ export default {
     soloLecturaTexto: "Você vê o que foi registrado até esse dia. Não dá para adicionar nem alterar nada.",
     soloLecturaCambio: "Somente leitura: você saiu deste clube.",
   },
+  partido: {
+    reanudarTitulo: "Retomar o {{periodo}}?",
+    reanudarTexto: "O final registrado ({{final}}) é apagado e o relógio volta a correr. Se depois você tocar em Finalizar, fica a hora desse momento.",
+    reanudarSi: "Sim, retomar",
+  },
   openfield: {
     abriendoTitulo: "Um momento…",
     abriendoTexto: "Estamos conectando com o OpenField.",
