@@ -1522,8 +1522,9 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
   const [fechaFormacion, setFechaFormacion] = useState(fechaLocalISO());
 
-  // Si la elegiste a mano, manda la tuya. Vive sólo mientras la app está
-  // abierta: al volver a entrar arranca de nuevo en la fecha de hoy.
+  // Si la elegiste a mano, manda la tuya. Queda anotado también en el
+  // borrador (fechaElegidaAMano): antes vivía solo mientras la app estaba
+  // abierta, y una fecha pasada elegida a mano se perdía al volver a entrar.
   const fechaElegidaAMano = useRef(false);
 
   // La fecha se guarda en dos lugares (el registro y el campo de la pantalla
@@ -1536,7 +1537,12 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
   const elegirFechaAMano = (fecha) => {
     fechaElegidaAMano.current = true;
-    ponerFecha(fecha);
+    setRegistro((prev) =>
+      prev.fecha === fecha && prev.fechaElegidaAMano
+        ? prev
+        : { ...prev, fecha, fechaElegidaAMano: true },
+    );
+    setFechaFormacion(fecha);
   };
 
   // El handler de abajo corre mucho después del render que lo creó, así que
@@ -1546,18 +1552,27 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     registroVigente.current = registro;
   }, [registro]);
 
+  // La fecha que corresponde al entrar (ver fechaAlEntrar). Se arma en cada
+  // render para que lea la cola del club que está elegido ahora.
+  const fechaQueVa = useRef(() => registroVigente.current.fecha);
+  fechaQueVa.current = () => {
+    const borrador = registroVigente.current;
+    const clave = clavePartido(borrador);
+    return fechaAlEntrar(borrador, {
+      hoy: fechaLocalISO(),
+      elegidaAMano: fechaElegidaAMano.current,
+      tienePendiente: leerPendientes().some(
+        (item) => clavePartido(item) === clave,
+      ),
+    });
+  };
+
   // Al entrar a la app la fecha tiene que ser la de hoy. El borrador sobrevive
   // de un día para el otro, así que sin esto seguía apareciendo la del último
   // partido cargado. Y en el celular la app no se reinicia: queda congelada y
   // vuelve, por eso también se revisa cada vez que volvés a ella.
   useEffect(() => {
-    const ponerLaDeHoy = () =>
-      ponerFecha(
-        fechaAlEntrar(registroVigente.current, {
-          hoy: fechaLocalISO(),
-          elegidaAMano: fechaElegidaAMano.current,
-        }),
-      );
+    const ponerLaDeHoy = () => ponerFecha(fechaQueVa.current());
 
     ponerLaDeHoy();
 

@@ -3412,8 +3412,21 @@ describe("interfaz operativa", () => {
   };
 
   test("al entrar, la fecha es la de hoy y no la del borrador viejo", async () => {
-    // El borrador sembrado es del 08/09 y sobrevive entre días: antes el campo
-    // seguía mostrando esa fecha en vez de la de hoy.
+    // Un borrador del 08/09 con el rival y la formación cargados de antemano
+    // (nada registrado todavía) sobrevive entre días: antes el campo seguía
+    // mostrando esa fecha en vez de la de hoy. Uno con algo registrado (un
+    // gol, un horario, un cambio) no se mueve: ver la prueba de abajo.
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify({
+        version: 2,
+        registro: {
+          fecha: "2026-09-08",
+          rival: "Cruzeiro",
+          formacion: { titulares: ["ALONSO", "SCARPA"], convocados: ["BERNARD"] },
+        },
+      }),
+    );
     vi.setSystemTime(new Date(2026, 8, 15, 10, 0, 0));
     await montarApp();
     await irAFormacion();
@@ -3424,6 +3437,19 @@ describe("interfaz operativa", () => {
     expect(
       contenedor.querySelector(".tarjeta-en-curso .fecha-registro").textContent,
     ).toContain("15");
+  });
+
+  test("un partido ya registrado conserva su fecha al volver a entrar otro día", async () => {
+    // El borrador sembrado tiene un 1-0 anotado: es un partido jugado el 08/09.
+    // Cambiarle la fecha en silencio le hacía perder su fila y el próximo
+    // Guardar lo repetía con otra fecha.
+    vi.setSystemTime(new Date(2026, 8, 15, 10, 0, 0));
+    await montarApp();
+    await irAFormacion();
+
+    expect(contenedor.querySelector("#campo-fecha-inicio").value).toBe(
+      "2026-09-08",
+    );
   });
 
   test("al volver a la app después de medianoche, la fecha se corrige sola", async () => {

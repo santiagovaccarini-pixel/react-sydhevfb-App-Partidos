@@ -295,6 +295,50 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(db.filas[0].resultado).toBe("1-2");
   });
 
+  // ------------------------------------------------------------------ 3 --
+  test("un partido que cruza la medianoche conserva su fecha al reabrir y volver a guardarlo no lo repite", async () => {
+    vi.setSystemTime(new Date(2026, 9, 5, 1, 0, 0));
+    db.filas = [{ id: 100, equipo_id: "eq-1", fecha: "2026-10-04", rival: "Santos", resultado: "1-0" }];
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify({
+        version: 2,
+        registro: {
+          fecha: "2026-10-04",
+          rival: "Santos",
+          resultado: "1-0",
+          idSupabase: 100,
+          inicioPT: "23:00:00",
+          finalPT: "23:47:00",
+          inicioST: "00:03:00",
+          finalST: "00:50:00",
+          formacion: { titulares: ["ALONSO", "SCARPA"], convocados: ["BERNARD"] },
+        },
+      }),
+    );
+    await montar();
+    expect(borrador().fecha).toBe("2026-10-04");
+
+    await guardar();
+    expect(db.filas).toHaveLength(1);
+    expect(db.filas[0].fecha).toBe("2026-10-04");
+  });
+
+  test("una fecha elegida a mano no se pierde al cerrar y volver a abrir la app", async () => {
+    localStorage.removeItem("registro_actual_partido");
+    await montar();
+    await irA("Formación");
+    await escribir(contenedor.querySelector("#campo-fecha-inicio"), "2026-09-05");
+    expect(borrador().fecha).toBe("2026-09-05");
+
+    await act(async () => raiz.unmount());
+    raiz = null;
+    await montar();
+    await irA("Formación");
+    expect(contenedor.querySelector("#campo-fecha-inicio").value).toBe("2026-09-05");
+    expect(borrador().fecha).toBe("2026-09-05");
+  });
+
   // ------------------------------------------------------------------ 2 --
   test("un partido que se guarda sin señal mientras se suben los pendientes no se pierde de la cola", async () => {
     // Un pendiente de ayer (Flamengo). La base responde, pero lenta.
