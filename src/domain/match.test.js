@@ -138,7 +138,9 @@ describe("motor de registro de partido", () => {
 
   test("hayPartidoCargado ve un partido aunque no tenga formación", () => {
     expect(hayPartidoCargado({ formacion: { titulares: ["", ""], convocados: [""] } })).toBe(false);
-    expect(hayPartidoCargado({ rival: "Cruzeiro" })).toBe(true);
+    // El rival se escribe de antemano en el inicio: solo, no es un partido en curso.
+    expect(hayPartidoCargado({ rival: "Cruzeiro" })).toBe(false);
+    expect(hayPartidoCargado({ rival: "Cruzeiro", resultado: "1-0" })).toBe(true);
     expect(hayPartidoCargado({ inicioPT: "21:00:00" })).toBe(true);
     expect(hayPartidoCargado({ cambios: [{ sale: "ALONSO", entra: "BERNARD", hora: "21:20:00" }] })).toBe(true);
     expect(hayPartidoCargado({ formacion: { titulares: ["ALONSO"], convocados: [] } })).toBe(true);

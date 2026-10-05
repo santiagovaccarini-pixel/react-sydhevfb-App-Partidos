@@ -199,15 +199,15 @@ export const hayDatosRegistrados = (registro) => {
 };
 
 /**
- * Si en el borrador hay un partido: algo registrado mientras se juega, o al
- * menos el rival o la formación. Con cualquiera de esas cosas el partido
- * sigue "en curso" al volver a abrir la app; antes se miraba solo la
- * formación y un partido cargado sin ella desaparecía del inicio.
+ * Si en el borrador hay un partido en curso: la formación o algo registrado
+ * mientras se juega. Antes se miraba solo la formación, y un partido con
+ * horarios y cambios pero sin formación desaparecía del inicio al volver a
+ * abrir la app (y con él el tablero y el botón de guardar). El rival solo no
+ * alcanza: se escribe de antemano en el inicio, y ahí sigue.
  */
 export const hayPartidoCargado = (registro) => {
   if (!registro) return false;
   if (hayDatosRegistrados(registro)) return true;
-  if (conTexto(registro.rival)) return true;
   return [
     ...(registro.formacion?.titulares || []),
     ...(registro.formacion?.convocados || []),

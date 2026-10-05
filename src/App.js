@@ -47,6 +47,7 @@ import {
   fechaLocalISO,
   formatearDuracion,
   formatearTiempoTransmision,
+  hayPartidoCargado,
   jugadoresParaCambio,
   limpiarLista,
   normalizarEntradaTiempoTransmision,
@@ -69,6 +70,11 @@ import {
   sigueEnLaCola,
   sinVersionesDelPartido,
 } from "./domain/pendientes";
+import {
+  VERSION_BORRADOR,
+  escribirBorrador,
+  leerBorradorDelClub,
+} from "./domain/borrador";
 import { puntosDeRegistros } from "./domain/puntos";
 import {
   cortesDelPartido,
@@ -248,11 +254,9 @@ const ESTILO_PENALES = {
 };
 
 const APP_VERSION = "2026.10.05.9";
-const VERSION_BORRADOR = 2;
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
-const CLAVE_BORRADOR = "registro_actual_partido";
 const CLAVE_RESPALDO = "backup_registros_partidos";
 const CLAVE_PENDIENTES = "registros_sin_sincronizar";
 
@@ -1198,19 +1202,23 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     formacion: crearFormacionVacia(),
   });
 
-  const obtenerRegistroInicial = () => {
+  // El borrador guardado de un club, listo para la pantalla (o uno vacío).
+  // Cuál se lee y qué se respalda antes de pisarlo está en domain/borrador.
+  const leerBorradorParaPantalla = (club) => {
+    try {
+      return normalizarBorrador(
+        leerBorradorDelClub(club, { hayPartido: hayPartidoCargado }),
+      );
+    } catch (error) {
+      console.warn("No se pudo leer el borrador local:", error);
+      return crearRegistroVacio();
+    }
+  };
+
+  const normalizarBorrador = (registroRecuperado) => {
     const registroVacio = crearRegistroVacio();
 
     try {
-      const datosGuardados = localStorage.getItem(CLAVE_BORRADOR);
-
-      if (!datosGuardados) return registroVacio;
-
-      const datosRecuperados = JSON.parse(datosGuardados);
-      const registroRecuperado =
-        datosRecuperados?.version === VERSION_BORRADOR
-          ? datosRecuperados.registro
-          : datosRecuperados;
       if (!registroRecuperado || typeof registroRecuperado !== "object") {
         return registroVacio;
       }
@@ -1290,7 +1298,16 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     }
   };
 
-  const [registro, setRegistro] = useState(obtenerRegistroInicial);
+  // De qué club es el borrador que está en memoria. Se escribe en la clave de
+  // ese club, y al cambiar de club se guarda el de uno y se trae el del otro.
+  const clubDelBorrador = useRef(undefined);
+  if (clubDelBorrador.current === undefined) {
+    clubDelBorrador.current = leerEquipoElegido()?.id || null;
+  }
+
+  const [registro, setRegistro] = useState(() =>
+    leerBorradorParaPantalla(clubDelBorrador.current),
+  );
   const [guardados, setGuardados] = useState([]);
   const [historialCargado, setHistorialCargado] = useState(false);
   // De qué club son los partidos que hay en memoria. Al cambiar de equipo,
@@ -2213,16 +2230,48 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     }
   }, [guardados, historialCargado, equipoId, equipoDeGuardados, soloLectura]);
 
+  // El borrador se guarda en la clave de su club con cada cambio.
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        CLAVE_BORRADOR,
-        JSON.stringify({ version: VERSION_BORRADOR, registro }),
-      );
-    } catch (error) {
+    if (!escribirBorrador(registro, clubDelBorrador.current)) {
       console.warn("No se pudo guardar el borrador local.");
     }
   }, [registro]);
+
+  // Al cambiar de club, el partido en memoria ya quedó guardado en el suyo
+  // (se escribe con cada cambio) y se trae el del club nuevo, o uno vacío.
+  // Antes el borrador era uno para todos: el partido cargado en un club se
+  // veía "EN VIVO" en el otro y Guardar lo metía ahí. Sin club (todavía no se
+  // sabe, o se dejó de saber) el borrador sigue siendo del que era.
+  useEffect(() => {
+    if (!equipoId || equipoId === clubDelBorrador.current) return;
+
+    clubDelBorrador.current = equipoId;
+    const delClub = leerBorradorParaPantalla(equipoId);
+    const clave = clavePartido(delClub);
+    const nuevo = {
+      ...delClub,
+      fecha: fechaAlEntrar(delClub, {
+        hoy: fechaLocalISO(),
+        tienePendiente: leerPendientes().some(
+          (item) => clavePartido(item) === clave,
+        ),
+      }),
+    };
+    const hayPartido = hayPartidoCargado(nuevo);
+
+    fechaElegidaAMano.current = false;
+    setRegistro(nuevo);
+    setFormacionTemporal(conCancha(nuevo.formacion));
+    setFechaFormacion(nuevo.fecha);
+    setPartidoEnCurso(hayPartido);
+    setPeriodoVista(periodoActivo(nuevo));
+    setPenalesAbiertos(false);
+    setPantallaFormacion((actual) =>
+      !hayPartido && (actual === "lista" || actual === "manual")
+        ? "inicio"
+        : actual,
+    );
+  }, [equipoId]);
 
   useLayoutEffect(() => {
     if (posicionScrollPendiente.current !== null) {
@@ -4027,12 +4076,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     // Un partido nuevo arranca por el PT, aunque se estuviera mirando otro.
     setPeriodoVista("PT");
 
-    try {
-      localStorage.setItem(
-        CLAVE_BORRADOR,
-        JSON.stringify({ version: VERSION_BORRADOR, registro: nuevoRegistro }),
-      );
-    } catch (error) {
+    if (!escribirBorrador(nuevoRegistro, clubDelBorrador.current)) {
       console.warn("No se pudo limpiar el borrador local.");
     }
   };

@@ -379,6 +379,99 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(borrador().finalPT).toBe("21:47:00");
   });
 
+  // ------------------------------------------------------------------ 5 --
+  const dosClubes = () => {
+    db.equipos = [
+      { id: "eq-1", nombre: "Atlético Mineiro" },
+      { id: "eq-2", nombre: "Otro Club" },
+    ];
+  };
+  const elegirClub = (id, nombre) =>
+    localStorage.setItem("equipo_elegido", JSON.stringify({ id, nombre }));
+  const remontar = async () => {
+    await act(async () => raiz.unmount());
+    raiz = null;
+    await montar();
+  };
+  const pestanas = () =>
+    Array.from(contenedor.querySelectorAll(".navegacion-movil button")).map((b) => b.textContent.trim());
+
+  test("el partido cargado en un club no aparece en otro, y sigue en el suyo al volver", async () => {
+    dosClubes();
+    elegirClub("eq-1", "Atlético Mineiro");
+    // El borrador de antes de esta versión (sin club) es del club donde se abre primero.
+    await montar();
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem("registro_actual_partido:eq-1")).registro.rival).toBe("Cruzeiro");
+
+    // En el otro club no hay partido en curso, ni tablero, ni nada que guardar.
+    elegirClub("eq-2", "Otro Club");
+    await remontar();
+    expect(contenedor.querySelector(".tablero-partido")).toBeNull();
+    expect(contenedor.querySelector(".tarjeta-en-curso")).toBeNull();
+    expect(pestanas()).not.toContain("Partido");
+    expect(contenedor.textContent).not.toContain("Cruzeiro");
+    expect(boton("Guardar partido")).toBeUndefined();
+
+    // Volviendo a su club, ahí está.
+    elegirClub("eq-1", "Atlético Mineiro");
+    await remontar();
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+    expect(contenedor.textContent).toContain("Cruzeiro");
+    await guardar();
+    expect(db.inserts.map((f) => `${f.rival}:${f.equipo_id}`)).toEqual(["Cruzeiro:eq-1"]);
+  });
+
+  test("cambiar de club en Ajustes guarda el partido de uno y trae el del otro", async () => {
+    dosClubes();
+    elegirClub("eq-1", "Atlético Mineiro");
+    await montar();
+    await escribirGolesRival("2");
+
+    await irA("Ajustes");
+    await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
+    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
+    await vaciarPromesas();
+
+    await irA("Formación");
+    expect(contenedor.querySelector(".tarjeta-en-curso")).toBeNull();
+    expect(pestanas()).not.toContain("Partido");
+    expect(contenedor.textContent).not.toContain("Cruzeiro");
+
+    await irA("Ajustes");
+    await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
+    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Atlético")).click());
+    await vaciarPromesas();
+    await irA("Formación");
+    expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("Cruzeiro");
+    expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("1-2");
+  });
+
+  // ----------------------------------------------------------------- 14 --
+  test("un borrador escrito por otra versión de la app no se abre vacío ni se pisa sin copia", async () => {
+    // Como si una versión más nueva hubiera cambiado el formato y se hubiera
+    // vuelto atrás: antes se lo tomaba por el formato viejo, el partido abría
+    // vacío y el borrador vacío lo pisaba.
+    const deOtraVersion = JSON.stringify({
+      version: 3,
+      registro: {
+        fecha: "2026-09-08",
+        rival: "Cruzeiro",
+        resultado: "1-0",
+        inicioPT: "21:00:00",
+        formacion: { titulares: ["ALONSO", "SCARPA"], convocados: ["BERNARD"] },
+      },
+    });
+    localStorage.setItem("registro_actual_partido", deOtraVersion);
+    await montar();
+
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+    expect(contenedor.textContent).toContain("Cruzeiro");
+    expect(borrador().inicioPT).toBe("21:00:00");
+    const respaldos = JSON.parse(localStorage.getItem("registro_actual_partido_respaldo") || "[]");
+    expect(respaldos.map((item) => item.texto)).toContain(deOtraVersion);
+  });
+
   // ------------------------------------------------------------------ 2 --
   test("un partido que se guarda sin señal mientras se suben los pendientes no se pierde de la cola", async () => {
     // Un pendiente de ayer (Flamengo). La base responde, pero lenta.
