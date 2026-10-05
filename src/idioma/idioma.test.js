@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DICCIONARIOS,
   claves,
@@ -59,6 +59,22 @@ describe("t y plural", () => {
     fijarIdiomaParaPruebas("pt-BR");
     expect(plural("lesiones.dias", 1)).toBe("1 dia");
     expect(plural("lesiones.dias", 3)).toBe("3 dias");
+  });
+
+  it("el cero va en plural en los dos idiomas (en portugués Intl lo da como singular)", () => {
+    expect(plural("lesiones.activas", 0)).toBe("0 lesiones activas");
+    fijarIdiomaParaPruebas("pt-BR");
+    expect(plural("lesiones.activas", 0)).toBe("0 lesões ativas");
+    expect(plural("lesiones.activas", 1)).toBe("1 lesão ativa");
+    expect(plural("lesiones.dias", 0)).toBe("0 dias");
+  });
+
+  it("el idioma de la página (<html lang>) queda puesto desde que abre la app", async () => {
+    document.documentElement.lang = "es";
+    localStorage.setItem("idioma", "pt-BR");
+    vi.resetModules();
+    await import("./index.js");
+    expect(document.documentElement.lang).toBe("pt-BR");
   });
 
   it("entiende el idioma del navegador", () => {

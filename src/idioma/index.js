@@ -35,7 +35,14 @@ export const detectarIdioma = () => {
   return delNavegador || IDIOMA_POR_DEFECTO;
 };
 
+// El idioma de la página (<html lang>): lo usan el lector de pantalla y el
+// corrector del teclado. Se pone al abrir, no solo al cambiarlo.
+const ponerIdiomaDeLaPagina = (idioma) => {
+  if (typeof document !== "undefined" && document.documentElement) document.documentElement.lang = idioma;
+};
+
 let actual = detectarIdioma();
+ponerIdiomaDeLaPagina(actual);
 const oyentes = new Set();
 const avisar = () => oyentes.forEach((oyente) => oyente());
 
@@ -49,7 +56,7 @@ export const cambiarIdioma = (idioma) => {
   } catch {
     // Queda para esta sesión igual.
   }
-  if (typeof document !== "undefined") document.documentElement.lang = idioma;
+  ponerIdiomaDeLaPagina(idioma);
   avisar();
 };
 
@@ -70,9 +77,11 @@ export const t = (clave, variables = {}, porDefecto) => {
   return rellenar(texto, variables);
 };
 
-// Plural según el idioma: claves `x_one` y `x_other`.
+// Plural según el idioma: claves `x_one` y `x_other`. El cero va con
+// `_other` en los dos idiomas ("0 lesões ativas", "0 linhas"): para el
+// portugués de Intl el 0 es "one".
 export const plural = (clave, cantidad, variables = {}) => {
-  const regla = new Intl.PluralRules(actual).select(cantidad);
+  const regla = cantidad === 0 ? "other" : new Intl.PluralRules(actual).select(cantidad);
   const conRegla = buscar(diccionarios[actual], `${clave}_${regla}`);
   const texto =
     typeof conRegla === "string"

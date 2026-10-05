@@ -2,6 +2,7 @@
 // se reordenan, celdas que se copian como texto con tabulaciones (lo que
 // Excel y Google Sheets entienden) y texto pegado que vuelve a ser valores.
 import { normalizarTextoBase } from "./match";
+import { hoyISO } from "../idioma/formatos.js";
 
 // Mueve el elemento `desde` a la posición `hasta`.
 export const reordenar = (lista, desde, hasta) => {
@@ -95,6 +96,19 @@ export const interpretarFecha = (texto) => {
   return iso && esFechaReal(iso) ? iso : undefined;
 };
 
+const conAnios = (iso, anios) => `${String(Number(iso.slice(0, 4)) + anios).padStart(4, "0")}${iso.slice(4)}`;
+
+// Una fecha de nacimiento escrita a mano (las columnas con `nacimiento`):
+// como interpretarFecha, pero nunca en el futuro ni de hace más de cien años.
+// Con el año en dos cifras ("25/07/86") se toma el siglo que no deja a la
+// persona con menos de diez años, como Pegar desde Excel (fechaDeNacimiento).
+export const interpretarNacimiento = (texto, hoy = hoyISO()) => {
+  let iso = interpretarFecha(texto);
+  if (!iso) return iso;
+  if (/^\d{1,2}[/.-]\d{1,2}[/.-]\d{2}$/.test(String(texto).trim()) && iso > conAnios(hoy, -10)) iso = conAnios(iso, -100);
+  return esFechaReal(iso) && iso <= hoy && iso >= conAnios(hoy, -100) ? iso : undefined;
+};
+
 // Una fecha con hora ("1/10/2026 8:05", "02/10/2026, 06:30 p. m.",
 // "2026-10-01T18:30") como la guarda un campo de fecha y hora; sin hora, las
 // 00:00. La hora tiene que existir (no 25:99); "p. m." o "PM" suma 12.
@@ -166,6 +180,11 @@ const TEXTOS_DE_CASILLA = {
   vacia: ["no", "nao", "n", "0", "false", "falso"],
 };
 
+// Una opción como se compara al pegar: sin mayúsculas ni acentos, y con o
+// sin espacios alrededor de "/" (en el Excel aparece "SOBRECARGA MUSCULAR /
+// CÃIBRA" y también "…MUSCULAR/CÃIBRA").
+const textoDeOpcionComparable = (texto) => normalizarTextoBase(texto).replace(/\s*\/\s*/g, "/");
+
 // Un texto pegado en una celda, convertido al valor que guarda esa columna.
 // Devuelve undefined cuando no se entiende (y la celda no se toca).
 export const interpretarValor = (columna, texto) => {
@@ -173,14 +192,17 @@ export const interpretarValor = (columna, texto) => {
   switch (columna.tipo) {
     case "lista": {
       if (!t) return null;
-      const buscado = normalizarTextoBase(t);
+      const buscado = textoDeOpcionComparable(t);
       const opcion = (columna.opciones || []).find(
-        (una) => normalizarTextoBase(una.etiqueta) === buscado || normalizarTextoBase(una.valor) === buscado || (una.alias || []).some((a) => normalizarTextoBase(a) === buscado),
+        (una) =>
+          textoDeOpcionComparable(una.etiqueta) === buscado ||
+          textoDeOpcionComparable(una.valor) === buscado ||
+          (una.alias || []).some((a) => textoDeOpcionComparable(a) === buscado),
       );
       return opcion ? opcion.valor : undefined;
     }
     case "fecha":
-      return interpretarFecha(t);
+      return columna.nacimiento ? interpretarNacimiento(t) : interpretarFecha(t);
     case "fecha_hora":
       return interpretarFechaHora(t);
     case "numero": {

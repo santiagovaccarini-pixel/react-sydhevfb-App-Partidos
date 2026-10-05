@@ -9,7 +9,7 @@ import { PosicionesJugadores } from "./components/PosicionesPartido.jsx";
 import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
 import { esActual, guardarPuestos } from "./domain/plantel.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
-import { diasEntre } from "./domain/lesiones.js";
+import { edadAl } from "./domain/lesiones.js";
 import { textoDeHoras } from "./domain/tabla.js";
 import { campoPorClave, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
 import { agregarJugadorBasico, cargarPlantelLesiones, guardarDatosJugador, leerConfig, quitarJugadorBasico } from "./domain/lesionesDb.js";
@@ -41,7 +41,7 @@ const COLUMNAS = [
   { clave: "nombre", tipo: "texto", editable: true, rotulo: "jugador" },
   { clave: "actual", tipo: "casilla", editable: true, texto: "datos.actual" },
   { clave: "categoria", tipo: "lista", editable: true },
-  { clave: "fecha_nacimiento", tipo: "fecha", editable: true },
+  { clave: "fecha_nacimiento", tipo: "fecha", editable: true, nacimiento: true },
   { clave: "edad", tipo: "calculado", editable: false },
   { clave: "pie_dominante", tipo: "lista", editable: true },
   { clave: "posicion", tipo: "lista", editable: true },
@@ -49,10 +49,8 @@ const COLUMNAS = [
   { clave: "horas_previas", tipo: "horas", editable: true, texto: "datos.horasPrevias" },
 ];
 
-const edadHoy = (nacimiento) => {
-  const dias = diasEntre(nacimiento, hoyISO());
-  return dias === null ? null : Math.floor(dias / 365.25);
-};
+// La edad de hoy, con la misma cuenta que la de Lesiones.
+const edadHoy = (nacimiento) => edadAl(nacimiento, hoyISO());
 
 // permisos: los del club (sin ellos, todo a la vista). Los chalecos de
 // Catapult se buscan con la cuenta de Flujo diario: esa solapa es para quien
@@ -122,6 +120,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         clave: columna.clave,
         titulo: columna.texto ? t(columna.texto) : etiquetaDeCampo(columna.rotulo || columna.clave, config, idioma),
         tipo: columna.tipo,
+        // La fecha de nacimiento pegada nunca queda en el futuro ("86" es 1986).
+        nacimiento: columna.nacimiento,
         editable: columna.editable && !soloLectura,
         ancho: columna.clave === "nombre" ? 180 : undefined,
         opciones:

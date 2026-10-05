@@ -61,6 +61,7 @@ const sinSenal = () => typeof navigator !== "undefined" && navigator.onLine === 
 // Supabase lo marca como reintentable; el navegador, como un fetch que falló.
 export const esFalloDeRed = (error) =>
   sinSenal() ||
+  error?.deRed === true ||
   error?.name === "AuthRetryableFetchError" ||
   error?.status === 0 ||
   /failed to fetch|load failed|networkerror|network request failed|fetch failed|AuthRetryableFetchError/i.test(
@@ -82,6 +83,24 @@ export const borrarSesionGuardada = () => {
 // renovar el token antes de cerrarla): se le da un rato y se sigue.
 const conTope = (promesa, milisegundos) =>
   Promise.race([promesa, new Promise((resolver) => setTimeout(resolver, milisegundos))]);
+
+// Con barras pero sin datos, un pedido puede quedar sin contestar nunca (el
+// celular se cree conectado). Pasado el tope se lo da por perdido, como un
+// fallo de red.
+const conTopeDeRed = (promesa, milisegundos) => {
+  let reloj;
+  const vencido = new Promise((_, rechazar) => {
+    reloj = setTimeout(() => rechazar(new Error("Failed to fetch")), milisegundos);
+  });
+  return Promise.race([promesa, vencido]).finally(() => clearTimeout(reloj));
+};
+
+// Al abrir: a partir de cuándo se avisa que tarda (y, si hay una cuenta
+// guardada en el celular, se ofrece entrar con ella), cuándo se entra con esa
+// cuenta sin esperar más, y cuánto se espera a que la base lea la cuenta.
+const TARDA_MS = 3000;
+const ENTRAR_CON_COPIA_MS = 7000;
+const TOPE_PERFIL_MS = 8000;
 
 // La foto del estadio, borrosa, de fondo: la parada en el celular y la
 // apaisada en la computadora (las mismas de la portada de Partido).
@@ -179,7 +198,7 @@ export default function AccessGate({ children }) {
   // de rendirse), se avisa que no está trabado.
   useEffect(() => {
     if (!cargando) return undefined;
-    const reloj = window.setTimeout(() => setTardando(true), 6000);
+    const reloj = window.setTimeout(() => setTardando(true), TARDA_MS);
     return () => {
       window.clearTimeout(reloj);
       setTardando(false);
@@ -195,7 +214,7 @@ export default function AccessGate({ children }) {
       return;
     }
     try {
-      const fila = await leerMiPerfil(userId);
+      const fila = await conTopeDeRed(leerMiPerfil(userId), TOPE_PERFIL_MS);
       const cuenta = fila || { user_id: userId, email: session.user?.email || "", estado: "pendiente" };
       guardarPerfilLocal(fila ? cuenta : null);
       setPerfil(cuenta);
@@ -208,10 +227,13 @@ export default function AccessGate({ children }) {
         return;
       }
       setPerfil(null);
+      // La base contesta en inglés: se muestra el texto de la clave que vino
+      // (o el genérico), en el idioma de la app.
+      const clave = String(errorLectura?.message || "");
       throw new Error(
         esFalloDeRed(errorLectura)
           ? t("acceso.error.sinConexionCuenta")
-          : errorLectura?.message || t("acceso.error.noComprobar"),
+          : t(/^[a-z]+(\.[a-zA-Z0-9]+)+$/.test(clave) ? clave : "acceso.error.noComprobar"),
       );
     }
   }, []);
@@ -224,23 +246,43 @@ export default function AccessGate({ children }) {
     marcarDesdeCache(true);
   };
 
+  // Mientras se comprueba la cuenta al abrir: si ya se entró con la copia
+  // del celular (sin señal, o porque tardaba), y la cuenta guardada con la
+  // que se puede entrar sin esperar.
+  const entroConCopiaAlAbrir = useRef(false);
+  const copiaParaEntrar = () => {
+    if (recuperacionPendiente.current || entroConCopiaAlAbrir.current) return null;
+    // Si Supabase ya contestó con una sesión, la copia tiene que ser de esa cuenta.
+    return leerPerfilLocal(sesionActual.current?.user?.id || null);
+  };
+  const entrarSinEsperar = () => {
+    const guardado = copiaParaEntrar();
+    if (!guardado || !montado.current) return;
+    entroConCopiaAlAbrir.current = true;
+    if (sesionActual.current?.user?.id) {
+      // La sesión ya está: falta la cuenta, que sigue leyéndose y la reemplaza al llegar.
+      setPerfil(guardado);
+      marcarDesdeCache(true);
+    } else {
+      entrarConCopia(guardado);
+    }
+    setCargando(false);
+  };
+
   const iniciar = useCallback(async () => {
     setCargando(true);
     setError("");
-    let entroConCopia = false;
+    entroConCopiaAlAbrir.current = false;
+    // Con barras pero sin datos, comprobar la cuenta puede no terminar nunca:
+    // pasado un rato se entra con la cuenta guardada, como sin señal. Lo que
+    // conteste después igual se usa.
+    const reloj = window.setTimeout(entrarSinEsperar, ENTRAR_CON_COPIA_MS);
 
     try {
       // Sin señal y con una cuenta guardada se entra ya, sin esperar a que
       // Supabase termine de intentar renovar la sesión (tarda hasta medio
       // minuto en rendirse).
-      if (sinSenal() && !recuperacionPendiente.current) {
-        const guardado = leerPerfilLocal();
-        if (guardado) {
-          entrarConCopia(guardado);
-          entroConCopia = true;
-          setCargando(false);
-        }
-      }
+      if (sinSenal()) entrarSinEsperar();
 
       const { data, error: errorSesion } = await supabase.auth.getSession();
       if (!montado.current) return;
@@ -268,7 +310,7 @@ export default function AccessGate({ children }) {
       }
 
       if (errorSesion && !session) {
-        if (entroConCopia) return;
+        if (entroConCopiaAlAbrir.current) return;
         // Sin señal (o con barras pero sin datos) y con la sesión vencida,
         // Supabase no la puede renovar: vale la última cuenta que entró acá.
         const guardado = esFalloDeRed(errorSesion) ? leerPerfilLocal() : null;
@@ -294,8 +336,10 @@ export default function AccessGate({ children }) {
           : errorInicio?.message || t("acceso.error.noComprobar"),
       );
     } finally {
+      window.clearTimeout(reloj);
       if (montado.current) setCargando(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolverPerfil]);
 
   useEffect(() => {
@@ -553,9 +597,22 @@ export default function AccessGate({ children }) {
   };
 
   if (cargando) {
+    // Si tarda y en el celular quedó la cuenta que entró, se puede entrar
+    // con ella sin esperar (como sin señal).
+    const conCopia = tardando && Boolean(copiaParaEntrar());
     return (
-      <PantallaAcceso titulo={t("acceso.cargandoTitulo")} texto={tardando ? t("acceso.cargandoTarda") : t("acceso.cargandoTexto")}>
+      <PantallaAcceso
+        titulo={t("acceso.cargandoTitulo")}
+        texto={tardando ? t(conCopia ? "acceso.cargandoTardaConCopia" : "acceso.cargandoTarda") : t("acceso.cargandoTexto")}
+      >
         <Espera />
+        {conCopia && (
+          <div className="training-access-form">
+            <button type="button" className="training-access-primary" onClick={entrarSinEsperar}>
+              {t("acceso.entrarSinConexion")}
+            </button>
+          </div>
+        )}
       </PantallaAcceso>
     );
   }

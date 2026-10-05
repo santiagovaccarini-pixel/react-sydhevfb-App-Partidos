@@ -63,6 +63,17 @@ const radioDe = (cantidad) => 18 + 5 * Math.min(cantidad - 1, 3);
 // Un id que sirve adentro de url(#…).
 const useIdLimpio = () => `calor-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
+// Un texto partido después de cada barra, con la barra en el pedazo de antes
+// ("TORNOZELO/PÉ" → "TORNOZELO/", "PÉ"). Sin expresiones regulares que miren
+// hacia atrás (lookbehind): con una sola, en iPhones con iOS anterior al 16.4
+// la app entera no arranca.
+export const partirDespuesDeBarras = (texto) => {
+  const pedazos = String(texto).split("/");
+  const conBarra = pedazos.map((pedazo, indice) => (indice < pedazos.length - 1 ? `${pedazo}/` : pedazo));
+  // Si termina en barra, el último queda vacío y no va.
+  return conBarra.length > 1 && conBarra[conBarra.length - 1] === "" ? conBarra.slice(0, -1) : conBarra;
+};
+
 // El nombre partido en renglones cortos: entre palabras o después de una
 // barra (TORNOZELO/PÉ).
 const renglonesDe = (texto) =>
@@ -70,7 +81,7 @@ const renglonesDe = (texto) =>
     .toUpperCase()
     .split(/\s+/)
     .filter(Boolean)
-    .flatMap((palabra) => palabra.split(/(?<=\/)/).map((pedazo, indice) => ({ pedazo, pegado: indice > 0 })))
+    .flatMap((palabra) => partirDespuesDeBarras(palabra).map((pedazo, indice) => ({ pedazo, pegado: indice > 0 })))
     .reduce((renglones, { pedazo, pegado }) => {
       const ultimo = renglones[renglones.length - 1];
       const junto = ultimo === undefined ? pedazo : `${ultimo}${pegado ? "" : " "}${pedazo}`;

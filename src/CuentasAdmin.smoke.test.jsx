@@ -15,7 +15,14 @@ const datos = vi.hoisted(() => ({
   errorCambio: null,
   errorLeer: null,
   usada: false,
+  // Lecturas lentas: la de un club (o la historia) vuelve cuando se abre su compuerta.
+  lenta: {},
 }));
+
+// Las invitaciones de las pruebas vencen después de hoy (salvo las vencidas a propósito).
+const DIA_MS = 86400000;
+const EN_UNA_SEMANA = new Date(Date.now() + 7 * DIA_MS).toISOString();
+const EN_DOS_SEMANAS = new Date(Date.now() + 14 * DIA_MS).toISOString();
 
 vi.mock("./domain/equipo.js", () => ({
   cargarEquipos: async () => ({ equipos: datos.clubes }),
@@ -35,8 +42,10 @@ vi.mock("./domain/membresiasDb.js", async () => {
   return {
     ...real,
     listarMiembros: async (equipoId) => {
+      const lista = real.ordenarMiembros(datos.miembros[equipoId] || []);
+      if (datos.lenta[equipoId]) await datos.lenta[equipoId];
       if (datos.errorLeer) throw new Error(datos.errorLeer);
-      return real.ordenarMiembros(datos.miembros[equipoId] || []);
+      return lista;
     },
     listarInvitaciones: async (equipoId) => datos.invitaciones[equipoId] || [],
     listarMembresias: async () => datos.membresias,
@@ -46,14 +55,16 @@ vi.mock("./domain/membresiasDb.js", async () => {
     reincorporar: async (userId, equipoId) => cambiar(userId, equipoId, { hasta: null, desde: "2026-10-02" }),
     historialDeMiembro: async (equipoId, userId) => {
       datos.llamadas.push({ que: "historia", equipoId, userId });
-      return datos.historia;
+      const historia = datos.historia;
+      if (datos.lenta.historia) await datos.lenta.historia;
+      return historia;
     },
     invitar: async (equipoId, invitacion) => {
       datos.llamadas.push({ que: "invitar", equipoId, invitacion });
       if (datos.errorCambio) throw new Error(datos.errorCambio);
       if (!datos.usada) {
         datos.invitaciones[equipoId] = [
-          { id: `i-${invitacion.email}`, ...invitacion, vence_en: "2026-10-16T12:00:00Z" },
+          { id: `i-${invitacion.email}`, ...invitacion, vence_en: EN_DOS_SEMANAS },
           ...(datos.invitaciones[equipoId] || []),
         ];
       }
@@ -73,6 +84,7 @@ vi.mock("./domain/perfilesDb.js", async () => {
     listarPerfiles: async () => datos.perfiles,
     decidirPerfil: async (userId, cambios) => {
       datos.llamadas.push({ que: "decidir", userId, cambios });
+      if (datos.errorDecidir) throw new Error(datos.errorDecidir);
       const fila = { ...datos.perfiles.find((p) => p.user_id === userId), ...cambios };
       datos.perfiles = datos.perfiles.map((p) => (p.user_id === userId ? fila : p));
       return fila;
@@ -115,7 +127,7 @@ describe("Cuentas", () => {
       ],
       c2: [miembro({ user_id: "eva", equipo_id: "c2", email: "eva@dos.com", rol: "admin" })],
     };
-    datos.invitaciones = { c1: [{ id: "i1", email: "espera@uno.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: "2026-10-10T12:00:00Z" }] };
+    datos.invitaciones = { c1: [{ id: "i1", email: "espera@uno.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: EN_UNA_SEMANA }] };
     datos.historia = [];
     datos.perfiles = [];
     datos.membresias = [];
@@ -124,6 +136,8 @@ describe("Cuentas", () => {
     datos.errorLeer = null;
     datos.usada = false;
     datos.compuerta = null;
+    datos.lenta = {};
+    datos.errorDecidir = null;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
   });
@@ -288,6 +302,21 @@ describe("Cuentas", () => {
     expect(texto()).toContain("Invitación cancelada.");
   });
 
+  test("una invitación vencida va aparte, sin el mensaje para copiar, y se puede cancelar", async () => {
+    datos.invitaciones.c1.push({ id: "i-vieja", email: "tarde@uno.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: new Date(Date.now() - DIA_MS).toISOString() });
+    await montar();
+    expect(grupos()).toEqual(expect.arrayContaining(["Invitaciones abiertas 1", "Invitaciones vencidas 1"]));
+    const vencida = fila("tarde@uno.com");
+    expect(vencida.closest(".cuentas-grupo").querySelector("h2").textContent).toContain("Invitaciones vencidas");
+    expect(vencida.textContent).toContain("Vencida");
+    expect(vencida.textContent).toContain("Venció el");
+    expect(boton(vencida, "Copiar mensaje")).toBeUndefined();
+    expect(boton(fila("espera@uno.com"), "Copiar mensaje")).toBeTruthy();
+    await tocar(boton(vencida, "Cancelar"));
+    expect(datos.llamadas.at(-1)).toEqual({ que: "cancelar", id: "i-vieja" });
+    expect(grupos().some((grupo) => grupo.startsWith("Invitaciones vencidas"))).toBe(false);
+  });
+
   test("un cambio que vuelve después de elegir otro club no toca la lista de ese club", async () => {
     datos.clubes = [UNO, DOS];
     datos.miembros.c2.push(miembro({ user_id: "beto", equipo_id: "c2", email: "beto@uno.com" }));
@@ -304,6 +333,52 @@ describe("Cuentas", () => {
     expect(contenedor.querySelector(".cuentas-club-elegido strong").textContent).toBe("Club Dos");
     // En Club Dos, Beto sigue sin Lesiones: el cambio fue en Club Uno.
     expect(chip(fila("beto@uno.com"), "Lesiones").getAttribute("aria-pressed")).toBe("false");
+  });
+
+  test("elegir otro club rápido: lo que vuelve tarde del anterior no se mezcla", async () => {
+    datos.clubes = [UNO, DOS];
+    datos.invitaciones.c2 = [{ id: "i2", email: "otra@dos.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: EN_UNA_SEMANA }];
+    await montar();
+    let abrirDos;
+    datos.lenta.c2 = new Promise((resolver) => {
+      abrirDos = resolver;
+    });
+    const elegir = async (nombre) => {
+      await tocar(boton(contenedor, "Cambiar"));
+      await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === nombre));
+    };
+    await elegir("Club Dos");
+    // Mientras se lee Club Dos no queda a la vista la gente de Club Uno.
+    expect(fila("beto@uno.com")).toBeUndefined();
+    expect(texto()).toContain("Cargando…");
+    expect(texto()).not.toContain("Todavía no hay nadie en el club.");
+    await elegir("Club Uno");
+    expect(fila("beto@uno.com")).toBeTruthy();
+    // Club Dos contesta tarde: no pisa a Club Uno.
+    await act(async () => abrirDos());
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".cuentas-club-elegido strong").textContent).toBe("Club Uno");
+    expect(fila("beto@uno.com")).toBeTruthy();
+    expect(fila("espera@uno.com")).toBeTruthy();
+    expect(fila("eva@dos.com")).toBeUndefined();
+    expect(fila("otra@dos.com")).toBeUndefined();
+  });
+
+  test("la historia que vuelve después de elegir otro club no se muestra", async () => {
+    datos.clubes = [UNO, DOS];
+    datos.historia = [{ id: 1, accion: "alta", detalle: { rol: "staff", partido: true, flujo: false, lesiones: false }, quien_email: "", cuando: "2026-01-01T15:00:00Z" }];
+    await montar();
+    let abrir;
+    datos.lenta.historia = new Promise((resolver) => {
+      abrir = resolver;
+    });
+    await tocar(boton(fila("dario@uno.com"), "Historia"));
+    await tocar(boton(contenedor, "Cambiar"));
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Club Dos"));
+    await act(async () => abrir());
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".cuentas-historia")).toBeNull();
+    expect(texto()).not.toContain("dario@uno.com");
   });
 
   test("con varios clubes se elige cuál administrar", async () => {
@@ -355,6 +430,17 @@ describe("Cuentas", () => {
 
     await tocar(boton(fila("ex@uno.com"), "Devolver acceso"));
     expect(datos.llamadas.at(-1)).toEqual({ que: "decidir", userId: "ex", cambios: { estado: "autorizado" } });
+  });
+
+  test("si no se puede cambiar una cuenta, lo dice en el idioma de la app", async () => {
+    datos.perfiles = [{ user_id: "ex", email: "ex@uno.com", estado: "bloqueado", confirmado_en: "2026-08-01", creado_en: "2026-08-01T10:00:00Z" }];
+    datos.errorDecidir = "cuentas.errorCambiarSinPermiso";
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    await montar({ esDueno: true });
+    await tocar(contenedor.querySelectorAll(".cuentas-pestanas button")[1]);
+    await tocar(boton(fila("ex@uno.com"), "Devolver acesso"));
+    expect(texto()).toContain("Não foi possível salvar a alteração: você não tem permissão ou a conta não existe mais.");
+    expect(texto()).not.toContain("cuentas.errorCambiarSinPermiso");
   });
 
   test("si falta actualizar la base, el dueño igual maneja las cuentas de la app", async () => {

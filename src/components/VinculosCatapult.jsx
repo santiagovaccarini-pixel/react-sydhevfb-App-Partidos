@@ -108,7 +108,7 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
       const atleta = atletaId ? atletasPorId.get(atletaId) : null;
       // eslint-disable-next-line no-await-in-loop
       const resultado = await guardarVinculoCatapult(jugador.id, { catapultId: atletaId || null, catapultNombre: atleta ? nombreVisibleAtleta(atleta) : "" });
-      if (resultado.error) errores.push(`${jugador.nombre}: ${resultado.error}`);
+      if (resultado.error) errores.push(`${jugador.nombre}: ${t(resultado.error)}`);
       else guardados += 1;
     }
     setGuardando(false);
@@ -156,7 +156,7 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
 
         {estado === "error" && (
           <>
-            <p className="error-equipo">{errorCarga}</p>
+            <p className="error-equipo">{t(errorCarga)}</p>
             <button type="button" className="boton-texto" onClick={cargar}>
               {t("comun.reintentar")}
             </button>

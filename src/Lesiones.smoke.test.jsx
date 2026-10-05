@@ -15,6 +15,8 @@ const datos = vi.hoisted(() => ({
   historialesPedidos: [],
   cambios: [],
   errorAlLeer: "",
+  // Si está, cada guardado espera a que se abra (una conexión lenta).
+  compuerta: null,
 }));
 
 const lesionHulk = () => ({
@@ -53,7 +55,8 @@ vi.mock("./domain/lesionesDb.js", () => ({
     return { lesion: { ...lesion, id: "les-nueva", numero_caso: 2 }, error: "" };
   },
   actualizarLesion: async (id, lesion) => {
-    datos.actualizadas.push({ id, lesion });
+    datos.actualizadas.push({ id, lesion: JSON.parse(JSON.stringify(lesion)) });
+    if (datos.compuerta) await datos.compuerta;
     return { lesion: { ...lesion, id }, error: "" };
   },
   borrarLesion: async (id) => {
@@ -142,6 +145,7 @@ describe("el módulo Lesiones", () => {
     datos.cambios = [];
     datos.errorAlLeer = "";
     datos.plantel = null;
+    datos.compuerta = null;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -238,6 +242,41 @@ describe("el módulo Lesiones", () => {
     // Vuelve a la ficha, en la misma pestaña, y los cambios se piden de nuevo.
     expect(pestana(contenedor, "Observaciones").getAttribute("aria-selected")).toBe("true");
     expect(datos.historialesPedidos).toEqual(["les-1", "les-1"]);
+  });
+
+  test("irse por la barra con una lesión a medio cargar pregunta antes de perderla", async () => {
+    await montar();
+    // Sin nada cargado, se va sin preguntar.
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await navegar(contenedor, "Base");
+    expect(texto(contenedor)).not.toContain("¿Salir sin guardar?");
+    expect(contenedor.querySelector(".tabla-datos")).toBeTruthy();
+
+    await navegar(contenedor, "Nuevos casos");
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await escribir(contenedor.querySelector(".lesiones-buscador-jugador"), "sca");
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
+    await navegar(contenedor, "Base");
+    expect(texto(contenedor)).toContain("¿Salir sin guardar?");
+    expect(texto(contenedor)).toContain("Lo que cargaste en esta lesión se pierde.");
+    // Seguir cargando: queda todo como estaba.
+    await tocar(boton(contenedor, "Seguir cargando"));
+    expect(texto(contenedor)).not.toContain("¿Salir sin guardar?");
+    expect(contenedor.querySelector(".rival-elegido").textContent).toBe("SCARPACambiar");
+    expect(contenedor.querySelector(".tabla-datos")).toBeNull();
+    // Sí, salir: va adonde se tocó.
+    await navegar(contenedor, "Base");
+    await tocar(boton(contenedor, "Sí, salir"));
+    expect(contenedor.querySelector(".tabla-datos")).toBeTruthy();
+    expect(datos.guardadas).toHaveLength(0);
+
+    // Lo mismo al editar una que ya estaba.
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    await navegar(contenedor, "Novos casos");
+    await tocar(boton(contenedor, "Ver detalhes"));
+    await tocar(boton(contenedor, "Editar"));
+    await navegar(contenedor, "Base");
+    expect(contenedor.querySelector(".tabla-datos")).toBeTruthy();
   });
 
   test("una lesión nueva se carga por los grupos del Excel, solo con lo que el Excel no calcula", async () => {
@@ -646,8 +685,10 @@ describe("el módulo Lesiones", () => {
     expect(especificos()).not.toContain("Gemelo interno");
     expect(especificos()).toContain("Músculo raro");
 
-    // En Ajustes, cada opción dice dónde va, y al escribir una nueva se ve en el momento.
+    // En Ajustes, cada opción dice dónde va, y al escribir una nueva se ve en
+    // el momento (la carga a medio hacer se deja, confirmando).
     await navegar(contenedor, "Ajustes");
+    await tocar(boton(contenedor, "Sí, salir"));
     await tocar(botonQueEmpieza(contenedor, "Listas"));
     await tocar(botonQueEmpieza(contenedor, etiqueta("musculo_especifico")));
     const detalleDe = (nombre) => [...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === nombre).textContent;
@@ -1094,6 +1135,41 @@ describe("el módulo Lesiones", () => {
     expect(datos.actualizadas[0]).toMatchObject({ id: "les-2", lesion: { datos: { medico: "Dra. Pérez" } } });
   });
 
+  test("dos celdas de la misma lesión guardadas seguidas, con la conexión lenta: no se pisan", async () => {
+    await montar();
+    await navegar(contenedor, "Base");
+    let abrir;
+    datos.compuerta = new Promise((resolver) => {
+      abrir = resolver;
+    });
+    const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")];
+    const celda = (titulo) => contenedor.querySelector(".tabla-datos-tabla tbody tr").querySelectorAll("td")[cabeceras.findIndex((th) => th.textContent === titulo)];
+    const pegar = async (titulo, valor) => {
+      await tocar(celda(titulo));
+      const evento = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(evento, "clipboardData", { value: { getData: () => valor } });
+      await act(async () => contenedor.querySelector(".tabla-datos-marco").dispatchEvent(evento));
+    };
+    // Se escribe el médico y, antes de que conteste la base, se pega el lado
+    // y después el tratamiento.
+    await tocar(celda(etiqueta("medico")));
+    await tocar(celda(etiqueta("medico")));
+    const input = celda(etiqueta("medico")).querySelector("input");
+    await escribir(input, "Dra. Pérez");
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    await pegar("Lado", "Izquierdo");
+    await pegar(etiqueta("medico"), "Dr. Gómez");
+    await act(async () => abrir());
+    await act(async () => Promise.resolve());
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(3);
+    // Cada guardado sale de lo que dejó el anterior.
+    expect(datos.actualizadas[1].lesion.datos).toMatchObject({ medico: "Dra. Pérez", lado: "esquerdo", parte_cuerpo: "coxa" });
+    expect(datos.actualizadas[2].lesion.datos).toMatchObject({ medico: "Dr. Gómez", lado: "esquerdo", parte_cuerpo: "coxa" });
+    expect(celda(etiqueta("medico")).textContent).toBe("Dr. Gómez");
+    expect(celda("Lado").textContent).toBe("Izquierdo");
+  });
+
   test("las cabeceras de la base filtran y ordenan como en Excel", async () => {
     datos.lesiones = [
       lesionHulk(),
@@ -1236,9 +1312,10 @@ describe("el módulo Lesiones", () => {
     expect(campoDeFormulario(contenedor, etiqueta("medico"))).toBeUndefined();
     expect(campoDeFormulario(contenedor, etiqueta("comentarios"))).toBeTruthy();
 
-    // En la base tampoco está la columna escondida (la barra de abajo cierra la carga),
-    // y el grupo vacío no tiene lugar en la fila de los grupos.
+    // En la base tampoco está la columna escondida (la barra de abajo cierra la
+    // carga, confirmando), y el grupo vacío no tiene lugar en la fila de los grupos.
     await navegar(contenedor, "Base");
+    await tocar(boton(contenedor, "Sí, salir"));
     const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")].map((th) => th.textContent);
     expect(cabeceras).not.toContain("Mecanismo");
     expect(cabeceras).toContain("Parte del cuerpo lesionada");

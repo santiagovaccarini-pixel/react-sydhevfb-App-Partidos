@@ -8,6 +8,7 @@ import {
   interpretarFechaHora,
   interpretarHoras,
   interpretarMinutos,
+  interpretarNacimiento,
   interpretarValor,
   ordenDeColumnas,
   ordenarFilas,
@@ -17,6 +18,8 @@ import {
   tramosDeGrupos,
   valoresDeColumna,
 } from "./tabla.js";
+import { fechaDeNacimiento } from "./importarJugadores.js";
+import { hoyISO } from "../idioma/formatos.js";
 
 describe("el orden de las columnas", () => {
   test("mueve una columna a otro lugar", () => {
@@ -50,6 +53,27 @@ describe("copiar y pegar como Excel", () => {
       ["c", "d"],
     ]);
     expect(desdeTexto("")).toEqual([]);
+  });
+
+  test("una fecha de nacimiento nunca queda en el futuro: con el año en dos cifras, como Pegar desde Excel", () => {
+    const hoy = "2026-10-05";
+    expect(interpretarNacimiento("25/07/86", hoy)).toBe("1986-07-25");
+    expect(interpretarNacimiento("1/1/10", hoy)).toBe("2010-01-01");
+    expect(interpretarNacimiento("05/10/27", hoy)).toBe("1927-10-05");
+    expect(interpretarNacimiento("25/07/1986", hoy)).toBe("1986-07-25");
+    expect(interpretarNacimiento("", hoy)).toBe(null);
+    // Futuras o de hace más de cien años, no.
+    expect(interpretarNacimiento("01/01/2030", hoy)).toBe(undefined);
+    expect(interpretarNacimiento("2026-10-06", hoy)).toBe(undefined);
+    expect(interpretarNacimiento("01/01/20", hoy)).toBe(undefined);
+    // Lo mismo que entiende Pegar desde Excel.
+    ["25/07/86", "1/1/10", "05/10/27", "29/02/00", "31/12/26", "2000-01-01", "01/01/2030", "30/02/1990", "ayer", ""].forEach((texto) => {
+      expect(interpretarNacimiento(texto, hoy), texto).toBe(fechaDeNacimiento(texto, hoy));
+    });
+    // En la tabla: la columna de nacimiento, así; las otras fechas, como siempre.
+    expect(interpretarValor({ tipo: "fecha", nacimiento: true }, "25/07/86")).toBe(interpretarNacimiento("25/07/86", hoyISO()));
+    expect(interpretarValor({ tipo: "fecha", nacimiento: true }, "25/07/86").startsWith("19")).toBe(true);
+    expect(interpretarValor({ tipo: "fecha" }, "01/10/26")).toBe("2026-10-01");
   });
 
   test("entiende fechas escritas de varias maneras", () => {
@@ -90,6 +114,11 @@ describe("copiar y pegar como Excel", () => {
     expect(interpretarValor(lado, "esquerdo")).toBe("esquerdo");
     expect(interpretarValor(lado, "arriba")).toBe(undefined);
     expect(interpretarValor(lado, "")).toBe(null);
+    // Con o sin espacios alrededor de la barra, es la misma opción.
+    const tipo = { tipo: "lista", opciones: [{ valor: "sobrecarga", etiqueta: "SOBRECARGA MUSCULAR/CÃIBRA" }] };
+    expect(interpretarValor(tipo, "SOBRECARGA MUSCULAR / CÃIBRA")).toBe("sobrecarga");
+    expect(interpretarValor(tipo, "sobrecarga muscular/caibra")).toBe("sobrecarga");
+    expect(interpretarValor(tipo, "sobrecarga muscular  /  câibra")).toBe("sobrecarga");
     // Una casilla: Sí / No (y Sim / Não, x, 1, 0...). Vacía no se toca.
     const casilla = { tipo: "casilla" };
     expect(["Sí", "sim", "SI", "x", "1", "✓"].map((texto) => interpretarValor(casilla, texto))).toEqual([true, true, true, true, true, true]);

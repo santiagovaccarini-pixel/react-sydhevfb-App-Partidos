@@ -55,13 +55,23 @@ export const permisosEnClub = (permisosCuenta, club) => {
   return { partido, flujo, lesiones, evaluaciones, datos: partido || flujo || lesiones || evaluaciones, admin: dueno, adminClub };
 };
 
+// Los errores de la base vuelven como clave del diccionario (Supabase
+// contesta en inglés y el texto de acá iba siempre en castellano): así se
+// leen en el idioma de la app. Un fallo de red queda marcado (deRed), para
+// que la puerta entre con la copia del celular.
+const FALLO_DE_RED = /failed to fetch|load failed|networkerror|network request failed|fetch failed/i;
+const fallo = (error, clave) => {
+  const deRed = FALLO_DE_RED.test(String(error?.message || ""));
+  return Object.assign(new Error(deRed ? "comun.sinConexion" : clave), { deRed, detalle: error?.message || "" });
+};
+
 export const leerMiPerfil = async (userId) => {
   const { data, error } = await supabase
     .from(TABLA_PERFILES)
     .select(COLUMNAS_PERFIL)
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw new Error(error.message || "No se pudo leer la cuenta.");
+  if (error) throw fallo(error, "acceso.error.noComprobar");
   return data || null;
 };
 
@@ -95,7 +105,7 @@ export const listarPerfiles = async () => {
     .from(TABLA_PERFILES)
     .select(COLUMNAS_PERFIL)
     .order("creado_en", { ascending: true });
-  if (error) throw new Error(error.message || "No se pudieron leer las cuentas.");
+  if (error) throw fallo(error, "cuentas.errorLeer");
   return data || [];
 };
 
@@ -104,7 +114,7 @@ export const contarPendientes = async () => {
     .from(TABLA_PERFILES)
     .select("user_id", { count: "exact", head: true })
     .eq("estado", "pendiente");
-  if (error) throw new Error(error.message || "No se pudieron contar las cuentas.");
+  if (error) throw fallo(error, "cuentas.errorLeer");
   return count || 0;
 };
 
@@ -121,10 +131,8 @@ export const decidirPerfil = async (userId, cambios) => {
     .update(permitidos)
     .eq("user_id", userId)
     .select(COLUMNAS_PERFIL);
-  if (error) throw new Error(error.message || "No se pudo cambiar la cuenta.");
-  if (!data || data.length === 0) {
-    throw new Error("No se pudo guardar el cambio: no tenés permiso o la cuenta ya no existe.");
-  }
+  if (error) throw fallo(error, "cuentas.errorCambiar");
+  if (!data || data.length === 0) throw new Error("cuentas.errorCambiarSinPermiso");
   return data[0];
 };
 

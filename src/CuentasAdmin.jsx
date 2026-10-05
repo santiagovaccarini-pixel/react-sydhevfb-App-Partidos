@@ -12,6 +12,7 @@ import {
   correoValido,
   darDeBaja,
   historialDeMiembro,
+  invitacionVencida,
   invitar,
   listarInvitaciones,
   listarMembresias,
@@ -122,20 +123,25 @@ const FilaMiembro = ({ miembro, esMio, ocupada, onRol, onModulo, onBaja, onReinc
   );
 };
 
-const FilaInvitacion = ({ invitacion, ocupada, onCopiar, onCancelar }) => (
+// Una invitación vencida ya no sirve para entrar: va aparte, sin el mensaje
+// para copiar (para volver a invitar ese correo, se lo invita de nuevo).
+const FilaInvitacion = ({ invitacion, vencida = false, ocupada, onCopiar, onCancelar }) => (
   <li className="cuenta-fila invitacion">
     <div className="cuenta-encabezado">
       <span className="cuenta-correo">{invitacion.email}</span>
       {invitacion.rol === "admin" && <span className="cuenta-etiqueta">{t("cuentas.roles.admin")}</span>}
+      {vencida && <span className="cuenta-etiqueta alerta">{t("cuentas.vencida")}</span>}
     </div>
     <div className="cuenta-meta">
       <span>{nombresDeModulos(invitacion)}</span>
-      <span>{t("cuentas.venceEl", { fecha: fechaCorta(invitacion.vence_en) })}</span>
+      <span>{t(vencida ? "cuentas.vencioEl" : "cuentas.venceEl", { fecha: fechaCorta(invitacion.vence_en) })}</span>
     </div>
     <div className="cuenta-acciones">
-      <button type="button" className="cuenta-autorizar" onClick={() => onCopiar(invitacion)}>
-        {t("cuentas.copiarMensaje")}
-      </button>
+      {!vencida && (
+        <button type="button" className="cuenta-autorizar" onClick={() => onCopiar(invitacion)}>
+          {t("cuentas.copiarMensaje")}
+        </button>
+      )}
       <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onCancelar(invitacion)}>
         {t("cuentas.cancelarInvitacion")}
       </button>
@@ -203,13 +209,22 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
   // Los clubes que administra quien entró (el dueño: todos) y el elegido.
   const [clubes, setClubes] = useState([]);
   const [clubId, setClubId] = useState(club?.id || null);
-  // El club elegido para "Actualizar" (que no vuelva al primero).
+  // El club elegido para "Actualizar" (que no vuelva al primero) y para
+  // saber si lo que vuelve de la base es del club que se está viendo. Se pone
+  // junto con el estado: una respuesta rápida puede llegar antes de que la
+  // pantalla se vuelva a dibujar.
   const clubIdRef = useRef(clubId);
   clubIdRef.current = clubId;
+  const ponerClub = (id) => {
+    clubIdRef.current = id;
+    setClubId(id);
+  };
   const [eligiendoClub, setEligiendoClub] = useState(false);
   const [errorClub, setErrorClub] = useState("");
   const [miembros, setMiembros] = useState([]);
   const [invitaciones, setInvitaciones] = useState([]);
+  // Se está leyendo el club recién elegido.
+  const [leyendoClub, setLeyendoClub] = useState(false);
 
   // La invitación que se está armando.
   const [correo, setCorreo] = useState("");
@@ -234,6 +249,8 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
       return;
     }
     const [lista, abiertas] = await Promise.all([listarMiembros(id), listarInvitaciones(id)]);
+    // Si mientras tanto se eligió otro club, esto ya no es lo que se ve.
+    if (clubIdRef.current !== id) return;
     setMiembros(lista);
     setInvitaciones(abiertas);
   }, []);
@@ -250,11 +267,11 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
       const propios = (equipos || []).filter((uno) => esDueno || (uno.rol === "admin" && !uno.hasta));
       setClubes(propios);
       const elegido = propios.find((uno) => uno.id === clubIdRef.current) || propios[0] || null;
-      setClubId(elegido?.id || null);
+      ponerClub(elegido?.id || null);
       try {
         await cargarClub(elegido?.id || null);
       } catch (errorLectura) {
-        setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
+        if (clubIdRef.current === (elegido?.id || null)) setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
       }
       if (esDueno) {
         const [cuentas, todas] = await Promise.all([listarPerfiles(), listarMembresias().catch(() => [])]);
@@ -274,13 +291,21 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
 
   const elegirClub = async (id) => {
     setEligiendoClub(false);
-    setClubId(id);
+    ponerClub(id);
     setAviso("");
     setErrorClub("");
+    // Lo del club anterior no queda a la vista (ni para tocarlo) mientras se
+    // lee el nuevo.
+    setMiembros([]);
+    setInvitaciones([]);
+    setHistoria(null);
+    setLeyendoClub(true);
     try {
       await cargarClub(id);
     } catch (errorLectura) {
-      setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
+      if (clubIdRef.current === id) setErrorClub(mensajeDe(errorLectura, "cuentas.errorClubes"));
+    } finally {
+      if (clubIdRef.current === id) setLeyendoClub(false);
     }
   };
 
@@ -317,11 +342,14 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
 
   const abrirHistoria = async (miembro) => {
     setHistoria({ miembro, movimientos: null, error: "" });
+    // Lo que vuelve va en la hoja si sigue abierta con esa persona (y en el
+    // mismo club: al elegir otro, la hoja se cierra).
+    const enLaHoja = (contenido) => setHistoria((actual) => (actual?.miembro === miembro ? { miembro, ...contenido } : actual));
     try {
       const movimientos = await historialDeMiembro(clubId, miembro.user_id);
-      setHistoria({ miembro, movimientos, error: "" });
+      enLaHoja({ movimientos, error: "" });
     } catch (errorLectura) {
-      setHistoria({ miembro, movimientos: [], error: mensajeDe(errorLectura, "cuentas.errorHistorial") });
+      enLaHoja({ movimientos: [], error: mensajeDe(errorLectura, "cuentas.errorHistorial") });
     }
   };
 
@@ -389,7 +417,7 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
       const fila = await decidirPerfil(perfil.user_id, cambios);
       setPerfiles((lista) => lista.map((uno) => (uno.user_id === fila.user_id ? fila : uno)));
     } catch (errorCambio) {
-      setAviso(errorCambio?.message || t("cuentas.errorCambiar"));
+      setAviso(mensajeDe(errorCambio, "cuentas.errorCambiar"));
     } finally {
       setOcupada("");
     }
@@ -433,6 +461,8 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
 
   const activos = miembros.filter((uno) => !uno.hasta);
   const seFueron = miembros.filter((uno) => uno.hasta);
+  const vencidas = invitaciones.filter((una) => invitacionVencida(una));
+  const abiertas = invitaciones.filter((una) => !invitacionVencida(una));
   const grupos = agruparPerfiles(perfiles, miUserId);
 
   const accionesMiembro = {
@@ -513,13 +543,21 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
             </form>
           </section>
 
-          <Grupo titulo={t("cuentas.invitacionesTitulo")} cantidad={invitaciones.length} vacio={t("cuentas.vacioInvitaciones")}>
-            {invitaciones.map((invitacion) => (
+          <Grupo titulo={t("cuentas.invitacionesTitulo")} cantidad={abiertas.length} vacio={t("cuentas.vacioInvitaciones")}>
+            {abiertas.map((invitacion) => (
               <FilaInvitacion key={invitacion.id} invitacion={invitacion} ocupada={ocupada === invitacion.id} onCopiar={copiarMensaje} onCancelar={cancelar} />
             ))}
           </Grupo>
 
-          <Grupo titulo={t("cuentas.miembrosTitulo")} cantidad={activos.length} vacio={cargando ? t("comun.cargando") : t("cuentas.vacioMiembros")}>
+          {vencidas.length > 0 && (
+            <Grupo titulo={t("cuentas.invitacionesVencidasTitulo")} cantidad={vencidas.length}>
+              {vencidas.map((invitacion) => (
+                <FilaInvitacion key={invitacion.id} invitacion={invitacion} vencida ocupada={ocupada === invitacion.id} onCopiar={copiarMensaje} onCancelar={cancelar} />
+              ))}
+            </Grupo>
+          )}
+
+          <Grupo titulo={t("cuentas.miembrosTitulo")} cantidad={activos.length} vacio={cargando || leyendoClub ? t("comun.cargando") : t("cuentas.vacioMiembros")}>
             {activos.map((miembro) => (
               <FilaMiembro key={miembro.user_id} miembro={miembro} esMio={miembro.user_id === miUserId} ocupada={ocupada === miembro.user_id} {...accionesMiembro} />
             ))}

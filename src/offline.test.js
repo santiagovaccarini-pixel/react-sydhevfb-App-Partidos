@@ -1,7 +1,8 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { runInNewContext } from "node:vm";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // El service worker no corre en las pruebas —no hay navegador— así que lo que
 // se cuida acá son las dos reglas que, si se rompen, dejan la app pegada a una
@@ -48,5 +49,140 @@ describe("la app guardada para usar sin señal", () => {
     // Si no, serviría archivos viejos y ningún cambio se vería.
     expect(arranque).toContain("import.meta.env.PROD");
     expect(arranque).toContain('navigator.serviceWorker.register("/sw.js")');
+  });
+});
+
+// En iPhones con iOS anterior al 16.4 una sola expresión regular que mire
+// hacia atrás (lookbehind) en el código hace que la app entera no arranque.
+describe("la app arranca en iPhones viejos", () => {
+  const archivos = (carpeta) =>
+    readdirSync(carpeta, { withFileTypes: true }).flatMap((entrada) => {
+      const ruta = join(carpeta, entrada.name);
+      if (entrada.isDirectory()) return archivos(ruta);
+      return /\.jsx?$/.test(entrada.name) && !/\.test\.jsx?$/.test(entrada.name) ? [ruta] : [];
+    });
+
+  it("no hay lookbehind en el código que va al navegador", () => {
+    const conLookbehind = ["src", "lib"]
+      .flatMap((carpeta) => archivos(join(raiz, carpeta)))
+      .filter((ruta) => /\(\?<[=!]/.test(readFileSync(ruta, "utf8")))
+      .map((ruta) => ruta.slice(raiz.length + 1));
+    expect(conLookbehind).toEqual([]);
+  });
+});
+
+// El service worker corrido aparte, con un cache y una red de mentira.
+describe("el service worker al abrir la página", () => {
+  const ORIGEN = "https://app.prueba";
+  let guardados;
+  let puestos;
+  let red;
+
+  const cargar = () => {
+    const oyentes = {};
+    const cache = {
+      addAll: async () => {},
+      put: async (clave, respuesta) => {
+        puestos.push([typeof clave === "string" ? clave : clave.url, respuesta]);
+      },
+    };
+    runInNewContext(sw, {
+      self: {
+        location: { origin: ORIGEN },
+        addEventListener: (tipo, oyente) => {
+          oyentes[tipo] = oyente;
+        },
+        skipWaiting: () => {},
+        clients: { claim: () => {} },
+      },
+      caches: {
+        open: async () => cache,
+        keys: async () => [],
+        delete: async () => true,
+        match: async (clave) => guardados[typeof clave === "string" ? clave : clave.url],
+      },
+      fetch: (...args) => red(...args),
+      setTimeout,
+      clearTimeout,
+      URL,
+      Promise,
+    });
+    return oyentes;
+  };
+
+  const pedir = (oyentes, url, mode = "navigate") => {
+    let respuesta = null;
+    oyentes.fetch({ request: { method: "GET", url, mode }, respondWith: (promesa) => (respuesta = promesa) });
+    return respuesta;
+  };
+
+  const RED = { ok: true, type: "basic", redirected: false, de: "red", clone() { return this; } };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    guardados = { [`${ORIGEN}/`]: { de: "cache" }, "/": { de: "portada" } };
+    puestos = [];
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("con red, abre la página nueva y la guarda", async () => {
+    red = async () => RED;
+    const respuesta = await pedir(cargar(), `${ORIGEN}/?actualizar=1`);
+    expect(respuesta.de).toBe("red");
+    expect(puestos.map(([clave]) => clave)).toEqual([`${ORIGEN}/`]);
+  });
+
+  it("con barras pero sin datos (la red no contesta), a los 3 segundos abre la guardada", async () => {
+    red = () => new Promise(() => {});
+    const respuesta = pedir(cargar(), `${ORIGEN}/?actualizar=1`);
+    let abierta = null;
+    respuesta.then((una) => (abierta = una));
+    await vi.advanceTimersByTimeAsync(2900);
+    expect(abierta).toBeNull();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(abierta.de).toBe("cache");
+  });
+
+  it("si la red contesta tarde, eso no se guarda (la página ya abrió con lo guardado)", async () => {
+    let contestar;
+    red = () => new Promise((resolver) => (contestar = resolver));
+    const respuesta = pedir(cargar(), `${ORIGEN}/`);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect((await respuesta).de).toBe("cache");
+    contestar(RED);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(puestos).toEqual([]);
+  });
+
+  it("sin nada guardado, espera a la red aunque tarde", async () => {
+    guardados = {};
+    let contestar;
+    red = () => new Promise((resolver) => (contestar = resolver));
+    const respuesta = pedir(cargar(), `${ORIGEN}/`);
+    let abierta = null;
+    respuesta.then((una) => (abierta = una));
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(abierta).toBeNull();
+    contestar(RED);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(abierta.de).toBe("red");
+  });
+
+  it("sin señal, abre la guardada o la portada precargada", async () => {
+    red = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+    expect((await pedir(cargar(), `${ORIGEN}/`)).de).toBe("cache");
+    delete guardados[`${ORIGEN}/`];
+    expect((await pedir(cargar(), `${ORIGEN}/`)).de).toBe("portada");
+  });
+
+  it("lo de /api/ y lo de otros dominios no pasa por el service worker", () => {
+    red = async () => RED;
+    const oyentes = cargar();
+    expect(pedir(oyentes, `${ORIGEN}/api/openfield/session`, "cors")).toBeNull();
+    expect(pedir(oyentes, "https://otro.dominio/algo", "cors")).toBeNull();
+    expect(pedir(oyentes, `${ORIGEN}/version.json`, "cors")).toBeNull();
   });
 });
