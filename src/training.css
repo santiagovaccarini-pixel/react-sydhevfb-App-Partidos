@@ -1768,6 +1768,45 @@
 .entrenamiento-marco .aviso-solo-lectura-tablero {
   margin: 10px 16px 0;
 }
+/* Flujo diario con el servidor de OpenField caído: se trabaja igual, con un
+   aviso arriba para volver a probar. */
+.aviso-openfield-caido {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 14px;
+  border: 1px solid rgba(240, 201, 120, 0.55);
+  border-radius: 14px;
+  background: #1c1a14;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: #f0c978;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  transform: translateX(-50%);
+}
+.aviso-openfield-caido button {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #f0c978;
+  color: #1c1a14;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.aviso-openfield-caido button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .aviso-lectura-flotante {
   position: fixed;
   left: 50%;

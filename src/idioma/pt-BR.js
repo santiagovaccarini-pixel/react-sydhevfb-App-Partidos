@@ -434,6 +434,8 @@ export default {
     errorTitulo: "Não conseguimos conectar com o OpenField",
     errorTexto: "Não foi possível abrir a sessão do OpenField. Tente de novo.",
     iniciaSesion: "Entre na sua conta para acessar o OpenField.",
+    servidorCaido: "O OpenField não responde: você pode continuar trabalhando e tentar de novo daqui a pouco.",
+    reintentando: "Tentando…",
   },
   cuentas: {
     kicker: "Administração",

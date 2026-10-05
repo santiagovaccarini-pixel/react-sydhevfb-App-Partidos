@@ -136,8 +136,31 @@ describe("la sesión de OpenField antes de Flujo diario", () => {
     expect(contenedor.querySelector(".training-access-card p").textContent).toBe("Iniciá sesión para acceder a OpenField.");
   });
 
-  test("si el servidor falla, avisa y Reintentar vuelve a probar", async () => {
+  test("si el servidor se cae (5xx), entra como sin señal con un aviso, y Reintentar vuelve a probar sin sacar el módulo", async () => {
     api.respuesta = { respuesta: { ok: false, status: 503 }, payload: { ok: false, code: "PERFIL_NO_LEGIBLE", error: "No se pudo comprobar tu cuenta." } };
+    await montar();
+    expect(contenedor.querySelector(".modulo").textContent).toBe("Flujo diario como usuario (sin señal)");
+    const modulo = contenedor.querySelector(".modulo");
+    expect(contenedor.querySelector(".aviso-openfield-caido").textContent).toContain("OpenField no responde");
+    const reintentar = () => Array.from(contenedor.querySelectorAll(".aviso-openfield-caido button")).find((b) => b.textContent.trim() === "Reintentar");
+
+    // Sigue caído: el aviso queda.
+    await act(async () => reintentar().click());
+    await act(async () => Promise.resolve());
+    expect(abrirSesionOpenField).toHaveBeenCalledTimes(2);
+    expect(contenedor.querySelector(".aviso-openfield-caido")).not.toBeNull();
+
+    api.respuesta = { respuesta: { ok: true, status: 200 }, payload: { ok: true, rol: "admin" } };
+    await act(async () => reintentar().click());
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".aviso-openfield-caido")).toBeNull();
+    expect(contenedor.querySelector(".modulo").textContent).toBe("Flujo diario como admin");
+    // El mismo módulo (no se volvió a armar).
+    expect(contenedor.querySelector(".modulo")).toBe(modulo);
+  });
+
+  test("otro error del servidor (no 5xx) avisa en pantalla y Reintentar vuelve a probar", async () => {
+    api.respuesta = { respuesta: { ok: false, status: 400 }, payload: { ok: false, code: "OTRO", error: "Algo no anduvo." } };
     await montar();
     expect(contenedor.querySelector("h1").textContent).toBe("No pudimos conectar con OpenField");
 
