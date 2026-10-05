@@ -75,9 +75,9 @@ import "./lesiones.css";
 // que ahí.
 
 export const DESTINOS_LESIONES = [
-  { id: "lesionados", etiqueta: "Lesionados", icono: "usuario" },
-  { id: "historial", etiqueta: "Historial", icono: "registros" },
+  { id: "lesionados", etiqueta: "Nuevos casos", icono: "usuario" },
   { id: "base", etiqueta: "Base", icono: "documento" },
+  { id: "historial", etiqueta: "Historial individual", icono: "registros" },
   { id: "reportes", etiqueta: "Reportes", icono: "grafico" },
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
