@@ -4,6 +4,7 @@ import { EscudoDeClub } from "./components/ClubCrest";
 import { CuerpoConCalor } from "./components/CuerpoConCalor.jsx";
 import { manchasDe } from "./components/manchasCuerpo.js";
 import { CuadroCadaMil, tituloDeVariante } from "./components/CuadroCadaMil.jsx";
+import { tonosDeGrupos } from "./components/TablaDatos.jsx";
 import ReporteCadaMil from "./ReporteCadaMil.jsx";
 import ReporteGraficos from "./ReporteGraficos.jsx";
 import { calcular, claveDeQuien, esFechaISO, normalizarTexto, tieneFecha } from "./domain/lesiones.js";
@@ -23,6 +24,7 @@ import {
   periodoDe,
   porMes,
   resumenDeLesiones,
+  tramosDeLaTabla,
 } from "./domain/reportes.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
@@ -46,13 +48,30 @@ import "@fontsource/roboto-condensed/latin-700.css";
 const COLOR_SEVERIDAD = { registro: "#94a3b8", leve: "#facc15", menor: "#fb923c", moderado: "#ef4444", mayor: "#7c3aed", abierta: "#64748b" };
 const ORDEN_SEVERIDAD = ["registro", "leve", "menor", "moderado", "mayor", "abierta"];
 
-// La tabla del jugador: doce columnas, todas a la vista (en el Excel se
-// cambiaban desde la cabecera por falta de lugar). Son las del diseño de
-// Santiago: las del Excel con "Músculo específico" en lugar de "Pase a
-// transición". Las cortas (números, fechas, sí o no) no se parten en
-// renglones: el lugar que sobra queda para los textos.
-const COLUMNAS_DEL_REPORTE = ["numero_registro", "parte_cuerpo", "tipo_lesion", "mecanismo", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_alta", "recuperacion", "musculo", "musculo_especifico"];
-const COLUMNAS_CORTAS = new Set(["numero_registro", "recurrencia", "recidiva", "severidad", "fecha_lesion", "fecha_alta", "recuperacion"]);
+// La tabla del jugador: todas las columnas de la base que el club tiene a la
+// vista, en tramos por grupo del Excel, una tabla debajo de la otra
+// (TABLA_DEL_INDIVIDUAL en domain/reportes.js). Las columnas cortas
+// (números, fechas, sí o no, la severidad) no se parten en renglones: el
+// lugar que sobra queda para los textos. La fecha y hora de la imagen sí se
+// parte (la hora abajo), para que las tablas entren a lo ancho.
+const COLUMNAS_CORTAS = new Set([
+  "numero_caso",
+  "numero_registro",
+  "fecha_nacimiento",
+  "edad",
+  "lado_habil",
+  "horas_imagen",
+  "fecha_lesion",
+  "fecha_transicion",
+  "recup_1",
+  "fecha_retorno_entrenamiento",
+  "recup_2",
+  "fecha_alta",
+  "recuperacion",
+  "severidad",
+  "recurrencia",
+  "recidiva",
+]);
 
 const CAMPO_POR_CLAVE = Object.fromEntries(CAMPOS.map((campo) => [campo.clave, campo]));
 
@@ -237,7 +256,22 @@ const FotoDelJugador = ({ jugador }) => {
 
 // ------------------------------------------------------------- Reportes --
 
-export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy, etiqueta, textoDeOpcion, enPantalla, camposVisibles, gps = null, estado = null, datosListos = true, onAviso = null }) {
+export default function ReportesLesiones({
+  lesiones,
+  plantel,
+  equipo,
+  mapa,
+  hoy,
+  etiqueta,
+  etiquetaDeGrupo = (grupo) => grupo,
+  textoDeOpcion,
+  enPantalla,
+  camposVisibles,
+  gps = null,
+  estado = null,
+  datosListos = true,
+  onAviso = null,
+}) {
   const { idioma, plural } = useIdioma();
   const [modo, setModo] = useState("menu");
   const [jugadorId, setJugadorId] = useState("");
@@ -435,10 +469,16 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
       { clave: "pie", rotulo: t("lesiones.reportes.pie"), valor: jugador.pie_dominante ? texto("pie_dominante", jugador.pie_dominante) : "—" },
     ];
 
-    // La tabla: todas sus lesiones, por n° de registro, con las columnas del
-    // reporte que el club tiene a la vista.
-    const visibles = new Set(camposVisibles.map((campo) => campo.clave));
-    const columnasAVer = COLUMNAS_DEL_REPORTE.filter((clave) => visibles.has(clave) && CAMPO_POR_CLAVE[clave]);
+    // La tabla: todas sus lesiones, por n° de registro, con todas las columnas
+    // que el club tiene a la vista, en tramos (una tabla por tramo). Cada
+    // grupo con su tono, el mismo que en la base.
+    const conCampo = camposVisibles.filter((campo) => CAMPO_POR_CLAVE[campo.clave]);
+    const tramos = tramosDeLaTabla(conCampo);
+    const tonoDeGrupo = tonosDeGrupos(conCampo);
+    const tono = (grupo) => `tono-${tonoDeGrupo[grupo] ?? 0}`;
+    const claseDeColumna = (clave, ...otras) => [clave === tramos[0]?.id ? "informe-id" : "", COLUMNAS_CORTAS.has(clave) ? "informe-corta" : "", ...otras].filter(Boolean).join(" ") || undefined;
+    // El n° de registro va adelante en las dos tablas, fuera de los grupos y
+    // fijo al deslizar, como el número de fila de la base.
     const registro = (lesion) => calcular("numero_registro", lesion, null, { lesiones }) ?? 0;
     const ordenadas = [...deJugador].sort((a, b) => registro(a) - registro(b) || String(a.fecha_lesion).localeCompare(String(b.fecha_lesion)));
     // Las opciones del club que vienen pegadas con barras (ENTORSE/LESÃO
@@ -534,30 +574,52 @@ export default function ReportesLesiones({ lesiones, plantel, equipo, mapa, hoy,
               {deJugador.length === 0 ? (
                 <p className="vacio-ficha">{t("lesiones.reportes.sinLesionesJugador")}</p>
               ) : (
-                <div className="informe-tabla-marco">
-                  <table className="informe-tabla">
-                    <thead>
-                      <tr>
-                        {columnasAVer.map((clave) => (
-                          <th scope="col" key={clave} className={COLUMNAS_CORTAS.has(clave) ? "informe-corta" : undefined}>
-                            {etiqueta(clave)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ordenadas.map((lesion) => (
-                        <tr key={lesion.id}>
-                          {columnasAVer.map((clave) => (
-                            <td key={clave} className={COLUMNAS_CORTAS.has(clave) ? "informe-corta" : undefined}>
-                              {celda(clave, lesion)}
-                            </td>
+                tramos.map((tramo, indice) => {
+                  const columnas = tramo.grupos.flatMap((grupo) => grupo.columnas.map((clave) => ({ clave, grupo: grupo.clave })));
+                  return (
+                    <div className="informe-tabla-marco" key={indice}>
+                      <table className="informe-tabla" style={{ "--columnas": columnas.length + (tramo.id ? 1 : 0) }}>
+                        <thead>
+                          <tr className="informe-grupos">
+                            {tramo.id && (
+                              <th scope="col" rowSpan={2} className={claseDeColumna(tramo.id)} data-columna={tramo.id}>
+                                {etiqueta(tramo.id)}
+                              </th>
+                            )}
+                            {tramo.grupos.map((grupo) => (
+                              <th scope="colgroup" colSpan={grupo.columnas.length} key={grupo.clave} className={tono(grupo.clave)} data-grupo={grupo.clave}>
+                                <span className="informe-grupo-titulo">{etiquetaDeGrupo(grupo.clave)}</span>
+                              </th>
+                            ))}
+                          </tr>
+                          <tr className="informe-cabeceras">
+                            {columnas.map(({ clave, grupo }) => (
+                              <th scope="col" key={clave} className={claseDeColumna(clave, tono(grupo))} data-columna={clave}>
+                                {etiqueta(clave)}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ordenadas.map((lesion) => (
+                            <tr key={lesion.id}>
+                              {tramo.id && (
+                                <td className={claseDeColumna(tramo.id)} data-columna={tramo.id}>
+                                  {celda(tramo.id, lesion)}
+                                </td>
+                              )}
+                              {columnas.map(({ clave }) => (
+                                <td key={clave} className={claseDeColumna(clave)} data-columna={clave}>
+                                  {celda(clave, lesion)}
+                                </td>
+                              ))}
+                            </tr>
                           ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })
               )}
             </section>
 

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
+import { CAMPOS } from "./lesionesCampos.js";
 import {
   REGLAS_GRAFICOS,
+  TABLA_DEL_INDIVIDUAL,
   VARIANTES,
   aniosDeMomentos,
   aniosDePeriodos,
@@ -28,6 +30,7 @@ import {
   ordenarPeriodos,
   ordenarPorEtiqueta,
   periodoDe,
+  tramosDeLaTabla,
   porMes,
   resumenDeLesiones,
   serieCadaMil,
@@ -439,5 +442,52 @@ describe("Informes gráficos: bloques 3 a 5 (partes del cuerpo, por jugador, ent
     expect(ordenarPorEtiqueta(filas, (valor) => ES[valor] || "", "es-AR").map((fila) => fila.valor)).toEqual(["coxa", "pe_dedo", "perna_aquiles", "joelho", "tornozelo_pe", ""]);
     const nombres = nombresDeQuien([...lesiones, lesion({ id: "otro", jugador_id: 99 })], [{ id: 7, nombre: "HULK" }]);
     expect([nombres.get("j:7"), nombres.get("p:persona externa"), nombres.get("j:99")]).toEqual(["HULK", "Persona Externa", "—"]);
+  });
+});
+
+describe("la tabla del reporte individual, por tramos", () => {
+  const resumen = (tramos) => tramos.map((tramo) => ({ id: tramo.id, grupos: tramo.grupos.map((grupo) => `${grupo.clave}:${grupo.columnas.length}`) }));
+
+  test("dos tablas: de Datos generales a Descripción específica, y de Descripción contextual a Observaciones; todo una vez", () => {
+    expect(TABLA_DEL_INDIVIDUAL.tramos).toEqual([
+      ["dados_gerais", "descricao_geral", "descricao_especifica"],
+      ["descricao_contextual", "evolucao", "diagnostico", "observacoes"],
+    ]);
+    const tramos = tramosDeLaTabla(CAMPOS);
+    // El n° de registro va adelante en las dos, fuera de los grupos.
+    expect(resumen(tramos)).toEqual([
+      { id: "numero_registro", grupos: ["dados_gerais:7", "descricao_geral:7", "descricao_especifica:4"] },
+      { id: "numero_registro", grupos: ["descricao_contextual:4", "evolucao:10", "diagnostico:1", "observacoes:2"] },
+    ]);
+    expect(tramos[0].grupos[0].columnas).toEqual(["numero_caso", "jugador", "categoria", "fecha_nacimiento", "pie_dominante", "posicion", "edad"]);
+    const todas = [tramos[0].id, ...tramos.flatMap((tramo) => tramo.grupos.flatMap((grupo) => grupo.columnas))];
+    expect(todas.sort()).toEqual(CAMPOS.map((campo) => campo.clave).sort());
+  });
+
+  test("lo escondido no está, un grupo sin columnas tampoco, y sin n° de registro identifica el n° de caso", () => {
+    const sin = (...claves) => CAMPOS.filter((campo) => !claves.includes(campo.clave));
+    expect(resumen(tramosDeLaTabla(sin("diagnostico", "comentarios", "medico")))[1].grupos).toEqual(["descricao_contextual:4", "evolucao:10"]);
+    const sinRegistro = tramosDeLaTabla(sin("numero_registro"));
+    expect(sinRegistro.map((tramo) => tramo.id)).toEqual(["numero_caso", "numero_caso"]);
+    expect(sinRegistro[0].grupos[0].columnas[0]).toBe("jugador");
+    // Sin ninguna de las dos, las tablas no llevan esa columna.
+    expect(resumen(tramosDeLaTabla(sin("numero_registro", "numero_caso"))).map((tramo) => tramo.id)).toEqual([null, null]);
+    // Un tramo que se queda sin columnas no se muestra.
+    const soloArriba = CAMPOS.filter((campo) => ["dados_gerais", "descricao_geral"].includes(campo.grupo));
+    expect(resumen(tramosDeLaTabla(soloArriba))).toEqual([{ id: "numero_registro", grupos: ["dados_gerais:7", "descricao_geral:7"] }]);
+    expect(tramosDeLaTabla([])).toEqual([]);
+  });
+
+  test("un grupo que no está en ningún tramo va al último, y uno nombrado dos veces va en el primero (siempre se ve todo, una vez)", () => {
+    const campos = [...CAMPOS, { clave: "nueva", grupo: "grupo_nuevo" }];
+    const tramos = tramosDeLaTabla(campos);
+    expect(tramos.at(-1).grupos.at(-1)).toEqual({ clave: "grupo_nuevo", columnas: ["nueva"] });
+    // Con otros tramos (lo que un club podría elegir): el n° de registro va
+    // adelante aunque su grupo no sea el primero, o no esté en el tramo.
+    const propios = { tramos: [["evolucao", "dados_gerais"], ["evolucao", "diagnostico"]], identifican: ["numero_registro"] };
+    expect(resumen(tramosDeLaTabla(CAMPOS, propios))).toEqual([
+      { id: "numero_registro", grupos: ["evolucao:10", "dados_gerais:7"] },
+      { id: "numero_registro", grupos: ["diagnostico:1", "descricao_geral:7", "descricao_especifica:4", "descricao_contextual:4", "observacoes:2"] },
+    ]);
   });
 });

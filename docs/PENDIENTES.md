@@ -54,7 +54,8 @@ de lo hecho está en los commits, no en esta lista.
   la tarjeta hasta tapar la pantalla entera (se agranda entera, como un zoom;
   lo que no entra queda afuera), se queda un momento con el ícono y el nombre
   del módulo y se desvanece sobre el módulo, que ya se cargó abajo (`Portada`
-  y `lugarEnPantalla` en `src/PortalApp.jsx`; tiempos en `TIEMPOS_PORTADA`,
+  y `lugarEnPantalla` en `src/components/PortalTarjetas.jsx`, compartidas con
+  Bases de Datos; tiempos en `TIEMPOS_PORTADA`,
   unos 2,4 s en total). En el celular, parado, la portada usa la versión
   vertical de cada foto (`public/portal/*-parada.webp`, `fotoParada` en cada
   tarjeta, también sin señal): el zoom arranca desde la foto de la tarjeta y
@@ -305,6 +306,15 @@ mover a una configuración por club:
   porción por parte del cuerpo; por jugador y por cuándo, apiladas o agrupadas por parte;
   qué filtros tiene cada bloque (las segmentaciones del Excel) y si la parte vacía cuenta
   como "Sin dato".
+- La tabla del reporte individual (`TABLA_DEL_INDIVIDUAL` en `src/domain/reportes.js`, pedido
+  de Santiago del 05/10): todas las columnas que el club tiene a la vista, en dos tablas una
+  debajo de la otra: de Datos generales a Descripción específica arriba, y de Descripción
+  contextual a Observaciones abajo (un grupo que no esté en ninguna va a la última). Cada tabla
+  arranca con el N° de registro (o el N° de caso, si el registro está escondido), adelante y
+  fijo como el número de fila de la base, y lleva la fila de los grupos con los mismos tonos que
+  la base. En pantalla entran enteras desde una compu de 1366 px; más chica, se deslizan.
+  Impreso (A4 apaisado), la segunda tabla va entera a la hoja siguiente si no entra: un jugador
+  con pocas lesiones ocupa dos hojas (antes, con 12 columnas, entraba en una).
 - Validaciones: obligatorios jugador, tipo de lesión (pedido del 02/10), parte,
   lado y fecha de inicio; fechas no futuras y posteriores al inicio (también la
   hora de la imagen: no antes del día de la lesión); la misma lesión no se
@@ -512,6 +522,34 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   columna no se guarda porque cuenta como calculada); y "Imágenes" se carga como texto libre
   aunque el catálogo tiene la lista del Excel (resonancia, ecografía, radiografía,
   tomografía, sin imagen).
+
+## Bases de Datos (05/10)
+
+- El módulo Lesiones del portal pasó a llamarse **Bases de Datos** (pedido de Santiago, 05/10):
+  adentro tiene la cara de la pantalla principal, una tarjeta por base, con la misma portada al
+  entrar. Lesiones es la primera; las próximas (GPS, ROM, las que se definan) se suman ahí.
+- Dónde: las bases están en un solo lugar, `BASES` en `src/BasesDeDatos.jsx` (cada una con su
+  tarjeta, su pantalla y su permiso). Las tarjetas y la portada son las mismas del portal
+  (`src/components/PortalTarjetas.jsx`): una base nueva es una entrada más en `BASES`.
+- Permiso: lo abre la columna `lesiones` de la membresía (`club_miembros`), que en Cuentas ahora
+  se lee "Bases de Datos" y abre todas las bases. Si alguna base no la tiene que ver todo el que
+  entra (por ejemplo, el detalle médico), lleva su propio permiso, y hoy la lista de módulos está
+  escrita en varios lugares que hay que tocar juntos (o mejor, sacarlos de una sola lista):
+  - la base: columna nueva en `club_miembros` y en `club_invitaciones`, las vistas `v_mis_clubes`
+    y `v_miembros_club`, y los `case` de `puede_usar_en` y `puede_usar` (migración nueva);
+  - `MODULOS_DEL_CLUB`, `COLUMNAS_MEMBRESIA`, `normalizarMiembro` e `invitar` en
+    `src/domain/membresiasDb.js`, e `INVITACION_INICIAL` en `src/CuentasAdmin.jsx`;
+  - `membresiaDe` en `src/domain/equipo.js` (lo que se guarda del club en el celular) y
+    `permisosEnClub` en `src/domain/perfilesDb.js` (lo que puede cada uno en el club);
+  - la lista que compara el club al volver a las tarjetas, en `src/PortalApp.jsx`;
+  - los textos `cuentas.modulos.<permiso>` en los dos idiomas, y la base lo pide en `permiso`.
+- Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
+  Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones va con un dibujo (la figura
+  del cuerpo en dorado) hasta que haya una foto para ella: se pone en `foto`/`fotoParada` de su
+  entrada en `BASES` y en la lista de `scripts/precache.js`.
+- Datos básicos sigue en la pantalla principal: lo ve cualquiera con algún módulo (Partido y
+  Flujo diario también usan los jugadores), y adentro de Bases de Datos lo verían solo los que
+  tienen ese permiso. Si se quiere adentro, hay que decidir quién lo ve.
 
 ## El siguiente nivel: un club entero usando esto (plan del 02/10)
 

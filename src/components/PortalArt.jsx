@@ -1,4 +1,5 @@
 import React from "react";
+import { ANCHO as ANCHO_FIGURA, ORDEN_DE_REGIONES, dibujoDe } from "./siluetaCuerpo.js";
 
 // Dibujos e íconos del portal. Van en código (SVG) para que carguen al toque
 // y sin internet; el día que haya fotos del club, se cambian por ellas.
@@ -139,32 +140,133 @@ export const IconoFlujo = () => (
   </svg>
 );
 
-// Una cruz de primeros auxilios sobre un fondo granate: el fondo de la
-// tarjeta Lesiones mientras no haya una foto del club para ella.
+// Discos de una base de datos, con la luz dorada, delante de dos tableros:
+// el dibujo de la tarjeta Bases de Datos si la foto no carga.
+const DISCOS_GRANDES = [182, 150, 118];
+const DISCOS_CHICOS = [184, 162];
+
+const Disco = ({ cx, y, rx, ry, alto, opacidad = 1 }) => (
+  <g opacity={opacidad}>
+    <path d={`M${cx - rx} ${y} v${alto} a${rx} ${ry} 0 0 0 ${2 * rx} 0 v${-alto} z`} fill="url(#cuerpo-base)" />
+    <path d={`M${cx - rx} ${y + alto / 2} a${rx} ${ry} 0 0 0 ${2 * rx} 0`} fill="none" stroke="#f0c978" strokeWidth="2" />
+    <ellipse cx={cx} cy={y} rx={rx} ry={ry} fill="#2b2316" stroke="#f0c978" strokeOpacity="0.75" strokeWidth="1.5" />
+  </g>
+);
+
+export const ArteBases = () => (
+  <svg className="portal-arte" viewBox="0 0 420 260" aria-hidden="true" preserveAspectRatio="xMaxYMid slice">
+    <defs>
+      <linearGradient id="noche-bases" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#1d170d" />
+        <stop offset="1" stopColor="#060504" />
+      </linearGradient>
+      <radialGradient id="luz-bases" cx="0.74" cy="0.6" r="0.55">
+        <stop offset="0" stopColor="#f0c978" stopOpacity="0.3" />
+        <stop offset="1" stopColor="#f0c978" stopOpacity="0" />
+      </radialGradient>
+      <linearGradient id="cuerpo-base" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#0d0b07" />
+        <stop offset="0.45" stopColor="#3a3020" />
+        <stop offset="1" stopColor="#0d0b07" />
+      </linearGradient>
+      <linearGradient id="estela-bases" x1="1" y1="0" x2="0" y2="0">
+        <stop offset="0" stopColor="#f0c978" stopOpacity="0.9" />
+        <stop offset="1" stopColor="#f0c978" stopOpacity="0" />
+      </linearGradient>
+      <linearGradient id="piso-bases" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#f0c978" stopOpacity="0" />
+        <stop offset="1" stopColor="#f0c978" stopOpacity="0.12" />
+      </linearGradient>
+    </defs>
+    <rect width="420" height="260" fill="url(#noche-bases)" />
+    <rect width="420" height="260" fill="url(#luz-bases)" />
+    <g fill="#0b0905" fillOpacity="0.6" stroke="#f0c978" strokeOpacity="0.4" strokeWidth="1.5">
+      <rect x="150" y="34" width="104" height="66" rx="6" />
+      <rect x="266" y="24" width="136" height="76" rx="6" />
+    </g>
+    {[0, 1, 2, 3, 4].map((i) => (
+      <rect key={i} x={164 + i * 17} y={88 - [18, 30, 22, 40, 28][i]} width="9" height={[18, 30, 22, 40, 28][i]} rx="2" fill="#f0c978" fillOpacity="0.55" />
+    ))}
+    <polyline points="278,84 298,72 318,78 338,58 358,64 376,44" fill="none" stroke="#f0c978" strokeOpacity="0.7" strokeWidth="2" strokeLinejoin="round" />
+    <circle cx="384" cy="80" r="10" fill="none" stroke="#f0c978" strokeOpacity="0.55" strokeWidth="4" strokeDasharray="44 20" />
+    <rect y="214" width="420" height="46" fill="url(#piso-bases)" />
+    {[0, 1, 2].map((i) => (
+      <path key={i} d={`M266 ${170 + i * 14} C 220 ${178 + i * 16}, 170 ${200 + i * 10}, 110 ${206 + i * 12}`} fill="none" stroke="url(#estela-bases)" strokeWidth="2" strokeLinecap="round" />
+    ))}
+    {DISCOS_CHICOS.map((y) => (
+      <Disco key={y} cx={196} y={y} rx={30} ry={8} alto={18} opacidad={0.75} />
+    ))}
+    {DISCOS_GRANDES.map((y) => (
+      <Disco key={y} cx={316} y={y} rx={50} ry={12} alto={26} />
+    ))}
+  </svg>
+);
+
+// Tres discos apilados: una base de datos.
+export const IconoBases = () => (
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <ellipse cx="32" cy="15" rx="19" ry="7" fill="none" stroke="currentColor" strokeWidth="3.5" />
+    <path d="M13 15v34c0 3.9 8.5 7 19 7s19-3.1 19-7V15" fill="none" stroke="currentColor" strokeWidth="3.5" />
+    <path d="M13 27c0 3.9 8.5 7 19 7s19-3.1 19-7M13 38c0 3.9 8.5 7 19 7s19-3.1 19-7" fill="none" stroke="currentColor" strokeWidth="3" />
+  </svg>
+);
+
+// La figura del cuerpo (la misma de la carga de lesiones, siluetaCuerpo.js)
+// en dorado sobre negro, con una lesión encendida en el muslo derecho y las
+// líneas finas de las fotos: el dibujo de la tarjeta Lesiones mientras no
+// haya una foto para ella. La figura queda donde mira la portada en el
+// celular (el `foco` de la tarjeta, en BasesDeDatos.jsx).
+const SILUETA = ORDEN_DE_REGIONES.map((region) => dibujoDe(region, "frente"));
+const BARRAS_LESIONES = [16, 26, 20, 34, 24];
+
 export const ArteLesiones = () => (
   <svg className="portal-arte" viewBox="0 0 420 260" aria-hidden="true" preserveAspectRatio="xMaxYMid slice">
     <defs>
-      <linearGradient id="granate" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="#7f1d1d" />
-        <stop offset="1" stopColor="#2a0a0a" />
+      <linearGradient id="noche-lesiones" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#1f1214" />
+        <stop offset="1" stopColor="#050405" />
       </linearGradient>
-      <radialGradient id="luz-lesiones" cx="0.72" cy="0.3" r="0.6">
-        <stop offset="0" stopColor="#ffffff" stopOpacity="0.2" />
-        <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+      <radialGradient id="luz-lesiones" cx="0.76" cy="0.55" r="0.5">
+        <stop offset="0" stopColor="#b91c1c" stopOpacity="0.28" />
+        <stop offset="1" stopColor="#b91c1c" stopOpacity="0" />
+      </radialGradient>
+      <linearGradient id="cuerpo-lesiones" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#2c2022" />
+        <stop offset="1" stopColor="#0c0809" />
+      </linearGradient>
+      <radialGradient id="calor-lesiones">
+        <stop offset="0" stopColor="#ffd6d6" stopOpacity="0.95" />
+        <stop offset="0.25" stopColor="#ef4444" stopOpacity="0.85" />
+        <stop offset="1" stopColor="#ef4444" stopOpacity="0" />
       </radialGradient>
     </defs>
-    <rect width="420" height="260" fill="url(#granate)" />
-    <g fill="#ffffff" fillOpacity="0.1">
-      {[0, 1, 2, 3].map((i) => (
-        <rect key={i} x={120 + i * 70} y="36" width="30" height="188" rx="6" />
+    <rect width="420" height="260" fill="url(#noche-lesiones)" />
+    <rect width="420" height="260" fill="url(#luz-lesiones)" />
+    <g fill="none" stroke="#f0c978">
+      <circle cx="318" cy="128" r="112" strokeOpacity="0.12" />
+      <ellipse cx="318" cy="241" rx="62" ry="11" strokeOpacity="0.25" />
+      <ellipse cx="318" cy="241" rx="44" ry="7" strokeOpacity="0.55" />
+    </g>
+    <g fill="#0b0708" fillOpacity="0.6" stroke="#f0c978" strokeOpacity="0.35" strokeWidth="1.5">
+      <rect x="150" y="146" width="96" height="62" rx="6" />
+    </g>
+    <rect x="160" y="156" width="34" height="4" rx="2" fill="#f0c978" fillOpacity="0.5" />
+    {BARRAS_LESIONES.map((alto, i) => (
+      <rect key={i} x={162 + i * 16} y={200 - alto} width="9" height={alto} rx="2" fill={i === 3 ? "#ef4444" : "#f0c978"} fillOpacity={i === 3 ? 0.85 : 0.55} />
+    ))}
+    <g transform="translate(266 16) scale(0.519)" fill="url(#cuerpo-lesiones)" stroke="#f0c978" strokeOpacity="0.7" strokeWidth="2.2" strokeLinejoin="round">
+      {SILUETA.map((dibujo, i) => (
+        <g key={i} transform={dibujo.espejada ? `matrix(-1 0 0 1 ${ANCHO_FIGURA} 0)` : undefined}>
+          {dibujo.piezas.map((pieza) => (
+            <path key={pieza.parte} d={pieza.camino} />
+          ))}
+        </g>
       ))}
     </g>
-    <g transform="translate(300 128)">
-      <circle r="62" fill="#fef2f2" />
-      <rect x="-14" y="-40" width="28" height="80" rx="6" fill="#b91c1c" />
-      <rect x="-40" y="-14" width="80" height="28" rx="6" fill="#b91c1c" />
-    </g>
-    <rect width="420" height="260" fill="url(#luz-lesiones)" />
+    <circle cx="309" cy="158" r="17" fill="url(#calor-lesiones)" />
+    <circle cx="309" cy="158" r="24" fill="none" stroke="#f0c978" strokeOpacity="0.6" strokeDasharray="4 5" />
+    <path d="M331 150 L352 136 H392" fill="none" stroke="#f0c978" strokeOpacity="0.6" strokeWidth="1.2" />
+    <circle cx="392" cy="136" r="2.5" fill="#f0c978" />
   </svg>
 );
 

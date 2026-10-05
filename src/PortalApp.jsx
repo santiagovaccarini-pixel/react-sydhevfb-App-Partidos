@@ -1,17 +1,17 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import App from "./App";
 import TrainingModule from "./TrainingModule";
 import AccessGate from "./AccessGate.jsx";
 import OpenFieldSession from "./OpenFieldSession.jsx";
 import CuentasAdmin from "./CuentasAdmin.jsx";
-import Lesiones from "./Lesiones.jsx";
+import BasesDeDatos from "./BasesDeDatos.jsx";
 import DatosBasicos from "./DatosBasicos.jsx";
 import ElegirClub from "./ElegirClub.jsx";
 import { contarPendientes, permisosEnClub } from "./domain/perfilesDb.js";
 import { limpiarCopiasDelClub } from "./domain/copiasLocales.js";
-import { ArteDatos, ArteFlujo, ArteLesiones, ArtePartido, IconoDatos, IconoFlujo, IconoLesiones, IconoPartido } from "./components/PortalArt.jsx";
+import { ArteBases, ArteDatos, ArteFlujo, ArtePartido, IconoBases, IconoDatos, IconoFlujo, IconoPartido } from "./components/PortalArt.jsx";
+import { ClubDelPortal, Portada, TarjetasDelPortal } from "./components/PortalTarjetas.jsx";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import { cargarEquipos, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import "./portal.css";
@@ -21,16 +21,13 @@ const MODOS = {
   PORTAL: "portal",
   PARTIDO: "partido",
   ENTRENAMIENTO: "entrenamiento",
-  LESIONES: "lesiones",
+  BASES: "bases",
   DATOS: "datos",
   CUENTAS: "cuentas",
 };
 
-// Las dos puertas de la app, contadas en una línea: lo esencial de cada una.
-// `foco` es qué parte de la foto queda a la vista cuando hay que recortarla
-// (0 izquierda, 1 derecha; 0 arriba, 1 abajo): en el celular, parado, la foto
-// apaisada no entra entera. `fotoParada` es la versión vertical de la foto,
-// la que va en la portada del celular (entra casi entera), con su `focoParada`.
+// Los módulos de la app, contados en una línea: lo esencial de cada uno. Qué
+// lleva cada tarjeta (foto, foco, dibujo...) está en components/PortalTarjetas.jsx.
 const TARJETAS = [
   {
     modo: MODOS.PARTIDO,
@@ -61,18 +58,21 @@ const TARJETAS = [
     texto: "portal.flujoTexto",
   },
   {
-    modo: MODOS.LESIONES,
+    // Las bases del club (Lesiones y las que vengan): adentro, una tarjeta por
+    // base (BasesDeDatos.jsx). El permiso es la columna `lesiones` de la
+    // membresía, que hoy abre Bases de Datos entero.
+    modo: MODOS.BASES,
     permiso: "lesiones",
-    clase: "tarjeta-lesiones",
-    foto: "/portal/lesiones.webp",
-    fotoParada: "/portal/lesiones-parada.webp",
+    clase: "tarjeta-bases",
+    foto: "/portal/bases.webp",
+    fotoParada: "/portal/bases-parada.webp",
     foco: [0.4, 0.5],
     focoParada: [0.5, 0.55],
-    Arte: ArteLesiones,
-    Icono: IconoLesiones,
-    titulo: "portal.lesionesTitulo",
+    Arte: ArteBases,
+    Icono: IconoBases,
+    titulo: "portal.basesTitulo",
     etiqueta: "portal.nuevo",
-    texto: "portal.lesionesTexto",
+    texto: "portal.basesTexto",
   },
   {
     modo: MODOS.DATOS,
@@ -88,124 +88,6 @@ const TARJETAS = [
     texto: "portal.datosTexto",
   },
 ];
-
-// Cuánto dura la portada al tocar una tarjeta: el zoom de la foto hasta la
-// pantalla entera, la foto quieta con el nombre y la salida sobre el módulo.
-export const TIEMPOS_PORTADA = { zoom: 450, quieta: 1600, salida: 350 };
-
-// La foto de la tarjeta, con el ícono arriba a la izquierda si se pide; si la
-// foto no carga (primera vez sin señal), va el dibujo.
-const FotoTarjeta = ({ src, Arte, Icono, className = "" }) => {
-  const [fallo, setFallo] = useState(false);
-  return (
-    <span className={`portal-foto ${className}`.trim()}>
-      {fallo || !src ? <Arte /> : <img src={src} alt="" decoding="async" onError={() => setFallo(true)} />}
-      {Icono && (
-        <span className="portal-icono">
-          <Icono />
-        </span>
-      )}
-    </span>
-  );
-};
-
-// Dónde está la foto de la tarjeta en la pantalla: de ahí arranca el zoom.
-const lugarDeLaFoto = (boton) => {
-  const foto = boton.querySelector(".portal-foto") || boton;
-  const { top, left, width, height } = foto.getBoundingClientRect();
-  return { top, left, width, height };
-};
-
-// Dónde termina la foto de la portada: tapando la pantalla entera, como el
-// fondo de una pantalla de bloqueo. Si la foto no tiene la forma de la
-// pantalla, se agranda hasta cubrirla y lo que sobra queda afuera, del lado
-// que dice el foco. `proporcion` es ancho / alto de la foto.
-const enPixeles = (numero) => Math.round(numero * 100) / 100 + 0;
-
-export const lugarEnPantalla = (ancho, alto, { proporcion = 16 / 9, foco = [0.5, 0.5] } = {}) => {
-  const anchoFoto = Math.max(ancho, alto * proporcion);
-  const altoFoto = anchoFoto / proporcion;
-  return {
-    top: enPixeles(-(altoFoto - alto) * foco[1]),
-    left: enPixeles(-(anchoFoto - ancho) * foco[0]),
-    width: enPixeles(anchoFoto),
-    height: enPixeles(altoFoto),
-    borderRadius: 0,
-  };
-};
-
-// Qué foto va en la portada: en el celular, parado, la versión parada si la
-// tarjeta la tiene (entra casi entera); si no, la foto de la tarjeta.
-export const fotoDePortada = (tarjeta, ancho, alto) => {
-  const parada = alto > ancho && Boolean(tarjeta.fotoParada);
-  return { src: parada ? tarjeta.fotoParada : tarjeta.foto, parada };
-};
-
-const PROPORCION_PARADA = 9 / 16;
-
-// La portada de entrada: la foto de la tarjeta que se tocó crece desde donde
-// estaba hasta tapar la pantalla (un zoom de verdad: la foto se agranda
-// entera, no se recorta de a poco), mientras atrás aparece la misma foto
-// borrosa. Se queda unos segundos con el nombre del módulo y se desvanece.
-// Mientras tanto el módulo ya se cargó abajo, así que al irse está listo.
-// Con una foto parada, el zoom arranca igual desde la foto de la tarjeta y
-// en el camino se funde con la parada, que es la que queda.
-export const Portada = ({ tarjeta, desde, onTerminar }) => {
-  const [foto] = useState(() => fotoDePortada(tarjeta, window.innerWidth, window.innerHeight));
-  const [lugar] = useState(() =>
-    lugarEnPantalla(window.innerWidth, window.innerHeight, {
-      proporcion: foto.parada ? PROPORCION_PARADA : 16 / 9,
-      foco: (foto.parada && tarjeta.focoParada) || tarjeta.foco,
-    }),
-  );
-  const [fase, setFase] = useState(desde ? "inicio" : "llena");
-  const ref = useRef(null);
-
-  // Se pinta primero del tamaño de la tarjeta y, ya medida, se le pide la
-  // pantalla entera: la transición de la hoja de estilos hace el zoom.
-  useLayoutEffect(() => {
-    if (fase !== "inicio") return;
-    if (ref.current) ref.current.getBoundingClientRect();
-    setFase("llena");
-  }, [fase]);
-
-  useEffect(() => {
-    const { zoom, quieta, salida } = TIEMPOS_PORTADA;
-    const irse = window.setTimeout(() => setFase("saliendo"), zoom + quieta);
-    const fin = window.setTimeout(onTerminar, zoom + quieta + salida);
-    return () => {
-      window.clearTimeout(irse);
-      window.clearTimeout(fin);
-    };
-  }, [onTerminar]);
-
-  useIdioma();
-  const { Arte, Icono, titulo, clase } = tarjeta;
-  const lugarFoto =
-    fase === "inicio" && desde
-      ? { top: desde.top, left: desde.left, width: desde.width, height: desde.height, borderRadius: "22px 22px 0 0" }
-      : lugar;
-
-  return (
-    <div className={`portal-portada ${clase} ${fase}`} aria-hidden="true">
-      <div className="portal-portada-fondo">
-        <FotoTarjeta src={foto.src} Arte={Arte} />
-      </div>
-      <div ref={ref} className="portal-portada-foto" style={lugarFoto}>
-        {foto.parada && <FotoTarjeta src={tarjeta.foto} Arte={Arte} />}
-        <FotoTarjeta src={foto.src} Arte={Arte} className={foto.parada ? "foto-parada" : ""} />
-      </div>
-      <div className="portal-portada-velo" />
-      <div className="portal-portada-texto">
-        <span className="portal-icono">
-          <Icono />
-        </span>
-        <strong>{t(titulo)}</strong>
-        <small>{t("portal.entrando")}</small>
-      </div>
-    </div>
-  );
-};
 
 const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onCambiarClub }) => {
   useIdioma();
@@ -251,49 +133,12 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onCambiarClub }
         </div>
 
         <div className="portal-encabezado">
-          {equipo?.nombre && (
-            <span className="portal-kicker portal-club">
-              {equipo.nombre}
-              {equipo.hasta && <em className="portal-club-hasta">{t("club.hasta", { fecha: fechaCorta(equipo.hasta) })}</em>}
-              {onCambiarClub && (
-                <button type="button" className="portal-cambiar-club" onClick={onCambiarClub}>
-                  {t("comun.cambiar")}
-                </button>
-              )}
-            </span>
-          )}
+          <ClubDelPortal equipo={equipo} onCambiarClub={onCambiarClub} />
           <h1>{t("portal.pregunta")}</h1>
           <p>{tarjetas.length > 1 ? t("portal.elegi") : t("portal.unSolo")}</p>
         </div>
 
-        <div className="portal-opciones">
-          {tarjetas.map((tarjeta) => {
-            const { modo, clase, foto, Arte, Icono, titulo, etiqueta, texto } = tarjeta;
-            return (
-              <button
-                type="button"
-                key={modo}
-                className={`portal-tarjeta ${clase}`}
-                onClick={(evento) => onElegir(tarjeta, lugarDeLaFoto(evento.currentTarget))}
-                aria-label={t("portal.entrarA", { modulo: t(titulo) })}
-              >
-                <FotoTarjeta src={foto} Arte={Arte} Icono={Icono} />
-                <span className="portal-cuerpo">
-                  <span className="portal-tarjeta-texto">
-                    <strong>
-                      {t(titulo)}
-                      {etiqueta && <em className="portal-beta">{t(etiqueta)}</em>}
-                    </strong>
-                    <small>{t(texto)}</small>
-                  </span>
-                  <span className="portal-entrar" aria-hidden="true">
-                    {t("portal.entrar")} <span>›</span>
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <TarjetasDelPortal tarjetas={tarjetas} onElegir={onElegir} />
       </section>
     </main>
   );
@@ -308,30 +153,38 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   // primero después de entrar es elegirlo.
   const [club, setClub] = useState(() => leerEquipoElegido());
   const [eligiendoClub, setEligiendoClub] = useState(false);
-  // La portada que se está mostrando (tarjeta y desde dónde arranca el zoom),
-  // o nada. Se muestra encima del módulo mientras este se carga.
+  // La portada que se está mostrando (tarjeta, desde dónde arranca el zoom y
+  // un número para que cada entrada sea una portada nueva), o nada. Se
+  // muestra encima del módulo mientras este se carga.
   const [portada, setPortada] = useState(null);
+  const portadas = useRef(0);
   const terminarPortada = useCallback(() => setPortada(null), []);
 
-  // Al volver al portal se vuelve a leer la lista de clubes: si el
-  // administrador dio de baja a esta cuenta del club (o la reincorporó), el
-  // celular se entera acá. Sin señal se queda con lo que sabía.
-  useEffect(() => {
-    if (modo !== MODOS.PORTAL || !club?.id) return undefined;
+  // Cada vez que se ven las tarjetas (las del portal o, al volver de una
+  // base, las de Bases de Datos) se vuelve a leer la lista de clubes: si el
+  // administrador dio de baja a esta cuenta del club (o la reincorporó, o le
+  // cambió los módulos), el celular se entera acá. Sin señal se queda con lo
+  // que sabía. Devuelve con qué cortarla: lo que llega después de entrar a un
+  // módulo no se usa (no saca a nadie de lo que está haciendo).
+  const clubActual = useRef(club);
+  clubActual.current = club;
+  const releerClub = useCallback(() => {
+    const leido = clubActual.current;
+    if (!leido?.id) return undefined;
     let vigente = true;
     cargarEquipos().then(({ equipos, error }) => {
       if (!vigente || error) return;
-      const fresco = (equipos || []).find((uno) => uno.id === club.id);
+      const fresco = (equipos || []).find((uno) => uno.id === leido.id);
       // Ya no está en el club, o lo dejó: las copias de ese club se van del
       // celular (lo que se ve desde ahora sale de la base, hasta su último día).
       if (!fresco || fresco.miembro === false) {
-        limpiarCopiasDelClub(club.id);
+        limpiarCopiasDelClub(leido.id);
         guardarEquipoElegido(null);
         setClub(null);
         return;
       }
-      if (fresco.hasta && !club.hasta) limpiarCopiasDelClub(club.id);
-      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones"].some((clave) => (fresco[clave] ?? null) !== (club[clave] ?? null));
+      if (fresco.hasta && !leido.hasta) limpiarCopiasDelClub(leido.id);
+      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null));
       if (cambio) {
         guardarEquipoElegido(fresco);
         setClub(fresco);
@@ -340,7 +193,9 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     return () => {
       vigente = false;
     };
-  }, [modo, club?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => (modo === MODOS.PORTAL ? releerClub() : undefined), [modo, club?.id, releerClub]);
 
   // Lo que se puede usar sale de la membresía en el club elegido (rol y
   // módulos); la cuenta solo dice si es dueña de la plataforma.
@@ -348,7 +203,8 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
 
   const elegir = (tarjeta, desde) => {
     if (!enClub?.[tarjeta.permiso]) return;
-    setPortada({ tarjeta, desde });
+    portadas.current += 1;
+    setPortada({ tarjeta, desde, numero: portadas.current });
     setModo(tarjeta.modo);
   };
 
@@ -380,8 +236,8 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         {() => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />}
       </OpenFieldSession>
     );
-  } else if (modo === MODOS.LESIONES && enClub.lesiones) {
-    contenido = <Lesiones userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} />;
+  } else if (modo === MODOS.BASES && enClub.lesiones) {
+    contenido = <BasesDeDatos permisos={enClub} userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} onTarjetas={releerClub} />;
   } else if (modo === MODOS.DATOS && enClub.datos) {
     contenido = <DatosBasicos onVolver={volver} permisos={enClub} />;
   } else if (modo === MODOS.CUENTAS && (enClub.admin || enClub.adminClub)) {
@@ -402,7 +258,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   return (
     <>
       {contenido}
-      {portada && <Portada tarjeta={portada.tarjeta} desde={portada.desde} onTerminar={terminarPortada} />}
+      {portada && <Portada key={portada.numero} tarjeta={portada.tarjeta} desde={portada.desde} onTerminar={terminarPortada} />}
     </>
   );
 };

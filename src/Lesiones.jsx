@@ -109,7 +109,9 @@ const Encabezado = ({ titulo, texto, children = null }) => (
   </header>
 );
 
-export default function Lesiones({ onVolver }) {
+// onVolver: el botón de arriba a la izquierda (vuelve a Bases de Datos);
+// volverA: la clave de su texto.
+export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const { idioma, plural } = useIdioma();
   const [equipo, setEquipo] = useState(() => leerEquipoElegido());
   const [vista, setVista] = useState("lesionados");
@@ -623,7 +625,7 @@ export default function Lesiones({ onVolver }) {
             {onVolver ? (
               <button type="button" className="boton-modulos" onClick={onVolver}>
                 <Icono nombre="flecha" size={14} />
-                {t("portal.modulos")}
+                {t(volverA)}
               </button>
             ) : (
               <span />
@@ -1596,6 +1598,7 @@ export default function Lesiones({ onVolver }) {
         mapa={mapa}
         hoy={hoyISO()}
         etiqueta={etiqueta}
+        etiquetaDeGrupo={(grupo) => etiquetaDeGrupo(grupo, config, idioma)}
         textoDeOpcion={textoDeOpcion}
         enPantalla={enPantalla}
         camposVisibles={CAMPOS.filter(visible)}

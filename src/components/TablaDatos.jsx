@@ -67,6 +67,17 @@ const memoria = new Map();
 // Tonos de la fila de grupos: uno por grupo, siempre el mismo para cada uno.
 const TONOS_DE_GRUPO = 7;
 
+// El tono de cada grupo (tono-0 a tono-6 en la hoja de estilos), por el orden
+// en que aparece en las columnas: así no cambia al mover una. Lo usan la base
+// y la tabla del reporte individual, para que cada grupo se vea igual.
+export const tonosDeGrupos = (columnas) => {
+  const tonos = {};
+  columnas.forEach((columna) => {
+    if (columna.grupo && !(columna.grupo in tonos)) tonos[columna.grupo] = Object.keys(tonos).length % TONOS_DE_GRUPO;
+  });
+  return tonos;
+};
+
 export const TablaDatos = ({
   id,
   columnas = [],
@@ -127,13 +138,7 @@ export const TablaDatos = ({
   // de su orden en las columnas originales, así no cambia al mover una.
   const hayGrupos = columnas.some((columna) => columna.grupo);
   const tramos = useMemo(() => (hayGrupos ? tramosDeGrupos(visibles) : []), [hayGrupos, visibles]);
-  const tonoDeGrupo = useMemo(() => {
-    const tonos = {};
-    columnas.forEach((columna) => {
-      if (columna.grupo && !(columna.grupo in tonos)) tonos[columna.grupo] = Object.keys(tonos).length % TONOS_DE_GRUPO;
-    });
-    return tonos;
-  }, [columnas]);
+  const tonoDeGrupo = useMemo(() => tonosDeGrupos(columnas), [columnas]);
 
   useEffect(() => {
     // Lo que se estaba editando en una fila que ya no se ve se descarta.

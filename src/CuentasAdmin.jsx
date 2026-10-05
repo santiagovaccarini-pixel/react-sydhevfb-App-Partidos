@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
+import { FlechaVolver } from "./components/PortalTarjetas.jsx";
 import { cargarEquipos } from "./domain/equipo.js";
 import {
   MODULOS_DEL_CLUB,
@@ -39,13 +40,6 @@ const mensajeDe = (error, porDefecto) => {
   const texto = error?.message || "";
   return /^[a-z]+(\.[a-zA-Z]+)+$/.test(texto) ? t(texto) : texto || t(porDefecto);
 };
-
-const FlechaVolver = () => (
-  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M19 12H5" />
-    <path d="m12 19-7-7 7-7" />
-  </svg>
-);
 
 const nombresDeModulos = (fila) => {
   const lista = MODULOS_DEL_CLUB.filter((clave) => fila?.[clave]).map((clave) => t(`cuentas.modulos.${clave}`));

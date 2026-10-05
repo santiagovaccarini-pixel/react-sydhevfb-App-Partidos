@@ -121,10 +121,18 @@ export default {
     partidoTexto: "Registre o jogo ao vivo: escalação, tempos e substituições.",
     flujoTitulo: "Rotina diária",
     flujoTexto: "Tudo do dia depois do treino: cortes, dados, planilha e PSE.",
-    lesionesTitulo: "Lesões",
-    lesionesTexto: "Quem está lesionado, desde quando e quando volta. Registro em quatro toques.",
+    basesTitulo: "Bases de Dados",
+    basesTexto: "Cada base do clube num só lugar, para registrar, consultar e tirar relatórios.",
     datosTitulo: "Dados básicos",
     datosTexto: "Os jogadores e seus dados, numa tabela que copia e cola como no Excel.",
+  },
+  // Bases de Dados: um cartão por base, como na tela principal.
+  bases: {
+    elegi: "Escolha qual base abrir.",
+    unaSola: "Por enquanto há só uma; as próximas bases entram aqui.",
+    ninguna: "Sua conta não tem nenhuma base habilitada neste clube.",
+    lesionesTitulo: "Lesões",
+    lesionesTexto: "Quem está lesionado, desde quando e quando volta, com a base e os relatórios.",
   },
   tabla: {
     copiar: "Copiar",
@@ -356,7 +364,7 @@ export default {
     modulos: {
       partido: "Jogo",
       flujo: "Rotina diária",
-      lesiones: "Lesões",
+      lesiones: "Bases de Dados",
     },
     ningunModulo: "nenhum módulo",
     darBaja: "Dar baixa",
