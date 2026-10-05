@@ -13,7 +13,7 @@ Option Explicit
 '     La contraseña no se guarda en ningún lado; el correo sí (para no
 '     escribirlo cada vez).
 '   - SB_ClubId(): el club de los datos. Con un solo club no pregunta; con
-'     varios, pide elegir uno (una vez por sesion).
+'     varios, pide elegir uno (una vez por sesión).
 '   - SB_CerrarSesion(): para entrar con otra cuenta u otro club.
 '
 ' En una macro que lee la base:
