@@ -7,6 +7,7 @@ import {
   conValor,
   diagnosticoDe,
   diasDeBaja,
+  edadAl,
   errorDeCampo,
   errorImagenAntes,
   erroresDeLesion,
@@ -222,6 +223,21 @@ describe("etapas, días y severidad", () => {
     expect(calcular("edad", base(), { fecha_nacimiento: "2000-09-01" })).toBe(26);
     // Las horas hasta la imagen salen solas: desde el comienzo del día de la lesión.
     expect(calcular("horas_imagen", base({ datos: { hora_imagen: "2026-09-02T06:00" } }))).toBe(30);
+  });
+
+  test("la edad se cumple el día del cumpleaños (la misma cuenta para Datos básicos y Lesiones)", () => {
+    expect(edadAl("2000-10-06", "2026-10-06")).toBe(26);
+    expect(edadAl("2000-10-06", "2026-10-05")).toBe(25);
+    expect(edadAl("2001-03-01", "2026-03-01")).toBe(25);
+    expect(edadAl("1999-01-15", "2026-01-15")).toBe(27);
+    // Nacido un 29 de febrero: en los años no bisiestos, cumple el 1° de marzo.
+    expect(edadAl("2004-02-29", "2026-02-28")).toBe(21);
+    expect(edadAl("2004-02-29", "2026-03-01")).toBe(22);
+    expect(edadAl("2004-02-29", "2028-02-29")).toBe(24);
+    // Sin fecha, o antes de nacer, no hay edad.
+    expect(edadAl("", "2026-10-06")).toBeNull();
+    expect(edadAl("2030-01-01", "2026-10-06")).toBeNull();
+    expect(calcular("edad", base({ fecha_lesion: "2026-10-06" }), { fecha_nacimiento: "2000-10-06" })).toBe(26);
   });
 
   test("lado hábil, n° de registro, recurrencia, recidiva y diagnóstico salen como en el Excel", () => {

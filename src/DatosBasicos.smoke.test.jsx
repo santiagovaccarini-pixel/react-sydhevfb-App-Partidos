@@ -182,6 +182,22 @@ describe("el módulo Datos básicos", () => {
     expect(contenedor.querySelector("tbody tr").textContent).toContain("Esquerdo");
   });
 
+  test("la edad se cumple el día del cumpleaños, como en Lesiones", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-06T12:00:00"));
+    try {
+      registro.plantel = [
+        { ...plantelInicial()[0], fecha_nacimiento: "2000-10-06" },
+        { ...plantelInicial()[1], fecha_nacimiento: "2000-10-07" },
+      ];
+      await montar();
+      expect(celda(contenedor, 0, 4).textContent).toBe("26 años");
+      expect(celda(contenedor, 1, 4).textContent).toBe("25 años");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("Actual: un toque marca o desmarca al jugador y se guarda al toque; el filtro deja solo el plantel de hoy", async () => {
     await montar();
     expect(texto(contenedor)).toContain("2 jugadores · 2 en el plantel actual");

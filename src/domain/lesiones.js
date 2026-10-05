@@ -40,6 +40,19 @@ export const diasEntre = (desde, hasta) => {
   return Math.round((b - a) / 86400000);
 };
 
+// Los años cumplidos a una fecha: se cumplen el día del cumpleaños (el que
+// nació un 29 de febrero, el 1° de marzo de los años que no son bisiestos).
+// La misma cuenta para la edad de Datos básicos (hoy) y la de Lesiones (el
+// día de la lesión).
+export const edadAl = (nacimiento, fecha) => {
+  if (!esFechaISO(nacimiento) || !esFechaISO(fecha)) return null;
+  const [an, mn, dn] = nacimiento.split("-").map(Number);
+  const [al, ml, dl] = fecha.split("-").map(Number);
+  let edad = al - an;
+  if (ml < mn || (ml === mn && dl < dn)) edad -= 1;
+  return edad >= 0 ? edad : null;
+};
+
 export const lesionVacia = (extra = {}) => ({
   id: null,
   equipo_id: null,
@@ -249,15 +262,8 @@ export const calcular = (clave, lesion, jugador = null, contexto = {}) => {
       return lesion?.numero_caso ?? null;
     case "numero_registro":
       return numeroDeRegistro(lesion, lesiones);
-    case "edad": {
-      const nacimiento = jugador?.fecha_nacimiento;
-      if (!esFechaISO(nacimiento) || !esFechaISO(lesion?.fecha_lesion)) return null;
-      const [an, mn, dn] = nacimiento.split("-").map(Number);
-      const [al, ml, dl] = lesion.fecha_lesion.split("-").map(Number);
-      let edad = al - an;
-      if (ml < mn || (ml === mn && dl < dn)) edad -= 1;
-      return edad >= 0 ? edad : null;
-    }
+    case "edad":
+      return edadAl(jugador?.fecha_nacimiento, lesion?.fecha_lesion);
     case "lado_habil": {
       const lado = lesion?.datos?.lado;
       const pie = jugador?.pie_dominante;

@@ -9,7 +9,7 @@ import { PosicionesJugadores } from "./components/PosicionesPartido.jsx";
 import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
 import { esActual, guardarPuestos } from "./domain/plantel.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
-import { diasEntre } from "./domain/lesiones.js";
+import { edadAl } from "./domain/lesiones.js";
 import { textoDeHoras } from "./domain/tabla.js";
 import { campoPorClave, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
 import { agregarJugadorBasico, cargarPlantelLesiones, guardarDatosJugador, leerConfig, quitarJugadorBasico } from "./domain/lesionesDb.js";
@@ -49,10 +49,8 @@ const COLUMNAS = [
   { clave: "horas_previas", tipo: "horas", editable: true, texto: "datos.horasPrevias" },
 ];
 
-const edadHoy = (nacimiento) => {
-  const dias = diasEntre(nacimiento, hoyISO());
-  return dias === null ? null : Math.floor(dias / 365.25);
-};
+// La edad de hoy, con la misma cuenta que la de Lesiones.
+const edadHoy = (nacimiento) => edadAl(nacimiento, hoyISO());
 
 // permisos: los del club (sin ellos, todo a la vista). Los chalecos de
 // Catapult se buscan con la cuenta de Flujo diario: esa solapa es para quien
