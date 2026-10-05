@@ -1,7 +1,8 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import PortalApp, { Portada, TIEMPOS_PORTADA, fotoDePortada, lugarEnPantalla } from "./PortalApp.jsx";
+import PortalApp from "./PortalApp.jsx";
+import { Portada, TIEMPOS_PORTADA, fotoDePortada, lugarEnPantalla } from "./components/PortalTarjetas.jsx";
 
 // El equipo elegido y la cuenta que entró, cambiables por prueba (vi.mock se
 // iza: van con hoisted).
@@ -52,6 +53,18 @@ vi.mock("./domain/perfilesDb.js", async () => {
   return { permisosEnClub: real.permisosEnClub, contarPendientes: async () => 2 };
 });
 vi.mock("./DatosBasicos.jsx", () => ({ default: ({ onVolver }) => <div className="datos-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
+vi.mock("./Lesiones.jsx", async () => {
+  const { t } = await vi.importActual("./idioma/index.js");
+  return {
+    default: ({ onVolver, volverA }) => (
+      <div className="lesiones-de-prueba">
+        <button type="button" onClick={onVolver}>
+          {t(volverA)}
+        </button>
+      </div>
+    ),
+  };
+});
 
 describe("el portal", () => {
   let contenedor;
@@ -221,6 +234,47 @@ describe("el portal", () => {
     expect(contenedor.querySelector(".flujo-de-prueba")).not.toBeNull();
   });
 
+  test("Bases de Datos: entra con su foto y su portada, adentro una tarjeta por base y se vuelve a los módulos", async () => {
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false, lesiones: true };
+    equipo.lista = [{ ...equipo.actual }];
+    await montar();
+    await act(async () => Promise.resolve());
+
+    // En el portal ya no está Lesiones: está Bases de Datos, con la foto que tenía.
+    expect(contenedor.querySelector('button[aria-label="Entrar a Lesiones"]')).toBeNull();
+    const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Bases de Datos"]');
+    expect(tarjeta.classList.contains("tarjeta-bases")).toBe(true);
+    expect(tarjeta.querySelector(".portal-foto img").getAttribute("src")).toBe("/portal/bases.webp");
+    expect(tarjeta.querySelector(".portal-beta").textContent).toBe("Nuevo");
+
+    await tocar("Entrar a Bases de Datos");
+    const cubierta = portada();
+    expect(cubierta.classList.contains("tarjeta-bases")).toBe(true);
+    expect(cubierta.querySelector(".portal-portada-texto strong").textContent).toBe("Bases de Datos");
+    await act(async () => vi.runAllTimers());
+    expect(portada()).toBeNull();
+
+    // Adentro, la cara del portal: el club, el título y una tarjeta por base.
+    expect(contenedor.querySelector(".bases-datos .portal-kicker").textContent).toContain("Atlético Mineiro");
+    expect(contenedor.querySelector(".bases-datos h1").textContent).toBe("Bases de Datos");
+    expect([...contenedor.querySelectorAll(".bases-datos .portal-tarjeta")].map((boton) => boton.getAttribute("aria-label"))).toEqual(["Entrar a Lesiones"]);
+
+    // Lesiones entra con su portada y vuelve a las bases, no a los módulos.
+    await tocar("Entrar a Lesiones");
+    expect(portada().classList.contains("tarjeta-lesiones")).toBe(true);
+    expect(portada().querySelector(".portal-portada-texto strong").textContent).toBe("Lesiones");
+    await act(async () => vi.runAllTimers());
+    const volverALasBases = contenedor.querySelector(".lesiones-de-prueba button");
+    expect(volverALasBases.textContent).toBe("Bases");
+    await act(async () => volverALasBases.click());
+    expect(contenedor.querySelector(".bases-datos h1").textContent).toBe("Bases de Datos");
+
+    // Y de las bases, a los módulos.
+    await act(async () => contenedor.querySelector(".bases-volver").click());
+    expect(contenedor.querySelector(".portal-encabezado h1").textContent).toBe("¿Qué vas a hacer hoy?");
+    expect(contenedor.querySelector('button[aria-label="Entrar a Bases de Datos"]')).not.toBeNull();
+  });
+
   test("el administrador ve Cuentas con las pendientes, entra y vuelve; los demás no lo ven", async () => {
     cuenta.permisos = { partido: true, flujo: true, admin: true };
     await montar();
@@ -262,7 +316,7 @@ describe("el portal", () => {
 
     expect(contenedor.querySelector('button[aria-label="Entrar a Partido"]')).toBeNull();
     expect(contenedor.querySelector('button[aria-label="Entrar a Flujo diario"]')).toBeNull();
-    expect(contenedor.querySelector('button[aria-label="Entrar a Lesiones"]')).not.toBeNull();
+    expect(contenedor.querySelector('button[aria-label="Entrar a Bases de Datos"]')).not.toBeNull();
     const cuentas = contenedor.querySelector(".portal-cuentas");
     expect(cuentas).not.toBeNull();
     // Las pendientes de la app son cosa del dueño, no del admin del club.

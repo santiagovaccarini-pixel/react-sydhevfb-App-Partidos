@@ -121,10 +121,19 @@ export default {
     partidoTexto: "Registrá el partido en vivo: formación, tiempos y cambios.",
     flujoTitulo: "Flujo diario",
     flujoTexto: "Todo lo del día después de entrenar: cortes, datos, planilla y PSE.",
-    lesionesTitulo: "Lesiones",
-    lesionesTexto: "Quién está lesionado, desde cuándo y cuándo vuelve. Carga en cuatro toques.",
+    basesTitulo: "Bases de Datos",
+    basesTexto: "Cada base del club en un solo lugar, para cargar, mirar y sacar reportes.",
     datosTitulo: "Datos básicos",
     datosTexto: "Los jugadores y sus datos, en una tabla que se copia y se pega como en Excel.",
+  },
+  // Bases de Datos: una tarjeta por base, como en la pantalla principal.
+  bases: {
+    elegi: "Elegí qué base abrir.",
+    unaSola: "Por ahora hay una sola; las próximas bases se suman acá.",
+    ninguna: "Tu cuenta no tiene ninguna base habilitada en este club.",
+    volver: "Bases",
+    lesionesTitulo: "Lesiones",
+    lesionesTexto: "Quién está lesionado, desde cuándo y cuándo vuelve. Carga en cuatro toques.",
   },
   tabla: {
     copiar: "Copiar",
@@ -356,7 +365,7 @@ export default {
     modulos: {
       partido: "Partido",
       flujo: "Flujo diario",
-      lesiones: "Lesiones",
+      lesiones: "Bases de Datos",
     },
     ningunModulo: "ningún módulo",
     darBaja: "Dar de baja",

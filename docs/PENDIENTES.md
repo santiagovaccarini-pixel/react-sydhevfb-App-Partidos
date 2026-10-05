@@ -513,6 +513,26 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   aunque el catálogo tiene la lista del Excel (resonancia, ecografía, radiografía,
   tomografía, sin imagen).
 
+## Bases de Datos (05/10)
+
+- El módulo Lesiones del portal pasó a llamarse **Bases de Datos** (pedido de Santiago, 05/10):
+  adentro tiene la cara de la pantalla principal, una tarjeta por base, con la misma portada al
+  entrar. Lesiones es la primera; las próximas (GPS, ROM, las que se definan) se suman ahí.
+- Dónde: las bases están en un solo lugar, `BASES` en `src/BasesDeDatos.jsx` (cada una con su
+  tarjeta, su pantalla y su permiso). Las tarjetas y la portada son las mismas del portal
+  (`src/components/PortalTarjetas.jsx`): una base nueva es una entrada más en `BASES`.
+- Permiso: lo abre la columna `lesiones` de la membresía (`club_miembros`), que en Cuentas ahora
+  se lee "Bases de Datos" y abre todas las bases. Si alguna base no la tiene que ver todo el que
+  entra (por ejemplo, el detalle médico), lleva su propio permiso: columna nueva en la membresía
+  y en las invitaciones, en `v_mis_clubes` y en `MODULOS_DEL_CLUB`, y la base la pide en `permiso`.
+- Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
+  Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones va con un dibujo (la figura
+  del cuerpo en dorado) hasta que haya una foto para ella: se pone en `foto`/`fotoParada` de su
+  entrada en `BASES` y en la lista de `scripts/precache.js`.
+- Datos básicos sigue en la pantalla principal: lo ve cualquiera con algún módulo (Partido y
+  Flujo diario también usan los jugadores), y adentro de Bases de Datos lo verían solo los que
+  tienen ese permiso. Si se quiere adentro, hay que decidir quién lo ve.
+
 ## El siguiente nivel: un club entero usando esto (plan del 02/10)
 
 Santiago: "hoy tuve la noticia de que vamos a tener que hacer esto un software muy
