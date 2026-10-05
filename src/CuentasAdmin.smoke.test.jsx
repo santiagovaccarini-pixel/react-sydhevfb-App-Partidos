@@ -165,7 +165,8 @@ describe("Cuentas", () => {
 
     const ana = fila("ana@uno.com");
     expect([...ana.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Tu cuenta", "Administrador del club"]);
-    expect(chip(ana, "Bases de Datos").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(ana, "Lesiones").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(ana, "Evaluaciones").getAttribute("aria-pressed")).toBe("false");
     expect(fila("gaby@uno.com").querySelector(".cuenta-etiqueta.alerta").textContent).toBe("Cuenta bloqueada");
 
     const dario = fila("dario@uno.com");
@@ -194,13 +195,14 @@ describe("Cuentas", () => {
     expect(datos.llamadas).toEqual([]);
 
     await escribir(correo, "nuevo@uno.com");
-    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Bases de Datos"));
+    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Lesiones"));
+    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Evaluaciones"));
     await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Flujo diario"));
     await tocar(invitarBoton);
     expect(datos.llamadas.at(-1)).toEqual({
       que: "invitar",
       equipoId: "c1",
-      invitacion: { email: "nuevo@uno.com", rol: "staff", partido: true, flujo: false, lesiones: true },
+      invitacion: { email: "nuevo@uno.com", rol: "staff", partido: true, flujo: false, lesiones: true, evaluaciones: true },
     });
     expect(texto()).toContain("Invitación lista. Avisale a nuevo@uno.com que se registre con ese correo.");
     expect(grupos()).toContain("Invitaciones abiertas 2");
@@ -215,9 +217,13 @@ describe("Cuentas", () => {
 
   test("rol y módulos van a la base al toque; el último admin no se puede sacar", async () => {
     await montar();
-    await tocar(chip(fila("beto@uno.com"), "Bases de Datos"));
+    await tocar(chip(fila("beto@uno.com"), "Lesiones"));
     expect(datos.llamadas.at(-1)).toEqual({ que: "cambiar", userId: "beto", equipoId: "c1", cambios: { lesiones: true } });
-    expect(chip(fila("beto@uno.com"), "Bases de Datos").getAttribute("aria-pressed")).toBe("true");
+    expect(chip(fila("beto@uno.com"), "Lesiones").getAttribute("aria-pressed")).toBe("true");
+    // Evaluaciones es un permiso aparte.
+    await tocar(chip(fila("beto@uno.com"), "Evaluaciones"));
+    expect(datos.llamadas.at(-1)).toEqual({ que: "cambiar", userId: "beto", equipoId: "c1", cambios: { evaluaciones: true } });
+    expect(chip(fila("beto@uno.com"), "Evaluaciones").getAttribute("aria-pressed")).toBe("true");
 
     await tocar(chip(fila("beto@uno.com"), "Administrador del club"));
     expect(datos.llamadas.at(-1).cambios).toEqual({ rol: "admin" });
@@ -317,7 +323,7 @@ describe("Cuentas", () => {
     expect(datos.llamadas.find((l) => l.que === "invitar")).toEqual({
       que: "invitar",
       equipoId: "c1",
-      invitacion: { email: "nuevo@x.com", rol: "staff", partido: true, flujo: true, lesiones: false },
+      invitacion: { email: "nuevo@x.com", rol: "staff", partido: true, flujo: true, lesiones: false, evaluaciones: false },
     });
 
     await tocar(pestanas[1]);

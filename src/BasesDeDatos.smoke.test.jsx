@@ -20,6 +20,18 @@ vi.mock("./Lesiones.jsx", async () => {
     ),
   };
 });
+vi.mock("./Evaluaciones.jsx", async () => {
+  const { t } = await vi.importActual("./idioma/index.js");
+  return {
+    default: ({ onVolver, volverA }) => (
+      <div className="evaluaciones-de-prueba">
+        <button type="button" onClick={onVolver}>
+          {t(volverA)}
+        </button>
+      </div>
+    ),
+  };
+});
 
 const buscar = (diccionario, clave) => clave.split(".").reduce((nodo, parte) => nodo?.[parte], diccionario);
 
@@ -61,7 +73,7 @@ describe("Bases de Datos", () => {
     expect(contenedor.querySelector(".portal-club-hasta").textContent).toBe("Hasta el 25/09/2026 · solo lectura");
     expect(contenedor.querySelector(".portal-cambiar-club")).toBeNull();
     expect(contenedor.querySelector("h1").textContent).toBe("Bases de Datos");
-    expect(contenedor.querySelector(".portal-encabezado p").textContent).toBe("Por ahora hay una sola; las próximas bases se suman acá.");
+    expect(contenedor.querySelector(".portal-encabezado p").textContent).toBe("Elegí qué base abrir.");
 
     expect(tarjetas()).toHaveLength(1);
     const lesiones = tarjetas()[0];
@@ -76,6 +88,29 @@ describe("Bases de Datos", () => {
     expect(lesiones.querySelector(".portal-icono svg")).not.toBeNull();
     expect(lesiones.querySelector("strong").textContent).toBe("Lesiones");
     expect(lesiones.querySelector(".portal-entrar").textContent).toContain("Entrar");
+  });
+
+  test("cada base con su permiso: con Evaluaciones, su tarjeta (con su dibujo hasta que tenga foto); con las dos, las dos", async () => {
+    await montar({ permisos: { evaluaciones: true } });
+    expect(tarjetas()).toHaveLength(1);
+    const evaluaciones = tarjetas()[0];
+    expect(evaluaciones.getAttribute("aria-label")).toBe("Entrar a Evaluaciones");
+    expect(evaluaciones.classList.contains("tarjeta-evaluaciones")).toBe(true);
+    expect(evaluaciones.querySelector(".portal-foto img")).toBeNull();
+    expect(evaluaciones.querySelector(".portal-foto .portal-arte")).not.toBeNull();
+    expect(evaluaciones.querySelector(".portal-icono svg")).not.toBeNull();
+    expect(evaluaciones.querySelector("strong").textContent).toBe("Evaluaciones");
+
+    await act(async () => evaluaciones.click());
+    expect(contenedor.querySelector(".portal-portada").classList.contains("tarjeta-evaluaciones")).toBe(true);
+    await act(async () => vi.runAllTimers());
+    const volver = contenedor.querySelector(".evaluaciones-de-prueba button");
+    expect(volver.textContent).toBe("Bases de Datos");
+    await act(async () => volver.click());
+    expect(tarjetas()).toHaveLength(1);
+
+    await act(async () => raiz.render(<BasesDeDatos permisos={{ lesiones: true, evaluaciones: true }} onVolver={() => {}} />));
+    expect(tarjetas().map((tarjeta) => tarjeta.querySelector("strong").textContent)).toEqual(["Lesiones", "Evaluaciones"]);
   });
 
   test("al tocar una base: la portada encima, la base abajo y su botón vuelve a las bases", async () => {
@@ -156,6 +191,8 @@ describe("Bases de Datos", () => {
     expect(basesHabilitadas({ partido: true })).toEqual([]);
     expect(basesHabilitadas(null)).toEqual([]);
     expect(basesHabilitadas({ lesiones: true }).map((base) => base.modo)).toEqual(["lesiones"]);
+    expect(basesHabilitadas({ evaluaciones: true }).map((base) => base.modo)).toEqual(["evaluaciones"]);
+    expect(basesHabilitadas({ lesiones: true, evaluaciones: true }).map((base) => base.modo)).toEqual(["lesiones", "evaluaciones"]);
   });
 
   test("si el permiso se va con la base abierta, vuelven las tarjetas (sin ninguna)", async () => {

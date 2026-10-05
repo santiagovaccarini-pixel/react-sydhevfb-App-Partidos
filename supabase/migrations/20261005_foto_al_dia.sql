@@ -21,16 +21,21 @@
 -- partidos y jugadores, desde el día en que se crearon; entrenamientos,
 -- desde su último cambio. Requiere 20261004_cuentas_v2.sql.
 -- Se corre en Supabase > SQL Editor, entero y de una vez. Se puede volver a
--- correr.
+-- correr, salvo después de 20261012_evaluaciones.sql: ahí se frena sola
+-- (desharía la foto de Evaluaciones).
 -- =====================================================================
 
 begin;
 
 -- Sin las cuentas v2 no hay membresías por club: se frena con un aviso claro.
+-- Y corrida después de Evaluaciones desharía su foto: también se frena.
 do $$
 begin
   if to_regprocedure('public.puede_usar_en(uuid, text)') is null then
     raise exception 'Primero hay que correr 20261004_cuentas_v2.sql.';
+  end if;
+  if to_regclass('public.evaluaciones') is not null then
+    raise exception 'Ya está corrida 20261012_evaluaciones.sql: esta es anterior y no hace falta volver a correrla.';
   end if;
 end $$;
 

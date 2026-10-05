@@ -8,10 +8,12 @@ import {
   desdeTexto,
   filtrarFilas,
   interpretarHoras,
+  interpretarMinutos,
   ordenarFilas,
   ordenDeColumnas,
   reordenar,
   textoDeHoras,
+  textoDeMinutos,
   tramosDeGrupos,
   valoresDeColumna,
 } from "../domain/tabla.js";
@@ -39,6 +41,17 @@ import "./tablaDatos.css";
 // onAbrirFila(filaId), onBorrarFila(filaId)
 // recordar: con qué nombre se guardan los filtros y el orden mientras la app
 // está abierta (al abrir una ficha y volver, siguen como estaban).
+// fijas: claves de las columnas que van primero y quedan a la vista al
+// correr la tabla en la compu (como inmovilizar en Excel). No se arrastran;
+// cada una lleva su `ancho` (en píxeles).
+// vista(filasVista) → { estilos, arriba }: lo que depende de las filas que
+// se ven (las que dejan los filtros), como el SUBTOTAL y el formato
+// condicional de Excel. estilos: { id de fila: { clave: estilo } }; arriba:
+// filas que van sobre las cabeceras, alineadas con cada columna:
+// [{ id, rotulo, alto?, celdas: { clave: { texto, estilo } } }]. El rótulo
+// ocupa las columnas fijas (alto: cuántas filas); con rotulo: null, esa fila
+// queda bajo el rótulo de la de arriba.
+// Una columna con `alinear: "centro"` va centrada.
 
 const CLAVE_ORDEN = "tabla_columnas";
 const ESPERA_APRETAR = 380;
@@ -60,6 +73,8 @@ const guardarOrden = (id, orden) => {
 };
 
 const rango = (a, b) => (a <= b ? [a, b] : [b, a]);
+
+const SIN_FIJAS = [];
 
 // Los filtros y el orden de cada tabla, mientras la app está abierta.
 const memoria = new Map();
@@ -90,6 +105,8 @@ export const TablaDatos = ({
   recordar = null,
   leyenda = "",
   rotuloApagada = "",
+  fijas = SIN_FIJAS,
+  vista = null,
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -120,7 +137,31 @@ export const TablaDatos = ({
     setOrden((actual) => ordenDeColumnas(columnas.map((c) => c.clave), actual));
   }, [columnas]);
 
-  const visibles = useMemo(() => orden.map((clave) => columnas.find((c) => c.clave === clave)).filter(Boolean), [orden, columnas]);
+  // Las fijas van primero, en su orden; el resto, en el que eligió cada uno.
+  const clavesFijas = useMemo(() => fijas.filter((clave) => columnas.some((c) => c.clave === clave)), [fijas, columnas]);
+  const visibles = useMemo(() => {
+    const porClave = (clave) => columnas.find((c) => c.clave === clave);
+    const libres = orden.filter((clave) => !clavesFijas.includes(clave)).map(porClave).filter(Boolean);
+    return [...clavesFijas.map(porClave), ...libres];
+  }, [orden, columnas, clavesFijas]);
+  const visiblesRef = useRef(visibles);
+  visiblesRef.current = visibles;
+  // Dónde queda cada columna fija: a la derecha del número de fila y de las
+  // fijas anteriores.
+  const lugarFijo = useMemo(() => {
+    const lugares = {};
+    let izquierda = 0;
+    clavesFijas.forEach((clave, indice) => {
+      const ancho = columnas.find((c) => c.clave === clave)?.ancho || 120;
+      lugares[clave] = {
+        estilo: { left: `calc(var(--tabla-datos-ancho-numero) + ${izquierda}px)`, width: ancho, minWidth: ancho, maxWidth: ancho },
+        ultima: indice === clavesFijas.length - 1,
+      };
+      izquierda += ancho;
+    });
+    return lugares;
+  }, [clavesFijas, columnas]);
+  const claseFija = (clave) => (lugarFijo[clave] ? `inmovil ${lugarFijo[clave].ultima ? "ultima-inmovil" : ""}`.trim() : "");
   // Sin ninguna columna que se pueda cambiar (solo lectura), Pegar no va.
   const algoEditable = visibles.some((columna) => columna.editable);
 
@@ -133,6 +174,10 @@ export const TablaDatos = ({
   // Las filas que se ven: filtradas y en el orden pedido. Todo lo que es
   // "fila n" (elegir, copiar, pegar, editar) habla de estas.
   const filasVista = useMemo(() => ordenarFilas(filtrarFilas(filas, filtrosVigentes), ordenFilas), [filas, filtrosVigentes, ordenFilas]);
+  // Lo que depende de las filas que se ven: los colores y las filas de arriba.
+  const deLaVista = useMemo(() => (vista ? vista(filasVista) : null), [vista, filasVista]);
+  const estilosDeCeldas = deLaVista?.estilos || null;
+  const filasArriba = deLaVista?.arriba || [];
 
   // La fila de grupos, si las columnas los traen. El tono de cada grupo sale
   // de su orden en las columnas originales, así no cambia al mover una.
@@ -340,8 +385,10 @@ export const TablaDatos = ({
       alternarCasilla(fila, col);
       return;
     }
-    // Las horas se escriben como en el Excel: "30:14:20".
-    const valor = col.tipo === "horas" ? textoDeHoras(fila.valores?.[col.clave]) : fila.valores?.[col.clave] ?? "";
+    // Las horas se escriben como en el Excel: "30:14:20"; los tiempos, "3:04".
+    let valor = fila.valores?.[col.clave] ?? "";
+    if (col.tipo === "horas") valor = textoDeHoras(fila.valores?.[col.clave]);
+    if (col.tipo === "tiempo") valor = textoDeMinutos(fila.valores?.[col.clave]);
     setEditando({ filaId: fila.id, clave: col.clave, valor });
   };
 
@@ -352,6 +399,19 @@ export const TablaDatos = ({
     const fila = filas.find((una) => una.id === actual.filaId);
     const col = columnas.find((una) => una.clave === actual.clave);
     if (!fila || !col) return;
+    if (col.tipo === "tiempo") {
+      const segundos = interpretarMinutos(valor);
+      if (segundos === undefined) {
+        setMensaje(t("tabla.tiempoMalEscrito"));
+        return;
+      }
+      if ((fila.valores?.[col.clave] ?? null) === segundos) return;
+      setOcupada(true);
+      const respuesta = (await onEditar?.(fila.id, col.clave, segundos)) || {};
+      setOcupada(false);
+      if (respuesta.error) setMensaje(t(respuesta.error, respuesta.variables));
+      return;
+    }
     if (col.tipo === "horas") {
       const horas = interpretarHoras(valor);
       if (horas === undefined) {
@@ -412,8 +472,10 @@ export const TablaDatos = ({
     }
     setArrastre(null);
     if (estado && estado.activo && estado.sobre !== null && estado.sobre !== estado.desde) {
+      const claveDesde = visiblesRef.current[estado.desde]?.clave;
+      const claveSobre = visiblesRef.current[estado.sobre]?.clave;
       setOrden((actual) => {
-        const nuevo = reordenar(actual, estado.desde, estado.sobre);
+        const nuevo = reordenar(actual, actual.indexOf(claveDesde), actual.indexOf(claveSobre));
         guardarOrden(id, nuevo);
         return nuevo;
       });
@@ -422,14 +484,18 @@ export const TablaDatos = ({
     }
   }, [id]);
 
+  // La cabecera bajo el dedo (una fija no recibe columnas).
   const columnaBajo = (x, y) => {
     const elemento = document.elementFromPoint(x, y);
     const th = elemento?.closest?.("th[data-columna]");
-    return th ? Number(th.dataset.columna) : null;
+    if (!th) return null;
+    const indice = Number(th.dataset.columna);
+    return clavesFijas.includes(visibles[indice]?.clave) ? null : indice;
   };
 
   const alApretarCabecera = (evento, indice) => {
     if (evento.button !== undefined && evento.button !== 0) return;
+    if (clavesFijas.includes(visibles[indice]?.clave)) return;
     const inicio = { x: evento.clientX, y: evento.clientY };
     const esMouse = evento.pointerType === "mouse";
     arrastreRef.current = { desde: indice, sobre: null, activo: false, inicio, puntero: evento.pointerId, elemento: evento.currentTarget };
@@ -596,6 +662,32 @@ export const TablaDatos = ({
       <div className="tabla-datos-marco" tabIndex={0} onKeyDown={alTeclear} onPaste={alPegarEvento}>
         <table className={`tabla-datos-tabla ${arrastre ? "arrastrando" : ""} ${hayGrupos ? "con-grupos" : ""}`.trim()}>
           <thead>
+            {filasArriba.map((filaArriba) => (
+              <tr key={filaArriba.id} className="tabla-datos-arriba">
+                <th className="tabla-datos-numero" aria-hidden="true">
+                  {clavesFijas.length === 0 ? filaArriba.rotulo : null}
+                </th>
+                {clavesFijas.length > 0 && filaArriba.rotulo !== null && (
+                  <th
+                    scope="row"
+                    colSpan={clavesFijas.length}
+                    rowSpan={filaArriba.alto || 1}
+                    className="tabla-datos-arriba-rotulo inmovil ultima-inmovil"
+                    style={{ left: "var(--tabla-datos-ancho-numero)" }}
+                  >
+                    {filaArriba.rotulo}
+                  </th>
+                )}
+                {visibles.slice(clavesFijas.length).map((col) => {
+                  const celda = filaArriba.celdas?.[col.clave];
+                  return (
+                    <td key={col.clave} className={`tabla-datos-arriba-celda ${col.alinear === "centro" ? "centrada" : ""}`.trim()} style={celda?.estilo || undefined}>
+                      {celda?.texto ?? ""}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
             {hayGrupos && (
               <tr className="tabla-datos-grupos">
                 <th className="tabla-datos-numero" aria-hidden="true" />
@@ -623,8 +715,8 @@ export const TablaDatos = ({
                   <th
                     key={col.clave}
                     data-columna={indice}
-                    className={`${arrastre?.desde === indice ? "origen" : ""} ${arrastre?.sobre === indice ? "destino" : ""} ${col.editable ? "" : "fija"} ${col.grupo ? `tono-${tonoDeGrupo[col.grupo] ?? 0}` : ""}`.trim()}
-                    style={col.ancho ? { minWidth: col.ancho } : undefined}
+                    className={`${arrastre?.desde === indice ? "origen" : ""} ${arrastre?.sobre === indice ? "destino" : ""} ${col.editable ? "" : "fija"} ${col.grupo ? `tono-${tonoDeGrupo[col.grupo] ?? 0}` : ""} ${claseFija(col.clave)}`.trim()}
+                    style={lugarFijo[col.clave]?.estilo || (col.ancho ? { minWidth: col.ancho } : undefined)}
                     onPointerDown={(evento) => alApretarCabecera(evento, indice)}
                     onPointerMove={alMoverCabecera}
                     onPointerUp={terminarArrastre}
@@ -678,10 +770,13 @@ export const TablaDatos = ({
                 {visibles.map((col, c) => {
                   const enEdicion = editando && editando.filaId === fila.id && editando.clave === col.clave;
                   const esActiva = activa?.f === f && activa?.c === c;
+                  const formato = estilosDeCeldas?.[fila.id]?.[col.clave] || null;
+                  const lugar = lugarFijo[col.clave]?.estilo;
                   return (
                     <td
                       key={col.clave}
-                      className={`${estaElegida(f, c) ? "elegida" : ""} ${esActiva ? "activa" : ""} ${col.editable ? "" : "fija"} ${col.tipo === "casilla" ? "casilla" : ""}`.trim()}
+                      className={`${estaElegida(f, c) ? "elegida" : ""} ${esActiva ? "activa" : ""} ${col.editable ? "" : "fija"} ${col.tipo === "casilla" ? "casilla" : ""} ${col.alinear === "centro" ? "centrada" : ""} ${formato ? "con-formato" : ""} ${claseFija(col.clave)}`.trim()}
+                      style={lugar || formato ? { ...lugar, ...formato } : undefined}
                       onClick={(evento) => {
                         if (esActiva && !evento.shiftKey && !enEdicion) empezarEdicion(f, c);
                         else elegir(f, c, evento.shiftKey);
@@ -718,7 +813,8 @@ export const TablaDatos = ({
                         <input
                           autoFocus
                           type={col.tipo === "fecha" ? "date" : col.tipo === "fecha_hora" ? "datetime-local" : col.tipo === "numero" ? "number" : "text"}
-                          placeholder={col.tipo === "horas" ? "0:00" : undefined}
+                          placeholder={col.tipo === "horas" || col.tipo === "tiempo" ? "0:00" : undefined}
+                          inputMode={col.tipo === "tiempo" ? "decimal" : undefined}
                           value={editando.valor ?? ""}
                           onChange={(evento) => setEditando({ ...editando, valor: evento.target.value })}
                           onBlur={(evento) => guardarEdicion(evento.target.value)}

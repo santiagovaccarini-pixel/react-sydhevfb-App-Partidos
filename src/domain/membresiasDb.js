@@ -7,9 +7,9 @@ import { hoyISO } from "../idioma/formatos.js";
 // la de todos; cada uno, lo suyo.
 
 export const TABLA_MEMBRESIAS = "club_miembros";
-export const MODULOS_DEL_CLUB = ["partido", "flujo", "lesiones"];
+export const MODULOS_DEL_CLUB = ["partido", "flujo", "lesiones", "evaluaciones"];
 
-const COLUMNAS_MEMBRESIA = "equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones";
+const COLUMNAS_MEMBRESIA = "equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones, evaluaciones";
 
 // Los errores de la base como claves del diccionario.
 export const claveDeError = (error, porDefecto = "cuentas.errorClub") => {
@@ -37,6 +37,7 @@ const normalizarMiembro = (fila) => ({
   partido: Boolean(fila.partido),
   flujo: Boolean(fila.flujo),
   lesiones: Boolean(fila.lesiones),
+  evaluaciones: Boolean(fila.evaluaciones),
 });
 
 // "activo" (sigue en el club), "hasta" (se fue) o "ninguno" (nunca estuvo).
@@ -110,7 +111,7 @@ export const correoValido = (correo) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String
 export const listarInvitaciones = async (equipoId) => {
   const { data, error } = await supabase
     .from("club_invitaciones")
-    .select("id, email, rol, partido, flujo, lesiones, creado_en, vence_en, usada_en, cancelada_en")
+    .select("id, email, rol, partido, flujo, lesiones, evaluaciones, creado_en, vence_en, usada_en, cancelada_en")
     .eq("equipo_id", equipoId)
     .is("usada_en", null)
     .is("cancelada_en", null)
@@ -121,12 +122,12 @@ export const listarInvitaciones = async (equipoId) => {
 
 // Invita un correo al club. Si la cuenta ya existe (y confirmó su correo),
 // la base la mete en el club en el acto y la invitación vuelve usada.
-export const invitar = async (equipoId, { email, rol = "staff", partido = true, flujo = true, lesiones = false }) => {
+export const invitar = async (equipoId, { email, rol = "staff", partido = true, flujo = true, lesiones = false, evaluaciones = false }) => {
   const correo = String(email || "").trim().toLowerCase();
   if (!correoValido(correo)) throw new Error("cuentas.errorCorreo");
   const { error } = await supabase
     .from("club_invitaciones")
-    .insert({ equipo_id: equipoId, email: correo, rol, partido, flujo, lesiones });
+    .insert({ equipo_id: equipoId, email: correo, rol, partido, flujo, lesiones, evaluaciones });
   if (error) throw fallo(error, "cuentas.errorInvitar");
   // La fila se vuelve a leer aparte: si la cuenta entró en el acto, la
   // invitación ya no está abierta (y no hace falta mostrarla).

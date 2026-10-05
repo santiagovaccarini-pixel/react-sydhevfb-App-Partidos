@@ -540,18 +540,27 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 - Dónde: las bases están en un solo lugar, `BASES` en `src/BasesDeDatos.jsx` (cada una con su
   tarjeta, su pantalla y su permiso). Las tarjetas y la portada son las mismas del portal
   (`src/components/PortalTarjetas.jsx`): una base nueva es una entrada más en `BASES`.
-- Permiso: lo abre la columna `lesiones` de la membresía (`club_miembros`), que en Cuentas ahora
-  se lee "Bases de Datos" y abre todas las bases. Si alguna base no la tiene que ver todo el que
-  entra (por ejemplo, el detalle médico), lleva su propio permiso, y hoy la lista de módulos está
-  escrita en varios lugares que hay que tocar juntos (o mejor, sacarlos de una sola lista):
-  - la base: columna nueva en `club_miembros` y en `club_invitaciones`, las vistas `v_mis_clubes`
-    y `v_miembros_club`, y los `case` de `puede_usar_en` y `puede_usar` (migración nueva);
-  - `MODULOS_DEL_CLUB`, `COLUMNAS_MEMBRESIA`, `normalizarMiembro` e `invitar` en
-    `src/domain/membresiasDb.js`, e `INVITACION_INICIAL` en `src/CuentasAdmin.jsx`;
+- Permiso: cada base tiene el suyo (Lesiones, la columna `lesiones` de la membresía;
+  Evaluaciones, la columna `evaluaciones`, desde el 05/10) y la tarjeta Bases de Datos de la
+  pantalla principal se ve si la cuenta tiene alguno (`basesHabilitadas` en
+  `src/BasesDeDatos.jsx`). Para sumar un permiso hay que tocar juntos (o mejor, sacarlos de una
+  sola lista):
+  - la base (migración nueva, como `20261012_evaluaciones.sql`): columna en `club_miembros` y en
+    `club_invitaciones`; los `case` de `puede_usar_en` y `puede_usar`; `aplicar_invitaciones()`
+    (que la invitación la pase a la membresía); `equipos_sumar_creador()` (quien crea el club la
+    tiene); `club_miembros_historial_anotar()` (que el historial anote el cambio); las vistas
+    `v_mis_clubes` y `v_miembros_club` (la columna nueva, al final); y si la base tiene tablas
+    propias, `datos_al_dia` (la lista de tablas y el `case` del módulo, para la foto de quien se
+    va) y `anotar_version` en cada tabla;
+  - `MODULOS_DEL_CLUB`, `COLUMNAS_MEMBRESIA`, `normalizarMiembro`, `listarInvitaciones` e
+    `invitar` en `src/domain/membresiasDb.js`, e `INVITACION_INICIAL` en `src/CuentasAdmin.jsx`;
   - `membresiaDe` en `src/domain/equipo.js` (lo que se guarda del club en el celular) y
-    `permisosEnClub` en `src/domain/perfilesDb.js` (lo que puede cada uno en el club);
+    `permisosDePerfil` y `permisosEnClub` en `src/domain/perfilesDb.js` (lo que puede cada uno
+    en el club, y `datos`: Datos básicos va con cualquier módulo);
   - la lista que compara el club al volver a las tarjetas, en `src/PortalApp.jsx`;
-  - los textos `cuentas.modulos.<permiso>` en los dos idiomas, y la base lo pide en `permiso`.
+  - los textos `cuentas.modulos.<permiso>` en los dos idiomas, y la base lo pide en `permiso`;
+  - los escenarios de `supabase/pruebas/escenarios.sql` (con y sin el permiso, invitación,
+    quien se fue).
 - Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
   Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones tiene sus fotos desde el
   05/10 (`public/portal/lesiones.webp` y `lesiones-parada.webp`, las mandó Santiago); el dibujo
@@ -560,6 +569,70 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 - Datos básicos sigue en la pantalla principal: lo ve cualquiera con algún módulo (Partido y
   Flujo diario también usan los jugadores), y adentro de Bases de Datos lo verían solo los que
   tienen ese permiso. Si se quiere adentro, hay que decidir quién lo ve.
+
+## Evaluaciones (05/10)
+
+Santiago subió `BD_evaluaciones.xlsx` (las evaluaciones físicas del club) y pidió replicarlo
+en la app **sin cambiar datos ni lógicas, con el mismo formato condicional**. Es la segunda base
+de Bases de Datos, con su permiso propio (`evaluaciones`). Se hace **de a un test** (un PR
+cada uno), empezando por el de más a la izquierda: **Test Zona Media** (hecho el 05/10). Se
+carga en la app; lo viejo se trae una vez con Pegar desde Excel.
+
+- Dónde: lo común a todos los tests en `src/domain/evaluaciones/` — `excel.js` (cómo calcula
+  y muestra Excel: vacía vs "", texto mayor que número, 15 cifras, SUBTOTAL, formatos),
+  `formatoCondicional.js` (las reglas como datos, con su prioridad), `motor.js` (los dos pasos:
+  cada fila con todas las del test; el informe y los colores con las filas que deja ver el
+  filtro), `categorias.js` (Sub-15 … Mayor) e `importar.js` (Pegar desde Excel). Cada test es
+  un archivo de `tests/` (columnas, fórmulas, informe, reglas de color, cómo son sus V.R.) y la
+  lista de tests está en `tests/index.js`. La pantalla es `src/Evaluaciones.jsx` (Base y
+  Valores de referencia) y `src/ImportarEvaluaciones.jsx`; la base, `src/domain/evaluacionesDb.js`
+  y la migración `supabase/migrations/20261012_evaluaciones.sql` (tablas `evaluaciones` y
+  `evaluaciones_referencias`).
+- **Regla para todos los tests (Santiago, 05/10): las columnas que solo existen para que las use
+  un BUSCARV, BUSCARH, BUSCARX o cualquier BUSCAR no se usan** (en Zona Media, las claves ocultas
+  A y B; en Funcional, las claves ocultas de cada test). Las que tienen un resultado propio sí
+  van, con su fórmula y su formato (en Zona Media, "A" y "PRO??").
+- Lo que decidió Santiago el 05/10 (lo que el Excel hacía por sus límites, la app lo hace como
+  se quiso):
+  - % mejora: cada medida contra la misma de la evaluación anterior del jugador que la tenga,
+    sin límite de cuántas atrás. En el Excel, Lateral D, Lateral I y Prono miraban otra columna.
+  - Toda clase va de 5 a 1 con los mismos colores: 5 verde oscuro, 4 verde, 3 amarillo,
+    2 naranja, 1 rojo. El Ratio del informe se clasifica con la misma regla que Ratio. Clas de
+    las filas (en el Excel AA2 tenía otra).
+  - Deficit. Clas sin Lateral D o sin Lateral I: vacía (el Excel ponía 1 en rojo). Ratio sin
+    Prono: vacío (el Excel daba 0). Sin V.R. cargados: las clases vacías y un aviso (el Excel
+    les daba 5 a todos). El informe sin ningún dato en una columna: vacío (el Excel mostraba
+    #DIV/0! y 0).
+  - nº Eva, la evaluación anterior y Va van por fecha (la misma fecha: el orden de carga; sin
+    fecha: al final), no por el lugar de la fila.
+  - Los tiempos son minutos y segundos: "3:04" es 3 min 04 s (en el Excel están como horas y
+    minutos, h:mm). La app los guarda en segundos y los cuenta en la unidad del Excel
+    (segundos ÷ 1440), así cada cuenta da igual.
+  - Fecha Nac y Posición salen de Datos básicos (en el Excel, de "Lista Jugadores" del otro
+    archivo).
+- Los valores de referencia (V.R.) **no van al código** (el repositorio es público): se cargan
+  con un SQL que se pasa en el chat, en `evaluaciones_referencias` (una fila por club y test;
+  `datos` = `{ categorias: { <categoría>: { titulo, rotulo, n, excelente, muy_bueno, bueno,
+  regular, malo } }, resumen: { n: { <categoría>: n } } }`, cada fila con un valor por medida,
+  los tiempos en la unidad del Excel). La app solo los lee. La columna "Pro" del resumen va
+  vacía: en el Excel da #REF! (la celda de donde salía ya no existe); si se sabe qué tenía,
+  se completa.
+- Lo que no se copió (no cambia ningún resultado): las columnas de ayuda para buscar, el contador
+  oculto C (es el # de cada fila), la columna vacía M, la fila de títulos repetida, las marcas
+  sueltas "c"/"va", el botón "inicio" (macro del otro archivo), las 430 reglas de formato sin
+  color, lo que dependía de hasta qué fila llegaban los rangos del Excel (todas las filas usan
+  las reglas de las primeras), el segundo bloque "Mayores" (CW:DC) y la leyenda de Ratio
+  (CP:CU). Las fechas van con el formato de la app.
+- Ninguna regla escrita en código (regla del 02/10): cada test está entero en su archivo de
+  `tests/`, en un solo lugar; los V.R. ya son de cada club (en la base). Lo que falta pasar a la
+  configuración del club: los cortes del PRO?? (4,2 / 3,4 / 2,6 / 1,8) y los desvíos de cada
+  regla de color. En los V.R. de Mayor, el Ratio sale del Bueno de a 0,17 (Muy Bueno = Bueno +
+  0,17, Excelente = Muy Bueno + 0,17, Regular = Bueno − 0,17, Malo = Regular − 0,17): en la
+  base están los valores ya calculados; si el club cambia el Bueno, hay que cambiar los otros.
+- Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja: CurlNordico
+  e Isoprone, Isocinecia, Funcional, Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y
+  Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
+  CONTAR.SI.CONJUNTO).
 
 ## El siguiente nivel: un club entero usando esto (plan del 02/10)
 

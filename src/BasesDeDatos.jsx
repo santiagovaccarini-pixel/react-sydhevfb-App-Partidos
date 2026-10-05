@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import Evaluaciones from "./Evaluaciones.jsx";
 import Lesiones from "./Lesiones.jsx";
-import { ArteLesiones, IconoLesiones } from "./components/PortalArt.jsx";
+import { ArteEvaluaciones, ArteLesiones, IconoEvaluaciones, IconoLesiones } from "./components/PortalArt.jsx";
 import { ClubDelPortal, FlechaVolver, Portada, TarjetasDelPortal } from "./components/PortalTarjetas.jsx";
 import { leerEquipoElegido } from "./domain/equipo.js";
 import { t, useIdioma } from "./idioma/index.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import "./portal.css";
 
-// Bases de Datos: las bases del club (Lesiones hoy; las que vengan después),
+// Bases de Datos: las bases del club (Lesiones, Evaluaciones y las que vengan),
 // con la cara de la pantalla principal: una tarjeta por base, con su foto o
 // su dibujo, su ícono, qué hay adentro y Entrar; al tocarla, la misma portada
 // que al entrar a un módulo. Desde cada base se vuelve acá.
@@ -15,10 +16,10 @@ import "./portal.css";
 // Las bases de la app, en este único lugar. Una base nueva es una tarjeta más
 // (lo que lleva cada tarjeta está en components/PortalTarjetas.jsx) con su
 // `Pantalla`, que recibe onVolver (vuelve acá) y volverA (el texto de ese
-// botón). `permiso` es el módulo de la membresía que la abre: hoy todas van
-// con `lesiones`, que es el que abre Bases de Datos; una base que no tenga que
-// ver todo el que entra acá tendrá su propio permiso (qué hay que tocar para
-// eso, en docs/PENDIENTES.md, "Bases de Datos").
+// botón). `permiso` es el módulo de la membresía que la abre (cada base tiene
+// el suyo; la tarjeta Bases de Datos de la pantalla principal se ve si la
+// cuenta tiene alguno). Qué hay que tocar para sumar un permiso, en
+// docs/PENDIENTES.md, "Bases de Datos".
 export const BASES = [
   {
     modo: "lesiones",
@@ -34,6 +35,21 @@ export const BASES = [
     titulo: "bases.lesionesTitulo",
     texto: "bases.lesionesTexto",
   },
+  {
+    modo: "evaluaciones",
+    Pantalla: Evaluaciones,
+    permiso: "evaluaciones",
+    clase: "tarjeta-evaluaciones",
+    // Sin foto todavía: va el dibujo.
+    foto: null,
+    fotoParada: null,
+    foco: [0.5, 0.5],
+    focoParada: [0.5, 0.5],
+    Arte: ArteEvaluaciones,
+    Icono: IconoEvaluaciones,
+    titulo: "bases.evaluacionesTitulo",
+    texto: "bases.evaluacionesTexto",
+  },
 ];
 
 // Las bases que la cuenta puede abrir en el club elegido.
@@ -42,9 +58,7 @@ export const basesHabilitadas = (permisos) => BASES.filter((base) => Boolean(per
 const Tablero = ({ bases, onElegir, onVolver }) => {
   useIdioma();
   const equipo = leerEquipoElegido();
-  let texto = t("bases.elegi");
-  if (bases.length === 0) texto = t("bases.ninguna");
-  else if (bases.length === 1) texto = t("bases.unaSola");
+  const texto = bases.length === 0 ? t("bases.ninguna") : t("bases.elegi");
 
   return (
     <main className="portal-modulos bases-datos">

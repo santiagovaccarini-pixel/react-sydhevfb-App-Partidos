@@ -33,7 +33,7 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 // Todo va directo a la base con la sesión de quien entra; la base decide.
 
 // Lo que se marca por defecto al invitar.
-export const INVITACION_INICIAL = Object.freeze({ rol: "staff", partido: true, flujo: true, lesiones: false });
+export const INVITACION_INICIAL = Object.freeze({ rol: "staff", partido: true, flujo: true, lesiones: false, evaluaciones: false });
 
 // Un mensaje de error: una clave del diccionario o el texto de la base.
 const mensajeDe = (error, porDefecto) => {

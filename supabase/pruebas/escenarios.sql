@@ -173,7 +173,7 @@ select pruebas.esperar('...la lesión de antes', (select count(*) from datos_al_
 select pruebas.esperar('...y el jugador que ya estaba', (select string_agg(f ->> 'nombre', ',') from datos_al_dia('jugadores', :C1) f), 'VIEJO');
 select pruebas.esperar('Darío ve todo lo de Dos, donde sigue', (select count(*) from registros_partido where equipo_id = :C2), 1);
 select pruebas.esperar('...y en Dos la foto es lo de hoy', (select count(*) from datos_al_dia('registros_partido', :C2)), 1);
-select pruebas.debe_fallar('La foto es solo de esas cuatro tablas', $$select * from datos_al_dia('perfiles', '00000000-0000-0000-0000-0000000000c1')$$, 'tabla_invalida');
+select pruebas.debe_fallar('La foto es solo de las tablas de datos', $$select * from datos_al_dia('perfiles', '00000000-0000-0000-0000-0000000000c1')$$, 'tabla_invalida');
 select pruebas.esperar('Darío ve sus dos clubes', (select count(*) from equipos), 2);
 select pruebas.esperar('En sus clubes: Uno con fecha de salida', (select hasta::text from v_mis_clubes where id = :C1), '2026-03-31');
 select pruebas.esperar('...y Dos sin fecha', (select coalesce(hasta::text, 'sigue') from v_mis_clubes where id = :C2), 'sigue');
@@ -374,6 +374,7 @@ reset role;
 select pruebas.ser('duenio@prueba.com'); set role authenticated;
 select pruebas.esperar('El dueño crea un club', pruebas.filas($$insert into equipos (id, nombre) values ('00000000-0000-0000-0000-0000000000c3', 'Club Tres')$$), 1);
 select pruebas.esperar('...y queda como su administrador', (select rol from club_miembros where equipo_id = '00000000-0000-0000-0000-0000000000c3' and user_id = auth.uid()), 'admin');
+select pruebas.esperar('...con todos los módulos, también Evaluaciones', (select evaluaciones::text from club_miembros where equipo_id = '00000000-0000-0000-0000-0000000000c3' and user_id = auth.uid()), 'true');
 select pruebas.esperar('El dueño bloquea una cuenta', pruebas.filas($$update perfiles set estado = 'bloqueado' where email = 'beto@uno.com'$$), 1);
 select pruebas.esperar('...pero no la suya', pruebas.filas($$update perfiles set estado = 'bloqueado' where user_id = auth.uid()$$), 0);
 reset role;
@@ -561,5 +562,95 @@ select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Uno nuevo entra marcado', pruebas.filas($$insert into jugadores (nombre, equipo_id) values ('RECIEN LLEGADO', '00000000-0000-0000-0000-0000000000c1')$$), 1);
 select pruebas.esperar('...en el plantel actual', (select count(*) from jugadores where nombre = 'RECIEN LLEGADO' and actual), 1);
 reset role;
+
+-- ----------------------------------------------------------- Evaluaciones --
+
+-- Un jugador de Uno para evaluar y los valores de referencia de cada club
+-- (se cargan con SQL, como en producción).
+insert into public.jugadores (id, nombre, equipo_id) overriding system value values
+  (9004, 'EVALUADO', '00000000-0000-0000-0000-0000000000c1');
+insert into public.evaluaciones_referencias (equipo_id, test, datos) values
+  ('00000000-0000-0000-0000-0000000000c1', 'zona_media', '{"categorias":{}}'),
+  ('00000000-0000-0000-0000-0000000000c2', 'zona_media', '{"categorias":{}}');
+
+select pruebas.esperar('Nadie arranca con Evaluaciones', (select count(*) from club_miembros where evaluaciones), 0);
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto (admin de Uno) le da Evaluaciones a Carla', pruebas.filas($$update club_miembros set evaluaciones = true where user_id = '00000000-0000-0000-0000-00000000000c' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('Beto, sin Evaluaciones, no ve ninguna', (select count(*) from evaluaciones), 0);
+select pruebas.debe_fallar('...ni carga', $$insert into evaluaciones (equipo_id, test, jugador_id, fecha, datos) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 9004, '2026-06-12', '{"lumbar":184}')$$, 'row-level security');
+select pruebas.esperar('...ni ve los valores de referencia', (select count(*) from evaluaciones_referencias), 0);
+reset role;
+select pruebas.esperar('El permiso nuevo queda en la historia de Carla', (select count(*) from club_miembros_historial where user_id = '00000000-0000-0000-0000-00000000000c' and accion = 'modulos' and detalle ->> 'evaluaciones' = 'true'), 1);
+
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla carga una evaluación de un jugador de Uno', pruebas.filas($$insert into evaluaciones (equipo_id, test, jugador_id, fecha, datos) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 9004, '2026-06-12', '{"seleccion":"mayor","lumbar":184}')$$), 1);
+select pruebas.esperar('...y la de alguien que no está en Datos básicos', pruebas.filas($$insert into evaluaciones (equipo_id, test, persona, fecha, datos) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 'Cata Tres', '2026-06-12', '{"lumbar":200}')$$), 1);
+select pruebas.esperar('...y las ve en el orden en que las cargó', (select string_agg(coalesce(persona, jugador_id::text), ',' order by orden) from evaluaciones), '9004,Cata Tres');
+select pruebas.debe_fallar('Una evaluación es de un jugador o de una persona: de nadie, no', $$insert into evaluaciones (equipo_id, test, fecha) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', '2026-06-12')$$, 'evaluaciones_de_quien');
+select pruebas.debe_fallar('...ni de los dos', $$insert into evaluaciones (equipo_id, test, jugador_id, persona, fecha) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 9004, 'Cata Tres', '2026-06-12')$$, 'evaluaciones_de_quien');
+select pruebas.debe_fallar('...ni con un nombre en blanco', $$insert into evaluaciones (equipo_id, test, persona, fecha) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', '   ', '2026-06-12')$$, 'evaluaciones_de_quien');
+select pruebas.debe_fallar('...ni de un jugador de otro club', $$insert into evaluaciones (equipo_id, test, jugador_id, fecha) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 9003, '2026-06-12')$$, 'jugador_de_otro_club');
+select pruebas.debe_fallar('...ni con un test mal escrito', $$insert into evaluaciones (equipo_id, test, jugador_id, fecha) values ('00000000-0000-0000-0000-0000000000c1', 'Zona Media', 9004, '2026-06-12')$$, 'evaluaciones_test');
+select pruebas.debe_fallar('...ni con fecha futura', $$insert into evaluaciones (equipo_id, test, jugador_id, fecha) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 9004, current_date + 1)$$, 'evaluaciones_sin_futuro');
+select pruebas.debe_fallar('...ni en otro club', $$insert into evaluaciones (equipo_id, test, persona, fecha) values ('00000000-0000-0000-0000-0000000000c2', 'zona_media', 'Cata Tres', '2026-06-12')$$, 'row-level security');
+select pruebas.esperar('Carla corrige un tiempo', pruebas.filas($$update evaluaciones set datos = datos || '{"lumbar":185}' where jugador_id = 9004$$), 1);
+select pruebas.debe_fallar('...pero no la pasa a otro test', $$update evaluaciones set test = 'saltos' where jugador_id = 9004$$, 'evaluacion_fija');
+select pruebas.debe_fallar('...ni le cambia el orden de carga', $$update evaluaciones set orden = 1 where jugador_id = 9004$$, 'orden');
+select pruebas.esperar('Carla ve los valores de referencia de Uno', (select count(*) from evaluaciones_referencias), 1);
+select pruebas.debe_fallar('...pero no los cambia', $$update evaluaciones_referencias set datos = '{}'$$, 'permission denied');
+select pruebas.debe_fallar('...ni carga otros', $$insert into evaluaciones_referencias (equipo_id, test, datos) values ('00000000-0000-0000-0000-0000000000c1', 'saltos', '{}')$$, 'permission denied');
+reset role;
+
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('Con Lesiones y sin Evaluaciones no se ve ninguna', (select count(*) from evaluaciones), 0);
+select pruebas.esperar('...ni en la foto', (select count(*) from datos_al_dia('evaluaciones', :C1)), 0);
+reset role;
+
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de otro club) no ve las de Uno', (select count(*) from evaluaciones where equipo_id = :C1), 0);
+select pruebas.esperar('...ni con la foto', (select count(*) from datos_al_dia('evaluaciones', :C1)), 0);
+reset role;
+
+-- Una invitación solo con Evaluaciones (una preparadora física).
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto invita a alguien solo con Evaluaciones', pruebas.filas($$insert into club_invitaciones (equipo_id, email, rol, partido, flujo, lesiones, evaluaciones) values ('00000000-0000-0000-0000-0000000000c1', 'pf@uno.com', 'staff', false, false, false, true)$$), 1);
+reset role;
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000015', 'pf@uno.com', now());
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('...entra con Evaluaciones y las ve', (select count(*) from evaluaciones), 2);
+select pruebas.esperar('...sin Lesiones', (select count(*) from lesiones), 0);
+select pruebas.esperar('...y su club dice que tiene Evaluaciones', (select evaluaciones::text from v_mis_clubes where id = :C1), 'true');
+select pruebas.debe_fallar('Un jugador con evaluaciones no se borra', $$delete from jugadores where id = 9004$$, 'evaluaciones_jugador_id_fkey');
+reset role;
+
+-- Carla se va de Uno: ve la foto de su último día, mientras tenga el permiso.
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Carla se va de Uno', pruebas.filas($$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-00000000000c' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla ya no lee las evaluaciones de Uno', (select count(*) from evaluaciones), 0);
+select pruebas.esperar('...pero están en la foto de su último día', (select count(*) from datos_al_dia('evaluaciones', :C1)), 2);
+select pruebas.esperar('...con lo que corrigió', (select f -> 'datos' ->> 'lumbar' from datos_al_dia('evaluaciones', :C1) f where f ->> 'jugador_id' = '9004'), '185');
+select pruebas.esperar('...y los valores de referencia de Uno', (select count(*) from datos_al_dia('evaluaciones_referencias', :C1)), 1);
+select pruebas.debe_fallar('...pero ya no carga', $$insert into evaluaciones (equipo_id, test, jugador_id, fecha) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 9004, '2026-06-13')$$, 'row-level security');
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto le saca Evaluaciones a Carla (ya se fue)', pruebas.filas($$update club_miembros set evaluaciones = false where user_id = '00000000-0000-0000-0000-00000000000c' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Sin el permiso, Carla ya no ve ni la foto', (select count(*) from datos_al_dia('evaluaciones', :C1)), 0);
+select pruebas.esperar('...ni la de los valores de referencia', (select count(*) from datos_al_dia('evaluaciones_referencias', :C1)), 0);
+reset role;
+
+set role anon;
+select pruebas.debe_fallar('Sin cuenta no se ven las evaluaciones', 'select count(*) from evaluaciones', 'permission denied');
+select pruebas.debe_fallar('...ni los valores de referencia', 'select count(*) from evaluaciones_referencias', 'permission denied');
+select pruebas.debe_fallar('...ni su foto', $$select * from datos_al_dia('evaluaciones', '00000000-0000-0000-0000-0000000000c1')$$, 'permission denied');
+reset role;
+
+select pruebas.esperar('Las dos evaluaciones quedan en las versiones (un cambio el mismo día pisa la suya)', (select count(*) from versiones_datos where tabla = 'evaluaciones'), 2);
+select pruebas.esperar('...y quién la cargó', (select count(*) from evaluaciones where creado_por = '00000000-0000-0000-0000-00000000000c' and actualizado_por = '00000000-0000-0000-0000-00000000000c'), 2);
 
 select 'ESCENARIOS: todos bien' as resultado;

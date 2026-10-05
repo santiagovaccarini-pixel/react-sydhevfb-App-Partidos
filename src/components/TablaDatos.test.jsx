@@ -409,4 +409,100 @@ describe("la tabla estilo Excel", () => {
     expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(1);
     expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(true);
   });
+
+  test("las columnas fijas van primero, con su lugar, y no se arrastran ni reciben otra", async () => {
+    localStorage.setItem("tabla_columnas:prueba", JSON.stringify(["pie", "edad", "nombre"]));
+    await montar({ fijas: ["nombre"], columnas: [{ ...columnas[0], ancho: 150 }, columnas[1], columnas[2]] });
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Pie", "Edad"]);
+    const [nombre, pie, edad] = contenedor.querySelectorAll("th[data-columna]");
+    expect(nombre.classList.contains("inmovil")).toBe(true);
+    expect(nombre.style.width).toBe("150px");
+    expect(nombre.style.left).toContain("var(--tabla-datos-ancho-numero)");
+    expect(celda(contenedor, 0, 0).classList.contains("inmovil")).toBe(true);
+    expect(celda(contenedor, 0, 1).classList.contains("inmovil")).toBe(false);
+    // Arrastrar: apretar y mover dos veces (la primera arranca el arrastre).
+    const arrastrar = async (desde) => {
+      await puntero(desde, "pointerdown", { x: 10, y: 10 });
+      await puntero(desde, "pointermove", { x: 40, y: 10 });
+      await puntero(desde, "pointermove", { x: 200, y: 10 });
+    };
+    // Una fija no se arrastra.
+    document.elementFromPoint = () => edad;
+    await arrastrar(nombre);
+    expect(contenedor.querySelector("table").classList.contains("arrastrando")).toBe(false);
+    await puntero(nombre, "pointerup", { x: 200, y: 10 });
+    // Ni recibe otra columna.
+    document.elementFromPoint = () => nombre;
+    await arrastrar(edad);
+    expect(contenedor.querySelector("table").classList.contains("arrastrando")).toBe(true);
+    expect(nombre.classList.contains("destino")).toBe(false);
+    await puntero(edad, "pointerup", { x: 200, y: 10 });
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Pie", "Edad"]);
+    // Las demás, sí.
+    document.elementFromPoint = () => pie;
+    await arrastrar(edad);
+    expect(pie.classList.contains("destino")).toBe(true);
+    await puntero(edad, "pointerup", { x: 200, y: 10 });
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+    expect(JSON.parse(localStorage.getItem("tabla_columnas:prueba"))).toEqual(["edad", "pie", "nombre"]);
+    expect(celda(contenedor, 0, 1).textContent).toBe("40 años");
+  });
+
+  test("con las filas que se ven: los colores de cada celda y las filas de arriba, alineadas con su columna", async () => {
+    const vista = (visibles) => ({
+      estilos: Object.fromEntries(visibles.map((fila) => [fila.id, fila.valores.edad > 35 ? { edad: { background: "rgb(255, 0, 0)" } } : {}])),
+      arriba: [
+        { id: "cuenta", rotulo: "Filas", alto: 2, celdas: { edad: { texto: String(visibles.length), estilo: { color: "rgb(0, 128, 0)" } } } },
+        { id: "debajo", rotulo: null, celdas: { pie: { texto: "abajo" } } },
+      ],
+    });
+    await montar({ fijas: ["nombre"], vista });
+    const arriba = [...contenedor.querySelectorAll("thead tr.tabla-datos-arriba")];
+    expect(arriba).toHaveLength(2);
+    const rotulo = arriba[0].querySelector(".tabla-datos-arriba-rotulo");
+    expect(rotulo.textContent).toBe("Filas");
+    expect(rotulo.getAttribute("rowspan")).toBe("2");
+    expect(arriba[1].querySelector(".tabla-datos-arriba-rotulo")).toBeNull();
+    // Cada celda de arriba, sobre su columna (después del rótulo de las fijas).
+    expect([...arriba[0].querySelectorAll("td")].map((td) => td.textContent)).toEqual(["2", ""]);
+    expect([...arriba[1].querySelectorAll("td")].map((td) => td.textContent)).toEqual(["", "abajo"]);
+    expect(arriba[0].querySelector("td").style.color).toBe("rgb(0, 128, 0)");
+    expect(celda(contenedor, 0, 1).style.background).toBe("rgb(255, 0, 0)");
+    expect(celda(contenedor, 0, 1).classList.contains("con-formato")).toBe(true);
+    expect(celda(contenedor, 1, 1).style.background).toBe("");
+
+    // Con un filtro, todo se recalcula con lo que queda a la vista.
+    await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Nombre"]'));
+    await tocar([...document.querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
+    await tocar([...document.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent.startsWith("SCARPA")).querySelector("input"));
+    await tocar([...document.querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    expect(contenedor.querySelector("thead tr.tabla-datos-arriba td").textContent).toBe("1");
+  });
+
+  test("un tiempo se escribe en minutos y segundos y se guarda en segundos", async () => {
+    const conTiempo = [...columnas, { clave: "plancha", titulo: "Plancha", tipo: "tiempo", editable: true }];
+    const filasConTiempo = filas.map((fila, i) => ({ ...fila, valores: { ...fila.valores, plancha: i === 0 ? 184 : null }, textos: { ...fila.textos, plancha: i === 0 ? "3:04" : "" } }));
+    await montar({ columnas: conTiempo, filas: filasConTiempo });
+    const escribir = async (input, valor) => {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, valor);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    };
+    await tocar(celda(contenedor, 0, 3));
+    await tocar(celda(contenedor, 0, 3));
+    let input = celda(contenedor, 0, 3).querySelector("input");
+    expect(input.value).toBe("3:04");
+    expect(input.placeholder).toBe("0:00");
+    await escribir(input, "3:10");
+    expect(editados).toEqual([{ filaId: 1, clave: "plancha", valor: 190 }]);
+
+    await tocar(celda(contenedor, 1, 3));
+    await tocar(celda(contenedor, 1, 3));
+    input = celda(contenedor, 1, 3).querySelector("input");
+    await escribir(input, "3:99");
+    expect(editados).toHaveLength(1);
+    expect(contenedor.textContent).toContain("Los tiempos se escriben en minutos y segundos");
+  });
 });

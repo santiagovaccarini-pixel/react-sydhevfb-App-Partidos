@@ -149,10 +149,32 @@
   user-select: none;
 }
 
+/* Una columna fija (como inmovilizar en Excel) necesita fondo propio: al
+   correr la tabla, lo de abajo no se tiene que ver a través. */
+.tabla-datos-tabla td.inmovil {
+  background: #fff;
+}
+
 .tabla-datos-tabla td.fija {
   color: #64748b;
   background: #fafafa;
   cursor: default;
+}
+
+.tabla-datos-tabla td.centrada {
+  text-align: center;
+}
+
+/* Una celda con formato condicional (los colores del Excel de Evaluaciones):
+   elegida, se oscurece un poco sin perder su color. */
+.tabla-datos-tabla td.con-formato.elegida {
+  box-shadow: inset 0 0 0 999px rgba(22, 163, 74, 0.28);
+}
+
+.tabla-datos-tabla td.con-formato.activa {
+  box-shadow:
+    inset 0 0 0 2px #16a34a,
+    inset 0 0 0 999px rgba(22, 163, 74, 0.28);
 }
 
 .tabla-datos-tabla td.elegida {
@@ -464,4 +486,83 @@
   padding: 12px;
   color: #64748b;
   font-size: 13px;
+}
+
+/* Las columnas fijas: en la compu quedan a la vista al correr la tabla, a la
+   derecha del número de fila; en el celular corren con las demás (no
+   entrarían todas en la pantalla). */
+@media (min-width: 900px) {
+  .tabla-datos-tabla .inmovil {
+    position: sticky;
+    z-index: 1;
+  }
+
+  .tabla-datos-tabla thead th.inmovil {
+    z-index: 3;
+  }
+
+  .tabla-datos-tabla .ultima-inmovil {
+    box-shadow: inset -2px 0 0 #cbd5e1;
+  }
+}
+
+@media (max-width: 899px) {
+  .tabla-datos-tabla .inmovil {
+    left: auto !important;
+  }
+}
+
+/* Las filas de arriba de las cabeceras (el informe de Evaluaciones, como las
+   filas de arriba de la hoja del Excel), alineadas con cada columna. Al bajar
+   no quedan fijas: solo las cabeceras. */
+.tabla-datos-tabla thead tr.tabla-datos-arriba th,
+.tabla-datos-tabla thead tr.tabla-datos-arriba td {
+  position: static;
+  padding: 5px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: default;
+  user-select: text;
+  touch-action: auto;
+}
+
+.tabla-datos-tabla thead tr.tabla-datos-arriba td.centrada {
+  text-align: center;
+}
+
+.tabla-datos-tabla thead tr.tabla-datos-arriba th.tabla-datos-numero {
+  position: sticky;
+  top: auto;
+  left: 0;
+  z-index: 1;
+  background: #f1f5f9;
+}
+
+.tabla-datos-tabla thead tr.tabla-datos-arriba th.tabla-datos-arriba-rotulo {
+  color: #475569;
+  text-align: right;
+  vertical-align: middle;
+}
+
+@media (min-width: 900px) {
+  .tabla-datos-tabla thead tr.tabla-datos-arriba th.inmovil {
+    position: sticky;
+    top: auto;
+    z-index: 1;
+  }
+}
+
+/* En el celular las fijas corren con las demás y juntas son más anchas que la
+   pantalla: el rótulo va a la izquierda, para que se lea sin correr. */
+@media (max-width: 899px) {
+  .tabla-datos-tabla thead tr.tabla-datos-arriba th.tabla-datos-arriba-rotulo {
+    text-align: left;
+  }
 }

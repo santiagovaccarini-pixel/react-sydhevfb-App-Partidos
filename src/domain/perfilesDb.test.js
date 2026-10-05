@@ -35,10 +35,17 @@ const {
 
 describe("permisos y situación de una cuenta", () => {
   it("el administrador puede todo; los demás, lo marcado", () => {
-    expect(permisosDePerfil({ admin: true })).toEqual({ partido: true, flujo: true, lesiones: true, datos: true, admin: true });
-    expect(permisosDePerfil({ partido: true, flujo: false, admin: false })).toEqual({ partido: true, flujo: false, lesiones: false, datos: true, admin: false });
+    expect(permisosDePerfil({ admin: true })).toEqual({ partido: true, flujo: true, lesiones: true, evaluaciones: true, datos: true, admin: true });
+    expect(permisosDePerfil({ partido: true, flujo: false, admin: false })).toEqual({
+      partido: true,
+      flujo: false,
+      lesiones: false,
+      evaluaciones: false,
+      datos: true,
+      admin: false,
+    });
     expect(permisosDePerfil({ lesiones: true })).toMatchObject({ lesiones: true, datos: true });
-    expect(permisosDePerfil(null)).toEqual({ partido: false, flujo: false, lesiones: false, datos: false, admin: false });
+    expect(permisosDePerfil(null)).toEqual({ partido: false, flujo: false, lesiones: false, evaluaciones: false, datos: false, admin: false });
   });
 
   it("pendiente, bloqueada u ok: los módulos ya no los da la cuenta", () => {
@@ -52,13 +59,20 @@ describe("permisos y situación de una cuenta", () => {
   it("en un club, manda la membresía: módulos, admin del club y solo lectura", () => {
     const cuenta = permisosDePerfil({ partido: true, flujo: true });
     // Base con cuentas v2: el club trae rol y módulos.
-    expect(permisosEnClub(cuenta, { id: "c1", rol: "staff", partido: false, flujo: false, lesiones: true })).toEqual({
+    expect(permisosEnClub(cuenta, { id: "c1", rol: "staff", partido: false, flujo: false, lesiones: true, evaluaciones: false })).toEqual({
       partido: false,
       flujo: false,
       lesiones: true,
+      evaluaciones: false,
       datos: true,
       admin: false,
       adminClub: false,
+    });
+    // Solo Evaluaciones (una preparadora física): también ve Datos básicos.
+    expect(permisosEnClub(cuenta, { id: "c1", rol: "staff", partido: false, flujo: false, lesiones: false, evaluaciones: true })).toMatchObject({
+      lesiones: false,
+      evaluaciones: true,
+      datos: true,
     });
     expect(permisosEnClub(cuenta, { id: "c1", rol: "admin", partido: true, flujo: false, lesiones: false }).adminClub).toBe(true);
     // Quien ya se fue no administra.

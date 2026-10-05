@@ -19,12 +19,14 @@ export const permisosDePerfil = (perfil) => {
   const partido = admin || Boolean(perfil?.partido);
   const flujo = admin || Boolean(perfil?.flujo);
   const lesiones = admin || Boolean(perfil?.lesiones);
+  const evaluaciones = admin || Boolean(perfil?.evaluaciones);
   return {
     partido,
     flujo,
     lesiones,
+    evaluaciones,
     // Datos básicos (los jugadores) lo usa cualquiera que tenga algún módulo.
-    datos: partido || flujo || lesiones,
+    datos: partido || flujo || lesiones || evaluaciones,
     admin,
   };
 };
@@ -43,13 +45,14 @@ export const situacionDePerfil = (perfil) => {
 // administra la gente del club y si es dueña de la plataforma.
 export const permisosEnClub = (permisosCuenta, club) => {
   const dueno = Boolean(permisosCuenta?.admin);
-  if (!club) return { partido: false, flujo: false, lesiones: false, datos: false, admin: dueno, adminClub: false };
+  if (!club) return { partido: false, flujo: false, lesiones: false, evaluaciones: false, datos: false, admin: dueno, adminClub: false };
   const modulo = (clave) => (typeof club[clave] === "boolean" ? club[clave] : Boolean(permisosCuenta?.[clave]));
   const partido = modulo("partido");
   const flujo = modulo("flujo");
   const lesiones = modulo("lesiones");
+  const evaluaciones = modulo("evaluaciones");
   const adminClub = club.rol ? club.rol === "admin" && !club.hasta : dueno && !club.hasta;
-  return { partido, flujo, lesiones, datos: partido || flujo || lesiones, admin: dueno, adminClub };
+  return { partido, flujo, lesiones, evaluaciones, datos: partido || flujo || lesiones || evaluaciones, admin: dueno, adminClub };
 };
 
 export const leerMiPerfil = async (userId) => {
