@@ -626,6 +626,78 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(borrador().formacion.convocados).toEqual(expect.not.arrayContaining(["DUDU"]));
   });
 
+  // ------------------------------------------------------------------ 9 --
+  const abrirAjustesEquipo = async () => {
+    await irA("Ajustes");
+    await act(async () =>
+      Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click(),
+    );
+  };
+
+  test("renombrar el club cuando la base no lo deja no dice 'Nombre cambiado'", async () => {
+    db.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", desde: "2026-01-01" }];
+    db.bloquearRenombre = true;
+    await montar({ permisos: { admin: false } });
+    await abrirAjustesEquipo();
+
+    await escribir(contenedor.querySelector("#nombre-equipo"), "Atlético Mineiro SAF");
+    await act(async () => {
+      boton("Guardar nombre").click();
+    });
+    await vaciarPromesas();
+
+    expect(db.renombres).toBe(1);
+    expect(contenedor.textContent).not.toContain("Nombre cambiado");
+    expect(contenedor.querySelector(".error-equipo").textContent).toContain("No tenés permiso");
+    expect(JSON.parse(localStorage.getItem("equipo_elegido")).nombre).toBe("Atlético Mineiro");
+  });
+
+  test("Ajustes › Equipo: quien no administra no ve renombrar ni crear", async () => {
+    db.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", desde: "2026-01-01" }];
+    await montar({ permisos: { admin: false } });
+    await abrirAjustesEquipo();
+
+    expect(contenedor.textContent).toContain("Atlético Mineiro");
+    expect(contenedor.querySelector("#nombre-equipo")).toBeNull();
+    expect(boton("Guardar nombre")).toBeUndefined();
+    expect(contenedor.querySelector('input[placeholder="Nombre del equipo nuevo"]')).toBeNull();
+    expect(contenedor.textContent).not.toContain("Agregar un equipo");
+  });
+
+  test("crear un club que la base rechaza muestra un aviso entendible, no el error crudo", async () => {
+    db.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", desde: "2026-01-01" }];
+    db.errorCrearEquipo = { code: "42501", message: 'new row violates row-level security policy for table "equipos"' };
+    await montar({ permisos: { admin: true } });
+    await abrirAjustesEquipo();
+
+    await escribir(contenedor.querySelector('input[placeholder="Nombre del equipo nuevo"]'), "Club Nuevo");
+    await act(async () => {
+      Array.from(contenedor.querySelectorAll("button")).find((b) => b.textContent.trim() === "Crear").click();
+    });
+    await vaciarPromesas();
+
+    const error = contenedor.querySelector(".error-equipo").textContent;
+    expect(error).not.toContain("row-level security");
+    expect(error).toContain("No tenés permiso para crear equipos");
+  });
+
+  test("para cambiar de club se ofrecen solo los clubes en los que la cuenta está hoy", async () => {
+    db.equipos = [
+      { id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", desde: "2026-01-01" },
+      { id: "eq-2", nombre: "Club que dejé", desde: "2026-01-01", hasta: "2026-03-01" },
+      { id: "eq-3", nombre: "Club ajeno", desde: null },
+      { id: "eq-4", nombre: "Club de hoy", desde: "2026-02-01" },
+    ];
+    elegirClub("eq-1", "Atlético Mineiro");
+    await montar({ permisos: { admin: true } });
+    await abrirAjustesEquipo();
+
+    // (El escudo dibujado suma la inicial al texto del botón.)
+    const ofrecidos = Array.from(contenedor.querySelectorAll(".lista-equipos button")).map((b) => b.textContent.trim());
+    expect(ofrecidos).toHaveLength(1);
+    expect(ofrecidos[0]).toContain("Club de hoy");
+  });
+
   // ----------------------------------------------------------------- 14 --
   test("un borrador escrito por otra versión de la app no se abre vacío ni se pisa sin copia", async () => {
     // Como si una versión más nueva hubiera cambiado el formato y se hubiera

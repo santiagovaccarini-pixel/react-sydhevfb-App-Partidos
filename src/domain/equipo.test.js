@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // La base de mentira: la vista con la membresía y la lista pelada de clubes.
-const base = vi.hoisted(() => ({ vista: null, errorVista: null, equipos: [], errorEquipos: null }));
+const base = vi.hoisted(() => ({
+  vista: null,
+  errorVista: null,
+  equipos: [],
+  errorEquipos: null,
+  // Lo que contestan insert y update (crear y renombrar).
+  respuestaEscritura: { data: [], error: null },
+}));
 vi.mock("../supabase.js", () => ({
   supabase: {
     from: (tabla) => {
@@ -9,19 +16,33 @@ vi.mock("../supabase.js", () => ({
         select: () => consulta,
         order: async () =>
           tabla === "v_mis_clubes" ? { data: base.vista, error: base.errorVista } : { data: base.equipos, error: base.errorEquipos },
+        insert: () => ({ select: async () => base.respuestaEscritura }),
+        update: () => ({ eq: () => ({ select: async () => base.respuestaEscritura }) }),
       };
       return consulta;
     },
   },
 }));
 
-import { EQUIPO_POR_DEFECTO, cargarEquipos, elegirEquipoInicial, esElCam, esSoloLectura, guardarEquipoElegido, leerEquipoElegido } from "./equipo.js";
+import {
+  EQUIPO_POR_DEFECTO,
+  cargarEquipos,
+  crearEquipo,
+  elegirEquipoInicial,
+  esElCam,
+  esSoloLectura,
+  guardarEquipoElegido,
+  leerEquipoElegido,
+  motivoDelError,
+  renombrarEquipo,
+} from "./equipo.js";
 
 beforeEach(() => {
   base.vista = null;
   base.errorVista = null;
   base.equipos = [];
   base.errorEquipos = null;
+  base.respuestaEscritura = { data: [], error: null };
   localStorage.clear();
 });
 
@@ -116,5 +137,37 @@ describe("cargarEquipos y la membresía", () => {
     expect(leerEquipoElegido()).toEqual({ id: "uno", nombre: "Atlético Mineiro", hasta: null });
     guardarEquipoElegido(null);
     expect(leerEquipoElegido()).toBeNull();
+  });
+});
+
+describe("crear y renombrar un equipo", () => {
+  const RLS = { code: "42501", message: 'new row violates row-level security policy for table "equipos"' };
+
+  it("renombrar sin permiso no se da por hecho: la base no cambia ninguna fila", async () => {
+    // Con RLS, quien no administra el club no recibe error: no se toca nada.
+    base.respuestaEscritura = { data: [], error: null };
+    expect(await renombrarEquipo("uno", "Atlético Mineiro SAF")).toMatchObject({ motivo: "permiso" });
+
+    base.respuestaEscritura = { data: [{ id: "uno" }], error: null };
+    expect(await renombrarEquipo("uno", " Atlético Mineiro SAF ")).toEqual({
+      equipo: { id: "uno", nombre: "Atlético Mineiro SAF" },
+    });
+  });
+
+  it("dice por qué no se pudo, y sigue trayendo el texto de siempre", async () => {
+    expect(await crearEquipo("  ")).toMatchObject({ motivo: "vacio", error: "Escribí el nombre del equipo." });
+
+    base.respuestaEscritura = { data: null, error: RLS };
+    expect(await crearEquipo("Club Nuevo")).toMatchObject({ motivo: "permiso", error: RLS.message });
+
+    base.respuestaEscritura = { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };
+    expect(await crearEquipo("Club Nuevo")).toMatchObject({ motivo: "repetido", error: "Ya hay un equipo con ese nombre." });
+    expect(await renombrarEquipo("uno", "Club Nuevo")).toMatchObject({ motivo: "repetido" });
+  });
+
+  it("motivoDelError reconoce el permiso aunque venga sin código", () => {
+    expect(motivoDelError({ message: "permission denied for table equipos" })).toBe("permiso");
+    expect(motivoDelError({ message: "timeout" })).toBe("otro");
+    expect(motivoDelError(null)).toBe("otro");
   });
 });

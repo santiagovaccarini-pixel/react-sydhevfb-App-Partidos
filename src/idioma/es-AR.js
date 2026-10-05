@@ -443,6 +443,12 @@ export default {
     descartarFormacionTitulo: "¿Descartar la formación sin guardar?",
     descartarFormacionTexto: "Cambiaste la formación y todavía no la guardaste. Si la descartás, queda la que tiene el partido.",
     descartarFormacionSi: "Descartar",
+    equipoSinPermisoRenombrar: "No tenés permiso para cambiar el nombre de este equipo. Lo cambia quien administra el club.",
+    equipoSinPermisoCrear: "No tenés permiso para crear equipos. Los crea quien administra la plataforma.",
+    equipoRepetido: "Ya hay un equipo con ese nombre.",
+    equipoSinNombre: "Escribí el nombre del equipo.",
+    equipoErrorRenombrar: "No se pudo cambiar el nombre. Fijate la señal y probá de nuevo.",
+    equipoErrorCrear: "No se pudo crear el equipo. Fijate la señal y probá de nuevo.",
   },
   openfield: {
     abriendoTitulo: "Un momento…",

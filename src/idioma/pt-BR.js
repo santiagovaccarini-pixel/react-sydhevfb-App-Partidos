@@ -441,6 +441,12 @@ export default {
     descartarFormacionTitulo: "Descartar a escalação não salva?",
     descartarFormacionTexto: "Você mudou a escalação e ainda não salvou. Se descartar, fica a que a partida tem.",
     descartarFormacionSi: "Descartar",
+    equipoSinPermisoRenombrar: "Você não tem permissão para mudar o nome desta equipe. Quem muda é quem administra o clube.",
+    equipoSinPermisoCrear: "Você não tem permissão para criar equipes. Quem cria é quem administra a plataforma.",
+    equipoRepetido: "Já existe uma equipe com esse nome.",
+    equipoSinNombre: "Escreva o nome da equipe.",
+    equipoErrorRenombrar: "Não foi possível mudar o nome. Verifique o sinal e tente de novo.",
+    equipoErrorCrear: "Não foi possível criar a equipe. Verifique o sinal e tente de novo.",
   },
   openfield: {
     abriendoTitulo: "Um momento…",

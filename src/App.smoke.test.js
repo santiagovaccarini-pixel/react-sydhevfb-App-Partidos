@@ -56,13 +56,20 @@ vi.mock("./supabase.js", () => ({
           update: (cambios) => {
             doblesSupabase.renombrarEquipo(cambios);
             return {
-              eq: async (campo, valor) => {
-                const equipo = doblesSupabase.equipos.find((e) => e.id === valor);
-                if (equipo && !doblesSupabase.errorEquipos) {
-                  equipo.nombre = cambios.nombre;
-                }
-                return { data: [], error: doblesSupabase.errorEquipos };
-              },
+              // Devuelve la fila cambiada, como la base cuando se le pide
+              // (sin permiso no devolvería ninguna).
+              eq: (campo, valor) => ({
+                select: async () => {
+                  const equipo = doblesSupabase.equipos.find((e) => e.id === valor);
+                  if (equipo && !doblesSupabase.errorEquipos) {
+                    equipo.nombre = cambios.nombre;
+                  }
+                  return {
+                    data: equipo && !doblesSupabase.errorEquipos ? [{ id: equipo.id }] : [],
+                    error: doblesSupabase.errorEquipos,
+                  };
+                },
+              }),
             };
           },
         };

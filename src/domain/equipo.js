@@ -145,38 +145,60 @@ export const elegirEquipoInicial = (equipos, guardado, { huboError } = {}) => {
   return null;
 };
 
+/**
+ * Por qué no se pudo crear o renombrar, para que cada pantalla lo diga en su
+ * idioma: "vacio", "repetido", "permiso" (la base no lo deja: RLS) u "otro".
+ * `error` sigue trayendo el texto de siempre para quien ya lo usaba.
+ */
+export const motivoDelError = (error) => {
+  const texto = `${error?.code || ""} ${error?.message || ""}`;
+  if (/duplicate key|unique|23505/i.test(texto)) return "repetido";
+  if (/row-level security|permission denied|not allowed|42501|insufficient_privilege/i.test(texto)) {
+    return "permiso";
+  }
+  return "otro";
+};
+
+const conMotivo = (error) => {
+  const motivo = motivoDelError(error);
+  return {
+    error: motivo === "repetido" ? "Ya hay un equipo con ese nombre." : error.message,
+    motivo,
+  };
+};
+
 export const crearEquipo = async (nombre) => {
   const limpio = limpiar(nombre);
-  if (!limpio) return { error: "Escribí el nombre del equipo." };
+  if (!limpio) return { error: "Escribí el nombre del equipo.", motivo: "vacio" };
 
   const { data, error } = await supabase
     .from("equipos")
     .insert([{ nombre: limpio }])
     .select();
 
-  if (error) {
-    const repetido = /duplicate key|unique/i.test(error.message || "");
-    return {
-      error: repetido ? "Ya hay un equipo con ese nombre." : error.message,
-    };
-  }
+  if (error) return conMotivo(error);
 
   return { equipo: normalizarEquipo(data?.[0]) };
 };
 
 export const renombrarEquipo = async (id, nombre) => {
   const limpio = limpiar(nombre);
-  if (!limpio) return { error: "Escribí el nombre del equipo." };
+  if (!limpio) return { error: "Escribí el nombre del equipo.", motivo: "vacio" };
 
-  const { error } = await supabase
+  // Se pide la fila de vuelta: sin permiso (RLS) la base no da error, solo no
+  // cambia nada, y la pantalla decía "Nombre cambiado" igual.
+  const { data, error } = await supabase
     .from("equipos")
     .update({ nombre: limpio })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id");
 
-  if (error) {
-    const repetido = /duplicate key|unique/i.test(error.message || "");
+  if (error) return conMotivo(error);
+
+  if ((data?.length ?? 0) === 0) {
     return {
-      error: repetido ? "Ya hay un equipo con ese nombre." : error.message,
+      error: "No tenés permiso para cambiar el nombre de este equipo.",
+      motivo: "permiso",
     };
   }
 

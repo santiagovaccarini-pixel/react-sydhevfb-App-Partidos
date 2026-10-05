@@ -20,6 +20,7 @@ import {
   renombrarEquipo,
 } from "./domain/equipo";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import { permisosEnClub } from "./domain/perfilesDb.js";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./domain/alDia.js";
 import {
   canchaDesdeTitulares,
@@ -1090,7 +1091,14 @@ const EstadoVersionApp = ({ actualizacionDisponible, onActualizar }) => (
 // Desde el portal, la portada de la tarjeta ya hizo de imagen de entrada, así
 // que Partido entra directo (intro=false). Sola, la app sigue abriendo con
 // la foto del estadio.
-export default function App({ intro = true, onVolver = null, onCerrarSesion = null } = {}) {
+// `permisos`: los de la cuenta (los pasa el portal). Sin ellos (la app suelta,
+// o una prueba) Ajustes › Equipo se ve como antes.
+export default function App({
+  intro = true,
+  onVolver = null,
+  onCerrarSesion = null,
+  permisos = null,
+} = {}) {
   const crearCambioVacio = () => ({
     sale: "",
     entra: "",
@@ -6353,11 +6361,33 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     window.setTimeout(() => setAvisoEquipo(""), 2600);
   };
 
-  const renombrarEsteEquipo = async () => {
-    const { error } = await renombrarEquipo(equipoId, nombreEquipoEditado);
+  // Lo que dice la pantalla cuando crear o renombrar no se pudo, en el
+  // idioma de la app. Antes se mostraba el error crudo de la base (en
+  // inglés) o, si la base no dejaba renombrar, "Nombre cambiado" igual.
+  const textoErrorEquipo = (respuesta, accion) => {
+    if (respuesta.motivo === "vacio") return t("partido.equipoSinNombre");
+    if (respuesta.motivo === "repetido") return t("partido.equipoRepetido");
+    if (respuesta.motivo === "permiso") {
+      return accion === "crear"
+        ? t("partido.equipoSinPermisoCrear")
+        : t("partido.equipoSinPermisoRenombrar");
+    }
+    console.warn(`No se pudo ${accion} el equipo:`, respuesta.error);
+    return accion === "crear"
+      ? t("partido.equipoErrorCrear")
+      : t("partido.equipoErrorRenombrar");
+  };
 
-    if (error) {
-      setErrorEquipo(error);
+  const renombrarEsteEquipo = async () => {
+    let respuesta;
+    try {
+      respuesta = await renombrarEquipo(equipoId, nombreEquipoEditado);
+    } catch (error) {
+      respuesta = { error: error?.message || String(error), motivo: "otro" };
+    }
+
+    if (respuesta.error) {
+      setErrorEquipo(textoErrorEquipo(respuesta, "renombrar"));
       return;
     }
 
@@ -6372,10 +6402,16 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   };
 
   const sumarEquipo = async () => {
-    const { equipo, error } = await crearEquipo(nombreEquipoNuevo);
+    let respuesta;
+    try {
+      respuesta = await crearEquipo(nombreEquipoNuevo);
+    } catch (error) {
+      respuesta = { error: error?.message || String(error), motivo: "otro" };
+    }
+    const { equipo } = respuesta;
 
-    if (error) {
-      setErrorEquipo(error);
+    if (respuesta.error || !equipo) {
+      setErrorEquipo(textoErrorEquipo(respuesta, "crear"));
       return;
     }
 
@@ -6406,7 +6442,27 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
   const renderAjustesEquipo = () => {
     const enEdicion = nombreEquipoEditado.trim();
-    const otros = equipos.filter((equipo) => equipo.id !== equipoId);
+    // Para cambiar de club, solo aquellos en los que la cuenta está hoy. El
+    // dueño de la plataforma ve también clubes donde no está (adentro no
+    // vería nada) y quien dejó un club lo mira desde el portal, en solo
+    // lectura. Sin club elegido se ofrecen también esos, como en el portal.
+    const otros = equipos.filter(
+      (equipo) =>
+        equipo.id !== equipoId &&
+        equipo.miembro !== false &&
+        (!equipo.hasta || !equipoId),
+    );
+    // Renombrar es de quien administra el club (o de la plataforma) y crear
+    // un club, solo del dueño de la plataforma: los demás chocaban con la
+    // base. Se decide con la membresía del club y los permisos de la cuenta;
+    // si no se sabe ninguna de las dos cosas, se muestra como antes.
+    const clubActual =
+      equipos.find((equipo) => equipo.id === equipoId) ||
+      (equipoGuardado?.id === equipoId ? equipoGuardado : null);
+    const enEsteClub = permisosEnClub(permisos || {}, clubActual);
+    const puedeRenombrar =
+      (!permisos && !clubActual?.rol) || enEsteClub.admin || enEsteClub.adminClub;
+    const puedeCrear = !permisos || Boolean(permisos.admin);
 
     return (
       <div className="app">
@@ -6438,6 +6494,8 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                   <strong>{enEdicion || "Sin nombre"}</strong>
                 </div>
 
+                {puedeRenombrar && (
+                <>
                 <label className="etiqueta-equipo" htmlFor="nombre-equipo">
                   Nombre del equipo
                 </label>
@@ -6468,6 +6526,8 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                 >
                   Guardar nombre
                 </button>
+                </>
+                )}
               </>
             ) : null}
           </section>
@@ -6504,6 +6564,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             </section>
           )}
 
+          {puedeCrear && (
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">
               <b>Agregar un equipo</b>
@@ -6531,6 +6592,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
               partidos y sin plantel, y este teléfono pasa a ese equipo.
             </p>
           </section>
+          )}
 
           {errorEquipo && <p className="error-equipo">{errorEquipo}</p>}
 
