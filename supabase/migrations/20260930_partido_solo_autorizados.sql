@@ -18,6 +18,16 @@
 
 begin;
 
+-- Freno (05/10): con las cuentas v2 (clubes, 20261004) esto abriría o
+-- mezclaría los partidos de todos los clubes. Ya no se corre: el Excel entra
+-- con la cuenta de la app (excel/SupabaseSesion.bas).
+do $$
+begin
+  if to_regprocedure('public.puede_usar_en(uuid, text)') is not null then
+    raise exception 'Ya están las cuentas por club (20261004): este SQL abriría los partidos de todos los clubes. No hace falta: el Excel entra con la cuenta de la app (excel/SupabaseSesion.bas).';
+  end if;
+end $$;
+
 -- Cualquier cuenta autorizada con al menos un módulo (el admin cuenta).
 create or replace function public.esta_autorizado()
 returns boolean

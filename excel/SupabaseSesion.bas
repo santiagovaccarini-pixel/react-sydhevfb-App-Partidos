@@ -48,7 +48,8 @@ Public Function SB_Token() As String
     correo = InputBox("Correo de tu cuenta de la app:", "Entrar a la base", SB_CorreoGuardado())
     correo = Trim(correo)
     If correo = "" Then Err.Raise vbObjectError + 701, "Supabase", "Sin el correo no se puede entrar a la base."
-    contrasena = InputBox("Contraseña de " & correo & ":", "Entrar a la base")
+    ' (Excel no puede ocultarla en este cuadro: se ve lo que se escribe.)
+    contrasena = InputBox("Contraseña de " & correo & ":" & vbCrLf & vbCrLf & "Ojo: se ve lo que escribís.", "Entrar a la base")
     If contrasena = "" Then Err.Raise vbObjectError + 702, "Supabase", "Sin la contraseña no se puede entrar a la base."
 
     Dim http As Object
@@ -73,11 +74,16 @@ Public Function SB_Token() As String
     mToken = token
     ' Dos minutos antes de que venza, se vuelve a pedir.
     mVence = Now + (segundos - 120) / 86400#
+    ' Con otra cuenta, el club se vuelve a elegir.
+    If StrComp(correo, SB_CorreoGuardado(), vbTextCompare) <> 0 Then mClubId = ""
     SB_GuardarCorreo correo
     SB_Token = mToken
 End Function
 
 Public Function SB_ClubId() As String
+    ' Primero la cuenta (si hay que volver a entrar, puede cambiar el club).
+    Dim token As String
+    token = SB_Token()
     If mClubId <> "" Then
         SB_ClubId = mClubId
         Exit Function
@@ -86,9 +92,11 @@ Public Function SB_ClubId() As String
     Dim http As Object
     Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
     http.setTimeouts 5000, 5000, 15000, 15000
-    http.Open "GET", BASE_URL & "/rest/v1/v_mis_clubes?select=id,nombre&order=nombre.asc", False
+    ' Solo los clubes donde la cuenta sigue y tiene Partido: los demás no
+    ' dejan leer sus partidos.
+    http.Open "GET", BASE_URL & "/rest/v1/v_mis_clubes?select=id,nombre&partido=is.true&hasta=is.null&order=nombre.asc", False
     http.setRequestHeader "apikey", BASE_CLAVE
-    http.setRequestHeader "Authorization", "Bearer " & SB_Token()
+    http.setRequestHeader "Authorization", "Bearer " & token
     http.setRequestHeader "Accept", "application/json"
     http.send
 
@@ -101,7 +109,7 @@ Public Function SB_ClubId() As String
     Set nombres = SB_TodosLosValores(http.responseText, "nombre")
 
     If ids.Count = 0 Then
-        Err.Raise vbObjectError + 706, "Supabase", "La cuenta no está en ningún club."
+        Err.Raise vbObjectError + 706, "Supabase", "La cuenta no tiene Partido en ningún club en el que siga activa."
     ElseIf ids.Count = 1 Then
         mClubId = ids(1)
     Else
