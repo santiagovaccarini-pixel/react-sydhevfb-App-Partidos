@@ -75,6 +75,13 @@
   --tabla-datos-apagada: #e4ded5;
 }
 
+/* Con todas las columnas con su ancho, la tabla mide lo que suman (sin
+   estirarse hasta el borde: si no, el navegador les repartiría lo que
+   sobra). */
+.tabla-datos-tabla.con-anchos {
+  min-width: 0;
+}
+
 .tabla-datos-tabla {
   /* El alto de la fila de los grupos: las cabeceras quedan fijas debajo. */
   --tabla-datos-alto-grupos: 34px;
@@ -241,9 +248,11 @@
   overflow: visible;
 }
 
+/* (z-index 0: por encima de las celdas comunes, pero debajo de las fijas, si
+   la celda queda corrida debajo de ellas.) */
 .tabla-datos-tabla td.editando input {
   position: relative;
-  z-index: 1;
+  z-index: 0;
 }
 
 .tabla-datos-tabla td input {
@@ -418,6 +427,10 @@
 }
 
 .tabla-datos-filtro {
+  /* Por encima del borde de la columna: un toque en el botón abre el filtro
+     aunque la columna esté muy angosta. */
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   flex: none;
   align-items: center;

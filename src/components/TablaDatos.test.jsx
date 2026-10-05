@@ -21,7 +21,7 @@ const tocar = async (elemento) => act(async () => elemento.click());
 const puntero = (elemento, tipo, extra = {}) => {
   const evento = new MouseEvent(tipo, { bubbles: true, cancelable: true, clientX: extra.x ?? 0, clientY: extra.y ?? 0, button: 0 });
   Object.defineProperty(evento, "pointerType", { value: extra.pointerType || "mouse" });
-  Object.defineProperty(evento, "pointerId", { value: 1 });
+  Object.defineProperty(evento, "pointerId", { value: extra.pointerId ?? 1 });
   return act(async () => elemento.dispatchEvent(evento));
 };
 
@@ -531,9 +531,9 @@ describe("la tabla estilo Excel", () => {
     expect(tabla().style.getPropertyValue("--tabla-ancho-nombre")).toBe("70px");
     expect(cabecera().style.width).toBe("var(--tabla-ancho-nombre)");
     expect(celda(contenedor, 1, 0).style.maxWidth).toBe("var(--tabla-ancho-nombre)");
-    // No se achica menos que el botón del filtro.
+    // No se achica menos que el botón del filtro y el borde.
     await puntero(borde(), "pointermove", { x: -400 });
-    expect(tabla().style.getPropertyValue("--tabla-ancho-nombre")).toBe("44px");
+    expect(tabla().style.getPropertyValue("--tabla-ancho-nombre")).toBe("56px");
     await puntero(borde(), "pointermove", { x: 260 });
     await puntero(borde(), "pointerup", { x: 260 });
     expect(tabla().classList.contains("ajustando")).toBe(false);
@@ -562,7 +562,7 @@ describe("la tabla estilo Excel", () => {
     const tabla = contenedor.querySelector("table");
     // Un ancho que no es número no va; uno muy chico queda en el mínimo.
     expect(tabla.style.getPropertyValue("--tabla-ancho-edad")).toBe("");
-    expect(tabla.style.getPropertyValue("--tabla-ancho-pie")).toBe("44px");
+    expect(tabla.style.getPropertyValue("--tabla-ancho-pie")).toBe("56px");
     const nombre = contenedor.querySelectorAll("th[data-columna]")[0];
     conAncho(nombre, 120);
     const borde = nombre.querySelector(".tabla-datos-borde");
@@ -583,6 +583,68 @@ describe("la tabla estilo Excel", () => {
     expect(jugador.firstElementChild.classList.contains("tabla-datos-envoltura")).toBe(true);
     expect(cuerpo.firstElementChild.classList.contains("tabla-datos-envoltura")).toBe(false);
     expect(jugador.textContent).toBe("Jugador");
+  });
+
+  test("con todas las columnas con su ancho la tabla no se estira, y el arrastre sale del ancho guardado", async () => {
+    localStorage.setItem("tabla_anchos:prueba", JSON.stringify({ nombre: 80, edad: 80 }));
+    await montar();
+    const tabla = contenedor.querySelector("table");
+    // Pie se acomoda sola: la tabla puede ocupar todo el ancho.
+    expect(tabla.classList.contains("con-anchos")).toBe(false);
+    const [nombre, , pie] = contenedor.querySelectorAll("th[data-columna]");
+    conAncho(pie, 90);
+    await puntero(pie.querySelector(".tabla-datos-borde"), "pointerdown", { x: 100 });
+    await puntero(pie.querySelector(".tabla-datos-borde"), "pointermove", { x: 110 });
+    await puntero(pie.querySelector(".tabla-datos-borde"), "pointerup", { x: 110 });
+    // Ahora las tres tienen ancho: la tabla mide lo que suman.
+    expect(tabla.classList.contains("con-anchos")).toBe(true);
+    // Aunque el navegador la muestre más ancha, se arrastra desde la guardada.
+    conAncho(nombre, 114);
+    await puntero(nombre.querySelector(".tabla-datos-borde"), "pointerdown", { x: 100 });
+    await puntero(nombre.querySelector(".tabla-datos-borde"), "pointermove", { x: 90 });
+    await puntero(nombre.querySelector(".tabla-datos-borde"), "pointerup", { x: 90 });
+    expect(JSON.parse(localStorage.getItem("tabla_anchos:prueba"))).toEqual({ nombre: 70, edad: 80, pie: 100 });
+  });
+
+  test("un segundo dedo no le cambia la columna al primero, y si se corta el arrastre queda lo que había", async () => {
+    await montar();
+    const tabla = contenedor.querySelector("table");
+    const [nombre, edad] = contenedor.querySelectorAll("th[data-columna]");
+    conAncho(nombre, 120);
+    conAncho(edad, 100);
+    const bordeNombre = nombre.querySelector(".tabla-datos-borde");
+    const bordeEdad = edad.querySelector(".tabla-datos-borde");
+    await puntero(bordeNombre, "pointerdown", { x: 200, pointerId: 1, pointerType: "touch" });
+    // Otro dedo en otro borde: no hace nada.
+    await puntero(bordeEdad, "pointerdown", { x: 300, pointerId: 2, pointerType: "touch" });
+    await puntero(bordeEdad, "pointermove", { x: 250, pointerId: 2, pointerType: "touch" });
+    await puntero(bordeEdad, "pointerup", { x: 250, pointerId: 2, pointerType: "touch" });
+    expect(tabla.style.getPropertyValue("--tabla-ancho-edad")).toBe("");
+    // El primero sigue, y el navegador corta el arrastre: queda lo último.
+    await puntero(bordeNombre, "pointermove", { x: 230, pointerId: 1, pointerType: "touch" });
+    await puntero(bordeNombre, "lostpointercapture", { x: 230, pointerId: 1, pointerType: "touch" });
+    expect(tabla.classList.contains("ajustando")).toBe(false);
+    expect(JSON.parse(localStorage.getItem("tabla_anchos:prueba"))).toEqual({ nombre: 150 });
+    // Ya terminado, mover sobre el borde no cambia nada.
+    await puntero(bordeNombre, "pointermove", { x: 400, pointerId: 1 });
+    expect(tabla.style.getPropertyValue("--tabla-ancho-nombre")).toBe("150px");
+  });
+
+  test("Mayúscula + espacio con varias filas elegidas elige esas filas enteras", async () => {
+    await montar();
+    await tocar(celda(contenedor, 0, 1));
+    await act(async () => celda(contenedor, 1, 1).dispatchEvent(new MouseEvent("click", { bubbles: true, shiftKey: true })));
+    expect(contenedor.textContent).toContain("2 celdas elegidas");
+    await act(async () => contenedor.querySelector(".tabla-datos-marco").dispatchEvent(new KeyboardEvent("keydown", { key: " ", shiftKey: true, bubbles: true })));
+    expect(contenedor.textContent).toContain("6 celdas elegidas");
+  });
+
+  test("el título del grupo de una columna fija no la ensancha", async () => {
+    const conGrupos = columnas.map((columna, i) => ({ ...columna, ancho: i === 0 ? 60 : undefined, grupo: i < 2 ? "jugador" : "cuerpo", grupoTitulo: i < 2 ? "Un título de grupo bien largo" : "Cuerpo" }));
+    await montar({ columnas: conGrupos, fijas: ["nombre"] });
+    const [jugador, cuerpo] = contenedor.querySelectorAll(".tabla-datos-grupos th");
+    expect(jugador.firstElementChild.classList.contains("tabla-datos-envoltura")).toBe(true);
+    expect(cuerpo.firstElementChild.classList.contains("tabla-datos-envoltura")).toBe(false);
   });
 
   test("una columna fija también se achica, y las fijas de al lado la siguen", async () => {

@@ -53,8 +53,9 @@ import "./tablaDatos.css";
 // condicional de Excel. estilos: { id de fila: { clave: estilo } }; arriba:
 // filas que van sobre las cabeceras, alineadas con cada columna:
 // [{ id, rotulo, alto?, celdas: { clave: { texto, estilo } } }]. El rótulo
-// ocupa las columnas fijas (alto: cuántas filas); con rotulo: null, esa fila
-// queda bajo el rótulo de la de arriba.
+// ocupa las columnas fijas (sin fijas, la primera columna, y el dato de esa
+// columna no se ve) y alto: cuántas filas; con rotulo: null, esa fila queda
+// bajo el rótulo de la de arriba.
 // Una columna con `alinear: "centro"` va centrada.
 // siempreAVista: ids de filas que se ven aunque los filtros las dejen afuera
 // (una fila recién agregada, para completarla ahí), hasta que se cambien los
@@ -63,8 +64,9 @@ import "./tablaDatos.css";
 const CLAVE_ORDEN = "tabla_columnas";
 const CLAVE_ANCHOS = "tabla_anchos";
 const ESPERA_APRETAR = 380;
-// Lo más angosta que queda una columna: entra el botón del filtro.
-const ANCHO_MINIMO = 44;
+// Lo más angosta que queda una columna: entran el botón del filtro (con la
+// flecha del orden) y el borde para agrandarla, también con el dedo.
+const ANCHO_MINIMO = 56;
 // El ancho de una columna fija que no trae el suyo.
 const ANCHO_FIJA = 120;
 
@@ -213,6 +215,10 @@ export const TablaDatos = ({
     return estilos;
   }, [clavesFijas, anchosVigentes]);
   const claseFija = (clave) => (clavesFijas.includes(clave) ? `inmovil ${clave === clavesFijas.at(-1) ? "ultima-inmovil" : ""}`.trim() : "");
+  // Con todas las columnas a la vista con su ancho, la tabla mide lo que
+  // suman (como en Excel, al lado queda vacío): si se estirara hasta el
+  // borde, el navegador repartiría lo que sobra entre ellas.
+  const todasConAncho = visibles.length > 0 && visibles.every((col) => anchosVigentes[col.clave]);
   // Sin ninguna columna que se pueda cambiar (solo lectura), Pegar no va.
   const algoEditable = visibles.some((columna) => columna.editable);
 
@@ -414,9 +420,9 @@ export const TablaDatos = ({
     else if (evento.key === "ArrowRight") mover(0, 1);
     else if (evento.key === "ArrowLeft") mover(0, -1);
     else if (evento.key === " " && evento.shiftKey) {
-      // La fila entera, como en Excel.
+      // Las filas enteras de lo elegido, como en Excel.
       evento.preventDefault();
-      setSeleccion({ f1: activa.f, c1: 0, f2: activa.f, c2: visibles.length - 1 });
+      setSeleccion((actual) => ({ f1: actual ? actual.f1 : activa.f, c1: 0, f2: actual ? actual.f2 : activa.f, c2: visibles.length - 1 }));
     } else if (evento.key === "Enter" || evento.key === "F2" || (evento.key === " " && visibles[activa.c]?.tipo === "casilla")) {
       evento.preventDefault();
       empezarEdicion(activa.f, activa.c);
@@ -616,11 +622,14 @@ export const TablaDatos = ({
 
   const empezarAncho = (evento, clave) => {
     evento.stopPropagation();
+    // Un borde por vez: otro dedo no le cambia la columna al que ya arrastra.
+    if (ajusteRef.current) return;
     if (evento.button !== undefined && evento.button !== 0) return;
     evento.preventDefault();
     const cabecera = evento.currentTarget.closest("th");
-    const inicial = Math.max(ANCHO_MINIMO, Math.round(cabecera?.getBoundingClientRect().width || 0));
-    ajusteRef.current = { clave, desde: evento.clientX, inicial, actual: inicial, tenia: clave in anchos };
+    // Desde el ancho que tiene: el guardado o, si se acomoda sola, el que mide.
+    const inicial = Math.max(ANCHO_MINIMO, Math.round(anchosVigentes[clave] ?? cabecera?.getBoundingClientRect().width ?? 0));
+    ajusteRef.current = { clave, puntero: evento.pointerId, desde: evento.clientX, inicial, actual: inicial, tenia: clave in anchos };
     try {
       evento.currentTarget.setPointerCapture(evento.pointerId);
     } catch {
@@ -633,7 +642,7 @@ export const TablaDatos = ({
 
   const moverAncho = (evento) => {
     const ajuste = ajusteRef.current;
-    if (!ajuste) return;
+    if (!ajuste || evento.pointerId !== ajuste.puntero) return;
     evento.stopPropagation();
     evento.preventDefault();
     const ancho = Math.max(ANCHO_MINIMO, Math.round(ajuste.inicial + evento.clientX - ajuste.desde));
@@ -642,9 +651,11 @@ export const TablaDatos = ({
     tablaRef.current?.style.setProperty(variableDeAncho(ajuste.clave), `${ancho}px`);
   };
 
+  // Al soltar (o si el navegador corta el arrastre: otra ventana, la columna
+  // que ya no está), queda el ancho que tenía.
   const terminarAncho = (evento) => {
     const ajuste = ajusteRef.current;
-    if (!ajuste) return;
+    if (!ajuste || evento.pointerId !== ajuste.puntero) return;
     evento.stopPropagation();
     ajusteRef.current = null;
     setAjustando(null);
@@ -784,7 +795,7 @@ export const TablaDatos = ({
       <div className="tabla-datos-marco" tabIndex={0} onKeyDown={alTeclear} onPaste={alPegarEvento}>
         <table
           ref={tablaRef}
-          className={`tabla-datos-tabla ${arrastre ? "arrastrando" : ""} ${ajustando ? "ajustando" : ""} ${hayGrupos ? "con-grupos" : ""}`.trim()}
+          className={`tabla-datos-tabla ${arrastre ? "arrastrando" : ""} ${ajustando ? "ajustando" : ""} ${todasConAncho ? "con-anchos" : ""} ${hayGrupos ? "con-grupos" : ""}`.trim()}
           style={variablesDeAncho}
         >
           <thead>
@@ -820,9 +831,10 @@ export const TablaDatos = ({
             {hayGrupos && (
               <tr className="tabla-datos-grupos">
                 {tramos.map((tramo) => {
-                  // Con una columna del grupo achicada a mano, el título del
-                  // grupo no la ensancha: si no entra, se corta.
-                  const achicado = visibles.slice(tramo.desde, tramo.desde + tramo.cantidad).some((col) => col.clave in anchos);
+                  // Con una columna del grupo con su ancho (elegido a mano o
+                  // fija), el título del grupo no la ensancha: si no entra,
+                  // se corta.
+                  const achicado = visibles.slice(tramo.desde, tramo.desde + tramo.cantidad).some((col) => anchosVigentes[col.clave]);
                   return (
                     <th
                       key={`${tramo.grupo}-${tramo.desde}`}
@@ -885,6 +897,7 @@ export const TablaDatos = ({
                       onPointerMove={moverAncho}
                       onPointerUp={terminarAncho}
                       onPointerCancel={terminarAncho}
+                      onLostPointerCapture={terminarAncho}
                       onClick={(evento) => evento.stopPropagation()}
                       onDoubleClick={(evento) => {
                         evento.stopPropagation();

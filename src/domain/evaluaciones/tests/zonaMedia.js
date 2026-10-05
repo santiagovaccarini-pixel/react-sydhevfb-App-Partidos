@@ -208,11 +208,11 @@ const calcularFila = ({ entrada: e, numero, total, anterior, referencias }) => {
 // ancho (en píxeles, de borde a borde). Posición no va: no se usa
 // (Santiago, 05/10).
 export const COLUMNAS = Object.freeze([
-  { clave: "numero", titulo: et("nº Eva", "nº Aval."), tipo: "calculado", formato: "General", fija: true, ancho: 116 },
-  { clave: "fecha", titulo: et("Fecha", "Data"), tipo: "fecha", fija: true, ancho: 180 },
-  { clave: "jugador", titulo: et("Jugador", "Jogador"), tipo: "jugador", fija: true, ancho: 188 },
-  { clave: "seleccion", titulo: et("Seleccion", "Seleção"), tipo: "lista", fija: true, ancho: 124 },
-  { clave: "fecha_nac", titulo: et("Fecha Nac", "Data Nasc."), tipo: "dato_jugador", fija: true, ancho: 124 },
+  { clave: "numero", titulo: et("nº Eva", "nº Aval."), tipo: "calculado", formato: "General", fija: true, ancho: 96 },
+  { clave: "fecha", titulo: et("Fecha", "Data"), tipo: "fecha", fija: true, ancho: 160 },
+  { clave: "jugador", titulo: et("Jugador", "Jogador"), tipo: "jugador", fija: true, ancho: 168 },
+  { clave: "seleccion", titulo: et("Seleccion", "Seleção"), tipo: "lista", fija: true, ancho: 120 },
+  { clave: "fecha_nac", titulo: et("Fecha Nac", "Data Nasc."), tipo: "dato_jugador", fija: true, ancho: 120 },
   { clave: "lumbar", titulo: et("Lumbar", "Lombar"), tipo: "tiempo", formato: "tiempo" },
   { clave: "lumbar_clas", titulo: et("L. Clas", "L. Clas"), tipo: "calculado", formato: "General" },
   { clave: "lumbar_mejora", titulo: et("% mejora", "% melhora"), tipo: "calculado", formato: "0.0%" },
