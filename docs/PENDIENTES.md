@@ -629,6 +629,9 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   regla de color. En los V.R. de Mayor, el Ratio sale del Bueno de a 0,17 (Muy Bueno = Bueno +
   0,17, Excelente = Muy Bueno + 0,17, Regular = Bueno − 0,17, Malo = Regular − 0,17): en la
   base están los valores ya calculados; si el club cambia el Bueno, hay que cambiar los otros.
+- Más adelante (Santiago, 05/10): los valores de referencia pasarían a un módulo propio de la
+  pantalla principal, **Valor Referencial**. Por ahora van en Evaluaciones, en la pestaña
+  "Valores de referencia" (solo lectura, cargados por SQL).
 - Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja: CurlNordico
   e Isoprone, Isocinecia, Funcional, Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y
   Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,

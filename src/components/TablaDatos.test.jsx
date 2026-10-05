@@ -219,19 +219,26 @@ describe("la tabla estilo Excel", () => {
     expect(contenedor.textContent).not.toContain("Mostrando");
   });
 
-  test("una fila que se pide a la vista se ve aunque el filtro la deje afuera", async () => {
-    await montar({ siempreAVista: [1] });
+  test("una fila que se pide a la vista se ve aunque el filtro la deje afuera, hasta que se cambian los filtros", async () => {
+    await montar();
     const filtro = (columna) => contenedor.querySelector(`.tabla-datos-filtro[aria-label="Filtrar u ordenar ${columna}"]`);
     const botonDe = (texto) => [...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === texto);
     const nombres = () => [...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent);
-    // Solo las de Pie vacío: HULK (izquierdo) quedaría afuera, pero se pidió a la vista.
-    await tocar(filtro("Pie"));
-    await tocar(botonDe("Ninguno"));
-    await tocar([...contenedor.querySelectorAll(".tabla-datos-valores label")][1].querySelector("input"));
-    await tocar(botonDe("Aplicar"));
+    const soloVacias = async () => {
+      await tocar(filtro("Pie"));
+      await tocar(botonDe("Ninguno"));
+      await tocar([...contenedor.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent.startsWith("(Vacías)")).querySelector("input"));
+      await tocar(botonDe("Aplicar"));
+    };
+    // Solo las de Pie vacío: HULK (izquierdo) queda afuera.
+    await soloVacias();
+    expect(nombres()).toEqual(["SCARPA"]);
+    // Se pide a la vista (como una recién agregada): se ve con el filtro puesto.
+    await montar({ siempreAVista: [1] });
     expect(nombres()).toEqual(["HULK", "SCARPA"]);
-    // Sin pedirla, el filtro la saca como siempre.
-    await montar({ siempreAVista: [] });
+    // Al cambiar los filtros vuelven a mandar los filtros, aunque se siga pidiendo.
+    await tocar(botonDe("Quitar filtros"));
+    await soloVacias();
     expect(nombres()).toEqual(["SCARPA"]);
   });
 
