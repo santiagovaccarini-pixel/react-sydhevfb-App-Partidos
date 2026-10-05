@@ -27,7 +27,7 @@ import {
   tramosDeLaTabla,
 } from "./domain/reportes.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta } from "./idioma/formatos.js";
+import { enLista, fechaCorta } from "./idioma/formatos.js";
 // La letra angosta de los títulos y los números del reporte (solo la latina,
 // que alcanza para el castellano y el portugués).
 import "@fontsource/roboto-condensed/latin-400.css";
@@ -287,8 +287,13 @@ export default function ReportesLesiones({
     valor === null || valor === undefined ? "—" : Number(valor).toLocaleString(idioma, { minimumFractionDigits: minimo, maximumFractionDigits: decimales });
   const textoSeveridad = (clave) => (clave === "abierta" ? t("lesiones.reportes.abierta") : texto("severidad", clave));
   const jugador = plantel.find((uno) => String(uno.id) === String(jugadorId)) || null;
-  // Qué lesiones entran en el cuadro, dicho con las opciones del club.
+  // Qué lesiones entran en el cuadro y cuáles son las LM, dicho con las
+  // opciones del club (Santiago, 05/10: que se aclare cuáles van).
   const criterio = ["producto", "cuando", "localizacion"].map((clave) => `${etiqueta(clave)}: ${REGLAS_INCIDENCIA[clave].map((codigo) => texto(clave, codigo)).join(", ")}`).join(" · ");
+  const queCuenta = [
+    t("lesiones.reportes.cuentan", { criterio }),
+    t("lesiones.reportes.cuentanLm", { lm: t("lesiones.reportes.tiposLM"), tipos: enLista(REGLAS_INCIDENCIA.tiposMusculares.map((codigo) => texto("tipo_lesion", codigo))) }),
+  ].join(" ");
 
   const acciones = (
     <div className="reporte-acciones no-imprimir">
@@ -372,7 +377,7 @@ export default function ReportesLesiones({
 
   // ------------------------------------- Lesiones c/1000h y días perdidos --
   if (modo === "cadaMil") {
-    return <ReporteCadaMil lesiones={lesiones} gps={gps} hoy={hoy} equipo={equipo} acciones={acciones} estado={estado} numero={numero} criterio={criterio} onAviso={onAviso} />;
+    return <ReporteCadaMil lesiones={lesiones} gps={gps} hoy={hoy} equipo={equipo} acciones={acciones} estado={estado} numero={numero} queCuenta={queCuenta} onAviso={onAviso} />;
   }
 
   // ---------------------------------------------------- Informes gráficos --
@@ -387,7 +392,7 @@ export default function ReportesLesiones({
         acciones={acciones}
         estado={estado}
         numero={numero}
-        criterio={criterio}
+        queCuenta={queCuenta}
         etiqueta={etiqueta}
         textoDeOpcion={texto}
         onIrA={setModo}
@@ -555,7 +560,7 @@ export default function ReportesLesiones({
                   </li>
                   <li>{t("lesiones.reportes.queEsRef")}</li>
                 </ul>
-                <p className="informe-criterio">{t("lesiones.reportes.cuentan", { criterio })}</p>
+                <p className="informe-criterio">{queCuenta}</p>
               </section>
 
               <section className="informe-mapa">
@@ -743,7 +748,7 @@ export default function ReportesLesiones({
             <div className="informe-indices">
               <CuadroCadaMil titulo={`${fechaCorta(desde)} – ${fechaCorta(hasta)}`} filas={filasCuadro} />
               {!gps && <p className="informe-aviso">{t("lesiones.reportes.faltaGps")}</p>}
-              <p className="informe-criterio">{t("lesiones.reportes.cuentan", { criterio })}</p>
+              <p className="informe-criterio">{queCuenta}</p>
             </div>,
           )}
 

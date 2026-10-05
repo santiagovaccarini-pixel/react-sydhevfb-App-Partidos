@@ -2,7 +2,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import ReportesLesiones from "./ReportesLesiones.jsx";
-import { CAMPOS, etiquetaDeCampo, etiquetaDeGrupo } from "./domain/lesionesCampos.js";
+import { CAMPOS, etiquetaDeCampo, etiquetaDeGrupo, etiquetaDeOpcion } from "./domain/lesionesCampos.js";
 import { tonosDeGrupos } from "./components/TablaDatos.jsx";
 import { crearMapa } from "./domain/mapaCorporal.js";
 import { fijarIdiomaParaPruebas } from "./idioma/index.js";
@@ -60,7 +60,7 @@ describe("los reportes con los minutos del GPS", () => {
     contenedor.remove();
   });
 
-  const montar = async (gps = GPS, plantel = PLANTEL, lesiones = LESIONES) => {
+  const montar = async (gps = GPS, plantel = PLANTEL, lesiones = LESIONES, textoDeOpcion = (campo, codigo) => codigo || "") => {
     await act(async () => {
       raiz = createRoot(contenedor);
       raiz.render(
@@ -72,7 +72,7 @@ describe("los reportes con los minutos del GPS", () => {
           hoy={hoy}
           etiqueta={(clave) => etiquetaDeCampo(clave, null, "es-AR")}
           etiquetaDeGrupo={(grupo) => etiquetaDeGrupo(grupo, null, "es-AR")}
-          textoDeOpcion={(campo, codigo) => codigo || ""}
+          textoDeOpcion={textoDeOpcion}
           enPantalla={(campo, lesion) => `${campo.clave}:${lesion.id}`}
           camposVisibles={CAMPOS}
           gps={gps}
@@ -312,6 +312,25 @@ describe("los reportes con los minutos del GPS", () => {
     expect(contenedor.querySelector(".reporte-portada small").textContent).toBe("01/01/2026 – 31/03/2026");
     // En el primer trimestre, solo la muscular de HULK (moderada).
     expect(filas(contenedor.querySelector(".informe-cuadro"))[0]).toEqual(["1", "1", "1", "1"]);
+  });
+
+  test("debajo de cada cuadro cada 1000 h dice qué lesiones cuentan y cuáles son las LM, con los textos del club", async () => {
+    const LM =
+      "En «Tipos (SOLO LM)», de esas, las de tipo Lesión muscular grado 1 A, Lesión muscular grado 1 B, Lesión muscular grado 1 C, Lesión muscular grado 2 A, Lesión muscular grado 2 B, Lesión muscular grado 2 C, Lesión muscular grado 3 A, Lesión muscular grado 3 B, Lesión muscular grado 3 C y Sobrecarga muscular / calambre.";
+    periodosGuardados.lista = [{ id: "p-0", nombre: "Primer trimestre", desde: "2026-01-01", hasta: "2026-03-31" }];
+    // Con los textos de las opciones, como en la app.
+    await montar(GPS, PLANTEL, LESIONES, (campo, codigo) => etiquetaDeOpcion(campo, codigo, null, "es-AR"));
+    await tocar(botonQueEmpieza("Reporte grupal"));
+    const nota = contenedor.querySelector(".informe-criterio").textContent;
+    expect(nota).toMatch(/^Cuentan las lesiones con Producto: No traumática · .+\. En «Tipos \(SOLO LM\)»/);
+    expect(nota.slice(nota.indexOf("En «"))).toBe(LM);
+    // La misma nota en el individual, en Lesiones c/1000h y en Informes gráficos.
+    await tocar(contenedor.querySelector(".reporte-volver"));
+    await tocar(botonQueEmpieza("Lesiones c/1000h y días perdidos"));
+    expect(contenedor.querySelector(".informe-criterio").textContent).toBe(nota);
+    await tocar(contenedor.querySelector(".reporte-volver"));
+    await tocar(botonQueEmpieza("Informes gráficos"));
+    expect(contenedor.querySelector(".reporte-graficos-notas .informe-criterio").textContent).toBe(nota);
   });
 
   test("Lesiones c/1000h sin los minutos del GPS: los números del período y un aviso", async () => {
