@@ -19,8 +19,9 @@ Sub Traer_Partido_Desde_Supabase()
     
     Set ws = ThisWorkbook.Sheets("Plantilla")
     
-    url = "https://gwzebinonoaaxtdkpqem.supabase.co"
-    apiKey = "sb_publishable_Sj4GFkR23dsbe07y04-YRA_JlVDBPan"
+    ' La base pide entrar con la cuenta de la app (módulo SupabaseSesion).
+    url = SB_Url()
+    apiKey = SB_ClavePublica()
     
     fechaExcel = ws.Range("DJ101").Text
     
@@ -37,13 +38,14 @@ Sub Traer_Partido_Desde_Supabase()
     End If
     
     endpoint = url & "/rest/v1/registros_partido?fecha=eq." & fechaSupabase & _
+               "&equipo_id=eq." & SB_ClubId() & _
                "&select=*&order=created_at.desc&limit=1"
     
     Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
     http.setTimeouts 5000, 5000, 10000, 10000
     http.Open "GET", endpoint, False
     http.setRequestHeader "apikey", apiKey
-    http.setRequestHeader "Authorization", "Bearer " & apiKey
+    http.setRequestHeader "Authorization", "Bearer " & SB_Token()
     http.setRequestHeader "Content-Type", "application/json"
     http.setRequestHeader "Accept", "application/json"
     http.Send
