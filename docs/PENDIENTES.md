@@ -930,6 +930,17 @@ encontró la revisión y cómo quedó:
   pasan por el mismo control de correo que al invitar, y quién invitó no cambia (antes
   un administrador podía poner a alguien de otro club como autor y así figuraba en la
   historia del alta).
+- **Al club se entra por invitación.** Un administrador de club podía sumar a su club
+  cualquier cuenta de la que supiera el id (sin invitación) y con eso leer su perfil
+  (correo, estado). La app nunca suma a mano: invitación, el creador del club y
+  reincorporar (que cambia la membresía que ya está) siguen igual. Sumar a mano queda
+  solo para el dueño de la plataforma. Se eligió esto y no recortar lo que el
+  administrador ve de su gente: la pantalla Cuentas necesita el correo y el estado.
+- **Orden para ponerlo en producción:** la migración y la app no dependen una de la otra
+  (la app de antes anda con la migración y la nueva sin ella). Conviene correr la
+  migración cuanto antes: es la que cierra lo de Lesiones. Al final muestra cuántos
+  cambios del historial quedaron sin club (tiene que dar 0) y las lesiones con jugador
+  de otro club, para mirarlas.
 - **OpenField (Flujo diario) mira la membresía.** La API de Catapult autorizaba con los
   permisos viejos de `perfiles` (flujo, admin): quien se iba del club seguía leyendo y
   quien entraba por invitación con Flujo diario quedaba afuera. Ahora decide

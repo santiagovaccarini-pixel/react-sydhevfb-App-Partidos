@@ -10,6 +10,12 @@
 --   · Una lesión es de un jugador de su club (como una evaluación): al
 --     cargarla o al cambiarle el jugador, uno de otro club no entra
 --     (jugador_de_otro_club). Lo que ya estaba cargado no se toca.
+--   · Quién cargó una lesión y quién la cambió lo pone la base; una
+--     invitación cambiada pasa por el mismo control que al invitar y quién
+--     invitó no cambia.
+--   · Al club se entra por invitación: un administrador de club ya no suma
+--     a mano una cuenta cualquiera (y con eso leía su perfil). Sumar a mano
+--     queda para el dueño de la plataforma.
 --
 -- Requiere 20261012_evaluaciones.sql. Se corre en Supabase > SQL Editor,
 -- entero y de una vez. Solo agrega o ajusta: la app de antes sigue andando.
@@ -191,12 +197,29 @@ create trigger club_invitaciones_preparar
 
 revoke execute on function public.club_invitaciones_preparar() from public, anon, authenticated;
 
+-- ----------------------------------- Al club se entra por invitación --
+
+-- Un administrador de club podía sumar a su club cualquier cuenta de la que
+-- supiera el id (sin invitación ni consentimiento) y con eso leer su perfil
+-- (correo, estado). La app nunca lo hace: se entra por invitación
+-- (aplicar_invitaciones), quien crea un club entra solo
+-- (equipos_sumar_creador), y reincorporar es cambiar la membresía que ya
+-- está. Esas tres siguen igual; sumar a mano queda para el dueño de la
+-- plataforma (que ya ve todas las cuentas).
+drop policy if exists club_miembros_crear on public.club_miembros;
+create policy club_miembros_crear on public.club_miembros
+  for insert to authenticated
+  with check ((select public.es_admin()));
+
 commit;
 
 -- Para ver que quedó bien: ningún cambio del historial sin club (tiene que
--- dar 0) y las políticas del historial (una sola).
+-- dar 0), las políticas del historial (una sola) y quién suma gente a un
+-- club a mano (solo el dueño: es_admin).
 select count(*) as historial_sin_club from public.lesiones_historial where equipo_id is null;
 select policyname from pg_policies where schemaname = 'public' and tablename = 'lesiones_historial';
+select policyname, with_check from pg_policies
+ where schemaname = 'public' and tablename = 'club_miembros' and cmd = 'INSERT';
 -- Lesiones de un jugador que hoy es de otro club: las de un jugador que se
 -- pasó de club después están bien; si aparece alguna más, mirarla a mano.
 select l.equipo_id as club_de_la_lesion, j.equipo_id as club_del_jugador, count(*) as lesiones
