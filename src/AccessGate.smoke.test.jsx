@@ -21,7 +21,12 @@ const supa = vi.hoisted(() => ({
   cambios: [],
   // Lo que trajo la URL al abrirse (enlace del correo), cambiable por prueba.
   enlace: { tipo: "", error: "", descripcion: "" },
+  // Con barras pero sin datos: el pedido sale y no contesta nunca.
+  colgarSesion: false,
+  colgarPerfil: false,
 }));
+
+const nunca = () => new Promise(() => {});
 
 vi.mock("./supabase.js", () => ({
   get ENLACE_DE_ACCESO() {
@@ -29,7 +34,7 @@ vi.mock("./supabase.js", () => ({
   },
   supabase: {
     auth: {
-      getSession: async () => ({ data: { session: supa.sesion }, error: supa.errorSesion }),
+      getSession: () => (supa.colgarSesion ? nunca() : Promise.resolve({ data: { session: supa.sesion }, error: supa.errorSesion })),
       onAuthStateChange: (cb) => {
         supa.cambios.push(cb);
         return { data: { subscription: { unsubscribe() {} } } };
@@ -47,7 +52,7 @@ vi.mock("./supabase.js", () => ({
           return cadena;
         },
         eq: () => cadena,
-        maybeSingle: async () => ({ data: supa.perfil, error: supa.errorPerfil }),
+        maybeSingle: () => (supa.colgarPerfil ? nunca() : Promise.resolve({ data: supa.perfil, error: supa.errorPerfil })),
       };
       return cadena;
     },
@@ -68,6 +73,8 @@ describe("la puerta de la app", () => {
     supa.errorPerfil = null;
     supa.consultas = [];
     supa.cambios = [];
+    supa.colgarSesion = false;
+    supa.colgarPerfil = false;
     supa.signInWithPassword = vi.fn(async () => ({ data: { session: SESION }, error: null }));
     supa.resetPasswordForEmail = vi.fn(async () => ({ error: null }));
     supa.signUp = vi.fn(async () => ({ data: { session: null }, error: null }));
@@ -91,6 +98,7 @@ describe("la puerta de la app", () => {
     contenedor.remove();
     window.history.replaceState({}, "", "/");
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   const montar = async () => {
@@ -413,6 +421,76 @@ describe("la puerta de la app", () => {
       // Supabase manda este aviso después de rendirse con la renovación.
       await avisar("INITIAL_SESSION", null);
       expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+    });
+  });
+
+  const pasar = async (milisegundos) => {
+    await act(async () => {
+      vi.advanceTimersByTime(milisegundos);
+    });
+    await act(async () => Promise.resolve());
+  };
+
+  test("con barras pero sin datos y Supabase sin contestar, ofrece entrar con la copia y al rato entra sola", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    supa.colgarSesion = true;
+    localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(AUTORIZADO));
+    await conSenal(true, async () => {
+      await montar();
+      expect(contenedor.querySelector("h1").textContent).toBe("Un momento…");
+      expect(boton("Entrar sin conexión")).toBeUndefined();
+
+      await pasar(3000);
+      expect(contenedor.textContent).toContain("podés entrar con la cuenta guardada en este celular");
+      expect(boton("Entrar sin conexión")).toBeTruthy();
+
+      await pasar(4000);
+      expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+      expect(contenedor.querySelector(".adentro").textContent).toContain("sin señal");
+    });
+  });
+
+  test("Entrar sin conexión entra enseguida con la cuenta guardada", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    supa.colgarSesion = true;
+    localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(AUTORIZADO));
+    await conSenal(true, async () => {
+      await montar();
+      await pasar(3000);
+      await act(async () => boton("Entrar sin conexión").click());
+      expect(contenedor.querySelector(".adentro").textContent).toContain("sin señal");
+    });
+  });
+
+  test("la sesión contesta pero la cuenta no: con copia entra con ella, sin copia deja reintentar", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    supa.sesion = SESION;
+    supa.colgarPerfil = true;
+    await conSenal(true, async () => {
+      await montar();
+      await pasar(3000);
+      // Sin cuenta guardada no hay con qué entrar.
+      expect(boton("Entrar sin conexión")).toBeUndefined();
+      expect(contenedor.textContent).toContain("Está tardando más de lo normal");
+      await pasar(5000);
+      expect(contenedor.querySelector("h1").textContent).toBe("No pudimos comprobar tu cuenta");
+      expect(boton("Reintentar")).toBeTruthy();
+    });
+
+    await act(async () => raiz.unmount());
+    raiz = null;
+    localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(AUTORIZADO));
+    await conSenal(true, async () => {
+      await montar();
+      await pasar(7000);
+      expect(contenedor.querySelector(".adentro").textContent).toContain("sin señal");
+      // Si la base contesta después, vale lo que contestó.
+      supa.colgarPerfil = false;
+      supa.perfil = { ...AUTORIZADO, flujo: true };
+      await act(async () => window.dispatchEvent(new Event("online")));
+      await act(async () => Promise.resolve());
+      expect(contenedor.querySelector(".adentro").textContent).toContain("en línea");
+      expect(contenedor.querySelector(".adentro").textContent).toContain('"flujo":true');
     });
   });
 

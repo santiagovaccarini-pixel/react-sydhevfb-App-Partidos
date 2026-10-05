@@ -54,21 +54,44 @@ const guardar = async (clave, respuesta) => {
   return respuesta;
 };
 
+// Cuánto se espera a la red para abrir la página. Con barras pero sin datos
+// el pedido puede no contestar nunca (el celular se cree conectado): pasado
+// este rato se abre la guardada, como sin señal.
+const TOPE_PAGINA_MS = 3000;
+
+const esperar = (milisegundos) =>
+  new Promise((resolver) => setTimeout(() => resolver(null), milisegundos));
+
 // Primero la red y, si no hay, lo guardado. Para el HTML, que tiene que poder
-// traer una versión nueva apenas haya señal.
+// traer una versión nueva apenas haya señal. Con `tope`, si la red tarda más
+// que eso se usa lo guardado (si hay; si no, se sigue esperando a la red).
 const redPrimero = async (
   pedido,
-  { clave = pedido, reserva = null, sinParametros = false } = {},
+  { clave = pedido, reserva = null, sinParametros = false, tope = 0 } = {},
 ) => {
-  try {
-    return await guardar(clave, await fetch(pedido));
-  } catch (error) {
+  const loGuardado = async () => {
     const guardado = await caches.match(clave, { ignoreSearch: sinParametros });
-    if (guardado) return guardado;
-    if (reserva) {
-      const deReserva = await caches.match(reserva);
-      if (deReserva) return deReserva;
+    if (guardado || !reserva) return guardado;
+    return caches.match(reserva);
+  };
+  const deLaRed = fetch(pedido);
+  try {
+    if (tope) {
+      const aTiempo = await Promise.race([deLaRed, esperar(tope)]);
+      if (aTiempo) return await guardar(clave, aTiempo);
+      const guardado = await loGuardado();
+      if (guardado) {
+        // Lo que conteste la red después no se guarda: la página ya abrió con
+        // lo guardado, y una versión nueva del HTML sin sus archivos dejaría
+        // la app en blanco la próxima vez sin señal.
+        deLaRed.catch(() => {});
+        return guardado;
+      }
     }
+    return await guardar(clave, await deLaRed);
+  } catch (error) {
+    const guardado = await loGuardado();
+    if (guardado) return guardado;
     throw error;
   }
 };
@@ -104,6 +127,7 @@ self.addEventListener("fetch", (evento) => {
         clave: url.origin + url.pathname,
         reserva: "/",
         sinParametros: true,
+        tope: TOPE_PAGINA_MS,
       }),
     );
     return;

@@ -52,6 +52,8 @@ export default {
     cargandoTitulo: "Um momento…",
     cargandoTexto: "Estamos verificando sua conta.",
     cargandoTarda: "Está demorando mais que o normal. Sem sinal, pode levar até meio minuto.",
+    cargandoTardaConCopia: "Está demorando mais que o normal. Se o sinal não ajudar, você pode entrar com a conta salva neste celular.",
+    entrarSinConexion: "Entrar sem conexão",
     recuperarTitulo: "Escolha uma senha nova",
     recuperarTexto: "A partir de agora você vai entrar com esta senha.",
     nuevaContrasena: "Nova senha",
