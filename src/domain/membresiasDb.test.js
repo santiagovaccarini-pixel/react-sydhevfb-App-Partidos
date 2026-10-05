@@ -43,6 +43,7 @@ const {
   claveDeError,
   darDeBaja,
   estadoDeMembresia,
+  invitacionVencida,
   invitar,
   listarMiembros,
   ordenarMiembros,
@@ -147,6 +148,39 @@ describe("las invitaciones", () => {
 
     base.responder = (pedido) => (pedido.op === "insert" ? { data: null, error: null } : { data: [{ id: "i2", usada_en: null }], error: null });
     expect(await invitar("c1", { email: "otro@club.com" })).toEqual({ usada: false });
+  });
+
+  it("una invitación vencida no sirve, y a ese correo se lo puede volver a invitar", async () => {
+    const ahora = Date.parse("2026-10-05T12:00:00Z");
+    expect(invitacionVencida({ vence_en: "2026-10-04T12:00:00Z" }, ahora)).toBe(true);
+    expect(invitacionVencida({ vence_en: "2026-10-06T12:00:00Z" }, ahora)).toBe(false);
+    expect(invitacionVencida({}, ahora)).toBe(false);
+
+    // La base no deja otra abierta al mismo correo, aunque la que hay haya
+    // vencido: se cancela la vencida y se invita.
+    const ayer = new Date(Date.now() - 86400000).toISOString();
+    let inserciones = 0;
+    base.responder = (pedido) => {
+      if (pedido.op === "insert") {
+        inserciones += 1;
+        return inserciones === 1 ? { data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "club_invitaciones_abierta_unica"' } } : { data: null, error: null };
+      }
+      if (pedido.op === "update") return { data: [{ id: "vieja" }], error: null };
+      if (pedido.filtros.some(([, columna]) => columna === "cancelada_en")) return { data: [{ id: "vieja", vence_en: ayer }], error: null };
+      return { data: [{ id: "nueva", usada_en: null }], error: null };
+    };
+    expect(await invitar("c1", { email: "tarde@club.com" })).toEqual({ usada: false });
+    expect(base.pedidos.map((pedido) => pedido.op)).toEqual(["insert", "select", "update", "insert", "select"]);
+    expect(base.pedidos[1].filtros).toEqual(expect.arrayContaining([["eq", "email", "tarde@club.com"], ["is", "usada_en", null], ["is", "cancelada_en", null]]));
+    expect(base.pedidos[2]).toMatchObject({ op: "update", datos: { cancelada_en: expect.any(String) }, filtros: [["eq", "id", "vieja"]] });
+
+    // Con una vigente, se avisa como siempre y no se cancela nada.
+    base.pedidos = [];
+    const manana = new Date(Date.now() + 86400000).toISOString();
+    base.responder = (pedido) =>
+      pedido.op === "insert" ? { data: null, error: { code: "23505", message: "duplicate key value" } } : { data: [{ id: "vigente", vence_en: manana }], error: null };
+    await expect(invitar("c1", { email: "tarde@club.com" })).rejects.toThrow("cuentas.errorInvitacionRepetida");
+    expect(base.pedidos.some((pedido) => pedido.op === "update")).toBe(false);
   });
 
   it("una invitación repetida o sin permiso se explica", async () => {

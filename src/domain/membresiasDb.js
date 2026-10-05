@@ -118,6 +118,13 @@ export const historialDeMiembro = async (equipoId, userId) => {
 
 export const correoValido = (correo) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(correo || "").trim());
 
+// Una invitación abierta que ya venció: no sirve para entrar (la base solo
+// aplica las vigentes), pero hasta que se cancela sigue ocupando el correo.
+export const invitacionVencida = (invitacion, ahora = Date.now()) => {
+  const vence = Date.parse(invitacion?.vence_en || "");
+  return Number.isFinite(vence) && vence <= ahora;
+};
+
 export const listarInvitaciones = async (equipoId) => {
   const { data, error } = await supabase
     .from("club_invitaciones")
@@ -135,9 +142,25 @@ export const listarInvitaciones = async (equipoId) => {
 export const invitar = async (equipoId, { email, rol = "staff", partido = true, flujo = true, lesiones = false, evaluaciones = false }) => {
   const correo = String(email || "").trim().toLowerCase();
   if (!correoValido(correo)) throw new Error("cuentas.errorCorreo");
-  const { error } = await supabase
-    .from("club_invitaciones")
-    .insert({ equipo_id: equipoId, email: correo, rol, partido, flujo, lesiones, evaluaciones });
+  const insertar = () =>
+    supabase.from("club_invitaciones").insert({ equipo_id: equipoId, email: correo, rol, partido, flujo, lesiones, evaluaciones });
+  let { error } = await insertar();
+  // La base no deja dos invitaciones abiertas al mismo correo, aunque la que
+  // hay ya haya vencido: si todas las abiertas vencieron, se cancelan y se
+  // vuelve a invitar. Si hay una vigente, se avisa como siempre.
+  if (error && claveDeError(error) === "cuentas.errorInvitacionRepetida") {
+    const { data: abiertas, error: errorLeer } = await supabase
+      .from("club_invitaciones")
+      .select("id, vence_en")
+      .eq("equipo_id", equipoId)
+      .eq("email", correo)
+      .is("usada_en", null)
+      .is("cancelada_en", null);
+    if (!errorLeer && abiertas?.length && abiertas.every((una) => invitacionVencida(una))) {
+      for (const vencida of abiertas) await cancelarInvitacion(vencida.id); // eslint-disable-line no-await-in-loop
+      ({ error } = await insertar());
+    }
+  }
   if (error) throw fallo(error, "cuentas.errorInvitar");
   // La fila se vuelve a leer aparte: si la cuenta entró en el acto, la
   // invitación ya no está abierta (y no hace falta mostrarla).

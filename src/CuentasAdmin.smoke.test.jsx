@@ -19,6 +19,11 @@ const datos = vi.hoisted(() => ({
   lenta: {},
 }));
 
+// Las invitaciones de las pruebas vencen después de hoy (salvo las vencidas a propósito).
+const DIA_MS = 86400000;
+const EN_UNA_SEMANA = new Date(Date.now() + 7 * DIA_MS).toISOString();
+const EN_DOS_SEMANAS = new Date(Date.now() + 14 * DIA_MS).toISOString();
+
 vi.mock("./domain/equipo.js", () => ({
   cargarEquipos: async () => ({ equipos: datos.clubes }),
 }));
@@ -59,7 +64,7 @@ vi.mock("./domain/membresiasDb.js", async () => {
       if (datos.errorCambio) throw new Error(datos.errorCambio);
       if (!datos.usada) {
         datos.invitaciones[equipoId] = [
-          { id: `i-${invitacion.email}`, ...invitacion, vence_en: "2026-10-16T12:00:00Z" },
+          { id: `i-${invitacion.email}`, ...invitacion, vence_en: EN_DOS_SEMANAS },
           ...(datos.invitaciones[equipoId] || []),
         ];
       }
@@ -121,7 +126,7 @@ describe("Cuentas", () => {
       ],
       c2: [miembro({ user_id: "eva", equipo_id: "c2", email: "eva@dos.com", rol: "admin" })],
     };
-    datos.invitaciones = { c1: [{ id: "i1", email: "espera@uno.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: "2026-10-10T12:00:00Z" }] };
+    datos.invitaciones = { c1: [{ id: "i1", email: "espera@uno.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: EN_UNA_SEMANA }] };
     datos.historia = [];
     datos.perfiles = [];
     datos.membresias = [];
@@ -295,6 +300,21 @@ describe("Cuentas", () => {
     expect(texto()).toContain("Invitación cancelada.");
   });
 
+  test("una invitación vencida va aparte, sin el mensaje para copiar, y se puede cancelar", async () => {
+    datos.invitaciones.c1.push({ id: "i-vieja", email: "tarde@uno.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: new Date(Date.now() - DIA_MS).toISOString() });
+    await montar();
+    expect(grupos()).toEqual(expect.arrayContaining(["Invitaciones abiertas 1", "Invitaciones vencidas 1"]));
+    const vencida = fila("tarde@uno.com");
+    expect(vencida.closest(".cuentas-grupo").querySelector("h2").textContent).toContain("Invitaciones vencidas");
+    expect(vencida.textContent).toContain("Vencida");
+    expect(vencida.textContent).toContain("Venció el");
+    expect(boton(vencida, "Copiar mensaje")).toBeUndefined();
+    expect(boton(fila("espera@uno.com"), "Copiar mensaje")).toBeTruthy();
+    await tocar(boton(vencida, "Cancelar"));
+    expect(datos.llamadas.at(-1)).toEqual({ que: "cancelar", id: "i-vieja" });
+    expect(grupos().some((grupo) => grupo.startsWith("Invitaciones vencidas"))).toBe(false);
+  });
+
   test("un cambio que vuelve después de elegir otro club no toca la lista de ese club", async () => {
     datos.clubes = [UNO, DOS];
     datos.miembros.c2.push(miembro({ user_id: "beto", equipo_id: "c2", email: "beto@uno.com" }));
@@ -315,7 +335,7 @@ describe("Cuentas", () => {
 
   test("elegir otro club rápido: lo que vuelve tarde del anterior no se mezcla", async () => {
     datos.clubes = [UNO, DOS];
-    datos.invitaciones.c2 = [{ id: "i2", email: "otra@dos.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: "2026-10-10T12:00:00Z" }];
+    datos.invitaciones.c2 = [{ id: "i2", email: "otra@dos.com", rol: "staff", partido: true, flujo: false, lesiones: false, vence_en: EN_UNA_SEMANA }];
     await montar();
     let abrirDos;
     datos.lenta.c2 = new Promise((resolver) => {

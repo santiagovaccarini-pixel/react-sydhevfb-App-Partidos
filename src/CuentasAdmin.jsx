@@ -12,6 +12,7 @@ import {
   correoValido,
   darDeBaja,
   historialDeMiembro,
+  invitacionVencida,
   invitar,
   listarInvitaciones,
   listarMembresias,
@@ -122,20 +123,25 @@ const FilaMiembro = ({ miembro, esMio, ocupada, onRol, onModulo, onBaja, onReinc
   );
 };
 
-const FilaInvitacion = ({ invitacion, ocupada, onCopiar, onCancelar }) => (
+// Una invitación vencida ya no sirve para entrar: va aparte, sin el mensaje
+// para copiar (para volver a invitar ese correo, se lo invita de nuevo).
+const FilaInvitacion = ({ invitacion, vencida = false, ocupada, onCopiar, onCancelar }) => (
   <li className="cuenta-fila invitacion">
     <div className="cuenta-encabezado">
       <span className="cuenta-correo">{invitacion.email}</span>
       {invitacion.rol === "admin" && <span className="cuenta-etiqueta">{t("cuentas.roles.admin")}</span>}
+      {vencida && <span className="cuenta-etiqueta alerta">{t("cuentas.vencida")}</span>}
     </div>
     <div className="cuenta-meta">
       <span>{nombresDeModulos(invitacion)}</span>
-      <span>{t("cuentas.venceEl", { fecha: fechaCorta(invitacion.vence_en) })}</span>
+      <span>{t(vencida ? "cuentas.vencioEl" : "cuentas.venceEl", { fecha: fechaCorta(invitacion.vence_en) })}</span>
     </div>
     <div className="cuenta-acciones">
-      <button type="button" className="cuenta-autorizar" onClick={() => onCopiar(invitacion)}>
-        {t("cuentas.copiarMensaje")}
-      </button>
+      {!vencida && (
+        <button type="button" className="cuenta-autorizar" onClick={() => onCopiar(invitacion)}>
+          {t("cuentas.copiarMensaje")}
+        </button>
+      )}
       <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onCancelar(invitacion)}>
         {t("cuentas.cancelarInvitacion")}
       </button>
@@ -450,6 +456,8 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
 
   const activos = miembros.filter((uno) => !uno.hasta);
   const seFueron = miembros.filter((uno) => uno.hasta);
+  const vencidas = invitaciones.filter((una) => invitacionVencida(una));
+  const abiertas = invitaciones.filter((una) => !invitacionVencida(una));
   const grupos = agruparPerfiles(perfiles, miUserId);
 
   const accionesMiembro = {
@@ -530,11 +538,19 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
             </form>
           </section>
 
-          <Grupo titulo={t("cuentas.invitacionesTitulo")} cantidad={invitaciones.length} vacio={t("cuentas.vacioInvitaciones")}>
-            {invitaciones.map((invitacion) => (
+          <Grupo titulo={t("cuentas.invitacionesTitulo")} cantidad={abiertas.length} vacio={t("cuentas.vacioInvitaciones")}>
+            {abiertas.map((invitacion) => (
               <FilaInvitacion key={invitacion.id} invitacion={invitacion} ocupada={ocupada === invitacion.id} onCopiar={copiarMensaje} onCancelar={cancelar} />
             ))}
           </Grupo>
+
+          {vencidas.length > 0 && (
+            <Grupo titulo={t("cuentas.invitacionesVencidasTitulo")} cantidad={vencidas.length}>
+              {vencidas.map((invitacion) => (
+                <FilaInvitacion key={invitacion.id} invitacion={invitacion} vencida ocupada={ocupada === invitacion.id} onCopiar={copiarMensaje} onCancelar={cancelar} />
+              ))}
+            </Grupo>
+          )}
 
           <Grupo titulo={t("cuentas.miembrosTitulo")} cantidad={activos.length} vacio={cargando ? t("comun.cargando") : t("cuentas.vacioMiembros")}>
             {activos.map((miembro) => (
