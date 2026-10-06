@@ -832,6 +832,33 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(db.lecturasHistorial).toBe(lecturas);
   });
 
+  test("si la base contesta pero rechaza siempre un pendiente, el reintento se espacia y lo nuevo igual sube al minuto", async () => {
+    localStorage.setItem(
+      "registros_sin_sincronizar:eq-1",
+      JSON.stringify([{ fecha: "2026-09-07", rival: "Flamengo", resultado: "2-2", sinSincronizar: true }]),
+    );
+    db.fallarRival = "Flamengo";
+    await montar();
+
+    // Un partido entero (90 minutos): antes eran 90 lecturas del historial.
+    const minuto = async () => {
+      await act(async () => vi.advanceTimersByTime(60000));
+      await vaciarPromesas();
+    };
+    const lecturasAntes = db.lecturasHistorial;
+    for (let i = 0; i < 90; i += 1) await minuto();
+    expect(db.lecturasHistorial - lecturasAntes).toBeLessThanOrEqual(15);
+
+    // El partido en vivo, guardado sin señal, sube al minuto de volver la base.
+    db.errorGuardado = { message: "sin señal" };
+    await guardar();
+    db.errorGuardado = null;
+    expect(cola().map((p) => p.rival)).toContain("Cruzeiro");
+    await minuto();
+    expect(resultados()).toEqual(["Cruzeiro:1-0"]);
+    expect(cola().map((p) => p.rival)).toEqual(["Flamengo"]);
+  });
+
   // ----------------------------------------------------------------- 13 --
   test("al editar un registro, los jugadores del rival que se ofrecen son los de ese partido", async () => {
     // El borrador (Cruzeiro) tiene sus propios cambios del rival.

@@ -259,8 +259,10 @@ const APP_VERSION = "2026.10.05.9";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
-// Cada cuánto se reintenta sola la cola del celular mientras haya algo.
+// Cada cuánto se reintenta sola la cola del celular mientras haya algo, y
+// hasta cuánto se estira la espera si la base contesta pero no lo acepta.
 const REINTENTO_COLA_MS = 60000;
+const ESPERA_MAXIMA_COLA_MS = 8 * REINTENTO_COLA_MS;
 
 // La subida de la cola y el guardado del partido escriben en la misma tabla,
 // así que van de a uno por club. Estos candados viven fuera de la pantalla:
@@ -1948,7 +1950,16 @@ export default function App({
     }
   };
 
+  // Ver reintentarLaCola: la espera entre reintentos vuelve a un minuto.
+  const esperaCola = useRef({ ms: REINTENTO_COLA_MS, desde: 0 });
+  const reiniciarEsperaCola = () => {
+    esperaCola.current = { ms: REINTENTO_COLA_MS, desde: 0 };
+  };
+
   const guardarPendiente = (registroNuevo) => {
+    // Lo que entra a la cola (el partido en vivo guardado sin señal, una
+    // corrección) se reintenta al minuto, aunque lo viejo venga esperando más.
+    reiniciarEsperaCola();
     const clave = clavePartido(registroNuevo);
     const pendientes = leerPendientes().filter(
       (item) => clavePartido(item) !== clave,
@@ -2098,6 +2109,8 @@ export default function App({
     ];
   };
 
+  // Devuelve false si la base no contestó (o la respuesta ya no es de este
+  // club): el reintento de la cola lo usa para saber si la base anda.
   const cargarRegistrosSupabase = async ({ reintentar = true } = {}) => {
     // Quien ya se fue del club ve la foto de su último día, y no sube nada.
     const deSoloLectura = esSoloLectura(equipoId);
@@ -2126,7 +2139,7 @@ export default function App({
     }
 
     // De ese club se ocupa la próxima vez que se lo elija.
-    if (!sigueElClub()) return;
+    if (!sigueElClub()) return false;
 
     if (error) {
       console.error("Error cargando registros desde Supabase:", error);
@@ -2136,7 +2149,7 @@ export default function App({
       establecerGuardados(deSoloLectura ? [] : leerRespaldoHistorial());
       setEstadoHistorial("error");
       setHistorialCargado(true);
-      return;
+      return false;
     }
 
     const registrosConvertidos = (data || []).map(convertirSupabaseARegistro);
@@ -2203,6 +2216,7 @@ export default function App({
   releerAlVolverLaSenal.current = () => {
     if (!equipoId || guardandoRef.current) return;
     if (leerPendientes().length === 0) return;
+    reiniciarEsperaCola();
     releerHistorial();
   };
 
@@ -2217,6 +2231,13 @@ export default function App({
   // cola no se volvía a intentar hasta reabrir la app. Mientras haya algo en
   // la cola y el teléfono diga que hay red, se reintenta cada minuto, sin
   // pisarse con un guardado ni con otra subida en marcha.
+  //
+  // Si la base contesta pero no acepta lo que queda (un permiso, una columna
+  // que falta), reintentar cada minuto bajaba el historial entero del club
+  // durante todo el partido, sin fin. Cada vuelta así duplica la espera (2,
+  // 4 y hasta 8 minutos); vuelve a un minuto cuando algo sube, cuando entra
+  // algo nuevo a la cola, cuando vuelve la señal o cuando Guardar llega a la
+  // base. Sin respuesta de la base se sigue probando cada minuto.
   const reintentoEnCurso = useRef(false);
   const reintentarLaCola = useRef(() => {});
   reintentarLaCola.current = () => {
@@ -2224,13 +2245,33 @@ export default function App({
     if (guardandoRef.current || reintentoEnCurso.current) return;
     if (subidasPorClub.has(equipoId) || hayGuardadoEscribiendo(equipoId)) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    if (leerPendientes().length === 0) return;
+    const antes = leerPendientes().length;
+    if (antes === 0) return;
+    const ahora = Date.now();
+    const espera = esperaCola.current;
+    if (ahora - espera.desde < espera.ms) return;
 
     reintentoEnCurso.current = true;
+    let contesto = false;
     cargarRegistrosSupabase()
+      .then((resultado) => {
+        contesto = resultado !== false;
+      })
       .catch((error) => console.warn("No se pudo reintentar la cola:", error))
       .finally(() => {
         reintentoEnCurso.current = false;
+        // Si mientras tanto se reinició la espera, queda reiniciada.
+        if (esperaCola.current !== espera) return;
+        const quedan = leerPendientes().length;
+        const noSubioNada = contesto && quedan > 0 && quedan >= antes;
+        esperaCola.current = {
+          ms: noSubioNada
+            ? Math.min(espera.ms * 2, ESPERA_MAXIMA_COLA_MS)
+            : contesto
+              ? REINTENTO_COLA_MS
+              : espera.ms,
+          desde: ahora,
+        };
       });
   };
 
@@ -4058,6 +4099,8 @@ export default function App({
         sinVersionesDelPartido(leerPendientes(), nuevoRegistro, idGuardado),
       );
       dejarDeEscribir();
+      // La base anda: lo que quede en la cola se reintenta al minuto.
+      reiniciarEsperaCola();
 
       if (filaDesaparecida) {
         avisarGuardado("Ya no estaba en la base · se guardó de nuevo", 6000);
