@@ -806,6 +806,20 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(ofrecidos[0]).toContain("Club con Partido");
   });
 
+  test("quien no administra y no tiene ningún club ve por qué y puede volver a los módulos", async () => {
+    db.equipos = [];
+    localStorage.setItem("equipo_elegido", JSON.stringify({ id: "eq-1", nombre: "Atlético Mineiro", rol: "usuario", partido: true }));
+    const onVolver = vi.fn();
+    await montar({ permisos: { admin: false }, onVolver });
+
+    expect(contenedor.querySelector("h1").textContent).toBe("¿De qué equipo sos?");
+    expect(contenedor.textContent).toContain("No tenés ningún club con Partido habilitado");
+    // Crear un club sigue siendo solo del dueño de la plataforma.
+    expect(contenedor.querySelector('input[placeholder="Nombre del equipo nuevo"]')).toBeNull();
+    await act(async () => boton("Módulos").click());
+    expect(onVolver).toHaveBeenCalledTimes(1);
+  });
+
   // ----------------------------------------------------------------- 11 --
   test("si la base tarda y se cambia de club, los partidos del club anterior no aparecen en el nuevo", async () => {
     dosClubes();

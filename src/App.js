@@ -6667,6 +6667,10 @@ export default function App({
     const puedeRenombrar =
       (!permisos && !clubActual?.rol) || enEsteClub.admin || enEsteClub.adminClub;
     const puedeCrear = !permisos || Boolean(permisos.admin);
+    // Sin club elegido, sin ninguno para elegir y sin poder crear uno, la
+    // pantalla quedaba vacía y sin salida (ni las pestañas sacaban de acá):
+    // se dice por qué y se ofrece volver a los módulos.
+    const sinSalida = !equipoId && otros.length === 0 && !puedeCrear;
 
     return (
       <div className="app">
@@ -6796,6 +6800,17 @@ export default function App({
               partidos y sin plantel, y este teléfono pasa a ese equipo.
             </p>
           </section>
+          )}
+
+          {sinSalida && (
+            <section className="tarjeta tarjeta-ficha">
+              <p className="pista-equipo">{t("partido.sinClubesConPartido")}</p>
+              {onVolver && (
+                <div className="acciones-dobles">
+                  <BotonVolver onClick={onVolver}>{t("portal.modulos")}</BotonVolver>
+                </div>
+              )}
+            </section>
           )}
 
           {errorEquipo && <p className="error-equipo">{errorEquipo}</p>}

@@ -441,6 +441,7 @@ export default {
     descartarFormacionTitulo: "Descartar a escalação não salva?",
     descartarFormacionTexto: "Você mudou a escalação e ainda não salvou. Se descartar, fica a que a partida tem.",
     descartarFormacionSi: "Descartar",
+    sinClubesConPartido: "Você não tem nenhum clube com Jogo habilitado. Peça a quem administra o seu clube para adicionar você.",
     celularLleno: "Não foi possível salvar no celular: não há espaço. Não limpe a partida e salve-a de novo quando houver sinal.",
     celularLlenoCambios: "Não foi possível salvar as alterações no celular: não há espaço. Libere espaço e salve-as de novo.",
     borradorSinLugar: "Não há espaço no celular para salvar a partida em andamento. Salve-a ou libere espaço antes de fechar o app: senão, o que foi registrado se perde.",
