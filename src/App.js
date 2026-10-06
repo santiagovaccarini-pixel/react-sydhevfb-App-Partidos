@@ -6756,7 +6756,7 @@ export default function App({
       setEquipoGuardado(actual);
       guardarEquipoElegido(actual);
     }
-    avisarEquipo("Nombre cambiado");
+    avisarEquipo(t("partido.equipoNombreCambiado"));
   };
 
   const sumarEquipo = async () => {
@@ -6777,7 +6777,7 @@ export default function App({
     setNombreEquipoNuevo("");
     await releerEquipos();
     cambiarDeEquipo(equipo.id, equipo);
-    avisarEquipo(`Ahora estás en ${equipo.nombre}`);
+    avisarEquipo(t("partido.equipoAhoraEn", { club: equipo.nombre }));
   };
 
   // Cambiar de equipo cambia lo que se ve en toda la app, así que se vuelven a
@@ -6910,7 +6910,7 @@ export default function App({
                       type="button"
                       onClick={() => {
                         cambiarDeEquipo(equipo.id);
-                        avisarEquipo(`Ahora estás en ${equipo.nombre}`);
+                        avisarEquipo(t("partido.equipoAhoraEn", { club: equipo.nombre }));
                       }}
                     >
                       <EscudoDeClub equipo="cam" nombre={equipo.nombre} mini />
@@ -6921,9 +6921,7 @@ export default function App({
               </ul>
 
               <p className="pista-equipo">
-                {equipoId
-                  ? "Cada equipo ve solo sus partidos y su plantel. Esto ordena, no protege: desde acá se puede entrar a cualquiera."
-                  : "Si tu club ya está en la lista, tocalo: vas a ver todos sus partidos y su plantel, sin cargar nada de nuevo."}
+                {equipoId ? t("partido.equipoPistaCambiar") : t("partido.equipoPistaElegir")}
               </p>
             </section>
           )}

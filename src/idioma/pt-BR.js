@@ -451,6 +451,10 @@ export default {
     equipoSinNombre: "Escreva o nome da equipe.",
     equipoErrorRenombrar: "Não foi possível mudar o nome. Verifique o sinal e tente de novo.",
     equipoErrorCrear: "Não foi possível criar a equipe. Verifique o sinal e tente de novo.",
+    equipoNombreCambiado: "Nome alterado",
+    equipoAhoraEn: "Agora você está em {{club}}",
+    equipoPistaCambiar: "Cada equipe vê só as suas partidas e o seu elenco. Aqui aparecem os clubes dos quais você faz parte.",
+    equipoPistaElegir: "Se o seu clube já está na lista, toque nele: você vai ver todas as partidas e o elenco, sem registrar nada de novo.",
   },
   openfield: {
     abriendoTitulo: "Um momento…",

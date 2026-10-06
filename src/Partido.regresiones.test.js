@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import App from "./App";
+import { cambiarIdioma } from "./idioma/index.js";
 
 // Una base en memoria que se comporta como la de verdad: insert agrega la
 // fila con su id, update cambia la fila y la devuelve, select trae lo que hay.
@@ -581,6 +582,34 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     await irA("Formación");
     expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("Cruzeiro");
     expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("1-2");
+  });
+
+  test("Ajustes › Equipo dice que se ven los clubes donde se está y avisa el cambio de club en el idioma de la app", async () => {
+    dosClubes();
+    elegirClub("eq-1", "Atlético Mineiro");
+    await montar();
+    await irA("Ajustes");
+    await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
+    expect(Array.from(contenedor.querySelectorAll(".pista-equipo")).map((p) => p.textContent)).toContain("Cada equipo ve solo sus partidos y su plantel. Acá aparecen los clubes en los que estás.");
+    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
+    await vaciarPromesas();
+    expect(contenedor.textContent).toContain("Ahora estás en Otro Club");
+
+    // El idioma se elige en el portal, antes de entrar a Partido.
+    await act(async () => raiz.unmount());
+    raiz = null;
+    cambiarIdioma("pt-BR");
+    try {
+      await montar();
+      await irA("Ajustes");
+      await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
+      expect(Array.from(contenedor.querySelectorAll(".pista-equipo")).map((p) => p.textContent)).toContain("Cada equipe vê só as suas partidas e o seu elenco. Aqui aparecem os clubes dos quais você faz parte.");
+      await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Atlético")).click());
+      await vaciarPromesas();
+      expect(contenedor.textContent).toContain("Agora você está em Atlético Mineiro");
+    } finally {
+      cambiarIdioma("es-AR");
+    }
   });
 
   // ------------------------------------------------------------------ 6 --

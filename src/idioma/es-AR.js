@@ -453,6 +453,10 @@ export default {
     equipoSinNombre: "Escribí el nombre del equipo.",
     equipoErrorRenombrar: "No se pudo cambiar el nombre. Fijate la señal y probá de nuevo.",
     equipoErrorCrear: "No se pudo crear el equipo. Fijate la señal y probá de nuevo.",
+    equipoNombreCambiado: "Nombre cambiado",
+    equipoAhoraEn: "Ahora estás en {{club}}",
+    equipoPistaCambiar: "Cada equipo ve solo sus partidos y su plantel. Acá aparecen los clubes en los que estás.",
+    equipoPistaElegir: "Si tu club ya está en la lista, tocalo: vas a ver todos sus partidos y su plantel, sin cargar nada de nuevo.",
   },
   openfield: {
     abriendoTitulo: "Un momento…",
