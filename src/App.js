@@ -1960,6 +1960,11 @@ export default function App({
   // pendiente, y el respaldo del celular se escribía así de pelado.
   const guardarEnElCelular = (registroNuevo) => {
     const pendientes = guardarPendiente(registroNuevo);
+    // La cola es la del club del guardado; la lista en pantalla se toca solo
+    // si sigue siendo ese club. Si mientras Guardar esperaba se cambió de
+    // club, los partidos de este aparecían en el otro, y editar uno lo pasaba
+    // a ese club.
+    if (equipoVigente.current !== equipoId) return;
     const clavesPendientes = new Set(pendientes.map(clavePartido));
     establecerGuardados([
       ...pendientes,

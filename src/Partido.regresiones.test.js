@@ -1010,4 +1010,37 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(resultados()).toEqual(["Cruzeiro:1-2"]);
     expect(cola()).toHaveLength(0);
   });
+
+  test("si se cambia de club mientras Guardar espera, la lista del club nuevo no se llena con los partidos del anterior", async () => {
+    dosClubes();
+    elegirClub("eq-1", "Atlético Mineiro");
+    db.filas = [
+      { id: 1, equipo_id: "eq-1", fecha: "2026-09-01", rival: "Bahia", resultado: "3-0" },
+      { id: 2, equipo_id: "eq-2", fecha: "2026-09-02", rival: "Santos", resultado: "1-0" },
+    ];
+    // El 1-0 del entretiempo quedó en la cola y su subida tarda.
+    localStorage.setItem(
+      "registros_sin_sincronizar:eq-1",
+      JSON.stringify([{ ...borradorCruzeiro().registro, sinSincronizar: true }]),
+    );
+    db.retenerRival = "Cruzeiro";
+    await montar();
+
+    // Guardar 1-1 espera esa subida, y mientras tanto se pasa a Otro Club.
+    await escribirGolesRival("1");
+    await guardar();
+    await abrirAjustesEquipo();
+    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
+    await vaciarPromesas();
+    await act(async () => vi.advanceTimersByTime(8100));
+    await vaciarPromesas();
+
+    await irA("Registros");
+    const filas = Array.from(contenedor.querySelectorAll(".registro-guardado")).map((f) => f.textContent);
+    expect(filas).toHaveLength(1);
+    expect(filas[0]).toContain("Santos");
+    // El partido quedó a salvo en la cola de su club.
+    expect(cola("eq-1").map((p) => `${p.rival}:${p.resultado}`)).toEqual(["Cruzeiro:1-1"]);
+    expect(cola("eq-2")).toHaveLength(0);
+  });
 });
