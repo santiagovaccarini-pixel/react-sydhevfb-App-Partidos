@@ -1169,6 +1169,50 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola()).toHaveLength(0);
   });
 
+  // La cola del celular no entra: hay lugar para todo lo demás.
+  const colaSinLugar = () => {
+    const original = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (clave, valor) {
+      if (String(clave).startsWith("registros_sin_sincronizar")) throw new DOMException("lleno", "QuotaExceededError");
+      return original.call(this, clave, valor);
+    });
+  };
+
+  test("si la cola del celular no entra, Guardar sin señal no dice 'Guardado en el celular'", async () => {
+    await montar();
+    colaSinLugar();
+    db.errorGuardado = { message: "sin señal" };
+    await guardar();
+
+    expect(contenedor.textContent).toContain("No se pudo guardar en el celular");
+    expect(contenedor.textContent).not.toContain("Guardado en el celular");
+    expect(cola()).toHaveLength(0);
+    // El partido sigue entero en el borrador, para volver a guardarlo.
+    expect(borrador().rival).toBe("Cruzeiro");
+    await irA("Registros");
+    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(0);
+  });
+
+  test("si la cola del celular no entra, corregir un pendiente no lo saca de la cola y deja seguir editando", async () => {
+    sembrarSabadoYMiercoles();
+    await montar();
+    await irA("Registros");
+    const santos = Array.from(contenedor.querySelectorAll(".registro-guardado")).find((f) => f.textContent.includes("Santos"));
+    await act(async () => santos.querySelector(".boton-detalle").click());
+    await act(async () => boton("Editar registro").click());
+    await escribir(contenedor.querySelectorAll(".resultado-ficha input")[0], "2");
+
+    colaSinLugar();
+    await act(async () => {
+      boton("Guardar cambios").click();
+    });
+    await vaciarPromesas();
+
+    expect(contenedor.textContent).toContain("No se pudieron guardar los cambios en el celular");
+    expect(boton("Guardar cambios")).toBeDefined();
+    expect(cola().map((p) => `${p.rival}:${p.resultado}`)).toEqual(["Santos:1-1"]);
+  });
+
   test("si el celular no tiene lugar para el borrador, lo avisa y el aviso queda a la vista", async () => {
     const original = Storage.prototype.setItem;
     const sinLugar = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (clave, valor) {

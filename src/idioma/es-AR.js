@@ -443,6 +443,8 @@ export default {
     descartarFormacionTitulo: "¿Descartar la formación sin guardar?",
     descartarFormacionTexto: "Cambiaste la formación y todavía no la guardaste. Si la descartás, queda la que tiene el partido.",
     descartarFormacionSi: "Descartar",
+    celularLleno: "No se pudo guardar en el celular: no hay lugar. No limpies el partido y volvé a guardarlo cuando haya señal.",
+    celularLlenoCambios: "No se pudieron guardar los cambios en el celular: no hay lugar. Liberá espacio y volvé a guardarlos.",
     borradorSinLugar: "No hay lugar en el celular para guardar el partido en curso. Guardalo o liberá espacio antes de cerrar la app: si no, lo cargado se pierde.",
     equipoSinPermisoRenombrar: "No tenés permiso para cambiar el nombre de este equipo. Lo cambia quien administra el club.",
     equipoSinPermisoCrear: "No tenés permiso para crear equipos. Los crea quien administra la plataforma.",

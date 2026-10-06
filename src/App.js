@@ -1939,14 +1939,18 @@ export default function App({
     }
   };
 
+  // Devuelve si se pudo escribir: con la memoria del celular llena, la cola
+  // no se escribe, y antes la pantalla decía "Guardado en el celular" igual.
   const escribirPendientes = (lista) => {
     try {
       localStorage.setItem(
         porEquipo(CLAVE_PENDIENTES, equipoId),
         JSON.stringify(lista),
       );
+      return true;
     } catch (error) {
       console.warn("No se pudo guardar la lista de partidos sin sincronizar.");
+      return false;
     }
   };
 
@@ -1956,30 +1960,36 @@ export default function App({
     esperaCola.current = { ms: REINTENTO_COLA_MS, desde: 0 };
   };
 
-  const guardarPendiente = (registroNuevo) => {
+  // Pone el partido en la cola, en lugar de otras versiones suyas (y de la
+  // que tenía antes otra fecha o rival, si se corrigió). Va en una sola
+  // escritura: si no entra, la cola queda como estaba. Devuelve la cola
+  // nueva y si se pudo escribir.
+  const guardarPendiente = (registroNuevo, claveAnterior = null) => {
     // Lo que entra a la cola (el partido en vivo guardado sin señal, una
     // corrección) se reintenta al minuto, aunque lo viejo venga esperando más.
     reiniciarEsperaCola();
     const clave = clavePartido(registroNuevo);
     const pendientes = leerPendientes().filter(
-      (item) => clavePartido(item) !== clave,
+      (item) =>
+        clavePartido(item) !== clave && clavePartido(item) !== claveAnterior,
     );
     const actualizados = [comoPendiente(registroNuevo), ...pendientes];
 
-    escribirPendientes(actualizados);
-    return actualizados;
+    return { pendientes: actualizados, ok: escribirPendientes(actualizados) };
   };
 
   // El partido queda en la cola del celular y arriba de la lista, sin sacar
   // de la vista los que ya estaban: antes la lista pasaba a ser solo el
   // pendiente, y el respaldo del celular se escribía así de pelado.
+  // Devuelve si quedó en la cola; si no entró, la lista no lo muestra.
   const guardarEnElCelular = (registroNuevo) => {
-    const pendientes = guardarPendiente(registroNuevo);
+    const { pendientes, ok } = guardarPendiente(registroNuevo);
+    if (!ok) return false;
     // La cola es la del club del guardado; la lista en pantalla se toca solo
     // si sigue siendo ese club. Si mientras Guardar esperaba se cambió de
     // club, los partidos de este aparecían en el otro, y editar uno lo pasaba
     // a ese club.
-    if (equipoVigente.current !== equipoId) return;
+    if (equipoVigente.current !== equipoId) return true;
     const clavesPendientes = new Set(pendientes.map(clavePartido));
     establecerGuardados([
       ...pendientes,
@@ -1988,6 +1998,7 @@ export default function App({
           !item.sinSincronizar && !clavesPendientes.has(clavePartido(item)),
       ),
     ]);
+    return true;
   };
 
   // Si el pendiente que subió es el partido que está en pantalla, el
@@ -3945,6 +3956,17 @@ export default function App({
       escribiendo = false;
       sumarGuardado(club, -1);
     };
+    // Sin base, el partido queda en la cola del celular. Si ni ahí entra
+    // (memoria llena) se dice: antes decía "Guardado en el celular" igual, y
+    // el partido estaba solo en el borrador.
+    const dejarEnElCelular = (aviso = "Guardado en el celular · sin sincronizar") => {
+      if (guardarEnElCelular(nuevoRegistro)) {
+        avisarGuardado(aviso, 6000);
+        return true;
+      }
+      avisarGuardado(t("partido.celularLleno"), 10000);
+      return false;
+    };
 
     try {
       // Si la cola del celular está subiendo una versión de este mismo
@@ -3974,8 +3996,7 @@ export default function App({
         ]);
 
         if (!termino) {
-          guardarEnElCelular(nuevoRegistro);
-          avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
+          dejarEnElCelular();
           return;
         }
       }
@@ -4057,11 +4078,11 @@ export default function App({
             "Faltan columnas en Supabase:",
             respuesta.error?.message || respuesta.error,
           );
-          guardarEnElCelular(nuevoRegistro);
-          avisarGuardado("Falta actualizar la base de datos", 6000);
-          alert(
-            "Falta ejecutar la migración de captura de tiempos en Supabase. El partido quedó guardado en este dispositivo.",
-          );
+          if (dejarEnElCelular("Falta actualizar la base de datos")) {
+            alert(
+              "Falta ejecutar la migración de captura de tiempos en Supabase. El partido quedó guardado en este dispositivo.",
+            );
+          }
           return;
         }
 
@@ -4072,8 +4093,7 @@ export default function App({
           respuesta.error?.message || respuesta.error,
           respuesta.error,
         );
-        guardarEnElCelular(nuevoRegistro);
-        avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
+        dejarEnElCelular();
         return;
       }
 
@@ -4121,8 +4141,7 @@ export default function App({
       );
     } catch (error) {
       console.error("Error de red al guardar el partido:", error);
-      guardarEnElCelular(nuevoRegistro);
-      avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
+      dejarEnElCelular();
     } finally {
       dejarDeEscribir();
       guardandoRef.current = false;
@@ -4552,11 +4571,16 @@ export default function App({
     // Un pendiente (guardado sin señal) se corrige en el celular: la versión
     // corregida es la que se sube cuando vuelva la base.
     if (anterior?.sinSincronizar) {
-      const claveAnterior = clavePartido(anterior);
-      escribirPendientes(
-        leerPendientes().filter((item) => clavePartido(item) !== claveAnterior),
+      // La versión de antes sale en la misma escritura: antes eran dos, y si
+      // la segunda no entraba en el celular, la cola se quedaba sin ninguna.
+      const { pendientes, ok } = guardarPendiente(
+        registroConTiempos,
+        clavePartido(anterior),
       );
-      const pendientes = guardarPendiente(registroConTiempos);
+      if (!ok) {
+        avisarGuardado(t("partido.celularLlenoCambios"), 10000);
+        return false;
+      }
       const clavesPendientes = new Set(pendientes.map(clavePartido));
       const editado = pendientes[0];
       establecerGuardados([
