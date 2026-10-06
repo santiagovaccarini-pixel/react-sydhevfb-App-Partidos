@@ -270,8 +270,8 @@ const ESPERA_MAXIMA_COLA_MS = 8 * REINTENTO_COLA_MS;
 const TOPE_GUARDADO_EN_VIAJE_MS = 10 * REINTENTO_COLA_MS;
 
 // La subida de la cola y el guardado del partido escriben en la misma tabla:
-// dos que llevan el mismo partido van de a uno. Estos candados viven fuera
-// de la pantalla, uno por club:
+// dos que llevan el mismo partido van de a uno. Estos candados son uno por
+// club y viven fuera de la pantalla:
 // al volver al portal y entrar de nuevo a Partido se monta otra App, y con
 // candados propios la nueva no veía la subida (o el guardado) que la anterior
 // todavía tenía en viaje. Lo viejo llegaba a la base después y pisaba el
@@ -293,7 +293,7 @@ const filasSubidasPorClave = new Map();
 // llegó (sin señal, vencido, un 5xx de paso). Lo primero se repite igual en
 // cada intento; lo segundo se arregla solo cuando vuelve la señal.
 const esRechazoDeLaBase = (error, status) =>
-  status >= 400 && status < 500 ? true : !status && Boolean(error?.code);
+  (status >= 400 && status < 500) || (!status && Boolean(error?.code));
 
 const guardadosEnViaje = (club) => {
   const ahora = Date.now();
