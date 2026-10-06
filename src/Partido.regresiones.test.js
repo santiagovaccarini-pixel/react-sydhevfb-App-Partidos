@@ -24,7 +24,20 @@ const db = vi.hoisted(() => ({
   lecturasHistorial: 0,
   retenerHistorialDe: null,
   soltarHistorial: null,
+  // Un UPDATE de ese resultado queda en viaje (una sola vez): antes de llegar
+  // a la base, o ya aplicado y con la respuesta demorada.
+  retenerUpdate: null,
+  demorarRespuestaUpdate: null,
+  retenidos: [],
 }));
+
+// Deja un pedido en viaje hasta que la prueba lo suelte (db.soltar, o todos
+// juntos al terminar).
+const retener = (alSoltar) =>
+  new Promise((resolver) => {
+    alSoltar(resolver);
+    db.retenidos.push(resolver);
+  });
 
 vi.mock("./supabase.js", () => ({
   supabase: {
@@ -71,7 +84,7 @@ vi.mock("./supabase.js", () => ({
         order: async () => {
           db.lecturasHistorial += 1;
           if (db.retenerHistorialDe && filtroEquipo === db.retenerHistorialDe) {
-            await new Promise((resolver) => {
+            await retener((resolver) => {
               db.soltarHistorial = resolver;
             });
           }
@@ -88,7 +101,7 @@ vi.mock("./supabase.js", () => ({
         insert: (filas) => ({
           select: async () => {
             if (db.retenerRival && filas[0].rival === db.retenerRival) {
-              await new Promise((resolver) => {
+              await retener((resolver) => {
                 db.soltar = resolver;
               });
             }
@@ -103,11 +116,23 @@ vi.mock("./supabase.js", () => ({
         update: (cambios) => ({
           eq: (campo, valor) => ({
             select: async () => {
+              if (db.retenerUpdate && cambios.resultado === db.retenerUpdate) {
+                db.retenerUpdate = null;
+                await retener((resolver) => {
+                  db.soltar = resolver;
+                });
+              }
               if (db.errorGuardado) return { data: null, error: db.errorGuardado };
               const fila = db.filas.find((f) => String(f.id) === String(valor));
               if (!fila) return { data: [], error: null };
               Object.assign(fila, cambios);
               db.updates.push({ id: valor, ...cambios });
+              if (db.demorarRespuestaUpdate && cambios.resultado === db.demorarRespuestaUpdate) {
+                db.demorarRespuestaUpdate = null;
+                await retener((resolver) => {
+                  db.soltar = resolver;
+                });
+              }
               return { data: [{ ...fila }], error: null };
             },
           }),
@@ -173,6 +198,9 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       lecturasHistorial: 0,
       retenerHistorialDe: null,
       soltarHistorial: null,
+      retenerUpdate: null,
+      demorarRespuestaUpdate: null,
+      retenidos: [],
     });
     localStorage.clear();
     localStorage.setItem("registro_actual_partido", JSON.stringify(borradorCruzeiro()));
@@ -181,6 +209,13 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
   });
 
   afterEach(async () => {
+    // Lo que quedó en viaje se suelta: los candados de la cola viven fuera de
+    // la pantalla, y una subida colgada pasaría a la prueba siguiente.
+    Object.assign(db, { retenerRival: null, retenerHistorialDe: null, retenerUpdate: null, demorarRespuestaUpdate: null });
+    for (let vuelta = 0; vuelta < 5 && db.retenidos.length > 0; vuelta += 1) {
+      await act(async () => db.retenidos.splice(0).forEach((soltar) => soltar()));
+      await vaciarPromesas();
+    }
     if (raiz) await act(async () => raiz.unmount());
     raiz = null;
     contenedor.remove();
@@ -915,6 +950,63 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     await act(async () => vi.advanceTimersByTime(61000));
     await vaciarPromesas();
     await vaciarPromesas();
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+    expect(cola()).toHaveLength(0);
+  });
+
+  // Entretiempo con señal (fila 100) y minuto 70 sin señal: el 1-1 queda en
+  // la cola con el número de fila.
+  const conElMinuto70EnLaCola = async () => {
+    await montar();
+    await guardar();
+    await escribirGolesRival("1");
+    db.errorGuardado = { message: "sin señal" };
+    await guardar();
+    db.errorGuardado = null;
+    expect(cola()).toHaveLength(1);
+  };
+
+  test("salir al portal y volver mientras sube la cola: el pendiente viejo en viaje no pisa el guardado final", async () => {
+    await conElMinuto70EnLaCola();
+
+    // Se abre Partido y la cola manda el 1-1, que queda en viaje.
+    db.retenerUpdate = "1-1";
+    await remontar();
+    // Se vuelve al portal y se entra de nuevo antes de que llegue.
+    await remontar();
+
+    await escribirGolesRival("2");
+    await guardar();
+    await act(async () => vi.advanceTimersByTime(8100));
+    await vaciarPromesas();
+
+    // Llega el 1-1 viejo; el 1-2 sube después, encima.
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+    await vaciarPromesas();
+
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+    expect(cola()).toHaveLength(0);
+  });
+
+  test("salir al portal y volver con el guardado final en viaje: la App nueva no sube encima el pendiente viejo", async () => {
+    await conElMinuto70EnLaCola();
+
+    // Final 1-2: la base lo aplica, pero la respuesta tarda.
+    await escribirGolesRival("2");
+    db.demorarRespuestaUpdate = "1-2";
+    await guardar();
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+
+    // Se sale y se entra con esa respuesta todavía en viaje.
+    await remontar();
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+
     expect(resultados()).toEqual(["Cruzeiro:1-2"]);
     expect(cola()).toHaveLength(0);
   });
