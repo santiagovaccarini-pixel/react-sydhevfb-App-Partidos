@@ -1,4 +1,5 @@
 import { supabase } from "../supabase.js";
+import { correoValido } from "./membresiasDb.js";
 
 // La plataforma: el dueño principal, los sub-dueños y el panel "Clubes de la
 // app". Todo pasa por funciones de la base (RPC) que miran quién llama antes
@@ -79,7 +80,6 @@ const llamar = async (funcion, parametros) => {
 };
 
 const limpiarCorreo = (correo) => String(correo || "").trim().toLowerCase();
-const correoValido = (correo) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo);
 
 // --------------------------------------------------------- La cuenta --
 
