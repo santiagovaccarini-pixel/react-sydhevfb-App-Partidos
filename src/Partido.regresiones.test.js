@@ -1615,6 +1615,24 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0].value).toBe("SUPLENTE CLUB DOS");
   });
 
+  test("con el celular casi lleno y un solo club, el partido que quedó en la copia común no muestra el aviso de que se pierde", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 30, 0));
+    enElSegundoTiempo();
+    sinLugarParaClavesNuevas();
+    await montar();
+    expect(localStorage.getItem("registro_actual_partido:eq-1")).toBeNull();
+    await escribirGolesRival("2");
+
+    expect(contenedor.querySelector(".aviso-sin-lugar")).toBeNull();
+    expect(borrador().resultado).toBe("1-2");
+
+    // Y de verdad está a salvo: al reabrir, ahí sigue.
+    await remontar();
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+    expect(contenedor.querySelectorAll(".resultado-marcador input")[1].value).toBe("2");
+    expect(contenedor.querySelector(".aviso-sin-lugar")).toBeNull();
+  });
+
   test("si el celular no tiene lugar para el borrador, lo avisa y el aviso queda a la vista", async () => {
     const original = Storage.prototype.setItem;
     const sinLugar = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (clave, valor) {

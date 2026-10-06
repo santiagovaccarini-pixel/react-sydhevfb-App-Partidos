@@ -155,8 +155,30 @@ describe("con el celular casi lleno", () => {
     sinLugarParaClavesNuevas();
 
     const conFormacion = partido("", { formacion: { titulares: ["SUPLENTE"], convocados: [] } });
-    escribirBorrador(conFormacion, "eq-2", { hayPartido });
+    expect(escribirBorrador(conFormacion, "eq-2", { hayPartido })).toBe(true);
     expect(leerBorradorDelClub("eq-2", { hayPartido }).formacion.titulares).toEqual(["SUPLENTE"]);
+  });
+
+  it("si la clave del club no entra pero la común sí, el borrador está a salvo y no se avisa", () => {
+    // Lo dejó la versión de producción, sin club.
+    localStorage.setItem(CLAVE_BORRADOR, JSON.stringify({ version: 2, registro: partido("Cruzeiro") }));
+    sinLugarParaClavesNuevas();
+
+    expect(escribirBorrador(partido("Cruzeiro", { resultado: "1-2" }), "eq-1")).toBe(true);
+    expect(localStorage.getItem(claveBorrador("eq-1"))).toBeNull();
+    expect(leerBorradorDelClub("eq-1").resultado).toBe("1-2");
+  });
+
+  it("si el club tiene otra copia suya que no se pudo actualizar, la común no alcanza y se avisa", () => {
+    // La clave del club existe (con lo de antes), pero esta vez no entra.
+    localStorage.setItem(claveBorrador("eq-1"), JSON.stringify({ version: 2, registro: partido("Cruzeiro"), equipoId: "eq-1" }));
+    const original = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (clave, valor) {
+      if (clave === claveBorrador("eq-1")) throw new DOMException("lleno", "QuotaExceededError");
+      return original.call(this, clave, valor);
+    });
+
+    expect(escribirBorrador(partido("Cruzeiro", { resultado: "1-2" }), "eq-1")).toBe(false);
   });
 });
 

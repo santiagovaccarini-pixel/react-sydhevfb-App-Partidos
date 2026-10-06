@@ -198,8 +198,9 @@ export const anotarFilaEnBorradorDelClub = (equipoId, idLocal, idFila) => {
  * Guarda el borrador en la clave de su club y deja la copia común con el
  * club anotado. Sin club se escribe solo la común, sin club, como antes.
  *
- * Con `hayPartido` se sabe si un borrador tiene un partido cargado (como en
- * leerBorradorDelClub).
+ * Devuelve si el borrador quedó a salvo en el celular: en su clave, o en la
+ * común si la del club no entró. Con `hayPartido` se sabe si un borrador
+ * tiene un partido cargado (como en leerBorradorDelClub).
  */
 export const escribirBorrador = (
   registro,
@@ -232,6 +233,12 @@ export const escribirBorrador = (
     comun.equipoId !== equipoId &&
     leer(claveBorrador(comun.equipoId)) !== textoComun &&
     hayPartido(comun.registro);
-  if (!unicaCopiaDeOtro) escribir(CLAVE_BORRADOR, texto);
-  return propio;
+  const enLaComun = !unicaCopiaDeOtro && escribir(CLAVE_BORRADOR, texto);
+
+  // Si la clave del club no entró pero la común sí, el borrador está a salvo:
+  // al leer, la común se usa cuando el club no tiene otra copia suya. Antes
+  // se avisaba igual que lo cargado se perdía.
+  return (
+    propio || (enLaComun && !interpretarBorrador(leer(clavePropia)).registro)
+  );
 };
