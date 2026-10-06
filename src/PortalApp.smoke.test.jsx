@@ -67,6 +67,7 @@ vi.mock("./Lesiones.jsx", async () => {
 });
 
 vi.mock("./Evaluaciones.jsx", () => ({ default: () => <div className="evaluaciones-de-prueba" /> }));
+vi.mock("./Notas.jsx", () => ({ default: ({ onVolver }) => <div className="notas-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
 
 describe("el portal", () => {
   let contenedor;
@@ -324,6 +325,29 @@ describe("el portal", () => {
     await act(async () => Promise.resolve());
     expect(equipo.actual.lesiones).toBe(false);
     expect(contenedor.querySelector(".lesiones-de-prueba")).toBeNull();
+  });
+
+  test("los dueños de la app ven Notas, con su dibujo, entran y vuelven; los demás no la ven", async () => {
+    cuenta.permisos = { partido: true, flujo: true, admin: true };
+    await montar();
+    const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Notas"]');
+    expect(tarjeta).not.toBeNull();
+    expect(tarjeta.classList.contains("tarjeta-notas")).toBe(true);
+    expect(tarjeta.querySelector(".portal-foto img")).toBeNull();
+    expect(tarjeta.querySelector(".portal-foto svg")).not.toBeNull();
+    await tocar("Entrar a Notas");
+    await act(async () => vi.runAllTimers());
+    expect(contenedor.querySelector(".notas-de-prueba")).not.toBeNull();
+    await act(async () => contenedor.querySelector(".notas-de-prueba button").click());
+    expect(contenedor.querySelector('button[aria-label="Entrar a Notas"]')).not.toBeNull();
+    await act(async () => raiz.unmount());
+
+    // Un administrador de club que no es dueño de la app no la ve.
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", partido: true, flujo: true };
+    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    await montar();
+    expect(contenedor.querySelector(".portal-tarjeta")).not.toBeNull();
+    expect(contenedor.querySelector('button[aria-label="Entrar a Notas"]')).toBeNull();
   });
 
   test("el administrador ve Cuentas con las pendientes, entra y vuelve; los demás no lo ven", async () => {

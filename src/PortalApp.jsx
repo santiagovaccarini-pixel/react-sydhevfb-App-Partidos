@@ -7,9 +7,21 @@ import CuentasAdmin from "./CuentasAdmin.jsx";
 import BasesDeDatos, { basesHabilitadas } from "./BasesDeDatos.jsx";
 import DatosBasicos from "./DatosBasicos.jsx";
 import ElegirClub from "./ElegirClub.jsx";
+import Notas from "./Notas.jsx";
 import { contarPendientes, permisosEnClub } from "./domain/perfilesDb.js";
 import { limpiarCopiasDelClub } from "./domain/copiasLocales.js";
-import { ArteBases, ArteDatos, ArteFlujo, ArtePartido, IconoBases, IconoDatos, IconoFlujo, IconoPartido } from "./components/PortalArt.jsx";
+import {
+  ArteBases,
+  ArteDatos,
+  ArteFlujo,
+  ArteNotas,
+  ArtePartido,
+  IconoBases,
+  IconoDatos,
+  IconoFlujo,
+  IconoNotas,
+  IconoPartido,
+} from "./components/PortalArt.jsx";
 import { ClubDelPortal, Portada, TarjetasDelPortal } from "./components/PortalTarjetas.jsx";
 import { t, useIdioma } from "./idioma/index.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
@@ -23,6 +35,7 @@ const MODOS = {
   ENTRENAMIENTO: "entrenamiento",
   BASES: "bases",
   DATOS: "datos",
+  NOTAS: "notas",
   CUENTAS: "cuentas",
 };
 
@@ -86,6 +99,20 @@ const TARJETAS = [
     titulo: "portal.datosTitulo",
     etiqueta: "portal.nuevo",
     texto: "portal.datosTexto",
+  },
+  {
+    // Las mejoras de la app que anotan los dueños (no es de ningún club).
+    modo: MODOS.NOTAS,
+    permiso: "notas",
+    clase: "tarjeta-notas",
+    foto: null,
+    fotoParada: null,
+    foco: [0.5, 0.5],
+    Arte: ArteNotas,
+    Icono: IconoNotas,
+    titulo: "portal.notasTitulo",
+    etiqueta: "portal.nuevo",
+    texto: "portal.notasTexto",
   },
 ];
 
@@ -199,9 +226,10 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
 
   // Lo que se puede usar sale de la membresía en el club elegido (rol y
   // módulos); la cuenta solo dice si es dueña de la plataforma. Bases de
-  // Datos se abre con el permiso de alguna de sus bases.
+  // Datos se abre con el permiso de alguna de sus bases; Notas, solo para los
+  // dueños.
   const delClub = permisosEnClub(permisos, club);
-  const enClub = { ...delClub, bases: basesHabilitadas(delClub).length > 0 };
+  const enClub = { ...delClub, bases: basesHabilitadas(delClub).length > 0, notas: Boolean(delClub.admin) };
 
   const elegir = (tarjeta, desde) => {
     if (!enClub?.[tarjeta.permiso]) return;
@@ -242,6 +270,8 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     contenido = <BasesDeDatos permisos={enClub} userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} onTarjetas={releerClub} />;
   } else if (modo === MODOS.DATOS && enClub.datos) {
     contenido = <DatosBasicos onVolver={volver} permisos={enClub} />;
+  } else if (modo === MODOS.NOTAS && enClub.notas) {
+    contenido = <Notas onVolver={volver} />;
   } else if (modo === MODOS.CUENTAS && (enClub.admin || enClub.adminClub)) {
     contenido = <CuentasAdmin miUserId={userId} esDueno={enClub.admin} club={club} onVolver={volver} />;
   } else {

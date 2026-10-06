@@ -902,6 +902,45 @@
   background: linear-gradient(135deg, #1f2937, #0b0d10);
 }
 
+/* La tarjeta de Notas, grafito como su dibujo (como la de Datos básicos). */
+.portal-tarjeta.tarjeta-notas .portal-foto {
+  background: linear-gradient(135deg, #1f2937, #0b0d10);
+}
+
+/* Notas: la misma pantalla que Cuentas, con el texto de cada nota tal como se
+   escribió (con sus saltos de línea) y las hechas más apagadas. */
+.nota-texto {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.nota-fila.hecha .nota-texto {
+  color: var(--portal-muted);
+  text-decoration: line-through;
+  text-decoration-color: rgba(240, 201, 120, 0.6);
+}
+.nota-editar {
+  display: grid;
+  gap: 10px;
+}
+.nota-texto-campo {
+  min-height: 92px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+.nota-nueva .cuenta-autorizar {
+  justify-self: start;
+}
+
 /* Quien ya se fue del club: el mismo aviso en todos los módulos. */
 .aviso-solo-lectura {
   display: grid;

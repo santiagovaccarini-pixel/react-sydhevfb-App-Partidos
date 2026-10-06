@@ -779,4 +779,36 @@ select pruebas.ser('duenio@prueba.com'); set role authenticated;
 select pruebas.esperar('El dueño de la plataforma sí puede sumar a mano', pruebas.filas($$insert into club_miembros (equipo_id, user_id, partido, flujo) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-000000000013', false, false)$$), 1);
 reset role;
 
+-- ------------------------------------------------------------- Notas --
+
+-- Las mejoras de la app: solo los dueños las escriben y las leen. Quién la
+-- escribió y cuándo lo pone la base.
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('El dueño anota una mejora', pruebas.filas($$insert into notas (texto) values ('  Agregar un filtro por fecha  ')$$), 1);
+select pruebas.esperar('...sin los espacios de las puntas', (select count(*) from notas where texto = 'Agregar un filtro por fecha'), 1);
+select pruebas.esperar('...y la base anota quién la escribió', (select creado_email from notas where texto = 'Agregar un filtro por fecha'), 'duenio@prueba.com');
+select pruebas.debe_fallar('No elige quién la escribió', $$insert into notas (texto, creado_por) values ('otra', '00000000-0000-0000-0000-00000000000a')$$, 'permission denied');
+select pruebas.debe_fallar('No elige la fecha', $$insert into notas (texto, creado_en) values ('otra', '2020-01-01')$$, 'permission denied');
+select pruebas.debe_fallar('Una nota vacía no entra', $$insert into notas (texto) values ('   ')$$, 'notas_texto_check');
+select pruebas.esperar('La marca como hecha', pruebas.filas($$update notas set hecha = true where texto = 'Agregar un filtro por fecha'$$), 1);
+select pruebas.esperar('La corrige', pruebas.filas($$update notas set texto = 'Agregar un filtro por fecha y por rival' where texto = 'Agregar un filtro por fecha'$$), 1);
+select pruebas.debe_fallar('...pero no le cambia el autor', $$update notas set creado_por = null$$, 'permission denied');
+select pruebas.esperar('...que sigue siendo el mismo', (select creado_email from notas where texto = 'Agregar un filtro por fecha y por rival'), 'duenio@prueba.com');
+reset role;
+select pruebas.ser('ana@uno.com'); set role authenticated;
+select pruebas.esperar('La administradora de un club no ve las notas', (select count(*) from notas), 0);
+select pruebas.debe_fallar('...ni anota', $$insert into notas (texto) values ('hola')$$, 'row-level security');
+select pruebas.esperar('...ni cambia', pruebas.filas($$update notas set hecha = false$$), 0);
+select pruebas.esperar('...ni borra', pruebas.filas($$delete from notas$$), 0);
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('El staff tampoco las ve', (select count(*) from notas), 0);
+reset role;
+set role anon;
+select pruebas.debe_fallar('Sin sesión, nada', $$select count(*) from notas$$, 'permission denied');
+reset role;
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('El dueño la borra', pruebas.filas($$delete from notas where texto = 'Agregar un filtro por fecha y por rival'$$), 1);
+reset role;
+
 select 'ESCENARIOS: todos bien' as resultado;

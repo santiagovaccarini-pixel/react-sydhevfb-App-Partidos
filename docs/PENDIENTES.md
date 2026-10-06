@@ -964,6 +964,20 @@ encontró la revisión y cómo quedó:
 - En Supabase, Authentication › "Confirm email" tiene que quedar prendido: las
   invitaciones dejan entrar a la cuenta que tenga ese correo confirmado.
 
+## Notas (06/10, migración `20261013b_notas.sql`)
+
+Una tarjeta más en la pantalla principal: **Notas**, para anotar las mejoras que se
+quieren hacer en la app, adentro de la app. La ven y la usan solo los dueños de la
+plataforma (hoy `es_admin()`); ningún club ve las notas ni la tarjeta. Cada nota se
+escribe, se corrige, se marca como hecha (pasa abajo, tachada) o se borra (pregunta
+antes). Quién la escribió y cuándo lo pone la base: desde la app solo se manda el texto
+(y después el texto o si está hecha).
+
+- **Cuando entre el paso 2 de cuentas** (dueño principal y sub-dueños, que borra
+  `es_admin()`): las cuatro políticas de `notas` pasan a la función de dueños del paso 2
+  (principal o sub-dueño), y `20261013b_notas.sql` se niega a correr después de esa
+  migración. En la app, la tarjeta se ve con `esDueno`.
+
 ## Lo que dejó la revisión completa del 30/09
 
 Se revisó toda la app (pruebas automáticas, recorrido en navegador de cada
