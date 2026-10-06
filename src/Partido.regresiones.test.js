@@ -1358,6 +1358,33 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola()).toHaveLength(0);
   });
 
+  test("si el Guardar en viaje de la App anterior falla tarde, no reemplaza en el celular el final que dejó la App nueva", async () => {
+    await montar();
+    await guardar();
+    await escribirGolesRival("1");
+    db.retenerUpdate = "1-1";
+    await guardar();
+    await remontar();
+
+    await escribirGolesRival("2");
+    await guardar();
+    await act(async () => vi.advanceTimersByTime(8100));
+    await vaciarPromesas();
+    expect(cola().map((p) => p.resultado)).toEqual(["1-2"]);
+
+    // Se corta la señal y el 1-1 viejo falla: no le gana al 1-2 en la cola.
+    db.errorGuardado = { message: "sin señal" };
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    expect(cola().map((p) => p.resultado)).toEqual(["1-2"]);
+
+    db.errorGuardado = null;
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+    expect(cola()).toHaveLength(0);
+  });
+
   test("salir al portal y volver con el primer Guardar en viaje: el partido no queda repetido", async () => {
     await montar();
     // El INSERT del 1-0 tarda, y mientras tanto se sale y se entra.

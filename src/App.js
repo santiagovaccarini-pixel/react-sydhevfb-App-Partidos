@@ -4051,7 +4051,18 @@ export default function App({
     // (memoria llena) se dice: antes decía "Guardado en el celular" igual, y
     // el partido estaba solo en el borrador.
     const dejarEnElCelular = (aviso = "Guardado en el celular · sin sincronizar") => {
-      if (guardarEnElCelular(nuevoRegistro)) {
+      // Si mientras este guardado escribía entró a la cola una versión de este
+      // partido (la del Guardar de la App de después de volver del portal, que
+      // esperó a este y no llegó a tiempo), esa es más nueva: esta no la
+      // reemplaza. Antes el resultado viejo le ganaba al final en la cola.
+      const yaHayUnaMasNueva =
+        guardado.enLaCola !== null &&
+        leerPendientes().some(
+          (item) =>
+            !guardado.enLaCola.has(identidadPendiente(item)) &&
+            esVersionDelPartido(item, guardado.registro),
+        );
+      if (yaHayUnaMasNueva || guardarEnElCelular(nuevoRegistro)) {
         avisarGuardado(aviso, 6000);
         return true;
       }
