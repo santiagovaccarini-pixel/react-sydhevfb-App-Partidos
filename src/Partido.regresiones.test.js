@@ -1455,6 +1455,32 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola()).toHaveLength(0);
   });
 
+  test("si la cola de la App anterior sube el partido en curso, el borrador de la App nueva se entera de su fila y Guardar no pregunta", async () => {
+    // Como lo deja la versión de producción: el borrador sin club ni idLocal,
+    // y el mismo 1-0 en la cola, sin número propio.
+    localStorage.setItem(
+      "registros_sin_sincronizar:eq-1",
+      JSON.stringify([{ ...borradorCruzeiro().registro, sinSincronizar: true }]),
+    );
+    // Se abre esta versión y la subida del pendiente queda en viaje.
+    db.retenerRival = "Cruzeiro";
+    await montar();
+    db.retenerRival = null;
+
+    // Se sale al portal y se vuelve; mientras tanto llega (fila 100).
+    await remontar();
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    expect(resultados()).toEqual(["Cruzeiro:1-0"]);
+
+    // Otra vuelta por el portal, y el final.
+    await remontar();
+    await escribirGolesRival("2");
+    await guardar();
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(db.filas.map((f) => `${f.id}:${f.rival}:${f.resultado}`)).toEqual(["100:Cruzeiro:1-2"]);
+  });
+
   test("si se cambia de club mientras Guardar espera, la lista del club nuevo no se llena con los partidos del anterior", async () => {
     dosClubes();
     elegirClub("eq-1", "Atlético Mineiro");

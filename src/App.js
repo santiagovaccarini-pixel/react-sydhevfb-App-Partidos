@@ -2045,6 +2045,22 @@ export default function App({
     );
   };
 
+  // Lo que la cola (o el Guardar de la App anterior) subió del partido en
+  // pantalla sin que este borrador se enterara: pasa si se salió al portal y
+  // se volvió a entrar mientras tanto, y la fila le llegaba solo al borrador
+  // de la App que ya no estaba. Con la lista releída (donde ya aparece esa
+  // fila), Guardar tomaba el propio partido por otro y preguntaba si
+  // reemplazarlo.
+  const tomarFilaSubida = (club) => {
+    if (!club || club !== clubDelBorrador.current) return;
+    setRegistro((prev) => {
+      const subido = filasSubidasPorClave.get(`${club}|${clavePartido(prev)}`);
+      return subido?.idSupabase && borradorRecibeId(prev, subido)
+        ? { ...prev, idSupabase: subido.idSupabase }
+        : prev;
+    });
+  };
+
   // Guardar un partido con la base caída lo dejaba a salvo, pero nadie lo
   // volvía a intentar: quedaba marcado "sin sincronizar" para siempre. Cuando
   // la base contesta, se suben los que faltan.
@@ -2255,6 +2271,8 @@ export default function App({
       }
       if (!esLaUltima()) return;
     }
+
+    tomarFilaSubida(deEsteClub);
 
     // Si la base contesta bien pero sin nada, y en el celular hay historial
     // que ya había llegado a la base, NO se pisa: una respuesta vacía puede
@@ -4655,6 +4673,9 @@ export default function App({
     escribirPendientes(
       leerPendientes().filter((item) => clavePartido(item) !== clave),
     );
+    // Esa fila ya no está: el borrador de ese partido no la toma (ver
+    // tomarFilaSubida).
+    filasSubidasPorClave.delete(`${equipoId}|${clave}`);
     try {
       localStorage.setItem(
         porEquipo(CLAVE_RESPALDO, equipoId),
