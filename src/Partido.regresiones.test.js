@@ -438,6 +438,25 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(borrador().finalPT).toBe("21:47:00");
   });
 
+  test("un doble toque en Iniciar PT no termina el período en el mismo segundo; un Finalizar después sí", async () => {
+    await montar();
+    const accion = () => contenedor.querySelector(".accion-periodo");
+    expect(accion().textContent).toContain("Iniciar PT");
+
+    // Dos toques seguidos, como un pulgar nervioso.
+    await act(async () => accion().click());
+    await act(async () => vi.advanceTimersByTime(120));
+    await act(async () => accion().click());
+    expect(borrador().inicioPT).toMatch(/^\d\d:\d\d:\d\d$/);
+    expect(borrador().finalPT || "").toBe("");
+    expect(accion().textContent).toContain("Finalizar PT");
+
+    // Un rato después, Finalizar cierra el PT como siempre.
+    await act(async () => vi.advanceTimersByTime(3000));
+    await act(async () => accion().click());
+    expect(borrador().finalPT).not.toBe("");
+  });
+
   // ------------------------------------------------------------------ 5 --
   const dosClubes = () => {
     db.equipos = [

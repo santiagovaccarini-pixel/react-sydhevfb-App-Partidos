@@ -1728,6 +1728,8 @@ export default function App({
   }, [equiposCargados, equipoId, soloLectura]);
 
   const posicionScrollPendiente = useRef(null);
+  // Qué período se inició y cuándo (ver ejecutarAccionPeriodo).
+  const ultimoInicioPeriodo = useRef({ campo: "", momento: 0 });
   const convertirSupabaseARegistro = (fila) => {
     const prorroga = fila.prorroga || {};
     const capturaTiempo =
@@ -7189,6 +7191,7 @@ export default function App({
 
   const ejecutarAccionPeriodo = () => {
     if (!periodoIniciado) {
+      ultimoInicioPeriodo.current = { campo: datosPeriodoVista.inicio, momento: Date.now() };
       ponerAhora(datosPeriodoVista.inicio);
       return;
     }
@@ -7209,6 +7212,13 @@ export default function App({
       });
       return;
     }
+
+    // El mismo botón pasa de Iniciar a Finalizar: un doble toque marcaba el
+    // inicio y el final en el mismo segundo y el período quedaba en 0. Un
+    // Finalizar pegado al Iniciar de ese período se ignora (ningún período
+    // dura un segundo y medio).
+    const { campo, momento } = ultimoInicioPeriodo.current;
+    if (campo === datosPeriodoVista.inicio && Date.now() - momento < 1500) return;
 
     ponerAhora(datosPeriodoVista.final);
   };
