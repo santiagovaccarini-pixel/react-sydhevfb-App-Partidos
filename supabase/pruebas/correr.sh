@@ -53,10 +53,17 @@ for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_le
   $PSQL -f "$RAIZ/supabase/migrations/$otra_vez.sql" >/dev/null
 done
 # Una migración vieja corrida después de una nueva desharía lo nuevo: las que
-# tienen ese riesgo se tienen que negar solas, con un aviso claro.
-for vieja in 20261001_lesiones 20261002_lesiones_excel 20261002b_datos_basicos 20261003_club_miembros 20261004_cuentas_v2 20261005_foto_al_dia 20261006_horas_imagen; do
-  echo "→ $vieja.sql después de la última (se tiene que negar)"
-  if $PSQL -f "$RAIZ/supabase/migrations/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
+# tienen ese riesgo se tienen que negar solas, con un aviso claro. También la
+# instalación desde cero sobre una base que ya está andando.
+for vieja in instalar-desde-cero \
+             migrations/20260908_captura_tiempo_y_unicidad migrations/20260910_devolver_acceso_app \
+             migrations/20260911_jugadores_editables migrations/20260913_equipo_propio migrations/20260914_equipos \
+             migrations/20260914_localia migrations/20260920_cuenta_catapult migrations/20260922_entrenamientos \
+             migrations/20260930_cuentas migrations/20261001_lesiones migrations/20261002_lesiones_excel \
+             migrations/20261002b_datos_basicos migrations/20261003_club_miembros migrations/20261004_cuentas_v2 \
+             migrations/20261005_foto_al_dia migrations/20261006_horas_imagen; do
+  echo "→ $(basename "$vieja").sql después de la última (se tiene que negar)"
+  if $PSQL -f "$RAIZ/supabase/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
     echo "ERROR: $vieja.sql corrió después de una más nueva"
     exit 1
   fi

@@ -10,7 +10,8 @@
 --
 -- Se corre en Supabase > SQL Editor, entero y de una vez (un solo Run, sin
 -- texto seleccionado). Es una sola transacción: o queda todo o no queda
--- nada. Se puede volver a correr: no pisa lo que ya está.
+-- nada. Se puede volver a correr, salvo después de 20261003_club_miembros.sql:
+-- ahí se frena sola.
 --
 -- ANTES DE CORRER: completar las dos líneas de "Semilla" con el correo del
 -- administrador y, separados por coma, los demás correos que hoy están en
@@ -18,6 +19,17 @@
 -- =====================================================================
 
 begin;
+
+-- Freno: sobre una base con clubes (20261003_club_miembros.sql) esto
+-- devolvería permisos viejos (que el dueño decida las cuentas, Flujo diario
+-- abierto a quien lo tenga en cualquier club) y un alta de cuentas que no
+-- aplica las invitaciones.
+do $$
+begin
+  if to_regclass('public.club_miembros') is not null then
+    raise exception 'Ya está corrida 20261003_club_miembros.sql: esta es anterior y no hace falta volver a correrla.';
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------- Semilla --
 -- Valen solo dentro de esta transacción; no quedan guardados.
