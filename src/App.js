@@ -7529,6 +7529,7 @@ export default function App({
       icono={confirmacion?.icono}
       onConfirmar={confirmarAccion}
       onCancelar={cancelarConfirmacion}
+      onCerrar={cerrarConfirmacion}
     />
   );
 

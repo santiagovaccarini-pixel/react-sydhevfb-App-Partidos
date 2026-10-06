@@ -719,6 +719,37 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(borrador().formacion.convocados).toEqual(expect.not.arrayContaining(["DUDU"]));
   });
 
+  test("cerrar la hoja de la formación sin guardar tocando afuera o con Escape deja en el tablero", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 30, 0));
+    enElSegundoTiempo();
+    await montar();
+    await irA("Formación");
+    await act(async () => boton("Ingresar Formación").click());
+    const primerConvocado = () => contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0];
+    await escribir(primerConvocado(), "SUPLENTE NUEVO");
+    await irA("Partido");
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+
+    // Un toque de más en Formación abre la hoja; tocar afuera la cierra y
+    // queda el tablero.
+    await irA("Formación");
+    const velo = contenedor.querySelector(".velo-dialogo");
+    await act(async () => velo.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+
+    // Lo mismo con Escape.
+    await irA("Formación");
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+
+    // "Seguir editando" sí lleva a la formación, con lo escrito.
+    await irA("Formación");
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").click());
+    expect(primerConvocado().value).toBe("SUPLENTE NUEVO");
+  });
+
   // ------------------------------------------------------------------ 9 --
   const abrirAjustesEquipo = async () => {
     await irA("Ajustes");
