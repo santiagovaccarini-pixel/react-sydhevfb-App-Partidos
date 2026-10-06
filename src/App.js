@@ -65,6 +65,7 @@ import {
 import {
   borradorRecibeId,
   comoPendiente,
+  esVersionDelPartido,
   idAlAzar,
   identidadPendiente,
   quitarSubidos,
@@ -1948,8 +1949,9 @@ export default function App({
   };
 
   // La subida de la cola y el guardado del partido escriben en la misma
-  // tabla, así que van de a uno. Una subida en marcha queda acá (el guardado
-  // la espera un rato), y mientras el guardado escribe no arranca ninguna.
+  // tabla, así que van de a uno. Una subida en marcha queda acá, con los
+  // pendientes que lleva (el guardado de uno de esos partidos la espera un
+  // rato), y mientras el guardado escribe no arranca ninguna.
   const subidaEnCurso = useRef(null);
   const guardadoEscribiendo = useRef(false);
   // Fecha y rival → número de fila de lo que la cola subió sola. Si el
@@ -1980,21 +1982,24 @@ export default function App({
   const subirPendientes = (registrosDeLaBase) => {
     // El guardado que está escribiendo vuelve a leer (y a subir) al terminar.
     if (guardadoEscribiendo.current) return Promise.resolve({ subioAlguno: false });
-    // Dos subidas a la vez mandaban dos veces el mismo partido.
-    if (subidaEnCurso.current) return subidaEnCurso.current;
+    // Dos subidas a la vez mandaban dos veces el mismo partido. La que está
+    // en marcha tampoco se le pasa a nadie: si un pedido se colgaba, quien la
+    // esperaba (la relectura de después de guardar, la carga de otro club) se
+    // colgaba con ella. Lo que quede en la cola lo sube el reintento.
+    if (subidaEnCurso.current) return Promise.resolve({ subioAlguno: false });
 
-    const tarea = subirLaCola(registrosDeLaBase).finally(() => {
-      if (subidaEnCurso.current === tarea) subidaEnCurso.current = null;
+    const subida = { pendientes: leerPendientes(), tarea: null };
+    subida.tarea = subirLaCola(registrosDeLaBase, subida.pendientes).finally(() => {
+      if (subidaEnCurso.current === subida) subidaEnCurso.current = null;
     });
-    subidaEnCurso.current = tarea;
-    return tarea;
+    subidaEnCurso.current = subida;
+    return subida.tarea;
   };
 
-  const subirLaCola = async (registrosDeLaBase) => {
+  const subirLaCola = async (registrosDeLaBase, porSubir) => {
     const enLaBasePorClave = new Map(
       registrosDeLaBase.map((item) => [clavePartido(item), item]),
     );
-    const porSubir = leerPendientes();
 
     if (porSubir.length === 0) return { subioAlguno: false };
 
@@ -3862,14 +3867,24 @@ export default function App({
     const registroSupabase = construirFilaSupabase(nuevoRegistro);
 
     try {
-      // Si la cola del celular se está subiendo, se la deja terminar: si no,
-      // un pendiente viejo de este mismo partido podía llegar a la base
-      // después que este guardado y pisarlo. Se espera un rato nomás: si la
-      // red está colgada, el partido queda en el celular (a salvo) y sube
-      // con la próxima vuelta de la cola, después de lo viejo.
-      if (subidaEnCurso.current) {
+      // Si la cola del celular está subiendo una versión de este mismo
+      // partido, se la deja terminar: si no, ese pendiente viejo podía llegar
+      // a la base después que este guardado y pisarlo. Se espera un rato
+      // nomás: si la red está colgada, el partido queda en el celular (a
+      // salvo) y sube con la próxima vuelta de la cola, después de lo viejo.
+      // Lo que sube de otros partidos va a otras filas y no se espera: antes
+      // un pedido colgado de otro partido mandaba cada Guardar al celular.
+      const subida = subidaEnCurso.current;
+      const idDelPartido =
+        nuevoRegistro.idSupabase || coincidente?.idSupabase || null;
+      if (
+        subida &&
+        subida.pendientes.some((pendiente) =>
+          esVersionDelPartido(pendiente, nuevoRegistro, idDelPartido),
+        )
+      ) {
         const termino = await Promise.race([
-          subidaEnCurso.current.then(
+          subida.tarea.then(
             () => true,
             () => true,
           ),
@@ -4004,7 +4019,6 @@ export default function App({
       );
       guardadoEscribiendo.current = false;
 
-      await cargarRegistrosSupabase();
       if (filaDesaparecida) {
         avisarGuardado("Ya no estaba en la base · se guardó de nuevo", 6000);
       } else {
@@ -4012,6 +4026,16 @@ export default function App({
           idExistente ? "Partido actualizado" : "Partido guardado con éxito",
         );
       }
+
+      // El partido ya está en la base: el botón se libera antes de releer.
+      // Antes se esperaba la relectura (y la subida de la cola que arranca),
+      // y si uno de esos pedidos no contestaba, Guardar quedaba trabado en
+      // "Guardando…" y el guardado final no se podía hacer.
+      guardandoRef.current = false;
+      setGuardando(false);
+      cargarRegistrosSupabase().catch((fallo) =>
+        console.warn("No se pudo releer el historial después de guardar:", fallo),
+      );
     } catch (error) {
       console.error("Error de red al guardar el partido:", error);
       guardarEnElCelular(nuevoRegistro);

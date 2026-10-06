@@ -844,4 +844,78 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola().map((p) => p.rival)).toEqual(["Cruzeiro"]);
     expect(db.filas.map((f) => f.rival)).toEqual(["Flamengo"]);
   });
+
+  // ------------------------------------------------- segunda revisión --
+  const resultados = () => db.filas.map((f) => `${f.rival}:${f.resultado}`);
+
+  test("un pedido colgado de la cola, de otro partido, no frena el Guardar del partido en vivo", async () => {
+    localStorage.setItem(
+      "registros_sin_sincronizar:eq-1",
+      JSON.stringify([{ fecha: "2026-09-07", rival: "Flamengo", resultado: "2-2", sinSincronizar: true }]),
+    );
+    // Barras sin datos: el INSERT de Flamengo no contesta.
+    db.retenerRival = "Flamengo";
+    await montar();
+
+    // Sin esperar 8 s: el partido llega a la base y el botón queda libre.
+    await guardar();
+    expect(resultados()).toEqual(["Cruzeiro:1-0"]);
+    expect(contenedor.textContent).toContain("Partido guardado con éxito");
+    expect(boton("Guardar partido").disabled).toBe(false);
+
+    // El final va derecho a la misma fila.
+    await escribirGolesRival("2");
+    await guardar();
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+
+    // Cuando Flamengo contesta, sube también.
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    expect(resultados().sort()).toEqual(["Cruzeiro:1-2", "Flamengo:2-2"]);
+    expect(cola()).toHaveLength(0);
+  });
+
+  test("si la relectura de después de guardar no contesta, Guardar no queda trabado en 'Guardando…'", async () => {
+    await montar();
+    db.retenerHistorialDe = "eq-1";
+
+    await guardar();
+    expect(resultados()).toEqual(["Cruzeiro:1-0"]);
+    expect(contenedor.textContent).toContain("Partido guardado con éxito");
+    expect(boton("Guardar partido").disabled).toBe(false);
+
+    await escribirGolesRival("2");
+    await guardar();
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+  });
+
+  test("una versión vieja de este mismo partido que está subiendo se espera, y no pisa el guardado final", async () => {
+    await montar();
+    db.errorGuardado = { message: "sin señal" };
+    await guardar();
+    db.errorGuardado = null;
+
+    // Vuelve la señal y el 1-0 del entretiempo empieza a subir, lento.
+    db.retenerRival = "Cruzeiro";
+    await act(async () => window.dispatchEvent(new Event("online")));
+    await vaciarPromesas();
+
+    // Final 1-2: espera esa subida y, como no termina, queda en el celular.
+    await escribirGolesRival("2");
+    await guardar();
+    expect(db.filas).toHaveLength(0);
+    await act(async () => vi.advanceTimersByTime(8100));
+    await vaciarPromesas();
+    expect(contenedor.textContent).toContain("Guardado en el celular");
+
+    // Llega el 1-0 viejo, y el 1-2 sube después, encima.
+    db.retenerRival = null;
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+    await vaciarPromesas();
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+    expect(cola()).toHaveLength(0);
+  });
 });
