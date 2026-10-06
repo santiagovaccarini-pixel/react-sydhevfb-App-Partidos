@@ -179,7 +179,8 @@ export default async function handler(request, response) {
     return response.status(405).json({ ok: false, error: "Método no permitido" });
   }
 
-  // Prueba técnica: el dueño, o cualquiera con OPENFIELD_DIAGNOSTICO prendida.
+  // Prueba técnica: el técnico (el dueño principal con Flujo diario en el club
+  // del token de Catapult), o cualquiera con OPENFIELD_DIAGNOSTICO prendida.
   const auth = exigirDiagnostico(autenticarCookieOpenField(request));
   if (!auth.ok) {
     return responderNoAutenticado(response, auth);

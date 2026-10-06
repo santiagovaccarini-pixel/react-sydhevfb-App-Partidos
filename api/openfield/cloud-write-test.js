@@ -110,7 +110,8 @@ export default async function handler(request, response) {
     return response.status(405).json({ ok: false, error: "Método no permitido" });
   }
 
-  // Escribe de prueba en OpenField: solo el administrador.
+  // Escribe de prueba en el Catapult del club del token: solo el técnico (el
+  // dueño principal con Flujo diario en ese club), nunca un sub-dueño.
   const auth = exigirAdmin(autenticarCookieOpenField(request));
   if (!auth.ok) {
     return responderNoAutenticado(response, auth);
