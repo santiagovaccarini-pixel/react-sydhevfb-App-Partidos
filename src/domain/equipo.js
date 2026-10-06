@@ -145,25 +145,6 @@ export const elegirEquipoInicial = (equipos, guardado, { huboError } = {}) => {
   return null;
 };
 
-export const crearEquipo = async (nombre) => {
-  const limpio = limpiar(nombre);
-  if (!limpio) return { error: "Escribí el nombre del equipo." };
-
-  const { data, error } = await supabase
-    .from("equipos")
-    .insert([{ nombre: limpio }])
-    .select();
-
-  if (error) {
-    const repetido = /duplicate key|unique/i.test(error.message || "");
-    return {
-      error: repetido ? "Ya hay un equipo con ese nombre." : error.message,
-    };
-  }
-
-  return { equipo: normalizarEquipo(data?.[0]) };
-};
-
 // Los errores de renombrar, como claves del diccionario (la base contesta en
 // inglés). Si la base no cambió ninguna fila, no es admin de ese club (o ya
 // se fue): no tiene permiso.

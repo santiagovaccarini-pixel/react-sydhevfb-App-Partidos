@@ -41,7 +41,7 @@ describe("los diccionarios", () => {
 describe("t y plural", () => {
   it("devuelve el texto del idioma activo y rellena variables", () => {
     expect(t("acceso.entrar")).toBe("Entrar");
-    expect(t("cuentas.creadaEl", { fecha: "01/10/2026" })).toBe("Creada el 01/10/2026");
+    expect(t("cuentas.desdeEl", { fecha: "01/10/2026" })).toBe("En el club desde el 01/10/2026");
     cambiarIdioma("pt-BR");
     expect(t("acceso.entrarTitulo")).toBe("Entre com sua conta");
     expect(localStorage.getItem("idioma")).toBe("pt-BR");

@@ -3,8 +3,9 @@ import { hoyISO } from "../idioma/formatos.js";
 
 // La gente de cada club (tabla `club_miembros`, vista `v_miembros_club`), su
 // historia y las invitaciones. Quién puede ver y cambiar qué lo decide la
-// base: el admin del club, la gente de su club; el dueño de la plataforma,
-// la de todos; cada uno, lo suyo.
+// base: el admin del club, la gente de su club (menos a otro admin, a sí
+// mismo y al dueño principal de la app); cada uno, lo suyo. Los dueños de la
+// app no ven ni tocan la gente de ningún club.
 
 export const TABLA_MEMBRESIAS = "club_miembros";
 export const MODULOS_DEL_CLUB = ["partido", "flujo", "lesiones", "evaluaciones"];
@@ -15,6 +16,7 @@ const COLUMNAS_MEMBRESIA = "equipo_id, user_id, desde, hasta, rol, partido, fluj
 export const claveDeError = (error, porDefecto = "cuentas.errorClub") => {
   const texto = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`;
   if (/ultimo_admin/.test(texto)) return "cuentas.errorUltimoAdmin";
+  if (/dueno_protegido/.test(texto)) return "cuentas.errorDuenoProtegido";
   if (/hasta_futura/.test(texto)) return "cuentas.errorHastaFutura";
   if (/correo_invalido/.test(texto)) return "cuentas.errorCorreo";
   if (/club_invitaciones_abierta_unica|duplicate key/.test(texto)) return "cuentas.errorInvitacionRepetida";
@@ -70,16 +72,9 @@ export const listarMiembros = async (equipoId) => {
   return ordenarMiembros((data || []).map(normalizarMiembro));
 };
 
-// Todas las membresías que la cuenta puede ver (el dueño: todas), para el
-// resumen de clubes de cada cuenta.
-export const listarMembresias = async () => {
-  const { data, error } = await supabase.from(TABLA_MEMBRESIAS).select(COLUMNAS_MEMBRESIA);
-  if (error) throw fallo(error, "cuentas.errorClubes");
-  return (data || []).map(normalizarMiembro);
-};
-
 // Cambia una membresía que ya existe. Si la base no dejó (no administra ese
-// club), no vuelve ninguna fila y se avisa. Devuelve solo la membresía: lo
+// club, o la fila es de otro admin o la propia), no vuelve ninguna fila y se
+// avisa. El rol no se cambia desde la app. Devuelve solo la membresía: lo
 // de la cuenta (correo, estado) no está en esa tabla y queda como estaba en
 // la lista.
 const cambiar = async (userId, equipoId, cambios) => {
@@ -94,7 +89,6 @@ const cambiar = async (userId, equipoId, cambios) => {
   return normalizarMembresia(data[0]);
 };
 
-export const cambiarRol = (userId, equipoId, rol) => cambiar(userId, equipoId, { rol });
 export const cambiarModulo = (userId, equipoId, modulo, valor) => {
   if (!MODULOS_DEL_CLUB.includes(modulo)) throw new Error("cuentas.errorClub");
   return cambiar(userId, equipoId, { [modulo]: Boolean(valor) });
@@ -137,9 +131,11 @@ export const listarInvitaciones = async (equipoId) => {
   return data || [];
 };
 
-// Invita un correo al club. Si la cuenta ya existe (y confirmó su correo),
-// la base la mete en el club en el acto y la invitación vuelve usada.
-export const invitar = async (equipoId, { email, rol = "staff", partido = true, flujo = true, lesiones = false, evaluaciones = false }) => {
+// Invita un correo al club, siempre como staff (la base no deja invitar
+// administradores). Si la cuenta ya existe (y confirmó su correo), la base la
+// mete en el club en el acto y la invitación vuelve usada.
+export const invitar = async (equipoId, { email, partido = true, flujo = true, lesiones = false, evaluaciones = false }) => {
+  const rol = "staff";
   const correo = String(email || "").trim().toLowerCase();
   if (!correoValido(correo)) throw new Error("cuentas.errorCorreo");
   const insertar = () =>
