@@ -1062,4 +1062,26 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(db.filas).toEqual([expect.objectContaining({ id: 100, resultado: "1-1", ...correccion })]);
     expect(cola()).toHaveLength(0);
   });
+
+  test("si el celular no tiene lugar para el borrador, lo avisa y el aviso queda a la vista", async () => {
+    const original = Storage.prototype.setItem;
+    const sinLugar = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (clave, valor) {
+      if (String(clave).startsWith("registro_actual_partido")) throw new DOMException("lleno", "QuotaExceededError");
+      return original.call(this, clave, valor);
+    });
+    await montar();
+
+    const aviso = () => contenedor.querySelector(".aviso-sin-lugar");
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+    expect(aviso().textContent).toContain("No hay lugar en el celular");
+    await irA("Formación");
+    expect(aviso()).not.toBeNull();
+
+    // Vuelve a haber lugar: con el próximo cambio el aviso se va.
+    sinLugar.mockRestore();
+    await irA("Partido");
+    await escribirGolesRival("2");
+    expect(aviso()).toBeNull();
+    expect(borrador().resultado).toBe("1-2");
+  });
 });

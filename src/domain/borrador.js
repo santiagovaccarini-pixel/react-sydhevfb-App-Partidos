@@ -170,6 +170,19 @@ export const escribirBorrador = (registro, equipoId) => {
 
   const texto = JSON.stringify({ version: VERSION_BORRADOR, registro, equipoId });
   const propio = escribir(claveBorrador(equipoId), texto);
-  escribir(CLAVE_BORRADOR, texto);
+
+  // La común no se pisa si es la única copia del borrador de otro club: con
+  // el celular casi lleno, la clave propia de ese club no se pudo crear y su
+  // partido vive solo ahí. Antes, abrir otro club lo borraba. Cuando hay
+  // lugar, la clave de cada club es igual a la común y esto no cambia nada.
+  const textoComun = leer(CLAVE_BORRADOR);
+  const comun = interpretarBorrador(textoComun);
+  const unicaCopiaDeOtro =
+    comun.registro &&
+    comun.conClub &&
+    comun.equipoId &&
+    comun.equipoId !== equipoId &&
+    leer(claveBorrador(comun.equipoId)) !== textoComun;
+  if (!unicaCopiaDeOtro) escribir(CLAVE_BORRADOR, texto);
   return propio;
 };

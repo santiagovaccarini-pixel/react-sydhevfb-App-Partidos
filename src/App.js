@@ -1412,6 +1412,10 @@ export default function App({
   const [hastaIgual, setHastaIgual] = useState(true);
   const [ordenRegistros, setOrdenRegistros] = useState("reciente");
   const [mensajeGuardado, setMensajeGuardado] = useState("");
+  // Si el celular no tiene lugar para el borrador, se avisa y el aviso queda
+  // a la vista hasta que vuelva a entrar: antes era solo un console.warn, y
+  // el partido se perdía al cerrar la app sin que nadie se enterara.
+  const [borradorSinLugar, setBorradorSinLugar] = useState(false);
   const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
   // Al abrir, el tablero muestra el período que se está jugando (o el último
   // que se arrancó), no siempre el PT.
@@ -2331,9 +2335,9 @@ export default function App({
 
   // El borrador se guarda en la clave de su club con cada cambio.
   useEffect(() => {
-    if (!escribirBorrador(registro, clubDelBorrador.current)) {
-      console.warn("No se pudo guardar el borrador local.");
-    }
+    const guardado = escribirBorrador(registro, clubDelBorrador.current);
+    if (!guardado) console.warn("No se pudo guardar el borrador local.");
+    setBorradorSinLugar(!guardado);
   }, [registro]);
 
   // Al cambiar de club, el partido en memoria ya quedó guardado en el suyo
@@ -4204,9 +4208,9 @@ export default function App({
     // Un partido nuevo arranca por el PT, aunque se estuviera mirando otro.
     setPeriodoVista("PT");
 
-    if (!escribirBorrador(nuevoRegistro, clubDelBorrador.current)) {
-      console.warn("No se pudo limpiar el borrador local.");
-    }
+    const guardado = escribirBorrador(nuevoRegistro, clubDelBorrador.current);
+    if (!guardado) console.warn("No se pudo limpiar el borrador local.");
+    setBorradorSinLugar(!guardado);
   };
 
   const volverAPantallaFormacion = () => {
@@ -7424,6 +7428,14 @@ export default function App({
     />
   );
 
+  const avisoBorradorSinLugar = () =>
+    borradorSinLugar && (
+      <div className="aviso-sin-lugar" role="alert">
+        <Icono nombre="guardar" size={17} />
+        <span>{t("partido.borradorSinLugar")}</span>
+      </div>
+    );
+
   const enMarcoAplicacion = (activo, contenido) => (
     <ContextoPlantel.Provider value={nombresPlantel}>
       <MarcoAplicacion
@@ -7439,6 +7451,7 @@ export default function App({
             <Icono nombre="check" size={18} /> {mensajeGuardado}
           </div>
         )}
+        {avisoBorradorSinLugar()}
         {contenido}
         {renderHojaConfirmar()}
         {renderHojaDelFiltro()}
@@ -8062,6 +8075,7 @@ export default function App({
             <Icono nombre="check" size={18} /> {mensajeGuardado}
           </div>
         )}
+        {avisoBorradorSinLugar()}
 
         <header className="cabecera-tablero">
           <div className="titulo-estado-partido">

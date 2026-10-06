@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CLAVE_BORRADOR,
   CLAVE_RESPALDO_BORRADOR,
@@ -85,6 +85,32 @@ describe("un borrador por club", () => {
     expect(leerBorradorDelClub("eq-1").resultado).toBe("2-0");
     expect(respaldos()).toHaveLength(1);
     expect(JSON.parse(respaldos()[0].texto).registro.resultado).toBe("1-0");
+  });
+});
+
+describe("con el celular casi lleno", () => {
+  // Hay lugar para reescribir una clave que ya existe, pero no para crear otra.
+  const sinLugarParaClavesNuevas = () => {
+    const original = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (clave, valor) {
+      if (this.getItem(clave) === null) throw new DOMException("lleno", "QuotaExceededError");
+      return original.call(this, clave, valor);
+    });
+  };
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("la copia común no se pisa si es la única copia del borrador de otro club", () => {
+    // El partido del club 1 quedó solo en la común: su clave propia no entró.
+    const delClub1 = JSON.stringify({ version: 2, registro: partido("Cruzeiro", { inicioST: "22:03:00" }), equipoId: "eq-1" });
+    localStorage.setItem(CLAVE_BORRADOR, delClub1);
+    sinLugarParaClavesNuevas();
+
+    // Se abre el club 2 y su borrador vacío tampoco entra: lo dice, y no
+    // borra el partido del club 1.
+    expect(escribirBorrador(partido(""), "eq-2")).toBe(false);
+    expect(localStorage.getItem(CLAVE_BORRADOR)).toBe(delClub1);
+    expect(leerBorradorDelClub("eq-1").inicioST).toBe("22:03:00");
   });
 });
 
