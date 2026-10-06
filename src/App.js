@@ -2121,6 +2121,13 @@ export default function App({
     ];
   };
 
+  // Cada lectura lleva su número, y solo la última pedida llega a la lista.
+  // Guardar se libera antes de releer, así que dos relecturas pueden estar en
+  // viaje a la vez: si la del primer Guardar contestaba última, la lista (y
+  // su copia en el celular) volvía al resultado anterior, y corregir ese
+  // partido desde Registros mandaba a la base esa foto vieja entera.
+  const lecturaVigente = useRef(0);
+
   // Devuelve false si la base no contestó (o la respuesta ya no es de este
   // club): el reintento de la cola lo usa para saber si la base anda.
   const cargarRegistrosSupabase = async ({ reintentar = true } = {}) => {
@@ -2133,6 +2140,9 @@ export default function App({
     // nuevo, y editar uno lo pasaba a ese club.
     const deEsteClub = equipoId;
     const sigueElClub = () => equipoVigente.current === deEsteClub;
+    lecturaVigente.current += 1;
+    const numeroDeLectura = lecturaVigente.current;
+    const esLaUltima = () => lecturaVigente.current === numeroDeLectura;
 
     if (deSoloLectura) {
       try {
@@ -2152,6 +2162,9 @@ export default function App({
 
     // De ese club se ocupa la próxima vez que se lo elija.
     if (!sigueElClub()) return false;
+    // Ya se pidió otra lectura, más nueva: esta foto no se muestra, no se
+    // guarda en el celular y no se sube nada con ella.
+    if (!esLaUltima()) return error ? false : undefined;
 
     if (error) {
       console.error("Error cargando registros desde Supabase:", error);
@@ -2184,9 +2197,11 @@ export default function App({
 
       if (subioAlguno) {
         // Se vuelve a leer para traerlos ya con su id, sin reintentar de nuevo.
+        // Esa lectura es la más nueva, aunque mientras tanto se haya pedido otra.
         await cargarRegistrosSupabase({ reintentar: false });
         return;
       }
+      if (!esLaUltima()) return;
     }
 
     // Si la base contesta bien pero sin nada, y en el celular hay historial

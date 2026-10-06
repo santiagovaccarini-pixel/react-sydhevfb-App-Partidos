@@ -24,6 +24,10 @@ const db = vi.hoisted(() => ({
   lecturasHistorial: 0,
   retenerHistorialDe: null,
   soltarHistorial: null,
+  // Con esto, la lectura retenida contesta lo que había en la base al
+  // pedirla (como la de verdad), y no lo que haya al soltarla.
+  fotoAlPedirHistorial: false,
+  lecturasRetenidas: [],
   // Un UPDATE de ese resultado queda en viaje (una sola vez): antes de llegar
   // a la base, o ya aplicado y con la respuesta demorada.
   retenerUpdate: null,
@@ -83,18 +87,20 @@ vi.mock("./supabase.js", () => ({
         select: () => c,
         order: async () => {
           db.lecturasHistorial += 1;
+          const foto = () =>
+            db.filas
+              .filter((f) => !filtroEquipo || f.equipo_id === filtroEquipo)
+              .map((f) => ({ ...f }))
+              .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+          const alPedir = db.fotoAlPedirHistorial ? foto() : null;
           if (db.retenerHistorialDe && filtroEquipo === db.retenerHistorialDe) {
             await retener((resolver) => {
               db.soltarHistorial = resolver;
+              db.lecturasRetenidas.push(resolver);
             });
           }
           return {
-            data: db.errorHistorial
-              ? null
-              : db.filas
-                  .filter((f) => !filtroEquipo || f.equipo_id === filtroEquipo)
-                  .map((f) => ({ ...f }))
-                  .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))),
+            data: db.errorHistorial ? null : alPedir || foto(),
             error: db.errorHistorial,
           };
         },
@@ -198,6 +204,8 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       lecturasHistorial: 0,
       retenerHistorialDe: null,
       soltarHistorial: null,
+      fotoAlPedirHistorial: false,
+      lecturasRetenidas: [],
       retenerUpdate: null,
       demorarRespuestaUpdate: null,
       retenidos: [],
@@ -1101,6 +1109,49 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     await escribirGolesRival("2");
     await guardar();
     expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+  });
+
+  test("dos Guardar seguidos con el historial lento: si la relectura del primero llega última, no vuelve atrás el resultado", async () => {
+    await montar();
+    // La base guarda enseguida, pero el historial tarda en contestar (y
+    // contesta lo que había cuando se lo pidió).
+    db.retenerHistorialDe = "eq-1";
+    db.fotoAlPedirHistorial = true;
+
+    await escribirGolesRival("1");
+    await guardar();
+    await escribirGolesRival("2");
+    await guardar();
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+    expect(db.lecturasRetenidas).toHaveLength(2);
+
+    // Contesta primero la relectura del segundo Guardar, y después la del primero.
+    const [primera, segunda] = db.lecturasRetenidas;
+    db.retenerHistorialDe = null;
+    await act(async () => segunda());
+    await vaciarPromesas();
+    await act(async () => primera());
+    await vaciarPromesas();
+
+    await irA("Registros");
+    const filas = Array.from(contenedor.querySelectorAll(".registro-guardado")).map((f) => f.textContent);
+    expect(filas).toHaveLength(1);
+    expect(filas[0]).toContain("1-2");
+    const respaldo = JSON.parse(localStorage.getItem("backup_registros_partidos:eq-1")).registros;
+    expect(respaldo.map((r) => r.resultado)).toEqual(["1-2"]);
+
+    // Corregir el rival desde Registros no le devuelve a la base el 1-1.
+    await act(async () => contenedor.querySelector(".registro-guardado .boton-detalle").click());
+    await act(async () => boton("Editar registro").click());
+    const rival = Array.from(contenedor.querySelectorAll(".campo-detalle-editable")).find(
+      (campo) => campo.querySelector("label").textContent === "Rival",
+    );
+    await escribir(rival.querySelector("input"), "Cruzeiro EC");
+    await act(async () => {
+      boton("Guardar cambios").click();
+    });
+    await vaciarPromesas();
+    expect(db.filas.map((f) => `${f.id}:${f.rival}:${f.resultado}`)).toEqual(["100:Cruzeiro EC:1-2"]);
   });
 
   test("una versión vieja de este mismo partido que está subiendo se espera, y no pisa el guardado final", async () => {
