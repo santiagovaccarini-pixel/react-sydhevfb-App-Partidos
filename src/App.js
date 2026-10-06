@@ -264,9 +264,14 @@ const ESPERA_SUBIDA_MS = 8000;
 // hasta cuánto se estira la espera si la base contesta pero no lo acepta.
 const REINTENTO_COLA_MS = 60000;
 const ESPERA_MAXIMA_COLA_MS = 8 * REINTENTO_COLA_MS;
+// Un guardado que lleva este tiempo sin contestar ya no frena a nadie: su
+// pedido quedó colgado, y su App quizá ya no está (se salió al portal).
+// Mientras tanto, lo que espera está a salvo en el celular.
+const TOPE_GUARDADO_EN_VIAJE_MS = 10 * REINTENTO_COLA_MS;
 
-// La subida de la cola y el guardado del partido escriben en la misma tabla,
-// así que van de a uno por club. Estos candados viven fuera de la pantalla:
+// La subida de la cola y el guardado del partido escriben en la misma tabla:
+// dos que llevan el mismo partido van de a uno. Estos candados viven fuera
+// de la pantalla, uno por club:
 // al volver al portal y entrar de nuevo a Partido se monta otra App, y con
 // candados propios la nueva no veía la subida (o el guardado) que la anterior
 // todavía tenía en viaje. Lo viejo llegaba a la base después y pisaba el
@@ -290,8 +295,12 @@ const filasSubidasPorClave = new Map();
 const esRechazoDeLaBase = (error, status) =>
   status >= 400 && status < 500 ? true : !status && Boolean(error?.code);
 
-const guardadosEnViaje = (club) => [...(guardadosPorClub.get(club) || [])];
-const hayGuardadoEscribiendo = (club) => guardadosEnViaje(club).length > 0;
+const guardadosEnViaje = (club) => {
+  const ahora = Date.now();
+  return [...(guardadosPorClub.get(club) || [])].filter(
+    (guardado) => ahora - guardado.desde < TOPE_GUARDADO_EN_VIAJE_MS,
+  );
+};
 const empezarGuardado = (club, guardado) => {
   const enViaje = guardadosPorClub.get(club) || new Set();
   enViaje.add(guardado);
@@ -2042,15 +2051,26 @@ export default function App({
   const subirPendientes = (registrosDeLaBase) => {
     // Los candados (ver subidasPorClub) son del club de esta cola.
     const club = equipoId;
-    // El guardado que está escribiendo vuelve a leer (y a subir) al terminar.
-    if (hayGuardadoEscribiendo(club)) return Promise.resolve({ subioAlguno: false });
     // Dos subidas a la vez mandaban dos veces el mismo partido. La que está
     // en marcha tampoco se le pasa a nadie: si un pedido se colgaba, quien la
     // esperaba (la relectura de después de guardar, la carga de otro club) se
     // colgaba con ella. Lo que quede en la cola lo sube el reintento.
     if (subidasPorClub.has(club)) return Promise.resolve({ subioAlguno: false });
 
-    const subida = { pendientes: leerPendientes(), tarea: null };
+    // Un partido que un guardado está escribiendo no se sube mientras tanto:
+    // lo de la cola es más viejo que ese guardado, o más nuevo y tiene que
+    // llegar después. Los demás sí: antes cualquier guardado en viaje frenaba
+    // toda la cola, y uno que no contestaba nunca (el de la App de antes de
+    // volver al portal) la dejaba sin subir hasta recargar la página. El que
+    // guarda vuelve a leer (y a subir) al terminar.
+    const enViaje = guardadosEnViaje(club);
+    const subida = {
+      pendientes: leerPendientes().filter(
+        (pendiente) =>
+          !enViaje.some((otro) => esVersionDelPartido(pendiente, otro.registro)),
+      ),
+      tarea: null,
+    };
     subida.tarea = subirLaCola(registrosDeLaBase, subida.pendientes).finally(() => {
       if (subidasPorClub.get(club) === subida) subidasPorClub.delete(club);
     });
@@ -2305,7 +2325,7 @@ export default function App({
   reintentarLaCola.current = () => {
     if (!equipoId || soloLectura || !historialCargado) return;
     if (guardandoRef.current || reintentoEnCurso.current) return;
-    if (subidasPorClub.has(equipoId) || hayGuardadoEscribiendo(equipoId)) return;
+    if (subidasPorClub.has(equipoId)) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     const antes = leerPendientes().length;
     if (antes === 0) return;
@@ -4016,6 +4036,7 @@ export default function App({
       tarea: new Promise((resolver) => {
         avisarQueTermino = resolver;
       }),
+      desde: 0,
       // Lo que había en la cola al empezar a escribir (ver más abajo).
       enLaCola: null,
     };
@@ -4096,6 +4117,7 @@ export default function App({
         nuevoRegistro.idSupabase || coincidente?.idSupabase || idSubidoRecien;
 
       guardado.registro = { ...nuevoRegistro, idSupabase: idExistente || null };
+      guardado.desde = Date.now();
       guardado.enLaCola = new Set(leerPendientes().map(identidadPendiente));
       escribiendo = true;
       empezarGuardado(club, guardado);

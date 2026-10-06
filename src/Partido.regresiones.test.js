@@ -1377,6 +1377,57 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola()).toHaveLength(0);
   });
 
+  test("un Guardar que no contesta nunca no deja la cola del club sin subir después de salir al portal y volver", async () => {
+    await montar();
+    // El INSERT del partido en vivo no contesta, y queda "Guardando…".
+    db.retenerRival = "Cruzeiro";
+    await guardar();
+    // En la cola hay un partido de ayer.
+    localStorage.setItem(
+      "registros_sin_sincronizar:eq-1",
+      JSON.stringify([{ fecha: "2026-09-07", rival: "Flamengo", resultado: "2-2", sinSincronizar: true }]),
+    );
+    await remontar();
+
+    for (let vuelta = 0; vuelta < 5; vuelta += 1) {
+      await act(async () => vi.advanceTimersByTime(61000));
+      await vaciarPromesas();
+    }
+    await act(async () => window.dispatchEvent(new Event("online")));
+    await vaciarPromesas();
+
+    expect(resultados()).toEqual(["Flamengo:2-2"]);
+    expect(cola()).toHaveLength(0);
+  });
+
+  test("si el Guardar de la App anterior no contesta nunca, el final de ese partido que quedó en el celular sube igual al rato", async () => {
+    await montar();
+    db.retenerRival = "Cruzeiro";
+    await guardar();
+    db.retenerRival = null;
+    await remontar();
+
+    // El final espera al pedido viejo, no llega a tiempo y queda en el celular.
+    await escribirGolesRival("2");
+    await guardar();
+    await act(async () => vi.advanceTimersByTime(8100));
+    await vaciarPromesas();
+    expect(cola().map((p) => `${p.rival}:${p.resultado}`)).toEqual(["Cruzeiro:1-2"]);
+
+    // Mientras el pedido viejo puede llegar, no se sube encima…
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+    expect(resultados()).toEqual([]);
+
+    // …pero no se lo espera para siempre.
+    for (let vuelta = 0; vuelta < 10; vuelta += 1) {
+      await act(async () => vi.advanceTimersByTime(61000));
+      await vaciarPromesas();
+    }
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+    expect(cola()).toHaveLength(0);
+  });
+
   test("si se cambia de club mientras Guardar espera, la lista del club nuevo no se llena con los partidos del anterior", async () => {
     dosClubes();
     elegirClub("eq-1", "Atlético Mineiro");
