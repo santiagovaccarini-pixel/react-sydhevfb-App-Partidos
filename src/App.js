@@ -6557,14 +6557,16 @@ export default function App({
 
   const renderAjustesEquipo = () => {
     const enEdicion = nombreEquipoEditado.trim();
-    // Para cambiar de club, solo aquellos en los que la cuenta está hoy. El
-    // dueño de la plataforma ve también clubes donde no está (adentro no
-    // vería nada) y quien dejó un club lo mira desde el portal, en solo
-    // lectura. Sin club elegido se ofrecen también esos, como en el portal.
+    // Para cambiar de club, solo aquellos en los que la cuenta está hoy y
+    // tiene Partido: en uno sin el módulo la base no deja guardar, y el
+    // partido cargado ahí quedaba para siempre en la cola del celular. Quien
+    // dejó un club lo mira desde el portal, en solo lectura; sin club elegido
+    // se ofrecen también esos, como en el portal.
     const otros = equipos.filter(
       (equipo) =>
         equipo.id !== equipoId &&
         equipo.miembro !== false &&
+        equipo.partido !== false &&
         (!equipo.hasta || !equipoId),
     );
     // Renombrar es de quien administra el club (o de la plataforma) y crear

@@ -733,6 +733,21 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(ofrecidos[0]).toContain("Club de hoy");
   });
 
+  test("para cambiar de club no se ofrecen los clubes donde la cuenta no tiene Partido", async () => {
+    db.equipos = [
+      { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", desde: "2026-01-01", partido: true },
+      { id: "eq-2", nombre: "Club sin Partido", rol: "staff", desde: "2026-01-01", partido: false, flujo: true },
+      { id: "eq-3", nombre: "Club con Partido", rol: "staff", desde: "2026-01-01", partido: true },
+    ];
+    elegirClub("eq-1", "Atlético Mineiro");
+    await montar({ permisos: { admin: false } });
+    await abrirAjustesEquipo();
+
+    const ofrecidos = Array.from(contenedor.querySelectorAll(".lista-equipos button")).map((b) => b.textContent.trim());
+    expect(ofrecidos).toHaveLength(1);
+    expect(ofrecidos[0]).toContain("Club con Partido");
+  });
+
   // ----------------------------------------------------------------- 11 --
   test("si la base tarda y se cambia de club, los partidos del club anterior no aparecen en el nuevo", async () => {
     dosClubes();
