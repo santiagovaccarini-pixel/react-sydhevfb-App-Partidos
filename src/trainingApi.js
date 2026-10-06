@@ -72,7 +72,9 @@ const pedirUnaVez = async (url, { method, body }) => {
 
 // fetch con la sesión de la app puesta (cookie de OpenField + token de
 // Supabase). Si la cookie venció (la app estuvo en el fondo del celular más
-// de una hora), se renueva sola y se repite el pedido una vez.
+// de una hora), se renueva sola y se repite el pedido una vez. Si al
+// renovarla el servidor dice que la cuenta no puede (403: sin Flujo diario,
+// o su club no tiene Catapult en la app), vale esa respuesta: dice el porqué.
 export const pedirJson = async (url, { method = "GET", body } = {}) => {
   const primero = await pedirUnaVez(url, { method, body });
   const codigo = primero.payload?.code;
@@ -80,7 +82,8 @@ export const pedirJson = async (url, { method = "GET", body } = {}) => {
     primero.respuesta.status === 401 && CODIGOS_SESION_OPENFIELD.has(codigo) && !url.startsWith(RUTA_SESION_OPENFIELD);
   if (!sesionVencida) return primero;
 
-  const { respuesta } = await abrirSesionOpenField();
-  if (!respuesta?.ok) return primero;
+  const renovada = await abrirSesionOpenField();
+  if (renovada.respuesta?.status === 403) return renovada;
+  if (!renovada.respuesta?.ok) return primero;
   return pedirUnaVez(url, { method, body });
 };

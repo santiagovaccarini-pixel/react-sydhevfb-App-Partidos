@@ -437,6 +437,7 @@ export default {
     iniciaSesion: "Iniciá sesión para acceder a OpenField.",
     servidorCaido: "OpenField no responde: podés seguir trabajando y probar de nuevo en un rato.",
     reintentando: "Probando…",
+    sinCatapult: "Tu club todavía no conectó Catapult en la app.",
   },
   cuentas: {
     kicker: "Administración",

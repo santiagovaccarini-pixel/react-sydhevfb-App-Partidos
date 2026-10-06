@@ -61,7 +61,10 @@ export const VinculosCatapult = ({ equipoId, soloLectura = false, onAviso = () =
     setError("");
     try {
       const { respuesta, payload } = await pedirJson("/api/openfield/atletas");
-      if (!respuesta.ok || !payload?.ok) throw new Error(mensajeDeRespuesta(payload, t("datos.catapult.noChalecos")));
+      if (!respuesta.ok || !payload?.ok) {
+        // El Catapult del servidor es de un solo club: el resto lo lee en su idioma.
+        throw new Error(payload?.code === "SIN_CATAPULT" ? t("openfield.sinCatapult") : mensajeDeRespuesta(payload, t("datos.catapult.noChalecos")));
+      }
       const lista = Array.isArray(payload.atletas) ? payload.atletas : [];
       setAtletas(lista);
       // Punto de partida: lo guardado; si no hay, la propuesta.
