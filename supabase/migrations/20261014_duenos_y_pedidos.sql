@@ -169,6 +169,9 @@ alter table public.club_miembros_historial alter column user_id drop not null;
 
 -- El nombre de un club para compararlo: minúsculas, sin tildes y con un
 -- solo espacio entre palabras ("  Atlético  MINEIRO " = "atletico mineiro").
+-- Las tildes se sacan antes de pasar a minúsculas, en mayúscula y en
+-- minúscula: así no depende del idioma de la base (con el de "C", lower() no
+-- toca la "Ó").
 create or replace function public.normalizar_nombre_club(p_nombre text)
 returns text
 language sql
@@ -176,9 +179,9 @@ immutable
 set search_path = ''
 as $$
   select btrim(regexp_replace(
-           translate(lower(coalesce(p_nombre, '')),
-                     'áàâãäåéèêëíìîïóòôõöúùûüýÿñç',
-                     'aaaaaaeeeeiiiiooooouuuuyync'),
+           lower(translate(coalesce(p_nombre, ''),
+                           'áàâãäåéèêëíìîïóòôõöúùûüýÿñçÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÝŸÑÇ',
+                           'aaaaaaeeeeiiiiooooouuuuyyncAAAAAAEEEEIIIIOOOOOUUUUYYNC')),
            '\s+', ' ', 'g'));
 $$;
 
