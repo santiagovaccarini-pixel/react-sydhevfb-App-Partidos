@@ -429,6 +429,10 @@ export default {
     soloLecturaTitulo: "Dejaste este club el {{fecha}}.",
     soloLecturaTexto: "Ves lo cargado hasta ese día. No se puede agregar ni cambiar nada.",
     soloLecturaCambio: "Solo lectura: dejaste este club.",
+    errorNombre: "Escribí el nombre del club.",
+    errorRepetido: "Ya hay un club con ese nombre.",
+    errorSinPermiso: "El nombre del club lo cambia solo su administrador.",
+    errorGuardar: "No se pudo cambiar el nombre del club. Probá de nuevo.",
   },
   openfield: {
     abriendoTitulo: "Un momento…",
@@ -540,6 +544,7 @@ export default {
     errorClubes: "No se pudo leer la gente del club.",
     errorClub: "No se pudo cambiar la membresía.",
     errorUltimoAdmin: "Es el último administrador del club: nombrá a otro antes.",
+    errorDuenoProtegido: "A esa cuenta no se la puede sacar ni cambiar desde el club: solo ella puede irse.",
     errorHastaFutura: "El último día no puede ser una fecha futura.",
     errorCorreo: "Escribí un correo válido.",
     errorInvitacionRepetida: "Ya hay una invitación abierta para ese correo.",

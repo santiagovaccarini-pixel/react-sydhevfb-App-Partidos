@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// La base de mentira: la vista con la membresía y la lista pelada de clubes.
-const base = vi.hoisted(() => ({ vista: null, errorVista: null, equipos: [], errorEquipos: null }));
+// La base de mentira: la vista con la membresía, la lista pelada de clubes y
+// lo que contesta al renombrar (las filas que cambió, o un error).
+const base = vi.hoisted(() => ({ vista: null, errorVista: null, equipos: [], errorEquipos: null, renombre: null, cambios: [] }));
 vi.mock("../supabase.js", () => ({
   supabase: {
     from: (tabla) => {
@@ -9,19 +10,34 @@ vi.mock("../supabase.js", () => ({
         select: () => consulta,
         order: async () =>
           tabla === "v_mis_clubes" ? { data: base.vista, error: base.errorVista } : { data: base.equipos, error: base.errorEquipos },
+        update: (cambios) => {
+          base.cambios.push(cambios);
+          return { eq: () => ({ select: async () => base.renombre }) };
+        },
       };
       return consulta;
     },
   },
 }));
 
-import { EQUIPO_POR_DEFECTO, cargarEquipos, elegirEquipoInicial, esElCam, esSoloLectura, guardarEquipoElegido, leerEquipoElegido } from "./equipo.js";
+import {
+  EQUIPO_POR_DEFECTO,
+  cargarEquipos,
+  elegirEquipoInicial,
+  esElCam,
+  esSoloLectura,
+  guardarEquipoElegido,
+  leerEquipoElegido,
+  renombrarEquipo,
+} from "./equipo.js";
 
 beforeEach(() => {
   base.vista = null;
   base.errorVista = null;
   base.equipos = [];
   base.errorEquipos = null;
+  base.renombre = null;
+  base.cambios = [];
   localStorage.clear();
 });
 
@@ -116,5 +132,29 @@ describe("cargarEquipos y la membresía", () => {
     expect(leerEquipoElegido()).toEqual({ id: "uno", nombre: "Atlético Mineiro", hasta: null });
     guardarEquipoElegido(null);
     expect(leerEquipoElegido()).toBeNull();
+  });
+});
+
+describe("renombrar el club", () => {
+  it("cambia el nombre limpio y devuelve el club", async () => {
+    base.renombre = { data: [{ id: "uno", nombre: "Club Uno" }], error: null };
+    expect(await renombrarEquipo("uno", "  Club Uno ")).toEqual({ equipo: { id: "uno", nombre: "Club Uno" } });
+    expect(base.cambios).toEqual([{ nombre: "Club Uno" }]);
+  });
+
+  it("sin nombre ni llega a la base; los errores vuelven como claves del diccionario", async () => {
+    expect(await renombrarEquipo("uno", "  ")).toEqual({ error: "club.errorNombre" });
+    expect(base.cambios).toHaveLength(0);
+    base.renombre = { data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "equipos_nombre_unico"' } };
+    expect(await renombrarEquipo("uno", "Club Dos")).toEqual({ error: "club.errorRepetido" });
+    base.renombre = { data: null, error: { message: "Failed to fetch" } };
+    expect(await renombrarEquipo("uno", "Club Dos")).toEqual({ error: "comun.sinConexion" });
+    base.renombre = { data: null, error: { message: "algo raro" } };
+    expect(await renombrarEquipo("uno", "Club Dos")).toEqual({ error: "club.errorGuardar" });
+  });
+
+  it("si la base no cambió ninguna fila (no administra el club), no tiene permiso", async () => {
+    base.renombre = { data: [], error: null };
+    expect(await renombrarEquipo("uno", "Club Dos")).toEqual({ error: "club.errorSinPermiso" });
   });
 });

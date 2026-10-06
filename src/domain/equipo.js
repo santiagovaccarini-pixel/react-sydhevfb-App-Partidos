@@ -76,9 +76,9 @@ function membresiaDe(fila) {
 }
 
 // Un club con lo que quien entró tiene en él: `hasta` es su último día si
-// ya se fue (vacío mientras sigue), `miembro` dice si está o estuvo (el
-// dueño de la plataforma ve también clubes en los que no está), y el rol y
-// los módulos de su membresía.
+// ya se fue (vacío mientras sigue), `miembro` dice si está o estuvo (una
+// base de antes le mostraba al dueño también clubes en los que no está), y
+// el rol y los módulos de su membresía.
 const normalizarEquipo = (fila) => ({
   id: fila?.id ?? null,
   nombre: limpiar(fila?.nombre),
@@ -164,21 +164,32 @@ export const crearEquipo = async (nombre) => {
   return { equipo: normalizarEquipo(data?.[0]) };
 };
 
+// Los errores de renombrar, como claves del diccionario (la base contesta en
+// inglés). Si la base no cambió ninguna fila, no es admin de ese club (o ya
+// se fue): no tiene permiso.
+const FALLO_DE_RED = /failed to fetch|load failed|networkerror|network request failed|fetch failed/i;
+const claveDeErrorDeEquipo = (error) => {
+  const texto = `${error?.message || ""} ${error?.details || ""}`;
+  if (FALLO_DE_RED.test(texto)) return "comun.sinConexion";
+  if (/duplicate key|unique/i.test(texto)) return "club.errorRepetido";
+  if (error?.code === "42501" || /permission denied|row-level security/i.test(texto)) return "club.errorSinPermiso";
+  return "club.errorGuardar";
+};
+
+// Cambia el nombre del club. Solo lo puede su administrador: la base lo
+// decide y, si no deja, no cambia ninguna fila.
 export const renombrarEquipo = async (id, nombre) => {
   const limpio = limpiar(nombre);
-  if (!limpio) return { error: "Escribí el nombre del equipo." };
+  if (!limpio) return { error: "club.errorNombre" };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("equipos")
     .update({ nombre: limpio })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id, nombre");
 
-  if (error) {
-    const repetido = /duplicate key|unique/i.test(error.message || "");
-    return {
-      error: repetido ? "Ya hay un equipo con ese nombre." : error.message,
-    };
-  }
+  if (error) return { error: claveDeErrorDeEquipo(error) };
+  if (!data || data.length === 0) return { error: "club.errorSinPermiso" };
 
   return { equipo: { id, nombre: limpio } };
 };
