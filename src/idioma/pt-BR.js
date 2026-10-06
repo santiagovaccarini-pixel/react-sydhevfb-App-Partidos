@@ -142,7 +142,6 @@ export default {
     pendientesTitulo: "A fazer",
     hechasTitulo: "Feitas",
     vacioPendientes: "Não há nada a fazer.",
-    hecha: "Feita",
     marcarHecha: "Marcar como feita",
     volverAPendientes: "Voltar para a fazer",
     editar: "Corrigir",
