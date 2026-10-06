@@ -6984,6 +6984,9 @@ export default function App({
   };
 
   // Un registro guardado que se está editando y tiene cambios sin guardar.
+  // Una fila agregada que quedó vacía no cuenta como cambio: al final de los
+  // cambios no se miran los lugares vacíos y en la formación, los nombres en
+  // blanco (como en la formación sin guardar, más abajo).
   const hayEdicionSinGuardar = () => {
     if (!registroSeleccionado || !detalleEditando || !detalleBorrador) {
       return false;
@@ -6995,7 +6998,28 @@ export default function App({
       cambiosRival: item.cambiosRival || crearCambiosVacios(),
       formacion: item.formacion || crearFormacionVacia(),
     };
-    return JSON.stringify(detalleBorrador) !== JSON.stringify(base);
+    const sinVaciosAlFinal = (lista) => {
+      const copia = [...(lista || [])];
+      while (
+        copia.length > 0 &&
+        Object.values(copia[copia.length - 1] || {}).every((valor) => valor == null || String(valor).trim() === "")
+      ) {
+        copia.pop();
+      }
+      return copia;
+    };
+    const comparable = (registroDetalle) =>
+      JSON.stringify({
+        ...registroDetalle,
+        cambios: sinVaciosAlFinal(registroDetalle.cambios),
+        cambiosRival: sinVaciosAlFinal(registroDetalle.cambiosRival),
+        formacion: {
+          ...registroDetalle.formacion,
+          titulares: limpiarLista(registroDetalle.formacion?.titulares),
+          convocados: limpiarLista(registroDetalle.formacion?.convocados),
+        },
+      });
+    return comparable(detalleBorrador) !== comparable(base);
   };
 
   // La formación que se está armando en "Ingresar formación" y todavía no se

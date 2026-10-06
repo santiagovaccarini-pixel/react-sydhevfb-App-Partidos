@@ -720,6 +720,32 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(db.filas[0].resultado).toBe("3-0");
   });
 
+  test("agregar una fila vacía al editar un registro no cuenta como cambio sin guardar", async () => {
+    db.filas = [{ id: 50, equipo_id: "eq-1", fecha: "2026-09-01", rival: "Bahia", resultado: "3-0", titulares: ["ALONSO"], convocados: ["BERNARD"] }];
+    await montar();
+    await irA("Registros");
+    await act(async () => contenedor.querySelector(".registro-guardado .boton-detalle").click());
+    await act(async () => boton("Editar registro").click());
+    const pestanaFormacion = Array.from(contenedor.querySelectorAll('.en-ficha [role="tab"]')).find((b) => b.textContent.includes("Formación"));
+    await act(async () => pestanaFormacion.click());
+
+    // Una fila nueva sin escribir nada: se sale sin preguntar.
+    await act(async () => boton("+ Agregar jugador").click());
+    await irA("Registros");
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+
+    // Con un nombre escrito en esa fila, sí pregunta.
+    await act(async () => contenedor.querySelector(".registro-guardado .boton-detalle").click());
+    await act(async () => boton("Editar registro").click());
+    const otraVez = Array.from(contenedor.querySelectorAll('.en-ficha [role="tab"]')).find((b) => b.textContent.includes("Formación"));
+    await act(async () => otraVez.click());
+    await act(async () => boton("+ Agregar jugador").click());
+    const lugares = contenedor.querySelectorAll('input[placeholder^="Convocado"]');
+    await escribir(lugares[lugares.length - 1], "SCARPA");
+    await irA("Registros");
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Salir sin guardar los cambios?");
+  });
+
   test("la pestaña Formación pregunta antes de tirar una formación sin guardar", async () => {
     await montar();
     await irA("Formación");
