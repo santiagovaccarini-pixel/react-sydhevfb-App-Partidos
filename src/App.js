@@ -280,6 +280,13 @@ const guardadosPorClub = new Map();
 //   en vez de crear otra.
 const filasSubidasPorClave = new Map();
 
+// Si un pedido que falló lo rechazó la base (un permiso, una columna que
+// falta, un dato que no acepta: contesta con un 4xx o con su código) o si no
+// llegó (sin señal, vencido, un 5xx de paso). Lo primero se repite igual en
+// cada intento; lo segundo se arregla solo cuando vuelve la señal.
+const esRechazoDeLaBase = (error, status) =>
+  status >= 400 && status < 500 ? true : !status && Boolean(error?.code);
+
 const hayGuardadoEscribiendo = (club) => (guardadosPorClub.get(club) || 0) > 0;
 const sumarGuardado = (club, cuanto) => {
   const quedan = (guardadosPorClub.get(club) || 0) + cuanto;
@@ -2049,6 +2056,9 @@ export default function App({
     if (porSubir.length === 0) return { subioAlguno: false };
 
     const subidos = [];
+    // Ver reintentarLaCola: solo los rechazos de la base espacian el reintento.
+    let rechazos = 0;
+    let fallosDeRed = 0;
 
     for (const pendiente of porSubir) {
       // Mientras se subían los anteriores puede haberse guardado ese partido
@@ -2070,7 +2080,7 @@ export default function App({
             )) ||
           enLaBasePorClave.get(clavePartido(pendiente));
         const fila = construirFilaSupabase(pendiente);
-        const { data, error } = existente?.idSupabase
+        const { data, error, status } = existente?.idSupabase
           ? await supabase
               .from("registros_partido")
               .update(fila)
@@ -2086,17 +2096,23 @@ export default function App({
             "Sigue sin poder subirse un partido:",
             error.message || error,
           );
+          if (esRechazoDeLaBase(error, status)) rechazos += 1;
+          else fallosDeRed += 1;
           continue;
         }
 
         // Reemplazar una fila que ya no está no es un error para la base,
         // pero tampoco guarda nada: queda en la cola para la próxima.
-        if (existente?.idSupabase && (data?.length ?? 0) === 0) continue;
+        if (existente?.idSupabase && (data?.length ?? 0) === 0) {
+          rechazos += 1;
+          continue;
+        }
 
         subidos.push(identidadPendiente(pendiente));
         avisarAlBorrador(pendiente, data?.[0]?.id || existente?.idSupabase);
       } catch (error) {
         console.warn("Sigue sin poder subirse un partido:", error);
+        fallosDeRed += 1;
       }
     }
 
@@ -2105,7 +2121,10 @@ export default function App({
     if (subidos.length > 0) {
       escribirPendientes(quitarSubidos(leerPendientes(), subidos));
     }
-    return { subioAlguno: subidos.length > 0 };
+    return {
+      subioAlguno: subidos.length > 0,
+      soloRechazos: rechazos > 0 && fallosDeRed === 0,
+    };
   };
 
   // Los que todavía no llegaron a la base van arriba de la lista, y tapan a
@@ -2129,8 +2148,9 @@ export default function App({
   const lecturaVigente = useRef(0);
 
   // Devuelve false si la base no contestó (o la respuesta ya no es de este
-  // club): el reintento de la cola lo usa para saber si la base anda.
-  const cargarRegistrosSupabase = async ({ reintentar = true } = {}) => {
+  // club): el reintento de la cola lo usa para saber si la base anda. Si se
+  // subió la cola, alSubir recibe cómo le fue.
+  const cargarRegistrosSupabase = async ({ reintentar = true, alSubir } = {}) => {
     // Quien ya se fue del club ve la foto de su último día, y no sube nada.
     const deSoloLectura = esSoloLectura(equipoId);
     let data = null;
@@ -2192,7 +2212,9 @@ export default function App({
     // club nuevo, guardado sin señal, es justamente eso (base vacía y un
     // pendiente) y antes se quedaba sin subir para siempre.
     if (reintentar) {
-      const { subioAlguno } = await subirPendientes(registrosConvertidos);
+      const subida = await subirPendientes(registrosConvertidos);
+      alSubir?.(subida);
+      const { subioAlguno } = subida;
       if (!sigueElClub()) return;
 
       if (subioAlguno) {
@@ -2264,7 +2286,10 @@ export default function App({
   // durante todo el partido, sin fin. Cada vuelta así duplica la espera (2,
   // 4 y hasta 8 minutos); vuelve a un minuto cuando algo sube, cuando entra
   // algo nuevo a la cola, cuando vuelve la señal o cuando Guardar llega a la
-  // base. Sin respuesta de la base se sigue probando cada minuto.
+  // base. Sin respuesta de la base se sigue probando cada minuto, y también
+  // si la lectura pasa pero la subida vence (con mala señal pasa seguido):
+  // antes eso espaciaba igual el reintento, y al volver la señal el partido
+  // en vivo tardaba hasta ocho minutos en subir.
   const reintentoEnCurso = useRef(false);
   const reintentarLaCola = useRef(() => {});
   reintentarLaCola.current = () => {
@@ -2280,7 +2305,12 @@ export default function App({
 
     reintentoEnCurso.current = true;
     let contesto = false;
-    cargarRegistrosSupabase()
+    let rechazada = false;
+    cargarRegistrosSupabase({
+      alSubir: ({ soloRechazos }) => {
+        rechazada = Boolean(soloRechazos);
+      },
+    })
       .then((resultado) => {
         contesto = resultado !== false;
       })
@@ -2290,9 +2320,10 @@ export default function App({
         // Si mientras tanto se reinició la espera, queda reiniciada.
         if (esperaCola.current !== espera) return;
         const quedan = leerPendientes().length;
-        const noSubioNada = contesto && quedan > 0 && quedan >= antes;
+        const noLaAcepta =
+          contesto && rechazada && quedan > 0 && quedan >= antes;
         esperaCola.current = {
-          ms: noSubioNada
+          ms: noLaAcepta
             ? Math.min(espera.ms * 2, ESPERA_MAXIMA_COLA_MS)
             : contesto
               ? REINTENTO_COLA_MS

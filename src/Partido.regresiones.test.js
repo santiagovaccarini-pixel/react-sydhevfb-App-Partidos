@@ -19,7 +19,10 @@ const db = vi.hoisted(() => ({
   bloquearRenombre: false,
   errorCrearEquipo: null,
   retenerRival: null,
+  // El pedido de ese rival vence (mala señal), o la base lo rechaza con su
+  // código (un permiso, una columna que falta).
   fallarRival: null,
+  rechazarRival: null,
   soltar: null,
   lecturasHistorial: 0,
   retenerHistorialDe: null,
@@ -112,6 +115,9 @@ vi.mock("./supabase.js", () => ({
               });
             }
             if (db.fallarRival && filas[0].rival === db.fallarRival) return { data: null, error: { message: "timeout" } };
+            if (db.rechazarRival && filas[0].rival === db.rechazarRival) {
+              return { data: null, error: { code: "42501", message: "new row violates row-level security policy" } };
+            }
             if (db.errorGuardado) return { data: null, error: db.errorGuardado };
             const fila = { ...filas[0], id: db.siguienteId++ };
             db.filas.push(fila);
@@ -200,6 +206,7 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       errorCrearEquipo: null,
       retenerRival: null,
       fallarRival: null,
+      rechazarRival: null,
       soltar: null,
       lecturasHistorial: 0,
       retenerHistorialDe: null,
@@ -954,7 +961,7 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       "registros_sin_sincronizar:eq-1",
       JSON.stringify([{ fecha: "2026-09-07", rival: "Flamengo", resultado: "2-2", sinSincronizar: true }]),
     );
-    db.fallarRival = "Flamengo";
+    db.rechazarRival = "Flamengo";
     await montar();
 
     // Un partido entero (90 minutos): antes eran 90 lecturas del historial.
@@ -974,6 +981,30 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     await minuto();
     expect(resultados()).toEqual(["Cruzeiro:1-0"]);
     expect(cola().map((p) => p.rival)).toEqual(["Flamengo"]);
+  });
+
+  test("con mala señal, que la subida venza no espacia el reintento: al volver la señal, el partido sube al minuto", async () => {
+    await montar();
+    db.errorGuardado = { message: "sin señal" };
+    await guardar();
+    db.errorGuardado = null;
+    expect(cola().map((p) => p.rival)).toEqual(["Cruzeiro"]);
+
+    // Mala señal: el historial contesta, pero la subida vence.
+    db.fallarRival = "Cruzeiro";
+    const minuto = async () => {
+      await act(async () => vi.advanceTimersByTime(60000));
+      await vaciarPromesas();
+    };
+    const lecturasAntes = db.lecturasHistorial;
+    for (let i = 0; i < 8; i += 1) await minuto();
+    expect(db.lecturasHistorial - lecturasAntes).toBe(8);
+
+    // Vuelve la señal, sin aviso de 'online': sube en la vuelta siguiente.
+    db.fallarRival = null;
+    await minuto();
+    expect(resultados()).toEqual(["Cruzeiro:1-0"]);
+    expect(cola()).toHaveLength(0);
   });
 
   // ----------------------------------------------------------------- 13 --
