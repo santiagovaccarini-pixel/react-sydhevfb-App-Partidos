@@ -1308,6 +1308,75 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola()).toHaveLength(0);
   });
 
+  test("salir al portal y volver con un Guardar en viaje: el Guardar de la App nueva lo espera y el viejo no pisa el final", async () => {
+    await montar();
+    await guardar();
+    expect(resultados()).toEqual(["Cruzeiro:1-0"]);
+
+    // Minuto 70: el UPDATE del 1-1 queda en viaje, y se sale y se entra.
+    await escribirGolesRival("1");
+    db.retenerUpdate = "1-1";
+    await guardar();
+    await remontar();
+
+    // Final 1-2 en la App nueva: espera a que conteste el 1-1, y va después.
+    await escribirGolesRival("2");
+    await guardar();
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+    expect(db.updates.map((u) => u.resultado)).toEqual(["1-1", "1-2"]);
+    expect(cola()).toHaveLength(0);
+  });
+
+  test("si el Guardar en viaje de la App anterior no contesta a tiempo, el final queda en el celular y sube después, encima", async () => {
+    await montar();
+    await guardar();
+    await escribirGolesRival("1");
+    db.retenerUpdate = "1-1";
+    await guardar();
+    await remontar();
+
+    await escribirGolesRival("2");
+    await guardar();
+    await act(async () => vi.advanceTimersByTime(8100));
+    await vaciarPromesas();
+    expect(contenedor.textContent).toContain("Guardado en el celular");
+    expect(resultados()).toEqual(["Cruzeiro:1-0"]);
+
+    // Llega tarde el 1-1: el final que quedó en el celular no se tira, y sube.
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+    await vaciarPromesas();
+
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+    expect(cola()).toHaveLength(0);
+  });
+
+  test("salir al portal y volver con el primer Guardar en viaje: el partido no queda repetido", async () => {
+    await montar();
+    // El INSERT del 1-0 tarda, y mientras tanto se sale y se entra.
+    db.retenerRival = "Cruzeiro";
+    await guardar();
+    db.retenerRival = null;
+    await remontar();
+
+    await escribirGolesRival("2");
+    await guardar();
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+
+    expect(db.filas.map((f) => `${f.id}:${f.rival}:${f.resultado}`)).toEqual(["100:Cruzeiro:1-2"]);
+    expect(cola()).toHaveLength(0);
+  });
+
   test("si se cambia de club mientras Guardar espera, la lista del club nuevo no se llena con los partidos del anterior", async () => {
     dosClubes();
     elegirClub("eq-1", "Atlético Mineiro");

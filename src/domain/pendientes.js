@@ -62,8 +62,23 @@ export const esVersionDelPartido = (pendiente, guardado, idGuardado = null) => {
   return clavePartido(pendiente) === clavePartido(guardado);
 };
 
-export const sinVersionesDelPartido = (cola, guardado, idGuardado = null) =>
-  (cola || []).filter((item) => !esVersionDelPartido(item, guardado, idGuardado));
+/**
+ * La cola sin las versiones del partido que se acaba de guardar. Con
+ * `anteriores` (las identidades de lo que había en la cola cuando el guardado
+ * empezó a escribir) se sacan solo esas: lo que entró después es más nuevo
+ * (otro Guardar de ese partido que lo esperó y quedó en el celular) y se queda.
+ */
+export const sinVersionesDelPartido = (
+  cola,
+  guardado,
+  idGuardado = null,
+  anteriores = null,
+) =>
+  (cola || []).filter(
+    (item) =>
+      !esVersionDelPartido(item, guardado, idGuardado) ||
+      (anteriores !== null && !anteriores.has(identidadPendiente(item))),
+  );
 
 /**
  * Si el borrador en pantalla tiene que quedarse con el número de fila que

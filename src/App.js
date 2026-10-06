@@ -273,11 +273,14 @@ const ESPERA_MAXIMA_COLA_MS = 8 * REINTENTO_COLA_MS;
 // guardado final, o el mismo pendiente se subía dos veces.
 // - Club → la subida en marcha, con los pendientes que lleva.
 const subidasPorClub = new Map();
-// - Club → cuántos guardados están escribiendo en la base.
+// - Club → los guardados que están escribiendo en la base: qué partido
+//   llevan y su tarea. Otro Guardar de ese partido (el de la App de después
+//   de volver del portal) lo espera, como a la subida.
 const guardadosPorClub = new Map();
-// - "club|fecha y rival" → lo que la cola subió sola, con su número de fila.
-//   Si el guardado esperó a una subida del mismo partido, actualiza esa fila
-//   en vez de crear otra.
+// - "club|fecha y rival" → lo último que llegó a la base de ese partido sin
+//   pasar por el borrador en pantalla (lo subió la cola sola, o el Guardar de
+//   la App anterior), con su número de fila. El próximo guardado de ese
+//   partido actualiza esa fila en vez de crear otra.
 const filasSubidasPorClave = new Map();
 
 // Si un pedido que falló lo rechazó la base (un permiso, una columna que
@@ -287,11 +290,18 @@ const filasSubidasPorClave = new Map();
 const esRechazoDeLaBase = (error, status) =>
   status >= 400 && status < 500 ? true : !status && Boolean(error?.code);
 
-const hayGuardadoEscribiendo = (club) => (guardadosPorClub.get(club) || 0) > 0;
-const sumarGuardado = (club, cuanto) => {
-  const quedan = (guardadosPorClub.get(club) || 0) + cuanto;
-  if (quedan > 0) guardadosPorClub.set(club, quedan);
-  else guardadosPorClub.delete(club);
+const guardadosEnViaje = (club) => [...(guardadosPorClub.get(club) || [])];
+const hayGuardadoEscribiendo = (club) => guardadosEnViaje(club).length > 0;
+const empezarGuardado = (club, guardado) => {
+  const enViaje = guardadosPorClub.get(club) || new Set();
+  enViaje.add(guardado);
+  guardadosPorClub.set(club, enViaje);
+};
+const terminarGuardado = (club, guardado) => {
+  const enViaje = guardadosPorClub.get(club);
+  if (!enViaje) return;
+  enViaje.delete(guardado);
+  if (enViaje.size === 0) guardadosPorClub.delete(club);
 };
 const CLAVE_RESPALDO = "backup_registros_partidos";
 const CLAVE_PENDIENTES = "registros_sin_sincronizar";
@@ -3996,15 +4006,25 @@ export default function App({
     setGuardando(true);
 
     const registroSupabase = construirFilaSupabase(nuevoRegistro);
-    // Este guardado cuenta una sola vez entre los que escriben en su club:
-    // con un booleano compartido, el final de un guardado de la App anterior
-    // le sacaba el candado al de esta.
+    // Este guardado queda anotado entre los que escriben en su club, con el
+    // partido que lleva: con un booleano compartido, el final de un guardado
+    // de la App anterior le sacaba el candado al de esta.
     const club = equipoId;
+    let avisarQueTermino = () => {};
+    const guardado = {
+      registro: nuevoRegistro,
+      tarea: new Promise((resolver) => {
+        avisarQueTermino = resolver;
+      }),
+      // Lo que había en la cola al empezar a escribir (ver más abajo).
+      enLaCola: null,
+    };
     let escribiendo = false;
     const dejarDeEscribir = () => {
       if (!escribiendo) return;
       escribiendo = false;
-      sumarGuardado(club, -1);
+      terminarGuardado(club, guardado);
+      avisarQueTermino();
     };
     // Sin base, el partido queda en la cola del celular. Si ni ahí entra
     // (memoria llena) se dice: antes decía "Guardado en el celular" igual, y
@@ -4021,25 +4041,38 @@ export default function App({
     try {
       // Si la cola del celular está subiendo una versión de este mismo
       // partido, se la deja terminar: si no, ese pendiente viejo podía llegar
-      // a la base después que este guardado y pisarlo. Se espera un rato
-      // nomás: si la red está colgada, el partido queda en el celular (a
-      // salvo) y sube con la próxima vuelta de la cola, después de lo viejo.
-      // Lo que sube de otros partidos va a otras filas y no se espera: antes
-      // un pedido colgado de otro partido mandaba cada Guardar al celular.
+      // a la base después que este guardado y pisarlo. Lo mismo con un
+      // Guardar de este partido que la App anterior (la de antes de volver
+      // al portal) todavía tiene en viaje: si no, el UPDATE viejo llegaba
+      // tarde y dejaba la fila con el resultado anterior, o el INSERT viejo
+      // repetía el partido. Se espera un rato nomás: si la red está colgada,
+      // el partido queda en el celular (a salvo) y sube con la próxima vuelta
+      // de la cola, después de lo viejo. Lo que se escribe de otros partidos
+      // va a otras filas y no se espera: antes un pedido colgado de otro
+      // partido mandaba cada Guardar al celular.
       const subida = subidasPorClub.get(club);
       const idDelPartido =
         nuevoRegistro.idSupabase || coincidente?.idSupabase || null;
-      if (
-        subida &&
-        subida.pendientes.some((pendiente) =>
-          esVersionDelPartido(pendiente, nuevoRegistro, idDelPartido),
-        )
-      ) {
+      const esDeEstePartido = (otro) =>
+        esVersionDelPartido(otro, nuevoRegistro, idDelPartido);
+      const enViaje = [
+        ...(subida && subida.pendientes.some(esDeEstePartido)
+          ? [subida.tarea]
+          : []),
+        ...guardadosEnViaje(club)
+          .filter((otro) => esDeEstePartido(otro.registro))
+          .map((otro) => otro.tarea),
+      ];
+      if (enViaje.length > 0) {
         const termino = await Promise.race([
-          subida.tarea.then(
-            () => true,
-            () => true,
-          ),
+          Promise.all(
+            enViaje.map((tarea) =>
+              tarea.then(
+                () => true,
+                () => true,
+              ),
+            ),
+          ).then(() => true),
           new Promise((resolver) =>
             window.setTimeout(() => resolver(false), ESPERA_SUBIDA_MS),
           ),
@@ -4051,11 +4084,8 @@ export default function App({
         }
       }
 
-      escribiendo = true;
-      sumarGuardado(club, 1);
-
-      // Lo que la cola acaba de subir de este partido ya tiene fila: se
-      // actualiza esa en vez de crear otra.
+      // Lo que la cola (o el Guardar de la App anterior) acaba de subir de
+      // este partido ya tiene fila: se actualiza esa en vez de crear otra.
       const claveSubida = `${club}|${clavePartido(nuevoRegistro)}`;
       const subidoRecien = filasSubidasPorClave.get(claveSubida);
       const idSubidoRecien =
@@ -4064,6 +4094,11 @@ export default function App({
           : null;
       const idExistente =
         nuevoRegistro.idSupabase || coincidente?.idSupabase || idSubidoRecien;
+
+      guardado.registro = { ...nuevoRegistro, idSupabase: idExistente || null };
+      guardado.enLaCola = new Set(leerPendientes().map(identidadPendiente));
+      escribiendo = true;
+      empezarGuardado(club, guardado);
 
       let respuesta = idExistente
         ? await supabase
@@ -4161,15 +4196,30 @@ export default function App({
         if (clubDelGuardado && clubDelBorrador.current !== clubDelGuardado) {
           anotarFilaEnBorradorDelClub(clubDelGuardado, nuevoRegistro.idLocal, idGuardado);
         }
+        // Si mientras tanto se salió al portal y se volvió a entrar, el
+        // borrador en pantalla es el de la otra App: su Guardar toma de acá
+        // la fila de este partido.
+        filasSubidasPorClave.set(claveSubida, {
+          ...nuevoRegistro,
+          idSupabase: idGuardado,
+        });
+      } else {
+        filasSubidasPorClave.delete(claveSubida);
       }
-      filasSubidasPorClave.delete(claveSubida);
 
       // Lo que había quedado en la cola de este mismo partido es más viejo
       // que lo que se acaba de guardar. Si se quedaba, la relectura de abajo
       // lo subía encima: la base terminaba con el resultado del entretiempo
-      // mientras la pantalla decía "guardado con éxito".
+      // mientras la pantalla decía "guardado con éxito". Lo que entró a la
+      // cola después de empezar a escribir es más nuevo (el Guardar de la
+      // otra App, que esperó a este y quedó en el celular) y se queda.
       escribirPendientes(
-        sinVersionesDelPartido(leerPendientes(), nuevoRegistro, idGuardado),
+        sinVersionesDelPartido(
+          leerPendientes(),
+          nuevoRegistro,
+          idGuardado,
+          guardado.enLaCola,
+        ),
       );
       dejarDeEscribir();
       // La base anda: lo que quede en la cola se reintenta al minuto.

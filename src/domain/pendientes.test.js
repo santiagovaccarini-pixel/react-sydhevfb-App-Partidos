@@ -63,6 +63,15 @@ describe("lo que se guardó en la base reemplaza a sus versiones de la cola", ()
     ];
     expect(sinVersionesDelPartido(cola, guardado, 100).map((p) => p.rival)).toEqual(["Flamengo"]);
   });
+
+  it("con lo que había en la cola al empezar a escribir, una versión que entró después se queda", () => {
+    // El 1-1 estaba en la cola; el 1-2 lo dejó en el celular otro Guardar
+    // que esperó a este y no llegó a tiempo: es más nuevo.
+    const vieja = comoPendiente({ fecha: "2026-09-08", rival: "Cruzeiro", resultado: "1-1" });
+    const nueva = comoPendiente({ fecha: "2026-09-08", rival: "Cruzeiro", resultado: "1-2" });
+    const anteriores = new Set([identidadPendiente(vieja)]);
+    expect(sinVersionesDelPartido([nueva, vieja], guardado, 100, anteriores)).toEqual([nueva]);
+  });
 });
 
 describe("el borrador se entera del número de fila de su pendiente", () => {
