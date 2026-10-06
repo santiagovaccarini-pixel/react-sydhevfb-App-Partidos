@@ -129,13 +129,13 @@ export default {
     datosTitulo: "Datos básicos",
     datosTexto: "Los jugadores y sus datos, en una tabla que se copia y se pega como en Excel.",
     notasTitulo: "Notas",
-    notasTexto: "Las mejoras que querés hacer en la app, anotadas para no olvidarlas.",
+    notasTexto: "Las mejoras que querés hacer en la app, anotadas para que las vea tu club.",
   },
-  // Notas: las mejoras de la app, que escriben y leen solo los dueños.
+  // Notas: las mejoras de la app, que escribe y lee la gente de cada club.
   notas: {
-    kicker: "Dueños de la app",
+    kicker: "Notas del club",
     titulo: "Notas",
-    texto: "Las mejoras que querés hacer en la app. Las ven solo los dueños de la app, ningún club.",
+    texto: "Las mejoras que querés hacer en la app. Las ve la gente de {{club}}; ningún otro club.",
     nuevaTitulo: "Nueva nota",
     placeholder: "Escribí la mejora…",
     agregar: "Agregar nota",
@@ -156,7 +156,8 @@ export default {
     errorGuardar: "No se pudo guardar la nota. Probá de nuevo.",
     errorBorrar: "No se pudo borrar la nota. Probá de nuevo.",
     errorTexto: "Escribí algo en la nota.",
-    errorSinPermiso: "Las notas son solo para los dueños de la app.",
+    errorSoloAutor: "Esta nota la corrige solo quien la escribió.",
+    errorSinPermiso: "No tenés permiso para esto en este club.",
     errorFaltaMigracion: "Falta actualizar la base: corré el SQL de Notas (20261013b_notas.sql) en Supabase.",
   },
   // Bases de Datos: una tarjeta por base, como en la pantalla principal.

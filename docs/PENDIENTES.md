@@ -966,17 +966,17 @@ encontró la revisión y cómo quedó:
 
 ## Notas (06/10, migración `20261013b_notas.sql`)
 
-Una tarjeta más en la pantalla principal: **Notas**, para anotar las mejoras que se
-quieren hacer en la app, adentro de la app. La ven y la usan solo los dueños de la
-plataforma (hoy `es_admin()`); ningún club ve las notas ni la tarjeta. Cada nota se
-escribe, se corrige, se marca como hecha (pasa abajo, tachada) o se borra (pregunta
-antes). Quién la escribió y cuándo lo pone la base: desde la app solo se manda el texto
-(y después el texto o si está hecha).
+Una tarjeta más en la pantalla principal, para todos: **Notas**, para anotar las mejoras
+que se quieren hacer en la app, adentro de la app. Cada nota es del club donde se
+escribió: la ve y la escribe la gente que sigue en ese club (`puede_editar`); ningún otro
+club la ve, tampoco el dueño de la plataforma si no está en ese club, ni quien ya se fue.
+Cualquiera del club la marca como hecha (pasa abajo, tachada) o la vuelve a abrir; la
+corrige solo quien la escribió y la borra quien la escribió o el administrador del club
+(pregunta antes). Quién la escribió y cuándo lo pone la base: desde la app se manda el
+club y el texto (y después el texto o si está hecha).
 
-- **Cuando entre el paso 2 de cuentas** (dueño principal y sub-dueños, que borra
-  `es_admin()`): las cuatro políticas de `notas` pasan a la función de dueños del paso 2
-  (principal o sub-dueño), y `20261013b_notas.sql` se niega a correr después de esa
-  migración. En la app, la tarjeta se ve con `esDueno`.
+- No usa `es_admin()`, así que el paso 2 de cuentas no la toca. Cuando la gestión del
+  club pase a la entidad (paso 3), borrar la de otro también lo puede la entidad.
 
 ## Lo que dejó la revisión completa del 30/09
 

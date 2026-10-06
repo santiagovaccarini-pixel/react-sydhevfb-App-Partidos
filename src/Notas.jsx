@@ -7,9 +7,11 @@ import { fechaYHora } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
 // Notas: las mejoras que se quieren hacer en la app, anotadas adentro de la
-// app. Las escriben y las leen solo los dueños de la plataforma (lo cuida la
-// base). Arriba se escribe una nueva; abajo, las que faltan hacer y las
-// hechas, cada una con quién la escribió y cuándo.
+// app. Cada nota es del club: la escribe y la ve la gente que sigue en el
+// club (lo cuida la base). Arriba se escribe una nueva; abajo, las que faltan
+// hacer y las hechas, cada una con quién la escribió y cuándo. Cualquiera la
+// marca como hecha; la corrige quien la escribió y la borra quien la escribió
+// o el administrador del club.
 
 const Grupo = ({ titulo, cantidad, vacio, children }) => (
   <section className="cuentas-grupo">
@@ -20,7 +22,7 @@ const Grupo = ({ titulo, cantidad, vacio, children }) => (
   </section>
 );
 
-const FilaNota = ({ nota, ocupada, onCambiar, onBorrar }) => {
+const FilaNota = ({ nota, ocupada, puedeCorregir, puedeBorrar, onCambiar, onBorrar }) => {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(nota.texto);
 
@@ -69,12 +71,16 @@ const FilaNota = ({ nota, ocupada, onCambiar, onBorrar }) => {
             <button type="button" className={nota.hecha ? "cuenta-quitar" : "cuenta-autorizar"} disabled={ocupada} onClick={() => onCambiar(nota, { hecha: !nota.hecha })}>
               {nota.hecha ? t("notas.volverAPendientes") : t("notas.marcarHecha")}
             </button>
-            <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={empezar}>
-              {t("notas.editar")}
-            </button>
-            <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onBorrar(nota)}>
-              {t("notas.borrar")}
-            </button>
+            {puedeCorregir && (
+              <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={empezar}>
+                {t("notas.editar")}
+              </button>
+            )}
+            {puedeBorrar && (
+              <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onBorrar(nota)}>
+                {t("notas.borrar")}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -82,7 +88,8 @@ const FilaNota = ({ nota, ocupada, onCambiar, onBorrar }) => {
   );
 };
 
-export default function Notas({ onVolver }) {
+// club: el club elegido; userId: quién entró; adminClub: si administra el club.
+export default function Notas({ club, userId, adminClub = false, onVolver }) {
   useIdioma();
   const [notas, setNotas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -92,17 +99,19 @@ export default function Notas({ onVolver }) {
   const [ocupada, setOcupada] = useState("");
   const [aBorrar, setABorrar] = useState(null);
 
+  const equipoId = club?.id;
+
   const cargar = useCallback(async () => {
     setCargando(true);
     setError("");
     try {
-      setNotas(await listarNotas());
+      setNotas(await listarNotas(equipoId));
     } catch (errorCarga) {
       setError(errorCarga.message || "notas.errorCargar");
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [equipoId]);
 
   useEffect(() => {
     cargar();
@@ -114,7 +123,7 @@ export default function Notas({ onVolver }) {
     setOcupada("nueva");
     setAviso("");
     try {
-      const nota = await agregarNota(nueva);
+      const nota = await agregarNota(equipoId, nueva);
       setNotas((actuales) => ordenarNotas([nota, ...actuales]));
       setNueva("");
     } catch (errorNueva) {
@@ -159,7 +168,20 @@ export default function Notas({ onVolver }) {
   const pendientes = notas.filter((nota) => !nota.hecha);
   const hechas = notas.filter((nota) => nota.hecha);
   const filas = (lista) =>
-    lista.map((nota) => <FilaNota key={nota.id} nota={nota} ocupada={ocupada === nota.id} onCambiar={cambiar} onBorrar={setABorrar} />);
+    lista.map((nota) => {
+      const propia = Boolean(userId) && nota.creado_por === userId;
+      return (
+        <FilaNota
+          key={nota.id}
+          nota={nota}
+          ocupada={ocupada === nota.id}
+          puedeCorregir={propia}
+          puedeBorrar={propia || adminClub}
+          onCambiar={cambiar}
+          onBorrar={setABorrar}
+        />
+      );
+    });
 
   return (
     <main className="cuentas-pantalla notas-pantalla">
@@ -177,9 +199,9 @@ export default function Notas({ onVolver }) {
         </div>
 
         <header className="cuentas-titulo">
-          <span className="portal-kicker">{t("notas.kicker")}</span>
+          <span className="portal-kicker">{club?.nombre || t("notas.kicker")}</span>
           <h1>{t("notas.titulo")}</h1>
-          <p>{t("notas.texto")}</p>
+          <p>{t("notas.texto", { club: club?.nombre || "" })}</p>
         </header>
 
         {error ? (

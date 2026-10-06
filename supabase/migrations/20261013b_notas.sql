@@ -2,10 +2,12 @@
 -- Notas: las mejoras que se quieren hacer en la app, anotadas adentro de la
 -- app (la tarjeta Notas del portal).
 --
---   · Las escriben y las leen solo los dueños de la plataforma. No son datos
---     de ningún club: ningún club las ve.
---   · Cada nota es un texto que se puede corregir, marcar como hecha o
---     borrar. Quién la escribió y cuándo lo pone la base.
+--   · Cada nota es de un club: la escribe y la ve la gente de ese club (la
+--     que sigue en el club). Ningún otro club la ve.
+--   · Cualquiera del club la marca como hecha o la vuelve a abrir. La corrige
+--     o la borra quien la escribió; borrarla, también el administrador del
+--     club.
+--   · Quién la escribió y cuándo lo pone la base.
 --
 -- Requiere 20261013_seguridad.sql. Se corre en Supabase > SQL Editor, entero
 -- y de una vez. Solo agrega: la app de antes sigue andando. Se puede volver a
@@ -16,9 +18,6 @@ begin;
 
 do $$
 begin
-  if to_regprocedure('public.es_admin()') is null then
-    raise exception 'Falta la función es_admin(): primero hay que correr las migraciones de cuentas (20260930 a 20261013).';
-  end if;
   if not exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'lesiones_historial' and column_name = 'equipo_id') then
     raise exception 'Primero hay que correr 20261013_seguridad.sql.';
@@ -27,6 +26,7 @@ end $$;
 
 create table if not exists public.notas (
   id             uuid primary key default gen_random_uuid(),
+  equipo_id      uuid not null references public.equipos (id) on delete cascade,
   texto          text not null check (char_length(btrim(texto)) between 1 and 2000),
   hecha          boolean not null default false,
   creado_por     uuid references auth.users (id) on delete set null,
@@ -36,12 +36,13 @@ create table if not exists public.notas (
 );
 
 comment on table public.notas is
-  'Mejoras para hacer en la app (la tarjeta Notas). Las escriben y las leen solo los dueños de la plataforma; no son de ningún club.';
+  'Mejoras para hacer en la app (la tarjeta Notas). Cada nota es de un club y la ve solo la gente que sigue en ese club.';
 
-create index if not exists notas_por_fecha on public.notas (creado_en desc);
+create index if not exists notas_por_club on public.notas (equipo_id, creado_en desc);
 
--- Quién la escribió y cuándo lo pone la base: desde la app solo se manda el
--- texto (y después, el texto o si está hecha).
+-- Quién la escribió y cuándo lo pone la base: desde la app se manda el club y
+-- el texto, y después el texto o si está hecha. El club de una nota no cambia
+-- y el texto lo corrige solo quien la escribió.
 create or replace function public.notas_preparar()
 returns trigger
 language plpgsql
@@ -55,7 +56,12 @@ begin
     new.creado_email := coalesce((select u.email from auth.users u where u.id = new.creado_por), '');
     new.creado_en := now();
   else
+    if new.texto is distinct from old.texto
+       and auth.uid() is not null and auth.uid() is distinct from old.creado_por then
+      raise exception 'solo_quien_la_escribio' using errcode = 'P0001';
+    end if;
     new.id := old.id;
+    new.equipo_id := old.equipo_id;
     new.creado_por := old.creado_por;
     new.creado_email := old.creado_email;
     new.creado_en := old.creado_en;
@@ -72,35 +78,36 @@ create trigger notas_preparar
 
 revoke execute on function public.notas_preparar() from public, anon, authenticated;
 
--- Solo los dueños, con permisos justos: nada para anon; las cuentas
--- logueadas leen y borran, agregan solo el texto y cambian solo el texto o
--- si está hecha. Las políticas dicen quién (el dueño).
+-- Permisos justos: nada para anon; las cuentas logueadas leen y borran,
+-- agregan solo el club y el texto y cambian solo el texto o si está hecha.
+-- Las políticas dicen quién: la gente que sigue en el club (puede_editar).
 alter table public.notas enable row level security;
 revoke all on table public.notas from public, anon, authenticated;
 grant select, delete on table public.notas to authenticated;
-grant insert (texto) on table public.notas to authenticated;
+grant insert (equipo_id, texto) on table public.notas to authenticated;
 grant update (texto, hecha) on table public.notas to authenticated;
 
 drop policy if exists notas_ver on public.notas;
 create policy notas_ver on public.notas
   for select to authenticated
-  using ((select public.es_admin()));
+  using (public.puede_editar(equipo_id));
 
 drop policy if exists notas_agregar on public.notas;
 create policy notas_agregar on public.notas
   for insert to authenticated
-  with check ((select public.es_admin()));
+  with check (public.puede_editar(equipo_id));
 
 drop policy if exists notas_cambiar on public.notas;
 create policy notas_cambiar on public.notas
   for update to authenticated
-  using ((select public.es_admin()))
-  with check ((select public.es_admin()));
+  using (public.puede_editar(equipo_id))
+  with check (public.puede_editar(equipo_id));
 
 drop policy if exists notas_borrar on public.notas;
 create policy notas_borrar on public.notas
   for delete to authenticated
-  using ((select public.es_admin()));
+  using (public.puede_editar(equipo_id)
+         and (creado_por = (select auth.uid()) or public.es_admin_de_club(equipo_id)));
 
 commit;
 

@@ -129,13 +129,13 @@ export default {
     datosTitulo: "Dados básicos",
     datosTexto: "Os jogadores e seus dados, numa tabela que copia e cola como no Excel.",
     notasTitulo: "Notas",
-    notasTexto: "As melhorias que você quer fazer no app, anotadas para não esquecer.",
+    notasTexto: "As melhorias que você quer fazer no app, anotadas para o seu clube ver.",
   },
   // Bases de Dados: um cartão por base, como na tela principal.
   notas: {
-    kicker: "Donos do app",
+    kicker: "Notas do clube",
     titulo: "Notas",
-    texto: "As melhorias que você quer fazer no app. Só os donos do app veem, nenhum clube.",
+    texto: "As melhorias que você quer fazer no app. Quem vê é o pessoal de {{club}}; nenhum outro clube.",
     nuevaTitulo: "Nova nota",
     placeholder: "Escreva a melhoria…",
     agregar: "Adicionar nota",
@@ -156,7 +156,8 @@ export default {
     errorGuardar: "Não foi possível salvar a nota. Tente de novo.",
     errorBorrar: "Não foi possível apagar a nota. Tente de novo.",
     errorTexto: "Escreva algo na nota.",
-    errorSinPermiso: "As notas são só para os donos do app.",
+    errorSoloAutor: "Só quem escreveu esta nota pode corrigi-la.",
+    errorSinPermiso: "Você não tem permissão para isso neste clube.",
     errorFaltaMigracion: "Falta atualizar a base: rode o SQL de Notas (20261013b_notas.sql) no Supabase.",
   },
   bases: {

@@ -116,15 +116,16 @@ describe("el portal", () => {
     // Cada tarjeta lleva su foto y su ícono arriba a la izquierda.
     expect(contenedor.querySelector(".tarjeta-partido .portal-foto img").getAttribute("src")).toBe("/portal/partido.webp");
     expect(contenedor.querySelector(".tarjeta-flujo .portal-foto img").getAttribute("src")).toBe("/portal/flujo.webp");
-    // Partido, Flujo diario y Datos básicos (que va con cualquier módulo).
-    expect(contenedor.querySelectorAll(".portal-tarjeta .portal-icono svg")).toHaveLength(3);
+    // Partido, Flujo diario, Datos básicos (que va con cualquier módulo) y
+    // Notas (toda la gente del club).
+    expect(contenedor.querySelectorAll(".portal-tarjeta .portal-icono svg")).toHaveLength(4);
     expect(portada()).toBeNull();
   });
 
   test("con algún módulo aparece también Datos básicos, con su dibujo, y entra sin portada", async () => {
     cuenta.permisos = { partido: true, flujo: true, datos: true, admin: false };
     await montar();
-    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(3);
+    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(4);
     const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Datos básicos"]');
     expect(tarjeta).not.toBeNull();
     expect(tarjeta.classList.contains("tarjeta-datos")).toBe(true);
@@ -134,7 +135,7 @@ describe("el portal", () => {
     await act(async () => vi.runAllTimers());
     expect(contenedor.querySelector(".datos-de-prueba")).not.toBeNull();
     await act(async () => contenedor.querySelector(".datos-de-prueba button").click());
-    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(3);
+    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(4);
   });
 
   test("quien ya se fue del club lo ve marcado en el portal y al elegir club; sin membresía no se elige", async () => {
@@ -327,8 +328,9 @@ describe("el portal", () => {
     expect(contenedor.querySelector(".lesiones-de-prueba")).toBeNull();
   });
 
-  test("los dueños de la app ven Notas, con su dibujo, entran y vuelven; los demás no la ven", async () => {
-    cuenta.permisos = { partido: true, flujo: true, admin: true };
+  test("toda la gente del club ve Notas, con su dibujo, entra y vuelve; quien se fue del club no", async () => {
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false };
+    cuenta.permisos = { partido: true, flujo: false, admin: false };
     await montar();
     const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Notas"]');
     expect(tarjeta).not.toBeNull();
@@ -342,9 +344,9 @@ describe("el portal", () => {
     expect(contenedor.querySelector('button[aria-label="Entrar a Notas"]')).not.toBeNull();
     await act(async () => raiz.unmount());
 
-    // Un administrador de club que no es dueño de la app no la ve.
-    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", partido: true, flujo: true };
-    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    // Quien ya se fue del club ve lo de antes en solo lectura, pero no las notas.
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false, hasta: "2026-09-25" };
+    equipo.lista = [{ ...equipo.actual, miembro: true }];
     await montar();
     expect(contenedor.querySelector(".portal-tarjeta")).not.toBeNull();
     expect(contenedor.querySelector('button[aria-label="Entrar a Notas"]')).toBeNull();

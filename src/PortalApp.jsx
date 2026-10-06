@@ -101,7 +101,7 @@ const TARJETAS = [
     texto: "portal.datosTexto",
   },
   {
-    // Las mejoras de la app que anotan los dueños (no es de ningún club).
+    // Las mejoras de la app que anota la gente del club (las ve su club).
     modo: MODOS.NOTAS,
     permiso: "notas",
     clase: "tarjeta-notas",
@@ -226,10 +226,10 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
 
   // Lo que se puede usar sale de la membresía en el club elegido (rol y
   // módulos); la cuenta solo dice si es dueña de la plataforma. Bases de
-  // Datos se abre con el permiso de alguna de sus bases; Notas, solo para los
-  // dueños.
+  // Datos se abre con el permiso de alguna de sus bases; Notas, para toda la
+  // gente que sigue en el club.
   const delClub = permisosEnClub(permisos, club);
-  const enClub = { ...delClub, bases: basesHabilitadas(delClub).length > 0, notas: Boolean(delClub.admin) };
+  const enClub = { ...delClub, bases: basesHabilitadas(delClub).length > 0, notas: Boolean(club) && !club.hasta && club.miembro !== false };
 
   const elegir = (tarjeta, desde) => {
     if (!enClub?.[tarjeta.permiso]) return;
@@ -271,7 +271,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   } else if (modo === MODOS.DATOS && enClub.datos) {
     contenido = <DatosBasicos onVolver={volver} permisos={enClub} />;
   } else if (modo === MODOS.NOTAS && enClub.notas) {
-    contenido = <Notas onVolver={volver} />;
+    contenido = <Notas club={club} userId={userId} adminClub={enClub.adminClub} onVolver={volver} />;
   } else if (modo === MODOS.CUENTAS && (enClub.admin || enClub.adminClub)) {
     contenido = <CuentasAdmin miUserId={userId} esDueno={enClub.admin} club={club} onVolver={volver} />;
   } else {

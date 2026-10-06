@@ -12,15 +12,16 @@ vi.mock("./domain/notasDb.js", async () => {
   let siguiente = 100;
   return {
     ...real,
-    listarNotas: async () => {
+    listarNotas: async (equipoId) => {
+      datos.llamadas.push({ que: "listar", equipoId });
       if (datos.errorLeer) throw new Error(datos.errorLeer);
       return real.ordenarNotas(datos.notas);
     },
-    agregarNota: async (texto) => {
-      datos.llamadas.push({ que: "agregar", texto });
+    agregarNota: async (equipoId, texto) => {
+      datos.llamadas.push({ que: "agregar", equipoId, texto });
       if (datos.errorGuardar) throw new Error(datos.errorGuardar);
       siguiente += 1;
-      const nota = { id: `n-${siguiente}`, texto: texto.trim(), hecha: false, creado_email: "duenio@prueba.com", creado_en: "2026-10-06T15:00:00Z" };
+      const nota = { id: `n-${siguiente}`, equipo_id: equipoId, texto: texto.trim(), hecha: false, creado_por: "u-juana", creado_email: "juana@prueba.com", creado_en: "2026-10-06T15:00:00Z" };
       datos.notas = [nota, ...datos.notas];
       return nota;
     },
@@ -47,8 +48,8 @@ describe("Notas", () => {
   beforeEach(() => {
     cambiarIdioma("es-AR");
     datos.notas = [
-      { id: "n-1", texto: "Filtro por rival en Registros", hecha: false, creado_email: "duenio@prueba.com", creado_en: "2026-10-05T12:00:00Z" },
-      { id: "n-2", texto: "Exportar el informe a PDF", hecha: true, creado_email: "sub@prueba.com", creado_en: "2026-10-04T12:00:00Z" },
+      { id: "n-1", texto: "Filtro por rival en Registros", hecha: false, creado_por: "u-juana", creado_email: "juana@prueba.com", creado_en: "2026-10-05T12:00:00Z" },
+      { id: "n-2", texto: "Exportar el informe a PDF", hecha: true, creado_por: "u-ivan", creado_email: "ivan@prueba.com", creado_en: "2026-10-04T12:00:00Z" },
     ];
     datos.llamadas = [];
     datos.errorLeer = null;
@@ -65,10 +66,12 @@ describe("Notas", () => {
     document.body.innerHTML = "";
   });
 
-  const montar = async () => {
+  const CLUB = { id: "eq-1", nombre: "Atlético Mineiro" };
+  // Entra Juana, staff del club; con adminClub, administra el club.
+  const montar = async ({ adminClub = false } = {}) => {
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<Notas onVolver={volver} />);
+      raiz.render(<Notas club={CLUB} userId="u-juana" adminClub={adminClub} onVolver={volver} />);
     });
   };
 
@@ -85,13 +88,16 @@ describe("Notas", () => {
   };
   const textos = () => [...contenedor.querySelectorAll(".nota-texto")].map((uno) => uno.textContent);
 
-  test("muestra por hacer y hechas, con quién la escribió; Volver al portal vuelve", async () => {
+  test("muestra las del club, por hacer y hechas, con quién la escribió; Volver al portal vuelve", async () => {
     await montar();
+    expect(datos.llamadas).toContainEqual({ que: "listar", equipoId: "eq-1" });
     expect(contenedor.querySelector("h1").textContent).toBe("Notas");
+    expect(contenedor.querySelector(".portal-kicker").textContent).toBe("Atlético Mineiro");
+    expect(contenedor.querySelector(".cuentas-titulo p").textContent).toBe("Las mejoras que querés hacer en la app. Las ve la gente de Atlético Mineiro; ningún otro club.");
     const grupos = [...contenedor.querySelectorAll(".cuentas-grupo h2")].map((uno) => uno.textContent);
     expect(grupos).toEqual(["Nueva nota", "Por hacer 1", "Hechas 1"]);
     expect(textos()).toEqual(["Filtro por rival en Registros", "Exportar el informe a PDF"]);
-    expect(contenedor.querySelector(".nota-fila.hecha .cuenta-meta").textContent).toContain("sub@prueba.com");
+    expect(contenedor.querySelector(".nota-fila.hecha .cuenta-meta").textContent).toContain("ivan@prueba.com");
     await tocar(boton("Volver al portal", contenedor));
     expect(volver).toHaveBeenCalled();
   });
@@ -102,7 +108,7 @@ describe("Notas", () => {
     expect(boton("Agregar nota", contenedor).disabled).toBe(true);
     await escribir(campo, "  Avisar cuando vence una invitación  ");
     await tocar(boton("Agregar nota", contenedor));
-    expect(datos.llamadas).toContainEqual({ que: "agregar", texto: "  Avisar cuando vence una invitación  " });
+    expect(datos.llamadas).toContainEqual({ que: "agregar", equipoId: "eq-1", texto: "  Avisar cuando vence una invitación  " });
     expect(textos()[0]).toBe("Avisar cuando vence una invitación");
     expect(campo.value).toBe("");
   });
@@ -125,6 +131,23 @@ describe("Notas", () => {
     expect(datos.llamadas).toContainEqual({ que: "cambiar", id: "n-1", cambios: { texto: "Filtro por rival y por fecha" } });
     expect(textos()[0]).toBe("Filtro por rival y por fecha");
     expect(contenedor.querySelector(".nota-fila textarea")).toBeNull();
+  });
+
+  test("la nota de otro se marca como hecha, pero no se corrige ni se borra; el administrador la puede borrar", async () => {
+    await montar();
+    const deIvan = contenedor.querySelector(".nota-fila.hecha");
+    expect(boton("Volver a por hacer", deIvan)).toBeTruthy();
+    expect(boton("Corregir", deIvan)).toBeUndefined();
+    expect(boton("Borrar", deIvan)).toBeUndefined();
+    const propia = contenedor.querySelector(".nota-fila:not(.hecha)");
+    expect(boton("Corregir", propia)).toBeTruthy();
+    expect(boton("Borrar", propia)).toBeTruthy();
+    await act(async () => raiz.unmount());
+
+    await montar({ adminClub: true });
+    const comoAdmin = contenedor.querySelector(".nota-fila.hecha");
+    expect(boton("Corregir", comoAdmin)).toBeUndefined();
+    expect(boton("Borrar", comoAdmin)).toBeTruthy();
   });
 
   test("borrar pregunta antes; Cancelar no borra y Sí, borrar sí", async () => {
