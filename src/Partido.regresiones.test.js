@@ -1043,4 +1043,23 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola("eq-1").map((p) => `${p.rival}:${p.resultado}`)).toEqual(["Cruzeiro:1-1"]);
     expect(cola("eq-2")).toHaveLength(0);
   });
+
+  test.each([
+    ["el rival", { rival: "Cruzeiro EC" }],
+    ["la fecha", { fecha: "2026-09-07" }],
+  ])("corregir sin señal %s de un pendiente que ya tenía fila actualiza esa fila, sin repetir el partido", async (_, correccion) => {
+    localStorage.removeItem("registro_actual_partido");
+    db.filas = [{ id: 100, equipo_id: "eq-1", fecha: "2026-09-08", rival: "Cruzeiro", resultado: "1-0" }];
+    localStorage.setItem(
+      "registros_sin_sincronizar:eq-1",
+      JSON.stringify([
+        { fecha: "2026-09-08", rival: "Cruzeiro", resultado: "1-1", idSupabase: 100, sinSincronizar: true, ...correccion },
+      ]),
+    );
+    await montar();
+
+    expect(db.inserts).toHaveLength(0);
+    expect(db.filas).toEqual([expect.objectContaining({ id: 100, resultado: "1-1", ...correccion })]);
+    expect(cola()).toHaveLength(0);
+  });
 });

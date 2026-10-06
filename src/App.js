@@ -2033,7 +2033,15 @@ export default function App({
         // después se volvió a guardar sin ella), lo que vale es lo del
         // celular, que es lo último: se reemplaza la fila en vez de saltearla.
         // Antes se descartaba el pendiente y el segundo tiempo se perdía.
-        const existente = enLaBasePorClave.get(clavePartido(pendiente));
+        // Un pendiente que ya tenía fila va a esa: si en el celular se le
+        // corrigió el rival o la fecha, buscarlo solo por fecha y rival no la
+        // encontraba y el partido quedaba repetido.
+        const existente =
+          (pendiente.idSupabase &&
+            registrosDeLaBase.find(
+              (item) => String(item.idSupabase) === String(pendiente.idSupabase),
+            )) ||
+          enLaBasePorClave.get(clavePartido(pendiente));
         const fila = construirFilaSupabase(pendiente);
         const { data, error } = existente?.idSupabase
           ? await supabase
