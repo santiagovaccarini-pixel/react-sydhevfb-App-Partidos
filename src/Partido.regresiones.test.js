@@ -997,6 +997,42 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola()).toHaveLength(0);
   });
 
+  test("una versión de este borrador que quedó en la cola mientras subía otra no hace preguntar si reemplazar el propio partido", async () => {
+    await montar();
+    // Entretiempo sin señal: el 1-0 queda en la cola, sin fila.
+    db.errorGuardado = { message: "sin señal" };
+    await guardar();
+    db.errorGuardado = null;
+
+    // Vuelve la señal y el 1-0 sube lento; el 1-1 espera y va al celular.
+    db.retenerRival = "Cruzeiro";
+    await act(async () => window.dispatchEvent(new Event("online")));
+    await vaciarPromesas();
+    await escribirGolesRival("1");
+    await guardar();
+    await act(async () => vi.advanceTimersByTime(8100));
+    await vaciarPromesas();
+
+    // Termina el INSERT del 1-0: el borrador recibe la fila, el 1-1 sigue en la cola.
+    db.retenerRival = null;
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    await vaciarPromesas();
+    expect(borrador().idSupabase).toBe(100);
+
+    // Final 1-2: no pregunta nada y queda en esa fila.
+    await escribirGolesRival("2");
+    await guardar();
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+    expect(cola()).toHaveLength(0);
+
+    // Y el reintento no sube nada viejo encima.
+    await act(async () => vi.advanceTimersByTime(61000));
+    await vaciarPromesas();
+    expect(resultados()).toEqual(["Cruzeiro:1-2"]);
+  });
+
   // Entretiempo con señal (fila 100) y minuto 70 sin señal: el 1-1 queda en
   // la cola con el número de fila.
   const conElMinuto70EnLaCola = async () => {

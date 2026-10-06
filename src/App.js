@@ -4132,8 +4132,21 @@ export default function App({
     const coincidente = guardados.find(
       (item) => clavePartido(item) === clavePartido(nuevoRegistro),
     );
+    // Una versión de este mismo borrador que quedó en la cola sin número de
+    // fila (se guardó en el celular mientras subía una anterior) no es otro
+    // partido: no se pregunta. Se actualiza la fila que la cola le dio al
+    // borrador, y esa versión vieja sale de la cola.
+    const esteMismoBorrador =
+      Boolean(coincidente?.sinSincronizar) &&
+      !coincidente.idSupabase &&
+      Boolean(coincidente.idLocal) &&
+      coincidente.idLocal === nuevoRegistro.idLocal;
 
-    if (coincidente && coincidente.idSupabase !== nuevoRegistro.idSupabase) {
+    if (
+      coincidente &&
+      !esteMismoBorrador &&
+      coincidente.idSupabase !== nuevoRegistro.idSupabase
+    ) {
       setConfirmacion({
         titulo: "¿Reemplazar el partido que ya tenés?",
         descripcion:
