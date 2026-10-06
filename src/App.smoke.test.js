@@ -501,6 +501,9 @@ describe("interfaz operativa", () => {
 
     const accionPeriodo = contenedor.querySelector(".accion-periodo");
     await act(async () => accionPeriodo.click());
+    // Un Finalizar pegado al Iniciar se toma como doble toque y no cuenta:
+    // el período se termina un rato después.
+    await act(async () => vi.advanceTimersByTime(3000));
     await act(async () => accionPeriodo.click());
 
     expect(accionPeriodo.textContent).toContain("Reanudar PT");
