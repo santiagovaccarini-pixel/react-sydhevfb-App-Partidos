@@ -4994,7 +4994,7 @@ export default function App({
           {/* Vuelve al portal, a la vista y no escondido en Ajustes: igual
               que en Flujo diario. */}
           {onVolver && (
-            <button type="button" className="boton-modulos" onClick={onVolver}>
+            <button type="button" className="boton-modulos" onClick={salirAModulos}>
               <Icono nombre="flecha" size={14} />
               Módulos
             </button>
@@ -6919,6 +6919,26 @@ export default function App({
     }
   };
   navegarVigente.current = navegarAplicacion;
+
+  // "Módulos" vuelve al portal y esta pantalla se cierra: una formación a
+  // medio cargar (que vive solo en memoria) se perdía sin aviso. Se pregunta
+  // como en la pestaña Formación.
+  const salirAModulos = () => {
+    if (!soloLectura && hayFormacionSinGuardar()) {
+      setConfirmacion({
+        titulo: t("partido.descartarFormacionTitulo"),
+        descripcion: t("partido.descartarFormacionTexto"),
+        icono: "cambio",
+        etiquetaConfirmar: t("partido.descartarFormacionSi"),
+        etiquetaCancelar: t("partido.seguirEditando"),
+        onConfirmar: () => onVolver?.(),
+        // Seguir editando es volver a la formación, tal como quedó.
+        onCancelar: () => setPantallaFormacion("manual"),
+      });
+      return;
+    }
+    onVolver?.();
+  };
 
   const formatearFechaPantalla = (fecha) => {
     if (!fecha) return "Sin fecha";

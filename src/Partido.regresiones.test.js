@@ -750,6 +750,40 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(primerConvocado().value).toBe("SUPLENTE NUEVO");
   });
 
+  test("volver a los módulos con una formación sin guardar pregunta antes de tirarla", async () => {
+    const onVolver = vi.fn();
+    await montar({ onVolver });
+    await irA("Formación");
+    await act(async () => boton("Ingresar Formación").click());
+    const primerConvocado = () => contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0];
+    await escribir(primerConvocado(), "SUPLENTE NUEVO");
+
+    // "Volver" no tira nada; "Módulos" pregunta.
+    await act(async () => contenedor.querySelector(".boton-volver").click());
+    await act(async () => contenedor.querySelector(".boton-modulos").click());
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Descartar la formación sin guardar?");
+    expect(onVolver).not.toHaveBeenCalled();
+
+    // "Seguir editando" vuelve a la formación, con lo escrito.
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").click());
+    expect(primerConvocado().value).toBe("SUPLENTE NUEVO");
+
+    // Descartando, sale.
+    await act(async () => contenedor.querySelector(".boton-volver").click());
+    await act(async () => contenedor.querySelector(".boton-modulos").click());
+    await act(async () => boton("Descartar").click());
+    expect(onVolver).toHaveBeenCalledTimes(1);
+  });
+
+  test("sin nada sin guardar, Módulos sale derecho", async () => {
+    const onVolver = vi.fn();
+    await montar({ onVolver });
+    await irA("Formación");
+    await act(async () => contenedor.querySelector(".boton-modulos").click());
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(onVolver).toHaveBeenCalledTimes(1);
+  });
+
   // ------------------------------------------------------------------ 9 --
   const abrirAjustesEquipo = async () => {
     await irA("Ajustes");
