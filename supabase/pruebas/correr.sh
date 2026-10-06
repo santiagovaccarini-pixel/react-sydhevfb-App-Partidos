@@ -36,19 +36,29 @@ PSQL="$BIN/psql -v ON_ERROR_STOP=1 -q -d pruebas"
 $PSQL -f "$AQUI/preparar.sql"
 $PSQL -f "$RAIZ/supabase/instalar-desde-cero.sql"
 # En orden de nombre (la fecha va adelante). Los "revisar" son consultas
-# para mirar a mano, no cambian nada. La de cuentas pide el correo del dueño.
+# para mirar a mano, no cambian nada. La de cuentas pide el correo del dueño;
+# la de dueños, el del principal, los de los sub-dueños y el club del token
+# de Catapult (en las pruebas, el club que crea 20260914_equipos).
 for migracion in "$RAIZ"/supabase/migrations/*.sql; do
   case "$migracion" in *revisar*) continue ;; esac
   echo "→ $(basename "$migracion")"
-  sed "s/CORREO_DEL_ADMINISTRADOR/duenio@prueba.com/" "$migracion" | $PSQL -f -
+  sed -e "s/CORREO_DEL_ADMINISTRADOR/duenio@prueba.com/" \
+      -e "s/CORREO_DEL_DUENO_PRINCIPAL/duenio@prueba.com/" \
+      -e "s/CORREOS_DE_SUBDUENOS/subduenia@prueba.com/" \
+      -e "s/NOMBRE_DEL_CLUB_DEL_TOKEN_CATAPULT/Atlético Mineiro/" \
+      "$migracion" | $PSQL -f -
 done
-# La última se corre otra vez: lo que se publica dice que se puede volver a
-# correr, y acá se comprueba.
+# La última se corre otra vez, y sin completar los marcadores: lo que se
+# publica dice que se puede volver a correr, y acá se comprueba.
 ULTIMA=$(ls "$RAIZ"/supabase/migrations/*.sql | grep -v revisar | sort | tail -1)
 echo "→ $(basename "$ULTIMA") (otra vez)"
 $PSQL -f "$ULTIMA" >/dev/null
+# Las consultas para revisar los dueños no fallan (son las que se corren a
+# mano antes y después).
+echo "→ 20261014_revisar_duenos.sql"
+$PSQL -f "$RAIZ/supabase/migrations/20261014_revisar_duenos.sql" >/dev/null
 # Las que dicen que se pueden volver a correr, también después de las nuevas.
-for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas 20261011_jugadores_actual 20261012_evaluaciones; do
+for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas 20261011_jugadores_actual; do
   echo "→ $otra_vez.sql (otra vez, después de la última)"
   $PSQL -f "$RAIZ/supabase/migrations/$otra_vez.sql" >/dev/null
 done
@@ -61,7 +71,8 @@ for vieja in instalar-desde-cero \
              migrations/20260914_localia migrations/20260920_cuenta_catapult migrations/20260922_entrenamientos \
              migrations/20260930_cuentas migrations/20261001_lesiones migrations/20261002_lesiones_excel \
              migrations/20261002b_datos_basicos migrations/20261003_club_miembros migrations/20261004_cuentas_v2 \
-             migrations/20261005_foto_al_dia migrations/20261006_horas_imagen; do
+             migrations/20261005_foto_al_dia migrations/20261006_horas_imagen migrations/20261012_evaluaciones \
+             migrations/20261013_seguridad; do
   echo "→ $(basename "$vieja").sql después de la última (se tiene que negar)"
   if $PSQL -f "$RAIZ/supabase/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
     echo "ERROR: $vieja.sql corrió después de una más nueva"
