@@ -19,7 +19,8 @@
 --
 -- Requiere 20261012_evaluaciones.sql. Se corre en Supabase > SQL Editor,
 -- entero y de una vez. Solo agrega o ajusta: la app de antes sigue andando.
--- Se puede volver a correr.
+-- Se puede volver a correr, salvo después de 20261014_duenos_y_pedidos.sql:
+-- ahí se frena sola (le devolvería al dueño sumar gente a mano).
 -- =====================================================================
 
 begin;
@@ -28,6 +29,9 @@ do $$
 begin
   if to_regclass('public.evaluaciones') is null then
     raise exception 'Primero hay que correr 20261012_evaluaciones.sql.';
+  end if;
+  if to_regclass('public.plataforma') is not null then
+    raise exception 'Ya está corrida 20261014_duenos_y_pedidos.sql: esta es anterior y no hace falta volver a correrla.';
   end if;
 end $$;
 

@@ -1,6 +1,17 @@
 -- Ejecutar una sola vez en Supabase > SQL Editor antes de publicar esta versión.
 -- Conserva el modo de captura y evita duplicar un partido por doble guardado.
 
+-- Freno: sobre una base con clubes (20261004_cuentas_v2.sql) volvería a poner
+-- el índice de partidos repetidos de todos los clubes juntos (dos clubes no
+-- podrían cargar el mismo día contra un rival del mismo nombre).
+do $$
+begin
+  if to_regclass('public.registros_partido_club_fecha_rival_unicos') is not null
+     or to_regprocedure('public.puede_usar_en(uuid, text)') is not null then
+    raise exception 'Ya está corrida 20261004_cuentas_v2.sql: esta es anterior y no hace falta volver a correrla.';
+  end if;
+end $$;
+
 alter table public.registros_partido
   add column if not exists modo_tiempo text not null default 'enVivo',
   add column if not exists captura_tiempo jsonb not null default '{}'::jsonb;

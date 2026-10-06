@@ -1,25 +1,36 @@
 -- Instalación desde cero de la base que usa la app.
 --
 -- Para montar una instalación nueva —por ejemplo, la de otra persona con otro
--- equipo— en un proyecto de Supabase vacío, en una sola pegada. Reemplaza a
--- correr las migraciones de supabase/migrations/ en orden.
+-- equipo— en un proyecto de Supabase vacío. Es el punto de partida: después
+-- hay que correr TODAS las migraciones de supabase/migrations/ en orden (ver
+-- "Cuentas", al final).
 --
--- Se puede correr sobre una base que ya tenga algo: todo es "if not exists" y
--- las políticas se vuelven a crear. No borra ni pisa datos.
+-- Solo para un proyecto vacío: sobre una base que ya tiene las cuentas
+-- (perfiles) se niega a correr, porque volvería a abrir las tablas a anon.
 --
 -- Cómo usarlo:
 --   1. Crear el proyecto en Supabase.
 --   2. Pegar todo esto en el SQL Editor y darle Run.
 --   3. Publicar la app con VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY
---      apuntando a ese proyecto.
---   4. En la app: Ajustes › Equipo para poner el club, y Ajustes › Jugadores
---      para cargar el plantel.
+--      apuntando a ese proyecto, y crear en la app la cuenta del dueño
+--      (con el correo confirmado).
+--   4. Correr todas las migraciones en orden, como dice "Cuentas" al final.
+--   5. En la app, el dueño crea los clubes en "Clubes de la app".
 --
 -- Sobre los tipos: las horas se guardan como texto y no como `time` porque la
 -- app manda "" cuando un horario todavía no se cargó, y un `time` lo
 -- rechazaría. Por lo mismo la fecha es texto.
 
 begin;
+
+-- Freno: sobre una base que ya está andando volvería a abrir las tablas a
+-- anon (las políticas de abajo son las del principio).
+do $$
+begin
+  if to_regclass('public.perfiles') is not null then
+    raise exception 'Ya está corrida 20260930_cuentas.sql: esta base ya está instalada y no hace falta volver a correr la instalación.';
+  end if;
+end $$;
 
 -- ----------------------------------------------------------------- Equipos --
 --
@@ -255,14 +266,13 @@ commit;
 
 -- ---------------------------------------------------------------- Cuentas --
 --
--- Quién entra y qué puede usar cada cuenta vive en public.perfiles. Después
--- de este archivo hay que correr, en orden:
---   1. supabase/migrations/20260930_cuentas.sql (crea perfiles, sus
---      disparadores y funciones, y cierra entrenamientos a cuentas con Flujo
---      diario);
---   2. supabase/migrations/20260930_partido_solo_autorizados.sql (cierra las
---      tablas de Partido a cuentas autorizadas y le saca todo al rol anon).
--- Las políticas abiertas de arriba son solo el punto de partida.
+-- Quién entra, a qué club y qué puede usar vive en las migraciones. Después
+-- de este archivo hay que correr TODAS las de supabase/migrations/, en orden
+-- de nombre (las "revisar" son solo consultas), completando los marcadores
+-- que piden: el correo de la cuenta del dueño (tiene que existir antes) y,
+-- en 20261014_duenos_y_pedidos.sql, los dueños y el club del token de
+-- Catapult. Así las corre supabase/pruebas/correr.sh. Las políticas abiertas
+-- de arriba son solo el punto de partida: las cierran esas migraciones.
 
 -- --------------------------------------------------------------- Revisión --
 --

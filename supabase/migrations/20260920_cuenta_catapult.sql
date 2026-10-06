@@ -13,6 +13,16 @@
 
 begin;
 
+-- Freno: sobre una base que ya tiene las cuentas (20260930_cuentas.sql) esto
+-- volvería a abrir lo que se cerró después (permisos para anon, políticas
+-- que dejan ver todo). Ya no hace falta correrla.
+do $$
+begin
+  if to_regclass('public.perfiles') is not null then
+    raise exception 'Ya está corrida 20260930_cuentas.sql: esta es anterior y no hace falta volver a correrla.';
+  end if;
+end $$;
+
 create table if not exists public.catapult_cuentas (
   user_id uuid primary key references auth.users (id) on delete cascade,
   usuario text not null,

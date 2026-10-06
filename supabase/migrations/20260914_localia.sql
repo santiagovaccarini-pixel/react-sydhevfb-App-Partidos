@@ -9,6 +9,18 @@
 
 begin;
 
+-- Freno: corrida después de 20260915_localia_neutral.sql volvería a sacar la
+-- cancha neutral, y esos partidos dejarían de guardarse.
+do $$
+begin
+  if exists (select 1 from pg_constraint
+              where conname = 'registros_partido_localia_valida'
+                and conrelid = to_regclass('public.registros_partido')
+                and pg_get_constraintdef(oid) like '%neutral%') then
+    raise exception 'Ya está corrida 20260915_localia_neutral.sql: esta es anterior y no hace falta volver a correrla.';
+  end if;
+end $$;
+
 alter table public.registros_partido
   add column if not exists localia text not null default 'local';
 
