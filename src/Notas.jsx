@@ -65,10 +65,9 @@ const FilaNota = ({ nota, ocupada, puedeCorregir, puedeBorrar, onCambiar, onBorr
           <div className="cuenta-meta">
             {nota.creado_email && <span>{nota.creado_email}</span>}
             {nota.creado_en && <span>{fechaYHora(nota.creado_en)}</span>}
-            {nota.hecha && <span className="cuenta-etiqueta">{t("notas.hecha")}</span>}
           </div>
           <div className="cuenta-acciones">
-            <button type="button" className={nota.hecha ? "cuenta-quitar" : "cuenta-autorizar"} disabled={ocupada} onClick={() => onCambiar(nota, { hecha: !nota.hecha })}>
+            <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onCambiar(nota, { hecha: !nota.hecha })}>
               {nota.hecha ? t("notas.volverAPendientes") : t("notas.marcarHecha")}
             </button>
             {puedeCorregir && (
