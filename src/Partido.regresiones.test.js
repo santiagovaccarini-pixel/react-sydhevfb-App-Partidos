@@ -494,6 +494,36 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(JSON.parse(localStorage.getItem("registro_actual_partido:eq-1")).registro.inicioST).toBe("22:03:00");
   });
 
+  test("guardar y cambiar de club antes de la respuesta: al volver, Guardar no pregunta si reemplazar el propio partido", async () => {
+    dosClubes();
+    elegirClub("eq-1", "Atlético Mineiro");
+    await montar();
+
+    // El INSERT tarda; mientras tanto se pasa a Otro Club, y después llega.
+    db.retenerRival = "Cruzeiro";
+    await guardar();
+    const irAlClub = async (nombre) => {
+      await irA("Ajustes");
+      await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
+      await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes(nombre)).click());
+      await vaciarPromesas();
+    };
+    await irAlClub("Otro Club");
+    db.retenerRival = null;
+    await act(async () => db.soltar?.());
+    await vaciarPromesas();
+    expect(JSON.parse(localStorage.getItem("registro_actual_partido:eq-1")).registro.idSupabase).toBe(100);
+    expect(JSON.parse(localStorage.getItem("registro_actual_partido:eq-2")).registro.idSupabase).toBeUndefined();
+
+    // De vuelta en su club, el final va a la misma fila sin preguntar.
+    await irAlClub("Atlético");
+    await irA("Partido");
+    await escribirGolesRival("2");
+    await guardar();
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(db.filas.map((f) => `${f.id}:${f.equipo_id}:${f.resultado}`)).toEqual(["100:eq-1:1-2"]);
+  });
+
   test("cambiar de club en Ajustes guarda el partido de uno y trae el del otro", async () => {
     dosClubes();
     elegirClub("eq-1", "Atlético Mineiro");

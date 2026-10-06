@@ -170,6 +170,31 @@ export const leerBorradorDelClub = (equipoId, { hayPartido = () => true } = {}) 
 };
 
 /**
+ * Le anota el número de fila al borrador guardado de un club que no es el
+ * que está en pantalla: se cambió de club mientras Guardar esperaba la
+ * respuesta, y al volver, el próximo Guardar tomaba el propio partido por
+ * otro y preguntaba si reemplazarlo. Solo si sigue siendo ese mismo borrador
+ * (mismo idLocal), y solo en la clave de ese club: la común es la del club
+ * en uso.
+ */
+export const anotarFilaEnBorradorDelClub = (equipoId, idLocal, idFila) => {
+  if (!equipoId || !idLocal || !idFila) return false;
+  const clave = claveBorrador(equipoId);
+  const guardado = interpretarBorrador(leer(clave));
+  if (guardado.estado !== "ok" || guardado.registro?.idLocal !== idLocal) {
+    return false;
+  }
+  return escribir(
+    clave,
+    JSON.stringify({
+      version: VERSION_BORRADOR,
+      registro: { ...guardado.registro, idSupabase: idFila },
+      equipoId,
+    }),
+  );
+};
+
+/**
  * Guarda el borrador en la clave de su club y deja la copia común con el
  * club anotado. Sin club se escribe solo la común, sin club, como antes.
  */

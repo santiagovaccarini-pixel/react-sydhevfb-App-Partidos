@@ -74,6 +74,7 @@ import {
 } from "./domain/pendientes";
 import {
   VERSION_BORRADOR,
+  anotarFilaEnBorradorDelClub,
   escribirBorrador,
   leerBorradorDelClub,
 } from "./domain/borrador";
@@ -3941,6 +3942,9 @@ export default function App({
   // un partido que ya estaba guardado.
   const archivarRegistro = async (nuevoRegistro, coincidente) => {
     if (guardandoRef.current) return;
+    // El club del borrador que se guarda: si mientras se espera la respuesta
+    // se cambia de club, su número de fila va igual a ese borrador.
+    const clubDelGuardado = clubDelBorrador.current;
 
     guardandoRef.current = true;
     setGuardando(true);
@@ -4108,6 +4112,9 @@ export default function App({
             ? prev
             : { ...prev, idSupabase: idGuardado },
         );
+        if (clubDelGuardado && clubDelBorrador.current !== clubDelGuardado) {
+          anotarFilaEnBorradorDelClub(clubDelGuardado, nuevoRegistro.idLocal, idGuardado);
+        }
       }
       filasSubidasPorClave.delete(claveSubida);
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CLAVE_BORRADOR,
   CLAVE_RESPALDO_BORRADOR,
+  anotarFilaEnBorradorDelClub,
   claveBorrador,
   escribirBorrador,
   interpretarBorrador,
@@ -104,6 +105,21 @@ describe("un borrador por club", () => {
     // …y también el vacío que dejó Limpiar en la versión anterior (sin idLocal).
     localStorage.setItem(CLAVE_BORRADOR, sinClub({ fecha: "2026-09-08", rival: "" }));
     expect(leerBorradorDelClub("eq-1", { hayPartido }).rival).toBe("");
+  });
+});
+
+describe("anotarFilaEnBorradorDelClub", () => {
+  it("le pone la fila al borrador de ese club si es el mismo partido, sin tocar la común", () => {
+    escribirBorrador(partido("Cruzeiro", { idLocal: "uno" }), "eq-1");
+    escribirBorrador(partido("Santos", { idLocal: "dos" }), "eq-2");
+    const comun = localStorage.getItem(CLAVE_BORRADOR);
+
+    expect(anotarFilaEnBorradorDelClub("eq-1", "otro", 100)).toBe(false);
+    expect(leerBorradorDelClub("eq-1").idSupabase).toBeUndefined();
+
+    expect(anotarFilaEnBorradorDelClub("eq-1", "uno", 100)).toBe(true);
+    expect(leerBorradorDelClub("eq-1")).toMatchObject({ rival: "Cruzeiro", idSupabase: 100 });
+    expect(localStorage.getItem(CLAVE_BORRADOR)).toBe(comun);
   });
 });
 
