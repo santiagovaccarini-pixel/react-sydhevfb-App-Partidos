@@ -466,6 +466,34 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(db.inserts.map((f) => `${f.rival}:${f.equipo_id}`)).toEqual(["Cruzeiro:eq-1"]);
   });
 
+  test("volver a la versión anterior y otra vez a esta, con dos clubes, no cambia el partido en curso por el borrador vacío del otro club", async () => {
+    dosClubes();
+    elegirClub("eq-1", "Atlético Mineiro");
+    enElSegundoTiempo();
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 30, 0));
+    await montar();
+
+    // Se pasa al otro club: la copia común queda con su borrador vacío.
+    await irA("Ajustes");
+    await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
+    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
+    await vaciarPromesas();
+    await act(async () => raiz.unmount());
+    raiz = null;
+
+    // La versión anterior abre en el club 1 y reescribe la común tal cual, sin club.
+    const comun = JSON.parse(localStorage.getItem("registro_actual_partido"));
+    expect(comun.equipoId).toBe("eq-2");
+    localStorage.setItem("registro_actual_partido", JSON.stringify({ version: 2, registro: comun.registro }));
+    elegirClub("eq-1", "Atlético Mineiro");
+
+    // De vuelta en esta versión, el partido del club 1 sigue ahí.
+    await montar();
+    expect(contenedor.querySelector(".tablero-partido")).not.toBeNull();
+    expect(contenedor.textContent).toContain("Cruzeiro");
+    expect(JSON.parse(localStorage.getItem("registro_actual_partido:eq-1")).registro.inicioST).toBe("22:03:00");
+  });
+
   test("cambiar de club en Ajustes guarda el partido de uno y trae el del otro", async () => {
     dosClubes();
     elegirClub("eq-1", "Atlético Mineiro");

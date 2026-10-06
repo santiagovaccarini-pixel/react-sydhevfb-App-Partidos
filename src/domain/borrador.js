@@ -140,7 +140,20 @@ export const leerBorradorDelClub = (equipoId, { hayPartido = () => true } = {}) 
   // Sin club anotado lo escribió una versión anterior de la app: es lo más
   // nuevo que hay en el teléfono y pasa a ser de este club. Si el club ya
   // tenía uno con un partido, queda una copia.
-  if (comun.registro && !comun.conClub) {
+  //
+  // Salvo que sea la copia vacía de otro borrador: la versión anterior
+  // reescribe la común tal como la leyó, y si lo último usado había sido el
+  // borrador vacío de otro club, ese vacío (con su propio idLocal) reemplazaba
+  // el partido en curso de este. Ese otro borrador sigue en la clave de su
+  // club, así que no se pierde nada.
+  const vacioDeOtroBorrador =
+    Boolean(comun.registro?.idLocal) &&
+    Boolean(propio.registro?.idLocal) &&
+    comun.registro.idLocal !== propio.registro.idLocal &&
+    !hayPartido(comun.registro) &&
+    hayPartido(propio.registro);
+
+  if (comun.registro && !comun.conClub && !vacioDeOtroBorrador) {
     if (propio.registro && hayPartido(propio.registro)) {
       respaldarBorrador(textoPropio, "reemplazado", clavePropia);
     }

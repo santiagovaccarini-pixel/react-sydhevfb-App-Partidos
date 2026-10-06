@@ -86,6 +86,25 @@ describe("un borrador por club", () => {
     expect(respaldos()).toHaveLength(1);
     expect(JSON.parse(respaldos()[0].texto).registro.resultado).toBe("1-0");
   });
+
+  it("la copia vacía de otro borrador que reescribió una versión anterior no reemplaza el partido en curso", () => {
+    const hayPartido = (registro) => Boolean(registro?.inicioST);
+    const sinClub = (registro) => JSON.stringify({ version: 2, registro });
+    escribirBorrador(partido("Cruzeiro", { idLocal: "uno", inicioST: "00:03:00" }), "eq-1");
+    escribirBorrador({ fecha: "2026-09-08", rival: "", idLocal: "dos" }, "eq-2");
+
+    // Se volvió atrás: la versión anterior reescribió sin club el vacío del club 2.
+    localStorage.setItem(CLAVE_BORRADOR, sinClub({ fecha: "2026-09-08", rival: "", idLocal: "dos" }));
+    expect(leerBorradorDelClub("eq-1", { hayPartido }).inicioST).toBe("00:03:00");
+
+    // Un partido cargado en la versión anterior sobre ese borrador sí se adopta…
+    localStorage.setItem(CLAVE_BORRADOR, sinClub(partido("Santos", { idLocal: "dos", inicioST: "21:00:00" })));
+    expect(leerBorradorDelClub("eq-1", { hayPartido }).rival).toBe("Santos");
+
+    // …y también el vacío que dejó Limpiar en la versión anterior (sin idLocal).
+    localStorage.setItem(CLAVE_BORRADOR, sinClub({ fecha: "2026-09-08", rival: "" }));
+    expect(leerBorradorDelClub("eq-1", { hayPartido }).rival).toBe("");
+  });
 });
 
 describe("con el celular casi lleno", () => {
