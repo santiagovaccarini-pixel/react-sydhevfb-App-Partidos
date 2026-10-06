@@ -147,6 +147,17 @@ describe("con el celular casi lleno", () => {
     expect(localStorage.getItem(CLAVE_BORRADOR)).toBe(delClub1);
     expect(leerBorradorDelClub("eq-1").inicioST).toBe("22:03:00");
   });
+
+  it("pero si lo que guarda del otro club es un borrador vacío, el partido de este club va ahí", () => {
+    const hayPartido = (registro) => Boolean(registro?.formacion);
+    const vacioDelClub1 = JSON.stringify({ version: 2, registro: { fecha: "2026-09-08", rival: "" }, equipoId: "eq-1" });
+    localStorage.setItem(CLAVE_BORRADOR, vacioDelClub1);
+    sinLugarParaClavesNuevas();
+
+    const conFormacion = partido("", { formacion: { titulares: ["SUPLENTE"], convocados: [] } });
+    escribirBorrador(conFormacion, "eq-2", { hayPartido });
+    expect(leerBorradorDelClub("eq-2", { hayPartido }).formacion.titulares).toEqual(["SUPLENTE"]);
+  });
 });
 
 describe("un borrador que no se puede leer no se pierde", () => {

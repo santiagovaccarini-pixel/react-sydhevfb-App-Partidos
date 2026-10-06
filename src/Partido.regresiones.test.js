@@ -1577,6 +1577,44 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(cola().map((p) => `${p.rival}:${p.resultado}`)).toEqual(["Santos:1-1"]);
   });
 
+  // Hay lugar para reescribir una clave que ya existe, pero no para crear otra.
+  const sinLugarParaClavesNuevas = () => {
+    const original = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (clave, valor) {
+      if (this.getItem(clave) === null) throw new DOMException("lleno", "QuotaExceededError");
+      return original.call(this, clave, valor);
+    });
+  };
+
+  test("con el celular casi lleno, la formación cargada en el otro club no se pierde porque la copia común guarde un borrador vacío", async () => {
+    // La versión de producción dejó un borrador vacío, sin club.
+    localStorage.setItem("registro_actual_partido", JSON.stringify({ version: 2, registro: { fecha: "2026-09-08", rival: "" } }));
+    dosClubes();
+    elegirClub("eq-1", "Atlético Mineiro");
+    sinLugarParaClavesNuevas();
+    await montar();
+    expect(localStorage.getItem("registro_actual_partido:eq-1")).toBeNull();
+
+    // Se pasa al otro club y se carga la formación.
+    await abrirAjustesEquipo();
+    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
+    await vaciarPromesas();
+    await irA("Formación");
+    await act(async () => boton("Ingresar Formación").click());
+    await escribir(contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0], "SUPLENTE CLUB DOS");
+    await act(async () => boton("Guardar formación").click());
+    await vaciarPromesas();
+
+    // Se cierra la app y se vuelve a abrir en ese club: la formación sigue.
+    await act(async () => raiz.unmount());
+    raiz = null;
+    await montar();
+    expect(JSON.parse(localStorage.getItem("equipo_elegido")).id).toBe("eq-2");
+    await irA("Formación");
+    await act(async () => boton("Ingresar Formación").click());
+    expect(contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0].value).toBe("SUPLENTE CLUB DOS");
+  });
+
   test("si el celular no tiene lugar para el borrador, lo avisa y el aviso queda a la vista", async () => {
     const original = Storage.prototype.setItem;
     const sinLugar = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (clave, valor) {

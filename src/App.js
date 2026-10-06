@@ -2482,7 +2482,9 @@ export default function App({
 
   // El borrador se guarda en la clave de su club con cada cambio.
   useEffect(() => {
-    const guardado = escribirBorrador(registro, clubDelBorrador.current);
+    const guardado = escribirBorrador(registro, clubDelBorrador.current, {
+      hayPartido: hayPartidoCargado,
+    });
     if (!guardado) console.warn("No se pudo guardar el borrador local.");
     setBorradorSinLugar(!guardado);
   }, [registro]);
@@ -4437,7 +4439,9 @@ export default function App({
     // Un partido nuevo arranca por el PT, aunque se estuviera mirando otro.
     setPeriodoVista("PT");
 
-    const guardado = escribirBorrador(nuevoRegistro, clubDelBorrador.current);
+    const guardado = escribirBorrador(nuevoRegistro, clubDelBorrador.current, {
+      hayPartido: hayPartidoCargado,
+    });
     if (!guardado) console.warn("No se pudo limpiar el borrador local.");
     setBorradorSinLugar(!guardado);
   };

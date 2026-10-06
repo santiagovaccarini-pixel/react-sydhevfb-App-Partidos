@@ -197,8 +197,15 @@ export const anotarFilaEnBorradorDelClub = (equipoId, idLocal, idFila) => {
 /**
  * Guarda el borrador en la clave de su club y deja la copia común con el
  * club anotado. Sin club se escribe solo la común, sin club, como antes.
+ *
+ * Con `hayPartido` se sabe si un borrador tiene un partido cargado (como en
+ * leerBorradorDelClub).
  */
-export const escribirBorrador = (registro, equipoId) => {
+export const escribirBorrador = (
+  registro,
+  equipoId,
+  { hayPartido = () => true } = {},
+) => {
   if (!equipoId) {
     return escribir(
       CLAVE_BORRADOR,
@@ -207,12 +214,15 @@ export const escribirBorrador = (registro, equipoId) => {
   }
 
   const texto = JSON.stringify({ version: VERSION_BORRADOR, registro, equipoId });
-  const propio = escribir(claveBorrador(equipoId), texto);
+  const clavePropia = claveBorrador(equipoId);
+  const propio = escribir(clavePropia, texto);
 
-  // La común no se pisa si es la única copia del borrador de otro club: con
+  // La común no se pisa si es la única copia del partido de otro club: con
   // el celular casi lleno, la clave propia de ese club no se pudo crear y su
   // partido vive solo ahí. Antes, abrir otro club lo borraba. Cuando hay
   // lugar, la clave de cada club es igual a la común y esto no cambia nada.
+  // Un borrador vacío de otro club no vale más que el partido de este: antes
+  // también se lo cuidaba, y lo cargado en este club no quedaba en ningún lado.
   const textoComun = leer(CLAVE_BORRADOR);
   const comun = interpretarBorrador(textoComun);
   const unicaCopiaDeOtro =
@@ -220,7 +230,8 @@ export const escribirBorrador = (registro, equipoId) => {
     comun.conClub &&
     comun.equipoId &&
     comun.equipoId !== equipoId &&
-    leer(claveBorrador(comun.equipoId)) !== textoComun;
+    leer(claveBorrador(comun.equipoId)) !== textoComun &&
+    hayPartido(comun.registro);
   if (!unicaCopiaDeOtro) escribir(CLAVE_BORRADOR, texto);
   return propio;
 };
