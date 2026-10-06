@@ -1,0 +1,261 @@
+import React, { act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
+// La base de mentira: lo que devuelve cada RPC del panel y las llamadas que
+// se hicieron. Cada prueba la arma a su gusto.
+const base = vi.hoisted(() => ({
+  llamadas: [],
+  clubes: [],
+  duenos: [],
+  pedidos: [],
+  movimientos: [],
+  // Errores por función: { panel_clubes: { code, message } }.
+  errores: {},
+}));
+
+vi.mock("./supabase.js", () => ({
+  supabase: {
+    rpc: (funcion, parametros) => {
+      base.llamadas.push({ funcion, parametros });
+      const error = base.errores[funcion] || null;
+      const datos = {
+        panel_clubes: base.clubes,
+        panel_duenos: base.duenos,
+        pedidos_sin_club: base.pedidos,
+        panel_historial: base.movimientos,
+        crear_club: "nuevo-id",
+      };
+      return Promise.resolve(error ? { data: null, error } : { data: datos[funcion] ?? null, error: null });
+    },
+  },
+}));
+
+const { default: ClubesDeLaApp } = await import("./ClubesDeLaApp.jsx");
+const { fijarIdiomaParaPruebas } = await import("./idioma/index.js");
+
+const CLUB_UNO = { equipo_id: "c1", nombre: "Club Uno", correo_entidad: "ent@uno.com", correo_admin: "ana@uno.com", personas: 3 };
+const CLUB_DOS = { equipo_id: "c2", nombre: "Club Dos", correo_entidad: null, correo_admin: null, personas: 1 };
+const PRINCIPAL = { user_id: "p", email: "duenio@prueba.com", principal: true, es_mia: true };
+const SUB = { user_id: "s", email: "subduenia@prueba.com", principal: false, es_mia: false };
+
+describe("Clubes de la app", () => {
+  let contenedor;
+  let raiz;
+
+  beforeEach(() => {
+    fijarIdiomaParaPruebas("es-AR");
+    base.llamadas = [];
+    base.clubes = [CLUB_UNO, CLUB_DOS];
+    base.duenos = [PRINCIPAL, SUB];
+    base.pedidos = [];
+    base.movimientos = [];
+    base.errores = {};
+    contenedor = document.createElement("div");
+    document.body.appendChild(contenedor);
+  });
+
+  afterEach(async () => {
+    if (raiz) await act(async () => raiz.unmount());
+    raiz = null;
+    contenedor.remove();
+    fijarIdiomaParaPruebas("es-AR");
+  });
+
+  const montar = async (props = {}) => {
+    await act(async () => {
+      raiz = createRoot(contenedor);
+      raiz.render(<ClubesDeLaApp miUserId="p" esPrincipal onVolver={() => {}} {...props} />);
+    });
+    await act(async () => Promise.resolve());
+  };
+
+  const texto = () => contenedor.textContent;
+  const fila = (selector, contenido) => [...contenedor.querySelectorAll(selector)].find((li) => li.querySelector(".cuenta-correo").textContent === contenido);
+  const boton = (dentro, etiqueta) => [...dentro.querySelectorAll("button")].find((b) => b.textContent.trim() === etiqueta);
+  const tocar = async (elemento) => {
+    expect(elemento, "no se encontró el botón").toBeTruthy();
+    await act(async () => elemento.click());
+    await act(async () => Promise.resolve());
+  };
+  const escribir = async (input, valor) => {
+    const prototipo = input instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(prototipo, "value").set.call(input, valor);
+      input.dispatchEvent(new Event(input instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }));
+    });
+  };
+  const llamadasA = (funcion) => base.llamadas.filter((llamada) => llamada.funcion === funcion);
+
+  test("cada club muestra solo nombre, entidad, administrador y cantidad de personas", async () => {
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Clubes de la app");
+    const uno = fila(".panel-club", "Club Uno");
+    expect([...uno.querySelectorAll(".panel-club-datos span")].map((s) => s.textContent)).toEqual([
+      "Entidad: ent@uno.com",
+      "Administrador: ana@uno.com",
+      "3 personas",
+    ]);
+    const dos = fila(".panel-club", "Club Dos");
+    expect(dos.querySelector(".panel-club-datos").textContent).toBe("Sin entidadSin administrador1 persona");
+    // Desde acá no se entra al club ni se ve su gente.
+    expect(boton(uno, "Cambiar")).toBeTruthy();
+    expect(boton(uno, "Sacar")).toBeTruthy();
+    expect(boton(dos, "Asignar entidad")).toBeTruthy();
+    expect(uno.querySelectorAll("button")).toHaveLength(2);
+    expect(llamadasA("panel_clubes")).toHaveLength(1);
+  });
+
+  test("el principal ve los botones de los dueños; el sub-dueño, solo el aviso", async () => {
+    await montar();
+    const sub = fila(".panel-dueno", "subduenia@prueba.com");
+    const principal = fila(".panel-dueno", "duenio@prueba.com");
+    expect([...principal.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Dueño principal", "Tu cuenta"]);
+    expect(principal.querySelector("button")).toBeNull();
+    expect(boton(sub, "Quitar")).toBeTruthy();
+    expect(boton(sub, "Pasar el rol de dueño principal")).toBeTruthy();
+    expect(contenedor.querySelector(".panel-sumar")).not.toBeNull();
+    expect(texto()).not.toContain("Solo el dueño principal suma o quita dueños.");
+
+    await act(async () => raiz.unmount());
+    base.duenos = [
+      { ...PRINCIPAL, es_mia: false },
+      { ...SUB, es_mia: true },
+    ];
+    await montar({ miUserId: "s", esPrincipal: false });
+    expect(contenedor.querySelector(".panel-dueno button")).toBeNull();
+    expect(contenedor.querySelector(".panel-sumar")).toBeNull();
+    expect(texto()).toContain("Solo el dueño principal suma o quita dueños.");
+    // El sub-dueño igual crea clubes y asigna entidades.
+    expect(contenedor.querySelector(".panel-crear")).not.toBeNull();
+    expect(boton(fila(".panel-club", "Club Dos"), "Asignar entidad")).toBeTruthy();
+  });
+
+  test("crear un club con nombre, entidad y zona; no se suma a quien lo crea", async () => {
+    await montar();
+    const formulario = contenedor.querySelector(".panel-crear");
+    const [nombre, correo] = formulario.querySelectorAll("input");
+    await escribir(nombre, "Club Tres");
+    await escribir(correo, "Ent@Tres.com");
+    await escribir(formulario.querySelector("select"), "America/Montevideo");
+    await tocar(boton(formulario, "Crear club"));
+    expect(llamadasA("crear_club")).toEqual([
+      { funcion: "crear_club", parametros: { p_nombre: "Club Tres", p_correo_entidad: "ent@tres.com", p_zona: "America/Montevideo" } },
+    ]);
+    expect(texto()).toContain("Club Tres quedó creado. Vos no quedás adentro");
+    // Se vuelve a leer el panel.
+    expect(llamadasA("panel_clubes")).toHaveLength(2);
+    expect(nombre.value).toBe("");
+    expect(formulario.querySelector("select").value).toBe("America/Sao_Paulo");
+  });
+
+  test("asignar, cambiar (confirmando el anterior y el nuevo) y sacar la entidad", async () => {
+    await montar();
+    await tocar(boton(fila(".panel-club", "Club Dos"), "Asignar entidad"));
+    await escribir(contenedor.querySelector("#panel-correo-entidad"), "nueva@dos.com");
+    await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Guardar"));
+    expect(llamadasA("asignar_entidad").at(-1).parametros).toEqual({ p_equipo: "c2", p_correo: "nueva@dos.com" });
+    expect(texto()).toContain("Listo: la entidad de Club Dos es nueva@dos.com.");
+
+    await tocar(boton(fila(".panel-club", "Club Uno"), "Cambiar"));
+    await escribir(contenedor.querySelector("#panel-correo-entidad"), "otra@uno.com");
+    await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Guardar"));
+    // Todavía no cambió: pide confirmar mostrando los dos correos.
+    expect(llamadasA("asignar_entidad")).toHaveLength(1);
+    expect(contenedor.querySelector(".hoja-confirmar").textContent).toContain("Antes: ent@uno.com. Ahora: otra@uno.com.");
+    await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, cambiar"));
+    expect(llamadasA("asignar_entidad").at(-1).parametros).toEqual({ p_equipo: "c1", p_correo: "otra@uno.com" });
+
+    await tocar(boton(fila(".panel-club", "Club Uno"), "Sacar"));
+    expect(contenedor.querySelector(".hoja-confirmar").textContent).toContain("ent@uno.com deja de figurar como entidad del club.");
+    await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, sacar"));
+    expect(llamadasA("asignar_entidad").at(-1).parametros).toEqual({ p_equipo: "c1", p_correo: null });
+  });
+
+  test("los errores de la base se leen en el idioma de la app", async () => {
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    base.errores.asignar_entidad = { code: "P0001", message: "entidad_es_dueno" };
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Clubes do app");
+    await tocar(boton(fila(".panel-club", "Club Dos"), "Definir entidade"));
+    await escribir(contenedor.querySelector("#panel-correo-entidad"), "duenio@prueba.com");
+    await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Salvar"));
+    expect(texto()).toContain("Um dono do app não pode ser a entidade de um clube.");
+    expect(texto()).not.toContain("entidad_es_dueno");
+  });
+
+  test("si falta la migración, lo dice y deja reintentar", async () => {
+    base.errores.panel_clubes = { code: "PGRST202", message: "Could not find the function public.panel_clubes without parameters" };
+    await montar();
+    expect(contenedor.querySelector(".cuentas-aviso").textContent).toContain("Falta actualizar la base (dueños y pedidos).");
+    expect(contenedor.querySelector(".panel-crear")).toBeNull();
+    delete base.errores.panel_clubes;
+    await tocar(boton(contenedor, "Reintentar"));
+    expect(fila(".panel-club", "Club Uno")).toBeTruthy();
+  });
+
+  test("los pedidos a clubes que no están: se mandan a un club o se rechazan con confirmación", async () => {
+    base.pedidos = [
+      { id: "p1", email: "nadie@prueba.com", club_escrito: "Club Seis", pais_escrito: "Uruguay", creado_en: "2026-10-05T12:00:00Z" },
+      { id: "p2", email: "otra@prueba.com", club_escrito: "Club Siete", pais_escrito: null, creado_en: "2026-10-04T12:00:00Z" },
+    ];
+    await montar();
+    const pedido = fila(".panel-pedido", "nadie@prueba.com");
+    expect(pedido.querySelector(".cuenta-meta").textContent).toContain("Escribió: Club Seis");
+    expect(pedido.querySelector(".cuenta-meta").textContent).toContain("País: Uruguay");
+
+    await tocar(boton(pedido, "Mandar a un club"));
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Club Uno"));
+    expect(llamadasA("derivar_pedido")).toEqual([{ funcion: "derivar_pedido", parametros: { p_id: "p1", p_equipo: "c1" } }]);
+    expect(texto()).toContain("El pedido de nadie@prueba.com pasó a Club Uno: ahora decide su administrador.");
+
+    await tocar(boton(fila(".panel-pedido", "otra@prueba.com"), "Rechazar"));
+    expect(llamadasA("rechazar_pedido_sin_club")).toHaveLength(0);
+    await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, rechazar"));
+    expect(llamadasA("rechazar_pedido_sin_club")).toEqual([{ funcion: "rechazar_pedido_sin_club", parametros: { p_id: "p2" } }]);
+    // Los dueños nunca aceptan a nadie en un club.
+    expect(texto()).not.toContain("Aceptar");
+  });
+
+  test("sumar y quitar un sub-dueño; pasar el rol se confirma escribiendo el correo", async () => {
+    await montar();
+    const sumar = contenedor.querySelector(".panel-sumar");
+    await escribir(sumar.querySelector("input"), "Otro@Prueba.com");
+    await tocar(boton(sumar, "Sumar"));
+    expect(llamadasA("agregar_subdueno")).toEqual([{ funcion: "agregar_subdueno", parametros: { p_correo: "otro@prueba.com" } }]);
+
+    await tocar(boton(fila(".panel-dueno", "subduenia@prueba.com"), "Quitar"));
+    await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, quitar"));
+    expect(llamadasA("quitar_subdueno")).toEqual([{ funcion: "quitar_subdueno", parametros: { p_user: "s" } }]);
+
+    await tocar(boton(fila(".panel-dueno", "subduenia@prueba.com"), "Pasar el rol de dueño principal"));
+    const confirmar = boton(contenedor.querySelector(".cuentas-hoja"), "Sí, pasar el rol");
+    expect(confirmar.disabled).toBe(true);
+    await escribir(contenedor.querySelector("#panel-traspaso"), "otra@prueba.com");
+    expect(confirmar.disabled).toBe(true);
+    await escribir(contenedor.querySelector("#panel-traspaso"), "SubDuenia@prueba.com ");
+    expect(confirmar.disabled).toBe(false);
+    // Después del traspaso, la base dice que ya no es principal: se le van los botones.
+    base.duenos = [
+      { ...PRINCIPAL, principal: false },
+      { ...SUB, principal: true },
+    ];
+    await tocar(confirmar);
+    expect(llamadasA("traspasar_principal")).toEqual([{ funcion: "traspasar_principal", parametros: { p_user: "s" } }]);
+    expect(texto()).toContain("subduenia@prueba.com es el dueño principal. Vos quedaste como sub-dueño.");
+    expect(contenedor.querySelector(".panel-sumar")).toBeNull();
+    expect(texto()).toContain("Solo el dueño principal suma o quita dueños.");
+  });
+
+  test("Movimientos: qué pasó, en qué club y quién lo hizo", async () => {
+    base.movimientos = [
+      { id: 2, cuando: "2026-10-05T12:00:00Z", quien_email: "subduenia@prueba.com", accion: "entidad", equipo_id: "c1", email: "ent@uno.com" },
+      { id: 1, cuando: "2026-10-01T12:00:00Z", quien_email: null, accion: "semilla", equipo_id: null, email: null },
+    ];
+    await montar();
+    const lineas = [...contenedor.querySelectorAll(".panel-movimientos li")];
+    expect(lineas.map((li) => li.querySelector("b").textContent)).toEqual(["Entidad · Club Uno · ent@uno.com", "Arrancó la plataforma"]);
+    expect(lineas[0].textContent).toContain("por subduenia@prueba.com");
+    expect(lineas[1].textContent).toContain("automático");
+  });
+});

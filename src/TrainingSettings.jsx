@@ -8,12 +8,16 @@ import { pedirJson } from "./trainingApi.js";
 // Ajustes de Entrenamiento con el mismo menú que Partido: una fila por
 // opción y cada una abre su pantalla. La cuenta se lee una sola vez acá y se
 // le pasa a las subpantallas, así entrar a cada una no vuelve a consultarla.
+// Pruebas técnicas aparece solo si la sesión de OpenField volvió con rol
+// 'admin' (lo decide el servidor).
 export default function TrainingSettings({
   vista = "inicio",
   onCambiarVista = () => {},
   email = "",
   onCerrarSesion = () => {},
+  rol = "usuario",
 }) {
+  const conPruebas = rol === "admin";
   const [cuenta, setCuenta] = useState(null);
   const [estadoCuenta, setEstadoCuenta] = useState("cargando");
   const [confirmarSalida, setConfirmarSalida] = useState(false);
@@ -56,7 +60,7 @@ export default function TrainingSettings({
     return <TrainingCuenta cuentaInicial={cuenta} onCambio={alCambiarCuenta} onVolver={volverAlMenu} />;
   }
 
-  if (vista === "pruebas") {
+  if (vista === "pruebas" && conPruebas) {
     return <TrainingDiagnostico cuenta={cuenta} onVolver={volverAlMenu} />;
   }
 
@@ -77,7 +81,7 @@ export default function TrainingSettings({
       detalle: subtextoCuenta,
       alTocar: () => onCambiarVista("cuenta"),
     },
-    {
+    conPruebas && {
       id: "pruebas",
       icono: "llave",
       titulo: "Pruebas técnicas",
@@ -91,7 +95,7 @@ export default function TrainingSettings({
       detalle: email,
       alTocar: () => setConfirmarSalida(true),
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <div className="app">

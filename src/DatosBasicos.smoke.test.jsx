@@ -162,6 +162,11 @@ describe("el módulo Datos básicos", () => {
     raiz = createRoot(contenedor);
     await montar({ partido: true, flujo: false, lesiones: true, datos: true });
     expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent)).toEqual(["Jugadores", "Posiciones"]);
+    // Ser dueño de la app no abre Catapult: hace falta Flujo diario en el club.
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    await montar({ partido: true, flujo: false, lesiones: false, datos: true, admin: true, dueno: "principal", esDueno: true });
+    expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent)).toEqual(["Jugadores", "Posiciones"]);
   });
 
   test("muestra los jugadores en la tabla estilo Excel con los datos que piden los módulos", async () => {

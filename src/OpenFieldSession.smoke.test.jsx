@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import OpenFieldSession from "./OpenFieldSession.jsx";
+import { fijarIdiomaParaPruebas } from "./idioma/index.js";
 
 const api = vi.hoisted(() => ({ respuesta: null, cambios: [] }));
 
@@ -93,6 +94,22 @@ describe("la sesión de OpenField antes de Flujo diario", () => {
     expect(contenedor.querySelector(".training-access-card p").textContent).toBe("Tu cuenta no tiene habilitado Flujo diario.");
     await act(async () => contenedor.querySelector(".training-access-volver").click());
     expect(onVolver).toHaveBeenCalledTimes(1);
+  });
+
+  test("si su club no tiene Catapult en la app, lo dice en el idioma de la app", async () => {
+    api.respuesta = { respuesta: { ok: false, status: 403 }, payload: { ok: false, code: "SIN_CATAPULT", error: "Tu club todavía no conectó Catapult en la app." } };
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Sin acceso a Flujo diario");
+    expect(contenedor.querySelector(".training-access-card p").textContent).toBe("Tu club todavía no conectó Catapult en la app.");
+
+    await act(async () => raiz.unmount());
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      await montar();
+      expect(contenedor.querySelector(".training-access-card p").textContent).toBe("Seu clube ainda não conectou o Catapult no app.");
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
   });
 
   test("sin señal no espera al servidor: entra como usuario y avisa, y abre la sesión al volver la conexión", async () => {

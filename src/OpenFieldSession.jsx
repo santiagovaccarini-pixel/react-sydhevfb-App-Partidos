@@ -49,7 +49,8 @@ export default function OpenFieldSession({ children, onVolver, sinSenal = false 
       setEstado({
         fase: respuesta.status === 403 ? "sin-acceso" : "error",
         code: payload?.code || "",
-        error: mensajeDeRespuesta(payload, t("openfield.errorTexto")),
+        // El Catapult del servidor es de un solo club: el resto lo lee en su idioma.
+        error: payload?.code === "SIN_CATAPULT" ? t("openfield.sinCatapult") : mensajeDeRespuesta(payload, t("openfield.errorTexto")),
       });
     } catch (errorApertura) {
       if (silencioso) return;

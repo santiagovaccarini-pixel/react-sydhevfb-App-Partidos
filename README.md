@@ -31,8 +31,12 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_PUBLISHABLE_KEY=...
 ```
 
-Antes de publicar esta versión, ejecutá en orden las migraciones de
-`supabase/migrations/`. La migración del 8 de septiembre agrega la captura del
+Las migraciones de `supabase/migrations/` se corren a mano en Supabase › SQL
+Editor, cada una una sola vez. Sobre una base que ya está andando se corren
+**solo las que faltan**, nunca todas de nuevo: las viejas desharían cambios
+posteriores (por eso se niegan con «Ya está corrida…»). Todas en orden, solo en
+una base vacía. Primero se corre el SQL y después se publica la app (ver
+«Orden para publicar»). La migración del 8 de septiembre agrega la captura del
 modo Transmisión y crea el índice de partido único sólo si no existen duplicados.
 La del 20 de septiembre crea `catapult_cuentas` (cuenta de Catapult OpenField
 por usuario, con contraseña y pase cifrados) y necesita en Vercel la variable
@@ -48,8 +52,9 @@ las tablas de Partido a cuentas autorizadas y le saca todo al rol anon; ya está
 aplicada en producción. Si alguna vez hiciera falta volver atrás,
 `20260930_partido_abierto_de_nuevo.sql` las deja abiertas como antes.
 
-En Supabase › Authentication hay que tener "Confirm email" prendido (Providers ›
-Email) y, en URL Configuration, el Site URL de producción y
+En Supabase › Authentication hay que tener "Confirm email" y "Secure email
+change" prendidos (Providers › Email): todo el modelo de cuentas descansa en que
+tener el buzón es ser esa cuenta. En URL Configuration, el Site URL de producción y
 `https://react-sydhevfb-app-partidos.vercel.app/**` en Redirect URLs, para que
 el correo de "Olvidé mi contraseña" vuelva a la app.
 
@@ -66,15 +71,53 @@ La clave publishable puede estar en el navegador: no es una clave administrativa
 La protección efectiva de las filas depende de Supabase Auth y Row Level Security.
 
 Se entra con correo y contraseña antes del portal. Cada cuenta tiene una fila en
-`perfiles` (estado pendiente / autorizado / bloqueado, y qué puede usar: Partido,
-Flujo diario, administrador). Una cuenta nueva nace pendiente y la autoriza el
-administrador; hasta entonces no entra a la app ni ve datos de Flujo diario (las
-políticas de `entrenamientos` y `catapult_cuentas` piden `puede_usar('flujo')`).
-Nombrar otro administrador es una línea en el SQL Editor:
-`update public.perfiles set estado = 'autorizado', admin = true where email = '…';`.
-Borrar una cuenta es desde Supabase › Authentication › Users. Las tablas de
-Partido también están cerradas (`20260930_partido_solo_autorizados.sql`):
-`registros_partido` solo para cuentas con Partido, `equipos`, `jugadores` y
-`ajustes` para cualquier cuenta autorizada, y el rol anon sin permisos.
+`perfiles` (pendiente, autorizada o bloqueada). Nadie aprueba cuentas para toda
+la app: a cada club se entra porque ese club te deja.
+
+- **Por invitación.** El administrador de un club invita un correo (siempre como
+  staff, con los módulos que elija). Al registrarse y confirmar ese correo, la
+  cuenta queda autorizada y adentro del club; si ya tenía cuenta, entra en el acto.
+- **Sin invitación.** La cuenta nueva escribe a qué club quiere entrar (nombre y
+  país), manda el pedido y espera. Lo acepta (eligiendo los módulos) o lo rechaza
+  el administrador de ese club, desde Cuentas. Si el nombre no coincide con ningún
+  club de la app, el pedido va al panel de los dueños, que lo mandan al club que
+  corresponde o lo rechazan. La persona ve lo mismo en los dos casos.
+- **Cada club maneja su gente**: módulos, dar de baja con el último día (ve lo
+  cargado hasta ese día) y reincorporar. El administrador no toca a otro
+  administrador ni a sí mismo (se va con «Salir del club»). Sacar a alguien de un
+  club no lo saca de otro.
+- **Dueños de la app**: un dueño principal y sub-dueños (tablas `plataforma` y
+  `plataforma_subduenos`, fuera de `perfiles`). Ven el panel «Clubes de la app»:
+  de cada club solo el nombre, el correo de la entidad, el del administrador y
+  cuánta gente tiene. Crean clubes (sin quedar adentro) y asignan el correo de la
+  entidad. No ven la gente ni los datos de ningún club y no aceptan a nadie. Solo
+  el principal suma, quita o pasa dueños. Al principal nadie lo saca de un club:
+  solo él se va.
+- Bloquear una cuenta en toda la app y borrar un club es solo por SQL. Borrar una
+  cuenta es desde Supabase › Authentication › Users.
+- **Flujo diario**: el token de Catapult del servidor (`OPENFIELD_API_TOKEN`) es de
+  un solo club (`plataforma.catapult_equipo`, se cambia por SQL). Solo quien tiene
+  Flujo diario en ese club lo usa; el resto ve «Tu club todavía no conectó
+  Catapult en la app». Las pruebas técnicas son del dueño principal con Flujo
+  diario en ese club.
+
+Todo esto lo decide la base (Row Level Security y funciones que miran quién
+llama), no la pantalla. Las tablas de Partido también están cerradas: cada club
+ve solo lo suyo, y el rol anon no tiene permisos.
+
+### Orden para publicar
+
+1. Las pruebas en verde (`npm test`, `npm run build` y `npm run pruebas:base`).
+2. En Supabase › SQL Editor se corre el SQL nuevo de la rama, completando los
+   marcadores que pida (por ejemplo, en `20261014_duenos_y_pedidos.sql`:
+   `CORREO_DEL_DUENO_PRINCIPAL`, `CORREOS_DE_SUBDUENOS` y
+   `NOMBRE_DEL_CLUB_DEL_TOKEN_CATAPULT`; antes conviene correr
+   `20261014_revisar_duenos.sql` para anotar los correos y el nombre exacto del
+   club). Es una sola transacción: si algo no da, no cambia nada y dice qué falta.
+3. Se miran las consultas del final.
+4. Recién ahí se une el cambio y Vercel publica la app y el servidor juntos. La
+   app nueva contra la base vieja no anda (el panel dice que falta actualizar la
+   base y Flujo diario contesta 503); volver a publicar el deploy anterior sí es
+   seguro.
 
 Más detalle en [docs/AUDITORIA_2026-09-08.md](docs/AUDITORIA_2026-09-08.md).
