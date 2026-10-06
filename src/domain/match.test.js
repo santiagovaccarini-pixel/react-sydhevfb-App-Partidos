@@ -101,7 +101,8 @@ describe("motor de registro de partido", () => {
     const base = { fecha: "2026-09-15", rival: "Cruzeiro" };
     const hoy = "2026-09-16";
     expect(fechaAlEntrar({ ...base, resultado: "1-0" }, { hoy })).toBe("2026-09-15");
-    expect(fechaAlEntrar({ ...base, cambios: [{ sale: "ALONSO", entra: "", hora: "" }] }, { hoy })).toBe("2026-09-15");
+    expect(fechaAlEntrar({ ...base, cambios: [{ sale: "ALONSO", entra: "", hora: "21:20:00" }] }, { hoy })).toBe("2026-09-15");
+    expect(fechaAlEntrar({ ...base, cambiosRival: [{ sale: "", entra: "", hora: "21:30:00" }] }, { hoy })).toBe("2026-09-15");
     expect(fechaAlEntrar({ ...base, varsPT: [{ inicio: "21:10:00", final: "" }] }, { hoy })).toBe("2026-09-15");
     expect(fechaAlEntrar({ ...base, inicioHidratacionST: "22:40:00" }, { hoy })).toBe("2026-09-15");
   });
@@ -121,6 +122,19 @@ describe("motor de registro de partido", () => {
       formacion: { titulares: ["ALONSO"], convocados: ["BERNARD"] },
     };
     expect(fechaAlEntrar(deAntemano, { hoy: "2026-09-16" })).toBe("2026-09-16");
+  });
+
+  test("un cambio planeado de antemano (quién sale y quién entra, sin hora) también sigue a la fecha de hoy", () => {
+    const planeado = {
+      fecha: "2026-09-15",
+      rival: "Santos",
+      cambios: [{ sale: "TITULAR UNO", entra: "SUPLENTE UNO", hora: "" }],
+      cambiosRival: [{ sale: "RIVAL UNO", entra: "", hora: "" }],
+      formacion: { titulares: ["TITULAR UNO"], convocados: ["SUPLENTE UNO"] },
+    };
+    expect(fechaAlEntrar(planeado, { hoy: "2026-09-16" })).toBe("2026-09-16");
+    // Para saber si hay un partido en curso, los nombres sí cuentan.
+    expect(hayPartidoCargado({ ...planeado, formacion: { titulares: [], convocados: [] } })).toBe(true);
   });
 
   test("la fecha elegida a mano manda sobre la de hoy, también al volver a abrir", () => {

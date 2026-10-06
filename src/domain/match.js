@@ -225,6 +225,13 @@ export const hayPartidoCargado = (registro) => {
 // de juego, no reloj) y con el que se termina y se guarda al otro día.
 // Tampoco se toca la que se eligió a mano, ni la de un partido que ya tiene
 // fila en la base o que quedó en la cola del celular.
+//
+// De los cambios cuenta solo la hora, que se anota cuando el cambio pasa:
+// quién sale y quién entra se escribe de antemano, y esos nombres solos
+// dejaban el partido con la fecha del día en que se preparó.
+const soloLaHora = (cambios) =>
+  (cambios || []).map((cambio) => ({ hora: cambio?.hora }));
+
 export const fechaAlEntrar = (
   registro,
   { hoy = fechaLocalISO(), elegidaAMano = false, tienePendiente = false } = {},
@@ -233,7 +240,12 @@ export const fechaAlEntrar = (
   if (!actual) return hoy;
   if (elegidaAMano || registro?.fechaElegidaAMano) return actual;
   if (registro?.idSupabase || tienePendiente) return actual;
-  if (hayDatosRegistrados(registro)) return actual;
+  const jugado = {
+    ...registro,
+    cambios: soloLaHora(registro.cambios),
+    cambiosRival: soloLaHora(registro.cambiosRival),
+  };
+  if (hayDatosRegistrados(jugado)) return actual;
   return hoy;
 };
 
