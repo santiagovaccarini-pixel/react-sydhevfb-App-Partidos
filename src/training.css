@@ -1825,3 +1825,15 @@
   text-align: center;
   transform: translateX(-50%);
 }
+
+/* El pedido de acceso cuando ya se ve la lista de clubes (quien solo tiene
+   clubes de los que se fue): va abajo, separado. */
+.pedido-acceso {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.pedido-acceso h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}

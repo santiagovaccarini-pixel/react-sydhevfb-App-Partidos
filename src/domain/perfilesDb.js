@@ -1,10 +1,12 @@
 import { supabase } from "../supabase.js";
 
-// La cuenta de quien entró: si está autorizada y qué módulos puede usar.
-// Vive en la tabla `perfiles` de Supabase; la fila la crea la base al
-// registrarse y la decide el administrador. Acá se lee la propia (la base
-// muestra a cada uno solo la suya) y se guarda una copia en el celular para
-// poder entrar sin señal.
+// La cuenta de quien entró: si está autorizada. Vive en la tabla `perfiles`
+// de Supabase; la fila la crea la base al registrarse y la pasa a autorizada
+// el club que la deja entrar (invitación o pedido aceptado). Acá se lee la
+// propia (la base muestra a cada uno solo la suya) y se guarda una copia en
+// el celular para poder entrar sin señal. Si es dueña de la app no lo dice
+// esta tabla: lo dice `mi_cuenta` (domain/plataformaDb.js) y viaja en la
+// copia como `dueno`.
 
 export const TABLA_PERFILES = "perfiles";
 export const CLAVE_PERFIL_LOCAL = "perfil_cuenta";
@@ -13,13 +15,15 @@ export const CLAVE_PERFIL_LOCAL = "perfil_cuenta";
 // en un celular con la app nueva y la base vieja, ni al revés.
 export const COLUMNAS_PERFIL = "*";
 
-// Qué puede usar: el administrador, todo.
+// Lo que dice la cuenta: los módulos viejos de perfiles (solo valen con una
+// base sin membresías) y si es dueña de la app ('principal', 'sub' o nada).
+// Ser dueño no da módulos ni entra a ningún club.
 export const permisosDePerfil = (perfil) => {
-  const admin = Boolean(perfil?.admin);
-  const partido = admin || Boolean(perfil?.partido);
-  const flujo = admin || Boolean(perfil?.flujo);
-  const lesiones = admin || Boolean(perfil?.lesiones);
-  const evaluaciones = admin || Boolean(perfil?.evaluaciones);
+  const partido = Boolean(perfil?.partido);
+  const flujo = Boolean(perfil?.flujo);
+  const lesiones = Boolean(perfil?.lesiones);
+  const evaluaciones = Boolean(perfil?.evaluaciones);
+  const dueno = perfil?.dueno === "principal" || perfil?.dueno === "sub" ? perfil.dueno : null;
   return {
     partido,
     flujo,
@@ -27,7 +31,8 @@ export const permisosDePerfil = (perfil) => {
     evaluaciones,
     // Datos básicos (los jugadores) lo usa cualquiera que tenga algún módulo.
     datos: partido || flujo || lesiones || evaluaciones,
-    admin,
+    dueno,
+    esDueno: Boolean(dueno),
   };
 };
 
@@ -41,18 +46,20 @@ export const situacionDePerfil = (perfil) => {
 };
 
 // Lo que la cuenta puede hacer en el club elegido: los módulos de su
-// membresía (si la base todavía no los tiene, los de la cuenta), si
-// administra la gente del club y si es dueña de la plataforma.
+// membresía (si la base todavía no los tiene, los de la cuenta) y si
+// administra la gente del club. Ser dueño de la app no administra ningún
+// club: eso lo da solo la membresía.
 export const permisosEnClub = (permisosCuenta, club) => {
-  const dueno = Boolean(permisosCuenta?.admin);
-  if (!club) return { partido: false, flujo: false, lesiones: false, evaluaciones: false, datos: false, admin: dueno, adminClub: false };
+  const dueno = permisosCuenta?.dueno || null;
+  const esDueno = Boolean(dueno);
+  if (!club) return { partido: false, flujo: false, lesiones: false, evaluaciones: false, datos: false, dueno, esDueno, adminClub: false };
   const modulo = (clave) => (typeof club[clave] === "boolean" ? club[clave] : Boolean(permisosCuenta?.[clave]));
   const partido = modulo("partido");
   const flujo = modulo("flujo");
   const lesiones = modulo("lesiones");
   const evaluaciones = modulo("evaluaciones");
-  const adminClub = club.rol ? club.rol === "admin" && !club.hasta : dueno && !club.hasta;
-  return { partido, flujo, lesiones, evaluaciones, datos: partido || flujo || lesiones || evaluaciones, admin: dueno, adminClub };
+  const adminClub = club.rol === "admin" && !club.hasta;
+  return { partido, flujo, lesiones, evaluaciones, datos: partido || flujo || lesiones || evaluaciones, dueno, esDueno, adminClub };
 };
 
 // Los errores de la base vuelven como clave del diccionario (Supabase
