@@ -397,3 +397,39 @@ export const IconoDatos = () => (
     <path d="M10 26h44M10 38h44M26 14v36M42 14v36" fill="none" stroke="currentColor" strokeWidth="3" />
   </svg>
 );
+
+// Notas: una hoja de anotador con renglones, algunas tildadas, y un lápiz.
+export const ArteNotas = () => (
+  <svg className="portal-arte" viewBox="0 0 420 260" aria-hidden="true" preserveAspectRatio="xMaxYMid slice">
+    <defs>
+      <linearGradient id="grafito-notas" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#1f2937" />
+        <stop offset="1" stopColor="#0b0d10" />
+      </linearGradient>
+    </defs>
+    <rect width="420" height="260" fill="url(#grafito-notas)" />
+    <g transform="rotate(-4 290 136)">
+      <rect x="196" y="34" width="190" height="204" rx="12" fill="#f4f6f8" fillOpacity="0.08" stroke="#c8a85a" strokeOpacity="0.45" strokeWidth="1.5" />
+      <rect x="196" y="34" width="190" height="26" rx="12" fill="#c8a85a" fillOpacity="0.28" />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <g key={i}>
+          <rect x="214" y={78 + i * 30} width="14" height="14" rx="3" fill="none" stroke="#c8a85a" strokeOpacity="0.6" strokeWidth="1.5" />
+          {i < 2 && <path d={`M217 ${85 + i * 30}l4 4 7-9`} fill="none" stroke="#f0c978" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+          <rect x="238" y={81 + i * 30} width={70 + ((i * 23) % 60)} height="8" rx="4" fill="#f4f6f8" fillOpacity={i < 2 ? 0.12 : 0.24} />
+        </g>
+      ))}
+    </g>
+    <g transform="rotate(38 172 178)">
+      <rect x="120" y="170" width="110" height="16" rx="3" fill="#c8a85a" fillOpacity="0.75" />
+      <path d="M230 170l18 8-18 8z" fill="#f4f6f8" fillOpacity="0.55" />
+      <rect x="112" y="170" width="10" height="16" rx="2" fill="#f4f6f8" fillOpacity="0.3" />
+    </g>
+  </svg>
+);
+
+export const IconoNotas = () => (
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <rect x="12" y="10" width="40" height="46" rx="6" fill="none" stroke="currentColor" strokeWidth="3.5" />
+    <path d="M21 24h22M21 33h22M21 42h14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);

@@ -2282,6 +2282,11 @@ button:active {
   --cam-verde-oscuro: #006f3d;
   --cam-verde-suave: #e8f6ef;
   --cam-tinta: #111513;
+  /* El texto de las hojas blancas (confirmar, opciones) y de algunos títulos
+     de tarjeta. No estaba definido: en Partido heredaban el negro de la
+     página, pero en las pantallas oscuras (Notas, Cuentas, Bases) heredaban
+     el blanco y no se leían sobre la hoja blanca. */
+  --cam-negro: #111513;
   --cam-gris: #66716c;
   --cam-linea: #dfe5e2;
   --cam-fondo: linear-gradient(135deg, #020617, #0f172a, #1e293b);

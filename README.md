@@ -4,6 +4,17 @@ Aplicación operativa para registrar períodos, VAR, hidrataciones, formaciones 
 cambios de Atlético Mineiro y su rival. Funciona en escritorio y celular y
 mantiene un borrador local mientras sincroniza el partido con Supabase.
 
+## Instrucciones para trabajar en el proyecto
+
+- [CLAUDE.md](CLAUDE.md): alcance, protección de funcionalidad y formato obligatorio
+  para explicar cambios en lenguaje simple.
+- [Sistema de diseño](docs/DESIGN_SYSTEM.md): criterios visuales, mobile-first y
+  reutilización de componentes.
+- [Decisiones de interfaz](docs/UI_DECISIONS.md): índice de decisiones cerradas y
+  cómo registrar descartes sin duplicar la documentación existente.
+- [Pendientes y acuerdos del producto](docs/PENDIENTES.md): conservar sus decisiones;
+  los pendientes no autorizan cambios fuera del pedido.
+
 ## Desarrollo
 
 Requiere Node.js 22.12 o superior (la versión recomendada está en `.nvmrc`).

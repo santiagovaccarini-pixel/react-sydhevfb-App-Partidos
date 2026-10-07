@@ -1,0 +1,57 @@
+# Índice de decisiones de interfaz
+
+## Cómo usar este registro
+
+Las decisiones existentes siguen en [PENDIENTES.md](PENDIENTES.md): este archivo
+es un índice de restricciones, no una copia de su historia ni una segunda fuente.
+Antes de tocar un módulo, leé la sección indicada completa. No implementes propuestas
+pendientes como si fueran acuerdos cerrados. Cuando una nota vieja y otra posterior
+difieran, revisá la decisión posterior y el código; si sigue ambiguo, consultá.
+
+Una decisión descartada no se reintroduce, tampoco con otro nombre o en una pantalla
+equivalente. Solo el usuario puede reabrirla explícitamente. Este registro no inventa
+prohibiciones específicas de conversaciones que no están disponibles.
+
+## Decisiones cerradas existentes
+
+| ID | Restricción que debe conservarse | Fuente en PENDIENTES.md |
+| --- | --- | --- |
+| UI-001 | La administración de jugadores vive solo en Datos básicos. No devolver Ajustes › Jugadores a Partido ni Ajustes › Lista de jugadores a Flujo diario. Posiciones y Catapult permanecen en Datos básicos. Esto no elimina los selectores operativos de jugadores. | «Idioma, Lesiones y Datos básicos (01/10 y 02/10)», decisión del 02/10 |
+| UI-002 | Datos básicos permanece en el portal principal. No moverlo dentro de Bases de Datos sin que el usuario reabra la decisión y defina quién lo ve. | «Bases de Datos (05/10)» |
+| UI-003 | Ninguna base muestra una columna # para contar filas; la cantidad va arriba de la tabla. Los números propios del registro (N° de caso, N° de registro, nº Eva) sí quedan. | «Bases de Datos (05/10)», regla para todas las bases |
+| UI-004 | Lesiones se carga por grupos, solo con campos manuales. Diagnóstico no es un paso y los campos calculados no vuelven al final del formulario. La ficha muestra un grupo a la vez. | «Idioma, Lesiones y Datos básicos (01/10 y 02/10)», grupos del Excel y ficha |
+| UI-005 | En el mapa corporal no se agregan “Otro…” ni opciones inventadas; se respetan las listas del club y la alternativa “Elegir de la lista”. | «Lesiones: lo que sigue (anotado el 02/10)», cuerpo humano |
+| UI-006 | Evaluaciones no vuelve a mostrar Posición, claves auxiliares de BUSCAR, la asimetría A separada del déficit ni los elementos enumerados como no copiados. No se eliminan columnas con resultados propios. | «Evaluaciones (05/10)», reglas para todos los tests y lo que no se copió |
+| UI-007 | Conservá tarjetas, fotos y portadas aprobadas y su componente compartido; no las reemplaces al aplicar la regla general de reducir decoración. | «Entrenamiento (OpenField)», portal y portada; «Bases de Datos (05/10)» |
+| UI-008 | En Tareas, las correcciones manuales siguen plegadas en “Ajustar horarios y pausas”. No expandir todo por defecto. | «Entrenamiento (OpenField)», tareas como un partido |
+
+## Pendientes que no deben tratarse como decisiones cerradas
+
+- Local / visitante / neutral en el filtro: falta confirmar botones u hoja
+  («Chicas del filtro»). No registrar ninguna de las dos opciones como prohibida.
+- Nombres del filtro de jugador: faltan los reemplazos concretos («Chicas del filtro»).
+- Valor Referencial como módulo propio: es para más adelante; hoy los V.R. están
+  en Evaluaciones, en su pestaña, solo lectura («Evaluaciones (05/10)»).
+- Configuración del protocolo por club, tutorial, GPS y futuras bases: siguen el
+  estado y alcance de su sección en PENDIENTES.md; no se implementan por este índice.
+
+## Nuevas decisiones y reaperturas
+
+Si la decisión ya tiene una fuente equivalente, actualizá esa fuente y sumá aquí
+solo una referencia. Si no la tiene, registrala aquí con este formato:
+
+```text
+ID: UI-XXX
+Estado: CERRADA / DESCARTADA / PENDIENTE / REABIERTA
+Fecha y fuente: pedido explícito del usuario, documento o referencia comprobable
+Alcance: módulo, pantalla y elemento
+Decisión: qué se acordó
+No reintroducir: elemento, ubicación o comportamiento concreto descartado
+Motivo: por qué se tomó
+Reapertura: pedido explícito, fecha, nueva decisión y decisión que reemplaza
+Cómo comprobarlo: pantalla o recorrido donde se verifica
+```
+
+Conservá la decisión anterior y su referencia al reabrirla. No borres el historial
+para justificar un cambio. Cuando falte evidencia del acuerdo, dejá la cuestión
+pendiente y pedí el dato concreto solo si es necesario para el trabajo actual.
