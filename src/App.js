@@ -6832,11 +6832,11 @@ export default function App({
       <div className="app">
         <div className="contenedor">
           <header className="encabezado">
-            <h1>{equipoId ? "Equipo" : "¿De qué equipo sos?"}</h1>
+            <h1>{equipoId ? t("partido.equipoTitulo") : t("partido.equipoElegirTitulo")}</h1>
             <p>
               {equipoId
-                ? "Ajustes · Equipo"
-                : "La app guarda los partidos y el plantel de cada club por separado. Elegí el tuyo para empezar."}
+                ? t("partido.equipoSubtitulo")
+                : t("partido.equipoElegirTexto")}
             </p>
           </header>
 
@@ -6848,25 +6848,25 @@ export default function App({
 
           <section className="tarjeta tarjeta-ficha" hidden={!equipoId}>
             <div className="cabeza-ficha">
-              <b>Tu equipo</b>
+              <b>{t("partido.equipoTuyo")}</b>
             </div>
 
             {equipoId ? (
               <>
                 <div className="equipo-propio">
                   <EscudoDeClub equipo="cam" nombre={enEdicion} />
-                  <strong>{enEdicion || "Sin nombre"}</strong>
+                  <strong>{enEdicion || t("partido.equipoNombreVacio")}</strong>
                 </div>
 
                 {puedeRenombrar && (
                 <>
                 <label className="etiqueta-equipo" htmlFor="nombre-equipo">
-                  Nombre del equipo
+                  {t("partido.equipoNombre")}
                 </label>
                 <input
                   id="nombre-equipo"
                   value={nombreEquipoEditado}
-                  placeholder="Nombre del equipo"
+                  placeholder={t("partido.equipoNombre")}
                   onChange={(evento) => {
                     setNombreEquipoEditado(evento.target.value);
                     setErrorEquipo("");
@@ -6876,11 +6876,7 @@ export default function App({
                   }}
                 />
 
-                <p className="pista-equipo">
-                  El escudo no se carga: se busca solo por el nombre y queda
-                  guardado en el teléfono. Corregir el nombre no te hace perder
-                  los partidos cargados.
-                </p>
+                <p className="pista-equipo">{t("partido.equipoPistaEscudo")}</p>
 
                 <button
                   type="button"
@@ -6888,7 +6884,7 @@ export default function App({
                   onClick={renombrarEsteEquipo}
                   disabled={!enEdicion || enEdicion === equipoPropio}
                 >
-                  Guardar nombre
+                  {t("partido.equipoGuardarNombre")}
                 </button>
                 </>
                 )}
@@ -6899,7 +6895,7 @@ export default function App({
           {otros.length > 0 && (
             <section className="tarjeta tarjeta-ficha">
               <div className="cabeza-ficha">
-                <b>{equipoId ? "Cambiar de equipo" : "Elegí tu equipo"}</b>
+                <b>{equipoId ? t("partido.equipoCambiar") : t("partido.equipoElegir")}</b>
                 <span className="cuenta-ajuste">{otros.length}</span>
               </div>
 
@@ -6929,13 +6925,13 @@ export default function App({
           {puedeCrear && (
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">
-              <b>Agregar un equipo</b>
+              <b>{t("partido.equipoAgregar")}</b>
             </div>
 
             <div className="agregar-jugador">
               <input
                 value={nombreEquipoNuevo}
-                placeholder="Nombre del equipo nuevo"
+                placeholder={t("partido.equipoNombreNuevo")}
                 onChange={(evento) => {
                   setNombreEquipoNuevo(evento.target.value);
                   setErrorEquipo("");
@@ -6945,14 +6941,11 @@ export default function App({
                 }}
               />
               <button type="button" onClick={sumarEquipo}>
-                Crear
+                {t("partido.equipoCrear")}
               </button>
             </div>
 
-            <p className="pista-equipo">
-              Solo para un club que todavía no esté en la lista. Arranca sin
-              partidos y sin plantel, y este teléfono pasa a ese equipo.
-            </p>
+            <p className="pista-equipo">{t("partido.equipoPistaAgregar")}</p>
           </section>
           )}
 
@@ -6972,7 +6965,7 @@ export default function App({
           {equipoId && (
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>
-                Volver a Ajustes
+                {t("partido.volverAjustes")}
               </BotonVolver>
             </div>
           )}

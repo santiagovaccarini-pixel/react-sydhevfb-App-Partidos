@@ -170,9 +170,13 @@ de lo hecho está en los commits, no en esta lista.
 
 - La app tiene diccionario propio en `src/idioma/` (es-AR y pt-BR). Está traducido lo que
   rodea a los módulos: puerta de acceso, portal, Cuentas, barra de navegación, OpenField,
-  Lesiones y Datos básicos enteros. **Partido y Flujo diario siguen en castellano** aunque se
-  elija portugués: funcionan igual, solo falta pasar sus textos al diccionario (mucho texto;
-  va de a pantallas). Regla: texto nuevo = clave nueva en los dos archivos (la prueba lo exige).
+  Lesiones y Datos básicos enteros. **Flujo diario sigue en castellano y Partido, en casi todo**,
+  aunque se elija portugués: funcionan igual, solo falta pasar sus textos al diccionario (mucho
+  texto; va de a pantallas). De Partido ya están en el diccionario (05/10 al 07/10): la pantalla
+  Ajustes › Equipo entera, las hojas que preguntan antes de reanudar un período o de tirar un
+  registro o una formación sin guardar, y los avisos de celular sin lugar. Lo demás de Partido
+  (incluida la lista de Ajustes) sigue en castellano. Regla: texto nuevo = clave nueva en los
+  dos archivos (la prueba lo exige).
 - Lesiones tiene las columnas del Excel original (`src/domain/lesionesCampos.js`, más la
   posición del jugador): fechas en columnas, el resto en `datos` (jsonb) con el código de cada
   opción; cabeceras y listas por club en `lesiones_campos` y `lesiones_opciones`, editables
@@ -267,7 +271,8 @@ de lo hecho está en los commits, no en esta lista.
   de la salida sobre una lesión anterior (el alta, por ejemplo) se ve igual, porque la fila es
   de antes.
 - El idioma se cambia desde el globo arriba a la derecha (puerta, portal, Cuentas, Lesiones y
-  Datos básicos). Partido y Flujo diario no lo muestran todavía porque siguen en castellano.
+  Datos básicos). Partido y Flujo diario no lo muestran todavía porque siguen en castellano
+  (Partido, en casi todo: ver arriba qué ya está traducido).
 - El permiso `lesiones` de perfiles lo habilita el administrador desde Cuentas; las cuentas
   admin lo tienen prendido desde la migración.
 

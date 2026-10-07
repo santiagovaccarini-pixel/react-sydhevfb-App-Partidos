@@ -612,6 +612,60 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     }
   });
 
+  test("con el idioma en portugués, Ajustes › Equipo queda entera en portugués y no mezcla con castellano", async () => {
+    dosClubes();
+    elegirClub("eq-1", "Atlético Mineiro");
+    cambiarIdioma("pt-BR");
+    try {
+      await montar();
+      await irA("Ajustes");
+      await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
+      await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
+      await vaciarPromesas();
+
+      const pantalla = contenedor.querySelector(".contenedor");
+      expect(pantalla.querySelector("h1").textContent).toBe("Equipe");
+      expect(pantalla.querySelector(".encabezado p").textContent).toBe("Ajustes · Equipe");
+      expect(pantalla.textContent).toContain("Agora você está em Otro Club");
+      const [propia, cambiar, agregar] = Array.from(pantalla.querySelectorAll(".tarjeta-ficha"));
+      expect(propia.querySelector(".cabeza-ficha").textContent).toBe("Sua equipe");
+      expect(propia.querySelector("label").textContent.trim()).toBe("Nome da equipe");
+      expect(propia.querySelector("#nombre-equipo").getAttribute("placeholder")).toBe("Nome da equipe");
+      expect(propia.querySelector(".pista-equipo").textContent).toBe(
+        "O escudo não é enviado: ele é buscado pelo nome e fica salvo no telefone. Corrigir o nome não faz você perder as partidas registradas.",
+      );
+      expect(propia.querySelector("button").textContent.trim()).toBe("Salvar nome");
+      expect(cambiar.querySelector(".cabeza-ficha b").textContent).toBe("Trocar de equipe");
+      expect(agregar.querySelector(".cabeza-ficha").textContent).toBe("Adicionar uma equipe");
+      expect(agregar.querySelector("input").getAttribute("placeholder")).toBe("Nome da nova equipe");
+      expect(agregar.querySelector("button").textContent.trim()).toBe("Criar");
+      expect(agregar.querySelector(".pista-equipo").textContent).toBe(
+        "Só para um clube que ainda não esteja na lista. Começa sem partidas e sem elenco, e este telefone passa para essa equipe.",
+      );
+      expect(pantalla.querySelector(".boton-volver").textContent).toContain("Voltar aos Ajustes");
+      for (const enCastellano of ["Equipo", "equipo", "Nombre", "Guardar", "Cambiar", "Agregar", "Crear", "Volver", "Solo para", "El escudo"]) {
+        expect(pantalla.textContent, enCastellano).not.toContain(enCastellano);
+      }
+
+      // Sin club elegido, la misma pantalla para elegir uno.
+      await act(async () => raiz.unmount());
+      raiz = null;
+      localStorage.removeItem("equipo_elegido");
+      await montar();
+      const elegir = contenedor.querySelector(".contenedor");
+      expect(elegir.querySelector("h1").textContent).toBe("De qual equipe você é?");
+      expect(elegir.querySelector(".encabezado p").textContent).toBe(
+        "O app salva as partidas e o elenco de cada clube separadamente. Escolha o seu para começar.",
+      );
+      expect(elegir.textContent).toContain("Escolha sua equipe");
+      for (const enCastellano of ["equipo", "Elegí", "Sin nombre", "Tu equipo"]) {
+        expect(elegir.textContent, enCastellano).not.toContain(enCastellano);
+      }
+    } finally {
+      cambiarIdioma("es-AR");
+    }
+  });
+
   // ------------------------------------------------------------------ 6 --
   // En la base: el partido del miércoles (cargado desde otro celular). En
   // este celular: el del sábado, que quedó sin subir, y la copia del miércoles.
