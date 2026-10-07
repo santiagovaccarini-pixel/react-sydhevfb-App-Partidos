@@ -20,6 +20,7 @@ import {
   renombrarEquipo,
 } from "./domain/equipo";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import { permisosEnClub } from "./domain/perfilesDb.js";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./domain/alDia.js";
 import {
   canchaDesdeTitulares,
@@ -47,11 +48,13 @@ import {
   fechaLocalISO,
   formatearDuracion,
   formatearTiempoTransmision,
+  hayPartidoCargado,
   jugadoresParaCambio,
   limpiarLista,
   normalizarEntradaTiempoTransmision,
   normalizarTexto,
   normalizarTextoBase,
+  periodoActivo,
   periodoDesdeMinutoPartido,
   periodoEnJuego,
   segundosDesdeHora,
@@ -59,6 +62,22 @@ import {
   sumarDuracionesEventos,
   validarRegistroBasico,
 } from "./domain/match";
+import {
+  borradorRecibeId,
+  comoPendiente,
+  esVersionDelPartido,
+  idAlAzar,
+  identidadPendiente,
+  quitarSubidos,
+  sigueEnLaCola,
+  sinVersionesDelPartido,
+} from "./domain/pendientes";
+import {
+  VERSION_BORRADOR,
+  anotarFilaEnBorradorDelClub,
+  escribirBorrador,
+  leerBorradorDelClub,
+} from "./domain/borrador";
 import { puntosDeRegistros } from "./domain/puntos";
 import {
   cortesDelPartido,
@@ -109,6 +128,7 @@ import {
   EscudoDeClub,
   useEscudoClub,
 } from "./components/ClubCrest";
+import { t } from "./idioma/index.js";
 import "./style.css";
 // Pantalla de intro: la imagen del estadio que la app mostraba al abrirse
 // desde el primer commit, hasta que el rediseño del 8 de septiembre la sacó
@@ -236,9 +256,62 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.06.2";
-const VERSION_BORRADOR = 2;
-const CLAVE_BORRADOR = "registro_actual_partido";
+const APP_VERSION = "2026.10.07.1";
+// Cuánto espera Guardar a que termine de subirse la cola del celular antes de
+// dejar el partido a salvo en el teléfono (ver archivarRegistro).
+const ESPERA_SUBIDA_MS = 8000;
+// Cada cuánto se reintenta sola la cola del celular mientras haya algo, y
+// hasta cuánto se estira la espera si la base contesta pero no lo acepta.
+const REINTENTO_COLA_MS = 60000;
+const ESPERA_MAXIMA_COLA_MS = 8 * REINTENTO_COLA_MS;
+// Un guardado que lleva este tiempo sin contestar ya no frena a nadie: su
+// pedido quedó colgado, y su App quizá ya no está (se salió al portal).
+// Mientras tanto, lo que espera está a salvo en el celular.
+const TOPE_GUARDADO_EN_VIAJE_MS = 10 * REINTENTO_COLA_MS;
+
+// La subida de la cola y el guardado del partido escriben en la misma tabla:
+// dos que llevan el mismo partido van de a uno. Estos candados son uno por
+// club y viven fuera de la pantalla:
+// al volver al portal y entrar de nuevo a Partido se monta otra App, y con
+// candados propios la nueva no veía la subida (o el guardado) que la anterior
+// todavía tenía en viaje. Lo viejo llegaba a la base después y pisaba el
+// guardado final, o el mismo pendiente se subía dos veces.
+// - Club → la subida en marcha, con los pendientes que lleva.
+const subidasPorClub = new Map();
+// - Club → los guardados que están escribiendo en la base: qué partido
+//   llevan y su tarea. Otro Guardar de ese partido (el de la App de después
+//   de volver del portal) lo espera, como a la subida.
+const guardadosPorClub = new Map();
+// - "club|fecha y rival" → lo último que llegó a la base de ese partido sin
+//   pasar por el borrador en pantalla (lo subió la cola sola, o el Guardar de
+//   la App anterior), con su número de fila. El próximo guardado de ese
+//   partido actualiza esa fila en vez de crear otra.
+const filasSubidasPorClave = new Map();
+
+// Si un pedido que falló lo rechazó la base (un permiso, una columna que
+// falta, un dato que no acepta: contesta con un 4xx o con su código) o si no
+// llegó (sin señal, vencido, un 5xx de paso). Lo primero se repite igual en
+// cada intento; lo segundo se arregla solo cuando vuelve la señal.
+const esRechazoDeLaBase = (error, status) =>
+  (status >= 400 && status < 500) || (!status && Boolean(error?.code));
+
+const guardadosEnViaje = (club) => {
+  const ahora = Date.now();
+  return [...(guardadosPorClub.get(club) || [])].filter(
+    (guardado) => ahora - guardado.desde < TOPE_GUARDADO_EN_VIAJE_MS,
+  );
+};
+const empezarGuardado = (club, guardado) => {
+  const enViaje = guardadosPorClub.get(club) || new Set();
+  enViaje.add(guardado);
+  guardadosPorClub.set(club, enViaje);
+};
+const terminarGuardado = (club, guardado) => {
+  const enViaje = guardadosPorClub.get(club);
+  if (!enViaje) return;
+  enViaje.delete(guardado);
+  if (enViaje.size === 0) guardadosPorClub.delete(club);
+};
 const CLAVE_RESPALDO = "backup_registros_partidos";
 const CLAVE_PENDIENTES = "registros_sin_sincronizar";
 
@@ -1072,7 +1145,14 @@ const EstadoVersionApp = ({ actualizacionDisponible, onActualizar }) => (
 // Desde el portal, la portada de la tarjeta ya hizo de imagen de entrada, así
 // que Partido entra directo (intro=false). Sola, la app sigue abriendo con
 // la foto del estadio.
-export default function App({ intro = true, onVolver = null, onCerrarSesion = null } = {}) {
+// `permisos`: los de la cuenta (los pasa el portal). Sin ellos (la app suelta,
+// o una prueba) Ajustes › Equipo se ve como antes.
+export default function App({
+  intro = true,
+  onVolver = null,
+  onCerrarSesion = null,
+  permisos = null,
+} = {}) {
   const crearCambioVacio = () => ({
     sale: "",
     entra: "",
@@ -1141,6 +1221,9 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   };
 
   const crearRegistroVacio = () => ({
+    // De qué borrador sale cada cosa que va a la cola del celular: así, un
+    // partido empezado de cero después de Limpiar no hereda la fila de otro.
+    idLocal: idAlAzar(),
     fecha: fechaLocalISO(),
     rival: "",
     resultado: "",
@@ -1181,19 +1264,23 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     formacion: crearFormacionVacia(),
   });
 
-  const obtenerRegistroInicial = () => {
+  // El borrador guardado de un club, listo para la pantalla (o uno vacío).
+  // Cuál se lee y qué se respalda antes de pisarlo está en domain/borrador.
+  const leerBorradorParaPantalla = (club) => {
+    try {
+      return normalizarBorrador(
+        leerBorradorDelClub(club, { hayPartido: hayPartidoCargado }),
+      );
+    } catch (error) {
+      console.warn("No se pudo leer el borrador local:", error);
+      return crearRegistroVacio();
+    }
+  };
+
+  const normalizarBorrador = (registroRecuperado) => {
     const registroVacio = crearRegistroVacio();
 
     try {
-      const datosGuardados = localStorage.getItem(CLAVE_BORRADOR);
-
-      if (!datosGuardados) return registroVacio;
-
-      const datosRecuperados = JSON.parse(datosGuardados);
-      const registroRecuperado =
-        datosRecuperados?.version === VERSION_BORRADOR
-          ? datosRecuperados.registro
-          : datosRecuperados;
       if (!registroRecuperado || typeof registroRecuperado !== "object") {
         return registroVacio;
       }
@@ -1273,7 +1360,16 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     }
   };
 
-  const [registro, setRegistro] = useState(obtenerRegistroInicial);
+  // De qué club es el borrador que está en memoria. Se escribe en la clave de
+  // ese club, y al cambiar de club se guarda el de uno y se trae el del otro.
+  const clubDelBorrador = useRef(undefined);
+  if (clubDelBorrador.current === undefined) {
+    clubDelBorrador.current = leerEquipoElegido()?.id || null;
+  }
+
+  const [registro, setRegistro] = useState(() =>
+    leerBorradorParaPantalla(clubDelBorrador.current),
+  );
   const [guardados, setGuardados] = useState([]);
   const [historialCargado, setHistorialCargado] = useState(false);
   // De qué club son los partidos que hay en memoria. Al cambiar de equipo,
@@ -1345,8 +1441,14 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   const [hastaIgual, setHastaIgual] = useState(true);
   const [ordenRegistros, setOrdenRegistros] = useState("reciente");
   const [mensajeGuardado, setMensajeGuardado] = useState("");
+  // Si el celular no tiene lugar para el borrador, se avisa y el aviso queda
+  // a la vista hasta que vuelva a entrar: antes era solo un console.warn, y
+  // el partido se perdía al cerrar la app sin que nadie se enterara.
+  const [borradorSinLugar, setBorradorSinLugar] = useState(false);
   const [actualizacionDisponible, setActualizacionDisponible] = useState(false);
-  const [periodoVista, setPeriodoVista] = useState("PT");
+  // Al abrir, el tablero muestra el período que se está jugando (o el último
+  // que se arrancó), no siempre el PT.
+  const [periodoVista, setPeriodoVista] = useState(() => periodoActivo(registro));
   // Qué muestra la ficha de un registro guardado. El tiempo es una elección;
   // los otros tres son interruptores independientes.
   const [vistaFicha, setVistaFicha] = useState("PT");
@@ -1370,6 +1472,10 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   const [equipoId, setEquipoId] = useState(
     () => leerEquipoElegido()?.id || null,
   );
+  // El club elegido ahora, para lo que llega tarde (una respuesta de la base
+  // pedida con el club anterior).
+  const equipoVigente = useRef(equipoId);
+  equipoVigente.current = equipoId;
   const [equiposCargados, setEquiposCargados] = useState(false);
   const [fallaronEquipos, setFallaronEquipos] = useState(false);
 
@@ -1435,12 +1541,13 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   const plantelActual = useMemo(() => plantel.filter(esActual), [plantel]);
   const nombresPlantel = useMemo(() => nombresDelPlantel(plantelActual), [plantelActual]);
   const [equipoCambios, setEquipoCambios] = useState("atletico");
-  const formacionInicial = registro.formacion || crearFormacionVacia();
-  const hayFormacionInicial =
-    (formacionInicial.titulares || []).some((j) => String(j || "").trim()) ||
-    (formacionInicial.convocados || []).some((j) => String(j || "").trim());
-
-  const [partidoEnCurso, setPartidoEnCurso] = useState(hayFormacionInicial);
+  // Al abrir, hay partido en curso si el borrador tiene la formación o algo
+  // registrado (horarios, cambios, VAR, goles). Antes se miraba solo la
+  // formación: uno cargado sin ella desaparecía del inicio con todo lo
+  // anotado, y no había cómo volver al tablero para guardarlo.
+  const [partidoEnCurso, setPartidoEnCurso] = useState(() =>
+    hayPartidoCargado(registro),
+  );
 
   // Una sola hoja para todas las confirmaciones: la que esté pedida en el
   // momento. Reemplaza a los window.confirm del navegador.
@@ -1488,13 +1595,21 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     accion?.();
   };
 
+  // Cancelar cierra la hoja; algunas, además, llevan a algún lado (por
+  // ejemplo, "Seguir editando" vuelve a la formación sin guardar).
+  const cancelarConfirmacion = () => {
+    const accion = confirmacion?.onCancelar;
+    setConfirmacion(null);
+    accion?.();
+  };
+
   // Escudos reales. El nuestro es siempre el mismo, así que no hay nada que
   // esperar; el del rival se busca mientras se escribe el nombre.
   const escudoCam = useEscudoClub(equipoPropio, { demora: 0 });
   const escudoRival = useEscudoClub(registro.rival);
 
-  const [pantallaFormacion, setPantallaFormacion] = useState(
-    hayFormacionInicial && !soloLectura ? "lista" : "inicio",
+  const [pantallaFormacion, setPantallaFormacion] = useState(() =>
+    partidoEnCurso && !soloLectura ? "lista" : "inicio",
   );
 
   // Quien ya se fue del club no registra partidos: si estaba en el tablero o
@@ -1507,8 +1622,9 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
   const [fechaFormacion, setFechaFormacion] = useState(fechaLocalISO());
 
-  // Si la elegiste a mano, manda la tuya. Vive sólo mientras la app está
-  // abierta: al volver a entrar arranca de nuevo en la fecha de hoy.
+  // Si la elegiste a mano, manda la tuya. Queda anotado también en el
+  // borrador (fechaElegidaAMano): antes vivía solo mientras la app estaba
+  // abierta, y una fecha pasada elegida a mano se perdía al volver a entrar.
   const fechaElegidaAMano = useRef(false);
 
   // La fecha se guarda en dos lugares (el registro y el campo de la pantalla
@@ -1521,7 +1637,12 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
   const elegirFechaAMano = (fecha) => {
     fechaElegidaAMano.current = true;
-    ponerFecha(fecha);
+    setRegistro((prev) =>
+      prev.fecha === fecha && prev.fechaElegidaAMano
+        ? prev
+        : { ...prev, fecha, fechaElegidaAMano: true },
+    );
+    setFechaFormacion(fecha);
   };
 
   // El handler de abajo corre mucho después del render que lo creó, así que
@@ -1531,18 +1652,27 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     registroVigente.current = registro;
   }, [registro]);
 
+  // La fecha que corresponde al entrar (ver fechaAlEntrar). Se arma en cada
+  // render para que lea la cola del club que está elegido ahora.
+  const fechaQueVa = useRef(() => registroVigente.current.fecha);
+  fechaQueVa.current = () => {
+    const borrador = registroVigente.current;
+    const clave = clavePartido(borrador);
+    return fechaAlEntrar(borrador, {
+      hoy: fechaLocalISO(),
+      elegidaAMano: fechaElegidaAMano.current,
+      tienePendiente: leerPendientes().some(
+        (item) => clavePartido(item) === clave,
+      ),
+    });
+  };
+
   // Al entrar a la app la fecha tiene que ser la de hoy. El borrador sobrevive
   // de un día para el otro, así que sin esto seguía apareciendo la del último
   // partido cargado. Y en el celular la app no se reinicia: queda congelada y
   // vuelve, por eso también se revisa cada vez que volvés a ella.
   useEffect(() => {
-    const ponerLaDeHoy = () =>
-      ponerFecha(
-        fechaAlEntrar(registroVigente.current, {
-          hoy: fechaLocalISO(),
-          elegidaAMano: fechaElegidaAMano.current,
-        }),
-      );
+    const ponerLaDeHoy = () => ponerFecha(fechaQueVa.current());
 
     ponerLaDeHoy();
 
@@ -1560,15 +1690,18 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
   const [mensajeFormacion, setMensajeFormacion] = useState("");
 
+  // Los jugadores del rival que se ofrecen en sus cambios: los de ese partido.
+  const jugadoresRivalDe = (partido) =>
+    [
+      ...(partido?.jugadoresRival || []),
+      ...(partido?.titularesRival || []),
+      ...(partido?.convocadosRival || []),
+      ...(partido?.cambiosRival || []).map((cambio) => cambio?.sale),
+      ...(partido?.cambiosRival || []).map((cambio) => cambio?.entra),
+    ].filter((jugador) => jugador && String(jugador).trim() !== "");
+
   const opcionesJugadoresRival = useMemo(
-    () =>
-      [
-        ...(registro.jugadoresRival || []),
-        ...(registro.titularesRival || []),
-        ...(registro.convocadosRival || []),
-        ...(registro.cambiosRival || []).map((cambio) => cambio.sale),
-        ...(registro.cambiosRival || []).map((cambio) => cambio.entra),
-      ].filter((jugador) => jugador && String(jugador).trim() !== ""),
+    () => jugadoresRivalDe(registro),
     [
       registro.jugadoresRival,
       registro.titularesRival,
@@ -1595,6 +1728,8 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   }, [equiposCargados, equipoId, soloLectura]);
 
   const posicionScrollPendiente = useRef(null);
+  // Qué período se inició y cuándo (ver ejecutarAccionPeriodo).
+  const ultimoInicioPeriodo = useRef({ campo: "", momento: 0 });
   const convertirSupabaseARegistro = (fila) => {
     const prorroga = fila.prorroga || {};
     const capturaTiempo =
@@ -1833,36 +1968,57 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     }
   };
 
+  // Devuelve si se pudo escribir: con la memoria del celular llena, la cola
+  // no se escribe, y antes la pantalla decía "Guardado en el celular" igual.
   const escribirPendientes = (lista) => {
     try {
       localStorage.setItem(
         porEquipo(CLAVE_PENDIENTES, equipoId),
         JSON.stringify(lista),
       );
+      return true;
     } catch (error) {
       console.warn("No se pudo guardar la lista de partidos sin sincronizar.");
+      return false;
     }
   };
 
-  const guardarPendiente = (registroNuevo) => {
+  // Ver reintentarLaCola: la espera entre reintentos vuelve a un minuto.
+  const esperaCola = useRef({ ms: REINTENTO_COLA_MS, desde: 0 });
+  const reiniciarEsperaCola = () => {
+    esperaCola.current = { ms: REINTENTO_COLA_MS, desde: 0 };
+  };
+
+  // Pone el partido en la cola, en lugar de otras versiones suyas (y de la
+  // que tenía antes otra fecha o rival, si se corrigió). Va en una sola
+  // escritura: si no entra, la cola queda como estaba. Devuelve la cola
+  // nueva y si se pudo escribir.
+  const guardarPendiente = (registroNuevo, claveAnterior = null) => {
+    // Lo que entra a la cola (el partido en vivo guardado sin señal, una
+    // corrección) se reintenta al minuto, aunque lo viejo venga esperando más.
+    reiniciarEsperaCola();
     const clave = clavePartido(registroNuevo);
     const pendientes = leerPendientes().filter(
-      (item) => clavePartido(item) !== clave,
+      (item) =>
+        clavePartido(item) !== clave && clavePartido(item) !== claveAnterior,
     );
-    const actualizados = [
-      { ...registroNuevo, sinSincronizar: true },
-      ...pendientes,
-    ];
+    const actualizados = [comoPendiente(registroNuevo), ...pendientes];
 
-    escribirPendientes(actualizados);
-    return actualizados;
+    return { pendientes: actualizados, ok: escribirPendientes(actualizados) };
   };
 
   // El partido queda en la cola del celular y arriba de la lista, sin sacar
   // de la vista los que ya estaban: antes la lista pasaba a ser solo el
   // pendiente, y el respaldo del celular se escribía así de pelado.
+  // Devuelve si quedó en la cola; si no entró, la lista no lo muestra.
   const guardarEnElCelular = (registroNuevo) => {
-    const pendientes = guardarPendiente(registroNuevo);
+    const { pendientes, ok } = guardarPendiente(registroNuevo);
+    if (!ok) return false;
+    // La cola es la del club del guardado; la lista en pantalla se toca solo
+    // si sigue siendo ese club. Si mientras Guardar esperaba se cambió de
+    // club, los partidos de este aparecían en el otro, y editar uno lo pasaba
+    // a ese club.
+    if (equipoVigente.current !== equipoId) return true;
     const clavesPendientes = new Set(pendientes.map(clavePartido));
     establecerGuardados([
       ...pendientes,
@@ -1871,31 +2027,108 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           !item.sinSincronizar && !clavesPendientes.has(clavePartido(item)),
       ),
     ]);
+    return true;
+  };
+
+  // Si el pendiente que subió es el partido que está en pantalla, el
+  // borrador se queda con su número de fila. Si no, el próximo Guardar lo
+  // tomaba por otro partido y preguntaba si reemplazarlo.
+  const avisarAlBorrador = (pendiente, idFila) => {
+    if (!idFila) return;
+    filasSubidasPorClave.set(`${equipoId}|${clavePartido(pendiente)}`, {
+      ...pendiente,
+      idSupabase: idFila,
+    });
+    // La cola es de un club (el de esta subida): si mientras tanto se cambió
+    // de club, el borrador en pantalla es de otro y no se toca.
+    if (equipoId !== clubDelBorrador.current) return;
+    setRegistro((prev) =>
+      borradorRecibeId(prev, pendiente) ? { ...prev, idSupabase: idFila } : prev,
+    );
+  };
+
+  // Lo que la cola (o el Guardar de la App anterior) subió del partido en
+  // pantalla sin que este borrador se enterara: pasa si se salió al portal y
+  // se volvió a entrar mientras tanto, y la fila le llegaba solo al borrador
+  // de la App que ya no estaba. Con la lista releída (donde ya aparece esa
+  // fila), Guardar tomaba el propio partido por otro y preguntaba si
+  // reemplazarlo.
+  const tomarFilaSubida = (club) => {
+    if (!club || club !== clubDelBorrador.current) return;
+    setRegistro((prev) => {
+      const subido = filasSubidasPorClave.get(`${club}|${clavePartido(prev)}`);
+      return subido?.idSupabase && borradorRecibeId(prev, subido)
+        ? { ...prev, idSupabase: subido.idSupabase }
+        : prev;
+    });
   };
 
   // Guardar un partido con la base caída lo dejaba a salvo, pero nadie lo
   // volvía a intentar: quedaba marcado "sin sincronizar" para siempre. Cuando
   // la base contesta, se suben los que faltan.
-  const subirPendientes = async (registrosDeLaBase) => {
+  const subirPendientes = (registrosDeLaBase) => {
+    // Los candados (ver subidasPorClub) son del club de esta cola.
+    const club = equipoId;
+    // Dos subidas a la vez mandaban dos veces el mismo partido. La que está
+    // en marcha tampoco se le pasa a nadie: si un pedido se colgaba, quien la
+    // esperaba (la relectura de después de guardar, la carga de otro club) se
+    // colgaba con ella. Lo que quede en la cola lo sube el reintento.
+    if (subidasPorClub.has(club)) return Promise.resolve({ subioAlguno: false });
+
+    // Un partido que un guardado está escribiendo no se sube mientras tanto:
+    // lo de la cola es más viejo que ese guardado, o más nuevo y tiene que
+    // llegar después. Los demás sí: antes cualquier guardado en viaje frenaba
+    // toda la cola, y uno que no contestaba nunca (el de la App de antes de
+    // volver al portal) la dejaba sin subir hasta recargar la página. El que
+    // guarda vuelve a leer (y a subir) al terminar.
+    const enViaje = guardadosEnViaje(club);
+    const subida = {
+      pendientes: leerPendientes().filter(
+        (pendiente) =>
+          !enViaje.some((otro) => esVersionDelPartido(pendiente, otro.registro)),
+      ),
+      tarea: null,
+    };
+    subida.tarea = subirLaCola(registrosDeLaBase, subida.pendientes).finally(() => {
+      if (subidasPorClub.get(club) === subida) subidasPorClub.delete(club);
+    });
+    subidasPorClub.set(club, subida);
+    return subida.tarea;
+  };
+
+  const subirLaCola = async (registrosDeLaBase, porSubir) => {
     const enLaBasePorClave = new Map(
       registrosDeLaBase.map((item) => [clavePartido(item), item]),
     );
-    const porSubir = leerPendientes();
 
     if (porSubir.length === 0) return { subioAlguno: false };
 
-    const quedan = [];
-    let subioAlguno = false;
+    const subidos = [];
+    // Ver reintentarLaCola: solo los rechazos de la base espacian el reintento.
+    let rechazos = 0;
+    let fallosDeRed = 0;
 
     for (const pendiente of porSubir) {
+      // Mientras se subían los anteriores puede haberse guardado ese partido
+      // (con señal, o una versión más nueva sin ella): lo viejo ya no va.
+      if (!sigueEnLaCola(leerPendientes(), pendiente)) continue;
+
       try {
         // Si ese partido ya está en la base (se había guardado con señal y
         // después se volvió a guardar sin ella), lo que vale es lo del
         // celular, que es lo último: se reemplaza la fila en vez de saltearla.
         // Antes se descartaba el pendiente y el segundo tiempo se perdía.
-        const existente = enLaBasePorClave.get(clavePartido(pendiente));
+        // Un pendiente que ya tenía fila va a esa: si en el celular se le
+        // corrigió el rival o la fecha, buscarlo solo por fecha y rival no la
+        // encontraba y el partido quedaba repetido.
+        const existente =
+          (pendiente.idSupabase &&
+            registrosDeLaBase.find(
+              (item) => String(item.idSupabase) === String(pendiente.idSupabase),
+            )) ||
+          enLaBasePorClave.get(clavePartido(pendiente));
         const fila = construirFilaSupabase(pendiente);
-        const { error } = existente?.idSupabase
+        const { data, error, status } = existente?.idSupabase
           ? await supabase
               .from("registros_partido")
               .update(fila)
@@ -1911,19 +2144,35 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             "Sigue sin poder subirse un partido:",
             error.message || error,
           );
-          quedan.push(pendiente);
+          if (esRechazoDeLaBase(error, status)) rechazos += 1;
+          else fallosDeRed += 1;
           continue;
         }
 
-        subioAlguno = true;
+        // Reemplazar una fila que ya no está no es un error para la base,
+        // pero tampoco guarda nada: queda en la cola para la próxima.
+        if (existente?.idSupabase && (data?.length ?? 0) === 0) {
+          rechazos += 1;
+          continue;
+        }
+
+        subidos.push(identidadPendiente(pendiente));
+        avisarAlBorrador(pendiente, data?.[0]?.id || existente?.idSupabase);
       } catch (error) {
         console.warn("Sigue sin poder subirse un partido:", error);
-        quedan.push(pendiente);
+        fallosDeRed += 1;
       }
     }
 
-    escribirPendientes(quedan);
-    return { subioAlguno };
+    // Se vuelve a leer la cola y se saca solo lo que subió: lo que se guardó
+    // sin señal mientras tanto se queda.
+    if (subidos.length > 0) {
+      escribirPendientes(quitarSubidos(leerPendientes(), subidos));
+    }
+    return {
+      subioAlguno: subidos.length > 0,
+      soloRechazos: rechazos > 0 && fallosDeRed === 0,
+    };
   };
 
   // Los que todavía no llegaron a la base van arriba de la lista, y tapan a
@@ -1939,11 +2188,29 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     ];
   };
 
-  const cargarRegistrosSupabase = async ({ reintentar = true } = {}) => {
+  // Cada lectura lleva su número, y solo la última pedida llega a la lista.
+  // Guardar se libera antes de releer, así que dos relecturas pueden estar en
+  // viaje a la vez: si la del primer Guardar contestaba última, la lista (y
+  // su copia en el celular) volvía al resultado anterior, y corregir ese
+  // partido desde Registros mandaba a la base esa foto vieja entera.
+  const lecturaVigente = useRef(0);
+
+  // Devuelve false si la base no contestó (o la respuesta ya no es de este
+  // club): el reintento de la cola lo usa para saber si la base anda. Si se
+  // subió la cola, alSubir recibe cómo le fue.
+  const cargarRegistrosSupabase = async ({ reintentar = true, alSubir } = {}) => {
     // Quien ya se fue del club ve la foto de su último día, y no sube nada.
     const deSoloLectura = esSoloLectura(equipoId);
     let data = null;
     let error = null;
+    // Si mientras la base contestaba se eligió otro club, esta respuesta ya
+    // no se muestra: antes los partidos del club anterior aparecían en el
+    // nuevo, y editar uno lo pasaba a ese club.
+    const deEsteClub = equipoId;
+    const sigueElClub = () => equipoVigente.current === deEsteClub;
+    lecturaVigente.current += 1;
+    const numeroDeLectura = lecturaVigente.current;
+    const esLaUltima = () => lecturaVigente.current === numeroDeLectura;
 
     if (deSoloLectura) {
       try {
@@ -1961,6 +2228,12 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       ({ data, error } = await consulta.order("fecha", { ascending: false }));
     }
 
+    // De ese club se ocupa la próxima vez que se lo elija.
+    if (!sigueElClub()) return false;
+    // Ya se pidió otra lectura, más nueva: esta foto no se muestra, no se
+    // guarda en el celular y no se sube nada con ella.
+    if (!esLaUltima()) return error ? false : undefined;
+
     if (error) {
       console.error("Error cargando registros desde Supabase:", error);
 
@@ -1969,7 +2242,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       establecerGuardados(deSoloLectura ? [] : leerRespaldoHistorial());
       setEstadoHistorial("error");
       setHistorialCargado(true);
-      return;
+      return false;
     }
 
     const registrosConvertidos = (data || []).map(convertirSupabaseARegistro);
@@ -1987,14 +2260,21 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     // club nuevo, guardado sin señal, es justamente eso (base vacía y un
     // pendiente) y antes se quedaba sin subir para siempre.
     if (reintentar) {
-      const { subioAlguno } = await subirPendientes(registrosConvertidos);
+      const subida = await subirPendientes(registrosConvertidos);
+      alSubir?.(subida);
+      const { subioAlguno } = subida;
+      if (!sigueElClub()) return;
 
       if (subioAlguno) {
         // Se vuelve a leer para traerlos ya con su id, sin reintentar de nuevo.
+        // Esa lectura es la más nueva, aunque mientras tanto se haya pedido otra.
         await cargarRegistrosSupabase({ reintentar: false });
         return;
       }
+      if (!esLaUltima()) return;
     }
+
+    tomarFilaSubida(deEsteClub);
 
     // Si la base contesta bien pero sin nada, y en el celular hay historial
     // que ya había llegado a la base, NO se pisa: una respuesta vacía puede
@@ -2035,6 +2315,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   releerAlVolverLaSenal.current = () => {
     if (!equipoId || guardandoRef.current) return;
     if (leerPendientes().length === 0) return;
+    reiniciarEsperaCola();
     releerHistorial();
   };
 
@@ -2042,6 +2323,72 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     const alVolverLaSenal = () => releerAlVolverLaSenal.current();
     window.addEventListener("online", alVolverLaSenal);
     return () => window.removeEventListener("online", alVolverLaSenal);
+  }, []);
+
+  // En la cancha el teléfono suele decir que hay red aunque la base no
+  // conteste, así que el aviso de "online" nunca llega: lo que quedó en la
+  // cola no se volvía a intentar hasta reabrir la app. Mientras haya algo en
+  // la cola y el teléfono diga que hay red, se reintenta cada minuto, sin
+  // pisarse con un guardado ni con otra subida en marcha.
+  //
+  // Si la base contesta pero no acepta lo que queda (un permiso, una columna
+  // que falta), reintentar cada minuto bajaba el historial entero del club
+  // durante todo el partido, sin fin. Cada vuelta así duplica la espera (2,
+  // 4 y hasta 8 minutos); vuelve a un minuto cuando algo sube, cuando entra
+  // algo nuevo a la cola, cuando vuelve la señal o cuando Guardar llega a la
+  // base. Sin respuesta de la base se sigue probando cada minuto, y también
+  // si la lectura pasa pero la subida vence (con mala señal pasa seguido):
+  // antes eso espaciaba igual el reintento, y al volver la señal el partido
+  // en vivo tardaba hasta ocho minutos en subir.
+  const reintentoEnCurso = useRef(false);
+  const reintentarLaCola = useRef(() => {});
+  reintentarLaCola.current = () => {
+    if (!equipoId || soloLectura || !historialCargado) return;
+    if (guardandoRef.current || reintentoEnCurso.current) return;
+    if (subidasPorClub.has(equipoId)) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    const antes = leerPendientes().length;
+    if (antes === 0) return;
+    const ahora = Date.now();
+    const espera = esperaCola.current;
+    if (ahora - espera.desde < espera.ms) return;
+
+    reintentoEnCurso.current = true;
+    let contesto = false;
+    let rechazada = false;
+    cargarRegistrosSupabase({
+      alSubir: ({ soloRechazos }) => {
+        rechazada = Boolean(soloRechazos);
+      },
+    })
+      .then((resultado) => {
+        contesto = resultado !== false;
+      })
+      .catch((error) => console.warn("No se pudo reintentar la cola:", error))
+      .finally(() => {
+        reintentoEnCurso.current = false;
+        // Si mientras tanto se reinició la espera, queda reiniciada.
+        if (esperaCola.current !== espera) return;
+        const quedan = leerPendientes().length;
+        const noLaAcepta =
+          contesto && rechazada && quedan > 0 && quedan >= antes;
+        esperaCola.current = {
+          ms: noLaAcepta
+            ? Math.min(espera.ms * 2, ESPERA_MAXIMA_COLA_MS)
+            : contesto
+              ? REINTENTO_COLA_MS
+              : espera.ms,
+          desde: ahora,
+        };
+      });
+  };
+
+  useEffect(() => {
+    const reloj = window.setInterval(
+      () => reintentarLaCola.current(),
+      REINTENTO_COLA_MS,
+    );
+    return () => window.clearInterval(reloj);
   }, []);
 
   useEffect(() => {
@@ -2135,16 +2482,50 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     }
   }, [guardados, historialCargado, equipoId, equipoDeGuardados, soloLectura]);
 
+  // El borrador se guarda en la clave de su club con cada cambio.
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        CLAVE_BORRADOR,
-        JSON.stringify({ version: VERSION_BORRADOR, registro }),
-      );
-    } catch (error) {
-      console.warn("No se pudo guardar el borrador local.");
-    }
+    const guardado = escribirBorrador(registro, clubDelBorrador.current, {
+      hayPartido: hayPartidoCargado,
+    });
+    if (!guardado) console.warn("No se pudo guardar el borrador local.");
+    setBorradorSinLugar(!guardado);
   }, [registro]);
+
+  // Al cambiar de club, el partido en memoria ya quedó guardado en el suyo
+  // (se escribe con cada cambio) y se trae el del club nuevo, o uno vacío.
+  // Antes el borrador era uno para todos: el partido cargado en un club se
+  // veía "EN VIVO" en el otro y Guardar lo metía ahí. Sin club (todavía no se
+  // sabe, o se dejó de saber) el borrador sigue siendo del que era.
+  useEffect(() => {
+    if (!equipoId || equipoId === clubDelBorrador.current) return;
+
+    clubDelBorrador.current = equipoId;
+    const delClub = leerBorradorParaPantalla(equipoId);
+    const clave = clavePartido(delClub);
+    const nuevo = {
+      ...delClub,
+      fecha: fechaAlEntrar(delClub, {
+        hoy: fechaLocalISO(),
+        tienePendiente: leerPendientes().some(
+          (item) => clavePartido(item) === clave,
+        ),
+      }),
+    };
+    const hayPartido = hayPartidoCargado(nuevo);
+
+    fechaElegidaAMano.current = false;
+    setRegistro(nuevo);
+    setFormacionTemporal(conCancha(nuevo.formacion));
+    setFechaFormacion(nuevo.fecha);
+    setPartidoEnCurso(hayPartido);
+    setPeriodoVista(periodoActivo(nuevo));
+    setPenalesAbiertos(false);
+    setPantallaFormacion((actual) =>
+      !hayPartido && (actual === "lista" || actual === "manual")
+        ? "inicio"
+        : actual,
+    );
+  }, [equipoId]);
 
   useLayoutEffect(() => {
     if (posicionScrollPendiente.current !== null) {
@@ -3050,16 +3431,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     );
   };
 
-  const obtenerPeriodoActivo = (estado = registro) => {
-    if (estado.inicioSTE && !estado.finalSTE) return "STE";
-    if (estado.inicioPTE && !estado.finalPTE) return "PTE";
-    if (estado.inicioST && !estado.finalST) return "ST";
-    if (estado.inicioPT && !estado.finalPT) return "PT";
-    if (estado.inicioSTE || estado.referenciaRealSTE) return "STE";
-    if (estado.inicioPTE || estado.referenciaRealPTE) return "PTE";
-    if (estado.inicioST || estado.referenciaRealST) return "ST";
-    return "PT";
-  };
+  const obtenerPeriodoActivo = (estado = registro) => periodoActivo(estado);
 
   const quitarFoco = () => {
     if (document.activeElement && document.activeElement.blur) {
@@ -3668,14 +4040,120 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
   // un partido que ya estaba guardado.
   const archivarRegistro = async (nuevoRegistro, coincidente) => {
     if (guardandoRef.current) return;
+    // El club del borrador que se guarda: si mientras se espera la respuesta
+    // se cambia de club, su número de fila va igual a ese borrador.
+    const clubDelGuardado = clubDelBorrador.current;
 
     guardandoRef.current = true;
     setGuardando(true);
 
     const registroSupabase = construirFilaSupabase(nuevoRegistro);
+    // Este guardado queda anotado entre los que escriben en su club, con el
+    // partido que lleva: con un booleano compartido, el final de un guardado
+    // de la App anterior le sacaba el candado al de esta.
+    const club = equipoId;
+    let avisarQueTermino = () => {};
+    const guardado = {
+      registro: nuevoRegistro,
+      tarea: new Promise((resolver) => {
+        avisarQueTermino = resolver;
+      }),
+      desde: 0,
+      // Lo que había en la cola al empezar a escribir (ver más abajo).
+      enLaCola: null,
+    };
+    let escribiendo = false;
+    const dejarDeEscribir = () => {
+      if (!escribiendo) return;
+      escribiendo = false;
+      terminarGuardado(club, guardado);
+      avisarQueTermino();
+    };
+    // Sin base, el partido queda en la cola del celular. Si ni ahí entra
+    // (memoria llena) se dice: antes decía "Guardado en el celular" igual, y
+    // el partido estaba solo en el borrador.
+    const dejarEnElCelular = (aviso = "Guardado en el celular · sin sincronizar") => {
+      // Si mientras este guardado escribía entró a la cola una versión de este
+      // partido (la del Guardar de la App de después de volver del portal, que
+      // esperó a este y no llegó a tiempo), esa es más nueva: esta no la
+      // reemplaza. Antes el resultado viejo le ganaba al final en la cola.
+      const yaHayUnaMasNueva =
+        guardado.enLaCola !== null &&
+        leerPendientes().some(
+          (item) =>
+            !guardado.enLaCola.has(identidadPendiente(item)) &&
+            esVersionDelPartido(item, guardado.registro),
+        );
+      if (yaHayUnaMasNueva || guardarEnElCelular(nuevoRegistro)) {
+        avisarGuardado(aviso, 6000);
+        return true;
+      }
+      avisarGuardado(t("partido.celularLleno"), 10000);
+      return false;
+    };
 
     try {
-      const idExistente = nuevoRegistro.idSupabase || coincidente?.idSupabase;
+      // Si la cola del celular está subiendo una versión de este mismo
+      // partido, se la deja terminar: si no, ese pendiente viejo podía llegar
+      // a la base después que este guardado y pisarlo. Lo mismo con un
+      // Guardar de este partido que la App anterior (la de antes de volver
+      // al portal) todavía tiene en viaje: si no, el UPDATE viejo llegaba
+      // tarde y dejaba la fila con el resultado anterior, o el INSERT viejo
+      // repetía el partido. Se espera un rato nomás: si la red está colgada,
+      // el partido queda en el celular (a salvo) y sube con la próxima vuelta
+      // de la cola, después de lo viejo. Lo que se escribe de otros partidos
+      // va a otras filas y no se espera: antes un pedido colgado de otro
+      // partido mandaba cada Guardar al celular.
+      const subida = subidasPorClub.get(club);
+      const idDelPartido =
+        nuevoRegistro.idSupabase || coincidente?.idSupabase || null;
+      const esDeEstePartido = (otro) =>
+        esVersionDelPartido(otro, nuevoRegistro, idDelPartido);
+      const enViaje = [
+        ...(subida && subida.pendientes.some(esDeEstePartido)
+          ? [subida.tarea]
+          : []),
+        ...guardadosEnViaje(club)
+          .filter((otro) => esDeEstePartido(otro.registro))
+          .map((otro) => otro.tarea),
+      ];
+      if (enViaje.length > 0) {
+        const termino = await Promise.race([
+          Promise.all(
+            enViaje.map((tarea) =>
+              tarea.then(
+                () => true,
+                () => true,
+              ),
+            ),
+          ).then(() => true),
+          new Promise((resolver) =>
+            window.setTimeout(() => resolver(false), ESPERA_SUBIDA_MS),
+          ),
+        ]);
+
+        if (!termino) {
+          dejarEnElCelular();
+          return;
+        }
+      }
+
+      // Lo que la cola (o el Guardar de la App anterior) acaba de subir de
+      // este partido ya tiene fila: se actualiza esa en vez de crear otra.
+      const claveSubida = `${club}|${clavePartido(nuevoRegistro)}`;
+      const subidoRecien = filasSubidasPorClave.get(claveSubida);
+      const idSubidoRecien =
+        subidoRecien && borradorRecibeId(nuevoRegistro, subidoRecien)
+          ? subidoRecien.idSupabase
+          : null;
+      const idExistente =
+        nuevoRegistro.idSupabase || coincidente?.idSupabase || idSubidoRecien;
+
+      guardado.registro = { ...nuevoRegistro, idSupabase: idExistente || null };
+      guardado.desde = Date.now();
+      guardado.enLaCola = new Set(leerPendientes().map(identidadPendiente));
+      escribiendo = true;
+      empezarGuardado(club, guardado);
 
       let respuesta = idExistente
         ? await supabase
@@ -3740,11 +4218,11 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             "Faltan columnas en Supabase:",
             respuesta.error?.message || respuesta.error,
           );
-          guardarEnElCelular(nuevoRegistro);
-          avisarGuardado("Falta actualizar la base de datos", 6000);
-          alert(
-            "Falta ejecutar la migración de captura de tiempos en Supabase. El partido quedó guardado en este dispositivo.",
-          );
+          if (dejarEnElCelular("Falta actualizar la base de datos")) {
+            alert(
+              "Falta ejecutar la migración de captura de tiempos en Supabase. El partido quedó guardado en este dispositivo.",
+            );
+          }
           return;
         }
 
@@ -3755,8 +4233,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           respuesta.error?.message || respuesta.error,
           respuesta.error,
         );
-        guardarEnElCelular(nuevoRegistro);
-        avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
+        dejarEnElCelular();
         return;
       }
 
@@ -3764,10 +4241,45 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
         ? respuesta.data?.[0]?.id
         : respuesta.data?.[0]?.id || idExistente;
       if (idGuardado) {
-        setRegistro((prev) => ({ ...prev, idSupabase: idGuardado }));
+        // Si mientras guardaba se limpió el borrador para otro partido, ese
+        // no se queda con la fila de este.
+        setRegistro((prev) =>
+          prev.idLocal && nuevoRegistro.idLocal && prev.idLocal !== nuevoRegistro.idLocal
+            ? prev
+            : { ...prev, idSupabase: idGuardado },
+        );
+        if (clubDelGuardado && clubDelBorrador.current !== clubDelGuardado) {
+          anotarFilaEnBorradorDelClub(clubDelGuardado, nuevoRegistro.idLocal, idGuardado);
+        }
+        // Si mientras tanto se salió al portal y se volvió a entrar, el
+        // borrador en pantalla es el de la otra App: su Guardar toma de acá
+        // la fila de este partido.
+        filasSubidasPorClave.set(claveSubida, {
+          ...nuevoRegistro,
+          idSupabase: idGuardado,
+        });
+      } else {
+        filasSubidasPorClave.delete(claveSubida);
       }
 
-      await cargarRegistrosSupabase();
+      // Lo que había quedado en la cola de este mismo partido es más viejo
+      // que lo que se acaba de guardar. Si se quedaba, la relectura de abajo
+      // lo subía encima: la base terminaba con el resultado del entretiempo
+      // mientras la pantalla decía "guardado con éxito". Lo que entró a la
+      // cola después de empezar a escribir es más nuevo (el Guardar de la
+      // otra App, que esperó a este y quedó en el celular) y se queda.
+      escribirPendientes(
+        sinVersionesDelPartido(
+          leerPendientes(),
+          nuevoRegistro,
+          idGuardado,
+          guardado.enLaCola,
+        ),
+      );
+      dejarDeEscribir();
+      // La base anda: lo que quede en la cola se reintenta al minuto.
+      reiniciarEsperaCola();
+
       if (filaDesaparecida) {
         avisarGuardado("Ya no estaba en la base · se guardó de nuevo", 6000);
       } else {
@@ -3775,11 +4287,21 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           idExistente ? "Partido actualizado" : "Partido guardado con éxito",
         );
       }
+
+      // El partido ya está en la base: el botón se libera antes de releer.
+      // Antes se esperaba la relectura (y la subida de la cola que arranca),
+      // y si uno de esos pedidos no contestaba, Guardar quedaba trabado en
+      // "Guardando…" y el guardado final no se podía hacer.
+      guardandoRef.current = false;
+      setGuardando(false);
+      cargarRegistrosSupabase().catch((fallo) =>
+        console.warn("No se pudo releer el historial después de guardar:", fallo),
+      );
     } catch (error) {
       console.error("Error de red al guardar el partido:", error);
-      guardarEnElCelular(nuevoRegistro);
-      avisarGuardado("Guardado en el celular · sin sincronizar", 6000);
+      dejarEnElCelular();
     } finally {
+      dejarDeEscribir();
       guardandoRef.current = false;
       setGuardando(false);
     }
@@ -3830,8 +4352,21 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     const coincidente = guardados.find(
       (item) => clavePartido(item) === clavePartido(nuevoRegistro),
     );
+    // Una versión de este mismo borrador que quedó en la cola sin número de
+    // fila (se guardó en el celular mientras subía una anterior) no es otro
+    // partido: no se pregunta. Se actualiza la fila que la cola le dio al
+    // borrador, y esa versión vieja sale de la cola.
+    const esteMismoBorrador =
+      Boolean(coincidente?.sinSincronizar) &&
+      !coincidente.idSupabase &&
+      Boolean(coincidente.idLocal) &&
+      coincidente.idLocal === nuevoRegistro.idLocal;
 
-    if (coincidente && coincidente.idSupabase !== nuevoRegistro.idSupabase) {
+    if (
+      coincidente &&
+      !esteMismoBorrador &&
+      coincidente.idSupabase !== nuevoRegistro.idSupabase
+    ) {
       setConfirmacion({
         titulo: "¿Reemplazar el partido que ya tenés?",
         descripcion:
@@ -3903,15 +4438,14 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     setFechaFormacion(nuevoRegistro.fecha);
     setPartidoEnCurso(false);
     setPantallaFormacion("inicio");
+    // Un partido nuevo arranca por el PT, aunque se estuviera mirando otro.
+    setPeriodoVista("PT");
 
-    try {
-      localStorage.setItem(
-        CLAVE_BORRADOR,
-        JSON.stringify({ version: VERSION_BORRADOR, registro: nuevoRegistro }),
-      );
-    } catch (error) {
-      console.warn("No se pudo limpiar el borrador local.");
-    }
+    const guardado = escribirBorrador(nuevoRegistro, clubDelBorrador.current, {
+      hayPartido: hayPartidoCargado,
+    });
+    if (!guardado) console.warn("No se pudo limpiar el borrador local.");
+    setBorradorSinLugar(!guardado);
   };
 
   const volverAPantallaFormacion = () => {
@@ -4053,9 +4587,31 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     setRegistroSeleccionado(null);
   };
 
-  const eliminarRegistro = (indexAEliminar) => {
-    const registro = guardados[indexAEliminar];
+  /**
+   * El registro que se abrió (o se eligió para borrar), buscado en la lista
+   * de ahora: por su fila si la tiene, y si todavía no subió, por su fecha y
+   * rival. Antes se usaba el lugar que ocupaba en la lista, y si mientras
+   * tanto la lista cambiaba (volvía la señal, subía un pendiente y se
+   * reordenaba), la edición o el borrado caían sobre otro partido.
+   */
+  const buscarEnGuardados = (elegido) => {
+    if (!elegido) return null;
+    if (elegido.idSupabase) {
+      return (
+        guardados.find(
+          (item) => String(item.idSupabase) === String(elegido.idSupabase),
+        ) || null
+      );
+    }
+    const clave = clavePartido(elegido);
+    return guardados.find((item) => clavePartido(item) === clave) || null;
+  };
 
+  // La hoja de confirmación guarda la función del momento en que se abrió;
+  // así llama a la de ahora, que ve la lista de ahora.
+  const eliminarConfirmado = useRef(() => {});
+
+  const eliminarRegistro = (registro) => {
     setConfirmacion({
       titulo: "¿Eliminar este registro?",
       descripcion:
@@ -4068,7 +4624,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
         </>
       ),
       etiquetaConfirmar: "Sí, eliminar",
-      onConfirmar: () => confirmarEliminarRegistro(indexAEliminar),
+      onConfirmar: () => eliminarConfirmado.current(registro),
     });
   };
 
@@ -4086,8 +4642,10 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     setRegistroSeleccionado(null);
   };
 
-  const confirmarEliminarRegistro = async (indexAEliminar) => {
-    const registroAEliminar = guardados[indexAEliminar];
+  const confirmarEliminarRegistro = async (elegido) => {
+    // El que se eligió, como está ahora en la lista (por ejemplo, un
+    // pendiente que subió mientras la hoja estaba abierta ya tiene fila).
+    const registroAEliminar = buscarEnGuardados(elegido) || elegido;
 
     if (registroAEliminar?.sinSincronizar && !registroAEliminar.idSupabase) {
       quitarPendienteLocal(registroAEliminar);
@@ -4121,6 +4679,9 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     escribirPendientes(
       leerPendientes().filter((item) => clavePartido(item) !== clave),
     );
+    // Esa fila ya no está: el borrador de ese partido no la toma (ver
+    // tomarFilaSubida).
+    filasSubidasPorClave.delete(`${equipoId}|${clave}`);
     try {
       localStorage.setItem(
         porEquipo(CLAVE_RESPALDO, equipoId),
@@ -4138,10 +4699,21 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     await cargarRegistrosSupabase();
     setRegistroSeleccionado(null);
   };
+  eliminarConfirmado.current = confirmarEliminarRegistro;
 
-  const actualizarRegistroGuardado = async (indexAEditar, registroEditado) => {
-    const anterior = guardados[indexAEditar];
-    const idRegistro = registroEditado.idSupabase || anterior?.idSupabase;
+  // `abierto` es el registro tal como estaba al abrirlo: se busca cómo está
+  // ahora en la lista (ver buscarEnGuardados), nunca por su lugar en ella.
+  const actualizarRegistroGuardado = async (abierto, registroEditado) => {
+    const anterior =
+      buscarEnGuardados(abierto) ||
+      (abierto?.sinSincronizar && !abierto.idSupabase
+        ? leerPendientes().find(
+            (item) => clavePartido(item) === clavePartido(abierto),
+          )
+        : null);
+    // Un pendiente que subió mientras se editaba ya tiene su fila: esa es la
+    // que se actualiza.
+    const idRegistro = anterior?.idSupabase || registroEditado.idSupabase;
 
     if (!idRegistro && !anterior?.sinSincronizar) {
       alert("Este registro no tiene ID de Supabase. No se puede editar.");
@@ -4162,11 +4734,16 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     // Un pendiente (guardado sin señal) se corrige en el celular: la versión
     // corregida es la que se sube cuando vuelva la base.
     if (anterior?.sinSincronizar) {
-      const claveAnterior = clavePartido(anterior);
-      escribirPendientes(
-        leerPendientes().filter((item) => clavePartido(item) !== claveAnterior),
+      // La versión de antes sale en la misma escritura: antes eran dos, y si
+      // la segunda no entraba en el celular, la cola se quedaba sin ninguna.
+      const { pendientes, ok } = guardarPendiente(
+        registroConTiempos,
+        clavePartido(anterior),
       );
-      const pendientes = guardarPendiente(registroConTiempos);
+      if (!ok) {
+        avisarGuardado(t("partido.celularLlenoCambios"), 10000);
+        return false;
+      }
       const clavesPendientes = new Set(pendientes.map(clavePartido));
       const editado = pendientes[0];
       establecerGuardados([
@@ -4238,7 +4815,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
     setRegistroSeleccionado({
       item: registroActualizado,
-      index: indexAEditar,
+      index: guardados.findIndex((item) => item.idSupabase === idRegistro),
     });
     setDetalleBorrador(registroActualizado);
     setDetalleEditando(false);
@@ -4573,7 +5150,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           {/* Vuelve al portal, a la vista y no escondido en Ajustes: igual
               que en Flujo diario. */}
           {onVolver && (
-            <button type="button" className="boton-modulos" onClick={onVolver}>
+            <button type="button" className="boton-modulos" onClick={salirAModulos}>
               <Icono nombre="flecha" size={14} />
               Módulos
             </button>
@@ -5560,7 +6137,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     };
 
     const guardarCambiosEdicion = async () => {
-      const ok = await actualizarRegistroGuardado(index, editado);
+      const ok = await actualizarRegistroGuardado(item, editado);
 
       if (ok) {
         setMensajeGuardado("Cambios guardados correctamente");
@@ -6142,11 +6719,33 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     window.setTimeout(() => setAvisoEquipo(""), 2600);
   };
 
-  const renombrarEsteEquipo = async () => {
-    const { error } = await renombrarEquipo(equipoId, nombreEquipoEditado);
+  // Lo que dice la pantalla cuando crear o renombrar no se pudo, en el
+  // idioma de la app. Antes se mostraba el error crudo de la base (en
+  // inglés) o, si la base no dejaba renombrar, "Nombre cambiado" igual.
+  const textoErrorEquipo = (respuesta, accion) => {
+    if (respuesta.motivo === "vacio") return t("partido.equipoSinNombre");
+    if (respuesta.motivo === "repetido") return t("partido.equipoRepetido");
+    if (respuesta.motivo === "permiso") {
+      return accion === "crear"
+        ? t("partido.equipoSinPermisoCrear")
+        : t("partido.equipoSinPermisoRenombrar");
+    }
+    console.warn(`No se pudo ${accion} el equipo:`, respuesta.error);
+    return accion === "crear"
+      ? t("partido.equipoErrorCrear")
+      : t("partido.equipoErrorRenombrar");
+  };
 
-    if (error) {
-      setErrorEquipo(error);
+  const renombrarEsteEquipo = async () => {
+    let respuesta;
+    try {
+      respuesta = await renombrarEquipo(equipoId, nombreEquipoEditado);
+    } catch (error) {
+      respuesta = { error: error?.message || String(error), motivo: "otro" };
+    }
+
+    if (respuesta.error) {
+      setErrorEquipo(textoErrorEquipo(respuesta, "renombrar"));
       return;
     }
 
@@ -6157,14 +6756,20 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       setEquipoGuardado(actual);
       guardarEquipoElegido(actual);
     }
-    avisarEquipo("Nombre cambiado");
+    avisarEquipo(t("partido.equipoNombreCambiado"));
   };
 
   const sumarEquipo = async () => {
-    const { equipo, error } = await crearEquipo(nombreEquipoNuevo);
+    let respuesta;
+    try {
+      respuesta = await crearEquipo(nombreEquipoNuevo);
+    } catch (error) {
+      respuesta = { error: error?.message || String(error), motivo: "otro" };
+    }
+    const { equipo } = respuesta;
 
-    if (error) {
-      setErrorEquipo(error);
+    if (respuesta.error || !equipo) {
+      setErrorEquipo(textoErrorEquipo(respuesta, "crear"));
       return;
     }
 
@@ -6172,7 +6777,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     setNombreEquipoNuevo("");
     await releerEquipos();
     cambiarDeEquipo(equipo.id, equipo);
-    avisarEquipo(`Ahora estás en ${equipo.nombre}`);
+    avisarEquipo(t("partido.equipoAhoraEn", { club: equipo.nombre }));
   };
 
   // Cambiar de equipo cambia lo que se ve en toda la app, así que se vuelven a
@@ -6195,17 +6800,43 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
   const renderAjustesEquipo = () => {
     const enEdicion = nombreEquipoEditado.trim();
-    const otros = equipos.filter((equipo) => equipo.id !== equipoId);
+    // Para cambiar de club, solo aquellos en los que la cuenta está hoy y
+    // tiene Partido: en uno sin el módulo la base no deja guardar, y el
+    // partido cargado ahí quedaba para siempre en la cola del celular. Quien
+    // dejó un club lo mira desde el portal, en solo lectura; sin club elegido
+    // se ofrecen también esos, como en el portal.
+    const otros = equipos.filter(
+      (equipo) =>
+        equipo.id !== equipoId &&
+        equipo.miembro !== false &&
+        equipo.partido !== false &&
+        (!equipo.hasta || !equipoId),
+    );
+    // Renombrar es de quien administra el club (o de la plataforma) y crear
+    // un club, solo del dueño de la plataforma: los demás chocaban con la
+    // base. Se decide con la membresía del club y los permisos de la cuenta;
+    // si no se sabe ninguna de las dos cosas, se muestra como antes.
+    const clubActual =
+      equipos.find((equipo) => equipo.id === equipoId) ||
+      (equipoGuardado?.id === equipoId ? equipoGuardado : null);
+    const enEsteClub = permisosEnClub(permisos || {}, clubActual);
+    const puedeRenombrar =
+      (!permisos && !clubActual?.rol) || enEsteClub.admin || enEsteClub.adminClub;
+    const puedeCrear = !permisos || Boolean(permisos.admin);
+    // Sin club elegido, sin ninguno para elegir y sin poder crear uno, la
+    // pantalla quedaba vacía y sin salida (ni las pestañas sacaban de acá):
+    // se dice por qué y se ofrece volver a los módulos.
+    const sinSalida = !equipoId && otros.length === 0 && !puedeCrear;
 
     return (
       <div className="app">
         <div className="contenedor">
           <header className="encabezado">
-            <h1>{equipoId ? "Equipo" : "¿De qué equipo sos?"}</h1>
+            <h1>{equipoId ? t("partido.equipoTitulo") : t("partido.equipoElegirTitulo")}</h1>
             <p>
               {equipoId
-                ? "Ajustes · Equipo"
-                : "La app guarda los partidos y el plantel de cada club por separado. Elegí el tuyo para empezar."}
+                ? t("partido.equipoSubtitulo")
+                : t("partido.equipoElegirTexto")}
             </p>
           </header>
 
@@ -6217,23 +6848,25 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
           <section className="tarjeta tarjeta-ficha" hidden={!equipoId}>
             <div className="cabeza-ficha">
-              <b>Tu equipo</b>
+              <b>{t("partido.equipoTuyo")}</b>
             </div>
 
             {equipoId ? (
               <>
                 <div className="equipo-propio">
                   <EscudoDeClub equipo="cam" nombre={enEdicion} />
-                  <strong>{enEdicion || "Sin nombre"}</strong>
+                  <strong>{enEdicion || t("partido.equipoNombreVacio")}</strong>
                 </div>
 
+                {puedeRenombrar && (
+                <>
                 <label className="etiqueta-equipo" htmlFor="nombre-equipo">
-                  Nombre del equipo
+                  {t("partido.equipoNombre")}
                 </label>
                 <input
                   id="nombre-equipo"
                   value={nombreEquipoEditado}
-                  placeholder="Nombre del equipo"
+                  placeholder={t("partido.equipoNombre")}
                   onChange={(evento) => {
                     setNombreEquipoEditado(evento.target.value);
                     setErrorEquipo("");
@@ -6243,11 +6876,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                   }}
                 />
 
-                <p className="pista-equipo">
-                  El escudo no se carga: se busca solo por el nombre y queda
-                  guardado en el teléfono. Corregir el nombre no te hace perder
-                  los partidos cargados.
-                </p>
+                <p className="pista-equipo">{t("partido.equipoPistaEscudo")}</p>
 
                 <button
                   type="button"
@@ -6255,8 +6884,10 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                   onClick={renombrarEsteEquipo}
                   disabled={!enEdicion || enEdicion === equipoPropio}
                 >
-                  Guardar nombre
+                  {t("partido.equipoGuardarNombre")}
                 </button>
+                </>
+                )}
               </>
             ) : null}
           </section>
@@ -6264,7 +6895,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
           {otros.length > 0 && (
             <section className="tarjeta tarjeta-ficha">
               <div className="cabeza-ficha">
-                <b>{equipoId ? "Cambiar de equipo" : "Elegí tu equipo"}</b>
+                <b>{equipoId ? t("partido.equipoCambiar") : t("partido.equipoElegir")}</b>
                 <span className="cuenta-ajuste">{otros.length}</span>
               </div>
 
@@ -6275,7 +6906,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                       type="button"
                       onClick={() => {
                         cambiarDeEquipo(equipo.id);
-                        avisarEquipo(`Ahora estás en ${equipo.nombre}`);
+                        avisarEquipo(t("partido.equipoAhoraEn", { club: equipo.nombre }));
                       }}
                     >
                       <EscudoDeClub equipo="cam" nombre={equipo.nombre} mini />
@@ -6286,22 +6917,21 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
               </ul>
 
               <p className="pista-equipo">
-                {equipoId
-                  ? "Cada equipo ve solo sus partidos y su plantel. Esto ordena, no protege: desde acá se puede entrar a cualquiera."
-                  : "Si tu club ya está en la lista, tocalo: vas a ver todos sus partidos y su plantel, sin cargar nada de nuevo."}
+                {equipoId ? t("partido.equipoPistaCambiar") : t("partido.equipoPistaElegir")}
               </p>
             </section>
           )}
 
+          {puedeCrear && (
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">
-              <b>Agregar un equipo</b>
+              <b>{t("partido.equipoAgregar")}</b>
             </div>
 
             <div className="agregar-jugador">
               <input
                 value={nombreEquipoNuevo}
-                placeholder="Nombre del equipo nuevo"
+                placeholder={t("partido.equipoNombreNuevo")}
                 onChange={(evento) => {
                   setNombreEquipoNuevo(evento.target.value);
                   setErrorEquipo("");
@@ -6311,22 +6941,31 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                 }}
               />
               <button type="button" onClick={sumarEquipo}>
-                Crear
+                {t("partido.equipoCrear")}
               </button>
             </div>
 
-            <p className="pista-equipo">
-              Solo para un club que todavía no esté en la lista. Arranca sin
-              partidos y sin plantel, y este teléfono pasa a ese equipo.
-            </p>
+            <p className="pista-equipo">{t("partido.equipoPistaAgregar")}</p>
           </section>
+          )}
+
+          {sinSalida && (
+            <section className="tarjeta tarjeta-ficha">
+              <p className="pista-equipo">{t("partido.sinClubesConPartido")}</p>
+              {onVolver && (
+                <div className="acciones-dobles">
+                  <BotonVolver onClick={onVolver}>{t("portal.modulos")}</BotonVolver>
+                </div>
+              )}
+            </section>
+          )}
 
           {errorEquipo && <p className="error-equipo">{errorEquipo}</p>}
 
           {equipoId && (
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>
-                Volver a Ajustes
+                {t("partido.volverAjustes")}
               </BotonVolver>
             </div>
           )}
@@ -6335,7 +6974,106 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
     );
   };
 
-  const navegarAplicacion = (destino) => {
+  // Un registro guardado que se está editando y tiene cambios sin guardar.
+  // Una fila agregada que quedó vacía no cuenta como cambio: al final de los
+  // cambios no se miran los lugares vacíos y en la formación, los nombres en
+  // blanco (como en la formación sin guardar, más abajo).
+  const hayEdicionSinGuardar = () => {
+    if (!registroSeleccionado || !detalleEditando || !detalleBorrador) {
+      return false;
+    }
+    const { item } = registroSeleccionado;
+    const base = {
+      ...item,
+      cambios: item.cambios || crearCambiosVacios(),
+      cambiosRival: item.cambiosRival || crearCambiosVacios(),
+      formacion: item.formacion || crearFormacionVacia(),
+    };
+    const sinVaciosAlFinal = (lista) => {
+      const copia = [...(lista || [])];
+      while (
+        copia.length > 0 &&
+        Object.values(copia[copia.length - 1] || {}).every((valor) => valor == null || String(valor).trim() === "")
+      ) {
+        copia.pop();
+      }
+      return copia;
+    };
+    const comparable = (registroDetalle) =>
+      JSON.stringify({
+        ...registroDetalle,
+        cambios: sinVaciosAlFinal(registroDetalle.cambios),
+        cambiosRival: sinVaciosAlFinal(registroDetalle.cambiosRival),
+        formacion: {
+          ...registroDetalle.formacion,
+          titulares: limpiarLista(registroDetalle.formacion?.titulares),
+          convocados: limpiarLista(registroDetalle.formacion?.convocados),
+        },
+      });
+    return comparable(detalleBorrador) !== comparable(base);
+  };
+
+  // La formación que se está armando en "Ingresar formación" y todavía no se
+  // guardó en el partido. Los lugares vacíos no cuentan.
+  const formacionComparable = (formacion) => {
+    const base = conCancha(formacion);
+    return JSON.stringify({
+      titulares: limpiarLista(base.titulares),
+      convocados: limpiarLista(base.convocados),
+      cancha: normalizarCancha(base.cancha),
+    });
+  };
+  const hayFormacionSinGuardar = () =>
+    formacionComparable(formacionTemporal) !==
+    formacionComparable(registro.formacion);
+
+  // Las hojas guardan la función del momento en que se abrieron: así siguen
+  // con la de ahora.
+  const navegarVigente = useRef(() => {});
+
+  /**
+   * Antes de irse se pregunta si hay algo sin guardar que se perdería: un
+   * registro editado (salir lo tiraba) o una formación a medio cargar (la
+   * pestaña Formación la volvía a la del partido). Antes se perdía sin aviso.
+   */
+  const navegarAplicacion = (destino, confirmado = {}) => {
+    if (!confirmado.edicion && hayEdicionSinGuardar()) {
+      setConfirmacion({
+        titulo: t("partido.salirSinGuardarTitulo"),
+        descripcion: t("partido.salirSinGuardarTexto"),
+        icono: "cambio",
+        etiquetaConfirmar: t("partido.salirSinGuardarSi"),
+        etiquetaCancelar: t("comun.no"),
+        onConfirmar: () =>
+          navegarVigente.current(destino, { ...confirmado, edicion: true }),
+      });
+      return;
+    }
+
+    if (
+      destino === "formacion" &&
+      !confirmado.formacion &&
+      hayFormacionSinGuardar()
+    ) {
+      setConfirmacion({
+        titulo: t("partido.descartarFormacionTitulo"),
+        descripcion: t("partido.descartarFormacionTexto"),
+        icono: "cambio",
+        etiquetaConfirmar: t("partido.descartarFormacionSi"),
+        etiquetaCancelar: t("partido.seguirEditando"),
+        onConfirmar: () =>
+          navegarVigente.current(destino, { ...confirmado, formacion: true }),
+        // Seguir editando es volver a la formación, tal como quedó.
+        onCancelar: () => {
+          setRegistroSeleccionado(null);
+          setDetalleBorrador(null);
+          setDetalleEditando(false);
+          setPantallaFormacion("manual");
+        },
+      });
+      return;
+    }
+
     setRegistroSeleccionado(null);
     setDetalleBorrador(null);
     setDetalleEditando(false);
@@ -6350,6 +7088,27 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       setVistaAjustes("inicio");
       setPantallaFormacion("ajustes");
     }
+  };
+  navegarVigente.current = navegarAplicacion;
+
+  // "Módulos" vuelve al portal y esta pantalla se cierra: una formación a
+  // medio cargar (que vive solo en memoria) se perdía sin aviso. Se pregunta
+  // como en la pestaña Formación.
+  const salirAModulos = () => {
+    if (!soloLectura && hayFormacionSinGuardar()) {
+      setConfirmacion({
+        titulo: t("partido.descartarFormacionTitulo"),
+        descripcion: t("partido.descartarFormacionTexto"),
+        icono: "cambio",
+        etiquetaConfirmar: t("partido.descartarFormacionSi"),
+        etiquetaCancelar: t("partido.seguirEditando"),
+        onConfirmar: () => onVolver?.(),
+        // Seguir editando es volver a la formación, tal como quedó.
+        onCancelar: () => setPantallaFormacion("manual"),
+      });
+      return;
+    }
+    onVolver?.();
   };
 
   const formatearFechaPantalla = (fecha) => {
@@ -6447,14 +7206,34 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
 
   const ejecutarAccionPeriodo = () => {
     if (!periodoIniciado) {
+      ultimoInicioPeriodo.current = { campo: datosPeriodoVista.inicio, momento: Date.now() };
       ponerAhora(datosPeriodoVista.inicio);
       return;
     }
 
+    // Reanudar borra el final del período, que no se recupera, y el botón
+    // grande está justo debajo del pulgar: dos toques de más pisaban el final
+    // del PT con la hora de ese momento. Se pregunta antes.
     if (periodoFinalizado) {
-      reanudarPeriodo();
+      setConfirmacion({
+        titulo: t("partido.reanudarTitulo", { periodo: periodoVista }),
+        descripcion: t("partido.reanudarTexto", {
+          final: registro[datosPeriodoVista.final],
+        }),
+        icono: "reloj",
+        etiquetaConfirmar: t("partido.reanudarSi"),
+        etiquetaCancelar: t("comun.no"),
+        onConfirmar: reanudarPeriodo,
+      });
       return;
     }
+
+    // El mismo botón pasa de Iniciar a Finalizar: un doble toque marcaba el
+    // inicio y el final en el mismo segundo y el período quedaba en 0. Un
+    // Finalizar pegado al Iniciar de ese período se ignora (ningún período
+    // dura un segundo y medio).
+    const { campo, momento } = ultimoInicioPeriodo.current;
+    if (campo === datosPeriodoVista.inicio && Date.now() - momento < 1500) return;
 
     ponerAhora(datosPeriodoVista.final);
   };
@@ -6738,6 +7517,12 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       cambios: registroPanel.cambios,
       plantel: nombresPlantel,
     });
+    // Al editar un registro guardado, los del rival de ese partido; antes se
+    // ofrecían los del partido que se está cargando ahora.
+    const opcionesRival =
+      registroPanel === registro
+        ? opcionesJugadoresRival
+        : jugadoresRivalDe(registroPanel);
 
     return (
       <section
@@ -6810,7 +7595,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                     <InputJugadorRival
                       className="sale"
                       placeholder="Sale"
-                      opciones={opcionesJugadoresRival}
+                      opciones={opcionesRival}
                       value={cambio.sale}
                       onChange={(valor) =>
                         alActualizarRival(index, "sale", valor)
@@ -6834,7 +7619,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                     <InputJugadorRival
                       className="entra"
                       placeholder="Entra"
-                      opciones={opcionesJugadoresRival}
+                      opciones={opcionesRival}
                       value={cambio.entra}
                       onChange={(valor) =>
                         alActualizarRival(index, "entra", valor)
@@ -6942,9 +7727,18 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
       etiquetaCancelar={confirmacion?.etiquetaCancelar}
       icono={confirmacion?.icono}
       onConfirmar={confirmarAccion}
-      onCancelar={cerrarConfirmacion}
+      onCancelar={cancelarConfirmacion}
+      onCerrar={cerrarConfirmacion}
     />
   );
+
+  const avisoBorradorSinLugar = () =>
+    borradorSinLugar && (
+      <div className="aviso-sin-lugar" role="alert">
+        <Icono nombre="guardar" size={17} />
+        <span>{t("partido.borradorSinLugar")}</span>
+      </div>
+    );
 
   const enMarcoAplicacion = (activo, contenido) => (
     <ContextoPlantel.Provider value={nombresPlantel}>
@@ -6961,6 +7755,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             <Icono nombre="check" size={18} /> {mensajeGuardado}
           </div>
         )}
+        {avisoBorradorSinLugar()}
         {contenido}
         {renderHojaConfirmar()}
         {renderHojaDelFiltro()}
@@ -7542,7 +8337,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
                         <button
                           type="button"
                           className="boton-eliminar-registro"
-                          onClick={() => eliminarRegistro(index)}
+                          onClick={() => eliminarRegistro(item)}
                           aria-label="Eliminar registro"
                         >
                           <Icono nombre="borrar" size={18} />
@@ -7584,6 +8379,7 @@ export default function App({ intro = true, onVolver = null, onCerrarSesion = nu
             <Icono nombre="check" size={18} /> {mensajeGuardado}
           </div>
         )}
+        {avisoBorradorSinLugar()}
 
         <header className="cabecera-tablero">
           <div className="titulo-estado-partido">

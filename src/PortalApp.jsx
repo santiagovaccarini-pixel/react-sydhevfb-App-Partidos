@@ -256,8 +256,9 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     );
   } else if (modo === MODOS.PARTIDO && enClub.partido) {
     // La portada ya mostró la foto: Partido entra sin su intro. Desde sus
-    // Ajustes se vuelve al portal o se cierra la sesión.
-    contenido = <App intro={false} onVolver={volver} onCerrarSesion={cerrarSesion} />;
+    // Ajustes se vuelve al portal o se cierra la sesión. Los permisos de la
+    // cuenta deciden quién renombra o crea clubes en Ajustes › Equipo.
+    contenido = <App intro={false} onVolver={volver} onCerrarSesion={cerrarSesion} permisos={permisos} />;
   } else if (modo === MODOS.ENTRENAMIENTO && enClub.flujo) {
     contenido = (
       // Quien entró con la copia de su cuenta (sin señal) no espera a que el

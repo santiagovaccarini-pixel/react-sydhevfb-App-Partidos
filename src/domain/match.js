@@ -147,52 +147,105 @@ export const periodoEnJuego = (registro) =>
       registro?.[`inicio${periodo}`] && !registro?.[`final${periodo}`],
   ) || null;
 
-// Cuánto se le da a un partido terminado para seguir siendo del día en que
-// se jugó: el que termina 23:20 y se guarda 00:10 no cambia de fecha.
-export const HORAS_DE_GRACIA_TRAS_EL_FINAL = 6;
-
-const horaRealValida = (valor) => {
-  const partes = String(valor ?? "")
-    .trim()
-    .match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
-  if (!partes) return null;
-  const [, hh, mm, ss = "00"] = partes;
-  if (Number(hh) > 23 || Number(mm) > 59 || Number(ss) > 59) return null;
-  return `${hh}:${mm}:${ss}`;
+/**
+ * El período que manda: el que está corriendo y, si no hay ninguno, el
+ * último que se arrancó. Es el que marca "Ahora" en un cambio y el que tiene
+ * que verse al abrir el tablero; antes el tablero abría siempre en el PT, y
+ * en pleno segundo tiempo "Ahora" anotaba el cambio en el primero.
+ */
+export const periodoActivo = (registro = {}) => {
+  const estado = registro || {};
+  if (estado.inicioSTE && !estado.finalSTE) return "STE";
+  if (estado.inicioPTE && !estado.finalPTE) return "PTE";
+  if (estado.inicioST && !estado.finalST) return "ST";
+  if (estado.inicioPT && !estado.finalPT) return "PT";
+  if (estado.inicioSTE || estado.referenciaRealSTE) return "STE";
+  if (estado.inicioPTE || estado.referenciaRealPTE) return "PTE";
+  if (estado.inicioST || estado.referenciaRealST) return "ST";
+  return "PT";
 };
 
-// El fin del último período jugado, como hora real; null si no hay o si la
-// hora es una guía de transmisión (minutos de juego, no reloj).
-const finDelUltimoPeriodo = (registro) => {
-  for (const periodo of [...PERIODOS_DEL_PARTIDO].reverse()) {
-    const final = registro?.[`final${periodo}`];
-    if (final) return horaRealValida(final);
-  }
-  return null;
+const conTexto = (valor) => String(valor ?? "").trim() !== "";
+
+const conMarca = (evento) => conTexto(evento?.inicio) || conTexto(evento?.final);
+
+/**
+ * Lo que se anota mientras se juega: un horario de cualquier período, un
+ * VAR, una hidratación, un cambio (nuestro o del rival) o un gol. El rival,
+ * la formación y la localía no cuentan: se cargan antes, a veces el día
+ * anterior.
+ */
+export const hayDatosRegistrados = (registro) => {
+  if (!registro) return false;
+  if (/\d/.test(String(registro.resultado ?? ""))) return true;
+
+  const enPeriodos = PERIODOS_DEL_PARTIDO.some(
+    (periodo) =>
+      conTexto(registro[`inicio${periodo}`]) ||
+      conTexto(registro[`final${periodo}`]) ||
+      conTexto(registro[`inicioHidratacion${periodo}`]) ||
+      conTexto(registro[`finalHidratacion${periodo}`]) ||
+      conTexto(registro[`inicioVar${periodo}`]) ||
+      conTexto(registro[`finalVar${periodo}`]) ||
+      (Array.isArray(registro[`vars${periodo}`]) &&
+        registro[`vars${periodo}`].some(conMarca)),
+  );
+  if (enPeriodos) return true;
+
+  return [...(registro.cambios || []), ...(registro.cambiosRival || [])].some(
+    (cambio) =>
+      conTexto(cambio?.sale) || conTexto(cambio?.entra) || conTexto(cambio?.hora),
+  );
 };
 
-// Al entrar a la app la fecha tiene que ser la de hoy. El borrador sobrevive
-// de un día para el otro, así que sin esto se seguía viendo la del último
-// partido cargado. Tres cosas la respetan: que la hayas elegido a mano en
-// esta visita; un partido en juego, porque el que arranca de noche y sigue
-// pasada la medianoche no tiene por qué cambiar de día a mitad de registro;
-// y un partido terminado hace poco, que todavía se está guardando.
+/**
+ * Si en el borrador hay un partido en curso: la formación o algo registrado
+ * mientras se juega. Antes se miraba solo la formación, y un partido con
+ * horarios y cambios pero sin formación desaparecía del inicio al volver a
+ * abrir la app (y con él el tablero y el botón de guardar). El rival solo no
+ * alcanza: se escribe de antemano en el inicio, y ahí sigue.
+ */
+export const hayPartidoCargado = (registro) => {
+  if (!registro) return false;
+  if (hayDatosRegistrados(registro)) return true;
+  return [
+    ...(registro.formacion?.titulares || []),
+    ...(registro.formacion?.convocados || []),
+  ].some(conTexto);
+};
+
+// Al entrar a la app la fecha tiene que ser la de hoy: el borrador sobrevive
+// de un día para el otro, y uno vacío (o con el rival y la formación cargados
+// de antemano) seguía mostrando la del último partido.
+//
+// Pero la fecha de un partido que ya se empezó a registrar no se toca nunca:
+// cambiarla en silencio le hacía perder su fila, y el próximo Guardar creaba
+// un partido repetido con otra fecha. Pasaba con el que cruza la medianoche
+// (el ST de 00:03 a 00:50), con los de transmisión (sus horarios son minutos
+// de juego, no reloj) y con el que se termina y se guarda al otro día.
+// Tampoco se toca la que se eligió a mano, ni la de un partido que ya tiene
+// fila en la base o que quedó en la cola del celular.
+//
+// De los cambios cuenta solo la hora, que se anota cuando el cambio pasa:
+// quién sale y quién entra se escribe de antemano, y esos nombres solos
+// dejaban el partido con la fecha del día en que se preparó.
+const soloLaHora = (cambios) =>
+  (cambios || []).map((cambio) => ({ hora: cambio?.hora }));
+
 export const fechaAlEntrar = (
   registro,
-  { hoy = fechaLocalISO(), elegidaAMano = false, ahora = new Date() } = {},
+  { hoy = fechaLocalISO(), elegidaAMano = false, tienePendiente = false } = {},
 ) => {
   const actual = String(registro?.fecha ?? "");
   if (!actual) return hoy;
-  if (elegidaAMano) return actual;
-  if (periodoEnJuego(registro)) return actual;
-
-  const fin = finDelUltimoPeriodo(registro);
-  if (fin) {
-    const horas = (ahora.getTime() - new Date(`${actual}T${fin}`).getTime()) / 3600000;
-    if (Number.isFinite(horas) && horas >= 0 && horas < HORAS_DE_GRACIA_TRAS_EL_FINAL) {
-      return actual;
-    }
-  }
+  if (elegidaAMano || registro?.fechaElegidaAMano) return actual;
+  if (registro?.idSupabase || tienePendiente) return actual;
+  const jugado = {
+    ...registro,
+    cambios: soloLaHora(registro.cambios),
+    cambiosRival: soloLaHora(registro.cambiosRival),
+  };
+  if (hayDatosRegistrados(jugado)) return actual;
   return hoy;
 };
 

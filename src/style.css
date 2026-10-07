@@ -3382,6 +3382,9 @@ button:disabled {
 
 .app .registro-guardado {
   display: grid;
+  /* Sin columna explícita, la implícita crece con el contenido que no se
+     corta y la tarjeta se salía de un teléfono de 360 px. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 9px;
   padding: 14px;
   border: 1px solid var(--cam-linea);
@@ -3438,6 +3441,7 @@ button:disabled {
 
 .tiempos-registro {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -4157,6 +4161,7 @@ button:disabled {
    color del cartel de actualización de la app. */
 .tarjeta-en-curso {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   width: 100%;
   padding: 13px;
@@ -6063,6 +6068,29 @@ button.puesto-cancha {
   font-family: inherit;
   font-size: 11px;
   font-weight: 800;
+}
+
+/* El celular no tiene lugar para el borrador: el aviso queda a la vista para
+   guardar el partido antes de cerrar la app. */
+.aviso-sin-lugar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 16px 0;
+  padding: 10px 13px;
+  border: 1px solid #f3c2c6;
+  border-left: 4px solid #c1121f;
+  border-radius: 12px;
+  background: #fff5f5;
+  color: #8a0d16;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.aviso-sin-lugar svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
 }
 
 /* El estado de la base en la pantalla de Registros. Una lista vacía puede ser

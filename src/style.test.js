@@ -33,6 +33,22 @@ const bloque = (selector) => {
   return estilos.slice(desde, estilos.indexOf("}", desde));
 };
 
+describe("las tarjetas de partido entran en un teléfono angosto (360–390 px)", () => {
+  it("la fila de Registros y la del partido en curso no se estiran con su contenido", () => {
+    // Una grilla sin columnas usa una implícita "auto", que crece hasta el
+    // ancho del contenido que no se corta (el nombre del rival, los tiempos)
+    // y la tarjeta se salía de la pantalla. Con minmax(0, 1fr) la columna
+    // nunca pasa el ancho disponible y el nombre se corta con "…".
+    expect(bloque(".app .registro-guardado")).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(bloque(".tarjeta-en-curso")).toContain("grid-template-columns: minmax(0, 1fr)");
+  });
+
+  it("los tiempos bajan de renglón en vez de empujar la tarjeta", () => {
+    // PT, ST, PTE, STE y CAMBIOS en una sola fila no entran en 360 px.
+    expect(bloque(".tiempos-registro")).toContain("flex-wrap: wrap");
+  });
+});
+
 describe("la cancha se puede desplazar con el dedo", () => {
   it("no le saca el gesto a la cancha entera", () => {
     // Con touch-action: none acá, el dedo no podía desplazar la pantalla: la
