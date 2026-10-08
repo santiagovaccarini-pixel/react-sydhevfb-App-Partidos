@@ -316,14 +316,40 @@ create trigger perfiles_proteger_principal
   before update of estado on public.perfiles
   for each row execute function public.perfiles_proteger_principal();
 
+-- Quién decidió y cuándo (la de 20261004), y además: con una sesión, la
+-- fecha de entrada cambia solo al reincorporar (que queda en la historia);
+-- si no, sigue la que estaba. La de creación no se toca desde la API.
+create or replace function public.club_miembros_anotar()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and (new.equipo_id <> old.equipo_id or new.user_id <> old.user_id) then
+    raise exception 'membresia_fija' using errcode = 'P0001';
+  end if;
+  if new.hasta is not null and new.hasta > current_date then
+    raise exception 'hasta_futura' using errcode = 'P0001';
+  end if;
+  if tg_op = 'UPDATE' and auth.uid() is not null and not (old.hasta is not null and new.hasta is null) then
+    new.desde := old.desde;
+  end if;
+  new.decidido_por := coalesce(auth.uid(), new.decidido_por);
+  new.decidido_en := now();
+  return new;
+end;
+$$;
+
 -- A un dueño (el principal o un sub-dueño) nadie lo saca de un club ni le
--- cambia el rol o los módulos, ni siquiera otro dueño: solo él se va
--- (salir_del_club). Volver también lo decide él: otro lo reincorpora solo
--- con aceptar_pedido, sobre un pedido suyo a ese club (aceptado en esa misma
--- operación); una invitación de otro no lo mete (club_invitaciones_aplicar).
--- Sin sesión (el SQL Editor), no frena. Un sub-dueño que deja de serlo
--- (quitar_subdueno) pasa a ser uno más del club. Reemplaza a
--- club_miembros_proteger_principal, que cuidaba solo al principal.
+-- cambia el rol, los módulos ni las fechas, ni siquiera otro dueño: solo él
+-- se va (salir_del_club). Volver también lo decide él: otro lo reincorpora
+-- solo con aceptar_pedido, sobre un pedido suyo a ese club (aceptado en esa
+-- misma operación); una invitación de otro no lo mete
+-- (club_invitaciones_aplicar). Sin sesión (el SQL Editor), no frena. Un
+-- sub-dueño que deja de serlo (quitar_subdueno) pasa a ser uno más del club.
+-- Reemplaza a club_miembros_proteger_principal, que cuidaba solo al
+-- principal.
 drop trigger if exists club_miembros_proteger_principal on public.club_miembros;
 drop function if exists public.club_miembros_proteger_principal();
 
@@ -353,7 +379,7 @@ begin
                     and cp.decidido_por = auth.uid() and cp.decidido_en = now()) then
     return new;
   end if;
-  if new.hasta is distinct from old.hasta or new.rol is distinct from old.rol
+  if (new.hasta, new.rol, new.desde, new.creado_en) is distinct from (old.hasta, old.rol, old.desde, old.creado_en)
      or (new.partido, new.flujo, new.lesiones, new.evaluaciones)
         is distinct from (old.partido, old.flujo, old.lesiones, old.evaluaciones) then
     raise exception 'dueno_protegido' using errcode = 'P0001';
@@ -1413,7 +1439,11 @@ revoke all on table public.perfiles, public.club_miembros, public.club_miembros_
                     public.entrenamientos, public.catapult_cuentas
   from authenticated;
 grant select on table public.perfiles, public.club_miembros_historial, public.ajustes to authenticated;
-grant select, update on table public.club_miembros to authenticated;
+-- La gente del club: el administrador cambia fechas y módulos (el rol queda
+-- en staff: lo frena la política). Cuándo se creó la fila y quién decidió,
+-- los anota la base.
+grant select on table public.club_miembros to authenticated;
+grant update (desde, hasta, rol, partido, flujo, lesiones, evaluaciones) on table public.club_miembros to authenticated;
 grant select on table public.club_invitaciones to authenticated;
 grant insert (equipo_id, email, rol, partido, flujo, lesiones, evaluaciones) on table public.club_invitaciones to authenticated;
 grant update (cancelada_en) on table public.club_invitaciones to authenticated;

@@ -281,6 +281,11 @@ select pruebas.esperar('Ana ve los correos de su gente', (select count(*) from v
 select pruebas.esperar('Ana no ve la cuenta de Eva', (select count(*) from perfiles where email = 'eva@dos.com'), 0);
 select pruebas.debe_fallar('Ana no cambia el estado de una cuenta', $$update perfiles set estado = 'bloqueado' where email = 'beto@uno.com'$$, 'permission denied');
 select pruebas.esperar('Ana le da Lesiones a Beto', pruebas.filas($$update club_miembros set lesiones = true where user_id = '00000000-0000-0000-0000-00000000000b'$$), 1);
+-- Cuándo entró cambia solo al reincorporar (eso queda en la historia);
+-- cuándo se creó la fila y quién decidió, los anota la base.
+select pruebas.filas($$update club_miembros set desde = '1990-01-01' where user_id = '00000000-0000-0000-0000-00000000000b'$$);
+select pruebas.esperar('Ana no cambia cuándo entró Beto', (select desde::text from club_miembros where user_id = '00000000-0000-0000-0000-00000000000b'), '2026-01-01');
+select pruebas.debe_fallar('...ni cuándo se creó su fila', $$update club_miembros set creado_en = '1990-01-01' where user_id = '00000000-0000-0000-0000-00000000000b'$$, 'permission denied');
 select pruebas.debe_fallar('Ana no pone una salida futura', $$update club_miembros set hasta = current_date + 5 where user_id = '00000000-0000-0000-0000-00000000000b'$$, 'hasta_futura');
 select pruebas.debe_fallar('Ana no muda una membresía a otro club', $$update club_miembros set equipo_id = '00000000-0000-0000-0000-0000000000c2' where user_id = '00000000-0000-0000-0000-00000000000b'$$);
 select pruebas.esperar('Ana no se toca a sí misma: ni el rol', pruebas.filas($$update club_miembros set rol = 'staff' where user_id = auth.uid()$$), 0);
@@ -325,6 +330,7 @@ reset role;
 -- Beto reincorpora a Darío: vuelve a ver todo y a cargar.
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Beto reincorpora a Darío', pruebas.filas($$update club_miembros set hasta = null, desde = current_date, lesiones = true where user_id = '00000000-0000-0000-0000-00000000000d' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('...y entra de nuevo hoy', (select desde::text from club_miembros where user_id = '00000000-0000-0000-0000-00000000000d' and equipo_id = :C1), current_date::text);
 reset role;
 
 select pruebas.ser('dario@uno.com'); set role authenticated;
@@ -1266,6 +1272,9 @@ insert into club_miembros (equipo_id, user_id, rol, partido, flujo, lesiones) va
   (:'atletico', '00000000-0000-0000-0000-0000000000d2', 'staff', true, false, false);
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.debe_fallar('Beto (admin de Uno) no le da de baja a la sub-dueña', $$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-0000000000d2'$$, 'dueno_protegido');
+select pruebas.debe_fallar('...ni le cambia cuándo se creó su fila', $$update club_miembros set creado_en = '1990-01-01' where user_id = '00000000-0000-0000-0000-0000000000d2'$$, 'permission denied');
+select pruebas.filas($$update club_miembros set desde = '1990-01-01' where user_id = '00000000-0000-0000-0000-0000000000d2' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$);
+select pruebas.esperar('...ni cuándo entró', (select desde::text from v_miembros_club where user_id = '00000000-0000-0000-0000-0000000000d2' and equipo_id = :C1), current_date::text);
 select pruebas.debe_fallar('...ni le cambia los módulos', $$update club_miembros set lesiones = true where user_id = '00000000-0000-0000-0000-0000000000d2'$$, 'dueno_protegido');
 select pruebas.esperar('En la gente de Uno, la sub-dueña y el principal (aunque ya se fue) salen protegidos', (select string_agg(email, ',' order by email) from v_miembros_club where equipo_id = :C1 and protegido), 'duenio@prueba.com,subduenia@prueba.com');
 select pruebas.esperar('...y nadie más', (select bool_or(protegido)::text from v_miembros_club where equipo_id = :C1 and email not in ('duenio@prueba.com', 'subduenia@prueba.com')), 'false');
