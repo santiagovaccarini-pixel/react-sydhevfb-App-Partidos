@@ -118,10 +118,11 @@ export const historialDeMiembro = async (equipoId, userId) => {
 
 // Un correo que puede existir: sin espacios; antes de la @, sin punto al
 // principio, al final ni dos seguidos; el dominio, con partes que no empiezan
-// ni terminan en guion y que termina en letras (.ar, .com.br, .museum). Así no
+// ni terminan en guion y que termina en letras (.ar, .com.br, .museum) o en una
+// terminación internacional escrita como "xn--..." (.рф es .xn--p1ai). Así no
 // pasa "nombre@club.com." (el punto del mensaje pegado al copiar).
 const FORMA_DE_CORREO =
-  /^[\w!#$%&'*+\/=?^`{|}~-]+(?:\.[\w!#$%&'*+\/=?^`{|}~-]+)*@(?:[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?\.)+[a-z]{2,63}$/i;
+  /^[\w!#$%&'*+\/=?^`{|}~-]+(?:\.[\w!#$%&'*+\/=?^`{|}~-]+)*@(?:[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?\.)+(?:[a-z]{2,63}|xn--[a-z\d](?:[a-z\d-]{0,57}[a-z\d])?)$/i;
 
 export const correoValido = (correo) => FORMA_DE_CORREO.test(String(correo || "").trim());
 

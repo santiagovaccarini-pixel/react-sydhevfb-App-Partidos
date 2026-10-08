@@ -147,6 +147,8 @@ describe("las invitaciones", () => {
       "nombre_2@correo.prueba.com.ar",
       "a-b@mi-club.prueba.com.br",
       "123@456.museum",
+      "nombre@club.xn--p1ai",
+      "nombre@xn--80ak6aa92e.xn--p1ai",
     ];
     const malos = [
       "",
@@ -162,6 +164,8 @@ describe("las invitaciones", () => {
       "nombre@prueba-.com",
       "nombre@prueba.c",
       "nombre@prueba.c0m",
+      "nombre@prueba.xn--",
+      "nombre@prueba.xn--p1ai-",
       "nom bre@prueba.com",
       "nombre@pru eba.com",
       "nombre@@prueba.com",
