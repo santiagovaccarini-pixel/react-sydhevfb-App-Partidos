@@ -890,9 +890,11 @@ begin
 
   perform public.plataforma_anotar('entidad', p_equipo, null, nullif(v_correo, ''),
                                    jsonb_build_object('antes', v_antes, 'despues', nullif(v_correo, '')));
+  -- En la historia del club, sin quién fue: diría qué cuenta es dueña a un
+  -- administrador que no comparte club con ella (quién fue lo ven solo los
+  -- dueños, en sus movimientos).
   insert into public.club_miembros_historial (equipo_id, user_id, accion, detalle, quien, quien_email)
-  values (p_equipo, null, 'entidad', jsonb_build_object('email', nullif(v_correo, ''), 'antes', v_antes),
-          auth.uid(), coalesce((select pf.email from public.perfiles pf where pf.user_id = auth.uid()), ''));
+  values (p_equipo, null, 'entidad', jsonb_build_object('email', nullif(v_correo, ''), 'antes', v_antes), null, '');
 end;
 $$;
 

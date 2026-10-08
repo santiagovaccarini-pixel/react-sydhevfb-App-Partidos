@@ -960,9 +960,11 @@ select pruebas.debe_fallar('...ni los quita', $$select quitar_subdueno('00000000
 select pruebas.debe_fallar('...ni se queda con el lugar del principal', $$select traspasar_principal('00000000-0000-0000-0000-0000000000d2')$$, 'solo_dueno_principal');
 select pruebas.esperar('...ni ve la historia de Uno (la entidad queda ahí, para el club)', (select count(*) from club_miembros_historial where equipo_id = :C1), 0);
 reset role;
-select pruebas.esperar('La entidad queda en la historia de Uno, sin persona', (select count(*) from club_miembros_historial where equipo_id = :C1 and accion = 'entidad' and user_id is null and quien_email = 'subduenia@prueba.com' and detalle ->> 'email' = 'ent1@uno.com'), 1);
+select pruebas.esperar('La entidad queda en la historia de Uno, sin persona ni quién la puso', (select count(*) from club_miembros_historial where equipo_id = :C1 and accion = 'entidad' and user_id is null and quien is null and quien_email = '' and detalle ->> 'email' = 'ent1@uno.com'), 1);
+select pruebas.esperar('...quién la puso queda solo en los movimientos de los dueños', (select quien_email from plataforma_historial where accion = 'entidad' and email = 'ent1@uno.com'), 'subduenia@prueba.com');
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('...y el administrador de Uno la ve', (select count(*) from club_miembros_historial where equipo_id = :C1 and accion = 'entidad'), 1);
+select pruebas.esperar('...sin saber qué dueño fue (no comparte club con ella)', (select count(*) from club_miembros_historial where equipo_id = :C1 and accion = 'entidad' and (quien is not null or quien_email <> '')), 0);
 reset role;
 
 -- El principal: además suma, quita y pasa su lugar.
