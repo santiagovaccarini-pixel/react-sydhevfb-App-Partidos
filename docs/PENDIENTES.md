@@ -854,6 +854,10 @@ Cómo está hoy (02/10):
   club con los permisos elegidos (si ya tenía cuenta, entra en el acto). Falta que el
   enlace abra "Crear cuenta" con el correo escrito y fijo: hoy lleva a la entrada común y,
   si escribe otro correo, queda pendiente.
+- Desde el 08/10, en el mensaje que se copia el enlace y el correo van solos en su
+  renglón (antes el punto final se pegaba al correo y el mensaje no llegaba). Invitar y
+  Crear una cuenta rechazan un correo que no puede existir (punto al final, dos puntos
+  seguidos, espacios). La base todavía acepta lo que pasaba antes.
 - Sin invitación es distinto: la cuenta queda pendiente sin elegir club y la aprueba el
   dueño de la plataforma desde "Cuentas de la app" (sumándola a un club). El admin del
   club no la ve. "Rechazar" bloquea la cuenta entera y la deja en "Sin acceso".
