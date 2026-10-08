@@ -5,6 +5,11 @@ import { Icono } from "./AppChrome";
  * Hoja de confirmación que sube desde el borde inferior, para reemplazar al
  * window.confirm del navegador. Los botones quedan al alcance del pulgar,
  * que es como se usa la app en el celular.
+ *
+ * Tocar afuera o Escape llama a onCerrar si se lo pasa (solo cierra), y si
+ * no, a onCancelar, como el botón de cancelar. Sirve cuando cancelar además
+ * lleva a algún lado: cerrar la hoja de un toque de más no tiene que mover
+ * de pantalla.
  */
 export const HojaConfirmar = ({
   abierta,
@@ -16,8 +21,10 @@ export const HojaConfirmar = ({
   etiquetaCancelar = "Cancelar",
   onConfirmar,
   onCancelar,
+  onCerrar,
 }) => {
   const botonCancelar = useRef(null);
+  const cerrar = onCerrar || onCancelar;
 
   // Arrancar con el foco en Cancelar: es una acción destructiva, así que un
   // Enter de más no tiene que borrar nada.
@@ -29,7 +36,7 @@ export const HojaConfirmar = ({
     if (!abierta) return undefined;
 
     const alPresionar = (evento) => {
-      if (evento.key === "Escape") onCancelar();
+      if (evento.key === "Escape") cerrar();
     };
 
     const desbordeOriginal = document.body.style.overflow;
@@ -40,7 +47,7 @@ export const HojaConfirmar = ({
       document.body.style.overflow = desbordeOriginal;
       window.removeEventListener("keydown", alPresionar);
     };
-  }, [abierta, onCancelar]);
+  }, [abierta, cerrar]);
 
   if (!abierta) return null;
 
@@ -48,7 +55,7 @@ export const HojaConfirmar = ({
     <div
       className="velo-dialogo"
       onMouseDown={(evento) => {
-        if (evento.target === evento.currentTarget) onCancelar();
+        if (evento.target === evento.currentTarget) cerrar();
       }}
     >
       <div

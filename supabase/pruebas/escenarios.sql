@@ -1232,4 +1232,70 @@ select pruebas.debe_fallar('Desde el SQL Editor con la sesión de Beto, tampoco 
 select set_config('request.jwt.claims', '', false);
 select pruebas.esperar('Sin sesión (el SQL Editor), sí', pruebas.filas($$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-0000000000d1' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
 
+-- ------------------------------------------------------------- Notas --
+
+-- Cada nota es de un club: la escribe y la ve la gente que sigue en ese club.
+-- Dos clubes nuevos para no depender de lo que cambió arriba: en Siete, Iván
+-- (admin), Juana (staff) y Kevin (se fue); en Ocho, Lía.
+reset role;
+select set_config('request.jwt.claims', '', false);
+insert into public.equipos (id, nombre) values
+  ('00000000-0000-0000-0000-0000000000c3', 'Club Siete'),
+  ('00000000-0000-0000-0000-0000000000c4', 'Club Ocho');
+insert into auth.users (id, email, email_confirmed_at) values
+  ('00000000-0000-0000-0000-000000000031', 'ivan@siete.com', now()),
+  ('00000000-0000-0000-0000-000000000032', 'juana@siete.com', now()),
+  ('00000000-0000-0000-0000-000000000033', 'kevin@siete.com', now()),
+  ('00000000-0000-0000-0000-000000000034', 'lia@ocho.com', now());
+update public.perfiles set estado = 'autorizado'
+ where email in ('ivan@siete.com', 'juana@siete.com', 'kevin@siete.com', 'lia@ocho.com');
+insert into public.club_miembros (equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones) values
+  ('00000000-0000-0000-0000-0000000000c3', '00000000-0000-0000-0000-000000000031', '2026-01-01', null, 'admin', true, false, false),
+  ('00000000-0000-0000-0000-0000000000c3', '00000000-0000-0000-0000-000000000032', '2026-01-01', null, 'staff', false, false, false),
+  ('00000000-0000-0000-0000-0000000000c3', '00000000-0000-0000-0000-000000000033', '2026-01-01', current_date - 1, 'staff', true, false, false),
+  ('00000000-0000-0000-0000-0000000000c4', '00000000-0000-0000-0000-000000000034', '2026-01-01', null, 'admin', true, false, false);
+
+select pruebas.ser('juana@siete.com'); set role authenticated;
+select pruebas.esperar('Juana (staff, sin ningún módulo) anota una mejora en su club', pruebas.filas($$insert into notas (equipo_id, texto) values ('00000000-0000-0000-0000-0000000000c3', '  Filtro por fecha  ')$$), 1);
+select pruebas.esperar('...sin los espacios de las puntas', (select count(*) from notas where texto = 'Filtro por fecha'), 1);
+select pruebas.esperar('...y la base anota que la escribió ella', (select creado_email from notas where texto = 'Filtro por fecha'), 'juana@siete.com');
+select pruebas.debe_fallar('No elige quién la escribió', $$insert into notas (equipo_id, texto, creado_por) values ('00000000-0000-0000-0000-0000000000c3', 'otra', '00000000-0000-0000-0000-000000000031')$$, 'permission denied');
+select pruebas.debe_fallar('No elige la fecha', $$insert into notas (equipo_id, texto, creado_en) values ('00000000-0000-0000-0000-0000000000c3', 'otra', '2020-01-01')$$, 'permission denied');
+select pruebas.debe_fallar('Una nota vacía no entra', $$insert into notas (equipo_id, texto) values ('00000000-0000-0000-0000-0000000000c3', '   ')$$, 'notas_texto_check');
+select pruebas.debe_fallar('No anota en un club donde no está', $$insert into notas (equipo_id, texto) values ('00000000-0000-0000-0000-0000000000c4', 'hola')$$, 'row-level security');
+select pruebas.esperar('La corrige', pruebas.filas($$update notas set texto = 'Filtro por fecha y por rival' where texto = 'Filtro por fecha'$$), 1);
+select pruebas.debe_fallar('...pero no le cambia el autor', $$update notas set creado_por = null$$, 'permission denied');
+select pruebas.debe_fallar('...ni el club', $$update notas set equipo_id = '00000000-0000-0000-0000-0000000000c4'$$, 'permission denied');
+reset role;
+select pruebas.ser('ivan@siete.com'); set role authenticated;
+select pruebas.esperar('Iván, del mismo club, la ve', (select count(*) from notas where texto = 'Filtro por fecha y por rival'), 1);
+select pruebas.esperar('...la marca como hecha', pruebas.filas($$update notas set hecha = true where texto = 'Filtro por fecha y por rival'$$), 1);
+select pruebas.debe_fallar('...pero no le corrige el texto: es de Juana', $$update notas set texto = 'otra cosa' where texto = 'Filtro por fecha y por rival'$$, 'solo_quien_la_escribio');
+select pruebas.esperar('Iván anota la suya', pruebas.filas($$insert into notas (equipo_id, texto) values ('00000000-0000-0000-0000-0000000000c3', 'Exportar a PDF')$$), 1);
+reset role;
+select pruebas.ser('juana@siete.com'); set role authenticated;
+select pruebas.esperar('Juana no borra la de Iván', pruebas.filas($$delete from notas where texto = 'Exportar a PDF'$$), 0);
+reset role;
+select pruebas.ser('kevin@siete.com'); set role authenticated;
+select pruebas.esperar('Kevin, que se fue de Siete, ya no las ve', (select count(*) from notas), 0);
+select pruebas.debe_fallar('...ni anota', $$insert into notas (equipo_id, texto) values ('00000000-0000-0000-0000-0000000000c3', 'hola')$$, 'row-level security');
+reset role;
+select pruebas.ser('lia@ocho.com'); set role authenticated;
+select pruebas.esperar('Lía, de otro club (y admin del suyo), no ve las de Siete', (select count(*) from notas), 0);
+select pruebas.esperar('...ni las cambia', pruebas.filas($$update notas set hecha = false$$), 0);
+select pruebas.esperar('...ni las borra', pruebas.filas($$delete from notas$$), 0);
+reset role;
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('El dueño de la plataforma tampoco ve las notas de un club donde no está', (select count(*) from notas), 0);
+reset role;
+set role anon;
+select pruebas.debe_fallar('Sin sesión, nada', $$select count(*) from notas$$, 'permission denied');
+reset role;
+select pruebas.ser('ivan@siete.com'); set role authenticated;
+select pruebas.esperar('Iván, administrador de Siete, borra la de Juana', pruebas.filas($$delete from notas where texto = 'Filtro por fecha y por rival'$$), 1);
+reset role;
+select pruebas.ser('juana@siete.com'); set role authenticated;
+select pruebas.esperar('...y Juana ve solo la de Iván', (select count(*) from notas), 1);
+reset role;
+
 select 'ESCENARIOS: todos bien' as resultado;

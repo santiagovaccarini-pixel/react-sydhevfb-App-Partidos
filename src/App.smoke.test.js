@@ -46,14 +46,16 @@ vi.mock("./supabase.js", () => ({
           update: (cambios) => {
             doblesSupabase.renombrarEquipo(cambios);
             return {
+              // Devuelve la fila cambiada, como la base cuando se le pide. Sin
+              // permiso (con membresía y sin ser admin) no devuelve ninguna.
               eq: (campo, valor) => ({
                 select: async () => {
                   const equipo = doblesSupabase.equipos.find((e) => e.id === valor);
-                  if (!equipo || equipo.rol !== "admin" || doblesSupabase.errorEquipos) {
+                  if (!equipo || doblesSupabase.errorEquipos || (equipo.rol && equipo.rol !== "admin")) {
                     return { data: [], error: doblesSupabase.errorEquipos };
                   }
                   equipo.nombre = cambios.nombre;
-                  return { data: [{ ...equipo }], error: null };
+                  return { data: [{ id: equipo.id }], error: null };
                 },
               }),
             };
@@ -486,6 +488,9 @@ describe("interfaz operativa", () => {
 
     const accionPeriodo = contenedor.querySelector(".accion-periodo");
     await act(async () => accionPeriodo.click());
+    // Un Finalizar pegado al Iniciar se toma como doble toque y no cuenta:
+    // el período se termina un rato después.
+    await act(async () => vi.advanceTimersByTime(3000));
     await act(async () => accionPeriodo.click());
 
     expect(accionPeriodo.textContent).toContain("Reanudar PT");
@@ -495,7 +500,15 @@ describe("interfaz operativa", () => {
     expect(accionPeriodo.className).toContain("reanudar");
     expect(accionPeriodo.className).not.toContain("finalizar");
 
+    // Reanudar borra el final cargado: se pregunta antes.
     await act(async () => accionPeriodo.click());
+    const hoja = contenedor.querySelector(".hoja-confirmar");
+    expect(hoja.querySelector("h3").textContent).toBe("¿Reanudar el PT?");
+    expect(accionPeriodo.textContent).toContain("Reanudar PT");
+    const reanudar = Array.from(hoja.querySelectorAll("button")).find(
+      (boton) => boton.textContent.trim() === "Sí, reanudar",
+    );
+    await act(async () => reanudar.click());
 
     expect(accionPeriodo.textContent).toContain("Finalizar PT");
     expect(accionPeriodo.className).toContain("finalizar");
@@ -1407,7 +1420,8 @@ describe("interfaz operativa", () => {
     expect(contenedor.textContent).not.toContain("Agregar un equipo");
     expect(contenedor.querySelector('input[placeholder="Nombre del equipo nuevo"]')).toBeNull();
     // Staff: ve el nombre, no lo cambia.
-    expect(contenedor.querySelector("#nombre-equipo").readOnly).toBe(true);
+    expect(contenedor.textContent).toContain("Atlético Mineiro");
+    expect(contenedor.querySelector("#nombre-equipo")).toBeNull();
     expect(contenedor.querySelector(".tarjeta-ficha .boton-principal")).toBeNull();
     expect(contenedor.textContent).not.toContain("Guardar nombre");
   });
@@ -3399,8 +3413,21 @@ describe("interfaz operativa", () => {
   };
 
   test("al entrar, la fecha es la de hoy y no la del borrador viejo", async () => {
-    // El borrador sembrado es del 08/09 y sobrevive entre días: antes el campo
-    // seguía mostrando esa fecha en vez de la de hoy.
+    // Un borrador del 08/09 con el rival y la formación cargados de antemano
+    // (nada registrado todavía) sobrevive entre días: antes el campo seguía
+    // mostrando esa fecha en vez de la de hoy. Uno con algo registrado (un
+    // gol, un horario, un cambio) no se mueve: ver la prueba de abajo.
+    localStorage.setItem(
+      "registro_actual_partido",
+      JSON.stringify({
+        version: 2,
+        registro: {
+          fecha: "2026-09-08",
+          rival: "Cruzeiro",
+          formacion: { titulares: ["ALONSO", "SCARPA"], convocados: ["BERNARD"] },
+        },
+      }),
+    );
     vi.setSystemTime(new Date(2026, 8, 15, 10, 0, 0));
     await montarApp();
     await irAFormacion();
@@ -3411,6 +3438,19 @@ describe("interfaz operativa", () => {
     expect(
       contenedor.querySelector(".tarjeta-en-curso .fecha-registro").textContent,
     ).toContain("15");
+  });
+
+  test("un partido ya registrado conserva su fecha al volver a entrar otro día", async () => {
+    // El borrador sembrado tiene un 1-0 anotado: es un partido jugado el 08/09.
+    // Cambiarle la fecha en silencio le hacía perder su fila y el próximo
+    // Guardar lo repetía con otra fecha.
+    vi.setSystemTime(new Date(2026, 8, 15, 10, 0, 0));
+    await montarApp();
+    await irAFormacion();
+
+    expect(contenedor.querySelector("#campo-fecha-inicio").value).toBe(
+      "2026-09-08",
+    );
   });
 
   test("al volver a la app después de medianoche, la fecha se corrige sola", async () => {

@@ -58,7 +58,8 @@ $PSQL -f "$ULTIMA" >/dev/null
 echo "→ 20261014_revisar_duenos.sql"
 $PSQL -f "$RAIZ/supabase/migrations/20261014_revisar_duenos.sql" >/dev/null
 # Las que dicen que se pueden volver a correr, también después de las nuevas.
-for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas 20261011_jugadores_actual; do
+for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas 20261011_jugadores_actual \
+                20261013b_notas; do
   echo "→ $otra_vez.sql (otra vez, después de la última)"
   $PSQL -f "$RAIZ/supabase/migrations/$otra_vez.sql" >/dev/null
 done

@@ -145,32 +145,50 @@ export const elegirEquipoInicial = (equipos, guardado, { huboError } = {}) => {
   return null;
 };
 
-// Los errores de renombrar, como claves del diccionario (la base contesta en
-// inglés). Si la base no cambió ninguna fila, no es admin de ese club (o ya
-// se fue): no tiene permiso.
-const FALLO_DE_RED = /failed to fetch|load failed|networkerror|network request failed|fetch failed/i;
-const claveDeErrorDeEquipo = (error) => {
-  const texto = `${error?.message || ""} ${error?.details || ""}`;
-  if (FALLO_DE_RED.test(texto)) return "comun.sinConexion";
-  if (/duplicate key|unique/i.test(texto)) return "club.errorRepetido";
-  if (error?.code === "42501" || /permission denied|row-level security/i.test(texto)) return "club.errorSinPermiso";
-  return "club.errorGuardar";
+/**
+ * Por qué no se pudo renombrar, para que cada pantalla lo diga en su idioma:
+ * "vacio", "repetido", "permiso" (la base no lo deja: RLS) u "otro". El nombre
+ * repetido lo dice la base (`nombre_repetido`: igual a otro club sin contar
+ * tildes, mayúsculas ni espacios).
+ * `error` sigue trayendo el texto de siempre para quien ya lo usaba.
+ */
+export const motivoDelError = (error) => {
+  const texto = `${error?.code || ""} ${error?.message || ""}`;
+  if (/duplicate key|unique|23505|nombre_repetido/i.test(texto)) return "repetido";
+  if (/row-level security|permission denied|not allowed|42501|insufficient_privilege/i.test(texto)) {
+    return "permiso";
+  }
+  return "otro";
 };
 
-// Cambia el nombre del club. Solo lo puede su administrador: la base lo
-// decide y, si no deja, no cambia ninguna fila.
+const conMotivo = (error) => {
+  const motivo = motivoDelError(error);
+  return {
+    error: motivo === "repetido" ? "Ya hay un equipo con ese nombre." : error.message,
+    motivo,
+  };
+};
+
 export const renombrarEquipo = async (id, nombre) => {
   const limpio = limpiar(nombre);
-  if (!limpio) return { error: "club.errorNombre" };
+  if (!limpio) return { error: "Escribí el nombre del equipo.", motivo: "vacio" };
 
+  // Se pide la fila de vuelta: sin permiso (RLS) la base no da error, solo no
+  // cambia nada, y la pantalla decía "Nombre cambiado" igual.
   const { data, error } = await supabase
     .from("equipos")
     .update({ nombre: limpio })
     .eq("id", id)
-    .select("id, nombre");
+    .select("id");
 
-  if (error) return { error: claveDeErrorDeEquipo(error) };
-  if (!data || data.length === 0) return { error: "club.errorSinPermiso" };
+  if (error) return conMotivo(error);
+
+  if ((data?.length ?? 0) === 0) {
+    return {
+      error: "No tenés permiso para cambiar el nombre de este equipo.",
+      motivo: "permiso",
+    };
+  }
 
   return { equipo: { id, nombre: limpio } };
 };
