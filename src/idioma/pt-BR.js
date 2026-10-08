@@ -622,7 +622,7 @@ export default {
     entidadGuardada: "Pronto: a entidade de {{club}} é {{correo}}.",
     entidadSacada: "{{club}} ficou sem entidade.",
     pedidosTitulo: "Pedidos de clubes que não estão no app",
-    pedidosTexto: "Pessoas que pediram para entrar num clube que não está no app. Envie para o clube certo (lá decide o administrador) ou recuse.",
+    pedidosTexto: "Pessoas que pediram para entrar num clube que não está no app ou que ainda não tem administrador. Envie para um clube com administrador (lá ele decide) ou recuse.",
     vacioPedidos: "Não há pedidos sem clube.",
     clubEscrito: "Escreveu: {{club}}",
     pais: "País: {{pais}}",

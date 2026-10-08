@@ -625,7 +625,7 @@ export default {
     entidadGuardada: "Listo: la entidad de {{club}} es {{correo}}.",
     entidadSacada: "{{club}} quedó sin entidad.",
     pedidosTitulo: "Pedidos de clubes que no están",
-    pedidosTexto: "Gente que pidió entrar a un club que no está en la app. Mandalo al club que corresponde (ahí decide su administrador) o rechazalo.",
+    pedidosTexto: "Gente que pidió entrar a un club que no está en la app o que todavía no tiene administrador. Mandalo a un club con administrador (ahí decide él) o rechazalo.",
     vacioPedidos: "No hay pedidos sin club.",
     clubEscrito: "Escribió: {{club}}",
     pais: "País: {{pais}}",
