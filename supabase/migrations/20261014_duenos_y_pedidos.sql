@@ -13,16 +13,21 @@
 --     del administrador y cuánta gente hay.
 --   · Pedidos de acceso (club_pedidos): quien no tiene invitación escribe el
 --     club al que quiere entrar y espera. Si el nombre es el de un club de
---     la app, lo decide el administrador de ese club; si no, los dueños lo
---     mandan a un club o lo rechazan. La persona ve lo mismo en los dos casos.
+--     la app con administrador, lo decide ese administrador; si no (o si el
+--     club se queda sin administrador), los dueños lo mandan a un club con
+--     administrador o lo rechazan. La persona ve lo mismo en todos los casos.
+--     Dos clubes no se escriben igual (sin contar tildes, mayúsculas ni
+--     espacios de más), tampoco al cambiar el nombre.
 --   · Se termina la aprobación global: perfiles.admin queda en false para
 --     todos (sigue legible: la app de antes la lee hasta que se publique la
 --     nueva) y nadie cambia el estado de una cuenta desde la app. Bloquear
 --     una cuenta en toda la app queda solo por SQL.
 --   · El administrador de un club suma gente (invita como staff, acepta
 --     pedidos), da y saca módulos y da de baja, pero no toca a otro
---     administrador ni a sí mismo. Al dueño principal nadie lo saca de un
---     club ni le cambia los módulos: solo él se va (salir_del_club).
+--     administrador ni a sí mismo. A los dueños (el principal y los
+--     sub-dueños) nadie los saca de un club ni les cambia los módulos, ni
+--     siquiera otro dueño: cada uno se va solo (salir_del_club). Una
+--     invitación solo se cancela: no se reabre ni cambia de rol.
 --   · Catapult: el token del servidor es de un solo club
 --     (plataforma.catapult_equipo). Flujo diario lo usa solo quien tiene
 --     Flujo en ese club (mi_cuenta, para el servidor).
@@ -126,8 +131,8 @@ comment on table public.club_entidades is
   'El correo de la entidad de cada club, que cargan los dueños desde el panel. En el paso 2 es solo un dato.';
 
 -- Los pedidos de acceso. equipo_id vacío = el nombre escrito no es el de
--- ningún club de la app (lo ven los dueños). Un solo pedido abierto por
--- cuenta.
+-- ningún club de la app con administrador (lo ven los dueños, como los de un
+-- club que se quedó sin administrador). Un solo pedido abierto por cuenta.
 create table if not exists public.club_pedidos (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users (id) on delete cascade,
@@ -146,7 +151,7 @@ create unique index if not exists club_pedidos_uno_abierto on public.club_pedido
 create index if not exists club_pedidos_por_club on public.club_pedidos (equipo_id) where estado = 'abierto';
 
 comment on table public.club_pedidos is
-  'Pedidos de acceso a un club de quien no tiene invitación. Lo decide el administrador del club; sin club (equipo_id vacío), los dueños lo derivan o lo rechazan. La persona nunca ve equipo_id.';
+  'Pedidos de acceso a un club de quien no tiene invitación. Lo decide el administrador del club; sin club (equipo_id vacío) o con un club sin administrador, los dueños lo derivan o lo rechazan. La persona nunca ve equipo_id.';
 comment on column public.club_pedidos.email is 'Copia del correo de la cuenta al pedir (lo ve quien decide).';
 
 alter table public.plataforma enable row level security;
@@ -218,6 +223,22 @@ as $$
         and (exists (select 1 from public.plataforma p where p.dueno_principal = pf.user_id)
              or exists (select 1 from public.plataforma_subduenos s where s.user_id = pf.user_id))),
     false);
+$$;
+
+-- El club tiene administrador: alguien con rol admin que sigue en el club y
+-- tiene la cuenta autorizada (como lo pide es_admin_de_club). Los pedidos a
+-- un club sin administrador los ven los dueños.
+create or replace function public.club_tiene_admin(p_equipo uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.club_miembros m
+                   join public.perfiles pf on pf.user_id = m.user_id
+                  where m.equipo_id = p_equipo and m.rol = 'admin' and m.hasta is null
+                    and pf.estado = 'autorizado');
 $$;
 
 -- Anota un movimiento de los dueños, con quién y cuándo.
@@ -295,21 +316,25 @@ create trigger perfiles_proteger_principal
   before update of estado on public.perfiles
   for each row execute function public.perfiles_proteger_principal();
 
--- Al dueño principal nadie lo saca de un club ni le cambia el rol o los
--- módulos: solo él se va (salir_del_club). Volver a entrar (una invitación
--- o un pedido aceptado) sí se puede. Sin sesión (el SQL Editor), no frena.
-create or replace function public.club_miembros_proteger_principal()
+-- A un dueño (el principal o un sub-dueño) nadie lo saca de un club ni le
+-- cambia el rol o los módulos, ni siquiera otro dueño: solo él se va
+-- (salir_del_club). Volver a entrar (una invitación o un pedido aceptado)
+-- sí se puede. Sin sesión (el SQL Editor), no frena. Un sub-dueño que deja
+-- de serlo (quitar_subdueno) pasa a ser uno más del club. Reemplaza a
+-- club_miembros_proteger_principal, que cuidaba solo al principal.
+drop trigger if exists club_miembros_proteger_principal on public.club_miembros;
+drop function if exists public.club_miembros_proteger_principal();
+
+create or replace function public.club_miembros_proteger_duenos()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_principal uuid;
 begin
-  select p.dueno_principal into v_principal from public.plataforma p;
-  if v_principal is null or old.user_id <> v_principal
-     or auth.uid() is null or auth.uid() = v_principal then
+  if auth.uid() is null or auth.uid() = old.user_id
+     or not (exists (select 1 from public.plataforma p where p.dueno_principal = old.user_id)
+             or exists (select 1 from public.plataforma_subduenos s where s.user_id = old.user_id)) then
     if tg_op = 'DELETE' then return old; end if;
     return new;
   end if;
@@ -332,10 +357,10 @@ begin
 end;
 $$;
 
-drop trigger if exists club_miembros_proteger_principal on public.club_miembros;
-create trigger club_miembros_proteger_principal
+drop trigger if exists club_miembros_proteger_duenos on public.club_miembros;
+create trigger club_miembros_proteger_duenos
   before update or delete on public.club_miembros
-  for each row execute function public.club_miembros_proteger_principal();
+  for each row execute function public.club_miembros_proteger_duenos();
 
 -- Un club no queda sin un administrador activo. Cuenta solo los que pueden
 -- actuar: un administrador con la cuenta bloqueada no sirve de reemplazo.
@@ -408,6 +433,100 @@ begin
   return v_cuantas;
 end;
 $$;
+
+-- Las invitaciones al cambiarlas (la de 20261013), y además: una cancelada
+-- no se vuelve a abrir (ni por SQL) y el rol no se cambia con una sesión (un
+-- administrador invita solo como staff).
+create or replace function public.club_invitaciones_preparar()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' or new.email is distinct from old.email then
+    new.email := lower(btrim(new.email));
+    if new.email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
+      raise exception 'correo_invalido' using errcode = 'P0001';
+    end if;
+  end if;
+  if tg_op = 'INSERT' then
+    new.creado_por := coalesce(auth.uid(), new.creado_por);
+  else
+    if old.cancelada_en is not null and new.cancelada_en is null then
+      raise exception 'invitacion_cancelada' using errcode = 'P0001';
+    end if;
+    if new.rol is distinct from old.rol and auth.uid() is not null then
+      raise exception 'invitacion_rol_fijo' using errcode = 'P0001';
+    end if;
+    new.creado_por := case when exists (select 1 from auth.users u where u.id = old.creado_por) then old.creado_por end;
+    new.creado_en := old.creado_en;
+  end if;
+  return new;
+end;
+$$;
+
+-- Las invitaciones abiertas como administrador (de antes de que se invitara
+-- solo como staff) pasan a staff. Cuántas, se ve al final.
+do $$
+declare
+  v_cuantas integer;
+begin
+  update public.club_invitaciones i
+     set rol = 'staff'
+   where i.rol = 'admin' and i.usada_en is null and i.cancelada_en is null and i.vence_en > now();
+  get diagnostics v_cuantas = row_count;
+  perform set_config('app.invitaciones_a_staff', v_cuantas::text, false);
+end $$;
+
+-- Dos clubes no se escriben igual (sin contar tildes, mayúsculas ni espacios
+-- de más), tampoco al cambiar el nombre: un pedido de acceso no sabría a
+-- cuál ir. Las mismas reglas que crear_club. Mira todos los clubes, también
+-- los que quien cambia el nombre no ve.
+create or replace function public.equipos_nombre_sin_repetir()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_nombre text := btrim(regexp_replace(coalesce(new.nombre, ''), '\s+', ' ', 'g'));
+  v_normalizado text := public.normalizar_nombre_club(new.nombre);
+begin
+  if v_nombre = '' or char_length(v_nombre) > 60 then
+    raise exception 'nombre_invalido' using errcode = 'P0001';
+  end if;
+  -- Dos clubes nuevos (o renombrados) con el mismo nombre a la vez: uno
+  -- espera al otro.
+  perform pg_advisory_xact_lock(hashtext('nombre_de_club:' || v_normalizado));
+  if exists (select 1 from public.equipos e
+              where e.id <> new.id and public.normalizar_nombre_club(e.nombre) = v_normalizado) then
+    raise exception 'nombre_repetido' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+-- Si hoy ya hay clubes que se escriben igual, no se sigue: primero hay que
+-- cambiarle el nombre a uno (por SQL) y volver a correr esto.
+do $$
+declare
+  v_repetidos text;
+begin
+  select string_agg(g.nombres, '; ' order by g.nombres) into v_repetidos
+    from (select string_agg(e.nombre, ' = ' order by e.nombre) as nombres
+            from public.equipos e
+           group by public.normalizar_nombre_club(e.nombre)
+          having count(*) > 1) g;
+  if v_repetidos is not null then
+    raise exception 'Hay clubes que se escriben igual (sin contar tildes, mayúsculas ni espacios): %. Cambiale el nombre a uno y volvé a correr esto.', v_repetidos;
+  end if;
+end $$;
+
+drop trigger if exists equipos_nombre_sin_repetir on public.equipos;
+create trigger equipos_nombre_sin_repetir
+  before insert or update of nombre on public.equipos
+  for each row execute function public.equipos_nombre_sin_repetir();
 
 -- ---------------------------------------------------------------- Semilla --
 -- Solo la primera vez (con plataforma vacía). Después los dueños se cambian
@@ -860,7 +979,8 @@ $$;
 
 -- --------------------------------------- Pedidos sin club (los dueños) --
 
--- Los pedidos abiertos que no coinciden con ningún club de la app.
+-- Los pedidos abiertos que no coinciden con ningún club de la app, o cuyo
+-- club hoy no tiene administrador (nadie más los decidiría).
 create or replace function public.pedidos_sin_club()
 returns table (id uuid, email text, club_escrito text, pais_escrito text, creado_en timestamptz)
 language plpgsql
@@ -875,13 +995,13 @@ begin
   return query
     select cp.id, cp.email, cp.club_escrito, cp.pais_escrito, cp.creado_en
       from public.club_pedidos cp
-     where cp.estado = 'abierto' and cp.equipo_id is null
+     where cp.estado = 'abierto' and (cp.equipo_id is null or not public.club_tiene_admin(cp.equipo_id))
      order by cp.creado_en, cp.id;
 end;
 $$;
 
--- Lo manda a un club: desde ahí lo decide el administrador de ese club (los
--- dueños nunca aceptan gente).
+-- Lo manda a un club con administrador: desde ahí lo decide ese
+-- administrador (los dueños nunca aceptan gente).
 create or replace function public.derivar_pedido(p_id uuid, p_equipo uuid)
 returns void
 language plpgsql
@@ -896,16 +1016,21 @@ begin
     raise exception 'solo_duenos' using errcode = '42501';
   end if;
   select * into v_pedido from public.club_pedidos cp where cp.id = p_id for update;
-  if not found or v_pedido.estado <> 'abierto' or v_pedido.equipo_id is not null then
+  if not found or v_pedido.estado <> 'abierto'
+     or (v_pedido.equipo_id is not null and public.club_tiene_admin(v_pedido.equipo_id)) then
     raise exception 'pedido_cerrado' using errcode = 'P0001';
   end if;
   if p_equipo is null or not exists (select 1 from public.equipos e where e.id = p_equipo) then
     raise exception 'club_inexistente' using errcode = 'P0001';
   end if;
+  if not public.club_tiene_admin(p_equipo) then
+    raise exception 'club_sin_admin' using errcode = 'P0001';
+  end if;
   update public.club_pedidos set equipo_id = p_equipo, derivado_por = auth.uid() where id = p_id;
   perform public.plataforma_anotar('derivar_pedido', p_equipo, v_pedido.user_id, v_pedido.email,
                                    jsonb_build_object('pedido', p_id, 'club_escrito', v_pedido.club_escrito,
-                                                      'pais_escrito', v_pedido.pais_escrito));
+                                                      'pais_escrito', v_pedido.pais_escrito,
+                                                      'club_antes', v_pedido.equipo_id));
 end;
 $$;
 
@@ -923,7 +1048,8 @@ begin
     raise exception 'solo_duenos' using errcode = '42501';
   end if;
   select * into v_pedido from public.club_pedidos cp where cp.id = p_id for update;
-  if not found or v_pedido.estado <> 'abierto' or v_pedido.equipo_id is not null then
+  if not found or v_pedido.estado <> 'abierto'
+     or (v_pedido.equipo_id is not null and public.club_tiene_admin(v_pedido.equipo_id)) then
     raise exception 'pedido_cerrado' using errcode = 'P0001';
   end if;
   update public.club_pedidos set estado = 'rechazado', decidido_por = auth.uid(), decidido_en = now() where id = p_id;
@@ -969,12 +1095,13 @@ begin
   if exists (select 1 from public.club_pedidos cp where cp.user_id = v_user and cp.estado = 'abierto') then
     raise exception 'ya_hay_un_pedido' using errcode = 'P0001';
   end if;
-  -- Un solo club con ese nombre: va a ese. Ninguno (o, por algún nombre
-  -- viejo, más de uno): a los dueños.
+  -- Un solo club con ese nombre y con administrador: va a ese. Ninguno, más
+  -- de uno (por algún nombre viejo) o un club sin administrador: a los
+  -- dueños.
   select (array_agg(e.id))[1], count(*) into v_equipo, v_cuantos
     from public.equipos e
    where public.normalizar_nombre_club(e.nombre) = v_nombre;
-  if v_cuantos <> 1 then
+  if v_cuantos <> 1 or not public.club_tiene_admin(v_equipo) then
     v_equipo := null;
   end if;
   begin
@@ -1097,8 +1224,8 @@ $$;
 -- ---------------------------------------------------- Irse de un club --
 
 -- Quien llama se va de un club donde está (su último día es hoy). Es la
--- única forma de que el dueño principal salga de un club. Un club no queda
--- sin administrador (club_miembros_ultimo_admin).
+-- única forma de que un dueño (el principal o un sub-dueño) salga de un
+-- club. Un club no queda sin administrador (club_miembros_ultimo_admin).
 create or replace function public.salir_del_club(p_equipo uuid)
 returns void
 language plpgsql
@@ -1114,6 +1241,37 @@ begin
   end if;
 end;
 $$;
+
+-- --------------------------------------- La gente del club: los dueños --
+
+-- Si una cuenta es dueña de la app (el principal o un sub-dueño), para que
+-- Cuentas muestre su fila sin acciones (club_miembros_proteger_duenos la
+-- frena igual). Responde solo por quien está o estuvo en un club donde
+-- quien pregunta está o estuvo; por cualquier otra cuenta, false.
+create or replace function public.miembro_protegido(p_user uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.club_miembros suyo
+                   join public.club_miembros mio on mio.equipo_id = suyo.equipo_id
+                  where suyo.user_id = p_user and mio.user_id = auth.uid())
+     and (exists (select 1 from public.plataforma p where p.dueno_principal = p_user)
+          or exists (select 1 from public.plataforma_subduenos s where s.user_id = p_user));
+$$;
+
+-- La gente de un club (la de 20261012), con protegido al final (create or
+-- replace view no deja cambiar el orden de las columnas).
+create or replace view public.v_miembros_club
+with (security_invoker = true)
+as
+select m.equipo_id, m.user_id, m.desde, m.hasta, m.rol, m.partido, m.flujo, m.lesiones,
+       m.decidido_en, m.creado_en, p.email, p.estado, p.confirmado_en, m.evaluaciones,
+       public.miembro_protegido(m.user_id) as protegido
+  from public.club_miembros m
+  join public.perfiles p on p.user_id = m.user_id;
 
 -- ------------------------------------------------ Lo que deja de existir --
 
@@ -1162,8 +1320,8 @@ create policy club_miembros_historial_leer on public.club_miembros_historial
   for select to authenticated
   using (user_id = (select auth.uid()) or public.es_admin_de_club(equipo_id));
 
--- Invitaciones: las ve y las cancela el administrador del club; invita solo
--- como staff.
+-- Invitaciones: las ve el administrador del club; invita solo como staff, y
+-- de una abierta lo único que hace es cancelarla.
 create policy club_invitaciones_ver on public.club_invitaciones
   for select to authenticated
   using (public.es_admin_de_club(equipo_id));
@@ -1174,8 +1332,8 @@ create policy club_invitaciones_crear on public.club_invitaciones
 
 create policy club_invitaciones_cancelar on public.club_invitaciones
   for update to authenticated
-  using (public.es_admin_de_club(equipo_id))
-  with check (public.es_admin_de_club(equipo_id));
+  using (public.es_admin_de_club(equipo_id) and cancelada_en is null and usada_en is null)
+  with check (public.es_admin_de_club(equipo_id) and cancelada_en is not null);
 
 -- Clubes: cada uno ve los suyos (donde está o estuvo); el nombre lo cambia
 -- su administrador. Se crean con crear_club y no se borran desde la app.
@@ -1251,7 +1409,7 @@ begin
 end $$;
 revoke execute on function public.aplicar_invitaciones(uuid), public.zona_del_club(uuid), public.es_dueno(),
                            public.es_dueno_principal(), public.normalizar_nombre_club(text),
-                           public.plataforma_anotar(text, uuid, uuid, text, jsonb)
+                           public.plataforma_anotar(text, uuid, uuid, text, jsonb), public.club_tiene_admin(uuid)
   from authenticated;
 
 -- Lo que authenticated ejecuta: lo que usan las políticas y las vistas, la
@@ -1267,7 +1425,7 @@ grant execute on function
   public.pedidos_sin_club(), public.derivar_pedido(uuid, uuid), public.rechazar_pedido_sin_club(uuid),
   public.pedir_acceso(text, text), public.mis_pedidos(), public.cancelar_pedido(uuid),
   public.pedidos_del_club(uuid), public.aceptar_pedido(uuid, boolean, boolean, boolean, boolean),
-  public.rechazar_pedido(uuid), public.salir_del_club(uuid)
+  public.rechazar_pedido(uuid), public.salir_del_club(uuid), public.miembro_protegido(uuid)
   to authenticated;
 
 -- Para lo que se cree de acá en adelante (tablas, secuencias y funciones del
@@ -1381,8 +1539,8 @@ commit;
 notify pgrst, 'reload schema';
 
 -- Para ver que quedó bien: los dueños, lo mismo que muestra el panel (por
--- consulta directa: el panel pide la sesión de un dueño) y el club del token
--- de Catapult.
+-- consulta directa: el panel pide la sesión de un dueño), cuántas
+-- invitaciones pasaron a staff y el club del token de Catapult.
 select pf.email, d.principal
   from (select p.dueno_principal as user_id, true as principal from public.plataforma p
         union all
@@ -1400,6 +1558,10 @@ select e.nombre,
   from public.equipos e
   left join public.club_entidades ce on ce.equipo_id = e.id
  order by e.nombre;
+-- Las invitaciones abiertas como administrador que pasaron a staff en esta
+-- corrida (al volver a correrla, 0).
+select coalesce(nullif(current_setting('app.invitaciones_a_staff', true), ''), '0')::integer
+         as invitaciones_de_admin_pasadas_a_staff;
 select coalesce(e.nombre, 'ninguno') as club_del_token_catapult
   from public.plataforma p
   left join public.equipos e on e.id = p.catapult_equipo;
