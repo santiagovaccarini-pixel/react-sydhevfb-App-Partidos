@@ -39,6 +39,8 @@ beforeEach(() => {
 describe("los errores de la plataforma", () => {
   it("cada código de la base pasa a su clave del diccionario", () => {
     expect(claveDeError({ code: "P0001", message: "nombre_repetido" })).toBe("panel.error.nombreRepetido");
+    expect(claveDeError({ code: "P0001", message: "nombre_invalido" })).toBe("panel.error.nombreInvalido");
+    expect(claveDeError({ code: "P0001", message: "club_sin_admin" })).toBe("panel.error.clubSinAdmin");
     expect(claveDeError({ code: "P0001", message: "entidad_es_dueno" })).toBe("panel.error.entidadEsDueno");
     expect(claveDeError({ code: "P0001", message: "zona_horaria_invalida" })).toBe("panel.error.zonaHorariaInvalida");
     // Los largos antes que los cortos que los contienen.
@@ -119,8 +121,12 @@ describe("el panel de los dueños", () => {
     await expect(crearClub({ nombre: "Club", correoEntidad: "cualquiera" })).rejects.toThrow("panel.error.correoInvalido");
     expect(base.llamadas).toHaveLength(2);
 
+    // La base compara sin tildes, mayúsculas ni espacios de más, y mide el nombre limpio.
     base.responder = () => ({ data: null, error: { code: "P0001", message: "nombre_repetido" } });
     await expect(crearClub({ nombre: "Club Uno" })).rejects.toThrow("panel.error.nombreRepetido");
+    await expect(crearClub({ nombre: "CLUB  úno" })).rejects.toThrow("panel.error.nombreRepetido");
+    base.responder = () => ({ data: null, error: { code: "P0001", message: "nombre_invalido" } });
+    await expect(crearClub({ nombre: "Club Cinco" })).rejects.toThrow("panel.error.nombreInvalido");
   });
 
   it("la entidad se asigna, se cambia o se saca con el correo vacío", async () => {
@@ -157,6 +163,9 @@ describe("el panel de los dueños", () => {
       { funcion: "derivar_pedido", parametros: { p_id: "p1", p_equipo: "c1" } },
       { funcion: "rechazar_pedido_sin_club", parametros: { p_id: "p1" } },
     ]);
+    // A un club sin administrador no se manda: la base no cambia nada y lo dice.
+    base.responder = () => ({ data: null, error: { code: "P0001", message: "club_sin_admin" } });
+    await expect(derivarPedido("p1", "c2")).rejects.toThrow("panel.error.clubSinAdmin");
   });
 
   it("las zonas que se ofrecen, con nombres legibles", () => {

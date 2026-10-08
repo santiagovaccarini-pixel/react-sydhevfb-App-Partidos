@@ -68,6 +68,7 @@ export const claveDeError = armarClaveDeError("panel.error", [
   "es_entidad",
   "no_es_subdueno",
   "pedido_cerrado",
+  "club_sin_admin",
 ]);
 
 const fallo = (error, porDefecto) =>
@@ -163,8 +164,10 @@ export const traspasarPrincipal = async (userId) => {
 };
 
 // --------------------------------------- Pedidos de clubes que no están --
-// Quien pidió entrar a un club que no coincide con ninguno de la app. Los
-// dueños lo mandan a un club (ahí decide su administrador) o lo rechazan.
+// Quien pidió entrar a un club que no coincide con ninguno de la app, o a uno
+// que hoy no tiene administrador. Los dueños lo mandan a un club con
+// administrador (ahí decide él; a uno sin administrador la base no deja:
+// 'club_sin_admin') o lo rechazan.
 
 export const pedidosSinClub = async () => (await llamar("pedidos_sin_club")) || [];
 

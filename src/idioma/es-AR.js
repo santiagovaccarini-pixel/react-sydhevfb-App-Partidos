@@ -693,6 +693,7 @@ export default {
       esEntidad: "Esa cuenta es la entidad de un club: no puede ser dueña.",
       noEsSubdueno: "Esa cuenta no es sub-dueña.",
       pedidoCerrado: "Ese pedido ya no está abierto.",
+      clubSinAdmin: "Ese club todavía no tiene administrador: el pedido no se puede mandar ahí.",
     },
   },
   // Pedidos de acceso: quien no tiene invitación pide entrar a un club y espera.

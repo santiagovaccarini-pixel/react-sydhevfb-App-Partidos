@@ -4,8 +4,8 @@ import { hoyISO } from "../idioma/formatos.js";
 // La gente de cada club (tabla `club_miembros`, vista `v_miembros_club`), su
 // historia y las invitaciones. Quién puede ver y cambiar qué lo decide la
 // base: el admin del club, la gente de su club (menos a otro admin, a sí
-// mismo y al dueño principal de la app); cada uno, lo suyo. Los dueños de la
-// app no ven ni tocan la gente de ningún club.
+// mismo y a los dueños de la app, principal o sub); cada uno, lo suyo. Los
+// dueños de la app no ven ni tocan la gente de ningún club.
 
 export const TABLA_MEMBRESIAS = "club_miembros";
 export const MODULOS_DEL_CLUB = ["partido", "flujo", "lesiones", "evaluaciones"];
@@ -42,12 +42,15 @@ const normalizarMembresia = (fila) => ({
 });
 
 // Un miembro como lo muestra Cuentas (la vista v_miembros_club): la membresía
-// y su cuenta.
+// y su cuenta. `protegido`: es dueño de la app (principal o sub); nadie del
+// club lo saca ni le cambia nada, solo él se va. Una base sin esa columna
+// dice false.
 const normalizarMiembro = (fila) => ({
   ...normalizarMembresia(fila),
   email: fila.email || "",
   estado: fila.estado || "",
   confirmado_en: fila.confirmado_en || null,
+  protegido: fila.protegido === true,
 });
 
 // "activo" (sigue en el club), "hasta" (se fue) o "ninguno" (nunca estuvo).

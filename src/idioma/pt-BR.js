@@ -690,6 +690,7 @@ export default {
       esEntidad: "Essa conta é a entidade de um clube: não pode ser dona.",
       noEsSubdueno: "Essa conta não é subdona.",
       pedidoCerrado: "Esse pedido não está mais aberto.",
+      clubSinAdmin: "Esse clube ainda não tem administrador: o pedido não pode ser enviado para lá.",
     },
   },
   // Pedidos de acesso: quem não tem convite pede para entrar num clube e espera.
