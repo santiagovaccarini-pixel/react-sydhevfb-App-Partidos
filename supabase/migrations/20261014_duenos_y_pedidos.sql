@@ -318,9 +318,11 @@ create trigger perfiles_proteger_principal
 
 -- A un dueño (el principal o un sub-dueño) nadie lo saca de un club ni le
 -- cambia el rol o los módulos, ni siquiera otro dueño: solo él se va
--- (salir_del_club). Volver a entrar (una invitación o un pedido aceptado)
--- sí se puede. Sin sesión (el SQL Editor), no frena. Un sub-dueño que deja
--- de serlo (quitar_subdueno) pasa a ser uno más del club. Reemplaza a
+-- (salir_del_club). Volver también lo decide él: otro lo reincorpora solo
+-- con aceptar_pedido, sobre un pedido suyo a ese club (aceptado en esa misma
+-- operación); una invitación de otro no lo mete (club_invitaciones_aplicar).
+-- Sin sesión (el SQL Editor), no frena. Un sub-dueño que deja de serlo
+-- (quitar_subdueno) pasa a ser uno más del club. Reemplaza a
 -- club_miembros_proteger_principal, que cuidaba solo al principal.
 drop trigger if exists club_miembros_proteger_principal on public.club_miembros;
 drop function if exists public.club_miembros_proteger_principal();
@@ -345,7 +347,10 @@ begin
     end if;
     raise exception 'dueno_protegido' using errcode = 'P0001';
   end if;
-  if old.hasta is not null and new.hasta is null then
+  if old.hasta is not null and new.hasta is null
+     and exists (select 1 from public.club_pedidos cp
+                  where cp.user_id = old.user_id and cp.equipo_id = old.equipo_id and cp.estado = 'aceptado'
+                    and cp.decidido_por = auth.uid() and cp.decidido_en = now()) then
     return new;
   end if;
   if new.hasta is distinct from old.hasta or new.rol is distinct from old.rol
@@ -431,6 +436,37 @@ begin
     update public.perfiles set estado = 'autorizado' where user_id = p_user and estado = 'pendiente';
   end if;
   return v_cuantas;
+end;
+$$;
+
+-- Si la cuenta invitada ya existe (y confirmó el correo), entra en el acto
+-- (la de 20261004). Menos un dueño de la app invitado por otro: a un club
+-- entra solo si lo pide él (un pedido de acceso). Su invitación queda
+-- abierta, como la de un correo sin cuenta: así invitar no sirve para
+-- averiguar quién es dueño (protegido) ni para meterlo en un club.
+create or replace function public.club_invitaciones_aplicar()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user uuid;
+begin
+  select u.id into v_user
+    from auth.users u
+   where lower(btrim(u.email)) = new.email and u.email_confirmed_at is not null
+   limit 1;
+  if v_user is null then
+    return new;
+  end if;
+  if auth.uid() is not null and auth.uid() <> v_user
+     and (exists (select 1 from public.plataforma p where p.dueno_principal = v_user)
+          or exists (select 1 from public.plataforma_subduenos s where s.user_id = v_user)) then
+    return new;
+  end if;
+  perform public.aplicar_invitaciones(v_user);
+  return new;
 end;
 $$;
 
@@ -1188,6 +1224,9 @@ begin
   if exists (select 1 from public.perfiles pf where pf.user_id = v_pedido.user_id and pf.estado = 'bloqueado') then
     raise exception 'cuenta_bloqueada' using errcode = 'P0001';
   end if;
+  -- Primero el pedido: así, si es un dueño que se había ido,
+  -- club_miembros_proteger_duenos ve que volver lo pidió él.
+  update public.club_pedidos set estado = 'aceptado', decidido_por = auth.uid(), decidido_en = now() where id = p_id;
   insert into public.club_miembros (equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones, evaluaciones)
   values (v_pedido.equipo_id, v_pedido.user_id, current_date, null, 'staff', coalesce(p_partido, false),
           coalesce(p_flujo, false), coalesce(p_lesiones, false), coalesce(p_evaluaciones, false))
@@ -1195,7 +1234,6 @@ begin
     set desde = current_date, hasta = null, rol = 'staff', partido = excluded.partido, flujo = excluded.flujo,
         lesiones = excluded.lesiones, evaluaciones = excluded.evaluaciones
     where public.club_miembros.hasta is not null;
-  update public.club_pedidos set estado = 'aceptado', decidido_por = auth.uid(), decidido_en = now() where id = p_id;
   update public.perfiles set estado = 'autorizado' where user_id = v_pedido.user_id and estado = 'pendiente';
 end;
 $$;

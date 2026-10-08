@@ -1278,13 +1278,40 @@ select pruebas.ser('eva@dos.com'); set role authenticated;
 select pruebas.esperar('Eva (de Dos) no averigua si alguien de otro club es dueño',
   (select public.miembro_protegido('00000000-0000-0000-0000-0000000000d2') || ',' || public.miembro_protegido('00000000-0000-0000-0000-0000000000d1')), 'false,false');
 select pruebas.esperar('...y en la gente de Dos nadie sale protegido', (select count(*) from v_miembros_club where equipo_id = :C2 and protegido), 0);
+-- Ni invitándolos: a un dueño, la invitación de otro no lo mete en un club
+-- (queda abierta, como la de un correo sin cuenta). Eva no pasa a compartir
+-- club con ellos, y protegido le sigue diciendo que no.
+select pruebas.esperar('Eva invita a Dos a los dos dueños', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c2', 'subduenia@prueba.com'), ('00000000-0000-0000-0000-0000000000c2', 'duenio@prueba.com')$$), 2);
+select pruebas.esperar('...las invitaciones quedan abiertas, como las de un correo sin cuenta', (select count(*) from club_invitaciones where equipo_id = :C2 and email in ('subduenia@prueba.com', 'duenio@prueba.com') and usada_en is null), 2);
+select pruebas.esperar('...ninguno entra a Dos', (select count(*) from v_miembros_club where equipo_id = :C2 and user_id in ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000d2')), 0);
+select pruebas.esperar('...y sigue sin saber si son dueños',
+  (select public.miembro_protegido('00000000-0000-0000-0000-0000000000d2') || ',' || public.miembro_protegido('00000000-0000-0000-0000-0000000000d1')), 'false,false');
+select pruebas.esperar('Eva las cancela', pruebas.filas($$update club_invitaciones set cancelada_en = now() where equipo_id = '00000000-0000-0000-0000-0000000000c2' and email in ('subduenia@prueba.com', 'duenio@prueba.com')$$), 2);
 reset role;
+select pruebas.esperar('Ningún dueño quedó en Dos', (select count(*) from club_miembros where equipo_id = :C2 and user_id in ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000d2')), 0);
 select pruebas.ser('subduenia@prueba.com'); set role authenticated;
 select salir_del_club(:C1);
 select pruebas.esperar('Ella sí se va de Uno, con salir_del_club', (select hasta::text from v_mis_clubes where id = :C1), current_date::text);
 reset role;
+-- Volver también lo decide ella: Beto no la vuelve a meter, ni a mano ni con
+-- una invitación.
 select pruebas.ser('beto@uno.com'); set role authenticated;
-select pruebas.esperar('Beto la reincorpora (volver a entrar sí se puede)', pruebas.filas($$update club_miembros set hasta = null, desde = current_date where user_id = '00000000-0000-0000-0000-0000000000d2' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.debe_fallar('Beto no la reincorpora', $$update club_miembros set hasta = null, desde = current_date where user_id = '00000000-0000-0000-0000-0000000000d2' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$, 'dueno_protegido');
+select pruebas.esperar('...ni con una invitación, que queda abierta', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'subduenia@prueba.com')$$), 1);
+select pruebas.esperar('...y ella sigue afuera', (select count(*) from club_invitaciones where email = 'subduenia@prueba.com' and equipo_id = :C1 and usada_en is null)
+                                                   || ',' || (select hasta::text from v_miembros_club where equipo_id = :C1 and user_id = '00000000-0000-0000-0000-0000000000d2'),
+  '1,' || current_date);
+select pruebas.esperar('Beto la cancela', pruebas.filas($$update club_invitaciones set cancelada_en = now() where email = 'subduenia@prueba.com' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select set_config('request.jwt.claims', '', false);
+select pruebas.esperar('Su historia en Uno: entró y se fue, nada más', (select string_agg(accion, ',' order by id) from club_miembros_historial where equipo_id = :C1 and user_id = '00000000-0000-0000-0000-0000000000d2'), 'alta,baja');
+-- Vuelve si ella lo pide: un pedido, que acepta Beto.
+select pruebas.ser('subduenia@prueba.com'); set role authenticated;
+select pedir_acceso('Club Uno') as pedido_subduenia \gset
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select aceptar_pedido(:'pedido_subduenia', true, false, false, false);
+select pruebas.esperar('Ella lo pide y Beto lo acepta: vuelve a Uno', (select count(*) from club_miembros where equipo_id = :C1 and user_id = '00000000-0000-0000-0000-0000000000d2' and hasta is null), 1);
 select pruebas.debe_fallar('...y otra vez no la puede sacar', $$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-0000000000d2'$$, 'dueno_protegido');
 reset role;
 -- El principal le saca el lugar de sub-dueña: desde ahí es una más del club.
