@@ -100,6 +100,7 @@ export default {
       noComprobar: "No se pudo comprobar tu cuenta. Probá de nuevo.",
       noEntrar: "No se pudo entrar. Probá de nuevo.",
       completar: "Completá el correo y la contraseña.",
+      correoInvalido: "Revisá el correo: así no es válido. Fijate que no termine en punto ni tenga espacios.",
       noCrear: "No se pudo crear la cuenta.",
       escribiCorreo: "Primero escribí tu correo, así te mandamos el enlace.",
       noEnviarCorreo: "No se pudo enviar el correo de recuperación.",

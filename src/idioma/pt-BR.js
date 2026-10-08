@@ -100,6 +100,7 @@ export default {
       noComprobar: "Não foi possível verificar sua conta. Tente de novo.",
       noEntrar: "Não foi possível entrar. Tente de novo.",
       completar: "Preencha o e-mail e a senha.",
+      correoInvalido: "Confira o e-mail: assim ele não é válido. Veja se não termina com ponto nem tem espaços.",
       noCrear: "Não foi possível criar a conta.",
       escribiCorreo: "Primeiro escreva seu e-mail, assim enviamos o link.",
       noEnviarCorreo: "Não foi possível enviar o e-mail de recuperação.",
