@@ -669,6 +669,11 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   (`dueno_protegido`) y en Cuentas su fila dice «Dueño de la app» / «Dono do app», sin chips
   ni «Dar de baja»/«Reincorporar» (como la de otro admin). Si el principal le saca el rol a
   un sub-dueño, pasa a ser un miembro común y su admin lo maneja como a cualquiera.
+  Tampoco lo mete nadie (revisión del 08/10): la invitación de otro le queda abierta, como
+  la de un correo sin cuenta, y a un club del que se fue vuelve solo con un pedido suyo que
+  acepta el admin. Así, invitar un correo no sirve para averiguar si es dueño (`protegido`
+  responde solo por quien comparte club). Por lo mismo, la historia del club anota la
+  entidad sin decir qué dueño la puso (eso queda en Movimientos).
 - **Salir de un club, en un solo lugar (08/10).** Cualquier miembro activo se va desde el
   portal › Cambiar (`src/ElegirClub.jsx`): abajo de todo, «Salir de {club}» para el club
   elegido, como enlace (no compite con elegir club), con la hoja de confirmar de siempre.
@@ -693,9 +698,11 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   nunca ve esa pantalla. Una cuenta autorizada que se quedó sin ningún club activo ve el
   mismo formulario al elegir club.
 - **El admin del club** invita solo como staff (ya no hay chip de rol), da y saca módulos,
-  da de baja y reincorpora. No toca a otro admin, ni a sí mismo, ni a un dueño de la app
-  (la base lo frena aunque la pantalla no lo supiera). Sacar a alguien de un club no lo
-  saca de otro. Bloquear una cuenta en toda la app ya no está en la app: solo por SQL.
+  da de baja y reincorpora (la fecha de entrada cambia solo al reincorporar; cuándo se creó
+  la fila y quién decidió, los anota la base). No toca a otro admin, ni a sí mismo, ni a un
+  dueño de la app (la base lo frena aunque la pantalla no lo supiera). Sacar a alguien de un
+  club no lo saca de otro. Bloquear una cuenta en toda la app ya no está en la app: solo por
+  SQL.
 - **Clubes**: se crean solo desde el panel; no se borran desde la app (solo por SQL); el
   nombre lo cambia el admin del club (Partido › Ajustes › Equipo ya no crea clubes).
 - **Catapult**: el token del servidor es de Atlético Mineiro (`plataforma.catapult_equipo`,
@@ -703,6 +710,19 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   chalecos; el resto ve «Tu club todavía no conectó Catapult en la app». Pruebas técnicas
   aparece solo si la sesión de OpenField volvió con rol admin (el dueño principal con Flujo
   diario en ese club).
+
+**Visto en la revisión del 08/10, queda afuera de este paso (a decidir o para otra rama):**
+- Renombrar un club (lo hace su admin): como dos clubes no se escriben igual
+  (`nombre_repetido`, contra todos los clubes), el admin puede averiguar si un nombre es de
+  un club de la app que no ve; y si le pone a su club el nombre de un club que todavía no
+  está en la app, desde ahí le llegan los pedidos de quien escriba ese nombre (antes iban
+  al panel). El cambio de nombre no queda en Movimientos. Lo decide el dueño (hasta el
+  catálogo del paso 6): por ejemplo, anotar los renombres en Movimientos o que el nombre lo
+  cambien los dueños.
+- Partido › Ajustes › Equipo: con un nombre de más de 60 letras la base contesta
+  `nombre_invalido` y la pantalla dice que falla la señal. Arreglarlo toca `src/App.js`
+  (Partido, fuera de este paso): un motivo propio en `motivoDelError`
+  (`src/domain/equipo.js`), su texto en es-AR y pt-BR y `maxLength={60}` en el campo.
 
 **Orden para ponerlo en producción (estricto):**
 1. CI en verde.

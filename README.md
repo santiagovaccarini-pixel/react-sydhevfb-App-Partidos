@@ -87,7 +87,8 @@ la app: a cada club se entra porque ese club te deja.
 
 - **Por invitación.** El administrador de un club invita un correo (siempre como
   staff, con los módulos que elija). Al registrarse y confirmar ese correo, la
-  cuenta queda autorizada y adentro del club; si ya tenía cuenta, entra en el acto.
+  cuenta queda autorizada y adentro del club; si ya tenía cuenta, entra en el acto
+  (un dueño de la app, no: su invitación queda abierta y entra solo si lo pide).
 - **Sin invitación.** La cuenta nueva escribe a qué club quiere entrar (nombre y
   país), manda el pedido y espera. Lo acepta (eligiendo los módulos) o lo rechaza
   el administrador de ese club, desde Cuentas. Si el nombre no coincide con ningún
@@ -108,9 +109,10 @@ la app: a cada club se entra porque ese club te deja.
   cuánta gente tiene. Crean clubes (sin quedar adentro) y asignan el correo de la
   entidad. No ven la gente ni los datos de ningún club y no aceptan a nadie. Solo
   el principal suma, quita o pasa dueños. A ningún dueño (principal ni sub) lo
-  saca otra persona de un club, ni le cambia los módulos: solo él se va. En
-  Cuentas su fila dice «Dueño de la app» y no tiene acciones. Si el principal le
-  saca el rol a un sub-dueño, pasa a ser un miembro común de sus clubes.
+  saca otra persona de un club, ni le cambia los módulos: solo él se va. Tampoco
+  lo mete nadie: a un club entra o vuelve solo si lo pide. En Cuentas su fila
+  dice «Dueño de la app» y no tiene acciones. Si el principal le saca el rol a un
+  sub-dueño, pasa a ser un miembro común de sus clubes.
 - Bloquear una cuenta en toda la app y borrar un club es solo por SQL. Borrar una
   cuenta es desde Supabase › Authentication › Users.
 - **Flujo diario**: el token de Catapult del servidor (`OPENFIELD_API_TOKEN`) es de
