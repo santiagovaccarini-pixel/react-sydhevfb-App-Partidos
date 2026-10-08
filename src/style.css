@@ -751,6 +751,15 @@ button:active {
   color: white;
 }
 
+/* Un detalle debajo del nombre (por qué no se puede elegir, por ejemplo). */
+.opcion-hoja-detalle {
+  display: block;
+  margin-top: 2px;
+  color: var(--cam-gris);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .opcion-hoja:hover,
 .opcion-hoja:active {
   transform: none;

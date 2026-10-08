@@ -657,12 +657,23 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
 `20261014_revisar_duenos.sql`). Lo que cambia:
 
 - **Dueños de la app.** Un dueño principal y sub-dueños, en tablas aparte (`plataforma`,
-  `plataforma_subduenos`), fuera de `perfiles`: el admin de un club no ve quién es dueño.
+  `plataforma_subduenos`), fuera de `perfiles`: el admin de un club no ve la lista de
+  dueños; de la gente de su club solo sabe si alguien es dueño (`protegido` en
+  `v_miembros_club`), para no ofrecerle acciones.
   Solo el principal suma o quita sub-dueños y pasa su lugar (solo a un sub-dueño; él queda
   como sub). Los sub-dueños hacen todo lo demás: crear clubes, asignar y cambiar el correo
-  de la entidad, ver el panel y Movimientos. Al principal nadie lo saca de la plataforma ni
-  de un club: solo él se va de un club («Salir del club» en Cuentas, o la función
-  `salir_del_club`).
+  de la entidad, ver el panel y Movimientos. Al principal nadie lo saca de la plataforma.
+- **Dueños protegidos en los clubes (decisión del dueño, 08/10).** A ningún dueño, principal
+  ni sub-dueño, lo saca otra persona de un club (tampoco otro dueño): nadie le da de baja, le
+  cambia los módulos ni borra su fila; solo él se va (`salir_del_club`). La base lo frena
+  (`dueno_protegido`) y en Cuentas su fila dice «Dueño de la app» / «Dono do app», sin chips
+  ni «Dar de baja»/«Reincorporar» (como la de otro admin). Si el principal le saca el rol a
+  un sub-dueño, pasa a ser un miembro común y su admin lo maneja como a cualquiera.
+- **Salir de un club, en un solo lugar (08/10).** Cualquier miembro activo se va desde el
+  portal › Cambiar (`src/ElegirClub.jsx`): abajo de todo, «Salir de {club}» para el club
+  elegido, como enlace (no compite con elegir club), con la hoja de confirmar de siempre.
+  Después queda en solo lectura hasta hoy, como cualquiera que se fue. No vuelve a la fila
+  propia de Cuentas (de ahí se sacó «Salir del club»: la fila propia no tiene acciones).
 - **Panel «Clubes de la app»** (`src/ClubesDeLaApp.jsx`): de cada club solo nombre, correo
   de la entidad, correo del administrador y cantidad de personas; lo garantiza la base
   (`panel_clubes`). Crear un club (nombre, entidad opcional, zona de una lista corta),
@@ -674,14 +685,17 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   acepta (eligiendo módulos; entra como staff) o lo rechaza el administrador de ese club,
   arriba de todo en Cuentas. Rechazado: sale de la lista y la persona puede volver a pedir.
   Si el nombre no coincide con ningún club, va a «Pedidos de clubes que no están» del panel,
-  y un dueño lo manda al club que corresponde (ahí decide su admin) o lo rechaza. La persona
-  ve lo mismo en los dos casos («Esperando autorización de» lo que escribió). El invitado
+  y un dueño lo manda al club que corresponde (ahí decide su admin) o lo rechaza. Desde el
+  08/10 también van al panel los pedidos a un club sin administrador (o que se quedó sin él:
+  su pedido abierto pasa a verse ahí); al mandarlo, los clubes sin administrador se ven
+  deshabilitados («Sin administrador») y la base no deja (`club_sin_admin`). La persona
+  ve lo mismo en todos los casos («Esperando autorización de» lo que escribió). El invitado
   nunca ve esa pantalla. Una cuenta autorizada que se quedó sin ningún club activo ve el
   mismo formulario al elegir club.
 - **El admin del club** invita solo como staff (ya no hay chip de rol), da y saca módulos,
-  da de baja y reincorpora. No toca a otro admin, ni a sí mismo, ni al dueño principal (la
-  base lo frena aunque la pantalla no lo supiera). Sacar a alguien de un club no lo saca de
-  otro. Bloquear una cuenta en toda la app ya no está en la app: solo por SQL.
+  da de baja y reincorpora. No toca a otro admin, ni a sí mismo, ni a un dueño de la app
+  (la base lo frena aunque la pantalla no lo supiera). Sacar a alguien de un club no lo
+  saca de otro. Bloquear una cuenta en toda la app ya no está en la app: solo por SQL.
 - **Clubes**: se crean solo desde el panel; no se borran desde la app (solo por SQL); el
   nombre lo cambia el admin del club (Partido › Ajustes › Equipo ya no crea clubes).
 - **Catapult**: el token del servidor es de Atlético Mineiro (`plataforma.catapult_equipo`,
@@ -720,7 +734,8 @@ blanca a authenticated.
   ventana entre el SQL y la publicación) y sacarle `puede_usar` a authenticated, para que un
   servidor viejo no pueda abrir el Catapult de otro club.
 - Hasta entonces, un club sin admin no puede invitar ni aceptar pedidos (desde la app no
-  se nombran administradores), y un club creado en el panel queda vacío.
+  se nombran administradores; sus pedidos esperan en el panel de los dueños), y un club
+  creado en el panel queda vacío.
 
 **Paso 5:** la invitación por correo (un enlace que abre «Crear cuenta» con el correo fijo) y
 un aviso al dueño cuando llega un pedido sin club.

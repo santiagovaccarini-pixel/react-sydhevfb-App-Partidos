@@ -91,19 +91,26 @@ la app: a cada club se entra porque ese club te deja.
 - **Sin invitación.** La cuenta nueva escribe a qué club quiere entrar (nombre y
   país), manda el pedido y espera. Lo acepta (eligiendo los módulos) o lo rechaza
   el administrador de ese club, desde Cuentas. Si el nombre no coincide con ningún
-  club de la app, el pedido va al panel de los dueños, que lo mandan al club que
-  corresponde o lo rechazan. La persona ve lo mismo en los dos casos.
+  club de la app, o el club todavía no tiene administrador (o se quedó sin él), el
+  pedido va al panel de los dueños, que lo mandan a un club con administrador o lo
+  rechazan. La persona ve lo mismo en todos los casos.
 - **Cada club maneja su gente**: módulos, dar de baja con el último día (ve lo
   cargado hasta ese día) y reincorporar. El administrador no toca a otro
-  administrador ni a sí mismo (se va con «Salir del club»). Sacar a alguien de un
+  administrador, ni a sí mismo, ni a un dueño de la app. Sacar a alguien de un
   club no lo saca de otro.
+- **Salir de un club**: cualquiera que siga activo se va desde el portal ›
+  Cambiar (abajo, «Salir de» ese club, con confirmación). Ese día queda como su
+  último día y sigue viendo lo cargado hasta ahí, en solo lectura, como cualquiera
+  que se fue. Es el único lugar para irse.
 - **Dueños de la app**: un dueño principal y sub-dueños (tablas `plataforma` y
   `plataforma_subduenos`, fuera de `perfiles`). Ven el panel «Clubes de la app»:
   de cada club solo el nombre, el correo de la entidad, el del administrador y
   cuánta gente tiene. Crean clubes (sin quedar adentro) y asignan el correo de la
   entidad. No ven la gente ni los datos de ningún club y no aceptan a nadie. Solo
-  el principal suma, quita o pasa dueños. Al principal nadie lo saca de un club:
-  solo él se va.
+  el principal suma, quita o pasa dueños. A ningún dueño (principal ni sub) lo
+  saca otra persona de un club, ni le cambia los módulos: solo él se va. En
+  Cuentas su fila dice «Dueño de la app» y no tiene acciones. Si el principal le
+  saca el rol a un sub-dueño, pasa a ser un miembro común de sus clubes.
 - Bloquear una cuenta en toda la app y borrar un club es solo por SQL. Borrar una
   cuenta es desde Supabase › Authentication › Users.
 - **Flujo diario**: el token de Catapult del servidor (`OPENFIELD_API_TOKEN`) es de

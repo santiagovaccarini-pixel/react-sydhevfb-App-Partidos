@@ -27,9 +27,9 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 // solo el nombre, el correo de la entidad, el del administrador y cuánta
 // gente tiene (lo garantiza la base: el panel no ve nada más). Desde acá se
 // crean clubes y se asigna la entidad; no se entra a ningún club ni se
-// acepta a nadie. Los pedidos a un club que no está se mandan al club que
-// corresponde (ahí decide su administrador) o se rechazan. Sumar, quitar y
-// pasar dueños es solo del dueño principal.
+// acepta a nadie. Los pedidos a un club que no está (o que todavía no tiene
+// administrador) se mandan a un club con administrador (ahí decide él) o se
+// rechazan. Sumar, quitar y pasar dueños es solo del dueño principal.
 
 // Un mensaje de error: una clave del diccionario o el texto de la base.
 const mensajeDe = (error) => {
@@ -455,10 +455,15 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
         onCancelar={() => setSacarEntidad(null)}
       />
 
+      {/* Un club sin administrador se ve, pero no se elige: no habría quién decida. */}
       <HojaOpciones
         abierta={Boolean(aDerivar)}
         titulo={t("panel.elegirClub")}
-        opciones={clubes.map((club) => ({ valor: club.equipo_id, etiqueta: club.nombre }))}
+        opciones={clubes.map((club) => ({
+          valor: club.equipo_id,
+          etiqueta: club.nombre,
+          ...(club.correo_admin ? {} : { detalle: t("panel.sinAdministrador"), deshabilitada: true }),
+        }))}
         onElegir={derivarA}
         onCerrar={() => setADerivar(null)}
       />

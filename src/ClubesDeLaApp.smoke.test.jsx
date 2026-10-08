@@ -217,6 +217,45 @@ describe("Clubes de la app", () => {
     expect(texto()).not.toContain("Aceptar");
   });
 
+  test("al mandar un pedido, un club sin administrador se ve deshabilitado y no se elige", async () => {
+    base.pedidos = [{ id: "p1", email: "nadie@prueba.com", club_escrito: "Club Dos", pais_escrito: null, creado_en: "2026-10-05T12:00:00Z" }];
+    await montar();
+    expect(texto()).toContain("o que todavía no tiene administrador");
+    await tocar(boton(fila(".panel-pedido", "nadie@prueba.com"), "Mandar a un club"));
+    const opciones = [...contenedor.querySelectorAll(".opcion-hoja")];
+    const dos = opciones.find((b) => b.textContent.startsWith("Club Dos"));
+    const uno = opciones.find((b) => b.textContent.startsWith("Club Uno"));
+    expect(dos.disabled).toBe(true);
+    expect(dos.querySelector(".opcion-hoja-detalle").textContent).toBe("Sin administrador");
+    expect(uno.disabled).toBe(false);
+    expect(uno.querySelector(".opcion-hoja-detalle")).toBeNull();
+    await act(async () => dos.click());
+    expect(llamadasA("derivar_pedido")).toHaveLength(0);
+    await tocar(uno);
+    expect(llamadasA("derivar_pedido")).toEqual([{ funcion: "derivar_pedido", parametros: { p_id: "p1", p_equipo: "c1" } }]);
+  });
+
+  test("si el club se quedó sin administrador mientras tanto, la base no deja y lo dice", async () => {
+    base.pedidos = [{ id: "p1", email: "nadie@prueba.com", club_escrito: "Club Seis", pais_escrito: null, creado_en: "2026-10-05T12:00:00Z" }];
+    base.errores.derivar_pedido = { code: "P0001", message: "club_sin_admin" };
+    await montar();
+    await tocar(boton(fila(".panel-pedido", "nadie@prueba.com"), "Mandar a un club"));
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Club Uno"));
+    expect(texto()).toContain("Ese club todavía no tiene administrador: el pedido no se puede mandar ahí.");
+    expect(texto()).not.toContain("club_sin_admin");
+    // El pedido sigue esperando en el panel.
+    expect(fila(".panel-pedido", "nadie@prueba.com")).toBeTruthy();
+
+    await act(async () => raiz.unmount());
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    await montar();
+    await tocar(boton(fila(".panel-pedido", "nadie@prueba.com"), "Enviar a um clube"));
+    const dos = [...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.startsWith("Club Dos"));
+    expect(dos.querySelector(".opcion-hoja-detalle").textContent).toBe("Sem administrador");
+    await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Club Uno"));
+    expect(texto()).toContain("Esse clube ainda não tem administrador: o pedido não pode ser enviado para lá.");
+  });
+
   test("sumar y quitar un sub-dueño; pasar el rol se confirma escribiendo el correo", async () => {
     await montar();
     const sumar = contenedor.querySelector(".panel-sumar");

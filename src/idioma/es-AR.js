@@ -453,6 +453,7 @@ export default {
     soloLecturaTitulo: "Dejaste este club el {{fecha}}.",
     soloLecturaTexto: "Ves lo cargado hasta ese día. No se puede agregar ni cambiar nada.",
     soloLecturaCambio: "Solo lectura: dejaste este club.",
+    salirDe: "Salir de {{club}}",
   },
   // Textos nuevos del módulo Partido (App.js). El resto de esa pantalla
   // todavía está escrito en castellano directamente en el código.
@@ -569,6 +570,7 @@ export default {
     cuentaBloqueada: "Cuenta bloqueada",
     cuentaPendiente: "Cuenta pendiente",
     tuCuenta: "Tu cuenta",
+    dueno: "Dueño de la app",
     quePuedeUsar: "Qué puede usar {{correo}}",
     laCuenta: "La cuenta",
     sinCorreo: "(sin correo)",
@@ -623,7 +625,7 @@ export default {
     entidadGuardada: "Listo: la entidad de {{club}} es {{correo}}.",
     entidadSacada: "{{club}} quedó sin entidad.",
     pedidosTitulo: "Pedidos de clubes que no están",
-    pedidosTexto: "Gente que pidió entrar a un club que no está en la app. Mandalo al club que corresponde (ahí decide su administrador) o rechazalo.",
+    pedidosTexto: "Gente que pidió entrar a un club que no está en la app o que todavía no tiene administrador. Mandalo a un club con administrador (ahí decide él) o rechazalo.",
     vacioPedidos: "No hay pedidos sin club.",
     clubEscrito: "Escribió: {{club}}",
     pais: "País: {{pais}}",
@@ -693,6 +695,7 @@ export default {
       esEntidad: "Esa cuenta es la entidad de un club: no puede ser dueña.",
       noEsSubdueno: "Esa cuenta no es sub-dueña.",
       pedidoCerrado: "Ese pedido ya no está abierto.",
+      clubSinAdmin: "Ese club todavía no tiene administrador: el pedido no se puede mandar ahí.",
     },
   },
   // Pedidos de acceso: quien no tiene invitación pide entrar a un club y espera.
@@ -723,7 +726,6 @@ export default {
     rechazarTexto: "{{correo}} no entra a {{club}}. Sale de esta lista y puede volver a pedir.",
     siRechazar: "Sí, rechazar",
     rechazadoAviso: "Pedido rechazado.",
-    salir: "Salir del club",
     salirTitulo: "¿Salir de {{club}}?",
     salirTexto: "Hoy es tu último día: vas a seguir viendo lo cargado hasta hoy, sin cambiar nada. Para volver, te tienen que habilitar de nuevo.",
     siSalir: "Sí, salir",

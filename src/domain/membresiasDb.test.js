@@ -99,6 +99,23 @@ describe("la membresía de una cuenta en un club", () => {
     await expect(listarMiembros("c1")).rejects.toThrow("cuentas.errorFaltaMigracion");
   });
 
+  it("lee de la vista quién es dueño de la app (protegido); sin esa columna, nadie", async () => {
+    base.responder = () => ({
+      data: [
+        { equipo_id: "c1", user_id: "u1", email: "duenio@prueba.com", rol: "staff", protegido: true },
+        { equipo_id: "c1", user_id: "u2", email: "beto@prueba.com", rol: "staff", protegido: false },
+        { equipo_id: "c1", user_id: "u3", email: "cata@prueba.com", rol: "staff" },
+      ],
+      error: null,
+    });
+    const lista = await listarMiembros("c1");
+    expect(lista.map((m) => [m.email, m.protegido])).toEqual([
+      ["beto@prueba.com", false],
+      ["cata@prueba.com", false],
+      ["duenio@prueba.com", true],
+    ]);
+  });
+
   it("módulos, baja y reincorporación cambian la fila justa (el rol no se toca desde la app)", async () => {
     base.responder = (pedido) => ({ data: [{ equipo_id: "c1", user_id: "u2", ...pedido.datos }], error: null });
     await cambiarModulo("u2", "c1", "lesiones", true);
@@ -122,7 +139,7 @@ describe("la membresía de una cuenta en un club", () => {
   });
 
   it("si la base no deja, avisa con la razón", async () => {
-    // Otro admin, la fila propia o el dueño principal: 0 filas o el aviso de la base.
+    // Otro admin, la fila propia o un dueño de la app: 0 filas o el aviso de la base.
     base.responder = () => ({ data: [], error: null });
     await expect(darDeBaja("u2", "c1", "2026-10-01")).rejects.toThrow("cuentas.errorSinPermiso");
     base.responder = () => ({ data: null, error: { message: "dueno_protegido", code: "P0001" } });

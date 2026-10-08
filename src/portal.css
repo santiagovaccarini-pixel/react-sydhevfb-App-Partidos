@@ -842,8 +842,10 @@
 .elegir-club-opcion .escudo-club.escudo-real.compacto {
   width: 30px;
 }
-/* Para los dueños: la entrada a Clubes de la app, debajo de todo. */
-.elegir-club-panel {
+/* Para los dueños: la entrada a Clubes de la app, debajo de todo. Y
+   después, "Salir de" el club elegido, como enlace (no compite con elegir). */
+.elegir-club-panel,
+.elegir-club-salir {
   display: grid;
   gap: 10px;
   margin-top: 18px;

@@ -99,12 +99,6 @@ vi.mock("./domain/pedidosDb.js", async () => {
       datos.llamadas.push({ que: "rechazar", id });
       return true;
     },
-    salirDelClub: async (equipoId) => {
-      datos.llamadas.push({ que: "salir", equipoId });
-      if (datos.errorPedido) throw new Error(datos.errorPedido);
-      datos.clubes = datos.clubes.map((club) => (club.id === equipoId ? { ...club, hasta: "2026-10-06" } : club));
-      return true;
-    },
   };
 });
 
@@ -271,13 +265,39 @@ describe("Cuentas", () => {
     expect(boton(cata, "Dar de baja")).toBeUndefined();
     expect(boton(cata, "Salir del club")).toBeUndefined();
     expect(boton(cata, "Historia")).toBeTruthy();
-    // La fila propia: no se da de baja a sí mismo; sale del club.
-    expect(boton(fila("ana@uno.com"), "Dar de baja")).toBeUndefined();
-    expect(boton(fila("ana@uno.com"), "Salir del club")).toBeTruthy();
-    expect(boton(fila("beto@uno.com"), "Salir del club")).toBeUndefined();
+    // La fila propia queda sin acciones (solo la historia): salir del club
+    // está en Cambiar club, para todos igual.
+    expect([...fila("ana@uno.com").querySelectorAll(".cuenta-acciones button")].map((b) => b.textContent)).toEqual(["Historia"]);
+    expect(boton(contenedor, "Salir del club")).toBeUndefined();
   });
 
-  test("si la base protege la cuenta (el dueño principal), lo dice en el idioma de la app", async () => {
+  test("la fila de un dueño de la app no tiene acciones (como la de otro admin) y lo dice", async () => {
+    datos.miembros.c1.push(
+      miembro({ user_id: "duenio", email: "duenio@uno.com", protegido: true }),
+      miembro({ user_id: "sub", email: "sub@uno.com", protegido: true, hasta: "2026-08-31" }),
+    );
+    await montar();
+    const duenio = fila("duenio@uno.com");
+    expect([...duenio.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Dueño de la app"]);
+    expect(duenio.querySelector(".cuenta-chip")).toBeNull();
+    expect(duenio.querySelector(".cuenta-meta").textContent).toContain("Partido, Flujo diario");
+    expect([...duenio.querySelectorAll(".cuenta-acciones button")].map((b) => b.textContent)).toEqual(["Historia"]);
+    // Aunque se haya ido: nadie del club lo reincorpora ni le cambia qué ve.
+    const sub = fila("sub@uno.com");
+    expect(sub.classList.contains("se-fue")).toBe(true);
+    expect(sub.querySelector(".cuenta-chip")).toBeNull();
+    expect(boton(sub, "Reincorporar")).toBeUndefined();
+    expect([...sub.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Dueño de la app"]);
+    // El resto sigue igual.
+    expect(boton(fila("beto@uno.com"), "Dar de baja")).toBeTruthy();
+    expect(chip(fila("beto@uno.com"), "Partido")).toBeTruthy();
+
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    expect(fila("duenio@uno.com").querySelector(".cuenta-etiqueta").textContent).toBe("Dono do app");
+    fijarIdiomaParaPruebas("es-AR");
+  });
+
+  test("si la base protege la cuenta (un dueño de la app), lo dice en el idioma de la app", async () => {
     datos.errorCambio = "cuentas.errorDuenoProtegido";
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     await montar();
@@ -328,25 +348,6 @@ describe("Cuentas", () => {
     datos.pedidos.c1 = null;
     await montar();
     expect(grupos()).toEqual(["Invitar a alguien", "Invitaciones abiertas 1", "En el club 3", "Se fueron 1"]);
-  });
-
-  test("salir del club se confirma; después ya no lo administra", async () => {
-    await montar();
-    await tocar(boton(fila("ana@uno.com"), "Salir del club"));
-    expect(contenedor.querySelector(".hoja-confirmar").textContent).toContain("¿Salir de Club Uno?");
-    await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, salir"));
-    expect(datos.llamadas.at(-1)).toEqual({ que: "salir", equipoId: "c1" });
-    expect(texto()).toContain("Saliste de Club Uno.");
-    expect(texto()).toContain("No administrás ningún club.");
-  });
-
-  test("si es el único administrador, no puede salir y lo dice", async () => {
-    datos.errorPedido = "pedidos.error.ultimoAdmin";
-    await montar();
-    await tocar(boton(fila("ana@uno.com"), "Salir del club"));
-    await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, salir"));
-    expect(texto()).toContain("Sos el único administrador del club: por ahora no podés salir.");
-    expect(fila("ana@uno.com")).toBeTruthy();
   });
 
   test("dar de baja pide el último día; quien se fue pasa abajo y se lo reincorpora", async () => {

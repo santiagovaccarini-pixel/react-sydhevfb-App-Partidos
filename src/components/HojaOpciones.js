@@ -12,6 +12,10 @@ import { t } from "../idioma/index.js";
  * acerca lo escrito: primero las que empiezan así, después las que lo
  * contienen, como el buscador de nombres de Partido. La lista se desplaza
  * adentro de la hoja, que nunca es más alta que la pantalla.
+ *
+ * Una opción puede llevar un `detalle` debajo del nombre y estar
+ * `deshabilitada`: se ve, pero no se elige (por ejemplo, un club sin
+ * administrador al mandarle un pedido).
  */
 export const HojaOpciones = ({
   abierta,
@@ -94,15 +98,17 @@ export const HojaOpciones = ({
         )}
 
         <div className="lista-opciones-hoja">
-          {visibles.map(({ valor, etiqueta }) => (
+          {visibles.map(({ valor, etiqueta, detalle, deshabilitada }) => (
             <button
               key={valor}
               type="button"
               className={`opcion-hoja ${valor === elegida ? "activa" : ""}`}
               aria-pressed={valor === elegida}
+              disabled={Boolean(deshabilitada)}
               onClick={() => onElegir(valor)}
             >
               {etiqueta}
+              {detalle && <small className="opcion-hoja-detalle">{detalle}</small>}
             </button>
           ))}
           {visibles.length === 0 && (

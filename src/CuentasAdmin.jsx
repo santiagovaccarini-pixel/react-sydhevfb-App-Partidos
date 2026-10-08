@@ -17,7 +17,7 @@ import {
   listarMiembros,
   reincorporar,
 } from "./domain/membresiasDb.js";
-import { aceptarPedido, pedidosDelClub, rechazarPedido, salirDelClub } from "./domain/pedidosDb.js";
+import { aceptarPedido, pedidosDelClub, rechazarPedido } from "./domain/pedidosDb.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, fechaYHora, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
@@ -27,8 +27,9 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 // (siempre como staff), módulos, dar de baja con el último día, reincorporar
 // y la historia de cada uno. Quien se va sigue viendo lo cargado hasta su
 // último día, sin cambiar nada (eso lo cuida la base). El admin no toca a
-// otro admin ni su propia fila (en la suya solo puede salir del club), y al
-// dueño principal de la app la base no deja sacarlo ni cambiarlo.
+// otro admin ni su propia fila, y a los dueños de la app (principal o sub) la
+// base no deja sacarlos ni cambiarlos: solo ellos se van. Salir del club, para
+// cualquiera, está en Cambiar club (ElegirClub.jsx).
 // Todo va directo a la base con la sesión de quien entra; la base decide.
 
 // Lo que se marca por defecto al invitar y al aceptar un pedido. El rol es
@@ -68,18 +69,19 @@ export const textoDeMovimiento = (movimiento) => {
 
 // ------------------------------------------------- La gente del club --
 
-// Las filas de otro admin y la propia no tienen acciones (la base tampoco
-// las deja cambiar): sus módulos se leen, no se tocan. En la propia está
-// "Salir del club".
-const FilaMiembro = ({ miembro, esMio, ocupada, onModulo, onBaja, onReincorporar, onHistoria, onSalir }) => {
+// Las filas de otro admin, de un dueño de la app y la propia no tienen
+// acciones (la base tampoco las deja cambiar): sus módulos se leen, no se
+// tocan. La historia se mira en todas.
+const FilaMiembro = ({ miembro, esMio, ocupada, onModulo, onBaja, onReincorporar, onHistoria }) => {
   const activo = !miembro.hasta;
-  const editable = !esMio && miembro.rol !== "admin";
+  const editable = !esMio && miembro.rol !== "admin" && !miembro.protegido;
   return (
     <li className={`cuenta-fila${esMio ? " propia" : ""}${activo ? "" : " se-fue"}`}>
       <div className="cuenta-encabezado">
         <span className="cuenta-correo">{miembro.email || t("cuentas.sinCorreo")}</span>
         {esMio && <span className="cuenta-etiqueta">{t("cuentas.tuCuenta")}</span>}
         {activo && miembro.rol === "admin" && <span className="cuenta-etiqueta">{t("cuentas.roles.admin")}</span>}
+        {miembro.protegido && <span className="cuenta-etiqueta">{t("cuentas.dueno")}</span>}
         {miembro.estado === "bloqueado" && <span className="cuenta-etiqueta alerta">{t("cuentas.cuentaBloqueada")}</span>}
         {miembro.estado === "pendiente" && <span className="cuenta-etiqueta alerta">{t("cuentas.cuentaPendiente")}</span>}
       </div>
@@ -118,11 +120,6 @@ const FilaMiembro = ({ miembro, esMio, ocupada, onModulo, onBaja, onReincorporar
               {ocupada ? t("comun.guardando") : t("cuentas.reincorporar")}
             </button>
           ))}
-        {esMio && activo && (
-          <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onSalir(miembro)}>
-            {t("pedidos.salir")}
-          </button>
-        )}
         <button type="button" className="cuenta-quitar" onClick={() => onHistoria(miembro)}>
           {t("cuentas.verHistoria")}
         </button>
@@ -219,13 +216,12 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
   const [correo, setCorreo] = useState("");
   const [nueva, setNueva] = useState({ ...INVITACION_INICIAL });
 
-  // Hojas: dar de baja, historia, aceptar y rechazar un pedido, salir del club.
+  // Hojas: dar de baja, historia, aceptar y rechazar un pedido.
   const [aDarBaja, setADarBaja] = useState(null);
   const [fechaBaja, setFechaBaja] = useState(hoyISO());
   const [historia, setHistoria] = useState(null);
   const [aAceptar, setAAceptar] = useState(null);
   const [aRechazar, setARechazar] = useState(null);
-  const [aSalir, setASalir] = useState(false);
 
   const clubElegido = clubes.find((uno) => uno.id === clubId) || null;
 
@@ -324,24 +320,6 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     setADarBaja(null);
     if (!miembro || !fechaBaja) return;
     await aplicar(miembro, () => darDeBaja(miembro.user_id, clubId, fechaBaja), t("cuentas.dadoDeBaja", { correo: miembro.email }));
-  };
-
-  // Irse del club por cuenta propia (último día: hoy). Después ya no lo
-  // administra: Cuentas se vuelve a leer.
-  const confirmarSalida = async () => {
-    setASalir(false);
-    const nombre = clubElegido?.nombre || "";
-    setOcupada(miUserId);
-    setAviso("");
-    try {
-      await salirDelClub(clubId);
-      await cargar();
-      setAviso(t("pedidos.saliste", { club: nombre }));
-    } catch (errorSalir) {
-      setAviso(mensajeDe(errorSalir, "pedidos.error.generico"));
-    } finally {
-      setOcupada("");
-    }
   };
 
   const abrirHistoria = async (miembro) => {
@@ -462,7 +440,6 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     },
     onReincorporar: volverAlClub,
     onHistoria: abrirHistoria,
-    onSalir: () => setASalir(true),
   };
 
   const parteClub = (
@@ -718,17 +695,6 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
         etiquetaCancelar={t("comun.cancelar")}
         onConfirmar={confirmarRechazo}
         onCancelar={() => setARechazar(null)}
-      />
-
-      <HojaConfirmar
-        abierta={aSalir}
-        icono="salir"
-        titulo={t("pedidos.salirTitulo", { club: clubElegido?.nombre || "" })}
-        descripcion={t("pedidos.salirTexto")}
-        etiquetaConfirmar={t("pedidos.siSalir")}
-        etiquetaCancelar={t("comun.cancelar")}
-        onConfirmar={confirmarSalida}
-        onCancelar={() => setASalir(false)}
       />
     </main>
   );

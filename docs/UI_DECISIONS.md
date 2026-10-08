@@ -24,6 +24,7 @@ prohibiciones específicas de conversaciones que no están disponibles.
 | UI-006 | Evaluaciones no vuelve a mostrar Posición, claves auxiliares de BUSCAR, la asimetría A separada del déficit ni los elementos enumerados como no copiados. No se eliminan columnas con resultados propios. | «Evaluaciones (05/10)», reglas para todos los tests y lo que no se copió |
 | UI-007 | Conservá tarjetas, fotos y portadas aprobadas y su componente compartido; no las reemplaces al aplicar la regla general de reducir decoración. | «Entrenamiento (OpenField)», portal y portada; «Bases de Datos (05/10)» |
 | UI-008 | En Tareas, las correcciones manuales siguen plegadas en “Ajustar horarios y pausas”. No expandir todo por defecto. | «Entrenamiento (OpenField)», tareas como un partido |
+| UI-009 | Salir de un club vive solo en portal › Cambiar (abajo, «Salir de {club}», enlace secundario), igual para todos. No volver a ponerlo en la fila propia de Cuentas. | «Cuentas paso 2», salir de un club en un solo lugar (08/10) |
 
 ## Pendientes que no deben tratarse como decisiones cerradas
 
