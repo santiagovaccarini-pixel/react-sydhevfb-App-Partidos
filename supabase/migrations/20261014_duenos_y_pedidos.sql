@@ -317,8 +317,9 @@ create trigger perfiles_proteger_principal
   for each row execute function public.perfiles_proteger_principal();
 
 -- Quién decidió y cuándo (la de 20261004), y además: con una sesión, la
--- fecha de entrada cambia solo al reincorporar (que queda en la historia);
--- si no, sigue la que estaba. La de creación no se toca desde la API.
+-- fecha de entrada cambia solo al reincorporar (eso queda en la historia);
+-- si no, sigue la que estaba. (La de creación ni se puede cambiar desde la
+-- API: ver los privilegios.)
 create or replace function public.club_miembros_anotar()
 returns trigger
 language plpgsql
