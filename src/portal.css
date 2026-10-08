@@ -662,6 +662,8 @@
   font-size: 0.86rem;
   font-weight: 700;
   line-height: 1.45;
+  /* Si no se pudo copiar el mensaje de invitación, queda acá con sus renglones. */
+  white-space: pre-line;
 }
 
 .cuentas-reintentar {

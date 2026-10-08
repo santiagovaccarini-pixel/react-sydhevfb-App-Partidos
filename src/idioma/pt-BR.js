@@ -537,7 +537,7 @@ export default {
     vencioEl: "Venceu em {{fecha}}: para que entre, convide de novo",
     copiarMensaje: "Copiar mensagem",
     copiado: "Mensagem copiada. Cole no WhatsApp ou num e-mail.",
-    mensajeInvitacion: "Convidei você para {{club}} no Registro Partido. Entre em {{enlace}} e crie sua conta com este e-mail: {{correo}}.",
+    mensajeInvitacion: "Convidei você para {{club}} no Registro Partido.\n\nAcesse este link:\n{{enlace}}\n\nCrie sua conta com este e-mail:\n{{correo}}",
     cancelarInvitacion: "Cancelar",
     invitacionCancelada: "Convite cancelado.",
     miembrosTitulo: "No clube",

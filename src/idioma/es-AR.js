@@ -540,7 +540,9 @@ export default {
     vencioEl: "Venció el {{fecha}}: para que entre, invitalo de nuevo",
     copiarMensaje: "Copiar mensaje",
     copiado: "Mensaje copiado. Pegalo en WhatsApp o en un correo.",
-    mensajeInvitacion: "Te invité a {{club}} en Registro Partido. Entrá a {{enlace}} y creá tu cuenta con este correo: {{correo}}.",
+    // El enlace y el correo, cada uno solo en su renglón y sin nada atrás:
+    // al copiarlos o tocarlos no se les pega un punto.
+    mensajeInvitacion: "Te invité a {{club}} en Registro Partido.\n\nEntrá a este enlace:\n{{enlace}}\n\nCreá tu cuenta con este correo:\n{{correo}}",
     cancelarInvitacion: "Cancelar",
     invitacionCancelada: "Invitación cancelada.",
     miembrosTitulo: "En el club",
