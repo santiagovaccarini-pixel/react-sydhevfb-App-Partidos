@@ -211,6 +211,12 @@ describe("Cuentas", () => {
     expect(texto()).toContain("Esa cuenta ya está en el club.");
     expect(datos.llamadas).toEqual([]);
 
+    // Con el punto del mensaje pegado al final no se invita: nunca llegaría.
+    await escribir(correo, "nuevo@prueba.com.");
+    await tocar(invitarBoton);
+    expect(texto()).toContain("Escribí un correo válido.");
+    expect(datos.llamadas).toEqual([]);
+
     await escribir(correo, "nuevo@uno.com");
     await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Lesiones"));
     await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Evaluaciones"));
@@ -293,13 +299,25 @@ describe("Cuentas", () => {
     await montar();
     await tocar(boton(fila("espera@uno.com"), "Copiar mensaje"));
     expect(escrito[0]).toContain("Te invité a Club Uno");
-    expect(escrito[0]).toContain("espera@uno.com");
+    // El enlace y el correo, cada uno solo en su renglón: nada se les pega.
+    const renglones = escrito[0].split("\n");
+    expect(renglones[renglones.indexOf("Entrá a este enlace:") + 1]).toBe(window.location.origin);
+    expect(window.location.origin).toMatch(/^https?:\/\/\S+$/);
+    expect(renglones.at(-1)).toBe("espera@uno.com");
     expect(texto()).toContain("Mensaje copiado.");
 
     await tocar(boton(fila("espera@uno.com"), "Cancelar"));
     expect(datos.llamadas.at(-1)).toEqual({ que: "cancelar", id: "i1" });
     expect(fila("espera@uno.com")).toBeUndefined();
     expect(texto()).toContain("Invitación cancelada.");
+  });
+
+  test("sin portapapeles, el mensaje queda a la vista con el correo solo en el último renglón", async () => {
+    await montar();
+    await tocar(boton(fila("espera@uno.com"), "Copiar mensaje"));
+    const aviso = contenedor.querySelector(".cuentas-aviso").textContent;
+    expect(aviso).toContain("Te invité a Club Uno");
+    expect(aviso.split("\n").at(-1)).toBe("espera@uno.com");
   });
 
   test("una invitación vencida va aparte, sin el mensaje para copiar, y se puede cancelar", async () => {

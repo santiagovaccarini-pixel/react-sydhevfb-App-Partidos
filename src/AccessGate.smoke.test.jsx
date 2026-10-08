@@ -310,6 +310,18 @@ describe("la puerta de la app", () => {
     expect(contenedor.querySelector(".training-access-message.ok").textContent).toContain("autorizarla");
   });
 
+  test("Crear una cuenta con un correo mal escrito no llega a Supabase y dice qué revisar", async () => {
+    await montar();
+    await escribir(contenedor.querySelector('input[type="email"]'), "nuevo@prueba.com.");
+    await escribir(contenedor.querySelector('input[type="password"]'), "secreta123");
+    await act(async () => boton("Crear una cuenta").click());
+
+    expect(supa.signUp).not.toHaveBeenCalled();
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "Revisá el correo: así no es válido. Fijate que no termine en punto ni tenga espacios.",
+    );
+  });
+
   test("volviendo del enlace de recuperación sin sesión, pide uno nuevo y deja volver", async () => {
     window.history.replaceState({}, "", "/?training_recovery=1");
     await montar();

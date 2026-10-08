@@ -854,6 +854,20 @@ Cómo está hoy (02/10):
   club con los permisos elegidos (si ya tenía cuenta, entra en el acto). Falta que el
   enlace abra "Crear cuenta" con el correo escrito y fijo: hoy lleva a la entrada común y,
   si escribe otro correo, queda pendiente.
+- Desde el 08/10, en el mensaje que se copia el enlace y el correo van solos en su
+  renglón (antes el punto final se pegaba al correo al copiarlo y la persona no podía
+  crear la cuenta con ese correo). Invitar y Crear una cuenta rechazan un correo que no
+  puede existir (punto al final, dos puntos seguidos, espacios). La base todavía acepta lo
+  que pasaba antes. La app no manda ningún correo de invitación: el mensaje lo manda el
+  administrador.
+- **Pendiente urgente (08/10, lo encontró Santiago al invitar):** en producción "Confirm
+  email" de Supabase está apagado (`/auth/v1/settings` dice `mailer_autoconfirm: true`).
+  Así, quien sepa un correo invitado crea la cuenta con ese correo, sin abrir el buzón, y
+  entra al club con los módulos de la invitación; también puede registrar antes el correo
+  de alguien que todavía no fue invitado. El arreglo es de configuración: primero un SMTP
+  propio (el correo que trae Supabase solo les llega a los miembros del equipo del
+  proyecto), después prender "Confirm email" (ver README). Hasta entonces no se publica
+  el paso 2 de cuentas (pedidos de acceso, sub-dueños y entidades confían en el correo).
 - Sin invitación es distinto: la cuenta queda pendiente sin elegir club y la aprueba el
   dueño de la plataforma desde "Cuentas de la app" (sumándola a un club). El admin del
   club no la ve. "Rechazar" bloquea la cuenta entera y la deja en "Sin acceso".
