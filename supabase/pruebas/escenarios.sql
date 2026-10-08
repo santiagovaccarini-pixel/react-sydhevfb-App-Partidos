@@ -355,10 +355,26 @@ select pruebas.debe_fallar('Beto no invita como administrador', $$insert into cl
 select pruebas.esperar('Una invitación cancelada', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'arrepentido@uno.com')$$), 1);
 select pruebas.esperar('...que se cancela', pruebas.filas($$update club_invitaciones set cancelada_en = now() where email = 'arrepentido@uno.com'$$), 1);
 select pruebas.debe_fallar('Una invitación no se reabre', $$update club_invitaciones set cancelada_en = null, usada_en = null where email = 'arrepentido@uno.com'$$, 'permission denied');
+select pruebas.esperar('...ni siquiera tocando solo la cancelación: ya no está abierta', pruebas.filas($$update club_invitaciones set cancelada_en = null where email = 'arrepentido@uno.com'$$), 0);
 select pruebas.debe_fallar('...ni se borra', $$delete from club_invitaciones where email = 'arrepentido@uno.com'$$, 'permission denied');
+select pruebas.debe_fallar('De una abierta, lo único que hace es cancelarla', $$update club_invitaciones set cancelada_en = null where email = 'hugo@nuevo.com'$$, 'row-level security');
+select pruebas.debe_fallar('...no le cambia el rol', $$update club_invitaciones set rol = 'admin' where email = 'hugo@nuevo.com'$$, 'permission denied');
 reset role;
+-- Igual la base lo frena (a mano, en el SQL Editor con la sesión de Beto, y
+-- sin sesión).
+select pruebas.debe_fallar('Con la sesión de Beto, por SQL, tampoco se reabre', $$update club_invitaciones set cancelada_en = null where email = 'arrepentido@uno.com'$$, 'invitacion_cancelada');
+select pruebas.debe_fallar('...ni cambia de rol', $$update club_invitaciones set rol = 'admin' where email = 'hugo@nuevo.com'$$, 'invitacion_rol_fijo');
+select set_config('request.jwt.claims', '', false);
+select pruebas.debe_fallar('Sin sesión, una cancelada tampoco se reabre', $$update club_invitaciones set cancelada_en = null where email = 'arrepentido@uno.com'$$, 'invitacion_cancelada');
+-- Las de administrador que correr.sh dejó antes de volver a correr la
+-- migración de dueños: la abierta pasó a staff; la cancelada y la vencida,
+-- que no hacen entrar a nadie, quedaron como estaban.
+select pruebas.esperar('La migración pasó a staff la invitación abierta de administrador',
+  (select string_agg(email || ':' || rol, ',' order by email) from club_invitaciones where email like 'jefa.%@prueba.com'),
+  'jefa.abierta@prueba.com:staff,jefa.cancelada@prueba.com:admin,jefa.vencida@prueba.com:admin');
 -- Una invitación vencida, armada en el SQL Editor (con la sesión de Beto: la
 -- invitó él).
+select pruebas.ser('beto@uno.com');
 insert into club_invitaciones (equipo_id, email, vence_en) values (:C1, 'tarde@uno.com', now() - interval '1 day');
 
 select pruebas.ser('eva@dos.com'); set role authenticated;
@@ -444,6 +460,11 @@ select pruebas.debe_fallar('...pero en el mismo club no se repite', $$insert int
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.debe_fallar('Un admin de club no cambia la zona horaria', $$update equipos set zona_horaria = 'Etc/GMT+12' where id = '00000000-0000-0000-0000-0000000000c1'$$, 'permission denied');
 select pruebas.esperar('...pero sí el nombre', pruebas.filas($$update equipos set nombre = 'Club Uno' where id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.debe_fallar('...aunque no el de otro club escrito de otra forma (tildes, mayúsculas, espacios)', $$update equipos set nombre = '  club   DÓS fc ' where id = '00000000-0000-0000-0000-0000000000c1'$$, 'nombre_repetido');
+select pruebas.debe_fallar('...ni uno vacío', $$update equipos set nombre = '   ' where id = '00000000-0000-0000-0000-0000000000c1'$$, 'nombre_invalido');
+select pruebas.debe_fallar('...ni uno de más de 60 letras', format('update equipos set nombre = %L where id = %L', repeat('a', 61), '00000000-0000-0000-0000-0000000000c1'), 'nombre_invalido');
+select pruebas.esperar('...y sí el suyo con otras mayúsculas', pruebas.filas($$update equipos set nombre = 'CLUB UNO' where id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('...y de vuelta', pruebas.filas($$update equipos set nombre = 'Club Uno' where id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
 reset role;
 
 select pruebas.debe_fallar('Una zona que no existe no entra', $$update equipos set zona_horaria = 'Hora/Mala' where id = '00000000-0000-0000-0000-0000000000c1'$$, 'zona_horaria_invalida');
@@ -865,7 +886,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,esta_autorizado,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,esta_autorizado,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'salir_del_club,traspasar_principal');
@@ -1231,6 +1252,121 @@ reset role;
 select pruebas.debe_fallar('Desde el SQL Editor con la sesión de Beto, tampoco se borra', $$delete from club_miembros where user_id = '00000000-0000-0000-0000-0000000000d1' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$, 'dueno_protegido');
 select set_config('request.jwt.claims', '', false);
 select pruebas.esperar('Sin sesión (el SQL Editor), sí', pruebas.filas($$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-0000000000d1' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+
+-- ---------------------------------------------- Sub-dueños protegidos --
+
+-- La sub-dueña trabaja como staff en Uno y en Atlético, donde el principal
+-- es administrador (por SQL). A ella tampoco la saca nadie, ni otro dueño.
+select set_config('request.jwt.claims', '', false);
+select id as atletico from equipos where nombre = 'Atlético Mineiro' \gset
+insert into club_miembros (equipo_id, user_id, rol, partido, flujo, lesiones) values
+  (:C1, '00000000-0000-0000-0000-0000000000d2', 'staff', true, false, false),
+  (:'atletico', '00000000-0000-0000-0000-0000000000d2', 'staff', true, false, false);
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.debe_fallar('Beto (admin de Uno) no le da de baja a la sub-dueña', $$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-0000000000d2'$$, 'dueno_protegido');
+select pruebas.debe_fallar('...ni le cambia los módulos', $$update club_miembros set lesiones = true where user_id = '00000000-0000-0000-0000-0000000000d2'$$, 'dueno_protegido');
+select pruebas.esperar('En la gente de Uno, la sub-dueña y el principal (aunque ya se fue) salen protegidos', (select string_agg(email, ',' order by email) from v_miembros_club where equipo_id = :C1 and protegido), 'duenio@prueba.com,subduenia@prueba.com');
+select pruebas.esperar('...y nadie más', (select bool_or(protegido)::text from v_miembros_club where equipo_id = :C1 and email not in ('duenio@prueba.com', 'subduenia@prueba.com')), 'false');
+reset role;
+select pruebas.debe_fallar('Con la sesión de Beto, por SQL, tampoco se borra su fila', $$delete from club_miembros where user_id = '00000000-0000-0000-0000-0000000000d2' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$, 'dueno_protegido');
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.debe_fallar('El principal (admin de Atlético) tampoco le da de baja', $$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-0000000000d2'$$, 'dueno_protegido');
+select pruebas.debe_fallar('...ni le cambia los módulos', $$update club_miembros set flujo = true where user_id = '00000000-0000-0000-0000-0000000000d2'$$, 'dueno_protegido');
+select pruebas.esperar('...y en Atlético también la ve protegida', (select protegido::text from v_miembros_club where user_id = '00000000-0000-0000-0000-0000000000d2'), 'true');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de Dos) no averigua si alguien de otro club es dueño',
+  (select public.miembro_protegido('00000000-0000-0000-0000-0000000000d2') || ',' || public.miembro_protegido('00000000-0000-0000-0000-0000000000d1')), 'false,false');
+select pruebas.esperar('...y en la gente de Dos nadie sale protegido', (select count(*) from v_miembros_club where equipo_id = :C2 and protegido), 0);
+reset role;
+select pruebas.ser('subduenia@prueba.com'); set role authenticated;
+select salir_del_club(:C1);
+select pruebas.esperar('Ella sí se va de Uno, con salir_del_club', (select hasta::text from v_mis_clubes where id = :C1), current_date::text);
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto la reincorpora (volver a entrar sí se puede)', pruebas.filas($$update club_miembros set hasta = null, desde = current_date where user_id = '00000000-0000-0000-0000-0000000000d2' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.debe_fallar('...y otra vez no la puede sacar', $$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-0000000000d2'$$, 'dueno_protegido');
+reset role;
+-- El principal le saca el lugar de sub-dueña: desde ahí es una más del club.
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select quitar_subdueno('00000000-0000-0000-0000-0000000000d2');
+select pruebas.esperar('Ya no sub-dueña, en Atlético no sale protegida', (select protegido::text from v_miembros_club where user_id = '00000000-0000-0000-0000-0000000000d2'), 'false');
+select pruebas.esperar('...y el principal le da de baja ahí', pruebas.filas($$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-0000000000d2'$$), 1);
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('En Uno, Beto la maneja como a cualquiera: le da Lesiones', pruebas.filas($$update club_miembros set lesiones = true where user_id = '00000000-0000-0000-0000-0000000000d2'$$), 1);
+select pruebas.esperar('...y le da de baja', pruebas.filas($$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-0000000000d2'$$), 1);
+reset role;
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('El principal la vuelve a sumar como sub-dueña', pruebas.filas($$select agregar_subdueno('subduenia@prueba.com')$$), 1);
+reset role;
+
+-- ---------------------------------- Pedidos a un club sin administrador --
+
+-- Un club nuevo, sin administrador: los pedidos a ese club van a los dueños,
+-- y la persona ve lo mismo que siempre. Su nombre y el de Atlético no chocan.
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select crear_club('Estudiantes de La Plata') as estudiantes \gset
+select pruebas.debe_fallar('Atlético escrito de otra forma no es otro club', $$select crear_club('ATLETICO   mineiro')$$, 'nombre_repetido');
+reset role;
+select set_config('request.jwt.claims', '', false);
+select pruebas.esperar('Ningún par de clubes se escribe igual', (select count(*) - count(distinct normalizar_nombre_club(nombre)) from equipos), 0);
+insert into auth.users (id, email, email_confirmed_at) values
+  ('00000000-0000-0000-0000-000000000027', 'pide4@prueba.com', now()),
+  ('00000000-0000-0000-0000-000000000028', 'pide5@prueba.com', now()),
+  ('00000000-0000-0000-0000-000000000029', 'jefe5@prueba.com', now());
+select pruebas.ser('pide4@prueba.com'); set role authenticated;
+select pedir_acceso('estudiantes de la plata', 'Argentina') as pedido4 \gset
+select pruebas.esperar('pide4 pide un club que está pero no tiene administrador, y ve lo mismo que siempre', (select club_escrito || '|' || estado from mis_pedidos()), 'estudiantes de la plata|abierto');
+reset role;
+select pruebas.esperar('...su pedido no queda en ese club', (select coalesce(equipo_id::text, 'ninguno') from club_pedidos where id = :'pedido4'), 'ninguno');
+select pruebas.ser('subduenia@prueba.com'); set role authenticated;
+select pruebas.esperar('Lo ven los dueños', (select count(*) from pedidos_sin_club() where id = :'pedido4'), 1);
+select pruebas.debe_fallar('...y no lo mandan a un club sin administrador', format('select derivar_pedido(%L, %L)', :'pedido4', :'estudiantes'), 'club_sin_admin');
+select pruebas.esperar('...que sigue en el panel', (select count(*) from pedidos_sin_club() where id = :'pedido4'), 1);
+reset role;
+-- Estudiantes tiene administrador (por SQL): el pedido de antes sigue en el
+-- panel hasta que los dueños lo manden.
+select set_config('request.jwt.claims', '', false);
+update perfiles set estado = 'autorizado' where email = 'jefe5@prueba.com';
+insert into club_miembros (equipo_id, user_id, rol, partido, flujo, lesiones)
+values (:'estudiantes', '00000000-0000-0000-0000-000000000029', 'admin', true, false, false);
+select pruebas.ser('jefe5@prueba.com'); set role authenticated;
+select pruebas.esperar('El administrador nuevo no lo ve entre los pedidos de su club', (select count(*) from pedidos_del_club(:'estudiantes')), 0);
+reset role;
+select pruebas.ser('subduenia@prueba.com'); set role authenticated;
+select derivar_pedido(:'pedido4', :'estudiantes');
+select pruebas.esperar('Los dueños lo mandan a Estudiantes y sale del panel', (select count(*) from pedidos_sin_club() where id = :'pedido4'), 0);
+reset role;
+select pruebas.ser('pide5@prueba.com'); set role authenticated;
+select pedir_acceso('Estudiantes de La Plata') as pedido5 \gset
+reset role;
+select pruebas.ser('jefe5@prueba.com'); set role authenticated;
+select pruebas.esperar('Ahora sí los ve el administrador de Estudiantes: el mandado y el nuevo', (select string_agg(email, ',' order by email) from pedidos_del_club(:'estudiantes')), 'pide4@prueba.com,pide5@prueba.com');
+reset role;
+-- Estudiantes se queda sin administrador (su cuenta se bloquea por SQL): sus
+-- pedidos abiertos vuelven al panel.
+select set_config('request.jwt.claims', '', false);
+update perfiles set estado = 'bloqueado' where email = 'jefe5@prueba.com';
+select pruebas.ser('subduenia@prueba.com'); set role authenticated;
+select pruebas.esperar('Los pedidos de un club que se quedó sin administrador se ven en el panel', (select string_agg(email, ',' order by email) from pedidos_sin_club()), 'pide4@prueba.com,pide5@prueba.com');
+select pruebas.debe_fallar('...no van a otro club sin administrador', format('select derivar_pedido(%L, %L)', :'pedido5', :'club_cuatro'), 'club_sin_admin');
+select pruebas.debe_fallar('...ni de vuelta al suyo', format('select derivar_pedido(%L, %L)', :'pedido5', :'estudiantes'), 'club_sin_admin');
+select derivar_pedido(:'pedido5', :C2);
+select rechazar_pedido_sin_club(:'pedido4');
+select pruebas.esperar('...uno va a Dos y el otro se rechaza', (select count(*) from pedidos_sin_club()), 0);
+select pruebas.debe_fallar('Un pedido de un club con administrador no se toca desde el panel', format('select rechazar_pedido_sin_club(%L)', :'pedido5'), 'pedido_cerrado');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (admin de Dos) lo ve', (select string_agg(email, ',') from pedidos_del_club(:C2)), 'pide5@prueba.com');
+reset role;
+select pruebas.ser('pide4@prueba.com'); set role authenticated;
+select pruebas.esperar('pide4 lo ve rechazado, como cualquier rechazo', (select estado from mis_pedidos()), 'rechazado');
+reset role;
+select pruebas.ser('pide5@prueba.com'); set role authenticated;
+select pruebas.esperar('...y pide5, esperando como siempre', (select estado from mis_pedidos()), 'abierto');
+reset role;
+select pruebas.esperar('En los movimientos queda de qué club venía', (select detalle ->> 'club_antes' from plataforma_historial where accion = 'derivar_pedido' and email = 'pide5@prueba.com'), :'estudiantes');
 
 -- ------------------------------------------------------------- Notas --
 

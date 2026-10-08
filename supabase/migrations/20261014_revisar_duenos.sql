@@ -8,6 +8,7 @@
 --     tener el correo confirmado; el principal, uno de los que hoy tienen
 --     admin = true);
 --   · el nombre exacto del club del token de Catapult;
+--   · si hay clubes que se escriben igual (la migración se frenaría);
 --   · si algo aparece en las últimas consultas (permisos de anon, TRUNCATE
 --     de authenticated, tablas sin RLS, vistas sin security_invoker,
 --     funciones que no son del repositorio): la migración se frenaría.
@@ -22,6 +23,19 @@ select p.email, p.estado, p.admin, p.confirmado_en, p.creado_en
 select e.nombre, e.zona_horaria, e.creado_en
   from public.equipos e
  order by e.nombre;
+
+-- Clubes que se escriben igual sin contar tildes, mayúsculas ni espacios de
+-- más (la misma cuenta que normalizar_nombre_club, que antes de la migración
+-- no existe). Tiene que quedar vacío: si no, la migración se frena hasta
+-- que se le cambie el nombre a uno.
+select string_agg(e.nombre, ' = ' order by e.nombre) as clubes_que_se_escriben_igual
+  from public.equipos e
+ group by btrim(regexp_replace(
+            lower(translate(e.nombre,
+                            'áàâãäåéèêëíìîïóòôõöúùûüýÿñçÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÝŸÑÇ',
+                            'aaaaaaeeeeiiiiooooouuuuyyncAAAAAAEEEEIIIIOOOOOUUUUYYNC')),
+            '\s+', ' ', 'g'))
+having count(*) > 1;
 
 -- Quién está o estuvo en cada club, con su rol y sus módulos.
 select e.nombre as club, p.email, p.estado as cuenta, m.rol, m.desde, m.hasta,
@@ -56,7 +70,9 @@ select e.nombre as club, p.email, m.rol, m.hasta
                       and h.quien is not null and h.quien <> m.user_id)
  order by e.nombre, p.email;
 
--- Las invitaciones abiertas (sin usar ni cancelar).
+-- Las invitaciones abiertas (sin usar ni cancelar). Las que no vencieron y
+-- dicen rol = 'admin' pasan a staff con la migración (un administrador
+-- invita solo como staff).
 select e.nombre as club, i.email, i.rol, i.creado_en, i.vence_en, i.vence_en < now() as vencida
   from public.club_invitaciones i
   join public.equipos e on e.id = i.equipo_id
@@ -108,12 +124,13 @@ select p.oid::regprocedure as funcion, pg_get_userbyid(p.proowner) as duena
    and p.proname not in (
      'acceso_club', 'aceptar_pedido', 'agregar_subdueno', 'anotar_version', 'aplicar_invitaciones',
      'asignar_entidad', 'cancelar_pedido', 'club_invitaciones_aplicar', 'club_invitaciones_preparar',
-     'club_miembros_anotar', 'club_miembros_historial_anotar', 'club_miembros_proteger_principal',
-     'club_miembros_ultimo_admin', 'crear_club', 'datos_al_dia', 'derivar_pedido', 'equipos_sumar_creador',
-     'equipos_validar_zona', 'es_admin', 'es_admin_de_club', 'es_dueno', 'es_dueno_principal', 'esta_autorizado',
-     'evaluaciones_preparar', 'fecha_segura', 'lesiones_etiqueta', 'lesiones_historial_anotar',
-     'lesiones_horas_imagen', 'lesiones_numerar_caso', 'lesiones_preparar', 'mi_cuenta', 'mis_pedidos',
-     'normalizar_nombre_club', 'panel_clubes', 'panel_duenos', 'panel_historial', 'pedidos_del_club',
+     'club_miembros_anotar', 'club_miembros_historial_anotar', 'club_miembros_proteger_duenos',
+     'club_miembros_ultimo_admin', 'club_tiene_admin', 'crear_club', 'datos_al_dia', 'derivar_pedido',
+     'equipos_nombre_sin_repetir', 'equipos_sumar_creador', 'equipos_validar_zona', 'es_admin', 'es_admin_de_club',
+     'es_dueno', 'es_dueno_principal', 'esta_autorizado', 'evaluaciones_preparar', 'fecha_segura',
+     'lesiones_etiqueta', 'lesiones_historial_anotar', 'lesiones_horas_imagen', 'lesiones_numerar_caso',
+     'lesiones_preparar', 'mi_cuenta', 'miembro_protegido', 'mis_pedidos', 'normalizar_nombre_club',
+     'notas_preparar', 'panel_clubes', 'panel_duenos', 'panel_historial', 'pedidos_del_club',
      'pedidos_sin_club', 'pedir_acceso', 'perfiles_alta_usuario', 'perfiles_anotar_decision',
      'perfiles_proteger_principal', 'perfiles_sincronizar_usuario', 'plataforma_anotar', 'plataforma_cuidar',
      'puede_editar', 'puede_usar', 'puede_usar_catapult_servidor', 'puede_usar_en', 'puede_ver',
