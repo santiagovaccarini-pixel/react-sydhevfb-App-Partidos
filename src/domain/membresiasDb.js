@@ -116,7 +116,14 @@ export const historialDeMiembro = async (equipoId, userId) => {
 
 // ------------------------------------------------------- Invitaciones --
 
-export const correoValido = (correo) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(correo || "").trim());
+// Un correo que puede existir: sin espacios; antes de la @, sin punto al
+// principio, al final ni dos seguidos; el dominio, con partes que no empiezan
+// ni terminan en guion y que termina en letras (.ar, .com.br, .museum). Así no
+// pasa "nombre@club.com." (el punto del mensaje pegado al copiar).
+const FORMA_DE_CORREO =
+  /^[\w!#$%&'*+\/=?^`{|}~-]+(?:\.[\w!#$%&'*+\/=?^`{|}~-]+)*@(?:[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?\.)+[a-z]{2,63}$/i;
+
+export const correoValido = (correo) => FORMA_DE_CORREO.test(String(correo || "").trim());
 
 // Una invitación abierta que ya venció: no sirve para entrar (la base solo
 // aplica las vigentes), pero hasta que se cancela sigue ocupando el correo.
