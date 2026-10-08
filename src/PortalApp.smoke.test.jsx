@@ -58,11 +58,16 @@ vi.mock("./ClubesDeLaApp.jsx", () => ({
   ),
 }));
 // El pedido de acceso (para quien no está en ningún club): sin pedidos todavía.
+// Salir del club, como la base: ese club queda con hoy como último día.
 vi.mock("./domain/pedidosDb.js", () => ({
   misPedidos: async () => [],
   pedidoAbierto: () => null,
   pedirAcceso: async () => "p1",
   cancelarPedido: async () => true,
+  salirDelClub: async (equipoId) => {
+    equipo.lista = equipo.lista.map((uno) => (uno.id === equipoId ? { ...uno, hasta: "2026-10-08" } : uno));
+    return true;
+  },
 }));
 vi.mock("./domain/perfilesDb.js", async () => {
   const real = await vi.importActual("./domain/perfilesDb.js");
@@ -201,6 +206,33 @@ describe("el portal", () => {
     // Desde el portal se puede volver a elegir.
     await act(async () => contenedor.querySelector(".portal-cambiar-club").click());
     expect(contenedor.querySelector("h1").textContent).toBe("¿Con qué club trabajás?");
+  });
+
+  test("desde Cambiar se sale del club elegido: el portal lo relee y queda en solo lectura hasta hoy", async () => {
+    equipo.actual = { id: "eq-1", nombre: "Club Uno", rol: "staff", partido: true, flujo: true, hasta: null, miembro: true };
+    equipo.lista = [{ ...equipo.actual }, { id: "eq-2", nombre: "Club Dos", rol: "staff", partido: true, hasta: null, miembro: true }];
+    await montar();
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".portal-club-hasta")).toBeNull();
+
+    await act(async () => contenedor.querySelector(".portal-cambiar-club").click());
+    await act(async () => Promise.resolve());
+    const boton = (etiqueta) => [...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === etiqueta);
+    // Solo del club elegido, y no en el portal.
+    expect(boton("Salir de Club Dos")).toBeUndefined();
+    await act(async () => boton("Salir de Club Uno").click());
+    await act(async () => boton("Sí, salir").click());
+    await act(async () => Promise.resolve());
+    await act(async () => Promise.resolve());
+    // El portal releyó su club: el celular ya lo guarda con el último día.
+    expect(equipo.actual).toMatchObject({ id: "eq-1", hasta: "2026-10-08" });
+    expect(contenedor.textContent).toContain("Saliste de Club Uno.");
+
+    // Lo elige de nuevo y lo ve en solo lectura, como cualquiera que se fue.
+    const uno = [...contenedor.querySelectorAll(".elegir-club-opcion")].find((b) => b.textContent.includes("Club Uno"));
+    await act(async () => uno.click());
+    expect(contenedor.querySelector(".portal-club-hasta").textContent).toBe("Hasta el 08/10/2026 · solo lectura");
+    expect(contenedor.querySelector('button[aria-label="Entrar a Notas"]')).toBeNull();
   });
 
   test("al tocar Partido muestra la portada con su foto y entra sin la intro", async () => {

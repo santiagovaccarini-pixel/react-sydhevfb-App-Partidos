@@ -452,6 +452,7 @@ export default {
     soloLecturaTitulo: "Você saiu deste clube em {{fecha}}.",
     soloLecturaTexto: "Você vê o que foi registrado até esse dia. Não dá para adicionar nem alterar nada.",
     soloLecturaCambio: "Somente leitura: você saiu deste clube.",
+    salirDe: "Sair de {{club}}",
   },
   partido: {
     reanudarTitulo: "Retomar o {{periodo}}?",

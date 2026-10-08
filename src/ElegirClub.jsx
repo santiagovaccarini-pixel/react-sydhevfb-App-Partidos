@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { PantallaAcceso } from "./AccessGate.jsx";
 import PedidoAcceso from "./PedidoAcceso.jsx";
 import { cargarEquipos, guardarEquipoElegido } from "./domain/equipo.js";
+import { salirDelClub } from "./domain/pedidosDb.js";
 import { EscudoDeClub } from "./components/ClubCrest";
+import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
 
@@ -12,11 +14,28 @@ import { fechaCorta } from "./idioma/formatos.js";
 // ninguno pide acceso al suyo y espera (como en la puerta). Los clubes se
 // crean desde Clubes de la app, que es de los dueños: ahí no se entra a
 // ningún club.
-export default function ElegirClub({ onElegir, onSalir, esDueno = false, email = "", onClubesDeLaApp = null }) {
+// Abajo de todo, quien sigue activo en el club elegido (`club`) puede irse:
+// es el único lugar de la app para salir de un club, igual para todos (también
+// para los dueños, a los que nadie más puede sacar). Después avisa con
+// `onSalioDelClub` para que el portal relea ese club.
+export default function ElegirClub({
+  onElegir,
+  onSalir,
+  esDueno = false,
+  email = "",
+  onClubesDeLaApp = null,
+  club = null,
+  onSalioDelClub = null,
+}) {
   useIdioma();
   const [equipos, setEquipos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  // Salir del club elegido: la hoja de confirmar, mientras se sale y cómo
+  // salió ({ ok, clave, datos }).
+  const [aSalir, setASalir] = useState(false);
+  const [saliendo, setSaliendo] = useState(false);
+  const [avisoSalida, setAvisoSalida] = useState(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -42,6 +61,32 @@ export default function ElegirClub({ onElegir, onSalir, esDueno = false, email =
   const activos = visibles.filter((equipo) => !equipo.hasta);
   const sinClubActivo = !cargando && !error && activos.length === 0;
 
+  // El club elegido como lo dice la base ahora: si la cuenta sigue activa en
+  // él, se puede ir.
+  const elegido = club?.id ? visibles.find((equipo) => equipo.id === club.id) || null : null;
+  const puedeSalir = !cargando && Boolean(elegido) && !elegido.hasta;
+
+  // Irse del club elegido (último día: hoy). Se vuelve a leer la lista y el
+  // portal relee su club: queda en solo lectura hasta hoy, como cualquiera que
+  // se fue. Si no se pudo (el único admin, ya no está, sin señal), lo dice.
+  const confirmarSalida = async () => {
+    setASalir(false);
+    if (!elegido) return;
+    const { id, nombre } = elegido;
+    setSaliendo(true);
+    setAvisoSalida(null);
+    try {
+      await salirDelClub(id);
+      setAvisoSalida({ ok: true, clave: "pedidos.saliste", datos: { club: nombre } });
+      await cargar();
+      onSalioDelClub?.();
+    } catch (errorSalir) {
+      setAvisoSalida({ ok: false, clave: errorSalir?.message || "pedidos.error.generico", datos: {} });
+    } finally {
+      setSaliendo(false);
+    }
+  };
+
   // Para los dueños, la entrada al panel (también sin ningún club).
   const alPanel = esDueno && onClubesDeLaApp && (
     <div className="elegir-club-panel">
@@ -62,42 +107,74 @@ export default function ElegirClub({ onElegir, onSalir, esDueno = false, email =
   }
 
   return (
-    <PantallaAcceso titulo={t("club.titulo")} texto={t("club.texto")} onVolver={onSalir} etiquetaVolver={t("comun.salir")}>
-      {error && (
-        <div className="training-access-message error">
-          {error}{" "}
-          <button type="button" className="training-access-enlace" onClick={cargar}>
-            {t("comun.reintentar")}
-          </button>
-        </div>
-      )}
-      {cargando ? (
-        <p className="elegir-club-estado">{t("club.cargando")}</p>
-      ) : (
-        <ul className="elegir-club-lista">
-          {visibles.map((equipo) => (
-            <li key={equipo.id}>
-              <button
-                type="button"
-                className={`elegir-club-opcion ${equipo.hasta ? "solo-lectura" : ""}`.trim()}
-                onClick={() => elegir(equipo)}
-              >
-                <EscudoDeClub equipo="cam" nombre={equipo.nombre} compacto />
-                <span className="elegir-club-texto">
-                  <span className="elegir-club-nombre">{equipo.nombre}</span>
-                  {equipo.hasta && <small className="elegir-club-detalle">{t("club.hasta", { fecha: fechaCorta(equipo.hasta) })}</small>}
-                </span>
-                <b aria-hidden="true">›</b>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+    <>
+      <PantallaAcceso titulo={t("club.titulo")} texto={t("club.texto")} onVolver={onSalir} etiquetaVolver={t("comun.salir")}>
+        {error && (
+          <div className="training-access-message error">
+            {error}{" "}
+            <button type="button" className="training-access-enlace" onClick={cargar}>
+              {t("comun.reintentar")}
+            </button>
+          </div>
+        )}
+        {cargando ? (
+          <p className="elegir-club-estado">{t("club.cargando")}</p>
+        ) : (
+          <ul className="elegir-club-lista">
+            {visibles.map((equipo) => (
+              <li key={equipo.id}>
+                <button
+                  type="button"
+                  className={`elegir-club-opcion ${equipo.hasta ? "solo-lectura" : ""}`.trim()}
+                  onClick={() => elegir(equipo)}
+                >
+                  <EscudoDeClub equipo="cam" nombre={equipo.nombre} compacto />
+                  <span className="elegir-club-texto">
+                    <span className="elegir-club-nombre">{equipo.nombre}</span>
+                    {equipo.hasta && <small className="elegir-club-detalle">{t("club.hasta", { fecha: fechaCorta(equipo.hasta) })}</small>}
+                  </span>
+                  <b aria-hidden="true">›</b>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {/* Solo clubes de los que se fue: los sigue mirando y, abajo, pide entrar a otro. */}
-      {sinClubActivo && <PedidoAcceso correo={email} enPantalla={false} onComprobar={cargar} textoSinPedidos={t("club.vacio", { correo: email })} />}
+        {/* Solo clubes de los que se fue: los sigue mirando y, abajo, pide entrar a otro. */}
+        {sinClubActivo && <PedidoAcceso correo={email} enPantalla={false} onComprobar={cargar} textoSinPedidos={t("club.vacio", { correo: email })} />}
 
-      {alPanel}
-    </PantallaAcceso>
+        {alPanel}
+
+        {/* Salir del club elegido: abajo de todo y como enlace, para no competir con elegir. */}
+        {(puedeSalir || avisoSalida) && (
+          <div className="elegir-club-salir">
+            {avisoSalida && (
+              <div className={`training-access-message ${avisoSalida.ok ? "ok" : "error"}`} role="status">
+                {t(avisoSalida.clave, avisoSalida.datos)}
+              </div>
+            )}
+            {puedeSalir && (
+              <div className="training-access-enlaces">
+                <button type="button" className="training-access-enlace" disabled={saliendo} onClick={() => setASalir(true)}>
+                  {saliendo ? t("comun.saliendo") : t("club.salirDe", { club: elegido.nombre })}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </PantallaAcceso>
+
+      {/* Fuera de la tarjeta: su fondo borroso encerraría la hoja. */}
+      <HojaConfirmar
+        abierta={aSalir}
+        icono="salir"
+        titulo={t("pedidos.salirTitulo", { club: elegido?.nombre || "" })}
+        descripcion={t("pedidos.salirTexto")}
+        etiquetaConfirmar={t("pedidos.siSalir")}
+        etiquetaCancelar={t("comun.cancelar")}
+        onConfirmar={confirmarSalida}
+        onCancelar={() => setASalir(false)}
+      />
+    </>
   );
 }

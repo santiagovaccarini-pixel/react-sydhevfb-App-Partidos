@@ -453,6 +453,7 @@ export default {
     soloLecturaTitulo: "Dejaste este club el {{fecha}}.",
     soloLecturaTexto: "Ves lo cargado hasta ese día. No se puede agregar ni cambiar nada.",
     soloLecturaCambio: "Solo lectura: dejaste este club.",
+    salirDe: "Salir de {{club}}",
   },
   // Textos nuevos del módulo Partido (App.js). El resto de esa pantalla
   // todavía está escrito en castellano directamente en el código.

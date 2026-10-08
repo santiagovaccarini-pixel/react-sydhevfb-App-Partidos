@@ -239,10 +239,14 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     // Antes que elegir club: un dueño sin club llega igual.
     contenido = <ClubesDeLaApp miUserId={userId} esPrincipal={permisos.dueno === "principal"} onVolver={volver} />;
   } else if (!club || eligiendoClub) {
+    // Desde Cambiar, abajo se puede salir del club elegido (para todos igual);
+    // después se relee ese club, que queda en solo lectura hasta hoy.
     contenido = (
       <ElegirClub
         esDueno={Boolean(permisos?.esDueno)}
         email={email}
+        club={club}
+        onSalioDelClub={releerClub}
         onClubesDeLaApp={() => setModo(MODOS.CLUBES)}
         onElegir={(elegido) => {
           setClub(elegido);
