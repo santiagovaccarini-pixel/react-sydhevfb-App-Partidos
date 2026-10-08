@@ -40,6 +40,7 @@ const {
   cambiarModulo,
   cancelarInvitacion,
   claveDeError,
+  correoValido,
   darDeBaja,
   estadoDeMembresia,
   invitacionVencida,
@@ -152,7 +153,45 @@ describe("la membresía de una cuenta en un club", () => {
 describe("las invitaciones", () => {
   it("un correo mal escrito ni llega a la base", async () => {
     await expect(invitar("c1", { email: "cualquiera" })).rejects.toThrow("cuentas.errorCorreo");
+    await expect(invitar("c1", { email: "nuevo@prueba.com." })).rejects.toThrow("cuentas.errorCorreo");
     expect(base.pedidos).toHaveLength(0);
+  });
+
+  it("acepta los correos que existen y rechaza los que nunca pueden llegar", () => {
+    const buenos = [
+      "nombre@prueba.com",
+      " nombre@prueba.com ",
+      "Nombre.Apellido@Prueba.COM",
+      "nombre+club@prueba.com",
+      "nombre_2@correo.prueba.com.ar",
+      "a-b@mi-club.prueba.com.br",
+      "123@456.museum",
+      "nombre@club.xn--p1ai",
+      "nombre@xn--80ak6aa92e.xn--p1ai",
+    ];
+    const malos = [
+      "",
+      "cualquiera",
+      "nombre@prueba.com.",
+      ".nombre@prueba.com",
+      "nombre.@prueba.com",
+      "nom..bre@prueba.com",
+      "nombre@prueba..com",
+      "nombre@.prueba.com",
+      "nombre@prueba",
+      "nombre@-prueba.com",
+      "nombre@prueba-.com",
+      "nombre@prueba.c",
+      "nombre@prueba.c0m",
+      "nombre@prueba.xn--",
+      "nombre@prueba.xn--p1ai-",
+      "nom bre@prueba.com",
+      "nombre@pru eba.com",
+      "nombre@@prueba.com",
+      "nombre@prueba.com, otro@prueba.com",
+    ];
+    for (const correo of buenos) expect(correoValido(correo), correo).toBe(true);
+    for (const correo of malos) expect(correoValido(correo), correo).toBe(false);
   });
 
   it("invita con el correo limpio, siempre como staff, y dice si la cuenta entró en el acto", async () => {

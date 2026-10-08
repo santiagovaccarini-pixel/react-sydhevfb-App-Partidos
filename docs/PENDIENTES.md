@@ -963,6 +963,21 @@ Lo que sigue de abajo es la propuesta del 02/10; lo que difiere del paso 2 vale 
 allá (por ejemplo, rechazado se puede volver a pedir, y el club se escribe hasta que esté
 el catálogo).
 
+- Desde el 08/10, en el mensaje que se copia el enlace y el correo van solos en su
+  renglón (antes el punto final se pegaba al correo al copiarlo y la persona no podía
+  crear la cuenta con ese correo). Invitar y Crear una cuenta rechazan un correo que no
+  puede existir (punto al final, dos puntos seguidos, espacios). La base todavía acepta lo
+  que pasaba antes. La app no manda ningún correo de invitación: el mensaje lo manda el
+  administrador.
+- **Pendiente urgente (08/10, lo encontró Santiago al invitar):** en producción "Confirm
+  email" de Supabase está apagado (`/auth/v1/settings` dice `mailer_autoconfirm: true`).
+  Así, quien sepa un correo invitado crea la cuenta con ese correo, sin abrir el buzón, y
+  entra al club con los módulos de la invitación; también puede registrar antes el correo
+  de alguien que todavía no fue invitado. El arreglo es de configuración: primero un SMTP
+  propio (el correo que trae Supabase solo les llega a los miembros del equipo del
+  proyecto), después prender "Confirm email" (ver README). Hasta entonces no se publica
+  el paso 2 de cuentas (pedidos de acceso, sub-dueños y entidades confían en el correo).
+
 Lo que hay que sumar (propuesta del 02/10):
 - Pedido de acceso por club (tabla de solicitudes): solo con el correo confirmado, uno a
   la vez por cuenta. Lo acepta o rechaza cualquier admin activo del club, eligiendo

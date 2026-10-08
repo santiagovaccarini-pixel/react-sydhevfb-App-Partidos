@@ -12,6 +12,7 @@ import {
 } from "./domain/perfilesDb.js";
 import { leerMiCuenta } from "./domain/plataformaDb.js";
 import { limpiarAlSalir } from "./domain/copiasLocales.js";
+import { correoValido } from "./domain/membresiasDb.js";
 import { RUTA_SESION_OPENFIELD } from "./trainingApi.js";
 import PedidoAcceso from "./PedidoAcceso.jsx";
 
@@ -463,6 +464,11 @@ export default function AccessGate({ children }) {
       const correo = email.trim();
       if (!correo || !password) {
         throw new Error(t("acceso.error.completar"));
+      }
+      // Con un correo que no puede existir (el punto del mensaje de invitación
+      // pegado al final, por ejemplo) no se crea la cuenta: nunca le llegaría nada.
+      if (!correoValido(correo)) {
+        throw new Error(t("acceso.error.correoInvalido"));
       }
 
       const { data, error: errorRegistro } = await supabase.auth.signUp({
