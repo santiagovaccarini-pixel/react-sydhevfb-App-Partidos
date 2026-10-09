@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const base = vi.hoisted(() => ({ pedidos: [], responder: () => ({ data: [], error: null }) }));
 vi.mock("../supabase.js", () => ({
   supabase: {
+    auth: { getSession: async () => ({ data: { session: { access_token: "tok-admin" } } }) },
     from: (tabla) => {
       const pedido = { tabla, op: "select", filtros: [], datos: null };
       base.pedidos.push(pedido);
@@ -43,6 +44,7 @@ const {
   claveDeError,
   correoValido,
   darDeBaja,
+  enviarInvitacionPorMail,
   estadoDeMembresia,
   invitacionVencida,
   invitar,
@@ -183,10 +185,11 @@ describe("las invitaciones", () => {
       op: "insert",
       datos: { equipo_id: "c1", email: "nuevo@club.com", rol: "admin", partido: false, flujo: false, lesiones: true },
     });
-    expect(resultado).toEqual({ usada: true });
+    expect(resultado).toEqual({ usada: true, id: "i1" });
 
     base.responder = (pedido) => (pedido.op === "insert" ? { data: null, error: null } : { data: [{ id: "i2", usada_en: null }], error: null });
-    expect(await invitar("c1", { email: "otro@club.com" })).toEqual({ usada: false });
+    // Vuelve el id de la invitación nueva, para mandarle el mail.
+    expect(await invitar("c1", { email: "otro@club.com" })).toEqual({ usada: false, id: "i2" });
   });
 
   it("una invitación vencida no sirve, y a ese correo se lo puede volver a invitar", async () => {
@@ -208,7 +211,7 @@ describe("las invitaciones", () => {
       if (pedido.filtros.some(([, columna]) => columna === "cancelada_en")) return { data: [{ id: "vieja", vence_en: ayer }], error: null };
       return { data: [{ id: "nueva", usada_en: null }], error: null };
     };
-    expect(await invitar("c1", { email: "tarde@club.com" })).toEqual({ usada: false });
+    expect(await invitar("c1", { email: "tarde@club.com" })).toEqual({ usada: false, id: "nueva" });
     expect(base.pedidos.map((pedido) => pedido.op)).toEqual(["insert", "select", "update", "insert", "select"]);
     expect(base.pedidos[1].filtros).toEqual(expect.arrayContaining([["eq", "email", "tarde@club.com"], ["is", "usada_en", null], ["is", "cancelada_en", null]]));
     expect(base.pedidos[2]).toMatchObject({ op: "update", datos: { cancelada_en: expect.any(String) }, filtros: [["eq", "id", "vieja"]] });
@@ -220,6 +223,43 @@ describe("las invitaciones", () => {
       pedido.op === "insert" ? { data: null, error: { code: "23505", message: "duplicate key value" } } : { data: [{ id: "vigente", vence_en: manana }], error: null };
     await expect(invitar("c1", { email: "tarde@club.com" })).rejects.toThrow("cuentas.errorInvitacionRepetida");
     expect(base.pedidos.some((pedido) => pedido.op === "update")).toBe(false);
+  });
+
+  it("el mail de la invitación lo manda el servidor, con la sesión de quien invita, y dice qué pasó", async () => {
+    const contestar = (status, cuerpo) => vi.fn(async () => ({ ok: status < 400, status, json: async () => cuerpo }));
+    try {
+      vi.stubGlobal("fetch", contestar(200, { ok: true, enviado: true }));
+      expect(await enviarInvitacionPorMail("i1", "pt-BR")).toBe("cuentas.mail.enviado");
+      const [ruta, pedido] = fetch.mock.calls[0];
+      expect(ruta).toBe("/api/invitar");
+      expect(pedido.method).toBe("POST");
+      expect(pedido.headers.Authorization).toBe("Bearer tok-admin");
+      // Solo la invitación y el idioma: a quién se le escribe lo decide el servidor.
+      expect(JSON.parse(pedido.body)).toEqual({ invitacion: "i1", idioma: "pt-BR" });
+
+      const casos = [
+        [200, { ok: true, enviado: false, yaTieneCuenta: true }, "cuentas.mail.yaTieneCuenta"],
+        [409, { ok: false, code: "CONFIRMACION_APAGADA" }, "cuentas.mail.confirmacionApagada"],
+        [429, { ok: false, code: "LIMITE_DE_MAILS" }, "cuentas.mail.limite"],
+        [409, { ok: false, code: "INVITACION_VENCIDA" }, "cuentas.mail.vencida"],
+        [409, { ok: false, code: "INVITACION_USADA" }, "cuentas.mail.cerrada"],
+        [409, { ok: false, code: "INVITACION_CANCELADA" }, "cuentas.mail.cerrada"],
+        [503, { ok: false, code: "SIN_CLAVE_SERVIDOR" }, "cuentas.mail.noSalio"],
+        [502, { ok: false, code: "ENVIO_FALLIDO" }, "cuentas.mail.noSalio"],
+        [404, { ok: false, code: "NO_ENCONTRADA" }, "cuentas.mail.noSalio"],
+        [500, null, "cuentas.mail.noSalio"],
+      ];
+      for (const [status, cuerpo, clave] of casos) {
+        vi.stubGlobal("fetch", contestar(status, cuerpo));
+        expect(await enviarInvitacionPorMail("i1", "es-AR"), JSON.stringify(cuerpo)).toBe(clave);
+      }
+
+      // Sin señal: no salió.
+      vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+      expect(await enviarInvitacionPorMail("i1", "es-AR")).toBe("cuentas.mail.noSalio");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("una invitación repetida o sin permiso se explica", async () => {

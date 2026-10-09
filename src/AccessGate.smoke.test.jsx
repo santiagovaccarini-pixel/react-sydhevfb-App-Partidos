@@ -1,5 +1,6 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
+import { AuthApiError, AuthClient, AuthRetryableFetchError } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import AccessGate from "./AccessGate.jsx";
 import { CLAVE_PERFIL_LOCAL } from "./domain/perfilesDb.js";
@@ -10,6 +11,9 @@ import { fijarIdiomaParaPruebas } from "./idioma/index.js";
 const supa = vi.hoisted(() => ({
   sesion: null,
   errorSesion: null,
+  // Lo que contestó supabase-js al leer el enlace del correo al abrirse
+  // (initialize): sin señal, un error y ninguna sesión.
+  errorInicio: null,
   perfil: null,
   errorPerfil: null,
   signInWithPassword: null,
@@ -36,6 +40,7 @@ vi.mock("./supabase.js", () => ({
   supabase: {
     auth: {
       getSession: () => (supa.colgarSesion ? nunca() : Promise.resolve({ data: { session: supa.sesion }, error: supa.errorSesion })),
+      initialize: () => Promise.resolve({ error: supa.errorInicio }),
       onAuthStateChange: (cb) => {
         supa.cambios.push(cb);
         return { data: { subscription: { unsubscribe() {} } } };
@@ -61,6 +66,31 @@ vi.mock("./supabase.js", () => ({
 }));
 
 const SESION = { access_token: "tok", user: { id: "u1", email: "dt@club.com" } };
+
+// El error tal como lo arma supabase-js (el de verdad) ante lo que contesta
+// Supabase, o ante un pedido que no llega (`respuesta` es un Error).
+const errorDeSupabase = async (accion, respuesta) => {
+  const cliente = new AuthClient({
+    url: "https://proyecto.supabase.co/auth/v1",
+    headers: { apikey: "sb_publishable_prueba" },
+    fetch: async () => {
+      if (respuesta instanceof Error) throw respuesta;
+      return respuesta;
+    },
+    storageKey: `prueba-${Math.random()}`,
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  });
+  const { error } =
+    accion === "signUp"
+      ? await cliente.signUp({ email: "dt@club.com", password: "secreta123" })
+      : await cliente.resetPasswordForEmail("dt@club.com");
+  return error;
+};
+
+const respuestaJson = (status, cuerpo) =>
+  new Response(JSON.stringify(cuerpo), { status, headers: { "Content-Type": "application/json" } });
 const AUTORIZADO = { user_id: "u1", email: "dt@club.com", estado: "autorizado", partido: true, flujo: false, admin: false, confirmado_en: "2026-09-01" };
 
 describe("la puerta de la app", () => {
@@ -70,6 +100,7 @@ describe("la puerta de la app", () => {
   beforeEach(() => {
     supa.sesion = null;
     supa.errorSesion = null;
+    supa.errorInicio = null;
     supa.perfil = null;
     supa.errorPerfil = null;
     supa.consultas = [];
@@ -320,6 +351,99 @@ describe("la puerta de la app", () => {
     expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
       "Revisá el correo: así no es válido. Fijate que no termine en punto ni tenga espacios.",
     );
+  });
+
+  const pedirMail = async (accion, etiqueta = accion === "signUp" ? "Crear una cuenta" : "Olvidé mi contraseña") => {
+    await escribir(contenedor.querySelector('input[type="email"]'), "dt@club.com");
+    await escribir(contenedor.querySelector('input[type="password"]'), "secreta123");
+    await act(async () => boton(etiqueta).click());
+    return contenedor.querySelector(".training-access-message.error")?.textContent;
+  };
+
+  test("si Supabase contesta con un error suyo (5xx) al mandar el mail, lo dice: no es falta de señal", async () => {
+    // Por ejemplo, falló el SMTP: Supabase contesta 500 y supabase-js lo marca
+    // como reintentable, igual que la falta de señal.
+    const casos = [
+      ["resetPasswordForEmail", respuestaJson(500, { code: 500, error_code: "unexpected_failure", msg: "Error sending recovery email" })],
+      ["signUp", respuestaJson(500, { code: 500, error_code: "unexpected_failure", msg: "Error sending confirmation email" })],
+      ["signUp", new Response("<html>Bad gateway</html>", { status: 502 })],
+    ];
+    for (const [accion, respuesta] of casos) {
+      const error = await errorDeSupabase(accion, respuesta);
+      expect(error.name).toBe("AuthRetryableFetchError");
+      expect(error.status).toBeGreaterThanOrEqual(500);
+      supa.resetPasswordForEmail = vi.fn(async () => ({ error }));
+      supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error }));
+      if (raiz) await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail(accion)).toBe("No se pudo mandar el mail. Probá de nuevo en un rato.");
+    }
+
+    // En portugués también.
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail("signUp", "Criar uma conta")).toBe("Não foi possível enviar o e-mail. Tente de novo daqui a pouco.");
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
+  });
+
+  test("sin señal de verdad (el pedido no llega), Olvidé mi contraseña y Crear una cuenta siguen diciendo que no hay conexión", async () => {
+    for (const accion of ["resetPasswordForEmail", "signUp"]) {
+      const error = await errorDeSupabase(accion, new TypeError("Failed to fetch"));
+      expect([error.name, error.status]).toEqual(["AuthRetryableFetchError", 0]);
+      supa.resetPasswordForEmail = vi.fn(async () => ({ error }));
+      supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error }));
+      if (raiz) await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail(accion)).toBe("No hay conexión. Fijate la señal y probá de nuevo.");
+    }
+  });
+
+  test("si se pide otro mail al mismo correo antes del minuto (por ejemplo, recién llegó la invitación), lo dice en castellano", async () => {
+    // Supabase espera 60 s entre un mail y otro al mismo correo, y la
+    // invitación cuenta: "Crear una cuenta" enseguida de recibirla da 429.
+    const espera = () =>
+      respuestaJson(429, {
+        code: 429,
+        error_code: "over_email_send_rate_limit",
+        msg: "For security purposes, you can only request this after 42 seconds.",
+      });
+    for (const accion of ["signUp", "resetPasswordForEmail"]) {
+      const error = await errorDeSupabase(accion, espera());
+      expect([error.name, error.status, error.code]).toEqual(["AuthApiError", 429, "over_email_send_rate_limit"]);
+      supa.resetPasswordForEmail = vi.fn(async () => ({ error }));
+      supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error }));
+      if (raiz) await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail(accion)).toBe(
+        "Por seguridad, hay que esperar un minuto entre un mail y otro. Revisá tu casilla (también spam) o probá de nuevo en un minuto.",
+      );
+    }
+
+    // El tope de mails por hora del proyecto sigue siendo "demasiados intentos".
+    const tope = await errorDeSupabase(
+      "signUp",
+      respuestaJson(429, { code: 429, error_code: "over_email_send_rate_limit", msg: "email rate limit exceeded" }),
+    );
+    supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error: tope }));
+    await act(async () => raiz.unmount());
+    await montar();
+    expect(await pedirMail("signUp")).toBe("Hubo demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.");
+
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error: { name: "AuthApiError", status: 429, code: "over_email_send_rate_limit", message: "For security purposes, you can only request this after 7 seconds." } }));
+      await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail("signUp", "Criar uma conta")).toBe(
+        "Por segurança, é preciso esperar um minuto entre um e-mail e outro. Confira sua caixa de entrada (e o spam) ou tente de novo em um minuto.",
+      );
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
   });
 
   test("volviendo del enlace de recuperación sin sesión, pide uno nuevo y deja volver", async () => {
@@ -643,6 +767,274 @@ describe("la puerta de la app", () => {
 
     expect(contenedor.querySelector(".adentro")).not.toBeNull();
     expect(supa.consultas).toHaveLength(1);
+  });
+
+  // ------------------------------------------------ Invitación por mail --
+
+  const INVITADO = {
+    access_token: "tok-invitado",
+    user: { id: "u1", email: "dt@club.com", invited_at: "2026-10-09T10:00:00Z", user_metadata: { club: "Club Uno", idioma: "es-AR" } },
+  };
+
+  const elegirContrasena = async (clave, repetida = clave) => {
+    const [nueva, otra] = contenedor.querySelectorAll('input[type="password"]');
+    await escribir(nueva, clave);
+    await escribir(otra, repetida);
+    await act(async () => {
+      contenedor.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await act(async () => Promise.resolve());
+  };
+
+  test("volviendo del mail de invitación: bienvenida al club, elige su contraseña y entra", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.perfil = AUTORIZADO;
+    await montar();
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    expect(contenedor.querySelector(".training-access-card p").textContent).toBe(
+      "Elegí tu contraseña. De ahora en más vas a entrar con dt@club.com y esta contraseña.",
+    );
+    // Un solo paso: sin Volver (sin contraseña propia no tendría con qué entrar).
+    expect(contenedor.querySelector(".training-access-volver")).toBeNull();
+    expect(boton("Guardar y entrar").disabled).toBe(false);
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+
+    // Las mismas reglas que la contraseña nueva de siempre.
+    await elegirContrasena("corta");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "La contraseña nueva tiene que tener al menos 8 caracteres.",
+    );
+    expect(supa.updateUser).not.toHaveBeenCalled();
+
+    await elegirContrasena("miclave2026");
+    expect(supa.updateUser).toHaveBeenCalledWith({ password: "miclave2026" });
+    // Adentro: la base ya lo había metido en el club al confirmarse el correo.
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+    expect(window.location.search).toBe("");
+
+    // Los avisos de sesión que siguen no vuelven a pedir la contraseña.
+    await avisar("SIGNED_IN", INVITADO);
+    await avisar("TOKEN_REFRESHED", INVITADO);
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+  });
+
+  test("si cerró la app en la bienvenida y la vuelve a abrir desde el inicio, sigue pidiendo la contraseña", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+
+    // Vuelve a abrir la app desde el inicio: sin la marca ni el enlace en la
+    // URL, pero con la sesión que abrió el enlace guardada en el celular.
+    await act(async () => raiz.unmount());
+    window.history.replaceState({}, "", "/");
+    supa.enlace = { tipo: "", error: "", descripcion: "" };
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+
+    await elegirContrasena("miclave2026");
+    expect(supa.updateUser).toHaveBeenCalledWith({ password: "miclave2026" });
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+
+    // Con la contraseña elegida, la próxima vez entra directo.
+    await act(async () => raiz.unmount());
+    await montar();
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+    expect(supa.updateUser).toHaveBeenCalledTimes(1);
+  });
+
+  test("la bienvenida pendiente es de esa cuenta: otra cuenta del mismo celular entra como siempre", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+
+    await act(async () => raiz.unmount());
+    supa.enlace = { tipo: "", error: "", descripcion: "" };
+    supa.sesion = { access_token: "otro", user: { id: "u2", email: "otra@club.com", invited_at: "2026-10-01T10:00:00Z" } };
+    supa.perfil = { ...AUTORIZADO, user_id: "u2", email: "otra@club.com" };
+    await montar();
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro otra@club.com");
+    expect(supa.updateUser).not.toHaveBeenCalled();
+  });
+
+  test("sin el club en la invitación, la bienvenida va sin nombre; y en portugués", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = { ...INVITADO, user: { ...INVITADO.user, user_metadata: {} } };
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      await montar();
+      expect(contenedor.querySelector("h1").textContent).toBe("Boas-vindas");
+      expect(boton("Salvar e entrar")).toBeTruthy();
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
+  });
+
+  test("Supabase avisa la sesión de la invitación antes de contestar: igual pide la contraseña", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.colgarSesion = true;
+    await montar();
+    await avisar("SIGNED_IN", INVITADO);
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+  });
+
+  test("si el invitado usó Crear una cuenta, al confirmar el correo también elige su contraseña", async () => {
+    supa.enlace = { tipo: "signup", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    await elegirContrasena("miclave2026");
+    expect(supa.updateUser).toHaveBeenCalledWith({ password: "miclave2026" });
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+  });
+
+  test("quien se registró solo (sin invitación) y confirma el correo entra como siempre", async () => {
+    supa.enlace = { tipo: "signup", error: "", descripcion: "" };
+    supa.sesion = SESION;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+    expect(supa.updateUser).not.toHaveBeenCalled();
+  });
+
+  test("en la bienvenida solo se entra si Supabase guardó la contraseña nueva (aunque objete que es la misma)", async () => {
+    // La cuenta invitada tiene una contraseña al azar que nadie conoce: si
+    // Supabase dice que es la misma, no se entra sin cambiarla (cambiarla
+    // cierra cualquier otra sesión de esa cuenta).
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.perfil = AUTORIZADO;
+    supa.updateUser = vi.fn(async () => ({
+      error: { code: "same_password", message: "New password should be different from the old password." },
+    }));
+    await montar();
+    await elegirContrasena("laquetenia1");
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "La contraseña nueva tiene que ser distinta de la anterior.",
+    );
+  });
+
+  test("si guardar la contraseña falla, lo dice y sigue en la bienvenida", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.updateUser = vi.fn(async () => ({ error: { code: "weak_password", message: "Password should contain..." } }));
+    await montar();
+    await elegirContrasena("12345678");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toContain("muy fácil de adivinar");
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+  });
+
+  test("si al guardar la contraseña no hay señal o Supabase falla, lo dice en castellano (nunca el texto de Supabase)", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    await montar();
+    const error = () => contenedor.querySelector(".training-access-message.error").textContent;
+
+    // El pedido no llega (así lo arma supabase-js).
+    supa.updateUser = vi.fn(async () => ({ error: new AuthRetryableFetchError("Failed to fetch", 0) }));
+    await elegirContrasena("miclave2026");
+    expect(error()).toBe("No hay conexión. Fijate la señal y probá de nuevo.");
+
+    // Supabase contesta con un error suyo (5xx).
+    supa.updateUser = vi.fn(async () => ({ error: new AuthRetryableFetchError("Internal Server Error", 500) }));
+    await elegirContrasena("miclave2026");
+    expect(error()).toBe("No se pudo cambiar la contraseña.");
+
+    // Un error que la puerta no conoce.
+    supa.updateUser = vi.fn(async () => ({ error: new AuthApiError("Unexpected thing happened", 400, "unexpected_failure") }));
+    await elegirContrasena("miclave2026");
+    expect(error()).toBe("No se pudo cambiar la contraseña.");
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+
+    // Sin señal, lo que objeta la propia puerta se sigue diciendo tal cual.
+    await conSenal(false, async () => {
+      await elegirContrasena("corta");
+      expect(error()).toBe("La contraseña nueva tiene que tener al menos 8 caracteres.");
+    });
+  });
+
+  test("un enlace de invitación vencido lo dice claro y pide que se lo reenvíen", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1");
+    supa.enlace = { tipo: "invite", error: "otp_expired", descripcion: "Email link is invalid or has expired" };
+    await montar();
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "El enlace venció o ya se usó: pedile a quien te invitó que te lo reenvíe.",
+    );
+    expect(window.location.search).toBe("");
+    expect(supa.updateUser).not.toHaveBeenCalled();
+  });
+
+  test("con la marca de invitación y la sesión de una cuenta que no fue invitada, entra como siempre", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = SESION;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+    expect(supa.updateUser).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("");
+  });
+
+  test("si el enlace de la invitación no abrió la sesión, la entrada común dice qué hacer", async () => {
+    // El correo ya quedó confirmado al tocar el enlace: con Olvidé mi
+    // contraseña elige la suya (la invitación ya se usó: no hay qué reenviar).
+    window.history.replaceState({}, "", "/?invitacion=1#access_token=vencido&type=invite");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.errorInicio = new AuthApiError("Invalid JWT", 403, "bad_jwt");
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "No se pudo abrir la invitación. Escribí tu correo y tocá «Olvidé mi contraseña» para elegir tu contraseña.",
+    );
+    expect(window.location.search).toBe("");
+    expect(window.location.hash).toBe("");
+  });
+
+  test("si el enlace de la invitación no abrió la sesión por falta de señal, lo dice y deja la URL para volver a cargarla", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1#access_token=abc.def.ghi&type=invite");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    // Así lo deja supabase-js: sin sesión, sin error en getSession y con el
+    // fragmento todavía en la URL.
+    supa.errorInicio = new AuthRetryableFetchError("Failed to fetch", 0);
+    localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(AUTORIZADO));
+    await montar();
+    const aviso =
+      "No se pudo abrir la invitación porque no hay conexión. Con señal, volvé a cargar esta página. Si sigue sin abrir, escribí tu correo y tocá «Olvidé mi contraseña» para elegir tu contraseña.";
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(aviso);
+    expect(window.location.search).toBe("?invitacion=1");
+    expect(window.location.hash).toBe("#access_token=abc.def.ghi&type=invite");
+    // No entra con la cuenta que quedó guardada en el celular.
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+
+    // Sin señal en el celular, lo mismo (y en portugués).
+    await act(async () => raiz.unmount());
+    supa.errorInicio = null;
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      await conSenal(false, async () => {
+        await montar();
+        expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+          "Não foi possível abrir o convite porque não há conexão. Com sinal, carregue esta página de novo. Se continuar sem abrir, escreva seu e-mail e toque em «Esqueci minha senha» para escolher sua senha.",
+        );
+        expect(window.location.search).toBe("?invitacion=1");
+      });
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
   });
 
   test("un enlace de recuperación vencido, con el parámetro de la app, lo dice en la pantalla de contraseña nueva", async () => {

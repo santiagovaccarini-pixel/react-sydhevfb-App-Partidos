@@ -1,7 +1,10 @@
 // Lo que trae la URL cuando se vuelve de un enlace del correo (recuperar la
-// contraseña, confirmar la cuenta). Supabase pone los datos en el fragmento
-// (#type=recovery&access_token=…) o, si el enlace venció, un error
-// (#error=access_denied&error_code=otp_expired&error_description=…).
+// contraseña, confirmar la cuenta, aceptar una invitación). Supabase pone los
+// datos en el fragmento (#type=recovery&access_token=…) o, si el enlace
+// venció, un error (#error=access_denied&error_code=otp_expired&error_description=…).
+// El mail de invitación vuelve a /?invitacion=1: si el fragmento no trae el
+// tipo (un enlace vencido trae solo el error), esa marca dice que era una
+// invitación.
 
 export const SIN_ENLACE = Object.freeze({ tipo: "", error: "", descripcion: "" });
 
@@ -12,7 +15,7 @@ export const leerEnlaceDeAcceso = (href) => {
     // Lo que viene en la consulta pisa lo del fragmento, como hace Supabase.
     url.searchParams.forEach((valor, clave) => params.set(clave, valor));
     return {
-      tipo: params.get("type") || "",
+      tipo: params.get("type") || (params.get("invitacion") === "1" ? "invite" : ""),
       error: params.get("error_code") || params.get("error") || "",
       descripcion: params.get("error_description") || "",
     };
@@ -23,13 +26,27 @@ export const leerEnlaceDeAcceso = (href) => {
 
 export const esEnlaceDeRecuperacion = (enlace) => enlace?.tipo === "recovery";
 
+export const esEnlaceDeInvitacion = (enlace) => enlace?.tipo === "invite";
+
+// Se vuelve de aceptar una invitación: el enlace del mail de invitación o, si
+// la persona invitada usó "Crear una cuenta" en vez del mail, el de confirmar
+// el correo. Vale solo para una cuenta que Supabase marcó como invitada
+// (invited_at): a esa le puso una contraseña al azar y no guardó la que
+// eligió, así que hay que pedírsela antes de entrar. Cualquier otra cuenta
+// entra como siempre, aunque la URL traiga la marca.
+export const vieneDeInvitacion = (enlace, usuario) =>
+  (esEnlaceDeInvitacion(enlace) || enlace?.tipo === "signup") && Boolean(usuario?.invited_at);
+
 // Qué decirle a la persona cuando el enlace no sirvió.
 // La misma decisión que textoDeEnlaceFallido, pero como clave del diccionario
 // de idioma (acceso.error.*), para mostrarla en el idioma de quien entra.
+// Si era una invitación, se le dice que pida que se la reenvíen.
 export const claveDeEnlaceFallido = (enlace) => {
   const texto = textoDeEnlaceFallido(enlace);
   if (!texto) return "";
-  return /venció/.test(texto) ? "acceso.error.enlaceVencido" : "acceso.error.enlaceInvalido";
+  const vencido = /venció/.test(texto);
+  if (esEnlaceDeInvitacion(enlace)) return vencido ? "acceso.error.invitacionVencida" : "acceso.error.invitacionInvalida";
+  return vencido ? "acceso.error.enlaceVencido" : "acceso.error.enlaceInvalido";
 };
 
 export const textoDeEnlaceFallido = (enlace) => {

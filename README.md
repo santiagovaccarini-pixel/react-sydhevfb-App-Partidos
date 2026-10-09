@@ -64,12 +64,30 @@ Email) y, en URL Configuration, el Site URL de producción y
 `https://react-sydhevfb-app-partidos.vercel.app/**` en Redirect URLs, para que
 el correo de "Olvidé mi contraseña" vuelva a la app.
 
+Los mails (invitación, confirmar el correo, recuperar la contraseña, cambiar el
+correo) salen del SMTP propio del proyecto, un solo remitente ("ARK") para todos
+los clubes. Sus textos están en [docs/correos](docs/correos/README.md) y se pegan
+en Authentication › Emails › Templates. Las invitaciones por mail necesitan
+"Confirm email" prendido: mientras esté apagado, la app no las manda (quien sepa
+el correo invitado se quedaría con la cuenta) y le dice al administrador que use
+"Copiar mensaje".
+
 Variables del servidor (Vercel › Settings › Environment Variables, Production y
 Preview; solo los nombres): `OPENFIELD_API_BASE_URL`, `OPENFIELD_API_TOKEN`,
 `CATAPULT_SESSION_KEY` y `OPENFIELD_SESSION_SECRET` (una frase al azar de al menos
 32 caracteres, con la que se firma la sesión de OpenField; mientras no esté, la
 firma se deriva del token de Catapult como antes). `OPENFIELD_ALLOWED_EMAILS` ya
 no se usa: se puede borrar.
+
+`SUPABASE_SECRET_KEY` (Production y Preview) es la clave secreta de Supabase con
+la que el servidor manda los mails de invitación (`api/invitar`). Se saca de
+Supabase › Project Settings › API Keys, pestaña "Publishable and secret API
+keys", Secret keys (si solo hay claves legacy, primero "Create new API keys").
+Es solo del servidor: nunca con prefijo `VITE_` (esas terminan en el navegador),
+ni en el código ni en un chat. Si falta, se usa `SUPABASE_SERVICE_ROLE_KEY` (la
+legacy) y, sin ninguna, la invitación se guarda igual y la app pide usar "Copiar
+mensaje". Opcional: `APP_URL`, adónde vuelve el enlace del mail (por defecto, la
+URL de producción).
 
 ## Seguridad
 

@@ -859,7 +859,7 @@ Cómo está hoy (02/10):
   crear la cuenta con ese correo). Invitar y Crear una cuenta rechazan un correo que no
   puede existir (punto al final, dos puntos seguidos, espacios). La base todavía acepta lo
   que pasaba antes. La app no manda ningún correo de invitación: el mensaje lo manda el
-  administrador.
+  administrador (hasta el 09/10: ver "Invitaciones por mail").
 - **Pendiente urgente (08/10, lo encontró Santiago al invitar):** en producción "Confirm
   email" de Supabase está apagado (`/auth/v1/settings` dice `mailer_autoconfirm: true`).
   Así, quien sepa un correo invitado crea la cuenta con ese correo, sin abrir el buzón, y
@@ -868,6 +868,64 @@ Cómo está hoy (02/10):
   propio (el correo que trae Supabase solo les llega a los miembros del equipo del
   proyecto), después prender "Confirm email" (ver README). Hasta entonces no se publica
   el paso 2 de cuentas (pedidos de acceso, sub-dueños y entidades confían en el correo).
+- **Invitaciones por mail (09/10).** Santiago: "si envío una invitación, que les llegue al
+  mail", con un solo remitente para todos los clubes (SMTP propio, "ARK"). Cómo quedó:
+  - Al invitar, y con "Reenviar mail" en cada invitación abierta, el servidor
+    (`api/invitar`) le pide a Supabase que mande el mail de invitación, siempre al correo
+    de esa invitación: nada de lo que manda la app elige a quién. La invitación se lee con
+    la sesión de quien invita, así que solo puede quien administra ese club (o el dueño).
+    El mail nombra el club; los textos de todos los correos están en `docs/correos`.
+  - Mientras "Confirm email" esté apagado en Supabase, el servidor no manda nada
+    (`CONFIRMACION_APAGADA`): el mail crea la cuenta sin contraseña y, con la confirmación
+    apagada, quien sepa ese correo se registra con él y se queda con la cuenta y el club.
+    La app avisa que la invitación quedó guardada y que se mande con "Copiar mensaje". Lo
+    mismo sin la clave del servidor (`SUPABASE_SECRET_KEY`) o si el mail no sale.
+  - El enlace vuelve a la app (`/?invitacion=1`) con la sesión abierta: "Bienvenido/a a
+    [club]", elige su contraseña ("Guardar y entrar") y entra; la base ya lo metió en el
+    club al confirmarse el correo. Si cierra la app en la bienvenida y la vuelve a abrir en
+    ese celular (ya sin el enlace), se le sigue pidiendo: el celular anota esa cuenta hasta
+    que elige la contraseña (solo esa cuenta; otra entra como siempre). En otro aparato no
+    tiene sesión ni contraseña: entra con "Olvidé mi contraseña". Si el invitado ignora el
+    mail y usa "Crear una cuenta",
+    Supabase no guarda la contraseña que eligió (la cuenta ya existía por la invitación):
+    al confirmar el correo, la app le pide que la elija. Un enlace vencido dice "pedile a
+    quien te invitó que te lo reenvíe". Si el enlace sirvió pero la app no pudo abrir la
+    sesión (sin señal al volver a la app, por ejemplo), la puerta lo dice: con señal,
+    volver a cargar la página (si fue la señal, la dirección queda como vino) y, si no,
+    "Olvidé mi contraseña" (el correo ya quedó confirmado y la invitación usada: no hay
+    nada que reenviar).
+  - Si el correo ya tiene una cuenta sin confirmar (de una invitación anterior o porque
+    alguien hizo "Crear una cuenta" con ese correo y una contraseña suya), antes de mandar
+    el mail el servidor le cambia la contraseña por una al azar que nadie conoce. Al abrir
+    el mail, Supabase confirma el correo pero conserva la contraseña que tenga la cuenta, y
+    la base la suma al club: sin este paso, quien registró el correo antes entraba al club
+    sin haber abierto nunca ese buzón. Si no se puede comprobar la cuenta o cambiarle la
+    contraseña, el mail no sale. En la bienvenida solo se entra si Supabase guardó la
+    contraseña nueva (eso cierra cualquier otra sesión de la cuenta).
+  - Si Supabase contesta con un error suyo (5xx) a "Olvidé mi contraseña" o "Crear una
+    cuenta" (por ejemplo, falló el SMTP), la puerta dice "No se pudo mandar el mail. Probá
+    de nuevo en un rato." y no "No hay conexión" (supabase-js marca los dos casos igual;
+    se distinguen por el estado). Sin señal de verdad sigue diciendo "No hay conexión", y
+    la entrada con la copia del celular no cambia. Si se pide otro mail al mismo correo
+    antes del minuto (Supabase espera 60 s entre uno y otro, y la invitación cuenta: pasa
+    si el invitado toca "Crear una cuenta" enseguida), dice que hay que esperar un minuto,
+    y no el texto de Supabase en inglés.
+  - El enlace del mail dura lo que diga "Email OTP Expiration" (24 h, el máximo del
+    panel); la invitación, 14 días. "Reenviar mail" manda un enlace nuevo y el anterior
+    deja de servir.
+  - "Sumar a [club]" (Cuentas de la app, el dueño) sigue sin mail: son cuentas que ya
+    existen, con la contraseña que eligieron al registrarse.
+  - **Queda:** probar el primer envío real con la clave secreta (con la clave nueva
+    `sb_secret_` se espera que ande; si Supabase la rechaza, usar la legacy service_role).
+    Algunos servicios de correo abren los enlaces antes que la persona y los gastan
+    (aparece como vencido): si pasa, armar un enlace propio con `{{ .TokenHash }}`.
+    "Reenviar mail" no tiene espera propia: solo el límite de mails por hora del proyecto,
+    que comparten todos los clubes (30 por hora con SMTP propio; se cambia en
+    Authentication › Rate Limits). Sin resolver: si el mail no sale y la persona entra
+    por "Copiar mensaje" + "Crear una cuenta" (o se registra sin invitación), y alguien
+    había registrado antes ese correo con una contraseña suya, Supabase la conserva al
+    confirmar el correo. El arreglo del servidor solo cubre el mail de invitación; para el
+    resto hace falta decidir un cambio en la base o en Supabase Auth.
 - Sin invitación es distinto: la cuenta queda pendiente sin elegir club y la aprueba el
   dueño de la plataforma desde "Cuentas de la app" (sumándola a un club). El admin del
   club no la ve. "Rechazar" bloquea la cuenta entera y la deja en "Sin acceso".

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ENLACE_DE_ACCESO, supabase } from "./supabase.js";
-import { claveDeEnlaceFallido, esEnlaceDeRecuperacion } from "./domain/enlaceAcceso.js";
+import { claveDeEnlaceFallido, esEnlaceDeInvitacion, esEnlaceDeRecuperacion, vieneDeInvitacion } from "./domain/enlaceAcceso.js";
 import { t, useIdioma } from "./idioma/index.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import {
@@ -29,10 +29,42 @@ const esRecuperacionSolicitada = () => {
   return new URLSearchParams(window.location.search).get("training_recovery") === "1";
 };
 
+// Se vuelve del mail de invitación (o la persona invitada confirmó su correo
+// desde "Crear una cuenta"): la cuenta tiene una contraseña al azar que nadie
+// conoce (la pone Supabase o, si la cuenta ya existía sin confirmar, el
+// servidor al mandar el mail), así que antes de entrar elige la suya. Un
+// enlace que no sirvió no pide nada: se avisa. Si cerró la app en la
+// bienvenida, al volver a abrirla en este celular (ya sin el enlace en la
+// URL) se le sigue pidiendo.
+const esInvitacionSolicitada = (usuario) =>
+  (!ENLACE_DE_ACCESO.error && vieneDeInvitacion(ENLACE_DE_ACCESO, usuario)) ||
+  (Boolean(usuario?.id && usuario?.invited_at) && bienvenidaPendiente() === usuario.id);
+
+// La cuenta que abrió la bienvenida en este celular y todavía no eligió su
+// contraseña. Solo vale para esa cuenta: cualquier otra entra como siempre.
+const CLAVE_BIENVENIDA_PENDIENTE = "bienvenida_pendiente";
+const bienvenidaPendiente = () => {
+  try {
+    return localStorage.getItem(CLAVE_BIENVENIDA_PENDIENTE) || "";
+  } catch {
+    return "";
+  }
+};
+const anotarBienvenidaPendiente = (userId) => {
+  try {
+    if (userId) localStorage.setItem(CLAVE_BIENVENIDA_PENDIENTE, userId);
+    else localStorage.removeItem(CLAVE_BIENVENIDA_PENDIENTE);
+  } catch {
+    // Sin localStorage, la bienvenida la pide solo el enlace.
+  }
+};
+
 export const limpiarParametroRecuperacion = () => {
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
   url.searchParams.delete("training_recovery");
+  // Y la marca con la que vuelve el mail de invitación.
+  url.searchParams.delete("invitacion");
   window.history.replaceState({}, "", `${url.pathname}${url.search}`);
 };
 
@@ -43,7 +75,10 @@ const textoDeErrorDeAcceso = (error, porDefecto) => {
   if (/invalid login credentials/i.test(texto)) return t("acceso.error.credenciales");
   if (/email not confirmed/i.test(texto)) return t("acceso.error.noConfirmado");
   if (/user already registered|already been registered/i.test(texto)) return t("acceso.error.yaRegistrado");
-  if (/rate limit|too many requests/i.test(texto)) return t("acceso.error.demasiados");
+  // Supabase espera un minuto entre un mail y otro al mismo correo (la
+  // invitación también cuenta).
+  if (/for security purposes|only request this after/i.test(texto)) return t("acceso.error.esperarMail");
+  if (/rate limit|too many requests/i.test(texto) || error?.status === 429) return t("acceso.error.demasiados");
   return textoDeErrorDeContrasena(error, porDefecto);
 };
 
@@ -57,6 +92,29 @@ const textoDeErrorDeContrasena = (error, porDefecto) => {
 };
 
 const sinSenal = () => typeof navigator !== "undefined" && navigator.onLine === false;
+
+// Supabase contestó, pero con un error suyo (5xx): hubo señal y del otro lado
+// algo falló. En "Olvidé mi contraseña" y "Crear una cuenta" es casi siempre
+// el envío del mail. supabase-js lo marca como reintentable, igual que la
+// falta de señal (por eso esFalloDeRed lo cuenta): se distingue por el estado.
+const esFalloDelServidor = (error) => !sinSenal() && Number(error?.status) >= 500;
+
+// Los errores de lo que manda un mail (Olvidé mi contraseña, Crear una cuenta).
+const textoDeErrorDeMail = (error, porDefecto) =>
+  esFalloDelServidor(error) ? t("acceso.error.correoNoSalio") : textoDeErrorDeAcceso(error, porDefecto);
+
+// Lo que objeta la propia puerta, ya en el idioma de la app (a diferencia de
+// lo que contesta Supabase, en inglés).
+const errorPropio = (clave) => Object.assign(new Error(t(clave)), { propio: true });
+
+// Al guardar una contraseña nueva: lo de la puerta, tal cual; de Supabase,
+// nunca su texto en inglés.
+const textoDeErrorAlGuardarContrasena = (error) => {
+  if (error?.propio) return error.message;
+  if (esFalloDelServidor(error)) return t("acceso.error.noCambiarContrasena");
+  if (esFalloDeRed(error)) return t("comun.sinConexion");
+  return textoDeErrorDeContrasena(error, t("acceso.error.noCambiarContrasena"));
+};
 
 // Un fallo de red: no hay señal, o hay barras pero los datos no pasan.
 // Supabase lo marca como reintentable; el navegador, como un fetch que falló.
@@ -162,6 +220,9 @@ export default function AccessGate({ children }) {
   const [sesionRecuperacion, setSesionRecuperacion] = useState(null);
   const [nuevaPassword, setNuevaPassword] = useState("");
   const [confirmarPassword, setConfirmarPassword] = useState("");
+  // Se vuelve de una invitación: la pantalla de contraseña nueva es la
+  // bienvenida (con el club y el correo con que va a entrar).
+  const [bienvenida, setBienvenida] = useState(null);
   const sesionActual = useRef(null);
   // Para que la puerta se vuelva a dibujar al cambiar el idioma.
   useIdioma();
@@ -172,6 +233,18 @@ export default function AccessGate({ children }) {
   // al cancelar): la marca del enlace queda en la URL de la pestaña, y sin
   // esto cada aviso de sesión de Supabase volvía a pedir la contraseña nueva.
   const recuperacionPendiente = useRef(esRecuperacionSolicitada());
+  // La invitación del enlace se atiende una vez: después de elegir la
+  // contraseña, los avisos de sesión no la vuelven a pedir.
+  const invitacionAtendida = useRef(false);
+  const pideBienvenida = (session) =>
+    Boolean(session?.user) && !invitacionAtendida.current && esInvitacionSolicitada(session.user);
+  const abrirBienvenida = (session) => {
+    anotarBienvenidaPendiente(session.user?.id || "");
+    setBienvenida({ club: String(session.user?.user_metadata?.club || "").trim(), correo: session.user?.email || "" });
+    setModoRecuperacion(true);
+    setSesionRecuperacion(session);
+    setError("");
+  };
 
   const ponerSesion = (nueva) => {
     sesionActual.current = nueva;
@@ -231,10 +304,10 @@ export default function AccessGate({ children }) {
       // La base contesta en inglés: se muestra el texto de la clave que vino
       // (o el genérico), en el idioma de la app.
       const clave = String(errorLectura?.message || "");
-      throw new Error(
+      throw errorPropio(
         esFalloDeRed(errorLectura)
-          ? t("acceso.error.sinConexionCuenta")
-          : t(/^[a-z]+(\.[a-zA-Z0-9]+)+$/.test(clave) ? clave : "acceso.error.noComprobar"),
+          ? "acceso.error.sinConexionCuenta"
+          : /^[a-z]+(\.[a-zA-Z0-9]+)+$/.test(clave) ? clave : "acceso.error.noComprobar",
       );
     }
   }, []);
@@ -253,6 +326,7 @@ export default function AccessGate({ children }) {
   const entroConCopiaAlAbrir = useRef(false);
   const copiaParaEntrar = () => {
     if (recuperacionPendiente.current || entroConCopiaAlAbrir.current) return null;
+    if (esEnlaceDeInvitacion(ENLACE_DE_ACCESO) && !invitacionAtendida.current) return null;
     // Si Supabase ya contestó con una sesión, la copia tiene que ser de esa cuenta.
     return leerPerfilLocal(sesionActual.current?.user?.id || null);
   };
@@ -300,6 +374,31 @@ export default function AccessGate({ children }) {
           setSesionRecuperacion(session);
         }
         return;
+      }
+
+      // Vuelve de aceptar una invitación: primero elige su contraseña. La
+      // base ya lo metió en el club al confirmarse el correo.
+      if (pideBienvenida(session)) {
+        abrirBienvenida(session);
+        return;
+      }
+      if (esEnlaceDeInvitacion(ENLACE_DE_ACCESO) && !ENLACE_DE_ACCESO.error) {
+        // El enlace de la invitación no abrió ninguna sesión. El correo ya
+        // quedó confirmado al tocarlo (y la invitación, usada): se avisa que
+        // elija su contraseña con Olvidé mi contraseña. Si fue por la señal
+        // (supabase-js no pudo leer la cuenta del enlace), la URL queda como
+        // está, para volver a cargarla con señal.
+        if (!session) {
+          const inicio = await supabase.auth.initialize?.();
+          if (!montado.current) return;
+          const sinRed = sinSenal() || esFalloDeRed(inicio?.error || errorSesion);
+          if (!sinRed) limpiarParametroRecuperacion();
+          setMensaje("");
+          setError(t(sinRed ? "acceso.error.invitacionSinSenal" : "acceso.error.invitacionSinAbrir"));
+          return;
+        }
+        // Es de una cuenta que no fue invitada: la entrada común, sin la marca en la URL.
+        limpiarParametroRecuperacion();
       }
 
       // Un enlace del correo que no sirvió (vencido, ya usado): se avisa en
@@ -361,6 +460,12 @@ export default function AccessGate({ children }) {
         setModoRecuperacion(true);
         setSesionRecuperacion(session || null);
         setError("");
+        setCargando(false);
+        return;
+      }
+
+      if (pideBienvenida(session)) {
+        abrirBienvenida(session);
         setCargando(false);
         return;
       }
@@ -477,7 +582,7 @@ export default function AccessGate({ children }) {
         setMensaje(t("acceso.cuentaCreada"));
       }
     } catch (errorRegistro) {
-      setError(textoDeErrorDeAcceso(errorRegistro, errorRegistro?.message || t("acceso.error.noCrear")));
+      setError(textoDeErrorDeMail(errorRegistro, errorRegistro?.message || t("acceso.error.noCrear")));
     } finally {
       cambiarAccion("");
     }
@@ -503,7 +608,7 @@ export default function AccessGate({ children }) {
 
       setMensaje(t("acceso.enlaceEnviado"));
     } catch (errorReset) {
-      setError(textoDeErrorDeAcceso(errorReset, errorReset?.message || t("acceso.error.noEnviarCorreo")));
+      setError(textoDeErrorDeMail(errorReset, errorReset?.message || t("acceso.error.noEnviarCorreo")));
     } finally {
       cambiarAccion("");
     }
@@ -516,30 +621,36 @@ export default function AccessGate({ children }) {
     setMensaje("");
 
     try {
-      if (!sesionRecuperacion) throw new Error(t("acceso.error.enlaceNoValido"));
-      if (nuevaPassword.length < 8) throw new Error(t("acceso.error.minimo8"));
-      if (nuevaPassword !== confirmarPassword) throw new Error(t("acceso.error.noCoinciden"));
+      if (!sesionRecuperacion) throw errorPropio("acceso.error.enlaceNoValido");
+      if (nuevaPassword.length < 8) throw errorPropio("acceso.error.minimo8");
+      if (nuevaPassword !== confirmarPassword) throw errorPropio("acceso.error.noCoinciden");
 
       const { error: errorUpdate } = await supabase.auth.updateUser({
         password: nuevaPassword,
       });
 
+      // También en la bienvenida de una invitación: solo se entra si Supabase
+      // guardó la contraseña nueva, que cierra cualquier otra sesión abierta
+      // de esa cuenta.
       if (errorUpdate) throw errorUpdate;
+      invitacionAtendida.current = true;
+      if (bienvenidaPendiente() === sesionRecuperacion.user?.id) anotarBienvenidaPendiente(null);
 
       const { data, error: errorSesion } = await supabase.auth.getSession();
       if (errorSesion) throw errorSesion;
-      if (!data?.session) throw new Error(t("acceso.error.sesionNoAbierta"));
+      if (!data?.session) throw errorPropio("acceso.error.sesionNoAbierta");
 
       limpiarParametroRecuperacion();
       recuperacionPendiente.current = false;
       setModoRecuperacion(false);
+      setBienvenida(null);
       setSesionRecuperacion(null);
       setNuevaPassword("");
       setConfirmarPassword("");
       ponerSesion(data.session);
       await resolverPerfil(data.session);
     } catch (errorUpdate) {
-      setError(textoDeErrorDeContrasena(errorUpdate, errorUpdate?.message || t("acceso.error.noCambiarContrasena")));
+      setError(textoDeErrorAlGuardarContrasena(errorUpdate));
     } finally {
       cambiarAccion("");
     }
@@ -624,11 +735,17 @@ export default function AccessGate({ children }) {
   }
 
   if (modoRecuperacion) {
+    // La misma pantalla sirve de bienvenida a quien acepta una invitación: un
+    // solo paso (elegir la contraseña) y adentro. Sin Volver: sin contraseña
+    // propia no tendría con qué entrar después.
+    const tituloBienvenida = bienvenida?.club
+      ? t("acceso.bienvenidaTituloClub", { club: bienvenida.club })
+      : t("acceso.bienvenidaTitulo");
     return (
       <PantallaAcceso
-        titulo={t("acceso.recuperarTitulo")}
-        texto={t("acceso.recuperarTexto")}
-        onVolver={cancelarRecuperacion}
+        titulo={bienvenida ? tituloBienvenida : t("acceso.recuperarTitulo")}
+        texto={bienvenida ? t("acceso.bienvenidaTexto", { correo: bienvenida.correo }) : t("acceso.recuperarTexto")}
+        onVolver={bienvenida ? undefined : cancelarRecuperacion}
         etiquetaVolver={t("comun.volver")}
       >
         <form onSubmit={guardarNuevaPassword} className="training-access-form">
@@ -663,7 +780,9 @@ export default function AccessGate({ children }) {
             className="training-access-primary"
             disabled={Boolean(accion) || !sesionRecuperacion}
           >
-            {accion === "cambiar-password" ? t("comun.guardando") : t("acceso.guardarContrasena")}
+            {accion === "cambiar-password"
+              ? t("comun.guardando")
+              : t(bienvenida ? "acceso.guardarYEntrar" : "acceso.guardarContrasena")}
           </button>
         </form>
       </PantallaAcceso>
