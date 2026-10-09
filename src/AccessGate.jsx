@@ -80,6 +80,19 @@ const esFalloDelServidor = (error) => !sinSenal() && Number(error?.status) >= 50
 const textoDeErrorDeMail = (error, porDefecto) =>
   esFalloDelServidor(error) ? t("acceso.error.correoNoSalio") : textoDeErrorDeAcceso(error, porDefecto);
 
+// Lo que objeta la propia puerta, ya en el idioma de la app (a diferencia de
+// lo que contesta Supabase, en inglés).
+const errorPropio = (clave) => Object.assign(new Error(t(clave)), { propio: true });
+
+// Al guardar una contraseña nueva: lo de la puerta, tal cual; de Supabase,
+// nunca su texto en inglés.
+const textoDeErrorAlGuardarContrasena = (error) => {
+  if (error?.propio) return error.message;
+  if (esFalloDelServidor(error)) return t("acceso.error.noCambiarContrasena");
+  if (esFalloDeRed(error)) return t("comun.sinConexion");
+  return textoDeErrorDeContrasena(error, t("acceso.error.noCambiarContrasena"));
+};
+
 // Un fallo de red: no hay señal, o hay barras pero los datos no pasan.
 // Supabase lo marca como reintentable; el navegador, como un fetch que falló.
 export const esFalloDeRed = (error) =>
@@ -267,10 +280,10 @@ export default function AccessGate({ children }) {
       // La base contesta en inglés: se muestra el texto de la clave que vino
       // (o el genérico), en el idioma de la app.
       const clave = String(errorLectura?.message || "");
-      throw new Error(
+      throw errorPropio(
         esFalloDeRed(errorLectura)
-          ? t("acceso.error.sinConexionCuenta")
-          : t(/^[a-z]+(\.[a-zA-Z0-9]+)+$/.test(clave) ? clave : "acceso.error.noComprobar"),
+          ? "acceso.error.sinConexionCuenta"
+          : /^[a-z]+(\.[a-zA-Z0-9]+)+$/.test(clave) ? clave : "acceso.error.noComprobar",
       );
     }
   }, []);
@@ -570,9 +583,9 @@ export default function AccessGate({ children }) {
     setMensaje("");
 
     try {
-      if (!sesionRecuperacion) throw new Error(t("acceso.error.enlaceNoValido"));
-      if (nuevaPassword.length < 8) throw new Error(t("acceso.error.minimo8"));
-      if (nuevaPassword !== confirmarPassword) throw new Error(t("acceso.error.noCoinciden"));
+      if (!sesionRecuperacion) throw errorPropio("acceso.error.enlaceNoValido");
+      if (nuevaPassword.length < 8) throw errorPropio("acceso.error.minimo8");
+      if (nuevaPassword !== confirmarPassword) throw errorPropio("acceso.error.noCoinciden");
 
       const { error: errorUpdate } = await supabase.auth.updateUser({
         password: nuevaPassword,
@@ -586,7 +599,7 @@ export default function AccessGate({ children }) {
 
       const { data, error: errorSesion } = await supabase.auth.getSession();
       if (errorSesion) throw errorSesion;
-      if (!data?.session) throw new Error(t("acceso.error.sesionNoAbierta"));
+      if (!data?.session) throw errorPropio("acceso.error.sesionNoAbierta");
 
       limpiarParametroRecuperacion();
       recuperacionPendiente.current = false;
@@ -598,7 +611,7 @@ export default function AccessGate({ children }) {
       ponerSesion(data.session);
       await resolverPerfil(data.session);
     } catch (errorUpdate) {
-      setError(textoDeErrorDeContrasena(errorUpdate, errorUpdate?.message || t("acceso.error.noCambiarContrasena")));
+      setError(textoDeErrorAlGuardarContrasena(errorUpdate));
     } finally {
       cambiarAccion("");
     }

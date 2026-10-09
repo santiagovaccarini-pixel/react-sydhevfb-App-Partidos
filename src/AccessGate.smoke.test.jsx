@@ -1,6 +1,6 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import { AuthClient } from "@supabase/supabase-js";
+import { AuthApiError, AuthClient, AuthRetryableFetchError } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import AccessGate from "./AccessGate.jsx";
 import { CLAVE_PERFIL_LOCAL } from "./domain/perfilesDb.js";
@@ -885,6 +885,35 @@ describe("la puerta de la app", () => {
     await elegirContrasena("12345678");
     expect(contenedor.querySelector(".training-access-message.error").textContent).toContain("muy fácil de adivinar");
     expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+  });
+
+  test("si al guardar la contraseña no hay señal o Supabase falla, lo dice en castellano (nunca el texto de Supabase)", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    await montar();
+    const error = () => contenedor.querySelector(".training-access-message.error").textContent;
+
+    // El pedido no llega (así lo arma supabase-js).
+    supa.updateUser = vi.fn(async () => ({ error: new AuthRetryableFetchError("Failed to fetch", 0) }));
+    await elegirContrasena("miclave2026");
+    expect(error()).toBe("No hay conexión. Fijate la señal y probá de nuevo.");
+
+    // Supabase contesta con un error suyo (5xx).
+    supa.updateUser = vi.fn(async () => ({ error: new AuthRetryableFetchError("Internal Server Error", 500) }));
+    await elegirContrasena("miclave2026");
+    expect(error()).toBe("No se pudo cambiar la contraseña.");
+
+    // Un error que la puerta no conoce.
+    supa.updateUser = vi.fn(async () => ({ error: new AuthApiError("Unexpected thing happened", 400, "unexpected_failure") }));
+    await elegirContrasena("miclave2026");
+    expect(error()).toBe("No se pudo cambiar la contraseña.");
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+
+    // Sin señal, lo que objeta la propia puerta se sigue diciendo tal cual.
+    await conSenal(false, async () => {
+      await elegirContrasena("corta");
+      expect(error()).toBe("La contraseña nueva tiene que tener al menos 8 caracteres.");
+    });
   });
 
   test("un enlace de invitación vencido lo dice claro y pide que se lo reenvíen", async () => {
