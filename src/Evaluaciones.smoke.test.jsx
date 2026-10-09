@@ -22,6 +22,7 @@ const datos = vi.hoisted(() => ({
   opciones: [],
   referenciasCurl: null,
   referenciasIso: null,
+  referenciasTobillo: null,
 }));
 
 // Los V.R. de prueba, en la unidad del Excel (los tiempos, segundos ÷ 1440).
@@ -91,6 +92,7 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
       ...(datos.referencias ? { zona_media: datos.referencias } : {}),
       ...(datos.referenciasCurl ? { curl_nordico_isoprone: datos.referenciasCurl } : {}),
       ...(datos.referenciasIso ? { isocinecia: datos.referenciasIso } : {}),
+      ...(datos.referenciasTobillo ? { movilidad_tobillo: datos.referenciasTobillo } : {}),
     },
     error: "",
   }),
@@ -194,6 +196,7 @@ describe("Evaluaciones", () => {
     datos.opciones = [];
     datos.referenciasCurl = null;
     datos.referenciasIso = null;
+    datos.referenciasTobillo = null;
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -652,7 +655,15 @@ describe("Evaluaciones", () => {
     await montar();
     await irA(contenedor, "Base");
     // El test se elige en un desplegable, no con un botón por test.
-    expect([...contenedor.querySelector("select.evaluaciones-elegir-test-lista").options].map((opcion) => opcion.textContent)).toEqual(["Zona Media", "Curl Nórdico e Isoprone", "Isocinecia"]);
+    expect([...contenedor.querySelector("select.evaluaciones-elegir-test-lista").options].map((opcion) => opcion.textContent)).toEqual([
+      "Zona Media",
+      "Curl Nórdico e Isoprone",
+      "Isocinecia",
+      "Movilidad de Tobillo",
+      "Movilidad de Cadera",
+      "Movilidad de Isquio",
+      "Estabilidad rotacional",
+    ]);
     expect(botones(contenedor).some((b) => b.textContent === "Curl Nórdico e Isoprone")).toBe(false);
     await elegirTest(contenedor, "Curl Nórdico e Isoprone");
     expect(contenedor.querySelector("h1").textContent).toBe("Curl Nórdico e Isoprone");
@@ -751,7 +762,7 @@ describe("Evaluaciones", () => {
     await irA(contenedor, "Cargar");
     await tocar(boton(contenedor, "Nueva evaluación"));
     const deLaCarga = contenedor.querySelector("select.evaluaciones-elegir-test-lista");
-    expect([...deLaCarga.options].map((opcion) => opcion.textContent)).toEqual(["Zona Media", "Curl Nórdico e Isoprone"]);
+    expect([...deLaCarga.options].map((opcion) => opcion.textContent)).toEqual(["Zona Media", "Curl Nórdico e Isoprone", "Movilidad de Tobillo", "Movilidad de Cadera", "Movilidad de Isquio", "Estabilidad rotacional"]);
     expect(deLaCarga.value).toBe("zona_media");
   });
 
@@ -762,6 +773,75 @@ describe("Evaluaciones", () => {
     expect(tarjeta).toBeTruthy();
     expect([...tarjeta.querySelectorAll("button")].some((b) => b.textContent === "Editar")).toBe(false);
     expect(tarjeta.querySelector(".boton-eliminar-registro")).not.toBeNull();
+  });
+
+  test("Funcional: Movilidad de Tobillo con la comparación «Vs …»; Estabilidad rotacional sin V.R. y con sus listas por pasos", async () => {
+    const funcional = (id, orden, jugador_id, fecha, test, extra) => ({ ...evaluacion(id, orden, jugador_id, fecha, {}), test, datos: { seleccion: "mayor", ...extra } });
+    datos.evaluaciones.push(funcional("t1", 40, 1, "2026-06-23", "movilidad_tobillo", { pd: 40, pi: 44 }));
+    datos.evaluaciones.push(funcional("r1", 41, 1, "2026-06-24", "estabilidad_rotacional", { cifosis_derecha_derecha: "baja", inestabilidad_derecha: "si" }));
+    datos.evaluaciones.push(funcional("r2", 42, 2, "2026-06-24", "estabilidad_rotacional", { cifosis_derecha_derecha: "no", inestabilidad_derecha: "no" }));
+    const V = (medida, deficit) => ({ pd: medida, pi: medida, deficit });
+    datos.referenciasTobillo = {
+      categorias: { mayor: { titulo: "V.R. de prueba Tobillo", n: { pd: 9 }, excelente: V(45, 0.02), muy_bueno: V(42, 0.05), bueno: V(38, 0.08), regular: V(33, 0.12), malo: V(31, 0.2) } },
+    };
+    await montar();
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Movilidad de Tobillo");
+    expect(contenedor.querySelector("h1").textContent).toBe("Movilidad de Tobillo");
+    expect(cabeceras(contenedor)).toEqual([
+      "Jugador",
+      "Fecha",
+      "Evaluacion",
+      "Fecha Nac",
+      "Seleccion",
+      "PD",
+      "PD Clas",
+      "% Mejora PD",
+      "PI",
+      "PI Clas",
+      "% Mejora PI",
+      "% DEFICIT LATERAL",
+      "Clas. Dif. Cm",
+      "Deficit Pierna",
+    ]);
+    expect(celda(contenedor, 0, "PD Clas").textContent).toBe("3");
+    expect(celda(contenedor, 0, "% DEFICIT LATERAL").textContent).toBe("10,0%");
+    expect(celda(contenedor, 0, "Deficit Pierna").textContent).toBe("PD");
+    // La comparación con los V.R., como en Zona Media: el promedio sobre el Bueno.
+    expect(contenedor.textContent).not.toContain("Todavía no están los valores de referencia");
+    const comparacion = filaDeArriba(contenedor, "Comparar con");
+    expect(comparacion.querySelector("select").value).toBe("mayor");
+    expect(celdaDeArriba(contenedor, comparacion, "PD").textContent).toBe("105,26%");
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Promedio"), "Deficit Pierna").textContent).toBe("PD 1,0");
+
+    // Estabilidad rotacional: sin V.R. (no avisa que faltan), dos bloques y qué parte tiene cada opción.
+    await elegirTest(contenedor, "Estabilidad rotacional");
+    expect(contenedor.textContent).not.toContain("Todavía no están los valores de referencia");
+    expect([...contenedor.querySelectorAll(".tabla-datos-grupo-titulo")].map((titulo) => titulo.textContent).filter(Boolean)).toEqual(["Pierna derecha en apoyo", "Pierna izquierda en apoyo"]);
+    expect(filas(contenedor)).toHaveLength(2);
+    expect(celda(contenedor, 0, "Cifosis Derecha").textContent).toBe("BAJA");
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "N°"), "Inestabilidad").textContent).toBe("2");
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "%"), "Cifosis Derecha").textContent).toBe("Baja 50,0%");
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "%"), "Inestabilidad").textContent).toBe("SI 50,0%");
+    await irA(contenedor, "Valores de referencia");
+    expect(contenedor.textContent).toContain("Este test no tiene valores de referencia");
+    expect(contenedor.textContent).not.toContain("Todavía no están los valores de referencia");
+
+    // Se carga por pasos: cada pierna en apoyo es un paso, con las opciones como botones.
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    await elegirTest(contenedor, "Estabilidad rotacional");
+    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Pierna derecha en apoyo");
+    await tocar([...campo(contenedor, "Cifosis Derecha").querySelectorAll("button")].find((b) => b.textContent === "ALTA Y BAJA"));
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Pierna izquierda en apoyo");
+    await tocar([...campo(contenedor, "Completa recorrido").querySelectorAll("button")].find((b) => b.textContent === "NO 1 y 2"));
+    await tocar(boton(contenedor, "Guardar la evaluación"));
+    expect(datos.creadas).toEqual([
+      { equipoId: "eq-1", test: "estabilidad_rotacional", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { cifosis_derecha_derecha: "alta_y_baja", completa_recorrido_izquierda: "no_1_y_2" } } },
+    ]);
   });
 
   test("en portugués, con los textos del Excel traducidos", async () => {

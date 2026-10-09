@@ -257,6 +257,7 @@ export default {
       categoria: "Categoría",
       pro: "Pro",
       sinDatos: "Todavía no están los valores de referencia de este test. Se cargan una sola vez, con los valores exactos del Excel.",
+      noTiene: "Este test no tiene valores de referencia: en el Excel tampoco.",
     },
     importar: {
       boton: "Pegar desde Excel",

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { HojaOpciones } from "./components/HojaOpciones.js";
-import { LISTA_SELECCION, categoriaDeTextoDelClub, configVacia, etiquetaDeOpcion, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
+import { LISTA_SELECCION, categoriaDeTextoDelClub, configVacia, etiquetaDeOpcion, opcionDeTexto, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { COMO_PERSONA, ESTADOS, NO_CARGAR, leerEvaluacionesPegadas, ordenDeCarga, planDeEvaluaciones } from "./domain/evaluaciones/importar.js";
 import { crearEvaluacion } from "./domain/evaluacionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
@@ -84,7 +84,16 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
   const plan = useMemo(
     () =>
       leido && !leido.error && !plantelSinLeer
-        ? planDeEvaluaciones(leido.filas, { test, plantel, evaluaciones, hoy, anio, elegidos, categoriaDe: (texto) => categoriaDeTextoDelClub(texto, config) })
+        ? planDeEvaluaciones(leido.filas, {
+            test,
+            plantel,
+            evaluaciones,
+            hoy,
+            anio,
+            elegidos,
+            categoriaDe: (texto) => categoriaDeTextoDelClub(texto, config),
+            opcionDe: (lista, texto) => opcionDeTexto(lista, texto, config, test),
+          })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [leido, test, plantel, plantelSinLeer, evaluaciones, anio, elegidos, config],
@@ -132,13 +141,17 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
   // De qué día es: la fecha, o como vino si no se entiende.
   const fechaDe = (fila) => (fila.evaluacion.fecha ? fechaCorta(fila.evaluacion.fecha) : fila.textos.fecha || t("evaluaciones.sinFecha"));
 
-  // Qué evaluación es: la selección y los tiempos.
+  // Qué evaluación es: la selección, los tiempos, los números y las listas
+  // propias del test (en Estabilidad rotacional, cada respuesta).
   const detalleDe = (fila) => {
     const { datos } = fila.evaluacion;
     return [
       datos.seleccion ? etiquetaDeOpcion(LISTA_SELECCION, datos.seleccion, config, idioma) : "",
       ...(test.tiempos || []).map((clave) => (typeof datos[clave] === "number" ? `${columna(clave)} ${textoDeMinutos(datos[clave])}` : "")),
       ...(test.numeros || []).map((clave) => (typeof datos[clave] === "number" ? `${columna(clave)} ${String(datos[clave]).replace(".", ",")}` : "")),
+      ...test.columnas
+        .filter((suya) => suya.tipo === "lista" && suya.lista && datos[suya.clave])
+        .map((suya) => `${columna(suya.clave)} ${etiquetaDeOpcion(suya.lista, datos[suya.clave], config, idioma, test)}`),
     ]
       .filter(Boolean)
       .join(" · ");
@@ -193,6 +206,7 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
           <div className="lesiones-encabezado-texto">
             <h1>{t("evaluaciones.importar.titulo")}</h1>
             <p>{t("evaluaciones.importar.texto")}</p>
+            {test.ayudaParaPegar && <p>{test.ayudaParaPegar[idioma]}</p>}
           </div>
           <SelectorIdioma className="lesiones-idioma" />
         </header>

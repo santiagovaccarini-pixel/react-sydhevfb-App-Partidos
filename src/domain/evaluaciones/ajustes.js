@@ -161,6 +161,18 @@ export const categoriaDeTextoDelClub = (texto, config) => {
   return encontrada ? encontrada.codigo : undefined;
 };
 
+// La opción de una lista de un texto pegado del Excel ("BAJA", "NO 1 y
+// 2"…): su código, por el código o por el nombre en cualquiera de los dos
+// idiomas (el del Excel o el que le puso el club). null si está vacío o
+// undefined si no es ninguna.
+export const opcionDeTexto = (lista, texto, config, test = null) => {
+  const buscado = normalizar(texto);
+  if (!buscado) return null;
+  const candidatas = IDIOMAS.flatMap((idioma) => [config, configVacia()].flatMap((cual) => opcionesDeLista(lista, cual, idioma, { test, conOcultas: true })));
+  const encontrada = candidatas.find((opcion) => normalizar(opcion.valor) === buscado || normalizar(opcion.etiqueta) === buscado);
+  return encontrada ? encontrada.valor : undefined;
+};
+
 // Código para una opción nueva que agrega el club.
 export const codigoNuevo = (texto) => {
   const base = String(texto || "")

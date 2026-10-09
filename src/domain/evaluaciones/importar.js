@@ -8,6 +8,7 @@ import { normalizarCabecera } from "../importarJugadores.js";
 import { fechaDelExcel, formatoDeLasFechas } from "../importarLesiones.js";
 import { COMO_PERSONA, DUDOSO, ESTADOS, LARGO_DEL_NOMBRE, NO_CARGAR, buscadorDeJugadores, nombreIgual, nombreParecido } from "../importarPersonas.js";
 import { desdeTexto, esFechaReal, interpretarMinutos } from "../tabla.js";
+import { opcionDeTexto } from "./ajustes.js";
 import { categoriaDeTexto } from "./categorias.js";
 
 export { COMO_PERSONA, ESTADOS, NO_CARGAR };
@@ -94,6 +95,13 @@ const cabecerasDeLaFila = (celdas, titulos) => {
   return encontradas;
 };
 
+// Las listas propias del test que se pegan (Selección va aparte): en
+// Estabilidad rotacional, cada respuesta.
+const listasDelTest = (test) => (test.columnas || []).filter((columna) => columna.tipo === "lista" && columna.lista && columna.clave in (test.cabecerasParaPegar || {}));
+
+// Lo que se mide en el test: los tiempos, los números y las listas propias.
+const medidasDelTest = (test) => [...(test.tiempos || []), ...(test.numeros || []), ...listasDelTest(test).map((columna) => columna.clave)];
+
 // Un número como lo escribe el Excel ("68,8", "1.234,5" o "68.8"): el
 // número, null si está vacío o undefined si no se entiende.
 export const leerNumero = (texto) => {
@@ -121,6 +129,7 @@ export const leerEvaluacionesPegadas = (texto, test) => {
     }
   });
   if (filaCabeceras === -1) return { columnas: {}, filas: [], error: "evaluaciones.importar.sinCabeceras" };
+  const medidas = medidasDelTest(test);
   const filas = [];
   matriz.slice(filaCabeceras + 1).forEach((celdas, i) => {
     const nombre = String(celdas[columnas.jugador] ?? "")
@@ -131,6 +140,9 @@ export const leerEvaluacionesPegadas = (texto, test) => {
     const textos = Object.fromEntries(Object.entries(columnas).map(([campo, c]) => [campo, String(celdas[c] ?? "").trim()]));
     // Sin nombre y sin nada cargado: una fila vacía de la planilla.
     if (!nombre && !Object.values(textos).some(Boolean)) return;
+    // En una hoja con varios tests por fila (Funcional), la que no tiene
+    // ninguna medida de este test es de otro.
+    if (test.saltearFilasSinMedidas && !medidas.some((campo) => textos[campo])) return;
     filas.push({ indice: filaCabeceras + 1 + i, nombre, textos });
   });
   if (filas.length === 0) return { columnas, filas, error: "evaluaciones.importar.sinFilas" };
@@ -138,7 +150,8 @@ export const leerEvaluacionesPegadas = (texto, test) => {
 };
 
 // La misma evaluación: de la misma persona (el mismo jugador o el mismo
-// nombre), el mismo día y con las mismas medidas (los tiempos y los números).
+// nombre), el mismo día y con las mismas medidas (los tiempos, los números y
+// las listas propias del test).
 const mismaEvaluacion = (una, otra, nombreDe, tiempos) =>
   nombreIgual(nombreDe(una)) !== "" &&
   nombreIgual(nombreDe(una)) === nombreIgual(nombreDe(otra)) &&
@@ -152,15 +165,20 @@ const mismaEvaluacion = (una, otra, nombreDe, tiempos) =>
 // las que ya están de ese test; hoy: ISO; anio: el de las fechas que vienen
 // sin año; elegidos: { indice de la fila: destino }; categoriaDe(texto): la
 // Selección de un texto (por defecto, las del Excel; la pantalla le pasa
-// también las que sumó el club en Ajustes).
-export const planDeEvaluaciones = (filas, { test, plantel = [], evaluaciones = [], hoy, anio, elegidos = {}, categoriaDe = categoriaDeTexto }) => {
+// también las que sumó el club en Ajustes); opcionDe(lista, texto): la
+// opción de una lista propia del test (por defecto, las del Excel).
+export const planDeEvaluaciones = (
+  filas,
+  { test, plantel = [], evaluaciones = [], hoy, anio, elegidos = {}, categoriaDe = categoriaDeTexto, opcionDe = (lista, texto) => opcionDeTexto(lista, texto, null, test) },
+) => {
   const jugadorDe = buscadorDeJugadores(plantel);
   const porId = new Map(plantel.map((jugador) => [String(jugador.id), jugador]));
   const nombreDe = (evaluacion) => (evaluacion.jugador_id ? porId.get(String(evaluacion.jugador_id))?.nombre : evaluacion.persona) || "";
   const formato = formatoDeLasFechas(filas.map((fila) => fila.textos.fecha));
   const tiempos = test.tiempos || [];
   const numeros = test.numeros || [];
-  const medidas = [...tiempos, ...numeros];
+  const listas = listasDelTest(test);
+  const medidas = medidasDelTest(test);
   const aCargar = [];
   // El mismo nombre fuera de Datos básicos escrito de otra forma es la misma
   // persona: se guarda como ya está en la app, o como en la primera fila.
@@ -200,6 +218,13 @@ export const planDeEvaluaciones = (filas, { test, plantel = [], evaluaciones = [
       const numero = leerNumero(fila.textos[clave]);
       if (numero === undefined || numero === null) avisos.push({ campo: clave, valor: fila.textos[clave] });
       else datos[clave] = numero;
+    });
+    listas.forEach((columna) => {
+      const texto = fila.textos[columna.clave];
+      if (!texto) return;
+      const codigo = opcionDe(columna.lista, texto);
+      if (codigo) datos[columna.clave] = codigo;
+      else avisos.push({ campo: columna.clave, valor: texto });
     });
     if (fila.textos.nota) datos.nota = fila.textos.nota;
 

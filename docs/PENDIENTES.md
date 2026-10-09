@@ -780,8 +780,63 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     evaluaciones extensas «después lo resolvemos», por ahora así).
   - Comprobado contra la hoja real (solo local): las 34.155 celdas calculadas dan igual; en el
     informe, solo cambia el N° (cuenta datos).
+- **Funcional** (hecho el 09/10, `tests/movilidad.js` y `tests/estabilidadRotacional.js`).
+  Lo que decidió Santiago el 09/10:
+  - **Un test por bloque**: Movilidad de Tobillo, Movilidad de Cadera, Movilidad de Isquio y
+    Estabilidad rotacional. «Como todas esas evaluaciones son de movilidad pero se toman
+    distinto hicimos esto, ejemplo: Un jugador hace la evaluacion de tobillo, despues hace otra
+    de tobillo y despues hace una de estabilidad, el dato de estabilidad se pone en la primera
+    fila del jugador no en la segunda evaluacion de tobillo». En el Excel cada bloque tiene su
+    fecha y su n° de evaluación: en la app, cada uno es su propio test, con su fecha y su n°.
+  - **Sentadilla de Arranque, Hombro, los Re - test y las notas quedan afuera** («Dejarlos
+    afuera»): no tienen datos. Si se usan más adelante, se agregan.
+  - **La comparación «Vs …» como en Zona Media** («Armarla como Zona Media») en los tres de
+    movilidad: el promedio sobre el «Bueno» de la categoría elegida, con la clase del
+    promedio y su color. En el Excel la fila «Vs Mayor» de esta hoja miraba celdas de la
+    Sentadilla y no servía.
+  - Movilidad: PD y PI (cada pierna) se cargan; se calculan sus clases, el % Mejora, el %
+    DEFICIT LATERAL (|PI − PD| / la menor) con su clase y qué pierna rinde menos. En Isquio,
+    menos es mejor: las clases con <=, los colores de PD y PI al revés (como el déficit), su %
+    Mejora sin color y «Deficit Pierna» marca la pierna con el valor más grande.
+  - Igual que en Curl Nórdico e Isocinecia (no se volvió a preguntar): las clases contra los
+    V.R. de la categoría de cada fila; el % Mejora contra la evaluación anterior que tenga el
+    dato; el N° del informe cuenta datos; las cuentas de PD / PI / Sin Deficit respetan el
+    filtro («PD 1,0»); sin una pierna, déficit y pierna vacíos; los colores y las letras de PD
+    / PI / Sin Deficit, los de toda la app. El desvío del informe y de los colores lleva el
+    0,0000000000001 que le suma el Excel. «Dificit Pierna» se llama «Deficit Pierna», como en
+    los otros tests.
+  - **Arreglado al pasar (a revisar con Santiago)**: «Deficit Pierna» en negro con la letra
+    blanca cuando la clase del déficit es 2 o menos va en los tres; en el Excel de Tobillo esa
+    regla estaba mal escrita (`IF($AR18<=2,"VERDADERO")`) y no pintaba nunca (con los datos de
+    hoy, 108 celdas de Tobillo se ven en negro). En Isquio, el % Mejora PI y el % DEFICIT
+    LATERAL del informe tenían formato de número (0,1 en vez de 10,0%): van en %. Los formatos
+    de los datos cambiaban de fila a fila en la misma columna («17» y «17,0»): uno por columna.
+  - Estabilidad rotacional: ocho listas (Cifosis Derecha, Cifosis Izquierda, Inestabilidad y
+    Completa recorrido, con la pierna derecha y con la izquierda en apoyo), con las opciones
+    del Excel (Cifosis: NO, ALTA, BAJA, ALTA Y BAJA; Inestabilidad: SI, NO; Completa
+    recorrido: SI, NO 1, NO 2, NO 1 y 2); se cambian en Ajustes › Listas. Sin clases, sin
+    V.R. y sin colores (el Excel no tiene). El informe dice cuántas tienen respuesta y qué
+    parte tiene cada opción, con las filas que se ven («Baja 50,0%»). En el Excel algunas
+    columnas dividían por el N° de otra (Cifosis Izquierda y la pierna izquierda, por el de la
+    primera Cifosis; la segunda Inestabilidad, por el de la primera): acá cada una por el suyo
+    (con los datos de hoy da igual).
+  - Los V.R. (Tobillo, Cadera e Isquio; hoy solo Mayor): PD, PI y el déficit con su «DE»
+    (`datos.categorias.<categoría>` con `pd`, `pi`, `deficit` y `deficit_de`, `titulo` y, en
+    Cadera, el `rotulo` con la nota que trae el Excel); van por SQL, como los otros.
+  - **Pegar desde Excel**: los cuatro se pegan con la hoja Funcional entera (desde la fila 17
+    de títulos y desde la columna Jugador, o desde la A, hasta la última). Cada test lee su
+    Fecha, su PD y su PI por el lugar en que aparecen (la fila de títulos los repite en cada
+    bloque) y saltea las filas sin sus datos (`saltearFilasSinMedidas`); las listas se
+    entienden sin importar mayúsculas, en los dos idiomas y con los nombres del club. Las
+    fechas salen como las muestra el Excel (dd/mm/aaaa). No hay decimales escondidos: PD y PI
+    son números enteros.
+  - Comprobado contra la hoja real (solo local): las 3262 celdas calculadas de las 503 filas
+    y el n° de evaluación de cada una dan igual; en el informe, solo cambia el N° de dos
+    columnas que el Excel deja vacío. Los colores, contra las reglas del Excel aplicadas
+    aparte: iguales, salvo el negro de «Deficit Pierna» en Tobillo (arriba). Pegada la hoja
+    entera, cada test lee sus filas (214, 213, 39 y 37) sin avisos y con los mismos datos.
 - Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja:
-  Funcional, Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
+  Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
   CONTAR.SI.CONJUNTO). Cada uno entra en las pantallas de abajo (09/10): se carga en Cargar,
   se elige en la Base, va en los reportes y sus cabeceras y listas se cambian en Ajustes.
 - **Las pantallas de Evaluaciones (Santiago, 09/10)**, como Lesiones (regla de «Bases de
