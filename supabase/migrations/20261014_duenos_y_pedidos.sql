@@ -3,19 +3,22 @@
 -- cada club manejado solo por su gente.
 --
 --   · Dueños: un dueño principal (plataforma, una sola fila) y sub-dueños
---     (plataforma_subduenos). Hacen lo mismo (crear clubes, poner o cambiar
---     el correo de la entidad de un club, ver el panel y los movimientos),
---     menos sumar, quitar o pasar el lugar de dueño: eso, solo el principal.
+--     (plataforma_subduenos). Hacen lo mismo (crear clubes, cambiarles el
+--     nombre, poner o cambiar el correo de la entidad de un club, ver el
+--     panel y los movimientos), menos sumar, quitar o pasar el lugar de
+--     dueño: eso, solo el principal. Un club (su nombre) lo cambian solo
+--     ellos: ni su administrador ni nadie del club (decisión del 09/10).
 --     Todo pasa por funciones que revisan quién llama y lo anotan
 --     (plataforma_historial). Ninguna política de una tabla los menciona:
 --     un dueño no ve gente, datos, historia ni invitaciones de un club donde
 --     no está. Del panel ve, por club, nombre, correo de la entidad, correo
 --     del administrador y cuánta gente hay.
---   · Pedidos de acceso (club_pedidos): quien no tiene invitación escribe el
---     club al que quiere entrar y espera. Si el nombre es el de un club de
---     la app con administrador, lo decide ese administrador; si no (o si el
---     club se queda sin administrador), los dueños lo mandan a un club con
---     administrador o lo rechazan. La persona ve lo mismo en todos los casos.
+--   · Pedidos de acceso (club_pedidos): quien no tiene invitación (esté o no
+--     en otros clubes) escribe el club al que quiere entrar y espera. Si el
+--     nombre es el de un club de la app con administrador, lo decide ese
+--     administrador; si no (o si el club se queda sin administrador), los
+--     dueños lo mandan a un club con administrador o lo rechazan. La
+--     persona ve lo mismo en todos los casos.
 --     Dos clubes no se escriben igual (sin contar tildes, mayúsculas ni
 --     espacios de más), tampoco al cambiar el nombre.
 --   · Se termina la aprobación global: perfiles.admin queda en false para
@@ -104,8 +107,8 @@ create table if not exists public.plataforma_historial (
   cuando      timestamptz not null default now(),
   quien       uuid,
   quien_email text not null default '',
-  accion      text not null check (accion in ('semilla', 'crear_club', 'entidad', 'sumar_subdueno', 'quitar_subdueno',
-                                              'traspaso', 'derivar_pedido', 'rechazar_pedido')),
+  accion      text not null check (accion in ('semilla', 'crear_club', 'renombrar_club', 'entidad', 'sumar_subdueno',
+                                              'quitar_subdueno', 'traspaso', 'derivar_pedido', 'rechazar_pedido')),
   equipo_id   uuid,
   objetivo    uuid,
   email       text,
@@ -113,7 +116,7 @@ create table if not exists public.plataforma_historial (
 );
 
 comment on table public.plataforma_historial is
-  'Movimientos de los dueños (clubes creados, entidades, dueños, pedidos derivados o rechazados). La escriben las funciones; se lee con panel_historial().';
+  'Movimientos de los dueños (clubes creados o renombrados, entidades, dueños, pedidos derivados o rechazados). La escriben las funciones; se lee con panel_historial().';
 
 -- El correo de la entidad de cada club. En este paso es solo un dato: se
 -- vincula a una cuenta en el paso 3. Una entidad, un club.
@@ -544,8 +547,8 @@ end $$;
 
 -- Dos clubes no se escriben igual (sin contar tildes, mayúsculas ni espacios
 -- de más), tampoco al cambiar el nombre: un pedido de acceso no sabría a
--- cuál ir. Las mismas reglas que crear_club. Mira todos los clubes, también
--- los que quien cambia el nombre no ve.
+-- cuál ir. Las mismas reglas que crear_club y renombrar_club, que lo miran
+-- antes: esto queda de red (también para lo que se cambie por SQL).
 create or replace function public.equipos_nombre_sin_repetir()
 returns trigger
 language plpgsql
@@ -860,6 +863,53 @@ begin
 end;
 $$;
 
+-- Le cambia el nombre a un club. Solo los dueños: ni su administrador ni
+-- nadie del club (decisión del dueño, 09/10). Las mismas reglas que
+-- crear_club. Queda en los movimientos de los dueños y en la historia del
+-- club, sin quién fue (como la entidad).
+create or replace function public.renombrar_club(p_equipo uuid, p_nombre text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_nombre text := btrim(regexp_replace(coalesce(p_nombre, ''), '\s+', ' ', 'g'));
+  v_antes text;
+begin
+  perform 1 from public.plataforma for update;
+  if not public.es_dueno() then
+    raise exception 'solo_duenos' using errcode = '42501';
+  end if;
+  select e.nombre into v_antes from public.equipos e where e.id = p_equipo for update;
+  if not found then
+    raise exception 'club_inexistente' using errcode = 'P0001';
+  end if;
+  if v_nombre = '' or char_length(v_nombre) > 60 then
+    raise exception 'nombre_invalido' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from public.equipos e
+              where e.id <> p_equipo
+                and public.normalizar_nombre_club(e.nombre) = public.normalizar_nombre_club(v_nombre)) then
+    raise exception 'nombre_repetido' using errcode = 'P0001';
+  end if;
+  if v_nombre = v_antes then
+    return;
+  end if;
+  begin
+    update public.equipos set nombre = v_nombre where id = p_equipo;
+  exception when unique_violation then
+    raise exception 'nombre_repetido' using errcode = 'P0001';
+  end;
+  perform public.plataforma_anotar('renombrar_club', p_equipo, null, null,
+                                   jsonb_build_object('antes', v_antes, 'nombre', v_nombre));
+  -- En la historia del club, sin quién fue (como la entidad): quién fue lo
+  -- ven solo los dueños, en sus movimientos.
+  insert into public.club_miembros_historial (equipo_id, user_id, accion, detalle, quien, quien_email)
+  values (p_equipo, null, 'club_renombrado', jsonb_build_object('antes', v_antes, 'nombre', v_nombre), null, '');
+end;
+$$;
+
 -- Pone, cambia o saca (vacío) el correo de la entidad de un club. Ningún
 -- dueño puede ser entidad, y una entidad es de un solo club. Queda en los
 -- movimientos de los dueños y en la historia del club.
@@ -1126,8 +1176,9 @@ $$;
 
 -- -------------------------------------------- Pedidos (quien pide entrar) --
 
--- Pide entrar a un club escribiendo su nombre. Devuelve solo el id: nunca si
--- el club usa la app (ni si ya estaba adentro).
+-- Pide entrar a un club escribiendo su nombre. Cualquier cuenta, también una
+-- que ya está en otros clubes. Devuelve solo el id: nunca si el club usa la
+-- app (ni si ya estaba adentro).
 create or replace function public.pedir_acceso(p_club text, p_pais text default null)
 returns uuid
 language plpgsql
@@ -1402,16 +1453,12 @@ create policy club_invitaciones_cancelar on public.club_invitaciones
   using (public.es_admin_de_club(equipo_id) and cancelada_en is null and usada_en is null)
   with check (public.es_admin_de_club(equipo_id) and cancelada_en is not null);
 
--- Clubes: cada uno ve los suyos (donde está o estuvo); el nombre lo cambia
--- su administrador. Se crean con crear_club y no se borran desde la app.
+-- Clubes: cada uno ve los suyos (donde está o estuvo). Nadie los cambia
+-- desde la API: los crean y les cambian el nombre solo los dueños
+-- (crear_club, renombrar_club), y no se borran desde la app.
 create policy equipos_ver on public.equipos
   for select to authenticated
   using (public.puede_ver(id));
-
-create policy equipos_cambiar on public.equipos
-  for update to authenticated
-  using (public.es_admin_de_club(id))
-  with check (public.es_admin_de_club(id));
 
 -- Ajustes generales (tabla vieja): solo se leen.
 create policy ajustes_ver on public.ajustes
@@ -1449,7 +1496,6 @@ grant select on table public.club_invitaciones to authenticated;
 grant insert (equipo_id, email, rol, partido, flujo, lesiones, evaluaciones) on table public.club_invitaciones to authenticated;
 grant update (cancelada_en) on table public.club_invitaciones to authenticated;
 grant select on table public.equipos to authenticated;
-grant update (nombre) on table public.equipos to authenticated;
 grant select, insert, update, delete
   on table public.registros_partido, public.jugadores, public.entrenamientos, public.catapult_cuentas
   to authenticated;
@@ -1491,7 +1537,7 @@ grant execute on function
   public.datos_al_dia(text, uuid), public.lesiones_etiqueta(uuid, text, text, text), public.lesiones_horas_imagen(text, date),
   public.mi_cuenta(), public.puede_usar_catapult_servidor(),
   public.panel_clubes(), public.panel_duenos(), public.panel_historial(integer),
-  public.crear_club(text, text, text), public.asignar_entidad(uuid, text),
+  public.crear_club(text, text, text), public.renombrar_club(uuid, text), public.asignar_entidad(uuid, text),
   public.agregar_subdueno(text), public.quitar_subdueno(uuid), public.traspasar_principal(uuid),
   public.pedidos_sin_club(), public.derivar_pedido(uuid, uuid), public.rechazar_pedido_sin_club(uuid),
   public.pedir_acceso(text, text), public.mis_pedidos(), public.cancelar_pedido(uuid),
@@ -1565,9 +1611,9 @@ begin
      or has_table_privilege('authenticated', 'public.club_miembros', 'DELETE') then
     v_fallas := v_fallas || 'authenticated puede sumar o borrar membresías'::text;
   end if;
-  if has_any_column_privilege('authenticated', 'public.equipos', 'INSERT')
+  if has_any_column_privilege('authenticated', 'public.equipos', 'INSERT, UPDATE')
      or has_table_privilege('authenticated', 'public.equipos', 'DELETE') then
-    v_fallas := v_fallas || 'authenticated puede crear o borrar clubes'::text;
+    v_fallas := v_fallas || 'authenticated puede crear, cambiar o borrar clubes'::text;
   end if;
   if has_any_column_privilege('authenticated', 'public.perfiles', 'UPDATE') then
     v_fallas := v_fallas || 'authenticated puede cambiar perfiles'::text;
