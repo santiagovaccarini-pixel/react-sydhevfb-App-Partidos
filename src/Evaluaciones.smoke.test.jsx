@@ -229,9 +229,8 @@ describe("Evaluaciones", () => {
     // La clase, con el número del color de su clase, en negrita, sobre gris.
     const clase = celda(contenedor, 0, "L. Clas");
     expect(clase.textContent).toBe("5");
-    // Sobre el color de su clase (5: verde oscuro), con la letra blanca.
-    expect(clase.style.background).toBe("rgb(79, 98, 40)");
-    expect(clase.style.color).toBe("rgb(255, 255, 255)");
+    expect(clase.style.background).toBe("rgb(217, 217, 217)");
+    expect(clase.style.color).toBe("rgb(79, 98, 40)");
     expect(clase.style.fontWeight).toBe("700");
     // % mejora: contra la evaluación anterior del mismo jugador.
     expect(celda(contenedor, 2, "% mejora").textContent).toBe("5,0%");
@@ -536,8 +535,9 @@ describe("Evaluaciones", () => {
     expect(elegida(filasDeLaTabla()[0])).toBe("1 · 01/06/2026");
     const celdas = filasDeLaTabla()[0].querySelectorAll("td");
     expect(celdas[titulos.indexOf("Lumbar")].textContent).toBe("4:00");
-    // La clase, con el color de su clase (como en la Base).
-    expect(celdas[titulos.indexOf("L. Clas")].style.background).toBe("rgb(79, 98, 40)");
+    // La clase, como en la Base: el número del color de su clase, sobre gris.
+    expect(celdas[titulos.indexOf("L. Clas")].style.background).toBe("rgb(217, 217, 217)");
+    expect(celdas[titulos.indexOf("L. Clas")].style.color).toBe("rgb(79, 98, 40)");
     expect(filasDeLaTabla()).toHaveLength(5);
   });
 
