@@ -341,8 +341,9 @@ describe("Clubes de la app", () => {
     ];
     await montar();
     const pedido = fila(".panel-pedido", "nadie@prueba.com");
-    expect(pedido.querySelector(".cuenta-meta").textContent).toContain("Escribió: Club Seis");
-    expect(pedido.querySelector(".cuenta-meta").textContent).toContain("País: Uruguay");
+    // Los datos separados con « · », sin pegarse; sin país, no queda un hueco.
+    expect(pedido.querySelector(".cuenta-meta").textContent).toBe("Escribió: Club Seis · País: Uruguay · Pidió el 05/10/2026");
+    expect(fila(".panel-pedido", "otra@prueba.com").querySelector(".cuenta-meta").textContent).toBe("Escribió: Club Siete · Pidió el 04/10/2026");
 
     await tocar(boton(pedido, "Mandar a un club"));
     await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Club Uno"));

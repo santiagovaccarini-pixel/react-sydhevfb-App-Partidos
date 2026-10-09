@@ -358,10 +358,17 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
                     <div className="cuenta-encabezado">
                       <span className="cuenta-correo">{pedido.email}</span>
                     </div>
+                    {/* Los datos en un renglón, separados con « · » como en el resto de la app. */}
                     <div className="cuenta-meta">
-                      <span>{t("panel.clubEscrito", { club: pedido.club_escrito })}</span>
-                      {pedido.pais_escrito && <span>{t("panel.pais", { pais: pedido.pais_escrito })}</span>}
-                      <span>{t("panel.pedidoDel", { fecha: fechaCorta(pedido.creado_en) })}</span>
+                      <span>
+                        {[
+                          t("panel.clubEscrito", { club: pedido.club_escrito }),
+                          pedido.pais_escrito && t("panel.pais", { pais: pedido.pais_escrito }),
+                          t("panel.pedidoDel", { fecha: fechaCorta(pedido.creado_en) }),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
                     </div>
                     <div className="cuenta-acciones">
                       <button type="button" className="cuenta-autorizar" disabled={ocupado === pedido.id || clubes.length === 0} onClick={() => setADerivar(pedido)}>

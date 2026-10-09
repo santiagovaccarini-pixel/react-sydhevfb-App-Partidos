@@ -90,13 +90,22 @@ const FilaMiembro = ({ miembro, esMio, ocupada, onModulo, onBaja, onReincorporar
         {miembro.estado === "bloqueado" && <span className="cuenta-etiqueta alerta">{t("cuentas.cuentaBloqueada")}</span>}
         {miembro.estado === "pendiente" && <span className="cuenta-etiqueta alerta">{t("cuentas.cuentaPendiente")}</span>}
       </div>
+      {/* Los datos en un renglón, separados con « · » como en el resto de la app. */}
       <div className="cuenta-meta">
         {activo ? (
-          miembro.desde && <span>{t("cuentas.desdeEl", { fecha: fechaCorta(miembro.desde) })}</span>
+          (miembro.desde || !editable) && (
+            <span>
+              {[miembro.desde && t("cuentas.desdeEl", { fecha: fechaCorta(miembro.desde) }), !editable && nombresDeModulos(miembro)]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          )
         ) : (
-          <span className="cuenta-meta-hasta">{t("cuentas.hastaEl", { fecha: fechaCorta(miembro.hasta) })}</span>
+          <span>
+            <span className="cuenta-meta-hasta">{t("cuentas.hastaEl", { fecha: fechaCorta(miembro.hasta) })}</span>
+            {!editable && ` · ${nombresDeModulos(miembro)}`}
+          </span>
         )}
-        {!editable && <span className="cuenta-meta-modulos">{nombresDeModulos(miembro)}</span>}
       </div>
       {editable && (
         <div className="cuenta-permisos" role="group" aria-label={t("cuentas.quePuedeUsar", { correo: miembro.email })}>
@@ -145,8 +154,7 @@ const FilaInvitacion = ({ invitacion, vencida = false, ocupada, enviando = false
       {vencida && <span className="cuenta-etiqueta alerta">{t("cuentas.vencida")}</span>}
     </div>
     <div className="cuenta-meta">
-      <span>{nombresDeModulos(invitacion)}</span>
-      <span>{t(vencida ? "cuentas.vencioEl" : "cuentas.venceEl", { fecha: fechaCorta(invitacion.vence_en) })}</span>
+      <span>{`${nombresDeModulos(invitacion)} · ${t(vencida ? "cuentas.vencioEl" : "cuentas.venceEl", { fecha: fechaCorta(invitacion.vence_en) })}`}</span>
     </div>
     <div className="cuenta-acciones">
       {!vencida && (

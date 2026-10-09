@@ -215,7 +215,8 @@ describe("Cuentas", () => {
     const ana = fila("ana@uno.com");
     expect([...ana.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Tu cuenta", "Administrador del club"]);
     expect(ana.querySelector(".cuenta-chip")).toBeNull();
-    expect(ana.querySelector(".cuenta-meta").textContent).toContain("Partido, Flujo diario, Lesiones");
+    // Los datos separados con « · », sin pegarse.
+    expect(ana.querySelector(".cuenta-meta").textContent).toBe("En el club desde el 01/09/2026 · Partido, Flujo diario, Lesiones");
     expect(fila("gaby@uno.com").querySelector(".cuenta-etiqueta.alerta").textContent).toBe("Cuenta bloqueada");
 
     const dario = fila("dario@uno.com");
@@ -226,7 +227,7 @@ describe("Cuentas", () => {
     expect(chip(dario, "Administrador del club")).toBeUndefined();
     expect(chip(dario, "Partido")).toBeTruthy();
 
-    expect(fila("espera@uno.com").querySelector(".cuenta-meta").textContent).toContain("Partido");
+    expect(fila("espera@uno.com").querySelector(".cuenta-meta").textContent).toMatch(/^Partido · Vence el \d{2}\/\d{2}\/\d{4}$/);
   });
 
   test("invitar: correo inválido, alguien que ya está, una invitación nueva y una cuenta que entra en el acto", async () => {
@@ -446,6 +447,8 @@ describe("Cuentas", () => {
     // Aunque se haya ido: nadie del club lo reincorpora ni le cambia qué ve.
     const sub = fila("sub@uno.com");
     expect(sub.classList.contains("se-fue")).toBe(true);
+    expect(sub.querySelector(".cuenta-meta").textContent).toBe("Hasta el 31/08/2026 · solo lectura · Partido, Flujo diario");
+    expect(sub.querySelector(".cuenta-meta-hasta").textContent).toBe("Hasta el 31/08/2026 · solo lectura");
     expect(sub.querySelector(".cuenta-chip")).toBeNull();
     expect(boton(sub, "Reincorporar")).toBeUndefined();
     expect([...sub.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Dueño de la app"]);
