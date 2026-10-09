@@ -483,7 +483,7 @@ describe("Evaluaciones", () => {
     expect(volvio).toBe(1);
   });
 
-  test("Reportes › Individual: un jugador, cada test con sus evaluaciones y el informe de esas filas", async () => {
+  test("Reportes › Individual: como la imagen; por área, la última evaluación de cada test con sus clases", async () => {
     await montar();
     await irA(contenedor, "Reportes");
     await tocar([...contenedor.querySelectorAll(".reporte-opcion")].find((b) => b.textContent.includes("Reporte individual")));
@@ -492,22 +492,25 @@ describe("Evaluaciones", () => {
     expect(lista.map((b) => b.textContent)).toEqual(["ALFA2 evaluaciones", "BETA1 evaluación"]);
     await tocar(lista[0]);
     expect(contenedor.querySelector(".informe-cabecera h1").textContent).toBe("ALFA");
-    const secciones = [...contenedor.querySelectorAll(".evaluaciones-informe-test")];
-    expect(secciones).toHaveLength(1);
-    expect(secciones[0].querySelector("h2").textContent).toBe('Evaluación Zona Media "CORE"');
-    const tabla = secciones[0].querySelector("table");
-    const titulos = [...tabla.querySelectorAll("tr.informe-cabeceras th")].map((th) => th.textContent);
-    // Sin el nombre ni la fecha de nacimiento en cada fila.
-    expect(titulos.slice(0, 4)).toEqual(["nº Eva", "Fecha", "Seleccion", "Lumbar"]);
-    const cuerpo = [...tabla.querySelectorAll("tbody tr")];
-    expect(cuerpo).toHaveLength(2);
-    expect(cuerpo[1].querySelectorAll("td")[titulos.indexOf("% mejora")].textContent).toBe("5,0%");
-    // El informe de esas dos filas: el promedio de Lumbar (4:00 y 4:12).
-    const promedios = [...tabla.querySelectorAll("tr.informe-promedios")][0];
-    const antes = Number(promedios.querySelector("th").getAttribute("colspan"));
-    expect(promedios.querySelectorAll("td")[titulos.indexOf("Lumbar") - antes].textContent).toBe("4:06");
-    // La clase, con el color de su clase (como en la Base).
-    expect(cuerpo[0].querySelectorAll("td")[titulos.indexOf("L. Clas")].style.color).toBe("rgb(79, 98, 40)");
+    expect(contenedor.querySelector(".informe-subtitulo").textContent).toBe("Club de Prueba · Performance");
+    expect([...contenedor.querySelectorAll(".informe-dato")].map((dato) => dato.textContent)).toEqual(["CategoríaMayor", "Última evaluación01/07/2026", "Nº evaluaciones2"]);
+    // Zona Media va en su área, con la última evaluación (la del 01/07).
+    expect([...contenedor.querySelectorAll(".evaluaciones-area-titulo")].map((h) => h.textContent)).toEqual(["Zona Media"]);
+    const tarjeta = contenedor.querySelector(".evaluaciones-tarjeta");
+    expect(tarjeta.querySelector("h3").textContent).toBe("Zona Media - Core");
+    expect(tarjeta.querySelector("header p").textContent).toBe("01/07/2026 · Evaluación 2");
+    const titulos = [...tarjeta.querySelectorAll(".evaluaciones-medida-titulo")].map((titulo) => titulo.textContent);
+    expect(titulos).toEqual(["Lumbar", "Lateral D", "Lateral I", "Prono", "Deficit Lateral %", "Ratio", "PRO??"]);
+    const valores = [...tarjeta.querySelectorAll(".evaluaciones-medida-valor")].map((valor) => valor.textContent);
+    expect(valores[0]).toBe("4:12");
+    // La clase, con el color de su clase (5: verde oscuro).
+    const lumbar = tarjeta.querySelectorAll(".evaluaciones-medida-clase")[0];
+    expect(lumbar.textContent).toBe("5");
+    expect(lumbar.style.background).toBe("rgb(79, 98, 40)");
+    // Sin la medida, la clase dice que falta.
+    expect(tarjeta.querySelectorAll(".evaluaciones-medida-clase")[1].textContent).toBe("—");
+    // PRO?? no tiene clase abajo.
+    expect(tarjeta.querySelectorAll(".evaluaciones-medida-clase")[6].textContent).toBe("");
   });
 
   test("Reportes › Grupal: un test por categoría y fechas", async () => {

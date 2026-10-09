@@ -427,8 +427,30 @@ export const CABECERAS_PARA_PEGAR = Object.freeze({
   nota: ["nota"],
 });
 
+// --------------------------------------------------- Reporte individual --
+// La tarjeta del test en el reporte individual (como la imagen que mandó
+// Santiago el 09/10): la última evaluación del jugador, cada medida con su
+// clase abajo.
+export const REPORTE = Object.freeze([
+  {
+    id: "core",
+    titulo: et("Zona Media - Core", "Zona Média - Core"),
+    medidas: [
+      { clave: "lumbar", clase: "lumbar_clas" },
+      { clave: "lateral_d", clase: "lateral_d_clas" },
+      { clave: "lateral_i", clase: "lateral_i_clas" },
+      { clave: "prono", clase: "prono_clas" },
+      { clave: "deficit", clase: "deficit_clas" },
+      { clave: "ratio", clase: "ratio_clas" },
+      { clave: "pro" },
+    ],
+  },
+]);
+
 export const ZONA_MEDIA = Object.freeze({
   id: ID,
+  area: "zona_media",
+  reporte: REPORTE,
   pestana: et("Zona Media", "Zona Média"),
   titulo: et('Evaluación Zona Media "CORE"', 'Avaliação Zona Média "CORE"'),
   nota: et(

@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
+import { FotoDelJugador } from "./ReportesLesiones.jsx";
+import { AREAS } from "./domain/evaluaciones/areas.js";
+import { COLOR_DE_CLASE } from "./domain/evaluaciones/formatoCondicional.js";
 import { COMPARAR_AL_ABRIR } from "./domain/evaluaciones/categorias.js";
 import {
   LISTA_SELECCION,
@@ -22,10 +25,12 @@ import { fechaCorta } from "./idioma/formatos.js";
 
 // Los reportes de Evaluaciones (Santiago, 09/10), como los de Lesiones: se
 // elige cuál ver y se imprime.
-//   · Individual: un jugador, todos sus tests; cada test con sus
-//     evaluaciones en el tiempo (valores, clases con sus colores y % de
-//     mejora) y el informe del Excel de esas filas, como si en la hoja se
-//     filtrara por el jugador.
+//   · Individual: un jugador, todos sus tests, como la imagen que mandó
+//     Santiago (09/10): arriba el club, la categoría, la última evaluación,
+//     cuántas tiene y su foto; abajo, por área, una tarjeta por test con su
+//     última evaluación (cada medida con su clase y el color de la clase).
+//     La clasificación general y el puntaje de cada área faltan: Santiago
+//     va a explicar cómo salen (09/10).
 //   · Grupal: un test, el informe del Excel (promedio, desvío, n, máximo,
 //     mínimo y la comparación con los V.R.) por categoría y fechas, con sus
 //     evaluaciones.
@@ -125,6 +130,52 @@ const TablaDelTest = ({ test, columnas, filas, referencias, comparar, config, id
         </tbody>
       </table>
     </div>
+  );
+};
+
+// Una tarjeta del reporte individual (como la imagen de Santiago, 09/10):
+// el test, la fecha y el n° de su última evaluación, cada medida con su
+// valor y, abajo, su clase con el color de la clase.
+const TarjetaDelTest = ({ test, tarjeta, ultima, config, idioma, jugadorDe }) => {
+  const { fila, celdas } = ultima;
+  const columnas = columnasVisibles(test, config);
+  const medidas = tarjeta.medidas.filter((medida) => columnas.some((columna) => columna.clave === medida.clave));
+  const { textos } = celdasDeLaFila({ test, columnas, fila, celdas, jugador: jugadorDe(fila.jugador_id), config, idioma });
+  const titulo = (clave) => {
+    const columna = test.columnas.find((una) => una.clave === clave);
+    return columna ? tituloDeColumna(test, columna, config, idioma) : clave;
+  };
+  const conClase = medidas.some((medida) => medida.clase);
+  return (
+    <section className="evaluaciones-tarjeta">
+      <header>
+        <h3>{tarjeta.titulo[idioma]}</h3>
+        <p>
+          {[fila.fecha ? fechaCorta(fila.fecha) : t("evaluaciones.sinFecha"), t("evaluaciones.reportes.evaluacionN", { n: celdas.numero })].join(" · ")}
+        </p>
+      </header>
+      <ul className="evaluaciones-medidas">
+        {medidas.map((medida) => {
+          const clase = medida.clase ? celdas[medida.clase] : null;
+          const color = typeof clase === "number" ? COLOR_DE_CLASE[clase] : null;
+          return (
+            <li key={medida.clave}>
+              <span className="evaluaciones-medida-titulo">{titulo(medida.clave)}</span>
+              <strong className="evaluaciones-medida-valor">{textos[medida.clave] || "—"}</strong>
+              {conClase && (
+                <span
+                  className={`evaluaciones-medida-clase ${medida.clase ? "" : "sin-clase"} ${color ? `clase-${clase}` : ""}`.trim()}
+                  style={color ? { background: color } : undefined}
+                  title={medida.clase ? titulo(medida.clase) : undefined}
+                >
+                  {medida.clase ? (typeof clase === "number" ? clase : "—") : ""}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 };
 
@@ -342,37 +393,60 @@ export default function ReportesEvaluaciones({ evaluaciones, referenciasPorTest,
       );
     }
 
-    const tests = TESTS.map((test) => ({ test, filas: calculadasPorTest[test.id].filter(({ quien: suyo }) => suyo === elegido.clave) })).filter(({ filas }) => filas.length > 0);
-    const total = tests.reduce((suma, { filas }) => suma + filas.length, 0);
+    // De cada test, la última evaluación del jugador (la del Excel: por
+    // fecha y, con la misma fecha, la última cargada).
+    const ultimas = TESTS.map((test) => {
+      const suyas = calculadasPorTest[test.id].filter(({ quien: suyo }) => suyo === elegido.clave);
+      return { test, ultima: suyas[suyas.length - 1] || null, cuantas: suyas.length };
+    }).filter(({ ultima }) => ultima);
+    const deUltima = [...ultimas].sort((a, b) => String(a.ultima.fila.fecha || "").localeCompare(String(b.ultima.fila.fecha || ""))).at(-1)?.ultima || null;
+    const fechas = new Set(
+      evaluaciones.filter((evaluacion) => quienEs(evaluacion) === elegido.clave && evaluacion.fecha).map((evaluacion) => evaluacion.fecha),
+    );
+    const areas = AREAS.map((area) => ({ area, tests: ultimas.filter(({ test }) => test.area === area.clave) })).filter(({ tests }) => tests.length > 0);
+    const seleccion = deUltima?.fila.datos?.seleccion;
     return (
       <div className="app reporte">
         <div className="contenedor contenedor-base">
           {acciones}
           {estado}
-          <section className="tarjeta evaluaciones-reporte-filtros no-imprimir">{selectorComparar}</section>
-          <article className="informe evaluaciones-informe">
-            {cabecera(t("evaluaciones.reportes.individualTitulo"), elegido.nombre, [
-              { clave: "nacimiento", rotulo: t("lesiones.reportes.nacimiento"), valor: elegido.jugador?.fecha_nacimiento ? fechaCorta(elegido.jugador.fecha_nacimiento) : "—" },
-              { clave: "evaluaciones", rotulo: t("evaluaciones.titulo"), valor: String(total) },
-            ])}
-            {tests.length === 0 && <p className="vacio-ficha">{t("evaluaciones.reportes.sinEvaluaciones")}</p>}
-            {tests.map(({ test, filas }) => (
-              <section className="informe-lesiones evaluaciones-informe-test" key={test.id}>
-                <div className="informe-seccion">
-                  <h2>{test.titulo[idioma]}</h2>
-                  <span>{plural("evaluaciones.reportes.cantidad", filas.length)}</span>
+          <article className="informe evaluaciones-informe evaluaciones-individual">
+            <header className="informe-cabecera">
+              <div className="informe-marca-agua" aria-hidden="true">
+                <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
+              </div>
+              <div className="informe-escudo">
+                <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
+              </div>
+              <div className="informe-identidad">
+                <p className="informe-subtitulo">{[equipo?.nombre, t("evaluaciones.reportes.performance")].filter(Boolean).join(" · ")}</p>
+                <h1>{elegido.nombre}</h1>
+                <dl className="informe-datos">
+                  {[
+                    { clave: "categoria", rotulo: t("evaluaciones.reportes.categoria"), valor: seleccion ? etiquetaDeOpcion(LISTA_SELECCION, seleccion, config, idioma) : "—" },
+                    { clave: "ultima", rotulo: t("evaluaciones.reportes.ultima"), valor: deUltima?.fila.fecha ? fechaCorta(deUltima.fila.fecha) : "—" },
+                    { clave: "evaluaciones", rotulo: t("evaluaciones.reportes.numeroEvaluaciones"), valor: String(fechas.size) },
+                  ].map((dato) => (
+                    <div className="informe-dato" key={dato.clave}>
+                      <dt>{dato.rotulo}</dt>
+                      <dd>{dato.valor}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              {elegido.jugador ? <FotoDelJugador jugador={elegido.jugador} /> : <FotoDelJugador jugador={{ nombre: elegido.nombre }} />}
+            </header>
+            {areas.length === 0 && <p className="vacio-ficha">{t("evaluaciones.reportes.sinEvaluaciones")}</p>}
+            {areas.map(({ area, tests }) => (
+              <section className="evaluaciones-area" key={area.clave}>
+                <h2 className="evaluaciones-area-titulo">{area.titulo[idioma]}</h2>
+                <div className="evaluaciones-tarjetas">
+                  {tests.flatMap(({ test, ultima }) =>
+                    (test.reporte || []).map((tarjeta) => (
+                      <TarjetaDelTest key={`${test.id}-${tarjeta.id}`} test={test} tarjeta={tarjeta} ultima={ultima} config={config} idioma={idioma} jugadorDe={jugadorDe} />
+                    )),
+                  )}
                 </div>
-                <TablaDelTest
-                  test={test}
-                  // De un jugador: sin su nombre ni su fecha de nacimiento en cada fila.
-                  columnas={columnasVisibles(test, config).filter((columna) => !["jugador", "fecha_nac"].includes(columna.clave))}
-                  filas={filas}
-                  referencias={referenciasPorTest[test.id] || null}
-                  comparar={comparar}
-                  config={config}
-                  idioma={idioma}
-                  jugadorDe={jugadorDe}
-                />
               </section>
             ))}
             {pie(t("lesiones.reportes.individual"))}

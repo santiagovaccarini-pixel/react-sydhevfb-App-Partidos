@@ -39,6 +39,9 @@ prohibiciones específicas de conversaciones que no están disponibles.
   («Evaluaciones (05/10)»).
 - Evaluaciones › Reportes › Gráficos: falta definir qué gráficos van (Santiago, 09/10:
   «después lo vemos»). No agregar ninguno hasta que se defina.
+- Evaluaciones › Reporte individual: la «Clasificación general» y el puntaje de cada área
+  esperan la explicación de Santiago (09/10); el Grupal espera la solapa «Reporte grupal»
+  del Excel. No inventar cortes, puntajes ni el diseño del grupal mientras tanto.
 - Configuración del protocolo por club, tutorial, GPS y futuras bases: siguen el
   estado y alcance de su sección en PENDIENTES.md; no se implementan por este índice.
 

@@ -259,3 +259,121 @@
 .lesiones-marco .evaluaciones-informe-test .informe-criterio {
   margin-top: 10px;
 }
+
+/* Reporte individual (como la imagen de Santiago, 09/10): por área, una
+   barra negra con su nombre y las tarjetas de sus tests. */
+.lesiones-marco .evaluaciones-individual .evaluaciones-area {
+  padding: 18px 26px 0;
+}
+.lesiones-marco .evaluaciones-individual .evaluaciones-area-titulo {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: #111827;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* Las tarjetas comparten la fila; una sola ocupa todo el ancho. */
+.lesiones-marco .evaluaciones-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 12px;
+}
+.lesiones-marco .evaluaciones-tarjeta {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+}
+.lesiones-marco .evaluaciones-tarjeta header h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.lesiones-marco .evaluaciones-tarjeta header p {
+  margin: 2px 0 10px;
+  color: #6b7280;
+  font-size: 12px;
+}
+/* Cada medida en su casillero: el título, el valor y, abajo, la clase con
+   el color de la clase. Van en una fila y bajan de renglón si no entran. */
+.lesiones-marco .evaluaciones-medidas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+.lesiones-marco .evaluaciones-medidas li {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 3px;
+  min-width: 0;
+  text-align: center;
+}
+.lesiones-marco .evaluaciones-medida-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.6em;
+  padding: 3px 4px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.lesiones-marco .evaluaciones-medida-valor {
+  padding: 7px 4px;
+  border-radius: 4px;
+  background: #fff;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 500;
+}
+.lesiones-marco .evaluaciones-medida-clase {
+  min-height: 30px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  background: #fff;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+}
+.lesiones-marco .evaluaciones-medida-clase.sin-clase {
+  background: transparent;
+}
+/* Sobre el verde oscuro y el rojo, el número en blanco. */
+.lesiones-marco .evaluaciones-medida-clase.clase-5,
+.lesiones-marco .evaluaciones-medida-clase.clase-1 {
+  color: #fff;
+}
+@media screen and (max-width: 760px) {
+  .lesiones-marco .evaluaciones-individual .evaluaciones-area {
+    padding: 14px 12px 0;
+  }
+}
+@media print {
+  .lesiones-marco .evaluaciones-individual .evaluaciones-area {
+    padding: 10px 20px 0;
+    break-inside: avoid-page;
+  }
+  .lesiones-marco .evaluaciones-tarjeta {
+    break-inside: avoid;
+  }
+  .lesiones-marco .evaluaciones-tarjeta,
+  .lesiones-marco .evaluaciones-medidas span,
+  .lesiones-marco .evaluaciones-individual .evaluaciones-area-titulo {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

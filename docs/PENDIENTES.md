@@ -674,13 +674,31 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   - **Base**: una sola, con el test arriba para elegir. El informe del Excel (promedio,
     desvío, n, máximo, mínimo y la comparación «Vs …») queda arriba de la tabla, como en la
     hoja (Santiago, 09/10: «Base y Grupal»). Se corrige en la tabla y se pega desde Excel.
-  - **Reportes**: Individual (Santiago, 09/10: «un jugador, todos los tests»: cada test con
-    sus evaluaciones en el tiempo, valores, clases con sus colores, % de mejora y el informe
-    de esas filas, como si en la hoja se filtrara por el jugador) y Grupal (un test, el
-    informe del Excel por categoría y fechas, con sus evaluaciones), para imprimir. Los dos
-    calculan con lo mismo que la Base (`motor.js`, `vistaDeFilas`; `celdas.js`).
-    **Gráficos: pendiente** (Santiago, 09/10: «después lo vemos»); no se muestra hasta que
-    se defina qué gráficos van.
+  - **Reportes**, para imprimir; calculan con lo mismo que la Base (`motor.js`,
+    `vistaDeFilas`; `celdas.js`).
+    - **Individual** (Santiago, 09/10: «un jugador, todos los tests», y después: «para los
+      reportes individuales podes guiarte por esta imagen»; la imagen, una ficha de
+      «Performance» de un jugador, no va al repositorio). Arriba, como el de Lesiones: el
+      escudo, el club · Performance, el nombre, Categoría (la Selección de su última
+      evaluación), Última evaluación, Nº evaluaciones (los días con alguna) y la foto de
+      Datos básicos. Abajo, por área (barra negra), una tarjeta por test con la fecha y el n°
+      de su última evaluación, cada medida y, abajo, su clase con el color de la clase. Las
+      áreas, como la imagen (Santiago, 09/10, `src/domain/evaluaciones/areas.js`): Zona Media
+      (Zona Media y Funcional), Fuerza (Isocinecia y Press Plano), Potencia y velocidad
+      (Saltos) y Funcionales (Curl Nórdico, Isoprone, Iso Aductor-Abductor y Sentadilla
+      Incremental); cada test dice la suya (`area`) y sus tarjetas (`reporte`) en su archivo.
+      En Zona Media van también Prono y su clase (la imagen no los tenía; son medidas del
+      test). **Pendiente** (Santiago, 09/10: «yo después te los explico»): la «Clasificación
+      general» y el puntaje y la palabra de cada área (cómo se calculan y con qué cortes); no
+      se muestran hasta que se definan. Cambiar las áreas desde Ajustes, para después. Los
+      tests de la imagen que no están en el Excel (aceleraciones, agilidad, Navette, RSA,
+      movilidad, plataforma de fuerza) no se inventan.
+    - **Grupal**: hoy, un test por categoría y fechas con el informe del Excel y sus
+      evaluaciones. Santiago pidió (09/10) guiarse por la solapa «Reporte grupal» del Excel
+      de evaluaciones, pero el `BD_evaluaciones.xlsx` que mandó no la tiene (9 hojas, sin esa):
+      **pendiente** hasta que mande la versión con esa solapa.
+    - **Gráficos: pendiente** (Santiago, 09/10: «después lo vemos»); no se muestra hasta que
+      se defina qué gráficos van.
   - **Valores de referencia**: sigue siendo una pantalla aparte, la quinta (Santiago, 09/10:
     «Quinta pantalla aparte»), solo para mirar.
   - **Ajustes**, como Lesiones › Ajustes: Cabeceras (por test, el nombre de cada columna y

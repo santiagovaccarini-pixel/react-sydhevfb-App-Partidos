@@ -194,7 +194,7 @@ const Indicador = ({ titulo, valor, unidad, referencia, comparado, porcentaje, t
 // va entera en un panel cortado en diagonal; si no hay o no carga, sus
 // iniciales.
 const ALTO_PARA_RECORTAR = 640;
-const FotoDelJugador = ({ jugador }) => {
+export const FotoDelJugador = ({ jugador }) => {
   const url = jugador.foto_url || "";
   const [estado, setEstado] = useState({ url, como: url ? "cargando" : "iniciales", recorte: "" });
   useEffect(() => {

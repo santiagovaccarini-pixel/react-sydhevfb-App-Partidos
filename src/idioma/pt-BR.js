@@ -203,7 +203,11 @@ export default {
     },
     reportes: {
       texto: "O que mostram as avaliações carregadas, de um jogador ou de um teste.",
-      individualTexto: "Um jogador: cada teste com suas avaliações no tempo, suas classes e seu % de melhora",
+      individualTexto: "Um jogador: a última avaliação de cada teste, por área, com suas classes",
+      performance: "Performance",
+      ultima: "Última avaliação",
+      numeroEvaluaciones: "Nº avaliações",
+      evaluacionN: "Avaliação {{n}}",
       grupalTexto: "Um teste: o relatório do Excel por categoria e datas, com suas avaliações",
       individualTitulo: "Relatório individual de avaliações",
       grupalTitulo: "Relatório de avaliações do elenco",
