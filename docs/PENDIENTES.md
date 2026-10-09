@@ -607,6 +607,13 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   celda fija como ellas, y el título de cada grupo queda a la vista a la derecha de las fijas.
   Antes la barra del grupo pasaba por encima de las fijas al correr la tabla
   (`src/components/TablaDatos.jsx`, la misma tabla de todas las bases).
+- Borrar varias filas (Santiago, 09/10: «que al boton de borrar fila borre todas las filas que
+  tenga seleccionada, xq hice shift y seleccione varias filas para borrar y no se borraron»):
+  en todas las bases (Lesiones, Evaluaciones y Datos básicos), «Borrar fila» borra todas las
+  filas de lo elegido (con Shift, o Shift + barra espaciadora); con varias dice «Borrar 3
+  filas», pregunta una sola vez cuántas se borran y las borra de a una. Si alguna no se puede
+  (por ejemplo, un jugador con lesiones o evaluaciones), avisa el motivo y cuántas se
+  borraron. Siguen las mismas reglas de cada base (quién puede borrar, solo lectura, historial).
 
 ## Evaluaciones (05/10)
 
@@ -834,6 +841,14 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     `evaluaciones_campos` y `evaluaciones_opciones`, una fila solo para lo que cambió el
     club; permisos como Lesiones › Ajustes). Sin esa migración la app sigue con los nombres
     del Excel y al guardar avisa que falta el SQL.
+- **Pendiente: validar las evaluaciones nuevas contra las que ya están** (Santiago, 09/10:
+  «TENER VALIDACIONES CUANDO SE METEN EVALUACIONES NUEVAS, XQ PUEDO CARGAR TODAS LAS
+  EVALUACIONES QUE QUIERE X MAS QUE YA ESTEN EN LA BASE»). Hoy se puede cargar otra vez una
+  evaluación que ya está, desde Cargar o con Pegar desde Excel: al pegar, «Ya está» solo
+  reconoce la que tiene el mismo jugador, la misma fecha y exactamente los mismos valores
+  (con otros decimales, o con un valor corregido, entra como nueva). Falta decidir con
+  Santiago qué cuenta como repetida (por ejemplo, mismo jugador, mismo test y misma fecha) y
+  qué hace la app (avisar y dejar elegir, o no dejar). No se implementa hasta que lo decida.
 
 ## Cuentas paso 2: dueños, sub-dueños y pedidos por club (06/10)
 

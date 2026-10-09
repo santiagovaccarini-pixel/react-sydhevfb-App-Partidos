@@ -407,6 +407,24 @@ describe("la tabla estilo Excel", () => {
     expect(contenedor.querySelectorAll("td.elegida").length).toBeGreaterThan(1);
   });
 
+  test("«Borrar fila» borra todas las filas de lo elegido: con Shift, varias", async () => {
+    const borradas = [];
+    const tres = [...filas, { id: 3, valores: { nombre: "ALAN", edad: 25, pie: "" }, textos: { nombre: "ALAN", edad: "25 años", pie: "" } }];
+    await montar({ filas: tres, onBorrarFilas: (ids) => borradas.push(ids) });
+    const boton = () => [...contenedor.querySelectorAll("button")].find((uno) => uno.textContent.includes("Borrar"));
+    expect(boton().textContent).toBe("Borrar fila");
+    expect(boton().disabled).toBe(true);
+    await tocar(celda(contenedor, 0, 1));
+    expect(boton().textContent).toBe("Borrar fila");
+    await tocar(boton());
+    expect(borradas).toEqual([[1]]);
+    // Con Shift, de la primera a la tercera (en el orden en que se ven).
+    await act(async () => celda(contenedor, 2, 0).dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true })));
+    expect(boton().textContent).toBe("Borrar 3 filas");
+    await tocar(boton());
+    expect(borradas).toEqual([[1], [1, 2, 3]]);
+  });
+
   test("sin permiso, la casilla se ve pero no se cambia", async () => {
     const conCasilla = [...columnas, { clave: "actual", titulo: "Actual", tipo: "casilla", editable: false }];
     await montar({ columnas: conCasilla, filas: filas.map((fila) => ({ ...fila, valores: { ...fila.valores, actual: true }, textos: { ...fila.textos, actual: "Sí" } })) });

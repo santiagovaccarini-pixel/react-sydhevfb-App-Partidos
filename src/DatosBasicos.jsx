@@ -252,17 +252,23 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     setAviso(t("datos.agregado"));
   };
 
+  // Se borran de a uno, todos los elegidos (con Shift, varias filas); si
+  // alguno no se puede (por ejemplo, con lesiones o evaluaciones cargadas),
+  // se avisa cuántos se borraron.
   const confirmarBorrar = async () => {
-    const jugador = aBorrar;
+    const elegidos = aBorrar || [];
     setABorrar(null);
-    if (!jugador) return;
-    const respuesta = await quitarJugadorBasico(jugador.id);
-    if (respuesta.error) {
-      setAviso(t(respuesta.error));
-      return;
+    if (!elegidos.length) return;
+    const borrados = [];
+    let falla = "";
+    for (const jugador of elegidos) {
+      const respuesta = await quitarJugadorBasico(jugador.id);
+      if (respuesta.error) falla = falla || respuesta.error;
+      else borrados.push(jugador.id);
     }
-    setPlantel((antes) => antes.filter((uno) => uno.id !== jugador.id));
-    setAviso(t("datos.borrado"));
+    setPlantel((antes) => antes.filter((uno) => !borrados.includes(uno.id)));
+    if (falla) setAviso(elegidos.length === 1 ? t(falla) : `${t(falla)} ${t("tabla.borradasDe", { n: borrados.length, total: elegidos.length })}`);
+    else setAviso(elegidos.length === 1 ? t("datos.borrado") : t("datos.borrados", { n: borrados.length }));
   };
 
   const estado = error ? (
@@ -368,12 +374,12 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
               onPegar={pegar}
               leyenda={t("datos.leyendaYaNoEsta")}
               rotuloApagada={t("datos.yaNoEsta")}
-              onBorrarFila={
+              onBorrarFilas={
                 soloLectura
                   ? undefined
-                  : (id) => {
-                      const jugador = plantel.find((uno) => uno.id === id);
-                      if (jugador) setABorrar(jugador);
+                  : (ids) => {
+                      const elegidos = plantel.filter((uno) => ids.includes(uno.id));
+                      if (elegidos.length) setABorrar(elegidos);
                     }
               }
             />
@@ -390,9 +396,9 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       )}
 
       <HojaConfirmar
-        abierta={Boolean(aBorrar)}
-        titulo={t("datos.borrarTitulo")}
-        descripcion={t("datos.borrarTexto", { jugador: aBorrar?.nombre || "" })}
+        abierta={Boolean(aBorrar?.length)}
+        titulo={aBorrar?.length > 1 ? t("datos.borrarVariosTitulo", { n: aBorrar.length }) : t("datos.borrarTitulo")}
+        descripcion={aBorrar?.length > 1 ? t("datos.borrarVariosTexto", { n: aBorrar.length }) : t("datos.borrarTexto", { jugador: aBorrar?.[0]?.nombre || "" })}
         icono="borrar"
         etiquetaConfirmar={t("datos.siBorrar")}
         etiquetaCancelar={t("comun.cancelar")}

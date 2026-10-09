@@ -441,20 +441,25 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     return { hechos, error: ultimoError };
   };
 
+  // Se borran de a una, todas las elegidas (con Shift, varias filas de la
+  // Base); si alguna no se puede, se avisa cuántas se borraron.
   const confirmarBorrar = async () => {
-    const evaluacion = aBorrar;
+    const elegidas = aBorrar || [];
     setABorrar(null);
-    if (!evaluacion) return;
+    if (!elegidas.length) return;
     setOcupado(true);
-    const respuesta = await borrarEvaluacion(evaluacion.id);
-    setOcupado(false);
-    if (respuesta.error) {
-      setAviso(t(respuesta.error));
-      return;
+    const borradas = [];
+    let falla = "";
+    for (const evaluacion of elegidas) {
+      const respuesta = await borrarEvaluacion(evaluacion.id);
+      if (respuesta.error) falla = falla || respuesta.error;
+      else borradas.push(evaluacion.id);
     }
-    setEvaluaciones((previas) => previas.filter((una) => una.id !== evaluacion.id));
-    if (formulario?.id === evaluacion.id) cerrarFormulario();
-    setAviso(t("evaluaciones.borrada"));
+    setOcupado(false);
+    setEvaluaciones((previas) => previas.filter((una) => !borradas.includes(una.id)));
+    if (formulario?.id && borradas.includes(formulario.id)) cerrarFormulario();
+    if (falla) setAviso(elegidas.length === 1 ? t(falla) : `${t(falla)} ${t("tabla.borradasDe", { n: borradas.length, total: elegidas.length })}`);
+    else setAviso(elegidas.length === 1 ? t("evaluaciones.borrada") : t("evaluaciones.borradas", { n: borradas.length }));
   };
 
   // --------------------------------------------------------------- Cargar --
@@ -807,7 +812,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             )}
           </div>
           {carga.id && (
-            <button type="button" className="lesiones-boton-borrar" disabled={ocupado} onClick={() => setABorrar(evaluaciones.find((una) => una.id === carga.id) || carga)}>
+            <button type="button" className="lesiones-boton-borrar" disabled={ocupado} onClick={() => setABorrar([evaluaciones.find((una) => una.id === carga.id) || carga])}>
               <Icono nombre="borrar" size={16} />
               {t("evaluaciones.borrarEvaluacion")}
             </button>
@@ -857,7 +862,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                 {t("evaluaciones.editar")}
               </button>
             )}
-            <button type="button" className="boton-eliminar-registro" aria-label={t("evaluaciones.borrarEvaluacion")} onClick={() => setABorrar(evaluacion)}>
+            <button type="button" className="boton-eliminar-registro" aria-label={t("evaluaciones.borrarEvaluacion")} onClick={() => setABorrar([evaluacion])}>
               <Icono nombre="borrar" size={16} />
             </button>
           </div>
@@ -942,12 +947,12 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             onPegar={pegarEnTabla}
             leyenda={t("datos.leyendaYaNoEsta")}
             rotuloApagada={t("datos.yaNoEsta")}
-            onBorrarFila={
+            onBorrarFilas={
               soloLectura
                 ? undefined
-                : (id) => {
-                    const evaluacion = evaluaciones.find((una) => una.id === id);
-                    if (evaluacion) setABorrar(evaluacion);
+                : (ids) => {
+                    const elegidas = evaluaciones.filter((una) => ids.includes(una.id));
+                    if (elegidas.length) setABorrar(elegidas);
                   }
             }
           />
@@ -1431,9 +1436,13 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       })}
 
       <HojaConfirmar
-        abierta={Boolean(aBorrar)}
-        titulo={t("evaluaciones.borrarTitulo")}
-        descripcion={t("evaluaciones.borrarTexto", { jugador: nombreDe(aBorrar), fecha: aBorrar?.fecha ? fechaCorta(aBorrar.fecha) : t("evaluaciones.sinFecha") })}
+        abierta={Boolean(aBorrar?.length)}
+        titulo={aBorrar?.length > 1 ? t("evaluaciones.borrarVariasTitulo", { n: aBorrar.length }) : t("evaluaciones.borrarTitulo")}
+        descripcion={
+          aBorrar?.length > 1
+            ? t("evaluaciones.borrarVariasTexto", { n: aBorrar.length })
+            : t("evaluaciones.borrarTexto", { jugador: nombreDe(aBorrar?.[0]), fecha: aBorrar?.[0]?.fecha ? fechaCorta(aBorrar[0].fecha) : t("evaluaciones.sinFecha") })
+        }
         icono="borrar"
         etiquetaConfirmar={t("evaluaciones.siBorrar")}
         etiquetaCancelar={t("comun.cancelar")}

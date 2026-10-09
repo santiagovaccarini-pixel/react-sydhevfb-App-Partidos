@@ -58,6 +58,8 @@ vi.mock("./domain/lesionesDb.js", () => ({
     return { jugador: { ...jugador }, error: "" };
   },
   quitarJugadorBasico: async (id) => {
+    // Uno con lesiones o evaluaciones cargadas no se puede borrar.
+    if (registro.noSeBorran?.includes(id)) return { error: "datos.error.borrarConDatos" };
     registro.borrados.push(id);
     return { error: "" };
   },
@@ -370,6 +372,17 @@ describe("el módulo Datos básicos", () => {
     await act(async () => Promise.resolve());
     expect(registro.borrados).toEqual([9]);
     expect(texto(contenedor)).toContain("2 jugadores");
+
+    // Con Shift, las dos filas: se pregunta una vez; el que no se puede borrar, queda.
+    registro.noSeBorran = [7];
+    await tocar(celda(contenedor, 0, 0));
+    await act(async () => celda(contenedor, 1, 0).dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true })));
+    await tocar(boton(contenedor, "Borrar 2 filas"));
+    expect(texto(contenedor)).toContain("¿Borrar 2 jugadores?");
+    await tocar(boton(contenedor, "Sí, borrar"));
+    await act(async () => Promise.resolve());
+    expect(texto(contenedor)).toContain("Tiene lesiones o evaluaciones cargadas y no se puede borrar: si ya no está en el club, desmarcá Actual. Filas borradas: 1 de 2.");
+    expect(texto(contenedor)).toContain("1 jugador");
   });
 
   test("se pega la hoja Datos Básicos del Excel: antes de cargar se ve qué pasa con cada jugador", async () => {
