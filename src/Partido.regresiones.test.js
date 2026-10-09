@@ -16,9 +16,6 @@ const db = vi.hoisted(() => ({
   inserts: [],
   updates: [],
   equipos: [],
-  renombres: 0,
-  bloquearRenombre: false,
-  errorCrearEquipo: null,
   retenerRival: null,
   // El pedido de ese rival vence (mala señal), o la base lo rechaza con su
   // código (un permiso, una columna que falta).
@@ -57,28 +54,6 @@ vi.mock("./supabase.js", () => ({
           select: () => c,
           eq: () => c,
           order: async () => ({ data: db.equipos.map((e) => ({ ...e })), error: null }),
-          update: (cambios) => ({
-            eq: (campo, valor) => ({
-              // Como la base con RLS para quien no administra el club: no
-              // cambia nada, no da error y no devuelve ninguna fila.
-              select: async () => {
-                db.renombres += 1;
-                if (db.bloquearRenombre) return { data: [], error: null };
-                const equipo = db.equipos.find((e) => e.id === valor);
-                if (!equipo) return { data: [], error: null };
-                equipo.nombre = cambios.nombre;
-                return { data: [{ id: equipo.id }], error: null };
-              },
-            }),
-          }),
-          insert: (filas) => ({
-            select: async () => {
-              if (db.errorCrearEquipo) return { data: null, error: db.errorCrearEquipo };
-              const equipo = { id: `eq-${db.equipos.length + 1}`, ...filas[0] };
-              db.equipos.push(equipo);
-              return { data: [equipo], error: null };
-            },
-          }),
         };
         return c;
       }
@@ -202,9 +177,6 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       inserts: [],
       updates: [],
       equipos: [{ id: "eq-1", nombre: "Atlético Mineiro" }],
-      renombres: 0,
-      bloquearRenombre: false,
-      errorCrearEquipo: null,
       retenerRival: null,
       fallarRival: null,
       rechazarRival: null,
@@ -627,21 +599,15 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       expect(pantalla.querySelector("h1").textContent).toBe("Equipe");
       expect(pantalla.querySelector(".encabezado p").textContent).toBe("Ajustes · Equipe");
       expect(pantalla.textContent).toContain("Agora você está em Otro Club");
-      const [propia, cambiar, agregar] = Array.from(pantalla.querySelectorAll(".tarjeta-ficha"));
+      const [propia, cambiar, ...otras] = Array.from(pantalla.querySelectorAll(".tarjeta-ficha"));
       expect(propia.querySelector(".cabeza-ficha").textContent).toBe("Sua equipe");
-      expect(propia.querySelector("label").textContent.trim()).toBe("Nome da equipe");
-      expect(propia.querySelector("#nombre-equipo").getAttribute("placeholder")).toBe("Nome da equipe");
-      expect(propia.querySelector(".pista-equipo").textContent).toBe(
-        "O escudo não é enviado: ele é buscado pelo nome e fica salvo no telefone. Corrigir o nome não faz você perder as partidas registradas.",
-      );
-      expect(propia.querySelector("button").textContent.trim()).toBe("Salvar nome");
+      // O escudo e o nome, nada mais: o nome não se muda daqui.
+      expect(propia.querySelector(".equipo-propio").textContent).toContain("Otro Club");
+      expect(propia.querySelector("input")).toBeNull();
+      expect(propia.querySelector("button")).toBeNull();
       expect(cambiar.querySelector(".cabeza-ficha b").textContent).toBe("Trocar de equipe");
-      expect(agregar.querySelector(".cabeza-ficha").textContent).toBe("Adicionar uma equipe");
-      expect(agregar.querySelector("input").getAttribute("placeholder")).toBe("Nome da nova equipe");
-      expect(agregar.querySelector("button").textContent.trim()).toBe("Criar");
-      expect(agregar.querySelector(".pista-equipo").textContent).toBe(
-        "Só para um clube que ainda não esteja na lista. Começa sem partidas e sem elenco, e este telefone passa para essa equipe.",
-      );
+      // Los clubes nuevos se crean desde Clubes de la app, no desde acá.
+      expect(otras).toHaveLength(0);
       expect(pantalla.querySelector(".boton-volver").textContent).toContain("Voltar aos Ajustes");
       for (const enCastellano of ["Equipo", "equipo", "Nombre", "Guardar", "Cambiar", "Agregar", "Crear", "Volver", "Solo para", "El escudo"]) {
         expect(pantalla.textContent, enCastellano).not.toContain(enCastellano);
@@ -935,51 +901,24 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     );
   };
 
-  test("renombrar el club cuando la base no lo deja no dice 'Nombre cambiado'", async () => {
-    db.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", desde: "2026-01-01" }];
-    db.bloquearRenombre = true;
-    await montar({ permisos: { admin: false } });
-    await abrirAjustesEquipo();
+  test("Ajustes › Equipo: nadie cambia el nombre ni crea clubes, tampoco el administrador del club", async () => {
+    // Los datos del club los cambian solo los dueños de la app, desde Clubes
+    // de la app (decisión del 09/10).
+    for (const rol of ["admin", "staff"]) {
+      db.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", rol, desde: "2026-01-01" }];
+      await montar();
+      await abrirAjustesEquipo();
 
-    await escribir(contenedor.querySelector("#nombre-equipo"), "Atlético Mineiro SAF");
-    await act(async () => {
-      boton("Guardar nombre").click();
-    });
-    await vaciarPromesas();
+      expect(contenedor.querySelector(".equipo-propio").textContent).toContain("Atlético Mineiro");
+      expect(contenedor.querySelector("#nombre-equipo")).toBeNull();
+      expect(boton("Guardar nombre")).toBeUndefined();
+      expect(contenedor.querySelector('input[placeholder="Nombre del equipo nuevo"]')).toBeNull();
+      expect(contenedor.textContent).not.toContain("Agregar un equipo");
+      expect(JSON.parse(localStorage.getItem("equipo_elegido")).nombre).toBe("Atlético Mineiro");
 
-    expect(db.renombres).toBe(1);
-    expect(contenedor.textContent).not.toContain("Nombre cambiado");
-    expect(contenedor.querySelector(".error-equipo").textContent).toContain("No tenés permiso");
-    expect(JSON.parse(localStorage.getItem("equipo_elegido")).nombre).toBe("Atlético Mineiro");
-  });
-
-  test("Ajustes › Equipo: quien no administra no ve renombrar ni crear", async () => {
-    db.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", desde: "2026-01-01" }];
-    await montar({ permisos: { admin: false } });
-    await abrirAjustesEquipo();
-
-    expect(contenedor.textContent).toContain("Atlético Mineiro");
-    expect(contenedor.querySelector("#nombre-equipo")).toBeNull();
-    expect(boton("Guardar nombre")).toBeUndefined();
-    expect(contenedor.querySelector('input[placeholder="Nombre del equipo nuevo"]')).toBeNull();
-    expect(contenedor.textContent).not.toContain("Agregar un equipo");
-  });
-
-  test("crear un club que la base rechaza muestra un aviso entendible, no el error crudo", async () => {
-    db.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", desde: "2026-01-01" }];
-    db.errorCrearEquipo = { code: "42501", message: 'new row violates row-level security policy for table "equipos"' };
-    await montar({ permisos: { admin: true } });
-    await abrirAjustesEquipo();
-
-    await escribir(contenedor.querySelector('input[placeholder="Nombre del equipo nuevo"]'), "Club Nuevo");
-    await act(async () => {
-      Array.from(contenedor.querySelectorAll("button")).find((b) => b.textContent.trim() === "Crear").click();
-    });
-    await vaciarPromesas();
-
-    const error = contenedor.querySelector(".error-equipo").textContent;
-    expect(error).not.toContain("row-level security");
-    expect(error).toContain("No tenés permiso para crear equipos");
+      await act(async () => raiz.unmount());
+      raiz = null;
+    }
   });
 
   test("para cambiar de club se ofrecen solo los clubes en los que la cuenta está hoy", async () => {
@@ -990,7 +929,7 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       { id: "eq-4", nombre: "Club de hoy", desde: "2026-02-01" },
     ];
     elegirClub("eq-1", "Atlético Mineiro");
-    await montar({ permisos: { admin: true } });
+    await montar();
     await abrirAjustesEquipo();
 
     // (El escudo dibujado suma la inicial al texto del botón.)
@@ -1006,7 +945,7 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       { id: "eq-3", nombre: "Club con Partido", rol: "staff", desde: "2026-01-01", partido: true },
     ];
     elegirClub("eq-1", "Atlético Mineiro");
-    await montar({ permisos: { admin: false } });
+    await montar();
     await abrirAjustesEquipo();
 
     const ofrecidos = Array.from(contenedor.querySelectorAll(".lista-equipos button")).map((b) => b.textContent.trim());
@@ -1014,11 +953,11 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(ofrecidos[0]).toContain("Club con Partido");
   });
 
-  test("quien no administra y no tiene ningún club ve por qué y puede volver a los módulos", async () => {
+  test("quien no tiene ningún club con Partido ve por qué y puede volver a los módulos", async () => {
     db.equipos = [];
     localStorage.setItem("equipo_elegido", JSON.stringify({ id: "eq-1", nombre: "Atlético Mineiro", rol: "usuario", partido: true }));
     const onVolver = vi.fn();
-    await montar({ permisos: { admin: false }, onVolver });
+    await montar({ onVolver });
 
     expect(contenedor.querySelector("h1").textContent).toBe("¿De qué equipo sos?");
     expect(contenedor.textContent).toContain("No tenés ningún club con Partido habilitado");

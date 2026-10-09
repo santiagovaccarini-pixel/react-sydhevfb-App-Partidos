@@ -39,7 +39,6 @@ vi.mock("../supabase.js", () => ({
 
 const {
   cambiarModulo,
-  cambiarRol,
   cancelarInvitacion,
   claveDeError,
   correoValido,
@@ -68,6 +67,7 @@ describe("la membresía de una cuenta en un club", () => {
 
   it("los errores de la base se vuelven claves del diccionario", () => {
     expect(claveDeError({ message: "ultimo_admin" })).toBe("cuentas.errorUltimoAdmin");
+    expect(claveDeError({ code: "P0001", message: "dueno_protegido" })).toBe("cuentas.errorDuenoProtegido");
     expect(claveDeError({ message: "hasta_futura" })).toBe("cuentas.errorHastaFutura");
     expect(claveDeError({ message: "correo_invalido" })).toBe("cuentas.errorCorreo");
     expect(claveDeError({ message: 'duplicate key value violates unique constraint "club_invitaciones_abierta_unica"' })).toBe(
@@ -102,14 +102,29 @@ describe("la membresía de una cuenta en un club", () => {
     await expect(listarMiembros("c1")).rejects.toThrow("cuentas.errorFaltaMigracion");
   });
 
-  it("rol, módulos, baja y reincorporación cambian la fila justa", async () => {
+  it("lee de la vista quién es dueño de la app (protegido); sin esa columna, nadie", async () => {
+    base.responder = () => ({
+      data: [
+        { equipo_id: "c1", user_id: "u1", email: "duenio@prueba.com", rol: "staff", protegido: true },
+        { equipo_id: "c1", user_id: "u2", email: "beto@prueba.com", rol: "staff", protegido: false },
+        { equipo_id: "c1", user_id: "u3", email: "cata@prueba.com", rol: "staff" },
+      ],
+      error: null,
+    });
+    const lista = await listarMiembros("c1");
+    expect(lista.map((m) => [m.email, m.protegido])).toEqual([
+      ["beto@prueba.com", false],
+      ["cata@prueba.com", false],
+      ["duenio@prueba.com", true],
+    ]);
+  });
+
+  it("módulos, baja y reincorporación cambian la fila justa (el rol no se toca desde la app)", async () => {
     base.responder = (pedido) => ({ data: [{ equipo_id: "c1", user_id: "u2", ...pedido.datos }], error: null });
-    await cambiarRol("u2", "c1", "admin");
     await cambiarModulo("u2", "c1", "lesiones", true);
     await darDeBaja("u2", "c1", "2026-09-25");
     const vuelto = await reincorporar("u2", "c1");
     expect(base.pedidos.map((p) => p.datos)).toEqual([
-      { rol: "admin" },
       { lesiones: true },
       { hasta: "2026-09-25" },
       { hasta: null, desde: hoyISO() },
@@ -123,11 +138,15 @@ describe("la membresía de una cuenta en un club", () => {
     expect(cambiado).not.toHaveProperty("email");
     expect(cambiado).not.toHaveProperty("estado");
     expect(() => cambiarModulo("u2", "c1", "admin", true)).toThrow("cuentas.errorClub");
+    expect(() => cambiarModulo("u2", "c1", "rol", "admin")).toThrow("cuentas.errorClub");
   });
 
   it("si la base no deja, avisa con la razón", async () => {
+    // Otro admin, la fila propia o un dueño de la app: 0 filas o el aviso de la base.
     base.responder = () => ({ data: [], error: null });
-    await expect(cambiarRol("u2", "c1", "staff")).rejects.toThrow("cuentas.errorSinPermiso");
+    await expect(darDeBaja("u2", "c1", "2026-10-01")).rejects.toThrow("cuentas.errorSinPermiso");
+    base.responder = () => ({ data: null, error: { message: "dueno_protegido", code: "P0001" } });
+    await expect(cambiarModulo("u2", "c1", "flujo", false)).rejects.toThrow("cuentas.errorDuenoProtegido");
     base.responder = () => ({ data: null, error: { message: "ultimo_admin", code: "P0001" } });
     await expect(darDeBaja("u1", "c1", "2026-10-01")).rejects.toThrow("cuentas.errorUltimoAdmin");
   });
@@ -177,13 +196,14 @@ describe("las invitaciones", () => {
     for (const correo of malos) expect(correoValido(correo), correo).toBe(false);
   });
 
-  it("invita con el correo limpio y dice si la cuenta entró en el acto", async () => {
+  it("invita con el correo limpio, siempre como staff, y dice si la cuenta entró en el acto", async () => {
     base.responder = (pedido) => (pedido.op === "insert" ? { data: null, error: null } : { data: [{ id: "i1", usada_en: "2026-10-02T12:00:00Z" }], error: null });
+    // Aunque alguien mande rol admin, va staff: la base no deja invitar administradores.
     const resultado = await invitar("c1", { email: " Nuevo@Club.com ", rol: "admin", partido: false, flujo: false, lesiones: true });
     expect(base.pedidos[0]).toMatchObject({
       tabla: "club_invitaciones",
       op: "insert",
-      datos: { equipo_id: "c1", email: "nuevo@club.com", rol: "admin", partido: false, flujo: false, lesiones: true },
+      datos: { equipo_id: "c1", email: "nuevo@club.com", rol: "staff", partido: false, flujo: false, lesiones: true },
     });
     expect(resultado).toEqual({ usada: true, id: "i1" });
 
@@ -238,7 +258,11 @@ describe("las invitaciones", () => {
       expect(JSON.parse(pedido.body)).toEqual({ invitacion: "i1", idioma: "pt-BR" });
 
       const casos = [
-        [200, { ok: true, enviado: false, yaTieneCuenta: true }, "cuentas.mail.yaTieneCuenta"],
+        // Un correo que ya tiene cuenta (la invitación que quedó abierta de un
+        // dueño de la app) no se distingue de un mail que no salió, aunque un
+        // servidor lo dijera.
+        [200, { ok: true, enviado: false, yaTieneCuenta: true }, "cuentas.mail.noSalio"],
+        [200, { ok: true }, "cuentas.mail.noSalio"],
         [409, { ok: false, code: "CONFIRMACION_APAGADA" }, "cuentas.mail.confirmacionApagada"],
         [429, { ok: false, code: "LIMITE_DE_MAILS" }, "cuentas.mail.limite"],
         [409, { ok: false, code: "INVITACION_VENCIDA" }, "cuentas.mail.vencida"],

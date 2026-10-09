@@ -120,3 +120,28 @@ describe("la cancha neutral se ve en la tarjeta de inicio", () => {
     expect(reglaCon(".marcador-ficha.neutral")).toBeNull();
   });
 });
+
+describe("el botón Cambiar del portal se toca cómodo", () => {
+  it("se ve chico, pero su zona de toque llega a 44px de alto", () => {
+    // Es la entrada a «Salir de {club}» y a pedir entrar a otro club: mide
+    // 28px con un borde de 1px; la zona de toque sale de adentro del borde
+    // (26px) y suma 9px arriba y 9px abajo (26 + 18 = 44).
+    const portal = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "portal.css"),
+      "utf8",
+    );
+    expect(reglaCon(".portal-cambiar-club {", portal)).toContain("min-height: 28px");
+    expect(reglaCon(".portal-cambiar-club {", portal)).toContain("position: relative");
+    expect(reglaCon(".portal-cambiar-club {", portal)).toContain("border: 1px solid");
+    expect(reglaCon(".portal-cambiar-club::after", portal)).toContain("inset: -9px -5px");
+  });
+});
+
+describe("la tarjeta «Tu equipo» no deja espacio de más abajo", () => {
+  it("la fila del club, cuando es lo último de la tarjeta, no tiene margen abajo", () => {
+    // El margen separaba el campo de renombrar, que ya no está (UI-010). Donde
+    // la fila tiene algo debajo (la cuenta de Flujo diario), el margen sigue.
+    expect(bloque(".equipo-propio")).toContain("margin-bottom: 14px");
+    expect(reglaCon(".equipo-propio:last-child")).toContain("margin-bottom: 0");
+  });
+});

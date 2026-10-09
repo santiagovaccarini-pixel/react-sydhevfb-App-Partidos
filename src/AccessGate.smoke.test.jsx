@@ -29,7 +29,32 @@ const supa = vi.hoisted(() => ({
   // Con barras pero sin datos: el pedido sale y no contesta nunca.
   colgarSesion: false,
   colgarPerfil: false,
+  // Las RPC: mi_cuenta (si es dueño) y los pedidos de acceso de la cuenta.
+  rpcs: [],
+  miCuenta: null,
+  errorMiCuenta: null,
+  pedidos: [],
+  errorPedidos: null,
+  errorPedir: null,
 }));
+
+// Como la base: pedir deja un pedido abierto arriba de todo y cancelar lo cierra.
+const responderRpc = (funcion, parametros) => {
+  if (funcion === "mi_cuenta") return supa.errorMiCuenta ? { data: null, error: supa.errorMiCuenta } : { data: supa.miCuenta, error: null };
+  if (funcion === "mis_pedidos") return supa.errorPedidos ? { data: null, error: supa.errorPedidos } : { data: supa.pedidos, error: null };
+  if (funcion === "pedir_acceso") {
+    if (supa.errorPedir) return { data: null, error: supa.errorPedir };
+    supa.pedidos = [
+      { id: "p-nuevo", club_escrito: parametros.p_club, pais_escrito: parametros.p_pais, estado: "abierto", creado_en: "2026-10-06T12:00:00Z", decidido_en: null },
+      ...supa.pedidos,
+    ];
+    return { data: "p-nuevo", error: null };
+  }
+  if (funcion === "cancelar_pedido") {
+    supa.pedidos = supa.pedidos.map((pedido) => (pedido.id === parametros.p_id ? { ...pedido, estado: "cancelado" } : pedido));
+  }
+  return { data: null, error: null };
+};
 
 const nunca = () => new Promise(() => {});
 
@@ -50,6 +75,11 @@ vi.mock("./supabase.js", () => ({
       signUp: (...args) => supa.signUp(...args),
       signOut: (...args) => supa.signOut(...args),
       updateUser: (...args) => supa.updateUser(...args),
+    },
+    rpc: (funcion, parametros) => {
+      supa.rpcs.push({ funcion, parametros });
+      const respuesta = () => Promise.resolve(responderRpc(funcion, parametros));
+      return { maybeSingle: respuesta, then: (bien, mal) => respuesta().then(bien, mal) };
     },
     from: (tabla) => {
       const cadena = {
@@ -107,6 +137,12 @@ describe("la puerta de la app", () => {
     supa.cambios = [];
     supa.colgarSesion = false;
     supa.colgarPerfil = false;
+    supa.rpcs = [];
+    supa.miCuenta = null;
+    supa.errorMiCuenta = null;
+    supa.pedidos = [];
+    supa.errorPedidos = null;
+    supa.errorPedir = null;
     supa.signInWithPassword = vi.fn(async () => ({ data: { session: SESION }, error: null }));
     supa.resetPasswordForEmail = vi.fn(async () => ({ error: null }));
     supa.signUp = vi.fn(async () => ({ data: { session: null }, error: null }));
@@ -181,18 +217,33 @@ describe("la puerta de la app", () => {
     await montar();
 
     expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
-    expect(contenedor.querySelector(".adentro").textContent).toContain('{"partido":true,"flujo":false,"lesiones":false,"evaluaciones":false,"datos":true,"admin":false}');
+    expect(contenedor.querySelector(".adentro").textContent).toContain(
+      '{"partido":true,"flujo":false,"lesiones":false,"evaluaciones":false,"datos":true,"dueno":null,"esDueno":false}',
+    );
     expect(contenedor.querySelector(".adentro").textContent).toContain("en línea");
     expect(supa.consultas).toEqual([{ tabla: "perfiles", columnas: "*" }]);
     // Y guarda la copia para la próxima vez sin señal.
     expect(JSON.parse(localStorage.getItem(CLAVE_PERFIL_LOCAL)).user_id).toBe("u1");
   });
 
-  test("el administrador puede todo aunque no tenga módulos marcados", async () => {
+  test("si es dueño de la app lo dice mi_cuenta (no perfiles.admin), y ser dueño no da módulos", async () => {
     supa.sesion = SESION;
     supa.perfil = { ...AUTORIZADO, partido: false, flujo: false, admin: true };
+    supa.miCuenta = { estado: "autorizado", dueno: "sub", flujo: false, catapult: false, tecnico: false };
     await montar();
-    expect(contenedor.querySelector(".adentro").textContent).toContain('{"partido":true,"flujo":true,"lesiones":true,"evaluaciones":true,"datos":true,"admin":true}');
+    expect(supa.rpcs.map((rpc) => rpc.funcion)).toEqual(["mi_cuenta"]);
+    expect(contenedor.querySelector(".adentro").textContent).toContain(
+      '{"partido":false,"flujo":false,"lesiones":false,"evaluaciones":false,"datos":false,"dueno":"sub","esDueno":true}',
+    );
+    // Y queda en la copia del celular, para entrar sin señal.
+    expect(JSON.parse(localStorage.getItem(CLAVE_PERFIL_LOCAL)).dueno).toBe("sub");
+
+    // Si mi_cuenta falla (una base sin dueños), entra igual como no dueño.
+    await act(async () => raiz.unmount());
+    raiz = null;
+    supa.errorMiCuenta = { code: "PGRST202", message: "Could not find the function public.mi_cuenta" };
+    await montar();
+    expect(contenedor.querySelector(".adentro").textContent).toContain('"dueno":null,"esDueno":false');
   });
 
   test("entrar con correo y contraseña lee la cuenta y deja pasar", async () => {
@@ -210,20 +261,101 @@ describe("la puerta de la app", () => {
     expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
   });
 
-  test("una cuenta sin fila o pendiente ve que falta autorizarla, y puede volver a comprobar", async () => {
+  test("una cuenta sin fila o pendiente (sin invitación) pide acceso a su club, y puede volver a comprobar", async () => {
     supa.sesion = SESION;
     supa.perfil = null;
     await montar();
 
-    expect(contenedor.querySelector("h1").textContent).toBe("Tu cuenta está pendiente de autorización");
-    expect(contenedor.querySelector(".training-access-card p").textContent).toContain("dt@club.com");
+    expect(contenedor.querySelector("h1").textContent).toBe("¿A qué club querés entrar?");
     expect(contenedor.querySelector(".adentro")).toBeNull();
+    // Nada más que el pedido: ni lista de clubes ni nada para elegir.
+    expect(contenedor.querySelectorAll("input")).toHaveLength(2);
+    expect(boton("Mandar pedido").disabled).toBe(true);
 
-    // La autorizan: Volver a comprobar la deja pasar.
+    // La habilitan: Volver a comprobar la deja pasar.
     supa.perfil = AUTORIZADO;
     await act(async () => boton("Volver a comprobar").click());
     await act(async () => Promise.resolve());
     expect(contenedor.querySelector(".adentro")).not.toBeNull();
+  });
+
+  test("el pedido: se manda, espera con el club que escribió, se cancela y se puede pedir de nuevo", async () => {
+    supa.sesion = SESION;
+    supa.perfil = { ...AUTORIZADO, estado: "pendiente" };
+    await montar();
+
+    const [club, pais] = contenedor.querySelectorAll("input");
+    await escribir(club, "  Club   Uno ");
+    await escribir(pais, "Brasil");
+    await act(async () => {
+      contenedor.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await act(async () => Promise.resolve());
+    expect(supa.rpcs.find((rpc) => rpc.funcion === "pedir_acceso").parametros).toEqual({ p_club: "Club Uno", p_pais: "Brasil" });
+
+    // La espera dice lo que escribió, exista o no el club en la app.
+    expect(contenedor.querySelector("h1").textContent).toBe("Esperando autorización de Club Uno");
+    expect(boton("Volver a comprobar")).toBeTruthy();
+    expect(contenedor.querySelector("input")).toBeNull();
+
+    await act(async () => boton("Cancelar pedido").click());
+    await act(async () => Promise.resolve());
+    expect(supa.rpcs.find((rpc) => rpc.funcion === "cancelar_pedido").parametros).toEqual({ p_id: "p-nuevo" });
+    expect(contenedor.querySelector("h1").textContent).toBe("¿A qué club querés entrar?");
+    expect(contenedor.textContent).not.toContain("no fue aceptado");
+  });
+
+  test("un pedido rechazado lo dice y deja pedir de nuevo; uno abierto se ve al volver", async () => {
+    supa.sesion = SESION;
+    supa.perfil = { ...AUTORIZADO, estado: "pendiente" };
+    supa.pedidos = [{ id: "p1", club_escrito: "Club Dos", pais_escrito: null, estado: "rechazado", creado_en: "2026-10-05T12:00:00Z", decidido_en: "2026-10-06T10:00:00Z" }];
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("¿A qué club querés entrar?");
+    expect(contenedor.textContent).toContain("Tu pedido a Club Dos no fue aceptado. Podés pedir de nuevo.");
+    expect(contenedor.querySelectorAll("input")).toHaveLength(2);
+
+    await act(async () => raiz.unmount());
+    raiz = null;
+    supa.pedidos = [{ id: "p2", club_escrito: "Club Tres", estado: "abierto", creado_en: "2026-10-06T12:00:00Z" }, ...supa.pedidos];
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Esperando autorización de Club Tres");
+  });
+
+  test("si ya hay un pedido abierto (otra pestaña), muestra la espera con el aviso", async () => {
+    supa.sesion = SESION;
+    supa.perfil = { ...AUTORIZADO, estado: "pendiente" };
+    await montar();
+    supa.errorPedir = { code: "P0001", message: "ya_hay_un_pedido" };
+    supa.pedidos = [{ id: "p9", club_escrito: "Club Nueve", estado: "abierto", creado_en: "2026-10-06T12:00:00Z" }];
+    await escribir(contenedor.querySelector("input"), "Club Diez");
+    await act(async () => {
+      contenedor.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector("h1").textContent).toBe("Esperando autorización de Club Nueve");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe("Ya tenés un pedido esperando.");
+  });
+
+  test("con una base sin pedidos, el texto de espera de siempre (sin pedir que lo inviten)", async () => {
+    supa.sesion = SESION;
+    supa.perfil = { ...AUTORIZADO, estado: "pendiente" };
+    supa.errorPedidos = { code: "PGRST202", message: "Could not find the function public.mis_pedidos" };
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Tu cuenta está pendiente de autorización");
+    const texto = contenedor.querySelector(".training-access-card p").textContent;
+    expect(texto).toContain("dt@club.com");
+    expect(texto).not.toMatch(/invite|administrador/);
+    expect(boton("Volver a comprobar")).toBeTruthy();
+    expect(contenedor.querySelector("input")).toBeNull();
+  });
+
+  test("quien entró por invitación (ya autorizado) nunca ve la pantalla del pedido", async () => {
+    supa.sesion = SESION;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+    expect(contenedor.textContent).not.toContain("¿A qué club querés entrar?");
+    expect(supa.rpcs.some((rpc) => rpc.funcion === "mis_pedidos")).toBe(false);
   });
 
   test("bloqueada no entra; autorizada entra aunque la cuenta no tenga módulos (los da cada club)", async () => {
@@ -331,14 +463,17 @@ describe("la puerta de la app", () => {
     expect(contenedor.querySelector(".training-access-message.ok").textContent).toContain("enlace");
   });
 
-  test("Crear una cuenta avisa que hay que confirmar el correo y esperar la autorización", async () => {
+  test("Crear una cuenta avisa que hay que confirmar el correo", async () => {
     await montar();
     await escribir(contenedor.querySelector('input[type="email"]'), "nuevo@club.com");
     await escribir(contenedor.querySelector('input[type="password"]'), "secreta123");
     await act(async () => boton("Crear una cuenta").click());
 
     expect(supa.signUp).toHaveBeenCalledWith({ email: "nuevo@club.com", password: "secreta123" });
-    expect(contenedor.querySelector(".training-access-message.ok").textContent).toContain("autorizarla");
+    expect(contenedor.querySelector(".training-access-message.ok").textContent).toContain("confirmarla");
+    expect(contenedor.querySelector(".training-access-message.ok").textContent).not.toContain("administrador");
+    // La nota de abajo tampoco habla de una autorización del administrador.
+    expect(contenedor.querySelector("small").textContent).not.toContain("administrador");
   });
 
   test("Crear una cuenta con un correo mal escrito no llega a Supabase y dice qué revisar", async () => {
@@ -730,8 +865,8 @@ describe("la puerta de la app", () => {
 
   test("Salir cierra solo en este celular y, si Supabase no pudo, borra la sesión guardada igual", async () => {
     supa.sesion = SESION;
-    // Sin perfil legible queda la pantalla de "no pudimos comprobar", que
-    // tiene el botón Salir a mano.
+    // Sin fila en perfiles queda la pantalla del pedido de acceso, que tiene
+    // Salir a mano.
     supa.perfil = null;
     await montar();
     localStorage.setItem("sb-proyecto-auth-token", JSON.stringify({ access_token: "tok" }));

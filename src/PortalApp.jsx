@@ -4,11 +4,12 @@ import TrainingModule from "./TrainingModule";
 import AccessGate from "./AccessGate.jsx";
 import OpenFieldSession from "./OpenFieldSession.jsx";
 import CuentasAdmin from "./CuentasAdmin.jsx";
+import ClubesDeLaApp from "./ClubesDeLaApp.jsx";
 import BasesDeDatos, { basesHabilitadas } from "./BasesDeDatos.jsx";
 import DatosBasicos from "./DatosBasicos.jsx";
 import ElegirClub from "./ElegirClub.jsx";
 import Notas from "./Notas.jsx";
-import { contarPendientes, permisosEnClub } from "./domain/perfilesDb.js";
+import { permisosEnClub } from "./domain/perfilesDb.js";
 import { limpiarCopiasDelClub } from "./domain/copiasLocales.js";
 import {
   ArteBases,
@@ -37,6 +38,8 @@ const MODOS = {
   DATOS: "datos",
   NOTAS: "notas",
   CUENTAS: "cuentas",
+  // El panel de los dueños de la app: no depende de tener un club elegido.
+  CLUBES: "clubes",
 };
 
 // Los módulos de la app, contados en una línea: lo esencial de cada uno. Qué
@@ -116,23 +119,13 @@ const TARJETAS = [
   },
 ];
 
-const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onCambiarClub }) => {
+// Arriba a la derecha: Clubes de la app (los dueños), Cuentas (el admin del
+// club elegido) y Salir. Los pedidos de acceso de cada club los ve su admin
+// adentro de Cuentas; los dueños no aceptan a nadie.
+const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onClubesDeLaApp, onCambiarClub }) => {
   useIdioma();
   const equipo = leerEquipoElegido();
   const tarjetas = TARJETAS.filter((tarjeta) => permisos?.[tarjeta.permiso]);
-  const [pendientes, setPendientes] = useState(0);
-
-  // El administrador ve cuántas cuentas esperan que las autorice.
-  useEffect(() => {
-    if (!permisos?.admin) return undefined;
-    let activo = true;
-    contarPendientes()
-      .then((cantidad) => activo && setPendientes(cantidad))
-      .catch(() => {});
-    return () => {
-      activo = false;
-    };
-  }, [permisos?.admin]);
 
   return (
     <main className="portal-modulos">
@@ -143,14 +136,14 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onCambiarClub }
           </span>
           <SelectorIdioma className="portal-idioma" />
           <div className="portal-cuenta-acciones">
-          {(permisos?.admin || permisos?.adminClub) && (
-            <button
-              type="button"
-              className={`portal-salir portal-cuentas${pendientes > 0 ? " con-pendientes" : ""}`}
-              onClick={onCuentas}
-            >
+          {permisos?.esDueno && (
+            <button type="button" className="portal-salir portal-clubes-app" onClick={onClubesDeLaApp}>
+              {t("portal.clubesApp")}
+            </button>
+          )}
+          {permisos?.adminClub && (
+            <button type="button" className="portal-salir portal-cuentas" onClick={onCuentas}>
               {t("portal.cuentas")}
-              {pendientes > 0 && <span className="portal-pendientes">{pendientes}</span>}
             </button>
           )}
           <button type="button" className="portal-salir" onClick={onSalir}>
@@ -225,9 +218,9 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
   useEffect(() => (modo === MODOS.PORTAL ? releerClub() : undefined), [modo, club?.id, releerClub]);
 
   // Lo que se puede usar sale de la membresía en el club elegido (rol y
-  // módulos); la cuenta solo dice si es dueña de la plataforma. Bases de
-  // Datos se abre con el permiso de alguna de sus bases; Notas, para toda la
-  // gente que sigue en el club.
+  // módulos); la cuenta solo dice si es dueña de la app (eso abre Clubes de
+  // la app, no ningún club). Bases de Datos se abre con el permiso de alguna
+  // de sus bases; Notas, para toda la gente que sigue en el club.
   const delClub = permisosEnClub(permisos, club);
   const enClub = { ...delClub, bases: basesHabilitadas(delClub).length > 0, notas: Boolean(club) && !club.hasta && club.miembro !== false };
 
@@ -242,11 +235,19 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
 
   let contenido;
 
-  if (!club || eligiendoClub) {
+  if (modo === MODOS.CLUBES && permisos?.esDueno) {
+    // Antes que elegir club: un dueño sin club llega igual.
+    contenido = <ClubesDeLaApp miUserId={userId} esPrincipal={permisos.dueno === "principal"} onVolver={volver} />;
+  } else if (!club || eligiendoClub) {
+    // Desde Cambiar, abajo se puede salir del club elegido (para todos igual);
+    // después se relee ese club, que queda en solo lectura hasta hoy.
     contenido = (
       <ElegirClub
-        esDueno={Boolean(permisos?.admin)}
+        esDueno={Boolean(permisos?.esDueno)}
         email={email}
+        club={club}
+        onSalioDelClub={releerClub}
+        onClubesDeLaApp={() => setModo(MODOS.CLUBES)}
         onElegir={(elegido) => {
           setClub(elegido);
           setEligiendoClub(false);
@@ -256,15 +257,14 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     );
   } else if (modo === MODOS.PARTIDO && enClub.partido) {
     // La portada ya mostró la foto: Partido entra sin su intro. Desde sus
-    // Ajustes se vuelve al portal o se cierra la sesión. Los permisos de la
-    // cuenta deciden quién renombra o crea clubes en Ajustes › Equipo.
-    contenido = <App intro={false} onVolver={volver} onCerrarSesion={cerrarSesion} permisos={permisos} />;
+    // Ajustes se vuelve al portal o se cierra la sesión.
+    contenido = <App intro={false} onVolver={volver} onCerrarSesion={cerrarSesion} />;
   } else if (modo === MODOS.ENTRENAMIENTO && enClub.flujo) {
     contenido = (
       // Quien entró con la copia de su cuenta (sin señal) no espera a que el
       // servidor abra la sesión de OpenField: entra y se abre cuando haya red.
       <OpenFieldSession onVolver={volver} sinSenal={desdeCache}>
-        {() => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} />}
+        {({ rol }) => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} rol={rol} />}
       </OpenFieldSession>
     );
   } else if (modo === MODOS.BASES && enClub.bases) {
@@ -273,8 +273,8 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     contenido = <DatosBasicos onVolver={volver} permisos={enClub} />;
   } else if (modo === MODOS.NOTAS && enClub.notas) {
     contenido = <Notas club={club} userId={userId} adminClub={enClub.adminClub} onVolver={volver} />;
-  } else if (modo === MODOS.CUENTAS && (enClub.admin || enClub.adminClub)) {
-    contenido = <CuentasAdmin miUserId={userId} esDueno={enClub.admin} club={club} onVolver={volver} />;
+  } else if (modo === MODOS.CUENTAS && enClub.adminClub) {
+    contenido = <CuentasAdmin miUserId={userId} club={club} onVolver={volver} />;
   } else {
     contenido = (
       <Portal
@@ -283,6 +283,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         email={email}
         onSalir={cerrarSesion}
         onCuentas={() => setModo(MODOS.CUENTAS)}
+        onClubesDeLaApp={() => setModo(MODOS.CLUBES)}
         onCambiarClub={() => setEligiendoClub(true)}
       />
     );

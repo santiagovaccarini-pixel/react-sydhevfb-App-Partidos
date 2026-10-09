@@ -751,6 +751,15 @@ button:active {
   color: white;
 }
 
+/* Un detalle debajo del nombre (por qué no se puede elegir, por ejemplo). */
+.opcion-hoja-detalle {
+  display: block;
+  margin-top: 2px;
+  color: var(--cam-gris);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .opcion-hoja:hover,
 .opcion-hoja:active {
   transform: none;
@@ -6161,6 +6170,13 @@ button.puesto-cancha {
   border: 1px solid var(--cam-linea);
   border-radius: 14px;
   background: #f7f9f8;
+}
+
+/* En «Tu equipo» (Partido › Ajustes › Equipo) la fila es lo último de la
+   tarjeta: sin el margen que separaba lo de abajo. En la cuenta de OpenField
+   (Ajustes de Flujo diario) le sigue un texto, y el margen queda. */
+.equipo-propio:last-child {
+  margin-bottom: 0;
 }
 
 .equipo-propio strong {

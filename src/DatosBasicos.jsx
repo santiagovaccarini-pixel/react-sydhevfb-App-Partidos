@@ -54,10 +54,10 @@ const edadHoy = (nacimiento) => edadAl(nacimiento, hoyISO());
 
 // permisos: los del club (sin ellos, todo a la vista). Los chalecos de
 // Catapult se buscan con la cuenta de Flujo diario: esa solapa es para quien
-// tiene ese módulo.
+// tiene ese módulo en el club (ser dueño de la app no la abre).
 export default function DatosBasicos({ onVolver, permisos = null }) {
   const { idioma, plural } = useIdioma();
-  const conCatapult = !permisos || Boolean(permisos.flujo || permisos.admin);
+  const conCatapult = !permisos || Boolean(permisos.flujo);
   const destinos = DESTINOS_DATOS.filter((destino) => destino.id !== "catapult" || conCatapult);
   const [vista, setVista] = useState("jugadores");
   const [equipo, setEquipo] = useState(() => leerEquipoElegido());

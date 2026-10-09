@@ -6,9 +6,10 @@ import { interpretarRespuesta, resumirSonda } from "../lib/openfieldProbe.js";
 
 // La lista de jugadores tiene sus propios tests; acá se aísla.
 
-// Como en el módulo: la subpantalla de Ajustes vive en el padre.
-const Ajustes = ({ onVolverModulos = () => {}, onCerrarSesion = () => {} }) => {
-  const [vista, setVista] = useState("inicio");
+// Como en el módulo: la subpantalla de Ajustes vive en el padre. Por
+// defecto la sesión de OpenField volvió con rol admin (ve Pruebas técnicas).
+const Ajustes = ({ onVolverModulos = () => {}, onCerrarSesion = () => {}, rol = "admin", vistaInicial = "inicio" }) => {
+  const [vista, setVista] = useState(vistaInicial);
   return (
     <TrainingSettings
       vista={vista}
@@ -16,6 +17,7 @@ const Ajustes = ({ onVolverModulos = () => {}, onCerrarSesion = () => {} }) => {
       onVolverModulos={onVolverModulos}
       email="x@y"
       onCerrarSesion={onCerrarSesion}
+      rol={rol}
     />
   );
 };
@@ -153,6 +155,19 @@ describe("TrainingSettings", () => {
     await act(async () => opcion(titulo).click());
     await act(async () => Promise.resolve());
   };
+
+  test("Pruebas técnicas solo aparece si la sesión de OpenField volvió con rol admin", async () => {
+    vi.stubGlobal("fetch", fetchRuteado(SIN_CUENTA));
+    await montar({ rol: "usuario" });
+    expect([...contenedor.querySelectorAll(".opcion-ajuste .texto-ajuste b")].map((b) => b.textContent)).toEqual([
+      "Usuario y contraseña",
+      "Cerrar sesión",
+    ]);
+    // Ni entrando directo a esa pantalla.
+    await act(async () => raiz.unmount());
+    await montar({ rol: "usuario", vistaInicial: "pruebas" });
+    expect(contenedor.querySelector("h1").textContent).toBe("Ajustes");
+  });
 
   test("sin cuenta: pide conectarla y deja bloqueados el acceso y el write test", async () => {
     const fetchMock = fetchRuteado(SIN_CUENTA);

@@ -10,15 +10,18 @@ import {
   permisosDePerfil,
   situacionDePerfil,
 } from "./domain/perfilesDb.js";
+import { leerMiCuenta } from "./domain/plataformaDb.js";
 import { limpiarAlSalir } from "./domain/copiasLocales.js";
 import { correoValido } from "./domain/membresiasDb.js";
 import { RUTA_SESION_OPENFIELD } from "./trainingApi.js";
+import PedidoAcceso from "./PedidoAcceso.jsx";
 
 // La puerta de la app. Se entra una vez con correo y contraseña (Supabase
-// Auth) y de ahí cada cuenta usa lo que tiene habilitado: Partido, Flujo
-// diario o todo (administrador). La cuenta se lee de la tabla `perfiles`;
-// sin señal se usa la copia guardada en el celular, así en la cancha se
-// entra igual.
+// Auth) y de ahí cada cuenta usa lo que le habilitó cada club. La cuenta se
+// lee de la tabla `perfiles` y, a la par, `mi_cuenta` dice si es dueña de la
+// app; sin señal se usa la copia guardada en el celular, así en la cancha se
+// entra igual. Una cuenta que todavía no está en ningún club (sin invitación)
+// pide acceso a su club y espera: nada más.
 
 // Se vuelve del correo de "Olvidé mi contraseña": por el parámetro que la app
 // pone en el enlace o, si Supabase lo perdió al redirigir, por la marca
@@ -288,8 +291,14 @@ export default function AccessGate({ children }) {
       return;
     }
     try {
-      const fila = await conTopeDeRed(leerMiPerfil(userId), TOPE_PERFIL_MS);
-      const cuenta = fila || { user_id: userId, email: session.user?.email || "", estado: "pendiente" };
+      // Si mi_cuenta falla (una base sin dueños, o no contesta), entra igual
+      // como no dueña: eso solo cambia el botón de Clubes de la app.
+      const [fila, miCuenta] = await Promise.all([
+        conTopeDeRed(leerMiPerfil(userId), TOPE_PERFIL_MS),
+        conTopeDeRed(leerMiCuenta(), TOPE_PERFIL_MS).catch(() => null),
+      ]);
+      const dueno = miCuenta?.dueno || null;
+      const cuenta = fila ? { ...fila, dueno } : { user_id: userId, email: session.user?.email || "", estado: "pendiente", dueno };
       guardarPerfilLocal(fila ? cuenta : null);
       setPerfil(cuenta);
       marcarDesdeCache(false);
@@ -806,14 +815,14 @@ export default function AccessGate({ children }) {
         : children;
     }
 
-    const textos = {
-      pendiente: { titulo: t("acceso.pendienteTitulo"), texto: t("acceso.pendienteTexto", { correo }) },
-      bloqueado: { titulo: t("acceso.bloqueadoTitulo"), texto: t("acceso.bloqueadoTexto") },
-      "sin-modulos": { titulo: t("acceso.sinModulosTitulo"), texto: t("acceso.sinModulosTexto") },
-    }[situacion];
+    // Sin club todavía: pide acceso a su club y espera.
+    if (situacion === "pendiente") {
+      return <PedidoAcceso correo={correo} onComprobar={volverAComprobar} onSalir={salir} error={error} />;
+    }
 
+    // Bloqueada (solo se hace por SQL): no entra a nada.
     return (
-      <PantallaAcceso titulo={textos.titulo} texto={textos.texto}>
+      <PantallaAcceso titulo={t("acceso.bloqueadoTitulo")} texto={t("acceso.bloqueadoTexto")}>
         <div className="training-access-form">
           {error && <div className="training-access-message error">{error}</div>}
           <button type="button" className="training-access-primary" onClick={volverAComprobar} disabled={Boolean(accion)}>

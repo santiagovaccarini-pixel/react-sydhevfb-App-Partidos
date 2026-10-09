@@ -56,9 +56,31 @@ describe("pedirJson renueva la sesión de OpenField cuando venció", () => {
       .mockResolvedValueOnce(respuesta(401, { ok: false, code: "SIN_SESION", error: "entrá" }))
       .mockResolvedValueOnce(respuesta(403, { ok: false, code: "BLOQUEADO", error: "sin acceso" }));
     vi.stubGlobal("fetch", sinRenovar);
-    const { respuesta: final } = await pedirJson("/api/openfield/periods");
-    expect(final.status).toBe(401);
+    // Si al renovar el servidor dice que la cuenta no puede, vale esa respuesta (dice el porqué).
+    const { respuesta: final, payload } = await pedirJson("/api/openfield/periods");
+    expect(final.status).toBe(403);
+    expect(payload.code).toBe("BLOQUEADO");
     expect(sinRenovar).toHaveBeenCalledTimes(2);
+
+    // Con el servidor caído al renovar, queda la respuesta del primer pedido.
+    const caido = vi
+      .fn()
+      .mockResolvedValueOnce(respuesta(401, { ok: false, code: "SIN_SESION", error: "entrá" }))
+      .mockResolvedValueOnce(respuesta(503, { ok: false, code: "PERFIL_NO_LEGIBLE", error: "probá de nuevo" }));
+    vi.stubGlobal("fetch", caido);
+    expect((await pedirJson("/api/openfield/periods")).respuesta.status).toBe(401);
+    expect(caido).toHaveBeenCalledTimes(2);
+  });
+
+  it("si el club no tiene Catapult en la app, se entera al renovar la sesión", async () => {
+    const sinCatapult = vi
+      .fn()
+      .mockResolvedValueOnce(respuesta(401, { ok: false, code: "SIN_SESION", error: "entrá" }))
+      .mockResolvedValueOnce(respuesta(403, { ok: false, code: "SIN_CATAPULT", error: "Tu club todavía no conectó Catapult en la app." }));
+    vi.stubGlobal("fetch", sinCatapult);
+    const { respuesta: final, payload } = await pedirJson("/api/openfield/atletas");
+    expect(final.status).toBe(403);
+    expect(payload.code).toBe("SIN_CATAPULT");
   });
 
   it("sin sesión de Supabase no intenta renovar", async () => {

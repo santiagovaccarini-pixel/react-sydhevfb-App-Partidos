@@ -193,6 +193,18 @@ describe("los chalecos de Catapult en Datos básicos", () => {
     expect(contenedor.textContent).not.toContain("datos.catapult");
   });
 
+  test("si el club no tiene Catapult en la app, lo dice al buscar chalecos", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respuesta(403, { ok: false, code: "SIN_CATAPULT", error: "Tu club todavía no conectó Catapult en la app." })),
+    );
+    fijarIdiomaParaPruebas("pt-BR");
+    await montar();
+    await act(async () => botonPorTexto("Buscar coletes").click());
+    await act(async () => Promise.resolve());
+    expect(contenedor.textContent).toContain("Seu clube ainda não conectou o Catapult no app.");
+  });
+
   test("si falta la migración lo explica", async () => {
     vi.stubGlobal("fetch", vi.fn());
     dobles.cargar.mockResolvedValue({ plantel: [], error: "La lista de jugadores todavía no tiene el vínculo con Catapult: falta ejecutar la migración 20260920_jugadores_catapult.sql en Supabase." });

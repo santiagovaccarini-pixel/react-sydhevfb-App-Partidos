@@ -13,14 +13,11 @@ import { vaciarCacheEscudos } from "./domain/crests";
 import {
   EQUIPO_POR_DEFECTO,
   cargarEquipos,
-  crearEquipo,
   elegirEquipoInicial,
   guardarEquipoElegido,
   leerEquipoElegido,
-  renombrarEquipo,
 } from "./domain/equipo";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
-import { permisosEnClub } from "./domain/perfilesDb.js";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./domain/alDia.js";
 import {
   canchaDesdeTitulares,
@@ -256,7 +253,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.09.1";
+const APP_VERSION = "2026.10.09.2";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
@@ -1145,13 +1142,10 @@ const EstadoVersionApp = ({ actualizacionDisponible, onActualizar }) => (
 // Desde el portal, la portada de la tarjeta ya hizo de imagen de entrada, así
 // que Partido entra directo (intro=false). Sola, la app sigue abriendo con
 // la foto del estadio.
-// `permisos`: los de la cuenta (los pasa el portal). Sin ellos (la app suelta,
-// o una prueba) Ajustes › Equipo se ve como antes.
 export default function App({
   intro = true,
   onVolver = null,
   onCerrarSesion = null,
-  permisos = null,
 } = {}) {
   const crearCambioVacio = () => ({
     sale: "",
@@ -1490,12 +1484,6 @@ export default function App({
     (equipoGuardado?.id === equipoId ? equipoGuardado?.nombre : "") ||
     EQUIPO_POR_DEFECTO;
 
-  const releerEquipos = async () => {
-    const { equipos: lista } = await cargarEquipos();
-    setEquipos(lista);
-    return lista;
-  };
-
   useEffect(() => {
     let vigente = true;
 
@@ -1530,10 +1518,7 @@ export default function App({
     };
   }, []);
   const [avisoEscudos, setAvisoEscudos] = useState("");
-  const [nombreEquipoEditado, setNombreEquipoEditado] = useState("");
-  const [nombreEquipoNuevo, setNombreEquipoNuevo] = useState("");
   const [avisoEquipo, setAvisoEquipo] = useState("");
-  const [errorEquipo, setErrorEquipo] = useState("");
 
   // Los desplegables de nombre de toda la app leen el plantel de acá: el de
   // hoy (Datos básicos › Actual). Los partidos guardan los nombres como
@@ -6649,9 +6634,7 @@ export default function App({
           className="opcion-ajuste"
           disabled={soloLectura}
           onClick={() => {
-            setNombreEquipoEditado(equipoPropio);
             setAvisoEquipo("");
-            setErrorEquipo("");
             setVistaAjustes("equipo");
           }}
         >
@@ -6719,74 +6702,11 @@ export default function App({
     window.setTimeout(() => setAvisoEquipo(""), 2600);
   };
 
-  // Lo que dice la pantalla cuando crear o renombrar no se pudo, en el
-  // idioma de la app. Antes se mostraba el error crudo de la base (en
-  // inglés) o, si la base no dejaba renombrar, "Nombre cambiado" igual.
-  const textoErrorEquipo = (respuesta, accion) => {
-    if (respuesta.motivo === "vacio") return t("partido.equipoSinNombre");
-    if (respuesta.motivo === "repetido") return t("partido.equipoRepetido");
-    if (respuesta.motivo === "permiso") {
-      return accion === "crear"
-        ? t("partido.equipoSinPermisoCrear")
-        : t("partido.equipoSinPermisoRenombrar");
-    }
-    console.warn(`No se pudo ${accion} el equipo:`, respuesta.error);
-    return accion === "crear"
-      ? t("partido.equipoErrorCrear")
-      : t("partido.equipoErrorRenombrar");
-  };
-
-  const renombrarEsteEquipo = async () => {
-    let respuesta;
-    try {
-      respuesta = await renombrarEquipo(equipoId, nombreEquipoEditado);
-    } catch (error) {
-      respuesta = { error: error?.message || String(error), motivo: "otro" };
-    }
-
-    if (respuesta.error) {
-      setErrorEquipo(textoErrorEquipo(respuesta, "renombrar"));
-      return;
-    }
-
-    setErrorEquipo("");
-    const lista = await releerEquipos();
-    const actual = lista.find((equipo) => equipo.id === equipoId);
-    if (actual) {
-      setEquipoGuardado(actual);
-      guardarEquipoElegido(actual);
-    }
-    avisarEquipo(t("partido.equipoNombreCambiado"));
-  };
-
-  const sumarEquipo = async () => {
-    let respuesta;
-    try {
-      respuesta = await crearEquipo(nombreEquipoNuevo);
-    } catch (error) {
-      respuesta = { error: error?.message || String(error), motivo: "otro" };
-    }
-    const { equipo } = respuesta;
-
-    if (respuesta.error || !equipo) {
-      setErrorEquipo(textoErrorEquipo(respuesta, "crear"));
-      return;
-    }
-
-    setErrorEquipo("");
-    setNombreEquipoNuevo("");
-    await releerEquipos();
-    cambiarDeEquipo(equipo.id, equipo);
-    avisarEquipo(t("partido.equipoAhoraEn", { club: equipo.nombre }));
-  };
-
   // Cambiar de equipo cambia lo que se ve en toda la app, así que se vuelven a
   // leer los partidos y el plantel: de eso se encargan los efectos que miran
   // equipoId.
-  const cambiarDeEquipo = (id, recienCreado = null) => {
-    // El recién creado todavía no está en la lista de este render: si se lo
-    // buscara ahí, el celular se quedaría con el club sin nombre.
-    const elegido = equipos.find((equipo) => equipo.id === id) || recienCreado;
+  const cambiarDeEquipo = (id) => {
+    const elegido = equipos.find((equipo) => equipo.id === id);
 
     guardarEquipoElegido(elegido || { id });
     setEquipoGuardado(elegido || { id, nombre: "" });
@@ -6794,12 +6714,9 @@ export default function App({
     // El plantel del club anterior no se queda a la vista mientras llega el
     // nuevo: se vacía acá y los efectos que miran equipoId traen el que va.
     setPlantel([]);
-    setNombreEquipoEditado(elegido?.nombre || "");
-    setErrorEquipo("");
   };
 
   const renderAjustesEquipo = () => {
-    const enEdicion = nombreEquipoEditado.trim();
     // Para cambiar de club, solo aquellos en los que la cuenta está hoy y
     // tiene Partido: en uno sin el módulo la base no deja guardar, y el
     // partido cargado ahí quedaba para siempre en la cola del celular. Quien
@@ -6812,21 +6729,10 @@ export default function App({
         equipo.partido !== false &&
         (!equipo.hasta || !equipoId),
     );
-    // Renombrar es de quien administra el club (o de la plataforma) y crear
-    // un club, solo del dueño de la plataforma: los demás chocaban con la
-    // base. Se decide con la membresía del club y los permisos de la cuenta;
-    // si no se sabe ninguna de las dos cosas, se muestra como antes.
-    const clubActual =
-      equipos.find((equipo) => equipo.id === equipoId) ||
-      (equipoGuardado?.id === equipoId ? equipoGuardado : null);
-    const enEsteClub = permisosEnClub(permisos || {}, clubActual);
-    const puedeRenombrar =
-      (!permisos && !clubActual?.rol) || enEsteClub.admin || enEsteClub.adminClub;
-    const puedeCrear = !permisos || Boolean(permisos.admin);
-    // Sin club elegido, sin ninguno para elegir y sin poder crear uno, la
-    // pantalla quedaba vacía y sin salida (ni las pestañas sacaban de acá):
-    // se dice por qué y se ofrece volver a los módulos.
-    const sinSalida = !equipoId && otros.length === 0 && !puedeCrear;
+    // Sin club elegido y sin ninguno para elegir, la pantalla quedaba vacía y
+    // sin salida (ni las pestañas sacaban de acá): se dice por qué y se
+    // ofrece volver a los módulos.
+    const sinSalida = !equipoId && otros.length === 0;
 
     return (
       <div className="app">
@@ -6851,44 +6757,13 @@ export default function App({
               <b>{t("partido.equipoTuyo")}</b>
             </div>
 
+            {/* El escudo y el nombre, nada más: los datos del club los
+                cambian solo los dueños de la app (decisión del 09/10). */}
             {equipoId ? (
-              <>
-                <div className="equipo-propio">
-                  <EscudoDeClub equipo="cam" nombre={enEdicion} />
-                  <strong>{enEdicion || t("partido.equipoNombreVacio")}</strong>
-                </div>
-
-                {puedeRenombrar && (
-                <>
-                <label className="etiqueta-equipo" htmlFor="nombre-equipo">
-                  {t("partido.equipoNombre")}
-                </label>
-                <input
-                  id="nombre-equipo"
-                  value={nombreEquipoEditado}
-                  placeholder={t("partido.equipoNombre")}
-                  onChange={(evento) => {
-                    setNombreEquipoEditado(evento.target.value);
-                    setErrorEquipo("");
-                  }}
-                  onKeyDown={(evento) => {
-                    if (evento.key === "Enter") renombrarEsteEquipo();
-                  }}
-                />
-
-                <p className="pista-equipo">{t("partido.equipoPistaEscudo")}</p>
-
-                <button
-                  type="button"
-                  className="boton-principal"
-                  onClick={renombrarEsteEquipo}
-                  disabled={!enEdicion || enEdicion === equipoPropio}
-                >
-                  {t("partido.equipoGuardarNombre")}
-                </button>
-                </>
-                )}
-              </>
+              <div className="equipo-propio">
+                <EscudoDeClub equipo="cam" nombre={equipoPropio} />
+                <strong>{equipoPropio}</strong>
+              </div>
             ) : null}
           </section>
 
@@ -6922,33 +6797,6 @@ export default function App({
             </section>
           )}
 
-          {puedeCrear && (
-          <section className="tarjeta tarjeta-ficha">
-            <div className="cabeza-ficha">
-              <b>{t("partido.equipoAgregar")}</b>
-            </div>
-
-            <div className="agregar-jugador">
-              <input
-                value={nombreEquipoNuevo}
-                placeholder={t("partido.equipoNombreNuevo")}
-                onChange={(evento) => {
-                  setNombreEquipoNuevo(evento.target.value);
-                  setErrorEquipo("");
-                }}
-                onKeyDown={(evento) => {
-                  if (evento.key === "Enter") sumarEquipo();
-                }}
-              />
-              <button type="button" onClick={sumarEquipo}>
-                {t("partido.equipoCrear")}
-              </button>
-            </div>
-
-            <p className="pista-equipo">{t("partido.equipoPistaAgregar")}</p>
-          </section>
-          )}
-
           {sinSalida && (
             <section className="tarjeta tarjeta-ficha">
               <p className="pista-equipo">{t("partido.sinClubesConPartido")}</p>
@@ -6959,8 +6807,6 @@ export default function App({
               )}
             </section>
           )}
-
-          {errorEquipo && <p className="error-equipo">{errorEquipo}</p>}
 
           {equipoId && (
             <div className="acciones-dobles">

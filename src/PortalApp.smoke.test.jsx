@@ -13,14 +13,14 @@ const equipo = vi.hoisted(() => ({
 const cuenta = vi.hoisted(() => ({
   email: "dt@club.com",
   userId: "u1",
-  permisos: { partido: true, flujo: true, admin: false },
+  permisos: { partido: true, flujo: true },
   cerrarSesion: null,
 }));
 
 vi.mock("./App", () => ({
   default: ({ intro }) => <div className="partido-de-prueba">Partido de prueba {intro === false ? "sin intro" : "con intro"}</div>,
 }));
-vi.mock("./TrainingModule", () => ({ default: () => <div className="flujo-de-prueba">Flujo de prueba</div> }));
+vi.mock("./TrainingModule", () => ({ default: ({ rol }) => <div className="flujo-de-prueba">Flujo de prueba ({rol})</div> }));
 vi.mock("./AccessGate.jsx", () => ({
   PantallaAcceso: ({ titulo, texto, children }) => (
     <main className="training-access-page">
@@ -44,13 +44,34 @@ vi.mock("./domain/equipo.js", () => ({
     equipo.actual = elegido;
   },
   cargarEquipos: async () => ({ equipos: equipo.lista }),
-  crearEquipo: async (nombre) => ({ equipo: { id: "eq-nuevo", nombre } }),
   esElCam: (nombre) => nombre === "Atlético Mineiro",
 }));
 vi.mock("./CuentasAdmin.jsx", () => ({ default: ({ onVolver }) => <div className="cuentas-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
+vi.mock("./ClubesDeLaApp.jsx", () => ({
+  default: ({ onVolver, esPrincipal }) => (
+    <div className="panel-de-prueba">
+      {esPrincipal ? "principal" : "sub"}
+      <button type="button" onClick={onVolver}>
+        Volver al portal
+      </button>
+    </div>
+  ),
+}));
+// El pedido de acceso (para quien no está en ningún club): sin pedidos todavía.
+// Salir del club, como la base: ese club queda con hoy como último día.
+vi.mock("./domain/pedidosDb.js", () => ({
+  misPedidos: async () => [],
+  pedidoAbierto: () => null,
+  pedirAcceso: async () => "p1",
+  cancelarPedido: async () => true,
+  salirDelClub: async (equipoId) => {
+    equipo.lista = equipo.lista.map((uno) => (uno.id === equipoId ? { ...uno, hasta: "2026-10-08" } : uno));
+    return true;
+  },
+}));
 vi.mock("./domain/perfilesDb.js", async () => {
   const real = await vi.importActual("./domain/perfilesDb.js");
-  return { permisosEnClub: real.permisosEnClub, contarPendientes: async () => 2 };
+  return { permisosEnClub: real.permisosEnClub };
 });
 vi.mock("./DatosBasicos.jsx", () => ({ default: ({ onVolver }) => <div className="datos-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
 vi.mock("./Lesiones.jsx", async () => {
@@ -77,7 +98,7 @@ describe("el portal", () => {
     vi.useFakeTimers();
     equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro" };
     equipo.lista = [{ id: "eq-1", nombre: "Atlético Mineiro" }, { id: "eq-2", nombre: "Cruzeiro" }];
-    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    cuenta.permisos = { partido: true, flujo: true };
     cuenta.cerrarSesion = vi.fn();
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -123,7 +144,7 @@ describe("el portal", () => {
   });
 
   test("con algún módulo aparece también Datos básicos, con su dibujo, y entra sin portada", async () => {
-    cuenta.permisos = { partido: true, flujo: true, datos: true, admin: false };
+    cuenta.permisos = { partido: true, flujo: true, datos: true };
     await montar();
     expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(4);
     const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Datos básicos"]');
@@ -138,7 +159,7 @@ describe("el portal", () => {
     expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(4);
   });
 
-  test("quien ya se fue del club lo ve marcado en el portal y al elegir club; sin membresía no se elige", async () => {
+  test("quien ya se fue del club lo ve marcado en el portal y al elegir club; los clubes sin membresía no aparecen", async () => {
     equipo.lista = [
       { id: "eq-1", nombre: "Atlético Mineiro", hasta: "2026-09-25", miembro: true },
       { id: "eq-2", nombre: "Cruzeiro", hasta: null, miembro: false },
@@ -151,9 +172,12 @@ describe("el portal", () => {
 
     await act(async () => contenedor.querySelector(".portal-cambiar-club").click());
     const opciones = [...contenedor.querySelectorAll(".elegir-club-opcion")];
-    expect(opciones.map((boton) => boton.querySelector(".elegir-club-detalle")?.textContent)).toEqual(["Hasta el 25/09/2026 · solo lectura", "No estás en este club"]);
+    expect(opciones.map((boton) => boton.querySelector(".elegir-club-nombre").textContent)).toEqual(["Atlético Mineiro"]);
+    expect(opciones[0].querySelector(".elegir-club-detalle").textContent).toBe("Hasta el 25/09/2026 · solo lectura");
     expect(opciones[0].disabled).toBe(false);
-    expect(opciones[1].disabled).toBe(true);
+    // Sin ningún club activo, abajo puede pedir entrar a otro.
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".pedido-acceso h2").textContent).toBe("¿A qué club querés entrar?");
   });
 
   test("si el administrador sacó a la cuenta del club, al volver al portal hay que elegir otro", async () => {
@@ -182,6 +206,33 @@ describe("el portal", () => {
     // Desde el portal se puede volver a elegir.
     await act(async () => contenedor.querySelector(".portal-cambiar-club").click());
     expect(contenedor.querySelector("h1").textContent).toBe("¿Con qué club trabajás?");
+  });
+
+  test("desde Cambiar se sale del club elegido: el portal lo relee y queda en solo lectura hasta hoy", async () => {
+    equipo.actual = { id: "eq-1", nombre: "Club Uno", rol: "staff", partido: true, flujo: true, hasta: null, miembro: true };
+    equipo.lista = [{ ...equipo.actual }, { id: "eq-2", nombre: "Club Dos", rol: "staff", partido: true, hasta: null, miembro: true }];
+    await montar();
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector(".portal-club-hasta")).toBeNull();
+
+    await act(async () => contenedor.querySelector(".portal-cambiar-club").click());
+    await act(async () => Promise.resolve());
+    const boton = (etiqueta) => [...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === etiqueta);
+    // Solo del club elegido, y no en el portal.
+    expect(boton("Salir de Club Dos")).toBeUndefined();
+    await act(async () => boton("Salir de Club Uno").click());
+    await act(async () => boton("Sí, salir").click());
+    await act(async () => Promise.resolve());
+    await act(async () => Promise.resolve());
+    // El portal releyó su club: el celular ya lo guarda con el último día.
+    expect(equipo.actual).toMatchObject({ id: "eq-1", hasta: "2026-10-08" });
+    expect(contenedor.textContent).toContain("Saliste de Club Uno.");
+
+    // Lo elige de nuevo y lo ve en solo lectura, como cualquiera que se fue.
+    const uno = [...contenedor.querySelectorAll(".elegir-club-opcion")].find((b) => b.textContent.includes("Club Uno"));
+    await act(async () => uno.click());
+    expect(contenedor.querySelector(".portal-club-hasta").textContent).toBe("Hasta el 08/10/2026 · solo lectura");
+    expect(contenedor.querySelector('button[aria-label="Entrar a Notas"]')).toBeNull();
   });
 
   test("al tocar Partido muestra la portada con su foto y entra sin la intro", async () => {
@@ -330,7 +381,7 @@ describe("el portal", () => {
 
   test("toda la gente del club ve Notas, con su dibujo, entra y vuelve; quien se fue del club no", async () => {
     equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false };
-    cuenta.permisos = { partido: true, flujo: false, admin: false };
+    cuenta.permisos = { partido: true, flujo: false };
     await montar();
     const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Notas"]');
     expect(tarjeta).not.toBeNull();
@@ -352,30 +403,69 @@ describe("el portal", () => {
     expect(contenedor.querySelector('button[aria-label="Entrar a Notas"]')).toBeNull();
   });
 
-  test("el administrador ve Cuentas con las pendientes, entra y vuelve; los demás no lo ven", async () => {
-    cuenta.permisos = { partido: true, flujo: true, admin: true };
+  test("el dueño ve Clubes de la app (sin contador), entra y vuelve; Cuentas es solo del admin del club", async () => {
+    // Dueño principal, staff en este club: el panel sí, Cuentas no.
+    cuenta.permisos = { partido: true, flujo: true, dueno: "principal", esDueno: true };
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: true, lesiones: false };
+    equipo.lista = [{ ...equipo.actual }];
     await montar();
     await act(async () => Promise.resolve());
 
-    const cuentas = contenedor.querySelector(".portal-cuentas");
-    expect(cuentas).not.toBeNull();
-    expect(cuentas.querySelector(".portal-pendientes").textContent).toBe("2");
-    await act(async () => cuentas.click());
-    expect(contenedor.querySelector(".cuentas-de-prueba")).not.toBeNull();
+    const panel = contenedor.querySelector(".portal-clubes-app");
+    expect(panel.textContent).toBe("Clubes de la app");
+    expect(contenedor.querySelector(".portal-pendientes")).toBeNull();
+    expect(contenedor.querySelector(".portal-cuentas")).toBeNull();
+    await act(async () => panel.click());
+    expect(contenedor.querySelector(".panel-de-prueba").textContent).toContain("principal");
     expect(contenedor.querySelector(".portal-tarjeta")).toBeNull();
-
-    await act(async () => contenedor.querySelector(".cuentas-de-prueba button").click());
+    await act(async () => contenedor.querySelector(".panel-de-prueba button").click());
     expect(contenedor.querySelector(".portal-tarjeta")).not.toBeNull();
 
+    // Quien no es dueño no ve el panel.
     await act(async () => raiz.unmount());
     raiz = null;
-    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    cuenta.permisos = { partido: true, flujo: true };
     await montar();
+    expect(contenedor.querySelector(".portal-clubes-app")).toBeNull();
+  });
+
+  test("ser dueño de la app (perfiles.admin de antes) no da Cuentas en un club donde no es admin", async () => {
+    cuenta.permisos = { partido: true, flujo: true, admin: true };
+    equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro" };
+    equipo.lista = [{ ...equipo.actual }];
+    await montar();
+    await act(async () => Promise.resolve());
     expect(contenedor.querySelector(".portal-cuentas")).toBeNull();
+    expect(contenedor.querySelector(".portal-clubes-app")).toBeNull();
+  });
+
+  test("un dueño sin ningún club llega al panel desde la pantalla de elegir club", async () => {
+    cuenta.permisos = { dueno: "sub", esDueno: true };
+    equipo.actual = null;
+    equipo.lista = [];
+    await montar();
+    await act(async () => Promise.resolve());
+    await act(async () => Promise.resolve());
+
+    // Sin club: el pedido de acceso, y para el dueño, el botón al panel.
+    expect(contenedor.querySelector("h1").textContent).toBe("¿A qué club querés entrar?");
+    const alPanel = [...contenedor.querySelectorAll("button")].find((b) => b.textContent === "Clubes de la app");
+    await act(async () => alPanel.click());
+    expect(contenedor.querySelector(".panel-de-prueba").textContent).toContain("sub");
+    // Y vuelve a elegir club.
+    await act(async () => contenedor.querySelector(".panel-de-prueba button").click());
+    await act(async () => Promise.resolve());
+    expect(contenedor.querySelector("h1").textContent).toBe("¿A qué club querés entrar?");
+  });
+
+  test("Flujo diario recibe el rol con el que volvió la sesión de OpenField", async () => {
+    await montar();
+    await tocar("Entrar a Flujo diario");
+    expect(contenedor.querySelector(".flujo-de-prueba").textContent).toBe("Flujo de prueba (usuario)");
   });
 
   test("solo muestra las tarjetas que la cuenta tiene habilitadas (y Datos básicos con cualquiera)", async () => {
-    cuenta.permisos = { partido: true, flujo: false, admin: false };
+    cuenta.permisos = { partido: true, flujo: false };
     await montar();
 
     expect(contenedor.querySelector('button[aria-label="Entrar a Partido"]')).not.toBeNull();
@@ -387,7 +477,7 @@ describe("el portal", () => {
     // La cuenta dice Partido y Flujo, pero en este club es admin con solo Lesiones.
     equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", partido: false, flujo: false, lesiones: true };
     equipo.lista = [{ ...equipo.actual }];
-    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    cuenta.permisos = { partido: true, flujo: true };
     await montar();
     await act(async () => Promise.resolve());
 
@@ -396,7 +486,7 @@ describe("el portal", () => {
     expect(contenedor.querySelector('button[aria-label="Entrar a Bases de Datos"]')).not.toBeNull();
     const cuentas = contenedor.querySelector(".portal-cuentas");
     expect(cuentas).not.toBeNull();
-    // Las pendientes de la app son cosa del dueño, no del admin del club.
+    // Sin contador: los pedidos de acceso están adentro de Cuentas.
     expect(cuentas.querySelector(".portal-pendientes")).toBeNull();
     await act(async () => cuentas.click());
     expect(contenedor.querySelector(".cuentas-de-prueba")).not.toBeNull();
@@ -405,7 +495,7 @@ describe("el portal", () => {
   test("si el admin del club cambia los módulos, al volver al portal se ven los nuevos", async () => {
     equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false, lesiones: false };
     equipo.lista = [{ ...equipo.actual, flujo: true }];
-    cuenta.permisos = { partido: true, flujo: true, admin: false };
+    cuenta.permisos = { partido: true, flujo: true };
     await montar();
     await act(async () => Promise.resolve());
 

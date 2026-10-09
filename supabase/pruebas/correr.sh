@@ -36,27 +36,56 @@ PSQL="$BIN/psql -v ON_ERROR_STOP=1 -q -d pruebas"
 $PSQL -f "$AQUI/preparar.sql"
 $PSQL -f "$RAIZ/supabase/instalar-desde-cero.sql"
 # En orden de nombre (la fecha va adelante). Los "revisar" son consultas
-# para mirar a mano, no cambian nada. La de cuentas pide el correo del dueño.
+# para mirar a mano, no cambian nada. La de cuentas pide el correo del dueño;
+# la de dueños, el del principal, los de los sub-dueños y el club del token
+# de Catapult (en las pruebas, el club que crea 20260914_equipos).
 for migracion in "$RAIZ"/supabase/migrations/*.sql; do
   case "$migracion" in *revisar*) continue ;; esac
   echo "→ $(basename "$migracion")"
-  sed "s/CORREO_DEL_ADMINISTRADOR/duenio@prueba.com/" "$migracion" | $PSQL -f -
+  sed -e "s/CORREO_DEL_ADMINISTRADOR/duenio@prueba.com/" \
+      -e "s/CORREO_DEL_DUENO_PRINCIPAL/duenio@prueba.com/" \
+      -e "s/CORREOS_DE_SUBDUENOS/subduenia@prueba.com/" \
+      -e "s/NOMBRE_DEL_CLUB_DEL_TOKEN_CATAPULT/Atlético Mineiro/" \
+      "$migracion" | $PSQL -f -
 done
-# La última se corre otra vez: lo que se publica dice que se puede volver a
-# correr, y acá se comprueba.
+# Antes, tres invitaciones de administrador como las de antes del paso 2: al
+# volver a correr la última (la de dueños, 20261014), la abierta pasa a staff
+# y la cancelada y la vencida quedan como estaban (lo miran los escenarios).
+$PSQL -c "insert into public.club_invitaciones (equipo_id, email, rol, cancelada_en, vence_en)
+          select e.id, x.email, 'admin', x.cancelada_en, x.vence_en
+            from public.equipos e,
+                 (values ('jefa.abierta@prueba.com', null::timestamptz, now() + interval '14 days'),
+                         ('jefa.cancelada@prueba.com', now(), now() + interval '14 days'),
+                         ('jefa.vencida@prueba.com', null, now() - interval '1 day')) as x (email, cancelada_en, vence_en)
+           where e.nombre = 'Atlético Mineiro'"
+# La última se corre otra vez, y sin completar los marcadores: lo que se
+# publica dice que se puede volver a correr, y acá se comprueba.
 ULTIMA=$(ls "$RAIZ"/supabase/migrations/*.sql | grep -v revisar | sort | tail -1)
 echo "→ $(basename "$ULTIMA") (otra vez)"
 $PSQL -f "$ULTIMA" >/dev/null
+# Las consultas para revisar los dueños no fallan (son las que se corren a
+# mano antes y después).
+echo "→ 20261014_revisar_duenos.sql"
+$PSQL -f "$RAIZ/supabase/migrations/20261014_revisar_duenos.sql" >/dev/null
 # Las que dicen que se pueden volver a correr, también después de las nuevas.
-for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas 20261011_jugadores_actual 20261012_evaluaciones; do
+for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas 20261011_jugadores_actual \
+                20261013b_notas; do
   echo "→ $otra_vez.sql (otra vez, después de la última)"
   $PSQL -f "$RAIZ/supabase/migrations/$otra_vez.sql" >/dev/null
 done
 # Una migración vieja corrida después de una nueva desharía lo nuevo: las que
-# tienen ese riesgo se tienen que negar solas, con un aviso claro.
-for vieja in 20261001_lesiones 20261002_lesiones_excel 20261002b_datos_basicos 20261003_club_miembros 20261004_cuentas_v2 20261005_foto_al_dia 20261006_horas_imagen; do
-  echo "→ $vieja.sql después de la última (se tiene que negar)"
-  if $PSQL -f "$RAIZ/supabase/migrations/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
+# tienen ese riesgo se tienen que negar solas, con un aviso claro. También la
+# instalación desde cero sobre una base que ya está andando.
+for vieja in instalar-desde-cero \
+             migrations/20260908_captura_tiempo_y_unicidad migrations/20260910_devolver_acceso_app \
+             migrations/20260911_jugadores_editables migrations/20260913_equipo_propio migrations/20260914_equipos \
+             migrations/20260914_localia migrations/20260920_cuenta_catapult migrations/20260922_entrenamientos \
+             migrations/20260930_cuentas migrations/20261001_lesiones migrations/20261002_lesiones_excel \
+             migrations/20261002b_datos_basicos migrations/20261003_club_miembros migrations/20261004_cuentas_v2 \
+             migrations/20261005_foto_al_dia migrations/20261006_horas_imagen migrations/20261012_evaluaciones \
+             migrations/20261013_seguridad; do
+  echo "→ $(basename "$vieja").sql después de la última (se tiene que negar)"
+  if $PSQL -f "$RAIZ/supabase/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
     echo "ERROR: $vieja.sql corrió después de una más nueva"
     exit 1
   fi

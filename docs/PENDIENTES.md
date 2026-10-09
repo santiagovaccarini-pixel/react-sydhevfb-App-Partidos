@@ -114,13 +114,10 @@ de lo hecho está en los commits, no en esta lista.
   por módulo y por celular; se salta; se vuelve a ver desde Ajustes. Vale para
   Partido y para Entrenamiento, cada uno con sus pasos.
 - **Cuentas: probar el circuito completo con una segunda cuenta** (registrarla
-  desde la app, verla en Por autorizar, autorizarla con un solo módulo, entrar
-  con ella y confirmar que ve solo ese módulo; después quitarle el acceso).
-  Lo demás quedó hecho el 30/09: un solo login antes del portal, permisos por
-  cuenta (Partido, Flujo diario, administrador), pantalla Cuentas para
-  autorizar, y las tablas de Partido y de Flujo diario cerradas a cuentas
-  autorizadas (etapa 3 aplicada y probada en producción, con y sin señal). Lo
-  que hay que tener configurado en Supabase está en el README.
+  desde la app, pedir acceso a un club, verla en Pedidos de acceso de ese club,
+  aceptarla con un solo módulo, entrar con ella y confirmar que ve solo ese
+  módulo; después darla de baja). Ver «Cuentas paso 2» más abajo. Lo que hay
+  que tener configurado en Supabase está en el README.
 - **Candado a 26-05 T** mientras dure la prueba. Opcional, a decisión.
 - **Detectar pausas desde los datos GPS** ("Orión"), más adelante.
 
@@ -264,17 +261,17 @@ de lo hecho está en los commits, no en esta lista.
   jugadores que ya estaban) y no puede agregar ni cambiar nada: lo decide la base con las
   políticas (`acceso_club`, `puede_ver_fecha`, `puede_editar`), así que vale también para
   Power Query. La app lo muestra (aviso en cada módulo, botones de carga escondidos, tabla
-  sin edición) leyendo `v_mis_clubes`. El administrador lo maneja desde Cuentas (sumar, dar
-  de baja con el último día, reincorporar); una cuenta recién autorizada queda en el club con
-  el que se está trabajando; quien crea un club queda adentro. Las cuentas autorizadas de hoy
-  quedan en todos los clubes al correr la migración. Límite conocido: un cambio hecho después
+  sin edición) leyendo `v_mis_clubes`. El administrador lo maneja desde Cuentas (invitar,
+  aceptar pedidos, dar de baja con el último día, reincorporar). Desde el paso 2 de cuentas
+  (06/10), quien crea un club (un dueño, desde Clubes de la app) no queda adentro. La
+  migración de ese día dejó las cuentas autorizadas de entonces en todos los clubes. Límite conocido: un cambio hecho después
   de la salida sobre una lesión anterior (el alta, por ejemplo) se ve igual, porque la fila es
   de antes.
 - El idioma se cambia desde el globo arriba a la derecha (puerta, portal, Cuentas, Lesiones y
   Datos básicos). Partido y Flujo diario no lo muestran todavía porque siguen en castellano
   (Partido, en casi todo: ver arriba qué ya está traducido).
-- El permiso `lesiones` de perfiles lo habilita el administrador desde Cuentas; las cuentas
-  admin lo tienen prendido desde la migración.
+- Los módulos (Partido, Flujo diario, Lesiones, Evaluaciones) los da el administrador de cada
+  club desde Cuentas; los de `perfiles` ya no cuentan.
 
 ## Protocolo de lesiones: ninguna regla escrita en código (regla del 02/10)
 
@@ -654,6 +651,158 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
   CONTAR.SI.CONJUNTO).
 
+## Cuentas paso 2: dueños, sub-dueños y pedidos por club (06/10)
+
+Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mirar,
+`20261014_revisar_duenos.sql`). Lo que cambia:
+
+- **Dueños de la app.** Un dueño principal y sub-dueños, en tablas aparte (`plataforma`,
+  `plataforma_subduenos`), fuera de `perfiles`: el admin de un club no ve la lista de
+  dueños; de la gente de su club solo sabe si alguien es dueño (`protegido` en
+  `v_miembros_club`), para no ofrecerle acciones.
+  Solo el principal suma o quita sub-dueños y pasa su lugar (solo a un sub-dueño; él queda
+  como sub). Los sub-dueños hacen todo lo demás: crear clubes, cambiarles el nombre (desde
+  el 09/10), asignar y cambiar el correo de la entidad, ver el panel y Movimientos. Al
+  principal nadie lo saca de la plataforma.
+- **Dueños protegidos en los clubes (decisión del dueño, 08/10).** A ningún dueño, principal
+  ni sub-dueño, lo saca otra persona de un club (tampoco otro dueño): nadie le da de baja, le
+  cambia los módulos ni borra su fila; solo él se va (`salir_del_club`). La base lo frena
+  (`dueno_protegido`) y en Cuentas su fila dice «Dueño de la app» / «Dono do app», sin chips
+  ni «Dar de baja»/«Reincorporar» (como la de otro admin). Si el principal le saca el rol a
+  un sub-dueño, pasa a ser un miembro común y su admin lo maneja como a cualquiera.
+  Tampoco lo mete nadie (revisión del 08/10): la invitación de otro le queda abierta, como
+  la de un correo sin cuenta (también si el dueño se cambia el correo a esa dirección,
+  revisión del 09/10), y a un club del que se fue vuelve solo con un pedido suyo que
+  acepta el admin. Así, invitar un correo no sirve para averiguar si es dueño (`protegido`
+  responde solo por quien comparte club). Con las invitaciones por mail (09/10), el mail de
+  esa invitación no sale y quien invita ve lo mismo que cuando un mail no sale, nunca que
+  el correo tiene cuenta (ver «Invitación a un dueño de la app» en «Invitaciones por
+  mail»). Por lo mismo, la historia del club anota la entidad sin decir qué dueño la puso
+  (eso queda en Movimientos).
+- **Salir de un club, en un solo lugar (08/10).** Cualquier miembro activo se va desde el
+  portal › Cambiar (`src/ElegirClub.jsx`): abajo de todo, «Salir de {club}» para el club
+  elegido, como enlace (no compite con elegir club), con la hoja de confirmar de siempre.
+  Después queda en solo lectura hasta hoy, como cualquiera que se fue. No vuelve a la fila
+  propia de Cuentas (de ahí se sacó «Salir del club»: la fila propia no tiene acciones).
+- **Panel «Clubes de la app»** (`src/ClubesDeLaApp.jsx`): de cada club solo nombre, correo
+  de la entidad, correo del administrador y cantidad de personas; lo garantiza la base
+  (`panel_clubes`). Crear un club (nombre, entidad opcional, zona de una lista corta),
+  cambiarle el nombre (desde el 09/10; muestra el anterior y el nuevo antes de guardar),
+  asignar/cambiar/sacar la entidad (cambiarla muestra el correo anterior y el nuevo),
+  pedidos de clubes que no están, dueños y Movimientos. Ya no hay lista global de cuentas,
+  aprobación de cuentas ni contador en el portal; los dueños no aceptan a nadie en un club.
+- **Pedidos de acceso por club** (`src/PedidoAcceso.jsx`, tabla `club_pedidos`): quien entra
+  sin invitación escribe el club (nombre y país), manda el pedido y espera. Nada más. Lo
+  acepta (eligiendo módulos; entra como staff) o lo rechaza el administrador de ese club,
+  arriba de todo en Cuentas. Rechazado: sale de la lista y la persona puede volver a pedir.
+  Si el nombre no coincide con ningún club, va a «Pedidos de clubes que no están» del panel,
+  y un dueño lo manda al club que corresponde (ahí decide su admin) o lo rechaza. Desde el
+  08/10 también van al panel los pedidos a un club sin administrador (o que se quedó sin él:
+  su pedido abierto pasa a verse ahí); al mandarlo, los clubes sin administrador se ven
+  deshabilitados («Sin administrador») y la base no deja (`club_sin_admin`). La persona
+  ve lo mismo en todos los casos («Esperando autorización de» lo que escribió). El invitado
+  nunca ve esa pantalla. Una cuenta autorizada que se quedó sin ningún club activo ve el
+  mismo formulario al elegir club. Desde el 09/10, cualquier cuenta, también con clubes
+  activos, pide entrar a otro club desde portal › Cambiar: «Pedir entrar a otro club»,
+  enlace debajo de la lista (no compite con elegir ni con «Salir de»), que abre el mismo
+  formulario o, con un pedido abierto, «Esperando autorización de {club}» con Cancelar.
+  Sigue habiendo un pedido abierto por cuenta y la persona nunca sabe si el club usa la
+  app.
+- **El admin del club** invita solo como staff (ya no hay chip de rol), da y saca módulos,
+  da de baja y reincorpora (la fecha de entrada cambia solo al reincorporar; cuándo se creó
+  la fila y quién decidió, los anota la base). No toca a otro admin, ni a sí mismo, ni a un
+  dueño de la app (la base lo frena aunque la pantalla no lo supiera). Sacar a alguien de un
+  club no lo saca de otro. Bloquear una cuenta en toda la app ya no está en la app: solo por
+  SQL.
+- **Clubes**: se crean solo desde el panel; no se borran desde la app (solo por SQL); el
+  nombre lo cambia el admin del club (Partido › Ajustes › Equipo ya no crea clubes).
+  **Reemplazado el 09/10** (ver el punto que sigue): el nombre ya no lo cambia el admin.
+- **Los datos de un club los cambian solo los dueños (decisión del dueño, 09/10, en el
+  chat).** Palabras del dueño: «Nadie puede cambiar el club ni modificarlo, solo yo o sub
+  dueños» y «nadie puede modificar el nombre o agregar un club (Por eso dijimos que tenían
+  que estar todos los clubes en la elección de clubes), Solo se pueden hacer pedidos de
+  agregar un club que no esté. NADIE MODIFICA NADA DE NINGUN CLUB NI DEL NOMBRE DEL CLUB
+  SOLO EL DUEÑO O SUB DUEÑO». Reemplaza la decisión 8 de este paso («El nombre lo cambia
+  el admin del club»).
+  - El nombre (y cualquier otro dato de `equipos`) lo cambian solo el dueño principal y
+    los sub-dueños, desde Clubes de la app: «Cambiar nombre» en cada club (acción
+    secundaria), con una confirmación que muestra el nombre anterior y el nuevo
+    (`renombrar_club`; mismas reglas que al crear: hasta 60 letras y distinto de los otros
+    clubes sin contar tildes ni mayúsculas). Queda en Movimientos («Nombre: {antes} →
+    {nombre}») y en la historia del club sin decir qué dueño fue («El club pasó a llamarse
+    {nombre}»; Cuentas hoy muestra la historia de cada persona, así que esa fila, como la
+    de la entidad, se va a ver cuando haya historia del club, en el paso 3).
+  - Crear clubes sigue siendo solo de los dueños. El administrador del club sigue
+    manejando la gente de su club (invitar como staff, aceptar pedidos, módulos, bajas):
+    eso no es modificar el club.
+  - **Queda prohibido:** que el administrador, la entidad o el staff cambien el nombre u
+    otro dato del club; volver a poner renombrar en Partido › Ajustes › Equipo (se sacó el
+    09/10: la tarjeta «Tu equipo» muestra el escudo y el nombre, nada más) o ponerlo en
+    Cuentas. La base lo frena igual (`equipos` sin UPDATE para las cuentas; solo la función
+    de los dueños).
+- **Catapult**: el token del servidor es de Atlético Mineiro (`plataforma.catapult_equipo`,
+  se cambia por SQL). Solo quien tiene Flujo diario en ese club usa Flujo diario y los
+  chalecos; el resto ve «Tu club todavía no conectó Catapult en la app». Pruebas técnicas
+  aparece solo si la sesión de OpenField volvió con rol admin (el dueño principal con Flujo
+  diario en ese club).
+
+**Visto en la revisión del 08/10, queda afuera de este paso (a decidir o para otra rama):**
+- **Resuelto el 09/10** (el nombre lo cambian solo los dueños, ver arriba; queda en
+  Movimientos). Lo que se había anotado:
+  Renombrar un club (lo hace su admin): como dos clubes no se escriben igual
+  (`nombre_repetido`, contra todos los clubes), el admin puede averiguar si un nombre es de
+  un club de la app que no ve; y si le pone a su club el nombre de un club que todavía no
+  está en la app, desde ahí le llegan los pedidos de quien escriba ese nombre (antes iban
+  al panel). El cambio de nombre no queda en Movimientos. Lo decide el dueño (hasta el
+  catálogo del paso 6): por ejemplo, anotar los renombres en Movimientos o que el nombre lo
+  cambien los dueños.
+- **Ya no aplica desde el 09/10** (Partido no cambia más el nombre; en el panel el campo
+  llega hasta 60 letras y `nombre_invalido` tiene su texto). Lo que se había anotado:
+  Partido › Ajustes › Equipo: con un nombre de más de 60 letras la base contesta
+  `nombre_invalido` y la pantalla dice que falla la señal. Arreglarlo toca `src/App.js`
+  (Partido, fuera de este paso): un motivo propio en `motivoDelError`
+  (`src/domain/equipo.js`), su texto en es-AR y pt-BR y `maxLength={60}` en el campo.
+
+**Orden para ponerlo en producción (estricto):**
+1. CI en verde.
+2. Supabase › SQL Editor: correr `20261014_revisar_duenos.sql` y anotar el correo exacto del
+   principal y de los sub-dueños y el nombre exacto del club del token.
+3. Pegar `20261014_duenos_y_pedidos.sql` completando `CORREO_DEL_DUENO_PRINCIPAL`,
+   `CORREOS_DE_SUBDUENOS` y `NOMBRE_DEL_CLUB_DEL_TOKEN_CATAPULT`, y correrla. Es una sola
+   transacción con autoverificación: si algo no da, no cambia nada y dice qué falta. Mirar
+   las consultas del final.
+4. Recién ahí unir el cambio (Vercel publica la app y el servidor juntos) y subir la versión.
+   La app nueva contra la base vieja no anda (el panel dice que falta actualizar la base;
+   Flujo diario contesta 503). Volver a publicar el deploy anterior sí es seguro.
+
+**Regla para cada migración nueva:** los privilegios por defecto de Postgres le dan EXECUTE a
+PUBLIC (y con eso a anon) a toda función nueva, y un revoke por esquema no lo saca. Cada
+migración que cree funciones repite, antes de su autoverificación,
+`revoke execute on all functions in schema public from public, anon` y vuelve a dar la lista
+blanca a authenticated.
+
+**Queda para el paso 3 (la entidad y un solo admin):**
+- La entidad del club: hoy su correo es solo un dato del panel. Se vincula a su cuenta, y
+  al aceptarla tiene que poner una contraseña nueva (confirmar el correo solo no alcanza:
+  alguien pudo crear antes la cuenta con ese correo y su propia contraseña).
+- Un solo administrador por club, que nombra la entidad, y un suplente.
+- La lista de la gente del club para el staff (solo lectura, sin módulos).
+- Club en solo lectura: si se le revoca la entidad, el club sigue mirando sus datos y
+  usando lo demás, sin cargar nada nuevo (pedido del dueño).
+- Cerrar `perfiles.admin` (queda en false pero legible, porque la app vieja lo lee en la
+  ventana entre el SQL y la publicación) y sacarle `puede_usar` a authenticated, para que un
+  servidor viejo no pueda abrir el Catapult de otro club.
+- Hasta entonces, un club sin admin no puede invitar ni aceptar pedidos (desde la app no
+  se nombran administradores; sus pedidos esperan en el panel de los dueños), y un club
+  creado en el panel queda vacío.
+
+**Paso 5:** la invitación por correo (un enlace que abre «Crear cuenta» con el correo fijo) y
+un aviso al dueño cuando llega un pedido sin club. Desde el 09/10 la invitación llega por
+mail y su enlace abre la bienvenida, donde se elige la contraseña (ver «Invitaciones por
+mail» en «Entrada a la app»); queda el aviso al dueño.
+
+**Paso 6:** el catálogo mundial de clubes (elegir el club de una lista en vez de escribirlo).
+
 ## El siguiente nivel: un club entero usando esto (plan del 02/10)
 
 Santiago: "hoy tuve la noticia de que vamos a tener que hacer esto un software muy
@@ -848,12 +997,14 @@ para alguien que entra por primera vez:
 - **Con invitación:** el enlace de la invitación lo lleva directo a crear la cuenta con el
   correo invitado, que no se puede cambiar.
 
-Cómo está hoy (02/10):
-- Con invitación funciona casi así: el admin invita por correo y copia un mensaje con el
-  enlace a la app; la persona crea la cuenta con ese correo, lo confirma y entra sola al
-  club con los permisos elegidos (si ya tenía cuenta, entra en el acto). Falta que el
-  enlace abra "Crear cuenta" con el correo escrito y fijo: hoy lleva a la entrada común y,
-  si escribe otro correo, queda pendiente.
+Cómo está desde el paso 2 (06/10): el pedido de acceso por club ya está (ver «Cuentas
+paso 2» arriba). Con invitación sigue igual: el admin invita por correo y copia un mensaje
+con el enlace; falta que el enlace abra "Crear cuenta" con el correo escrito y fijo (paso 5).
+Desde el 09/10 la invitación además llega por mail (ver "Invitaciones por mail", abajo).
+Lo que sigue de abajo es la propuesta del 02/10; lo que difiere del paso 2 vale como está
+allá (por ejemplo, rechazado se puede volver a pedir, y el club se escribe hasta que esté
+el catálogo).
+
 - Desde el 08/10, en el mensaje que se copia el enlace y el correo van solos en su
   renglón (antes el punto final se pegaba al correo al copiarlo y la persona no podía
   crear la cuenta con ese correo). Invitar y Crear una cuenta rechazan un correo que no
@@ -873,7 +1024,8 @@ Cómo está hoy (02/10):
   - Al invitar, y con "Reenviar mail" en cada invitación abierta, el servidor
     (`api/invitar`) le pide a Supabase que mande el mail de invitación, siempre al correo
     de esa invitación: nada de lo que manda la app elige a quién. La invitación se lee con
-    la sesión de quien invita, así que solo puede quien administra ese club (o el dueño).
+    la sesión de quien invita, así que solo puede quien administra ese club (desde el paso
+    2, un dueño de la app no ve las invitaciones de un club que no administra).
     El mail nombra el club; los textos de todos los correos están en `docs/correos`.
   - Mientras "Confirm email" esté apagado en Supabase, el servidor no manda nada
     (`CONFIRMACION_APAGADA`): el mail crea la cuenta sin contraseña y, con la confirmación
@@ -914,7 +1066,25 @@ Cómo está hoy (02/10):
     panel); la invitación, 14 días. "Reenviar mail" manda un enlace nuevo y el anterior
     deja de servir.
   - "Sumar a [club]" (Cuentas de la app, el dueño) sigue sin mail: son cuentas que ya
-    existen, con la contraseña que eligieron al registrarse.
+    existen, con la contraseña que eligieron al registrarse. Desde el paso 2 ya no existe
+    (ver «Cuentas paso 2»: quien ya tiene cuenta pide entrar o lo invita el admin).
+  - **Invitación a un dueño de la app (al unir el paso 2, 09/10).** Fuente: la protección
+    de los dueños del paso 2 (revisión del 08/10: invitar un correo no sirve para averiguar
+    si es dueño; su invitación queda abierta, como la de un correo sin cuenta). Con el mail,
+    Supabase no le escribe a una cuenta confirmada, y antes el servidor contestaba "ya tiene
+    cuenta" y Cuentas decía «{correo} ya tiene cuenta: no hace falta el mail»: como la base
+    mete en el acto a cualquier otra cuenta confirmada, eso delataba al dueño. Ahora el
+    servidor (`api/invitar`) contesta exactamente lo mismo que cuando el mail no sale
+    (`ENVIO_FALLIDO`), y Cuentas, al invitar y con "Reenviar mail", muestra el aviso de
+    siempre: «La invitación quedó guardada, pero el mail no salió. Mandale el mensaje con
+    «Copiar mensaje».» / «O convite ficou salvo, mas o e-mail não saiu…». Es cierto (no
+    salió ningún mail) y no dice que la cuenta exista. La invitación queda abierta, con
+    "Copiar mensaje", "Reenviar mail" y "Cancelar", como cualquier otra. **Queda
+    prohibido:** que el servidor o la app digan, para una invitación abierta, que el correo
+    ya tiene cuenta o que entró (se borró `cuentas.mail.yaTieneCuenta`), o que digan que se
+    mandó un mail que no salió. Lo que queda: quien invita ve que para ese correo el mail
+    nunca sale mientras para otros sí; ocultarlo del todo obligaría a no confirmar nunca
+    el envío ("Le mandamos un mail"), y eso no se hizo.
   - **Queda:** probar el primer envío real con la clave secreta (con la clave nueva
     `sb_secret_` se espera que ande; si Supabase la rechaza, usar la legacy service_role).
     Algunos servicios de correo abren los enlaces antes que la persona y los gastan
@@ -926,9 +1096,6 @@ Cómo está hoy (02/10):
     había registrado antes ese correo con una contraseña suya, Supabase la conserva al
     confirmar el correo. El arreglo del servidor solo cubre el mail de invitación; para el
     resto hace falta decidir un cambio en la base o en Supabase Auth.
-- Sin invitación es distinto: la cuenta queda pendiente sin elegir club y la aprueba el
-  dueño de la plataforma desde "Cuentas de la app" (sumándola a un club). El admin del
-  club no la ve. "Rechazar" bloquea la cuenta entera y la deja en "Sin acceso".
 
 Lo que hay que sumar (propuesta del 02/10):
 - Pedido de acceso por club (tabla de solicitudes): solo con el correo confirmado, uno a
@@ -1028,9 +1195,9 @@ encontró la revisión y cómo quedó:
   aplican en 10 minutos; enviar cortes y la cuenta de Catapult, en el momento. La app
   la renueva sola. Las cookies de antes quedan vencidas al publicar (versión 3).
 - **Pruebas técnicas solo para el dueño.** Ajustes › Pruebas técnicas (sondas con los
-  tokens del servidor y un navegador en el servidor que entra a Catapult) las ve
-  cualquiera con Flujo diario, pero ahora el servidor solo se las corre al dueño de la
-  plataforma. Si hace falta que otra cuenta las corra (pedido por chat), se prende
+  tokens del servidor y un navegador en el servidor que entra a Catapult) las corre el
+  servidor solo con la sesión de rol admin. Desde el paso 2 (06/10) ese rol es del dueño
+  principal con Flujo diario en el club del token, y la opción ni aparece para el resto. Si hace falta que otra cuenta las corra (pedido por chat), se prende
   `OPENFIELD_DIAGNOSTICO=1` en Vercel y se apaga después. La escritura de prueba sigue
   siendo solo del dueño, con la variable o sin ella.
 

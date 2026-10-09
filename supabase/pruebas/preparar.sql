@@ -38,7 +38,11 @@ alter default privileges in schema public grant execute on functions to anon, au
 alter database pruebas set search_path = public, extensions;
 
 -- El dueño de la plataforma de las pruebas: la migración de cuentas lo pide
--- con correo (en producción se completa a mano antes de correrla).
+-- con correo (en producción se completa a mano antes de correrla). La de
+-- dueños (20261014) pide además los sub-dueños: subduenia entra como
+-- sub-dueña; otro queda para sumarlo y quitarlo en los escenarios.
 insert into auth.users (id, email, email_confirmed_at)
-values ('00000000-0000-0000-0000-0000000000d1', 'duenio@prueba.com', now())
+values ('00000000-0000-0000-0000-0000000000d1', 'duenio@prueba.com', now()),
+       ('00000000-0000-0000-0000-0000000000d2', 'subduenia@prueba.com', now()),
+       ('00000000-0000-0000-0000-0000000000d3', 'otro@prueba.com', now())
 on conflict (id) do nothing;

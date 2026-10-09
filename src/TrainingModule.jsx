@@ -34,7 +34,8 @@ const olvidarVistaGuardada = () => {
 // fecha), Tareas lo registra y Ajustes guarda el usuario (los jugadores y
 // sus chalecos están en Datos básicos). La sesión de OpenField se elige
 // recién al enviar los cortes.
-export default function TrainingModule({ onVolver, email = "", onCerrarSesion }) {
+// rol: el de la sesión de OpenField ('admin' abre Pruebas técnicas en Ajustes).
+export default function TrainingModule({ onVolver, email = "", onCerrarSesion, rol = "usuario" }) {
   const [vista, setVista] = useState("inicio");
   const [vistaAjustes, setVistaAjustesEstado] = useState("inicio");
   const [equipo] = useState(() => leerEquipoElegido());
@@ -112,6 +113,7 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion })
         onCambiarVista={setVistaAjustes}
         email={email}
         onCerrarSesion={onCerrarSesion}
+        rol={rol}
       />
     ),
   };

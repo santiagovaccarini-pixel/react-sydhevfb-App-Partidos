@@ -15,7 +15,9 @@ export const config = {
 // Cuenta de Catapult del usuario que hace el pedido.
 // GET: estado (sin secretos). POST: conectar (valida con un login real y
 // guarda cifrado). DELETE: desconectar. Siempre con el token de Supabase del
-// usuario, así la base solo le muestra su propia fila.
+// usuario, así la base solo le muestra su propia fila. Pasa por la misma
+// puerta que Flujo diario: sin Flujo diario en el club del token de Catapult,
+// 403 SIN_CATAPULT.
 export default async function handler(request, response) {
   response.setHeader("Cache-Control", "private, no-store");
   response.setHeader("X-Robots-Tag", "noindex");
