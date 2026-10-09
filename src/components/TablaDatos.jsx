@@ -195,9 +195,14 @@ export const TablaDatos = ({
     });
     return vigentes;
   }, [columnas, anchos, clavesFijas]);
+  // También lo que miden juntas las fijas: el título de un grupo queda a la
+  // vista a la derecha de ellas al correr la tabla.
   const variablesDeAncho = useMemo(
-    () => Object.fromEntries(Object.entries(anchosVigentes).map(([clave, ancho]) => [variableDeAncho(clave), `${ancho}px`])),
-    [anchosVigentes],
+    () => ({
+      ...Object.fromEntries(Object.entries(anchosVigentes).map(([clave, ancho]) => [variableDeAncho(clave), `${ancho}px`])),
+      "--tabla-datos-ancho-fijas": clavesFijas.length ? `calc(${clavesFijas.map((clave) => `var(${variableDeAncho(clave)})`).join(" + ")})` : "0px",
+    }),
+    [anchosVigentes, clavesFijas],
   );
   // Lo que lleva cada celda de una columna con ancho (de borde a borde) y,
   // si es fija, dónde queda: a la derecha de las fijas anteriores.
@@ -258,9 +263,23 @@ export const TablaDatos = ({
   const filasArriba = deLaVista?.arriba || [];
 
   // La fila de grupos, si las columnas los traen. El tono de cada grupo sale
-  // de su orden en las columnas originales, así no cambia al mover una.
+  // de su orden en las columnas originales, así no cambia al mover una. Las
+  // fijas van juntas en una celda fija como ellas: si no, al correr la tabla
+  // en la compu, los grupos pasaban por encima de las fijas.
   const hayGrupos = columnas.some((columna) => columna.grupo);
-  const tramos = useMemo(() => (hayGrupos ? tramosDeGrupos(visibles) : []), [hayGrupos, visibles]);
+  const tramos = useMemo(() => {
+    if (!hayGrupos) return [];
+    const cuantasFijas = clavesFijas.length;
+    if (!cuantasFijas) return tramosDeGrupos(visibles);
+    const delasFijas = visibles.slice(0, cuantasFijas);
+    const unGrupo = delasFijas.every((col) => (col.grupo || "") === (delasFijas[0].grupo || ""));
+    const grupo = unGrupo ? delasFijas[0].grupo || "" : "";
+    // Si el grupo de las fijas sigue después, ahí va sin repetir el título.
+    return [
+      { grupo, titulo: grupo ? delasFijas[0].grupoTitulo || "" : "", desde: 0, cantidad: cuantasFijas, fijo: true },
+      ...tramosDeGrupos(visibles.slice(cuantasFijas)).map((tramo, i) => ({ ...tramo, titulo: i === 0 && grupo && tramo.grupo === grupo ? "" : tramo.titulo, desde: tramo.desde + cuantasFijas })),
+    ];
+  }, [hayGrupos, visibles, clavesFijas]);
   const tonoDeGrupo = useMemo(() => tonosDeGrupos(columnas), [columnas]);
 
   useEffect(() => {
@@ -840,7 +859,8 @@ export const TablaDatos = ({
                       key={`${tramo.grupo}-${tramo.desde}`}
                       colSpan={tramo.cantidad}
                       scope="colgroup"
-                      className={`tabla-datos-grupo ${tramo.grupo ? `tono-${tonoDeGrupo[tramo.grupo] ?? 0}` : "sin-grupo"}`}
+                      className={`tabla-datos-grupo ${tramo.grupo ? `tono-${tonoDeGrupo[tramo.grupo] ?? 0}` : "sin-grupo"} ${tramo.fijo ? "inmovil ultima-inmovil" : ""}`.trim()}
+                      style={tramo.fijo ? { left: 0 } : undefined}
                       title={tramo.titulo}
                     >
                       <div className={achicado ? "tabla-datos-envoltura" : undefined}>

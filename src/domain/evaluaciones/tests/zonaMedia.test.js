@@ -178,7 +178,7 @@ describe("Zona Media: el informe con las filas que se ven", () => {
     expect(estilos[filas[2].id].lumbar).toEqual(degradeDe(COLORES.verde));
     // La clase 4 de Lumbar (3:30): en negrita sobre el verde de su clase (igual
     // en toda la app: Santiago, 09/10); el 5 y el 1, con la letra blanca.
-    expect(estilos[filas[1].id].lumbar_clas).toEqual({ background: COLORES.verde, color: "#111827", fontWeight: 700 });
+    expect(estilos[filas[1].id].lumbar_clas).toEqual({ background: COLORES.gris, color: COLORES.verde, fontWeight: 700 });
     // El % mejora no tiene reglas.
     expect(estilos[filas[1].id].lumbar_mejora).toBeUndefined();
     // La fila 2 del informe: cada porcentaje con el color de su clase.

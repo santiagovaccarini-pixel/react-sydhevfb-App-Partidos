@@ -14,7 +14,7 @@ import { COLORES, SIN_RELLENO, degrade, estiloDeClase, letraSobreGris, masDesvio
 // columnas ocultas que suman las dos piernas ("% mejora L + R" y "Clas L +
 // R"); las clases contra los V.R. de la categoría de cada fila; el N° del
 // informe cuenta datos y las cuentas de PD / PI respetan el filtro; las
-// clases con los colores de toda la app.
+// clases como en toda la app (el número del color de su clase, sobre gris).
 
 const et = (es, pt) => ({ "es-AR": es, "pt-BR": pt });
 
@@ -234,7 +234,7 @@ const y = (...valores) => valores.find((valor) => valor && typeof valor === "obj
 const mas = (ctx, k) => masDesvios(ctx.promedio, ctx.desvio, k);
 
 export const REGLAS = Object.freeze([
-  // Las clases: el número sobre el color de su clase (igual en toda la app).
+  // Las clases: el número del color de su clase, sobre gris (igual en toda la app).
   ...[5, 4, 3, 2, 1].map((clase, i) => ({ prioridad: 1 + i, columnas: CLASES, cumple: ({ valor }) => igual(valor, clase), estilo: estiloDeClase(clase) })),
   // Las celdas vacías no se pintan: OR(I18="",ISBLANK(I18)).
   { prioridad: 6, columnas: TODAS, cumple: ({ valor }) => esVacio(valor), estilo: SIN_RELLENO },

@@ -642,9 +642,28 @@ describe("la tabla estilo Excel", () => {
   test("el título del grupo de una columna fija no la ensancha", async () => {
     const conGrupos = columnas.map((columna, i) => ({ ...columna, ancho: i === 0 ? 60 : undefined, grupo: i < 2 ? "jugador" : "cuerpo", grupoTitulo: i < 2 ? "Un título de grupo bien largo" : "Cuerpo" }));
     await montar({ columnas: conGrupos, fijas: ["nombre"] });
-    const [jugador, cuerpo] = contenedor.querySelectorAll(".tabla-datos-grupos th");
+    // El grupo sigue después de la fija: ahí, con su tono y sin repetir el título.
+    const [jugador, sigue, cuerpo] = contenedor.querySelectorAll(".tabla-datos-grupos th");
     expect(jugador.firstElementChild.classList.contains("tabla-datos-envoltura")).toBe(true);
+    expect([jugador, sigue, cuerpo].map((th) => th.textContent)).toEqual(["Un título de grupo bien largo", "", "Cuerpo"]);
+    expect(sigue.className).toBe(jugador.className.replace(" inmovil ultima-inmovil", ""));
     expect(cuerpo.firstElementChild.classList.contains("tabla-datos-envoltura")).toBe(false);
+  });
+
+  test("en la fila de los grupos, las fijas van en una celda fija como ellas", async () => {
+    // Como Curl Nórdico: las fijas sin grupo y después los grupos.
+    const conGrupos = columnas.map((columna, i) => ({ ...columna, ancho: i === 0 ? 150 : undefined, grupo: i === 0 ? undefined : "cuerpo", grupoTitulo: i === 0 ? undefined : "Cuerpo" }));
+    await montar({ columnas: conGrupos, fijas: ["nombre"] });
+    const grupos = [...contenedor.querySelectorAll(".tabla-datos-grupos th")];
+    expect(grupos.map((th) => th.textContent)).toEqual(["", "Cuerpo"]);
+    expect(grupos.map((th) => th.getAttribute("colspan"))).toEqual(["1", String(columnas.length - 1)]);
+    // La de las fijas queda fija (como las cabeceras de las fijas), desde el borde.
+    expect(grupos[0].classList.contains("inmovil")).toBe(true);
+    expect(grupos[0].classList.contains("ultima-inmovil")).toBe(true);
+    expect(grupos[0].style.left).toBe("0px");
+    expect(grupos[1].classList.contains("inmovil")).toBe(false);
+    // El título de un grupo se corre hasta la derecha de las fijas.
+    expect(contenedor.querySelector(".tabla-datos-tabla").style.getPropertyValue("--tabla-datos-ancho-fijas")).toBe("calc(var(--tabla-ancho-nombre))");
   });
 
   test("una columna fija también se achica, y las fijas de al lado la siguen", async () => {

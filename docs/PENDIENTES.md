@@ -602,6 +602,11 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   el borde la devuelven a su ancho. Queda guardado en cada celular, por tabla
   (`tabla_anchos:<tabla>`, como el orden de las columnas en `tabla_columnas:<tabla>`). Las fijas
   llevan su `ancho` de borde a borde.
+- Columnas fijas con grupos arriba (Santiago, 09/10: «no respeta el fijado de las columnas», en
+  la Base de Curl Nórdico en la compu): en la fila de los grupos, las fijas van juntas en una
+  celda fija como ellas, y el título de cada grupo queda a la vista a la derecha de las fijas.
+  Antes la barra del grupo pasaba por encima de las fijas al correr la tabla
+  (`src/components/TablaDatos.jsx`, la misma tabla de todas las bases).
 
 ## Evaluaciones (05/10)
 
@@ -639,11 +644,14 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     las filas (en el Excel AA2 tenía otra).
   - **Cómo se ve una clase, igual en toda la app (Santiago, 09/10)**: «Necesitamos que se vean
     bien, no importa el color de fondo solo que se vean bien y sea lo mismo para todas las
-    clasificaciones en todos lados». La celda entera va del color de su clase y el número en
-    negrita, blanco sobre el 5 y el 1 y oscuro sobre el 4, el 3 y el 2
-    (`estiloDeClase` en `formatoCondicional.js`; lo usan todos los tests, la Base y los
-    reportes). Antes, en Zona Media, la letra iba del color de la clase sobre gris: no se
-    leía bien. No volver a la letra de color sobre gris para las clases.
+    clasificaciones en todos lados». Primero (PR #228) la celda entera fue del color de su
+    clase, con el número en negrita blanco u oscuro. **Reabierta el mismo 09/10** por
+    Santiago: «Mejor devolve el color gris a los fondos de clasificacion». Queda: el número
+    en negrita del color de su clase, sobre gris (#D9D9D9), como en el Excel, igual en
+    todos los tests, la Base y los reportes (`estiloDeClase` en `formatoCondicional.js`).
+    Descartado: la celda entera del color de la clase. Se ve que el 3 (amarillo) y el 4
+    (verde claro) se leen poco sobre gris: si se quiere, hay que decidir otro tono para la
+    letra o para el gris (no cambiarlo sin que Santiago lo pida).
   - Deficit. Clas sin Lateral D o sin Lateral I: vacía (el Excel ponía 1 en rojo). Ratio sin
     Prono: vacío (el Excel daba 0). Sin V.R. cargados: las clases vacías y un aviso (el Excel
     les daba 5 a todos). El informe sin ningún dato en una columna: vacío (el Excel mostraba
@@ -700,6 +708,13 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     columnas ocultas de L + R contaban celdas, con o sin dato). En las columnas de Deficit
     Pierna dice cuántas PD, PI y Sin Deficit hay **respetando el filtro** (en el Excel, sin
     respetarlo), con el formato del Excel («PD 109,0»).
+  - **Decimales que no se ven** (09/10): Pegar desde Excel trae lo que el Excel muestra, no lo
+    que guarda. En Curl, P.C. (24 filas) y L MED. y R MED. de Curl Nórdico (25 filas cada
+    una) tienen decimales escondidos por el formato; pegados así, cambiaban 165 resultados.
+    Antes de copiar, a esas columnas se les pone formato Número con 15 decimales (sin guardar
+    el Excel): así se pegan exactas (comprobado contra la hoja real: 0 diferencias).
+    **Regla para cada test que se agregue**: buscar en su hoja los datos cargados con más
+    decimales de los que se ven y avisar qué columnas cambiar antes de copiar.
   - **Las filas con el comentario «CONTROL»** (las 4 últimas de la hoja): «no son evaluaciones
     como tal, son solo controles que se le realizaron al atleta». No se traen: al pegar desde
     el Excel no se copian esas filas (el comentario no viaja con el texto copiado, así que la

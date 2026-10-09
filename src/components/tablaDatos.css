@@ -588,6 +588,18 @@
   }
 }
 
+/* En la fila de los grupos, las fijas van en una celda fija como ellas, y el
+   título de cada grupo queda a la vista a la derecha de las fijas. */
+@media (min-width: 900px) {
+  .tabla-datos-tabla .tabla-datos-grupo-titulo {
+    left: calc(var(--tabla-datos-ancho-fijas, 0px) + 20px);
+  }
+
+  .tabla-datos-tabla thead tr.tabla-datos-grupos th.inmovil .tabla-datos-grupo-titulo {
+    position: static;
+  }
+}
+
 /* Las filas de arriba de las cabeceras (el informe de Evaluaciones, como las
    filas de arriba de la hoja del Excel), alineadas con cada columna. Al bajar
    no quedan fijas: solo las cabeceras. */

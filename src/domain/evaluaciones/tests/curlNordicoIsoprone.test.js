@@ -135,7 +135,7 @@ describe("Curl Nórdico e Isoprone: el informe y los colores", () => {
     expect(estilos[filas[0].id].curl_l_max_rel).toEqual(degradeDe(COLORES.naranja));
     expect(estilos[filas[3].id].curl_l_max_rel).toEqual(degradeDe(COLORES.rojo));
     // La clase 5 (6 ≥ Excelente): sobre verde oscuro, la letra blanca.
-    expect(estilos[filas[1].id].curl_l_max_clas).toEqual({ background: COLORES.verdeOscuro, color: COLORES.blanco, fontWeight: 700 });
+    expect(estilos[filas[1].id].curl_l_max_clas).toEqual({ background: COLORES.gris, color: COLORES.verdeOscuro, fontWeight: 700 });
     // Qué pierna: la letra de color sobre gris, como en el Excel.
     expect(estilos[filas[0].id].curl_pierna_max).toEqual({ background: COLORES.gris, color: "#0D0D0D", fontWeight: 700 });
     expect(estilos[filas[2].id].curl_pierna_max).toEqual({ background: COLORES.gris, color: "#7030A0", fontWeight: 700 });

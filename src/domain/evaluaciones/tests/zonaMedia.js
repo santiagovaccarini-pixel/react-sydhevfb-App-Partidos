@@ -360,8 +360,8 @@ export const REGLAS = Object.freeze([
   { prioridad: 44, columnas: TIEMPOS, cumple: (ctx) => mayorIgual(ctx.valor, ctx.promedio), estilo: degrade(COLORES.amarillo) },
   { prioridad: 45, columnas: TIEMPOS, cumple: desde(-1), estilo: degrade(COLORES.naranja) },
   { prioridad: 46, columnas: TIEMPOS, cumple: debajoDe(-1), estilo: degrade(COLORES.rojo) },
-  // Las clases: el número en negrita sobre el color de su clase (igual en
-  // toda la app: Santiago, 09/10; en el Excel, del color de su clase sobre gris).
+  // Las clases: el número en negrita del color de su clase, sobre gris (igual
+  // en toda la app, como en el Excel: Santiago, 09/10).
   ...[5, 4, 3, 2, 1].map((clase, i) => ({ prioridad: 47 + i, columnas: CLASES, cumple: claseIgual(clase), estilo: estiloDeClase(clase) })),
   // PRO??: el promedio de las clases, por tramos, con el estilo de la clase
   // de su tramo.
