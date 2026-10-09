@@ -24,6 +24,7 @@ const datos = vi.hoisted(() => ({
   referenciasIso: null,
   referenciasTobillo: null,
   referenciasAductor: null,
+  referenciasSentadilla: null,
 }));
 
 // Los V.R. de prueba, en la unidad del Excel (los tiempos, segundos ÷ 1440).
@@ -95,6 +96,7 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
       ...(datos.referenciasIso ? { isocinecia: datos.referenciasIso } : {}),
       ...(datos.referenciasTobillo ? { movilidad_tobillo: datos.referenciasTobillo } : {}),
       ...(datos.referenciasAductor ? { iso_aductor_abductor: datos.referenciasAductor } : {}),
+      ...(datos.referenciasSentadilla ? { sentadilla_incremental: datos.referenciasSentadilla } : {}),
     },
     error: "",
   }),
@@ -200,6 +202,7 @@ describe("Evaluaciones", () => {
     datos.referenciasIso = null;
     datos.referenciasTobillo = null;
     datos.referenciasAductor = null;
+    datos.referenciasSentadilla = null;
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -667,6 +670,7 @@ describe("Evaluaciones", () => {
       "Movilidad de Isquio",
       "Estabilidad rotacional",
       "Iso Aductor-Abductor",
+      "Sentadilla Incremental",
     ]);
     expect(botones(contenedor).some((b) => b.textContent === "Curl Nórdico e Isoprone")).toBe(false);
     await elegirTest(contenedor, "Curl Nórdico e Isoprone");
@@ -774,6 +778,7 @@ describe("Evaluaciones", () => {
       "Movilidad de Isquio",
       "Estabilidad rotacional",
       "Iso Aductor-Abductor",
+      "Sentadilla Incremental",
     ]);
     expect(deLaCarga.value).toBe("zona_media");
   });
@@ -899,6 +904,83 @@ describe("Evaluaciones", () => {
     expect([...ratio.querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["n", "Promedio", "Desv. Estándar", "Malo", "Regular", "Bueno", "Regular", "Malo"]);
     const aductor = [...contenedor.querySelectorAll(".evaluaciones-bloque")][0];
     expect([...aductor.querySelectorAll("tbody th")].map((th) => th.textContent).slice(3)).toEqual(["Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
+  });
+
+  test("Sentadilla Incremental: cinco series, el RM IND con su clase, el resumen de V.R. sin «Pro» y la carga por series", async () => {
+    datos.evaluaciones.push({
+      ...evaluacion("si1", 60, 1, "2026-06-27", {}),
+      test: "sentadilla_incremental",
+      datos: { seleccion: "mayor", dispositivo: "vitruve", medio: "agachamento_trap", pc: 80, kg_1: 20, pse_1: 0, kg_2: 40, pse_2: 2, kg_3: 60, pse_3: 4, cuenta_3: "no", rm_vel: 240 },
+    });
+    const V = (rm, rel) => ({ rm_ind: rm, rel, rm_vel: rm, rel_vel: rel });
+    datos.referenciasSentadilla = {
+      categorias: {
+        sub15: { titulo: "V.R. de prueba Sub 15", n: { pc: 9, rel: 9 }, excelente: { pc: 70, rel: 1 }, muy_bueno: { pc: 65, rel: 0.9 }, bueno: { pc: 60, rel: 0.8 }, regular: { pc: 55, rel: 0.7 }, malo: { pc: 50, rel: 0.6 } },
+        mayor: { n: { rm_ind: 9, rel: 9 }, excelente: V(320, 3.6), muy_bueno: V(290, 3.3), bueno: V(260, 3), regular: V(230, 2.7), malo: V(200, 2.4), desvio: { rel_vel: 0.3 } },
+      },
+      resumen: { n: { sub15: 9, mayor: 9 } },
+    };
+    await montar();
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Sentadilla Incremental");
+    expect(contenedor.querySelector("h1").textContent).toBe("Sentadilla Incremental");
+    expect([...contenedor.querySelectorAll(".tabla-datos-grupo-titulo")].map((titulo) => titulo.textContent).filter(Boolean)).toEqual([
+      "Serie 1",
+      "Serie 2",
+      "Serie 3",
+      "Serie 4",
+      "Serie 5",
+      "R.M. Indirecto x PSE",
+      "Valor Referencial",
+    ]);
+    expect(cabeceras(contenedor).slice(0, 9)).toEqual(["nº Eva", "Fecha", "Jugador", "Seleccion", "Dispositivo", "Medio", "P.C.", "Kg", "Carga"]);
+    // Pot y RM IND/REL salieron (Santiago, 09/10).
+    expect(cabeceras(contenedor)).not.toContain("Pot");
+    expect(cabeceras(contenedor)).not.toContain("RM IND/REL");
+    expect(celda(contenedor, 0, "Medio").textContent).toBe("Sentadilla con Trap");
+    expect(celda(contenedor, 0, "Carga").textContent).toBe("100,0");
+    // La tercera serie no cuenta: sin Fmax T.
+    const fmaxes = filas(contenedor)[0].querySelectorAll("td");
+    const columnasFmax = cabeceras(contenedor).flatMap((titulo, i) => (titulo === "Fmax T" ? [i] : []));
+    expect(fmaxes[columnasFmax[2]].textContent).toBe("");
+    expect(fmaxes[columnasFmax[0]].textContent).not.toBe("");
+    expect(celda(contenedor, 0, "Rel (vel)").textContent).toBe("3,00");
+    expect(celda(contenedor, 0, "Clas. Grupo").textContent).not.toBe("");
+
+    // Los V.R.: una tabla por categoría y el resumen, sin la columna «Pro» de Zona Media.
+    await irA(contenedor, "Valores de referencia");
+    expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["V.R. de prueba Sub 15", "Mayor", "RESUMEN CATEGORIAS (Promedios)"]);
+    const resumen = [...contenedor.querySelectorAll(".evaluaciones-bloque")].at(-1);
+    expect([...resumen.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Categoría", "n", "P.C.", "Rep", "RM", "Kg", "Rel"]);
+
+    // Se carga por pasos: el dispositivo, el medio y el peso con el jugador; después cada serie.
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    await elegirTest(contenedor, "Sentadilla Incremental");
+    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
+    await tocar([...campo(contenedor, "Medio").querySelectorAll("button")].find((b) => b.textContent === "Leg Press"));
+    await escribir(campo(contenedor, "P.C.").querySelector("input"), "80,5");
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Serie 1");
+    await escribir(campo(contenedor, "Kg").querySelector("input"), "20");
+    await escribir(campo(contenedor, "PSE").querySelector("input"), "0,5");
+    await tocar([...campo(contenedor, "¿Cuenta?").querySelectorAll("button")].find((b) => b.textContent === "NO"));
+    for (const serie of ["Serie 2", "Serie 3", "Serie 4", "Serie 5"]) {
+      await tocar(boton(contenedor, "Siguiente"));
+      expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe(serie);
+    }
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Valor Referencial");
+    await escribir(campo(contenedor, "RM x Vel").querySelector("input"), "251");
+    expect(campo(contenedor, "Nota")).toBeTruthy();
+    await tocar(boton(contenedor, "Guardar la evaluación"));
+    expect(datos.creadas).toEqual([
+      {
+        equipoId: "eq-1",
+        test: "sentadilla_incremental",
+        ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { medio: "prensa", pc: 80.5, kg_1: 20, pse_1: 0.5, cuenta_1: "no", rm_vel: 251 } },
+      },
+    ]);
   });
 
   test("en portugués, con los textos del Excel traducidos", async () => {

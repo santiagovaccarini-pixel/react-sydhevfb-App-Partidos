@@ -1032,7 +1032,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                         {test.metricas.find((metrica) => metrica.clave === clave)?.titulo[idioma]}
                       </th>
                     ))}
-                    <th scope="col">{t("evaluaciones.referencias.pro")}</th>
+                    {/* «Pro» es del resumen de Zona Media (Sentadilla Incremental no la tiene). */}
+                    {test.resumenConPro !== false && <th scope="col">{t("evaluaciones.referencias.pro")}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1044,7 +1045,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                         <td key={clave}>{textoDeValor(bloques[categoria.valor]?.bueno?.[clave] ?? null, test.metricas.find((metrica) => metrica.clave === clave)?.formato, idioma)}</td>
                       ))}
                       {/* En el Excel da #REF!: la celda de la que salía ya no existe. */}
-                      <td />
+                      {test.resumenConPro !== false && <td />}
                     </tr>
                   ))}
                 </tbody>

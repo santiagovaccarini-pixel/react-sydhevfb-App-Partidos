@@ -43,7 +43,9 @@ export const ordenDelExcel = (filas) =>
 // clave de columna. El test da `entrada(fila)` (lo cargado, como lo cuenta
 // el Excel) y `calcularFila({ entrada, numero, total, anterior, referencias,
 // esCategoria })`; anterior(clave) es esa medida en la evaluación anterior
-// del jugador que la tenga (sin límite de cuántas atrás: Santiago, 05/10).
+// del jugador que la tenga (sin límite de cuántas atrás: Santiago, 05/10);
+// anterior(clave, cumple) mira solo las anteriores que cumplen (en Sentadilla
+// Incremental, las del mismo Medio).
 // esCategoria(codigo): si la Selección es una de la lista (la del Excel o
 // una que sumó el club en Ajustes).
 const esCategoriaDelExcel = (codigo) => Boolean(categoriaPorCodigo(codigo));
@@ -60,9 +62,9 @@ export const calcularFilas = (test, filas, referencias, { esCategoria = esCatego
     const quien = quienEs(fila);
     const previas = anteriores.get(quien) || [];
     const entrada = test.entrada(fila);
-    const anterior = (clave) => {
+    const anterior = (clave, cumple = () => true) => {
       for (let i = previas.length - 1; i >= 0; i -= 1) {
-        if (!esVacio(previas[i][clave])) return previas[i][clave];
+        if (!esVacio(previas[i][clave]) && cumple(previas[i])) return previas[i][clave];
       }
       return null;
     };

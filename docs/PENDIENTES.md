@@ -885,8 +885,58 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     de las dos filas fuera de orden de fecha (su n° y su % de mejora); el informe (126
     celdas) da igual; los colores, contra las reglas del Excel aplicadas aparte, iguales;
     pegada con el P.C. a 15 decimales, entran las 223 filas exactas.
+- **Sentadilla Incremental** (hecho el 09/10, `tests/sentadillaIncremental.js`): una fila por
+  evaluación con el peso del día (P.C.), el Dispositivo, el Medio (el ejercicio) y cinco series
+  de carga creciente: en cada una, Kg, la carga (Kg + P.C.), Vel, PSE, el %RM que corresponde a
+  ese PSE (la fórmula del Excel), el Fmax T (100 × carga ÷ %RM) y el % RM IND (carga ÷ RM IND).
+  El RM IND es el promedio de los Fmax T, con su DESVIO, su COEF. VAR, su Rel (÷ P.C.), su %
+  mejora y su Clas. Grupo (la Rel contra los V.R. de la categoría); aparte, el RM x Vel (lo da
+  el dispositivo), su Rel (vel) y su % mejora. Lo que decidió Santiago el 09/10:
+  - **Las series que no cuentan se respetan** («Respetar lo que sacaron»): en el Excel, a 20
+    series les borraron a mano la fórmula para que no entren en el RM, sin una regla fija
+    (otras iguales sí cuentan). En la app, cada serie tiene «¿Cuenta?» (SI / NO); una con
+    «NO», o sin Kg o sin PSE, no entra (queda sin %RMx PSE ni Fmax T). Al pegar del Excel, la
+    serie con Kg y PSE pero sin Fmax T viene en «NO» (`completarAlPegar`). Contar todas
+    cambiaba el RM IND de 15 evaluaciones y la clase de 10.
+  - **Leg Press sin peso corporal, en las cinco series** («Sin peso corporal»): la fórmula del
+    Excel buscaba la palabra «prensa» (y solo en la serie 1) y la fila decía «Leg Press», así
+    que le sumaba el peso. En la app, el Medio «Leg Press» (código `prensa`) va sin peso.
+  - **La comparación «Vs …» como en Zona Media** («Armarla como Zona Media»): P.C., RM IND,
+    Rel, RM x Vel y Rel (vel), el promedio sobre el «Bueno» de la categoría elegida, pintado
+    con la clase del promedio (la de la Rel va en Clas. Grupo); el P.C. sin color. En el
+    Excel no pintaba nada y la de RM IND/REL comparaba contra kilos.
+  - **Pot, RM IND/REL y los V.R. «0.6» y «0.7» quedan afuera** («Sacar las tres»): Pot estaba
+    vacía en todas; RM IND/REL daba igual que Rel (la Rel tomó sus colores); el Excel decía
+    «BORRAR .6 Y .7». Si se usan más adelante, se agregan.
+  - Igual que en los otros tests (no se volvió a preguntar): las clases contra los V.R. de la
+    categoría de cada fila; los colores del RM IND (contra RM) y de la Rel (vel) (contra Rel
+    (Vel)), también contra la categoría de la fila (en el Excel, siempre Mayor), con las
+    franjas del Excel (en el corte del Bueno, naranja; Malo no se usa); el % mejora contra la
+    evaluación anterior del jugador **con el mismo Medio** (como el Excel) que tenga el dato;
+    una serie sin Kg queda vacía (en el Excel la carga era el peso solo); la Rel (vel) sin RM x
+    Vel queda vacía (el Excel daba 0 y la pintaba de rojo); el informe solo con las
+    evaluaciones (el Excel contaba 374 filas vacías con fórmulas). Dispositivo y Medio, que
+    se escribían a mano, son listas con los textos de la hoja (se cambian en Ajustes ›
+    Listas). El PSE va con un formato por columna (General: «7» y «0,5»). Lo que no se copió:
+    las columnas de ayuda para buscar (A y B, ocultas; BJ, sin título; y el bloque de BUSCARX
+    de FB a FM), el contador C, las cuentas sueltas de BS y CB y el «RESUMEN» de DW a EA.
+  - Los V.R.: uno por categoría (`datos.categorias.<categoría>` con `pc`, `rep`, `rm_ind`,
+    `kg`, `rel`, `rm_vel`, `rel_vel`, `titulo`, `rotulo` y, en Sub-23 y Mayor, `desvio`) y el
+    resumen (`datos.resumen.n`), sin la columna «Pro» de Zona Media (`resumenConPro: false`).
+    Van por SQL, como los otros. En el resumen del Excel, Mayor tenía el RM (Vel) bajo «Kg»:
+    en la app, «Kg» de Mayor va vacío (no tiene).
+  - **Pegar desde Excel**: se copia desde la fila 10 (títulos) hasta la última, desde la
+    columna nº Eva hasta Nota. Kg, Vel, PSE y Fmax T están una vez por serie. Las fechas salen
+    como las muestra el Excel (dd-mm-aa). Los PSE de 0,5 se ven y se copian como 0,5
+    (Santiago, 09/10).
+  - En el reporte individual va en «Funcionales».
+  - Comprobado contra la hoja real (solo local): de 2296 celdas calculadas de las 82 filas,
+    cambian solo 40, todas por lo decidido (la fila de Leg Press, 13 de series sin Kg, 4 Rel
+    (vel) sin RM x Vel y 3 %RMx PSE de series que no cuentan); el informe da igual que el del
+    Excel con esas 40 celdas y sin las filas vacías; los colores, contra las reglas del Excel
+    aplicadas aparte, iguales (4346 celdas); pegada, entran las 82 filas con los mismos datos.
 - Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja:
-  Sentadilla Incremental, Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
+  Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
   CONTAR.SI.CONJUNTO). Cada uno entra en las pantallas de abajo (09/10): se carga en Cargar,
   se elige en la Base, va en los reportes y sus cabeceras y listas se cambian en Ajustes.
 - **Las pantallas de Evaluaciones (Santiago, 09/10)**, como Lesiones (regla de «Bases de
