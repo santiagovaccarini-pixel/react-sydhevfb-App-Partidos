@@ -921,7 +921,11 @@ Cómo está hoy (02/10):
     (aparece como vencido): si pasa, armar un enlace propio con `{{ .TokenHash }}`.
     "Reenviar mail" no tiene espera propia: solo el límite de mails por hora del proyecto,
     que comparten todos los clubes (30 por hora con SMTP propio; se cambia en
-    Authentication › Rate Limits).
+    Authentication › Rate Limits). Sin resolver: si el mail no sale y la persona entra
+    por "Copiar mensaje" + "Crear una cuenta" (o se registra sin invitación), y alguien
+    había registrado antes ese correo con una contraseña suya, Supabase la conserva al
+    confirmar el correo. El arreglo del servidor solo cubre el mail de invitación; para el
+    resto hace falta decidir un cambio en la base o en Supabase Auth.
 - Sin invitación es distinto: la cuenta queda pendiente sin elegir club y la aprueba el
   dueño de la plataforma desde "Cuentas de la app" (sumándola a un club). El admin del
   club no la ve. "Rechazar" bloquea la cuenta entera y la deja en "Sin acceso".
