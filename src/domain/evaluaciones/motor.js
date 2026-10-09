@@ -1,5 +1,5 @@
 import { categoriaPorCodigo } from "./categorias.js";
-import { esBlanco, subtotal } from "./excel.js";
+import { esVacio, subtotal } from "./excel.js";
 import { cssDeEstilo, estiloDeCelda, ordenarReglas } from "./formatoCondicional.js";
 
 // Lo común a todos los tests del Excel de evaluaciones, en dos pasos, como
@@ -62,12 +62,14 @@ export const calcularFilas = (test, filas, referencias, { esCategoria = esCatego
     const entrada = test.entrada(fila);
     const anterior = (clave) => {
       for (let i = previas.length - 1; i >= 0; i -= 1) {
-        if (!esBlanco(previas[i][clave])) return previas[i][clave];
+        if (!esVacio(previas[i][clave])) return previas[i][clave];
       }
       return null;
     };
     const calculadas = test.calcularFila({ entrada, numero: previas.length + 1, total: totales.get(quien), anterior, referencias, esCategoria });
-    previas.push(entrada);
+    // La anterior también con lo calculado: hay % de mejora sobre una
+    // columna calculada (en Curl Nórdico, sobre la fuerza relativa).
+    previas.push({ ...entrada, ...calculadas });
     anteriores.set(quien, previas);
     return { fila, quien, celdas: { ...entrada, ...calculadas } };
   });
@@ -142,7 +144,9 @@ export const estilosDeUnaFila = (reglas, celdas) => {
 // usan la Base y los reportes: lo mismo se calcula igual en los dos.
 export const vistaDeFilas = (test, filasVista, referencias, comparar) => {
   const est = estadisticas(test.columnasDelInforme, filasVista.map((fila) => fila.celdas));
-  const informe = test.informe({ est, referencias, comparar });
+  // El test recibe también las filas que se ven, para lo que no es SUBTOTAL
+  // (en Curl Nórdico, cuántas PD / PI hay con el filtro).
+  const informe = test.informe({ est, referencias, comparar, filas: filasVista.map((fila) => fila.celdas) });
   const estilos = estilosDeFilas(test.reglas, filasVista, est);
   const comparacion = informe.find((fila) => fila.id === "comparacion");
   const estilosComparacion = comparacion

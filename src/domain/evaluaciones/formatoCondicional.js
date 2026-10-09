@@ -40,8 +40,17 @@ export const SIN_RELLENO = Object.freeze({ relleno: Object.freeze({ tipo: "ningu
 // El degradé del Excel: de blanco, a la izquierda, al color, a la derecha.
 export const degrade = (color) => ({ relleno: { tipo: "degradado", color } });
 
-// Una clase: el número en negrita del color de su clase, sobre gris.
-export const letraDeClase = (color) => ({ relleno: { tipo: "solido", color: COLORES.gris }, letra: color, negrita: true });
+// Una clase, igual en todos lados (Santiago, 09/10: "que se vean bien y sea
+// lo mismo para todas las clasificaciones en todos lados"): el número en
+// negrita sobre el color de su clase, con la letra que mejor se lee (blanca
+// sobre el verde oscuro y el rojo). En el Excel era el número del color de
+// la clase sobre gris, y el 3 amarillo casi no se leía.
+const LETRA_SOBRE_CLASE = Object.freeze({ 5: COLORES.blanco, 4: "#111827", 3: "#111827", 2: "#111827", 1: COLORES.blanco });
+export const estiloDeClase = (clase) => ({ relleno: { tipo: "solido", color: COLOR_DE_CLASE[clase] }, letra: LETRA_SOBRE_CLASE[clase], negrita: true });
+
+// Una letra de color en negrita sobre gris (como en el Excel, por ejemplo
+// PD / PI / Sin Deficit en Curl Nórdico e Isoprone).
+export const letraSobreGris = (color) => ({ relleno: { tipo: "solido", color: COLORES.gris }, letra: color, negrita: true });
 
 // promedio + k × desvío, con las cuentas de Excel (un error se arrastra).
 export const masDesvios = (promedio, desvio, k) => sumar(promedio, multiplicar(desvio, k));

@@ -68,17 +68,40 @@ export const leerFecha = (texto, formato, anio) => {
   return { fecha: esFechaReal(iso) ? iso : undefined, sinAnio: conMes.anio === null };
 };
 
-const alias = (test) => Object.fromEntries(Object.entries(test.cabecerasParaPegar).map(([campo, nombres]) => [campo, nombres.map(normalizarCabecera)]));
+// Los títulos de cada campo, normalizados: { campo: { nombres, vez } }. Un
+// campo puede ser la n-ésima columna con ese título (`vez`): en Curl Nórdico
+// e Isoprone, "L MÁX" está una vez por test. En el test, cada campo es la
+// lista de nombres o { nombres, vez }.
+export const titulosParaPegar = (test) =>
+  Object.fromEntries(
+    Object.entries(test.cabecerasParaPegar).map(([campo, cabecera]) => {
+      const { nombres, vez = 1 } = Array.isArray(cabecera) ? { nombres: cabecera } : cabecera;
+      return [campo, { nombres: nombres.map(normalizarCabecera), vez }];
+    }),
+  );
 
-const cabecerasDeLaFila = (celdas, nombres) => {
+const cabecerasDeLaFila = (celdas, titulos) => {
   const encontradas = {};
+  const vistas = new Map();
   celdas.forEach((celda, c) => {
     const buscada = normalizarCabecera(celda);
     if (!buscada) return;
-    const campo = Object.keys(nombres).find((clave) => nombres[clave].includes(buscada));
-    if (campo && !(campo in encontradas)) encontradas[campo] = c;
+    const vez = (vistas.get(buscada) || 0) + 1;
+    vistas.set(buscada, vez);
+    const campo = Object.keys(titulos).find((clave) => !(clave in encontradas) && titulos[clave].nombres.includes(buscada) && titulos[clave].vez === vez);
+    if (campo) encontradas[campo] = c;
   });
   return encontradas;
+};
+
+// Un número como lo escribe el Excel ("68,8", "1.234,5" o "68.8"): el
+// número, null si está vacío o undefined si no se entiende.
+export const leerNumero = (texto) => {
+  const limpio = String(texto ?? "").trim();
+  if (!limpio) return null;
+  const escrito = limpio.includes(",") ? limpio.replace(/\./g, "").replace(",", ".") : limpio;
+  if (!/^-?\d+(\.\d+)?$/.test(escrito)) return undefined;
+  return Number(escrito);
 };
 
 // Lo pegado como filas: { columnas: { campo: índice }, filas: [{ indice,
@@ -86,7 +109,7 @@ const cabecerasDeLaFila = (celdas, nombres) => {
 // más títulos conocidos tiene, con el del jugador. Lo de arriba (el informe,
 // una fila de títulos repetida) no se lee.
 export const leerEvaluacionesPegadas = (texto, test) => {
-  const nombres = alias(test);
+  const nombres = titulosParaPegar(test);
   const matriz = desdeTexto(texto);
   let filaCabeceras = -1;
   let columnas = {};
@@ -104,7 +127,7 @@ export const leerEvaluacionesPegadas = (texto, test) => {
       .replace(/\s+/g, " ")
       .trim();
     // Una fila de títulos (si se pegó dos veces) no es una evaluación.
-    if (nombre && nombres.jugador.includes(normalizarCabecera(nombre))) return;
+    if (nombre && nombres.jugador.nombres.includes(normalizarCabecera(nombre))) return;
     const textos = Object.fromEntries(Object.entries(columnas).map(([campo, c]) => [campo, String(celdas[c] ?? "").trim()]));
     // Sin nombre y sin nada cargado: una fila vacía de la planilla.
     if (!nombre && !Object.values(textos).some(Boolean)) return;
@@ -115,7 +138,7 @@ export const leerEvaluacionesPegadas = (texto, test) => {
 };
 
 // La misma evaluación: de la misma persona (el mismo jugador o el mismo
-// nombre), el mismo día y con los mismos tiempos.
+// nombre), el mismo día y con las mismas medidas (los tiempos y los números).
 const mismaEvaluacion = (una, otra, nombreDe, tiempos) =>
   nombreIgual(nombreDe(una)) !== "" &&
   nombreIgual(nombreDe(una)) === nombreIgual(nombreDe(otra)) &&
@@ -135,7 +158,9 @@ export const planDeEvaluaciones = (filas, { test, plantel = [], evaluaciones = [
   const porId = new Map(plantel.map((jugador) => [String(jugador.id), jugador]));
   const nombreDe = (evaluacion) => (evaluacion.jugador_id ? porId.get(String(evaluacion.jugador_id))?.nombre : evaluacion.persona) || "";
   const formato = formatoDeLasFechas(filas.map((fila) => fila.textos.fecha));
-  const tiempos = test.tiempos;
+  const tiempos = test.tiempos || [];
+  const numeros = test.numeros || [];
+  const medidas = [...tiempos, ...numeros];
   const aCargar = [];
   // El mismo nombre fuera de Datos básicos escrito de otra forma es la misma
   // persona: se guarda como ya está en la app, o como en la primera fila.
@@ -170,6 +195,12 @@ export const planDeEvaluaciones = (filas, { test, plantel = [], evaluaciones = [
       if (segundos === undefined || segundos === null) avisos.push({ campo: clave, valor: fila.textos[clave] });
       else datos[clave] = segundos;
     });
+    numeros.forEach((clave) => {
+      if (!fila.textos[clave]) return;
+      const numero = leerNumero(fila.textos[clave]);
+      if (numero === undefined || numero === null) avisos.push({ campo: clave, valor: fila.textos[clave] });
+      else datos[clave] = numero;
+    });
     if (fila.textos.nota) datos.nota = fila.textos.nota;
 
     const evaluacion = {
@@ -181,14 +212,14 @@ export const planDeEvaluaciones = (filas, { test, plantel = [], evaluaciones = [
     const plan = { ...fila, jugador, evaluacion, problemas, avisos, destino, dudoso: encontrado === DUDOSO, fueraDeDatos: !jugador, sinAnio };
 
     if (!fila.nombre) return { ...plan, fueraDeDatos: false, problemas: ["evaluaciones.importar.sinNombre"], estado: ESTADOS.conProblemas };
-    if (fecha !== undefined && evaluaciones.some((otra) => mismaEvaluacion(evaluacion, otra, nombreDe, tiempos))) return { ...plan, estado: ESTADOS.yaEsta };
+    if (fecha !== undefined && evaluaciones.some((otra) => mismaEvaluacion(evaluacion, otra, nombreDe, medidas))) return { ...plan, estado: ESTADOS.yaEsta };
     if (destino === NO_CARGAR) return { ...plan, estado: ESTADOS.noVa };
     if (!jugador && !comoPersona) return { ...plan, estado: ESTADOS.sinJugador };
 
     if (fecha === undefined) problemas.push("evaluaciones.importar.fechaMal");
     else if (fecha && fecha > hoy) problemas.push("evaluaciones.importar.fechaFutura");
     if (comoPersona && evaluacion.persona.length > LARGO_DEL_NOMBRE) problemas.push("evaluaciones.importar.nombreLargo");
-    if (!problemas.length && aCargar.some((otra) => mismaEvaluacion(evaluacion, otra, nombreDe, tiempos))) problemas.push("evaluaciones.importar.repetida");
+    if (!problemas.length && aCargar.some((otra) => mismaEvaluacion(evaluacion, otra, nombreDe, medidas))) problemas.push("evaluaciones.importar.repetida");
     if (problemas.length) return { ...plan, estado: ESTADOS.conProblemas };
     aCargar.push(evaluacion);
     return { ...plan, estado: ESTADOS.nueva };

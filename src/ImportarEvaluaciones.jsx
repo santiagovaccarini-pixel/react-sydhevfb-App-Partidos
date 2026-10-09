@@ -68,10 +68,13 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
   // les puso el club en Ajustes (en los dos idiomas).
   const conNombresDelClub = useMemo(() => {
     const cabeceras = Object.fromEntries(
-      Object.entries(test.cabecerasParaPegar).map(([campo, nombres]) => {
+      Object.entries(test.cabecerasParaPegar).map(([campo, cabecera]) => {
         const suya = test.columnas.find((una) => una.clave === campo);
         const delClub = suya ? ["es-AR", "pt-BR"].map((uno) => tituloDeColumna(test, suya, config, uno)) : [];
-        return [campo, [...new Set([...nombres, ...delClub])]];
+        // Un título que se repite (la n-ésima columna con ese nombre) sigue
+        // siendo la misma vez.
+        if (!Array.isArray(cabecera)) return [campo, { ...cabecera, nombres: [...new Set([...cabecera.nombres, ...delClub])] }];
+        return [campo, [...new Set([...cabecera, ...delClub])]];
       }),
     );
     return { ...test, cabecerasParaPegar: cabeceras };
@@ -134,7 +137,8 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
     const { datos } = fila.evaluacion;
     return [
       datos.seleccion ? etiquetaDeOpcion(LISTA_SELECCION, datos.seleccion, config, idioma) : "",
-      ...test.tiempos.map((clave) => (typeof datos[clave] === "number" ? `${columna(clave)} ${textoDeMinutos(datos[clave])}` : "")),
+      ...(test.tiempos || []).map((clave) => (typeof datos[clave] === "number" ? `${columna(clave)} ${textoDeMinutos(datos[clave])}` : "")),
+      ...(test.numeros || []).map((clave) => (typeof datos[clave] === "number" ? `${columna(clave)} ${String(datos[clave]).replace(".", ",")}` : "")),
     ]
       .filter(Boolean)
       .join(" · ");

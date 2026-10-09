@@ -584,9 +584,10 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   últimas 5». El reporte individual muestra los registros del atleta con todas las cabeceras
   que el club tiene a la vista; se ven los **últimos 5** y cada uno de esos 5 lugares tiene un
   desplegable para elegir otro registro suyo (la 1, la 2, la 7…), nunca más de 5 a la vez.
-  Hecho en Evaluaciones (09/10). En Lesiones el individual muestra hoy todas las lesiones:
-  falta que Santiago diga si también pasa a las últimas 5. Las evaluaciones con muchas
-  columnas (como Isocinecia) se resuelven después (Santiago, 09/10).
+  Hecho en Evaluaciones (09/10). Lo de las últimas 5, **por ahora solo en Evaluaciones**
+  (Santiago, 09/10: «por ahora dejalo solo para evaluaciones»): en Lesiones el individual
+  sigue mostrando todas las lesiones. Las evaluaciones con muchas columnas (como Isocinecia)
+  se resuelven después (Santiago, 09/10).
 - Datos básicos sigue en la pantalla principal: lo ve cualquiera con algún módulo (Partido y
   Flujo diario también usan los jugadores), y adentro de Bases de Datos lo verían solo los que
   tienen ese permiso. Si se quiere adentro, hay que decidir quién lo ve.
@@ -636,6 +637,13 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   - Toda clase va de 5 a 1 con los mismos colores: 5 verde oscuro, 4 verde, 3 amarillo,
     2 naranja, 1 rojo. El Ratio del informe se clasifica con la misma regla que Ratio. Clas de
     las filas (en el Excel AA2 tenía otra).
+  - **Cómo se ve una clase, igual en toda la app (Santiago, 09/10)**: «Necesitamos que se vean
+    bien, no importa el color de fondo solo que se vean bien y sea lo mismo para todas las
+    clasificaciones en todos lados». La celda entera va del color de su clase y el número en
+    negrita, blanco sobre el 5 y el 1 y oscuro sobre el 4, el 3 y el 2
+    (`estiloDeClase` en `formatoCondicional.js`; lo usan todos los tests, la Base y los
+    reportes). Antes, en Zona Media, la letra iba del color de la clase sobre gris: no se
+    leía bien. No volver a la letra de color sobre gris para las clases.
   - Deficit. Clas sin Lateral D o sin Lateral I: vacía (el Excel ponía 1 en rojo). Ratio sin
     Prono: vacío (el Excel daba 0). Sin V.R. cargados: las clases vacías y un aviso (el Excel
     les daba 5 a todos). El informe sin ningún dato en una columna: vacío (el Excel mostraba
@@ -668,9 +676,45 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
 - Más adelante (Santiago, 05/10): los valores de referencia pasarían a un módulo propio de la
   pantalla principal, **Valor Referencial**. Por ahora van en Evaluaciones, en la pestaña
   "Valores de referencia" (solo lectura, cargados por SQL).
-- Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja: CurlNordico
-  e Isoprone, Isocinecia, Funcional, Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y
-  Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
+- **Curl Nórdico e Isoprone** (hecho el 09/10, `tests/curlNordicoIsoprone.js`). Lo que decidió
+  Santiago el 09/10:
+  - **Un solo test con cuatro bloques** (Curl Nórdico Máxima y Media, Isoprone Máxima y
+    Media): «Son dos evaluaciones pero se toman en la misma maquina, por eso se dejan aparte
+    pero en la misma hoja». Se carga el peso del día (P.C., en el primer paso, con el jugador
+    y la fecha) y la fuerza de cada pierna en cada bloque; lo demás se calcula: la fuerza
+    relativa al peso, su clase, su % de mejora, el déficit entre piernas con su clase y qué
+    pierna rinde menos (PD, PI o Sin Deficit).
+  - **Sin las columnas ocultas que suman las dos piernas** («% mejora L + R» y «Clas L + R»):
+    «Saca esas columnas que sumen o usen las dos piernas, si hace falta despues las metemos
+    pero por ahora no». El déficit entre piernas queda: «esas no se sacan, solo saca las que
+    estan ocultas».
+  - **Las clases, contra los V.R. de la categoría de cada fila**: «Si en el desplegable dice
+    sub 17 todas las clasificaciones (1,2,3,4,5) se tienen que comparar contra el valor de ese
+    vr y no de otro» (el Excel comparaba siempre contra Mayor). Sin categoría o sin V.R. de
+    esa categoría, la clase queda vacía. Hoy el Excel tiene V.R. solo de Mayor.
+  - El % mejora, como en Zona Media (05/10): contra la misma medida de la evaluación anterior
+    del jugador que la tenga, sin límite de cuántas atrás (el Excel miraba solo la evaluación
+    anterior del jugador; si esa no tenía la medida, quedaba vacío).
+  - El informe (N°, Promedio, Desvío, Máximo y Mínimo) **no tiene «Vs …»** y el **N° cuenta
+    los datos de cada columna** (Santiago, 09/10: «Que cuente datos»; en el Excel, las
+    columnas ocultas de L + R contaban celdas, con o sin dato). En las columnas de Deficit
+    Pierna dice cuántas PD, PI y Sin Deficit hay **respetando el filtro** (en el Excel, sin
+    respetarlo), con el formato del Excel («PD 109,0»).
+  - **Las filas con el comentario «CONTROL»** (las 4 últimas de la hoja): «no son evaluaciones
+    como tal, son solo controles que se le realizaron al atleta». No se traen: al pegar desde
+    el Excel no se copian esas filas (el comentario no viaja con el texto copiado, así que la
+    app no las puede reconocer sola). Si más adelante se quieren guardar los controles, hay
+    que decidir dónde van.
+  - Los V.R. tienen dos tablas (Curl Nórdico e Isoprone, `datos.categorias.<categoría>` con
+    las medidas `curl_…` e `iso_…` y `titulos.curl` / `titulos.iso`); van por SQL, como los de
+    Zona Media. En el Excel los cortes salen del promedio y el desvío (Bueno = Promedio): en
+    la base van ya calculados; si el club cambia el promedio o el desvío, hay que
+    recalcularlos. Las columnas «DE» del déficit solo se muestran.
+  - Lo que no se copió (no cambia ningún resultado): las dos columnas ocultas de arriba, las
+    columnas de ayuda para buscar y los tonos propios de esta hoja (verde oscuro, naranja y el
+    amarillo de la clase 3): van los de toda la app.
+- Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja:
+  Isocinecia, Funcional, Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
   CONTAR.SI.CONJUNTO). Cada uno entra en las pantallas de abajo (09/10): se carga en Cargar,
   se elige en la Base, va en los reportes y sus cabeceras y listas se cambian en Ajustes.
 - **Las pantallas de Evaluaciones (Santiago, 09/10)**, como Lesiones (regla de «Bases de
@@ -681,6 +725,10 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     grupo; las sueltas, juntas) y la nota al final. Los tiempos se escriben en minutos y
     segundos (3:04 o 3,04). Abajo, las evaluaciones de hoy, para corregirlas o borrarlas.
     En la Base ya no está «Agregar evaluación» (descartado: no volver a ponerlo ahí).
+  - **El test se elige en un desplegable** («Test»), el mismo en Cargar, Base, Reportes ›
+    Grupal, Valores de referencia y Ajustes › Cabeceras (Santiago, 09/10: «Que la eleccion
+    de test sea un desplegable, no pongas todas las evaluaciones como opciones sueltas»).
+    Descartado: un botón por test (no volver a ponerlo, tampoco como pestañas).
   - **Base**: una sola, con el test arriba para elegir. El informe del Excel (promedio,
     desvío, n, máximo, mínimo y la comparación «Vs …») queda arriba de la tabla, como en la
     hoja (Santiago, 09/10: «Base y Grupal»). Se corrige en la tabla y se pega desde Excel.

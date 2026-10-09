@@ -14,13 +14,36 @@ import {
   tituloDeColumna,
   tituloDeGrupo,
 } from "./domain/evaluaciones/ajustes.js";
-import { celdasDeLaFila } from "./domain/evaluaciones/celdas.js";
-import { textoDeValor } from "./domain/evaluaciones/excel.js";
+import { celdasDeLaFila, textoDeCeldaDelInforme } from "./domain/evaluaciones/celdas.js";
 import { calcularFilas, estadisticas, estilosDeFilas, quienEs, vistaDeFilas } from "./domain/evaluaciones/motor.js";
 import { TESTS } from "./domain/evaluaciones/tests/index.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
+
+// El test que se ve, en un desplegable (Santiago, 09/10: «Que la eleccion de
+// test sea un desplegable, no pongas todas las evaluaciones como opciones
+// sueltas»), igual en todas las pantallas de Evaluaciones. Con un solo test,
+// nada. conRotulo: con «Test» arriba (si el lugar no tiene ya su rótulo).
+export const SelectorDeTest = ({ elegido, alElegir, idioma, conRotulo = true }) => {
+  if (TESTS.length < 2) return null;
+  const lista = (
+    <select className="evaluaciones-elegir-test-lista" value={elegido} aria-label={t("evaluaciones.form.test")} onChange={(evento) => alElegir(evento.target.value)}>
+      {TESTS.map((uno) => (
+        <option key={uno.id} value={uno.id}>
+          {uno.pestana[idioma]}
+        </option>
+      ))}
+    </select>
+  );
+  if (!conRotulo) return lista;
+  return (
+    <label className="campo-inicio evaluaciones-elegir-test">
+      <span>{t("evaluaciones.form.test")}</span>
+      {lista}
+    </label>
+  );
+};
 
 // Los reportes de Evaluaciones (Santiago, 09/10), como los de Lesiones: se
 // elige cuál ver y se imprime.
@@ -60,7 +83,7 @@ const TablaDelTest = ({ test, columnas, filas, referencias, comparar, config, id
   const primera = columnas.findIndex((columna) => conInforme.has(columna.clave));
   const antes = Math.max(1, primera < 0 ? columnas.length : primera);
   const resto = columnas.slice(antes);
-  const texto = (celda) => (celda ? textoDeValor(celda.valor, celda.formato, idioma) : "");
+  const texto = (celda) => textoDeCeldaDelInforme(celda, idioma);
   const rotulo = (fila) => {
     if (fila.id === "comparacion") return textoDeComparar(comparar, config, idioma);
     if (fila.id === "n")
@@ -554,15 +577,7 @@ export default function ReportesEvaluaciones({ evaluaciones, referenciasPorTest,
         {acciones}
         {estado}
         <section className="tarjeta evaluaciones-reporte-filtros no-imprimir">
-          {TESTS.length > 1 && (
-            <div className="grilla-criterios evaluaciones-tests" role="tablist">
-              {TESTS.map((uno) => (
-                <button key={uno.id} type="button" role="tab" aria-selected={uno.id === test.id} className={`chip-criterio ${uno.id === test.id ? "prendido" : ""}`} onClick={() => setTestId(uno.id)}>
-                  {uno.pestana[idioma]}
-                </button>
-              ))}
-            </div>
-          )}
+          <SelectorDeTest elegido={test.id} alElegir={setTestId} idioma={idioma} />
           <div className="evaluaciones-reporte-campos">
             <label className="campo-inicio">
               <span>{t("evaluaciones.reportes.categoria")}</span>
