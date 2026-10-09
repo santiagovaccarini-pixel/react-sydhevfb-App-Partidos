@@ -728,8 +728,53 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   - Lo que no se copió (no cambia ningún resultado): las dos columnas ocultas de arriba, las
     columnas de ayuda para buscar y los tonos propios de esta hoja (verde oscuro, naranja y el
     amarillo de la clase 3): van los de toda la app.
+- **Isocinecia** (hecho el 09/10, `tests/isocinecia.js`): el test isocinético de rodilla
+  (extensión y flexión, PD y PI) a 60°, 180° y 300°, las tres en la misma fila. Lo que decidió
+  Santiago el 09/10:
+  - **Un solo test con un selector de velocidad** («Un test + selector»): en la Base y en
+    Reportes › Grupal, «Velocidad» 60° / 180° / 300° / Todas, como los botones «60 Grados»,
+    «180 Grados», «300 Grados» y «Tudo» del Excel (al entrar, 60°). Un solo nº de evaluación y
+    un solo P.C. por fila. Descartado: tres tests separados.
+  - **No se carga a mano en Cargar**: «no pierdas tiempo en meter eso en cargar evaluacion xq
+    eso se carga atraves de un pdf, hay una macro que dice cargar evaluacion». En Cargar no
+    aparece (ni para editar: lo de hoy se ve y se borra, y se corrige en la Base). Lo viejo se
+    trae con Pegar desde Excel. **Pendiente: el lector del PDF** (Santiago, 09/10: «hicimos un
+    lector en python que traia los datos, lo que se me ocurre es meter esa misma logica dentor
+    del soft y cargar el pdf ahi y que ese lector funcione dentro de Carga evaluaciones»).
+    Falta que Santiago pase el lector en Python y PDF de ejemplo (los PDF no van al
+    repositorio).
+  - El único dato en 0 (Work Fatigue Flexión derecha a 60°) **es real**: se trae como está.
+  - Los comentarios «Corregido antes …» de dos celdas: «Si podemos agregar a la web que las
+    notas se puedan poner como en el excel, mejor, sino dejas una columna aparte». **Pendiente:
+    notas en las celdas, como en Excel**, para todos los tests (una marca en la esquina de la
+    celda, la nota se ve al tocarla y se agrega con un botón «Nota»). Va en su propio cambio;
+    hasta entonces, esos dos comentarios quedan en el Excel.
+  - Igual que en Curl Nórdico (no se volvió a preguntar): las clases contra los V.R. de la
+    categoría de cada fila (el Excel usaba siempre Mayor); el N° del informe cuenta datos (el
+    Excel contaba también las fórmulas vacías); las cuentas de PD / PI / Sin Deficit respetan el
+    filtro (filas Promedio, Desvío y Máximo, con el formato del Excel, «PD 9,0»); el % de
+    mejora contra la evaluación anterior que tenga la medida; sin una de las dos piernas,
+    «Deficit Pierna» vacío (el Excel ponía «PI» con la izquierda vacía); una división por cero
+    (Ant/Ago con extensión 0), vacía; los colores, los de toda la app (esta hoja tenía otro
+    verde oscuro y otro naranja en los degradé) y las letras de PD / PI / Sin Deficit, las de
+    Curl Nórdico.
+  - Lo que no se copió (no cambia ningún resultado): la columna A (ayuda de búsqueda), los
+    separadores vacíos CP y FZ y los nombres largos que la fila 17 repetía en 300° (van los
+    cortos, como en 60° y 180°). Los nombres de los V.R. de los déficits y los ratios se
+    distinguían solo por un punto o un espacio («Deficit Pico Ext», «Deficit Pico Ext.»): en la
+    pestaña de V.R. dicen de qué medida son.
+  - Los V.R.: una tabla por velocidad (`datos.categorias.<categoría>` con las medidas `v60_…`,
+    `v180_…` y `v300_…`, `titulos.v60` / `v180` / `v300`, y las «DE» de los déficits como
+    `<déficit>_de`); van por SQL, como los otros. Hoy solo Mayor.
+  - **Pegar desde Excel**: se copia desde la fila 16 (los nombres largos, «Peak TQ/BW Ext Right
+    60»): la fila 17 repite «PD» y «PI» en cada medida. Decimales que no se ven: el P.C. (23
+    filas) y ROM Right 180 (1 fila); antes de copiar, formato con 15 decimales.
+  - En el reporte individual va en «Fuerza» con todas sus columnas (Santiago, 09/10: las
+    evaluaciones extensas «después lo resolvemos», por ahora así).
+  - Comprobado contra la hoja real (solo local): las 34.155 celdas calculadas dan igual; en el
+    informe, solo cambia el N° (cuenta datos).
 - Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja:
-  Isocinecia, Funcional, Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
+  Funcional, Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
   CONTAR.SI.CONJUNTO). Cada uno entra en las pantallas de abajo (09/10): se carga en Cargar,
   se elige en la Base, va en los reportes y sus cabeceras y listas se cambian en Ajustes.
 - **Las pantallas de Evaluaciones (Santiago, 09/10)**, como Lesiones (regla de «Bases de
@@ -740,6 +785,8 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     grupo; las sueltas, juntas) y la nota al final. Los tiempos se escriben en minutos y
     segundos (3:04 o 3,04). Abajo, las evaluaciones de hoy, para corregirlas o borrarlas.
     En la Base ya no está «Agregar evaluación» (descartado: no volver a ponerlo ahí).
+    Isocinecia no está en Cargar: sale del PDF del equipo (Santiago, 09/10; ver Isocinecia,
+    más abajo).
   - **El test se elige en un desplegable** («Test»), el mismo en Cargar, Base, Reportes ›
     Grupal, Valores de referencia y Ajustes › Cabeceras (Santiago, 09/10: «Que la eleccion
     de test sea un desplegable, no pongas todas las evaluaciones como opciones sueltas»).

@@ -31,6 +31,7 @@ prohibiciones específicas de conversaciones que no están disponibles.
 | UI-013 | En el reporte individual de toda base con varios registros por atleta se ven sus registros con todas las cabeceras, los últimos 5, y cada lugar se cambia con un desplegable por otro registro suyo; nunca más de 5 a la vez. No volver a mostrar solo el último registro ni todos sin límite. Lo de las últimas 5, por ahora solo en Evaluaciones (Santiago, 09/10): Lesiones sigue mostrando todas. | «Bases de Datos (05/10)», regla del 09/10 de los registros de un atleta |
 | UI-014 | Toda clasificación (1 a 5) se ve igual en toda la app, en la Base, el informe y los reportes de todos los tests: el número en negrita del color de su clase, sobre gris (como en el Excel). Historia: el 09/10 (PR #228) pasó a la celda entera del color de su clase con letra blanca u oscura; **reabierta el mismo 09/10** por Santiago («Mejor devolve el color gris a los fondos de clasificacion»), vuelve el gris. Descartado: la celda entera del color de la clase y los tonos propios de cada hoja del Excel. | «Evaluaciones (05/10)», cómo se ve una clase (09/10, reabierta) |
 | UI-015 | En Evaluaciones el test se elige en un desplegable («Test»), el mismo en Cargar, Base, Reportes › Grupal, Valores de referencia y Ajustes › Cabeceras. Descartado: un botón (o una pestaña) por test, con todas las evaluaciones como opciones sueltas. | «Evaluaciones (05/10)», las pantallas (09/10), el test en un desplegable |
+| UI-016 | Isocinecia es un solo test: en la Base y en Reportes › Grupal se elige la velocidad en un desplegable («Velocidad»: 60° / 180° / 300° / Todas, como los botones del Excel). No se carga a mano en Cargar (sale del PDF del equipo; el lector del PDF es un pendiente). Descartado: tres tests separados y un formulario a mano para Isocinecia. | «Evaluaciones (05/10)», Isocinecia (09/10) |
 
 ## Pendientes que no deben tratarse como decisiones cerradas
 
@@ -40,6 +41,11 @@ prohibiciones específicas de conversaciones que no están disponibles.
 - Valor Referencial como módulo propio: es para más adelante; hoy los V.R. están
   en Evaluaciones, en su pantalla aparte (la quinta, decidido el 09/10), solo lectura
   («Evaluaciones (05/10)»).
+- Evaluaciones › Cargar › Isocinecia desde el PDF del equipo: Santiago propuso (09/10) llevar
+  a la app el lector en Python que ya tienen; falta el lector y PDF de ejemplo. No hacer un
+  formulario a mano mientras tanto.
+- Evaluaciones › notas en las celdas, como en Excel (Santiago, 09/10, «mejor» que una columna
+  aparte): se hace en su propio cambio, para todos los tests.
 - Evaluaciones › Reportes › Gráficos: falta definir qué gráficos van (Santiago, 09/10:
   «después lo vemos»). No agregar ninguno hasta que se defina.
 - Evaluaciones › Reporte individual: la «Clasificación general» y el puntaje de cada área

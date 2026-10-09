@@ -78,6 +78,12 @@ export const columnaOculta = (test, clave, config) => !COLUMNAS_FIJAS.includes(c
 // Las columnas que el club tiene a la vista, en el orden del Excel.
 export const columnasVisibles = (test, config) => test.columnas.filter((columna) => !columnaOculta(test, columna.clave, config));
 
+// Las columnas de una vista del test (en Isocinecia, una velocidad, como los
+// botones del Excel): las comunes y las de esa vista. Con "todas", o en un
+// test sin vistas, todas.
+export const VISTA_TODAS = "todas";
+export const columnasDeLaVista = (columnas, vista) => (!vista || vista === VISTA_TODAS ? columnas : columnas.filter((columna) => !columna.vista || columna.vista === vista));
+
 // --------------------------------------------------------------- Listas --
 
 // Las opciones del Excel de una lista: Selección (las categorías) o la que
