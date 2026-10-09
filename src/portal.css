@@ -770,6 +770,7 @@
   gap: 10px;
 }
 .portal-cambiar-club {
+  position: relative;
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -782,6 +783,13 @@
   letter-spacing: 0.04em;
   text-transform: none;
   cursor: pointer;
+}
+/* Se ve chico, pero se toca cómodo: la zona de toque llega a 44px de alto
+   (es la entrada a «Salir de {club}» y a pedir entrar a otro club). */
+.portal-cambiar-club::after {
+  content: "";
+  position: absolute;
+  inset: -8px -4px;
 }
 .cuentas-cabecera-derecha {
   display: flex;
