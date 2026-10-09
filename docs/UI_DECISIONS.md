@@ -26,6 +26,7 @@ prohibiciones específicas de conversaciones que no están disponibles.
 | UI-008 | En Tareas, las correcciones manuales siguen plegadas en “Ajustar horarios y pausas”. No expandir todo por defecto. | «Entrenamiento (OpenField)», tareas como un partido |
 | UI-009 | Salir de un club vive solo en portal › Cambiar (abajo, «Salir de {club}», enlace secundario), igual para todos. No volver a ponerlo en la fila propia de Cuentas. | «Cuentas paso 2», salir de un club en un solo lugar (08/10) |
 | UI-010 | El nombre de un club (y sus demás datos) lo cambian solo los dueños, en Clubes de la app («Cambiar nombre», con confirmación). Descartado: renombrar en Partido › Ajustes › Equipo (la tarjeta «Tu equipo» muestra el escudo y el nombre, nada más); no volver a ponerlo ahí ni en Cuentas, ni dárselo al administrador del club. | «Cuentas paso 2», los datos de un club los cambian solo los dueños (09/10) |
+| UI-011 | En Cuentas, el aviso del mail de una invitación abierta nunca dice que el correo ya tiene cuenta ni que entró: si el mail no salió (también la invitación de un dueño de la app, que queda abierta) dice que la invitación quedó guardada y que se mande con «Copiar mensaje». No volver a poner «ya tiene cuenta: no hace falta el mail» ni decir que se mandó un mail que no salió. | «Cuentas paso 2», dueños protegidos; «Entrada a la app», «Invitaciones por mail», invitación a un dueño de la app (09/10) |
 
 ## Pendientes que no deben tratarse como decisiones cerradas
 

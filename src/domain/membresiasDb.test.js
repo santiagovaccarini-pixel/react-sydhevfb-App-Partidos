@@ -258,7 +258,11 @@ describe("las invitaciones", () => {
       expect(JSON.parse(pedido.body)).toEqual({ invitacion: "i1", idioma: "pt-BR" });
 
       const casos = [
-        [200, { ok: true, enviado: false, yaTieneCuenta: true }, "cuentas.mail.yaTieneCuenta"],
+        // Un correo que ya tiene cuenta (la invitación que quedó abierta de un
+        // dueño de la app) no se distingue de un mail que no salió, aunque un
+        // servidor lo dijera.
+        [200, { ok: true, enviado: false, yaTieneCuenta: true }, "cuentas.mail.noSalio"],
+        [200, { ok: true }, "cuentas.mail.noSalio"],
         [409, { ok: false, code: "CONFIRMACION_APAGADA" }, "cuentas.mail.confirmacionApagada"],
         [429, { ok: false, code: "LIMITE_DE_MAILS" }, "cuentas.mail.limite"],
         [409, { ok: false, code: "INVITACION_VENCIDA" }, "cuentas.mail.vencida"],

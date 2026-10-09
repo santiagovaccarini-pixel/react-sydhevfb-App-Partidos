@@ -673,8 +673,11 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   Tampoco lo mete nadie (revisión del 08/10): la invitación de otro le queda abierta, como
   la de un correo sin cuenta, y a un club del que se fue vuelve solo con un pedido suyo que
   acepta el admin. Así, invitar un correo no sirve para averiguar si es dueño (`protegido`
-  responde solo por quien comparte club). Por lo mismo, la historia del club anota la
-  entidad sin decir qué dueño la puso (eso queda en Movimientos).
+  responde solo por quien comparte club). Con las invitaciones por mail (09/10), el mail de
+  esa invitación no sale y quien invita ve lo mismo que cuando un mail no sale, nunca que
+  el correo tiene cuenta (ver «Invitación a un dueño de la app» en «Invitaciones por
+  mail»). Por lo mismo, la historia del club anota la entidad sin decir qué dueño la puso
+  (eso queda en Movimientos).
 - **Salir de un club, en un solo lugar (08/10).** Cualquier miembro activo se va desde el
   portal › Cambiar (`src/ElegirClub.jsx`): abajo de todo, «Salir de {club}» para el club
   elegido, como enlace (no compite con elegir club), con la hoja de confirmar de siempre.
@@ -1064,6 +1067,23 @@ el catálogo).
   - "Sumar a [club]" (Cuentas de la app, el dueño) sigue sin mail: son cuentas que ya
     existen, con la contraseña que eligieron al registrarse. Desde el paso 2 ya no existe
     (ver «Cuentas paso 2»: quien ya tiene cuenta pide entrar o lo invita el admin).
+  - **Invitación a un dueño de la app (al unir el paso 2, 09/10).** Fuente: la protección
+    de los dueños del paso 2 (revisión del 08/10: invitar un correo no sirve para averiguar
+    si es dueño; su invitación queda abierta, como la de un correo sin cuenta). Con el mail,
+    Supabase no le escribe a una cuenta confirmada, y antes el servidor contestaba "ya tiene
+    cuenta" y Cuentas decía «{correo} ya tiene cuenta: no hace falta el mail»: como la base
+    mete en el acto a cualquier otra cuenta confirmada, eso delataba al dueño. Ahora el
+    servidor (`api/invitar`) contesta exactamente lo mismo que cuando el mail no sale
+    (`ENVIO_FALLIDO`), y Cuentas, al invitar y con "Reenviar mail", muestra el aviso de
+    siempre: «La invitación quedó guardada, pero el mail no salió. Mandale el mensaje con
+    «Copiar mensaje».» / «O convite ficou salvo, mas o e-mail não saiu…». Es cierto (no
+    salió ningún mail) y no dice que la cuenta exista. La invitación queda abierta, con
+    "Copiar mensaje", "Reenviar mail" y "Cancelar", como cualquier otra. **Queda
+    prohibido:** que el servidor o la app digan, para una invitación abierta, que el correo
+    ya tiene cuenta o que entró (se borró `cuentas.mail.yaTieneCuenta`), o que digan que se
+    mandó un mail que no salió. Lo que queda: quien invita ve que para ese correo el mail
+    nunca sale mientras para otros sí; ocultarlo del todo obligaría a no confirmar nunca
+    el envío ("Le mandamos un mail"), y eso no se hizo.
   - **Queda:** probar el primer envío real con la clave secreta (con la clave nueva
     `sb_secret_` se espera que ande; si Supabase la rechaza, usar la legacy service_role).
     Algunos servicios de correo abren los enlaces antes que la persona y los gastan

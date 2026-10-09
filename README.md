@@ -109,9 +109,12 @@ Se entra con correo y contraseña antes del portal. Cada cuenta tiene una fila e
 la app: a cada club se entra porque ese club te deja.
 
 - **Por invitación.** El administrador de un club invita un correo (siempre como
-  staff, con los módulos que elija). Al registrarse y confirmar ese correo, la
+  staff, con los módulos que elija) y le llega un mail con el enlace (si no sale,
+  se le manda con «Copiar mensaje»). Al registrarse y confirmar ese correo, la
   cuenta queda autorizada y adentro del club; si ya tenía cuenta, entra en el acto
-  (un dueño de la app, no: su invitación queda abierta y entra solo si lo pide).
+  (un dueño de la app, no: su invitación queda abierta y entra solo si lo pide; su
+  mail no sale y el aviso es el mismo que cuando un mail no sale, sin decir que
+  tiene cuenta).
 - **Sin invitación.** La cuenta nueva escribe a qué club quiere entrar (nombre y
   país), manda el pedido y espera. Lo acepta (eligiendo los módulos) o lo rechaza
   el administrador de ese club, desde Cuentas. Si el nombre no coincide con ningún

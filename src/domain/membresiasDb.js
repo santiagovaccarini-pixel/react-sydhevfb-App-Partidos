@@ -186,10 +186,13 @@ export const invitar = async (equipoId, { email, partido = true, flujo = true, l
 
 // El mail de una invitación lo manda el servidor (api/invitar), siempre al
 // correo de esa invitación. Vuelve qué pasó, como clave del diccionario:
-// enviado, ya tiene cuenta, la confirmación de correo apagada en Supabase,
-// demasiados mails, la invitación ya cerrada o vencida, o que no salió (sin
-// señal, sin la clave del servidor, otro error). La invitación queda guardada
-// igual: se le puede mandar el mensaje con "Copiar mensaje".
+// enviado, la confirmación de correo apagada en Supabase, demasiados mails,
+// la invitación ya cerrada o vencida, o que no salió (sin señal, sin la clave
+// del servidor, otro error). La invitación queda guardada igual: se le puede
+// mandar el mensaje con "Copiar mensaje". Nunca dice que el correo ya tiene
+// cuenta: una invitación abierta a una cuenta confirmada es la de un dueño de
+// la app, y quien invita no tiene que poder saberlo. Todo lo que no sea un
+// mail enviado, sin un motivo de los de arriba, es "no salió".
 export const RUTA_INVITAR_POR_MAIL = "/api/invitar";
 
 const RESULTADO_DEL_MAIL = {
@@ -209,7 +212,7 @@ export const enviarInvitacionPorMail = async (invitacionId, idioma) => {
       body: JSON.stringify({ invitacion: invitacionId, idioma }),
     });
     const payload = await respuesta.json().catch(() => null);
-    if (respuesta.ok && payload?.ok) return payload.enviado ? "cuentas.mail.enviado" : "cuentas.mail.yaTieneCuenta";
+    if (respuesta.ok && payload?.ok && payload.enviado === true) return "cuentas.mail.enviado";
     return RESULTADO_DEL_MAIL[payload?.code] || "cuentas.mail.noSalio";
   } catch {
     return "cuentas.mail.noSalio";

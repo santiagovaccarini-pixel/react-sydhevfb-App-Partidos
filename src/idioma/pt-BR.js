@@ -533,7 +533,6 @@ export default {
     enviandoMail: "Enviando…",
     mail: {
       enviado: "Enviamos um e-mail para {{correo}} com o link para entrar.",
-      yaTieneCuenta: "{{correo}} já tem conta: não precisa do e-mail. Entra com a própria senha.",
       confirmacionApagada: "O convite ficou salvo, mas o e-mail não saiu: os e-mails começam a funcionar quando a confirmação de e-mail for ligada. Enquanto isso, mande a mensagem com «Copiar mensagem».",
       limite: "O convite ficou salvo, mas foram enviados muitos e-mails seguidos. Tente daqui a pouco ou mande a mensagem com «Copiar mensagem».",
       vencida: "Esse convite venceu: para que entre, convide de novo.",

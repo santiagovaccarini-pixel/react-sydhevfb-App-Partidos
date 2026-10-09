@@ -364,7 +364,9 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
       const { usada, id } = await invitar(clubId, { email: limpio, ...nueva });
       setCorreo("");
       setNueva({ ...INVITACION_INICIAL });
-      // Si la cuenta ya existía, entró en el acto; si no, le llega el mail.
+      // Si la cuenta ya existía, entró en el acto; si no, le llega el mail. La
+      // invitación de un dueño de la app queda abierta, y su aviso es el de un
+      // mail que no salió (el servidor no dice que la cuenta existe).
       if (usada) setAviso(t("cuentas.entroYa", { correo: limpio }));
       else await mandarMail({ id, email: limpio });
       await cargarClub(clubId);
@@ -390,9 +392,9 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     setAviso("");
     try {
       const clave = await mandarMail(invitacion);
-      // Si ya no estaba abierta (se usó, se canceló, venció o la cuenta ya
-      // existe), la lista se pone al día.
-      if (["cuentas.mail.cerrada", "cuentas.mail.vencida", "cuentas.mail.yaTieneCuenta"].includes(clave)) {
+      // Si ya no estaba abierta (se usó, se canceló o venció), la lista se
+      // pone al día.
+      if (["cuentas.mail.cerrada", "cuentas.mail.vencida"].includes(clave)) {
         await cargarClub(delClub).catch(() => {});
       }
     } finally {

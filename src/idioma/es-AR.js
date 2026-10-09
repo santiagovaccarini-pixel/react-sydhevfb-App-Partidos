@@ -543,7 +543,6 @@ export default {
     // queda guardada igual y se le manda el mensaje a mano.
     mail: {
       enviado: "Le mandamos un mail a {{correo}} con el enlace para entrar.",
-      yaTieneCuenta: "{{correo}} ya tiene cuenta: no hace falta el mail. Entra con su contraseña.",
       confirmacionApagada: "La invitación quedó guardada, pero el mail no salió: los mails se activan cuando se prenda la confirmación de correo. Mientras tanto, mandale el mensaje con «Copiar mensaje».",
       limite: "La invitación quedó guardada, pero se mandaron muchos mails seguidos. Probá en un rato o mandale el mensaje con «Copiar mensaje».",
       vencida: "Esa invitación venció: para que entre, invitalo de nuevo.",

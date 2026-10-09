@@ -19,6 +19,9 @@ const datos = vi.hoisted(() => ({
   // Los mails de invitación pedidos al servidor y qué contesta.
   mails: [],
   resultadoMail: "cuentas.mail.enviado",
+  // true: el mail va por la función de verdad (con fetch de mentira), para
+  // ver qué muestra la pantalla con lo que contesta el servidor.
+  mailReal: false,
   // Lecturas lentas: la de un club (o la historia) vuelve cuando se abre su compuerta.
   lenta: {},
 }));
@@ -75,6 +78,7 @@ vi.mock("./domain/membresiasDb.js", async () => {
     enviarInvitacionPorMail: async (id, idioma) => {
       datos.mails.push({ id, idioma });
       if (datos.compuertaMail) await datos.compuertaMail;
+      if (datos.mailReal) return real.enviarInvitacionPorMail(id, idioma);
       return datos.resultadoMail;
     },
     cancelarInvitacion: async (id) => {
@@ -156,6 +160,7 @@ describe("Cuentas", () => {
     datos.usada = false;
     datos.mails = [];
     datos.resultadoMail = "cuentas.mail.enviado";
+    datos.mailReal = false;
     datos.compuertaMail = null;
     datos.compuertaCancelar = null;
     datos.compuerta = null;
@@ -295,6 +300,52 @@ describe("Cuentas", () => {
     await tocar(boton(contenedor.querySelector(".cuentas-invitar"), "Convidar"));
     expect(datos.mails.at(-1)).toEqual({ id: "i-limite@uno.com", idioma: "pt-BR" });
     expect(texto()).toContain("O convite ficou salvo, mas foram enviados muitos e-mails seguidos.");
+  });
+
+  test("la invitación de un dueño de la app queda abierta y su aviso es el de un mail que no salió: no dice que tiene cuenta", async () => {
+    await montar();
+    datos.mailReal = true;
+    const correo = contenedor.querySelector(".cuentas-invitar input");
+    const aviso = () => contenedor.querySelector('.cuentas-aviso[role="status"]')?.textContent || "";
+    const servidorContesta = (status, cuerpo) => vi.stubGlobal("fetch", vi.fn(async () => ({ ok: status < 400, status, json: async () => cuerpo })));
+    const invitarA = async (direccion) => {
+      await escribir(correo, direccion);
+      await tocar(boton(contenedor.querySelector(".cuentas-invitar"), "Invitar"));
+      return aviso();
+    };
+    const NO_SALIO = { ok: false, code: "ENVIO_FALLIDO", error: "El mail no salió. Probá de nuevo." };
+    try {
+      // Un mail que de verdad no salió, a un correo sin cuenta.
+      servidorContesta(502, NO_SALIO);
+      const noSalio = await invitarA("sin-cuenta@uno.com");
+      expect(noSalio).toBe("La invitación quedó guardada, pero el mail no salió. Mandale el mensaje con «Copiar mensaje».");
+
+      // Una dueña de la app: la base deja su invitación abierta (como la de un
+      // correo sin cuenta) y el servidor contesta lo mismo que arriba.
+      const duena = await invitarA("duena@otra.com");
+      expect(duena).toBe(noSalio);
+      // Aunque un servidor dijera que la cuenta existe, la pantalla no lo cuenta.
+      servidorContesta(200, { ok: true, enviado: false, yaTieneCuenta: true });
+      const otraDuena = await invitarA("otra-duena@otra.com");
+      expect(otraDuena).toBe(noSalio);
+      for (const texto of [duena, otraDuena]) expect(texto).not.toMatch(/tiene cuenta|tenía cuenta|entró|mandamos/i);
+
+      // Queda como otra invitación abierta: Copiar mensaje y Reenviar mail.
+      expect(boton(fila("duena@otra.com"), "Copiar mensaje")).toBeTruthy();
+      servidorContesta(502, NO_SALIO);
+      await tocar(boton(fila("duena@otra.com"), "Reenviar mail"));
+      expect(aviso()).toBe(noSalio);
+      expect(fila("duena@otra.com")).toBeTruthy();
+
+      // En portugués, lo mismo.
+      fijarIdiomaParaPruebas("pt-BR");
+      await act(async () => Promise.resolve());
+      await tocar(boton(fila("duena@otra.com"), "Reenviar e-mail"));
+      expect(aviso()).toBe("O convite ficou salvo, mas o e-mail não saiu. Mande a mensagem com «Copiar mensagem».");
+      expect(aviso()).not.toMatch(/tem conta|tinha conta|entrou|enviamos/i);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   test("Reenviar mail: manda otra vez el de esa invitación, con el botón ocupado mientras sale", async () => {
