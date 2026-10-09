@@ -276,86 +276,57 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-/* Las tarjetas comparten la fila; una sola ocupa todo el ancho. */
-.lesiones-marco .evaluaciones-tarjetas {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
-  gap: 12px;
+/* Cada test: su título y la tabla de sus evaluaciones (las del reporte de
+   Lesiones), con el desplegable de cada fila fijo a la izquierda al
+   deslizar. */
+.lesiones-marco .evaluaciones-registros + .evaluaciones-registros {
+  margin-top: 16px;
 }
-.lesiones-marco .evaluaciones-tarjeta {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fafafa;
-}
-.lesiones-marco .evaluaciones-tarjeta header h3 {
+.lesiones-marco .evaluaciones-registros header h3 {
   margin: 0;
   color: #111827;
   font-size: 13px;
   font-weight: 800;
   text-transform: uppercase;
 }
-.lesiones-marco .evaluaciones-tarjeta header p {
-  margin: 2px 0 10px;
+.lesiones-marco .evaluaciones-registros header p {
+  margin: 2px 0 8px;
   color: #6b7280;
   font-size: 12px;
 }
-/* Cada medida en su casillero: el título, el valor y, abajo, la clase con
-   el color de la clase. Van en una fila y bajan de renglón si no entran. */
-.lesiones-marco .evaluaciones-medidas {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.lesiones-marco .evaluaciones-registros-tabla {
+  min-width: calc(var(--columnas, 12) * 62px);
   font-variant-numeric: tabular-nums;
 }
-.lesiones-marco .evaluaciones-medidas li {
-  display: grid;
-  grid-template-rows: auto auto auto;
-  gap: 3px;
-  min-width: 0;
-  text-align: center;
+.lesiones-marco .evaluaciones-registros-tabla td {
+  padding: 6px 5px;
+  white-space: nowrap;
 }
-.lesiones-marco .evaluaciones-medida-titulo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.6em;
-  padding: 3px 4px;
-  border-radius: 4px;
-  background: #f1f5f9;
-  color: #374151;
-  font-size: 11px;
+.lesiones-marco .evaluaciones-registros-tabla .evaluaciones-registros-lugar {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 150px;
+}
+.lesiones-marco .evaluaciones-registros-tabla td.evaluaciones-registros-lugar {
+  padding: 4px;
+  background: #fff;
+}
+.lesiones-marco .evaluaciones-registros-tabla tbody tr:nth-child(even) td.evaluaciones-registros-lugar {
+  background: #f7f7f7;
+}
+.lesiones-marco .evaluaciones-registros-tabla select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.2;
 }
-.lesiones-marco .evaluaciones-medida-valor {
-  padding: 7px 4px;
-  border-radius: 4px;
-  background: #fff;
-  color: #111827;
-  font-size: 14px;
-  font-weight: 500;
-}
-.lesiones-marco .evaluaciones-medida-clase {
-  min-height: 30px;
-  padding: 6px 4px;
-  border-radius: 4px;
-  background: #fff;
-  color: #111827;
-  font-size: 14px;
-  font-weight: 800;
-}
-.lesiones-marco .evaluaciones-medida-clase.sin-clase {
-  background: transparent;
-}
-/* Sobre el verde oscuro y el rojo, el número en blanco. */
-.lesiones-marco .evaluaciones-medida-clase.clase-5,
-.lesiones-marco .evaluaciones-medida-clase.clase-1 {
-  color: #fff;
+/* El texto de cada fila va solo en papel (en pantalla está el desplegable). */
+.lesiones-marco .evaluaciones-solo-papel {
+  display: none;
 }
 @media screen and (max-width: 760px) {
   .lesiones-marco .evaluaciones-individual .evaluaciones-area {
@@ -367,11 +338,26 @@
     padding: 10px 20px 0;
     break-inside: avoid-page;
   }
-  .lesiones-marco .evaluaciones-tarjeta {
+  .lesiones-marco .evaluaciones-registros {
     break-inside: avoid;
   }
-  .lesiones-marco .evaluaciones-tarjeta,
-  .lesiones-marco .evaluaciones-medidas span,
+  .lesiones-marco .evaluaciones-registros-tabla {
+    min-width: 0;
+    font-size: 8px;
+  }
+  .lesiones-marco .evaluaciones-registros-tabla th,
+  .lesiones-marco .evaluaciones-registros-tabla td {
+    padding: 3px 2px;
+    font-size: 8px;
+  }
+  .lesiones-marco .evaluaciones-registros-tabla .evaluaciones-registros-lugar {
+    position: static;
+    min-width: 0;
+  }
+  .lesiones-marco .evaluaciones-solo-papel {
+    display: inline;
+    font-weight: 700;
+  }
   .lesiones-marco .evaluaciones-individual .evaluaciones-area-titulo {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
