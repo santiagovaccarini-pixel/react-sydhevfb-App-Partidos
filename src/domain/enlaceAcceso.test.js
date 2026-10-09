@@ -52,7 +52,9 @@ describe("el enlace del correo", () => {
     // Una cuenta que se registró sola (sin invitación) entra como siempre.
     expect(vieneDeInvitacion(confirmacion, { invited_at: null })).toBe(false);
     expect(vieneDeInvitacion(confirmacion, undefined)).toBe(false);
-    expect(vieneDeInvitacion(leerEnlaceDeAcceso("https://app/?invitacion=1#type=invite"), undefined)).toBe(true);
+    expect(vieneDeInvitacion(leerEnlaceDeAcceso("https://app/?invitacion=1#type=invite"), { invited_at: "2026-10-09" })).toBe(true);
+    // Una cuenta que nunca fue invitada no vuelve de una invitación, traiga la URL lo que traiga.
+    expect(vieneDeInvitacion(leerEnlaceDeAcceso("https://app/?invitacion=1"), { invited_at: null })).toBe(false);
     expect(vieneDeInvitacion(leerEnlaceDeAcceso("https://app/#type=recovery"), { invited_at: "2026-10-09" })).toBe(false);
   });
 

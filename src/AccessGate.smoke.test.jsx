@@ -774,6 +774,17 @@ describe("la puerta de la app", () => {
     expect(supa.updateUser).not.toHaveBeenCalled();
   });
 
+  test("con la marca de invitación y la sesión de una cuenta que no fue invitada, entra como siempre", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = SESION;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+    expect(supa.updateUser).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("");
+  });
+
   test("con la marca de invitación pero sin sesión (ya se había salido), la entrada común", async () => {
     window.history.replaceState({}, "", "/?invitacion=1");
     supa.enlace = { tipo: "invite", error: "", descripcion: "" };

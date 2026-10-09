@@ -30,11 +30,12 @@ export const esEnlaceDeInvitacion = (enlace) => enlace?.tipo === "invite";
 
 // Se vuelve de aceptar una invitación: el enlace del mail de invitación o, si
 // la persona invitada usó "Crear una cuenta" en vez del mail, el de confirmar
-// el correo de una cuenta que nació con la invitación (Supabase le marca
-// invited_at). En los dos casos Supabase le puso una contraseña al azar y no
-// guardó la que eligió: hay que pedírsela antes de entrar.
+// el correo. Vale solo para una cuenta que Supabase marcó como invitada
+// (invited_at): a esa le puso una contraseña al azar y no guardó la que
+// eligió, así que hay que pedírsela antes de entrar. Cualquier otra cuenta
+// entra como siempre, aunque la URL traiga la marca.
 export const vieneDeInvitacion = (enlace, usuario) =>
-  esEnlaceDeInvitacion(enlace) || (enlace?.tipo === "signup" && Boolean(usuario?.invited_at));
+  (esEnlaceDeInvitacion(enlace) || enlace?.tipo === "signup") && Boolean(usuario?.invited_at);
 
 // Qué decirle a la persona cuando el enlace no sirvió.
 // La misma decisión que textoDeEnlaceFallido, pero como clave del diccionario

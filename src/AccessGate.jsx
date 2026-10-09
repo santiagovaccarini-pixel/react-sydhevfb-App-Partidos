@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ENLACE_DE_ACCESO, supabase } from "./supabase.js";
-import { claveDeEnlaceFallido, esEnlaceDeRecuperacion, vieneDeInvitacion } from "./domain/enlaceAcceso.js";
+import { claveDeEnlaceFallido, esEnlaceDeInvitacion, esEnlaceDeRecuperacion, vieneDeInvitacion } from "./domain/enlaceAcceso.js";
 import { t, useIdioma } from "./idioma/index.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import {
@@ -277,7 +277,7 @@ export default function AccessGate({ children }) {
   const entroConCopiaAlAbrir = useRef(false);
   const copiaParaEntrar = () => {
     if (recuperacionPendiente.current || entroConCopiaAlAbrir.current) return null;
-    if (esInvitacionSolicitada() && !invitacionAtendida.current) return null;
+    if (esEnlaceDeInvitacion(ENLACE_DE_ACCESO) && !invitacionAtendida.current) return null;
     // Si Supabase ya contestó con una sesión, la copia tiene que ser de esa cuenta.
     return leerPerfilLocal(sesionActual.current?.user?.id || null);
   };
@@ -334,8 +334,9 @@ export default function AccessGate({ children }) {
         return;
       }
       // El enlace de la invitación no abrió ninguna sesión (por ejemplo, ya
-      // se había salido): la entrada común, sin la marca en la URL.
-      if (esInvitacionSolicitada() && !session) limpiarParametroRecuperacion();
+      // se había salido) o es de una cuenta que no fue invitada: la entrada
+      // común, sin la marca en la URL.
+      if (esEnlaceDeInvitacion(ENLACE_DE_ACCESO) && !ENLACE_DE_ACCESO.error) limpiarParametroRecuperacion();
 
       // Un enlace del correo que no sirvió (vencido, ya usado): se avisa en
       // la puerta, sin dejar afuera a quien ya tenía la sesión abierta.
