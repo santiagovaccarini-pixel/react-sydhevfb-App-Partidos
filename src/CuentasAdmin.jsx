@@ -197,7 +197,9 @@ const Grupo = ({ titulo, cantidad, vacio, children }) => (
 
 export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
   useIdioma();
-  const [aviso, setAviso] = useState("");
+  // El aviso de arriba: rojo si algo no salió; con `ok`, algo que salió bien.
+  const [aviso, ponerAviso] = useState({ texto: "", ok: false });
+  const setAviso = (texto, ok = false) => ponerAviso({ texto, ok });
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
   const [ocupada, setOcupada] = useState("");
@@ -315,7 +317,7 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     try {
       const fila = await accion();
       if (clubIdRef.current === delClub) setMiembros((lista) => lista.map((uno) => (uno.user_id === fila.user_id ? { ...uno, ...fila } : uno)));
-      if (avisoBien) setAviso(avisoBien);
+      if (avisoBien) setAviso(avisoBien, true);
     } catch (errorCambio) {
       setAviso(mensajeDe(errorCambio, "cuentas.errorClub"));
     } finally {
@@ -367,7 +369,7 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
       // Si la cuenta ya existía, entró en el acto; si no, le llega el mail. La
       // invitación de un dueño de la app queda abierta, y su aviso es el de un
       // mail que no salió (el servidor no dice que la cuenta existe).
-      if (usada) setAviso(t("cuentas.entroYa", { correo: limpio }));
+      if (usada) setAviso(t("cuentas.entroYa", { correo: limpio }), true);
       else await mandarMail({ id, email: limpio });
       await cargarClub(clubId);
     } catch (errorInvitar) {
@@ -382,7 +384,7 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
   // mensaje con "Copiar mensaje". Devuelve qué pasó.
   const mandarMail = async (invitacion) => {
     const clave = invitacion.id ? await enviarInvitacionPorMail(invitacion.id, idiomaActual()) : "cuentas.mail.noSalio";
-    setAviso(t(clave, { correo: invitacion.email }));
+    setAviso(t(clave, { correo: invitacion.email }), clave === "cuentas.mail.enviado");
     return clave;
   };
 
@@ -410,7 +412,7 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     });
     try {
       await navigator.clipboard.writeText(texto);
-      setAviso(t("cuentas.copiado"));
+      setAviso(t("cuentas.copiado"), true);
     } catch {
       // Sin acceso al portapapeles, el mensaje queda a la vista para copiarlo a mano.
       setAviso(texto);
@@ -423,7 +425,7 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     try {
       await cancelarInvitacion(invitacion.id);
       setInvitaciones((lista) => lista.filter((una) => una.id !== invitacion.id));
-      setAviso(t("cuentas.invitacionCancelada"));
+      setAviso(t("cuentas.invitacionCancelada"), true);
     } catch (errorCancelar) {
       setAviso(mensajeDe(errorCancelar, "cuentas.errorInvitar"));
     } finally {
@@ -442,7 +444,7 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     setAviso("");
     try {
       await aceptarPedido(pedido.id, modulos);
-      setAviso(t("pedidos.aceptado", { correo: pedido.email }));
+      setAviso(t("pedidos.aceptado", { correo: pedido.email }), true);
       if (clubIdRef.current === delClub) await cargarClub(delClub);
     } catch (errorAceptar) {
       setAviso(mensajeDe(errorAceptar, "pedidos.error.generico"));
@@ -460,7 +462,7 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     try {
       await rechazarPedido(pedido.id);
       setPedidos((lista) => (lista || []).filter((uno) => uno.id !== pedido.id));
-      setAviso(t("pedidos.rechazadoAviso"));
+      setAviso(t("pedidos.rechazadoAviso"), true);
     } catch (errorRechazar) {
       setAviso(mensajeDe(errorRechazar, "pedidos.error.generico"));
     } finally {
@@ -625,9 +627,9 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
             </button>
           </div>
         )}
-        {aviso && (
-          <div className="cuentas-aviso" role="status">
-            {aviso}
+        {aviso.texto && (
+          <div className={`cuentas-aviso${aviso.ok ? " ok" : ""}`} role="status">
+            {aviso.texto}
           </div>
         )}
 

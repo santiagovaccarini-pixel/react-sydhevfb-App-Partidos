@@ -200,6 +200,8 @@ describe("Cuentas", () => {
     });
   };
   const grupos = () => [...contenedor.querySelectorAll(".cuentas-grupo h2")].map((h) => h.textContent.replace(/\s+/g, " ").trim());
+  // El aviso de arriba: lo que salió bien no lleva el rojo del error.
+  const tonoDelAviso = () => (contenedor.querySelector('.cuentas-aviso[role="status"]')?.classList.contains("ok") ? "ok" : "error");
 
   test("el admin del club ve a su gente: pedidos, activos, los que se fueron, invitaciones y etiquetas", async () => {
     await montar();
@@ -235,6 +237,7 @@ describe("Cuentas", () => {
     await escribir(correo, "cualquiera");
     await tocar(invitarBoton);
     expect(texto()).toContain("Escribí un correo válido.");
+    expect(tonoDelAviso()).toBe("error");
 
     await escribir(correo, "BETO@uno.com");
     await tocar(invitarBoton);
@@ -262,6 +265,7 @@ describe("Cuentas", () => {
     // La invitación nueva sale por mail, al toque y en el idioma de quien invita.
     expect(datos.mails).toEqual([{ id: "i-nuevo@uno.com", idioma: "es-AR" }]);
     expect(texto()).toContain("Le mandamos un mail a nuevo@uno.com con el enlace para entrar.");
+    expect(tonoDelAviso()).toBe("ok");
     expect(grupos()).toContain("Invitaciones abiertas 2");
 
     // Si la cuenta ya existía entra en el acto: no hace falta el mail.
@@ -270,6 +274,7 @@ describe("Cuentas", () => {
     await escribir(correo, "fede@libre.com");
     await tocar(invitarBoton);
     expect(texto()).toContain("fede@libre.com ya tenía cuenta: entró al club.");
+    expect(tonoDelAviso()).toBe("ok");
     expect(fila("fede@libre.com")).toBeTruthy();
     expect(datos.mails).toHaveLength(1);
   });
@@ -292,6 +297,8 @@ describe("Cuentas", () => {
     await escribir(correo, "error@uno.com");
     await tocar(invitarBoton);
     expect(texto()).toContain("La invitación quedó guardada, pero el mail no salió. Mandale el mensaje con «Copiar mensaje».");
+    // Un mail que no salió no se lee como que salió bien.
+    expect(tonoDelAviso()).toBe("error");
     expect(boton(fila("error@uno.com"), "Copiar mensaje")).toBeTruthy();
 
     fijarIdiomaParaPruebas("pt-BR");
@@ -486,6 +493,7 @@ describe("Cuentas", () => {
     await tocar(boton(hoja, "Sí, aceptar"));
     expect(datos.llamadas.at(-1)).toEqual({ que: "aceptar", id: "p1", modulos: { partido: true, flujo: false, lesiones: true, evaluaciones: false } });
     expect(texto()).toContain("pide@uno.com ya está en el club.");
+    expect(tonoDelAviso()).toBe("ok");
     expect(fila("pide@uno.com").closest(".cuentas-grupo").querySelector("h2").textContent).toContain("En el club");
     expect(grupos()[0]).toBe("Pedidos de acceso 1");
 
@@ -496,6 +504,7 @@ describe("Cuentas", () => {
     expect(datos.llamadas.at(-1)).toEqual({ que: "rechazar", id: "p2" });
     expect(fila("otro@uno.com")).toBeUndefined();
     expect(texto()).toContain("Pedido rechazado.");
+    expect(tonoDelAviso()).toBe("ok");
   });
 
   test("con una base sin pedidos, Cuentas sigue sin esa parte", async () => {
@@ -560,11 +569,13 @@ describe("Cuentas", () => {
     expect(window.location.origin).toMatch(/^https?:\/\/\S+$/);
     expect(renglones.at(-1)).toBe("espera@uno.com");
     expect(texto()).toContain("Mensaje copiado.");
+    expect(tonoDelAviso()).toBe("ok");
 
     await tocar(boton(fila("espera@uno.com"), "Cancelar"));
     expect(datos.llamadas.at(-1)).toEqual({ que: "cancelar", id: "i1" });
     expect(fila("espera@uno.com")).toBeUndefined();
     expect(texto()).toContain("Invitación cancelada.");
+    expect(tonoDelAviso()).toBe("ok");
   });
 
   test("sin portapapeles, el mensaje queda a la vista con el correo solo en el último renglón", async () => {

@@ -56,7 +56,9 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
   const { plural } = useIdioma();
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [aviso, setAviso] = useState("");
+  // El aviso de arriba: rojo si algo no salió; con `ok`, algo que salió bien.
+  const [aviso, ponerAviso] = useState({ texto: "", ok: false });
+  const setAviso = (texto, ok = false) => ponerAviso({ texto, ok });
   const [ocupado, setOcupado] = useState("");
 
   const [clubes, setClubes] = useState([]);
@@ -115,7 +117,7 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
     setAviso("");
     try {
       await accion();
-      setAviso(avisoBien);
+      setAviso(avisoBien, true);
       await cargar();
       return true;
     } catch (errorAccion) {
@@ -264,9 +266,9 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
             </button>
           </div>
         )}
-        {aviso && (
-          <div className="cuentas-aviso" role="status">
-            {aviso}
+        {aviso.texto && (
+          <div className={`cuentas-aviso${aviso.ok ? " ok" : ""}`} role="status">
+            {aviso.texto}
           </div>
         )}
 

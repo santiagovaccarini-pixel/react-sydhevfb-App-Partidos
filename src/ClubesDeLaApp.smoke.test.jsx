@@ -86,6 +86,8 @@ describe("Clubes de la app", () => {
     });
   };
   const llamadasA = (funcion) => base.llamadas.filter((llamada) => llamada.funcion === funcion);
+  // El aviso de arriba: lo que salió bien no lleva el rojo del error.
+  const tonoDelAviso = () => (contenedor.querySelector('.cuentas-aviso[role="status"]')?.classList.contains("ok") ? "ok" : "error");
 
   test("cada club muestra solo nombre, entidad, administrador y cantidad de personas", async () => {
     await montar();
@@ -207,6 +209,7 @@ describe("Clubes de la app", () => {
     await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, cambiar"));
     expect(llamadasA("renombrar_club")).toEqual([{ funcion: "renombrar_club", parametros: { p_equipo: "c1", p_nombre: "Club Unido" } }]);
     expect(texto()).toContain("Listo: Club Uno ahora se llama Club Unido.");
+    expect(tonoDelAviso()).toBe("ok");
     // Se vuelve a leer el panel.
     expect(llamadasA("panel_clubes")).toHaveLength(2);
   });
@@ -249,6 +252,7 @@ describe("Clubes de la app", () => {
       base.errores.renombrar_club = { code, message: codigo };
       await intentar("Club Dos");
       expect(contenedor.querySelector(".cuentas-aviso").textContent, codigo).toBe(esperado);
+      expect(tonoDelAviso(), codigo).toBe("error");
     }
     expect(llamadasA("renombrar_club")).toHaveLength(4);
 

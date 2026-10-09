@@ -648,6 +648,14 @@
   white-space: pre-line;
 }
 
+/* Algo que salió bien: el tono de los avisos buenos de la puerta
+   (.training-access-message.ok), no el rojo del error. */
+.cuentas-aviso.ok {
+  border-color: rgba(240, 201, 120, 0.4);
+  background: rgba(211, 173, 98, 0.16);
+  color: #f0c978;
+}
+
 .cuentas-reintentar {
   min-height: 44px;
   padding: 0 10px;
