@@ -392,6 +392,14 @@ describe("Cuentas", () => {
     expect(textoDeMovimiento({ accion: "modulos", detalle: { partido: false, flujo: false, lesiones: false } })).toBe("Módulos: ningún módulo");
   });
 
+  test("un cambio de nombre del club (lo hace un dueño de la app) se lee como tal, no como una membresía borrada", async () => {
+    const renombre = { accion: "club_renombrado", detalle: { antes: "Club Uno", nombre: "Club Unido" }, quien_email: "" };
+    expect(textoDeMovimiento(renombre)).toBe("El club pasó a llamarse Club Unido");
+    expect(textoDeMovimiento(renombre)).not.toBe(textoDeMovimiento({ accion: "otra", detalle: {} }));
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    expect(textoDeMovimiento(renombre)).toBe("O clube passou a se chamar Club Unido");
+  });
+
   test("la invitación se copia como mensaje y se cancela", async () => {
     const escrito = [];
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (t) => escrito.push(t) } });

@@ -28,6 +28,7 @@ const {
   pedidosSinClub,
   quitarSubdueno,
   rechazarPedidoSinClub,
+  renombrarClub,
   traspasarPrincipal,
 } = await import("./plataformaDb.js");
 
@@ -127,6 +128,31 @@ describe("el panel de los dueños", () => {
     await expect(crearClub({ nombre: "CLUB  úno" })).rejects.toThrow("panel.error.nombreRepetido");
     base.responder = () => ({ data: null, error: { code: "P0001", message: "nombre_invalido" } });
     await expect(crearClub({ nombre: "Club Cinco" })).rejects.toThrow("panel.error.nombreInvalido");
+  });
+
+  it("cambiar el nombre de un club: limpio, con las reglas de crear, y los errores de la base a su clave", async () => {
+    expect(await renombrarClub("c1", "  Club Unido ")).toBe(true);
+    expect(base.llamadas).toEqual([{ funcion: "renombrar_club", parametros: { p_equipo: "c1", p_nombre: "Club Unido" } }]);
+
+    await expect(renombrarClub("c1", "  ")).rejects.toThrow("panel.error.nombreInvalido");
+    await expect(renombrarClub("c1", "x".repeat(61))).rejects.toThrow("panel.error.nombreInvalido");
+    expect(base.llamadas).toHaveLength(1);
+
+    const errores = {
+      nombre_repetido: "panel.error.nombreRepetido",
+      nombre_invalido: "panel.error.nombreInvalido",
+      club_inexistente: "panel.error.clubInexistente",
+    };
+    for (const [codigo, clave] of Object.entries(errores)) {
+      base.responder = () => ({ data: null, error: { code: "P0001", message: codigo } });
+      await expect(renombrarClub("c1", "Club Dos")).rejects.toThrow(clave);
+    }
+    // Solo los dueños: ni el administrador del club ni nadie más.
+    base.responder = () => ({ data: null, error: { code: "42501", message: "solo_duenos" } });
+    await expect(renombrarClub("c1", "Club Dos")).rejects.toThrow("panel.error.soloDuenos");
+    // Una base sin la función nueva.
+    base.responder = () => ({ data: null, error: { code: "PGRST202", message: "Could not find the function public.renombrar_club" } });
+    await expect(renombrarClub("c1", "Club Dos")).rejects.toThrow("panel.error.faltaMigracion");
   });
 
   it("la entidad se asigna, se cambia o se saca con el correo vacío", async () => {

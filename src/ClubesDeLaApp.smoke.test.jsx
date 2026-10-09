@@ -98,11 +98,15 @@ describe("Clubes de la app", () => {
     ]);
     const dos = fila(".panel-club", "Club Dos");
     expect(dos.querySelector(".panel-club-datos").textContent).toBe("Sin entidadSin administrador1 persona");
-    // Desde acá no se entra al club ni se ve su gente.
+    // Desde acá no se entra al club ni se ve su gente: la entidad y el nombre.
     expect(boton(uno, "Cambiar")).toBeTruthy();
     expect(boton(uno, "Sacar")).toBeTruthy();
+    expect(boton(uno, "Cambiar nombre")).toBeTruthy();
     expect(boton(dos, "Asignar entidad")).toBeTruthy();
-    expect(uno.querySelectorAll("button")).toHaveLength(2);
+    expect(boton(dos, "Cambiar nombre")).toBeTruthy();
+    expect(uno.querySelectorAll("button")).toHaveLength(3);
+    // Cambiar el nombre es una acción secundaria, como Sacar.
+    expect(boton(uno, "Cambiar nombre").className).toBe("cuenta-quitar");
     expect(llamadasA("panel_clubes")).toHaveLength(1);
   });
 
@@ -126,9 +130,10 @@ describe("Clubes de la app", () => {
     expect(contenedor.querySelector(".panel-dueno button")).toBeNull();
     expect(contenedor.querySelector(".panel-sumar")).toBeNull();
     expect(texto()).toContain("Solo el dueño principal suma o quita dueños.");
-    // El sub-dueño igual crea clubes y asigna entidades.
+    // El sub-dueño igual crea clubes, asigna entidades y cambia nombres.
     expect(contenedor.querySelector(".panel-crear")).not.toBeNull();
     expect(boton(fila(".panel-club", "Club Dos"), "Asignar entidad")).toBeTruthy();
+    expect(boton(fila(".panel-club", "Club Dos"), "Cambiar nombre")).toBeTruthy();
   });
 
   test("crear un club con nombre, entidad y zona; no se suma a quien lo crea", async () => {
@@ -170,6 +175,74 @@ describe("Clubes de la app", () => {
     expect(contenedor.querySelector(".hoja-confirmar").textContent).toContain("ent@uno.com deja de figurar como entidad del club.");
     await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, sacar"));
     expect(llamadasA("asignar_entidad").at(-1).parametros).toEqual({ p_equipo: "c1", p_correo: null });
+  });
+
+  test("cambiar el nombre de un club: se escribe, se confirma con el anterior y el nuevo, y llama a renombrar_club", async () => {
+    await montar();
+    await tocar(boton(fila(".panel-club", "Club Uno"), "Cambiar nombre"));
+    const hoja = contenedor.querySelector(".cuentas-hoja");
+    expect(hoja.textContent).toContain("Nombre de Club Uno");
+    const campo = contenedor.querySelector("#panel-nombre-club");
+    expect(campo.value).toBe("Club Uno");
+    expect(campo.maxLength).toBe(60);
+    // Sin cambios o vacío, no hay nada que guardar.
+    expect(boton(hoja, "Guardar").disabled).toBe(true);
+    await escribir(campo, "   ");
+    expect(boton(hoja, "Guardar").disabled).toBe(true);
+
+    // Cancelar no cambia nada.
+    await escribir(campo, "Club Unido");
+    await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Guardar"));
+    expect(llamadasA("renombrar_club")).toHaveLength(0);
+    const confirmar = contenedor.querySelector(".hoja-confirmar");
+    expect(confirmar.textContent).toContain("¿Cambiar el nombre de Club Uno?");
+    expect(confirmar.textContent).toContain("Antes: Club Uno. Ahora: Club Unido.");
+    await tocar(boton(confirmar, "Cancelar"));
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+    expect(llamadasA("renombrar_club")).toHaveLength(0);
+
+    await tocar(boton(fila(".panel-club", "Club Uno"), "Cambiar nombre"));
+    await escribir(contenedor.querySelector("#panel-nombre-club"), "  Club Unido ");
+    await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Guardar"));
+    await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, cambiar"));
+    expect(llamadasA("renombrar_club")).toEqual([{ funcion: "renombrar_club", parametros: { p_equipo: "c1", p_nombre: "Club Unido" } }]);
+    expect(texto()).toContain("Listo: Club Uno ahora se llama Club Unido.");
+    // Se vuelve a leer el panel.
+    expect(llamadasA("panel_clubes")).toHaveLength(2);
+  });
+
+  test("cambiar el nombre: los errores de la base se leen en el idioma de la app", async () => {
+    const intentar = async (nombre) => {
+      await tocar(boton(fila(".panel-club", "Club Uno"), "Cambiar nombre"));
+      await escribir(contenedor.querySelector("#panel-nombre-club"), nombre);
+      await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Guardar"));
+      await tocar(contenedor.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    };
+    await montar();
+    const casos = [
+      ["nombre_repetido", "P0001", "Ya hay un club con ese nombre."],
+      ["nombre_invalido", "P0001", "Escribí el nombre del club (hasta 60 letras)."],
+      ["solo_duenos", "42501", "Este panel es solo para los dueños de la app."],
+      ["club_inexistente", "P0001", "Ese club ya no existe."],
+    ];
+    for (const [codigo, code, esperado] of casos) {
+      base.errores.renombrar_club = { code, message: codigo };
+      await intentar("Club Dos");
+      expect(contenedor.querySelector(".cuentas-aviso").textContent, codigo).toBe(esperado);
+    }
+    expect(llamadasA("renombrar_club")).toHaveLength(4);
+
+    await act(async () => raiz.unmount());
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    await montar();
+    base.errores.renombrar_club = { code: "P0001", message: "nombre_repetido" };
+    await tocar(boton(fila(".panel-club", "Club Uno"), "Trocar nome"));
+    await escribir(contenedor.querySelector("#panel-nombre-club"), "CLUB  dós");
+    await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Salvar"));
+    expect(contenedor.querySelector(".hoja-confirmar").textContent).toContain("Trocar o nome de Club Uno?");
+    await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sim, trocar"));
+    expect(texto()).toContain("Já existe um clube com esse nome.");
+    expect(texto()).not.toContain("nombre_repetido");
   });
 
   test("los errores de la base se leen en el idioma de la app", async () => {
@@ -288,13 +361,27 @@ describe("Clubes de la app", () => {
 
   test("Movimientos: qué pasó, en qué club y quién lo hizo", async () => {
     base.movimientos = [
+      {
+        id: 3,
+        cuando: "2026-10-09T12:00:00Z",
+        quien_email: "duenio@prueba.com",
+        accion: "renombrar_club",
+        equipo_id: "c1",
+        email: null,
+        detalle: { antes: "Club Viejo", nombre: "Club Uno" },
+      },
       { id: 2, cuando: "2026-10-05T12:00:00Z", quien_email: "subduenia@prueba.com", accion: "entidad", equipo_id: "c1", email: "ent@uno.com" },
       { id: 1, cuando: "2026-10-01T12:00:00Z", quien_email: null, accion: "semilla", equipo_id: null, email: null },
     ];
     await montar();
     const lineas = [...contenedor.querySelectorAll(".panel-movimientos li")];
-    expect(lineas.map((li) => li.querySelector("b").textContent)).toEqual(["Entidad · Club Uno · ent@uno.com", "Arrancó la plataforma"]);
-    expect(lineas[0].textContent).toContain("por subduenia@prueba.com");
-    expect(lineas[1].textContent).toContain("automático");
+    expect(lineas.map((li) => li.querySelector("b").textContent)).toEqual([
+      "Nombre: Club Viejo → Club Uno",
+      "Entidad · Club Uno · ent@uno.com",
+      "Arrancó la plataforma",
+    ]);
+    expect(lineas[0].textContent).toContain("por duenio@prueba.com");
+    expect(lineas[1].textContent).toContain("por subduenia@prueba.com");
+    expect(lineas[2].textContent).toContain("automático");
   });
 });

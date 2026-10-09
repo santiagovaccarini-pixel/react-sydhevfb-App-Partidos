@@ -17,6 +17,7 @@ import {
   pedidosSinClub,
   quitarSubdueno,
   rechazarPedidoSinClub,
+  renombrarClub,
   traspasarPrincipal,
 } from "./domain/plataformaDb.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -26,10 +27,12 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 // Clubes de la app: el panel de los dueños de la plataforma. De cada club,
 // solo el nombre, el correo de la entidad, el del administrador y cuánta
 // gente tiene (lo garantiza la base: el panel no ve nada más). Desde acá se
-// crean clubes y se asigna la entidad; no se entra a ningún club ni se
-// acepta a nadie. Los pedidos a un club que no está (o que todavía no tiene
-// administrador) se mandan a un club con administrador (ahí decide él) o se
-// rechazan. Sumar, quitar y pasar dueños es solo del dueño principal.
+// crean clubes, se les cambia el nombre (solo los dueños lo cambian: ni el
+// administrador ni la entidad del club) y se asigna la entidad; no se entra a
+// ningún club ni se acepta a nadie. Los pedidos a un club que no está (o que
+// todavía no tiene administrador) se mandan a un club con administrador (ahí
+// decide él) o se rechazan. Sumar, quitar y pasar dueños es solo del dueño
+// principal.
 
 // Un mensaje de error: una clave del diccionario o el texto de la base.
 const mensajeDe = (error) => {
@@ -65,9 +68,12 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
   const [correoEntidad, setCorreoEntidad] = useState("");
   const [zona, setZona] = useState(ZONA_POR_DEFECTO);
 
-  // Hojas: la entidad (escribir y, si cambia una que ya había, confirmar),
-  // sacarla, mandar un pedido a un club, rechazarlo, quitar un dueño y pasar
-  // el rol de principal (se confirma escribiendo el correo).
+  // Hojas: el nombre (escribir y confirmar con el anterior y el nuevo), la
+  // entidad (escribir y, si cambia una que ya había, confirmar), sacarla,
+  // mandar un pedido a un club, rechazarlo, quitar un dueño y pasar el rol de
+  // principal (se confirma escribiendo el correo).
+  const [renombre, setRenombre] = useState(null);
+  const [cambioNombre, setCambioNombre] = useState(null);
   const [entidad, setEntidad] = useState(null);
   const [cambioEntidad, setCambioEntidad] = useState(null);
   const [sacarEntidad, setSacarEntidad] = useState(null);
@@ -138,6 +144,21 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
     }
   };
 
+  // El nombre se escribe en una hoja y se confirma mostrando el anterior y el nuevo.
+  const guardarNombre = () => {
+    const { club, nombre: escrito } = renombre;
+    const nuevo = escrito.trim();
+    setRenombre(null);
+    if (!nuevo || nuevo === club.nombre) return;
+    setCambioNombre({ club, anterior: club.nombre, nuevo });
+  };
+
+  const confirmarCambioNombre = async () => {
+    const { club, anterior, nuevo } = cambioNombre;
+    setCambioNombre(null);
+    await hacer(club.equipo_id, () => renombrarClub(club.equipo_id, nuevo), t("panel.nombreGuardado", { anterior, nombre: nuevo }));
+  };
+
   const abrirEntidad = (club) => setEntidad({ club, correo: club.correo_entidad || "" });
 
   // Asignar va directo; cambiar una que ya había pide confirmar con los dos correos.
@@ -199,8 +220,12 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
     await hacer(dueno.user_id, () => traspasarPrincipal(dueno.user_id), t("panel.traspasado", { correo: dueno.email }));
   };
 
-  // Una línea de Movimientos: qué pasó, sobre qué club y qué correo.
+  // Una línea de Movimientos: qué pasó, sobre qué club y qué correo. Un
+  // cambio de nombre ya dice de qué club es: el nombre de antes y el nuevo.
   const textoDeMovimiento = (movimiento) => {
+    if (movimiento.accion === "renombrar_club") {
+      return t("panel.movimientos.renombrarClub", { antes: movimiento.detalle?.antes || "", nombre: movimiento.detalle?.nombre || "" });
+    }
     const que = t(`panel.movimientos.${aCamello(movimiento.accion)}`, {}, movimiento.accion);
     const club = nombreDelClub(movimiento.equipo_id) || movimiento.detalle?.nombre || "";
     return [que, club, movimiento.email].filter(Boolean).join(" · ");
@@ -307,6 +332,14 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
                           {t("panel.asignar")}
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="cuenta-quitar"
+                        disabled={ocupado === club.equipo_id}
+                        onClick={() => setRenombre({ club, nombre: club.nombre })}
+                      >
+                        {t("panel.cambiarNombre")}
+                      </button>
                     </div>
                   </li>
                 ))}
@@ -401,6 +434,54 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
           </>
         )}
       </div>
+
+      {renombre && (
+        <HojaInferior
+          abierta
+          className="cuentas-hoja"
+          titulo={t("panel.nombreTitulo", { club: renombre.club.nombre })}
+          descripcion={t("panel.nombreTexto")}
+          onCerrar={() => setRenombre(null)}
+          acciones={
+            <>
+              <button type="button" className="boton-cancelar-hoja" onClick={() => setRenombre(null)}>
+                {t("comun.cancelar")}
+              </button>
+              <button
+                type="button"
+                className="boton-confirmar-hoja"
+                onClick={guardarNombre}
+                disabled={!renombre.nombre.trim() || renombre.nombre.trim() === renombre.club.nombre}
+              >
+                {t("panel.guardar")}
+              </button>
+            </>
+          }
+        >
+          <div className="campo-inicio">
+            <label htmlFor="panel-nombre-club">{t("panel.nombre")}</label>
+            <input
+              id="panel-nombre-club"
+              type="text"
+              value={renombre.nombre}
+              maxLength={60}
+              autoComplete="off"
+              onChange={(evento) => setRenombre((actual) => ({ ...actual, nombre: evento.target.value }))}
+            />
+          </div>
+        </HojaInferior>
+      )}
+
+      <HojaConfirmar
+        abierta={Boolean(cambioNombre)}
+        icono="escudo"
+        titulo={t("panel.nombreConfirmarTitulo", { club: cambioNombre?.anterior || "" })}
+        descripcion={t("panel.cambiarTexto", { anterior: cambioNombre?.anterior || "", nuevo: cambioNombre?.nuevo || "" })}
+        etiquetaConfirmar={t("panel.siCambiar")}
+        etiquetaCancelar={t("comun.cancelar")}
+        onConfirmar={confirmarCambioNombre}
+        onCancelar={() => setCambioNombre(null)}
+      />
 
       {entidad && (
         <HojaInferior
