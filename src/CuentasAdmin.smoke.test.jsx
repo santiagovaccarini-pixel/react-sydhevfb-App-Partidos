@@ -80,6 +80,7 @@ vi.mock("./domain/membresiasDb.js", async () => {
     },
     cancelarInvitacion: async (id) => {
       datos.llamadas.push({ que: "cancelar", id });
+      if (datos.compuertaCancelar) await datos.compuertaCancelar;
       return true;
     },
   };
@@ -146,6 +147,7 @@ describe("Cuentas", () => {
     datos.mails = [];
     datos.resultadoMail = "cuentas.mail.enviado";
     datos.compuertaMail = null;
+    datos.compuertaCancelar = null;
     datos.compuerta = null;
     datos.lenta = {};
     datos.errorDecidir = null;
@@ -305,6 +307,26 @@ describe("Cuentas", () => {
     expect(texto()).toContain("Le mandamos un mail a espera@uno.com con el enlace para entrar.");
     expect(boton(fila("espera@uno.com"), "Reenviar mail").disabled).toBe(false);
 
+    // Mientras se cancela, los dos quedan ocupados pero no dice "Enviando…":
+    // no sale ningún mail.
+    let cancelada;
+    datos.compuertaCancelar = new Promise((resolver) => {
+      cancelada = resolver;
+    });
+    await tocar(boton(fila("espera@uno.com"), "Cancelar"));
+    const botones = [...fila("espera@uno.com").querySelectorAll(".cuenta-acciones button")];
+    expect(botones.map((b) => b.textContent.trim())).toEqual(["Copiar mensaje", "Reenviar mail", "Cancelar"]);
+    expect(boton(fila("espera@uno.com"), "Reenviar mail").disabled).toBe(true);
+    expect(boton(fila("espera@uno.com"), "Cancelar").disabled).toBe(true);
+    expect(datos.mails).toHaveLength(1);
+    datos.invitaciones.c1 = datos.invitaciones.c1.filter((una) => una.email !== "espera@uno.com");
+    await act(async () => cancelada());
+    await act(async () => Promise.resolve());
+    expect(fila("espera@uno.com")).toBeUndefined();
+  });
+
+  test("Reenviar mail de una invitación que se usó mientras tanto: avisa y pone la lista al día", async () => {
+    await montar();
     // Si mientras tanto se usó, se avisa y la lista se pone al día.
     datos.resultadoMail = "cuentas.mail.cerrada";
     datos.invitaciones.c1 = [];

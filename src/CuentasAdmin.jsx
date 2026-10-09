@@ -126,7 +126,9 @@ const FilaMiembro = ({ miembro, esMio, ocupada, onRol, onModulo, onBaja, onReinc
 
 // Una invitación vencida ya no sirve para entrar: va aparte, sin el mensaje
 // para copiar ni el mail (para volver a invitar ese correo, se lo invita de nuevo).
-const FilaInvitacion = ({ invitacion, vencida = false, ocupada, onCopiar, onReenviar, onCancelar }) => (
+// Mientras se manda el mail o se cancela, los dos botones quedan ocupados;
+// "Enviando…" solo mientras sale el mail.
+const FilaInvitacion = ({ invitacion, vencida = false, ocupada, enviando = false, onCopiar, onReenviar, onCancelar }) => (
   <li className="cuenta-fila invitacion">
     <div className="cuenta-encabezado">
       <span className="cuenta-correo">{invitacion.email}</span>
@@ -144,7 +146,7 @@ const FilaInvitacion = ({ invitacion, vencida = false, ocupada, onCopiar, onReen
             {t("cuentas.copiarMensaje")}
           </button>
           <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onReenviar(invitacion)}>
-            {ocupada ? t("cuentas.enviandoMail") : t("cuentas.reenviarMail")}
+            {enviando ? t("cuentas.enviandoMail") : t("cuentas.reenviarMail")}
           </button>
         </>
       )}
@@ -398,7 +400,7 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
 
   const reenviarMail = async (invitacion) => {
     const delClub = clubIdRef.current;
-    setOcupada(invitacion.id);
+    setOcupada(`mail:${invitacion.id}`);
     setAviso("");
     try {
       const clave = await mandarMail(invitacion);
@@ -581,7 +583,8 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
               <FilaInvitacion
                 key={invitacion.id}
                 invitacion={invitacion}
-                ocupada={ocupada === invitacion.id}
+                ocupada={ocupada === invitacion.id || ocupada === `mail:${invitacion.id}`}
+                enviando={ocupada === `mail:${invitacion.id}`}
                 onCopiar={copiarMensaje}
                 onReenviar={reenviarMail}
                 onCancelar={cancelar}
