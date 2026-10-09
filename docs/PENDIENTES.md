@@ -886,6 +886,14 @@ Cómo está hoy (02/10):
     Supabase no guarda la contraseña que eligió (la cuenta ya existía por la invitación):
     al confirmar el correo, la app le pide que la elija. Un enlace vencido dice "pedile a
     quien te invitó que te lo reenvíe".
+  - Si el correo ya tiene una cuenta sin confirmar (de una invitación anterior o porque
+    alguien hizo "Crear una cuenta" con ese correo y una contraseña suya), antes de mandar
+    el mail el servidor le cambia la contraseña por una al azar que nadie conoce. Al abrir
+    el mail, Supabase confirma el correo pero conserva la contraseña que tenga la cuenta, y
+    la base la suma al club: sin este paso, quien registró el correo antes entraba al club
+    sin haber abierto nunca ese buzón. Si no se puede comprobar la cuenta o cambiarle la
+    contraseña, el mail no sale. En la bienvenida solo se entra si Supabase guardó la
+    contraseña nueva (eso cierra cualquier otra sesión de la cuenta).
   - El enlace del mail dura lo que diga "Email OTP Expiration" (24 h, el máximo del
     panel); la invitación, 14 días. "Reenviar mail" manda un enlace nuevo y el anterior
     deja de servir.

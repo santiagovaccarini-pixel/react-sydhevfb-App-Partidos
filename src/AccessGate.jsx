@@ -30,8 +30,10 @@ const esRecuperacionSolicitada = () => {
 };
 
 // Se vuelve del mail de invitación (o la persona invitada confirmó su correo
-// desde "Crear una cuenta"): Supabase le puso una contraseña al azar, así que
-// antes de entrar elige la suya. Un enlace que no sirvió no pide nada: se avisa.
+// desde "Crear una cuenta"): la cuenta tiene una contraseña al azar que nadie
+// conoce (la pone Supabase o, si la cuenta ya existía sin confirmar, el
+// servidor al mandar el mail), así que antes de entrar elige la suya. Un
+// enlace que no sirvió no pide nada: se avisa.
 const esInvitacionSolicitada = (usuario) => !ENLACE_DE_ACCESO.error && vieneDeInvitacion(ENLACE_DE_ACCESO, usuario);
 
 export const limpiarParametroRecuperacion = () => {
@@ -54,13 +56,10 @@ const textoDeErrorDeAcceso = (error, porDefecto) => {
   return textoDeErrorDeContrasena(error, porDefecto);
 };
 
-const esMismaContrasena = (error) =>
-  /same_password|should be different|different from the old/i.test(`${error?.code || ""} ${error?.message || ""}`);
-
 // Lo que Supabase puede objetar de una contraseña nueva.
 const textoDeErrorDeContrasena = (error, porDefecto) => {
   const texto = `${error?.code || ""} ${error?.message || ""}`;
-  if (esMismaContrasena(error)) return t("acceso.error.mismaContrasena");
+  if (/same_password|should be different|different from the old/i.test(texto)) return t("acceso.error.mismaContrasena");
   if (/weak_password|at least \d+ characters|weak|should contain/i.test(texto)) return t("acceso.error.debil");
   if (/reauthentication|re-authenticate|session/i.test(texto)) return t("acceso.error.reautenticar");
   return porDefecto;
@@ -566,10 +565,10 @@ export default function AccessGate({ children }) {
         password: nuevaPassword,
       });
 
-      // Quien vuelve de una invitación y eligió la misma contraseña que ya
-      // tenía (se había registrado antes de abrir el mail) no se equivocó:
-      // entra con ella.
-      if (errorUpdate && !(bienvenida && esMismaContrasena(errorUpdate))) throw errorUpdate;
+      // También en la bienvenida de una invitación: solo se entra si Supabase
+      // guardó la contraseña nueva, que cierra cualquier otra sesión abierta
+      // de esa cuenta.
+      if (errorUpdate) throw errorUpdate;
       invitacionAtendida.current = true;
 
       const { data, error: errorSesion } = await supabase.auth.getSession();

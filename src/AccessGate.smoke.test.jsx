@@ -739,7 +739,10 @@ describe("la puerta de la app", () => {
     expect(supa.updateUser).not.toHaveBeenCalled();
   });
 
-  test("si el invitado elige la contraseña que ya tenía, no es un error: entra", async () => {
+  test("en la bienvenida solo se entra si Supabase guardó la contraseña nueva (aunque objete que es la misma)", async () => {
+    // La cuenta invitada tiene una contraseña al azar que nadie conoce: si
+    // Supabase dice que es la misma, no se entra sin cambiarla (cambiarla
+    // cierra cualquier otra sesión de esa cuenta).
     supa.enlace = { tipo: "invite", error: "", descripcion: "" };
     supa.sesion = INVITADO;
     supa.perfil = AUTORIZADO;
@@ -748,7 +751,11 @@ describe("la puerta de la app", () => {
     }));
     await montar();
     await elegirContrasena("laquetenia1");
-    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "La contraseña nueva tiene que ser distinta de la anterior.",
+    );
   });
 
   test("si guardar la contraseña falla, lo dice y sigue en la bienvenida", async () => {
