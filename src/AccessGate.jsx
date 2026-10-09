@@ -358,10 +358,24 @@ export default function AccessGate({ children }) {
         abrirBienvenida(session);
         return;
       }
-      // El enlace de la invitación no abrió ninguna sesión (por ejemplo, ya
-      // se había salido) o es de una cuenta que no fue invitada: la entrada
-      // común, sin la marca en la URL.
-      if (esEnlaceDeInvitacion(ENLACE_DE_ACCESO) && !ENLACE_DE_ACCESO.error) limpiarParametroRecuperacion();
+      if (esEnlaceDeInvitacion(ENLACE_DE_ACCESO) && !ENLACE_DE_ACCESO.error) {
+        // El enlace de la invitación no abrió ninguna sesión. El correo ya
+        // quedó confirmado al tocarlo (y la invitación, usada): se avisa que
+        // elija su contraseña con Olvidé mi contraseña. Si fue por la señal
+        // (supabase-js no pudo leer la cuenta del enlace), la URL queda como
+        // está, para volver a cargarla con señal.
+        if (!session) {
+          const inicio = await supabase.auth.initialize?.();
+          if (!montado.current) return;
+          const sinRed = sinSenal() || esFalloDeRed(inicio?.error || errorSesion);
+          if (!sinRed) limpiarParametroRecuperacion();
+          setMensaje("");
+          setError(t(sinRed ? "acceso.error.invitacionSinSenal" : "acceso.error.invitacionSinAbrir"));
+          return;
+        }
+        // Es de una cuenta que no fue invitada: la entrada común, sin la marca en la URL.
+        limpiarParametroRecuperacion();
+      }
 
       // Un enlace del correo que no sirvió (vencido, ya usado): se avisa en
       // la puerta, sin dejar afuera a quien ya tenía la sesión abierta.

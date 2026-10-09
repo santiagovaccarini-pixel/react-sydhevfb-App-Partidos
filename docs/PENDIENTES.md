@@ -885,7 +885,11 @@ Cómo está hoy (02/10):
     club al confirmarse el correo. Si el invitado ignora el mail y usa "Crear una cuenta",
     Supabase no guarda la contraseña que eligió (la cuenta ya existía por la invitación):
     al confirmar el correo, la app le pide que la elija. Un enlace vencido dice "pedile a
-    quien te invitó que te lo reenvíe".
+    quien te invitó que te lo reenvíe". Si el enlace sirvió pero la app no pudo abrir la
+    sesión (sin señal al volver a la app, por ejemplo), la puerta lo dice: con señal,
+    volver a cargar la página (si fue la señal, la dirección queda como vino) y, si no,
+    "Olvidé mi contraseña" (el correo ya quedó confirmado y la invitación usada: no hay
+    nada que reenviar).
   - Si el correo ya tiene una cuenta sin confirmar (de una invitación anterior o porque
     alguien hizo "Crear una cuenta" con ese correo y una contraseña suya), antes de mandar
     el mail el servidor le cambia la contraseña por una al azar que nadie conoce. Al abrir

@@ -100,6 +100,9 @@ export default {
       enlaceRecuperacion: "El enlace de recuperación no es válido o ya venció. Pedí uno nuevo desde Olvidé mi contraseña.",
       invitacionVencida: "El enlace venció o ya se usó: pedile a quien te invitó que te lo reenvíe.",
       invitacionInvalida: "El enlace no es válido: pedile a quien te invitó que te lo reenvíe.",
+      // El enlace de la invitación no abrió la sesión (el correo ya quedó confirmado).
+      invitacionSinSenal: "No se pudo abrir la invitación porque no hay conexión. Con señal, volvé a cargar esta página. Si sigue sin abrir, escribí tu correo y tocá «Olvidé mi contraseña» para elegir tu contraseña.",
+      invitacionSinAbrir: "No se pudo abrir la invitación. Escribí tu correo y tocá «Olvidé mi contraseña» para elegir tu contraseña.",
       enlaceNoValido: "El enlace de recuperación no es válido. Pedí uno nuevo.",
       minimo8: "La contraseña nueva tiene que tener al menos 8 caracteres.",
       noCoinciden: "Las contraseñas no coinciden.",

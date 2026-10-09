@@ -99,6 +99,8 @@ export default {
       enlaceRecuperacion: "O link de recuperação não é válido ou já venceu. Peça um novo em Esqueci minha senha.",
       invitacionVencida: "O link venceu ou já foi usado: peça para quem te convidou reenviar.",
       invitacionInvalida: "O link não é válido: peça para quem te convidou reenviar.",
+      invitacionSinSenal: "Não foi possível abrir o convite porque não há conexão. Com sinal, carregue esta página de novo. Se continuar sem abrir, escreva seu e-mail e toque em «Esqueci minha senha» para escolher sua senha.",
+      invitacionSinAbrir: "Não foi possível abrir o convite. Escreva seu e-mail e toque em «Esqueci minha senha» para escolher sua senha.",
       enlaceNoValido: "O link de recuperação não é válido. Peça um novo.",
       minimo8: "A senha nova precisa ter pelo menos 8 caracteres.",
       noCoinciden: "As senhas não são iguais.",

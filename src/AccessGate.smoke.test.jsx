@@ -11,6 +11,9 @@ import { fijarIdiomaParaPruebas } from "./idioma/index.js";
 const supa = vi.hoisted(() => ({
   sesion: null,
   errorSesion: null,
+  // Lo que contestó supabase-js al leer el enlace del correo al abrirse
+  // (initialize): sin señal, un error y ninguna sesión.
+  errorInicio: null,
   perfil: null,
   errorPerfil: null,
   signInWithPassword: null,
@@ -37,6 +40,7 @@ vi.mock("./supabase.js", () => ({
   supabase: {
     auth: {
       getSession: () => (supa.colgarSesion ? nunca() : Promise.resolve({ data: { session: supa.sesion }, error: supa.errorSesion })),
+      initialize: () => Promise.resolve({ error: supa.errorInicio }),
       onAuthStateChange: (cb) => {
         supa.cambios.push(cb);
         return { data: { subscription: { unsubscribe() {} } } };
@@ -96,6 +100,7 @@ describe("la puerta de la app", () => {
   beforeEach(() => {
     supa.sesion = null;
     supa.errorSesion = null;
+    supa.errorInicio = null;
     supa.perfil = null;
     supa.errorPerfil = null;
     supa.consultas = [];
@@ -940,13 +945,53 @@ describe("la puerta de la app", () => {
     expect(window.location.search).toBe("");
   });
 
-  test("con la marca de invitación pero sin sesión (ya se había salido), la entrada común", async () => {
-    window.history.replaceState({}, "", "/?invitacion=1");
+  test("si el enlace de la invitación no abrió la sesión, la entrada común dice qué hacer", async () => {
+    // El correo ya quedó confirmado al tocar el enlace: con Olvidé mi
+    // contraseña elige la suya (la invitación ya se usó: no hay qué reenviar).
+    window.history.replaceState({}, "", "/?invitacion=1#access_token=vencido&type=invite");
     supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.errorInicio = new AuthApiError("Invalid JWT", 403, "bad_jwt");
     await montar();
     expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
-    expect(contenedor.querySelector(".training-access-message.error")).toBeNull();
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "No se pudo abrir la invitación. Escribí tu correo y tocá «Olvidé mi contraseña» para elegir tu contraseña.",
+    );
     expect(window.location.search).toBe("");
+    expect(window.location.hash).toBe("");
+  });
+
+  test("si el enlace de la invitación no abrió la sesión por falta de señal, lo dice y deja la URL para volver a cargarla", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1#access_token=abc.def.ghi&type=invite");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    // Así lo deja supabase-js: sin sesión, sin error en getSession y con el
+    // fragmento todavía en la URL.
+    supa.errorInicio = new AuthRetryableFetchError("Failed to fetch", 0);
+    localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(AUTORIZADO));
+    await montar();
+    const aviso =
+      "No se pudo abrir la invitación porque no hay conexión. Con señal, volvé a cargar esta página. Si sigue sin abrir, escribí tu correo y tocá «Olvidé mi contraseña» para elegir tu contraseña.";
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(aviso);
+    expect(window.location.search).toBe("?invitacion=1");
+    expect(window.location.hash).toBe("#access_token=abc.def.ghi&type=invite");
+    // No entra con la cuenta que quedó guardada en el celular.
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+
+    // Sin señal en el celular, lo mismo (y en portugués).
+    await act(async () => raiz.unmount());
+    supa.errorInicio = null;
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      await conSenal(false, async () => {
+        await montar();
+        expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+          "Não foi possível abrir o convite porque não há conexão. Com sinal, carregue esta página de novo. Se continuar sem abrir, escreva seu e-mail e toque em «Esqueci minha senha» para escolher sua senha.",
+        );
+        expect(window.location.search).toBe("?invitacion=1");
+      });
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
   });
 
   test("un enlace de recuperación vencido, con el parámetro de la app, lo dice en la pantalla de contraseña nueva", async () => {
