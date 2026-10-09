@@ -6172,6 +6172,13 @@ button.puesto-cancha {
   background: #f7f9f8;
 }
 
+/* En «Tu equipo» (Partido › Ajustes › Equipo) la fila es lo último de la
+   tarjeta: sin el margen que separaba lo de abajo. En la cuenta de OpenField
+   (Ajustes de Flujo diario) le sigue un texto, y el margen queda. */
+.equipo-propio:last-child {
+  margin-bottom: 0;
+}
+
 .equipo-propio strong {
   color: var(--cam-tinta);
   font-size: 15px;

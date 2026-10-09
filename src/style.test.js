@@ -134,3 +134,12 @@ describe("el botón Cambiar del portal se toca cómodo", () => {
     expect(reglaCon(".portal-cambiar-club::after", portal)).toContain("inset: -8px -4px");
   });
 });
+
+describe("la tarjeta «Tu equipo» no deja espacio de más abajo", () => {
+  it("la fila del club, cuando es lo último de la tarjeta, no tiene margen abajo", () => {
+    // El margen separaba el campo de renombrar, que ya no está (UI-010). Donde
+    // la fila tiene algo debajo (la cuenta de Flujo diario), el margen sigue.
+    expect(bloque(".equipo-propio")).toContain("margin-bottom: 14px");
+    expect(reglaCon(".equipo-propio:last-child")).toContain("margin-bottom: 0");
+  });
+});
