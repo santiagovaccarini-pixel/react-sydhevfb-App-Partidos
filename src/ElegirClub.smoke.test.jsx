@@ -7,15 +7,25 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 // pedidos de acceso de la cuenta y si leerlos falla.
 const datos = vi.hoisted(() => ({ clubes: [], lecturas: 0, llamadas: [], errorSalir: null, errorClubes: null, pedidos: [], errorPedidos: null }));
 
-vi.mock("./AccessGate.jsx", () => ({
-  PantallaAcceso: ({ titulo, texto, children }) => (
-    <main className="training-access-page">
-      <h1>{titulo}</h1>
-      <p>{texto}</p>
-      {children}
-    </main>
-  ),
-}));
+// Como la de verdad: arriba, el botón de volver con su etiqueta o, sin
+// etiqueta, «Volver al portal».
+vi.mock("./AccessGate.jsx", async () => {
+  const { t } = await import("./idioma/index.js");
+  return {
+    PantallaAcceso: ({ titulo, texto, onVolver, etiquetaVolver, children }) => (
+      <main className="training-access-page">
+        {onVolver && (
+          <button type="button" className="training-access-volver" onClick={onVolver}>
+            {etiquetaVolver || t("acceso.volverPortal")}
+          </button>
+        )}
+        <h1>{titulo}</h1>
+        <p>{texto}</p>
+        {children}
+      </main>
+    ),
+  };
+});
 vi.mock("./domain/equipo.js", () => ({
   cargarEquipos: async () => {
     datos.lecturas += 1;
@@ -134,6 +144,30 @@ describe("elegir club: salir del club elegido y pedir entrar a otro", () => {
     const uno = [...contenedor.querySelectorAll(".elegir-club-opcion")].find((b) => b.textContent.includes("Club Uno"));
     expect(uno.querySelector(".elegir-club-detalle").textContent).toBe("Hasta el 08/10/2026 · solo lectura");
     expect(boton(contenedor, "Salir de Club Uno")).toBeUndefined();
+  });
+
+  test("arriba dice «Salir» solo cuando cierra la sesión; desde Cambiar dice «Volver al portal» (no se confunde con «Salir de»)", async () => {
+    const onSalir = vi.fn();
+    // Recién entrado, sin club elegido: el botón de arriba cierra la sesión.
+    await montar({ club: null, onSalir });
+    expect(contenedor.querySelector(".training-access-volver").textContent).toBe("Salir");
+    await act(async () => raiz.unmount());
+
+    // Desde Cambiar (con un club elegido) vuelve al portal; abajo sigue «Salir de Club Uno».
+    await montar({ onSalir });
+    const volver = contenedor.querySelector(".training-access-volver");
+    expect(volver.textContent).toBe("Volver al portal");
+    expect(boton(contenedor, "Salir de Club Uno")).toBeTruthy();
+    await tocar(volver);
+    expect(onSalir).toHaveBeenCalledTimes(1);
+    await act(async () => raiz.unmount());
+
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    await montar();
+    expect(contenedor.querySelector(".training-access-volver").textContent).toBe("Voltar ao portal");
+    await act(async () => raiz.unmount());
+    await montar({ club: null });
+    expect(contenedor.querySelector(".training-access-volver").textContent).toBe("Sair");
   });
 
   test("sin un club elegido donde siga activo, no aparece", async () => {

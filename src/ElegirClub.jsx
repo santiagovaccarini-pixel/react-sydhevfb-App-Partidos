@@ -113,9 +113,11 @@ export default function ElegirClub({
     );
   }
 
+  // «Salir» solo cuando cierra la sesión (todavía sin club elegido). Desde
+  // Cambiar se vuelve al portal, y así no se confunde con «Salir de {club}».
   return (
     <>
-      <PantallaAcceso titulo={t("club.titulo")} texto={t("club.texto")} onVolver={onSalir} etiquetaVolver={t("comun.salir")}>
+      <PantallaAcceso titulo={t("club.titulo")} texto={t("club.texto")} onVolver={onSalir} etiquetaVolver={club ? undefined : t("comun.salir")}>
         {error && (
           <div className="training-access-message error">
             {error}{" "}
