@@ -645,6 +645,144 @@ describe("la puerta de la app", () => {
     expect(supa.consultas).toHaveLength(1);
   });
 
+  // ------------------------------------------------ Invitación por mail --
+
+  const INVITADO = {
+    access_token: "tok-invitado",
+    user: { id: "u1", email: "dt@club.com", invited_at: "2026-10-09T10:00:00Z", user_metadata: { club: "Club Uno", idioma: "es-AR" } },
+  };
+
+  const elegirContrasena = async (clave, repetida = clave) => {
+    const [nueva, otra] = contenedor.querySelectorAll('input[type="password"]');
+    await escribir(nueva, clave);
+    await escribir(otra, repetida);
+    await act(async () => {
+      contenedor.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await act(async () => Promise.resolve());
+  };
+
+  test("volviendo del mail de invitación: bienvenida al club, elige su contraseña y entra", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.perfil = AUTORIZADO;
+    await montar();
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    expect(contenedor.querySelector(".training-access-card p").textContent).toBe(
+      "Elegí tu contraseña. De ahora en más vas a entrar con dt@club.com y esta contraseña.",
+    );
+    // Un solo paso: sin Volver (sin contraseña propia no tendría con qué entrar).
+    expect(contenedor.querySelector(".training-access-volver")).toBeNull();
+    expect(boton("Guardar y entrar").disabled).toBe(false);
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+
+    // Las mismas reglas que la contraseña nueva de siempre.
+    await elegirContrasena("corta");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "La contraseña nueva tiene que tener al menos 8 caracteres.",
+    );
+    expect(supa.updateUser).not.toHaveBeenCalled();
+
+    await elegirContrasena("miclave2026");
+    expect(supa.updateUser).toHaveBeenCalledWith({ password: "miclave2026" });
+    // Adentro: la base ya lo había metido en el club al confirmarse el correo.
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+    expect(window.location.search).toBe("");
+
+    // Los avisos de sesión que siguen no vuelven a pedir la contraseña.
+    await avisar("SIGNED_IN", INVITADO);
+    await avisar("TOKEN_REFRESHED", INVITADO);
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+  });
+
+  test("sin el club en la invitación, la bienvenida va sin nombre; y en portugués", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = { ...INVITADO, user: { ...INVITADO.user, user_metadata: {} } };
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      await montar();
+      expect(contenedor.querySelector("h1").textContent).toBe("Boas-vindas");
+      expect(boton("Salvar e entrar")).toBeTruthy();
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
+  });
+
+  test("Supabase avisa la sesión de la invitación antes de contestar: igual pide la contraseña", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.colgarSesion = true;
+    await montar();
+    await avisar("SIGNED_IN", INVITADO);
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+  });
+
+  test("si el invitado usó Crear una cuenta, al confirmar el correo también elige su contraseña", async () => {
+    supa.enlace = { tipo: "signup", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    await elegirContrasena("miclave2026");
+    expect(supa.updateUser).toHaveBeenCalledWith({ password: "miclave2026" });
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+  });
+
+  test("quien se registró solo (sin invitación) y confirma el correo entra como siempre", async () => {
+    supa.enlace = { tipo: "signup", error: "", descripcion: "" };
+    supa.sesion = SESION;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
+    expect(supa.updateUser).not.toHaveBeenCalled();
+  });
+
+  test("si el invitado elige la contraseña que ya tenía, no es un error: entra", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.perfil = AUTORIZADO;
+    supa.updateUser = vi.fn(async () => ({
+      error: { code: "same_password", message: "New password should be different from the old password." },
+    }));
+    await montar();
+    await elegirContrasena("laquetenia1");
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+  });
+
+  test("si guardar la contraseña falla, lo dice y sigue en la bienvenida", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.updateUser = vi.fn(async () => ({ error: { code: "weak_password", message: "Password should contain..." } }));
+    await montar();
+    await elegirContrasena("12345678");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toContain("muy fácil de adivinar");
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+  });
+
+  test("un enlace de invitación vencido lo dice claro y pide que se lo reenvíen", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1");
+    supa.enlace = { tipo: "invite", error: "otp_expired", descripcion: "Email link is invalid or has expired" };
+    await montar();
+
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+    expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
+      "El enlace venció o ya se usó: pedile a quien te invitó que te lo reenvíe.",
+    );
+    expect(window.location.search).toBe("");
+    expect(supa.updateUser).not.toHaveBeenCalled();
+  });
+
+  test("con la marca de invitación pero sin sesión (ya se había salido), la entrada común", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
+    expect(contenedor.querySelector(".training-access-message.error")).toBeNull();
+    expect(window.location.search).toBe("");
+  });
+
   test("un enlace de recuperación vencido, con el parámetro de la app, lo dice en la pantalla de contraseña nueva", async () => {
     window.history.replaceState({}, "", "/?training_recovery=1");
     supa.enlace = { tipo: "", error: "otp_expired", descripcion: "Email link is invalid or has expired" };
