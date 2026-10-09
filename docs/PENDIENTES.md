@@ -882,7 +882,11 @@ Cómo está hoy (02/10):
     mismo sin la clave del servidor (`SUPABASE_SECRET_KEY`) o si el mail no sale.
   - El enlace vuelve a la app (`/?invitacion=1`) con la sesión abierta: "Bienvenido/a a
     [club]", elige su contraseña ("Guardar y entrar") y entra; la base ya lo metió en el
-    club al confirmarse el correo. Si el invitado ignora el mail y usa "Crear una cuenta",
+    club al confirmarse el correo. Si cierra la app en la bienvenida y la vuelve a abrir en
+    ese celular (ya sin el enlace), se le sigue pidiendo: el celular anota esa cuenta hasta
+    que elige la contraseña (solo esa cuenta; otra entra como siempre). En otro aparato no
+    tiene sesión ni contraseña: entra con "Olvidé mi contraseña". Si el invitado ignora el
+    mail y usa "Crear una cuenta",
     Supabase no guarda la contraseña que eligió (la cuenta ya existía por la invitación):
     al confirmar el correo, la app le pide que la elija. Un enlace vencido dice "pedile a
     quien te invitó que te lo reenvíe". Si el enlace sirvió pero la app no pudo abrir la

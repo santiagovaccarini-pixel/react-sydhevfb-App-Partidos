@@ -821,6 +821,49 @@ describe("la puerta de la app", () => {
     expect(contenedor.querySelector(".adentro")).not.toBeNull();
   });
 
+  test("si cerró la app en la bienvenida y la vuelve a abrir desde el inicio, sigue pidiendo la contraseña", async () => {
+    window.history.replaceState({}, "", "/?invitacion=1");
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    supa.perfil = AUTORIZADO;
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+
+    // Vuelve a abrir la app desde el inicio: sin la marca ni el enlace en la
+    // URL, pero con la sesión que abrió el enlace guardada en el celular.
+    await act(async () => raiz.unmount());
+    window.history.replaceState({}, "", "/");
+    supa.enlace = { tipo: "", error: "", descripcion: "" };
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+    expect(contenedor.querySelector(".adentro")).toBeNull();
+
+    await elegirContrasena("miclave2026");
+    expect(supa.updateUser).toHaveBeenCalledWith({ password: "miclave2026" });
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+
+    // Con la contraseña elegida, la próxima vez entra directo.
+    await act(async () => raiz.unmount());
+    await montar();
+    expect(contenedor.querySelector(".adentro")).not.toBeNull();
+    expect(supa.updateUser).toHaveBeenCalledTimes(1);
+  });
+
+  test("la bienvenida pendiente es de esa cuenta: otra cuenta del mismo celular entra como siempre", async () => {
+    supa.enlace = { tipo: "invite", error: "", descripcion: "" };
+    supa.sesion = INVITADO;
+    await montar();
+    expect(contenedor.querySelector("h1").textContent).toBe("Bienvenido/a a Club Uno");
+
+    await act(async () => raiz.unmount());
+    supa.enlace = { tipo: "", error: "", descripcion: "" };
+    supa.sesion = { access_token: "otro", user: { id: "u2", email: "otra@club.com", invited_at: "2026-10-01T10:00:00Z" } };
+    supa.perfil = { ...AUTORIZADO, user_id: "u2", email: "otra@club.com" };
+    await montar();
+    expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro otra@club.com");
+    expect(supa.updateUser).not.toHaveBeenCalled();
+  });
+
   test("sin el club en la invitación, la bienvenida va sin nombre; y en portugués", async () => {
     supa.enlace = { tipo: "invite", error: "", descripcion: "" };
     supa.sesion = { ...INVITADO, user: { ...INVITADO.user, user_metadata: {} } };

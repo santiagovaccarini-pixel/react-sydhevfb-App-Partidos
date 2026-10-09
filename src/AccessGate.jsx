@@ -33,8 +33,31 @@ const esRecuperacionSolicitada = () => {
 // desde "Crear una cuenta"): la cuenta tiene una contraseña al azar que nadie
 // conoce (la pone Supabase o, si la cuenta ya existía sin confirmar, el
 // servidor al mandar el mail), así que antes de entrar elige la suya. Un
-// enlace que no sirvió no pide nada: se avisa.
-const esInvitacionSolicitada = (usuario) => !ENLACE_DE_ACCESO.error && vieneDeInvitacion(ENLACE_DE_ACCESO, usuario);
+// enlace que no sirvió no pide nada: se avisa. Si cerró la app en la
+// bienvenida, al volver a abrirla en este celular (ya sin el enlace en la
+// URL) se le sigue pidiendo.
+const esInvitacionSolicitada = (usuario) =>
+  (!ENLACE_DE_ACCESO.error && vieneDeInvitacion(ENLACE_DE_ACCESO, usuario)) ||
+  (Boolean(usuario?.id && usuario?.invited_at) && bienvenidaPendiente() === usuario.id);
+
+// La cuenta que abrió la bienvenida en este celular y todavía no eligió su
+// contraseña. Solo vale para esa cuenta: cualquier otra entra como siempre.
+const CLAVE_BIENVENIDA_PENDIENTE = "bienvenida_pendiente";
+const bienvenidaPendiente = () => {
+  try {
+    return localStorage.getItem(CLAVE_BIENVENIDA_PENDIENTE) || "";
+  } catch {
+    return "";
+  }
+};
+const anotarBienvenidaPendiente = (userId) => {
+  try {
+    if (userId) localStorage.setItem(CLAVE_BIENVENIDA_PENDIENTE, userId);
+    else localStorage.removeItem(CLAVE_BIENVENIDA_PENDIENTE);
+  } catch {
+    // Sin localStorage, la bienvenida la pide solo el enlace.
+  }
+};
 
 export const limpiarParametroRecuperacion = () => {
   if (typeof window === "undefined") return;
@@ -216,6 +239,7 @@ export default function AccessGate({ children }) {
   const pideBienvenida = (session) =>
     Boolean(session?.user) && !invitacionAtendida.current && esInvitacionSolicitada(session.user);
   const abrirBienvenida = (session) => {
+    anotarBienvenidaPendiente(session.user?.id || "");
     setBienvenida({ club: String(session.user?.user_metadata?.club || "").trim(), correo: session.user?.email || "" });
     setModoRecuperacion(true);
     setSesionRecuperacion(session);
@@ -610,6 +634,7 @@ export default function AccessGate({ children }) {
       // de esa cuenta.
       if (errorUpdate) throw errorUpdate;
       invitacionAtendida.current = true;
+      if (bienvenidaPendiente() === sesionRecuperacion.user?.id) anotarBienvenidaPendiente(null);
 
       const { data, error: errorSesion } = await supabase.auth.getSession();
       if (errorSesion) throw errorSesion;
