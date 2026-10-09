@@ -49,8 +49,8 @@ for migracion in "$RAIZ"/supabase/migrations/*.sql; do
       "$migracion" | $PSQL -f -
 done
 # Antes, tres invitaciones de administrador como las de antes del paso 2: al
-# volver a correr la última (la de dueños, 20261014), la abierta pasa a staff
-# y la cancelada y la vencida quedan como estaban (lo miran los escenarios).
+# volver a correr la de dueños (20261014), la abierta pasa a staff y la
+# cancelada y la vencida quedan como estaban (lo miran los escenarios).
 $PSQL -c "insert into public.club_invitaciones (equipo_id, email, rol, cancelada_en, vence_en)
           select e.id, x.email, 'admin', x.cancelada_en, x.vence_en
             from public.equipos e,
@@ -58,8 +58,11 @@ $PSQL -c "insert into public.club_invitaciones (equipo_id, email, rol, cancelada
                          ('jefa.cancelada@prueba.com', now(), now() + interval '14 days'),
                          ('jefa.vencida@prueba.com', null, now() - interval '1 day')) as x (email, cancelada_en, vence_en)
            where e.nombre = 'Atlético Mineiro'"
-# La última se corre otra vez, y sin completar los marcadores: lo que se
+# La de dueños se corre otra vez, y sin completar los marcadores: lo que se
 # publica dice que se puede volver a correr, y acá se comprueba.
+echo "→ 20261014_duenos_y_pedidos.sql (otra vez)"
+$PSQL -f "$RAIZ/supabase/migrations/20261014_duenos_y_pedidos.sql" >/dev/null
+# La última, también otra vez.
 ULTIMA=$(ls "$RAIZ"/supabase/migrations/*.sql | grep -v revisar | sort | tail -1)
 echo "→ $(basename "$ULTIMA") (otra vez)"
 $PSQL -f "$ULTIMA" >/dev/null

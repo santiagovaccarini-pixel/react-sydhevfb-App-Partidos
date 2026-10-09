@@ -72,39 +72,42 @@ const todas = async (pedir) => {
 const fotoAlDia = (tabla, equipoId) =>
   todas((desde, hasta) => supabase.rpc("datos_al_dia", { p_tabla: tabla, p_equipo: equipoId }).range(desde, hasta));
 
-// Las evaluaciones de un test, en el orden de carga.
-export const listarEvaluaciones = async (equipoId, test) => {
+// Las evaluaciones del club, de todos los tests (o de uno, si se pide), en el
+// orden de carga.
+export const listarEvaluaciones = async (equipoId, test = null) => {
   if (!equipoId) return { evaluaciones: [], error: "" };
   if (esSoloLectura(equipoId)) {
     const { filas, error } = await fotoAlDia("evaluaciones", equipoId);
     if (error) return { evaluaciones: [], ...fallo(error, "evaluaciones.error.noLeer") };
     return {
       evaluaciones: filas
-        .filter((fila) => fila && typeof fila === "object" && fila.test === test)
+        .filter((fila) => fila && typeof fila === "object" && (!test || fila.test === test))
         .map(normalizarEvaluacion)
         .sort((a, b) => a.orden - b.orden),
       error: "",
     };
   }
-  const { filas, error } = await todas((desde, hasta) =>
-    supabase.from("evaluaciones").select(COLUMNAS).eq("equipo_id", equipoId).eq("test", test).order("orden", { ascending: true }).range(desde, hasta),
-  );
+  const { filas, error } = await todas((desde, hasta) => {
+    const consulta = supabase.from("evaluaciones").select(COLUMNAS).eq("equipo_id", equipoId);
+    return (test ? consulta.eq("test", test) : consulta).order("orden", { ascending: true }).range(desde, hasta);
+  });
   if (error) return { evaluaciones: [], ...fallo(error, "evaluaciones.error.noLeer") };
   return { evaluaciones: filas.map(normalizarEvaluacion), error: "" };
 };
 
-// Los valores de referencia del test en el club (null si todavía no están).
-export const leerReferencias = async (equipoId, test) => {
-  if (!equipoId) return { referencias: null, error: "" };
+// Los valores de referencia del club, por test: { test: datos } (un test que
+// todavía no los tiene no está).
+export const leerReferencias = async (equipoId) => {
+  if (!equipoId) return { referencias: {}, error: "" };
+  const porTest = (filas) => Object.fromEntries(filas.filter((fila) => fila && typeof fila === "object" && fila.test && fila.datos).map((fila) => [fila.test, fila.datos]));
   if (esSoloLectura(equipoId)) {
     const { filas, error } = await fotoAlDia("evaluaciones_referencias", equipoId);
-    if (error) return { referencias: null, ...fallo(error, "evaluaciones.error.noLeer") };
-    const fila = filas.find((una) => una && una.test === test);
-    return { referencias: fila?.datos || null, error: "" };
+    if (error) return { referencias: {}, ...fallo(error, "evaluaciones.error.noLeer") };
+    return { referencias: porTest(filas), error: "" };
   }
-  const { data, error } = await supabase.from("evaluaciones_referencias").select("datos").eq("equipo_id", equipoId).eq("test", test).maybeSingle();
-  if (error) return { referencias: null, ...fallo(error, "evaluaciones.error.noLeer") };
-  return { referencias: data?.datos || null, error: "" };
+  const { data, error } = await supabase.from("evaluaciones_referencias").select("test, datos").eq("equipo_id", equipoId);
+  if (error) return { referencias: {}, ...fallo(error, "evaluaciones.error.noLeer") };
+  return { referencias: porTest(Array.isArray(data) ? data : []), error: "" };
 };
 
 export const crearEvaluacion = async (equipoId, test, evaluacion) => {
@@ -126,5 +129,76 @@ export const actualizarEvaluacion = async (id, evaluacion) => {
 export const borrarEvaluacion = async (id) => {
   const { error } = await supabase.from("evaluaciones").delete().eq("id", id);
   if (error) return fallo(error, "evaluaciones.error.noBorrar");
+  return { error: "" };
+};
+
+// ------------------------------------------------------------- Ajustes --
+// El nombre de cada cabecera y las opciones de cada lista en el club
+// (migración 20261015_evaluaciones_ajustes.sql). Sin esas tablas todavía, la
+// app sigue con los nombres del Excel: los Ajustes avisan al guardar.
+
+const COLUMNAS_CAMPOS = "test, campo, etiqueta_es, etiqueta_pt, oculto, orden";
+const COLUMNAS_OPCIONES = "lista, codigo, etiqueta_es, etiqueta_pt, oculto, orden";
+
+// { campos: [filas], opciones: [filas], error }. Si las tablas todavía no
+// están, vuelve vacío y sin error (valen los nombres del Excel).
+export const leerAjustes = async (equipoId) => {
+  if (!equipoId) return { campos: [], opciones: [], error: "" };
+  const [campos, opciones] = await Promise.all([
+    supabase.from("evaluaciones_campos").select(COLUMNAS_CAMPOS).eq("equipo_id", equipoId),
+    supabase.from("evaluaciones_opciones").select(COLUMNAS_OPCIONES).eq("equipo_id", equipoId).order("orden", { ascending: true }),
+  ]);
+  const error = campos.error || opciones.error;
+  if (error) {
+    const clave = claveDeErrorEvaluaciones(error, "evaluaciones.error.noLeer");
+    if (clave === "evaluaciones.error.faltaMigracion") return { campos: [], opciones: [], error: "" };
+    return { campos: [], opciones: [], error: clave };
+  }
+  return { campos: campos.data || [], opciones: opciones.data || [], error: "" };
+};
+
+const sinMigracionDeAjustes = (error) => {
+  const texto = `${error?.message || ""} ${error?.details || ""}`;
+  return ["42P01", "PGRST205"].includes(error?.code) || (/evaluaciones_(campos|opciones)/.test(texto) && /does not exist|schema cache|Could not find/i.test(texto));
+};
+
+const falloDeAjustes = (error) =>
+  sinMigracionDeAjustes(error) ? { error: "evaluaciones.ajustes.faltaMigracion" } : { error: claveDeErrorEvaluaciones(error, "evaluaciones.ajustes.errorGuardar") };
+
+const textoLimpio = (texto) => String(texto || "").trim();
+
+export const guardarCabecera = async (equipoId, test, campo, { etiquetas = {}, oculto = false, orden = 0 }) => {
+  const { error } = await supabase.from("evaluaciones_campos").upsert(
+    {
+      equipo_id: equipoId,
+      test,
+      campo,
+      etiqueta_es: textoLimpio(etiquetas["es-AR"]),
+      etiqueta_pt: textoLimpio(etiquetas["pt-BR"]),
+      oculto: Boolean(oculto),
+      orden,
+      actualizado_en: new Date().toISOString(),
+    },
+    { onConflict: "equipo_id,test,campo" },
+  );
+  if (error) return falloDeAjustes(error);
+  return { error: "" };
+};
+
+export const guardarOpcionDeLista = async (equipoId, lista, { codigo, etiquetas = {}, oculto = false, orden = 0 }) => {
+  const { error } = await supabase.from("evaluaciones_opciones").upsert(
+    {
+      equipo_id: equipoId,
+      lista,
+      codigo,
+      etiqueta_es: textoLimpio(etiquetas["es-AR"]),
+      etiqueta_pt: textoLimpio(etiquetas["pt-BR"]),
+      oculto: Boolean(oculto),
+      orden,
+      actualizado_en: new Date().toISOString(),
+    },
+    { onConflict: "equipo_id,lista,codigo" },
+  );
+  if (error) return falloDeAjustes(error);
   return { error: "" };
 };

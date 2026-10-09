@@ -739,6 +739,51 @@ select pruebas.esperar('...pero siguen estando', (select count(*) from evaluacio
 select pruebas.esperar('...y la que corrigió la preparadora sigue diciendo que la cambió ella', (select actualizado_por::text from evaluaciones where persona = 'Cata Tres'), '00000000-0000-0000-0000-000000000015');
 select pruebas.esperar('...con lo que cargó', (select datos ->> 'lumbar' from evaluaciones where persona = 'Cata Tres'), '201');
 
+-- --------------------------------------------- Evaluaciones › Ajustes --
+
+-- El nombre de cada cabecera y las opciones de cada lista, por club (como
+-- Lesiones › Ajustes). La preparadora tiene Evaluaciones en Uno.
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('La preparadora le cambia el nombre a una cabecera en Uno', pruebas.filas($$insert into evaluaciones_campos (equipo_id, test, campo, etiqueta_es, etiqueta_pt) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 'lumbar', 'Lumbar (min)', 'Lombar (min)')$$), 1);
+select pruebas.esperar('...y suma una opción a Selección', pruebas.filas($$insert into evaluaciones_opciones (equipo_id, lista, codigo, etiqueta_es, etiqueta_pt, orden) values ('00000000-0000-0000-0000-0000000000c1', 'seleccion', 'reserva_1', 'Reserva', 'Reserva', 6)$$), 1);
+select pruebas.esperar('...y la vuelve a cambiar', pruebas.filas($$update evaluaciones_campos set oculto = true where campo = 'lumbar'$$), 1);
+select pruebas.esperar('...y las ve', (select count(*) from evaluaciones_campos) + (select count(*) from evaluaciones_opciones), 2);
+select pruebas.debe_fallar('Un test mal escrito no se guarda', $$insert into evaluaciones_campos (equipo_id, test, campo) values ('00000000-0000-0000-0000-0000000000c1', 'Zona Media', 'prono')$$, 'evaluaciones_campos_test');
+select pruebas.debe_fallar('...ni un nombre de más de 120 letras', $$insert into evaluaciones_campos (equipo_id, test, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 'prono', repeat('x', 121))$$, 'evaluaciones_campos_etiquetas');
+select pruebas.debe_fallar('No se cambia nada de otro club', $$insert into evaluaciones_opciones (equipo_id, lista, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c2', 'seleccion', 'espia', 'Espía')$$, 'row-level security');
+reset role;
+
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('Con Lesiones y sin Evaluaciones no se ven los Ajustes de Evaluaciones', (select count(*) from evaluaciones_campos) + (select count(*) from evaluaciones_opciones), 0);
+select pruebas.debe_fallar('...ni se cambian', $$insert into evaluaciones_campos (equipo_id, test, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 'prono', 'Prono')$$, 'row-level security');
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto, admin de Uno sin Evaluaciones, tampoco los ve', (select count(*) from evaluaciones_campos), 0);
+select pruebas.esperar('...ni los borra', pruebas.filas($$delete from evaluaciones_opciones$$), 0);
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de otro club) no ve los de Uno', (select count(*) from evaluaciones_opciones where equipo_id = :C1), 0);
+select pruebas.esperar('...ni los cambia', pruebas.filas($$update evaluaciones_campos set etiqueta_es = 'Espía'$$), 0);
+reset role;
+set role anon;
+select pruebas.debe_fallar('Sin cuenta no se ven las cabeceras de Evaluaciones', 'select count(*) from evaluaciones_campos', 'permission denied');
+select pruebas.debe_fallar('...ni las listas', 'select count(*) from evaluaciones_opciones', 'permission denied');
+reset role;
+
+-- Quien se fue mira lo que había, pero no cambia nada.
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('La preparadora se va de Uno', pruebas.filas($$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-000000000015' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('...sigue viendo los Ajustes de Uno', (select count(*) from evaluaciones_campos) + (select count(*) from evaluaciones_opciones), 2);
+select pruebas.esperar('...pero no los cambia', pruebas.filas($$update evaluaciones_campos set oculto = false$$), 0);
+select pruebas.debe_fallar('...ni suma opciones', $$insert into evaluaciones_opciones (equipo_id, lista, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'seleccion', 'otra', 'Otra')$$, 'row-level security');
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto la reincorpora', pruebas.filas($$update club_miembros set hasta = null where user_id = '00000000-0000-0000-0000-000000000015' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select pruebas.esperar('Los Ajustes de Uno siguen como los dejó', (select etiqueta_es || ',' || oculto from evaluaciones_campos where equipo_id = :C1 and campo = 'lumbar'), 'Lumbar (min),true');
+
 -- ------------------------------------------------------------- Seguridad --
 
 -- El historial de una lesión borrada no se abre con su id desde otro club.
