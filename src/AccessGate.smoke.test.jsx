@@ -1,5 +1,6 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
+import { AuthClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import AccessGate from "./AccessGate.jsx";
 import { CLAVE_PERFIL_LOCAL } from "./domain/perfilesDb.js";
@@ -61,6 +62,31 @@ vi.mock("./supabase.js", () => ({
 }));
 
 const SESION = { access_token: "tok", user: { id: "u1", email: "dt@club.com" } };
+
+// El error tal como lo arma supabase-js (el de verdad) ante lo que contesta
+// Supabase, o ante un pedido que no llega (`respuesta` es un Error).
+const errorDeSupabase = async (accion, respuesta) => {
+  const cliente = new AuthClient({
+    url: "https://proyecto.supabase.co/auth/v1",
+    headers: { apikey: "sb_publishable_prueba" },
+    fetch: async () => {
+      if (respuesta instanceof Error) throw respuesta;
+      return respuesta;
+    },
+    storageKey: `prueba-${Math.random()}`,
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  });
+  const { error } =
+    accion === "signUp"
+      ? await cliente.signUp({ email: "dt@club.com", password: "secreta123" })
+      : await cliente.resetPasswordForEmail("dt@club.com");
+  return error;
+};
+
+const respuestaJson = (status, cuerpo) =>
+  new Response(JSON.stringify(cuerpo), { status, headers: { "Content-Type": "application/json" } });
 const AUTORIZADO = { user_id: "u1", email: "dt@club.com", estado: "autorizado", partido: true, flujo: false, admin: false, confirmado_en: "2026-09-01" };
 
 describe("la puerta de la app", () => {
@@ -320,6 +346,55 @@ describe("la puerta de la app", () => {
     expect(contenedor.querySelector(".training-access-message.error").textContent).toBe(
       "Revisá el correo: así no es válido. Fijate que no termine en punto ni tenga espacios.",
     );
+  });
+
+  const pedirMail = async (accion, etiqueta = accion === "signUp" ? "Crear una cuenta" : "Olvidé mi contraseña") => {
+    await escribir(contenedor.querySelector('input[type="email"]'), "dt@club.com");
+    await escribir(contenedor.querySelector('input[type="password"]'), "secreta123");
+    await act(async () => boton(etiqueta).click());
+    return contenedor.querySelector(".training-access-message.error")?.textContent;
+  };
+
+  test("si Supabase contesta con un error suyo (5xx) al mandar el mail, lo dice: no es falta de señal", async () => {
+    // Por ejemplo, falló el SMTP: Supabase contesta 500 y supabase-js lo marca
+    // como reintentable, igual que la falta de señal.
+    const casos = [
+      ["resetPasswordForEmail", respuestaJson(500, { code: 500, error_code: "unexpected_failure", msg: "Error sending recovery email" })],
+      ["signUp", respuestaJson(500, { code: 500, error_code: "unexpected_failure", msg: "Error sending confirmation email" })],
+      ["signUp", new Response("<html>Bad gateway</html>", { status: 502 })],
+    ];
+    for (const [accion, respuesta] of casos) {
+      const error = await errorDeSupabase(accion, respuesta);
+      expect(error.name).toBe("AuthRetryableFetchError");
+      expect(error.status).toBeGreaterThanOrEqual(500);
+      supa.resetPasswordForEmail = vi.fn(async () => ({ error }));
+      supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error }));
+      if (raiz) await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail(accion)).toBe("No se pudo mandar el mail. Probá de nuevo en un rato.");
+    }
+
+    // En portugués también.
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail("signUp", "Criar uma conta")).toBe("Não foi possível enviar o e-mail. Tente de novo daqui a pouco.");
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
+  });
+
+  test("sin señal de verdad (el pedido no llega), Olvidé mi contraseña y Crear una cuenta siguen diciendo que no hay conexión", async () => {
+    for (const accion of ["resetPasswordForEmail", "signUp"]) {
+      const error = await errorDeSupabase(accion, new TypeError("Failed to fetch"));
+      expect([error.name, error.status]).toEqual(["AuthRetryableFetchError", 0]);
+      supa.resetPasswordForEmail = vi.fn(async () => ({ error }));
+      supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error }));
+      if (raiz) await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail(accion)).toBe("No hay conexión. Fijate la señal y probá de nuevo.");
+    }
   });
 
   test("volviendo del enlace de recuperación sin sesión, pide uno nuevo y deja volver", async () => {

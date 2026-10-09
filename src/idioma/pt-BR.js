@@ -110,6 +110,7 @@ export default {
       noCrear: "Não foi possível criar a conta.",
       escribiCorreo: "Primeiro escreva seu e-mail, assim enviamos o link.",
       noEnviarCorreo: "Não foi possível enviar o e-mail de recuperação.",
+      correoNoSalio: "Não foi possível enviar o e-mail. Tente de novo daqui a pouco.",
       noCambiarContrasena: "Não foi possível trocar a senha.",
     },
     cuentaCreada: "Conta criada. Enviamos um e-mail para confirmá-la: abra o link e entre de novo. Depois o administrador precisa autorizá-la.",

@@ -894,6 +894,11 @@ Cómo está hoy (02/10):
     sin haber abierto nunca ese buzón. Si no se puede comprobar la cuenta o cambiarle la
     contraseña, el mail no sale. En la bienvenida solo se entra si Supabase guardó la
     contraseña nueva (eso cierra cualquier otra sesión de la cuenta).
+  - Si Supabase contesta con un error suyo (5xx) a "Olvidé mi contraseña" o "Crear una
+    cuenta" (por ejemplo, falló el SMTP), la puerta dice "No se pudo mandar el mail. Probá
+    de nuevo en un rato." y no "No hay conexión" (supabase-js marca los dos casos igual;
+    se distinguen por el estado). Sin señal de verdad sigue diciendo "No hay conexión", y
+    la entrada con la copia del celular no cambia.
   - El enlace del mail dura lo que diga "Email OTP Expiration" (24 h, el máximo del
     panel); la invitación, 14 días. "Reenviar mail" manda un enlace nuevo y el anterior
     deja de servir.

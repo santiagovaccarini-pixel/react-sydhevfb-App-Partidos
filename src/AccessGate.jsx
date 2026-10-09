@@ -67,6 +67,16 @@ const textoDeErrorDeContrasena = (error, porDefecto) => {
 
 const sinSenal = () => typeof navigator !== "undefined" && navigator.onLine === false;
 
+// Supabase contestó, pero con un error suyo (5xx): hubo señal y del otro lado
+// algo falló. En "Olvidé mi contraseña" y "Crear una cuenta" es casi siempre
+// el envío del mail. supabase-js lo marca como reintentable, igual que la
+// falta de señal (por eso esFalloDeRed lo cuenta): se distingue por el estado.
+const esFalloDelServidor = (error) => !sinSenal() && Number(error?.status) >= 500;
+
+// Los errores de lo que manda un mail (Olvidé mi contraseña, Crear una cuenta).
+const textoDeErrorDeMail = (error, porDefecto) =>
+  esFalloDelServidor(error) ? t("acceso.error.correoNoSalio") : textoDeErrorDeAcceso(error, porDefecto);
+
 // Un fallo de red: no hay señal, o hay barras pero los datos no pasan.
 // Supabase lo marca como reintentable; el navegador, como un fetch que falló.
 export const esFalloDeRed = (error) =>
@@ -518,7 +528,7 @@ export default function AccessGate({ children }) {
         setMensaje(t("acceso.cuentaCreada"));
       }
     } catch (errorRegistro) {
-      setError(textoDeErrorDeAcceso(errorRegistro, errorRegistro?.message || t("acceso.error.noCrear")));
+      setError(textoDeErrorDeMail(errorRegistro, errorRegistro?.message || t("acceso.error.noCrear")));
     } finally {
       cambiarAccion("");
     }
@@ -544,7 +554,7 @@ export default function AccessGate({ children }) {
 
       setMensaje(t("acceso.enlaceEnviado"));
     } catch (errorReset) {
-      setError(textoDeErrorDeAcceso(errorReset, errorReset?.message || t("acceso.error.noEnviarCorreo")));
+      setError(textoDeErrorDeMail(errorReset, errorReset?.message || t("acceso.error.noEnviarCorreo")));
     } finally {
       cambiarAccion("");
     }

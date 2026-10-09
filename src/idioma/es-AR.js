@@ -111,6 +111,8 @@ export default {
       noCrear: "No se pudo crear la cuenta.",
       escribiCorreo: "Primero escribí tu correo, así te mandamos el enlace.",
       noEnviarCorreo: "No se pudo enviar el correo de recuperación.",
+      // Supabase contestó con un error suyo (5xx), por ejemplo, falló el envío.
+      correoNoSalio: "No se pudo mandar el mail. Probá de nuevo en un rato.",
       noCambiarContrasena: "No se pudo cambiar la contraseña.",
     },
     cuentaCreada: "Cuenta creada. Te mandamos un correo para confirmarla: abrí el enlace y volvé a entrar. Después el administrador tiene que autorizarla.",
