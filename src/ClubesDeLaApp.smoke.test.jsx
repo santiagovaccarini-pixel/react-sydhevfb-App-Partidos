@@ -33,6 +33,7 @@ vi.mock("./supabase.js", () => ({
 
 const { default: ClubesDeLaApp } = await import("./ClubesDeLaApp.jsx");
 const { fijarIdiomaParaPruebas } = await import("./idioma/index.js");
+const { ZONAS_DE_CLUB } = await import("./domain/plataformaDb.js");
 
 const CLUB_UNO = { equipo_id: "c1", nombre: "Club Uno", correo_entidad: "ent@uno.com", correo_admin: "ana@uno.com", personas: 3 };
 const CLUB_DOS = { equipo_id: "c2", nombre: "Club Dos", correo_entidad: null, correo_admin: null, personas: 1 };
@@ -154,6 +155,39 @@ describe("Clubes de la app", () => {
     expect(llamadasA("panel_clubes")).toHaveLength(2);
     expect(nombre.value).toBe("");
     expect(formulario.querySelector("select").value).toBe("America/Sao_Paulo");
+  });
+
+  test("la zona horaria se elige por su nombre escrito a mano, en el idioma de la app; se guarda la zona", async () => {
+    await montar();
+    const opciones = () => [...contenedor.querySelectorAll(".panel-crear select option")].map((opcion) => [opcion.value, opcion.textContent]);
+    expect(opciones()).toEqual([
+      ["America/Sao_Paulo", "São Paulo"],
+      ["America/Argentina/Buenos_Aires", "Buenos Aires"],
+      ["America/Montevideo", "Montevideo"],
+      ["America/Santiago", "Santiago"],
+      ["America/Asuncion", "Asunción"],
+      ["America/Bogota", "Bogotá"],
+      ["America/Lima", "Lima"],
+      ["America/Mexico_City", "Ciudad de México"],
+      ["Europe/Madrid", "Madrid"],
+      ["Europe/Lisbon", "Lisboa"],
+    ]);
+
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    expect(opciones().map(([, nombre]) => nombre)).toEqual([
+      "São Paulo",
+      "Buenos Aires",
+      "Montevidéu",
+      "Santiago",
+      "Assunção",
+      "Bogotá",
+      "Lima",
+      "Cidade do México",
+      "Madri",
+      "Lisboa",
+    ]);
+    // Lo que se guarda no cambia: la zona.
+    expect(opciones().map(([valor]) => valor)).toEqual([...ZONAS_DE_CLUB]);
   });
 
   test("asignar, cambiar (confirmando el anterior y el nuevo) y sacar la entidad", async () => {

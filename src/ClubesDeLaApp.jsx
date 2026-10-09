@@ -297,7 +297,7 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
                   <select value={zona} onChange={(evento) => setZona(evento.target.value)}>
                     {ZONAS_DE_CLUB.map((una) => (
                       <option key={una} value={una}>
-                        {nombreDeZona(una)}
+                        {t(`panel.zonas.${una}`, {}, nombreDeZona(una))}
                       </option>
                     ))}
                   </select>
