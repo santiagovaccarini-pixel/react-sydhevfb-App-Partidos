@@ -1003,7 +1003,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                         </tr>
                       </thead>
                       <tbody>
-                        {test.filasDeReferencia.map((fila) => (
+                        {/* Una tabla puede tener sus propias filas (el ratio de Iso Aductor-Abductor: Malo, Regular, Bueno, Regular, Malo). */}
+                        {(tabla.filas || test.filasDeReferencia).map((fila) => (
                           <tr key={fila.clave}>
                             <th scope="row">{fila.titulo[idioma]}</th>
                             {tabla.metricas.map((metrica) => (

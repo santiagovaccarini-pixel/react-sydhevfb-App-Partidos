@@ -23,6 +23,7 @@ const datos = vi.hoisted(() => ({
   referenciasCurl: null,
   referenciasIso: null,
   referenciasTobillo: null,
+  referenciasAductor: null,
 }));
 
 // Los V.R. de prueba, en la unidad del Excel (los tiempos, segundos ÷ 1440).
@@ -93,6 +94,7 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
       ...(datos.referenciasCurl ? { curl_nordico_isoprone: datos.referenciasCurl } : {}),
       ...(datos.referenciasIso ? { isocinecia: datos.referenciasIso } : {}),
       ...(datos.referenciasTobillo ? { movilidad_tobillo: datos.referenciasTobillo } : {}),
+      ...(datos.referenciasAductor ? { iso_aductor_abductor: datos.referenciasAductor } : {}),
     },
     error: "",
   }),
@@ -197,6 +199,7 @@ describe("Evaluaciones", () => {
     datos.referenciasCurl = null;
     datos.referenciasIso = null;
     datos.referenciasTobillo = null;
+    datos.referenciasAductor = null;
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -663,6 +666,7 @@ describe("Evaluaciones", () => {
       "Movilidad de Cadera",
       "Movilidad de Isquio",
       "Estabilidad rotacional",
+      "Iso Aductor-Abductor",
     ]);
     expect(botones(contenedor).some((b) => b.textContent === "Curl Nórdico e Isoprone")).toBe(false);
     await elegirTest(contenedor, "Curl Nórdico e Isoprone");
@@ -762,7 +766,15 @@ describe("Evaluaciones", () => {
     await irA(contenedor, "Cargar");
     await tocar(boton(contenedor, "Nueva evaluación"));
     const deLaCarga = contenedor.querySelector("select.evaluaciones-elegir-test-lista");
-    expect([...deLaCarga.options].map((opcion) => opcion.textContent)).toEqual(["Zona Media", "Curl Nórdico e Isoprone", "Movilidad de Tobillo", "Movilidad de Cadera", "Movilidad de Isquio", "Estabilidad rotacional"]);
+    expect([...deLaCarga.options].map((opcion) => opcion.textContent)).toEqual([
+      "Zona Media",
+      "Curl Nórdico e Isoprone",
+      "Movilidad de Tobillo",
+      "Movilidad de Cadera",
+      "Movilidad de Isquio",
+      "Estabilidad rotacional",
+      "Iso Aductor-Abductor",
+    ]);
     expect(deLaCarga.value).toBe("zona_media");
   });
 
@@ -842,6 +854,51 @@ describe("Evaluaciones", () => {
     expect(datos.creadas).toEqual([
       { equipoId: "eq-1", test: "estabilidad_rotacional", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { cifosis_derecha_derecha: "alta_y_baja", completa_recorrido_izquierda: "no_1_y_2" } } },
     ]);
+  });
+
+  test("Iso Aductor-Abductor: dos bloques y el ratio, con la comparación «Vs …» y los V.R. del ratio con los nombres del Excel", async () => {
+    datos.evaluaciones.push({
+      ...evaluacion("a1", 50, 1, "2026-06-27", {}),
+      test: "iso_aductor_abductor",
+      datos: { seleccion: "mayor", pc: 80, ad_pd: 240, ad_pi: 216, ab_pd: 200, ab_pi: 200 },
+    });
+    const V = (rel, deficit, ratio) => ({ ad_pd_rel: rel, ad_pi_rel: rel, ad_deficit: deficit, ab_pd_rel: rel, ab_pi_rel: rel, ab_deficit: deficit, ratio_pd: ratio, ratio_pi: ratio });
+    datos.referenciasAductor = {
+      categorias: {
+        mayor: {
+          titulos: { aductor: "V.R. de prueba Aductor", abductor: "V.R. de prueba Abductor", ratio: "V.R. de prueba Ratio" },
+          n: { ad_pd_rel: 9 },
+          excelente: V(3.5, 0.02, 1.15),
+          muy_bueno: V(3, 0.05, 1.07),
+          bueno: V(2.5, 0.08, 1),
+          regular: V(2, 0.12, 0.92),
+          malo: V(1.8, 0.2, 0.83),
+        },
+      },
+    };
+    await montar();
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Iso Aductor-Abductor");
+    expect(contenedor.querySelector("h1").textContent).toBe("Aductor y Abductor");
+    expect([...contenedor.querySelectorAll(".tabla-datos-grupo-titulo")].map((titulo) => titulo.textContent).filter(Boolean)).toEqual(["ADUCTORES", "ABDUCTORES", "Ratio Aductor / Abductor"]);
+    expect(cabeceras(contenedor).slice(0, 8)).toEqual(["Jugador", "Seleccion", "F.N.", "Evaluación", "Fecha", "P.C.", "PD (ABS)", "PD (REL)"]);
+    expect(cabeceras(contenedor)).not.toContain("Grados");
+    expect(celda(contenedor, 0, "PD (REL)").textContent).toBe("3,0");
+    expect(celda(contenedor, 0, "Ant/Ago PD").textContent).toBe("1,20");
+    expect(celda(contenedor, 0, "Clas Ratio PD").textContent).toBe("1");
+    const comparacion = filaDeArriba(contenedor, "Comparar con");
+    expect(celdaDeArriba(contenedor, comparacion, "Ant/Ago PD").textContent).toBe("120,00%");
+    // Las cuentas de la pierna van en Promedios (PD), Desvíos (PI) y Mínimo (Sin Deficit), como en el Excel.
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Desvíos"), "DEFICIT PIERNA").textContent).toBe("PI 1,0");
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Mínimo"), "DEFICIT PIERNA").textContent).toBe("Sin Deficit 0,0");
+
+    // Los V.R.: tres tablas; la del ratio, con los nombres del Excel.
+    await irA(contenedor, "Valores de referencia");
+    expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["V.R. de prueba Aductor", "V.R. de prueba Abductor", "V.R. de prueba Ratio"]);
+    const ratio = [...contenedor.querySelectorAll(".evaluaciones-bloque")][2];
+    expect([...ratio.querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["n", "Promedio", "Desv. Estándar", "Malo", "Regular", "Bueno", "Regular", "Malo"]);
+    const aductor = [...contenedor.querySelectorAll(".evaluaciones-bloque")][0];
+    expect([...aductor.querySelectorAll("tbody th")].map((th) => th.textContent).slice(3)).toEqual(["Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
   });
 
   test("en portugués, con los textos del Excel traducidos", async () => {

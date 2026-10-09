@@ -835,8 +835,47 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     columnas que el Excel deja vacío. Los colores, contra las reglas del Excel aplicadas
     aparte: iguales, salvo el negro de «Deficit Pierna» en Tobillo (arriba). Pegada la hoja
     entera, cada test lee sus filas (214, 213, 39 y 37) sin avisos y con los mismos datos.
+- **Iso Aductor-Abductor** (hecho el 09/10, `tests/isoAductorAbductor.js`): como Curl Nórdico,
+  una fila por evaluación con el peso del día (P.C.) y dos bloques (Aductores y Abductores):
+  la fuerza de cada pierna (ABS), la relativa al peso (REL), su clase, su % de mejora, el
+  déficit entre piernas con su clase y qué pierna rinde menos; al final, el ratio de cada
+  pierna («Ant/Ago») con su clase de 1 a 3, a los dos lados (como el ratio de Isocinecia). Lo
+  que decidió Santiago el 09/10:
+  - **El ratio es Aductor ÷ Abductor**, como lo calcula la hoja («Aductor ÷ Abductor»): sus
+    V.R. se llamaban «Ratio Abd/Adu»; solo se corrigió el nombre (en la app, «Ratio Aductor /
+    Abductor»). Sus V.R. van a los dos lados del Bueno, con los nombres del Excel (Malo,
+    Regular, Bueno, Regular, Malo).
+  - **La comparación «Vs …» como en Zona Media** («Armarla como Zona Media»): en el Excel
+    estaban el selector «Vs Mayor» y la nota, pero no había fila de comparación. Compara la
+    REL, el déficit y el ratio.
+  - **La última fila (sin fecha y sin peso) se trae igual** («Traerla igual»): entra sin
+    fecha; sin el peso no hay REL, clases, déficit ni ratio hasta que se complete en la Base.
+  - **La columna Grados queda afuera** («Dejarla afuera»): está vacía en todas las filas. Si
+    se usa más adelante, se agrega.
+  - Igual que en los otros tests (no se volvió a preguntar): las clases contra los V.R. de la
+    categoría de cada fila; el % de mejora contra la evaluación anterior **por fecha** que
+    tenga el dato (en el Excel, por el lugar de la fila: un jugador tiene dos filas fuera de
+    orden y en la app cambian su n° y su % de mejora); el N° del informe cuenta datos (el
+    Excel contaba las fórmulas vacías de DEFICIT PIERNA); las cuentas de PD / PI / Sin
+    Deficit respetan el filtro (en las filas Promedios, Desvíos y Mínimo, como en el Excel);
+    una división por cero, vacía; los colores de toda la app y las letras de PD / PI / Sin
+    Deficit de Curl Nórdico. Los formatos, los del Excel (el % Mejora PD de Aductores con dos
+    decimales). Lo que no se copió: las columnas de ayuda para buscar (A y B, ocultas),
+    el contador C y Posición.
+  - Los V.R.: tres tablas (Aductor, Abductor y el ratio; `datos.categorias.<categoría>` con
+    `ad_…`, `ab_…`, `ratio_pd` / `ratio_pi`, `titulos.aductor` / `abductor` / `ratio` y las
+    «DE» de los déficits como `<déficit>_de`); van por SQL, como los otros. Hoy solo Mayor.
+  - **Pegar desde Excel**: se copia desde la fila 14 (títulos) hasta la última fila, desde la
+    columna Jugador. «PD (ABS)» y «PD (REL)» se leen igual: va la primera PD de Aductores y la
+    tercera de Abductores (lo mismo con PI). **Decimales que no se ven**: el P.C. (22 filas);
+    antes de copiar, a esa columna se le pone formato Número con 15 decimales.
+  - En el reporte individual va en «Funcionales».
+  - Comprobado contra la hoja real (solo local): de 4906 celdas calculadas, cambian solo las
+    de las dos filas fuera de orden de fecha (su n° y su % de mejora); el informe (126
+    celdas) da igual; los colores, contra las reglas del Excel aplicadas aparte, iguales;
+    pegada con el P.C. a 15 decimales, entran las 223 filas exactas.
 - Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja:
-  Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
+  Sentadilla Incremental, Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
   CONTAR.SI.CONJUNTO). Cada uno entra en las pantallas de abajo (09/10): se carga en Cargar,
   se elige en la Base, va en los reportes y sus cabeceras y listas se cambian en Ajustes.
 - **Las pantallas de Evaluaciones (Santiago, 09/10)**, como Lesiones (regla de «Bases de
