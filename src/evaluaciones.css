@@ -126,3 +126,136 @@
 .evaluaciones-marco .evaluaciones-anio .lesiones-ayuda {
   margin: 0;
 }
+
+/* Cargar: al editar, el jugador se ve (no se cambia acá: se corrige en la
+   Base). */
+.evaluaciones-marco .evaluaciones-jugador-fijo {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* Reportes: los filtros arriba del reporte (no van al papel). */
+.evaluaciones-marco .evaluaciones-reporte-filtros {
+  display: grid;
+  gap: 12px;
+}
+.evaluaciones-marco .evaluaciones-reporte-filtros .evaluaciones-tests {
+  margin: 0;
+}
+.evaluaciones-marco .evaluaciones-reporte-campos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.evaluaciones-marco .evaluaciones-reporte-campos .campo-inicio {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.evaluaciones-marco .evaluaciones-reporte-campos .campo-inicio > span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+.evaluaciones-marco .evaluaciones-reporte-campos select,
+.evaluaciones-marco .evaluaciones-reporte-campos input {
+  min-height: 44px;
+}
+.evaluaciones-marco .evaluaciones-reporte-filtros .evaluaciones-comparar {
+  justify-content: flex-start;
+}
+.evaluaciones-marco .evaluaciones-reporte-filtros .evaluaciones-comparar select {
+  height: 44px;
+}
+@media (max-width: 640px) {
+  .evaluaciones-marco .evaluaciones-reporte-campos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* La cabecera del reporte no lleva foto: sin el lugar que la de Lesiones le
+   guarda a la derecha. */
+.lesiones-marco .informe-cabecera.evaluaciones-informe-cabecera {
+  padding-right: 30px;
+}
+@container informe (max-width: 900px) {
+  .lesiones-marco .informe-cabecera.evaluaciones-informe-cabecera {
+    padding-right: 30px;
+  }
+}
+@media screen and (max-width: 760px) {
+  .lesiones-marco .informe-cabecera.evaluaciones-informe-cabecera {
+    padding-right: 16px;
+  }
+}
+
+/* Un test en el reporte: la tabla con el informe del Excel arriba (como en
+   la hoja) y las evaluaciones abajo, con sus colores. */
+.lesiones-marco .evaluaciones-informe-test + .evaluaciones-informe-test {
+  padding-top: 26px;
+}
+.lesiones-marco .evaluaciones-informe-tabla {
+  min-width: calc(var(--columnas, 12) * 62px);
+  font-variant-numeric: tabular-nums;
+}
+.lesiones-marco .evaluaciones-informe-tabla td {
+  padding: 6px 5px;
+  white-space: nowrap;
+}
+.lesiones-marco .evaluaciones-informe-tabla tr.evaluaciones-informe-arriba th,
+.lesiones-marco .evaluaciones-informe-tabla tr.evaluaciones-informe-arriba td {
+  border-top: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #0f172a;
+}
+.lesiones-marco .evaluaciones-informe-tabla tr.evaluaciones-informe-arriba th {
+  padding: 6px 10px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+}
+.lesiones-marco .evaluaciones-informe-tabla tr.informe-comparacion th {
+  vertical-align: middle;
+}
+/* En el celular la tabla se desliza de costado: el rótulo, a la izquierda,
+   para que se lea sin deslizar. */
+@media screen and (max-width: 760px) {
+  .lesiones-marco .evaluaciones-informe-tabla tr.evaluaciones-informe-arriba th {
+    text-align: left;
+  }
+  .lesiones-marco .evaluaciones-informe-tabla .evaluaciones-rotulo-n {
+    justify-content: flex-start;
+  }
+}
+.lesiones-marco .evaluaciones-informe-tabla .evaluaciones-rotulo-n {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lesiones-marco .evaluaciones-informe-tabla .evaluaciones-rotulo-n b {
+  color: #0f172a;
+}
+@media print {
+  .lesiones-marco .informe-cabecera.evaluaciones-informe-cabecera {
+    padding-right: 20px;
+  }
+  .lesiones-marco .evaluaciones-informe-tabla {
+    min-width: 0;
+    font-size: 8px;
+  }
+  .lesiones-marco .evaluaciones-informe-tabla th,
+  .lesiones-marco .evaluaciones-informe-tabla td {
+    padding: 3px 2px;
+    font-size: 8px;
+  }
+  .lesiones-marco .evaluaciones-informe-test {
+    break-inside: avoid-page;
+  }
+}
+.lesiones-marco .evaluaciones-informe-test .informe-criterio {
+  margin-top: 10px;
+}

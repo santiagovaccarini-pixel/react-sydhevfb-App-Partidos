@@ -1,5 +1,15 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { actualizarEvaluacion, borrarEvaluacion, claveDeErrorEvaluaciones, crearEvaluacion, leerReferencias, listarEvaluaciones } from "./evaluacionesDb.js";
+import {
+  actualizarEvaluacion,
+  borrarEvaluacion,
+  claveDeErrorEvaluaciones,
+  crearEvaluacion,
+  guardarCabecera,
+  guardarOpcionDeLista,
+  leerAjustes,
+  leerReferencias,
+  listarEvaluaciones,
+} from "./evaluacionesDb.js";
 
 // Un doble de Supabase que anota cada consulta y contesta, una por consulta,
 // lo que haya en "respuestas" (si no hay, lo de "filas").
@@ -10,7 +20,7 @@ vi.mock("./alDia.js", () => ({ esSoloLectura: () => doble.soloLectura }));
 vi.mock("../supabase.js", () => {
   const cadena = () => {
     const c = {};
-    ["select", "eq", "order", "range", "insert", "update", "delete", "single", "maybeSingle"].forEach((metodo) => {
+    ["select", "eq", "order", "range", "insert", "update", "upsert", "delete", "single", "maybeSingle"].forEach((metodo) => {
       c[metodo] = (...args) => {
         doble.llamadas.push([metodo, ...args]);
         return c;
@@ -57,9 +67,18 @@ describe("leer las evaluaciones", () => {
     expect(doble.llamadas).toContainEqual(["order", "orden", { ascending: true }]);
   });
 
+  test("las de todos los tests del club, sin pedir un test", async () => {
+    doble.respuestas = [{ data: [evaluacion(1), evaluacion(2, { test: "otro_test" })], error: null }];
+    const { evaluaciones } = await listarEvaluaciones("eq-1");
+    expect(evaluaciones.map((una) => una.test)).toEqual(["zona_media", "otro_test"]);
+    expect(doble.llamadas).toContainEqual(["eq", "equipo_id", "eq-1"]);
+    expect(doble.llamadas.some(([metodo, campo]) => metodo === "eq" && campo === "test")).toBe(false);
+  });
+
   test("sin club no se pide nada", async () => {
     expect(await listarEvaluaciones(null, "zona_media")).toEqual({ evaluaciones: [], error: "" });
-    expect(await leerReferencias(null, "zona_media")).toEqual({ referencias: null, error: "" });
+    expect(await leerReferencias(null)).toEqual({ referencias: {}, error: "" });
+    expect(await leerAjustes(null)).toEqual({ campos: [], opciones: [], error: "" });
     expect(doble.llamadas).toEqual([]);
   });
 
@@ -79,16 +98,15 @@ describe("leer las evaluaciones", () => {
     ]);
   });
 
-  test("los valores de referencia del test (null si todavía no están)", async () => {
-    doble.respuestas = [{ data: { datos: { categorias: { mayor: {} } } }, error: null }, { data: null, error: null }];
-    expect(await leerReferencias("eq-1", "zona_media")).toEqual({ referencias: { categorias: { mayor: {} } }, error: "" });
+  test("los valores de referencia del club, por test (el que no los tiene no está)", async () => {
+    doble.respuestas = [{ data: [{ test: "zona_media", datos: { categorias: { mayor: {} } } }, { test: "otro_test", datos: null }], error: null }];
+    expect(await leerReferencias("eq-1")).toEqual({ referencias: { zona_media: { categorias: { mayor: {} } } }, error: "" });
     expect(doble.llamadas).toContainEqual(["from", "evaluaciones_referencias"]);
-    expect(doble.llamadas).toContainEqual(["maybeSingle"]);
-    expect(await leerReferencias("eq-1", "zona_media")).toEqual({ referencias: null, error: "" });
+    expect(doble.llamadas).toContainEqual(["select", "test, datos"]);
 
     doble.soloLectura = true;
-    doble.respuestas = [{ data: [{ test: "otro_test", datos: { x: 1 } }, { test: "zona_media", datos: { y: 2 } }], error: null }];
-    expect(await leerReferencias("eq-1", "zona_media")).toEqual({ referencias: { y: 2 }, error: "" });
+    doble.respuestas = [{ data: [{ test: "otro_test", datos: { x: 1 } }, { test: "zona_media", datos: { y: 2 } }, "basura"], error: null }];
+    expect(await leerReferencias("eq-1")).toEqual({ referencias: { otro_test: { x: 1 }, zona_media: { y: 2 } }, error: "" });
     expect(doble.llamadas).toContainEqual(["rpc", "datos_al_dia", { p_tabla: "evaluaciones_referencias", p_equipo: "eq-1" }]);
   });
 
@@ -144,5 +162,47 @@ describe("guardar una evaluación", () => {
     expect(claveDeErrorEvaluaciones({ message: "TypeError: Load failed" }, "evaluaciones.error.noBorrar")).toBe("evaluaciones.error.noBorrar");
     expect(clave({ code: "XX000", message: "otra cosa" })).toBe("evaluaciones.error.noGuardar");
     expect(claveDeErrorEvaluaciones({ code: "XX000" }, "evaluaciones.error.noBorrar")).toBe("evaluaciones.error.noBorrar");
+  });
+});
+
+describe("Ajustes: cabeceras y listas del club", () => {
+  test("se leen las dos tablas del club", async () => {
+    doble.respuestas = [
+      { data: [{ test: "zona_media", campo: "lumbar", etiqueta_es: "Lumbar (min)", etiqueta_pt: "", oculto: false, orden: 5 }], error: null },
+      { data: [{ lista: "seleccion", codigo: "reserva_1", etiqueta_es: "Reserva", etiqueta_pt: "Reserva", oculto: false, orden: 6 }], error: null },
+    ];
+    const { campos, opciones, error } = await leerAjustes("eq-1");
+    expect(error).toBe("");
+    expect(campos).toHaveLength(1);
+    expect(opciones[0].codigo).toBe("reserva_1");
+    expect(doble.llamadas).toContainEqual(["from", "evaluaciones_campos"]);
+    expect(doble.llamadas).toContainEqual(["from", "evaluaciones_opciones"]);
+  });
+
+  test("sin la migración de Ajustes, siguen los nombres del Excel (sin error)", async () => {
+    doble.respuestas = [
+      { data: null, error: { code: "PGRST205", message: "Could not find the table 'public.evaluaciones_campos' in the schema cache" } },
+      { data: null, error: { code: "PGRST205", message: "Could not find the table 'public.evaluaciones_opciones' in the schema cache" } },
+    ];
+    expect(await leerAjustes("eq-1")).toEqual({ campos: [], opciones: [], error: "" });
+  });
+
+  test("guardar una cabecera y una opción: los textos limpios, por club", async () => {
+    doble.respuestas = [{ data: null, error: null }, { data: null, error: null }];
+    expect(await guardarCabecera("eq-1", "zona_media", "lumbar", { etiquetas: { "es-AR": "  Lumbar (min) ", "pt-BR": "" }, oculto: true, orden: 5 })).toEqual({ error: "" });
+    const cabecera = doble.llamadas.find(([metodo]) => metodo === "upsert");
+    expect(cabecera[1]).toMatchObject({ equipo_id: "eq-1", test: "zona_media", campo: "lumbar", etiqueta_es: "Lumbar (min)", etiqueta_pt: "", oculto: true, orden: 5 });
+    expect(cabecera[2]).toEqual({ onConflict: "equipo_id,test,campo" });
+    expect(await guardarOpcionDeLista("eq-1", "seleccion", { codigo: "reserva_1", etiquetas: { "es-AR": "Reserva", "pt-BR": "Reserva" }, orden: 6 })).toEqual({ error: "" });
+    const opcion = doble.llamadas.filter(([metodo]) => metodo === "upsert")[1];
+    expect(opcion[1]).toMatchObject({ equipo_id: "eq-1", lista: "seleccion", codigo: "reserva_1", etiqueta_es: "Reserva", oculto: false, orden: 6 });
+    expect(opcion[2]).toEqual({ onConflict: "equipo_id,lista,codigo" });
+  });
+
+  test("si falta la migración o la base no deja, se dice al guardar", async () => {
+    doble.respuestas = [{ data: null, error: { code: "42P01", message: 'relation "public.evaluaciones_campos" does not exist' } }];
+    expect(await guardarCabecera("eq-1", "zona_media", "lumbar", { etiquetas: { "es-AR": "X" } })).toEqual({ error: "evaluaciones.ajustes.faltaMigracion" });
+    doble.respuestas = [{ data: null, error: { code: "42501", message: 'new row violates row-level security policy for table "evaluaciones_opciones"' } }];
+    expect(await guardarOpcionDeLista("eq-1", "seleccion", { codigo: "x", etiquetas: { "es-AR": "X" } })).toEqual({ error: "evaluaciones.error.sinPermiso" });
   });
 });

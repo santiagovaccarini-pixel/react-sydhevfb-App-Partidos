@@ -567,6 +567,16 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   05/10 (`public/portal/lesiones.webp` y `lesiones-parada.webp`, las mandó Santiago); el dibujo
   de la figura del cuerpo en dorado queda por si no cargan. La foto de una base nueva va en
   `foto`/`fotoParada` de su entrada en `BASES` y en la lista de `scripts/precache.js`.
+- **Regla para todas las bases (Santiago, 09/10): lo nuevo se carga en su propia pantalla,
+  aparte, como Nuevos casos en Lesiones.** Palabras del pedido: «una pantalla para cargar
+  evaluaciones nuevas, aparte como la de lesiones (ESTO QUEDA DE REGLA PARA EL PROYECTO)».
+  Cada base tiene, en este orden: la carga (formulario por pasos), **una sola Base** (si la
+  base tiene varias tablas, como los tests de Evaluaciones, se elige cuál ver; no una
+  pantalla por tabla), **Reportes** (se elige cuál ver: individual, grupal o gráficos, como
+  en Lesiones) y **Ajustes** (cambiar las cabeceras y las listas, si tiene). En la Base se
+  sigue corrigiendo en la tabla y se trae lo viejo con Pegar desde Excel; lo que no vuelve
+  es un botón para agregar filas nuevas en la Base (ver UI-012 en
+  [UI_DECISIONS.md](UI_DECISIONS.md)).
 - Datos básicos sigue en la pantalla principal: lo ve cualquiera con algún módulo (Partido y
   Flujo diario también usan los jugadores), y adentro de Bases de Datos lo verían solo los que
   tienen ese permiso. Si se quiere adentro, hay que decidir quién lo ve.
@@ -596,8 +606,10 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   cada fila con todas las del test; el informe y los colores con las filas que deja ver el
   filtro), `categorias.js` (Sub-15 … Mayor) e `importar.js` (Pegar desde Excel). Cada test es
   un archivo de `tests/` (columnas, fórmulas, informe, reglas de color, cómo son sus V.R.) y la
-  lista de tests está en `tests/index.js`. La pantalla es `src/Evaluaciones.jsx` (Base y
-  Valores de referencia) y `src/ImportarEvaluaciones.jsx`; la base, `src/domain/evaluacionesDb.js`
+  lista de tests está en `tests/index.js`. La pantalla es `src/Evaluaciones.jsx` (Cargar,
+  Base, Valores de referencia y Ajustes; desde el 09/10), `src/ReportesEvaluaciones.jsx` y
+  `src/ImportarEvaluaciones.jsx`; lo que se ve en cada celda, `celdas.js`, y los Ajustes del
+  club, `ajustes.js`; la base, `src/domain/evaluacionesDb.js`
   y la migración `supabase/migrations/20261012_evaluaciones.sql` (tablas `evaluaciones` y
   `evaluaciones_referencias`).
 - **Regla para todos los tests (Santiago, 05/10): las columnas que solo existen para que las use
@@ -649,7 +661,39 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
 - Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja: CurlNordico
   e Isoprone, Isocinecia, Funcional, Iso Aductor-Abductor, Sentadilla Incremental, Press Plano y
   Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
-  CONTAR.SI.CONJUNTO).
+  CONTAR.SI.CONJUNTO). Cada uno entra en las pantallas de abajo (09/10): se carga en Cargar,
+  se elige en la Base, va en los reportes y sus cabeceras y listas se cambian en Ajustes.
+- **Las pantallas de Evaluaciones (Santiago, 09/10)**, como Lesiones (regla de «Bases de
+  Datos»): Cargar · Base · Reportes · Valores de referencia · Ajustes.
+  - **Cargar** (la primera, con la vuelta a Bases de Datos arriba): «Nueva evaluación» abre
+    un formulario por pasos: primero el jugador, la fecha (hoy) y las listas sueltas (en
+    Zona Media, Selección); después un paso por bloque de medidas (las columnas con el mismo
+    grupo; las sueltas, juntas) y la nota al final. Los tiempos se escriben en minutos y
+    segundos (3:04 o 3,04). Abajo, las evaluaciones de hoy, para corregirlas o borrarlas.
+    En la Base ya no está «Agregar evaluación» (descartado: no volver a ponerlo ahí).
+  - **Base**: una sola, con el test arriba para elegir. El informe del Excel (promedio,
+    desvío, n, máximo, mínimo y la comparación «Vs …») queda arriba de la tabla, como en la
+    hoja (Santiago, 09/10: «Base y Grupal»). Se corrige en la tabla y se pega desde Excel.
+  - **Reportes**: Individual (Santiago, 09/10: «un jugador, todos los tests»: cada test con
+    sus evaluaciones en el tiempo, valores, clases con sus colores, % de mejora y el informe
+    de esas filas, como si en la hoja se filtrara por el jugador) y Grupal (un test, el
+    informe del Excel por categoría y fechas, con sus evaluaciones), para imprimir. Los dos
+    calculan con lo mismo que la Base (`motor.js`, `vistaDeFilas`; `celdas.js`).
+    **Gráficos: pendiente** (Santiago, 09/10: «después lo vemos»); no se muestra hasta que
+    se defina qué gráficos van.
+  - **Valores de referencia**: sigue siendo una pantalla aparte, la quinta (Santiago, 09/10:
+    «Quinta pantalla aparte»), solo para mirar.
+  - **Ajustes**, como Lesiones › Ajustes: Cabeceras (por test, el nombre de cada columna y
+    de cada bloque en cada idioma, y esconder columnas de la Base, la carga y los reportes;
+    Fecha, Jugador y Selección no se esconden: sin ellas no hay de quién, de cuándo ni
+    contra qué V.R.) y Listas (Selección y las que traiga cada test: renombrar, esconder y
+    agregar opciones; lo cargado no se pierde). Una categoría que suma el club no tiene V.R.
+    hasta que se carguen: sus clases quedan vacías. El selector del informe dice «Vs» y el
+    nombre del club si lo cambió. Pegar desde Excel también reconoce los nombres del club.
+    En la base: migración `supabase/migrations/20261015_evaluaciones_ajustes.sql` (tablas
+    `evaluaciones_campos` y `evaluaciones_opciones`, una fila solo para lo que cambió el
+    club; permisos como Lesiones › Ajustes). Sin esa migración la app sigue con los nombres
+    del Excel y al guardar avisa que falta el SQL.
 
 ## Cuentas paso 2: dueños, sub-dueños y pedidos por club (06/10)
 

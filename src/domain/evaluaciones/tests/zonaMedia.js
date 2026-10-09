@@ -114,10 +114,12 @@ const claseRatio = (valor, [excelente, muyBueno, , regular, malo]) => {
 };
 
 // La clase de una fila: IF(ISBLANK($G),"",IF($G="Mayor",IF(ISBLANK(x),"",…))).
-// Con una selección que no es de la lista, el Excel da FALSO.
-const claseDeFila = (seleccion, valor, cortes, clasificar) => {
+// Con una selección que no es de la lista, el Excel da FALSO. La lista es la
+// del club (la del Excel y las que sume en Ajustes); una categoría sin V.R.
+// deja las clases vacías.
+const claseDeFila = (seleccion, valor, cortes, clasificar, esCategoria) => {
   if (esBlanco(seleccion)) return "";
-  if (!categoriaPorCodigo(seleccion)) return false;
+  if (!esCategoria(seleccion)) return false;
   if (esBlanco(valor)) return "";
   return cortes ? clasificar(valor, cortes) : "";
 };
@@ -138,7 +140,7 @@ const entrada = (fila) => {
 };
 
 // Las fórmulas de cada fila (D, K, L, O, P, R, S, T, U, V, X, Y, Z, AA, AB, AC).
-const calcularFila = ({ entrada: e, numero, total, anterior, referencias }) => {
+const calcularFila = ({ entrada: e, numero, total, anterior, referencias, esCategoria = (codigo) => Boolean(categoriaPorCodigo(codigo)) }) => {
   const { seleccion } = e;
   const cortes = (metrica) => cortesDe(referencias, seleccion, metrica);
 
@@ -164,14 +166,14 @@ const calcularFila = ({ entrada: e, numero, total, anterior, referencias }) => {
   // 0, con Ratio. Clas 1 en rojo).
   const ratio = esBlanco(e.prono) ? "" : siError(dividir(e.prono, e.lumbar), "");
 
-  const lumbarClas = claseDeFila(seleccion, e.lumbar, cortes("lumbar"), claseMas);
-  const lateralDClas = claseDeFila(seleccion, e.lateral_d, cortes("lateral_d"), claseMas);
-  const lateralIClas = claseDeFila(seleccion, e.lateral_i, cortes("lateral_i"), claseMas);
-  const pronoClas = claseDeFila(seleccion, e.prono, cortes("prono"), claseMas);
+  const lumbarClas = claseDeFila(seleccion, e.lumbar, cortes("lumbar"), claseMas, esCategoria);
+  const lateralDClas = claseDeFila(seleccion, e.lateral_d, cortes("lateral_d"), claseMas, esCategoria);
+  const lateralIClas = claseDeFila(seleccion, e.lateral_i, cortes("lateral_i"), claseMas, esCategoria);
+  const pronoClas = claseDeFila(seleccion, e.prono, cortes("prono"), claseMas, esCategoria);
   // Sin uno de los laterales no hay déficit que clasificar: vacía (Santiago,
   // 05/10; en el Excel daba 1 en rojo).
-  const deficitClas = claseDeFila(seleccion, deficit === "" ? null : deficit, cortes("def_lat"), claseMenos);
-  const ratioClas = claseDeFila(seleccion, esVacio(ratio) ? null : ratio, cortes("ratio"), claseRatio);
+  const deficitClas = claseDeFila(seleccion, deficit === "" ? null : deficit, cortes("def_lat"), claseMenos, esCategoria);
+  const ratioClas = claseDeFila(seleccion, esVacio(ratio) ? null : ratio, cortes("ratio"), claseRatio, esCategoria);
 
   // Va: con 7 o menos evaluaciones, el n°; si no, las últimas 7 van de 1 a 7
   // (7 la más nueva) y las anteriores, nada.

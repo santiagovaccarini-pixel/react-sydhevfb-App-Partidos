@@ -127,8 +127,10 @@ const mismaEvaluacion = (una, otra, nombreDe, tiempos) =>
 // sinAnio }. Los avisos son valores que no se entendieron: esa columna queda
 // vacía. test: el del Excel; plantel: los jugadores de la app; evaluaciones:
 // las que ya están de ese test; hoy: ISO; anio: el de las fechas que vienen
-// sin año; elegidos: { indice de la fila: destino }.
-export const planDeEvaluaciones = (filas, { test, plantel = [], evaluaciones = [], hoy, anio, elegidos = {} }) => {
+// sin año; elegidos: { indice de la fila: destino }; categoriaDe(texto): la
+// Selección de un texto (por defecto, las del Excel; la pantalla le pasa
+// también las que sumó el club en Ajustes).
+export const planDeEvaluaciones = (filas, { test, plantel = [], evaluaciones = [], hoy, anio, elegidos = {}, categoriaDe = categoriaDeTexto }) => {
   const jugadorDe = buscadorDeJugadores(plantel);
   const porId = new Map(plantel.map((jugador) => [String(jugador.id), jugador]));
   const nombreDe = (evaluacion) => (evaluacion.jugador_id ? porId.get(String(evaluacion.jugador_id))?.nombre : evaluacion.persona) || "";
@@ -158,7 +160,7 @@ export const planDeEvaluaciones = (filas, { test, plantel = [], evaluaciones = [
     const { fecha, sinAnio } = leerFecha(fila.textos.fecha, formato, anio);
     const datos = {};
     if (fila.textos.seleccion) {
-      const seleccion = categoriaDeTexto(fila.textos.seleccion);
+      const seleccion = categoriaDe(fila.textos.seleccion);
       if (seleccion) datos.seleccion = seleccion;
       else avisos.push({ campo: "seleccion", valor: fila.textos.seleccion });
     }

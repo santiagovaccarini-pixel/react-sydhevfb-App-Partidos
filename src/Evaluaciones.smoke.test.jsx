@@ -16,6 +16,10 @@ const datos = vi.hoisted(() => ({
   compuerta: null,
   // Si está, la próxima lectura falla (una recarga que no llega).
   fallaLaProxima: "",
+  // Lo que el club cambió en Ajustes (las filas de la base).
+  ajustes: { campos: [], opciones: [] },
+  cabeceras: [],
+  opciones: [],
 }));
 
 // Los V.R. de prueba, en la unidad del Excel (los tiempos, segundos ÷ 1440).
@@ -80,7 +84,24 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
     }
     return datos.errorAlLeer ? { evaluaciones: [], error: datos.errorAlLeer } : { evaluaciones: datos.evaluaciones.map((una) => ({ ...una, datos: { ...una.datos } })), error: "" };
   },
-  leerReferencias: async () => ({ referencias: datos.referencias, error: "" }),
+  leerReferencias: async () => ({ referencias: datos.referencias ? { zona_media: datos.referencias } : {}, error: "" }),
+  leerAjustes: async () => ({ campos: [...datos.ajustes.campos], opciones: [...datos.ajustes.opciones], error: "" }),
+  guardarCabecera: async (equipoId, test, campo, { etiquetas, oculto, orden }) => {
+    datos.cabeceras.push({ equipoId, test, campo, etiquetas, oculto, orden });
+    datos.ajustes.campos = [
+      ...datos.ajustes.campos.filter((fila) => !(fila.test === test && fila.campo === campo)),
+      { test, campo, etiqueta_es: etiquetas["es-AR"] || "", etiqueta_pt: etiquetas["pt-BR"] || "", oculto, orden },
+    ];
+    return { error: "" };
+  },
+  guardarOpcionDeLista: async (equipoId, lista, { codigo, etiquetas, oculto, orden }) => {
+    datos.opciones.push({ equipoId, lista, codigo, etiquetas, oculto, orden });
+    datos.ajustes.opciones = [
+      ...datos.ajustes.opciones.filter((fila) => !(fila.lista === lista && fila.codigo === codigo)),
+      { lista, codigo, etiqueta_es: etiquetas["es-AR"] || "", etiqueta_pt: etiquetas["pt-BR"] || "", oculto, orden },
+    ];
+    return { error: "" };
+  },
   crearEvaluacion: async (equipoId, test, ev) => {
     datos.creadas.push({ equipoId, test, ev });
     const nueva = { ...ev, id: `nueva-${datos.creadas.length}`, equipo_id: equipoId, test, orden: 100 + datos.creadas.length, persona: ev.persona ?? null };
@@ -90,7 +111,7 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
   actualizarEvaluacion: async (id, ev) => {
     datos.actualizadas.push({ id, ev });
     if (datos.compuerta) await datos.compuerta;
-    return { evaluacion: { ...ev, id }, error: "" };
+    return { evaluacion: { ...ev, id, test: "zona_media" }, error: "" };
   },
   borrarEvaluacion: async (id) => {
     datos.borradas.push(id);
@@ -125,6 +146,11 @@ const filaDeArriba = (contenedor, rotulo) => [...contenedor.querySelectorAll("tr
 const fijas = (contenedor) => contenedor.querySelectorAll("thead tr.tabla-datos-cabeceras th.inmovil").length;
 const celdaDeArriba = (contenedor, tr, titulo) => tr.querySelectorAll("td")[columna(contenedor, titulo) - fijas(contenedor)];
 
+// Ir a una pantalla de la barra de abajo.
+const irA = async (contenedor, nombre) => tocar([...contenedor.querySelectorAll(".navegacion-movil button")].find((b) => b.textContent.includes(nombre)));
+// Un campo del formulario por su rótulo.
+const campo = (contenedor, rotulo) => [...contenedor.querySelectorAll(".lesiones-campo-paso")].find((div) => div.querySelector("label")?.textContent.trim() === rotulo);
+
 describe("Evaluaciones", () => {
   let contenedor;
   let raiz;
@@ -143,6 +169,9 @@ describe("Evaluaciones", () => {
     datos.borradas = [];
     datos.compuerta = null;
     datos.fallaLaProxima = "";
+    datos.ajustes = { campos: [], opciones: [] };
+    datos.cabeceras = [];
+    datos.opciones = [];
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -164,6 +193,7 @@ describe("Evaluaciones", () => {
 
   test("la hoja del test: título, nota, el informe arriba y la base con los formatos del Excel", async () => {
     await montar();
+    await irA(contenedor, "Base");
     expect(contenedor.querySelector("h1").textContent).toBe('Evaluación Zona Media "CORE"');
     expect(contenedor.textContent).toContain("*Los Valores pintados corresponden a la comparación");
     expect(cabeceras(contenedor).slice(0, 8)).toEqual(["nº Eva", "Fecha", "Jugador", "Seleccion", "Fecha Nac", "Lumbar", "L. Clas", "% mejora"]);
@@ -210,6 +240,7 @@ describe("Evaluaciones", () => {
 
   test("la comparación con los V.R. de la categoría elegida (Vs Mayor al abrir)", async () => {
     await montar();
+    await irA(contenedor, "Base");
     const comparar = contenedor.querySelector(".evaluaciones-comparar select");
     expect(comparar.value).toBe("mayor");
     expect([...comparar.options].map((opcion) => opcion.textContent)).toEqual(["Vs Sub 15", "Vs Sub 17", "Vs Sub 18", "Vs Sub 20", "Vs Sub 23", "Vs Mayor"]);
@@ -233,29 +264,96 @@ describe("Evaluaciones", () => {
   test("sin los V.R. del test, avisa y las clases quedan vacías", async () => {
     datos.referencias = null;
     await montar();
+    await irA(contenedor, "Base");
     expect(contenedor.textContent).toContain("Todavía no están los valores de referencia de este test");
     expect(celda(contenedor, 0, "L. Clas").textContent).toBe("");
     // Lo que no depende de los V.R. sigue igual.
     expect(celda(contenedor, 2, "% mejora").textContent).toBe("5,0%");
   });
 
-  test("agregar: primero el jugador; va con la fecha de hoy, al final", async () => {
+  test("abre en Cargar: arriba se vuelve a Bases de Datos y la carga nueva va aparte", async () => {
+    datos.evaluaciones.push(evaluacion("e4", 4, 2, hoyISO(), { lumbar: 200 }));
     await montar();
-    await tocar(boton(contenedor, "Agregar evaluación"));
-    expect(document.body.textContent).toContain("¿De quién es la evaluación?");
-    // Quien ya no está en el plantel actual va al final, con su aviso.
-    const opciones = [...document.body.querySelectorAll(".opcion-hoja")].map((b) => b.textContent);
-    expect(opciones).toEqual(["ALFA", "BETA", "GAMA · Ya no está"]);
-    await tocar([...document.body.querySelectorAll(".opcion-hoja")].find((b) => b.textContent === "BETA"));
-    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 2, fecha: hoyISO(), datos: {} } }]);
+    expect(contenedor.querySelector(".etiqueta-hero").textContent).toBe("EVALUACIONES");
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("1 evaluación hoy");
+    // Las de hoy, con su test.
+    const tarjetas = [...contenedor.querySelectorAll(".evaluaciones-registro")];
+    expect(tarjetas).toHaveLength(1);
+    expect(tarjetas[0].textContent).toContain("BETA");
+    expect(tarjetas[0].textContent).toContain("Zona Media");
+    // La Base ya no tiene "Agregar evaluación": se carga en Cargar.
+    await irA(contenedor, "Base");
+    expect(boton(contenedor, "Agregar evaluación")).toBeUndefined();
+    expect(boton(contenedor, "Nueva evaluación")).toBeUndefined();
+  });
+
+  test("Nueva evaluación: de quién y cuándo, después las medidas; los tiempos se guardan en segundos", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    expect(contenedor.querySelector("h1").textContent).toBe("Nueva evaluación");
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Jugador y fecha");
+    // Sin jugador no se sigue.
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.textContent).toContain("Una evaluación tiene que ser de alguien: elegí el jugador.");
+    // El plantel actual primero; quien ya no está, al final y marcado.
+    const jugadores = [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")];
+    expect(jugadores.map((b) => b.querySelector("b").textContent)).toEqual(["ALFA", "BETA", "GAMA"]);
+    await tocar(jugadores[1]);
+    expect(campo(contenedor, "Fecha").querySelector("input").value).toBe(hoyISO());
+    await tocar([...campo(contenedor, "Seleccion").querySelectorAll("button")].find((b) => b.textContent === "Mayor"));
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Medidas");
+    expect([...contenedor.querySelectorAll(".lesiones-campo-paso label")].map((label) => label.textContent)).toEqual(["Lumbar", "Lateral D", "Lateral I", "Prono", "Nota"]);
+    // Un tiempo que no se entiende no se guarda.
+    await escribir(campo(contenedor, "Lumbar").querySelector("input"), "3:7x");
+    await tocar(boton(contenedor, "Guardar la evaluación"));
+    expect(contenedor.textContent).toContain("«3:7x» no se entiende en Lumbar");
+    expect(datos.creadas).toHaveLength(0);
+    await escribir(campo(contenedor, "Lumbar").querySelector("input"), "3:10");
+    await escribir(campo(contenedor, "Prono").querySelector("input"), "2,05");
+    await escribir(campo(contenedor, "Nota").querySelector("textarea"), "con molestia");
+    await tocar(boton(contenedor, "Guardar la evaluación"));
+    expect(datos.creadas).toEqual([
+      { equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 2, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", lumbar: 190, prono: 125, nota: "con molestia" } } },
+    ]);
+    // Vuelve a Cargar, con la nueva entre las de hoy.
+    expect(document.body.textContent).toContain("Evaluación guardada.");
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("1 evaluación hoy");
+    // En la Base, al final (es la más nueva) y con su cálculo.
+    await irA(contenedor, "Base");
     expect(filas(contenedor)).toHaveLength(4);
     expect(celda(contenedor, 3, "Jugador").textContent).toBe("BETA");
+    expect(celda(contenedor, 3, "Lumbar").textContent).toBe("3:10");
     expect(celda(contenedor, 3, "nº Eva").textContent).toBe("2");
-    expect(document.body.textContent).toContain("Evaluación agregada: completala en la tabla.");
+  });
+
+  test("editar una de hoy: el jugador no se cambia, los tiempos se ven como se escriben", async () => {
+    datos.evaluaciones.push(evaluacion("e4", 4, 2, hoyISO(), { lumbar: 200 }));
+    await montar();
+    await tocar(boton(contenedor, "Editar"));
+    expect(contenedor.querySelector("h1").textContent).toBe("Editar evaluación");
+    expect(contenedor.querySelector(".evaluaciones-jugador-fijo").textContent).toBe("BETA");
+    await tocar(boton(contenedor, "Siguiente"));
+    const lumbar = campo(contenedor, "Lumbar").querySelector("input");
+    expect(lumbar.value).toBe("3:20");
+    await escribir(lumbar, "3:25");
+    await tocar(boton(contenedor, "Guardar la evaluación"));
+    expect(datos.actualizadas).toEqual([{ id: "e4", ev: { jugador_id: 2, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", lumbar: 205 } } }]);
+  });
+
+  test("salir de una carga con algo escrito pide confirmación", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
+    await irA(contenedor, "Base");
+    expect(document.body.textContent).toContain("¿Salir sin guardar?");
+    await tocar(boton(contenedor, "Sí, salir"));
+    expect(contenedor.querySelector(".evaluaciones-tabla")).not.toBeNull();
   });
 
   test("se edita en la tabla: un tiempo en minutos y segundos se guarda en segundos", async () => {
     await montar();
+    await irA(contenedor, "Base");
     const lumbar = () => celda(contenedor, 1, "Lumbar");
     await tocar(lumbar());
     await tocar(lumbar());
@@ -271,6 +369,7 @@ describe("Evaluaciones", () => {
 
   test("dos celdas de la misma fila guardadas seguidas, con la conexión lenta: no se pisan", async () => {
     await montar();
+    await irA(contenedor, "Base");
     let abrir;
     datos.compuerta = new Promise((resolver) => {
       abrir = resolver;
@@ -294,23 +393,9 @@ describe("Evaluaciones", () => {
     expect(celda(contenedor, 1, "Lateral D").textContent).toBe("1:30");
   });
 
-  test("agregar con un filtro puesto: la nueva se ve igual, para completarla", async () => {
-    await montar();
-    const boton = (texto) => [...document.body.querySelectorAll("button")].find((b) => b.textContent.trim() === texto);
-    await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Seleccion"]'));
-    await tocar(boton("Ninguno"));
-    await tocar([...contenedor.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent.startsWith("Mayor")).querySelector("input"));
-    await tocar(boton("Aplicar"));
-    expect(filas(contenedor)).toHaveLength(3);
-    await tocar(boton("Agregar evaluación"));
-    await tocar([...document.body.querySelectorAll(".opcion-hoja")].find((b) => b.textContent === "BETA"));
-    // Sin Selección todavía, el filtro la dejaría afuera.
-    expect(filas(contenedor)).toHaveLength(4);
-    expect(celda(contenedor, 3, "Jugador").textContent).toBe("BETA");
-  });
-
   test("borrar una fila pide confirmación", async () => {
     await montar();
+    await irA(contenedor, "Base");
     await tocar(celda(contenedor, 1, "Lumbar"));
     await tocar(boton(contenedor, "Borrar fila"));
     expect(document.body.textContent).toContain("¿Borrar esta evaluación?");
@@ -322,6 +407,7 @@ describe("Evaluaciones", () => {
 
   test("Pegar desde Excel: se ve qué pasa con cada fila y se carga", async () => {
     await montar();
+    await irA(contenedor, "Base");
     await tocar(boton(contenedor, "Pegar desde Excel"));
     const pegado = [
       "nº Eva\tFecha\tJugador\tSeleccion\tFecha Nac\tPosición\tLumbar\tL. Clas\t% mejora\tLateral D\tL.D. Clas\t% mejora\tLateral I\tL.I. Clas\t% mejora\tA\tDeficit Lateral %\tDeficit. Clas\tProno\tP. Clas\t% mejora\tRatio\tRatio. Clas\tVa\tPRO??\tNota",
@@ -347,6 +433,7 @@ describe("Evaluaciones", () => {
 
   test("Pegar desde Excel: si falla la recarga, lo cargado igual se ve como \"Ya está\" y no se carga dos veces", async () => {
     await montar();
+    await irA(contenedor, "Base");
     await tocar(boton(contenedor, "Pegar desde Excel"));
     const pegado = [
       "nº Eva\tFecha\tJugador\tSeleccion\tLumbar\tNota",
@@ -381,7 +468,8 @@ describe("Evaluaciones", () => {
     datos.equipo = { id: "eq-1", nombre: "Club de Prueba", hasta: "2026-09-25" };
     await montar();
     expect(contenedor.querySelector(".aviso-solo-lectura")).not.toBeNull();
-    expect(boton(contenedor, "Agregar evaluación")).toBeUndefined();
+    expect(boton(contenedor, "Nueva evaluación")).toBeUndefined();
+    await irA(contenedor, "Base");
     expect(boton(contenedor, "Pegar desde Excel")).toBeUndefined();
     expect(boton(contenedor, "Borrar fila")).toBeUndefined();
     expect(filas(contenedor)).toHaveLength(3);
@@ -395,9 +483,114 @@ describe("Evaluaciones", () => {
     expect(volvio).toBe(1);
   });
 
+  test("Reportes › Individual: un jugador, cada test con sus evaluaciones y el informe de esas filas", async () => {
+    await montar();
+    await irA(contenedor, "Reportes");
+    await tocar([...contenedor.querySelectorAll(".reporte-opcion")].find((b) => b.textContent.includes("Reporte individual")));
+    // El plantel actual (GAMA ya no está y no tiene evaluaciones: no va).
+    const lista = [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")];
+    expect(lista.map((b) => b.textContent)).toEqual(["ALFA2 evaluaciones", "BETA1 evaluación"]);
+    await tocar(lista[0]);
+    expect(contenedor.querySelector(".informe-cabecera h1").textContent).toBe("ALFA");
+    const secciones = [...contenedor.querySelectorAll(".evaluaciones-informe-test")];
+    expect(secciones).toHaveLength(1);
+    expect(secciones[0].querySelector("h2").textContent).toBe('Evaluación Zona Media "CORE"');
+    const tabla = secciones[0].querySelector("table");
+    const titulos = [...tabla.querySelectorAll("tr.informe-cabeceras th")].map((th) => th.textContent);
+    // Sin el nombre ni la fecha de nacimiento en cada fila.
+    expect(titulos.slice(0, 4)).toEqual(["nº Eva", "Fecha", "Seleccion", "Lumbar"]);
+    const cuerpo = [...tabla.querySelectorAll("tbody tr")];
+    expect(cuerpo).toHaveLength(2);
+    expect(cuerpo[1].querySelectorAll("td")[titulos.indexOf("% mejora")].textContent).toBe("5,0%");
+    // El informe de esas dos filas: el promedio de Lumbar (4:00 y 4:12).
+    const promedios = [...tabla.querySelectorAll("tr.informe-promedios")][0];
+    const antes = Number(promedios.querySelector("th").getAttribute("colspan"));
+    expect(promedios.querySelectorAll("td")[titulos.indexOf("Lumbar") - antes].textContent).toBe("4:06");
+    // La clase, con el color de su clase (como en la Base).
+    expect(cuerpo[0].querySelectorAll("td")[titulos.indexOf("L. Clas")].style.color).toBe("rgb(79, 98, 40)");
+  });
+
+  test("Reportes › Grupal: un test por categoría y fechas", async () => {
+    await montar();
+    await irA(contenedor, "Reportes");
+    await tocar([...contenedor.querySelectorAll(".reporte-opcion")].find((b) => b.textContent.includes("Reporte grupal")));
+    expect(contenedor.querySelector(".informe-cabecera h1").textContent).toBe('Evaluación Zona Media "CORE"');
+    expect(contenedor.querySelectorAll(".evaluaciones-informe-test tbody tr")).toHaveLength(3);
+    const desde = contenedor.querySelector('.evaluaciones-reporte-campos input[type="date"]');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(desde, "2026-06-15");
+      desde.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(contenedor.querySelectorAll(".evaluaciones-informe-test tbody tr")).toHaveLength(1);
+    expect([...contenedor.querySelectorAll(".informe-dato")].map((dato) => dato.textContent)).toEqual(["CategoríaTodas", "Período15/06/2026 – …", "Evaluaciones1"]);
+    const categoria = contenedor.querySelector(".evaluaciones-reporte-campos select");
+    await act(async () => {
+      categoria.value = "sub15";
+      categoria.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(contenedor.textContent).toContain("No hay evaluaciones de este test con estos filtros.");
+  });
+
+  test("Ajustes: se renombra y se esconde una cabecera, y se suma una opción a Selección", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.textContent.includes("Cabeceras")));
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Lumbar"));
+    const nombre = document.body.querySelector(".lesiones-hoja input[type=text]");
+    expect(nombre.value).toBe("Lumbar");
+    await escribir(nombre, "Lumbar (min)");
+    await tocar(boton(contenedor, "Guardar"));
+    expect(datos.cabeceras).toEqual([{ equipoId: "eq-1", test: "zona_media", campo: "lumbar", etiquetas: { "es-AR": "Lumbar (min)", "pt-BR": "Lombar" }, oculto: false, orden: 5 }]);
+    // Selección no se esconde: hace falta para clasificar.
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Seleccion"));
+    expect(document.body.textContent).toContain("Esta columna hace falta para cargar la evaluación: siempre se muestra.");
+    await tocar(boton(contenedor, "Cancelar"));
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Prono"));
+    await tocar([...document.body.querySelectorAll(".lesiones-hoja .chip-criterio")].find((b) => b.textContent === "Oculta"));
+    await tocar(boton(contenedor, "Guardar"));
+    await irA(contenedor, "Base");
+    expect(cabeceras(contenedor)).toContain("Lumbar (min)");
+    expect(cabeceras(contenedor)).not.toContain("Prono");
+    // Lo calculado con Prono sigue (el ratio no se esconde solo).
+    expect(cabeceras(contenedor)).toContain("Ratio");
+
+    await irA(contenedor, "Ajustes");
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.textContent.includes("Listas")));
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Seleccion"));
+    expect([...contenedor.querySelectorAll(".opcion-ajuste b")].map((b) => b.textContent)).toEqual(["Sub-15", "Sub-17", "Sub-18", "Sub-20", "Sub-23", "Mayor"]);
+    await tocar(boton(contenedor, "Agregar una opción"));
+    await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), "Reserva");
+    await tocar(boton(contenedor, "Guardar"));
+    expect(datos.opciones).toHaveLength(1);
+    expect(datos.opciones[0]).toMatchObject({ lista: "seleccion", etiquetas: { "es-AR": "Reserva" }, orden: 6 });
+    expect(datos.opciones[0].codigo).toMatch(/^reserva_/);
+    // Mayor pasa a llamarse Primera: el selector del informe también.
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Mayor"));
+    await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), "Primera");
+    await tocar(boton(contenedor, "Guardar"));
+    await irA(contenedor, "Base");
+    expect(celda(contenedor, 0, "Seleccion").textContent).toBe("Primera");
+    expect([...contenedor.querySelector(".evaluaciones-comparar select").options].map((opcion) => opcion.textContent)).toEqual([
+      "Vs Sub 15",
+      "Vs Sub 17",
+      "Vs Sub 18",
+      "Vs Sub 20",
+      "Vs Sub 23",
+      "Vs Primera",
+      "Vs Reserva",
+    ]);
+    // Las clases siguen contra los V.R. de esa categoría (es la misma).
+    expect(celda(contenedor, 0, "L. Clas").textContent).toBe("5");
+    // Con siete opciones, la carga la elige en la hoja de opciones.
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    expect(campo(contenedor, "Seleccion").querySelector(".selector-hoja")).not.toBeNull();
+  });
+
   test("en portugués, con los textos del Excel traducidos", async () => {
     fijarIdiomaParaPruebas("pt-BR");
     await montar();
+    await irA(contenedor, "Base");
     expect(contenedor.querySelector("h1").textContent).toBe('Avaliação Zona Média "CORE"');
     expect(cabeceras(contenedor).slice(0, 3)).toEqual(["nº Aval.", "Data", "Jogador"]);
     expect(celda(contenedor, 0, "Seleção").textContent).toBe("Profissional");

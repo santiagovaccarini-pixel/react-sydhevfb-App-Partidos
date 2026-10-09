@@ -27,6 +27,7 @@ prohibiciones específicas de conversaciones que no están disponibles.
 | UI-009 | Salir de un club vive solo en portal › Cambiar (abajo, «Salir de {club}», enlace secundario), igual para todos. No volver a ponerlo en la fila propia de Cuentas. | «Cuentas paso 2», salir de un club en un solo lugar (08/10) |
 | UI-010 | El nombre de un club (y sus demás datos) lo cambian solo los dueños, en Clubes de la app («Cambiar nombre», con confirmación). Descartado: renombrar en Partido › Ajustes › Equipo (la tarjeta «Tu equipo» muestra el escudo y el nombre, nada más); no volver a ponerlo ahí ni en Cuentas, ni dárselo al administrador del club. | «Cuentas paso 2», los datos de un club los cambian solo los dueños (09/10) |
 | UI-011 | En Cuentas, el aviso del mail de una invitación abierta nunca dice que el correo ya tiene cuenta ni que entró: si el mail no salió (también la invitación de un dueño de la app, que queda abierta) dice que la invitación quedó guardada y que se mande con «Copiar mensaje». No volver a poner «ya tiene cuenta: no hace falta el mail» ni decir que se mandó un mail que no salió. | «Cuentas paso 2», dueños protegidos; «Entrada a la app», «Invitaciones por mail», invitación a un dueño de la app (09/10) |
+| UI-012 | Toda base carga lo nuevo en su propia pantalla, aparte (como Nuevos casos en Lesiones), y tiene una sola Base (si tiene varias tablas, se elige cuál ver), Reportes (se elige cuál) y Ajustes (cabeceras y listas). En Evaluaciones: Cargar · Base · Reportes · Valores de referencia · Ajustes. Descartado: volver a poner «Agregar evaluación» (o agregar filas nuevas) en la Base, y una pantalla por test. | «Bases de Datos (05/10)», regla del 09/10; «Evaluaciones (05/10)», las pantallas (09/10) |
 
 ## Pendientes que no deben tratarse como decisiones cerradas
 
@@ -34,7 +35,10 @@ prohibiciones específicas de conversaciones que no están disponibles.
   («Chicas del filtro»). No registrar ninguna de las dos opciones como prohibida.
 - Nombres del filtro de jugador: faltan los reemplazos concretos («Chicas del filtro»).
 - Valor Referencial como módulo propio: es para más adelante; hoy los V.R. están
-  en Evaluaciones, en su pestaña, solo lectura («Evaluaciones (05/10)»).
+  en Evaluaciones, en su pantalla aparte (la quinta, decidido el 09/10), solo lectura
+  («Evaluaciones (05/10)»).
+- Evaluaciones › Reportes › Gráficos: falta definir qué gráficos van (Santiago, 09/10:
+  «después lo vemos»). No agregar ninguno hasta que se defina.
 - Configuración del protocolo por club, tutorial, GPS y futuras bases: siguen el
   estado y alcance de su sección en PENDIENTES.md; no se implementan por este índice.
 

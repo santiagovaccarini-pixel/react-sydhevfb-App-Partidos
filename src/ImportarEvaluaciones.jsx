@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { HojaOpciones } from "./components/HojaOpciones.js";
-import { categoriaPorCodigo } from "./domain/evaluaciones/categorias.js";
+import { LISTA_SELECCION, categoriaDeTextoDelClub, configVacia, etiquetaDeOpcion, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { COMO_PERSONA, ESTADOS, NO_CARGAR, leerEvaluacionesPegadas, ordenDeCarga, planDeEvaluaciones } from "./domain/evaluaciones/importar.js";
 import { crearEvaluacion } from "./domain/evaluacionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
@@ -33,7 +33,7 @@ const PRIMER_ANIO = 2000;
 
 // onGuardadas(lista): las que se cargaron, todas juntas al terminar (antes de
 // recargar todo, por si la recarga falla).
-export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelSinLeer = false, evaluaciones, onVolver, onRecargar, onGuardadas, onListo }) {
+export default function ImportarEvaluaciones({ test, config = configVacia(), equipoId, plantel, plantelSinLeer = false, evaluaciones, onVolver, onRecargar, onGuardadas, onListo }) {
   const { idioma, plural } = useIdioma();
   const [texto, setTexto] = useState("");
   const [progreso, setProgreso] = useState(null);
@@ -59,13 +59,32 @@ export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelS
     };
   }, []);
 
-  const columna = (campo) => test.columnas.find((una) => una.clave === campo)?.titulo[idioma] || campo;
+  const columna = (campo) => {
+    const suya = test.columnas.find((una) => una.clave === campo);
+    return suya ? tituloDeColumna(test, suya, config, idioma) : campo;
+  };
 
-  const leido = useMemo(() => (texto.trim() ? leerEvaluacionesPegadas(texto, test) : null), [texto, test]);
+  // Los títulos se reconocen como en el Excel y también con el nombre que
+  // les puso el club en Ajustes (en los dos idiomas).
+  const conNombresDelClub = useMemo(() => {
+    const cabeceras = Object.fromEntries(
+      Object.entries(test.cabecerasParaPegar).map(([campo, nombres]) => {
+        const suya = test.columnas.find((una) => una.clave === campo);
+        const delClub = suya ? ["es-AR", "pt-BR"].map((uno) => tituloDeColumna(test, suya, config, uno)) : [];
+        return [campo, [...new Set([...nombres, ...delClub])]];
+      }),
+    );
+    return { ...test, cabecerasParaPegar: cabeceras };
+  }, [test, config]);
+
+  const leido = useMemo(() => (texto.trim() ? leerEvaluacionesPegadas(texto, conNombresDelClub) : null), [texto, conNombresDelClub]);
   const plan = useMemo(
-    () => (leido && !leido.error && !plantelSinLeer ? planDeEvaluaciones(leido.filas, { test, plantel, evaluaciones, hoy, anio, elegidos }) : []),
+    () =>
+      leido && !leido.error && !plantelSinLeer
+        ? planDeEvaluaciones(leido.filas, { test, plantel, evaluaciones, hoy, anio, elegidos, categoriaDe: (texto) => categoriaDeTextoDelClub(texto, config) })
+        : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [leido, test, plantel, plantelSinLeer, evaluaciones, anio, elegidos],
+    [leido, test, plantel, plantelSinLeer, evaluaciones, anio, elegidos, config],
   );
   const aCargar = useMemo(() => ordenDeCarga(plan), [plan]);
   const cuantas = (estado) => plan.filter((fila) => fila.estado === estado).length;
@@ -114,7 +133,7 @@ export default function ImportarEvaluaciones({ test, equipoId, plantel, plantelS
   const detalleDe = (fila) => {
     const { datos } = fila.evaluacion;
     return [
-      datos.seleccion ? categoriaPorCodigo(datos.seleccion)?.etiquetas[idioma] : "",
+      datos.seleccion ? etiquetaDeOpcion(LISTA_SELECCION, datos.seleccion, config, idioma) : "",
       ...test.tiempos.map((clave) => (typeof datos[clave] === "number" ? `${columna(clave)} ${textoDeMinutos(datos[clave])}` : "")),
     ]
       .filter(Boolean)
