@@ -15,7 +15,6 @@ const doblesSupabase = vi.hoisted(() => ({
   errorJugadores: null,
   equipos: [],
   errorEquipos: null,
-  renombrarEquipo: vi.fn(),
   insertarJugador: vi.fn(),
   actualizarJugador: vi.fn(),
   borrarJugador: vi.fn(),
@@ -41,25 +40,6 @@ vi.mock("./supabase.js", () => ({
             data: doblesSupabase.equipos,
             error: doblesSupabase.errorEquipos,
           }),
-          // Renombrar: como la base, solo cambia la fila si quien entró
-          // administra ese club (si no, vuelve sin filas).
-          update: (cambios) => {
-            doblesSupabase.renombrarEquipo(cambios);
-            return {
-              // Devuelve la fila cambiada, como la base cuando se le pide. Sin
-              // permiso (con membresía y sin ser admin) no devuelve ninguna.
-              eq: (campo, valor) => ({
-                select: async () => {
-                  const equipo = doblesSupabase.equipos.find((e) => e.id === valor);
-                  if (!equipo || doblesSupabase.errorEquipos || (equipo.rol && equipo.rol !== "admin")) {
-                    return { data: [], error: doblesSupabase.errorEquipos };
-                  }
-                  equipo.nombre = cambios.nombre;
-                  return { data: [{ id: equipo.id }], error: null };
-                },
-              }),
-            };
-          },
         };
         return consulta;
       }
@@ -222,7 +202,6 @@ describe("interfaz operativa", () => {
     doblesSupabase.insertarJugador.mockClear();
     doblesSupabase.actualizarJugador.mockClear();
     doblesSupabase.borrarJugador.mockClear();
-    doblesSupabase.renombrarEquipo.mockClear();
     doblesSupabase.jugadores = [];
     // Una base con un solo equipo, que es el caso de siempre: la app lo adopta
     // sin preguntar nada.
@@ -1407,23 +1386,30 @@ describe("interfaz operativa", () => {
     expect(localStorage.getItem("backup_registros_partidos:eq-1")).toBeNull();
   });
 
-  test("Ajustes › Equipo ya no crea clubes, y el nombre lo guarda solo el administrador del club", async () => {
-    doblesSupabase.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", rol: "staff" }];
-    await montarApp();
-    await act(async () => irAPestana("Ajustes").click());
-    const opcionEquipo = Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find(
-      (boton) => boton.textContent.includes("Equipo"),
-    );
-    await act(async () => opcionEquipo.click());
+  test("Ajustes › Equipo no crea clubes ni cambia el nombre: muestra el escudo y el nombre, nada más", async () => {
+    // Los datos del club los cambian solo los dueños de la app, desde Clubes
+    // de la app (decisión del 09/10): tampoco el administrador del club.
+    for (const rol of ["staff", "admin"]) {
+      doblesSupabase.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", rol }];
+      await montarApp();
+      await act(async () => irAPestana("Ajustes").click());
+      const opcionEquipo = Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find(
+        (boton) => boton.textContent.includes("Equipo"),
+      );
+      await act(async () => opcionEquipo.click());
 
-    // Los clubes se crean desde Clubes de la app (los dueños), no desde acá.
-    expect(contenedor.textContent).not.toContain("Agregar un equipo");
-    expect(contenedor.querySelector('input[placeholder="Nombre del equipo nuevo"]')).toBeNull();
-    // Staff: ve el nombre, no lo cambia.
-    expect(contenedor.textContent).toContain("Atlético Mineiro");
-    expect(contenedor.querySelector("#nombre-equipo")).toBeNull();
-    expect(contenedor.querySelector(".tarjeta-ficha .boton-principal")).toBeNull();
-    expect(contenedor.textContent).not.toContain("Guardar nombre");
+      expect(contenedor.textContent).not.toContain("Agregar un equipo");
+      const propia = contenedor.querySelector(".tarjeta-ficha");
+      expect(propia.querySelector(".equipo-propio").textContent).toContain("Atlético Mineiro");
+      expect(propia.querySelector("input")).toBeNull();
+      expect(propia.querySelector("button")).toBeNull();
+      expect(contenedor.querySelector("#nombre-equipo")).toBeNull();
+      expect(contenedor.textContent).not.toContain("Guardar nombre");
+
+      await act(async () => raiz.unmount());
+      raiz = null;
+      contenedor.innerHTML = "";
+    }
   });
 
   test("el botón Módulos del inicio vuelve al portal, y desde Ajustes se cierra la sesión (con confirmación)", async () => {
@@ -1665,10 +1651,10 @@ describe("interfaz operativa", () => {
     expect(enCancha).not.toContain("ALONSO");
   });
 
-  test("renombrar el equipo no deja afuera los partidos ya cargados", async () => {
+  test("si los dueños le cambian el nombre al club, los partidos ya cargados siguen ahí", async () => {
     // Por esto se filtra por un id y no por el nombre escrito: corregir el
-    // nombre no puede hacer desaparecer lo cargado.
-    // El nombre lo cambia el administrador del club.
+    // nombre no puede hacer desaparecer lo cargado. El nombre lo cambian los
+    // dueños de la app (Clubes de la app); Partido solo lo lee.
     doblesSupabase.equipos = [{ id: "eq-1", nombre: "Estudiantes", rol: "admin" }];
     doblesSupabase.filasHistorial = [
       { ...filaTransmisionGuardada(), equipo_id: "eq-1" },
@@ -1683,31 +1669,12 @@ describe("interfaz operativa", () => {
     await act(async () => irA("Registros").click());
     expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
 
-    await act(async () => irA("Ajustes").click());
-    await act(async () =>
-      Array.from(contenedor.querySelectorAll(".opcion-ajuste"))
-        .find((boton) => boton.textContent.includes("Equipo"))
-        .click(),
-    );
-
-    const escribir = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value",
-    ).set;
-    const campo = contenedor.querySelector("#nombre-equipo");
-    expect(campo.value).toBe("Estudiantes");
-
-    await act(async () => {
-      escribir.call(campo, "Estudiantes de La Plata");
-      campo.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await act(async () =>
-      contenedor.querySelector(".tarjeta-ficha .boton-principal").click(),
-    );
-
-    expect(doblesSupabase.renombrarEquipo).toHaveBeenCalledWith(
-      expect.objectContaining({ nombre: "Estudiantes de La Plata" }),
-    );
+    // La base ya tiene el nombre nuevo la próxima vez que se abre Partido.
+    await act(async () => raiz.unmount());
+    raiz = null;
+    contenedor.innerHTML = "";
+    doblesSupabase.equipos = [{ id: "eq-1", nombre: "Estudiantes de La Plata", rol: "admin" }];
+    await montarApp();
 
     // El nombre nuevo en toda la app, y el partido sigue estando.
     await act(async () => irA("Registros").click());

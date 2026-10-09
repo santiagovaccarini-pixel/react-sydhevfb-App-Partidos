@@ -1,14 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// La base de mentira: la vista con la membresía, la lista pelada de clubes y
-// lo que contesta al renombrar (las filas que cambió, o un error).
+// La base de mentira: la vista con la membresía y la lista pelada de clubes.
 const base = vi.hoisted(() => ({
   vista: null,
   errorVista: null,
   equipos: [],
   errorEquipos: null,
-  respuestaEscritura: { data: [], error: null },
-  cambios: [],
 }));
 vi.mock("../supabase.js", () => ({
   supabase: {
@@ -17,10 +14,6 @@ vi.mock("../supabase.js", () => ({
         select: () => consulta,
         order: async () =>
           tabla === "v_mis_clubes" ? { data: base.vista, error: base.errorVista } : { data: base.equipos, error: base.errorEquipos },
-        update: (cambios) => {
-          base.cambios.push(cambios);
-          return { eq: () => ({ select: async () => base.respuestaEscritura }) };
-        },
       };
       return consulta;
     },
@@ -35,17 +28,14 @@ import {
   esSoloLectura,
   guardarEquipoElegido,
   leerEquipoElegido,
-  motivoDelError,
-  renombrarEquipo,
 } from "./equipo.js";
+import * as moduloEquipo from "./equipo.js";
 
 beforeEach(() => {
   base.vista = null;
   base.errorVista = null;
   base.equipos = [];
   base.errorEquipos = null;
-  base.respuestaEscritura = { data: [], error: null };
-  base.cambios = [];
   localStorage.clear();
 });
 
@@ -143,34 +133,10 @@ describe("cargarEquipos y la membresía", () => {
   });
 });
 
-describe("renombrar el club", () => {
-  it("renombrar sin permiso no se da por hecho: la base no cambia ninguna fila", async () => {
-    // Con RLS, quien no administra el club no recibe error: no se toca nada.
-    base.respuestaEscritura = { data: [], error: null };
-    expect(await renombrarEquipo("uno", "Atlético Mineiro SAF")).toMatchObject({ motivo: "permiso" });
-
-    base.respuestaEscritura = { data: [{ id: "uno" }], error: null };
-    expect(await renombrarEquipo("uno", " Atlético Mineiro SAF ")).toEqual({
-      equipo: { id: "uno", nombre: "Atlético Mineiro SAF" },
-    });
-    expect(base.cambios.at(-1)).toEqual({ nombre: "Atlético Mineiro SAF" });
-  });
-
-  it("dice por qué no se pudo, y sigue trayendo el texto de siempre", async () => {
-    expect(await renombrarEquipo("uno", "  ")).toMatchObject({ motivo: "vacio", error: "Escribí el nombre del equipo." });
-    expect(base.cambios).toHaveLength(0);
-
-    base.respuestaEscritura = { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };
-    expect(await renombrarEquipo("uno", "Club Nuevo")).toMatchObject({ motivo: "repetido", error: "Ya hay un equipo con ese nombre." });
-
-    // Igual a otro club sin contar tildes ni mayúsculas: lo frena la base.
-    base.respuestaEscritura = { data: null, error: { code: "P0001", message: "nombre_repetido" } };
-    expect(await renombrarEquipo("uno", "Club Nuevo")).toMatchObject({ motivo: "repetido" });
-  });
-
-  it("motivoDelError reconoce el permiso aunque venga sin código", () => {
-    expect(motivoDelError({ message: "permission denied for table equipos" })).toBe("permiso");
-    expect(motivoDelError({ message: "timeout" })).toBe("otro");
-    expect(motivoDelError(null)).toBe("otro");
+describe("el nombre del club", () => {
+  it("desde la app no se cambia: lo cambian solo los dueños, desde Clubes de la app", () => {
+    // Decisión del dueño del 09/10: nadie más modifica los datos de un club.
+    expect(moduloEquipo.renombrarEquipo).toBeUndefined();
+    expect(moduloEquipo.crearEquipo).toBeUndefined();
   });
 });
