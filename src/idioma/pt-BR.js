@@ -90,6 +90,7 @@ export default {
       noConfirmado: "Você ainda não confirmou seu e-mail. Procure a mensagem na sua caixa de entrada (e no spam).",
       yaRegistrado: "Esse e-mail já tem uma conta. Entre com sua senha ou peça uma nova.",
       demasiados: "Houve tentativas demais seguidas. Espere alguns minutos e tente de novo.",
+      esperarMail: "Por segurança, é preciso esperar um minuto entre um e-mail e outro. Confira sua caixa de entrada (e o spam) ou tente de novo em um minuto.",
       mismaContrasena: "A senha nova tem que ser diferente da anterior.",
       debil: "A senha é fácil demais de adivinhar. Use pelo menos 8 caracteres, misturando letras e números.",
       reautenticar: "Por segurança, peça um link novo em Esqueci minha senha e tente de novo.",

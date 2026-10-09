@@ -397,6 +397,50 @@ describe("la puerta de la app", () => {
     }
   });
 
+  test("si se pide otro mail al mismo correo antes del minuto (por ejemplo, recién llegó la invitación), lo dice en castellano", async () => {
+    // Supabase espera 60 s entre un mail y otro al mismo correo, y la
+    // invitación cuenta: "Crear una cuenta" enseguida de recibirla da 429.
+    const espera = () =>
+      respuestaJson(429, {
+        code: 429,
+        error_code: "over_email_send_rate_limit",
+        msg: "For security purposes, you can only request this after 42 seconds.",
+      });
+    for (const accion of ["signUp", "resetPasswordForEmail"]) {
+      const error = await errorDeSupabase(accion, espera());
+      expect([error.name, error.status, error.code]).toEqual(["AuthApiError", 429, "over_email_send_rate_limit"]);
+      supa.resetPasswordForEmail = vi.fn(async () => ({ error }));
+      supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error }));
+      if (raiz) await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail(accion)).toBe(
+        "Por seguridad, hay que esperar un minuto entre un mail y otro. Revisá tu casilla (también spam) o probá de nuevo en un minuto.",
+      );
+    }
+
+    // El tope de mails por hora del proyecto sigue siendo "demasiados intentos".
+    const tope = await errorDeSupabase(
+      "signUp",
+      respuestaJson(429, { code: 429, error_code: "over_email_send_rate_limit", msg: "email rate limit exceeded" }),
+    );
+    supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error: tope }));
+    await act(async () => raiz.unmount());
+    await montar();
+    expect(await pedirMail("signUp")).toBe("Hubo demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.");
+
+    fijarIdiomaParaPruebas("pt-BR");
+    try {
+      supa.signUp = vi.fn(async () => ({ data: { user: null, session: null }, error: { name: "AuthApiError", status: 429, code: "over_email_send_rate_limit", message: "For security purposes, you can only request this after 7 seconds." } }));
+      await act(async () => raiz.unmount());
+      await montar();
+      expect(await pedirMail("signUp", "Criar uma conta")).toBe(
+        "Por segurança, é preciso esperar um minuto entre um e-mail e outro. Confira sua caixa de entrada (e o spam) ou tente de novo em um minuto.",
+      );
+    } finally {
+      fijarIdiomaParaPruebas("es-AR");
+    }
+  });
+
   test("volviendo del enlace de recuperación sin sesión, pide uno nuevo y deja volver", async () => {
     window.history.replaceState({}, "", "/?training_recovery=1");
     await montar();

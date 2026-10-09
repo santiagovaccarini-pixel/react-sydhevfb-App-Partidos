@@ -898,7 +898,10 @@ Cómo está hoy (02/10):
     cuenta" (por ejemplo, falló el SMTP), la puerta dice "No se pudo mandar el mail. Probá
     de nuevo en un rato." y no "No hay conexión" (supabase-js marca los dos casos igual;
     se distinguen por el estado). Sin señal de verdad sigue diciendo "No hay conexión", y
-    la entrada con la copia del celular no cambia.
+    la entrada con la copia del celular no cambia. Si se pide otro mail al mismo correo
+    antes del minuto (Supabase espera 60 s entre uno y otro, y la invitación cuenta: pasa
+    si el invitado toca "Crear una cuenta" enseguida), dice que hay que esperar un minuto,
+    y no el texto de Supabase en inglés.
   - El enlace del mail dura lo que diga "Email OTP Expiration" (24 h, el máximo del
     panel); la invitación, 14 días. "Reenviar mail" manda un enlace nuevo y el anterior
     deja de servir.

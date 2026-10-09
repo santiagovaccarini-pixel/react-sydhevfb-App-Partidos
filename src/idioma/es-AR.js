@@ -91,6 +91,7 @@ export default {
       noConfirmado: "Todavía no confirmaste tu correo. Buscá el mensaje en tu casilla (también en spam).",
       yaRegistrado: "Ese correo ya tiene una cuenta. Entrá con tu contraseña o pedí una nueva.",
       demasiados: "Hubo demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.",
+      esperarMail: "Por seguridad, hay que esperar un minuto entre un mail y otro. Revisá tu casilla (también spam) o probá de nuevo en un minuto.",
       mismaContrasena: "La contraseña nueva tiene que ser distinta de la anterior.",
       debil: "La contraseña es muy fácil de adivinar. Usá al menos 8 caracteres, mezclando letras y números.",
       reautenticar: "Por seguridad, pedí un enlace nuevo desde Olvidé mi contraseña y probá otra vez.",

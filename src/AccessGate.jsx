@@ -52,7 +52,10 @@ const textoDeErrorDeAcceso = (error, porDefecto) => {
   if (/invalid login credentials/i.test(texto)) return t("acceso.error.credenciales");
   if (/email not confirmed/i.test(texto)) return t("acceso.error.noConfirmado");
   if (/user already registered|already been registered/i.test(texto)) return t("acceso.error.yaRegistrado");
-  if (/rate limit|too many requests/i.test(texto)) return t("acceso.error.demasiados");
+  // Supabase espera un minuto entre un mail y otro al mismo correo (la
+  // invitación también cuenta).
+  if (/for security purposes|only request this after/i.test(texto)) return t("acceso.error.esperarMail");
+  if (/rate limit|too many requests/i.test(texto) || error?.status === 429) return t("acceso.error.demasiados");
   return textoDeErrorDeContrasena(error, porDefecto);
 };
 
