@@ -17,7 +17,7 @@ import {
   tiempoParaExcel,
   entre,
 } from "../excel.js";
-import { claseMas, claseMenos, cortesDe } from "../clases.js";
+import { claseMas, claseMenos, claseRatio, cortesDe } from "../clases.js";
 import { COLORES, COLOR_DE_CLASE, SIN_RELLENO, degrade, estiloDeClase, masDesvios } from "../formatoCondicional.js";
 
 // Test Zona Media: la hoja "Test Zona Media Informe" del Excel
@@ -65,26 +65,12 @@ export const FILAS_DE_REFERENCIA = Object.freeze([
 // 8 de su bloque), o null sin V.R.: en ../clases.js.
 export { cortesDe };
 
-// Las clases "más es mejor" y "menos es mejor" están en ../clases.js; la del
-// ratio, acá.
+// Las clases "más es mejor", "menos es mejor" y la del ratio (a los dos
+// lados) están en ../clases.js.
 
 // O y Y de Excel: si alguno es un error, el resultado es el error.
 const o = (...valores) => valores.find(esError) || valores.some(Boolean);
 const y = (...valores) => valores.find(esError) || valores.every(Boolean);
-
-// El ratio, a los dos lados (de 1 a 3: lo mejor es estar cerca del Bueno):
-// IF(OR(x>=Exc,x<=Malo),1,IF(OR(x>=MB,x<=Reg),2,IF(AND(x>Reg,x<MB),3,""))).
-const claseRatio = (valor, [excelente, muyBueno, , regular, malo]) => {
-  const uno = o(mayorIgual(valor, excelente), menorIgual(valor, malo));
-  if (esError(uno)) return uno;
-  if (uno) return 1;
-  const dos = o(mayorIgual(valor, muyBueno), menorIgual(valor, regular));
-  if (esError(dos)) return dos;
-  if (dos) return 2;
-  const tres = y(mayor(valor, regular), menor(valor, muyBueno));
-  if (esError(tres)) return tres;
-  return tres ? 3 : "";
-};
 
 // La clase de una fila: IF(ISBLANK($G),"",IF($G="Mayor",IF(ISBLANK(x),"",…))).
 // Con una selección que no es de la lista, el Excel da FALSO. La lista es la

@@ -21,6 +21,7 @@ const datos = vi.hoisted(() => ({
   cabeceras: [],
   opciones: [],
   referenciasCurl: null,
+  referenciasIso: null,
 }));
 
 // Los V.R. de prueba, en la unidad del Excel (los tiempos, segundos ÷ 1440).
@@ -85,7 +86,14 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
     }
     return datos.errorAlLeer ? { evaluaciones: [], error: datos.errorAlLeer } : { evaluaciones: datos.evaluaciones.map((una) => ({ ...una, datos: { ...una.datos } })), error: "" };
   },
-  leerReferencias: async () => ({ referencias: { ...(datos.referencias ? { zona_media: datos.referencias } : {}), ...(datos.referenciasCurl ? { curl_nordico_isoprone: datos.referenciasCurl } : {}) }, error: "" }),
+  leerReferencias: async () => ({
+    referencias: {
+      ...(datos.referencias ? { zona_media: datos.referencias } : {}),
+      ...(datos.referenciasCurl ? { curl_nordico_isoprone: datos.referenciasCurl } : {}),
+      ...(datos.referenciasIso ? { isocinecia: datos.referenciasIso } : {}),
+    },
+    error: "",
+  }),
   leerAjustes: async () => ({ campos: [...datos.ajustes.campos], opciones: [...datos.ajustes.opciones], error: "" }),
   guardarCabecera: async (equipoId, test, campo, { etiquetas, oculto, orden }) => {
     datos.cabeceras.push({ equipoId, test, campo, etiquetas, oculto, orden });
@@ -185,6 +193,7 @@ describe("Evaluaciones", () => {
     datos.cabeceras = [];
     datos.opciones = [];
     datos.referenciasCurl = null;
+    datos.referenciasIso = null;
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -630,7 +639,7 @@ describe("Evaluaciones", () => {
     await montar();
     await irA(contenedor, "Base");
     // El test se elige en un desplegable, no con un botón por test.
-    expect([...contenedor.querySelector("select.evaluaciones-elegir-test-lista").options].map((opcion) => opcion.textContent)).toEqual(["Zona Media", "Curl Nórdico e Isoprone"]);
+    expect([...contenedor.querySelector("select.evaluaciones-elegir-test-lista").options].map((opcion) => opcion.textContent)).toEqual(["Zona Media", "Curl Nórdico e Isoprone", "Isocinecia"]);
     expect(botones(contenedor).some((b) => b.textContent === "Curl Nórdico e Isoprone")).toBe(false);
     await elegirTest(contenedor, "Curl Nórdico e Isoprone");
     expect(contenedor.querySelector("h1").textContent).toBe("Curl Nórdico e Isoprone");
@@ -676,6 +685,70 @@ describe("Evaluaciones", () => {
     expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Isoprone · Media");
     await tocar(boton(contenedor, "Guardar la evaluación"));
     expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "curl_nordico_isoprone", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { pc: 80.5, curl_l_max: 402, curl_r_max: 398 } } }]);
+  });
+
+  test("Isocinecia: en la Base se elige la velocidad; se carga por medida, con extensión y flexión juntas", async () => {
+    const iso = (id, orden, jugador_id, fecha, extra) => ({ ...evaluacion(id, orden, jugador_id, fecha, {}), test: "isocinecia", datos: { seleccion: "mayor", ...extra } });
+    datos.evaluaciones.push(iso("s1", 30, 1, "2026-06-01", { pc: 80, v60_peak_ext_pd: 300, v60_peak_ext_pi: 270, v180_rom_pd: 140, v180_rom_pi: 140 }));
+    const V = (valor) => ({ v60_peak_ext_pd: valor, v60_peak_ext_pi: valor });
+    datos.referenciasIso = {
+      categorias: {
+        mayor: { titulos: { v60: "V.R. de prueba 60", v180: "V.R. de prueba 180", v300: "V.R. de prueba 300" }, n: { v60_peak_ext_pd: 9 }, excelente: V(300), muy_bueno: V(270), bueno: V(240), regular: V(210), malo: V(180) },
+      },
+    };
+    await montar();
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Isocinecia");
+    expect(contenedor.querySelector("h1").textContent).toBe("Isocinecia");
+    // Al entrar, 60°: las comunes y las de esa velocidad (como los botones del Excel).
+    const velocidad = contenedor.querySelector("select.evaluaciones-elegir-vista-lista");
+    expect([...velocidad.options].map((opcion) => opcion.textContent)).toEqual(["60°", "180°", "300°", "Todas"]);
+    expect(velocidad.value).toBe("v60");
+    expect(cabeceras(contenedor)).toHaveLength(5 + 87);
+    expect(cabeceras(contenedor).slice(0, 9)).toEqual(["Jugador", "Fecha", "Nº Evaluacion", "Seleccion", "P.C.", "PD", "Clas PD", "% Mejora PD", "PI"]);
+    expect([...contenedor.querySelectorAll(".tabla-datos-grupo-titulo")].map((titulo) => titulo.textContent).filter(Boolean).slice(0, 4)).toEqual([
+      "Peak TQ/BW 60° · Extensión",
+      "Peak TQ/BW 60° · Flexión",
+      "Peak TQ/BW 60° · Flexión/Extensión",
+      "Work/BW 60° · Extensión",
+    ]);
+    expect(celda(contenedor, 0, "Clas PD").textContent).toBe("5");
+    expect(celda(contenedor, 0, "% Deficit").textContent).toBe("11,1%");
+    expect(celda(contenedor, 0, "Deficit Pierna").textContent).toBe("PI");
+    // El informe: el N° cuenta datos; las cuentas de PD / PI con su rótulo.
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Desvío"), "Deficit Pierna").textContent).toBe("PI 1,0");
+    // 180°: otra velocidad, la misma fila.
+    await act(async () => {
+      velocidad.value = "v180";
+      velocidad.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(cabeceras(contenedor)).toHaveLength(5 + 87);
+    expect([...contenedor.querySelectorAll(".tabla-datos-grupo-titulo")].map((titulo) => titulo.textContent).filter(Boolean)[0]).toBe("Peak TQ/BW 180° · Extensión");
+    expect(celda(contenedor, 0, "Clas PD").textContent).toBe("");
+
+    // Los valores de referencia: una tabla por velocidad.
+    await irA(contenedor, "Valores de referencia");
+    await elegirTest(contenedor, "Isocinecia");
+    expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["V.R. de prueba 60", "V.R. de prueba 180", "V.R. de prueba 300"]);
+
+    // No se carga a mano (sale del PDF del equipo: Santiago, 09/10): en
+    // Cargar no está, ni aunque sea el que se mira en la Base.
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Isocinecia");
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    const deLaCarga = contenedor.querySelector("select.evaluaciones-elegir-test-lista");
+    expect([...deLaCarga.options].map((opcion) => opcion.textContent)).toEqual(["Zona Media", "Curl Nórdico e Isoprone"]);
+    expect(deLaCarga.value).toBe("zona_media");
+  });
+
+  test("Isocinecia de hoy (pegada desde el Excel): en Cargar se ve y se borra, pero se corrige en la Base", async () => {
+    datos.evaluaciones.push({ ...evaluacion("s2", 31, 2, hoyISO(), {}), test: "isocinecia", datos: { seleccion: "mayor", v60_rom_pd: 140 }, creado_en: new Date().toISOString() });
+    await montar();
+    const tarjeta = [...contenedor.querySelectorAll(".evaluaciones-registro")].find((una) => una.textContent.includes("Isocinecia"));
+    expect(tarjeta).toBeTruthy();
+    expect([...tarjeta.querySelectorAll("button")].some((b) => b.textContent === "Editar")).toBe(false);
+    expect(tarjeta.querySelector(".boton-eliminar-registro")).not.toBeNull();
   });
 
   test("en portugués, con los textos del Excel traducidos", async () => {

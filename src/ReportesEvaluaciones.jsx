@@ -6,6 +6,8 @@ import { AREAS } from "./domain/evaluaciones/areas.js";
 import { COMPARAR_AL_ABRIR } from "./domain/evaluaciones/categorias.js";
 import {
   LISTA_SELECCION,
+  VISTA_TODAS,
+  columnasDeLaVista,
   columnasVisibles,
   esCategoriaDelClub,
   etiquetaDeOpcion,
@@ -24,12 +26,13 @@ import { fechaCorta } from "./idioma/formatos.js";
 // El test que se ve, en un desplegable (Santiago, 09/10: «Que la eleccion de
 // test sea un desplegable, no pongas todas las evaluaciones como opciones
 // sueltas»), igual en todas las pantallas de Evaluaciones. Con un solo test,
-// nada. conRotulo: con «Test» arriba (si el lugar no tiene ya su rótulo).
-export const SelectorDeTest = ({ elegido, alElegir, idioma, conRotulo = true }) => {
-  if (TESTS.length < 2) return null;
+// nada. conRotulo: con «Test» arriba (si el lugar no tiene ya su rótulo);
+// tests: cuáles (en Cargar, solo los que se cargan a mano).
+export const SelectorDeTest = ({ elegido, alElegir, idioma, conRotulo = true, tests = TESTS }) => {
+  if (tests.length < 2) return null;
   const lista = (
     <select className="evaluaciones-elegir-test-lista" value={elegido} aria-label={t("evaluaciones.form.test")} onChange={(evento) => alElegir(evento.target.value)}>
-      {TESTS.map((uno) => (
+      {tests.map((uno) => (
         <option key={uno.id} value={uno.id}>
           {uno.pestana[idioma]}
         </option>
@@ -44,6 +47,29 @@ export const SelectorDeTest = ({ elegido, alElegir, idioma, conRotulo = true }) 
     </label>
   );
 };
+
+// Qué parte de un test se ve, si el test tiene vistas (Isocinecia: 60°, 180°,
+// 300° o todas, como los botones del Excel). Con el mismo aspecto que el
+// desplegable del test.
+export const SelectorDeVista = ({ test, elegida, alElegir, idioma }) => {
+  if (!test.vistas) return null;
+  return (
+    <label className="campo-inicio evaluaciones-elegir-test evaluaciones-elegir-vista">
+      <span>{test.vistas.rotulo[idioma]}</span>
+      <select className="evaluaciones-elegir-vista-lista" value={elegida} onChange={(evento) => alElegir(evento.target.value)}>
+        {test.vistas.opciones.map((opcion) => (
+          <option key={opcion.clave} value={opcion.clave}>
+            {opcion.titulo[idioma]}
+          </option>
+        ))}
+        <option value={VISTA_TODAS}>{test.vistas.todas[idioma]}</option>
+      </select>
+    </label>
+  );
+};
+
+// La vista al abrir un test: la primera (en Isocinecia, 60°).
+export const vistaInicial = (test) => test.vistas?.opciones?.[0]?.clave || VISTA_TODAS;
 
 // Los reportes de Evaluaciones (Santiago, 09/10), como los de Lesiones: se
 // elige cuál ver y se imprime.
@@ -281,6 +307,8 @@ export default function ReportesEvaluaciones({ evaluaciones, referenciasPorTest,
   const [busqueda, setBusqueda] = useState("");
   const [comparar, setComparar] = useState(COMPARAR_AL_ABRIR);
   const [testId, setTestId] = useState(TESTS[0].id);
+  // La vista de cada test en el grupal (Isocinecia: qué velocidad).
+  const [vistaPorTest, setVistaPorTest] = useState({});
   const [categoria, setCategoria] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -578,6 +606,7 @@ export default function ReportesEvaluaciones({ evaluaciones, referenciasPorTest,
         {estado}
         <section className="tarjeta evaluaciones-reporte-filtros no-imprimir">
           <SelectorDeTest elegido={test.id} alElegir={setTestId} idioma={idioma} />
+          <SelectorDeVista test={test} elegida={vistaPorTest[test.id] || vistaInicial(test)} alElegir={(vista) => setVistaPorTest((antes) => ({ ...antes, [test.id]: vista }))} idioma={idioma} />
           <div className="evaluaciones-reporte-campos">
             <label className="campo-inicio">
               <span>{t("evaluaciones.reportes.categoria")}</span>
@@ -613,7 +642,7 @@ export default function ReportesEvaluaciones({ evaluaciones, referenciasPorTest,
             ) : (
               <TablaDelTest
                 test={test}
-                columnas={columnasVisibles(test, config)}
+                columnas={columnasDeLaVista(columnasVisibles(test, config), vistaPorTest[test.id] || vistaInicial(test))}
                 filas={filas}
                 referencias={referenciasPorTest[test.id] || null}
                 comparar={comparar}

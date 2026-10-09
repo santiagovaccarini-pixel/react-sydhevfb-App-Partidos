@@ -8,7 +8,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarEvaluaciones from "./ImportarEvaluaciones.jsx";
-import ReportesEvaluaciones, { SelectorDeTest } from "./ReportesEvaluaciones.jsx";
+import ReportesEvaluaciones, { SelectorDeTest, SelectorDeVista, vistaInicial } from "./ReportesEvaluaciones.jsx";
 import { COMPARAR_AL_ABRIR } from "./domain/evaluaciones/categorias.js";
 import {
   COLUMNAS_FIJAS,
@@ -17,6 +17,7 @@ import {
   claveDeGrupo,
   codigoNuevo,
   columnaOculta,
+  columnasDeLaVista,
   columnasVisibles,
   configVacia,
   esCategoriaDelClub,
@@ -78,6 +79,9 @@ export const DESTINOS_EVALUACIONES = [
 const TIPO_EN_LA_TABLA = { calculado: "calculado", dato_jugador: "calculado", fecha: "fecha", jugador: "lista", lista: "lista", tiempo: "tiempo", texto: "texto", numero: "numero" };
 // Lo que se carga a mano (lo demás lo calcula la app o sale de Datos básicos).
 const SE_CARGAN = ["fecha", "jugador", "lista", "tiempo", "texto", "numero"];
+// Los tests que se cargan a mano en Cargar. Isocinecia no: sale del PDF del
+// equipo (Santiago, 09/10); se trae con Pegar desde Excel y se corrige en la Base.
+const TESTS_QUE_SE_CARGAN = TESTS.filter((uno) => uno.seCargaEnLaApp !== false);
 // Van alineadas a la izquierda, como en el Excel; el resto, centrado.
 const A_LA_IZQUIERDA = ["jugador", "nota"];
 // Una lista corta se elige con botones; una larga, con la hoja de opciones
@@ -147,6 +151,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const [vista, setVista] = useState("cargar");
   const [testId, setTestId] = useState(TESTS[0].id);
   const test = TESTS.find((uno) => uno.id === testId) || TESTS[0];
+  // Qué parte de cada test se ve en la Base (Isocinecia: qué velocidad).
+  const [vistaPorTest, setVistaPorTest] = useState({});
+  const vistaDeLaBase = vistaPorTest[test.id] || vistaInicial(test);
   const [plantel, setPlantel] = useState([]);
   const [plantelSinLeer, setPlantelSinLeer] = useState(false);
   // Las evaluaciones del club, de todos los tests.
@@ -273,7 +280,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // Paso 1: lo que el Excel calcula de cada fila, con todas las del test.
   const calculadas = useMemo(() => calcularFilas(test, delTest, referencias, { esCategoria }), [test, delTest, referencias, esCategoria]);
 
-  const visibles = useMemo(() => columnasVisibles(test, config), [test, config]);
+  const visibles = useMemo(() => columnasDeLaVista(columnasVisibles(test, config), vistaDeLaBase), [test, config, vistaDeLaBase]);
   const columnas = useMemo(
     () =>
       visibles.map((columna) => ({
@@ -462,12 +469,13 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     setFormulario(nuevo);
   };
 
-  const abrirNueva = () => abrirFormulario({ id: null, test: test.id, jugador_id: null, persona: null, fecha: hoyISO(), datos: {}, textos: {} });
+  const abrirNueva = () =>
+    abrirFormulario({ id: null, test: (TESTS_QUE_SE_CARGAN.includes(test) ? test : TESTS_QUE_SE_CARGAN[0]).id, jugador_id: null, persona: null, fecha: hoyISO(), datos: {}, textos: {} });
 
   // Al editar, los tiempos se ven como se escriben (3:04).
   const abrirEdicion = (evaluacion) => {
     const suyo = testDe(evaluacion.test);
-    if (!suyo) return;
+    if (!suyo || !TESTS_QUE_SE_CARGAN.includes(suyo)) return;
     const textos = {};
     suyo.columnas.forEach((columna) => {
       if (columna.tipo === "tiempo" && typeof evaluacion.datos?.[columna.clave] === "number") textos[columna.clave] = textoDeMinutos(evaluacion.datos[columna.clave]);
@@ -763,11 +771,17 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           {errorFormulario && <div className="aviso-hoja">{errorFormulario}</div>}
 
           {/* El test se elige al empezar una carga nueva. */}
-          {actual.id === "quien" && !carga.id && TESTS.length > 1 && (
+          {actual.id === "quien" && !carga.id && TESTS_QUE_SE_CARGAN.length > 1 && (
             <section className="tarjeta tarjeta-ficha lesiones-grupo">
               <div className="campo-inicio lesiones-campo-paso">
                 <label>{t("evaluaciones.form.test")}</label>
-                <SelectorDeTest elegido={carga.test} alElegir={(id) => cambiarFormulario({ test: id, datos: carga.datos?.seleccion ? { seleccion: carga.datos.seleccion } : {}, textos: {} })} idioma={idioma} conRotulo={false} />
+                <SelectorDeTest
+                  tests={TESTS_QUE_SE_CARGAN}
+                  elegido={carga.test}
+                  alElegir={(id) => cambiarFormulario({ test: id, datos: carga.datos?.seleccion ? { seleccion: carga.datos.seleccion } : {}, textos: {} })}
+                  idioma={idioma}
+                  conRotulo={false}
+                />
               </div>
             </section>
           )}
@@ -837,9 +851,12 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         </div>
         {!soloLectura && (
           <div className="acciones-registro">
-            <button type="button" className="boton-detalle" onClick={() => abrirEdicion(evaluacion)}>
-              {t("evaluaciones.editar")}
-            </button>
+            {/* Lo que no se carga a mano (Isocinecia) se corrige en la Base. */}
+            {TESTS_QUE_SE_CARGAN.includes(suyo) && (
+              <button type="button" className="boton-detalle" onClick={() => abrirEdicion(evaluacion)}>
+                {t("evaluaciones.editar")}
+              </button>
+            )}
             <button type="button" className="boton-eliminar-registro" aria-label={t("evaluaciones.borrarEvaluacion")} onClick={() => setABorrar(evaluacion)}>
               <Icono nombre="borrar" size={16} />
             </button>
@@ -895,10 +912,13 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const pantallaBase = (
     <div className="app">
       <div className="contenedor contenedor-base">
-        {elegirTest(test.id, (id) => {
-          setTestId(id);
-          setImportando(false);
-        })}
+        <div className="evaluaciones-elegir">
+          {elegirTest(test.id, (id) => {
+            setTestId(id);
+            setImportando(false);
+          })}
+          <SelectorDeVista test={test} elegida={vistaDeLaBase} alElegir={(vista) => setVistaPorTest((antes) => ({ ...antes, [test.id]: vista }))} idioma={idioma} />
+        </div>
         {encabezado(test.titulo[idioma], test.nota[idioma])}
         <AvisoSoloLectura hasta={equipo?.hasta} />
         {estado}
@@ -911,7 +931,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         )}
         <section className="tarjeta evaluaciones-tabla">
           <TablaDatos
-            key={test.id}
+            key={`${test.id}-${vistaDeLaBase}`}
             id={`evaluaciones-${test.id}`}
             recordar={`evaluaciones:${test.id}`}
             columnas={columnas}

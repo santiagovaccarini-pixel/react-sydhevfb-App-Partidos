@@ -25,11 +25,23 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.evaluaciones-marco .evaluaciones-elegir-test-lista {
+.evaluaciones-marco .evaluaciones-elegir-test-lista,
+.evaluaciones-marco .evaluaciones-elegir-vista-lista {
   min-height: 48px;
   background: #fff;
   font-weight: 800;
 }
+/* El test y, si tiene, la vista (Isocinecia: la velocidad), uno al lado del
+   otro si entran. */
+.evaluaciones-marco .evaluaciones-elegir {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+.evaluaciones-marco .evaluaciones-elegir > .campo-inicio.evaluaciones-elegir-test {
+  flex: 1 1 240px;
+}
+
 .evaluaciones-marco .tarjeta .campo-inicio.evaluaciones-elegir-test {
   margin: 0;
 }
