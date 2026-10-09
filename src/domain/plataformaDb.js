@@ -137,6 +137,18 @@ export const crearClub = async ({ nombre, correoEntidad = "", zona = ZONA_POR_DE
   return llamar("crear_club", { p_nombre: limpio, p_correo_entidad: correo || null, p_zona: zona || ZONA_POR_DEFECTO });
 };
 
+// Cambia el nombre de un club, con las mismas reglas que al crearlo (la base
+// además lo compara con los otros sin tildes ni mayúsculas). Los datos de un
+// club los cambian solo los dueños (decisión del 09/10): ni su administrador
+// ni su entidad. Queda en Movimientos y en la historia del club, sin decir
+// qué dueño fue.
+export const renombrarClub = async (equipoId, nombre) => {
+  const limpio = String(nombre || "").trim();
+  if (!limpio || limpio.length > 60) throw new Error("panel.error.nombreInvalido");
+  await llamar("renombrar_club", { p_equipo: equipoId, p_nombre: limpio });
+  return true;
+};
+
 // Asigna o cambia el correo de la entidad de un club; vacío, la saca.
 export const asignarEntidad = async (equipoId, correoNuevo) => {
   const correo = limpiarCorreo(correoNuevo);

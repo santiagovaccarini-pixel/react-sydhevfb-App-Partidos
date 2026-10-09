@@ -62,6 +62,10 @@ export const textoDeMovimiento = (movimiento) => {
       return t("cuentas.movimientos.rol", { rol: t(`cuentas.roles.${d.rol || "staff"}`) });
     case "modulos":
       return t("cuentas.movimientos.modulos", { modulos: nombresDeModulos(d) });
+    // Lo anota la base cuando un dueño de la app le cambia el nombre al club
+    // (sin decir cuál de ellos).
+    case "club_renombrado":
+      return t("cuentas.movimientos.clubRenombrado", { nombre: d.nombre || "" });
     default:
       return t("cuentas.movimientos.borrado");
   }

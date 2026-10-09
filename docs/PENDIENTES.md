@@ -661,8 +661,9 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   dueños; de la gente de su club solo sabe si alguien es dueño (`protegido` en
   `v_miembros_club`), para no ofrecerle acciones.
   Solo el principal suma o quita sub-dueños y pasa su lugar (solo a un sub-dueño; él queda
-  como sub). Los sub-dueños hacen todo lo demás: crear clubes, asignar y cambiar el correo
-  de la entidad, ver el panel y Movimientos. Al principal nadie lo saca de la plataforma.
+  como sub). Los sub-dueños hacen todo lo demás: crear clubes, cambiarles el nombre (desde
+  el 09/10), asignar y cambiar el correo de la entidad, ver el panel y Movimientos. Al
+  principal nadie lo saca de la plataforma.
 - **Dueños protegidos en los clubes (decisión del dueño, 08/10).** A ningún dueño, principal
   ni sub-dueño, lo saca otra persona de un club (tampoco otro dueño): nadie le da de baja, le
   cambia los módulos ni borra su fila; solo él se va (`salir_del_club`). La base lo frena
@@ -682,6 +683,7 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
 - **Panel «Clubes de la app»** (`src/ClubesDeLaApp.jsx`): de cada club solo nombre, correo
   de la entidad, correo del administrador y cantidad de personas; lo garantiza la base
   (`panel_clubes`). Crear un club (nombre, entidad opcional, zona de una lista corta),
+  cambiarle el nombre (desde el 09/10; muestra el anterior y el nuevo antes de guardar),
   asignar/cambiar/sacar la entidad (cambiarla muestra el correo anterior y el nuevo),
   pedidos de clubes que no están, dueños y Movimientos. Ya no hay lista global de cuentas,
   aprobación de cuentas ni contador en el portal; los dueños no aceptan a nadie en un club.
@@ -696,7 +698,12 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   deshabilitados («Sin administrador») y la base no deja (`club_sin_admin`). La persona
   ve lo mismo en todos los casos («Esperando autorización de» lo que escribió). El invitado
   nunca ve esa pantalla. Una cuenta autorizada que se quedó sin ningún club activo ve el
-  mismo formulario al elegir club.
+  mismo formulario al elegir club. Desde el 09/10, cualquier cuenta, también con clubes
+  activos, pide entrar a otro club desde portal › Cambiar: «Pedir entrar a otro club»,
+  enlace debajo de la lista (no compite con elegir ni con «Salir de»), que abre el mismo
+  formulario o, con un pedido abierto, «Esperando autorización de {club}» con Cancelar.
+  Sigue habiendo un pedido abierto por cuenta y la persona nunca sabe si el club usa la
+  app.
 - **El admin del club** invita solo como staff (ya no hay chip de rol), da y saca módulos,
   da de baja y reincorpora (la fecha de entrada cambia solo al reincorporar; cuándo se creó
   la fila y quién decidió, los anota la base). No toca a otro admin, ni a sí mismo, ni a un
@@ -705,6 +712,30 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   SQL.
 - **Clubes**: se crean solo desde el panel; no se borran desde la app (solo por SQL); el
   nombre lo cambia el admin del club (Partido › Ajustes › Equipo ya no crea clubes).
+  **Reemplazado el 09/10** (ver el punto que sigue): el nombre ya no lo cambia el admin.
+- **Los datos de un club los cambian solo los dueños (decisión del dueño, 09/10, en el
+  chat).** Palabras del dueño: «Nadie puede cambiar el club ni modificarlo, solo yo o sub
+  dueños» y «nadie puede modificar el nombre o agregar un club (Por eso dijimos que tenían
+  que estar todos los clubes en la elección de clubes), Solo se pueden hacer pedidos de
+  agregar un club que no esté. NADIE MODIFICA NADA DE NINGUN CLUB NI DEL NOMBRE DEL CLUB
+  SOLO EL DUEÑO O SUB DUEÑO». Reemplaza la decisión 8 de este paso («El nombre lo cambia
+  el admin del club»).
+  - El nombre (y cualquier otro dato de `equipos`) lo cambian solo el dueño principal y
+    los sub-dueños, desde Clubes de la app: «Cambiar nombre» en cada club (acción
+    secundaria), con una confirmación que muestra el nombre anterior y el nuevo
+    (`renombrar_club`; mismas reglas que al crear: hasta 60 letras y distinto de los otros
+    clubes sin contar tildes ni mayúsculas). Queda en Movimientos («Nombre: {antes} →
+    {nombre}») y en la historia del club sin decir qué dueño fue («El club pasó a llamarse
+    {nombre}»; Cuentas hoy muestra la historia de cada persona, así que esa fila, como la
+    de la entidad, se va a ver cuando haya historia del club, en el paso 3).
+  - Crear clubes sigue siendo solo de los dueños. El administrador del club sigue
+    manejando la gente de su club (invitar como staff, aceptar pedidos, módulos, bajas):
+    eso no es modificar el club.
+  - **Queda prohibido:** que el administrador, la entidad o el staff cambien el nombre u
+    otro dato del club; volver a poner renombrar en Partido › Ajustes › Equipo (se sacó el
+    09/10: la tarjeta «Tu equipo» muestra el escudo y el nombre, nada más) o ponerlo en
+    Cuentas. La base lo frena igual (`equipos` sin UPDATE para las cuentas; solo la función
+    de los dueños).
 - **Catapult**: el token del servidor es de Atlético Mineiro (`plataforma.catapult_equipo`,
   se cambia por SQL). Solo quien tiene Flujo diario en ese club usa Flujo diario y los
   chalecos; el resto ve «Tu club todavía no conectó Catapult en la app». Pruebas técnicas
@@ -712,14 +743,18 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   diario en ese club).
 
 **Visto en la revisión del 08/10, queda afuera de este paso (a decidir o para otra rama):**
-- Renombrar un club (lo hace su admin): como dos clubes no se escriben igual
+- **Resuelto el 09/10** (el nombre lo cambian solo los dueños, ver arriba; queda en
+  Movimientos). Lo que se había anotado:
+  Renombrar un club (lo hace su admin): como dos clubes no se escriben igual
   (`nombre_repetido`, contra todos los clubes), el admin puede averiguar si un nombre es de
   un club de la app que no ve; y si le pone a su club el nombre de un club que todavía no
   está en la app, desde ahí le llegan los pedidos de quien escriba ese nombre (antes iban
   al panel). El cambio de nombre no queda en Movimientos. Lo decide el dueño (hasta el
   catálogo del paso 6): por ejemplo, anotar los renombres en Movimientos o que el nombre lo
   cambien los dueños.
-- Partido › Ajustes › Equipo: con un nombre de más de 60 letras la base contesta
+- **Ya no aplica desde el 09/10** (Partido no cambia más el nombre; en el panel el campo
+  llega hasta 60 letras y `nombre_invalido` tiene su texto). Lo que se había anotado:
+  Partido › Ajustes › Equipo: con un nombre de más de 60 letras la base contesta
   `nombre_invalido` y la pantalla dice que falla la señal. Arreglarlo toca `src/App.js`
   (Partido, fuera de este paso): un motivo propio en `motivoDelError`
   (`src/domain/equipo.js`), su texto en es-AR y pt-BR y `maxLength={60}` en el campo.
