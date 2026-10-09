@@ -25,6 +25,7 @@ prohibiciones específicas de conversaciones que no están disponibles.
 | UI-007 | Conservá tarjetas, fotos y portadas aprobadas y su componente compartido; no las reemplaces al aplicar la regla general de reducir decoración. | «Entrenamiento (OpenField)», portal y portada; «Bases de Datos (05/10)» |
 | UI-008 | En Tareas, las correcciones manuales siguen plegadas en “Ajustar horarios y pausas”. No expandir todo por defecto. | «Entrenamiento (OpenField)», tareas como un partido |
 | UI-009 | Salir de un club vive solo en portal › Cambiar (abajo, «Salir de {club}», enlace secundario), igual para todos. No volver a ponerlo en la fila propia de Cuentas. | «Cuentas paso 2», salir de un club en un solo lugar (08/10) |
+| UI-010 | El nombre de un club (y sus demás datos) lo cambian solo los dueños, en Clubes de la app («Cambiar nombre», con confirmación). Descartado: renombrar en Partido › Ajustes › Equipo (la tarjeta «Tu equipo» muestra el escudo y el nombre, nada más); no volver a ponerlo ahí ni en Cuentas, ni dárselo al administrador del club. | «Cuentas paso 2», los datos de un club los cambian solo los dueños (09/10) |
 
 ## Pendientes que no deben tratarse como decisiones cerradas
 

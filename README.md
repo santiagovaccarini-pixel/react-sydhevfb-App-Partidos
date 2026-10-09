@@ -94,7 +94,9 @@ la app: a cada club se entra porque ese club te deja.
   el administrador de ese club, desde Cuentas. Si el nombre no coincide con ningún
   club de la app, o el club todavía no tiene administrador (o se quedó sin él), el
   pedido va al panel de los dueños, que lo mandan a un club con administrador o lo
-  rechazan. La persona ve lo mismo en todos los casos.
+  rechazan. La persona ve lo mismo en todos los casos. Quien ya está en algún club
+  pide entrar a otro igual, desde el portal › Cambiar («Pedir entrar a otro club»,
+  debajo de la lista).
 - **Cada club maneja su gente**: módulos, dar de baja con el último día (ve lo
   cargado hasta ese día) y reincorporar. El administrador no toca a otro
   administrador, ni a sí mismo, ni a un dueño de la app. Sacar a alguien de un
@@ -106,13 +108,21 @@ la app: a cada club se entra porque ese club te deja.
 - **Dueños de la app**: un dueño principal y sub-dueños (tablas `plataforma` y
   `plataforma_subduenos`, fuera de `perfiles`). Ven el panel «Clubes de la app»:
   de cada club solo el nombre, el correo de la entidad, el del administrador y
-  cuánta gente tiene. Crean clubes (sin quedar adentro) y asignan el correo de la
-  entidad. No ven la gente ni los datos de ningún club y no aceptan a nadie. Solo
-  el principal suma, quita o pasa dueños. A ningún dueño (principal ni sub) lo
-  saca otra persona de un club, ni le cambia los módulos: solo él se va. Tampoco
-  lo mete nadie: a un club entra o vuelve solo si lo pide. En Cuentas su fila
-  dice «Dueño de la app» y no tiene acciones. Si el principal le saca el rol a un
-  sub-dueño, pasa a ser un miembro común de sus clubes.
+  cuánta gente tiene. Crean clubes (sin quedar adentro), les cambian el nombre y
+  asignan el correo de la entidad. No ven la gente ni los datos de ningún club y
+  no aceptan a nadie. Solo el principal suma, quita o pasa dueños. A ningún dueño
+  (principal ni sub) lo saca otra persona de un club, ni le cambia los módulos:
+  solo él se va. Tampoco lo mete nadie: a un club entra o vuelve solo si lo pide.
+  En Cuentas su fila dice «Dueño de la app» y no tiene acciones. Si el principal
+  le saca el rol a un sub-dueño, pasa a ser un miembro común de sus clubes.
+- **Los datos de un club los cambian solo los dueños** (decisión del dueño del
+  09/10: «NADIE MODIFICA NADA DE NINGUN CLUB NI DEL NOMBRE DEL CLUB SOLO EL DUEÑO
+  O SUB DUEÑO»). Reemplaza la decisión anterior de que el nombre lo cambiaba el
+  administrador del club. El nombre se cambia en «Clubes de la app» y queda en
+  Movimientos y en la historia del club. Ni el administrador, ni la entidad, ni el
+  staff lo cambian: Partido › Ajustes › Equipo solo muestra el escudo y el nombre,
+  y renombrar no vuelve ahí ni a Cuentas. Ver [PENDIENTES](docs/PENDIENTES.md),
+  «Cuentas paso 2».
 - Bloquear una cuenta en toda la app y borrar un club es solo por SQL. Borrar una
   cuenta es desde Supabase › Authentication › Users.
 - **Flujo diario**: el token de Catapult del servidor (`OPENFIELD_API_TOKEN`) es de
