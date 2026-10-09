@@ -196,7 +196,7 @@ describe("TrainingSettings", () => {
 
   test("con cuenta: prueba la conexión sin pedir contraseña y muestra el resultado", async () => {
     const fetchMock = fetchRuteado(CUENTA_CONECTADA, (url) =>
-      url === "/api/openfield/cloud-token-probe"
+      url === "/api/openfield/diagnostico?prueba=cloud-token-probe"
         ? respuestaJson(200, {
             ok: true,
             usuario: "santi",
@@ -229,7 +229,7 @@ describe("TrainingSettings", () => {
     expect(boton.disabled).toBe(false);
     await act(async () => boton.click());
 
-    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/cloud-token-probe");
+    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/diagnostico?prueba=cloud-token-probe");
     expect(llamada[1].method).toBe("POST");
     expect(llamada[1].headers.Authorization).toBe("Bearer token-supabase");
     expect(JSON.parse(llamada[1].body)).toEqual({});
@@ -241,7 +241,7 @@ describe("TrainingSettings", () => {
 
   test("con cuenta: el write test solo necesita la confirmación exacta", async () => {
     const fetchMock = fetchRuteado(CUENTA_CONECTADA, (url) =>
-      url === "/api/openfield/cloud-write-test"
+      url === "/api/openfield/diagnostico?prueba=cloud-write-test"
         ? respuestaJson(200, {
             ok: true,
             result: "cloud-write-tested",
@@ -273,7 +273,7 @@ describe("TrainingSettings", () => {
 
     await act(async () => botonPorTexto("Escribir TEST APP en 26-05 T").click());
 
-    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/cloud-write-test");
+    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/diagnostico?prueba=cloud-write-test");
     expect(JSON.parse(llamada[1].body)).toEqual({ confirmacion: "26-05 T" });
     expect(llamada[1].headers.Authorization).toBe("Bearer token-supabase");
 
@@ -286,7 +286,7 @@ describe("TrainingSettings", () => {
 
   test("la sonda de la Connect API sigue funcionando desde el diagnóstico avanzado", async () => {
     const fetchMock = fetchRuteado(SIN_CUENTA, (url) =>
-      url === "/api/openfield/capability-probe"
+      url === "/api/openfield/diagnostico?prueba=capability-probe"
         ? respuestaJson(200, armarSonda())
         : respuestaJson(500, { ok: false, error: "sin ruta" }),
     );
@@ -296,7 +296,7 @@ describe("TrainingSettings", () => {
     await entrarA("Pruebas técnicas");
     await act(async () => botonPorTexto("Sondear capacidades").click());
 
-    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/capability-probe");
+    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/diagnostico?prueba=capability-probe");
     expect(llamada[1]).toMatchObject({ method: "GET", credentials: "same-origin" });
 
     const texto = contenedor.textContent;
@@ -312,7 +312,7 @@ describe("TrainingSettings", () => {
 
   test("la inspección avanzada usa las credenciales del bloque avanzado y las descarta", async () => {
     const fetchMock = fetchRuteado(CUENTA_CONECTADA, (url) =>
-      url === "/api/openfield/cloud-editor-inspect"
+      url === "/api/openfield/diagnostico?prueba=cloud-editor-inspect"
         ? respuestaJson(200, {
             ok: true,
             result: "cloud-editor-inspected",
@@ -357,7 +357,7 @@ describe("TrainingSettings", () => {
     });
     await act(async () => botonPorTexto("Inspeccionar Cloud Editor (solo lectura)").click());
 
-    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/cloud-editor-inspect");
+    const llamada = fetchMock.mock.calls.find(([url]) => url === "/api/openfield/diagnostico?prueba=cloud-editor-inspect");
     expect(JSON.parse(llamada[1].body)).toEqual({ username: "santi", password: "secreta" });
 
     expect(contenedor.textContent).toContain("Credencial del editor identificada");
@@ -366,7 +366,7 @@ describe("TrainingSettings", () => {
 
   test("informa etapa y detalle cuando una prueba falla", async () => {
     const fetchMock = fetchRuteado(CUENTA_CONECTADA, (url) =>
-      url === "/api/openfield/cloud-token-probe"
+      url === "/api/openfield/diagnostico?prueba=cloud-token-probe"
         ? respuestaJson(502, {
             ok: false,
             code: "CATAPULT_LOGIN_REJECTED",

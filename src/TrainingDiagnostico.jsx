@@ -151,7 +151,7 @@ export default function TrainingDiagnostico({ cuenta, onVolver }) {
 
     try {
       // Con pedirJson: si la sesión de OpenField venció, se renueva sola.
-      const { respuesta, payload } = await pedirJson("/api/openfield/cloud-editor-inspect", {
+      const { respuesta, payload } = await pedirJson("/api/openfield/diagnostico?prueba=cloud-editor-inspect", {
         method: "POST",
         body: { username: usuarioLimpio, password },
       });
@@ -213,7 +213,7 @@ export default function TrainingDiagnostico({ cuenta, onVolver }) {
 
     try {
       // Sin usuario ni contraseña: el backend usa la cuenta guardada.
-      const { respuesta, payload } = await pedirJson("/api/openfield/cloud-token-probe", {
+      const { respuesta, payload } = await pedirJson("/api/openfield/diagnostico?prueba=cloud-token-probe", {
         method: "POST",
         body: {},
       });
@@ -268,7 +268,7 @@ export default function TrainingDiagnostico({ cuenta, onVolver }) {
 
     try {
       // Sin usuario ni contraseña: el backend usa la cuenta guardada.
-      const { respuesta, payload } = await pedirJson("/api/openfield/cloud-write-test", {
+      const { respuesta, payload } = await pedirJson("/api/openfield/diagnostico?prueba=cloud-write-test", {
         method: "POST",
         body: { confirmacion: confirmacion.trim() },
       });
@@ -318,7 +318,7 @@ export default function TrainingDiagnostico({ cuenta, onVolver }) {
     setCopia("");
 
     try {
-      const { respuesta, payload } = await pedirJson("/api/openfield/capability-probe");
+      const { respuesta, payload } = await pedirJson("/api/openfield/diagnostico?prueba=capability-probe");
 
       if (!respuesta.ok || !payload?.ok) {
         throw new Error(mensajeDeRespuesta(payload, "La sonda no pudo consultar OpenField."));
@@ -358,7 +358,7 @@ export default function TrainingDiagnostico({ cuenta, onVolver }) {
     setMensaje("Abriendo Catapult y comprobando el acceso a 26-05 T…");
 
     try {
-      const { respuesta, payload } = await pedirJson("/api/openfield/cloud-login-test", {
+      const { respuesta, payload } = await pedirJson("/api/openfield/diagnostico?prueba=cloud-login-test", {
         method: "POST",
         body: { username: usuarioLimpio, password },
       });

@@ -79,6 +79,11 @@ Preview; solo los nombres): `OPENFIELD_API_BASE_URL`, `OPENFIELD_API_TOKEN`,
 firma se deriva del token de Catapult como antes). `OPENFIELD_ALLOWED_EMAILS` ya
 no se usa: se puede borrar.
 
+El plan de Vercel admite hasta 12 funciones en `api/` por publicación: con una
+más, la publicación falla entera y queda la versión anterior. Por eso las
+pruebas técnicas de Flujo diario van todas por `api/openfield/diagnostico`
+(`?prueba=`), y `lib/funcionesVercel.test.js` controla el tope.
+
 `SUPABASE_SECRET_KEY` (Production y Preview) es la clave secreta de Supabase con
 la que el servidor manda los mails de invitación (`api/invitar`). Se saca de
 Supabase › Project Settings › API Keys, pestaña "Publishable and secret API
