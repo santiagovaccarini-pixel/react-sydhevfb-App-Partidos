@@ -11,6 +11,7 @@ import {
   cancelarInvitacion,
   correoValido,
   darDeBaja,
+  enviarInvitacionPorMail,
   historialDeMiembro,
   invitacionVencida,
   invitar,
@@ -20,7 +21,7 @@ import {
   reincorporar,
 } from "./domain/membresiasDb.js";
 import { agruparPerfiles, decidirPerfil, listarPerfiles } from "./domain/perfilesDb.js";
-import { t, useIdioma } from "./idioma/index.js";
+import { idiomaActual, t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, fechaYHora, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
@@ -124,8 +125,8 @@ const FilaMiembro = ({ miembro, esMio, ocupada, onRol, onModulo, onBaja, onReinc
 };
 
 // Una invitación vencida ya no sirve para entrar: va aparte, sin el mensaje
-// para copiar (para volver a invitar ese correo, se lo invita de nuevo).
-const FilaInvitacion = ({ invitacion, vencida = false, ocupada, onCopiar, onCancelar }) => (
+// para copiar ni el mail (para volver a invitar ese correo, se lo invita de nuevo).
+const FilaInvitacion = ({ invitacion, vencida = false, ocupada, onCopiar, onReenviar, onCancelar }) => (
   <li className="cuenta-fila invitacion">
     <div className="cuenta-encabezado">
       <span className="cuenta-correo">{invitacion.email}</span>
@@ -138,9 +139,14 @@ const FilaInvitacion = ({ invitacion, vencida = false, ocupada, onCopiar, onCanc
     </div>
     <div className="cuenta-acciones">
       {!vencida && (
-        <button type="button" className="cuenta-autorizar" onClick={() => onCopiar(invitacion)}>
-          {t("cuentas.copiarMensaje")}
-        </button>
+        <>
+          <button type="button" className="cuenta-autorizar" onClick={() => onCopiar(invitacion)}>
+            {t("cuentas.copiarMensaje")}
+          </button>
+          <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onReenviar(invitacion)}>
+            {ocupada ? t("cuentas.enviandoMail") : t("cuentas.reenviarMail")}
+          </button>
+        </>
       )}
       <button type="button" className="cuenta-quitar" disabled={ocupada} onClick={() => onCancelar(invitacion)}>
         {t("cuentas.cancelarInvitacion")}
@@ -367,13 +373,40 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
     }
     setOcupada("invitar");
     try {
-      const { usada } = await invitar(clubId, { email: limpio, ...nueva });
+      const { usada, id } = await invitar(clubId, { email: limpio, ...nueva });
       setCorreo("");
       setNueva({ ...INVITACION_INICIAL });
-      setAviso(usada ? t("cuentas.entroYa", { correo: limpio }) : t("cuentas.invitado", { correo: limpio }));
+      // Si la cuenta ya existía, entró en el acto; si no, le llega el mail.
+      if (usada) setAviso(t("cuentas.entroYa", { correo: limpio }));
+      else await mandarMail({ id, email: limpio });
       await cargarClub(clubId);
     } catch (errorInvitar) {
       setAviso(mensajeDe(errorInvitar, "cuentas.errorInvitar"));
+    } finally {
+      setOcupada("");
+    }
+  };
+
+  // El mail de la invitación (lo manda el servidor, a ese correo). Si no
+  // sale, la invitación queda guardada igual y el aviso dice que se mande el
+  // mensaje con "Copiar mensaje". Devuelve qué pasó.
+  const mandarMail = async (invitacion) => {
+    const clave = invitacion.id ? await enviarInvitacionPorMail(invitacion.id, idiomaActual()) : "cuentas.mail.noSalio";
+    setAviso(t(clave, { correo: invitacion.email }));
+    return clave;
+  };
+
+  const reenviarMail = async (invitacion) => {
+    const delClub = clubIdRef.current;
+    setOcupada(invitacion.id);
+    setAviso("");
+    try {
+      const clave = await mandarMail(invitacion);
+      // Si ya no estaba abierta (se usó, se canceló, venció o la cuenta ya
+      // existe), la lista se pone al día.
+      if (["cuentas.mail.cerrada", "cuentas.mail.vencida", "cuentas.mail.yaTieneCuenta"].includes(clave)) {
+        await cargarClub(delClub).catch(() => {});
+      }
     } finally {
       setOcupada("");
     }
@@ -545,7 +578,14 @@ export default function CuentasAdmin({ miUserId, esDueno = false, club = null, o
 
           <Grupo titulo={t("cuentas.invitacionesTitulo")} cantidad={abiertas.length} vacio={t("cuentas.vacioInvitaciones")}>
             {abiertas.map((invitacion) => (
-              <FilaInvitacion key={invitacion.id} invitacion={invitacion} ocupada={ocupada === invitacion.id} onCopiar={copiarMensaje} onCancelar={cancelar} />
+              <FilaInvitacion
+                key={invitacion.id}
+                invitacion={invitacion}
+                ocupada={ocupada === invitacion.id}
+                onCopiar={copiarMensaje}
+                onReenviar={reenviarMail}
+                onCancelar={cancelar}
+              />
             ))}
           </Grupo>
 

@@ -1,5 +1,6 @@
 import { supabase } from "../supabase.js";
 import { hoyISO } from "../idioma/formatos.js";
+import { cabecerasJson } from "../trainingApi.js";
 
 // La gente de cada club (tabla `club_miembros`, vista `v_miembros_club`), su
 // historia y las invitaciones. Quién puede ver y cambiar qué lo decide la
@@ -146,7 +147,8 @@ export const listarInvitaciones = async (equipoId) => {
 };
 
 // Invita un correo al club. Si la cuenta ya existe (y confirmó su correo),
-// la base la mete en el club en el acto y la invitación vuelve usada.
+// la base la mete en el club en el acto y la invitación vuelve usada. Vuelve
+// también el id de la invitación, para mandarle el mail.
 export const invitar = async (equipoId, { email, rol = "staff", partido = true, flujo = true, lesiones = false, evaluaciones = false }) => {
   const correo = String(email || "").trim().toLowerCase();
   if (!correoValido(correo)) throw new Error("cuentas.errorCorreo");
@@ -179,7 +181,39 @@ export const invitar = async (equipoId, { email, rol = "staff", partido = true, 
     .eq("email", correo)
     .order("creado_en", { ascending: false })
     .limit(1);
-  return { usada: Boolean(data?.[0]?.usada_en) };
+  return { usada: Boolean(data?.[0]?.usada_en), id: data?.[0]?.id || null };
+};
+
+// El mail de una invitación lo manda el servidor (api/invitar), siempre al
+// correo de esa invitación. Vuelve qué pasó, como clave del diccionario:
+// enviado, ya tiene cuenta, la confirmación de correo apagada en Supabase,
+// demasiados mails, la invitación ya cerrada o vencida, o que no salió (sin
+// señal, sin la clave del servidor, otro error). La invitación queda guardada
+// igual: se le puede mandar el mensaje con "Copiar mensaje".
+export const RUTA_INVITAR_POR_MAIL = "/api/invitar";
+
+const RESULTADO_DEL_MAIL = {
+  CONFIRMACION_APAGADA: "cuentas.mail.confirmacionApagada",
+  LIMITE_DE_MAILS: "cuentas.mail.limite",
+  INVITACION_VENCIDA: "cuentas.mail.vencida",
+  INVITACION_USADA: "cuentas.mail.cerrada",
+  INVITACION_CANCELADA: "cuentas.mail.cerrada",
+};
+
+export const enviarInvitacionPorMail = async (invitacionId, idioma) => {
+  try {
+    const respuesta = await fetch(RUTA_INVITAR_POR_MAIL, {
+      method: "POST",
+      cache: "no-store",
+      headers: await cabecerasJson(),
+      body: JSON.stringify({ invitacion: invitacionId, idioma }),
+    });
+    const payload = await respuesta.json().catch(() => null);
+    if (respuesta.ok && payload?.ok) return payload.enviado ? "cuentas.mail.enviado" : "cuentas.mail.yaTieneCuenta";
+    return RESULTADO_DEL_MAIL[payload?.code] || "cuentas.mail.noSalio";
+  } catch {
+    return "cuentas.mail.noSalio";
+  }
 };
 
 export const cancelarInvitacion = async (id) => {

@@ -15,6 +15,9 @@ const datos = vi.hoisted(() => ({
   errorCambio: null,
   errorLeer: null,
   usada: false,
+  // Los mails de invitación pedidos al servidor y qué contesta.
+  mails: [],
+  resultadoMail: "cuentas.mail.enviado",
   // Lecturas lentas: la de un club (o la historia) vuelve cuando se abre su compuerta.
   lenta: {},
 }));
@@ -68,7 +71,12 @@ vi.mock("./domain/membresiasDb.js", async () => {
           ...(datos.invitaciones[equipoId] || []),
         ];
       }
-      return { usada: datos.usada };
+      return { usada: datos.usada, id: datos.usada ? null : `i-${invitacion.email}` };
+    },
+    enviarInvitacionPorMail: async (id, idioma) => {
+      datos.mails.push({ id, idioma });
+      if (datos.compuertaMail) await datos.compuertaMail;
+      return datos.resultadoMail;
     },
     cancelarInvitacion: async (id) => {
       datos.llamadas.push({ que: "cancelar", id });
@@ -135,6 +143,9 @@ describe("Cuentas", () => {
     datos.errorCambio = null;
     datos.errorLeer = null;
     datos.usada = false;
+    datos.mails = [];
+    datos.resultadoMail = "cuentas.mail.enviado";
+    datos.compuertaMail = null;
     datos.compuerta = null;
     datos.lenta = {};
     datos.errorDecidir = null;
@@ -227,15 +238,79 @@ describe("Cuentas", () => {
       equipoId: "c1",
       invitacion: { email: "nuevo@uno.com", rol: "staff", partido: true, flujo: false, lesiones: true, evaluaciones: true },
     });
-    expect(texto()).toContain("Invitación lista. Avisale a nuevo@uno.com que se registre con ese correo.");
+    // La invitación nueva sale por mail, al toque y en el idioma de quien invita.
+    expect(datos.mails).toEqual([{ id: "i-nuevo@uno.com", idioma: "es-AR" }]);
+    expect(texto()).toContain("Le mandamos un mail a nuevo@uno.com con el enlace para entrar.");
     expect(grupos()).toContain("Invitaciones abiertas 2");
 
+    // Si la cuenta ya existía entra en el acto: no hace falta el mail.
     datos.usada = true;
     datos.miembros.c1.push(miembro({ user_id: "fede", email: "fede@libre.com" }));
     await escribir(correo, "fede@libre.com");
     await tocar(invitarBoton);
     expect(texto()).toContain("fede@libre.com ya tenía cuenta: entró al club.");
     expect(fila("fede@libre.com")).toBeTruthy();
+    expect(datos.mails).toHaveLength(1);
+  });
+
+  test("si el mail no sale, la invitación queda guardada y el aviso dice que se mande el mensaje", async () => {
+    await montar();
+    const correo = contenedor.querySelector(".cuentas-invitar input");
+    const invitarBoton = boton(contenedor.querySelector(".cuentas-invitar"), "Invitar");
+
+    // Con la confirmación de correo apagada en Supabase el servidor no manda nada.
+    datos.resultadoMail = "cuentas.mail.confirmacionApagada";
+    await escribir(correo, "apagada@uno.com");
+    await tocar(invitarBoton);
+    expect(texto()).toContain("La invitación quedó guardada, pero el mail no salió: los mails se activan cuando se prenda la confirmación de correo.");
+    expect(texto()).toContain("«Copiar mensaje»");
+    expect(fila("apagada@uno.com")).toBeTruthy();
+
+    // Sin la clave del servidor, sin señal u otro error.
+    datos.resultadoMail = "cuentas.mail.noSalio";
+    await escribir(correo, "error@uno.com");
+    await tocar(invitarBoton);
+    expect(texto()).toContain("La invitación quedó guardada, pero el mail no salió. Mandale el mensaje con «Copiar mensaje».");
+    expect(boton(fila("error@uno.com"), "Copiar mensaje")).toBeTruthy();
+
+    fijarIdiomaParaPruebas("pt-BR");
+    datos.resultadoMail = "cuentas.mail.limite";
+    await escribir(correo, "limite@uno.com");
+    await tocar(boton(contenedor.querySelector(".cuentas-invitar"), "Convidar"));
+    expect(datos.mails.at(-1)).toEqual({ id: "i-limite@uno.com", idioma: "pt-BR" });
+    expect(texto()).toContain("O convite ficou salvo, mas foram enviados muitos e-mails seguidos.");
+  });
+
+  test("Reenviar mail: manda otra vez el de esa invitación, con el botón ocupado mientras sale", async () => {
+    await montar();
+    const espera = fila("espera@uno.com");
+    // Al lado de Copiar mensaje y Cancelar, con el mismo estilo que Cancelar.
+    expect([...espera.querySelectorAll(".cuenta-acciones button")].map((b) => b.textContent.trim())).toEqual([
+      "Copiar mensaje",
+      "Reenviar mail",
+      "Cancelar",
+    ]);
+    expect(boton(espera, "Reenviar mail").className).toBe(boton(espera, "Cancelar").className);
+
+    let abrir;
+    datos.compuertaMail = new Promise((resolver) => {
+      abrir = resolver;
+    });
+    await tocar(boton(espera, "Reenviar mail"));
+    expect(datos.mails).toEqual([{ id: "i1", idioma: "es-AR" }]);
+    expect(boton(fila("espera@uno.com"), "Enviando…").disabled).toBe(true);
+    expect(boton(fila("espera@uno.com"), "Cancelar").disabled).toBe(true);
+    await act(async () => abrir());
+    await act(async () => Promise.resolve());
+    expect(texto()).toContain("Le mandamos un mail a espera@uno.com con el enlace para entrar.");
+    expect(boton(fila("espera@uno.com"), "Reenviar mail").disabled).toBe(false);
+
+    // Si mientras tanto se usó, se avisa y la lista se pone al día.
+    datos.resultadoMail = "cuentas.mail.cerrada";
+    datos.invitaciones.c1 = [];
+    await tocar(boton(fila("espera@uno.com"), "Reenviar mail"));
+    expect(texto()).toContain("Esa invitación ya se usó o se canceló.");
+    expect(fila("espera@uno.com")).toBeUndefined();
   });
 
   test("rol y módulos van a la base al toque; el último admin no se puede sacar", async () => {
@@ -329,6 +404,7 @@ describe("Cuentas", () => {
     expect(vencida.textContent).toContain("Vencida");
     expect(vencida.textContent).toContain("Venció el");
     expect(boton(vencida, "Copiar mensaje")).toBeUndefined();
+    expect(boton(vencida, "Reenviar mail")).toBeUndefined();
     expect(boton(fila("espera@uno.com"), "Copiar mensaje")).toBeTruthy();
     await tocar(boton(vencida, "Cancelar"));
     expect(datos.llamadas.at(-1)).toEqual({ que: "cancelar", id: "i-vieja" });
