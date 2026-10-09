@@ -10,6 +10,7 @@ import {
   asignarEntidad,
   crearClub,
   derivarPedido,
+  limpiarNombreDeClub,
   nombreDeZona,
   panelClubes,
   panelDuenos,
@@ -144,10 +145,11 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
     }
   };
 
-  // El nombre se escribe en una hoja y se confirma mostrando el anterior y el nuevo.
+  // El nombre se escribe en una hoja y se confirma mostrando el anterior y el
+  // nuevo, ya limpio como lo guarda la base (con espacios de más es el mismo).
   const guardarNombre = () => {
     const { club, nombre: escrito } = renombre;
-    const nuevo = escrito.trim();
+    const nuevo = limpiarNombreDeClub(escrito);
     setRenombre(null);
     if (!nuevo || nuevo === club.nombre) return;
     setCambioNombre({ club, anterior: club.nombre, nuevo });
@@ -451,7 +453,7 @@ export default function ClubesDeLaApp({ miUserId = "", esPrincipal = false, onVo
                 type="button"
                 className="boton-confirmar-hoja"
                 onClick={guardarNombre}
-                disabled={!renombre.nombre.trim() || renombre.nombre.trim() === renombre.club.nombre}
+                disabled={!limpiarNombreDeClub(renombre.nombre) || limpiarNombreDeClub(renombre.nombre) === renombre.club.nombre}
               >
                 {t("panel.guardar")}
               </button>

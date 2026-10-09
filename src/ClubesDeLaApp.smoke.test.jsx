@@ -211,6 +211,26 @@ describe("Clubes de la app", () => {
     expect(llamadasA("panel_clubes")).toHaveLength(2);
   });
 
+  test("cambiar el nombre: los espacios de más se limpian como en la base (el mismo nombre no se guarda)", async () => {
+    await montar();
+    await tocar(boton(fila(".panel-club", "Club Uno"), "Cambiar nombre"));
+    const campo = contenedor.querySelector("#panel-nombre-club");
+    // Solo con espacios de más en el medio es el mismo nombre: la base no
+    // cambiaría nada ni lo anotaría.
+    await escribir(campo, "Club  Uno");
+    expect(boton(contenedor.querySelector(".cuentas-hoja"), "Guardar").disabled).toBe(true);
+    await escribir(campo, "  Club   Uno ");
+    expect(boton(contenedor.querySelector(".cuentas-hoja"), "Guardar").disabled).toBe(true);
+
+    // Con un nombre distinto, la confirmación y el aviso muestran el nombre limpio.
+    await escribir(campo, " Club   Unido ");
+    await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Guardar"));
+    expect(contenedor.querySelector(".hoja-confirmar").textContent).toContain("Antes: Club Uno. Ahora: Club Unido.");
+    await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, cambiar"));
+    expect(llamadasA("renombrar_club")).toEqual([{ funcion: "renombrar_club", parametros: { p_equipo: "c1", p_nombre: "Club Unido" } }]);
+    expect(texto()).toContain("Listo: Club Uno ahora se llama Club Unido.");
+  });
+
   test("cambiar el nombre: los errores de la base se leen en el idioma de la app", async () => {
     const intentar = async (nombre) => {
       await tocar(boton(fila(".panel-club", "Club Uno"), "Cambiar nombre"));

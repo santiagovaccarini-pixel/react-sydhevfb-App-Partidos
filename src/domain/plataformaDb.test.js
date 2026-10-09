@@ -21,6 +21,7 @@ const {
   crearClub,
   derivarPedido,
   leerMiCuenta,
+  limpiarNombreDeClub,
   nombreDeZona,
   panelClubes,
   panelDuenos,
@@ -137,6 +138,11 @@ describe("el panel de los dueños", () => {
     await expect(renombrarClub("c1", "  ")).rejects.toThrow("panel.error.nombreInvalido");
     await expect(renombrarClub("c1", "x".repeat(61))).rejects.toThrow("panel.error.nombreInvalido");
     expect(base.llamadas).toHaveLength(1);
+
+    // Los espacios de más del medio se juntan como en la base.
+    expect(limpiarNombreDeClub("  Club   Unido ")).toBe("Club Unido");
+    await renombrarClub("c1", " Club   Unido ");
+    expect(base.llamadas.at(-1)).toEqual({ funcion: "renombrar_club", parametros: { p_equipo: "c1", p_nombre: "Club Unido" } });
 
     const errores = {
       nombre_repetido: "panel.error.nombreRepetido",
