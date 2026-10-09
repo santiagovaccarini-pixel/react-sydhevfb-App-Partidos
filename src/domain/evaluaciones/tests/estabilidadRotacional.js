@@ -1,5 +1,5 @@
 import { dividir, esVacio, siError } from "../excel.js";
-import { AYUDA_FUNCIONAL } from "./movilidad.js";
+import { AYUDA_FUNCIONAL, bloqueDeFuncional, enSuBloque } from "./movilidad.js";
 
 // Estabilidad rotacional: el último bloque de la hoja "Funcional" del Excel
 // BD_evaluaciones, como su propio test (Santiago, 09/10: en el Excel va en la
@@ -125,15 +125,14 @@ const informe = ({ est, filas = [] }) => {
 };
 
 // ---------------------------------------------------------------- Pegar --
-// "Fecha" es la quinta de la fila de títulos de la hoja Funcional (una por
-// bloque); cada pregunta está dos veces: primero con la pierna derecha en
-// apoyo y después con la izquierda. Hay que copiar la tabla entera, desde
-// la columna del Jugador.
+// Su bloque de la hoja Funcional es el que empieza en su Fecha y tiene las
+// Cifosis (movilidad.js, bloqueDeFuncional); adentro, cada pregunta está dos
+// veces: primero con la pierna derecha en apoyo y después con la izquierda.
 export const CABECERAS_PARA_PEGAR = Object.freeze({
   jugador: ["jugador"],
   seleccion: ["seleccion", "selección"],
-  fecha: { nombres: ["fecha"], vez: 5 },
-  ...Object.fromEntries(RESPUESTAS.map(({ clave, pegar, vez }) => [clave, { nombres: [pegar], vez }])),
+  fecha: enSuBloque("fecha"),
+  ...Object.fromEntries(RESPUESTAS.map(({ clave, pegar, vez }) => [clave, enSuBloque(pegar, vez)])),
 });
 
 export const ESTABILIDAD_ROTACIONAL = Object.freeze({
@@ -163,6 +162,7 @@ export const ESTABILIDAD_ROTACIONAL = Object.freeze({
   // otro test y no se lee.
   saltearFilasSinMedidas: true,
   ayudaParaPegar: AYUDA_FUNCIONAL,
+  bloqueParaPegar: bloqueDeFuncional("estabilidad"),
   cabecerasParaPegar: CABECERAS_PARA_PEGAR,
 });
 
