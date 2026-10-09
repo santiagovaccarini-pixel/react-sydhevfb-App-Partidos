@@ -11,9 +11,10 @@ import { fechaCorta } from "./idioma/formatos.js";
 // Lo segundo que ve una cuenta, después de entrar: con qué club va a
 // trabajar. Queda guardado en el celular; desde el portal se puede cambiar.
 // Se ven solo los clubes en los que está o estuvo. Quien no está hoy en
-// ninguno pide acceso al suyo y espera (como en la puerta). Los clubes se
-// crean desde Clubes de la app, que es de los dueños: ahí no se entra a
-// ningún club.
+// ninguno pide acceso al suyo y espera (como en la puerta); quien ya está en
+// alguno, debajo de la lista, puede pedir entrar a otro con el mismo pedido y
+// la misma espera. Los clubes se crean desde Clubes de la app, que es de los
+// dueños: ahí no se entra a ningún club.
 // Abajo de todo, quien sigue activo en el club elegido (`club`) puede irse:
 // es el único lugar de la app para salir de un club, igual para todos (también
 // para los dueños, a los que nadie más puede sacar). Después avisa con
@@ -36,6 +37,8 @@ export default function ElegirClub({
   const [aSalir, setASalir] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
   const [avisoSalida, setAvisoSalida] = useState(null);
+  // Pedir entrar a otro club: el pedido se abre al tocar el enlace.
+  const [pidiendoOtro, setPidiendoOtro] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -60,6 +63,10 @@ export default function ElegirClub({
   const visibles = equipos.filter((equipo) => equipo.miembro !== false);
   const activos = visibles.filter((equipo) => !equipo.hasta);
   const sinClubActivo = !cargando && !error && activos.length === 0;
+  // Con algún club activo, el pedido a otro va como enlace debajo de la lista
+  // (lo principal sigue siendo elegir). No depende de `cargando`: al volver a
+  // comprobar, la lista se relee y el pedido abierto no desaparece.
+  const puedePedirOtro = !error && activos.length > 0;
 
   // El club elegido como lo dice la base ahora: si la cuenta sigue activa en
   // él, se puede ir.
@@ -139,6 +146,27 @@ export default function ElegirClub({
             ))}
           </ul>
         )}
+
+        {/* Ya está en algún club: pedir entrar a otro, como enlace; al tocarlo,
+            el mismo pedido de siempre (o la espera, si ya hay uno abierto). */}
+        {puedePedirOtro &&
+          (pidiendoOtro ? (
+            <PedidoAcceso
+              correo={email}
+              enPantalla={false}
+              onComprobar={cargar}
+              tituloSinPedidos={t("club.pedirOtro")}
+              textoSinPedidos={t("pedidos.error.faltaMigracion")}
+            />
+          ) : (
+            <div className="elegir-club-otro">
+              <div className="training-access-enlaces">
+                <button type="button" className="training-access-enlace" onClick={() => setPidiendoOtro(true)}>
+                  {t("club.pedirOtro")}
+                </button>
+              </div>
+            </div>
+          ))}
 
         {/* Solo clubes de los que se fue: los sigue mirando y, abajo, pide entrar a otro. */}
         {sinClubActivo && <PedidoAcceso correo={email} enPantalla={false} onComprobar={cargar} textoSinPedidos={t("club.vacio", { correo: email })} />}

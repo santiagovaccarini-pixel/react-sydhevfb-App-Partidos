@@ -3,25 +3,29 @@ import { PantallaAcceso } from "./AccessGate.jsx";
 import { cancelarPedido, misPedidos, pedidoAbierto, pedirAcceso } from "./domain/pedidosDb.js";
 import { t, useIdioma } from "./idioma/index.js";
 
-// Quien todavía no está en ningún club: escribe a qué club quiere entrar,
-// manda el pedido y espera a que lo habiliten. Nada más. Lo ve la cuenta
-// pendiente (en la puerta) y la autorizada que se quedó sin clubes (al
-// elegir club). La persona ve lo mismo exista o no el club en la app: "Esperando
-// autorización de" lo que escribió. Quien entró por invitación nunca llega
-// acá: ya está en su club.
+// Quien todavía no está en ningún club (o quiere entrar a otro): escribe a
+// qué club quiere entrar, manda el pedido y espera a que lo habiliten. Nada
+// más. Lo ve la cuenta pendiente (en la puerta), la autorizada que se quedó
+// sin clubes (al elegir club) y quien ya está en alguno y toca «Pedir entrar
+// a otro club» (al elegir club). La persona ve lo mismo exista o no el club
+// en la app: "Esperando autorización de" lo que escribió. Quien entró por
+// invitación nunca ve la espera de la puerta: ya está en su club.
 //
 // Tres estados: sin pedido (el formulario), con uno abierto (la espera, con
 // Cancelar pedido) y con el último rechazado (el aviso y el formulario de
 // nuevo). Con una base sin pedidos, el texto de espera de siempre.
 //
 // `enPantalla`: con la pantalla de la puerta (foto, tarjeta, título); sin
-// ella, como una sección debajo de la lista de clubes.
+// ella, como una sección debajo de la lista de clubes. `tituloSinPedidos` y
+// `textoSinPedidos`: lo que dice con una base sin pedidos (la cuenta que ya
+// está en un club no está "pendiente").
 export default function PedidoAcceso({
   correo = "",
   onComprobar,
   onSalir,
   enPantalla = true,
   error: errorDeAfuera = "",
+  tituloSinPedidos = "",
   textoSinPedidos = "",
   children,
 }) {
@@ -137,7 +141,7 @@ export default function PedidoAcceso({
     titulo = t("acceso.cargandoTitulo");
     cuerpo = <span className="training-access-espera" aria-hidden="true" />;
   } else if (sinPedidos) {
-    titulo = t("acceso.pendienteTitulo");
+    titulo = tituloSinPedidos || t("acceso.pendienteTitulo");
     texto = textoSinPedidos || t("acceso.pendienteTexto", { correo });
     cuerpo = (
       <div className="training-access-form">
