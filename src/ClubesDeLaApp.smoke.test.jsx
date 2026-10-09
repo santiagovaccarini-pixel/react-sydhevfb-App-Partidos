@@ -102,8 +102,9 @@ describe("Clubes de la app", () => {
     const dos = fila(".panel-club", "Club Dos");
     expect(dos.querySelector(".panel-club-datos").textContent).toBe("Sin entidadSin administrador1 persona");
     // Desde acá no se entra al club ni se ve su gente: la entidad y el nombre.
-    expect(boton(uno, "Cambiar")).toBeTruthy();
-    expect(boton(uno, "Sacar")).toBeTruthy();
+    // Cada botón dice sobre qué es (no un «Cambiar» suelto al lado de «Cambiar nombre»).
+    expect(boton(uno, "Cambiar entidad")).toBeTruthy();
+    expect(boton(uno, "Sacar entidad")).toBeTruthy();
     expect(boton(uno, "Cambiar nombre")).toBeTruthy();
     expect(boton(dos, "Asignar entidad")).toBeTruthy();
     expect(boton(dos, "Cambiar nombre")).toBeTruthy();
@@ -111,6 +112,14 @@ describe("Clubes de la app", () => {
     // Cambiar el nombre es una acción secundaria, como Sacar.
     expect(boton(uno, "Cambiar nombre").className).toBe("cuenta-quitar");
     expect(llamadasA("panel_clubes")).toHaveLength(1);
+
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    expect([...fila(".panel-club", "Club Uno").querySelectorAll("button")].map((b) => b.textContent)).toEqual([
+      "Trocar entidade",
+      "Remover entidade",
+      "Trocar nome",
+    ]);
+    expect(boton(fila(".panel-club", "Club Dos"), "Definir entidade")).toBeTruthy();
   });
 
   test("el principal ve los botones de los dueños; el sub-dueño, solo el aviso", async () => {
@@ -198,7 +207,7 @@ describe("Clubes de la app", () => {
     expect(llamadasA("asignar_entidad").at(-1).parametros).toEqual({ p_equipo: "c2", p_correo: "nueva@dos.com" });
     expect(texto()).toContain("Listo: la entidad de Club Dos es nueva@dos.com.");
 
-    await tocar(boton(fila(".panel-club", "Club Uno"), "Cambiar"));
+    await tocar(boton(fila(".panel-club", "Club Uno"), "Cambiar entidad"));
     await escribir(contenedor.querySelector("#panel-correo-entidad"), "otra@uno.com");
     await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Guardar"));
     // Todavía no cambió: pide confirmar mostrando los dos correos.
@@ -207,7 +216,7 @@ describe("Clubes de la app", () => {
     await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, cambiar"));
     expect(llamadasA("asignar_entidad").at(-1).parametros).toEqual({ p_equipo: "c1", p_correo: "otra@uno.com" });
 
-    await tocar(boton(fila(".panel-club", "Club Uno"), "Sacar"));
+    await tocar(boton(fila(".panel-club", "Club Uno"), "Sacar entidad"));
     expect(contenedor.querySelector(".hoja-confirmar").textContent).toContain("ent@uno.com deja de figurar como entidad del club.");
     await tocar(boton(contenedor.querySelector(".hoja-confirmar"), "Sí, sacar"));
     expect(llamadasA("asignar_entidad").at(-1).parametros).toEqual({ p_equipo: "c1", p_correo: null });
