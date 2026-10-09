@@ -262,6 +262,7 @@ export default {
       borrar: "Apagar o colado",
       sinCabeceras: "Não encontrei a linha de títulos. Copie a tabela junto com a linha que diz Jugador.",
       sinFilas: "Abaixo dos títulos não há avaliações.",
+      sinMedidas: "No que você colou não estão as colunas deste teste. Se no Excel há colunas ocultas, mostre-as (o Excel não as copia) e copie de novo.",
       anio: "As datas vêm sem ano: de que ano são?",
       anioAyuda: "Se forem de anos diferentes, no Excel coloque a coluna Fecha no formato dd/mm/aaaa e copie de novo.",
       filas_one: "{{n}} linha no colado",

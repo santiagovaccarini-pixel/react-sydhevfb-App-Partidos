@@ -823,13 +823,24 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   - Los V.R. (Tobillo, Cadera e Isquio; hoy solo Mayor): PD, PI y el déficit con su «DE»
     (`datos.categorias.<categoría>` con `pd`, `pi`, `deficit` y `deficit_de`, `titulo` y, en
     Cadera, el `rotulo` con la nota que trae el Excel); van por SQL, como los otros.
-  - **Pegar desde Excel**: los cuatro se pegan con la hoja Funcional entera (desde la fila 17
-    de títulos y desde la columna Jugador, o desde la A, hasta la última). Cada test lee su
-    Fecha, su PD y su PI por el lugar en que aparecen (la fila de títulos los repite en cada
-    bloque) y saltea las filas sin sus datos (`saltearFilasSinMedidas`); las listas se
-    entienden sin importar mayúsculas, en los dos idiomas y con los nombres del club. Las
-    fechas salen como las muestra el Excel (dd/mm/aaaa). No hay decimales escondidos: PD y PI
-    son números enteros.
+  - **Pegar desde Excel**: se copia desde la fila 17 (títulos), desde la columna Jugador hasta
+    el final del bloque del test (o la hoja entera). Cada test busca su bloque por su propia
+    Fecha (`bloqueDeFuncional` en `tests/movilidad.js`; `bloqueParaPegar` y `enBloque` en
+    `importar.js`) y lee su PD y su PI adentro; saltea las filas sin sus datos
+    (`saltearFilasSinMedidas`); las listas se entienden sin importar mayúsculas, en los dos
+    idiomas y con los nombres del club. Las fechas salen como las muestra el Excel
+    (dd/mm/aaaa). No hay decimales escondidos: PD y PI son números enteros.
+    - Arreglado el 09/10 (Santiago: «xq no me deja cargar los datos de cadera?»): Excel **no
+      copia las columnas ocultas**, y con las de Tobillo ocultas la app buscaba el PD de Cadera
+      contando desde la izquierda (el 3.º PD) y no lo encontraba. Ahora los bloques se buscan
+      por su Fecha: el primero (el de la Fecha de al lado del Jugador) es Tobillo; los que
+      tienen PD después de su Fecha y su Evaluación son Cadera (el primero) e Isquio (el
+      segundo); el de las Cifosis, Estabilidad. Si se ve uno solo de Cadera e Isquio, es
+      Cadera cuando es lo último que se pegó (se copió hasta el fin de Cadera); si no, no se
+      lee. Así nunca se cargan los datos de un bloque en otro test, salvo un caso que no se
+      puede distinguir (Cadera oculta, en el test de Cadera, copiando justo hasta el fin de
+      Isquio). Si no aparece ninguna columna del test, la pantalla lo dice («En lo que
+      pegaste no están las columnas de este test…») en vez de «no hay evaluaciones».
   - Comprobado contra la hoja real (solo local): las 3262 celdas calculadas de las 503 filas
     y el n° de evaluación de cada una dan igual; en el informe, solo cambia el N° de dos
     columnas que el Excel deja vacío. Los colores, contra las reglas del Excel aplicadas

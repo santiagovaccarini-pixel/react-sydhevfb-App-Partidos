@@ -126,14 +126,17 @@ describe("Movilidad: pegar la hoja Funcional entera", () => {
     "Jugador", "Fecha", "Evaluacion", "Fecha Nac", "Posición", "Seleccion",
     "PD", "PD Clas", "% Mejora PD", "PI", "PI Clas", "% Mejora PI", " % DEFICIT LATERAL", "Clas. Dif. Cm", "Dificit Pierna", "PD", "PI", "Nota",
     "Fecha", "Evaluacion", "PD", "PD Clas", "% Mejora PD", "PI", "PI Clas", "% Mejora PI", " % DEFICIT LATERAL", "Clas. Dif. Cm", "Dificit Pierna", "PD", "PI", "Nota",
-    "Fecha", "Evaluacion", "PD", "PD Clas", "% Mejora PD", "PI", "PI Clas", "% Mejora PI", " % DEFICIT LATERAL", "Clas. Dif. Cm", "Dificit Pierna", "PD", "PI",
+    "Fecha", "Evaluacion", "PD", "PD Clas", "% Mejora PD", "PI", "PI Clas", "% Mejora PI", " % DEFICIT LATERAL", "Clas. Dif. Cm", "Dificit Pierna", "PD", "PI", "Nota",
+    // Después de Isquio, el bloque de Hombro (sin datos).
+    "Fecha", "Evaluacion", "BD", "BI", "FINAL ",
   ];
   const fila = ({ jugador, tobillo = ["", "", ""], cadera = ["", "", ""], isquio = ["", "", ""] }) =>
     [
       jugador, tobillo[0], "1", "", "", "Mayor",
       tobillo[1], "3", "", tobillo[2], "3", "", "5,0%", "4", "PI", "", "", "",
       cadera[0], "1", cadera[1], "3", "", cadera[2], "3", "", "5,0%", "4", "PI", "", "", "",
-      isquio[0], "1", isquio[1], "3", "", isquio[2], "3", "", "5,0%", "4", "PI", "", "",
+      isquio[0], "1", isquio[1], "3", "", isquio[2], "3", "", "5,0%", "4", "PI", "", "", "",
+      "", "", "", "", "",
     ].join("\t");
   const texto = [
     titulos.join("\t"),
@@ -157,6 +160,56 @@ describe("Movilidad: pegar la hoja Funcional entera", () => {
     const isquio = planDe(MOVILIDAD_ISQUIO);
     expect(isquio.map((una) => [una.nombre, una.evaluacion.fecha, una.evaluacion.datos.pi])).toEqual([["BETA", "2026-06-23", 18.5]]);
     expect(ordenDeCarga(isquio)).toHaveLength(1);
+  });
+
+  // Excel no copia las columnas ocultas: lo pegado sin ellas (de la columna
+  // `desde` a la `hasta`, en la fila de títulos de arriba).
+  const sinColumnas = (quitar, hasta = titulos.length) =>
+    texto
+      .split("\n")
+      .map((linea) =>
+        linea
+          .split("\t")
+          .filter((_, i) => i < hasta && !quitar.includes(i))
+          .join("\t"),
+      )
+      .join("\n");
+  const TOBILLO = Array.from({ length: 12 }, (_, i) => 6 + i);
+  const CADERA = Array.from({ length: 14 }, (_, i) => 18 + i);
+  const leer = (test, pegado) => {
+    const leidas = leerEvaluacionesPegadas(pegado, test);
+    if (leidas.error) return leidas.error;
+    return planDeEvaluaciones(leidas.filas, { test, hoy: "2026-10-09", elegidos: Object.fromEntries(leidas.filas.map((una) => [una.indice, COMO_PERSONA])) }).map((una) => [
+      una.evaluacion.fecha,
+      una.evaluacion.datos.pd,
+    ]);
+  };
+
+  it("cada test busca su bloque por su Fecha: con Tobillo oculto, Cadera e Isquio se leen igual (Santiago, 09/10)", () => {
+    const sinTobillo = sinColumnas(TOBILLO);
+    expect(leer(MOVILIDAD_CADERA, sinTobillo)).toEqual([
+      ["2026-06-10", 30],
+      ["2026-06-11", 28],
+    ]);
+    expect(leer(MOVILIDAD_ISQUIO, sinTobillo)).toEqual([["2026-06-23", 17]]);
+    expect(leer(MOVILIDAD_TOBILLO, sinTobillo)).toBe("evaluaciones.importar.sinMedidas");
+    // Copiado hasta el fin de Cadera (como lo pegó Santiago): Cadera se lee;
+    // Isquio no está y no toma los datos de Cadera.
+    const hastaCadera = sinColumnas(TOBILLO, 32);
+    expect(leer(MOVILIDAD_CADERA, hastaCadera)).toEqual([
+      ["2026-06-10", 30],
+      ["2026-06-11", 28],
+    ]);
+    expect(leer(MOVILIDAD_ISQUIO, hastaCadera)).toBe("evaluaciones.importar.sinMedidas");
+    // Con Cadera oculto (la hoja entera) no se sabe de quién es el bloque que
+    // queda: no se lee en ninguno de los dos.
+    const sinCadera = sinColumnas(CADERA);
+    expect(leer(MOVILIDAD_CADERA, sinCadera)).toBe("evaluaciones.importar.sinMedidas");
+    expect(leer(MOVILIDAD_ISQUIO, sinCadera)).toBe("evaluaciones.importar.sinMedidas");
+    expect(leer(MOVILIDAD_TOBILLO, sinCadera)).toEqual([
+      ["2026-06-10", 40],
+      ["2026-06-11", 38],
+    ]);
   });
 
   it("pegada otra vez, lo que ya está se ve como «Ya está»", () => {

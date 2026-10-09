@@ -69,27 +69,39 @@ export const leerFecha = (texto, formato, anio) => {
   return { fecha: esFechaReal(iso) ? iso : undefined, sinAnio: conMes.anio === null };
 };
 
-// Los títulos de cada campo, normalizados: { campo: { nombres, vez } }. Un
-// campo puede ser la n-ésima columna con ese título (`vez`): en Curl Nórdico
-// e Isoprone, "L MÁX" está una vez por test. En el test, cada campo es la
-// lista de nombres o { nombres, vez }.
+// Los títulos de cada campo, normalizados: { campo: { nombres, vez, enBloque } }.
+// Un campo puede ser la n-ésima columna con ese título (`vez`): en Curl
+// Nórdico e Isoprone, "L MÁX" está una vez por test. Con `enBloque`, la vez
+// se cuenta adentro del bloque del test (`test.bloqueParaPegar(titulos)` →
+// { desde, hasta }: en la hoja Funcional, cada test tiene el suyo). En el
+// test, cada campo es la lista de nombres o { nombres, vez, enBloque }.
 export const titulosParaPegar = (test) =>
   Object.fromEntries(
     Object.entries(test.cabecerasParaPegar).map(([campo, cabecera]) => {
-      const { nombres, vez = 1 } = Array.isArray(cabecera) ? { nombres: cabecera } : cabecera;
-      return [campo, { nombres: nombres.map(normalizarCabecera), vez }];
+      const { nombres, vez = 1, enBloque = false } = Array.isArray(cabecera) ? { nombres: cabecera } : cabecera;
+      return [campo, { nombres: nombres.map(normalizarCabecera), vez, enBloque }];
     }),
   );
 
-const cabecerasDeLaFila = (celdas, titulos) => {
+const cabecerasDeLaFila = (celdas, titulos, bloqueParaPegar) => {
+  const normalizadas = celdas.map(normalizarCabecera);
+  const bloque = bloqueParaPegar ? bloqueParaPegar(normalizadas) : null;
   const encontradas = {};
   const vistas = new Map();
-  celdas.forEach((celda, c) => {
-    const buscada = normalizarCabecera(celda);
+  const vistasEnElBloque = new Map();
+  normalizadas.forEach((buscada, c) => {
     if (!buscada) return;
     const vez = (vistas.get(buscada) || 0) + 1;
     vistas.set(buscada, vez);
-    const campo = Object.keys(titulos).find((clave) => !(clave in encontradas) && titulos[clave].nombres.includes(buscada) && titulos[clave].vez === vez);
+    const enElBloque = Boolean(bloque) && c >= bloque.desde && c < bloque.hasta;
+    const vezEnElBloque = enElBloque ? (vistasEnElBloque.get(buscada) || 0) + 1 : 0;
+    if (enElBloque) vistasEnElBloque.set(buscada, vezEnElBloque);
+    const campo = Object.keys(titulos).find(
+      (clave) =>
+        !(clave in encontradas) &&
+        titulos[clave].nombres.includes(buscada) &&
+        (titulos[clave].enBloque ? titulos[clave].vez === vezEnElBloque : titulos[clave].vez === vez),
+    );
     if (campo) encontradas[campo] = c;
   });
   return encontradas;
@@ -122,7 +134,7 @@ export const leerEvaluacionesPegadas = (texto, test) => {
   let filaCabeceras = -1;
   let columnas = {};
   matriz.slice(0, FILAS_PARA_BUSCAR_CABECERAS).forEach((celdas, f) => {
-    const encontradas = cabecerasDeLaFila(celdas, nombres);
+    const encontradas = cabecerasDeLaFila(celdas, nombres, test.bloqueParaPegar);
     if ("jugador" in encontradas && Object.keys(encontradas).length > Object.keys(columnas).length) {
       filaCabeceras = f;
       columnas = encontradas;
@@ -130,6 +142,10 @@ export const leerEvaluacionesPegadas = (texto, test) => {
   });
   if (filaCabeceras === -1) return { columnas: {}, filas: [], error: "evaluaciones.importar.sinCabeceras" };
   const medidas = medidasDelTest(test);
+  // Están los títulos pero ninguna columna de lo que se mide en el test: se
+  // copió otra parte de la hoja, o el Excel tenía esas columnas ocultas (no
+  // se copian).
+  if (medidas.length && !medidas.some((campo) => campo in columnas)) return { columnas, filas: [], error: "evaluaciones.importar.sinMedidas" };
   const filas = [];
   matriz.slice(filaCabeceras + 1).forEach((celdas, i) => {
     const nombre = String(celdas[columnas.jugador] ?? "")

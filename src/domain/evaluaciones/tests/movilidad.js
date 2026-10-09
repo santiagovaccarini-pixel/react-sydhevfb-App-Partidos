@@ -30,13 +30,42 @@ const o = (...valores) => valores.find(esError) || valores.some(Boolean);
 const y = (...valores) => valores.find(esError) || valores.every(Boolean);
 
 // Lo que se agrega a la ayuda de Pegar desde Excel: los tests de la hoja
-// Funcional se pegan con la hoja entera.
+// Funcional se pegan con la hoja (entera o hasta el bloque del test).
 export const AYUDA_FUNCIONAL = Object.freeze(
   et(
-    "Es un bloque de la hoja Funcional: copiá la tabla entera, desde la fila de títulos y desde la columna Jugador hasta la última, con todos los bloques. Se leen solo las filas con datos de este test.",
-    "É um bloco da planilha Funcional: copie a tabela inteira, a partir da linha de títulos e da coluna Jugador até a última, com todos os blocos. Só são lidas as linhas com dados deste teste.",
+    "Es un bloque de la hoja Funcional: copiá la tabla desde la fila de títulos, desde la columna Jugador hasta el final del bloque de este test (o la hoja entera). Se leen solo las filas con datos de este test.",
+    "É um bloco da planilha Funcional: copie a tabela a partir da linha de títulos, da coluna Jugador até o fim do bloco deste teste (ou a planilha inteira). Só são lidas as linhas com dados deste teste.",
   ),
 );
+
+// Pegar: en la fila de títulos de la hoja Funcional, "Fecha", "PD" y "PI" se
+// repiten (una Fecha por bloque; PD y PI en cada bloque y en cada Re - test).
+// Cada test busca su bloque por su propia Fecha y lee lo suyo adentro, sin
+// contar columnas desde la izquierda (Santiago, 09/10: con las columnas de
+// Tobillo ocultas, Excel no las copia y el PD de Cadera quedaba en otro
+// lugar). Los tramos van de una Fecha a la siguiente: el primero (el de la
+// Fecha de al lado del Jugador) es el de Tobillo; Cadera e Isquio son los que
+// tienen PD después de su Fecha y su Evaluación (el primero Cadera, el
+// segundo Isquio), y Estabilidad rotacional, el que tiene Cifosis. Si se ve
+// uno solo de Cadera e Isquio, es Cadera cuando es lo último que se pegó (se
+// copió hasta el fin de Cadera); si no, no se sabe cuál es (el otro estaba
+// oculto) y no se lee: nunca se cargan los datos de un bloque en otro test.
+// titulos: la fila de títulos, ya normalizada. Devuelve { desde, hasta } o null.
+export const bloqueDeFuncional = (cual) => (titulos) => {
+  const fechas = titulos.flatMap((titulo, i) => (titulo === "fecha" ? [i] : []));
+  if (!fechas.length) return null;
+  const tramos = fechas.map((desde, k) => ({ desde, hasta: k + 1 < fechas.length ? fechas[k + 1] : titulos.length }));
+  if (cual === "tobillo") return tramos[0];
+  const propios = tramos.slice(1);
+  if (cual === "estabilidad") return propios.find((tramo) => titulos.slice(tramo.desde, tramo.hasta).includes("cifosis derecha")) || null;
+  const deMovilidad = propios.filter((tramo) => titulos.slice(tramo.desde + 1, tramo.desde + 3).includes("pd"));
+  if (deMovilidad.length === 1) return cual === "cadera" && deMovilidad[0] === tramos[tramos.length - 1] ? deMovilidad[0] : null;
+  return deMovilidad[cual === "cadera" ? 0 : 1] || null;
+};
+
+// Un título que se busca adentro del bloque del test (la n-ésima vez que
+// aparece ahí).
+export const enSuBloque = (nombre, vez = 1) => ({ nombres: [nombre], vez, enBloque: true });
 
 // Lo cargado de una fila, como lo cuenta el Excel.
 const entrada = (fila) => {
@@ -62,7 +91,7 @@ const claseDeFila = ({ seleccion, valor, referencias, metrica, clasificar, esCat
 // Arma uno de los tres tests. menosEsMejor: en Isquio, el valor más chico es
 // el mejor (sus clases van con <=, sus colores al revés y "Deficit Pierna"
 // marca la pierna con el valor más grande).
-const armarTest = ({ id, pestana, titulo, menosEsMejor = false, formatos, cabeceras }) => {
+const armarTest = ({ id, pestana, titulo, menosEsMejor = false, formatos, bloque }) => {
   const clasificar = menosEsMejor ? claseMenos : claseMas;
 
   // ------------------------------------------------------ Las cuentas --
@@ -286,10 +315,13 @@ const armarTest = ({ id, pestana, titulo, menosEsMejor = false, formatos, cabece
     // varios tests: la que no tiene PD ni PI es de otro test y no se lee.
     saltearFilasSinMedidas: true,
     ayudaParaPegar: AYUDA_FUNCIONAL,
+    bloqueParaPegar: bloqueDeFuncional(bloque),
     cabecerasParaPegar: Object.freeze({
       jugador: ["jugador"],
       seleccion: ["seleccion", "selección"],
-      ...cabeceras,
+      fecha: enSuBloque("fecha"),
+      pd: enSuBloque("pd"),
+      pi: enSuBloque("pi"),
     }),
   });
 };
@@ -305,13 +337,6 @@ export const FILAS_DE_REFERENCIA = Object.freeze([
   { clave: "malo", titulo: et("Malo", "Ruim") },
 ]);
 
-// Pegar: en la fila de títulos de la hoja Funcional, "Fecha", "PD" y "PI" se
-// repiten (una vez por bloque, y PD y PI también en cada Re - test): cada
-// test lee la suya por el lugar en que aparece (de izquierda a derecha:
-// Fecha 1 Tobillo, 2 Cadera, 3 Isquio; PD y PI 1 Tobillo, 3 Cadera, 5
-// Isquio). Hay que copiar la tabla entera, desde la columna del Jugador.
-const repetida = (nombre, vez) => ({ nombres: [nombre], vez });
-
 // Los formatos de las filas del informe que cambian de un test a otro (los
 // del Excel). En Isquio, el % DEFICIT LATERAL del informe tenía formato de
 // número (mostraba 0,1 en vez de 10,0%): va en %.
@@ -320,7 +345,7 @@ export const MOVILIDAD_TOBILLO = armarTest({
   pestana: et("Movilidad de Tobillo", "Mobilidade de Tornozelo"),
   titulo: et("Movilidad de Tobillo", "Mobilidade de Tornozelo"),
   formatos: { informePdClas: "0.0", informeDeficitClas: "0.0" },
-  cabeceras: { fecha: repetida("fecha", 1), pd: repetida("pd", 1), pi: repetida("pi", 1) },
+  bloque: "tobillo",
 });
 
 export const MOVILIDAD_CADERA = armarTest({
@@ -328,7 +353,7 @@ export const MOVILIDAD_CADERA = armarTest({
   pestana: et("Movilidad de Cadera", "Mobilidade de Quadril"),
   titulo: et("Movilidad de Cadera", "Mobilidade de Quadril"),
   formatos: { informePdClas: "0.00", informeDeficitClas: "0.00" },
-  cabeceras: { fecha: repetida("fecha", 2), pd: repetida("pd", 3), pi: repetida("pi", 3) },
+  bloque: "cadera",
 });
 
 export const MOVILIDAD_ISQUIO = armarTest({
@@ -337,5 +362,5 @@ export const MOVILIDAD_ISQUIO = armarTest({
   titulo: et("Movilidad de Isquio", "Mobilidade de Isquiotibiais"),
   menosEsMejor: true,
   formatos: { informePdClas: "0.0", informeDeficitClas: "0.0" },
-  cabeceras: { fecha: repetida("fecha", 3), pd: repetida("pd", 5), pi: repetida("pi", 5) },
+  bloque: "isquio",
 });

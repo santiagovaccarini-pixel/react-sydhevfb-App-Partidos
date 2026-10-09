@@ -267,6 +267,7 @@ export default {
       borrar: "Borrar lo pegado",
       sinCabeceras: "No encontré la fila de títulos. Copiá la tabla junto con la fila que dice Jugador.",
       sinFilas: "Debajo de los títulos no hay evaluaciones.",
+      sinMedidas: "En lo que pegaste no están las columnas de este test. Si en el Excel hay columnas ocultas, mostralas (Excel no las copia) y volvé a copiar.",
       anio: "Las fechas vienen sin año: ¿de qué año son?",
       anioAyuda: "Si son de años distintos, en el Excel poné la columna Fecha con formato dd/mm/aaaa y volvé a copiar.",
       filas_one: "{{n}} fila en lo pegado",
