@@ -252,6 +252,7 @@ export default {
       categoria: "Categoria",
       pro: "Pro",
       sinDatos: "Ainda não estão os valores de referência deste teste. São carregados uma vez só, com os valores exatos do Excel.",
+      noTiene: "Este teste não tem valores de referência: no Excel também não.",
     },
     importar: {
       boton: "Colar do Excel",

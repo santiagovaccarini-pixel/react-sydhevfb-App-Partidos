@@ -912,7 +912,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     </div>
   );
 
-  const sinReferencias = !cargando && !error && !referencias;
+  // Un test sin valores de referencia (Estabilidad rotacional) no avisa que faltan.
+  const sinReferencias = test.conReferencias !== false && !cargando && !error && !referencias;
 
   const pantallaBase = (
     <div className="app">
@@ -973,6 +974,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         <AvisoSoloLectura hasta={equipo?.hasta} />
         {estado}
         {sinReferencias && <p className="lesiones-estado">{t("evaluaciones.referencias.sinDatos")}</p>}
+        {test.conReferencias === false && !cargando && !error && <p className="lesiones-estado">{t("evaluaciones.referencias.noTiene")}</p>}
         {!cargando &&
           !error &&
           categoriasConOcultas
@@ -1123,7 +1125,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     );
     return listas;
   }, []);
-  const tituloDeLista = (lista) => (lista.columna ? titulo(lista.test || TESTS[0], lista.columna) : lista.clave);
+  // El nombre de una lista: el que le da el test (si la usan varias columnas,
+  // como Cifosis en Estabilidad rotacional) o el de su primera columna.
+  const tituloDeLista = (lista) => lista.test?.titulosDeListas?.[lista.clave]?.[idioma] || (lista.columna ? titulo(lista.test || TESTS[0], lista.columna) : lista.clave);
 
   const pantallaAjustes = () => {
     if (vistaAjustes === "cabeceras") {
