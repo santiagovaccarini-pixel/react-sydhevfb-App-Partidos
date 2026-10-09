@@ -243,6 +243,9 @@ export const planDeEvaluaciones = (
       else avisos.push({ campo: columna.clave, valor: texto });
     });
     if (fila.textos.nota) datos.nota = fila.textos.nota;
+    // Lo que el test deduce de lo pegado (en Sentadilla Incremental, qué
+    // series no cuentan para el RM).
+    if (test.completarAlPegar) Object.assign(datos, test.completarAlPegar(fila.textos, datos));
 
     const evaluacion = {
       jugador_id: jugador ? jugador.id : null,
