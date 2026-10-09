@@ -124,14 +124,16 @@ describe("la cancha neutral se ve en la tarjeta de inicio", () => {
 describe("el botón Cambiar del portal se toca cómodo", () => {
   it("se ve chico, pero su zona de toque llega a 44px de alto", () => {
     // Es la entrada a «Salir de {club}» y a pedir entrar a otro club: mide
-    // 28px y la zona de toque suma 8px arriba y 8px abajo (28 + 16 = 44).
+    // 28px con un borde de 1px; la zona de toque sale de adentro del borde
+    // (26px) y suma 9px arriba y 9px abajo (26 + 18 = 44).
     const portal = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "portal.css"),
       "utf8",
     );
     expect(reglaCon(".portal-cambiar-club {", portal)).toContain("min-height: 28px");
     expect(reglaCon(".portal-cambiar-club {", portal)).toContain("position: relative");
-    expect(reglaCon(".portal-cambiar-club::after", portal)).toContain("inset: -8px -4px");
+    expect(reglaCon(".portal-cambiar-club {", portal)).toContain("border: 1px solid");
+    expect(reglaCon(".portal-cambiar-club::after", portal)).toContain("inset: -9px -5px");
   });
 });
 

@@ -785,11 +785,12 @@
   cursor: pointer;
 }
 /* Se ve chico, pero se toca cómodo: la zona de toque llega a 44px de alto
-   (es la entrada a «Salir de {club}» y a pedir entrar a otro club). */
+   (es la entrada a «Salir de {club}» y a pedir entrar a otro club). Se mide
+   desde adentro del borde de 1px: 26 + 9 + 9 = 44. */
 .portal-cambiar-club::after {
   content: "";
   position: absolute;
-  inset: -8px -4px;
+  inset: -9px -5px;
 }
 .cuentas-cabecera-derecha {
   display: flex;
