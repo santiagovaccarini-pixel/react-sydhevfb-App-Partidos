@@ -42,7 +42,8 @@ import "./tablaDatos.css";
 // vista; si no, guarda su lugar); rotuloApagada: lo que dice una fila
 // apagada al pasar el mouse
 // onEditar(filaId, clave, valor) → Promise<{ error }>; onPegar(cambios) → Promise<{ error, hechos }>
-// onAbrirFila(filaId), onBorrarFila(filaId)
+// onAbrirFila(filaId), onBorrarFilas(filaIds): las filas elegidas (con
+// Shift, varias), en el orden en que se ven
 // recordar: con qué nombre se guardan los filtros y el orden mientras la app
 // está abierta (al abrir una ficha y volver, siguen como estaban).
 // fijas: claves de las columnas que van primero y quedan a la vista al
@@ -132,7 +133,7 @@ export const TablaDatos = ({
   onEditar,
   onPegar,
   onAbrirFila,
-  onBorrarFila,
+  onBorrarFilas,
   aviso = "",
   recordar = null,
   leyenda = "",
@@ -760,6 +761,9 @@ export const TablaDatos = ({
   // ------------------------------------------------------------- Dibujo --
 
   const filaActiva = activa ? filasVista[activa.f] : null;
+  // Las filas de lo elegido (con Shift, varias): las que borra «Borrar fila».
+  const [primeraElegida, ultimaElegida] = seleccion ? rango(seleccion.f1, seleccion.f2) : activa ? [activa.f, activa.f] : [0, -1];
+  const filasElegidas = filasVista.slice(primeraElegida, ultimaElegida + 1).map((fila) => fila.id);
   const textoDeEstado = ocupada
     ? t("tabla.guardando")
     : mensaje || aviso || (celdasElegidas ? plural("tabla.seleccion", celdasElegidas) : t("tabla.sinSeleccion"));
@@ -795,10 +799,10 @@ export const TablaDatos = ({
               {t("tabla.ficha")}
             </button>
           )}
-          {onBorrarFila && (
-            <button type="button" className="boton-secundario tabla-datos-borrar" onClick={() => filaActiva && onBorrarFila(filaActiva.id)} disabled={!filaActiva || ocupada}>
+          {onBorrarFilas && (
+            <button type="button" className="boton-secundario tabla-datos-borrar" onClick={() => filasElegidas.length && onBorrarFilas(filasElegidas)} disabled={!filasElegidas.length || ocupada}>
               <Icono nombre="borrar" size={15} />
-              {t("tabla.borrarFila")}
+              {plural("tabla.borrarFilas", Math.max(filasElegidas.length, 1))}
             </button>
           )}
         </div>

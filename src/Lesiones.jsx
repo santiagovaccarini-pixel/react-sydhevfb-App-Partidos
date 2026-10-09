@@ -346,13 +346,12 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   };
   const lesionDetalle = detalleId ? lesiones.find((lesion) => lesion.id === detalleId) || null : null;
 
-  const avisarError = (clave, lesion) =>
-    setAviso(
-      t(clave, {
-        parte: textoDeOpcion("parte_cuerpo", lesion?.datos?.parte_cuerpo),
-        lado: textoDeOpcion("lado", lesion?.datos?.lado),
-      }),
-    );
+  const textoDeError = (clave, lesion) =>
+    t(clave, {
+      parte: textoDeOpcion("parte_cuerpo", lesion?.datos?.parte_cuerpo),
+      lado: textoDeOpcion("lado", lesion?.datos?.lado),
+    });
+  const avisarError = (clave, lesion) => setAviso(textoDeError(clave, lesion));
 
   const reemplazar = (lesion) => {
     setLesiones((actuales) => {
@@ -479,21 +478,26 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     return undefined;
   };
 
+  // Se borran de a una, todas las elegidas (con Shift, varias filas de la
+  // Base); si alguna no se puede, se avisa cuántas se borraron.
   const confirmarBorrar = async () => {
-    const lesion = aBorrar;
+    const elegidas = aBorrar || [];
     setABorrar(null);
-    if (!lesion) return;
+    if (!elegidas.length) return;
     setOcupado(true);
-    const respuesta = await borrarLesion(lesion.id);
-    setOcupado(false);
-    if (respuesta.error) {
-      avisarError(respuesta.error, lesion);
-      return;
+    const borradas = [];
+    let falla = null;
+    for (const lesion of elegidas) {
+      const respuesta = await borrarLesion(lesion.id);
+      if (respuesta.error) falla = falla || textoDeError(respuesta.error, lesion);
+      else borradas.push(lesion.id);
     }
-    setLesiones((actuales) => actuales.filter((otra) => otra.id !== lesion.id));
-    if (detalleId === lesion.id) setDetalleId(null);
-    if (formulario?.id === lesion.id) setFormulario(null);
-    setAviso(t("lesiones.borrada"));
+    setOcupado(false);
+    setLesiones((actuales) => actuales.filter((otra) => !borradas.includes(otra.id)));
+    if (borradas.includes(detalleId)) setDetalleId(null);
+    if (formulario?.id && borradas.includes(formulario.id)) setFormulario(null);
+    if (falla) setAviso(elegidas.length === 1 ? falla : `${falla} ${t("tabla.borradasDe", { n: borradas.length, total: elegidas.length })}`);
+    else setAviso(elegidas.length === 1 ? t("lesiones.borrada") : t("lesiones.borradas", { n: borradas.length }));
   };
 
   const recargarConfig = async () => {
@@ -631,7 +635,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
           </button>
         )}
         {!soloLectura && (
-          <button type="button" className="boton-eliminar-registro" aria-label={t("lesiones.borrar")} onClick={() => setABorrar(lesion)}>
+          <button type="button" className="boton-eliminar-registro" aria-label={t("lesiones.borrar")} onClick={() => setABorrar([lesion])}>
             <Icono nombre="borrar" size={18} />
           </button>
         )}
@@ -820,12 +824,12 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       leyenda={t("datos.leyendaYaNoEsta")}
       rotuloApagada={t("datos.yaNoEsta")}
       onAbrirFila={abrirFicha}
-      onBorrarFila={
+      onBorrarFilas={
         soloLectura
           ? undefined
-          : (id) => {
-              const lesion = lesiones.find((una) => una.id === id);
-              if (lesion) setABorrar(lesion);
+          : (ids) => {
+              const elegidas = lesiones.filter((una) => ids.includes(una.id));
+              if (elegidas.length) setABorrar(elegidas);
             }
       }
     />
@@ -1587,7 +1591,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             )}
           </div>
           {lesion.id && (
-            <button type="button" className="lesiones-boton-borrar" disabled={ocupado} onClick={() => setABorrar(lesion)}>
+            <button type="button" className="lesiones-boton-borrar" disabled={ocupado} onClick={() => setABorrar([lesion])}>
               <Icono nombre="borrar" size={16} />
               {t("lesiones.borrar")}
             </button>
@@ -1790,9 +1794,9 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       })}
 
       <HojaConfirmar
-        abierta={Boolean(aBorrar)}
-        titulo={t("lesiones.borrarTitulo")}
-        descripcion={t("lesiones.borrarTexto", { jugador: nombreDeLesion(aBorrar) })}
+        abierta={Boolean(aBorrar?.length)}
+        titulo={aBorrar?.length > 1 ? t("lesiones.borrarVariasTitulo", { n: aBorrar.length }) : t("lesiones.borrarTitulo")}
+        descripcion={aBorrar?.length > 1 ? t("lesiones.borrarVariasTexto", { n: aBorrar.length }) : t("lesiones.borrarTexto", { jugador: nombreDeLesion(aBorrar?.[0]) })}
         icono="borrar"
         etiquetaConfirmar={t("lesiones.siBorrar")}
         etiquetaCancelar={t("comun.cancelar")}

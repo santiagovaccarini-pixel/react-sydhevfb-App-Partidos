@@ -428,6 +428,19 @@ describe("Evaluaciones", () => {
     expect(filas(contenedor)).toHaveLength(2);
   });
 
+  test("con varias filas elegidas (Shift), «Borrar fila» pregunta una vez y borra todas", async () => {
+    await montar();
+    await irA(contenedor, "Base");
+    await tocar(celda(contenedor, 0, "Lumbar"));
+    await act(async () => celda(contenedor, 1, "Lumbar").dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true })));
+    await tocar(boton(contenedor, "Borrar 2 filas"));
+    expect(document.body.textContent).toContain("¿Borrar 2 evaluaciones?");
+    await tocar(boton(contenedor, "Sí, borrar"));
+    expect(datos.borradas).toHaveLength(2);
+    expect(filas(contenedor)).toHaveLength(1);
+    expect(document.body.textContent).toContain("2 evaluaciones borradas.");
+  });
+
   test("Pegar desde Excel: se ve qué pasa con cada fila y se carga", async () => {
     await montar();
     await irA(contenedor, "Base");
