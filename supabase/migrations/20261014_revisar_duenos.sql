@@ -134,6 +134,6 @@ select p.oid::regprocedure as funcion, pg_get_userbyid(p.proowner) as duena
      'pedidos_sin_club', 'pedir_acceso', 'perfiles_alta_usuario', 'perfiles_anotar_decision',
      'perfiles_proteger_principal', 'perfiles_sincronizar_usuario', 'plataforma_anotar', 'plataforma_cuidar',
      'puede_editar', 'puede_usar', 'puede_usar_catapult_servidor', 'puede_usar_en', 'puede_ver',
-     'puede_ver_fecha', 'quitar_subdueno', 'rechazar_pedido', 'rechazar_pedido_sin_club', 'salir_del_club',
-     'traspasar_principal', 'zona_del_club')
+     'puede_ver_fecha', 'quitar_subdueno', 'rechazar_pedido', 'rechazar_pedido_sin_club', 'renombrar_club',
+     'salir_del_club', 'traspasar_principal', 'zona_del_club')
  order by 1;
