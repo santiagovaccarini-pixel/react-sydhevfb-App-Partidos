@@ -9,6 +9,37 @@
   margin: 0 0 12px;
 }
 
+/* El test que se ve, en un desplegable (Santiago, 09/10), arriba de la Base,
+   los V.R. y los Ajustes: «Test» como el «Paso 1 de 5» del formulario. En
+   una tarjeta (Reportes › Grupal), como los otros filtros. */
+.evaluaciones-marco .campo-inicio.evaluaciones-elegir-test {
+  display: grid;
+  gap: 6px;
+  max-width: min(440px, 100%);
+  margin: 0 0 14px;
+}
+.evaluaciones-marco .evaluaciones-elegir-test > span {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.evaluaciones-marco .evaluaciones-elegir-test-lista {
+  min-height: 48px;
+  background: #fff;
+  font-weight: 800;
+}
+.evaluaciones-marco .tarjeta .campo-inicio.evaluaciones-elegir-test {
+  margin: 0;
+}
+.evaluaciones-marco .tarjeta .evaluaciones-elegir-test > span {
+  color: #475569;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 /* Sin valores de referencia: el aviso en amarillo. */
 .evaluaciones-marco .lesiones-estado.evaluaciones-sin-referencias {
   background: #fef3c7;
@@ -140,9 +171,6 @@
 .evaluaciones-marco .evaluaciones-reporte-filtros {
   display: grid;
   gap: 12px;
-}
-.evaluaciones-marco .evaluaciones-reporte-filtros .evaluaciones-tests {
-  margin: 0;
 }
 .evaluaciones-marco .evaluaciones-reporte-campos {
   display: grid;

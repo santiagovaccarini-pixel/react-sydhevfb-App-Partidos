@@ -20,6 +20,7 @@ const datos = vi.hoisted(() => ({
   ajustes: { campos: [], opciones: [] },
   cabeceras: [],
   opciones: [],
+  referenciasCurl: null,
 }));
 
 // Los V.R. de prueba, en la unidad del Excel (los tiempos, segundos ÷ 1440).
@@ -84,7 +85,7 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
     }
     return datos.errorAlLeer ? { evaluaciones: [], error: datos.errorAlLeer } : { evaluaciones: datos.evaluaciones.map((una) => ({ ...una, datos: { ...una.datos } })), error: "" };
   },
-  leerReferencias: async () => ({ referencias: datos.referencias ? { zona_media: datos.referencias } : {}, error: "" }),
+  leerReferencias: async () => ({ referencias: { ...(datos.referencias ? { zona_media: datos.referencias } : {}), ...(datos.referenciasCurl ? { curl_nordico_isoprone: datos.referenciasCurl } : {}) }, error: "" }),
   leerAjustes: async () => ({ campos: [...datos.ajustes.campos], opciones: [...datos.ajustes.opciones], error: "" }),
   guardarCabecera: async (equipoId, test, campo, { etiquetas, oculto, orden }) => {
     datos.cabeceras.push({ equipoId, test, campo, etiquetas, oculto, orden });
@@ -150,6 +151,17 @@ const celdaDeArriba = (contenedor, tr, titulo) => tr.querySelectorAll("td")[colu
 const irA = async (contenedor, nombre) => tocar([...contenedor.querySelectorAll(".navegacion-movil button")].find((b) => b.textContent.includes(nombre)));
 // Un campo del formulario por su rótulo.
 const campo = (contenedor, rotulo) => [...contenedor.querySelectorAll(".lesiones-campo-paso")].find((div) => div.querySelector("label")?.textContent.trim() === rotulo);
+// Elegir el test en su desplegable.
+const elegirTest = async (contenedor, nombre) => {
+  const lista = contenedor.querySelector("select.evaluaciones-elegir-test-lista");
+  expect(lista, "no se encontró el desplegable del test").toBeTruthy();
+  const opcion = [...lista.options].find((una) => una.textContent === nombre);
+  expect(opcion, `no está el test ${nombre}`).toBeTruthy();
+  await act(async () => {
+    lista.value = opcion.value;
+    lista.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+};
 
 describe("Evaluaciones", () => {
   let contenedor;
@@ -172,6 +184,7 @@ describe("Evaluaciones", () => {
     datos.ajustes = { campos: [], opciones: [] };
     datos.cabeceras = [];
     datos.opciones = [];
+    datos.referenciasCurl = null;
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -216,7 +229,9 @@ describe("Evaluaciones", () => {
     // La clase, con el número del color de su clase, en negrita, sobre gris.
     const clase = celda(contenedor, 0, "L. Clas");
     expect(clase.textContent).toBe("5");
-    expect(clase.style.color).toBe("rgb(79, 98, 40)");
+    // Sobre el color de su clase (5: verde oscuro), con la letra blanca.
+    expect(clase.style.background).toBe("rgb(79, 98, 40)");
+    expect(clase.style.color).toBe("rgb(255, 255, 255)");
     expect(clase.style.fontWeight).toBe("700");
     // % mejora: contra la evaluación anterior del mismo jugador.
     expect(celda(contenedor, 2, "% mejora").textContent).toBe("5,0%");
@@ -522,7 +537,7 @@ describe("Evaluaciones", () => {
     const celdas = filasDeLaTabla()[0].querySelectorAll("td");
     expect(celdas[titulos.indexOf("Lumbar")].textContent).toBe("4:00");
     // La clase, con el color de su clase (como en la Base).
-    expect(celdas[titulos.indexOf("L. Clas")].style.color).toBe("rgb(79, 98, 40)");
+    expect(celdas[titulos.indexOf("L. Clas")].style.background).toBe("rgb(79, 98, 40)");
     expect(filasDeLaTabla()).toHaveLength(5);
   });
 
@@ -601,6 +616,66 @@ describe("Evaluaciones", () => {
     await irA(contenedor, "Cargar");
     await tocar(boton(contenedor, "Nueva evaluación"));
     expect(campo(contenedor, "Seleccion").querySelector(".selector-hoja")).not.toBeNull();
+  });
+
+  test("Curl Nórdico e Isoprone: en la Base, sus cuatro bloques; se carga por pasos con el peso del día al principio", async () => {
+    const curl = (id, orden, jugador_id, fecha, extra) => ({ ...evaluacion(id, orden, jugador_id, fecha, {}), test: "curl_nordico_isoprone", datos: { seleccion: "mayor", ...extra } });
+    datos.evaluaciones.push(curl("k1", 20, 1, "2026-06-01", { pc: 80, curl_l_max: 440, curl_r_max: 400 }));
+    const V = (valor) => ({ curl_l_max_rel: valor, curl_r_max_rel: valor, curl_def_max: 0.1 });
+    datos.referenciasCurl = {
+      categorias: {
+        mayor: { titulos: { curl: "V.R. de prueba Curl", iso: "V.R. de prueba Isoprone" }, n: { curl_l_max_rel: 9 }, excelente: V(6), muy_bueno: V(5.5), bueno: V(5), regular: V(4.5), malo: V(4) },
+      },
+    };
+    await montar();
+    await irA(contenedor, "Base");
+    // El test se elige en un desplegable, no con un botón por test.
+    expect([...contenedor.querySelector("select.evaluaciones-elegir-test-lista").options].map((opcion) => opcion.textContent)).toEqual(["Zona Media", "Curl Nórdico e Isoprone"]);
+    expect(botones(contenedor).some((b) => b.textContent === "Curl Nórdico e Isoprone")).toBe(false);
+    await elegirTest(contenedor, "Curl Nórdico e Isoprone");
+    expect(contenedor.querySelector("h1").textContent).toBe("Curl Nórdico e Isoprone");
+    expect([...contenedor.querySelectorAll(".tabla-datos-grupo-titulo")].map((titulo) => titulo.textContent).filter(Boolean)).toEqual([
+      "Curl Nórdico · Máxima",
+      "Curl Nórdico · Media",
+      "Isoprone · Máxima",
+      "Isoprone · Media",
+    ]);
+    expect(cabeceras(contenedor).slice(0, 8)).toEqual(["Jugador", "Fecha", "Evaluacion", "Seleccion", "P.C.", "L MÁX", "L MÁX Rel", "Clas L"]);
+    expect(cabeceras(contenedor)).not.toContain("% mejora L + R");
+    expect(filas(contenedor)).toHaveLength(1);
+    expect(celda(contenedor, 0, "L MÁX Rel").textContent).toBe("5,50");
+    expect(celda(contenedor, 0, "Clas L").textContent).toBe("4");
+    expect(celda(contenedor, 0, "Deficit MAX %").textContent).toBe("10,0%");
+    expect(celda(contenedor, 0, "Deficit Pierna").textContent).toBe("PD");
+    // El informe: cuántas PD hay, con su rótulo.
+    const promedios = filaDeArriba(contenedor, "Promedio");
+    expect(celdaDeArriba(contenedor, promedios, "L MÁX Rel").textContent).toBe("5,5");
+    expect(celdaDeArriba(contenedor, promedios, "Deficit Pierna").textContent).toBe("PD 1,0");
+
+    // Los valores de referencia: una tabla por evaluación.
+    await irA(contenedor, "Valores de referencia");
+    expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["V.R. de prueba Curl", "V.R. de prueba Isoprone"]);
+
+    // Se carga por pasos: el peso con el jugador y la fecha; después cada bloque.
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    await elegirTest(contenedor, "Curl Nórdico e Isoprone");
+    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
+    await escribir(campo(contenedor, "P.C.").querySelector("input"), "80,5");
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Curl Nórdico · Máxima");
+    await escribir(campo(contenedor, "L MÁX").querySelector("input"), "402");
+    await escribir(campo(contenedor, "R MÁX").querySelector("input"), "x");
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.textContent).toContain("«x» no es un número en R MÁX.");
+    await escribir(campo(contenedor, "R MÁX").querySelector("input"), "398");
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Curl Nórdico · Media");
+    await tocar(boton(contenedor, "Siguiente"));
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Isoprone · Media");
+    await tocar(boton(contenedor, "Guardar la evaluación"));
+    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "curl_nordico_isoprone", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { pc: 80.5, curl_l_max: 402, curl_r_max: 398 } } }]);
   });
 
   test("en portugués, con los textos del Excel traducidos", async () => {

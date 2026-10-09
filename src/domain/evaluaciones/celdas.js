@@ -44,14 +44,29 @@ export const celdasDeLaFila = ({ test, columnas, fila, celdas, jugador, config, 
         textos[clave] = textoDeMinutos(valores[clave]);
         if (valores[clave] !== null) orden[clave] = valores[clave];
         break;
+      case "numero":
+        valores[clave] = typeof fila.datos?.[clave] === "number" ? fila.datos[clave] : null;
+        textos[clave] = valores[clave] === null ? "" : textoDeValor(valores[clave], columna.formato, idioma);
+        if (valores[clave] !== null) orden[clave] = valores[clave];
+        break;
       case "texto":
         valores[clave] = fila.datos?.[clave] || "";
         textos[clave] = valores[clave];
         break;
       default:
-        textos[clave] = textoDeValor(celdas[clave], columna.formato, idioma);
+        // Un resultado de texto con su nombre en cada idioma (PD / PI / Sin
+        // Deficit), o como lo da el Excel.
+        textos[clave] = typeof celdas[clave] === "string" && columna.valores?.[celdas[clave]] ? columna.valores[celdas[clave]][idioma] : textoDeValor(celdas[clave], columna.formato, idioma);
         if (typeof celdas[clave] === "number") orden[clave] = celdas[clave];
     }
   });
   return { valores, textos, orden };
+};
+
+// Una celda del informe como se ve: con su formato y, si tiene, su rótulo
+// adelante (en Curl Nórdico, "PD 12").
+export const textoDeCeldaDelInforme = (celda, idioma) => {
+  if (!celda) return "";
+  const texto = textoDeValor(celda.valor, celda.formato, idioma);
+  return celda.rotulo && texto !== "" ? `${celda.rotulo[idioma]} ${texto}` : texto;
 };

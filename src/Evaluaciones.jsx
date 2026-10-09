@@ -8,7 +8,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarEvaluaciones from "./ImportarEvaluaciones.jsx";
-import ReportesEvaluaciones from "./ReportesEvaluaciones.jsx";
+import ReportesEvaluaciones, { SelectorDeTest } from "./ReportesEvaluaciones.jsx";
 import { COMPARAR_AL_ABRIR } from "./domain/evaluaciones/categorias.js";
 import {
   COLUMNAS_FIJAS,
@@ -26,7 +26,7 @@ import {
   tituloDeColumna,
   tituloDeGrupo,
 } from "./domain/evaluaciones/ajustes.js";
-import { celdasDeLaFila, listaDeColumna } from "./domain/evaluaciones/celdas.js";
+import { celdasDeLaFila, listaDeColumna, textoDeCeldaDelInforme } from "./domain/evaluaciones/celdas.js";
 import { textoDeValor } from "./domain/evaluaciones/excel.js";
 import { calcularFilas, vistaDeFilas } from "./domain/evaluaciones/motor.js";
 import { TESTS } from "./domain/evaluaciones/tests/index.js";
@@ -120,8 +120,10 @@ const sinVacios = (formulario) => {
 // nota) van al final del último.
 export const pasosDeCarga = (test, config) => {
   const manuales = columnasVisibles(test, config).filter((columna) => SE_CARGAN.includes(columna.tipo) && !["fecha", "jugador"].includes(columna.tipo));
-  const listasSueltas = manuales.filter((columna) => columna.tipo === "lista" && !columna.grupo);
-  const textos = manuales.filter((columna) => columna.tipo === "texto" && !columna.grupo);
+  // Al primer paso van también las listas sueltas y lo que el test pide ahí
+  // (el peso del día en Curl Nórdico e Isoprone).
+  const listasSueltas = manuales.filter((columna) => (columna.tipo === "lista" && !columna.grupo) || columna.enPrimerPaso);
+  const textos = manuales.filter((columna) => columna.tipo === "texto" && !columna.grupo && !columna.enPrimerPaso);
   const medidas = manuales.filter((columna) => !listasSueltas.includes(columna) && !textos.includes(columna));
   const pasos = [{ id: "quien", grupo: null, columnas: ["jugador", "fecha", ...listasSueltas.map((columna) => columna.clave)] }];
   medidas.forEach((columna) => {
@@ -360,7 +362,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           celdas: Object.fromEntries(
             Object.entries(fila.celdas).map(([clave, celda]) => [
               clave,
-              { texto: textoDeValor(celda.valor, celda.formato, idioma), estilo: fila.id === "comparacion" ? estilosComparacion[clave] : undefined },
+              { texto: textoDeCeldaDelInforme(celda, idioma), estilo: fila.id === "comparacion" ? estilosComparacion[clave] : undefined },
             ]),
           ),
         })),
@@ -708,17 +710,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     return t("evaluaciones.form.medidas");
   };
 
-  // Los tests, si hay más de uno: el de la pestaña elegida es el que se ve.
-  const chipsDeTests = (elegido, alElegir) =>
-    TESTS.length > 1 && (
-      <div className="grilla-criterios evaluaciones-tests" role="tablist">
-        {TESTS.map((uno) => (
-          <button key={uno.id} type="button" role="tab" aria-selected={uno.id === elegido} className={`chip-criterio ${uno.id === elegido ? "prendido" : ""}`} onClick={() => alElegir(uno.id)}>
-            {uno.pestana[idioma]}
-          </button>
-        ))}
-      </div>
-    );
+  // Los tests, si hay más de uno, en un desplegable: el elegido es el que se ve.
+  const elegirTest = (elegido, alElegir) => <SelectorDeTest elegido={elegido} alElegir={alElegir} idioma={idioma} />;
 
   // Título a la izquierda y el idioma a la derecha, como en Lesiones.
   const encabezado = (textoTitulo, texto, hijos = null) => (
@@ -774,7 +767,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             <section className="tarjeta tarjeta-ficha lesiones-grupo">
               <div className="campo-inicio lesiones-campo-paso">
                 <label>{t("evaluaciones.form.test")}</label>
-                {chipsDeTests(carga.test, (id) => cambiarFormulario({ test: id, datos: carga.datos?.seleccion ? { seleccion: carga.datos.seleccion } : {}, textos: {} }))}
+                <SelectorDeTest elegido={carga.test} alElegir={(id) => cambiarFormulario({ test: id, datos: carga.datos?.seleccion ? { seleccion: carga.datos.seleccion } : {}, textos: {} })} idioma={idioma} conRotulo={false} />
               </div>
             </section>
           )}
@@ -902,7 +895,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const pantallaBase = (
     <div className="app">
       <div className="contenedor contenedor-base">
-        {chipsDeTests(test.id, (id) => {
+        {elegirTest(test.id, (id) => {
           setTestId(id);
           setImportando(false);
         })}
@@ -950,7 +943,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const pantallaReferencias = (
     <div className="app">
       <div className="contenedor contenedor-base">
-        {chipsDeTests(test.id, setTestId)}
+        {elegirTest(test.id, setTestId)}
         {encabezado(t("evaluaciones.referencias.titulo"), t("evaluaciones.referencias.texto"))}
         <AvisoSoloLectura hasta={equipo?.hasta} />
         {estado}
@@ -959,12 +952,15 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           !error &&
           categoriasConOcultas
             .filter((categoria) => bloques[categoria.valor])
-            .map((categoria) => {
+            .flatMap((categoria) => {
               const bloque = bloques[categoria.valor];
-              return (
-                <section key={categoria.valor} className="tarjeta evaluaciones-bloque">
+              // Un test puede tener sus V.R. en varias tablas (Curl Nórdico e
+              // Isoprone: una por evaluación); si no, una sola.
+              const tablas = test.tablasDeReferencia || [{ id: "", titulo: null, metricas: test.metricas }];
+              return tablas.map((tabla) => (
+                <section key={`${categoria.valor}-${tabla.id}`} className="tarjeta evaluaciones-bloque">
                   <div className="evaluaciones-bloque-cabeza">
-                    <h2>{bloque.titulo || categoria.etiqueta}</h2>
+                    <h2>{(tabla.id ? bloque.titulos?.[tabla.id] : bloque.titulo) || [tabla.titulo?.[idioma], categoria.etiqueta].filter(Boolean).join(" · ")}</h2>
                     {bloque.rotulo && <span>{bloque.rotulo}</span>}
                   </div>
                   <div className="evaluaciones-bloque-marco">
@@ -972,7 +968,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                       <thead>
                         <tr>
                           <td />
-                          {test.metricas.map((metrica) => (
+                          {tabla.metricas.map((metrica) => (
                             <th key={metrica.clave} scope="col">
                               {metrica.titulo[idioma]}
                             </th>
@@ -983,7 +979,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                         {test.filasDeReferencia.map((fila) => (
                           <tr key={fila.clave}>
                             <th scope="row">{fila.titulo[idioma]}</th>
-                            {test.metricas.map((metrica) => (
+                            {tabla.metricas.map((metrica) => (
                               <td key={metrica.clave}>{textoDeValor(bloque[fila.clave]?.[metrica.clave] ?? null, fila.formato || metrica.formato, idioma)}</td>
                             ))}
                           </tr>
@@ -992,7 +988,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                     </table>
                   </div>
                 </section>
-              );
+              ));
             })}
         {!cargando && !error && referencias?.resumen && (
           <section className="tarjeta evaluaciones-bloque">
@@ -1112,7 +1108,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         <div className="app">
           <div className="contenedor">
             {encabezado(t("lesiones.ajustes.cabeceras"), t("evaluaciones.ajustes.cabecerasAyuda"))}
-            {chipsDeTests(test.id, setTestId)}
+            {elegirTest(test.id, setTestId)}
             {columnasDelTest.map((columna, indice) => {
               const grupo = columna.grupo && columnasDelTest[indice - 1]?.grupo !== columna.grupo ? test.grupos?.find((uno) => uno.clave === columna.grupo) || { clave: columna.grupo } : null;
               const propio = config.campos?.[test.id]?.[columna.clave];

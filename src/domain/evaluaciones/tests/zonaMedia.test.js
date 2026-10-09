@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularFilas, estadisticas, estilosDeFilas, estilosDeUnaFila, ordenDelExcel, quienEs } from "../motor.js";
-import { COLORES, cssDeEstilo, estiloDeCelda, ordenarReglas, SIN_RELLENO, degrade, letraDeClase } from "../formatoCondicional.js";
+import { COLORES, cssDeEstilo, estiloDeCelda, ordenarReglas, SIN_RELLENO, degrade, letraSobreGris } from "../formatoCondicional.js";
 import { categoriaDeTexto } from "../categorias.js";
 import { ZONA_MEDIA, cortesDe } from "./zonaMedia.js";
 
@@ -176,8 +176,9 @@ describe("Zona Media: el informe con las filas que se ven", () => {
     expect(estilos[filas[0].id].lumbar).toEqual(degradeDe(COLORES.naranja));
     expect(estilos[filas[1].id].lumbar).toEqual(degradeDe(COLORES.amarillo));
     expect(estilos[filas[2].id].lumbar).toEqual(degradeDe(COLORES.verde));
-    // La clase 4 de Lumbar (3:30): en negrita verde sobre gris.
-    expect(estilos[filas[1].id].lumbar_clas).toEqual({ background: COLORES.gris, color: COLORES.verde, fontWeight: 700 });
+    // La clase 4 de Lumbar (3:30): en negrita sobre el verde de su clase (igual
+    // en toda la app: Santiago, 09/10); el 5 y el 1, con la letra blanca.
+    expect(estilos[filas[1].id].lumbar_clas).toEqual({ background: COLORES.verde, color: "#111827", fontWeight: 700 });
     // El % mejora no tiene reglas.
     expect(estilos[filas[1].id].lumbar_mejora).toBeUndefined();
     // La fila 2 del informe: cada porcentaje con el color de su clase.
@@ -196,7 +197,7 @@ describe("Zona Media: el informe con las filas que se ven", () => {
 
 describe("formato condicional: cómo se combinan las reglas", () => {
   const reglas = ordenarReglas([
-    { prioridad: 3, columnas: ["a"], cumple: () => true, estilo: letraDeClase(COLORES.rojo) },
+    { prioridad: 3, columnas: ["a"], cumple: () => true, estilo: letraSobreGris(COLORES.rojo) },
     { prioridad: 1, columnas: ["a"], cumple: ({ valor }) => valor === "", estilo: SIN_RELLENO },
     { prioridad: 2, columnas: ["a", "b"], cumple: () => true, estilo: degrade(COLORES.amarillo), detener: true },
     { prioridad: 4, columnas: ["b"], cumple: () => true, estilo: degrade(COLORES.rojo) },

@@ -4,7 +4,6 @@ import {
   dividir,
   esBlanco,
   esError,
-  esNumero,
   esVacio,
   igual,
   mayor,
@@ -18,7 +17,8 @@ import {
   tiempoParaExcel,
   entre,
 } from "../excel.js";
-import { COLORES, COLOR_DE_CLASE, SIN_RELLENO, degrade, letraDeClase, masDesvios } from "../formatoCondicional.js";
+import { claseMas, claseMenos, cortesDe } from "../clases.js";
+import { COLORES, COLOR_DE_CLASE, SIN_RELLENO, degrade, estiloDeClase, masDesvios } from "../formatoCondicional.js";
 
 // Test Zona Media: la hoja "Test Zona Media Informe" del Excel
 // BD_evaluaciones, entera en un solo lugar: sus columnas (con los nombres del
@@ -61,39 +61,12 @@ export const FILAS_DE_REFERENCIA = Object.freeze([
   { clave: "malo", titulo: et("Malo", "Ruim") },
 ]);
 
-const CORTES = ["excelente", "muy_bueno", "bueno", "regular", "malo"];
+// Los cortes de una medida en una categoría (Excelente … Malo, las filas 4 a
+// 8 de su bloque), o null sin V.R.: en ../clases.js.
+export { cortesDe };
 
-// Los cortes de una medida en una categoría: [Excelente, Muy Bueno, Bueno,
-// Regular, Malo] (las filas 4 a 8 de su bloque), o null si el club todavía no
-// tiene los V.R. (sin V.R., las clases quedan vacías: Santiago, 05/10; el
-// Excel les daba 5 a todos).
-export const cortesDe = (referencias, categoria, metrica) => {
-  const bloque = referencias?.categorias?.[categoria];
-  if (!bloque) return null;
-  const cortes = CORTES.map((fila) => bloque[fila]?.[metrica]);
-  return cortes.every(esNumero) ? cortes : null;
-};
-
-// Las tres clases del Excel.
-// "Más es mejor": IF(x>=Exc,5,IF(x>=MB,4,IF(x>=Bueno,3,IF(x>=Reg,2,1)))).
-const claseMas = (valor, cortes) => {
-  for (let i = 0; i < 4; i += 1) {
-    const cumple = mayorIgual(valor, cortes[i]);
-    if (esError(cumple)) return cumple;
-    if (cumple) return 5 - i;
-  }
-  return 1;
-};
-
-// "Menos es mejor" (el déficit): lo mismo con <=.
-const claseMenos = (valor, cortes) => {
-  for (let i = 0; i < 4; i += 1) {
-    const cumple = menorIgual(valor, cortes[i]);
-    if (esError(cumple)) return cumple;
-    if (cumple) return 5 - i;
-  }
-  return 1;
-};
+// Las clases "más es mejor" y "menos es mejor" están en ../clases.js; la del
+// ratio, acá.
 
 // O y Y de Excel: si alguno es un error, el resultado es el error.
 const o = (...valores) => valores.find(esError) || valores.some(Boolean);
@@ -387,14 +360,16 @@ export const REGLAS = Object.freeze([
   { prioridad: 44, columnas: TIEMPOS, cumple: (ctx) => mayorIgual(ctx.valor, ctx.promedio), estilo: degrade(COLORES.amarillo) },
   { prioridad: 45, columnas: TIEMPOS, cumple: desde(-1), estilo: degrade(COLORES.naranja) },
   { prioridad: 46, columnas: TIEMPOS, cumple: debajoDe(-1), estilo: degrade(COLORES.rojo) },
-  // Las clases: el número del color de su clase, en negrita, sobre gris.
-  ...[5, 4, 3, 2, 1].map((clase, i) => ({ prioridad: 47 + i, columnas: CLASES, cumple: claseIgual(clase), estilo: letraDeClase(COLOR_DE_CLASE[clase]) })),
-  // PRO??: el promedio de las clases, por tramos.
-  { prioridad: 292, columnas: ["pro"], cumple: ({ valor }) => mayorIgual(valor, 4.2), estilo: letraDeClase(COLOR_DE_CLASE[5]) },
-  { prioridad: 293, columnas: ["pro"], cumple: entreValores(3.4, 4.2), estilo: letraDeClase(COLOR_DE_CLASE[4]) },
-  { prioridad: 294, columnas: ["pro"], cumple: entreValores(2.6, 3.4), estilo: letraDeClase(COLOR_DE_CLASE[3]) },
-  { prioridad: 295, columnas: ["pro"], cumple: entreValores(1.8, 2.6), estilo: letraDeClase(COLOR_DE_CLASE[2]) },
-  { prioridad: 311, columnas: ["pro"], cumple: entreValores(1, 1.8), estilo: letraDeClase(COLOR_DE_CLASE[1]) },
+  // Las clases: el número en negrita sobre el color de su clase (igual en
+  // toda la app: Santiago, 09/10; en el Excel, del color de su clase sobre gris).
+  ...[5, 4, 3, 2, 1].map((clase, i) => ({ prioridad: 47 + i, columnas: CLASES, cumple: claseIgual(clase), estilo: estiloDeClase(clase) })),
+  // PRO??: el promedio de las clases, por tramos, con el estilo de la clase
+  // de su tramo.
+  { prioridad: 292, columnas: ["pro"], cumple: ({ valor }) => mayorIgual(valor, 4.2), estilo: estiloDeClase(5) },
+  { prioridad: 293, columnas: ["pro"], cumple: entreValores(3.4, 4.2), estilo: estiloDeClase(4) },
+  { prioridad: 294, columnas: ["pro"], cumple: entreValores(2.6, 3.4), estilo: estiloDeClase(3) },
+  { prioridad: 295, columnas: ["pro"], cumple: entreValores(1.8, 2.6), estilo: estiloDeClase(2) },
+  { prioridad: 311, columnas: ["pro"], cumple: entreValores(1, 1.8), estilo: estiloDeClase(1) },
 ]);
 
 // La fila 2 del informe: cada porcentaje con el color de su clase (la celda
