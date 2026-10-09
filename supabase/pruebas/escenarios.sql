@@ -1396,6 +1396,33 @@ reset role;
 select pruebas.ser('duenio@prueba.com'); set role authenticated;
 select pruebas.esperar('El principal la vuelve a sumar como sub-dueña', pruebas.filas($$select agregar_subdueno('subduenia@prueba.com')$$), 1);
 reset role;
+-- Ni cambiándose el correo: si un dueño pasa a una dirección que un admin
+-- invitó, esa invitación tampoco lo mete (Supabase cambia el correo sin
+-- sesión, y sin sesión el freno de arriba no actúa). Queda abierta, como la
+-- de un correo sin cuenta, y quien invitó no se entera de que es un dueño.
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva invita a Dos dos correos sin cuenta', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c2', 'casilla.nueva@prueba.com'), ('00000000-0000-0000-0000-0000000000c2', 'casilla.otra@prueba.com')$$), 2);
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('...y Beto invita a Uno el primero', pruebas.filas($$insert into club_invitaciones (equipo_id, email) values ('00000000-0000-0000-0000-0000000000c1', 'casilla.nueva@prueba.com')$$), 1);
+reset role;
+select set_config('request.jwt.claims', '', false);
+update auth.users set email = 'casilla.nueva@prueba.com' where id = '00000000-0000-0000-0000-0000000000d2';
+update auth.users set email = 'casilla.otra@prueba.com' where id = '00000000-0000-0000-0000-0000000000d1';
+select pruebas.esperar('Los dos dueños se pasan a esos correos: ninguno entra a Dos ni vuelve a Uno', (select count(*) from club_miembros where equipo_id in (:C1, :C2) and user_id in ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000d2') and hasta is null), 0);
+select pruebas.esperar('...las tres invitaciones siguen abiertas', (select count(*) from club_invitaciones where email in ('casilla.nueva@prueba.com', 'casilla.otra@prueba.com') and usada_en is null), 3);
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('...y Eva sigue sin saber si son dueños',
+  (select public.miembro_protegido('00000000-0000-0000-0000-0000000000d2') || ',' || public.miembro_protegido('00000000-0000-0000-0000-0000000000d1')), 'false,false');
+reset role;
+select set_config('request.jwt.claims', '', false);
+update auth.users set email = 'subduenia@prueba.com' where id = '00000000-0000-0000-0000-0000000000d2';
+update auth.users set email = 'duenio@prueba.com' where id = '00000000-0000-0000-0000-0000000000d1';
+-- A cualquier otra cuenta, cambiarse a un correo invitado sí la mete.
+insert into auth.users (id, email, email_confirmed_at) values ('00000000-0000-0000-0000-00000000002a', 'cambia@prueba.com', now());
+update auth.users set email = 'casilla.otra@prueba.com' where id = '00000000-0000-0000-0000-00000000002a';
+select pruebas.esperar('Una cuenta común que se pasa a un correo invitado entra a Dos', (select count(*) from club_miembros where equipo_id = :C2 and user_id = '00000000-0000-0000-0000-00000000002a' and hasta is null), 1);
+select pruebas.esperar('...y esa invitación queda usada', (select count(*) from club_invitaciones where email = 'casilla.otra@prueba.com' and usada_por = '00000000-0000-0000-0000-00000000002a'), 1);
 
 -- ---------------------------------- Pedidos a un club sin administrador --
 

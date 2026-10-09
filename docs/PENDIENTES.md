@@ -671,7 +671,8 @@ Migración `supabase/migrations/20261014_duenos_y_pedidos.sql` (antes, para mira
   ni «Dar de baja»/«Reincorporar» (como la de otro admin). Si el principal le saca el rol a
   un sub-dueño, pasa a ser un miembro común y su admin lo maneja como a cualquiera.
   Tampoco lo mete nadie (revisión del 08/10): la invitación de otro le queda abierta, como
-  la de un correo sin cuenta, y a un club del que se fue vuelve solo con un pedido suyo que
+  la de un correo sin cuenta (también si el dueño se cambia el correo a esa dirección,
+  revisión del 09/10), y a un club del que se fue vuelve solo con un pedido suyo que
   acepta el admin. Así, invitar un correo no sirve para averiguar si es dueño (`protegido`
   responde solo por quien comparte club). Con las invitaciones por mail (09/10), el mail de
   esa invitación no sale y quien invita ve lo mismo que cuando un mail no sale, nunca que

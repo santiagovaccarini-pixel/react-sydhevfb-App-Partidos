@@ -350,8 +350,10 @@ $$;
 -- se va (salir_del_club). Volver también lo decide él: otro lo reincorpora
 -- solo con aceptar_pedido, sobre un pedido suyo a ese club (aceptado en esa
 -- misma operación); una invitación de otro no lo mete
--- (club_invitaciones_aplicar). Sin sesión (el SQL Editor), no frena. Un
--- sub-dueño que deja de serlo (quitar_subdueno) pasa a ser uno más del club.
+-- (club_invitaciones_aplicar), tampoco si él se cambia el correo a esa
+-- dirección (perfiles_sincronizar_usuario). Sin sesión (el SQL Editor), no
+-- frena. Un sub-dueño que deja de serlo (quitar_subdueno) pasa a ser uno
+-- más del club.
 -- Reemplaza a club_miembros_proteger_principal, que cuidaba solo al
 -- principal.
 drop trigger if exists club_miembros_proteger_principal on public.club_miembros;
@@ -496,6 +498,33 @@ begin
     return new;
   end if;
   perform public.aplicar_invitaciones(v_user);
+  return new;
+end;
+$$;
+
+-- Al confirmar el correo o cambiarlo (la de 20261004), y además: a un dueño
+-- de la app no se le aplican invitaciones. Supabase cambia el correo sin
+-- sesión, así que ni club_invitaciones_aplicar ni la protección de los
+-- dueños frenarían una invitación ajena a su dirección nueva: le queda
+-- abierta, como la de un correo sin cuenta.
+create or replace function public.perfiles_sincronizar_usuario()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.perfiles
+     set email = lower(coalesce(new.email, '')),
+         confirmado_en = new.email_confirmed_at,
+         actualizado_en = now()
+   where user_id = new.id;
+  if new.email_confirmed_at is not null
+     and (old.email_confirmed_at is null or lower(coalesce(old.email, '')) is distinct from lower(coalesce(new.email, '')))
+     and not exists (select 1 from public.plataforma p where p.dueno_principal = new.id)
+     and not exists (select 1 from public.plataforma_subduenos s where s.user_id = new.id) then
+    perform public.aplicar_invitaciones(new.id);
+  end if;
   return new;
 end;
 $$;
