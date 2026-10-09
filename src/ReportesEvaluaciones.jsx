@@ -3,7 +3,6 @@ import { Icono } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { FotoDelJugador } from "./ReportesLesiones.jsx";
 import { AREAS } from "./domain/evaluaciones/areas.js";
-import { COLOR_DE_CLASE } from "./domain/evaluaciones/formatoCondicional.js";
 import { COMPARAR_AL_ABRIR } from "./domain/evaluaciones/categorias.js";
 import {
   LISTA_SELECCION,
@@ -17,7 +16,7 @@ import {
 } from "./domain/evaluaciones/ajustes.js";
 import { celdasDeLaFila } from "./domain/evaluaciones/celdas.js";
 import { textoDeValor } from "./domain/evaluaciones/excel.js";
-import { calcularFilas, quienEs, vistaDeFilas } from "./domain/evaluaciones/motor.js";
+import { calcularFilas, estadisticas, estilosDeFilas, quienEs, vistaDeFilas } from "./domain/evaluaciones/motor.js";
 import { TESTS } from "./domain/evaluaciones/tests/index.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -25,12 +24,13 @@ import { fechaCorta } from "./idioma/formatos.js";
 
 // Los reportes de Evaluaciones (Santiago, 09/10), como los de Lesiones: se
 // elige cuál ver y se imprime.
-//   · Individual: un jugador, todos sus tests, como la imagen que mandó
-//     Santiago (09/10): arriba el club, la categoría, la última evaluación,
-//     cuántas tiene y su foto; abajo, por área, una tarjeta por test con su
-//     última evaluación (cada medida con su clase y el color de la clase).
-//     La clasificación general y el puntaje de cada área faltan: Santiago
-//     va a explicar cómo salen (09/10).
+//   · Individual: un jugador, todos sus tests. Arriba, como la imagen que
+//     mandó Santiago (09/10): el club, la categoría, la última evaluación,
+//     cuántas tiene y su foto. Abajo, por área, cada test con sus
+//     evaluaciones y todas sus columnas: las últimas 5, y cada lugar se
+//     cambia por otra con el desplegable (regla del 09/10). La
+//     clasificación general y el puntaje de cada área faltan: Santiago va a
+//     explicar cómo salen (09/10).
 //   · Grupal: un test, el informe del Excel (promedio, desvío, n, máximo,
 //     mínimo y la comparación con los V.R.) por categoría y fechas, con sus
 //     evaluaciones.
@@ -133,48 +133,117 @@ const TablaDelTest = ({ test, columnas, filas, referencias, comparar, config, id
   );
 };
 
-// Una tarjeta del reporte individual (como la imagen de Santiago, 09/10):
-// el test, la fecha y el n° de su última evaluación, cada medida con su
-// valor y, abajo, su clase con el color de la clase.
-const TarjetaDelTest = ({ test, tarjeta, ultima, config, idioma, jugadorDe }) => {
-  const { fila, celdas } = ultima;
-  const columnas = columnasVisibles(test, config);
-  const medidas = tarjeta.medidas.filter((medida) => columnas.some((columna) => columna.clave === medida.clave));
-  const { textos } = celdasDeLaFila({ test, columnas, fila, celdas, jugador: jugadorDe(fila.jugador_id), config, idioma });
+// Regla para todas las bases (Santiago, 09/10): si un atleta puede tener
+// varios registros, el reporte individual los muestra con todas sus
+// cabeceras, como Lesiones; se ven los últimos 5 y cada uno de esos 5
+// lugares se cambia por otro registro suyo con el desplegable (nunca más de
+// 5 a la vez).
+export const REGISTROS_A_LA_VISTA = 5;
+
+// Los lugares al abrir: las últimas 5 evaluaciones, de la más vieja a la
+// más nueva (como en la Base).
+export const ultimosLugares = (suyas) => suyas.slice(-REGISTROS_A_LA_VISTA).map(({ fila }) => fila.id);
+
+// Las evaluaciones de un jugador en un test: una fila por lugar, con todas
+// las columnas que el club tiene a la vista. Los colores, como en la Base
+// filtrada por el jugador (con todas sus evaluaciones de ese test).
+const RegistrosDelJugador = ({ test, suyas, lugares, onElegir, config, idioma, jugadorDe, plural }) => {
+  const est = estadisticas(
+    test.columnasDelInforme,
+    suyas.map(({ celdas }) => celdas),
+  );
+  const estilos = estilosDeFilas(
+    test.reglas,
+    suyas.map(({ fila, celdas }) => ({ id: fila.id, celdas })),
+    est,
+  );
   const titulo = (clave) => {
     const columna = test.columnas.find((una) => una.clave === clave);
     return columna ? tituloDeColumna(test, columna, config, idioma) : clave;
   };
-  const conClase = medidas.some((medida) => medida.clase);
+  // El n° y la fecha van juntos en el desplegable de cada fila; el nombre y
+  // la fecha de nacimiento ya están arriba.
+  const columnas = columnasVisibles(test, config).filter((columna) => !["numero", "fecha", "jugador", "fecha_nac"].includes(columna.clave));
+  const etiqueta = ({ fila, celdas }) => [celdas.numero, fila.fecha ? fechaCorta(fila.fecha) : t("evaluaciones.sinFecha")].join(" · ");
+  const grupos = [];
+  columnas.forEach((columna) => {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.clave === (columna.grupo || "")) ultimo.cantidad += 1;
+    else grupos.push({ clave: columna.grupo || "", cantidad: 1 });
+  });
+  const conGrupos = grupos.some((grupo) => grupo.clave);
+  const elegidas = lugares.map((id) => suyas.find(({ fila }) => fila.id === id)).filter(Boolean);
   return (
-    <section className="evaluaciones-tarjeta">
+    <section className="evaluaciones-registros">
       <header>
-        <h3>{tarjeta.titulo[idioma]}</h3>
+        <h3>{test.titulo[idioma]}</h3>
         <p>
-          {[fila.fecha ? fechaCorta(fila.fecha) : t("evaluaciones.sinFecha"), t("evaluaciones.reportes.evaluacionN", { n: celdas.numero })].join(" · ")}
+          {suyas.length > REGISTROS_A_LA_VISTA
+            ? t("evaluaciones.reportes.seVen", { cantidad: plural("evaluaciones.reportes.cantidad", suyas.length), n: REGISTROS_A_LA_VISTA })
+            : plural("evaluaciones.reportes.cantidad", suyas.length)}
         </p>
       </header>
-      <ul className="evaluaciones-medidas">
-        {medidas.map((medida) => {
-          const clase = medida.clase ? celdas[medida.clase] : null;
-          const color = typeof clase === "number" ? COLOR_DE_CLASE[clase] : null;
-          return (
-            <li key={medida.clave}>
-              <span className="evaluaciones-medida-titulo">{titulo(medida.clave)}</span>
-              <strong className="evaluaciones-medida-valor">{textos[medida.clave] || "—"}</strong>
-              {conClase && (
-                <span
-                  className={`evaluaciones-medida-clase ${medida.clase ? "" : "sin-clase"} ${color ? `clase-${clase}` : ""}`.trim()}
-                  style={color ? { background: color } : undefined}
-                  title={medida.clase ? titulo(medida.clase) : undefined}
-                >
-                  {medida.clase ? (typeof clase === "number" ? clase : "—") : ""}
-                </span>
+      <div className="informe-tabla-marco">
+        <table className="informe-tabla evaluaciones-registros-tabla" style={{ "--columnas": columnas.length + 1 }}>
+          <thead>
+            {conGrupos && (
+              <tr className="informe-grupos">
+                <th scope="col" rowSpan={2} className="evaluaciones-registros-lugar">
+                  {`${titulo("numero")} · ${titulo("fecha")}`}
+                </th>
+                {grupos.map((grupo, indice) => (
+                  <th scope="colgroup" colSpan={grupo.cantidad} key={`${grupo.clave}-${indice}`}>
+                    {grupo.clave ? tituloDeGrupo(test, test.grupos?.find((uno) => uno.clave === grupo.clave) || { clave: grupo.clave }, config, idioma) : ""}
+                  </th>
+                ))}
+              </tr>
+            )}
+            <tr className="informe-cabeceras">
+              {!conGrupos && (
+                <th scope="col" className="evaluaciones-registros-lugar">
+                  {`${titulo("numero")} · ${titulo("fecha")}`}
+                </th>
               )}
-            </li>
-          );
-        })}
-      </ul>
+              {columnas.map((columna) => (
+                <th scope="col" key={columna.clave} data-columna={columna.clave}>
+                  {titulo(columna.clave)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {elegidas.map((elegida, lugar) => {
+              const { fila, celdas } = elegida;
+              const { textos } = celdasDeLaFila({ test, columnas, fila, celdas, jugador: jugadorDe(fila.jugador_id), config, idioma });
+              return (
+                <tr key={lugar}>
+                  <td className="evaluaciones-registros-lugar">
+                    {/* En pantalla se elige; en papel va el texto. */}
+                    <select
+                      className="no-imprimir"
+                      value={fila.id}
+                      aria-label={t("evaluaciones.reportes.queEvaluacion", { n: lugar + 1 })}
+                      onChange={(evento) => onElegir(lugar, evento.target.value)}
+                    >
+                      {suyas.map((una) => (
+                        <option key={una.fila.id} value={una.fila.id} disabled={una.fila.id !== fila.id && lugares.includes(una.fila.id)}>
+                          {etiqueta(una)}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="evaluaciones-solo-papel">{etiqueta(elegida)}</span>
+                  </td>
+                  {columnas.map((columna) => (
+                    <td key={columna.clave} data-columna={columna.clave} style={estilos[fila.id]?.[columna.clave] || undefined}>
+                      {textos[columna.clave] || ""}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 };
@@ -183,6 +252,9 @@ export default function ReportesEvaluaciones({ evaluaciones, referenciasPorTest,
   const { idioma, plural } = useIdioma();
   const [modo, setModo] = useState("menu");
   const [quien, setQuien] = useState("");
+  // Qué evaluación va en cada uno de los 5 lugares de cada test, por
+  // jugador ("jugador|test": [ids]); sin elegir, las últimas 5.
+  const [lugaresPorTest, setLugaresPorTest] = useState({});
   const [busqueda, setBusqueda] = useState("");
   const [comparar, setComparar] = useState(COMPARAR_AL_ABRIR);
   const [testId, setTestId] = useState(TESTS[0].id);
@@ -393,11 +465,11 @@ export default function ReportesEvaluaciones({ evaluaciones, referenciasPorTest,
       );
     }
 
-    // De cada test, la última evaluación del jugador (la del Excel: por
-    // fecha y, con la misma fecha, la última cargada).
+    // Las evaluaciones del jugador en cada test, en el orden del Excel (por
+    // fecha y, con la misma fecha, en el orden de carga).
     const ultimas = TESTS.map((test) => {
       const suyas = calculadasPorTest[test.id].filter(({ quien: suyo }) => suyo === elegido.clave);
-      return { test, ultima: suyas[suyas.length - 1] || null, cuantas: suyas.length };
+      return { test, suyas, ultima: suyas[suyas.length - 1] || null };
     }).filter(({ ultima }) => ultima);
     const deUltima = [...ultimas].sort((a, b) => String(a.ultima.fila.fecha || "").localeCompare(String(b.ultima.fila.fecha || ""))).at(-1)?.ultima || null;
     const fechas = new Set(
@@ -440,13 +512,23 @@ export default function ReportesEvaluaciones({ evaluaciones, referenciasPorTest,
             {areas.map(({ area, tests }) => (
               <section className="evaluaciones-area" key={area.clave}>
                 <h2 className="evaluaciones-area-titulo">{area.titulo[idioma]}</h2>
-                <div className="evaluaciones-tarjetas">
-                  {tests.flatMap(({ test, ultima }) =>
-                    (test.reporte || []).map((tarjeta) => (
-                      <TarjetaDelTest key={`${test.id}-${tarjeta.id}`} test={test} tarjeta={tarjeta} ultima={ultima} config={config} idioma={idioma} jugadorDe={jugadorDe} />
-                    )),
-                  )}
-                </div>
+                {tests.map(({ test, suyas }) => {
+                  const clave = `${elegido.clave}|${test.id}`;
+                  const lugares = (lugaresPorTest[clave] || ultimosLugares(suyas)).filter((id) => suyas.some(({ fila }) => fila.id === id));
+                  return (
+                    <RegistrosDelJugador
+                      key={test.id}
+                      test={test}
+                      suyas={suyas}
+                      lugares={lugares}
+                      onElegir={(lugar, id) => setLugaresPorTest((previos) => ({ ...previos, [clave]: lugares.map((otro, cual) => (cual === lugar ? id : otro)) }))}
+                      config={config}
+                      idioma={idioma}
+                      jugadorDe={jugadorDe}
+                      plural={plural}
+                    />
+                  );
+                })}
               </section>
             ))}
             {pie(t("lesiones.reportes.individual"))}

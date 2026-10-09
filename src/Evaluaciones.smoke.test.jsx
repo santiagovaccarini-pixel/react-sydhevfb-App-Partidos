@@ -483,34 +483,47 @@ describe("Evaluaciones", () => {
     expect(volvio).toBe(1);
   });
 
-  test("Reportes › Individual: como la imagen; por área, la última evaluación de cada test con sus clases", async () => {
+  test("Reportes › Individual: arriba como la imagen; por área, las últimas 5 evaluaciones de cada test con todas las columnas", async () => {
+    // ALFA, con siete evaluaciones de Zona Media.
+    ["2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05", "2026-07-06"].forEach((fecha, i) => datos.evaluaciones.push(evaluacion(`x${i}`, 10 + i, 1, fecha, { lumbar: 200 + i })));
     await montar();
     await irA(contenedor, "Reportes");
     await tocar([...contenedor.querySelectorAll(".reporte-opcion")].find((b) => b.textContent.includes("Reporte individual")));
     // El plantel actual (GAMA ya no está y no tiene evaluaciones: no va).
     const lista = [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")];
-    expect(lista.map((b) => b.textContent)).toEqual(["ALFA2 evaluaciones", "BETA1 evaluación"]);
+    expect(lista.map((b) => b.textContent)).toEqual(["ALFA7 evaluaciones", "BETA1 evaluación"]);
     await tocar(lista[0]);
     expect(contenedor.querySelector(".informe-cabecera h1").textContent).toBe("ALFA");
     expect(contenedor.querySelector(".informe-subtitulo").textContent).toBe("Club de Prueba · Performance");
-    expect([...contenedor.querySelectorAll(".informe-dato")].map((dato) => dato.textContent)).toEqual(["CategoríaMayor", "Última evaluación01/07/2026", "Nº evaluaciones2"]);
-    // Zona Media va en su área, con la última evaluación (la del 01/07).
+    expect([...contenedor.querySelectorAll(".informe-dato")].map((dato) => dato.textContent)).toEqual(["CategoríaMayor", "Última evaluación06/07/2026", "Nº evaluaciones7"]);
     expect([...contenedor.querySelectorAll(".evaluaciones-area-titulo")].map((h) => h.textContent)).toEqual(["Zona Media"]);
-    const tarjeta = contenedor.querySelector(".evaluaciones-tarjeta");
-    expect(tarjeta.querySelector("h3").textContent).toBe("Zona Media - Core");
-    expect(tarjeta.querySelector("header p").textContent).toBe("01/07/2026 · Evaluación 2");
-    const titulos = [...tarjeta.querySelectorAll(".evaluaciones-medida-titulo")].map((titulo) => titulo.textContent);
-    expect(titulos).toEqual(["Lumbar", "Lateral D", "Lateral I", "Prono", "Deficit Lateral %", "Ratio", "PRO??"]);
-    const valores = [...tarjeta.querySelectorAll(".evaluaciones-medida-valor")].map((valor) => valor.textContent);
-    expect(valores[0]).toBe("4:12");
-    // La clase, con el color de su clase (5: verde oscuro).
-    const lumbar = tarjeta.querySelectorAll(".evaluaciones-medida-clase")[0];
-    expect(lumbar.textContent).toBe("5");
-    expect(lumbar.style.background).toBe("rgb(79, 98, 40)");
-    // Sin la medida, la clase dice que falta.
-    expect(tarjeta.querySelectorAll(".evaluaciones-medida-clase")[1].textContent).toBe("—");
-    // PRO?? no tiene clase abajo.
-    expect(tarjeta.querySelectorAll(".evaluaciones-medida-clase")[6].textContent).toBe("");
+    const seccion = contenedor.querySelector(".evaluaciones-registros");
+    expect(seccion.querySelector("h3").textContent).toBe('Evaluación Zona Media "CORE"');
+    expect(seccion.querySelector("header p").textContent).toBe("7 evaluaciones: se ven 5; en cada fila elegís cuál");
+    // Todas las columnas: el n° y la fecha en el desplegable; sin el nombre ni la fecha de nacimiento.
+    const titulos = [...seccion.querySelectorAll("thead th")].map((th) => th.textContent);
+    expect(titulos.slice(0, 4)).toEqual(["nº Eva · Fecha", "Seleccion", "Lumbar", "L. Clas"]);
+    expect(titulos.at(-1)).toBe("Nota");
+    expect(titulos).not.toContain("Jugador");
+    // Las últimas 5: de la 3 a la 7.
+    const filasDeLaTabla = () => [...seccion.querySelectorAll("tbody tr")];
+    const elegida = (tr) => tr.querySelector("select").selectedOptions[0].textContent;
+    expect(filasDeLaTabla()).toHaveLength(5);
+    expect(filasDeLaTabla().map(elegida)).toEqual(["3 · 02/07/2026", "4 · 03/07/2026", "5 · 04/07/2026", "6 · 05/07/2026", "7 · 06/07/2026"]);
+    // En cada lugar se elige otra; las que ya están a la vista no se repiten.
+    const primera = filasDeLaTabla()[0].querySelector("select");
+    expect([...primera.options].map((opcion) => opcion.textContent)).toHaveLength(7);
+    expect([...primera.options].filter((opcion) => opcion.disabled).map((opcion) => opcion.textContent)).toEqual(["4 · 03/07/2026", "5 · 04/07/2026", "6 · 05/07/2026", "7 · 06/07/2026"]);
+    await act(async () => {
+      primera.value = "e1";
+      primera.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(elegida(filasDeLaTabla()[0])).toBe("1 · 01/06/2026");
+    const celdas = filasDeLaTabla()[0].querySelectorAll("td");
+    expect(celdas[titulos.indexOf("Lumbar")].textContent).toBe("4:00");
+    // La clase, con el color de su clase (como en la Base).
+    expect(celdas[titulos.indexOf("L. Clas")].style.color).toBe("rgb(79, 98, 40)");
+    expect(filasDeLaTabla()).toHaveLength(5);
   });
 
   test("Reportes › Grupal: un test por categoría y fechas", async () => {

@@ -577,6 +577,16 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   sigue corrigiendo en la tabla y se trae lo viejo con Pegar desde Excel; lo que no vuelve
   es un botón para agregar filas nuevas en la Base (ver UI-012 en
   [UI_DECISIONS.md](UI_DECISIONS.md)).
+- **Regla para todas las bases (Santiago, 09/10): los registros de un atleta en su reporte
+  individual.** Palabras del pedido: «Si una base puede contener más de un dato del atleta hay
+  que poder ver esos distintos registros, como se ve hoy en lesiones que se puede ver en el
+  reporte individual todas las lesiones y las cabeceras» y «como regla siempre tomamos las
+  últimas 5». El reporte individual muestra los registros del atleta con todas las cabeceras
+  que el club tiene a la vista; se ven los **últimos 5** y cada uno de esos 5 lugares tiene un
+  desplegable para elegir otro registro suyo (la 1, la 2, la 7…), nunca más de 5 a la vez.
+  Hecho en Evaluaciones (09/10). En Lesiones el individual muestra hoy todas las lesiones:
+  falta que Santiago diga si también pasa a las últimas 5. Las evaluaciones con muchas
+  columnas (como Isocinecia) se resuelven después (Santiago, 09/10).
 - Datos básicos sigue en la pantalla principal: lo ve cualquiera con algún módulo (Partido y
   Flujo diario también usan los jugadores), y adentro de Bases de Datos lo verían solo los que
   tienen ese permiso. Si se quiere adentro, hay que decidir quién lo ve.
@@ -681,14 +691,16 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
       «Performance» de un jugador, no va al repositorio). Arriba, como el de Lesiones: el
       escudo, el club · Performance, el nombre, Categoría (la Selección de su última
       evaluación), Última evaluación, Nº evaluaciones (los días con alguna) y la foto de
-      Datos básicos. Abajo, por área (barra negra), una tarjeta por test con la fecha y el n°
-      de su última evaluación, cada medida y, abajo, su clase con el color de la clase. Las
-      áreas, como la imagen (Santiago, 09/10, `src/domain/evaluaciones/areas.js`): Zona Media
-      (Zona Media y Funcional), Fuerza (Isocinecia y Press Plano), Potencia y velocidad
-      (Saltos) y Funcionales (Curl Nórdico, Isoprone, Iso Aductor-Abductor y Sentadilla
-      Incremental); cada test dice la suya (`area`) y sus tarjetas (`reporte`) en su archivo.
-      En Zona Media van también Prono y su clase (la imagen no los tenía; son medidas del
-      test). **Pendiente** (Santiago, 09/10: «yo después te los explico»): la «Clasificación
+      Datos básicos. Abajo, por área (barra negra), cada test con sus evaluaciones y todas sus
+      columnas (regla de «Bases de Datos» del 09/10): las últimas 5, de la más vieja a la más
+      nueva, cada fila con su desplegable (n° · fecha) para poner otra; las que ya están a la
+      vista no se repiten. Los colores, los de la Base filtrada por el jugador. Primero (el
+      mismo 09/10) había una tarjeta por test con solo la última evaluación, como la imagen:
+      la reemplazó esta regla. Las áreas, como la imagen (Santiago, 09/10,
+      `src/domain/evaluaciones/areas.js`): Zona Media (Zona Media y Funcional), Fuerza
+      (Isocinecia y Press Plano), Potencia y velocidad (Saltos) y Funcionales (Curl Nórdico,
+      Isoprone, Iso Aductor-Abductor y Sentadilla Incremental); cada test dice la suya
+      (`area`) en su archivo. **Pendiente** (Santiago, 09/10: «yo después te los explico»): la «Clasificación
       general» y el puntaje y la palabra de cada área (cómo se calculan y con qué cortes); no
       se muestran hasta que se definan. Cambiar las áreas desde Ajustes, para después. Los
       tests de la imagen que no están en el Excel (aceleraciones, agilidad, Navette, RSA,
