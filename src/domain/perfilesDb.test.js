@@ -31,6 +31,7 @@ describe("permisos y situación de una cuenta", () => {
       flujo: false,
       lesiones: false,
       evaluaciones: false,
+      gps: false,
       datos: true,
       dueno: null,
       esDueno: false,
@@ -42,13 +43,14 @@ describe("permisos y situación de una cuenta", () => {
       flujo: false,
       lesiones: false,
       evaluaciones: false,
+      gps: false,
       datos: false,
       dueno: "principal",
       esDueno: true,
     });
     expect(permisosDePerfil({ dueno: "sub" })).toMatchObject({ dueno: "sub", esDueno: true });
     expect(permisosDePerfil({ dueno: "otra cosa" })).toMatchObject({ dueno: null, esDueno: false });
-    expect(permisosDePerfil(null)).toEqual({ partido: false, flujo: false, lesiones: false, evaluaciones: false, datos: false, dueno: null, esDueno: false });
+    expect(permisosDePerfil(null)).toEqual({ partido: false, flujo: false, lesiones: false, evaluaciones: false, gps: false, datos: false, dueno: null, esDueno: false });
   });
 
   it("pendiente, bloqueada u ok: los módulos ya no los da la cuenta", () => {
@@ -67,6 +69,7 @@ describe("permisos y situación de una cuenta", () => {
       flujo: false,
       lesiones: true,
       evaluaciones: false,
+      gps: false,
       datos: true,
       dueno: null,
       esDueno: false,
@@ -76,6 +79,13 @@ describe("permisos y situación de una cuenta", () => {
     expect(permisosEnClub(cuenta, { id: "c1", rol: "staff", partido: false, flujo: false, lesiones: false, evaluaciones: true })).toMatchObject({
       lesiones: false,
       evaluaciones: true,
+      datos: true,
+    });
+    // Solo GPS: también ve Datos básicos (los jugadores de cada fila).
+    expect(permisosEnClub(cuenta, { id: "c1", rol: "staff", partido: false, flujo: false, lesiones: false, evaluaciones: false, gps: true })).toMatchObject({
+      lesiones: false,
+      evaluaciones: false,
+      gps: true,
       datos: true,
     });
     expect(permisosEnClub(cuenta, { id: "c1", rol: "admin", partido: true, flujo: false, lesiones: false }).adminClub).toBe(true);

@@ -9,9 +9,9 @@ import { cabecerasJson } from "../trainingApi.js";
 // dueños de la app no ven ni tocan la gente de ningún club.
 
 export const TABLA_MEMBRESIAS = "club_miembros";
-export const MODULOS_DEL_CLUB = ["partido", "flujo", "lesiones", "evaluaciones"];
+export const MODULOS_DEL_CLUB = ["partido", "flujo", "lesiones", "evaluaciones", "gps"];
 
-const COLUMNAS_MEMBRESIA = "equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones, evaluaciones";
+const COLUMNAS_MEMBRESIA = "equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones, evaluaciones, gps";
 
 // Los errores de la base como claves del diccionario.
 export const claveDeError = (error, porDefecto = "cuentas.errorClub") => {
@@ -40,6 +40,7 @@ const normalizarMembresia = (fila) => ({
   flujo: Boolean(fila.flujo),
   lesiones: Boolean(fila.lesiones),
   evaluaciones: Boolean(fila.evaluaciones),
+  gps: Boolean(fila.gps),
 });
 
 // Un miembro como lo muestra Cuentas (la vista v_miembros_club): la membresía
@@ -134,7 +135,7 @@ export const invitacionVencida = (invitacion, ahora = Date.now()) => {
 export const listarInvitaciones = async (equipoId) => {
   const { data, error } = await supabase
     .from("club_invitaciones")
-    .select("id, email, rol, partido, flujo, lesiones, evaluaciones, creado_en, vence_en, usada_en, cancelada_en")
+    .select("id, email, rol, partido, flujo, lesiones, evaluaciones, gps, creado_en, vence_en, usada_en, cancelada_en")
     .eq("equipo_id", equipoId)
     .is("usada_en", null)
     .is("cancelada_en", null)
@@ -148,12 +149,12 @@ export const listarInvitaciones = async (equipoId) => {
 // mete en el club en el acto y la invitación vuelve usada; la de un dueño de
 // la app queda abierta, como la de un correo sin cuenta. Vuelve también el id
 // de la invitación, para mandarle el mail.
-export const invitar = async (equipoId, { email, partido = true, flujo = true, lesiones = false, evaluaciones = false }) => {
+export const invitar = async (equipoId, { email, partido = true, flujo = true, lesiones = false, evaluaciones = false, gps = false }) => {
   const rol = "staff";
   const correo = String(email || "").trim().toLowerCase();
   if (!correoValido(correo)) throw new Error("cuentas.errorCorreo");
   const insertar = () =>
-    supabase.from("club_invitaciones").insert({ equipo_id: equipoId, email: correo, rol, partido, flujo, lesiones, evaluaciones });
+    supabase.from("club_invitaciones").insert({ equipo_id: equipoId, email: correo, rol, partido, flujo, lesiones, evaluaciones, gps });
   let { error } = await insertar();
   // La base no deja dos invitaciones abiertas al mismo correo, aunque la que
   // hay ya haya vencido: si todas las abiertas vencieron, se cancelan y se

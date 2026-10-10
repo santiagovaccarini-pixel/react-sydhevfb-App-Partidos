@@ -65,13 +65,16 @@ export const pedidosDelClub = async (equipoId) => {
 };
 
 // Acepta con los módulos elegidos: la cuenta entra al club como staff.
-export const aceptarPedido = async (id, { partido = false, flujo = false, lesiones = false, evaluaciones = false } = {}) => {
+// GPS va solo si se da: así sirve también con una base sin la migración de
+// GPS (20261016), que no conoce ese módulo.
+export const aceptarPedido = async (id, { partido = false, flujo = false, lesiones = false, evaluaciones = false, gps = false } = {}) => {
   await llamar("aceptar_pedido", {
     p_id: id,
     p_partido: Boolean(partido),
     p_flujo: Boolean(flujo),
     p_lesiones: Boolean(lesiones),
     p_evaluaciones: Boolean(evaluaciones),
+    ...(gps ? { p_gps: true } : {}),
   });
   return true;
 };

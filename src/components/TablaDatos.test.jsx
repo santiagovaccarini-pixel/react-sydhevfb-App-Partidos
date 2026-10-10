@@ -756,4 +756,73 @@ describe("la tabla estilo Excel", () => {
     expect(editados).toHaveLength(1);
     expect(contenedor.textContent).toContain("Los tiempos se escriben en minutos y segundos");
   });
+
+  let medidas = [];
+  afterEach(() => {
+    medidas.forEach((medida) => medida.mockRestore());
+    medidas = [];
+    delete navigator.clipboard;
+  });
+
+  test("con muchasFilas se dibujan las filas que se ven (y unas más); elegir, copiar y el informe siguen con todas", async () => {
+    // jsdom no mide: el marco mide 340 px, cada fila 34 y las cabeceras 40.
+    medidas = [
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function alto() {
+        return this.classList?.contains("tabla-datos-marco") ? 340 : 0;
+      }),
+      vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function alto() {
+        return this.tagName === "TR" ? 34 : 0;
+      }),
+      vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function arriba() {
+        return this.tagName === "TBODY" ? 40 : 0;
+      }),
+    ];
+    const muchas = Array.from({ length: 1000 }, (_, i) => ({ id: i + 1, valores: { nombre: `N${i + 1}`, edad: i, pie: "" }, textos: { nombre: `N${i + 1}`, edad: String(i), pie: "" } }));
+    let vistas = 0;
+    await montar({
+      filas: muchas,
+      muchasFilas: true,
+      vista: (filasVista) => {
+        vistas = filasVista.length;
+        return { estilos: {}, arriba: [] };
+      },
+    });
+    const dibujadas = () => [...contenedor.querySelectorAll("tbody tr:not(.tabla-datos-hueco)")];
+    // Debajo de las cabeceras entran 300 px: 9 filas, más 20 abajo; el resto
+    // es un hueco del mismo alto.
+    expect(dibujadas()).toHaveLength(29);
+    expect(dibujadas()[0].textContent).toContain("N1");
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("1000 filas");
+    expect(vistas).toBe(1000);
+    const huecos = contenedor.querySelectorAll("tbody tr.tabla-datos-hueco");
+    expect(huecos).toHaveLength(1);
+    expect(huecos[0].style.height).toBe(`${971 * 34}px`);
+
+    // Al correr la tabla, se dibujan las de ahí.
+    const marco = contenedor.querySelector(".tabla-datos-marco");
+    marco.scrollTop = 40 + 500 * 34;
+    await act(async () => {
+      marco.dispatchEvent(new Event("scroll"));
+      await new Promise((resolver) => setTimeout(resolver, 40));
+    });
+    expect(dibujadas()[0].textContent).toContain("N481");
+    expect(dibujadas()).toHaveLength(50);
+    expect(contenedor.querySelectorAll("tbody tr.tabla-datos-hueco")).toHaveLength(2);
+
+    // Elegir y copiar hablan de la fila de verdad, aunque haya filas sin dibujar arriba.
+    await tocar(dibujadas()[20].querySelectorAll("td")[0]);
+    expect(dibujadas()[20].querySelectorAll("td")[0].className).toContain("activa");
+    const escrito = [];
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (texto) => escrito.push(texto) } });
+    await act(async () => marco.dispatchEvent(new KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true })));
+    expect(escrito).toEqual(["N501"]);
+  });
+
+  test("sin poder medir (o sin muchasFilas), se dibujan todas", async () => {
+    const muchas = Array.from({ length: 120 }, (_, i) => ({ id: i + 1, valores: { nombre: `N${i + 1}` }, textos: { nombre: `N${i + 1}` } }));
+    await montar({ filas: muchas, muchasFilas: true });
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(120);
+    await montar({ filas: muchas });
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(120);
+  });
 });

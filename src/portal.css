@@ -895,6 +895,11 @@
   background: linear-gradient(135deg, #141a12, #050605);
 }
 
+/* La tarjeta de GPS (en Bases de Datos), oscura como su dibujo. */
+.portal-tarjeta.tarjeta-gps .portal-foto {
+  background: linear-gradient(135deg, #0e1519, #040607);
+}
+
 /* Bases de Datos: la pantalla principal con una tarjeta por base. Arriba, en
    vez de la cuenta, el botón para volver a los módulos y el idioma. */
 /* Arriba, como se ve el portal con todas sus tarjetas: con una o dos bases,

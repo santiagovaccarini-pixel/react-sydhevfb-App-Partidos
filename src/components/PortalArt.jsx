@@ -364,6 +364,69 @@ export const IconoEvaluaciones = () => (
   </svg>
 );
 
+// El recorrido de un jugador en la cancha, como lo dibuja el GPS (puntos
+// cada vez más claros hasta donde está ahora) y, a la izquierda, una columna
+// de la base con los cinco colores del Excel de GPS (de Excelente, verde
+// oscuro, a Malo, rojo): el dibujo de la tarjeta GPS mientras no tenga foto.
+const COLORES_DEL_DIBUJO_GPS = ["#7FAD94", "#C8E7A7", "#FFFF7F", "#F1B584", "#FF7F7F"];
+const RECORRIDO_GPS = [
+  [246, 206],
+  [262, 188],
+  [284, 182],
+  [300, 164],
+  [296, 140],
+  [314, 122],
+  [340, 118],
+  [356, 100],
+  [350, 78],
+  [366, 62],
+];
+
+export const ArteGps = () => (
+  <svg className="portal-arte" viewBox="0 0 420 260" aria-hidden="true" preserveAspectRatio="xMaxYMid slice">
+    <defs>
+      <linearGradient id="noche-gps" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#0e1519" />
+        <stop offset="1" stopColor="#040607" />
+      </linearGradient>
+      <radialGradient id="luz-gps" cx="0.74" cy="0.42" r="0.55">
+        <stop offset="0" stopColor="#7fd1c0" stopOpacity="0.22" />
+        <stop offset="1" stopColor="#7fd1c0" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+    <rect width="420" height="260" fill="url(#noche-gps)" />
+    <rect width="420" height="260" fill="url(#luz-gps)" />
+    <g fill="#060a0c" fillOpacity="0.6" stroke="#7fd1c0" strokeOpacity="0.3" strokeWidth="1.5">
+      <rect x="112" y="58" width="82" height="150" rx="8" />
+    </g>
+    {COLORES_DEL_DIBUJO_GPS.map((color, i) => (
+      <rect key={color} x="124" y={72 + i * 26} width={58 - i * 6} height="14" rx="3" fill={color} fillOpacity="0.85" />
+    ))}
+    <g fill="none" stroke="#7fd1c0" strokeOpacity="0.35" strokeWidth="1.5">
+      <rect x="216" y="30" width="180" height="200" rx="6" />
+      <path d="M216 130h180" />
+      <circle cx="306" cy="130" r="26" />
+      <rect x="270" y="30" width="72" height="30" />
+      <rect x="270" y="200" width="72" height="30" />
+    </g>
+    <polyline points={RECORRIDO_GPS.map((punto) => punto.join(",")).join(" ")} fill="none" stroke="#7fd1c0" strokeOpacity="0.55" strokeWidth="2" strokeDasharray="4 5" strokeLinecap="round" />
+    {RECORRIDO_GPS.map(([x, y], i) => (
+      <circle key={`${x}-${y}`} cx={x} cy={y} r={i === RECORRIDO_GPS.length - 1 ? 6 : 3} fill="#7fd1c0" fillOpacity={0.25 + (0.75 * i) / (RECORRIDO_GPS.length - 1)} />
+    ))}
+    <circle cx="366" cy="62" r="14" fill="none" stroke="#7fd1c0" strokeOpacity="0.45" strokeWidth="2" />
+    <circle cx="366" cy="62" r="24" fill="none" stroke="#7fd1c0" strokeOpacity="0.2" strokeWidth="2" />
+  </svg>
+);
+
+// Un punto de ubicación con la señal del satélite.
+export const IconoGps = () => (
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <path d="M32 56s-15-15.5-15-27a15 15 0 0 1 30 0c0 11.5-15 27-15 27z" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" />
+    <circle cx="32" cy="29" r="5.5" fill="none" stroke="currentColor" strokeWidth="3.5" />
+    <path d="M44 8a14 14 0 0 1 10 10M43 14a7 7 0 0 1 5 5" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
+  </svg>
+);
+
 // Una planilla con filas y columnas: el fondo de la tarjeta Datos básicos.
 export const ArteDatos = () => (
   <svg className="portal-arte" viewBox="0 0 420 260" aria-hidden="true" preserveAspectRatio="xMaxYMid slice">

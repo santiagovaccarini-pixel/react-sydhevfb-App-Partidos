@@ -218,9 +218,9 @@ export const agregarJugador = async (nombre, equipoId = null) => {
 export const quitarJugador = async (id) => {
   const { error } = await supabase.from("jugadores").delete().eq("id", id);
   if (!error) return {};
-  // Con lesiones o evaluaciones cargadas la base no lo deja borrar (clave
-  // foránea): se explica en vez de mostrar el error crudo.
-  if (error.code === "23503" || /lesiones|evaluaciones/i.test(error.message || "")) return { error: "datos.error.borrarConDatos" };
+  // Con lesiones, evaluaciones o datos del GPS cargados la base no lo deja
+  // borrar (clave foránea): se explica en vez de mostrar el error crudo.
+  if (error.code === "23503" || /lesiones|evaluaciones|gps/i.test(error.message || "")) return { error: "datos.error.borrarConDatos" };
   return { error: "datos.error.borrar", detalle: error.message || "" };
 };
 

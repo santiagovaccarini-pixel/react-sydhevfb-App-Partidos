@@ -32,6 +32,18 @@ vi.mock("./Evaluaciones.jsx", async () => {
     ),
   };
 });
+vi.mock("./Gps.jsx", async () => {
+  const { t } = await vi.importActual("./idioma/index.js");
+  return {
+    default: ({ onVolver, volverA }) => (
+      <div className="gps-de-prueba">
+        <button type="button" onClick={onVolver}>
+          {t(volverA)}
+        </button>
+      </div>
+    ),
+  };
+});
 
 const buscar = (diccionario, clave) => clave.split(".").reduce((nodo, parte) => nodo?.[parte], diccionario);
 
@@ -111,6 +123,26 @@ describe("Bases de Datos", () => {
 
     await act(async () => raiz.render(<BasesDeDatos permisos={{ lesiones: true, evaluaciones: true }} onVolver={() => {}} />));
     expect(tarjetas().map((tarjeta) => tarjeta.querySelector("strong").textContent)).toEqual(["Lesiones", "Evaluaciones"]);
+  });
+
+  test("con GPS, su tarjeta (con su dibujo hasta que tenga foto) y su base", async () => {
+    await montar({ permisos: { gps: true } });
+    expect(tarjetas()).toHaveLength(1);
+    const gps = tarjetas()[0];
+    expect(gps.getAttribute("aria-label")).toBe("Entrar a GPS");
+    expect(gps.classList.contains("tarjeta-gps")).toBe(true);
+    expect(gps.querySelector(".portal-foto img")).toBeNull();
+    expect(gps.querySelector(".portal-foto .portal-arte")).not.toBeNull();
+    expect(gps.querySelector(".portal-icono svg")).not.toBeNull();
+    await act(async () => gps.click());
+    await act(async () => vi.runAllTimers());
+    const volver = contenedor.querySelector(".gps-de-prueba button");
+    expect(volver.textContent).toBe("Bases de Datos");
+    await act(async () => volver.click());
+    expect(tarjetas()).toHaveLength(1);
+
+    await act(async () => raiz.render(<BasesDeDatos permisos={{ lesiones: true, evaluaciones: true, gps: true }} onVolver={() => {}} />));
+    expect(tarjetas().map((tarjeta) => tarjeta.querySelector("strong").textContent)).toEqual(["Lesiones", "Evaluaciones", "GPS"]);
   });
 
   test("al tocar una base: la portada encima, la base abajo y su botón vuelve a las bases", async () => {
@@ -193,6 +225,7 @@ describe("Bases de Datos", () => {
     expect(basesHabilitadas({ lesiones: true }).map((base) => base.modo)).toEqual(["lesiones"]);
     expect(basesHabilitadas({ evaluaciones: true }).map((base) => base.modo)).toEqual(["evaluaciones"]);
     expect(basesHabilitadas({ lesiones: true, evaluaciones: true }).map((base) => base.modo)).toEqual(["lesiones", "evaluaciones"]);
+    expect(basesHabilitadas({ gps: true }).map((base) => base.modo)).toEqual(["gps"]);
   });
 
   test("si el permiso se va con la base abierta, vuelven las tarjetas (sin ninguna)", async () => {

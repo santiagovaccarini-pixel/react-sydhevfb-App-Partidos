@@ -35,7 +35,7 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
 // Lo que se marca por defecto al invitar y al aceptar un pedido. El rol es
 // siempre staff: la app no nombra administradores.
-export const INVITACION_INICIAL = Object.freeze({ rol: "staff", partido: true, flujo: true, lesiones: false, evaluaciones: false });
+export const INVITACION_INICIAL = Object.freeze({ rol: "staff", partido: true, flujo: true, lesiones: false, evaluaciones: false, gps: false });
 const MODULOS_INICIALES = Object.freeze(Object.fromEntries(MODULOS_DEL_CLUB.map((clave) => [clave, INVITACION_INICIAL[clave]])));
 
 // Un mensaje de error: una clave del diccionario o el texto de la base.

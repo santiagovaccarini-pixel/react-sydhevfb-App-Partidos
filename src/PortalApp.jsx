@@ -204,7 +204,7 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         return;
       }
       if (fresco.hasta && !leido.hasta) limpiarCopiasDelClub(leido.id);
-      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones", "evaluaciones"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null));
+      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones", "evaluaciones", "gps"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null));
       if (cambio) {
         guardarEquipoElegido(fresco);
         setClub(fresco);
