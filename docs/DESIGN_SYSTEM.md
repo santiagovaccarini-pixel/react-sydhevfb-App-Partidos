@@ -50,8 +50,8 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
 - `src/components/TablaDatos.jsx` y `tablaDatos.css`: tablas de las bases.
 - `src/components/ClubCrest.js` y `BotonVolver.jsx`: escudos y regreso.
 
-Revisá `src/style.css`, `portal.css`, `training.css`, `lesiones.css` y
-`evaluaciones.css` antes de crear estilos; mantené sus convenciones de color,
+Revisá `src/style.css`, `portal.css`, `training.css`, `lesiones.css`,
+`evaluaciones.css` y `gps.css` antes de crear estilos; mantené sus convenciones de color,
 tipografía y espaciado. No introduzcas una biblioteca visual o un tema nuevo
 sin que sea parte del pedido. Todo texto nuevo sigue la regla existente de claves
 en `src/idioma/es-AR.js` y `src/idioma/pt-BR.js`.

@@ -69,7 +69,7 @@ export const guardarEquipoElegido = (equipo) => {
 function membresiaDe(fila) {
   const resultado = {};
   if (fila?.rol) resultado.rol = fila.rol;
-  ["partido", "flujo", "lesiones", "evaluaciones"].forEach((clave) => {
+  ["partido", "flujo", "lesiones", "evaluaciones", "gps"].forEach((clave) => {
     if (typeof fila?.[clave] === "boolean") resultado[clave] = fila[clave];
   });
   return resultado;

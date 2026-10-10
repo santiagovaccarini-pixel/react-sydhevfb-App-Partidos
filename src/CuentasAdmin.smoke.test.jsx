@@ -254,6 +254,7 @@ describe("Cuentas", () => {
     await escribir(correo, "nuevo@uno.com");
     await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Lesiones"));
     await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Evaluaciones"));
+    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "GPS"));
     await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Flujo diario"));
     await tocar(invitarBoton);
     // Sin chip de administrador: se invita siempre como staff.
@@ -261,7 +262,7 @@ describe("Cuentas", () => {
     expect(datos.llamadas.at(-1)).toEqual({
       que: "invitar",
       equipoId: "c1",
-      invitacion: { email: "nuevo@uno.com", rol: "staff", partido: true, flujo: false, lesiones: true, evaluaciones: true },
+      invitacion: { email: "nuevo@uno.com", rol: "staff", partido: true, flujo: false, lesiones: true, evaluaciones: true, gps: true },
     });
     // La invitación nueva sale por mail, al toque y en el idioma de quien invita.
     expect(datos.mails).toEqual([{ id: "i-nuevo@uno.com", idioma: "es-AR" }]);
@@ -490,11 +491,12 @@ describe("Cuentas", () => {
       ["Flujo diario", "true"],
       ["Lesiones", "false"],
       ["Evaluaciones", "false"],
+      ["GPS", "false"],
     ]);
     await tocar(chip(hoja, "Flujo diario"));
     await tocar(chip(hoja, "Lesiones"));
     await tocar(boton(hoja, "Sí, aceptar"));
-    expect(datos.llamadas.at(-1)).toEqual({ que: "aceptar", id: "p1", modulos: { partido: true, flujo: false, lesiones: true, evaluaciones: false } });
+    expect(datos.llamadas.at(-1)).toEqual({ que: "aceptar", id: "p1", modulos: { partido: true, flujo: false, lesiones: true, evaluaciones: false, gps: false } });
     expect(texto()).toContain("pide@uno.com ya está en el club.");
     expect(tonoDelAviso()).toBe("ok");
     expect(fila("pide@uno.com").closest(".cuentas-grupo").querySelector("h2").textContent).toContain("En el club");

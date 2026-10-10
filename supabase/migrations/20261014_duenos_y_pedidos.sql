@@ -43,7 +43,8 @@
 -- ANTES DE CORRER: completar las tres líneas de "Marcadores" (los correos no
 -- van al repositorio). Se corre en Supabase > SQL Editor, entero y de una
 -- vez. Es una sola transacción. Se puede volver a correr: los dueños se
--- cargan solo la primera vez (después se cambian desde la app).
+-- cargan solo la primera vez (después se cambian desde la app). Después de
+-- 20261016_gps.sql ya no: se frena sola.
 -- =====================================================================
 
 begin;
@@ -70,6 +71,12 @@ begin
   end if;
   if to_regprocedure('public.es_entidad_de(uuid)') is not null then
     raise exception 'Ya está corrida 20261015_entidad_y_admin.sql: esta es anterior y no hace falta volver a correrla.';
+  end if;
+  -- Volver a correrla desharía el permiso de GPS (las invitaciones, aceptar
+  -- un pedido, la vista de la gente del club y los privilegios).
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'club_miembros' and column_name = 'gps') then
+    raise exception 'Ya está corrida 20261016_gps.sql: esta es anterior y no hace falta volver a correrla.';
   end if;
 end $$;
 

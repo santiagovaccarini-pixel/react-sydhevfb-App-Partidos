@@ -218,7 +218,7 @@ describe("la puerta de la app", () => {
 
     expect(contenedor.querySelector(".adentro").textContent).toContain("Adentro dt@club.com");
     expect(contenedor.querySelector(".adentro").textContent).toContain(
-      '{"partido":true,"flujo":false,"lesiones":false,"evaluaciones":false,"datos":true,"dueno":null,"esDueno":false}',
+      '{"partido":true,"flujo":false,"lesiones":false,"evaluaciones":false,"gps":false,"datos":true,"dueno":null,"esDueno":false}',
     );
     expect(contenedor.querySelector(".adentro").textContent).toContain("en línea");
     expect(supa.consultas).toEqual([{ tabla: "perfiles", columnas: "*" }]);
@@ -233,7 +233,7 @@ describe("la puerta de la app", () => {
     await montar();
     expect(supa.rpcs.map((rpc) => rpc.funcion)).toEqual(["mi_cuenta"]);
     expect(contenedor.querySelector(".adentro").textContent).toContain(
-      '{"partido":false,"flujo":false,"lesiones":false,"evaluaciones":false,"datos":false,"dueno":"sub","esDueno":true}',
+      '{"partido":false,"flujo":false,"lesiones":false,"evaluaciones":false,"gps":false,"datos":false,"dueno":"sub","esDueno":true}',
     );
     // Y queda en la copia del celular, para entrar sin señal.
     expect(JSON.parse(localStorage.getItem(CLAVE_PERFIL_LOCAL)).dueno).toBe("sub");

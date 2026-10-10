@@ -23,14 +23,16 @@ export const permisosDePerfil = (perfil) => {
   const flujo = Boolean(perfil?.flujo);
   const lesiones = Boolean(perfil?.lesiones);
   const evaluaciones = Boolean(perfil?.evaluaciones);
+  const gps = Boolean(perfil?.gps);
   const dueno = perfil?.dueno === "principal" || perfil?.dueno === "sub" ? perfil.dueno : null;
   return {
     partido,
     flujo,
     lesiones,
     evaluaciones,
+    gps,
     // Datos básicos (los jugadores) lo usa cualquiera que tenga algún módulo.
-    datos: partido || flujo || lesiones || evaluaciones,
+    datos: partido || flujo || lesiones || evaluaciones || gps,
     dueno,
     esDueno: Boolean(dueno),
   };
@@ -52,14 +54,15 @@ export const situacionDePerfil = (perfil) => {
 export const permisosEnClub = (permisosCuenta, club) => {
   const dueno = permisosCuenta?.dueno || null;
   const esDueno = Boolean(dueno);
-  if (!club) return { partido: false, flujo: false, lesiones: false, evaluaciones: false, datos: false, dueno, esDueno, adminClub: false };
+  if (!club) return { partido: false, flujo: false, lesiones: false, evaluaciones: false, gps: false, datos: false, dueno, esDueno, adminClub: false };
   const modulo = (clave) => (typeof club[clave] === "boolean" ? club[clave] : Boolean(permisosCuenta?.[clave]));
   const partido = modulo("partido");
   const flujo = modulo("flujo");
   const lesiones = modulo("lesiones");
   const evaluaciones = modulo("evaluaciones");
+  const gps = modulo("gps");
   const adminClub = club.rol === "admin" && !club.hasta;
-  return { partido, flujo, lesiones, evaluaciones, datos: partido || flujo || lesiones || evaluaciones, dueno, esDueno, adminClub };
+  return { partido, flujo, lesiones, evaluaciones, gps, datos: partido || flujo || lesiones || evaluaciones || gps, dueno, esDueno, adminClub };
 };
 
 // Los errores de la base vuelven como clave del diccionario (Supabase

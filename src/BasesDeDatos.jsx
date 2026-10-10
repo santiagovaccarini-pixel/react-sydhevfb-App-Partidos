@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Evaluaciones from "./Evaluaciones.jsx";
+import Gps from "./Gps.jsx";
 import Lesiones from "./Lesiones.jsx";
-import { ArteEvaluaciones, ArteLesiones, IconoEvaluaciones, IconoLesiones } from "./components/PortalArt.jsx";
+import { ArteEvaluaciones, ArteGps, ArteLesiones, IconoEvaluaciones, IconoGps, IconoLesiones } from "./components/PortalArt.jsx";
 import { ClubDelPortal, FlechaVolver, Portada, TarjetasDelPortal } from "./components/PortalTarjetas.jsx";
 import { leerEquipoElegido } from "./domain/equipo.js";
 import { t, useIdioma } from "./idioma/index.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import "./portal.css";
 
-// Bases de Datos: las bases del club (Lesiones, Evaluaciones y las que vengan),
+// Bases de Datos: las bases del club (Lesiones, Evaluaciones, GPS y las que vengan),
 // con la cara de la pantalla principal: una tarjeta por base, con su foto o
 // su dibujo, su ícono, qué hay adentro y Entrar; al tocarla, la misma portada
 // que al entrar a un módulo. Desde cada base se vuelve acá.
@@ -49,6 +50,21 @@ export const BASES = [
     Icono: IconoEvaluaciones,
     titulo: "bases.evaluacionesTitulo",
     texto: "bases.evaluacionesTexto",
+  },
+  {
+    modo: "gps",
+    Pantalla: Gps,
+    permiso: "gps",
+    clase: "tarjeta-gps",
+    // Sin foto todavía: va el dibujo.
+    foto: null,
+    fotoParada: null,
+    foco: [0.5, 0.5],
+    focoParada: [0.5, 0.5],
+    Arte: ArteGps,
+    Icono: IconoGps,
+    titulo: "bases.gpsTitulo",
+    texto: "bases.gpsTexto",
   },
 ];
 

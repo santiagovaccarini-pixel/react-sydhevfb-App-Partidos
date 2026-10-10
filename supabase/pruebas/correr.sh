@@ -41,6 +41,23 @@ $PSQL -f "$RAIZ/supabase/instalar-desde-cero.sql"
 # de Catapult (en las pruebas, el club que crea 20260914_equipos).
 for migracion in "$RAIZ"/supabase/migrations/*.sql; do
   case "$migracion" in *revisar*) continue ;; esac
+  # Antes de la de GPS (después, la de dueños se niega a volver a correr):
+  # tres invitaciones de administrador como las de antes del paso 2; al
+  # volver a correr la de dueños (20261014), la abierta pasa a staff y la
+  # cancelada y la vencida quedan como estaban (lo miran los escenarios). Se
+  # corre otra vez y sin completar los marcadores: lo que se publica dice que
+  # se puede volver a correr, y acá se comprueba.
+  if [ "$(basename "$migracion")" = "20261016_gps.sql" ]; then
+    $PSQL -c "insert into public.club_invitaciones (equipo_id, email, rol, cancelada_en, vence_en)
+              select e.id, x.email, 'admin', x.cancelada_en, x.vence_en
+                from public.equipos e,
+                     (values ('jefa.abierta@prueba.com', null::timestamptz, now() + interval '14 days'),
+                             ('jefa.cancelada@prueba.com', now(), now() + interval '14 days'),
+                             ('jefa.vencida@prueba.com', null, now() - interval '1 day')) as x (email, cancelada_en, vence_en)
+               where e.nombre = 'Atlético Mineiro'"
+    echo "→ 20261014_duenos_y_pedidos.sql (otra vez)"
+    $PSQL -f "$RAIZ/supabase/migrations/20261014_duenos_y_pedidos.sql" >/dev/null
+  fi
   echo "→ $(basename "$migracion")"
   sed -e "s/CORREO_DEL_ADMINISTRADOR/duenio@prueba.com/" \
       -e "s/CORREO_DEL_DUENO_PRINCIPAL/duenio@prueba.com/" \
@@ -48,20 +65,6 @@ for migracion in "$RAIZ"/supabase/migrations/*.sql; do
       -e "s/NOMBRE_DEL_CLUB_DEL_TOKEN_CATAPULT/Atlético Mineiro/" \
       "$migracion" | $PSQL -f -
 done
-# Antes, tres invitaciones de administrador como las de antes del paso 2: al
-# volver a correr la de dueños (20261014), la abierta pasa a staff y la
-# cancelada y la vencida quedan como estaban (lo miran los escenarios).
-$PSQL -c "insert into public.club_invitaciones (equipo_id, email, rol, cancelada_en, vence_en)
-          select e.id, x.email, 'admin', x.cancelada_en, x.vence_en
-            from public.equipos e,
-                 (values ('jefa.abierta@prueba.com', null::timestamptz, now() + interval '14 days'),
-                         ('jefa.cancelada@prueba.com', now(), now() + interval '14 days'),
-                         ('jefa.vencida@prueba.com', null, now() - interval '1 day')) as x (email, cancelada_en, vence_en)
-           where e.nombre = 'Atlético Mineiro'"
-# La de dueños se corre otra vez, y sin completar los marcadores: lo que se
-# publica dice que se puede volver a correr, y acá se comprueba.
-echo "→ 20261014_duenos_y_pedidos.sql (otra vez)"
-$PSQL -f "$RAIZ/supabase/migrations/20261014_duenos_y_pedidos.sql" >/dev/null
 # La última, también otra vez.
 ULTIMA=$(ls "$RAIZ"/supabase/migrations/*.sql | grep -v revisar | sort | tail -1)
 echo "→ $(basename "$ULTIMA") (otra vez)"
@@ -86,7 +89,7 @@ for vieja in instalar-desde-cero \
              migrations/20260930_cuentas migrations/20261001_lesiones migrations/20261002_lesiones_excel \
              migrations/20261002b_datos_basicos migrations/20261003_club_miembros migrations/20261004_cuentas_v2 \
              migrations/20261005_foto_al_dia migrations/20261006_horas_imagen migrations/20261012_evaluaciones \
-             migrations/20261013_seguridad; do
+             migrations/20261013_seguridad migrations/20261014_duenos_y_pedidos; do
   echo "→ $(basename "$vieja").sql después de la última (se tiene que negar)"
   if $PSQL -f "$RAIZ/supabase/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
     echo "ERROR: $vieja.sql corrió después de una más nueva"

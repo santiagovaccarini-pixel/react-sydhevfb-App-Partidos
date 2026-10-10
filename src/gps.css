@@ -1,0 +1,80 @@
+/* GPS (en Bases de Datos) hereda el marco y las clases de Lesiones (inicio,
+   estados, Pegar desde Excel, Ajustes) y de Evaluaciones (la tabla con su
+   informe y los campos de fecha de los reportes). Acá va solo lo que no
+   existe en esos. */
+
+/* El período de la Base: Desde y Hasta, uno al lado del otro también en el
+   celular (son dos fechas cortas). */
+.gps-marco .gps-periodo-campos {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 560px;
+}
+.gps-marco .gps-periodo .lesiones-ayuda {
+  margin: 10px 0 0;
+}
+
+/* Con más de un dispositivo a la vista, cada fila del informe dice de cuál
+   es. */
+.gps-marco .gps-rotulo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.gps-marco .gps-rotulo b {
+  overflow: hidden;
+  color: #0f172a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 899px) {
+  .gps-marco .gps-rotulo {
+    display: grid;
+    gap: 0;
+  }
+}
+
+/* Pegar desde Excel: lo pegado no se muestra (son megas): cuántas filas
+   tiene y el botón para borrarlo. El dispositivo, como los campos de los
+   reportes. */
+.gps-marco .gps-pegado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 750;
+}
+.gps-marco .gps-dispositivo .campo-inicio {
+  display: grid;
+  gap: 6px;
+  max-width: 440px;
+  margin: 0;
+}
+.gps-marco .gps-dispositivo .campo-inicio > span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+.gps-marco .gps-dispositivo select {
+  min-height: 44px;
+}
+.gps-marco .gps-dispositivo .lesiones-ayuda {
+  margin: 8px 0 0;
+}
+.gps-marco .gps-cuantas {
+  color: #64748b;
+  font-weight: 650;
+}
+.gps-marco .gps-fila-problema {
+  color: #0f172a;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+/* Ajustes › Listas › Dispositivo: para qué sirve la lista. */
+.gps-marco .gps-ayuda-lista {
+  margin: 0 0 12px;
+}

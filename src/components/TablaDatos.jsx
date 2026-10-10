@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { HojaOpciones } from "./HojaOpciones.js";
 import { HojaDeFiltro, elegidosAlAbrir } from "./ListaParaMarcar.jsx";
 import { Icono } from "./AppChrome";
@@ -61,6 +61,10 @@ import "./tablaDatos.css";
 // siempreAVista: ids de filas que se ven aunque los filtros las dejen afuera
 // (una fila recién agregada, para completarla ahí), hasta que se cambien los
 // filtros: ahí vuelven a mandar los filtros.
+// muchasFilas: para una base de miles de filas (GPS): se dibujan solo las
+// filas que se ven al correr la tabla, y unas cuantas más arriba y abajo; lo
+// demás (elegir, copiar, pegar, filtros, el informe de arriba) sigue con
+// todas. Con las flechas, la tabla corre hasta la celda elegida.
 
 const CLAVE_ORDEN = "tabla_columnas";
 const CLAVE_ANCHOS = "tabla_anchos";
@@ -70,6 +74,13 @@ const ESPERA_APRETAR = 380;
 const ANCHO_MINIMO = 56;
 // El ancho de una columna fija que no trae el suyo.
 const ANCHO_FIJA = 120;
+// Con muchasFilas: el alto de una fila hasta medir la primera, cuántas se
+// dibujan al abrir y cuántas de más arriba y abajo de las que se ven.
+const ALTO_FILA = 34;
+const FILAS_AL_ABRIR = 60;
+const FILAS_DE_MAS = 20;
+const enElProximoCuadro = (fn) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(fn) : setTimeout(fn, 16));
+const cancelarCuadro = (id) => (typeof cancelAnimationFrame === "function" ? cancelAnimationFrame(id) : clearTimeout(id));
 
 const leerDelCelular = (clave, id) => {
   try {
@@ -141,6 +152,7 @@ export const TablaDatos = ({
   fijas = SIN_FIJAS,
   vista = null,
   siempreAVista = SIN_FIJAS,
+  muchasFilas = false,
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -258,6 +270,61 @@ export const TablaDatos = ({
       ordenFilas,
     );
   }, [filas, filtrosVigentes, ordenFilas, forzadas]);
+  // Con muchasFilas, las filas que se dibujan: { desde, hasta, alto } (null:
+  // todas, como sin muchasFilas o si no se puede medir).
+  const cajaRef = useRef(null);
+  const cuerpoRef = useRef(null);
+  const [ventana, setVentana] = useState(() => (muchasFilas ? { desde: 0, hasta: FILAS_AL_ABRIR, alto: ALTO_FILA } : null));
+  const cuantasVista = filasVista.length;
+  const medirVentana = useCallback(() => {
+    if (!muchasFilas) return;
+    const caja = cajaRef.current;
+    const cuerpo = cuerpoRef.current;
+    if (!caja || !cuerpo || !caja.clientHeight) {
+      setVentana(null);
+      return;
+    }
+    const alto = cuerpo.querySelector("tr:not(.tabla-datos-hueco)")?.offsetHeight || ALTO_FILA;
+    const inicio = cuerpo.offsetTop;
+    const desde = Math.max(0, Math.floor((caja.scrollTop - inicio) / alto) - FILAS_DE_MAS);
+    const hasta = Math.max(desde, Math.min(cuantasVista, Math.ceil((caja.scrollTop + caja.clientHeight - inicio) / alto) + FILAS_DE_MAS));
+    setVentana((antes) => (antes && antes.desde === desde && antes.hasta === hasta && antes.alto === alto ? antes : { desde, hasta, alto }));
+  }, [muchasFilas, cuantasVista]);
+  useLayoutEffect(() => {
+    medirVentana();
+  }, [medirVentana]);
+  useEffect(() => {
+    const caja = cajaRef.current;
+    if (!muchasFilas || !caja) return undefined;
+    let cuadro = null;
+    const alCorrer = () => {
+      if (cuadro !== null) return;
+      cuadro = enElProximoCuadro(() => {
+        cuadro = null;
+        medirVentana();
+      });
+    };
+    caja.addEventListener("scroll", alCorrer, { passive: true });
+    window.addEventListener("resize", alCorrer);
+    return () => {
+      caja.removeEventListener("scroll", alCorrer);
+      window.removeEventListener("resize", alCorrer);
+      if (cuadro !== null) cancelarCuadro(cuadro);
+    };
+  }, [muchasFilas, medirVentana]);
+  // Con las flechas, la tabla corre hasta la fila elegida (si no, con
+  // muchasFilas, podría no estar dibujada).
+  const llevarAVista = (f) => {
+    const caja = cajaRef.current;
+    const cuerpo = cuerpoRef.current;
+    if (!muchasFilas || !ventana || !caja || !cuerpo) return;
+    const arriba = cuerpo.offsetTop + f * ventana.alto;
+    // Lo que tapan las cabeceras, que quedan arriba al correr.
+    const tapado = [...(tablaRef.current?.querySelectorAll("tr.tabla-datos-grupos, tr.tabla-datos-cabeceras") || [])].reduce((suma, tr) => suma + tr.offsetHeight, 0);
+    if (arriba < caja.scrollTop + tapado) caja.scrollTop = Math.max(0, arriba - tapado);
+    else if (arriba + ventana.alto > caja.scrollTop + caja.clientHeight) caja.scrollTop = arriba + ventana.alto - caja.clientHeight;
+  };
+
   // Lo que depende de las filas que se ven: los colores y las filas de arriba.
   const deLaVista = useMemo(() => (vista ? vista(filasVista) : null), [vista, filasVista]);
   const estilosDeCeldas = deLaVista?.estilos || null;
@@ -434,6 +501,7 @@ export const TablaDatos = ({
       const f = Math.min(Math.max(activa.f + df, 0), filasVista.length - 1);
       const c = Math.min(Math.max(activa.c + dc, 0), visibles.length - 1);
       elegir(f, c, evento.shiftKey);
+      llevarAVista(f);
     };
     if (evento.key === "ArrowDown") mover(1, 0);
     else if (evento.key === "ArrowUp") mover(-1, 0);
@@ -771,6 +839,10 @@ export const TablaDatos = ({
   const cuantasFilas = hayFiltros ? plural("tabla.filasDe", filas.length, { n: filasVista.length, total: filas.length }) : plural("tabla.filas", filas.length);
   // El rótulo de las filas de arriba ocupa las fijas (o la primera columna).
   const columnasDelRotulo = Math.max(clavesFijas.length, 1);
+  // Las filas que se dibujan (con muchasFilas, las que se ven y unas más).
+  const desdeFila = ventana ? Math.min(ventana.desde, filasVista.length) : 0;
+  const hastaFila = ventana ? Math.min(Math.max(ventana.hasta, desdeFila), filasVista.length) : filasVista.length;
+  const filasDibujadas = desdeFila === 0 && hastaFila === filasVista.length ? filasVista : filasVista.slice(desdeFila, hastaFila);
 
   return (
     <div className="tabla-datos" ref={marco}>
@@ -815,7 +887,7 @@ export const TablaDatos = ({
         </p>
       )}
 
-      <div className="tabla-datos-marco" tabIndex={0} onKeyDown={alTeclear} onPaste={alPegarEvento}>
+      <div className="tabla-datos-marco" ref={cajaRef} tabIndex={0} onKeyDown={alTeclear} onPaste={alPegarEvento}>
         <table
           ref={tablaRef}
           className={`tabla-datos-tabla ${arrastre ? "arrastrando" : ""} ${ajustando ? "ajustando" : ""} ${todasConAncho ? "con-anchos" : ""} ${hayGrupos ? "con-grupos" : ""}`.trim()}
@@ -933,7 +1005,7 @@ export const TablaDatos = ({
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={cuerpoRef}>
             {filasVista.length === 0 && (
               <tr>
                 <td colSpan={Math.max(visibles.length, 1)} className="tabla-datos-vacia">
@@ -941,77 +1013,90 @@ export const TablaDatos = ({
                 </td>
               </tr>
             )}
-            {filasVista.map((fila, f) => (
-              <tr
-                key={fila.id}
-                className={`${activa?.f === f ? "activa" : ""} ${fila.apagada ? "apagada" : ""}`.trim() || undefined}
-                title={fila.apagada ? rotuloApagada || leyenda || undefined : undefined}
-              >
-                {visibles.map((col, c) => {
-                  const enEdicion = editando && editando.filaId === fila.id && editando.clave === col.clave;
-                  const esActiva = activa?.f === f && activa?.c === c;
-                  const formato = estilosDeCeldas?.[fila.id]?.[col.clave] || null;
-                  const ancho = estiloDeColumna[col.clave];
-                  return (
-                    <td
-                      key={col.clave}
-                      className={`${estaElegida(f, c) ? "elegida" : ""} ${esActiva ? "activa" : ""} ${enEdicion ? "editando" : ""} ${col.editable ? "" : "fija"} ${col.tipo === "casilla" ? "casilla" : ""} ${col.alinear === "centro" ? "centrada" : ""} ${formato ? "con-formato" : ""} ${claseFija(col.clave)}`.trim()}
-                      style={ancho && formato ? { ...ancho, ...formato } : ancho || formato || undefined}
-                      onClick={(evento) => {
-                        if (esActiva && !evento.shiftKey && !enEdicion) empezarEdicion(f, c);
-                        else elegir(f, c, evento.shiftKey);
-                      }}
-                      // En una casilla, el doble toque ya la marcó y desmarcó.
-                      onDoubleClick={() => col.tipo !== "casilla" && empezarEdicion(f, c)}
-                    >
-                      {col.tipo === "casilla" ? (
-                        <input
-                          type="checkbox"
-                          className="tabla-datos-casilla"
-                          checked={marcada(fila, col)}
-                          disabled={!col.editable}
-                          aria-label={`${col.titulo}: ${fila.textos?.[col.clave] ?? ""}`}
-                          onClick={(evento) => {
-                            // Un toque en la casilla la marca (y elige la celda),
-                            // y el teclado sigue en la tabla. Con Mayúscula se
-                            // extiende la selección, sin marcar nada.
-                            evento.stopPropagation();
-                            // (Sin cambiar el estado, React la deja como estaba.)
-                            if (evento.shiftKey) {
-                              elegir(f, c, true);
-                              return;
-                            }
-                            elegir(f, c);
-                            evento.currentTarget.closest(".tabla-datos-marco")?.focus({ preventScroll: true });
-                            alternarCasilla(fila, col);
-                          }}
-                          // Se cambia en el toque (arriba): así Mayúscula no la cambia.
-                          onChange={() => {}}
-                          onDoubleClick={(evento) => evento.stopPropagation()}
-                        />
-                      ) : enEdicion ? (
-                        <input
-                          autoFocus
-                          type={col.tipo === "fecha" ? "date" : col.tipo === "fecha_hora" ? "datetime-local" : col.tipo === "numero" ? "number" : "text"}
-                          placeholder={col.tipo === "horas" || col.tipo === "tiempo" ? "0:00" : undefined}
-                          inputMode={col.tipo === "tiempo" ? "decimal" : undefined}
-                          value={editando.valor ?? ""}
-                          onChange={(evento) => setEditando({ ...editando, valor: evento.target.value })}
-                          onBlur={(evento) => guardarEdicion(evento.target.value)}
-                          onKeyDown={(evento) => {
-                            if (evento.key === "Enter") guardarEdicion(evento.currentTarget.value);
-                            if (evento.key === "Escape") setEditando(null);
-                            evento.stopPropagation();
-                          }}
-                        />
-                      ) : (
-                        fila.textos?.[col.clave] ?? ""
-                      )}
-                    </td>
-                  );
-                })}
+            {desdeFila > 0 && (
+              <tr className="tabla-datos-hueco" aria-hidden="true" style={{ height: desdeFila * ventana.alto }}>
+                <td colSpan={Math.max(visibles.length, 1)} />
               </tr>
-            ))}
+            )}
+            {filasDibujadas.map((fila, i) => {
+              const f = desdeFila + i;
+              return (
+                <tr
+                  key={fila.id}
+                  className={`${activa?.f === f ? "activa" : ""} ${fila.apagada ? "apagada" : ""}`.trim() || undefined}
+                  title={fila.apagada ? rotuloApagada || leyenda || undefined : undefined}
+                >
+                  {visibles.map((col, c) => {
+                    const enEdicion = editando && editando.filaId === fila.id && editando.clave === col.clave;
+                    const esActiva = activa?.f === f && activa?.c === c;
+                    const formato = estilosDeCeldas?.[fila.id]?.[col.clave] || null;
+                    const ancho = estiloDeColumna[col.clave];
+                    return (
+                      <td
+                        key={col.clave}
+                        className={`${estaElegida(f, c) ? "elegida" : ""} ${esActiva ? "activa" : ""} ${enEdicion ? "editando" : ""} ${col.editable ? "" : "fija"} ${col.tipo === "casilla" ? "casilla" : ""} ${col.alinear === "centro" ? "centrada" : ""} ${formato ? "con-formato" : ""} ${claseFija(col.clave)}`.trim()}
+                        style={ancho && formato ? { ...ancho, ...formato } : ancho || formato || undefined}
+                        onClick={(evento) => {
+                          if (esActiva && !evento.shiftKey && !enEdicion) empezarEdicion(f, c);
+                          else elegir(f, c, evento.shiftKey);
+                        }}
+                        // En una casilla, el doble toque ya la marcó y desmarcó.
+                        onDoubleClick={() => col.tipo !== "casilla" && empezarEdicion(f, c)}
+                      >
+                        {col.tipo === "casilla" ? (
+                          <input
+                            type="checkbox"
+                            className="tabla-datos-casilla"
+                            checked={marcada(fila, col)}
+                            disabled={!col.editable}
+                            aria-label={`${col.titulo}: ${fila.textos?.[col.clave] ?? ""}`}
+                            onClick={(evento) => {
+                              // Un toque en la casilla la marca (y elige la celda),
+                              // y el teclado sigue en la tabla. Con Mayúscula se
+                              // extiende la selección, sin marcar nada.
+                              evento.stopPropagation();
+                              // (Sin cambiar el estado, React la deja como estaba.)
+                              if (evento.shiftKey) {
+                                elegir(f, c, true);
+                                return;
+                              }
+                              elegir(f, c);
+                              evento.currentTarget.closest(".tabla-datos-marco")?.focus({ preventScroll: true });
+                              alternarCasilla(fila, col);
+                            }}
+                            // Se cambia en el toque (arriba): así Mayúscula no la cambia.
+                            onChange={() => {}}
+                            onDoubleClick={(evento) => evento.stopPropagation()}
+                          />
+                        ) : enEdicion ? (
+                          <input
+                            autoFocus
+                            type={col.tipo === "fecha" ? "date" : col.tipo === "fecha_hora" ? "datetime-local" : col.tipo === "numero" ? "number" : "text"}
+                            placeholder={col.tipo === "horas" || col.tipo === "tiempo" ? "0:00" : undefined}
+                            inputMode={col.tipo === "tiempo" ? "decimal" : undefined}
+                            value={editando.valor ?? ""}
+                            onChange={(evento) => setEditando({ ...editando, valor: evento.target.value })}
+                            onBlur={(evento) => guardarEdicion(evento.target.value)}
+                            onKeyDown={(evento) => {
+                              if (evento.key === "Enter") guardarEdicion(evento.currentTarget.value);
+                              if (evento.key === "Escape") setEditando(null);
+                              evento.stopPropagation();
+                            }}
+                          />
+                        ) : (
+                          fila.textos?.[col.clave] ?? ""
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+            {hastaFila < filasVista.length && (
+              <tr className="tabla-datos-hueco" aria-hidden="true" style={{ height: (filasVista.length - hastaFila) * ventana.alto }}>
+                <td colSpan={Math.max(visibles.length, 1)} />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

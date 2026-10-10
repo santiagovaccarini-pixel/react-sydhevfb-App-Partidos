@@ -262,7 +262,8 @@ de lo hecho está en los commits, no en esta lista.
   la app.
 - Del Excel quedan para más adelante: BD GPS (los minutos para las cuentas cada 1000
   horas de los reportes; falta decidir cómo llegan) y la evaluación de lesiones (ROM y
-  valores de referencia). El bloque
+  valores de referencia). (10/10: el GPS ya es una base de la app, ver «GPS (10/10)»; falta
+  conectar sus minutos a estas cuentas.) El bloque
   "Plan Agudo" del Excel está marcado "no usar" y no se trajo.
 - Lo que se suma al catálogo (`lesionesCampos.js`) llega solo a los clubes ya sembrados:
   `leerConfig` completa las cabeceras y opciones que falten sin pisar lo que el club cambió.
@@ -560,7 +561,8 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   tarjeta, su pantalla y su permiso). Las tarjetas y la portada son las mismas del portal
   (`src/components/PortalTarjetas.jsx`): una base nueva es una entrada más en `BASES`.
 - Permiso: cada base tiene el suyo (Lesiones, la columna `lesiones` de la membresía;
-  Evaluaciones, la columna `evaluaciones`, desde el 05/10) y la tarjeta Bases de Datos de la
+  Evaluaciones, la columna `evaluaciones`, desde el 05/10; GPS, la columna `gps`, desde el
+  10/10) y la tarjeta Bases de Datos de la
   pantalla principal se ve si la cuenta tiene alguno (`basesHabilitadas` en
   `src/BasesDeDatos.jsx`). Para sumar un permiso hay que tocar juntos (o mejor, sacarlos de una
   sola lista):
@@ -571,6 +573,17 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
     `v_mis_clubes` y `v_miembros_club` (la columna nueva, al final); y si la base tiene tablas
     propias, `datos_al_dia` (la lista de tablas y el `case` del módulo, para la foto de quien se
     va) y `anotar_version` en cada tabla;
+  - desde `20261014_duenos_y_pedidos.sql` (el ejemplo más nuevo es `20261016_gps.sql`):
+    `equipos_sumar_creador()` ya no existe (los clubes los crean los dueños);
+    `aplicar_invitaciones()` sale de su versión de 20261014; también
+    `club_miembros_proteger_duenos()` (el módulo en la lista de lo que no se le cambia a un
+    dueño), `aceptar_pedido` con un parámetro más (`p_<permiso> boolean default false`: se
+    borra la función vieja y se crea la nueva, con su `revoke`/`grant`), los permisos de
+    columna (`grant update (<permiso>) on club_miembros`, `grant insert (<permiso>) on
+    club_invitaciones`) y que la migración anterior que reemplaza esas funciones se frene si
+    ya está corrida la nueva (como `20261014_duenos_y_pedidos.sql` con `gps`), con su prueba
+    en `supabase/pruebas/correr.sh`; en la app, `aceptarPedido` en `src/domain/pedidosDb.js`
+    y el aviso de `quitarJugador` en `src/domain/plantel.js`;
   - `MODULOS_DEL_CLUB`, `COLUMNAS_MEMBRESIA`, `normalizarMiembro`, `listarInvitaciones` e
     `invitar` en `src/domain/membresiasDb.js`, e `INVITACION_INICIAL` en `src/CuentasAdmin.jsx`;
   - `membresiaDe` en `src/domain/equipo.js` (lo que se guarda del club en el celular) y
@@ -1118,6 +1131,155 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   (con otros decimales, o con un valor corregido, entra como nueva). Falta decidir con
   Santiago qué cuenta como repetida (por ejemplo, mismo jugador, mismo test y misma fecha) y
   qué hace la app (avisar y dejar elegir, o no dejar). No se implementa hasta que lo decida.
+
+## GPS (10/10)
+
+Santiago subió el Excel del GPS del club (la hoja `BD_GPS`, con las hojas que la acompañan) y la
+plantilla con la que hoy arma lo de cada día antes de pegarlo en la base (`Original Suma de
+Bloques_CAM_nuevo.xlsm`). Es la tercera base de Bases de Datos, con su permiso propio (`gps`).
+Los archivos no van al repositorio (nombres de jugadores y datos del club).
+
+### Los pasos (Santiago, 10/10), un PR cada uno
+
+1. **Base, historial y Ajustes** (hecho el 10/10, migración `20261016_gps.sql`): el permiso, la
+   Base con su período, traer el historial con Pegar desde Excel y los Ajustes (columnas y
+   listas, también los dispositivos).
+2. **Cargar**: lo de cada día, con la lógica de la plantilla (abajo, «Para el paso 2»). Primero
+   pegando el CSV de Catapult; después, traerlo directo de OpenField.
+3. **Reportes**.
+4. **V.R. por dispositivo**: se arman una vez con reglas estadísticas y quedan fijos (Santiago,
+   10/10: «Los VR se arman una ves con reglas estadisticas y se dejan fijos»; las reglas las
+   explica él más adelante). Cada dispositivo tiene los suyos («Exacto»). No inventar reglas ni
+   valores mientras tanto; los valores, como en Evaluaciones, por SQL en el chat.
+5. **OpenField directo**: probar en la actividad 26-05 T, sin inventar direcciones de la API.
+   Nota de Santiago (10/10): ver si desde la API se puede descargar el CSV; «hay varias maneras
+   de descargarlo xq se puede descargar con variables de otra persona o todas las variables».
+
+Como pide la regla de las bases (UI-012), cuando estén los pasos 2 y 3 la barra queda Cargar ·
+Base · Reportes · Ajustes (y los V.R. donde se decida en el paso 4). Hoy: Base · Ajustes.
+
+### Decisiones de Santiago (10/10)
+
+- **Dispositivo**: en el Excel las filas de los microciclos hasta el 16 se pintaban contra una
+  tabla aparte («Tabla para microciclo <=16») porque cambiaron de dispositivo. Eso se saca y va
+  una columna **Dispositivo** («podriamos sacar eso y dejar una columna que regitre el tipo de
+  dispositivo»). El historial: hasta el microciclo 16, Sport; del 17 en adelante, Catapult («hasta
+  el 16 ponele sport y del 17 en adelante Catapult»). Los dispositivos son una lista del club
+  (Ajustes › Listas › Dispositivo).
+- **Colores**: cada fila se pinta contra el promedio y el desvío de las filas a la vista **de su
+  mismo dispositivo** («Las de su dispositivo»). Con las filas viejas (Sport) da igual que el
+  Excel; las del microciclo 17 en adelante cambian de color en algunas celdas, porque el Excel
+  las comparaba contra todas (también las de Sport).
+- **Columnas**: «tiene que poder añadirse columna como quitarlas, las que yo quiera sin
+  problema» (regla). En Ajustes › Cabeceras se renombra, se esconde («quitar» es esconder: lo
+  cargado no se pierde y vuelve a verse) y se suman columnas del club (número, texto, duración
+  u hora del día; van al final y al pegar se reconocen por su nombre). Nombre y Fecha no se
+  esconden. «Esfuerzo Explosivo/min» no se usa y se va a sacar: lo esconde el club en Ajustes.
+- **La Base muestra un período** («Un período, se cambia»): Desde y Hasta arriba; al abrir, las
+  últimas 4 semanas con hoy. El informe de arriba, los filtros y los colores van sobre eso.
+- **Los «por minuto»** se traen como están en el Excel; si en la app se cambia una medida o el
+  Tiempo de una fila, se recalcula su por minuto (medida ÷ minutos, como la plantilla). Un por
+  minuto no se escribe a mano.
+- **El historial se trae tal como está**: también los Team Average (Parcial y Sesion), los
+  totales y lo que se cambió a mano en el Excel.
+- **Errores chicos del Excel** (de la hoja y de la plantilla): se corrigen («Corregirlos»). Lo
+  que quedó corregido en la Base está abajo.
+- De la plantilla, «Pegado total manual» y «Parciales (en construcción)» no van.
+- **Carga (para el paso 2)**: lo de la tarea y del día se escribe una vez por tarea («Una vez
+  por tarea»); si un jugador tiene otro valor, se cambia solo el suyo.
+- **Promedio del equipo (para el paso 2)**: con la lógica de la plantilla. Quien no entrenó
+  nunca cuenta y Sesión + Regenerativo siempre cuenta, «como pasa hoy» (Santiago eligió primero
+  «Siempre 30%» y lo cambió al ver que en la práctica la fórmula del Excel nunca los cuenta).
+  Los cortes (30 % y 7) van en Ajustes, apagados.
+
+### La Base (paso 1)
+
+- Las columnas de `BD_GPS` en su orden (`src/domain/gps/columnas.js`, todo lo de cada una en un
+  solo lugar), más Dispositivo al final y las que sume el club. Microciclo, Nombre y Puesto
+  quedan fijas en la compu. Los nombres son los del Excel (las medidas, los de la fila 17,
+  «14,4-25Km/h»; lo demás, los de la fila 18). Algunas columnas del Excel se llaman distinto de
+  lo que guardan (por ejemplo, «Esfuerzo Explosivo/min» guarda «RHIE Effort Duration - Max» de
+  Catapult): quedan con el nombre del Excel y el club las renombra en Ajustes.
+- Arriba, el informe del Excel (filas 2 a 10) con lo que deja ver el filtro: Excelente
+  (promedio + 2 desvíos), Muy Bueno (+ 1), Promedio/Bueno, Regular (− 1), Malo (− 2), Desvío, n,
+  Máx. y Mín. En un por minuto, el promedio es el de la medida ÷ el de los minutos (como el
+  Excel). Con más de un dispositivo a la vista, un informe por dispositivo, con su nombre, en el
+  orden de su lista.
+- Colores (D19:X30002 del Excel: de D a Tiempo): mayor que Excelente, verde oscuro; de Muy Bueno
+  a Excelente, verde claro; de Promedio a Muy Bueno, amarillo; de Regular a Promedio, naranja;
+  menos que Regular, rojo. En Nombre, el Team Average de una tarea va en amarillo, el de un
+  tiempo de un Partido Oficial Torneo en gris y el de la sesión en rojo claro. Solo el fondo,
+  como el Excel (sin negrita).
+- Se corrige en la tabla (Nombre se elige: un jugador o un Team Average), se borran filas
+  (también varias, con Shift) y quien ya se fue del club ve la foto de su último día sin cambiar
+  nada. Un período tiene miles de filas (en el historial, unas 2.000 cada 4 semanas): la tabla
+  dibuja solo las que se ven (`muchasFilas` en `src/components/TablaDatos.jsx`, solo en GPS; las
+  otras bases siguen igual). Elegir, copiar, pegar, filtrar y el informe siguen con todas.
+
+### Pegar desde Excel (el historial)
+
+- En `BD_GPS`, sacar los filtros (o dejar a la vista lo que se quiere traer) y copiar desde la
+  fila de títulos hasta la última. **Antes de copiar, poner las columnas D a AN y AY a BD con
+  formato Número y 15 decimales**: Excel copia lo que se ve y con su formato los números llegan
+  redondeados (comprobado con la hoja entera). Si es mucho, por partes.
+- Se elige el dispositivo de lo pegado: el historial va en dos veces (hasta el microciclo 16 con
+  Sport; del 17 en adelante con Catapult).
+- Los nombres se buscan por su nombre en Catapult (el vínculo de Datos básicos) y si no, por el
+  de Datos básicos. Un nombre que no está se elige una vez para todas sus filas (guardarlo con
+  ese nombre, es un jugador de la lista o no cargarlo); «Guardar igual» los guarda todos con su
+  nombre.
+- «Ya está en la app»: misma fecha, misma persona y mismos valores (el dispositivo no cuenta).
+  Dos filas iguales dentro de lo pegado se cargan las dos, como están en el Excel.
+- Una celda con error del Excel (#¡DIV/0!, #¡VALOR!, #N/D) queda vacía y se avisa por columna.
+  Un texto que no está en su lista (por ejemplo, «0» en Código Estrategia) se guarda como vino y
+  se avisa: si hace falta, se suma en Ajustes › Listas. En Clasificación Días el signo cuenta
+  («-4_M» no es «4_M»).
+- Se guarda de a 250 filas, en el orden del Excel, y dice cuántas lleva; si se corta, lo que
+  falta se ve como «para cargar» y se vuelve a intentar sin duplicar.
+
+### Comprobado contra el Excel real (10/10, solo en la máquina de trabajo, nada al repositorio)
+
+- Las 15.667 filas de `BD_GPS` (copiadas con 15 decimales): las 846.018 celdas se leen igual que
+  en el Excel, salvo 22 de Máxima Velocidad que en el Excel están guardadas como texto («27,8»):
+  la app las lee como número (el Excel no las cuenta en su informe).
+- El informe de arriba (279 celdas, sin filtro) da igual que el que guardó el Excel, salvo:
+  - las columnas donde el Excel muestra #DIV/0! o #VALOR! porque tiene celdas con error
+    (Distancia Explosiva, 19,8-25,2Km/h/min, Esfuerzo Explosivo, Inicio y Finalización de
+    tarea): en la app esas celdas quedan vacías y el informe se calcula con las demás;
+  - el Mín. de GNSS Quality y HDOP: en el Excel esa fila es un promedio (=SUBTOTAL(1;…)), no el
+    mínimo. Error chico, corregido: la app muestra el mínimo.
+  - En Maxima Velocidad a HDOP el Excel tenía n, Máx. y Mín. una fila más abajo: en la app van
+    alineados (corregido).
+- Los colores, contra el formato condicional del Excel calculado aparte: en las filas de los
+  microciclos 10 a 16 (Sport), las 77.721 celdas iguales. En las del 17 en adelante, 12.477
+  celdas cambian de color porque ahora se comparan solo con las de Catapult (lo decidido).
+
+### Para el paso 2 (Cargar), lo que ya se sabe
+
+- El CSV de Catapult trae un título por columna. Cómo lo usa hoy la plantilla (por lugar): Total
+  Distance → D; Velocity Distance 14-25 km/h → 14,4-25Km/h; Acceleration B2 Efforts (Gen 2) → n°
+  1,7 a 2,7m/s2; Deceleration B2 → n° -1,7 a -2,7m/s2; Metabolic Power Band 2 Total Distance →
+  20-45 W/PC; Velocity Band 6 Total Distance → > 25,2 Km/h; Acceleration B3 → n° Acel. >2,7;
+  Deceleration B3 → n° Desacel. <-2,7; Metabolic Power Band 3 → > 45 W/PC; Velocity Band 6 Total
+  Distance (Set 2) → Mts >= 90% Pico; Total Duration → Tiempo; Maximum Velocity → Maxima
+  Velocidad; Max Acceleration → Aceleracion Maxima; Velocity Band 5 Total Distance →
+  «19,8-25,2Km/h/min» (es distancia, no por minuto); RHIE Effort Duration - Min → «Esfuerzo
+  Explosivo»; RHIE Effort Duration - Max → «Esfuerzo Explosivo/min»; Start Time → Inicio; End
+  Time → Finalización; Average GNSS Quality → GNSS Quality; Average HDOP → HDOP. Distancia
+  Explosiva no viene en el CSV (era del dispositivo viejo). En la app, por el título, no por el
+  lugar.
+- Las filas «Session» (Period Number 0) se descartan; un mismo nombre de período con otro
+  número (SEGUNDO TIEMPO #1 y #2) es un solo bloque.
+- En el historial hay cambios hechos a mano después de pegar (tiempos de tareas intermitentes,
+  un jugador agregado a un tiempo): la carga tiene que dejar corregir.
+
+### Pendiente
+
+- Pasos 2 a 5 (arriba).
+- Las horas de entrenamiento de Lesiones (cada 1000 horas) salen de los minutos del GPS
+  (decisión del 03/10, en «Lesiones: lo que sigue»): ahora que el GPS está en la app, falta
+  conectarlas (cuáles columnas son los minutos de cada jugador por día).
+- La foto de la tarjeta: hasta que haya, va el dibujo.
 
 ## Cuentas paso 2: dueños, sub-dueños y pedidos por club (06/10)
 

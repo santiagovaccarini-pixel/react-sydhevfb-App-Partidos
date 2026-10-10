@@ -653,3 +653,10 @@
     text-align: left;
   }
 }
+
+/* Con muchasFilas (GPS), el lugar de las filas que no se dibujan. */
+.tabla-datos-tabla tr.tabla-datos-hueco td {
+  padding: 0;
+  border: 0;
+  cursor: default;
+}

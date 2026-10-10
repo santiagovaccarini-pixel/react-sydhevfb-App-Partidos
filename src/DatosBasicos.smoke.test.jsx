@@ -381,7 +381,7 @@ describe("el módulo Datos básicos", () => {
     expect(texto(contenedor)).toContain("¿Borrar 2 jugadores?");
     await tocar(boton(contenedor, "Sí, borrar"));
     await act(async () => Promise.resolve());
-    expect(texto(contenedor)).toContain("Tiene lesiones o evaluaciones cargadas y no se puede borrar: si ya no está en el club, desmarcá Actual. Filas borradas: 1 de 2.");
+    expect(texto(contenedor)).toContain("Tiene lesiones, evaluaciones o datos del GPS cargados y no se puede borrar: si ya no está en el club, desmarcá Actual. Filas borradas: 1 de 2.");
     expect(texto(contenedor)).toContain("1 jugador");
   });
 

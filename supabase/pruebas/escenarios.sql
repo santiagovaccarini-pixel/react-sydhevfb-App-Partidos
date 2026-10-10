@@ -784,6 +784,102 @@ select pruebas.esperar('Beto la reincorpora', pruebas.filas($$update club_miembr
 reset role;
 select pruebas.esperar('Los Ajustes de Uno siguen como los dejó', (select etiqueta_es || ',' || oculto from evaluaciones_campos where equipo_id = :C1 and campo = 'lumbar'), 'Lumbar (min),true');
 
+-- ------------------------------------------------------------------- GPS --
+
+-- Un jugador de Uno con datos del GPS (y nada más) y una invitación solo con
+-- GPS: quien carga el GPS en el club.
+insert into public.jugadores (id, nombre, equipo_id) overriding system value values
+  (9006, 'CON GPS', '00000000-0000-0000-0000-0000000000c1');
+
+select pruebas.esperar('Nadie arranca con GPS', (select count(*) from club_miembros where gps), 0);
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto invita a alguien solo con GPS', pruebas.filas($$insert into club_invitaciones (equipo_id, email, rol, partido, flujo, lesiones, evaluaciones, gps) values ('00000000-0000-0000-0000-0000000000c1', 'gps@uno.com', 'staff', false, false, false, false, true)$$), 1);
+select pruebas.esperar('Beto, sin GPS, no ve ninguna fila', (select count(*) from gps), 0);
+select pruebas.debe_fallar('...ni carga', $$insert into gps (equipo_id, fecha, jugador_id, datos) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 9006, '{"d":4155.15}')$$, 'row-level security');
+reset role;
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000616', 'gps@uno.com', now());
+select pruebas.esperar('La cuenta entra con GPS', (select gps::text from club_miembros where user_id = '00000000-0000-0000-0000-000000000616' and equipo_id = :C1), 'true');
+select pruebas.esperar('...y su alta lo dice', (select count(*) from club_miembros_historial where user_id = '00000000-0000-0000-0000-000000000616' and accion = 'alta' and detalle ->> 'gps' = 'true'), 1);
+
+select pruebas.ser('gps@uno.com'); set role authenticated;
+select pruebas.esperar('Su club dice que tiene GPS', (select gps::text from v_mis_clubes where id = :C1), 'true');
+select pruebas.esperar('...sin Lesiones ni Evaluaciones', (select count(*) from lesiones) + (select count(*) from evaluaciones), 0);
+select pruebas.esperar('Carga la fila de un jugador de Uno', pruebas.filas($$insert into gps (equipo_id, fecha, jugador_id, datos) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 9006, '{"d":4155.15,"tiempo":2937}')$$), 1);
+select pruebas.esperar('...la de alguien que no está en Datos básicos', pruebas.filas($$insert into gps (equipo_id, fecha, persona, datos) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 'Juvenil Invitado', '{"d":3539.48}')$$), 1);
+select pruebas.esperar('...y la del promedio del equipo', pruebas.filas($$insert into gps (equipo_id, fecha, promedio, datos) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 'parcial', '{"d":4213.6}')$$), 1);
+select pruebas.esperar('...y las ve en el orden en que las cargó', (select string_agg(coalesce(jugador_id::text, persona, promedio), ',' order by orden) from gps), '9006,Juvenil Invitado,parcial');
+select pruebas.debe_fallar('Una fila es de alguien: de nadie, no', $$insert into gps (equipo_id, fecha) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-08')$$, 'gps_de_quien');
+select pruebas.debe_fallar('...ni de un jugador y del promedio a la vez', $$insert into gps (equipo_id, fecha, jugador_id, promedio) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 9006, 'sesion')$$, 'gps_de_quien');
+select pruebas.debe_fallar('...ni con un nombre en blanco', $$insert into gps (equipo_id, fecha, persona) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', '   ')$$, 'gps_de_quien');
+select pruebas.debe_fallar('...ni un promedio que no es de la tarea ni de la sesión', $$insert into gps (equipo_id, fecha, promedio) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 'mensual')$$, 'gps_promedio');
+select pruebas.debe_fallar('...ni de un jugador de otro club', $$insert into gps (equipo_id, fecha, jugador_id) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 9003)$$, 'jugador_de_otro_club');
+select pruebas.debe_fallar('...ni sin fecha', $$insert into gps (equipo_id, persona) values ('00000000-0000-0000-0000-0000000000c1', 'Sin Fecha')$$, 'fecha');
+select pruebas.debe_fallar('...ni con fecha futura', $$insert into gps (equipo_id, fecha, persona) values ('00000000-0000-0000-0000-0000000000c1', current_date + 2, 'Del Futuro')$$, 'gps_sin_futuro');
+select pruebas.debe_fallar('...ni en otro club', $$insert into gps (equipo_id, fecha, persona) values ('00000000-0000-0000-0000-0000000000c2', '2026-10-08', 'Espía')$$, 'row-level security');
+select pruebas.esperar('Corrige un tiempo', pruebas.filas($$update gps set datos = datos || '{"tiempo":1900}' where jugador_id = 9006$$), 1);
+select pruebas.debe_fallar('...pero no le cambia el orden de carga', $$update gps set orden = 1 where jugador_id = 9006$$, 'orden');
+select pruebas.debe_fallar('...ni la lleva al futuro', $$update gps set fecha = current_date + 2 where jugador_id = 9006$$, 'gps_sin_futuro');
+-- Los Ajustes del club: el nombre de una columna, una columna que suma el
+-- club y una opción de una lista.
+select pruebas.esperar('Le cambia el nombre a una columna', pruebas.filas($$insert into gps_campos (equipo_id, campo, etiqueta_es, etiqueta_pt) values ('00000000-0000-0000-0000-0000000000c1', 'rhie_max', 'RHIE máx', 'RHIE máx')$$), 1);
+select pruebas.esperar('...suma una columna propia', pruebas.filas($$insert into gps_campos (equipo_id, campo, etiqueta_es, etiqueta_pt, tipo, orden) values ('00000000-0000-0000-0000-0000000000c1', 'propia_sprints', 'Sprints', 'Sprints', 'numero', 100)$$), 1);
+select pruebas.esperar('...y un dispositivo', pruebas.filas($$insert into gps_opciones (equipo_id, lista, codigo, etiqueta_es, etiqueta_pt) values ('00000000-0000-0000-0000-0000000000c1', 'dispositivo', 'catapult', 'Catapult', 'Catapult')$$), 1);
+select pruebas.esperar('...y los ve', (select count(*) from gps_campos) + (select count(*) from gps_opciones), 3);
+select pruebas.debe_fallar('Una columna propia es de un tipo conocido', $$insert into gps_campos (equipo_id, campo, etiqueta_es, tipo) values ('00000000-0000-0000-0000-0000000000c1', 'propia_otra', 'Otra', 'formula')$$, 'gps_campos_tipo');
+select pruebas.debe_fallar('...ni un nombre de más de 120 letras', $$insert into gps_campos (equipo_id, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'd', repeat('x', 121))$$, 'gps_campos_etiquetas');
+select pruebas.debe_fallar('No cambia los Ajustes de otro club', $$insert into gps_opciones (equipo_id, lista, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c2', 'dispositivo', 'espia', 'Espía')$$, 'row-level security');
+reset role;
+select pruebas.esperar('Las tres filas quedan en las versiones', (select count(*) from versiones_datos where tabla = 'gps'), 3);
+select pruebas.esperar('...y quién las cargó', (select count(*) from gps where creado_por = '00000000-0000-0000-0000-000000000616' and actualizado_por = '00000000-0000-0000-0000-000000000616'), 3);
+
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('Con Lesiones y sin GPS no se ve ninguna fila', (select count(*) from gps), 0);
+select pruebas.esperar('...ni en la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
+select pruebas.esperar('...ni los Ajustes', (select count(*) from gps_campos) + (select count(*) from gps_opciones), 0);
+select pruebas.debe_fallar('...ni los cambia', $$insert into gps_campos (equipo_id, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'd', 'Distancia')$$, 'row-level security');
+reset role;
+
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de otro club) no ve las de Uno', (select count(*) from gps where equipo_id = :C1), 0);
+select pruebas.esperar('...ni con la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
+select pruebas.esperar('...ni cambia sus Ajustes', pruebas.filas($$update gps_campos set etiqueta_es = 'Espía'$$), 0);
+reset role;
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.debe_fallar('Un jugador con datos del GPS no se borra', $$delete from jugadores where id = 9006$$, 'gps_jugador_id_fkey');
+select pruebas.esperar('Beto le da GPS a la preparadora', pruebas.filas($$update club_miembros set gps = true where user_id = '00000000-0000-0000-0000-000000000015' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select pruebas.esperar('El permiso nuevo queda en la historia de la preparadora', (select count(*) from club_miembros_historial where user_id = '00000000-0000-0000-0000-000000000015' and accion = 'modulos' and detalle ->> 'gps' = 'true'), 1);
+
+-- Quien carga el GPS se va de Uno: ve la foto de su último día, mientras
+-- tenga el permiso, pero no cambia nada.
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('La cuenta del GPS se va de Uno', pruebas.filas($$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-000000000616' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select pruebas.ser('gps@uno.com'); set role authenticated;
+select pruebas.esperar('Ya no lee las filas de Uno', (select count(*) from gps), 0);
+select pruebas.esperar('...pero están en la foto de su último día', (select count(*) from datos_al_dia('gps', :C1)), 3);
+select pruebas.esperar('...con lo que corrigió', (select f -> 'datos' ->> 'tiempo' from datos_al_dia('gps', :C1) f where f ->> 'jugador_id' = '9006'), '1900');
+select pruebas.esperar('...y sigue viendo los Ajustes', (select count(*) from gps_campos) + (select count(*) from gps_opciones), 3);
+select pruebas.debe_fallar('...pero ya no carga', $$insert into gps (equipo_id, fecha, jugador_id) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-09', 9006)$$, 'row-level security');
+select pruebas.esperar('...ni cambia los Ajustes', pruebas.filas($$update gps_campos set oculto = true$$), 0);
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto le saca GPS (ya se fue)', pruebas.filas($$update club_miembros set gps = false where user_id = '00000000-0000-0000-0000-000000000616' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select pruebas.ser('gps@uno.com'); set role authenticated;
+select pruebas.esperar('Sin el permiso, ya no ve ni la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
+reset role;
+
+set role anon;
+select pruebas.debe_fallar('Sin cuenta no se ve el GPS', 'select count(*) from gps', 'permission denied');
+select pruebas.debe_fallar('...ni sus Ajustes', 'select count(*) from gps_campos', 'permission denied');
+select pruebas.debe_fallar('...ni sus listas', 'select count(*) from gps_opciones', 'permission denied');
+select pruebas.debe_fallar('...ni su foto', $$select * from datos_al_dia('gps', '00000000-0000-0000-0000-0000000000c1')$$, 'permission denied');
+reset role;
+
 -- ------------------------------------------------------------- Seguridad --
 
 -- El historial de una lesión borrada no se abre con su id desde otro club.
@@ -927,7 +1023,7 @@ select pruebas.esperar('Los argumentos de las funciones nuevas',
       and p.proname in ('crear_club', 'asignar_entidad', 'agregar_subdueno', 'quitar_subdueno', 'traspasar_principal',
                         'derivar_pedido', 'rechazar_pedido_sin_club', 'pedir_acceso', 'cancelar_pedido',
                         'aceptar_pedido', 'rechazar_pedido', 'salir_del_club', 'panel_historial', 'renombrar_club')),
-  'aceptar_pedido(p_id uuid, p_partido boolean, p_flujo boolean, p_lesiones boolean, p_evaluaciones boolean); '
+  'aceptar_pedido(p_id uuid, p_partido boolean, p_flujo boolean, p_lesiones boolean, p_evaluaciones boolean, p_gps boolean DEFAULT false); '
   || 'agregar_subdueno(p_correo text); asignar_entidad(p_equipo uuid, p_correo text); cancelar_pedido(p_id uuid); '
   || 'crear_club(p_nombre text, p_correo_entidad text DEFAULT NULL::text, p_zona text DEFAULT ''America/Sao_Paulo''::text); '
   || 'derivar_pedido(p_id uuid, p_equipo uuid); panel_historial(p_limite integer DEFAULT 50); '
@@ -1221,13 +1317,14 @@ select pruebas.debe_fallar('Una cuenta bloqueada no pide', $$select pedir_acceso
 reset role;
 select pruebas.esperar('El de pide1 fue a Uno; el de pide2, a ningún club', (select string_agg(email || ':' || coalesce(equipo_id::text, 'ninguno'), ',' order by email) from club_pedidos), 'pide1@prueba.com:00000000-0000-0000-0000-0000000000c1,pide2@prueba.com:ninguno');
 
--- El administrador del club decide: Beto acepta a pide1 con Partido y
--- Evaluaciones.
+-- El administrador del club decide: Beto acepta a pide1 con Partido,
+-- Evaluaciones y GPS (los demás pedidos se aceptan como antes, sin decir
+-- nada de GPS: la app de antes lo llama así).
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Beto (admin de Uno) ve el pedido de pide1, no el de pide2', (select string_agg(email, ',') from pedidos_del_club(:C1)), 'pide1@prueba.com');
-select aceptar_pedido(:'pedido1', true, false, false, true);
+select aceptar_pedido(:'pedido1', true, false, false, true, true);
 select pruebas.esperar('...lo acepta y sale de la lista', (select count(*) from pedidos_del_club(:C1)), 0);
-select pruebas.esperar('...pide1 queda en Uno como staff, con esos módulos', (select rol || ',' || partido || ',' || flujo || ',' || lesiones || ',' || evaluaciones from club_miembros where equipo_id = :C1 and user_id = '00000000-0000-0000-0000-000000000021' and hasta is null), 'staff,true,false,false,true');
+select pruebas.esperar('...pide1 queda en Uno como staff, con esos módulos', (select rol || ',' || partido || ',' || flujo || ',' || lesiones || ',' || evaluaciones || ',' || gps from club_miembros where equipo_id = :C1 and user_id = '00000000-0000-0000-0000-000000000021' and hasta is null), 'staff,true,false,false,true,true');
 select pruebas.debe_fallar('Un pedido aceptado no se vuelve a decidir', format('select rechazar_pedido(%L)', :'pedido1'), 'pedido_cerrado');
 reset role;
 select pruebas.esperar('pide1 quedó autorizada', (select estado from perfiles where email = 'pide1@prueba.com'), 'autorizado');
