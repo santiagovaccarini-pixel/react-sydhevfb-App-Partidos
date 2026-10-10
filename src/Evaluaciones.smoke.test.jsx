@@ -25,6 +25,7 @@ const datos = vi.hoisted(() => ({
   referenciasTobillo: null,
   referenciasAductor: null,
   referenciasSentadilla: null,
+  referenciasPress: null,
 }));
 
 // Los V.R. de prueba, en la unidad del Excel (los tiempos, segundos ÷ 1440).
@@ -97,6 +98,7 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
       ...(datos.referenciasTobillo ? { movilidad_tobillo: datos.referenciasTobillo } : {}),
       ...(datos.referenciasAductor ? { iso_aductor_abductor: datos.referenciasAductor } : {}),
       ...(datos.referenciasSentadilla ? { sentadilla_incremental: datos.referenciasSentadilla } : {}),
+      ...(datos.referenciasPress ? { press_plano: datos.referenciasPress } : {}),
     },
     error: "",
   }),
@@ -203,6 +205,7 @@ describe("Evaluaciones", () => {
     datos.referenciasTobillo = null;
     datos.referenciasAductor = null;
     datos.referenciasSentadilla = null;
+    datos.referenciasPress = null;
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -671,6 +674,7 @@ describe("Evaluaciones", () => {
       "Estabilidad rotacional",
       "Iso Aductor-Abductor",
       "Sentadilla Incremental",
+      "Press Plano",
     ]);
     expect(botones(contenedor).some((b) => b.textContent === "Curl Nórdico e Isoprone")).toBe(false);
     await elegirTest(contenedor, "Curl Nórdico e Isoprone");
@@ -779,6 +783,7 @@ describe("Evaluaciones", () => {
       "Estabilidad rotacional",
       "Iso Aductor-Abductor",
       "Sentadilla Incremental",
+      "Press Plano",
     ]);
     expect(deLaCarga.value).toBe("zona_media");
   });
@@ -981,6 +986,44 @@ describe("Evaluaciones", () => {
         ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { medio: "prensa", pc: 80.5, kg_1: 20, pse_1: 0.5, cuenta_1: "no", rm_vel: 251 } },
       },
     ]);
+  });
+
+  test("Press Plano: el RM con sus cargas, sus clases y la Rel; se carga con el peso, las repeticiones y los Kg", async () => {
+    datos.evaluaciones.push({ ...evaluacion("pp1", 80, 1, "2026-06-24", {}), test: "press_plano", datos: { seleccion: "mayor", pc: 80, rep: 5, kg: 80 } });
+    const V = (rm, rel) => ({ rm, rel });
+    datos.referenciasPress = {
+      categorias: { mayor: { titulo: "V.R. de prueba Press", rotulo: "Mayor", n: { rm: 9, rel: 9 }, excelente: V(100, 1.35), muy_bueno: V(92, 1.25), bueno: V(85, 1.15), regular: V(78, 1.05), malo: V(70, 0.95) } },
+      resumen: { n: { mayor: 9 } },
+    };
+    await montar();
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Press Plano");
+    expect(contenedor.querySelector("h1").textContent).toBe("Pecho Plano");
+    expect(cabeceras(contenedor)).toEqual(["nº Eva", "Fecha", "Jugador", "Seleccion", "Fecha Nac", "P.C.", "0,4", "0,5", "0,6", "0,7", "0,8", "Rep", "RM", "Clas. RM", "% mejora", "Kg", "Rel", "Clas. Grupo (Rel)", "% mejora", "Va?", "Nota"]);
+    // 80 × (1 + 0,029 × 5) = 91,6: Clas. 3; Rel 1,145: Clas. 2.
+    expect(celda(contenedor, 0, "RM").textContent).toBe("92");
+    expect(celda(contenedor, 0, "Clas. RM").textContent).toBe("3");
+    expect(celda(contenedor, 0, "Rel").textContent).toBe("1,15");
+    expect(celda(contenedor, 0, "Clas. Grupo (Rel)").textContent).toBe("2");
+    expect(celda(contenedor, 0, "0,5").textContent).toBe("46");
+    const comparacion = filaDeArriba(contenedor, "Comparar con");
+    expect(celdaDeArriba(contenedor, comparacion, "RM").textContent).toBe("107,8%");
+
+    await irA(contenedor, "Valores de referencia");
+    expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["V.R. de prueba Press", "RESUMEN CATEGORIAS (Promedios)"]);
+    const resumen = [...contenedor.querySelectorAll(".evaluaciones-bloque")].at(-1);
+    expect([...resumen.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Categoría", "n", "P.C.", "Rep", "RM", "Kg", "Rel"]);
+
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    await elegirTest(contenedor, "Press Plano");
+    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
+    await escribir(campo(contenedor, "P.C.").querySelector("input"), "80,5");
+    await tocar(boton(contenedor, "Siguiente"));
+    expect([...contenedor.querySelectorAll(".lesiones-campo-paso label")].map((label) => label.textContent)).toEqual(["Rep", "Kg", "Nota"]);
+    await escribir(campo(contenedor, "Kg").querySelector("input"), "100");
+    await tocar(boton(contenedor, "Guardar la evaluación"));
+    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "press_plano", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { pc: 80.5, kg: 100 } } }]);
   });
 
   test("en portugués, con los textos del Excel traducidos", async () => {

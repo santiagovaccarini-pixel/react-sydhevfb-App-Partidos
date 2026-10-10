@@ -935,8 +935,39 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     (vel) sin RM x Vel y 3 %RMx PSE de series que no cuentan); el informe da igual que el del
     Excel con esas 40 celdas y sin las filas vacías; los colores, contra las reglas del Excel
     aplicadas aparte, iguales (4346 celdas); pegada, entran las 82 filas con los mismos datos.
-- Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja:
-  Press Plano y Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
+  - **Los V.R. juveniles se dejan como están** (Santiago, 10/10: «Dejarlos en las dos»): los
+    bloques Sub-15 a Sub-20 de esta hoja son idénticos a los de Press Plano (hasta los
+    comentarios «BORRAR .6 Y .7») y su escala es la del Press, no la de la Sentadilla (que
+    suma el peso). Quedan igual en los dos tests.
+- **Press Plano** (hecho el 10/10, `tests/pressPlano.js`; la hoja dice «Pecho Plano»): una fila
+  por evaluación con el peso del día (P.C.), las repeticiones (Rep) y los Kg. Se calculan el RM
+  (Kg × (1 + 0,029 × Rep)), las cargas al 0,4 … 0,8 del RM, la Rel (RM ÷ P.C.), la clase y el %
+  mejora de cada uno y Va? (como el «Va» de Zona Media). Lo que decidió Santiago el 10/10:
+  - **Sin Rep, el RM es el Kg levantado**, como en el Excel («dejalo como esta, esas vacias son
+    1»: un intento de máximo). Hoy son 7 de las 32 evaluaciones.
+  - **El bloque oculto «CARGA 1» a «CARGA 5» queda afuera** («Dejarlo afuera»): cinco cargas
+    sugeridas desde el RM, fuera de la tabla y solo desde la fila 13. Si se usa, se agrega.
+  - **La fila «Vs …» compara el RM y la Rel con su clase**, como estaba; **la celda que
+    clasificaba el promedio del % mejora contra los V.R. de Rel salió** («Sacar esa celda»).
+  - Igual que en los otros tests (no se volvió a preguntar): las clases contra los V.R. de la
+    categoría de cada fila; el % mejora contra la evaluación anterior por fecha que tenga el
+    dato (el Excel miraba hasta tres atrás, por su n°); el informe sin datos queda vacío (el
+    Excel mostraba #DIV/0! y 0 en los % mejora); los V.R. «0.6» y «0.7» no van (el Excel dice
+    «BORRAR .6 Y .7», como en Sentadilla; son el RM × 0,6 y × 0,7); Posición no va y la Fecha
+    Nac sale de Datos básicos; sin la columna «Pro» en el resumen de V.R. Lo que no se copió:
+    las columnas de ayuda para buscar (A y B), el contador C y el «RESUMEN» vacío de CL.
+  - Los V.R.: uno por categoría (`datos.categorias.<categoría>` con `pc`, `rep`, `rm`, `kg`,
+    `rel`, `titulo` y `rotulo`) y el resumen (`datos.resumen.n`). Van por SQL, como los otros.
+  - **Pegar desde Excel**: se copia desde la fila 10 (títulos) hasta la última, desde la
+    columna nº Eva hasta Nota. «Clas. RM» tiene un salto de línea: Excel lo copia entre
+    comillas y se lee bien. **Decimales que no se ven**: un P.C. tiene dos decimales y se ve
+    con uno; antes de copiar, a esa columna se le ponen dos decimales.
+  - En el reporte individual va en «Fuerza».
+  - Comprobado contra la hoja real (solo local): las 384 celdas calculadas de las 32 filas
+    dan igual; en el informe solo cambian los 8 «% mejora» sin datos (vacíos); la fila «Vs
+    Mayor», igual; los colores, contra las reglas del Excel aplicadas aparte, iguales (512
+    celdas); pegada con el P.C. a dos decimales, entran las 32 filas exactas.
+- Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja: Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
   CONTAR.SI.CONJUNTO). Cada uno entra en las pantallas de abajo (09/10): se carga en Cargar,
   se elige en la Base, va en los reportes y sus cabeceras y listas se cambian en Ajustes.
 - **Las pantallas de Evaluaciones (Santiago, 09/10)**, como Lesiones (regla de «Bases de
