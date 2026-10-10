@@ -201,7 +201,7 @@ describe("la puerta de la app", () => {
 
     expect(contenedor.querySelector(".training-access-fondo img").getAttribute("src")).toBe("/portal/partido.webp");
     expect(contenedor.querySelector(".training-access-logo img").getAttribute("src")).toBe("/icono-app-192.png");
-    expect(contenedor.querySelector(".training-access-kicker").textContent).toBe("Registro Partido");
+    expect(contenedor.querySelector(".training-access-kicker").textContent).toBe("ARK");
     expect(contenedor.querySelector("h1").textContent).toBe("Entrá con tu cuenta");
     expect(contenedor.querySelector('input[type="email"]')).not.toBeNull();
     expect(boton("Entrar")).not.toBeNull();

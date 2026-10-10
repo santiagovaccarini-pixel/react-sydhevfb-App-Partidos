@@ -48,7 +48,7 @@ export default {
     referencias: "Valores de referencia",
   },
   acceso: {
-    marca: "Registro Partido",
+    marca: "ARK",
     volverPortal: "Volver al portal",
     cargandoTitulo: "Un momento…",
     cargandoTexto: "Estamos comprobando tu cuenta.",
@@ -592,7 +592,7 @@ export default {
     copiado: "Mensaje copiado. Pegalo en WhatsApp o en un correo.",
     // El enlace y el correo, cada uno solo en su renglón y sin nada atrás:
     // al copiarlos o tocarlos no se les pega un punto.
-    mensajeInvitacion: "Te invité a {{club}} en Registro Partido.\n\nEntrá a este enlace:\n{{enlace}}\n\nCreá tu cuenta con este correo:\n{{correo}}",
+    mensajeInvitacion: "Te invité a {{club}} en ARK.\n\nEntrá a este enlace:\n{{enlace}}\n\nCreá tu cuenta con este correo:\n{{correo}}",
     cancelarInvitacion: "Cancelar",
     invitacionCancelada: "Invitación cancelada.",
     reenviarMail: "Reenviar mail",
