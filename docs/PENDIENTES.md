@@ -136,6 +136,24 @@ de lo hecho está en los commits, no en esta lista.
 - La Connect API oficial **solo lee**; escribir es únicamente con el pase del
   editor, con la cuenta de Catapult de cada persona.
 
+## El nombre de la web: ARK (10/10)
+
+- Santiago, 10/10: «cambiar el nombre de la web a ARK, la idea seria que si se manda un
+  link no salga react/app etc que sea ARK y en la web tmb»; «La imagen esta bien, lo que
+  importa son los textos». Hecho: la pestaña del navegador, lo que se ve al mandar el
+  enlace (título y descripción, `index.html`), el nombre al instalarla en el celular
+  (`public/manifest.json`), la pantalla de entrada y el mensaje de invitación dicen ARK. El
+  ícono no cambia. En Partido, la barra lateral dice «Partido» (el nombre del módulo, como
+  en el portal y como Lesiones o Evaluaciones en las suyas); antes decía «Registro
+  Partido». Lo interno que no se ve (el nombre del paquete y el de la caché) queda igual.
+- **Pendiente: la dirección.** El enlace sigue siendo
+  `react-sydhevfb-app-partidos.vercel.app`: se cambia en Vercel (Settings › Domains), no
+  en el código. Al cambiarla: sumar la nueva en Supabase › Authentication › URL
+  Configuration (Site URL y Redirect URLs, sin borrar la vieja hasta que nadie la use);
+  lo guardado en cada celular (sin señal, la cuenta guardada) es de cada dirección, así
+  que la vieja tiene que seguir andando hasta que todo esté sincronizado, y quien la
+  instaló en el celular la vuelve a instalar desde la nueva.
+
 ## De la lista de mejoras de la app
 
 - **Mandar los cortes solos a OpenField.** No es un botón de copiar: la idea es

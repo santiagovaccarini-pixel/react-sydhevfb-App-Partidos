@@ -1,4 +1,4 @@
-# Registro Partido
+# ARK
 
 Aplicación operativa para registrar períodos, VAR, hidrataciones, formaciones y
 cambios de Atlético Mineiro y su rival. Funciona en escritorio y celular y

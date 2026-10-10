@@ -264,12 +264,14 @@ export const DESTINOS_PARTIDO = [
 
 // El mismo marco (barra lateral en escritorio, barra inferior en el celular)
 // sirve para Partido y para Entrenamiento: cambian los destinos y la marca.
+// La marca es el nombre del módulo, como en el portal (en Partido, «Partido»;
+// la web se llama ARK).
 export const MarcoAplicacion = ({
   activo = "partido",
   onNavigate,
   hayPartido = true,
   destinos = DESTINOS_PARTIDO,
-  marca = "Registro Partido",
+  marca = t("portal.partidoTitulo"),
   className = "",
   children,
 }) => {

@@ -48,7 +48,7 @@ export default {
     referencias: "Valores de referência",
   },
   acceso: {
-    marca: "Registro Partido",
+    marca: "ARK",
     volverPortal: "Voltar ao portal",
     cargandoTitulo: "Um momento…",
     cargandoTexto: "Estamos verificando sua conta.",
@@ -583,7 +583,7 @@ export default {
     vencioEl: "Venceu em {{fecha}}: para que entre, convide de novo",
     copiarMensaje: "Copiar mensagem",
     copiado: "Mensagem copiada. Cole no WhatsApp ou num e-mail.",
-    mensajeInvitacion: "Convidei você para {{club}} no Registro Partido.\n\nAcesse este link:\n{{enlace}}\n\nCrie sua conta com este e-mail:\n{{correo}}",
+    mensajeInvitacion: "Convidei você para {{club}} no ARK.\n\nAcesse este link:\n{{enlace}}\n\nCrie sua conta com este e-mail:\n{{correo}}",
     cancelarInvitacion: "Cancelar",
     invitacionCancelada: "Convite cancelado.",
     reenviarMail: "Reenviar e-mail",
