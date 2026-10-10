@@ -967,7 +967,72 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     dan igual; en el informe solo cambian los 8 «% mejora» sin datos (vacíos); la fila «Vs
     Mayor», igual; los colores, contra las reglas del Excel aplicadas aparte, iguales (512
     celdas); pegada con el P.C. a dos decimales, entran las 32 filas exactas.
-- Los que siguen, un PR cada uno, preguntando antes los errores que tenga cada hoja: Saltos. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
+- **Saltos** (hecho el 10/10, `tests/saltos.js`; la hoja dice «EVALUACIONES DE SALTO»): en
+  cada fila, los saltos de un jugador en un día, en cuatro bloques. **Cuatro tests, uno por
+  bloque, como Funcional** (Santiago, 10/10: «es muy parecida a funcional»; «Cuatro tests»):
+  Salto Countermovement, Salto Drop, Salto Squat y Salto Single Leg, cada uno con su n° de
+  evaluación. Al pegar, cada uno toma la Fecha, la Selección y el P.C. de la fila (el P.C.
+  va en los cuatro); Va? queda en Countermovement y la Nota en los tres que la tienen, como
+  en el Excel. Countermovement, Drop y Squat: Altura, Pico de Fuerza, Pico de Potencia y
+  RSI-modified, cada uno con su clase y su % mejora. Single Leg: esas cuatro medidas con
+  cada pierna (PD y PI), con su clase y su % mejora, el DEFICIT LATERAL (|PI − PD| / la
+  menor) con su clase (menos es mejor) y qué pierna rinde menos (DEFICIT PIERNA), como en
+  Movilidad. Lo que decidió Santiago el 10/10:
+  - **Drop y Squat tienen sus propios V.R., vacíos por ahora** («V.R. propios, vacíos»): sus
+    clases quedan vacías hasta que pase sus V.R. y se carguen por SQL. En el Excel, Drop se
+    clasificaba con los de Countermovement (daba 1 en toda la Fuerza y 5 en toda la
+    Potencia) y Squat no tenía clases (sus columnas Clas estaban vacías).
+  - **La comparación «Vs …» como en Zona Media, en los cuatro** («Como Zona Media»): en el
+    Excel la fila «Vs Mayor» miraba celdas vacías y en Single Leg no estaba.
+  - **Los títulos de clase que no eran de su medida, corregidos** («Corregirlos»): «Clas.
+    RM» (la clase de la Altura) es «Clas. Altura»; «P. Rel. Clas» (la del RSI) es «Clas.
+    RSI» (en Single Leg, «Clas. RSI PD» y «Clas. RSI PI»); en Single Leg, la clase del Pico
+    de Fuerza PD es «Clas.PD», como su PI (decía «Pot. Clas PD»). Los demás, como el Excel.
+  - Igual que en los otros tests (no se volvió a preguntar): las clases contra los V.R. de la
+    categoría de cada fila; el % mejora contra la evaluación anterior por fecha que tenga el
+    dato (el Excel miraba la anterior por su n°; con los datos de hoy da igual); sin una
+    pierna, déficit y pierna vacíos; el informe sin datos queda vacío (el Excel mostraba
+    #DIV/0! y 0); los formatos del informe, los del Excel; toda clase con los mismos colores
+    (05/10): **en Single Leg, las clases no se pintaban en el Excel** (la regla devolvía el
+    texto «Verdadero», como el negro de Tobillo en Funcional) y en la app se pintan como
+    toda clase; el DEFICIT LATERAL no se pinta (como en el Excel); las letras de PD / PI /
+    Sin Deficit, las de Curl Nórdico. El jugador se llama «Apellido» en el Excel: en la app,
+    «Jugador», como en los otros tests (al pegar se entiende cualquiera de los dos).
+  - Arreglado al pasar (a revisar con Santiago): algunos «% mejora» de Drop y Squat tenían
+    formato General (0,05 en vez de 5,0%): van en %, como los otros; el Pico de Potencia de
+    Single Leg cambiaba de formato de fila a fila («36,7» y «36,66666667»): va con uno.
+  - Lo que no se copió: las columnas de ayuda para buscar (A y B, ocultas), el contador C,
+    la columna H (sin título y vacía), las marcas «VA» sueltas de la fila 10, la cuenta suelta de ES19, la
+    tablita suelta «Altura Cm / Pot. Rel. W/P.C.» de CV370:CW374 y la nota suelta de CW636
+    (sobre las referencias «Profesional»); si sirven, se agregan.
+  - Los V.R.: Countermovement, una tabla (`datos.categorias.<categoría>` con `altura`,
+    `fuerza`, `potencia`, `rsi`, `n`, `promedio`, `desvio`, los cinco cortes y `titulo`);
+    Single Leg, una por medida (`altura_pd`, `altura_pi`, `altura_deficit`, … y `titulos`
+    por medida). Los nombres, los del Excel («Fuerza de caida (N)» y «Pot./Rel.» clasifican
+    el Pico de Fuerza y el Pico de Potencia). Hoy solo Mayor. Van por SQL, como los otros.
+  - **Pegar desde Excel**: se copia desde la fila 12 (títulos) hasta la última, desde la
+    columna nº Eva hasta el final del bloque del test (o la hoja entera), sin filtros (el
+    Excel está guardado con un filtro). Cada test busca su bloque por su lugar
+    (`bloqueDeSaltos`): los bloques van de un «Altura» al siguiente; el que tiene «Va?» es
+    Countermovement y los otros, Drop y Squat. Si se ve uno solo de Drop y Squat (el otro
+    oculto), es Drop cuando es lo último que se pegó; si no, no se lee (nunca se cargan los
+    datos de un bloque en otro test). Se saltean las filas sin medidas del bloque
+    (`saltearFilasSinMedidas` con la lista: el P.C. está en los cuatro y no alcanza).
+    **Decimales que no se ven** (el P.C., un RSI-modified y el Pico de Potencia de Single
+    Leg): antes de copiar, desde la columna P.C. hasta el final, formato Número con 15
+    decimales.
+  - En el reporte individual van en «Potencia y velocidad».
+  - Comprobado contra la hoja real (solo local): las celdas calculadas dan igual (1170 de
+    Countermovement, 2912 de Single Leg y 24 de Squat; en Drop, con los V.R. de
+    Countermovement como el Excel, sus 32 también); el n° de evaluación cambia solo en una
+    fila de Drop y Squat (el primer salto de ese tipo del jugador: 1 y no 4); el informe con
+    todas las filas, igual a las cuentas hechas aparte (360 celdas), y con las filas que dejó
+    a la vista el filtro del Excel, igual salvo los #DIV/0! y 0 de las columnas sin datos
+    (vacíos), con sus formatos; los colores, contra las reglas del Excel aplicadas aparte,
+    iguales (5896 celdas) salvo las clases de Single Leg (1230, decidido arriba); pegada con
+    la tabla a 15 decimales, entran las 241 filas exactas en los cuatro tests, también con
+    Countermovement o Drop ocultos o copiando hasta el fin de Drop.
+- Ya están todas las hojas del Excel. El motor suma lo que usen (detener si es verdad, SUBTOTAL 3, BUSCARX, COINCIDIR,
   CONTAR.SI.CONJUNTO). Cada uno entra en las pantallas de abajo (09/10): se carga en Cargar,
   se elige en la Base, va en los reportes y sus cabeceras y listas se cambian en Ajustes.
 - **Las pantallas de Evaluaciones (Santiago, 09/10)**, como Lesiones (regla de «Bases de

@@ -26,6 +26,8 @@ const datos = vi.hoisted(() => ({
   referenciasAductor: null,
   referenciasSentadilla: null,
   referenciasPress: null,
+  referenciasSaltos: null,
+  referenciasSingleLeg: null,
 }));
 
 // Los V.R. de prueba, en la unidad del Excel (los tiempos, segundos ÷ 1440).
@@ -99,6 +101,8 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
       ...(datos.referenciasAductor ? { iso_aductor_abductor: datos.referenciasAductor } : {}),
       ...(datos.referenciasSentadilla ? { sentadilla_incremental: datos.referenciasSentadilla } : {}),
       ...(datos.referenciasPress ? { press_plano: datos.referenciasPress } : {}),
+      ...(datos.referenciasSaltos ? { salto_countermovement: datos.referenciasSaltos } : {}),
+      ...(datos.referenciasSingleLeg ? { salto_single_leg: datos.referenciasSingleLeg } : {}),
     },
     error: "",
   }),
@@ -206,6 +210,8 @@ describe("Evaluaciones", () => {
     datos.referenciasAductor = null;
     datos.referenciasSentadilla = null;
     datos.referenciasPress = null;
+    datos.referenciasSaltos = null;
+    datos.referenciasSingleLeg = null;
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -675,6 +681,10 @@ describe("Evaluaciones", () => {
       "Iso Aductor-Abductor",
       "Sentadilla Incremental",
       "Press Plano",
+      "Salto Countermovement",
+      "Salto Drop",
+      "Salto Squat",
+      "Salto Single Leg",
     ]);
     expect(botones(contenedor).some((b) => b.textContent === "Curl Nórdico e Isoprone")).toBe(false);
     await elegirTest(contenedor, "Curl Nórdico e Isoprone");
@@ -784,6 +794,10 @@ describe("Evaluaciones", () => {
       "Iso Aductor-Abductor",
       "Sentadilla Incremental",
       "Press Plano",
+      "Salto Countermovement",
+      "Salto Drop",
+      "Salto Squat",
+      "Salto Single Leg",
     ]);
     expect(deLaCarga.value).toBe("zona_media");
   });
@@ -1024,6 +1038,75 @@ describe("Evaluaciones", () => {
     await escribir(campo(contenedor, "Kg").querySelector("input"), "100");
     await tocar(boton(contenedor, "Guardar la evaluación"));
     expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "press_plano", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { pc: 80.5, kg: 100 } } }]);
+  });
+
+  test("Saltos: cuatro tests; Countermovement con sus clases y la comparación, Single Leg por medida y Drop sin V.R. todavía", async () => {
+    datos.evaluaciones.push(
+      { ...evaluacion("sc1", 90, 1, "2026-06-24", {}), test: "salto_countermovement", datos: { seleccion: "mayor", pc: 80, altura: 41, fuerza: 4800, potencia: 49, rsi: 0.62 } },
+      { ...evaluacion("sl1", 91, 1, "2026-06-24", {}), test: "salto_single_leg", datos: { seleccion: "mayor", altura_pd: 20, altura_pi: 22 } },
+    );
+    const cortes = (valores) => Object.fromEntries(["excelente", "muy_bueno", "bueno", "regular", "malo"].map((cual, i) => [cual, Object.fromEntries(Object.entries(valores).map(([clave, lista]) => [clave, lista[i]]))]));
+    datos.referenciasSaltos = {
+      categorias: {
+        mayor: { titulo: "V.R. de prueba Saltos", n: { altura: 9 }, ...cortes({ altura: [45, 42, 40, 37, 34], fuerza: [5000, 4800, 4600, 4400, 4200], potencia: [60, 57, 55, 52, 50], rsi: [0.7, 0.65, 0.6, 0.55, 0.5] }) },
+      },
+    };
+    datos.referenciasSingleLeg = {
+      categorias: {
+        mayor: {
+          titulos: { altura: "V.R. de prueba Altura", fuerza: "V.R. de prueba Fuerza", potencia: "V.R. de prueba Potencia", rsi: "V.R. de prueba RSI" },
+          n: { altura_pd: 9 },
+          ...cortes({ altura_pd: [25, 23, 21, 19, 17], altura_pi: [25, 23, 21, 19, 17], altura_deficit: [0.02, 0.05, 0.08, 0.12, 0.2] }),
+        },
+      },
+    };
+    await montar();
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Salto Countermovement");
+    expect(contenedor.querySelector("h1").textContent).toBe("Evaluaciones de Salto · Countermovement");
+    // Los títulos de las clases, corregidos (Santiago, 10/10).
+    expect(cabeceras(contenedor)).toEqual([
+      "nº Eva", "Fecha", "Selección", "Fecha Nac", "Jugador", "P.C.",
+      "Altura", "Clas. Altura", "% mejora", "Pico de Fuerza", "Clas. N", "% mejora",
+      "Pico de Potencia", "Pot. Clas", "% mejora", "RSI-modified [m/s]", "Clas. RSI", "% mejora", "Va?", "Nota",
+    ]);
+    expect(celda(contenedor, 0, "Clas. Altura").textContent).toBe("3");
+    expect(celda(contenedor, 0, "Clas. N").textContent).toBe("4");
+    expect(celda(contenedor, 0, "RSI-modified [m/s]").textContent).toBe("0,62");
+    // La comparación «Vs …», como en Zona Media: 41 sobre el Bueno 40.
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Comparar con"), "Altura").textContent).toBe("102,5%");
+
+    await elegirTest(contenedor, "Salto Single Leg");
+    expect([...contenedor.querySelectorAll(".tabla-datos-grupo-titulo")].map((titulo) => titulo.textContent).filter(Boolean)).toEqual(["Altura", "Pico de Fuerza", "Pico de Potencia", "RSI-modified"]);
+    expect(celda(contenedor, 0, "Clas.PD").textContent).toBe("2");
+    expect(celda(contenedor, 0, "DEFICIT LATERAL").textContent).toBe("10,0%");
+    expect(celda(contenedor, 0, "DEFICIT PIERNA").textContent).toBe("PD");
+
+    // Los V.R.: Single Leg, una tabla por medida; Drop, todavía sin V.R.
+    await irA(contenedor, "Valores de referencia");
+    await elegirTest(contenedor, "Salto Single Leg");
+    expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["V.R. de prueba Altura", "V.R. de prueba Fuerza", "V.R. de prueba Potencia", "V.R. de prueba RSI"]);
+    const altura = [...contenedor.querySelectorAll(".evaluaciones-bloque")][0];
+    expect([...altura.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Altura PD", "Altura PI", "DEFICIT LATERAL"]);
+    await elegirTest(contenedor, "Salto Drop");
+    expect(contenedor.textContent).toContain("Todavía no están los valores de referencia de este test.");
+
+    // Se carga por pasos: el P.C. con el jugador; después, una medida por paso (cada pierna).
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    await elegirTest(contenedor, "Salto Single Leg");
+    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
+    await escribir(campo(contenedor, "P.C.").querySelector("input"), "80,5");
+    await tocar(boton(contenedor, "Siguiente"));
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Altura");
+    expect([...contenedor.querySelectorAll(".lesiones-campo-paso label")].map((label) => label.textContent)).toEqual(["Altura PD", "Altura PI"]);
+    await escribir(campo(contenedor, "Altura PD").querySelector("input"), "21,5");
+    for (const medida of ["Pico de Fuerza", "Pico de Potencia", "RSI-modified"]) {
+      await tocar(boton(contenedor, "Siguiente"));
+      expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe(medida);
+    }
+    await tocar(boton(contenedor, "Guardar la evaluación"));
+    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "salto_single_leg", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { pc: 80.5, altura_pd: 21.5 } } }]);
   });
 
   test("en portugués, con los textos del Excel traducidos", async () => {

@@ -114,6 +114,11 @@ const listasDelTest = (test) => (test.columnas || []).filter((columna) => column
 // Lo que se mide en el test: los tiempos, los números y las listas propias.
 const medidasDelTest = (test) => [...(test.tiempos || []), ...(test.numeros || []), ...listasDelTest(test).map((columna) => columna.clave)];
 
+// Las medidas que dicen si una fila pegada es de este test: todas, o las que
+// el test nombra en `saltearFilasSinMedidas` (en Saltos, las de su bloque: el
+// P.C. está en los cuatro tests y no alcanza).
+const medidasPropias = (test) => (Array.isArray(test.saltearFilasSinMedidas) ? test.saltearFilasSinMedidas : medidasDelTest(test));
+
 // Un número como lo escribe el Excel ("68,8", "1.234,5" o "68.8"): el
 // número, null si está vacío o undefined si no se entiende.
 export const leerNumero = (texto) => {
@@ -141,7 +146,7 @@ export const leerEvaluacionesPegadas = (texto, test) => {
     }
   });
   if (filaCabeceras === -1) return { columnas: {}, filas: [], error: "evaluaciones.importar.sinCabeceras" };
-  const medidas = medidasDelTest(test);
+  const medidas = medidasPropias(test);
   // Están los títulos pero ninguna columna de lo que se mide en el test: se
   // copió otra parte de la hoja, o el Excel tenía esas columnas ocultas (no
   // se copian).
@@ -156,8 +161,8 @@ export const leerEvaluacionesPegadas = (texto, test) => {
     const textos = Object.fromEntries(Object.entries(columnas).map(([campo, c]) => [campo, String(celdas[c] ?? "").trim()]));
     // Sin nombre y sin nada cargado: una fila vacía de la planilla.
     if (!nombre && !Object.values(textos).some(Boolean)) return;
-    // En una hoja con varios tests por fila (Funcional), la que no tiene
-    // ninguna medida de este test es de otro.
+    // En una hoja con varios tests por fila (Funcional, Saltos), la que no
+    // tiene ninguna medida de este test es de otro.
     if (test.saltearFilasSinMedidas && !medidas.some((campo) => textos[campo])) return;
     filas.push({ indice: filaCabeceras + 1 + i, nombre, textos });
   });

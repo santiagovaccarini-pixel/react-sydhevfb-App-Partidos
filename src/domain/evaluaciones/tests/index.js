@@ -4,11 +4,13 @@ import { ISOCINECIA } from "./isocinecia.js";
 import { ISO_ADUCTOR_ABDUCTOR } from "./isoAductorAbductor.js";
 import { MOVILIDAD_CADERA, MOVILIDAD_ISQUIO, MOVILIDAD_TOBILLO } from "./movilidad.js";
 import { PRESS_PLANO } from "./pressPlano.js";
+import { SALTO_COUNTERMOVEMENT, SALTO_DROP, SALTO_SINGLE_LEG, SALTO_SQUAT } from "./saltos.js";
 import { SENTADILLA_INCREMENTAL } from "./sentadillaIncremental.js";
 import { ZONA_MEDIA } from "./zonaMedia.js";
 
 // Los tests de Evaluaciones, en el orden de las hojas del Excel
 // BD_evaluaciones (de izquierda a derecha). Se suman de a uno, cada uno en su
 // archivo; el primero es el que se ve al entrar. La hoja Funcional son
-// cuatro tests, uno por bloque (Santiago, 09/10).
-export const TESTS = Object.freeze([ZONA_MEDIA, CURL_NORDICO_ISOPRONE, ISOCINECIA, MOVILIDAD_TOBILLO, MOVILIDAD_CADERA, MOVILIDAD_ISQUIO, ESTABILIDAD_ROTACIONAL, ISO_ADUCTOR_ABDUCTOR, SENTADILLA_INCREMENTAL, PRESS_PLANO]);
+// cuatro tests, uno por bloque (Santiago, 09/10); la hoja Saltos, también
+// (Santiago, 10/10).
+export const TESTS = Object.freeze([ZONA_MEDIA, CURL_NORDICO_ISOPRONE, ISOCINECIA, MOVILIDAD_TOBILLO, MOVILIDAD_CADERA, MOVILIDAD_ISQUIO, ESTABILIDAD_ROTACIONAL, ISO_ADUCTOR_ABDUCTOR, SENTADILLA_INCREMENTAL, PRESS_PLANO, SALTO_COUNTERMOVEMENT, SALTO_DROP, SALTO_SQUAT, SALTO_SINGLE_LEG]);
