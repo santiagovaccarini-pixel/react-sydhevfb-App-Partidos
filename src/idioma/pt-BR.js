@@ -1272,7 +1272,7 @@ export default {
         frente: "Anterior",
         espalda: "Posterior",
       },
-      mapaNota: "Quanto maior e mais intensa a mancha, mais lesões nesse lugar. Direita e esquerda são as do jogador.",
+      mapaNota: "Quanto mais intensa a cor, mais lesões nesse lugar. Direita e esquerda são as do jogador.",
       historialLesiones: "Histórico de lesões",
       registros_one: "{{n}} registro",
       registros_other: "{{n}} registros",

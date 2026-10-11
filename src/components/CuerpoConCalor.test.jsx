@@ -1,9 +1,12 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { CuerpoConCalor, partirDespuesDeBarras } from "./CuerpoConCalor.jsx";
+import { CuerpoConCalor, colorDeCalor, partirDespuesDeBarras } from "./CuerpoConCalor.jsx";
+import { manchasDe } from "./manchasCuerpo.js";
+import { crearMapa } from "../domain/mapaCorporal.js";
 
-// El mapa corporal: las dos vistas, una mancha por lugar y los nombres.
+// El mapa corporal: las dos vistas y lo lesionado pintado, nada más
+// (Santiago, 11/10: sin nombres, líneas ni puntos).
 describe("CuerpoConCalor", () => {
   let contenedor;
   let raiz;
@@ -27,61 +30,61 @@ describe("CuerpoConCalor", () => {
       );
     });
   };
-  // El texto de un nombre, renglón por renglón.
-  const renglones = (nombre) => [...nombre.querySelectorAll("text")].map((texto) => texto.textContent).join(" ");
-  const mancha = (clave, x, y, cantidad = 1, codigo = clave) => ({ clave, x, y, cantidad, codigo, campo: "musculo_especifico" });
+  const mapa = crearMapa();
+  const lesion = (datos, id) => ({ id, datos });
 
-  test("una mancha por lugar (más grande cuantas más lesiones) y su nombre, con una línea", async () => {
-    await montar({ manchas: { frente: [mancha("a", 90, 240, 3, "adutor_longo"), mancha("b", 110, 320)], espalda: [mancha("c", 120, 270, 1, "adutor_longo")] } });
+  test("se pinta lo lesionado, recortado a la parte, y nada más: ni nombres, ni líneas, ni puntos", async () => {
+    const manchas = manchasDe(
+      [
+        lesion({ parte_cuerpo: "coxa", lado: "direito", musculo_especifico: "biceps_femoral_longa" }, "1"),
+        lesion({ parte_cuerpo: "coxa", lado: "direito", musculo_especifico: "biceps_femoral_longa" }, "2"),
+        lesion({ parte_cuerpo: "joelho", lado: "direito" }, "3"),
+      ],
+      mapa,
+    );
+    await montar({ manchas });
     const primero = contenedor.querySelector("svg");
-    const frente = primero.querySelector('[data-vista="frente"]');
-    const radios = [...frente.querySelectorAll(".cuerpo-calor-mancha")].map((circulo) => Number(circulo.getAttribute("r")));
-    expect(radios[0]).toBeGreaterThan(radios[1]);
-    expect([...frente.querySelectorAll(".cuerpo-calor-nombre")].map(renglones)).toEqual(["ADUTOR_LONGO ×3", "B"]);
-    expect(frente.querySelectorAll(".cuerpo-calor-nombre line")).toHaveLength(2);
-    expect(primero.querySelectorAll('[data-vista="espalda"] .cuerpo-calor-nombre')).toHaveLength(1);
-    expect([...primero.querySelectorAll(".cuerpo-calor-vista text")].map((texto) => texto.textContent)).toEqual(["Anterior", "Posterior"]);
-    // Cada mapa con sus propios recortes y degradés.
+    const espalda = primero.querySelector('[data-vista="espalda"]');
+    const [biceps] = espalda.querySelectorAll(".cuerpo-calor-mancha");
+    expect(biceps.getAttribute("data-cantidad")).toBe("2");
+    // El músculo (su forma), adentro de la parte lesionada (el muslo).
+    expect(biceps.querySelectorAll("path").length).toBeGreaterThan(0);
+    const recorte = biceps.getAttribute("clip-path").match(/url\(#(.+)\)/)[1];
+    expect(document.getElementById(recorte).tagName.toLowerCase()).toBe("clippath");
+    expect(biceps.querySelector("title").textContent).toBe("biceps_femoral_longa ×2");
+    // La rodilla, de frente: la parte entera.
+    expect(primero.querySelectorAll('[data-vista="frente"] .cuerpo-calor-mancha')).toHaveLength(1);
+    // Nada más que las manchas y el nombre de cada vista.
+    expect([...primero.querySelectorAll("text")].map((texto) => texto.textContent)).toEqual(["Anterior", "Posterior"]);
+    expect(primero.querySelectorAll("line, circle")).toHaveLength(0);
+    // Lo que se lee sin ver el mapa.
+    expect(primero.getAttribute("aria-label")).toBe("Mapa: joelho, biceps_femoral_longa ×2");
+    // Cada mapa con sus propios recortes y filtros.
     const ids = [...contenedor.querySelectorAll("[id]")].map((elemento) => elemento.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  test("los nombres no se pisan y los largos se angostan para entrar", async () => {
-    await montar({
-      manchas: {
-        frente: [mancha("a", 90, 250, 1, "uno"), mancha("b", 92, 252, 1, "dos"), mancha("c", 94, 254, 1, "tres")],
-        espalda: [],
-      },
-    });
-    const textos = [...contenedor.querySelector('[data-vista="frente"]').querySelectorAll(".cuerpo-calor-nombre text")];
-    const alturas = textos.map((texto) => Number(texto.getAttribute("y")));
-    alturas.slice(1).forEach((altura, i) => expect(altura - alturas[i]).toBeGreaterThanOrEqual(14));
-    expect(textos.some((texto) => texto.getAttribute("textLength"))).toBe(false);
-    await act(async () => raiz.unmount());
-    await montar({ manchas: { frente: [mancha("a", 90, 250, 1, "ESTERNOCLEIDOMASTOIDEO")], espalda: [] } });
-    expect(contenedor.querySelector('[data-vista="frente"] .cuerpo-calor-nombre text').getAttribute("lengthAdjust")).toBe("spacingAndGlyphs");
+  test("más lesiones, color más intenso: de amarillo (una) a rojo oscuro (el lugar con más)", () => {
+    expect(colorDeCalor(1, 1)).toBe("rgb(250, 204, 21)");
+    expect(colorDeCalor(4, 4)).toBe("rgb(127, 29, 29)");
+    expect(colorDeCalor(2, 2)).toBe("rgb(249, 115, 22)");
+    // Con muchas lesiones, la escala llega hasta el lugar con más.
+    expect(colorDeCalor(12, 12)).toBe("rgb(127, 29, 29)");
+    expect(colorDeCalor(1, 12)).toBe("rgb(250, 204, 21)");
+    const rojo = (color) => Number(color.match(/\d+/)[0]);
+    const verde = (color) => Number(color.match(/\d+/g)[1]);
+    expect(verde(colorDeCalor(6, 12))).toBeLessThan(verde(colorDeCalor(3, 12)));
+    expect(rojo(colorDeCalor(3, 3))).toBeGreaterThan(rojo(colorDeCalor(2, 3)) - 40);
   });
 
-  test("los nombres se parten después de una barra, y si son muchos no se salen por arriba", async () => {
-    const muchas = Array.from({ length: 30 }, (_, i) => mancha(`m${i}`, 90, 20 + i, 30 - i, `nombre largo numero ${i}`));
-    await montar({ manchas: { frente: [mancha("q", 90, 220, 1, "QUADRIL/VIRILHA")], espalda: muchas } });
-    const frente = contenedor.querySelector('[data-vista="frente"]');
-    expect([...frente.querySelectorAll(".cuerpo-calor-nombre text")].map((texto) => texto.textContent)).toEqual(["QUADRIL/", "VIRILHA"]);
-    const espalda = contenedor.querySelector('[data-vista="espalda"]');
-    const alturas = [...espalda.querySelectorAll(".cuerpo-calor-nombre text")].map((texto) => Number(texto.getAttribute("y")));
-    expect(alturas.length).toBeGreaterThan(5);
-    expect(alturas.length).toBeLessThan(30);
-    expect(Math.min(...alturas)).toBeGreaterThan(0);
-    expect(Math.max(...alturas)).toBeLessThan(440);
-    // Las 30 manchas se ven igual, aunque algunas queden sin nombre.
-    expect(espalda.querySelectorAll(".cuerpo-calor-mancha")).toHaveLength(30);
-  });
-
-  test("como mucho maxNombres nombres por vista: las otras manchas, sin nombre", async () => {
-    await montar({ maxNombres: 1, manchas: { frente: [mancha("a", 90, 250, 2), mancha("b", 110, 320)], espalda: [] } });
-    const frente = contenedor.querySelector('[data-vista="frente"]');
-    expect(frente.querySelectorAll(".cuerpo-calor-mancha")).toHaveLength(2);
-    expect([...frente.querySelectorAll(".cuerpo-calor-nombre")].map(renglones)).toEqual(["A ×2"]);
+  test("en el tronco sin músculo, la mitad del lado del jugador", async () => {
+    const manchas = manchasDe([lesion({ parte_cuerpo: "abdomen", lado: "esquerdo" }, "1")], mapa);
+    expect(manchas.frente[0].pintar).toMatchObject({ mitad: "derecha" });
+    await montar({ manchas });
+    const mancha = contenedor.querySelector('[data-vista="frente"] .cuerpo-calor-mancha');
+    const mitad = mancha.querySelector("g[clip-path]").getAttribute("clip-path").match(/url\(#(.+)\)/)[1];
+    const rect = document.getElementById(mitad).querySelector("rect");
+    expect(Number(rect.getAttribute("x"))).toBe(100);
   });
 
   test("partir después de cada barra da lo mismo que la expresión con lookbehind que había antes", () => {
