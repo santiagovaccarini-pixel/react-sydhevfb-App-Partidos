@@ -38,7 +38,32 @@ vi.mock("./domain/notasDb.js", async () => {
   };
 });
 
+// Realtime de mentira: deja mandar "alguien cambió las notas".
+const realtime = vi.hoisted(() => ({ canales: [] }));
+vi.mock("./supabase.js", () => ({
+  supabase: {
+    channel: (nombre) => {
+      const canal = {
+        nombre,
+        escuchas: [],
+        on(tipo, filtro, alLlegar) {
+          canal.escuchas.push({ filtro, alLlegar });
+          return canal;
+        },
+        subscribe(alCambiarEstado) {
+          alCambiarEstado("SUBSCRIBED");
+          return canal;
+        },
+      };
+      realtime.canales.push(canal);
+      return canal;
+    },
+    removeChannel: () => {},
+  },
+}));
+
 import Notas from "./Notas.jsx";
+import { enVivo } from "./domain/enVivo.js";
 
 describe("Notas", () => {
   let contenedor;
@@ -100,6 +125,38 @@ describe("Notas", () => {
     expect(contenedor.querySelector(".nota-fila.hecha .cuenta-meta").textContent).toContain("ivan@prueba.com");
     await tocar(boton("Volver al portal", contenedor));
     expect(volver).toHaveBeenCalled();
+  });
+
+  test("lo que anota otra persona aparece solo, sin recargar ni mostrar «Cargando»", async () => {
+    vi.useFakeTimers();
+    enVivo.prendido = true;
+    realtime.canales = [];
+    try {
+      await montar();
+      expect(textos()).toEqual(["Filtro por rival en Registros", "Exportar el informe a PDF"]);
+      const [canal] = realtime.canales;
+      expect(canal.escuchas.map((una) => una.filtro)).toEqual([
+        { event: "*", schema: "public", table: "notas", filter: "equipo_id=eq.eq-1" },
+        { event: "DELETE", schema: "public", table: "notas" },
+      ]);
+      // Desde otro celular, alguien anota una.
+      datos.notas = [{ id: "n-9", texto: "Cargar el GPS desde OpenField", hecha: false, creado_por: "u-ivan", creado_email: "ivan@prueba.com", creado_en: "2026-10-11T12:00:00Z" }, ...datos.notas];
+      await act(async () => canal.escuchas[0].alLlegar({ eventType: "INSERT" }));
+      await act(async () => vi.advanceTimersByTime(900));
+      await act(async () => Promise.resolve());
+      expect(textos()).toEqual(["Cargar el GPS desde OpenField", "Filtro por rival en Registros", "Exportar el informe a PDF"]);
+      expect(contenedor.textContent).not.toContain("Cargando");
+      // Si en ese momento no se puede leer, quedan las que se veían (sin error).
+      datos.errorLeer = "sin señal";
+      await act(async () => canal.escuchas[1].alLlegar({ eventType: "DELETE", old: { id: "n-9" } }));
+      await act(async () => vi.advanceTimersByTime(900));
+      await act(async () => Promise.resolve());
+      expect(textos()).toHaveLength(3);
+      expect(contenedor.querySelector(".cuentas-reintentar")).toBeNull();
+    } finally {
+      enVivo.prendido = false;
+      vi.useRealTimers();
+    }
   });
 
   test("agrega una nota arriba de las que faltan hacer y vacía el campo", async () => {

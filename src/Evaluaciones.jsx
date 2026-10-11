@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEnVivo } from "./domain/enVivo.js";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { BotonVolver } from "./components/BotonVolver.jsx";
@@ -207,15 +208,26 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     };
   }, [equipoId]);
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    setError("");
+  // silencioso: lo nuevo de otros (useEnVivo), sin "Cargando…"; lo que no se
+  // pudo leer queda como se veía.
+  const cargar = useCallback(async ({ silencioso = false } = {}) => {
+    if (!silencioso) {
+      setCargando(true);
+      setError("");
+    }
     const [respuestaPlantel, respuestaEvaluaciones, respuestaReferencias, respuestaAjustes] = await Promise.all([
       cargarPlantelLesiones(equipoId),
       listarEvaluaciones(equipoId),
       leerReferencias(equipoId),
       leerAjustes(equipoId),
     ]);
+    if (silencioso) {
+      if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
+      if (!respuestaEvaluaciones.error) setEvaluaciones(respuestaEvaluaciones.evaluaciones);
+      if (!respuestaReferencias.error) setReferenciasPorTest(respuestaReferencias.referencias || {});
+      if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones });
+      return;
+    }
     setPlantel(respuestaPlantel.plantel || []);
     setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
     if (respuestaEvaluaciones.error || respuestaReferencias.error) {
@@ -232,6 +244,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10).
+  useEnVivo({ nombre: "evaluaciones", tablas: ["evaluaciones", "jugadores"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
 
   useEffect(() => {
     const alCambiar = () => setEnLinea(navigator.onLine !== false);

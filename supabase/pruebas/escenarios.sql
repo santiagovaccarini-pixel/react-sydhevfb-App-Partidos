@@ -1699,4 +1699,15 @@ select pruebas.ser('juana@siete.com'); set role authenticated;
 select pruebas.esperar('...y Juana ve solo la de Iván', (select count(*) from notas), 1);
 reset role;
 
+-- Lo nuevo sin recargar (20261017_en_vivo): las tablas que la app mira en
+-- vivo están en la publicación de Realtime, y anon sigue sin poder leerlas.
+select pruebas.esperar('Las tablas en vivo están en la publicación de Realtime',
+  (select count(*) from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public'
+      and tablename in ('lesiones', 'jugadores', 'evaluaciones', 'gps', 'notas')), 5);
+set role anon;
+select pruebas.debe_fallar('Sin sesión, las lesiones siguen cerradas', $$select count(*) from lesiones$$, 'permission denied');
+select pruebas.debe_fallar('...y el GPS también', $$select count(*) from gps$$, 'permission denied');
+reset role;
+
 select 'ESCENARIOS: todos bien' as resultado;

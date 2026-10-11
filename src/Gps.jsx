@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEnVivo } from "./domain/enVivo.js";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { BotonVolver } from "./components/BotonVolver.jsx";
@@ -114,8 +115,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   }, [equipoId]);
 
   // Datos básicos y los Ajustes: una vez por club.
-  const cargarClub = useCallback(async () => {
+  // silencioso: lo nuevo de otros (useEnVivo); lo que no se pudo leer queda
+  // como se veía.
+  const cargarClub = useCallback(async ({ silencioso = false } = {}) => {
     const [respuestaPlantel, respuestaAjustes] = await Promise.all([cargarPlantelLesiones(equipoId), leerAjustesGps(equipoId)]);
+    if (silencioso && (respuestaPlantel.error || respuestaPlantel.deRespaldo)) return;
     setPlantel(respuestaPlantel.plantel || []);
     setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
     // Sin poder leer los Ajustes, siguen los nombres del Excel.
@@ -125,11 +129,13 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Las filas del período (y del jugador y el dispositivo elegidos). Si se
   // cambia qué traer mientras se leía, vale la última lectura pedida.
   const lecturas = useRef(0);
-  const cargarFilas = useCallback(async () => {
+  const cargarFilas = useCallback(async ({ silencioso = false } = {}) => {
     lecturas.current += 1;
     const esta = lecturas.current;
-    setCargando(true);
-    setError("");
+    if (!silencioso) {
+      setCargando(true);
+      setError("");
+    }
     const respuesta = await listarGps(equipoId, {
       desde: periodo.desde || null,
       hasta: periodo.hasta || null,
@@ -138,6 +144,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       maximo: traerIgual ? null : MAXIMO_SIN_PREGUNTAR,
     });
     if (esta !== lecturas.current) return;
+    // En silencio, si no se pudo leer, queda lo que se veía.
+    if (silencioso && respuesta.error) return;
     if (respuesta.error) setError(respuesta.error);
     else {
       setFilasGps(respuesta.filas);
@@ -165,6 +173,16 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   useEffect(() => {
     cargarFilas();
   }, [cargarFilas]);
+
+  // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10): las
+  // filas del período que se está mirando y Datos básicos.
+  useEnVivo({
+    nombre: "gps",
+    tablas: ["gps", "jugadores"],
+    equipoId,
+    activo: !soloLectura,
+    alCambiar: () => Promise.all([cargarClub({ silencioso: true }), cargarFilas({ silencioso: true })]),
+  });
 
   useEffect(() => {
     const alCambiar = () => setEnLinea(navigator.onLine !== false);
