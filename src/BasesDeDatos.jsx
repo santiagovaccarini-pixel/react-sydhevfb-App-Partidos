@@ -100,7 +100,7 @@ const Tablero = ({ bases, onElegir, onVolver }) => {
 
 // onTarjetas: se llama al volver de una base a las tarjetas (para releer el
 // club, como el portal); devuelve con qué cortar esa lectura al entrar a otra.
-export default function BasesDeDatos({ permisos, userId, email, onVolver, onCerrarSesion, onTarjetas = null }) {
+export default function BasesDeDatos({ permisos, userId, email, onVolver, onTarjetas = null }) {
   // La base abierta, o ninguna (las tarjetas).
   const [abierta, setAbierta] = useState(null);
   // Cuántas veces se volvió de una base a las tarjetas.
@@ -133,7 +133,7 @@ export default function BasesDeDatos({ permisos, userId, email, onVolver, onCerr
   };
 
   const contenido = base ? (
-    <base.Pantalla userId={userId} email={email} permisos={permisos} onVolver={volverALasBases} volverA="portal.basesTitulo" onCerrarSesion={onCerrarSesion} />
+    <base.Pantalla userId={userId} email={email} permisos={permisos} onVolver={volverALasBases} volverA="portal.basesTitulo" />
   ) : (
     <Tablero bases={bases} onElegir={elegir} onVolver={onVolver} />
   );

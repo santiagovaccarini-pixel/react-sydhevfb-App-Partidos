@@ -1893,6 +1893,45 @@ club y el texto (y después el texto o si está hecha).
 - No usa `es_admin()`, así que el paso 2 de cuentas no la toca. Cuando la gestión del
   club pase a la entidad (paso 3), borrar la de otro también lo puede la entidad.
 
+### Lo anotado en Notas, en marcha (11/10)
+
+Santiago pidió avanzar con las notas del club (las pasó en capturas el 11/10) y decidió
+cómo va cada una. Va un PR por nota.
+
+- **Cerrar sesión y cambiar de club, solo en el portal (hecho el 11/10).** Nota del 06/10:
+  «Sacar de ajustes de cualquier modulo las opciones de salir de la cuenta y cambiar de
+  equipo»; Santiago, 11/10: «quedamos estrictamente que solo se cambia desde el portal».
+  - Partido › Ajustes ya no tiene «Cerrar sesión». «Equipo» sigue y muestra el escudo y el
+    nombre, nada más (UI-010): sin la lista «Cambiar de equipo».
+  - Si Partido se abriera sin club (desde el portal no pasa: lo pide antes), ya no ofrece
+    una lista: dice que el club se elige en el portal y deja volver a Módulos (o, si la
+    cuenta no tiene ningún club con Partido, lo dice). El aviso de Registros sin club dice
+    lo mismo.
+  - Partido no pasa a otro club por su cuenta: antes, si el club elegido no estaba en la
+    lista y la cuenta tenía un solo club, pasaba a ese. Sin ninguno elegido toma el único
+    que hay, como las demás pantallas.
+  - Flujo diario › Ajustes ya no tiene «Cerrar sesión» (quedan Usuario y contraseña de
+    OpenField y, para quien corresponde, Pruebas técnicas). Las bases no lo tenían.
+  - **Queda prohibido:** volver a poner cerrar sesión o elegir o cambiar de club en los
+    Ajustes (o en cualquier pantalla) de un módulo. Se hace en el portal: «Salir» y
+    «Cambiar», arriba.
+- **Informes gráficos: un embudo en cada gráfico (decidido el 11/10, sin hacer).** Cada
+  gráfico (y cada torta por separado) lleva un embudo para filtrarlo por cualquier columna
+  de la Base de Lesiones, con el año adentro; se sacan los botones de filtros y de años de
+  arriba. En los de c/1000 h no se ofrecen Jugador ni Posición (las horas son de todo el
+  plantel).
+- **Columnas fijas a elección (decidido el 11/10, sin hacer).** En cualquier base, doble
+  clic en una cabecera la deja fija (o la suelta); se recuerda en cada aparato, por base.
+- **Mapa de calor (decidido el 11/10, sin hacer).** Se pinta solo el músculo o la parte
+  lesionada, más fuerte cuantas más lesiones; sin nombres, líneas ni puntos.
+- **Lo nuevo sin recargar (decidido el 11/10, sin hacer).** Lo que carga o cambia otra
+  persona aparece solo en la pantalla, sin recargar. Las versiones nuevas de la app siguen
+  como hoy.
+- **Tiempos de selección por jugador (pendiente).** Nota del 07/10: los jugadores que
+  fueron a la selección tienen que tener esos tiempos aparte, y quien no fue no puede sumar
+  más tiempo porque otro fue. Va con conectar las horas del GPS a Lesiones c/1000h (ver
+  «GPS (10/10)», Pendiente). Falta que Santiago explique de dónde salen esos tiempos.
+
 ## Lo que dejó la revisión completa del 30/09
 
 Se revisó toda la app (pruebas automáticas, recorrido en navegador de cada

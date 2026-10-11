@@ -1412,12 +1412,11 @@ describe("interfaz operativa", () => {
     }
   });
 
-  test("el botón Módulos del inicio vuelve al portal, y desde Ajustes se cierra la sesión (con confirmación)", async () => {
+  test("el botón Módulos del inicio vuelve al portal, y Ajustes no cierra la sesión (eso va en el portal)", async () => {
     const onVolver = vi.fn();
-    const onCerrarSesion = vi.fn();
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<App onVolver={onVolver} onCerrarSesion={onCerrarSesion} />);
+      raiz.render(<App onVolver={onVolver} />);
     });
     await act(async () => Promise.resolve());
     await act(async () => vi.runOnlyPendingTimers());
@@ -1436,13 +1435,9 @@ describe("interfaz operativa", () => {
         boton.textContent.includes(texto),
       );
     expect(opcion("Cambiar de módulo")).toBeUndefined();
-    await act(async () => opcion("Cerrar sesión").click());
-    expect(onCerrarSesion).not.toHaveBeenCalled();
-    const confirmar = Array.from(contenedor.querySelectorAll("button")).find(
-      (boton) => boton.textContent.trim() === "Sí, cerrar sesión",
-    );
-    await act(async () => confirmar.click());
-    expect(onCerrarSesion).toHaveBeenCalledTimes(1);
+    // La sesión se cierra en el portal (Santiago, 11/10).
+    expect(opcion("Cerrar sesión")).toBeUndefined();
+    expect(contenedor.textContent).not.toContain("Cerrar sesión");
   });
 
   test("en transmisión se guardan horarios reales, no minutos de juego", async () => {
@@ -1710,20 +1705,14 @@ describe("interfaz operativa", () => {
     expect(filas[0].textContent).toContain("Gimnasia");
     expect(contenedor.textContent).not.toContain("Santos");
 
-    // Y cambiando de equipo se ve el otro.
-    await act(async () => irA("Ajustes").click());
-    await act(async () =>
-      Array.from(contenedor.querySelectorAll(".opcion-ajuste"))
-        .find((boton) => boton.textContent.includes("Equipo"))
-        .click(),
+    // Y entrando con el otro club (se cambia en el portal) se ve el otro.
+    await act(async () => raiz.unmount());
+    contenedor.innerHTML = "";
+    localStorage.setItem(
+      "equipo_elegido",
+      JSON.stringify({ id: "eq-1", nombre: "Atlético Mineiro" }),
     );
-    await act(async () =>
-      contenedor
-        .querySelector(".lista-equipos button")
-        .click(),
-    );
-
-    expect(JSON.parse(localStorage.getItem("equipo_elegido")).id).toBe("eq-1");
+    await montarApp();
 
     await act(async () => irA("Registros").click());
     const despues = contenedor.querySelectorAll(".registro-guardado");
@@ -1757,42 +1746,30 @@ describe("interfaz operativa", () => {
     await act(async () => irA("Registros").click());
     expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
 
-    await act(async () => irA("Ajustes").click());
-    await act(async () =>
-      Array.from(contenedor.querySelectorAll(".opcion-ajuste"))
-        .find((boton) => boton.textContent.includes("Equipo"))
-        .click(),
-    );
-    await act(async () =>
-      Array.from(contenedor.querySelectorAll(".lista-equipos button"))
-        .find((boton) => boton.textContent.includes("Estudiantes"))
-        .click(),
-    );
+    // De club se cambia en el portal: Partido se cierra y vuelve a abrir con
+    // el otro.
+    const entrarCon = async (id, nombre) => {
+      await act(async () => raiz.unmount());
+      contenedor.innerHTML = "";
+      localStorage.setItem("equipo_elegido", JSON.stringify({ id, nombre }));
+      await montarApp();
+    };
+    await entrarCon("eq-2", "Estudiantes");
 
     await act(async () => irA("Registros").click());
     expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(0);
     expect(contenedor.textContent).not.toContain("Santos");
 
-    // Y volviendo al primero, sus partidos siguen estando. Ajustes recuerda en
-    // qué pantalla quedó, así que puede abrir directo en Equipo.
-    await act(async () => irA("Ajustes").click());
-    const volverAEquipo = Array.from(
-      contenedor.querySelectorAll(".opcion-ajuste"),
-    ).find((boton) => boton.textContent.includes("Equipo"));
-    if (volverAEquipo) await act(async () => volverAEquipo.click());
-
-    await act(async () =>
-      Array.from(contenedor.querySelectorAll(".lista-equipos button"))
-        .find((boton) => boton.textContent.includes("Mineiro"))
-        .click(),
-    );
+    // Y volviendo al primero, sus partidos siguen estando.
+    await entrarCon("eq-1", "Atlético Mineiro");
     await act(async () => irA("Registros").click());
     expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
   });
 
-  test("sin equipo elegido, la app pide elegirlo antes de dejar cargar nada", async () => {
+  test("sin equipo elegido, la app no deja cargar nada y dice que se elige en el portal", async () => {
     // Sin equipo, lo que se cargue se guardaría sin dueño: no lo vería ni
-    // quien lo cargó. Por eso no se entra a la app hasta elegir.
+    // quien lo cargó. Por eso no se entra a la app sin club, y el club se
+    // elige solo en el portal (Santiago, 11/10).
     doblesSupabase.equipos = [
       { id: "eq-1", nombre: "Atlético Mineiro" },
       { id: "eq-2", nombre: "Estudiantes" },
@@ -1807,12 +1784,8 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelector("h1").textContent).toBe(
       "¿De qué equipo sos?",
     );
-    // Los dos clubes, para tocar el propio.
-    expect(
-      Array.from(contenedor.querySelectorAll(".lista-equipos button")).map(
-        (boton) => boton.textContent.trim(),
-      ),
-    ).toHaveLength(2);
+    expect(contenedor.querySelector(".lista-equipos")).toBeNull();
+    expect(contenedor.textContent).toContain("el club se elige en el portal");
 
     // Y no se puede escapar a cargar un partido.
     await act(async () =>
@@ -1823,19 +1796,7 @@ describe("interfaz operativa", () => {
     expect(contenedor.querySelector("h1").textContent).toBe(
       "¿De qué equipo sos?",
     );
-
-    // Al elegir uno, la app se abre con lo de ese club.
-    await act(async () =>
-      Array.from(contenedor.querySelectorAll(".lista-equipos button"))
-        .find((boton) => boton.textContent.includes("Atlético Mineiro"))
-        .click(),
-    );
-    await act(async () =>
-      Array.from(contenedor.querySelectorAll(".navegacion-movil button"))
-        .find((boton) => boton.textContent.includes("Registros"))
-        .click(),
-    );
-    expect(contenedor.querySelectorAll(".registro-guardado")).toHaveLength(1);
+    expect(localStorage.getItem("equipo_elegido")).toBeNull();
   });
 
   test("si la base no contesta, no se queda pidiendo un equipo que no puede ofrecer", async () => {

@@ -256,19 +256,19 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
       />
     );
   } else if (modo === MODOS.PARTIDO && enClub.partido) {
-    // La portada ya mostró la foto: Partido entra sin su intro. Desde sus
-    // Ajustes se vuelve al portal o se cierra la sesión.
-    contenido = <App intro={false} onVolver={volver} onCerrarSesion={cerrarSesion} />;
+    // La portada ya mostró la foto: Partido entra sin su intro. La sesión se
+    // cierra y el club se cambia acá, en el portal, no en los módulos.
+    contenido = <App intro={false} onVolver={volver} />;
   } else if (modo === MODOS.ENTRENAMIENTO && enClub.flujo) {
     contenido = (
       // Quien entró con la copia de su cuenta (sin señal) no espera a que el
       // servidor abra la sesión de OpenField: entra y se abre cuando haya red.
       <OpenFieldSession onVolver={volver} sinSenal={desdeCache}>
-        {({ rol }) => <TrainingModule onVolver={volver} email={email} onCerrarSesion={cerrarSesion} rol={rol} />}
+        {({ rol }) => <TrainingModule onVolver={volver} email={email} rol={rol} />}
       </OpenFieldSession>
     );
   } else if (modo === MODOS.BASES && enClub.bases) {
-    contenido = <BasesDeDatos permisos={enClub} userId={userId} email={email} onVolver={volver} onCerrarSesion={cerrarSesion} onTarjetas={releerClub} />;
+    contenido = <BasesDeDatos permisos={enClub} userId={userId} email={email} onVolver={volver} onTarjetas={releerClub} />;
   } else if (modo === MODOS.DATOS && enClub.datos) {
     contenido = <DatosBasicos onVolver={volver} permisos={enClub} />;
   } else if (modo === MODOS.NOTAS && enClub.notas) {

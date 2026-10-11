@@ -8,18 +8,9 @@ import { interpretarRespuesta, resumirSonda } from "../lib/openfieldProbe.js";
 
 // Como en el módulo: la subpantalla de Ajustes vive en el padre. Por
 // defecto la sesión de OpenField volvió con rol admin (ve Pruebas técnicas).
-const Ajustes = ({ onVolverModulos = () => {}, onCerrarSesion = () => {}, rol = "admin", vistaInicial = "inicio" }) => {
+const Ajustes = ({ onVolverModulos = () => {}, rol = "admin", vistaInicial = "inicio" }) => {
   const [vista, setVista] = useState(vistaInicial);
-  return (
-    <TrainingSettings
-      vista={vista}
-      onCambiarVista={setVista}
-      onVolverModulos={onVolverModulos}
-      email="x@y"
-      onCerrarSesion={onCerrarSesion}
-      rol={rol}
-    />
-  );
+  return <TrainingSettings vista={vista} onCambiarVista={setVista} onVolverModulos={onVolverModulos} rol={rol} />;
 };
 
 vi.mock("./supabase.js", () => ({
@@ -159,10 +150,7 @@ describe("TrainingSettings", () => {
   test("Pruebas técnicas solo aparece si la sesión de OpenField volvió con rol admin", async () => {
     vi.stubGlobal("fetch", fetchRuteado(SIN_CUENTA));
     await montar({ rol: "usuario" });
-    expect([...contenedor.querySelectorAll(".opcion-ajuste .texto-ajuste b")].map((b) => b.textContent)).toEqual([
-      "Usuario y contraseña",
-      "Cerrar sesión",
-    ]);
+    expect([...contenedor.querySelectorAll(".opcion-ajuste .texto-ajuste b")].map((b) => b.textContent)).toEqual(["Usuario y contraseña"]);
     // Ni entrando directo a esa pantalla.
     await act(async () => raiz.unmount());
     await montar({ rol: "usuario", vistaInicial: "pruebas" });
@@ -180,13 +168,12 @@ describe("TrainingSettings", () => {
     expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe("Bearer token-supabase");
 
     expect(contenedor.querySelector("h1").textContent).toBe("Ajustes");
+    // La sesión de la app se cierra en el portal, no acá (Santiago, 11/10).
     expect([...contenedor.querySelectorAll(".opcion-ajuste .texto-ajuste b")].map((b) => b.textContent)).toEqual([
       "Usuario y contraseña",
       "Pruebas técnicas",
-      "Cerrar sesión",
     ]);
     expect(opcion("Usuario y contraseña").textContent).toContain("Todavía no conectaste tu usuario");
-    expect(opcion("Cerrar sesión").textContent).toContain("x@y");
 
     // La cuenta ya se leyó: entrar a "Usuario y contraseña" no la vuelve a pedir.
     await entrarA("Usuario y contraseña");
@@ -431,20 +418,11 @@ describe("TrainingSettings", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  test("cerrar sesión sale por Ajustes con confirmación", async () => {
+  test("Ajustes no cierra la sesión: eso se hace en el portal", async () => {
     vi.stubGlobal("fetch", fetchRuteado(SIN_CUENTA));
-    const onCerrarSesion = vi.fn();
+    await montar();
 
-    await montar({ onCerrarSesion });
-
-    await act(async () => opcion("Cerrar sesión").click());
-    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Cerrar sesión?");
-    await act(async () => contenedor.querySelector(".boton-cancelar-hoja").click());
-    expect(onCerrarSesion).not.toHaveBeenCalled();
-    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
-
-    await act(async () => opcion("Cerrar sesión").click());
-    await act(async () => contenedor.querySelector(".boton-confirmar-hoja").click());
-    expect(onCerrarSesion).toHaveBeenCalledTimes(1);
+    expect(opcion("Cerrar sesión")).toBeUndefined();
+    expect(contenedor.textContent).not.toContain("Cerrar sesión");
   });
 });
