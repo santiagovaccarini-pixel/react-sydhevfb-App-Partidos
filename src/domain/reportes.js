@@ -234,7 +234,6 @@ export const periodoDe = (cual, hoy, lesiones = []) => {
 //     "porcion"; bloque 4: una fila por persona, apilada por "series";
 //     bloque 5: una columna por "categoria" (los valores de "valores", o
 //     todos los cargados si es null), agrupadas por "series".
-//   · filtros: las segmentaciones del Excel de cada bloque.
 //   · vaciaCuenta: si la porción o serie vacía (sin parte del cuerpo) cuenta
 //     como "Sin dato" (tortas y momentos) o no cuenta (por jugador), como
 //     cada tabla del Excel.
@@ -244,11 +243,6 @@ export const REGLAS_GRAFICOS = Object.freeze({
   tortas: Object.freeze({ campo: "producto", valores: Object.freeze(["nao_traumatica", "traumatica"]), porcion: "parte_cuerpo", vaciaCuenta: true }),
   porJugador: Object.freeze({ series: "parte_cuerpo", vaciaCuenta: false }),
   momentos: Object.freeze({ categoria: "cuando", valores: null, series: "parte_cuerpo", vaciaCuenta: true }),
-  filtros: Object.freeze({
-    tortas: Object.freeze(["parte_cuerpo", "musculo", "musculo_especifico", "ligamento", "area", "lado", "tipo_lesion", "posicion"]),
-    porJugador: Object.freeze(["jugador", "tipo_lesion", "producto"]),
-    momentos: Object.freeze(["cuando", "parte_cuerpo"]),
-  }),
 });
 
 const vacio = (valor) => valor === null || valor === undefined || valor === "";
@@ -342,19 +336,6 @@ export const lesionesDelBloque = (bloque, lesiones, { anio = null, ...opciones }
     });
   }
   return base;
-};
-
-// Para la lista de un filtro: cuántas lesiones de su bloque hay de cada valor
-// con los otros filtros del bloque (como el filtro de una columna en Excel),
-// también las que no tienen dato (""). { valor: n }.
-export const cuantasPorValor = (lesiones, campo, { bloque = null, anio = null, filtros = {}, posicionDe } = {}) => {
-  const otros = Object.fromEntries(Object.entries(filtros).filter(([otro]) => otro !== campo));
-  const cuenta = {};
-  lesionesDelBloque(bloque, lesiones, { anio, filtros: otros, posicionDe }).forEach((lesion) => {
-    const valor = valorParaGrafico(lesion, campo, posicionDe) ?? "";
-    cuenta[valor] = (cuenta[valor] || 0) + 1;
-  });
-  return cuenta;
 };
 
 // Cuántas de cada valor de un campo: { valor: n } (la vacía como "", si cuenta).

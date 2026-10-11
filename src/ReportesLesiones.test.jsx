@@ -377,16 +377,28 @@ describe("los reportes con los minutos del GPS", () => {
   const detalles = (grafico) => [...grafico.querySelectorAll(".reporte-columnas-detalle")].map((detalle) => detalle.textContent);
   const leyendaDeTorta = (indice) =>
     [...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-dos > .tarjeta")[indice].querySelectorAll(".reporte-torta-leyenda li")].map((li) => `${li.querySelector("span").textContent} ${li.querySelector("b").textContent}`);
-  // Un filtro de los gráficos: se abre, se marca solo lo pedido y se aplica.
+  // El filtro de cada gráfico (Santiago, 11/10): el embudo de su tarjeta
+  // abre sus cabeceras; una cabecera, sus valores para marcar.
+  const tarjetasDe = (bloque) => [...bloqueDe(bloque).querySelectorAll(".tarjeta")];
+  const hojaDeCabeceras = () => document.querySelector(".reporte-graficos-hoja-cabeceras");
   const hojaDelFiltro = () => document.querySelector(".reporte-graficos-hoja-filtro");
-  const filtrar = async (bloque, campo, valores) => {
-    await tocar([...bloqueDe(bloque).querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith(campo)));
+  const cabecerasOfrecidas = () => [...hojaDeCabeceras().querySelectorAll(".opcion-hoja")].map((boton) => boton.firstChild.textContent);
+  const opcionDe = (campo) => [...hojaDeCabeceras().querySelectorAll(".opcion-hoja")].find((boton) => boton.firstChild.textContent === campo);
+  const botonDeHoja = (hoja, texto) => [...hoja.querySelectorAll("button")].find((boton) => boton.textContent.trim() === texto);
+  const abrirCabecera = async (tarjeta, campo) => {
+    await tocar(tarjeta.querySelector(".reporte-grafico-embudo"));
+    await tocar(opcionDe(campo));
+  };
+  const filtrar = async (tarjeta, campo, valores) => {
+    await abrirCabecera(tarjeta, campo);
     await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
     for (const valor of valores) {
       // eslint-disable-next-line no-await-in-loop
       await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].find((label) => label.querySelector("span").textContent === valor).querySelector("input"));
     }
-    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    await tocar(botonDeHoja(hojaDelFiltro(), "Aplicar"));
+    // Vuelve a las cabeceras del gráfico; Listo la cierra.
+    await tocar(botonDeHoja(hojaDeCabeceras(), "Listo"));
   };
   const abrirGraficos = async (gps = GPS, plantel = PLANTEL, lesiones = LESIONES) => {
     await montar(gps, plantel, lesiones);
@@ -423,14 +435,42 @@ describe("los reportes con los minutos del GPS", () => {
     expect(texto()).not.toContain("Faltan los minutos del GPS");
   });
 
-  test("Informes gráficos: el año de cada bloque, por separado", async () => {
+  test("Informes gráficos: arriba no hay filtros; cada gráfico tiene su embudo, con el año adentro y por separado", async () => {
     periodosGuardados.lista = [...PERIODOS, { id: "p0", nombre: "2025", desde: "2025-01-01", hasta: "2025-12-31" }];
     await abrirGraficos();
-    const chips = (titulo) => [...bloqueDe(titulo).querySelectorAll(".reporte-graficos-filtros button")];
-    expect(chips("N° de lesiones c/1000 h").map((chip) => chip.textContent)).toEqual(["Todos los años", "2025", "2026"]);
-    await tocar(chips("N° de lesiones c/1000 h")[1]);
+    expect(contenedor.querySelectorAll(".reporte-graficos-filtros")).toHaveLength(0);
+    // Un embudo por gráfico: 4 + 4 + 2 tortas + jugador + momentos.
+    expect(contenedor.querySelectorAll(".reporte-grafico-embudo")).toHaveLength(12);
+    const [todas, sinLeves] = graficosDe("N° de lesiones c/1000 h");
+    expect(todas.querySelector(".reporte-grafico-embudo").getAttribute("aria-label")).toBe(`Filtrar: ${todas.querySelector(".cabeza-ficha b").textContent}`);
+    await tocar(todas.querySelector(".reporte-grafico-embudo"));
+    // En los c/1000 h: el año (de los períodos) y las cabeceras de la lesión,
+    // sin las de la persona (las horas son de todo el plantel).
+    const ofrecidas = cabecerasOfrecidas();
+    expect(ofrecidas[0]).toBe("Año");
+    expect(ofrecidas).toContain("Parte del cuerpo lesionada");
+    expect(ofrecidas).toContain("Fecha de inicio de la lesión");
+    for (const dePersona of ["Nombre y apellido", "Posición", "Edad", "Categoría", "Pie dominante", "Fecha de nacimiento"]) expect(ofrecidas).not.toContain(dePersona);
+    await tocar(opcionDe("Año"));
+    expect([...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label span")].map((span) => span.textContent)).toEqual(["2025", "2026"]);
+    await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
+    await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent.startsWith("2025")).querySelector("input"));
+    await tocar(botonDeHoja(hojaDelFiltro(), "Aplicar"));
+    expect(opcionDe("Año").querySelector("small").textContent).toBe("2025");
+    await tocar(botonDeHoja(hojaDeCabeceras(), "Listo"));
+    expect(hojaDeCabeceras()).toBeNull();
+    // Solo ese gráfico: los otros siguen con los tres períodos.
     expect(valores(graficosDe("N° de lesiones c/1000 h")[0])).toHaveLength(1);
+    expect(graficosDe("N° de lesiones c/1000 h")[0].querySelector(".reporte-grafico-filtrado").textContent).toBe("Año: 2025");
+    expect(graficosDe("N° de lesiones c/1000 h")[0].querySelector(".reporte-grafico-embudo").getAttribute("aria-pressed")).toBe("true");
+    expect(valores(sinLeves)).toHaveLength(3);
+    expect(sinLeves.querySelector(".reporte-grafico-filtrado")).toBeNull();
     expect(valores(graficosDe("N° de días perdidos c/1000 h")[0])).toHaveLength(3);
+    // Quitar filtros vuelve a todo.
+    await tocar(graficosDe("N° de lesiones c/1000 h")[0].querySelector(".reporte-grafico-embudo"));
+    await tocar(botonDeHoja(hojaDeCabeceras(), "Quitar filtros"));
+    await tocar(botonDeHoja(hojaDeCabeceras(), "Listo"));
+    expect(valores(graficosDe("N° de lesiones c/1000 h")[0])).toHaveLength(3);
   });
 
   test("Informes gráficos sin los minutos del GPS: las lesiones y los días, sin barras, y el aviso", async () => {
@@ -459,11 +499,16 @@ describe("los reportes con los minutos del GPS", () => {
     expect(leyendaDeTorta(0)).toEqual(["coxa 50%", "tornozelo_pe 50%"]);
     expect(leyendaDeTorta(1)).toEqual(["joelho 100%"]);
     expect(bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-dos > .tarjeta")[1].querySelector("svg circle")).not.toBeNull();
-    // Lado: izquierdo.
-    await filtrar("Partes del cuerpo", "Lado", ["esquerdo"]);
+    // Lado: izquierdo, en la torta de no traumáticas.
+    await filtrar(tarjetasDe("Partes del cuerpo")[0], "Lado", ["esquerdo"]);
     expect(leyendaDeTorta(0)).toEqual(["tornozelo_pe 100%"]);
-    expect(bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-dos > .tarjeta")[1].textContent).toContain("No hay lesiones con estos filtros.");
-    expect(bloqueDe("Partes del cuerpo").querySelector(".reporte-graficos-filtrado").textContent).toContain("Lado: esquerdo");
+    expect(tarjetasDe("Partes del cuerpo")[0].querySelector(".reporte-grafico-filtrado").textContent).toBe("Lado: esquerdo");
+    // La otra torta tiene su propio filtro: no cambia.
+    expect(leyendaDeTorta(1)).toEqual(["joelho 100%"]);
+    expect(tarjetasDe("Partes del cuerpo")[1].querySelector(".reporte-grafico-filtrado")).toBeNull();
+    // Y su lista ofrece lo de sus lesiones: en las traumáticas no hay izquierdas.
+    await abrirCabecera(tarjetasDe("Partes del cuerpo")[1], "Lado");
+    expect([...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label span")].map((span) => span.textContent)).toEqual(["direito"]);
   });
 
   test("Informes gráficos: lesiones por jugador y entrenamiento y partidos", async () => {
@@ -478,7 +523,12 @@ describe("los reportes con los minutos del GPS", () => {
     expect(momentos.querySelector(".cabeza-ficha b").textContent).toBe("2026");
     expect([...momentos.querySelectorAll(".reporte-columnas-etiqueta")].map((etiqueta) => etiqueta.textContent)).toEqual(["treinamento"]);
     expect(valores(momentos)).toEqual(["1", "1", "1"]);
-    await tocar([...momentos.querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent === "Todos los años"));
+    // El año va en su filtro; el título lo dice (y no se repite debajo).
+    expect(momentos.querySelector(".reporte-grafico-filtrado")).toBeNull();
+    await abrirCabecera(momentos.querySelector(".tarjeta"), "Año");
+    await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Todos"));
+    await tocar(botonDeHoja(hojaDelFiltro(), "Aplicar"));
+    await tocar(botonDeHoja(hojaDeCabeceras(), "Listo"));
     expect(momentos.querySelector(".cabeza-ficha b").textContent).toBe("Todos los años");
   });
 
@@ -511,10 +561,10 @@ describe("los reportes con los minutos del GPS", () => {
     // Sin lesiones de 2026 (el año de hoy): el último año con lesiones.
     expect(bloqueDe("Entrenamiento y partidos").querySelector(".cabeza-ficha b").textContent).toBe("2025");
     // Posición: la del plantel (en el Excel, el Puesto de Datos Básicos).
-    await filtrar("Partes del cuerpo", "Posición", ["goleiro"]);
+    await filtrar(tarjetasDe("Partes del cuerpo")[0], "Posición", ["goleiro"]);
     expect(leyendaDeTorta(0)).toEqual(["tornozelo_pe 100%"]);
     // Por jugador, el filtro del jugador (como el del Excel): solo SCARPA.
-    await filtrar("Lesiones por jugador", "Nombre y apellido", ["SCARPA"]);
+    await filtrar(tarjetasDe("Lesiones por jugador")[0], "Nombre y apellido", ["SCARPA"]);
     expect([...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-barras li .reporte-barras-etiqueta")].map((etiqueta) => etiqueta.textContent)).toEqual(["SCARPA"]);
   });
 
@@ -525,27 +575,34 @@ describe("los reportes con los minutos del GPS", () => {
     const filas = () => [...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-barras li .reporte-barras-etiqueta")].map((etiqueta) => etiqueta.textContent);
     expect(filas()).toEqual(["HULK", "Persona De Afuera", "SCARPA"]);
     // La lista: todos marcados al abrir, con cuántas lesiones tiene cada uno.
-    const chip = () => [...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Nombre y apellido"));
-    await tocar(chip());
+    const grafico = () => tarjetasDe("Lesiones por jugador")[0];
+    const detalle = async () => {
+      await tocar(grafico().querySelector(".reporte-grafico-embudo"));
+      const texto = opcionDe("Nombre y apellido").querySelector("small").textContent;
+      await tocar(botonDeHoja(hojaDeCabeceras(), "Listo"));
+      return texto;
+    };
+    await abrirCabecera(grafico(), "Nombre y apellido");
     const lista = () => [...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].map((label) => [label.querySelector("span").textContent, label.querySelector("input").checked, label.querySelector("small").textContent]);
     expect(lista()).toEqual([
       ["HULK", true, "2"],
       ["Persona De Afuera", true, "1"],
       ["SCARPA", true, "1"],
     ]);
-    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    await tocar(botonDeHoja(hojaDelFiltro(), "Aplicar"));
+    await tocar(botonDeHoja(hojaDeCabeceras(), "Listo"));
     // Con todo marcado no filtra.
-    expect(chip().textContent).toBe("Nombre y apellido: Todos");
-    expect(chip().getAttribute("aria-pressed")).toBe("false");
+    expect(await detalle()).toBe("Todos");
+    expect(grafico().querySelector(".reporte-grafico-embudo").getAttribute("aria-pressed")).toBe("false");
     // Dos de tres: van esos dos.
-    await filtrar("Lesiones por jugador", "Nombre y apellido", ["HULK", "SCARPA"]);
+    await filtrar(grafico(), "Nombre y apellido", ["HULK", "SCARPA"]);
     expect(filas()).toEqual(["HULK", "SCARPA"]);
-    expect(chip().textContent).toBe("Nombre y apellido: 2 elegidos");
-    expect(chip().getAttribute("aria-pressed")).toBe("true");
+    expect(await detalle()).toBe("2 elegidos");
+    expect(grafico().querySelector(".reporte-grafico-embudo").getAttribute("aria-pressed")).toBe("true");
     // Impreso se leen todos los elegidos.
-    expect(bloqueDe("Lesiones por jugador").querySelector(".reporte-graficos-filtrado").textContent).toBe("Nombre y apellido: HULK, SCARPA");
+    expect(grafico().querySelector(".reporte-grafico-filtrado").textContent).toBe("Nombre y apellido: HULK, SCARPA");
     // Al volver a abrir, lo elegido sigue marcado; Ninguno solo toca lo buscado.
-    await tocar(chip());
+    await abrirCabecera(grafico(), "Nombre y apellido");
     expect(lista().map(([nombre, marcado]) => [nombre, marcado])).toEqual([
       ["HULK", true],
       ["Persona De Afuera", false],
@@ -565,21 +622,22 @@ describe("los reportes con los minutos del GPS", () => {
       ["Persona De Afuera", false],
       ["SCARPA", false],
     ]);
-    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    await tocar(botonDeHoja(hojaDelFiltro(), "Aplicar"));
+    await tocar(botonDeHoja(hojaDeCabeceras(), "Listo"));
     expect(filas()).toEqual(["HULK"]);
-    await filtrar("Lesiones por jugador", "Nombre y apellido", ["HULK", "SCARPA"]);
+    await filtrar(grafico(), "Nombre y apellido", ["HULK", "SCARPA"]);
     // Con otro filtro, la lista ofrece solo a quienes les queda alguna.
-    await filtrar("Lesiones por jugador", "Producto", ["traumatica"]);
+    await filtrar(grafico(), "Producto", ["traumatica"]);
     expect(filas()).toEqual(["HULK"]);
-    await tocar(chip());
+    await abrirCabecera(grafico(), "Nombre y apellido");
     expect(lista()).toEqual([["HULK", true, "1"]]);
     // Quitar el filtro: vuelven todos los que deja el otro filtro.
-    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Quitar filtro"));
-    expect(chip().textContent).toBe("Nombre y apellido: Todos");
+    await tocar(botonDeHoja(hojaDelFiltro(), "Quitar filtro"));
+    expect(opcionDe("Nombre y apellido").querySelector("small").textContent).toBe("Todos");
     // Ninguno marcado: no se puede aplicar.
-    await tocar(chip());
+    await tocar(opcionDe("Nombre y apellido"));
     await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
-    expect([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar").disabled).toBe(true);
+    expect(botonDeHoja(hojaDelFiltro(), "Aplicar").disabled).toBe(true);
   });
 
   test("Informes gráficos: las listas ofrecen Sin dato y cuentan lo de su gráfico (el año de Entrenamiento y partidos)", async () => {
@@ -589,19 +647,50 @@ describe("los reportes con los minutos del GPS", () => {
     const otroAnio = { id: "les-25", jugador_id: 7, numero_caso: 5, fecha_lesion: "2025-05-01", fecha_alta: "2025-05-03", datos: { parte_cuerpo: "pe_dedo", lado: "direito", tipo_lesion: "entorse", ...DEL_CUADRO } };
     await abrirGraficos(GPS, PLANTEL, [conMusculo, sinMusculo, otroAnio]);
     // Músculo: con "Sin dato" (las que no lo tienen), que se puede dejar marcado.
-    await tocar([...bloqueDe("Partes del cuerpo").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Músculo afectado")));
+    await abrirCabecera(tarjetasDe("Partes del cuerpo")[0], "Músculo afectado");
     const lista = () => [...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].map((label) => [label.querySelector("span").textContent, label.querySelector("small").textContent]);
     expect(lista()).toEqual([
       ["isquiotibiais", "1"],
       ["Sin dato", "2"],
     ]);
     await tocar(hojaDelFiltro().querySelector(".tabla-datos-valores input"));
-    await tocar([...hojaDelFiltro().querySelectorAll("button")].find((boton) => boton.textContent.trim() === "Aplicar"));
+    await tocar(botonDeHoja(hojaDelFiltro(), "Aplicar"));
+    await tocar(botonDeHoja(hojaDeCabeceras(), "Listo"));
     // Sin isquiotibiais: quedan las sin músculo (no se pierden).
     expect(leyendaDeTorta(0)).toEqual(["coxa 50%", "pe_dedo 50%"]);
     // Entrenamiento y partidos (2026): la lista de partes no ofrece la de 2025.
-    await tocar([...bloqueDe("Entrenamiento y partidos").querySelectorAll(".reporte-graficos-filtros button")].find((boton) => boton.textContent.startsWith("Parte del cuerpo")));
+    await abrirCabecera(tarjetasDe("Entrenamiento y partidos")[0], "Parte del cuerpo lesionada");
     expect(lista()).toEqual([["coxa", "2"]]);
+    await tocar(botonDeHoja(hojaDelFiltro(), "Quitar filtro"));
+    // Y el año, de las lesiones que cuenta: 2025 y 2026, de entrada 2026.
+    await tocar(opcionDe("Año"));
+    expect(lista()).toEqual([
+      ["2025", "1"],
+      ["2026", "2"],
+    ]);
+    expect([...hojaDelFiltro().querySelectorAll(".tabla-datos-valores input")].map((input) => input.checked)).toEqual([false, true]);
+  });
+
+  test("Informes gráficos: cualquier cabecera de la Base filtra un gráfico, con lo que dice su celda", async () => {
+    periodosGuardados.lista = [];
+    await abrirGraficos();
+    // Lo que no es una lista se filtra por lo que dice la celda de la Base (acá, de prueba: "campo:lesión").
+    await abrirCabecera(tarjetasDe("Lesiones por jugador")[0], "Fecha de inicio de la lesión");
+    const lista = () => [...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].map((label) => label.querySelector("span").textContent);
+    expect(lista()).toEqual(["fecha_lesion:les-1", "fecha_lesion:les-2", "fecha_lesion:les-3"]);
+    await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-todos button")].find((boton) => boton.textContent === "Ninguno"));
+    await tocar([...hojaDelFiltro().querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent.startsWith("fecha_lesion:les-3")).querySelector("input"));
+    await tocar(botonDeHoja(hojaDelFiltro(), "Aplicar"));
+    // En las demás cabeceras está todo: el jugador, la posición, la edad (no es un c/1000 h).
+    expect(cabecerasOfrecidas()).toEqual(expect.arrayContaining(["Año", "Nombre y apellido", "Posición", "Edad", "Fecha de inicio de la lesión"]));
+    await tocar(botonDeHoja(hojaDeCabeceras(), "Listo"));
+    expect([...bloqueDe("Lesiones por jugador").querySelectorAll(".reporte-barras li .reporte-barras-etiqueta")].map((etiqueta) => etiqueta.textContent)).toEqual(["SCARPA"]);
+    expect(tarjetasDe("Lesiones por jugador")[0].querySelector(".reporte-grafico-filtrado").textContent).toBe("Fecha de inicio de la lesión: fecha_lesion:les-3");
+    // Escape (o tocar afuera) cierra la lista de valores y vuelve a las cabeceras.
+    await abrirCabecera(tarjetasDe("Lesiones por jugador")[0], "Lado");
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    expect(hojaDelFiltro()).toBeNull();
+    expect(hojaDeCabeceras()).not.toBeNull();
   });
 
   test("Informes gráficos: por jugador, el título es el campo, con su leyenda aunque sea una parte, y la nota dice qué cuenta", async () => {

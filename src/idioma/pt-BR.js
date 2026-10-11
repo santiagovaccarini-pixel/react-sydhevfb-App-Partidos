@@ -1050,7 +1050,9 @@ export default {
       titulo: "RELATÓRIOS GRÁFICOS DE LESÕES",
       alDia: "Em {{fecha}}",
       ir: "Ir para",
-      filtros: "Filtros",
+      filtrarGrafico: "Filtrar: {{grafico}}",
+      quitarFiltros: "Tirar filtros",
+      listo: "Pronto",
       secciones: {
         lesiones: "N° de lesões c/1000 h",
         dias: "N° de dias perdidos c/1000 h",

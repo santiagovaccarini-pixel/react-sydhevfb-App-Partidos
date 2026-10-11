@@ -1062,7 +1062,9 @@ export default {
       titulo: "INFORMES GRÁFICOS DE LESIONES",
       alDia: "Al {{fecha}}",
       ir: "Ir a",
-      filtros: "Filtros",
+      filtrarGrafico: "Filtrar: {{grafico}}",
+      quitarFiltros: "Quitar filtros",
+      listo: "Listo",
       secciones: {
         lesiones: "N° de lesiones c/1000 h",
         dias: "N° de días perdidos c/1000 h",

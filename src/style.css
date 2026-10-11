@@ -6483,12 +6483,14 @@ button.puesto-cancha {
   padding: 2px;
 }
 
-.hoja-opciones .buscador-hoja {
+.hoja-opciones .buscador-hoja,
+.hoja-inferior .buscador-hoja {
   flex: 0 0 auto;
   margin-bottom: 10px;
 }
 
-.hoja-opciones .buscador-hoja input {
+.hoja-opciones .buscador-hoja input,
+.hoja-inferior .buscador-hoja input {
   width: 100%;
   height: 46px;
   padding: 0 12px;
@@ -6501,7 +6503,8 @@ button.puesto-cancha {
   box-sizing: border-box;
 }
 
-.hoja-opciones .lista-opciones-hoja .sin-resultados {
+.hoja-opciones .lista-opciones-hoja .sin-resultados,
+.hoja-inferior .lista-opciones-hoja .sin-resultados {
   margin: 4px 0;
   padding: 12px;
   color: #64748b;

@@ -495,6 +495,20 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   gráficos, en los dos idiomas y aunque aparezca una parte nueva; ninguna repite). Las
   columnas comparten la base y la escala. Se imprime con un bloque por hoja (los 16
   períodos del Excel entran en cada gráfico; el de jugadores se corta entre jugadores).
+  **Filtros (Santiago, 11/10, reemplaza los de arriba de cada bloque):** cada gráfico (cada
+  torta por separado) tiene un embudo arriba a la derecha. Abre las cabeceras de ese
+  gráfico, con un buscador: el año y todas las columnas de la Base de Lesiones que el club
+  tiene a la vista; en los c/1000 h, sin las de la persona (nombre, categoría, fecha de
+  nacimiento, pie dominante, posición, edad), porque las horas son de todo el plantel. Cada
+  cabecera abre la lista para marcar varios valores, con cuántas lesiones del gráfico tiene
+  cada uno (la misma hoja que el filtro de las columnas de la Base). Las listas se filtran por
+  lo cargado; el jugador, por quién es; la posición, por la del plantel; lo demás, por lo que
+  dice la celda de la Base. El año es el del período en los c/1000 h y el de la fecha de
+  inicio en los demás; Entrenamiento y partidos arranca con el año de antes (el de hoy si
+  tiene lesiones; si no, el último) y su título lo dice. Debajo del título de cada gráfico va
+  lo filtrado (también impreso). Ya no están los botones de filtros ni de años de arriba
+  (`REGLAS_GRAFICOS.filtros` se sacó). **Queda prohibido** volver a poner filtros compartidos
+  arriba de un bloque.
   **Diferencias con el Excel** (para decidir si hace
   falta): los filtros eligen uno o todos (en el Excel, varios); bloque 4 en barras
   horizontales (se leen los nombres en el celular); las tortas con la leyenda al lado en
@@ -1924,11 +1938,11 @@ cómo va cada una. Va un PR por nota.
   - **Queda prohibido:** volver a poner cerrar sesión o elegir o cambiar de club en los
     Ajustes (o en cualquier pantalla) de un módulo. Se hace en el portal: «Salir» y
     «Cambiar», arriba.
-- **Informes gráficos: un embudo en cada gráfico (decidido el 11/10, sin hacer).** Cada
-  gráfico (y cada torta por separado) lleva un embudo para filtrarlo por cualquier columna
-  de la Base de Lesiones, con el año adentro; se sacan los botones de filtros y de años de
-  arriba. En los de c/1000 h no se ofrecen Jugador ni Posición (las horas son de todo el
-  plantel).
+- **Informes gráficos: un embudo en cada gráfico (hecho el 11/10).** Cada gráfico (y cada
+  torta por separado) lleva un embudo para filtrarlo por cualquier columna de la Base de
+  Lesiones, con el año adentro; se sacaron los botones de filtros y de años de arriba. En los
+  de c/1000 h no se ofrece lo que es de la persona (las horas son de todo el plantel). Ver
+  «Lesiones: lo que sigue», Informes gráficos.
 - **Columnas fijas a elección (hecho el 11/10).** En cualquier base, doble clic en una cabecera
   la deja fija (o la suelta); se recuerda en cada aparato, por base. Ver «Bases de Datos
   (05/10)», columnas fijas a elección.
