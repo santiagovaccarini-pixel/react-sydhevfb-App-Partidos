@@ -146,17 +146,16 @@ const BarrasPorMes = ({ meses, textoSeveridad, idioma }) => {
   );
 };
 
-// El mapa corporal: el cuerpo de frente y de espaldas con una mancha de
-// calor donde hubo lesiones y el nombre de lo lesionado (el músculo, el
-// tendón, el ligamento o la parte del cuerpo). El mismo en el individual y
-// en el grupal (ahí, con los nombres de los lugares con más lesiones).
-const NOMBRES_EN_EL_GRUPAL = 6;
-const MapaCorporal = ({ lesiones, mapa, textoDeOpcion, maxNombres = Infinity }) => (
+// El mapa corporal: el cuerpo de frente y de espaldas con lo lesionado
+// pintado (el músculo, el tendón, el ligamento o la parte del cuerpo), más
+// intenso cuantas más lesiones, y nada más (Santiago, 11/10: sin nombres ni
+// líneas). El mismo en el individual y en el grupal; el nombre de lo
+// lesionado se lee al pasar el mouse.
+const MapaCorporal = ({ lesiones, mapa, textoDeOpcion }) => (
   <div className="reporte-mapa">
     <CuerpoConCalor
       manchas={manchasDe(lesiones, mapa)}
       nombreDe={(mancha) => textoDeOpcion(mancha.campo, mancha.codigo)}
-      maxNombres={maxNombres}
       vistas={{ frente: t("lesiones.reportes.vistas.frente"), espalda: t("lesiones.reportes.vistas.espalda") }}
       titulo={t("lesiones.reportes.mapaCorporal")}
     />
@@ -757,7 +756,7 @@ export default function ReportesLesiones({
           {bloque(t("lesiones.reportes.porMes"), <BarrasPorMes meses={porMes(delEquipo, desde, hasta)} textoSeveridad={textoSeveridad} idioma={idioma} />)}
 
           <section className="reporte-dos">
-            {bloque(t("lesiones.reportes.dondeSeLesionan"), <MapaCorporal lesiones={delEquipo} mapa={mapa} textoDeOpcion={texto} maxNombres={NOMBRES_EN_EL_GRUPAL} />)}
+            {bloque(t("lesiones.reportes.dondeSeLesionan"), <MapaCorporal lesiones={delEquipo} mapa={mapa} textoDeOpcion={texto} />)}
             {bloque(etiqueta("parte_cuerpo"), <Barras filas={conteo("parte_cuerpo")} vacio={vacio} color="#ef4444" />)}
           </section>
 

@@ -893,9 +893,10 @@ describe("el módulo Lesiones", () => {
     expect(contenedor.querySelectorAll(".informe-indicador-contra")).toHaveLength(0);
     expect(texto(contenedor)).toContain("Faltan los minutos del GPS");
     expect(texto(contenedor)).toContain("Superior a la referencia");
-    // El mapa corporal: una mancha donde se lesionó, con su nombre.
+    // El mapa corporal: lo lesionado pintado, sin nombres al costado.
     expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-mancha")).toHaveLength(1);
-    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-nombre")).toHaveLength(1);
+    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-mancha title")).toHaveLength(1);
+    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-nombre")).toHaveLength(0);
     // El historial: sus lesiones, con todas las columnas a la vista en dos
     // tablas por grupo del Excel (con los nombres de los grupos del club).
     const tablas = [...contenedor.querySelectorAll(".informe-tabla")];

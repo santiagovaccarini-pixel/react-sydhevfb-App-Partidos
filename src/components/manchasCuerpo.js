@@ -45,8 +45,13 @@ const buscadosDe = (datos, pieza) => {
   ].filter(Boolean);
 };
 
-// { vista, x, y, campo, codigo } de una lesión, o null si no se sabe dónde
-// va (sin parte del cuerpo, o una parte de un brazo o una pierna sin lado).
+// { vista, x, y, campo, codigo, pintar } de una lesión, o null si no se sabe
+// dónde va (sin parte del cuerpo, o una parte de un brazo o una pierna sin
+// lado). pintar: lo que se pinta en el mapa (Santiago, 11/10: solo lo
+// lesionado): { formas: [camino] (el músculo, tendón o ligamento, o la parte),
+// parte: el camino de la parte lesionada (nada pasa de ahí), espejada: si van
+// espejados como su región, mitad: "izquierda"/"derecha" en el tronco y la
+// cabeza sin músculo, la mitad del lado del jugador }.
 // mapa: el del club (crearMapa).
 export const dondeVa = (lesion, mapa) => {
   const datos = lesion?.datos || {};
@@ -63,10 +68,12 @@ export const dondeVa = (lesion, mapa) => {
   const delLado = (una) => !una.lado || !["direito", "esquerdo"].includes(lado) || una.lado === lado;
 
   // La parte lesionada en cada vista (sin espejar, como están dibujadas).
+  const piezaEn = (vista) => dibujoDe(region, vista)?.piezas.find((una) => una.parte === pieza) || null;
   const cajaDeLaParte = (vista) => {
-    const laPieza = dibujoDe(region, vista)?.piezas.find((una) => una.parte === pieza);
+    const laPieza = piezaEn(vista);
     return laPieza ? cajaDeCamino(laPieza.camino) : null;
   };
+  const conQuePintar = (vista, formas, mitad = null) => ({ formas, parte: piezaEn(vista)?.camino || null, espejada: Boolean(dibujoDe(region, vista)?.espejada), mitad });
   // El medio de la parte; en el tronco y la cabeza (que no tienen lado),
   // corrido a la mitad del lado del jugador.
   const medioDeLaParte = (vista, caja) => {
@@ -88,21 +95,24 @@ export const dondeVa = (lesion, mapa) => {
       const puntos = encontradas.flatMap((una) => una.puntos);
       const enLaParte = caja ? puntos.filter(([, y]) => y >= caja.y0 - MARGEN_DE_LA_PARTE && y <= caja.y1 + MARGEN_DE_LA_PARTE) : puntos;
       const [x, y] = espejar(vista, enLaParte.length >= 3 ? medioDe(enLaParte) : caja ? medioDeLaParte(vista, caja) : medioDe(puntos));
-      return { vista, x, y, campo: buscado.campo, codigo: buscado.nombre };
+      return { vista, x, y, campo: buscado.campo, codigo: buscado.nombre, pintar: conQuePintar(vista, encontradas.map((una) => una.camino)) };
     }
   }
   for (const vista of vistas) {
     const caja = cajaDeLaParte(vista);
     if (!caja) continue;
     const [x, y] = espejar(vista, medioDeLaParte(vista, caja));
-    return { vista, x, y, campo: "parte_cuerpo", codigo: parte };
+    // En el tronco y la cabeza (sin lado propio), la mitad del lado del jugador.
+    const conMitad = !dibujoDe(region, vista)?.espejada && !region.includes("_") && ["direito", "esquerdo"].includes(lado);
+    const mitad = conMitad ? ((lado === "direito") === (vista === "frente") ? "izquierda" : "derecha") : null;
+    return { vista, x, y, campo: "parte_cuerpo", codigo: parte, pintar: conQuePintar(vista, [piezaEn(vista).camino], mitad) };
   }
   return null;
 };
 
 // Las manchas de unas lesiones, por vista: { frente: [...], espalda: [...] },
-// cada una { clave, x, y, cantidad, campo, codigo }; las de un mismo lugar y
-// una misma estructura, juntas. Más lesiones, primero.
+// cada una { clave, x, y, cantidad, campo, codigo, pintar }; las de un mismo
+// lugar y una misma estructura, juntas. Más lesiones, primero.
 export const manchasDe = (lesiones, mapa) => {
   const juntas = new Map();
   lesiones.forEach((lesion) => {

@@ -438,7 +438,8 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   del cuerpo hay que volver a correrlo), una mancha de calor sobre el músculo,
   tendón o ligamento lesionado si está dibujado (si no, en el medio de la parte; más
   grande cuantas más lesiones) y una línea a su nombre (`src/components/CuerpoConCalor.jsx`
-  y `manchasCuerpo.js`); abajo, el historial con doce columnas todas a la vista (en el
+  y `manchasCuerpo.js`; **cambiado el 11/10**, ver «Lo anotado en Notas»: se pinta solo lo
+  lesionado y sin nombres); abajo, el historial con doce columnas todas a la vista (en el
   Excel se elegían desde la cabecera por falta de lugar): las del diseño de Santiago, que
   son las del Excel con "Músculo específico" en lugar de "Pase a transición"; menos las
   que el club escondió. Títulos y números en Roboto Condensed (`@fontsource`, solo la
@@ -1946,8 +1947,19 @@ cómo va cada una. Va un PR por nota.
 - **Columnas fijas a elección (hecho el 11/10).** En cualquier base, doble clic en una cabecera
   la deja fija (o la suelta); se recuerda en cada aparato, por base. Ver «Bases de Datos
   (05/10)», columnas fijas a elección.
-- **Mapa de calor (decidido el 11/10, sin hacer).** Se pinta solo el músculo o la parte
-  lesionada, más fuerte cuantas más lesiones; sin nombres, líneas ni puntos.
+- **Mapa de calor (hecho el 11/10).** Nota del 06/10: «Mejorar las zonas de calor de los
+  reportes individuales para que solo tome la parte del cuerpo lesionada y no muestre nada
+  mas que la mancha de calor. La intensidad tiene que depender de cuantas lesiones tenga y
+  donde». En el individual y en el grupal (el mismo mapa) se pinta el músculo, tendón o
+  ligamento lesionado si está dibujado (si no, la parte entera; en el tronco y la cabeza sin
+  músculo, la mitad del lado del jugador), recortado a la parte lesionada: nada se pasa a la
+  parte de al lado. El color va de amarillo (una lesión) a rojo oscuro: la escala llega hasta
+  4 lesiones o, si hay más, hasta el lugar con más del mapa. Mezclado con la figura (se ve el
+  relieve). Abajo, una barra con la escala y la nota «Cuanto más intenso el color, más
+  lesiones en ese lugar». El nombre de lo lesionado se lee al pasar el mouse (y lo lee quien
+  no ve la pantalla). Los cuerpos quedan del mismo tamaño. **Queda prohibido** volver a
+  poner nombres, líneas o puntos en el mapa, o una mancha redonda que pase de la parte
+  lesionada.
 - **Lo nuevo sin recargar (decidido el 11/10, sin hacer).** Lo que carga o cambia otra
   persona aparece solo en la pantalla, sin recargar. Las versiones nuevas de la app siguen
   como hoy.

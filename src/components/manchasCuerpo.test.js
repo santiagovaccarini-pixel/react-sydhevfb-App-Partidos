@@ -78,6 +78,22 @@ describe("dondeVa", () => {
     expect(dondeVa(lesion({ parte_cuerpo: "coluna_lombar" }), mapa).x).toBeCloseTo(ANCHO / 2, 0);
   });
 
+  test("lo que se pinta: el músculo (o la parte) y la parte que lo recorta", () => {
+    const biceps = dondeVa(lesion({ parte_cuerpo: "coxa", lado: "direito", musculo_especifico: "biceps_femoral_longa" }), mapa);
+    expect(biceps.pintar.formas.length).toBeGreaterThan(0);
+    expect(biceps.pintar.parte).toEqual(expect.any(String));
+    expect(biceps.pintar.mitad).toBeNull();
+    // La derecha del jugador, de espaldas, va espejada (del lado derecho de la pantalla).
+    expect(biceps.pintar.espejada).toBe(true);
+    const rodilla = dondeVa(lesion({ parte_cuerpo: "joelho", lado: "direito" }), mapa);
+    expect(rodilla.pintar.formas).toEqual([rodilla.pintar.parte]);
+    expect(rodilla.pintar.espejada).toBe(false);
+    // El tronco sin músculo: la mitad del lado del jugador.
+    expect(dondeVa(lesion({ parte_cuerpo: "abdomen", lado: "direito" }), mapa).pintar.mitad).toBe("izquierda");
+    expect(dondeVa(lesion({ parte_cuerpo: "coluna_lombar", lado: "direito" }), mapa).pintar.mitad).toBe("derecha");
+    expect(dondeVa(lesion({ parte_cuerpo: "coluna_lombar" }), mapa).pintar.mitad).toBeNull();
+  });
+
   test("sin parte, o una pierna sin lado: no se sabe dónde va", () => {
     expect(dondeVa(lesion({}), mapa)).toBe(null);
     expect(dondeVa(lesion({ parte_cuerpo: "coxa" }), mapa)).toBe(null);

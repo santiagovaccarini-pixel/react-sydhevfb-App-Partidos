@@ -250,16 +250,18 @@ describe("los reportes con los minutos del GPS", () => {
     expect(celda("tipo_lesion").classList.contains("informe-corta")).toBe(false);
   });
 
-  test("el mapa corporal: una mancha donde se lesionó, con el nombre de lo lesionado", async () => {
+  test("el mapa corporal: lo lesionado pintado, sin nombres (se leen al pasar el mouse)", async () => {
     await montar(GPS, PLANTEL);
     await tocar(botonQueEmpieza("Reporte individual"));
     await tocar(botonQueEmpieza("HULK"));
     const mapa = contenedor.querySelector(".informe-mapa");
-    // El muslo y la rodilla derechos, de frente (sin músculo cargado, en el
-    // medio de la parte).
+    // El muslo y la rodilla derechos, de frente (sin músculo cargado: la parte).
     const frente = mapa.querySelector('[data-vista="frente"]');
     expect(frente.querySelectorAll(".cuerpo-calor-mancha")).toHaveLength(2);
-    expect([...frente.querySelectorAll(".cuerpo-calor-nombre")].map((nombre) => nombre.textContent)).toEqual(["COXA", "JOELHO"]);
+    expect(mapa.querySelectorAll("text")).toHaveLength(2);
+    expect(mapa.querySelectorAll("line, circle")).toHaveLength(0);
+    expect([...frente.querySelectorAll(".cuerpo-calor-mancha title")].map((nombre) => nombre.textContent).sort()).toEqual(["coxa", "joelho"]);
+    expect(mapa.querySelector("svg").getAttribute("aria-label")).toContain("coxa");
     expect(mapa.querySelectorAll('[data-vista="espalda"] .cuerpo-calor-mancha')).toHaveLength(0);
     expect(mapa.querySelectorAll(".cuerpo-calor-vista text")[0].textContent).toBe("Anterior");
   });
