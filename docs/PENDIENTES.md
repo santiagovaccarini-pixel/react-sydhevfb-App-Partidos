@@ -607,7 +607,10 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   - la lista que compara el club al volver a las tarjetas, en `src/PortalApp.jsx`;
   - los textos `cuentas.modulos.<permiso>` en los dos idiomas, y la base lo pide en `permiso`;
   - los escenarios de `supabase/pruebas/escenarios.sql` (con y sin el permiso, invitación,
-    quien se fue).
+    quien se fue);
+  - lo nuevo sin recargar (desde el 11/10): la tabla, en la publicación de Realtime (como
+    `20261017_en_vivo.sql`, sin `replica identity full`), y la pantalla con `useEnVivo`
+    (`src/domain/enVivo.js`) y su lectura en silencio. Ver «Lo anotado en Notas».
 - Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
   Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones tiene sus fotos desde el
   05/10 (`public/portal/lesiones.webp` y `lesiones-parada.webp`, las mandó Santiago); el dibujo
@@ -1960,9 +1963,28 @@ cómo va cada una. Va un PR por nota.
   no ve la pantalla). Los cuerpos quedan del mismo tamaño. **Queda prohibido** volver a
   poner nombres, líneas o puntos en el mapa, o una mancha redonda que pase de la parte
   lesionada.
-- **Lo nuevo sin recargar (decidido el 11/10, sin hacer).** Lo que carga o cambia otra
-  persona aparece solo en la pantalla, sin recargar. Las versiones nuevas de la app siguen
-  como hoy.
+- **Lo nuevo sin recargar (hecho el 11/10).** Nota del 06/10: «Mejorar la actualizacion de
+  los nuevos registros entrantes al soft ya sean de datos o informacion. Tiene que ser rapida
+  y al momento, no tiene que ser necesario recargar la pagina»; Santiago, 11/10: «si se
+  cargan datos nuevos tengo que poder verlos sin recargar la pagina, eso es».
+  - Lo que otra persona carga, cambia o borra aparece solo, en un segundo más o menos, en
+    las pantallas abiertas de ese club: Lesiones, Evaluaciones, GPS, Datos básicos (y lo que
+    usan de Datos básicos las otras tres) y Notas. Usa Realtime de Supabase
+    (`src/domain/enVivo.js`, `useEnVivo`); las tablas entran en la publicación con
+    `supabase/migrations/20261017_en_vivo.sql`. Sin esa migración, o sin señal, todo queda
+    como antes (se ve lo nuevo al volver a entrar o con «Actualizar» donde lo hay).
+  - Vuelve a leer en silencio: sin «Cargando…», sin mover lo que se está escribiendo o
+    eligiendo, y si esa lectura falla quedan los datos que se veían, sin aviso de error.
+    Varios cambios seguidos (un pegado de muchas filas) se leen una vez, al terminar. Al
+    volver la conexión después de un corte, también lee.
+  - Quien ya se fue del club (la foto de su último día, solo lectura) no escucha nada.
+  - Las versiones nuevas de la app siguen como hoy (el aviso de «Actualizar»).
+  - Los borrados: Supabase no los filtra por club ni mira las políticas; manda solo el id
+    de la fila borrada a quien escuche la tabla. La app los escucha para volver a leer lo de
+    su club. **Queda prohibido** poner `replica identity full` en estas tablas: un borrado
+    mandaría la fila entera a cualquier cuenta con sesión.
+  - **Falta:** Partido y Flujo diario (tienen su propia cola sin señal y borradores en
+    curso: hay que pensarlos aparte), Cuentas y Ajustes de cada base.
 - **Tiempos de selección por jugador (pendiente).** Nota del 07/10: los jugadores que
   fueron a la selección tienen que tener esos tiempos aparte, y quien no fue no puede sumar
   más tiempo porque otro fue. Va con conectar las horas del GPS a Lesiones c/1000h (ver

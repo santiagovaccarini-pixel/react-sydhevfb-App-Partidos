@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEnVivo } from "./domain/enVivo.js";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
@@ -90,10 +91,18 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     };
   }, [equipoId]);
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    setError("");
+  // silencioso: lo nuevo de otros (useEnVivo), sin "Cargando…"; si no se pudo
+  // leer, queda lo que se veía.
+  const cargar = useCallback(async ({ silencioso = false } = {}) => {
+    if (!silencioso) {
+      setCargando(true);
+      setError("");
+    }
     const [respuestaPlantel, respuestaConfig] = await Promise.all([cargarPlantelLesiones(equipoId), leerConfig(equipoId)]);
+    if (silencioso) {
+      if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
+      return;
+    }
     setPlantel(respuestaPlantel.plantel || []);
     // Sin las tablas de Lesiones todavía, valen los textos del Excel.
     setConfig(respuestaConfig.error ? null : respuestaConfig.config);
@@ -104,6 +113,9 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10).
+  useEnVivo({ nombre: "datos", tablas: ["jugadores"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
 
   useEffect(() => {
     if (!aviso) return undefined;

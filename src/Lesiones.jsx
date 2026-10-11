@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEnVivo } from "./domain/enVivo.js";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { BotonVolver, DatoDetalle } from "./components/BotonVolver.jsx";
@@ -198,14 +199,24 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     };
   }, [equipoId]);
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    setError("");
+  // silencioso: lo nuevo de otros (useEnVivo), sin "Cargando…"; lo que no se
+  // pudo leer queda como se veía.
+  const cargar = useCallback(async ({ silencioso = false } = {}) => {
+    if (!silencioso) {
+      setCargando(true);
+      setError("");
+    }
     const [respuestaPlantel, respuestaLesiones, respuestaConfig] = await Promise.all([
       cargarPlantelLesiones(equipoId),
       listarLesiones(equipoId),
       leerConfig(equipoId),
     ]);
+    if (silencioso) {
+      if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
+      if (!respuestaConfig.error) setConfig(respuestaConfig.config);
+      if (!respuestaLesiones.error) setLesiones(respuestaLesiones.lesiones);
+      return;
+    }
     setPlantel(respuestaPlantel.plantel || []);
     setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
     setConfig(respuestaConfig.config);
@@ -220,6 +231,9 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10).
+  useEnVivo({ nombre: "lesiones", tablas: ["lesiones", "jugadores"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
 
   useEffect(() => {
     const alCambiar = () => setEnLinea(navigator.onLine !== false);

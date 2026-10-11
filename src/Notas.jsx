@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useEnVivo } from "./domain/enVivo.js";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { FlechaVolver } from "./components/PortalTarjetas.jsx";
 import { LARGO_MAXIMO_NOTA, agregarNota, borrarNota, cambiarNota, listarNotas, ordenarNotas } from "./domain/notasDb.js";
@@ -100,21 +101,37 @@ export default function Notas({ club, userId, adminClub = false, onVolver }) {
 
   const equipoId = club?.id;
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    setError("");
-    try {
-      setNotas(await listarNotas(equipoId));
-    } catch (errorCarga) {
-      setError(errorCarga.message || "notas.errorCargar");
-    } finally {
-      setCargando(false);
-    }
-  }, [equipoId]);
+  // silencioso: lo nuevo de otros (useEnVivo), sin "Cargando…"; si no se pudo
+  // leer, quedan las que se veían.
+  const cargar = useCallback(
+    async ({ silencioso = false } = {}) => {
+      if (silencioso) {
+        try {
+          setNotas(await listarNotas(equipoId));
+        } catch {
+          // Quedan las que se veían.
+        }
+        return;
+      }
+      setCargando(true);
+      setError("");
+      try {
+        setNotas(await listarNotas(equipoId));
+      } catch (errorCarga) {
+        setError(errorCarga.message || "notas.errorCargar");
+      } finally {
+        setCargando(false);
+      }
+    },
+    [equipoId],
+  );
 
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Lo que anota o cambia otra persona aparece solo (Santiago, 11/10).
+  useEnVivo({ nombre: "notas", tablas: ["notas"], equipoId, alCambiar: () => cargar({ silencioso: true }) });
 
   const agregar = async (evento) => {
     evento.preventDefault();
