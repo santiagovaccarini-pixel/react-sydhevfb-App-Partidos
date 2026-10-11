@@ -638,6 +638,15 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   celda fija como ellas, y el título de cada grupo queda a la vista a la derecha de las fijas.
   Antes la barra del grupo pasaba por encima de las fijas al correr la tabla
   (`src/components/TablaDatos.jsx`, la misma tabla de todas las bases).
+- Columnas fijas a elección (Santiago, 11/10: «si hago doble click en esa cabecera pasa a estar
+  fija y se recuerda por dispositivo»): en la compu, en todas las bases, dos clics en una
+  cabecera la dejan fija (va después de las que ya estaban) o la sueltan (vuelve a su lugar
+  entre las demás); al pasar el mouse, la cabecera lo dice. Queda guardado en cada aparato, por
+  tabla (`tabla_fijas:<tabla>`; en Evaluaciones, por test). Sin elegir nada, van las de
+  entrada (las de quién y cuándo de cada base). Una fija sin ancho propio queda con el que
+  medía. En el informe de arriba (GPS y Evaluaciones), el rótulo ocupa las fijas de entrada y
+  una medida fijada con dos clics muestra su dato. En el celular, dos toques no hacen nada:
+  ahí las fijas corren con las demás (no entrarían).
 - Borrar varias filas (Santiago, 09/10: «que al boton de borrar fila borre todas las filas que
   tenga seleccionada, xq hice shift y seleccione varias filas para borrar y no se borraron»):
   en todas las bases (Lesiones, Evaluaciones y Datos básicos), «Borrar fila» borra todas las
@@ -1920,8 +1929,9 @@ cómo va cada una. Va un PR por nota.
   de la Base de Lesiones, con el año adentro; se sacan los botones de filtros y de años de
   arriba. En los de c/1000 h no se ofrecen Jugador ni Posición (las horas son de todo el
   plantel).
-- **Columnas fijas a elección (decidido el 11/10, sin hacer).** En cualquier base, doble
-  clic en una cabecera la deja fija (o la suelta); se recuerda en cada aparato, por base.
+- **Columnas fijas a elección (hecho el 11/10).** En cualquier base, doble clic en una cabecera
+  la deja fija (o la suelta); se recuerda en cada aparato, por base. Ver «Bases de Datos
+  (05/10)», columnas fijas a elección.
 - **Mapa de calor (decidido el 11/10, sin hacer).** Se pinta solo el músculo o la parte
   lesionada, más fuerte cuantas más lesiones; sin nombres, líneas ni puntos.
 - **Lo nuevo sin recargar (decidido el 11/10, sin hacer).** Lo que carga o cambia otra
