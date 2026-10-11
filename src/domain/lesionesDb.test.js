@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, cargarPlantelLesiones, crearLesion, guardarDatosJugador, historialDeLesion, importarLesion, listarLesiones } from "./lesionesDb.js";
+import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, cargarPlantelLesiones, crearLesion, guardarDatosJugador, historialDeLesion, importarLesion, leerMinutosDeEntrenamiento, listarLesiones } from "./lesionesDb.js";
 
 // Un doble de Supabase que anota la consulta y contesta lo configurado (o,
 // si hay, la próxima de "respuestas", una por consulta).
@@ -16,7 +16,7 @@ vi.mock("./plantel.js", () => ({
 vi.mock("../supabase.js", () => {
   const cadena = () => {
     const c = {};
-    ["select", "eq", "order", "limit", "insert", "update", "single"].forEach((metodo) => {
+    ["select", "eq", "order", "limit", "insert", "update", "single", "range"].forEach((metodo) => {
       c[metodo] = (...args) => {
         doble.llamadas.push([metodo, ...args]);
         return c;
@@ -30,6 +30,10 @@ vi.mock("../supabase.js", () => {
     supabase: {
       from: (tabla) => {
         doble.llamadas.push(["from", tabla]);
+        return cadena();
+      },
+      rpc: (nombre, argumentos) => {
+        doble.llamadas.push(["rpc", nombre, argumentos]);
         return cadena();
       },
     },
@@ -358,5 +362,42 @@ describe("si está en el plantel actual (Datos básicos › Actual)", () => {
     doble.error = { code: "23514", message: 'new row for relation "jugadores" violates check constraint "jugadores_actualizado_en_check"' };
     expect(await guardarDatosJugador(7, { nombre: "HULK" })).toMatchObject({ error: "datos.error.guardar" });
     expect(doble.llamadas.filter(([metodo]) => metodo === "update")).toHaveLength(1);
+  });
+});
+
+describe("los minutos de entrenamiento para Lesiones c/1000h (del GPS)", () => {
+  test("se piden a la base de a 1000, ya sumados por jugador, día y selección", async () => {
+    const pagina = Array.from({ length: 1000 }, (_, i) => ({ jugador_id: 7, persona: null, fecha: "2026-09-01", seleccion: false, minutos: i % 2 ? "60.5" : 30 }));
+    doble.respuestas = [
+      { data: pagina, error: null },
+      { data: [{ jugador_id: null, persona: "Juvenil", fecha: "2026-09-02", seleccion: false, minutos: 40 }, { jugador_id: 7, persona: null, fecha: "2026-09-24", seleccion: true, minutos: 98 }, { jugador_id: 8, fecha: null, minutos: 5 }], error: null },
+    ];
+    const { minutos, error } = await leerMinutosDeEntrenamiento("eq-1");
+    expect(error).toBe("");
+    expect(doble.llamadas).toEqual([
+      ["rpc", "minutos_de_entrenamiento", { p_equipo: "eq-1" }],
+      ["range", 0, 999],
+      ["rpc", "minutos_de_entrenamiento", { p_equipo: "eq-1" }],
+      ["range", 1000, 1999],
+    ]);
+    expect(minutos).toHaveLength(1002);
+    expect(minutos[1]).toEqual({ jugadorId: 7, persona: null, fecha: "2026-09-01", minutos: 60.5, seleccion: false });
+    expect(minutos.slice(-2)).toEqual([
+      { jugadorId: null, persona: "Juvenil", fecha: "2026-09-02", minutos: 40, seleccion: false },
+      { jugadorId: 7, persona: null, fecha: "2026-09-24", minutos: 98, seleccion: true },
+    ]);
+  });
+
+  test("sin la migración o sin minutos cargados, no hay minutos (los reportes avisan) y no es un error", async () => {
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.minutos_de_entrenamiento(p_equipo)" } }];
+    expect(await leerMinutosDeEntrenamiento("eq-1")).toEqual({ minutos: null, error: "" });
+    doble.respuestas = [{ data: [], error: null }];
+    expect(await leerMinutosDeEntrenamiento("eq-1")).toEqual({ minutos: null, error: "" });
+    expect(await leerMinutosDeEntrenamiento(null)).toEqual({ minutos: null, error: "" });
+    // Sin señal: tampoco hay minutos, y se sabe por qué.
+    doble.respuestas = [{ data: null, error: { message: "Failed to fetch" } }];
+    const { minutos, error } = await leerMinutosDeEntrenamiento("eq-1");
+    expect(minutos).toBe(null);
+    expect(error).not.toBe("");
   });
 });

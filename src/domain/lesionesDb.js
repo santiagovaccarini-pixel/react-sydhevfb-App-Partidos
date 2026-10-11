@@ -194,6 +194,41 @@ export const normalizarJugadorLesiones = (fila) => ({
   horas_previas: horasPrevias(fila?.horas_previas),
 });
 
+// ------------------------------------------- Los minutos de entrenamiento --
+// Las horas de Lesiones c/1000h salen del GPS (migración
+// 20261018_minutos_lesiones.sql): por jugador (o persona fuera de Datos
+// básicos), día y si son de la selección, ya sumados en la base (Minutos
+// Campo + Minutos Fuerza Metabólico de todas sus filas, como la hoja «BD GPS»
+// del Excel de lesiones; el promedio del equipo no cuenta). Los ve quien tiene
+// Lesiones, aunque no tenga GPS, sin ver las filas del GPS; quien ya se fue,
+// los de su último día (lo decide la base). Sin la migración o sin minutos
+// cargados: null (los reportes muestran "—" y avisan). De a 1000 por vez.
+const MINUTOS_POR_VEZ = 1000;
+const faltaFuncion = (error) =>
+  ["PGRST202", "42883"].includes(error?.code) || (/minutos_de_entrenamiento/.test(`${error?.message || ""}`) && /Could not find|does not exist/i.test(`${error?.message || ""}`));
+
+export const leerMinutosDeEntrenamiento = async (equipoId) => {
+  if (!equipoId) return { minutos: null, error: "" };
+  const filas = [];
+  for (let desde = 0; ; desde += MINUTOS_POR_VEZ) {
+    const { data, error } = await supabase.rpc("minutos_de_entrenamiento", { p_equipo: equipoId }).range(desde, desde + MINUTOS_POR_VEZ - 1); // eslint-disable-line no-await-in-loop
+    if (error) return faltaFuncion(error) ? { minutos: null, error: "" } : { minutos: null, ...fallo(error, "lesiones.error.noLeer") };
+    const pagina = Array.isArray(data) ? data : [];
+    filas.push(...pagina);
+    if (pagina.length < MINUTOS_POR_VEZ) break;
+  }
+  const minutos = filas
+    .map((fila) => ({
+      jugadorId: fila?.jugador_id ?? null,
+      persona: fila?.persona ?? null,
+      fecha: fila?.fecha || "",
+      minutos: Number(fila?.minutos),
+      seleccion: Boolean(fila?.seleccion),
+    }))
+    .filter((fila) => fila.fecha && Number.isFinite(fila.minutos));
+  return { minutos: minutos.length ? minutos : null, error: "" };
+};
+
 const porNombre = (lista) => [...lista].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
 // El mismo plantel que Partido, con los datos que pide el Excel. Si la base

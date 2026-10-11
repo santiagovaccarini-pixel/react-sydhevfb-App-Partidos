@@ -120,6 +120,22 @@ describe("las cuentas", () => {
     expect(minutosGps(null)).toBe(0);
   });
 
+  test("los minutos de la selección son solo de quien fue: suman en sus horas, no en las del plantel", () => {
+    // Santiago, 11/10: quien no fue a la selección no suma más tiempo porque
+    // otro fue; y lo de la selección no va en las horas del plantel.
+    const gps = [
+      { jugadorId: 7, fecha: "2026-09-23", minutos: 60, seleccion: false },
+      { jugadorId: 7, fecha: "2026-09-24", minutos: 98, seleccion: true },
+      { jugadorId: 8, fecha: "2026-09-24", minutos: 70, seleccion: false },
+      { jugadorId: null, persona: "Juvenil", fecha: "2026-09-24", minutos: 40, seleccion: false },
+    ];
+    expect(minutosGps(gps, { jugadorId: 7 })).toBe(158);
+    expect(minutosGps(gps, { jugadorId: 8 })).toBe(70);
+    // El plantel: todos (también quien no está en Datos básicos), sin la selección.
+    expect(minutosGps(gps)).toBe(170);
+    expect(minutosGps(gps, { desde: "2026-09-24", hasta: "2026-09-24" })).toBe(110);
+  });
+
   test("el cuadro cada 1000 horas: cuántas, cuántos días y cada 1000 horas, por columna", () => {
     const lesiones = [
       lesion({ id: "leve", fecha_lesion: "2026-09-01", fecha_alta: "2026-09-04" }),

@@ -56,10 +56,13 @@ export const diasEnPeriodo = (lesion, desde, hasta) => {
   return dias > 0 ? dias : null;
 };
 
-// Los minutos del GPS: [{ jugadorId, fecha, minutos }]. Los de un jugador o
-// los de todos, entre dos fechas (sin una punta, sin límite de ese lado).
+// Los minutos del GPS: [{ jugadorId, fecha, minutos, seleccion }]. Los de un
+// jugador o los de todos, entre dos fechas (sin una punta, sin límite de ese
+// lado). Los de la selección son solo de quien fue: cuentan en sus horas y no
+// en las del plantel (Santiago, 11/10).
 export const minutosGps = (registros, { jugadorId = null, desde = "", hasta = "" } = {}) =>
   (registros || []).reduce((suma, registro) => {
+    if (jugadorId === null && registro.seleccion) return suma;
     if (jugadorId !== null && String(registro.jugadorId) !== String(jugadorId)) return suma;
     if (desde && registro.fecha < desde) return suma;
     if (hasta && registro.fecha > hasta) return suma;
