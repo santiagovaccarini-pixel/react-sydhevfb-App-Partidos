@@ -559,45 +559,36 @@
   font-size: 13px;
 }
 
-/* Las columnas fijas: en la compu quedan a la vista al correr la tabla, desde
-   el borde izquierdo; en el celular corren con las demás (no entrarían todas
-   en la pantalla). */
-@media (min-width: 900px) {
-  .tabla-datos-tabla .inmovil {
-    position: sticky;
-    z-index: 1;
-  }
-
-  .tabla-datos-tabla thead th.inmovil {
-    z-index: 3;
-  }
-
-  /* Lo que se escribe en una fija angosta pasa por encima de la de al lado. */
-  .tabla-datos-tabla td.inmovil.editando {
-    z-index: 2;
-  }
-
-  .tabla-datos-tabla .ultima-inmovil {
-    box-shadow: inset -2px 0 0 #cbd5e1;
-  }
+/* Las columnas fijas quedan a la vista al correr la tabla, desde el borde
+   izquierdo. En la compu, las fijas; en el celular, solo las que se fijan ahí
+   con dos toques: las de entrada corren con las demás (no entrarían todas).
+   Lo decide la tabla, que les pone (o no) la clase. */
+.tabla-datos-tabla .inmovil {
+  position: sticky;
+  z-index: 1;
 }
 
-@media (max-width: 899px) {
-  .tabla-datos-tabla .inmovil {
-    left: auto !important;
-  }
+.tabla-datos-tabla thead th.inmovil {
+  z-index: 3;
+}
+
+/* Lo que se escribe en una fija angosta pasa por encima de la de al lado. */
+.tabla-datos-tabla td.inmovil.editando {
+  z-index: 2;
+}
+
+.tabla-datos-tabla .ultima-inmovil {
+  box-shadow: inset -2px 0 0 #cbd5e1;
 }
 
 /* En la fila de los grupos, las fijas van en una celda fija como ellas, y el
    título de cada grupo queda a la vista a la derecha de las fijas. */
-@media (min-width: 900px) {
-  .tabla-datos-tabla .tabla-datos-grupo-titulo {
-    left: calc(var(--tabla-datos-ancho-fijas, 0px) + 20px);
-  }
+.tabla-datos-tabla .tabla-datos-grupo-titulo {
+  left: calc(var(--tabla-datos-ancho-fijas, 0px) + 20px);
+}
 
-  .tabla-datos-tabla thead tr.tabla-datos-grupos th.inmovil .tabla-datos-grupo-titulo {
-    position: static;
-  }
+.tabla-datos-tabla thead tr.tabla-datos-grupos th.inmovil .tabla-datos-grupo-titulo {
+  position: static;
 }
 
 /* Las filas de arriba de las cabeceras (el informe de Evaluaciones, como las
@@ -638,13 +629,11 @@
   vertical-align: middle;
 }
 
-@media (min-width: 900px) {
-  .tabla-datos-tabla thead tr.tabla-datos-arriba th.inmovil,
-  .tabla-datos-tabla thead tr.tabla-datos-arriba td.inmovil {
-    position: sticky;
-    top: auto;
-    z-index: 1;
-  }
+.tabla-datos-tabla thead tr.tabla-datos-arriba th.inmovil,
+.tabla-datos-tabla thead tr.tabla-datos-arriba td.inmovil {
+  position: sticky;
+  top: auto;
+  z-index: 1;
 }
 
 /* En el celular las fijas corren con las demás y juntas son más anchas que la

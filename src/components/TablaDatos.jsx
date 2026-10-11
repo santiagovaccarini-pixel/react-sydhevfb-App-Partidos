@@ -71,10 +71,20 @@ import "./tablaDatos.css";
 const CLAVE_ORDEN = "tabla_columnas";
 const CLAVE_ANCHOS = "tabla_anchos";
 const CLAVE_FIJAS = "tabla_fijas";
+// Las que se pegan con dos toques en el celular (allá las de entrada corren
+// con las demás): aparte, porque son otra lista.
+const CLAVE_FIJAS_CELULAR = "tabla_fijas_celular";
 const ESPERA_APRETAR = 380;
+// Dos toques con el dedo: el segundo, a menos de este tiempo del primero y
+// casi en el mismo lugar (el celular no avisa el doble clic).
+const ENTRE_TOQUES = 400;
+const TOQUE_QUIETO = 10;
 // Lo más angosta que queda una columna: entran el botón del filtro (con la
 // flecha del orden) y el borde para agrandarla, también con el dedo.
 const ANCHO_MINIMO = 56;
+// Al lado de las fijas tiene que quedar a la vista, por lo menos, una columna
+// de las más angostas: si al fijar otra no queda, no se fija.
+const LIBRE_AL_LADO = ANCHO_MINIMO;
 // El ancho de una columna fija que no trae el suyo.
 const ANCHO_FIJA = 120;
 // Con muchasFilas: el alto de una fila hasta medir la primera, cuántas se
@@ -117,15 +127,34 @@ const leerAnchos = (id) => {
 
 // Las columnas fijas elegidas con dos clics: [clave] en el orden en que se
 // fijaron, o null si nunca se eligieron (van las de entrada).
-const leerFijas = (id) => {
-  const guardadas = leerDelCelular(CLAVE_FIJAS, id);
-  return Array.isArray(guardadas) ? guardadas.filter((clave) => typeof clave === "string") : null;
+const leerFijas = (id, clave = CLAVE_FIJAS) => {
+  const guardadas = leerDelCelular(clave, id);
+  return Array.isArray(guardadas) ? guardadas.filter((una) => typeof una === "string") : null;
 };
 
-// Las fijas quedan a la vista solo en la compu (en el celular corren con las
-// demás: no entrarían todas), así que se eligen ahí. Sin matchMedia (pruebas),
-// como en la compu.
-const fijasEnEstaPantalla = () => typeof window === "undefined" || typeof window.matchMedia !== "function" || window.matchMedia("(min-width: 900px)").matches;
+// En la compu, las fijas de entrada quedan a la vista al correr la tabla; en
+// el celular corren con las demás (no entrarían) y quedan a la vista solo las
+// que se fijan ahí con dos toques (Santiago, 11/10). Sin matchMedia
+// (pruebas), como en la compu.
+const PANTALLA_DE_COMPU = "(min-width: 900px)";
+const esPantallaDeCompu = () => typeof window === "undefined" || typeof window.matchMedia !== "function" || window.matchMedia(PANTALLA_DE_COMPU).matches;
+const useEnCompu = () => {
+  const [enCompu, setEnCompu] = useState(esPantallaDeCompu);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const consulta = window.matchMedia(PANTALLA_DE_COMPU);
+    const alCambiar = () => setEnCompu(Boolean(consulta.matches));
+    alCambiar();
+    // Al girar el celular o achicar la ventana.
+    if (consulta.addEventListener) consulta.addEventListener("change", alCambiar);
+    else consulta.addListener?.(alCambiar);
+    return () => {
+      if (consulta.removeEventListener) consulta.removeEventListener("change", alCambiar);
+      else consulta.removeListener?.(alCambiar);
+    };
+  }, []);
+  return enCompu;
+};
 
 // La variable de CSS con el ancho de una columna. Mientras se arrastra el
 // borde cambia solo la variable: la tabla no se vuelve a dibujar entera.
@@ -189,8 +218,11 @@ export const TablaDatos = ({
   // Los anchos elegidos a mano ({ clave: píxeles }) y la columna a la que se
   // le está arrastrando el borde.
   const [anchos, setAnchos] = useState(() => leerAnchos(id));
-  // Las fijas elegidas en este aparato (null: las de entrada).
+  // Las fijas elegidas en este aparato (null: las de entrada) y las que se
+  // pegaron con dos toques en el celular.
   const [fijasElegidas, setFijasElegidas] = useState(() => leerFijas(id));
+  const [fijasCelular, setFijasCelular] = useState(() => leerFijas(id, CLAVE_FIJAS_CELULAR) || []);
+  const enCompu = useEnCompu();
   const [ajustando, setAjustando] = useState(null);
   const marco = useRef(null);
   const tablaRef = useRef(null);
@@ -207,13 +239,25 @@ export const TablaDatos = ({
   }, [columnas]);
 
   // Las fijas van primero, en su orden; el resto, en el que eligió cada uno.
+  // Las que quedan a la vista al correr la tabla (las quietas): en la compu,
+  // las fijas; en el celular, las fijadas ahí con dos toques, que van primero
+  // (como las fijas en la compu) y después las de entrada, que corren.
   const fijasVigentes = fijasElegidas ?? fijas;
   const clavesFijas = useMemo(() => fijasVigentes.filter((clave) => columnas.some((c) => c.clave === clave)), [fijasVigentes, columnas]);
+  const clavesQuietas = useMemo(
+    () => (enCompu ? clavesFijas : fijasCelular.filter((clave) => columnas.some((c) => c.clave === clave))),
+    [enCompu, clavesFijas, fijasCelular, columnas],
+  );
+  // Las que van adelante, con su ancho y sin arrastrarse.
+  const clavesAdelante = useMemo(
+    () => (enCompu ? clavesFijas : [...clavesQuietas, ...clavesFijas.filter((clave) => !clavesQuietas.includes(clave))]),
+    [enCompu, clavesFijas, clavesQuietas],
+  );
   const visibles = useMemo(() => {
     const porClave = (clave) => columnas.find((c) => c.clave === clave);
-    const libres = orden.filter((clave) => !clavesFijas.includes(clave)).map(porClave).filter(Boolean);
-    return [...clavesFijas.map(porClave), ...libres];
-  }, [orden, columnas, clavesFijas]);
+    const libres = orden.filter((clave) => !clavesAdelante.includes(clave)).map(porClave).filter(Boolean);
+    return [...clavesAdelante.map(porClave), ...libres];
+  }, [orden, columnas, clavesAdelante]);
   const visiblesRef = useRef(visibles);
   visiblesRef.current = visibles;
   // El ancho de cada columna que lo tiene: el elegido a mano o, en una fija,
@@ -221,26 +265,26 @@ export const TablaDatos = ({
   const anchosVigentes = useMemo(() => {
     const vigentes = {};
     columnas.forEach((col) => {
-      const ancho = anchos[col.clave] ?? (clavesFijas.includes(col.clave) ? col.ancho || ANCHO_FIJA : null);
+      const ancho = anchos[col.clave] ?? (clavesAdelante.includes(col.clave) ? col.ancho || ANCHO_FIJA : null);
       if (ancho) vigentes[col.clave] = ancho;
     });
     return vigentes;
-  }, [columnas, anchos, clavesFijas]);
+  }, [columnas, anchos, clavesAdelante]);
   // También lo que miden juntas las fijas: el título de un grupo queda a la
   // vista a la derecha de ellas al correr la tabla.
   const variablesDeAncho = useMemo(
     () => ({
       ...Object.fromEntries(Object.entries(anchosVigentes).map(([clave, ancho]) => [variableDeAncho(clave), `${ancho}px`])),
-      "--tabla-datos-ancho-fijas": clavesFijas.length ? `calc(${clavesFijas.map((clave) => `var(${variableDeAncho(clave)})`).join(" + ")})` : "0px",
+      "--tabla-datos-ancho-fijas": clavesQuietas.length ? `calc(${clavesQuietas.map((clave) => `var(${variableDeAncho(clave)})`).join(" + ")})` : "0px",
     }),
-    [anchosVigentes, clavesFijas],
+    [anchosVigentes, clavesQuietas],
   );
   // Lo que lleva cada celda de una columna con ancho (de borde a borde) y,
   // si es fija, dónde queda: a la derecha de las fijas anteriores.
   const estiloDeColumna = useMemo(() => {
     const estilos = {};
     const antes = [];
-    clavesFijas.forEach((clave) => {
+    clavesQuietas.forEach((clave) => {
       estilos[clave] = { left: antes.length ? `calc(${antes.map((otra) => `var(${variableDeAncho(otra)})`).join(" + ")})` : 0 };
       antes.push(clave);
     });
@@ -249,8 +293,8 @@ export const TablaDatos = ({
       estilos[clave] = { ...estilos[clave], boxSizing: "border-box", width: ancho, minWidth: ancho, maxWidth: ancho };
     });
     return estilos;
-  }, [clavesFijas, anchosVigentes]);
-  const claseFija = (clave) => (clavesFijas.includes(clave) ? `inmovil ${clave === clavesFijas.at(-1) ? "ultima-inmovil" : ""}`.trim() : "");
+  }, [clavesQuietas, anchosVigentes]);
+  const claseFija = (clave) => (clavesQuietas.includes(clave) ? `inmovil ${clave === clavesQuietas.at(-1) ? "ultima-inmovil" : ""}`.trim() : "");
   // Con todas las columnas a la vista con su ancho, la tabla mide lo que
   // suman (como en Excel, al lado queda vacío): si se estirara hasta el
   // borde, el navegador repartiría lo que sobra entre ellas.
@@ -355,7 +399,7 @@ export const TablaDatos = ({
   const hayGrupos = columnas.some((columna) => columna.grupo);
   const tramos = useMemo(() => {
     if (!hayGrupos) return [];
-    const cuantasFijas = clavesFijas.length;
+    const cuantasFijas = clavesQuietas.length;
     if (!cuantasFijas) return tramosDeGrupos(visibles);
     const delasFijas = visibles.slice(0, cuantasFijas);
     const unGrupo = delasFijas.every((col) => (col.grupo || "") === (delasFijas[0].grupo || ""));
@@ -365,7 +409,7 @@ export const TablaDatos = ({
       { grupo, titulo: grupo ? delasFijas[0].grupoTitulo || "" : "", desde: 0, cantidad: cuantasFijas, fijo: true },
       ...tramosDeGrupos(visibles.slice(cuantasFijas)).map((tramo, i) => ({ ...tramo, titulo: i === 0 && grupo && tramo.grupo === grupo ? "" : tramo.titulo, desde: tramo.desde + cuantasFijas })),
     ];
-  }, [hayGrupos, visibles, clavesFijas]);
+  }, [hayGrupos, visibles, clavesQuietas]);
   const tonoDeGrupo = useMemo(() => tonosDeGrupos(columnas), [columnas]);
 
   useEffect(() => {
@@ -666,12 +710,12 @@ export const TablaDatos = ({
     const th = elemento?.closest?.("th[data-columna]");
     if (!th) return null;
     const indice = Number(th.dataset.columna);
-    return clavesFijas.includes(visibles[indice]?.clave) ? null : indice;
+    return clavesAdelante.includes(visibles[indice]?.clave) ? null : indice;
   };
 
   const alApretarCabecera = (evento, indice) => {
     if (evento.button !== undefined && evento.button !== 0) return;
-    if (clavesFijas.includes(visibles[indice]?.clave)) return;
+    if (clavesAdelante.includes(visibles[indice]?.clave)) return;
     const inicio = { x: evento.clientX, y: evento.clientY };
     const esMouse = evento.pointerType === "mouse";
     arrastreRef.current = { desde: indice, sobre: null, activo: false, inicio, puntero: evento.pointerId, elemento: evento.currentTarget };
@@ -786,19 +830,34 @@ export const TablaDatos = ({
   };
 
   // ------------------------------------------------ Las columnas fijas --
-  // Dos clics en una cabecera (en la compu) la dejan fija, al final de las
-  // fijas, o la sueltan, y vuelve a su lugar entre las demás. Queda guardado
-  // en este aparato para esta tabla. Una fija necesita ancho: si no tenía
-  // uno, queda el que mide ahora (así no cambia al fijarla).
+  // Dos clics en una cabecera (o dos toques, en el celular) la dejan fija, al
+  // final de las fijas, o la sueltan, y vuelve a su lugar entre las demás.
+  // Queda guardado en este aparato para esta tabla (en el celular, aparte: allá
+  // las de entrada no quedan fijas). Una fija necesita ancho: si no tenía
+  // uno, queda el que mide ahora (así no cambia al fijarla). Si con ella las
+  // fijas taparían casi toda la tabla, no se fija y lo dice.
   const cambiarFija = (evento, col) => {
-    if (!fijasEnEstaPantalla()) return;
-    const yaFija = clavesFijas.includes(col.clave);
-    const nuevas = yaFija ? fijasVigentes.filter((clave) => clave !== col.clave) : [...fijasVigentes.filter((clave) => clave !== col.clave), col.clave];
-    setFijasElegidas(nuevas);
-    guardarEnCelular(CLAVE_FIJAS, id, nuevas);
-    if (!yaFija && anchos[col.clave] === undefined && !col.ancho) {
-      // Para arriba: con un pedazo de píxel menos, el título ya no entra.
-      const medido = Math.ceil(evento.currentTarget.getBoundingClientRect?.().width || 0);
+    const yaFija = clavesQuietas.includes(col.clave);
+    // Para arriba: con un pedazo de píxel menos, el título ya no entra.
+    const medido = Math.ceil(evento.currentTarget?.getBoundingClientRect?.().width || 0);
+    if (!yaFija) {
+      const caja = cajaRef.current?.clientWidth || 0;
+      const miden = clavesQuietas.reduce((suma, clave) => suma + (anchosVigentes[clave] || 0), 0) + (anchosVigentes[col.clave] || col.ancho || medido);
+      if (caja > 0 && miden > caja - LIBRE_AL_LADO) {
+        setMensaje(t("tabla.fijaNoEntra", { columna: col.titulo }));
+        return;
+      }
+    }
+    if (enCompu) {
+      const nuevas = yaFija ? fijasVigentes.filter((clave) => clave !== col.clave) : [...fijasVigentes.filter((clave) => clave !== col.clave), col.clave];
+      setFijasElegidas(nuevas);
+      guardarEnCelular(CLAVE_FIJAS, id, nuevas);
+    } else {
+      const nuevas = yaFija ? fijasCelular.filter((clave) => clave !== col.clave) : [...fijasCelular.filter((clave) => clave !== col.clave), col.clave];
+      setFijasCelular(nuevas);
+      guardarEnCelular(CLAVE_FIJAS_CELULAR, id, nuevas);
+    }
+    if (!yaFija && anchos[col.clave] === undefined && !col.ancho && !clavesAdelante.includes(col.clave)) {
       if (medido > 0) {
         setAnchos((previos) => {
           const nuevos = { ...previos, [col.clave]: Math.max(ANCHO_MINIMO, medido) };
@@ -812,6 +871,37 @@ export const TablaDatos = ({
     setActiva(null);
     setEditando(null);
     setMensaje(t(yaFija ? "tabla.columnaSuelta" : "tabla.columnaFija", { columna: col.titulo }));
+  };
+
+  // Con el dedo: dos toques seguidos en la misma cabecera, quieto y sin
+  // mantenerlo apretado (eso es arrastrarla). El celular no avisa el doble
+  // clic; si algún navegador lo avisa igual, no se cambia dos veces.
+  const apoyo = useRef(null);
+  const ultimoToque = useRef(null);
+  const cambioConElDedo = useRef(0);
+  const alApoyarEnCabecera = (evento) => {
+    apoyo.current = evento.pointerType === "mouse" ? null : { x: evento.clientX, y: evento.clientY, cuando: Date.now() };
+  };
+  const alSoltarCabecera = (evento, col) => {
+    const apoyado = apoyo.current;
+    apoyo.current = null;
+    if (!apoyado || evento.pointerType === "mouse") return;
+    const ahora = Date.now();
+    const fueUnToque =
+      ahora - apoyado.cuando < ESPERA_APRETAR &&
+      Math.hypot(evento.clientX - apoyado.x, evento.clientY - apoyado.y) <= TOQUE_QUIETO &&
+      !evento.target?.closest?.(".tabla-datos-filtro, .tabla-datos-borde");
+    const anterior = ultimoToque.current;
+    ultimoToque.current = fueUnToque ? { clave: col.clave, cuando: ahora, x: evento.clientX, y: evento.clientY } : null;
+    if (!fueUnToque || !anterior || anterior.clave !== col.clave || ahora - anterior.cuando > ENTRE_TOQUES) return;
+    if (Math.hypot(evento.clientX - anterior.x, evento.clientY - anterior.y) > TOQUE_QUIETO * 3) return;
+    ultimoToque.current = null;
+    cambioConElDedo.current = ahora;
+    cambiarFija(evento, col);
+  };
+  const alDobleClicEnCabecera = (evento, col) => {
+    if (Date.now() - cambioConElDedo.current < ENTRE_TOQUES * 2) return;
+    cambiarFija(evento, col);
   };
 
   // ------------------------------------------------- Filtros y orden --
@@ -888,11 +978,34 @@ export const TablaDatos = ({
   // adelante (las de quién y de cuándo, sin dato arriba) o, sin ninguna, la
   // primera columna (su dato no se ve). Una columna fijada con dos clics
   // después de esas muestra su dato. Con fijas, el rótulo también queda fijo.
+  // En el celular las de entrada corren con las demás: las fijadas con dos
+  // toques van antes del rótulo, con su dato, y el rótulo va sobre las de
+  // entrada que siguen, sin quedar fijo.
+  const antesDelRotulo = enCompu ? 0 : clavesQuietas.length;
   let fijasDeEntradaAdelante = 0;
-  while (fijasDeEntradaAdelante < clavesFijas.length && fijas.includes(clavesFijas[fijasDeEntradaAdelante])) fijasDeEntradaAdelante += 1;
+  if (enCompu) {
+    while (fijasDeEntradaAdelante < clavesFijas.length && fijas.includes(clavesFijas[fijasDeEntradaAdelante])) fijasDeEntradaAdelante += 1;
+  } else {
+    while (antesDelRotulo + fijasDeEntradaAdelante < visibles.length && fijas.includes(visibles[antesDelRotulo + fijasDeEntradaAdelante].clave)) fijasDeEntradaAdelante += 1;
+  }
   const columnasDelRotulo = Math.max(fijasDeEntradaAdelante, 1);
-  const rotuloSobreFijas = clavesFijas.length > 0;
+  const rotuloSobreFijas = enCompu ? clavesFijas.length > 0 : fijasDeEntradaAdelante > 0;
+  const rotuloQuieto = rotuloSobreFijas && enCompu;
   const rotuloHastaLaUltimaFija = columnasDelRotulo >= clavesFijas.length;
+  // El dato de una columna en una fila de arriba (el informe).
+  const celdaDeArriba = (filaArriba, col) => {
+    const celda = filaArriba.celdas?.[col.clave];
+    const ancho = estiloDeColumna[col.clave];
+    return (
+      <td
+        key={col.clave}
+        className={`tabla-datos-arriba-celda ${col.alinear === "centro" ? "centrada" : ""} ${claseFija(col.clave)}`.trim()}
+        style={ancho && celda?.estilo ? { ...ancho, ...celda.estilo } : ancho || celda?.estilo || undefined}
+      >
+        {celda?.texto ?? ""}
+      </td>
+    );
+  };
   // Las filas que se dibujan (con muchasFilas, las que se ven y unas más).
   const desdeFila = ventana ? Math.min(ventana.desde, filasVista.length) : 0;
   const hastaFila = ventana ? Math.min(Math.max(ventana.hasta, desdeFila), filasVista.length) : filasVista.length;
@@ -950,31 +1063,20 @@ export const TablaDatos = ({
           <thead>
             {filasArriba.map((filaArriba) => (
               <tr key={filaArriba.id} className="tabla-datos-arriba">
+                {visibles.slice(0, antesDelRotulo).map((col) => celdaDeArriba(filaArriba, col))}
                 {filaArriba.rotulo !== null && (
                   <th
                     scope="row"
                     colSpan={columnasDelRotulo}
                     rowSpan={filaArriba.alto || 1}
-                    className={`tabla-datos-arriba-rotulo ${rotuloSobreFijas ? `inmovil ${rotuloHastaLaUltimaFija ? "ultima-inmovil" : ""}` : ""}`.trim()}
-                    style={rotuloSobreFijas ? { left: 0 } : undefined}
+                    className={`tabla-datos-arriba-rotulo ${rotuloQuieto ? `inmovil ${rotuloHastaLaUltimaFija ? "ultima-inmovil" : ""}` : ""}`.trim()}
+                    style={rotuloQuieto ? { left: 0 } : undefined}
                   >
                     {/* Sobre las fijas no las ensancha: si no entra, se corta. */}
                     {rotuloSobreFijas ? <div className="tabla-datos-envoltura">{filaArriba.rotulo}</div> : filaArriba.rotulo}
                   </th>
                 )}
-                {visibles.slice(columnasDelRotulo).map((col) => {
-                  const celda = filaArriba.celdas?.[col.clave];
-                  const ancho = estiloDeColumna[col.clave];
-                  return (
-                    <td
-                      key={col.clave}
-                      className={`tabla-datos-arriba-celda ${col.alinear === "centro" ? "centrada" : ""} ${claseFija(col.clave)}`.trim()}
-                      style={ancho && celda?.estilo ? { ...ancho, ...celda.estilo } : ancho || celda?.estilo || undefined}
-                    >
-                      {celda?.texto ?? ""}
-                    </td>
-                  );
-                })}
+                {visibles.slice(antesDelRotulo + columnasDelRotulo).map((col) => celdaDeArriba(filaArriba, col))}
               </tr>
             ))}
             {hayGrupos && (
@@ -1011,12 +1113,21 @@ export const TablaDatos = ({
                     data-columna={indice}
                     className={`${arrastre?.desde === indice ? "origen" : ""} ${arrastre?.sobre === indice ? "destino" : ""} ${col.editable ? "" : "fija"} ${col.grupo ? `tono-${tonoDeGrupo[col.grupo] ?? 0}` : ""} ${claseFija(col.clave)} ${ajustando === col.clave ? "ajustada" : ""}`.trim()}
                     style={estiloDeColumna[col.clave] || (col.ancho ? { minWidth: col.ancho } : undefined)}
-                    onPointerDown={(evento) => alApretarCabecera(evento, indice)}
+                    onPointerDown={(evento) => {
+                      alApoyarEnCabecera(evento);
+                      alApretarCabecera(evento, indice);
+                    }}
                     onPointerMove={alMoverCabecera}
-                    onPointerUp={terminarArrastre}
-                    onPointerCancel={terminarArrastre}
-                    onDoubleClick={(evento) => cambiarFija(evento, col)}
-                    title={`${col.titulo}\n${t(clavesFijas.includes(col.clave) ? "tabla.soltarConDosClics" : "tabla.fijarConDosClics")}`}
+                    onPointerUp={(evento) => {
+                      terminarArrastre();
+                      alSoltarCabecera(evento, col);
+                    }}
+                    onPointerCancel={() => {
+                      apoyo.current = null;
+                      terminarArrastre();
+                    }}
+                    onDoubleClick={(evento) => alDobleClicEnCabecera(evento, col)}
+                    title={`${col.titulo}\n${t(clavesQuietas.includes(col.clave) ? "tabla.soltarConDosClics" : "tabla.fijarConDosClics")}`}
                   >
                     <span className="tabla-datos-cabecera">
                       <span className="tabla-datos-titulo">{col.titulo}</span>

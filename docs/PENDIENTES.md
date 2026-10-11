@@ -663,8 +663,20 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   tabla (`tabla_fijas:<tabla>`; en Evaluaciones, por test). Sin elegir nada, van las de
   entrada (las de quién y cuándo de cada base). Una fija sin ancho propio queda con el que
   medía. En el informe de arriba (GPS y Evaluaciones), el rótulo ocupa las fijas de entrada y
-  una medida fijada con dos clics muestra su dato. En el celular, dos toques no hacen nada:
-  ahí las fijas corren con las demás (no entrarían).
+  una medida fijada con dos clics muestra su dato. ~~En el celular, dos toques no hacen nada:
+  ahí las fijas corren con las demás (no entrarían).~~ **Cambiado el 11/10** (abajo).
+- **En el celular, dos toques también fijan** (Santiago, 11/10: «revisa que en celular cuando
+  hago doble click sobre una columna no se fija»; lo de que no hicieran nada lo había decidido
+  Claude, no Santiago). El celular no avisa el doble clic: la tabla cuenta dos toques seguidos
+  en la misma cabecera (quieto, sin mantenerlo apretado, que es arrastrarla; los toques en el
+  filtro o en el borde no cuentan). Lo fijado ahí se guarda aparte (`tabla_fijas_celular:<tabla>`)
+  y va primero, como las fijas en la compu. Las fijas de entrada siguen corriendo con las demás
+  en el celular (lo del 05/10, «en el celular, no»): si se quiere una, se fija con dos toques. En
+  el informe de arriba, la fijada lleva su dato fijo con ella y el rótulo va sobre las de
+  entrada que siguen, corriendo. Si con otra fija no quedaría a la vista ni una columna de las
+  más angostas (56 px), no se fija y la tabla dice «… no entra fija: soltá otra columna fija
+  antes» (vale igual en la compu, donde casi nunca pasa). **Queda prohibido** volver a dejar el
+  celular sin poder fijar columnas.
 - Borrar varias filas (Santiago, 09/10: «que al boton de borrar fila borre todas las filas que
   tenga seleccionada, xq hice shift y seleccione varias filas para borrar y no se borraron»):
   en todas las bases (Lesiones, Evaluaciones y Datos básicos), «Borrar fila» borra todas las
@@ -1948,8 +1960,9 @@ cómo va cada una. Va un PR por nota.
   de c/1000 h no se ofrece lo que es de la persona (las horas son de todo el plantel). Ver
   «Lesiones: lo que sigue», Informes gráficos.
 - **Columnas fijas a elección (hecho el 11/10).** En cualquier base, doble clic en una cabecera
-  la deja fija (o la suelta); se recuerda en cada aparato, por base. Ver «Bases de Datos
-  (05/10)», columnas fijas a elección.
+  la deja fija (o la suelta); se recuerda en cada aparato, por base. En el celular, con dos
+  toques (arreglado el mismo 11/10: antes no hacían nada). Ver «Bases de Datos (05/10)»,
+  columnas fijas a elección.
 - **Mapa de calor (hecho el 11/10).** Nota del 06/10: «Mejorar las zonas de calor de los
   reportes individuales para que solo tome la parte del cuerpo lesionada y no muestre nada
   mas que la mancha de calor. La intensidad tiene que depender de cuantas lesiones tenga y
