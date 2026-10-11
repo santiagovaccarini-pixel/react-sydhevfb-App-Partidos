@@ -788,15 +788,15 @@ describe("la tabla estilo Excel", () => {
       },
     });
     const dibujadas = () => [...contenedor.querySelectorAll("tbody tr:not(.tabla-datos-hueco)")];
-    // Debajo de las cabeceras entran 300 px: 9 filas, más 20 abajo; el resto
+    // Debajo de las cabeceras entran 300 px: 9 filas, más 8 abajo; el resto
     // es un hueco del mismo alto.
-    expect(dibujadas()).toHaveLength(29);
+    expect(dibujadas()).toHaveLength(17);
     expect(dibujadas()[0].textContent).toContain("N1");
     expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("1000 filas");
     expect(vistas).toBe(1000);
     const huecos = contenedor.querySelectorAll("tbody tr.tabla-datos-hueco");
     expect(huecos).toHaveLength(1);
-    expect(huecos[0].style.height).toBe(`${971 * 34}px`);
+    expect(huecos[0].style.height).toBe(`${983 * 34}px`);
 
     // Al correr la tabla, se dibujan las de ahí.
     const marco = contenedor.querySelector(".tabla-datos-marco");
@@ -805,13 +805,13 @@ describe("la tabla estilo Excel", () => {
       marco.dispatchEvent(new Event("scroll"));
       await new Promise((resolver) => setTimeout(resolver, 40));
     });
-    expect(dibujadas()[0].textContent).toContain("N481");
-    expect(dibujadas()).toHaveLength(50);
+    expect(dibujadas()[0].textContent).toContain("N493");
+    expect(dibujadas()).toHaveLength(26);
     expect(contenedor.querySelectorAll("tbody tr.tabla-datos-hueco")).toHaveLength(2);
 
     // Elegir y copiar hablan de la fila de verdad, aunque haya filas sin dibujar arriba.
-    await tocar(dibujadas()[20].querySelectorAll("td")[0]);
-    expect(dibujadas()[20].querySelectorAll("td")[0].className).toContain("activa");
+    await tocar(dibujadas()[8].querySelectorAll("td")[0]);
+    expect(dibujadas()[8].querySelectorAll("td")[0].className).toContain("activa");
     const escrito = [];
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (texto) => escrito.push(texto) } });
     await act(async () => marco.dispatchEvent(new KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true })));

@@ -1216,6 +1216,41 @@ Base · Reportes · Ajustes (y los V.R. donde se decida en el paso 4). Hoy: Base
   dibuja solo las que se ven (`muchasFilas` en `src/components/TablaDatos.jsx`, solo en GPS; las
   otras bases siguen igual). Elegir, copiar, pegar, filtrar y el informe siguen con todas.
 
+### Muchas filas (11/10)
+
+Con el historial pegado (unas 15.000 filas) la Base tardaba en traer, en cambiar una celda y en
+borrar. Santiago (11/10): «de la manera mas comoda para que cuando se quiera ver algo en la base
+no se trabe con muchas filas, si hay que pagar lo hacemos».
+
+- **Qué se trae lo decide la base**: arriba, además de Desde y Hasta, **Jugador** (todos, el Team
+  Average o uno) y **Dispositivo** (todos, uno o sin dispositivo). La base filtra antes de mandar:
+  no se baja lo que no se pidió. Los filtros de cada columna de la tabla siguen mirando lo traído.
+- **Más de 20.000 filas** (más o menos una temporada; `MAXIMO_SIN_PREGUNTAR` en `src/Gps.jsx`): no
+  se traen sin preguntar. En lugar de la tabla, la Base dice cuántas son y deja acortar las fechas,
+  elegir un jugador o un dispositivo, o «Traer igual». Cambiar qué traer vuelve a preguntar.
+- **Más rápido** (comprobado con 14.000 filas inventadas, la app compilada y 150 ms de demora por
+  pedido): ver todo el historial, de 8,5 s a 1,7 s; cambiar una celda, de 3,6 s a 0,6 s; borrar
+  una fila, de 7,4 s a 0,6 s; borrar 24 juntas, de no terminar a 0,9 s. Cómo:
+  - las fechas se escriben con un solo formato por idioma (`fechaCorta` en
+    `src/idioma/formatos.js`: armar el formato en cada celda era lo más lento, en toda la app);
+  - cada fila de la tabla se arma una vez: al cambiar o borrar una, se arma solo esa;
+  - el informe de arriba recorre las filas una vez (no una por columna) con las mismas cuentas en
+    el mismo orden (da igual al último decimal: comprobado otra vez contra el Excel real), y los
+    colores de cada fila se calculan cuando la fila se dibuja;
+  - la primera página dice cuántas filas son y las demás se piden de a cuatro a la vez;
+  - se borran de a 100 por pedido (antes, de a una); al pegar en la tabla, se guardan de a seis
+    filas a la vez y la tabla se redibuja una vez al final;
+  - la tabla dibuja 8 filas de más arriba y abajo de las que se ven (antes 20).
+  En un celular (el procesador 4 veces más lento), con las 4 semanas de entrada: elegir una
+  celda 0,3 s y cambiarla 1 s.
+- **Lo que viaja**: todo el historial son unos 15 MB (unos 2 MB comprimido); 4 semanas, unos
+  2 MB.
+- **Lo que ocupa en la base** (medido en Postgres con 15.000 filas como las del historial): unos
+  31 MB la tabla y 21 MB su copia para la foto de quien se va; unos 95 MB por año de GPS. El plan
+  gratis de Supabase tiene 500 MB para toda la base: alcanza para varios años; si se llega cerca,
+  el plan pago (8 GB) alcanza para mucho más. Pagar no hace falta para la velocidad.
+- Los Reportes (paso 3) van a hacer las cuentas de muchos años en la base, sin traer las filas.
+
 ### Pegar desde Excel (el historial)
 
 - En `BD_GPS`, sacar los filtros (o dejar a la vista lo que se quiere traer) y copiar desde la
@@ -1276,6 +1311,12 @@ Base · Reportes · Ajustes (y los V.R. donde se decida en el paso 4). Hoy: Base
 ### Pendiente
 
 - Pasos 2 a 5 (arriba).
+- A quien administra el club, o a un dueño de la app, un permiso nuevo (como GPS) no se le da
+  desde Cuentas: nadie cambia su propia fila y la de un administrador o un dueño no la cambia la
+  app. Se da con un SQL en Supabase › SQL Editor (Santiago se dio GPS así, 10/10). Si hace falta
+  muchas veces, se puede pensar una forma desde la app.
+- En la tabla de todas las bases, Mayúscula + flecha suma una sola fila a lo elegido (no va
+  sumando como en Excel); Mayúscula + clic sí elige el rango. Visto el 11/10; no se tocó.
 - Las horas de entrenamiento de Lesiones (cada 1000 horas) salen de los minutos del GPS
   (decisión del 03/10, en «Lesiones: lo que sigue»): ahora que el GPS está en la app, falta
   conectarlas (cuáles columnas son los minutos de cada jugador por día).

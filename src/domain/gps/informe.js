@@ -52,41 +52,77 @@ export const COLORES_GPS = Object.freeze({
 // El código de "Partido Oficial Torneo" en la lista Tarea o Partido.
 const PARTIDO_OFICIAL = "partido_oficial_torneo";
 
-const promedio = (numeros) => (numeros.length ? numeros.reduce((suma, x) => suma + x, 0) / numeros.length : null);
+// Las cuentas van en el orden de las filas (como antes, con reduce): dan lo
+// mismo, al último decimal.
+const suma = (numeros) => {
+  let total = 0;
+  for (const x of numeros) total += x;
+  return total;
+};
+
+const promedio = (numeros) => (numeros.length ? suma(numeros) / numeros.length : null);
 
 // El desvío de la muestra (DESVEST): con menos de dos números no hay.
 const desvio = (numeros) => {
   if (numeros.length < 2) return null;
   const media = promedio(numeros);
-  return Math.sqrt(numeros.reduce((suma, x) => suma + (x - media) ** 2, 0) / (numeros.length - 1));
+  let total = 0;
+  for (const x of numeros) total += (x - media) ** 2;
+  return Math.sqrt(total / (numeros.length - 1));
 };
 
-const numerosDe = (filas, clave) => filas.map((fila) => fila.datos?.[clave]).filter(esNumero);
+// Las claves que necesitan las cuentas de unas columnas: la suya y, en un
+// "por minuto", su medida y el Tiempo.
+const clavesQueUsan = (columnas) => [...new Set(columnas.flatMap((columna) => (columna.tipo === "porMinuto" ? [columna.clave, columna.de, "tiempo"] : [columna.clave])))];
 
-// Las cuentas de una columna con las filas de un dispositivo.
-export const estadisticasDeColumna = (filas, columna) => {
-  const numeros = numerosDe(filas, columna.clave);
+// Los números de cada clave, en el orden de las filas, en una sola pasada
+// (son miles de filas y decenas de columnas).
+const numerosPorClave = (filas, claves) => {
+  const numeros = Object.fromEntries(claves.map((clave) => [clave, []]));
+  for (const fila of filas) {
+    const datos = fila.datos;
+    if (!datos) continue;
+    for (const clave of claves) {
+      const valor = datos[clave];
+      if (esNumero(valor)) numeros[clave].push(valor);
+    }
+  }
+  return numeros;
+};
+
+// Las cuentas de una columna, con los números de cada clave.
+const cuentasDeColumna = (columna, numerosDe) => {
+  const numeros = numerosDe[columna.clave];
   if (!numeros.length) return null;
   let media = promedio(numeros);
   if (columna.tipo === "porMinuto") {
-    const valor = promedio(numerosDe(filas, columna.de));
-    const segundos = promedio(numerosDe(filas, "tiempo"));
+    const valor = promedio(numerosDe[columna.de]);
+    const segundos = promedio(numerosDe.tiempo);
     media = esNumero(valor) && esNumero(segundos) && segundos !== 0 ? valor / (segundos / 60) : null;
   }
   const d = desvio(numeros);
   const banda = (k) => (esNumero(media) && esNumero(d) ? media + k * d : null);
+  let max = -Infinity;
+  let min = Infinity;
+  for (const x of numeros) {
+    if (x > max) max = x;
+    if (x < min) min = x;
+  }
   return {
     media,
     desvio: d,
     n: numeros.length,
-    max: Math.max(...numeros),
-    min: Math.min(...numeros),
+    max,
+    min,
     excelente: banda(2),
     muyBueno: banda(1),
     regular: banda(-1),
     malo: banda(-2),
   };
 };
+
+// Las cuentas de una columna con las filas de un dispositivo.
+export const estadisticasDeColumna = (filas, columna) => cuentasDeColumna(columna, numerosPorClave(filas, clavesQueUsan([columna])));
 
 // El color de un valor contra las cuentas de su columna (o null).
 export const colorDeValor = (valor, cuentas) => {
@@ -120,15 +156,18 @@ export const vistaDelGps = (filas, columnas) => {
     porDispositivo.get(dispositivo).push(fila);
   });
   const delInforme = columnas.filter((columna) => columna.informe);
-  const grupos = [...porDispositivo.entries()].map(([dispositivo, suyas]) => ({
-    dispositivo,
-    filas: suyas.length,
-    cuentas: Object.fromEntries(delInforme.map((columna) => [columna.clave, estadisticasDeColumna(suyas, columna)])),
-  }));
+  const claves = clavesQueUsan(delInforme);
+  const grupos = [...porDispositivo.entries()].map(([dispositivo, suyas]) => {
+    const numeros = numerosPorClave(suyas, claves);
+    return {
+      dispositivo,
+      filas: suyas.length,
+      cuentas: Object.fromEntries(delInforme.map((columna) => [columna.clave, cuentasDeColumna(columna, numeros)])),
+    };
+  });
   const cuentasDe = new Map(grupos.map((grupo) => [grupo.dispositivo, grupo.cuentas]));
   const conColores = columnas.filter((columna) => columna.colores);
-  const estilos = {};
-  filas.forEach((fila) => {
+  const estilosDe = (fila) => {
     const cuentas = cuentasDe.get(fila.datos?.dispositivo || "");
     const suyos = {};
     conColores.forEach((columna) => {
@@ -137,7 +176,22 @@ export const vistaDelGps = (filas, columnas) => {
     });
     const nombre = colorDelNombre(fila);
     if (nombre) suyos.jugador = { background: nombre };
-    if (Object.keys(suyos).length) estilos[fila.id] = suyos;
-  });
+    return Object.keys(suyos).length ? suyos : undefined;
+  };
+  // Los colores de cada fila se calculan cuando se piden (la tabla dibuja
+  // unas decenas de las miles que hay a la vista) y una sola vez.
+  const porId = new Map(filas.map((fila) => [String(fila.id), fila]));
+  const calculados = new Map();
+  const estilos = new Proxy(
+    {},
+    {
+      get: (_, id) => {
+        const fila = typeof id === "string" ? porId.get(id) : undefined;
+        if (!fila) return undefined;
+        if (!calculados.has(id)) calculados.set(id, estilosDe(fila));
+        return calculados.get(id);
+      },
+    },
+  );
   return { grupos, estilos };
 };

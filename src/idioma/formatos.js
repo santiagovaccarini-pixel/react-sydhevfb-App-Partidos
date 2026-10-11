@@ -21,10 +21,18 @@ export const enLista = (textos) => {
   }
 };
 
+// El formato de la fecha corta de cada idioma se arma una sola vez: armarlo
+// en cada llamada es lento y una base muestra miles de fechas (GPS).
+const formatosCortos = new Map();
+const formatoCorto = (idioma) => {
+  if (!formatosCortos.has(idioma)) formatosCortos.set(idioma, new Intl.DateTimeFormat(idioma, { day: "2-digit", month: "2-digit", year: "numeric" }));
+  return formatosCortos.get(idioma);
+};
+
 export const fechaCorta = (valor) => {
   const fecha = aFecha(valor);
   if (!fecha) return "";
-  return new Intl.DateTimeFormat(idiomaActual(), { day: "2-digit", month: "2-digit", year: "numeric" }).format(fecha);
+  return formatoCorto(idiomaActual()).format(fecha);
 };
 
 export const fechaLarga = (valor) => {

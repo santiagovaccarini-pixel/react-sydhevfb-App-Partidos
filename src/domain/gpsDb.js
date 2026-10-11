@@ -7,8 +7,16 @@ import { esSoloLectura } from "./alDia.js";
 
 const COLUMNAS = "id, equipo_id, orden, fecha, jugador_id, persona, promedio, datos";
 
-// La API devuelve hasta 1000 filas por vez: se piden de a 1000 hasta el final.
+// La API devuelve hasta 1000 filas por vez: se piden de a 1000. Sabiendo
+// cuántas son, varias páginas van a la vez.
 const POR_VEZ = 1000;
+const PAGINAS_A_LA_VEZ = 4;
+// Se borran de a 100 (los id van en la dirección del pedido).
+export const POR_BORRADO = 100;
+// En `jugador`, el promedio del equipo (Team Average); en `dispositivo`, las
+// filas sin dispositivo.
+export const SOLO_PROMEDIOS = "promedio";
+export const SIN_DISPOSITIVO = "-";
 // Al pegar el historial (miles de filas), se guardan de a tandas.
 export const POR_TANDA = 250;
 
@@ -83,24 +91,74 @@ const todas = async (pedir) => {
 };
 
 // Las filas del club entre dos fechas (ISO, las dos incluidas; sin una, sin
-// ese límite), por fecha y en el orden de carga. Quien ya se fue del club ve
-// la foto de su último día (toda: se filtra acá).
-export const listarGps = async (equipoId, { desde = null, hasta = null } = {}) => {
-  if (!equipoId) return { filas: [], error: "" };
-  const enElPeriodo = (fila) => fila && typeof fila === "object" && fila.fecha && (!desde || fila.fecha >= desde) && (!hasta || fila.fecha <= hasta);
+// ese límite), de un jugador (su id), del promedio del equipo
+// (SOLO_PROMEDIOS) o de todos, y de un dispositivo (su código;
+// SIN_DISPOSITIVO: sin dispositivo) o de todos; por fecha y en el orden de
+// carga. La base filtra: no se baja lo que no se pidió. Con `maximo`, si son
+// más, no las trae y dice cuántas son ({ demasiadas: true, total }). Quien
+// ya se fue del club ve la foto de su último día (toda: se filtra acá).
+export const listarGps = async (equipoId, { desde = null, hasta = null, jugador = "", dispositivo = "", maximo = null } = {}) => {
+  if (!equipoId) return { filas: [], total: 0, demasiadas: false, error: "" };
+  const deJugador = (fila) => (!jugador ? true : jugador === SOLO_PROMEDIOS ? Boolean(fila.promedio) : String(fila.jugador_id ?? "") === String(jugador));
+  const deDispositivo = (fila) => {
+    if (!dispositivo) return true;
+    const suyo = fila.datos?.dispositivo;
+    return dispositivo === SIN_DISPOSITIVO ? suyo === undefined || suyo === null || suyo === "" : suyo === dispositivo;
+  };
+  const pasa = (fila) =>
+    fila && typeof fila === "object" && fila.fecha && (!desde || fila.fecha >= desde) && (!hasta || fila.fecha <= hasta) && deJugador(fila) && deDispositivo(fila);
+  const conMaximo = (filas) => (maximo && filas.length > maximo ? { filas: [], total: filas.length, demasiadas: true, error: "" } : { filas, total: filas.length, demasiadas: false, error: "" });
   if (esSoloLectura(equipoId)) {
     const { filas, error } = await todas((d, h) => supabase.rpc("datos_al_dia", { p_tabla: "gps", p_equipo: equipoId }).range(d, h));
-    if (error) return { filas: [], ...fallo(error, "gps.error.noLeer") };
-    return { filas: filas.filter(enElPeriodo).map(normalizarFilaGps).sort(porFechaYOrden), error: "" };
+    if (error) return { filas: [], total: 0, demasiadas: false, ...fallo(error, "gps.error.noLeer") };
+    return conMaximo(filas.filter(pasa).map(normalizarFilaGps).sort(porFechaYOrden));
   }
-  const { filas, error } = await todas((d, h) => {
-    let consulta = supabase.from("gps").select(COLUMNAS).eq("equipo_id", equipoId);
-    if (desde) consulta = consulta.gte("fecha", desde);
-    if (hasta) consulta = consulta.lte("fecha", hasta);
-    return consulta.order("fecha", { ascending: true }).order("orden", { ascending: true }).range(d, h);
-  });
-  if (error) return { filas: [], ...fallo(error, "gps.error.noLeer") };
-  return { filas: filas.map(normalizarFilaGps), error: "" };
+  const consulta = (opciones) => {
+    let pedido = supabase.from("gps").select(COLUMNAS, opciones).eq("equipo_id", equipoId);
+    if (desde) pedido = pedido.gte("fecha", desde);
+    if (hasta) pedido = pedido.lte("fecha", hasta);
+    if (jugador === SOLO_PROMEDIOS) pedido = pedido.not("promedio", "is", null);
+    else if (jugador) pedido = pedido.eq("jugador_id", jugador);
+    if (dispositivo === SIN_DISPOSITIVO) pedido = pedido.is("datos->dispositivo", null);
+    else if (dispositivo) pedido = pedido.eq("datos->>dispositivo", dispositivo);
+    return pedido.order("fecha", { ascending: true }).order("orden", { ascending: true });
+  };
+  // La primera página dice también cuántas son.
+  const primera = await consulta({ count: "exact" }).range(0, POR_VEZ - 1);
+  if (primera.error) return { filas: [], total: 0, demasiadas: false, ...fallo(primera.error, "gps.error.noLeer") };
+  const total = Number.isFinite(primera.count) ? primera.count : null;
+  if (maximo && total !== null && total > maximo) return { filas: [], total, demasiadas: true, error: "" };
+  const filas = [...(Array.isArray(primera.data) ? primera.data : [])];
+  if (total === null) {
+    // Sin la cuenta, de a 1000 hasta el final.
+    if (filas.length === POR_VEZ) {
+      const resto = await todas((d, h) => consulta().range(d + POR_VEZ, h + POR_VEZ));
+      if (resto.error) return { filas: [], total: 0, demasiadas: false, ...fallo(resto.error, "gps.error.noLeer") };
+      filas.push(...resto.filas);
+    }
+  } else {
+    const inicios = [];
+    for (let inicio = filas.length; inicio < total; inicio += POR_VEZ) inicios.push(inicio);
+    const paginas = new Array(inicios.length);
+    let siguiente = 0;
+    let falla = null;
+    const pedirPaginas = async () => {
+      while (siguiente < inicios.length && !falla) {
+        const i = siguiente;
+        siguiente += 1;
+        const { data, error } = await consulta().range(inicios[i], inicios[i] + POR_VEZ - 1); // eslint-disable-line no-await-in-loop
+        if (error) falla = error;
+        else paginas[i] = Array.isArray(data) ? data : [];
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PAGINAS_A_LA_VEZ, inicios.length) }, pedirPaginas));
+    if (falla) return { filas: [], total: 0, demasiadas: false, ...fallo(falla, "gps.error.noLeer") };
+    paginas.forEach((pagina) => filas.push(...pagina));
+  }
+  // Si mientras se leía se sumó una fila, alguna puede llegar dos veces.
+  const vistas = new Set();
+  const unicas = filas.filter((fila) => fila?.id && !vistas.has(fila.id) && vistas.add(fila.id));
+  return { filas: unicas.map(normalizarFilaGps), total: total ?? unicas.length, demasiadas: false, error: "" };
 };
 
 // Carga muchas filas (pegadas del Excel), de a tandas y en su orden: la base
@@ -130,6 +188,21 @@ export const borrarFilaGps = async (id) => {
   const { error } = await supabase.from("gps").delete().eq("id", id);
   if (error) return fallo(error, "gps.error.noBorrar");
   return { error: "" };
+};
+
+// Varias filas, de a POR_BORRADO por pedido. Devuelve las que la base borró
+// de verdad (las que no se pueden, por permisos, no vuelven) y, si un pedido
+// falla, se corta ahí con su error.
+export const borrarFilasGps = async (ids, { alAvanzar = null } = {}) => {
+  const borradas = [];
+  for (let i = 0; i < ids.length; i += POR_BORRADO) {
+    const tanda = ids.slice(i, i + POR_BORRADO);
+    const { data, error } = await supabase.from("gps").delete().in("id", tanda).select("id"); // eslint-disable-line no-await-in-loop
+    if (error) return { borradas, ...fallo(error, "gps.error.noBorrar") };
+    borradas.push(...(Array.isArray(data) ? data.map((fila) => fila.id) : []));
+    alAvanzar?.(Math.min(i + POR_BORRADO, ids.length), ids.length);
+  }
+  return { borradas, error: "" };
 };
 
 // ------------------------------------------------------------- Ajustes --
