@@ -3,11 +3,28 @@
    informe y los campos de fecha de los reportes). Acá va solo lo que no
    existe en esos. */
 
-/* El período de la Base: Desde y Hasta, uno al lado del otro también en el
-   celular (son dos fechas cortas). */
+/* Qué se trae a la Base: Desde, Hasta, Jugador y Dispositivo, en una fila en
+   la compu y de a dos en el celular. */
 .gps-marco .gps-periodo-campos {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  max-width: 560px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 899px) {
+  .gps-marco .gps-periodo-campos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* El período tiene demasiadas filas: el aviso en amarillo, como el de los
+   V.R. que faltan en Evaluaciones, con el botón para traerlas igual. */
+.gps-marco .lesiones-estado.gps-demasiadas {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  background: #fef3c7;
+  color: #92400e;
+}
+.gps-marco .gps-demasiadas p {
+  margin: 0;
 }
 .gps-marco .gps-periodo .lesiones-ayuda {
   margin: 10px 0 0;

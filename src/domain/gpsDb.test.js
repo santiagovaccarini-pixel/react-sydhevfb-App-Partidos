@@ -1,5 +1,19 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { POR_TANDA, actualizarFilaGps, borrarFilaGps, claveDeErrorGps, crearFilasGps, guardarCabeceraGps, guardarOpcionGps, leerAjustesGps, listarGps } from "./gpsDb.js";
+import {
+  POR_BORRADO,
+  POR_TANDA,
+  SIN_DISPOSITIVO,
+  SOLO_PROMEDIOS,
+  actualizarFilaGps,
+  borrarFilaGps,
+  borrarFilasGps,
+  claveDeErrorGps,
+  crearFilasGps,
+  guardarCabeceraGps,
+  guardarOpcionGps,
+  leerAjustesGps,
+  listarGps,
+} from "./gpsDb.js";
 
 // Un doble de Supabase que anota cada consulta y contesta, una por consulta,
 // lo que haya en "respuestas" (si no hay, lo de "filas").
@@ -10,7 +24,7 @@ vi.mock("./alDia.js", () => ({ esSoloLectura: () => doble.soloLectura }));
 vi.mock("../supabase.js", () => {
   const cadena = () => {
     const c = {};
-    ["select", "eq", "gte", "lte", "order", "range", "insert", "update", "upsert", "delete", "single"].forEach((metodo) => {
+    ["select", "eq", "gte", "lte", "not", "is", "in", "order", "range", "insert", "update", "upsert", "delete", "single"].forEach((metodo) => {
       c[metodo] = (...args) => {
         doble.llamadas.push([metodo, ...args]);
         return c;
@@ -66,6 +80,59 @@ describe("leer el GPS", () => {
     expect(filas.map((una) => una.id)).toEqual(["g1", "g2"]);
   });
 
+  test("sabiendo cuántas son, las páginas que faltan van de a varias a la vez y vuelven en orden", async () => {
+    doble.respuestas = [
+      { data: Array.from({ length: 1000 }, (_, i) => fila(i + 1)), error: null, count: 3500 },
+      { data: Array.from({ length: 1000 }, (_, i) => fila(1001 + i)), error: null },
+      { data: Array.from({ length: 1000 }, (_, i) => fila(2001 + i)), error: null },
+      // Una que llega dos veces (se sumó una fila mientras se leía): va una vez.
+      { data: [fila(3000), ...Array.from({ length: 499 }, (_, i) => fila(3001 + i))], error: null },
+    ];
+    const { filas, total, demasiadas } = await listarGps("eq-1", { desde: "2026-01-01" });
+    expect({ total, demasiadas }).toEqual({ total: 3500, demasiadas: false });
+    expect(filas).toHaveLength(3499);
+    expect(filas.map((una) => una.orden)).toEqual(Array.from({ length: 3499 }, (_, i) => i + 1));
+    expect(doble.llamadas.filter((llamada) => llamada[0] === "select")[0]).toEqual(["select", expect.any(String), { count: "exact" }]);
+    expect(doble.llamadas.filter((llamada) => llamada[0] === "range")).toEqual([
+      ["range", 0, 999],
+      ["range", 1000, 1999],
+      ["range", 2000, 2999],
+      ["range", 3000, 3999],
+    ]);
+  });
+
+  test("con un máximo, si son más no las trae: dice cuántas son", async () => {
+    doble.respuestas = [{ data: Array.from({ length: 1000 }, (_, i) => fila(i + 1)), error: null, count: 52340 }];
+    expect(await listarGps("eq-1", { maximo: 20000 })).toEqual({ filas: [], total: 52340, demasiadas: true, error: "" });
+    expect(doble.llamadas.filter((llamada) => llamada[0] === "range")).toHaveLength(1);
+  });
+
+  test("la base filtra por jugador, por el Team Average y por dispositivo", async () => {
+    doble.respuestas = [{ data: [fila(1)], error: null, count: 1 }];
+    await listarGps("eq-1", { jugador: "7", dispositivo: "catapult" });
+    expect(doble.llamadas).toContainEqual(["eq", "jugador_id", "7"]);
+    expect(doble.llamadas).toContainEqual(["eq", "datos->>dispositivo", "catapult"]);
+    doble.llamadas.length = 0;
+    doble.respuestas = [{ data: [], error: null, count: 0 }];
+    await listarGps("eq-1", { jugador: SOLO_PROMEDIOS, dispositivo: SIN_DISPOSITIVO });
+    expect(doble.llamadas).toContainEqual(["not", "promedio", "is", null]);
+    expect(doble.llamadas).toContainEqual(["is", "datos->dispositivo", null]);
+    expect(doble.llamadas.some((llamada) => llamada[0] === "eq" && llamada[1] === "jugador_id")).toBe(false);
+  });
+
+  test("quien se fue: los mismos filtros, sobre la foto", async () => {
+    doble.soloLectura = true;
+    doble.filas = [
+      fila(1, { datos: { dispositivo: "catapult" } }),
+      fila(2, { jugador_id: null, promedio: "parcial", datos: { dispositivo: "catapult" } }),
+      fila(3, { jugador_id: 8, datos: {} }),
+    ];
+    expect((await listarGps("eq-1", { jugador: "7" })).filas.map((una) => una.id)).toEqual(["g1"]);
+    expect((await listarGps("eq-1", { jugador: SOLO_PROMEDIOS })).filas.map((una) => una.id)).toEqual(["g2"]);
+    expect((await listarGps("eq-1", { dispositivo: SIN_DISPOSITIVO })).filas.map((una) => una.id)).toEqual(["g3"]);
+    expect(await listarGps("eq-1", { maximo: 2 })).toMatchObject({ filas: [], total: 3, demasiadas: true });
+  });
+
   test("sin la migración avisa que falta", async () => {
     doble.respuestas = [{ data: null, error: { code: "42P01", message: 'relation "public.gps" does not exist' } }];
     expect((await listarGps("eq-1")).error).toBe("gps.error.faltaMigracion");
@@ -108,6 +175,28 @@ describe("guardar", () => {
     expect(cambiada.datos).toEqual({ d: 5 });
     expect(doble.llamadas).toContainEqual(["eq", "id", "g1"]);
     expect((await borrarFilaGps("g1")).error).toBe("");
+  });
+
+  test("varias filas se borran de a tandas; vuelven las que la base borró de verdad", async () => {
+    const ids = Array.from({ length: POR_BORRADO + 2 }, (_, i) => `g${i + 1}`);
+    doble.respuestas = [
+      { data: ids.slice(0, POR_BORRADO).map((id) => ({ id })), error: null },
+      // Una de la segunda tanda no se pudo (no vuelve).
+      { data: [{ id: ids[POR_BORRADO] }], error: null },
+    ];
+    const avances = [];
+    const { borradas, error } = await borrarFilasGps(ids, { alAvanzar: (hechas, total) => avances.push([hechas, total]) });
+    expect(error).toBe("");
+    expect(borradas).toEqual(ids.slice(0, POR_BORRADO + 1));
+    expect(doble.llamadas.filter((llamada) => llamada[0] === "in").map((llamada) => llamada[2].length)).toEqual([POR_BORRADO, 2]);
+    expect(avances).toEqual([
+      [POR_BORRADO, POR_BORRADO + 2],
+      [POR_BORRADO + 2, POR_BORRADO + 2],
+    ]);
+    // Si un pedido falla, se corta ahí con su error.
+    doble.llamadas.length = 0;
+    doble.respuestas = [{ data: null, error: { message: "Failed to fetch" } }];
+    expect(await borrarFilasGps(["g1", "g2"])).toEqual({ borradas: [], error: "gps.error.noBorrar", detalle: "Failed to fetch" });
   });
 
   test("los errores de la base, en el idioma de la app", () => {

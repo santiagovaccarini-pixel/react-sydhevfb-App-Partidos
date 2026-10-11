@@ -8,6 +8,9 @@ const datos = vi.hoisted(() => ({
   equipo: { id: "eq-1", nombre: "Club de Prueba" },
   filas: [],
   errorAlLeer: "",
+  // Si está, cuántas filas dice la base que tiene el período (para probar
+  // el aviso de demasiadas sin armar 20.000 filas).
+  totalFalso: null,
   lecturas: [],
   creadas: [],
   actualizadas: [],
@@ -40,14 +43,20 @@ vi.mock("./domain/plantel.js", async (importOriginal) => ({
   cargarPlantelConCatapult: async () => ({ plantel: [{ id: 1, nombre: "ALFA", catapult_nombre: "A. Alfa" }], error: "" }),
 }));
 vi.mock("./domain/gpsDb.js", () => ({
-  listarGps: async (equipoId, { desde = null, hasta = null } = {}) => {
-    datos.lecturas.push({ equipoId, desde, hasta });
-    if (datos.errorAlLeer) return { filas: [], error: datos.errorAlLeer };
-    // Como la base: por fecha y en el orden de carga.
+  SOLO_PROMEDIOS: "promedio",
+  SIN_DISPOSITIVO: "-",
+  listarGps: async (equipoId, { desde = null, hasta = null, jugador = "", dispositivo = "", maximo = null } = {}) => {
+    datos.lecturas.push({ equipoId, desde, hasta, jugador, dispositivo, maximo });
+    if (datos.errorAlLeer) return { filas: [], total: 0, demasiadas: false, error: datos.errorAlLeer };
+    // Como la base: lo pedido, por fecha y en el orden de carga.
     const filas = datos.filas
       .filter((fila) => (!desde || fila.fecha >= desde) && (!hasta || fila.fecha <= hasta))
+      .filter((fila) => (!jugador ? true : jugador === "promedio" ? Boolean(fila.promedio) : String(fila.jugador_id) === jugador))
+      .filter((fila) => (!dispositivo ? true : dispositivo === "-" ? !fila.datos.dispositivo : fila.datos.dispositivo === dispositivo))
       .sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.orden - b.orden));
-    return { filas: filas.map((fila) => ({ ...fila, datos: { ...fila.datos } })), error: "" };
+    const total = datos.totalFalso ?? filas.length;
+    if (maximo && total > maximo) return { filas: [], total, demasiadas: true, error: "" };
+    return { filas: filas.map((fila) => ({ ...fila, datos: { ...fila.datos } })), total, demasiadas: false, error: "" };
   },
   crearFilasGps: async (equipoId, filas, { alAvanzar } = {}) => {
     const creadas = filas.map((fila, i) => ({ id: `nueva-${datos.creadas.length + i + 1}`, equipo_id: equipoId, orden: 100 + datos.creadas.length + i, jugador_id: null, persona: null, promedio: null, ...fila }));
@@ -62,10 +71,10 @@ vi.mock("./domain/gpsDb.js", () => ({
     datos.filas = datos.filas.map((una) => (una.id === id ? guardada : una));
     return { fila: guardada, error: "" };
   },
-  borrarFilaGps: async (id) => {
-    datos.borradas.push(id);
-    datos.filas = datos.filas.filter((una) => una.id !== id);
-    return { error: "" };
+  borrarFilasGps: async (ids) => {
+    datos.borradas.push(...ids);
+    datos.filas = datos.filas.filter((una) => !ids.includes(una.id));
+    return { borradas: [...ids], error: "" };
   },
   leerAjustesGps: async () => ({ campos: [...datos.ajustes.campos], opciones: [...datos.ajustes.opciones], error: "" }),
   guardarCabeceraGps: async (equipoId, campo, { etiquetas = {}, oculto = false, orden = 0, tipo = null }) => {
@@ -168,6 +177,7 @@ describe("GPS", () => {
     datos.equipo = { id: "eq-1", nombre: "Club de Prueba" };
     datos.filas = FILAS();
     datos.errorAlLeer = "";
+    datos.totalFalso = null;
     datos.lecturas = [];
     datos.creadas = [];
     datos.actualizadas = [];
@@ -202,7 +212,7 @@ describe("GPS", () => {
     const [desde, hasta] = contenedor.querySelectorAll(".gps-periodo input[type=date]");
     expect(desde.value).toBe(diasAntes(27));
     expect(hasta.value).toBe(HOY);
-    expect(datos.lecturas.at(-1)).toEqual({ equipoId: "eq-1", desde: diasAntes(27), hasta: HOY });
+    expect(datos.lecturas.at(-1)).toEqual({ equipoId: "eq-1", desde: diasAntes(27), hasta: HOY, jugador: "", dispositivo: "", maximo: 20000 });
 
     // Las columnas del Excel en su orden, con Microciclo, Nombre y Puesto fijas.
     expect(cabeceras(contenedor).slice(0, 5)).toEqual(["Microciclo", "Nombre", "Puesto", "D", "14,4-25Km/h"]);
@@ -240,7 +250,7 @@ describe("GPS", () => {
     await montar();
     const [desde] = contenedor.querySelectorAll(".gps-periodo input[type=date]");
     await escribir(desde, diasAntes(90));
-    expect(datos.lecturas.at(-1)).toEqual({ equipoId: "eq-1", desde: diasAntes(90), hasta: HOY });
+    expect(datos.lecturas.at(-1)).toMatchObject({ equipoId: "eq-1", desde: diasAntes(90), hasta: HOY });
     expect(filas(contenedor)).toHaveLength(4);
     // Dos dispositivos: un informe para cada uno, con su nombre, en el orden
     // de su lista (aunque la vieja, de Sport, vaya primero en la tabla).
@@ -285,6 +295,55 @@ describe("GPS", () => {
     expect(celda(contenedor, 1, "Nombre").style.background).toBe("rgb(217, 150, 148)");
   });
 
+  test("se trae de la base solo lo pedido: un jugador, el Team Average o un dispositivo", async () => {
+    await montar();
+    const [jugador, dispositivo] = contenedor.querySelectorAll(".gps-periodo select");
+    expect([...jugador.options].map((opcion) => opcion.textContent)).toEqual(["Todos", "Team Average", "ALFA", "BETA", "GAMA · Ya no está"]);
+    expect([...dispositivo.options].map((opcion) => opcion.textContent)).toEqual(["Todos", "Catapult", "Sport", "Sin dispositivo"]);
+    await elegir(jugador, "2");
+    expect(datos.lecturas.at(-1)).toMatchObject({ jugador: "2", dispositivo: "" });
+    expect(filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent)).toEqual(["BETA"]);
+    // El informe sale de lo traído (una fila: sin desvío, sin colores).
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "n"), "D").textContent).toBe("1");
+    await elegir(jugador, "promedio");
+    expect(filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent)).toEqual(["Team Average Parcial"]);
+    await elegir(jugador, "");
+    await elegir(dispositivo, "-");
+    expect(datos.lecturas.at(-1)).toMatchObject({ jugador: "", dispositivo: "-" });
+    // Ninguna sin dispositivo: la tabla vacía.
+    expect(contenedor.querySelector(".tabla-datos-vacia")).not.toBeNull();
+  });
+
+  test("con un período enorme dice cuántas filas son antes de traerlas, y se pueden traer igual", async () => {
+    datos.totalFalso = 52340;
+    await montar();
+    expect(contenedor.querySelector(".gps-demasiadas").textContent).toContain("Este período tiene 52.340 filas.");
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("52.340 filas");
+    // No se trajo ninguna: en lugar de la tabla, el aviso.
+    expect(contenedor.querySelector(".tabla-datos")).toBeNull();
+    datos.totalFalso = null;
+    await tocar(boton("Traer las 52.340 filas igual"));
+    expect(datos.lecturas.at(-1)).toMatchObject({ maximo: null });
+    expect(contenedor.querySelector(".gps-demasiadas")).toBeNull();
+    expect(filas(contenedor)).toHaveLength(3);
+    // Al cambiar qué traer, vuelve a preguntar.
+    const [desde] = contenedor.querySelectorAll(".gps-periodo input[type=date]");
+    await escribir(desde, diasAntes(90));
+    expect(datos.lecturas.at(-1)).toMatchObject({ maximo: 20000 });
+  });
+
+  test("con varias filas elegidas (Shift), se borran todas de una vez", async () => {
+    await montar();
+    await tocar(celda(contenedor, 0, "D"));
+    await act(async () => celda(contenedor, 2, "D").dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true })));
+    await tocar(boton("Borrar 3 filas"));
+    expect(document.body.textContent).toContain("¿Borrar 3 filas?");
+    await tocar(boton("Sí, borrar"));
+    expect(datos.borradas).toEqual(["g1", "g2", "g3"]);
+    expect(contenedor.querySelector(".tabla-datos-vacia")).not.toBeNull();
+    expect(document.body.textContent).toContain("3 filas borradas.");
+  });
+
   test("borrar una fila pide confirmación", async () => {
     await montar();
     await tocar(celda(contenedor, 1, "D"));
@@ -315,7 +374,7 @@ describe("GPS", () => {
     expect(contenedor.querySelector(".datos-importar-pegado textarea").value).toBe("");
     await esperar(() => contenedor.textContent.includes("2 para cargar · 1 ya está en la app · 1 para elegir"));
     expect(contenedor.textContent).toContain("4 filas en lo pegado");
-    expect(datos.lecturas.at(-1)).toEqual({ equipoId: "eq-1", desde: AYER, hasta: HOY });
+    expect(datos.lecturas.at(-1)).toMatchObject({ equipoId: "eq-1", desde: AYER, hasta: HOY });
     expect(contenedor.textContent).toContain("1 nombre que no está en Datos básicos");
     expect(contenedor.textContent).toContain("Distancia Explosiva: 1 celda no se entendió («#¡DIV/0!») y queda vacía.");
     expect(contenedor.textContent).toContain("Código Estrategia: 1 fila con un texto que no está en la lista («0»)");

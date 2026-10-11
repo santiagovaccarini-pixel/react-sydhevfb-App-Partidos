@@ -78,7 +78,7 @@ const ANCHO_FIJA = 120;
 // dibujan al abrir y cuántas de más arriba y abajo de las que se ven.
 const ALTO_FILA = 34;
 const FILAS_AL_ABRIR = 60;
-const FILAS_DE_MAS = 20;
+const FILAS_DE_MAS = 8;
 const enElProximoCuadro = (fn) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(fn) : setTimeout(fn, 16));
 const cancelarCuadro = (id) => (typeof cancelAnimationFrame === "function" ? cancelAnimationFrame(id) : clearTimeout(id));
 
