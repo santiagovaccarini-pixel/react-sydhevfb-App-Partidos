@@ -494,6 +494,7 @@ export default {
     soltarConDosClics: "Dos clics: deja de estar fija",
     columnaFija: "{{columna}} queda fija",
     columnaSuelta: "{{columna}} ya no está fija",
+    fijaNoEntra: "{{columna}} no entra fija: soltá otra columna fija antes",
     seleccion_one: "{{n}} celda elegida",
     seleccion_other: "{{n}} celdas elegidas",
     copiado_one: "{{n}} celda copiada",

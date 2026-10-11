@@ -586,18 +586,105 @@ describe("la tabla estilo Excel", () => {
     expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
   });
 
-  test("en el celular, dos toques en la cabecera no la fijan (ahí las fijas corren con las demás)", async () => {
-    window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }));
+  // Un toque con el dedo (por defecto, quieto).
+  const toque = async (elemento, { x = 10, y = 10, hastaX = x } = {}) => {
+    await puntero(elemento, "pointerdown", { pointerType: "touch", x, y });
+    await puntero(elemento, "pointerup", { pointerType: "touch", x: hastaX, y });
+  };
+  const comoCelular = () => {
+    const consulta = { matches: false, oyentes: [], addEventListener: (tipo, fn) => consulta.oyentes.push(fn), removeEventListener: () => {} };
+    window.matchMedia = vi.fn(() => consulta);
+    return consulta;
+  };
+  const quietas = () => [...contenedor.querySelectorAll("th[data-columna].inmovil")].map((th) => th.textContent);
+
+  test("en el celular, dos toques en una cabecera la dejan fija; las de entrada siguen corriendo con las demás", async () => {
+    // Santiago, 11/10: «revisa que en celular cuando hago doble click sobre
+    // una columna no se fija». El celular no avisa el doble clic: se cuentan
+    // los dos toques.
+    const consulta = comoCelular();
     try {
-      await montar();
-      const [, edad] = contenedor.querySelectorAll("th[data-columna]");
-      await dobleClic(edad);
-      expect(contenedor.querySelectorAll("th.inmovil")).toHaveLength(0);
-      expect(localStorage.getItem("tabla_fijas:prueba")).toBeNull();
+      await montar({ fijas: ["nombre"], columnas: [{ ...columnas[0], ancho: 150 }, columnas[1], columnas[2]] });
       expect(window.matchMedia).toHaveBeenCalledWith("(min-width: 900px)");
+      // Nombre (la de entrada) va primero, pero corre con las demás.
+      expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+      expect(quietas()).toEqual([]);
+
+      // Un toque solo no fija nada; correr el dedo (desplazar la tabla), tampoco.
+      let [, , pie] = contenedor.querySelectorAll("th[data-columna]");
+      await toque(pie);
+      expect(quietas()).toEqual([]);
+      await toque(pie, { hastaX: 60 });
+      await toque(pie, { hastaX: 60 });
+      expect(quietas()).toEqual([]);
+
+      // Dos toques: Pie queda fija y va primero (como las fijas en la compu).
+      conAncho(pie, 104);
+      await toque(pie);
+      await toque(pie);
+      expect(cabeceras(contenedor)).toEqual(["Pie", "Nombre", "Edad"]);
+      expect(quietas()).toEqual(["Pie"]);
+      const [fijada] = contenedor.querySelectorAll("th[data-columna]");
+      expect(fijada.style.left).toBe("0px");
+      expect(contenedor.querySelector("table").style.getPropertyValue("--tabla-ancho-pie")).toBe("104px");
+      expect(contenedor.querySelector(".tabla-datos-estado").textContent).toContain("Pie queda fija");
+      // Queda guardado aparte: las de la compu no se tocan.
+      expect(JSON.parse(localStorage.getItem("tabla_fijas_celular:prueba"))).toEqual(["pie"]);
+      expect(localStorage.getItem("tabla_fijas:prueba")).toBeNull();
+      // Si el navegador avisa igual el doble clic, no se suelta de nuevo.
+      await dobleClic(fijada);
+      expect(quietas()).toEqual(["Pie"]);
+
+      // Nombre, la de entrada, también se fija en el celular: después de Pie.
+      const [, nombre] = contenedor.querySelectorAll("th[data-columna]");
+      await toque(nombre);
+      await toque(nombre);
+      expect(cabeceras(contenedor)).toEqual(["Pie", "Nombre", "Edad"]);
+      expect(quietas()).toEqual(["Pie", "Nombre"]);
+      expect(contenedor.querySelectorAll("th[data-columna]")[1].style.left).toBe("calc(var(--tabla-ancho-pie))");
+
+      // Al volver a abrir, sigue así; dos toques más la sueltan.
+      await act(async () => raiz.unmount());
+      raiz = createRoot(contenedor);
+      await montar({ fijas: ["nombre"], columnas: [{ ...columnas[0], ancho: 150 }, columnas[1], columnas[2]] });
+      expect(quietas()).toEqual(["Pie", "Nombre"]);
+      [pie] = contenedor.querySelectorAll("th[data-columna]");
+      await toque(pie);
+      await toque(pie);
+      expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+      expect(quietas()).toEqual(["Nombre"]);
+      expect(contenedor.querySelector(".tabla-datos-estado").textContent).toContain("Pie ya no está fija");
+      expect(JSON.parse(localStorage.getItem("tabla_fijas_celular:prueba"))).toEqual(["nombre"]);
+      expect(contenedor.querySelectorAll("th[data-columna]")[0].style.left).toBe("0px");
+
+      // Al pasar a una pantalla grande (girar la tableta), van las de la compu.
+      consulta.matches = true;
+      await act(async () => consulta.oyentes.forEach((fn) => fn()));
+      expect(quietas()).toEqual(["Nombre"]);
+      expect(JSON.parse(localStorage.getItem("tabla_fijas_celular:prueba"))).toEqual(["nombre"]);
     } finally {
       delete window.matchMedia;
     }
+  });
+
+  test("si con otra fija casi no quedaría lugar para las demás columnas, no se fija y lo dice", async () => {
+    await montar({ fijas: ["nombre"], columnas: [{ ...columnas[0], ancho: 150 }, columnas[1], columnas[2]] });
+    // Una tabla de 300 px: con Nombre (150) y Pie (104) quedarían 46 px (tiene
+    // que entrar al lado una columna de las más angostas, 56).
+    Object.defineProperty(contenedor.querySelector(".tabla-datos-marco"), "clientWidth", { configurable: true, value: 300 });
+    const [, , pie] = contenedor.querySelectorAll("th[data-columna]");
+    conAncho(pie, 104);
+    await dobleClic(pie);
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+    expect(quietas()).toEqual(["Nombre"]);
+    expect(contenedor.querySelector(".tabla-datos-estado").textContent).toContain("Pie no entra fija: soltá otra columna fija antes");
+    expect(localStorage.getItem("tabla_fijas:prueba")).toBeNull();
+    // Soltar una siempre se puede; con lugar, se fija.
+    const [nombre] = contenedor.querySelectorAll("th[data-columna]");
+    await dobleClic(nombre);
+    expect(quietas()).toEqual([]);
+    await dobleClic(contenedor.querySelectorAll("th[data-columna]")[2]);
+    expect(quietas()).toEqual(["Pie"]);
   });
 
   // Medidas de mentira: jsdom no dibuja.
@@ -836,6 +923,44 @@ describe("la tabla estilo Excel", () => {
     expect(otroRotulo.getAttribute("colspan")).toBe("1");
     expect(otroRotulo.classList.contains("inmovil")).toBe(true);
     expect(otroRotulo.classList.contains("ultima-inmovil")).toBe(true);
+  });
+
+  test("en el celular, el dato de arriba de una fijada con dos toques queda fijo con ella; el rótulo corre con las de entrada", async () => {
+    comoCelular();
+    try {
+      const vista = () => ({
+        estilos: {},
+        arriba: [{ id: "media", rotulo: "Promedio", celdas: { edad: { texto: "36,5" }, pie: { texto: "—" } } }],
+      });
+      await montar({ fijas: ["nombre"], vista, columnas: [{ ...columnas[0], ancho: 150 }, { ...columnas[1], ancho: 90 }, columnas[2]] });
+      let fila = contenedor.querySelector("thead tr.tabla-datos-arriba");
+      let rotulo = fila.querySelector(".tabla-datos-arriba-rotulo");
+      // Sin fijadas: el rótulo sobre Nombre (la de entrada), sin quedar fijo.
+      expect(rotulo.getAttribute("colspan")).toBe("1");
+      expect(rotulo.classList.contains("inmovil")).toBe(false);
+      expect(fila.querySelectorAll("td.inmovil")).toHaveLength(0);
+
+      // Pie se fija: va primero, con su dato arriba, fijo como ella.
+      const [, , pie] = contenedor.querySelectorAll("th[data-columna]");
+      await toque(pie);
+      await toque(pie);
+      expect(cabeceras(contenedor)).toEqual(["Pie", "Nombre", "Edad"]);
+      fila = contenedor.querySelector("thead tr.tabla-datos-arriba");
+      const [dePie, deEdad] = fila.querySelectorAll("td");
+      expect(fila.firstElementChild).toBe(dePie);
+      expect(dePie.textContent).toBe("—");
+      expect(dePie.classList.contains("inmovil")).toBe(true);
+      expect(dePie.style.left).toBe("0px");
+      // Después, el rótulo sobre Nombre, que sigue corriendo, y el dato de Edad.
+      rotulo = fila.querySelector(".tabla-datos-arriba-rotulo");
+      expect(rotulo.previousElementSibling).toBe(dePie);
+      expect(rotulo.getAttribute("colspan")).toBe("1");
+      expect(rotulo.classList.contains("inmovil")).toBe(false);
+      expect(deEdad.textContent).toBe("36,5");
+      expect(deEdad.classList.contains("inmovil")).toBe(false);
+    } finally {
+      delete window.matchMedia;
+    }
   });
 
   test("un tiempo se escribe en minutos y segundos y se guarda en segundos", async () => {
