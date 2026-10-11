@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { Icono } from "./components/AppChrome";
-import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import TrainingCuenta from "./TrainingCuenta";
 import TrainingDiagnostico from "./TrainingDiagnostico";
 import { pedirJson } from "./trainingApi.js";
@@ -9,18 +8,16 @@ import { pedirJson } from "./trainingApi.js";
 // opción y cada una abre su pantalla. La cuenta se lee una sola vez acá y se
 // le pasa a las subpantallas, así entrar a cada una no vuelve a consultarla.
 // Pruebas técnicas aparece solo si la sesión de OpenField volvió con rol
-// 'admin' (lo decide el servidor).
+// 'admin' (lo decide el servidor). La sesión de la app se cierra en el
+// portal, no acá (Santiago, 11/10).
 export default function TrainingSettings({
   vista = "inicio",
   onCambiarVista = () => {},
-  email = "",
-  onCerrarSesion = () => {},
   rol = "usuario",
 }) {
   const conPruebas = rol === "admin";
   const [cuenta, setCuenta] = useState(null);
   const [estadoCuenta, setEstadoCuenta] = useState("cargando");
-  const [confirmarSalida, setConfirmarSalida] = useState(false);
 
   useEffect(() => {
     let vigente = true;
@@ -88,13 +85,6 @@ export default function TrainingSettings({
       detalle: "Solo si te lo piden por chat",
       alTocar: () => onCambiarVista("pruebas"),
     },
-    {
-      id: "salir",
-      icono: "candado",
-      titulo: "Cerrar sesión",
-      detalle: email,
-      alTocar: () => setConfirmarSalida(true),
-    },
   ].filter(Boolean);
 
   return (
@@ -117,19 +107,6 @@ export default function TrainingSettings({
             <span className="flecha-ajuste">›</span>
           </button>
         ))}
-
-        <HojaConfirmar
-          abierta={confirmarSalida}
-          titulo="¿Cerrar sesión?"
-          descripcion="Vas a tener que volver a entrar con tu correo y contraseña."
-          icono="candado"
-          etiquetaConfirmar="Sí, cerrar"
-          onConfirmar={() => {
-            setConfirmarSalida(false);
-            onCerrarSesion();
-          }}
-          onCancelar={() => setConfirmarSalida(false)}
-        />
       </div>
     </div>
   );

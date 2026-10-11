@@ -35,7 +35,7 @@ const olvidarVistaGuardada = () => {
 // sus chalecos están en Datos básicos). La sesión de OpenField se elige
 // recién al enviar los cortes.
 // rol: el de la sesión de OpenField ('admin' abre Pruebas técnicas en Ajustes).
-export default function TrainingModule({ onVolver, email = "", onCerrarSesion, rol = "usuario" }) {
+export default function TrainingModule({ onVolver, email = "", rol = "usuario" }) {
   const [vista, setVista] = useState("inicio");
   const [vistaAjustes, setVistaAjustesEstado] = useState("inicio");
   const [equipo] = useState(() => leerEquipoElegido());
@@ -111,8 +111,6 @@ export default function TrainingModule({ onVolver, email = "", onCerrarSesion, r
       <TrainingSettings
         vista={vistaAjustes}
         onCambiarVista={setVistaAjustes}
-        email={email}
-        onCerrarSesion={onCerrarSesion}
         rol={rol}
       />
     ),

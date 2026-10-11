@@ -253,7 +253,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.11.1";
+const APP_VERSION = "2026.10.11.2";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
@@ -1141,11 +1141,11 @@ const EstadoVersionApp = ({ actualizacionDisponible, onActualizar }) => (
 
 // Desde el portal, la portada de la tarjeta ya hizo de imagen de entrada, así
 // que Partido entra directo (intro=false). Sola, la app sigue abriendo con
-// la foto del estadio.
+// la foto del estadio. La sesión se cierra y el club se cambia en el portal,
+// no en los Ajustes de Partido (Santiago, 11/10).
 export default function App({
   intro = true,
   onVolver = null,
-  onCerrarSesion = null,
 } = {}) {
   const crearCambioVacio = () => ({
     sale: "",
@@ -1493,9 +1493,18 @@ export default function App({
       setEquipos(lista);
       setFallaronEquipos(Boolean(error));
 
-      const elegido = elegirEquipoInicial(lista, leerEquipoElegido(), {
+      // Partido no cambia de club por su cuenta: de club se cambia solo en
+      // el portal (Santiago, 11/10). Antes, si el club elegido no estaba en
+      // la lista y la cuenta tenía un solo club, pasaba a ese. Sin ninguno
+      // elegido, toma el único que hay, como las demás pantallas.
+      const guardado = leerEquipoElegido();
+      const encontrado = elegirEquipoInicial(lista, guardado, {
         huboError: Boolean(error),
       });
+      const elegido =
+        encontrado && (!guardado?.id || encontrado.id === guardado.id)
+          ? encontrado
+          : null;
 
       if (elegido) {
         mudarCopiasLocales(elegido.id, [
@@ -1518,7 +1527,6 @@ export default function App({
     };
   }, []);
   const [avisoEscudos, setAvisoEscudos] = useState("");
-  const [avisoEquipo, setAvisoEquipo] = useState("");
 
   // Los desplegables de nombre de toda la app leen el plantel de acá: el de
   // hoy (Datos básicos › Actual). Los partidos guardan los nombres como
@@ -6633,10 +6641,7 @@ export default function App({
           type="button"
           className="opcion-ajuste"
           disabled={soloLectura}
-          onClick={() => {
-            setAvisoEquipo("");
-            setVistaAjustes("equipo");
-          }}
+          onClick={() => setVistaAjustes("equipo")}
         >
           <span className="icono-ajuste">
             <Icono nombre="escudo" size={18} />
@@ -6663,31 +6668,6 @@ export default function App({
           <span className="flecha-ajuste">›</span>
         </button>
 
-        {onCerrarSesion && (
-          <button
-            type="button"
-            className="opcion-ajuste"
-            onClick={() =>
-              setConfirmacion({
-                titulo: "¿Cerrar sesión?",
-                descripcion:
-                  "Vas a tener que volver a entrar con tu correo y tu contraseña. Lo que está guardado en este celular no se pierde.",
-                etiquetaConfirmar: "Sí, cerrar sesión",
-                onConfirmar: onCerrarSesion,
-              })
-            }
-          >
-            <span className="icono-ajuste">
-              <Icono nombre="salir" size={18} />
-            </span>
-            <span className="texto-ajuste">
-              <b>Cerrar sesión</b>
-              <span>Salir de la cuenta en este celular</span>
-            </span>
-            <span className="flecha-ajuste">›</span>
-          </button>
-        )}
-
         {avisoEscudos && (
           <div className="notificacion-guardado" role="status">
             <Icono nombre="check" size={18} /> {avisoEscudos}
@@ -6697,42 +6677,15 @@ export default function App({
     </div>
   );
 
-  const avisarEquipo = (texto) => {
-    setAvisoEquipo(texto);
-    window.setTimeout(() => setAvisoEquipo(""), 2600);
-  };
-
-  // Cambiar de equipo cambia lo que se ve en toda la app, así que se vuelven a
-  // leer los partidos y el plantel: de eso se encargan los efectos que miran
-  // equipoId.
-  const cambiarDeEquipo = (id) => {
-    const elegido = equipos.find((equipo) => equipo.id === id);
-
-    guardarEquipoElegido(elegido || { id });
-    setEquipoGuardado(elegido || { id, nombre: "" });
-    setEquipoId(id);
-    // El plantel del club anterior no se queda a la vista mientras llega el
-    // nuevo: se vacía acá y los efectos que miran equipoId traen el que va.
-    setPlantel([]);
-  };
-
   const renderAjustesEquipo = () => {
-    // Para cambiar de club, solo aquellos en los que la cuenta está hoy y
-    // tiene Partido: en uno sin el módulo la base no deja guardar, y el
-    // partido cargado ahí quedaba para siempre en la cola del celular. Quien
-    // dejó un club lo mira desde el portal, en solo lectura; sin club elegido
-    // se ofrecen también esos, como en el portal.
-    const otros = equipos.filter(
-      (equipo) =>
-        equipo.id !== equipoId &&
-        equipo.miembro !== false &&
-        equipo.partido !== false &&
-        (!equipo.hasta || !equipoId),
+    // Acá solo se ve cuál es el club: se elige y se cambia únicamente en el
+    // portal (Santiago, 11/10). Si Partido se abriera sin club (desde el
+    // portal no pasa: lo pide antes), se dice dónde elegirlo y se ofrece
+    // volver a los módulos; si la cuenta no tiene ningún club con Partido,
+    // se dice por qué.
+    const hayClubConPartido = equipos.some(
+      (equipo) => equipo.miembro !== false && equipo.partido !== false,
     );
-    // Sin club elegido y sin ninguno para elegir, la pantalla quedaba vacía y
-    // sin salida (ni las pestañas sacaban de acá): se dice por qué y se
-    // ofrece volver a los módulos.
-    const sinSalida = !equipoId && otros.length === 0;
 
     return (
       <div className="app">
@@ -6745,12 +6698,6 @@ export default function App({
                 : t("partido.equipoElegirTexto")}
             </p>
           </header>
-
-          {avisoEquipo && (
-            <div className="notificacion-guardado" role="status">
-              <Icono nombre="check" size={18} /> {avisoEquipo}
-            </div>
-          )}
 
           <section className="tarjeta tarjeta-ficha" hidden={!equipoId}>
             <div className="cabeza-ficha">
@@ -6767,39 +6714,13 @@ export default function App({
             ) : null}
           </section>
 
-          {otros.length > 0 && (
+          {!equipoId && (
             <section className="tarjeta tarjeta-ficha">
-              <div className="cabeza-ficha">
-                <b>{equipoId ? t("partido.equipoCambiar") : t("partido.equipoElegir")}</b>
-                <span className="cuenta-ajuste">{otros.length}</span>
-              </div>
-
-              <ul className="lista-equipos">
-                {otros.map((equipo) => (
-                  <li key={equipo.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        cambiarDeEquipo(equipo.id);
-                        avisarEquipo(t("partido.equipoAhoraEn", { club: equipo.nombre }));
-                      }}
-                    >
-                      <EscudoDeClub equipo="cam" nombre={equipo.nombre} mini />
-                      {equipo.nombre}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-
               <p className="pista-equipo">
-                {equipoId ? t("partido.equipoPistaCambiar") : t("partido.equipoPistaElegir")}
+                {hayClubConPartido
+                  ? t("partido.equipoElegirEnPortal")
+                  : t("partido.sinClubesConPartido")}
               </p>
-            </section>
-          )}
-
-          {sinSalida && (
-            <section className="tarjeta tarjeta-ficha">
-              <p className="pista-equipo">{t("partido.sinClubesConPartido")}</p>
               {onVolver && (
                 <div className="acciones-dobles">
                   <BotonVolver onClick={onVolver}>{t("portal.modulos")}</BotonVolver>
@@ -7158,7 +7079,7 @@ export default function App({
         tono: "espera",
         titulo: "Elegí tu equipo",
         detalle:
-          "En esta base hay más de un equipo y este teléfono todavía no tiene uno elegido. Se elige en Ajustes › Equipo.",
+          "Este teléfono todavía no tiene un club elegido. Se elige en el portal, en Módulos.",
       };
     }
 

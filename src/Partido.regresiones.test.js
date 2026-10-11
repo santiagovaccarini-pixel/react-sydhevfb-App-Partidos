@@ -480,10 +480,10 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     vi.setSystemTime(new Date(2026, 8, 8, 22, 30, 0));
     await montar();
 
-    // Se pasa al otro club: la copia común queda con su borrador vacío.
-    await irA("Ajustes");
-    await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
-    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
+    // Se pasa al otro club (desde el portal): la copia común queda con su
+    // borrador vacío.
+    elegirClub("eq-2", "Otro Club");
+    await remontar();
     await vaciarPromesas();
     await act(async () => raiz.unmount());
     raiz = null;
@@ -506,24 +506,24 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     elegirClub("eq-1", "Atlético Mineiro");
     await montar();
 
-    // El INSERT tarda; mientras tanto se pasa a Otro Club, y después llega.
+    // El INSERT tarda; mientras tanto se pasa a Otro Club (desde el portal),
+    // y después llega.
     db.retenerRival = "Cruzeiro";
     await guardar();
-    const irAlClub = async (nombre) => {
-      await irA("Ajustes");
-      await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
-      await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes(nombre)).click());
-      await vaciarPromesas();
+    const irAlClub = async (id, nombre) => {
+      elegirClub(id, nombre);
+      await remontar();
     };
-    await irAlClub("Otro Club");
+    await irAlClub("eq-2", "Otro Club");
     db.retenerRival = null;
     await act(async () => db.soltar?.());
     await vaciarPromesas();
-    expect(JSON.parse(localStorage.getItem("registro_actual_partido:eq-1")).registro.idSupabase).toBe(100);
+    // La fila nueva no se anota en el partido del otro club.
     expect(JSON.parse(localStorage.getItem("registro_actual_partido:eq-2")).registro.idSupabase).toBeUndefined();
 
-    // De vuelta en su club, el final va a la misma fila sin preguntar.
-    await irAlClub("Atlético");
+    // De vuelta en su club (Partido se abre de nuevo y la reconoce), el final
+    // va a la misma fila sin preguntar.
+    await irAlClub("eq-1", "Atlético Mineiro");
     await irA("Partido");
     await escribirGolesRival("2");
     await guardar();
@@ -531,57 +531,41 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(db.filas.map((f) => `${f.id}:${f.equipo_id}:${f.resultado}`)).toEqual(["100:eq-1:1-2"]);
   });
 
-  test("cambiar de club en Ajustes guarda el partido de uno y trae el del otro", async () => {
+  test("cambiar de club en el portal guarda el partido de uno y trae el del otro", async () => {
     dosClubes();
     elegirClub("eq-1", "Atlético Mineiro");
     await montar();
     await escribirGolesRival("2");
 
-    await irA("Ajustes");
-    await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
-    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
-    await vaciarPromesas();
+    elegirClub("eq-2", "Otro Club");
+    await remontar();
 
     await irA("Formación");
     expect(contenedor.querySelector(".tarjeta-en-curso")).toBeNull();
     expect(pestanas()).not.toContain("Partido");
     expect(contenedor.textContent).not.toContain("Cruzeiro");
 
-    await irA("Ajustes");
-    await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
-    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Atlético")).click());
-    await vaciarPromesas();
+    elegirClub("eq-1", "Atlético Mineiro");
+    await remontar();
     await irA("Formación");
     expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("Cruzeiro");
     expect(contenedor.querySelector(".tarjeta-en-curso").textContent).toContain("1-2");
   });
 
-  test("Ajustes › Equipo dice que se ven los clubes donde se está y avisa el cambio de club en el idioma de la app", async () => {
+  test("Ajustes › Equipo muestra el club, sin lista para cambiarlo: de club se cambia en el portal", async () => {
+    // Santiago, 11/10: los Ajustes de los módulos no cambian de equipo.
     dosClubes();
     elegirClub("eq-1", "Atlético Mineiro");
     await montar();
     await irA("Ajustes");
     await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
-    expect(Array.from(contenedor.querySelectorAll(".pista-equipo")).map((p) => p.textContent)).toContain("Cada equipo ve solo sus partidos y su plantel. Acá aparecen los clubes en los que estás.");
-    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
-    await vaciarPromesas();
-    expect(contenedor.textContent).toContain("Ahora estás en Otro Club");
 
-    // El idioma se elige en el portal, antes de entrar a Partido.
-    await act(async () => raiz.unmount());
-    raiz = null;
-    cambiarIdioma("pt-BR");
-    try {
-      await montar();
-      await irA("Ajustes");
-      await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
-      expect(Array.from(contenedor.querySelectorAll(".pista-equipo")).map((p) => p.textContent)).toContain("Cada equipe vê só as suas partidas e o seu elenco. Aqui aparecem os clubes dos quais você faz parte.");
-      await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Atlético")).click());
-      await vaciarPromesas();
-      expect(contenedor.textContent).toContain("Agora você está em Atlético Mineiro");
-    } finally {
-      cambiarIdioma("es-AR");
-    }
+    expect(contenedor.querySelector(".equipo-propio").textContent).toContain("Atlético Mineiro");
+    expect(contenedor.querySelector(".lista-equipos")).toBeNull();
+    expect(contenedor.textContent).not.toContain("Otro Club");
+    expect(contenedor.textContent).not.toContain("Cambiar de equipo");
+    expect(contenedor.querySelector(".pista-equipo")).toBeNull();
+    expect(JSON.parse(localStorage.getItem("equipo_elegido")).id).toBe("eq-1");
   });
 
   test("con el idioma en portugués, Ajustes › Equipo queda entera en portugués y no mezcla con castellano", async () => {
@@ -592,28 +576,27 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       await montar();
       await irA("Ajustes");
       await act(async () => Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((b) => b.textContent.includes("Equipo")).click());
-      await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
       await vaciarPromesas();
 
       const pantalla = contenedor.querySelector(".contenedor");
       expect(pantalla.querySelector("h1").textContent).toBe("Equipe");
       expect(pantalla.querySelector(".encabezado p").textContent).toBe("Ajustes · Equipe");
-      expect(pantalla.textContent).toContain("Agora você está em Otro Club");
-      const [propia, cambiar, ...otras] = Array.from(pantalla.querySelectorAll(".tarjeta-ficha"));
+      const [propia, ...otras] = Array.from(pantalla.querySelectorAll(".tarjeta-ficha")).filter((tarjeta) => !tarjeta.hidden);
       expect(propia.querySelector(".cabeza-ficha").textContent).toBe("Sua equipe");
       // O escudo e o nome, nada mais: o nome não se muda daqui.
-      expect(propia.querySelector(".equipo-propio").textContent).toContain("Otro Club");
+      expect(propia.querySelector(".equipo-propio").textContent).toContain("Atlético Mineiro");
       expect(propia.querySelector("input")).toBeNull();
       expect(propia.querySelector("button")).toBeNull();
-      expect(cambiar.querySelector(".cabeza-ficha b").textContent).toBe("Trocar de equipe");
-      // Los clubes nuevos se crean desde Clubes de la app, no desde acá.
+      // De club se cambia en el portal, y los clubes nuevos se crean desde
+      // Clubes de la app: acá no hay más tarjetas.
       expect(otras).toHaveLength(0);
+      expect(pantalla.textContent).not.toContain("Trocar de equipe");
       expect(pantalla.querySelector(".boton-volver").textContent).toContain("Voltar aos Ajustes");
       for (const enCastellano of ["Equipo", "equipo", "Nombre", "Guardar", "Cambiar", "Agregar", "Crear", "Volver", "Solo para", "El escudo"]) {
         expect(pantalla.textContent, enCastellano).not.toContain(enCastellano);
       }
 
-      // Sin club elegido, la misma pantalla para elegir uno.
+      // Sin club elegido, dice que se elige en el portal (sin lista).
       await act(async () => raiz.unmount());
       raiz = null;
       localStorage.removeItem("equipo_elegido");
@@ -621,9 +604,10 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       const elegir = contenedor.querySelector(".contenedor");
       expect(elegir.querySelector("h1").textContent).toBe("De qual equipe você é?");
       expect(elegir.querySelector(".encabezado p").textContent).toBe(
-        "O app salva as partidas e o elenco de cada clube separadamente. Escolha o seu para começar.",
+        "O app salva as partidas e o elenco de cada clube separadamente, e o clube é escolhido no portal.",
       );
-      expect(elegir.textContent).toContain("Escolha sua equipe");
+      expect(elegir.textContent).toContain("Volte para Módulos, escolha o seu clube lá em cima, em «Trocar», e entre de novo em Jogo.");
+      expect(elegir.querySelector(".lista-equipos")).toBeNull();
       for (const enCastellano of ["equipo", "Elegí", "Sin nombre", "Tu equipo"]) {
         expect(elegir.textContent, enCastellano).not.toContain(enCastellano);
       }
@@ -921,7 +905,7 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     }
   });
 
-  test("para cambiar de club se ofrecen solo los clubes en los que la cuenta está hoy", async () => {
+  test("con un club elegido, Ajustes › Equipo no ofrece otros clubes", async () => {
     db.equipos = [
       { id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", desde: "2026-01-01" },
       { id: "eq-2", nombre: "Club que dejé", desde: "2026-01-01", hasta: "2026-03-01" },
@@ -932,25 +916,50 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     await montar();
     await abrirAjustesEquipo();
 
-    // (El escudo dibujado suma la inicial al texto del botón.)
-    const ofrecidos = Array.from(contenedor.querySelectorAll(".lista-equipos button")).map((b) => b.textContent.trim());
-    expect(ofrecidos).toHaveLength(1);
-    expect(ofrecidos[0]).toContain("Club de hoy");
+    expect(contenedor.querySelector(".lista-equipos")).toBeNull();
+    expect(contenedor.textContent).not.toContain("Club de hoy");
   });
 
-  test("para cambiar de club no se ofrecen los clubes donde la cuenta no tiene Partido", async () => {
+  test("sin club elegido, Partido no ofrece clubes: dice que se elige en el portal y deja volver", async () => {
     db.equipos = [
-      { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", desde: "2026-01-01", partido: true },
-      { id: "eq-2", nombre: "Club sin Partido", rol: "staff", desde: "2026-01-01", partido: false, flujo: true },
-      { id: "eq-3", nombre: "Club con Partido", rol: "staff", desde: "2026-01-01", partido: true },
+      { id: "eq-1", nombre: "Atlético Mineiro", rol: "admin", desde: "2026-01-01" },
+      { id: "eq-4", nombre: "Club de hoy", desde: "2026-02-01" },
     ];
+    localStorage.removeItem("equipo_elegido");
+    const onVolver = vi.fn();
+    await montar({ onVolver });
+
+    expect(contenedor.querySelector("h1").textContent).toBe("¿De qué equipo sos?");
+    expect(contenedor.querySelector(".lista-equipos")).toBeNull();
+    expect(contenedor.textContent).toContain("Volvé a Módulos, elegí tu club arriba, en «Cambiar», y entrá de nuevo a Partido.");
+    expect(contenedor.textContent).not.toContain("Club de hoy");
+    expect(localStorage.getItem("equipo_elegido")).toBeNull();
+    await act(async () => boton("Módulos").click());
+    expect(onVolver).toHaveBeenCalledTimes(1);
+  });
+
+  test("Partido no pasa a otro club si el elegido en el portal no está en la lista", async () => {
+    // Antes, con un solo club en la lista, Partido pasaba a ese.
+    db.equipos = [{ id: "eq-4", nombre: "Club de hoy", desde: "2026-02-01" }];
     elegirClub("eq-1", "Atlético Mineiro");
     await montar();
-    await abrirAjustesEquipo();
 
-    const ofrecidos = Array.from(contenedor.querySelectorAll(".lista-equipos button")).map((b) => b.textContent.trim());
-    expect(ofrecidos).toHaveLength(1);
-    expect(ofrecidos[0]).toContain("Club con Partido");
+    expect(contenedor.querySelector("h1").textContent).toBe("¿De qué equipo sos?");
+    expect(contenedor.textContent).not.toContain("Club de hoy");
+    expect(JSON.parse(localStorage.getItem("equipo_elegido")).id).toBe("eq-1");
+  });
+
+  test("sin club elegido y sin ningún club con Partido, dice por qué", async () => {
+    db.equipos = [
+      { id: "eq-2", nombre: "Club sin Partido", rol: "staff", desde: "2026-01-01", partido: false, flujo: true },
+      { id: "eq-5", nombre: "Otro sin Partido", rol: "staff", desde: "2026-01-01", partido: false },
+    ];
+    localStorage.removeItem("equipo_elegido");
+    await montar();
+
+    expect(contenedor.textContent).toContain("No tenés ningún club con Partido habilitado");
+    expect(contenedor.textContent).not.toContain("Volvé a Módulos, elegí tu club");
+    expect(contenedor.querySelector(".lista-equipos")).toBeNull();
   });
 
   test("quien no tiene ningún club con Partido ve por qué y puede volver a los módulos", async () => {
@@ -975,13 +984,12 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       { id: 1, equipo_id: "eq-1", fecha: "2026-09-01", rival: "Flamengo", resultado: "2-2" },
       { id: 2, equipo_id: "eq-2", fecha: "2026-09-02", rival: "Santos", resultado: "1-0" },
     ];
-    // La lectura de eq-1 queda colgada.
+    // La lectura de eq-1 queda colgada, y se pasa a Otro Club desde el portal.
     db.retenerHistorialDe = "eq-1";
     await montar();
 
-    await abrirAjustesEquipo();
-    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
-    await vaciarPromesas();
+    elegirClub("eq-2", "Otro Club");
+    await remontar();
 
     // Llega tarde la respuesta de eq-1.
     await act(async () => {
@@ -1563,12 +1571,12 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     db.retenerRival = "Cruzeiro";
     await montar();
 
-    // Guardar 1-1 espera esa subida, y mientras tanto se pasa a Otro Club.
+    // Guardar 1-1 espera esa subida, y mientras tanto se pasa a Otro Club
+    // desde el portal.
     await escribirGolesRival("1");
     await guardar();
-    await abrirAjustesEquipo();
-    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
-    await vaciarPromesas();
+    elegirClub("eq-2", "Otro Club");
+    await remontar();
     await act(async () => vi.advanceTimersByTime(8100));
     await vaciarPromesas();
 
@@ -1662,10 +1670,9 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     await montar();
     expect(localStorage.getItem("registro_actual_partido:eq-1")).toBeNull();
 
-    // Se pasa al otro club y se carga la formación.
-    await abrirAjustesEquipo();
-    await act(async () => Array.from(contenedor.querySelectorAll(".lista-equipos button")).find((b) => b.textContent.includes("Otro Club")).click());
-    await vaciarPromesas();
+    // Se pasa al otro club (desde el portal) y se carga la formación.
+    elegirClub("eq-2", "Otro Club");
+    await remontar();
     await irA("Formación");
     await act(async () => boton("Ingresar Formación").click());
     await escribir(contenedor.querySelectorAll(".contenedor-formacion .grilla-plantel input")[0], "SUPLENTE CLUB DOS");

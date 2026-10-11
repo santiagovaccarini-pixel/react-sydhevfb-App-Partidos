@@ -98,7 +98,7 @@ describe("Flujo diario de un club del que ya se fue", () => {
   const montar = async () => {
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<TrainingModule onVolver={() => {}} email="x@y.z" onCerrarSesion={() => {}} />);
+      raiz.render(<TrainingModule onVolver={() => {}} email="x@y.z" />);
     });
     await act(async () => Promise.resolve());
     await act(async () => Promise.resolve());

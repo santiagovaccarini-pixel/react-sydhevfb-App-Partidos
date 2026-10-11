@@ -127,7 +127,7 @@ describe("TrainingModule", () => {
   const montar = async (props = {}) => {
     await act(async () => {
       raiz = createRoot(contenedor);
-      raiz.render(<TrainingModule onVolver={() => {}} email="x@y.z" onCerrarSesion={() => {}} {...props} />);
+      raiz.render(<TrainingModule onVolver={() => {}} email="x@y.z" {...props} />);
     });
     await act(async () => Promise.resolve());
     await act(async () => Promise.resolve());
