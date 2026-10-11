@@ -2287,13 +2287,42 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.lesiones-marco .reporte-graficos-filtrado {
-  color: #cbd5e1;
+/* Cada gráfico, con su embudo a la derecha del título (el filtro de ese
+   gráfico) y, debajo, lo filtrado (también impreso). */
+.lesiones-marco .reporte-grafico-cabeza {
+  align-items: center;
+}
+.lesiones-marco .reporte-grafico-embudo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px -8px -10px auto;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+}
+.lesiones-marco .reporte-grafico-embudo:hover {
+  background: #eef2f7;
+  color: #0f172a;
+}
+.lesiones-marco .reporte-grafico-embudo.activo {
+  border-color: #16a34a;
+  background: #16a34a;
+  color: #fff;
+}
+.lesiones-marco .reporte-grafico-filtrado {
+  display: block;
+  margin: 6px 0 0;
+  color: #475569;
   font-size: 12px;
   font-weight: 700;
-}
-.lesiones-marco .reporte-graficos-filtros {
-  margin: 0 0 10px;
+  line-height: 1.35;
 }
 /* Los cuatro gráficos de los bloques 1 y 2, de a dos (como en el Excel). */
 .lesiones-marco .reporte-graficos-cuatro {
@@ -2707,7 +2736,6 @@
   .lesiones-marco .reporte-graficos-cabeza h2 {
     color: #0f172a;
   }
-  .lesiones-marco .reporte-graficos-filtrado,
   .lesiones-marco .reporte-graficos-notas .informe-criterio,
   .lesiones-marco .reporte-graficos-bloque > .vacio-ficha,
   .lesiones-marco .reporte-graficos-sin-periodos > .vacio-ficha {

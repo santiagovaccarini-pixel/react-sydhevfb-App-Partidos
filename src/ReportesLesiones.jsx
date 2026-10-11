@@ -395,6 +395,8 @@ export default function ReportesLesiones({
         queCuenta={queCuenta}
         etiqueta={etiqueta}
         textoDeOpcion={texto}
+        camposVisibles={camposVisibles}
+        enPantalla={enPantalla}
         onIrA={setModo}
       />
     );
