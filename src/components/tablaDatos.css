@@ -639,7 +639,8 @@
 }
 
 @media (min-width: 900px) {
-  .tabla-datos-tabla thead tr.tabla-datos-arriba th.inmovil {
+  .tabla-datos-tabla thead tr.tabla-datos-arriba th.inmovil,
+  .tabla-datos-tabla thead tr.tabla-datos-arriba td.inmovil {
     position: sticky;
     top: auto;
     z-index: 1;

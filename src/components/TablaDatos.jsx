@@ -48,7 +48,9 @@ import "./tablaDatos.css";
 // está abierta (al abrir una ficha y volver, siguen como estaban).
 // fijas: claves de las columnas que van primero y quedan a la vista al
 // correr la tabla en la compu (como inmovilizar en Excel). No se arrastran;
-// cada una lleva su `ancho` (en píxeles, de borde a borde).
+// cada una lleva su `ancho` (en píxeles, de borde a borde). Son las de
+// entrada: en la compu, dos clics en una cabecera la dejan fija o la sueltan,
+// y lo elegido queda guardado en ese aparato para esa tabla (Santiago, 11/10).
 // vista(filasVista) → { estilos, arriba }: lo que depende de las filas que
 // se ven (las que dejan los filtros), como el SUBTOTAL y el formato
 // condicional de Excel. estilos: { id de fila: { clave: estilo } }; arriba:
@@ -68,6 +70,7 @@ import "./tablaDatos.css";
 
 const CLAVE_ORDEN = "tabla_columnas";
 const CLAVE_ANCHOS = "tabla_anchos";
+const CLAVE_FIJAS = "tabla_fijas";
 const ESPERA_APRETAR = 380;
 // Lo más angosta que queda una columna: entran el botón del filtro (con la
 // flecha del orden) y el borde para agrandarla, también con el dedo.
@@ -111,6 +114,18 @@ const leerAnchos = (id) => {
       .map(([clave, ancho]) => [clave, Math.max(ANCHO_MINIMO, Math.round(ancho))]),
   );
 };
+
+// Las columnas fijas elegidas con dos clics: [clave] en el orden en que se
+// fijaron, o null si nunca se eligieron (van las de entrada).
+const leerFijas = (id) => {
+  const guardadas = leerDelCelular(CLAVE_FIJAS, id);
+  return Array.isArray(guardadas) ? guardadas.filter((clave) => typeof clave === "string") : null;
+};
+
+// Las fijas quedan a la vista solo en la compu (en el celular corren con las
+// demás: no entrarían todas), así que se eligen ahí. Sin matchMedia (pruebas),
+// como en la compu.
+const fijasEnEstaPantalla = () => typeof window === "undefined" || typeof window.matchMedia !== "function" || window.matchMedia("(min-width: 900px)").matches;
 
 // La variable de CSS con el ancho de una columna. Mientras se arrastra el
 // borde cambia solo la variable: la tabla no se vuelve a dibujar entera.
@@ -174,6 +189,8 @@ export const TablaDatos = ({
   // Los anchos elegidos a mano ({ clave: píxeles }) y la columna a la que se
   // le está arrastrando el borde.
   const [anchos, setAnchos] = useState(() => leerAnchos(id));
+  // Las fijas elegidas en este aparato (null: las de entrada).
+  const [fijasElegidas, setFijasElegidas] = useState(() => leerFijas(id));
   const [ajustando, setAjustando] = useState(null);
   const marco = useRef(null);
   const tablaRef = useRef(null);
@@ -190,7 +207,8 @@ export const TablaDatos = ({
   }, [columnas]);
 
   // Las fijas van primero, en su orden; el resto, en el que eligió cada uno.
-  const clavesFijas = useMemo(() => fijas.filter((clave) => columnas.some((c) => c.clave === clave)), [fijas, columnas]);
+  const fijasVigentes = fijasElegidas ?? fijas;
+  const clavesFijas = useMemo(() => fijasVigentes.filter((clave) => columnas.some((c) => c.clave === clave)), [fijasVigentes, columnas]);
   const visibles = useMemo(() => {
     const porClave = (clave) => columnas.find((c) => c.clave === clave);
     const libres = orden.filter((clave) => !clavesFijas.includes(clave)).map(porClave).filter(Boolean);
@@ -767,6 +785,35 @@ export const TablaDatos = ({
     });
   };
 
+  // ------------------------------------------------ Las columnas fijas --
+  // Dos clics en una cabecera (en la compu) la dejan fija, al final de las
+  // fijas, o la sueltan, y vuelve a su lugar entre las demás. Queda guardado
+  // en este aparato para esta tabla. Una fija necesita ancho: si no tenía
+  // uno, queda el que mide ahora (así no cambia al fijarla).
+  const cambiarFija = (evento, col) => {
+    if (!fijasEnEstaPantalla()) return;
+    const yaFija = clavesFijas.includes(col.clave);
+    const nuevas = yaFija ? fijasVigentes.filter((clave) => clave !== col.clave) : [...fijasVigentes.filter((clave) => clave !== col.clave), col.clave];
+    setFijasElegidas(nuevas);
+    guardarEnCelular(CLAVE_FIJAS, id, nuevas);
+    if (!yaFija && anchos[col.clave] === undefined && !col.ancho) {
+      // Para arriba: con un pedazo de píxel menos, el título ya no entra.
+      const medido = Math.ceil(evento.currentTarget.getBoundingClientRect?.().width || 0);
+      if (medido > 0) {
+        setAnchos((previos) => {
+          const nuevos = { ...previos, [col.clave]: Math.max(ANCHO_MINIMO, medido) };
+          guardarEnCelular(CLAVE_ANCHOS, id, nuevos);
+          return nuevos;
+        });
+      }
+    }
+    // Las columnas cambian de lugar: lo elegido ya no es lo mismo.
+    setSeleccion(null);
+    setActiva(null);
+    setEditando(null);
+    setMensaje(t(yaFija ? "tabla.columnaSuelta" : "tabla.columnaFija", { columna: col.titulo }));
+  };
+
   // ------------------------------------------------- Filtros y orden --
 
   const olvidarSeleccion = () => {
@@ -837,8 +884,15 @@ export const TablaDatos = ({
     : mensaje || aviso || (celdasElegidas ? plural("tabla.seleccion", celdasElegidas) : t("tabla.sinSeleccion"));
   // Cuántas filas hay; con filtros, cuántas se ven de cuántas.
   const cuantasFilas = hayFiltros ? plural("tabla.filasDe", filas.length, { n: filasVista.length, total: filas.length }) : plural("tabla.filas", filas.length);
-  // El rótulo de las filas de arriba ocupa las fijas (o la primera columna).
-  const columnasDelRotulo = Math.max(clavesFijas.length, 1);
+  // El rótulo de las filas de arriba ocupa las fijas de entrada que van
+  // adelante (las de quién y de cuándo, sin dato arriba) o, sin ninguna, la
+  // primera columna (su dato no se ve). Una columna fijada con dos clics
+  // después de esas muestra su dato. Con fijas, el rótulo también queda fijo.
+  let fijasDeEntradaAdelante = 0;
+  while (fijasDeEntradaAdelante < clavesFijas.length && fijas.includes(clavesFijas[fijasDeEntradaAdelante])) fijasDeEntradaAdelante += 1;
+  const columnasDelRotulo = Math.max(fijasDeEntradaAdelante, 1);
+  const rotuloSobreFijas = clavesFijas.length > 0;
+  const rotuloHastaLaUltimaFija = columnasDelRotulo >= clavesFijas.length;
   // Las filas que se dibujan (con muchasFilas, las que se ven y unas más).
   const desdeFila = ventana ? Math.min(ventana.desde, filasVista.length) : 0;
   const hastaFila = ventana ? Math.min(Math.max(ventana.hasta, desdeFila), filasVista.length) : filasVista.length;
@@ -901,11 +955,11 @@ export const TablaDatos = ({
                     scope="row"
                     colSpan={columnasDelRotulo}
                     rowSpan={filaArriba.alto || 1}
-                    className={`tabla-datos-arriba-rotulo ${clavesFijas.length ? "inmovil ultima-inmovil" : ""}`.trim()}
-                    style={clavesFijas.length ? { left: 0 } : undefined}
+                    className={`tabla-datos-arriba-rotulo ${rotuloSobreFijas ? `inmovil ${rotuloHastaLaUltimaFija ? "ultima-inmovil" : ""}` : ""}`.trim()}
+                    style={rotuloSobreFijas ? { left: 0 } : undefined}
                   >
                     {/* Sobre las fijas no las ensancha: si no entra, se corta. */}
-                    {clavesFijas.length ? <div className="tabla-datos-envoltura">{filaArriba.rotulo}</div> : filaArriba.rotulo}
+                    {rotuloSobreFijas ? <div className="tabla-datos-envoltura">{filaArriba.rotulo}</div> : filaArriba.rotulo}
                   </th>
                 )}
                 {visibles.slice(columnasDelRotulo).map((col) => {
@@ -914,7 +968,7 @@ export const TablaDatos = ({
                   return (
                     <td
                       key={col.clave}
-                      className={`tabla-datos-arriba-celda ${col.alinear === "centro" ? "centrada" : ""}`.trim()}
+                      className={`tabla-datos-arriba-celda ${col.alinear === "centro" ? "centrada" : ""} ${claseFija(col.clave)}`.trim()}
                       style={ancho && celda?.estilo ? { ...ancho, ...celda.estilo } : ancho || celda?.estilo || undefined}
                     >
                       {celda?.texto ?? ""}
@@ -961,7 +1015,8 @@ export const TablaDatos = ({
                     onPointerMove={alMoverCabecera}
                     onPointerUp={terminarArrastre}
                     onPointerCancel={terminarArrastre}
-                    title={col.titulo}
+                    onDoubleClick={(evento) => cambiarFija(evento, col)}
+                    title={`${col.titulo}\n${t(clavesFijas.includes(col.clave) ? "tabla.soltarConDosClics" : "tabla.fijarConDosClics")}`}
                   >
                     <span className="tabla-datos-cabecera">
                       <span className="tabla-datos-titulo">{col.titulo}</span>
@@ -975,6 +1030,7 @@ export const TablaDatos = ({
                           evento.stopPropagation();
                           abrirFiltro(col);
                         }}
+                        onDoubleClick={(evento) => evento.stopPropagation()}
                       >
                         {ordenada ? (
                           <span className="tabla-datos-flecha" aria-hidden="true">
