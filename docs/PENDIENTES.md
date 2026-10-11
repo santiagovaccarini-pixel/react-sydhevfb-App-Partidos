@@ -307,6 +307,9 @@ mover a una configuración por club:
   más área y músculo específico.
 - Escala de severidad por días de recuperación: registro (menos de 1), leve (1 a
   4), menor (5 a 7), moderado (8 a 28), mayor (29 o más); solo con alta.
+- Las horas de entrenamiento (desde el 11/10, en `20261018_minutos_lesiones.sql`): qué
+  columnas del GPS son minutos (Minutos Campo + Minutos Fuerza Metabólico) y cómo se reconoce
+  una fila de la selección (la Descripción dice «Selección»).
 - Cómo se arma el diagnóstico: tipo + ligamento (o músculo específico) + músculo
   (o parte) + área + lado.
 - Lado hábil = el lado lesionado es el pie dominante. Edad = años cumplidos a la
@@ -455,7 +458,10 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   vamos a meter todas las bases dentro de la web y ahí se van a conectar entre sí"**: la base
   del GPS va a estar en la app y los reportes la leen (`gps`: [{ jugadorId, fecha, minutos }];
   en el Excel, minutos = las columnas C + D de "BD GPS", de todos los que aparecen, estén o no
-  en el plantel). Mientras tanto los cuadros muestran "—" y avisan que faltan los minutos.
+  en el plantel). ~~Mientras tanto los cuadros muestran "—" y avisan que faltan los minutos.~~
+  **Conectado el 11/10** (ver «Lo anotado en Notas», tiempos de selección): las columnas C y D
+  de "BD GPS" son «Minutos Fuerza Metabólico» y «Minutos Campo» del GPS. Sin minutos (o sin la
+  migración `20261018_minutos_lesiones.sql`) los cuadros siguen mostrando "—" con el aviso.
   **Horas previas (03/10, migración `20261007_horas_previas.sql`)**: la columna A de "Datos
   Básicos" del Excel (sin título, en [h]:mm:ss) son las horas de entrenamiento de antes de
   que llegara el cuerpo técnico al Mineiro. Están en Datos básicos ("Horas previas", se
@@ -1330,6 +1336,12 @@ no se trabe con muchas filas, si hay que pagar lo hacemos».
 
 ### Para el paso 2 (Cargar), lo que ya se sabe
 
+- **La selección, por jugador** (nota del 07/10 y Santiago, 11/10): los tiempos de la
+  selección se cargan solo en las filas de quien fue, nunca como una tarea de todos («un
+  jugador que no fue a selección … no puede tener más tiempo sumado solo xq uno fue»). Hoy se
+  reconocen por la Descripción («Convocado/Convocación Selección…»); Santiago va a definir
+  una marca fija para que se detecte fácil.
+
 - El CSV de Catapult trae un título por columna. Cómo lo usa hoy la plantilla (por lugar): Total
   Distance → D; Velocity Distance 14-25 km/h → 14,4-25Km/h; Acceleration B2 Efforts (Gen 2) → n°
   1,7 a 2,7m/s2; Deceleration B2 → n° -1,7 a -2,7m/s2; Metabolic Power Band 2 Total Distance →
@@ -1356,9 +1368,10 @@ no se trabe con muchas filas, si hay que pagar lo hacemos».
   muchas veces, se puede pensar una forma desde la app.
 - En la tabla de todas las bases, Mayúscula + flecha suma una sola fila a lo elegido (no va
   sumando como en Excel); Mayúscula + clic sí elige el rango. Visto el 11/10; no se tocó.
-- Las horas de entrenamiento de Lesiones (cada 1000 horas) salen de los minutos del GPS
+- ~~Las horas de entrenamiento de Lesiones (cada 1000 horas) salen de los minutos del GPS
   (decisión del 03/10, en «Lesiones: lo que sigue»): ahora que el GPS está en la app, falta
-  conectarlas (cuáles columnas son los minutos de cada jugador por día).
+  conectarlas (cuáles columnas son los minutos de cada jugador por día).~~ Conectadas el 11/10:
+  ver «Lo anotado en Notas», tiempos de selección.
 - La foto de la tarjeta: hasta que haya, va el dibujo.
 
 ## Cuentas paso 2: dueños, sub-dueños y pedidos por club (06/10)
@@ -1998,10 +2011,42 @@ cómo va cada una. Va un PR por nota.
     mandaría la fila entera a cualquier cuenta con sesión.
   - **Falta:** Partido y Flujo diario (tienen su propia cola sin señal y borradores en
     curso: hay que pensarlos aparte), Cuentas y Ajustes de cada base.
-- **Tiempos de selección por jugador (pendiente).** Nota del 07/10: los jugadores que
-  fueron a la selección tienen que tener esos tiempos aparte, y quien no fue no puede sumar
-  más tiempo porque otro fue. Va con conectar las horas del GPS a Lesiones c/1000h (ver
-  «GPS (10/10)», Pendiente). Falta que Santiago explique de dónde salen esos tiempos.
+- **Tiempos de selección por jugador y horas del GPS en Lesiones c/1000h (hecho el 11/10).**
+  Nota del 07/10: «Los jugadores de seleccion o convocados a seleccion tienen que tener los
+  tiempos de la seleccion a parte de los jugadores que no hayan estado en seleccion, xq un
+  jugador que no fue a seleccion en el mismo periodo que otro jugador si fue a seleccion no
+  puede tener mas tiempo sumado solo xq uno fue». Santiago, 11/10: los tiempos de selección
+  «van a estar dentro de la base de gps y despues vamos a ver la manera de poner los que
+  fueron a seleccion como para que se detecte facil»; que cuenten solo en las horas de ese
+  jugador («Exacto»); «busca como se calculan dentro de la base de lesiones».
+  - **Cómo calcula el Excel de lesiones** (leído el 11/10, con permiso de Santiago, solo en la
+    máquina de trabajo): la hoja «BD GPS» tiene jugador, fecha y dos columnas sin título, C y
+    D, que son «Minutos Fuerza Metabólico» y «Minutos Campo» de cada fila del GPS (las de
+    cada tarea y las del total de la sesión), copiadas como se ven (redondeadas a minutos).
+    El plantel en un período (Antecedentes BD CL5) suma C + D de todos entre las fechas; el
+    individual (Reporte de Lesiones IND BD3), C + D de ese jugador. El promedio del equipo
+    (Team Average) no está. Cruzado con el GPS: 5.519 de 5.541 jugador-días dan igual; los
+    otros 22 son cuatro días de fines de agosto y septiembre con minutos de partido que el GPS
+    ya tiene y esa copia del Excel no.
+  - **En la app** (migración `20261018_minutos_lesiones.sql`, `minutos_de_entrenamiento`):
+    por jugador (o persona fuera de Datos básicos) y día, «Minutos Campo» + «Minutos Fuerza
+    Metabólico» de todas sus filas del GPS, como el Excel (Santiago: «Igual que el Excel»,
+    también los días en que se suman la fila Total y filas de tareas, por ejemplo del 26/06
+    al 07/07). Exactos, sin redondear («Exactos, como en el GPS»: menos de 0,1 % en todo el
+    período). El promedio del equipo no cuenta. La base da solo los minutos sumados: quien
+    tiene Lesiones los ve aunque no tenga GPS, sin ver las filas del GPS; quien se fue, los de
+    su último día.
+  - **La selección**: las filas de un convocado son solo suyas, así que nadie suma tiempo
+    porque otro fue. Sus minutos cuentan en las horas de ese jugador (reporte individual) y
+    **no** en las del plantel (grupal, referencia, Lesiones c/1000h e Informes gráficos):
+    Santiago, «No, solo en el individual». Hasta que haya una marca fija se reconocen por la
+    Descripción, que dice «Selección» (con o sin tilde): en el GPS de hoy son 204 filas de 9
+    jugadores; hasta septiembre con 0 minutos y desde el 23/09 con los de allá.
+  - Lesiones escucha también el GPS: los minutos nuevos llegan sin recargar a quien tiene
+    GPS; quien no, los ve al volver a entrar.
+  - **Falta:** la marca fija de la selección (Santiago la define); pasar a la configuración
+    del club qué columnas son minutos y cómo se reconoce la selección (hoy en la migración,
+    ver «Protocolo de lesiones: ninguna regla escrita en código»).
 
 ## Lo que dejó la revisión completa del 30/09
 

@@ -50,6 +50,7 @@ vi.mock("./domain/lesionesDb.js", () => ({
     error: "",
   }),
   leerConfig: async () => ({ config: datos.config, error: "" }),
+  leerMinutosDeEntrenamiento: async () => ({ minutos: datos.minutos ?? null, error: "" }),
   crearLesion: async (equipoId, lesion) => {
     datos.guardadas.push({ equipoId, lesion });
     return { lesion: { ...lesion, id: "les-nueva", numero_caso: 2 }, error: "" };
@@ -139,6 +140,7 @@ describe("el módulo Lesiones", () => {
     fijarIdiomaParaPruebas("es-AR");
     localStorage.clear();
     datos.lesiones = [lesionHulk()];
+    datos.minutos = null;
     datos.config = { campos: {}, listas: {} };
     datos.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
     datos.historialesPedidos = [];
@@ -924,6 +926,38 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain("Quiénes perdieron más días");
     // El mismo mapa corporal que el individual, con las dos lesiones.
     expect(contenedor.querySelectorAll(".reporte-mapa .cuerpo-calor-mancha")).toHaveLength(2);
+  });
+
+  test("con los minutos del GPS salen las cuentas cada 1000 horas; la selección cuenta solo para quien fue", async () => {
+    const numeroComoLaApp = (valor) => Number(valor).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const haceDias = (dias) => {
+      const fecha = new Date(`${hoyISO()}T12:00:00Z`);
+      fecha.setUTCDate(fecha.getUTCDate() - dias);
+      return fecha.toISOString().slice(0, 10);
+    };
+    datos.lesiones = [{ ...lesionHulk(), fecha_lesion: haceDias(20), fecha_alta: haceDias(10), datos: { ...lesionHulk().datos, producto: "nao_traumatica", cuando: "treinamento", localizacion: "profissional" } }];
+    // HULK: 1000 minutos con el club y 1000 con la selección; SCARPA, 1000.
+    datos.minutos = [
+      { jugadorId: 7, persona: null, fecha: haceDias(18), minutos: 1000, seleccion: false },
+      { jugadorId: 7, persona: null, fecha: haceDias(16), minutos: 1000, seleccion: true },
+      { jugadorId: 8, persona: null, fecha: haceDias(18), minutos: 1000, seleccion: false },
+    ];
+    await montar();
+    await navegar(contenedor, "Reportes");
+    await tocar(botonQueEmpieza(contenedor, "Reporte individual"));
+    await tocar(botonQueEmpieza(contenedor, "HULK"));
+    expect(texto(contenedor)).not.toContain("Faltan los minutos del GPS");
+    // Sus horas: 2000 minutos (también los de la selección).
+    const valores = [...contenedor.querySelectorAll(".informe-indicador-valor")].map((valor) => valor.textContent);
+    expect(valores.some((valor) => valor !== "—")).toBe(true);
+    expect(valores[0]).toBe(numeroComoLaApp(1 / (2000 / 60) * 1000));
+
+    await tocar(contenedor.querySelector(".reporte-volver"));
+    await tocar(botonQueEmpieza(contenedor, "Reporte grupal"));
+    await tocar(chip(contenedor, "Todo"));
+    // El plantel: 2000 minutos (sin los de la selección), desde la primera lesión.
+    const cadaMil = contenedor.querySelector(".informe-cuadro tr.informe-fila-jugador");
+    expect(cadaMil.querySelector("td").textContent).toBe(numeroComoLaApp(1 / (2000 / 60) * 1000));
   });
 
   test("los reportes no muestran ceros si las lesiones no se pudieron leer", async () => {

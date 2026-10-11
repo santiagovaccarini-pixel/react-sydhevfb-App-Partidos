@@ -1040,7 +1040,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,esta_autorizado,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,esta_autorizado,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -1708,6 +1708,51 @@ select pruebas.esperar('Las tablas en vivo están en la publicación de Realtime
 set role anon;
 select pruebas.debe_fallar('Sin sesión, las lesiones siguen cerradas', $$select count(*) from lesiones$$, 'permission denied');
 select pruebas.debe_fallar('...y el GPS también', $$select count(*) from gps$$, 'permission denied');
+reset role;
+
+-- Las horas de Lesiones c/1000h salen del GPS (20261018_minutos_lesiones):
+-- por jugador y día, Minutos Campo + Minutos Fuerza Metabólico de todas sus
+-- filas; el promedio del equipo no cuenta; la selección va aparte. Las ve
+-- quien tiene Lesiones (aunque no tenga GPS), sin ver las filas del GPS.
+insert into public.gps (equipo_id, fecha, jugador_id, persona, promedio, datos) values
+  (:C1, current_date - 1, 9006, null, null, '{"min_campo": 60.5, "min_fuerza": 30, "d": 4100}'),
+  (:C1, current_date - 1, 9006, null, null, '{"min_campo": 25, "descripcion": "Tarea con pelota"}'),
+  (:C1, current_date - 1, 9006, null, null, '{"min_campo": 90, "descripcion": "Vs Rival TOTAL Selección"}'),
+  (:C1, current_date - 1, null, 'Juvenil Invitado', null, '{"min_campo": 40}'),
+  (:C1, current_date - 1, null, null, 'sesion', '{"min_campo": 999}'),
+  (:C1, current_date - 2, 9006, null, null, '{"min_campo": "45", "descripcion": "Convocacion Seleccion"}');
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('Con Lesiones y sin GPS, ve los minutos de Uno: por jugador, día y selección',
+  (select string_agg(coalesce(jugador_id::text, persona) || ':' || seleccion || ':' || minutos, ', ' order by jugador_id nulls last, seleccion)
+     from minutos_de_entrenamiento(:C1)), '9006:false:115.5, 9006:true:90, Juvenil Invitado:false:40');
+select pruebas.esperar('...del día que fueron', (select count(distinct fecha) from minutos_de_entrenamiento(:C1) where fecha = current_date - 1), 1);
+select pruebas.esperar('...pero sigue sin ver las filas del GPS', (select count(*) from gps), 0);
+reset role;
+select pruebas.esperar('La cuenta nueva se va de Uno hoy', pruebas.filas($$update club_miembros set hasta = current_date where user_id = '00000000-0000-0000-0000-000000000012' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('...y los sigue viendo en la foto de su último día', (select sum(minutos)::text from minutos_de_entrenamiento(:C1)), '245.5');
+reset role;
+-- Como si esas filas se hubieran cargado pasado mañana: en la foto de quien
+-- se fue hoy ya no están.
+update versiones_datos set cuando = cuando + interval '2 days'
+ where tabla = 'gps' and equipo_id = :C1 and (fila ->> 'fecha')::date >= current_date - 2;
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('...pero no lo que se cargó después de irse', (select count(*) from minutos_de_entrenamiento(:C1)), 0);
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de otro club) no ve los minutos de Uno', (select count(*) from minutos_de_entrenamiento(:C1)), 0);
+reset role;
+select pruebas.ser('gaby@uno.com'); set role authenticated;
+select pruebas.esperar('Gaby (bloqueada) tampoco', (select count(*) from minutos_de_entrenamiento(:C1)), 0);
+reset role;
+select pruebas.ser('gps@uno.com'); set role authenticated;
+select pruebas.esperar('Sin Lesiones, aunque haya tenido GPS, tampoco', (select count(*) from minutos_de_entrenamiento(:C1)), 0);
+reset role;
+set role anon;
+select pruebas.debe_fallar('Sin sesión, nada', $$select * from minutos_de_entrenamiento('00000000-0000-0000-0000-0000000000c1')$$, 'permission denied');
+reset role;
+set role authenticated;
+select pruebas.debe_fallar('Las cuentas de adentro no se llaman sueltas', $$select gps_minutos_de_fila('{}')$$, 'permission denied');
 reset role;
 
 select 'ESCENARIOS: todos bien' as resultado;

@@ -61,6 +61,7 @@ import {
   guardarOpcion,
   historialDeLesion,
   leerConfig,
+  leerMinutosDeEntrenamiento,
   listarLesiones,
 } from "./domain/lesionesDb.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -133,6 +134,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // para ver alcanza, para pegar lesiones no.
   const [plantelSinLeer, setPlantelSinLeer] = useState(false);
   const [lesiones, setLesiones] = useState([]);
+  // Los minutos del GPS por jugador y día (null: no hay o no se pudieron leer).
+  const [minutos, setMinutos] = useState(null);
   const [config, setConfig] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -206,17 +209,22 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       setCargando(true);
       setError("");
     }
-    const [respuestaPlantel, respuestaLesiones, respuestaConfig] = await Promise.all([
+    const [respuestaPlantel, respuestaLesiones, respuestaConfig, respuestaMinutos] = await Promise.all([
       cargarPlantelLesiones(equipoId),
       listarLesiones(equipoId),
       leerConfig(equipoId),
+      leerMinutosDeEntrenamiento(equipoId),
     ]);
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
       if (!respuestaConfig.error) setConfig(respuestaConfig.config);
       if (!respuestaLesiones.error) setLesiones(respuestaLesiones.lesiones);
+      if (!respuestaMinutos.error) setMinutos(respuestaMinutos.minutos);
       return;
     }
+    // Los minutos del GPS para Lesiones c/1000h: si no se pueden leer, los
+    // reportes muestran "—" y avisan, como sin minutos; lo demás sigue.
+    setMinutos(respuestaMinutos.minutos);
     setPlantel(respuestaPlantel.plantel || []);
     setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
     setConfig(respuestaConfig.config);
@@ -233,7 +241,9 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   }, [cargar]);
 
   // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10).
-  useEnVivo({ nombre: "lesiones", tablas: ["lesiones", "jugadores"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
+  // También el GPS: de ahí salen las horas de Lesiones c/1000h (llega a quien
+  // tiene GPS; quien no, las ve al volver a entrar).
+  useEnVivo({ nombre: "lesiones", tablas: ["lesiones", "jugadores", "gps"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
 
   useEffect(() => {
     const alCambiar = () => setEnLinea(navigator.onLine !== false);
@@ -1652,7 +1662,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         textoDeOpcion={textoDeOpcion}
         enPantalla={enPantalla}
         camposVisibles={CAMPOS.filter(visible)}
-        gps={null}
+        gps={minutos}
         estado={
           <>
             <AvisoSoloLectura hasta={equipo?.hasta} />
