@@ -830,6 +830,14 @@ select pruebas.esperar('...y los ve', (select count(*) from gps_campos) + (selec
 select pruebas.debe_fallar('Una columna propia es de un tipo conocido', $$insert into gps_campos (equipo_id, campo, etiqueta_es, tipo) values ('00000000-0000-0000-0000-0000000000c1', 'propia_otra', 'Otra', 'formula')$$, 'gps_campos_tipo');
 select pruebas.debe_fallar('...ni un nombre de más de 120 letras', $$insert into gps_campos (equipo_id, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'd', repeat('x', 121))$$, 'gps_campos_etiquetas');
 select pruebas.debe_fallar('No cambia los Ajustes de otro club', $$insert into gps_opciones (equipo_id, lista, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c2', 'dispositivo', 'espia', 'Espía')$$, 'row-level security');
+-- Las reglas de la carga de cada día (20261020_gps_reglas.sql).
+select pruebas.esperar('Cambia las reglas de la carga', pruebas.filas($$insert into gps_reglas (equipo_id, reglas) values ('00000000-0000-0000-0000-0000000000c1', '{"parteDelTiempo":0.8}')$$), 1);
+select pruebas.esperar('...las vuelve a cambiar', pruebas.filas($$update gps_reglas set reglas = '{"parteDelTiempo":0.75,"minimoRegenerativo":6}' where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('...y las ve', (select reglas ->> 'minimoRegenerativo' from gps_reglas), '6');
+select pruebas.debe_fallar('Las reglas son un objeto', $$update gps_reglas set reglas = '[1,2]'$$, 'gps_reglas_objeto');
+select pruebas.debe_fallar('...no muy grande', $$update gps_reglas set reglas = jsonb_build_object('x', repeat('y', 5000))$$, 'gps_reglas_objeto');
+select pruebas.debe_fallar('No cambia las reglas de otro club', $$insert into gps_reglas (equipo_id, reglas) values ('00000000-0000-0000-0000-0000000000c2', '{}')$$, 'row-level security');
+select pruebas.debe_fallar('...ni las borra', $$delete from gps_reglas$$, 'permission denied');
 reset role;
 select pruebas.esperar('Las tres filas quedan en las versiones', (select count(*) from versiones_datos where tabla = 'gps'), 3);
 select pruebas.esperar('...y quién las cargó', (select count(*) from gps where creado_por = '00000000-0000-0000-0000-000000000616' and actualizado_por = '00000000-0000-0000-0000-000000000616'), 3);
@@ -837,14 +845,16 @@ select pruebas.esperar('...y quién las cargó', (select count(*) from gps where
 select pruebas.ser('nuevo@uno.com'); set role authenticated;
 select pruebas.esperar('Con Lesiones y sin GPS no se ve ninguna fila', (select count(*) from gps), 0);
 select pruebas.esperar('...ni en la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
-select pruebas.esperar('...ni los Ajustes', (select count(*) from gps_campos) + (select count(*) from gps_opciones), 0);
+select pruebas.esperar('...ni los Ajustes', (select count(*) from gps_campos) + (select count(*) from gps_opciones) + (select count(*) from gps_reglas), 0);
 select pruebas.debe_fallar('...ni los cambia', $$insert into gps_campos (equipo_id, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'd', 'Distancia')$$, 'row-level security');
+select pruebas.debe_fallar('...ni las reglas de la carga', $$insert into gps_reglas (equipo_id, reglas) values ('00000000-0000-0000-0000-0000000000c1', '{}')$$, 'row-level security');
 reset role;
 
 select pruebas.ser('eva@dos.com'); set role authenticated;
 select pruebas.esperar('Eva (de otro club) no ve las de Uno', (select count(*) from gps where equipo_id = :C1), 0);
 select pruebas.esperar('...ni con la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
 select pruebas.esperar('...ni cambia sus Ajustes', pruebas.filas($$update gps_campos set etiqueta_es = 'Espía'$$), 0);
+select pruebas.esperar('...ni sus reglas de carga', pruebas.filas($$update gps_reglas set reglas = '{}'$$), 0);
 reset role;
 
 select pruebas.ser('beto@uno.com'); set role authenticated;
@@ -865,6 +875,8 @@ select pruebas.esperar('...con lo que corrigió', (select f -> 'datos' ->> 'tiem
 select pruebas.esperar('...y sigue viendo los Ajustes', (select count(*) from gps_campos) + (select count(*) from gps_opciones), 3);
 select pruebas.debe_fallar('...pero ya no carga', $$insert into gps (equipo_id, fecha, jugador_id) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-09', 9006)$$, 'row-level security');
 select pruebas.esperar('...ni cambia los Ajustes', pruebas.filas($$update gps_campos set oculto = true$$), 0);
+select pruebas.esperar('...ve las reglas de la carga', (select count(*) from gps_reglas), 1);
+select pruebas.esperar('...pero no las cambia', pruebas.filas($$update gps_reglas set reglas = '{}'$$), 0);
 reset role;
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Beto le saca GPS (ya se fue)', pruebas.filas($$update club_miembros set gps = false where user_id = '00000000-0000-0000-0000-000000000616' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
@@ -877,6 +889,7 @@ set role anon;
 select pruebas.debe_fallar('Sin cuenta no se ve el GPS', 'select count(*) from gps', 'permission denied');
 select pruebas.debe_fallar('...ni sus Ajustes', 'select count(*) from gps_campos', 'permission denied');
 select pruebas.debe_fallar('...ni sus listas', 'select count(*) from gps_opciones', 'permission denied');
+select pruebas.debe_fallar('...ni sus reglas de carga', 'select count(*) from gps_reglas', 'permission denied');
 select pruebas.debe_fallar('...ni su foto', $$select * from datos_al_dia('gps', '00000000-0000-0000-0000-0000000000c1')$$, 'permission denied');
 reset role;
 
