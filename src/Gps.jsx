@@ -9,9 +9,10 @@ import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarGps from "./ImportarGps.jsx";
 import CargarGps from "./CargarGps.jsx";
+import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { COLUMNAS_FIJAS, codigoNuevo, columnaOculta, columnasVisibles, opcionesDeLista, opcionesDelExcel, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { TIPOS_PROPIOS, armarConfigGps, claveDeColumnaPropia, configGpsVacia, gpsDelClub } from "./domain/gps/ajustes.js";
-import { AJUSTES_DE_REGLAS, REGLAS_CARGA, reglasDelClub } from "./domain/gps/cargar.js";
+import { AJUSTES_DE_REGLAS, REGLAS_CARGA, VS_PARTIDO, reglasDelClub } from "./domain/gps/cargar.js";
 import { PROMEDIOS } from "./domain/gps/columnas.js";
 import { FILAS_DEL_INFORME, vistaDelGps } from "./domain/gps/informe.js";
 import { datosConCambio, esNumero, periodoInicial, textoDeCelda } from "./domain/gps/valores.js";
@@ -829,9 +830,23 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
 
   const tipoDeColumna = (tipo) => t(`gps.ajustes.tipos.${tipo}`);
 
-  // Las reglas de la carga: cómo se ve cada una (75 %, 13:00, Prendido).
+  // Las reglas de la carga: cómo se ve cada una (75 %, 13:00, Prendido, los
+  // V.R. cargados, lo que se ve en el partido).
+  const tituloDeMedida = (clave) => {
+    const columna = gps.columnas.find((una) => una.clave === clave);
+    return columna ? titulo(columna) : clave;
+  };
+  const decimal = (numero) => (esNumero(numero) ? numero.toLocaleString(idioma, { maximumFractionDigits: 10, useGrouping: false }) : "");
   const textoDeRegla = (ajuste, valor) => {
     if (ajuste.tipo === "prendida") return valor ? t("gps.reglas.prendido") : t("gps.reglas.apagado");
+    if (ajuste.tipo === "vr") {
+      const cargados = VS_PARTIDO.medidas.filter((clave) => valor?.[clave]).length;
+      return cargados ? t("gps.reglas.vrPartido.cargados", { n: cargados, total: VS_PARTIDO.medidas.length }) : t("gps.reglas.vrPartido.ninguno");
+    }
+    if (ajuste.tipo === "campos") {
+      const seVen = ajuste.opciones.filter((campo) => !(valor || []).includes(campo));
+      return seVen.length ? seVen.map((campo) => t(`gps.reglas.${ajuste.clave}.campos.${campo}`)).join(", ") : t(`gps.reglas.${ajuste.clave}.nada`);
+    }
     if (ajuste.tipo === "parte") return `${numero(Math.round(valor * 1000) / 10)} %`;
     if (ajuste.tipo === "hora") return `${Math.floor(valor / 3600)}:${String(Math.floor((valor % 3600) / 60)).padStart(2, "0")}`;
     if (ajuste.tipo === "fecha") return valor ? fechaCorta(valor) : t("gps.reglas.inicioDelAnio");
@@ -839,6 +854,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   };
   // Lo que se escribe en la hoja, como texto (la parte, en %; la hora, h:mm).
   const textoParaEscribir = (ajuste, valor) => {
+    if (ajuste.tipo === "vr") return Object.fromEntries(VS_PARTIDO.medidas.map((clave) => [clave, decimal(valor?.[clave])]));
+    // Los campos: los que se ven (marcados).
+    if (ajuste.tipo === "campos") return ajuste.opciones.filter((campo) => !(valor || []).includes(campo));
     if (ajuste.tipo === "parte") return String(Math.round(valor * 1000) / 10);
     if (ajuste.tipo === "hora") return textoDeRegla(ajuste, valor);
     return valor;
@@ -859,6 +877,16 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         setErrorHoja(hoja.tipo === "parte" ? t("gps.reglas.malLaParte") : t("gps.reglas.malElNumero", { minimo: hoja.minimo, maximo: hoja.maximo }));
         return;
       }
+    } else if (hoja.tipo === "vr") {
+      // Cada V.R., un número mayor que 0 (o vacío: no está).
+      const leidos = Object.entries(hoja.valor || {}).filter(([, texto]) => String(texto ?? "").trim() !== "");
+      valor = Object.fromEntries(leidos.map(([clave, texto]) => [clave, Number(String(texto).trim().replace(",", "."))]));
+      if (Object.values(valor).some((numero) => !(Number.isFinite(numero) && numero > 0))) {
+        setErrorHoja(t("gps.reglas.vrPartido.malo"));
+        return;
+      }
+    } else if (hoja.tipo === "campos") {
+      valor = hoja.opciones.filter((campo) => !(hoja.valor || []).includes(campo));
     } else if (hoja.tipo === "hora") {
       const partes = /^(\d{1,2})(?::(\d{2}))?$/.exec(String(valor ?? "").trim());
       valor = partes ? Number(partes[1]) * 3600 + Number(partes[2] || 0) * 60 : NaN;
@@ -891,7 +919,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
                 id: ajuste.clave,
                 titulo: t(`gps.reglas.${ajuste.clave}.titulo`),
                 detalle: ajuste.tipo === "prendida" ? textoDeRegla(ajuste, reglas[ajuste.clave]) : t(`gps.reglas.${ajuste.clave}.detalle`, { valor: textoDeRegla(ajuste, reglas[ajuste.clave]) }),
-                extra: reglas[ajuste.clave] !== REGLAS_CARGA[ajuste.clave] ? <span className="lesiones-oculta">{t("gps.reglas.cambiada")}</span> : null,
+                extra: JSON.stringify(reglas[ajuste.clave]) !== JSON.stringify(REGLAS_CARGA[ajuste.clave]) ? <span className="lesiones-oculta">{t("gps.reglas.cambiada")}</span> : null,
                 alTocar: () => abrirRegla(ajuste),
               }),
             )}
@@ -1254,6 +1282,30 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
                 <option value="si">{t("gps.reglas.prendido")}</option>
                 <option value="no">{t("gps.reglas.apagado")}</option>
               </select>
+            ) : hojaReglas.tipo === "vr" ? (
+              <div className="gps-regla-vr">
+                {VS_PARTIDO.medidas.map((clave) => (
+                  <label key={clave}>
+                    <span>{tituloDeMedida(clave)}</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={hojaReglas.valor?.[clave] ?? ""}
+                      onChange={(evento) => setHojaReglas({ ...hojaReglas, valor: { ...hojaReglas.valor, [clave]: evento.target.value } })}
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : hojaReglas.tipo === "campos" ? (
+              <div className="tabla-datos-filtro-cuerpo">
+                <ListaParaMarcar
+                  valores={hojaReglas.opciones.map((campo) => ({ clave: campo, texto: t(`gps.reglas.${hojaReglas.clave}.campos.${campo}`) }))}
+                  elegidos={hojaReglas.valor || []}
+                  onCambiar={(elegidos) => setHojaReglas({ ...hojaReglas, valor: elegidos })}
+                  busqueda={hojaReglas.busqueda || ""}
+                  onBuscar={(busqueda) => setHojaReglas({ ...hojaReglas, busqueda })}
+                />
+              </div>
             ) : hojaReglas.tipo === "fecha" ? (
               <input type="date" value={hojaReglas.valor || ""} onChange={(evento) => setHojaReglas({ ...hojaReglas, valor: evento.target.value })} aria-label={t(`gps.reglas.${hojaReglas.clave}.titulo`)} />
             ) : (

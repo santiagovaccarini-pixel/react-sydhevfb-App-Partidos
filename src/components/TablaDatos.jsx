@@ -1204,11 +1204,15 @@ export const TablaDatos = ({
                         className={`${estaElegida(f, c) ? "elegida" : ""} ${esActiva ? "activa" : ""} ${enEdicion ? "editando" : ""} ${col.editable ? "" : "fija"} ${col.tipo === "casilla" ? "casilla" : ""} ${col.alinear === "centro" ? "centrada" : ""} ${formato ? "con-formato" : ""} ${claseFija(col.clave)}`.trim()}
                         style={ancho && formato ? { ...ancho, ...formato } : ancho || formato || undefined}
                         onClick={(evento) => {
-                          if (esActiva && !evento.shiftKey && !enEdicion) empezarEdicion(f, c);
+                          // Un toque adentro de lo que se escribe (para poner el
+                          // cursor) no corta la edición.
+                          if (enEdicion) return;
+                          if (esActiva && !evento.shiftKey) empezarEdicion(f, c);
                           else elegir(f, c, evento.shiftKey);
                         }}
-                        // En una casilla, el doble toque ya la marcó y desmarcó.
-                        onDoubleClick={() => col.tipo !== "casilla" && empezarEdicion(f, c)}
+                        // En una casilla, el doble toque ya la marcó y desmarcó;
+                        // mientras se escribe, elige una palabra (no vuelve a empezar).
+                        onDoubleClick={() => col.tipo !== "casilla" && !enEdicion && empezarEdicion(f, c)}
                       >
                         {col.tipo === "casilla" ? (
                           <input

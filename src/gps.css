@@ -160,12 +160,114 @@
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+/* Agregar un jugador: al final de la tarjeta del bloque, a todo el ancho. */
 .gps-marco .gps-cargar-agregar {
+  grid-column: 1 / -1;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 .gps-marco .gps-cargar-agregar .selector-hoja {
   max-width: 420px;
+}
+.gps-marco .gps-cargar-agregar .lesiones-ayuda {
+  margin: 0;
+}
+
+/* Cargar, más junto (Santiago, 12/10: «Hay demasiado espacio como para
+   juntar las cosas y quede mas prolijo visualmente»): cada bloque en una
+   tarjeta, con menos aire entre lo de adentro y entre tarjetas. Los
+   controles siguen de 44 px o más. */
+.gps-marco .gps-cargar .tarjeta {
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.gps-marco .gps-cargar .lesiones-paso-titulo {
+  margin: 4px 0 12px;
+}
+.gps-marco .gps-cargar .lesiones-paso-titulo h2 {
+  font-size: clamp(24px, 6vw, 30px);
+}
+.gps-marco .gps-cargar .gps-cargar-encabezado .campo-inicio > label {
+  margin: 0 0 4px;
+}
+.gps-marco .gps-cargar .gps-cargar-encabezado .lesiones-ayuda {
+  margin: 4px 0 0;
+}
+.gps-marco .gps-cargar .gps-cargar-va-ayuda {
+  margin: 0 2px 8px;
+}
+
+/* % vs V.R. de partido (como arriba de cada bloque en la plantilla): los tres
+   grupos y el promedio, grandes; cada medida, chica, en columnas. */
+.gps-marco .gps-cargar-vs {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+.gps-marco .gps-cargar-vs-titulo {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+.gps-marco .gps-cargar-vs-grupos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.gps-marco .gps-cargar-vs-grupos span {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #f1f5f9;
+}
+.gps-marco .gps-cargar-vs-grupos small {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+.gps-marco .gps-cargar-vs-grupos b {
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 1.1;
+}
+.gps-marco .gps-cargar-vs-medidas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0 16px;
+}
+.gps-marco .gps-cargar-vs-medidas span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #e2e8f0;
+  font-size: 13px;
+}
+.gps-marco .gps-cargar-vs-medidas small {
+  min-width: 0;
+  color: #475569;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.gps-marco .gps-cargar-vs-medidas b {
+  color: #0f172a;
+  white-space: nowrap;
+}
+.gps-marco .gps-cargar-vs-aviso {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+@media (max-width: 599px) {
+  .gps-marco .gps-cargar-vs-grupos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .gps-marco .gps-cargar-vs-medidas {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .gps-marco .gps-cargar-va-ayuda {
   margin: 4px 2px 8px;
@@ -178,7 +280,8 @@
   margin-bottom: 12px;
 }
 .gps-marco .gps-cargar-acciones .boton-detalle {
-  flex: 0 1 220px;
+  flex: 1 1 150px;
+  max-width: 220px;
 }
 /* ¿Ya está en la Base?: no está, en verde; ya está, en rojo (lesiones-estado). */
 .gps-marco .lesiones-estado.gps-cargar-bien {
@@ -230,6 +333,52 @@
 .gps-marco .gps-cargar-motivo input {
   min-height: 44px;
   margin: 0;
+}
+/* En la compu, cada uno de los que no entrenaron en una sola línea: el
+   nombre, el motivo, el tipo de sesión y Sacar de la lista. */
+@media (min-width: 900px) {
+  .gps-marco .gps-cargar-no-entrenaron li {
+    display: grid;
+    grid-template-columns: minmax(120px, 200px) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0 12px;
+  }
+  .gps-marco .gps-cargar-no-entrenaron .datos-importar-fila {
+    display: contents;
+  }
+  .gps-marco .gps-cargar-no-entrenaron .datos-importar-fila > b {
+    grid-column: 1;
+  }
+  .gps-marco .gps-cargar-no-entrenaron .datos-importar-fila > button {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .gps-marco .gps-cargar-no-entrenaron .gps-cargar-motivo {
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: 0;
+  }
+}
+
+/* Ajustes › Reglas de carga: los V.R. de partido, un número por medida. */
+.gps-marco .gps-regla-vr {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 14px;
+}
+.gps-marco .gps-regla-vr label {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.gps-marco .gps-regla-vr span {
+  overflow-wrap: anywhere;
+}
+/* Lo que se ve en el partido: las casillas como en el filtro de las bases
+   (no como los campos de la hoja). */
+.gps-marco .lesiones-hoja .campo-inicio .tabla-datos-valores input {
+  width: 18px;
+  height: 18px;
 }
 
 /* Ajustes › Reglas de carga: el número con su %. */

@@ -7,7 +7,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { opcionesDeLista } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
-import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, filasYaEnLaBase, leerCsvCatapult, microcicloDe } from "./domain/gps/cargar.js";
+import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, microcicloDe, vsPartido } from "./domain/gps/cargar.js";
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
 import { COMO_PERSONA, NO_CARGAR, buscadorDelGps, leerSegundos } from "./domain/gps/importar.js";
 import { esNumero, textoDeSegundos } from "./domain/gps/valores.js";
@@ -80,12 +80,15 @@ const estadoInicial = () => ({
   dispositivo: "",
   sesion: { tipoSesion: "", zona: "", codigo: "" },
   // nombreAMano: el nombre del partido se escribió (ya no lo cambia el de Partido).
-  partido: { nombre: "", nombreAMano: false, tareaPartido: "partido_oficial_torneo", primer: {}, segundo: {}, completo: {}, banco: { jugadores: [] } },
+  // banco.aMano: los que no ingresaron se eligieron (ya no los cambia Partido).
+  partido: { nombre: "", nombreAMano: false, tareaPartido: "partido_oficial_torneo", primer: {}, segundo: {}, completo: {}, banco: { jugadores: [], aMano: false } },
   tareas: {},
   adicional: null,
   regenerativo: { hubo: false, duracion: REGENERATIVO_AL_EMPEZAR, jugadores: [] },
   noEntrenaron: {},
   elegidos: {},
+  // Quién es un nombre del CSV en un bloque (usó el GPS de otro): { [bloque]: { [nombre]: id } }.
+  renombres: {},
   ediciones: {},
   agregados: {},
   vaTarea: {},
@@ -124,7 +127,9 @@ export default function CargarGps({
   // ¿El CSV ya está en la Base? { clave, estado: revisando | esta | noEsta | error, iguales, delDia }.
   const [revision, setRevision] = useState(null);
   const [intento, setIntento] = useState(0);
-  // El partido de ese día en Partido: { fecha, rival } o null.
+  const [intentoPartido, setIntentoPartido] = useState(0);
+  // El partido de ese día en Partido: { fecha, estado: buscando | hay | noHay
+  // | error, rival, noIngresaron } o null.
   const [delPartido, setDelPartido] = useState(null);
   const archivo = useRef(null);
   const enPantalla = useRef(true);
@@ -150,7 +155,11 @@ export default function CargarGps({
   const conCatapult = useMemo(() => plantel.map((jugador) => (enCatapult[String(jugador.id)] ? { ...jugador, catapult_nombre: enCatapult[String(jugador.id)] } : jugador)), [plantel, enCatapult]);
   const buscar = useMemo(() => buscadorDelGps(conCatapult), [conCatapult]);
   const jugadorDe = (id) => plantel.find((jugador) => String(jugador.id) === String(id)) || null;
-  const actuales = useMemo(() => actualesPrimero(plantel).filter(esActual), [plantel]);
+  // Los que se pueden elegir (los del plantel actual primero; sin los
+  // arqueros si el club no los carga) y los del plantel actual.
+  const elegibles = useMemo(() => actualesPrimero(plantel).filter((jugador) => reglas.conArqueros || !esArquero(jugador)), [plantel, reglas.conArqueros]);
+  const actuales = useMemo(() => elegibles.filter(esActual), [elegibles]);
+  const opcionDeJugador = (jugador) => ({ valor: String(jugador.id), etiqueta: esActual(jugador) ? jugador.nombre : `${jugador.nombre} · ${t("datos.yaNoEsta")}` });
 
   // Con un CSV leído hay algo sin guardar (la barra de abajo pregunta antes
   // de salir).
@@ -174,6 +183,18 @@ export default function CargarGps({
     };
   }, [estado.csv, gps]);
   const bloques = useMemo(() => (leido && !leido.error ? bloquesDelCsv(leido.filas) : null), [leido]);
+  // Los bloques del CSV con su clave (la de lo que se cambia a mano en cada uno).
+  const bloquesConId = useMemo(
+    () =>
+      bloques
+        ? [
+            ...(bloques.primer ? [{ id: "primer", filas: bloques.primer.filas }] : []),
+            ...(bloques.segundo ? [{ id: "segundo", filas: bloques.segundo.filas }] : []),
+            ...bloques.tareas.map((bloque) => ({ id: `t:${bloque.nombre}`, nombre: bloque.nombre, filas: bloque.filas })),
+          ]
+        : [],
+    [bloques],
+  );
 
   // Los pasos: el CSV, cada tiempo del partido y el partido completo (si el
   // CSV los tiene), cada tarea, el regenerativo y los que no entrenaron, la
@@ -251,35 +272,55 @@ export default function CargarGps({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [claveDeRevision, equipoId]);
 
-  // El partido de ese día en Partido: «Vs el rival de turno» (Santiago, 12/10).
+  // El partido de ese día en Partido (Santiago, 12/10): «Vs el rival de
+  // turno» y los convocados que no ingresaron. Se mira apenas se sabe la
+  // fecha (también si el CSV no trae los tiempos del partido) y se dice qué
+  // pasó; sin partido, el nombre se escribe a mano.
+  const hayBloques = Boolean(bloques);
   useEffect(() => {
-    if (!hayPartido || !estado.fecha || !equipoId) {
+    const fecha = estado.fecha;
+    if (!hayBloques || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !equipoId) {
       setDelPartido(null);
       return undefined;
     }
     let vigente = true;
-    partidoDelDia(equipoId, estado.fecha).then((encontrado) => {
+    setDelPartido({ fecha, estado: "buscando" });
+    partidoDelDia(equipoId, fecha).then((encontrado) => {
       if (!vigente) return;
-      setDelPartido(encontrado ? { fecha: estado.fecha, rival: encontrado.rival } : null);
-      if (encontrado) cambiar((antes) => (antes.partido.nombreAMano ? {} : { partido: { ...antes.partido, nombre: `Vs ${encontrado.rival}` } }));
+      if (encontrado?.error) {
+        setDelPartido({ fecha, estado: "error" });
+        return;
+      }
+      setDelPartido(encontrado ? { fecha, estado: "hay", rival: encontrado.rival, noIngresaron: encontrado.noIngresaron || [] } : { fecha, estado: "noHay" });
+      // El nombre que no se escribió a mano sale de Partido (o se borra).
+      setEstado((antes) => {
+        if (antes.partido.nombreAMano) return antes;
+        const nombre = encontrado?.rival ? `Vs ${encontrado.rival}` : "";
+        return nombre === antes.partido.nombre ? antes : { ...antes, partido: { ...antes.partido, nombre } };
+      });
     });
     return () => {
       vigente = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hayPartido, estado.fecha, equipoId]);
+  }, [hayBloques, estado.fecha, equipoId, intentoPartido]);
 
   // Quién es cada nombre del CSV: el jugador con ese nombre en Catapult o en
   // Datos básicos; si no, lo que se eligió (guardarlo con su nombre, un
   // jugador de la lista o no cargarlo).
-  const quienDeNombre = (nombre) => {
+  // En un bloque, el nombre puede ser de otro (usó el GPS de ese: se cambia
+  // en la tabla). Los arqueros van solo si el club los prende (Santiago,
+  // 12/10; Ajustes › Reglas de carga).
+  const deJugador = (id) => (!reglas.conArqueros && esArquero(jugadorDe(id)) ? null : { clave: `j:${id}`, jugador_id: Number(id) });
+  const quienDeNombre = (nombre, bloque = null) => {
     const llave = nombreIgual(nombre);
+    const cambiado = bloque ? estado.renombres[bloque]?.[llave] : null;
+    if (cambiado) return deJugador(cambiado);
     const destino = estado.elegidos[llave];
     if (destino === NO_CARGAR) return null;
     if (destino === COMO_PERSONA) return { clave: `p:${llave}`, persona: nombre };
-    if (destino) return { clave: `j:${destino}`, jugador_id: Number(destino) };
+    if (destino) return deJugador(destino);
     const jugador = buscar(nombre);
-    if (jugador && jugador !== DUDOSO) return { clave: `j:${jugador.id}`, jugador_id: jugador.id };
+    if (jugador && jugador !== DUDOSO) return deJugador(jugador.id);
     return { clave: `p:${llave}`, persona: nombre, sinElegir: true, dudoso: jugador === DUDOSO };
   };
   const quienDeJugador = (jugador) => ({ clave: `j:${jugador.id}`, jugador_id: jugador.id });
@@ -300,6 +341,20 @@ export default function CargarGps({
     return [...porNombre.values()];
   }, [leido, buscar, estado.elegidos]);
   const sinElegir = nombresAElegir.filter((uno) => uno.destino === null);
+  // Los nombres del CSV que son arqueros y no se cargan (Santiago, 12/10: se
+  // prenden en Ajustes › Reglas de carga).
+  const arquerosFuera = useMemo(() => {
+    if (!leido || leido.error || reglas.conArqueros) return 0;
+    const llaves = new Set();
+    leido.filas.forEach((fila) => {
+      const llave = nombreIgual(fila.nombre);
+      const destino = estado.elegidos[llave];
+      const jugador = destino === COMO_PERSONA || destino === NO_CARGAR ? null : destino ? jugadorDe(destino) : buscar(fila.nombre);
+      if (jugador && jugador !== DUDOSO && esArquero(jugador)) llaves.add(llave);
+    });
+    return llaves.size;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leido, estado.elegidos, buscar, plantel, reglas.conArqueros]);
 
   // --------------------------------------------------- Lo que se calcula --
   const opciones = (lista) => opcionesDeLista(lista, config, idioma, { test: gps });
@@ -311,7 +366,7 @@ export default function CargarGps({
     const filas = [];
     const fuentes = [];
     filasCsv.forEach((fila, i) => {
-      const quien = quienDeNombre(fila.nombre);
+      const quien = quienDeNombre(fila.nombre, id);
       if (!quien) return;
       const clave = claveDeFila(id, i);
       filas.push({ quien, valores: { ...fila.valores, ...(estado.ediciones[clave] || {}) }, vaTarea: estado.vaTarea[clave] });
@@ -325,6 +380,58 @@ export default function CargarGps({
     return { filas, fuentes };
   };
 
+  // Quién es una clave (de un jugador, j:id; de alguien del CSV, p:nombre).
+  function quienDeClave(clave) {
+    if (clave.startsWith("j:")) return { clave, jugador_id: Number(clave.slice(2)) };
+    const delCsv = leido?.filas.map((fila) => quienDeNombre(fila.nombre)).find((quien) => quien?.clave === clave);
+    return delCsv || null;
+  }
+
+  // Los que aparecen en el CSV (ya con quién es cada uno en cada bloque).
+  const enElCsv = useMemo(() => {
+    const vistos = new Map();
+    bloquesConId.forEach((bloque) =>
+      bloque.filas.forEach((fila) => {
+        const quien = quienDeNombre(fila.nombre, bloque.id);
+        if (quien && !vistos.has(quien.clave)) vistos.set(quien.clave, quien);
+      }),
+    );
+    return [...vistos.values()];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bloquesConId, estado.elegidos, estado.renombres, buscar, reglas.conArqueros]);
+  const enElPartido = useMemo(
+    () =>
+      new Set(
+        [
+          ...bloquesConId.filter((bloque) => bloque.id === "primer" || bloque.id === "segundo").flatMap((bloque) => bloque.filas.map((fila) => quienDeNombre(fila.nombre, bloque.id)?.clave)),
+          ...[...(estado.agregados.primer || []), ...(estado.agregados.segundo || [])].map((uno) => uno.quien.clave),
+        ].filter(Boolean),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bloquesConId, estado.elegidos, estado.renombres, estado.agregados, buscar, reglas.conArqueros],
+  );
+
+  // Los del plantel actual que no aparecen en el CSV, en el banco ni
+  // agregados: no entrenaron (se les pone el motivo o se sacan de la lista).
+  // El regenerativo se elige entre ellos (Santiago, 12/10: «La lista de
+  // desplegable de regenerativo tienen que ser los que esten en no
+  // entrenaron») y quien lo hizo deja de estar en la lista.
+  const sinEntrenar = useMemo(() => {
+    const aparecen = new Set([...enElCsv.map((quien) => quien.clave), ...estado.partido.banco.jugadores.map((id) => `j:${id}`)]);
+    Object.values(estado.agregados).forEach((lista) => lista.forEach((uno) => aparecen.add(uno.quien.clave)));
+    return actuales.filter((jugador) => !aparecen.has(`j:${jugador.id}`));
+  }, [actuales, enElCsv, estado.partido.banco.jugadores, estado.agregados]);
+  const delRegenerativo = useMemo(() => {
+    if (!estado.regenerativo.hubo) return [];
+    const posibles = new Set(sinEntrenar.map((jugador) => `j:${jugador.id}`));
+    return estado.regenerativo.jugadores.filter((clave) => posibles.has(clave));
+  }, [sinEntrenar, estado.regenerativo]);
+  const propuestosNoEntrenaron = useMemo(() => {
+    const delRegen = new Set(delRegenerativo);
+    return sinEntrenar.filter((jugador) => !delRegen.has(`j:${jugador.id}`));
+  }, [sinEntrenar, delRegenerativo]);
+  const sacado = (jugador) => estado.noEntrenaron[String(jugador.id)]?.va === false;
+
   const armado = useMemo(() => {
     if (!bloques) return null;
     const fuentes = {};
@@ -334,14 +441,21 @@ export default function CargarGps({
       return filas;
     };
     const conPartido = Boolean(bloques.primer || bloques.segundo);
+    // Lo que el club oculta en los bloques del partido no cuenta.
+    const sinOcultos = (bloque) => Object.fromEntries(Object.entries(bloque || {}).filter(([campo]) => !reglas.ocultosDelPartido.includes(campo)));
+    const banco = estado.partido.banco;
     const partido = conPartido
       ? {
           nombre: estado.partido.nombre.trim(),
           tareaPartido: estado.partido.tareaPartido || null,
-          primer: { ...estado.partido.primer, filas: bloques.primer ? deBloque("primer", bloques.primer.filas, "partido:0") : [] },
-          segundo: { ...estado.partido.segundo, filas: bloques.segundo ? deBloque("segundo", bloques.segundo.filas, "partido:1") : [] },
-          completo: estado.partido.completo,
-          banco: { ...estado.partido.banco, jugadores: estado.partido.banco.jugadores.map((id) => quienDeJugador({ id })) },
+          primer: { ...sinOcultos(estado.partido.primer), filas: bloques.primer ? deBloque("primer", bloques.primer.filas, "partido:0") : [] },
+          segundo: { ...sinOcultos(estado.partido.segundo), filas: bloques.segundo ? deBloque("segundo", bloques.segundo.filas, "partido:1") : [] },
+          completo: sinOcultos(estado.partido.completo),
+          banco: {
+            tipoSesion: banco.tipoSesion || null,
+            codigo: reglas.ocultosDelPartido.includes("codigo") ? null : banco.codigo || null,
+            jugadores: banco.jugadores.map((id) => deJugador(id)).filter(Boolean),
+          },
         }
       : null;
     const tareas = [];
@@ -355,7 +469,7 @@ export default function CargarGps({
       if (seccion === "adicional") adicional = tarea;
       else tareas.push(tarea);
     });
-    const regenerativo = estado.regenerativo.hubo ? { duracion: estado.regenerativo.duracion, jugadores: estado.regenerativo.jugadores.map((clave) => quienDeClave(clave)).filter(Boolean) } : null;
+    const regenerativo = estado.regenerativo.hubo ? { duracion: estado.regenerativo.duracion, jugadores: delRegenerativo.map((clave) => quienDeClave(clave)).filter(Boolean) } : null;
     const noEntrenaron = Object.entries(estado.noEntrenaron)
       .filter(([, uno]) => uno.va !== false)
       .map(([id, uno]) => ({ quien: quienDeJugador({ id: Number(id) }), motivo: uno.motivo?.trim() || "", tipoSesion: uno.tipoSesion || null }));
@@ -375,44 +489,32 @@ export default function CargarGps({
     };
     return { carga, fuentes };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bloques, estado, buscar, actuales]);
+  }, [bloques, estado, buscar, actuales, delRegenerativo, reglas]);
 
-  // Quién es una clave (de un jugador, j:id; de alguien del CSV, p:nombre).
-  function quienDeClave(clave) {
-    if (clave.startsWith("j:")) return { clave, jugador_id: Number(clave.slice(2)) };
-    const delCsv = leido?.filas.map((fila) => quienDeNombre(fila.nombre)).find((quien) => quien?.clave === clave);
-    return delCsv || null;
-  }
-
-  // Los que aparecen en el CSV (ya con quién es cada uno).
-  const enElCsv = useMemo(() => {
-    if (!leido || leido.error) return [];
-    const vistos = new Map();
-    leido.filas.forEach((fila) => {
-      const quien = quienDeNombre(fila.nombre);
-      if (quien && !vistos.has(quien.clave)) vistos.set(quien.clave, quien);
+  // Los que no ingresaron salen de Partido (Santiago, 12/10: «los jugadores
+  // que no ingresaron tmb podes sacarlos del partido cargado») hasta que se
+  // elijan a mano: los convocados que no entraron, con su jugador de Datos
+  // básicos (sin los que están en el CSV del partido).
+  const bancoDePartido = useMemo(() => {
+    if (delPartido?.estado !== "hay" || delPartido.fecha !== estado.fecha) return null;
+    const ids = [];
+    const sinEncontrar = [];
+    delPartido.noIngresaron.forEach((nombre) => {
+      const jugador = buscar(nombre);
+      if (!jugador || jugador === DUDOSO) sinEncontrar.push(nombre);
+      else if (esActual(jugador) && (reglas.conArqueros || !esArquero(jugador)) && !enElPartido.has(`j:${jugador.id}`) && !ids.includes(jugador.id)) ids.push(jugador.id);
     });
-    return [...vistos.values()];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leido, estado.elegidos, buscar]);
-  const enElPartido = useMemo(() => {
-    if (!bloques) return new Set();
-    return new Set(
-      [
-        ...[...(bloques.primer?.filas || []), ...(bloques.segundo?.filas || [])].map((fila) => quienDeNombre(fila.nombre)?.clave),
-        ...[...(estado.agregados.primer || []), ...(estado.agregados.segundo || [])].map((uno) => uno.quien.clave),
-      ].filter(Boolean),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bloques, estado.elegidos, estado.agregados, buscar]);
-
-  // Los del plantel actual que no aparecen en ningún lado: no entrenaron (se
-  // les pone el motivo o se sacan de la lista).
-  const propuestosNoEntrenaron = useMemo(() => {
-    const aparecen = new Set([...enElCsv.map((quien) => quien.clave), ...estado.partido.banco.jugadores.map((id) => `j:${id}`), ...(estado.regenerativo.hubo ? estado.regenerativo.jugadores : [])]);
-    Object.values(estado.agregados).forEach((lista) => lista.forEach((uno) => aparecen.add(uno.quien.clave)));
-    return actuales.filter((jugador) => !aparecen.has(`j:${jugador.id}`));
-  }, [actuales, enElCsv, estado.partido.banco.jugadores, estado.regenerativo, estado.agregados]);
+    return { ids, sinEncontrar };
+  }, [delPartido, estado.fecha, buscar, reglas.conArqueros, enElPartido]);
+  useEffect(() => {
+    if (!hayPartido) return;
+    const ids = bancoDePartido?.ids || [];
+    setEstado((antes) => {
+      const banco = antes.partido.banco;
+      if (banco.aMano || (ids.length === banco.jugadores.length && ids.every((id, i) => banco.jugadores[i] === id))) return antes;
+      return { ...antes, partido: { ...antes.partido, banco: { ...banco, jugadores: ids } } };
+    });
+  }, [bancoDePartido, hayPartido]);
 
   // Cada propuesto entra (sin motivo) hasta que se lo saque.
   useEffect(() => {
@@ -476,10 +578,47 @@ export default function CargarGps({
   );
   const conDosDecimales = (valor) => (esNumero(valor) ? (Math.round(valor * 100) / 100).toLocaleString(idioma) : "—");
 
+  // El % vs V.R. de partido del bloque (con su Team Average), como arriba de
+  // cada bloque en la plantilla: con esto se elige la densidad (Santiago,
+  // 12/10: «No estan los % vs vr de partido con los que se decide la densidad
+  // de la sesion»).
+  const conVr = VS_PARTIDO.medidas.some((clave) => reglas.vrPartido?.[clave]);
+  const enPorcentaje = (numero) => (esNumero(numero) ? `${Math.round(numero * 100).toLocaleString(idioma)} %` : "—");
+  const panelVs = (datos) => {
+    if (!conVr) return <p className="lesiones-ayuda gps-cargar-vs-aviso">{t("gps.cargar.sinVr")}</p>;
+    if (!datos) return <p className="lesiones-ayuda gps-cargar-vs-aviso">{t("gps.cargar.vsSinPromedio", { n: reglas.minimoParaPromedio })}</p>;
+    const vs = vsPartido(datos, reglas.vrPartido);
+    return (
+      <div className="gps-cargar-vs" role="group" aria-label={t("gps.cargar.vsPartido")}>
+        <span className="gps-cargar-vs-titulo">{t("gps.cargar.vsPartido")}</span>
+        <div className="gps-cargar-vs-grupos">
+          {["metabolica", "fuerza", "velocidad", "promedio"].map((grupo) => (
+            <span key={grupo}>
+              <small>{t(`gps.cargar.vs.${grupo}`)}</small>
+              <b>{enPorcentaje(vs[grupo])}</b>
+            </span>
+          ))}
+        </div>
+        <div className="gps-cargar-vs-medidas">
+          {VS_PARTIDO.medidas.map((clave) => (
+            <span key={clave}>
+              <small>{titulo(clave)}</small>
+              <b>{enPorcentaje(vs.medidas[clave])}</b>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // Lo de arriba de un bloque (como en la plantilla), con lo que se calcula
-  // al final (los m², la relación pausa / trabajo).
-  const encabezado = (definiciones, valores, alCambiar, calculados = []) => (
+  // al final (los m², la relación pausa / trabajo) y, si se pasa el Team
+  // Average del bloque (o null, si no tiene), su % vs V.R. de partido.
+  // antes / despues: lo demás del bloque, en la misma tarjeta (Santiago, 12/10:
+  // «Hay demasiado espacio como para juntar las cosas»).
+  const encabezado = (definiciones, valores, alCambiar, calculados = [], promedioDelBloque, { antes = null, despues = null } = {}) => (
     <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
+      {antes}
       {definiciones.map((def) => {
         const rotulo = def.columna ? titulo(def.columna) : t(def.rotulo);
         const valor = valores?.[def.campo];
@@ -496,6 +635,8 @@ export default function CargarGps({
           <b>{conDosDecimales(valor)}</b>
         </div>
       ))}
+      {promedioDelBloque !== undefined && panelVs(promedioDelBloque)}
+      {despues}
     </section>
   );
 
@@ -521,9 +662,9 @@ export default function CargarGps({
   // la tabla. Se elige en un desplegable, sin los que ya están en el bloque.
   const agregarEn = (id, filasCsv) => {
     const agregados = estado.agregados[id] || [];
-    const yaEstan = new Set([...filasCsv.map((fila) => quienDeNombre(fila.nombre)?.clave), ...agregados.map((uno) => uno.quien.clave)].filter(Boolean));
+    const yaEstan = new Set([...filasCsv.map((fila) => quienDeNombre(fila.nombre, id)?.clave), ...agregados.map((uno) => uno.quien.clave)].filter(Boolean));
     return (
-      <section className="tarjeta tarjeta-ficha gps-cargar-agregar">
+      <div className="gps-cargar-agregar">
         {agregados.length > 0 && (
           <ul className="datos-importar-lista gps-cargar-agregados">
             {agregados.map((uno) => (
@@ -551,9 +692,7 @@ export default function CargarGps({
           onClick={() =>
             setHoja({
               titulo: t("gps.cargar.agregarJugador"),
-              opciones: actualesPrimero(plantel)
-                .filter((jugador) => !yaEstan.has(`j:${jugador.id}`))
-                .map((jugador) => ({ valor: String(jugador.id), etiqueta: esActual(jugador) ? jugador.nombre : `${jugador.nombre} · ${t("datos.yaNoEsta")}` })),
+              opciones: elegibles.filter((jugador) => !yaEstan.has(`j:${jugador.id}`)).map(opcionDeJugador),
               valor: null,
               buscador: true,
               alElegir: (valor) =>
@@ -565,8 +704,63 @@ export default function CargarGps({
           <Icono nombre="flecha" size={15} />
         </button>
         {agregados.length > 0 && <p className="lesiones-ayuda">{t("gps.cargar.agregadoAyuda")}</p>}
-      </section>
+      </div>
     );
+  };
+
+  // El nombre de un bloque (para elegir dónde se cambia un nombre).
+  const nombreDeBloque = (id) => (id === "primer" ? t("gps.cargar.primerTiempo") : id === "segundo" ? t("gps.cargar.segundoTiempo") : tituloDe(`tarea:${id.slice(2)}`));
+  // Alguien usó el GPS de otro (Santiago, 12/10: «tengo que poder modificarlo
+  // y que la web me pregunte si quiero cambiar todos los nombres de ese
+  // jugador en las tareas y partido o solo en esa tarea»): el nombre de una
+  // fila del CSV pasa a ser el elegido en ese bloque, en todos los bloques
+  // donde está o en los que se elijan. Sus números siguen siendo los de esa
+  // fila.
+  const cambiarNombre = (fuente, valor) => {
+    if (!fuente) return { error: "gps.cargar.nombreNoSeCambia" };
+    const corte = fuente.lastIndexOf("|");
+    const bloqueId = fuente.slice(0, corte);
+    const lugar = fuente.slice(corte + 1);
+    if (lugar.startsWith("+")) return { error: "gps.cargar.agregadoSeCambiaArriba" };
+    const filaCsv = bloquesConId.find((bloque) => bloque.id === bloqueId)?.filas?.[Number(lugar)];
+    if (!filaCsv || !valor || !jugadorDe(valor)) return { error: "gps.cargar.nombreNoSeCambia" };
+    const llave = nombreIgual(filaCsv.nombre);
+    const donde = bloquesConId.filter((bloque) => bloque.filas.some((otra) => nombreIgual(otra.nombre) === llave)).map((bloque) => bloque.id);
+    const aplicar = (ids) =>
+      cambiar((antes) => {
+        const renombres = { ...antes.renombres };
+        ids.forEach((id) => {
+          renombres[id] = { ...(renombres[id] || {}), [llave]: String(valor) };
+        });
+        return { renombres };
+      });
+    if (donde.length <= 1) {
+      aplicar([bloqueId]);
+      return {};
+    }
+    const textos = { nombre: filaCsv.nombre, jugador: jugadorDe(valor)?.nombre || "—" };
+    setHoja({
+      titulo: t("gps.cargar.cambiarNombreTitulo", textos),
+      opciones: [
+        { valor: "todas", etiqueta: t("gps.cargar.cambiarEnTodas", { n: donde.length }) },
+        { valor: "esta", etiqueta: t("gps.cargar.cambiarSoloEsta", { bloque: nombreDeBloque(bloqueId) }) },
+        { valor: "algunas", etiqueta: t("gps.cargar.cambiarEnAlgunas") },
+      ],
+      valor: null,
+      alElegir: (como) => {
+        if (como === "todas") aplicar(donde);
+        else if (como === "esta") aplicar([bloqueId]);
+        else if (como === "algunas")
+          setHojaVarios({
+            titulo: t("gps.cargar.cambiarEnCuales", textos),
+            valores: donde.map((id) => ({ clave: id, texto: nombreDeBloque(id) })),
+            elegidos: [bloqueId],
+            busqueda: "",
+            alAplicar: (ids) => ids.length > 0 && aplicar(ids),
+          });
+      },
+    });
+    return {};
   };
 
   // Lo que se cambia en una tabla: una medida de Catapult de un jugador (se
@@ -585,6 +779,7 @@ export default function CargarGps({
       if (valor === "si" || valor === "no") cambiar((antes) => ({ vaTarea: { ...antes.vaTarea, [fuente]: valor } }));
       return {};
     }
+    if (clave === "jugador") return cambiarNombre(fuente, valor);
     const columna = gps.columnas.find((una) => una.clave === clave);
     if (!columna || ["jugador", "fecha", "porMinuto"].includes(columna.tipo)) return { error: "gps.cargar.seCalcula" };
     const { fila: nueva, error } = conCambio(fila, clave, valor);
@@ -609,6 +804,13 @@ export default function CargarGps({
   // Las columnas de la Base (como las tiene el club) y, en las tareas, el «Va
   // Tarea» después de m2, como en la plantilla.
   const columnasDeLaTabla = useMemo(() => columnas.map((columna) => (["jugador", "fecha"].includes(columna.clave) ? { ...columna, editable: false } : columna)), [columnas]);
+  // En la tabla de un tiempo del partido o de una tarea, el nombre de cada
+  // fila del CSV se cambia (alguien usó el GPS de otro: Santiago, 12/10).
+  const columnasDeBloque = useMemo(
+    () => columnas.map((columna) => (columna.clave === "fecha" ? { ...columna, editable: false } : columna.clave === "jugador" ? { ...columna, opciones: elegibles.map(opcionDeJugador) } : columna)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [columnas, elegibles, idioma],
+  );
   const columnaVaTarea = useMemo(
     () => ({
       clave: "va_tarea",
@@ -625,22 +827,22 @@ export default function CargarGps({
     [idioma],
   );
   const columnasConVaTarea = useMemo(() => {
-    const lugar = columnasDeLaTabla.findIndex((columna) => columna.clave === "m2");
-    const copia = [...columnasDeLaTabla];
+    const lugar = columnasDeBloque.findIndex((columna) => columna.clave === "m2");
+    const copia = [...columnasDeBloque];
     copia.splice(lugar === -1 ? copia.length : lugar + 1, 0, columnaVaTarea);
     return copia;
-  }, [columnasDeLaTabla, columnaVaTarea]);
+  }, [columnasDeBloque, columnaVaTarea]);
   const filaDeLaTabla = (fila) => {
     const armada = armarFila(fila);
     if (!fila._vaTarea) return armada;
     return { ...armada, valores: { ...armada.valores, va_tarea: fila._vaTarea }, textos: { ...armada.textos, va_tarea: fila._vaTarea === "si" ? t("gps.cargar.va") : t("gps.cargar.noVa") } };
   };
-  const tablaDe = (id, filas, { conVaTarea = false } = {}) => (
+  const tablaDe = (id, filas, { conVaTarea = false, conNombre = false } = {}) => (
     <section className="tarjeta evaluaciones-tabla gps-cargar-tabla">
       <TablaDatos
         id="gps-bloque"
         recordar={`gps:bloque:${id}`}
-        columnas={conVaTarea ? columnasConVaTarea : columnasDeLaTabla}
+        columnas={conVaTarea ? columnasConVaTarea : conNombre ? columnasDeBloque : columnasDeLaTabla}
         filas={filas.map(filaDeLaTabla)}
         fijas={fijas}
         onEditar={editarCelda}
@@ -648,6 +850,7 @@ export default function CargarGps({
     </section>
   );
   const filasDeSeccion = (...secciones) => (resultado || []).filter((fila) => secciones.includes(fila._seccion));
+  const promedioDeSeccion = (seccion) => filasDeSeccion(seccion).find((fila) => fila.promedio)?.datos || null;
 
   // ---------------------------------------------------------- Los pasos --
   const faltaEnPaso = (id) => {
@@ -662,7 +865,50 @@ export default function CargarGps({
       if (revision.estado === "error") return t("gps.cargar.noSeRevisoBase");
       if (revision.estado === "esta") return plural("gps.cargar.yaEsta", revision.iguales, { fecha: fechaCorta(estado.fecha) });
     }
+    // Sin tipo de sesión, día o dispositivo no se carga nada (Santiago, 12/10);
+    // nadie puede estar dos veces en un bloque (un nombre cambiado).
+    const sinTipo = (bloque) => t("gps.cargar.faltaTipoSesion", { bloque });
+    if (id === "primer" || id === "segundo") {
+      if (!estado.partido[id].tipoSesion) return sinTipo(tituloDe(id));
+      const repetido = repetidoEn(id, bloques?.[id]?.filas || []);
+      if (repetido) return t("gps.cargar.repetido", { nombre: repetido, bloque: tituloDe(id) });
+    }
+    if (id === "completo") {
+      if (!estado.partido.completo.tipoSesion) return sinTipo(tituloDe(id));
+      if (estado.partido.banco.jugadores.length && !estado.partido.banco.tipoSesion) return sinTipo(t("gps.cargar.sinIngresar"));
+    }
+    if (id.startsWith("tarea:")) {
+      const nombre = id.slice("tarea:".length);
+      const bloque = bloques?.tareas.find((uno) => uno.nombre === nombre);
+      const suya = estado.tareas[nombre] || {};
+      if (bloque && !suya.quitada) {
+        if (!suya.tipoSesion) return sinTipo(tituloDe(id));
+        const repetido = repetidoEn(`t:${nombre}`, bloque.filas);
+        if (repetido) return t("gps.cargar.repetido", { nombre: repetido, bloque: tituloDe(id) });
+      }
+    }
+    if (id === "jugadores") {
+      const faltan = propuestosNoEntrenaron.filter((jugador) => !sacado(jugador) && !estado.noEntrenaron[String(jugador.id)]?.tipoSesion).length;
+      if (faltan) return plural("gps.cargar.faltaTipoNoEntrenaron", faltan);
+    }
+    if (id === "sesion") {
+      if (!estado.dia) return t("gps.cargar.faltaDia");
+      if (!opciones("dispositivo").length) return t("gps.cargar.faltanDispositivos");
+      if (!estado.dispositivo) return t("gps.cargar.faltaDispositivo");
+      if (!estado.sesion.tipoSesion) return sinTipo(t("gps.cargar.pasoSesion"));
+    }
     return "";
+  };
+  // ¿Alguien está dos veces en un bloque? Su nombre.
+  const repetidoEn = (bloqueId, filasCsv) => {
+    const vistos = new Set();
+    const quienes = [...filasCsv.map((fila) => quienDeNombre(fila.nombre, bloqueId)), ...(estado.agregados[bloqueId] || []).map((uno) => uno.quien)].filter(Boolean);
+    const repetido = quienes.find((quien) => {
+      if (vistos.has(quien.clave)) return true;
+      vistos.add(quien.clave);
+      return false;
+    });
+    return repetido ? nombreDeQuien(repetido) : null;
   };
   const irAlPaso = (indice) => {
     for (let uno = paso; uno < indice; uno += 1) {
@@ -679,6 +925,27 @@ export default function CargarGps({
   };
 
   const microciclo = microcicloDe(estado.fecha, reglas.inicioMicrociclo);
+  // Qué pasó con el partido de ese día en Partido (Santiago, 12/10: no
+  // apareció el rival y no se sabía por qué).
+  const avisoDelPartido = () => {
+    if (!delPartido || delPartido.fecha !== estado.fecha) return null;
+    const fecha = fechaCorta(estado.fecha);
+    if (delPartido.estado === "buscando") return <p className="lesiones-ayuda gps-cargar-partido">{t("gps.cargar.buscandoPartido", { fecha })}</p>;
+    if (delPartido.estado === "error")
+      return (
+        <div className="lesiones-estado error gps-cargar-partido">
+          {t("gps.cargar.partidoNoSeLeyo")}{" "}
+          <button type="button" onClick={() => setIntentoPartido((n) => n + 1)}>
+            {t("comun.reintentar")}
+          </button>
+        </div>
+      );
+    if (delPartido.estado === "noHay") return hayPartido ? <p className="lesiones-estado gps-cargar-partido">{t("gps.cargar.sinPartidoEseDia", { fecha })}</p> : null;
+    const nombre = delPartido.rival ? `Vs ${delPartido.rival}` : "";
+    if (!hayPartido) return <p className="lesiones-estado gps-cargar-partido">{t("gps.cargar.partidoSinTiempos", { fecha, nombre: nombre || "—" })}</p>;
+    if (!nombre) return <p className="lesiones-estado gps-cargar-partido">{t("gps.cargar.partidoSinRival", { fecha })}</p>;
+    return <p className="lesiones-estado gps-cargar-revision gps-cargar-bien gps-cargar-partido">{t("gps.cargar.partidoEncontrado", { fecha, nombre })}</p>;
+  };
   const pasoCsv = (
     <>
       <section className="tarjeta datos-importar-pegado">
@@ -745,7 +1012,7 @@ export default function CargarGps({
                 </button>
               </div>
             )}
-            {hayPartido && delPartido?.fecha === estado.fecha && <p className="lesiones-ayuda gps-cargar-partido">{t("gps.cargar.partidoEncontrado", { nombre: `Vs ${delPartido.rival}` })}</p>}
+            {avisoDelPartido()}
           </section>
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">
@@ -759,6 +1026,7 @@ export default function CargarGps({
               ))}
             </ul>
             {leido.faltan.length > 0 && <p className="datos-importar-aviso">{t("gps.cargar.faltanColumnas", { columnas: leido.faltan.map(titulo).join(", ") })}</p>}
+            {arquerosFuera > 0 && <p className="lesiones-ayuda gps-cargar-arqueros">{plural("gps.cargar.arquerosFuera", arquerosFuera)}</p>}
           </section>
         </>
       )}
@@ -796,7 +1064,7 @@ export default function CargarGps({
                         opciones: [
                           { valor: COMO_PERSONA, etiqueta: t("gps.importar.comoPersona") },
                           { valor: NO_CARGAR, etiqueta: t("gps.importar.noCargar") },
-                          ...actualesPrimero(plantel).map((jugador) => ({ valor: String(jugador.id), etiqueta: esActual(jugador) ? jugador.nombre : `${jugador.nombre} · ${t("datos.yaNoEsta")}` })),
+                          ...elegibles.map(opcionDeJugador),
                         ],
                         valor: uno.destino,
                         buscador: true,
@@ -831,29 +1099,38 @@ export default function CargarGps({
     const secciones = { primer: ["partido:0"], segundo: ["partido:1"], completo: ["partido:completo", "partido:banco"] }[parte];
     return (
       <>
-        {parte === primerPasoDelPartido && (
-          <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
-            {campo(
-              t("gps.cargar.nombrePartido"),
+        {encabezado(
+          ENCABEZADO_DEL_PARTIDO.filter((def) => !reglas.ocultosDelPartido.includes(def.campo)),
+          estado.partido[parte],
+          (cambios) => cambiarPartido(parte, cambios),
+          [],
+          promedioDeSeccion(secciones[0]),
+          {
+            antes: parte === primerPasoDelPartido && (
               <>
-                <input
-                  type="text"
-                  maxLength={120}
-                  value={estado.partido.nombre}
-                  placeholder={t("gps.cargar.nombrePartidoEjemplo")}
-                  onChange={(evento) => cambiar((antes) => ({ partido: { ...antes.partido, nombre: evento.target.value, nombreAMano: true } }))}
-                />
-                <small className="lesiones-ayuda">
-                  {delPartido?.fecha === estado.fecha ? t("gps.cargar.nombreDePartido") : t("gps.cargar.nombrePartidoAyuda")}
-                </small>
-              </>,
-              "nombre",
-            )}
-            {campo(titulo("tarea_partido"), elegir({ rotulo: titulo("tarea_partido"), lista: "tarea_partido", valor: estado.partido.tareaPartido, alElegir: (valor) => cambiar((antes) => ({ partido: { ...antes.partido, tareaPartido: valor } })) }), "tp")}
-          </section>
+                {campo(
+                  t("gps.cargar.nombrePartido"),
+                  <>
+                    <input
+                      type="text"
+                      maxLength={120}
+                      value={estado.partido.nombre}
+                      placeholder={t("gps.cargar.nombrePartidoEjemplo")}
+                      onChange={(evento) => cambiar((antes) => ({ partido: { ...antes.partido, nombre: evento.target.value, nombreAMano: true } }))}
+                    />
+                    <small className="lesiones-ayuda">
+                      {delPartido?.fecha === estado.fecha && delPartido.estado === "hay" && delPartido.rival && !estado.partido.nombreAMano ? t("gps.cargar.nombreDePartido") : t("gps.cargar.nombrePartidoAyuda")}
+                    </small>
+                  </>,
+                  "nombre",
+                )}
+                {campo(titulo("tarea_partido"), elegir({ rotulo: titulo("tarea_partido"), lista: "tarea_partido", valor: estado.partido.tareaPartido, alElegir: (valor) => cambiar((antes) => ({ partido: { ...antes.partido, tareaPartido: valor } })) }), "tp")}
+              </>
+            ),
+            despues: parte !== "completo" && agregarEn(parte, bloques?.[parte]?.filas || []),
+          },
         )}
-        {encabezado(ENCABEZADO_DEL_PARTIDO, estado.partido[parte], (cambios) => cambiarPartido(parte, cambios))}
-        {parte === "completo" ? (
+        {parte === "completo" && (
           <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
             {campo(
               t("gps.cargar.sinIngresar"),
@@ -862,19 +1139,22 @@ export default function CargarGps({
                   t("gps.cargar.sinIngresar"),
                   actuales.filter((jugador) => !enElPartido.has(`j:${jugador.id}`)).map((jugador) => ({ valor: jugador.id, etiqueta: jugador.nombre })),
                   estado.partido.banco.jugadores,
-                  (jugadores) => cambiarPartido("banco", { jugadores }),
+                  (jugadores) => cambiarPartido("banco", { jugadores, aMano: true }),
+                  t("gps.cargar.nadieSinIngresar"),
                 )}
-                <small className="lesiones-ayuda">{t("gps.cargar.sinIngresarAyuda")}</small>
+                <small className="lesiones-ayuda">{bancoDePartido && !estado.partido.banco.aMano ? t("gps.cargar.sinIngresarDePartido") : t("gps.cargar.sinIngresarAyuda")}</small>
+                {bancoDePartido?.sinEncontrar.length > 0 && !estado.partido.banco.aMano && (
+                  <small className="lesiones-ayuda">{plural("gps.cargar.sinIngresarSinEncontrar", bancoDePartido.sinEncontrar.length, { nombres: bancoDePartido.sinEncontrar.join(", ") })}</small>
+                )}
               </>,
               "banco",
             )}
             {campo(titulo("tipo_sesion"), elegir({ rotulo: `${t("gps.cargar.sinIngresar")}: ${titulo("tipo_sesion")}`, vacio: titulo("tipo_sesion"), lista: "tipo_sesion", valor: estado.partido.banco.tipoSesion || "", alElegir: (valor) => cambiarPartido("banco", { tipoSesion: valor }) }), "bancoTipo")}
-            {campo(titulo("codigo_estrategia"), elegir({ rotulo: `${t("gps.cargar.sinIngresar")}: ${titulo("codigo_estrategia")}`, vacio: titulo("codigo_estrategia"), lista: "codigo_estrategia", valor: estado.partido.banco.codigo || "", alElegir: (valor) => cambiarPartido("banco", { codigo: valor }) }), "bancoCodigo")}
+            {!reglas.ocultosDelPartido.includes("codigo") &&
+              campo(titulo("codigo_estrategia"), elegir({ rotulo: `${t("gps.cargar.sinIngresar")}: ${titulo("codigo_estrategia")}`, vacio: titulo("codigo_estrategia"), lista: "codigo_estrategia", valor: estado.partido.banco.codigo || "", alElegir: (valor) => cambiarPartido("banco", { codigo: valor }) }), "bancoCodigo")}
           </section>
-        ) : (
-          agregarEn(parte, bloques?.[parte]?.filas || [])
         )}
-        {tablaDe(parte, filasDeSeccion(...secciones))}
+        {tablaDe(parte, filasDeSeccion(...secciones), { conNombre: parte !== "completo" })}
       </>
     );
   };
@@ -913,11 +1193,17 @@ export default function CargarGps({
           <p className="lesiones-vacio">{t("gps.cargar.tareaQuitada")}</p>
         ) : (
           <>
-            {encabezado(ENCABEZADO_DE_TAREA, { ...suya, nombre: suya.nombre ?? bloque.nombre }, (cambios) => cambiarTarea(bloque.nombre, cambios), [
-              { rotulo: titulo("cp_tarea"), valor: calculada?.datos?.cp_tarea },
-              { rotulo: titulo("m2"), valor: calculada?.datos?.m2 },
-            ])}
-            {agregarEn(`t:${bloque.nombre}`, bloque.filas)}
+            {encabezado(
+              ENCABEZADO_DE_TAREA,
+              { ...suya, nombre: suya.nombre ?? bloque.nombre },
+              (cambios) => cambiarTarea(bloque.nombre, cambios),
+              [
+                { rotulo: titulo("cp_tarea"), valor: calculada?.datos?.cp_tarea },
+                { rotulo: titulo("m2"), valor: calculada?.datos?.m2 },
+              ],
+              promedioDeSeccion(seccion),
+              { despues: agregarEn(`t:${bloque.nombre}`, bloque.filas) },
+            )}
             <p className="lesiones-ayuda gps-cargar-va-ayuda">{t("gps.cargar.vaTareaAyuda", { parte: Math.round(reglas.parteDelTiempo * 100) })}</p>
             {tablaDe(`t:${bloque.nombre}`, suyas, { conVaTarea: true })}
           </>
@@ -927,13 +1213,12 @@ export default function CargarGps({
   };
 
   const regenerativo = estado.regenerativo;
-  const posiblesRegenerativo = useMemo(() => {
-    const lista = new Map();
-    actuales.forEach((jugador) => lista.set(`j:${jugador.id}`, jugador.nombre));
-    enElCsv.forEach((quien) => !lista.has(quien.clave) && lista.set(quien.clave, nombreDeQuien(quien)));
-    return [...lista.entries()].map(([valor, etiqueta]) => ({ valor, etiqueta }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actuales, enElCsv]);
+  // El regenerativo, de los que no entrenaron (Santiago, 12/10).
+  const posiblesRegenerativo = sinEntrenar.map((jugador) => ({ valor: `j:${jugador.id}`, etiqueta: jugador.nombre }));
+  // Los que se sacaron de la lista quedan abajo de todo (Santiago, 12/10: «Si
+  // saco a alguien de los que no entrenaron tienen que quedar abajo del todo y
+  // subir a los que si estan»).
+  const listaNoEntrenaron = [...propuestosNoEntrenaron].sort((a, b) => Number(sacado(a)) - Number(sacado(b)));
   const motivos = [...new Set(Object.values(estado.noEntrenaron).map((uno) => uno.motivo?.trim()).filter(Boolean))];
   const pasoJugadores = (
     <>
@@ -959,7 +1244,7 @@ export default function CargarGps({
               "duracion",
             )}
             <p className="lesiones-ayuda">{t("gps.cargar.regenerativoAyuda", { n: reglas.minimoRegenerativo })}</p>
-            {elegirVarios(t("gps.cargar.quienesRegenerativo"), posiblesRegenerativo, regenerativo.jugadores, (jugadores) => cambiar((antes) => ({ regenerativo: { ...antes.regenerativo, jugadores } })))}
+            {elegirVarios(t("gps.cargar.quienesRegenerativo"), posiblesRegenerativo, delRegenerativo, (jugadores) => cambiar((antes) => ({ regenerativo: { ...antes.regenerativo, jugadores } })))}
           </>
         )}
       </section>
@@ -976,8 +1261,8 @@ export default function CargarGps({
               <option key={motivo} value={motivo} />
             ))}
           </datalist>
-          <ul className="datos-importar-lista">
-            {propuestosNoEntrenaron.map((jugador) => {
+          <ul className="datos-importar-lista gps-cargar-no-entrenaron">
+            {listaNoEntrenaron.map((jugador) => {
               const suyo = estado.noEntrenaron[String(jugador.id)] || { va: true, motivo: "", tipoSesion: "" };
               const cambiarSuyo = (cambios) => cambiar((antes) => ({ noEntrenaron: { ...antes.noEntrenaron, [String(jugador.id)]: { ...suyo, ...cambios } } }));
               return (
@@ -1036,34 +1321,42 @@ export default function CargarGps({
         <h2>{t("gps.cargar.promedioSesion")}</h2>
         <p>{t("gps.cargar.promedioSesionAyuda")}</p>
       </section>
-      {encabezado(ENCABEZADO_DE_LA_SESION, estado.sesion, (cambios) => cambiar((antes) => ({ sesion: { ...antes.sesion, ...cambios } })), [
-        { rotulo: titulo("cp_tarea"), valor: promedioDeLaSesion?.datos?.cp_tarea },
-        { rotulo: titulo("m2"), valor: promedioDeLaSesion?.datos?.m2 },
-      ])}
-      {tareasParaLaDescripcion.length > 0 && (
-        <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
-          {campo(
-            t("gps.cargar.tareasEnLaDescripcion"),
+      {encabezado(
+        ENCABEZADO_DE_LA_SESION,
+        estado.sesion,
+        (cambios) => cambiar((antes) => ({ sesion: { ...antes.sesion, ...cambios } })),
+        [
+          { rotulo: titulo("cp_tarea"), valor: promedioDeLaSesion?.datos?.cp_tarea },
+          { rotulo: titulo("m2"), valor: promedioDeLaSesion?.datos?.m2 },
+        ],
+        promedioDeLaSesion?.datos || null,
+        {
+          despues: tareasParaLaDescripcion.length > 0 && (
             <>
-              {elegirVarios(
+              {campo(
                 t("gps.cargar.tareasEnLaDescripcion"),
-                tareasParaLaDescripcion.map((bloque) => ({ valor: bloque.nombre, etiqueta: (estado.tareas[bloque.nombre]?.nombre ?? bloque.nombre).trim() || bloque.nombre })),
-                tareasParaLaDescripcion.filter((bloque) => estado.tareas[bloque.nombre]?.enLaDescripcion !== false).map((bloque) => bloque.nombre),
-                (elegidas) =>
-                  cambiar((antes) => ({
-                    tareas: Object.fromEntries(Object.entries(antes.tareas).map(([nombre, tarea]) => [nombre, { ...tarea, enLaDescripcion: elegidas.includes(nombre) }])),
-                  })),
-                t("gps.cargar.ningunaTarea"),
+                <>
+                  {elegirVarios(
+                    t("gps.cargar.tareasEnLaDescripcion"),
+                    tareasParaLaDescripcion.map((bloque) => ({ valor: bloque.nombre, etiqueta: (estado.tareas[bloque.nombre]?.nombre ?? bloque.nombre).trim() || bloque.nombre })),
+                    tareasParaLaDescripcion.filter((bloque) => estado.tareas[bloque.nombre]?.enLaDescripcion !== false).map((bloque) => bloque.nombre),
+                    (elegidas) =>
+                      cambiar((antes) => ({
+                        tareas: Object.fromEntries(Object.entries(antes.tareas).map(([nombre, tarea]) => [nombre, { ...tarea, enLaDescripcion: elegidas.includes(nombre) }])),
+                      })),
+                    t("gps.cargar.ningunaTarea"),
+                  )}
+                  <small className="lesiones-ayuda">{t("gps.cargar.tareasEnLaDescripcionAyuda")}</small>
+                </>,
+                "descripcion",
               )}
-              <small className="lesiones-ayuda">{t("gps.cargar.tareasEnLaDescripcionAyuda")}</small>
-            </>,
-            "descripcion",
-          )}
-          <div className="campo-inicio lesiones-campo-paso gps-cargar-calculado gps-cargar-descripcion">
-            <label>{titulo("descripcion")}</label>
-            <b>{promedioDeLaSesion?.datos?.descripcion || "—"}</b>
-          </div>
-        </section>
+              <div className="campo-inicio lesiones-campo-paso gps-cargar-calculado gps-cargar-descripcion">
+                <label>{titulo("descripcion")}</label>
+                <b>{promedioDeLaSesion?.datos?.descripcion || "—"}</b>
+              </div>
+            </>
+          ),
+        },
       )}
       <section className="lesiones-paso-titulo">
         <h2>{t("gps.cargar.vaDeCadaUno")}</h2>
@@ -1101,6 +1394,23 @@ export default function CargarGps({
     const desde = aMedias?.hechas || 0;
     const quedan = lista.slice(desde);
     if (!quedan.length) return;
+    // Todo lo de antes, completo (también lo cambiado en la tabla).
+    if (!aMedias) {
+      for (let uno = 0; uno < PASOS.length - 1; uno += 1) {
+        const falta = faltaEnPaso(PASOS[uno]);
+        if (falta) {
+          setErrorPaso(falta);
+          setPaso(uno);
+          return;
+        }
+      }
+      const faltan = faltaLoObligatorio(resultado || []);
+      if (faltan.length) {
+        setErrorPaso(t("gps.cargar.faltaObligatorio", { columnas: faltan.map(titulo).join(", ") }));
+        return;
+      }
+    }
+    setErrorPaso("");
     setFalla("");
     setProgreso({ n: desde, total: lista.length });
     if (!aMedias) {
@@ -1166,7 +1476,7 @@ export default function CargarGps({
   const ancho = actual !== "csv" && actual !== "jugadores";
 
   return (
-    <div className="app">
+    <div className="app gps-cargar">
       <div className={`contenedor ${ancho ? "contenedor-base" : ""}`}>
         <header className="encabezado lesiones-encabezado">
           <div className="lesiones-encabezado-texto">

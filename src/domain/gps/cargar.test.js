@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, metrosPorJugador, microcicloDe, reglasDelClub } from "./cargar.js";
+import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, metrosPorJugador, microcicloDe, reglasDelClub, vsPartido } from "./cargar.js";
 
 // Datos inventados: ningún nombre ni valor del club.
 
@@ -352,5 +352,86 @@ describe("las reglas del club (Ajustes › Reglas de carga)", () => {
     const va = (reglas) => calcularCarga(carga, { reglas }).filas.filter((fila) => fila._seccion === "tarea:t" && !fila.promedio).map((fila) => fila._vaTarea);
     expect(va(REGLAS_CARGA)).toEqual(["si", "si", "si", "si"]);
     expect(va(reglasDelClub({ parteDelTiempo: 0.85 }))).toEqual(["si", "si", "si", "no"]);
+  });
+});
+
+describe("las reglas nuevas (Santiago, 12/10)", () => {
+  test("de entrada: sin V.R., sin arqueros y ocultos los campos que no usa el partido", () => {
+    expect(REGLAS_CARGA.vrPartido).toEqual({});
+    expect(REGLAS_CARGA.conArqueros).toBe(false);
+    expect([...REGLAS_CARGA.ocultosDelPartido].sort()).toEqual(["ancho", "bloques", "codigo", "jugadores", "largo", "m2", "series"]);
+  });
+
+  test("vale lo guardado que está bien", () => {
+    const reglas = reglasDelClub({
+      vrPartido: { d_min: 100, d_shi_min: 20.5, d_acchi_min: 0, mts90_min: "3", otra: 4 },
+      ocultosDelPartido: ["largo", "nada", "m2", "largo"],
+      conArqueros: true,
+    });
+    expect(reglas.vrPartido).toEqual({ d_min: 100, d_shi_min: 20.5 });
+    expect(reglas.ocultosDelPartido).toEqual(["largo", "m2"]);
+    expect(reglas.conArqueros).toBe(true);
+    // Sin ocultar nada: se ve todo.
+    expect(reglasDelClub({ ocultosDelPartido: [] }).ocultosDelPartido).toEqual([]);
+    // De otro tipo: como de entrada.
+    expect(reglasDelClub({ vrPartido: [1, 2], ocultosDelPartido: "largo", conArqueros: "si" })).toEqual(REGLAS_CARGA);
+  });
+});
+
+describe("% vs V.R. de partido (la plantilla, arriba de cada bloque)", () => {
+  const vr = { d_min: 100, d_shi_min: 10, d_acchi_min: 2, d_dechi_min: 2, d_mphi_min: 5, d_s6_min: 1, d_a8_min: 0.5, d_a1_min: 0.5, d_mp5_min: 2, mts90_min: 4 };
+
+  test("cada medida por minuto del Team Average ÷ su V.R.; los grupos, el promedio de los suyos", () => {
+    const datos = { d_min: 80, d_shi_min: 12, d_acchi_min: 1, d_dechi_min: 3, d_mphi_min: 5, d_s6_min: 0.5, d_a8_min: 0.5, d_a1_min: 0.25, d_mp5_min: 1, mts90_min: 6 };
+    const vs = vsPartido(datos, vr);
+    expect(vs.medidas.d_min).toBeCloseTo(0.8);
+    expect(vs.medidas.mts90_min).toBeCloseTo(1.5);
+    // Metabólica: D, D_SHI y D_MPHI.
+    expect(vs.metabolica).toBeCloseTo((0.8 + 1.2 + 1) / 3);
+    // Fuerza: D_AccHI, D_DecHI, D_A8 y D_A1.
+    expect(vs.fuerza).toBeCloseTo((0.5 + 1.5 + 1 + 0.5) / 4);
+    // Velocidad: D_S6 y D_MP5.
+    expect(vs.velocidad).toBeCloseTo((0.5 + 0.5) / 2);
+    // El promedio: las nueve primeras (Mts >= 90% Pico no entra).
+    expect(vs.promedio).toBeCloseTo((0.8 + 1.2 + 0.5 + 1.5 + 1 + 0.5 + 1 + 0.5 + 0.5) / 9);
+  });
+
+  test("sin el dato o sin su V.R., vacío; un promedio, de los que hay", () => {
+    const vs = vsPartido({ d_min: 50, d_shi_min: 5 }, { d_min: 100, d_mphi_min: 5 });
+    expect(vs.medidas.d_min).toBeCloseTo(0.5);
+    expect(vs.medidas.d_shi_min).toBeNull();
+    expect(vs.metabolica).toBeCloseTo(0.5);
+    expect(vs.fuerza).toBeNull();
+    expect(vsPartido(null, vr).promedio).toBeNull();
+    expect(vsPartido({ d_min: 80 }).promedio).toBeNull();
+  });
+
+  test("sale del Team Average de cada tarea (lo de cada minuto de los que van)", () => {
+    const filas = leerCsvCatapult(
+      csv(
+        "Ana Uno,1. Rondo,1,1000,,,,,,,,,,00:10:00,,,,,,10:00:00,10:10:00,,,",
+        "Beto Dos,1. Rondo,1,1200,,,,,,,,,,00:10:00,,,,,,10:00:00,10:10:00,,,",
+        "Ceci Tres,1. Rondo,1,800,,,,,,,,,,00:10:00,,,,,,10:00:00,10:10:00,,,",
+        "Dani Cuatro,1. Rondo,1,1000,,,,,,,,,,00:10:00,,,,,,10:00:00,10:10:00,,,",
+      ),
+    ).filas;
+    const carga = { fecha: "2026-10-09", tareas: [{ id: "t", nombre: "Rondo", filas: filas.map((fila) => ({ quien: { clave: fila.nombre, persona: fila.nombre }, valores: fila.valores })) }], sesion: {} };
+    const promedio = calcularCarga(carga).filas.find((fila) => fila._seccion === "tarea:t" && fila.promedio);
+    expect(vsPartido(promedio.datos, vr).medidas.d_min).toBeCloseTo(1);
+  });
+});
+
+describe("lo que lleva toda fila (Santiago, 12/10)", () => {
+  test("día, dispositivo y tipo de sesión", () => {
+    const completa = { datos: { clasificacion_dias: "c", dispositivo: "d", tipo_sesion: "t" } };
+    expect(faltaLoObligatorio([completa])).toEqual([]);
+    expect(faltaLoObligatorio([completa, { datos: { clasificacion_dias: "c" } }])).toEqual(["dispositivo", "tipo_sesion"]);
+    expect(faltaLoObligatorio([])).toEqual([]);
+  });
+
+  test("un arquero es el de Posición «Arquero» en Datos básicos", () => {
+    expect(esArquero({ posicion: "goleiro" })).toBe(true);
+    expect(esArquero({ posicion: "extremo" })).toBe(false);
+    expect(esArquero(null)).toBe(false);
   });
 });

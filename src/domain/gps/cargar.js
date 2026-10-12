@@ -64,11 +64,42 @@ export const REGLAS_CARGA = Object.freeze({
   // El día de partido, todos los del partido (también los que no ingresaron)
   // van en el promedio de la sesión.
   partidoVaEntero: true,
+  // Los V.R. de partido por minuto (la plantilla: «Datos Básicos», «VR
+  // Partido»): con ellos cada bloque muestra su % (vsPartido). Los pone cada
+  // club; no van en el código.
+  vrPartido: Object.freeze({}),
+  // Lo de arriba de los bloques del partido que no se ve (Santiago, 12/10:
+  // «no tienen que estar las opciones de largo, ancho, base, m2, series,
+  // bloques, codigo de estrategia y nmro de jugadores»; se ven desde Ajustes).
+  ocultosDelPartido: Object.freeze(["codigo", "jugadores", "series", "bloques", "largo", "ancho", "m2"]),
+  // Los arqueros (Posición «Arquero» en Datos básicos) entran en la carga
+  // (Santiago, 12/10: la base del club no los lleva; otro club los prende).
+  conArqueros: false,
+});
+
+// Lo de arriba de un bloque del partido que se puede ocultar (el tipo de
+// sesión siempre se ve: sin él no se carga).
+export const CAMPOS_DEL_PARTIDO = Object.freeze(["codigo", "zona", "jugadores", "series", "bloques", "pausa", "largo", "ancho", "m2"]);
+
+// % vs V.R. de partido (la plantilla, arriba de cada bloque, columnas P a Z):
+// lo de cada minuto del Team Average del bloque ÷ el V.R. de partido; la
+// metabólica, la fuerza y la velocidad, el promedio de las suyas; y el
+// promedio de las nueve primeras (sin Mts >= 90% Pico). Con esto se elige la
+// densidad (el «Tipo de Sesión») del bloque (Santiago, 12/10).
+export const VS_PARTIDO = Object.freeze({
+  medidas: Object.freeze(["d_min", "d_shi_min", "d_acchi_min", "d_dechi_min", "d_mphi_min", "d_s6_min", "d_a8_min", "d_a1_min", "d_mp5_min", "mts90_min"]),
+  grupos: Object.freeze({
+    metabolica: Object.freeze(["d_min", "d_shi_min", "d_mphi_min"]),
+    fuerza: Object.freeze(["d_acchi_min", "d_dechi_min", "d_a8_min", "d_a1_min"]),
+    velocidad: Object.freeze(["d_s6_min", "d_mp5_min"]),
+  }),
+  promedio: Object.freeze(["d_min", "d_shi_min", "d_acchi_min", "d_dechi_min", "d_mphi_min", "d_s6_min", "d_a8_min", "d_a1_min", "d_mp5_min"]),
 });
 
 // Cómo se escribe cada regla en Ajustes › Reglas de carga: fecha, parte (un
-// porcentaje: 75 es 0,75), número (con su mínimo y máximo), hora (h:mm) o
-// prendida/apagada.
+// porcentaje: 75 es 0,75), número (con su mínimo y máximo), hora (h:mm),
+// prendida/apagada, campos (los que se ocultan, de una lista) o vr (un
+// número por medida).
 export const AJUSTES_DE_REGLAS = Object.freeze([
   { clave: "inicioMicrociclo", tipo: "fecha" },
   { clave: "parteDelTiempo", tipo: "parte", minimo: 0, maximo: 1 },
@@ -80,17 +111,23 @@ export const AJUSTES_DE_REGLAS = Object.freeze([
   { clave: "contarNoEntrenaron", tipo: "prendida" },
   { clave: "parteNoEntrenaron", tipo: "parte", minimo: 0, maximo: 1 },
   { clave: "partidoVaEntero", tipo: "prendida" },
+  { clave: "vrPartido", tipo: "vr" },
+  { clave: "ocultosDelPartido", tipo: "campos", opciones: CAMPOS_DEL_PARTIDO },
+  { clave: "conArqueros", tipo: "prendida" },
 ]);
 
 // Las reglas del club: las guardadas que estén bien y, las demás, las de la
 // plantilla.
 export const reglasDelClub = (guardadas = {}) => {
   const reglas = { ...REGLAS_CARGA };
-  AJUSTES_DE_REGLAS.forEach(({ clave, tipo, minimo, maximo }) => {
+  AJUSTES_DE_REGLAS.forEach(({ clave, tipo, minimo, maximo, opciones }) => {
     const valor = guardadas?.[clave];
     if (valor === undefined || valor === null) return;
     if (tipo === "fecha" && (valor === "" || /^\d{4}-\d{2}-\d{2}$/.test(String(valor)))) reglas[clave] = String(valor);
     else if (tipo === "prendida" && typeof valor === "boolean") reglas[clave] = valor;
+    else if (tipo === "campos" && Array.isArray(valor)) reglas[clave] = Object.freeze(opciones.filter((campo) => valor.includes(campo)));
+    else if (tipo === "vr" && typeof valor === "object" && !Array.isArray(valor))
+      reglas[clave] = Object.freeze(Object.fromEntries(VS_PARTIDO.medidas.filter((medida) => Number.isFinite(valor[medida]) && valor[medida] > 0).map((medida) => [medida, valor[medida]])));
     else if (tipo === "hora" && Number.isFinite(valor) && valor >= 0 && valor < 86400) reglas[clave] = valor;
     else if ((tipo === "numero" || tipo === "parte") && Number.isFinite(valor) && valor >= minimo && valor <= maximo && (tipo === "parte" ? valor > 0 : true)) reglas[clave] = valor;
   });
@@ -402,6 +439,40 @@ export const pausaSobreTrabajo = (pausa, filas) => {
   if (!esNumero(mayor) || mayor - pausa === 0) return null;
   return pausa / (mayor - pausa);
 };
+
+// El % vs V.R. de partido de un bloque (VS_PARTIDO) con los datos de su Team
+// Average: { medidas: { d_min: 0,85 … }, metabolica, fuerza, velocidad,
+// promedio }. Sin el dato o sin su V.R., vacío (la plantilla: «»); un
+// promedio, de los que hay.
+export const vsPartido = (datos, vr = {}) => {
+  const medidas = Object.fromEntries(
+    VS_PARTIDO.medidas.map((clave) => {
+      const delBloque = valor(datos, clave);
+      const referencia = valor(vr, clave);
+      return [clave, delBloque !== null && referencia ? delBloque / referencia : null];
+    }),
+  );
+  const promedioDe = (claves) => {
+    const numeros = claves.map((clave) => medidas[clave]).filter((numero) => numero !== null);
+    return numeros.length ? numeros.reduce((a, b) => a + b, 0) / numeros.length : null;
+  };
+  return {
+    medidas,
+    metabolica: promedioDe(VS_PARTIDO.grupos.metabolica),
+    fuerza: promedioDe(VS_PARTIDO.grupos.fuerza),
+    velocidad: promedioDe(VS_PARTIDO.grupos.velocidad),
+    promedio: promedioDe(VS_PARTIDO.promedio),
+  };
+};
+
+// Un arquero de Datos básicos (su Posición).
+export const esArquero = (jugador) => jugador?.posicion === "goleiro";
+
+// Lo que lleva toda fila que va a la Base (Santiago, 12/10: «No se puede
+// cargar ningun dato que no tenga dia de microciclo, dispositivo o tipo de
+// sesion»): las claves que le faltan a alguna.
+export const OBLIGATORIOS = Object.freeze(["clasificacion_dias", "dispositivo", "tipo_sesion"]);
+export const faltaLoObligatorio = (filas = []) => OBLIGATORIOS.filter((clave) => filas.some((fila) => !fila?.datos?.[clave]));
 
 // El nombre de una opción como en el Excel (las listas de columnas.js).
 const etiquetaDelExcel = (lista, codigo) => LISTAS_GPS[lista]?.find((opcion) => opcion.codigo === codigo)?.etiquetas?.["es-AR"] ?? null;

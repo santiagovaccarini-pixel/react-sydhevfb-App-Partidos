@@ -13,6 +13,7 @@ import {
   guardarOpcionGps,
   leerAjustesGps,
   listarGps,
+  partidoDelDia,
 } from "./gpsDb.js";
 
 // Un doble de Supabase que anota cada consulta y contesta, una por consulta,
@@ -24,7 +25,7 @@ vi.mock("./alDia.js", () => ({ esSoloLectura: () => doble.soloLectura }));
 vi.mock("../supabase.js", () => {
   const cadena = () => {
     const c = {};
-    ["select", "eq", "gte", "lte", "not", "is", "in", "order", "range", "insert", "update", "upsert", "delete", "single"].forEach((metodo) => {
+    ["select", "eq", "gte", "lte", "not", "is", "in", "order", "range", "limit", "insert", "update", "upsert", "delete", "single"].forEach((metodo) => {
       c[metodo] = (...args) => {
         doble.llamadas.push([metodo, ...args]);
         return c;
@@ -230,5 +231,40 @@ describe("los Ajustes", () => {
     doble.llamadas.length = 0;
     doble.respuestas = [{ data: null, error: { code: "42P01", message: 'relation "public.gps_opciones" does not exist' } }];
     expect(await guardarOpcionGps("eq-1", "dispositivo", { codigo: "catapult", etiquetas: { "es-AR": "Catapult" } })).toEqual({ error: "gps.ajustes.faltaMigracion" });
+  });
+});
+
+describe("el partido del día en Partido (GPS › Cargar)", () => {
+  test("el rival y los convocados que no entraron en ningún cambio", async () => {
+    doble.filas = [
+      {
+        id: 3,
+        rival: " Rival Uno ",
+        convocados: ["BANCO UNO", "BANCO DOS", "BANCO TRES"],
+        titulares: ["TITULAR"],
+        cambio_1_entra: "Banco Uno",
+        cambio_1_sale: "TITULAR",
+        cambios_extra: [{ entra: "BANCO TRES", sale: "OTRO" }],
+      },
+    ];
+    expect(await partidoDelDia("eq-1", "2026-10-12")).toEqual({ rival: "Rival Uno", noIngresaron: ["BANCO DOS"] });
+    expect(doble.llamadas).toEqual(
+      expect.arrayContaining([
+        ["from", "registros_partido"],
+        ["eq", "equipo_id", "eq-1"],
+        ["eq", "fecha", "2026-10-12"],
+      ]),
+    );
+  });
+
+  test("sin partido ese día, null; si no se pudo mirar, un error; sin fecha o de solo lectura, ni pregunta", async () => {
+    expect(await partidoDelDia("eq-1", "2026-10-12")).toBeNull();
+    doble.respuestas = [{ data: null, error: { message: "permission denied" } }];
+    expect(await partidoDelDia("eq-1", "2026-10-12")).toEqual({ error: "gps.cargar.partidoNoSeLeyo" });
+    doble.llamadas.length = 0;
+    expect(await partidoDelDia("eq-1", "12/10/2026")).toBeNull();
+    doble.soloLectura = true;
+    expect(await partidoDelDia("eq-1", "2026-10-12")).toBeNull();
+    expect(doble.llamadas).toEqual([]);
   });
 });

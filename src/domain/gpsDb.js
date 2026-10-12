@@ -4,6 +4,7 @@
 // diccionario.
 import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
+import { calcularNoIngresaron } from "./match.js";
 
 const COLUMNAS = "id, equipo_id, orden, fecha, jugador_id, persona, promedio, datos";
 
@@ -298,13 +299,19 @@ export const guardarReglasGps = async (equipoId, reglas) => {
 };
 
 // El partido de ese día cargado en Partido (Santiago, 12/10: «siempre que sea
-// la misma fecha que un partido … ponés Vs el rival de turno»): { rival } o
-// null. Lo lee quien tiene Partido en el club (si no, o si falla, null: el
-// nombre se escribe a mano).
+// la misma fecha que un partido … ponés Vs el rival de turno»; y «los
+// jugadores que no ingresaron tmb podes sacarlos del partido cargado»):
+// { rival, noIngresaron: [nombres, como en Partido] }, null si no hay o
+// { error } si no se pudo mirar. Lo lee quien tiene Partido en el club.
 export const partidoDelDia = async (equipoId, fecha) => {
   if (!equipoId || !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || "")) || esSoloLectura(equipoId)) return null;
-  const { data, error } = await supabase.from("registros_partido").select("rival, created_at").eq("equipo_id", equipoId).eq("fecha", fecha).order("created_at", { ascending: true }).limit(1);
-  if (error || !Array.isArray(data) || !data.length) return null;
-  const rival = String(data[0]?.rival || "").trim();
-  return rival ? { rival } : null;
+  // Todas las columnas: así no falla si al club le falta alguna nueva.
+  const { data, error } = await supabase.from("registros_partido").select("*").eq("equipo_id", equipoId).eq("fecha", fecha).order("id", { ascending: true }).limit(1);
+  if (error) return { error: "gps.cargar.partidoNoSeLeyo" };
+  if (!Array.isArray(data) || !data.length) return null;
+  const fila = data[0] || {};
+  const rival = String(fila.rival || "").trim();
+  // Los cambios como los arma Partido: los cinco de siempre y los de más.
+  const cambios = [1, 2, 3, 4, 5].map((n) => ({ entra: fila[`cambio_${n}_entra`] || "", sale: fila[`cambio_${n}_sale`] || "" })).concat(Array.isArray(fila.cambios_extra) ? fila.cambios_extra : []);
+  return { rival, noIngresaron: calcularNoIngresaron({ convocados: fila.convocados }, cambios) };
 };

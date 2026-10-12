@@ -517,6 +517,12 @@ describe("GPS", () => {
     await tocar(celda(contenedor, f, titulo));
     await tocar(opcionDeHoja(texto));
   };
+  // El tipo de sesión (la densidad): sin él no se sigue (Santiago, 12/10).
+  const TIPO = "Tipo de Sesión (Densidad)";
+  const elegirTipo = (texto = "Din. Colectiva", rotulo = TIPO) => elegirDelDesplegable(rotulo, texto);
+  const aviso = () => contenedor.querySelector(".aviso-hoja")?.textContent;
+  const vs = () => contenedor.querySelector(".gps-cargar-vs")?.textContent;
+  const listaDeNoEntrenaron = () => [...contenedor.querySelectorAll(".datos-importar-lista li > .datos-importar-fila > b")].map((b) => b.textContent);
 
   test("abre en Cargar: el día de hoy y el botón para cargar un día", async () => {
     datos.filas = [...FILAS(), fila("h1", 9, { jugador_id: 1 }, HOY, { d: 100 })];
@@ -529,6 +535,8 @@ describe("GPS", () => {
 
   test("Cargar un día: el CSV, un paso por tarea con sus jugadores y todos sus datos, y la sesión al final", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
+    // Un V.R. de partido inventado: D/min 100.
+    datos.reglas = { vrPartido: { d_min: 100 } };
     await montar();
     await tocar(boton("Cargar un día"));
     expect(titulo()).toBe("El CSV de Catapult");
@@ -562,6 +570,9 @@ describe("GPS", () => {
     expect(cabeceras(contenedor)).toContain("Va Tarea");
     expect(celda(contenedor, 3, "Va Tarea").textContent).toBe("No va");
     expect(celda(contenedor, 1, "Va Tarea").textContent).toBe("Va");
+    // El % vs V.R. de partido del Team Average: 8700 m en 60 min = 145 por minuto.
+    expect(vs()).toContain("D/min145 %");
+    expect(vs()).toContain("Metabólica145 %");
     // Los m², como la plantilla: largo × ancho ÷ jugadores.
     await escribirEn("Largo", "40");
     await escribirEn("Ancho", "30");
@@ -577,27 +588,45 @@ describe("GPS", () => {
     // Una medida de un jugador se corrige en la tabla.
     await editarCelda(contenedor, 1, "D", "3500");
     expect(celda(contenedor, 1, "D").textContent).toBe("3500,0");
+    expect(vs()).toContain("D/min153 %");
     // Lo calculado no se escribe.
     await editarCelda(contenedor, 0, "D", "1");
     expect(document.body.textContent).toContain("Esta celda se calcula");
+    // Sin el tipo de sesión no se sigue.
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("1. Rondo");
+    expect(aviso()).toBe("Falta el tipo de sesión: 1. Rondo.");
+    await elegirTipo();
     await tocar(boton("Siguiente"));
 
     expect(titulo()).toBe("2. Juego");
     expect(nombres()).toEqual(["ALFA", "BETA"]);
+    await elegirTipo();
     await tocar(boton("Siguiente"));
 
-    // EPSILON no está en el CSV: no entrenó.
+    // EPSILON no está en el CSV: no entrenó (con su tipo de sesión).
     expect(titulo()).toBe("Regenerativo y no entrenaron");
     expect(contenedor.textContent).toContain("EPSILON");
     await escribir(contenedor.querySelector('input[aria-label="Motivo (por ejemplo, Lesionado)"]'), "Lesionado");
+    await tocar(boton("Siguiente"));
+    expect(aviso()).toBe("Falta el tipo de sesión de 1 que no entrenó.");
+    await elegirTipo("Descanso");
     await tocar(boton("Siguiente"));
 
     // La sesión, al final: lo del día, su encabezado, qué tareas van en su
     // descripción y el «Va» de cada uno.
     expect(titulo()).toBe("La sesión");
+    // Sin día, dispositivo y tipo de sesión no se sigue.
+    await tocar(boton("Siguiente"));
+    expect(aviso()).toBe("Falta el día del microciclo.");
     await elegirDelDesplegable("Tipo Microciclo", "Competitivo");
     await elegirDelDesplegable("Día del microciclo", "-1");
+    await tocar(boton("Siguiente"));
+    expect(aviso()).toBe("Falta el dispositivo.");
     await elegirDelDesplegable("Dispositivo", "Catapult");
+    await tocar(boton("Siguiente"));
+    expect(aviso()).toBe("Falta el tipo de sesión: La sesión.");
+    await elegirTipo("Din. General");
     await escribirEn("Largo", "50");
     await escribirEn("Ancho", "40");
     await escribirEn("Nro. de jugadores", "20");
@@ -619,13 +648,15 @@ describe("GPS", () => {
     await tocar(boton("Guardar 11 filas"));
     expect(datos.creadas).toHaveLength(11);
     expect(datos.creadas.every((una) => Object.keys(una).every((clave) => !clave.startsWith("_")))).toBe(true);
-    expect(datos.creadas[1]).toMatchObject({ fecha: AYER, jugador_id: 1, datos: { d: 3500, tiempo: 1200, m2: 120, largo: 40, ancho: 30, condicion: "parcial", tipo_microciclo: "competitivo", dispositivo: "catapult", clasificacion_dias: "menos1_m" } });
+    expect(datos.creadas[1]).toMatchObject({ fecha: AYER, jugador_id: 1, datos: { d: 3500, tiempo: 1200, m2: 120, largo: 40, ancho: 30, condicion: "parcial", tipo_microciclo: "competitivo", dispositivo: "catapult", clasificacion_dias: "menos1_m", tipo_sesion: "din_colectiva" } });
+    // Toda fila, con día, dispositivo y tipo de sesión.
+    expect(datos.creadas.every((una) => una.datos.clasificacion_dias && una.datos.dispositivo && una.datos.tipo_sesion)).toBe(true);
     expect(datos.creadas[3]).toMatchObject({ persona: "Invitado X", datos: { condicion: "total", va: "no" } });
     expect(datos.creadas[7]).toMatchObject({ promedio: "sesion", datos: { m2: 100, largo: 50, ancho: 40 } });
     expect(datos.creadas[7].datos.descripcion).toBeUndefined();
     expect(datos.creadas[8]).toMatchObject({ jugador_id: 1, datos: { d: 9500, condicion: "total", va: "si", m2: 100 } });
     expect(datos.creadas[9]).toMatchObject({ jugador_id: 2, datos: { va: "no" } });
-    expect(datos.creadas[10]).toMatchObject({ jugador_id: 5, datos: { condicion: "total", va: "no", descripcion: `${AYER.replace(/-/g, "_")}_Lesionado` } });
+    expect(datos.creadas[10]).toMatchObject({ jugador_id: 5, datos: { condicion: "total", va: "no", descripcion: `${AYER.replace(/-/g, "_")}_Lesionado`, tipo_sesion: "descanso" } });
 
     // De vuelta en la Base, con el día.
     expect(document.body.textContent).toContain(`Listo: se guardaron 11 filas del ${fechaCorta(AYER)}.`);
@@ -650,20 +681,22 @@ describe("GPS", () => {
     expect(titulo()).toBe("1. Rondo");
   });
 
-  test("día de partido: el rival sale de Partido, un paso por tiempo, los que no ingresaron y un jugador agregado", async () => {
+  const CSV_PARTIDO = (fecha) =>
+    CSV(fecha, [
+      "A. Alfa,PRIMER TIEMPO,1,5000,00:45:00,16:00:00,16:45:00,30",
+      "BETA,PRIMER TIEMPO,1,4800,00:45:00,16:00:00,16:45:00,29",
+      "A. Alfa,SEGUNDO TIEMPO,2,4000,00:30:00,17:00:00,17:30:00,31",
+      "BETA,SEGUNDO TIEMPO,3,1500,00:15:00,17:30:00,17:45:00,28",
+    ]);
+
+  test("día de partido: el rival y los que no ingresaron salen de Partido, un paso por tiempo y un jugador agregado", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
-    datos.partidos = [{ fecha: AYER, rival: "Rival Prueba" }];
+    // En Partido: el rival y DELTA, convocado que no entró.
+    datos.partidos = [{ fecha: AYER, rival: "Rival Prueba", noIngresaron: ["DELTA"] }];
     await montar();
     await tocar(boton("Cargar un día"));
-    await pegarCsv(
-      CSV(AYER, [
-        "A. Alfa,PRIMER TIEMPO,1,5000,00:45:00,16:00:00,16:45:00,30",
-        "BETA,PRIMER TIEMPO,1,4800,00:45:00,16:00:00,16:45:00,29",
-        "A. Alfa,SEGUNDO TIEMPO,2,4000,00:30:00,17:00:00,17:30:00,31",
-        "BETA,SEGUNDO TIEMPO,3,1500,00:15:00,17:30:00,17:45:00,28",
-      ]),
-    );
-    await esperar(() => contenedor.textContent.includes("Ese día hay un partido cargado en Partido"));
+    await pegarCsv(CSV_PARTIDO(AYER));
+    await esperar(() => contenedor.textContent.includes(`Partido del ${fechaCorta(AYER)} en Partido: Vs Rival Prueba.`));
     expect(contenedor.textContent).toContain("«Vs Rival Prueba PT» y «Vs Rival Prueba ST»");
     await esperar(() => contenedor.textContent.includes("No está en la Base"));
     await tocar(boton("Siguiente"));
@@ -671,43 +704,142 @@ describe("GPS", () => {
     expect(titulo()).toBe("Primer tiempo");
     expect(contenedor.querySelector('input[placeholder="Vs Rival"]').value).toBe("Vs Rival Prueba");
     expect(nombres()).toEqual(["ALFA", "BETA"]);
+    // En el partido no se ve lo que no usa (Santiago, 12/10): se muestra desde Ajustes.
+    ["Series", "Bloques", "Largo", "Ancho", "m2", "Nro. de jugadores"].forEach((rotulo) => expect(contenedor.querySelector(`input[aria-label="${rotulo}"]`)).toBeNull());
+    expect(contenedor.querySelector('[aria-label="Código Estrategia"]')).toBeNull();
     // Lo del tiempo va en su descripción, como en la plantilla.
-    await escribirEn("Series", "1");
+    await escribirEn("Pausa", "2'");
     // Un jugador agregado a mano al primer tiempo; no se ofrece a quien ya está.
     await tocar(contenedor.querySelector('[aria-label="Agregar un jugador"]'));
     expect(opcionDeHoja("ALFA")).toBeUndefined();
     await tocar(opcionDeHoja("GAMA · Ya no está"));
     expect(nombres()).toEqual(["ALFA", "BETA", "GAMA"]);
     await editarCelda(contenedor, 2, "D", "1200");
+    await elegirTipo();
     await tocar(boton("Siguiente"));
 
     expect(titulo()).toBe("Segundo tiempo");
     expect(nombres()).toEqual(["ALFA", "BETA"]);
+    await elegirTipo();
     await tocar(boton("Siguiente"));
 
-    // El partido completo: la suma de cada uno y los que no ingresaron (en un
-    // desplegable con casillas).
+    // El partido completo: la suma de cada uno y los que no ingresaron, que
+    // salen de Partido (en un desplegable con casillas, para cambiarlos).
     expect(titulo()).toBe("Partido completo");
     expect(contenedor.querySelector(".chip-criterio")).toBeNull();
-    await tocar(contenedor.querySelector('[aria-label="Sin ingresar"]'));
-    await marcarEnLaLista("DELTA");
-    await tocar(boton("Listo"));
     expect(contenedor.querySelector('[aria-label="Sin ingresar"]').textContent).toBe("DELTA");
+    expect(contenedor.textContent).toContain("Salen de Partido");
     expect(nombres()).toEqual(["ALFA", "BETA", "DELTA"]);
+    await elegirTipo();
+    await tocar(boton("Siguiente"));
+    expect(aviso()).toBe("Falta el tipo de sesión: Sin ingresar.");
+    await elegirTipo("Descanso", "Sin ingresar: Tipo de Sesión (Densidad)");
     await tocar(boton("Siguiente"));
     expect(titulo()).toBe("Regenerativo y no entrenaron");
+    await elegirTipo("Descanso");
     await tocar(boton("Siguiente"));
     expect(titulo()).toBe("La sesión");
     await elegirDelDesplegable("Día del microciclo", "0");
+    await elegirDelDesplegable("Dispositivo", "Catapult");
+    await elegirTipo();
     await tocar(boton("Siguiente"));
     await tocar(botones().find((b) => /^Guardar \d+ filas$/.test(b.textContent)));
 
     const deAlfa = datos.creadas.filter((una) => una.jugador_id === 1);
-    expect(deAlfa[0].datos.descripcion).toBe(`${AYER.replace(/-/g, "_")}_ Vs Rival Prueba PT1 series x  `);
+    expect(deAlfa[0].datos.descripcion).toBe(`${AYER.replace(/-/g, "_")}_ Vs Rival Prueba PT2' `);
     // Por la hora (desde las 13:00), de la tarde.
     expect(deAlfa[0].datos.clasificacion_dias).toBe("0_t");
     expect(datos.creadas.find((una) => una.jugador_id === 3).datos).toMatchObject({ d: 1200, condicion: "total" });
-    expect(datos.creadas.find((una) => una.jugador_id === 4).datos).toMatchObject({ d: 0, tiempo: 0, descripcion: `${AYER.replace(/-/g, "_")}_ Vs Rival Prueba SIN INGRESAR ` });
+    expect(datos.creadas.find((una) => una.jugador_id === 4).datos).toMatchObject({ d: 0, tiempo: 0, tipo_sesion: "descanso", descripcion: `${AYER.replace(/-/g, "_")}_ Vs Rival Prueba SIN INGRESAR ` });
+  });
+
+  test("día de partido sin partido en Partido: avisa y el nombre se escribe a mano", async () => {
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_PARTIDO(AYER));
+    await esperar(() => contenedor.textContent.includes(`No hay un partido guardado en Partido el ${fechaCorta(AYER)}`));
+  });
+
+  test("un jugador usó el GPS de otro: se cambia su nombre en esa tarea, en todas o en las que se elijan", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER));
+    await esperar(() => contenedor.textContent.includes("No está en la Base"));
+    await guardarIgual();
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("1. Rondo");
+    // BETA está en dos tareas: pregunta dónde.
+    await elegirEnLaCelda(2, "Nombre", "EPSILON");
+    expect(document.body.textContent).toContain("EPSILON en lugar de BETA");
+    await tocar(opcionDeHoja("Solo en 1. Rondo"));
+    expect(nombres()).toEqual(["Team Average Parcial", "ALFA", "EPSILON", "Invitado X", "DELTA"]);
+    // Sus números siguen siendo los de esa fila.
+    expect(celda(contenedor, 2, "D").textContent).toBe("2800,0");
+    // DELTA está en una sola: se cambia ahí. Nadie va dos veces en una tarea.
+    await elegirEnLaCelda(4, "Nombre", "ALFA");
+    expect(nombres()).toEqual(["Team Average Parcial", "ALFA", "EPSILON", "Invitado X", "ALFA"]);
+    await elegirTipo();
+    await tocar(boton("Siguiente"));
+    expect(aviso()).toBe("ALFA está dos veces en 1. Rondo: cambiá uno de los nombres.");
+    await elegirEnLaCelda(4, "Nombre", "DELTA");
+    await tocar(boton("Siguiente"));
+
+    expect(titulo()).toBe("2. Juego");
+    expect(nombres()).toEqual(["ALFA", "BETA"]);
+    // En algunas: se eligen en la lista.
+    await elegirEnLaCelda(1, "Nombre", "EPSILON");
+    await tocar(opcionDeHoja("Cambiar en algunas (elegís cuáles)"));
+    expect(document.body.textContent).toContain("¿Dónde va EPSILON en lugar de BETA?");
+    await tocar(boton("Listo"));
+    expect(nombres()).toEqual(["ALFA", "EPSILON"]);
+    await elegirTipo();
+    await tocar(boton("Siguiente"));
+
+    // BETA ya no está en el CSV: no entrenó; EPSILON sí entrenó.
+    expect(titulo()).toBe("Regenerativo y no entrenaron");
+    expect(listaDeNoEntrenaron()).toEqual(["BETA"]);
+  });
+
+  test("regenerativo y no entrenaron: el regenerativo se elige de los que no entrenaron y quien se saca queda abajo", async () => {
+    datos.plantel = [...CON_DELTA_Y_EPSILON(), { id: 6, nombre: "ETA", roles: [], puestos: [], actual: true }, { id: 7, nombre: "THETA", roles: [], puestos: [], actual: true }];
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER));
+    await esperar(() => contenedor.textContent.includes("No está en la Base"));
+    await guardarIgual();
+    await tocar(boton("Siguiente"));
+    await elegirTipo();
+    await tocar(boton("Siguiente"));
+    await elegirTipo();
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("Regenerativo y no entrenaron");
+    expect(listaDeNoEntrenaron()).toEqual(["EPSILON", "ETA", "THETA"]);
+    // Quien se saca de la lista queda abajo de todo.
+    await tocar([...contenedor.querySelectorAll(".datos-importar-lista li")][0].querySelector("button"));
+    expect(listaDeNoEntrenaron()).toEqual(["ETA", "THETA", "EPSILON"]);
+    // El regenerativo: solo los que no entrenaron.
+    await tocar(contenedor.querySelector(".gps-cargar-casilla input"));
+    await tocar(contenedor.querySelector('[aria-label="Quiénes hicieron regenerativo"]'));
+    expect([...document.body.querySelectorAll(".tabla-datos-valores label")].map((label) => label.textContent)).toEqual(["EPSILON", "ETA", "THETA"]);
+    await marcarEnLaLista("ETA");
+    await tocar(boton("Listo"));
+    expect(listaDeNoEntrenaron()).toEqual(["THETA", "EPSILON"]);
+  });
+
+  test("los arqueros no se cargan si el club no los prende", async () => {
+    datos.plantel = [...CON_DELTA_Y_EPSILON(), { id: 8, nombre: "OMEGA", posicion: "goleiro", roles: [], puestos: [], actual: true }, { id: 9, nombre: "SIGMA", posicion: "goleiro", roles: [], puestos: [], actual: true }];
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV(AYER, ["A. Alfa,1. Rondo,1,3000,00:20:00,10:00:00,10:20:00,25", "OMEGA,1. Rondo,1,500,00:20:00,10:00:00,10:20:00,20"]));
+    await esperar(() => contenedor.textContent.includes("No está en la Base"));
+    expect(contenedor.textContent).toContain("1 arquero del CSV no se carga");
+    await tocar(boton("Siguiente"));
+    expect(nombres()).toEqual(["ALFA"]);
+    await elegirTipo();
+    await tocar(boton("Siguiente"));
+    // SIGMA (arquero) tampoco va en los que no entrenaron.
+    expect(listaDeNoEntrenaron()).toEqual(["BETA", "DELTA", "EPSILON"]);
   });
 
   test("Cargar: con un día a medio cargar, salir pregunta", async () => {
@@ -762,10 +894,44 @@ describe("GPS", () => {
     await guardarIgual();
     await tocar(boton("Siguiente"));
     expect(contenedor.textContent).toContain("hizo al menos el 80 % del tiempo promedio");
+    await elegirTipo();
     await tocar(boton("Siguiente"));
+    await elegirTipo();
     await tocar(boton("Siguiente"));
     await tocar(boton("Siguiente"));
     expect(contenedor.textContent).toContain("desde las 14:30, tarde");
+  });
+
+  test("Ajustes › Reglas de carga: los V.R. de partido, lo que se ve en el partido y los arqueros", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar(ajuste("Reglas de carga"));
+    expect(ajuste("V.R. de partido").textContent).toContain("Sin cargar");
+    expect(ajuste("Lo que se ve en los bloques del partido").textContent).toContain("Se ve: Zona de Impacto, Pausa");
+    expect(ajuste("Arqueros en la carga").textContent).toContain("Apagado");
+    // Los V.R.: un número por medida (los vacíos no van).
+    await tocar(ajuste("V.R. de partido"));
+    const vr = (rotulo) => [...document.body.querySelectorAll(".gps-regla-vr label")].find((label) => label.querySelector("span").textContent === rotulo).querySelector("input");
+    await escribir(vr("D/min"), "-3");
+    await tocar(boton("Guardar"));
+    expect(document.body.textContent).toContain("Escribí números mayores que 0");
+    await escribir(vr("D/min"), "101,5");
+    await escribir(vr("Mts >= 90% Pico/Min"), "2");
+    await tocar(boton("Guardar"));
+    expect(datos.reglasGuardadas.at(-1).reglas).toEqual({ vrPartido: { d_min: 101.5, mts90_min: 2 } });
+    expect(ajuste("V.R. de partido").textContent).toContain("2 de 10 cargados");
+    // Lo que se ve en el partido: se marca en una lista.
+    await tocar(ajuste("Lo que se ve en los bloques del partido"));
+    await marcarEnLaLista("Largo");
+    await marcarEnLaLista("Pausa");
+    await tocar(boton("Guardar"));
+    expect(datos.reglasGuardadas.at(-1).reglas.ocultosDelPartido).toEqual(["codigo", "jugadores", "series", "bloques", "pausa", "ancho", "m2"]);
+    expect(ajuste("Lo que se ve en los bloques del partido").textContent).toContain("Se ve: Zona de Impacto, Largo");
+    // Los arqueros, en un desplegable.
+    await tocar(ajuste("Arqueros en la carga"));
+    await elegir(document.body.querySelector(".lesiones-hoja select"), "si");
+    await tocar(boton("Guardar"));
+    expect(datos.reglasGuardadas.at(-1).reglas.conArqueros).toBe(true);
   });
 
   test("Ajustes › Reglas de carga sin la migración: avisa y no guarda", async () => {
