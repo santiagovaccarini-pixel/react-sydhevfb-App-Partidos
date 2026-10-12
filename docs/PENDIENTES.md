@@ -468,7 +468,13 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   escriben o se pegan como en el Excel: 30:14:20) y el reporte individual las suma a las
   horas del GPS del jugador (al VR no, como en el Excel). En el Excel la fórmula las suma a
   los minutos sin pasarlas a minutos, así que casi no cuentan (30 horas valen 1 minuto);
-  en la app cuentan como horas. Santiago, 03/10: "por ahora dejalo".
+  en la app cuentan como horas. Santiago, 03/10: "por ahora dejalo". **Confirmado el 12/10**
+  (Santiago, al comparar el reporte individual con el del Excel, eligió «Como horas (como
+  hoy)»): siguen contando como horas aunque el Excel dé otro número. No se copia el error del
+  Excel (que casi no las cuenta) ni se dejan de sumar, salvo que Santiago lo pida. Para
+  comparar los dos reportes: "BD GPS" del Excel tiene que llegar hasta la misma fecha que el
+  GPS de la app, y la referencia del Excel es la foto de la última vez que se tocó ATUALIZAR
+  VR (la de la app se calcula con todo lo cargado).
   **Lo que sigue: Crear reportes**, un lienzo con bloques (número, gráfico, tabla) donde se
   elige la medida, cómo separarla y los filtros, y se guarda por club.
 - **Lesiones c/1000h y días perdidos (03/10)**, en Reportes (`src/ReporteCadaMil.jsx`): el
