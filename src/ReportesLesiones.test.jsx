@@ -5,6 +5,7 @@ import ReportesLesiones from "./ReportesLesiones.jsx";
 import { CAMPOS, etiquetaDeCampo, etiquetaDeGrupo, etiquetaDeOpcion } from "./domain/lesionesCampos.js";
 import { tonosDeGrupos } from "./components/TablaDatos.jsx";
 import { crearMapa } from "./domain/mapaCorporal.js";
+import { interpretarHoras } from "./domain/tabla.js";
 import { fijarIdiomaParaPruebas } from "./idioma/index.js";
 
 // El escudo se busca por internet: acá, uno quieto.
@@ -163,6 +164,17 @@ describe("los reportes con los minutos del GPS", () => {
     await tocar(botonQueEmpieza("HULK"));
     expect(indicadores(0)).toEqual({ valores: ["—", "—", "—", "—"], referencias: ["—", "—", "—", "—"], contra: [null, null, null, null], tonos: ["", "", "", ""] });
     expect(texto()).toContain("Faltan los minutos del GPS");
+  });
+
+  test("las horas previas cuentan completas, hasta los segundos (Santiago, 12/10)", async () => {
+    // 1 hora del GPS y 36:04:48 previas, como se escriben en Datos básicos:
+    // 37:04:48 en total, 1 lesión → 26,97. Solo las horas darían 27,03 y sin
+    // los segundos, 26,98.
+    const previas = interpretarHoras("36:04:48");
+    await montar([{ jugadorId: "7", fecha: "2026-02-10", minutos: 60 }, ...GPS.slice(2)], PLANTEL.map((jugador) => (jugador.id === 7 ? { ...jugador, horas_previas: previas } : jugador)));
+    await tocar(botonQueEmpieza("Reporte individual"));
+    await tocar(botonQueEmpieza("HULK"));
+    expect(indicadores(0).valores).toEqual(["26,97", "26,97", "26,97", "26,97"]);
   });
 
   test("el historial: todas las columnas a la vista, en dos tablas por grupo del Excel, menos las que el club escondió", async () => {

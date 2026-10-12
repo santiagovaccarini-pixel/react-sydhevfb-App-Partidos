@@ -474,7 +474,9 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   Excel (que casi no las cuenta) ni se dejan de sumar, salvo que Santiago lo pida. Para
   comparar los dos reportes: "BD GPS" del Excel tiene que llegar hasta la misma fecha que el
   GPS de la app, y la referencia del Excel es la foto de la última vez que se tocó ATUALIZAR
-  VR (la de la app se calcula con todo lo cargado).
+  VR (la de la app se calcula con todo lo cargado). **Cuentan completas** (Santiago, 12/10:
+  «tiene que contar todo, hasta los segundos»): horas, minutos y segundos (36:04:48 son 36 h
+  4 min 48 s); no se redondean ni se cortan. Lo prueba `src/ReportesLesiones.test.jsx`.
   **Lo que sigue: Crear reportes**, un lienzo con bloques (número, gráfico, tabla) donde se
   elige la medida, cómo separarla y los filtros, y se guarda por club.
 - **Lesiones c/1000h y días perdidos (03/10)**, en Reportes (`src/ReporteCadaMil.jsx`): el
