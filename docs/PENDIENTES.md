@@ -1412,30 +1412,34 @@ de la plantilla (toda lista, en un desplegable: UI-027; el orden, desde el 12/10
    como en Pegar desde Excel (por su nombre en Catapult y si no por el de Datos básicos; el que
    no está se elige una vez). La fecha sale del CSV (se puede cambiar) y con ella se revisa si
    el CSV **ya está en la Base**: si está, lo dice y no deja seguir; si no, lo dice y deja
-   seguir (y avisa si ese día hay filas de otra sesión). Si ese día hay un partido cargado en
-   Partido, lo dice.
-2. **Primer tiempo** y 3. **Segundo tiempo** (si el CSV los tiene): arriba, como el encabezado
-   del tiempo en la plantilla, el nombre del partido («Vs» y el rival del partido de ese día en
-   Partido; se puede cambiar), Tarea o Partido, tipo de sesión, código, zona, Nro. de
-   jugadores, series, bloques, pausa, largo, ancho y m2 (lo escrito va en la descripción, como
-   la plantilla); agregar a mano un jugador al tiempo. Abajo, la tabla con el Team Average y
-   todos los jugadores, con todos sus datos.
-4. **Partido completo**: su encabezado, los que no ingresaron (desplegable con casillas) con su
-   tipo de sesión y código, y la tabla.
+   seguir (y avisa si ese día hay filas de otra sesión). Siempre dice qué pasó con el partido
+   de ese día en Partido (lo encontró, no hay, no trae rival, el CSV no trae los tiempos o no
+   se pudo mirar). Los arqueros no se cargan si el club no los prende (lo dice).
+2. **Primer tiempo** y 3. **Segundo tiempo** (si el CSV los tiene): arriba, en una sola
+   tarjeta, el nombre del partido («Vs» y el rival del partido de ese día en Partido; se puede
+   cambiar), Tarea o Partido, tipo de sesión, zona y pausa (lo demás de la plantilla —código,
+   Nro. de jugadores, series, bloques, largo, ancho y m2— se muestra desde Ajustes; lo escrito
+   va en la descripción, como la plantilla), el % vs V.R. de partido y agregar a mano un
+   jugador. Abajo, la tabla con el Team Average y todos los jugadores, con todos sus datos;
+   ahí también se cambia el nombre de una fila (alguien usó el GPS de otro).
+4. **Partido completo**: su encabezado con su %, los que no ingresaron (salen de Partido; se
+   cambian en un desplegable con casillas) con su tipo de sesión, y la tabla.
 5. **Una tarea por paso** («Tarea 1 de N»): arriba, como la plantilla, tipo de sesión, nombre,
    código, zona, base, largo, ancho, Nro. de jugadores, pausa, C/P Jug y, calculados, C/P Tarea
-   y m2; pasarla a «Adicional» o no cargarla; agregar o sacar un jugador. Abajo, la tabla con
-   el Team Average y todos los jugadores con todos sus datos y su «Va Tarea» (columna después
-   de m2, como en la plantilla), que se cambia en la tabla.
-6. **Regenerativo y no entrenaron**: la duración y quiénes lo hicieron; los del plantel actual
-   que no están en el CSV, con su motivo y su tipo de sesión (se saca de la lista a quien no
-   corresponde).
+   y m2; el % vs V.R. de partido; pasarla a «Adicional» o no cargarla; agregar o sacar un
+   jugador. Abajo, la tabla con el Team Average y todos los jugadores con todos sus datos y su
+   «Va Tarea» (columna después de m2, como en la plantilla), que se cambia en la tabla, igual
+   que el nombre.
+6. **Regenerativo y no entrenaron**: la duración y quiénes lo hicieron (de los que no
+   entrenaron); los del plantel actual que no están en el CSV, con su motivo y su tipo de
+   sesión (se saca de la lista a quien no corresponde y queda abajo de todo).
 7. **La sesión**, al final: tipo de microciclo, día del microciclo (sin _M / _T: va solo, por la
    hora de inicio de cada fila) y dispositivo; el encabezado del Team Average de la sesión como
    en la plantilla (tipo de sesión, código, zona, base, largo, ancho, Nro. de jugadores, pausa,
-   C/P Jug y, calculados, C/P Tarea y m2); qué tareas van en su descripción (desplegable con
-   casillas, como «VA?» en la plantilla) con la descripción que queda; y la tabla con el Team
-   Average de la sesión y el total de cada jugador, donde se cambia el «Va» de cada uno.
+   C/P Jug y, calculados, C/P Tarea y m2), su % vs V.R. de partido y qué tareas van en su
+   descripción (desplegable con casillas, como «VA?» en la plantilla) con la descripción que
+   queda, todo en una tarjeta; y la tabla con el Team Average de la sesión y el total de cada
+   jugador, donde se cambia el «Va» de cada uno.
 8. **Revisar y guardar**: las filas como van a quedar en la Base (la misma tabla, en el orden
    en que las pegaba la plantilla). En cualquier tabla se cambia cualquier número de Catapult
    de un jugador (se recalculan los totales y los Team Average), el «Va Tarea», el «Va» de cada
@@ -1476,6 +1480,80 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
   - La sesión de la plantilla ponía en la columna m2 la Base de la sesión (`$N$681`) en el Team
     Average de la sesión y en cada total: error chico, corregido («Corregirlos»): va el m2
     calculado de la sesión (largo × ancho, con la base como trapecio, ÷ jugadores).
+- **Correcciones de Santiago (12/10, al probar la segunda versión)**. Lo que cambió y queda
+  descartado:
+  - «le cambie la fecha del partido al 12/10 y cuando entre a cargar los csv no me aparecio el
+    nombre del rival»: la búsqueda era correcta (`registros_partido`, misma fecha y club), pero
+    no decía nada si no encontraba. Ahora se busca apenas hay fecha (también si el CSV no trae
+    los tiempos) y siempre se dice qué pasó: «Partido del dd/mm en Partido: Vs …», «No hay un
+    partido guardado en Partido el dd/mm», «… no tiene rival cargado», «… el CSV no trae PRIMER
+    TIEMPO ni SEGUNDO TIEMPO» o «No se pudo mirar Partido» (con Reintentar). Se ordena por `id`
+    (antes por `created_at`). Si la fecha cambia, el nombre que no se escribió a mano se
+    vuelve a buscar (o se borra). Falta saber qué pasó ese día (ver «Pendiente»).
+  - «Hay demasiado espacio como para juntar las cosas y quede mas prolijo visualmente»: cada
+    bloque va en una sola tarjeta (el nombre del partido, el encabezado, el %, agregar un
+    jugador y, en la sesión, las tareas de la descripción), con menos aire entre lo de adentro
+    y entre tarjetas; en la compu, cada uno de los que no entrenaron en una línea. Los controles
+    siguen de 44 px. Descartado: una tarjeta por cosa.
+  - «No estan los % vs vr de partido con los que se decide la densidad de la sesion»: cada
+    bloque (cada tiempo, el partido completo, cada tarea y la sesión) muestra, como arriba de
+    cada bloque en la plantilla (columnas P a Z), lo de cada minuto de su Team Average ÷ el V.R.
+    de partido de cada medida (D, 14,4-25, aceleraciones y desaceleraciones, potencias, > 25,2 y
+    Mts >= 90% Pico), la Metabólica (D, 14,4-25 y 20-45 W), la Fuerza (las cuatro de
+    aceleración y desaceleración), la Velocidad (> 25,2 y > 45 W) y el promedio de las nueve
+    primeras (sin Mts >= 90% Pico), como en la plantilla; el tipo de sesión (la densidad) se
+    elige al lado. Los V.R. de partido son los de la hoja «Datos Básicos» de la plantilla («VR
+    Partido»): se guardan por club en `gps_reglas` (Ajustes › Reglas de carga › V.R. de
+    partido, un número por medida) y los del club se cargan con un SQL que se pasa en el chat
+    (no van al código). Sin V.R., el bloque lo dice; sin Team Average (menos de 4), también.
+  - «Solo los bloques que son de partido, no tienen que estar las opciones de largo, ancho,
+    base, m2, series, bloques, codigo de estrategia y nmro de jugadores (deja dentro de ajustes
+    que se pueda ocultar y si quiero usarlo podes deocultarlo dentro de ajustes)»: en los
+    tiempos, el partido completo y los que no ingresaron se ven el tipo de sesión, la zona y la
+    pausa; lo demás se muestra en Ajustes › Reglas de carga › «Lo que se ve en los bloques del
+    partido» (lista con casillas). Lo que no se ve no se carga. El tipo de sesión se ve siempre.
+    «Base» no estaba en los bloques del partido. Las tareas y la sesión no cambian.
+  - «los jugadores que no ingresaron tmb podes sacarlos del partido cargado»: salen del partido
+    de esa fecha en Partido: los convocados que no entraron en ningún cambio (la misma cuenta de
+    Partido, `calcularNoIngresaron`), con su jugador de Datos básicos (sin los que están en el
+    CSV del partido ni los que ya no están en el plantel). Se cambian en el desplegable; desde
+    que se cambian a mano, Partido ya no los pisa. El nombre de Partido que no está en Datos
+    básicos se dice.
+  - «Modificar los datos es imposible y si agrego un jugador nuevo no puedo cargarle datos»:
+    en cualquier tabla de la app, tocar adentro de la celda que se está escribiendo (para poner
+    el cursor, o en el celular) cortaba la edición sin guardar. Ahora no la corta, y el doble
+    clic adentro elige una palabra en vez de volver a empezar. Con eso se cargan los números del
+    jugador agregado. Comprobado en el navegador (antes y después).
+  - «Si un jugador uso un gps de otro jugador tengo que poder modificarlo y que la web me
+    pregunte si quiero cambiar todos los nombres de ese jugador en las tareas y partido o solo
+    en esa tarea (3 opciones cambiar todos los nombres, solo en esa tarea o Cambiar en algunas y
+    ahi te da a elegir de entre todas las tareas que haya y solo seleccionas cual)»: el Nombre
+    de una fila del CSV se cambia en la tabla de su tiempo o su tarea (desplegable con los del
+    plantel). Si ese nombre del CSV está en más de un bloque, pregunta: «Cambiar en todas las
+    tareas y el partido (n)», «Solo en …» o «Cambiar en algunas (elegís cuáles)», que abre la
+    lista con casillas de los bloques donde está ese nombre. Los números siguen siendo los de
+    esa fila. Nadie puede estar dos veces en un bloque: no se sigue hasta cambiar uno. Al
+    jugador agregado a mano se lo saca y se agrega otro. En el partido completo, la sesión y
+    revisar el nombre no se cambia (son totales).
+  - «agrega una opcion dentro de ajustes donde pueda sacar los arqueros del csv, xq por ejemplo
+    la base de gps nuestra no lleva arqueros pero si otro club si los usa puedan activarlos
+    dentro de ajustes»: Ajustes › Reglas de carga › «Arqueros en la carga», apagado de entrada.
+    Apagado, los de Posición «Arquero» en Datos básicos no se cargan del CSV (se dice cuántos),
+    no aparecen en los que no entrenaron, en los que no ingresaron ni en ningún desplegable de
+    jugadores de la carga. Prendido, van como los demás.
+  - «Si saco a alguien de los que no entrenaron tienen que quedar abajo del todo y subir a los
+    que si estan»: los que se sacan quedan al final de la lista (en el orden del plantel).
+  - «La lista de desplegable de regenerativo tienen que ser los que esten en no entrenaron»: el
+    regenerativo se elige solo entre los del plantel actual que no están en el CSV, en el banco
+    ni agregados; quien lo hizo deja de estar en «No entrenaron». Descartado: elegir para el
+    regenerativo a alguien que está en el CSV (las cuentas de «sesión + regenerativo» siguen en
+    `cargar.js`, pero desde la pantalla ya no se llega).
+  - «No se puede cargar ningun dato que no tenga dia de microciclo, dispositivo o tipo de
+    sesion»: no se sigue sin el tipo de sesión de cada tiempo, del partido completo, de los que
+    no ingresaron (si hay), de cada tarea que se carga, de cada uno de los que no entrenaron y
+    de la sesión, ni sin día del microciclo y dispositivo (si el club no tiene dispositivos,
+    dice dónde sumarlos). Antes de guardar se revisa que toda fila tenga Clasificación Días,
+    Dispositivo y Tipo de Sesión (también lo cambiado en la tabla).
 - **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
   jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
   Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,
@@ -1508,13 +1586,21 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     de partido; en el partido comparado no coincide con el historial en esas filas: falta
     confirmar cuál va.
 - **Lo que todavía no hace**: PSE y Unidad Arbitraria no se calculan (la PSE se escribe al
-  revisar); «% de partido» espera los V.R. del club (paso 4); la marca fija de la selección
+  revisar); los V.R. por dispositivo esperan el paso 4 (el % vs V.R. de partido de Cargar usa
+  los de la plantilla, uno solo para el club); la marca fija de la selección
   (la define Santiago); las columnas del club que vienen en el CSV van solo en las filas de
   cada jugador; traerlo directo de OpenField (paso 5).
 
 ### Pendiente
 
 - Pasos 3 a 5 (arriba).
+- Cargar, el rival del 12/10 (Santiago, 12/10): ver con Santiago si el partido con fecha 12/10
+  quedó guardado en la base (no solo en el celular, sin sincronizar) y si el CSV traía PRIMER
+  TIEMPO y SEGUNDO TIEMPO. Con esta versión la pantalla dice cuál de las dos cosas pasó.
+- ¿Los V.R. de partido van por dispositivo (paso 4)? Hoy hay uno solo por club, como la
+  plantilla.
+- Lo descartado del regenerativo (quien está en el CSV ya no se elige): confirmar con Santiago
+  que no hay días con sesión y regenerativo para la misma persona.
 - A quien administra el club, o a un dueño de la app, un permiso nuevo (como GPS) no se le da
   desde Cuentas: nadie cambia su propia fila y la de un administrador o un dueño no la cambia la
   app. Se da con un SQL en Supabase › SQL Editor (Santiago se dio GPS así, 10/10). Si hace falta
