@@ -1400,8 +1400,9 @@ no se trabe con muchas filas, si hay que pagar lo hacemos».
 
 Santiago, 12/10: «podes seguir con el cargado del csv de catapult, yo te pase la plantilla que
 usamos para anotar las cosas». Las cuentas están en `src/domain/gps/cargar.js` y la pantalla, en
-`src/CargarGps.jsx`. En la pestaña **Cargar**, «Cargar un día» abre los pasos (toda lista, en
-un desplegable: UI-027):
+`src/CargarGps.jsx`. En la pestaña **Cargar**, «Cargar un día» abre un paso por cada bloque
+de la plantilla (toda lista, en un desplegable: UI-027; el orden, desde el 12/10: ver
+«Correcciones de Santiago», abajo):
 
 1. **El CSV de Catapult**: se elige el archivo o se pega su contenido; si la actividad está en
    varios archivos, se suman. Se lee por el título de cada columna (los de «Para el paso 2»,
@@ -1409,30 +1410,72 @@ un desplegable: UI-027):
    de período con otro número es un bloque. Dice cuántas filas leyó, cada bloque con cuántos
    jugadores y qué columnas no trae. Lo que no es un CSV de Catapult no se suma. Los nombres,
    como en Pegar desde Excel (por su nombre en Catapult y si no por el de Datos básicos; el que
-   no está se elige una vez).
-2. **La sesión**: la fecha (sale del CSV), el microciclo (se calcula), el tipo de microciclo,
-   el día del microciclo (sin _M / _T: va solo, por la hora de inicio de cada fila), el
-   dispositivo y el Team Average de la sesión (tipo de sesión, zona y código).
-3. **El partido** (solo si el CSV tiene PRIMER TIEMPO o SEGUNDO TIEMPO): el nombre («Vs …»),
-   Tarea o Partido, los datos de cada tiempo y del partido completo, agregar a mano un jugador
-   a un tiempo (pasó en el historial; sus números se escriben al revisar) y quiénes no
-   ingresaron.
-4. **Las tareas**, cada una una sola vez («Una vez por tarea»): nombre, tipo de sesión, zona,
-   código, jugadores (para los m²), pausa, C/P Jug, largo, ancho, base y si va en la
-   descripción del Team Average de la sesión; el «Va» de cada jugador; agregar un jugador (sus
-   números se escriben al revisar; se puede sacar); pasarla a «Adicional» o no cargarla.
-5. **Regenerativo y no entrenaron**: la duración y quiénes lo hicieron; los del plantel actual
+   no está se elige una vez). La fecha sale del CSV (se puede cambiar) y con ella se revisa si
+   el CSV **ya está en la Base**: si está, lo dice y no deja seguir; si no, lo dice y deja
+   seguir (y avisa si ese día hay filas de otra sesión). Si ese día hay un partido cargado en
+   Partido, lo dice.
+2. **Primer tiempo** y 3. **Segundo tiempo** (si el CSV los tiene): arriba, como el encabezado
+   del tiempo en la plantilla, el nombre del partido («Vs» y el rival del partido de ese día en
+   Partido; se puede cambiar), Tarea o Partido, tipo de sesión, código, zona, Nro. de
+   jugadores, series, bloques, pausa, largo, ancho y m2 (lo escrito va en la descripción, como
+   la plantilla); agregar a mano un jugador al tiempo. Abajo, la tabla con el Team Average y
+   todos los jugadores, con todos sus datos.
+4. **Partido completo**: su encabezado, los que no ingresaron (desplegable con casillas) con su
+   tipo de sesión y código, y la tabla.
+5. **Una tarea por paso** («Tarea 1 de N»): arriba, como la plantilla, tipo de sesión, nombre,
+   código, zona, base, largo, ancho, Nro. de jugadores, pausa, C/P Jug y, calculados, C/P Tarea
+   y m2; pasarla a «Adicional» o no cargarla; agregar o sacar un jugador. Abajo, la tabla con
+   el Team Average y todos los jugadores con todos sus datos y su «Va Tarea» (columna después
+   de m2, como en la plantilla), que se cambia en la tabla.
+6. **Regenerativo y no entrenaron**: la duración y quiénes lo hicieron; los del plantel actual
    que no están en el CSV, con su motivo y su tipo de sesión (se saca de la lista a quien no
    corresponde).
-6. **Revisar y guardar**: las filas como van a quedar en la Base (la misma tabla, en el orden
-   en que las pegaba la plantilla). Se cambia cualquier número de Catapult de un jugador (se
-   recalculan los totales y los Team Average), el «Va» de cada total y lo demás (PSE, listas,
-   textos, columnas del club), que queda como se escribe. Avisa si esa fecha ya tiene filas en
-   la Base. Se guarda de a tandas; si se corta, lo que falta se guarda al volver a tocar, sin
-   duplicar. Después va a la Base con ese día a la vista.
+7. **La sesión**, al final: tipo de microciclo, día del microciclo (sin _M / _T: va solo, por la
+   hora de inicio de cada fila) y dispositivo; el encabezado del Team Average de la sesión como
+   en la plantilla (tipo de sesión, código, zona, base, largo, ancho, Nro. de jugadores, pausa,
+   C/P Jug y, calculados, C/P Tarea y m2); qué tareas van en su descripción (desplegable con
+   casillas, como «VA?» en la plantilla) con la descripción que queda; y la tabla con el Team
+   Average de la sesión y el total de cada jugador, donde se cambia el «Va» de cada uno.
+8. **Revisar y guardar**: las filas como van a quedar en la Base (la misma tabla, en el orden
+   en que las pegaba la plantilla). En cualquier tabla se cambia cualquier número de Catapult
+   de un jugador (se recalculan los totales y los Team Average), el «Va Tarea», el «Va» de cada
+   total y lo demás (PSE, listas, textos, columnas del club), que queda como se escribe. Justo
+   antes de guardar se vuelve a revisar que el CSV no esté en la Base. Se guarda de a tandas;
+   si se corta, lo que falta se guarda al volver a tocar, sin duplicar. Después va a la Base
+   con ese día a la vista.
 
 Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
 
+- **Correcciones de Santiago (12/10, al probar la primera versión)**. Lo que cambió y queda
+  descartado:
+  - «la sesion tiene que ser la final x el echo de que la sesion sale de todas las tareas y el
+    partido»: la sesión es el último paso antes de revisar. Descartado: la sesión al principio.
+  - «siempre que sea la misma fecha que un partido (Lo chequeas dentro de partido si hay una
+    fecha igual a la del csv) ponés Vs el rival de turno PT y lo mismo con el segundo tiempo»:
+    el nombre del partido sale de `registros_partido` (el partido de esa fecha en ese club;
+    `partidoDelDia` en `src/domain/gpsDb.js`). Lo lee quien tiene Partido en el club; si no hay
+    partido o no se puede leer, se escribe a mano. Si se escribió a mano, no se pisa.
+  - «necesito poder ver los datos con toda la info que tiene cada tarea … copiar la logica de
+    como estan las cosas dentro de la planilla y abajo poner todos los jugadores sin espacios
+    demas y con todos los datos»: cada bloque muestra arriba su encabezado (los mismos campos
+    que la plantilla, en una grilla; en la compu, varias columnas) y abajo la tabla de la Base
+    con todas sus columnas. Descartado: la lista de jugadores con solo el tiempo y el «Va».
+  - «Si ya estan dentro de la base no tiene que dejar cargar el csv … si esta avisa y no deja
+    seguir, si no esta avisa y deja seguir»: se revisa apenas se sabe la fecha. «Ya está» = al
+    menos una fila del CSV tiene, ese día, una fila en la Base con la misma distancia, el mismo
+    tiempo y la misma hora de inicio (los nombres no cuentan: una distancia con todos sus
+    decimales no se repite); así otra sesión del mismo día (mañana y tarde) sí se carga.
+    Descartado: el aviso de «ya hay filas ese día» al final, que dejaba guardar igual.
+  - «Cada paso a completar tienen que ser las tareas del dia»: un paso por tarea (y por cada
+    tiempo del partido). Descartado: todas las tareas en un solo paso.
+  - «fijate que hay cosas que faltan (M2, individual de va en la sesion y poder sacar las
+    descripciones de las tareas de la descripcion de la sesion)»: el m2 de cada tarea y de la
+    sesión se ve calculado en su encabezado (y el de cada tiempo del partido se escribe, como en
+    la plantilla); el «Va» de cada uno en la sesión se cambia en su tabla; qué tareas van en la
+    descripción de la sesión se elige en la sesión.
+  - La sesión de la plantilla ponía en la columna m2 la Base de la sesión (`$N$681`) en el Team
+    Average de la sesión y en cada total: error chico, corregido («Corregirlos»): va el m2
+    calculado de la sesión (largo × ancho, con la base como trapecio, ÷ jugadores).
 - **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
   jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
   Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,

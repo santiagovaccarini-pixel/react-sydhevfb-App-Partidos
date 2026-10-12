@@ -361,6 +361,31 @@ const datosDelDia = (carga, microciclo) => {
 
 // Un número de la tarea que no se escribió (0 o vacío): no va.
 const siHay = (numero) => (esNumero(numero) && numero !== 0 ? numero : null);
+// Un dato escrito como lo pone el Excel en un texto (los decimales, con coma).
+const comoEnElExcel = (valor) => {
+  if (valor === null || valor === undefined) return "";
+  if (esNumero(valor)) return String(valor).replace(".", ",");
+  return String(valor).trim();
+};
+
+// ¿El CSV ya está en la Base? Cuántas de sus filas tienen, ese día, una fila
+// en la Base con la misma distancia, el mismo tiempo y la misma hora de
+// inicio (Santiago, 12/10: si ya está, no se carga). Los nombres no cuentan:
+// una distancia con todos sus decimales no se repite.
+export const filasYaEnLaBase = (filasCsv = [], filasBase = []) => {
+  const iguales = (a, b, margen) => esNumero(a) && esNumero(b) && Math.abs(a - b) <= margen;
+  const deLaBase = filasBase.map((fila) => fila?.datos || {}).filter((datos) => esNumero(datos.d) && datos.d > 0);
+  return filasCsv.filter((fila) => {
+    const v = fila?.valores || {};
+    if (!(esNumero(v.d) && v.d > 0)) return false;
+    return deLaBase.some(
+      (datos) =>
+        iguales(v.d, datos.d, 1e-4) &&
+        (!esNumero(v.tiempo) || !esNumero(datos.tiempo) || iguales(v.tiempo, datos.tiempo, 0.5)) &&
+        (!esNumero(v.inicio) || !esNumero(datos.inicio) || iguales(v.inicio, datos.inicio, 0.5)),
+    );
+  }).length;
+};
 
 // Los m² por jugador (la plantilla, con base: un trapecio).
 export const metrosPorJugador = ({ largo, ancho, base, jugadores }) => {
@@ -371,7 +396,7 @@ export const metrosPorJugador = ({ largo, ancho, base, jugadores }) => {
 
 // La relación pausa / trabajo de la tarea: la pausa sobre el tiempo más largo
 // menos la pausa (la plantilla no contaba las horas).
-const pausaSobreTrabajo = (pausa, filas) => {
+export const pausaSobreTrabajo = (pausa, filas) => {
   if (!esNumero(pausa) || pausa === 0) return null;
   const mayor = maximo(filas, "tiempo");
   if (!esNumero(mayor) || mayor - pausa === 0) return null;
@@ -396,8 +421,12 @@ const filaDeLaBase = (fecha, quien, datos) => ({
 //   { fecha, tipoMicrociclo, dia ("+1"), dispositivo,
 //     partido: { nombre ("Vs …"), tareaPartido, primer, segundo, completo,
 //                banco: { …, jugadores: [quien] } } | null,
+//       (cada tiempo y el completo: { tipoSesion, zona, codigo, jugadores,
+//        series, bloques, pausa, largo, ancho, m2 }, como su encabezado en
+//        la plantilla)
 //     tareas: [tarea], adicional: tarea | null,
-//     sesion: { tipoSesion, zona, codigo },
+//     sesion: { tipoSesion, zona, codigo, base, largo, ancho, jugadores,
+//               pausa, cpJug },
 //     regenerativo: { duracion (s), jugadores: [quien] },
 //     noEntrenaron: [{ quien, motivo, tipoSesion }],
 //     va: { [quien.clave]: "si" | "no" } (el «Va» del total, a mano) }
@@ -470,7 +499,18 @@ export const calcularCarga = (carga, { reglas = REGLAS_CARGA, columnas = COLUMNA
   const jugoElPartido = (p) => p.mitades.length > 0;
 
   // ------------------------------------------------ Los tiempos del partido --
-  const descripcionDelPartido = (bloque, nombre) => `${prefijo}_${textoDelCodigo(bloque?.codigo)} ${nombre} `;
+  // La descripción de un tiempo del partido (y del partido completo), como
+  // la de la plantilla: el código, el nombre y, si se escribieron, los
+  // jugadores, las series, los bloques, la pausa y la cancha.
+  const descripcionDelPartido = (bloque, nombre) => {
+    const b = bloque || {};
+    const [jugadores, series, bloques, pausa, largo, ancho] = ["jugadores", "series", "bloques", "pausa", "largo", "ancho"].map((campo) => comoEnElExcel(b[campo]));
+    return (
+      `${prefijo}_${textoDelCodigo(b.codigo)} ${nombre}` +
+      `${jugadores ? `, ${jugadores} jug, ` : ""}${series}${series ? " series x " : ""}${bloques}${bloques ? " bloques, pausa: " : ""}` +
+      `${pausa} ${largo}${largo ? " x " : ""}${ancho}`
+    );
+  };
   const nombreDelPartido = (sufijo) => [partido?.nombre, sufijo].filter(Boolean).join(" ");
   const datosDeBloque = (bloque, extra = {}) => {
     const datos = delDia();
@@ -518,7 +558,7 @@ export const calcularCarga = (carga, { reglas = REGLAS_CARGA, columnas = COLUMNA
       const nombre = nombreDelPartido(sufijos[m]);
       const descripcion = descripcionDelPartido(mitad, nombre);
       const filas = mitad.filas.map((fila) => ({ quien: fila.quien, valores: valoresDe(fila) }));
-      const extra = { tarea_partido: partido.tareaPartido || null, descripcion };
+      const extra = { tarea_partido: partido.tareaPartido || null, descripcion, m2: siHay(mitad.m2) };
       if (filas.length >= reglas.minimoParaPromedio) {
         const datos = { ...datosDeBloque(mitad, extra), ...promedioDelPartido(filas.map((fila) => fila.valores)), condicion: PARCIAL };
         datos.clasificacion_dias = clasificacionDe(carga.dia, datos.inicio, reglas);
@@ -570,7 +610,7 @@ export const calcularCarga = (carga, { reglas = REGLAS_CARGA, columnas = COLUMNA
   if (partido) {
     const nombre = nombreDelPartido("TOTAL");
     const bloque = partido.completo || {};
-    const extra = { tarea_partido: partido.tareaPartido || null, descripcion: descripcionDelPartido(bloque, nombre) };
+    const extra = { tarea_partido: partido.tareaPartido || null, descripcion: descripcionDelPartido(bloque, nombre), m2: siHay(bloque.m2) };
     if (enElPartido.length >= reglas.minimoParaPromedio) {
       const filas = enElPartido.map(completoDe);
       const maximas = Object.fromEntries(grupos.maximos.map((columna) => [columna.clave, maximo(promediosDeMitades.filter(Boolean), columna.clave)]));
@@ -593,7 +633,7 @@ export const calcularCarga = (carga, { reglas = REGLAS_CARGA, columnas = COLUMNA
     const filasDelPartido = salida.filter((fila) => String(fila._seccion).startsWith("partido:")).map((fila) => fila.datos);
     const inicioDelPartido = minimo(filasDelPartido, "inicio");
     const finDelPartido = minimo(filasDelPartido, "fin");
-    const extraBanco = { tarea_partido: partido.tareaPartido || null, descripcion: descripcionDelPartido(banquillo, nombreDelPartido("SIN INGRESAR")) };
+    const extraBanco = { tarea_partido: partido.tareaPartido || null, descripcion: descripcionDelPartido({ codigo: banquillo.codigo }, nombreDelPartido("SIN INGRESAR")) };
     banco.forEach((quien) => {
       const datos = { ...datosDeBloque({ ...banquillo, zona: null }, extraBanco) };
       grupos.medidas.forEach((columna) => {
@@ -806,6 +846,21 @@ export const calcularCarga = (carga, { reglas = REGLAS_CARGA, columnas = COLUMNA
     return juntarPartes(`${fecha ? prefijo : ""} ${partes.join(" + ")}`);
   };
 
+  // Los datos de la sesión (su encabezado en la plantilla): los m² por
+  // jugador (la plantilla ponía la Base en la columna m2: corregido), la
+  // relación pausa / trabajo con el total más largo y la cancha.
+  const m2DeLaSesion = metrosPorJugador(sesion);
+  const delEncabezadoDeLaSesion = Object.fromEntries(
+    [
+      ["m2", m2DeLaSesion],
+      ["cp_tarea", pausaSobreTrabajo(sesion.pausa, [...totales.values()])],
+      ["cp_jug", siHay(sesion.cpJug)],
+      ["base", siHay(sesion.base)],
+      ["largo", siHay(sesion.largo)],
+      ["ancho", siHay(sesion.ancho)],
+    ].filter(([, valor]) => valor !== null),
+  );
+
   const hayPromedioFinal = (regenerativo && regenerativoCuenta) || (noEntrenaron.length && noEntrenoCuenta);
   // El promedio de la sesión (con el regenerativo o los que no entrenaron,
   // pasa a «Parcial» y el de la sesión es el de abajo).
@@ -813,7 +868,7 @@ export const calcularCarga = (carga, { reglas = REGLAS_CARGA, columnas = COLUMNA
   if (enLaSesion.length) {
     const queVan = enLaSesion.filter(vaDelTotal).map((p) => totales.get(p.quien.clave));
     const todos = enLaSesion.map((p) => totales.get(p.quien.clave));
-    const datos = datosDeSesion({ descripcion: descripcionPromedioSesion, condicion: hayPromedioFinal ? PARCIAL : TOTAL });
+    const datos = datosDeSesion({ descripcion: descripcionPromedioSesion, condicion: hayPromedioFinal ? PARCIAL : TOTAL, ...delEncabezadoDeLaSesion });
     grupos.medidas.forEach((columna) => {
       const prom = promedio(queVan, columna.clave);
       if (prom !== null) datos[columna.clave] = prom;
@@ -858,6 +913,7 @@ export const calcularCarga = (carga, { reglas = REGLAS_CARGA, columnas = COLUMNA
       return;
     }
     const datos = { ...datosDeSesion({ descripcion: descripcionDelTotal(p), condicion: PARCIAL }), ...total };
+    if (m2DeLaSesion !== null) datos.m2 = m2DeLaSesion;
     datos.clasificacion_dias = clasificacionDe(carga.dia, total.inicio, reglas);
     if (va) datos.va = va;
     const fila = agregar("sesion:total", p.quien, datos);

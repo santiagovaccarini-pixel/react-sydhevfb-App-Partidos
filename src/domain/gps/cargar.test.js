@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, leerCsvCatapult, limpiarNombre, metrosPorJugador, microcicloDe, reglasDelClub } from "./cargar.js";
+import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, metrosPorJugador, microcicloDe, reglasDelClub } from "./cargar.js";
 
 // Datos inventados: ningún nombre ni valor del club.
 
@@ -264,6 +264,54 @@ describe("un día de partido", () => {
     expect(sesion.datos.descripcion).toBe("2026_10_09_ Vs Rival TOTAL");
     // Todos los del partido van: 1 a 3 (9000), 4 (5000), 5 (2000) y el banco (0).
     expect(sesion.datos.d).toBe((27000 + 5000 + 2000) / 6);
+  });
+
+  test("lo que se escribe en el encabezado de un tiempo va en su descripción y sus m², como en la plantilla", () => {
+    const conEncabezado = calcularCarga({
+      ...carga,
+      partido: { ...carga.partido, primer: { ...carga.partido.primer, codigo: "pc", jugadores: 11, series: 1, bloques: 2, pausa: "2'", largo: 105, ancho: 68, m2: 324.5 } },
+    }).filas;
+    const pt = conEncabezado.filter((f) => f.datos.descripcion?.includes(" PT"));
+    expect(pt.map((f) => f.datos.descripcion)).toEqual(Array(5).fill("2026_10_09_PC Vs Rival PT, 11 jug, 1 series x 2 bloques, pausa: 2' 105 x 68"));
+    expect(pt.every((f) => f.datos.m2 === 324.5)).toBe(true);
+    // El segundo tiempo, sin nada escrito, como antes.
+    expect(conEncabezado.find((f) => f.promedio && f.datos.descripcion.endsWith(" ST ")).datos.m2).toBeUndefined();
+  });
+});
+
+describe("el encabezado de la sesión", () => {
+  test("los m² por jugador, la relación pausa / trabajo y la cancha van en el promedio de la sesión; los m², también en cada total", () => {
+    const tareas = [0, 1].map((t) => tarea(t, `Tarea ${t + 1}`, [1, 2, 3, 4].map((id) => fila(id, { d: 1000, tiempo: 600, inicio: 57600 + t * 900, fin: 58200 + t * 900 }))));
+    const { filas } = calcularCarga(cargaBase({ tareas, sesion: { tipoSesion: "din_colectiva", base: 20, largo: 40, ancho: 30, jugadores: 10, pausa: 300, cpJug: 2 } }));
+    const promedioSesion = filas.find((f) => f.promedio === "sesion");
+    // Con base, un trapecio: (30 × 40 − ((30 − 20) / 2) × 40) / 10 = 100.
+    expect(promedioSesion.datos).toMatchObject({ m2: 100, cp_jug: 2, base: 20, largo: 40, ancho: 30 });
+    // La pausa sobre el total más largo (25 min) menos la pausa.
+    expect(promedioSesion.datos.cp_tarea).toBeCloseTo(300 / (1500 - 300), 10);
+    const totales = filas.filter((f) => f._seccion === "sesion:total");
+    expect(totales).toHaveLength(4);
+    expect(totales.every((f) => f.datos.m2 === 100 && f.datos.base === undefined)).toBe(true);
+    // Sin nada escrito, nada (como los días comparados con el historial).
+    const sinNada = calcularCarga(cargaBase({ tareas })).filas.find((f) => f.promedio === "sesion");
+    expect(sinNada.datos.m2).toBeUndefined();
+    expect(sinNada.datos.cp_tarea).toBeUndefined();
+  });
+});
+
+describe("¿ya está en la Base?", () => {
+  const delCsv = [
+    { valores: { d: 4213.552760034754, tiempo: 1200, inicio: 57600 } },
+    { valores: { d: 3000.1, tiempo: 900, inicio: 58000 } },
+  ];
+  test("cuenta las filas del CSV con la misma distancia, tiempo e inicio en ese día", () => {
+    expect(filasYaEnLaBase(delCsv, [{ datos: { d: 4213.55276003475, tiempo: 1200, inicio: 57600 } }])).toBe(1);
+    expect(filasYaEnLaBase(delCsv, [{ datos: { d: 4213.552760034754, tiempo: 1200, inicio: 57600 } }, { datos: { d: 3000.1, tiempo: 900 } }])).toBe(2);
+  });
+  test("otra sesión del mismo día (otros números) no es la misma", () => {
+    expect(filasYaEnLaBase(delCsv, [{ datos: { d: 4213.6, tiempo: 1200, inicio: 57600 } }, { datos: { d: 3000.1, tiempo: 950, inicio: 58000 } }])).toBe(0);
+    expect(filasYaEnLaBase(delCsv, [])).toBe(0);
+    // Los ceros (los que no ingresaron, los que no entrenaron) no cuentan.
+    expect(filasYaEnLaBase([{ valores: { d: 0, tiempo: 0 } }], [{ datos: { d: 0, tiempo: 0 } }])).toBe(0);
   });
 });
 

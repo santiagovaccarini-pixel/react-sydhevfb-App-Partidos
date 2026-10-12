@@ -296,3 +296,15 @@ export const guardarReglasGps = async (equipoId, reglas) => {
   }
   return { error: "" };
 };
+
+// El partido de ese día cargado en Partido (Santiago, 12/10: «siempre que sea
+// la misma fecha que un partido … ponés Vs el rival de turno»): { rival } o
+// null. Lo lee quien tiene Partido en el club (si no, o si falla, null: el
+// nombre se escribe a mano).
+export const partidoDelDia = async (equipoId, fecha) => {
+  if (!equipoId || !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || "")) || esSoloLectura(equipoId)) return null;
+  const { data, error } = await supabase.from("registros_partido").select("rival, created_at").eq("equipo_id", equipoId).eq("fecha", fecha).order("created_at", { ascending: true }).limit(1);
+  if (error || !Array.isArray(data) || !data.length) return null;
+  const rival = String(data[0]?.rival || "").trim();
+  return rival ? { rival } : null;
+};
