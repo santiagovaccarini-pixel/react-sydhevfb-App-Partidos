@@ -616,7 +616,10 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
     quien se fue);
   - lo nuevo sin recargar (desde el 11/10): la tabla, en la publicación de Realtime (como
     `20261017_en_vivo.sql`, sin `replica identity full`), y la pantalla con `useEnVivo`
-    (`src/domain/enVivo.js`) y su lectura en silencio. Ver «Lo anotado en Notas».
+    (`src/domain/enVivo.js`) y su lectura en silencio. Ver «Lo anotado en Notas»;
+  - si la tabla puede tener miles de filas (como el GPS), sus políticas con
+    `equipo_id in (select public.clubes_donde_puedo('<permiso>'))` (el permiso, una vez por
+    pedido), no con `puede_usar_en(equipo_id, …)` fila por fila. Ver «GPS (10/10)», Muchas filas.
 - Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
   Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones tiene sus fotos desde el
   05/10 (`public/portal/lesiones.webp` y `lesiones-parada.webp`, las mandó Santiago); el dibujo
@@ -1295,6 +1298,16 @@ no se trabe con muchas filas, si hay que pagar lo hacemos».
   gratis de Supabase tiene 500 MB para toda la base: alcanza para varios años; si se llega cerca,
   el plan pago (8 GB) alcanza para mucho más. Pagar no hace falta para la velocidad.
 - Los Reportes (paso 3) van a hacer las cuentas de muchos años en la base, sin traer las filas.
+- **El permiso, una vez por pedido (12/10, migración `20261019_gps_rapido.sql`).** Santiago,
+  12/10: del 15/01 al 12/10 la Base decía «No se pudo leer el GPS» (con permiso de GPS: «si
+  tiene permiso para ver gps tiene que cargarlas»). Era la base: las políticas de la tabla
+  revisaban el permiso de la cuenta en cada fila (`puede_usar_en` + `puede_editar`) y, como
+  cada página de 1000 se ordena entre todas las del período, con unas 16.000 filas cada página
+  tardaba unos 3 s (medido en un Postgres con todas las migraciones) y en Supabase se pasaba
+  del tiempo máximo. Ahora las políticas miran si la fila es de un club de
+  `clubes_donde_puedo('gps')` (las mismas funciones, una vez por pedido): cada página, unos
+  15 ms; contar, unos 10 ms. Quién ve, carga, cambia y borra no cambió (los escenarios del GPS
+  pasan igual). Las otras tablas siguen como estaban (tienen pocas filas).
 
 ### Pegar desde Excel (el historial)
 

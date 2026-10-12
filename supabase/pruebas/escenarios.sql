@@ -1039,7 +1039,7 @@ select pruebas.esperar('Ninguna función de public se ejecuta sin cuenta',
 select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni internas)',
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,crear_club,datos_al_dia,derivar_pedido,'
+  'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
   || 'es_admin_de_club,esta_autorizado,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
@@ -1754,5 +1754,17 @@ reset role;
 set role authenticated;
 select pruebas.debe_fallar('Las cuentas de adentro no se llaman sueltas', $$select gps_minutos_de_fila('{}')$$, 'permission denied');
 reset role;
+
+-- La Base del GPS con muchas filas (20261019_gps_rapido): el permiso se
+-- revisa una vez por pedido (los clubes donde la cuenta tiene GPS), no en
+-- cada fila. Quién ve y cambia qué lo comprueban los escenarios del GPS.
+select pruebas.esperar('Las cuatro políticas del GPS revisan el permiso una vez por pedido',
+  (select count(*) from pg_policies
+    where schemaname = 'public' and tablename = 'gps'
+      and coalesce(qual, '') || coalesce(with_check, '') like '%clubes_donde_puedo%'), 4);
+select pruebas.esperar('...y no queda ninguna que lo revise fila por fila',
+  (select count(*) from pg_policies
+    where schemaname = 'public' and tablename = 'gps'
+      and coalesce(qual, '') || coalesce(with_check, '') like '%puede_usar_en%'), 0);
 
 select 'ESCENARIOS: todos bien' as resultado;
