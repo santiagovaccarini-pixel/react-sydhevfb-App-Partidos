@@ -27,69 +27,104 @@
 // informe: va en el informe de arriba (Excelente … Mín, de lo que se ve).
 // colores: se pinta contra promedio ± desvío de lo que se ve (Excelente a
 // Malo), como el formato condicional del Excel (D19:X30002).
+// catapult: el título de la columna en el CSV de Catapult (GPS › Cargar).
+// junta: cómo se junta en los promedios del equipo y en los totales, como la
+// plantilla de carga (domain/gps/cargar.js):
+//   · suma: en el total, la suma; en el promedio de una tarea, el promedio;
+//     en el de un tiempo del partido, la suma ÷ 10.
+//   · maximo: en el total, el mayor; en el promedio, el promedio.
+//   · ponderado: el promedio pesado por el tiempo.
+//   · inicio / fin: la hora del primero / del último.
+// mitadDelPartido: "promedio", en el promedio de un tiempo del partido va el
+// promedio (no la suma ÷ 10).
+// enElTotal: false, la plantilla no la calcula en el total de la sesión de
+// cada jugador (sus «Variables de control» sin marcar).
 
 const t = (es, pt = es) => Object.freeze({ "es-AR": es, "pt-BR": pt });
 
 // Una medida de Catapult y su "por minuto", como en el Excel (D a M y N a W).
 const MEDIDAS = [
-  { clave: "d", titulo: "D", pegar: ["D"], porMinuto: { clave: "d_min", titulo: "D/min", pegar: ["D/min", "Drel"] } },
+  { clave: "d", titulo: "D", pegar: ["D"], catapult: "Total Distance", porMinuto: { clave: "d_min", titulo: "D/min", pegar: ["D/min", "Drel"] } },
   {
     clave: "d_shi",
+    catapult: "Velocity Distance 14-25km/h",
     titulo: "14,4-25Km/h",
     pegar: ["14,4-25Km/h", "D_SHI"],
     porMinuto: { clave: "d_shi_min", titulo: "14,4-25Km/h/min", pegar: ["14,4-25Km/h/min", "D_SHI/min"] },
   },
   {
     clave: "d_acchi",
+    catapult: "Acceleration B2 Efforts (Gen 2)",
     titulo: "n° 1,7 a 2,7m/s2",
     pegar: ["n° 1,7 a 2,7m/s2", "D_AccHI"],
     porMinuto: { clave: "d_acchi_min", titulo: "n° 1,7 a 2,7m/s2/min", pegar: ["n° 1,7 a 2,7m/s2/min", "D_AccHI/min"] },
   },
   {
     clave: "d_dechi",
+    catapult: "Deceleration B2 Efforts (Gen 2)",
     titulo: "n° .-1,7 a -2,7m/s2",
     pegar: ["n° .-1,7 a -2,7m/s2", "D_DecHI"],
     porMinuto: { clave: "d_dechi_min", titulo: "n° .-1,7 a -2,7m/s2/min", pegar: ["n° .-1,7 a -2,7m/s2/min", "D_DecHI/min"] },
   },
   {
     clave: "d_mphi",
+    catapult: "Metabolic Power Band 2 Total Distance",
     titulo: "20-45 W/PC",
     pegar: ["20-45 W/PC", "D_MPHI"],
     porMinuto: { clave: "d_mphi_min", titulo: "20-45 W/PC/min", pegar: ["20-45 W/PC/min", "D_MPHI/min"] },
   },
   {
     clave: "d_s6",
+    catapult: "Velocity Band 6 Total Distance",
     titulo: "> 25,2 Km/h",
     pegar: ["> 25,2 Km/h", "D_S6"],
     porMinuto: { clave: "d_s6_min", titulo: "> 25,2 Km/h/min", pegar: ["> 25,2 Km/h/min", "D_S6/min"] },
   },
   {
     clave: "d_a8",
+    catapult: "Acceleration B3 Efforts (Gen 2)",
     titulo: "n° Acel. >2,7 m/seg2",
     pegar: ["n° Acel. >2,7 m/seg2", "D_A8"],
     porMinuto: { clave: "d_a8_min", titulo: "n° Acel. >2,7 m/seg2/min", pegar: ["n° Acel. >2,7 m/seg2/min", "D_A8/min"] },
   },
   {
     clave: "d_a1",
+    catapult: "Deceleration B3 Efforts (Gen 2)",
     titulo: "n° Desacel. <-2,7 m/seg2",
     pegar: ["n° Desacel. <-2,7 m/seg2", "D_A1"],
     porMinuto: { clave: "d_a1_min", titulo: "n° Desacel. <-2,7 m/seg2/min", pegar: ["n° Desacel. <-2,7 m/seg2/min", "D_A1/min"] },
   },
   {
     clave: "d_mp5",
+    catapult: "Metabolic Power Band 3 Total Distance",
     titulo: "> 45 W/PC",
     pegar: ["> 45 W/PC", "D_MP5"],
     porMinuto: { clave: "d_mp5_min", titulo: "> 45 W/PC/min", pegar: ["> 45 W/PC/min", "D_MP5/min"] },
   },
   {
     clave: "mts90",
+    catapult: "Velocity Band 6 Total Distance (Set 2)",
+    // En el promedio de un tiempo del partido, la plantilla lo promedia (las
+    // demás medidas, suma ÷ 10).
+    mitadDelPartido: "promedio",
     titulo: "Mts >= 90% Pico",
     pegar: ["Mts >= 90% Pico", "Mts >= 90% Pico."],
     porMinuto: { clave: "mts90_min", titulo: "Mts >= 90% Pico/Min", pegar: ["Mts >= 90% Pico/Min", "Mts >= 90% Pico/Min."] },
   },
 ];
 
-const medida = ({ clave, titulo, pegar }) => ({ clave, titulo: t(titulo), tipo: "numero", formato: "0.0", pegar, informe: true, colores: true });
+const medida = ({ clave, titulo, pegar, catapult, mitadDelPartido }) => ({
+  clave,
+  titulo: t(titulo),
+  tipo: "numero",
+  formato: "0.0",
+  pegar,
+  catapult,
+  junta: "suma",
+  ...(mitadDelPartido ? { mitadDelPartido } : {}),
+  informe: true,
+  colores: true,
+});
 const porMinutoDe = (de) => ({
   clave: de.porMinuto.clave,
   titulo: t(de.porMinuto.titulo),
@@ -107,24 +142,61 @@ export const COLUMNAS_GPS = Object.freeze([
   { clave: "puesto", titulo: t("Puesto", "Posição"), tipo: "texto", pegar: ["Puesto", "Posição"], fija: true, ancho: 112 },
   ...MEDIDAS.map(medida),
   ...MEDIDAS.map(porMinutoDe),
-  { clave: "tiempo", titulo: t("Tiempo", "Tempo"), tipo: "tiempo", pegar: ["Tiempo", "T", "Tempo"], informe: true, colores: true },
-  { clave: "smax", titulo: t("Maxima Velocidad", "Velocidade Máxima"), tipo: "numero", formato: "0.0", pegar: ["Maxima Velocidad", "Smax"], informe: true },
-  { clave: "amax", titulo: t("Aceleracion Maxima", "Aceleração Máxima"), tipo: "numero", formato: "0.0", pegar: ["Aceleracion Maxima", "Amax"], informe: true },
-  { clave: "dist_explosiva", titulo: t("Distancia Explosiva", "Distância Explosiva"), tipo: "numero", formato: "0.0", pegar: ["Distancia Explosiva", "EEE"], informe: true },
-  { clave: "v5", titulo: t("19,8-25,2Km/h/min"), tipo: "numero", formato: "0.0", pegar: ["19,8-25,2Km/h/min", "Imbalance"], informe: true },
-  { clave: "rhie_min", titulo: t("Esfuerzo Explosivo", "Esforço Explosivo"), tipo: "numero", formato: "0.0", pegar: ["Esfuerzo Explosivo", "Running Symmetry"], informe: true },
+  { clave: "tiempo", titulo: t("Tiempo", "Tempo"), tipo: "tiempo", pegar: ["Tiempo", "T", "Tempo"], catapult: "Total Duration", junta: "suma", informe: true, colores: true },
+  { clave: "smax", titulo: t("Maxima Velocidad", "Velocidade Máxima"), tipo: "numero", formato: "0.0", pegar: ["Maxima Velocidad", "Smax"], catapult: "Maximum Velocity", junta: "maximo", informe: true },
+  {
+    clave: "amax",
+    titulo: t("Aceleracion Maxima", "Aceleração Máxima"),
+    tipo: "numero",
+    formato: "0.0",
+    pegar: ["Aceleracion Maxima", "Amax"],
+    catapult: "Max Acceleration",
+    junta: "maximo",
+    enElTotal: false,
+    informe: true,
+  },
+  // Del dispositivo viejo: Catapult no la trae.
+  { clave: "dist_explosiva", titulo: t("Distancia Explosiva", "Distância Explosiva"), tipo: "numero", formato: "0.0", pegar: ["Distancia Explosiva", "EEE"], junta: "suma", enElTotal: false, informe: true },
+  {
+    clave: "v5",
+    titulo: t("19,8-25,2Km/h/min"),
+    tipo: "numero",
+    formato: "0.0",
+    pegar: ["19,8-25,2Km/h/min", "Imbalance"],
+    catapult: "Velocity Band 5 Total Distance",
+    junta: "suma",
+    enElTotal: false,
+    informe: true,
+  },
+  {
+    clave: "rhie_min",
+    titulo: t("Esfuerzo Explosivo", "Esforço Explosivo"),
+    tipo: "numero",
+    formato: "0.0",
+    pegar: ["Esfuerzo Explosivo", "Running Symmetry"],
+    catapult: "RHIE Effort Duration - Min",
+    junta: "suma",
+    enElTotal: false,
+    informe: true,
+  },
+  // En los promedios y en el partido completo, la plantilla la calcula como
+  // la Distancia Explosiva por minuto (con Catapult da 0); en cada jugador
+  // guarda lo que trae el CSV.
   {
     clave: "rhie_max",
     titulo: t("Esfuerzo Explosivo/min", "Esforço Explosivo/min"),
     tipo: "numero",
     formato: "0.0",
     pegar: ["Esfuerzo Explosivo/min", "Explosive Symmetry"],
+    catapult: "RHIE Effort Duration - Max",
+    junta: "explosivaPorMinuto",
+    enElTotal: false,
     informe: true,
   },
-  { clave: "inicio", titulo: t("Inicio de tarea", "Início da tarefa"), tipo: "hora", pegar: ["Inicio de tarea", "Brake Symmetry"], informe: true },
-  { clave: "fin", titulo: t("Finalizacion de tarea", "Fim da tarefa"), tipo: "hora", pegar: ["Finalizacion de tarea", "Extra10"], informe: true },
-  { clave: "gnss", titulo: t("GNSS Quality"), tipo: "numero", formato: "0.0", pegar: ["GNSS Quality", "Alta Des/Acel"], informe: true },
-  { clave: "hdop", titulo: t("HDOP"), tipo: "numero", formato: "0.0", pegar: ["HDOP", "Max. Des/Acel"], informe: true },
+  { clave: "inicio", titulo: t("Inicio de tarea", "Início da tarefa"), tipo: "hora", pegar: ["Inicio de tarea", "Brake Symmetry"], catapult: "Start Time", junta: "inicio", informe: true },
+  { clave: "fin", titulo: t("Finalizacion de tarea", "Fim da tarefa"), tipo: "hora", pegar: ["Finalizacion de tarea", "Extra10"], catapult: "End Time", junta: "fin", informe: true },
+  { clave: "gnss", titulo: t("GNSS Quality"), tipo: "numero", formato: "0.0", pegar: ["GNSS Quality", "Alta Des/Acel"], catapult: "Average GNSS Quality", junta: "ponderado", informe: true },
+  { clave: "hdop", titulo: t("HDOP"), tipo: "numero", formato: "0.0", pegar: ["HDOP", "Max. Des/Acel"], catapult: "Average HDOP", junta: "ponderado", informe: true },
   { clave: "fecha", titulo: t("Fecha", "Data"), tipo: "fecha", pegar: ["Fecha", "Data"] },
   {
     clave: "min_fuerza",
@@ -176,7 +248,7 @@ export const COLUMNAS_GPS = Object.freeze([
 // dispositivos los suma el club.
 const opciones = (...textos) => textos.map((texto) => ({ codigo: codigoDeTexto(texto), etiquetas: t(...(Array.isArray(texto) ? texto : [texto])) }));
 
-function codigoDeTexto(texto) {
+export function codigoDeTexto(texto) {
   const es = Array.isArray(texto) ? texto[0] : texto;
   return String(es)
     .normalize("NFD")

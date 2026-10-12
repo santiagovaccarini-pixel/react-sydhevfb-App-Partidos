@@ -271,3 +271,28 @@ export const guardarOpcionGps = async (equipoId, lista, { codigo, etiquetas = {}
   if (error) return falloDeAjustes(error);
   return { error: "" };
 };
+
+// ------------------------------------------------- Las reglas de la carga --
+// Los números de las reglas de GPS › Cargar (migración 20261020_gps_reglas.sql):
+// una fila por club. Sin fila (o sin la tabla todavía), valen los de la
+// plantilla; faltaTabla dice si falta correr el SQL.
+
+export const leerReglasGps = async (equipoId) => {
+  if (!equipoId) return { reglas: {}, faltaTabla: false, error: "" };
+  const { data, error } = await supabase.from("gps_reglas").select("reglas").eq("equipo_id", equipoId).maybeSingle();
+  if (error) {
+    const clave = claveDeErrorGps(error, "gps.error.noLeer");
+    if (clave === "gps.error.faltaMigracion") return { reglas: {}, faltaTabla: true, error: "" };
+    return { reglas: {}, faltaTabla: false, error: clave };
+  }
+  return { reglas: data?.reglas && typeof data.reglas === "object" && !Array.isArray(data.reglas) ? data.reglas : {}, faltaTabla: false, error: "" };
+};
+
+export const guardarReglasGps = async (equipoId, reglas) => {
+  const { error } = await supabase.from("gps_reglas").upsert({ equipo_id: equipoId, reglas }, { onConflict: "equipo_id" });
+  if (error) {
+    const clave = claveDeErrorGps(error, "gps.ajustes.errorGuardar");
+    return { error: clave === "gps.error.faltaMigracion" ? "gps.reglas.faltaMigracion" : clave };
+  }
+  return { error: "" };
+};

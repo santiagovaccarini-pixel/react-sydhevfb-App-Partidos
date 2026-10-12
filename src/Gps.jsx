@@ -8,36 +8,42 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarGps from "./ImportarGps.jsx";
+import CargarGps from "./CargarGps.jsx";
 import { COLUMNAS_FIJAS, codigoNuevo, columnaOculta, columnasVisibles, opcionesDeLista, opcionesDelExcel, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { TIPOS_PROPIOS, armarConfigGps, claveDeColumnaPropia, configGpsVacia, gpsDelClub } from "./domain/gps/ajustes.js";
+import { AJUSTES_DE_REGLAS, REGLAS_CARGA, reglasDelClub } from "./domain/gps/cargar.js";
 import { PROMEDIOS } from "./domain/gps/columnas.js";
 import { FILAS_DEL_INFORME, vistaDelGps } from "./domain/gps/informe.js";
 import { datosConCambio, esNumero, periodoInicial, textoDeCelda } from "./domain/gps/valores.js";
-import { SIN_DISPOSITIVO, SOLO_PROMEDIOS, actualizarFilaGps, borrarFilasGps, guardarCabeceraGps, guardarOpcionGps, leerAjustesGps, listarGps } from "./domain/gpsDb.js";
+import { SIN_DISPOSITIVO, SOLO_PROMEDIOS, actualizarFilaGps, borrarFilasGps, guardarCabeceraGps, guardarOpcionGps, guardarReglasGps, leerAjustesGps, leerReglasGps, listarGps } from "./domain/gpsDb.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta, hoyISO } from "./idioma/formatos.js";
+import { fechaCorta, fechaLarga, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import "./lesiones.css";
 import "./evaluaciones.css";
 import "./gps.css";
 
-// GPS (en Bases de Datos): la hoja BD_GPS del Excel, paso 1 (Santiago,
-// 10/10): la Base y sus Ajustes. Lo de cada columna está en
-// domain/gps/columnas.js; el informe y los colores, en domain/gps/informe.js.
+// GPS (en Bases de Datos): la hoja BD_GPS del Excel (Santiago, 10/10). Lo de
+// cada columna está en domain/gps/columnas.js; el informe y los colores, en
+// domain/gps/informe.js.
+//   · Cargar (paso 2): lo de cada día desde el CSV de Catapult, con la
+//     lógica de la plantilla Suma de Bloques (CargarGps.jsx y
+//     domain/gps/cargar.js).
 //   · Base: las filas de un período (al abrir, las últimas 4 semanas; se
 //     cambia arriba), con el informe del Excel arriba (promedio, desvío,
 //     n, máximo y mínimo de lo que deja ver el filtro) y los mismos colores,
 //     cada dispositivo contra lo suyo. Se corrige en la tabla y el historial
 //     se trae una vez con Pegar desde Excel.
 //   · Ajustes: el nombre de cada columna, esconderla, sumar columnas del
-//     club y las opciones de cada lista (también los dispositivos).
-// La carga de cada día (la plantilla Suma de Bloques), los reportes y los
-// V.R. son los pasos que siguen (docs/PENDIENTES.md, «GPS»).
+//     club, las opciones de cada lista (también los dispositivos) y los
+//     números de las reglas de la carga.
+// Los reportes y los V.R. son los pasos que siguen (docs/PENDIENTES.md, «GPS»).
 
 export const DESTINOS_GPS = [
+  { id: "cargar", etiqueta: "Cargar", icono: "usuario" },
   { id: "base", etiqueta: "Base", icono: "documento" },
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
@@ -58,12 +64,14 @@ export const MAXIMO_SIN_PREGUNTAR = 20000;
 // Cuántas filas se guardan a la vez al pegar en la tabla.
 const GUARDADOS_A_LA_VEZ = 6;
 
+const primeraMayuscula = (texto) => (texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : "");
+
 // onVolver: el botón de arriba a la izquierda (vuelve a Bases de Datos);
 // volverA: la clave de su texto.
 export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const { idioma, plural } = useIdioma();
   const [equipo, setEquipo] = useState(() => leerEquipoElegido());
-  const [vista, setVista] = useState("base");
+  const [vista, setVista] = useState("cargar");
   const [plantel, setPlantel] = useState([]);
   const [plantelSinLeer, setPlantelSinLeer] = useState(false);
   // Las filas del período.
@@ -84,6 +92,18 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [importando, setImportando] = useState(false);
+  // Cargar: el día que se está cargando (los pasos, encima de la pantalla) y
+  // si tiene algo sin guardar (al irse, se pregunta).
+  const [cargandoDia, setCargandoDia] = useState(false);
+  const diaSinGuardar = useRef(false);
+  const [aSalir, setASalir] = useState(null);
+  // Las reglas de la carga que guardó el club (sin la tabla, las de la plantilla).
+  const [reglasGuardadas, setReglasGuardadas] = useState({});
+  const [faltanReglas, setFaltanReglas] = useState(false);
+  const [hojaReglas, setHojaReglas] = useState(null);
+  const avisarSinGuardar = useCallback((sinGuardar) => {
+    diaSinGuardar.current = sinGuardar;
+  }, []);
   const [aBorrar, setABorrar] = useState(null);
   const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
 
@@ -118,12 +138,17 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // silencioso: lo nuevo de otros (useEnVivo); lo que no se pudo leer queda
   // como se veía.
   const cargarClub = useCallback(async ({ silencioso = false } = {}) => {
-    const [respuestaPlantel, respuestaAjustes] = await Promise.all([cargarPlantelLesiones(equipoId), leerAjustesGps(equipoId)]);
+    const [respuestaPlantel, respuestaAjustes, respuestaReglas] = await Promise.all([cargarPlantelLesiones(equipoId), leerAjustesGps(equipoId), leerReglasGps(equipoId)]);
     if (silencioso && (respuestaPlantel.error || respuestaPlantel.deRespaldo)) return;
     setPlantel(respuestaPlantel.plantel || []);
     setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
     // Sin poder leer los Ajustes, siguen los nombres del Excel.
     if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones });
+    // Sin poder leer las reglas, siguen las de antes (o las de la plantilla).
+    if (!respuestaReglas.error) {
+      setReglasGuardadas(respuestaReglas.reglas);
+      setFaltanReglas(respuestaReglas.faltaTabla);
+    }
   }, [equipoId]);
 
   // Las filas del período (y del jugador y el dispositivo elegidos). Si se
@@ -204,6 +229,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Las columnas del Excel y las que sumó el club.
   const gps = useMemo(() => gpsDelClub(config), [config]);
   const titulo = (columna) => tituloDeColumna(gps, columna, config, idioma);
+  const reglas = useMemo(() => reglasDelClub(reglasGuardadas), [reglasGuardadas]);
 
   const jugadorDe = useCallback((id) => plantel.find((jugador) => String(jugador.id) === String(id)) || null, [plantel]);
   // De quién es una fila: el jugador, la persona o el promedio del equipo.
@@ -270,57 +296,64 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   );
   const fijas = useMemo(() => visibles.filter((columna) => columna.fija).map((columna) => columna.clave), [visibles]);
 
-  // Cómo se ve cada celda (con el formato del Excel) y qué se edita. Cada
-  // fila se arma una vez y se guarda: al cambiar o borrar una, se arma solo
-  // esa (son miles). Se vuelven a armar todas si cambian las columnas, el
-  // idioma, las listas o Datos básicos.
-  const armadas = useMemo(() => new WeakMap(), [visibles, jugadorDe, textosDeListas, idioma]);
+  // Cómo se ve cada celda (con el formato del Excel) y qué se edita (también
+  // en lo que se va a guardar al cargar un día).
+  const armarFila = useCallback(
+    (fila) => {
+      const jugador = fila.jugador_id ? jugadorDe(fila.jugador_id) : null;
+      const valores = {};
+      const textos = {};
+      const orden = {};
+      visibles.forEach((columna) => {
+        const { clave } = columna;
+        const dato = fila.datos?.[clave];
+        switch (columna.tipo) {
+          case "jugador":
+            valores[clave] = fila.promedio ? `${PROMEDIO}${fila.promedio}` : fila.jugador_id ? String(fila.jugador_id) : "";
+            textos[clave] = fila.promedio ? PROMEDIOS[fila.promedio]?.[idioma] || "" : jugador?.nombre || fila.persona || "";
+            orden[clave] = textos[clave];
+            break;
+          case "fecha":
+            valores[clave] = fila.fecha;
+            textos[clave] = fechaCorta(fila.fecha);
+            orden[clave] = fila.fecha || "";
+            break;
+          case "lista":
+            valores[clave] = dato ?? "";
+            textos[clave] = dato === undefined || dato === null || dato === "" ? "" : textosDeListas[columna.lista]?.get(dato) || String(dato);
+            break;
+          default:
+            if (EN_SEGUNDOS.includes(columna.tipo)) {
+              valores[clave] = esNumero(dato) ? dato / 3600 : null;
+              if (esNumero(dato)) orden[clave] = dato;
+            } else if (columna.tipo === "texto") {
+              valores[clave] = dato ?? "";
+            } else {
+              valores[clave] = esNumero(dato) ? dato : null;
+              if (esNumero(dato)) orden[clave] = dato;
+            }
+            textos[clave] = textoDeCelda(columna, dato, idioma);
+        }
+      });
+      // Quien ya no está en el plantel actual, en otro color (como en Lesiones).
+      return { id: fila.id, valores, textos, orden, gps: fila, apagada: Boolean(jugador && !esActual(jugador)) };
+    },
+    [visibles, jugadorDe, textosDeListas, idioma],
+  );
+  // Cada fila de la Base se arma una vez y se guarda: al cambiar o borrar
+  // una, se arma solo esa (son miles). Se vuelven a armar todas si cambian
+  // las columnas, el idioma, las listas o Datos básicos.
+  const armadas = useMemo(() => new WeakMap(), [armarFila]);
   const filas = useMemo(
     () =>
       filasGps.map((fila) => {
         const ya = armadas.get(fila);
         if (ya) return ya;
-        const jugador = fila.jugador_id ? jugadorDe(fila.jugador_id) : null;
-        const valores = {};
-        const textos = {};
-        const orden = {};
-        visibles.forEach((columna) => {
-          const { clave } = columna;
-          const dato = fila.datos?.[clave];
-          switch (columna.tipo) {
-            case "jugador":
-              valores[clave] = fila.promedio ? `${PROMEDIO}${fila.promedio}` : fila.jugador_id ? String(fila.jugador_id) : "";
-              textos[clave] = fila.promedio ? PROMEDIOS[fila.promedio]?.[idioma] || "" : jugador?.nombre || fila.persona || "";
-              orden[clave] = textos[clave];
-              break;
-            case "fecha":
-              valores[clave] = fila.fecha;
-              textos[clave] = fechaCorta(fila.fecha);
-              orden[clave] = fila.fecha || "";
-              break;
-            case "lista":
-              valores[clave] = dato ?? "";
-              textos[clave] = dato === undefined || dato === null || dato === "" ? "" : textosDeListas[columna.lista]?.get(dato) || String(dato);
-              break;
-            default:
-              if (EN_SEGUNDOS.includes(columna.tipo)) {
-                valores[clave] = esNumero(dato) ? dato / 3600 : null;
-                if (esNumero(dato)) orden[clave] = dato;
-              } else if (columna.tipo === "texto") {
-                valores[clave] = dato ?? "";
-              } else {
-                valores[clave] = esNumero(dato) ? dato : null;
-                if (esNumero(dato)) orden[clave] = dato;
-              }
-              textos[clave] = textoDeCelda(columna, dato, idioma);
-          }
-        });
-        // Quien ya no está en el plantel actual, en otro color (como en Lesiones).
-        const armada = { id: fila.id, valores, textos, orden, gps: fila, apagada: Boolean(jugador && !esActual(jugador)) };
+        const armada = armarFila(fila);
         armadas.set(fila, armada);
         return armada;
       }),
-    [filasGps, armadas, visibles, jugadorDe, textosDeListas, idioma],
+    [filasGps, armadas, armarFila],
   );
 
   const ordenDeDispositivos = useMemo(() => new Map([...(textosDeListas.dispositivo?.keys() || [])].map((codigo, indice) => [codigo, indice])), [textosDeListas]);
@@ -632,6 +665,63 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     </div>
   );
 
+  // -------------------------------------------------------------- Cargar --
+
+  // Lo de hoy, si la Base tiene traído el día de hoy.
+  const conHoy = demasiadas === null && !cargando && !error && (!periodo.desde || periodo.desde <= hoy) && (!periodo.hasta || periodo.hasta >= hoy) && !filtro.jugador && !filtro.dispositivo;
+  const deHoy = conHoy ? filasGps.filter((fila) => fila.fecha === hoy).length : null;
+
+  // Guardado el día: a la Base, con el período que lo muestra.
+  const alCargarDia = ({ cargadas, fecha }) => {
+    diaSinGuardar.current = false;
+    setCargandoDia(false);
+    setVista("base");
+    const antes = fecha && periodo.desde && fecha < periodo.desde;
+    const despues = fecha && periodo.hasta && fecha > periodo.hasta;
+    if (antes || despues) cambiarPeriodo({ desde: antes ? fecha : periodo.desde, hasta: despues ? fecha : periodo.hasta });
+    else cargarFilas();
+    setAviso(plural("gps.cargar.listo", cargadas, { fecha: fecha ? fechaCorta(fecha) : "—" }));
+  };
+
+  const pantallaCargar = (
+    <div className="app app-inicio">
+      <div className="contenedor contenedor-inicio-formacion">
+        <header className="hero-partido hero-lesiones">
+          <div className="hero-lesiones-barra">
+            {onVolver ? (
+              <button type="button" className="boton-modulos" onClick={onVolver}>
+                <Icono nombre="flecha" size={14} />
+                {t(volverA)}
+              </button>
+            ) : (
+              <span />
+            )}
+            <SelectorIdioma />
+          </div>
+          <div className="hero-lesiones-club">
+            <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
+            <span className="etiqueta-hero">{t("gps.titulo").toUpperCase()}</span>
+            <strong className="nombre-sesion">{equipo?.nombre || t("gps.titulo")}</strong>
+            <p className="fecha-hero">{primeraMayuscula(fechaLarga(hoy))}</p>
+            {deHoy !== null && <span className={`estado-hero ${deHoy ? "en-curso" : ""}`}>{plural("gps.cargar.deHoy", deHoy, { n: numero(deHoy) })}</span>}
+          </div>
+        </header>
+
+        <AvisoSoloLectura hasta={equipo?.hasta} />
+        {!enLinea && <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>}
+
+        {!soloLectura && (
+          <div className="acciones-inicio lesiones-acciones">
+            <button type="button" className="boton-principal boton-formacion-grande" onClick={() => setCargandoDia(true)} disabled={!enLinea}>
+              {t("gps.cargar.nuevo")}
+            </button>
+          </div>
+        )}
+        <p className="lesiones-vacio">{t("gps.cargar.comoSeCarga")}</p>
+      </div>
+    </div>
+  );
+
   // -------------------------------------------------------------- Ajustes --
 
   // Título a la izquierda y el idioma a la derecha, como en Evaluaciones.
@@ -739,7 +829,80 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
 
   const tipoDeColumna = (tipo) => t(`gps.ajustes.tipos.${tipo}`);
 
+  // Las reglas de la carga: cómo se ve cada una (75 %, 13:00, Prendido).
+  const textoDeRegla = (ajuste, valor) => {
+    if (ajuste.tipo === "prendida") return valor ? t("gps.reglas.prendido") : t("gps.reglas.apagado");
+    if (ajuste.tipo === "parte") return `${numero(Math.round(valor * 1000) / 10)} %`;
+    if (ajuste.tipo === "hora") return `${Math.floor(valor / 3600)}:${String(Math.floor((valor % 3600) / 60)).padStart(2, "0")}`;
+    if (ajuste.tipo === "fecha") return valor ? fechaCorta(valor) : t("gps.reglas.inicioDelAnio");
+    return numero(valor);
+  };
+  // Lo que se escribe en la hoja, como texto (la parte, en %; la hora, h:mm).
+  const textoParaEscribir = (ajuste, valor) => {
+    if (ajuste.tipo === "parte") return String(Math.round(valor * 1000) / 10);
+    if (ajuste.tipo === "hora") return textoDeRegla(ajuste, valor);
+    return valor;
+  };
+  const abrirRegla = (ajuste) => {
+    setErrorHoja("");
+    setHojaReglas({ ...ajuste, valor: textoParaEscribir(ajuste, reglas[ajuste.clave]) });
+  };
+  const guardarHojaReglas = async () => {
+    const hoja = hojaReglas;
+    if (!hoja) return;
+    let valor = hoja.valor;
+    if (hoja.tipo === "parte" || hoja.tipo === "numero") {
+      const leido = Number(String(valor ?? "").replace(",", "."));
+      valor = hoja.tipo === "parte" ? leido / 100 : leido;
+      const bien = String(hoja.valor ?? "").trim() !== "" && Number.isFinite(valor) && valor >= hoja.minimo && valor <= hoja.maximo && (hoja.tipo === "parte" ? valor > 0 : Number.isInteger(valor));
+      if (!bien) {
+        setErrorHoja(hoja.tipo === "parte" ? t("gps.reglas.malLaParte") : t("gps.reglas.malElNumero", { minimo: hoja.minimo, maximo: hoja.maximo }));
+        return;
+      }
+    } else if (hoja.tipo === "hora") {
+      const partes = /^(\d{1,2})(?::(\d{2}))?$/.exec(String(valor ?? "").trim());
+      valor = partes ? Number(partes[1]) * 3600 + Number(partes[2] || 0) * 60 : NaN;
+      if (!partes || Number(partes[2] || 0) > 59 || !(valor >= 0 && valor < 86400)) {
+        setErrorHoja(t("gps.reglas.malLaHora"));
+        return;
+      }
+    }
+    setOcupado(true);
+    const respuesta = await guardarReglasGps(equipoId, { ...reglasGuardadas, [hoja.clave]: valor });
+    setOcupado(false);
+    if (respuesta.error) {
+      setErrorHoja(t(respuesta.error));
+      return;
+    }
+    await cargarClub();
+    setHojaReglas(null);
+    setAviso(t("lesiones.ajustes.guardado"));
+  };
+
   const pantallaAjustes = () => {
+    if (vistaAjustes === "reglas") {
+      return (
+        <div className="app">
+          <div className="contenedor">
+            {encabezado(t("gps.reglas.titulo"), t("gps.reglas.ayuda"))}
+            {faltanReglas && <p className="lesiones-estado error">{t("gps.reglas.faltaMigracion")}</p>}
+            {AJUSTES_DE_REGLAS.map((ajuste) =>
+              filaAjuste({
+                id: ajuste.clave,
+                titulo: t(`gps.reglas.${ajuste.clave}.titulo`),
+                detalle: ajuste.tipo === "prendida" ? textoDeRegla(ajuste, reglas[ajuste.clave]) : t(`gps.reglas.${ajuste.clave}.detalle`, { valor: textoDeRegla(ajuste, reglas[ajuste.clave]) }),
+                extra: reglas[ajuste.clave] !== REGLAS_CARGA[ajuste.clave] ? <span className="lesiones-oculta">{t("gps.reglas.cambiada")}</span> : null,
+                alTocar: () => abrirRegla(ajuste),
+              }),
+            )}
+            <div className="acciones-dobles">
+              <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (vistaAjustes === "cabeceras") {
       return (
         <div className="app">
@@ -868,6 +1031,13 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             detalle: t("gps.ajustes.listasTexto"),
             alTocar: () => setVistaAjustes("listas"),
           })}
+          {filaAjuste({
+            id: "reglas",
+            icono: "reloj",
+            titulo: t("gps.reglas.titulo"),
+            detalle: t("gps.reglas.texto"),
+            alTocar: () => setVistaAjustes("reglas"),
+          })}
         </div>
       </div>
     );
@@ -920,6 +1090,28 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
 
   let contenido;
   if (vista === "ajustes") contenido = pantallaAjustes();
+  else if (vista === "cargar")
+    contenido =
+      cargandoDia && !soloLectura ? (
+        <CargarGps
+          gps={gps}
+          config={config}
+          equipoId={equipoId}
+          plantel={plantel}
+          plantelSinLeer={plantelSinLeer}
+          reglas={reglas}
+          columnas={columnas}
+          fijas={fijas}
+          armarFila={armarFila}
+          conCambio={conCambio}
+          enLinea={enLinea}
+          onListo={alCargarDia}
+          onCancelar={() => setCargandoDia(false)}
+          onSinGuardar={avisarSinGuardar}
+        />
+      ) : (
+        pantallaCargar
+      );
   else if (importando && !soloLectura)
     contenido = (
       <ImportarGps
@@ -939,10 +1131,20 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   else contenido = pantallaBase;
 
   // Tocar un destino de la barra cierra lo que estuviera encima.
-  const navegar = (id) => {
+  const irA = (id) => {
     setImportando(false);
+    setCargandoDia(false);
+    diaSinGuardar.current = false;
     if (id === "ajustes") setVistaAjustes("inicio");
     setVista(id);
+  };
+  // Un día a medio cargar no se tira sin preguntar.
+  const navegar = (id) => {
+    if (vista === "cargar" && cargandoDia && diaSinGuardar.current) {
+      setASalir(id);
+      return;
+    }
+    irA(id);
   };
 
   const columnaDeLaHoja = hojaCabecera ? gps.columnas.find((columna) => columna.clave === hojaCabecera.clave) : null;
@@ -1020,6 +1222,71 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           </div>
         </HojaInferior>
       )}
+
+      {hojaReglas && (
+        <HojaInferior
+          abierta
+          className="lesiones-hoja"
+          titulo={t(`gps.reglas.${hojaReglas.clave}.titulo`)}
+          onCerrar={() => !ocupado && setHojaReglas(null)}
+          acciones={
+            <>
+              <button type="button" className="boton-cancelar-hoja" onClick={() => setHojaReglas(null)} disabled={ocupado}>
+                {t("comun.cancelar")}
+              </button>
+              <button type="button" className="boton-confirmar-hoja" onClick={guardarHojaReglas} disabled={ocupado || faltanReglas}>
+                {ocupado ? t("comun.guardando") : t("comun.guardar")}
+              </button>
+            </>
+          }
+        >
+          {errorHoja && <div className="aviso-hoja">{errorHoja}</div>}
+          {faltanReglas && <div className="aviso-hoja">{t("gps.reglas.faltaMigracion")}</div>}
+          <div className="campo-inicio">
+            {hojaReglas.tipo === "prendida" ? (
+              // Una lista va en un desplegable (Santiago, 01/10 y 12/10).
+              <select
+                className="gps-regla-desplegable"
+                value={hojaReglas.valor ? "si" : "no"}
+                onChange={(evento) => setHojaReglas({ ...hojaReglas, valor: evento.target.value === "si" })}
+                aria-label={t(`gps.reglas.${hojaReglas.clave}.titulo`)}
+              >
+                <option value="si">{t("gps.reglas.prendido")}</option>
+                <option value="no">{t("gps.reglas.apagado")}</option>
+              </select>
+            ) : hojaReglas.tipo === "fecha" ? (
+              <input type="date" value={hojaReglas.valor || ""} onChange={(evento) => setHojaReglas({ ...hojaReglas, valor: evento.target.value })} aria-label={t(`gps.reglas.${hojaReglas.clave}.titulo`)} />
+            ) : (
+              <div className="gps-regla-numero">
+                <input
+                  type="text"
+                  inputMode={hojaReglas.tipo === "hora" ? "numeric" : "decimal"}
+                  value={hojaReglas.valor ?? ""}
+                  onChange={(evento) => setHojaReglas({ ...hojaReglas, valor: evento.target.value })}
+                  aria-label={t(`gps.reglas.${hojaReglas.clave}.titulo`)}
+                />
+                {hojaReglas.tipo === "parte" && <span>%</span>}
+              </div>
+            )}
+            <small className="lesiones-ayuda">{t(`gps.reglas.${hojaReglas.clave}.ayuda`, { valor: textoDeRegla(hojaReglas, REGLAS_CARGA[hojaReglas.clave]) })}</small>
+          </div>
+        </HojaInferior>
+      )}
+
+      <HojaConfirmar
+        abierta={Boolean(aSalir)}
+        titulo={t("gps.cargar.salirTitulo")}
+        descripcion={t("gps.cargar.salirTexto")}
+        icono="salir"
+        etiquetaConfirmar={t("lesiones.siSalir")}
+        etiquetaCancelar={t("lesiones.seguirCargando")}
+        onConfirmar={() => {
+          const destino = aSalir;
+          setASalir(null);
+          irA(destino);
+        }}
+        onCancelar={() => setASalir(null)}
+      />
 
       <HojaConfirmar
         abierta={Boolean(aBorrar?.length)}

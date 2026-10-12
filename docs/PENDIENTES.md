@@ -272,6 +272,20 @@ de lo hecho está en los commits, no en esta lista.
 - Regla de oro del 01/10: lo que es igual en otro módulo tiene que ser igual en toda la web
   (escudos descargados con `EscudoDeClub`, el filtro de Registros, fichas con "Ver detalle",
   Ajustes con filas y "Volver a Ajustes").
+- **Regla de los desplegables** (UI-027). Santiago, 01/10: «los nombres tiene que ser un
+  desplegable, no todos tirados así nomás al igual que el resto de opciones»; lo recordó el
+  12/10: «pusimos como regla del proyecto dejar de usar todas las opciones disponibles y solo
+  poner desplegables». Toda lista de opciones se elige en un desplegable: el botón que abre la
+  hoja de opciones (`HojaOpciones`) o un `select`; para elegir varios, el desplegable abre la
+  lista con casillas del filtro de las bases (`ListaParaMarcar`). Queda prohibido poner todas
+  las opciones a la vista como botones, también en listas cortas. Lo cumplen GPS › Cargar y
+  Ajustes › Reglas de carga (12/10). **Todavía muestran opciones como botones** (anotado el
+  12/10; falta que Santiago confirme si se pasan todos juntos, en un cambio aparte): los
+  formularios de Lesiones (Nuevos casos) y de Evaluaciones (Cargar), que ponen en botones las
+  listas de hasta 6 opciones; Mostrar / Oculta en Ajustes de Lesiones, Evaluaciones y GPS; el
+  tipo de una columna nueva del GPS; los períodos de Lesiones › Reportes y de Lesiones c/1000 h;
+  Frente / Espalda y las capas del mapa corporal; y el orden en el filtro de cada columna de las
+  bases.
 - Después de entrar, lo primero es elegir el club (`src/ElegirClub.jsx`); desde el portal se
   cambia con "Cambiar". Solo se ven los clubes en los que se está o se estuvo.
 - **Clubes con fecha de salida (02/10, migración `20261003_club_miembros.sql`, corrida el
@@ -1200,8 +1214,9 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
 1. **Base, historial y Ajustes** (hecho el 10/10, migración `20261016_gps.sql`): el permiso, la
    Base con su período, traer el historial con Pegar desde Excel y los Ajustes (columnas y
    listas, también los dispositivos).
-2. **Cargar**: lo de cada día, con la lógica de la plantilla (abajo, «Para el paso 2»). Primero
-   pegando el CSV de Catapult; después, traerlo directo de OpenField.
+2. **Cargar** (hecho el 12/10, migración `20261020_gps_reglas.sql`; abajo, «Cargar (paso 2)»):
+   lo de cada día, con la lógica de la plantilla. Primero con el CSV de Catapult; después,
+   traerlo directo de OpenField (paso 5).
 3. **Reportes**.
 4. **V.R. por dispositivo**: se arman una vez con reglas estadísticas y quedan fijos (Santiago,
    10/10: «Los VR se arman una ves con reglas estadisticas y se dejan fijos»; las reglas las
@@ -1212,7 +1227,8 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
    de descargarlo xq se puede descargar con variables de otra persona o todas las variables».
 
 Como pide la regla de las bases (UI-012), cuando estén los pasos 2 y 3 la barra queda Cargar ·
-Base · Reportes · Ajustes (y los V.R. donde se decida en el paso 4). Hoy: Base · Ajustes.
+Base · Reportes · Ajustes (y los V.R. donde se decida en el paso 4). Desde el 12/10: Cargar ·
+Base · Ajustes, y abre en Cargar (como Evaluaciones).
 
 ### Decisiones de Santiago (10/10)
 
@@ -1380,9 +1396,82 @@ no se trabe con muchas filas, si hay que pagar lo hacemos».
 - En el historial hay cambios hechos a mano después de pegar (tiempos de tareas intermitentes,
   un jugador agregado a un tiempo): la carga tiene que dejar corregir.
 
+### Cargar (paso 2, 12/10)
+
+Santiago, 12/10: «podes seguir con el cargado del csv de catapult, yo te pase la plantilla que
+usamos para anotar las cosas». Las cuentas están en `src/domain/gps/cargar.js` y la pantalla, en
+`src/CargarGps.jsx`. En la pestaña **Cargar**, «Cargar un día» abre los pasos (toda lista, en
+un desplegable: UI-027):
+
+1. **El CSV de Catapult**: se elige el archivo o se pega su contenido; si la actividad está en
+   varios archivos, se suman. Se lee por el título de cada columna (los de «Para el paso 2»,
+   arriba; las columnas del club, por su nombre). Las filas «Session» no van; el mismo nombre
+   de período con otro número es un bloque. Dice cuántas filas leyó, cada bloque con cuántos
+   jugadores y qué columnas no trae. Lo que no es un CSV de Catapult no se suma. Los nombres,
+   como en Pegar desde Excel (por su nombre en Catapult y si no por el de Datos básicos; el que
+   no está se elige una vez).
+2. **La sesión**: la fecha (sale del CSV), el microciclo (se calcula), el tipo de microciclo,
+   el día del microciclo (sin _M / _T: va solo, por la hora de inicio de cada fila), el
+   dispositivo y el Team Average de la sesión (tipo de sesión, zona y código).
+3. **El partido** (solo si el CSV tiene PRIMER TIEMPO o SEGUNDO TIEMPO): el nombre («Vs …»),
+   Tarea o Partido, los datos de cada tiempo y del partido completo, agregar a mano un jugador
+   a un tiempo (pasó en el historial; sus números se escriben al revisar) y quiénes no
+   ingresaron.
+4. **Las tareas**, cada una una sola vez («Una vez por tarea»): nombre, tipo de sesión, zona,
+   código, jugadores (para los m²), pausa, C/P Jug, largo, ancho, base y si va en la
+   descripción del Team Average de la sesión; el «Va» de cada jugador; agregar un jugador (sus
+   números se escriben al revisar; se puede sacar); pasarla a «Adicional» o no cargarla.
+5. **Regenerativo y no entrenaron**: la duración y quiénes lo hicieron; los del plantel actual
+   que no están en el CSV, con su motivo y su tipo de sesión (se saca de la lista a quien no
+   corresponde).
+6. **Revisar y guardar**: las filas como van a quedar en la Base (la misma tabla, en el orden
+   en que las pegaba la plantilla). Se cambia cualquier número de Catapult de un jugador (se
+   recalculan los totales y los Team Average), el «Va» de cada total y lo demás (PSE, listas,
+   textos, columnas del club), que queda como se escribe. Avisa si esa fecha ya tiene filas en
+   la Base. Se guarda de a tandas; si se corta, lo que falta se guarda al volver a tocar, sin
+   duplicar. Después va a la Base con ese día a la vista.
+
+Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
+
+- **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
+  jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
+  Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,
+  la suma ÷ 10; el total de la sesión, sesión + regenerativo, regenerativo, no entrenaron, el
+  Team Average final y el adicional. Comprobado solo en la máquina de trabajo contra dos días
+  reales de `BD_GPS`: el entrenamiento del 09/10 da igual en sus 132 filas y el partido del
+  08/10 en sus 43, salvo lo cambiado a mano en el Excel y los errores corregidos (abajo).
+- **Las reglas, en Ajustes › Reglas de carga** (Santiago, 10/10: los números de las reglas
+  quedan en Ajustes): inicio del microciclo 1, Va tarea (75 %), Team Average de cada tiempo del
+  partido (÷ 10), jugadores para un Team Average (4), sesión de la tarde (13:00), regenerativo
+  que cuenta (7), los cortes de sesión + regenerativo y de los que no entrenaron (apagados,
+  «como pasa hoy»; 30 % del plantel) y «Día de partido, van todos». Se guardan por club en
+  `gps_reglas`; sin la migración, valen las de la plantilla y Ajustes avisa qué SQL falta.
+  Cambian lo que se carga desde ahí; lo guardado queda como está.
+- **Errores chicos de la plantilla, corregidos** («Corregirlos», 10/10): rangos corridos una
+  fila; HDOP del partido completo tomado del jugador de arriba; «Total» decidido por la
+  distancia en lugar de por el jugador; la relación pausa / trabajo sin las horas; la
+  clasificación del día sin _M / _T; las horas y la calidad GNSS del regenerativo, que salían
+  de otras columnas; el tiempo del total con partido y tareas llega al final de la última tarea
+  (la plantilla miraba la primera); GNSS y HDOP del total miran todas sus filas (la plantilla,
+  solo las tareas); el inicio del Team Average de la sesión es el más temprano; inicio y fin de
+  los que no ingresaron, los del partido. En el Team Average final, Aceleración Máxima y
+  Esfuerzo Explosivo/min quedan vacíos (el Excel ponía 0).
+- **Como el historial, a confirmar con Santiago**:
+  - El día de partido todos los del partido, también los que no ingresaron, van en el Team
+    Average de la sesión («Va» Si), como está en el historial. Se apaga en Reglas de carga.
+  - Quien está en readaptación: en el historial su «Va» No del total se puso a mano; en la app
+    también se cambia a mano, al revisar.
+  - Minutos Campo va en cada fila Total (el tiempo en minutos, con un decimal), también el día
+    de partido; en el partido comparado no coincide con el historial en esas filas: falta
+    confirmar cuál va.
+- **Lo que todavía no hace**: PSE y Unidad Arbitraria no se calculan (la PSE se escribe al
+  revisar); «% de partido» espera los V.R. del club (paso 4); la marca fija de la selección
+  (la define Santiago); las columnas del club que vienen en el CSV van solo en las filas de
+  cada jugador; traerlo directo de OpenField (paso 5).
+
 ### Pendiente
 
-- Pasos 2 a 5 (arriba).
+- Pasos 3 a 5 (arriba).
 - A quien administra el club, o a un dueño de la app, un permiso nuevo (como GPS) no se le da
   desde Cuentas: nadie cambia su propia fila y la de un administrador o un dueño no la cambia la
   app. Se da con un SQL en Supabase › SQL Editor (Santiago se dio GPS así, 10/10). Si hace falta
