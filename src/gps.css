@@ -111,74 +111,82 @@
   color: #334155;
   font-weight: 750;
 }
-/* Cada tiempo del partido y cada tarea se abre para completarlo: el nombre a
-   la izquierda, cuántos jugadores y la flecha a la derecha. */
-.gps-marco .gps-cargar-bloque {
-  padding: 0;
+/* Cada bloque (un tiempo del partido, una tarea, la sesión), como en la
+   plantilla: arriba lo que se escribe, en una grilla (en la compu, varias
+   columnas; en el celular, de a dos), y abajo la tabla con todos sus
+   jugadores. */
+.gps-marco .gps-cargar-encabezado {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px 14px;
+  align-items: start;
 }
-.gps-marco .gps-cargar-bloque > summary {
+@media (max-width: 599px) {
+  .gps-marco .gps-cargar-encabezado {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .gps-marco .gps-cargar-encabezado .campo-inicio:has(.selector-hoja),
+  .gps-marco .gps-cargar-encabezado .campo-inicio:has(input[type="text"]),
+  .gps-marco .gps-cargar-encabezado .gps-cargar-descripcion {
+    grid-column: 1 / -1;
+  }
+}
+.gps-marco .gps-cargar-encabezado .campo-inicio {
+  min-width: 0;
+  margin: 0;
+}
+.gps-marco .gps-cargar-encabezado .selector-hoja {
+  min-width: 0;
+}
+/* Lo que se calcula (los m², la relación pausa / trabajo, la descripción). */
+.gps-marco .gps-cargar-calculado b {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 52px;
-  padding: 12px 16px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  background: #f1f5f9;
   color: #0f172a;
-  list-style: none;
-  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
 }
-.gps-marco .gps-cargar-bloque > summary::-webkit-details-marker {
-  display: none;
+.gps-marco .gps-cargar-descripcion {
+  grid-column: 1 / -1;
 }
-.gps-marco .gps-cargar-bloque > summary b {
-  flex: 1 1 auto;
-  min-width: 0;
+.gps-marco .gps-cargar-descripcion b {
+  min-height: 0;
+  padding: 10px 12px;
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
-.gps-marco .gps-cargar-bloque > summary .gps-cuantas {
-  flex: none;
-  font-size: 13px;
+.gps-marco .gps-cargar-agregar {
+  display: grid;
+  gap: 10px;
 }
-.gps-marco .gps-cargar-bloque > summary::after {
-  content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid #64748b;
-  border-bottom: 2px solid #64748b;
-  transform: rotate(45deg);
-  transition: transform 0.15s ease;
+.gps-marco .gps-cargar-agregar .selector-hoja {
+  max-width: 420px;
 }
-.gps-marco .gps-cargar-bloque[open] > summary::after {
-  transform: rotate(-135deg);
-}
-.gps-marco .gps-cargar-bloque > .lesiones-grupo {
-  padding: 0 16px 16px;
-}
-.gps-marco .gps-cargar-bloque.apagada > summary b {
-  color: #94a3b8;
-  text-decoration: line-through;
+.gps-marco .gps-cargar-va-ayuda {
+  margin: 4px 2px 8px;
+  color: #cbd5e1;
 }
 .gps-marco .gps-cargar-acciones {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 0 16px 16px;
+  margin-bottom: 12px;
 }
 .gps-marco .gps-cargar-acciones .boton-detalle {
-  flex: 1 1 140px;
+  flex: 0 1 220px;
 }
-/* Los números de la tarea, de a tres (de a dos en el celular). */
-.gps-marco .gps-cargar-medidas {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+/* ¿Ya está en la Base?: no está, en verde; ya está, en rojo (lesiones-estado). */
+.gps-marco .lesiones-estado.gps-cargar-bien {
+  background: #dcfce7;
+  color: #166534;
 }
-@media (max-width: 599px) {
-  .gps-marco .gps-cargar-medidas {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-.gps-marco .gps-cargar-medidas .campo-inicio {
+.gps-marco .gps-cargar-revision,
+.gps-marco .gps-cargar-partido {
   margin: 0;
 }
 /* Una casilla con su texto al lado. */
@@ -200,13 +208,6 @@
   margin: 0;
   padding: 0;
   accent-color: var(--cam-verde, #16a34a);
-}
-/* Quién hizo cada tarea, con el desplegable de su «Va» a la derecha. */
-.gps-marco .gps-cargar-filas .selector-hoja.gps-cargar-va {
-  flex: none;
-  width: auto;
-  min-width: 112px;
-  min-height: 42px;
 }
 /* Los que no entrenaron: el nombre, Sacar de la lista y abajo el motivo y el
    tipo de sesión. */

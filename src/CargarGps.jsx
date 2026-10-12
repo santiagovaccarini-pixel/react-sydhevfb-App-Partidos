@@ -7,24 +7,27 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { opcionesDeLista } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
-import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, leerCsvCatapult, microcicloDe } from "./domain/gps/cargar.js";
+import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, filasYaEnLaBase, leerCsvCatapult, microcicloDe } from "./domain/gps/cargar.js";
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
 import { COMO_PERSONA, NO_CARGAR, buscadorDelGps, leerSegundos } from "./domain/gps/importar.js";
-import { textoDeSegundos } from "./domain/gps/valores.js";
-import { crearFilasGps, listarGps } from "./domain/gpsDb.js";
+import { esNumero, textoDeSegundos } from "./domain/gps/valores.js";
+import { crearFilasGps, listarGps, partidoDelDia } from "./domain/gpsDb.js";
 import { DUDOSO, nombreIgual } from "./domain/importarPersonas.js";
 import { actualesPrimero, cargarPlantelConCatapult, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
-// GPS › Cargar (paso 2, Santiago 10/10): lo de cada día con la lógica de la
-// plantilla «Suma de Bloques» (las cuentas, en domain/gps/cargar.js). Se sube
-// (o se pega) el CSV de Catapult y se completa, en pasos: la sesión, el
-// partido (si hay), cada tarea una vez («Una vez por tarea»), quién hizo
-// regenerativo y quién no entrenó. Antes de guardar se ven las filas que van
-// a la Base, como en la Base; ahí se cambia cualquier número de un jugador
-// (los totales y promedios se recalculan) y el «Va» de cada total.
+// GPS › Cargar (paso 2): lo de cada día con la lógica de la plantilla «Suma
+// de Bloques» (las cuentas, en domain/gps/cargar.js). Un paso por cada
+// bloque de la plantilla (Santiago, 12/10: «Cada paso a completar tienen que
+// ser las tareas del día»): el CSV (y si ya está en la Base, no se sigue),
+// cada tiempo del partido, el partido completo, cada tarea, el regenerativo
+// y los que no entrenaron y, al final, la sesión («la sesion tiene que ser la
+// final», sale de todas las tareas y el partido). Cada bloque se ve como en
+// la plantilla: arriba lo que se escribe del bloque y abajo todos sus
+// jugadores con todos sus datos, en una tabla como la de la Base, donde se
+// corrige. Antes de guardar se ve todo lo que va a la Base.
 // Toda lista se elige en un desplegable, nunca con todas las opciones a la
 // vista (Santiago, 01/10 y 12/10); varios jugadores, en un desplegable con
 // casillas, como el filtro de las bases.
@@ -40,6 +43,35 @@ const claveDeFila = (bloque, indice) => `${bloque}|${indice}`;
 // La clave de una fila que va a la Base (para lo que se cambia en la tabla).
 const claveDeSalida = (fila) => `${fila._seccion}|${fila._quien || ""}|${fila._fila ?? ""}`;
 
+// Lo que se escribe arriba de cada bloque, en el orden de la plantilla.
+// lista: se elige en un desplegable; numero / texto: se escribe; columna:
+// el nombre es el de esa columna de la Base (como lo llame el club).
+const ENCABEZADO_DEL_PARTIDO = [
+  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion" },
+  { campo: "codigo", lista: "codigo_estrategia", columna: "codigo_estrategia" },
+  { campo: "zona", lista: "zona_impacto", columna: "zona_impacto" },
+  { campo: "jugadores", tipo: "numero", rotulo: "gps.cargar.nroJugadores", paso: 1 },
+  { campo: "series", tipo: "numero", rotulo: "gps.cargar.series", paso: 1 },
+  { campo: "bloques", tipo: "numero", rotulo: "gps.cargar.bloques", paso: 1 },
+  { campo: "pausa", tipo: "texto", rotulo: "gps.cargar.pausaDelPartido" },
+  { campo: "largo", tipo: "numero", columna: "largo" },
+  { campo: "ancho", tipo: "numero", columna: "ancho" },
+  { campo: "m2", tipo: "numero", columna: "m2" },
+];
+const ENCABEZADO_DE_TAREA = [
+  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion" },
+  { campo: "nombre", tipo: "texto", rotulo: "gps.cargar.nombreTarea" },
+  { campo: "codigo", lista: "codigo_estrategia", columna: "codigo_estrategia" },
+  { campo: "zona", lista: "zona_impacto", columna: "zona_impacto" },
+  { campo: "base", tipo: "numero", columna: "base" },
+  { campo: "largo", tipo: "numero", columna: "largo" },
+  { campo: "ancho", tipo: "numero", columna: "ancho" },
+  { campo: "jugadores", tipo: "numero", rotulo: "gps.cargar.nroJugadores", paso: 1 },
+  { campo: "pausa", tipo: "numero", rotulo: "gps.cargar.pausa", paso: 1 },
+  { campo: "cpJug", tipo: "numero", columna: "cp_jug" },
+];
+const ENCABEZADO_DE_LA_SESION = ENCABEZADO_DE_TAREA.filter((uno) => uno.campo !== "nombre");
+
 const estadoInicial = () => ({
   csv: [],
   fecha: "",
@@ -47,9 +79,9 @@ const estadoInicial = () => ({
   dia: "",
   dispositivo: "",
   sesion: { tipoSesion: "", zona: "", codigo: "" },
-  partido: { nombre: "", tareaPartido: "partido_oficial_torneo", primer: {}, segundo: {}, completo: {}, banco: { jugadores: [] } },
+  // nombreAMano: el nombre del partido se escribió (ya no lo cambia el de Partido).
+  partido: { nombre: "", nombreAMano: false, tareaPartido: "partido_oficial_torneo", primer: {}, segundo: {}, completo: {}, banco: { jugadores: [] } },
   tareas: {},
-  orden: [],
   adicional: null,
   regenerativo: { hubo: false, duracion: REGENERATIVO_AL_EMPEZAR, jugadores: [] },
   noEntrenaron: {},
@@ -83,14 +115,17 @@ export default function CargarGps({
   const [estado, setEstado] = useState(estadoInicial);
   const [errorPaso, setErrorPaso] = useState("");
   const [hoja, setHoja] = useState(null);
-  // El desplegable de varios jugadores abierto: { titulo, valores, elegidos, busqueda, alAplicar }.
+  // El desplegable de varios abierto: { titulo, valores, elegidos, busqueda, alAplicar }.
   const [hojaVarios, setHojaVarios] = useState(null);
-  const [existentes, setExistentes] = useState(null);
   const [progreso, setProgreso] = useState(null);
   const [falla, setFalla] = useState("");
-  const [abierta, setAbierta] = useState(null);
   // Un guardado que se cortó: { lista (lo que se estaba guardando), hechas }.
   const [aMedias, setAMedias] = useState(null);
+  // ¿El CSV ya está en la Base? { clave, estado: revisando | esta | noEsta | error, iguales, delDia }.
+  const [revision, setRevision] = useState(null);
+  const [intento, setIntento] = useState(0);
+  // El partido de ese día en Partido: { fecha, rival } o null.
+  const [delPartido, setDelPartido] = useState(null);
   const archivo = useRef(null);
   const enPantalla = useRef(true);
   useEffect(() => {
@@ -139,10 +174,21 @@ export default function CargarGps({
     };
   }, [estado.csv, gps]);
   const bloques = useMemo(() => (leido && !leido.error ? bloquesDelCsv(leido.filas) : null), [leido]);
-  // Los pasos: el del partido, si el CSV tiene sus tiempos; el de las
-  // tareas, si tiene tareas.
+
+  // Los pasos: el CSV, cada tiempo del partido y el partido completo (si el
+  // CSV los tiene), cada tarea, el regenerativo y los que no entrenaron, la
+  // sesión y revisar.
   const hayPartido = Boolean(bloques?.primer || bloques?.segundo);
-  const PASOS = ["csv", "sesion", ...(hayPartido ? ["partido"] : []), ...(bloques?.tareas?.length ? ["tareas"] : []), "jugadores", "revisar"];
+  const PASOS = [
+    "csv",
+    ...(bloques?.primer ? ["primer"] : []),
+    ...(bloques?.segundo ? ["segundo"] : []),
+    ...(hayPartido ? ["completo"] : []),
+    ...(bloques?.tareas || []).map((bloque) => `tarea:${bloque.nombre}`),
+    "jugadores",
+    "sesion",
+    "revisar",
+  ];
   const actual = PASOS[Math.min(paso, PASOS.length - 1)];
   const ultimo = paso === PASOS.length - 1;
 
@@ -166,7 +212,6 @@ export default function CargarGps({
         if (!tareas[bloque.nombre]) tareas[bloque.nombre] = { nombre: bloque.nombre, enLaDescripcion: true, quitada: false };
       });
       nuevo.tareas = tareas;
-      nuevo.orden = todos.tareas.map((bloque) => bloque.nombre);
       if (!antes.fecha) nuevo.fecha = csv.map((uno) => leerCsvCatapult(uno.texto, gps.columnas).fecha).find(Boolean) || "";
       return nuevo;
     });
@@ -180,6 +225,49 @@ export default function CargarGps({
       sumarCsv(uno.name, texto);
     }
   };
+
+  // ¿Ya está en la Base? Apenas se sabe la fecha (Santiago, 12/10: «si esta
+  // avisa y no deja seguir, si no esta avisa y deja seguir»).
+  const claveDeRevision = leido && !leido.error && /^\d{4}-\d{2}-\d{2}$/.test(estado.fecha) ? `${estado.fecha}|${estado.csv.length}|${leido.filas.length}|${intento}` : "";
+  useEffect(() => {
+    if (!claveDeRevision || !equipoId) {
+      setRevision(null);
+      return undefined;
+    }
+    let vigente = true;
+    setRevision({ clave: claveDeRevision, estado: "revisando" });
+    listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }).then((respuesta) => {
+      if (!vigente) return;
+      if (respuesta.error) {
+        setRevision({ clave: claveDeRevision, estado: "error" });
+        return;
+      }
+      const iguales = filasYaEnLaBase(leido.filas, respuesta.filas);
+      setRevision({ clave: claveDeRevision, estado: iguales ? "esta" : "noEsta", iguales, delDia: respuesta.total });
+    });
+    return () => {
+      vigente = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveDeRevision, equipoId]);
+
+  // El partido de ese día en Partido: «Vs el rival de turno» (Santiago, 12/10).
+  useEffect(() => {
+    if (!hayPartido || !estado.fecha || !equipoId) {
+      setDelPartido(null);
+      return undefined;
+    }
+    let vigente = true;
+    partidoDelDia(equipoId, estado.fecha).then((encontrado) => {
+      if (!vigente) return;
+      setDelPartido(encontrado ? { fecha: estado.fecha, rival: encontrado.rival } : null);
+      if (encontrado) cambiar((antes) => (antes.partido.nombreAMano ? {} : { partido: { ...antes.partido, nombre: `Vs ${encontrado.rival}` } }));
+    });
+    return () => {
+      vigente = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayPartido, estado.fecha, equipoId]);
 
   // Quién es cada nombre del CSV: el jugador con ese nombre en Catapult o en
   // Datos básicos; si no, lo que se eligió (guardarlo con su nombre, un
@@ -354,27 +442,17 @@ export default function CargarGps({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [armado, reglas, gps, config, estado.posteriores]);
 
-  // Lo que ya está en la Base ese día (se avisa antes de guardar).
-  useEffect(() => {
-    if (!ultimo || !estado.fecha || !equipoId) return undefined;
-    let vigente = true;
-    setExistentes(null);
-    listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }).then((respuesta) => {
-      if (vigente) setExistentes(respuesta.error ? null : respuesta.total);
-    });
-    return () => {
-      vigente = false;
-    };
-  }, [ultimo, estado.fecha, equipoId]);
-
   // ------------------------------------------------------- Los controles --
-  const elegir = ({ rotulo, lista, valor, alElegir, sinDato = true }) => {
+  const titulo = (clave) => gps.columnas.find((columna) => columna.clave === clave)?.titulo?.[idioma] || clave;
+  // rotulo: el nombre del desplegable (y el título de su hoja); vacio: lo que
+  // dice sin nada elegido (si no, el rótulo).
+  const elegir = ({ rotulo, lista, valor, alElegir, sinDato = true, vacio = rotulo }) => {
     const suyas = opciones(lista);
     const lasDeLaHoja = [...(sinDato ? [{ valor: "", etiqueta: t("comun.sinDato") }] : []), ...suyas];
     const elegida = lasDeLaHoja.find((opcion) => opcion.valor === valor);
     return (
       <button type="button" className="selector-hoja" aria-label={rotulo} onClick={() => setHoja({ titulo: rotulo, opciones: lasDeLaHoja, valor, alElegir })}>
-        <b>{elegida && elegida.valor !== "" ? elegida.etiqueta : rotulo}</b>
+        <b>{elegida && elegida.valor !== "" ? elegida.etiqueta : vacio}</b>
         <Icono nombre="flecha" size={15} />
       </button>
     );
@@ -385,23 +463,45 @@ export default function CargarGps({
       {control}
     </div>
   );
-  const titulo = (clave) => gps.columnas.find((columna) => columna.clave === clave)?.titulo?.[idioma] || clave;
-  const numero = (valor, alCambiar, { paso: incremento = "any" } = {}) => (
-    <input type="number" inputMode="decimal" min="0" step={incremento} value={valor ?? ""} onChange={(evento) => alCambiar(evento.target.value === "" ? null : Number(evento.target.value))} />
+  const numero = (valor, alCambiar, { paso: incremento = "any", rotulo = "" } = {}) => (
+    <input
+      type="number"
+      inputMode="decimal"
+      min="0"
+      step={incremento}
+      value={valor ?? ""}
+      aria-label={rotulo || undefined}
+      onChange={(evento) => alCambiar(evento.target.value === "" ? null : Number(evento.target.value))}
+    />
+  );
+  const conDosDecimales = (valor) => (esNumero(valor) ? (Math.round(valor * 100) / 100).toLocaleString(idioma) : "—");
+
+  // Lo de arriba de un bloque (como en la plantilla), con lo que se calcula
+  // al final (los m², la relación pausa / trabajo).
+  const encabezado = (definiciones, valores, alCambiar, calculados = []) => (
+    <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
+      {definiciones.map((def) => {
+        const rotulo = def.columna ? titulo(def.columna) : t(def.rotulo);
+        const valor = valores?.[def.campo];
+        let control;
+        if (def.lista) control = elegir({ rotulo, lista: def.lista, valor: valor || "", alElegir: (elegido) => alCambiar({ [def.campo]: elegido }) });
+        else if (def.tipo === "texto")
+          control = <input type="text" maxLength={200} value={valor ?? ""} aria-label={rotulo} onChange={(evento) => alCambiar({ [def.campo]: evento.target.value })} />;
+        else control = numero(valor, (nuevo) => alCambiar({ [def.campo]: nuevo }), { paso: def.paso || "any", rotulo });
+        return campo(rotulo, control, def.campo);
+      })}
+      {calculados.map(({ rotulo, valor }) => (
+        <div className="campo-inicio lesiones-campo-paso gps-cargar-calculado" key={rotulo}>
+          <label>{rotulo}</label>
+          <b>{conDosDecimales(valor)}</b>
+        </div>
+      ))}
+    </section>
   );
 
-  // Tipo de sesión, zona de impacto y código, los tres de un bloque.
-  const deUnBloque = (valores, alCambiar, { zona = true, codigo = true } = {}) => (
-    <>
-      {campo(titulo("tipo_sesion"), elegir({ rotulo: titulo("tipo_sesion"), lista: "tipo_sesion", valor: valores.tipoSesion || "", alElegir: (valor) => alCambiar({ tipoSesion: valor }) }), "tipo")}
-      {zona && campo(titulo("zona_impacto"), elegir({ rotulo: titulo("zona_impacto"), lista: "zona_impacto", valor: valores.zona || "", alElegir: (valor) => alCambiar({ zona: valor }) }), "zona")}
-      {codigo && campo(titulo("codigo_estrategia"), elegir({ rotulo: titulo("codigo_estrategia"), lista: "codigo_estrategia", valor: valores.codigo || "", alElegir: (valor) => alCambiar({ codigo: valor }) }), "codigo")}
-    </>
-  );
-
-  // Elegir varios jugadores: el desplegable dice quiénes van y abre la lista
-  // con casillas (la del filtro de las bases).
-  const elegirJugadores = (rotulo, lista, elegidos, alCambiar) => {
+  // Elegir varios: el desplegable dice cuáles van y abre la lista con
+  // casillas (la del filtro de las bases).
+  const elegirVarios = (rotulo, lista, elegidos, alCambiar, vacio = t("gps.cargar.elegirJugadores")) => {
     const suyos = lista.filter((uno) => elegidos.includes(uno.valor));
     return (
       <button
@@ -410,20 +510,20 @@ export default function CargarGps({
         aria-label={rotulo}
         onClick={() => setHojaVarios({ titulo: rotulo, valores: lista.map((uno) => ({ clave: uno.valor, texto: uno.etiqueta })), elegidos: [...elegidos], busqueda: "", alAplicar: alCambiar })}
       >
-        <b>{suyos.length ? suyos.map((uno) => uno.etiqueta).join(", ") : t("gps.cargar.elegirJugadores")}</b>
+        <b>{suyos.length ? suyos.map((uno) => uno.etiqueta).join(", ") : vacio}</b>
         <Icono nombre="flecha" size={15} />
       </button>
     );
   };
 
   // Un jugador agregado a mano a un bloque (un tiempo del partido o una
-  // tarea; en el historial pasó: Santiago, 10/10). Sus números se escriben al
-  // revisar. Se elige en un desplegable, sin los que ya están en el bloque.
+  // tarea; en el historial pasó: Santiago, 10/10). Sus números se escriben en
+  // la tabla. Se elige en un desplegable, sin los que ya están en el bloque.
   const agregarEn = (id, filasCsv) => {
     const agregados = estado.agregados[id] || [];
     const yaEstan = new Set([...filasCsv.map((fila) => quienDeNombre(fila.nombre)?.clave), ...agregados.map((uno) => uno.quien.clave)].filter(Boolean));
     return (
-      <>
+      <section className="tarjeta tarjeta-ficha gps-cargar-agregar">
         {agregados.length > 0 && (
           <ul className="datos-importar-lista gps-cargar-agregados">
             {agregados.map((uno) => (
@@ -465,21 +565,102 @@ export default function CargarGps({
           <Icono nombre="flecha" size={15} />
         </button>
         {agregados.length > 0 && <p className="lesiones-ayuda">{t("gps.cargar.agregadoAyuda")}</p>}
-      </>
+      </section>
     );
   };
+
+  // Lo que se cambia en una tabla: una medida de Catapult de un jugador (se
+  // recalculan los totales y los Team Average), el «Va Tarea» de un jugador
+  // en su tarea, el «Va» de un total (cambia el Team Average de la sesión) o
+  // cualquier otra celda que no sale del CSV (PSE, una lista, un texto, una
+  // columna del club…), que queda como se escribió. Las medidas de un total
+  // o de un Team Average se calculan.
+  const editarCelda = async (filaId, clave, valor) => {
+    if (aMedias) return { error: "gps.cargar.yaEmpezo" };
+    const fila = resultado?.find((una) => una.id === filaId);
+    if (!fila) return { error: "gps.cargar.seCalcula" };
+    const fuente = fila._fila !== undefined && !fila.promedio ? armado?.fuentes?.[fila._seccion]?.[fila._fila] : null;
+    if (clave === "va_tarea") {
+      if (!fuente || !fila._vaTarea) return { error: "gps.cargar.seCalcula" };
+      if (valor === "si" || valor === "no") cambiar((antes) => ({ vaTarea: { ...antes.vaTarea, [fuente]: valor } }));
+      return {};
+    }
+    const columna = gps.columnas.find((una) => una.clave === clave);
+    if (!columna || ["jugador", "fecha", "porMinuto"].includes(columna.tipo)) return { error: "gps.cargar.seCalcula" };
+    const { fila: nueva, error } = conCambio(fila, clave, valor);
+    if (error) return { error };
+    if (!nueva) return {};
+    const nuevo = nueva.datos?.[clave] ?? null;
+    if (columna.catapult) {
+      if (!fuente) return { error: "gps.cargar.seCalcula" };
+      cambiar((antes) => ({ ediciones: { ...antes.ediciones, [fuente]: { ...(antes.ediciones[fuente] || {}), [clave]: nuevo } } }));
+      return {};
+    }
+    if (clave === "va" && fila._total && fila._quien) {
+      cambiar((antes) => ({ va: { ...antes.va, [fila._quien]: nuevo || "" } }));
+      return {};
+    }
+    const llave = claveDeSalida(fila);
+    cambiar((antes) => ({ posteriores: { ...antes.posteriores, [llave]: { ...(antes.posteriores[llave] || {}), [clave]: nuevo } } }));
+    return {};
+  };
+
+  // --------------------------------------------------- Las tablas --
+  // Las columnas de la Base (como las tiene el club) y, en las tareas, el «Va
+  // Tarea» después de m2, como en la plantilla.
+  const columnasDeLaTabla = useMemo(() => columnas.map((columna) => (["jugador", "fecha"].includes(columna.clave) ? { ...columna, editable: false } : columna)), [columnas]);
+  const columnaVaTarea = useMemo(
+    () => ({
+      clave: "va_tarea",
+      titulo: t("gps.cargar.vaTarea"),
+      tipo: "lista",
+      editable: true,
+      alinear: "centro",
+      opciones: [
+        { valor: "si", etiqueta: t("gps.cargar.va") },
+        { valor: "no", etiqueta: t("gps.cargar.noVa") },
+      ],
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [idioma],
+  );
+  const columnasConVaTarea = useMemo(() => {
+    const lugar = columnasDeLaTabla.findIndex((columna) => columna.clave === "m2");
+    const copia = [...columnasDeLaTabla];
+    copia.splice(lugar === -1 ? copia.length : lugar + 1, 0, columnaVaTarea);
+    return copia;
+  }, [columnasDeLaTabla, columnaVaTarea]);
+  const filaDeLaTabla = (fila) => {
+    const armada = armarFila(fila);
+    if (!fila._vaTarea) return armada;
+    return { ...armada, valores: { ...armada.valores, va_tarea: fila._vaTarea }, textos: { ...armada.textos, va_tarea: fila._vaTarea === "si" ? t("gps.cargar.va") : t("gps.cargar.noVa") } };
+  };
+  const tablaDe = (id, filas, { conVaTarea = false } = {}) => (
+    <section className="tarjeta evaluaciones-tabla gps-cargar-tabla">
+      <TablaDatos
+        id="gps-bloque"
+        recordar={`gps:bloque:${id}`}
+        columnas={conVaTarea ? columnasConVaTarea : columnasDeLaTabla}
+        filas={filas.map(filaDeLaTabla)}
+        fijas={fijas}
+        onEditar={editarCelda}
+      />
+    </section>
+  );
+  const filasDeSeccion = (...secciones) => (resultado || []).filter((fila) => secciones.includes(fila._seccion));
 
   // ---------------------------------------------------------- Los pasos --
   const faltaEnPaso = (id) => {
     if (id === "csv") {
       if (!leido) return t("gps.cargar.faltaCsv");
       if (leido.error) return t(leido.error);
-      if (sinElegir.length) return plural("gps.cargar.faltanNombres", sinElegir.length);
-      if (!bloques || (!bloques.primer && !bloques.segundo && !bloques.tareas.length)) return t("gps.cargar.sinFilas");
-    }
-    if (id === "sesion") {
       if (!estado.fecha) return t("gps.cargar.faltaFecha");
       if (estado.fecha > hoy) return t("gps.error.fechaFutura");
+      if (sinElegir.length) return plural("gps.cargar.faltanNombres", sinElegir.length);
+      if (!bloques || (!bloques.primer && !bloques.segundo && !bloques.tareas.length)) return t("gps.cargar.sinFilas");
+      if (!revision || revision.estado === "revisando") return t("gps.cargar.revisandoBase");
+      if (revision.estado === "error") return t("gps.cargar.noSeRevisoBase");
+      if (revision.estado === "esta") return plural("gps.cargar.yaEsta", revision.iguales, { fecha: fechaCorta(estado.fecha) });
     }
     return "";
   };
@@ -497,6 +678,7 @@ export default function CargarGps({
     window.scrollTo?.(0, 0);
   };
 
+  const microciclo = microcicloDe(estado.fecha, reglas.inicioMicrociclo);
   const pasoCsv = (
     <>
       <section className="tarjeta datos-importar-pegado">
@@ -535,19 +717,50 @@ export default function CargarGps({
         )}
       </section>
       {bloques && (
-        <section className="tarjeta tarjeta-ficha">
-          <div className="cabeza-ficha">
-            <b>{plural("gps.cargar.filasLeidas", leido.filas.length)}</b>
-          </div>
-          <ul className="datos-importar-lista">
-            {bloques.primer && <li>{plural("gps.cargar.bloque", bloques.primer.filas.length, { nombre: t("gps.cargar.primerTiempo") })}</li>}
-            {bloques.segundo && <li>{plural("gps.cargar.bloque", bloques.segundo.filas.length, { nombre: t("gps.cargar.segundoTiempo") })}</li>}
-            {bloques.tareas.map((bloque) => (
-              <li key={bloque.nombre}>{plural("gps.cargar.bloque", bloque.filas.length, { nombre: bloque.nombre })}</li>
-            ))}
-          </ul>
-          {leido.faltan.length > 0 && <p className="datos-importar-aviso">{t("gps.cargar.faltanColumnas", { columnas: leido.faltan.map(titulo).join(", ") })}</p>}
-        </section>
+        <>
+          <section className="tarjeta tarjeta-ficha lesiones-grupo">
+            {campo(t("gps.cargar.fecha"), <input type="date" value={estado.fecha} max={hoy} onChange={(evento) => cambiar({ fecha: evento.target.value })} />, "fecha")}
+            {microciclo !== null && <p className="lesiones-ayuda gps-cargar-microciclo">{t("gps.cargar.microciclo", { n: microciclo })}</p>}
+            {revision?.estado === "revisando" && (
+              <p className="lesiones-estado" role="status">
+                {t("gps.cargar.revisandoBase")}
+              </p>
+            )}
+            {revision?.estado === "esta" && (
+              <p className="lesiones-estado error gps-cargar-revision" role="status">
+                {plural("gps.cargar.yaEsta", revision.iguales, { fecha: fechaCorta(estado.fecha) })}
+              </p>
+            )}
+            {revision?.estado === "noEsta" && (
+              <p className="lesiones-estado gps-cargar-revision gps-cargar-bien" role="status">
+                {t("gps.cargar.noEsta")}
+                {revision.delDia > 0 ? ` ${plural("gps.cargar.otraSesion", revision.delDia)}` : ""}
+              </p>
+            )}
+            {revision?.estado === "error" && (
+              <div className="lesiones-estado error">
+                {t("gps.cargar.noSeRevisoBase")}{" "}
+                <button type="button" onClick={() => setIntento((n) => n + 1)}>
+                  {t("comun.reintentar")}
+                </button>
+              </div>
+            )}
+            {hayPartido && delPartido?.fecha === estado.fecha && <p className="lesiones-ayuda gps-cargar-partido">{t("gps.cargar.partidoEncontrado", { nombre: `Vs ${delPartido.rival}` })}</p>}
+          </section>
+          <section className="tarjeta tarjeta-ficha">
+            <div className="cabeza-ficha">
+              <b>{plural("gps.cargar.filasLeidas", leido.filas.length)}</b>
+            </div>
+            <ul className="datos-importar-lista">
+              {bloques.primer && <li>{plural("gps.cargar.bloque", bloques.primer.filas.length, { nombre: t("gps.cargar.primerTiempo") })}</li>}
+              {bloques.segundo && <li>{plural("gps.cargar.bloque", bloques.segundo.filas.length, { nombre: t("gps.cargar.segundoTiempo") })}</li>}
+              {bloques.tareas.map((bloque) => (
+                <li key={bloque.nombre}>{plural("gps.cargar.bloque", bloque.filas.length, { nombre: bloque.nombre })}</li>
+              ))}
+            </ul>
+            {leido.faltan.length > 0 && <p className="datos-importar-aviso">{t("gps.cargar.faltanColumnas", { columnas: leido.faltan.map(titulo).join(", ") })}</p>}
+          </section>
+        </>
       )}
       {plantelSinLeer && <div className="lesiones-estado error">{t("gps.importar.plantelSinLeer")}</div>}
       {nombresAElegir.length > 0 && (
@@ -611,191 +824,107 @@ export default function CargarGps({
     </>
   );
 
-  const microciclo = microcicloDe(estado.fecha, reglas.inicioMicrociclo);
-  const pasoSesion = (
-    <>
-      <section className="tarjeta tarjeta-ficha lesiones-grupo">
-        {campo(t("gps.cargar.fecha"), <input type="date" value={estado.fecha} max={hoy} onChange={(evento) => cambiar({ fecha: evento.target.value })} />, "fecha")}
-        {microciclo !== null && <p className="lesiones-ayuda gps-cargar-microciclo">{t("gps.cargar.microciclo", { n: microciclo })}</p>}
-        {campo(titulo("tipo_microciclo"), elegir({ rotulo: titulo("tipo_microciclo"), lista: "tipo_microciclo", valor: estado.tipoMicrociclo, alElegir: (valor) => cambiar({ tipoMicrociclo: valor }) }), "tmic")}
-        {campo(
-          t("gps.cargar.dia"),
-          <>
-            <button
-              type="button"
-              className="selector-hoja"
-              aria-label={t("gps.cargar.dia")}
-              onClick={() =>
-                setHoja({ titulo: t("gps.cargar.dia"), opciones: [{ valor: "", etiqueta: t("comun.sinDato") }, ...DIAS.map((dia) => ({ valor: dia, etiqueta: dia }))], valor: estado.dia, alElegir: (valor) => cambiar({ dia: valor }) })
-              }
-            >
-              <b>{estado.dia || t("gps.cargar.dia")}</b>
-              <Icono nombre="flecha" size={15} />
-            </button>
-            <small className="lesiones-ayuda">{t("gps.cargar.diaAyuda", { hora: `${Math.floor(reglas.horaDeLaTarde / 3600)}:${String(Math.floor((reglas.horaDeLaTarde % 3600) / 60)).padStart(2, "0")}` })}</small>
-          </>,
-          "dia",
-        )}
-        {campo(titulo("dispositivo"), opciones("dispositivo").length ? elegir({ rotulo: titulo("dispositivo"), lista: "dispositivo", valor: estado.dispositivo, alElegir: (valor) => cambiar({ dispositivo: valor }) }) : <p className="lesiones-ayuda">{t("gps.importar.sinDispositivos")}</p>, "disp")}
-      </section>
-      <section className="lesiones-paso-titulo">
-        <h2>{t("gps.cargar.promedioSesion")}</h2>
-        <p>{t("gps.cargar.promedioSesionAyuda")}</p>
-      </section>
-      <section className="tarjeta tarjeta-ficha lesiones-grupo">{deUnBloque(estado.sesion, (cambios) => cambiar((antes) => ({ sesion: { ...antes.sesion, ...cambios } })))}</section>
-    </>
-  );
-
+  // Un tiempo del partido (y el partido completo, con los que no ingresaron).
   const cambiarPartido = (parte, cambios) => cambiar((antes) => ({ partido: { ...antes.partido, [parte]: { ...antes.partido[parte], ...cambios } } }));
-  const pasoPartido = (
-    <>
-      <section className="tarjeta tarjeta-ficha lesiones-grupo">
-        {campo(
-          t("gps.cargar.nombrePartido"),
-          <>
-            <input type="text" maxLength={120} value={estado.partido.nombre} placeholder={t("gps.cargar.nombrePartidoEjemplo")} onChange={(evento) => cambiar((antes) => ({ partido: { ...antes.partido, nombre: evento.target.value } }))} />
-            <small className="lesiones-ayuda">{t("gps.cargar.nombrePartidoAyuda")}</small>
-          </>,
-          "nombre",
-        )}
-        {campo(titulo("tarea_partido"), elegir({ rotulo: titulo("tarea_partido"), lista: "tarea_partido", valor: estado.partido.tareaPartido, alElegir: (valor) => cambiar((antes) => ({ partido: { ...antes.partido, tareaPartido: valor } })) }), "tp")}
-      </section>
-      {[
-        ["primer", t("gps.cargar.primerTiempo")],
-        ["segundo", t("gps.cargar.segundoTiempo")],
-        ["completo", t("gps.cargar.partidoCompleto")],
-      ]
-        .filter(([parte]) => parte === "completo" || bloques?.[parte])
-        .map(([parte, rotulo]) => (
-          <details key={parte} className="tarjeta tarjeta-ficha gps-cargar-bloque" open={abierta === parte} onToggle={(evento) => evento.currentTarget.open && setAbierta(parte)}>
-            <summary>
-              <b>{rotulo}</b>
-              {bloques?.[parte] && <span className="gps-cuantas">{plural("gps.cargar.jugadores", bloques[parte].filas.length + (estado.agregados[parte]?.length || 0))}</span>}
-            </summary>
-            <div className="lesiones-grupo">
-              {deUnBloque(estado.partido[parte], (cambios) => cambiarPartido(parte, cambios))}
-              {bloques?.[parte] && agregarEn(parte, bloques[parte].filas)}
-            </div>
-          </details>
-        ))}
-      <details className="tarjeta tarjeta-ficha gps-cargar-bloque" open={abierta === "banco"} onToggle={(evento) => evento.currentTarget.open && setAbierta("banco")}>
-        <summary>
-          <b>{t("gps.cargar.sinIngresar")}</b>
-          <span className="gps-cuantas">{estado.partido.banco.jugadores.length || ""}</span>
-        </summary>
-        <div className="lesiones-grupo">
-          <p className="lesiones-ayuda">{t("gps.cargar.sinIngresarAyuda")}</p>
-          {elegirJugadores(
-            t("gps.cargar.sinIngresar"),
-            actuales.filter((jugador) => !enElPartido.has(`j:${jugador.id}`)).map((jugador) => ({ valor: jugador.id, etiqueta: jugador.nombre })),
-            estado.partido.banco.jugadores,
-            (jugadores) => cambiarPartido("banco", { jugadores }),
-          )}
-          {deUnBloque(estado.partido.banco, (cambios) => cambiarPartido("banco", cambios), { zona: false })}
-        </div>
-      </details>
-    </>
-  );
-
-  // Cada tarea: sus datos (una vez por tarea) y sus jugadores, con su «Va».
-  const cambiarTarea = (nombre, cambios) => cambiar((antes) => ({ tareas: { ...antes.tareas, [nombre]: { ...(antes.tareas[nombre] || { nombre }), ...cambios } } }));
-  const filasDeLaTarea = (bloque) => {
-    const seccion = estado.adicional === bloque.nombre ? "adicional" : `tarea:${bloque.nombre}`;
-    return (resultado || []).filter((fila) => fila._seccion === seccion && !fila.promedio);
-  };
-  const pasoTareas = (
-    <>
-      {(bloques?.tareas || []).map((bloque) => {
-        const suya = estado.tareas[bloque.nombre] || { nombre: bloque.nombre };
-        const esAdicional = estado.adicional === bloque.nombre;
-        const id = `t:${bloque.nombre}`;
-        const suyas = filasDeLaTarea(bloque);
-        return (
-          <details key={bloque.nombre} className={`tarjeta tarjeta-ficha gps-cargar-bloque ${suya.quitada ? "apagada" : ""}`} open={abierta === bloque.nombre} onToggle={(evento) => evento.currentTarget.open && setAbierta(bloque.nombre)}>
-            <summary>
-              <b>{suya.nombre || bloque.nombre}</b>
-              <span className="gps-cuantas">
-                {plural("gps.cargar.jugadores", bloque.filas.length + (estado.agregados[id]?.length || 0))}
-                {esAdicional ? ` · ${t("gps.cargar.adicional")}` : ""}
-                {suya.quitada ? ` · ${t("gps.cargar.quitada")}` : ""}
-              </span>
-            </summary>
-            {!suya.quitada && (
-              <div className="lesiones-grupo">
-                {campo(t("gps.cargar.nombreTarea"), <input type="text" maxLength={200} value={suya.nombre ?? bloque.nombre} onChange={(evento) => cambiarTarea(bloque.nombre, { nombre: evento.target.value })} />, "nombre")}
-                {deUnBloque(suya, (cambios) => cambiarTarea(bloque.nombre, cambios))}
-                <div className="gps-cargar-medidas">
-                  {campo(t("gps.cargar.nroJugadores"), numero(suya.jugadores, (valor) => cambiarTarea(bloque.nombre, { jugadores: valor }), { paso: 1 }), "jug")}
-                  {campo(t("gps.cargar.pausa"), numero(suya.pausa, (valor) => cambiarTarea(bloque.nombre, { pausa: valor }), { paso: 1 }), "pausa")}
-                  {campo(titulo("cp_jug"), numero(suya.cpJug, (valor) => cambiarTarea(bloque.nombre, { cpJug: valor })), "cpjug")}
-                  {campo(titulo("largo"), numero(suya.largo, (valor) => cambiarTarea(bloque.nombre, { largo: valor })), "largo")}
-                  {campo(titulo("ancho"), numero(suya.ancho, (valor) => cambiarTarea(bloque.nombre, { ancho: valor })), "ancho")}
-                  {campo(titulo("base"), numero(suya.base, (valor) => cambiarTarea(bloque.nombre, { base: valor })), "base")}
-                </div>
-                <label className="gps-cargar-casilla">
-                  <input type="checkbox" checked={suya.enLaDescripcion !== false} onChange={(evento) => cambiarTarea(bloque.nombre, { enLaDescripcion: evento.target.checked })} />
-                  {t("gps.cargar.enLaDescripcion")}
-                </label>
-                <p className="lesiones-ayuda">{t("gps.cargar.vaTareaAyuda", { parte: Math.round(reglas.parteDelTiempo * 100) })}</p>
-                <ul className="datos-importar-lista gps-cargar-filas">
-                  {suyas.map((fila) => {
-                    const fuente = armado?.fuentes?.[fila._seccion]?.[fila._fila];
-                    const va = fila._vaTarea === "si";
-                    return (
-                      <li key={fuente}>
-                        <div className="datos-importar-fila">
-                          <b>
-                            {nombreDeQuien({ jugador_id: fila.jugador_id, persona: fila.persona })} <span className="gps-cuantas">· {textoDeSegundos(fila.datos.tiempo)}</span>
-                          </b>
-                          <button
-                            type="button"
-                            className="selector-hoja gps-cargar-va"
-                            aria-label={`${t("gps.cargar.va")}: ${nombreDeQuien({ jugador_id: fila.jugador_id, persona: fila.persona })}`}
-                            onClick={() =>
-                              setHoja({
-                                titulo: `${t("gps.cargar.va")}: ${nombreDeQuien({ jugador_id: fila.jugador_id, persona: fila.persona })}`,
-                                opciones: [
-                                  { valor: "si", etiqueta: t("gps.cargar.va") },
-                                  { valor: "no", etiqueta: t("gps.cargar.noVa") },
-                                ],
-                                valor: va ? "si" : "no",
-                                alElegir: (elegido) => elegido && cambiar((antes) => ({ vaTarea: { ...antes.vaTarea, [fuente]: elegido } })),
-                              })
-                            }
-                          >
-                            <b>{va ? t("gps.cargar.va") : t("gps.cargar.noVa")}</b>
-                            <Icono nombre="flecha" size={13} />
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-                {agregarEn(id, bloque.filas)}
-              </div>
+  const primerPasoDelPartido = bloques?.primer ? "primer" : "segundo";
+  const pasoDelPartido = (parte) => {
+    const secciones = { primer: ["partido:0"], segundo: ["partido:1"], completo: ["partido:completo", "partido:banco"] }[parte];
+    return (
+      <>
+        {parte === primerPasoDelPartido && (
+          <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
+            {campo(
+              t("gps.cargar.nombrePartido"),
+              <>
+                <input
+                  type="text"
+                  maxLength={120}
+                  value={estado.partido.nombre}
+                  placeholder={t("gps.cargar.nombrePartidoEjemplo")}
+                  onChange={(evento) => cambiar((antes) => ({ partido: { ...antes.partido, nombre: evento.target.value, nombreAMano: true } }))}
+                />
+                <small className="lesiones-ayuda">
+                  {delPartido?.fecha === estado.fecha ? t("gps.cargar.nombreDePartido") : t("gps.cargar.nombrePartidoAyuda")}
+                </small>
+              </>,
+              "nombre",
             )}
-            <div className="acciones-registro gps-cargar-acciones">
-              {!suya.quitada && (!estado.adicional || esAdicional) && (
-                <button type="button" className="boton-detalle" onClick={() => cambiar({ adicional: esAdicional ? null : bloque.nombre })}>
-                  {esAdicional ? t("gps.cargar.volverATareas") : t("gps.cargar.pasarAAdicional")}
-                </button>
-              )}
-              <button
-                type="button"
-                className="boton-detalle"
-                onClick={() => {
-                  cambiarTarea(bloque.nombre, { quitada: !suya.quitada });
-                  if (esAdicional) cambiar({ adicional: null });
-                }}
-              >
-                {suya.quitada ? t("gps.cargar.volverAPoner") : t("gps.cargar.quitar")}
-              </button>
-            </div>
-          </details>
-        );
-      })}
-    </>
-  );
+            {campo(titulo("tarea_partido"), elegir({ rotulo: titulo("tarea_partido"), lista: "tarea_partido", valor: estado.partido.tareaPartido, alElegir: (valor) => cambiar((antes) => ({ partido: { ...antes.partido, tareaPartido: valor } })) }), "tp")}
+          </section>
+        )}
+        {encabezado(ENCABEZADO_DEL_PARTIDO, estado.partido[parte], (cambios) => cambiarPartido(parte, cambios))}
+        {parte === "completo" ? (
+          <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
+            {campo(
+              t("gps.cargar.sinIngresar"),
+              <>
+                {elegirVarios(
+                  t("gps.cargar.sinIngresar"),
+                  actuales.filter((jugador) => !enElPartido.has(`j:${jugador.id}`)).map((jugador) => ({ valor: jugador.id, etiqueta: jugador.nombre })),
+                  estado.partido.banco.jugadores,
+                  (jugadores) => cambiarPartido("banco", { jugadores }),
+                )}
+                <small className="lesiones-ayuda">{t("gps.cargar.sinIngresarAyuda")}</small>
+              </>,
+              "banco",
+            )}
+            {campo(titulo("tipo_sesion"), elegir({ rotulo: `${t("gps.cargar.sinIngresar")}: ${titulo("tipo_sesion")}`, vacio: titulo("tipo_sesion"), lista: "tipo_sesion", valor: estado.partido.banco.tipoSesion || "", alElegir: (valor) => cambiarPartido("banco", { tipoSesion: valor }) }), "bancoTipo")}
+            {campo(titulo("codigo_estrategia"), elegir({ rotulo: `${t("gps.cargar.sinIngresar")}: ${titulo("codigo_estrategia")}`, vacio: titulo("codigo_estrategia"), lista: "codigo_estrategia", valor: estado.partido.banco.codigo || "", alElegir: (valor) => cambiarPartido("banco", { codigo: valor }) }), "bancoCodigo")}
+          </section>
+        ) : (
+          agregarEn(parte, bloques?.[parte]?.filas || [])
+        )}
+        {tablaDe(parte, filasDeSeccion(...secciones))}
+      </>
+    );
+  };
+
+  // Una tarea: lo de la tarea una vez («Una vez por tarea») y sus jugadores
+  // con todos sus datos y su «Va Tarea».
+  const cambiarTarea = (nombre, cambios) => cambiar((antes) => ({ tareas: { ...antes.tareas, [nombre]: { ...(antes.tareas[nombre] || { nombre }), ...cambios } } }));
+  const pasoDeTarea = (nombreDelBloque) => {
+    const bloque = bloques?.tareas.find((uno) => uno.nombre === nombreDelBloque);
+    if (!bloque) return null;
+    const suya = estado.tareas[bloque.nombre] || { nombre: bloque.nombre };
+    const esAdicional = estado.adicional === bloque.nombre;
+    const seccion = esAdicional ? "adicional" : `tarea:${bloque.nombre}`;
+    const suyas = filasDeSeccion(seccion);
+    const calculada = suyas.find((fila) => fila.promedio) || suyas[0];
+    return (
+      <>
+        <div className="acciones-registro gps-cargar-acciones">
+          {!suya.quitada && (!estado.adicional || esAdicional) && (
+            <button type="button" className="boton-detalle" onClick={() => cambiar({ adicional: esAdicional ? null : bloque.nombre })}>
+              {esAdicional ? t("gps.cargar.volverATareas") : t("gps.cargar.pasarAAdicional")}
+            </button>
+          )}
+          <button
+            type="button"
+            className="boton-detalle"
+            onClick={() => {
+              cambiarTarea(bloque.nombre, { quitada: !suya.quitada });
+              if (esAdicional) cambiar({ adicional: null });
+            }}
+          >
+            {suya.quitada ? t("gps.cargar.volverAPoner") : t("gps.cargar.quitar")}
+          </button>
+        </div>
+        {suya.quitada ? (
+          <p className="lesiones-vacio">{t("gps.cargar.tareaQuitada")}</p>
+        ) : (
+          <>
+            {encabezado(ENCABEZADO_DE_TAREA, { ...suya, nombre: suya.nombre ?? bloque.nombre }, (cambios) => cambiarTarea(bloque.nombre, cambios), [
+              { rotulo: titulo("cp_tarea"), valor: calculada?.datos?.cp_tarea },
+              { rotulo: titulo("m2"), valor: calculada?.datos?.m2 },
+            ])}
+            {agregarEn(`t:${bloque.nombre}`, bloque.filas)}
+            <p className="lesiones-ayuda gps-cargar-va-ayuda">{t("gps.cargar.vaTareaAyuda", { parte: Math.round(reglas.parteDelTiempo * 100) })}</p>
+            {tablaDe(`t:${bloque.nombre}`, suyas, { conVaTarea: true })}
+          </>
+        )}
+      </>
+    );
+  };
 
   const regenerativo = estado.regenerativo;
   const posiblesRegenerativo = useMemo(() => {
@@ -830,7 +959,7 @@ export default function CargarGps({
               "duracion",
             )}
             <p className="lesiones-ayuda">{t("gps.cargar.regenerativoAyuda", { n: reglas.minimoRegenerativo })}</p>
-            {elegirJugadores(t("gps.cargar.quienesRegenerativo"), posiblesRegenerativo, regenerativo.jugadores, (jugadores) => cambiar((antes) => ({ regenerativo: { ...antes.regenerativo, jugadores } })))}
+            {elegirVarios(t("gps.cargar.quienesRegenerativo"), posiblesRegenerativo, regenerativo.jugadores, (jugadores) => cambiar((antes) => ({ regenerativo: { ...antes.regenerativo, jugadores } })))}
           </>
         )}
       </section>
@@ -874,38 +1003,77 @@ export default function CargarGps({
     </>
   );
 
-  // Lo que se cambia en la tabla: una medida de Catapult de un jugador (se
-  // recalculan los totales y los Team Average), el «Va» de un total (cambia
-  // el Team Average de la sesión) o cualquier otra celda que no sale del CSV
-  // (PSE, una lista, un texto, una columna del club…), que queda como se
-  // escribió. Las medidas de un total o de un Team Average se calculan.
-  const editarCelda = async (filaId, clave, valor) => {
-    if (aMedias) return { error: "gps.cargar.yaEmpezo" };
-    const fila = resultado?.find((una) => una.id === filaId);
-    if (!fila) return { error: "gps.cargar.seCalcula" };
-    const columna = gps.columnas.find((una) => una.clave === clave);
-    if (!columna || ["jugador", "fecha", "porMinuto"].includes(columna.tipo)) return { error: "gps.cargar.seCalcula" };
-    const { fila: nueva, error } = conCambio(fila, clave, valor);
-    if (error) return { error };
-    if (!nueva) return {};
-    const nuevo = nueva.datos?.[clave] ?? null;
-    if (columna.catapult) {
-      const fuente = fila._fila !== undefined && !fila.promedio ? armado?.fuentes?.[fila._seccion]?.[fila._fila] : null;
-      if (!fuente) return { error: "gps.cargar.seCalcula" };
-      cambiar((antes) => ({ ediciones: { ...antes.ediciones, [fuente]: { ...(antes.ediciones[fuente] || {}), [clave]: nuevo } } }));
-      return {};
-    }
-    if (clave === "va" && fila._total && fila._quien) {
-      cambiar((antes) => ({ va: { ...antes.va, [fila._quien]: nuevo || "" } }));
-      return {};
-    }
-    const llave = claveDeSalida(fila);
-    cambiar((antes) => ({ posteriores: { ...antes.posteriores, [llave]: { ...(antes.posteriores[llave] || {}), [clave]: nuevo } } }));
-    return {};
-  };
+  // La sesión, al final: lo del día, el Team Average de la sesión (como su
+  // encabezado en la plantilla), qué tareas van en su descripción y el «Va»
+  // de cada uno.
+  const promedioDeLaSesion = filasDeSeccion("sesion:promedio")[0] || null;
+  const tareasParaLaDescripcion = (bloques?.tareas || []).filter((bloque) => !estado.tareas[bloque.nombre]?.quitada && estado.adicional !== bloque.nombre);
+  const pasoSesion = (
+    <>
+      <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
+        {campo(titulo("tipo_microciclo"), elegir({ rotulo: titulo("tipo_microciclo"), lista: "tipo_microciclo", valor: estado.tipoMicrociclo, alElegir: (valor) => cambiar({ tipoMicrociclo: valor }) }), "tmic")}
+        {campo(
+          t("gps.cargar.dia"),
+          <>
+            <button
+              type="button"
+              className="selector-hoja"
+              aria-label={t("gps.cargar.dia")}
+              onClick={() =>
+                setHoja({ titulo: t("gps.cargar.dia"), opciones: [{ valor: "", etiqueta: t("comun.sinDato") }, ...DIAS.map((dia) => ({ valor: dia, etiqueta: dia }))], valor: estado.dia, alElegir: (valor) => cambiar({ dia: valor }) })
+              }
+            >
+              <b>{estado.dia || t("gps.cargar.dia")}</b>
+              <Icono nombre="flecha" size={15} />
+            </button>
+            <small className="lesiones-ayuda">{t("gps.cargar.diaAyuda", { hora: `${Math.floor(reglas.horaDeLaTarde / 3600)}:${String(Math.floor((reglas.horaDeLaTarde % 3600) / 60)).padStart(2, "0")}` })}</small>
+          </>,
+          "dia",
+        )}
+        {campo(titulo("dispositivo"), opciones("dispositivo").length ? elegir({ rotulo: titulo("dispositivo"), lista: "dispositivo", valor: estado.dispositivo, alElegir: (valor) => cambiar({ dispositivo: valor }) }) : <p className="lesiones-ayuda">{t("gps.importar.sinDispositivos")}</p>, "disp")}
+      </section>
+      <section className="lesiones-paso-titulo">
+        <h2>{t("gps.cargar.promedioSesion")}</h2>
+        <p>{t("gps.cargar.promedioSesionAyuda")}</p>
+      </section>
+      {encabezado(ENCABEZADO_DE_LA_SESION, estado.sesion, (cambios) => cambiar((antes) => ({ sesion: { ...antes.sesion, ...cambios } })), [
+        { rotulo: titulo("cp_tarea"), valor: promedioDeLaSesion?.datos?.cp_tarea },
+        { rotulo: titulo("m2"), valor: promedioDeLaSesion?.datos?.m2 },
+      ])}
+      {tareasParaLaDescripcion.length > 0 && (
+        <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
+          {campo(
+            t("gps.cargar.tareasEnLaDescripcion"),
+            <>
+              {elegirVarios(
+                t("gps.cargar.tareasEnLaDescripcion"),
+                tareasParaLaDescripcion.map((bloque) => ({ valor: bloque.nombre, etiqueta: (estado.tareas[bloque.nombre]?.nombre ?? bloque.nombre).trim() || bloque.nombre })),
+                tareasParaLaDescripcion.filter((bloque) => estado.tareas[bloque.nombre]?.enLaDescripcion !== false).map((bloque) => bloque.nombre),
+                (elegidas) =>
+                  cambiar((antes) => ({
+                    tareas: Object.fromEntries(Object.entries(antes.tareas).map(([nombre, tarea]) => [nombre, { ...tarea, enLaDescripcion: elegidas.includes(nombre) }])),
+                  })),
+                t("gps.cargar.ningunaTarea"),
+              )}
+              <small className="lesiones-ayuda">{t("gps.cargar.tareasEnLaDescripcionAyuda")}</small>
+            </>,
+            "descripcion",
+          )}
+          <div className="campo-inicio lesiones-campo-paso gps-cargar-calculado gps-cargar-descripcion">
+            <label>{titulo("descripcion")}</label>
+            <b>{promedioDeLaSesion?.datos?.descripcion || "—"}</b>
+          </div>
+        </section>
+      )}
+      <section className="lesiones-paso-titulo">
+        <h2>{t("gps.cargar.vaDeCadaUno")}</h2>
+        <p>{t("gps.cargar.vaDeCadaUnoAyuda", { parte: Math.round(reglas.parteDelTiempo * 100) })}</p>
+      </section>
+      {tablaDe("sesion", [...filasDeSeccion("sesion:promedio"), ...(resultado || []).filter((fila) => fila._total)])}
+    </>
+  );
 
   const filasDeLaTabla = useMemo(() => (resultado || []).map((fila) => armarFila(fila)), [resultado, armarFila]);
-  const columnasDeLaTabla = useMemo(() => columnas.map((columna) => (["jugador", "fecha"].includes(columna.clave) ? { ...columna, editable: false } : columna)), [columnas]);
   const deJugadores = (resultado || []).filter((fila) => !fila.promedio).length;
 
   const pasoRevisar = (
@@ -913,19 +1081,19 @@ export default function CargarGps({
       <p className="datos-importar-resumen">
         {plural("gps.cargar.resumen", resultado?.length || 0, { jugadores: deJugadores, promedios: (resultado?.length || 0) - deJugadores, fecha: estado.fecha ? fechaCorta(estado.fecha) : "—" })}
       </p>
-      {existentes > 0 && !aMedias && <p className="lesiones-estado error">{plural("gps.cargar.yaHay", existentes, { fecha: fechaCorta(estado.fecha) })}</p>}
       {aMedias && <p className="lesiones-estado error">{t("gps.cargar.aMedias", { n: aMedias.hechas, total: aMedias.lista.length })}</p>}
       <p className="lesiones-ayuda">{t("gps.cargar.revisarAyuda")}</p>
       <section className="tarjeta evaluaciones-tabla">
-        <TablaDatos id="gps-cargar" recordar="gps:cargar" columnas={columnasDeLaTabla} filas={filasDeLaTabla} fijas={fijas} onEditar={editarCelda} />
+        <TablaDatos id="gps" recordar="gps:cargar" columnas={columnasDeLaTabla} filas={filasDeLaTabla} fijas={fijas} onEditar={editarCelda} />
       </section>
-      {falla && <div className="lesiones-estado error">{t(falla)}</div>}
+      {falla && <div className="lesiones-estado error">{t(falla, { fecha: estado.fecha ? fechaCorta(estado.fecha) : "—" })}</div>}
     </>
   );
 
-  // Se guarda en el orden de la plantilla, de a tandas. Si se corta, lo
-  // guardado queda y lo que falta se guarda al volver a tocar (lo de la
-  // tabla ya no se cambia: sería otro día distinto del que se empezó).
+  // Se guarda en el orden de la plantilla, de a tandas. Justo antes, se
+  // vuelve a mirar que el CSV no esté ya en la Base (otra persona pudo
+  // cargarlo mientras tanto). Si se corta, lo guardado queda y lo que falta
+  // se guarda al volver a tocar (lo de la tabla ya no se cambia).
   const guardar = async () => {
     const lista =
       aMedias?.lista ||
@@ -935,6 +1103,15 @@ export default function CargarGps({
     if (!quedan.length) return;
     setFalla("");
     setProgreso({ n: desde, total: lista.length });
+    if (!aMedias) {
+      const respuesta = await listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha });
+      if (!enPantalla.current) return;
+      if (respuesta.error || filasYaEnLaBase(leido?.filas || [], respuesta.filas)) {
+        setProgreso(null);
+        setFalla(respuesta.error ? "gps.cargar.noSeRevisoBase" : "gps.cargar.yaEstaAlGuardar");
+        return;
+      }
+    }
     const { creadas, error } = await crearFilasGps(equipoId, quedan, {
       alAvanzar: (n) => enPantalla.current && setProgreso({ n: desde + n, total: lista.length }),
       seguir: () => enPantalla.current,
@@ -951,24 +1128,46 @@ export default function CargarGps({
     onListo?.({ cargadas: lista.length, fecha: estado.fecha });
   };
 
-  const titulos = {
-    csv: t("gps.cargar.pasoCsv"),
-    sesion: t("gps.cargar.pasoSesion"),
-    partido: t("gps.cargar.pasoPartido"),
-    tareas: t("gps.cargar.pasoTareas"),
-    jugadores: t("gps.cargar.pasoJugadores"),
-    revisar: t("gps.cargar.pasoRevisar"),
+  // El título y la ayuda de cada paso.
+  const deTarea = actual.startsWith("tarea:") ? actual.slice("tarea:".length) : null;
+  const numeroDeTarea = deTarea ? (bloques?.tareas || []).findIndex((bloque) => bloque.nombre === deTarea) + 1 : 0;
+  const tituloDe = (id) => {
+    if (id.startsWith("tarea:")) {
+      const nombre = id.slice("tarea:".length);
+      return (estado.tareas[nombre]?.nombre ?? nombre).trim() || nombre;
+    }
+    return {
+      csv: t("gps.cargar.pasoCsv"),
+      primer: t("gps.cargar.primerTiempo"),
+      segundo: t("gps.cargar.segundoTiempo"),
+      completo: t("gps.cargar.partidoCompleto"),
+      jugadores: t("gps.cargar.pasoJugadores"),
+      sesion: t("gps.cargar.pasoSesion"),
+      revisar: t("gps.cargar.pasoRevisar"),
+    }[id];
   };
-  const ayudas = {
-    csv: t("gps.cargar.csvAyuda"),
-    tareas: t("gps.cargar.tareasAyuda"),
-    jugadores: t("gps.cargar.jugadoresAyuda"),
-  };
-  const contenido = { csv: pasoCsv, sesion: pasoSesion, partido: pasoPartido, tareas: pasoTareas, jugadores: pasoJugadores, revisar: pasoRevisar }[actual];
+  const ayuda = deTarea
+    ? `${t("gps.cargar.tareaDe", { n: numeroDeTarea, total: bloques?.tareas.length || 0 })}${estado.adicional === deTarea ? ` · ${t("gps.cargar.adicional")}` : ""}. ${t("gps.cargar.tareasAyuda")}`
+    : {
+        csv: t("gps.cargar.csvAyuda"),
+        primer: t("gps.cargar.bloqueAyuda"),
+        segundo: t("gps.cargar.bloqueAyuda"),
+        completo: t("gps.cargar.completoAyuda"),
+        jugadores: t("gps.cargar.jugadoresAyuda"),
+        sesion: t("gps.cargar.sesionAyuda"),
+      }[actual];
+  let contenido;
+  if (actual === "csv") contenido = pasoCsv;
+  else if (["primer", "segundo", "completo"].includes(actual)) contenido = pasoDelPartido(actual);
+  else if (deTarea) contenido = pasoDeTarea(deTarea);
+  else if (actual === "jugadores") contenido = pasoJugadores;
+  else if (actual === "sesion") contenido = pasoSesion;
+  else contenido = pasoRevisar;
+  const ancho = actual !== "csv" && actual !== "jugadores";
 
   return (
     <div className="app">
-      <div className={`contenedor ${actual === "revisar" ? "contenedor-base" : ""}`}>
+      <div className={`contenedor ${ancho ? "contenedor-base" : ""}`}>
         <header className="encabezado lesiones-encabezado">
           <div className="lesiones-encabezado-texto">
             <h1>{t("gps.cargar.titulo")}</h1>
@@ -983,7 +1182,7 @@ export default function CargarGps({
                   className={`${indice === paso ? "actual" : ""} ${indice < paso ? "hecho" : ""}`.trim()}
                   onClick={() => irAlPaso(indice)}
                   disabled={Boolean(progreso || aMedias)}
-                  aria-label={titulos[id]}
+                  aria-label={tituloDe(id)}
                 />
               ))}
             </div>
@@ -993,8 +1192,8 @@ export default function CargarGps({
         </header>
 
         <section className="lesiones-paso-titulo">
-          <h2>{titulos[actual]}</h2>
-          {ayudas[actual] && <p>{ayudas[actual]}</p>}
+          <h2>{tituloDe(actual)}</h2>
+          {ayuda && <p>{ayuda}</p>}
         </section>
 
         {!enLinea && <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>}
@@ -1076,4 +1275,3 @@ export default function CargarGps({
     </div>
   );
 }
-
