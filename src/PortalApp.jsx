@@ -94,9 +94,11 @@ const TARJETAS = [
     modo: MODOS.DATOS,
     permiso: "datos",
     clase: "tarjeta-datos",
-    foto: null,
-    fotoParada: null,
+    // Las mandó Santiago (13/10); el dibujo queda por si no cargan.
+    foto: "/portal/datos.webp",
+    fotoParada: "/portal/datos-parada.webp",
     foco: [0.5, 0.5],
+    focoParada: [0.5, 0.5],
     Arte: ArteDatos,
     Icono: IconoDatos,
     titulo: "portal.datosTitulo",

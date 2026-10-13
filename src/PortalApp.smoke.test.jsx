@@ -144,13 +144,16 @@ describe("el portal", () => {
     expect(portada()).toBeNull();
   });
 
-  test("con algún módulo aparece también Datos básicos, con su dibujo, y entra sin portada", async () => {
+  test("con algún módulo aparece también Datos básicos, con su foto (y el dibujo si no carga)", async () => {
     cuenta.permisos = { partido: true, flujo: true, datos: true };
     await montar();
     expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(4);
     const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Datos básicos"]');
     expect(tarjeta).not.toBeNull();
     expect(tarjeta.classList.contains("tarjeta-datos")).toBe(true);
+    const foto = tarjeta.querySelector(".portal-foto img");
+    expect(foto.getAttribute("src")).toBe("/portal/datos.webp");
+    await act(async () => foto.dispatchEvent(new Event("error")));
     expect(tarjeta.querySelector(".portal-foto img")).toBeNull();
     expect(tarjeta.querySelector(".portal-foto svg")).not.toBeNull();
     await tocar("Entrar a Datos básicos");
