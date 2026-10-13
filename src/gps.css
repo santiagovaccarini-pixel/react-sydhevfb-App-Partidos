@@ -247,11 +247,11 @@
 /* Cada parte de la tarjeta de un bloque, con su título, como el recuadro
    de los % (Santiago, 13/10: «hay que encontrar una manera de darle orden
    visual y separar las cosas para que se entienda bien»): el nombre (la
-   tarea, el partido o la sesión), las medidas con los m², la pausa con las
-   C/P, la densidad con los % y, en la sesión, la descripción. Las primeras,
-   una al lado de la otra si entran (estiradas hasta el borde); la densidad
-   y la descripción, a todo el ancho. Adentro, lo que se escribe va en
-   blanco y lo calculado, en gris. */
+   tarea, el partido o la sesión, con el tipo de sesión), las medidas con
+   los m², la pausa con las C/P y, en la sesión, la descripción. Una al lado
+   de la otra si entran (estiradas hasta el borde); la descripción, a todo
+   el ancho. Después, los % en su recuadro. Adentro, lo que se escribe va
+   en blanco y lo calculado, en gris. */
 .gps-marco .gps-cargar-grupo {
   display: grid;
   flex: 1 1 auto;
@@ -264,7 +264,6 @@
   border-radius: 16px;
   background: #f8fafc;
 }
-.gps-marco .gps-cargar-grupo-densidad,
 .gps-marco .gps-cargar-grupo-descripcion {
   flex-basis: 100%;
 }
@@ -289,15 +288,6 @@
 .gps-marco .gps-cargar-grupo .selector-hoja:hover,
 .gps-marco .gps-cargar-grupo .selector-hoja:active {
   background: #f1f5f9;
-}
-/* Los %, adentro de la densidad: sin su propio recuadro, separados del tipo
-   de sesión por una línea. */
-.gps-marco .gps-cargar-grupo-densidad > .gps-cargar-vs {
-  padding: 10px 0 0;
-  border: 0;
-  border-top: 1px solid #e2e8f0;
-  border-radius: 0;
-  background: none;
 }
 .gps-marco .gps-cargar-descripcion b {
   min-height: 0;

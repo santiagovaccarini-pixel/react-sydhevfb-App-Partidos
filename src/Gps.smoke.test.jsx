@@ -518,7 +518,7 @@ describe("GPS", () => {
     await tocar(opcionDeHoja(texto));
   };
   // El tipo de sesión (la densidad): sin él no se sigue (Santiago, 12/10).
-  const TIPO = "Tipo de Sesión (Densidad)";
+  const TIPO = "Tipo de Sesión";
   const elegirTipo = (texto = "Din. Colectiva", rotulo = TIPO) => elegirDelDesplegable(rotulo, texto);
   const aviso = () => contenedor.querySelector(".aviso-hoja")?.textContent;
   const vs = () => contenedor.querySelector(".gps-cargar-vs")?.textContent;
@@ -690,13 +690,13 @@ describe("GPS", () => {
       const parte = contenedor.querySelector(`.gps-cargar-encabezado .gps-cargar-grupo[aria-label="${titulo}"]`);
       return [...parte.querySelectorAll(".campo-inicio > label")].map((label) => label.textContent);
     };
-    expect([...contenedor.querySelectorAll(".gps-cargar-encabezado .gps-cargar-grupo-titulo")].map((uno) => uno.textContent)).toEqual(["La tarea", "Medidas", "Pausa", "Densidad"]);
-    expect(enLaParte("La tarea")).toEqual(["Nombre de la tarea", "Código Estrategia", "Zona de Impacto"]);
+    expect([...contenedor.querySelectorAll(".gps-cargar-encabezado .gps-cargar-grupo-titulo")].map((uno) => uno.textContent)).toEqual(["La tarea", "Medidas", "Pausa"]);
+    // El tipo de sesión, con la tarea y sin «(Densidad)»: no es la densidad.
+    expect(enLaParte("La tarea")).toEqual(["Nombre de la tarea", TIPO, "Código Estrategia", "Zona de Impacto"]);
     expect(enLaParte("Medidas")).toEqual(["Base", "Largo", "Ancho", "Nro. de jugadores", "m2"]);
     expect(enLaParte("Pausa")).toEqual(["Pausa (segundos)", "C/P Jug", "C/P Tarea"]);
-    // La densidad, con los % con los que se elige.
-    expect(enLaParte("Densidad")).toEqual([TIPO]);
-    expect(contenedor.querySelector('.gps-cargar-grupo[aria-label="Densidad"] .gps-cargar-vs')).not.toBeNull();
+    // Los %, en su recuadro, después de las partes.
+    expect(contenedor.querySelector(".gps-cargar-encabezado > .gps-cargar-vs")).not.toBeNull();
     // Los números y lo calculado: una caja chica.
     ["Base", "Largo", "Ancho", "Nro. de jugadores", "Pausa (segundos)", "C/P Jug", "C/P Tarea", "m2"].forEach((rotulo) => expect(tamanoDe(rotulo)).toContain("gps-cargar-chico"));
     // Los desplegables, del ancho de su opción más larga; sin nada elegido, «Elegí…».
@@ -785,7 +785,7 @@ describe("GPS", () => {
     await elegirTipo();
     await tocar(boton("Siguiente"));
     expect(aviso()).toBe("Falta el tipo de sesión: Sin ingresar.");
-    await elegirTipo("Descanso", "Sin ingresar: Tipo de Sesión (Densidad)");
+    await elegirTipo("Descanso", "Sin ingresar: Tipo de Sesión");
     await tocar(boton("Siguiente"));
     expect(titulo()).toBe("Regenerativo y no entrenaron");
     await elegirTipo("Descanso");

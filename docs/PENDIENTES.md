@@ -1506,7 +1506,7 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     Mts >= 90% Pico), la Metabólica (D, 14,4-25 y 20-45 W), la Fuerza (las cuatro de
     aceleración y desaceleración), la Velocidad (> 25,2 y > 45 W) y el promedio de las nueve
     primeras (sin Mts >= 90% Pico), como en la plantilla; el tipo de sesión (la densidad) se
-    elige al lado. Los V.R. de partido son los de la hoja «Datos Básicos» de la plantilla («VR
+    elige al lado (13/10: el tipo de sesión no es la densidad; ver «sacale densidad», abajo). Los V.R. de partido son los de la hoja «Datos Básicos» de la plantilla («VR
     Partido»): se guardan por club en `gps_reglas` (Ajustes › Reglas de carga › V.R. de
     partido, un número por medida) y los del club se cargan con un SQL que se pasa en el chat
     (no van al código). Sin V.R., el bloque lo dice; sin Team Average (menos de 4), también.
@@ -1597,12 +1597,19 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     cada bloque va en partes, cada una en su recuadro con su título, como el de los %: «La
     tarea» / «El partido» / «La sesión» (el nombre, Tarea o Partido, código y zona), «Medidas»
     (base, largo, ancho, Nro. de jugadores y m2), «Pausa» (series, bloques, pausa, C/P Jug y
-    C/P Tarea), «Densidad» (el tipo de sesión y, debajo, el % vs V.R. de partido con el que se
-    elige) y, en la sesión, «Descripción» (las tareas que van y la descripción que queda).
-    Las tres primeras, una al lado de la otra si entran; la densidad y la descripción, a todo
-    el ancho. Una parte sin nada a la vista (por ejemplo, las medidas del partido, ocultas en
+    C/P Tarea) y, en la sesión, «Descripción» (las tareas que van y la descripción que queda).
+    Una al lado de la otra si entran; la descripción, a todo el ancho. Después, el % vs V.R.
+    de partido en su recuadro. Una parte sin nada a la vista (por ejemplo, las medidas del partido, ocultas en
     Ajustes) no va. Adentro, lo que se escribe va en blanco y lo calculado, en gris. Agregar un
     jugador sigue al final. Descartado: todos los campos sueltos uno al lado del otro.
+  - Santiago, 13/10, al verlo agrupado: «sacale densidad a tipo de sesion xq no es eso la
+    densidad y tiene que ir con la tarea». La columna se llama «Tipo de Sesión» (en portugués,
+    «Tipo de Sessão») en toda la app: la Base, Ajustes y Cargar. Al pegar desde Excel se sigue
+    reconociendo «Tipo de Sesión (Densidad)», como dice la hoja `BD_GPS`. En Cargar, el tipo de
+    sesión va en la parte de la tarea (del partido o de la sesión), después del nombre. Una
+    primera versión ponía el tipo de sesión con los % en una parte «Densidad»: descartada. Qué
+    es la densidad no se definió; los % siguen siendo con los que Santiago la decide («No estan
+    los % vs vr de partido con los que se decide la densidad de la sesion», 12/10).
 - **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
   jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
   Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,

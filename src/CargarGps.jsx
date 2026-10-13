@@ -48,10 +48,10 @@ const claveDeSalida = (fila) => `${fila._seccion}|${fila._quien || ""}|${fila._f
 // columna de la Base (como lo llame el club). grupo: en qué parte de la
 // tarjeta va (Santiago, 13/10: «hay que encontrar una manera de darle orden
 // visual y separar las cosas»): el nombre (la tarea, el partido o la
-// sesión), las medidas (con los m²), la pausa (con las C/P) y la densidad
-// (con el % vs V.R. de partido).
+// sesión, con el tipo de sesión: «tiene que ir con la tarea», 13/10), las
+// medidas (con los m²) y la pausa (con las C/P).
 const ENCABEZADO_DEL_PARTIDO = [
-  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion", grupo: "densidad" },
+  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion", grupo: "nombre" },
   { campo: "codigo", lista: "codigo_estrategia", columna: "codigo_estrategia", grupo: "nombre" },
   { campo: "zona", lista: "zona_impacto", columna: "zona_impacto", grupo: "nombre" },
   { campo: "largo", tipo: "numero", columna: "largo", grupo: "medidas" },
@@ -63,8 +63,8 @@ const ENCABEZADO_DEL_PARTIDO = [
   { campo: "pausa", tipo: "texto", rotulo: "gps.cargar.pausaDelPartido", grupo: "pausa" },
 ];
 const ENCABEZADO_DE_TAREA = [
-  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion", grupo: "densidad" },
   { campo: "nombre", tipo: "texto", rotulo: "gps.cargar.nombreTarea", largo: true, grupo: "nombre" },
+  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion", grupo: "nombre" },
   { campo: "codigo", lista: "codigo_estrategia", columna: "codigo_estrategia", grupo: "nombre" },
   { campo: "zona", lista: "zona_impacto", columna: "zona_impacto", grupo: "nombre" },
   { campo: "base", tipo: "numero", columna: "base", grupo: "medidas" },
@@ -679,18 +679,15 @@ export default function CargarGps({
 
   // Una parte de la tarjeta de un bloque, con su título arriba (como el
   // recuadro de los %): si no tiene nada, no va.
-  const grupo = (clave, rotulo, contenido, { despues = null } = {}) => {
+  const grupo = (clave, rotulo, contenido) => {
     const hay = [contenido].flat().filter(Boolean);
-    if (!hay.length && !despues) return null;
+    if (!hay.length) return null;
     return (
       <div className={`gps-cargar-grupo gps-cargar-grupo-${clave}`} role="group" aria-label={rotulo} key={clave}>
         <span className="gps-cargar-grupo-titulo">{rotulo}</span>
-        {hay.length > 0 && (
-          <div className="gps-cargar-grupo-campos">
-            {hay.map((uno, i) => (uno?.key != null ? uno : <React.Fragment key={`suelto-${i}`}>{uno}</React.Fragment>))}
-          </div>
-        )}
-        {despues}
+        <div className="gps-cargar-grupo-campos">
+          {hay.map((uno, i) => (uno?.key != null ? uno : <React.Fragment key={`suelto-${i}`}>{uno}</React.Fragment>))}
+        </div>
       </div>
     );
   };
@@ -704,7 +701,8 @@ export default function CargarGps({
   // darle orden visual y separar las cosas para que se entienda bien, por
   // ejemplo poner los 2 CPJ y CPT por un lado, Todas las mediciones y m2 por
   // otro»): de: tarea, partido o sesion (el título de la primera); antes va
-  // en la primera; descripcion, en la última (la de la sesión).
+  // en la primera; descripcion, en la última (la de la sesión). El % vs
+  // V.R. de partido, en su recuadro, después de las partes.
   const encabezado = (definiciones, valores, alCambiar, calculados = [], promedioDelBloque, { antes = null, despues = null, de = "tarea", descripcion = null } = {}) => {
     const control = (def) => {
       const rotulo = def.columna ? titulo(def.columna) : t(def.rotulo);
@@ -727,7 +725,7 @@ export default function CargarGps({
         {grupo("nombre", t(`gps.cargar.grupos.${de}`), [antes, ...delGrupo("nombre")])}
         {grupo("medidas", t("gps.cargar.grupos.medidas"), delGrupo("medidas"))}
         {grupo("pausa", t("gps.cargar.grupos.pausa"), delGrupo("pausa"))}
-        {grupo("densidad", t("gps.cargar.grupos.densidad"), delGrupo("densidad"), { despues: promedioDelBloque !== undefined && panelVs(promedioDelBloque) })}
+        {promedioDelBloque !== undefined && panelVs(promedioDelBloque)}
         {descripcion && grupo("descripcion", t("gps.cargar.grupos.descripcion"), descripcion)}
         {despues}
       </section>
