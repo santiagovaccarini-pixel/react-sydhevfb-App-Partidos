@@ -68,6 +68,12 @@ export const REGLAS_CARGA = Object.freeze({
   // Partido»): con ellos cada bloque muestra su % (vsPartido). Los pone cada
   // club; no van en el código.
   vrPartido: Object.freeze({}),
+  // Los colores de ese %, como en la plantilla (Santiago, 13/10: «menor a 90%
+  // en rojo y mayor o igual a 90% en verde»): cada medida, y también la
+  // metabólica, la fuerza y la velocidad, verde desde esta parte y roja
+  // abajo; el promedio, desde la suya (la plantilla: 70 %).
+  corteVsPartido: 0.9,
+  corteVsPartidoPromedio: 0.7,
   // Lo de arriba de los bloques del partido que no se ve (Santiago, 12/10:
   // «no tienen que estar las opciones de largo, ancho, base, m2, series,
   // bloques, codigo de estrategia y nmro de jugadores»; se ven desde Ajustes).
@@ -112,6 +118,8 @@ export const AJUSTES_DE_REGLAS = Object.freeze([
   { clave: "parteNoEntrenaron", tipo: "parte", minimo: 0, maximo: 1 },
   { clave: "partidoVaEntero", tipo: "prendida" },
   { clave: "vrPartido", tipo: "vr" },
+  { clave: "corteVsPartido", tipo: "parte", minimo: 0, maximo: 1 },
+  { clave: "corteVsPartidoPromedio", tipo: "parte", minimo: 0, maximo: 1 },
   { clave: "ocultosDelPartido", tipo: "campos", opciones: CAMPOS_DEL_PARTIDO },
   { clave: "conArqueros", tipo: "prendida" },
 ]);
@@ -464,6 +472,10 @@ export const vsPartido = (datos, vr = {}) => {
     promedio: promedioDe(VS_PARTIDO.promedio),
   };
 };
+
+// ¿Un % vs V.R. de partido llega a su corte? true (verde), false (rojo) o
+// null (sin dato). Se compara como Excel (con 15 cifras).
+export const llegaAlCorte = (numero, corte) => (esNumero(numero) && esNumero(corte) ? Number(numero.toPrecision(15)) >= corte : null);
 
 // Un arquero de Datos básicos (su Posición).
 export const esArquero = (jugador) => jugador?.posicion === "goleiro";

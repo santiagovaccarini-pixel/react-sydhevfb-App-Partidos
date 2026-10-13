@@ -1506,6 +1506,17 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     Partido»): se guardan por club en `gps_reglas` (Ajustes › Reglas de carga › V.R. de
     partido, un número por medida) y los del club se cargan con un SQL que se pasa en el chat
     (no van al código). Sin V.R., el bloque lo dice; sin Team Average (menos de 4), también.
+  - Santiago, 13/10: «Hace mas estetico los % y respeta las reglas de menor a 90% en rojo y
+    mayor o igual a 90% en verde». Los colores son los del formato condicional de la plantilla
+    (filas 9, 50, 180, 681…): cada medida, en negrita, roja abajo del 90 % y verde desde el 90 %;
+    el promedio (columna Z), con su propio corte, 70 %. La metabólica, la fuerza y la velocidad
+    no tienen color en la plantilla: llevan el de las medidas (90 %), por la regla que dio
+    Santiago. Los decimales, como la plantilla: las medidas y el promedio sin decimales; los tres
+    grupos, con uno. Se compara como Excel (con 15 cifras). Los dos cortes están en Ajustes ›
+    Reglas de carga (90 % y 70 %). El recuadro: los tres grupos y el promedio en tarjetas con el
+    número grande, un borde y una barra (de 0 a 150 %, con una marca en el corte) del color que
+    toca; cada medida con su número en una pastilla verde o roja; arriba, qué es cada color.
+    Sin dato, gris.
   - «Solo los bloques que son de partido, no tienen que estar las opciones de largo, ancho,
     base, m2, series, bloques, codigo de estrategia y nmro de jugadores (deja dentro de ajustes
     que se pueda ocultar y si quiero usarlo podes deocultarlo dentro de ajustes)»: en los
@@ -1599,6 +1610,8 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
   TIEMPO y SEGUNDO TIEMPO. Con esta versión la pantalla dice cuál de las dos cosas pasó.
 - ¿Los V.R. de partido van por dispositivo (paso 4)? Hoy hay uno solo por club, como la
   plantilla.
+- El promedio del % vs V.R. de partido va en verde desde el 70 % (la plantilla) y no desde el
+  90 % que dijo Santiago el 13/10: confirmar cuál (se cambia en Ajustes › Reglas de carga).
 - Lo descartado del regenerativo (quien está en el CSV ya no se elige): confirmar con Santiago
   que no hay días con sesión y regenerativo para la misma persona.
 - A quien administra el club, o a un dueño de la app, un permiso nuevo (como GPS) no se le da

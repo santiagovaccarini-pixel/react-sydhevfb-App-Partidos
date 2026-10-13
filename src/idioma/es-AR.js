@@ -578,6 +578,9 @@ export default {
       partidoSinRival: "El partido del {{fecha}} en Partido no tiene rival cargado: el nombre se escribe a mano.",
       vsPartido: "% vs V.R. de partido",
       vs: { metabolica: "Metabólica", fuerza: "Fuerza", velocidad: "Velocidad", promedio: "Promedio" },
+      vsLeyendaBien: "{{corte}} o más",
+      vsLeyendaBajo: "Menos de {{corte}}",
+      vsLeyendaPromedio: "Promedio: desde {{corte}}",
       sinVr: "Para ver el % de cada bloque contra el partido, cargá los V.R. de partido en Ajustes › Reglas de carga.",
       vsSinPromedio: "Sin Team Average (menos de {{n}} jugadores): no hay % vs V.R. de partido.",
       nadieSinIngresar: "Nadie",
@@ -668,6 +671,16 @@ export default {
         ninguno: "Sin cargar",
         ayuda: "Lo de cada minuto de un partido (la hoja Datos Básicos de la plantilla, VR Partido). Con estos, cada bloque muestra su % para elegir la densidad. Vacío: no se muestra.",
         malo: "Escribí números mayores que 0 (o dejalo vacío).",
+      },
+      corteVsPartido: {
+        titulo: "% vs V.R. de partido en verde",
+        detalle: "Desde el {{valor}} (cada medida, Metabólica, Fuerza y Velocidad)",
+        ayuda: "Desde esta parte del V.R. de partido va en verde y abajo, en rojo. En la plantilla: {{valor}}.",
+      },
+      corteVsPartidoPromedio: {
+        titulo: "% vs V.R. de partido: el promedio en verde",
+        detalle: "Desde el {{valor}}",
+        ayuda: "El promedio de las medidas va en verde desde esta parte del V.R. de partido y abajo, en rojo. En la plantilla: {{valor}}.",
       },
       ocultosDelPartido: {
         titulo: "Lo que se ve en los bloques del partido",
