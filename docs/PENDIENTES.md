@@ -647,7 +647,9 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   05/10 (`public/portal/lesiones.webp` y `lesiones-parada.webp`, las mandó Santiago); el dibujo
   de la figura del cuerpo en dorado queda por si no cargan. Evaluaciones tiene las suyas desde el
   13/10 (`public/portal/evaluaciones.webp` y `evaluaciones-parada.webp`, el gimnasio de
-  evaluación en dorado que mandó Santiago); su dibujo queda por si no cargan. La foto de una base nueva va en
+  evaluación en dorado que mandó Santiago); su dibujo queda por si no cargan. GPS tiene las suyas
+  desde el 13/10 (`public/portal/gps.webp` y `gps-parada.webp`, el tablero de GPS en dorado que
+  mandó Santiago: «Modulo de gps»); su dibujo queda por si no cargan. La foto de una base nueva va en
   `foto`/`fotoParada` de su entrada en `BASES` y en la lista de `scripts/precache.js`.
 - **Regla para todas las bases (Santiago, 09/10): lo nuevo se carga en su propia pantalla,
   aparte, como Nuevos casos en Lesiones.** Palabras del pedido: «una pantalla para cargar
@@ -1729,7 +1731,8 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
   (decisión del 03/10, en «Lesiones: lo que sigue»): ahora que el GPS está en la app, falta
   conectarlas (cuáles columnas son los minutos de cada jugador por día).~~ Conectadas el 11/10:
   ver «Lo anotado en Notas», tiempos de selección.
-- La foto de la tarjeta: hasta que haya, va el dibujo.
+- ~~La foto de la tarjeta: hasta que haya, va el dibujo.~~ Puesta el 13/10 (las mandó Santiago:
+  «Modulo de gps»); ver «Bases de Datos (05/10)», Fotos.
 
 ## Cuentas paso 2: dueños, sub-dueños y pedidos por club (06/10)
 
