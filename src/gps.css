@@ -188,6 +188,9 @@
    se empieza a agrandar antes de llegar»). */
 .gps-marco .gps-cargar-crece {
   display: grid;
+  /* Una palabra larga sin espacios tampoco la ensancha: se corta en el borde
+     y sigue en el renglón de abajo (Santiago, 13/10). */
+  grid-template-columns: minmax(0, 1fr);
   width: 0;
   min-width: 100%;
 }
@@ -346,6 +349,9 @@
 }
 .gps-marco .gps-cargar .lesiones-paso-titulo h2 {
   font-size: clamp(24px, 6vw, 30px);
+  /* El nombre de la tarea, aunque sea muy largo o no tenga espacios, no se
+     sale de la pantalla. */
+  overflow-wrap: anywhere;
 }
 .gps-marco .gps-cargar .gps-cargar-encabezado .campo-inicio > label {
   margin: 0 0 4px;
