@@ -264,6 +264,20 @@
   border-radius: 16px;
   background: #f8fafc;
 }
+/* Las medidas y, debajo, la pausa (Santiago, 13/10: «pasa el bloque de
+   pausa abajo de las medidas»): una columna al lado de la primera parte, o
+   debajo si no entra. */
+.gps-marco .gps-cargar-columna {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+.gps-marco .gps-cargar-columna > .gps-cargar-grupo {
+  flex: 0 0 auto;
+}
 .gps-marco .gps-cargar-grupo-descripcion {
   flex-basis: 100%;
 }

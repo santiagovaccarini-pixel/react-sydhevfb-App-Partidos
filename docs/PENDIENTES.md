@@ -1610,6 +1610,9 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     primera versión ponía el tipo de sesión con los % en una parte «Densidad»: descartada. Qué
     es la densidad no se definió; los % siguen siendo con los que Santiago la decide («No estan
     los % vs vr de partido con los que se decide la densidad de la sesion», 12/10).
+  - Santiago, 13/10, con una captura de una tarea: «pasa el bloque de pausa abajo de las
+    medidas porfavor». «Medidas» y, debajo, «Pausa» van en una columna, al lado de la parte de
+    la tarea (del partido o de la sesión) si entra, o debajo de ella si no.
 - **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
   jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
   Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,

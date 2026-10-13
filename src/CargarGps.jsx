@@ -692,6 +692,13 @@ export default function CargarGps({
     );
   };
 
+  // Partes una debajo de la otra (Santiago, 13/10: «pasa el bloque de pausa
+  // abajo de las medidas»); sin ninguna, nada.
+  const columna = (...partes) => {
+    const hay = partes.filter(Boolean);
+    return hay.length ? <div className="gps-cargar-columna">{hay}</div> : null;
+  };
+
   // Lo de arriba de un bloque (como en la plantilla), con lo que se calcula
   // al final (los m², la relación pausa / trabajo) y, si se pasa el Team
   // Average del bloque (o null, si no tiene), su % vs V.R. de partido.
@@ -723,8 +730,7 @@ export default function CargarGps({
     return (
       <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
         {grupo("nombre", t(`gps.cargar.grupos.${de}`), [antes, ...delGrupo("nombre")])}
-        {grupo("medidas", t("gps.cargar.grupos.medidas"), delGrupo("medidas"))}
-        {grupo("pausa", t("gps.cargar.grupos.pausa"), delGrupo("pausa"))}
+        {columna(grupo("medidas", t("gps.cargar.grupos.medidas"), delGrupo("medidas")), grupo("pausa", t("gps.cargar.grupos.pausa"), delGrupo("pausa")))}
         {promedioDelBloque !== undefined && panelVs(promedioDelBloque)}
         {descripcion && grupo("descripcion", t("gps.cargar.grupos.descripcion"), descripcion)}
         {despues}
