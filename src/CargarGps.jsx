@@ -11,11 +11,11 @@ import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, falt
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
 import { COMO_PERSONA, NO_CARGAR, buscadorDelGps, leerSegundos } from "./domain/gps/importar.js";
 import { esNumero, textoDeSegundos } from "./domain/gps/valores.js";
-import { crearFilasGps, listarGps, partidoDelDia } from "./domain/gpsDb.js";
+import { borrarEnCurso, crearFilasGps, dejarEnCurso, enCursoDelDia, listarGps, partidoDelDia } from "./domain/gpsDb.js";
 import { DUDOSO, nombreIgual } from "./domain/importarPersonas.js";
 import { actualesPrimero, cargarPlantelConCatapult, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta, hoyISO } from "./idioma/formatos.js";
+import { fechaCorta, fechaYHora, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
 // GPS › Cargar (paso 2): lo de cada día con la lógica de la plantilla «Suma
@@ -100,6 +100,11 @@ const estadoInicial = () => ({
   posteriores: {},
 });
 
+// Lo que se guarda de una carga sin terminar: todo lo hecho (el CSV, lo
+// elegido y lo corregido). Lo demás sale de ahí.
+export const FORMATO_EN_CURSO = 1;
+const estadoDeEnCurso = (datos) => (datos?.formato === FORMATO_EN_CURSO && datos.estado && typeof datos.estado === "object" ? { ...estadoInicial(), ...datos.estado } : estadoInicial());
+
 export default function CargarGps({
   gps,
   config = configGpsVacia(),
@@ -112,14 +117,28 @@ export default function CargarGps({
   armarFila,
   conCambio,
   enLinea = true,
+  // La carga sin terminar que se sigue: { id, version, paso, datos } (sin ella, una nueva).
+  enCurso = null,
   onListo,
   onCancelar,
   onSinGuardar,
+  // Se dejó para revisar: ({ fecha }).
+  onDejado,
+  // La siguieron en otro aparato: abrir la última (su id).
+  onAbrirEnCurso,
 }) {
   const { idioma, plural } = useIdioma();
   const hoy = hoyISO();
-  const [paso, setPaso] = useState(0);
-  const [estado, setEstado] = useState(estadoInicial);
+  const [paso, setPaso] = useState(() => (enCurso?.datos ? enCurso.paso || 0 : 0));
+  const [estado, setEstado] = useState(() => (enCurso?.datos ? estadoDeEnCurso(enCurso.datos) : estadoInicial()));
+  // Dejar para revisar (Santiago, 13/10): la carga sin terminar que es esta
+  // ({ id, version }; sin id, todavía no se dejó), si se está dejando y si la
+  // siguieron en otro aparato en el medio.
+  const [deEnCurso, setDeEnCurso] = useState(() => (enCurso?.id ? { id: enCurso.id, version: enCurso.version } : null));
+  const esEnCurso = useRef(deEnCurso);
+  esEnCurso.current = deEnCurso;
+  const [dejando, setDejando] = useState(false);
+  const [otroAparato, setOtroAparato] = useState(false);
   const [errorPaso, setErrorPaso] = useState("");
   const [hoja, setHoja] = useState(null);
   // El desplegable de varios abierto: { titulo, valores, elegidos, busqueda, alAplicar }.
@@ -173,6 +192,13 @@ export default function CargarGps({
   useEffect(() => () => onSinGuardar?.(false), [onSinGuardar]);
 
   const cambiar = (cambios) => setEstado((antes) => ({ ...antes, ...(typeof cambios === "function" ? cambios(antes) : cambios) }));
+  // Ese día ya tiene una carga sin terminar: quién la dejó y cuándo.
+  const textoEnCurso = (otra) =>
+    t("gps.enCurso.enCursoDelDia", {
+      fecha: fechaCorta(otra?.fecha || estado.fecha),
+      quien: otra?.actualizado_email || "—",
+      cuando: otra?.actualizado_en ? fechaYHora(otra.actualizado_en) : "—",
+    });
 
   // ------------------------------------------------------------- El CSV --
   const leido = useMemo(() => {
@@ -261,13 +287,20 @@ export default function CargarGps({
     }
     let vigente = true;
     setRevision({ clave: claveDeRevision, estado: "revisando" });
-    listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }).then((respuesta) => {
+    // También si ese día ya tiene una carga sin terminar (que no sea esta):
+    // «lo frena y dice que ya esta en curso ese cargado» (Santiago, 13/10).
+    Promise.all([listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }), enCursoDelDia(equipoId, estado.fecha)]).then(([respuesta, delDia]) => {
       if (!vigente) return;
-      if (respuesta.error) {
+      if (respuesta.error || delDia.error) {
         setRevision({ clave: claveDeRevision, estado: "error" });
         return;
       }
       const iguales = filasYaEnLaBase(leido.filas, respuesta.filas);
+      const otra = delDia.enCurso && delDia.enCurso.id !== esEnCurso.current?.id ? delDia.enCurso : null;
+      if (!iguales && otra) {
+        setRevision({ clave: claveDeRevision, estado: "enCurso", enCurso: otra });
+        return;
+      }
       setRevision({ clave: claveDeRevision, estado: iguales ? "esta" : "noEsta", iguales, delDia: respuesta.total });
     });
     return () => {
@@ -967,6 +1000,7 @@ export default function CargarGps({
       if (!revision || revision.estado === "revisando") return t("gps.cargar.revisandoBase");
       if (revision.estado === "error") return t("gps.cargar.noSeRevisoBase");
       if (revision.estado === "esta") return plural("gps.cargar.yaEsta", revision.iguales, { fecha: fechaCorta(estado.fecha) });
+      if (revision.estado === "enCurso") return textoEnCurso(revision.enCurso);
     }
     // Sin tipo de sesión, día o dispositivo no se carga nada (Santiago, 12/10);
     // nadie puede estar dos veces en un bloque (un nombre cambiado).
@@ -1099,6 +1133,11 @@ export default function CargarGps({
             {revision?.estado === "esta" && (
               <p className="lesiones-estado error gps-cargar-revision" role="status">
                 {plural("gps.cargar.yaEsta", revision.iguales, { fecha: fechaCorta(estado.fecha) })}
+              </p>
+            )}
+            {revision?.estado === "enCurso" && (
+              <p className="lesiones-estado error gps-cargar-revision" role="status">
+                {textoEnCurso(revision.enCurso)}
               </p>
             )}
             {revision?.estado === "noEsta" && (
@@ -1537,11 +1576,16 @@ export default function CargarGps({
     setFalla("");
     setProgreso({ n: desde, total: lista.length });
     if (!aMedias) {
-      const respuesta = await listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha });
+      const [respuesta, delDia] = await Promise.all([listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }), enCursoDelDia(equipoId, estado.fecha)]);
       if (!enPantalla.current) return;
-      if (respuesta.error || filasYaEnLaBase(leido?.filas || [], respuesta.filas)) {
+      if (respuesta.error || delDia.error || filasYaEnLaBase(leido?.filas || [], respuesta.filas)) {
         setProgreso(null);
-        setFalla(respuesta.error ? "gps.cargar.noSeRevisoBase" : "gps.cargar.yaEstaAlGuardar");
+        setFalla(respuesta.error || delDia.error ? "gps.cargar.noSeRevisoBase" : "gps.cargar.yaEstaAlGuardar");
+        return;
+      }
+      if (delDia.enCurso && delDia.enCurso.id !== deEnCurso?.id) {
+        setProgreso(null);
+        setFalla("gps.enCurso.yaEnCurso");
         return;
       }
     }
@@ -1558,7 +1602,53 @@ export default function CargarGps({
       return;
     }
     setAMedias(null);
-    onListo?.({ cargadas: lista.length, fecha: estado.fecha });
+    // Ya está en la Base: deja de estar «Sin terminar».
+    const quitada = deEnCurso?.id ? await borrarEnCurso(deEnCurso.id) : { error: "" };
+    onListo?.({ cargadas: lista.length, fecha: estado.fecha, quedoEnCurso: Boolean(quitada.error) });
+  };
+
+  // Dejar para revisar: todo lo hecho va a la base y se sigue desde
+  // «Sin terminar», en este aparato o en otro, en el paso donde quedó.
+  const dejar = async () => {
+    if (!estado.csv.length || dejando) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(estado.fecha)) {
+      setErrorPaso(t("gps.enCurso.faltaFecha"));
+      return;
+    }
+    if (revision?.estado === "enCurso") {
+      setErrorPaso(textoEnCurso(revision.enCurso));
+      return;
+    }
+    // Lo que ya está en la Base no se deja para después: no se podría guardar.
+    if (revision?.estado === "esta") {
+      setErrorPaso(plural("gps.cargar.yaEsta", revision.iguales, { fecha: fechaCorta(estado.fecha) }));
+      return;
+    }
+    const donde = Math.min(paso, PASOS.length - 1);
+    setDejando(true);
+    setErrorPaso("");
+    setOtroAparato(false);
+    const respuesta = await dejarEnCurso(equipoId, {
+      id: deEnCurso?.id || null,
+      version: deEnCurso?.version || null,
+      fecha: estado.fecha,
+      paso: donde,
+      resumen: { titulo: String(tituloDe(actual) || "").slice(0, 160), paso: donde + 1, pasos: PASOS.length },
+      datos: { formato: FORMATO_EN_CURSO, estado },
+    });
+    if (!enPantalla.current) return;
+    setDejando(false);
+    if (respuesta.error === "gps.enCurso.otroAparato") {
+      setOtroAparato(true);
+      return;
+    }
+    if (respuesta.error === "gps.enCurso.noEsta") setDeEnCurso(null);
+    if (respuesta.error) {
+      setErrorPaso(t(respuesta.error));
+      return;
+    }
+    setDeEnCurso({ id: respuesta.id, version: respuesta.version });
+    onDejado?.({ fecha: estado.fecha });
   };
 
   // El título y la ayuda de cada paso.
@@ -1625,12 +1715,28 @@ export default function CargarGps({
         </header>
 
         <section className="lesiones-paso-titulo">
-          <h2>{tituloDe(actual)}</h2>
+          <div className="gps-cargar-titulo-fila">
+            <h2>{tituloDe(actual)}</h2>
+            {estado.csv.length > 0 && !aMedias && (
+              <button type="button" className="boton-secundario gps-cargar-dejar" onClick={dejar} disabled={dejando || Boolean(progreso) || !enLinea}>
+                <Icono nombre="reloj" size={15} />
+                {dejando ? t("gps.enCurso.dejando") : t("gps.enCurso.dejar")}
+              </button>
+            )}
+          </div>
           {ayuda && <p>{ayuda}</p>}
         </section>
 
         {!enLinea && <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>}
         {errorPaso && <div className="aviso-hoja">{errorPaso}</div>}
+        {otroAparato && (
+          <div className="lesiones-estado error" role="status">
+            {t("gps.enCurso.otroAparato")}{" "}
+            <button type="button" onClick={() => onAbrirEnCurso?.(deEnCurso?.id)}>
+              {t("gps.enCurso.abrirUltima")}
+            </button>
+          </div>
+        )}
         {contenido}
 
         <div className="acciones-dobles">

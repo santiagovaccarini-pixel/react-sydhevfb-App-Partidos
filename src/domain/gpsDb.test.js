@@ -6,12 +6,17 @@ import {
   SOLO_PROMEDIOS,
   actualizarFilaGps,
   borrarFilaGps,
+  borrarEnCurso,
   borrarFilasGps,
   claveDeErrorGps,
   crearFilasGps,
+  dejarEnCurso,
+  enCursoDelDia,
   guardarCabeceraGps,
   guardarOpcionGps,
   leerAjustesGps,
+  leerEnCurso,
+  listarEnCurso,
   listarGps,
   partidoDelDia,
 } from "./gpsDb.js";
@@ -266,5 +271,91 @@ describe("el partido del día en Partido (GPS › Cargar)", () => {
     doble.soloLectura = true;
     expect(await partidoDelDia("eq-1", "2026-10-12")).toBeNull();
     expect(doble.llamadas).toEqual([]);
+  });
+});
+
+describe("las cargas sin terminar (GPS › Cargar)", () => {
+  const una = { id: "ec1", fecha: "2026-10-12", paso: 2, resumen: { titulo: "2. Juego", paso: 3, pasos: 6 }, version: 4, creado_email: "a@club.com", creado_en: "2026-10-12T15:00:00Z", actualizado_email: "b@club.com", actualizado_en: "2026-10-13T10:49:00Z" };
+
+  test("las del club, de la más nueva a la más vieja; sin la migración, ninguna y sin error", async () => {
+    doble.respuestas = [{ data: [una], error: null }];
+    const { enCurso, faltaTabla, error } = await listarEnCurso("eq-1");
+    expect(error).toBe("");
+    expect(faltaTabla).toBe(false);
+    expect(enCurso).toEqual([una]);
+    expect(doble.llamadas).toContainEqual(["from", "gps_en_curso"]);
+    expect(doble.llamadas).toContainEqual(["eq", "equipo_id", "eq-1"]);
+    expect(doble.llamadas).toContainEqual(["order", "fecha", { ascending: false }]);
+    // Lo hecho (pesado) no viene en la lista.
+    expect(doble.llamadas.find((llamada) => llamada[0] === "select")[1]).not.toContain("datos");
+
+    doble.respuestas = [{ data: null, error: { code: "42P01", message: 'relation "public.gps_en_curso" does not exist' } }];
+    expect(await listarEnCurso("eq-1")).toEqual({ enCurso: [], faltaTabla: true, error: "" });
+    // Quien ya se fue del club no las ve (ni pregunta).
+    doble.soloLectura = true;
+    doble.llamadas.length = 0;
+    expect((await listarEnCurso("eq-1")).enCurso).toEqual([]);
+    expect(doble.llamadas).toEqual([]);
+  });
+
+  test("la de un día, para no empezar otra", async () => {
+    doble.respuestas = [{ data: [una], error: null }];
+    expect((await enCursoDelDia("eq-1", "2026-10-12")).enCurso).toEqual(una);
+    expect(doble.llamadas).toContainEqual(["eq", "fecha", "2026-10-12"]);
+    doble.respuestas = [{ data: [], error: null }];
+    expect(await enCursoDelDia("eq-1", "2026-10-11")).toEqual({ enCurso: null, error: "" });
+    // Sin fecha, ni pregunta.
+    doble.llamadas.length = 0;
+    expect(await enCursoDelDia("eq-1", "")).toEqual({ enCurso: null, error: "" });
+    expect(doble.llamadas).toEqual([]);
+  });
+
+  test("una, con lo hecho; si ya no está, lo dice", async () => {
+    doble.respuestas = [
+      { data: [una], error: null },
+      { data: [{ datos: { formato: 1, estado: { fecha: "2026-10-12" } } }], error: null },
+    ];
+    const { enCurso, error } = await leerEnCurso("ec1");
+    expect(error).toBe("");
+    expect(enCurso).toEqual({ ...una, datos: { formato: 1, estado: { fecha: "2026-10-12" } } });
+    expect(doble.llamadas).toContainEqual(["from", "gps_en_curso_datos"]);
+    expect(doble.llamadas).toContainEqual(["eq", "en_curso_id", "ec1"]);
+    doble.respuestas = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+    expect(await leerEnCurso("ec1")).toEqual({ enCurso: null, error: "gps.enCurso.noEsta" });
+  });
+
+  test("dejarla: nueva o la misma con la versión que se abrió, en un solo pedido; los errores, en el idioma de la app", async () => {
+    doble.respuestas = [{ data: { id: "ec1", version: 1 }, error: null }];
+    expect(await dejarEnCurso("eq-1", { fecha: "2026-10-12", paso: 1, resumen: { titulo: "1. Rondo" }, datos: { formato: 1, estado: {} } })).toEqual({ id: "ec1", version: 1, error: "" });
+    expect(doble.llamadas).toContainEqual([
+      "rpc",
+      "gps_dejar_en_curso",
+      { p_id: null, p_version: null, p_equipo: "eq-1", p_fecha: "2026-10-12", p_paso: 1, p_resumen: { titulo: "1. Rondo" }, p_datos: { formato: 1, estado: {} } },
+    ]);
+    doble.respuestas = [{ data: { id: "ec1", version: 5 }, error: null }];
+    expect((await dejarEnCurso("eq-1", { id: "ec1", version: 4, fecha: "2026-10-12", paso: 2, datos: {} })).version).toBe(5);
+    expect(doble.llamadas.filter((llamada) => llamada[0] === "rpc").pop()[2]).toMatchObject({ p_id: "ec1", p_version: 4 });
+
+    const conError = async (error) => {
+      doble.respuestas = [{ data: null, error }];
+      return (await dejarEnCurso("eq-1", { fecha: "2026-10-12", datos: {} })).error;
+    };
+    expect(await conError({ code: "23505", message: 'duplicate key value violates unique constraint "gps_en_curso_un_dia"' })).toBe("gps.enCurso.yaEnCurso");
+    expect(await conError({ code: "P0001", message: "gps_en_curso_otro_aparato" })).toBe("gps.enCurso.otroAparato");
+    expect(await conError({ code: "P0001", message: "gps_en_curso_no_esta" })).toBe("gps.enCurso.noEsta");
+    expect(await conError({ code: "23514", message: 'new row violates check constraint "gps_en_curso_datos_tamano"' })).toBe("gps.enCurso.muyGrande");
+    expect(await conError({ code: "PGRST202", message: "Could not find the function public.gps_dejar_en_curso in the schema cache" })).toBe("gps.enCurso.faltaMigracion");
+    expect(await conError({ code: "42501", message: 'new row violates row-level security policy for table "gps_en_curso"' })).toBe("gps.error.sinPermiso");
+  });
+
+  test("borrarla", async () => {
+    doble.respuestas = [{ data: null, error: null }];
+    expect(await borrarEnCurso("ec1")).toEqual({ error: "" });
+    expect(doble.llamadas).toContainEqual(["from", "gps_en_curso"]);
+    expect(doble.llamadas).toContainEqual(["delete"]);
+    expect(doble.llamadas).toContainEqual(["eq", "id", "ec1"]);
   });
 });

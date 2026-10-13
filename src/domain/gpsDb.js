@@ -315,3 +315,102 @@ export const partidoDelDia = async (equipoId, fecha) => {
   const cambios = [1, 2, 3, 4, 5].map((n) => ({ entra: fila[`cambio_${n}_entra`] || "", sale: fila[`cambio_${n}_sale`] || "" })).concat(Array.isArray(fila.cambios_extra) ? fila.cambios_extra : []);
   return { rival, noIngresaron: calcularNoIngresaron({ convocados: fila.convocados }, cambios) };
 };
+
+// ------------------------------------------------ Las cargas sin terminar --
+// GPS › Cargar se deja para revisar y se sigue desde otro aparato
+// (migración 20261021_gps_en_curso.sql; Santiago, 13/10: «poder guardarlo en
+// la computadora y poder seguirlo desde mi celular donde lo deje o
+// viceversa»). Una por día y club. La lista (gps_en_curso) es liviana; lo
+// hecho (el CSV, lo elegido y lo corregido) va aparte (gps_en_curso_datos).
+// Quién la dejó, cuándo y la versión los pone la base.
+
+const COLUMNAS_EN_CURSO = "id, fecha, paso, resumen, version, creado_email, creado_en, actualizado_email, actualizado_en";
+
+const objeto = (valor) => (valor && typeof valor === "object" && !Array.isArray(valor) ? valor : {});
+
+export const normalizarEnCurso = (fila) => ({
+  id: fila?.id ?? null,
+  fecha: fila?.fecha || "",
+  paso: Number.isInteger(fila?.paso) && fila.paso >= 0 ? fila.paso : 0,
+  resumen: objeto(fila?.resumen),
+  version: Number(fila?.version) || 1,
+  creado_email: fila?.creado_email || "",
+  creado_en: fila?.creado_en || "",
+  actualizado_email: fila?.actualizado_email || fila?.creado_email || "",
+  actualizado_en: fila?.actualizado_en || fila?.creado_en || "",
+});
+
+const claveDeErrorEnCurso = (error, porDefecto) => {
+  const texto = `${error?.message || ""} ${error?.details || ""}`;
+  if (/gps_en_curso_un_dia/.test(texto) || error?.code === "23505") return "gps.enCurso.yaEnCurso";
+  if (/gps_en_curso_otro_aparato/.test(texto)) return "gps.enCurso.otroAparato";
+  if (/gps_en_curso_no_esta/.test(texto)) return "gps.enCurso.noEsta";
+  if (/gps_en_curso_datos_tamano/.test(texto)) return "gps.enCurso.muyGrande";
+  const clave = claveDeErrorGps(error, porDefecto);
+  return clave === "gps.error.faltaMigracion" ? "gps.enCurso.faltaMigracion" : clave;
+};
+
+// Las del club, de la más nueva a la más vieja. Sin la migración, ninguna
+// (faltaTabla lo dice).
+export const listarEnCurso = async (equipoId) => {
+  if (!equipoId || esSoloLectura(equipoId)) return { enCurso: [], faltaTabla: false, error: "" };
+  const { data, error } = await supabase.from("gps_en_curso").select(COLUMNAS_EN_CURSO).eq("equipo_id", equipoId).order("fecha", { ascending: false });
+  if (error) {
+    const clave = claveDeErrorEnCurso(error, "gps.enCurso.noSeLeyo");
+    return { enCurso: [], faltaTabla: clave === "gps.enCurso.faltaMigracion", error: clave === "gps.enCurso.faltaMigracion" ? "" : clave };
+  }
+  return { enCurso: (Array.isArray(data) ? data : []).map(normalizarEnCurso), faltaTabla: false, error: "" };
+};
+
+// La de un día, si hay (para no empezar otra: «lo frena y dice que ya esta en
+// curso ese cargado»). Sin la migración, ninguna.
+export const enCursoDelDia = async (equipoId, fecha) => {
+  if (!equipoId || !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || ""))) return { enCurso: null, error: "" };
+  const { data, error } = await supabase.from("gps_en_curso").select(COLUMNAS_EN_CURSO).eq("equipo_id", equipoId).eq("fecha", fecha).limit(1);
+  if (error) {
+    const clave = claveDeErrorEnCurso(error, "gps.enCurso.noSeLeyo");
+    return { enCurso: null, error: clave === "gps.enCurso.faltaMigracion" ? "" : clave };
+  }
+  const fila = Array.isArray(data) ? data[0] : null;
+  return { enCurso: fila ? normalizarEnCurso(fila) : null, error: "" };
+};
+
+// Una, con lo hecho, para seguirla.
+export const leerEnCurso = async (id) => {
+  if (!id) return { enCurso: null, error: "gps.enCurso.noSeAbrio" };
+  const [lista, hecho] = await Promise.all([
+    supabase.from("gps_en_curso").select(COLUMNAS_EN_CURSO).eq("id", id).limit(1),
+    supabase.from("gps_en_curso_datos").select("datos").eq("en_curso_id", id).limit(1),
+  ]);
+  const error = lista.error || hecho.error;
+  if (error) return { enCurso: null, error: claveDeErrorEnCurso(error, "gps.enCurso.noSeAbrio") };
+  const fila = Array.isArray(lista.data) ? lista.data[0] : null;
+  const datos = Array.isArray(hecho.data) ? hecho.data[0]?.datos : null;
+  if (!fila) return { enCurso: null, error: "gps.enCurso.noEsta" };
+  if (!datos || typeof datos !== "object" || Array.isArray(datos)) return { enCurso: null, error: "gps.enCurso.noSeAbrio" };
+  return { enCurso: { ...normalizarEnCurso(fila), datos }, error: "" };
+};
+
+// Dejarla para revisar: sin id, una nueva; con id, la misma (si nadie la dejó
+// desde otro aparato desde `version`). Devuelve su id y su versión nueva.
+export const dejarEnCurso = async (equipoId, { id = null, version = null, fecha, paso = 0, resumen = {}, datos }) => {
+  const { data, error } = await supabase.rpc("gps_dejar_en_curso", {
+    p_id: id,
+    p_version: id ? version : null,
+    p_equipo: equipoId,
+    p_fecha: fecha,
+    p_paso: paso,
+    p_resumen: objeto(resumen),
+    p_datos: objeto(datos),
+  });
+  if (error) return { id: null, version: null, error: claveDeErrorEnCurso(error, "gps.enCurso.noSeDejo") };
+  const respuesta = objeto(data);
+  return { id: respuesta.id ?? null, version: Number(respuesta.version) || null, error: "" };
+};
+
+export const borrarEnCurso = async (id) => {
+  if (!id) return { error: "" };
+  const { error } = await supabase.from("gps_en_curso").delete().eq("id", id);
+  if (error) return { error: claveDeErrorEnCurso(error, "gps.enCurso.noSeBorro") };
+  return { error: "" };
+};
