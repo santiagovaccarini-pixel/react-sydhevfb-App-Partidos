@@ -675,6 +675,7 @@ describe("GPS", () => {
   // espacio tengan tanto espacio».
   test("Cargar: cada campo de arriba de un bloque, del tamaño de lo que lleva", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
+    datos.reglas = { vrPartido: { d_min: 100 } };
     await montar();
     await tocar(boton("Cargar un día"));
     await pegarCsv(CSV_TAREAS(AYER));
@@ -682,7 +683,20 @@ describe("GPS", () => {
     await tocar(boton("Guardar igual el que no está en Datos básicos"));
     await tocar(boton("Siguiente"));
     expect(titulo()).toBe("1. Rondo");
-    const tamanoDe = (rotulo) => [...contenedor.querySelectorAll(".gps-cargar-encabezado > .campo-inicio")].find((uno) => uno.querySelector("label").textContent === rotulo)?.className;
+    const tamanoDe = (rotulo) => [...contenedor.querySelectorAll(".gps-cargar-encabezado .campo-inicio")].find((uno) => uno.querySelector("label").textContent === rotulo)?.className;
+    // Cada cosa en su parte, con su título (Santiago, 13/10: «poner los 2 CPJ
+    // y CPT por un lado, Todas las mediciones y m2 por otro»).
+    const enLaParte = (titulo) => {
+      const parte = contenedor.querySelector(`.gps-cargar-encabezado .gps-cargar-grupo[aria-label="${titulo}"]`);
+      return [...parte.querySelectorAll(".campo-inicio > label")].map((label) => label.textContent);
+    };
+    expect([...contenedor.querySelectorAll(".gps-cargar-encabezado .gps-cargar-grupo-titulo")].map((uno) => uno.textContent)).toEqual(["La tarea", "Medidas", "Pausa", "Densidad"]);
+    expect(enLaParte("La tarea")).toEqual(["Nombre de la tarea", "Código Estrategia", "Zona de Impacto"]);
+    expect(enLaParte("Medidas")).toEqual(["Base", "Largo", "Ancho", "Nro. de jugadores", "m2"]);
+    expect(enLaParte("Pausa")).toEqual(["Pausa (segundos)", "C/P Jug", "C/P Tarea"]);
+    // La densidad, con los % con los que se elige.
+    expect(enLaParte("Densidad")).toEqual([TIPO]);
+    expect(contenedor.querySelector('.gps-cargar-grupo[aria-label="Densidad"] .gps-cargar-vs')).not.toBeNull();
     // Los números y lo calculado: una caja chica.
     ["Base", "Largo", "Ancho", "Nro. de jugadores", "Pausa (segundos)", "C/P Jug", "C/P Tarea", "m2"].forEach((rotulo) => expect(tamanoDe(rotulo)).toContain("gps-cargar-chico"));
     // Los desplegables, del ancho de su opción más larga; sin nada elegido, «Elegí…».

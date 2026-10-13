@@ -1590,6 +1590,19 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     ensancha más de una frase corta. Las listas de varios (los que no ingresaron, las tareas de
     la descripción) y la descripción de la sesión siguen anchas. Descartado: la grilla de
     columnas iguales (cada campo de 190 px o más).
+  - Santiago, 13/10, al verlo: «esta bien, pero fijate que no hay orden visual, esta todo uno
+    al lado del otro y es confuso, como hiciste con los porcentajes, hay que encontrar una
+    manera de darle orden visual y separar las cosas para que se entienda bien, por ejemplo
+    poner los 2 CPJ y CPT por un lado, Todas las mediciones y m2 por otro y asi». La tarjeta de
+    cada bloque va en partes, cada una en su recuadro con su título, como el de los %: «La
+    tarea» / «El partido» / «La sesión» (el nombre, Tarea o Partido, código y zona), «Medidas»
+    (base, largo, ancho, Nro. de jugadores y m2), «Pausa» (series, bloques, pausa, C/P Jug y
+    C/P Tarea), «Densidad» (el tipo de sesión y, debajo, el % vs V.R. de partido con el que se
+    elige) y, en la sesión, «Descripción» (las tareas que van y la descripción que queda).
+    Las tres primeras, una al lado de la otra si entran; la densidad y la descripción, a todo
+    el ancho. Una parte sin nada a la vista (por ejemplo, las medidas del partido, ocultas en
+    Ajustes) no va. Adentro, lo que se escribe va en blanco y lo calculado, en gris. Agregar un
+    jugador sigue al final. Descartado: todos los campos sueltos uno al lado del otro.
 - **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
   jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
   Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,

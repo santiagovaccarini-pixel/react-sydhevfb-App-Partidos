@@ -520,6 +520,7 @@ export default {
       series: "Series",
       bloques: "Bloques",
       pausaDelPartido: "Pausa",
+      grupos: { tarea: "La tarea", partido: "El partido", sesion: "La sesión", medidas: "Medidas", pausa: "Pausa", densidad: "Densidad", descripcion: "Descripción" },
       vaTarea: "Va Tarea",
       revisandoBase: "Revisando si este CSV ya está en la Base…",
       noSeRevisoBase: "No se pudo revisar si este CSV ya está en la Base. Probá de nuevo.",
