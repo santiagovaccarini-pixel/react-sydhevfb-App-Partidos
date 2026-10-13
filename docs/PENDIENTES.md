@@ -1613,6 +1613,19 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
   - Santiago, 13/10, con una captura de una tarea: «pasa el bloque de pausa abajo de las
     medidas porfavor». «Medidas» y, debajo, «Pausa» van en una columna, al lado de la parte de
     la tarea (del partido o de la sesión) si entra, o debajo de ella si no.
+  - Santiago, 13/10, con dos capturas de una tarea: «La descripcion pasa a estar sola en una
+    fila y las demas cosas dentro de la tarea pasan abajo, si la descripcion es mas larga que
+    el cuadrado se agranda hacia abajo y todo se corre hacia abajo» y «Fijate que no llega
+    hasta el limite del cuadro de la descripcion y se empieza a agrandar antes de llegar»; y
+    después: «para agrandarse hacia abajo tiene que estar cerca del limite del cuadrado de La
+    tarea y de ahi crecer hacia abajo». El nombre de la tarea (y el del partido) va solo en su
+    renglón, a todo el ancho de su parte, y el tipo de sesión, el código y la zona, abajo. Lo
+    escrito ya no ensancha nada (antes la pantalla acomodaba las partes según el largo del
+    texto, por eso «Medidas» y «Pausa» saltaban abajo aunque el texto no llegara al borde):
+    cuando llega al borde, la caja crece un renglón hacia abajo y lo demás se corre. Comprobado
+    escribiendo de a una letra en la compu, el celular y con la pantalla agrandada: la caja
+    crece justo cuando el texto pasa de renglón. Descartado: que el nombre crezca hacia el
+    costado.
 - **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
   jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
   Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,
