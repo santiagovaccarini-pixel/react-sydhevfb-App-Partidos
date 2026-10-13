@@ -102,12 +102,15 @@ describe("Bases de Datos", () => {
     expect(lesiones.querySelector(".portal-entrar").textContent).toContain("Entrar");
   });
 
-  test("cada base con su permiso: con Evaluaciones, su tarjeta (con su dibujo hasta que tenga foto); con las dos, las dos", async () => {
+  test("cada base con su permiso: con Evaluaciones, su tarjeta con su foto (y el dibujo si no carga); con las dos, las dos", async () => {
     await montar({ permisos: { evaluaciones: true } });
     expect(tarjetas()).toHaveLength(1);
     const evaluaciones = tarjetas()[0];
     expect(evaluaciones.getAttribute("aria-label")).toBe("Entrar a Evaluaciones");
     expect(evaluaciones.classList.contains("tarjeta-evaluaciones")).toBe(true);
+    const foto = evaluaciones.querySelector(".portal-foto img");
+    expect(foto.getAttribute("src")).toBe("/portal/evaluaciones.webp");
+    await act(async () => foto.dispatchEvent(new Event("error")));
     expect(evaluaciones.querySelector(".portal-foto img")).toBeNull();
     expect(evaluaciones.querySelector(".portal-foto .portal-arte")).not.toBeNull();
     expect(evaluaciones.querySelector(".portal-icono svg")).not.toBeNull();

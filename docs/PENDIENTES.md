@@ -645,7 +645,9 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 - Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
   Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones tiene sus fotos desde el
   05/10 (`public/portal/lesiones.webp` y `lesiones-parada.webp`, las mandó Santiago); el dibujo
-  de la figura del cuerpo en dorado queda por si no cargan. La foto de una base nueva va en
+  de la figura del cuerpo en dorado queda por si no cargan. Evaluaciones tiene las suyas desde el
+  13/10 (`public/portal/evaluaciones.webp` y `evaluaciones-parada.webp`, el gimnasio de
+  evaluación en dorado que mandó Santiago); su dibujo queda por si no cargan. La foto de una base nueva va en
   `foto`/`fotoParada` de su entrada en `BASES` y en la lista de `scripts/precache.js`.
 - **Regla para todas las bases (Santiago, 09/10): lo nuevo se carga en su propia pantalla,
   aparte, como Nuevos casos en Lesiones.** Palabras del pedido: «una pantalla para cargar
