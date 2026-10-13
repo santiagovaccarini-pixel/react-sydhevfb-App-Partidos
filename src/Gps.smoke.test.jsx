@@ -695,6 +695,8 @@ describe("GPS", () => {
     expect(enLaParte("La tarea")).toEqual(["Nombre de la tarea", TIPO, "Código Estrategia", "Zona de Impacto"]);
     expect(enLaParte("Medidas")).toEqual(["Base", "Largo", "Ancho", "Nro. de jugadores", "m2"]);
     expect(enLaParte("Pausa")).toEqual(["Pausa (segundos)", "C/P Jug", "C/P Tarea"]);
+    // La pausa, debajo de las medidas (Santiago, 13/10).
+    expect([...contenedor.querySelectorAll(".gps-cargar-columna > .gps-cargar-grupo")].map((uno) => uno.getAttribute("aria-label"))).toEqual(["Medidas", "Pausa"]);
     // Los %, en su recuadro, después de las partes.
     expect(contenedor.querySelector(".gps-cargar-encabezado > .gps-cargar-vs")).not.toBeNull();
     // Los números y lo calculado: una caja chica.
