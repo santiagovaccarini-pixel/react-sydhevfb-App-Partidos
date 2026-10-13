@@ -16,12 +16,26 @@ import { AJUSTES_DE_REGLAS, REGLAS_CARGA, VS_PARTIDO, reglasDelClub } from "./do
 import { PROMEDIOS } from "./domain/gps/columnas.js";
 import { FILAS_DEL_INFORME, vistaDelGps } from "./domain/gps/informe.js";
 import { datosConCambio, esNumero, periodoInicial, textoDeCelda } from "./domain/gps/valores.js";
-import { SIN_DISPOSITIVO, SOLO_PROMEDIOS, actualizarFilaGps, borrarFilasGps, guardarCabeceraGps, guardarOpcionGps, guardarReglasGps, leerAjustesGps, leerReglasGps, listarGps } from "./domain/gpsDb.js";
+import {
+  SIN_DISPOSITIVO,
+  SOLO_PROMEDIOS,
+  actualizarFilaGps,
+  borrarEnCurso,
+  borrarFilasGps,
+  guardarCabeceraGps,
+  guardarOpcionGps,
+  guardarReglasGps,
+  leerAjustesGps,
+  leerEnCurso,
+  leerReglasGps,
+  listarEnCurso,
+  listarGps,
+} from "./domain/gpsDb.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta, fechaLarga, hoyISO } from "./idioma/formatos.js";
+import { fechaCorta, fechaLarga, fechaYHora, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import "./lesiones.css";
 import "./evaluaciones.css";
@@ -97,6 +111,15 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // si tiene algo sin guardar (al irse, se pregunta).
   const [cargandoDia, setCargandoDia] = useState(false);
   const diaSinGuardar = useRef(false);
+  // Las cargas sin terminar (Santiago, 13/10: dejar el entrenamiento para
+  // revisar y seguirlo desde otro aparato): la lista, la que se sigue
+  // ({ id, version, paso, datos }; sin ella, una nueva), cuál se está
+  // abriendo y cuál se va a borrar.
+  const [enCurso, setEnCurso] = useState([]);
+  const [errorEnCurso, setErrorEnCurso] = useState("");
+  const [cargaEnCurso, setCargaEnCurso] = useState(null);
+  const [abriendoEnCurso, setAbriendoEnCurso] = useState(null);
+  const [enCursoABorrar, setEnCursoABorrar] = useState(null);
   const [aSalir, setASalir] = useState(null);
   // Las reglas de la carga que guardó el club (sin la tabla, las de la plantilla).
   const [reglasGuardadas, setReglasGuardadas] = useState({});
@@ -208,6 +231,36 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     equipoId,
     activo: !soloLectura,
     alCambiar: () => Promise.all([cargarClub({ silencioso: true }), cargarFilas({ silencioso: true })]),
+  });
+
+  const cargarEnCurso = useCallback(
+    async ({ silencioso = false } = {}) => {
+      if (!equipoId || soloLectura) {
+        setEnCurso([]);
+        return;
+      }
+      const respuesta = await listarEnCurso(equipoId);
+      if (respuesta.error) {
+        if (!silencioso) setErrorEnCurso(respuesta.error);
+        return;
+      }
+      setErrorEnCurso("");
+      setEnCurso(respuesta.enCurso);
+    },
+    [equipoId, soloLectura],
+  );
+  const enCargar = vista === "cargar" && !cargandoDia;
+  useEffect(() => {
+    if (enCargar) cargarEnCurso();
+  }, [enCargar, cargarEnCurso]);
+  // Las que deja otra persona (o este mismo usuario en otro aparato)
+  // aparecen solas, como lo demás del GPS.
+  useEnVivo({
+    nombre: "gps-en-curso",
+    tablas: ["gps_en_curso"],
+    equipoId,
+    activo: !soloLectura && enCargar,
+    alCambiar: () => cargarEnCurso({ silencioso: true }),
   });
 
   useEffect(() => {
@@ -673,16 +726,83 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const deHoy = conHoy ? filasGps.filter((fila) => fila.fecha === hoy).length : null;
 
   // Guardado el día: a la Base, con el período que lo muestra.
-  const alCargarDia = ({ cargadas, fecha }) => {
+  const alCargarDia = ({ cargadas, fecha, quedoEnCurso = false }) => {
     diaSinGuardar.current = false;
     setCargandoDia(false);
+    setCargaEnCurso(null);
     setVista("base");
     const antes = fecha && periodo.desde && fecha < periodo.desde;
     const despues = fecha && periodo.hasta && fecha > periodo.hasta;
     if (antes || despues) cambiarPeriodo({ desde: antes ? fecha : periodo.desde, hasta: despues ? fecha : periodo.hasta });
     else cargarFilas();
-    setAviso(plural("gps.cargar.listo", cargadas, { fecha: fecha ? fechaCorta(fecha) : "—" }));
+    setAviso(quedoEnCurso ? t("gps.enCurso.quedoSinBorrar") : plural("gps.cargar.listo", cargadas, { fecha: fecha ? fechaCorta(fecha) : "—" }));
   };
+
+  // Dejado para revisar: vuelve a Cargar, donde queda en «Sin terminar».
+  const alDejarDia = () => {
+    diaSinGuardar.current = false;
+    setCargandoDia(false);
+    setCargaEnCurso(null);
+    cargarEnCurso();
+    setAviso(t("gps.enCurso.dejada"));
+  };
+
+  // Seguir una carga sin terminar en el paso donde quedó (también la última,
+  // si la siguieron en otro aparato).
+  const seguirEnCurso = async (id) => {
+    if (!id || abriendoEnCurso) return;
+    setAbriendoEnCurso(id);
+    const respuesta = await leerEnCurso(id);
+    setAbriendoEnCurso(null);
+    if (respuesta.error) {
+      setCargandoDia(false);
+      setCargaEnCurso(null);
+      setErrorEnCurso(respuesta.error);
+      cargarEnCurso({ silencioso: true });
+      return;
+    }
+    setErrorEnCurso("");
+    diaSinGuardar.current = false;
+    setCargaEnCurso(respuesta.enCurso);
+    setCargandoDia(true);
+  };
+
+  const confirmarBorrarEnCurso = async () => {
+    const carga = enCursoABorrar;
+    setEnCursoABorrar(null);
+    if (!carga) return;
+    const { error: falla } = await borrarEnCurso(carga.id);
+    if (falla) {
+      setErrorEnCurso(falla);
+      return;
+    }
+    setEnCurso((antes) => antes.filter((una) => una.id !== carga.id));
+    setAviso(t("gps.enCurso.borrada", { fecha: fechaCorta(carga.fecha) }));
+  };
+
+  // Una carga sin terminar en la lista, con la misma cara que una lesión
+  // en curso en Lesiones (Santiago, 13/10: «que aparesca en un cuadro abajo
+  // de cargar como aparecen las lesion sin fecha de retorno»).
+  const tarjetaEnCurso = (carga) => (
+    <div className="registro-guardado lesiones-registro" key={carga.id}>
+      <span className="cabecera-registro">
+        <span className="fecha-registro">{fechaCorta(carga.fecha)}</span>
+        {carga.resumen.pasos > 0 && <span className="lesiones-caso">{t("gps.enCurso.paso", { n: carga.resumen.paso, total: carga.resumen.pasos })}</span>}
+      </span>
+      <div className="lesiones-registro-cuerpo">
+        <strong>{carga.resumen.titulo || t("gps.enCurso.sinTitulo")}</strong>
+        <span>{t("gps.enCurso.dejadaPor", { quien: carga.actualizado_email || "—", cuando: carga.actualizado_en ? fechaYHora(carga.actualizado_en) : "—" })}</span>
+      </div>
+      <div className="acciones-registro">
+        <button type="button" className="boton-detalle" onClick={() => seguirEnCurso(carga.id)} disabled={!enLinea || Boolean(abriendoEnCurso)}>
+          {abriendoEnCurso === carga.id ? t("gps.enCurso.abriendo") : t("gps.enCurso.seguir")}
+        </button>
+        <button type="button" className="boton-eliminar-registro" aria-label={t("gps.enCurso.borrar", { fecha: fechaCorta(carga.fecha) })} onClick={() => setEnCursoABorrar(carga)}>
+          <Icono nombre="borrar" size={18} />
+        </button>
+      </div>
+    </div>
+  );
 
   const pantallaCargar = (
     <div className="app app-inicio">
@@ -713,10 +833,33 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
 
         {!soloLectura && (
           <div className="acciones-inicio lesiones-acciones">
-            <button type="button" className="boton-principal boton-formacion-grande" onClick={() => setCargandoDia(true)} disabled={!enLinea}>
+            <button
+              type="button"
+              className="boton-principal boton-formacion-grande"
+              onClick={() => {
+                setCargaEnCurso(null);
+                setCargandoDia(true);
+              }}
+              disabled={!enLinea}
+            >
               {t("gps.cargar.nuevo")}
             </button>
           </div>
+        )}
+        {!soloLectura && errorEnCurso && (
+          <div className="lesiones-estado error">
+            {t(errorEnCurso)}{" "}
+            <button type="button" onClick={() => cargarEnCurso()}>
+              {t("comun.reintentar")}
+            </button>
+          </div>
+        )}
+        {!soloLectura && enCurso.length > 0 && (
+          <section className="lesiones-sin-fecha gps-en-curso">
+            <h2>{plural("gps.enCurso.titulo", enCurso.length)}</h2>
+            <p className="lesiones-ayuda">{t("gps.enCurso.texto")}</p>
+            <div className="lesiones-lista">{enCurso.map(tarjetaEnCurso)}</div>
+          </section>
         )}
         <p className="lesiones-vacio">{t("gps.cargar.comoSeCarga")}</p>
       </div>
@@ -1137,6 +1280,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     contenido =
       cargandoDia && !soloLectura ? (
         <CargarGps
+          key={cargaEnCurso ? `${cargaEnCurso.id}:${cargaEnCurso.version}` : "nueva"}
           gps={gps}
           config={config}
           equipoId={equipoId}
@@ -1148,9 +1292,15 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           armarFila={armarFila}
           conCambio={conCambio}
           enLinea={enLinea}
+          enCurso={cargaEnCurso}
           onListo={alCargarDia}
-          onCancelar={() => setCargandoDia(false)}
+          onCancelar={() => {
+            setCargandoDia(false);
+            setCargaEnCurso(null);
+          }}
           onSinGuardar={avisarSinGuardar}
+          onDejado={alDejarDia}
+          onAbrirEnCurso={seguirEnCurso}
         />
       ) : (
         pantallaCargar
@@ -1177,6 +1327,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const irA = (id) => {
     setImportando(false);
     setCargandoDia(false);
+    setCargaEnCurso(null);
     diaSinGuardar.current = false;
     if (id === "ajustes") setVistaAjustes("inicio");
     setVista(id);
@@ -1368,6 +1519,17 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         etiquetaCancelar={t("comun.cancelar")}
         onConfirmar={confirmarBorrar}
         onCancelar={() => setABorrar(null)}
+      />
+
+      <HojaConfirmar
+        abierta={Boolean(enCursoABorrar)}
+        titulo={t("gps.enCurso.borrarTitulo", { fecha: enCursoABorrar ? fechaCorta(enCursoABorrar.fecha) : "—" })}
+        descripcion={t("gps.enCurso.borrarTexto")}
+        icono="borrar"
+        etiquetaConfirmar={t("gps.siBorrar")}
+        etiquetaCancelar={t("comun.cancelar")}
+        onConfirmar={confirmarBorrarEnCurso}
+        onCancelar={() => setEnCursoABorrar(null)}
       />
     </MarcoAplicacion>
   );

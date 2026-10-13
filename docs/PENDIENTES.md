@@ -1697,6 +1697,32 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
   los de la plantilla, uno solo para el club); la marca fija de la selección
   (la define Santiago); las columnas del club que vienen en el CSV van solo en las filas de
   cada jugador; traerlo directo de OpenField (paso 5).
+- **Dejar para revisar y «Sin terminar» (13/10, migración `20261021_gps_en_curso.sql`).** Nota
+  del 13/10: «Dejar un boton dentro de carga de gps donde pueda dejar el entrenamiento para
+  revisar». Santiago, 13/10: «Yo lo que quiero es poder guardarlo en la computadora y poder
+  seguirlo desde mi celular donde lo deje o vicerversa»; quién la ve: «cualquiera con los
+  permisos para verla»; un día que ya tiene una carga sin terminar: «lo frena y dice que ya esta
+  en curso ese cargado»; varias a la vez: «si puede»; «la intencion es que aparesca en un cuadro
+  abajo de cargar como aparecen las lesion sin fecha de retorno».
+  - En cada paso, con un CSV leído, debajo del título: **«Dejar para revisar»**. Guarda en la
+    base todo lo hecho (el CSV, lo elegido en cada paso y lo corregido en las tablas) y el paso,
+    y vuelve a Cargar. No entra a la Base ni a los reportes.
+  - En Cargar, abajo de «Cargar un día», el cuadro **«N cargas sin terminar»**, con la cara de
+    las lesiones en curso de Lesiones: la fecha del entrenamiento, «Paso X de Y», el nombre del
+    paso, quién la dejó y cuándo, **Seguir** (abre en ese paso, en este aparato o en otro) y el
+    tacho (borra, preguntando antes). Aparece sola en los otros aparatos (Realtime).
+  - La ve, la sigue y la borra quien tiene GPS en el club y sigue (el permiso, una vez por
+    pedido, como la tabla `gps`); quien ya se fue, no. Quién la dejó y cuándo lo pone la base.
+  - **Una por día**: si ese día ya tiene una, el paso del CSV lo dice («Ya hay una carga en
+    curso del …, la dejó …») y no deja seguir ni dejar otra; al guardar en la Base se vuelve a
+    mirar. Al guardar en la Base, deja de estar sin terminar.
+  - Si la siguieron desde otro aparato mientras estaba abierta, no se pisa: avisa («La
+    siguieron desde otro aparato…») y deja abrir la última (cada vez que se deja, la versión
+    sube).
+  - En la base: `gps_en_curso` (la lista, liviana, en Realtime) y `gps_en_curso_datos` (lo
+    hecho, aparte: no viaja a cada aparato), que se guardan juntas con `gps_dejar_en_curso`
+    (todo o nada, con los permisos de quien la llama). Sin la migración, el cuadro no aparece
+    y «Dejar para revisar» avisa qué SQL falta.
 
 ### Pendiente
 
@@ -2410,6 +2436,28 @@ cómo va cada una. Va un PR por nota.
   - **Falta:** la marca fija de la selección (Santiago la define); pasar a la configuración
     del club qué columnas son minutos y cómo se reconoce la selección (hoy en la migración,
     ver «Protocolo de lesiones: ninguna regla escrita en código»).
+
+### Lo anotado en Notas, segunda tanda (13/10)
+
+Santiago pasó en capturas las 12 notas de «Por hacer» (13/10: «Mas mejoras para la web,
+cualquier duda me preguntas y me presentas las cosas como las harias pero no decidad nada
+vos»). Se le presentó cómo se haría cada una, con preguntas, y pidió ir **de a una** («primero
+vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en castellano**
+(«hablame estrictamente en español, esto ya te lo pedi antes»).
+
+- **Dejar el entrenamiento para revisar (hecho el 13/10).** Ver «GPS (10/10)», Cargar (paso 2),
+  «Dejar para revisar y "Sin terminar"».
+- Las otras 11, sin decidir todavía (se ven una por una, en este orden): la Base de GPS con
+  todos los datos al entrar (reabre UI-021, «abrir con todo el historial» descartado);
+  cambiar un nombre o una opción y que cambie en todos lados (las filas guardadas con un nombre
+  que no está en Datos básicos y los nombres de Partido); mejorar los textos explicativos; el
+  permiso una vez por pedido también en Lesiones y Evaluaciones (no está hecho: solo GPS);
+  el reporte individual de Lesiones (sin los puntos «Superior/Inferior a la referencia», el
+  color en el %, tarjetas más chicas y «qué cuenta» en corto); sacar los botones «Entrar» de
+  las tarjetas (reabre UI-007); editar y borrar los Valores de referencia (con la lógica de la
+  planilla de valor referencial); arriba de la Base de GPS solo el promedio por dispositivo, los
+  V.R. de GPS y el % vs V.R. de partido; revisar la lógica de Flujo diario; Isocinecia con el
+  lector de Python y conectar con VALD; mejorar el cuerpo humano del reporte de Lesiones.
 
 ## Lo que dejó la revisión completa del 30/09
 

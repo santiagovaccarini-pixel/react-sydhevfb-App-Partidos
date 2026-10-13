@@ -23,6 +23,9 @@ const datos = vi.hoisted(() => ({
   faltanReglas: false,
   reglasGuardadas: [],
   partidos: [],
+  // Las cargas sin terminar: las filas (con lo hecho) y lo que pidió la app.
+  enCurso: [],
+  dejadas: [],
 }));
 
 const PLANTEL = [
@@ -91,6 +94,37 @@ vi.mock("./domain/gpsDb.js", () => ({
   },
   leerReglasGps: async () => ({ reglas: { ...datos.reglas }, faltaTabla: datos.faltanReglas, error: "" }),
   partidoDelDia: async (equipoId, fecha) => datos.partidos.find((partido) => partido.fecha === fecha) || null,
+  listarEnCurso: async () => ({ enCurso: datos.enCurso.map(({ datos: hecho, ...fila }) => ({ ...fila })), faltaTabla: false, error: "" }),
+  enCursoDelDia: async (equipoId, fecha) => {
+    const fila = datos.enCurso.find((una) => una.fecha === fecha);
+    if (!fila) return { enCurso: null, error: "" };
+    const { datos: hecho, ...resto } = fila;
+    return { enCurso: { ...resto }, error: "" };
+  },
+  leerEnCurso: async (id) => {
+    const fila = datos.enCurso.find((una) => una.id === id);
+    return fila ? { enCurso: JSON.parse(JSON.stringify(fila)), error: "" } : { enCurso: null, error: "gps.enCurso.noEsta" };
+  },
+  // Como la base: una por día; con id, solo si la versión es la que se abrió.
+  dejarEnCurso: async (equipoId, { id, version, fecha, paso, resumen, datos: hecho }) => {
+    datos.dejadas.push({ id, version, fecha, paso, resumen, datos: JSON.parse(JSON.stringify(hecho)) });
+    const quien = { actualizado_email: "yo@club.com", actualizado_en: "2026-10-13T13:49:00Z" };
+    if (!id) {
+      if (datos.enCurso.some((una) => una.fecha === fecha)) return { id: null, version: null, error: "gps.enCurso.yaEnCurso" };
+      const nueva = { id: `ec${datos.enCurso.length + 1}`, fecha, paso, resumen, version: 1, creado_email: "yo@club.com", creado_en: quien.actualizado_en, ...quien, datos: JSON.parse(JSON.stringify(hecho)) };
+      datos.enCurso.push(nueva);
+      return { id: nueva.id, version: 1, error: "" };
+    }
+    const fila = datos.enCurso.find((una) => una.id === id);
+    if (!fila) return { id: null, version: null, error: "gps.enCurso.noEsta" };
+    if (fila.version !== version) return { id: null, version: null, error: "gps.enCurso.otroAparato" };
+    Object.assign(fila, { fecha, paso, resumen, version: fila.version + 1, ...quien, datos: JSON.parse(JSON.stringify(hecho)) });
+    return { id, version: fila.version, error: "" };
+  },
+  borrarEnCurso: async (id) => {
+    datos.enCurso = datos.enCurso.filter((una) => una.id !== id);
+    return { error: "" };
+  },
   guardarReglasGps: async (equipoId, reglas) => {
     datos.reglasGuardadas.push({ equipoId, reglas });
     datos.reglas = { ...reglas };
@@ -201,6 +235,8 @@ describe("GPS", () => {
     datos.faltanReglas = false;
     datos.reglasGuardadas = [];
     datos.partidos = [];
+    datos.enCurso = [];
+    datos.dejadas = [];
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -748,6 +784,162 @@ describe("GPS", () => {
     expect(nombre.value).toBe(largo);
   });
 
+  // Santiago, 13/10: «Dejar un boton dentro de carga de gps donde pueda dejar
+  // el entrenamiento para revisar»; «poder guardarlo en la computadora y poder
+  // seguirlo desde mi celular donde lo deje o viceversa»; «que aparesca en un
+  // cuadro abajo de cargar como aparecen las lesion sin fecha de retorno».
+  const UNA_EN_CURSO = (extra = {}) => ({
+    id: "ec9",
+    fecha: AYER,
+    paso: 1,
+    resumen: { titulo: "1. Rondo", paso: 2, pasos: 6 },
+    version: 1,
+    creado_email: "otra@club.com",
+    creado_en: "2026-10-12T15:00:00Z",
+    actualizado_email: "otra@club.com",
+    actualizado_en: "2026-10-12T15:00:00Z",
+    datos: { formato: 1, estado: {} },
+    ...extra,
+  });
+  const cuadroEnCurso = () => contenedor.querySelector(".gps-en-curso");
+  const enOtroAparato = async () => {
+    await act(async () => raiz.unmount());
+    raiz = null;
+    await montar();
+  };
+  // Un día hasta la primera tarea, con su tipo de sesión y el largo.
+  const hastaLaPrimeraTarea = async () => {
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER));
+    await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
+    await guardarIgual();
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("1. Rondo");
+    await elegirTipo();
+    await escribirEn("Largo", "40");
+  };
+
+  test("Dejar para revisar: queda en «Sin terminar», abajo de Cargar, y se sigue en otro aparato desde el paso donde quedó", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    await montar();
+    expect(cuadroEnCurso()).toBeNull();
+    await tocar(boton("Cargar un día"));
+    // Sin CSV no hay nada para dejar.
+    expect(boton("Dejar para revisar")).toBeUndefined();
+    await tocar(boton("Cancelar"));
+    await hastaLaPrimeraTarea();
+    await tocar(boton("Dejar para revisar"));
+
+    // Se guarda todo lo hecho y el paso; vuelve a Cargar, con la carga en el cuadro.
+    expect(datos.dejadas).toHaveLength(1);
+    expect(datos.dejadas[0]).toMatchObject({ id: null, fecha: AYER, paso: 1, resumen: { titulo: "1. Rondo", paso: 2, pasos: 6 } });
+    expect(datos.dejadas[0].datos.formato).toBe(1);
+    expect(datos.dejadas[0].datos.estado.csv).toHaveLength(1);
+    expect(document.body.textContent).toContain("Quedó en «Sin terminar»: seguila desde Cargar, en este aparato o en otro.");
+    expect(boton("Cargar un día")).toBeTruthy();
+    expect(cuadroEnCurso().querySelector("h2").textContent).toBe("1 carga sin terminar");
+    expect(cuadroEnCurso().querySelector(".fecha-registro").textContent).toBe(fechaCorta(AYER));
+    expect(cuadroEnCurso().querySelector(".lesiones-caso").textContent).toBe("Paso 2 de 6");
+    expect(cuadroEnCurso().querySelector("strong").textContent).toBe("1. Rondo");
+    expect(cuadroEnCurso().textContent).toContain("La dejó yo@club.com el ");
+
+    // En otro aparato: aparece y se sigue en ese paso, con lo hecho.
+    await enOtroAparato();
+    expect(cuadroEnCurso().querySelector("h2").textContent).toBe("1 carga sin terminar");
+    await tocar(boton("Seguir"));
+    expect(titulo()).toBe("1. Rondo");
+    expect(contenedor.querySelector(`[aria-label="${TIPO}"] b`).textContent).toBe("Din. Colectiva");
+    expect(contenedor.querySelector('input[aria-label="Largo"]').value).toBe("40");
+    expect(nombres()).toEqual(["Team Average Parcial", "ALFA", "BETA", "Invitado X", "DELTA"]);
+    // Se avanza y se vuelve a dejar: la misma, con la versión que se abrió.
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("2. Juego");
+    await tocar(boton("Dejar para revisar"));
+    expect(datos.dejadas[1]).toMatchObject({ id: "ec1", version: 1, paso: 2, resumen: { titulo: "2. Juego", paso: 3, pasos: 6 } });
+    expect(datos.enCurso).toHaveLength(1);
+    expect(datos.enCurso[0].version).toBe(2);
+
+    // Y de vuelta en el primero, se termina: al guardar en la Base, deja de estar sin terminar.
+    await enOtroAparato();
+    await tocar(boton("Seguir"));
+    expect(titulo()).toBe("2. Juego");
+    await elegirTipo();
+    await tocar(boton("Siguiente"));
+    await elegirTipo("Descanso");
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("La sesión");
+    await elegirDelDesplegable("Tipo Microciclo", "Competitivo");
+    await elegirDelDesplegable("Día del microciclo", "-1");
+    await elegirDelDesplegable("Dispositivo", "Catapult");
+    await elegirTipo("Din. General");
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("Revisar y guardar");
+    await tocar(boton("Guardar 11 filas"));
+    expect(datos.creadas).toHaveLength(11);
+    expect(datos.creadas[1]).toMatchObject({ jugador_id: 1, datos: { largo: 40, tipo_sesion: "din_colectiva" } });
+    expect(datos.enCurso).toHaveLength(0);
+    expect(document.body.textContent).toContain(`Listo: se guardaron 11 filas del ${fechaCorta(AYER)}.`);
+    await irA(contenedor, "Cargar");
+    expect(cuadroEnCurso()).toBeNull();
+  });
+
+  test("un día con una carga en curso: la frena, dice quién la dejó y no deja otra", async () => {
+    datos.enCurso = [UNA_EN_CURSO()];
+    await montar();
+    expect(cuadroEnCurso().textContent).toContain("La dejó otra@club.com el ");
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER));
+    await esperar(() => contenedor.textContent.includes(`Ya hay una carga en curso del ${fechaCorta(AYER)} (la dejó otra@club.com el `));
+    expect(contenedor.textContent).not.toContain("No está en la Base: podés seguir.");
+    await guardarIgual();
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("El CSV de Catapult");
+    expect(aviso()).toContain(`Ya hay una carga en curso del ${fechaCorta(AYER)}`);
+    expect(aviso()).toContain("Seguila desde «Sin terminar», en Cargar.");
+    // Tampoco se deja otra de ese día para revisar.
+    await tocar(boton("Dejar para revisar"));
+    expect(datos.dejadas).toHaveLength(0);
+    // Con otra fecha, sí se sigue.
+    await escribir(contenedor.querySelector("input[type=date]"), diasAntes(2));
+    await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("1. Rondo");
+  });
+
+  test("si la siguieron en otro aparato, no la pisa y deja abrir la última", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    await montar();
+    await hastaLaPrimeraTarea();
+    await tocar(boton("Dejar para revisar"));
+    await tocar(boton("Seguir"));
+    expect(titulo()).toBe("1. Rondo");
+    // Mientras tanto, desde otro aparato la llevaron a la segunda tarea.
+    Object.assign(datos.enCurso[0], { version: 2, paso: 2, resumen: { titulo: "2. Juego", paso: 3, pasos: 6 } });
+    await escribirEn("Ancho", "30");
+    await tocar(boton("Dejar para revisar"));
+    expect(contenedor.textContent).toContain("La siguieron desde otro aparato y lo que hiciste acá no se guardó.");
+    expect(datos.enCurso[0].version).toBe(2);
+    expect(titulo()).toBe("1. Rondo");
+    await tocar(boton("Abrir la última"));
+    expect(titulo()).toBe("2. Juego");
+    expect(contenedor.textContent).not.toContain("La siguieron desde otro aparato");
+  });
+
+  test("se borra desde el cuadro, preguntando antes", async () => {
+    datos.enCurso = [UNA_EN_CURSO(), UNA_EN_CURSO({ id: "ec8", fecha: diasAntes(3), resumen: { titulo: "La sesión", paso: 5, pasos: 6 } })];
+    await montar();
+    expect(cuadroEnCurso().querySelector("h2").textContent).toBe("2 cargas sin terminar");
+    await tocar(contenedor.querySelector(`[aria-label="Borrar la carga sin terminar del ${fechaCorta(AYER)}"]`));
+    expect(document.body.textContent).toContain(`¿Borrar la carga sin terminar del ${fechaCorta(AYER)}?`);
+    await tocar(boton("Cancelar"));
+    expect(datos.enCurso).toHaveLength(2);
+    await tocar(contenedor.querySelector(`[aria-label="Borrar la carga sin terminar del ${fechaCorta(AYER)}"]`));
+    await tocar(boton("Sí, borrar"));
+    expect(datos.enCurso.map((una) => una.id)).toEqual(["ec8"]);
+    expect(cuadroEnCurso().querySelector("h2").textContent).toBe("1 carga sin terminar");
+    expect(document.body.textContent).toContain(`Se borró la carga sin terminar del ${fechaCorta(AYER)}.`);
+  });
+
   test("si el CSV ya está en la Base, avisa y no deja seguir", async () => {
     datos.filas = [...FILAS(), fila("y1", 10, { jugador_id: 1 }, AYER, { d: 3000, tiempo: 1200, inicio: 36000 })];
     await montar();
@@ -757,6 +949,10 @@ describe("GPS", () => {
     await guardarIgual();
     await tocar(boton("Siguiente"));
     expect(titulo()).toBe("El CSV de Catapult");
+    expect(contenedor.querySelector(".aviso-hoja").textContent).toContain("No se puede cargar de nuevo.");
+    // Tampoco se deja para revisar: no se podría guardar.
+    await tocar(boton("Dejar para revisar"));
+    expect(datos.dejadas).toHaveLength(0);
     expect(contenedor.querySelector(".aviso-hoja").textContent).toContain("No se puede cargar de nuevo.");
     // Con otra fecha (otro día), no está.
     await escribir(contenedor.querySelector("input[type=date]"), diasAntes(2));

@@ -838,6 +838,27 @@ select pruebas.debe_fallar('Las reglas son un objeto', $$update gps_reglas set r
 select pruebas.debe_fallar('...no muy grande', $$update gps_reglas set reglas = jsonb_build_object('x', repeat('y', 5000))$$, 'gps_reglas_objeto');
 select pruebas.debe_fallar('No cambia las reglas de otro club', $$insert into gps_reglas (equipo_id, reglas) values ('00000000-0000-0000-0000-0000000000c2', '{}')$$, 'row-level security');
 select pruebas.debe_fallar('...ni las borra', $$delete from gps_reglas$$, 'permission denied');
+-- Las cargas sin terminar (20261021_gps_en_curso.sql): se dejan para revisar
+-- y se siguen desde otro aparato; una por día.
+select pruebas.esperar('Deja una carga para revisar', (select (gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 3, '{"titulo":"Tarea 1","pasos":8}', '{"csv":[{"nombre":"dia.csv","texto":"Player Name"}]}') ->> 'version')::bigint), 1);
+select pruebas.esperar('...y la ve, con quién la dejó y el paso', (select creado_email || ',' || actualizado_email || ',' || paso from gps_en_curso), 'gps@uno.com,gps@uno.com,3');
+select pruebas.esperar('...y lo hecho', (select datos #>> '{csv,0,nombre}' from gps_en_curso_datos), 'dia.csv');
+select pruebas.esperar('La sigue y la vuelve a dejar más adelante', (select (gps_dejar_en_curso((select id from gps_en_curso where fecha = '2026-10-09'), 1, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 5, '{"titulo":"Sesión","pasos":8}', '{"csv":[{"nombre":"dia.csv","texto":"Player Name"}],"dia":"+1"}') ->> 'version')::bigint), 2);
+select pruebas.esperar('...queda en el paso nuevo, con lo nuevo', (select paso || ',' || (select datos ->> 'dia' from gps_en_curso_datos) from gps_en_curso), '5,+1');
+select pruebas.debe_fallar('Desde otro aparato, con la versión que abrió antes, no la pisa', $q$select gps_dejar_en_curso((select id from gps_en_curso where fecha = '2026-10-09'), 1, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 4, '{}', '{}')$q$, 'gps_en_curso_otro_aparato');
+select pruebas.esperar('...y queda la que dejó el otro', (select paso from gps_en_curso), 5);
+select pruebas.debe_fallar('Una que ya no está no se sigue', $q$select gps_dejar_en_curso('00000000-0000-0000-0000-0000000e9999', 1, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 4, '{}', '{}')$q$, 'gps_en_curso_no_esta');
+select pruebas.debe_fallar('Otra carga del mismo día, no: ya está en curso', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 0, '{}', '{}')$q$, 'gps_en_curso_un_dia');
+select pruebas.esperar('...de otro día, sí', (select (gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-10', 0, '{}', '{"csv":[]}') ->> 'version')::bigint), 1);
+select pruebas.esperar('...y quedan las dos', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 4);
+select pruebas.debe_fallar('No le cambia el club a una', $q$update gps_en_curso set equipo_id = '00000000-0000-0000-0000-0000000000c2'$q$, 'permission denied');
+select pruebas.debe_fallar('...ni la versión a mano', $q$update gps_en_curso set version = 9$q$, 'permission denied');
+select pruebas.debe_fallar('...ni quién la dejó', $q$update gps_en_curso set creado_email = 'otro@uno.com'$q$, 'permission denied');
+select pruebas.debe_fallar('El resumen es un objeto', $q$update gps_en_curso set resumen = '[1]'$q$, 'gps_en_curso_resumen');
+select pruebas.debe_fallar('...y lo hecho, también', $q$update gps_en_curso_datos set datos = '"texto"'$q$, 'gps_en_curso_datos_tamano');
+select pruebas.debe_fallar('No deja una carga en otro club', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c2', '2026-10-09', 0, '{}', '{}')$q$, 'row-level security');
+select pruebas.esperar('Borra la del otro día', pruebas.filas($$delete from gps_en_curso where fecha = '2026-10-10'$$), 1);
+select pruebas.esperar('...y se va con lo hecho', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 2);
 reset role;
 select pruebas.esperar('Las tres filas quedan en las versiones', (select count(*) from versiones_datos where tabla = 'gps'), 3);
 select pruebas.esperar('...y quién las cargó', (select count(*) from gps where creado_por = '00000000-0000-0000-0000-000000000616' and actualizado_por = '00000000-0000-0000-0000-000000000616'), 3);
@@ -848,6 +869,9 @@ select pruebas.esperar('...ni en la foto', (select count(*) from datos_al_dia('g
 select pruebas.esperar('...ni los Ajustes', (select count(*) from gps_campos) + (select count(*) from gps_opciones) + (select count(*) from gps_reglas), 0);
 select pruebas.debe_fallar('...ni los cambia', $$insert into gps_campos (equipo_id, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'd', 'Distancia')$$, 'row-level security');
 select pruebas.debe_fallar('...ni las reglas de la carga', $$insert into gps_reglas (equipo_id, reglas) values ('00000000-0000-0000-0000-0000000000c1', '{}')$$, 'row-level security');
+select pruebas.esperar('...ni las cargas sin terminar', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 0);
+select pruebas.debe_fallar('...ni deja una', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-11', 0, '{}', '{}')$q$, 'row-level security');
+select pruebas.esperar('...ni borra la que hay', pruebas.filas($$delete from gps_en_curso$$), 0);
 reset role;
 
 select pruebas.ser('eva@dos.com'); set role authenticated;
@@ -855,6 +879,9 @@ select pruebas.esperar('Eva (de otro club) no ve las de Uno', (select count(*) f
 select pruebas.esperar('...ni con la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
 select pruebas.esperar('...ni cambia sus Ajustes', pruebas.filas($$update gps_campos set etiqueta_es = 'Espía'$$), 0);
 select pruebas.esperar('...ni sus reglas de carga', pruebas.filas($$update gps_reglas set reglas = '{}'$$), 0);
+select pruebas.esperar('...ni sus cargas sin terminar', (select count(*) from gps_en_curso where equipo_id = :C1) + (select count(*) from gps_en_curso_datos), 0);
+select pruebas.esperar('...ni las sigue', pruebas.filas($$update gps_en_curso set paso = 0$$), 0);
+select pruebas.esperar('...ni las borra', pruebas.filas($$delete from gps_en_curso$$), 0);
 reset role;
 
 select pruebas.ser('beto@uno.com'); set role authenticated;
@@ -862,6 +889,12 @@ select pruebas.debe_fallar('Un jugador con datos del GPS no se borra', $$delete 
 select pruebas.esperar('Beto le da GPS a la preparadora', pruebas.filas($$update club_miembros set gps = true where user_id = '00000000-0000-0000-0000-000000000015' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
 reset role;
 select pruebas.esperar('El permiso nuevo queda en la historia de la preparadora', (select count(*) from club_miembros_historial where user_id = '00000000-0000-0000-0000-000000000015' and accion = 'modulos' and detalle ->> 'gps' = 'true'), 1);
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('Con GPS, la preparadora ve la carga sin terminar que dejó otro', (select count(*) from gps_en_curso where equipo_id = :C1), 1);
+select pruebas.esperar('...con lo hecho', (select count(*) from gps_en_curso_datos), 1);
+select pruebas.esperar('...la sigue', (select (gps_dejar_en_curso((select id from gps_en_curso where fecha = '2026-10-09'), 2, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 6, '{}', '{"csv":[]}') ->> 'version')::bigint), 3);
+select pruebas.esperar('...y queda que la dejó ella', (select creado_email || ',' || actualizado_email from gps_en_curso), 'gps@uno.com,pf@uno.com');
+reset role;
 
 -- Quien carga el GPS se va de Uno: ve la foto de su último día, mientras
 -- tenga el permiso, pero no cambia nada.
@@ -877,6 +910,8 @@ select pruebas.debe_fallar('...pero ya no carga', $$insert into gps (equipo_id, 
 select pruebas.esperar('...ni cambia los Ajustes', pruebas.filas($$update gps_campos set oculto = true$$), 0);
 select pruebas.esperar('...ve las reglas de la carga', (select count(*) from gps_reglas), 1);
 select pruebas.esperar('...pero no las cambia', pruebas.filas($$update gps_reglas set reglas = '{}'$$), 0);
+select pruebas.esperar('...pero ya no ve las cargas sin terminar', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 0);
+select pruebas.debe_fallar('...ni deja una', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-12', 0, '{}', '{}')$q$, 'row-level security');
 reset role;
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Beto le saca GPS (ya se fue)', pruebas.filas($$update club_miembros set gps = false where user_id = '00000000-0000-0000-0000-000000000616' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
@@ -890,6 +925,9 @@ select pruebas.debe_fallar('Sin cuenta no se ve el GPS', 'select count(*) from g
 select pruebas.debe_fallar('...ni sus Ajustes', 'select count(*) from gps_campos', 'permission denied');
 select pruebas.debe_fallar('...ni sus listas', 'select count(*) from gps_opciones', 'permission denied');
 select pruebas.debe_fallar('...ni sus reglas de carga', 'select count(*) from gps_reglas', 'permission denied');
+select pruebas.debe_fallar('...ni sus cargas sin terminar', 'select count(*) from gps_en_curso', 'permission denied');
+select pruebas.debe_fallar('...ni lo hecho en ellas', 'select count(*) from gps_en_curso_datos', 'permission denied');
+select pruebas.debe_fallar('...ni deja una', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-12', 0, '{}', '{}')$q$, 'permission denied');
 select pruebas.debe_fallar('...ni su foto', $$select * from datos_al_dia('gps', '00000000-0000-0000-0000-0000000000c1')$$, 'permission denied');
 reset role;
 
@@ -1053,7 +1091,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,esta_autorizado,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,esta_autorizado,gps_dejar_en_curso,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
