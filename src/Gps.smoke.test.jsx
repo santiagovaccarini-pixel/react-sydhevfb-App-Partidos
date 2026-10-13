@@ -671,6 +671,37 @@ describe("GPS", () => {
     expect(filas(contenedor)).toHaveLength(14);
   });
 
+  // Santiago, 13/10: «No hace falta que cosas que no van a ocupar mucho
+  // espacio tengan tanto espacio».
+  test("Cargar: cada campo de arriba de un bloque, del tamaño de lo que lleva", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER));
+    await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
+    await tocar(boton("Guardar igual el que no está en Datos básicos"));
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("1. Rondo");
+    const tamanoDe = (rotulo) => [...contenedor.querySelectorAll(".gps-cargar-encabezado > .campo-inicio")].find((uno) => uno.querySelector("label").textContent === rotulo)?.className;
+    // Los números y lo calculado: una caja chica.
+    ["Base", "Largo", "Ancho", "Nro. de jugadores", "Pausa (segundos)", "C/P Jug", "C/P Tarea", "m2"].forEach((rotulo) => expect(tamanoDe(rotulo)).toContain("gps-cargar-chico"));
+    // Los desplegables, del ancho de su opción más larga; sin nada elegido, «Elegí…».
+    [TIPO, "Código Estrategia", "Zona de Impacto"].forEach((rotulo) => expect(tamanoDe(rotulo)).toContain("gps-cargar-ajustado"));
+    const desplegable = () => contenedor.querySelector(`[aria-label="${TIPO}"]`);
+    expect(desplegable().querySelector("b").textContent).toBe("Elegí…");
+    expect(desplegable().querySelector(".gps-cargar-molde").dataset.molde.split("\n")).toEqual(expect.arrayContaining(["Elegí…", "Din. Intensiva de Interacción", "Descanso"]));
+    await elegirTipo();
+    expect(desplegable().querySelector("b").textContent).toBe("Din. Colectiva");
+    // El nombre de la tarea (va en la descripción) crece con lo escrito; es un
+    // solo renglón.
+    expect(tamanoDe("Nombre de la tarea")).toContain("gps-cargar-largo");
+    const nombre = contenedor.querySelector('textarea[aria-label="Nombre de la tarea"]');
+    expect(nombre.value).toBe("1. Rondo");
+    await escribir(nombre, "1. Rondo\ncon dos toques");
+    expect(nombre.value).toBe("1. Rondo con dos toques");
+    expect(nombre.parentElement.dataset.valor).toBe("1. Rondo con dos toques");
+  });
+
   test("si el CSV ya está en la Base, avisa y no deja seguir", async () => {
     datos.filas = [...FILAS(), fila("y1", 10, { jugador_id: 1 }, AYER, { d: 3000, tiempo: 1200, inicio: 36000 })];
     await montar();
@@ -709,7 +740,7 @@ describe("GPS", () => {
     await tocar(boton("Siguiente"));
 
     expect(titulo()).toBe("Primer tiempo");
-    expect(contenedor.querySelector('input[placeholder="Vs Rival"]').value).toBe("Vs Rival Prueba");
+    expect(contenedor.querySelector('[placeholder="Vs Rival"]').value).toBe("Vs Rival Prueba");
     expect(nombres()).toEqual(["ALFA", "BETA"]);
     // En el partido no se ve lo que no usa (Santiago, 12/10): se muestra desde Ajustes.
     ["Series", "Bloques", "Largo", "Ancho", "m2", "Nro. de jugadores"].forEach((rotulo) => expect(contenedor.querySelector(`input[aria-label="${rotulo}"]`)).toBeNull());

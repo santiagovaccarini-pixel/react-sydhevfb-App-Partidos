@@ -1570,6 +1570,26 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     de la sesión, ni sin día del microciclo y dispositivo (si el club no tiene dispositivos,
     dice dónde sumarlos). Antes de guardar se revisa que toda fila tenga Clasificación Días,
     Dispositivo y Tipo de Sesión (también lo cambiado en la tabla).
+  - Santiago, 13/10, con una captura de una tarea: «No hace falta que cosas que no van a ocupar
+    mucho espacio tengan tanto espacio, como: base, ancho, largo, Codigo de estrategia, Tipo de
+    sesion, zona de impacto, nro de jugadores, Pausa, Cpj […] en cambio la descripcion si
+    tendria que tener espacio (Dale un largo normal y si el texto supera el largo que se vaya
+    agrandando, con las demas podrias darle el largo suficiente, para las que tienen
+    desplegable, para la opcion mas larga y las que no tienen desplegable le pones un cuadrado
+    relativamente pequeño». Arriba de cada bloque (los tiempos, el partido completo, cada tarea
+    y la sesión, también lo del día y los que no ingresaron) los campos van uno al lado del
+    otro, cada uno de su tamaño: los números (base, largo, ancho, Nro. de jugadores, pausa, C/P
+    Jug, series, bloques) y lo calculado (C/P Tarea, m2), una caja chica; los desplegables
+    (tipo de sesión, código, zona, Tarea o Partido, tipo y día del microciclo, dispositivo), del
+    ancho de su opción más larga, que se mide con las opciones del club; el nombre de la tarea y
+    el del partido (van en la descripción), de un largo normal que crece con lo escrito y, al
+    llegar al borde, sigue en otro renglón (es un solo renglón: Enter no corta). Ninguno es más
+    angosto que su rótulo; lo que no entra pasa abajo (en el celular, también). Un desplegable
+    sin nada elegido dice «Elegí…» (el rótulo ya está arriba; si dijera el rótulo, el ancho
+    sería el del rótulo). Lo que explica un campo (por ejemplo, el día del microciclo) no lo
+    ensancha más de una frase corta. Las listas de varios (los que no ingresaron, las tareas de
+    la descripción) y la descripción de la sesión siguen anchas. Descartado: la grilla de
+    columnas iguales (cada campo de 190 px o más).
 - **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
   jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
   Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,
