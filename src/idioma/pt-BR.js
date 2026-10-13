@@ -573,6 +573,9 @@ export default {
       partidoSinRival: "O jogo de {{fecha}} em Jogo não tem adversário: o nome se escreve à mão.",
       vsPartido: "% vs V.R. de jogo",
       vs: { metabolica: "Metabólica", fuerza: "Força", velocidad: "Velocidade", promedio: "Média" },
+      vsLeyendaBien: "{{corte}} ou mais",
+      vsLeyendaBajo: "Menos de {{corte}}",
+      vsLeyendaPromedio: "Média: a partir de {{corte}}",
       sinVr: "Para ver o % de cada bloco contra o jogo, carregue os V.R. de jogo em Ajustes › Regras de carga.",
       vsSinPromedio: "Sem Team Average (menos de {{n}} jogadores): não há % vs V.R. de jogo.",
       nadieSinIngresar: "Ninguém",
@@ -663,6 +666,16 @@ export default {
         ninguno: "Sem carregar",
         ayuda: "O de cada minuto de um jogo (a aba Datos Básicos da planilha, VR Partido). Com eles, cada bloco mostra seu % para escolher a densidade. Vazio: não aparece.",
         malo: "Escreva números maiores que 0 (ou deixe vazio).",
+      },
+      corteVsPartido: {
+        titulo: "% vs V.R. de jogo em verde",
+        detalle: "A partir de {{valor}} (cada medida, Metabólica, Força e Velocidade)",
+        ayuda: "A partir desta parte do V.R. de jogo vai em verde e abaixo, em vermelho. Na planilha: {{valor}}.",
+      },
+      corteVsPartidoPromedio: {
+        titulo: "% vs V.R. de jogo: a média em verde",
+        detalle: "A partir de {{valor}}",
+        ayuda: "A média das medidas vai em verde a partir desta parte do V.R. de jogo e abaixo, em vermelho. Na planilha: {{valor}}.",
       },
       ocultosDelPartido: {
         titulo: "O que se vê nos blocos do jogo",

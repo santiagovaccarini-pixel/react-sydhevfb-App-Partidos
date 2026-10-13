@@ -197,71 +197,174 @@
   margin: 0 2px 8px;
 }
 
-/* % vs V.R. de partido (como arriba de cada bloque en la plantilla): los tres
-   grupos y el promedio, grandes; cada medida, chica, en columnas. */
+/* % vs V.R. de partido (como arriba de cada bloque en la plantilla), en su
+   propio recuadro: los tres grupos y el promedio en tarjetas con una barra
+   (de 0 a 150 %, con una marca en el corte) y cada medida con su número en
+   una pastilla. Los colores, como la plantilla (Santiago, 13/10): verde desde
+   el corte y rojo abajo; sin dato, gris. */
 .gps-marco .gps-cargar-vs {
   grid-column: 1 / -1;
   display: grid;
-  gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid #e2e8f0;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+.gps-marco .gps-cargar-vs-cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
 }
 .gps-marco .gps-cargar-vs-titulo {
   color: #334155;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gps-marco .gps-cargar-vs-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+.gps-marco .gps-cargar-vs-leyenda span::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+  vertical-align: 1px;
+}
+.gps-marco .gps-cargar-vs-leyenda .bien::before {
+  background: #16a34a;
+}
+.gps-marco .gps-cargar-vs-leyenda .bajo::before {
+  background: #dc2626;
 }
 .gps-marco .gps-cargar-vs-grupos {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
-.gps-marco .gps-cargar-vs-grupos span {
+.gps-marco .gps-cargar-vs-grupo {
   display: grid;
-  gap: 2px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: #f1f5f9;
+  gap: 4px;
+  padding: 10px 12px 12px;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #cbd5e1;
+  border-radius: 14px;
+  background: #fff;
 }
-.gps-marco .gps-cargar-vs-grupos small {
+.gps-marco .gps-cargar-vs-grupo > span:first-child {
   color: #475569;
   font-size: 12px;
   font-weight: 700;
 }
-.gps-marco .gps-cargar-vs-grupos b {
+.gps-marco .gps-cargar-vs-grupo b {
   color: #0f172a;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.gps-marco .gps-cargar-vs-grupo.bien {
+  border-left-color: #16a34a;
+}
+.gps-marco .gps-cargar-vs-grupo.bien b {
+  color: #15803d;
+}
+.gps-marco .gps-cargar-vs-grupo.bajo {
+  border-left-color: #dc2626;
+}
+.gps-marco .gps-cargar-vs-grupo.bajo b {
+  color: #c1121f;
+}
+.gps-marco .gps-cargar-vs-barra {
+  position: relative;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+.gps-marco .gps-cargar-vs-barra i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+.gps-marco .gps-cargar-vs-grupo.bien .gps-cargar-vs-barra i {
+  background: #22c55e;
+}
+.gps-marco .gps-cargar-vs-grupo.bajo .gps-cargar-vs-barra i {
+  background: #ef4444;
+}
+.gps-marco .gps-cargar-vs-barra em {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: #334155;
 }
 .gps-marco .gps-cargar-vs-medidas {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 0 16px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.gps-marco .gps-cargar-vs-medidas span {
+.gps-marco .gps-cargar-vs-medidas li {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px dashed #e2e8f0;
-  font-size: 13px;
+  min-width: 0;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 12.5px;
 }
-.gps-marco .gps-cargar-vs-medidas small {
+.gps-marco .gps-cargar-vs-medidas span {
   min-width: 0;
   color: #475569;
-  font-size: 12px;
   overflow-wrap: anywhere;
 }
 .gps-marco .gps-cargar-vs-medidas b {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #f1f5f9;
   color: #0f172a;
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.gps-marco .gps-cargar-vs-medidas li.bien b {
+  background: #dcfce7;
+  color: #166534;
+}
+.gps-marco .gps-cargar-vs-medidas li.bajo b {
+  background: #fdecee;
+  color: #c1121f;
 }
 .gps-marco .gps-cargar-vs-aviso {
   grid-column: 1 / -1;
   margin: 0;
 }
 @media (max-width: 599px) {
+  .gps-marco .gps-cargar-vs {
+    padding: 10px;
+  }
   .gps-marco .gps-cargar-vs-grupos {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

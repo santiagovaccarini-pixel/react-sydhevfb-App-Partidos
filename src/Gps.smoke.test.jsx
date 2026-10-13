@@ -522,6 +522,8 @@ describe("GPS", () => {
   const elegirTipo = (texto = "Din. Colectiva", rotulo = TIPO) => elegirDelDesplegable(rotulo, texto);
   const aviso = () => contenedor.querySelector(".aviso-hoja")?.textContent;
   const vs = () => contenedor.querySelector(".gps-cargar-vs")?.textContent;
+  const colorDeMedida = (clave) => contenedor.querySelector(`.gps-cargar-vs [data-medida="${clave}"]`).className;
+  const colorDeGrupo = (grupo) => contenedor.querySelector(`.gps-cargar-vs [data-grupo="${grupo}"]`).className;
   const listaDeNoEntrenaron = () => [...contenedor.querySelectorAll(".datos-importar-lista li > .datos-importar-fila > b")].map((b) => b.textContent);
 
   test("abre en Cargar: el día de hoy y el botón para cargar un día", async () => {
@@ -572,7 +574,12 @@ describe("GPS", () => {
     expect(celda(contenedor, 1, "Va Tarea").textContent).toBe("Va");
     // El % vs V.R. de partido del Team Average: 8700 m en 60 min = 145 por minuto.
     expect(vs()).toContain("D/min145 %");
-    expect(vs()).toContain("Metabólica145 %");
+    // Los grupos, con un decimal (como la plantilla); verde desde el 90 %.
+    expect(vs()).toContain("Metabólica145,0 %");
+    expect(colorDeMedida("d_min")).toBe("bien");
+    expect(colorDeGrupo("metabolica")).toContain("bien");
+    // Sin el dato, sin color.
+    expect(colorDeMedida("d_shi_min")).toBe("");
     // Los m², como la plantilla: largo × ancho ÷ jugadores.
     await escribirEn("Largo", "40");
     await escribirEn("Ancho", "30");
@@ -751,6 +758,25 @@ describe("GPS", () => {
     expect(deAlfa[0].datos.clasificacion_dias).toBe("0_t");
     expect(datos.creadas.find((una) => una.jugador_id === 3).datos).toMatchObject({ d: 1200, condicion: "total" });
     expect(datos.creadas.find((una) => una.jugador_id === 4).datos).toMatchObject({ d: 0, tiempo: 0, tipo_sesion: "descanso", descripcion: `${AYER.replace(/-/g, "_")}_ Vs Rival Prueba SIN INGRESAR ` });
+  });
+
+  test("% vs V.R. de partido: rojo abajo del 90 %, verde desde ahí; el promedio, desde el 70 % (como la plantilla)", async () => {
+    // 145 por minuto contra 200: 72,5 %.
+    datos.reglas = { vrPartido: { d_min: 200 } };
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER));
+    await esperar(() => contenedor.textContent.includes("No está en la Base"));
+    await guardarIgual();
+    await tocar(boton("Siguiente"));
+    expect(vs()).toContain("D/min73 %");
+    expect(vs()).toContain("90 % o más");
+    expect(vs()).toContain("Menos de 90 %");
+    expect(vs()).toContain("Promedio: desde 70 %");
+    expect(colorDeMedida("d_min")).toBe("bajo");
+    expect(colorDeGrupo("metabolica")).toContain("bajo");
+    expect(colorDeGrupo("promedio")).toContain("bien");
+    expect(colorDeGrupo("fuerza")).not.toMatch(/bien|bajo/);
   });
 
   test("día de partido sin partido en Partido: avisa y el nombre se escribe a mano", async () => {

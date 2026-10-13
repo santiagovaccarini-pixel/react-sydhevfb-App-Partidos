@@ -7,7 +7,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { opcionesDeLista } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
-import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, microcicloDe, vsPartido } from "./domain/gps/cargar.js";
+import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, llegaAlCorte, microcicloDe, vsPartido } from "./domain/gps/cargar.js";
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
 import { COMO_PERSONA, NO_CARGAR, buscadorDelGps, leerSegundos } from "./domain/gps/importar.js";
 import { esNumero, textoDeSegundos } from "./domain/gps/valores.js";
@@ -582,31 +582,62 @@ export default function CargarGps({
   // cada bloque en la plantilla: con esto se elige la densidad (Santiago,
   // 12/10: «No estan los % vs vr de partido con los que se decide la densidad
   // de la sesion»).
+  // Los colores, como la plantilla (Santiago, 13/10): verde desde el corte y
+  // rojo abajo (cada medida y los grupos, 90 %; el promedio, 70 %; los dos en
+  // Ajustes › Reglas de carga). Los decimales, también: las medidas y el
+  // promedio sin decimales; la metabólica, la fuerza y la velocidad, con uno.
   const conVr = VS_PARTIDO.medidas.some((clave) => reglas.vrPartido?.[clave]);
-  const enPorcentaje = (numero) => (esNumero(numero) ? `${Math.round(numero * 100).toLocaleString(idioma)} %` : "—");
+  const enPorcentaje = (numero, decimales = 0) =>
+    esNumero(numero) ? `${(Math.round(numero * 100 * 10 ** decimales) / 10 ** decimales).toLocaleString(idioma, { minimumFractionDigits: decimales, maximumFractionDigits: decimales })} %` : "—";
+  const colorDe = (numero, corte) => {
+    const llega = llegaAlCorte(numero, corte);
+    return llega === null ? "" : llega ? "bien" : "bajo";
+  };
+  // La barra va de 0 a 150 %, con una marca en el corte.
+  const largoDe = (numero) => (esNumero(numero) ? Math.min(Math.max(numero / 1.5, 0), 1) * 100 : 0);
   const panelVs = (datos) => {
     if (!conVr) return <p className="lesiones-ayuda gps-cargar-vs-aviso">{t("gps.cargar.sinVr")}</p>;
     if (!datos) return <p className="lesiones-ayuda gps-cargar-vs-aviso">{t("gps.cargar.vsSinPromedio", { n: reglas.minimoParaPromedio })}</p>;
     const vs = vsPartido(datos, reglas.vrPartido);
+    // Los cortes, como en Ajustes (con su decimal, si tienen).
+    const textoDeCorte = (parte) => `${(Math.round(parte * 1000) / 10).toLocaleString(idioma)} %`;
+    const corte = textoDeCorte(reglas.corteVsPartido);
+    const cortePromedio = textoDeCorte(reglas.corteVsPartidoPromedio);
     return (
       <div className="gps-cargar-vs" role="group" aria-label={t("gps.cargar.vsPartido")}>
-        <span className="gps-cargar-vs-titulo">{t("gps.cargar.vsPartido")}</span>
+        <div className="gps-cargar-vs-cabeza">
+          <span className="gps-cargar-vs-titulo">{t("gps.cargar.vsPartido")}</span>
+          <span className="gps-cargar-vs-leyenda">
+            <span className="bien">{t("gps.cargar.vsLeyendaBien", { corte })}</span>
+            <span className="bajo">{t("gps.cargar.vsLeyendaBajo", { corte })}</span>
+            {cortePromedio !== corte && <span>{t("gps.cargar.vsLeyendaPromedio", { corte: cortePromedio })}</span>}
+          </span>
+        </div>
         <div className="gps-cargar-vs-grupos">
-          {["metabolica", "fuerza", "velocidad", "promedio"].map((grupo) => (
-            <span key={grupo}>
-              <small>{t(`gps.cargar.vs.${grupo}`)}</small>
-              <b>{enPorcentaje(vs[grupo])}</b>
-            </span>
+          {[
+            ["metabolica", vs.metabolica, reglas.corteVsPartido, 1],
+            ["fuerza", vs.fuerza, reglas.corteVsPartido, 1],
+            ["velocidad", vs.velocidad, reglas.corteVsPartido, 1],
+            ["promedio", vs.promedio, reglas.corteVsPartidoPromedio, 0],
+          ].map(([grupo, numero, suCorte, decimales]) => (
+            <div key={grupo} className={`gps-cargar-vs-grupo ${colorDe(numero, suCorte)}`.trim()} data-grupo={grupo}>
+              <span>{t(`gps.cargar.vs.${grupo}`)}</span>
+              <b>{enPorcentaje(numero, decimales)}</b>
+              <span className="gps-cargar-vs-barra" aria-hidden="true">
+                <i style={{ width: `${largoDe(numero)}%` }} />
+                <em style={{ left: `${largoDe(suCorte)}%` }} />
+              </span>
+            </div>
           ))}
         </div>
-        <div className="gps-cargar-vs-medidas">
+        <ul className="gps-cargar-vs-medidas">
           {VS_PARTIDO.medidas.map((clave) => (
-            <span key={clave}>
-              <small>{titulo(clave)}</small>
+            <li key={clave} className={colorDe(vs.medidas[clave], reglas.corteVsPartido) || undefined} data-medida={clave}>
+              <span>{titulo(clave)}</span>
               <b>{enPorcentaje(vs.medidas[clave])}</b>
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     );
   };

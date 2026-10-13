@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, metrosPorJugador, microcicloDe, reglasDelClub, vsPartido } from "./cargar.js";
+import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, llegaAlCorte, metrosPorJugador, microcicloDe, reglasDelClub, vsPartido } from "./cargar.js";
 
 // Datos inventados: ningún nombre ni valor del club.
 
@@ -404,6 +404,18 @@ describe("% vs V.R. de partido (la plantilla, arriba de cada bloque)", () => {
     expect(vs.fuerza).toBeNull();
     expect(vsPartido(null, vr).promedio).toBeNull();
     expect(vsPartido({ d_min: 80 }).promedio).toBeNull();
+  });
+
+  test("los colores, como la plantilla: verde desde el corte (90 % cada medida, 70 % el promedio), rojo abajo", () => {
+    expect(REGLAS_CARGA.corteVsPartido).toBe(0.9);
+    expect(REGLAS_CARGA.corteVsPartidoPromedio).toBe(0.7);
+    expect(llegaAlCorte(0.9, 0.9)).toBe(true);
+    expect(llegaAlCorte(0.8999, 0.9)).toBe(false);
+    expect(llegaAlCorte(1.2, 0.9)).toBe(true);
+    // Como Excel: 0,9 hecho con cuentas sigue siendo 0,9.
+    expect(llegaAlCorte(0.3 * 3, 0.9)).toBe(true);
+    expect(llegaAlCorte(null, 0.9)).toBeNull();
+    expect(reglasDelClub({ corteVsPartido: 0.95, corteVsPartidoPromedio: 0 })).toMatchObject({ corteVsPartido: 0.95, corteVsPartidoPromedio: 0.7 });
   });
 
   test("sale del Team Average de cada tarea (lo de cada minuto de los que van)", () => {
