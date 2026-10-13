@@ -515,6 +515,7 @@ export default {
       series: "Séries",
       bloques: "Blocos",
       pausaDelPartido: "Pausa",
+      grupos: { tarea: "A tarefa", partido: "O jogo", sesion: "A sessão", medidas: "Medidas", pausa: "Pausa", descripcion: "Descrição" },
       vaTarea: "Vai Tarefa",
       revisandoBase: "Verificando se este CSV já está na Base…",
       noSeRevisoBase: "Não foi possível verificar se este CSV já está na Base. Tente de novo.",

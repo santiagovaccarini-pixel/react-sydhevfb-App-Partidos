@@ -1414,9 +1414,11 @@ de la plantilla (toda lista, en un desplegable: UI-027; el orden, desde el 12/10
    como en Pegar desde Excel (por su nombre en Catapult y si no por el de Datos básicos; el que
    no está se elige una vez). La fecha sale del CSV (se puede cambiar) y con ella se revisa si
    el CSV **ya está en la Base**: si está, lo dice y no deja seguir; si no, lo dice y deja
-   seguir (y avisa si ese día hay filas de otra sesión). Siempre dice qué pasó con el partido
-   de ese día en Partido (lo encontró, no hay, no trae rival, el CSV no trae los tiempos o no
-   se pudo mirar). Los arqueros no se cargan si el club no los prende (lo dice).
+   seguir (y avisa si ese día hay filas de otra sesión). Esa revisión tiene que salir del
+   propio CSV y no de la fecha elegida (Santiago, 13/10): ver «Pendiente», abajo. Siempre
+   dice qué pasó con el partido de ese día en Partido (lo encontró, no hay, no trae rival, el
+   CSV no trae los tiempos o no se pudo mirar). Los arqueros no se cargan si el club no los
+   prende (lo dice).
 2. **Primer tiempo** y 3. **Segundo tiempo** (si el CSV los tiene): arriba, en una sola
    tarjeta, el nombre del partido («Vs» y el rival del partido de ese día en Partido; se puede
    cambiar), Tarea o Partido, tipo de sesión, zona y pausa (lo demás de la plantilla —código,
@@ -1504,7 +1506,7 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     Mts >= 90% Pico), la Metabólica (D, 14,4-25 y 20-45 W), la Fuerza (las cuatro de
     aceleración y desaceleración), la Velocidad (> 25,2 y > 45 W) y el promedio de las nueve
     primeras (sin Mts >= 90% Pico), como en la plantilla; el tipo de sesión (la densidad) se
-    elige al lado. Los V.R. de partido son los de la hoja «Datos Básicos» de la plantilla («VR
+    elige al lado (13/10: el tipo de sesión no es la densidad; ver «sacale densidad», abajo). Los V.R. de partido son los de la hoja «Datos Básicos» de la plantilla («VR
     Partido»): se guardan por club en `gps_reglas` (Ajustes › Reglas de carga › V.R. de
     partido, un número por medida) y los del club se cargan con un SQL que se pasa en el chat
     (no van al código). Sin V.R., el bloque lo dice; sin Team Average (menos de 4), también.
@@ -1515,7 +1517,8 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     no tienen color en la plantilla: llevan el de las medidas (90 %), por la regla que dio
     Santiago. Los decimales, como la plantilla: las medidas y el promedio sin decimales; los tres
     grupos, con uno. Se compara como Excel (con 15 cifras). Los dos cortes están en Ajustes ›
-    Reglas de carga (90 % y 70 %). El recuadro: los tres grupos y el promedio en tarjetas con el
+    Reglas de carga (90 % y 70 %); el promedio queda en 70 % (Santiago, 13/10: «el promedio
+    dejalo asi»). El recuadro: los tres grupos y el promedio en tarjetas con el
     número grande, un borde y una barra (de 0 a 150 %, con una marca en el corte) del color que
     toca; cada medida con su número en una pastilla verde o roja; arriba, qué es cada color.
     Sin dato, gris.
@@ -1567,6 +1570,46 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     de la sesión, ni sin día del microciclo y dispositivo (si el club no tiene dispositivos,
     dice dónde sumarlos). Antes de guardar se revisa que toda fila tenga Clasificación Días,
     Dispositivo y Tipo de Sesión (también lo cambiado en la tabla).
+  - Santiago, 13/10, con una captura de una tarea: «No hace falta que cosas que no van a ocupar
+    mucho espacio tengan tanto espacio, como: base, ancho, largo, Codigo de estrategia, Tipo de
+    sesion, zona de impacto, nro de jugadores, Pausa, Cpj […] en cambio la descripcion si
+    tendria que tener espacio (Dale un largo normal y si el texto supera el largo que se vaya
+    agrandando, con las demas podrias darle el largo suficiente, para las que tienen
+    desplegable, para la opcion mas larga y las que no tienen desplegable le pones un cuadrado
+    relativamente pequeño». Arriba de cada bloque (los tiempos, el partido completo, cada tarea
+    y la sesión, también lo del día y los que no ingresaron) los campos van uno al lado del
+    otro, cada uno de su tamaño: los números (base, largo, ancho, Nro. de jugadores, pausa, C/P
+    Jug, series, bloques) y lo calculado (C/P Tarea, m2), una caja chica; los desplegables
+    (tipo de sesión, código, zona, Tarea o Partido, tipo y día del microciclo, dispositivo), del
+    ancho de su opción más larga, que se mide con las opciones del club; el nombre de la tarea y
+    el del partido (van en la descripción), de un largo normal que crece con lo escrito y, al
+    llegar al borde, sigue en otro renglón (es un solo renglón: Enter no corta). Ninguno es más
+    angosto que su rótulo; lo que no entra pasa abajo (en el celular, también). Un desplegable
+    sin nada elegido dice «Elegí…» (el rótulo ya está arriba; si dijera el rótulo, el ancho
+    sería el del rótulo). Lo que explica un campo (por ejemplo, el día del microciclo) no lo
+    ensancha más de una frase corta. Las listas de varios (los que no ingresaron, las tareas de
+    la descripción) y la descripción de la sesión siguen anchas. Descartado: la grilla de
+    columnas iguales (cada campo de 190 px o más).
+  - Santiago, 13/10, al verlo: «esta bien, pero fijate que no hay orden visual, esta todo uno
+    al lado del otro y es confuso, como hiciste con los porcentajes, hay que encontrar una
+    manera de darle orden visual y separar las cosas para que se entienda bien, por ejemplo
+    poner los 2 CPJ y CPT por un lado, Todas las mediciones y m2 por otro y asi». La tarjeta de
+    cada bloque va en partes, cada una en su recuadro con su título, como el de los %: «La
+    tarea» / «El partido» / «La sesión» (el nombre, Tarea o Partido, código y zona), «Medidas»
+    (base, largo, ancho, Nro. de jugadores y m2), «Pausa» (series, bloques, pausa, C/P Jug y
+    C/P Tarea) y, en la sesión, «Descripción» (las tareas que van y la descripción que queda).
+    Una al lado de la otra si entran; la descripción, a todo el ancho. Después, el % vs V.R.
+    de partido en su recuadro. Una parte sin nada a la vista (por ejemplo, las medidas del partido, ocultas en
+    Ajustes) no va. Adentro, lo que se escribe va en blanco y lo calculado, en gris. Agregar un
+    jugador sigue al final. Descartado: todos los campos sueltos uno al lado del otro.
+  - Santiago, 13/10, al verlo agrupado: «sacale densidad a tipo de sesion xq no es eso la
+    densidad y tiene que ir con la tarea». La columna se llama «Tipo de Sesión» (en portugués,
+    «Tipo de Sessão») en toda la app: la Base, Ajustes y Cargar. Al pegar desde Excel se sigue
+    reconociendo «Tipo de Sesión (Densidad)», como dice la hoja `BD_GPS`. En Cargar, el tipo de
+    sesión va en la parte de la tarea (del partido o de la sesión), después del nombre. Una
+    primera versión ponía el tipo de sesión con los % en una parte «Densidad»: descartada. Qué
+    es la densidad no se definió; los % siguen siendo con los que Santiago la decide («No estan
+    los % vs vr de partido con los que se decide la densidad de la sesion», 12/10).
 - **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
   jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
   Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,
@@ -1610,10 +1653,24 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
 - Cargar, el rival del 12/10 (Santiago, 12/10): ver con Santiago si el partido con fecha 12/10
   quedó guardado en la base (no solo en el celular, sin sincronizar) y si el CSV traía PRIMER
   TIEMPO y SEGUNDO TIEMPO. Con esta versión la pantalla dice cuál de las dos cosas pasó.
+  13/10: «no aparecio el rival». En el código no se encontró la falla (Partido guarda la fecha
+  como aaaa-mm-dd, la misma que busca Cargar, en el club elegido en ese aparato; la base solo
+  deja leer los partidos a quien tiene Partido en ese club). Para saber cuál es: qué frase dice
+  el paso del CSV sobre Partido y una consulta de solo lectura (pasada en el chat) con los
+  partidos de esos días, su club y los permisos de Santiago en cada club.
+- Cargar, si el CSV ya está en la Base (Santiago, 13/10): «Lo de si el csv esta cargado en la
+  base tendria que salir del propio csv, xq con el hecho de cambiarlo en la fecha del dia en la
+  web ya puede cargarse un csv que ya se cargo […] por ahora dejemoslo asi pero despues hay que
+  cambiarlo». Hoy se comparan las filas del CSV con las de la Base del día elegido en la
+  pantalla (al llegar a la fecha y otra vez al guardar; `filasYaEnLaBase` en
+  `src/domain/gps/cargar.js`, usada en `src/CargarGps.jsx`). Si se cambia la fecha, se mira
+  otro día y un CSV ya cargado se puede cargar de nuevo. Queda así hasta que se cambie; cómo
+  sale del CSV (su propia fecha, sus datos o las dos cosas) se define con Santiago al hacerlo.
 - ¿Los V.R. de partido van por dispositivo (paso 4)? Hoy hay uno solo por club, como la
   plantilla.
-- El promedio del % vs V.R. de partido va en verde desde el 70 % (la plantilla) y no desde el
-  90 % que dijo Santiago el 13/10: confirmar cuál (se cambia en Ajustes › Reglas de carga).
+- ~~El promedio del % vs V.R. de partido va en verde desde el 70 % (la plantilla) y no desde el
+  90 % que dijo Santiago el 13/10: confirmar cuál (se cambia en Ajustes › Reglas de carga).~~
+  Confirmado el 13/10: queda en 70 % («el promedio dejalo asi»).
 - Lo descartado del regenerativo (quien está en el CSV ya no se elige): confirmar con Santiago
   que no hay días con sesión y regenerativo para la misma persona.
 - A quien administra el club, o a un dueño de la app, un permiso nuevo (como GPS) no se le da

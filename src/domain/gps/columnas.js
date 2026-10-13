@@ -218,7 +218,10 @@ export const COLUMNAS_GPS = Object.freeze([
   { clave: "condicion", titulo: t("Condicion", "Condição"), tipo: "lista", lista: "condicion", pegar: ["Condicion", "Condición"] },
   {
     clave: "tipo_sesion",
-    titulo: t("Tipo de Sesión (Densidad)", "Tipo de Sessão (Densidade)"),
+    // Sin «(Densidad)», como en el Excel (Santiago, 13/10: «sacale densidad a
+    // tipo de sesion xq no es eso la densidad»); al pegar, se sigue
+    // reconociendo con ese nombre.
+    titulo: t("Tipo de Sesión", "Tipo de Sessão"),
     tipo: "lista",
     lista: "tipo_sesion",
     pegar: ["Tipo de Sesión (Densidad)", "Tipo de Tarea o Dinamica"],

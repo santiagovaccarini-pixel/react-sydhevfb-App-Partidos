@@ -43,32 +43,36 @@ const claveDeFila = (bloque, indice) => `${bloque}|${indice}`;
 // La clave de una fila que va a la Base (para lo que se cambia en la tabla).
 const claveDeSalida = (fila) => `${fila._seccion}|${fila._quien || ""}|${fila._fila ?? ""}`;
 
-// Lo que se escribe arriba de cada bloque, en el orden de la plantilla.
-// lista: se elige en un desplegable; numero / texto: se escribe; columna:
-// el nombre es el de esa columna de la Base (como lo llame el club).
+// Lo que se escribe arriba de cada bloque. lista: se elige en un
+// desplegable; numero / texto: se escribe; columna: el nombre es el de esa
+// columna de la Base (como lo llame el club). grupo: en qué parte de la
+// tarjeta va (Santiago, 13/10: «hay que encontrar una manera de darle orden
+// visual y separar las cosas»): el nombre (la tarea, el partido o la
+// sesión, con el tipo de sesión: «tiene que ir con la tarea», 13/10), las
+// medidas (con los m²) y la pausa (con las C/P).
 const ENCABEZADO_DEL_PARTIDO = [
-  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion" },
-  { campo: "codigo", lista: "codigo_estrategia", columna: "codigo_estrategia" },
-  { campo: "zona", lista: "zona_impacto", columna: "zona_impacto" },
-  { campo: "jugadores", tipo: "numero", rotulo: "gps.cargar.nroJugadores", paso: 1 },
-  { campo: "series", tipo: "numero", rotulo: "gps.cargar.series", paso: 1 },
-  { campo: "bloques", tipo: "numero", rotulo: "gps.cargar.bloques", paso: 1 },
-  { campo: "pausa", tipo: "texto", rotulo: "gps.cargar.pausaDelPartido" },
-  { campo: "largo", tipo: "numero", columna: "largo" },
-  { campo: "ancho", tipo: "numero", columna: "ancho" },
-  { campo: "m2", tipo: "numero", columna: "m2" },
+  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion", grupo: "nombre" },
+  { campo: "codigo", lista: "codigo_estrategia", columna: "codigo_estrategia", grupo: "nombre" },
+  { campo: "zona", lista: "zona_impacto", columna: "zona_impacto", grupo: "nombre" },
+  { campo: "largo", tipo: "numero", columna: "largo", grupo: "medidas" },
+  { campo: "ancho", tipo: "numero", columna: "ancho", grupo: "medidas" },
+  { campo: "jugadores", tipo: "numero", rotulo: "gps.cargar.nroJugadores", paso: 1, grupo: "medidas" },
+  { campo: "m2", tipo: "numero", columna: "m2", grupo: "medidas" },
+  { campo: "series", tipo: "numero", rotulo: "gps.cargar.series", paso: 1, grupo: "pausa" },
+  { campo: "bloques", tipo: "numero", rotulo: "gps.cargar.bloques", paso: 1, grupo: "pausa" },
+  { campo: "pausa", tipo: "texto", rotulo: "gps.cargar.pausaDelPartido", grupo: "pausa" },
 ];
 const ENCABEZADO_DE_TAREA = [
-  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion" },
-  { campo: "nombre", tipo: "texto", rotulo: "gps.cargar.nombreTarea" },
-  { campo: "codigo", lista: "codigo_estrategia", columna: "codigo_estrategia" },
-  { campo: "zona", lista: "zona_impacto", columna: "zona_impacto" },
-  { campo: "base", tipo: "numero", columna: "base" },
-  { campo: "largo", tipo: "numero", columna: "largo" },
-  { campo: "ancho", tipo: "numero", columna: "ancho" },
-  { campo: "jugadores", tipo: "numero", rotulo: "gps.cargar.nroJugadores", paso: 1 },
-  { campo: "pausa", tipo: "numero", rotulo: "gps.cargar.pausa", paso: 1 },
-  { campo: "cpJug", tipo: "numero", columna: "cp_jug" },
+  { campo: "nombre", tipo: "texto", rotulo: "gps.cargar.nombreTarea", largo: true, grupo: "nombre" },
+  { campo: "tipoSesion", lista: "tipo_sesion", columna: "tipo_sesion", grupo: "nombre" },
+  { campo: "codigo", lista: "codigo_estrategia", columna: "codigo_estrategia", grupo: "nombre" },
+  { campo: "zona", lista: "zona_impacto", columna: "zona_impacto", grupo: "nombre" },
+  { campo: "base", tipo: "numero", columna: "base", grupo: "medidas" },
+  { campo: "largo", tipo: "numero", columna: "largo", grupo: "medidas" },
+  { campo: "ancho", tipo: "numero", columna: "ancho", grupo: "medidas" },
+  { campo: "jugadores", tipo: "numero", rotulo: "gps.cargar.nroJugadores", paso: 1, grupo: "medidas" },
+  { campo: "pausa", tipo: "numero", rotulo: "gps.cargar.pausa", paso: 1, grupo: "pausa" },
+  { campo: "cpJug", tipo: "numero", columna: "cp_jug", grupo: "pausa" },
 ];
 const ENCABEZADO_DE_LA_SESION = ENCABEZADO_DE_TAREA.filter((uno) => uno.campo !== "nombre");
 
@@ -546,24 +550,55 @@ export default function CargarGps({
 
   // ------------------------------------------------------- Los controles --
   const titulo = (clave) => gps.columnas.find((columna) => columna.clave === clave)?.titulo?.[idioma] || clave;
+  // Lo que muestra un desplegable a medida: del ancho del más largo de
+  // todos (el navegador los mide escondidos, con la misma letra).
+  const aMedida = (texto, todos) => (
+    <span className="gps-cargar-molde" data-molde={todos.join("\n")}>
+      <b>{texto}</b>
+    </span>
+  );
   // rotulo: el nombre del desplegable (y el título de su hoja); vacio: lo que
-  // dice sin nada elegido (si no, el rótulo).
-  const elegir = ({ rotulo, lista, valor, alElegir, sinDato = true, vacio = rotulo }) => {
+  // dice sin nada elegido (si no, el rótulo). ajustado: del ancho de su
+  // opción más larga (Santiago, 13/10); sin nada elegido dice «Elegí…»,
+  // porque el rótulo ya está arriba.
+  const elegir = ({ rotulo, lista, valor, alElegir, sinDato = true, vacio = rotulo, ajustado = false }) => {
     const suyas = opciones(lista);
     const lasDeLaHoja = [...(sinDato ? [{ valor: "", etiqueta: t("comun.sinDato") }] : []), ...suyas];
     const elegida = lasDeLaHoja.find((opcion) => opcion.valor === valor);
+    const sinNada = ajustado ? t("comun.elegir") : vacio;
+    const texto = elegida && elegida.valor !== "" ? elegida.etiqueta : sinNada;
     return (
       <button type="button" className="selector-hoja" aria-label={rotulo} onClick={() => setHoja({ titulo: rotulo, opciones: lasDeLaHoja, valor, alElegir })}>
-        <b>{elegida && elegida.valor !== "" ? elegida.etiqueta : vacio}</b>
+        {ajustado ? aMedida(texto, [sinNada, ...suyas.map((opcion) => opcion.etiqueta)]) : <b>{texto}</b>}
         <Icono nombre="flecha" size={15} />
       </button>
     );
   };
-  const campo = (rotulo, control, clave = rotulo) => (
-    <div className="campo-inicio lesiones-campo-paso" key={clave}>
+  // tamano (arriba de cada bloque; Santiago, 13/10: «No hace falta que cosas
+  // que no van a ocupar mucho espacio tengan tanto espacio»): chico (un
+  // número o lo calculado), ajustado (un desplegable) o largo (el nombre,
+  // que va en la descripción).
+  const campo = (rotulo, control, clave = rotulo, tamano = "") => (
+    <div className={`campo-inicio lesiones-campo-paso${tamano ? ` gps-cargar-${tamano}` : ""}`} key={clave}>
       <label>{rotulo}</label>
       {control}
     </div>
+  );
+  // El nombre: de un largo normal y, si lo escrito no entra, crece; al llegar
+  // al borde sigue en otro renglón. Es una sola línea: Enter no corta.
+  const crece = ({ valor, alCambiar, rotulo, maximo, placeholder }) => (
+    <span className="gps-cargar-crece" data-valor={valor || placeholder || ""}>
+      <textarea
+        rows={1}
+        cols={1}
+        maxLength={maximo}
+        value={valor ?? ""}
+        placeholder={placeholder}
+        aria-label={rotulo}
+        onKeyDown={(evento) => evento.key === "Enter" && evento.preventDefault()}
+        onChange={(evento) => alCambiar(evento.target.value.replace(/[\r\n]+/g, " "))}
+      />
+    </span>
   );
   const numero = (valor, alCambiar, { paso: incremento = "any", rotulo = "" } = {}) => (
     <input
@@ -642,34 +677,60 @@ export default function CargarGps({
     );
   };
 
+  // Una parte de la tarjeta de un bloque, con su título arriba (como el
+  // recuadro de los %): si no tiene nada, no va.
+  const grupo = (clave, rotulo, contenido) => {
+    const hay = [contenido].flat().filter(Boolean);
+    if (!hay.length) return null;
+    return (
+      <div className={`gps-cargar-grupo gps-cargar-grupo-${clave}`} role="group" aria-label={rotulo} key={clave}>
+        <span className="gps-cargar-grupo-titulo">{rotulo}</span>
+        <div className="gps-cargar-grupo-campos">
+          {hay.map((uno, i) => (uno?.key != null ? uno : <React.Fragment key={`suelto-${i}`}>{uno}</React.Fragment>))}
+        </div>
+      </div>
+    );
+  };
+
   // Lo de arriba de un bloque (como en la plantilla), con lo que se calcula
   // al final (los m², la relación pausa / trabajo) y, si se pasa el Team
   // Average del bloque (o null, si no tiene), su % vs V.R. de partido.
   // antes / despues: lo demás del bloque, en la misma tarjeta (Santiago, 12/10:
-  // «Hay demasiado espacio como para juntar las cosas»).
-  const encabezado = (definiciones, valores, alCambiar, calculados = [], promedioDelBloque, { antes = null, despues = null } = {}) => (
-    <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
-      {antes}
-      {definiciones.map((def) => {
-        const rotulo = def.columna ? titulo(def.columna) : t(def.rotulo);
-        const valor = valores?.[def.campo];
-        let control;
-        if (def.lista) control = elegir({ rotulo, lista: def.lista, valor: valor || "", alElegir: (elegido) => alCambiar({ [def.campo]: elegido }) });
-        else if (def.tipo === "texto")
-          control = <input type="text" maxLength={200} value={valor ?? ""} aria-label={rotulo} onChange={(evento) => alCambiar({ [def.campo]: evento.target.value })} />;
-        else control = numero(valor, (nuevo) => alCambiar({ [def.campo]: nuevo }), { paso: def.paso || "any", rotulo });
-        return campo(rotulo, control, def.campo);
-      })}
-      {calculados.map(({ rotulo, valor }) => (
-        <div className="campo-inicio lesiones-campo-paso gps-cargar-calculado" key={rotulo}>
-          <label>{rotulo}</label>
-          <b>{conDosDecimales(valor)}</b>
-        </div>
-      ))}
-      {promedioDelBloque !== undefined && panelVs(promedioDelBloque)}
-      {despues}
-    </section>
-  );
+  // «Hay demasiado espacio como para juntar las cosas»). Va en partes, cada
+  // una con su título (Santiago, 13/10: «hay que encontrar una manera de
+  // darle orden visual y separar las cosas para que se entienda bien, por
+  // ejemplo poner los 2 CPJ y CPT por un lado, Todas las mediciones y m2 por
+  // otro»): de: tarea, partido o sesion (el título de la primera); antes va
+  // en la primera; descripcion, en la última (la de la sesión). El % vs
+  // V.R. de partido, en su recuadro, después de las partes.
+  const encabezado = (definiciones, valores, alCambiar, calculados = [], promedioDelBloque, { antes = null, despues = null, de = "tarea", descripcion = null } = {}) => {
+    const control = (def) => {
+      const rotulo = def.columna ? titulo(def.columna) : t(def.rotulo);
+      const valor = valores?.[def.campo];
+      if (def.lista) return campo(rotulo, elegir({ rotulo, lista: def.lista, valor: valor || "", alElegir: (elegido) => alCambiar({ [def.campo]: elegido }), ajustado: true }), def.campo, "ajustado");
+      if (def.largo) return campo(rotulo, crece({ valor, alCambiar: (nuevo) => alCambiar({ [def.campo]: nuevo }), rotulo, maximo: 200 }), def.campo, "largo");
+      if (def.tipo === "texto")
+        return campo(rotulo, <input type="text" maxLength={200} value={valor ?? ""} aria-label={rotulo} onChange={(evento) => alCambiar({ [def.campo]: evento.target.value })} />, def.campo, "chico");
+      return campo(rotulo, numero(valor, (nuevo) => alCambiar({ [def.campo]: nuevo }), { paso: def.paso || "any", rotulo }), def.campo, "chico");
+    };
+    const calculado = ({ rotulo, valor }) => (
+      <div className="campo-inicio lesiones-campo-paso gps-cargar-calculado gps-cargar-chico" key={rotulo}>
+        <label>{rotulo}</label>
+        <b>{conDosDecimales(valor)}</b>
+      </div>
+    );
+    const delGrupo = (clave) => [...definiciones.filter((def) => def.grupo === clave).map(control), ...calculados.filter((uno) => uno.grupo === clave).map(calculado)];
+    return (
+      <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
+        {grupo("nombre", t(`gps.cargar.grupos.${de}`), [antes, ...delGrupo("nombre")])}
+        {grupo("medidas", t("gps.cargar.grupos.medidas"), delGrupo("medidas"))}
+        {grupo("pausa", t("gps.cargar.grupos.pausa"), delGrupo("pausa"))}
+        {promedioDelBloque !== undefined && panelVs(promedioDelBloque)}
+        {descripcion && grupo("descripcion", t("gps.cargar.grupos.descripcion"), descripcion)}
+        {despues}
+      </section>
+    );
+  };
 
   // Elegir varios: el desplegable dice cuáles van y abre la lista con
   // casillas (la del filtro de las bases).
@@ -1137,25 +1198,27 @@ export default function CargarGps({
           [],
           promedioDeSeccion(secciones[0]),
           {
+            de: "partido",
             antes: parte === primerPasoDelPartido && (
               <>
                 {campo(
                   t("gps.cargar.nombrePartido"),
                   <>
-                    <input
-                      type="text"
-                      maxLength={120}
-                      value={estado.partido.nombre}
-                      placeholder={t("gps.cargar.nombrePartidoEjemplo")}
-                      onChange={(evento) => cambiar((antes) => ({ partido: { ...antes.partido, nombre: evento.target.value, nombreAMano: true } }))}
-                    />
+                    {crece({
+                      valor: estado.partido.nombre,
+                      alCambiar: (nombre) => cambiar((antes) => ({ partido: { ...antes.partido, nombre, nombreAMano: true } })),
+                      rotulo: t("gps.cargar.nombrePartido"),
+                      maximo: 120,
+                      placeholder: t("gps.cargar.nombrePartidoEjemplo"),
+                    })}
                     <small className="lesiones-ayuda">
                       {delPartido?.fecha === estado.fecha && delPartido.estado === "hay" && delPartido.rival && !estado.partido.nombreAMano ? t("gps.cargar.nombreDePartido") : t("gps.cargar.nombrePartidoAyuda")}
                     </small>
                   </>,
                   "nombre",
+                  "largo",
                 )}
-                {campo(titulo("tarea_partido"), elegir({ rotulo: titulo("tarea_partido"), lista: "tarea_partido", valor: estado.partido.tareaPartido, alElegir: (valor) => cambiar((antes) => ({ partido: { ...antes.partido, tareaPartido: valor } })) }), "tp")}
+                {campo(titulo("tarea_partido"), elegir({ rotulo: titulo("tarea_partido"), lista: "tarea_partido", valor: estado.partido.tareaPartido, alElegir: (valor) => cambiar((antes) => ({ partido: { ...antes.partido, tareaPartido: valor } })), ajustado: true }), "tp", "ajustado")}
               </>
             ),
             despues: parte !== "completo" && agregarEn(parte, bloques?.[parte]?.filas || []),
@@ -1179,10 +1242,21 @@ export default function CargarGps({
                 )}
               </>,
               "banco",
+              "largo",
             )}
-            {campo(titulo("tipo_sesion"), elegir({ rotulo: `${t("gps.cargar.sinIngresar")}: ${titulo("tipo_sesion")}`, vacio: titulo("tipo_sesion"), lista: "tipo_sesion", valor: estado.partido.banco.tipoSesion || "", alElegir: (valor) => cambiarPartido("banco", { tipoSesion: valor }) }), "bancoTipo")}
+            {campo(
+              titulo("tipo_sesion"),
+              elegir({ rotulo: `${t("gps.cargar.sinIngresar")}: ${titulo("tipo_sesion")}`, lista: "tipo_sesion", valor: estado.partido.banco.tipoSesion || "", alElegir: (valor) => cambiarPartido("banco", { tipoSesion: valor }), ajustado: true }),
+              "bancoTipo",
+              "ajustado",
+            )}
             {!reglas.ocultosDelPartido.includes("codigo") &&
-              campo(titulo("codigo_estrategia"), elegir({ rotulo: `${t("gps.cargar.sinIngresar")}: ${titulo("codigo_estrategia")}`, vacio: titulo("codigo_estrategia"), lista: "codigo_estrategia", valor: estado.partido.banco.codigo || "", alElegir: (valor) => cambiarPartido("banco", { codigo: valor }) }), "bancoCodigo")}
+              campo(
+                titulo("codigo_estrategia"),
+                elegir({ rotulo: `${t("gps.cargar.sinIngresar")}: ${titulo("codigo_estrategia")}`, lista: "codigo_estrategia", valor: estado.partido.banco.codigo || "", alElegir: (valor) => cambiarPartido("banco", { codigo: valor }), ajustado: true }),
+                "bancoCodigo",
+                "ajustado",
+              )}
           </section>
         )}
         {tablaDe(parte, filasDeSeccion(...secciones), { conNombre: parte !== "completo" })}
@@ -1229,8 +1303,8 @@ export default function CargarGps({
               { ...suya, nombre: suya.nombre ?? bloque.nombre },
               (cambios) => cambiarTarea(bloque.nombre, cambios),
               [
-                { rotulo: titulo("cp_tarea"), valor: calculada?.datos?.cp_tarea },
-                { rotulo: titulo("m2"), valor: calculada?.datos?.m2 },
+                { rotulo: titulo("cp_tarea"), valor: calculada?.datos?.cp_tarea, grupo: "pausa" },
+                { rotulo: titulo("m2"), valor: calculada?.datos?.m2, grupo: "medidas" },
               ],
               promedioDeSeccion(seccion),
               { despues: agregarEn(`t:${bloque.nombre}`, bloque.filas) },
@@ -1327,7 +1401,7 @@ export default function CargarGps({
   const pasoSesion = (
     <>
       <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
-        {campo(titulo("tipo_microciclo"), elegir({ rotulo: titulo("tipo_microciclo"), lista: "tipo_microciclo", valor: estado.tipoMicrociclo, alElegir: (valor) => cambiar({ tipoMicrociclo: valor }) }), "tmic")}
+        {campo(titulo("tipo_microciclo"), elegir({ rotulo: titulo("tipo_microciclo"), lista: "tipo_microciclo", valor: estado.tipoMicrociclo, alElegir: (valor) => cambiar({ tipoMicrociclo: valor }), ajustado: true }), "tmic", "ajustado")}
         {campo(
           t("gps.cargar.dia"),
           <>
@@ -1339,14 +1413,20 @@ export default function CargarGps({
                 setHoja({ titulo: t("gps.cargar.dia"), opciones: [{ valor: "", etiqueta: t("comun.sinDato") }, ...DIAS.map((dia) => ({ valor: dia, etiqueta: dia }))], valor: estado.dia, alElegir: (valor) => cambiar({ dia: valor }) })
               }
             >
-              <b>{estado.dia || t("gps.cargar.dia")}</b>
+              {aMedida(estado.dia || t("comun.elegir"), [t("comun.elegir"), ...DIAS])}
               <Icono nombre="flecha" size={15} />
             </button>
             <small className="lesiones-ayuda">{t("gps.cargar.diaAyuda", { hora: `${Math.floor(reglas.horaDeLaTarde / 3600)}:${String(Math.floor((reglas.horaDeLaTarde % 3600) / 60)).padStart(2, "0")}` })}</small>
           </>,
           "dia",
+          "ajustado",
         )}
-        {campo(titulo("dispositivo"), opciones("dispositivo").length ? elegir({ rotulo: titulo("dispositivo"), lista: "dispositivo", valor: estado.dispositivo, alElegir: (valor) => cambiar({ dispositivo: valor }) }) : <p className="lesiones-ayuda">{t("gps.importar.sinDispositivos")}</p>, "disp")}
+        {campo(
+          titulo("dispositivo"),
+          opciones("dispositivo").length ? elegir({ rotulo: titulo("dispositivo"), lista: "dispositivo", valor: estado.dispositivo, alElegir: (valor) => cambiar({ dispositivo: valor }), ajustado: true }) : <p className="lesiones-ayuda">{t("gps.importar.sinDispositivos")}</p>,
+          "disp",
+          "ajustado",
+        )}
       </section>
       <section className="lesiones-paso-titulo">
         <h2>{t("gps.cargar.promedioSesion")}</h2>
@@ -1357,12 +1437,13 @@ export default function CargarGps({
         estado.sesion,
         (cambios) => cambiar((antes) => ({ sesion: { ...antes.sesion, ...cambios } })),
         [
-          { rotulo: titulo("cp_tarea"), valor: promedioDeLaSesion?.datos?.cp_tarea },
-          { rotulo: titulo("m2"), valor: promedioDeLaSesion?.datos?.m2 },
+          { rotulo: titulo("cp_tarea"), valor: promedioDeLaSesion?.datos?.cp_tarea, grupo: "pausa" },
+          { rotulo: titulo("m2"), valor: promedioDeLaSesion?.datos?.m2, grupo: "medidas" },
         ],
         promedioDeLaSesion?.datos || null,
         {
-          despues: tareasParaLaDescripcion.length > 0 && (
+          de: "sesion",
+          descripcion: tareasParaLaDescripcion.length > 0 && (
             <>
               {campo(
                 t("gps.cargar.tareasEnLaDescripcion"),
@@ -1380,6 +1461,7 @@ export default function CargarGps({
                   <small className="lesiones-ayuda">{t("gps.cargar.tareasEnLaDescripcionAyuda")}</small>
                 </>,
                 "descripcion",
+                "largo",
               )}
               <div className="campo-inicio lesiones-campo-paso gps-cargar-calculado gps-cargar-descripcion">
                 <label>{titulo("descripcion")}</label>

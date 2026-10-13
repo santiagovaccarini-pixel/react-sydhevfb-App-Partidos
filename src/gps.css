@@ -112,31 +112,120 @@
   font-weight: 750;
 }
 /* Cada bloque (un tiempo del partido, una tarea, la sesión), como en la
-   plantilla: arriba lo que se escribe, en una grilla (en la compu, varias
-   columnas; en el celular, de a dos), y abajo la tabla con todos sus
-   jugadores. */
+   plantilla: arriba lo que se escribe, uno al lado del otro, y abajo la
+   tabla con todos sus jugadores. Cada campo, del tamaño de lo que lleva
+   (Santiago, 13/10: «No hace falta que cosas que no van a ocupar mucho
+   espacio tengan tanto espacio»): un número o lo calculado, una caja chica;
+   un desplegable, del ancho de su opción más larga; el nombre (va en la
+   descripción), de un largo normal que crece con lo escrito. Ninguno más
+   angosto que su rótulo; lo que no entra en el renglón, abajo. */
 .gps-marco .gps-cargar-encabezado {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px 14px;
-  align-items: start;
+  align-items: flex-start;
 }
-@media (max-width: 599px) {
-  .gps-marco .gps-cargar-encabezado {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .gps-marco .gps-cargar-encabezado .campo-inicio:has(.selector-hoja),
-  .gps-marco .gps-cargar-encabezado .campo-inicio:has(input[type="text"]),
-  .gps-marco .gps-cargar-encabezado .gps-cargar-descripcion {
-    grid-column: 1 / -1;
-  }
-}
-.gps-marco .gps-cargar-encabezado .campo-inicio {
+.gps-marco .gps-cargar-encabezado > .campo-inicio,
+.gps-marco .gps-cargar-grupo-campos > .campo-inicio {
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
   margin: 0;
 }
 .gps-marco .gps-cargar-encabezado .selector-hoja {
   min-width: 0;
+}
+/* Una caja chica (min-width: 100%: si el rótulo es más largo, la caja llega
+   hasta donde llega él). */
+.gps-marco .gps-cargar-chico > input,
+.gps-marco .gps-cargar-chico > b {
+  width: 5.5rem;
+  min-width: 100%;
+}
+.gps-marco .gps-cargar-ajustado > .selector-hoja,
+.gps-marco .gps-cargar-largo > .selector-hoja {
+  width: max-content;
+  min-width: 100%;
+  max-width: 100%;
+}
+/* Lo elegido, del ancho del más largo de la lista: los demás van en el
+   mismo lugar, escondidos y sin alto (data-molde, uno por renglón). */
+.gps-marco .gps-cargar-molde {
+  display: grid;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.gps-marco .gps-cargar-molde > b,
+.gps-marco .gps-cargar-molde::after {
+  grid-area: 1 / 1;
+}
+.gps-marco .gps-cargar-molde::after {
+  content: attr(data-molde);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.1px;
+  white-space: pre;
+}
+.gps-marco .gps-cargar-encabezado > .gps-cargar-largo,
+.gps-marco .gps-cargar-grupo-campos > .gps-cargar-largo {
+  min-width: min(17.5rem, 100%);
+}
+/* El nombre: lo escrito, copiado y escondido en el mismo lugar, le da el
+   largo (y, si llega al borde, el alto) a la caja. */
+.gps-marco .gps-cargar-crece {
+  display: grid;
+  min-width: 100%;
+  max-width: 100%;
+}
+.gps-marco .campo-inicio .gps-cargar-crece > textarea,
+.gps-marco .gps-cargar-crece::after {
+  grid-area: 1 / 1;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid #cbd5e1;
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.gps-marco .gps-cargar-crece::after {
+  content: attr(data-valor);
+  padding-right: 17px;
+  border-color: transparent;
+  visibility: hidden;
+}
+.gps-marco .campo-inicio .gps-cargar-crece > textarea {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 44px;
+  overflow: hidden;
+  border-radius: 11px;
+  background: #f8fafc;
+  color: #0f172a;
+  resize: none;
+}
+.gps-marco .campo-inicio .gps-cargar-crece > textarea:focus {
+  outline: none;
+  border-color: #334155;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(51, 65, 85, 0.12);
+}
+/* Lo que explica un campo no lo ensancha: va debajo, en el ancho del campo
+   (al menos el de una frase corta). */
+.gps-marco .gps-cargar-encabezado > .campo-inicio > .lesiones-ayuda,
+.gps-marco .gps-cargar-grupo-campos > .campo-inicio > .lesiones-ayuda {
+  width: 0;
+  min-width: 100%;
+}
+.gps-marco .gps-cargar-encabezado > .gps-cargar-ajustado:has(> .lesiones-ayuda),
+.gps-marco .gps-cargar-grupo-campos > .gps-cargar-ajustado:has(> .lesiones-ayuda) {
+  min-width: min(15rem, 100%);
 }
 /* Lo que se calcula (los m², la relación pausa / trabajo, la descripción). */
 .gps-marco .gps-cargar-calculado b {
@@ -151,8 +240,54 @@
   font-size: 14px;
   font-weight: 800;
 }
-.gps-marco .gps-cargar-descripcion {
-  grid-column: 1 / -1;
+.gps-marco .gps-cargar-encabezado > .gps-cargar-descripcion,
+.gps-marco .gps-cargar-grupo-campos > .gps-cargar-descripcion {
+  flex: 1 1 100%;
+}
+/* Cada parte de la tarjeta de un bloque, con su título, como el recuadro
+   de los % (Santiago, 13/10: «hay que encontrar una manera de darle orden
+   visual y separar las cosas para que se entienda bien»): el nombre (la
+   tarea, el partido o la sesión, con el tipo de sesión), las medidas con
+   los m², la pausa con las C/P y, en la sesión, la descripción. Una al lado
+   de la otra si entran (estiradas hasta el borde); la descripción, a todo
+   el ancho. Después, los % en su recuadro. Adentro, lo que se escribe va
+   en blanco y lo calculado, en gris. */
+.gps-marco .gps-cargar-grupo {
+  display: grid;
+  flex: 1 1 auto;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+.gps-marco .gps-cargar-grupo-descripcion {
+  flex-basis: 100%;
+}
+.gps-marco .gps-cargar-grupo-titulo {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gps-marco .gps-cargar-grupo-campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: flex-start;
+}
+.gps-marco .gps-cargar-grupo .campo-inicio input,
+.gps-marco .gps-cargar-grupo .selector-hoja,
+.gps-marco .gps-cargar-grupo .campo-inicio .gps-cargar-crece > textarea {
+  background: #fff;
+}
+.gps-marco .gps-cargar-grupo .selector-hoja:hover,
+.gps-marco .gps-cargar-grupo .selector-hoja:active {
+  background: #f1f5f9;
 }
 .gps-marco .gps-cargar-descripcion b {
   min-height: 0;
@@ -162,7 +297,7 @@
 }
 /* Agregar un jugador: al final de la tarjeta del bloque, a todo el ancho. */
 .gps-marco .gps-cargar-agregar {
-  grid-column: 1 / -1;
+  flex: 1 1 100%;
   display: grid;
   gap: 8px;
 }
@@ -203,7 +338,7 @@
    una pastilla. Los colores, como la plantilla (Santiago, 13/10): verde desde
    el corte y rojo abajo; sin dato, gris. */
 .gps-marco .gps-cargar-vs {
-  grid-column: 1 / -1;
+  flex: 1 1 100%;
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -358,7 +493,7 @@
   color: #c1121f;
 }
 .gps-marco .gps-cargar-vs-aviso {
-  grid-column: 1 / -1;
+  flex: 1 1 100%;
   margin: 0;
 }
 @media (max-width: 599px) {

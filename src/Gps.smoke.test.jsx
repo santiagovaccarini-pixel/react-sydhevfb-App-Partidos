@@ -518,7 +518,7 @@ describe("GPS", () => {
     await tocar(opcionDeHoja(texto));
   };
   // El tipo de sesión (la densidad): sin él no se sigue (Santiago, 12/10).
-  const TIPO = "Tipo de Sesión (Densidad)";
+  const TIPO = "Tipo de Sesión";
   const elegirTipo = (texto = "Din. Colectiva", rotulo = TIPO) => elegirDelDesplegable(rotulo, texto);
   const aviso = () => contenedor.querySelector(".aviso-hoja")?.textContent;
   const vs = () => contenedor.querySelector(".gps-cargar-vs")?.textContent;
@@ -671,6 +671,51 @@ describe("GPS", () => {
     expect(filas(contenedor)).toHaveLength(14);
   });
 
+  // Santiago, 13/10: «No hace falta que cosas que no van a ocupar mucho
+  // espacio tengan tanto espacio».
+  test("Cargar: cada campo de arriba de un bloque, del tamaño de lo que lleva", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    datos.reglas = { vrPartido: { d_min: 100 } };
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER));
+    await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
+    await tocar(boton("Guardar igual el que no está en Datos básicos"));
+    await tocar(boton("Siguiente"));
+    expect(titulo()).toBe("1. Rondo");
+    const tamanoDe = (rotulo) => [...contenedor.querySelectorAll(".gps-cargar-encabezado .campo-inicio")].find((uno) => uno.querySelector("label").textContent === rotulo)?.className;
+    // Cada cosa en su parte, con su título (Santiago, 13/10: «poner los 2 CPJ
+    // y CPT por un lado, Todas las mediciones y m2 por otro»).
+    const enLaParte = (titulo) => {
+      const parte = contenedor.querySelector(`.gps-cargar-encabezado .gps-cargar-grupo[aria-label="${titulo}"]`);
+      return [...parte.querySelectorAll(".campo-inicio > label")].map((label) => label.textContent);
+    };
+    expect([...contenedor.querySelectorAll(".gps-cargar-encabezado .gps-cargar-grupo-titulo")].map((uno) => uno.textContent)).toEqual(["La tarea", "Medidas", "Pausa"]);
+    // El tipo de sesión, con la tarea y sin «(Densidad)»: no es la densidad.
+    expect(enLaParte("La tarea")).toEqual(["Nombre de la tarea", TIPO, "Código Estrategia", "Zona de Impacto"]);
+    expect(enLaParte("Medidas")).toEqual(["Base", "Largo", "Ancho", "Nro. de jugadores", "m2"]);
+    expect(enLaParte("Pausa")).toEqual(["Pausa (segundos)", "C/P Jug", "C/P Tarea"]);
+    // Los %, en su recuadro, después de las partes.
+    expect(contenedor.querySelector(".gps-cargar-encabezado > .gps-cargar-vs")).not.toBeNull();
+    // Los números y lo calculado: una caja chica.
+    ["Base", "Largo", "Ancho", "Nro. de jugadores", "Pausa (segundos)", "C/P Jug", "C/P Tarea", "m2"].forEach((rotulo) => expect(tamanoDe(rotulo)).toContain("gps-cargar-chico"));
+    // Los desplegables, del ancho de su opción más larga; sin nada elegido, «Elegí…».
+    [TIPO, "Código Estrategia", "Zona de Impacto"].forEach((rotulo) => expect(tamanoDe(rotulo)).toContain("gps-cargar-ajustado"));
+    const desplegable = () => contenedor.querySelector(`[aria-label="${TIPO}"]`);
+    expect(desplegable().querySelector("b").textContent).toBe("Elegí…");
+    expect(desplegable().querySelector(".gps-cargar-molde").dataset.molde.split("\n")).toEqual(expect.arrayContaining(["Elegí…", "Din. Intensiva de Interacción", "Descanso"]));
+    await elegirTipo();
+    expect(desplegable().querySelector("b").textContent).toBe("Din. Colectiva");
+    // El nombre de la tarea (va en la descripción) crece con lo escrito; es un
+    // solo renglón.
+    expect(tamanoDe("Nombre de la tarea")).toContain("gps-cargar-largo");
+    const nombre = contenedor.querySelector('textarea[aria-label="Nombre de la tarea"]');
+    expect(nombre.value).toBe("1. Rondo");
+    await escribir(nombre, "1. Rondo\ncon dos toques");
+    expect(nombre.value).toBe("1. Rondo con dos toques");
+    expect(nombre.parentElement.dataset.valor).toBe("1. Rondo con dos toques");
+  });
+
   test("si el CSV ya está en la Base, avisa y no deja seguir", async () => {
     datos.filas = [...FILAS(), fila("y1", 10, { jugador_id: 1 }, AYER, { d: 3000, tiempo: 1200, inicio: 36000 })];
     await montar();
@@ -709,7 +754,7 @@ describe("GPS", () => {
     await tocar(boton("Siguiente"));
 
     expect(titulo()).toBe("Primer tiempo");
-    expect(contenedor.querySelector('input[placeholder="Vs Rival"]').value).toBe("Vs Rival Prueba");
+    expect(contenedor.querySelector('[placeholder="Vs Rival"]').value).toBe("Vs Rival Prueba");
     expect(nombres()).toEqual(["ALFA", "BETA"]);
     // En el partido no se ve lo que no usa (Santiago, 12/10): se muestra desde Ajustes.
     ["Series", "Bloques", "Largo", "Ancho", "m2", "Nro. de jugadores"].forEach((rotulo) => expect(contenedor.querySelector(`input[aria-label="${rotulo}"]`)).toBeNull());
@@ -740,7 +785,7 @@ describe("GPS", () => {
     await elegirTipo();
     await tocar(boton("Siguiente"));
     expect(aviso()).toBe("Falta el tipo de sesión: Sin ingresar.");
-    await elegirTipo("Descanso", "Sin ingresar: Tipo de Sesión (Densidad)");
+    await elegirTipo("Descanso", "Sin ingresar: Tipo de Sesión");
     await tocar(boton("Siguiente"));
     expect(titulo()).toBe("Regenerativo y no entrenaron");
     await elegirTipo("Descanso");
