@@ -1414,9 +1414,11 @@ de la plantilla (toda lista, en un desplegable: UI-027; el orden, desde el 12/10
    como en Pegar desde Excel (por su nombre en Catapult y si no por el de Datos básicos; el que
    no está se elige una vez). La fecha sale del CSV (se puede cambiar) y con ella se revisa si
    el CSV **ya está en la Base**: si está, lo dice y no deja seguir; si no, lo dice y deja
-   seguir (y avisa si ese día hay filas de otra sesión). Siempre dice qué pasó con el partido
-   de ese día en Partido (lo encontró, no hay, no trae rival, el CSV no trae los tiempos o no
-   se pudo mirar). Los arqueros no se cargan si el club no los prende (lo dice).
+   seguir (y avisa si ese día hay filas de otra sesión). Esa revisión tiene que salir del
+   propio CSV y no de la fecha elegida (Santiago, 13/10): ver «Pendiente», abajo. Siempre
+   dice qué pasó con el partido de ese día en Partido (lo encontró, no hay, no trae rival, el
+   CSV no trae los tiempos o no se pudo mirar). Los arqueros no se cargan si el club no los
+   prende (lo dice).
 2. **Primer tiempo** y 3. **Segundo tiempo** (si el CSV los tiene): arriba, en una sola
    tarjeta, el nombre del partido («Vs» y el rival del partido de ese día en Partido; se puede
    cambiar), Tarea o Partido, tipo de sesión, zona y pausa (lo demás de la plantilla —código,
@@ -1610,6 +1612,14 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
 - Cargar, el rival del 12/10 (Santiago, 12/10): ver con Santiago si el partido con fecha 12/10
   quedó guardado en la base (no solo en el celular, sin sincronizar) y si el CSV traía PRIMER
   TIEMPO y SEGUNDO TIEMPO. Con esta versión la pantalla dice cuál de las dos cosas pasó.
+- Cargar, si el CSV ya está en la Base (Santiago, 13/10): «Lo de si el csv esta cargado en la
+  base tendria que salir del propio csv, xq con el hecho de cambiarlo en la fecha del dia en la
+  web ya puede cargarse un csv que ya se cargo […] por ahora dejemoslo asi pero despues hay que
+  cambiarlo». Hoy se comparan las filas del CSV con las de la Base del día elegido en la
+  pantalla (al llegar a la fecha y otra vez al guardar; `filasYaEnLaBase` en
+  `src/domain/gps/cargar.js`, usada en `src/CargarGps.jsx`). Si se cambia la fecha, se mira
+  otro día y un CSV ya cargado se puede cargar de nuevo. Queda así hasta que se cambie; cómo
+  sale del CSV (su propia fecha, sus datos o las dos cosas) se define con Santiago al hacerlo.
 - ¿Los V.R. de partido van por dispositivo (paso 4)? Hoy hay uno solo por club, como la
   plantilla.
 - El promedio del % vs V.R. de partido va en verde desde el 70 % (la plantilla) y no desde el
