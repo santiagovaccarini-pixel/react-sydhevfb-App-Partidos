@@ -169,16 +169,27 @@
   letter-spacing: -0.1px;
   white-space: pre;
 }
-.gps-marco .gps-cargar-encabezado > .gps-cargar-largo,
-.gps-marco .gps-cargar-grupo-campos > .gps-cargar-largo {
+.gps-marco .gps-cargar-encabezado > .gps-cargar-largo {
   min-width: min(17.5rem, 100%);
 }
-/* El nombre: lo escrito, copiado y escondido en el mismo lugar, le da el
-   largo (y, si llega al borde, el alto) a la caja. */
+/* El nombre (la descripción), solo en su renglón y a todo el ancho de su
+   parte; lo demás, abajo (Santiago, 13/10: «La descripcion pasa a estar sola
+   en una fila y las demas cosas dentro de la tarea pasan abajo, si la
+   descripcion es mas larga que el cuadrado se agranda hacia abajo y todo se
+   corre hacia abajo»). Lo escrito no ensancha nada: la caja tiene el ancho de
+   la parte. */
+.gps-marco .gps-cargar-grupo-campos > .gps-cargar-largo {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+/* Lo escrito, copiado y escondido en el mismo lugar y con el mismo ancho, le
+   da el alto a la caja: un renglón más recién cuando el texto llega al borde
+   (Santiago, 13/10: «no llega hasta el limite del cuadro de la descripcion y
+   se empieza a agrandar antes de llegar»). */
 .gps-marco .gps-cargar-crece {
   display: grid;
+  width: 0;
   min-width: 100%;
-  max-width: 100%;
 }
 .gps-marco .campo-inicio .gps-cargar-crece > textarea,
 .gps-marco .gps-cargar-crece::after {
@@ -191,11 +202,11 @@
   font-size: 14px;
   line-height: 20px;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 .gps-marco .gps-cargar-crece::after {
-  content: attr(data-valor);
-  padding-right: 17px;
+  content: attr(data-valor) " ";
   border-color: transparent;
   visibility: hidden;
 }
