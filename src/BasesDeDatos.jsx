@@ -41,9 +41,9 @@ export const BASES = [
     Pantalla: Evaluaciones,
     permiso: "evaluaciones",
     clase: "tarjeta-evaluaciones",
-    // Sin foto todavía: va el dibujo.
-    foto: null,
-    fotoParada: null,
+    // Las mandó Santiago (13/10); el dibujo queda por si no cargan.
+    foto: "/portal/evaluaciones.webp",
+    fotoParada: "/portal/evaluaciones-parada.webp",
     foco: [0.5, 0.5],
     focoParada: [0.5, 0.5],
     Arte: ArteEvaluaciones,
