@@ -128,12 +128,15 @@ describe("Bases de Datos", () => {
     expect(tarjetas().map((tarjeta) => tarjeta.querySelector("strong").textContent)).toEqual(["Lesiones", "Evaluaciones"]);
   });
 
-  test("con GPS, su tarjeta (con su dibujo hasta que tenga foto) y su base", async () => {
+  test("con GPS, su tarjeta con su foto (y el dibujo si no carga) y su base", async () => {
     await montar({ permisos: { gps: true } });
     expect(tarjetas()).toHaveLength(1);
     const gps = tarjetas()[0];
     expect(gps.getAttribute("aria-label")).toBe("Entrar a GPS");
     expect(gps.classList.contains("tarjeta-gps")).toBe(true);
+    const foto = gps.querySelector(".portal-foto img");
+    expect(foto.getAttribute("src")).toBe("/portal/gps.webp");
+    await act(async () => foto.dispatchEvent(new Event("error")));
     expect(gps.querySelector(".portal-foto img")).toBeNull();
     expect(gps.querySelector(".portal-foto .portal-arte")).not.toBeNull();
     expect(gps.querySelector(".portal-icono svg")).not.toBeNull();

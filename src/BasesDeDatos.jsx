@@ -56,9 +56,9 @@ export const BASES = [
     Pantalla: Gps,
     permiso: "gps",
     clase: "tarjeta-gps",
-    // Sin foto todavía: va el dibujo.
-    foto: null,
-    fotoParada: null,
+    // Las mandó Santiago (13/10); el dibujo queda por si no cargan.
+    foto: "/portal/gps.webp",
+    fotoParada: "/portal/gps-parada.webp",
     foco: [0.5, 0.5],
     focoParada: [0.5, 0.5],
     Arte: ArteGps,
