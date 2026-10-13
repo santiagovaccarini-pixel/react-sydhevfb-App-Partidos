@@ -50,6 +50,8 @@ const sueltos = [
   "/portal/evaluaciones-parada.webp",
   "/portal/gps.webp",
   "/portal/gps-parada.webp",
+  "/portal/datos.webp",
+  "/portal/datos-parada.webp",
 ];
 
 // Un archivo que falte dejaría la app sin esa parte cuando no hay señal, y

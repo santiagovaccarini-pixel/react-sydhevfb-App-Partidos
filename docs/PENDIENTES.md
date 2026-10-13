@@ -226,6 +226,9 @@ de lo hecho está en los commits, no en esta lista.
 - **Datos básicos** (`src/DatosBasicos.jsx`) es un módulo más del portal, para cualquiera con
   algún módulo: los jugadores del club (los mismos de Partido y Flujo diario) con nombre,
   categoría, nacimiento, edad, pie dominante, posición y foto, en la misma tabla.
+  Su tarjeta del portal tiene foto desde el 13/10 (`public/portal/datos.webp` y
+  `datos-parada.webp`, la lista del plantel en dorado que mandó Santiago: «Datos basicos»; con
+  jugadores inventados, sin nombres reales); el dibujo queda por si no cargan.
   **Es el único lugar con la lista de jugadores (02/10)**: Partido ya no tiene Ajustes ›
   Jugadores ni Flujo diario Ajustes › Lista de jugadores. Lo que estaba ahí se mudó igual:
   la solapa **Posiciones** (los puestos y roles de Partido, `src/components/PosicionesPartido.jsx`)
