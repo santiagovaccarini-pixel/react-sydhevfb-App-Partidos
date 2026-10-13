@@ -1195,6 +1195,20 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     `evaluaciones_campos` y `evaluaciones_opciones`, una fila solo para lo que cambió el
     club; permisos como Lesiones › Ajustes). Sin esa migración la app sigue con los nombres
     del Excel y al guardar avisa que falta el SQL.
+    **Las relativas toman el nombre de su absoluta** (Santiago, 13/10: «si la base
+    (Cualquiera) tiene datos relativos, dentro de ajustes donde se cambian el nombre de las
+    cabeceras solo se puede cambiar el nombre de las absolutas y las relativas pasan a tomar
+    el nombre del absoluto pero dependiendo que sea se le agrega /Min o /PC»). En
+    Evaluaciones, las relativas al peso corporal (P.C.) llevan «/PC»: en Curl Nórdico e
+    Isoprone «L Rel» y «R Rel» de cada bloque (por ejemplo, «L MÁX/PC»), en Iso
+    Aductor-Abductor «PD (REL)» y «PI (REL)» («PD (ABS)/PC» y «PI (ABS)/PC»), en Press Plano
+    «Rel» («RM/PC») y en Sentadilla Incremental «Rel» y «Rel (vel)» («RM IND/PC» y «RM x
+    Vel/PC»). En Ajustes › Cabeceras la relativa dice de quién toma el nombre y no se
+    renombra (se puede esconder); al cambiar el de su absoluta, cambia sola, en los dos
+    idiomas. Un nombre que el club le hubiera puesto antes a una relativa deja de usarse. Las
+    clases («Clas. PD (REL)», «Clas. Grupo (Rel)»…), los V.R. y lo que no se calcula en la
+    app (Peak TQ/BW y Work/BW de Isocinecia, que vienen así del PDF) no cambian. Descartado:
+    renombrar una relativa por su cuenta (UI-029).
 - **Pendiente: validar las evaluaciones nuevas contra las que ya están** (Santiago, 09/10:
   «TENER VALIDACIONES CUANDO SE METEN EVALUACIONES NUEVAS, XQ PUEDO CARGAR TODAS LAS
   EVALUACIONES QUE QUIERE X MAS QUE YA ESTEN EN LA BASE»). Hoy se puede cargar otra vez una
@@ -1249,6 +1263,15 @@ Base · Ajustes, y abre en Cargar (como Evaluaciones).
   cargado no se pierde y vuelve a verse) y se suman columnas del club (número, texto, duración
   u hora del día; van al final y al pegar se reconocen por su nombre). Nombre y Fecha no se
   esconden. «Esfuerzo Explosivo/min» no se usa y se va a sacar: lo esconde el club en Ajustes.
+  Los **por minuto** toman el nombre de su medida con «/min» (Santiago, 13/10, la misma regla
+  que en Evaluaciones: «las relativas pasan a tomar el nombre del absoluto pero dependiendo que
+  sea se le agrega /Min o /PC»): si el club llama «Distancia» a «Distance (km)», su por minuto
+  es «Distancia/min». En Ajustes › Cabeceras solo se renombran las medidas; el por minuto dice
+  de quién toma el nombre y se puede esconder. Se escribe «/min» en minúscula, como 9 de los
+  10 por minuto del Excel (el décimo, «Mts >= 90% Pico/Min», queda «/min»); si se prefiere
+  «/Min», es cambiar una letra. Al pegar se siguen reconociendo los nombres del Excel. GPS ›
+  Cargar también muestra los nombres del club. Descartado: renombrar un por minuto por su
+  cuenta (UI-029).
 - **La Base muestra un período** («Un período, se cambia»): Desde y Hasta arriba; al abrir, las
   últimas 4 semanas con hoy. El informe de arriba, los filtros y los colores van sobre eso.
 - **Los «por minuto»** se traen como están en el Excel; si en la app se cambia una medida o el

@@ -14,6 +14,7 @@ import { COMPARAR_AL_ABRIR } from "./domain/evaluaciones/categorias.js";
 import {
   COLUMNAS_FIJAS,
   LISTA_SELECCION,
+  absolutaDe,
   armarConfig,
   claveDeGrupo,
   codigoNuevo,
@@ -1077,12 +1078,13 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const guardarHojaCabecera = async () => {
     const hoja = hojaCabecera;
     if (!hoja) return;
-    if (!String(hoja.etiquetas[idioma] || "").trim()) {
+    // Una relativa no guarda nombre propio (sale del de su absoluta).
+    if (!hoja.relativa && !String(hoja.etiquetas[idioma] || "").trim()) {
       setErrorHoja(t("lesiones.ajustes.faltaTexto"));
       return;
     }
     setOcupado(true);
-    const respuesta = await guardarCabecera(equipoId, hoja.test, hoja.clave, hoja);
+    const respuesta = await guardarCabecera(equipoId, hoja.test, hoja.clave, hoja.relativa ? { ...hoja, etiquetas: {} } : hoja);
     setOcupado(false);
     if (respuesta.error) {
       setErrorHoja(t(respuesta.error));
@@ -1158,6 +1160,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             {columnasDelTest.map((columna, indice) => {
               const grupo = columna.grupo && columnasDelTest[indice - 1]?.grupo !== columna.grupo ? test.grupos?.find((uno) => uno.clave === columna.grupo) || { clave: columna.grupo } : null;
               const propio = config.campos?.[test.id]?.[columna.clave];
+              const absoluta = absolutaDe(test, columna);
+              const relativa = absoluta ? { absoluta: titulo(test, absoluta), sufijo: columna.relativa.sufijo, nombre: titulo(test, columna) } : null;
               return (
                 <React.Fragment key={columna.clave}>
                   {grupo &&
@@ -1182,7 +1186,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                   {filaAjuste({
                     id: columna.clave,
                     titulo: titulo(test, columna),
-                    detalle: t("lesiones.ajustes.porDefecto", { texto: columna.titulo[idioma] || columna.titulo["es-AR"] }),
+                    detalle: relativa ? t("lesiones.ajustes.relativa", relativa) : t("lesiones.ajustes.porDefecto", { texto: columna.titulo[idioma] || columna.titulo["es-AR"] }),
                     extra: columnaOculta(test, columna.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
                     alTocar: () => {
                       setErrorHoja("");
@@ -1192,6 +1196,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                         etiquetas: { ...(propio?.etiquetas && Object.values(propio.etiquetas).some(Boolean) ? propio.etiquetas : columna.titulo) },
                         oculto: Boolean(propio?.oculto),
                         orden: propio?.orden ?? indice,
+                        relativa,
                       });
                     },
                   })}
@@ -1316,8 +1321,17 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         {errorHoja && <div className="aviso-hoja">{errorHoja}</div>}
         <div className="campo-inicio">
           <label>{t("lesiones.ajustes.nombre")}</label>
-          <input type="text" maxLength={120} value={hoja.etiquetas[idioma] || ""} onChange={(evento) => setHoja({ ...hoja, etiquetas: { ...hoja.etiquetas, [idioma]: evento.target.value } })} />
-          <small className="lesiones-ayuda">{t("lesiones.ajustes.nombreAyuda")}</small>
+          {hoja.relativa ? (
+            <>
+              <input type="text" value={hoja.relativa.nombre} readOnly disabled />
+              <small className="lesiones-ayuda">{t("lesiones.ajustes.relativaAyuda", hoja.relativa)}</small>
+            </>
+          ) : (
+            <>
+              <input type="text" maxLength={120} value={hoja.etiquetas[idioma] || ""} onChange={(evento) => setHoja({ ...hoja, etiquetas: { ...hoja.etiquetas, [idioma]: evento.target.value } })} />
+              <small className="lesiones-ayuda">{t("lesiones.ajustes.nombreAyuda")}</small>
+            </>
+          )}
         </div>
         {nota ? (
           <p className="lesiones-ayuda lesiones-nota-fija">{nota}</p>

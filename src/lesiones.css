@@ -282,6 +282,14 @@
   width: 100%;
   box-sizing: border-box;
 }
+/* Un nombre que no se edita (una relativa en Ajustes › Cabeceras). */
+.lesiones-marco .lesiones-hoja .campo-inicio input:disabled {
+  background: #eef2f6;
+  color: #475569;
+  -webkit-text-fill-color: #475569;
+  opacity: 1;
+  cursor: not-allowed;
+}
 
 .lesiones-marco .lesiones-toast {
   position: fixed;

@@ -51,7 +51,7 @@ export const COLUMNAS = Object.freeze([
   { clave: "rm_clas", titulo: et("Clas. RM", "Clas. RM"), tipo: "calculado", formato: "0" },
   { clave: "rm_mejora", titulo: et("% mejora", "% melhora"), tipo: "calculado", formato: "0.0%" },
   { clave: "kg", titulo: et("Kg", "Kg"), tipo: "numero", formato: "General" },
-  { clave: "rel", titulo: et("Rel", "Rel"), tipo: "calculado", formato: "0.00" },
+  { clave: "rel", titulo: et("Rel", "Rel"), tipo: "calculado", formato: "0.00", relativa: { de: "rm", sufijo: "/PC" } },
   { clave: "rel_clas", titulo: et("Clas. Grupo (Rel)", "Clas. Grupo (Rel)"), tipo: "calculado", formato: "General" },
   { clave: "rel_mejora", titulo: et("% mejora", "% melhora"), tipo: "calculado", formato: "0.0%" },
   { clave: "va", titulo: et("Va?", "Va?"), tipo: "calculado", formato: "General" },

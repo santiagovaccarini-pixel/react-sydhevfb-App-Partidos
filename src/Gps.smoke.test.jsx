@@ -415,6 +415,31 @@ describe("GPS", () => {
     expect(filas(contenedor)).toHaveLength(6);
   });
 
+  // Santiago, 13/10: «solo se puede cambiar el nombre de las absolutas y las
+  // relativas pasan a tomar el nombre del absoluto pero dependiendo que sea se
+  // le agrega /Min o /PC».
+  test("Ajustes › Cabeceras: una por minuto toma el nombre de su medida con /min y no se renombra", async () => {
+    datos.ajustes = { campos: [{ campo: "d", etiqueta_es: "Distancia", etiqueta_pt: "", oculto: false, orden: 3, tipo: null }], opciones: [...DISPOSITIVOS] };
+    await montarEnLaBase();
+    expect(cabeceras(contenedor)).toContain("Distancia");
+    expect(cabeceras(contenedor)).toContain("Distancia/min");
+    await irA(contenedor, "Ajustes");
+    await tocar(ajuste("Cabeceras"));
+    expect(ajuste("Distancia/min").textContent).toContain("Relativa: toma el nombre de «Distancia» con /min");
+    await tocar(ajuste("Distancia/min"));
+    const nombre = document.body.querySelector(".lesiones-hoja input[type=text]");
+    expect(nombre.disabled).toBe(true);
+    expect(nombre.value).toBe("Distancia/min");
+    expect(document.body.textContent).toContain("Para cambiarlo, cambiá el de «Distancia».");
+    // Se esconde igual; el nombre no se guarda.
+    await tocar(boton("Oculta"));
+    await tocar(boton("Guardar"));
+    expect(datos.cabeceras.at(-1)).toMatchObject({ campo: "d_min", oculto: true, etiquetas: {} });
+    // La absoluta sí se renombra.
+    await tocar(ajuste("Distancia"));
+    expect(document.body.querySelector(".lesiones-hoja input[type=text]").disabled).toBe(false);
+  });
+
   test("Ajustes: renombrar, esconder y sumar columnas, y sumar un dispositivo", async () => {
     await montar();
     await irA(contenedor, "Ajustes");
@@ -994,7 +1019,7 @@ describe("GPS", () => {
     await tocar(boton("Guardar"));
     expect(document.body.textContent).toContain("Escribí números mayores que 0");
     await escribir(vr("D/min"), "101,5");
-    await escribir(vr("Mts >= 90% Pico/Min"), "2");
+    await escribir(vr("Mts >= 90% Pico/min"), "2");
     await tocar(boton("Guardar"));
     expect(datos.reglasGuardadas.at(-1).reglas).toEqual({ vrPartido: { d_min: 101.5, mts90_min: 2 } });
     expect(ajuste("V.R. de partido").textContent).toContain("2 de 10 cargados");

@@ -125,11 +125,15 @@ const medida = ({ clave, titulo, pegar, catapult, mitadDelPartido }) => ({
   informe: true,
   colores: true,
 });
+// relativa: su nombre es el de su medida con «/min» (Santiago, 13/10: «las
+// relativas pasan a tomar el nombre del absoluto»); el título, el del Excel,
+// queda para reconocerla al pegar.
 const porMinutoDe = (de) => ({
   clave: de.porMinuto.clave,
   titulo: t(de.porMinuto.titulo),
   tipo: "porMinuto",
   de: de.clave,
+  relativa: Object.freeze({ de: de.clave, sufijo: "/min" }),
   formato: "0.0",
   pegar: de.porMinuto.pegar,
   informe: true,

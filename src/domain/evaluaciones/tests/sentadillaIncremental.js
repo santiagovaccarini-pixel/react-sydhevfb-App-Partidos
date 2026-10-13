@@ -117,11 +117,11 @@ export const COLUMNAS = Object.freeze([
   { clave: "rm_ind", titulo: et("RM IND", "RM IND"), tipo: "calculado", formato: "0.0", grupo: "rm" },
   { clave: "desvio", titulo: et("DESVIO", "DESVIO"), tipo: "calculado", formato: "0.0", grupo: "rm" },
   { clave: "coef_var", titulo: et("COEF. VAR", "COEF. VAR"), tipo: "calculado", formato: "0.00%", grupo: "rm" },
-  { clave: "rel", titulo: et("Rel", "Rel"), tipo: "calculado", formato: "0.00", grupo: "rm" },
+  { clave: "rel", titulo: et("Rel", "Rel"), tipo: "calculado", formato: "0.00", grupo: "rm", relativa: { de: "rm_ind", sufijo: "/PC" } },
   { clave: "rel_mejora", titulo: et("% mejora", "% melhora"), tipo: "calculado", formato: "0.0%", grupo: "rm" },
   { clave: "clas", titulo: et("Clas. Grupo", "Clas. Grupo"), tipo: "calculado", formato: "General", grupo: "rm" },
   { clave: "rm_vel", titulo: et("RM x Vel", "RM x Vel"), tipo: "numero", formato: "0.0", grupo: "vel" },
-  { clave: "rel_vel", titulo: et("Rel (vel)", "Rel (vel)"), tipo: "calculado", formato: "0.00", grupo: "vel" },
+  { clave: "rel_vel", titulo: et("Rel (vel)", "Rel (vel)"), tipo: "calculado", formato: "0.00", grupo: "vel", relativa: { de: "rm_vel", sufijo: "/PC" } },
   { clave: "rel_vel_mejora", titulo: et("% mejora", "% melhora"), tipo: "calculado", formato: "0.0%", grupo: "vel" },
   { clave: "nota", titulo: et("Nota", "Nota"), tipo: "texto" },
 ]);

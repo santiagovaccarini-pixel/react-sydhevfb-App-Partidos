@@ -1624,6 +1624,8 @@ export default {
       nuevaOpcion: "Adicionar uma opção",
       nombre: "Nome neste idioma",
       nombreAyuda: "Para mudá-lo em outro idioma, troque o idioma do app e volte aqui.",
+      relativa: "Relativa: usa o nome de «{{absoluta}}» com {{sufijo}}",
+      relativaAyuda: "É relativa: o nome dela é o de «{{absoluta}}» com {{sufijo}} e muda sozinho. Para mudá-lo, mude o de «{{absoluta}}».",
       mostrar: "Aparece",
       oculto: "Oculta",
       guardado: "Salvo",
