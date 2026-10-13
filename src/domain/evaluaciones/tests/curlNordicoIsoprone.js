@@ -69,11 +69,11 @@ const columnasDelBloque = (bloque) => {
   const grupo = bloque.clave;
   return [
     { clave: c.l, titulo: con("L"), tipo: "numero", formato: "General", grupo },
-    { clave: c.lRel, titulo: con("L", " Rel"), tipo: "calculado", formato: "0.00", grupo },
+    { clave: c.lRel, titulo: con("L", " Rel"), tipo: "calculado", formato: "0.00", grupo, relativa: { de: c.l, sufijo: "/PC" } },
     { clave: c.lClas, titulo: et("Clas L", "Clas L"), tipo: "calculado", formato: "General", grupo },
     { clave: c.lMejora, titulo: et("% mejora L", "% melhora L"), tipo: "calculado", formato: formatoMejoraL, grupo },
     { clave: c.r, titulo: con("R"), tipo: "numero", formato: "General", grupo },
-    { clave: c.rRel, titulo: con("R", " Rel"), tipo: "calculado", formato: "0.00", grupo },
+    { clave: c.rRel, titulo: con("R", " Rel"), tipo: "calculado", formato: "0.00", grupo, relativa: { de: c.r, sufijo: "/PC" } },
     { clave: c.rClas, titulo: et("Clas R", "Clas R"), tipo: "calculado", formato: "General", grupo },
     { clave: c.rMejora, titulo: et("% mejora R", "% melhora R"), tipo: "calculado", formato: "0.0%", grupo },
     {

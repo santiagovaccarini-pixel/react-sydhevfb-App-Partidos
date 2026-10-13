@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LISTA_SELECCION,
+  absolutaDe,
   armarConfig,
   categoriaDeTextoDelClub,
   columnaOculta,
@@ -12,6 +13,11 @@ import {
   tituloDeColumna,
 } from "./ajustes.js";
 import { ZONA_MEDIA } from "./tests/zonaMedia.js";
+import { CURL_NORDICO_ISOPRONE } from "./tests/curlNordicoIsoprone.js";
+import { PRESS_PLANO } from "./tests/pressPlano.js";
+import { TESTS } from "./tests/index.js";
+import { GPS } from "../gps/columnas.js";
+import { armarConfigGps } from "../gps/ajustes.js";
 import { pasosDeCarga } from "../../Evaluaciones.jsx";
 
 // Lo que el club cambió en Ajustes (inventado).
@@ -35,6 +41,43 @@ describe("Evaluaciones › Ajustes", () => {
     expect(tituloDeColumna(ZONA_MEDIA, columna("lumbar"), config, "pt-BR")).toBe("Lumbar (min)");
     expect(tituloDeColumna(ZONA_MEDIA, columna("prono"), config, "pt-BR")).toBe("Prono");
     expect(tituloDeColumna(ZONA_MEDIA, columna("lateral_i"), armarConfig(), "pt-BR")).toBe("Lateral E");
+  });
+
+  // Santiago, 13/10: «solo se puede cambiar el nombre de las absolutas y las
+  // relativas pasan a tomar el nombre del absoluto pero dependiendo que sea
+  // se le agrega /Min o /PC».
+  it("una relativa no tiene nombre propio: el de su absoluta con /PC (y lo que se le haya puesto, no cuenta)", () => {
+    const curl = (clave) => CURL_NORDICO_ISOPRONE.columnas.find((una) => una.clave === clave);
+    expect(tituloDeColumna(CURL_NORDICO_ISOPRONE, curl("curl_l_max_rel"), armarConfig(), "es-AR")).toBe("L MÁX/PC");
+    const delClub = armarConfig([
+      { test: "curl_nordico_isoprone", campo: "curl_l_max", etiqueta_es: "Izq. máx.", etiqueta_pt: "Esq. máx.", oculto: false, orden: 5 },
+      { test: "curl_nordico_isoprone", campo: "curl_l_max_rel", etiqueta_es: "Un nombre viejo", etiqueta_pt: "", oculto: false, orden: 6 },
+    ]);
+    expect(tituloDeColumna(CURL_NORDICO_ISOPRONE, curl("curl_l_max_rel"), delClub, "es-AR")).toBe("Izq. máx./PC");
+    expect(tituloDeColumna(CURL_NORDICO_ISOPRONE, curl("curl_l_max_rel"), delClub, "pt-BR")).toBe("Esq. máx./PC");
+    const press = PRESS_PLANO.columnas.find((una) => una.clave === "rel");
+    expect(tituloDeColumna(PRESS_PLANO, press, armarConfig(), "es-AR")).toBe("RM/PC");
+  });
+
+  it("una relativa de GPS (por minuto): el de su medida con /min", () => {
+    const dMin = GPS.columnas.find((una) => una.clave === "d_min");
+    expect(tituloDeColumna(GPS, dMin, armarConfigGps([], []), "es-AR")).toBe("D/min");
+    const delClub = armarConfigGps([{ campo: "d", etiqueta_es: "Distancia", etiqueta_pt: "", oculto: false, orden: 3, tipo: null }], []);
+    expect(tituloDeColumna(GPS, dMin, delClub, "es-AR")).toBe("Distancia/min");
+    expect(tituloDeColumna(GPS, GPS.columnas.find((una) => una.clave === "mts90_min"), armarConfigGps([], []), "es-AR")).toBe("Mts >= 90% Pico/min");
+  });
+
+  it("toda relativa apunta a una absoluta de su mismo test, que no es relativa", () => {
+    const relativas = [GPS, ...TESTS].flatMap((test) => test.columnas.filter((una) => una.relativa).map((columna) => ({ test, columna })));
+    // GPS: las 10 por minuto; Evaluaciones: Curl (8), Aductor-Abductor (4), Sentadilla (2) y Press (1).
+    expect(relativas.filter(({ test }) => test.id === "gps")).toHaveLength(10);
+    expect(relativas.filter(({ test }) => test.id !== "gps")).toHaveLength(15);
+    relativas.forEach(({ test, columna }) => {
+      const absoluta = absolutaDe(test, columna);
+      expect(absoluta, `${test.id}: ${columna.clave}`).toBeTruthy();
+      expect(absoluta.relativa).toBeUndefined();
+      expect(["/min", "/PC"]).toContain(columna.relativa.sufijo);
+    });
   });
 
   it("esconder: Fecha, Jugador y Selección no se esconden nunca", () => {

@@ -67,11 +67,11 @@ const columnasDelBloque = ({ clave: grupo }) => {
   const formatoMejoraPd = grupo === "ad" ? "0.00%" : "0.0%";
   return [
     { clave: c.pd, titulo: et("PD (ABS)", "PD (ABS)"), tipo: "numero", formato: "0.0", grupo },
-    { clave: c.pdRel, titulo: et("PD (REL)", "PD (REL)"), tipo: "calculado", formato: "0.0", grupo },
+    { clave: c.pdRel, titulo: et("PD (REL)", "PD (REL)"), tipo: "calculado", formato: "0.0", grupo, relativa: { de: c.pd, sufijo: "/PC" } },
     { clave: c.pdClas, titulo: et("Clas. PD (REL)", "Clas. PD (REL)"), tipo: "calculado", formato: "General", grupo },
     { clave: c.pdMejora, titulo: et("% Mejora PD", "% Melhora PD"), tipo: "calculado", formato: formatoMejoraPd, grupo },
     { clave: c.pi, titulo: et("PI (ABS)", "PE (ABS)"), tipo: "numero", formato: "0.0", grupo },
-    { clave: c.piRel, titulo: et("PI (REL)", "PE (REL)"), tipo: "calculado", formato: "0.0", grupo },
+    { clave: c.piRel, titulo: et("PI (REL)", "PE (REL)"), tipo: "calculado", formato: "0.0", grupo, relativa: { de: c.pi, sufijo: "/PC" } },
     { clave: c.piClas, titulo: et("Clas. PI (REL)", "Clas. PE (REL)"), tipo: "calculado", formato: "General", grupo },
     { clave: c.piMejora, titulo: et("% Mejora PI", "% Melhora PE"), tipo: "calculado", formato: "0.0%", grupo },
     { clave: c.deficit, titulo: et("DEFICIT LATERAL", "DÉFICIT LATERAL"), tipo: "calculado", formato: "0.0%", grupo },

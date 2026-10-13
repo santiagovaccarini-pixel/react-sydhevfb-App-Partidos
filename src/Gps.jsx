@@ -10,7 +10,7 @@ import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarGps from "./ImportarGps.jsx";
 import CargarGps from "./CargarGps.jsx";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
-import { COLUMNAS_FIJAS, codigoNuevo, columnaOculta, columnasVisibles, opcionesDeLista, opcionesDelExcel, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
+import { COLUMNAS_FIJAS, absolutaDe, codigoNuevo, columnaOculta, columnasVisibles, opcionesDeLista, opcionesDelExcel, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { TIPOS_PROPIOS, armarConfigGps, claveDeColumnaPropia, configGpsVacia, gpsDelClub } from "./domain/gps/ajustes.js";
 import { AJUSTES_DE_REGLAS, REGLAS_CARGA, VS_PARTIDO, reglasDelClub } from "./domain/gps/cargar.js";
 import { PROMEDIOS } from "./domain/gps/columnas.js";
@@ -739,13 +739,14 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const guardarHojaCabecera = async () => {
     const hoja = hojaCabecera;
     if (!hoja) return;
-    if (!String(hoja.etiquetas[idioma] || "").trim()) {
+    // Una relativa no guarda nombre propio (sale del de su absoluta).
+    if (!hoja.relativa && !String(hoja.etiquetas[idioma] || "").trim()) {
       setErrorHoja(t("lesiones.ajustes.faltaTexto"));
       return;
     }
     setOcupado(true);
     // Una columna del club guarda también su tipo (sin él, deja de estar).
-    const respuesta = await guardarCabeceraGps(equipoId, hoja.clave, hoja);
+    const respuesta = await guardarCabeceraGps(equipoId, hoja.clave, hoja.relativa ? { ...hoja, etiquetas: {} } : hoja);
     setOcupado(false);
     if (respuesta.error) {
       setErrorHoja(t(respuesta.error));
@@ -938,12 +939,16 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             {encabezado(t("lesiones.ajustes.cabeceras"), t("gps.ajustes.cabecerasAyuda"))}
             {gps.columnas.map((columna, indice) => {
               const propio = config.campos?.[gps.id]?.[columna.clave];
+              const absoluta = absolutaDe(gps, columna);
+              const relativa = absoluta ? { absoluta: titulo(absoluta), sufijo: columna.relativa.sufijo, nombre: titulo(columna) } : null;
               return filaAjuste({
                 id: columna.clave,
                 titulo: titulo(columna),
-                detalle: columna.propia
-                  ? t("gps.ajustes.delClub", { tipo: tipoDeColumna(columna.tipo) })
-                  : t("lesiones.ajustes.porDefecto", { texto: columna.titulo[idioma] || columna.titulo["es-AR"] }),
+                detalle: relativa
+                  ? t("lesiones.ajustes.relativa", relativa)
+                  : columna.propia
+                    ? t("gps.ajustes.delClub", { tipo: tipoDeColumna(columna.tipo) })
+                    : t("lesiones.ajustes.porDefecto", { texto: columna.titulo[idioma] || columna.titulo["es-AR"] }),
                 extra: columnaOculta(gps, columna.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
                 alTocar: () => {
                   setErrorHoja("");
@@ -953,6 +958,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
                     oculto: Boolean(propio?.oculto),
                     orden: propio?.orden ?? indice,
                     tipo: columna.propia ? columna.tipo : null,
+                    relativa,
                   });
                 },
               });
@@ -1106,8 +1112,17 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         {errorHoja && <div className="aviso-hoja">{errorHoja}</div>}
         <div className="campo-inicio">
           <label>{t("lesiones.ajustes.nombre")}</label>
-          <input type="text" maxLength={120} value={hoja.etiquetas[idioma] || ""} onChange={(evento) => setHoja({ ...hoja, etiquetas: { ...hoja.etiquetas, [idioma]: evento.target.value } })} />
-          <small className="lesiones-ayuda">{t("lesiones.ajustes.nombreAyuda")}</small>
+          {hoja.relativa ? (
+            <>
+              <input type="text" value={hoja.relativa.nombre} readOnly disabled />
+              <small className="lesiones-ayuda">{t("lesiones.ajustes.relativaAyuda", hoja.relativa)}</small>
+            </>
+          ) : (
+            <>
+              <input type="text" maxLength={120} value={hoja.etiquetas[idioma] || ""} onChange={(evento) => setHoja({ ...hoja, etiquetas: { ...hoja.etiquetas, [idioma]: evento.target.value } })} />
+              <small className="lesiones-ayuda">{t("lesiones.ajustes.nombreAyuda")}</small>
+            </>
+          )}
         </div>
         {fija ? <p className="lesiones-ayuda lesiones-nota-fija">{t("gps.ajustes.noSeOculta")}</p> : chipsMostrar(hoja, setHoja)}
         {nota && <p className="lesiones-ayuda lesiones-nota-fija">{nota}</p>}

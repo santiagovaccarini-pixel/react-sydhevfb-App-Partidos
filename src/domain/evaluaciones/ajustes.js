@@ -62,7 +62,15 @@ export const claveDeGrupo = (grupo) => `grupo:${grupo}`;
 const propioDe = (test, clave, config) => config?.campos?.[test?.id]?.[clave] || null;
 
 // El nombre de una columna del test en este club.
+// Una columna relativa (por minuto, por peso) no tiene nombre propio: es el
+// de su absoluta con «/min» o «/PC» (Santiago, 13/10: «solo se puede cambiar
+// el nombre de las absolutas y las relativas pasan a tomar el nombre del
+// absoluto pero dependiendo que sea se le agrega /Min o /PC»).
+export const absolutaDe = (test, columna) => (columna?.relativa ? test.columnas.find((una) => una.clave === columna.relativa.de) || null : null);
+
 export const tituloDeColumna = (test, columna, config, idioma) => {
+  const absoluta = absolutaDe(test, columna);
+  if (absoluta) return `${tituloDeColumna(test, absoluta, config, idioma)}${columna.relativa.sufijo}`;
   const propio = propioDe(test, columna.clave, config);
   return (propio && conTexto(propio.etiquetas) ? enIdioma(propio.etiquetas, idioma) : "") || enIdioma(columna.titulo, idioma) || columna.clave;
 };

@@ -5,7 +5,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
-import { opcionesDeLista } from "./domain/evaluaciones/ajustes.js";
+import { opcionesDeLista, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
 import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, llegaAlCorte, microcicloDe, vsPartido } from "./domain/gps/cargar.js";
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
@@ -549,7 +549,12 @@ export default function CargarGps({
   }, [armado, reglas, gps, config, estado.posteriores]);
 
   // ------------------------------------------------------- Los controles --
-  const titulo = (clave) => gps.columnas.find((columna) => columna.clave === clave)?.titulo?.[idioma] || clave;
+  // El nombre de una columna, el mismo que en la Base: el que le puso el club
+  // en Ajustes (una relativa, el de su absoluta con «/min»).
+  const titulo = (clave) => {
+    const columna = gps.columnas.find((una) => una.clave === clave);
+    return columna ? tituloDeColumna(gps, columna, config, idioma) : clave;
+  };
   // Lo que muestra un desplegable a medida: del ancho del más largo de
   // todos (el navegador los mide escondidos, con la misma letra).
   const aMedida = (texto, todos) => (

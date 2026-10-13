@@ -602,6 +602,31 @@ describe("Evaluaciones", () => {
     expect(contenedor.textContent).toContain("No hay evaluaciones de este test con estos filtros.");
   });
 
+  // Santiago, 13/10: «solo se puede cambiar el nombre de las absolutas y las
+  // relativas pasan a tomar el nombre del absoluto pero dependiendo que sea se
+  // le agrega /Min o /PC».
+  test("Ajustes › Cabeceras: una relativa al peso toma el nombre de su absoluta con /PC y no se renombra", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.textContent.includes("Cabeceras")));
+    await elegirTest(contenedor, "Curl Nórdico e Isoprone");
+    const fila = (texto) => [...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === texto);
+    // La absoluta se renombra; su relativa la sigue.
+    await tocar(fila("L MÁX"));
+    await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), "Izq. máx.");
+    await tocar(boton(contenedor, "Guardar"));
+    expect(fila("Izq. máx./PC").textContent).toContain("Relativa: toma el nombre de «Izq. máx.» con /PC");
+    await tocar(fila("Izq. máx./PC"));
+    const nombre = document.body.querySelector(".lesiones-hoja input[type=text]");
+    expect(nombre.disabled).toBe(true);
+    expect(nombre.value).toBe("Izq. máx./PC");
+    await tocar(boton(contenedor, "Guardar"));
+    expect(datos.cabeceras.at(-1)).toMatchObject({ test: "curl_nordico_isoprone", campo: "curl_l_max_rel", etiquetas: {} });
+    await irA(contenedor, "Base");
+    expect(cabeceras(contenedor)).toContain("Izq. máx.");
+    expect(cabeceras(contenedor)).toContain("Izq. máx./PC");
+  });
+
   test("Ajustes: se renombra y se esconde una cabecera, y se suma una opción a Selección", async () => {
     await montar();
     await irA(contenedor, "Ajustes");
@@ -695,16 +720,16 @@ describe("Evaluaciones", () => {
       "Isoprone · Máxima",
       "Isoprone · Media",
     ]);
-    expect(cabeceras(contenedor).slice(0, 8)).toEqual(["Jugador", "Fecha", "Evaluacion", "Seleccion", "P.C.", "L MÁX", "L MÁX Rel", "Clas L"]);
+    expect(cabeceras(contenedor).slice(0, 8)).toEqual(["Jugador", "Fecha", "Evaluacion", "Seleccion", "P.C.", "L MÁX", "L MÁX/PC", "Clas L"]);
     expect(cabeceras(contenedor)).not.toContain("% mejora L + R");
     expect(filas(contenedor)).toHaveLength(1);
-    expect(celda(contenedor, 0, "L MÁX Rel").textContent).toBe("5,50");
+    expect(celda(contenedor, 0, "L MÁX/PC").textContent).toBe("5,50");
     expect(celda(contenedor, 0, "Clas L").textContent).toBe("4");
     expect(celda(contenedor, 0, "Deficit MAX %").textContent).toBe("10,0%");
     expect(celda(contenedor, 0, "Deficit Pierna").textContent).toBe("PD");
     // El informe: cuántas PD hay, con su rótulo.
     const promedios = filaDeArriba(contenedor, "Promedio");
-    expect(celdaDeArriba(contenedor, promedios, "L MÁX Rel").textContent).toBe("5,5");
+    expect(celdaDeArriba(contenedor, promedios, "L MÁX/PC").textContent).toBe("5,5");
     expect(celdaDeArriba(contenedor, promedios, "Deficit Pierna").textContent).toBe("PD 1,0");
 
     // Los valores de referencia: una tabla por evaluación.
@@ -905,9 +930,9 @@ describe("Evaluaciones", () => {
     await elegirTest(contenedor, "Iso Aductor-Abductor");
     expect(contenedor.querySelector("h1").textContent).toBe("Aductor y Abductor");
     expect([...contenedor.querySelectorAll(".tabla-datos-grupo-titulo")].map((titulo) => titulo.textContent).filter(Boolean)).toEqual(["ADUCTORES", "ABDUCTORES", "Ratio Aductor / Abductor"]);
-    expect(cabeceras(contenedor).slice(0, 8)).toEqual(["Jugador", "Seleccion", "F.N.", "Evaluación", "Fecha", "P.C.", "PD (ABS)", "PD (REL)"]);
+    expect(cabeceras(contenedor).slice(0, 8)).toEqual(["Jugador", "Seleccion", "F.N.", "Evaluación", "Fecha", "P.C.", "PD (ABS)", "PD (ABS)/PC"]);
     expect(cabeceras(contenedor)).not.toContain("Grados");
-    expect(celda(contenedor, 0, "PD (REL)").textContent).toBe("3,0");
+    expect(celda(contenedor, 0, "PD (ABS)/PC").textContent).toBe("3,0");
     expect(celda(contenedor, 0, "Ant/Ago PD").textContent).toBe("1,20");
     expect(celda(contenedor, 0, "Clas Ratio PD").textContent).toBe("1");
     const comparacion = filaDeArriba(contenedor, "Comparar con");
@@ -963,7 +988,7 @@ describe("Evaluaciones", () => {
     const columnasFmax = cabeceras(contenedor).flatMap((titulo, i) => (titulo === "Fmax T" ? [i] : []));
     expect(fmaxes[columnasFmax[2]].textContent).toBe("");
     expect(fmaxes[columnasFmax[0]].textContent).not.toBe("");
-    expect(celda(contenedor, 0, "Rel (vel)").textContent).toBe("3,00");
+    expect(celda(contenedor, 0, "RM x Vel/PC").textContent).toBe("3,00");
     expect(celda(contenedor, 0, "Clas. Grupo").textContent).not.toBe("");
 
     // Los V.R.: una tabla por categoría y el resumen, sin la columna «Pro» de Zona Media.
@@ -1013,11 +1038,11 @@ describe("Evaluaciones", () => {
     await irA(contenedor, "Base");
     await elegirTest(contenedor, "Press Plano");
     expect(contenedor.querySelector("h1").textContent).toBe("Pecho Plano");
-    expect(cabeceras(contenedor)).toEqual(["nº Eva", "Fecha", "Jugador", "Seleccion", "Fecha Nac", "P.C.", "0,4", "0,5", "0,6", "0,7", "0,8", "Rep", "RM", "Clas. RM", "% mejora", "Kg", "Rel", "Clas. Grupo (Rel)", "% mejora", "Va?", "Nota"]);
+    expect(cabeceras(contenedor)).toEqual(["nº Eva", "Fecha", "Jugador", "Seleccion", "Fecha Nac", "P.C.", "0,4", "0,5", "0,6", "0,7", "0,8", "Rep", "RM", "Clas. RM", "% mejora", "Kg", "RM/PC", "Clas. Grupo (Rel)", "% mejora", "Va?", "Nota"]);
     // 80 × (1 + 0,029 × 5) = 91,6: Clas. 3; Rel 1,145: Clas. 2.
     expect(celda(contenedor, 0, "RM").textContent).toBe("92");
     expect(celda(contenedor, 0, "Clas. RM").textContent).toBe("3");
-    expect(celda(contenedor, 0, "Rel").textContent).toBe("1,15");
+    expect(celda(contenedor, 0, "RM/PC").textContent).toBe("1,15");
     expect(celda(contenedor, 0, "Clas. Grupo (Rel)").textContent).toBe("2");
     expect(celda(contenedor, 0, "0,5").textContent).toBe("46");
     const comparacion = filaDeArriba(contenedor, "Comparar con");
