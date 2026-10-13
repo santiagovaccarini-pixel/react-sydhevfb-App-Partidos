@@ -716,6 +716,11 @@ describe("GPS", () => {
     await escribir(nombre, "1. Rondo\ncon dos toques");
     expect(nombre.value).toBe("1. Rondo con dos toques");
     expect(nombre.parentElement.dataset.valor).toBe("1. Rondo con dos toques");
+    // Sin tope de letras (Santiago, 13/10: «no puede tener limite de caracteres»).
+    expect(nombre.hasAttribute("maxlength")).toBe(false);
+    const largo = `1. Rondo ${"g".repeat(600)}`;
+    await escribir(nombre, largo);
+    expect(nombre.value).toBe(largo);
   });
 
   test("si el CSV ya está en la Base, avisa y no deja seguir", async () => {

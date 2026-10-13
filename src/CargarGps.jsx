@@ -584,14 +584,14 @@ export default function CargarGps({
       {control}
     </div>
   );
-  // El nombre: de un largo normal y, si lo escrito no entra, crece; al llegar
-  // al borde sigue en otro renglón. Es una sola línea: Enter no corta.
-  const crece = ({ valor, alCambiar, rotulo, maximo, placeholder }) => (
+  // El nombre: cada vez que lo escrito llega al borde, crece un renglón
+  // hacia abajo, sin tope de letras (Santiago, 13/10: «no puede tener limite
+  // de caracteres»). Es una sola línea: Enter no corta.
+  const crece = ({ valor, alCambiar, rotulo, placeholder }) => (
     <span className="gps-cargar-crece" data-valor={valor || placeholder || ""}>
       <textarea
         rows={1}
         cols={1}
-        maxLength={maximo}
         value={valor ?? ""}
         placeholder={placeholder}
         aria-label={rotulo}
@@ -715,7 +715,7 @@ export default function CargarGps({
       const rotulo = def.columna ? titulo(def.columna) : t(def.rotulo);
       const valor = valores?.[def.campo];
       if (def.lista) return campo(rotulo, elegir({ rotulo, lista: def.lista, valor: valor || "", alElegir: (elegido) => alCambiar({ [def.campo]: elegido }), ajustado: true }), def.campo, "ajustado");
-      if (def.largo) return campo(rotulo, crece({ valor, alCambiar: (nuevo) => alCambiar({ [def.campo]: nuevo }), rotulo, maximo: 200 }), def.campo, "largo");
+      if (def.largo) return campo(rotulo, crece({ valor, alCambiar: (nuevo) => alCambiar({ [def.campo]: nuevo }), rotulo }), def.campo, "largo");
       if (def.tipo === "texto")
         return campo(rotulo, <input type="text" maxLength={200} value={valor ?? ""} aria-label={rotulo} onChange={(evento) => alCambiar({ [def.campo]: evento.target.value })} />, def.campo, "chico");
       return campo(rotulo, numero(valor, (nuevo) => alCambiar({ [def.campo]: nuevo }), { paso: def.paso || "any", rotulo }), def.campo, "chico");
@@ -1214,7 +1214,6 @@ export default function CargarGps({
                       valor: estado.partido.nombre,
                       alCambiar: (nombre) => cambiar((antes) => ({ partido: { ...antes.partido, nombre, nombreAMano: true } })),
                       rotulo: t("gps.cargar.nombrePartido"),
-                      maximo: 120,
                       placeholder: t("gps.cargar.nombrePartidoEjemplo"),
                     })}
                     <small className="lesiones-ayuda">

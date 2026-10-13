@@ -1626,6 +1626,13 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     escribiendo de a una letra en la compu, el celular y con la pantalla agrandada: la caja
     crece justo cuando el texto pasa de renglón. Descartado: que el nombre crezca hacia el
     costado.
+  - Santiago, 13/10, con una captura de un nombre con una palabra larga sin espacios: «cada ves
+    que se llegue al limite del cuadrado tiene que crecer otro renglon hacia abajo, no puede
+    tener limite de caracteres» y «la caja se salio del cuadro tmb». El nombre de la tarea y el
+    del partido no tienen tope de letras (antes, 200 y 120; la base no tiene tope para lo que
+    se guarda). Una palabra sin espacios se corta en el borde y sigue abajo: la caja no sale
+    de su parte, y el título del paso, tampoco de la pantalla. Comprobado con un nombre de 479
+    letras con palabras sin espacios, en la compu, el celular y con la pantalla agrandada.
 - **Las cuentas son las de la hoja «Sesion Partido» de la plantilla**: una sola fila Total por
   jugador y día (la que junta todo lo que hizo; si hizo una sola cosa, esa) y las demás
   Parcial; el Team Average de cada tarea, con los «Va tarea»; el de cada tiempo del partido,
