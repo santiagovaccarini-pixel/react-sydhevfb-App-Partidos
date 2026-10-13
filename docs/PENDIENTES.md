@@ -1517,7 +1517,8 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     no tienen color en la plantilla: llevan el de las medidas (90 %), por la regla que dio
     Santiago. Los decimales, como la plantilla: las medidas y el promedio sin decimales; los tres
     grupos, con uno. Se compara como Excel (con 15 cifras). Los dos cortes están en Ajustes ›
-    Reglas de carga (90 % y 70 %). El recuadro: los tres grupos y el promedio en tarjetas con el
+    Reglas de carga (90 % y 70 %); el promedio queda en 70 % (Santiago, 13/10: «el promedio
+    dejalo asi»). El recuadro: los tres grupos y el promedio en tarjetas con el
     número grande, un borde y una barra (de 0 a 150 %, con una marca en el corte) del color que
     toca; cada medida con su número en una pastilla verde o roja; arriba, qué es cada color.
     Sin dato, gris.
@@ -1612,6 +1613,11 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
 - Cargar, el rival del 12/10 (Santiago, 12/10): ver con Santiago si el partido con fecha 12/10
   quedó guardado en la base (no solo en el celular, sin sincronizar) y si el CSV traía PRIMER
   TIEMPO y SEGUNDO TIEMPO. Con esta versión la pantalla dice cuál de las dos cosas pasó.
+  13/10: «no aparecio el rival». En el código no se encontró la falla (Partido guarda la fecha
+  como aaaa-mm-dd, la misma que busca Cargar, en el club elegido en ese aparato; la base solo
+  deja leer los partidos a quien tiene Partido en ese club). Para saber cuál es: qué frase dice
+  el paso del CSV sobre Partido y una consulta de solo lectura (pasada en el chat) con los
+  partidos de esos días, su club y los permisos de Santiago en cada club.
 - Cargar, si el CSV ya está en la Base (Santiago, 13/10): «Lo de si el csv esta cargado en la
   base tendria que salir del propio csv, xq con el hecho de cambiarlo en la fecha del dia en la
   web ya puede cargarse un csv que ya se cargo […] por ahora dejemoslo asi pero despues hay que
@@ -1622,8 +1628,9 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
   sale del CSV (su propia fecha, sus datos o las dos cosas) se define con Santiago al hacerlo.
 - ¿Los V.R. de partido van por dispositivo (paso 4)? Hoy hay uno solo por club, como la
   plantilla.
-- El promedio del % vs V.R. de partido va en verde desde el 70 % (la plantilla) y no desde el
-  90 % que dijo Santiago el 13/10: confirmar cuál (se cambia en Ajustes › Reglas de carga).
+- ~~El promedio del % vs V.R. de partido va en verde desde el 70 % (la plantilla) y no desde el
+  90 % que dijo Santiago el 13/10: confirmar cuál (se cambia en Ajustes › Reglas de carga).~~
+  Confirmado el 13/10: queda en 70 % («el promedio dejalo asi»).
 - Lo descartado del regenerativo (quien está en el CSV ya no se elige): confirmar con Santiago
   que no hay días con sesión y regenerativo para la misma persona.
 - A quien administra el club, o a un dueño de la app, un permiso nuevo (como GPS) no se le da
