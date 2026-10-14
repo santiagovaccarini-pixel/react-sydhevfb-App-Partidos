@@ -17,11 +17,10 @@ import { PROMEDIOS } from "./domain/gps/columnas.js";
 import { FILAS_DEL_INFORME, vistaDelGps } from "./domain/gps/informe.js";
 import { datosConCambio, esNumero, periodoInicial, textoDeCelda } from "./domain/gps/valores.js";
 import {
-  SIN_DISPOSITIVO,
-  SOLO_PROMEDIOS,
   actualizarFilaGps,
   borrarEnCurso,
   borrarFilasGps,
+  cuentaDeLaSesion,
   guardarCabeceraGps,
   guardarOpcionGps,
   guardarReglasGps,
@@ -29,8 +28,11 @@ import {
   leerEnCurso,
   leerReglasGps,
   listarEnCurso,
-  listarGps,
+  ponerAlDiaGps,
+  traerTodoGps,
+  unirFilasGps,
 } from "./domain/gpsDb.js";
+import { guardarCopiaGps, leerCopiaGps } from "./domain/copiaGps.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
@@ -47,11 +49,11 @@ import "./gps.css";
 //   · Cargar (paso 2): lo de cada día desde el CSV de Catapult, con la
 //     lógica de la plantilla Suma de Bloques (CargarGps.jsx y
 //     domain/gps/cargar.js).
-//   · Base: las filas de un período (al abrir, las últimas 4 semanas; se
-//     cambia arriba), con el informe del Excel arriba (promedio, desvío,
-//     n, máximo y mínimo de lo que deja ver el filtro) y los mismos colores,
-//     cada dispositivo contra lo suyo. Se corrige en la tabla y el historial
-//     se trae una vez con Pegar desde Excel.
+//   · Base: todas las filas del club (Santiago, 14/10), con el informe del
+//     Excel arriba (promedio, desvío, n, máximo y mínimo de lo que dejan ver
+//     los filtros de la tabla) y los mismos colores, cada dispositivo contra
+//     lo suyo. Se corrige en la tabla y el historial se trae una vez con
+//     Pegar desde Excel.
 //   · Ajustes: el nombre de cada columna, esconderla, sumar columnas del
 //     club, las opciones de cada lista (también los dispositivos) y los
 //     números de las reglas de la carga.
@@ -71,13 +73,26 @@ const EN_SEGUNDOS = ["tiempo", "hora"];
 const A_LA_IZQUIERDA = ["jugador", "descripcion"];
 // Quién es una fila del promedio del equipo, en la columna Nombre.
 const PROMEDIO = "promedio:";
-// Hasta cuántas filas se traen sin preguntar (más o menos una temporada): con
-// más, la Base dice cuántas son y deja acotar o traerlas igual (Santiago,
-// 11/10: «de la manera mas comoda para que cuando se quiera ver algo en la
-// base no se trabe con muchas filas»).
-export const MAXIMO_SIN_PREGUNTAR = 20000;
 // Cuántas filas se guardan a la vez al pegar en la tabla.
 const GUARDADOS_A_LA_VEZ = 6;
+// Armar miles de filas para la tabla (cada celda con el formato del Excel)
+// traba un celular un par de segundos: se arman antes de que hagan falta, de
+// a tandas, sin trabar la pantalla. armado: la ref con { armarFila, armadas }
+// de la pantalla (si cambian, se sigue con las nuevas); seguir: si todavía
+// hacen falta. Con la página escondida, sin pausas (nadie la está usando y el
+// navegador demora las pausas).
+const FILAS_POR_TANDA = 300;
+const SIN_FILAS = [];
+const armarDeATandas = async (armado, lista, seguir) => {
+  for (let desde = 0; desde < lista.length; desde += FILAS_POR_TANDA) {
+    if (!seguir()) return;
+    const { armarFila, armadas } = armado.current;
+    lista.slice(desde, desde + FILAS_POR_TANDA).forEach((fila) => {
+      if (!armadas.has(fila)) armadas.set(fila, armarFila(fila));
+    });
+    if (typeof document === "undefined" || !document.hidden) await new Promise((listo) => setTimeout(listo, 0));
+  }
+};
 
 const primeraMayuscula = (texto) => (texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : "");
 
@@ -89,17 +104,14 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const [vista, setVista] = useState("cargar");
   const [plantel, setPlantel] = useState([]);
   const [plantelSinLeer, setPlantelSinLeer] = useState(false);
-  // Las filas del período.
+  // Todas las filas del club (Santiago, 14/10: «Lo que sea mejor para poder
+  // abrir lo mas rapido posible todas las filas que se tengan»).
   const [filasGps, setFilasGps] = useState([]);
   const [filasAjustes, setFilasAjustes] = useState({ campos: [], opciones: [] });
-  const [periodo, setPeriodo] = useState(() => periodoInicial(hoyISO()));
-  // Qué filas se traen de la base, además del período: de un jugador (o del
-  // promedio del equipo) y de un dispositivo; "" son todas.
-  const [filtro, setFiltro] = useState({ jugador: "", dispositivo: "" });
-  // Si el período tiene más de MAXIMO_SIN_PREGUNTAR filas: cuántas (y no se
-  // trajeron); traerIgual las trae igual (hasta que se cambie qué traer).
-  const [demasiadas, setDemasiadas] = useState(null);
-  const [traerIgual, setTraerIgual] = useState(false);
+  // La primera vez en un aparato: mientras llegan las filas de antes de las
+  // últimas 4 semanas, cuántas van ({ n, total }); si no llegaron, el error.
+  const [trayendo, setTrayendo] = useState(null);
+  const [errorHistorial, setErrorHistorial] = useState("");
   // Cuántas filas se están borrando.
   const [borrando, setBorrando] = useState(0);
   const [cargando, setCargando] = useState(true);
@@ -175,43 +187,97 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     }
   }, [equipoId]);
 
-  // Las filas del período (y del jugador y el dispositivo elegidos). Si se
-  // cambia qué traer mientras se leía, vale la última lectura pedida.
+  // Todas las filas, lo más rápido posible (Santiago, 14/10). Con la copia
+  // de este aparato se ven al instante y después se trae solo lo cambiado;
+  // sin copia (la primera vez), primero las últimas 4 semanas (se ven
+  // enseguida) y después las demás. Quien ya se fue del club ve la foto de su
+  // último día (sin copia). Si se vuelve a abrir mientras se leía, vale la
+  // última lectura.
   const lecturas = useRef(0);
-  const cargarFilas = useCallback(async ({ silencioso = false } = {}) => {
+  const cuenta = useRef(null);
+  // Lo último que se trajo de la base (para traer después solo lo cambiado).
+  const marca = useRef(null);
+  const actuales = useRef(filasGps);
+  actuales.current = filasGps;
+  // Las puestas al día van de a una (abrir, lo de otros, después de cargar).
+  const cola = useRef(Promise.resolve());
+  // Cómo se arma una fila para la tabla (más abajo) y las ya armadas.
+  const armado = useRef(null);
+  const ponerAlDia = useCallback(() => {
+    const esta = lecturas.current;
+    const tarea = async () => {
+      if (!equipoId || esta !== lecturas.current) return;
+      const respuesta = await ponerAlDiaGps(equipoId, { filas: actuales.current, hasta: marca.current });
+      // Si no se pudo, queda lo que se veía; se intenta la próxima vez.
+      if (esta !== lecturas.current || respuesta.error) return;
+      marca.current = respuesta.hasta;
+      if (respuesta.cambio) {
+        actuales.current = respuesta.filas;
+        setFilasGps(respuesta.filas);
+      }
+    };
+    cola.current = cola.current.then(tarea, tarea);
+    return cola.current;
+  }, [equipoId]);
+
+  const cargarFilas = useCallback(async () => {
     lecturas.current += 1;
     const esta = lecturas.current;
-    if (!silencioso) {
-      setCargando(true);
-      setError("");
+    setCargando(true);
+    setError("");
+    setErrorHistorial("");
+    setTrayendo(null);
+    marca.current = null;
+    if (!soloLectura) {
+      cuenta.current = await cuentaDeLaSesion();
+      const copia = cuenta.current ? await leerCopiaGps(cuenta.current, equipoId) : null;
+      if (esta !== lecturas.current) return;
+      if (copia) {
+        marca.current = copia.hasta;
+        actuales.current = copia.filas;
+        setFilasGps(copia.filas);
+        setCargando(false);
+        await ponerAlDia();
+        return;
+      }
     }
-    const respuesta = await listarGps(equipoId, {
-      desde: periodo.desde || null,
-      hasta: periodo.hasta || null,
-      jugador: filtro.jugador,
-      dispositivo: filtro.dispositivo,
-      maximo: traerIgual ? null : MAXIMO_SIN_PREGUNTAR,
+    const respuesta = await traerTodoGps(equipoId, {
+      desdeReciente: periodoInicial(hoyISO()).desde,
+      alPrimeraParte: (recientes) => {
+        if (esta !== lecturas.current) return;
+        actuales.current = recientes;
+        setFilasGps(recientes);
+        setCargando(false);
+        setTrayendo({ n: 0, total: null });
+      },
+      alAvanzar: (n, total) => {
+        if (esta === lecturas.current) setTrayendo({ n, total });
+      },
     });
     if (esta !== lecturas.current) return;
-    // En silencio, si no se pudo leer, queda lo que se veía.
-    if (silencioso && respuesta.error) return;
-    if (respuesta.error) setError(respuesta.error);
-    else {
-      setFilasGps(respuesta.filas);
-      setDemasiadas(respuesta.demasiadas ? respuesta.total : null);
-    }
+    // Las de antes, armadas antes de sumarlas: la Base no se traba al sumarlas.
+    if (!respuesta.error && respuesta.viejas.length) await armarDeATandas(armado, respuesta.viejas, () => esta === lecturas.current);
+    if (esta !== lecturas.current) return;
+    setTrayendo(null);
     setCargando(false);
-  }, [equipoId, periodo, filtro, traerIgual]);
+    if (respuesta.error) {
+      // Sin nada a la vista, el error; con las últimas semanas, un aviso.
+      if (respuesta.recientes.length) setErrorHistorial(respuesta.error);
+      else setError(respuesta.error);
+      return;
+    }
+    marca.current = respuesta.hasta;
+    // Lo de antes, con lo reciente como esté (se pudo cambiar mientras tanto).
+    setFilasGps((antes) => (soloLectura ? respuesta.recientes : unirFilasGps(respuesta.viejas, antes)));
+  }, [equipoId, soloLectura, ponerAlDia]);
 
-  // Cambiar qué traer vuelve a preguntar si son demasiadas.
-  const cambiarPeriodo = (cambios) => {
-    setTraerIgual(false);
-    setPeriodo((antes) => ({ ...antes, ...cambios }));
-  };
-  const cambiarFiltro = (cambios) => {
-    setTraerIgual(false);
-    setFiltro((antes) => ({ ...antes, ...cambios }));
-  };
+  // La copia de este aparato, al día con lo que se ve (al rato de cada
+  // cambio, para no escribirla en cada celda).
+  useEffect(() => {
+    if (soloLectura || cargando || trayendo || errorHistorial || !cuenta.current || !equipoId) return undefined;
+    const temporizador = setTimeout(() => guardarCopiaGps(cuenta.current, equipoId, { filas: filasGps, hasta: marca.current }), 1500);
+    return () => clearTimeout(temporizador);
+  }, [filasGps, cargando, trayendo, errorHistorial, soloLectura, equipoId]);
 
   const cargar = useCallback(() => Promise.all([cargarClub(), cargarFilas()]), [cargarClub, cargarFilas]);
 
@@ -224,13 +290,13 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   }, [cargarFilas]);
 
   // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10): las
-  // filas del período que se está mirando y Datos básicos.
+  // filas (solo lo cambiado) y Datos básicos.
   useEnVivo({
     nombre: "gps",
     tablas: ["gps", "jugadores"],
     equipoId,
     activo: !soloLectura,
-    alCambiar: () => Promise.all([cargarClub({ silencioso: true }), cargarFilas({ silencioso: true })]),
+    alCambiar: () => Promise.all([cargarClub({ silencioso: true }), ponerAlDia()]),
   });
 
   const cargarEnCurso = useCallback(
@@ -398,17 +464,31 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // una, se arma solo esa (son miles). Se vuelven a armar todas si cambian
   // las columnas, el idioma, las listas o Datos básicos.
   const armadas = useMemo(() => new WeakMap(), [armarFila]);
+  armado.current = { armarFila, armadas };
+  // Solo con la Base a la vista (la pantalla abre en Cargar); mientras tanto
+  // se van armando de a tandas, y al abrir la Base ya están.
+  const enLaBase = vista === "base";
   const filas = useMemo(
     () =>
-      filasGps.map((fila) => {
-        const ya = armadas.get(fila);
-        if (ya) return ya;
-        const armada = armarFila(fila);
-        armadas.set(fila, armada);
-        return armada;
-      }),
-    [filasGps, armadas, armarFila],
+      enLaBase
+        ? filasGps.map((fila) => {
+            const ya = armadas.get(fila);
+            if (ya) return ya;
+            const armada = armarFila(fila);
+            armadas.set(fila, armada);
+            return armada;
+          })
+        : SIN_FILAS,
+    [enLaBase, filasGps, armadas, armarFila],
   );
+  useEffect(() => {
+    if (enLaBase) return undefined;
+    let sigue = true;
+    armarDeATandas(armado, filasGps, () => sigue);
+    return () => {
+      sigue = false;
+    };
+  }, [enLaBase, filasGps, armadas]);
 
   const ordenDeDispositivos = useMemo(() => new Map([...(textosDeListas.dispositivo?.keys() || [])].map((codigo, indice) => [codigo, indice])), [textosDeListas]);
 
@@ -580,20 +660,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   ) : null;
 
   const numero = (n) => Number(n).toLocaleString(idioma);
-  // Los jugadores para traer de a uno (los del plantel actual primero) y el
-  // promedio del equipo; los dispositivos, también los escondidos.
-  const opcionesDeJugador = useMemo(
-    () => actualesPrimero(plantel).map((jugador) => ({ valor: String(jugador.id), etiqueta: esActual(jugador) ? jugador.nombre : `${jugador.nombre} · ${t("datos.yaNoEsta")}` })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [plantel, idioma],
-  );
-  const dispositivosParaFiltrar = [...(textosDeListas.dispositivo?.entries() || [])];
 
   const hoy = hoyISO();
-  const textoDelPeriodo =
-    periodo.desde || periodo.hasta
-      ? [periodo.desde ? fechaCorta(periodo.desde) : "…", periodo.hasta ? fechaCorta(periodo.hasta) : "…"].join(" – ")
-      : t("lesiones.reportes.periodos.todo");
 
   const pantallaBase = (
     <div className="app app-inicio">
@@ -614,69 +682,25 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
             <span className="etiqueta-hero">{t("gps.titulo").toUpperCase()}</span>
             <strong className="nombre-sesion">{equipo?.nombre || t("gps.titulo")}</strong>
-            <p className="fecha-hero">{textoDelPeriodo}</p>
-            <span className="estado-hero">{cargando ? t("gps.estado.leyendo") : plural("gps.filas", demasiadas ?? filasGps.length, { n: numero(demasiadas ?? filasGps.length) })}</span>
+            <p className="fecha-hero">{primeraMayuscula(fechaLarga(hoy))}</p>
+            <span className="estado-hero">{cargando ? t("gps.estado.leyendo") : plural("gps.filas", filasGps.length, { n: numero(filasGps.length) })}</span>
           </div>
         </header>
 
         <AvisoSoloLectura hasta={equipo?.hasta} />
 
-        <section className="tarjeta gps-periodo">
-          <div className="evaluaciones-reporte-campos gps-periodo-campos">
-            <label className="campo-inicio">
-              <span>{t("lesiones.reportes.desde")}</span>
-              <input
-                type="date"
-                value={periodo.desde}
-                max={periodo.hasta || hoy}
-                onChange={(evento) => cambiarPeriodo({ desde: evento.target.value })}
-              />
-            </label>
-            <label className="campo-inicio">
-              <span>{t("lesiones.reportes.hasta")}</span>
-              <input
-                type="date"
-                value={periodo.hasta}
-                min={periodo.desde || undefined}
-                max={hoy}
-                onChange={(evento) => cambiarPeriodo({ hasta: evento.target.value })}
-              />
-            </label>
-            <label className="campo-inicio">
-              <span>{t("gps.filtros.jugador")}</span>
-              <select value={filtro.jugador} onChange={(evento) => cambiarFiltro({ jugador: evento.target.value })}>
-                <option value="">{t("gps.filtros.todos")}</option>
-                <option value={SOLO_PROMEDIOS}>{t("gps.filtros.promedios")}</option>
-                {opcionesDeJugador.map((opcion) => (
-                  <option key={opcion.valor} value={opcion.valor}>
-                    {opcion.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="campo-inicio">
-              <span>{t("gps.filtros.dispositivo")}</span>
-              <select value={filtro.dispositivo} onChange={(evento) => cambiarFiltro({ dispositivo: evento.target.value })}>
-                <option value="">{t("gps.filtros.todos")}</option>
-                {dispositivosParaFiltrar.map(([codigo, etiqueta]) => (
-                  <option key={codigo} value={codigo}>
-                    {etiqueta}
-                  </option>
-                ))}
-                <option value={SIN_DISPOSITIVO}>{t("gps.sinDispositivo")}</option>
-              </select>
-            </label>
-          </div>
-          <p className="lesiones-ayuda">{t("gps.periodoAyuda")}</p>
-        </section>
-
         {estado}
 
-        {demasiadas !== null && !cargando && !error && (
-          <div className="lesiones-estado gps-demasiadas" role="status">
-            <p>{t("gps.demasiadas", { n: numero(demasiadas), maximo: numero(MAXIMO_SIN_PREGUNTAR) })}</p>
-            <button type="button" onClick={() => setTraerIgual(true)}>
-              {t("gps.traerIgual", { n: numero(demasiadas) })}
+        {trayendo && (
+          <p className="lesiones-estado gps-trayendo" role="status">
+            {trayendo.total ? t("gps.trayendo", { n: numero(trayendo.n), total: numero(trayendo.total) }) : t("gps.trayendoSinCuenta")}
+          </p>
+        )}
+        {errorHistorial && (
+          <div className="lesiones-estado error">
+            {t("gps.faltaHistorial", { error: t(errorHistorial) })}{" "}
+            <button type="button" onClick={cargarFilas}>
+              {t("comun.reintentar")}
             </button>
           </div>
         )}
@@ -687,34 +711,31 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             {t("gps.importar.boton")}
           </button>
         )}
-        {/* Sin traer las filas (son demasiadas), no hay tabla: está el aviso. */}
-        {demasiadas === null && (
-          <section className="tarjeta evaluaciones-tabla">
-            <TablaDatos
-              id="gps"
-              recordar="gps"
-              columnas={columnas}
-              filas={filas}
-              fijas={fijas}
-              // Un período tiene miles de filas: se dibujan las que se ven.
-              muchasFilas
-              vista={informeYColores}
-              onEditar={editarCelda}
-              onPegar={pegarEnTabla}
-              leyenda={t("datos.leyendaYaNoEsta")}
-              rotuloApagada={t("datos.yaNoEsta")}
-              onBorrarFilas={
-                soloLectura
-                  ? undefined
-                  : (ids) => {
-                      const pedidas = new Set(ids);
-                      const elegidas = filasGps.filter((una) => pedidas.has(una.id));
-                      if (elegidas.length) setABorrar(elegidas);
-                    }
-              }
-            />
-          </section>
-        )}
+        <section className="tarjeta evaluaciones-tabla">
+          <TablaDatos
+            id="gps"
+            recordar="gps"
+            columnas={columnas}
+            filas={filas}
+            fijas={fijas}
+            // Son miles de filas: se dibujan las que se ven.
+            muchasFilas
+            vista={informeYColores}
+            onEditar={editarCelda}
+            onPegar={pegarEnTabla}
+            leyenda={t("datos.leyendaYaNoEsta")}
+            rotuloApagada={t("datos.yaNoEsta")}
+            onBorrarFilas={
+              soloLectura
+                ? undefined
+                : (ids) => {
+                    const pedidas = new Set(ids);
+                    const elegidas = filasGps.filter((una) => pedidas.has(una.id));
+                    if (elegidas.length) setABorrar(elegidas);
+                  }
+            }
+          />
+        </section>
       </div>
     </div>
   );
@@ -722,19 +743,16 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // -------------------------------------------------------------- Cargar --
 
   // Lo de hoy, si la Base tiene traído el día de hoy.
-  const conHoy = demasiadas === null && !cargando && !error && (!periodo.desde || periodo.desde <= hoy) && (!periodo.hasta || periodo.hasta >= hoy) && !filtro.jugador && !filtro.dispositivo;
+  const conHoy = !cargando && !error;
   const deHoy = conHoy ? filasGps.filter((fila) => fila.fecha === hoy).length : null;
 
-  // Guardado el día: a la Base, con el período que lo muestra.
+  // Guardado el día: a la Base.
   const alCargarDia = ({ cargadas, fecha, quedoEnCurso = false }) => {
     diaSinGuardar.current = false;
     setCargandoDia(false);
     setCargaEnCurso(null);
     setVista("base");
-    const antes = fecha && periodo.desde && fecha < periodo.desde;
-    const despues = fecha && periodo.hasta && fecha > periodo.hasta;
-    if (antes || despues) cambiarPeriodo({ desde: antes ? fecha : periodo.desde, hasta: despues ? fecha : periodo.hasta });
-    else cargarFilas();
+    ponerAlDia();
     setAviso(quedoEnCurso ? t("gps.enCurso.quedoSinBorrar") : plural("gps.cargar.listo", cargadas, { fecha: fecha ? fechaCorta(fecha) : "—" }));
   };
 
@@ -1314,7 +1332,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         plantel={plantel}
         plantelSinLeer={plantelSinLeer}
         onVolver={() => setImportando(false)}
-        onRecargar={cargarFilas}
+        onRecargar={ponerAlDia}
         onListo={({ cargadas }) => {
           setImportando(false);
           setAviso(plural("gps.importar.listo", cargadas));

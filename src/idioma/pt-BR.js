@@ -336,15 +336,9 @@ export default {
     titulo: "GPS",
     filas_one: "{{n}} linha",
     filas_other: "{{n}} linhas",
-    periodoAyuda: "Da base vêm as linhas dessas datas (ao abrir, as últimas 4 semanas), do jogador e do dispositivo escolhidos. O relatório de cima e as cores saem das linhas que aparecem, cada dispositivo com o seu.",
-    filtros: {
-      jugador: "Jogador",
-      dispositivo: "Dispositivo",
-      todos: "Todos",
-      promedios: "Team Average",
-    },
-    demasiadas: "Este período tem {{n}} linhas. Para a base não travar, sem perguntar vêm até {{maximo}}: encurte as datas ou escolha um jogador ou um dispositivo, ou traga assim mesmo (pode demorar).",
-    traerIgual: "Trazer as {{n}} linhas assim mesmo",
+    trayendo: "Trazendo o histórico: {{n}} de {{total}} linhas. Já dá para usar as das últimas 4 semanas.",
+    trayendoSinCuenta: "Trazendo o histórico… Já dá para usar as linhas das últimas 4 semanas.",
+    faltaHistorial: "Aparecem só as últimas 4 semanas: não foi possível trazer o resto do histórico ({{error}}).",
     sinDispositivo: "Sem dispositivo",
     sinFecha: "sem data",
     estado: {

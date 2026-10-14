@@ -26,6 +26,11 @@ const datos = vi.hoisted(() => ({
   // Las cargas sin terminar: las filas (con lo hecho) y lo que pidió la app.
   enCurso: [],
   dejadas: [],
+  // La copia del GPS en el aparato (null: no hay) y lo que se guardó en ella.
+  copia: null,
+  copiasGuardadas: [],
+  // Las puestas al día pedidas (con la copia o después de cargar).
+  alDia: [],
 }));
 
 const PLANTEL = [
@@ -49,9 +54,41 @@ vi.mock("./domain/plantel.js", async (importOriginal) => ({
   // El nombre de ALFA en Catapult (el vínculo de Datos básicos).
   cargarPlantelConCatapult: async () => ({ plantel: [{ id: 1, nombre: "ALFA", catapult_nombre: "A. Alfa" }], error: "" }),
 }));
+// Como la base: por fecha y en el orden de carga.
+const porFechaYOrden = (a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.orden - b.orden);
+const copiar = (filas) => filas.map((fila) => ({ ...fila, datos: { ...fila.datos } }));
+vi.mock("./domain/copiaGps.js", () => ({
+  leerCopiaGps: async () => (datos.copia ? { filas: copiar(datos.copia.filas), hasta: datos.copia.hasta } : null),
+  guardarCopiaGps: async (cuenta, equipoId, copia) => {
+    datos.copiasGuardadas.push({ cuenta, equipoId, filas: copia.filas.length, hasta: copia.hasta });
+    return true;
+  },
+  borrarCopiasGps: async () => true,
+}));
 vi.mock("./domain/gpsDb.js", () => ({
   SOLO_PROMEDIOS: "promedio",
   SIN_DISPOSITIVO: "-",
+  cuentaDeLaSesion: async () => "cuenta-1",
+  unirFilasGps: (viejas, recientes) => [...viejas.filter((fila) => !recientes.some((una) => una.id === fila.id)), ...recientes].sort(porFechaYOrden),
+  // La primera vez: las últimas semanas y después las demás.
+  traerTodoGps: async (equipoId, { desdeReciente, alPrimeraParte, alAvanzar } = {}) => {
+    datos.lecturas.push({ equipoId, desde: desdeReciente, todo: true });
+    if (datos.errorAlLeer) return { recientes: [], viejas: [], hasta: null, error: datos.errorAlLeer };
+    const todas = [...datos.filas].sort(porFechaYOrden);
+    const recientes = copiar(todas.filter((fila) => fila.fecha >= desdeReciente));
+    alPrimeraParte?.(recientes);
+    const viejas = copiar(todas.filter((fila) => fila.fecha < desdeReciente));
+    alAvanzar?.(viejas.length, viejas.length);
+    if (datos.errorHistorial) return { recientes, viejas: [], hasta: null, error: datos.errorHistorial };
+    return { recientes, viejas, hasta: "2026-10-13T12:00:00Z", error: "" };
+  },
+  // Al día: lo que tiene la base ahora.
+  ponerAlDiaGps: async (equipoId, { filas = [], hasta = null } = {}) => {
+    datos.alDia.push({ equipoId, filas: filas.length, hasta });
+    const ahora = copiar([...datos.filas].sort(porFechaYOrden));
+    const cambio = JSON.stringify(ahora) !== JSON.stringify(filas);
+    return { filas: cambio ? ahora : filas, hasta: "2026-10-13T13:00:00Z", cambio, error: "" };
+  },
   listarGps: async (equipoId, { desde = null, hasta = null, jugador = "", dispositivo = "", maximo = null } = {}) => {
     datos.lecturas.push({ equipoId, desde, hasta, jugador, dispositivo, maximo });
     if (datos.errorAlLeer) return { filas: [], total: 0, demasiadas: false, error: datos.errorAlLeer };
@@ -142,7 +179,7 @@ vi.mock("./domain/gpsDb.js", () => ({
 
 const { default: Gps } = await import("./Gps.jsx");
 const { fijarIdiomaParaPruebas } = await import("./idioma/index.js");
-const { fechaCorta, hoyISO } = await import("./idioma/formatos.js");
+const { fechaCorta, fechaLarga, hoyISO } = await import("./idioma/formatos.js");
 
 const diasAntes = (dias) => {
   const [anio, mes, dia] = hoyISO().split("-").map(Number);
@@ -158,8 +195,9 @@ const FILAS = () => [
   fila("g1", 1, { jugador_id: 1 }, AYER, { microciclo: 30, puesto: "DEL", d: 4000, d_min: 80, tiempo: 3000, dispositivo: "catapult" }),
   fila("g2", 2, { jugador_id: 2 }, AYER, { microciclo: 30, d: 5000, d_min: 100, tiempo: 3000, dispositivo: "catapult" }),
   fila("g3", 3, { promedio: "parcial" }, AYER, { microciclo: 30, d: 4500, d_min: 90, tiempo: 3000, tarea_partido: "partido_oficial_torneo", dispositivo: "catapult" }),
-  fila("g0", 0, { jugador_id: 3 }, diasAntes(60), { microciclo: 20, d: 1000, dispositivo: "sport" }),
 ];
+// Una del historial (de hace dos meses, con el otro dispositivo).
+const VIEJA = () => fila("g0", 0, { jugador_id: 3 }, diasAntes(60), { microciclo: 20, d: 1000, dispositivo: "sport" });
 const DISPOSITIVOS = [
   { lista: "dispositivo", codigo: "catapult", etiqueta_es: "Catapult", etiqueta_pt: "", oculto: false, orden: 0 },
   { lista: "dispositivo", codigo: "sport", etiqueta_es: "Sport", etiqueta_pt: "", oculto: false, orden: 1 },
@@ -237,6 +275,10 @@ describe("GPS", () => {
     datos.partidos = [];
     datos.enCurso = [];
     datos.dejadas = [];
+    datos.copia = null;
+    datos.copiasGuardadas = [];
+    datos.alDia = [];
+    datos.errorHistorial = "";
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -261,15 +303,15 @@ describe("GPS", () => {
     await irA(contenedor, "Base");
   };
 
-  test("la Base muestra las últimas 4 semanas, el informe del Excel arriba y sus colores", async () => {
+  test("la Base abre con todas las filas, el informe del Excel arriba y sus colores", async () => {
     await montarEnLaBase();
     expect(contenedor.querySelector(".etiqueta-hero").textContent).toBe("GPS");
     expect(contenedor.querySelector(".estado-hero").textContent).toBe("3 filas");
-    // El período: de hace 27 días a hoy (4 semanas con hoy).
-    const [desde, hasta] = contenedor.querySelectorAll(".gps-periodo input[type=date]");
-    expect(desde.value).toBe(diasAntes(27));
-    expect(hasta.value).toBe(HOY);
-    expect(datos.lecturas.at(-1)).toEqual({ equipoId: "eq-1", desde: diasAntes(27), hasta: HOY, jugador: "", dispositivo: "", maximo: 20000 });
+    // Todo el historial (Santiago, 14/10); arriba, la fecha de hoy, como en Cargar.
+    const hoyLargo = fechaLarga(HOY);
+    expect(contenedor.querySelector(".fecha-hero").textContent).toBe(hoyLargo.charAt(0).toUpperCase() + hoyLargo.slice(1));
+    // Se trajo todo: primero desde hace 27 días (4 semanas con hoy).
+    expect(datos.lecturas).toEqual([{ equipoId: "eq-1", desde: diasAntes(27), todo: true }]);
 
     // Las columnas del Excel en su orden, con Microciclo, Nombre y Puesto fijas.
     expect(cabeceras(contenedor).slice(0, 5)).toEqual(["Microciclo", "Nombre", "Puesto", "D", "14,4-25Km/h"]);
@@ -303,11 +345,9 @@ describe("GPS", () => {
     expect(volvio).toBe(1);
   });
 
-  test("al cambiar el período se leen esas fechas; cada dispositivo con su informe y sus colores", async () => {
+  test("con todo el historial, cada dispositivo con su informe y sus colores", async () => {
+    datos.filas = [...FILAS(), VIEJA()];
     await montarEnLaBase();
-    const [desde] = contenedor.querySelectorAll(".gps-periodo input[type=date]");
-    await escribir(desde, diasAntes(90));
-    expect(datos.lecturas.at(-1)).toMatchObject({ equipoId: "eq-1", desde: diasAntes(90), hasta: HOY });
     expect(filas(contenedor)).toHaveLength(4);
     // Dos dispositivos: un informe para cada uno, con su nombre, en el orden
     // de su lista (aunque la vieja, de Sport, vaya primero en la tabla).
@@ -322,6 +362,7 @@ describe("GPS", () => {
     expect(filas(contenedor)[vieja].className).toContain("apagada");
     const beta = filas(contenedor).findIndex((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent === "BETA");
     expect(celda(contenedor, beta, "D").style.background).toBe("rgb(200, 231, 167)");
+    expect(datos.lecturas).toHaveLength(1);
   });
 
   test("al cambiar una medida o el Tiempo en la tabla se recalcula su por minuto", async () => {
@@ -352,41 +393,80 @@ describe("GPS", () => {
     expect(celda(contenedor, 1, "Nombre").style.background).toBe("rgb(217, 150, 148)");
   });
 
-  test("se trae de la base solo lo pedido: un jugador, el Team Average o un dispositivo", async () => {
+  // Santiago, 14/10: «saca esos 4 filtros de arriba de fechas, jugador y
+  // dispositivo». Se filtra con el embudo de cada columna de la tabla.
+  test("arriba no hay filtros: se filtra en la tabla y el informe sale de lo que se ve", async () => {
+    datos.filas = [...FILAS(), VIEJA()];
     await montarEnLaBase();
-    const [jugador, dispositivo] = contenedor.querySelectorAll(".gps-periodo select");
-    expect([...jugador.options].map((opcion) => opcion.textContent)).toEqual(["Todos", "Team Average", "ALFA", "BETA", "GAMA · Ya no está"]);
-    expect([...dispositivo.options].map((opcion) => opcion.textContent)).toEqual(["Todos", "Catapult", "Sport", "Sin dispositivo"]);
-    await elegir(jugador, "2");
-    expect(datos.lecturas.at(-1)).toMatchObject({ jugador: "2", dispositivo: "" });
-    expect(filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent)).toEqual(["BETA"]);
-    // El informe sale de lo traído (una fila: sin desvío, sin colores).
-    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "n"), "D").textContent).toBe("1");
-    await elegir(jugador, "promedio");
-    expect(filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent)).toEqual(["Team Average Parcial"]);
-    await elegir(jugador, "");
-    await elegir(dispositivo, "-");
-    expect(datos.lecturas.at(-1)).toMatchObject({ jugador: "", dispositivo: "-" });
-    // Ninguna sin dispositivo: la tabla vacía.
-    expect(contenedor.querySelector(".tabla-datos-vacia")).not.toBeNull();
+    expect(contenedor.querySelector(".gps-periodo")).toBeNull();
+    const fueraDeLaTabla = (selector) => [...contenedor.querySelectorAll(selector)].filter((elemento) => !elemento.closest(".tabla-datos"));
+    expect(fueraDeLaTabla("input[type=date]")).toHaveLength(0);
+    expect(fueraDeLaTabla("select")).toHaveLength(0);
+    expect(filasDeArriba(contenedor)).toHaveLength(18);
+
+    // El embudo de Dispositivo: solo Catapult. Un informe, el de Catapult.
+    await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Dispositivo"]'));
+    const valores = () => [...document.body.querySelectorAll(".tabla-datos-valores label")];
+    expect(valores().map((label) => label.textContent)).toEqual(["Catapult3", "Sport1"]);
+    await tocar(boton("Ninguno"));
+    await tocar(valores()[0].querySelector("input"));
+    await tocar(boton("Aplicar"));
+    expect(filas(contenedor)).toHaveLength(3);
+    expect(filasDeArriba(contenedor)).toHaveLength(9);
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("3 de 4 filas");
+    // Arriba, siempre cuántas tiene el club.
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("4 filas");
+    expect(datos.lecturas).toHaveLength(1);
+    // La tabla recuerda sus filtros mientras la app está abierta: se quitan.
+    await tocar(botones().find((b) => b.textContent.trim().startsWith("Quitar filtros")));
+    expect(filas(contenedor)).toHaveLength(4);
   });
 
-  test("con un período enorme dice cuántas filas son antes de traerlas, y se pueden traer igual", async () => {
-    datos.totalFalso = 52340;
+  // Santiago, 14/10: «Lo que sea mejor para poder abrir lo mas rapido posible
+  // todas las filas que se tengan».
+  const esperarLargo = async (condicion) => {
+    for (let i = 0; i < 150 && !condicion(); i += 1) {
+      await act(async () => new Promise((resolver) => setTimeout(resolver, 20))); // eslint-disable-line no-await-in-loop
+    }
+    expect(condicion(), "no llegó lo esperado").toBe(true);
+  };
+
+  test("la primera vez en un aparato: las últimas 4 semanas enseguida, después el resto del historial, y queda la copia", async () => {
+    datos.filas = [...FILAS(), VIEJA()];
     await montarEnLaBase();
-    expect(contenedor.querySelector(".gps-demasiadas").textContent).toContain("Este período tiene 52.340 filas.");
-    expect(contenedor.querySelector(".estado-hero").textContent).toBe("52.340 filas");
-    // No se trajo ninguna: en lugar de la tabla, el aviso.
-    expect(contenedor.querySelector(".tabla-datos")).toBeNull();
-    datos.totalFalso = null;
-    await tocar(boton("Traer las 52.340 filas igual"));
-    expect(datos.lecturas.at(-1)).toMatchObject({ maximo: null });
-    expect(contenedor.querySelector(".gps-demasiadas")).toBeNull();
+    expect(datos.lecturas).toEqual([{ equipoId: "eq-1", desde: diasAntes(27), todo: true }]);
+    expect(filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent)).toEqual(["GAMA", "ALFA", "BETA", "Team Average Parcial"]);
+    expect(contenedor.querySelector(".gps-trayendo")).toBeNull();
+    // Al rato, la copia del aparato, con todas.
+    await esperarLargo(() => datos.copiasGuardadas.length > 0);
+    expect(datos.copiasGuardadas.at(-1)).toEqual({ cuenta: "cuenta-1", equipoId: "eq-1", filas: 4, hasta: "2026-10-13T12:00:00Z" });
+  });
+
+  test("con la copia del aparato abre al instante y trae solo lo cambiado (también lo de otros)", async () => {
+    // En la copia, las tres de ayer; en la base, además, una de hoy.
+    datos.copia = { filas: FILAS(), hasta: "2026-10-13T10:00:00Z" };
+    datos.filas = [...FILAS(), fila("h1", 9, { jugador_id: 1 }, HOY, { d: 100, dispositivo: "catapult" })];
+    await montarEnLaBase();
+    // No se trajo todo: se puso al día lo de la copia.
+    expect(datos.lecturas).toEqual([]);
+    expect(datos.alDia[0]).toEqual({ equipoId: "eq-1", filas: 3, hasta: "2026-10-13T10:00:00Z" });
+    await esperar(() => filas(contenedor).length === 4);
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("4 filas");
+  });
+
+  test("si no llega el resto del historial, se ven las últimas 4 semanas y avisa", async () => {
+    datos.filas = [...FILAS(), VIEJA()];
+    datos.errorHistorial = "gps.error.noLeer";
+    await montarEnLaBase();
     expect(filas(contenedor)).toHaveLength(3);
-    // Al cambiar qué traer, vuelve a preguntar.
-    const [desde] = contenedor.querySelectorAll(".gps-periodo input[type=date]");
-    await escribir(desde, diasAntes(90));
-    expect(datos.lecturas.at(-1)).toMatchObject({ maximo: 20000 });
+    expect(contenedor.textContent).toContain("Se ven solo las últimas 4 semanas: no se pudo traer el resto del historial");
+    // No se guarda una copia a medias.
+    await act(async () => new Promise((resolver) => setTimeout(resolver, 1000)));
+    expect(datos.copiasGuardadas).toEqual([]);
+    datos.errorHistorial = "";
+    await tocar(boton("Reintentar"));
+    await esperar(() => filas(contenedor).length === 4);
+    expect(contenedor.textContent).not.toContain("Se ven solo las últimas 4 semanas");
   });
 
   test("con varias filas elegidas (Shift), se borran todas de una vez", async () => {
@@ -728,7 +808,7 @@ describe("GPS", () => {
 
     // De vuelta en la Base, con el día.
     expect(document.body.textContent).toContain(`Listo: se guardaron 11 filas del ${fechaCorta(AYER)}.`);
-    expect(contenedor.querySelector(".gps-periodo")).not.toBeNull();
+    expect(contenedor.querySelector(".tabla-datos")).not.toBeNull();
     expect(filas(contenedor)).toHaveLength(14);
   });
 
@@ -1151,7 +1231,7 @@ describe("GPS", () => {
     expect(contenedor.textContent).toContain("6 filas leídas");
     await irA(contenedor, "Base");
     await tocar(boton("Sí, salir"));
-    expect(contenedor.querySelector(".gps-periodo")).not.toBeNull();
+    expect(contenedor.querySelector(".tabla-datos")).not.toBeNull();
     // Al volver a Cargar, empieza de cero.
     await irA(contenedor, "Cargar");
     expect(boton("Cargar un día")).toBeTruthy();
