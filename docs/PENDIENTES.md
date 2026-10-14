@@ -4,6 +4,15 @@ Lo que quedó pedido y todavía no está hecho. El orden es de más a menos valo
 no el orden en que se pidió. Lo que se va haciendo se borra de acá: el historial
 de lo hecho está en los commits, no en esta lista.
 
+## Determinante y muy importante
+
+Lo que Santiago marcó así. Cada punto está completo en su sección; acá solo se avisa.
+
+- **GPS: un club con años de historial (14/10).** Con todas las filas al abrir, desde unas 2 o 3
+  temporadas la Base se vuelve lenta y en un celular puede cerrarse. Sin decidir qué hacer. Ver
+  «GPS (10/10)», «Todas las filas al abrir (14/10)», «Pendiente determinante: años de
+  historial».
+
 ## Entrenamiento (OpenField)
 
 ### Interfaz (hecha el 21/09; queda lo fino)
@@ -1417,6 +1426,43 @@ antes de traer y la pregunta de más de 20.000 filas quedan reemplazados por est
   no). Lo que queda es armar y dibujar la tabla con 15.000 filas en ese celular.
 - No cambió: cómo se carga un día, cómo se pega, cómo se cambia o se borra una fila, el informe,
   los colores, las cuentas, los permisos ni la base (no hace falta SQL).
+
+#### Pendiente determinante: años de historial (14/10)
+
+Santiago preguntó qué pasa con un club que quiere guardar años de información y, al ver lo
+medido, pidió: «dejalo como pendiente pero como algo determinante y muy importante, por ahora
+segui con las notas». **Nada decidido todavía**: hasta que lo decida, la Base sigue abriendo con
+todas las filas.
+
+- **Medido** (filas inventadas con todas las columnas, unas 54 celdas cada una, como el
+  historial real; unas 20.000 filas por temporada, como el historial del club, que tiene unas
+  15.600 del 15/01 al 12/10; la app compilada, 150 ms de demora por pedido; desde que se toca
+  Base; nada del club):
+
+  | Historial | Compu, primera vez | Compu, con la copia | Celular lento (×4) | Memoria |
+  |---|---|---|---|---|
+  | 1 temporada (15.000 filas) | 1,3 s | 0,7 s | algo más de 1 s | 150 MB |
+  | 3 temporadas (60.000 filas) | 8 s | 4,4 s | 26 a 29 s, trabado hasta 25 s | 580 MB |
+  | 6 temporadas (120.000 filas) | 17 s | 13 s, trabado casi 10 s | no medido | 1.150 MB |
+
+  La copia en el aparato ocupa unos 7 MB por temporada en el disco: no es el problema. Lo que
+  limita es la memoria: con 6 temporadas la página usa más de 1 GB y un celular suele cerrar
+  una página así.
+- **La base del club sí aguanta años**: el GPS ocupa unos 95 MB por año («Muchas filas
+  (11/10)»). El plan gratis de Supabase tiene 500 MB para toda la app (unos 4 años de GPS);
+  después, el plan pago (8 GB).
+- **Opciones presentadas (14/10), sin elegir:**
+  1. Dejarlo como está: con una temporada anda bien; desde 2 o 3, cada vez más lento, y el
+     celular se complica.
+  2. Abrir con la temporada actual (los últimos 12 meses) y un botón «Ver temporadas
+     anteriores» que las suma cuando se piden. Todo sigue en la base. Cambia lo pedido el 14/10
+     («todas las filas») y se parece a los filtros sacados ese día: lo decide Santiago.
+  3. Aligerar la tabla: el texto de cada celda solo para las filas que se ven (estimado: más o
+     menos la mitad de tiempo y memoria; sin medir). Toca la tabla compartida con Lesiones y
+     Evaluaciones y con 6 temporadas no alcanza para el celular.
+  4. Las cuentas de varios años, en la base: los Reportes del GPS (paso 3) calculan sin bajar
+     las filas.
+  Propuesta de Claude: la 2 y la 4 juntas; la 3 solo si hace falta. No está aprobada.
 
 ### Pegar desde Excel (el historial)
 
