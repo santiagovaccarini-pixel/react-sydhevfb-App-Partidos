@@ -1370,8 +1370,8 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 4px 12px;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 5px;
   border-bottom: 1px solid #e5e7eb;
 }
 .lesiones-marco .informe-seccion h2 {
@@ -1397,34 +1397,36 @@
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   align-items: stretch;
-  gap: 22px;
-  padding: 20px 26px 0;
+  gap: 18px;
+  padding: 16px 26px 0;
 }
 .lesiones-marco .informe-indicadores {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
 }
-/* Las partes de cada tarjeta (título, número, unidad, referencia y
-   comparación) quedan a la misma altura en toda la fila, aunque un título
+/* Las tarjetas, lo más chicas posible (Santiago, 12/10): el título, el número
+   con su % contra la referencia al lado (en rojo si está por encima, en
+   verde si está por debajo, en gris si es igual) y la referencia abajo. Las
+   tres partes quedan a la misma altura en toda la fila, aunque un título
    ocupe más renglones que otro. */
 .lesiones-marco .informe-tarjetas {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  column-gap: 8px;
+  column-gap: 6px;
   row-gap: 0;
 }
 .lesiones-marco .informe-indicador {
   display: grid;
-  grid-row: span 5;
+  grid-row: span 3;
   grid-template-rows: subgrid;
   row-gap: 0;
   justify-items: center;
   align-content: start;
   min-width: 0;
-  margin-bottom: 8px;
-  padding: 10px 6px 9px;
+  margin-bottom: 6px;
+  padding: 6px 5px;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
   background: #fff;
@@ -1436,70 +1438,55 @@
   align-items: end;
   min-height: 2.3em;
   color: #111827;
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 500;
   line-height: 1.15;
   letter-spacing: 0.01em;
   text-transform: uppercase;
   text-wrap: balance;
 }
+.lesiones-marco .informe-indicador-numeros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0 6px;
+  margin-top: 2px;
+}
 .lesiones-marco .informe-indicador-valor {
-  margin-top: 4px;
   color: #111827;
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 700;
-  line-height: 1.05;
-  font-variant-numeric: tabular-nums;
-}
-.lesiones-marco .informe-indicador-unidad {
-  color: #374151;
-  font-size: 12px;
-}
-.lesiones-marco .informe-indicador-ref {
-  display: grid;
-  justify-items: center;
-  width: 88%;
-  margin-top: 8px;
-  padding-top: 7px;
-  border-top: 1px solid #e5e7eb;
-  color: #374151;
-  font-size: 12px;
-}
-.lesiones-marco .informe-indicador-ref b {
-  color: #111827;
-  font-size: 16px;
-  font-weight: 700;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 .lesiones-marco .informe-indicador-contra {
-  display: grid;
-  justify-items: center;
-  margin-top: 5px;
   color: #6b7280;
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.2;
-}
-.lesiones-marco .informe-indicador-contra span::before {
-  content: "";
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin-right: 5px;
-  border-radius: 50%;
-  background: currentColor;
-  vertical-align: 0;
-}
-.lesiones-marco .informe-indicador-contra small {
-  font-size: 11px;
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .lesiones-marco .informe-indicador.peor .informe-indicador-contra {
   color: #c81e1e;
 }
 .lesiones-marco .informe-indicador.mejor .informe-indicador-contra {
   color: #15803d;
+}
+.lesiones-marco .informe-indicador-ref {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0 4px;
+  color: #6b7280;
+  font-size: 11px;
+}
+.lesiones-marco .informe-indicador-ref b {
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .lesiones-marco .informe-aviso {
   margin: 0;
@@ -1511,34 +1498,45 @@
   font-size: 13px;
   font-weight: 700;
 }
-.lesiones-marco .informe-leyenda {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: -4px 0 0;
-  padding: 0;
-  list-style: none;
-  color: #374151;
-  font-size: 12.5px;
-}
-.lesiones-marco .informe-leyenda i {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin-right: 5px;
-  border-radius: 50%;
-  vertical-align: 0;
-}
-.lesiones-marco .informe-leyenda i.peor {
-  background: #c81e1e;
-}
-.lesiones-marco .informe-leyenda i.mejor {
-  background: #15803d;
-}
 .lesiones-marco .informe-criterio {
   margin: -8px 0 0;
   color: #6b7280;
   font-size: 11.5px;
+}
+/* Debajo de las tarjetas del individual, en dos renglones cortos: qué es el %
+   y qué lesiones cuentan; la lista de las LM se abre con «Ver cuáles». */
+.lesiones-marco .informe-notas {
+  display: grid;
+  gap: 3px;
+  margin-top: -4px;
+}
+.lesiones-marco .informe-notas .informe-criterio {
+  margin: 0;
+}
+.lesiones-marco .informe-lm-ver {
+  position: relative;
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #1f2937;
+  font-size: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+/* El lugar para tocarlo, de 44 px de alto, sin mover el renglón. */
+.lesiones-marco .informe-lm-ver::after {
+  content: "";
+  position: absolute;
+  inset: -14px -6px;
+}
+.lesiones-marco .informe-lm-ver:hover,
+.lesiones-marco .informe-lm-ver:active {
+  transform: none;
+  box-shadow: none;
 }
 .lesiones-marco .informe-mapa {
   display: grid;
@@ -1559,7 +1557,7 @@
    la base. Cada tabla pide un ancho mínimo por columna (--columnas): si no
    entra, se desliza de costado. */
 .lesiones-marco .informe-lesiones {
-  padding: 22px 26px 0;
+  padding: 16px 26px 0;
 }
 .lesiones-marco .informe-tabla-marco {
   overflow-x: auto;
@@ -1823,7 +1821,7 @@
   }
   .lesiones-marco .informe-medio,
   .lesiones-marco .informe-lesiones {
-    padding: 18px 14px 0;
+    padding: 14px 14px 0;
   }
   .lesiones-marco .informe-seccion h2 {
     font-size: 19px;
@@ -1832,7 +1830,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .lesiones-marco .informe-indicador-valor {
-    font-size: 30px;
+    font-size: 22px;
   }
   .lesiones-marco .informe-pie {
     margin: 16px 14px 0;
@@ -2616,35 +2614,27 @@
     padding-bottom: 4px;
   }
   .lesiones-marco .informe-indicador {
-    padding: 7px 5px 6px;
+    margin-bottom: 4px;
+    padding: 4px 4px 3px;
     box-shadow: none;
   }
   .lesiones-marco .informe-indicador-titulo {
-    font-size: 9.5px;
+    font-size: 9px;
+  }
+  .lesiones-marco .informe-indicador-numeros {
+    margin-top: 1px;
   }
   .lesiones-marco .informe-indicador-valor {
-    margin-top: 1px;
-    font-size: 21px;
-  }
-  .lesiones-marco .informe-indicador-unidad,
-  .lesiones-marco .informe-indicador-ref {
-    font-size: 11px;
-  }
-  .lesiones-marco .informe-indicador-ref {
-    display: block;
-    margin-top: 4px;
-    padding-top: 4px;
-  }
-  .lesiones-marco .informe-indicador-ref b {
-    margin-left: 4px;
-    font-size: 14px;
+    font-size: 17px;
   }
   .lesiones-marco .informe-indicador-contra {
-    margin-top: 3px;
     font-size: 10.5px;
   }
-  .lesiones-marco .informe-indicador-contra small {
-    font-size: 10px;
+  .lesiones-marco .informe-indicador-ref {
+    font-size: 9.5px;
+  }
+  .lesiones-marco .informe-indicador-ref b {
+    font-size: 10.5px;
   }
   .lesiones-marco .informe-mapa {
     padding: 8px 10px;
@@ -2722,7 +2712,6 @@
   .lesiones-marco .reporte-mapa,
   .lesiones-marco .informe-aviso,
   .lesiones-marco .informe-cuadro,
-  .lesiones-marco .informe-leyenda i,
   .lesiones-marco .informe-tabla,
   .lesiones-marco .reporte-portada,
   .lesiones-marco .reporte-meses,

@@ -88,7 +88,8 @@ describe("los reportes con los minutos del GPS", () => {
   const botonQueEmpieza = (etiqueta) => [...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim().startsWith(etiqueta));
   const filas = (cuadro) => [...cuadro.querySelectorAll("tbody tr")].map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent));
   // Los indicadores del individual, de una medida: los valores del jugador,
-  // las referencias, el "vs" y el tono de cada tarjeta.
+  // las referencias, el "vs" (lo que dice al pasar el mouse | el %) y el tono
+  // de cada tarjeta.
   const indicadores = (cual) => {
     const tarjetas = [...contenedor.querySelectorAll(".informe-medida")[cual].querySelectorAll(".informe-indicador")];
     return {
@@ -96,7 +97,7 @@ describe("los reportes con los minutos del GPS", () => {
       referencias: tarjetas.map((tarjeta) => tarjeta.querySelector(".informe-indicador-ref b").textContent),
       contra: tarjetas.map((tarjeta) => {
         const contra = tarjeta.querySelector(".informe-indicador-contra");
-        return contra ? `${contra.querySelector("span").textContent} | ${contra.querySelector("small").textContent}` : null;
+        return contra ? `${contra.title} | ${contra.textContent}` : null;
       }),
       tonos: tarjetas.map((tarjeta) => tarjeta.className.replace("informe-indicador", "").trim()),
     };
@@ -111,14 +112,14 @@ describe("los reportes con los minutos del GPS", () => {
     expect(indicadores(0)).toEqual({
       valores: ["10,00", "10,00", "10,00", "10,00"],
       referencias: ["10,00", "5,00", "5,00", "5,00"],
-      contra: ["Igual a la referencia | +0,0% vs referencia", "Superior a la referencia | +50,0% vs referencia", "Superior a la referencia | +50,0% vs referencia", "Superior a la referencia | +50,0% vs referencia"],
+      contra: ["Igual a la referencia | +0,0%", "Superior a la referencia | +50,0%", "Superior a la referencia | +50,0%", "Superior a la referencia | +50,0%"],
       tonos: ["", "peor", "peor", "peor"],
     });
     // Días: HULK 20 en 100 h; el plantel 23 (o 20) en 200 h.
     expect(indicadores(1)).toEqual({
       valores: ["200,00", "200,00", "200,00", "200,00"],
       referencias: ["115,00", "100,00", "100,00", "100,00"],
-      contra: ["Superior a la referencia | +42,5% vs referencia", "Superior a la referencia | +50,0% vs referencia", "Superior a la referencia | +50,0% vs referencia", "Superior a la referencia | +50,0% vs referencia"],
+      contra: ["Superior a la referencia | +42,5%", "Superior a la referencia | +50,0%", "Superior a la referencia | +50,0%", "Superior a la referencia | +50,0%"],
       tonos: ["peor", "peor", "peor", "peor"],
     });
     expect(texto()).not.toContain("Faltan los minutos del GPS");
@@ -146,8 +147,57 @@ describe("los reportes con los minutos del GPS", () => {
     await tocar(botonQueEmpieza("SCARPA"));
     const { valores, contra, tonos } = indicadores(0);
     expect(valores).toEqual(["10,00", "0,00", "0,00", "0,00"]);
-    expect(contra).toEqual(["Igual a la referencia | +0,0% vs referencia", "Inferior a la referencia | 0% vs referencia", "Inferior a la referencia | 0% vs referencia", "Inferior a la referencia | 0% vs referencia"]);
+    expect(contra).toEqual(["Igual a la referencia | +0,0%", "Inferior a la referencia | 0%", "Inferior a la referencia | 0%", "Inferior a la referencia | 0%"]);
     expect(tonos).toEqual(["", "mejor", "mejor", "mejor"]);
+  });
+
+  test("las tarjetas del individual, chicas: el número con su % al lado y la referencia abajo, sin los puntos, la leyenda ni la unidad", async () => {
+    await montar();
+    await tocar(botonQueEmpieza("Reporte individual"));
+    await tocar(botonQueEmpieza("HULK"));
+    const tarjeta = contenedor.querySelectorAll(".informe-indicador")[1];
+    // El % va en el mismo renglón que el número, y la referencia abajo.
+    expect([...tarjeta.children].map((parte) => parte.className)).toEqual(["informe-indicador-titulo", "informe-indicador-numeros", "informe-indicador-ref"]);
+    expect([...tarjeta.querySelector(".informe-indicador-numeros").children].map((parte) => parte.textContent)).toEqual(["10,00", "+50,0%"]);
+    expect(tarjeta.querySelector(".informe-indicador-ref").textContent).toBe("Referencia5,00");
+    // Ni «Superior/Inferior a la referencia» a la vista, ni la leyenda de los
+    // puntos, ni la unidad en cada tarjeta (está en el título de la medida).
+    expect(texto()).not.toMatch(/(Superior|Inferior|Igual) a la referencia/);
+    expect(contenedor.querySelector(".informe-leyenda")).toBeNull();
+    expect(texto()).not.toContain("lesiones / 1000 h");
+    expect(texto()).not.toContain("días / 1000 h");
+    expect(texto()).not.toContain("vs referencia");
+    // Debajo, qué es el %, con su «?».
+    const notas = contenedor.querySelector(".informe-notas");
+    expect(notas.querySelector("p").textContent).toContain("El % compara al jugador con la referencia, el valor del plantel (VR).");
+    expect(notas.querySelector("p .termino-ayuda")).not.toBeNull();
+  });
+
+  test("el individual dice en corto qué lesiones cuentan, y la lista de las LM se abre con «Ver cuáles»", async () => {
+    await montar(GPS, PLANTEL, LESIONES, (campo, codigo) => etiquetaDeOpcion(campo, codigo, null, "es-AR"));
+    await tocar(botonQueEmpieza("Reporte individual"));
+    await tocar(botonQueEmpieza("HULK"));
+    const notas = () => contenedor.querySelector(".informe-notas");
+    const ver = () => notas().querySelector(".informe-lm-ver");
+    // Solo las opciones que cuentan, sin el nombre de cada campo, y sin la
+    // lista de las musculares.
+    expect(notas().querySelectorAll("p")[1].textContent).toBe(
+      "Cuentan: No traumática · Partido oficial, Partido amistoso, Entrenamiento · Profesional. LM: lesiones musculares. Ver cuáles",
+    );
+    expect(texto()).not.toContain("Lesión muscular grado 1 A");
+    expect(texto()).not.toContain("Cuentan las lesiones con");
+    expect(ver().getAttribute("aria-expanded")).toBe("false");
+    expect(ver().classList.contains("no-imprimir")).toBe(true);
+    // «Ver cuáles» abre la lista; «Ocultar» la cierra.
+    await tocar(ver());
+    expect(ver().getAttribute("aria-expanded")).toBe("true");
+    expect(ver().textContent).toBe("Ocultar");
+    expect(notas().querySelector(".informe-lm-lista").textContent).toBe(
+      "Son LM: Lesión muscular grado 1 A, Lesión muscular grado 1 B, Lesión muscular grado 1 C, Lesión muscular grado 2 A, Lesión muscular grado 2 B, Lesión muscular grado 2 C, Lesión muscular grado 3 A, Lesión muscular grado 3 B, Lesión muscular grado 3 C y Sobrecarga muscular / calambre.",
+    );
+    await tocar(ver());
+    expect(notas().querySelector(".informe-lm-lista")).toBeNull();
+    expect(ver().textContent).toBe("Ver cuáles");
   });
 
   test("a las horas del GPS del jugador se le suman sus horas previas (de antes del cuerpo técnico); a la referencia, no", async () => {
@@ -338,7 +388,8 @@ describe("los reportes con los minutos del GPS", () => {
     const nota = contenedor.querySelector(".informe-criterio").textContent;
     expect(nota).toMatch(/^Cuentan las lesiones con Producto: No traumática · .+\. En «Tipos \(SOLO LM\)»/);
     expect(nota.slice(nota.indexOf("En «"))).toBe(LM);
-    // La misma nota en el individual, en Lesiones c/1000h y en Informes gráficos.
+    // La misma nota en Lesiones c/1000h y en Informes gráficos (el individual
+    // la dice en corto: ver arriba).
     await tocar(contenedor.querySelector(".reporte-volver"));
     await tocar(botonQueEmpieza("Lesiones c/1000h y días perdidos"));
     expect(contenedor.querySelector(".informe-criterio").textContent).toBe(nota);
