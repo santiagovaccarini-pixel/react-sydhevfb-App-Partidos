@@ -110,6 +110,23 @@ export const leerReferencias = async (equipoId) => {
   return { referencias: porTest(Array.isArray(data) ? data : []), error: "" };
 };
 
+// Un valor de los V.R. de un test (Santiago, 14/10: se cambian en la solapa
+// «Valores de referencia»; migración 20261025_referencias_editables.sql):
+// ruta, dónde (["categorias", "mayor", "bueno", "lumbar"]); valor, un
+// número, un bloque entero o null (se borra). Se cambia en la base, de a
+// uno: dos personas a la vez no se pisan. Devuelve los V.R. del test como
+// quedaron.
+export const cambiarReferencia = async (equipoId, test, ruta, valor) => {
+  const { data, error } = await supabase.rpc("evaluaciones_referencia_cambiar", { p_equipo: equipoId, p_test: test, p_ruta: ruta, p_valor: valor === undefined ? null : valor });
+  if (error) {
+    const texto = `${error?.message || ""} ${error?.details || ""}`;
+    if (/referencia_invalida/.test(texto)) return { error: "evaluaciones.referencias.noSeGuardo" };
+    const clave = claveDeErrorEvaluaciones(error);
+    return { error: clave === "evaluaciones.error.faltaMigracion" ? "evaluaciones.referencias.faltaActualizacion" : clave };
+  }
+  return { datos: data && typeof data === "object" && !Array.isArray(data) ? data : {}, error: "" };
+};
+
 export const crearEvaluacion = async (equipoId, test, evaluacion) => {
   const { data, error } = await supabase
     .from("evaluaciones")

@@ -798,7 +798,8 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   con un SQL que se pasa en el chat, en `evaluaciones_referencias` (una fila por club y test;
   `datos` = `{ categorias: { <categoría>: { titulo, rotulo, n, excelente, muy_bueno, bueno,
   regular, malo } }, resumen: { n: { <categoría>: n } } }`, cada fila con un valor por medida,
-  los tiempos en la unidad del Excel). La app solo los lee. La columna "Pro" del resumen va
+  los tiempos en la unidad del Excel). La app solo los lee (hasta el 14/10: desde entonces se
+  cambian en la solapa; ver «Los V.R. se cambian: una solapa en cada base (14/10)»). La columna "Pro" del resumen va
   vacía: en el Excel da #REF! (la celda de donde salía ya no existe); si se sabe qué tenía,
   se completa.
 - Lo que no se copió (no cambia ningún resultado): las columnas de ayuda para buscar, el contador
@@ -815,7 +816,10 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
   base están los valores ya calculados; si el club cambia el Bueno, hay que cambiar los otros.
 - Más adelante (Santiago, 05/10): los valores de referencia pasarían a un módulo propio de la
   pantalla principal, **Valor Referencial**. Por ahora van en Evaluaciones, en la pestaña
-  "Valores de referencia" (solo lectura, cargados por SQL).
+  "Valores de referencia" (solo lectura, cargados por SQL). (14/10: a la pregunta de dónde va la
+  solapa, Santiago eligió «Una en cada base» en lugar de un módulo con una solapa por base: el
+  módulo propio no va. Desde ese día se cambian ahí; ver «Los V.R. se cambian: una solapa en
+  cada base (14/10)».)
 - **Curl Nórdico e Isoprone** (hecho el 09/10, `tests/curlNordicoIsoprone.js`). Lo que decidió
   Santiago el 09/10:
   - **Un solo test con cuatro bloques** (Curl Nórdico Máxima y Media, Isoprone Máxima y
@@ -1205,7 +1209,8 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     - **Gráficos: pendiente** (Santiago, 09/10: «después lo vemos»); no se muestra hasta que
       se defina qué gráficos van.
   - **Valores de referencia**: sigue siendo una pantalla aparte, la quinta (Santiago, 09/10:
-    «Quinta pantalla aparte»), solo para mirar.
+    «Quinta pantalla aparte»), solo para mirar. (Desde el 14/10 ahí se cambian, se agregan y
+    se borran, con historial; ver «Los V.R. se cambian: una solapa en cada base (14/10)».)
   - **Ajustes**, como Lesiones › Ajustes: Cabeceras (por test, el nombre de cada columna y
     de cada bloque en cada idioma, y esconder columnas de la Base, la carga y los reportes;
     Fecha, Jugador y Selección no se esconden: sin ellas no hay de quién, de cuándo ni
@@ -1259,7 +1264,10 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
 4. **V.R. por dispositivo**: se arman una vez con reglas estadísticas y quedan fijos (Santiago,
    10/10: «Los VR se arman una ves con reglas estadisticas y se dejan fijos»; las reglas las
    explica él más adelante). Cada dispositivo tiene los suyos («Exacto»). No inventar reglas ni
-   valores mientras tanto; los valores, como en Evaluaciones, por SQL en el chat.
+   valores mientras tanto; los valores, como en Evaluaciones, por SQL en el chat. (14/10: se
+   ven, se cambian, se agregan y se borran en GPS › Valores de referencia, y cada dispositivo
+   marca su V.R. de partido; ver «Los V.R. se cambian: una solapa en cada base (14/10)». Las
+   reglas estadísticas para armarlos siguen pendientes.)
 5. **OpenField directo**: probar en la actividad 26-05 T, sin inventar direcciones de la API.
    Nota de Santiago (10/10): ver si desde la API se puede descargar el CSV; «hay varias maneras
    de descargarlo xq se puede descargar con variables de otra persona o todas las variables».
@@ -1502,7 +1510,8 @@ propuesto, «Sí, uno por dispositivo».
   una fila por V.R. del club, con su dispositivo (el código de la lista Dispositivo), el tipo
   (FUTBOL, DINAMICA, REDUCIDO), la tabla, el grupo, el promedio y el desvío de cada columna. Los
   ve quien tiene GPS en el club (también quien se fue, para mirar); nadie los cambia desde la
-  app (editarlos es la nota de los Valores de referencia); anon, nada. Los números los pasa
+  app (editarlos es la nota de los Valores de referencia; desde el 14/10 se cambian en GPS ›
+  Valores de referencia); anon, nada. Los números los pasa
   Claude por SQL en el chat (no van en el código). El SQL los pone solo en el club que tiene
   filas tomadas con Sport (el del historial del Excel), en el dispositivo de su lista que se
   llama Sport o Catapult.
@@ -1531,8 +1540,69 @@ propuesto, «Sí, uno por dispositivo».
   - El V.R. de partido de Ajustes › Reglas de carga (el que usa Cargar para el % vs V.R. de
     partido) y el V.R. «Oficial EdLP · TOTAL FUTBOL» de Catapult son los mismos números en el
     Excel y hoy están en dos lugares. Unirlos o no lo decide Santiago; por ahora no se tocó.
+    (Decidido el 14/10: «Unirlos»; ver «Los V.R. se cambian: una solapa en cada base (14/10)».)
 - No cambió: la Base (filas, columnas, filtros, colores, edición, borrado, pegar, la copia en el
   aparato), Cargar, Ajustes, los permisos ni las cuentas de las filas.
+
+### Los V.R. se cambian: una solapa en cada base (14/10)
+
+Santiago, 14/10, al ver los V.R. de GPS arriba de la Base: «pero no puedo editar nada del vr,
+ademas acordate que todos los vr van aparte». A las preguntas: qué V.R. van, «Todos los vr
+tienen que tener su solapa aparte»; quién los cambia y borra, «siempre que se tenga acceso a las
+bases y permisos para editarla»; el historial, «Sí, con volver atrás»; el V.R. de partido de
+Reglas de carga y el de Catapult (los mismos números), «Unirlos». Después, entre «una solapa en
+cada base» y «un módulo Valor Referencial con una solapa por base», eligió **una en cada base**;
+con qué V.R. calcula Cargar el % de partido, «El de partido de cada dispositivo»; cuándo se elige
+el dispositivo en Cargar, «Al subir el CSV»; y cómo se ve la solapa de GPS, «Como esta en
+evaluaciones».
+
+- **Dónde**: GPS suma la solapa **Valores de referencia** (Cargar · Base · Valores de referencia ·
+  Ajustes); la de Evaluaciones (la quinta) deja de ser solo para mirar. No hay módulo propio en
+  el portal (descartado en esa elección). La referencia de Lesiones (la del plantel) se calcula
+  sola y no está en esto.
+- **GPS › Valores de referencia** (`src/ReferenciasGps.jsx`): arriba se elige el dispositivo;
+  cada V.R. suyo es una tarjeta, como las de Evaluaciones, con su tabla: Promedio y Desvío de
+  cada medida (las de la hoja de los V.R.: de D a Mts >= 90% Pico, sus por minuto y el Tiempo,
+  con el nombre que les puso el club). Los por minuto se ven con dos decimales (son chicos).
+  Cada tarjeta: «Usar de partido» (o «Dejar de usar de partido»), «Cambiar nombre» (tipo, tabla
+  y grupo) y «Borrar» (pregunta antes); abajo, «Agregar V.R. de (dispositivo)».
+- **Evaluaciones › Valores de referencia** (`src/ReferenciasEvaluaciones.jsx`): los bloques por
+  categoría y el resumen, como estaban; se cambian sus números (también el n del resumen; «Pro»
+  sigue vacía y no se cambia), se agrega una categoría (vacía, para cargarla) y se borra una
+  (pregunta antes; en todas sus tablas).
+- **Cómo se cambia un número**: como en las bases, dos toques (o doble clic, o Enter) en la
+  celda, se escribe como se ve (los tiempos, «3:10» o «1:30:00»; los %, con o sin %) y Enter (o
+  tocar afuera) lo guarda; Esc no cambia nada; lo que no se entiende no se guarda y se avisa.
+  Se guarda solo ese número, en la base (`gps_referencia_cambiar` y
+  `evaluaciones_referencia_cambiar`): dos personas a la vez no se pisan. Lo que lo usa (las
+  clases, los colores, los %) se recalcula solo.
+- **Quién**: quien tiene esa base en el club y sigue en él (las políticas de las dos tablas).
+  Quien ya se fue, los mira; anon, nada. Sin señal, se miran.
+- **Historial con «Volver»** (`referencias_historial`, lo anota la base, también lo que se
+  cambie por SQL): abajo de la solapa, los últimos cambios del dispositivo o del test elegido,
+  con quién y cuándo, y qué cambió («FUTBOL · Oficial EdLP · TOTAL FUTBOL · D (Promedio):
+  5000,0 → 5100,0»; «Mayor · Bueno · Lumbar: 2:50 → 3:00»). «Volver» deja lo cambiado como
+  estaba; lo borrado vuelve; lo agregado se borra. Lo ve quien puede cambiar esos V.R.
+- **El V.R. de partido**: cada dispositivo marca uno («De partido»; uno como mucho). Cargar
+  calcula el % vs V.R. de partido de cada bloque con el del dispositivo de la carga; si no
+  tiene, lo dice y dónde se marca. El dispositivo se elige **en el primer paso de Cargar**, al
+  lado de la fecha (sin él no se sigue); en la sesión se ve y se puede cambiar. Reglas de carga
+  ya no tiene el V.R. de partido.
+- **Lo que tenía cada club en Reglas de carga** (migración `20261025`): pasa a cada dispositivo
+  del club que no tenga uno de partido, con los mismos números, como «PARTIDO · V.R. de partido
+  · TOTAL», y sale de las reglas (un club sin dispositivos lo conserva ahí). Así Cargar da lo
+  mismo que antes. En el club, el SQL de los V.R. deja «Oficial EdLP · TOTAL FUTBOL» como el de
+  partido de Catapult (la copia se borra: son los mismos números) y, en Sport, la copia queda
+  de partido, después de FUTBOL 2.
+- **Sin la actualización** (la app publicada antes de correr el SQL): los V.R. se miran y no se
+  cambian (lo avisa) y Cargar sigue con el V.R. de partido de las reglas, como antes.
+- Lo que cambia otra persona aparece sin recargar (como en las bases).
+- **Falta**: la planilla de valor referencial, para que la app calcule los V.R. con su lógica
+  (hoy se escriben a mano); y qué dispositivo tienen las otras tablas con números (FUTBOL 3,
+  FUTBOL 17, REDUCIDO 9, Individual): con la solapa, se pueden agregar a mano en el que
+  corresponda.
+- No cambió: la Base (lo de arriba, los colores, las Comparaciones), Evaluaciones (Base,
+  Cargar, Reportes, clases), los permisos de las bases ni las otras reglas de la carga.
 
 ### Pegar desde Excel (el historial)
 
@@ -1709,6 +1779,9 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     Partido»): se guardan por club en `gps_reglas` (Ajustes › Reglas de carga › V.R. de
     partido, un número por medida) y los del club se cargan con un SQL que se pasa en el chat
     (no van al código). Sin V.R., el bloque lo dice; sin Team Average (menos de 4), también.
+    (Hasta el 14/10: desde entonces es el V.R. marcado «de partido» del dispositivo de la
+    carga, en GPS › Valores de referencia, y el dispositivo se elige al subir el CSV; ver «Los
+    V.R. se cambian: una solapa en cada base (14/10)».)
   - Santiago, 13/10: «Hace mas estetico los % y respeta las reglas de menor a 90% en rojo y
     mayor o igual a 90% en verde». Los colores son los del formato condicional de la plantilla
     (filas 9, 50, 180, 681…): cada medida, en negrita, roja abajo del 90 % y verde desde el 90 %;
@@ -1865,7 +1938,8 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     confirmar cuál va.
 - **Lo que todavía no hace**: PSE y Unidad Arbitraria no se calculan (la PSE se escribe al
   revisar); los V.R. por dispositivo esperan el paso 4 (el % vs V.R. de partido de Cargar usa
-  los de la plantilla, uno solo para el club); la marca fija de la selección
+  los de la plantilla, uno solo para el club; desde el 14/10, el de partido de cada
+  dispositivo); la marca fija de la selección
   (la define Santiago); las columnas del club que vienen en el CSV van solo en las filas de
   cada jugador; traerlo directo de OpenField (paso 5).
 - **Dejar para revisar y «Sin terminar» (13/10, migración `20261021_gps_en_curso.sql`).** Nota
@@ -1914,8 +1988,9 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
   `src/domain/gps/cargar.js`, usada en `src/CargarGps.jsx`). Si se cambia la fecha, se mira
   otro día y un CSV ya cargado se puede cargar de nuevo. Queda así hasta que se cambie; cómo
   sale del CSV (su propia fecha, sus datos o las dos cosas) se define con Santiago al hacerlo.
-- ¿Los V.R. de partido van por dispositivo (paso 4)? Hoy hay uno solo por club, como la
-  plantilla.
+- ~~¿Los V.R. de partido van por dispositivo (paso 4)? Hoy hay uno solo por club, como la
+  plantilla.~~ Decidido el 14/10: «El de partido de cada dispositivo» (ver «Los V.R. se
+  cambian: una solapa en cada base (14/10)»).
 - ~~El promedio del % vs V.R. de partido va en verde desde el 70 % (la plantilla) y no desde el
   90 % que dijo Santiago el 13/10: confirmar cuál (se cambia en Ajustes › Reglas de carga).~~
   Confirmado el 13/10: queda en 70 % («el promedio dejalo asi»).
@@ -2725,9 +2800,15 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
   arriba y solo dejar las de promedio por dispositivo y agregar todos los vr de gps asi como los
   % vs vr de partido». Ver «GPS (10/10)», «Arriba de la Base: promedio, V.R. y % (14/10)»
   (UI-034). Falta que Santiago corra los dos SQL (la tabla y los V.R.; los pasa Claude por el
-  chat).
-- **Editar y borrar los Valores de referencia**: necesita la planilla de valor referencial; se
-  dejó para después (Santiago, 14/10: «seguir con lo de gps por ahora»).
+  chat). (Al ver esto, Santiago pidió editarlos: ver la nota que sigue; los V.R. van con un
+  SQL nuevo, después de `20261025`.)
+- **Editar y borrar los Valores de referencia (hecho el 14/10, migración
+  `20261025_referencias_editables.sql`).** Se había dejado para después porque falta la
+  planilla de valor referencial (Santiago, 14/10: «seguir con lo de gps por ahora»). Al ver la
+  parte de arriba de la Base, Santiago, 14/10: «pero no puedo editar nada del vr, ademas
+  acordate que todos los vr van aparte». Ver «Los V.R. se cambian: una solapa en cada base
+  (14/10)» (UI-035). Falta: que Santiago corra los SQL (los pasa Claude por el chat) y la
+  planilla de valor referencial, para que la app calcule los V.R. con su lógica.
 - Las otras 3, sin decidir todavía (se ven una por una, en este orden): revisar la lógica de
   Flujo diario; Isocinecia con el lector de Python y conectar con VALD; mejorar el cuerpo humano
   del reporte de Lesiones.

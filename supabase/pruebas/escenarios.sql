@@ -655,6 +655,7 @@ select pruebas.esperar('Beto (admin de Uno) le da Evaluaciones a Carla', pruebas
 select pruebas.esperar('Beto, sin Evaluaciones, no ve ninguna', (select count(*) from evaluaciones), 0);
 select pruebas.debe_fallar('...ni carga', $$insert into evaluaciones (equipo_id, test, jugador_id, fecha, datos) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 9004, '2026-06-12', '{"lumbar":184}')$$, 'row-level security');
 select pruebas.esperar('...ni ve los valores de referencia', (select count(*) from evaluaciones_referencias), 0);
+select pruebas.debe_fallar('...ni los cambia', $$select evaluaciones_referencia_cambiar('00000000-0000-0000-0000-0000000000c1', 'zona_media', '{categorias,mayor,bueno,lumbar}', '1')$$, 'row-level security');
 reset role;
 select pruebas.esperar('El permiso nuevo queda en la historia de Carla', (select count(*) from club_miembros_historial where user_id = '00000000-0000-0000-0000-00000000000c' and accion = 'modulos' and detalle ->> 'evaluaciones' = 'true'), 1);
 
@@ -673,8 +674,22 @@ select pruebas.esperar('Carla corrige un tiempo', pruebas.filas($$update evaluac
 select pruebas.debe_fallar('...pero no la pasa a otro test', $$update evaluaciones set test = 'saltos' where jugador_id = 9004$$, 'evaluacion_fija');
 select pruebas.debe_fallar('...ni le cambia el orden de carga', $$update evaluaciones set orden = 1 where jugador_id = 9004$$, 'orden');
 select pruebas.esperar('Carla ve los valores de referencia de Uno', (select count(*) from evaluaciones_referencias), 1);
-select pruebas.debe_fallar('...pero no los cambia', $$update evaluaciones_referencias set datos = '{}'$$, 'permission denied');
-select pruebas.debe_fallar('...ni carga otros', $$insert into evaluaciones_referencias (equipo_id, test, datos) values ('00000000-0000-0000-0000-0000000000c1', 'saltos', '{}')$$, 'permission denied');
+select pruebas.esperar('...cambia uno (y arma la categoría que faltaba)', (select evaluaciones_referencia_cambiar(:C1, 'zona_media', '{categorias,mayor,bueno,lumbar}', '0.127777777777778') #>> '{categorias,mayor,bueno,lumbar}'), '0.127777777777778');
+select pruebas.esperar('...suma otro al lado', (select evaluaciones_referencia_cambiar(:C1, 'zona_media', '{categorias,mayor,bueno,prono}', '0.2')::text), '{"categorias": {"mayor": {"bueno": {"prono": 0.2, "lumbar": 0.127777777777778}}}}');
+select pruebas.esperar('...vacía uno', (select evaluaciones_referencia_cambiar(:C1, 'zona_media', '{categorias,mayor,bueno,prono}', null)::text), '{"categorias": {"mayor": {"bueno": {"lumbar": 0.127777777777778}}}}');
+select pruebas.esperar('...cambia el n del resumen', (select evaluaciones_referencia_cambiar(:C1, 'zona_media', '{resumen,n,mayor}', '29') #>> '{resumen,n,mayor}'), '29');
+select pruebas.esperar('...borra una categoría', (select evaluaciones_referencia_cambiar(:C1, 'zona_media', '{categorias,mayor}', null) -> 'categorias')::text, '{}');
+select pruebas.esperar('...y la trae de vuelta entera', (select evaluaciones_referencia_cambiar(:C1, 'zona_media', '{categorias,mayor}', '{"bueno":{"lumbar":0.127777777777778}}') #>> '{categorias,mayor,bueno,lumbar}'), '0.127777777777778');
+select pruebas.esperar('...empieza los de un test que no tenía', (select evaluaciones_referencia_cambiar(:C1, 'saltos', '{categorias,mayor,bueno,altura}', '40') #>> '{categorias,mayor,bueno,altura}'), '40');
+select pruebas.debe_fallar('...pero no en otro lado', $$select evaluaciones_referencia_cambiar('00000000-0000-0000-0000-0000000000c1', 'zona_media', '{otra,cosa}', '1')$$, 'referencia_invalida');
+select pruebas.debe_fallar('...ni con un texto', $$select evaluaciones_referencia_cambiar('00000000-0000-0000-0000-0000000000c1', 'zona_media', '{categorias,mayor,bueno,lumbar}', '"mucho"')$$, 'referencia_invalida');
+select pruebas.debe_fallar('...ni en un test mal escrito', $$select evaluaciones_referencia_cambiar('00000000-0000-0000-0000-0000000000c1', 'Zona Media', '{categorias,mayor,bueno,lumbar}', '1')$$, 'evaluaciones_referencias_test');
+select pruebas.debe_fallar('...ni en otro club', $$select evaluaciones_referencia_cambiar('00000000-0000-0000-0000-0000000000c2', 'zona_media', '{categorias,mayor,bueno,lumbar}', '1')$$, 'row-level security');
+select pruebas.esperar('...ni toca los de otro club', pruebas.filas($$update evaluaciones_referencias set datos = '{}' where equipo_id = '00000000-0000-0000-0000-0000000000c2'$$), 0);
+select pruebas.debe_fallar('...no pasa unos V.R. a otro test', $$update evaluaciones_referencias set test = 'saltos'$$, 'permission denied');
+select pruebas.esperar('...borra los de un test', pruebas.filas($$delete from evaluaciones_referencias where test = 'saltos'$$), 1);
+select pruebas.esperar('...y todo queda en el historial, con quién', (select string_agg(accion, ',' order by id) from referencias_historial where tabla = 'evaluaciones_referencias' and quien_email = 'carla@uno.com'), 'editada,editada,editada,editada,editada,editada,creada,editada,borrada');
+select pruebas.esperar('...cómo estaba y cómo quedó', (select (antes #>> '{datos,categorias,mayor,bueno,prono}') || '→' || coalesce(despues #>> '{datos,categorias,mayor,bueno,prono}', 'vacío') from referencias_historial where tabla = 'evaluaciones_referencias' and antes #>> '{datos,categorias,mayor,bueno,prono}' is not null), '0.2→vacío');
 reset role;
 
 select pruebas.ser('nuevo@uno.com'); set role authenticated;
@@ -710,6 +725,8 @@ select pruebas.esperar('...pero están en la foto de su último día', (select c
 select pruebas.esperar('...con lo que corrigió', (select f -> 'datos' ->> 'lumbar' from datos_al_dia('evaluaciones', :C1) f where f ->> 'jugador_id' = '9004'), '185');
 select pruebas.esperar('...y los valores de referencia de Uno', (select count(*) from datos_al_dia('evaluaciones_referencias', :C1)), 1);
 select pruebas.debe_fallar('...pero ya no carga', $$insert into evaluaciones (equipo_id, test, jugador_id, fecha) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 9004, '2026-06-13')$$, 'row-level security');
+select pruebas.debe_fallar('...ni cambia los valores de referencia', $$select evaluaciones_referencia_cambiar('00000000-0000-0000-0000-0000000000c1', 'zona_media', '{categorias,mayor,bueno,lumbar}', '1')$$, 'row-level security');
+select pruebas.esperar('...ni ve su historial', (select count(*) from referencias_historial), 0);
 reset role;
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Beto le saca Evaluaciones a Carla (ya se fue)', pruebas.filas($$update club_miembros set evaluaciones = false where user_id = '00000000-0000-0000-0000-00000000000c' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
@@ -722,6 +739,7 @@ reset role;
 set role anon;
 select pruebas.debe_fallar('Sin cuenta no se ven las evaluaciones', 'select count(*) from evaluaciones', 'permission denied');
 select pruebas.debe_fallar('...ni los valores de referencia', 'select count(*) from evaluaciones_referencias', 'permission denied');
+select pruebas.debe_fallar('...ni los cambia', $$select evaluaciones_referencia_cambiar('00000000-0000-0000-0000-0000000000c1', 'zona_media', '{categorias,mayor,bueno,lumbar}', '1')$$, 'permission denied');
 select pruebas.debe_fallar('...ni su foto', $$select * from datos_al_dia('evaluaciones', '00000000-0000-0000-0000-0000000000c1')$$, 'permission denied');
 reset role;
 
@@ -862,20 +880,48 @@ select pruebas.esperar('...y se va con lo hecho', (select count(*) from gps_en_c
 reset role;
 select pruebas.esperar('Las tres filas quedan en las versiones', (select count(*) from versiones_datos where tabla = 'gps'), 3);
 select pruebas.esperar('...y quién las cargó', (select count(*) from gps where creado_por = '00000000-0000-0000-0000-000000000616' and actualizado_por = '00000000-0000-0000-0000-000000000616'), 3);
--- Los V.R. de cada dispositivo (20261024_gps_referencias.sql): los carga un
--- SQL; desde la app solo se leen.
+-- Los V.R. de cada dispositivo (20261024_gps_referencias.sql): los primeros
+-- los carga un SQL; desde 20261025_referencias_editables.sql se cambian,
+-- se suman y se borran desde la app.
 insert into public.gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio) values
   (:C1, 'catapult', 'FUTBOL', 'Oficial EdLP', 'TOTAL FUTBOL', 1, '{"d":100.5,"d_min":10.25,"tiempo":5700}', '{"d":9.5}'),
   (:C1, 'sport', 'FUTBOL', 'FUTBOL 2', 'TOTAL FUTBOL', 2, '{"d":90}', '{}'),
   (:C2, 'catapult', 'FUTBOL', 'Oficial EdLP', 'TOTAL FUTBOL', 1, '{"d":1}', '{}');
+select id as vr_c1 from gps_referencias where equipo_id = :C1 and dispositivo = 'catapult' \gset
 select pruebas.debe_fallar('Un V.R. es de un grupo de una tabla una sola vez', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo) values ('00000000-0000-0000-0000-0000000000c1', 'sport', 'FUTBOL', 'FUTBOL 2', 'TOTAL FUTBOL')$$, 'gps_referencias_una');
 select pruebas.debe_fallar('...con sus valores en un objeto', $$update gps_referencias set promedio = '[1]' where dispositivo = 'sport'$$, 'gps_referencias_valores');
+select pruebas.debe_fallar('...solo con números', $$update gps_referencias set promedio = '{"d":"mucho"}' where dispositivo = 'sport'$$, 'gps_referencias_numeros');
+select pruebas.esperar('Cargarlos por SQL queda en el historial', (select count(*) from referencias_historial where tabla = 'gps_referencias' and accion = 'creada' and equipo_id in (:C1, :C2)), 3);
+-- El V.R. de partido que Atlético tenía en Reglas de carga (lo pone
+-- correr.sh antes de 20261025) pasó a cada uno de sus dispositivos.
+select id as atletico_gps from equipos where nombre = 'Atlético Mineiro' \gset
+select pruebas.esperar('El V.R. de partido de las reglas pasó a cada dispositivo, con sus números', (select string_agg(dispositivo || ':' || tipo || ' · ' || tabla || ' · ' || grupo || ':' || promedio::text, ',' order by dispositivo) from gps_referencias where equipo_id = :'atletico_gps' and de_partido), 'cat:PARTIDO · V.R. de partido · TOTAL:{"d_min": 100.5, "d_shi_min": 20},spo:PARTIDO · V.R. de partido · TOTAL:{"d_min": 100.5, "d_shi_min": 20}');
+select pruebas.esperar('...y salió de las reglas (lo demás queda)', (select (reglas ? 'vrPartido')::text || ',' || (reglas ->> 'parteDelTiempo') from gps_reglas where equipo_id = :'atletico_gps'), 'false,0.8');
+select pruebas.debe_fallar('Un dispositivo tiene un solo V.R. de partido', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo, de_partido) values ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'P', 'Uno', 'T', true), ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'P', 'Otro', 'T', true)$$, 'gps_referencias_un_partido');
 select pruebas.ser('gps@uno.com'); set role authenticated;
 select pruebas.esperar('Con GPS ve los V.R. de su club, de cada dispositivo', (select string_agg(dispositivo || ':' || tabla, ',' order by orden) from gps_referencias), 'catapult:Oficial EdLP,sport:FUTBOL 2');
 select pruebas.esperar('...con sus números', (select (promedio ->> 'd_min') || ',' || (promedio ->> 'tiempo') from gps_referencias where dispositivo = 'catapult'), '10.25,5700');
-select pruebas.debe_fallar('...pero no los cambia', $$update gps_referencias set promedio = '{}'$$, 'permission denied');
-select pruebas.debe_fallar('...ni suma uno', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo) values ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'FUTBOL', 'Otra', 'TOTAL FUTBOL')$$, 'permission denied');
-select pruebas.debe_fallar('...ni los borra', $$delete from gps_referencias$$, 'permission denied');
+select pruebas.esperar('...cambia uno, de a un número', (select (gps_referencia_cambiar(id, 'promedio', 'd_min', 10.123456789012345)).promedio ->> 'd_min' from gps_referencias where dispositivo = 'catapult'), '10.123456789012345');
+select pruebas.esperar('...sin tocar los otros', (select (promedio ->> 'd') || ',' || (promedio ->> 'tiempo') from gps_referencias where dispositivo = 'catapult'), '100.5,5700');
+select pruebas.esperar('...le suma uno que no tenía', (select (gps_referencia_cambiar(id, 'desvio', 'tiempo', 300)).desvio::text from gps_referencias where dispositivo = 'catapult'), '{"d": 9.5, "tiempo": 300}');
+select pruebas.esperar('...y lo vacía', (select (gps_referencia_cambiar(id, 'desvio', 'd', null)).desvio::text from gps_referencias where dispositivo = 'catapult'), '{"tiempo": 300}');
+select pruebas.debe_fallar('...pero no en otro lado', format('select gps_referencia_cambiar(%L, %L, %L, 1)', :'vr_c1', 'equipo_id', 'd'), 'referencia_invalida');
+select pruebas.debe_fallar('...ni en una columna mal escrita', format('select gps_referencia_cambiar(%L, %L, %L, 1)', :'vr_c1', 'promedio', 'D Min'), 'referencia_invalida');
+select pruebas.esperar('Suma un V.R.', pruebas.filas($$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo, orden) values ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'DINAMICA', 'DINAMICA 1', 'FUERZA', 3)$$), 1);
+select pruebas.esperar('...le cambia el nombre', pruebas.filas($$update gps_referencias set grupo = 'VELOCIDAD' where tabla = 'DINAMICA 1'$$), 1);
+select pruebas.esperar('...lo marca de partido (y devuelve los de su dispositivo)', pruebas.filas($$select * from gps_referencia_de_partido((select id from gps_referencias where tabla = 'DINAMICA 1'), true)$$), 2);
+select pruebas.esperar('...marca otro: el de antes deja de serlo', (select count(*) from gps_referencia_de_partido((select id from gps_referencias where tabla = 'Oficial EdLP'), true) where de_partido and tabla = 'Oficial EdLP'), 1);
+select pruebas.esperar('...uno solo de partido en su dispositivo', (select string_agg(tabla, ',') from gps_referencias where dispositivo = 'catapult' and de_partido), 'Oficial EdLP');
+select pruebas.esperar('...lo borra', pruebas.filas($$delete from gps_referencias where tabla = 'DINAMICA 1'$$), 1);
+select pruebas.debe_fallar('...no lo pasa a otro club', $$update gps_referencias set equipo_id = '00000000-0000-0000-0000-0000000000c2'$$, 'permission denied');
+select pruebas.debe_fallar('...ni a otro dispositivo', $$update gps_referencias set dispositivo = 'sport'$$, 'permission denied');
+select pruebas.debe_fallar('...ni suma uno en otro club', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo) values ('00000000-0000-0000-0000-0000000000c2', 'catapult', 'FUTBOL', 'Otra', 'TOTAL FUTBOL')$$, 'row-level security');
+select pruebas.esperar('Ve el historial de los V.R. de su club, con quién (tres números y el de partido)', (select count(*) || ':' || string_agg(distinct quien_email, ',') from referencias_historial where tabla = 'gps_referencias' and accion = 'editada' and fila_id = (select id from gps_referencias where tabla = 'Oficial EdLP')), '4:gps@uno.com');
+select pruebas.esperar('...cómo estaba y cómo quedó', (select (antes -> 'promedio' ->> 'd_min') || '→' || (despues -> 'promedio' ->> 'd_min') from referencias_historial where tabla = 'gps_referencias' and accion = 'editada' order by id limit 1), '10.25→10.123456789012345');
+select pruebas.esperar('...también lo borrado', (select count(*) from referencias_historial where accion = 'borrada' and antes ->> 'tabla' = 'DINAMICA 1'), 1);
+select pruebas.esperar('...pero no el de otro club', (select count(*) from referencias_historial where equipo_id = :C2), 0);
+select pruebas.debe_fallar('...ni lo cambia', $$update referencias_historial set quien_email = 'otro@uno.com'$$, 'permission denied');
+select pruebas.debe_fallar('...ni le suma', $$insert into referencias_historial (tabla, fila_id, accion) values ('gps_referencias', gen_random_uuid(), 'creada')$$, 'permission denied');
 reset role;
 
 select pruebas.ser('nuevo@uno.com'); set role authenticated;
@@ -883,6 +929,8 @@ select pruebas.esperar('Con Lesiones y sin GPS no se ve ninguna fila', (select c
 select pruebas.esperar('...ni en la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
 select pruebas.esperar('...ni los Ajustes', (select count(*) from gps_campos) + (select count(*) from gps_opciones) + (select count(*) from gps_reglas), 0);
 select pruebas.esperar('...ni los V.R.', (select count(*) from gps_referencias), 0);
+select pruebas.debe_fallar('...ni cambia uno', format('select gps_referencia_cambiar(%L, %L, %L, 1)', :'vr_c1', 'promedio', 'd'), 'referencia_sin_permiso');
+select pruebas.esperar('...ni ve su historial', (select count(*) from referencias_historial), 0);
 select pruebas.debe_fallar('...ni los cambia', $$insert into gps_campos (equipo_id, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'd', 'Distancia')$$, 'row-level security');
 select pruebas.debe_fallar('...ni las reglas de la carga', $$insert into gps_reglas (equipo_id, reglas) values ('00000000-0000-0000-0000-0000000000c1', '{}')$$, 'row-level security');
 select pruebas.esperar('...ni las cargas sin terminar', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 0);
@@ -896,6 +944,10 @@ select pruebas.esperar('...ni con la foto', (select count(*) from datos_al_dia('
 select pruebas.esperar('...ni cambia sus Ajustes', pruebas.filas($$update gps_campos set etiqueta_es = 'Espía'$$), 0);
 select pruebas.esperar('...ni sus reglas de carga', pruebas.filas($$update gps_reglas set reglas = '{}'$$), 0);
 select pruebas.esperar('...ni sus V.R.', (select count(*) from gps_referencias where equipo_id = :C1), 0);
+select pruebas.debe_fallar('...ni los cambia', format('select gps_referencia_cambiar(%L, %L, %L, 1)', :'vr_c1', 'promedio', 'd'), 'referencia_sin_permiso');
+select pruebas.debe_fallar('...ni marca uno de partido', format('select gps_referencia_de_partido(%L, true)', :'vr_c1'), 'referencia_sin_permiso');
+select pruebas.esperar('...ni los borra', pruebas.filas($$delete from gps_referencias where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
+select pruebas.esperar('...ni ve su historial', (select count(*) from referencias_historial where equipo_id = :C1), 0);
 select pruebas.esperar('...ni sus cargas sin terminar', (select count(*) from gps_en_curso where equipo_id = :C1) + (select count(*) from gps_en_curso_datos), 0);
 select pruebas.esperar('...ni las sigue', pruebas.filas($$update gps_en_curso set paso = 0$$), 0);
 select pruebas.esperar('...ni las borra', pruebas.filas($$delete from gps_en_curso$$), 0);
@@ -928,6 +980,11 @@ select pruebas.esperar('...ni cambia los Ajustes', pruebas.filas($$update gps_ca
 select pruebas.esperar('...ve las reglas de la carga', (select count(*) from gps_reglas), 1);
 select pruebas.esperar('...pero no las cambia', pruebas.filas($$update gps_reglas set reglas = '{}'$$), 0);
 select pruebas.esperar('...y los V.R. de cada dispositivo', (select count(*) from gps_referencias), 2);
+select pruebas.debe_fallar('...pero ya no los cambia', format('select gps_referencia_cambiar(%L, %L, %L, 1)', :'vr_c1', 'promedio', 'd'), 'referencia_sin_permiso');
+select pruebas.debe_fallar('...ni marca uno de partido', format('select gps_referencia_de_partido(%L, true)', :'vr_c1'), 'referencia_sin_permiso');
+select pruebas.esperar('...ni los borra', pruebas.filas($$delete from gps_referencias$$), 0);
+select pruebas.debe_fallar('...ni suma uno', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo) values ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'FUTBOL', 'Otra', 'TOTAL FUTBOL')$$, 'row-level security');
+select pruebas.esperar('...ni ve su historial', (select count(*) from referencias_historial), 0);
 select pruebas.esperar('...pero ya no ve las cargas sin terminar', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 0);
 select pruebas.debe_fallar('...ni deja una', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-12', 0, '{}', '{}')$q$, 'row-level security');
 reset role;
@@ -945,6 +1002,8 @@ select pruebas.debe_fallar('...ni sus Ajustes', 'select count(*) from gps_campos
 select pruebas.debe_fallar('...ni sus listas', 'select count(*) from gps_opciones', 'permission denied');
 select pruebas.debe_fallar('...ni sus reglas de carga', 'select count(*) from gps_reglas', 'permission denied');
 select pruebas.debe_fallar('...ni sus V.R.', 'select count(*) from gps_referencias', 'permission denied');
+select pruebas.debe_fallar('...ni los cambia', format('select gps_referencia_cambiar(%L, %L, %L, 1)', :'vr_c1', 'promedio', 'd'), 'permission denied');
+select pruebas.debe_fallar('...ni ve el historial de los V.R.', 'select count(*) from referencias_historial', 'permission denied');
 select pruebas.debe_fallar('...ni sus cargas sin terminar', 'select count(*) from gps_en_curso', 'permission denied');
 select pruebas.debe_fallar('...ni lo hecho en ellas', 'select count(*) from gps_en_curso_datos', 'permission denied');
 select pruebas.debe_fallar('...ni deja una', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-12', 0, '{}', '{}')$q$, 'permission denied');
@@ -1111,7 +1170,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,esta_autorizado,gps_cambiar_en_descripciones,gps_dejar_en_curso,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,esta_autorizado,evaluaciones_referencia_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');

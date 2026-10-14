@@ -9,11 +9,12 @@ import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarGps from "./ImportarGps.jsx";
 import CargarGps from "./CargarGps.jsx";
+import ReferenciasGps from "./ReferenciasGps.jsx";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, useGuiaDelModulo } from "./components/Guia.jsx";
 import { COLUMNAS_FIJAS, absolutaDe, codigoNuevo, columnaOculta, columnasVisibles, opcionesDeLista, opcionesDelExcel, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { TIPOS_PROPIOS, armarConfigGps, claveDeColumnaPropia, configGpsVacia, gpsDelClub } from "./domain/gps/ajustes.js";
-import { AJUSTES_DE_REGLAS, REGLAS_CARGA, VS_PARTIDO, reglasDelClub } from "./domain/gps/cargar.js";
+import { AJUSTES_DE_REGLAS, REGLAS_CARGA, reglasDelClub, vrPartidoDeLasReglas } from "./domain/gps/cargar.js";
 import { PROMEDIOS } from "./domain/gps/columnas.js";
 import { FILAS_DEL_INFORME, ZONAS_DE_IMPACTO, ZONA_AL_ABRIR, comparaciones, porcentajesVsVr, vistaDelGps } from "./domain/gps/informe.js";
 import { textoDeValor } from "./domain/evaluaciones/excel.js";
@@ -67,6 +68,7 @@ import "./gps.css";
 export const DESTINOS_GPS = [
   { id: "cargar", etiqueta: "Cargar", icono: "usuario" },
   { id: "base", etiqueta: "Base", icono: "documento" },
+  { id: "referencias", etiqueta: "Valores de referencia", icono: "registros" },
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
 
@@ -164,9 +166,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Las reglas de la carga que guardó el club (sin la tabla, las de la plantilla).
   const [reglasGuardadas, setReglasGuardadas] = useState({});
   const [faltanReglas, setFaltanReglas] = useState(false);
-  // Los V.R. de cada dispositivo (gps_referencias) y cuál se eligió.
+  // Los V.R. de cada dispositivo (gps_referencias) y cuál se eligió. Sin la
+  // actualización 20261025, se miran pero no se cambian (sinEdicionVr).
   const [referencias, setReferencias] = useState([]);
   const [faltanReferencias, setFaltanReferencias] = useState(false);
+  const [sinEdicionVr, setSinEdicionVr] = useState(false);
   const [elegidos, setElegidos] = useState({});
   const [hojaReglas, setHojaReglas] = useState(null);
   const avisarSinGuardar = useCallback((sinGuardar) => {
@@ -226,8 +230,29 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     if (!respuestaReferencias.error) {
       setReferencias(respuestaReferencias.referencias);
       setFaltanReferencias(respuestaReferencias.faltaTabla);
+      setSinEdicionVr(respuestaReferencias.sinEdicion);
     }
   }, [equipoId]);
+
+  // Los V.R. otra vez (después de cambiar uno, o si lo cambió otra persona).
+  const cargarReferencias = useCallback(async () => {
+    const respuesta = await leerReferenciasGps(equipoId);
+    if (respuesta.error) return;
+    setReferencias(respuesta.referencias);
+    setFaltanReferencias(respuesta.faltaTabla);
+    setSinEdicionVr(respuesta.sinEdicion);
+  }, [equipoId]);
+  // Lo que devolvió la base al cambiar uno o varios: reemplaza a los suyos.
+  const conReferenciasCambiadas = useCallback((cambiadas) => {
+    setReferencias((antes) => {
+      const porId = new Map(cambiadas.map((referencia) => [referencia.id, referencia]));
+      const nuevas = antes.map((referencia) => porId.get(referencia.id) || referencia);
+      cambiadas.forEach((referencia) => {
+        if (!antes.some((una) => una.id === referencia.id)) nuevas.push(referencia);
+      });
+      return nuevas;
+    });
+  }, []);
 
   useEffect(() => {
     setElegidos(equipoId ? leerElegidos(equipoId) : {});
@@ -352,6 +377,15 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     equipoId,
     activo: !soloLectura,
     alCambiar: () => Promise.all([cargarClub({ silencioso: true }), ponerAlDia()]),
+  });
+  // Los V.R. que cambia otra persona, en su propio canal (sin la
+  // actualización 20261025 la tabla no avisa: no hay nada que escuchar).
+  useEnVivo({
+    nombre: "gps-referencias",
+    tablas: ["gps_referencias"],
+    equipoId,
+    activo: !soloLectura && !sinEdicionVr && !faltanReferencias,
+    alCambiar: cargarReferencias,
   });
 
   const cargarEnCurso = useCallback(
@@ -1145,19 +1179,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
 
   const tipoDeColumna = (tipo) => t(`gps.ajustes.tipos.${tipo}`);
 
-  // Las reglas de la carga: cómo se ve cada una (75 %, 13:00, Prendido, los
-  // V.R. cargados, lo que se ve en el partido).
-  const tituloDeMedida = (clave) => {
-    const columna = gps.columnas.find((una) => una.clave === clave);
-    return columna ? titulo(columna) : clave;
-  };
-  const decimal = (numero) => (esNumero(numero) ? numero.toLocaleString(idioma, { maximumFractionDigits: 10, useGrouping: false }) : "");
+  // Las reglas de la carga: cómo se ve cada una (75 %, 13:00, Prendido, lo
+  // que se ve en el partido). El V.R. de partido ya no es una regla: es el
+  // marcado «de partido» de cada dispositivo, en Valores de referencia.
   const textoDeRegla = (ajuste, valor) => {
     if (ajuste.tipo === "prendida") return valor ? t("gps.reglas.prendido") : t("gps.reglas.apagado");
-    if (ajuste.tipo === "vr") {
-      const cargados = VS_PARTIDO.medidas.filter((clave) => valor?.[clave]).length;
-      return cargados ? t("gps.reglas.vrPartido.cargados", { n: cargados, total: VS_PARTIDO.medidas.length }) : t("gps.reglas.vrPartido.ninguno");
-    }
     if (ajuste.tipo === "campos") {
       const seVen = ajuste.opciones.filter((campo) => !(valor || []).includes(campo));
       return seVen.length ? seVen.map((campo) => t(`gps.reglas.${ajuste.clave}.campos.${campo}`)).join(", ") : t(`gps.reglas.${ajuste.clave}.nada`);
@@ -1169,7 +1195,6 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   };
   // Lo que se escribe en la hoja, como texto (la parte, en %; la hora, h:mm).
   const textoParaEscribir = (ajuste, valor) => {
-    if (ajuste.tipo === "vr") return Object.fromEntries(VS_PARTIDO.medidas.map((clave) => [clave, decimal(valor?.[clave])]));
     // Los campos: los que se ven (marcados).
     if (ajuste.tipo === "campos") return ajuste.opciones.filter((campo) => !(valor || []).includes(campo));
     if (ajuste.tipo === "parte") return String(Math.round(valor * 1000) / 10);
@@ -1190,14 +1215,6 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       const bien = String(hoja.valor ?? "").trim() !== "" && Number.isFinite(valor) && valor >= hoja.minimo && valor <= hoja.maximo && (hoja.tipo === "parte" ? valor > 0 : Number.isInteger(valor));
       if (!bien) {
         setErrorHoja(hoja.tipo === "parte" ? t("gps.reglas.malLaParte") : t("gps.reglas.malElNumero", { minimo: hoja.minimo, maximo: hoja.maximo }));
-        return;
-      }
-    } else if (hoja.tipo === "vr") {
-      // Cada V.R., un número mayor que 0 (o vacío: no está).
-      const leidos = Object.entries(hoja.valor || {}).filter(([, texto]) => String(texto ?? "").trim() !== "");
-      valor = Object.fromEntries(leidos.map(([clave, texto]) => [clave, Number(String(texto).trim().replace(",", "."))]));
-      if (Object.values(valor).some((numero) => !(Number.isFinite(numero) && numero > 0))) {
-        setErrorHoja(t("gps.reglas.vrPartido.malo"));
         return;
       }
     } else if (hoja.tipo === "campos") {
@@ -1458,6 +1475,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           plantel={plantel}
           plantelSinLeer={plantelSinLeer}
           reglas={reglas}
+          referencias={referencias}
+          vrPartidoViejo={sinEdicionVr ? vrPartidoDeLasReglas(reglasGuardadas) : null}
           columnas={columnas}
           fijas={fijas}
           armarFila={armarFila}
@@ -1477,6 +1496,31 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       ) : (
         pantallaCargar
       );
+  else if (vista === "referencias")
+    contenido = (
+      <ReferenciasGps
+        gps={gps}
+        config={config}
+        idioma={idioma}
+        equipoId={equipoId}
+        referencias={referencias}
+        dispositivos={opcionesDeLista("dispositivo", config, idioma, { test: gps })}
+        sinEdicion={sinEdicionVr}
+        faltaTabla={faltanReferencias}
+        soloLectura={soloLectura}
+        enLinea={enLinea}
+        encabezado={encabezado}
+        arriba={
+          <>
+            <AvisoSoloLectura hasta={equipo?.hasta} />
+            {estado}
+          </>
+        }
+        onCambiadas={conReferenciasCambiadas}
+        onRecargar={cargarReferencias}
+        onAviso={setAviso}
+      />
+    );
   else if (importando && !soloLectura)
     contenido = (
       <ImportarGps
@@ -1500,7 +1544,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const contenidoDeLaGuia = {
     titulo: t("gps.guia.titulo"),
     intro: t("gps.guia.intro"),
-    secciones: ["cargar", "base", "traer", "ajustes"].map((parte) => ({ titulo: t(`gps.guia.${parte}Titulo`), texto: t(`gps.guia.${parte}`) })),
+    secciones: ["cargar", "base", "referencias", "traer", "ajustes"].map((parte) => ({ titulo: t(`gps.guia.${parte}Titulo`), texto: t(`gps.guia.${parte}`) })),
     terminos: TERMINOS_GPS.map((termino) => ({ titulo: t(`gps.terminos.${termino}.titulo`), texto: t(`gps.terminos.${termino}.texto`) })),
   };
 
@@ -1632,20 +1676,6 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
                 <option value="si">{t("gps.reglas.prendido")}</option>
                 <option value="no">{t("gps.reglas.apagado")}</option>
               </select>
-            ) : hojaReglas.tipo === "vr" ? (
-              <div className="gps-regla-vr">
-                {VS_PARTIDO.medidas.map((clave) => (
-                  <label key={clave}>
-                    <span>{tituloDeMedida(clave)}</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={hojaReglas.valor?.[clave] ?? ""}
-                      onChange={(evento) => setHojaReglas({ ...hojaReglas, valor: { ...hojaReglas.valor, [clave]: evento.target.value } })}
-                    />
-                  </label>
-                ))}
-              </div>
             ) : hojaReglas.tipo === "campos" ? (
               <div className="tabla-datos-filtro-cuerpo">
                 <ListaParaMarcar

@@ -8,6 +8,11 @@ const datos = vi.hoisted(() => ({
   equipo: { id: "eq-1", nombre: "Club de Prueba" },
   evaluaciones: [],
   referencias: null,
+  // Los V.R. que se pidió cambiar, el historial y si a la base le falta la
+  // actualización para cambiarlos.
+  cambiosVr: [],
+  historialVr: [],
+  faltaHistorial: false,
   errorAlLeer: "",
   creadas: [],
   actualizadas: [],
@@ -83,7 +88,23 @@ vi.mock("./domain/lesionesDb.js", () => ({
     error: "",
   }),
 }));
+vi.mock("./domain/referenciasDb.js", () => ({
+  leerHistorialDeReferencias: async () => ({ cambios: datos.historialVr.map((una) => ({ ...una })), faltaTabla: datos.faltaHistorial, error: "" }),
+}));
 vi.mock("./domain/evaluacionesDb.js", () => ({
+  cambiarReferencia: async (equipoId, test, ruta, valor) => {
+    datos.cambiosVr.push({ test, ruta, valor });
+    const actual = JSON.parse(JSON.stringify((test === "zona_media" && datos.referencias) || {}));
+    let nodo = actual;
+    ruta.slice(0, -1).forEach((parte) => {
+      if (!nodo[parte] || typeof nodo[parte] !== "object") nodo[parte] = {};
+      nodo = nodo[parte];
+    });
+    if (valor === null) delete nodo[ruta.at(-1)];
+    else nodo[ruta.at(-1)] = valor;
+    if (test === "zona_media") datos.referencias = actual;
+    return { datos: actual, error: "" };
+  },
   listarEvaluaciones: async () => {
     if (datos.fallaLaProxima) {
       const error = datos.fallaLaProxima;
@@ -195,6 +216,9 @@ describe("Evaluaciones", () => {
     datos.equipo = { id: "eq-1", nombre: "Club de Prueba" };
     datos.evaluaciones = EVALUACIONES();
     datos.referencias = REFERENCIAS;
+    datos.cambiosVr = [];
+    datos.historialVr = [];
+    datos.faltaHistorial = false;
     datos.errorAlLeer = "";
     datos.creadas = [];
     datos.actualizadas = [];
@@ -516,6 +540,98 @@ describe("Evaluaciones", () => {
     expect([...resumen.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Categoría", "n", "Lumbar", "Lateral D", "Lateral I", "Prono", "Ratio", "Def. Lat", "Pro"]);
     expect([...filaDe(resumen, "Mayor").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["12", "3:00", "1:20", "1:20", "2:00", "0,70", "10,00", ""]);
     expect([...filaDe(resumen, "Sub-15").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["", "", "", "", "", "", "", ""]);
+  });
+
+  // Santiago, 14/10: «pero no puedo editar nada del vr»; una solapa en cada
+  // base, «con volver atrás».
+  const tablaVr = (indice) => contenedor.querySelectorAll("table.evaluaciones-vr")[indice];
+  // Cada fila empieza con su rótulo; en el resumen, la cabecera de esa
+  // columna también tiene título («Categoría»).
+  const celdaVr = (tabla, fila, columna) => {
+    const titulos = [...tabla.querySelectorAll("thead th")].map((th) => th.textContent);
+    const tr = [...tabla.querySelectorAll("tbody tr")].find((una) => una.querySelector("th").textContent === fila);
+    return tr.querySelectorAll("td")[titulos.indexOf(columna) - (tabla.querySelector("thead td") ? 0 : 1)];
+  };
+  const cambiarVr = async (td, valor, tecla = "Enter") => {
+    await act(async () => td.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    const input = td.querySelector("input");
+    await escribir(input, valor);
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: tecla, bubbles: true })));
+  };
+
+  test("los valores de referencia se cambian como en las bases: tiempos, números, el n del resumen; se agrega y se borra una categoría", async () => {
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    expect(contenedor.textContent).toContain("Tocá dos veces un número para cambiarlo");
+    // Un tiempo, como se ve (m:ss), y un número.
+    await cambiarVr(celdaVr(tablaVr(0), "Bueno", "Lumbar"), "3:10");
+    expect(datos.cambiosVr.at(-1)).toEqual({ test: "zona_media", ruta: ["categorias", "mayor", "bueno", "lumbar"], valor: 190 / 1440 });
+    expect(celdaVr(tablaVr(0), "Bueno", "Lumbar").textContent).toBe("3:10");
+    await cambiarVr(celdaVr(tablaVr(0), "Bueno", "Ratio"), "0,75");
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ ruta: ["categorias", "mayor", "bueno", "ratio"], valor: 0.75 });
+    // El resumen: el n y el Bueno (es el mismo de la categoría); «Pro» no se cambia.
+    await cambiarVr(celdaVr(tablaVr(1), "Mayor", "n"), "15");
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ ruta: ["resumen", "n", "mayor"], valor: 15 });
+    const pro = celdaVr(tablaVr(1), "Mayor", "Pro");
+    await act(async () => pro.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    expect(pro.querySelector("input")).toBeNull();
+    // Lo que no se entiende no se guarda.
+    const cuantos = datos.cambiosVr.length;
+    await cambiarVr(celdaVr(tablaVr(0), "Malo", "Prono"), "mucho");
+    expect(contenedor.textContent).toContain("No se entiende «mucho»: no se cambió.");
+    await act(async () => contenedor.querySelector(".evaluaciones-vr-entrada").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(datos.cambiosVr).toHaveLength(cuantos);
+    // Una categoría nueva, vacía, para cargarla.
+    const lista = contenedor.querySelector(".referencias-sumar-categoria select");
+    await act(async () => {
+      lista.value = "sub17";
+      lista.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await tocar(boton(contenedor, "Agregar"));
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ ruta: ["categorias", "sub17"], valor: {} });
+    expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toContain("Sub-17");
+    // Borrar pregunta antes.
+    await tocar(boton(contenedor, "Borrar Sub-17"));
+    expect(document.body.textContent).toContain("Se borran los V.R. de Sub-17 de este test");
+    await tocar(boton(document.body, "Sí, borrar"));
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ ruta: ["categorias", "sub17"], valor: null });
+  });
+
+  test("los valores de referencia: los últimos cambios y «Volver»; sin la actualización, solo se miran", async () => {
+    const fila = (datosVr) => ({ id: "vr1", equipo_id: "eq-1", test: "zona_media", datos: datosVr });
+    datos.historialVr = [
+      {
+        id: 2,
+        tabla: "evaluaciones_referencias",
+        filaId: "vr1",
+        accion: "editada",
+        quien: "pf@club.com",
+        cuando: "2026-10-14T19:30:00Z",
+        antes: fila({ categorias: { mayor: { bueno: { lumbar: 170 / 1440 } } } }),
+        despues: fila({ categorias: { mayor: { bueno: { lumbar: 180 / 1440 } } } }),
+      },
+      { id: 1, tabla: "evaluaciones_referencias", filaId: "otro", accion: "editada", quien: "x@club.com", cuando: "2026-10-14T19:00:00Z", antes: { test: "saltos", datos: {} }, despues: { test: "saltos", datos: { resumen: { n: { mayor: 3 } } } } },
+    ];
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    const items = [...contenedor.querySelectorAll(".referencias-historial-lista > li")];
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain("pf@club.com");
+    expect(items[0].textContent).toContain("Mayor · Bueno · Lumbar: 2:50 → 3:00");
+    await tocar([...items[0].querySelectorAll("button")].find((b) => b.textContent === "Volver"));
+    expect(datos.cambiosVr.at(-1)).toEqual({ test: "zona_media", ruta: ["categorias", "mayor", "bueno", "lumbar"], valor: 170 / 1440 });
+    expect(document.body.textContent).toContain("Listo: quedó como estaba.");
+    act(() => raiz.unmount());
+
+    datos.faltaHistorial = true;
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    expect(contenedor.textContent).toContain("Para cambiar los V.R. falta una actualización de la base de datos.");
+    const td = celdaVr(tablaVr(0), "Bueno", "Lumbar");
+    await act(async () => td.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    expect(td.querySelector("input")).toBeNull();
+    expect(contenedor.querySelector(".referencias-historial")).toBeNull();
+    expect(contenedor.querySelector(".referencias-sumar-categoria")).toBeNull();
   });
 
   test("quien ya se fue del club ve todo y no cambia nada", async () => {
@@ -1114,7 +1230,7 @@ describe("Evaluaciones", () => {
     const altura = [...contenedor.querySelectorAll(".evaluaciones-bloque")][0];
     expect([...altura.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Altura PD", "Altura PI", "DEFICIT LATERAL"]);
     await elegirTest(contenedor, "Salto Drop");
-    expect(contenedor.textContent).toContain("Todavía no están los valores de referencia de este test.");
+    expect(contenedor.textContent).toContain("Todavía no hay valores de referencia de este test: agregá una categoría abajo y cargá sus números.");
 
     // Se carga por pasos: el P.C. con el jugador; después, una medida por paso (cada pierna).
     await irA(contenedor, "Cargar");

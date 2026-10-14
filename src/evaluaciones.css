@@ -403,3 +403,105 @@
     print-color-adjust: exact;
   }
 }
+
+/* Los V.R. que se cambian (la solapa «Valores de referencia» de cada base;
+   Santiago, 14/10): dos toques en un número; abajo, los últimos cambios. */
+.evaluaciones-marco .evaluaciones-vr td.evaluaciones-vr-celda {
+  cursor: cell;
+}
+.evaluaciones-marco .evaluaciones-vr td.evaluaciones-vr-celda:hover {
+  background: #f8fafc;
+}
+.evaluaciones-marco .evaluaciones-vr td.evaluaciones-vr-celda:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+.evaluaciones-marco .evaluaciones-vr td.guardando {
+  opacity: 0.5;
+}
+.evaluaciones-marco .evaluaciones-vr-entrada {
+  width: 100%;
+  min-width: 72px;
+  min-height: 34px;
+  padding: 4px 6px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  font: inherit;
+  text-align: center;
+}
+.evaluaciones-marco .evaluaciones-vr-error {
+  margin: 8px 0 0;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 700;
+}
+.evaluaciones-marco .referencias-ayuda {
+  margin: 0 0 12px;
+}
+.evaluaciones-marco .evaluaciones-bloque-cabeza .referencias-de-partido {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 800;
+}
+.evaluaciones-marco .referencias-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.evaluaciones-marco .referencias-acciones .boton-secundario {
+  min-height: 44px;
+}
+.evaluaciones-marco .referencias-acciones .boton-peligro {
+  color: #b91c1c;
+}
+.evaluaciones-marco .referencias-sumar {
+  width: 100%;
+  margin: 0 0 14px;
+}
+.evaluaciones-marco .referencias-historial > h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.evaluaciones-marco .referencias-historial > .lesiones-ayuda {
+  margin: 0 0 8px;
+}
+.evaluaciones-marco .referencias-historial-lista {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.evaluaciones-marco .referencias-historial-lista > li {
+  padding: 10px 0;
+  border-top: 1px solid #e2e8f0;
+}
+.evaluaciones-marco .referencias-historial-cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  color: #475569;
+  font-size: 13px;
+}
+.evaluaciones-marco .referencias-historial-cabeza .boton-secundario {
+  min-height: 40px;
+}
+.evaluaciones-marco .referencias-historial-lista ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: #0f172a;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.evaluaciones-marco .referencias-historial-mas {
+  margin-top: 8px;
+}

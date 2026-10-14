@@ -323,10 +323,14 @@ export const guardarReglasGps = async (equipoId, reglas) => {
 };
 
 // ------------------------------------------ Los valores de referencia --
-// Los V.R. de cada dispositivo (migración 20261024_gps_referencias.sql; los
-// valores los carga un SQL): [{ id, dispositivo, tipo, tabla, grupo, orden,
-// promedio, desvio }], en su orden. Sin la tabla todavía, ninguno y
-// faltaTabla (la Base sigue andando, sin V.R.).
+// Los V.R. de cada dispositivo (migración 20261024_gps_referencias.sql):
+// [{ id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio,
+// dePartido }], en su orden. Sin la tabla todavía, ninguno y faltaTabla (la
+// Base sigue andando, sin V.R.). Desde 20261025_referencias_editables.sql se
+// cambian en GPS › Valores de referencia (Santiago, 14/10: «Todos los vr
+// tienen que tener su solapa aparte») y cada dispositivo marca el suyo «de
+// partido»; sin esa actualización, sinEdicion (se miran, no se cambian, y
+// Cargar sigue con el V.R. de partido de las reglas).
 export const normalizarReferenciaGps = (fila) => ({
   id: fila.id,
   dispositivo: textoLimpio(fila.dispositivo),
@@ -336,21 +340,84 @@ export const normalizarReferenciaGps = (fila) => ({
   orden: Number.isFinite(fila.orden) ? fila.orden : 0,
   promedio: objeto(fila.promedio),
   desvio: objeto(fila.desvio),
+  dePartido: fila.de_partido === true,
 });
 
+const COLUMNAS_VR = "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio";
+// Sin la columna (la base sin 20261025): la API dice que no existe.
+const faltaLaColumna = (error) => error?.code === "42703" || /de_partido/.test(`${error?.message || ""} ${error?.details || ""}`);
+
 export const leerReferenciasGps = async (equipoId) => {
-  if (!equipoId) return { referencias: [], faltaTabla: false, error: "" };
-  const { data, error } = await supabase
-    .from("gps_referencias")
-    .select("id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio")
-    .eq("equipo_id", equipoId)
-    .order("orden", { ascending: true });
+  if (!equipoId) return { referencias: [], faltaTabla: false, sinEdicion: false, error: "" };
+  const pedir = (columnas) => supabase.from("gps_referencias").select(columnas).eq("equipo_id", equipoId).order("orden", { ascending: true });
+  let sinEdicion = false;
+  let { data, error } = await pedir(`${COLUMNAS_VR}, de_partido`);
+  if (error && faltaLaColumna(error)) {
+    sinEdicion = true;
+    ({ data, error } = await pedir(COLUMNAS_VR));
+  }
   if (error) {
     const clave = claveDeErrorGps(error, "gps.error.noLeer");
-    if (clave === "gps.error.faltaMigracion") return { referencias: [], faltaTabla: true, error: "" };
-    return { referencias: [], faltaTabla: false, error: clave };
+    if (clave === "gps.error.faltaMigracion") return { referencias: [], faltaTabla: true, sinEdicion: true, error: "" };
+    return { referencias: [], faltaTabla: false, sinEdicion, error: clave };
   }
-  return { referencias: (Array.isArray(data) ? data : []).map(normalizarReferenciaGps), faltaTabla: false, error: "" };
+  return { referencias: (Array.isArray(data) ? data : []).map(normalizarReferenciaGps), faltaTabla: false, sinEdicion, error: "" };
+};
+
+// Al cambiar un V.R.: sin la actualización, que falta; un nombre que ya
+// tiene otro V.R. del dispositivo, que está repetido.
+const falloDeReferencia = (error) => {
+  const texto = `${error?.message || ""} ${error?.details || ""}`;
+  if (/gps_referencias_una|duplicate key/.test(texto)) return { error: "gps.vr.repetido" };
+  if (/gps_referencias_un_partido/.test(texto)) return { error: "gps.vr.otroDePartido" };
+  if (/referencia_invalida|gps_referencias_numeros|gps_referencias_textos/.test(texto)) return { error: "gps.vr.noSeEntiende" };
+  const clave = claveDeErrorGps(error, "gps.error.noGuardar");
+  return { error: clave === "gps.error.faltaMigracion" ? "gps.vr.faltaActualizacion" : clave };
+};
+
+// Un número de un V.R.: cual, "promedio" o "desvio"; clave, la columna;
+// valor, un número o null (se borra). Se cambia en la base, de a uno.
+export const cambiarValorDeReferenciaGps = async (id, cual, clave, valor) => {
+  const { data, error } = await supabase.rpc("gps_referencia_cambiar", { p_id: id, p_cual: cual, p_clave: clave, p_valor: valor });
+  if (error) return falloDeReferencia(error);
+  const fila = Array.isArray(data) ? data[0] : data;
+  return fila ? { referencia: normalizarReferenciaGps(fila), error: "" } : { error: "gps.error.noGuardar" };
+};
+
+// Marca (o desmarca) el V.R. de partido de su dispositivo; devuelve los V.R.
+// de ese dispositivo como quedaron.
+export const marcarDePartidoGps = async (id, marcar) => {
+  const { data, error } = await supabase.rpc("gps_referencia_de_partido", { p_id: id, p_marcar: Boolean(marcar) });
+  if (error) return falloDeReferencia(error);
+  return { referencias: (Array.isArray(data) ? data : []).map(normalizarReferenciaGps), error: "" };
+};
+
+export const sumarReferenciaGps = async (equipoId, { dispositivo, tipo, tabla, grupo, orden = 0, promedio = {}, desvio = {} }) => {
+  const { data, error } = await supabase
+    .from("gps_referencias")
+    .insert({ equipo_id: equipoId, dispositivo, tipo: textoLimpio(tipo), tabla: textoLimpio(tabla), grupo: textoLimpio(grupo), orden, promedio, desvio })
+    .select(`${COLUMNAS_VR}, de_partido`)
+    .single();
+  if (error) return falloDeReferencia(error);
+  return { referencia: normalizarReferenciaGps(data), error: "" };
+};
+
+export const renombrarReferenciaGps = async (id, { tipo, tabla, grupo }) => {
+  const { data, error } = await supabase
+    .from("gps_referencias")
+    .update({ tipo: textoLimpio(tipo), tabla: textoLimpio(tabla), grupo: textoLimpio(grupo) })
+    .eq("id", id)
+    .select(`${COLUMNAS_VR}, de_partido`);
+  if (error) return falloDeReferencia(error);
+  if (!Array.isArray(data) || !data.length) return { error: "gps.error.sinPermiso" };
+  return { referencia: normalizarReferenciaGps(data[0]), error: "" };
+};
+
+export const borrarReferenciaGps = async (id) => {
+  const { data, error } = await supabase.from("gps_referencias").delete().eq("id", id).select("id");
+  if (error) return falloDeReferencia(error);
+  if (!Array.isArray(data) || !data.length) return { error: "gps.error.sinPermiso" };
+  return { error: "" };
 };
 
 // El partido de ese día cargado en Partido (Santiago, 12/10: «siempre que sea
