@@ -167,24 +167,27 @@ const MapaCorporal = ({ lesiones, mapa, textoDeOpcion }) => (
   </div>
 );
 
-// Un número del cuadro cada 1000 horas en el individual: el del jugador, la
-// referencia (el VR del plantel) y cómo da contra ella (la fila "Jugador vs
-// VR" del Excel: el porcentaje y el color de la leyenda).
-const Indicador = ({ titulo, valor, unidad, referencia, comparado, porcentaje, tono }) => (
+// Un número del cuadro cada 1000 horas en el individual: el del jugador y, en
+// el mismo renglón, cómo da contra la referencia (la fila "Jugador vs VR" del
+// Excel: el porcentaje, en rojo si está por encima y en verde si está por
+// debajo); la referencia (el VR del plantel), abajo. Santiago, 12/10 y 14/10:
+// sin los puntos «Superior/Inferior a la referencia», el color en el % y las
+// tarjetas lo más chicas posible. La unidad va en el título de la medida.
+const Indicador = ({ titulo, valor, referencia, comparado, porcentaje, tono }) => (
   <div className={`informe-indicador ${tono}`.trim()}>
     <span className="informe-indicador-titulo">{titulo}</span>
-    <b className="informe-indicador-valor">{valor}</b>
-    <span className="informe-indicador-unidad">{unidad}</span>
+    <span className="informe-indicador-numeros">
+      <b className="informe-indicador-valor">{valor}</b>
+      {porcentaje && (
+        <span className="informe-indicador-contra" title={comparado}>
+          {porcentaje}
+        </span>
+      )}
+    </span>
     <span className="informe-indicador-ref">
       {t("lesiones.reportes.referencia")}
       <b>{referencia}</b>
     </span>
-    {comparado && (
-      <span className="informe-indicador-contra">
-        <span>{comparado}</span>
-        <small>{porcentaje}</small>
-      </span>
-    )}
   </div>
 );
 
@@ -282,6 +285,8 @@ export default function ReportesLesiones({
   const [rango, setRango] = useState(() => periodoDe("anio", hoy, lesiones));
   const [sinLeves, setSinLeves] = useState(false);
   const [soloMusculares, setSoloMusculares] = useState(false);
+  // En el individual, la lista de las LM se abre con «Ver cuáles».
+  const [verLm, setVerLm] = useState(false);
 
   const texto = textoDeOpcion;
   const numero = (valor, decimales = 2, minimo = decimales) =>
@@ -290,11 +295,14 @@ export default function ReportesLesiones({
   const jugador = plantel.find((uno) => String(uno.id) === String(jugadorId)) || null;
   // Qué lesiones entran en el cuadro y cuáles son las LM, dicho con las
   // opciones del club (Santiago, 05/10: que se aclare cuáles van).
-  const criterio = ["producto", "cuando", "localizacion"].map((clave) => `${etiqueta(clave)}: ${REGLAS_INCIDENCIA[clave].map((codigo) => texto(clave, codigo)).join(", ")}`).join(" · ");
-  const queCuenta = [
-    t("lesiones.reportes.cuentan", { criterio }),
-    t("lesiones.reportes.cuentanLm", { lm: t("lesiones.reportes.tiposLM"), tipos: enLista(REGLAS_INCIDENCIA.tiposMusculares.map((codigo) => texto("tipo_lesion", codigo))) }),
-  ].join(" ");
+  const QUE_CUENTA = ["producto", "cuando", "localizacion"];
+  const criterio = QUE_CUENTA.map((clave) => `${etiqueta(clave)}: ${REGLAS_INCIDENCIA[clave].map((codigo) => texto(clave, codigo)).join(", ")}`).join(" · ");
+  const tiposLm = enLista(REGLAS_INCIDENCIA.tiposMusculares.map((codigo) => texto("tipo_lesion", codigo)));
+  const queCuenta = [t("lesiones.reportes.cuentan", { criterio }), t("lesiones.reportes.cuentanLm", { lm: t("lesiones.reportes.tiposLM"), tipos: tiposLm })].join(" ");
+  // En el individual, en corto (Santiago, 12/10 y 14/10: «hacer mas resumido
+  // que lesiones cuentan para las horas y no poner todas las musculares»; la
+  // lista, con «Ver cuáles»): solo las opciones, sin el nombre de cada campo.
+  const cuentanEnCorto = t("lesiones.reportes.cuentanCorto", { criterio: QUE_CUENTA.map((clave) => REGLAS_INCIDENCIA[clave].map((codigo) => texto(clave, codigo)).join(", ")).join(" · ") });
 
   const barra = (
     <div className="reporte-acciones no-imprimir">
@@ -462,7 +470,7 @@ export default function ReportesLesiones({
     const delJugador = cuadroCadaMil(deJugador, minutosDelJugador, { hasta: hoy });
     const delPlantel = cuadroCadaMil(lesiones, minutosGps(gps, { hasta: hoy }), { hasta: hoy });
     // Cada medida, una fila de cuatro números (las columnas del Excel): el
-    // del jugador, la referencia y el "Jugador vs VR".
+    // del jugador, el "Jugador vs VR" y la referencia.
     const indicadoresDe = (medida) =>
       delJugador.map((fila, indice) => {
         const referencia = delPlantel[indice][medida.id];
@@ -472,16 +480,15 @@ export default function ReportesLesiones({
           id: VARIANTES[indice].id,
           titulo: tituloDeVariante(VARIANTES[indice]),
           valor: numero(fila[medida.id]),
-          unidad: medida.unidad,
           referencia: numero(referencia),
           tono,
           comparado: contra && t(`lesiones.reportes.comparado.${tono || "igual"}`),
-          porcentaje: contra && t("lesiones.reportes.porcentajeVsRef", { valor: contra.signo ? `${contra.signo}${numero(contra.porcentaje, 1)}%` : "0%" }),
+          porcentaje: contra && (contra.signo ? `${contra.signo}${numero(contra.porcentaje, 1)}%` : "0%"),
         };
       });
     const MEDIDAS = [
-      { id: "lesionesCadaMil", titulo: t("lesiones.reportes.lesionesPorMil"), unidad: t("lesiones.reportes.unidadLesiones") },
-      { id: "diasCadaMil", titulo: t("lesiones.reportes.diasPorMil"), unidad: t("lesiones.reportes.unidadDias") },
+      { id: "lesionesCadaMil", titulo: t("lesiones.reportes.lesionesPorMil") },
+      { id: "diasCadaMil", titulo: t("lesiones.reportes.diasPorMil") },
     ];
 
     const posicion = jugador.posicion ? texto("posicion", jugador.posicion) : "";
@@ -570,21 +577,19 @@ export default function ReportesLesiones({
                   </div>
                 ))}
                 {!gps && <p className="informe-aviso">{t("lesiones.reportes.faltaGps")}</p>}
-                <ul className="informe-leyenda">
-                  <li>
-                    <i className="peor" />
-                    {t("lesiones.reportes.superiorRef")}
-                  </li>
-                  <li>
-                    <i className="mejor" />
-                    {t("lesiones.reportes.inferiorRef")}
-                  </li>
-                  <li>
-                    {t("lesiones.reportes.queEsRef")}
+                <div className="informe-notas">
+                  <p className="informe-criterio">
+                    {t("lesiones.reportes.queEsPorcentaje")}
                     <TerminoDe clave="lesiones.terminos.referencia" />
-                  </li>
-                </ul>
-                <p className="informe-criterio">{queCuenta}</p>
+                  </p>
+                  <p className="informe-criterio">
+                    {cuentanEnCorto} {t("lesiones.reportes.lmCorto")}{" "}
+                    <button type="button" className="informe-lm-ver no-imprimir" aria-expanded={verLm} onClick={() => setVerLm(!verLm)}>
+                      {t(verLm ? "lesiones.reportes.ocultarCuales" : "lesiones.reportes.verCuales")}
+                    </button>
+                  </p>
+                  {verLm && <p className="informe-criterio informe-lm-lista">{t("lesiones.reportes.lmLista", { tipos: tiposLm })}</p>}
+                </div>
               </section>
 
               <section className="informe-mapa">

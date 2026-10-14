@@ -902,7 +902,9 @@ describe("el módulo Lesiones", () => {
     expect([...contenedor.querySelectorAll(".informe-indicador-valor")].every((valor) => valor.textContent === "—")).toBe(true);
     expect(contenedor.querySelectorAll(".informe-indicador-contra")).toHaveLength(0);
     expect(texto(contenedor)).toContain("Faltan los minutos del GPS");
-    expect(texto(contenedor)).toContain("Superior a la referencia");
+    // Debajo, qué es el % y qué cuenta, en corto (sin la leyenda de los puntos).
+    expect(texto(contenedor)).toContain("El % compara al jugador con la referencia");
+    expect(texto(contenedor)).not.toContain("Superior a la referencia");
     // El mapa corporal: lo lesionado pintado, sin nombres al costado.
     expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-mancha")).toHaveLength(1);
     expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-mancha title")).toHaveLength(1);

@@ -356,7 +356,8 @@ mover a una configuración por club:
   3C y la sobrecarga muscular / calambre. La regla vale también para las LM: una LM
   traumática o de selección no entra (05/10: Santiago pidió dejarlo como el Excel y "solo
   aclarar cuáles van"). La nota de cada cuadro dice cuáles cuentan y cuáles son las LM, con
-  los textos del club. Con los datos del Excel la app da lo mismo que "Incidencias c 1000h" fila 109;
+  los textos del club (en el reporte individual, en corto desde el 14/10: la lista de las LM se
+  abre con «Ver cuáles»; ver «Lo anotado en Notas, segunda tanda (13/10)»). Con los datos del Excel la app da lo mismo que "Incidencias c 1000h" fila 109;
   ojo que en el Excel los títulos de la fila 108 están cruzados: las columnas que dicen
   "Tipos (Solo LM)" (B, C, H, I, N, O, T, U) tienen todas las lesiones, y las que dicen
   "Tipos (TODAS)", solo las LM.
@@ -465,7 +466,9 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   (SIN LEVES) y Tipos (SOLO LM)"; en portugués, los del Excel), con el valor del jugador,
   la referencia (el VR del plantel) y el "jugador vs VR" (superior o inferior a la
   referencia y el porcentaje sobre el valor del jugador, como la fórmula del Excel; rojo
-  arriba, verde abajo); al lado, el "Mapa corporal de lesiones": la figura de cargar una
+  arriba, verde abajo; **cambiado el 14/10**, ver «Lo anotado en Notas, segunda tanda
+  (13/10)»: tarjetas chicas, el % con el color al lado del número, sin los puntos ni su
+  leyenda); al lado, el "Mapa corporal de lesiones": la figura de cargar una
   lesión, de frente y de espaldas, como una escultura gris con relieve (dos imágenes WebP
   en `src/assets/` que arma `scripts/cuerpo-3d/generar.sh` a partir del mismo dibujo del
   cuerpo, con músculos de adorno como el trapecio o los abdominales; si cambia el dibujo
@@ -2624,9 +2627,31 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
   comprueban los escenarios). Medido en una base local con 20.000 lesiones y 20.000
   evaluaciones: una página de 1000 filas pasó de unos 4,5 s a entre 4 y 10 ms. Falta que
   Santiago corra el SQL (lo pasa Claude por el chat).
-- Las otras 7, sin decidir todavía (se ven una por una, en este orden):
-  el reporte individual de Lesiones (sin los puntos «Superior/Inferior a la referencia», el
-  color en el %, tarjetas más chicas y «qué cuenta» en corto); sacar los botones «Entrar» de
+- **El reporte individual de Lesiones, más chico (hecho el 14/10).** Nota del 12/10: «Dentro de
+  reporte de lesiones individual sacar los puntos rojos y verdes que dicen Mayor a la
+  referencia o Menor a la referencia y pasar el color a el % vs vr, achicar las tarjetas lo mas
+  posible y reducir espacios dentro del reporte. Hacer mas resumido que lesiones cuentan para
+  las horas y no poner todas las musculares». Santiago, 14/10: el % en rojo si el jugador está
+  por encima de la referencia y en verde si está por debajo («si»); las LM en una frase corta
+  con «Ver cuáles», que abre la lista («lista»). Las cuentas no cambian.
+  - **Cada tarjeta**: el título, el número con el % contra la referencia al lado (rojo por
+    encima, verde por debajo, gris si es igual; con su signo, así no depende solo del color) y
+    «Referencia» abajo, en chico. Ya no van los puntos con «Superior/Inferior a la referencia»
+    (se lee al pasar el mouse por el %), la leyenda de los puntos, «vs referencia» en cada
+    tarjeta ni la unidad en cada tarjeta (está en el título: «Lesiones / 1000 h»). Pasaron de
+    unos 178 a unos 80 px de alto; en papel, también más chicas.
+  - **Menos espacio** entre las tarjetas, las partes del reporte y el pie.
+  - **Debajo de las tarjetas**, dos renglones: «El % compara al jugador con la referencia, el
+    valor del plantel (VR).», con su «?», y «Cuentan: No traumática · Partido oficial, Partido
+    amistoso, Entrenamiento · Profesional. LM: lesiones musculares.» (las opciones que cuentan,
+    con los nombres del club, sin el nombre de cada campo). «Ver cuáles» abre «Son LM: …» y
+    «Ocultar» la cierra; el botón no sale en papel, la lista sí si está abierta.
+  - **Solo el individual**: el grupal, Lesiones c/1000h e Informes gráficos siguen con la nota
+    larga. Falta preguntarle a Santiago si va igual ahí.
+  - **Falta preguntar**: en la compu y en papel, el mapa del cuerpo es más alto que las tarjetas
+    y queda lugar en blanco debajo de ellas; si se achica el mapa o se ve con la nota del cuerpo
+    humano.
+- Las otras 6, sin decidir todavía (se ven una por una, en este orden): sacar los botones «Entrar» de
   las tarjetas (reabre UI-007); editar y borrar los Valores de referencia (con la lógica de la
   planilla de valor referencial); arriba de la Base de GPS solo el promedio por dispositivo, los
   V.R. de GPS y el % vs V.R. de partido; revisar la lógica de Flujo diario; Isocinecia con el
