@@ -1091,7 +1091,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,esta_autorizado,gps_dejar_en_curso,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,esta_autorizado,gps_cambiar_en_descripciones,gps_dejar_en_curso,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -1817,5 +1817,105 @@ select pruebas.esperar('...y no queda ninguna que lo revise fila por fila',
   (select count(*) from pg_policies
     where schemaname = 'public' and tablename = 'gps'
       and coalesce(qual, '') || coalesce(with_check, '') like '%puede_usar_en%'), 0);
+
+-- ------------------------------------- Un nombre cambiado, en todos lados --
+
+-- Nota del 12/10: si se cambia el nombre de un jugador en Datos básicos,
+-- cambia en todos lados. Partido guarda los nombres escritos en cada partido:
+-- la base los cambia (lo del rival, no). 20261022_nombres_en_todos_lados.sql.
+insert into public.jugadores (id, nombre, equipo_id) overriding system value values
+  (9020, 'Scarpa', '00000000-0000-0000-0000-0000000000c1'),
+  (9021, 'ZAGUERO', '00000000-0000-0000-0000-0000000000c1');
+insert into public.registros_partido (fecha, rival, equipo_id, titulares, convocados, cambio_1_sale, cambio_1_entra,
+                                      rival_cambio_sale1, cambios_extra, captura_tiempo, formacion_cancha)
+values ('2026-10-01', 'Rival Nombres', '00000000-0000-0000-0000-0000000000c1', '{Scarpa,ZAGUERO}', '{Scarpa,ZAGUERO,SUPLENTE}', 'Scarpa', 'ZAGUERO',
+        'Scarpa', '[{"sale":"Scarpa","entra":"ZAGUERO","hora":"80:00"}]',
+        '{"modoTiempo":"transmision","cambios":[{"sale":"Scarpa","entra":"ZAGUERO"}],"cambiosRival":[{"sale":"Scarpa"}]}',
+        '{"lineas":{"arquero":1},"puestos":{"arquero-0":{"nombre":"Scarpa","x":10,"y":20},"defensa-0":{"nombre":"ZAGUERO"}}}');
+
+-- La preparadora (Evaluaciones y GPS, sin Partido) le cambia el nombre en
+-- Datos básicos.
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('La preparadora no ve partidos', (select count(*) from registros_partido), 0);
+select pruebas.esperar('...y le cambia el nombre a un jugador', pruebas.filas($$update jugadores set nombre = 'G. SCARPA' where id = 9020$$), 1);
+select pruebas.esperar('...el nombre anterior queda anotado', (select string_agg(nombre, ',') from jugadores_nombres_anteriores where jugador_id = 9020), 'Scarpa');
+select pruebas.debe_fallar('...pero nadie lo anota a mano', $$insert into jugadores_nombres_anteriores (jugador_id, equipo_id, nombre) values (9020, '00000000-0000-0000-0000-0000000000c1', 'Otro')$$, 'permission denied');
+select pruebas.debe_fallar('...ni lo borra', $$delete from jugadores_nombres_anteriores$$, 'permission denied');
+select pruebas.debe_fallar('...ni pasa los partidos a mano', $$select partidos_con_nombres_de_hoy('00000000-0000-0000-0000-0000000000c1')$$, 'permission denied');
+reset role;
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('En Partido, los titulares con el nombre nuevo', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA,ZAGUERO');
+select pruebas.esperar('...los convocados', (select array_to_string(convocados, ',') from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA,ZAGUERO,SUPLENTE');
+select pruebas.esperar('...los cambios', (select cambio_1_sale || '>' || cambio_1_entra from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA>ZAGUERO');
+select pruebas.esperar('...los cambios del sexto en adelante, con su hora', (select (cambios_extra -> 0 ->> 'sale') || ' ' || (cambios_extra -> 0 ->> 'hora') from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA 80:00');
+select pruebas.esperar('...los de la guía de la transmisión', (select captura_tiempo #>> '{cambios,0,sale}' from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA');
+select pruebas.esperar('...y la formación, sin moverlo de su lugar', (select (formacion_cancha #>> '{puestos,arquero-0,nombre}') || ' ' || (formacion_cancha #>> '{puestos,arquero-0,x}') from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA 10');
+select pruebas.esperar('Lo del rival queda como estaba', (select rival_cambio_sale1 || ',' || (captura_tiempo #>> '{cambiosRival,0,sale}') from registros_partido where rival = 'Rival Nombres'), 'Scarpa,Scarpa');
+-- Un partido cargado sin señal antes del cambio llega después.
+select pruebas.esperar('Un partido que sube tarde con el nombre anterior', pruebas.filas($$insert into registros_partido (fecha, rival, equipo_id, titulares, cambio_1_sale) values ('2026-10-02', 'Rival Tarde', '00000000-0000-0000-0000-0000000000c1', '{Scarpa,ZAGUERO}', 'scarpa ')$$), 1);
+select pruebas.esperar('...se guarda con el de hoy', (select array_to_string(titulares, ',') || '|' || cambio_1_sale from registros_partido where rival = 'Rival Tarde'), 'G. SCARPA,ZAGUERO|G. SCARPA');
+select pruebas.esperar('...también si se lo corrige', pruebas.filas($$update registros_partido set convocados = '{Scarpa}' where rival = 'Rival Tarde'$$), 1);
+select pruebas.esperar('...queda el de hoy', (select array_to_string(convocados, ',') from registros_partido where rival = 'Rival Tarde'), 'G. SCARPA');
+-- Solo mayúsculas: también.
+select pruebas.esperar('Beto le cambia solo las mayúsculas a otro', pruebas.filas($$update jugadores set nombre = 'Zaguero' where id = 9021$$), 1);
+select pruebas.esperar('...y en los partidos queda así', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA,Zaguero');
+-- Vuelve a un nombre que ya tuvo: ese deja de ser anterior.
+select pruebas.esperar('...y después le vuelve a poner el de antes', pruebas.filas($$update jugadores set nombre = 'ZAGUERO' where id = 9021$$), 1);
+select pruebas.esperar('...queda como anterior el del medio', (select string_agg(nombre, ',') from jugadores_nombres_anteriores where jugador_id = 9021), 'Zaguero');
+select pruebas.esperar('...y los partidos, con el de hoy', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA,ZAGUERO');
+reset role;
+
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva no ve los nombres anteriores de Uno', (select count(*) from jugadores_nombres_anteriores), 0);
+reset role;
+
+-- Un jugador nuevo con un nombre que fue de otro: desde ahí ese nombre es
+-- del nuevo y no se cambia.
+insert into public.jugadores (id, nombre, equipo_id) overriding system value values
+  (9022, 'SCARPA', '00000000-0000-0000-0000-0000000000c1');
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Un partido con el jugador nuevo', pruebas.filas($$insert into registros_partido (fecha, rival, equipo_id, titulares) values ('2026-10-03', 'Rival Homonimo', '00000000-0000-0000-0000-0000000000c1', '{SCARPA}')$$), 1);
+select pruebas.esperar('...queda como vino', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Homonimo'), 'SCARPA');
+select pruebas.esperar('...y los de antes siguen con el otro', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA,ZAGUERO');
+reset role;
+
+-- Lo que cambió de nombre antes de esto (en la foto al día): al correr la
+-- migración, esos partidos pasan al nombre de hoy.
+insert into public.jugadores (id, nombre, equipo_id) overriding system value values
+  (9023, 'LATERAL', '00000000-0000-0000-0000-0000000000c1');
+insert into public.versiones_datos (tabla, fila_id, equipo_id, accion, fila, cuando)
+values ('jugadores', '9023', '00000000-0000-0000-0000-0000000000c1', 'editada',
+        '{"id":9023,"nombre":"LATERAL VIEJO","equipo_id":"00000000-0000-0000-0000-0000000000c1"}', '2026-10-06');
+insert into public.registros_partido (fecha, rival, equipo_id, titulares)
+values ('2026-10-05', 'Rival De Antes', '00000000-0000-0000-0000-0000000000c1', '{LATERAL VIEJO}');
+select pruebas.esperar('Antes de correrla, el partido tiene el nombre de antes', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival De Antes'), 'LATERAL VIEJO');
+\ir ../migrations/20261022_nombres_en_todos_lados.sql
+select pruebas.esperar('...después, el de hoy', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival De Antes'), 'LATERAL');
+select pruebas.esperar('...y el de antes queda anotado', (select string_agg(nombre, ',') from jugadores_nombres_anteriores where jugador_id = 9023), 'LATERAL VIEJO');
+select pruebas.esperar('...sin tocar lo que ya estaba bien', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Homonimo'), 'SCARPA');
+
+-- GPS: al renombrar una opción de estrategia, cambia también en la
+-- Descripción ya guardada (donde empieza cada parte).
+insert into public.gps (equipo_id, fecha, persona, datos) values
+  ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 'Desc Uno', '{"descripcion":"2026_10_08_CPS Rondo 4v4"}'),
+  ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 'Desc Dos', '{"descripcion":"2026_10_08 PR Juego + CPS Rondo"}'),
+  ('00000000-0000-0000-0000-0000000000c1', '2026-10-08', 'Desc Tres', '{"descripcion":"2026_10_08_PR Rondo CPS"}'),
+  ('00000000-0000-0000-0000-0000000000c2', '2026-10-08', 'Desc Otro', '{"descripcion":"2026_10_08_CPS Rondo"}');
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('Renombra una estrategia: cambian las descripciones guardadas', (select gps_cambiar_en_descripciones('00000000-0000-0000-0000-0000000000c1', array['CPS'], 'CPS+')), 2);
+select pruebas.esperar('...al principio de la parte', (select datos ->> 'descripcion' from gps where persona = 'Desc Uno'), '2026_10_08_CPS+ Rondo 4v4');
+select pruebas.esperar('...y después de « + »', (select datos ->> 'descripcion' from gps where persona = 'Desc Dos'), '2026_10_08 PR Juego + CPS+ Rondo');
+select pruebas.esperar('...pero no adentro del nombre de la tarea', (select datos ->> 'descripcion' from gps where persona = 'Desc Tres'), '2026_10_08_PR Rondo CPS');
+select pruebas.esperar('Un nombre con signos también se cambia', (select gps_cambiar_en_descripciones('00000000-0000-0000-0000-0000000000c1', array['CPS+', 'CPS'], 'C.P.S')), 2);
+select pruebas.esperar('...tal cual', (select datos ->> 'descripcion' from gps where persona = 'Desc Uno'), '2026_10_08_C.P.S Rondo 4v4');
+select pruebas.esperar('...y queda quién lo cambió', (select actualizado_por::text from gps where persona = 'Desc Uno'), '00000000-0000-0000-0000-000000000015');
+select pruebas.debe_fallar('Un nombre vacío, no', $$select gps_cambiar_en_descripciones('00000000-0000-0000-0000-0000000000c1', array['C.P.S'], '  ')$$, 'gps_descripcion_nombre');
+reset role;
+select pruebas.esperar('En otro club no cambia nada', (select datos ->> 'descripcion' from gps where persona = 'Desc Otro'), '2026_10_08_CPS Rondo');
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva no cambia las descripciones de Uno', (select gps_cambiar_en_descripciones('00000000-0000-0000-0000-0000000000c1', array['C.P.S'], 'X')), 0);
+reset role;
+select pruebas.esperar('...siguen como estaban', (select datos ->> 'descripcion' from gps where persona = 'Desc Uno'), '2026_10_08_C.P.S Rondo 4v4');
 
 select 'ESCENARIOS: todos bien' as resultado;

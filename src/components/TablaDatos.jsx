@@ -7,6 +7,7 @@ import {
   aTexto,
   desdeTexto,
   filtrarFilas,
+  filtrosQueSiguen,
   interpretarHoras,
   interpretarMinutos,
   ordenarFilas,
@@ -302,10 +303,11 @@ export const TablaDatos = ({
   // Sin ninguna columna que se pueda cambiar (solo lectura), Pegar no va.
   const algoEditable = visibles.some((columna) => columna.editable);
 
-  // Los filtros de las columnas que siguen existiendo.
+  // Los filtros de las columnas que siguen existiendo, con valores que siguen
+  // estando en alguna fila (filtrosQueSiguen).
   const filtrosVigentes = useMemo(
-    () => Object.fromEntries(Object.entries(filtros).filter(([clave]) => columnas.some((columna) => columna.clave === clave))),
-    [filtros, columnas],
+    () => filtrosQueSiguen(filas, Object.fromEntries(Object.entries(filtros).filter(([clave]) => columnas.some((columna) => columna.clave === clave)))),
+    [filtros, columnas, filas],
   );
   const hayFiltros = Object.keys(filtrosVigentes).length > 0;
   // Las filas que se ven: filtradas y en el orden pedido. Todo lo que es

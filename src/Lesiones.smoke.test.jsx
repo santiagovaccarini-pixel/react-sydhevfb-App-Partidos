@@ -1313,6 +1313,67 @@ describe("el módulo Lesiones", () => {
     expect(datos.opciones[0].codigo).toMatch(/^cabezazo_/);
   });
 
+  test("una opción renombrada en Ajustes cambia en todos lados: la base, los casos, los reportes y los filtros (nota del 12/10)", async () => {
+    datos.lesiones = [
+      lesionHulk(),
+      { ...lesionHulk(), id: "les-2", numero_caso: 2, jugador_id: 8, datos: { parte_cuerpo: "joelho", lado: "esquerdo", tipo_lesion: "entorse" } },
+    ];
+    await montar();
+    await navegar(contenedor, "Base");
+    const casos = () => [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")].map((tr) => tr.querySelector("td").textContent);
+    const filtroDe = (columna) => contenedor.querySelector(`.tabla-datos-filtro[aria-label="Filtrar u ordenar ${columna}"]`);
+    const valores = () => [...contenedor.querySelectorAll(".tabla-datos-valores label")];
+    // Un filtro elegido con el nombre de antes.
+    await tocar(filtroDe(etiqueta("tipo_lesion")));
+    await tocar(boton(contenedor, "Ninguno"));
+    await tocar(valores().find((label) => label.textContent.startsWith("Lesión muscular grado 1 A")).querySelector("input"));
+    await tocar(boton(contenedor, "Aplicar"));
+    expect(casos()).toEqual(["1"]);
+
+    // En Ajustes › Listas se le cambia el nombre.
+    await navegar(contenedor, "Ajustes");
+    await tocar(botonQueEmpieza(contenedor, "Listas"));
+    await tocar(botonQueEmpieza(contenedor, etiqueta("tipo_lesion")));
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Lesión muscular grado 1 A"));
+    await escribir(contenedor.querySelector(".lesiones-hoja .campo-inicio input"), "L.M.1A");
+    // Lo que la app vuelve a leer después de guardar: la opción con el nombre nuevo.
+    datos.config = {
+      campos: {},
+      listas: {
+        tipo_lesion: OPCIONES.tipo_lesion.map((opcion, orden) => ({
+          ...opcion,
+          etiquetas: opcion.codigo === "muscular_1a" ? { "es-AR": "L.M.1A", "pt-BR": "" } : opcion.etiquetas,
+          oculto: false,
+          orden,
+        })),
+      },
+    };
+    await tocar(boton(contenedor, "Guardar"));
+    await act(async () => Promise.resolve());
+    expect(datos.opciones.at(-1)).toMatchObject({ campo: "tipo_lesion", codigo: "muscular_1a", etiquetas: { "es-AR": "L.M.1A" } });
+
+    // La base: la celda con el nombre nuevo; el filtro con el de antes ya no
+    // esconde nada.
+    await navegar(contenedor, "Base");
+    expect(casos()).toEqual(["1", "2"]);
+    expect(filtroDe(etiqueta("tipo_lesion")).classList.contains("activo")).toBe(false);
+    expect(texto(contenedor)).toContain("L.M.1A");
+    expect(texto(contenedor)).not.toContain("Lesión muscular grado 1 A");
+    // Los casos: el diagnóstico.
+    await navegar(contenedor, "Nuevos casos");
+    expect(texto(contenedor)).toContain("L.M.1A Muslo Derecho");
+    // Los reportes: qué cuenta como LM, con el nombre nuevo (la cuenta va por la opción, no por el texto).
+    await navegar(contenedor, "Reportes");
+    await tocar(botonQueEmpieza(contenedor, "Reporte grupal"));
+    expect(texto(contenedor)).toContain("de tipo L.M.1A");
+    // La tabla recuerda los filtros mientras la app está abierta: se dejan con todo.
+    await navegar(contenedor, "Base");
+    await tocar(filtroDe(etiqueta("tipo_lesion")));
+    await tocar(boton(contenedor, "Todos"));
+    await tocar(boton(contenedor, "Aplicar"));
+    expect(casos()).toEqual(["1", "2"]);
+  });
+
   test("una columna escondida no aparece, un paso sin columnas se saltea y las obligatorias no se esconden", async () => {
     datos.config = {
       campos: {

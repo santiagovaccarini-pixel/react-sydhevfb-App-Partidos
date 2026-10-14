@@ -18,6 +18,8 @@ const datos = vi.hoisted(() => ({
   ajustes: { campos: [], opciones: [] },
   cabeceras: [],
   opciones: [],
+  // Lo que se pidió cambiar en las descripciones ya guardadas (nota del 12/10).
+  descripciones: [],
   plantel: [],
   reglas: {},
   faltanReglas: false,
@@ -175,6 +177,10 @@ vi.mock("./domain/gpsDb.js", () => ({
     ];
     return { error: "" };
   },
+  cambiarEnDescripcionesGps: async (equipoId, antes, despues) => {
+    datos.descripciones.push({ equipoId, antes, despues });
+    return { cambiadas: 1, error: "" };
+  },
 }));
 
 const { default: Gps } = await import("./Gps.jsx");
@@ -272,6 +278,7 @@ describe("GPS", () => {
     datos.ajustes = { campos: [], opciones: [...DISPOSITIVOS] };
     datos.cabeceras = [];
     datos.opciones = [];
+    datos.descripciones = [];
     datos.plantel = PLANTEL.map((jugador) => ({ ...jugador }));
     datos.reglas = {};
     datos.faltanReglas = false;
@@ -560,6 +567,26 @@ describe("GPS", () => {
     // La absoluta sí se renombra.
     await tocar(ajuste("Distancia"));
     expect(document.body.querySelector(".lesiones-hoja input[type=text]").disabled).toBe(false);
+  });
+
+  test("Ajustes: una estrategia renombrada cambia también en las descripciones ya guardadas (nota del 12/10)", async () => {
+    await montarEnLaBase();
+    await irA(contenedor, "Ajustes");
+    await tocar(ajuste("Listas"));
+    await tocar(ajuste("Código Estrategia"));
+    await tocar(ajuste("CPS"));
+    await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), "CPS2");
+    await tocar(boton("Guardar"));
+    expect(datos.opciones.at(-1)).toMatchObject({ lista: "codigo_estrategia", codigo: "cps", etiquetas: { "es-AR": "CPS2" } });
+    // Con el nombre de antes (el del club o el de la plantilla) y el nuevo.
+    expect(datos.descripciones).toEqual([{ equipoId: "eq-1", antes: ["CPS", "CPS"], despues: "CPS2" }]);
+    // Otra lista no está en la Descripción: no se pide nada.
+    await tocar(boton("Volver a Listas"));
+    await tocar(ajuste("Dispositivo"));
+    await tocar(ajuste("Catapult"));
+    await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), "Catapult Vector");
+    await tocar(boton("Guardar"));
+    expect(datos.descripciones).toHaveLength(1);
   });
 
   test("Ajustes: renombrar, esconder y sumar columnas, y sumar un dispositivo", async () => {

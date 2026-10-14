@@ -296,6 +296,19 @@ export const filtrarFilas = (filas, filtros = {}, { salvo = null } = {}) => {
   return filas.filter((fila) => conjuntos.every(([clave, elegidos]) => elegidos.has(textoDeCelda(fila, clave))));
 };
 
+// Los filtros que se siguen aplicando: uno con un valor elegido que ya no
+// está en ninguna fila (le cambiaron el nombre en Ajustes o en Datos básicos,
+// nota del 12/10) escondería esas filas sin que se vea por qué, así que no se
+// aplica. Si el valor vuelve a estar, vuelve a aplicarse.
+export const filtrosQueSiguen = (filas, filtros = {}) =>
+  Object.fromEntries(
+    Object.entries(filtros).filter(([clave, elegidos]) => {
+      if (!Array.isArray(elegidos)) return true;
+      const hay = new Set(filas.map((fila) => textoDeCelda(fila, clave)));
+      return elegidos.every((texto) => hay.has(texto));
+    }),
+  );
+
 const esFechaISO = (valor) => typeof valor === "string" && /^\d{4}-\d{2}-\d{2}/.test(valor);
 
 // Para ordenar: lo que la fila diga en `orden` para esa columna (si la

@@ -40,6 +40,15 @@ vi.mock("../supabase.js", () => {
   };
 });
 
+// Las columnas pedidas a una tabla, en orden.
+const selectsDe = (tabla) => {
+  let actual = null;
+  return doble.llamadas.flatMap(([metodo, valor]) => {
+    if (metodo === "from") actual = valor;
+    return metodo === "select" && actual === tabla ? [valor] : [];
+  });
+};
+
 beforeEach(() => {
   doble.llamadas.length = 0;
   doble.filas = [];
@@ -176,7 +185,8 @@ describe("la fecha de nacimiento de Datos básicos", () => {
 
 describe("las horas previas de cada jugador", () => {
   const sinColumna = { data: null, error: { code: "42703", message: "column jugadores.horas_previas does not exist" } };
-  const selects = () => doble.llamadas.filter(([metodo]) => metodo === "select").map(([, columnas]) => columnas);
+  // Las lecturas del plantel (después se leen sus nombres anteriores, aparte).
+  const selects = () => selectsDe("jugadores");
 
   test("se leen con el plantel, como número", async () => {
     doble.filas = [{ id: 7, nombre: "HULK", horas_previas: "30.25" }];
@@ -299,7 +309,8 @@ describe("Datos básicos sin leer", () => {
 
 describe("si está en el plantel actual (Datos básicos › Actual)", () => {
   const sinActual = { data: null, error: { code: "42703", message: "column jugadores.actual does not exist" } };
-  const selects = () => doble.llamadas.filter(([metodo]) => metodo === "select").map(([, columnas]) => columnas);
+  // Las lecturas del plantel (después se leen sus nombres anteriores, aparte).
+  const selects = () => selectsDe("jugadores");
 
   test("se lee con el plantel; sin el dato, está", async () => {
     doble.filas = [
@@ -399,5 +410,30 @@ describe("los minutos de entrenamiento para Lesiones c/1000h (del GPS)", () => {
     const { minutos, error } = await leerMinutosDeEntrenamiento("eq-1");
     expect(minutos).toBe(null);
     expect(error).not.toBe("");
+  });
+});
+
+describe("los nombres que tuvo cada jugador (nota del 12/10)", () => {
+  test("se leen después del plantel y van con cada jugador", async () => {
+    doble.respuestas = [
+      { data: [{ id: 7, nombre: "G. SCARPA" }, { id: 8, nombre: "HULK" }], error: null },
+      { data: [{ jugador_id: 7, nombre: "Scarpa" }, { jugador_id: 7, nombre: " Gustavo Scarpa " }, { jugador_id: 9, nombre: "" }], error: null },
+    ];
+    const { plantel, error } = await cargarPlantelLesiones("eq-1");
+    expect(error).toBe("");
+    expect(plantel.find((jugador) => jugador.id === 7).nombres_anteriores).toEqual(["Scarpa", "Gustavo Scarpa"]);
+    expect(plantel.find((jugador) => jugador.id === 8).nombres_anteriores).toBeUndefined();
+    expect(selectsDe("jugadores_nombres_anteriores")).toEqual(["jugador_id, nombre"]);
+  });
+
+  test("sin la tabla (antes del SQL), el plantel se lee igual, sin ellos", async () => {
+    doble.respuestas = [
+      { data: [{ id: 7, nombre: "HULK" }], error: null },
+      { data: null, error: { code: "42P01", message: 'relation "public.jugadores_nombres_anteriores" does not exist' } },
+    ];
+    const { plantel, error } = await cargarPlantelLesiones("eq-1");
+    expect(error).toBe("");
+    expect(plantel).toEqual([expect.objectContaining({ id: 7, nombre: "HULK" })]);
+    expect(plantel[0].nombres_anteriores).toBeUndefined();
   });
 });

@@ -231,6 +231,28 @@ export const leerMinutosDeEntrenamiento = async (equipoId) => {
 
 const porNombre = (lista) => [...lista].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
+// Los nombres que tuvo cada jugador (20261022_nombres_en_todos_lados.sql),
+// para reconocerlos al pegar una planilla o cargar el CSV del GPS: { id:
+// [nombres] }. Sin la tabla (antes del SQL) o si no se pudieron leer, ninguno.
+const leerNombresAnteriores = async (equipoId) => {
+  const porJugador = new Map();
+  try {
+    const { data, error } = await supabase.from("jugadores_nombres_anteriores").select("jugador_id, nombre").eq("equipo_id", equipoId);
+    if (error || !Array.isArray(data)) return porJugador;
+    data.forEach((fila) => {
+      const nombre = typeof fila?.nombre === "string" ? fila.nombre.trim() : "";
+      if (fila?.jugador_id === null || fila?.jugador_id === undefined || !nombre) return;
+      const clave = String(fila.jugador_id);
+      porJugador.set(clave, [...(porJugador.get(clave) || []), nombre]);
+    });
+  } catch {
+    // Sin los nombres anteriores, se reconocen solo los de hoy.
+  }
+  return porJugador;
+};
+const conNombresAnteriores = (plantel, anteriores) =>
+  anteriores.size ? plantel.map((jugador) => (anteriores.has(String(jugador.id)) ? { ...jugador, nombres_anteriores: anteriores.get(String(jugador.id)) } : jugador)) : plantel;
+
 // El mismo plantel que Partido, con los datos que pide el Excel. Si la base
 // todavía no tiene esas columnas, vale la lista de siempre.
 export const cargarPlantelLesiones = async (equipoId) => {
@@ -249,7 +271,7 @@ export const cargarPlantelLesiones = async (equipoId) => {
     sin.push(falta);
     ({ data, error } = await leer(columnasJugador(sin))); // eslint-disable-line no-await-in-loop
   }
-  if (!error) return { plantel: porNombre((data || []).map(normalizarJugadorLesiones)), error: "" };
+  if (!error) return { plantel: conNombresAnteriores(porNombre((data || []).map(normalizarJugadorLesiones)), await leerNombresAnteriores(equipoId)), error: "" };
   const respaldo = await cargarPlantel(equipoId);
   // deRespaldo: la base no respondió y es la última copia guardada (o nada).
   return { plantel: (respaldo.plantel || []).map(normalizarJugadorLesiones), error: "", deRespaldo: respaldo.desde !== "base" };

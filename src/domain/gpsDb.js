@@ -245,6 +245,21 @@ const falloDeAjustes = (error) => {
   return { error: clave === "gps.error.faltaMigracion" ? "gps.ajustes.faltaMigracion" : clave };
 };
 
+// Al renombrar una opción de estrategia, su nombre cambia también en la
+// Descripción de las filas ya guardadas (nota del 12/10; la base lo hace con
+// los permisos de quien la llama, 20261022_nombres_en_todos_lados.sql).
+// antes: los nombres que tenía (el del club y el de la plantilla). Sin la
+// función (antes del SQL), nada y sin error: queda como hasta ahora.
+const faltaLaFuncion = (error) => ["PGRST202", "42883"].includes(error?.code);
+export const cambiarEnDescripcionesGps = async (equipoId, antes, despues) => {
+  const nuevo = textoLimpio(despues);
+  const viejos = [...new Set((antes || []).map(textoLimpio).filter((nombre) => nombre && nombre !== nuevo))];
+  if (!equipoId || !nuevo || !viejos.length) return { cambiadas: 0, error: "" };
+  const { data, error } = await supabase.rpc("gps_cambiar_en_descripciones", { p_equipo: equipoId, p_antes: viejos, p_despues: nuevo });
+  if (error) return { cambiadas: 0, error: faltaLaFuncion(error) ? "" : "gps.ajustes.errorDescripciones" };
+  return { cambiadas: Number(data) || 0, error: "" };
+};
+
 // El nombre de una columna y si se ve; con `tipo`, una columna que suma el club.
 export const guardarCabeceraGps = async (equipoId, campo, { etiquetas = {}, oculto = false, orden = 0, tipo = null }) => {
   const { error } = await supabase.from("gps_campos").upsert(

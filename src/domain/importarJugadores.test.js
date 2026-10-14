@@ -144,6 +144,22 @@ describe("quién es cada fila en la app", () => {
     expect(emparejar(filas("Hulk", "Hulk Paraíba"), plantel).map((uno) => uno.destino)).toEqual(["7", NUEVO]);
   });
 
+  test("un nombre que tuvo el jugador es él, si hoy no es de otro y lo tuvo uno solo (nota del 12/10)", () => {
+    const conAnteriores = [
+      { id: 7, nombre: "HULK" },
+      { id: 8, nombre: "G. SCARPA", nombres_anteriores: ["Scarpa"] },
+      { id: 9, nombre: "PEREZ", nombres_anteriores: ["Hulk", "Lateral"] },
+      { id: 10, nombre: "SOSA", nombres_anteriores: ["Lateral"] },
+    ];
+    expect(emparejar(filas("Scarpa", "hulk", "Lateral"), conAnteriores)).toEqual([
+      { destino: "8", como: "igual" },
+      { destino: "7", como: "igual" },
+      { destino: NUEVO, como: "nuevo" },
+    ]);
+    // El de hoy ya es de una fila: el anterior no se lo lleva otra vez.
+    expect(emparejar(filas("G. Scarpa", "Scarpa"), conAnteriores).map((uno) => uno.destino)).toEqual(["8", NUEVO]);
+  });
+
   test("a un jugador de la app le cambia solo lo distinto; lo vacío del Excel no borra", () => {
     const jugador = { id: 7, nombre: "HULK", categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "", posicion: "extremo", foto_url: "" };
     expect(cambiosPara({ categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central" }, jugador)).toEqual({
