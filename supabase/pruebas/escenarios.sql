@@ -1818,6 +1818,17 @@ select pruebas.esperar('...y no queda ninguna que lo revise fila por fila',
     where schemaname = 'public' and tablename = 'gps'
       and coalesce(qual, '') || coalesce(with_check, '') like '%puede_usar_en%'), 0);
 
+-- Lesiones y Evaluaciones, igual (20261023_lesiones_evaluaciones_rapido;
+-- nota del 12/10). Quién ve y cambia qué lo comprueban sus escenarios.
+select pruebas.esperar('Las cuatro de Lesiones y las cuatro de Evaluaciones revisan el permiso una vez por pedido',
+  (select count(*) from pg_policies
+    where schemaname = 'public' and tablename in ('lesiones', 'evaluaciones')
+      and coalesce(qual, '') || coalesce(with_check, '') like '%clubes_donde_puedo%'), 8);
+select pruebas.esperar('...y ninguna de las dos lo revisa fila por fila',
+  (select count(*) from pg_policies
+    where schemaname = 'public' and tablename in ('lesiones', 'evaluaciones')
+      and coalesce(qual, '') || coalesce(with_check, '') like '%puede_usar_en%'), 0);
+
 -- ------------------------------------- Un nombre cambiado, en todos lados --
 
 -- Nota del 12/10: si se cambia el nombre de un jugador en Datos básicos,
