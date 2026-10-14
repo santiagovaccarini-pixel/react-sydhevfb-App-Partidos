@@ -139,7 +139,6 @@ export default {
     clubesApp: "Clubes de la app",
     modulos: "Módulos",
     salir: "Salir",
-    entrar: "Entrar",
     entrarA: "Entrar a {{modulo}}",
     entrando: "Entrando…",
     enPrueba: "En prueba",

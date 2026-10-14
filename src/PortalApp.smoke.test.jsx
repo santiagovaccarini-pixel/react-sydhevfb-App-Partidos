@@ -141,6 +141,10 @@ describe("el portal", () => {
     // Partido, Flujo diario, Datos básicos (que va con cualquier módulo) y
     // Notas (toda la gente del club).
     expect(contenedor.querySelectorAll(".portal-tarjeta .portal-icono svg")).toHaveLength(4);
+    // Cada tarjeta se toca entera para entrar: sin el botón «Entrar ›»
+    // (Santiago, 14/10); el nombre para el lector de pantalla sigue.
+    expect(contenedor.querySelectorAll(".portal-entrar")).toHaveLength(0);
+    expect([...contenedor.querySelectorAll(".portal-tarjeta")].every((tarjeta) => !tarjeta.textContent.includes("Entrar"))).toBe(true);
     expect(portada()).toBeNull();
   });
 

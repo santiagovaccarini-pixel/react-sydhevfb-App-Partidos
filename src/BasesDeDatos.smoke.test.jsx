@@ -99,7 +99,9 @@ describe("Bases de Datos", () => {
     expect(lesiones.querySelector(".portal-foto .portal-arte")).not.toBeNull();
     expect(lesiones.querySelector(".portal-icono svg")).not.toBeNull();
     expect(lesiones.querySelector("strong").textContent).toBe("Lesiones");
-    expect(lesiones.querySelector(".portal-entrar").textContent).toContain("Entrar");
+    // Se toca entera para entrar: sin el botón «Entrar ›» (Santiago, 14/10).
+    expect(lesiones.querySelector(".portal-entrar")).toBeNull();
+    expect(lesiones.textContent).not.toContain("Entrar");
   });
 
   test("cada base con su permiso: con Evaluaciones, su tarjeta con su foto (y el dibujo si no carga); con las dos, las dos", async () => {
