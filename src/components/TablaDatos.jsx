@@ -52,9 +52,10 @@ import "./tablaDatos.css";
 // cada una lleva su `ancho` (en píxeles, de borde a borde). Son las de
 // entrada: en la compu, dos clics en una cabecera la dejan fija o la sueltan,
 // y lo elegido queda guardado en ese aparato para esa tabla (Santiago, 11/10).
-// vista(filasVista) → { estilos, arriba }: lo que depende de las filas que
+// vista(filasVista) → { estilos, encima, arriba }: lo que depende de las filas que
 // se ven (las que dejan los filtros), como el SUBTOTAL y el formato
-// condicional de Excel. estilos: { id de fila: { clave: estilo } }; arriba:
+// condicional de Excel. estilos: { id de fila: { clave: estilo } }; encima
+// (si hace falta): lo que va entre la barra y la tabla; arriba:
 // filas que van sobre las cabeceras, alineadas con cada columna:
 // [{ id, rotulo, alto?, celdas: { clave: { texto, estilo } } }]. El rótulo
 // ocupa las columnas fijas (sin fijas, la primera columna, y el dato de esa
@@ -1055,6 +1056,8 @@ export const TablaDatos = ({
           {leyenda}
         </p>
       )}
+
+      {deLaVista?.encima || null}
 
       <div className="tabla-datos-marco" ref={cajaRef} tabIndex={0} onKeyDown={alTeclear} onPaste={alPegarEvento}>
         <table

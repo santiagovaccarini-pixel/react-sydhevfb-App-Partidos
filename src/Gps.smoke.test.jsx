@@ -24,6 +24,9 @@ const datos = vi.hoisted(() => ({
   reglas: {},
   faltanReglas: false,
   reglasGuardadas: [],
+  // Los V.R. de cada dispositivo (gps_referencias) y si falta la tabla.
+  referencias: [],
+  faltanReferencias: false,
   partidos: [],
   // Las cargas sin terminar: las filas (con lo hecho) y lo que pidió la app.
   enCurso: [],
@@ -132,6 +135,7 @@ vi.mock("./domain/gpsDb.js", () => ({
     return { error: "" };
   },
   leerReglasGps: async () => ({ reglas: { ...datos.reglas }, faltaTabla: datos.faltanReglas, error: "" }),
+  leerReferenciasGps: async () => ({ referencias: datos.referencias.map((una) => ({ ...una })), faltaTabla: datos.faltanReferencias, error: "" }),
   partidoDelDia: async (equipoId, fecha) => datos.partidos.find((partido) => partido.fecha === fecha) || null,
   listarEnCurso: async () => ({ enCurso: datos.enCurso.map(({ datos: hecho, ...fila }) => ({ ...fila })), faltaTabla: false, error: "" }),
   enCursoDelDia: async (equipoId, fecha) => {
@@ -283,6 +287,8 @@ describe("GPS", () => {
     datos.reglas = {};
     datos.faltanReglas = false;
     datos.reglasGuardadas = [];
+    datos.referencias = [];
+    datos.faltanReferencias = false;
     datos.partidos = [];
     datos.enCurso = [];
     datos.dejadas = [];
@@ -334,17 +340,19 @@ describe("GPS", () => {
     expect(celda(contenedor, 0, "Dispositivo").textContent).toBe("Catapult");
     expect(celda(contenedor, 0, "Fecha").textContent).toBe(fechaCorta(AYER));
 
-    // El informe, con lo que se ve: promedio 4500 y desvío 500.
-    expect(filasDeArriba(contenedor).map((tr) => tr.querySelector("th").textContent)).toEqual(["Excelente", "Muy Bueno", "Promedio/Bueno", "Regular", "Malo", "Desvío", "n", "Máx.", "Mín."]);
-    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Excelente"), "D").textContent).toBe("5500,0");
-    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Promedio/Bueno"), "D").textContent).toBe("4500,0");
-    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "n"), "D").textContent).toBe("3");
+    // Arriba, solo el promedio de lo que se ve, el V.R. y el % (Santiago,
+    // 12/10 y 14/10): sin Excelente … Mín. Sin V.R. cargados, esas dos vacías.
+    expect(filasDeArriba(contenedor).map((tr) => tr.querySelector("th").textContent)).toEqual(["Promedio", "V.R.", "% vs V.R."]);
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Promedio"), "D").textContent).toBe("4500,0");
     // Por minuto: el promedio de D ÷ el de los minutos (50).
-    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Promedio/Bueno"), "D/min").textContent).toBe("90,0");
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Promedio"), "D/min").textContent).toBe("90,0");
     // Una columna sin números queda vacía.
-    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Promedio/Bueno"), "HDOP").textContent).toBe("");
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Promedio"), "HDOP").textContent).toBe("");
+    expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "V.R."), "D").textContent).toBe("");
+    expect(contenedor.querySelector(".gps-comparacion-sin").textContent).toBe("Este dispositivo todavía no tiene V.R. cargados.");
 
-    // Los colores del Excel: verde claro, naranja y amarillo.
+    // Los colores del Excel, como siempre (contra promedio ± desvío): verde
+    // claro, naranja y amarillo.
     expect(celda(contenedor, 1, "D").style.background).toBe("rgb(200, 231, 167)");
     expect(celda(contenedor, 0, "D").style.background).toBe("rgb(241, 181, 132)");
     expect(celda(contenedor, 2, "D").style.background).toBe("rgb(255, 255, 127)");
@@ -363,9 +371,9 @@ describe("GPS", () => {
     // Dos dispositivos: un informe para cada uno, con su nombre, en el orden
     // de su lista (aunque la vieja, de Sport, vaya primero en la tabla).
     expect(filas(contenedor)[0].querySelectorAll("td")[columna(contenedor, "Nombre")].textContent).toBe("GAMA");
-    expect(filasDeArriba(contenedor)).toHaveLength(18);
-    expect(filasDeArriba(contenedor)[0].querySelector("th").textContent).toBe("CatapultExcelente");
-    expect(filasDeArriba(contenedor)[9].querySelector("th").textContent).toBe("SportExcelente");
+    expect(filasDeArriba(contenedor)).toHaveLength(6);
+    expect(filasDeArriba(contenedor)[0].querySelector("th").textContent).toBe("CatapultPromedio");
+    expect(filasDeArriba(contenedor)[3].querySelector("th").textContent).toBe("SportPromedio");
     // La de Sport es la única de su dispositivo: sin desvío, sin colores; las
     // de Catapult siguen como antes.
     const vieja = filas(contenedor).findIndex((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent === "GAMA");
@@ -374,6 +382,70 @@ describe("GPS", () => {
     const beta = filas(contenedor).findIndex((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent === "BETA");
     expect(celda(contenedor, beta, "D").style.background).toBe("rgb(200, 231, 167)");
     expect(datos.lecturas).toHaveLength(1);
+  });
+
+  test("arriba, cada dispositivo con su V.R., el % contra él y las Comparaciones, como el Excel", async () => {
+    // Inventados: Catapult con dos V.R. (el de partido primero); Sport con uno.
+    datos.referencias = [
+      { id: "r1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Partido", grupo: "TOTAL", orden: 1, promedio: { d: 5000, d_min: 100, d_acchi: 50, tiempo: 3600 }, desvio: {} },
+      { id: "r2", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Otra", grupo: "TOTAL", orden: 2, promedio: { d: 4000, d_min: 120 }, desvio: {} },
+      { id: "r3", dispositivo: "sport", tipo: "FUTBOL", tabla: "Vieja", grupo: "TOTAL", orden: 3, promedio: { d: 2000 }, desvio: {} },
+    ];
+    datos.filas = [...FILAS(), VIEJA()];
+    await montarEnLaBase();
+    const fila = (rotulo) => filaDeArriba(contenedor, rotulo);
+    // Catapult: promedio 4500 contra 5000 (90 %); 90/min contra 100 (90 %); el
+    // tiempo, 50 min contra 60 (83 %).
+    expect(celdaDeArriba(contenedor, fila("CatapultV.R."), "D").textContent).toBe("5000,0");
+    expect(celdaDeArriba(contenedor, fila("CatapultV.R."), "Tiempo").textContent).toBe("1:00:00");
+    expect(celdaDeArriba(contenedor, fila("Catapult% vs V.R."), "D").textContent).toBe("90%");
+    expect(celdaDeArriba(contenedor, fila("Catapult% vs V.R."), "D/min").textContent).toBe("90%");
+    expect(celdaDeArriba(contenedor, fila("Catapult% vs V.R."), "Tiempo").textContent).toBe("83%");
+    // Sin número en la columna (n° 1,7 a 2,7m/s2), sin %.
+    expect(celdaDeArriba(contenedor, fila("Catapult% vs V.R."), "n° 1,7 a 2,7m/s2").textContent).toBe("");
+    // Sport, contra el suyo: 1000 contra 2000.
+    expect(celdaDeArriba(contenedor, fila("Sport% vs V.R."), "D").textContent).toBe("50%");
+
+    // Las Comparaciones de cada dispositivo (Tarea Mixta: todas).
+    const comparacion = (dispositivo) => [...contenedor.querySelectorAll(".gps-comparacion")].find((una) => una.querySelector(".gps-comparacion-vr > b").textContent === dispositivo);
+    const numeros = (dispositivo) => [...comparacion(dispositivo).querySelectorAll(".gps-comparacion-numeros dd")].map((dd) => dd.textContent);
+    expect(numeros("Catapult")).toEqual(["90%", "90%", "90%", "90%", "83%"]);
+    expect(numeros("Sport")).toEqual(["50%", "50%", "—", "—", "—"]);
+    expect([...comparacion("Catapult").querySelectorAll(".gps-comparacion-numeros dt")].map((dt) => dt.textContent)).toEqual([
+      "Volumen promedio",
+      "Volumen zona de impacto",
+      "Densidad promedio",
+      "Densidad zona de impacto",
+      "Tiempo",
+    ]);
+    // Con la zona de impacto Fuerza, solo las aceleraciones y
+    // desaceleraciones (acá, ninguna con número).
+    const zona = contenedor.querySelector(".gps-comparaciones-zona select");
+    expect(zona.value).toBe("tarea_mixta");
+    await act(async () => {
+      zona.value = "fuerza";
+      zona.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(numeros("Catapult")).toEqual(["90%", "—", "90%", "—", "83%"]);
+
+    // Otro V.R. para Catapult: cambia lo de arriba y queda en el aparato.
+    const elegir = comparacion("Catapult").querySelector(".gps-comparacion-elegir select");
+    expect([...elegir.options].map((opcion) => opcion.textContent)).toEqual(["FUTBOL · Partido · TOTAL", "FUTBOL · Otra · TOTAL"]);
+    await act(async () => {
+      elegir.value = "r2";
+      elegir.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(celdaDeArriba(contenedor, fila("CatapultV.R."), "D").textContent).toBe("4000,0");
+    expect(celdaDeArriba(contenedor, fila("Catapult% vs V.R."), "D/min").textContent).toBe("75%");
+    expect(JSON.parse(localStorage.getItem("gps_vr:eq-1"))).toEqual({ zona: "fuerza", vr: { catapult: "r2" } });
+  });
+
+  test("sin la tabla de los V.R., lo dice y la Base sigue andando", async () => {
+    datos.faltanReferencias = true;
+    await montarEnLaBase();
+    expect(filas(contenedor)).toHaveLength(3);
+    expect(contenedor.querySelector(".gps-comparacion-sin").textContent).toBe("Para ver los V.R. falta una actualización de la base de datos. Avisale a quien administra la app.");
+    expect(contenedor.querySelector(".gps-comparaciones-zona")).toBeNull();
   });
 
   test("al cambiar una medida o el Tiempo en la tabla se recalcula su por minuto", async () => {
@@ -413,7 +485,7 @@ describe("GPS", () => {
     const fueraDeLaTabla = (selector) => [...contenedor.querySelectorAll(selector)].filter((elemento) => !elemento.closest(".tabla-datos"));
     expect(fueraDeLaTabla("input[type=date]")).toHaveLength(0);
     expect(fueraDeLaTabla("select")).toHaveLength(0);
-    expect(filasDeArriba(contenedor)).toHaveLength(18);
+    expect(filasDeArriba(contenedor)).toHaveLength(6);
 
     // El embudo de Dispositivo: solo Catapult. Un informe, el de Catapult.
     await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Dispositivo"]'));
@@ -423,7 +495,7 @@ describe("GPS", () => {
     await tocar(valores()[0].querySelector("input"));
     await tocar(boton("Aplicar"));
     expect(filas(contenedor)).toHaveLength(3);
-    expect(filasDeArriba(contenedor)).toHaveLength(9);
+    expect(filasDeArriba(contenedor)).toHaveLength(3);
     expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("3 de 4 filas");
     // Arriba, siempre cuántas tiene el club.
     expect(contenedor.querySelector(".estado-hero").textContent).toBe("4 filas");

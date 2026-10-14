@@ -6,34 +6,50 @@ import { esNumero } from "./valores.js";
 // dispositivo (Santiago, 10/10; en el Excel, las de microciclo ≤16 contra la
 // tabla «Tabla para microciclo <=16» y las demás contra todas).
 //
-// Arriba, por columna (filas 2 a 10 del Excel):
+// Las cuentas de cada columna (filas 2 a 10 del Excel):
 //   Excelente = promedio + 2 desvíos, Muy Bueno = promedio + desvío,
 //   Promedio/Bueno = promedio, Regular = promedio − desvío,
 //   Malo = promedio − 2 desvíos, Desvío, n, Máx. y Mín.
 // En una columna "por minuto" el promedio es el del valor ÷ el de los
 // minutos (=SUBTOTAL(1;D)/(SUBTOTAL(1;X)*1440)); el desvío, n, máximo y
 // mínimo, los de la columna misma. Una columna sin números queda vacía (como
-// se decidió en Evaluaciones; el Excel mostraba #DIV/0! y 0). En Maxima
-// Velocidad a HDOP, el Excel tenía n, Máx. y Mín. una fila más abajo: acá van
-// alineados (errores chicos, corregidos: Santiago, 10/10).
+// se decidió en Evaluaciones; el Excel mostraba #DIV/0! y 0).
+//
+// Arriba de la Base, por dispositivo, solo van tres filas (Santiago, 12/10 y
+// 14/10: «solo dejar las de promedio por dispositivo y agregar todos los vr
+// de gps asi como los % vs vr»; las filas 13 a 15 del Excel): el promedio, el
+// V.R. del dispositivo (la hoja «Valores Referenciales», gps_referencias) y
+// el promedio ÷ el V.R. (=SI.ERROR(D4/D14;"")). Debajo, las Comparaciones
+// (la fila 16; ver comparaciones()).
 //
 // Los colores (D19:X30002 del Excel), con el promedio y el desvío de su
-// dispositivo: > Excelente, verde oscuro; de Muy Bueno a Excelente (sin
-// llegar), verde claro; de Promedio a Muy Bueno, amarillo; de Regular a
-// Promedio, naranja; < Regular, rojo. Justo en Excelente no se pinta (como
-// en el Excel). Sin desvío (menos de dos números), sin colores.
+// dispositivo, como siempre (Santiago, 14/10: «Como hoy»; aunque las filas
+// Excelente … Malo ya no se vean): > Excelente, verde oscuro; de Muy Bueno
+// a Excelente (sin llegar), verde claro; de Promedio a Muy Bueno, amarillo;
+// de Regular a Promedio, naranja; < Regular, rojo. Justo en Excelente no se
+// pinta (como en el Excel). Sin desvío (menos de dos números), sin colores.
 
-export const FILAS_DEL_INFORME = Object.freeze([
-  { id: "excelente", rotulo: { "es-AR": "Excelente", "pt-BR": "Excelente" } },
-  { id: "muyBueno", rotulo: { "es-AR": "Muy Bueno", "pt-BR": "Muito Bom" } },
-  { id: "media", rotulo: { "es-AR": "Promedio/Bueno", "pt-BR": "Média/Bom" } },
-  { id: "regular", rotulo: { "es-AR": "Regular", "pt-BR": "Regular" } },
-  { id: "malo", rotulo: { "es-AR": "Malo", "pt-BR": "Ruim" } },
-  { id: "desvio", rotulo: { "es-AR": "Desvío", "pt-BR": "Desvio" } },
-  { id: "n", rotulo: { "es-AR": "n", "pt-BR": "n" } },
-  { id: "max", rotulo: { "es-AR": "Máx.", "pt-BR": "Máx." } },
-  { id: "min", rotulo: { "es-AR": "Mín.", "pt-BR": "Mín." } },
+export const FILAS_DEL_INFORME = Object.freeze(["media", "vr", "porcentaje"]);
+
+// Las columnas de las Comparaciones (la fila 16 del Excel): las nueve
+// absolutas de D a L (el «volumen») y sus por minuto, de N a V (la
+// «densidad»); Mts >= 90% Pico no entra, como en el Excel.
+export const ABSOLUTAS_COMPARADAS = Object.freeze(["d", "d_shi", "d_acchi", "d_dechi", "d_mphi", "d_s6", "d_a8", "d_a1", "d_mp5"]);
+export const RELATIVAS_COMPARADAS = Object.freeze(ABSOLUTAS_COMPARADAS.map((clave) => `${clave}_min`));
+
+// La zona de impacto de las Comparaciones (la celda AI16 del Excel): qué
+// columnas promedia cada una. Tarea Mixta, todas (el volumen y la densidad
+// promedio).
+export const ZONAS_DE_IMPACTO = Object.freeze([
+  { id: "fuerza", claves: Object.freeze(["d_acchi", "d_dechi", "d_a8", "d_a1"]) },
+  { id: "f_m", claves: Object.freeze(["d", "d_shi", "d_acchi", "d_dechi", "d_mphi", "d_a8", "d_a1"]) },
+  { id: "f_v", claves: Object.freeze(["d_s6", "d_mp5", "d_acchi", "d_dechi", "d_a8", "d_a1"]) },
+  { id: "metabolica", claves: Object.freeze(["d", "d_shi", "d_mphi"]) },
+  { id: "v_m", claves: Object.freeze(["d", "d_shi", "d_mphi", "d_s6", "d_mp5"]) },
+  { id: "velocidad", claves: Object.freeze(["d_mp5", "d_s6"]) },
+  { id: "tarea_mixta", claves: null },
 ]);
+export const ZONA_AL_ABRIR = "tarea_mixta";
 
 // Los colores del Excel.
 export const COLORES_GPS = Object.freeze({
@@ -143,19 +159,50 @@ export const colorDelNombre = (fila) => {
   return null;
 };
 
+// El promedio ÷ el V.R. (=SI.ERROR(D4/D14;"")): sin alguno de los dos, o con
+// el V.R. en 0, vacío.
+export const porcentajeVsVr = (media, vr) => (esNumero(media) && esNumero(vr) && vr !== 0 ? media / vr : null);
+
+// Los % de un dispositivo: { clave: % } de las columnas con V.R. (las
+// cuentas, las de su grupo en vistaDelGps).
+export const porcentajesVsVr = (cuentas, vr = {}) =>
+  Object.fromEntries(Object.keys(vr || {}).map((clave) => [clave, porcentajeVsVr(cuentas?.[clave]?.media, vr[clave])]));
+
+// El promedio de los % que hay (PROMEDIO salta los vacíos; sin ninguno,
+// vacío: el Excel mostraba #DIV/0!).
+const promedioDeLos = (porcentajes, claves) => promedio(claves.map((clave) => porcentajes?.[clave]).filter(esNumero));
+
+// Las Comparaciones de un dispositivo (la fila 16 del Excel), con sus %:
+// el volumen (las absolutas) y la densidad (las por minuto), en promedio y
+// en la zona de impacto elegida, y el % del tiempo.
+export const comparaciones = (porcentajes, zona = ZONA_AL_ABRIR) => {
+  const volumen = promedioDeLos(porcentajes, ABSOLUTAS_COMPARADAS);
+  const densidad = promedioDeLos(porcentajes, RELATIVAS_COMPARADAS);
+  const claves = ZONAS_DE_IMPACTO.find((una) => una.id === zona)?.claves || null;
+  return {
+    volumen,
+    volumenZona: claves ? promedioDeLos(porcentajes, claves) : volumen,
+    densidad,
+    densidadZona: claves ? promedioDeLos(porcentajes, claves.map((clave) => `${clave}_min`)) : densidad,
+    tiempo: esNumero(porcentajes?.tiempo) ? porcentajes.tiempo : null,
+  };
+};
+
 // Lo que depende de las filas a la vista. filas: [{ id, promedio, datos }];
-// columnas: las que se ven. Devuelve { grupos: [{ dispositivo, filas,
-// cuentas: { clave: cuentas } }], estilos: { id: { clave: css } } }. Los
-// grupos van en el orden en que aparece cada dispositivo (sin dispositivo,
-// "").
-export const vistaDelGps = (filas, columnas) => {
+// columnas: las que se ven; conCuentas: otras columnas de las que hacen
+// falta las cuentas aunque no se vean (las de los V.R.). Devuelve { grupos:
+// [{ dispositivo, filas, cuentas: { clave: cuentas } }], estilos: { id: {
+// clave: css } } }. Los grupos van en el orden en que aparece cada
+// dispositivo (sin dispositivo, "").
+export const vistaDelGps = (filas, columnas, conCuentas = []) => {
   const porDispositivo = new Map();
   filas.forEach((fila) => {
     const dispositivo = fila.datos?.dispositivo || "";
     if (!porDispositivo.has(dispositivo)) porDispositivo.set(dispositivo, []);
     porDispositivo.get(dispositivo).push(fila);
   });
-  const delInforme = columnas.filter((columna) => columna.informe);
+  const vistas = new Set(columnas.map((columna) => columna.clave));
+  const delInforme = [...columnas, ...conCuentas.filter((columna) => !vistas.has(columna.clave))].filter((columna) => columna.informe);
   const claves = clavesQueUsan(delInforme);
   const grupos = [...porDispositivo.entries()].map(([dispositivo, suyas]) => {
     const numeros = numerosPorClave(suyas, claves);

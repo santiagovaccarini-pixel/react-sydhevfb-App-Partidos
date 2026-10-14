@@ -17,6 +17,7 @@ import {
   guardarOpcionGps,
   leerAjustesGps,
   leerEnCurso,
+  leerReferenciasGps,
   listarEnCurso,
   listarGps,
   ponerAlDiaGps,
@@ -240,6 +241,30 @@ describe("los Ajustes", () => {
     doble.llamadas.length = 0;
     doble.respuestas = [{ data: null, error: { code: "42P01", message: 'relation "public.gps_opciones" does not exist' } }];
     expect(await guardarOpcionGps("eq-1", "dispositivo", { codigo: "catapult", etiquetas: { "es-AR": "Catapult" } })).toEqual({ error: "gps.ajustes.faltaMigracion" });
+  });
+});
+
+describe("los V.R. de cada dispositivo (arriba de la Base)", () => {
+  test("los del club, en su orden; sin la tabla, ninguno y sin error; si falla, se avisa", async () => {
+    doble.respuestas = [
+      {
+        data: [{ id: "r1", dispositivo: " catapult ", tipo: "FUTBOL", tabla: "Partido", grupo: "TOTAL", orden: 1, promedio: { d: 10 }, desvio: null }],
+        error: null,
+      },
+    ];
+    expect(await leerReferenciasGps("eq-1")).toEqual({
+      referencias: [{ id: "r1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Partido", grupo: "TOTAL", orden: 1, promedio: { d: 10 }, desvio: {} }],
+      faltaTabla: false,
+      error: "",
+    });
+    expect(doble.llamadas).toContainEqual(["from", "gps_referencias"]);
+    expect(doble.llamadas).toContainEqual(["eq", "equipo_id", "eq-1"]);
+    expect(doble.llamadas).toContainEqual(["order", "orden", { ascending: true }]);
+    doble.respuestas = [{ data: null, error: { code: "PGRST205", message: "Could not find the table 'public.gps_referencias' in the schema cache" } }];
+    expect(await leerReferenciasGps("eq-1")).toEqual({ referencias: [], faltaTabla: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "500", message: "otra cosa" } }];
+    expect(await leerReferenciasGps("eq-1")).toEqual({ referencias: [], faltaTabla: false, error: "gps.error.noLeer" });
+    expect(await leerReferenciasGps(null)).toEqual({ referencias: [], faltaTabla: false, error: "" });
   });
 });
 

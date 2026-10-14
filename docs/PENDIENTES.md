@@ -1326,7 +1326,9 @@ Base · Ajustes, y abre en Cargar (como Evaluaciones).
   (promedio + 2 desvíos), Muy Bueno (+ 1), Promedio/Bueno, Regular (− 1), Malo (− 2), Desvío, n,
   Máx. y Mín. En un por minuto, el promedio es el de la medida ÷ el de los minutos (como el
   Excel). Con más de un dispositivo a la vista, un informe por dispositivo, con su nombre, en el
-  orden de su lista.
+  orden de su lista. (Hasta el 14/10: ahora arriba van solo el Promedio, el V.R. y el % vs V.R.
+  de cada dispositivo, y las Comparaciones; ver «Arriba de la Base: promedio, V.R. y % (14/10)»,
+  más abajo. Los colores no cambiaron.)
 - Colores (D19:X30002 del Excel: de D a Tiempo): mayor que Excelente, verde oscuro; de Muy Bueno
   a Excelente, verde claro; de Promedio a Muy Bueno, amarillo; de Regular a Promedio, naranja;
   menos que Regular, rojo. En Nombre, el Team Average de una tarea va en amarillo, el de un
@@ -1471,6 +1473,66 @@ todas las filas.
   4. Las cuentas de varios años, en la base: los Reportes del GPS (paso 3) calculan sin bajar
      las filas.
   Propuesta de Claude: la 2 y la 4 juntas; la 3 solo si hace falta. No está aprobada.
+
+### Arriba de la Base: promedio, V.R. y % (14/10)
+
+Nota del 12/10: «Sacar de gps todas las filas de arriba y solo dejar las de promedio por
+dispositivo y agregar todos los vr de gps asi como los % vs vr de partido». Santiago, 14/10, a
+las preguntas: de dónde salen los V.R., «Revisa la base de gps y te vas a dar cuenta de donde
+salen y son los mismo que hay que traer»; los colores, «Como hoy»; el resumen, «Como esta hoy
+en el excel mismo sentido»; los V.R. por dispositivo, «Cada uno tiene el suyo»; cuántos, «Dos,
+como el Excel»; cuál es de cuál, «Futbol 2 es de sport y el otro es de catapult»; y el diseño
+propuesto, «Sí, uno por dispositivo».
+
+- **Arriba de la tabla, tres filas por dispositivo** (con más de uno a la vista, cada una con
+  su nombre, en el orden de su lista): **Promedio** (el de lo que deja ver el filtro, la misma
+  cuenta de antes), **V.R.** (el promedio del V.R. elegido para ese dispositivo) y **% vs
+  V.R.** (Promedio ÷ V.R., en cada columna que tiene V.R.; sin V.R., vacías). Como las filas 13,
+  12/14 y 15 de la hoja de la Base del Excel.
+- **Ya no van** Excelente, Muy Bueno, Regular, Malo, Desvío, n, Máx. y Mín. Los colores de las
+  filas siguen igual («Como hoy»): se siguen calculando con el promedio y el desvío de lo que se
+  ve de cada dispositivo, aunque esas filas no estén. Descartado: volver a mostrar esas filas.
+- **De dónde salen los V.R.** En el Excel, cada fila del V.R. busca en la hoja de los valores
+  de referencia el PROM de un tipo, una tabla y un grupo: con Sport, FUTBOL · FUTBOL 2 · TOTAL
+  FUTBOL; con Catapult, FUTBOL · Oficial EdLP · TOTAL FUTBOL. En esas dos tablas solo el grupo
+  TOTAL FUTBOL tiene números (las posiciones están vacías). Van con todos sus decimales.
+  Comprobado contra el Excel (en esta máquina, nada se sube): con los mismos promedios, el %
+  contra el V.R. de Sport da lo mismo que el Excel en las 19 columnas.
+- **Dónde se guardan**: en la tabla `gps_referencias` (migración `20261024_gps_referencias.sql`):
+  una fila por V.R. del club, con su dispositivo (el código de la lista Dispositivo), el tipo
+  (FUTBOL, DINAMICA, REDUCIDO), la tabla, el grupo, el promedio y el desvío de cada columna. Los
+  ve quien tiene GPS en el club (también quien se fue, para mirar); nadie los cambia desde la
+  app (editarlos es la nota de los Valores de referencia); anon, nada. Los números los pasa
+  Claude por SQL en el chat (no van en el código). El SQL los pone solo en el club que tiene
+  filas tomadas con Sport (el del historial del Excel), en el dispositivo de su lista que se
+  llama Sport o Catapult.
+- **Comparaciones** (la fila 16 del Excel), en un recuadro arriba de la tabla, una parte por
+  dispositivo: qué V.R. usa (un desplegable con «tipo · tabla · grupo»; de entrada, el primero)
+  y cinco números: **Volumen promedio** (el promedio de los % de D a > 45 W/PC, sin Mts >= 90%
+  Pico), **Volumen zona de impacto** (el de las columnas de la zona elegida), **Densidad
+  promedio** y **Densidad zona de impacto** (lo mismo con las por minuto) y **Tiempo** (el % del
+  Tiempo). La **zona de impacto** se elige arriba (Fuerza, F-M, F-V, Metabólica, V-M, Velocidad
+  o Tarea Mixta, con las columnas de la tabla del Excel; Tarea Mixta, todas; de entrada, Tarea
+  Mixta). Lo elegido se recuerda en cada aparato, por club. Cada % sale con las columnas que
+  tienen V.R. aunque estén escondidas, como el Excel.
+- **Diferencias con el Excel, a la vista**: las Comparaciones van en un recuadro y no en una
+  fila de la tabla (en el celular se leen sin correr la tabla de costado); el V.R. se elige en
+  un solo desplegable por dispositivo (en el Excel, el tipo, la tabla y el grupo en tres
+  celdas). Los números son los mismos.
+- **Sin la migración** el recuadro dice que falta una actualización de la base; **sin V.R.**
+  para un dispositivo, que todavía no tiene; las filas sin dispositivo, que no tienen V.R. En
+  esos casos las filas V.R. y % quedan vacías. En el celular, los cinco números van en una lista
+  corta; en la compu, en cinco tarjetas.
+- **Para decidir**:
+  - Las otras tablas de los valores de referencia con algún número (FUTBOL 3, FUTBOL 17 a
+    medias, REDUCIDO 9 y un número suelto en Individual) no se cargaron: no se sabe de qué
+    dispositivo son. Se cargan cuando Santiago lo diga (o con la nota de editar los Valores de
+    referencia).
+  - El V.R. de partido de Ajustes › Reglas de carga (el que usa Cargar para el % vs V.R. de
+    partido) y el V.R. «Oficial EdLP · TOTAL FUTBOL» de Catapult son los mismos números en el
+    Excel y hoy están en dos lugares. Unirlos o no lo decide Santiago; por ahora no se tocó.
+- No cambió: la Base (filas, columnas, filtros, colores, edición, borrado, pegar, la copia en el
+  aparato), Cargar, Ajustes, los permisos ni las cuentas de las filas.
 
 ### Pegar desde Excel (el historial)
 
@@ -2658,11 +2720,17 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
   qué va en su lugar: «Nada». La tarjeta se sigue tocando entera para entrar y el lector de
   pantalla la sigue nombrando «Entrar a …»; la foto, el ícono, el nombre y la línea de qué hay
   adentro no cambian. Reabre UI-007 solo en ese botón (UI-033).
-- Las otras 5, sin decidir todavía (se ven una por una, en este orden): editar y borrar los
-  Valores de referencia (con la lógica de la
-  planilla de valor referencial); arriba de la Base de GPS solo el promedio por dispositivo, los
-  V.R. de GPS y el % vs V.R. de partido; revisar la lógica de Flujo diario; Isocinecia con el
-  lector de Python y conectar con VALD; mejorar el cuerpo humano del reporte de Lesiones.
+- **Arriba de la Base de GPS, el promedio, el V.R. y el % de cada dispositivo (hecho el 14/10,
+  migración `20261024_gps_referencias.sql`).** Nota del 12/10: «Sacar de gps todas las filas de
+  arriba y solo dejar las de promedio por dispositivo y agregar todos los vr de gps asi como los
+  % vs vr de partido». Ver «GPS (10/10)», «Arriba de la Base: promedio, V.R. y % (14/10)»
+  (UI-034). Falta que Santiago corra los dos SQL (la tabla y los V.R.; los pasa Claude por el
+  chat).
+- **Editar y borrar los Valores de referencia**: necesita la planilla de valor referencial; se
+  dejó para después (Santiago, 14/10: «seguir con lo de gps por ahora»).
+- Las otras 3, sin decidir todavía (se ven una por una, en este orden): revisar la lógica de
+  Flujo diario; Isocinecia con el lector de Python y conectar con VALD; mejorar el cuerpo humano
+  del reporte de Lesiones.
 
 ## Lo que dejó la revisión completa del 30/09
 
