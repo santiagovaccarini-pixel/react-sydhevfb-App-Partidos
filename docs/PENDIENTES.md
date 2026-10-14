@@ -2647,12 +2647,19 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
     con los nombres del club, sin el nombre de cada campo). «Ver cuáles» abre «Son LM: …» y
     «Ocultar» la cierra; el botón no sale en papel, la lista sí si está abierta.
   - **Solo el individual**: el grupal, Lesiones c/1000h e Informes gráficos siguen con la nota
-    larga. Falta preguntarle a Santiago si va igual ahí.
-  - **Falta preguntar**: en la compu y en papel, el mapa del cuerpo es más alto que las tarjetas
-    y queda lugar en blanco debajo de ellas; si se achica el mapa o se ve con la nota del cuerpo
-    humano.
-- Las otras 6, sin decidir todavía (se ven una por una, en este orden): sacar los botones «Entrar» de
-  las tarjetas (reabre UI-007); editar y borrar los Valores de referencia (con la lógica de la
+    larga.
+  - En la compu y en papel, el mapa del cuerpo es más alto que las tarjetas y queda lugar en
+    blanco debajo de ellas. Se le preguntó si achicar el mapa y si poner la nota corta en los
+    otros reportes; Santiago, 14/10: «por ahora dejalo asi y segui avanzando con lo que queda».
+- **Sin los botones «Entrar» en las tarjetas (hecho el 14/10).** Nota del 12/10: «Sacar los
+  botones de entrar dentro de cada modulo». Los únicos de la app eran el «Entrar ›» blanco de
+  las tarjetas del portal y de Bases de Datos (el mismo componente, `TarjetasDelPortal` en
+  `src/components/PortalTarjetas.jsx`): se sacaron de las dos. Santiago, 14/10, a la pregunta de
+  qué va en su lugar: «Nada». La tarjeta se sigue tocando entera para entrar y el lector de
+  pantalla la sigue nombrando «Entrar a …»; la foto, el ícono, el nombre y la línea de qué hay
+  adentro no cambian. Reabre UI-007 solo en ese botón (UI-033).
+- Las otras 5, sin decidir todavía (se ven una por una, en este orden): editar y borrar los
+  Valores de referencia (con la lógica de la
   planilla de valor referencial); arriba de la Base de GPS solo el promedio por dispositivo, los
   V.R. de GPS y el % vs V.R. de partido; revisar la lógica de Flujo diario; Isocinecia con el
   lector de Python y conectar con VALD; mejorar el cuerpo humano del reporte de Lesiones.

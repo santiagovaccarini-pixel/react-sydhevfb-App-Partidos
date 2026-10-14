@@ -235,25 +235,6 @@
   line-height: 1.5;
 }
 
-.portal-entrar {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: 12px;
-  background: #fff;
-  color: #0b0d10;
-  font-size: 0.95rem;
-  font-weight: 900;
-}
-
-.portal-entrar span {
-  font-size: 1.3rem;
-  line-height: 1;
-}
-
 @media (max-width: 720px) {
   .portal-modulos {
     padding: 22px 14px 32px;

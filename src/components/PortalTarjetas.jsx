@@ -135,8 +135,9 @@ export const Portada = ({ tarjeta, desde, onTerminar, className = "" }) => {
 
 // Las tarjetas, una al lado de la otra (una abajo de la otra en el
 // celular). Cada una es un botón grande: la foto arriba con el ícono, y abajo
-// el nombre, una línea de qué hay adentro y Entrar. onElegir(tarjeta, desde):
-// `desde` es dónde estaba la foto, para que la portada arranque de ahí.
+// el nombre y una línea de qué hay adentro; se toca entera para entrar (sin
+// «Entrar ›»: Santiago, 12/10 y 14/10). onElegir(tarjeta, desde): `desde` es
+// dónde estaba la foto, para que la portada arranque de ahí.
 export const TarjetasDelPortal = ({ tarjetas, onElegir }) => (
   <div className="portal-opciones">
     {tarjetas.map((tarjeta) => {
@@ -157,9 +158,6 @@ export const TarjetasDelPortal = ({ tarjetas, onElegir }) => (
                 {etiqueta && <em className="portal-beta">{t(etiqueta)}</em>}
               </strong>
               <small>{t(texto)}</small>
-            </span>
-            <span className="portal-entrar" aria-hidden="true">
-              {t("portal.entrar")} <span>›</span>
             </span>
           </span>
         </button>
