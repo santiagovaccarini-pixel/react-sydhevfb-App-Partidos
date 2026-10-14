@@ -4,6 +4,7 @@ import {
   aplicarPegado,
   desdeTexto,
   filtrarFilas,
+  filtrosQueSiguen,
   interpretarFecha,
   interpretarFechaHora,
   interpretarHoras,
@@ -176,6 +177,14 @@ describe("filtros y orden de las cabeceras", () => {
       { texto: "HULK", cantidad: 1 },
       { texto: "SCARPA", cantidad: 2 },
     ]);
+  });
+
+  test("un filtro con un valor que ya no está en ninguna fila (le cambiaron el nombre) no se aplica", () => {
+    expect(filtrosQueSiguen(filas, { jugador: ["SCARPA"], lado: [""] })).toEqual({ jugador: ["SCARPA"], lado: [""] });
+    // «Scarpa» pasó a llamarse de otra forma: ese filtro escondería sus filas.
+    expect(filtrosQueSiguen(filas, { jugador: ["SCARPA", "Scarpa"], lado: [""] })).toEqual({ lado: [""] });
+    // Elegir nada sigue siendo elegir nada.
+    expect(filtrosQueSiguen(filas, { jugador: [] })).toEqual({ jugador: [] });
   });
 
   test("cada columna filtrada deja pasar sus valores elegidos, y todas a la vez", () => {

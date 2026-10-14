@@ -448,6 +448,7 @@ export default {
       },
       delClub: "Del club: {{tipo}}",
       errorGuardar: "No se pudo guardar el cambio.",
+      errorDescripciones: "Se guardó el nombre, pero no se pudo cambiar en las descripciones ya guardadas. Avisale a quien administra la app.",
       faltaMigracion: "Falta una actualización de la base de datos para usar GPS. Avisale a quien administra la app.",
     },
     importar: {

@@ -6,6 +6,8 @@ import { normalizarTextoBase } from "./match";
 // Quién es cada nombre en el plantel: el mismo nombre (sin mayúsculas ni
 // espacios de más, como lo distingue la base) y si no hay, el mismo sin
 // acentos ni signos. Si dos jugadores dan lo mismo, no se adivina: DUDOSO.
+// Después, un nombre que tuvo un jugador (nombres_anteriores: la base los
+// anota al cambiarle el nombre; nota del 12/10), si hoy no es de nadie.
 export const DUDOSO = "dudoso";
 
 export const nombreIgual = (nombre) =>
@@ -20,17 +22,28 @@ export const nombreParecido = (nombre) =>
     .trim();
 
 export const buscadorDeJugadores = (plantel) => {
-  const indice = (clave) => {
+  const indice = (clave, nombresDe) => {
     const mapa = new Map();
     plantel.forEach((jugador) => {
-      const llave = clave(jugador.nombre);
-      mapa.set(llave, mapa.has(llave) ? DUDOSO : jugador);
+      new Set(nombresDe(jugador).map(clave)).forEach((llave) => {
+        if (!llave) return;
+        mapa.set(llave, mapa.has(llave) && mapa.get(llave) !== jugador ? DUDOSO : jugador);
+      });
     });
     return mapa;
   };
-  const iguales = indice(nombreIgual);
-  const parecidos = indice(nombreParecido);
-  return (nombre) => iguales.get(nombreIgual(nombre)) || parecidos.get(nombreParecido(nombre)) || null;
+  const deHoy = (jugador) => [jugador.nombre];
+  const anteriores = (jugador) => jugador.nombres_anteriores || [];
+  const iguales = indice(nombreIgual, deHoy);
+  const parecidos = indice(nombreParecido, deHoy);
+  const igualesAntes = indice(nombreIgual, anteriores);
+  const parecidosAntes = indice(nombreParecido, anteriores);
+  return (nombre) =>
+    iguales.get(nombreIgual(nombre)) ||
+    parecidos.get(nombreParecido(nombre)) ||
+    igualesAntes.get(nombreIgual(nombre)) ||
+    parecidosAntes.get(nombreParecido(nombre)) ||
+    null;
 };
 
 // El nombre más largo que guarda la base para alguien fuera de Datos básicos.

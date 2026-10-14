@@ -443,6 +443,7 @@ export default {
       },
       delClub: "Do clube: {{tipo}}",
       errorGuardar: "Não foi possível salvar a mudança.",
+      errorDescripciones: "O nome foi salvo, mas não foi possível mudá-lo nas descrições já salvas. Avise quem administra o app.",
       faltaMigracion: "Falta uma atualização do banco de dados para usar o GPS. Avise quem administra o app.",
     },
     importar: {

@@ -24,6 +24,7 @@ import {
   cuentaDeLaSesion,
   guardarCabeceraGps,
   guardarOpcionGps,
+  cambiarEnDescripcionesGps,
   guardarReglasGps,
   leerAjustesGps,
   leerEnCurso,
@@ -974,16 +975,24 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       setErrorHoja(t("lesiones.ajustes.faltaTexto"));
       return;
     }
+    // Una opción de estrategia va escrita en la Descripción de cada fila (con
+    // su nombre en castellano): si cambia, cambia también ahí (nota del 12/10).
+    const enCastellano = (cual) => opcionesDeLista(hoja.lista, cual, "es-AR", { test: gps, conOcultas: true }).find((opcion) => opcion.valor === hoja.codigo)?.etiqueta || "";
+    const antes = hoja.lista === "codigo_estrategia" && hoja.codigo ? [enCastellano(config), enCastellano(configGpsVacia())] : [];
     setOcupado(true);
     const respuesta = await guardarOpcionGps(equipoId, hoja.lista, { ...hoja, codigo: hoja.codigo || codigoNuevo(propio) });
-    setOcupado(false);
     if (respuesta.error) {
+      setOcupado(false);
       setErrorHoja(t(respuesta.error));
       return;
     }
+    const despues = String(hoja.etiquetas["es-AR"] || "").trim() || String(hoja.etiquetas["pt-BR"] || "").trim();
+    const enDescripciones = antes.length ? await cambiarEnDescripcionesGps(equipoId, antes, despues) : { cambiadas: 0, error: "" };
+    setOcupado(false);
     await cargarClub();
+    if (enDescripciones.cambiadas) ponerAlDia();
     setHojaOpcion(null);
-    setAviso(t("lesiones.ajustes.guardado"));
+    setAviso(t(enDescripciones.error || "lesiones.ajustes.guardado"));
   };
 
   const filaAjuste = ({ id, icono, titulo: rotulo, detalle, alTocar, extra = null, clase = "" }) => (

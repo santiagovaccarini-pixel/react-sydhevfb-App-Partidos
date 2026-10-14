@@ -182,6 +182,19 @@ export const emparejar = (filas, plantel = []) => {
       resultado[i] = { destino: String(igual.id), como: "igual" };
     }
   });
+  // Un nombre que tuvo un jugador (la base los anota al cambiarle el nombre;
+  // nota del 12/10) es ese jugador, si hoy no es el de otro y lo tuvo uno solo.
+  const deHoy = new Set(plantel.map((jugador) => nombreParaComparar(jugador.nombre)));
+  filas.forEach((fila, i) => {
+    if (resultado[i].como !== "nuevo") return;
+    const clave = nombreParaComparar(fila.nombre);
+    if (!clave || deHoy.has(clave)) return;
+    const lo = plantel.filter((jugador) => (jugador.nombres_anteriores || []).some((nombre) => nombreParaComparar(nombre) === clave));
+    if (lo.length === 1 && !tomados.has(String(lo[0].id))) {
+      tomados.add(String(lo[0].id));
+      resultado[i] = { destino: String(lo[0].id), como: "igual" };
+    }
+  });
 
   const candidatos = filas.map((fila, i) => {
     if (resultado[i].como !== "nuevo") return [];

@@ -2584,9 +2584,38 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
   - **Falta**: lo técnico de un aviso de base (qué actualización falta) iba a ir en «Pruebas
     técnicas»; hoy esa pantalla es de Flujo diario y no revisa la base, así que no está. Mientras
     tanto, Claude pasa el SQL por el chat, como siempre.
-- Las otras 9, sin decidir todavía (se ven una por una, en este orden): cambiar un nombre o
-  una opción y que cambie en todos lados (las filas guardadas con un nombre
-  que no está en Datos básicos y los nombres de Partido); el
+- **Un nombre o una opción cambiados, cambiados en todos lados (hecho el 14/10, migración
+  `20261022_nombres_en_todos_lados.sql`).** Nota: «Si se cambia un nombre u opcion dentro de
+  ajustes de cada modulo o dentro de datos basicos se tiene que reemplazar en todos los lugares
+  donde este ese nombre u opcion». Santiago, 14/10: «si se cambia algo dentro de ajustes [...] y
+  hay calculos relacionados a esa opcion [...] todo lo relacionado y previamente escrito se
+  cambie a este nuevo valor»; «es automatico cuando se cambie algo»; en Partido «se reemplaza con
+  el nuevo nombre»; «Todo junto». Eligió los puntos 1, 2, 4, 5 y 6 de la propuesta; el 3 (pasar
+  solas al jugador las filas con un nombre escrito igual al suyo) no va: «si el jugador no esta
+  en datos basicos ya pregunta quien es y se puede vincular».
+  - **Lo que ya andaba (comprobado con pruebas):** las listas de Lesiones, Evaluaciones y GPS
+    guardan el código de cada opción y Lesiones, Evaluaciones, GPS y Flujo diario guardan quién
+    es cada jugador: renombrar en Ajustes o en Datos básicos ya se veía en la base, los casos,
+    los filtros, los reportes y las cuentas (Solo LM, Sin leves… van por el código).
+  - **Partido** (1 y 2): guarda los nombres escritos en cada partido. Al cambiarle el nombre a un
+    jugador, la base lo cambia en todos los partidos del club (titulares, convocados, cambios,
+    también los de la guía de la transmisión, y formación); lo del rival no se toca. Un partido
+    que sube tarde con un nombre anterior se guarda con el de hoy (si ese paso fallara, el
+    partido se guarda igual, como vino). Al correr la migración, los partidos con un nombre que
+    se ve en la foto al día (desde el 05/10) pasan al de hoy. Cambiar el nombre en Datos básicos
+    lo puede hacer cualquiera del club (como siempre): en Partido cambia aunque esa persona no
+    tenga Partido. Un nombre anterior que hoy es de otro jugador, o que tuvieron dos, no se
+    cambia. Los nombres anteriores quedan en `jugadores_nombres_anteriores` (los anota la base).
+  - **GPS** (4): la Descripción lleva escrito el nombre de la opción de estrategia; al
+    renombrarla en Ajustes › Listas, cambia también en las descripciones ya guardadas (donde
+    empieza cada parte: después de la fecha o de « + »; no adentro del nombre de la tarea).
+  - **Nombres anteriores** (5): al pegar una planilla (Lesiones, Evaluaciones, GPS, Datos
+    básicos) o cargar el CSV del GPS, un nombre que tuvo el jugador se reconoce como él, si hoy
+    no es de otro y lo tuvo uno solo.
+  - **Filtros** (6): un filtro de una tabla con un valor que ya no está en ninguna fila no se
+    aplica (escondería esas filas); si el valor vuelve, vuelve a aplicarse.
+  - **Falta:** que Santiago corra el SQL (lo pasa Claude por el chat).
+- Las otras 8, sin decidir todavía (se ven una por una, en este orden): el
   permiso una vez por pedido también en Lesiones y Evaluaciones (no está hecho: solo GPS);
   el reporte individual de Lesiones (sin los puntos «Superior/Inferior a la referencia», el
   color en el %, tarjetas más chicas y «qué cuenta» en corto); sacar los botones «Entrar» de

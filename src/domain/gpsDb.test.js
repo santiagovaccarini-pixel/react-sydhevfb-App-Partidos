@@ -8,6 +8,7 @@ import {
   borrarFilaGps,
   borrarEnCurso,
   borrarFilasGps,
+  cambiarEnDescripcionesGps,
   claveDeErrorGps,
   crearFilasGps,
   dejarEnCurso,
@@ -239,6 +240,27 @@ describe("los Ajustes", () => {
     doble.llamadas.length = 0;
     doble.respuestas = [{ data: null, error: { code: "42P01", message: 'relation "public.gps_opciones" does not exist' } }];
     expect(await guardarOpcionGps("eq-1", "dispositivo", { codigo: "catapult", etiquetas: { "es-AR": "Catapult" } })).toEqual({ error: "gps.ajustes.faltaMigracion" });
+  });
+});
+
+describe("una opción de estrategia renombrada, también en la Descripción (nota del 12/10)", () => {
+  test("se pide a la base con los nombres de antes (sin repetir ni el nuevo)", async () => {
+    doble.respuestas = [{ data: 3, error: null }];
+    expect(await cambiarEnDescripcionesGps("eq-1", [" CPS2 ", "CPS", "CPS2", "", "Nuevo"], " Nuevo ")).toEqual({ cambiadas: 3, error: "" });
+    expect(doble.llamadas).toEqual([["rpc", "gps_cambiar_en_descripciones", { p_equipo: "eq-1", p_antes: ["CPS2", "CPS"], p_despues: "Nuevo" }]]);
+  });
+
+  test("sin nada que cambiar, no se pide", async () => {
+    expect(await cambiarEnDescripcionesGps("eq-1", ["CPS"], "CPS")).toEqual({ cambiadas: 0, error: "" });
+    expect(await cambiarEnDescripcionesGps("eq-1", ["CPS"], "  ")).toEqual({ cambiadas: 0, error: "" });
+    expect(doble.llamadas).toEqual([]);
+  });
+
+  test("sin el SQL, nada y sin error; si falla, se avisa", async () => {
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function" } }];
+    expect(await cambiarEnDescripcionesGps("eq-1", ["CPS"], "CPS2")).toEqual({ cambiadas: 0, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "57014", message: "canceling statement due to statement timeout" } }];
+    expect(await cambiarEnDescripcionesGps("eq-1", ["CPS"], "CPS2")).toEqual({ cambiadas: 0, error: "gps.ajustes.errorDescripciones" });
   });
 });
 
