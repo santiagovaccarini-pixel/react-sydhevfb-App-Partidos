@@ -2615,8 +2615,16 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
   - **Filtros** (6): un filtro de una tabla con un valor que ya no está en ninguna fila no se
     aplica (escondería esas filas); si el valor vuelve, vuelve a aplicarse.
   - **Falta:** que Santiago corra el SQL (lo pasa Claude por el chat).
-- Las otras 8, sin decidir todavía (se ven una por una, en este orden): el
-  permiso una vez por pedido también en Lesiones y Evaluaciones (no está hecho: solo GPS);
+- **El permiso una vez por pedido también en Lesiones y Evaluaciones (hecho el 14/10, migración
+  `20261023_lesiones_evaluaciones_rapido.sql`; Santiago: «segui»).** Nota: «hacer el mismo
+  procedimiento de quitar que se lean los permisos fila por fila dentro de evaluaciones y
+  lesiones como se hizo en gps para poder agilizar el cargado y filtrado de filas». Las ocho
+  políticas de `lesiones` y `evaluaciones` usan `clubes_donde_puedo` (de
+  `20261019_gps_rapido.sql`), como `gps`. Quién ve, carga, cambia y borra no cambia (lo
+  comprueban los escenarios). Medido en una base local con 20.000 lesiones y 20.000
+  evaluaciones: una página de 1000 filas pasó de unos 4,5 s a entre 4 y 10 ms. Falta que
+  Santiago corra el SQL (lo pasa Claude por el chat).
+- Las otras 7, sin decidir todavía (se ven una por una, en este orden):
   el reporte individual de Lesiones (sin los puntos «Superior/Inferior a la referencia», el
   color en el %, tarjetas más chicas y «qué cuenta» en corto); sacar los botones «Entrar» de
   las tarjetas (reabre UI-007); editar y borrar los Valores de referencia (con la lógica de la
