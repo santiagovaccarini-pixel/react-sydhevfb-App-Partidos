@@ -18,6 +18,9 @@ import {
   leerEnCurso,
   listarEnCurso,
   listarGps,
+  ponerAlDiaGps,
+  traerTodoGps,
+  unirFilasGps,
   partidoDelDia,
 } from "./gpsDb.js";
 
@@ -357,5 +360,95 @@ describe("las cargas sin terminar (GPS › Cargar)", () => {
     expect(doble.llamadas).toContainEqual(["from", "gps_en_curso"]);
     expect(doble.llamadas).toContainEqual(["delete"]);
     expect(doble.llamadas).toContainEqual(["eq", "id", "ec1"]);
+  });
+});
+
+describe("todas las filas, rápido (Santiago, 14/10)", () => {
+  const conHora = (n, hora, extra = {}) => fila(n, { actualizado_en: hora, ...extra });
+
+  test("la primera vez: las últimas semanas primero (se muestran) y después las demás, con cuántas van", async () => {
+    doble.respuestas = [
+      { data: [conHora(2, "2026-10-12T10:00:00Z", { fecha: "2026-10-08" })], error: null, count: 1 },
+      { data: [conHora(1, "2026-10-13T09:00:00Z", { fecha: "2026-08-01" })], error: null, count: 1 },
+    ];
+    const mostradas = [];
+    const avances = [];
+    const respuesta = await traerTodoGps("eq-1", { desdeReciente: "2026-09-16", alPrimeraParte: (filas) => mostradas.push(filas.map((una) => una.id)), alAvanzar: (n, total) => avances.push([n, total]) });
+    expect(respuesta.error).toBe("");
+    expect(mostradas).toEqual([["g2"]]);
+    expect(respuesta.recientes.map((una) => una.id)).toEqual(["g2"]);
+    expect(respuesta.viejas.map((una) => una.id)).toEqual(["g1"]);
+    expect(avances).toEqual([[1, 1]]);
+    // Las recientes desde el día pedido; las demás, hasta el día anterior.
+    expect(doble.llamadas).toContainEqual(["gte", "fecha", "2026-09-16"]);
+    expect(doble.llamadas).toContainEqual(["lte", "fecha", "2026-09-15"]);
+    // Lo último que se trajo: la hora más nueva de la base.
+    expect(respuesta.hasta).toBe("2026-10-13T09:00:00Z");
+    // Juntas, por fecha y orden; lo reciente, como esté en la pantalla.
+    const cambiada = { ...respuesta.recientes[0], datos: { d: 1 } };
+    expect(unirFilasGps(respuesta.viejas, [cambiada]).map((una) => [una.id, una.datos.d])).toEqual([
+      ["g1", 101],
+      ["g2", 1],
+    ]);
+  });
+
+  test("si las demás no llegan, vuelven las recientes con el error", async () => {
+    doble.respuestas = [
+      { data: [fila(2)], error: null, count: 1 },
+      { data: null, error: { message: "Failed to fetch" } },
+    ];
+    const respuesta = await traerTodoGps("eq-1", { desdeReciente: "2026-09-16" });
+    expect(respuesta.recientes.map((una) => una.id)).toEqual(["g2"]);
+    expect(respuesta.viejas).toEqual([]);
+    expect(respuesta.error).toBe("gps.error.noLeer");
+  });
+
+  test("al día: lo cambiado desde la última vez (con margen), sin volver a traer todo", async () => {
+    const enElAparato = [conHora(1, "2026-10-12T10:00:00Z"), conHora(2, "2026-10-12T10:00:00Z")];
+    doble.respuestas = [
+      // Lo cambiado: la 2 (otro valor) y una nueva, la 3.
+      { data: [conHora(2, "2026-10-13T11:00:00Z", { datos: { d: 999 } }), conHora(3, "2026-10-13T11:05:00Z")], error: null },
+      // La cuenta de la base: 3, las mismas que quedan.
+      { data: null, error: null, count: 3 },
+    ];
+    const respuesta = await ponerAlDiaGps("eq-1", { filas: enElAparato, hasta: "2026-10-13T10:00:00Z" });
+    expect(respuesta.error).toBe("");
+    expect(respuesta.cambio).toBe(true);
+    expect(respuesta.filas.map((una) => [una.id, una.datos.d])).toEqual([
+      ["g1", 101],
+      ["g2", 999],
+      ["g3", 103],
+    ]);
+    expect(respuesta.hasta).toBe("2026-10-13T11:05:00Z");
+    // Desde 10 minutos antes de lo último que se trajo.
+    expect(doble.llamadas).toContainEqual(["gte", "actualizado_en", "2026-10-13T09:50:00.000Z"]);
+    // La cuenta, sin traer filas.
+    expect(doble.llamadas).toContainEqual(["select", "id", { count: "exact", head: true }]);
+  });
+
+  test("al día: lo borrado por otro se va (con la cuenta de la base y solo los id)", async () => {
+    const enElAparato = [conHora(1, "2026-10-12T10:00:00Z"), conHora(2, "2026-10-12T10:00:00Z")];
+    doble.respuestas = [
+      { data: [], error: null },
+      { data: null, error: null, count: 1 },
+      { data: [{ id: "g1" }], error: null },
+    ];
+    const respuesta = await ponerAlDiaGps("eq-1", { filas: enElAparato, hasta: "2026-10-13T10:00:00Z" });
+    expect(respuesta.cambio).toBe(true);
+    expect(respuesta.filas.map((una) => una.id)).toEqual(["g1"]);
+  });
+
+  test("al día sin cambios: las mismas filas (la pantalla no se redibuja); si falla, quedan las que había", async () => {
+    const enElAparato = [conHora(1, "2026-10-12T10:00:00Z")];
+    doble.respuestas = [
+      { data: [conHora(1, "2026-10-12T10:00:00Z")], error: null },
+      { data: null, error: null, count: 1 },
+    ];
+    const igual = await ponerAlDiaGps("eq-1", { filas: enElAparato, hasta: "2026-10-12T10:00:00Z" });
+    expect(igual.cambio).toBe(false);
+    expect(igual.filas).toBe(enElAparato);
+    doble.respuestas = [{ data: null, error: { message: "Failed to fetch" } }];
+    const sinSenal = await ponerAlDiaGps("eq-1", { filas: enElAparato, hasta: "2026-10-12T10:00:00Z" });
+    expect(sinSenal).toMatchObject({ filas: enElAparato, cambio: false, error: "gps.error.noLeer" });
   });
 });

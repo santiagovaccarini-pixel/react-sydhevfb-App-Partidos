@@ -10,6 +10,7 @@ import DatosBasicos from "./DatosBasicos.jsx";
 import ElegirClub from "./ElegirClub.jsx";
 import Notas from "./Notas.jsx";
 import { permisosEnClub } from "./domain/perfilesDb.js";
+import { borrarCopiasGps } from "./domain/copiaGps.js";
 import { limpiarCopiasDelClub } from "./domain/copiasLocales.js";
 import {
   ArteBases,
@@ -206,6 +207,8 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
         return;
       }
       if (fresco.hasta && !leido.hasta) limpiarCopiasDelClub(leido.id);
+      // Sin el GPS en el club, la copia del GPS de este aparato se va.
+      if (leido.gps && fresco.gps === false) borrarCopiasGps(leido.id);
       const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones", "evaluaciones", "gps"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null));
       if (cambio) {
         guardarEquipoElegido(fresco);

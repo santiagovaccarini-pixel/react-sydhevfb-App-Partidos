@@ -6,12 +6,13 @@ import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
 import { calcularNoIngresaron } from "./match.js";
 
-const COLUMNAS = "id, equipo_id, orden, fecha, jugador_id, persona, promedio, datos";
+// actualizado_en: para traer después solo lo cambiado (ponerAlDiaGps).
+const COLUMNAS = "id, equipo_id, orden, fecha, jugador_id, persona, promedio, datos, actualizado_en";
 
 // La API devuelve hasta 1000 filas por vez: se piden de a 1000. Sabiendo
 // cuántas son, varias páginas van a la vez.
 const POR_VEZ = 1000;
-const PAGINAS_A_LA_VEZ = 4;
+const PAGINAS_A_LA_VEZ = 6;
 // Se borran de a 100 (los id van en la dirección del pedido).
 export const POR_BORRADO = 100;
 // En `jugador`, el promedio del equipo (Team Average); en `dispositivo`, las
@@ -48,6 +49,7 @@ export const normalizarFilaGps = (fila) => ({
   persona: fila?.persona ?? null,
   promedio: fila?.promedio ?? null,
   datos: fila?.datos && typeof fila.datos === "object" && !Array.isArray(fila.datos) ? fila.datos : {},
+  ...(fila?.actualizado_en ? { actualizado_en: fila.actualizado_en } : {}),
 });
 
 // Lo cargado, sin vacíos.
@@ -98,7 +100,8 @@ const todas = async (pedir) => {
 // carga. La base filtra: no se baja lo que no se pidió. Con `maximo`, si son
 // más, no las trae y dice cuántas son ({ demasiadas: true, total }). Quien
 // ya se fue del club ve la foto de su último día (toda: se filtra acá).
-export const listarGps = async (equipoId, { desde = null, hasta = null, jugador = "", dispositivo = "", maximo = null } = {}) => {
+// alAvanzar(n, total): cuántas van, mientras llegan.
+export const listarGps = async (equipoId, { desde = null, hasta = null, jugador = "", dispositivo = "", maximo = null, alAvanzar = null } = {}) => {
   if (!equipoId) return { filas: [], total: 0, demasiadas: false, error: "" };
   const deJugador = (fila) => (!jugador ? true : jugador === SOLO_PROMEDIOS ? Boolean(fila.promedio) : String(fila.jugador_id ?? "") === String(jugador));
   const deDispositivo = (fila) => {
@@ -130,6 +133,8 @@ export const listarGps = async (equipoId, { desde = null, hasta = null, jugador 
   const total = Number.isFinite(primera.count) ? primera.count : null;
   if (maximo && total !== null && total > maximo) return { filas: [], total, demasiadas: true, error: "" };
   const filas = [...(Array.isArray(primera.data) ? primera.data : [])];
+  let traidas = filas.length;
+  alAvanzar?.(traidas, total ?? traidas);
   if (total === null) {
     // Sin la cuenta, de a 1000 hasta el final.
     if (filas.length === POR_VEZ) {
@@ -149,7 +154,11 @@ export const listarGps = async (equipoId, { desde = null, hasta = null, jugador 
         siguiente += 1;
         const { data, error } = await consulta().range(inicios[i], inicios[i] + POR_VEZ - 1); // eslint-disable-line no-await-in-loop
         if (error) falla = error;
-        else paginas[i] = Array.isArray(data) ? data : [];
+        else {
+          paginas[i] = Array.isArray(data) ? data : [];
+          traidas += paginas[i].length;
+          alAvanzar?.(Math.min(traidas, total), total);
+        }
       }
     };
     await Promise.all(Array.from({ length: Math.min(PAGINAS_A_LA_VEZ, inicios.length) }, pedirPaginas));
@@ -413,4 +422,107 @@ export const borrarEnCurso = async (id) => {
   const { error } = await supabase.from("gps_en_curso").delete().eq("id", id);
   if (error) return { error: claveDeErrorEnCurso(error, "gps.enCurso.noSeBorro") };
   return { error: "" };
+};
+
+// ------------------------------------------- Todas las filas, rápido --
+// La Base abre con todas las filas del club (Santiago, 14/10: «Lo que sea
+// mejor para poder abrir lo mas rapido posible todas las filas que se
+// tengan»). La pantalla guarda una copia en el aparato (copiaGps.js): con
+// ella abre al instante y después trae solo lo cambiado (ponerAlDiaGps).
+// Sin copia, la primera vez, trae primero las últimas semanas (se ven
+// enseguida) y después las demás (traerTodoGps).
+
+// La cuenta que usa la app (la copia del aparato es de cada cuenta).
+export const cuentaDeLaSesion = async () => {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.user?.id || null;
+  } catch {
+    return null;
+  }
+};
+
+// Lo último que se trajo de la base: la hora (de la base) del último cambio.
+const ultimoCambio = (filas, desde = null) =>
+  filas.reduce((ultimo, fila) => (fila.actualizado_en && (!ultimo || Date.parse(fila.actualizado_en) > Date.parse(ultimo)) ? fila.actualizado_en : ultimo), desde);
+
+const diaAnterior = (iso) => {
+  const [anio, mes, dia] = String(iso).split("-").map(Number);
+  const fecha = new Date(Date.UTC(anio, mes - 1, dia - 1));
+  return fecha.toISOString().slice(0, 10);
+};
+
+// Las filas de antes de `desdeReciente` y las de después, juntas (las de
+// después, como estén en `recientes`: pudieron cambiarse mientras tanto).
+export const unirFilasGps = (viejas, recientes) => {
+  const ids = new Set(recientes.map((fila) => fila.id));
+  return [...viejas.filter((fila) => !ids.has(fila.id)), ...recientes].sort(porFechaYOrden);
+};
+
+// Todo, la primera vez: alPrimeraParte(filas) con las de desde
+// `desdeReciente` (para mostrarlas enseguida) y alAvanzar(n, total) mientras
+// llegan las demás. Devuelve { recientes, viejas, hasta, error }; si las
+// viejas no llegan, vuelven las recientes con el error.
+export const traerTodoGps = async (equipoId, { desdeReciente, alPrimeraParte = null, alAvanzar = null } = {}) => {
+  if (!equipoId) return { recientes: [], viejas: [], hasta: null, error: "" };
+  // Quien ya se fue del club: la foto de su último día, entera.
+  if (esSoloLectura(equipoId)) {
+    const foto = await listarGps(equipoId);
+    return { recientes: foto.filas, viejas: [], hasta: null, error: foto.error };
+  }
+  const recientes = await listarGps(equipoId, { desde: desdeReciente });
+  if (recientes.error) return { recientes: [], viejas: [], hasta: null, error: recientes.error };
+  alPrimeraParte?.(recientes.filas);
+  const viejas = await listarGps(equipoId, { hasta: diaAnterior(desdeReciente), alAvanzar });
+  if (viejas.error) return { recientes: recientes.filas, viejas: [], hasta: null, error: viejas.error };
+  return { recientes: recientes.filas, viejas: viejas.filas, hasta: ultimoCambio([...recientes.filas, ...viejas.filas]), error: "" };
+};
+
+// Lo que se cambió desde `hasta` se trae con un margen (una carga larga pudo
+// guardarse con una hora un poco anterior): lo repetido se pisa.
+export const MARGEN_AL_DIA_MS = 10 * 60 * 1000;
+
+// Poner al día lo que hay en el aparato: lo cargado o cambiado desde la
+// última vez (por actualizado_en) y, si la cuenta de la base no da, lo
+// borrado (se piden solo los id). Devuelve { filas, hasta, cambio, error }.
+export const ponerAlDiaGps = async (equipoId, { filas = [], hasta = null } = {}) => {
+  if (!equipoId || esSoloLectura(equipoId)) return { filas, hasta, cambio: false, error: "" };
+  const desde = hasta ? new Date(Date.parse(hasta) - MARGEN_AL_DIA_MS).toISOString() : null;
+  const cambios = await todas((d, h) => {
+    let pedido = supabase.from("gps").select(COLUMNAS).eq("equipo_id", equipoId);
+    if (desde) pedido = pedido.gte("actualizado_en", desde);
+    return pedido.order("actualizado_en", { ascending: true }).order("id", { ascending: true }).range(d, h);
+  });
+  if (cambios.error) return { filas, hasta, cambio: false, ...fallo(cambios.error, "gps.error.noLeer") };
+  const porId = new Map(filas.map((fila) => [fila.id, fila]));
+  let cambio = false;
+  cambios.filas.forEach((cruda) => {
+    const fila = normalizarFilaGps(cruda);
+    const antes = porId.get(fila.id);
+    if (!antes || antes.actualizado_en !== fila.actualizado_en || JSON.stringify(antes.datos) !== JSON.stringify(fila.datos)) {
+      porId.set(fila.id, fila);
+      cambio = true;
+    }
+  });
+  // ¿Se borró alguna? Si la cuenta de la base no da, se piden los id.
+  const cuenta = await supabase.from("gps").select("id", { count: "exact", head: true }).eq("equipo_id", equipoId);
+  if (cuenta.error) return { filas, hasta, cambio: false, ...fallo(cuenta.error, "gps.error.noLeer") };
+  if (Number.isFinite(cuenta.count) && cuenta.count !== porId.size) {
+    const ids = await todas((d, h) => supabase.from("gps").select("id").eq("equipo_id", equipoId).order("id", { ascending: true }).range(d, h));
+    if (ids.error) return { filas, hasta, cambio: false, ...fallo(ids.error, "gps.error.noLeer") };
+    const vivas = new Set(ids.filas.map((fila) => fila.id));
+    [...porId.keys()].forEach((id) => {
+      if (vivas.has(id)) return;
+      porId.delete(id);
+      cambio = true;
+    });
+    // Faltan filas que no se trajeron (la copia era vieja de más): todo de nuevo.
+    if ([...vivas].some((id) => !porId.has(id))) {
+      const todo = await listarGps(equipoId);
+      if (todo.error) return { filas, hasta, cambio: false, error: todo.error };
+      return { filas: todo.filas, hasta: ultimoCambio(todo.filas), cambio: true, error: "" };
+    }
+  }
+  const nuevas = cambio ? [...porId.values()].sort(porFechaYOrden) : filas;
+  return { filas: nuevas, hasta: ultimoCambio(cambios.filas, hasta), cambio, error: "" };
 };

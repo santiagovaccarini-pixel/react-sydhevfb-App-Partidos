@@ -1279,6 +1279,9 @@ Base · Ajustes, y abre en Cargar (como Evaluaciones).
   cuenta (UI-029).
 - **La Base muestra un período** («Un período, se cambia»): Desde y Hasta arriba; al abrir, las
   últimas 4 semanas con hoy. El informe de arriba, los filtros y los colores van sobre eso.
+  **Reabierto el 14/10**: la Base abre con todas las filas y ya no tiene Desde ni Hasta
+  arriba (se filtra con el embudo de cada columna). Ver «Todas las filas al abrir (14/10)», más
+  abajo.
 - **Los «por minuto»** se traen como están en el Excel; si en la app se cambia una medida o el
   Tiempo de una fila, se recalcula su por minuto (medida ÷ minutos, como la plantilla). Un por
   minuto no se escribe a mano.
@@ -1327,9 +1330,12 @@ no se trabe con muchas filas, si hay que pagar lo hacemos».
 - **Qué se trae lo decide la base**: arriba, además de Desde y Hasta, **Jugador** (todos, el Team
   Average o uno) y **Dispositivo** (todos, uno o sin dispositivo). La base filtra antes de mandar:
   no se baja lo que no se pidió. Los filtros de cada columna de la tabla siguen mirando lo traído.
+  (Hasta el 14/10: ahora se traen todas y los cuatro filtros de arriba se sacaron; ver «Todas
+  las filas al abrir (14/10)».)
 - **Más de 20.000 filas** (más o menos una temporada; `MAXIMO_SIN_PREGUNTAR` en `src/Gps.jsx`): no
   se traen sin preguntar. En lugar de la tabla, la Base dice cuántas son y deja acortar las fechas,
   elegir un jugador o un dispositivo, o «Traer igual». Cambiar qué traer vuelve a preguntar.
+  (Hasta el 14/10: ya no se pregunta; ver «Todas las filas al abrir (14/10)».)
 - **Más rápido** (comprobado con 14.000 filas inventadas, la app compilada y 150 ms de demora por
   pedido): ver todo el historial, de 8,5 s a 1,7 s; cambiar una celda, de 3,6 s a 0,6 s; borrar
   una fila, de 7,4 s a 0,6 s; borrar 24 juntas, de no terminar a 0,9 s. Cómo:
@@ -1362,6 +1368,55 @@ no se trabe con muchas filas, si hay que pagar lo hacemos».
   `clubes_donde_puedo('gps')` (las mismas funciones, una vez por pedido): cada página, unos
   15 ms; contar, unos 10 ms. Quién ve, carga, cambia y borra no cambió (los escenarios del GPS
   pasan igual). Las otras tablas siguen como estaban (tienen pocas filas).
+
+### Todas las filas al abrir (14/10)
+
+Santiago, 14/10 (nota de «Por hacer»: la Base de GPS con todos los datos al entrar), al
+preguntarle cómo hacerlo: «Lo que sea mejor para poder abrir lo mas rapido posible todas las
+filas que se tengan». Reabre UI-021: lo de abrir con las últimas 4 semanas, la base que filtra
+antes de traer y la pregunta de más de 20.000 filas quedan reemplazados por esto.
+
+- **Se ven todas las filas del club.** Ya no se pregunta antes de mostrar muchas filas.
+- **Sin los cuatro filtros de arriba.** Santiago, 14/10: «Cuando subas todo a main tmb saca esos
+  4 filtros de arriba de fechas, jugador y dispositivo». La Base ya no tiene la tarjeta con
+  Desde, Hasta, Jugador y Dispositivo (ni su texto de ayuda): se filtra con el embudo de cada
+  columna de la tabla (Fecha, Nombre, Dispositivo y las demás), en el aparato y al instante. El
+  informe de arriba y los colores salen de lo que dejan ver esos filtros, como antes. Arriba, en
+  lugar del período, va la fecha de hoy, como en Cargar y en las otras bases; al lado, cuántas
+  filas tiene el club. Descartado: volver a poner esos cuatro filtros arriba de la tabla.
+- **Una copia en cada aparato** (`src/domain/copiaGps.js`, en IndexedDB: son miles de filas y no
+  entran donde la app guarda lo demás). Una por cuenta y club. Con la copia, la Base abre al
+  instante y después se trae de la base solo lo cambiado desde la última vez (con 10 minutos de
+  margen, por si dos aparatos guardan casi juntos) y se cuenta cuántas hay: si alguien borró
+  filas, se piden los id y se sacan; si faltan filas que la copia no tiene, se trae todo de nuevo
+  (`ponerAlDiaGps` en `src/domain/gpsDb.js`). Lo mismo cuando otro carga o cambia algo (en vivo),
+  al guardar un día y después de pegar desde Excel. Si no se puede (sin señal), queda lo que se
+  veía y se intenta la próxima vez.
+- **La primera vez en un aparato** (sin copia): primero las últimas 4 semanas (se ven
+  enseguida) y después las demás, de a 1000 filas por pedido, seis pedidos a la vez. Mientras
+  llegan, un aviso dice cuántas van y que ya se pueden usar las de las últimas 4 semanas. Si las
+  demás no llegan, se ven las 4 semanas con un aviso y «Reintentar»; la copia no se guarda hasta
+  tener todo.
+- **La copia se borra** al salir de la cuenta, cuando la cuenta deja el club, cuando el club pasa
+  a la foto del último día y cuando la cuenta pierde el permiso de GPS en ese club. Quien ya se
+  fue del club ve la foto de su último día, como antes, sin copia. Es una copia de lo que la
+  cuenta ya puede ver: no cambia quién ve qué (los permisos siguen en la base).
+- **La pantalla no se traba con miles de filas.** GPS abre en Cargar: mientras tanto, las filas se
+  preparan para la tabla de a 300, sin trabar la pantalla, y la Base las arma solo cuando se ve.
+  La primera vez, las de antes de las 4 semanas se preparan antes de sumarlas a la tabla.
+- Al guardar un día se vuelve a la Base con todas las filas (antes se corría el período para que
+  se viera el día).
+- **Medido** (15.000 filas inventadas, la app compilada, 150 ms de demora por pedido; nada del
+  club; desde que se toca Base). En la compu, tocando Base un segundo después de entrar a GPS:
+  todas a los 0,3 a 0,6 s, con la copia o sin ella; tocándola apenas se entra, la primera vez
+  las 4 semanas a los 0,1 a 0,4 s y todas a los 1,3 s, y con la copia todas a los 0,7 a 0,8 s.
+  En un celular (el procesador 4 veces más lento), tocando Base unos segundos después de entrar:
+  todas en 1,2 a 1,3 s, con la copia o sin ella. Tocándola apenas se entra, en ese celular la
+  primera vez se ven las 4 semanas a los 1,3 a 1,8 s y todas a los 4,7 s; con la copia, todas a
+  los 3,6 s, con la pantalla trabada unos 2,7 s esa primera vez que se abre la Base (después,
+  no). Lo que queda es armar y dibujar la tabla con 15.000 filas en ese celular.
+- No cambió: cómo se carga un día, cómo se pega, cómo se cambia o se borra una fila, el informe,
+  los colores, las cuentas, los permisos ni la base (no hace falta SQL).
 
 ### Pegar desde Excel (el historial)
 
@@ -2447,9 +2502,10 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
 
 - **Dejar el entrenamiento para revisar (hecho el 13/10).** Ver «GPS (10/10)», Cargar (paso 2),
   «Dejar para revisar y "Sin terminar"».
-- Las otras 11, sin decidir todavía (se ven una por una, en este orden): la Base de GPS con
-  todos los datos al entrar (reabre UI-021, «abrir con todo el historial» descartado);
-  cambiar un nombre o una opción y que cambie en todos lados (las filas guardadas con un nombre
+- **La Base de GPS con todos los datos al entrar (hecho el 14/10).** Ver «GPS (10/10)», «Todas
+  las filas al abrir (14/10)».
+- Las otras 10, sin decidir todavía (se ven una por una, en este orden): cambiar un nombre o
+  una opción y que cambie en todos lados (las filas guardadas con un nombre
   que no está en Datos básicos y los nombres de Partido); mejorar los textos explicativos; el
   permiso una vez por pedido también en Lesiones y Evaluaciones (no está hecho: solo GPS);
   el reporte individual de Lesiones (sin los puntos «Superior/Inferior a la referencia», el
