@@ -61,6 +61,40 @@ y Evaluaciones tienen decisiones específicas aprobadas. Evitar el exceso visual
 no implica eliminarlos ni alterar su significado. Respetá las excepciones técnicas
 documentadas, como los textos de Pruebas técnicas.
 
+## Textos que guían (14/10)
+
+Santiago, 14/10: «no tiene que haber referencias a excels especificos ni solapas especificas,
+pensa como si lo fuese a usar por primera ves y necesitas una guia exacta de lo que se
+necesita para saber que hacer y donde estas parado, que haces cada cosa y como guiarte mejor».
+Aprobó la propuesta («esta bien todo»). Se aplica de a un módulo, empezando por GPS; los demás
+siguen como estaban hasta su turno (UI-031).
+
+- **Para quien la usa por primera vez.** No conoce las planillas del club ni cómo se trabajaba
+  antes: nada de «como en el Excel», «como hoy» ni «como la plantilla».
+- **Sin planillas, hojas ni archivos del club.** No se nombran planillas, hojas (solapas),
+  plantillas, columnas por letra ni archivos propios: se dice qué es cada cosa por lo que hace.
+  Las herramientas que se usan de verdad sí se nombran (Catapult, OpenField, CSV).
+- **Pegar desde una planilla.** El botón y los textos para traer lo que ya se tenía dicen
+  «planilla», no «Excel».
+- **Dónde estás.** Cada pantalla tiene, debajo de su título, una línea con para qué sirve.
+- **Qué hacer ahora.** En una carga por pasos: «Paso X de N», lo que hay que hacer en pasos
+  numerados (uno por acción, empezando por el verbo) y el botón de avanzar dice a dónde va
+  («Siguiente: La sesión»). Un texto con pasos se escribe con un renglón por paso («1. …»,
+  «2. …») y se muestra como lista (`TextoConPasos` en `src/components/Guia.jsx`).
+- **Qué es cada cosa.** Las palabras propias (Team Average, Va, V.R., microciclo…) llevan un
+  «?» al lado que abre su explicación en una o dos líneas (`Termino`). No se inventa una
+  explicación: si no está documentado qué significa algo, se pregunta.
+- **Guía del módulo.** «Cómo se usa» (el «?» de arriba, al lado del idioma) abre los pasos de lo
+  que se hace en el módulo y las palabras que se usan (`GuiaDelModulo`). La primera vez que se
+  entra al módulo en un aparato se ofrece verla («Ver cómo se usa» / «Ahora no»), una sola vez.
+- **Avisos.** Qué pasó y qué hacer. Lo técnico (archivos SQL, nombres de tablas) no se muestra:
+  «Falta una actualización de la base de datos… Avisale a quien administra la app.»
+- **Tono.** Castellano rioplatense con «vos», cotidiano y en frases cortas; los botones se
+  nombran entre «» tal como se ven. Todo en es-AR y en pt-BR.
+- **Más adelante**: un modo tutorial (Santiago, 14/10: «tmb pensa que despues tenemos que hacer
+  un modo tutorial, pero eso queda mas para adelante»). Ver PENDIENTES, «Modo tutorial la
+  primera vez».
+
 ## Revisión antes de entregar
 
 Comprobá que la tarea principal se entiende, los controles se leen y se tocan,

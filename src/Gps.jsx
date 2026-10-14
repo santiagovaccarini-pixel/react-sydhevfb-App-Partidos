@@ -10,6 +10,7 @@ import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarGps from "./ImportarGps.jsx";
 import CargarGps from "./CargarGps.jsx";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
+import { BotonGuia, GuiaDelModulo, OfrecerGuia, useGuiaDelModulo } from "./components/Guia.jsx";
 import { COLUMNAS_FIJAS, absolutaDe, codigoNuevo, columnaOculta, columnasVisibles, opcionesDeLista, opcionesDelExcel, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { TIPOS_PROPIOS, armarConfigGps, claveDeColumnaPropia, configGpsVacia, gpsDelClub } from "./domain/gps/ajustes.js";
 import { AJUSTES_DE_REGLAS, REGLAS_CARGA, VS_PARTIDO, reglasDelClub } from "./domain/gps/cargar.js";
@@ -75,6 +76,8 @@ const A_LA_IZQUIERDA = ["jugador", "descripcion"];
 const PROMEDIO = "promedio:";
 // Cuántas filas se guardan a la vez al pegar en la tabla.
 const GUARDADOS_A_LA_VEZ = 6;
+// Las palabras propias de GPS que explica la guía, en este orden.
+const TERMINOS_GPS = ["teamAverage", "va", "microciclo", "porMinuto", "dispositivo", "vrPartido", "vsPartido", "sinIngresar", "regenerativo"];
 // Armar miles de filas para la tabla (cada celda con el formato del Excel)
 // traba un celular un par de segundos: se arman antes de que hagan falta, de
 // a tandas, sin trabar la pantalla. armado: la ref con { armarFila, armadas }
@@ -102,6 +105,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const { idioma, plural } = useIdioma();
   const [equipo, setEquipo] = useState(() => leerEquipoElegido());
   const [vista, setVista] = useState("cargar");
+  // Cómo se usa GPS (Santiago, 14/10: «pensa como si lo fuese a usar por
+  // primera ves»): el «?» de arriba; la primera vez en el aparato se ofrece.
+  const guia = useGuiaDelModulo("gps");
   const [plantel, setPlantel] = useState([]);
   const [plantelSinLeer, setPlantelSinLeer] = useState(false);
   // Todas las filas del club (Santiago, 14/10: «Lo que sea mejor para poder
@@ -676,7 +682,10 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             ) : (
               <span />
             )}
-            <SelectorIdioma />
+            <div className="guia-e-idioma">
+              <BotonGuia onClick={guia.abrir} />
+              <SelectorIdioma />
+            </div>
           </div>
           <div className="hero-lesiones-club">
             <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
@@ -687,6 +696,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           </div>
         </header>
 
+        <p className="pantalla-donde">{t(soloLectura ? "gps.donde.baseSoloLectura" : "gps.donde.base")}</p>
         <AvisoSoloLectura hasta={equipo?.hasta} />
 
         {estado}
@@ -835,7 +845,10 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             ) : (
               <span />
             )}
-            <SelectorIdioma />
+            <div className="guia-e-idioma">
+              <BotonGuia onClick={guia.abrir} />
+              <SelectorIdioma />
+            </div>
           </div>
           <div className="hero-lesiones-club">
             <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
@@ -846,6 +859,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           </div>
         </header>
 
+        {!soloLectura && <p className="pantalla-donde">{t("gps.donde.cargar")}</p>}
         <AvisoSoloLectura hasta={equipo?.hasta} />
         {!enLinea && <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>}
 
@@ -879,7 +893,6 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             <div className="lesiones-lista">{enCurso.map(tarjetaEnCurso)}</div>
           </section>
         )}
-        <p className="lesiones-vacio">{t("gps.cargar.comoSeCarga")}</p>
       </div>
     </div>
   );
@@ -893,7 +906,10 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         <h1>{textoTitulo}</h1>
         {texto && <p>{texto}</p>}
       </div>
-      <SelectorIdioma className="lesiones-idioma" />
+      <div className="guia-e-idioma">
+        <BotonGuia onClick={guia.abrir} />
+        <SelectorIdioma className="lesiones-idioma" />
+      </div>
     </header>
   );
 
@@ -1319,6 +1335,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           onSinGuardar={avisarSinGuardar}
           onDejado={alDejarDia}
           onAbrirEnCurso={seguirEnCurso}
+          onGuia={guia.abrir}
         />
       ) : (
         pantallaCargar
@@ -1332,6 +1349,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         plantel={plantel}
         plantelSinLeer={plantelSinLeer}
         onVolver={() => setImportando(false)}
+        onGuia={guia.abrir}
         onRecargar={ponerAlDia}
         onListo={({ cargadas }) => {
           setImportando(false);
@@ -1340,6 +1358,14 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       />
     );
   else contenido = pantallaBase;
+
+  // La guía: qué se hace en cada parte de GPS y las palabras propias.
+  const contenidoDeLaGuia = {
+    titulo: t("gps.guia.titulo"),
+    intro: t("gps.guia.intro"),
+    secciones: ["cargar", "base", "traer", "ajustes"].map((parte) => ({ titulo: t(`gps.guia.${parte}Titulo`), texto: t(`gps.guia.${parte}`) })),
+    terminos: TERMINOS_GPS.map((termino) => ({ titulo: t(`gps.terminos.${termino}.titulo`), texto: t(`gps.terminos.${termino}.texto`) })),
+  };
 
   // Tocar un destino de la barra cierra lo que estuviera encima.
   const irA = (id) => {
@@ -1364,6 +1390,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   return (
     <MarcoAplicacion activo={vista} onNavigate={navegar} destinos={DESTINOS_GPS} marca={t("gps.titulo")} className="entrenamiento-marco lesiones-marco evaluaciones-marco gps-marco">
       {contenido}
+
+      <GuiaDelModulo guia={contenidoDeLaGuia} abierta={guia.abierta} onCerrar={guia.cerrar} />
+      <OfrecerGuia abierta={guia.ofrecer && !guia.abierta} modulo={t("gps.titulo")} onVer={guia.ver} onAhoraNo={guia.ahoraNo} />
 
       {aviso && (
         <div className="lesiones-toast" role="status">

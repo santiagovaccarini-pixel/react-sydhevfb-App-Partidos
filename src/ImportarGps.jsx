@@ -12,6 +12,7 @@ import { actualesPrimero, cargarPlantelConCatapult, esActual } from "./domain/pl
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
+import { BotonGuia, TextoConPasos } from "./components/Guia.jsx";
 
 // Pegar desde Excel, en GPS › Base: la hoja BD_GPS (con su fila de títulos)
 // se trae una vez tal como está (Santiago, 10/10): también los promedios del
@@ -35,7 +36,7 @@ const contar = (claves) => {
   return [...cuantas.entries()].map(([clave, cantidad]) => ({ clave, cantidad })).sort((a, b) => b.cantidad - a.cantidad);
 };
 
-export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, plantel, plantelSinLeer = false, onVolver, onRecargar, onListo }) {
+export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, plantel, plantelSinLeer = false, onVolver, onGuia, onRecargar, onListo }) {
   const { idioma, plural } = useIdioma();
   const hoy = hoyISO();
   const [texto, setTexto] = useState("");
@@ -303,10 +304,13 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
         <header className="encabezado lesiones-encabezado">
           <div className="lesiones-encabezado-texto">
             <h1>{t("gps.importar.titulo")}</h1>
-            <p>{t("gps.importar.texto")}</p>
+            <TextoConPasos texto={t("gps.importar.texto")} />
             <p>{t("gps.importar.decimales")}</p>
           </div>
-          <SelectorIdioma className="lesiones-idioma" />
+          <div className="guia-e-idioma">
+            {onGuia && <BotonGuia onClick={onGuia} />}
+            <SelectorIdioma className="lesiones-idioma" />
+          </div>
         </header>
 
         <section className="tarjeta datos-importar-pegado">

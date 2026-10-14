@@ -306,7 +306,7 @@ describe("el módulo Datos básicos", () => {
     expect(celda(contenedor, 1, 3).textContent).toBe("25/07/1986");
   });
 
-  test("las horas previas se escriben como en el Excel (30:14:20) y se guardan como horas", async () => {
+  test("las horas previas se escriben como 30:14:20 y se guardan como horas", async () => {
     await montar();
     const horas = () => celda(contenedor, 0, 8);
     await tocar(horas());
@@ -325,7 +325,7 @@ describe("el módulo Datos básicos", () => {
     await act(async () => horas().querySelector("input").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     expect(registro.guardados).toHaveLength(1);
     expect(horas().textContent).toBe("30:14:20");
-    expect(texto(contenedor)).toContain("Las horas se escriben como en el Excel");
+    expect(texto(contenedor)).toContain("Las horas se escriben así: 30:14:20, 30:14 o 30,5.");
   });
 
   test("quien ya se fue del club ve a los jugadores y no puede cambiar nada", async () => {

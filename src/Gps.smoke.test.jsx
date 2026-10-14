@@ -205,6 +205,8 @@ const DISPOSITIVOS = [
 
 const botones = () => [...document.body.querySelectorAll("button")];
 const boton = (etiqueta) => botones().find((b) => b.textContent.trim() === etiqueta);
+// Avanzar dice a qué paso va: «Siguiente: La sesión».
+const siguiente = () => botones().find((b) => b.textContent.trim().startsWith("Siguiente"));
 const tocar = async (elemento) => {
   expect(elemento, "no se encontró el botón").toBeTruthy();
   await act(async () => elemento.click());
@@ -257,6 +259,8 @@ describe("GPS", () => {
     fijarIdiomaParaPruebas("es-AR");
     localStorage.clear();
     sessionStorage.clear();
+    // La guía ya se ofreció (se prueba aparte).
+    localStorage.setItem("guia_vista:gps", "1");
     datos.equipo = { id: "eq-1", nombre: "Club de Prueba" };
     datos.filas = FILAS();
     datos.errorAlLeer = "";
@@ -492,10 +496,12 @@ describe("GPS", () => {
     expect(filas(contenedor)).toHaveLength(2);
   });
 
-  test("Pegar desde Excel: se resume lo pegado, se elige qué es cada nombre y se carga con el dispositivo", async () => {
+  test("Pegar desde una planilla: se resume lo pegado, se elige qué es cada nombre y se carga con el dispositivo", async () => {
     await montarEnLaBase();
-    await tocar(boton("Pegar desde Excel"));
-    expect(contenedor.textContent).toContain("15 decimales");
+    await tocar(boton("Pegar desde una planilla"));
+    // Los pasos, sin nombrar ninguna planilla ni hoja (Santiago, 14/10).
+    expect([...contenedor.querySelectorAll(".lesiones-encabezado .texto-guia ol li")].map((li) => li.textContent)).toHaveLength(4);
+    expect(contenedor.textContent).toContain("mostrá todos sus decimales");
     const pegado = [
       // Arriba, el informe del Excel: se saltea hasta la fila de títulos.
       "\t\tExcelente\t5500",
@@ -609,7 +615,7 @@ describe("GPS", () => {
     datos.equipo = { id: "eq-1", nombre: "Club de Prueba", hasta: "2026-09-25" };
     await montarEnLaBase();
     expect(contenedor.querySelector(".aviso-solo-lectura")).not.toBeNull();
-    expect(boton("Pegar desde Excel")).toBeUndefined();
+    expect(boton("Pegar desde una planilla")).toBeUndefined();
     expect(boton("Borrar fila")).toBeUndefined();
     expect(filas(contenedor)).toHaveLength(3);
     await tocar(celda(contenedor, 0, "D"));
@@ -617,10 +623,12 @@ describe("GPS", () => {
     expect(celda(contenedor, 0, "D").querySelector("input")).toBeNull();
   });
 
-  test("sin la migración, avisa qué SQL falta", async () => {
+  // Sin lo técnico (Santiago, 14/10): qué falta y a quién avisarle.
+  test("sin la migración, avisa que falta una actualización de la base", async () => {
     datos.errorAlLeer = "gps.error.faltaMigracion";
     await montarEnLaBase();
-    expect(contenedor.textContent).toContain("falta correr el SQL 20261016_gps.sql");
+    expect(contenedor.textContent).toContain("Falta una actualización de la base de datos para usar GPS. Avisale a quien administra la app.");
+    expect(contenedor.textContent).not.toContain("SQL");
   });
 
   // ------------------------------------------------------------ Cargar --
@@ -682,14 +690,16 @@ describe("GPS", () => {
     datos.reglas = { vrPartido: { d_min: 100 } };
     await montar();
     await tocar(boton("Cargar un día"));
-    expect(titulo()).toBe("El CSV de Catapult");
+    expect(titulo()).toBe("El archivo del GPS");
     // Sin CSV no se sigue; lo que no es un CSV de Catapult no se suma.
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(contenedor.textContent).toContain("Primero subí o pegá el CSV de Catapult.");
     await pegarCsv("hola");
     expect(contenedor.textContent).toContain("No encontré los títulos del CSV de Catapult");
     await pegarCsv(CSV_TAREAS(AYER));
     expect(contenedor.textContent).toContain("6 filas leídas");
+    // Avanzar dice a dónde va.
+    expect(siguiente().textContent.trim()).toBe("Siguiente: 1. Rondo");
     expect(contenedor.textContent).toContain("1. Rondo: 4 jugadores");
     expect(contenedor.textContent).toContain("2. Juego: 2 jugadores");
     expect(contenedor.textContent).toContain("El CSV no trae");
@@ -699,10 +709,10 @@ describe("GPS", () => {
     await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
     expect(contenedor.textContent).toContain("Ese día ya hay 3 filas de otra sesión.");
     // A. Alfa es ALFA (su nombre en Catapult); Invitado X no está en Datos básicos.
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(contenedor.textContent).toContain("Falta elegir qué hacer con 1 nombre que no está en Datos básicos.");
     await tocar(boton("Guardar igual el que no está en Datos básicos"));
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     // Un paso por tarea: arriba lo de la tarea (como en la plantilla) y abajo
     // todos sus jugadores, con el Team Average, en una tabla como la Base.
@@ -741,38 +751,38 @@ describe("GPS", () => {
     await editarCelda(contenedor, 0, "D", "1");
     expect(document.body.textContent).toContain("Esta celda se calcula");
     // Sin el tipo de sesión no se sigue.
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("1. Rondo");
     expect(aviso()).toBe("Falta el tipo de sesión: 1. Rondo.");
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     expect(titulo()).toBe("2. Juego");
     expect(nombres()).toEqual(["ALFA", "BETA"]);
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     // EPSILON no está en el CSV: no entrenó (con su tipo de sesión).
     expect(titulo()).toBe("Regenerativo y no entrenaron");
     expect(contenedor.textContent).toContain("EPSILON");
     await escribir(contenedor.querySelector('input[aria-label="Motivo (por ejemplo, Lesionado)"]'), "Lesionado");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(aviso()).toBe("Falta el tipo de sesión de 1 que no entrenó.");
     await elegirTipo("Descanso");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     // La sesión, al final: lo del día, su encabezado, qué tareas van en su
     // descripción y el «Va» de cada uno.
     expect(titulo()).toBe("La sesión");
     // Sin día, dispositivo y tipo de sesión no se sigue.
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(aviso()).toBe("Falta el día del microciclo.");
     await elegirDelDesplegable("Tipo Microciclo", "Competitivo");
     await elegirDelDesplegable("Día del microciclo", "-1");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(aviso()).toBe("Falta el dispositivo.");
     await elegirDelDesplegable("Dispositivo", "Catapult");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(aviso()).toBe("Falta el tipo de sesión: La sesión.");
     await elegirTipo("Din. General");
     await escribirEn("Largo", "50");
@@ -788,7 +798,7 @@ describe("GPS", () => {
     expect(celda(contenedor, 4, "Va").textContent).toBe("Si");
     await elegirEnLaCelda(4, "Va", "No");
     expect(celda(contenedor, 4, "Va").textContent).toBe("No");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     // Revisar: todo lo que va a la Base, en el orden de la plantilla.
     expect(titulo()).toBe("Revisar y guardar");
@@ -822,7 +832,7 @@ describe("GPS", () => {
     await pegarCsv(CSV_TAREAS(AYER));
     await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
     await tocar(boton("Guardar igual el que no está en Datos básicos"));
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("1. Rondo");
     const tamanoDe = (rotulo) => [...contenedor.querySelectorAll(".gps-cargar-encabezado .campo-inicio")].find((uno) => uno.querySelector("label").textContent === rotulo)?.className;
     // Cada cosa en su parte, con su título (Santiago, 13/10: «poner los 2 CPJ
@@ -893,7 +903,7 @@ describe("GPS", () => {
     await pegarCsv(CSV_TAREAS(AYER));
     await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
     await guardarIgual();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("1. Rondo");
     await elegirTipo();
     await escribirEn("Largo", "40");
@@ -932,7 +942,7 @@ describe("GPS", () => {
     expect(contenedor.querySelector('input[aria-label="Largo"]').value).toBe("40");
     expect(nombres()).toEqual(["Team Average Parcial", "ALFA", "BETA", "Invitado X", "DELTA"]);
     // Se avanza y se vuelve a dejar: la misma, con la versión que se abrió.
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("2. Juego");
     await tocar(boton("Dejar para revisar"));
     expect(datos.dejadas[1]).toMatchObject({ id: "ec1", version: 1, paso: 2, resumen: { titulo: "2. Juego", paso: 3, pasos: 6 } });
@@ -944,15 +954,15 @@ describe("GPS", () => {
     await tocar(boton("Seguir"));
     expect(titulo()).toBe("2. Juego");
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     await elegirTipo("Descanso");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("La sesión");
     await elegirDelDesplegable("Tipo Microciclo", "Competitivo");
     await elegirDelDesplegable("Día del microciclo", "-1");
     await elegirDelDesplegable("Dispositivo", "Catapult");
     await elegirTipo("Din. General");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("Revisar y guardar");
     await tocar(boton("Guardar 11 filas"));
     expect(datos.creadas).toHaveLength(11);
@@ -972,8 +982,8 @@ describe("GPS", () => {
     await esperar(() => contenedor.textContent.includes(`Ya hay una carga en curso del ${fechaCorta(AYER)} (la dejó otra@club.com el `));
     expect(contenedor.textContent).not.toContain("No está en la Base: podés seguir.");
     await guardarIgual();
-    await tocar(boton("Siguiente"));
-    expect(titulo()).toBe("El CSV de Catapult");
+    await tocar(siguiente());
+    expect(titulo()).toBe("El archivo del GPS");
     expect(aviso()).toContain(`Ya hay una carga en curso del ${fechaCorta(AYER)}`);
     expect(aviso()).toContain("Seguila desde «Sin terminar», en Cargar.");
     // Tampoco se deja otra de ese día para revisar.
@@ -982,7 +992,7 @@ describe("GPS", () => {
     // Con otra fecha, sí se sigue.
     await escribir(contenedor.querySelector("input[type=date]"), diasAntes(2));
     await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("1. Rondo");
   });
 
@@ -1027,8 +1037,8 @@ describe("GPS", () => {
     await pegarCsv(CSV_TAREAS(AYER));
     await esperar(() => contenedor.textContent.includes("Este CSV ya está en la Base: 1 fila es igual a una del"));
     await guardarIgual();
-    await tocar(boton("Siguiente"));
-    expect(titulo()).toBe("El CSV de Catapult");
+    await tocar(siguiente());
+    expect(titulo()).toBe("El archivo del GPS");
     expect(contenedor.querySelector(".aviso-hoja").textContent).toContain("No se puede cargar de nuevo.");
     // Tampoco se deja para revisar: no se podría guardar.
     await tocar(boton("Dejar para revisar"));
@@ -1037,7 +1047,7 @@ describe("GPS", () => {
     // Con otra fecha (otro día), no está.
     await escribir(contenedor.querySelector("input[type=date]"), diasAntes(2));
     await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("1. Rondo");
   });
 
@@ -1059,7 +1069,7 @@ describe("GPS", () => {
     await esperar(() => contenedor.textContent.includes(`Partido del ${fechaCorta(AYER)} en Partido: Vs Rival Prueba.`));
     expect(contenedor.textContent).toContain("«Vs Rival Prueba PT» y «Vs Rival Prueba ST»");
     await esperar(() => contenedor.textContent.includes("No está en la Base"));
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     expect(titulo()).toBe("Primer tiempo");
     expect(contenedor.querySelector('[placeholder="Vs Rival"]').value).toBe("Vs Rival Prueba");
@@ -1076,12 +1086,12 @@ describe("GPS", () => {
     expect(nombres()).toEqual(["ALFA", "BETA", "GAMA"]);
     await editarCelda(contenedor, 2, "D", "1200");
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     expect(titulo()).toBe("Segundo tiempo");
     expect(nombres()).toEqual(["ALFA", "BETA"]);
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     // El partido completo: la suma de cada uno y los que no ingresaron, que
     // salen de Partido (en un desplegable con casillas, para cambiarlos).
@@ -1091,18 +1101,18 @@ describe("GPS", () => {
     expect(contenedor.textContent).toContain("Salen de Partido");
     expect(nombres()).toEqual(["ALFA", "BETA", "DELTA"]);
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(aviso()).toBe("Falta el tipo de sesión: Sin ingresar.");
     await elegirTipo("Descanso", "Sin ingresar: Tipo de Sesión");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("Regenerativo y no entrenaron");
     await elegirTipo("Descanso");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("La sesión");
     await elegirDelDesplegable("Día del microciclo", "0");
     await elegirDelDesplegable("Dispositivo", "Catapult");
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     await tocar(botones().find((b) => /^Guardar \d+ filas$/.test(b.textContent)));
 
     const deAlfa = datos.creadas.filter((una) => una.jugador_id === 1);
@@ -1121,7 +1131,7 @@ describe("GPS", () => {
     await pegarCsv(CSV_TAREAS(AYER));
     await esperar(() => contenedor.textContent.includes("No está en la Base"));
     await guardarIgual();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(vs()).toContain("D/min73 %");
     expect(vs()).toContain("90 % o más");
     expect(vs()).toContain("Menos de 90 %");
@@ -1146,7 +1156,7 @@ describe("GPS", () => {
     await pegarCsv(CSV_TAREAS(AYER));
     await esperar(() => contenedor.textContent.includes("No está en la Base"));
     await guardarIgual();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("1. Rondo");
     // BETA está en dos tareas: pregunta dónde.
     await elegirEnLaCelda(2, "Nombre", "EPSILON");
@@ -1159,10 +1169,10 @@ describe("GPS", () => {
     await elegirEnLaCelda(4, "Nombre", "ALFA");
     expect(nombres()).toEqual(["Team Average Parcial", "ALFA", "EPSILON", "Invitado X", "ALFA"]);
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(aviso()).toBe("ALFA está dos veces en 1. Rondo: cambiá uno de los nombres.");
     await elegirEnLaCelda(4, "Nombre", "DELTA");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     expect(titulo()).toBe("2. Juego");
     expect(nombres()).toEqual(["ALFA", "BETA"]);
@@ -1173,7 +1183,7 @@ describe("GPS", () => {
     await tocar(boton("Listo"));
     expect(nombres()).toEqual(["ALFA", "EPSILON"]);
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
 
     // BETA ya no está en el CSV: no entrenó; EPSILON sí entrenó.
     expect(titulo()).toBe("Regenerativo y no entrenaron");
@@ -1187,11 +1197,11 @@ describe("GPS", () => {
     await pegarCsv(CSV_TAREAS(AYER));
     await esperar(() => contenedor.textContent.includes("No está en la Base"));
     await guardarIgual();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(titulo()).toBe("Regenerativo y no entrenaron");
     expect(listaDeNoEntrenaron()).toEqual(["EPSILON", "ETA", "THETA"]);
     // Quien se saca de la lista queda abajo de todo.
@@ -1213,10 +1223,10 @@ describe("GPS", () => {
     await pegarCsv(CSV(AYER, ["A. Alfa,1. Rondo,1,3000,00:20:00,10:00:00,10:20:00,25", "OMEGA,1. Rondo,1,500,00:20:00,10:00:00,10:20:00,20"]));
     await esperar(() => contenedor.textContent.includes("No está en la Base"));
     expect(contenedor.textContent).toContain("1 arquero del CSV no se carga");
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(nombres()).toEqual(["ALFA"]);
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     // SIGMA (arquero) tampoco va en los que no entrenaron.
     expect(listaDeNoEntrenaron()).toEqual(["BETA", "DELTA", "EPSILON"]);
   });
@@ -1244,7 +1254,7 @@ describe("GPS", () => {
     expect(ajuste("Va tarea").textContent).toContain("Al menos el 75 % del tiempo promedio");
     expect(ajuste("Contar a los que no entrenaron").textContent).toContain("Apagado");
     await tocar(ajuste("Va tarea"));
-    expect(document.body.textContent).toContain("En la plantilla: 75 %.");
+    expect(document.body.textContent).toContain("Si no lo cambiás: 75 %.");
     await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), "0");
     await tocar(boton("Guardar"));
     expect(document.body.textContent).toContain("Escribí un porcentaje mayor que 0 y hasta 100.");
@@ -1271,13 +1281,13 @@ describe("GPS", () => {
     await pegarCsv(CSV_TAREAS(AYER));
     await esperar(() => contenedor.textContent.includes("No está en la Base"));
     await guardarIgual();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     expect(contenedor.textContent).toContain("hizo al menos el 80 % del tiempo promedio");
     await elegirTipo();
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
     await elegirTipo();
-    await tocar(boton("Siguiente"));
-    await tocar(boton("Siguiente"));
+    await tocar(siguiente());
+    await tocar(siguiente());
     expect(contenedor.textContent).toContain("desde las 14:30, tarde");
   });
 
@@ -1318,7 +1328,7 @@ describe("GPS", () => {
     await montar();
     await irA(contenedor, "Ajustes");
     await tocar(ajuste("Reglas de carga"));
-    expect(contenedor.textContent).toContain("falta correr el SQL 20261020_gps_reglas.sql");
+    expect(contenedor.textContent).toContain("Falta una actualización de la base de datos para guardar las reglas. Avisale a quien administra la app.");
     await tocar(ajuste("Va tarea"));
     expect(boton("Guardar").disabled).toBe(true);
     await tocar(boton("Cancelar"));
@@ -1332,5 +1342,113 @@ describe("GPS", () => {
     await montar();
     expect(contenedor.querySelector(".aviso-solo-lectura")).not.toBeNull();
     expect(boton("Cargar un día")).toBeUndefined();
+    // Dónde estás: sin invitar a cambiar celdas que no se pueden cambiar.
+    expect(contenedor.querySelector(".pantalla-donde")).toBeNull();
+    await irA(contenedor, "Base");
+    expect(contenedor.querySelector(".pantalla-donde").textContent).toContain("hasta el día que dejaste el club");
+  });
+
+  // ------------------------------------------- Textos que guían (14/10) --
+  // Santiago, 14/10: «pensa como si lo fuese a usar por primera ves y
+  // necesitas una guia exacta de lo que se necesita para saber que hacer y
+  // donde estas parado».
+  const hoja = () => document.body.querySelector(".hoja-guia");
+  const botonPorNombre = (nombre) => botones().find((b) => b.getAttribute("aria-label") === nombre);
+
+  test("la primera vez en el aparato se ofrece la guía una sola vez; «Ahora no» no la vuelve a ofrecer", async () => {
+    localStorage.removeItem("guia_vista:gps");
+    await montar();
+    expect(hoja().textContent).toContain("¿Primera vez en GPS?");
+    await tocar(boton("Ahora no"));
+    expect(hoja()).toBeNull();
+    expect(localStorage.getItem("guia_vista:gps")).toBe("1");
+    act(() => raiz.unmount());
+    await montar();
+    expect(hoja()).toBeNull();
+  });
+
+  test("«Ver cómo se usa» abre la guía: qué se hace, los pasos numerados y las palabras propias", async () => {
+    localStorage.removeItem("guia_vista:gps");
+    await montar();
+    await tocar(boton("Ver cómo se usa"));
+    expect(hoja().querySelector("h3").textContent).toBe("Cómo se usa GPS");
+    expect([...hoja().querySelectorAll(".guia-seccion h4")].map((h) => h.textContent)).toEqual(["Cargar un día", "Ver y corregir lo cargado", "Traer lo que ya tenías", "Ajustes", "Palabras que vas a ver"]);
+    // Cargar un día: cuatro pasos, cada uno con lo que hay que hacer.
+    expect(hoja().querySelectorAll(".guia-seccion")[0].querySelectorAll("li")).toHaveLength(4);
+    expect([...hoja().querySelectorAll("dt")].map((dt) => dt.textContent)).toContain("Team Average");
+    await tocar(boton("Entendido"));
+    expect(hoja()).toBeNull();
+    expect(localStorage.getItem("guia_vista:gps")).toBe("1");
+  });
+
+  test("el «?» de arriba abre la guía en cada pantalla de GPS", async () => {
+    await montar();
+    // Cargar.
+    await tocar(botonPorNombre("Cómo se usa"));
+    expect(hoja().querySelector("h3").textContent).toBe("Cómo se usa GPS");
+    await tocar(boton("Entendido"));
+    // Base, Pegar desde una planilla y Ajustes.
+    await irA(contenedor, "Base");
+    await tocar(botonPorNombre("Cómo se usa"));
+    expect(hoja()).not.toBeNull();
+    await tocar(boton("Entendido"));
+    await tocar(boton("Pegar desde una planilla"));
+    await tocar(botonPorNombre("Cómo se usa"));
+    expect(hoja()).not.toBeNull();
+    await tocar(boton("Entendido"));
+    await irA(contenedor, "Ajustes");
+    await tocar(botonPorNombre("Cómo se usa"));
+    expect(hoja()).not.toBeNull();
+    await tocar(boton("Entendido"));
+    // Cargar un día.
+    await irA(contenedor, "Cargar");
+    await tocar(boton("Cargar un día"));
+    await tocar(botonPorNombre("Cómo se usa"));
+    expect(hoja()).not.toBeNull();
+    await tocar(boton("Entendido"));
+    expect(hoja()).toBeNull();
+  });
+
+  test("cada pantalla dice dónde estás y una palabra propia explica qué es con su «?»", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    await montar();
+    expect(contenedor.querySelector(".pantalla-donde").textContent).toContain("Acá cargás lo que midió el GPS");
+    await irA(contenedor, "Base");
+    expect(contenedor.querySelector(".pantalla-donde").textContent).toContain("Todas las filas del GPS del club");
+    await irA(contenedor, "Cargar");
+    await tocar(boton("Cargar un día"));
+    // El paso del archivo: qué hacer, en pasos numerados.
+    expect([...contenedor.querySelectorAll(".lesiones-paso-titulo .texto-guia li")].map((li) => li.textContent)[0]).toBe("En OpenField, abrí la actividad del día.");
+    await pegarCsv(CSV_TAREAS(AYER));
+    await tocar(botonPorNombre("Qué es «Microciclo»"));
+    expect(hoja().querySelector("h3").textContent).toBe("Microciclo");
+    expect(hoja().textContent).toContain("La semana de entrenamiento");
+    await tocar(boton("Entendido"));
+    expect(hoja()).toBeNull();
+  });
+
+  test("ninguna pantalla de GPS nombra una planilla, una hoja ni lo técnico de la base", async () => {
+    const prohibido = /\bExcel\b|plantilla|BD_GPS|\bhoja\b|solapa|SQL|Supabase/i;
+    const revisar = (donde) => expect(document.body.textContent, donde).not.toMatch(prohibido);
+    await montar();
+    revisar("Cargar");
+    await tocar(botonPorNombre("Cómo se usa"));
+    revisar("la guía");
+    await tocar(boton("Entendido"));
+    await tocar(boton("Cargar un día"));
+    revisar("el paso del archivo");
+    await irA(contenedor, "Base");
+    revisar("Base");
+    await tocar(boton("Pegar desde una planilla"));
+    revisar("Pegar desde una planilla");
+    await irA(contenedor, "Ajustes");
+    revisar("Ajustes");
+    await tocar(ajuste("Reglas de carga"));
+    revisar("Reglas de carga");
+    for (const regla of ["Inicio del microciclo 1", "Va tarea", "V.R. de partido", "Sesión de la tarde"]) {
+      await tocar(ajuste(regla));
+      revisar(regla);
+      await tocar(boton("Cancelar"));
+    }
   });
 });
