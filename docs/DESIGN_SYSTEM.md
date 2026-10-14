@@ -66,8 +66,8 @@ documentadas, como los textos de Pruebas técnicas.
 Santiago, 14/10: «no tiene que haber referencias a excels especificos ni solapas especificas,
 pensa como si lo fuese a usar por primera ves y necesitas una guia exacta de lo que se
 necesita para saber que hacer y donde estas parado, que haces cada cosa y como guiarte mejor».
-Aprobó la propuesta («esta bien todo»). Se aplica de a un módulo, empezando por GPS; los demás
-siguen como estaban hasta su turno (UI-031).
+Aprobó la propuesta («esta bien todo»). Se aplica de a un módulo, empezando por GPS (después,
+Lesiones, 14/10); los demás siguen como estaban hasta su turno (UI-031).
 
 - **Para quien la usa por primera vez.** No conoce las planillas del club ni cómo se trabajaba
   antes: nada de «como en el Excel», «como hoy» ni «como la plantilla».
@@ -83,7 +83,8 @@ siguen como estaban hasta su turno (UI-031).
   «2. …») y se muestra como lista (`TextoConPasos` en `src/components/Guia.jsx`).
 - **Qué es cada cosa.** Las palabras propias (Team Average, Va, V.R., microciclo…) llevan un
   «?» al lado que abre su explicación en una o dos líneas (`Termino`). No se inventa una
-  explicación: si no está documentado qué significa algo, se pregunta.
+  explicación: si no está documentado qué significa algo, se pregunta. En papel (los reportes)
+  no salen ni los «?» ni el de la guía.
 - **Guía del módulo.** «Cómo se usa» (el «?» de arriba, al lado del idioma) abre los pasos de lo
   que se hace en el módulo y las palabras que se usan (`GuiaDelModulo`). La primera vez que se
   entra al módulo en un aparato se ofrece verla («Ver cómo se usa» / «Ahora no»), una sola vez.

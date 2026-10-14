@@ -5,6 +5,7 @@ import { CuerpoConCalor, partirDespuesDeBarras } from "./components/CuerpoConCal
 import { manchasDe } from "./components/manchasCuerpo.js";
 import { CuadroCadaMil, tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import { tonosDeGrupos } from "./components/TablaDatos.jsx";
+import { BotonGuia, TerminoDe } from "./components/Guia.jsx";
 import ReporteCadaMil from "./ReporteCadaMil.jsx";
 import ReporteGraficos from "./ReporteGraficos.jsx";
 import { calcular, claveDeQuien, esFechaISO, normalizarTexto, tieneFecha } from "./domain/lesiones.js";
@@ -270,6 +271,7 @@ export default function ReportesLesiones({
   estado = null,
   datosListos = true,
   onAviso = null,
+  onGuia = null,
 }) {
   const { idioma, plural } = useIdioma();
   const [modo, setModo] = useState("menu");
@@ -294,7 +296,7 @@ export default function ReportesLesiones({
     t("lesiones.reportes.cuentanLm", { lm: t("lesiones.reportes.tiposLM"), tipos: enLista(REGLAS_INCIDENCIA.tiposMusculares.map((codigo) => texto("tipo_lesion", codigo))) }),
   ].join(" ");
 
-  const acciones = (
+  const barra = (
     <div className="reporte-acciones no-imprimir">
       <button type="button" className="boton-secundario reporte-volver" onClick={() => setModo("menu")}>
         <Icono nombre="flecha" size={14} />
@@ -315,6 +317,14 @@ export default function ReportesLesiones({
         )}
       </div>
     </div>
+  );
+
+  // Arriba de cada reporte, para qué sirve (no va al papel).
+  const acciones = (
+    <>
+      {barra}
+      {modo !== "menu" && <p className="pantalla-donde no-imprimir">{t(`lesiones.donde.${modo}`)}</p>}
+    </>
   );
 
   // --------------------------------------------------------------- Menú --
@@ -339,6 +349,11 @@ export default function ReportesLesiones({
               <h1>{t("lesiones.reportes.titulo")}</h1>
               <p>{t("lesiones.reportes.texto")}</p>
             </div>
+            {onGuia && (
+              <div className="guia-e-idioma">
+                <BotonGuia onClick={onGuia} />
+              </div>
+            )}
           </header>
           {estado}
           <section className="tarjeta tarjeta-ficha">
@@ -540,7 +555,12 @@ export default function ReportesLesiones({
                       <h2>
                         {medida.titulo} <span className="informe-por-mil">{t("lesiones.reportes.porMil")}</span>
                       </h2>
-                      {cual === 0 && <span>{t("lesiones.reportes.tasas")}</span>}
+                      {cual === 0 && (
+                        <span>
+                          {t("lesiones.reportes.tasas")}
+                          <TerminoDe clave="lesiones.terminos.cadaMil" />
+                        </span>
+                      )}
                     </div>
                     <div className="informe-tarjetas">
                       {indicadoresDe(medida).map((indicador) => (
@@ -559,7 +579,10 @@ export default function ReportesLesiones({
                     <i className="mejor" />
                     {t("lesiones.reportes.inferiorRef")}
                   </li>
-                  <li>{t("lesiones.reportes.queEsRef")}</li>
+                  <li>
+                    {t("lesiones.reportes.queEsRef")}
+                    <TerminoDe clave="lesiones.terminos.referencia" />
+                  </li>
                 </ul>
                 <p className="informe-criterio">{queCuenta}</p>
               </section>
@@ -706,6 +729,7 @@ export default function ReportesLesiones({
           </header>
 
           <section className="tarjeta reporte-filtros no-imprimir">
+            <p className="rotulo-criterio">{t("lesiones.reportes.periodo")}</p>
             <div className="grilla-criterios" role="group" aria-label={t("lesiones.reportes.periodo")}>
               {[...PERIODOS, "medida"].map((cual) => (
                 <button type="button" key={cual} className={`chip-criterio ${periodo === cual ? "prendido" : ""}`} aria-pressed={periodo === cual} onClick={() => elegirPeriodo(cual)}>
@@ -725,6 +749,10 @@ export default function ReportesLesiones({
                 </label>
               </div>
             )}
+            <p className="rotulo-criterio">
+              {t("lesiones.reportes.cuales")}
+              <TerminoDe clave="lesiones.terminos.filtros" />
+            </p>
             <div className="grilla-criterios" role="group" aria-label={t("lesiones.reportes.cuales")}>
               <button type="button" className={`chip-criterio ${sinLeves ? "prendido" : ""}`} aria-pressed={sinLeves} onClick={() => setSinLeves(!sinLeves)}>
                 {t("lesiones.reportes.sinLeves")}
@@ -745,7 +773,10 @@ export default function ReportesLesiones({
           </section>
 
           {bloque(
-            t("lesiones.reportes.cadaMil"),
+            <>
+              {t("lesiones.reportes.cadaMil")}
+              <TerminoDe clave="lesiones.terminos.cadaMil" />
+            </>,
             <div className="informe-indices">
               <CuadroCadaMil titulo={`${fechaCorta(desde)} – ${fechaCorta(hasta)}`} filas={filasCuadro} />
               {!gps && <p className="informe-aviso">{t("lesiones.reportes.faltaGps")}</p>}
@@ -762,7 +793,13 @@ export default function ReportesLesiones({
 
           <section className="reporte-dos">
             {bloque(etiqueta("tipo_lesion"), <Barras filas={conteo("tipo_lesion")} vacio={vacio} />)}
-            {bloque(etiqueta("severidad"), <Barras filas={porSeveridad} vacio={vacio} />)}
+            {bloque(
+              <>
+                {etiqueta("severidad")}
+                <TerminoDe clave="lesiones.terminos.severidad" />
+              </>,
+              <Barras filas={porSeveridad} vacio={vacio} />,
+            )}
           </section>
 
           <section className="reporte-dos">

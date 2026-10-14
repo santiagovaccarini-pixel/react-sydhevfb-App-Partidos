@@ -148,3 +148,10 @@
 .hoja-guia .boton-confirmar-hoja:hover {
   box-shadow: none;
 }
+/* En papel (los reportes), ni la guía ni los «?». */
+@media print {
+  .boton-guia,
+  .termino-ayuda {
+    display: none !important;
+  }
+}

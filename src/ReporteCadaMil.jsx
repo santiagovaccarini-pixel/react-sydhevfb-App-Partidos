@@ -3,6 +3,7 @@ import { Icono } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { CuadroCadaMil } from "./components/CuadroCadaMil.jsx";
+import { TerminoDe } from "./components/Guia.jsx";
 import { esFechaISO } from "./domain/lesiones.js";
 import { borrarPeriodo, guardarPeriodo, listarPeriodos } from "./domain/periodosDb.js";
 import { contadorDelPeriodo, ordenarPeriodos } from "./domain/reportes.js";
@@ -162,7 +163,10 @@ export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, e
             </section>
             <section className="tarjeta tarjeta-ficha">
               <div className="cabeza-ficha">
-                <b>{t("lesiones.cadaMil.resultado")}</b>
+                <b>
+                  {t("lesiones.cadaMil.resultado")}
+                  <TerminoDe clave="lesiones.terminos.cadaMil" />
+                </b>
               </div>
               <div className="informe-indices">
                 <CuadroCadaMil titulo={textoDelRango(desde, hasta)} filas={filas} />
