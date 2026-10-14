@@ -1,0 +1,150 @@
+/* Los textos que guían (Santiago, 14/10; docs/DESIGN_SYSTEM.md): van con
+   src/components/Guia.jsx, así se ven igual en cualquier módulo. */
+
+/* Textos que guían (14/10): el «?» de arriba abre la guía del módulo (va al
+   lado del idioma, con su misma cara); el «?» chico, qué es una palabra
+   propia; los pasos van numerados. */
+.guia-e-idioma {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.boton-guia {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(11, 13, 16, 0.55);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.lesiones-marco .lesiones-encabezado .boton-guia {
+  background: rgba(255, 255, 255, 0.08);
+}
+.termino-ayuda {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 6px;
+  padding: 0;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+  vertical-align: middle;
+  cursor: pointer;
+}
+/* Se ve chico, pero se toca cómodo: 22 + 11 + 11 = 44px. */
+.termino-ayuda::after {
+  content: "";
+  position: absolute;
+  inset: -11px;
+}
+.texto-guia p {
+  margin: 0 0 6px;
+}
+.texto-guia p:last-child {
+  margin-bottom: 0;
+}
+.texto-guia ol {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 6px;
+  padding-left: 22px;
+  text-align: left;
+}
+.texto-guia ol:last-child {
+  margin-bottom: 0;
+}
+/* En el título de un paso (centrado), la lista va con su letra; en un
+   encabezado, como sus renglones. */
+.lesiones-marco .lesiones-paso-titulo .texto-guia ol {
+  width: fit-content;
+  max-width: 560px;
+  margin-inline: auto;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 15px;
+  line-height: 1.4;
+}
+.encabezado .texto-guia ol {
+  margin: 4px 0 6px;
+  padding-left: 18px;
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.4;
+}
+/* En las pantallas de los módulos, los renglones del encabezado son chicos:
+   los pasos, iguales. Con pasos, el «?» y el idioma van arriba. */
+.app .encabezado .texto-guia ol {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  font-weight: 650;
+}
+.lesiones-marco .lesiones-encabezado:has(.texto-guia ol) {
+  align-items: flex-start;
+}
+.hoja-guia {
+  max-height: min(86vh, 760px);
+  overflow-y: auto;
+  text-align: left;
+}
+.hoja-guia .guia-seccion {
+  margin-top: 16px;
+}
+.hoja-guia .guia-seccion h4 {
+  margin: 0 0 6px;
+  color: var(--cam-negro, #0b0d10);
+  font-size: 15px;
+  font-weight: 900;
+}
+.hoja-guia .texto-guia,
+.hoja-guia .texto-guia p,
+.hoja-guia .guia-terminos {
+  color: #334155;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.hoja-guia .guia-terminos {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.hoja-guia .guia-terminos dt {
+  font-weight: 850;
+}
+.hoja-guia .guia-terminos dd {
+  margin: 1px 0 0;
+}
+/* La hoja de una palabra va al final de la página, fuera del marco del
+   módulo: se ve igual que las hojas del módulo (título al centro, botón verde
+   y solo). */
+.hoja-guia h3,
+.hoja-guia > p {
+  text-align: center;
+}
+.hoja-guia .acciones-hoja:has(> :only-child) {
+  grid-template-columns: 1fr;
+}
+.hoja-guia .boton-confirmar-hoja {
+  border-color: #008a4b;
+  background: #008a4b;
+}
+.hoja-guia .boton-confirmar-hoja:hover {
+  box-shadow: none;
+}

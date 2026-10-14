@@ -122,6 +122,11 @@ Lo que Santiago marcó así. Cada punto está completo en su sección; acá solo
   después pasos que oscurecen la pantalla y señalan el botón a tocar. Una vez
   por módulo y por celular; se salta; se vuelve a ver desde Ajustes. Vale para
   Partido y para Entrenamiento, cada uno con sus pasos.
+  Santiago, 14/10: «tmb pensa que despues tenemos que hacer un modo tutorial, pero eso queda
+  mas para adelante»: vale para todos los módulos y va después de los textos que guían
+  (`DESIGN_SYSTEM.md`, «Textos que guían (14/10)»). La guía «Cómo se usa» de cada módulo y su
+  oferta la primera vez ya existen desde el 14/10 (GPS primero): el tutorial se va a apoyar en
+  ellas, no las reemplaza sin que Santiago lo decida.
 - **Cuentas: probar el circuito completo con una segunda cuenta** (registrarla
   desde la app, pedir acceso a un club, verla en Pedidos de acceso de ese club,
   aceptarla con un solo módulo, entrar con ella y confirmar que ve solo ese
@@ -2550,9 +2555,27 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
   «Dejar para revisar y "Sin terminar"».
 - **La Base de GPS con todos los datos al entrar (hecho el 14/10).** Ver «GPS (10/10)», «Todas
   las filas al abrir (14/10)».
-- Las otras 10, sin decidir todavía (se ven una por una, en este orden): cambiar un nombre o
+- **Mejorar los textos explicativos (en marcha desde el 14/10).** La regla y cómo se hace están
+  en `DESIGN_SYSTEM.md`, «Textos que guían (14/10)» (UI-031). Se hace de a un módulo: primero
+  GPS; después los demás (Lesiones, Evaluaciones, Datos básicos, Partido, Flujo diario, el
+  portal), uno por vez, mostrándole cada uno a Santiago antes de seguir.
+  - **GPS (hecho el 14/10)**: todos sus textos sin planillas, hojas ni plantilla; «Pegar desde
+    una planilla»; dónde estás en Cargar y en Base; los pasos de cada carga numerados y
+    «Siguiente: (el paso que sigue)»; el «?» en Team Average, Va, Microciclo, % vs V.R. de
+    partido, Sin ingresar y Regenerativo; «Cómo se usa GPS» con su oferta la primera vez; los
+    avisos de base sin lo técnico. También cambiaron tres textos compartidos que GPS muestra y
+    que usan otras bases: «Las horas se escriben así…», «Copiá celdas de una planilla…» y
+    «Nombre original: …» (antes «Del Excel: …», en Ajustes › Cabeceras).
+  - Mientras los otros módulos no tengan su turno, su botón de avanzar sigue diciendo
+    «Siguiente» (sin a dónde va) y no tienen «Cómo se usa».
+  - **Falta (se preguntó el 14/10)**: qué quiere decir cada opción de «Día del microciclo» (0,
+    1, +1, -1…); sin eso no lleva «?» (no se inventa).
+  - **Falta**: lo técnico de un aviso de base (qué actualización falta) iba a ir en «Pruebas
+    técnicas»; hoy esa pantalla es de Flujo diario y no revisa la base, así que no está. Mientras
+    tanto, Claude pasa el SQL por el chat, como siempre.
+- Las otras 9, sin decidir todavía (se ven una por una, en este orden): cambiar un nombre o
   una opción y que cambie en todos lados (las filas guardadas con un nombre
-  que no está en Datos básicos y los nombres de Partido); mejorar los textos explicativos; el
+  que no está en Datos básicos y los nombres de Partido); el
   permiso una vez por pedido también en Lesiones y Evaluaciones (no está hecho: solo GPS);
   el reporte individual de Lesiones (sin los puntos «Superior/Inferior a la referencia», el
   color en el %, tarjetas más chicas y «qué cuenta» en corto); sacar los botones «Entrar» de

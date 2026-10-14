@@ -82,6 +82,15 @@
   text-decoration: underline;
   cursor: pointer;
 }
+/* Dónde estás (14/10): debajo del título de la pantalla, para qué sirve. */
+.lesiones-marco .pantalla-donde {
+  max-width: 640px;
+  margin: 14px auto 4px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: center;
+}
 .lesiones-marco .lesiones-vacio {
   margin: 14px 4px;
   color: rgba(255, 255, 255, 0.75);

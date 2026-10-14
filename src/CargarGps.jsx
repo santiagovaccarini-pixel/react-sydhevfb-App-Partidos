@@ -17,6 +17,7 @@ import { actualesPrimero, cargarPlantelConCatapult, esActual } from "./domain/pl
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, fechaYHora, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
+import { BotonGuia, TerminoDe, TextoConPasos } from "./components/Guia.jsx";
 
 // GPS › Cargar (paso 2): lo de cada día con la lógica de la plantilla «Suma
 // de Bloques» (las cuentas, en domain/gps/cargar.js). Un paso por cada
@@ -126,6 +127,8 @@ export default function CargarGps({
   onDejado,
   // La siguieron en otro aparato: abrir la última (su id).
   onAbrirEnCurso,
+  // Abre «Cómo se usa» de GPS.
+  onGuia,
 }) {
   const { idioma, plural } = useIdioma();
   const hoy = hoyISO();
@@ -679,7 +682,10 @@ export default function CargarGps({
     return (
       <div className="gps-cargar-vs" role="group" aria-label={t("gps.cargar.vsPartido")}>
         <div className="gps-cargar-vs-cabeza">
-          <span className="gps-cargar-vs-titulo">{t("gps.cargar.vsPartido")}</span>
+          <span className="gps-cargar-vs-titulo">
+            {t("gps.cargar.vsPartido")}
+            <TerminoDe clave="gps.terminos.vsPartido" />
+          </span>
           <span className="gps-cargar-vs-leyenda">
             <span className="bien">{t("gps.cargar.vsLeyendaBien", { corte })}</span>
             <span className="bajo">{t("gps.cargar.vsLeyendaBajo", { corte })}</span>
@@ -1124,7 +1130,12 @@ export default function CargarGps({
         <>
           <section className="tarjeta tarjeta-ficha lesiones-grupo">
             {campo(t("gps.cargar.fecha"), <input type="date" value={estado.fecha} max={hoy} onChange={(evento) => cambiar({ fecha: evento.target.value })} />, "fecha")}
-            {microciclo !== null && <p className="lesiones-ayuda gps-cargar-microciclo">{t("gps.cargar.microciclo", { n: microciclo })}</p>}
+            {microciclo !== null && (
+              <p className="lesiones-ayuda gps-cargar-microciclo">
+                {t("gps.cargar.microciclo", { n: microciclo })}
+                <TerminoDe clave="gps.terminos.microciclo" />
+              </p>
+            )}
             {revision?.estado === "revisando" && (
               <p className="lesiones-estado" role="status">
                 {t("gps.cargar.revisandoBase")}
@@ -1276,7 +1287,10 @@ export default function CargarGps({
         {parte === "completo" && (
           <section className="tarjeta tarjeta-ficha gps-cargar-encabezado">
             {campo(
-              t("gps.cargar.sinIngresar"),
+              <>
+                {t("gps.cargar.sinIngresar")}
+                <TerminoDe clave="gps.terminos.sinIngresar" />
+              </>,
               <>
                 {elegirVarios(
                   t("gps.cargar.sinIngresar"),
@@ -1380,6 +1394,7 @@ export default function CargarGps({
         <label className="gps-cargar-casilla">
           <input type="checkbox" checked={regenerativo.hubo} onChange={(evento) => cambiar((antes) => ({ regenerativo: { ...antes.regenerativo, hubo: evento.target.checked } }))} />
           <b>{t("gps.cargar.huboRegenerativo")}</b>
+          <TerminoDe clave="gps.terminos.regenerativo" />
         </label>
         {regenerativo.hubo && (
           <>
@@ -1478,7 +1493,10 @@ export default function CargarGps({
         )}
       </section>
       <section className="lesiones-paso-titulo">
-        <h2>{t("gps.cargar.promedioSesion")}</h2>
+        <h2>
+          {t("gps.cargar.promedioSesion")}
+          <TerminoDe clave="gps.terminos.teamAverage" />
+        </h2>
         <p>{t("gps.cargar.promedioSesionAyuda")}</p>
       </section>
       {encabezado(
@@ -1521,7 +1539,10 @@ export default function CargarGps({
         },
       )}
       <section className="lesiones-paso-titulo">
-        <h2>{t("gps.cargar.vaDeCadaUno")}</h2>
+        <h2>
+          {t("gps.cargar.vaDeCadaUno")}
+          <TerminoDe clave="gps.terminos.va" />
+        </h2>
         <p>{t("gps.cargar.vaDeCadaUnoAyuda", { parte: Math.round(reglas.parteDelTiempo * 100) })}</p>
       </section>
       {tablaDe("sesion", [...filasDeSeccion("sesion:promedio"), ...(resultado || []).filter((fila) => fila._total)])}
@@ -1711,7 +1732,10 @@ export default function CargarGps({
             </div>
             <p className="lesiones-paso-numero">{t("lesiones.pasos.paso", { n: paso + 1, total: PASOS.length })}</p>
           </div>
-          <SelectorIdioma className="lesiones-idioma" />
+          <div className="guia-e-idioma">
+            {onGuia && <BotonGuia onClick={onGuia} />}
+            <SelectorIdioma className="lesiones-idioma" />
+          </div>
         </header>
 
         <section className="lesiones-paso-titulo">
@@ -1724,7 +1748,7 @@ export default function CargarGps({
               </button>
             )}
           </div>
-          {ayuda && <p>{ayuda}</p>}
+          {ayuda && <TextoConPasos texto={ayuda} />}
         </section>
 
         {!enLinea && <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>}
@@ -1757,7 +1781,7 @@ export default function CargarGps({
             </button>
           ) : (
             <button type="button" className="boton-principal" onClick={() => irAlPaso(paso + 1)}>
-              {t("lesiones.pasos.siguiente")}
+              {t("gps.cargar.siguienteA", { paso: tituloDe(PASOS[paso + 1]) })}
             </button>
           )}
         </div>

@@ -168,6 +168,14 @@ const trazos = {
       <path d="M8 5v14M16 5v14" />
     </>
   ),
+  // La guía de un módulo (Santiago, 14/10): un signo de pregunta en un círculo.
+  ayuda: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.4 9.3a2.7 2.7 0 0 1 5.2.9c0 1.8-2.6 2.3-2.6 4" />
+      <path d="M12 17.2h.01" />
+    </>
+  ),
 };
 
 export const Icono = ({ nombre, size = 22, className = "" }) => (
