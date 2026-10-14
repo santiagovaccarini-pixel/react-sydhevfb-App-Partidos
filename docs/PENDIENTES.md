@@ -2566,6 +2566,17 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
     avisos de base sin lo técnico. También cambiaron tres textos compartidos que GPS muestra y
     que usan otras bases: «Las horas se escriben así…», «Copiá celdas de una planilla…» y
     «Nombre original: …» (antes «Del Excel: …», en Ajustes › Cabeceras).
+  - **Lesiones (hecho el 14/10; Santiago: «segui con los demas puntos»)**: sus textos sin
+    planillas, hojas ni lo técnico de la base; «Pegar desde una planilla» con sus pasos
+    numerados; dónde estás en Nuevos casos, la ficha, Base, Historial individual, Reportes (y en
+    cada reporte, arriba, sin ir al papel) y Ajustes, con otra línea para quien ya se fue del
+    club; la carga por pasos con lo que hay que hacer numerado y «Siguiente: (el grupo que
+    sigue)»; el «?» en Etapa (paso de las fechas), Días de baja (ficha), Recurrencia y recidiva
+    (el aviso de la carga), c/1000 h, Referencia (VR), Severidad y Sin leves y Solo LM (en los
+    reportes); «Cómo se usa Lesiones» con su oferta la primera vez. En el reporte grupal, los
+    filtros llevan arriba su rótulo («Período» y «Qué lesiones», con su «?»). Cada «?» explica
+    lo que la app calcula hoy (`src/domain/lesiones.js` y `src/domain/reportes.js`); si cambia
+    una regla, cambia su texto. Al imprimir no salen ni la guía ni los «?».
   - Mientras los otros módulos no tengan su turno, su botón de avanzar sigue diciendo
     «Siguiente» (sin a dónde va) y no tienen «Cómo se usa».
   - **Falta (se preguntó el 14/10)**: qué quiere decir cada opción de «Día del microciclo» (0,

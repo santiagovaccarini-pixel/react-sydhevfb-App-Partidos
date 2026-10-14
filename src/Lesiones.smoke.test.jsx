@@ -125,9 +125,15 @@ const elegirZona = async (contenedor, region, parte) => {
 const elegirTipo = (contenedor, tipo = "Lesión muscular grado 1 A") => elegirEnHoja(contenedor, "Tipo de lesión", tipo);
 const navegar = async (contenedor, etiqueta) =>
   tocar([...contenedor.querySelectorAll(".navegacion-movil button")].find((b) => b.textContent.includes(etiqueta)));
-const siguiente = (contenedor) => tocar(boton(contenedor, "Siguiente"));
+// El botón de avanzar dice a qué paso va («Siguiente: Descripción general»).
+const siguiente = (contenedor) => tocar(botonQueEmpieza(contenedor, "Siguiente: "));
 const etiqueta = (clave) => etiquetaDeCampo(clave, null, "es-AR");
-const tituloDelPaso = (contenedor) => contenedor.querySelector(".lesiones-paso-titulo h2").textContent;
+// El título del paso, sin el «?» que lleva el de las fechas.
+const tituloDelPaso = (contenedor) =>
+  [...contenedor.querySelector(".lesiones-paso-titulo h2").childNodes]
+    .filter((nodo) => nodo.nodeType === Node.TEXT_NODE)
+    .map((nodo) => nodo.textContent)
+    .join("");
 const pestanas = (contenedor) => [...contenedor.querySelectorAll('.lesiones-secciones [role="tab"]')];
 const pestana = (contenedor, nombre) => pestanas(contenedor).find((b) => b.textContent === nombre);
 const GRUPOS_DEL_EXCEL = ["Datos generales", "Descripción general", "Descripción específica", "Descripción contextual", "Evolución y continuación", "Diagnóstico", "Observaciones"];
@@ -139,6 +145,8 @@ describe("el módulo Lesiones", () => {
   beforeEach(() => {
     fijarIdiomaParaPruebas("es-AR");
     localStorage.clear();
+    // La guía de la primera vez ya se ofreció (sus pruebas la borran).
+    localStorage.setItem("guia_vista:lesiones", "1");
     datos.lesiones = [lesionHulk()];
     datos.minutos = null;
     datos.config = { campos: {}, listas: {} };
@@ -969,7 +977,7 @@ describe("el módulo Lesiones", () => {
     expect(contenedor.querySelector(".lesiones-estado.error")).not.toBe(null);
     expect(contenedor.querySelector(".lesiones-elegir-jugador")).toBe(null);
     expect(contenedor.querySelector(".informe")).toBe(null);
-    expect(texto(contenedor)).not.toContain("Imprimir o guardar en PDF");
+    expect(boton(contenedor, "Imprimir o guardar en PDF")).toBeUndefined();
   });
 
   test("una lesión se borra desde la ficha con confirmación", async () => {
@@ -1415,5 +1423,160 @@ describe("el módulo Lesiones", () => {
     // Si ya tuvo una lesión igual, avisa.
     await elegirZona(contenedor, "pierna_derecha", "Muslo");
     expect(texto(contenedor)).toContain("Puede contar como recurrencia o recidiva");
+  });
+
+  // ------------------------------------------- Textos que guían (14/10) --
+  // Santiago, 14/10: «pensa como si lo fuese a usar por primera ves y
+  // necesitas una guia exacta de lo que se necesita para saber que hacer y
+  // donde estas parado». Después de GPS, Lesiones.
+  const hojaGuia = () => document.body.querySelector(".hoja-guia");
+  const botonPorNombre = (nombre) => [...document.body.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === nombre);
+  const entendido = () => tocar([...document.body.querySelectorAll(".hoja-guia button")].find((b) => b.textContent.trim() === "Entendido"));
+
+  test("la primera vez en el aparato se ofrece la guía de Lesiones una sola vez", async () => {
+    localStorage.removeItem("guia_vista:lesiones");
+    await montar();
+    expect(hojaGuia().textContent).toContain("¿Primera vez en Lesiones?");
+    await tocar(boton(document.body, "Ahora no"));
+    expect(hojaGuia()).toBeNull();
+    expect(localStorage.getItem("guia_vista:lesiones")).toBe("1");
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    await montar();
+    expect(hojaGuia()).toBeNull();
+  });
+
+  test("«Ver cómo se usa» abre la guía: qué se hace, los pasos numerados y las palabras propias", async () => {
+    localStorage.removeItem("guia_vista:lesiones");
+    await montar();
+    await tocar(boton(document.body, "Ver cómo se usa"));
+    expect(hojaGuia().querySelector("h3").textContent).toBe("Cómo se usa Lesiones");
+    expect([...hojaGuia().querySelectorAll(".guia-seccion h4")].map((h) => h.textContent)).toEqual([
+      "Cargar una lesión",
+      "Seguir cada lesión",
+      "Ver y corregir todas",
+      "Reportes",
+      "Traer lo que ya tenías",
+      "Ajustes",
+      "Palabras que vas a ver",
+    ]);
+    // Cargar una lesión: tres pasos, cada uno con lo que hay que hacer.
+    expect(hojaGuia().querySelectorAll(".guia-seccion")[0].querySelectorAll("li")).toHaveLength(3);
+    expect([...hojaGuia().querySelectorAll("dt")].map((dt) => dt.textContent)).toEqual([
+      "Etapa",
+      "Días de baja",
+      "Severidad",
+      "Recurrencia y recidiva",
+      "c/1000 h",
+      "Referencia (VR)",
+      "Sin leves y Solo LM",
+    ]);
+    await entendido();
+    expect(hojaGuia()).toBeNull();
+    expect(localStorage.getItem("guia_vista:lesiones")).toBe("1");
+  });
+
+  test("el «?» de arriba abre la guía en cada pantalla de Lesiones", async () => {
+    await montar();
+    const abreLaGuia = async (donde) => {
+      await tocar(botonPorNombre("Cómo se usa"));
+      expect(hojaGuia()?.querySelector("h3").textContent, donde).toBe("Cómo se usa Lesiones");
+      await entendido();
+      expect(hojaGuia(), donde).toBeNull();
+    };
+    await abreLaGuia("Nuevos casos");
+    await tocar(boton(contenedor, "Ver detalle"));
+    await abreLaGuia("la ficha");
+    await tocar(boton(contenedor, "Volver"));
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await abreLaGuia("la carga por pasos");
+    await navegar(contenedor, "Base");
+    await tocar(boton(contenedor, "Pegar desde una planilla"));
+    await abreLaGuia("Pegar desde una planilla");
+    await navegar(contenedor, "Base");
+    await abreLaGuia("Base");
+    await navegar(contenedor, "Historial individual");
+    await abreLaGuia("Historial individual");
+    await navegar(contenedor, "Reportes");
+    await abreLaGuia("Reportes");
+    await navegar(contenedor, "Ajustes");
+    await abreLaGuia("Ajustes");
+    await tocar(botonQueEmpieza(contenedor, "Cabeceras"));
+    await abreLaGuia("Cabeceras");
+  });
+
+  test("cada pantalla dice dónde estás, la carga dice a qué paso va y las palabras propias tienen su «?»", async () => {
+    // HULK tiene una lesión abierta en el muslo derecho: otra igual es una
+    // posible recurrencia o recidiva.
+    await montar();
+    expect(contenedor.querySelector(".pantalla-donde").textContent).toContain("Acá ves quién está lesionado hoy");
+    await tocar(boton(contenedor, "Ver detalle"));
+    expect(contenedor.querySelector(".lesiones-encabezado").textContent).toContain("Para cambiar algo o sumar una fecha, tocá «Editar».");
+    await tocar(botonPorNombre("Qué es «Días de baja»"));
+    expect(hojaGuia().querySelector("h3").textContent).toBe("Días de baja");
+    expect(hojaGuia().textContent).toContain("Si todavía no tiene alta, hasta hoy.");
+    await entendido();
+    await tocar(boton(contenedor, "Volver"));
+
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await tocar(botonQueEmpieza(contenedor, "HULK"));
+    expect(boton(contenedor, "Siguiente: Descripción general")).toBeTruthy();
+    await siguiente(contenedor);
+    // Qué hacer, en pasos numerados.
+    expect([...contenedor.querySelectorAll(".lesiones-paso-titulo .texto-guia li")].map((li) => li.textContent)[0]).toBe("Elegí el tipo de lesión.");
+    await elegirTipo(contenedor);
+    await elegirZona(contenedor, "pierna_derecha", "Muslo");
+    expect(texto(contenedor)).toContain("Puede contar como recurrencia o recidiva");
+    await tocar(botonPorNombre("Qué es «Recurrencia y recidiva»"));
+    expect(hojaGuia().textContent).toContain("60 días o menos");
+    await entendido();
+    await siguiente(contenedor);
+    await siguiente(contenedor);
+    expect(boton(contenedor, "Siguiente: Evolución y continuación")).toBeTruthy();
+    await siguiente(contenedor);
+    await tocar(botonPorNombre("Qué es «Etapa»"));
+    expect(hojaGuia().textContent).toContain("La da la última fecha cargada");
+    await entendido();
+
+    await navegar(contenedor, "Base");
+    await tocar(boton(document.body, "Sí, salir"));
+    expect(contenedor.querySelector(".lesiones-encabezado").textContent).toContain("Todas las lesiones del club, una por fila.");
+    await navegar(contenedor, "Reportes");
+    await tocar(botonQueEmpieza(contenedor, "Reporte grupal"));
+    expect(contenedor.querySelector(".pantalla-donde").textContent).toContain("El reporte del plantel en un período");
+    await tocar(botonPorNombre("Qué es «Sin leves y Solo LM»"));
+    expect(hojaGuia().textContent).toContain("las de registro quedan");
+    await entendido();
+    await tocar(botonPorNombre("Qué es «c/1000 h»"));
+    expect(hojaGuia().textContent).toContain("Minutos Campo y Minutos Fuerza Metabólico");
+    await entendido();
+    expect(hojaGuia()).toBeNull();
+  });
+
+  test("quien ya se fue del club lee dónde está sin que lo inviten a cambiar nada", async () => {
+    datos.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: "2026-09-25" };
+    await montar();
+    expect(contenedor.querySelector(".pantalla-donde").textContent).toContain("el día que dejaste el club");
+    await tocar(boton(contenedor, "Ver detalle"));
+    expect(contenedor.querySelector(".lesiones-encabezado").textContent).not.toContain("Editar");
+    await tocar(boton(contenedor, "Volver"));
+    await navegar(contenedor, "Base");
+    expect(contenedor.querySelector(".lesiones-encabezado").textContent).toContain("hasta el día que dejaste el club");
+    expect(contenedor.querySelector(".lesiones-encabezado").textContent).not.toContain("Tocá dos veces");
+  });
+
+  test("ningún texto de Lesiones nombra una planilla, una hoja ni lo técnico de la base", async () => {
+    const { default: es } = await import("./idioma/es-AR.js");
+    const { default: pt } = await import("./idioma/pt-BR.js");
+    const prohibido = /\bExcel\b|plantilla|\bhoja\b|solapa|\baba\b|SQL|Supabase|migraci/i;
+    const textos = (objeto) => Object.values(objeto).flatMap((valor) => (typeof valor === "object" ? textos(valor) : [valor]));
+    expect(textos(es.lesiones).filter((valor) => prohibido.test(valor))).toEqual([]);
+    expect(textos(pt.lesiones).filter((valor) => prohibido.test(valor))).toEqual([]);
+    // Y en pantalla, también lo que viene de otros lados (la tabla, los avisos).
+    await montar();
+    await navegar(contenedor, "Base");
+    expect(document.body.textContent).not.toMatch(prohibido);
+    await tocar(boton(contenedor, "Pegar desde una planilla"));
+    expect(document.body.textContent).not.toMatch(prohibido);
   });
 });

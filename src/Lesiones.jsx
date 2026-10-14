@@ -8,6 +8,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, TextoConPasos, useGuiaDelModulo } from "./components/Guia.jsx";
 import ReportesLesiones from "./ReportesLesiones.jsx";
 import ImportarLesiones from "./ImportarLesiones.jsx";
 import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
@@ -84,6 +85,9 @@ export const DESTINOS_LESIONES = [
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
 
+// Las palabras propias de Lesiones con su «?» (textos que guían, 14/10).
+const TERMINOS_LESIONES = ["etapa", "diasDeBaja", "severidad", "recurrencia", "cadaMil", "referencia", "filtros"];
+
 // Hasta esta cantidad, las opciones van como botones a la vista; con más, en la hoja con buscador.
 const MAXIMO_CHIPS = 6;
 // En la ficha, la pestaña de los cambios va después de las de los grupos.
@@ -110,16 +114,19 @@ const EtapaChip = ({ lesion }) => {
   return <span className={`lesiones-etapa ${etapa}`}>{t(`lesiones.etapa.${etapa}`)}</span>;
 };
 
-// Título de las pantallas que no son la principal, con el globo del idioma
-// a la derecha.
-const Encabezado = ({ titulo, texto, children = null }) => (
+// Título de las pantallas que no son la principal, con la guía del módulo y
+// el globo del idioma a la derecha.
+const Encabezado = ({ titulo, texto, onGuia, children = null }) => (
   <header className="encabezado lesiones-encabezado">
     <div className="lesiones-encabezado-texto">
       <h1>{titulo}</h1>
       {texto && <p>{texto}</p>}
       {children}
     </div>
-    <SelectorIdioma className="lesiones-idioma" />
+    <div className="guia-e-idioma">
+      {onGuia && <BotonGuia onClick={onGuia} />}
+      <SelectorIdioma className="lesiones-idioma" />
+    </div>
   </header>
 );
 
@@ -127,6 +134,7 @@ const Encabezado = ({ titulo, texto, children = null }) => (
 // volverA: la clave de su texto.
 export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const { idioma, plural } = useIdioma();
+  const guia = useGuiaDelModulo("lesiones");
   const [equipo, setEquipo] = useState(() => leerEquipoElegido());
   const [vista, setVista] = useState("lesionados");
   const [plantel, setPlantel] = useState([]);
@@ -680,7 +688,10 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             ) : (
               <span />
             )}
-            <SelectorIdioma />
+            <div className="guia-e-idioma">
+              <BotonGuia onClick={guia.abrir} />
+              <SelectorIdioma />
+            </div>
           </div>
           <div className="hero-lesiones-club">
             <EscudoDeClub equipo="cam" nombre={equipo?.nombre || ""} />
@@ -691,6 +702,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
           </div>
         </header>
 
+        <p className="pantalla-donde">{t(soloLectura ? "lesiones.donde.nuevosSoloLectura" : "lesiones.donde.nuevos")}</p>
         <AvisoSoloLectura hasta={equipo?.hasta} />
         {estado}
 
@@ -862,7 +874,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const pantallaBase = (
     <div className="app">
       <div className="contenedor contenedor-base">
-        <Encabezado titulo={t("nav.base")} texto={t("tabla.editar")} />
+        <Encabezado onGuia={guia.abrir} titulo={t("nav.base")} texto={t(soloLectura ? "lesiones.donde.baseSoloLectura" : "lesiones.donde.base")} />
         {estado}
         {!soloLectura && (
           <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
@@ -880,7 +892,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const pantallaHistorial = (
     <div className="app">
       <div className="contenedor contenedor-base">
-        <Encabezado titulo={t("lesiones.historial.titulo")} texto={t("lesiones.historial.texto")} />
+        <Encabezado onGuia={guia.abrir} titulo={t("lesiones.historial.titulo")} texto={t("lesiones.historial.texto")} />
         {estado}
         <section className="tarjeta lesiones-elegir-jugador">
           {elegidoHistorial ? (
@@ -964,7 +976,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       return (
         <div className="app">
           <div className="contenedor">
-            <Encabezado titulo={t("lesiones.ajustes.cabeceras")} texto={t("lesiones.ajustes.cabecerasAyuda")} />
+            <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.cabeceras")} texto={t("lesiones.ajustes.cabecerasAyuda")} />
             {/* Cada grupo del Excel con sus columnas abajo: el grupo también
                 se renombra (es la fila de arriba de las cabeceras). */}
             {GRUPOS.map((grupo, indiceGrupo) => {
@@ -1037,6 +1049,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         <div className="app">
           <div className="contenedor">
             <Encabezado
+              onGuia={guia.abrir}
               titulo={etiqueta(clave)}
               texto={CAMPOS_DEL_CUERPO.includes(clave) ? `${plural("lesiones.ajustes.opciones", todas.length)}. ${t("lesiones.ajustes.seUbicanSolas")}` : plural("lesiones.ajustes.opciones", todas.length)}
             />
@@ -1065,7 +1078,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       return (
         <div className="app">
           <div className="contenedor">
-            <Encabezado titulo={t("lesiones.ajustes.listas")} texto={t("lesiones.ajustes.listasAyuda")} />
+            <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.listas")} texto={t("lesiones.ajustes.listasAyuda")} />
             {CAMPOS_CON_LISTA.map((campo) =>
               filaAjuste({
                 id: campo.clave,
@@ -1085,7 +1098,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     return (
       <div className="app">
         <div className="contenedor">
-          <Encabezado titulo={t("lesiones.ajustes.titulo")} texto={t("lesiones.ajustes.texto")} />
+          <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.titulo")} texto={t("lesiones.ajustes.texto")} />
           <AvisoSoloLectura hasta={equipo?.hasta} />
           {filaAjuste({
             id: "cabeceras",
@@ -1172,6 +1185,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       <div className="app">
         <div className="contenedor ficha-registro lesiones-ficha">
           <Encabezado
+            onGuia={guia.abrir}
             titulo={nombreDeLesion(lesion) || t("lesiones.titulo")}
             texto={[
               lesion.numero_caso ? t("lesiones.caso", { n: lesion.numero_caso }) : "",
@@ -1181,7 +1195,9 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             ]
               .filter(Boolean)
               .join(" · ")}
-          />
+          >
+            <p>{t(soloLectura ? "lesiones.donde.fichaSoloLectura" : "lesiones.donde.ficha")}</p>
+          </Encabezado>
 
           <section className="marcador-ficha lesiones-marcador" aria-label={t("lesiones.ficha.resumen")}>
             {piezaLesion && (
@@ -1195,7 +1211,10 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             </div>
             <div className="total-ficha">
               <b>{tieneFecha(lesion) ? diasDeBaja(lesion) : "—"}</b>
-              <small>{t("lesiones.ficha.diasDeBaja").toUpperCase()}</small>
+              <small>
+                {t("lesiones.ficha.diasDeBaja").toUpperCase()}
+                <TerminoDe clave="lesiones.terminos.diasDeBaja" />
+              </small>
             </div>
           </section>
 
@@ -1563,7 +1582,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     return (
       <div className="app">
         <div className="contenedor">
-          <Encabezado titulo={lesion.id ? t("lesiones.formEditar") : t("lesiones.formNueva")} texto={nombreDeLesion(lesion)}>
+          <Encabezado onGuia={guia.abrir} titulo={lesion.id ? t("lesiones.formEditar") : t("lesiones.formNueva")} texto={nombreDeLesion(lesion)}>
             <div className="lesiones-progreso" role="tablist" aria-label={t("lesiones.pasos.paso", { n: paso + 1, total })}>
               {pasos.map((unPaso, indice) => (
                 <button
@@ -1582,8 +1601,11 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
           </Encabezado>
 
           <section className="lesiones-paso-titulo">
-            <h2>{etiquetaDeGrupo(actual.id, config, idioma)}</h2>
-            <p>{t(`lesiones.pasos.${actual.id}Texto`, {}, "")}</p>
+            <h2>
+              {etiquetaDeGrupo(actual.id, config, idioma)}
+              {actual.id === "evolucao" && <TerminoDe clave="lesiones.terminos.etapa" />}
+            </h2>
+            <TextoConPasos texto={t(`lesiones.pasos.${actual.id}Texto`, {}, "")} />
           </section>
 
           {errorFormulario && <div className="aviso-hoja">{errorFormulario}</div>}
@@ -1594,6 +1616,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
                 lado: textoDeOpcion("lado", recidiva.datos?.lado),
                 fecha: fechaCorta(recidiva.fecha_lesion),
               })}
+              <TerminoDe clave="lesiones.terminos.recurrencia" />
             </div>
           )}
 
@@ -1610,7 +1633,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
               </button>
             ) : (
               <button type="button" className="boton-principal" onClick={() => irAlPaso(paso + 1, lesion)}>
-                {t("lesiones.pasos.siguiente")}
+                {t("lesiones.pasos.siguienteA", { paso: etiquetaDeGrupo(pasos[paso + 1].id, config, idioma) })}
               </button>
             )}
           </div>
@@ -1639,6 +1662,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
           lesiones={lesiones}
           config={config}
           onVolver={() => setImportando(false)}
+          onGuia={guia.abrir}
           onRecargar={cargar}
           onListo={({ cargadas }) => {
             setImportando(false);
@@ -1671,6 +1695,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         }
         datosListos={!cargando && !error}
         onAviso={setAviso}
+        onGuia={guia.abrir}
       />
     );
   else if (vista === "ajustes") contenido = pantallaAjustes();
@@ -1744,9 +1769,20 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       </HojaInferior>
     ) : null;
 
+  // «Cómo se usa Lesiones»: los pasos de cada parte y las palabras propias.
+  const contenidoDeLaGuia = {
+    titulo: t("lesiones.guia.titulo"),
+    intro: t("lesiones.guia.intro"),
+    secciones: ["nueva", "seguir", "base", "reportes", "traer", "ajustes"].map((parte) => ({ titulo: t(`lesiones.guia.${parte}Titulo`), texto: t(`lesiones.guia.${parte}`) })),
+    terminos: TERMINOS_LESIONES.map((termino) => ({ titulo: t(`lesiones.terminos.${termino}.titulo`), texto: t(`lesiones.terminos.${termino}.texto`) })),
+  };
+
   return (
     <MarcoAplicacion activo={vista} onNavigate={navegar} destinos={DESTINOS_LESIONES} marca={t("lesiones.titulo")} className="entrenamiento-marco lesiones-marco">
       {contenido}
+
+      <GuiaDelModulo guia={contenidoDeLaGuia} abierta={guia.abierta} onCerrar={guia.cerrar} />
+      <OfrecerGuia abierta={guia.ofrecer && !guia.abierta} modulo={t("lesiones.titulo")} onVer={guia.ver} onAhoraNo={guia.ahoraNo} />
 
       {aviso && (
         <div className="lesiones-toast" role="status">

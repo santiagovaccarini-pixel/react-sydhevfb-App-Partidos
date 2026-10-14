@@ -9,6 +9,7 @@ import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
+import { BotonGuia, TextoConPasos } from "./components/Guia.jsx";
 
 // Pegar desde Excel, en Lesiones › Base: se pega la tabla de la hoja
 // "Antecedentes BD" (con su fila de cabeceras) y antes de guardar nada se ve
@@ -29,7 +30,7 @@ const CLASE_DEL_ESTADO = {
   [ESTADOS.conProblemas]: "problema",
 };
 
-export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = false, lesiones, config, onVolver, onRecargar, onListo }) {
+export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = false, lesiones, config, onVolver, onGuia, onRecargar, onListo }) {
   const { idioma, plural } = useIdioma();
   const [texto, setTexto] = useState("");
   const [progreso, setProgreso] = useState(null);
@@ -162,9 +163,12 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
         <header className="encabezado lesiones-encabezado">
           <div className="lesiones-encabezado-texto">
             <h1>{t("lesiones.importar.titulo")}</h1>
-            <p>{t("lesiones.importar.texto")}</p>
+            <TextoConPasos texto={t("lesiones.importar.texto")} />
           </div>
-          <SelectorIdioma className="lesiones-idioma" />
+          <div className="guia-e-idioma">
+            {onGuia && <BotonGuia onClick={onGuia} />}
+            <SelectorIdioma className="lesiones-idioma" />
+          </div>
         </header>
 
         <section className="tarjeta datos-importar-pegado">
