@@ -10,12 +10,13 @@ import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarGps from "./ImportarGps.jsx";
 import CargarGps from "./CargarGps.jsx";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
-import { BotonGuia, GuiaDelModulo, OfrecerGuia, useGuiaDelModulo } from "./components/Guia.jsx";
+import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, useGuiaDelModulo } from "./components/Guia.jsx";
 import { COLUMNAS_FIJAS, absolutaDe, codigoNuevo, columnaOculta, columnasVisibles, opcionesDeLista, opcionesDelExcel, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { TIPOS_PROPIOS, armarConfigGps, claveDeColumnaPropia, configGpsVacia, gpsDelClub } from "./domain/gps/ajustes.js";
 import { AJUSTES_DE_REGLAS, REGLAS_CARGA, VS_PARTIDO, reglasDelClub } from "./domain/gps/cargar.js";
 import { PROMEDIOS } from "./domain/gps/columnas.js";
-import { FILAS_DEL_INFORME, vistaDelGps } from "./domain/gps/informe.js";
+import { FILAS_DEL_INFORME, ZONAS_DE_IMPACTO, ZONA_AL_ABRIR, comparaciones, porcentajesVsVr, vistaDelGps } from "./domain/gps/informe.js";
+import { textoDeValor } from "./domain/evaluaciones/excel.js";
 import { datosConCambio, esNumero, periodoInicial, textoDeCelda } from "./domain/gps/valores.js";
 import {
   actualizarFilaGps,
@@ -28,6 +29,7 @@ import {
   guardarReglasGps,
   leerAjustesGps,
   leerEnCurso,
+  leerReferenciasGps,
   leerReglasGps,
   listarEnCurso,
   ponerAlDiaGps,
@@ -51,11 +53,12 @@ import "./gps.css";
 //   · Cargar (paso 2): lo de cada día desde el CSV de Catapult, con la
 //     lógica de la plantilla Suma de Bloques (CargarGps.jsx y
 //     domain/gps/cargar.js).
-//   · Base: todas las filas del club (Santiago, 14/10), con el informe del
-//     Excel arriba (promedio, desvío, n, máximo y mínimo de lo que dejan ver
-//     los filtros de la tabla) y los mismos colores, cada dispositivo contra
-//     lo suyo. Se corrige en la tabla y el historial se trae una vez con
-//     Pegar desde Excel.
+//   · Base: todas las filas del club (Santiago, 14/10), con arriba, por
+//     dispositivo, el promedio de lo que dejan ver los filtros de la tabla,
+//     su V.R. y el % contra él, y las Comparaciones (Santiago, 12/10 y
+//     14/10), y los mismos colores del Excel, cada dispositivo contra lo
+//     suyo. Se corrige en la tabla y el historial se trae una vez con Pegar
+//     desde Excel.
 //   · Ajustes: el nombre de cada columna, esconderla, sumar columnas del
 //     club, las opciones de cada lista (también los dispositivos) y los
 //     números de las reglas de la carga.
@@ -78,7 +81,25 @@ const PROMEDIO = "promedio:";
 // Cuántas filas se guardan a la vez al pegar en la tabla.
 const GUARDADOS_A_LA_VEZ = 6;
 // Las palabras propias de GPS que explica la guía, en este orden.
-const TERMINOS_GPS = ["teamAverage", "va", "microciclo", "porMinuto", "dispositivo", "vrPartido", "vsPartido", "sinIngresar", "regenerativo"];
+const TERMINOS_GPS = ["teamAverage", "va", "microciclo", "porMinuto", "dispositivo", "vrBase", "comparaciones", "vrPartido", "vsPartido", "sinIngresar", "regenerativo"];
+// El V.R. elegido de cada dispositivo y la zona de impacto de las
+// Comparaciones (las celdas A14:C14 y AI16 del Excel) quedan en este aparato.
+const claveDeElegidos = (equipoId) => `gps_vr:${equipoId}`;
+const leerElegidos = (equipoId) => {
+  try {
+    const guardados = JSON.parse(window.localStorage.getItem(claveDeElegidos(equipoId)) || "{}");
+    return guardados && typeof guardados === "object" && !Array.isArray(guardados) ? guardados : {};
+  } catch {
+    return {};
+  }
+};
+const guardarElegidos = (equipoId, elegidos) => {
+  try {
+    window.localStorage.setItem(claveDeElegidos(equipoId), JSON.stringify(elegidos));
+  } catch {
+    // Sin lugar en el aparato: vale mientras la pantalla esté abierta.
+  }
+};
 // Armar miles de filas para la tabla (cada celda con el formato del Excel)
 // traba un celular un par de segundos: se arman antes de que hagan falta, de
 // a tandas, sin trabar la pantalla. armado: la ref con { armarFila, armadas }
@@ -143,6 +164,10 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Las reglas de la carga que guardó el club (sin la tabla, las de la plantilla).
   const [reglasGuardadas, setReglasGuardadas] = useState({});
   const [faltanReglas, setFaltanReglas] = useState(false);
+  // Los V.R. de cada dispositivo (gps_referencias) y cuál se eligió.
+  const [referencias, setReferencias] = useState([]);
+  const [faltanReferencias, setFaltanReferencias] = useState(false);
+  const [elegidos, setElegidos] = useState({});
   const [hojaReglas, setHojaReglas] = useState(null);
   const avisarSinGuardar = useCallback((sinGuardar) => {
     diaSinGuardar.current = sinGuardar;
@@ -181,7 +206,12 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // silencioso: lo nuevo de otros (useEnVivo); lo que no se pudo leer queda
   // como se veía.
   const cargarClub = useCallback(async ({ silencioso = false } = {}) => {
-    const [respuestaPlantel, respuestaAjustes, respuestaReglas] = await Promise.all([cargarPlantelLesiones(equipoId), leerAjustesGps(equipoId), leerReglasGps(equipoId)]);
+    const [respuestaPlantel, respuestaAjustes, respuestaReglas, respuestaReferencias] = await Promise.all([
+      cargarPlantelLesiones(equipoId),
+      leerAjustesGps(equipoId),
+      leerReglasGps(equipoId),
+      leerReferenciasGps(equipoId),
+    ]);
     if (silencioso && (respuestaPlantel.error || respuestaPlantel.deRespaldo)) return;
     setPlantel(respuestaPlantel.plantel || []);
     setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
@@ -192,7 +222,25 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       setReglasGuardadas(respuestaReglas.reglas);
       setFaltanReglas(respuestaReglas.faltaTabla);
     }
+    // Sin poder leer los V.R., siguen los de antes (o ninguno).
+    if (!respuestaReferencias.error) {
+      setReferencias(respuestaReferencias.referencias);
+      setFaltanReferencias(respuestaReferencias.faltaTabla);
+    }
   }, [equipoId]);
+
+  useEffect(() => {
+    setElegidos(equipoId ? leerElegidos(equipoId) : {});
+  }, [equipoId]);
+  const elegir = useCallback(
+    (cambio) =>
+      setElegidos((antes) => {
+        const nuevos = { ...antes, ...cambio, vr: { ...(antes.vr || {}), ...(cambio.vr || {}) } };
+        if (equipoId) guardarElegidos(equipoId, nuevos);
+        return nuevos;
+      }),
+    [equipoId],
+  );
 
   // Todas las filas, lo más rápido posible (Santiago, 14/10). Con la copia
   // de este aparato se ven al instante y después se trae solo lo cambiado;
@@ -499,14 +547,23 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
 
   const ordenDeDispositivos = useMemo(() => new Map([...(textosDeListas.dispositivo?.keys() || [])].map((codigo, indice) => [codigo, indice])), [textosDeListas]);
 
-  // Con las filas que se ven: el informe de arriba y los colores, cada
-  // dispositivo con lo suyo. Con más de un dispositivo a la vista, un
-  // informe por dispositivo, con su nombre.
+  // Las columnas con V.R. en el club: sus cuentas hacen falta aunque estén
+  // escondidas (las Comparaciones van con todas, como en el Excel).
+  const conCuentas = useMemo(() => {
+    const conVr = new Set(referencias.flatMap((referencia) => Object.keys(referencia.promedio)));
+    return gps.columnas.filter((columna) => conVr.has(columna.clave));
+  }, [gps, referencias]);
+
+  // Con las filas que se ven: lo de arriba y los colores, cada dispositivo
+  // con lo suyo (con más de uno a la vista, cada uno con su nombre): el
+  // promedio, su V.R. y el % contra él, en cada columna; arriba de la tabla,
+  // qué V.R. y las Comparaciones (Santiago, 12/10 y 14/10).
   const informeYColores = useCallback(
     (filasVista) => {
       const { grupos, estilos } = vistaDelGps(
         filasVista.map((fila) => fila.gps),
         visibles,
+        conCuentas,
       );
       const delInforme = visibles.filter((columna) => columna.informe);
       // Los dispositivos en el orden de su lista (Ajustes); sin dispositivo, al final.
@@ -514,31 +571,102 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       grupos.sort((a, b) => lugar(a.dispositivo) - lugar(b.dispositivo));
       const varios = grupos.length > 1;
       const nombreDelDispositivo = (codigo) => (codigo ? textosDeListas.dispositivo?.get(codigo) || codigo : t("gps.sinDispositivo"));
-      const texto = (columna, cuentas, fila) => {
-        const valor = cuentas?.[fila];
-        if (!esNumero(valor)) return "";
-        return fila === "n" ? String(valor) : textoDeCelda(columna, valor, idioma);
+      const zona = ZONAS_DE_IMPACTO.some((una) => una.id === elegidos.zona) ? elegidos.zona : ZONA_AL_ABRIR;
+      // Cada dispositivo, con sus V.R., el elegido (o el primero) y sus %.
+      const deCadaUno = grupos.map((grupo) => {
+        const suyas = grupo.dispositivo ? referencias.filter((referencia) => referencia.dispositivo === grupo.dispositivo) : [];
+        const referencia = suyas.find((una) => una.id === elegidos.vr?.[grupo.dispositivo]) || suyas[0] || null;
+        const porcentajes = porcentajesVsVr(grupo.cuentas, referencia?.promedio);
+        return { grupo, suyas, referencia, porcentajes };
+      });
+      const porciento = (valor) => (esNumero(valor) ? textoDeValor(valor, "0%", idioma) : "");
+      const texto = (columna, { grupo, referencia, porcentajes }, fila) => {
+        if (fila === "media") return esNumero(grupo.cuentas[columna.clave]?.media) ? textoDeCelda(columna, grupo.cuentas[columna.clave].media, idioma) : "";
+        if (fila === "vr") return esNumero(referencia?.promedio?.[columna.clave]) ? textoDeCelda(columna, referencia.promedio[columna.clave], idioma) : "";
+        return porciento(porcentajes[columna.clave]);
       };
+      const nombreDeReferencia = (referencia) => [referencia.tipo, referencia.tabla, referencia.grupo].filter(Boolean).join(" · ");
+      const conVr = deCadaUno.some((uno) => uno.referencia);
+      const encima = deCadaUno.length ? (
+        <div className="gps-comparaciones">
+          <div className="gps-comparaciones-cabeza">
+            <b>
+              {t("gps.comparaciones.titulo")}
+              <TerminoDe clave="gps.terminos.comparaciones" />
+            </b>
+            {conVr && (
+              <label className="gps-comparaciones-zona">
+                <span>{t("gps.comparaciones.zona")}</span>
+                <select value={zona} onChange={(evento) => elegir({ zona: evento.target.value })}>
+                  {ZONAS_DE_IMPACTO.map((una) => (
+                    <option key={una.id} value={una.id}>
+                      {t(`gps.comparaciones.zonas.${una.id}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+          {deCadaUno.map(({ grupo, suyas, referencia, porcentajes }) => {
+            const numeros = referencia ? comparaciones(porcentajes, zona) : null;
+            return (
+              <section className="gps-comparacion" key={grupo.dispositivo || "-"}>
+                <div className="gps-comparacion-vr">
+                  <b>{nombreDelDispositivo(grupo.dispositivo)}</b>
+                  {referencia ? (
+                    <div className="gps-comparacion-elegir">
+                      <span>
+                        {t("gps.vr.rotulo")}
+                        <TerminoDe clave="gps.terminos.vrBase" />
+                      </span>
+                      <select value={referencia.id} onChange={(evento) => elegir({ vr: { [grupo.dispositivo]: evento.target.value } })} aria-label={t("gps.vr.elegir", { dispositivo: nombreDelDispositivo(grupo.dispositivo) })}>
+                        {suyas.map((una) => (
+                          <option key={una.id} value={una.id}>
+                            {nombreDeReferencia(una)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <span className="gps-comparacion-sin">{t(faltanReferencias ? "gps.vr.faltaMigracion" : grupo.dispositivo ? "gps.vr.sinVr" : "gps.vr.sinDispositivo")}</span>
+                  )}
+                </div>
+                {numeros && (
+                  <dl className="gps-comparacion-numeros">
+                    {["volumen", "volumenZona", "densidad", "densidadZona", "tiempo"].map((clave) => (
+                      <div key={clave}>
+                        <dt>{t(`gps.comparaciones.${clave}`)}</dt>
+                        <dd>{porciento(numeros[clave]) || "—"}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      ) : null;
       return {
         estilos,
-        arriba: grupos.flatMap((grupo) =>
+        encima,
+        arriba: deCadaUno.flatMap((uno) =>
           FILAS_DEL_INFORME.map((fila) => ({
-            id: `${grupo.dispositivo}:${fila.id}`,
+            id: `${uno.grupo.dispositivo}:${fila}`,
             rotulo: varios ? (
               <span className="gps-rotulo">
-                <b>{nombreDelDispositivo(grupo.dispositivo)}</b>
-                <span>{fila.rotulo[idioma]}</span>
+                <b>{nombreDelDispositivo(uno.grupo.dispositivo)}</b>
+                <span>{t(`gps.informe.${fila}`)}</span>
               </span>
             ) : (
-              fila.rotulo[idioma]
+              t(`gps.informe.${fila}`)
             ),
-            celdas: Object.fromEntries(delInforme.map((columna) => [columna.clave, { texto: texto(columna, grupo.cuentas[columna.clave], fila.id) }])),
+            celdas: Object.fromEntries(delInforme.map((columna) => [columna.clave, { texto: texto(columna, uno, fila) }])),
           })),
         ),
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibles, textosDeListas, ordenDeDispositivos, idioma],
+    [visibles, conCuentas, textosDeListas, ordenDeDispositivos, idioma, referencias, faltanReferencias, elegidos, elegir],
   );
 
   // Al pegar en muchas filas, lo guardado se junta y la tabla se redibuja

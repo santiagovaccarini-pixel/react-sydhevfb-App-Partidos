@@ -1,7 +1,18 @@
 import { describe, expect, test } from "vitest";
 import { COLUMNAS_GPS, GPS, LISTAS_GPS, POR_MINUTO, columnaGps } from "./columnas.js";
 import { armarConfigGps, claveDeColumnaPropia, gpsDelClub } from "./ajustes.js";
-import { COLORES_GPS, colorDeValor, estadisticasDeColumna, vistaDelGps } from "./informe.js";
+import {
+  ABSOLUTAS_COMPARADAS,
+  COLORES_GPS,
+  FILAS_DEL_INFORME,
+  ZONAS_DE_IMPACTO,
+  colorDeValor,
+  comparaciones,
+  estadisticasDeColumna,
+  porcentajeVsVr,
+  porcentajesVsVr,
+  vistaDelGps,
+} from "./informe.js";
 import { ESTADOS, COMO_PERSONA, NO_CARGAR, leerGpsPegado, leerSegundos, nombresSinElegir, ordenDeCarga, planDelGps, promedioDeNombre } from "./importar.js";
 import { datosConCambio, periodoInicial, porMinuto, textoDeCelda, textoDeSegundos } from "./valores.js";
 
@@ -154,6 +165,64 @@ describe("el informe de arriba y los colores", () => {
     expect(estilos.p2.jugador.background).toBe(COLORES_GPS.promedioParcial);
     expect(estilos.s1.jugador.background).toBe(COLORES_GPS.promedioSesion);
     expect(estilos.s1.d).toBeUndefined();
+  });
+
+  test("arriba van solo el promedio, el V.R. y el % (Santiago, 12/10 y 14/10)", () => {
+    expect(FILAS_DEL_INFORME).toEqual(["media", "vr", "porcentaje"]);
+  });
+
+  test("las cuentas de una columna con V.R. salen aunque esté escondida", () => {
+    const filas = [fila("a1", { d: 10, d_min: 1, tiempo: 600 }), fila("a2", { d: 30, d_min: 3, tiempo: 1800 })];
+    const { grupos } = vistaDelGps(filas, [columnaGps("jugador"), columnaGps("d")], [columnaGps("d"), columnaGps("d_min"), columnaGps("tiempo")]);
+    expect(grupos[0].cuentas.d.media).toBe(20);
+    // El por minuto, como en el Excel: el promedio de D ÷ el de los minutos.
+    expect(grupos[0].cuentas.d_min.media).toBe(1);
+    expect(grupos[0].cuentas.tiempo.media).toBe(1200);
+  });
+
+  test("% vs V.R.: el promedio ÷ el V.R.; sin alguno de los dos o con el V.R. en 0, vacío", () => {
+    expect(porcentajeVsVr(90, 100)).toBe(0.9);
+    expect(porcentajeVsVr(null, 100)).toBeNull();
+    expect(porcentajeVsVr(90, null)).toBeNull();
+    expect(porcentajeVsVr(90, 0)).toBeNull();
+    const cuentas = { d: { media: 4500 }, d_min: { media: 90 }, tiempo: { media: 3000 } };
+    expect(porcentajesVsVr(cuentas, { d: 5000, d_min: 100, tiempo: 3600, d_s6: 10 })).toEqual({ d: 0.9, d_min: 0.9, tiempo: 3000 / 3600, d_s6: null });
+    expect(porcentajesVsVr(cuentas, undefined)).toEqual({});
+  });
+
+  test("las Comparaciones, como la fila 16 del Excel: volumen y densidad en promedio y en la zona de impacto, y el tiempo", () => {
+    // Cada absoluta con un % distinto (1, 2 … 9) y cada por minuto, 10 veces
+    // más; Mts >= 90% Pico no entra.
+    const porcentajes = { mts90: 100, mts90_min: 100, tiempo: 0.5 };
+    ABSOLUTAS_COMPARADAS.forEach((clave, indice) => {
+      porcentajes[clave] = indice + 1;
+      porcentajes[`${clave}_min`] = (indice + 1) * 10;
+    });
+    const promedio = (...numeros) => numeros.reduce((a, b) => a + b, 0) / numeros.length;
+    // D=1, D_SHI=2, D_AccHI=3, D_DecHI=4, D_MPHI=5, D_S6=6, D_A8=7, D_A1=8, D_MP5=9.
+    const esperado = {
+      fuerza: promedio(3, 4, 7, 8),
+      f_m: promedio(1, 2, 3, 4, 5, 7, 8),
+      f_v: promedio(6, 9, 3, 4, 7, 8),
+      metabolica: promedio(1, 2, 5),
+      v_m: promedio(1, 2, 5, 6, 9),
+      velocidad: promedio(9, 6),
+      tarea_mixta: 5,
+    };
+    expect(ZONAS_DE_IMPACTO.map((zona) => zona.id)).toEqual(Object.keys(esperado));
+    Object.entries(esperado).forEach(([zona, valor]) => {
+      const numeros = comparaciones(porcentajes, zona);
+      expect(numeros.volumen).toBe(5);
+      expect(numeros.densidad).toBe(50);
+      expect(numeros.volumenZona).toBeCloseTo(valor, 12);
+      expect(numeros.densidadZona).toBeCloseTo(valor * 10, 12);
+      expect(numeros.tiempo).toBe(0.5);
+    });
+    // Sin la zona (o una que no existe), Tarea Mixta.
+    expect(comparaciones(porcentajes).volumenZona).toBe(5);
+    // Sin ningún %, todo vacío (el Excel mostraba #DIV/0!); los que faltan se saltean.
+    expect(comparaciones({})).toEqual({ volumen: null, volumenZona: null, densidad: null, densidadZona: null, tiempo: null });
+    expect(comparaciones({ d: 0.8, d_shi: null, d_min: 1.2 }, "metabolica")).toEqual({ volumen: 0.8, volumenZona: 0.8, densidad: 1.2, densidadZona: 1.2, tiempo: null });
   });
 });
 

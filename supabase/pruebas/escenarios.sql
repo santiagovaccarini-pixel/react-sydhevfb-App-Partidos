@@ -862,11 +862,27 @@ select pruebas.esperar('...y se va con lo hecho', (select count(*) from gps_en_c
 reset role;
 select pruebas.esperar('Las tres filas quedan en las versiones', (select count(*) from versiones_datos where tabla = 'gps'), 3);
 select pruebas.esperar('...y quién las cargó', (select count(*) from gps where creado_por = '00000000-0000-0000-0000-000000000616' and actualizado_por = '00000000-0000-0000-0000-000000000616'), 3);
+-- Los V.R. de cada dispositivo (20261024_gps_referencias.sql): los carga un
+-- SQL; desde la app solo se leen.
+insert into public.gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio) values
+  (:C1, 'catapult', 'FUTBOL', 'Oficial EdLP', 'TOTAL FUTBOL', 1, '{"d":100.5,"d_min":10.25,"tiempo":5700}', '{"d":9.5}'),
+  (:C1, 'sport', 'FUTBOL', 'FUTBOL 2', 'TOTAL FUTBOL', 2, '{"d":90}', '{}'),
+  (:C2, 'catapult', 'FUTBOL', 'Oficial EdLP', 'TOTAL FUTBOL', 1, '{"d":1}', '{}');
+select pruebas.debe_fallar('Un V.R. es de un grupo de una tabla una sola vez', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo) values ('00000000-0000-0000-0000-0000000000c1', 'sport', 'FUTBOL', 'FUTBOL 2', 'TOTAL FUTBOL')$$, 'gps_referencias_una');
+select pruebas.debe_fallar('...con sus valores en un objeto', $$update gps_referencias set promedio = '[1]' where dispositivo = 'sport'$$, 'gps_referencias_valores');
+select pruebas.ser('gps@uno.com'); set role authenticated;
+select pruebas.esperar('Con GPS ve los V.R. de su club, de cada dispositivo', (select string_agg(dispositivo || ':' || tabla, ',' order by orden) from gps_referencias), 'catapult:Oficial EdLP,sport:FUTBOL 2');
+select pruebas.esperar('...con sus números', (select (promedio ->> 'd_min') || ',' || (promedio ->> 'tiempo') from gps_referencias where dispositivo = 'catapult'), '10.25,5700');
+select pruebas.debe_fallar('...pero no los cambia', $$update gps_referencias set promedio = '{}'$$, 'permission denied');
+select pruebas.debe_fallar('...ni suma uno', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo) values ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'FUTBOL', 'Otra', 'TOTAL FUTBOL')$$, 'permission denied');
+select pruebas.debe_fallar('...ni los borra', $$delete from gps_referencias$$, 'permission denied');
+reset role;
 
 select pruebas.ser('nuevo@uno.com'); set role authenticated;
 select pruebas.esperar('Con Lesiones y sin GPS no se ve ninguna fila', (select count(*) from gps), 0);
 select pruebas.esperar('...ni en la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
 select pruebas.esperar('...ni los Ajustes', (select count(*) from gps_campos) + (select count(*) from gps_opciones) + (select count(*) from gps_reglas), 0);
+select pruebas.esperar('...ni los V.R.', (select count(*) from gps_referencias), 0);
 select pruebas.debe_fallar('...ni los cambia', $$insert into gps_campos (equipo_id, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'd', 'Distancia')$$, 'row-level security');
 select pruebas.debe_fallar('...ni las reglas de la carga', $$insert into gps_reglas (equipo_id, reglas) values ('00000000-0000-0000-0000-0000000000c1', '{}')$$, 'row-level security');
 select pruebas.esperar('...ni las cargas sin terminar', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 0);
@@ -879,6 +895,7 @@ select pruebas.esperar('Eva (de otro club) no ve las de Uno', (select count(*) f
 select pruebas.esperar('...ni con la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
 select pruebas.esperar('...ni cambia sus Ajustes', pruebas.filas($$update gps_campos set etiqueta_es = 'Espía'$$), 0);
 select pruebas.esperar('...ni sus reglas de carga', pruebas.filas($$update gps_reglas set reglas = '{}'$$), 0);
+select pruebas.esperar('...ni sus V.R.', (select count(*) from gps_referencias where equipo_id = :C1), 0);
 select pruebas.esperar('...ni sus cargas sin terminar', (select count(*) from gps_en_curso where equipo_id = :C1) + (select count(*) from gps_en_curso_datos), 0);
 select pruebas.esperar('...ni las sigue', pruebas.filas($$update gps_en_curso set paso = 0$$), 0);
 select pruebas.esperar('...ni las borra', pruebas.filas($$delete from gps_en_curso$$), 0);
@@ -910,6 +927,7 @@ select pruebas.debe_fallar('...pero ya no carga', $$insert into gps (equipo_id, 
 select pruebas.esperar('...ni cambia los Ajustes', pruebas.filas($$update gps_campos set oculto = true$$), 0);
 select pruebas.esperar('...ve las reglas de la carga', (select count(*) from gps_reglas), 1);
 select pruebas.esperar('...pero no las cambia', pruebas.filas($$update gps_reglas set reglas = '{}'$$), 0);
+select pruebas.esperar('...y los V.R. de cada dispositivo', (select count(*) from gps_referencias), 2);
 select pruebas.esperar('...pero ya no ve las cargas sin terminar', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 0);
 select pruebas.debe_fallar('...ni deja una', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-12', 0, '{}', '{}')$q$, 'row-level security');
 reset role;
@@ -918,6 +936,7 @@ select pruebas.esperar('Beto le saca GPS (ya se fue)', pruebas.filas($$update cl
 reset role;
 select pruebas.ser('gps@uno.com'); set role authenticated;
 select pruebas.esperar('Sin el permiso, ya no ve ni la foto', (select count(*) from datos_al_dia('gps', :C1)), 0);
+select pruebas.esperar('...ni los V.R.', (select count(*) from gps_referencias), 0);
 reset role;
 
 set role anon;
@@ -925,6 +944,7 @@ select pruebas.debe_fallar('Sin cuenta no se ve el GPS', 'select count(*) from g
 select pruebas.debe_fallar('...ni sus Ajustes', 'select count(*) from gps_campos', 'permission denied');
 select pruebas.debe_fallar('...ni sus listas', 'select count(*) from gps_opciones', 'permission denied');
 select pruebas.debe_fallar('...ni sus reglas de carga', 'select count(*) from gps_reglas', 'permission denied');
+select pruebas.debe_fallar('...ni sus V.R.', 'select count(*) from gps_referencias', 'permission denied');
 select pruebas.debe_fallar('...ni sus cargas sin terminar', 'select count(*) from gps_en_curso', 'permission denied');
 select pruebas.debe_fallar('...ni lo hecho en ellas', 'select count(*) from gps_en_curso_datos', 'permission denied');
 select pruebas.debe_fallar('...ni deja una', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-12', 0, '{}', '{}')$q$, 'permission denied');

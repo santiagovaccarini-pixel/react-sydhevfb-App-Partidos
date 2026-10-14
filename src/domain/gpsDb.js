@@ -322,6 +322,37 @@ export const guardarReglasGps = async (equipoId, reglas) => {
   return { error: "" };
 };
 
+// ------------------------------------------ Los valores de referencia --
+// Los V.R. de cada dispositivo (migración 20261024_gps_referencias.sql; los
+// valores los carga un SQL): [{ id, dispositivo, tipo, tabla, grupo, orden,
+// promedio, desvio }], en su orden. Sin la tabla todavía, ninguno y
+// faltaTabla (la Base sigue andando, sin V.R.).
+export const normalizarReferenciaGps = (fila) => ({
+  id: fila.id,
+  dispositivo: textoLimpio(fila.dispositivo),
+  tipo: textoLimpio(fila.tipo),
+  tabla: textoLimpio(fila.tabla),
+  grupo: textoLimpio(fila.grupo),
+  orden: Number.isFinite(fila.orden) ? fila.orden : 0,
+  promedio: objeto(fila.promedio),
+  desvio: objeto(fila.desvio),
+});
+
+export const leerReferenciasGps = async (equipoId) => {
+  if (!equipoId) return { referencias: [], faltaTabla: false, error: "" };
+  const { data, error } = await supabase
+    .from("gps_referencias")
+    .select("id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio")
+    .eq("equipo_id", equipoId)
+    .order("orden", { ascending: true });
+  if (error) {
+    const clave = claveDeErrorGps(error, "gps.error.noLeer");
+    if (clave === "gps.error.faltaMigracion") return { referencias: [], faltaTabla: true, error: "" };
+    return { referencias: [], faltaTabla: false, error: clave };
+  }
+  return { referencias: (Array.isArray(data) ? data : []).map(normalizarReferenciaGps), faltaTabla: false, error: "" };
+};
+
 // El partido de ese día cargado en Partido (Santiago, 12/10: «siempre que sea
 // la misma fecha que un partido … ponés Vs el rival de turno»; y «los
 // jugadores que no ingresaron tmb podes sacarlos del partido cargado»):
