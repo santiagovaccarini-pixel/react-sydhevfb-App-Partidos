@@ -20,7 +20,8 @@
 --
 -- Requiere 20261016_gps.sql. Se corre en Supabase > SQL Editor, entera y de
 -- una vez. Solo agrega: la app de antes sigue andando. Se puede volver a
--- correr.
+-- correr, salvo después de 20261025_referencias_editables.sql: ahí se frena
+-- sola (le sacaría a la app lo de cambiar los V.R.).
 -- =====================================================================
 
 begin;
@@ -29,6 +30,10 @@ do $$
 begin
   if to_regclass('public.gps') is null then
     raise exception 'Primero hay que correr 20261016_gps.sql.';
+  end if;
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'gps_referencias' and column_name = 'de_partido') then
+    raise exception 'Ya está corrida 20261025_referencias_editables.sql: esta es anterior y no hace falta volver a correrla.';
   end if;
 end $$;
 

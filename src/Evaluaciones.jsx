@@ -10,6 +10,7 @@ import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarEvaluaciones from "./ImportarEvaluaciones.jsx";
 import ReportesEvaluaciones, { SelectorDeTest, SelectorDeVista, vistaInicial } from "./ReportesEvaluaciones.jsx";
+import ReferenciasEvaluaciones from "./ReferenciasEvaluaciones.jsx";
 import { COMPARAR_AL_ABRIR } from "./domain/evaluaciones/categorias.js";
 import {
   COLUMNAS_FIJAS,
@@ -248,6 +249,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
 
   // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10).
   useEnVivo({ nombre: "evaluaciones", tablas: ["evaluaciones", "jugadores"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
+  // Los V.R. que cambia otra persona, en su propio canal (sin la
+  // actualización 20261025 la tabla no avisa: no hay nada que escuchar).
+  useEnVivo({ nombre: "evaluaciones-referencias", tablas: ["evaluaciones_referencias"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
 
   useEffect(() => {
     const alCambiar = () => setEnLinea(navigator.onLine !== false);
@@ -979,98 +983,32 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   );
 
   // Los valores de referencia, como a la derecha de la hoja del Excel: un
-  // bloque por categoría y el resumen.
-  const bloques = referencias?.categorias || {};
+  // bloque por categoría y el resumen. Se cambian ahí (Santiago, 14/10).
   const categoriasConOcultas = opcionesDeLista(LISTA_SELECCION, config, idioma, { conOcultas: true });
   const pantallaReferencias = (
-    <div className="app">
-      <div className="contenedor contenedor-base">
-        {elegirTest(test.id, setTestId)}
-        {encabezado(t("evaluaciones.referencias.titulo"), t("evaluaciones.referencias.texto"))}
-        <AvisoSoloLectura hasta={equipo?.hasta} />
-        {estado}
-        {sinReferencias && <p className="lesiones-estado">{t("evaluaciones.referencias.sinDatos")}</p>}
-        {test.conReferencias === false && !cargando && !error && <p className="lesiones-estado">{t("evaluaciones.referencias.noTiene")}</p>}
-        {!cargando &&
-          !error &&
-          categoriasConOcultas
-            .filter((categoria) => bloques[categoria.valor])
-            .flatMap((categoria) => {
-              const bloque = bloques[categoria.valor];
-              // Un test puede tener sus V.R. en varias tablas (Curl Nórdico e
-              // Isoprone: una por evaluación); si no, una sola.
-              const tablas = test.tablasDeReferencia || [{ id: "", titulo: null, metricas: test.metricas }];
-              return tablas.map((tabla) => (
-                <section key={`${categoria.valor}-${tabla.id}`} className="tarjeta evaluaciones-bloque">
-                  <div className="evaluaciones-bloque-cabeza">
-                    <h2>{(tabla.id ? bloque.titulos?.[tabla.id] : bloque.titulo) || [tabla.titulo?.[idioma], categoria.etiqueta].filter(Boolean).join(" · ")}</h2>
-                    {bloque.rotulo && <span>{bloque.rotulo}</span>}
-                  </div>
-                  <div className="evaluaciones-bloque-marco">
-                    <table className="evaluaciones-vr">
-                      <thead>
-                        <tr>
-                          <td />
-                          {tabla.metricas.map((metrica) => (
-                            <th key={metrica.clave} scope="col">
-                              {metrica.titulo[idioma]}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* Una tabla puede tener sus propias filas (el ratio de Iso Aductor-Abductor: Malo, Regular, Bueno, Regular, Malo). */}
-                        {(tabla.filas || test.filasDeReferencia).map((fila) => (
-                          <tr key={fila.clave}>
-                            <th scope="row">{fila.titulo[idioma]}</th>
-                            {tabla.metricas.map((metrica) => (
-                              <td key={metrica.clave}>{textoDeValor(bloque[fila.clave]?.[metrica.clave] ?? null, fila.formato || metrica.formato, idioma)}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              ));
-            })}
-        {!cargando && !error && referencias?.resumen && (
-          <section className="tarjeta evaluaciones-bloque">
-            <h2>{t("evaluaciones.referencias.resumen")}</h2>
-            <div className="evaluaciones-bloque-marco">
-              <table className="evaluaciones-vr">
-                <thead>
-                  <tr>
-                    <th scope="col">{t("evaluaciones.referencias.categoria")}</th>
-                    <th scope="col">n</th>
-                    {test.resumen.map((clave) => (
-                      <th key={clave} scope="col">
-                        {test.metricas.find((metrica) => metrica.clave === clave)?.titulo[idioma]}
-                      </th>
-                    ))}
-                    {/* «Pro» es del resumen de Zona Media (Sentadilla Incremental no la tiene). */}
-                    {test.resumenConPro !== false && <th scope="col">{t("evaluaciones.referencias.pro")}</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {categorias.map((categoria) => (
-                    <tr key={categoria.valor}>
-                      <th scope="row">{categoria.etiqueta}</th>
-                      <td>{textoDeValor(referencias.resumen.n?.[categoria.valor] ?? null, "General", idioma)}</td>
-                      {test.resumen.map((clave) => (
-                        <td key={clave}>{textoDeValor(bloques[categoria.valor]?.bueno?.[clave] ?? null, test.metricas.find((metrica) => metrica.clave === clave)?.formato, idioma)}</td>
-                      ))}
-                      {/* En el Excel da #REF!: la celda de la que salía ya no existe. */}
-                      {test.resumenConPro !== false && <td />}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-      </div>
-    </div>
+    <ReferenciasEvaluaciones
+      test={test}
+      referencias={referencias}
+      categorias={categorias}
+      categoriasConOcultas={categoriasConOcultas}
+      idioma={idioma}
+      equipoId={equipoId}
+      soloLectura={soloLectura}
+      enLinea={enLinea}
+      cargando={cargando}
+      error={error}
+      selector={elegirTest(test.id, setTestId)}
+      encabezado={encabezado}
+      arriba={
+        <>
+          <AvisoSoloLectura hasta={equipo?.hasta} />
+          {estado}
+        </>
+      }
+      onCambiadas={(id, datos) => setReferenciasPorTest((antes) => ({ ...antes, [id]: datos }))}
+      onRecargar={() => cargar({ silencioso: true })}
+      onAviso={setAviso}
+    />
   );
 
   // -------------------------------------------------------------- Ajustes --

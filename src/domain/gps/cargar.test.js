@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, llegaAlCorte, metrosPorJugador, microcicloDe, reglasDelClub, vsPartido } from "./cargar.js";
+import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, llegaAlCorte, metrosPorJugador, microcicloDe, reglasDelClub, vrPartidoDeLasReglas, vrPartidoDelDispositivo, vsPartido } from "./cargar.js";
 
 // Datos inventados: ningún nombre ni valor del club.
 
@@ -356,8 +356,8 @@ describe("las reglas del club (Ajustes › Reglas de carga)", () => {
 });
 
 describe("las reglas nuevas (Santiago, 12/10)", () => {
-  test("de entrada: sin V.R., sin arqueros y ocultos los campos que no usa el partido", () => {
-    expect(REGLAS_CARGA.vrPartido).toEqual({});
+  test("de entrada: sin arqueros y ocultos los campos que no usa el partido (el V.R. de partido ya no es una regla)", () => {
+    expect(REGLAS_CARGA).not.toHaveProperty("vrPartido");
     expect(REGLAS_CARGA.conArqueros).toBe(false);
     expect([...REGLAS_CARGA.ocultosDelPartido].sort()).toEqual(["ancho", "bloques", "codigo", "jugadores", "largo", "m2", "series"]);
   });
@@ -368,13 +368,35 @@ describe("las reglas nuevas (Santiago, 12/10)", () => {
       ocultosDelPartido: ["largo", "nada", "m2", "largo"],
       conArqueros: true,
     });
-    expect(reglas.vrPartido).toEqual({ d_min: 100, d_shi_min: 20.5 });
+    expect(reglas).not.toHaveProperty("vrPartido");
     expect(reglas.ocultosDelPartido).toEqual(["largo", "m2"]);
     expect(reglas.conArqueros).toBe(true);
     // Sin ocultar nada: se ve todo.
     expect(reglasDelClub({ ocultosDelPartido: [] }).ocultosDelPartido).toEqual([]);
     // De otro tipo: como de entrada.
     expect(reglasDelClub({ vrPartido: [1, 2], ocultosDelPartido: "largo", conArqueros: "si" })).toEqual(REGLAS_CARGA);
+  });
+});
+
+describe("el V.R. de partido de cada dispositivo (Santiago, 14/10)", () => {
+  const referencias = [
+    { id: "a", dispositivo: "catapult", dePartido: false, promedio: { d_min: 1 } },
+    { id: "b", dispositivo: "catapult", dePartido: true, promedio: { d: 9000, d_min: 97.5, d_shi_min: 15.25, d_acchi_min: 0, mts90_min: "3", tiempo: 5400 } },
+    { id: "c", dispositivo: "sport", dePartido: false, promedio: { d_min: 101 } },
+  ];
+  test("el marcado de partido del dispositivo de la carga, solo sus por minuto mayores que 0", () => {
+    expect(vrPartidoDelDispositivo(referencias, "catapult")).toEqual({ d_min: 97.5, d_shi_min: 15.25 });
+  });
+  test("sin dispositivo, o sin uno marcado, no hay", () => {
+    expect(vrPartidoDelDispositivo(referencias, "")).toBeNull();
+    expect(vrPartidoDelDispositivo(referencias, "sport")).toBeNull();
+    expect(vrPartidoDelDispositivo([], "catapult")).toBeNull();
+    expect(vrPartidoDelDispositivo([{ dispositivo: "x", dePartido: true, promedio: { d: 5 } }], "x")).toBeNull();
+  });
+  test("el de las reglas de antes (mientras la base no tenga la actualización)", () => {
+    expect(vrPartidoDeLasReglas({ vrPartido: { d_min: 100, d_shi_min: 20.5, d_acchi_min: 0, mts90_min: "3", otra: 4 } })).toEqual({ d_min: 100, d_shi_min: 20.5 });
+    expect(vrPartidoDeLasReglas({})).toBeNull();
+    expect(vrPartidoDeLasReglas({ vrPartido: [1] })).toBeNull();
   });
 });
 

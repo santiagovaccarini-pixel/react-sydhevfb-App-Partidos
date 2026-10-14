@@ -1,0 +1,338 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { HojaConfirmar } from "./components/ConfirmSheet.js";
+import { HojaInferior } from "./components/SheetPanel.js";
+import { HistorialDeReferencias, TablaDeReferencia } from "./components/TablaDeReferencia.jsx";
+import { TerminoDe } from "./components/Guia.jsx";
+import { tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
+import { CLAVES_DE_LOS_VR } from "./domain/gps/informe.js";
+import { textoDeCelda } from "./domain/gps/valores.js";
+import { interpretarHoras, interpretarValor } from "./domain/tabla.js";
+import { cambiosDeEntrada } from "./domain/referencias.js";
+import { leerHistorialDeReferencias } from "./domain/referenciasDb.js";
+import { borrarReferenciaGps, cambiarValorDeReferenciaGps, marcarDePartidoGps, renombrarReferenciaGps, sumarReferenciaGps } from "./domain/gpsDb.js";
+import { t } from "./idioma/index.js";
+
+// GPS › Valores de referencia (Santiago, 14/10: «Todos los vr tienen que
+// tener su solapa aparte», «Como esta en evaluaciones»): arriba se elige el
+// dispositivo; cada V.R. suyo es una tarjeta con su tabla (Promedio y
+// Desvío de cada medida, como la hoja de los V.R. del club). Los cambia
+// quien tiene GPS y sigue en el club: un número con dos toques; sumar,
+// cambiar el nombre, borrar y marcar el «de partido» (el que usa Cargar para
+// el % vs V.R. de partido de ese dispositivo). Abajo, los últimos cambios,
+// con «Volver».
+
+const FILAS = ["promedio", "desvio"];
+const nombreDe = (referencia) => [referencia?.tipo, referencia?.tabla, referencia?.grupo].filter(Boolean).join(" · ");
+const ordenar = (lista) =>
+  [...lista].sort((a, b) => a.orden - b.orden || nombreDe(a).localeCompare(nombreDe(b)));
+
+export default function ReferenciasGps({
+  gps,
+  config,
+  idioma,
+  equipoId,
+  referencias,
+  dispositivos,
+  sinEdicion,
+  faltaTabla,
+  soloLectura,
+  enLinea,
+  encabezado,
+  arriba = null,
+  onCambiadas,
+  onRecargar,
+  onAviso,
+}) {
+  // Los dispositivos de la lista del club y, si hay V.R. de uno que ya no
+  // está en la lista, también.
+  const opciones = useMemo(() => {
+    const deLaLista = dispositivos.map((opcion) => ({ valor: opcion.valor, etiqueta: opcion.etiqueta }));
+    const conocidos = new Set(deLaLista.map((opcion) => opcion.valor));
+    const sueltos = [...new Set(referencias.map((referencia) => referencia.dispositivo))].filter((codigo) => codigo && !conocidos.has(codigo)).map((codigo) => ({ valor: codigo, etiqueta: codigo }));
+    return [...deLaLista, ...sueltos];
+  }, [dispositivos, referencias]);
+  const [elegido, setElegido] = useState("");
+  const dispositivo = opciones.some((opcion) => opcion.valor === elegido) ? elegido : opciones.find((opcion) => referencias.some((referencia) => referencia.dispositivo === opcion.valor))?.valor || opciones[0]?.valor || "";
+  const nombreDelDispositivo = opciones.find((opcion) => opcion.valor === dispositivo)?.etiqueta || dispositivo;
+  const suyas = useMemo(() => ordenar(referencias.filter((referencia) => referencia.dispositivo === dispositivo)), [referencias, dispositivo]);
+
+  // Se cambian con la base al día, con señal y siguiendo en el club.
+  const puedeCambiar = !soloLectura && !sinEdicion && !faltaTabla && enLinea;
+
+  // Las columnas: las de la hoja de los V.R. y, si un V.R. tiene otra, también.
+  const columnasGps = useMemo(() => {
+    const porClave = new Map(gps.columnas.map((columna) => [columna.clave, columna]));
+    const claves = [...CLAVES_DE_LOS_VR];
+    suyas.forEach((referencia) =>
+      [...Object.keys(referencia.promedio), ...Object.keys(referencia.desvio)].forEach((clave) => {
+        if (!claves.includes(clave) && porClave.has(clave)) claves.push(clave);
+      }),
+    );
+    return claves.filter((clave) => porClave.has(clave)).map((clave) => porClave.get(clave));
+  }, [gps, suyas]);
+  const columnas = useMemo(
+    () => columnasGps.map((columna) => ({ clave: columna.clave, titulo: tituloDeColumna(gps, columna, config, idioma), teclado: columna.tipo === "tiempo" ? "text" : "decimal", gps: columna })),
+    [columnasGps, gps, config, idioma],
+  );
+  const tituloDe = (clave) => columnas.find((columna) => columna.clave === clave)?.titulo || clave;
+  const filas = FILAS.map((clave) => ({ clave, titulo: t(`gps.vr.${clave}`) }));
+
+  // Como en la Base, salvo los por minuto: sus V.R. son chicos (0,48 por
+  // minuto) y con un decimal se perderían; van con dos.
+  const textoDe = (columna, valor) => textoDeCelda(columna.tipo === "porMinuto" ? { ...columna, formato: "0.00" } : columna, valor, idioma);
+  const interpretar = (_fila, columna, escrito) => {
+    if (columna.gps.tipo === "tiempo") {
+      const horas = interpretarHoras(escrito);
+      return horas === null || horas === undefined ? horas : Math.round(horas * 3600 * 1000) / 1000;
+    }
+    return interpretarValor({ tipo: "numero" }, escrito);
+  };
+
+  // Lo que devuelve la base reemplaza lo que se veía (sin esperar a releer).
+  const reemplazar = useCallback((cambiadas) => onCambiadas(cambiadas), [onCambiadas]);
+
+  // ------------------------------------------------------------ Historial --
+  const [historial, setHistorial] = useState({ cambios: [], error: "", leido: false });
+  const leerHistorial = useCallback(async () => {
+    if (soloLectura || sinEdicion || faltaTabla || !equipoId) return;
+    const respuesta = await leerHistorialDeReferencias(equipoId, "gps_referencias");
+    setHistorial({ cambios: respuesta.cambios, error: respuesta.error, leido: true });
+  }, [equipoId, soloLectura, sinEdicion, faltaTabla]);
+  // Cada vez que cambian los V.R. (acá o en otro aparato), el historial también.
+  useEffect(() => {
+    leerHistorial();
+  }, [leerHistorial, referencias]);
+
+  const vacio = t("referencias.historial.vacioValor");
+  const textoDeCambio = (entrada, cambio) => {
+    const fila = entrada.despues || entrada.antes || {};
+    const [parte, clave] = cambio.ruta;
+    if (parte === "promedio" || parte === "desvio") {
+      const columna = columnasGps.find((una) => una.clave === clave) || gps.columnas.find((una) => una.clave === clave);
+      const de = (valor) => (valor === null ? vacio : columna ? textoDe(columna, valor) : String(valor));
+      return t("gps.vr.cambio.valor", { nombre: nombreDe(fila), medida: tituloDe(clave), fila: t(`gps.vr.${parte}`), antes: de(cambio.antes), despues: de(cambio.despues) });
+    }
+    if (parte === "de_partido") return t(cambio.despues ? "gps.vr.cambio.dePartido" : "gps.vr.cambio.noDePartido", { nombre: nombreDe(fila) });
+    return null;
+  };
+  const entradas = useMemo(
+    () =>
+      historial.cambios
+        .filter((entrada) => (entrada.despues || entrada.antes)?.dispositivo === dispositivo)
+        .map((entrada) => {
+          if (entrada.accion === "creada") return { ...entrada, lineas: [t("gps.vr.cambio.sumado", { nombre: nombreDe(entrada.despues) })], volver: referencias.some((una) => una.id === entrada.filaId) };
+          if (entrada.accion === "borrada") return { ...entrada, lineas: [t("gps.vr.cambio.borrado", { nombre: nombreDe(entrada.antes) })], volver: true };
+          const cambios = cambiosDeEntrada(entrada).filter((cambio) => cambio.ruta[0] !== "orden");
+          const lineas = [];
+          if (cambios.some((cambio) => ["tipo", "tabla", "grupo"].includes(cambio.ruta[0]))) lineas.push(t("gps.vr.cambio.nombre", { antes: nombreDe(entrada.antes), despues: nombreDe(entrada.despues) }));
+          cambios.forEach((cambio) => {
+            const texto = textoDeCambio(entrada, cambio);
+            if (texto) lineas.push(texto);
+          });
+          return { ...entrada, cambios, lineas, volver: cambios.length > 0 };
+        })
+        .filter((entrada) => entrada.lineas.length),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [historial.cambios, dispositivo, referencias, columnas, idioma],
+  );
+
+  // Volver atrás: lo cambiado, a como estaba; lo borrado, otra vez; lo
+  // sumado, se borra.
+  const volver = async (id) => {
+    const entrada = entradas.find((una) => una.id === id);
+    if (!entrada) return { error: "" };
+    let respuesta = { error: "" };
+    if (entrada.accion === "creada") {
+      respuesta = await borrarReferenciaGps(entrada.filaId);
+    } else if (entrada.accion === "borrada") {
+      const antes = entrada.antes;
+      respuesta = await sumarReferenciaGps(equipoId, { dispositivo: antes.dispositivo, tipo: antes.tipo, tabla: antes.tabla, grupo: antes.grupo, orden: antes.orden || 0, promedio: antes.promedio || {}, desvio: antes.desvio || {} });
+      if (!respuesta.error && antes.de_partido) respuesta = await marcarDePartidoGps(respuesta.referencia.id, true);
+    } else {
+      if (!referencias.some((una) => una.id === entrada.filaId)) return { error: "gps.vr.yaNoEsta" };
+      const nombre = entrada.cambios.some((cambio) => ["tipo", "tabla", "grupo"].includes(cambio.ruta[0]));
+      if (nombre) respuesta = await renombrarReferenciaGps(entrada.filaId, entrada.antes);
+      for (const cambio of entrada.cambios) {
+        if (respuesta.error) break;
+        const [parte, clave] = cambio.ruta;
+        if (parte === "promedio" || parte === "desvio") respuesta = await cambiarValorDeReferenciaGps(entrada.filaId, parte, clave, cambio.antes);
+        else if (parte === "de_partido") respuesta = await marcarDePartidoGps(entrada.filaId, Boolean(cambio.antes));
+      }
+    }
+    if (respuesta.error) return respuesta;
+    await onRecargar();
+    onAviso(t("referencias.historial.volvio"));
+    return { error: "" };
+  };
+
+  // ------------------------------------------- Sumar, nombrar y borrar --
+  const [hoja, setHoja] = useState(null);
+  const [errorHoja, setErrorHoja] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const [aBorrar, setABorrar] = useState(null);
+
+  const abrirHoja = (referencia = null) => {
+    setErrorHoja("");
+    setHoja(referencia ? { id: referencia.id, tipo: referencia.tipo, tabla: referencia.tabla, grupo: referencia.grupo } : { id: null, tipo: "", tabla: "", grupo: "" });
+  };
+  const guardarHoja = async () => {
+    if (!hoja) return;
+    if (![hoja.tipo, hoja.tabla, hoja.grupo].every((texto) => String(texto || "").trim())) {
+      setErrorHoja(t("gps.vr.faltaNombre"));
+      return;
+    }
+    setOcupado(true);
+    const orden = referencias.reduce((mayor, referencia) => Math.max(mayor, referencia.orden), 0) + 1;
+    const respuesta = hoja.id ? await renombrarReferenciaGps(hoja.id, hoja) : await sumarReferenciaGps(equipoId, { dispositivo, tipo: hoja.tipo, tabla: hoja.tabla, grupo: hoja.grupo, orden });
+    setOcupado(false);
+    if (respuesta.error) {
+      setErrorHoja(t(respuesta.error));
+      return;
+    }
+    reemplazar([respuesta.referencia]);
+    setHoja(null);
+    onAviso(t(hoja.id ? "gps.vr.renombrado" : "gps.vr.sumado"));
+  };
+  const borrar = async () => {
+    const referencia = aBorrar;
+    setABorrar(null);
+    if (!referencia) return;
+    const respuesta = await borrarReferenciaGps(referencia.id);
+    if (respuesta.error) {
+      onAviso(t(respuesta.error), { error: true });
+      return;
+    }
+    await onRecargar();
+    onAviso(t("gps.vr.borrado"));
+  };
+  const marcar = async (referencia, valor) => {
+    const respuesta = await marcarDePartidoGps(referencia.id, valor);
+    if (respuesta.error) {
+      onAviso(t(respuesta.error), { error: true });
+      return;
+    }
+    reemplazar(respuesta.referencias);
+  };
+
+  const cambiarNumero = (referencia) => async (fila, columna, valor) => {
+    const respuesta = await cambiarValorDeReferenciaGps(referencia.id, fila.clave, columna.clave, valor);
+    if (!respuesta.error) reemplazar([respuesta.referencia]);
+    return respuesta;
+  };
+
+  // ------------------------------------------------------------ Pantalla --
+  let aviso = null;
+  if (faltaTabla) aviso = t("gps.vr.faltaMigracion");
+  else if (sinEdicion && !soloLectura) aviso = t("gps.vr.faltaActualizacion");
+
+  return (
+    <div className="app">
+      <div className="contenedor contenedor-base">
+        {encabezado(t("gps.vr.titulo"), t("gps.vr.texto"))}
+        {arriba}
+        {aviso && <p className="lesiones-estado evaluaciones-sin-referencias">{aviso}</p>}
+        {!faltaTabla && (
+          <>
+            {opciones.length ? (
+              <label className="campo-inicio evaluaciones-elegir-test">
+                <span>{t("gps.vr.dispositivo")}</span>
+                <select className="evaluaciones-elegir-test-lista" value={dispositivo} onChange={(evento) => setElegido(evento.target.value)}>
+                  {opciones.map((opcion) => (
+                    <option key={opcion.valor} value={opcion.valor}>
+                      {opcion.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="lesiones-estado">{t("gps.vr.sinDispositivos")}</p>
+            )}
+            {dispositivo && !suyas.length && <p className="lesiones-estado">{t("gps.vr.ningunoDelDispositivo", { dispositivo: nombreDelDispositivo })}</p>}
+            {puedeCambiar && suyas.length > 0 && <p className="lesiones-ayuda referencias-ayuda">{t("referencias.comoSeCambia")}</p>}
+            {suyas.map((referencia) => (
+              <section key={referencia.id} className="tarjeta evaluaciones-bloque referencias-bloque">
+                <div className="evaluaciones-bloque-cabeza">
+                  <h2>{nombreDe(referencia)}</h2>
+                  {referencia.dePartido && (
+                    <span className="referencias-de-partido">
+                      {t("gps.vr.esDePartido")}
+                      <TerminoDe clave="gps.terminos.vrPartido" />
+                    </span>
+                  )}
+                </div>
+                <TablaDeReferencia
+                  columnas={columnas}
+                  filas={filas}
+                  minimo={Math.max(520, 96 + columnas.length * 78)}
+                  texto={(fila, columna) => {
+                    const valor = referencia[fila.clave]?.[columna.clave];
+                    return valor === undefined || valor === null ? "" : textoDe(columna.gps, valor);
+                  }}
+                  interpretar={interpretar}
+                  onCambiar={puedeCambiar ? cambiarNumero(referencia) : undefined}
+                />
+                {puedeCambiar && (
+                  <div className="referencias-acciones">
+                    <button type="button" className="boton-secundario" onClick={() => marcar(referencia, !referencia.dePartido)}>
+                      {referencia.dePartido ? t("gps.vr.noUsarDePartido") : t("gps.vr.usarDePartido")}
+                    </button>
+                    <button type="button" className="boton-secundario" onClick={() => abrirHoja(referencia)}>
+                      {t("gps.vr.cambiarNombre")}
+                    </button>
+                    <button type="button" className="boton-secundario boton-peligro" onClick={() => setABorrar(referencia)}>
+                      {t("gps.vr.borrar")}
+                    </button>
+                  </div>
+                )}
+              </section>
+            ))}
+            {puedeCambiar && dispositivo && (
+              <button type="button" className="boton-principal referencias-sumar" onClick={() => abrirHoja()}>
+                {t("gps.vr.sumar", { dispositivo: nombreDelDispositivo })}
+              </button>
+            )}
+            {historial.leido && !soloLectura && !sinEdicion && <HistorialDeReferencias entradas={entradas} onVolver={enLinea ? volver : undefined} error={historial.error} />}
+          </>
+        )}
+      </div>
+
+      {hoja && (
+        <HojaInferior
+          abierta
+          className="lesiones-hoja"
+          titulo={hoja.id ? t("gps.vr.cambiarNombre") : t("gps.vr.sumar", { dispositivo: nombreDelDispositivo })}
+          descripcion={t("gps.vr.nombreAyuda")}
+          onCerrar={() => setHoja(null)}
+          acciones={
+            <>
+              <button type="button" className="boton-cancelar-hoja" onClick={() => setHoja(null)} disabled={ocupado}>
+                {t("comun.cancelar")}
+              </button>
+              <button type="button" className="boton-confirmar-hoja" onClick={guardarHoja} disabled={ocupado}>
+                {ocupado ? t("comun.guardando") : t("comun.guardar")}
+              </button>
+            </>
+          }
+        >
+          {errorHoja && <div className="aviso-hoja">{errorHoja}</div>}
+          {["tipo", "tabla", "grupo"].map((campo) => (
+            <div className="campo-inicio" key={campo}>
+              <label htmlFor={`vr-${campo}`}>{t(`gps.vr.${campo}`)}</label>
+              <input id={`vr-${campo}`} type="text" maxLength={campo === "tipo" ? 80 : 120} value={hoja[campo]} onChange={(evento) => setHoja({ ...hoja, [campo]: evento.target.value })} />
+            </div>
+          ))}
+        </HojaInferior>
+      )}
+
+      <HojaConfirmar
+        abierta={Boolean(aBorrar)}
+        titulo={t("gps.vr.borrarTitulo")}
+        descripcion={t("gps.vr.borrarTexto", { nombre: nombreDe(aBorrar), dispositivo: nombreDelDispositivo })}
+        etiquetaConfirmar={t("referencias.siBorrar")}
+        etiquetaCancelar={t("comun.cancelar")}
+        onConfirmar={borrar}
+        onCancelar={() => setABorrar(null)}
+      />
+    </div>
+  );
+}

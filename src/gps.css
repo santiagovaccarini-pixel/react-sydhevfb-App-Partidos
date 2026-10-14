@@ -757,20 +757,6 @@
   }
 }
 
-/* Ajustes › Reglas de carga: los V.R. de partido, un número por medida. */
-.gps-marco .gps-regla-vr {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px 14px;
-}
-.gps-marco .gps-regla-vr label {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-}
-.gps-marco .gps-regla-vr span {
-  overflow-wrap: anywhere;
-}
 /* Lo que se ve en el partido: las casillas como en el filtro de las bases
    (no como los campos de la hoja). */
 .gps-marco .lesiones-hoja .campo-inicio .tabla-datos-valores input {

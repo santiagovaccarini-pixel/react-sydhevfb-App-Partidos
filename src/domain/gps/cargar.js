@@ -64,10 +64,6 @@ export const REGLAS_CARGA = Object.freeze({
   // El día de partido, todos los del partido (también los que no ingresaron)
   // van en el promedio de la sesión.
   partidoVaEntero: true,
-  // Los V.R. de partido por minuto (la plantilla: «Datos Básicos», «VR
-  // Partido»): con ellos cada bloque muestra su % (vsPartido). Los pone cada
-  // club; no van en el código.
-  vrPartido: Object.freeze({}),
   // Los colores de ese %, como en la plantilla (Santiago, 13/10: «menor a 90%
   // en rojo y mayor o igual a 90% en verde»): cada medida, y también la
   // metabólica, la fuerza y la velocidad, verde desde esta parte y roja
@@ -104,8 +100,9 @@ export const VS_PARTIDO = Object.freeze({
 
 // Cómo se escribe cada regla en Ajustes › Reglas de carga: fecha, parte (un
 // porcentaje: 75 es 0,75), número (con su mínimo y máximo), hora (h:mm),
-// prendida/apagada, campos (los que se ocultan, de una lista) o vr (un
-// número por medida).
+// prendida/apagada o campos (los que se ocultan, de una lista). El V.R. de
+// partido ya no es una regla: es el V.R. marcado «de partido» de cada
+// dispositivo (GPS › Valores de referencia; Santiago, 14/10).
 export const AJUSTES_DE_REGLAS = Object.freeze([
   { clave: "inicioMicrociclo", tipo: "fecha" },
   { clave: "parteDelTiempo", tipo: "parte", minimo: 0, maximo: 1 },
@@ -117,7 +114,6 @@ export const AJUSTES_DE_REGLAS = Object.freeze([
   { clave: "contarNoEntrenaron", tipo: "prendida" },
   { clave: "parteNoEntrenaron", tipo: "parte", minimo: 0, maximo: 1 },
   { clave: "partidoVaEntero", tipo: "prendida" },
-  { clave: "vrPartido", tipo: "vr" },
   { clave: "corteVsPartido", tipo: "parte", minimo: 0, maximo: 1 },
   { clave: "corteVsPartidoPromedio", tipo: "parte", minimo: 0, maximo: 1 },
   { clave: "ocultosDelPartido", tipo: "campos", opciones: CAMPOS_DEL_PARTIDO },
@@ -134,13 +130,33 @@ export const reglasDelClub = (guardadas = {}) => {
     if (tipo === "fecha" && (valor === "" || /^\d{4}-\d{2}-\d{2}$/.test(String(valor)))) reglas[clave] = String(valor);
     else if (tipo === "prendida" && typeof valor === "boolean") reglas[clave] = valor;
     else if (tipo === "campos" && Array.isArray(valor)) reglas[clave] = Object.freeze(opciones.filter((campo) => valor.includes(campo)));
-    else if (tipo === "vr" && typeof valor === "object" && !Array.isArray(valor))
-      reglas[clave] = Object.freeze(Object.fromEntries(VS_PARTIDO.medidas.filter((medida) => Number.isFinite(valor[medida]) && valor[medida] > 0).map((medida) => [medida, valor[medida]])));
     else if (tipo === "hora" && Number.isFinite(valor) && valor >= 0 && valor < 86400) reglas[clave] = valor;
     else if ((tipo === "numero" || tipo === "parte") && Number.isFinite(valor) && valor >= minimo && valor <= maximo && (tipo === "parte" ? valor > 0 : true)) reglas[clave] = valor;
   });
   return reglas;
 };
+
+// Los números por minuto de un V.R. de partido: los de las medidas del %,
+// mayores que 0; null si no queda ninguno.
+const soloDelPartido = (valores) => {
+  if (!valores || typeof valores !== "object" || Array.isArray(valores)) return null;
+  const vr = Object.fromEntries(VS_PARTIDO.medidas.filter((medida) => Number.isFinite(valores[medida]) && valores[medida] > 0).map((medida) => [medida, valores[medida]]));
+  return Object.keys(vr).length ? Object.freeze(vr) : null;
+};
+
+// El V.R. de partido de un dispositivo: el marcado «de partido» en GPS ›
+// Valores de referencia (Santiago, 14/10: «El de partido de cada
+// dispositivo»; Cargar usa el del dispositivo de la carga). null sin
+// dispositivo o si no tiene uno.
+export const vrPartidoDelDispositivo = (referencias = [], dispositivo = "") => {
+  if (!dispositivo) return null;
+  const marcado = (referencias || []).find((referencia) => referencia.dispositivo === dispositivo && referencia.dePartido);
+  return marcado ? soloDelPartido(marcado.promedio) : null;
+};
+
+// El de antes, uno por club en Ajustes › Reglas de carga: solo mientras la
+// base no tenga la actualización 20261025 (ahí pasa a cada dispositivo).
+export const vrPartidoDeLasReglas = (guardadas = {}) => soloDelPartido(guardadas?.vrPartido);
 
 const MINUTOS = 60;
 

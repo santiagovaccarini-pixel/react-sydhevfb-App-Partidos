@@ -7,7 +7,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { opcionesDeLista, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
-import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, llegaAlCorte, microcicloDe, vsPartido } from "./domain/gps/cargar.js";
+import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, llegaAlCorte, microcicloDe, vrPartidoDelDispositivo, vsPartido } from "./domain/gps/cargar.js";
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
 import { COMO_PERSONA, NO_CARGAR, buscadorDelGps, leerSegundos } from "./domain/gps/importar.js";
 import { esNumero, textoDeSegundos } from "./domain/gps/valores.js";
@@ -113,6 +113,11 @@ export default function CargarGps({
   plantel = [],
   plantelSinLeer = false,
   reglas = REGLAS_CARGA,
+  // Los V.R. de cada dispositivo: el % vs V.R. de partido usa el marcado «de
+  // partido» del dispositivo de la carga (Santiago, 14/10). vrPartidoViejo:
+  // el de las reglas, mientras la base no tenga la actualización 20261025.
+  referencias = [],
+  vrPartidoViejo = null,
   columnas = [],
   fijas = [],
   armarFila,
@@ -662,7 +667,7 @@ export default function CargarGps({
   // rojo abajo (cada medida y los grupos, 90 %; el promedio, 70 %; los dos en
   // Ajustes › Reglas de carga). Los decimales, también: las medidas y el
   // promedio sin decimales; la metabólica, la fuerza y la velocidad, con uno.
-  const conVr = VS_PARTIDO.medidas.some((clave) => reglas.vrPartido?.[clave]);
+  const vrPartido = vrPartidoViejo || vrPartidoDelDispositivo(referencias, estado.dispositivo);
   const enPorcentaje = (numero, decimales = 0) =>
     esNumero(numero) ? `${(Math.round(numero * 100 * 10 ** decimales) / 10 ** decimales).toLocaleString(idioma, { minimumFractionDigits: decimales, maximumFractionDigits: decimales })} %` : "—";
   const colorDe = (numero, corte) => {
@@ -672,9 +677,12 @@ export default function CargarGps({
   // La barra va de 0 a 150 %, con una marca en el corte.
   const largoDe = (numero) => (esNumero(numero) ? Math.min(Math.max(numero / 1.5, 0), 1) * 100 : 0);
   const panelVs = (datos) => {
-    if (!conVr) return <p className="lesiones-ayuda gps-cargar-vs-aviso">{t("gps.cargar.sinVr")}</p>;
+    if (!vrPartido) {
+      const nombre = estado.dispositivo ? opciones("dispositivo").find((opcion) => opcion.valor === estado.dispositivo)?.etiqueta || estado.dispositivo : "";
+      return <p className="lesiones-ayuda gps-cargar-vs-aviso">{nombre ? t("gps.cargar.sinVr", { dispositivo: nombre }) : t("gps.cargar.vsSinDispositivo")}</p>;
+    }
     if (!datos) return <p className="lesiones-ayuda gps-cargar-vs-aviso">{t("gps.cargar.vsSinPromedio", { n: reglas.minimoParaPromedio })}</p>;
-    const vs = vsPartido(datos, reglas.vrPartido);
+    const vs = vsPartido(datos, vrPartido);
     // Los cortes, como en Ajustes (con su decimal, si tienen).
     const textoDeCorte = (parte) => `${(Math.round(parte * 1000) / 10).toLocaleString(idioma)} %`;
     const corte = textoDeCorte(reglas.corteVsPartido);
@@ -1001,6 +1009,10 @@ export default function CargarGps({
       if (leido.error) return t(leido.error);
       if (!estado.fecha) return t("gps.cargar.faltaFecha");
       if (estado.fecha > hoy) return t("gps.error.fechaFutura");
+      // El dispositivo, ya acá: el % vs V.R. de partido de cada bloque es el
+      // suyo (Santiago, 14/10: «Al subir el CSV»).
+      if (!opciones("dispositivo").length) return t("gps.cargar.faltanDispositivos");
+      if (!estado.dispositivo) return t("gps.cargar.faltaDispositivo");
       if (sinElegir.length) return plural("gps.cargar.faltanNombres", sinElegir.length);
       if (!bloques || (!bloques.primer && !bloques.segundo && !bloques.tareas.length)) return t("gps.cargar.sinFilas");
       if (!revision || revision.estado === "revisando") return t("gps.cargar.revisandoBase");
@@ -1130,6 +1142,17 @@ export default function CargarGps({
         <>
           <section className="tarjeta tarjeta-ficha lesiones-grupo">
             {campo(t("gps.cargar.fecha"), <input type="date" value={estado.fecha} max={hoy} onChange={(evento) => cambiar({ fecha: evento.target.value })} />, "fecha")}
+            {/* El dispositivo, al subir el CSV: el % vs V.R. de partido de cada bloque usa el suyo (Santiago, 14/10). En la sesión se ve y se puede cambiar. */}
+            {campo(
+              titulo("dispositivo"),
+              opciones("dispositivo").length ? (
+                elegir({ rotulo: titulo("dispositivo"), lista: "dispositivo", valor: estado.dispositivo, alElegir: (valor) => cambiar({ dispositivo: valor }), ajustado: true })
+              ) : (
+                <p className="lesiones-ayuda">{t("gps.importar.sinDispositivos")}</p>
+              ),
+              "disp-csv",
+              "ajustado",
+            )}
             {microciclo !== null && (
               <p className="lesiones-ayuda gps-cargar-microciclo">
                 {t("gps.cargar.microciclo", { n: microciclo })}

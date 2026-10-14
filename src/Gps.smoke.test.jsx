@@ -24,9 +24,13 @@ const datos = vi.hoisted(() => ({
   reglas: {},
   faltanReglas: false,
   reglasGuardadas: [],
-  // Los V.R. de cada dispositivo (gps_referencias) y si falta la tabla.
+  // Los V.R. de cada dispositivo (gps_referencias), si falta la tabla o la
+  // actualización para cambiarlos, lo que se pidió cambiar y el historial.
   referencias: [],
   faltanReferencias: false,
+  sinEdicionVr: false,
+  cambiosVr: [],
+  historialVr: [],
   partidos: [],
   // Las cargas sin terminar: las filas (con lo hecho) y lo que pidió la app.
   enCurso: [],
@@ -69,6 +73,9 @@ vi.mock("./domain/copiaGps.js", () => ({
     return true;
   },
   borrarCopiasGps: async () => true,
+}));
+vi.mock("./domain/referenciasDb.js", () => ({
+  leerHistorialDeReferencias: async () => ({ cambios: datos.historialVr.map((una) => ({ ...una })), faltaTabla: false, error: "" }),
 }));
 vi.mock("./domain/gpsDb.js", () => ({
   SOLO_PROMEDIOS: "promedio",
@@ -135,7 +142,38 @@ vi.mock("./domain/gpsDb.js", () => ({
     return { error: "" };
   },
   leerReglasGps: async () => ({ reglas: { ...datos.reglas }, faltaTabla: datos.faltanReglas, error: "" }),
-  leerReferenciasGps: async () => ({ referencias: datos.referencias.map((una) => ({ ...una })), faltaTabla: datos.faltanReferencias, error: "" }),
+  leerReferenciasGps: async () => ({ referencias: datos.referencias.map((una) => ({ ...una, promedio: { ...una.promedio }, desvio: { ...una.desvio } })), faltaTabla: datos.faltanReferencias, sinEdicion: datos.sinEdicionVr, error: "" }),
+  cambiarValorDeReferenciaGps: async (id, cual, clave, valor) => {
+    datos.cambiosVr.push({ que: "valor", id, cual, clave, valor });
+    const referencia = datos.referencias.find((una) => una.id === id);
+    if (!referencia) return { error: "gps.error.sinPermiso" };
+    referencia[cual] = { ...referencia[cual], [clave]: valor };
+    if (valor === null) delete referencia[cual][clave];
+    return { referencia: { ...referencia }, error: "" };
+  },
+  marcarDePartidoGps: async (id, marcar) => {
+    datos.cambiosVr.push({ que: "partido", id, marcar });
+    const referencia = datos.referencias.find((una) => una.id === id);
+    datos.referencias = datos.referencias.map((una) => (una.dispositivo === referencia.dispositivo ? { ...una, dePartido: una.id === id ? marcar : marcar ? false : una.dePartido } : una));
+    return { referencias: datos.referencias.filter((una) => una.dispositivo === referencia.dispositivo).map((una) => ({ ...una })), error: "" };
+  },
+  sumarReferenciaGps: async (equipoId, nueva) => {
+    datos.cambiosVr.push({ que: "sumar", ...nueva });
+    const referencia = { id: `n${datos.referencias.length + 1}`, dePartido: false, promedio: {}, desvio: {}, ...nueva };
+    datos.referencias.push(referencia);
+    return { referencia: { ...referencia }, error: "" };
+  },
+  renombrarReferenciaGps: async (id, { tipo, tabla, grupo }) => {
+    datos.cambiosVr.push({ que: "nombre", id, tipo, tabla, grupo });
+    const referencia = datos.referencias.find((una) => una.id === id);
+    Object.assign(referencia, { tipo, tabla, grupo });
+    return { referencia: { ...referencia }, error: "" };
+  },
+  borrarReferenciaGps: async (id) => {
+    datos.cambiosVr.push({ que: "borrar", id });
+    datos.referencias = datos.referencias.filter((una) => una.id !== id);
+    return { error: "" };
+  },
   partidoDelDia: async (equipoId, fecha) => datos.partidos.find((partido) => partido.fecha === fecha) || null,
   listarEnCurso: async () => ({ enCurso: datos.enCurso.map(({ datos: hecho, ...fila }) => ({ ...fila })), faltaTabla: false, error: "" }),
   enCursoDelDia: async (equipoId, fecha) => {
@@ -289,6 +327,9 @@ describe("GPS", () => {
     datos.reglasGuardadas = [];
     datos.referencias = [];
     datos.faltanReferencias = false;
+    datos.sinEdicionVr = false;
+    datos.cambiosVr = [];
+    datos.historialVr = [];
     datos.partidos = [];
     datos.enCurso = [];
     datos.dejadas = [];
@@ -349,7 +390,7 @@ describe("GPS", () => {
     // Una columna sin números queda vacía.
     expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "Promedio"), "HDOP").textContent).toBe("");
     expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "V.R."), "D").textContent).toBe("");
-    expect(contenedor.querySelector(".gps-comparacion-sin").textContent).toBe("Este dispositivo todavía no tiene V.R. cargados.");
+    expect(contenedor.querySelector(".gps-comparacion-sin").textContent).toBe("Este dispositivo todavía no tiene V.R.: se cargan en Valores de referencia.");
 
     // Los colores del Excel, como siempre (contra promedio ± desvío): verde
     // claro, naranja y amarillo.
@@ -754,7 +795,12 @@ describe("GPS", () => {
     await tocar(opcionDeHoja(texto));
   };
   const marcarEnLaLista = async (texto) => tocar([...document.body.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent === texto).querySelector("input"));
-  const pegarCsv = async (texto) => escribir(contenedor.querySelector(".datos-importar-pegado textarea"), texto);
+  const pegarCsv = async (texto, { dispositivo = "Catapult" } = {}) => {
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), texto);
+    if (dispositivo && contenedor.querySelector('[aria-label="Dispositivo"]')) await elegirDelDesplegable("Dispositivo", dispositivo);
+  };
+  // El V.R. de partido de Catapult (el marcado en Valores de referencia).
+  const dePartido = (promedio) => [{ id: "p1", dispositivo: "catapult", tipo: "PARTIDO", tabla: "V.R. de partido", grupo: "TOTAL", orden: 1, promedio, desvio: {}, dePartido: true }];
   const guardarIgual = () => tocar(botones().find((b) => b.textContent.startsWith("Guardar igual")));
   const nombres = () => filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent);
   const titulo = () => contenedor.querySelector(".lesiones-paso-titulo h2").textContent;
@@ -785,8 +831,8 @@ describe("GPS", () => {
 
   test("Cargar un día: el CSV, un paso por tarea con sus jugadores y todos sus datos, y la sesión al final", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
-    // Un V.R. de partido inventado: D/min 100.
-    datos.reglas = { vrPartido: { d_min: 100 } };
+    // Un V.R. de partido inventado: D/min 100 (el de Catapult).
+    datos.referencias = dePartido({ d_min: 100 });
     await montar();
     await tocar(boton("Cargar un día"));
     expect(titulo()).toBe("El archivo del GPS");
@@ -795,7 +841,11 @@ describe("GPS", () => {
     expect(contenedor.textContent).toContain("Primero subí o pegá el CSV de Catapult.");
     await pegarCsv("hola");
     expect(contenedor.textContent).toContain("No encontré los títulos del CSV de Catapult");
-    await pegarCsv(CSV_TAREAS(AYER));
+    // Sin el dispositivo no se sigue: se elige ya acá (Santiago, 14/10).
+    await pegarCsv(CSV_TAREAS(AYER), { dispositivo: null });
+    await tocar(siguiente());
+    expect(aviso()).toBe("Falta el dispositivo.");
+    await elegirDelDesplegable("Dispositivo", "Catapult");
     expect(contenedor.textContent).toContain("6 filas leídas");
     // Avanzar dice a dónde va.
     expect(siguiente().textContent.trim()).toBe("Siguiente: 1. Rondo");
@@ -873,14 +923,13 @@ describe("GPS", () => {
     // La sesión, al final: lo del día, su encabezado, qué tareas van en su
     // descripción y el «Va» de cada uno.
     expect(titulo()).toBe("La sesión");
-    // Sin día, dispositivo y tipo de sesión no se sigue.
+    // Sin día y tipo de sesión no se sigue; el dispositivo ya está (el del
+    // primer paso) y acá se puede cambiar.
     await tocar(siguiente());
     expect(aviso()).toBe("Falta el día del microciclo.");
     await elegirDelDesplegable("Tipo Microciclo", "Competitivo");
     await elegirDelDesplegable("Día del microciclo", "-1");
-    await tocar(siguiente());
-    expect(aviso()).toBe("Falta el dispositivo.");
-    await elegirDelDesplegable("Dispositivo", "Catapult");
+    expect(contenedor.querySelector('[aria-label="Dispositivo"]').textContent).toContain("Catapult");
     await tocar(siguiente());
     expect(aviso()).toBe("Falta el tipo de sesión: La sesión.");
     await elegirTipo("Din. General");
@@ -925,7 +974,7 @@ describe("GPS", () => {
   // espacio tengan tanto espacio».
   test("Cargar: cada campo de arriba de un bloque, del tamaño de lo que lleva", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
-    datos.reglas = { vrPartido: { d_min: 100 } };
+    datos.referencias = dePartido({ d_min: 100 });
     await montar();
     await tocar(boton("Cargar un día"));
     await pegarCsv(CSV_TAREAS(AYER));
@@ -1224,7 +1273,7 @@ describe("GPS", () => {
 
   test("% vs V.R. de partido: rojo abajo del 90 %, verde desde ahí; el promedio, desde el 70 % (como la plantilla)", async () => {
     // 145 por minuto contra 200: 72,5 %.
-    datos.reglas = { vrPartido: { d_min: 200 } };
+    datos.referencias = dePartido({ d_min: 200 });
     await montar();
     await tocar(boton("Cargar un día"));
     await pegarCsv(CSV_TAREAS(AYER));
@@ -1390,24 +1439,13 @@ describe("GPS", () => {
     expect(contenedor.textContent).toContain("desde las 14:30, tarde");
   });
 
-  test("Ajustes › Reglas de carga: los V.R. de partido, lo que se ve en el partido y los arqueros", async () => {
+  test("Ajustes › Reglas de carga: lo que se ve en el partido y los arqueros (el V.R. de partido ya no está: es de cada dispositivo)", async () => {
     await montar();
     await irA(contenedor, "Ajustes");
     await tocar(ajuste("Reglas de carga"));
-    expect(ajuste("V.R. de partido").textContent).toContain("Sin cargar");
+    expect(ajuste("V.R. de partido")).toBeUndefined();
     expect(ajuste("Lo que se ve en los bloques del partido").textContent).toContain("Se ve: Zona de Impacto, Pausa");
     expect(ajuste("Arqueros en la carga").textContent).toContain("Apagado");
-    // Los V.R.: un número por medida (los vacíos no van).
-    await tocar(ajuste("V.R. de partido"));
-    const vr = (rotulo) => [...document.body.querySelectorAll(".gps-regla-vr label")].find((label) => label.querySelector("span").textContent === rotulo).querySelector("input");
-    await escribir(vr("D/min"), "-3");
-    await tocar(boton("Guardar"));
-    expect(document.body.textContent).toContain("Escribí números mayores que 0");
-    await escribir(vr("D/min"), "101,5");
-    await escribir(vr("Mts >= 90% Pico/min"), "2");
-    await tocar(boton("Guardar"));
-    expect(datos.reglasGuardadas.at(-1).reglas).toEqual({ vrPartido: { d_min: 101.5, mts90_min: 2 } });
-    expect(ajuste("V.R. de partido").textContent).toContain("2 de 10 cargados");
     // Lo que se ve en el partido: se marca en una lista.
     await tocar(ajuste("Lo que se ve en los bloques del partido"));
     await marcarEnLaLista("Largo");
@@ -1447,6 +1485,182 @@ describe("GPS", () => {
     expect(contenedor.querySelector(".pantalla-donde").textContent).toContain("hasta el día que dejaste el club");
   });
 
+  // ----------------------------------- Valores de referencia (14/10) --
+  // Santiago, 14/10: «pero no puedo editar nada del vr»; «Todos los vr
+  // tienen que tener su solapa aparte»; «Como esta en evaluaciones».
+  const VR = () => [
+    { id: "r1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 8000.5, d_min: 95.123, tiempo: 5400 }, desvio: { d: 300.5 }, dePartido: true },
+    { id: "r2", dispositivo: "catapult", tipo: "DINAMICA", tabla: "DINAMICA 1", grupo: "FUERZA", orden: 2, promedio: { d: 3000 }, desvio: {}, dePartido: false },
+    { id: "r3", dispositivo: "sport", tipo: "FUTBOL", tabla: "FUTBOL 2", grupo: "TOTAL", orden: 3, promedio: { d: 9000 }, desvio: {}, dePartido: false },
+  ];
+  const tarjetasVr = () => [...contenedor.querySelectorAll(".referencias-bloque")];
+  const tarjetaVr = (nombre) => tarjetasVr().find((una) => una.querySelector("h2").textContent === nombre);
+  const celdaVr = (tarjeta, fila, titulo) => {
+    const titulos = [...tarjeta.querySelectorAll("thead th")].map((th) => th.textContent);
+    const tr = [...tarjeta.querySelectorAll("tbody tr")].find((una) => una.querySelector("th").textContent === fila);
+    return tr.querySelectorAll("td")[titulos.indexOf(titulo)];
+  };
+  const cambiarVr = async (td, valor, tecla = "Enter") => {
+    await act(async () => td.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    const input = td.querySelector("input");
+    await escribir(input, valor);
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: tecla, bubbles: true })));
+  };
+
+  test("Valores de referencia: por dispositivo, un número se cambia con dos toques (como en las bases)", async () => {
+    datos.referencias = VR();
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    expect(contenedor.querySelector("h1").textContent).toBe("Valores de referencia");
+    // Arriba, el dispositivo (de entrada, el primero con V.R.); una tarjeta por V.R.
+    expect(contenedor.querySelector(".evaluaciones-elegir-test-lista").value).toBe("catapult");
+    expect(tarjetasVr().map((una) => una.querySelector("h2").textContent)).toEqual(["FUTBOL · Oficial · TOTAL", "DINAMICA · DINAMICA 1 · FUERZA"]);
+    expect(tarjetaVr("FUTBOL · Oficial · TOTAL").querySelector(".referencias-de-partido").textContent).toContain("De partido");
+    // Como la hoja de los V.R.: Promedio y Desvío de cada medida, con el nombre del club.
+    const oficial = tarjetaVr("FUTBOL · Oficial · TOTAL");
+    expect([...oficial.querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["Promedio", "Desvío"]);
+    expect(celdaVr(oficial, "Promedio", "D").textContent).toBe("8000,5");
+    expect(celdaVr(oficial, "Promedio", "D/min").textContent).toBe("95,12");
+    expect(celdaVr(oficial, "Promedio", "Tiempo").textContent).toBe("1:30:00");
+    expect(celdaVr(oficial, "Desvío", "D").textContent).toBe("300,5");
+    expect(contenedor.textContent).toContain("Tocá dos veces un número para cambiarlo");
+    // Un número: se escribe y Enter.
+    await cambiarVr(celdaVr(oficial, "Promedio", "D"), "9950");
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "valor", id: "r1", cual: "promedio", clave: "d", valor: 9950 });
+    expect(celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Promedio", "D").textContent).toBe("9950,0");
+    // Un tiempo, como se ve.
+    await cambiarVr(celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Promedio", "Tiempo"), "1:40:00");
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ clave: "tiempo", valor: 6000 });
+    // Vaciar uno lo borra.
+    await cambiarVr(celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Desvío", "D"), "");
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ cual: "desvio", clave: "d", valor: null });
+    // Lo que no se entiende no se guarda y se avisa; Esc no cambia nada.
+    const cuantos = datos.cambiosVr.length;
+    await cambiarVr(celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Promedio", "D/min"), "mucho");
+    expect(contenedor.textContent).toContain("No se entiende «mucho»: no se cambió.");
+    await act(async () => contenedor.querySelector(".evaluaciones-vr-entrada").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    await cambiarVr(celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Promedio", "D/min"), "1", "Escape");
+    expect(datos.cambiosVr).toHaveLength(cuantos);
+    expect(contenedor.querySelector(".evaluaciones-vr-entrada")).toBeNull();
+    // El otro dispositivo, con los suyos.
+    await elegir(contenedor.querySelector(".evaluaciones-elegir-test-lista"), "sport");
+    expect(tarjetasVr().map((una) => una.querySelector("h2").textContent)).toEqual(["FUTBOL · FUTBOL 2 · TOTAL"]);
+  });
+
+  test("Valores de referencia: de partido, cambiar el nombre, agregar y borrar", async () => {
+    datos.referencias = VR();
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    const dentro = (nombre, texto) => [...tarjetaVr(nombre).querySelectorAll(".referencias-acciones button")].find((b) => b.textContent === texto);
+    // El de partido: uno por dispositivo.
+    await tocar(dentro("DINAMICA · DINAMICA 1 · FUERZA", "Usar de partido"));
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "partido", id: "r2", marcar: true });
+    expect(tarjetaVr("DINAMICA · DINAMICA 1 · FUERZA").querySelector(".referencias-de-partido")).not.toBeNull();
+    expect(tarjetaVr("FUTBOL · Oficial · TOTAL").querySelector(".referencias-de-partido")).toBeNull();
+    // El nombre: tipo, tabla y grupo.
+    await tocar(dentro("DINAMICA · DINAMICA 1 · FUERZA", "Cambiar nombre"));
+    await escribir(document.body.querySelector("#vr-grupo"), "VELOCIDAD");
+    await tocar(boton("Guardar"));
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "nombre", id: "r2", tipo: "DINAMICA", tabla: "DINAMICA 1", grupo: "VELOCIDAD" });
+    expect(tarjetaVr("DINAMICA · DINAMICA 1 · VELOCIDAD")).toBeTruthy();
+    // Uno nuevo, del dispositivo elegido: sin nombre no se guarda.
+    await tocar(boton("Agregar V.R. de Catapult"));
+    await tocar(boton("Guardar"));
+    expect(document.body.textContent).toContain("Completá tipo, tabla y grupo.");
+    await escribir(document.body.querySelector("#vr-tipo"), "REDUCIDO");
+    await escribir(document.body.querySelector("#vr-tabla"), "REDUCIDO 2");
+    await escribir(document.body.querySelector("#vr-grupo"), "DIN. ACCION");
+    await tocar(boton("Guardar"));
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ que: "sumar", dispositivo: "catapult", tipo: "REDUCIDO", tabla: "REDUCIDO 2", grupo: "DIN. ACCION", orden: 4 });
+    expect(tarjetaVr("REDUCIDO · REDUCIDO 2 · DIN. ACCION")).toBeTruthy();
+    // Borrar pregunta antes.
+    await tocar(dentro("REDUCIDO · REDUCIDO 2 · DIN. ACCION", "Borrar"));
+    expect(document.body.textContent).toContain("Se borra «REDUCIDO · REDUCIDO 2 · DIN. ACCION» de Catapult");
+    await tocar(boton("Sí, borrar"));
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ que: "borrar" });
+    expect(tarjetaVr("REDUCIDO · REDUCIDO 2 · DIN. ACCION")).toBeUndefined();
+  });
+
+  test("Valores de referencia: los últimos cambios, con quién y cuándo, y «Volver»", async () => {
+    datos.referencias = VR();
+    const fila = (cambios) => ({ id: "r1", equipo_id: "eq-1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, de_partido: true, promedio: { d: 8000.5, d_min: 95.123, tiempo: 5400 }, desvio: { d: 300.5 }, ...cambios });
+    datos.historialVr = [
+      { id: 3, tabla: "gps_referencias", filaId: "r9", accion: "borrada", quien: "pf@club.com", cuando: "2026-10-14T19:40:00Z", antes: { id: "r9", dispositivo: "catapult", tipo: "VIEJO", tabla: "Uno", grupo: "TOTAL", orden: 5, de_partido: false, promedio: { d: 1 }, desvio: {} }, despues: null },
+      { id: 2, tabla: "gps_referencias", filaId: "r1", accion: "editada", quien: "pf@club.com", cuando: "2026-10-14T19:30:00Z", antes: fila({ promedio: { d: 9000, d_min: 95.123, tiempo: 5400 } }), despues: fila() },
+      { id: 1, tabla: "gps_referencias", filaId: "r3", accion: "editada", quien: "otro@club.com", cuando: "2026-10-14T19:20:00Z", antes: { dispositivo: "sport", tabla: "X" }, despues: { dispositivo: "sport", tabla: "FUTBOL 2" } },
+    ];
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    const historial = () => contenedor.querySelector(".referencias-historial");
+    expect(historial().querySelector("h2").textContent).toBe("Últimos cambios");
+    // Solo los del dispositivo elegido.
+    const items = () => [...historial().querySelectorAll(".referencias-historial-lista > li")];
+    expect(items()).toHaveLength(2);
+    expect(items()[0].textContent).toContain("pf@club.com");
+    expect(items()[0].textContent).toContain("Borró «VIEJO · Uno · TOTAL»");
+    expect(items()[1].textContent).toContain("FUTBOL · Oficial · TOTAL · D (Promedio): 9000,0 → 8000,5");
+    // «Volver»: el número, a como estaba; lo borrado, otra vez.
+    await tocar([...items()[1].querySelectorAll("button")].find((b) => b.textContent === "Volver"));
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "valor", id: "r1", cual: "promedio", clave: "d", valor: 9000 });
+    expect(document.body.textContent).toContain("Listo: quedó como estaba.");
+    await tocar([...items()[0].querySelectorAll("button")].find((b) => b.textContent === "Volver"));
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ que: "sumar", dispositivo: "catapult", tipo: "VIEJO", tabla: "Uno", grupo: "TOTAL", promedio: { d: 1 } });
+  });
+
+  test("Valores de referencia: sin la actualización se miran y no se cambian; quien se fue, también", async () => {
+    datos.referencias = VR().map(({ dePartido, ...una }) => una);
+    datos.sinEdicionVr = true;
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    expect(contenedor.textContent).toContain("Para cambiar los V.R. falta una actualización de la base de datos.");
+    const td = celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Promedio", "D");
+    await act(async () => td.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    expect(td.querySelector("input")).toBeNull();
+    expect(contenedor.querySelector(".referencias-acciones")).toBeNull();
+    expect(contenedor.querySelector(".referencias-historial")).toBeNull();
+    act(() => raiz.unmount());
+
+    datos.sinEdicionVr = false;
+    datos.referencias = VR();
+    datos.equipo = { id: "eq-1", nombre: "Club de Prueba", hasta: "2026-09-25" };
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    expect(contenedor.querySelector(".aviso-solo-lectura")).not.toBeNull();
+    expect(tarjetasVr()).toHaveLength(2);
+    expect(contenedor.querySelector(".referencias-acciones")).toBeNull();
+    expect(boton("Agregar V.R. de Catapult")).toBeUndefined();
+    act(() => raiz.unmount());
+
+    datos.equipo = { id: "eq-1", nombre: "Club de Prueba", hasta: null };
+    datos.faltanReferencias = true;
+    datos.referencias = [];
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    expect(contenedor.textContent).toContain("Para ver los V.R. falta una actualización de la base de datos.");
+  });
+
+  test("Cargar: el % vs V.R. de partido es el del dispositivo elegido al subir el CSV", async () => {
+    datos.referencias = [...dePartido({ d_min: 100 }), { id: "s1", dispositivo: "sport", tipo: "FUTBOL", tabla: "FUTBOL 2", grupo: "TOTAL", orden: 2, promedio: { d_min: 200 }, desvio: {}, dePartido: false }];
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER), { dispositivo: "Sport" });
+    await esperar(() => contenedor.textContent.includes("No está en la Base"));
+    await guardarIgual();
+    await tocar(siguiente());
+    // Sport no tiene uno de partido: lo dice y dónde se marca.
+    expect(contenedor.textContent).toContain("Sport no tiene V.R. de partido: marcá uno en Valores de referencia");
+    expect(vs()).toBeUndefined();
+    act(() => raiz.unmount());
+    // Con Catapult, el suyo (8700 m en 60 min = 145 por minuto, contra 100).
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER));
+    await esperar(() => contenedor.textContent.includes("No está en la Base"));
+    await guardarIgual();
+    await tocar(siguiente());
+    expect(vs()).toContain("D/min145 %");
+  });
+
   // ------------------------------------------- Textos que guían (14/10) --
   // Santiago, 14/10: «pensa como si lo fuese a usar por primera ves y
   // necesitas una guia exacta de lo que se necesita para saber que hacer y
@@ -1471,7 +1685,7 @@ describe("GPS", () => {
     await montar();
     await tocar(boton("Ver cómo se usa"));
     expect(hoja().querySelector("h3").textContent).toBe("Cómo se usa GPS");
-    expect([...hoja().querySelectorAll(".guia-seccion h4")].map((h) => h.textContent)).toEqual(["Cargar un día", "Ver y corregir lo cargado", "Traer lo que ya tenías", "Ajustes", "Palabras que vas a ver"]);
+    expect([...hoja().querySelectorAll(".guia-seccion h4")].map((h) => h.textContent)).toEqual(["Cargar un día", "Ver y corregir lo cargado", "Valores de referencia", "Traer lo que ya tenías", "Ajustes", "Palabras que vas a ver"]);
     // Cargar un día: cuatro pasos, cada uno con lo que hay que hacer.
     expect(hoja().querySelectorAll(".guia-seccion")[0].querySelectorAll("li")).toHaveLength(4);
     expect([...hoja().querySelectorAll("dt")].map((dt) => dt.textContent)).toContain("Team Average");
@@ -1540,11 +1754,13 @@ describe("GPS", () => {
     revisar("Base");
     await tocar(boton("Pegar desde una planilla"));
     revisar("Pegar desde una planilla");
+    await irA(contenedor, "Valores de referencia");
+    revisar("Valores de referencia");
     await irA(contenedor, "Ajustes");
     revisar("Ajustes");
     await tocar(ajuste("Reglas de carga"));
     revisar("Reglas de carga");
-    for (const regla of ["Inicio del microciclo 1", "Va tarea", "V.R. de partido", "Sesión de la tarde"]) {
+    for (const regla of ["Inicio del microciclo 1", "Va tarea", "Lo que se ve en los bloques del partido", "Sesión de la tarde"]) {
       await tocar(ajuste(regla));
       revisar(regla);
       await tocar(boton("Cancelar"));

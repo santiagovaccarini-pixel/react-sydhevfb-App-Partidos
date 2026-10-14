@@ -37,6 +37,11 @@ export const FILAS_DEL_INFORME = Object.freeze(["media", "vr", "porcentaje"]);
 export const ABSOLUTAS_COMPARADAS = Object.freeze(["d", "d_shi", "d_acchi", "d_dechi", "d_mphi", "d_s6", "d_a8", "d_a1", "d_mp5"]);
 export const RELATIVAS_COMPARADAS = Object.freeze(ABSOLUTAS_COMPARADAS.map((clave) => `${clave}_min`));
 
+// Las columnas de un V.R. (GPS › Valores de referencia), como la hoja de los
+// V.R. del club: las medidas (de D a Mts >= 90% Pico), sus por minuto y el
+// Tiempo.
+export const CLAVES_DE_LOS_VR = Object.freeze([...ABSOLUTAS_COMPARADAS, "mts90", ...RELATIVAS_COMPARADAS, "mts90_min", "tiempo"]);
+
 // La zona de impacto de las Comparaciones (la celda AI16 del Excel): qué
 // columnas promedia cada una. Tarea Mixta, todas (el volumen y la densidad
 // promedio).

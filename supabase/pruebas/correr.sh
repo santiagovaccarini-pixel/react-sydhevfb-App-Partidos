@@ -58,6 +58,20 @@ for migracion in "$RAIZ"/supabase/migrations/*.sql; do
     echo "→ 20261014_duenos_y_pedidos.sql (otra vez)"
     $PSQL -f "$RAIZ/supabase/migrations/20261014_duenos_y_pedidos.sql" >/dev/null
   fi
+  # Antes de la de los V.R. editables: Atlético con dos dispositivos y su
+  # V.R. de partido en las reglas (lo que no es un número mayor que 0 no
+  # pasa); después tiene que estar en cada dispositivo (lo miran los
+  # escenarios).
+  if [ "$(basename "$migracion")" = "20261025_referencias_editables.sql" ]; then
+    $PSQL -c "insert into public.gps_opciones (equipo_id, lista, codigo, etiqueta_es)
+              select e.id, 'dispositivo', x.codigo, x.etiqueta
+                from public.equipos e, (values ('cat', 'Catapult'), ('spo', 'Sport')) as x (codigo, etiqueta)
+               where e.nombre = 'Atlético Mineiro'"
+    $PSQL -c "insert into public.gps_reglas (equipo_id, reglas)
+              select e.id, '{\"parteDelTiempo\":0.8,\"vrPartido\":{\"d_min\":100.5,\"d_shi_min\":20,\"mts90_min\":0,\"raro\":\"x\"}}'::jsonb
+                from public.equipos e
+               where e.nombre = 'Atlético Mineiro'"
+  fi
   echo "→ $(basename "$migracion")"
   sed -e "s/CORREO_DEL_ADMINISTRADOR/duenio@prueba.com/" \
       -e "s/CORREO_DEL_DUENO_PRINCIPAL/duenio@prueba.com/" \
@@ -89,7 +103,7 @@ for vieja in instalar-desde-cero \
              migrations/20260930_cuentas migrations/20261001_lesiones migrations/20261002_lesiones_excel \
              migrations/20261002b_datos_basicos migrations/20261003_club_miembros migrations/20261004_cuentas_v2 \
              migrations/20261005_foto_al_dia migrations/20261006_horas_imagen migrations/20261012_evaluaciones \
-             migrations/20261013_seguridad migrations/20261014_duenos_y_pedidos; do
+             migrations/20261013_seguridad migrations/20261014_duenos_y_pedidos migrations/20261024_gps_referencias; do
   echo "→ $(basename "$vieja").sql después de la última (se tiene que negar)"
   if $PSQL -f "$RAIZ/supabase/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
     echo "ERROR: $vieja.sql corrió después de una más nueva"
