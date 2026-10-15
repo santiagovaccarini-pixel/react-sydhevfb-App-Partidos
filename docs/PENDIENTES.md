@@ -1740,6 +1740,18 @@ Lo que respondió a la segunda tanda (15/10, tarde):
   de un partido tienen todas Condición Parcial: toma la 3.ª y la 6.ª descripción en el orden en
   que se cargaron, pensando que son los TOTAL, y en los microciclos 17 y 18 muestra un ST. Las
   filas de cada jugador con Condición Total son las que dicen TOTAL, PT, ST o SIN INGRESAR.
+- Respondidos el mismo 15/10 («3. B», «4. Si»):
+  - **Microciclo/Jugador en «Jugador»** (3, «B»): como el archivo, una fila por jugador con los
+    microciclos elegidos juntos, pero las franjas salen de esas mismas filas (el archivo mezclaba
+    esos totales con cada microciclo suelto) y la carga crónica es la del **último microciclo
+    elegido** (el archivo usaba la del último cargado, aunque se eligiera otro): la U.A. del
+    jugador en ese microciclo ÷ el promedio de la de ese y los 3 microciclos anteriores de la base
+    (suma y media); vacía si le falta alguno o si no hay 3 anteriores. Descartado: una fila por
+    jugador y por microciclo (la opción C) y la carga crónica del último microciclo cargado.
+  - **VS RIVAL** (4, «Si»): en el promedio del equipo, el TOTAL de cada partido oficial del
+    microciclo, en orden de fecha; en un jugador, su fila del partido con Condición Total y, si
+    su Total junta el partido con otra cosa, su fila del partido de más tiempo. Descartado: la 3.ª
+    y la 6.ª descripción en el orden de carga.
 
 Queda prohibido en el Informe: una tabla por dispositivo para Por microciclo, volver a poner las
 tres celdas del V.R., la opción Extras (hasta que Santiago la pida) y dos botones para pasar de
@@ -1775,10 +1787,20 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   41 estaba sin actualizar. En un jugador, lo propuesto el 15/10 (a confirmar): su fila del
   partido con Condición Total; si su Total junta el partido con otra cosa, su fila del partido
   de más tiempo.
-- **Falta** (espera las respuestas de Santiago): Microciclo/Jugador en «Jugador» (hoy, una fila
-  por jugador con los microciclos elegidos juntos, las franjas de esas filas y la carga crónica
-  vacía) y «Objetivo sesión/microciclo» (no está en el desplegable hasta que se haga, con el
-  modo Jugador).
+- **Jugador y Objetivo** (15/10, después de «3. B» y «4. Si»): cada jugador, con la carga
+  crónica de su último microciclo elegido (comprobado con la tabla de carga por jugador del
+  archivo: igual en los 144 casos comparados). «Objetivo sesión/microciclo», como el archivo: en
+  cada sesión (fecha y microciclo) de lo filtrado, sin mirar Nombre ni Microciclo/Jugador, el
+  valor del Team Average de la sesión y el desvío de los jugadores de esa sesión (Condición
+  Total; Va vacío, No o Si). El Bueno es el promedio de las sesiones (en un por minuto, el
+  promedio de la medida ÷ el promedio de los minutos, cada sesión al segundo) y el desvío, el
+  promedio de los desvíos; con «Valor suma», las sumas. En los índices vale siempre; en las
+  variables, solo con «Jugador» en Microciclo/Jugador (si no, las franjas de las variables
+  quedan vacías y se avisa). Comprobado con la tabla interna del archivo: el promedio da igual
+  en las 150 sesiones y el desvío, en 148 (las otras dos el archivo las tenía sin actualizar).
+  La descripción del archivo dice que el desvío es «solo con los jugadores que poseen la
+  condición SI», pero cuenta Va vacío, No y Si: se hace como calcula.
+- **Falta**: Por tarea y Por jugador, cada uno con su análisis y sus dudas.
 
 ### Pegar desde Excel (el historial)
 

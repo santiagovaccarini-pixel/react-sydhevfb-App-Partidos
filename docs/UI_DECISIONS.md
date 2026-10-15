@@ -92,7 +92,7 @@ prohibiciones específicas de conversaciones que no están disponibles.
   lo propuso Claude al cargar los V.R. por jugador; falta que Santiago lo confirme.
 - GPS › Informe (Por microciclo, Por tarea y Por jugador): las decisiones del 15/10 están en
   «GPS (10/10)», Informe (15/10); se registra su UI cuando esté hecho. Por microciclo, hecho el
-  15/10 (UI-038); faltan Microciclo/Jugador en «Jugador», Objetivo, Por tarea y Por jugador.
+  15/10 (UI-038), con «Jugador» y Objetivo el mismo día; faltan Por tarea y Por jugador.
 
 ## Nuevas decisiones y reaperturas
 

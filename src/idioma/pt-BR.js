@@ -450,11 +450,11 @@ export default {
       },
       cargaCronica: {
         titulo: "Carga crônica",
-        texto: "A U.A. de um microciclo dividida pela média da U.A. desse microciclo e dos 3 de cima, como aparecem na tabela. As 3 primeiras linhas ficam vazias. Com «Minha seleção», os dois extremos vão em vermelho e o meio, em amarelo.",
+        texto: "A U.A. de um microciclo dividida pela média da U.A. desse microciclo e dos 3 de cima, como aparecem na tabela; as 3 primeiras linhas ficam vazias. Num jogador, a do último microciclo escolhido: a U.A. dele nesse microciclo dividida pela média dessa e dos 3 microciclos anteriores. Com «Minha seleção», os dois extremos vão em vermelho e o meio, em amarelo.",
       },
       categorizacion: {
         titulo: "Categorização",
-        texto: "De onde saem as faixas de cima (Excelente a Ruim).\n«Minha seleção»: da média e do desvio das linhas à vista.\n«Valor referencial»: do V.R.; a média dele é o Bom e o desvio monta as outras. Um V.R. por jogador usa as cinco categorias dele.",
+        texto: "De onde saem as faixas de cima (Excelente a Ruim).\n«Minha seleção»: da média e do desvio das linhas à vista.\n«Valor referencial»: do V.R.; a média dele é o Bom e o desvio monta as outras. Um V.R. por jogador usa as cinco categorias dele.\n«Objetivo sessão/microciclo»: o Bom é a média do Team Average de cada sessão e o desvio, o dos jogadores em cada sessão. Nas variáveis, só com «Jogador» em Microciclo/Jogador.",
       },
       vrInforme: {
         titulo: "V.R. do relatório",
@@ -532,6 +532,7 @@ export default {
       sinVrs: "Ainda não há V.R.: são registrados em Valores de referência. Sem V.R., os % ficam vazios.",
       sinVrElegido: "Sem V.R.: os % ficam vazios. Some um com «+ Outro V.R.».",
       sinVrFilas: "Os microciclos {{microciclos}} não têm V.R.: some um com «+ Outro V.R.».",
+      objetivoSinJugador: "Com «Objetivo», as faixas das variáveis aparecem com «Jogador» em Microciclo/Jogador (nos filtros).",
       franjasDe: "Faixas de {{vr}}",
       franjasSinVr: "Faixas",
       verFranjasDe: "Ver as de {{vr}}",
