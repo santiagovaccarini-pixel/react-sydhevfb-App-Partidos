@@ -455,11 +455,11 @@ export default {
       },
       cargaCronica: {
         titulo: "Carga crónica",
-        texto: "La U.A. de un microciclo dividida por el promedio de la U.A. de ese microciclo y los 3 de arriba, tal como se ven en la tabla. Las 3 primeras filas quedan vacías. Con «Mi selección», los dos extremos van en rojo y el medio, en amarillo.",
+        texto: "La U.A. de un microciclo dividida por el promedio de la U.A. de ese microciclo y los 3 de arriba, tal como se ven en la tabla; las 3 primeras filas quedan vacías. En un jugador, la de su último microciclo elegido: su U.A. de ese microciclo dividida por el promedio de la de ese y los 3 microciclos anteriores. Con «Mi selección», los dos extremos van en rojo y el medio, en amarillo.",
       },
       categorizacion: {
         titulo: "Categorización",
-        texto: "De dónde salen las franjas de arriba (Excelente a Malo).\n«Mi selección»: del promedio y el desvío de las filas que se ven.\n«Valor referencial»: del V.R.; su promedio es el Bueno y su desvío arma las demás. Un V.R. por jugador usa sus cinco categorías.",
+        texto: "De dónde salen las franjas de arriba (Excelente a Malo).\n«Mi selección»: del promedio y el desvío de las filas que se ven.\n«Valor referencial»: del V.R.; su promedio es el Bueno y su desvío arma las demás. Un V.R. por jugador usa sus cinco categorías.\n«Objetivo sesión/microciclo»: el Bueno es el promedio del Team Average de cada sesión y el desvío, el de los jugadores en cada sesión. En las variables, solo con «Jugador» en Microciclo/Jugador.",
       },
       vrInforme: {
         titulo: "V.R. del informe",
@@ -537,6 +537,7 @@ export default {
       sinVrs: "Todavía no hay V.R.: se cargan en Valores de referencia. Sin V.R., los % quedan vacíos.",
       sinVrElegido: "Sin V.R.: los % quedan vacíos. Sumá uno con «+ Otro V.R.».",
       sinVrFilas: "Los microciclos {{microciclos}} no tienen V.R.: sumá uno con «+ Otro V.R.».",
+      objetivoSinJugador: "Con «Objetivo», las franjas de las variables se ven con «Jugador» en Microciclo/Jugador (en los filtros).",
       franjasDe: "Franjas de {{vr}}",
       franjasSinVr: "Franjas",
       verFranjasDe: "Ver las de {{vr}}",

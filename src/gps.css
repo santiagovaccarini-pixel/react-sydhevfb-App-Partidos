@@ -911,6 +911,9 @@
   justify-self: start;
   width: auto;
 }
+.gps-marco .gps-reportes-objetivo {
+  margin: 10px 0 0;
+}
 .gps-marco .gps-reportes-vrs .lesiones-ayuda {
   margin: 0;
 }

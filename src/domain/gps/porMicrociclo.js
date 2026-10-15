@@ -22,7 +22,9 @@ import { CATEGORIAS_DE_UN_VR } from "./informe.js";
 //   · U.A. suma y promedio.
 //   · Carga crónica: la U.A. ÷ el promedio de la U.A. de esa fila y las 3 de
 //     arriba, tal como se ven (las 4 del promedio del equipo; Santiago,
-//     15/10: «A», como el Excel). Las 3 primeras, vacías.
+//     15/10: «A», como el Excel). Las 3 primeras, vacías. La de un jugador,
+//     la de su último microciclo elegido (15/10, «3. B»; ver
+//     cargaCronicaDeJugador).
 //   · Las medidas: suma y promedio de cada una; las por minuto, el promedio
 //     de la medida ÷ el promedio de los minutos (sin minutos, 0, como el
 //     Excel); los %, cada una ÷ su V.R.
@@ -287,6 +289,41 @@ export const cargasCronicas = (lista) =>
     return { suma: de("sumas"), promedio: de("promedios") };
   });
 
+// La carga crónica de un jugador (Santiago, 15/10, «3. B»: «la carga crónica
+// del último microciclo que elegiste»), como la tabla de carga de cada
+// jugador del archivo: la U.A. de ese microciclo (la suma o la media de sus
+// filas) ÷ el promedio de la de ese y los 3 microciclos anteriores que hay
+// en la base. Vacía si le falta alguno de los cuatro o si no hay 3
+// anteriores (en el archivo, los microciclos 10, 11 y 12). La tabla no mira
+// los filtros, como la del archivo.
+export const indiceDeCargas = (filasGps) => {
+  const porPersona = new Map();
+  const microciclos = new Set();
+  filasGps.forEach((fila) => {
+    const microciclo = fila?.datos?.microciclo;
+    if (fila?.promedio || !esNumero(microciclo)) return;
+    microciclos.add(microciclo);
+    const clave = claveDeNombre(fila);
+    if (!porPersona.has(clave)) porPersona.set(clave, new Map());
+    const suyas = porPersona.get(clave);
+    if (!suyas.has(microciclo)) suyas.set(microciclo, []);
+    if (esNumero(fila.datos.ua)) suyas.get(microciclo).push(fila.datos.ua);
+  });
+  return { porPersona, microciclos: [...microciclos].sort((a, b) => a - b) };
+};
+
+export const cargaCronicaDeJugador = ({ porPersona, microciclos }, clave, microciclo) => {
+  const vacia = { suma: null, promedio: null };
+  const i = microciclos.indexOf(microciclo);
+  const suyas = porPersona.get(clave);
+  if (i < 3 || !suyas) return vacia;
+  const cuatro = microciclos.slice(i - 3, i + 1).map((uno) => suyas.get(uno) || []);
+  if (cuatro.some((uas) => !uas.length)) return vacia;
+  const sumas = cuatro.map((uas) => suma(uas));
+  const medias = cuatro.map((uas) => promedio(uas));
+  return { suma: dividir(sumas[3], promedio(sumas)), promedio: dividir(medias[3], promedio(medias)) };
+};
+
 // --------------------------------------------------- Las franjas --
 // Las cinco franjas de una medida con su promedio y su desvío: Excelente =
 // promedio + 2 desvíos … Malo = promedio − 2 desvíos (al revés en la U.A. y
@@ -354,14 +391,58 @@ const franjasDeFilas = (filas, valorDe, alReves = false) => {
   return franjasDe(promedio(numeros), desvio(numeros), { alReves });
 };
 
+// «Objetivo sesión/microciclo» (Santiago, 15/10, «6»: como el archivo). El
+// archivo lo explica así: «la media es tomada desde el Average Sesión y el
+// Desvío Estándar se calcula solo con los jugadores». En cada sesión (fecha
+// y microciclo): el valor del promedio del equipo de la sesión y el desvío
+// de los jugadores (Condición Total; Va vacío, No o Si). El Bueno es el
+// promedio de las sesiones y el desvío, el promedio de sus desvíos (con
+// «Valor suma», las sumas). Las sesiones salen de los filtros, menos Nombre y
+// Microciclo/Jugador (el archivo fija el promedio del equipo y los
+// jugadores). Una sesión con menos de dos jugadores no tiene desvío y no
+// cuenta en él (en el archivo, daría error). En un por minuto, el Bueno es el
+// promedio de la medida ÷ el promedio de los minutos de las sesiones (cada
+// una al segundo), como hace el archivo (y como en Mi selección). Comprobado
+// con los datos del club: el promedio de cada sesión da igual en las 150 y el
+// desvío, en 148 (las otras dos el archivo las tenía sin actualizar).
+export const sesionesDelObjetivo = (filasGps, filtros = {}) => {
+  const sinQuien = { ...filtros, nombre: [], microciclo_jugador: [] };
+  const sesiones = new Map();
+  filasGps.forEach((fila) => {
+    if (!entraEnElInforme(fila) || !pasaLosFiltros(fila, sinQuien)) return;
+    if (fila.promedio && fila.promedio !== "sesion") return;
+    const clave = `${fila.datos?.microciclo ?? ""}|${fila.fecha || ""}`;
+    if (!sesiones.has(clave)) sesiones.set(clave, { microciclo: fila.datos?.microciclo ?? null, fecha: fila.fecha || "", equipo: [], jugadores: [] });
+    const sesion = sesiones.get(clave);
+    (fila.promedio ? sesion.equipo : sesion.jugadores).push(fila);
+  });
+  return [...sesiones.values()].filter((sesion) => sesion.equipo.length).map((sesion) => ({ ...sesion, dispositivo: dispositivoDe(sesion.equipo) }));
+};
+
+// Las franjas del objetivo de una clave, en su unidad (tipo: "promedio" o
+// "suma").
+export const franjasDelObjetivo = (sesiones, clave, tipo = "promedio") => {
+  const delEquipo = (una) => sesiones.map((sesion) => promedio(numerosDe(sesion.equipo, una))).filter(esNumero);
+  const desvios = sesiones.map((sesion) => desvio(numerosDe(sesion.jugadores, clave))).filter(esNumero);
+  const medida = MEDIDAS.find((una) => conMin(una) === clave);
+  if (medida && tipo === "promedio") {
+    const minutos = promedio(delEquipo("tiempo").map((segundos) => Math.round(segundos) / 60));
+    return franjasDe(dividir(promedio(delEquipo(medida)), minutos), promedio(desvios));
+  }
+  const juntar = tipo === "suma" ? (numeros) => (numeros.length ? suma(numeros) : null) : promedio;
+  return franjasDe(juntar(delEquipo(clave)), juntar(desvios));
+};
+
 // Las franjas de cada clave en su unidad (para las variables y, ÷ el V.R.,
-// para los %): de las filas (Mi selección) o del V.R. (Valor referencial).
+// para los %): de las filas (Mi selección), del V.R. (Valor referencial) o de
+// las sesiones (Objetivo).
 // tipo: "promedio" o "suma". En un por minuto (y Drel), el Bueno es el
 // promedio de la medida ÷ el promedio de los minutos de las filas (no el
 // promedio de los por minuto) y el desvío, el de los por minuto de las filas
 // (la hoja TD del Excel).
-const franjasDeClave = (filas, vr, clave, tipo, categorizacion) => {
+const franjasDeClave = (filas, vr, clave, tipo, categorizacion, sesiones) => {
   if (categorizacion === "valorReferencial") return franjasDelVr(vr, clave);
+  if (categorizacion === "objetivo") return sesiones ? franjasDelObjetivo(sesiones, clave, tipo) : null;
   if (categorizacion !== "miSeleccion") return null;
   const medida = MEDIDAS.find((una) => conMin(una) === clave);
   if (tipo === "promedio" && medida) {
@@ -373,26 +454,28 @@ const franjasDeClave = (filas, vr, clave, tipo, categorizacion) => {
 };
 
 // Las franjas de una tabla (las filas de un V.R.): los índices y las
-// variables de lo elegido en «Tipo variable» y «Visualización».
-export const franjasDeTabla = (filas, vr, { categorizacion, tipoVariable, visualizacion }) => {
+// variables de lo elegido en «Tipo variable» y «Visualización». Con
+// Objetivo: sesiones (las de esa tabla) y variablesDelObjetivo (si van las
+// de las variables: solo con «Jugador» en Microciclo/Jugador).
+export const franjasDeTabla = (filas, vr, { categorizacion, tipoVariable, visualizacion, sesiones = null, variablesDelObjetivo = false }) => {
   const valores = vr?.promedio || {};
   const enPorcentaje = (franjas, clave) => franjasEnPorcentaje(franjas, valores[clave]);
   // Los índices: con los % del promedio de cada medida y por minuto.
   const porClave = {};
   [...MEDIDAS, ...MEDIDAS.map(conMin)].forEach((clave) => {
-    porClave[clave] = enPorcentaje(franjasDeClave(filas, vr, clave, "promedio", categorizacion), clave);
+    porClave[clave] = enPorcentaje(franjasDeClave(filas, vr, clave, "promedio", categorizacion, sesiones), clave);
   });
   const indices = franjasDeIndices(porClave);
   // Las variables.
   const relativa = tipoVariable === "relativas";
   const variables = {};
   TIPOS_DE_VARIABLE[tipoVariable].forEach((clave) => {
-    if (relativa && (visualizacion === "suma" || visualizacion === "porcentajeSuma")) {
+    if ((relativa && (visualizacion === "suma" || visualizacion === "porcentajeSuma")) || (categorizacion === "objetivo" && !variablesDelObjetivo)) {
       variables[clave] = null;
       return;
     }
     const tipo = visualizacion === "suma" || visualizacion === "porcentajeSuma" ? "suma" : "promedio";
-    const franjas = franjasDeClave(filas, vr, clave, tipo, categorizacion);
+    const franjas = franjasDeClave(filas, vr, clave, tipo, categorizacion, sesiones);
     variables[clave] = visualizacion === "porcentajePromedio" || visualizacion === "porcentajeSuma" ? enPorcentaje(franjas, clave) : franjas;
   });
   return { indices, variables };
@@ -468,6 +551,9 @@ export const informePorMicrociclo = (filasGps, opciones) => {
   const { filtros = {}, tipoVariable = "absolutas", visualizacion = "promedio", categorizacion = "miSeleccion", asignaciones = [], nombreDe = () => "" } = opciones || {};
   const lista = ordenarFilas(filasPorMicrociclo(filasGps, filtros), nombreDe);
   const cronicas = cargasCronicas(lista);
+  // Un jugador: la carga crónica del último microciclo de lo elegido.
+  const cargas = indiceDeCargas(filasGps);
+  const ultimoElegido = Math.max(...lista.flatMap((fila) => (fila.promedio ? [fila.microciclo] : fila.microciclos)).filter(esNumero));
   const rivales = indiceDeRivales(filasGps);
   const filas = lista.map((fila, i) => {
     const asignacion = referenciaDeFila(asignaciones, { microciclo: fila.microciclo ?? fila.microciclos[fila.microciclos.length - 1], dispositivo: fila.dispositivo });
@@ -481,7 +567,7 @@ export const informePorMicrociclo = (filasGps, opciones) => {
       porcentajes,
       indices: indicesDe(porcentajes.promedios),
       variables: Object.fromEntries(TIPOS_DE_VARIABLE[tipoVariable].map((clave) => [clave, valorDeVariable(fila, porcentajes, clave, tipoVariable, visualizacion)])),
-      cargaCronica: cronicas[i],
+      cargaCronica: fila.promedio ? cronicas[i] : cargaCronicaDeJugador(cargas, fila.clave, ultimoElegido),
       vsRival: vsRivalDe(fila, rivales),
     };
   });
@@ -495,14 +581,27 @@ export const informePorMicrociclo = (filasGps, opciones) => {
           cronicaPromedio: franjasDeFilas(filas, (fila) => fila.cargaCronica.promedio, true),
         }
       : null;
-  // Una tabla de franjas por cada V.R. elegido, con sus filas.
+  // Objetivo: las sesiones de lo filtrado; sus variables, solo con
+  // «Jugador» en Microciclo/Jugador (en el archivo, TD!B10 = "Jugador").
+  const sesiones = categorizacion === "objetivo" ? sesionesDelObjetivo(filasGps, filtros) : null;
+  const elegidosMj = filtros.microciclo_jugador || [];
+  const variablesDelObjetivo = elegidosMj.length === 1 && elegidosMj[0] === "jugador";
+  // Una tabla de franjas por cada V.R. elegido, con sus filas (y, con
+  // Objetivo, las sesiones que le tocan: las de su dispositivo o sus
+  // microciclos, como las filas).
   const tablas = asignaciones.map((asignacion, a) => ({
     asignacion: a,
     vr: asignacion.referencia || null,
     ...franjasDeTabla(
       filas.filter((fila) => fila.asignacion === a),
       asignacion.referencia,
-      { categorizacion, tipoVariable, visualizacion },
+      {
+        categorizacion,
+        tipoVariable,
+        visualizacion,
+        sesiones: sesiones && sesiones.filter((sesion) => referenciaDeFila(asignaciones, { microciclo: sesion.microciclo, dispositivo: sesion.dispositivo }) === asignacion),
+        variablesDelObjetivo,
+      },
     ),
   }));
   return { filas, ua, tablas };

@@ -1775,7 +1775,7 @@ describe("GPS", () => {
     expect(desplegables.map((select) => [...select.options].map((option) => option.textContent))).toEqual([
       ["Absolutas", "Relativas"],
       ["Valor promedio", "Valor suma", "% del promedio", "% de la suma"],
-      ["Mi selección", "Valor referencial"],
+      ["Mi selección", "Valor referencial", "Objetivo sesión/microciclo"],
     ]);
     await elegir(desplegables[2], "valorReferencial");
     // Con Valor referencial, la U.A. no tiene franjas ni colores.
@@ -1799,6 +1799,11 @@ describe("GPS", () => {
     expect(etiquetas).toEqual(["ALFA17 a 20", "Team Average Sesion17", "Team Average Sesion18", "Team Average Sesion19", "Team Average Sesion20"]);
     // VS RIVAL del 17: el TOTAL, aunque se cargó en el medio.
     expect(contenedor.querySelectorAll(".gps-informe-tabla tbody td.gps-informe-rival")[1].textContent).toBe("Vs Rival Uno TOTAL");
+    // El jugador, con la carga crónica del último microciclo elegido (el 20: su U.A. ÷ la de ese y los 3 anteriores).
+    expect(contenedor.querySelector(".gps-informe-tabla tbody tr").querySelectorAll("td")[4].textContent).toBe("1,00");
+    // Objetivo: sin «Jugador» en Microciclo/Jugador, avisa que las variables no tienen franjas.
+    await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "objetivo");
+    expect(contenedor.querySelector(".gps-reportes-objetivo").textContent).toContain("«Jugador» en Microciclo/Jugador");
   });
 
   test("Cargar: el % vs V.R. de partido es el del dispositivo elegido al subir el CSV", async () => {

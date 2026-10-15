@@ -42,8 +42,8 @@ const FRANJAS = ["excelente", "muyBueno", "bueno", "regular", "malo", "desvio"];
 const SIN_ELEGIR = [];
 // Al entrar a los filtros: el promedio del equipo de cada microciclo.
 const FILTROS_AL_ENTRAR = Object.freeze({ microciclo_jugador: ["sesion"] });
-// Las categorizaciones que ya calcula la app (Objetivo, con el modo Jugador).
-const CATEGORIZACIONES_HECHAS = ["miSeleccion", "valorReferencial"];
+// «Categorización», en el orden del archivo.
+const CATEGORIZACIONES_DEL_INFORME = ["miSeleccion", "valorReferencial", "objetivo"];
 
 // Los grupos de columnas con su «?».
 const TERMINOS_DE_GRUPOS = { ua: "gps.terminos.unidadArbitraria", cronica: "gps.terminos.cargaCronica" };
@@ -471,7 +471,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                 <TerminoDe clave="gps.terminos.categorizacion" />
               </span>
               <select value={categorizacion} onChange={(evento) => setCategorizacion(evento.target.value)}>
-                {CATEGORIZACIONES_HECHAS.map((una) => (
+                {CATEGORIZACIONES_DEL_INFORME.map((una) => (
                   <option key={una} value={una}>
                     {t(`gps.reportes.categorizaciones.${una}`)}
                   </option>
@@ -479,6 +479,9 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
               </select>
             </label>
           </div>
+          {categorizacion === "objetivo" && !(filtros.microciclo_jugador?.length === 1 && filtros.microciclo_jugador[0] === "jugador") && (
+            <p className="lesiones-ayuda gps-reportes-objetivo">{t("gps.reportes.objetivoSinJugador")}</p>
+          )}
 
           <div className="gps-reportes-vrs">
             <span className="gps-reportes-rotulo">

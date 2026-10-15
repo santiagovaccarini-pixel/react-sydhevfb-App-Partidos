@@ -8,6 +8,10 @@ import {
   entraEnElInforme,
   filasPorMicrociclo,
   franjasDe,
+  franjasDelObjetivo,
+  indiceDeCargas,
+  cargaCronicaDeJugador,
+  sesionesDelObjetivo,
   franjasDelVr,
   franjasDeTabla,
   indicesDe,
@@ -282,5 +286,90 @@ describe("VS RIVAL: los partidos oficiales de cada fila", () => {
       ["Jugador 1", "Vs Rival Uno ST - Vs Rival Dos SIN INGRESAR"],
       ["Jugador 2", "Vs Rival Uno ST"],
     ]);
+  });
+});
+
+describe("Jugador (Santiago, 15/10, «3. B»): la carga crónica del último microciclo elegido", () => {
+  // Microciclos de la base: 10 a 14 (el 12, también de otro jugador).
+  const FILAS = () => [
+    fila({ jugador_id: 1, microciclo: 10, ua: 100 }),
+    fila({ jugador_id: 1, microciclo: 11, ua: 200 }),
+    fila({ jugador_id: 1, microciclo: 11, ua: 100 }),
+    fila({ jugador_id: 2, microciclo: 12, ua: 50 }),
+    fila({ jugador_id: 1, microciclo: 12, ua: 300 }),
+    fila({ jugador_id: 1, microciclo: 13, ua: 400 }),
+    fila({ jugador_id: 1, microciclo: 14, ua: 500 }),
+  ];
+  test("la U.A. del microciclo ÷ el promedio de ese y los 3 anteriores; vacía si falta alguno o no hay 3 anteriores", () => {
+    const cargas = indiceDeCargas(FILAS());
+    expect(cargas.microciclos).toEqual([10, 11, 12, 13, 14]);
+    // Sumas 100, 300, 300 y 400; medias 100, 150, 300 y 400.
+    expect(cargaCronicaDeJugador(cargas, "jugador:1", 13)).toEqual({ suma: 400 / 275, promedio: 400 / 237.5 });
+    expect(cargaCronicaDeJugador(cargas, "jugador:1", 12)).toEqual({ suma: null, promedio: null });
+    expect(cargaCronicaDeJugador(cargas, "jugador:2", 13)).toEqual({ suma: null, promedio: null });
+  });
+  test("en el informe, cada jugador con la del último microciclo de lo elegido", () => {
+    const filas = FILAS();
+    const informe = informePorMicrociclo(filas, { filtros: { microciclo: [12, 13], microciclo_jugador: ["jugador"] }, nombreDe });
+    const jugador = informe.filas.find((una) => una.jugador_id === 1);
+    expect(jugador.microciclos).toEqual([12, 13]);
+    expect(jugador.cargaCronica).toEqual({ suma: 400 / 275, promedio: 400 / 237.5 });
+    // El jugador 2 no tiene el 13 (ni los anteriores): vacía.
+    expect(informe.filas.find((una) => una.jugador_id === 2).cargaCronica).toEqual({ suma: null, promedio: null });
+  });
+});
+
+describe("Objetivo sesión/microciclo (como el archivo)", () => {
+  // Dos sesiones del microciclo 20, cada una con el promedio del equipo y sus jugadores.
+  const sesionDe = (fecha, equipo, jugadores, extra = {}) => [
+    fila({ promedio: "sesion", fecha, microciclo: 20, ...extra, ...equipo }),
+    ...jugadores.map((datos, j) => fila({ jugador_id: j + 1, fecha, microciclo: 20, va: "si", ...extra, ...datos })),
+  ];
+  const FILAS = () => [
+    ...sesionDe("2026-05-11", { d: 1000, tiempo: 3600 }, [
+      { d: 900, d_min: 15 },
+      { d: 1100, d_min: 19 },
+    ]),
+    ...sesionDe(
+      "2026-05-12",
+      { d: 2000, tiempo: 1800 },
+      [
+        { d: 1800, d_min: 60 },
+        { d: 2200, d_min: 70 },
+        { d: 2000, d_min: 65 },
+      ],
+      { tipo_sesion: "tarea_mixta" },
+    ),
+  ];
+  test("el Bueno, del promedio del equipo de cada sesión; el desvío, del de los jugadores de cada sesión (con Valor suma, las sumas)", () => {
+    const sesiones = sesionesDelObjetivo(FILAS(), {});
+    expect(sesiones.map((sesion) => [sesion.fecha, sesion.equipo.length, sesion.jugadores.length])).toEqual([
+      ["2026-05-11", 1, 2],
+      ["2026-05-12", 1, 3],
+    ]);
+    const franjas = franjasDelObjetivo(sesiones, "d");
+    expect(franjas.bueno).toBe(1500);
+    expect(franjas.desvio).toBeCloseTo((Math.sqrt(20000) + 200) / 2, 10);
+    const suma = franjasDelObjetivo(sesiones, "d", "suma");
+    expect([suma.bueno, suma.desvio]).toEqual([3000, Math.sqrt(20000) + 200]);
+    // Un por minuto: el promedio de D ÷ el promedio de los minutos (60 y 30); el desvío, el de los por minuto.
+    const porMinuto = franjasDelObjetivo(sesiones, "d_min");
+    expect(porMinuto.bueno).toBeCloseTo(1500 / 45, 12);
+    expect(porMinuto.desvio).toBeCloseTo((Math.sqrt(8) + 5) / 2, 12);
+  });
+  test("Nombre y Microciclo/Jugador no filtran las sesiones; los demás filtros, sí", () => {
+    const filas = FILAS();
+    expect(sesionesDelObjetivo(filas, { nombre: ["jugador:1"], microciclo_jugador: ["jugador"] })).toHaveLength(2);
+    expect(sesionesDelObjetivo(filas, { tipo_sesion: ["tarea_mixta"] }).map((sesion) => sesion.fecha)).toEqual(["2026-05-12"]);
+  });
+  test("en el informe: en los índices, siempre; en las variables, solo con «Jugador» en Microciclo/Jugador", () => {
+    const vr = { dispositivo: "catapult", promedio: { d: 1000, d_min: 20 }, desvio: {} };
+    const opciones = { categorizacion: "objetivo", asignaciones: [{ referencia: vr, microciclos: null }], nombreDe };
+    const conSesion = informePorMicrociclo(FILAS(), { ...opciones, filtros: { microciclo_jugador: ["sesion"] } });
+    expect(conSesion.tablas[0].indices.total.bueno).toBe(1.5);
+    expect(conSesion.tablas[0].variables.d).toBeNull();
+    expect(conSesion.ua).toBeNull();
+    const conJugador = informePorMicrociclo(FILAS(), { ...opciones, filtros: { microciclo_jugador: ["jugador"] } });
+    expect(conJugador.tablas[0].variables.d.bueno).toBe(1500);
   });
 });
