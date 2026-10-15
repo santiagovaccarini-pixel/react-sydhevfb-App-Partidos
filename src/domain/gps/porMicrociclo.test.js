@@ -77,10 +77,10 @@ describe("las cuentas de cada fila", () => {
     expect(cuentasDeGrupo([sesion(17, "a", { d: 10 })]).promedios.d_min).toBe(0);
   });
 
-  test("una fila por microciclo del promedio del equipo; los días salen también de las filas parciales", () => {
+  test("una fila por microciclo del promedio del equipo; los días salen también de las filas parciales; los descansos cuentan como sesión", () => {
     const filas = [
       sesion(17, "2026-05-04", { d: 100 }),
-      sesion(17, "2026-05-05", { d: 200, tipo_sesion: "" }),
+      sesion(17, "2026-05-05", { d: 200, tipo_sesion: "descanso" }),
       sesion(17, "2026-05-06", { d: 300, condicion: "parcial" }),
       sesion(18, "2026-05-11", { d: 400 }),
       fila({ jugador_id: 7, microciclo: 17, d: 50 }),
@@ -163,17 +163,15 @@ describe("las franjas", () => {
     expect(franjasDelVr({ promedio: { d: 100 }, desvio: { d: 5 } }, "d")).toEqual({ excelente: 110, muyBueno: 105, bueno: 100, regular: 95, malo: 90, desvio: 5 });
     expect(franjasDelVr({ promedio: {}, desvio: {} }, "d")).toBeNull();
   });
-  test("Mi selección: el desvío como el Excel (cada fila dos veces) o una vez; en un por minuto, promedio de la medida ÷ promedio de los minutos", () => {
+  test("Mi selección: cada fila una vez en el desvío; en un por minuto, promedio de la medida ÷ promedio de los minutos", () => {
     const filas = [
       { sumas: { d: 100 }, promedios: { d: 10, d_min: 1, tiempo: 600 }, minutos: 10 },
       { sumas: { d: 300 }, promedios: { d: 30, d_min: 1.5, tiempo: 1200 }, minutos: 20 },
     ];
     const vr = { promedio: { d: 20, d_min: 2 } };
     const comoExcel = franjasDeTabla(filas, vr, { categorizacion: "miSeleccion", tipoVariable: "absolutas", visualizacion: "promedio" });
-    // Desvío de [10, 30, 10, 30] (el Excel) y de [10, 30].
-    expect(comoExcel.variables.d.desvio).toBeCloseTo(Math.sqrt(400 / 3), 12);
-    const unaVez = franjasDeTabla(filas, vr, { categorizacion: "miSeleccion", tipoVariable: "absolutas", visualizacion: "promedio", desvioComoElExcel: false });
-    expect(unaVez.variables.d.desvio).toBeCloseTo(Math.sqrt(200), 12);
+    // Desvío de [10, 30] (el Excel contaba cada fila dos veces: [10, 30, 10, 30]).
+    expect(comoExcel.variables.d.desvio).toBeCloseTo(Math.sqrt(200), 12);
     expect(comoExcel.variables.d.bueno).toBe(20);
     // Drel: (10 + 30)/2 ÷ (10 + 20)/2 = 20 / 15; en % del V.R. (2).
     const relativas = franjasDeTabla(filas, vr, { categorizacion: "miSeleccion", tipoVariable: "relativas", visualizacion: "porcentajePromedio" });
@@ -212,11 +210,10 @@ describe("el V.R. de cada fila y el informe entero", () => {
       ["Team Average Sesion17", 0, 1],
       ["Team Average Sesion18", 0, 1.5],
     ]);
-    // Con una sola fila, el desvío como el Excel es 0 (la fila va dos veces).
-    expect(informe.tablas.map((tabla) => [tabla.variables.d.bueno, tabla.variables.d.desvio])).toEqual([
-      [250, Math.sqrt(10000 / 3)],
-      [100, 0],
-    ]);
+    // Con una sola fila no hay desvío (ni franjas).
+    expect(informe.tablas[0].variables.d.bueno).toBe(250);
+    expect(informe.tablas[0].variables.d.desvio).toBeCloseTo(Math.sqrt(5000), 12);
+    expect(informe.tablas[1].variables.d).toBeNull();
     expect(informe.ua.suma.bueno).toBe(30);
     expect(informePorMicrociclo(filas, { categorizacion: "valorReferencial", asignaciones: [], nombreDe }).ua).toBeNull();
   });

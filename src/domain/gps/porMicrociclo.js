@@ -14,7 +14,11 @@ import { CATEGORIAS_DE_UN_VR } from "./informe.js";
 // vacío, No o Si (la tabla dinámica deja afuera, por ejemplo, Readaptación).
 // En cada fila:
 //   · N° de sesiones: los días (fecha y clasificación de días) de las filas
-//     de esa fila del informe; N° de descansos: los de Tipo de Sesión vacío.
+//     de esa fila del informe, también los de descanso; N° de descansos: los
+//     de Tipo de Sesión «Descanso» (Santiago, 15/10: «Los descansos si
+//     cuentan como sesion y los n de descansos se cuentan a partir de que en
+//     tipo de sesion siga descanso»; el Excel contaba los de Tipo de Sesión
+//     vacío y daba siempre 0).
 //   · U.A. suma y promedio.
 //   · Carga crónica: la U.A. ÷ el promedio de la U.A. de esa fila y las 3 de
 //     arriba, tal como se ven (las 4 del promedio del equipo; Santiago,
@@ -159,11 +163,12 @@ const dispositivoDe = (filas) => filas.find((fila) => fila.datos?.dispositivo)?.
 
 // Los días de un grupo: fecha y clasificación de días (las filas del
 // promedio del equipo de ese microciclo, sin mirar la Condición, como la hoja
-// Micro_Sesión).
+// Micro_Sesión). Los de descanso: Tipo de Sesión «Descanso».
+export const TIPO_DESCANSO = "descanso";
 const diasDe = (filas, soloDescanso) => {
   const dias = new Set();
   filas.forEach((fila) => {
-    if (soloDescanso && String(fila.datos?.tipo_sesion ?? "") !== "") return;
+    if (soloDescanso && fila.datos?.tipo_sesion !== TIPO_DESCANSO) return;
     dias.add(`${fila.fecha || ""}|${fila.datos?.clasificacion_dias ?? ""}`);
   });
   return dias.size;
@@ -341,14 +346,12 @@ export const franjasDeIndices = (porClave) => {
 // «Mi selección»: el promedio y el desvío de las filas. En la U.A. y la
 // carga crónica, de todas las filas que se ven; en los índices y las
 // variables, de las filas de cada V.R. (el Excel tiene una tabla de franjas
-// para los microciclos 10 a 16 y otra para los demás). El Excel cuenta cada
-// microciclo dos veces en el desvío de los índices y las variables (su
-// tabla dinámica repite cada uno): desvioComoElExcel lo hace igual.
-const desvioDe = (numeros, comoElExcel) => desvio(comoElExcel ? [...numeros, ...numeros] : numeros);
-
-const franjasDeFilas = (filas, valorDe, comoElExcel, alReves = false) => {
+// para los microciclos 10 a 16 y otra para los demás). Cada fila cuenta una
+// vez (Santiago, 15/10: «2. B»; el Excel contaba cada microciclo dos veces
+// en el desvío de los índices y las variables).
+const franjasDeFilas = (filas, valorDe, alReves = false) => {
   const numeros = filas.map(valorDe).filter(esNumero);
-  return franjasDe(promedio(numeros), comoElExcel === null ? desvio(numeros) : desvioDe(numeros, comoElExcel), { alReves });
+  return franjasDe(promedio(numeros), desvio(numeros), { alReves });
 };
 
 // Las franjas de cada clave en su unidad (para las variables y, ÷ el V.R.,
@@ -357,27 +360,27 @@ const franjasDeFilas = (filas, valorDe, comoElExcel, alReves = false) => {
 // promedio de la medida ÷ el promedio de los minutos de las filas (no el
 // promedio de los por minuto) y el desvío, el de los por minuto de las filas
 // (la hoja TD del Excel).
-const franjasDeClave = (filas, vr, clave, tipo, categorizacion, comoElExcel) => {
+const franjasDeClave = (filas, vr, clave, tipo, categorizacion) => {
   if (categorizacion === "valorReferencial") return franjasDelVr(vr, clave);
   if (categorizacion !== "miSeleccion") return null;
   const medida = MEDIDAS.find((una) => conMin(una) === clave);
   if (tipo === "promedio" && medida) {
     const porMinuto = filas.map((fila) => fila.promedios[clave]).filter(esNumero);
     const media = dividir(promedio(filas.map((fila) => fila.promedios[medida]).filter(esNumero)), promedio(filas.map((fila) => fila.minutos).filter(esNumero)));
-    return franjasDe(media, desvioDe(porMinuto, comoElExcel));
+    return franjasDe(media, desvio(porMinuto));
   }
-  return franjasDeFilas(filas, (fila) => (tipo === "suma" ? fila.sumas[clave] : fila.promedios[clave]), comoElExcel);
+  return franjasDeFilas(filas, (fila) => (tipo === "suma" ? fila.sumas[clave] : fila.promedios[clave]));
 };
 
 // Las franjas de una tabla (las filas de un V.R.): los índices y las
 // variables de lo elegido en «Tipo variable» y «Visualización».
-export const franjasDeTabla = (filas, vr, { categorizacion, tipoVariable, visualizacion, desvioComoElExcel = true }) => {
+export const franjasDeTabla = (filas, vr, { categorizacion, tipoVariable, visualizacion }) => {
   const valores = vr?.promedio || {};
   const enPorcentaje = (franjas, clave) => franjasEnPorcentaje(franjas, valores[clave]);
   // Los índices: con los % del promedio de cada medida y por minuto.
   const porClave = {};
   [...MEDIDAS, ...MEDIDAS.map(conMin)].forEach((clave) => {
-    porClave[clave] = enPorcentaje(franjasDeClave(filas, vr, clave, "promedio", categorizacion, desvioComoElExcel), clave);
+    porClave[clave] = enPorcentaje(franjasDeClave(filas, vr, clave, "promedio", categorizacion), clave);
   });
   const indices = franjasDeIndices(porClave);
   // Las variables.
@@ -389,7 +392,7 @@ export const franjasDeTabla = (filas, vr, { categorizacion, tipoVariable, visual
       return;
     }
     const tipo = visualizacion === "suma" || visualizacion === "porcentajeSuma" ? "suma" : "promedio";
-    const franjas = franjasDeClave(filas, vr, clave, tipo, categorizacion, desvioComoElExcel);
+    const franjas = franjasDeClave(filas, vr, clave, tipo, categorizacion);
     variables[clave] = visualizacion === "porcentajePromedio" || visualizacion === "porcentajeSuma" ? enPorcentaje(franjas, clave) : franjas;
   });
   return { indices, variables };
@@ -399,9 +402,9 @@ export const franjasDeTabla = (filas, vr, { categorizacion, tipoVariable, visual
 // Todo «Por microciclo»: las filas en orden, con sus valores, y las franjas.
 // opciones: { filtros, tipoVariable, visualizacion, categorizacion,
 // asignaciones (los V.R. elegidos), nombreDe (el nombre que se ve de una
-// fila: el promedio del equipo o la persona), desvioComoElExcel }.
+// fila: el promedio del equipo o la persona) }.
 export const informePorMicrociclo = (filasGps, opciones) => {
-  const { filtros = {}, tipoVariable = "absolutas", visualizacion = "promedio", categorizacion = "miSeleccion", asignaciones = [], nombreDe = () => "", desvioComoElExcel = true } = opciones || {};
+  const { filtros = {}, tipoVariable = "absolutas", visualizacion = "promedio", categorizacion = "miSeleccion", asignaciones = [], nombreDe = () => "" } = opciones || {};
   const lista = ordenarFilas(filasPorMicrociclo(filasGps, filtros), nombreDe);
   const cronicas = cargasCronicas(lista);
   const filas = lista.map((fila, i) => {
@@ -423,10 +426,10 @@ export const informePorMicrociclo = (filasGps, opciones) => {
   const ua =
     categorizacion === "miSeleccion"
       ? {
-          suma: franjasDeFilas(filas, (fila) => fila.sumas.ua, null, true),
-          promedio: franjasDeFilas(filas, (fila) => fila.promedios.ua, null, true),
-          cronicaSuma: franjasDeFilas(filas, (fila) => fila.cargaCronica.suma, null, true),
-          cronicaPromedio: franjasDeFilas(filas, (fila) => fila.cargaCronica.promedio, null, true),
+          suma: franjasDeFilas(filas, (fila) => fila.sumas.ua, true),
+          promedio: franjasDeFilas(filas, (fila) => fila.promedios.ua, true),
+          cronicaSuma: franjasDeFilas(filas, (fila) => fila.cargaCronica.suma, true),
+          cronicaPromedio: franjasDeFilas(filas, (fila) => fila.cargaCronica.promedio, true),
         }
       : null;
   // Una tabla de franjas por cada V.R. elegido, con sus filas.
@@ -436,7 +439,7 @@ export const informePorMicrociclo = (filasGps, opciones) => {
     ...franjasDeTabla(
       filas.filter((fila) => fila.asignacion === a),
       asignacion.referencia,
-      { categorizacion, tipoVariable, visualizacion, desvioComoElExcel },
+      { categorizacion, tipoVariable, visualizacion },
     ),
   }));
   return { filas, ua, tablas };

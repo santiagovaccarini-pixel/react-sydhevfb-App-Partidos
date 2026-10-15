@@ -1718,8 +1718,27 @@ Lo que respondió a lo planteado para **Por microciclo** (15/10):
   quedaban vacías con Microciclo, Fecha y Tipo de Sesión en «(Todas)»).
 - **Los colores** (8, «Si»): los del Excel.
 
+Lo que respondió a la segunda tanda (15/10, tarde):
+
+- **N° Descanso** (1): «Los descansos si cuentan como sesion y los n de descansos se cuentan a
+  partir de que en tipo de sesion siga descanso». N° Sesiones sigue contando los días de
+  descanso; N° Descanso cuenta los días con Tipo de Sesión «Descanso» (el Excel contaba los de
+  Tipo de Sesión vacío y daba siempre 0).
+- **El desvío de las franjas con Mi selección** (2, «B»): cada microciclo cuenta una vez (el
+  Excel contaba cada uno dos veces, por cómo arma su tabla dinámica, y le daba un desvío un poco
+  más chico).
+- **«Ver tabla» y «Volver»** (5): «Ok, pero solo deja un boton». Un solo botón pasa las franjas
+  de arriba de un V.R. a otro de los que se están usando.
+- Siguen abiertos: **Microciclo/Jugador en «Jugador»** (3, se le volvió a explicar) y **VS
+  RIVAL** (4). Sobre VS RIVAL dijo: «Eso es xq toma la descripción donde la condicion sea total,
+  asi se va si entro o jugo el partido completo». En el Excel, las filas del promedio del equipo
+  de un partido tienen todas Condición Parcial: toma la 3.ª y la 6.ª descripción en el orden en
+  que se cargaron, pensando que son los TOTAL, y en los microciclos 17 y 18 muestra un ST. Las
+  filas de cada jugador con Condición Total son las que dicen TOTAL, PT, ST o SIN INGRESAR.
+
 Queda prohibido en el Informe: una tabla por dispositivo para Por microciclo, volver a poner las
-tres celdas del V.R. y la opción Extras (hasta que Santiago la pida).
+tres celdas del V.R., la opción Extras (hasta que Santiago la pida) y dos botones para pasar de
+un V.R. a otro («Ver tabla» y «Volver»: va uno solo).
 
 ### Pegar desde Excel (el historial)
 
