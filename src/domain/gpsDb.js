@@ -4,6 +4,7 @@
 // diccionario.
 import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
+import { CATEGORIAS_DE_UN_VR } from "./gps/informe.js";
 import { calcularNoIngresaron } from "./match.js";
 
 // actualizado_en: para traer después solo lo cambiado (ponerAlDiaGps).
@@ -325,12 +326,17 @@ export const guardarReglasGps = async (equipoId, reglas) => {
 // ------------------------------------------ Los valores de referencia --
 // Los V.R. de cada dispositivo (migración 20261024_gps_referencias.sql):
 // [{ id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio,
-// dePartido }], en su orden. Sin la tabla todavía, ninguno y faltaTabla (la
-// Base sigue andando, sin V.R.). Desde 20261025_referencias_editables.sql se
-// cambian en GPS › Valores de referencia (Santiago, 14/10: «Todos los vr
-// tienen que tener su solapa aparte») y cada dispositivo marca el suyo «de
-// partido»; sin esa actualización, sinEdicion (se miran, no se cambian, y
-// Cargar sigue con el V.R. de partido de las reglas).
+// categorias, dePartido }], en su orden. Sin la tabla todavía, ninguno y
+// faltaTabla (la Base sigue andando, sin V.R.). Desde
+// 20261025_referencias_editables.sql se cambian en GPS › Valores de
+// referencia (Santiago, 14/10: «Todos los vr tienen que tener su solapa
+// aparte») y cada dispositivo marca el suyo «de partido»; sin esa
+// actualización, sinEdicion (se miran, no se cambian, y Cargar sigue con el
+// V.R. de partido de las reglas). Las categorías de los V.R. por jugador
+// (20261026_gps_referencias_categorias.sql): las cuatro siempre, vacías si no
+// tiene; sin esa actualización, todas vacías.
+const categoriasDe = (valor) => Object.fromEntries(CATEGORIAS_DE_UN_VR.map((categoria) => [categoria, objeto(objeto(valor)[categoria])]));
+
 export const normalizarReferenciaGps = (fila) => ({
   id: fila.id,
   dispositivo: textoLimpio(fila.dispositivo),
@@ -340,18 +346,22 @@ export const normalizarReferenciaGps = (fila) => ({
   orden: Number.isFinite(fila.orden) ? fila.orden : 0,
   promedio: objeto(fila.promedio),
   desvio: objeto(fila.desvio),
+  categorias: categoriasDe(fila.categorias),
   dePartido: fila.de_partido === true,
 });
 
 const COLUMNAS_VR = "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio";
-// Sin la columna (la base sin 20261025): la API dice que no existe.
-const faltaLaColumna = (error) => error?.code === "42703" || /de_partido/.test(`${error?.message || ""} ${error?.details || ""}`);
+// Sin la columna (la base sin 20261025 o sin 20261026): la API dice que no
+// existe. Sin de_partido tampoco están las categorías (son de después).
+const textoDelError = (error) => `${error?.message || ""} ${error?.details || ""}`;
+const faltaLaColumna = (error) => error?.code === "42703" || /de_partido|categorias/.test(textoDelError(error));
 
 export const leerReferenciasGps = async (equipoId) => {
   if (!equipoId) return { referencias: [], faltaTabla: false, sinEdicion: false, error: "" };
   const pedir = (columnas) => supabase.from("gps_referencias").select(columnas).eq("equipo_id", equipoId).order("orden", { ascending: true });
   let sinEdicion = false;
-  let { data, error } = await pedir(`${COLUMNAS_VR}, de_partido`);
+  let { data, error } = await pedir(`${COLUMNAS_VR}, de_partido, categorias`);
+  if (error && faltaLaColumna(error) && !/de_partido/.test(textoDelError(error))) ({ data, error } = await pedir(`${COLUMNAS_VR}, de_partido`));
   if (error && faltaLaColumna(error)) {
     sinEdicion = true;
     ({ data, error } = await pedir(COLUMNAS_VR));
@@ -375,8 +385,9 @@ const falloDeReferencia = (error) => {
   return { error: clave === "gps.error.faltaMigracion" ? "gps.vr.faltaActualizacion" : clave };
 };
 
-// Un número de un V.R.: cual, "promedio" o "desvio"; clave, la columna;
-// valor, un número o null (se borra). Se cambia en la base, de a uno.
+// Un número de un V.R.: cual, "promedio", "desvio" o una categoría
+// ("excelente", "muy_bueno", "regular" o "malo"); clave, la columna; valor,
+// un número o null (se borra). Se cambia en la base, de a uno.
 export const cambiarValorDeReferenciaGps = async (id, cual, clave, valor) => {
   const { data, error } = await supabase.rpc("gps_referencia_cambiar", { p_id: id, p_cual: cual, p_clave: clave, p_valor: valor });
   if (error) return falloDeReferencia(error);
@@ -392,12 +403,14 @@ export const marcarDePartidoGps = async (id, marcar) => {
   return { referencias: (Array.isArray(data) ? data : []).map(normalizarReferenciaGps), error: "" };
 };
 
-export const sumarReferenciaGps = async (equipoId, { dispositivo, tipo, tabla, grupo, orden = 0, promedio = {}, desvio = {} }) => {
-  const { data, error } = await supabase
-    .from("gps_referencias")
-    .insert({ equipo_id: equipoId, dispositivo, tipo: textoLimpio(tipo), tabla: textoLimpio(tabla), grupo: textoLimpio(grupo), orden, promedio, desvio })
-    .select(`${COLUMNAS_VR}, de_partido`)
-    .single();
+// Las categorías van solo si tiene alguna (al volver atrás un V.R. por
+// jugador borrado): así se suma igual en una base sin 20261026. Vuelve la
+// fila entera, con las columnas que tenga la base.
+export const sumarReferenciaGps = async (equipoId, { dispositivo, tipo, tabla, grupo, orden = 0, promedio = {}, desvio = {}, categorias = {} }) => {
+  const fila = { equipo_id: equipoId, dispositivo, tipo: textoLimpio(tipo), tabla: textoLimpio(tabla), grupo: textoLimpio(grupo), orden, promedio, desvio };
+  const conNumeros = Object.entries(categoriasDe(categorias)).filter(([, valores]) => Object.keys(valores).length);
+  if (conNumeros.length) fila.categorias = Object.fromEntries(conNumeros);
+  const { data, error } = await supabase.from("gps_referencias").insert(fila).select("*").single();
   if (error) return falloDeReferencia(error);
   return { referencia: normalizarReferenciaGps(data), error: "" };
 };
@@ -407,7 +420,7 @@ export const renombrarReferenciaGps = async (id, { tipo, tabla, grupo }) => {
     .from("gps_referencias")
     .update({ tipo: textoLimpio(tipo), tabla: textoLimpio(tabla), grupo: textoLimpio(grupo) })
     .eq("id", id)
-    .select(`${COLUMNAS_VR}, de_partido`);
+    .select("*");
   if (error) return falloDeReferencia(error);
   if (!Array.isArray(data) || !data.length) return { error: "gps.error.sinPermiso" };
   return { referencia: normalizarReferenciaGps(data[0]), error: "" };

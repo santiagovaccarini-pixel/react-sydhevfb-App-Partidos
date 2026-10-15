@@ -257,14 +257,15 @@ describe("los V.R. de cada dispositivo (arriba de la Base)", () => {
         error: null,
       },
     ];
+    const sinCategorias = { excelente: {}, muy_bueno: {}, regular: {}, malo: {} };
     expect(await leerReferenciasGps("eq-1")).toEqual({
-      referencias: [{ id: "r1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Partido", grupo: "TOTAL", orden: 1, promedio: { d: 10 }, desvio: {}, dePartido: false }],
+      referencias: [{ id: "r1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Partido", grupo: "TOTAL", orden: 1, promedio: { d: 10 }, desvio: {}, categorias: sinCategorias, dePartido: false }],
       faltaTabla: false,
       sinEdicion: false,
       error: "",
     });
     expect(doble.llamadas).toContainEqual(["from", "gps_referencias"]);
-    expect(doble.llamadas).toContainEqual(["select", "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio, de_partido"]);
+    expect(doble.llamadas).toContainEqual(["select", "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio, de_partido, categorias"]);
     expect(doble.llamadas).toContainEqual(["eq", "equipo_id", "eq-1"]);
     expect(doble.llamadas).toContainEqual(["order", "orden", { ascending: true }]);
     doble.respuestas = [{ data: null, error: { code: "PGRST205", message: "Could not find the table 'public.gps_referencias' in the schema cache" } }];
@@ -277,7 +278,7 @@ describe("los V.R. de cada dispositivo (arriba de la Base)", () => {
   test("el de partido de cada dispositivo; sin la actualización 20261025, se leen igual y no se cambian", async () => {
     doble.respuestas = [{ data: [{ id: "r1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: {}, desvio: {}, de_partido: true }], error: null }];
     expect((await leerReferenciasGps("eq-1")).referencias[0].dePartido).toBe(true);
-    // Sin la columna, otra vez sin ella.
+    // Sin la columna, otra vez sin ella (sin de_partido tampoco están las categorías).
     doble.llamadas.length = 0;
     doble.respuestas = [
       { data: null, error: { code: "42703", message: "column gps_referencias.de_partido does not exist" } },
@@ -287,8 +288,31 @@ describe("los V.R. de cada dispositivo (arriba de la Base)", () => {
     expect(respuesta).toMatchObject({ faltaTabla: false, sinEdicion: true, error: "" });
     expect(respuesta.referencias).toHaveLength(1);
     expect(doble.llamadas.filter((llamada) => llamada[0] === "select").map((llamada) => llamada[1])).toEqual([
-      "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio, de_partido",
+      "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio, de_partido, categorias",
       "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio",
+    ]);
+  });
+
+  test("las categorías de un V.R. por jugador (20261026): las cuatro, solo con lo que es un objeto; sin la columna, se leen sin ellas y se cambian igual", async () => {
+    doble.respuestas = [
+      {
+        data: [{ id: "r1", dispositivo: "catapult", tipo: "Microciclo", tabla: "Partidos", grupo: "JUGADOR", orden: 1001, promedio: { d: 10 }, desvio: {}, de_partido: false, categorias: { excelente: { d: 14 }, malo: { d: 6 }, regular: [1], otra: { d: 1 } } }],
+        error: null,
+      },
+    ];
+    expect((await leerReferenciasGps("eq-1")).referencias[0].categorias).toEqual({ excelente: { d: 14 }, muy_bueno: {}, regular: {}, malo: { d: 6 } });
+    // Sin la columna de las categorías: la base sin 20261026, se cambian igual.
+    doble.llamadas.length = 0;
+    doble.respuestas = [
+      { data: null, error: { code: "42703", message: "column gps_referencias.categorias does not exist" } },
+      { data: [{ id: "r1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 1 }, desvio: {}, de_partido: true }], error: null },
+    ];
+    const respuesta = await leerReferenciasGps("eq-1");
+    expect(respuesta).toMatchObject({ faltaTabla: false, sinEdicion: false, error: "" });
+    expect(respuesta.referencias[0]).toMatchObject({ dePartido: true, categorias: { excelente: {}, muy_bueno: {}, regular: {}, malo: {} } });
+    expect(doble.llamadas.filter((llamada) => llamada[0] === "select").map((llamada) => llamada[1])).toEqual([
+      "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio, de_partido, categorias",
+      "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio, de_partido",
     ]);
   });
 });
@@ -299,6 +323,11 @@ describe("cambiar los V.R. de GPS (Santiago, 14/10)", () => {
     doble.respuestas = [{ data: vr, error: null }];
     expect(await cambiarValorDeReferenciaGps("r1", "promedio", "d", 9950)).toEqual({ referencia: expect.objectContaining({ id: "r1", promedio: { d: 9950 }, dePartido: true }), error: "" });
     expect(doble.llamadas).toEqual([["rpc", "gps_referencia_cambiar", { p_id: "r1", p_cual: "promedio", p_clave: "d", p_valor: 9950 }]]);
+    // Una categoría, igual.
+    doble.llamadas.length = 0;
+    doble.respuestas = [{ data: { ...vr, categorias: { excelente: { d: 12000 } } }, error: null }];
+    expect((await cambiarValorDeReferenciaGps("r1", "excelente", "d", 12000)).referencia.categorias.excelente).toEqual({ d: 12000 });
+    expect(doble.llamadas).toEqual([["rpc", "gps_referencia_cambiar", { p_id: "r1", p_cual: "excelente", p_clave: "d", p_valor: 12000 }]]);
   });
   test("sin la actualización, que falta; sin permiso, que no puede", async () => {
     doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.gps_referencia_cambiar(p_clave, p_cual, p_id, p_valor) in the schema cache" } }];
@@ -316,6 +345,12 @@ describe("cambiar los V.R. de GPS (Santiago, 14/10)", () => {
     doble.respuestas = [{ data: vr, error: null }];
     expect((await sumarReferenciaGps("eq-1", { dispositivo: "catapult", tipo: " FUTBOL ", tabla: "Oficial", grupo: "TOTAL", orden: 3 })).error).toBe("");
     expect(doble.llamadas).toContainEqual(["insert", { equipo_id: "eq-1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 3, promedio: {}, desvio: {} }]);
+    expect(doble.llamadas).toContainEqual(["select", "*"]);
+    // Las categorías van solo si tiene alguna (al volver atrás uno por jugador borrado).
+    doble.llamadas.length = 0;
+    doble.respuestas = [{ data: vr, error: null }];
+    await sumarReferenciaGps("eq-1", { dispositivo: "catapult", tipo: "Microciclo", tabla: "Partidos", grupo: "JUGADOR", promedio: { d: 10 }, categorias: { excelente: { d: 14 }, muy_bueno: {}, otra: { d: 1 } } });
+    expect(doble.llamadas).toContainEqual(["insert", { equipo_id: "eq-1", dispositivo: "catapult", tipo: "Microciclo", tabla: "Partidos", grupo: "JUGADOR", orden: 0, promedio: { d: 10 }, desvio: {}, categorias: { excelente: { d: 14 } } }]);
     doble.respuestas = [{ data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "gps_referencias_una"' } }];
     expect(await sumarReferenciaGps("eq-1", { dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL" })).toEqual({ error: "gps.vr.repetido" });
     doble.respuestas = [{ data: [vr], error: null }];
