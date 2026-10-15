@@ -96,6 +96,31 @@ Lesiones, 14/10); los demás siguen como estaban hasta su turno (UI-031).
   un modo tutorial, pero eso queda mas para adelante»). Ver PENDIENTES, «Modo tutorial la
   primera vez».
 
+## La presentación (15/10)
+
+Santiago, 15/10: «NECESITO QUE HAGAS MUCHO HINCAPIE EN LA MANERA DE PRESENTAR LAS COSAS Y QUE SE
+VEAN MEJOR VISUALMENTE Y MAS INTUITIVAS NO SOLAMENTE PONERLAS Y PUNTO». Vale para todo lo que se
+haga: no alcanza con que los datos estén; antes de entregar se mira cómo se leen, en el celular
+y en la compu, y si el cambio es grande se le muestra el antes y el después.
+
+En una tabla de datos (la primera hecha así: GPS › Informe, 15/10):
+
+- Arriba, qué se está viendo: cuántas filas hay y contra qué se compara.
+- La cabecera y la primera columna quedan a la vista al bajar y al deslizar de costado.
+- La primera columna dice qué es cada fila, sin repetir el mismo texto en todas.
+- Los números van a la derecha, con cifras del mismo ancho; donde no hay dato, «–»; todas las
+  filas tienen el mismo alto.
+- Las referencias (franjas, V.R.) van en un bloque aparte de los datos, con el color que toma
+  cada una.
+- Los colores de franjas y semáforos son los suaves de `src/domain/colores.js`. La cabecera no
+  lleva un color fuerte por grupo: el tono del grupo es una línea.
+- Una columna o una fila se oculta tocando su nombre, que pregunta antes. «Columnas» y «Filas»,
+  arriba, dicen cuántas hay ocultas y las vuelven a mostrar. Los números no cambian.
+
+Las tablas que ya están conservan su estilo hasta que Santiago decida llevarles este
+(«Despues lo vemos», 15/10). Los colores suaves y ocultar columnas y filas sí van en toda la
+app (ver `PENDIENTES.md`, «Toda la app: presentación, colores suaves y ocultar»).
+
 ## Revisión antes de entregar
 
 Comprobá que la tarea principal se entiende, los controles se leen y se tocan,

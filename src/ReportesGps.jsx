@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { HojaInferior } from "./components/SheetPanel.js";
+import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { TerminoDe } from "./components/Guia.jsx";
 import { textoDeValor } from "./domain/evaluaciones/excel.js";
@@ -10,7 +11,9 @@ import {
   TIPOS_DE_VARIABLE,
   VISUALIZACIONES,
   colorDeCargaCronica,
+  colorDeMayorMejor,
   colorDeUa,
+  colorDeVariable,
   entraEnElInforme,
   filasPorMicrociclo,
   informePorMicrociclo,
@@ -63,6 +66,25 @@ const tramos = (numeros, unir) => {
   return partes.map(([desde, hasta]) => (desde === hasta ? String(desde) : hasta === desde + 1 ? `${desde}, ${hasta}` : unir(desde, hasta))).join(", ");
 };
 
+// Las columnas ocultadas a mano se recuerdan en el aparato (como las columnas
+// fijas de las bases); las filas, mientras se está en el informe.
+const CLAVE_COLUMNAS_OCULTAS = "gps_informe_columnas_ocultas";
+const leerColumnasOcultas = () => {
+  try {
+    const guardadas = JSON.parse(localStorage.getItem(CLAVE_COLUMNAS_OCULTAS) || "null");
+    return Array.isArray(guardadas) ? guardadas.filter((una) => typeof una === "string") : [];
+  } catch {
+    return [];
+  }
+};
+const guardarColumnasOcultas = (columnas) => {
+  try {
+    localStorage.setItem(CLAVE_COLUMNAS_OCULTAS, JSON.stringify(columnas));
+  } catch {
+    // Sin localStorage, quedan ocultas mientras se está en el informe.
+  }
+};
+
 // El microciclo de una fila del informe: el suyo (el promedio del equipo) o
 // el último de los suyos (un jugador).
 const microcicloDe = (fila) => (fila.microciclo ?? fila.microciclos[fila.microciclos.length - 1] ?? null);
@@ -85,6 +107,27 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // (sin microciclos: los de su dispositivo). null: el de entrada.
   const [vrs, setVrs] = useState(null);
   const [verFranjas, setVerFranjas] = useState(0);
+  // Lo que se ocultó a mano (Santiago, 15/10: «poder ocultar manualmente un
+  // columna y filas sin necesidad de entrar a ajustes»; «Cuando toco un
+  // columna o fila en cierto lugar tiene que preguntarme si la quiero
+  // ocultar»): solo deja de verse, los números no cambian. aOcultar: la
+  // columna o la fila tocada, mientras se pregunta.
+  const [ocultas, setOcultas] = useState(() => ({ columnas: leerColumnasOcultas(), filas: SIN_ELEGIR }));
+  const [aOcultar, setAOcultar] = useState(null);
+  useEffect(() => guardarColumnasOcultas(ocultas.columnas), [ocultas.columnas]);
+  // El alto de la fila de los grupos (puede tener dos renglones): la de las
+  // cabeceras queda pegada debajo al bajar por la tabla.
+  const filaDeGrupos = useRef(null);
+  useLayoutEffect(() => {
+    const fila = filaDeGrupos.current;
+    if (!fila) return undefined;
+    const medir = () => fila.closest("table")?.style.setProperty("--alto-grupos", `${fila.getBoundingClientRect().height}px`);
+    medir();
+    if (typeof ResizeObserver !== "function") return undefined;
+    const observador = new ResizeObserver(medir);
+    observador.observe(fila);
+    return () => observador.disconnect();
+  });
 
   // ------------------------------------------------------- Los filtros --
   // Las opciones de cada filtro: las de las filas que entran con lo elegido
@@ -147,6 +190,8 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     if (!hoja) return;
     const marcados = hoja.valores.map((valor) => valor.clave).filter((clave) => hoja.elegidos.includes(clave));
     if (hoja.vr !== undefined) cambiarVr(hoja.vr, { microciclos: marcados });
+    // Lo que se ve: lo que quedó sin marcar se oculta.
+    else if (hoja.ocultar) setOcultas((antes) => ({ ...antes, [hoja.ocultar]: hoja.valores.map((valor) => valor.clave).filter((clave) => !marcados.includes(clave)) }));
     // En un filtro, todo marcado es lo mismo que nada: todos.
     else setFiltros((antes) => ({ ...antes, [hoja.filtro]: marcados.length === hoja.valores.length ? SIN_ELEGIR : marcados }));
     setHoja(null);
@@ -377,7 +422,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     </select>
   );
 
-  // Las columnas de la tabla, con su grupo (y su tono, como en la base).
+  // Las columnas de la tabla, con su grupo (y su tono, como en la base). La
+  // U.A. y la carga crónica se pintan como el archivo; los índices y las
+  // variables, con la regla que el archivo usa para esas columnas en «Por
+  // jugador» (en «Por microciclo» no las pinta).
+  const tablaDe = (fila) => tablas.find((una) => una.asignacion === fila.asignacion) || null;
   const COLUMNAS = [
     { clave: "sesiones", titulo: t("gps.reportes.columnas.sesiones"), valor: (fila) => fila.sesiones, texto: entero },
     { clave: "descansos", titulo: t("gps.reportes.columnas.descansos"), valor: (fila) => fila.descansos, texto: entero },
@@ -394,7 +443,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
       ["altaRel", "alta", t("gps.reportes.columnas.rel")],
       ["maxima", "maxima", t("gps.reportes.columnas.abs")],
       ["maximaRel", "maxima", t("gps.reportes.columnas.rel")],
-    ].map(([clave, grupo, titulo]) => ({ clave, grupo, titulo, valor: (fila) => fila.indices[clave], texto: porciento, franjas: tabla?.indices?.[clave] })),
+    ].map(([clave, grupo, titulo]) => ({ clave, grupo, titulo, valor: (fila) => fila.indices[clave], texto: porciento, franjas: tabla?.indices?.[clave], franjasDeFila: (fila) => tablaDe(fila)?.indices?.[clave], color: colorDeMayorMejor })),
     ...variables.map((clave) => ({
       clave: `variable:${clave}`,
       grupo: "variables",
@@ -402,8 +451,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
       valor: (fila) => fila.variables[clave],
       texto: (valor) => textoDeVariable(clave, valor),
       franjas: tabla?.variables?.[clave],
+      franjasDeFila: (fila) => tablaDe(fila)?.variables?.[clave],
+      color: colorDeVariable,
       vr: (referencia) => textoDe(clave, referencia?.promedio?.[clave]),
     })),
+    { clave: "vsRival", titulo: t("gps.reportes.columnas.vsRival"), valor: (fila) => fila.vsRival, texto: (valor) => valor || "", rival: true },
   ];
   const TITULOS_DE_GRUPOS = {
     ua: t("gps.reportes.columnas.ua"),
@@ -414,18 +466,28 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     maxima: t("gps.reportes.columnas.maxima"),
     variables: t(`gps.reportes.tipos.${tipoVariable}`),
   };
+  const tonos = Object.fromEntries(Object.keys(TITULOS_DE_GRUPOS).map((clave, i) => [clave, i]));
+  const tituloCompleto = (columna) => (columna.grupo ? `${TITULOS_DE_GRUPOS[columna.grupo]} · ${columna.titulo}` : columna.titulo);
+
+  // Lo que se ve: sin lo ocultado a mano.
+  const columnas = COLUMNAS.filter((columna) => !ocultas.columnas.includes(columna.clave));
   const gruposDeColumnas = [];
-  COLUMNAS.forEach((columna) => {
+  columnas.forEach((columna) => {
     const ultimo = gruposDeColumnas[gruposDeColumnas.length - 1];
     if (columna.grupo && ultimo?.clave === columna.grupo) ultimo.cantidad += 1;
     else gruposDeColumnas.push({ clave: columna.grupo || null, columna, cantidad: 1 });
   });
-  const tonos = Object.fromEntries(Object.keys(TITULOS_DE_GRUPOS).map((clave, i) => [clave, i]));
 
+  // La primera columna dice qué es cada fila: solo microciclos del equipo,
+  // solo jugadores o las dos cosas.
+  const soloEquipo = filas.every((fila) => fila.promedio);
+  const soloJugadores = filas.every((fila) => !fila.promedio);
+  const tituloDeLaPrimera = soloEquipo ? t("gps.reportes.columnas.microciclo") : soloJugadores ? t("gps.reportes.columnas.jugador") : t("gps.reportes.columnas.nombre");
+  const textoDeFila = (fila) => (fila.promedio ? (soloEquipo ? t("gps.reportes.microcicloN", { n: fila.microciclo ?? "" }) : `${nombreDe(fila)} ${fila.microciclo ?? ""}`) : nombreDe(fila));
   const nombreDeFila = (fila) =>
     fila.promedio ? (
       <span className="gps-informe-nombre">
-        <span>{nombreDe(fila)}</span>
+        {!soloEquipo && <span>{nombreDe(fila)}</span>}
         <b>{fila.microciclo}</b>
       </span>
     ) : (
@@ -434,6 +496,47 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
         {fila.microciclos.length > 0 && <span>{tramos(fila.microciclos, unirTramo)}</span>}
       </span>
     );
+
+  // Las filas de arriba: el V.R. y las franjas (cada una se puede ocultar).
+  const FILAS_DE_FRANJAS = [...(tabla?.vr ? ["vr"] : []), ...FRANJAS].map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
+  const franjasAVista = FILAS_DE_FRANJAS.filter((una) => !ocultas.filas.includes(una.clave));
+  const filasAVista = filas.filter((fila) => !ocultas.filas.includes(fila.clave));
+  const cuantasOcultas = (cual) => ocultas[cual].filter((clave) => (cual === "columnas" ? COLUMNAS.some((columna) => columna.clave === clave) : [...FILAS_DE_FRANJAS, ...filas].some((una) => una.clave === clave))).length;
+
+  const abrirLoQueSeVe = (cual) => {
+    const valores =
+      cual === "columnas"
+        ? COLUMNAS.map((columna) => ({ clave: columna.clave, texto: tituloCompleto(columna) }))
+        : [...FILAS_DE_FRANJAS.map((una) => ({ clave: una.clave, texto: una.texto })), ...filas.map((fila) => ({ clave: fila.clave, texto: textoDeFila(fila) }))];
+    setHoja({ ocultar: cual, titulo: t(`gps.reportes.aLaVista.${cual}`), valores, elegidos: valores.map((valor) => valor.clave).filter((clave) => !ocultas[cual].includes(clave)), busqueda: "" });
+  };
+  const ocultar = ({ tipo, clave }) => setOcultas((antes) => ({ ...antes, [tipo]: [...antes[tipo].filter((una) => una !== clave), clave] }));
+
+  const vacio = <span className="gps-informe-vacio">–</span>;
+  const celda = (columna, fila) => {
+    const valor = columna.valor(fila);
+    const texto = columna.texto(valor);
+    const color = columna.color ? columna.color(valor, columna.franjasDeFila ? columna.franjasDeFila(fila) : columna.franjas) : null;
+    return (
+      <td key={columna.clave} className={`${columna.rival ? "gps-informe-rival" : ""} ${color ? "pintada" : ""}`} style={color ? { background: color } : undefined} title={columna.rival && texto ? texto : undefined}>
+        {texto === "" ? vacio : texto}
+      </td>
+    );
+  };
+  // En las franjas, al lado de cada número, el color que toma lo que cae ahí.
+  const celdaDeFranja = (columna, franja) => {
+    if (franja === "vr") return <td key={columna.clave}>{columna.vr ? columna.vr(tabla.vr) || vacio : ""}</td>;
+    const valor = columna.franjas ? columna.franjas[franja] : null;
+    if (!columna.franjas) return <td key={columna.clave} />;
+    const color = franja !== "desvio" && columna.color ? columna.color(valor, columna.franjas) : null;
+    const texto = columna.texto(valor);
+    return (
+      <td key={columna.clave}>
+        {color && <i className="gps-informe-punto" style={{ background: color }} aria-hidden="true" />}
+        {texto === "" ? vacio : texto}
+      </td>
+    );
+  };
 
   return (
     <div className="app">
@@ -527,84 +630,89 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
           <p className="lesiones-estado">{t("gps.reportes.sinFilas")}</p>
         ) : (
           <section className="tarjeta gps-reportes-tabla">
-            <div className="gps-reportes-franjas">
-              <span>{tabla?.vr ? t("gps.reportes.franjasDe", { vr: nombreDeVr(tabla.vr) }) : t("gps.reportes.franjasSinVr")}</span>
-              {tablas.length > 1 && (
-                <button type="button" className="boton-secundario" onClick={() => setVerFranjas((actual + 1) % tablas.length)}>
-                  <Icono nombre="cambio" size={15} />
-                  {t("gps.reportes.verFranjasDe", { vr: nombreDeVr(tablas[(actual + 1) % tablas.length].vr) })}
-                </button>
-              )}
+            <div className="gps-informe-barra">
+              <div className="gps-informe-titulo">
+                <b>{plural(soloEquipo ? "gps.reportes.cuantosMicrociclos" : soloJugadores ? "gps.reportes.cuantosJugadores" : "gps.reportes.cuantasFilas", filas.length)}</b>
+                <span>{tabla?.vr ? t("gps.reportes.franjasDe", { vr: nombreDeVr(tabla.vr) }) : t("gps.reportes.franjasSinVr")}</span>
+              </div>
+              <div className="gps-informe-acciones">
+                {tablas.length > 1 && (
+                  <button type="button" className="boton-secundario gps-informe-otras" onClick={() => setVerFranjas((actual + 1) % tablas.length)}>
+                    <Icono nombre="cambio" size={15} />
+                    {t("gps.reportes.verFranjasDe", { vr: nombreDeVr(tablas[(actual + 1) % tablas.length].vr) })}
+                  </button>
+                )}
+                {["columnas", "filas"].map((cual) => {
+                  const cuantas = cuantasOcultas(cual);
+                  return (
+                    <button key={cual} type="button" className={`selector-hoja gps-informe-ver ${cuantas ? "con-ocultas" : ""}`} onClick={() => abrirLoQueSeVe(cual)}>
+                      <span>{t(`gps.reportes.ocultas.${cual}`)}</span>
+                      <b>{cuantas ? plural("gps.reportes.ocultas.cuantas", cuantas) : t("gps.reportes.ocultas.todas")}</b>
+                      <Icono nombre="flecha" size={15} />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="informe-tabla-marco gps-informe-marco">
-              <table className="informe-tabla evaluaciones-informe-tabla gps-informe-tabla" style={{ "--columnas": COLUMNAS.length + 2 }}>
+            <div className="gps-informe-marco" tabIndex={0} role="region" aria-label={t("gps.reportes.porMicrociclo")}>
+              <table className={`gps-informe-tabla ${soloEquipo ? "solo-equipo" : ""}`}>
                 <thead>
-                  <tr className="informe-grupos">
-                    <th scope="col" rowSpan={2} className="informe-id">
-                      {t("gps.reportes.columnas.nombre")}
+                  <tr className="gps-informe-grupos" ref={filaDeGrupos}>
+                    <th scope="col" rowSpan={2} className="gps-informe-id">
+                      {tituloDeLaPrimera}
                     </th>
                     {gruposDeColumnas.map((grupo) =>
                       grupo.clave ? (
                         <th key={grupo.clave} scope="colgroup" colSpan={grupo.cantidad} className={`tono-${tonos[grupo.clave]}`}>
-                          {TITULOS_DE_GRUPOS[grupo.clave]}
-                          {TERMINOS_DE_GRUPOS[grupo.clave] && <TerminoDe clave={TERMINOS_DE_GRUPOS[grupo.clave]} />}
+                          <span className="gps-informe-grupo">
+                            {TITULOS_DE_GRUPOS[grupo.clave]}
+                            {TERMINOS_DE_GRUPOS[grupo.clave] && <TerminoDe clave={TERMINOS_DE_GRUPOS[grupo.clave]} />}
+                          </span>
                         </th>
                       ) : (
-                        <th key={grupo.columna.clave} scope="col" rowSpan={2} className="informe-corta">
-                          {grupo.columna.titulo}
+                        <th key={grupo.columna.clave} scope="col" rowSpan={2} className={`gps-informe-suelta ${grupo.columna.rival ? "gps-informe-rival" : ""}`}>
+                          <button type="button" className="gps-informe-cabecera" onClick={() => setAOcultar({ tipo: "columnas", clave: grupo.columna.clave, titulo: tituloCompleto(grupo.columna) })} title={t("gps.reportes.tocarParaOcultar")} aria-haspopup="dialog">
+                            {grupo.columna.titulo}
+                          </button>
                         </th>
                       ),
                     )}
-                    <th scope="col" rowSpan={2} className="gps-informe-rival">
-                      {t("gps.reportes.columnas.vsRival")}
-                    </th>
                   </tr>
-                  <tr className="informe-cabeceras">
-                    {COLUMNAS.filter((columna) => columna.grupo).map((columna) => (
-                      <th key={columna.clave} scope="col" className={`tono-${tonos[columna.grupo]}`}>
-                        {columna.titulo}
-                      </th>
-                    ))}
+                  <tr className="gps-informe-cabeceras">
+                    {columnas
+                      .filter((columna) => columna.grupo)
+                      .map((columna) => (
+                        <th key={columna.clave} scope="col" className={`tono-${tonos[columna.grupo]}`}>
+                          <button type="button" className="gps-informe-cabecera" onClick={() => setAOcultar({ tipo: "columnas", clave: columna.clave, titulo: tituloCompleto(columna) })} title={t("gps.reportes.tocarParaOcultar")} aria-haspopup="dialog">
+                            {columna.titulo}
+                          </button>
+                        </th>
+                      ))}
                   </tr>
-                  {tabla?.vr && (
-                    <tr className="evaluaciones-informe-arriba gps-informe-vr">
-                      <th scope="row" className="informe-id">
-                        {t("gps.reportes.franjas.vr")}
-                      </th>
-                      {COLUMNAS.map((columna) => (
-                        <td key={columna.clave}>{columna.vr ? columna.vr(tabla.vr) : ""}</td>
-                      ))}
-                      <td />
-                    </tr>
-                  )}
-                  {FRANJAS.map((franja) => (
-                    <tr key={franja} className={`evaluaciones-informe-arriba gps-informe-franja franja-${franja}`}>
-                      <th scope="row" className="informe-id">
-                        {t(`gps.reportes.franjas.${franja}`)}
-                      </th>
-                      {COLUMNAS.map((columna) => (
-                        <td key={columna.clave}>{columna.franjas ? columna.texto(columna.franjas[franja]) : ""}</td>
-                      ))}
-                      <td />
-                    </tr>
-                  ))}
                 </thead>
-                <tbody>
-                  {filas.map((fila) => (
+                {franjasAVista.length > 0 && (
+                  <tbody className="gps-informe-franjas">
+                    {franjasAVista.map((una) => (
+                      <tr key={una.clave} className={`franja-${una.franja}`}>
+                        <th scope="row" className="gps-informe-id">
+                          <button type="button" className="gps-informe-fila" onClick={() => setAOcultar({ tipo: "filas", clave: una.clave, titulo: una.texto })} title={t("gps.reportes.tocarParaOcultarFila")} aria-haspopup="dialog">
+                            {una.texto}
+                          </button>
+                        </th>
+                        {columnas.map((columna) => celdaDeFranja(columna, una.franja))}
+                      </tr>
+                    ))}
+                  </tbody>
+                )}
+                <tbody className="gps-informe-filas">
+                  {filasAVista.map((fila) => (
                     <tr key={fila.clave}>
-                      <th scope="row" className="informe-id">
-                        {nombreDeFila(fila)}
+                      <th scope="row" className="gps-informe-id">
+                        <button type="button" className="gps-informe-fila" onClick={() => setAOcultar({ tipo: "filas", clave: fila.clave, titulo: textoDeFila(fila) })} title={`${textoDeFila(fila)}\n${t("gps.reportes.tocarParaOcultarFila")}`} aria-haspopup="dialog">
+                          {nombreDeFila(fila)}
+                        </button>
                       </th>
-                      {COLUMNAS.map((columna) => {
-                        const valor = columna.valor(fila);
-                        const color = columna.color ? columna.color(valor, columna.franjas) : null;
-                        return (
-                          <td key={columna.clave} style={color ? { background: color } : undefined}>
-                            {columna.texto(valor)}
-                          </td>
-                        );
-                      })}
-                      <td className="gps-informe-rival">{fila.vsRival}</td>
+                      {columnas.map((columna) => celda(columna, fila))}
                     </tr>
                   ))}
                 </tbody>
@@ -614,6 +722,19 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
         )}
       </div>
       {hojaDeVarios}
+      <HojaConfirmar
+        abierta={Boolean(aOcultar)}
+        icono="ocultar"
+        titulo={aOcultar ? t("gps.reportes.ocultarTitulo", { nombre: aOcultar.titulo }) : ""}
+        descripcion={aOcultar ? t(aOcultar.tipo === "filas" ? "gps.reportes.ocultarFilaTexto" : "gps.reportes.ocultarColumnaTexto") : ""}
+        etiquetaConfirmar={t("gps.reportes.ocultar")}
+        etiquetaCancelar={t("comun.cancelar")}
+        onConfirmar={() => {
+          ocultar(aOcultar);
+          setAOcultar(null);
+        }}
+        onCancelar={() => setAOcultar(null)}
+      />
     </div>
   );
 }

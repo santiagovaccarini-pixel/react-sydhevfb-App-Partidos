@@ -168,6 +168,15 @@ const trazos = {
       <path d="M8 5v14M16 5v14" />
     </>
   ),
+  // Ocultar una columna o una fila de una tabla (Santiago, 15/10): un ojo
+  // tachado.
+  ocultar: (
+    <>
+      <path d="M3 12s3.4-6.5 9-6.5 9 6.5 9 6.5-3.4 6.5-9 6.5S3 12 3 12Z" />
+      <circle cx="12" cy="12" r="2.8" />
+      <path d="M4 4l16 16" />
+    </>
+  ),
   // La guía de un módulo (Santiago, 14/10): un signo de pregunta en un círculo.
   ayuda: (
     <>
