@@ -1762,13 +1762,15 @@ describe("GPS", () => {
     // la presentación) y arriba, cuántos son y de qué V.R. son las franjas.
     expect(tabla.querySelector("thead th").textContent).toBe("Microciclo");
     expect(filasDelInforme.map((tr) => tr.querySelector("th").textContent)).toEqual(["18", "19", "20"]);
-    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("3 microciclosFranjas de Catapult · FUTBOL · Oficial · TOTAL");
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Catapult · FUTBOL · Oficial · TOTAL3 microciclos");
     // N° Sesiones (con el descanso) y N° Descanso.
     expect(filasDelInforme.map((tr) => [tr.querySelectorAll("td")[0].textContent, tr.querySelectorAll("td")[1].textContent])).toEqual([["2", "1"], ["2", "0"], ["2", "0"]]);
-    // Las franjas, en su bloque, con el color que toma cada una al lado de su número.
+    // Las franjas, en su bloque, cada número pintado con el color que toma
+    // (Santiago, 15/10, con una imagen: la celda entera); el desvío, no.
     expect([...tabla.querySelectorAll("tbody.gps-informe-franjas th")].map((th) => th.textContent)).toEqual(["V.R.", "Excelente", "Muy bueno", "Bueno (promedio)", "Regular", "Malo", "Desvío"]);
-    expect(tabla.querySelectorAll("tbody.gps-informe-franjas tr.franja-excelente .gps-informe-punto").length).toBeGreaterThan(0);
-    expect(tabla.querySelectorAll("tbody.gps-informe-franjas tr.franja-desvio .gps-informe-punto")).toHaveLength(0);
+    expect([...tabla.querySelectorAll("tbody.gps-informe-franjas tr.franja-excelente td.pintada")].every((td) => td.style.background)).toBe(true);
+    expect(tabla.querySelectorAll("tbody.gps-informe-franjas tr.franja-excelente td.pintada").length).toBeGreaterThan(0);
+    expect(tabla.querySelectorAll("tbody.gps-informe-franjas tr.franja-desvio td.pintada")).toHaveLength(0);
     // Todas las columnas se pintan con sus reglas (Santiago, 15/10): la U.A. y también los índices.
     expect(filasDelInforme.every((tr) => tr.querySelectorAll("td")[2].style.background)).toBe(true);
     // El % del promedio de D contra el V.R. (D 5000 → 4590 / 5000 en el 18).

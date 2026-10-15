@@ -177,6 +177,30 @@ const trazos = {
       <path d="M4 4l16 16" />
     </>
   ),
+  // Los desplegables del Informe de GPS (Santiago, 15/10, con una imagen):
+  // cómo se ven los números (una línea que sube), de dónde salen las franjas
+  // (cuatro cuadros) y el V.R. (un blanco).
+  tendencia: (
+    <>
+      <path d="M3.5 16.5 9 11l4 4 7.5-7.5" />
+      <path d="M15 7.5h5.5V13" />
+    </>
+  ),
+  cuadros: (
+    <>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    </>
+  ),
+  objetivo: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="4.5" />
+      <path d="M12 12h.01" />
+    </>
+  ),
   // La guía de un módulo (Santiago, 14/10): un signo de pregunta en un círculo.
   ayuda: (
     <>
