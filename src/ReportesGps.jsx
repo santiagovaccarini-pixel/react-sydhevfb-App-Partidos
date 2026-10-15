@@ -421,6 +421,13 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
       ))}
     </select>
   );
+  // «+ Otro V.R.»: al lado del primer V.R. (o solo, si no hay ninguno elegido).
+  const botonSumarVr =
+    referencias.length > 0 ? (
+      <button type="button" className="boton-secundario gps-reportes-sumar" onClick={sumarVr}>
+        {t("gps.reportes.sumarVr")}
+      </button>
+    ) : null;
 
   // Las columnas de la tabla, con su grupo (y su tono, como en la base). La
   // U.A. y la carga crónica se pintan como el archivo; los índices y las
@@ -523,7 +530,8 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
       </td>
     );
   };
-  // En las franjas, al lado de cada número, el color que toma lo que cae ahí.
+  // En las franjas, cada número pintado con el color que toma lo que cae ahí
+  // (Santiago, 15/10, con una imagen: la celda entera, no un punto al lado).
   const celdaDeFranja = (columna, franja) => {
     if (franja === "vr") return <td key={columna.clave}>{columna.vr ? columna.vr(tabla.vr) || vacio : ""}</td>;
     const valor = columna.franjas ? columna.franjas[franja] : null;
@@ -531,8 +539,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     const color = franja !== "desvio" && columna.color ? columna.color(valor, columna.franjas) : null;
     const texto = columna.texto(valor);
     return (
-      <td key={columna.clave}>
-        {color && <i className="gps-informe-punto" style={{ background: color }} aria-hidden="true" />}
+      <td key={columna.clave} className={color ? "pintada" : undefined} style={color ? { background: color } : undefined}>
         {texto === "" ? vacio : texto}
       </td>
     );
@@ -550,36 +557,45 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
           <div className="gps-reportes-grilla">
             <label className="campo-inicio">
               <span className="gps-reportes-rotulo">{t("gps.reportes.tipoVariable")}</span>
-              <select value={tipoVariable} onChange={(evento) => setTipoVariable(evento.target.value)}>
-                {Object.keys(TIPOS_DE_VARIABLE).map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {t(`gps.reportes.tipos.${tipo}`)}
-                  </option>
-                ))}
-              </select>
+              <span className="gps-reportes-campo">
+                <Icono nombre="grafico" size={18} />
+                <select value={tipoVariable} onChange={(evento) => setTipoVariable(evento.target.value)}>
+                  {Object.keys(TIPOS_DE_VARIABLE).map((tipo) => (
+                    <option key={tipo} value={tipo}>
+                      {t(`gps.reportes.tipos.${tipo}`)}
+                    </option>
+                  ))}
+                </select>
+              </span>
             </label>
             <label className="campo-inicio">
               <span className="gps-reportes-rotulo">{t("gps.reportes.visualizacion")}</span>
-              <select value={visualizacion} onChange={(evento) => setVisualizacion(evento.target.value)}>
-                {VISUALIZACIONES.map((una) => (
-                  <option key={una} value={una}>
-                    {t(`gps.reportes.visualizaciones.${una}`)}
-                  </option>
-                ))}
-              </select>
+              <span className="gps-reportes-campo">
+                <Icono nombre="tendencia" size={18} />
+                <select value={visualizacion} onChange={(evento) => setVisualizacion(evento.target.value)}>
+                  {VISUALIZACIONES.map((una) => (
+                    <option key={una} value={una}>
+                      {t(`gps.reportes.visualizaciones.${una}`)}
+                    </option>
+                  ))}
+                </select>
+              </span>
             </label>
             <label className="campo-inicio">
               <span className="gps-reportes-rotulo">
                 {t("gps.reportes.categorizacion")}
                 <TerminoDe clave="gps.terminos.categorizacion" />
               </span>
-              <select value={categorizacion} onChange={(evento) => setCategorizacion(evento.target.value)}>
-                {CATEGORIZACIONES_DEL_INFORME.map((una) => (
-                  <option key={una} value={una}>
-                    {t(`gps.reportes.categorizaciones.${una}`)}
-                  </option>
-                ))}
-              </select>
+              <span className="gps-reportes-campo">
+                <Icono nombre="cuadros" size={18} />
+                <select value={categorizacion} onChange={(evento) => setCategorizacion(evento.target.value)}>
+                  {CATEGORIZACIONES_DEL_INFORME.map((una) => (
+                    <option key={una} value={una}>
+                      {t(`gps.reportes.categorizaciones.${una}`)}
+                    </option>
+                  ))}
+                </select>
+              </span>
             </label>
           </div>
           {categorizacion === "objetivo" && !(filtros.microciclo_jugador?.length === 1 && filtros.microciclo_jugador[0] === "jugador") && (
@@ -594,7 +610,10 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
             {elegidosVr.length === 0 && <p className="lesiones-ayuda">{t(referencias.length ? "gps.reportes.sinVrElegido" : "gps.reportes.sinVrs")}</p>}
             {elegidosVr.map((uno, indice) => (
               <div className={`gps-reportes-vr ${indice ? "otro" : ""}`} key={`${indice}:${uno.id}`}>
-                {selectorDeVr(uno, indice)}
+                <span className="gps-reportes-campo">
+                  <Icono nombre="objetivo" size={18} />
+                  {selectorDeVr(uno, indice)}
+                </span>
                 {indice > 0 &&
                   desplegableDeVarios(
                     t("gps.reportes.microciclosDelVr"),
@@ -615,14 +634,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                     <Icono nombre="borrar" size={15} />
                   </button>
                 )}
+                {indice === 0 && botonSumarVr}
               </div>
             ))}
             {sinVr.length > 0 && elegidosVr.length > 0 && <p className="lesiones-ayuda gps-reportes-sin-vr">{t("gps.reportes.sinVrFilas", { microciclos: tramos(sinVr, unirTramo) })}</p>}
-            {referencias.length > 0 && (
-              <button type="button" className="boton-secundario gps-reportes-sumar" onClick={sumarVr}>
-                {t("gps.reportes.sumarVr")}
-              </button>
-            )}
+            {elegidosVr.length === 0 && botonSumarVr}
           </div>
         </section>
 
@@ -632,8 +648,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
           <section className="tarjeta gps-reportes-tabla">
             <div className="gps-informe-barra">
               <div className="gps-informe-titulo">
-                <b>{plural(soloEquipo ? "gps.reportes.cuantosMicrociclos" : soloJugadores ? "gps.reportes.cuantosJugadores" : "gps.reportes.cuantasFilas", filas.length)}</b>
-                <span>{tabla?.vr ? t("gps.reportes.franjasDe", { vr: nombreDeVr(tabla.vr) }) : t("gps.reportes.franjasSinVr")}</span>
+                <Icono nombre="grafico" size={20} />
+                <span className="gps-informe-titulo-texto">
+                  <b>{tabla?.vr ? t("gps.reportes.franjasDe", { vr: nombreDeVr(tabla.vr) }) : t("gps.reportes.franjasSinVr")}</b>
+                  <span>{plural(soloEquipo ? "gps.reportes.cuantosMicrociclos" : soloJugadores ? "gps.reportes.cuantosJugadores" : "gps.reportes.cuantasFilas", filas.length)}</span>
+                </span>
               </div>
               <div className="gps-informe-acciones">
                 {tablas.length > 1 && (

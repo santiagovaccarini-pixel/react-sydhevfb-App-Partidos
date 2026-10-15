@@ -1882,13 +1882,15 @@ toco un columna o fila en cierto lugar tiene que preguntarme si la quiero oculta
 - **La tabla** («1. Si»): arriba, cuántos microciclos (o jugadores, o filas) hay y de qué V.R.
   son las franjas. La tabla corre dentro de su marco, con la cabecera y la primera columna
   siempre a la vista. La cabecera es oscura y lisa: el tono de cada grupo es una línea debajo
-  de su nombre (antes, un fondo de color fuerte por grupo). La primera columna dice qué es cada
+  de su nombre (antes, un fondo de color fuerte por grupo; **cambiado el 15/10**: ver «La
+  estética», abajo). La primera columna dice qué es cada
   fila: «Microciclo» con solo microciclos del equipo (cada fila, su número), «Jugador» con solo
   jugadores (el nombre y sus microciclos) y «Nombre / Microciclo» si hay de los dos. Las franjas
   (el V.R. y de Excelente a Desvío) van en un bloque gris aparte, con un punto del color que
   toma lo que cae en cada franja al lado de su número. Los números van a la derecha, con
   cifras del mismo ancho; donde no hay dato, «–»; todas las filas del mismo alto (VS RIVAL en un
-  renglón). No cambió ningún cálculo.
+  renglón). No cambió ningún cálculo. (**Cambiado el 15/10**: las franjas pintadas enteras y
+  los números centrados; ver «La estética», abajo.)
 - **Todas las columnas se pintan con sus reglas** (2): la U.A. y la carga crónica, como el
   archivo en «Por microciclo» (la U.A., solo con «Mi selección»; la carga crónica, con sus
   franjas). Los índices y las variables, con la regla que el archivo usa para esas columnas en
@@ -1914,11 +1916,33 @@ toco un columna o fila en cierto lugar tiene que preguntarme si la quiero oculta
   las demás tablas: ver «Toda la app: presentación, colores suaves y ocultar», al principio.
 - **Queda para después** (6, «Despues lo vemos»): llevar este estilo de tabla a las demás
   tablas (bases y reportes). No hacerlo hasta que Santiago lo pida.
+- **La estética (15/10, con una imagen)**: Santiago mandó la imagen de una pantalla de ejemplo,
+  con datos inventados: «esta seria una estetica agradable a la vista y buena para poder ver los
+  datos, sacando el grafico pero dejando lo demas, NO USES NINGUN DATO NI NADA SON DATOS
+  INVENTADOS POR ESO HAY QUE PASAR ESA ESTETICA A INFORME PERO NADA DE DATOS O CABECERAS
+  INVENTADAS». Hecho en todo el Informe (el menú, los filtros y el informe):
+  - tarjetas oscuras;
+  - los desplegables en una fila (en la compu ancha), cada uno con su ícono, y «+ Otro V.R.» al
+    lado del V.R.;
+  - arriba de la tabla, con un ícono, de qué V.R. son las franjas y, abajo, cuántas filas;
+  - el título de cada grupo con el fondo de su tono (el mismo de las bases) y una línea más
+    clara abajo: **reabre** «un fondo de color fuerte por grupo», que estaba prohibido (lo
+    pidió Santiago con la imagen);
+  - las franjas pintadas enteras (antes, un punto al lado del número); el V.R. y el desvío, en
+    gris y en cursiva;
+  - los números centrados, como en la imagen (antes, a la derecha).
+  Siguen igual: qué se pinta y con qué regla, los colores suaves («B»), las columnas, las filas,
+  los textos, ocultar y los cálculos. No se agregó nada de lo inventado de la imagen: el gráfico
+  (lo sacó Santiago), las tarjetas de arriba con números (distancia promedio, alta intensidad,
+  duración media, cumplimiento vs V.R. y «vs. microciclo anterior»: el informe no los calcula),
+  «Exportar», la temporada ni las iniciales de quien usa la app. **Pendiente**: preguntarle si
+  quiere esas tarjetas y con qué números; no hacerlas sin su respuesta.
 
 Queda prohibido en el Informe: volver a mostrar las franjas como filas de datos sin su color,
 «Team Average Sesion» en cada fila cuando todas son del equipo, un fondo de color fuerte por
-grupo en la cabecera, pintar solo la U.A. y la carga crónica, los colores fuertes del archivo y
-ocultar sin preguntar.
+grupo en la cabecera (**reabierto el 15/10**: ahora va el fondo del tono de cada grupo, ver «La
+estética»), pintar solo la U.A. y la carga crónica, los colores fuertes del archivo y ocultar sin
+preguntar.
 
 ### Pegar desde Excel (el historial)
 

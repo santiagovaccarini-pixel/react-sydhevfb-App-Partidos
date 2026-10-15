@@ -109,11 +109,12 @@ En una tabla de datos (la primera hecha así: GPS › Informe, 15/10):
 - La cabecera y la primera columna quedan a la vista al bajar y al deslizar de costado.
 - La primera columna dice qué es cada fila, sin repetir el mismo texto en todas.
 - Los números van a la derecha, con cifras del mismo ancho; donde no hay dato, «–»; todas las
-  filas tienen el mismo alto.
+  filas tienen el mismo alto. (En el Informe, centrados desde el 15/10: ver abajo.)
 - Las referencias (franjas, V.R.) van en un bloque aparte de los datos, con el color que toma
   cada una.
 - Los colores de franjas y semáforos son los suaves de `src/domain/colores.js`. La cabecera no
-  lleva un color fuerte por grupo: el tono del grupo es una línea.
+  lleva un color fuerte por grupo: el tono del grupo es una línea. (En el Informe, el fondo del
+  tono desde el 15/10: ver abajo.)
 - Una columna o una fila se oculta tocando su nombre, que pregunta antes. «Columnas» y «Filas»,
   arriba, dicen cuántas hay ocultas y las vuelven a mostrar. Los números no cambian. En las
   bases, donde tocar el nombre de la cabecera ya fija y mueve la columna, se oculta desde su
@@ -121,6 +122,16 @@ En una tabla de datos (la primera hecha así: GPS › Informe, 15/10):
   demás acciones («1 columna oculta», «Mostrar las 2 filas ocultas»). En los reportes y los
   V.R., como en el Informe, con `src/components/Ocultar.jsx`; donde el nombre de una fila ya
   es otra cosa (un desplegable), el ojo tachado al lado. Lo oculto no sale al imprimir.
+
+**El Informe de GPS, con la estética de una imagen (15/10).** Santiago mandó la imagen de una
+pantalla de ejemplo para el Informe («esta seria una estetica agradable a la vista y buena para
+poder ver los datos, sacando el grafico pero dejando lo demas … NADA DE DATOS O CABECERAS
+INVENTADAS»). En todo el Informe: tarjetas oscuras (`#0f172a`, borde finito, esquinas de 16 px);
+los desplegables en una fila en la compu ancha, cada uno con su ícono a la izquierda; el título
+de cada grupo con el fondo de su tono (`--grupo-fondo-N`, el de las bases) y su línea; las
+franjas pintadas enteras con la letra oscura; el V.R. y el desvío en gris y cursiva; los
+números centrados. De una imagen de ejemplo se toma cómo se ve, nunca sus datos, cabeceras ni
+funciones (el gráfico, las tarjetas con números, «Exportar»): eso se pregunta.
 
 Las tablas que ya están conservan su estilo hasta que Santiago decida llevarles este
 («Despues lo vemos», 15/10). Los colores suaves y ocultar columnas y filas sí van en toda la

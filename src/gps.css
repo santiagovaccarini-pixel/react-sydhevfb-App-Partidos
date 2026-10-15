@@ -788,9 +788,46 @@
 
 /* Reportes (15/10): el menú de los informes, los filtros con casillas y el
    informe Por microciclo, con la tabla de los reportes (cabecera oscura,
-   grupos con su tono y la primera columna fija al deslizar). */
+   grupos con su tono y la primera columna fija al deslizar).
+   La estética (Santiago, 15/10, con una imagen: «esta seria una estetica
+   agradable a la vista y buena para poder ver los datos»): todo el Informe en
+   tarjetas oscuras, los desplegables en una fila con su ícono, la cabecera de
+   cada grupo con su color (el tono del grupo, el mismo de las bases) y las
+   franjas pintadas enteras. Sin gráfico ni números que el informe no tiene. */
+.gps-marco .tarjeta.gps-reportes-menu,
+.gps-marco .tarjeta.gps-reportes-filtros,
+.gps-marco .tarjeta.gps-reportes-controles,
+.gps-marco .tarjeta.gps-reportes-tabla {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
+  background: #0f172a;
+  box-shadow: 0 14px 34px rgba(2, 6, 23, 0.32);
+  color: #e2e8f0;
+  color-scheme: dark;
+}
+.gps-marco .gps-reportes-menu .cabeza-ficha {
+  border-bottom-color: rgba(148, 163, 184, 0.16);
+}
+.gps-marco .gps-reportes-menu .cabeza-ficha b {
+  color: #f8fafc;
+}
+.gps-marco .gps-reportes-menu .reporte-opcion {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: #111c31;
+  color: #f8fafc;
+}
+.gps-marco .gps-reportes-menu .icono-ajuste {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+.gps-marco .gps-reportes-menu .texto-ajuste span {
+  color: #94a3b8;
+}
+.gps-marco .gps-reportes-menu .flecha-ajuste {
+  color: #64748b;
+}
 .gps-marco .gps-reportes-menu .reporte-opcion:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: default;
 }
 .gps-marco .gps-reportes-menu .reporte-opcion:disabled:hover {
@@ -806,7 +843,7 @@
   margin-bottom: 12px;
 }
 .gps-marco .gps-reportes-filtros-cabeza > b {
-  color: #0f172a;
+  color: #f8fafc;
   font-size: 15px;
 }
 .gps-marco .gps-reportes-filtros-cabeza .boton-secundario {
@@ -827,18 +864,85 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+/* Todos los rótulos del mismo alto (con «?» o sin él): los desplegables de
+   una fila quedan a la misma altura. */
 .gps-marco .gps-reportes-rotulo {
   display: inline-flex;
   align-items: center;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 800;
+  min-height: 26px;
+  color: #cbd5e1;
+  font-size: 12.5px;
+  font-weight: 700;
 }
 .gps-marco .gps-reportes-grilla select,
 .gps-marco .gps-reportes-vr select {
   min-height: 46px;
+  border-color: #334155;
+  border-radius: 10px;
+  background-color: #0b1220;
+  color: #f8fafc;
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 700;
+}
+.gps-marco .gps-reportes-grilla select:focus,
+.gps-marco .gps-reportes-vr select:focus {
+  border-color: #64748b;
+  background-color: #0b1220;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.28);
+}
+/* Cada desplegable con su ícono adentro, a la izquierda. */
+.gps-marco .gps-reportes-campo {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.gps-marco .gps-reportes-campo > svg {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  color: #94a3b8;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.gps-marco .gps-reportes-campo > select {
+  padding-left: 40px;
+}
+/* Los botones y los desplegables con casillas, oscuros con borde. */
+.gps-marco .gps-reportes-filtros .boton-secundario,
+.gps-marco .gps-reportes-controles .boton-secundario,
+.gps-marco .gps-reportes-tabla .boton-secundario {
+  border: 1px solid #334155;
+  background: #0b1220;
+  color: #e2e8f0;
+  box-shadow: none;
+}
+.gps-marco .gps-reportes-filtros .selector-hoja,
+.gps-marco .gps-reportes-controles .selector-hoja {
+  border-color: #334155;
+  border-radius: 10px;
+  background: #0b1220;
+}
+.gps-marco .gps-reportes-filtros .selector-hoja b,
+.gps-marco .gps-reportes-controles .selector-hoja b {
+  color: #f8fafc;
+}
+.gps-marco .gps-reportes-filtros .selector-hoja svg,
+.gps-marco .gps-reportes-controles .selector-hoja svg {
+  color: #94a3b8;
+}
+@media (hover: hover) {
+  .gps-marco .gps-reportes-filtros .boton-secundario:not(:disabled):hover,
+  .gps-marco .gps-reportes-controles .boton-secundario:not(:disabled):hover,
+  .gps-marco .gps-reportes-tabla .boton-secundario:not(:disabled):hover,
+  .gps-marco .gps-reportes-filtros .selector-hoja:hover,
+  .gps-marco .gps-reportes-controles .selector-hoja:hover,
+  .gps-marco .gps-reportes-tabla .selector-hoja:hover {
+    background: #16233d;
+  }
+}
+.gps-marco .gps-reportes-filtros .lesiones-ayuda,
+.gps-marco .gps-reportes-controles .lesiones-ayuda {
+  color: #94a3b8;
 }
 .gps-marco .gps-reportes-siguiente {
   display: flex;
@@ -848,7 +952,7 @@
   gap: 10px 16px;
   margin-top: 16px;
   padding-top: 14px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
 }
 .gps-marco .gps-reportes-siguiente .lesiones-ayuda {
   margin: 0;
@@ -872,7 +976,31 @@
   gap: 8px;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+@media (min-width: 1200px) {
+  .gps-marco .tarjeta.gps-reportes-controles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 14px 16px;
+  }
+  .gps-marco .gps-reportes-controles > .gps-reportes-grilla {
+    flex: 2.6 1 540px;
+  }
+  /* Como un rótulo más: el mismo margen arriba y entre el rótulo y el
+     desplegable, para que todo quede a la misma altura. */
+  .gps-marco .gps-reportes-controles > .gps-reportes-vrs {
+    flex: 3 1 480px;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .gps-marco .gps-reportes-controles > .gps-reportes-objetivo {
+    flex-basis: 100%;
+    order: 3;
+  }
 }
 .gps-marco .gps-reportes-vr {
   display: flex;
@@ -882,16 +1010,20 @@
 }
 /* El nombre de un V.R. puede ser largo: el desplegable no pasa del ancho de
    la tarjeta (se corta adentro) ni, en la compu, de 560 px. */
-.gps-marco .gps-reportes-vr > select {
-  flex: 0 1 560px;
+.gps-marco .gps-reportes-vr > .gps-reportes-campo {
+  flex: 1 1 260px;
+  max-width: 560px;
+}
+.gps-marco .gps-reportes-vr > .gps-reportes-campo > select {
   width: 100%;
   max-width: 100%;
   min-width: 0;
   text-overflow: ellipsis;
 }
 @media (max-width: 639px) {
-  .gps-marco .gps-reportes-vr > select {
+  .gps-marco .gps-reportes-vr > .gps-reportes-campo {
     flex-basis: 100%;
+    max-width: none;
   }
 }
 .gps-marco .gps-reportes-vr > .selector-hoja {
@@ -910,6 +1042,10 @@
 .gps-marco .gps-reportes-sumar {
   justify-self: start;
   width: auto;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 10px;
+  white-space: nowrap;
 }
 .gps-marco .gps-reportes-objetivo {
   margin: 10px 0 0;
@@ -929,26 +1065,36 @@
 .gps-marco .gps-informe-barra {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 10px 16px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 .gps-marco .gps-informe-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.gps-marco .gps-informe-titulo > svg {
+  flex: none;
+  color: #94a3b8;
+}
+.gps-marco .gps-informe-titulo-texto {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
 .gps-marco .gps-informe-titulo b {
-  color: #0f172a;
-  font-size: 16px;
+  color: #f8fafc;
+  font-size: 17px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
-.gps-marco .gps-informe-titulo span {
-  color: #64748b;
+.gps-marco .gps-informe-titulo-texto > span {
+  color: #94a3b8;
   font-size: 12.5px;
   font-weight: 600;
-  overflow-wrap: anywhere;
 }
 .gps-marco .gps-informe-acciones {
   display: flex;
@@ -966,25 +1112,32 @@
   width: auto;
   min-height: 44px;
   gap: 8px;
+  border-color: #334155;
+  border-radius: 10px;
+  background: #0b1220;
 }
 .gps-marco .gps-informe-ver > span {
-  color: #64748b;
+  color: #94a3b8;
   font-size: 13px;
   font-weight: 600;
 }
 .gps-marco .gps-informe-ver > b {
+  color: #f8fafc;
   font-size: 13px;
 }
+.gps-marco .gps-informe-ver > svg {
+  color: #94a3b8;
+}
 .gps-marco .gps-informe-ver.con-ocultas > b {
-  color: #b45309;
+  color: #fbbf24;
 }
 
 .gps-marco .gps-informe-marco {
   max-height: 72vh;
   overflow: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #1e293b;
   border-radius: 12px;
-  background: #fff;
+  background: #0b1220;
   outline: none;
   overscroll-behavior-x: contain;
 }
@@ -997,7 +1150,7 @@
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  color: #1f2937;
+  color: #e2e8f0;
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
@@ -1009,9 +1162,9 @@
   white-space: nowrap;
 }
 
-/* Las cabeceras: oscuras como las de las bases, sin un fondo de color por
-   grupo (era mucho color junto): el tono de cada grupo es la línea de abajo
-   de su título. Quedan a la vista al bajar. */
+/* Las cabeceras quedan a la vista al bajar. El título de cada grupo, con el
+   color de su tono (el mismo de las bases) y una línea más clara abajo
+   (Santiago, 15/10, con una imagen; antes era solo la línea). */
 .gps-marco .gps-informe-tabla thead th {
   position: sticky;
   top: 0;
@@ -1019,35 +1172,29 @@
   padding: 0 10px;
   background: #1e293b;
   color: #f8fafc;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
-  text-align: right;
-  vertical-align: bottom;
+  text-align: center;
+  vertical-align: middle;
 }
 .gps-marco .gps-informe-tabla tr.gps-informe-grupos th {
-  height: 30px;
+  height: 34px;
   padding-top: 6px;
   padding-bottom: 6px;
-  border-left: 1px solid #334155;
+  border-left: 1px solid rgba(15, 23, 42, 0.6);
   white-space: normal;
-  color: #cbd5e1;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  color: #f8fafc;
+  font-size: 12.5px;
+  font-weight: 800;
   text-align: center;
-  text-transform: uppercase;
   vertical-align: middle;
 }
 .gps-marco .gps-informe-tabla tr.gps-informe-grupos th.gps-informe-suelta {
   padding-bottom: 8px;
   color: #f8fafc;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0;
-  text-align: right;
-  text-transform: none;
-  vertical-align: bottom;
   white-space: normal;
   min-width: 64px;
 }
@@ -1061,16 +1208,17 @@
   padding-bottom: 8px;
   white-space: normal;
   text-wrap: balance;
+  color: #e2e8f0;
   min-width: 64px;
   max-width: 120px;
 }
-.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-0 { box-shadow: inset 0 -3px 0 var(--grupo-linea-0); }
-.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-1 { box-shadow: inset 0 -3px 0 var(--grupo-linea-1); }
-.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-2 { box-shadow: inset 0 -3px 0 var(--grupo-linea-2); }
-.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-3 { box-shadow: inset 0 -3px 0 var(--grupo-linea-3); }
-.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-4 { box-shadow: inset 0 -3px 0 var(--grupo-linea-4); }
-.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-5 { box-shadow: inset 0 -3px 0 var(--grupo-linea-5); }
-.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-6 { box-shadow: inset 0 -3px 0 var(--grupo-linea-6); }
+.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-0 { background: var(--grupo-fondo-0); box-shadow: inset 0 -3px 0 var(--grupo-linea-0); }
+.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-1 { background: var(--grupo-fondo-1); box-shadow: inset 0 -3px 0 var(--grupo-linea-1); }
+.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-2 { background: var(--grupo-fondo-2); box-shadow: inset 0 -3px 0 var(--grupo-linea-2); }
+.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-3 { background: var(--grupo-fondo-3); box-shadow: inset 0 -3px 0 var(--grupo-linea-3); }
+.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-4 { background: var(--grupo-fondo-4); box-shadow: inset 0 -3px 0 var(--grupo-linea-4); }
+.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-5 { background: var(--grupo-fondo-5); box-shadow: inset 0 -3px 0 var(--grupo-linea-5); }
+.gps-marco .gps-informe-tabla tr.gps-informe-grupos th.tono-6 { background: var(--grupo-fondo-6); box-shadow: inset 0 -3px 0 var(--grupo-linea-6); }
 .gps-marco .gps-informe-tabla tr.gps-informe-cabeceras th:first-child,
 .gps-marco .gps-informe-tabla tr.gps-informe-cabeceras th.tono-0 + th.tono-1,
 .gps-marco .gps-informe-tabla tr.gps-informe-cabeceras th.tono-1 + th.tono-2,
@@ -1131,19 +1279,18 @@
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
-  box-shadow: inset -1px 0 0 #e2e8f0;
+  box-shadow: inset -1px 0 0 #334155;
 }
 .gps-marco .gps-informe-tabla tr.gps-informe-grupos th.gps-informe-id {
   z-index: 3;
   padding-bottom: 8px;
   border-left: 0;
+  background: #0f172a;
   color: #f8fafc;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 800;
   text-align: left;
-  text-transform: none;
-  vertical-align: bottom;
+  vertical-align: middle;
   white-space: normal;
   box-shadow: inset -1px 0 0 #334155;
 }
@@ -1161,86 +1308,95 @@
 }
 .gps-marco .gps-informe-nombre > span {
   flex: none;
-  color: #64748b;
+  color: #94a3b8;
   font-size: 11px;
   font-weight: 600;
 }
 
-/* Las franjas (y el V.R.): un bloque aparte, más chico y en gris, con una
-   línea más gruesa antes de las filas. */
+/* Las franjas (y el V.R.): un bloque aparte, cada número pintado entero con
+   el color que toma lo que cae ahí; el V.R. y el desvío, en gris y en
+   cursiva; una línea más gruesa antes de las filas. */
 .gps-marco .gps-informe-franjas th,
 .gps-marco .gps-informe-franjas td {
-  height: 30px;
+  height: 32px;
   padding: 0 10px;
-  border-bottom: 1px solid #eef2f6;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 11.5px;
-  text-align: right;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+  text-align: center;
 }
 .gps-marco .gps-informe-franjas th {
-  color: #334155;
-  font-weight: 700;
+  color: #f8fafc;
+  font-weight: 800;
   line-height: 1.1;
   text-align: left;
   white-space: normal;
 }
+.gps-marco .gps-informe-franjas td.pintada {
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.35);
+}
 .gps-marco .gps-informe-franjas tr:last-child th,
 .gps-marco .gps-informe-franjas tr:last-child td {
-  border-bottom: 2px solid #cbd5e1;
+  border-bottom: 2px solid #334155;
 }
 .gps-marco .gps-informe-franjas tr.franja-bueno td {
-  color: #0f172a;
-  font-weight: 700;
+  font-weight: 800;
+}
+.gps-marco .gps-informe-franjas tr.franja-desvio th,
+.gps-marco .gps-informe-franjas tr.franja-desvio td,
+.gps-marco .gps-informe-franjas tr.franja-vr th,
+.gps-marco .gps-informe-franjas tr.franja-vr td {
+  background: #1e293b;
 }
 .gps-marco .gps-informe-franjas tr.franja-desvio td,
 .gps-marco .gps-informe-franjas tr.franja-vr td {
+  color: #cbd5e1;
   font-style: italic;
 }
-.gps-marco .gps-informe-punto {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin-right: 6px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.18);
-  vertical-align: 0;
-}
 
-/* Las filas: todas del mismo alto, los números a la derecha y las celdas
-   pintadas separadas por una línea blanca finita. */
+/* Las filas: todas del mismo alto, los números centrados (como en la
+   imagen, 15/10) y las celdas pintadas con la letra oscura, separadas por una
+   línea finita. */
 .gps-marco .gps-informe-filas th,
 .gps-marco .gps-informe-filas td {
   height: 36px;
   padding: 0 10px;
-  border-bottom: 1px solid #eef2f6;
-  background: #fff;
-  text-align: right;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: #0f172a;
+  color: #e2e8f0;
+  text-align: center;
+}
+.gps-marco .gps-informe-filas tr:nth-child(even) th,
+.gps-marco .gps-informe-filas tr:nth-child(even) td:not(.pintada) {
+  background: #111c31;
 }
 .gps-marco .gps-informe-filas th {
-  color: #0f172a;
+  color: #f8fafc;
   font-size: 13px;
   text-align: left;
 }
 .gps-marco .gps-informe-filas td.pintada {
-  color: #111827;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+  color: #0f172a;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.35);
 }
 @media (hover: hover) {
   .gps-marco .gps-informe-filas tr:hover th,
   .gps-marco .gps-informe-filas tr:hover td:not(.pintada) {
-    background: #f1f5f9;
+    background: #1a2740;
   }
 }
 .gps-marco .gps-informe-tabla td.gps-informe-rival {
   max-width: 280px;
   overflow: hidden;
-  color: #334155;
+  color: #cbd5e1;
   text-align: left;
   text-overflow: ellipsis;
 }
 .gps-marco .gps-informe-vacio {
-  color: #cbd5e1;
+  color: #475569;
 }
 
 @media screen and (max-width: 639px) {
