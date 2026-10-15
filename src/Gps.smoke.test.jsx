@@ -1760,7 +1760,7 @@ describe("GPS", () => {
     const filasDelInforme = [...tabla.querySelectorAll("tbody.gps-informe-filas tr")];
     // Solo microciclos del equipo: cada fila dice su número (Santiago, 15/10:
     // la presentación) y arriba, cuántos son y de qué V.R. son las franjas.
-    expect(tabla.querySelector("thead th").textContent).toBe("Microciclo");
+    expect(tabla.querySelector("thead tr.gps-informe-grupos th").textContent).toBe("Microciclo");
     expect(filasDelInforme.map((tr) => tr.querySelector("th").textContent)).toEqual(["18", "19", "20"]);
     expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Catapult · FUTBOL · Oficial · TOTAL3 microciclos");
     // N° Sesiones (con el descanso) y N° Descanso.
@@ -1808,7 +1808,7 @@ describe("GPS", () => {
     expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("el informe tiene 5 filas");
     await tocar(siguiente());
     // Con jugadores y microciclos: la primera columna dice qué es cada fila.
-    expect(contenedor.querySelector(".gps-informe-tabla thead th").textContent).toBe("Nombre / Microciclo");
+    expect(contenedor.querySelector(".gps-informe-tabla thead tr.gps-informe-grupos th").textContent).toBe("Nombre / Microciclo");
     const etiquetas = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas th")].map((th) => th.textContent);
     expect(etiquetas).toEqual(["ALFA17 a 20", "Team Average Sesion17", "Team Average Sesion18", "Team Average Sesion19", "Team Average Sesion20"]);
     // VS RIVAL del 17: el TOTAL, aunque se cargó en el medio.
@@ -1879,6 +1879,56 @@ describe("GPS", () => {
     expect(sumaDeLaCronica()).toBeDefined();
     expect(cabecerasDelInforme()).toHaveLength(columnasAlEntrar);
     expect(JSON.parse(localStorage.getItem("gps_informe_columnas_ocultas"))).toEqual([]);
+  });
+
+  test("Informe › arriba de cada columna, su promedio: con todas las filas (también las ocultas) y se oculta como las demás", async () => {
+    datos.filas = INFORME();
+    datos.referencias = [{ id: "c1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 5000, tiempo: 3600 }, desvio: { d: 500 }, dePartido: false }];
+    await montar();
+    await irA(contenedor, "Informe");
+    await tocar(contenedor.querySelector(".reporte-opcion"));
+    await tocar(siguiente());
+    // Santiago, 15/10: «quiero que pongas el promedio de cada variable arriba de su columna».
+    const promedios = () => contenedor.querySelector(".gps-informe-tabla thead tr.gps-informe-promedios");
+    const tarjetas = () => [...promedios().querySelectorAll("td")].map((td) => td.textContent);
+    const primeraFila = () => contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-filas tr");
+    expect(promedios().querySelector("th .gps-informe-fila").textContent).toBe("Promedio");
+    // Una por columna, arriba de la suya: N° Sesiones y N° Descanso con un
+    // decimal; la U.A. (sumas 400, 500, 600 y 700) y la carga crónica (solo
+    // la del 20: 700 ÷ 550), con su formato; VS RIVAL es texto, sin tarjeta.
+    expect(promedios().children).toHaveLength(primeraFila().children.length);
+    expect(tarjetas().slice(0, 6)).toEqual(["2,0", "0,3", "550", "275", "1,27", "1,27"]);
+    expect(promedios().querySelectorAll(".gps-informe-tarjeta")).toHaveLength(primeraFila().children.length - 2);
+    expect(tarjetas().at(-1)).toBe("");
+    // Con «Mi selección», el Bueno de D es el promedio de las filas; con «Valor referencial», el del V.R. La tarjeta no cambia.
+    const deD = 14;
+    const buenoDeD = () => contenedor.querySelectorAll(".gps-informe-tabla tr.franja-bueno td")[deD].textContent;
+    const promedioDeD = tarjetas()[deD];
+    expect(buenoDeD()).toBe(promedioDeD);
+    await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "valorReferencial");
+    expect(tarjetas()[deD]).toBe(promedioDeD);
+    expect(buenoDeD()).not.toBe(promedioDeD);
+    // Ocultar una fila no cambia el promedio (la U.A. sigue en 550).
+    await tocar([...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas .gps-informe-fila")].find((b) => b.textContent === "18"));
+    await tocar(boton("Ocultar"));
+    expect(tarjetas()[2]).toBe("550");
+    // Ocultar una columna se lleva su tarjeta.
+    await tocar([...contenedor.querySelectorAll(".gps-informe-tabla th.tono-1 .gps-informe-cabecera")].find((b) => b.textContent === "Suma"));
+    await tocar(boton("Ocultar"));
+    expect(promedios().children).toHaveLength(primeraFila().children.length);
+    // La fila del promedio se oculta tocando su nombre y vuelve con «Filas».
+    await tocar(promedios().querySelector(".gps-informe-fila"));
+    expect(document.body.querySelector(".hoja-confirmar h3").textContent).toBe("¿Ocultar «Promedio»?");
+    await tocar(boton("Ocultar"));
+    expect(promedios()).toBeNull();
+    expect(contenedor.querySelectorAll(".gps-informe-ver")[1].textContent).toBe("Filas2 ocultas");
+    await tocar(contenedor.querySelectorAll(".gps-informe-ver")[1]);
+    const casilla = [...document.body.querySelectorAll(".tabla-datos-valores label")][0];
+    expect(casilla.textContent).toBe("Promedio");
+    expect(casilla.querySelector("input").checked).toBe(false);
+    await tocar(casilla.querySelector("input"));
+    await tocar(boton("Listo"));
+    expect(promedios()).not.toBeNull();
   });
 
   test("Cargar: el % vs V.R. de partido es el del dispositivo elegido al subir el CSV", async () => {
