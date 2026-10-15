@@ -68,6 +68,94 @@ describe("la tabla estilo Excel", () => {
       ),
     );
 
+  test("ocultar una columna (desde su embudo) y filas (las elegidas): pregunta antes, no cambia el informe y se vuelven a mostrar", async () => {
+    const vistas = [];
+    const vista = (filasVista) => {
+      vistas.push(filasVista.map((fila) => fila.id));
+      return { estilos: {}, arriba: [] };
+    };
+    await montar({ vista, recordar: "prueba-ocultar" });
+    const embudo = (titulo) => [...contenedor.querySelectorAll("th[data-columna]")].find((th) => th.textContent.includes(titulo)).querySelector(".tabla-datos-filtro");
+    const pregunta = () => document.body.querySelector(".hoja-confirmar h3")?.textContent;
+    expect(contenedor.querySelector(".tabla-datos-columnas").textContent).toBe("Columnas");
+    // La columna Edad, desde su embudo: pregunta, y «Cancelar» la deja.
+    await tocar(embudo("Edad"));
+    expect(document.body.querySelector(".tabla-datos-ocultar-columna").textContent).toBe("Ocultar esta columna");
+    await tocar(document.body.querySelector(".tabla-datos-ocultar-columna"));
+    expect(pregunta()).toBe("¿Ocultar «Edad»?");
+    expect(document.body.querySelector(".hoja-confirmar p").textContent).toContain("No se borra nada");
+    await tocar(document.body.querySelector(".hoja-confirmar .boton-cancelar-hoja"));
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+    // «Ocultar»: deja de verse y queda guardada en el aparato, para esta tabla.
+    await tocar(embudo("Edad"));
+    await tocar(document.body.querySelector(".tabla-datos-ocultar-columna"));
+    await tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Pie"]);
+    expect(JSON.parse(localStorage.getItem("tabla_ocultas:prueba"))).toEqual(["edad"]);
+    expect(contenedor.querySelector(".tabla-datos-columnas").textContent).toBe("1 columna oculta");
+    // Una fila elegida: «Ocultar fila» pregunta; el informe de arriba (vista) sigue con las dos.
+    await tocar(celda(contenedor, 0, 0));
+    await tocar(contenedor.querySelector(".tabla-datos-ocultar-filas"));
+    expect(pregunta()).toBe("¿Ocultar esta fila?");
+    await tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    expect([...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent)).toEqual(["SCARPA"]);
+    expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("1 de 2 filas");
+    expect(vistas.at(-1)).toEqual([1, 2]);
+    // Al volver a la tabla con la app abierta, siguen ocultas la columna y la fila.
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    await montar({ vista, recordar: "prueba-ocultar" });
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Pie"]);
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(1);
+    // «Mostrar la fila oculta» y «Columnas» las vuelven a mostrar.
+    expect(contenedor.querySelector(".tabla-datos-mostrar-filas").textContent).toBe("Mostrar la fila oculta");
+    await tocar(contenedor.querySelector(".tabla-datos-mostrar-filas"));
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(contenedor.querySelector(".tabla-datos-mostrar-filas")).toBeNull();
+    await tocar(contenedor.querySelector(".tabla-datos-columnas"));
+    const casilla = [...document.body.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent === "Edad");
+    expect(casilla.querySelector("input").checked).toBe(false);
+    await tocar(casilla.querySelector("input"));
+    await tocar([...document.body.querySelectorAll("button")].find((b) => b.textContent === "Listo"));
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+    expect(JSON.parse(localStorage.getItem("tabla_ocultas:prueba"))).toEqual([]);
+    // Una tabla que no deja ocultar no muestra nada de esto.
+    await montar({ ocultar: false });
+    expect(contenedor.querySelector(".tabla-datos-columnas")).toBeNull();
+    expect(contenedor.querySelector(".tabla-datos-ocultar-filas")).toBeNull();
+  });
+
+  test("siempre queda al menos una columna a la vista", async () => {
+    await montar();
+    const listo = () => [...document.body.querySelectorAll("button")].find((b) => b.textContent === "Listo");
+    const casilla = (titulo) => [...document.body.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent === titulo).querySelector("input");
+    // «Columnas»: sin ninguna marcada, «Listo» no se puede tocar.
+    await tocar(contenedor.querySelector(".tabla-datos-columnas"));
+    for (const titulo of ["Nombre", "Edad", "Pie"]) await tocar(casilla(titulo));
+    expect(listo().disabled).toBe(true);
+    await tocar(casilla("Nombre"));
+    expect(listo().disabled).toBe(false);
+    await tocar(listo());
+    expect(cabeceras(contenedor)).toEqual(["Nombre"]);
+    // Con una sola, su embudo no ofrece ocultarla.
+    await tocar(contenedor.querySelector("th[data-columna] .tabla-datos-filtro"));
+    expect(document.body.querySelector(".tabla-datos-ocultar-columna")).toBeNull();
+  });
+
+  test("en una carga sin guardar (recordarFilasOcultas: false), las filas ocultas duran mientras se está en la tabla", async () => {
+    await montar({ recordar: "prueba-carga", recordarFilasOcultas: false });
+    await tocar(celda(contenedor, 0, 0));
+    await tocar(contenedor.querySelector(".tabla-datos-ocultar-filas"));
+    await tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(1);
+    // Sus filas van por su lugar: al volver (otra carga), se ven todas.
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    await montar({ recordar: "prueba-carga", recordarFilasOcultas: false });
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(contenedor.querySelector(".tabla-datos-mostrar-filas")).toBeNull();
+  });
+
   test("arriba dice cuántas filas hay y la tabla no lleva una columna que las cuente", async () => {
     await montar();
     expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("2 filas");
