@@ -398,6 +398,67 @@ export const franjasDeTabla = (filas, vr, { categorizacion, tipoVariable, visual
   return { indices, variables };
 };
 
+// --------------------------------------------------------- VS RIVAL --
+// Los partidos oficiales de cada fila (Santiago, 15/10: «toma la descripción
+// donde la condicion sea total, asi se va si entro o jugo el partido
+// completo»). El Excel toma la 3.ª y la 6.ª descripción del promedio del
+// equipo de los partidos oficiales del microciclo, en el orden en que se
+// cargaron, contando con que son las del TOTAL; si se cargaron en otro
+// orden, muestra otra (en el 17, «Vs Ceara ST»). Acá, en orden de fecha:
+//   · el promedio del equipo: el TOTAL de cada partido oficial del
+//     microciclo (la descripción que dice TOTAL; un partido sin TOTAL no va,
+//     como en el Excel);
+//   · un jugador: lo suyo en cada partido oficial de sus microciclos: su fila
+//     del partido con Condición Total (TOTAL, PT, ST o SIN INGRESAR); si su
+//     Total junta el partido con otra cosa, su fila del partido de más tiempo.
+// Sin la fecha del principio, unidas con « - ». Como en el Excel, no miran
+// los filtros.
+export const PARTIDO_OFICIAL = "partido_oficial_torneo";
+const sinFecha = (descripcion) => String(descripcion ?? "").slice(11).trim();
+const DICE_TOTAL = /(^|[^a-z])total([^a-z]|$)/i;
+const masLarga = (filas) => filas.reduce((mejor, fila) => ((fila.datos?.tiempo ?? -1) > (mejor.datos?.tiempo ?? -1) ? fila : mejor));
+
+// Las filas de los partidos oficiales: las del promedio del equipo (Team
+// Average Parcial) por microciclo y las de cada persona, por fecha.
+export const indiceDeRivales = (filasGps) => {
+  const equipo = new Map();
+  const personas = new Map();
+  const sumar = (mapa, clave, fila) => {
+    if (!mapa.has(clave)) mapa.set(clave, new Map());
+    const porFecha = mapa.get(clave);
+    if (!porFecha.has(fila.fecha)) porFecha.set(fila.fecha, []);
+    porFecha.get(fila.fecha).push(fila);
+  };
+  filasGps.forEach((fila) => {
+    if (fila?.datos?.tarea_partido !== PARTIDO_OFICIAL || !fila.fecha) return;
+    if (fila.promedio === "parcial") sumar(equipo, Number(fila.datos.microciclo), fila);
+    else if (!fila.promedio) sumar(personas, claveDeNombre(fila), fila);
+  });
+  return { equipo, personas };
+};
+
+export const vsRivalDe = (fila, { equipo, personas }) => {
+  const enOrden = (porFecha, entra = () => true) =>
+    [...(porFecha?.entries() || [])]
+      .filter(([, filas]) => entra(filas))
+      .sort(([a], [b]) => a.localeCompare(b));
+  let elegidas;
+  if (fila.promedio) {
+    elegidas = enOrden(equipo.get(Number(fila.microciclo)))
+      .map(([, filas]) => filas.find((una) => DICE_TOTAL.test(una.datos?.descripcion ?? "")))
+      .filter(Boolean);
+  } else {
+    const microciclos = new Set(fila.microciclos.map(Number));
+    elegidas = enOrden(personas.get(fila.clave), (filas) => filas.some((una) => microciclos.has(Number(una.datos?.microciclo)))).map(
+      ([, filas]) => filas.find((una) => una.datos?.condicion === "total") || masLarga(filas),
+    );
+  }
+  return elegidas
+    .map((una) => sinFecha(una.datos?.descripcion))
+    .filter(Boolean)
+    .join(" - ");
+};
+
 // ------------------------------------------------------- El informe --
 // Todo «Por microciclo»: las filas en orden, con sus valores, y las franjas.
 // opciones: { filtros, tipoVariable, visualizacion, categorizacion,
@@ -407,6 +468,7 @@ export const informePorMicrociclo = (filasGps, opciones) => {
   const { filtros = {}, tipoVariable = "absolutas", visualizacion = "promedio", categorizacion = "miSeleccion", asignaciones = [], nombreDe = () => "" } = opciones || {};
   const lista = ordenarFilas(filasPorMicrociclo(filasGps, filtros), nombreDe);
   const cronicas = cargasCronicas(lista);
+  const rivales = indiceDeRivales(filasGps);
   const filas = lista.map((fila, i) => {
     const asignacion = referenciaDeFila(asignaciones, { microciclo: fila.microciclo ?? fila.microciclos[fila.microciclos.length - 1], dispositivo: fila.dispositivo });
     const vr = asignacion?.referencia || null;
@@ -420,6 +482,7 @@ export const informePorMicrociclo = (filasGps, opciones) => {
       indices: indicesDe(porcentajes.promedios),
       variables: Object.fromEntries(TIPOS_DE_VARIABLE[tipoVariable].map((clave) => [clave, valorDeVariable(fila, porcentajes, clave, tipoVariable, visualizacion)])),
       cargaCronica: cronicas[i],
+      vsRival: vsRivalDe(fila, rivales),
     };
   });
   // La U.A. y la carga crónica: con «Mi selección», de todas las filas.
