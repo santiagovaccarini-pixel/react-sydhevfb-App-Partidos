@@ -142,13 +142,17 @@ vi.mock("./domain/gpsDb.js", () => ({
     return { error: "" };
   },
   leerReglasGps: async () => ({ reglas: { ...datos.reglas }, faltaTabla: datos.faltanReglas, error: "" }),
-  leerReferenciasGps: async () => ({ referencias: datos.referencias.map((una) => ({ ...una, promedio: { ...una.promedio }, desvio: { ...una.desvio } })), faltaTabla: datos.faltanReferencias, sinEdicion: datos.sinEdicionVr, error: "" }),
+  leerReferenciasGps: async () => ({ referencias: datos.referencias.map((una) => ({ ...una, promedio: { ...una.promedio }, desvio: { ...una.desvio }, categorias: JSON.parse(JSON.stringify(una.categorias || {})) })), faltaTabla: datos.faltanReferencias, sinEdicion: datos.sinEdicionVr, error: "" }),
+  // Como la base: el promedio, el desvío o una categoría (las de los V.R. por jugador).
   cambiarValorDeReferenciaGps: async (id, cual, clave, valor) => {
     datos.cambiosVr.push({ que: "valor", id, cual, clave, valor });
     const referencia = datos.referencias.find((una) => una.id === id);
     if (!referencia) return { error: "gps.error.sinPermiso" };
-    referencia[cual] = { ...referencia[cual], [clave]: valor };
-    if (valor === null) delete referencia[cual][clave];
+    const enCategoria = ["excelente", "muy_bueno", "regular", "malo"].includes(cual);
+    const nuevos = { ...(enCategoria ? referencia.categorias?.[cual] : referencia[cual]), [clave]: valor };
+    if (valor === null) delete nuevos[clave];
+    if (enCategoria) referencia.categorias = { ...referencia.categorias, [cual]: nuevos };
+    else referencia[cual] = nuevos;
     return { referencia: { ...referencia }, error: "" };
   },
   marcarDePartidoGps: async (id, marcar) => {
@@ -1605,6 +1609,60 @@ describe("GPS", () => {
     expect(document.body.textContent).toContain("Listo: quedó como estaba.");
     await tocar([...items()[0].querySelectorAll("button")].find((b) => b.textContent === "Volver"));
     expect(datos.cambiosVr.at(-1)).toMatchObject({ que: "sumar", dispositivo: "catapult", tipo: "VIEJO", tabla: "Uno", grupo: "TOTAL", promedio: { d: 1 } });
+  });
+
+  test("Valores de referencia: un V.R. por jugador, con sus cinco categorías; se puede ver una sola tabla", async () => {
+    const categorias = { excelente: { d: 12000, d_min: 120.25, tiempo: 6570 }, muy_bueno: { d: 11000, d_min: 112.5, tiempo: 6000 }, regular: { d: 9000, d_min: 98.5, tiempo: 5700 }, malo: { d: 8000, d_min: 91, tiempo: 5700 } };
+    const jugador = { id: "r4", dispositivo: "catapult", tipo: "Microciclo", tabla: "Partidos", grupo: "JUGADOR UNO", orden: 1001, promedio: { d: 10000, d_min: 105.5, tiempo: 5700 }, desvio: {}, categorias, dePartido: false };
+    datos.referencias = [...VR(), jugador];
+    const fila = (cambios) => ({ id: "r4", equipo_id: "eq-1", dispositivo: "catapult", tipo: "Microciclo", tabla: "Partidos", grupo: "JUGADOR UNO", orden: 1001, de_partido: false, promedio: { d: 10000 }, desvio: {}, categorias: { excelente: { d: 12000 } }, ...cambios });
+    datos.historialVr = [
+      { id: 6, tabla: "gps_referencias", filaId: "r8", accion: "borrada", quien: "pf@club.com", cuando: "2026-10-15T12:20:00Z", antes: { ...fila(), id: "r8", grupo: "JUGADOR DOS", categorias: { malo: { d: 7000 } } }, despues: null },
+      { id: 5, tabla: "gps_referencias", filaId: "r4", accion: "editada", quien: "pf@club.com", cuando: "2026-10-15T12:10:00Z", antes: fila(), despues: fila({ categorias: { excelente: { d: 12000 }, regular: { d: 9000 } } }) },
+      { id: 4, tabla: "gps_referencias", filaId: "r4", accion: "editada", quien: "pf@club.com", cuando: "2026-10-15T12:00:00Z", antes: fila({ categorias: { excelente: { d: 11800 } } }), despues: fila() },
+    ];
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    // De entrada, todas las tablas (como antes); el V.R. por jugador, con las cinco filas del Excel.
+    expect(tarjetasVr().map((una) => una.querySelector("h2").textContent)).toEqual(["FUTBOL · Oficial · TOTAL", "DINAMICA · DINAMICA 1 · FUERZA", "Microciclo · Partidos · JUGADOR UNO"]);
+    const deJugador = () => tarjetaVr("Microciclo · Partidos · JUGADOR UNO");
+    expect([...deJugador().querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
+    expect(["Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"].map((una) => celdaVr(deJugador(), una, "D").textContent)).toEqual(["12000,0", "11000,0", "10000,0", "9000,0", "8000,0"]);
+    expect(celdaVr(deJugador(), "Excelente", "D/min").textContent).toBe("120,25");
+    expect(celdaVr(deJugador(), "Excelente", "Tiempo").textContent).toBe("1:49:30");
+    // Los del club siguen con Promedio y Desvío.
+    expect([...tarjetaVr("FUTBOL · Oficial · TOTAL").querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["Promedio", "Desvío"]);
+    // Una sola tabla.
+    const tablas = () => contenedor.querySelectorAll(".evaluaciones-elegir-test-lista")[1];
+    expect([...tablas().options].map((opcion) => opcion.textContent)).toEqual(["Todas las tablas", "FUTBOL · Oficial", "DINAMICA · DINAMICA 1", "Microciclo · Partidos"]);
+    await elegir(tablas(), "Microciclo · Partidos");
+    expect(tarjetasVr().map((una) => una.querySelector("h2").textContent)).toEqual(["Microciclo · Partidos · JUGADOR UNO"]);
+    // Una categoría se cambia como los demás números; el Bueno es el promedio.
+    await cambiarVr(celdaVr(deJugador(), "Excelente", "D"), "12500");
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "valor", id: "r4", cual: "excelente", clave: "d", valor: 12500 });
+    expect(celdaVr(deJugador(), "Excelente", "D").textContent).toBe("12500,0");
+    await cambiarVr(celdaVr(deJugador(), "Bueno", "D"), "10100");
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "valor", id: "r4", cual: "promedio", clave: "d", valor: 10100 });
+    await cambiarVr(celdaVr(deJugador(), "Malo", "D"), "");
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "valor", id: "r4", cual: "malo", clave: "d", valor: null });
+    expect(celdaVr(deJugador(), "Malo", "D").textContent).toBe("");
+    // Los últimos cambios dicen la categoría; una que aparece entera, número por número.
+    const items = () => [...contenedor.querySelectorAll(".referencias-historial-lista > li")];
+    const textos = items().map((item) => item.textContent);
+    expect(textos.some((texto) => texto.includes("Borró «Microciclo · Partidos · JUGADOR DOS»"))).toBe(true);
+    expect(textos.some((texto) => texto.includes("Microciclo · Partidos · JUGADOR UNO · D (Regular): vacío → 9000,0"))).toBe(true);
+    expect(textos.some((texto) => texto.includes("Microciclo · Partidos · JUGADOR UNO · D (Excelente): 11800,0 → 12000,0"))).toBe(true);
+    // «Volver»: la categoría, a como estaba; lo borrado, otra vez con sus categorías.
+    const volverDe = (texto) => [...items().find((item) => item.textContent.includes(texto)).querySelectorAll("button")].find((b) => b.textContent === "Volver");
+    await tocar(volverDe("D (Excelente): 11800,0 → 12000,0"));
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "valor", id: "r4", cual: "excelente", clave: "d", valor: 11800 });
+    await tocar(volverDe("D (Regular): vacío → 9000,0"));
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "valor", id: "r4", cual: "regular", clave: "d", valor: null });
+    await tocar(volverDe("Borró «Microciclo · Partidos · JUGADOR DOS»"));
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ que: "sumar", grupo: "JUGADOR DOS", categorias: { malo: { d: 7000 } } });
+    // Otra vez todas.
+    await elegir(tablas(), "");
+    expect(tarjetasVr()).toHaveLength(4);
   });
 
   test("Valores de referencia: sin la actualización se miran y no se cambian; quien se fue, también", async () => {

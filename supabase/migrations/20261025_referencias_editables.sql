@@ -24,7 +24,9 @@
 --
 -- Requiere 20261024_gps_referencias.sql. Se corre en Supabase > SQL Editor,
 -- entera y de una vez, con la versión de la app que tiene la solapa
--- «Valores de referencia» ya publicada. Se puede volver a correr.
+-- «Valores de referencia» ya publicada. Se puede volver a correr, salvo
+-- después de 20261026_gps_referencias_categorias.sql: ahí se frena sola (le
+-- sacaría a la app lo de cambiar las categorías de los V.R. por jugador).
 -- =====================================================================
 
 begin;
@@ -39,6 +41,10 @@ begin
   end if;
   if to_regclass('public.gps_reglas') is null then
     raise exception 'Primero hay que correr 20261020_gps_reglas.sql.';
+  end if;
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'gps_referencias' and column_name = 'categorias') then
+    raise exception 'Ya está corrida 20261026_gps_referencias_categorias.sql: esta es anterior y no hace falta volver a correrla.';
   end if;
 end $$;
 

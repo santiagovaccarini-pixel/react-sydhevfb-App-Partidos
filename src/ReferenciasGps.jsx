@@ -4,7 +4,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HistorialDeReferencias, TablaDeReferencia } from "./components/TablaDeReferencia.jsx";
 import { TerminoDe } from "./components/Guia.jsx";
 import { tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
-import { CLAVES_DE_LOS_VR } from "./domain/gps/informe.js";
+import { CATEGORIAS_DE_UN_VR, CLAVES_DE_LOS_VR, tieneCategorias } from "./domain/gps/informe.js";
 import { textoDeCelda } from "./domain/gps/valores.js";
 import { interpretarHoras, interpretarValor } from "./domain/tabla.js";
 import { cambiosDeEntrada } from "./domain/referencias.js";
@@ -19,10 +19,33 @@ import { t } from "./idioma/index.js";
 // quien tiene GPS y sigue en el club: un número con dos toques; sumar,
 // cambiar el nombre, borrar y marcar el «de partido» (el que usa Cargar para
 // el % vs V.R. de partido de ese dispositivo). Abajo, los últimos cambios,
-// con «Volver».
+// con «Volver». Los V.R. por jugador (con categorías; Santiago, 15/10: «en
+// el caso de jugador ya tiene las 5 categorias») muestran las cinco filas
+// del Excel: Excelente, Muy Bueno, Bueno (su promedio), Regular y Malo. Con
+// V.R. de más de una tabla en el dispositivo (los de cada jugador van por
+// tabla), se puede ver una sola tabla (de entrada, todas, como antes).
 
 const FILAS = ["promedio", "desvio"];
+const FILAS_CON_CATEGORIAS = ["excelente", "muy_bueno", "promedio", "regular", "malo"];
+const filasDe = (referencia) => {
+  if (!tieneCategorias(referencia)) return FILAS;
+  return Object.keys(referencia.desvio || {}).length ? [...FILAS_CON_CATEGORIAS, "desvio"] : FILAS_CON_CATEGORIAS;
+};
+const valoresDe = (referencia, fila) => (CATEGORIAS_DE_UN_VR.includes(fila) ? referencia?.categorias?.[fila] : referencia?.[fila]);
+const tituloDeFila = (referencia, fila) => t(fila === "promedio" && tieneCategorias(referencia) ? "gps.vr.bueno" : `gps.vr.${fila}`);
 const nombreDe = (referencia) => [referencia?.tipo, referencia?.tabla, referencia?.grupo].filter(Boolean).join(" · ");
+const tablaDe = (referencia) => [referencia?.tipo, referencia?.tabla].filter(Boolean).join(" · ");
+
+// Un cambio de un objeto entero (una categoría que aparece o se va), número
+// por número: así se muestra y se vuelve atrás como los demás.
+const esObjeto = (valor) => valor !== null && typeof valor === "object" && !Array.isArray(valor);
+const numeroPorNumero = (cambio) => {
+  const { ruta, antes, despues } = cambio;
+  if (!esObjeto(antes) && !esObjeto(despues)) return [cambio];
+  const de = (lado, clave) => (esObjeto(lado) && lado[clave] !== undefined ? lado[clave] : null);
+  const claves = [...new Set([...Object.keys(esObjeto(antes) ? antes : {}), ...Object.keys(esObjeto(despues) ? despues : {})])];
+  return claves.flatMap((clave) => numeroPorNumero({ ruta: [...ruta, clave], antes: de(antes, clave), despues: de(despues, clave) }));
+};
 const ordenar = (lista) =>
   [...lista].sort((a, b) => a.orden - b.orden || nombreDe(a).localeCompare(nombreDe(b)));
 
@@ -55,6 +78,10 @@ export default function ReferenciasGps({
   const dispositivo = opciones.some((opcion) => opcion.valor === elegido) ? elegido : opciones.find((opcion) => referencias.some((referencia) => referencia.dispositivo === opcion.valor))?.valor || opciones[0]?.valor || "";
   const nombreDelDispositivo = opciones.find((opcion) => opcion.valor === dispositivo)?.etiqueta || dispositivo;
   const suyas = useMemo(() => ordenar(referencias.filter((referencia) => referencia.dispositivo === dispositivo)), [referencias, dispositivo]);
+  const tablas = useMemo(() => [...new Set(suyas.map(tablaDe))], [suyas]);
+  const [tablaElegida, setTablaElegida] = useState("");
+  const tabla = tablas.length > 1 && tablas.includes(tablaElegida) ? tablaElegida : "";
+  const aLaVista = tabla ? suyas.filter((referencia) => tablaDe(referencia) === tabla) : suyas;
 
   // Se cambian con la base al día, con señal y siguiendo en el club.
   const puedeCambiar = !soloLectura && !sinEdicion && !faltaTabla && enLinea;
@@ -64,7 +91,7 @@ export default function ReferenciasGps({
     const porClave = new Map(gps.columnas.map((columna) => [columna.clave, columna]));
     const claves = [...CLAVES_DE_LOS_VR];
     suyas.forEach((referencia) =>
-      [...Object.keys(referencia.promedio), ...Object.keys(referencia.desvio)].forEach((clave) => {
+      [...Object.keys(referencia.promedio), ...Object.keys(referencia.desvio), ...CATEGORIAS_DE_UN_VR.flatMap((categoria) => Object.keys(referencia.categorias?.[categoria] || {}))].forEach((clave) => {
         if (!claves.includes(clave) && porClave.has(clave)) claves.push(clave);
       }),
     );
@@ -75,7 +102,6 @@ export default function ReferenciasGps({
     [columnasGps, gps, config, idioma],
   );
   const tituloDe = (clave) => columnas.find((columna) => columna.clave === clave)?.titulo || clave;
-  const filas = FILAS.map((clave) => ({ clave, titulo: t(`gps.vr.${clave}`) }));
 
   // Como en la Base, salvo los por minuto: sus V.R. son chicos (0,48 por
   // minuto) y con un decimal se perderían; van con dos.
@@ -106,11 +132,12 @@ export default function ReferenciasGps({
   const vacio = t("referencias.historial.vacioValor");
   const textoDeCambio = (entrada, cambio) => {
     const fila = entrada.despues || entrada.antes || {};
-    const [parte, clave] = cambio.ruta;
-    if (parte === "promedio" || parte === "desvio") {
+    const [parte] = cambio.ruta;
+    const [cual, clave] = parte === "categorias" ? cambio.ruta.slice(1) : cambio.ruta;
+    if (parte === "promedio" || parte === "desvio" || (parte === "categorias" && CATEGORIAS_DE_UN_VR.includes(cual))) {
       const columna = columnasGps.find((una) => una.clave === clave) || gps.columnas.find((una) => una.clave === clave);
       const de = (valor) => (valor === null ? vacio : columna ? textoDe(columna, valor) : String(valor));
-      return t("gps.vr.cambio.valor", { nombre: nombreDe(fila), medida: tituloDe(clave), fila: t(`gps.vr.${parte}`), antes: de(cambio.antes), despues: de(cambio.despues) });
+      return t("gps.vr.cambio.valor", { nombre: nombreDe(fila), medida: tituloDe(clave), fila: tituloDeFila(fila, cual), antes: de(cambio.antes), despues: de(cambio.despues) });
     }
     if (parte === "de_partido") return t(cambio.despues ? "gps.vr.cambio.dePartido" : "gps.vr.cambio.noDePartido", { nombre: nombreDe(fila) });
     return null;
@@ -122,7 +149,9 @@ export default function ReferenciasGps({
         .map((entrada) => {
           if (entrada.accion === "creada") return { ...entrada, lineas: [t("gps.vr.cambio.sumado", { nombre: nombreDe(entrada.despues) })], volver: referencias.some((una) => una.id === entrada.filaId) };
           if (entrada.accion === "borrada") return { ...entrada, lineas: [t("gps.vr.cambio.borrado", { nombre: nombreDe(entrada.antes) })], volver: true };
-          const cambios = cambiosDeEntrada(entrada).filter((cambio) => cambio.ruta[0] !== "orden");
+          const cambios = cambiosDeEntrada(entrada)
+            .flatMap(numeroPorNumero)
+            .filter((cambio) => cambio.ruta[0] !== "orden");
           const lineas = [];
           if (cambios.some((cambio) => ["tipo", "tabla", "grupo"].includes(cambio.ruta[0]))) lineas.push(t("gps.vr.cambio.nombre", { antes: nombreDe(entrada.antes), despues: nombreDe(entrada.despues) }));
           cambios.forEach((cambio) => {
@@ -146,7 +175,16 @@ export default function ReferenciasGps({
       respuesta = await borrarReferenciaGps(entrada.filaId);
     } else if (entrada.accion === "borrada") {
       const antes = entrada.antes;
-      respuesta = await sumarReferenciaGps(equipoId, { dispositivo: antes.dispositivo, tipo: antes.tipo, tabla: antes.tabla, grupo: antes.grupo, orden: antes.orden || 0, promedio: antes.promedio || {}, desvio: antes.desvio || {} });
+      respuesta = await sumarReferenciaGps(equipoId, {
+        dispositivo: antes.dispositivo,
+        tipo: antes.tipo,
+        tabla: antes.tabla,
+        grupo: antes.grupo,
+        orden: antes.orden || 0,
+        promedio: antes.promedio || {},
+        desvio: antes.desvio || {},
+        categorias: antes.categorias || {},
+      });
       if (!respuesta.error && antes.de_partido) respuesta = await marcarDePartidoGps(respuesta.referencia.id, true);
     } else {
       if (!referencias.some((una) => una.id === entrada.filaId)) return { error: "gps.vr.yaNoEsta" };
@@ -154,8 +192,9 @@ export default function ReferenciasGps({
       if (nombre) respuesta = await renombrarReferenciaGps(entrada.filaId, entrada.antes);
       for (const cambio of entrada.cambios) {
         if (respuesta.error) break;
-        const [parte, clave] = cambio.ruta;
+        const [parte, clave, deLaCategoria] = cambio.ruta;
         if (parte === "promedio" || parte === "desvio") respuesta = await cambiarValorDeReferenciaGps(entrada.filaId, parte, clave, cambio.antes);
+        else if (parte === "categorias") respuesta = await cambiarValorDeReferenciaGps(entrada.filaId, clave, deLaCategoria, cambio.antes);
         else if (parte === "de_partido") respuesta = await marcarDePartidoGps(entrada.filaId, Boolean(cambio.antes));
       }
     }
@@ -190,6 +229,8 @@ export default function ReferenciasGps({
       return;
     }
     reemplazar([respuesta.referencia]);
+    // Con una tabla elegida, se pasa a la del V.R. (para que se vea).
+    if (tabla) setTablaElegida(tablaDe(respuesta.referencia));
     setHoja(null);
     onAviso(t(hoja.id ? "gps.vr.renombrado" : "gps.vr.sumado"));
   };
@@ -247,9 +288,22 @@ export default function ReferenciasGps({
             ) : (
               <p className="lesiones-estado">{t("gps.vr.sinDispositivos")}</p>
             )}
+            {tablas.length > 1 && (
+              <label className="campo-inicio evaluaciones-elegir-test">
+                <span>{t("gps.vr.tabla")}</span>
+                <select className="evaluaciones-elegir-test-lista" value={tabla} onChange={(evento) => setTablaElegida(evento.target.value)}>
+                  <option value="">{t("gps.vr.todasLasTablas")}</option>
+                  {tablas.map((una) => (
+                    <option key={una} value={una}>
+                      {una}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {dispositivo && !suyas.length && <p className="lesiones-estado">{t("gps.vr.ningunoDelDispositivo", { dispositivo: nombreDelDispositivo })}</p>}
             {puedeCambiar && suyas.length > 0 && <p className="lesiones-ayuda referencias-ayuda">{t("referencias.comoSeCambia")}</p>}
-            {suyas.map((referencia) => (
+            {aLaVista.map((referencia) => (
               <section key={referencia.id} className="tarjeta evaluaciones-bloque referencias-bloque">
                 <div className="evaluaciones-bloque-cabeza">
                   <h2>{nombreDe(referencia)}</h2>
@@ -262,10 +316,10 @@ export default function ReferenciasGps({
                 </div>
                 <TablaDeReferencia
                   columnas={columnas}
-                  filas={filas}
+                  filas={filasDe(referencia).map((clave) => ({ clave, titulo: tituloDeFila(referencia, clave) }))}
                   minimo={Math.max(520, 96 + columnas.length * 78)}
                   texto={(fila, columna) => {
-                    const valor = referencia[fila.clave]?.[columna.clave];
+                    const valor = valoresDe(referencia, fila.clave)?.[columna.clave];
                     return valor === undefined || valor === null ? "" : textoDe(columna.gps, valor);
                   }}
                   interpretar={interpretar}

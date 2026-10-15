@@ -52,6 +52,7 @@ prohibiciones específicas de conversaciones que no están disponibles.
 | UI-034 | GPS › Base, arriba de la tabla (14/10): por dispositivo, solo tres filas (Promedio de lo que se ve, el V.R. elegido y el % vs V.R.); cada dispositivo usa sus V.R. (Sport, FUTBOL 2; Catapult, Oficial EdLP; los dos del grupo TOTAL FUTBOL). Encima, el recuadro «Comparaciones»: por dispositivo, qué V.R. (un desplegable) y Volumen promedio, Volumen zona de impacto, Densidad promedio, Densidad zona de impacto y Tiempo, con la zona de impacto elegida arriba; en el celular, en una lista corta. Los colores de las filas no cambian. Descartado: volver a mostrar Excelente, Muy Bueno, Regular, Malo, Desvío, n, Máx. y Mín. arriba de la tabla. Los V.R. se ven y se cambian en GPS › Valores de referencia (14/10, UI-035). | «GPS (10/10)», Arriba de la Base (14/10); «Lo anotado en Notas, segunda tanda (13/10)» |
 | UI-035 | Los valores de referencia (V.R.) van en una solapa propia **en cada base**: GPS suma «Valores de referencia» (Cargar · Base · Valores de referencia · Ajustes) y la de Evaluaciones deja de ser solo para mirar. En las dos se ven, se cambian (un número con dos toques, como en las bases), se agregan y se borran (preguntando antes), con los últimos cambios abajo y «Volver». La de GPS se ve como la de Evaluaciones: se elige el dispositivo y cada V.R. es una tarjeta con Promedio y Desvío de cada medida, «Usar de partido», «Cambiar nombre» y «Borrar». Cada dispositivo marca su V.R. de partido y Cargar usa el del dispositivo de la carga, que se elige en el primer paso (al lado de la fecha). Descartado: un módulo «Valor Referencial» en el portal (con una solapa por base), los V.R. solo para mirar o cargados solo por SQL y el V.R. de partido en Ajustes › Reglas de carga. | «GPS (10/10)», Los V.R. se cambian (14/10); «Evaluaciones (05/10)»; «Lo anotado en Notas, segunda tanda (13/10)» |
 | UI-036 | Lesiones › la carga de una lesión no tiene figura del cuerpo (Santiago, 15/10: «Saca toda la figura de la carga de lesiones y solo dejas desplegables y la haces mas intuitiva»): la parte del cuerpo (de la cabeza a los pies, con lo que tiene cada una debajo) y el lado van en desplegables; en Descripción específica, arriba la parte y el lado elegidos y abajo el músculo afectado, el músculo específico, el área y el ligamento, cada uno en su desplegable y solo con lo que va en esa parte, con «Ver todas las opciones de las listas» para ver las listas enteras. Todas las listas de la carga van en desplegables. La ficha no lleva la figura chica. Lo que se guarda no cambió. Reemplaza la figura para cargar del 02/10. Descartado: volver a poner la figura (o un dibujo para tocar) en la carga o en la ficha, y opciones como botones a la vista en la carga. El mapa de calor de los reportes (UI-024) no cambió. | «Lesiones: lo que sigue», la carga sin la figura del cuerpo (15/10) |
+| UI-037 | GPS › Valores de referencia (15/10): un V.R. por jugador (con categorías) muestra las cinco filas del Excel: Excelente, Muy Bueno, Bueno (su promedio), Regular y Malo (el desvío, solo si tiene); los demás siguen con Promedio y Desvío. Cada número se cambia como los demás y queda en los últimos cambios con su categoría. Descartado: armar las cinco de un jugador con el promedio y el desvío (en «Partidos» no dan lo mismo que el Excel). | «GPS (10/10)», Los V.R. por jugador, con sus cinco categorías (15/10) |
 
 ## Pendientes que no deben tratarse como decisiones cerradas
 
@@ -83,7 +84,13 @@ prohibiciones específicas de conversaciones que no están disponibles.
   confirme si va todo junto, en un cambio aparte. (La carga de Lesiones, hecha el 15/10, UI-036.)
 - Lesiones › el mapa de calor de los reportes con una imagen que hace Santiago: pidió (15/10)
   investigar la mejor manera y compararla con otros programas. No cambiar el mapa de calor
-  (UI-024) hasta que decida.
+  (UI-024) hasta que decida. 15/10: el reporte va a mezclar lo mejor de una imagen de un
+  reporte oscuro con lo mejor del de hoy (no lo reemplaza); faltan sus respuestas (qué piezas,
+  oscuro o claro, al imprimir) y la figura. Ver «Lo anotado en Notas, segunda tanda (13/10)».
+- GPS › Valores de referencia, el desplegable «Tabla» (15/10, de entrada «Todas las tablas»):
+  lo propuso Claude al cargar los V.R. por jugador; falta que Santiago lo confirme.
+- GPS › Informe (Por microciclo, Por tarea y Por jugador): las decisiones del 15/10 están en
+  «GPS (10/10)», Informe (15/10); se registra su UI cuando esté hecho.
 
 ## Nuevas decisiones y reaperturas
 

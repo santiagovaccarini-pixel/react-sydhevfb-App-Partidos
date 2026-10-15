@@ -1294,7 +1294,8 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
 2. **Cargar** (hecho el 12/10, migración `20261020_gps_reglas.sql`; abajo, «Cargar (paso 2)»):
    lo de cada día, con la lógica de la plantilla. Primero con el CSV de Catapult; después,
    traerlo directo de OpenField (paso 5).
-3. **Reportes**.
+3. **Reportes**. 15/10: el Informe (Por microciclo, Por tarea y Por jugador), ver «Informe:
+   Por microciclo, Por tarea y Por jugador (15/10)».
 4. **V.R. por dispositivo**: se arman una vez con reglas estadísticas y quedan fijos (Santiago,
    10/10: «Los VR se arman una ves con reglas estadisticas y se dejan fijos»; las reglas las
    explica él más adelante). Cada dispositivo tiene los suyos («Exacto»). No inventar reglas ni
@@ -1637,6 +1638,88 @@ evaluaciones».
   corresponda.
 - No cambió: la Base (lo de arriba, los colores, las Comparaciones), Evaluaciones (Base,
   Cargar, Reportes, clases), los permisos de las bases ni las otras reglas de la carga.
+
+### Los V.R. por jugador, con sus cinco categorías (15/10)
+
+Santiago, 15/10, sobre las franjas del Informe: «Cuando pones valor referencial el bueno pasa a
+ser el bueno del valor referencial que se este usando, ya sea de jugador o partido o tarea y el
+desvio arma las demas franjas, en el caso de jugador ya tiene las 5 categorias entonces no se
+usa desvio»; y «TE DOY EL PERMISO DE QUE ENTRES AL EXCEL Y AGARRES TODOS LOS VR DE LOS JUGADORES
+Y LOS PONGAS EN UN SQL PARA PODER CARGARLO».
+
+- **Qué hay en el Excel**: tres tablas por jugador (el tipo dice «Microcilo»): «Microciclo 7
+  dias TOTAL Abs y Rel» (31 jugadores con números; solo las medidas y el Tiempo), «Microciclo 7
+  dias Promedio Abs y Rel» (31; también las por minuto) y «Partidos» (20 con números y 10
+  vacíos). Cada jugador tiene Excelente, Muy Bueno, Bueno (el PROM), Regular y Malo; sus filas
+  de desvío están vacías. En las dos de microciclo las cinco son el Bueno más y menos uno y dos
+  pasos iguales; en «Partidos» no (las medidas son la por minuto por el tiempo, que no baja de
+  95 minutos, y algunas por minuto tampoco van de a pasos iguales). Por eso se guardan las
+  cinco tal cual, en vez de armarlas con promedio y desvío.
+- **Dónde se guardan** (migración `20261026_gps_referencias_categorias.sql`): en
+  `gps_referencias.categorias`, Excelente, Muy Bueno, Regular y Malo de cada medida; el Bueno es
+  el promedio. Un V.R. sin categorías (los del club, como FUTBOL · Oficial EdLP) sigue con
+  promedio y desvío. Cada número de una categoría se cambia como los demás
+  (`gps_referencia_cambiar`, de a uno) y queda en los últimos cambios con «Volver». La
+  migración `20261025` ya no se vuelve a correr después de esta (se frena sola).
+- **GPS › Valores de referencia**: un V.R. con categorías muestra las cinco filas (Excelente,
+  Muy Bueno, Bueno, Regular y Malo; el desvío, solo si tiene); los demás, Promedio y Desvío
+  como antes. Los cambios dicen la categoría («… · D (Excelente): 11800,0 → 12000,0»). Con V.R.
+  de más de una tabla en un dispositivo aparece el desplegable **Tabla** para ver una sola; de
+  entrada, «Todas las tablas» (se ve como antes). El desplegable lo propuso Claude al cargar
+  los 82 V.R. en Catapult: falta que Santiago lo confirme.
+- **El SQL** (lo pasa Claude como archivo, no en el chat ni en el repositorio: tiene los
+  nombres): 82 V.R. (31, 31 y 20), en **Catapult**: en el Excel se elegían en las celdas de
+  «>=17 Microciclos» (los de Catapult; los de Sport, del 10 al 16, usaban FUTBOL 2). Solo en el
+  club que tiene filas tomadas con Sport, en el dispositivo de su lista que se llama Catapult.
+  Tipo «Microciclo» (el Excel dice «Microcilo»); la tabla y el jugador, como en el Excel; el
+  tiempo, en segundos. Se puede volver a correr. Comprobado en la máquina de trabajo, nada al
+  repositorio: los 6.395 números de esas tablas quedan iguales en la base.
+- **Falta**: que Santiago confirme que las tres tablas son de Catapult (si alguna es de Sport,
+  se cambia el SQL); agregar desde la app un V.R. nuevo con sus cinco categorías (hoy se agrega
+  con Promedio y Desvío; las categorías llegan por SQL); y cómo las usa el Informe (en su PR).
+- No cambió: los V.R. del club y su V.R. de partido, la Base (lo de arriba, los colores, las
+  Comparaciones), Cargar, los permisos de las bases.
+
+### Informe: Por microciclo, Por tarea y Por jugador (15/10)
+
+Santiago, 15/10: «Vamos a armarlo en una misma pantalla, Cuando se entra hay 3 opciones Por
+microciclo, Por tarea o Por jugador (cada una tiene que replicar exactamente lo que hace la
+logica de cada una xq puede ser que alguna formula este mal) Una ves elegido alguna de las 3
+opciones, entra a los filtros, se hacen los filtros que se van a querer ver y despues se le da a
+siguiente Cuando se le da a siguiente te deja dentro de la que seria la solapa de informes
+(PORFAVOR TIENE QUE TENER LOS MISMOS BOTONES Y LOGICAS QUE TIENE EL ARCHIVO, ES MUY IMPORTANTE
+PARA MANTENER EL CORRECTO FUNCIONAMIENTO DE LOS DATOS) Si tenes alguna duda o mejora de diseño
+tanto grafico o logico, me lo planteas y lo charlamos». Se hace de a una parte, un PR cada una:
+primero Por microciclo; Por tarea y Por jugador, después, cada una con sus dudas.
+
+Lo que respondió a lo planteado para **Por microciclo** (15/10):
+
+- **El V.R. de los colores** (D1): no va una tabla por dispositivo («si quiero ver a un
+  jugador a lo largo del tiempo no podria verlo facil»). Las tres celdas del Excel con las que
+  se elegía el V.R. pasan a ser una sola que dice el nombre del V.R. con el que se pintan los
+  colores, y un «+» para sumar otro V.R. («ya sea de otro dispositivo u otro vr guardado con el
+  mismo dispositivo»), que se usa solo en los microciclos que le corresponden.
+- **Los filtros** (D2, «si»): desplegables con casillas; sin nada elegido, todos; solo las
+  opciones que tienen datos. **En el celular** (D3, «Si»): la tabla corre de costado con la
+  primera columna fija.
+- **Extras** (1): se saca por ahora («era para poder agregar mas tipos de variables»).
+- **>30km/h** (2, «B»): es Mts >= 90% Pico (en el Excel quedaba vacía).
+- **Las franjas con Valor Referencial** (3): el Bueno es el del V.R. que se usa (de jugador, de
+  partido o de tarea) y el desvío arma las demás; el de jugador usa sus cinco categorías, sin
+  desvío (ver «Los V.R. por jugador, con sus cinco categorías (15/10)»). En el Excel esas filas
+  daban error.
+- **Los microciclos viejos** (4, «B»): con el V.R. elegido para su dispositivo (en el Excel,
+  los del 10 al 16 buscaban en FUTBOL 2 con el tipo y el grupo elegidos para los del 17 en
+  adelante, sin usar sus propias celdas).
+- **La carga crónica** (5, «A»): exactamente como el Excel.
+- **Objetivo Sesión/Microciclo** (6): «Hay un modo de filtrar que si pinta dentro de por
+  microciclo»: como el Excel, pinta con Microciclo/Jugador en Jugador.
+- **Las franjas** (7, «No»): se ven siempre, sin pedir que se elija un filtro (en el Excel
+  quedaban vacías con Microciclo, Fecha y Tipo de Sesión en «(Todas)»).
+- **Los colores** (8, «Si»): los del Excel.
+
+Queda prohibido en el Informe: una tabla por dispositivo para Por microciclo, volver a poner las
+tres celdas del V.R. y la opción Extras (hasta que Santiago la pida).
 
 ### Pegar desde Excel (el historial)
 
@@ -2855,6 +2938,15 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
     de implementarlo y contrastalo contra otros soft o webs que hagan lo mismo») comparar con
     otros programas; la imagen la hace él («La puedo hacer rapido»). Hasta que decida, el mapa de
     calor del reporte sigue como está (UI-024).
+    15/10, al mandar la imagen de un reporte oscuro («MAPA CORPORAL DE LESIONES»): «Tenemos
+    que sacar las mejores parte de este reporte y mesclarlas con las mejores cosas de nuestro
+    reporte» (se hace más adelante: primero GPS). No reemplaza el reporte de hoy. Falta que
+    responda qué piezas toma de la imagen (P2: el cuerpo con N.º lesiones / Días perdidos, el
+    detalle al tocar una zona, el ranking de zonas, los totales, el tipo de lesión, elegir el
+    período), si va con fondo oscuro en pantalla y blanco al imprimir (P3), si las zonas las
+    marca Claude o él pinta una copia con colores, y si van primero las partes del cuerpo y
+    después los músculos. Para usar su figura hace falta la figura sola (sin calor), de frente
+    y de espaldas, en grande y con permiso de uso.
 
 ## Lo que dejó la revisión completa del 30/09
 

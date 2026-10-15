@@ -42,6 +42,15 @@ export const RELATIVAS_COMPARADAS = Object.freeze(ABSOLUTAS_COMPARADAS.map((clav
 // Tiempo.
 export const CLAVES_DE_LOS_VR = Object.freeze([...ABSOLUTAS_COMPARADAS, "mts90", ...RELATIVAS_COMPARADAS, "mts90_min", "tiempo"]);
 
+// Las categorías de un V.R. por jugador (migración
+// 20261026_gps_referencias_categorias.sql; Santiago, 15/10: «en el caso de
+// jugador ya tiene las 5 categorias entonces no se usa desvio»): Excelente,
+// Muy Bueno, Regular y Malo, cada una { columna: número }; el Bueno es su
+// promedio. Un V.R. sin categorías arma las franjas con el promedio y el
+// desvío.
+export const CATEGORIAS_DE_UN_VR = Object.freeze(["excelente", "muy_bueno", "regular", "malo"]);
+export const tieneCategorias = (referencia) => CATEGORIAS_DE_UN_VR.some((categoria) => Object.keys(referencia?.categorias?.[categoria] || {}).length > 0);
+
 // La zona de impacto de las Comparaciones (la celda AI16 del Excel): qué
 // columnas promedia cada una. Tarea Mixta, todas (el volumen y la densidad
 // promedio).
