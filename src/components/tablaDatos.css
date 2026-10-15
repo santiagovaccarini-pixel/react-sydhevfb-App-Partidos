@@ -55,6 +55,31 @@
   color: var(--cam-rojo, #c1121f);
 }
 
+/* Ocultar a mano (Santiago, 15/10): «Columnas» (cuántas hay ocultas y la
+   lista para volver a mostrarlas) y «Mostrar» las filas ocultas van con las
+   demás acciones, en ámbar mientras haya algo oculto; «Ocultar esta
+   columna», en la hoja del embudo. */
+.tabla-datos-acciones .con-ocultas {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.tabla-datos-hoja-filtro .tabla-datos-ocultar-columna {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  gap: 6px;
+  width: auto;
+  height: 38px;
+  margin: 0;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .tabla-datos-marco {
   max-height: 70vh;
   overflow: auto;

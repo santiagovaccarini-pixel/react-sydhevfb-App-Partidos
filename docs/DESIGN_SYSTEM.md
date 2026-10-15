@@ -115,7 +115,10 @@ En una tabla de datos (la primera hecha así: GPS › Informe, 15/10):
 - Los colores de franjas y semáforos son los suaves de `src/domain/colores.js`. La cabecera no
   lleva un color fuerte por grupo: el tono del grupo es una línea.
 - Una columna o una fila se oculta tocando su nombre, que pregunta antes. «Columnas» y «Filas»,
-  arriba, dicen cuántas hay ocultas y las vuelven a mostrar. Los números no cambian.
+  arriba, dicen cuántas hay ocultas y las vuelven a mostrar. Los números no cambian. En las
+  bases, donde tocar el nombre de la cabecera ya fija y mueve la columna, se oculta desde su
+  embudo; las filas, eligiéndolas y tocando «Ocultar fila». Lo oculto se ve en ámbar con las
+  demás acciones («1 columna oculta», «Mostrar las 2 filas ocultas»).
 
 Las tablas que ya están conservan su estilo hasta que Santiago decida llevarles este
 («Despues lo vemos», 15/10). Los colores suaves y ocultar columnas y filas sí van en toda la

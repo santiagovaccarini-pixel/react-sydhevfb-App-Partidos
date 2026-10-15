@@ -35,8 +35,10 @@ a la propuesta está en «GPS (10/10)», «La presentación, los colores y ocult
   quiere también, se ven aparte.
 - **Ocultar columnas y filas en toda la app**: tocar el nombre de una columna o de una fila
   pregunta si se oculta; arriba de la tabla, «Columnas» y «Filas» dicen cuántas hay ocultas y
-  las vuelven a mostrar; los números no cambian. Hecho en el Informe de GPS; faltan las bases y
-  los reportes (en curso).
+  las vuelven a mostrar; los números no cambian. Hecho en el Informe de GPS y en las bases
+  (15/10: GPS, Lesiones, Evaluaciones, Datos básicos y las tablas de Cargar de GPS; cómo, en
+  «Bases de Datos (05/10)», Ocultar columnas y filas); faltan las tablas de los reportes (en
+  curso).
 - **El estilo de tabla del Informe en las demás tablas**: «Despues lo vemos». No hacerlo hasta
   que Santiago lo pida.
 
@@ -800,6 +802,25 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   filas», pregunta una sola vez cuántas se borran y las borra de a una. Si alguna no se puede
   (por ejemplo, un jugador con lesiones o evaluaciones), avisa el motivo y cuántas se
   borraron. Siguen las mismas reglas de cada base (quién puede borrar, solo lectura, historial).
+- **Ocultar columnas y filas** (Santiago, 15/10: «EN TODO EL SOFT DE PODER OCULTAR MANUALMENTE
+  UN COLUMNA Y FILAS SIN NECESIDAD DE ENTRAR A AJUSTES»; «Cuando toco un columna o fila en
+  cierto lugar tiene que preguntarme si la quiero ocultar»): en todas las bases (la misma tabla,
+  `src/components/TablaDatos.jsx`; también las tablas de Cargar de GPS), una columna se oculta
+  desde su embudo, «Ocultar esta columna» (tocar el nombre de la cabecera ya la fija con dos
+  toques y la mueve manteniéndola apretada, UI-026); las filas, eligiéndolas (una celda, o
+  varias con Shift) y tocando «Ocultar fila», al lado de «Borrar fila». Las dos preguntan antes
+  («¿Ocultar «…»?», «¿Ocultar estas 2 filas?»). Con algo oculto, con las demás acciones y en
+  ámbar: «1 columna oculta» (abre la lista con casillas para volver a mostrarlas; sin ocultas
+  dice «Columnas»; al menos una columna queda a la vista) y «Mostrar las 2 filas ocultas»;
+  arriba, «1007 de 1009 filas». No se borra ni
+  se cambia nada guardado, y el informe de arriba y los colores se calculan con todas las
+  filas, como antes (para ver menos filas en las cuentas están los filtros). Las columnas
+  quedan ocultas en ese aparato, por tabla (`tabla_ocultas:<tabla>`; en Evaluaciones, por test;
+  la tabla final de Cargar de GPS es la misma que la Base, como el orden y los anchos); las
+  filas, mientras la app está abierta, como los filtros, salvo en Cargar de GPS: ahí las filas
+  van por su lugar (en la carga siguiente serían otras) y vuelven a verse al salir de la tabla.
+  Ajustes › Cabeceras sigue escondiendo para todo el club. **Queda prohibido** ocultar sin
+  preguntar.
 
 ## Evaluaciones (05/10)
 

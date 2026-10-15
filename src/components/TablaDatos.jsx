@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { HojaOpciones } from "./HojaOpciones.js";
-import { HojaDeFiltro, elegidosAlAbrir } from "./ListaParaMarcar.jsx";
+import { HojaDeFiltro, ListaParaMarcar, elegidosAlAbrir } from "./ListaParaMarcar.jsx";
+import { HojaConfirmar } from "./ConfirmSheet.js";
+import { HojaInferior } from "./SheetPanel.js";
 import { Icono } from "./AppChrome";
 import {
   aplicarPegado,
@@ -65,6 +67,17 @@ import "./tablaDatos.css";
 // siempreAVista: ids de filas que se ven aunque los filtros las dejen afuera
 // (una fila recién agregada, para completarla ahí), hasta que se cambien los
 // filtros: ahí vuelven a mandar los filtros.
+// ocultar: columnas y filas que cada uno oculta a mano (Santiago, 15/10: «EN
+// TODO EL SOFT … OCULTAR MANUALMENTE UN COLUMNA Y FILAS SIN NECESIDAD DE
+// ENTRAR A AJUSTES»; «tiene que preguntarme si la quiero ocultar»): una
+// columna desde su embudo y las filas elegidas desde «Ocultar fila», siempre
+// preguntando antes. Las columnas quedan ocultas en ese aparato, para esa
+// tabla; las filas, mientras la app está abierta (como los filtros). Solo
+// dejan de verse: el informe de arriba y los colores (vista) se calculan
+// igual, con las filas ocultas. «Columnas» y «Mostrar» las vuelven a mostrar.
+// recordarFilasOcultas: false en las tablas de una carga sin guardar (Cargar
+// de GPS): sus filas van por su lugar y en la carga siguiente serían otras,
+// así que las ocultas duran mientras se está en la tabla.
 // muchasFilas: para una base de miles de filas (GPS): se dibujan solo las
 // filas que se ven al correr la tabla, y unas cuantas más arriba y abajo; lo
 // demás (elegir, copiar, pegar, filtros, el informe de arriba) sigue con
@@ -114,6 +127,13 @@ const guardarEnCelular = (clave, id, valor) => {
 };
 
 const leerOrden = (id) => leerDelCelular(CLAVE_ORDEN, id);
+
+// Las columnas ocultadas a mano: [clave].
+const CLAVE_OCULTAS = "tabla_ocultas";
+const leerOcultas = (id) => {
+  const guardadas = leerDelCelular(CLAVE_OCULTAS, id);
+  return Array.isArray(guardadas) ? guardadas.filter((una) => typeof una === "string") : [];
+};
 const guardarOrden = (id, orden) => guardarEnCelular(CLAVE_ORDEN, id, orden);
 
 // Los anchos elegidos a mano: { clave: píxeles } (lo que no se entiende, no).
@@ -199,6 +219,8 @@ export const TablaDatos = ({
   vista = null,
   siempreAVista = SIN_FIJAS,
   muchasFilas = false,
+  ocultar = true,
+  recordarFilasOcultas = true,
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -216,6 +238,13 @@ export const TablaDatos = ({
   const [pendientes, setPendientes] = useState({});
   const [filtros, setFiltros] = useState(() => (recordar && memoria.get(recordar)?.filtros) || {}); // { clave: [textos elegidos] }
   const [ordenFilas, setOrdenFilas] = useState(() => (recordar && memoria.get(recordar)?.orden) || null); // { clave, sentido }
+  // Lo ocultado a mano: las columnas, en este aparato; las filas (ids),
+  // mientras la app está abierta. aOcultar: lo tocado, mientras se pregunta
+  // ({ tipo: "columna", clave, titulo } o { tipo: "filas", ids }).
+  const [columnasOcultas, setColumnasOcultas] = useState(() => (ocultar ? leerOcultas(id) : []));
+  const [filasOcultas, setFilasOcultas] = useState(() => (ocultar && recordar && recordarFilasOcultas && memoria.get(recordar)?.ocultas) || []);
+  const [aOcultar, setAOcultar] = useState(null);
+  const [hojaColumnas, setHojaColumnas] = useState(null); // { elegidos, busqueda }
   const [hojaFiltro, setHojaFiltro] = useState(null); // { clave, titulo, elegidos, busqueda }
   // Los anchos elegidos a mano ({ clave: píxeles }) y la columna a la que se
   // le está arrastrando el borde.
@@ -239,16 +268,22 @@ export const TablaDatos = ({
   useEffect(() => {
     setOrden((actual) => ordenDeColumnas(columnas.map((c) => c.clave), actual));
   }, [columnas]);
+  // Las que se dibujan: sin las ocultadas a mano (los filtros siguen con
+  // todas: ocultar una columna filtrada no cambia las filas).
+  const columnasAVista = useMemo(
+    () => (ocultar && columnasOcultas.length ? columnas.filter((col) => !columnasOcultas.includes(col.clave)) : columnas),
+    [ocultar, columnas, columnasOcultas],
+  );
 
   // Las fijas van primero, en su orden; el resto, en el que eligió cada uno.
   // Las que quedan a la vista al correr la tabla (las quietas): en la compu,
   // las fijas; en el celular, las fijadas ahí con dos toques, que van primero
   // (como las fijas en la compu) y después las de entrada, que corren.
   const fijasVigentes = fijasElegidas ?? fijas;
-  const clavesFijas = useMemo(() => fijasVigentes.filter((clave) => columnas.some((c) => c.clave === clave)), [fijasVigentes, columnas]);
+  const clavesFijas = useMemo(() => fijasVigentes.filter((clave) => columnasAVista.some((c) => c.clave === clave)), [fijasVigentes, columnasAVista]);
   const clavesQuietas = useMemo(
-    () => (enCompu ? clavesFijas : fijasCelular.filter((clave) => columnas.some((c) => c.clave === clave))),
-    [enCompu, clavesFijas, fijasCelular, columnas],
+    () => (enCompu ? clavesFijas : fijasCelular.filter((clave) => columnasAVista.some((c) => c.clave === clave))),
+    [enCompu, clavesFijas, fijasCelular, columnasAVista],
   );
   // Las que van adelante, con su ancho y sin arrastrarse.
   const clavesAdelante = useMemo(
@@ -256,10 +291,10 @@ export const TablaDatos = ({
     [enCompu, clavesFijas, clavesQuietas],
   );
   const visibles = useMemo(() => {
-    const porClave = (clave) => columnas.find((c) => c.clave === clave);
+    const porClave = (clave) => columnasAVista.find((c) => c.clave === clave);
     const libres = orden.filter((clave) => !clavesAdelante.includes(clave)).map(porClave).filter(Boolean);
     return [...clavesAdelante.map(porClave), ...libres];
-  }, [orden, columnas, clavesAdelante]);
+  }, [orden, columnasAVista, clavesAdelante]);
   const visiblesRef = useRef(visibles);
   visiblesRef.current = visibles;
   // El ancho de cada columna que lo tiene: el elegido a mano o, en una fija,
@@ -326,7 +361,7 @@ export const TablaDatos = ({
     nuevas.forEach((filaId) => yaPedidas.current.add(filaId));
     setForzadas((previas) => [...previas, ...nuevas]);
   }, [siempreAVista]);
-  const filasVista = useMemo(() => {
+  const filasFiltradas = useMemo(() => {
     const filtradas = filtrarFilas(filas, filtrosVigentes);
     if (forzadas.length === 0 || filtradas.length === filas.length) return ordenarFilas(filtradas, ordenFilas);
     const pasan = new Set(filtradas.map((fila) => fila.id));
@@ -335,6 +370,14 @@ export const TablaDatos = ({
       ordenFilas,
     );
   }, [filas, filtrosVigentes, ordenFilas, forzadas]);
+  // Las que se ven: sin las ocultadas a mano.
+  const filasVista = useMemo(() => {
+    if (!ocultar || !filasOcultas.length) return filasFiltradas;
+    const ocultas = new Set(filasOcultas);
+    return filasFiltradas.filter((fila) => !ocultas.has(fila.id));
+  }, [ocultar, filasFiltradas, filasOcultas]);
+  // Las ocultas que siguen en la tabla (y en los filtros).
+  const cuantasFilasOcultas = filasFiltradas.length - filasVista.length;
   // Con muchasFilas, las filas que se dibujan: { desde, hasta, alto } (null:
   // todas, como sin muchasFilas o si no se puede medir).
   const cajaRef = useRef(null);
@@ -390,8 +433,9 @@ export const TablaDatos = ({
     else if (arriba + ventana.alto > caja.scrollTop + caja.clientHeight) caja.scrollTop = arriba + ventana.alto - caja.clientHeight;
   };
 
-  // Lo que depende de las filas que se ven: los colores y las filas de arriba.
-  const deLaVista = useMemo(() => (vista ? vista(filasVista) : null), [vista, filasVista]);
+  // Lo que depende de las filas que se ven: los colores y las filas de arriba
+  // (con las ocultadas a mano: ocultar no cambia los números).
+  const deLaVista = useMemo(() => (vista ? vista(filasFiltradas) : null), [vista, filasFiltradas]);
   const estilosDeCeldas = deLaVista?.estilos || null;
   const filasArriba = deLaVista?.arriba || [];
 
@@ -438,8 +482,11 @@ export const TablaDatos = ({
   }, [mensaje]);
 
   useEffect(() => {
-    if (recordar) memoria.set(recordar, { filtros, orden: ordenFilas });
-  }, [recordar, filtros, ordenFilas]);
+    if (recordar) memoria.set(recordar, { filtros, orden: ordenFilas, ocultas: recordarFilasOcultas ? filasOcultas : [] });
+  }, [recordar, filtros, ordenFilas, filasOcultas, recordarFilasOcultas]);
+  useEffect(() => {
+    if (ocultar) guardarEnCelular(CLAVE_OCULTAS, id, columnasOcultas);
+  }, [ocultar, id, columnasOcultas]);
 
   // ----------------------------------------------------------- Selección --
 
@@ -966,6 +1013,38 @@ export const TablaDatos = ({
     setOrdenFilas(null);
   };
 
+  // ------------------------------------------------------------ Ocultar --
+
+  // Desde el embudo: se cierra la hoja del filtro y se pregunta.
+  const preguntarOcultarColumna = () => {
+    const actual = hojaFiltro;
+    setHojaFiltro(null);
+    if (actual) setAOcultar({ tipo: "columna", clave: actual.clave, titulo: actual.titulo });
+  };
+  const confirmarOcultar = () => {
+    const actual = aOcultar;
+    setAOcultar(null);
+    if (!actual) return;
+    olvidarSeleccion();
+    if (actual.tipo === "columna") setColumnasOcultas((antes) => [...antes.filter((clave) => clave !== actual.clave), actual.clave]);
+    else setFilasOcultas((antes) => [...new Set([...antes, ...actual.ids])]);
+  };
+  const mostrarFilas = () => {
+    olvidarSeleccion();
+    setFilasOcultas([]);
+  };
+  // «Columnas»: la lista con casillas (marcadas, las que se ven; al menos una
+  // tiene que quedar: sin columnas no hay tabla).
+  const cuantasColumnasOcultas = columnas.length - columnasAVista.length;
+  const abrirColumnas = () => setHojaColumnas({ elegidos: columnasAVista.map((col) => col.clave), busqueda: "" });
+  const aplicarColumnas = () => {
+    const actual = hojaColumnas;
+    setHojaColumnas(null);
+    if (!actual) return;
+    olvidarSeleccion();
+    setColumnasOcultas(columnas.map((col) => col.clave).filter((clave) => !actual.elegidos.includes(clave)));
+  };
+
   // ------------------------------------------------------------- Dibujo --
 
   const filaActiva = activa ? filasVista[activa.f] : null;
@@ -976,7 +1055,7 @@ export const TablaDatos = ({
     ? t("tabla.guardando")
     : mensaje || aviso || (celdasElegidas ? plural("tabla.seleccion", celdasElegidas) : t("tabla.sinSeleccion"));
   // Cuántas filas hay; con filtros, cuántas se ven de cuántas.
-  const cuantasFilas = hayFiltros ? plural("tabla.filasDe", filas.length, { n: filasVista.length, total: filas.length }) : plural("tabla.filas", filas.length);
+  const cuantasFilas = hayFiltros || cuantasFilasOcultas ? plural("tabla.filasDe", filas.length, { n: filasVista.length, total: filas.length }) : plural("tabla.filas", filas.length);
   // El rótulo de las filas de arriba ocupa las fijas de entrada que van
   // adelante (las de quién y de cuándo, sin dato arriba) o, sin ninguna, la
   // primera columna (su dato no se ve). Una columna fijada con dos clics
@@ -1026,6 +1105,17 @@ export const TablaDatos = ({
               {t("tabla.quitarFiltros")}
             </button>
           )}
+          {ocultar && (
+            <button type="button" className={`boton-secundario tabla-datos-columnas ${cuantasColumnasOcultas ? "con-ocultas" : ""}`.trim()} onClick={abrirColumnas}>
+              <Icono nombre="ocultar" size={15} />
+              {cuantasColumnasOcultas ? plural("tabla.columnasOcultas", cuantasColumnasOcultas) : t("tabla.columnas")}
+            </button>
+          )}
+          {ocultar && cuantasFilasOcultas > 0 && (
+            <button type="button" className="boton-secundario tabla-datos-mostrar-filas con-ocultas" onClick={mostrarFilas}>
+              {plural("tabla.mostrarFilas", cuantasFilasOcultas)}
+            </button>
+          )}
           <button type="button" className="boton-secundario" onClick={copiar} disabled={!seleccion}>
             <Icono nombre="documento" size={15} />
             {t("tabla.copiar")}
@@ -1039,6 +1129,12 @@ export const TablaDatos = ({
           {onAbrirFila && (
             <button type="button" className="boton-secundario" onClick={() => filaActiva && onAbrirFila(filaActiva.id)} disabled={!filaActiva}>
               {t("tabla.ficha")}
+            </button>
+          )}
+          {ocultar && (
+            <button type="button" className="boton-secundario tabla-datos-ocultar-filas" onClick={() => filasElegidas.length && setAOcultar({ tipo: "filas", ids: filasElegidas })} disabled={!filasElegidas.length}>
+              <Icono nombre="ocultar" size={15} />
+              {plural("tabla.ocultarFilas", Math.max(filasElegidas.length, 1))}
             </button>
           )}
           {onBorrarFilas && (
@@ -1316,7 +1412,53 @@ export const TablaDatos = ({
             </button>
           </div>
         )}
+        {hojaFiltro && ocultar && columnasAVista.length > 1 && (
+          <button type="button" className="boton-secundario tabla-datos-ocultar-columna" onClick={preguntarOcultarColumna}>
+            <Icono nombre="ocultar" size={15} />
+            {t("tabla.ocultarColumna")}
+          </button>
+        )}
       </HojaDeFiltro>
+
+      <HojaConfirmar
+        abierta={Boolean(aOcultar)}
+        icono="ocultar"
+        titulo={aOcultar ? (aOcultar.tipo === "columna" ? t("tabla.ocultarTitulo", { nombre: aOcultar.titulo }) : plural("tabla.ocultarFilasTitulo", aOcultar.ids.length)) : ""}
+        descripcion={aOcultar ? t(aOcultar.tipo === "columna" ? "tabla.ocultarColumnaTexto" : "tabla.ocultarFilasTexto") : ""}
+        etiquetaConfirmar={t("tabla.ocultar")}
+        etiquetaCancelar={t("comun.cancelar")}
+        onConfirmar={confirmarOcultar}
+        onCancelar={() => setAOcultar(null)}
+      />
+
+      <HojaInferior
+        abierta={Boolean(hojaColumnas)}
+        className="tabla-datos-hoja-filtro"
+        titulo={t("tabla.columnasAVista")}
+        onCerrar={() => setHojaColumnas(null)}
+        acciones={
+          <>
+            <button type="button" className="boton-cancelar-hoja" onClick={() => setHojaColumnas(null)}>
+              {t("comun.cancelar")}
+            </button>
+            <button type="button" className="boton-confirmar-hoja" onClick={aplicarColumnas} disabled={!hojaColumnas?.elegidos.length}>
+              {t("comun.listo")}
+            </button>
+          </>
+        }
+      >
+        {hojaColumnas && (
+          <div className="tabla-datos-filtro-cuerpo">
+            <ListaParaMarcar
+              valores={columnas.map((col) => ({ clave: col.clave, texto: col.grupoTitulo ? `${col.grupoTitulo} · ${col.titulo}` : col.titulo }))}
+              elegidos={hojaColumnas.elegidos}
+              onCambiar={(elegidos) => setHojaColumnas((actual) => ({ ...actual, elegidos }))}
+              busqueda={hojaColumnas.busqueda}
+              onBuscar={(busqueda) => setHojaColumnas((actual) => ({ ...actual, busqueda }))}
+            />
+          </div>
+        )}
+      </HojaInferior>
     </div>
   );
 };
