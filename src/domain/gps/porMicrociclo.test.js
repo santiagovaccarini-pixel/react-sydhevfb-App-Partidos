@@ -249,17 +249,17 @@ describe("VS RIVAL: los partidos oficiales de cada fila", () => {
   const delEquipo = (fecha, datos) => fila({ promedio: "parcial", fecha, ...oficial(datos) });
   test("el equipo: el TOTAL de cada partido oficial del microciclo, en orden de fecha, aunque se haya cargado en otro orden", () => {
     const filas = [
-      sesion(17, "2026-04-20", { d: 1 }),
-      delEquipo("2026-04-26", { microciclo: 17, descripcion: "2026_04_26_ Vs Flamengo PT ", tiempo: 270 }),
-      delEquipo("2026-04-23", { microciclo: 17, descripcion: "2026_04_23_ Vs Ceara PT ", tiempo: 270 }),
-      delEquipo("2026-04-23", { microciclo: 17, descripcion: "2026_04_23_ Vs Ceara TOTAL ", tiempo: 540 }),
-      delEquipo("2026-04-23", { microciclo: 17, descripcion: "2026_04_23_ Vs Ceara ST ", tiempo: 270 }),
-      delEquipo("2026-04-26", { microciclo: 17, descripcion: "2026_04_26_ Vs Flamengo Total", tiempo: 530 }),
+      sesion(17, "2026-03-09", { d: 1 }),
+      delEquipo("2026-03-14", { microciclo: 17, descripcion: "2026_03_14_ Vs Rival Dos PT ", tiempo: 270 }),
+      delEquipo("2026-03-11", { microciclo: 17, descripcion: "2026_03_11_ Vs Rival Uno PT ", tiempo: 270 }),
+      delEquipo("2026-03-11", { microciclo: 17, descripcion: "2026_03_11_ Vs Rival Uno TOTAL ", tiempo: 540 }),
+      delEquipo("2026-03-11", { microciclo: 17, descripcion: "2026_03_11_ Vs Rival Uno ST ", tiempo: 270 }),
+      delEquipo("2026-03-14", { microciclo: 17, descripcion: "2026_03_14_ Vs Rival Dos Total", tiempo: 530 }),
       // Ni un amistoso ni los de otro microciclo.
-      fila({ promedio: "parcial", fecha: "2026-04-24", microciclo: 17, tarea_partido: "partido_amistoso", condicion: "parcial", descripcion: "2026_04_24_ Vs Amigo TOTAL" }),
-      delEquipo("2026-04-29", { microciclo: 18, descripcion: "2026_04_29_ Vs Otro TOTAL" }),
+      fila({ promedio: "parcial", fecha: "2026-03-12", microciclo: 17, tarea_partido: "partido_amistoso", condicion: "parcial", descripcion: "2026_03_12_ Vs Amigo TOTAL" }),
+      delEquipo("2026-03-17", { microciclo: 18, descripcion: "2026_03_17_ Vs Otro TOTAL" }),
     ];
-    expect(informePorMicrociclo(filas, { nombreDe }).filas.map((una) => una.vsRival)).toEqual(["Vs Ceara TOTAL - Vs Flamengo Total"]);
+    expect(informePorMicrociclo(filas, { nombreDe }).filas.map((una) => una.vsRival)).toEqual(["Vs Rival Uno TOTAL - Vs Rival Dos Total"]);
     // Un partido sin la descripción del TOTAL no va (como en el Excel); sin partidos, vacío.
     const sinTotal = [
       sesion(20, "2026-05-11"),
@@ -272,15 +272,15 @@ describe("VS RIVAL: los partidos oficiales de cada fila", () => {
   test("un jugador: su fila del partido con Condición Total; si su Total junta otra cosa, la del partido de más tiempo", () => {
     const filas = [
       // Jugador 1: entró en el segundo tiempo del 23 y no ingresó el 26.
-      fila({ jugador_id: 1, fecha: "2026-04-23", ...oficial({ microciclo: 17, condicion: "total", descripcion: "2026_04_23_ Vs Ceara ST ", tiempo: 2000 }) }),
-      fila({ jugador_id: 1, fecha: "2026-04-26", ...oficial({ microciclo: 17, condicion: "total", descripcion: "2026_04_26_ Vs Flamengo SIN INGRESAR ", tiempo: 0 }) }),
+      fila({ jugador_id: 1, fecha: "2026-03-11", ...oficial({ microciclo: 17, condicion: "total", descripcion: "2026_03_11_ Vs Rival Uno ST ", tiempo: 2000 }) }),
+      fila({ jugador_id: 1, fecha: "2026-03-14", ...oficial({ microciclo: 17, condicion: "total", descripcion: "2026_03_14_ Vs Rival Dos SIN INGRESAR ", tiempo: 0 }) }),
       // Jugador 2: jugó el segundo tiempo del 23 y después entrenó aparte.
-      fila({ jugador_id: 2, fecha: "2026-04-23", ...oficial({ microciclo: 17, descripcion: "2026_04_23_ Vs Ceara ST ", tiempo: 2000 }) }),
-      fila({ jugador_id: 2, fecha: "2026-04-23", microciclo: 17, tarea_partido: "otra_tarea", condicion: "total", descripcion: "2026_04_23_ Vs Ceara TOTAL + Fracc.", tiempo: 3000 }),
+      fila({ jugador_id: 2, fecha: "2026-03-11", ...oficial({ microciclo: 17, descripcion: "2026_03_11_ Vs Rival Uno ST ", tiempo: 2000 }) }),
+      fila({ jugador_id: 2, fecha: "2026-03-11", microciclo: 17, tarea_partido: "otra_tarea", condicion: "total", descripcion: "2026_03_11_ Vs Rival Uno TOTAL + Fracc.", tiempo: 3000 }),
     ];
     expect(informePorMicrociclo(filas, { nombreDe }).filas.map((una) => [una.etiqueta, una.vsRival])).toEqual([
-      ["Jugador 1", "Vs Ceara ST - Vs Flamengo SIN INGRESAR"],
-      ["Jugador 2", "Vs Ceara ST"],
+      ["Jugador 1", "Vs Rival Uno ST - Vs Rival Dos SIN INGRESAR"],
+      ["Jugador 2", "Vs Rival Uno ST"],
     ]);
   });
 });

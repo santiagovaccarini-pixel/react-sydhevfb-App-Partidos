@@ -404,7 +404,7 @@ export const franjasDeTabla = (filas, vr, { categorizacion, tipoVariable, visual
 // completo»). El Excel toma la 3.ª y la 6.ª descripción del promedio del
 // equipo de los partidos oficiales del microciclo, en el orden en que se
 // cargaron, contando con que son las del TOTAL; si se cargaron en otro
-// orden, muestra otra (en el 17, «Vs Ceara ST»). Acá, en orden de fecha:
+// orden, muestra otra (en el 17 del club, un ST). Acá, en orden de fecha:
 //   · el promedio del equipo: el TOTAL de cada partido oficial del
 //     microciclo (la descripción que dice TOTAL; un partido sin TOTAL no va,
 //     como en el Excel);
