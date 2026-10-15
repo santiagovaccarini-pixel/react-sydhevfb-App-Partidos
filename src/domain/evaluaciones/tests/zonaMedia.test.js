@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularFilas, estadisticas, estilosDeFilas, estilosDeUnaFila, ordenDelExcel, quienEs } from "../motor.js";
+import { suave } from "../../colores.js";
 import { COLORES, cssDeEstilo, estiloDeCelda, ordenarReglas, SIN_RELLENO, degrade, letraSobreGris } from "../formatoCondicional.js";
 import { categoriaDeTexto } from "../categorias.js";
 import { ZONA_MEDIA, cortesDe } from "./zonaMedia.js";
@@ -171,7 +172,7 @@ describe("Zona Media: el informe con las filas que se ven", () => {
 
   it("los colores: los tiempos contra su promedio y su desvío, las clases con su color, lo vacío sin nada", () => {
     const estilos = estilosDeFilas(ZONA_MEDIA.reglas, calculadas.map((uno) => ({ id: uno.fila.id, celdas: uno.celdas })), est);
-    const degradeDe = (color) => ({ background: `linear-gradient(90deg, #FFFFFF, ${color})` });
+    const degradeDe = (color) => ({ background: `linear-gradient(90deg, #FFFFFF, ${suave(color)})` });
     // Lumbar 3:00 / 3:30 / 4:00: promedio 3:30 y desvío 0:30.
     expect(estilos[filas[0].id].lumbar).toEqual(degradeDe(COLORES.naranja));
     expect(estilos[filas[1].id].lumbar).toEqual(degradeDe(COLORES.amarillo));
@@ -190,8 +191,8 @@ describe("Zona Media: el informe con las filas que se ven", () => {
     const una = calcular([filas[0]]);
     const estUna = estadisticas(ZONA_MEDIA.columnasDelInforme, una.map((uno) => uno.celdas));
     const estilos = estilosDeFilas(ZONA_MEDIA.reglas, una.map((uno) => ({ id: uno.fila.id, celdas: uno.celdas })), estUna);
-    // Como en el Excel: igual al promedio, amarillo.
-    expect(estilos[filas[0].id].lumbar).toEqual({ background: `linear-gradient(90deg, #FFFFFF, ${COLORES.amarillo})` });
+    // Como en el Excel: igual al promedio, amarillo (más suave, 15/10).
+    expect(estilos[filas[0].id].lumbar).toEqual({ background: `linear-gradient(90deg, #FFFFFF, ${suave(COLORES.amarillo)})` });
   });
 });
 

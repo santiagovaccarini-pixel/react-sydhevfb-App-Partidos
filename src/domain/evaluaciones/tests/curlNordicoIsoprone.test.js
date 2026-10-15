@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularFilas, estadisticas, estilosDeFilas, vistaDeFilas } from "../motor.js";
+import { suave } from "../../colores.js";
 import { COLORES } from "../formatoCondicional.js";
 import { leerEvaluacionesPegadas, planDeEvaluaciones } from "../importar.js";
 import { CURL_NORDICO_ISOPRONE as CURL } from "./curlNordicoIsoprone.js";
@@ -128,7 +129,7 @@ describe("Curl Nórdico e Isoprone: el informe y los colores", () => {
   it("los colores: la relativa contra su promedio y su desvío, el déficit al revés, las clases con su color", () => {
     const est = estadisticas(CURL.columnasDelInforme, calculadas.map((uno) => uno.celdas));
     const estilos = estilosDeFilas(CURL.reglas, calculadas.map((uno) => ({ id: uno.fila.id, celdas: uno.celdas })), est);
-    const degradeDe = (color) => ({ background: `linear-gradient(90deg, #FFFFFF, ${color})` });
+    const degradeDe = (color) => ({ background: `linear-gradient(90deg, #FFFFFF, ${suave(color)})` });
     // L MÁX Rel 5 / 6 / 5,5 / 4,5: promedio 5,25, desvío ≈ 0,65.
     expect(estilos[filas[1].id].curl_l_max_rel).toEqual(degradeDe(COLORES.verde));
     expect(estilos[filas[2].id].curl_l_max_rel).toEqual(degradeDe(COLORES.amarillo));

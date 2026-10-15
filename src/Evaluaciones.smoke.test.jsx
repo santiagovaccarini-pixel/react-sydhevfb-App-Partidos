@@ -313,7 +313,8 @@ describe("Evaluaciones", () => {
     // Promedio 214 s contra el Bueno (180 s): 118,89 %, clase 4 (en verde).
     const porcentaje = celdaDeArriba(contenedor, fila2, "Lumbar");
     expect(porcentaje.textContent).toBe("118,89%");
-    expect(porcentaje.style.background).toContain("146, 208, 80");
+    // Verde, más suave que el del Excel (Santiago, 15/10).
+    expect(porcentaje.style.background).toContain("211, 237, 201");
     expect(celdaDeArriba(contenedor, fila2, "L. Clas").textContent).toBe("4");
     expect(celdaDeArriba(contenedor, fila3, "Lumbar").textContent).toBe("3:00");
 

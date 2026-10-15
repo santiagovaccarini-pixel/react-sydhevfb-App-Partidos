@@ -396,13 +396,13 @@ describe("GPS", () => {
     expect(celdaDeArriba(contenedor, filaDeArriba(contenedor, "V.R."), "D").textContent).toBe("");
     expect(contenedor.querySelector(".gps-comparacion-sin").textContent).toBe("Este dispositivo todavía no tiene V.R.: se cargan en Valores de referencia.");
 
-    // Los colores del Excel, como siempre (contra promedio ± desvío): verde
-    // claro, naranja y amarillo.
-    expect(celda(contenedor, 1, "D").style.background).toBe("rgb(200, 231, 167)");
-    expect(celda(contenedor, 0, "D").style.background).toBe("rgb(241, 181, 132)");
-    expect(celda(contenedor, 2, "D").style.background).toBe("rgb(255, 255, 127)");
+    // Los colores del Excel, más suaves (Santiago, 15/10), contra promedio ±
+    // desvío: verde claro, naranja y amarillo.
+    expect(celda(contenedor, 1, "D").style.background).toBe("rgb(211, 237, 201)");
+    expect(celda(contenedor, 0, "D").style.background).toBe("rgb(247, 199, 154)");
+    expect(celda(contenedor, 2, "D").style.background).toBe("rgb(251, 240, 166)");
     // El promedio de un partido oficial, en gris en la columna Nombre.
-    expect(celda(contenedor, 2, "Nombre").style.background).toBe("rgb(191, 191, 191)");
+    expect(celda(contenedor, 2, "Nombre").style.background).toBe("rgb(213, 217, 223)");
 
     // Arriba se vuelve a Bases de Datos.
     await tocar(boton("Bases de Datos"));
@@ -425,7 +425,7 @@ describe("GPS", () => {
     expect(celda(contenedor, vieja, "D").style.background).toBe("");
     expect(filas(contenedor)[vieja].className).toContain("apagada");
     const beta = filas(contenedor).findIndex((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent === "BETA");
-    expect(celda(contenedor, beta, "D").style.background).toBe("rgb(200, 231, 167)");
+    expect(celda(contenedor, beta, "D").style.background).toBe("rgb(211, 237, 201)");
     expect(datos.lecturas).toHaveLength(1);
   });
 
@@ -518,7 +518,7 @@ describe("GPS", () => {
     await tocar([...document.body.querySelectorAll(".opcion-hoja")].find((b) => b.textContent === "Team Average Sesion"));
     expect(datos.actualizadas[0]).toMatchObject({ id: "g2", fila: { jugador_id: null, persona: null, promedio: "sesion" } });
     expect(celda(contenedor, 1, "Nombre").textContent).toBe("Team Average Sesion");
-    expect(celda(contenedor, 1, "Nombre").style.background).toBe("rgb(217, 150, 148)");
+    expect(celda(contenedor, 1, "Nombre").style.background).toBe("rgb(244, 167, 167)");
   });
 
   // Santiago, 14/10: «saca esos 4 filtros de arriba de fechas, jugador y
