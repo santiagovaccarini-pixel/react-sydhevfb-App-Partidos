@@ -1295,7 +1295,8 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
    lo de cada día, con la lógica de la plantilla. Primero con el CSV de Catapult; después,
    traerlo directo de OpenField (paso 5).
 3. **Reportes**. 15/10: el Informe (Por microciclo, Por tarea y Por jugador), ver «Informe:
-   Por microciclo, Por tarea y Por jugador (15/10)».
+   Por microciclo, Por tarea y Por jugador (15/10)». Por microciclo, hecho el 15/10 (la solapa
+   Reportes, UI-038); Por tarea y Por jugador, después, cada uno con sus dudas.
 4. **V.R. por dispositivo**: se arman una vez con reglas estadísticas y quedan fijos (Santiago,
    10/10: «Los VR se arman una ves con reglas estadisticas y se dejan fijos»; las reglas las
    explica él más adelante). Cada dispositivo tiene los suyos («Exacto»). No inventar reglas ni
@@ -1309,7 +1310,8 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
 
 Como pide la regla de las bases (UI-012), cuando estén los pasos 2 y 3 la barra queda Cargar ·
 Base · Reportes · Ajustes (y los V.R. donde se decida en el paso 4). Desde el 12/10: Cargar ·
-Base · Ajustes, y abre en Cargar (como Evaluaciones).
+Base · Ajustes, y abre en Cargar (como Evaluaciones). Desde el 15/10: Cargar · Base · Reportes ·
+Valores de referencia · Ajustes (como Evaluaciones).
 
 ### Decisiones de Santiago (10/10)
 
@@ -1718,8 +1720,61 @@ Lo que respondió a lo planteado para **Por microciclo** (15/10):
   quedaban vacías con Microciclo, Fecha y Tipo de Sesión en «(Todas)»).
 - **Los colores** (8, «Si»): los del Excel.
 
+Lo que respondió a la segunda tanda (15/10, tarde):
+
+- **N° Descanso** (1): «Los descansos si cuentan como sesion y los n de descansos se cuentan a
+  partir de que en tipo de sesion siga descanso». N° Sesiones sigue contando los días de
+  descanso; N° Descanso cuenta los días con Tipo de Sesión «Descanso» (el Excel contaba los de
+  Tipo de Sesión vacío y daba siempre 0).
+- **El desvío de las franjas con Mi selección** (2, «B»): cada microciclo cuenta una vez (el
+  Excel contaba cada uno dos veces, por cómo arma su tabla dinámica, y le daba un desvío un poco
+  más chico).
+- **«Ver tabla» y «Volver»** (5): «Ok, pero solo deja un boton». Un solo botón pasa las franjas
+  de arriba de un V.R. a otro de los que se están usando.
+- Siguen abiertos: **Microciclo/Jugador en «Jugador»** (3, se le volvió a explicar) y **VS
+  RIVAL** (4). Sobre VS RIVAL dijo: «Eso es xq toma la descripción donde la condicion sea total,
+  asi se va si entro o jugo el partido completo». En el Excel, las filas del promedio del equipo
+  de un partido tienen todas Condición Parcial: toma la 3.ª y la 6.ª descripción en el orden en
+  que se cargaron, pensando que son los TOTAL, y en los microciclos 17 y 18 muestra un ST. Las
+  filas de cada jugador con Condición Total son las que dicen TOTAL, PT, ST o SIN INGRESAR.
+
 Queda prohibido en el Informe: una tabla por dispositivo para Por microciclo, volver a poner las
-tres celdas del V.R. y la opción Extras (hasta que Santiago la pida).
+tres celdas del V.R., la opción Extras (hasta que Santiago la pida) y dos botones para pasar de
+un V.R. a otro («Ver tabla» y «Volver»: va uno solo).
+
+Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
+`src/domain/gps/porMicrociclo.js`, UI-038):
+
+- **GPS › Reportes**: «Ver informes» con Por microciclo, Por tarea y Por jugador; los dos
+  últimos dicen «Todavía no está».
+- **Los filtros** (paso 1 de 2): Microciclo, Fecha, Tipo de Sesión, Tipo Microciclo,
+  Clasificación Días, Microciclo/Jugador y Nombre, cada uno un desplegable que abre la lista con
+  casillas de las bases. Solo muestran lo que tiene datos con lo elegido en los demás (como las
+  segmentaciones del archivo); lo elegido sigue a la vista. Al entrar, Microciclo/Jugador en
+  «Sesión» (el promedio del equipo de cada microciclo, como se ve el archivo al abrirlo);
+  «Limpiar filtros» los vacía todos, como el botón del archivo. Dice cuántas filas va a tener
+  el informe y «Siguiente: El informe».
+- **El informe** (paso 2 de 2): arriba, lo filtrado en una línea; Tipo de variable
+  (Absolutas o Relativas), Visualización (Valor promedio, Valor suma, % del promedio o % de la
+  suma) y Categorización (Mi selección o Valor referencial); el V.R. (de entrada, el del
+  dispositivo del último microciclo, el elegido en la Base) y «+ Otro V.R.» (sin elegir
+  microciclos, vale en los de su dispositivo; si se eligen, solo en esos), con un aviso si
+  algún microciclo quedó sin V.R. La tabla, como las de los reportes: la cabecera oscura con
+  los grupos en su tono, la primera columna fija al deslizar, la fila del V.R. y las franjas
+  (Excelente a Desvío; el Bueno es el promedio, por eso no va otra fila de Promedio) y una fila
+  por microciclo (o por jugador) con los colores de la U.A. y la carga crónica. Con más de un
+  V.R., un solo botón («Ver las de …») pasa las franjas de uno a otro.
+- **VS RIVAL**: en el promedio del equipo, el TOTAL de cada partido oficial del microciclo, en
+  orden de fecha (Santiago: «toma la descripción donde la condicion sea total»); un partido sin
+  TOTAL no va, como en el archivo. Comprobado con los datos del club: da igual que el archivo en
+  19 de 22 microciclos; en el 17 y el 18 el archivo mostraba un ST (el orden de carga) y en el
+  41 estaba sin actualizar. En un jugador, lo propuesto el 15/10 (a confirmar): su fila del
+  partido con Condición Total; si su Total junta el partido con otra cosa, su fila del partido
+  de más tiempo.
+- **Falta** (espera las respuestas de Santiago): Microciclo/Jugador en «Jugador» (hoy, una fila
+  por jugador con los microciclos elegidos juntos, las franjas de esas filas y la carga crónica
+  vacía) y «Objetivo sesión/microciclo» (no está en el desplegable hasta que se haga, con el
+  modo Jugador).
 
 ### Pegar desde Excel (el historial)
 

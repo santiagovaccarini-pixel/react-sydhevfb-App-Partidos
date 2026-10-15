@@ -1697,6 +1697,108 @@ describe("GPS", () => {
     expect(contenedor.textContent).toContain("Para ver los V.R. falta una actualización de la base de datos.");
   });
 
+  // Reportes › Por microciclo (Santiago, 15/10), con microciclos inventados:
+  // el promedio del equipo de dos días por microciclo (en el 18, un descanso),
+  // un partido oficial en el 17 cargado PT, TOTAL, ST y un jugador.
+  const INFORME = () => {
+    const lista = [];
+    const agregar = (fecha, quien, valores) => lista.push(fila(`r${lista.length + 1}`, lista.length + 1, quien, fecha, { dispositivo: "catapult", tipo_microciclo: "competitivo", ...valores }));
+    [17, 18, 19, 20].forEach((m, i) => {
+      const dia = (n) => `2026-05-${String(4 + i * 7 + n).padStart(2, "0")}`;
+      agregar(dia(0), { promedio: "sesion" }, { microciclo: m, condicion: "total", clasificacion_dias: "mas1_m", tipo_sesion: "din_compleja", d: 4000 + m * 10, tiempo: 3600, ua: 100 * (i + 1) });
+      agregar(dia(1), { promedio: "sesion" }, { microciclo: m, condicion: "total", clasificacion_dias: "0_t", tipo_sesion: m === 18 ? "descanso" : "din_colectiva", d: 5000, tiempo: 3600, ua: 300 });
+      agregar(dia(0), { jugador_id: 1 }, { microciclo: m, condicion: "total", va: "si", d: 4500, tiempo: 3600, ua: 250 });
+    });
+    ["PT", "TOTAL", "ST"].forEach((parte) => agregar("2026-05-05", { promedio: "parcial" }, { microciclo: 17, condicion: "parcial", tarea_partido: "partido_oficial_torneo", descripcion: `2026_05_05_ Vs Rival Uno ${parte} `, d: parte === "TOTAL" ? 9000 : 4500, tiempo: 2700 }));
+    return lista;
+  };
+  const elegirEnLaLista = async (titulo, valores) => {
+    await tocar(botones().find((b) => b.getAttribute("aria-label") === titulo));
+    await tocar(boton("Ninguno"));
+    for (const valor of valores) {
+      // eslint-disable-next-line no-await-in-loop
+      await tocar([...document.body.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent === valor).querySelector("input"));
+    }
+    await tocar(boton("Listo"));
+  };
+
+  test("Reportes › Por microciclo: el menú, los filtros con casillas, el informe con sus franjas y colores, y otro V.R.", async () => {
+    datos.filas = INFORME();
+    datos.plantel = PLANTEL.map((jugador) => ({ ...jugador }));
+    datos.referencias = [
+      { id: "c1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 5000, tiempo: 3600 }, desvio: { d: 500 }, dePartido: false },
+      { id: "s1", dispositivo: "sport", tipo: "FUTBOL", tabla: "FUTBOL 2", grupo: "TOTAL", orden: 2, promedio: { d: 4000 }, desvio: {}, dePartido: false },
+    ];
+    await montar();
+    await irA(contenedor, "Reportes");
+    expect(contenedor.querySelector("h1").textContent).toBe("Reportes");
+    // Las tres opciones; Por tarea y Por jugador, todavía no.
+    const opciones = [...contenedor.querySelectorAll(".reporte-opcion")];
+    expect(opciones.map((una) => una.querySelector("b").textContent)).toEqual(["Por microciclo", "Por tarea", "Por jugador"]);
+    expect(opciones.map((una) => una.disabled)).toEqual([false, true, true]);
+    expect(opciones[1].textContent).toContain("Todavía no está");
+
+    // Los filtros: al entrar, el promedio del equipo de cada microciclo.
+    await tocar(opciones[0]);
+    expect(contenedor.querySelector("h1").textContent).toBe("Por microciclo");
+    expect([...contenedor.querySelectorAll(".gps-reportes-rotulo")].map((span) => span.textContent)).toEqual(["Microciclo", "Fecha", "Tipo de Sesión", "Tipo Microciclo", "Clasificación Días", "Microciclo/Jugador", "Nombre"]);
+    expect(botones().find((b) => b.getAttribute("aria-label") === "Microciclo/Jugador").textContent).toBe("Sesión (promedio del equipo)");
+    expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("el informe tiene 4 filas");
+    // Microciclo: solo los que tienen datos; se eligen del 18 al 20.
+    await tocar(botones().find((b) => b.getAttribute("aria-label") === "Microciclo"));
+    expect([...document.body.querySelectorAll(".tabla-datos-valores label")].map((label) => label.textContent)).toEqual(["17", "18", "19", "20"]);
+    await tocar(boton("Cancelar"));
+    await elegirEnLaLista("Microciclo", ["18", "19", "20"]);
+    expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("el informe tiene 3 filas");
+
+    // El informe.
+    await tocar(siguiente());
+    expect(contenedor.querySelector(".gps-reportes-resumen").textContent).toBe("Filtros: Microciclo: 18 a 20 · Microciclo/Jugador: Sesión (promedio del equipo)");
+    const tabla = contenedor.querySelector(".gps-informe-tabla");
+    const filasDelInforme = [...tabla.querySelectorAll("tbody tr")];
+    expect(filasDelInforme.map((tr) => tr.querySelector("th").textContent)).toEqual(["Team Average Sesion18", "Team Average Sesion19", "Team Average Sesion20"]);
+    // N° Sesiones (con el descanso) y N° Descanso.
+    expect(filasDelInforme.map((tr) => [tr.querySelectorAll("td")[0].textContent, tr.querySelectorAll("td")[1].textContent])).toEqual([["2", "1"], ["2", "0"], ["2", "0"]]);
+    // Las franjas arriba y los colores de la U.A.
+    expect([...tabla.querySelectorAll("thead tr.gps-informe-franja th")].map((th) => th.textContent)).toEqual(["Excelente", "Muy bueno", "Bueno (promedio)", "Regular", "Malo", "Desvío"]);
+    expect(filasDelInforme.every((tr) => tr.querySelectorAll("td")[2].style.background)).toBe(true);
+    // El % del promedio de D contra el V.R. (D 5000 → 4590 / 5000 en el 18).
+    expect(filasDelInforme[0].querySelectorAll("td")[8].textContent).toBe("92%");
+    expect(contenedor.querySelector(".gps-reportes-franjas").textContent).toContain("Franjas de Catapult · FUTBOL · Oficial · TOTAL");
+    // VS RIVAL: el 17 no entró; los demás, sin partidos oficiales.
+    expect(filasDelInforme.map((tr) => tr.querySelector("td.gps-informe-rival").textContent)).toEqual(["", "", ""]);
+
+    // Visualización, Tipo de variable y Categorización.
+    const desplegables = [...contenedor.querySelectorAll(".gps-reportes-grilla select")];
+    expect(desplegables.map((select) => [...select.options].map((option) => option.textContent))).toEqual([
+      ["Absolutas", "Relativas"],
+      ["Valor promedio", "Valor suma", "% del promedio", "% de la suma"],
+      ["Mi selección", "Valor referencial"],
+    ]);
+    await elegir(desplegables[2], "valorReferencial");
+    // Con Valor referencial, la U.A. no tiene franjas ni colores.
+    expect([...contenedor.querySelectorAll(".gps-informe-tabla tbody tr")].every((tr) => !tr.querySelectorAll("td")[2].style.background)).toBe(true);
+
+    // + Otro V.R.: el de Sport, y un solo botón para ver sus franjas.
+    await tocar(boton("+ Otro V.R."));
+    expect([...contenedor.querySelectorAll(".gps-reportes-vr select")].map((select) => select.options[select.selectedIndex].textContent)).toEqual(["Catapult · FUTBOL · Oficial · TOTAL", "Sport · FUTBOL · FUTBOL 2 · TOTAL"]);
+    await tocar(botones().find((b) => b.textContent.startsWith("Ver las de Sport")));
+    expect(contenedor.querySelector(".gps-reportes-franjas").textContent).toContain("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL");
+    await tocar(botones().find((b) => b.getAttribute("aria-label") === "Quitar este V.R."));
+    expect(contenedor.querySelectorAll(".gps-reportes-vr select")).toHaveLength(1);
+
+    // Volver a los filtros y «Limpiar filtros»: entran también los jugadores.
+    await tocar(boton("Filtros"));
+    await tocar(boton("Limpiar filtros"));
+    expect(botones().find((b) => b.getAttribute("aria-label") === "Microciclo/Jugador").textContent).toBe("Todos");
+    expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("el informe tiene 5 filas");
+    await tocar(siguiente());
+    const etiquetas = [...contenedor.querySelectorAll(".gps-informe-tabla tbody th")].map((th) => th.textContent);
+    expect(etiquetas).toEqual(["ALFA17 a 20", "Team Average Sesion17", "Team Average Sesion18", "Team Average Sesion19", "Team Average Sesion20"]);
+    // VS RIVAL del 17: el TOTAL, aunque se cargó en el medio.
+    expect(contenedor.querySelectorAll(".gps-informe-tabla tbody td.gps-informe-rival")[1].textContent).toBe("Vs Rival Uno TOTAL");
+  });
+
   test("Cargar: el % vs V.R. de partido es el del dispositivo elegido al subir el CSV", async () => {
     datos.referencias = [...dePartido({ d_min: 100 }), { id: "s1", dispositivo: "sport", tipo: "FUTBOL", tabla: "FUTBOL 2", grupo: "TOTAL", orden: 2, promedio: { d_min: 200 }, desvio: {}, dePartido: false }];
     await montar();
@@ -1743,7 +1845,7 @@ describe("GPS", () => {
     await montar();
     await tocar(boton("Ver cómo se usa"));
     expect(hoja().querySelector("h3").textContent).toBe("Cómo se usa GPS");
-    expect([...hoja().querySelectorAll(".guia-seccion h4")].map((h) => h.textContent)).toEqual(["Cargar un día", "Ver y corregir lo cargado", "Valores de referencia", "Traer lo que ya tenías", "Ajustes", "Palabras que vas a ver"]);
+    expect([...hoja().querySelectorAll(".guia-seccion h4")].map((h) => h.textContent)).toEqual(["Cargar un día", "Ver y corregir lo cargado", "Reportes", "Valores de referencia", "Traer lo que ya tenías", "Ajustes", "Palabras que vas a ver"]);
     // Cargar un día: cuatro pasos, cada uno con lo que hay que hacer.
     expect(hoja().querySelectorAll(".guia-seccion")[0].querySelectorAll("li")).toHaveLength(4);
     expect([...hoja().querySelectorAll("dt")].map((dt) => dt.textContent)).toContain("Team Average");
@@ -1814,6 +1916,12 @@ describe("GPS", () => {
     revisar("Pegar desde una planilla");
     await irA(contenedor, "Valores de referencia");
     revisar("Valores de referencia");
+    await irA(contenedor, "Reportes");
+    revisar("Reportes");
+    await tocar(document.body.querySelector(".reporte-opcion"));
+    revisar("Por microciclo › Filtros");
+    await tocar(siguiente());
+    revisar("Por microciclo › el informe");
     await irA(contenedor, "Ajustes");
     revisar("Ajustes");
     await tocar(ajuste("Reglas de carga"));
