@@ -11,9 +11,7 @@ import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, TextoConPasos, useGuiaDelModulo } from "./components/Guia.jsx";
 import ReportesLesiones from "./ReportesLesiones.jsx";
 import ImportarLesiones from "./ImportarLesiones.jsx";
-import { FiguraCuerpo } from "./components/FiguraCuerpo.jsx";
-import { CAMPOS_DE_ESTRUCTURA, ElegirEstructura, ElegirZona, vistaDeLesion } from "./components/MapaCorporal.jsx";
-import { CAMPOS_DEL_CUERPO, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre } from "./domain/mapaCorporal.js";
+import { CAMPOS_DEL_CUERPO, REGIONES, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre } from "./domain/mapaCorporal.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import {
@@ -88,8 +86,10 @@ export const DESTINOS_LESIONES = [
 // Las palabras propias de Lesiones con su «?» (textos que guían, 14/10).
 const TERMINOS_LESIONES = ["etapa", "diasDeBaja", "severidad", "recurrencia", "cadaMil", "referencia", "filtros"];
 
-// Hasta esta cantidad, las opciones van como botones a la vista; con más, en la hoja con buscador.
-const MAXIMO_CHIPS = 6;
+// Lo que se elige en la parte del cuerpo ya elegida (Descripción específica),
+// de lo grande a lo chico: el grupo muscular, el músculo, su área y el
+// ligamento.
+const CAMPOS_DE_ESTRUCTURA = ["musculo", "musculo_especifico", "area", "ligamento"];
 // En la ficha, la pestaña de los cambios va después de las de los grupos.
 const SECCION_CAMBIOS = "cambios";
 // Las columnas que deciden si una lesión nueva puede ser recidiva.
@@ -163,10 +163,9 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const [pasoMaximo, setPasoMaximo] = useState(0);
   const [errorFormulario, setErrorFormulario] = useState("");
   const [busquedaJugador, setBusquedaJugador] = useState("");
-  // Los pasos donde se eligió cargar de la lista en vez de con la figura, y
-  // desde dónde se mira la figura (de frente o de espaldas).
+  // Los pasos donde se pidió ver todas las opciones de las listas, no solo las
+  // de la parte del cuerpo elegida.
   const [deLaLista, setDeLaLista] = useState({});
-  const [vistaCuerpo, setVistaCuerpo] = useState("frente");
 
   // Hojas: elegir de una lista (como los desplegables de Partido), dar el
   // alta, borrar.
@@ -429,7 +428,6 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     setErrorFormulario("");
     setBusquedaJugador("");
     setDeLaLista({});
-    setVistaCuerpo("frente");
     setSeccionFicha(null);
     setPaso(0);
     setPasoMaximo(0);
@@ -442,8 +440,6 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     const delGrupo = pasos.findIndex((unPaso) => unPaso.id === grupo);
     setErrorFormulario("");
     setDeLaLista({});
-    // La figura, como en la ficha: de espaldas si la lesión es de atrás.
-    setVistaCuerpo(vistaDeLesion(mapa.piezaDe(lesion.datos?.parte_cuerpo, mapa.regionDe(lesion.datos?.parte_cuerpo, lesion.datos?.lado)), lesion.datos?.musculo));
     setPaso(delGrupo >= 0 ? delGrupo : Math.min(1, pasos.length - 1));
     setPasoMaximo(pasos.length - 1);
     abrirFormulario({ ...lesion, datos: { ...(lesion.datos || {}) } });
@@ -1178,9 +1174,6 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     const secciones = seccionesDeFicha();
     const seccion = secciones.find((una) => una.id === seccionFicha) || secciones[0];
     const diagnostico = enPantalla(campoPorClave("diagnostico"), lesion) || textoDeOpcion("parte_cuerpo", lesion.datos?.parte_cuerpo);
-    // La figura chica con la parte lesionada (de espaldas si es de atrás).
-    const regionLesion = mapa.regionDe(lesion.datos?.parte_cuerpo, lesion.datos?.lado);
-    const piezaLesion = mapa.piezaDe(lesion.datos?.parte_cuerpo, regionLesion);
     return (
       <div className="app">
         <div className="contenedor ficha-registro lesiones-ficha">
@@ -1200,11 +1193,6 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
           </Encabezado>
 
           <section className="marcador-ficha lesiones-marcador" aria-label={t("lesiones.ficha.resumen")}>
-            {piezaLesion && (
-              <div className="lesiones-marcador-figura" aria-hidden="true">
-                <FiguraCuerpo chica vista={vistaDeLesion(piezaLesion, lesion.datos?.musculo)} elegida={{ parte: piezaLesion, region: regionLesion }} />
-              </div>
-            )}
             <div className="lesiones-marcador-texto">
               <span>{etiqueta("diagnostico")}</span>
               <strong>{diagnostico || "—"}</strong>
@@ -1284,29 +1272,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     const opcional = !campo.obligatorio ? <em className="lesiones-opcional">{t("lesiones.pasos.opcional")}</em> : null;
     switch (campo.tipo) {
       case "lista": {
-        const lista = opciones(campo.clave);
-        if (lista.length <= MAXIMO_CHIPS) {
-          return (
-            <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
-              <label>
-                {rotulo} {opcional}
-              </label>
-              <div className="grilla-criterios lesiones-chips">
-                {lista.map((opcion) => (
-                  <button
-                    type="button"
-                    key={opcion.valor}
-                    className={`chip-criterio ${valor === opcion.valor ? "prendido" : ""}`}
-                    aria-pressed={valor === opcion.valor}
-                    onClick={() => cambiar(valor === opcion.valor ? null : opcion.valor)}
-                  >
-                    {opcion.etiqueta}
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        }
+        // La parte del cuerpo, de la cabeza a los pies y con lo que tiene cada una.
+        const lista = campo.clave === "parte_cuerpo" ? partesDeLaCabezaALosPies(opciones(campo.clave)) : opciones(campo.clave);
         return (
           <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
             <label>
@@ -1473,67 +1440,157 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   };
   const cambiarVarios = (cambios) => setFormulario((actual) => conCambios(actual, cambios));
 
-  // Dónde fue: la figura del cuerpo en lugar de la parte y el lado.
-  const zonaDelPaso = (lesion) => (
-    <div className="campo-inicio lesiones-campo-paso" key="zona">
-      <label>
-        {etiqueta("parte_cuerpo")} · {etiqueta("lado")}
-      </label>
-      <ElegirZona
-        parte={lesion.datos?.parte_cuerpo || null}
-        lado={lesion.datos?.lado || null}
-        partes={opciones("parte_cuerpo").map((opcion) => opcion.valor)}
-        lados={opciones("lado")}
-        opciones={opciones}
-        mapa={mapa}
-        textoDeOpcion={textoDeOpcion}
-        onCambiar={cambiarVarios}
-        vista={vistaCuerpo}
-        onVista={setVistaCuerpo}
-      />
-    </div>
-  );
+  // La parte del cuerpo en el desplegable: de la cabeza a los pies (las que
+  // agregó el club, al lado de la parte donde van; las que no se sabe dónde
+  // van, al final). Debajo de cada una, lo que tiene, para ayudar a elegir.
+  const partesDeLaCabezaALosPies = (lista) => {
+    const orden = [...new Set(REGIONES.flatMap((region) => mapa.partesDeRegion(region.clave)).filter((codigo) => mapa.partesDeOpcion("parte_cuerpo", codigo)))];
+    const lugar = (codigo) => (orden.includes(codigo) ? orden.indexOf(codigo) : orden.length);
+    return [...lista].sort((una, otra) => lugar(una.valor) - lugar(otra.valor)).map((opcion) => ({ ...opcion, detalle: queTiene(opcion.valor) }));
+  };
+  // Lo que tiene una parte: los grupos musculares (o los músculos) y los
+  // ligamentos de las listas que están a la vista, los tres primeros. Una
+  // parte que no se sabe dónde va ofrece de todo: no hay nada que adelantar.
+  const queTiene = (parte) => {
+    if (!mapa.partesDeOpcion("parte_cuerpo", parte)) return "";
+    const aLaVista = (campo, codigos) => {
+      if (campoOculto(campo, config)) return [];
+      const delClub = new Set(opciones(campo).map((opcion) => opcion.valor));
+      return codigos.filter((codigo) => delClub.has(codigo));
+    };
+    const enLaParte = mapa.estructurasDe(parte);
+    const grupos = aLaVista("musculo", enLaParte.musculos);
+    const textos = [
+      ...grupos.map((grupo) => textoDeOpcion("musculo", grupo)),
+      ...(grupos.length ? [] : aLaVista("musculo_especifico", enLaParte.especificos).map((uno) => textoDeOpcion("musculo_especifico", uno))),
+      ...aLaVista("ligamento", enLaParte.ligamentos).map((uno) => textoDeOpcion("ligamento", uno)),
+    ];
+    return textos.length > 3 ? `${textos.slice(0, 3).join(", ")}…` : textos.join(", ");
+  };
 
-  // Qué estructura: lo que va en esa parte, con botones.
-  const estructuraDelPaso = (lesion) => (
-    <ElegirEstructura
-      key="estructura"
-      parte={lesion.datos.parte_cuerpo}
-      lado={lesion.datos?.lado || null}
-      vista={vistaCuerpo}
-      valores={Object.fromEntries(CAMPOS_DE_ESTRUCTURA.map((clave) => [clave, valorDe(lesion, clave)]))}
-      opciones={opciones}
-      visible={(clave) => !campoOculto(clave, config)}
-      mapa={mapa}
-      etiqueta={etiqueta}
-      textoDeOpcion={textoDeOpcion}
-      onCambiar={cambiarVarios}
-    />
-  );
+  // En la parte ya elegida: el grupo muscular, el músculo, el área y el
+  // ligamento, cada uno en su desplegable y solo con lo que va en esa parte
+  // (las opciones de las listas del club a la vista; `mapa` dice dónde va
+  // cada una, también las que agregó el club).
+  const estructuraDelPaso = (lesion, campos) => {
+    const valores = lesion.datos || {};
+    const parte = valores.parte_cuerpo;
+    const seVe = (clave) => campos.some((campo) => campo.clave === clave);
+    const delClub = (campo, codigos) => {
+      const aLaVista = opciones(campo);
+      return codigos.map((codigo) => aLaVista.find((opcion) => opcion.valor === codigo)).filter(Boolean);
+    };
+    const enLaParte = mapa.estructurasDe(parte);
+    // El grupo cargado filtra los músculos solo si su columna se ve.
+    const grupo = seVe("musculo") ? valores.musculo : null;
+    const listas = {
+      musculo: delClub("musculo", enLaParte.musculos),
+      musculo_especifico: delClub("musculo_especifico", mapa.especificosDe(parte, grupo)),
+      ligamento: delClub("ligamento", enLaParte.ligamentos),
+    };
+    // Sin grupo elegido, cada músculo dice de qué grupo es.
+    if (!grupo && seVe("musculo")) {
+      listas.musculo_especifico = listas.musculo_especifico.map((opcion) => ({
+        ...opcion,
+        detalle: mapa
+          .gruposDe(parte, opcion.valor)
+          .filter((uno) => listas.musculo.some((delGrupo) => delGrupo.valor === uno))
+          .map((uno) => textoDeOpcion("musculo", uno))
+          .join(", "),
+      }));
+    }
+    // El área es la de un músculo: se ofrece si en esta parte hay músculos (o
+    // si ya hay algo cargado). Primero las del músculo entero y después las de
+    // cada tercio (proximal, medio, distal).
+    const conMusculos = Boolean(listas.musculo.length || listas.musculo_especifico.length || valores.musculo || valores.musculo_especifico || valores.area);
+    const tercio = (codigo) => TERCIOS.indexOf(mapa.tercioDeArea(codigo)) + 1;
+    listas.area = conMusculos ? [...opciones("area")].sort((una, otra) => tercio(una.valor) - tercio(otra.valor)) : [];
 
-  // Las columnas de un paso. Donde se elige la parte del cuerpo va la figura,
-  // y donde se elige la estructura, sus botones; con "Elegir de la lista"
-  // vuelven los campos de siempre.
+    // Un músculo específico que en esta parte es de un solo grupo completa el
+    // grupo si estaba vacío (como se carga en el Excel), si esa columna y ese
+    // grupo están a la vista en el club. Si no está entre los del grupo
+    // elegido, pasa a su grupo, o queda sin grupo si no se sabe cuál.
+    const cambiosDeEspecifico = (codigo) => {
+      const cambios = { musculo_especifico: codigo };
+      if (codigo && seVe("musculo")) {
+        const aLaVista = mapa.gruposDe(parte, codigo).filter((uno) => listas.musculo.some((opcion) => opcion.valor === uno));
+        if (!valores.musculo) {
+          if (aLaVista.length === 1) cambios.musculo = aLaVista[0];
+        } else if (!mapa.especificosDe(parte, valores.musculo).includes(codigo)) {
+          cambios.musculo = aLaVista.length === 1 ? aLaVista[0] : null;
+        }
+      }
+      return cambios;
+    };
+    // Otro grupo: el músculo específico de otro grupo de esta parte ya no vale.
+    const cambiosDeGrupo = (valor) => {
+      const cambios = { musculo: valor };
+      if (mapa.especificoQueNoEsDe(parte, valor, valores.musculo_especifico)) cambios.musculo_especifico = null;
+      return cambios;
+    };
+    const alElegir = {
+      musculo: (valor) => cambiarVarios(cambiosDeGrupo(valor)),
+      musculo_especifico: (valor) => cambiarVarios(cambiosDeEspecifico(valor)),
+      area: (valor) => cambiarVarios({ area: valor }),
+      ligamento: (valor) => cambiarVarios({ ligamento: valor }),
+    };
+
+    // Una columna sin nada para esta parte (ni cargado) no se muestra. Lo
+    // cargado que no va en esta parte (o una opción que se escondió) se ve
+    // igual, para poder sacarlo.
+    const desplegable = (campo) => {
+      const lista = listas[campo.clave];
+      const valor = valores[campo.clave] || null;
+      if (!lista.length && !valor) return null;
+      const conLoCargado = valor && !lista.some((opcion) => opcion.valor === valor) ? [...lista, { valor, etiqueta: textoDeOpcion(campo.clave, valor) }] : lista;
+      const rotulo = etiqueta(campo.clave);
+      return (
+        <div className="campo-inicio lesiones-campo-paso" key={campo.clave}>
+          <label>
+            {rotulo} {!campo.obligatorio && <em className="lesiones-opcional">{t("lesiones.pasos.opcional")}</em>}
+          </label>
+          {selectorConHoja({
+            titulo: rotulo,
+            opciones: [...(campo.obligatorio ? [] : [{ valor: "", etiqueta: t("comun.sinDato") }]), ...conLoCargado],
+            valor: valor || "",
+            alElegir: (elegido) => alElegir[campo.clave](elegido || null),
+          })}
+        </div>
+      );
+    };
+    const desplegables = CAMPOS_DE_ESTRUCTURA.map((clave) => campos.find((campo) => campo.clave === clave))
+      .filter(Boolean)
+      .map(desplegable)
+      .filter(Boolean);
+    const lado = valores.lado && valores.lado !== "nao_se_aplica" ? textoDeOpcion("lado", valores.lado) : "";
+    return (
+      <React.Fragment key="estructura">
+        <DatoDetalle label={etiqueta("parte_cuerpo")} valor={[textoDeOpcion("parte_cuerpo", parte), lado].filter(Boolean).join(" · ")} />
+        {desplegables.length ? desplegables : <p className="lesiones-ayuda">{t("lesiones.cuerpo.sinEstructuras")}</p>}
+      </React.Fragment>
+    );
+  };
+
+  // Las columnas de un paso. Con la parte del cuerpo elegida, el músculo, el
+  // área y el ligamento ofrecen solo lo que va en esa parte; «Ver todas las
+  // opciones» muestra las listas enteras.
   const camposDelPaso = (unPaso, campos, lesion) => {
     const enLista = Boolean(deLaLista[unPaso.id]);
     const manuales = campos.filter((campo) => campo.clave !== "jugador");
-    const conZona = manuales.some((campo) => campo.clave === "parte_cuerpo");
-    const conEstructura = Boolean(lesion.datos?.parte_cuerpo) && manuales.some((campo) => CAMPOS_DE_ESTRUCTURA.includes(campo.clave));
-    const primeraDeEstructura = manuales.find((campo) => CAMPOS_DE_ESTRUCTURA.includes(campo.clave))?.clave;
-    const piezas = manuales.map((campo) => {
-      if (!enLista && conZona && campo.clave === "parte_cuerpo") return zonaDelPaso(lesion);
-      if (!enLista && conZona && campo.clave === "lado") return null;
-      if (!enLista && conEstructura && CAMPOS_DE_ESTRUCTURA.includes(campo.clave)) return campo.clave === primeraDeEstructura ? estructuraDelPaso(lesion) : null;
-      return campoDelPaso(campo, lesion);
-    });
     if (manuales.length === 0) return null;
+    const parte = lesion.datos?.parte_cuerpo || null;
+    const deEstructura = manuales.filter((campo) => CAMPOS_DE_ESTRUCTURA.includes(campo.clave));
+    const conEstructura = Boolean(parte) && deEstructura.length > 0;
+    const piezas = manuales.map((campo) => {
+      if (!conEstructura || enLista || !CAMPOS_DE_ESTRUCTURA.includes(campo.clave)) return campoDelPaso(campo, lesion);
+      return campo === deEstructura[0] ? estructuraDelPaso(lesion, deEstructura) : null;
+    });
     return (
       <section className="tarjeta tarjeta-ficha lesiones-grupo">
         {piezas}
-        {(conZona || conEstructura) && (
+        {conEstructura && (
           <button type="button" className="lesiones-cambiar-modo" onClick={() => setDeLaLista((previos) => ({ ...previos, [unPaso.id]: !enLista }))}>
-            <Icono nombre={enLista ? "usuario" : "registros"} size={15} />
-            {enLista ? t("lesiones.cuerpo.conFigura") : t("lesiones.cuerpo.deLaLista")}
+            {enLista ? t("lesiones.cuerpo.soloDeLaParte", { parte: textoDeOpcion("parte_cuerpo", parte) }) : t("lesiones.cuerpo.todas")}
           </button>
         )}
       </section>
