@@ -3,7 +3,9 @@ import {
   COLORES_INFORME,
   cargasCronicas,
   colorDeCargaCronica,
+  colorDeMayorMejor,
   colorDeUa,
+  colorDeVariable,
   cuentasDeGrupo,
   entraEnElInforme,
   filasPorMicrociclo,
@@ -224,6 +226,36 @@ describe("el V.R. de cada fila y el informe entero", () => {
 });
 
 describe("los colores del Excel en Por microciclo", () => {
+  test("los colores son los del archivo, más suaves (Santiago, 15/10, «B»)", () => {
+    expect(COLORES_INFORME).toEqual({ excelente: "#8FC79B", muyBueno: "#D3EDC9", bueno: "#FBF0A6", regularUa: "#FBDCC2", naranja: "#F7C79A", malo: "#F4A7A7" });
+  });
+  test("índices y variables: lo alto es Excelente, como el archivo en Por jugador (los bordes, en la franja de arriba)", () => {
+    const franjas = franjasDe(100, 10);
+    expect([125, 120, 115, 110, 105, 100, 95, 90, 85, 75].map((valor) => colorDeMayorMejor(valor, franjas))).toEqual([
+      COLORES_INFORME.excelente,
+      COLORES_INFORME.excelente,
+      COLORES_INFORME.muyBueno,
+      COLORES_INFORME.muyBueno,
+      COLORES_INFORME.bueno,
+      COLORES_INFORME.bueno,
+      COLORES_INFORME.naranja,
+      COLORES_INFORME.naranja,
+      COLORES_INFORME.malo,
+      COLORES_INFORME.malo,
+    ]);
+    // Sin franjas (o sin un número), sin color.
+    expect(colorDeMayorMejor(100, null)).toBeNull();
+    expect(colorDeMayorMejor(null, franjas)).toBeNull();
+    expect(colorDeMayorMejor(100, { ...franjas, regular: null })).toBeNull();
+  });
+  test("variables: un 0 va en rojo, también sin franjas (la primera regla del archivo para ellas)", () => {
+    const franjas = franjasDe(-10, 5);
+    expect(colorDeMayorMejor(0, franjas)).toBe(COLORES_INFORME.excelente);
+    expect(colorDeVariable(0, franjas)).toBe(COLORES_INFORME.malo);
+    expect(colorDeVariable(0, null)).toBe(COLORES_INFORME.malo);
+    expect(colorDeVariable(-12, franjas)).toBe(colorDeMayorMejor(-12, franjas));
+    expect(colorDeVariable(null, franjas)).toBeNull();
+  });
   test("U.A.: lo bajo es Excelente", () => {
     const franjas = franjasDe(100, 10, { alReves: true });
     expect([70, 80, 85, 100, 105, 115].map((valor) => colorDeUa(valor, franjas))).toEqual([

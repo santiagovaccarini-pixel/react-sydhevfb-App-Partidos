@@ -1,5 +1,6 @@
 import { esNumero } from "./valores.js";
 import { CATEGORIAS_DE_UN_VR } from "./informe.js";
+import { COLORES_SUAVES } from "../colores.js";
 
 // GPS › Reportes › Por microciclo: la parte «Por microciclo» de la hoja
 // «INFORME GPS» del Excel (filas 7 a 69), con la tabla dinámica que la arma
@@ -608,15 +609,20 @@ export const informePorMicrociclo = (filasGps, opciones) => {
 };
 
 // ------------------------------------------------------- Los colores --
-// Los colores del Excel en «Por microciclo»: solo la U.A. (con «Mi
-// selección») y la carga crónica. Las demás columnas no se pintan.
+// Todas las columnas se pintan, cada una con su regla del archivo (Santiago,
+// 15/10: «Todas las columnas se pintan con sus reglas»): la U.A. y la carga
+// crónica, como el archivo en «Por microciclo»; los índices y las variables,
+// con la regla que el archivo usa para esas columnas en «Por jugador» (en
+// «Por microciclo» no las pintaba). Los colores son los del archivo, más
+// suaves (Santiago, 15/10, «B»; en el archivo: A7B093, C8E7A7, FFFF7F,
+// FBCAA2, F1B584 y FF7F7F).
 export const COLORES_INFORME = Object.freeze({
-  excelente: "#A7B093",
-  muyBueno: "#C8E7A7",
-  bueno: "#FFFF7F",
-  regularUa: "#FBCAA2",
-  naranja: "#F1B584",
-  malo: "#FF7F7F",
+  excelente: COLORES_SUAVES.verdeOscuro,
+  muyBueno: COLORES_SUAVES.verde,
+  bueno: COLORES_SUAVES.amarillo,
+  regularUa: COLORES_SUAVES.naranjaClaro,
+  naranja: COLORES_SUAVES.naranja,
+  malo: COLORES_SUAVES.rojo,
 });
 
 // U.A.: ≤ Excelente verde oscuro; ≤ Muy Bueno verde; ≤ Bueno amarillo;
@@ -629,6 +635,24 @@ export const colorDeUa = (valor, franjas) => {
   if (valor <= franjas.regular) return COLORES_INFORME.regularUa;
   return COLORES_INFORME.malo;
 };
+
+// Índices y variables, con la regla del archivo para esas columnas (en
+// «Por jugador»; con «Mi selección» y «Valor referencial», contra sus
+// franjas; con «Objetivo», contra el objetivo ± el desvío, que son sus
+// franjas): ≥ Excelente verde oscuro; ≥ Muy Bueno verde; ≥ Bueno amarillo;
+// ≥ Regular naranja; menos, rojo. Sin franjas, sin color.
+export const colorDeMayorMejor = (valor, franjas) => {
+  if (!esNumero(valor) || !franjas || !["excelente", "muyBueno", "bueno", "regular"].every((franja) => esNumero(franjas[franja]))) return null;
+  if (valor >= franjas.excelente) return COLORES_INFORME.excelente;
+  if (valor >= franjas.muyBueno) return COLORES_INFORME.muyBueno;
+  if (valor >= franjas.bueno) return COLORES_INFORME.bueno;
+  if (valor >= franjas.regular) return COLORES_INFORME.naranja;
+  return COLORES_INFORME.malo;
+};
+
+// Las variables, además, con la primera regla del archivo para ellas: un 0
+// va en rojo (también sin franjas).
+export const colorDeVariable = (valor, franjas) => (valor === 0 ? COLORES_INFORME.malo : colorDeMayorMejor(valor, franjas));
 
 // Carga crónica (en U): rojo en los dos extremos, naranja al lado y amarillo
 // al medio. Con las franjas de menor a mayor (Excelente < Malo): ≤ Excelente

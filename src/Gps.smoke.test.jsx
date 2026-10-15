@@ -1757,18 +1757,25 @@ describe("GPS", () => {
     await tocar(siguiente());
     expect(contenedor.querySelector(".gps-reportes-resumen").textContent).toBe("Filtros: Microciclo: 18 a 20 · Microciclo/Jugador: Sesión (promedio del equipo)");
     const tabla = contenedor.querySelector(".gps-informe-tabla");
-    const filasDelInforme = [...tabla.querySelectorAll("tbody tr")];
-    expect(filasDelInforme.map((tr) => tr.querySelector("th").textContent)).toEqual(["Team Average Sesion18", "Team Average Sesion19", "Team Average Sesion20"]);
+    const filasDelInforme = [...tabla.querySelectorAll("tbody.gps-informe-filas tr")];
+    // Solo microciclos del equipo: cada fila dice su número (Santiago, 15/10:
+    // la presentación) y arriba, cuántos son y de qué V.R. son las franjas.
+    expect(tabla.querySelector("thead th").textContent).toBe("Microciclo");
+    expect(filasDelInforme.map((tr) => tr.querySelector("th").textContent)).toEqual(["18", "19", "20"]);
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("3 microciclosFranjas de Catapult · FUTBOL · Oficial · TOTAL");
     // N° Sesiones (con el descanso) y N° Descanso.
     expect(filasDelInforme.map((tr) => [tr.querySelectorAll("td")[0].textContent, tr.querySelectorAll("td")[1].textContent])).toEqual([["2", "1"], ["2", "0"], ["2", "0"]]);
-    // Las franjas arriba y los colores de la U.A.
-    expect([...tabla.querySelectorAll("thead tr.gps-informe-franja th")].map((th) => th.textContent)).toEqual(["Excelente", "Muy bueno", "Bueno (promedio)", "Regular", "Malo", "Desvío"]);
+    // Las franjas, en su bloque, con el color que toma cada una al lado de su número.
+    expect([...tabla.querySelectorAll("tbody.gps-informe-franjas th")].map((th) => th.textContent)).toEqual(["V.R.", "Excelente", "Muy bueno", "Bueno (promedio)", "Regular", "Malo", "Desvío"]);
+    expect(tabla.querySelectorAll("tbody.gps-informe-franjas tr.franja-excelente .gps-informe-punto").length).toBeGreaterThan(0);
+    expect(tabla.querySelectorAll("tbody.gps-informe-franjas tr.franja-desvio .gps-informe-punto")).toHaveLength(0);
+    // Todas las columnas se pintan con sus reglas (Santiago, 15/10): la U.A. y también los índices.
     expect(filasDelInforme.every((tr) => tr.querySelectorAll("td")[2].style.background)).toBe(true);
     // El % del promedio de D contra el V.R. (D 5000 → 4590 / 5000 en el 18).
     expect(filasDelInforme[0].querySelectorAll("td")[8].textContent).toBe("92%");
-    expect(contenedor.querySelector(".gps-reportes-franjas").textContent).toContain("Franjas de Catapult · FUTBOL · Oficial · TOTAL");
-    // VS RIVAL: el 17 no entró; los demás, sin partidos oficiales.
-    expect(filasDelInforme.map((tr) => tr.querySelector("td.gps-informe-rival").textContent)).toEqual(["", "", ""]);
+    expect(filasDelInforme.every((tr) => tr.querySelectorAll("td")[8].style.background)).toBe(true);
+    // VS RIVAL: el 17 no entró; los demás, sin partidos oficiales («–»: sin dato).
+    expect(filasDelInforme.map((tr) => tr.querySelector("td.gps-informe-rival").textContent)).toEqual(["–", "–", "–"]);
 
     // Visualización, Tipo de variable y Categorización.
     const desplegables = [...contenedor.querySelectorAll(".gps-reportes-grilla select")];
@@ -1778,14 +1785,17 @@ describe("GPS", () => {
       ["Mi selección", "Valor referencial", "Objetivo sesión/microciclo"],
     ]);
     await elegir(desplegables[2], "valorReferencial");
-    // Con Valor referencial, la U.A. no tiene franjas ni colores.
-    expect([...contenedor.querySelectorAll(".gps-informe-tabla tbody tr")].every((tr) => !tr.querySelectorAll("td")[2].style.background)).toBe(true);
+    // Con Valor referencial, la U.A. no tiene franjas ni colores (como el
+    // archivo); los índices, sí: contra las franjas del V.R.
+    const conVr = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas tr")];
+    expect(conVr.every((tr) => !tr.querySelectorAll("td")[2].style.background)).toBe(true);
+    expect(conVr.every((tr) => tr.querySelectorAll("td")[8].style.background)).toBe(true);
 
     // + Otro V.R.: el de Sport, y un solo botón para ver sus franjas.
     await tocar(boton("+ Otro V.R."));
     expect([...contenedor.querySelectorAll(".gps-reportes-vr select")].map((select) => select.options[select.selectedIndex].textContent)).toEqual(["Catapult · FUTBOL · Oficial · TOTAL", "Sport · FUTBOL · FUTBOL 2 · TOTAL"]);
     await tocar(botones().find((b) => b.textContent.startsWith("Ver las de Sport")));
-    expect(contenedor.querySelector(".gps-reportes-franjas").textContent).toContain("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL");
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toContain("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL");
     await tocar(botones().find((b) => b.getAttribute("aria-label") === "Quitar este V.R."));
     expect(contenedor.querySelectorAll(".gps-reportes-vr select")).toHaveLength(1);
 
@@ -1795,15 +1805,78 @@ describe("GPS", () => {
     expect(botones().find((b) => b.getAttribute("aria-label") === "Microciclo/Jugador").textContent).toBe("Todos");
     expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("el informe tiene 5 filas");
     await tocar(siguiente());
-    const etiquetas = [...contenedor.querySelectorAll(".gps-informe-tabla tbody th")].map((th) => th.textContent);
+    // Con jugadores y microciclos: la primera columna dice qué es cada fila.
+    expect(contenedor.querySelector(".gps-informe-tabla thead th").textContent).toBe("Nombre / Microciclo");
+    const etiquetas = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas th")].map((th) => th.textContent);
     expect(etiquetas).toEqual(["ALFA17 a 20", "Team Average Sesion17", "Team Average Sesion18", "Team Average Sesion19", "Team Average Sesion20"]);
     // VS RIVAL del 17: el TOTAL, aunque se cargó en el medio.
-    expect(contenedor.querySelectorAll(".gps-informe-tabla tbody td.gps-informe-rival")[1].textContent).toBe("Vs Rival Uno TOTAL");
+    expect(contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas td.gps-informe-rival")[1].textContent).toBe("Vs Rival Uno TOTAL");
     // El jugador, con la carga crónica del último microciclo elegido (el 20: su U.A. ÷ la de ese y los 3 anteriores).
-    expect(contenedor.querySelector(".gps-informe-tabla tbody tr").querySelectorAll("td")[4].textContent).toBe("1,00");
+    expect(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-filas tr").querySelectorAll("td")[4].textContent).toBe("1,00");
     // Objetivo: sin «Jugador» en Microciclo/Jugador, avisa que las variables no tienen franjas.
     await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "objetivo");
     expect(contenedor.querySelector(".gps-reportes-objetivo").textContent).toContain("«Jugador» en Microciclo/Jugador");
+  });
+
+  test("Informe › ocultar columnas y filas: pregunta antes, las columnas se recuerdan y todo se vuelve a mostrar", async () => {
+    datos.filas = INFORME();
+    datos.referencias = [{ id: "c1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 5000, tiempo: 3600 }, desvio: { d: 500 }, dePartido: false }];
+    await montar();
+    await irA(contenedor, "Informe");
+    await tocar(contenedor.querySelector(".reporte-opcion"));
+    await tocar(siguiente());
+    const cabecerasDelInforme = () => [...contenedor.querySelectorAll(".gps-informe-tabla .gps-informe-cabecera")].map((b) => b.textContent);
+    const filasDelInforme = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas th")].map((th) => th.textContent);
+    const loQueSeVe = () => [...contenedor.querySelectorAll(".gps-informe-ver")].map((b) => b.textContent);
+    expect(loQueSeVe()).toEqual(["ColumnasTodas", "FilasTodas"]);
+    const columnasAlEntrar = cabecerasDelInforme().length;
+    // La Suma de la carga crónica: tocar su cabecera pregunta, y «Cancelar» la deja.
+    const sumaDeLaCronica = () => [...contenedor.querySelectorAll(".gps-informe-tabla th.tono-1 .gps-informe-cabecera")].find((b) => b.textContent === "Suma");
+    await tocar(sumaDeLaCronica());
+    expect(document.body.querySelector(".hoja-confirmar h3").textContent).toBe("¿Ocultar «Carga crónica · Suma»?");
+    expect(document.body.querySelector(".hoja-confirmar p").textContent).toContain("Los números no cambian");
+    await tocar(boton("Cancelar"));
+    expect(cabecerasDelInforme()).toHaveLength(columnasAlEntrar);
+    // «Ocultar»: deja de verse y queda guardada en el aparato.
+    await tocar(sumaDeLaCronica());
+    await tocar(boton("Ocultar"));
+    expect(cabecerasDelInforme()).toHaveLength(columnasAlEntrar - 1);
+    expect(sumaDeLaCronica()).toBeUndefined();
+    expect(loQueSeVe()).toEqual(["Columnas1 oculta", "FilasTodas"]);
+    expect(JSON.parse(localStorage.getItem("gps_informe_columnas_ocultas"))).toEqual(["ccSuma"]);
+    // Una fila (el microciclo 18) y la del desvío, tocando su nombre.
+    const delDiecinueve = () => {
+      const td = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas tr")].find((tr) => tr.querySelector("th").textContent === "19").querySelectorAll("td")[2];
+      return [td.textContent, td.style.background];
+    };
+    const antesDeOcultar = delDiecinueve();
+    await tocar([...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas .gps-informe-fila")].find((b) => b.textContent === "18"));
+    expect(document.body.querySelector(".hoja-confirmar h3").textContent).toBe("¿Ocultar «Microciclo 18»?");
+    await tocar(boton("Ocultar"));
+    await tocar(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-franjas tr.franja-desvio .gps-informe-fila"));
+    await tocar(boton("Ocultar"));
+    expect(filasDelInforme()).toEqual(["17", "19", "20"]);
+    expect(contenedor.querySelector(".gps-informe-tabla tr.franja-desvio")).toBeNull();
+    expect(loQueSeVe()).toEqual(["Columnas1 oculta", "Filas2 ocultas"]);
+    // Ocultar no cambia los números ni los colores: el 19 sigue igual.
+    expect(delDiecinueve()).toEqual(antesDeOcultar);
+    // Al volver al informe (otra vez desde los filtros), la columna sigue oculta y las filas vuelven.
+    act(() => raiz.unmount());
+    await montar();
+    await irA(contenedor, "Informe");
+    await tocar(contenedor.querySelector(".reporte-opcion"));
+    await tocar(siguiente());
+    expect(sumaDeLaCronica()).toBeUndefined();
+    expect(filasDelInforme()).toEqual(["17", "18", "19", "20"]);
+    // «Columnas»: la lista con casillas vuelve a mostrarla.
+    await tocar(contenedor.querySelector(".gps-informe-ver"));
+    const casilla = [...document.body.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent === "Carga crónica · Suma");
+    expect(casilla.querySelector("input").checked).toBe(false);
+    await tocar(casilla.querySelector("input"));
+    await tocar(boton("Listo"));
+    expect(sumaDeLaCronica()).toBeDefined();
+    expect(cabecerasDelInforme()).toHaveLength(columnasAlEntrar);
+    expect(JSON.parse(localStorage.getItem("gps_informe_columnas_ocultas"))).toEqual([]);
   });
 
   test("Cargar: el % vs V.R. de partido es el del dispositivo elegido al subir el CSV", async () => {

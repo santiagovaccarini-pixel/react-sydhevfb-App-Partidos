@@ -13,6 +13,27 @@ Lo que Santiago marcó así. Cada punto está completo en su sección; acá solo
   «GPS (10/10)», «Todas las filas al abrir (14/10)», «Pendiente determinante: años de
   historial».
 
+## Toda la app: presentación, colores suaves y ocultar (15/10)
+
+Santiago, 15/10, al ver el Informe de GPS con los datos del club: «NECESITO QUE HAGAS MUCHO
+HINCAPIE EN LA MANERA DE PRESENTAR LAS COSAS Y QUE SE VEAN MEJOR VISUALMENTE Y MAS INTUITIVAS
+NO SOLAMENTE PONERLAS Y PUNTO» y «NECESITAMOS UNA MANERA DE EN TODO EL SOFT DE PODER OCULTAR
+MANUALMENTE UN COLUMNA Y FILAS SIN NECESIDAD DE ENTRAR A AJUSTES Y OCULTARLAS». Lo que respondió
+a la propuesta está en «GPS (10/10)», «La presentación, los colores y ocultar».
+
+- **La presentación**: es una regla para todo lo que se haga. Está en
+  [el sistema de diseño](DESIGN_SYSTEM.md), «La presentación (15/10)».
+- **Colores suaves en toda la app** («suaviza todos los colores en todos los lugares donde se
+  use»): los colores de las franjas y los semáforos son los de los archivos del club, más suaves
+  (`COLORES_SUAVES` en `src/domain/colores.js`). Hecho en el Informe de GPS; falta el resto de
+  la app (en curso).
+- **Ocultar columnas y filas en toda la app**: tocar el nombre de una columna o de una fila
+  pregunta si se oculta; arriba de la tabla, «Columnas» y «Filas» dicen cuántas hay ocultas y
+  las vuelven a mostrar; los números no cambian. Hecho en el Informe de GPS; faltan las bases y
+  los reportes (en curso).
+- **El estilo de tabla del Informe en las demás tablas**: «Despues lo vemos». No hacerlo hasta
+  que Santiago lo pida.
+
 ## Entrenamiento (OpenField)
 
 ### Interfaz (hecha el 21/09; queda lo fino)
@@ -1721,7 +1742,8 @@ Lo que respondió a lo planteado para **Por microciclo** (15/10):
   microciclo»: como el Excel, pinta con Microciclo/Jugador en Jugador.
 - **Las franjas** (7, «No»): se ven siempre, sin pedir que se elija un filtro (en el Excel
   quedaban vacías con Microciclo, Fecha y Tipo de Sesión en «(Todas)»).
-- **Los colores** (8, «Si»): los del Excel.
+- **Los colores** (8, «Si»): los del Excel. (15/10: los mismos, más suaves, y en todas las
+  columnas: ver «La presentación, los colores y ocultar», abajo.)
 
 Lo que respondió a la segunda tanda (15/10, tarde):
 
@@ -1779,7 +1801,9 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   los grupos en su tono, la primera columna fija al deslizar, la fila del V.R. y las franjas
   (Excelente a Desvío; el Bueno es el promedio, por eso no va otra fila de Promedio) y una fila
   por microciclo (o por jugador) con los colores de la U.A. y la carga crónica. Con más de un
-  V.R., un solo botón («Ver las de …») pasa las franjas de uno a otro.
+  V.R., un solo botón («Ver las de …») pasa las franjas de uno a otro. (Desde el 15/10, otra
+  presentación, todas las columnas pintadas y ocultar a mano: ver «La presentación, los colores
+  y ocultar», abajo.)
 - **VS RIVAL**: en el promedio del equipo, el TOTAL de cada partido oficial del microciclo, en
   orden de fecha (Santiago: «toma la descripción donde la condicion sea total»); un partido sin
   TOTAL no va, como en el archivo. Comprobado con los datos del club: da igual que el archivo en
@@ -1801,6 +1825,58 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   La descripción del archivo dice que el desvío es «solo con los jugadores que poseen la
   condición SI», pero cuenta Va vacío, No y Si: se hace como calcula.
 - **Falta**: Por tarea y Por jugador, cada uno con su análisis y sus dudas.
+
+**La presentación, los colores y ocultar (15/10, después de verlo con los datos del club).**
+Santiago mandó una captura del informe con: «1. NECESITO QUE HAGAS MUCHO HINCAPIE EN LA MANERA
+DE PRESENTAR LAS COSAS Y QUE SE VEAN MEJOR VISUALMENTE Y MAS INTUITIVAS NO SOLAMENTE PONERLAS Y
+PUNTO 2. NECESITAMOS UNA MANERA DE EN TODO EL SOFT DE PODER OCULTAR MANUALMENTE UN COLUMNA Y
+FILAS SIN NECESIDAD DE ENTRAR A AJUSTES Y OCULTARLAS 3. ESTANDO EN MI SELECCION NO SE PINTA
+4. PENSAS QUE ESTA ES LA MANERA PROFESIONAL Y VISUALMENTE ESTETICA DE MOSTRAR UNOS DATOS?». Se le
+mostró una versión de prueba (antes y después, en el celular y en la compu, con datos
+inventados) y respondió: «1. Si 2. Todas las columnas se pintan con sus reglas 3. B 4. Cuando
+toco un columna o fila en cierto lugar tiene que preguntarme si la quiero ocultar 5. Si
+6. Despues lo vemos, pero si suaviza todos los colores en todos los lugares donde se use».
+
+- **La tabla** («1. Si»): arriba, cuántos microciclos (o jugadores, o filas) hay y de qué V.R.
+  son las franjas. La tabla corre dentro de su marco, con la cabecera y la primera columna
+  siempre a la vista. La cabecera es oscura y lisa: el tono de cada grupo es una línea debajo
+  de su nombre (antes, un fondo de color fuerte por grupo). La primera columna dice qué es cada
+  fila: «Microciclo» con solo microciclos del equipo (cada fila, su número), «Jugador» con solo
+  jugadores (el nombre y sus microciclos) y «Nombre / Microciclo» si hay de los dos. Las franjas
+  (el V.R. y de Excelente a Desvío) van en un bloque gris aparte, con un punto del color que
+  toma lo que cae en cada franja al lado de su número. Los números van a la derecha, con
+  cifras del mismo ancho; donde no hay dato, «–»; todas las filas del mismo alto (VS RIVAL en un
+  renglón). No cambió ningún cálculo.
+- **Todas las columnas se pintan con sus reglas** (2): la U.A. y la carga crónica, como el
+  archivo en «Por microciclo» (la U.A., solo con «Mi selección»; la carga crónica, con sus
+  franjas). Los índices y las variables, con la regla que el archivo usa para esas columnas en
+  «Por jugador» (en «Por microciclo» el archivo no las pintaba, aunque mostraba sus franjas):
+  desde Excelente, verde oscuro; desde Muy bueno, verde; desde Bueno, amarillo; desde Regular,
+  naranja; más abajo, rojo; en las variables, además, un 0 va en rojo. Vale con las tres
+  categorizaciones, contra sus franjas (con «Objetivo», el objetivo ± el desvío). Cada fila usa
+  las franjas de su V.R. (el archivo tenía otra tabla para los microciclos 10 a 16); sin
+  franjas, sin color.
+- **Los colores** («3. B»): los mismos del archivo, más suaves (`src/domain/colores.js`; en el
+  archivo eran A7B093, C8E7A7, FFFF7F, FBCAA2, F1B584 y FF7F7F). Y «suaviza todos los colores en
+  todos los lugares donde se use» (6): ver «Toda la app: presentación, colores suaves y
+  ocultar», al principio.
+- **Ocultar columnas y filas** (2, 4 y 5): tocar el nombre de una columna (su cabecera) o de
+  una fila pregunta «¿Ocultar «…»?» («Ocultar» / «Cancelar»). Arriba de la tabla, «Columnas» y
+  «Filas» dicen cuántas hay ocultas y abren la lista con casillas para volver a mostrarlas. Las
+  filas de las franjas también se ocultan. Ocultar solo deja de mostrar: los números, las
+  franjas y los colores no cambian («5. Si»; para sacar algo de las cuentas están los filtros).
+  Las columnas quedan ocultas en ese aparato hasta que se vuelvan a mostrar (como las columnas
+  fijas de las bases); las filas, hasta salir del informe (como sus filtros). Ajustes ›
+  Cabeceras sigue escondiendo para todo el club. Que sea solo de cada aparato lo propuso Claude
+  y Santiago no lo objetó (respondió cómo se oculta): si prefiere otra cosa, se cambia. En todas
+  las demás tablas: ver «Toda la app: presentación, colores suaves y ocultar», al principio.
+- **Queda para después** (6, «Despues lo vemos»): llevar este estilo de tabla a las demás
+  tablas (bases y reportes). No hacerlo hasta que Santiago lo pida.
+
+Queda prohibido en el Informe: volver a mostrar las franjas como filas de datos sin su color,
+«Team Average Sesion» en cada fila cuando todas son del equipo, un fondo de color fuerte por
+grupo en la cabecera, pintar solo la U.A. y la carga crónica, los colores fuertes del archivo y
+ocultar sin preguntar.
 
 ### Pegar desde Excel (el historial)
 
