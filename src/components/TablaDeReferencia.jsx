@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { TocarParaOcultar } from "./Ocultar.jsx";
 import { t } from "../idioma/index.js";
 import { fechaYHora } from "../idioma/formatos.js";
 
@@ -22,7 +23,12 @@ const TOQUE_QUIETO = 10;
 // undefined (no se entiende).
 // onCambiar(fila, columna, valor) → Promise<{ error }>. Sin onCambiar, la
 // tabla solo se mira.
-export const TablaDeReferencia = ({ columnas, filas, texto, interpretar, onCambiar, primera = null, minimo = null }) => {
+// ocultar (de useOcultar, el mismo para todas las tablas de la pantalla):
+// tocar el nombre de una columna o de una fila pregunta si se oculta
+// (Santiago, 15/10). Sin ocultar, se ven todas.
+export const TablaDeReferencia = ({ columnas: todasLasColumnas, filas: todasLasFilas, texto, interpretar, onCambiar, primera = null, minimo = null, ocultar = null }) => {
+  const columnas = ocultar ? todasLasColumnas.filter((columna) => !ocultar.columnaOculta(columna.clave)) : todasLasColumnas;
+  const filas = ocultar ? todasLasFilas.filter((fila) => !ocultar.filaOculta(fila.clave)) : todasLasFilas;
   const [editando, setEditando] = useState(null);
   const [guardando, setGuardando] = useState("");
   const [error, setError] = useState("");
@@ -97,7 +103,14 @@ export const TablaDeReferencia = ({ columnas, filas, texto, interpretar, onCambi
               {primera ? <th scope="col">{primera}</th> : <td />}
               {columnas.map((columna) => (
                 <th key={columna.clave} scope="col">
-                  {columna.titulo}
+                  {/* Al menos una columna queda a la vista. */}
+                  {ocultar && columnas.length > 1 ? (
+                    <TocarParaOcultar ocultar={ocultar} tipo="columna" clave={columna.clave} titulo={columna.titulo}>
+                      {columna.titulo}
+                    </TocarParaOcultar>
+                  ) : (
+                    columna.titulo
+                  )}
                 </th>
               ))}
             </tr>
@@ -105,7 +118,15 @@ export const TablaDeReferencia = ({ columnas, filas, texto, interpretar, onCambi
           <tbody>
             {filas.map((fila) => (
               <tr key={fila.clave}>
-                <th scope="row">{fila.titulo}</th>
+                <th scope="row">
+                  {ocultar ? (
+                    <TocarParaOcultar ocultar={ocultar} tipo="fila" clave={fila.clave} titulo={fila.titulo}>
+                      {fila.titulo}
+                    </TocarParaOcultar>
+                  ) : (
+                    fila.titulo
+                  )}
+                </th>
                 {columnas.map((columna) => {
                   const clave = claveDe(fila, columna);
                   const aca = editando && claveDe(editando.fila, editando.columna) === clave;

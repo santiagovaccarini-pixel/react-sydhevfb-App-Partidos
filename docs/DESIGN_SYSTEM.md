@@ -118,7 +118,9 @@ En una tabla de datos (la primera hecha así: GPS › Informe, 15/10):
   arriba, dicen cuántas hay ocultas y las vuelven a mostrar. Los números no cambian. En las
   bases, donde tocar el nombre de la cabecera ya fija y mueve la columna, se oculta desde su
   embudo; las filas, eligiéndolas y tocando «Ocultar fila». Lo oculto se ve en ámbar con las
-  demás acciones («1 columna oculta», «Mostrar las 2 filas ocultas»).
+  demás acciones («1 columna oculta», «Mostrar las 2 filas ocultas»). En los reportes y los
+  V.R., como en el Informe, con `src/components/Ocultar.jsx`; donde el nombre de una fila ya
+  es otra cosa (un desplegable), el ojo tachado al lado. Lo oculto no sale al imprimir.
 
 Las tablas que ya están conservan su estilo hasta que Santiago decida llevarles este
 («Despues lo vemos», 15/10). Los colores suaves y ocultar columnas y filas sí van en toda la

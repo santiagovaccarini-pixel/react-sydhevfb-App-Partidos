@@ -364,6 +364,17 @@
   font-size: 13px;
   font-weight: 700;
 }
+/* El desplegable de cada lugar y, al lado, el ojo para ocultar la fila
+   (Santiago, 15/10). */
+.lesiones-marco .evaluaciones-registros-elegir {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.lesiones-marco .evaluaciones-registros-elegir select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 /* El texto de cada fila va solo en papel (en pantalla está el desplegable). */
 .lesiones-marco .evaluaciones-solo-papel {
   display: none;

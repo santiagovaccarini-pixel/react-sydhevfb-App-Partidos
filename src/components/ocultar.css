@@ -1,0 +1,83 @@
+/* Ocultar a mano en los reportes y los V.R. (Santiago, 15/10), como en GPS ›
+   Informe: el nombre de una columna o de una fila se toca para ocultarla y
+   se ve igual que antes (texto); arriba, «Columnas» y «Filas». */
+.ocultar-al-tocar {
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.ocultar-al-tocar:hover,
+.ocultar-al-tocar:active {
+  transform: none;
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .ocultar-al-tocar:not(.ocultar-icono):hover {
+    text-decoration: underline;
+    text-decoration-color: currentColor;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+}
+
+.ocultar-al-tocar:focus-visible {
+  outline: 2px solid #22c55e;
+  outline-offset: 1px;
+}
+
+/* Donde el nombre ya es otra cosa (un desplegable): el ojo tachado. */
+.ocultar-al-tocar.ocultar-icono {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  border-radius: 8px;
+  color: #64748b;
+}
+
+.ocultar-al-tocar.ocultar-icono:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.ocultar-arriba {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.ocultar-arriba .ocultar-ver {
+  width: auto;
+  min-height: 44px;
+  gap: 8px;
+}
+
+.ocultar-arriba .ocultar-ver > span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ocultar-arriba .ocultar-ver > b {
+  font-size: 13px;
+}
+
+.ocultar-arriba .ocultar-ver.con-ocultas > b {
+  color: #b45309;
+}

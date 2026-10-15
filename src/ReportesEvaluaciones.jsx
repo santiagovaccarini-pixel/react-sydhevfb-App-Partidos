@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
+import { HojasDeOcultar, OcultasArriba, TocarParaOcultar, useOcultar } from "./components/Ocultar.jsx";
 import { FotoDelJugador } from "./ReportesLesiones.jsx";
 import { AREAS } from "./domain/evaluaciones/areas.js";
 import { COMPARAR_AL_ABRIR } from "./domain/evaluaciones/categorias.js";
@@ -96,13 +97,28 @@ const normalizarTexto = (texto) =>
 // La tabla de un test con sus filas: arriba el informe (las filas 2 a 8 del
 // Excel, con su rótulo sobre las primeras columnas) y abajo las evaluaciones
 // con los colores del Excel. filas: las calculadas que entran ({ fila, celdas }).
-const TablaDelTest = ({ test, columnas, filas, referencias, comparar, config, idioma, jugadorDe }) => {
-  const { informe, estilos, estilosComparacion } = vistaDeFilas(
+// Columnas y filas se ocultan tocando su nombre (Santiago, 15/10; el de una
+// evaluación, el jugador): el informe y los colores siguen con todas.
+const TablaDelTest = ({ test, columnas: todasLasColumnas, filas: todasLasFilas, referencias, comparar, config, idioma, jugadorDe }) => {
+  const ocultar = useOcultar(`evaluaciones-grupal:${test.id}`);
+  const { informe: todoElInforme, estilos, estilosComparacion } = vistaDeFilas(
     test,
-    filas.map(({ fila, celdas }) => ({ id: fila.id, celdas })),
+    todasLasFilas.map(({ fila, celdas }) => ({ id: fila.id, celdas })),
     referencias,
     comparar,
   );
+  const columnas = todasLasColumnas.filter((columna) => !ocultar.columnaOculta(columna.clave));
+  const filas = todasLasFilas.filter(({ fila }) => !ocultar.filaOculta(fila.id));
+  // La comparación con los V.R. ocupa dos filas: se ocultan juntas.
+  const claveDeInforme = (fila) => `informe:${fila.id === "referencia" ? "comparacion" : fila.id}`;
+  const informe = todoElInforme.filter((fila) => !ocultar.filaOculta(claveDeInforme(fila)));
+  const tituloCompleto = (columna) => {
+    const grupo = columna.grupo ? tituloDeGrupo(test, test.grupos?.find((uno) => uno.clave === columna.grupo) || { clave: columna.grupo }, config, idioma) : "";
+    return [grupo, tituloDeColumna(test, columna, config, idioma)].filter(Boolean).join(" · ");
+  };
+  const nombreDeEvaluacion = (fila) => [jugadorDe(fila.jugador_id)?.nombre || fila.persona || "", fila.fecha ? fechaCorta(fila.fecha) : t("evaluaciones.sinFecha")].filter(Boolean).join(" · ");
+  // Dónde se toca para ocultar una evaluación: el jugador (si no se ve, la primera columna).
+  const lugarDelNombre = columnas.some((columna) => columna.clave === "jugador") ? "jugador" : columnas[0]?.clave;
   // Las primeras columnas, hasta la primera con datos en el informe, quedan
   // para el rótulo de cada fila (como las fijas en la Base).
   const conInforme = new Set(test.columnasDelInforme.filter((clave) => clave !== "numero"));
@@ -110,6 +126,7 @@ const TablaDelTest = ({ test, columnas, filas, referencias, comparar, config, id
   const antes = Math.max(1, primera < 0 ? columnas.length : primera);
   const resto = columnas.slice(antes);
   const texto = (celda) => textoDeCeldaDelInforme(celda, idioma);
+  const rotuloEnTexto = (fila) => (fila.id === "comparacion" ? textoDeComparar(comparar, config, idioma) : fila.rotulo?.[idioma] || "");
   const rotulo = (fila) => {
     if (fila.id === "comparacion") return textoDeComparar(comparar, config, idioma);
     if (fila.id === "n")
@@ -129,56 +146,82 @@ const TablaDelTest = ({ test, columnas, filas, referencias, comparar, config, id
   });
   const conGrupos = grupos.some((grupo) => grupo.clave);
   return (
-    <div className="informe-tabla-marco evaluaciones-informe-marco">
-      <table className="informe-tabla evaluaciones-informe-tabla" style={{ "--columnas": columnas.length }}>
-        <thead>
-          {informe.map((fila) => (
-            <tr key={fila.id} className={`evaluaciones-informe-arriba informe-${fila.id}`}>
-              {fila.id !== "referencia" && (
-                <th scope="row" colSpan={antes} rowSpan={fila.id === "comparacion" ? 2 : 1}>
-                  {rotulo(fila)}
-                </th>
-              )}
-              {resto.map((columna) => (
-                <td key={columna.clave} style={fila.id === "comparacion" ? estilosComparacion[columna.clave] || undefined : undefined}>
-                  {texto(fila.celdas[columna.clave])}
-                </td>
-              ))}
-            </tr>
-          ))}
-          {conGrupos && (
-            <tr className="informe-grupos">
-              {grupos.map((grupo, indice) => (
-                <th scope="colgroup" colSpan={grupo.cantidad} key={`${grupo.clave}-${indice}`}>
-                  {grupo.clave ? tituloDeGrupo(test, test.grupos?.find((uno) => uno.clave === grupo.clave) || { clave: grupo.clave }, config, idioma) : ""}
-                </th>
-              ))}
-            </tr>
-          )}
-          <tr className="informe-cabeceras">
-            {columnas.map((columna) => (
-              <th scope="col" key={columna.clave} data-columna={columna.clave}>
-                {tituloDeColumna(test, columna, config, idioma)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filas.map(({ fila, celdas }) => {
-            const { textos } = celdasDeLaFila({ test, columnas, fila, celdas, jugador: jugadorDe(fila.jugador_id), config, idioma });
-            return (
-              <tr key={fila.id}>
-                {columnas.map((columna) => (
-                  <td key={columna.clave} data-columna={columna.clave} style={estilos[fila.id]?.[columna.clave] || undefined}>
-                    {textos[columna.clave] || ""}
+    <>
+      <OcultasArriba
+        ocultar={ocultar}
+        columnas={todasLasColumnas.map((columna) => ({ clave: columna.clave, texto: tituloCompleto(columna) }))}
+        filas={[
+          ...todoElInforme.filter((fila) => fila.id !== "referencia").map((fila) => ({ clave: claveDeInforme(fila), texto: rotuloEnTexto(fila) })),
+          ...todasLasFilas.map(({ fila }) => ({ clave: fila.id, texto: nombreDeEvaluacion(fila) })),
+        ]}
+      />
+      <div className="informe-tabla-marco evaluaciones-informe-marco">
+        <table className="informe-tabla evaluaciones-informe-tabla" style={{ "--columnas": columnas.length }}>
+          <thead>
+            {informe.map((fila) => (
+              <tr key={fila.id} className={`evaluaciones-informe-arriba informe-${fila.id}`}>
+                {fila.id !== "referencia" && (
+                  <th scope="row" colSpan={antes} rowSpan={fila.id === "comparacion" ? 2 : 1}>
+                    <TocarParaOcultar ocultar={ocultar} tipo="fila" clave={claveDeInforme(fila)} titulo={rotuloEnTexto(fila)}>
+                      {rotulo(fila)}
+                    </TocarParaOcultar>
+                  </th>
+                )}
+                {resto.map((columna) => (
+                  <td key={columna.clave} style={fila.id === "comparacion" ? estilosComparacion[columna.clave] || undefined : undefined}>
+                    {texto(fila.celdas[columna.clave])}
                   </td>
                 ))}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+            ))}
+            {conGrupos && (
+              <tr className="informe-grupos">
+                {grupos.map((grupo, indice) => (
+                  <th scope="colgroup" colSpan={grupo.cantidad} key={`${grupo.clave}-${indice}`}>
+                    {grupo.clave ? tituloDeGrupo(test, test.grupos?.find((uno) => uno.clave === grupo.clave) || { clave: grupo.clave }, config, idioma) : ""}
+                  </th>
+                ))}
+              </tr>
+            )}
+            <tr className="informe-cabeceras">
+              {columnas.map((columna) => (
+                <th scope="col" key={columna.clave} data-columna={columna.clave}>
+                  {/* Al menos una columna queda a la vista. */}
+                  {columnas.length > 1 ? (
+                    <TocarParaOcultar ocultar={ocultar} tipo="columna" clave={columna.clave} titulo={tituloCompleto(columna)}>
+                      {tituloDeColumna(test, columna, config, idioma)}
+                    </TocarParaOcultar>
+                  ) : (
+                    tituloDeColumna(test, columna, config, idioma)
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map(({ fila, celdas }) => {
+              const { textos } = celdasDeLaFila({ test, columnas, fila, celdas, jugador: jugadorDe(fila.jugador_id), config, idioma });
+              return (
+                <tr key={fila.id}>
+                  {columnas.map((columna) => (
+                    <td key={columna.clave} data-columna={columna.clave} style={estilos[fila.id]?.[columna.clave] || undefined}>
+                      {columna.clave === lugarDelNombre ? (
+                        <TocarParaOcultar ocultar={ocultar} tipo="fila" clave={fila.id} titulo={nombreDeEvaluacion(fila)}>
+                          {textos[columna.clave] || ""}
+                        </TocarParaOcultar>
+                      ) : (
+                        textos[columna.clave] || ""
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <HojasDeOcultar ocultar={ocultar} />
+    </>
   );
 };
 
@@ -196,7 +239,10 @@ export const ultimosLugares = (suyas) => suyas.slice(-REGISTROS_A_LA_VISTA).map(
 // Las evaluaciones de un jugador en un test: una fila por lugar, con todas
 // las columnas que el club tiene a la vista. Los colores, como en la Base
 // filtrada por el jugador (con todas sus evaluaciones de ese test).
+// Una columna se oculta tocando su nombre; una fila, con el ojo al lado de
+// su desplegable (Santiago, 15/10). Los colores siguen con todas.
 const RegistrosDelJugador = ({ test, suyas, lugares, onElegir, config, idioma, jugadorDe, plural }) => {
+  const ocultar = useOcultar(`evaluaciones-individual:${test.id}`);
   const est = estadisticas(
     test.columnasDelInforme,
     suyas.map(({ celdas }) => celdas),
@@ -212,7 +258,12 @@ const RegistrosDelJugador = ({ test, suyas, lugares, onElegir, config, idioma, j
   };
   // El n° y la fecha van juntos en el desplegable de cada fila; el nombre y
   // la fecha de nacimiento ya están arriba.
-  const columnas = columnasVisibles(test, config).filter((columna) => !["numero", "fecha", "jugador", "fecha_nac"].includes(columna.clave));
+  const todasLasColumnas = columnasVisibles(test, config).filter((columna) => !["numero", "fecha", "jugador", "fecha_nac"].includes(columna.clave));
+  const columnas = todasLasColumnas.filter((columna) => !ocultar.columnaOculta(columna.clave));
+  const tituloCompleto = (columna) => {
+    const grupo = columna.grupo ? tituloDeGrupo(test, test.grupos?.find((uno) => uno.clave === columna.grupo) || { clave: columna.grupo }, config, idioma) : "";
+    return [grupo, titulo(columna.clave)].filter(Boolean).join(" · ");
+  };
   const etiqueta = ({ fila, celdas }) => [celdas.numero, fila.fecha ? fechaCorta(fila.fecha) : t("evaluaciones.sinFecha")].join(" · ");
   const grupos = [];
   columnas.forEach((columna) => {
@@ -221,7 +272,14 @@ const RegistrosDelJugador = ({ test, suyas, lugares, onElegir, config, idioma, j
     else grupos.push({ clave: columna.grupo || "", cantidad: 1 });
   });
   const conGrupos = grupos.some((grupo) => grupo.clave);
-  const elegidas = lugares.map((id) => suyas.find(({ fila }) => fila.id === id)).filter(Boolean);
+  // Cada una con su lugar (el del desplegable), aunque se oculte otra.
+  const elegidas = lugares
+    .map((id, lugar) => {
+      const una = suyas.find(({ fila }) => fila.id === id);
+      return una ? { ...una, lugar } : null;
+    })
+    .filter(Boolean);
+  const aLaVista = elegidas.filter(({ fila }) => !ocultar.filaOculta(fila.id));
   return (
     <section className="evaluaciones-registros">
       <header>
@@ -232,6 +290,11 @@ const RegistrosDelJugador = ({ test, suyas, lugares, onElegir, config, idioma, j
             : plural("evaluaciones.reportes.cantidad", suyas.length)}
         </p>
       </header>
+      <OcultasArriba
+        ocultar={ocultar}
+        columnas={todasLasColumnas.map((columna) => ({ clave: columna.clave, texto: tituloCompleto(columna) }))}
+        filas={elegidas.map((una) => ({ clave: una.fila.id, texto: etiqueta(una) }))}
+      />
       <div className="informe-tabla-marco">
         <table className="informe-tabla evaluaciones-registros-tabla" style={{ "--columnas": columnas.length + 1 }}>
           <thead>
@@ -255,31 +318,40 @@ const RegistrosDelJugador = ({ test, suyas, lugares, onElegir, config, idioma, j
               )}
               {columnas.map((columna) => (
                 <th scope="col" key={columna.clave} data-columna={columna.clave}>
-                  {titulo(columna.clave)}
+                  {/* Al menos una columna queda a la vista. */}
+                  {columnas.length > 1 ? (
+                    <TocarParaOcultar ocultar={ocultar} tipo="columna" clave={columna.clave} titulo={tituloCompleto(columna)}>
+                      {titulo(columna.clave)}
+                    </TocarParaOcultar>
+                  ) : (
+                    titulo(columna.clave)
+                  )}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {elegidas.map((elegida, lugar) => {
-              const { fila, celdas } = elegida;
+            {aLaVista.map((elegida) => {
+              const { fila, celdas, lugar } = elegida;
               const { textos } = celdasDeLaFila({ test, columnas, fila, celdas, jugador: jugadorDe(fila.jugador_id), config, idioma });
               return (
                 <tr key={lugar}>
                   <td className="evaluaciones-registros-lugar">
-                    {/* En pantalla se elige; en papel va el texto. */}
-                    <select
-                      className="no-imprimir"
-                      value={fila.id}
-                      aria-label={t("evaluaciones.reportes.queEvaluacion", { n: lugar + 1 })}
-                      onChange={(evento) => onElegir(lugar, evento.target.value)}
-                    >
-                      {suyas.map((una) => (
-                        <option key={una.fila.id} value={una.fila.id} disabled={una.fila.id !== fila.id && lugares.includes(una.fila.id)}>
-                          {etiqueta(una)}
-                        </option>
-                      ))}
-                    </select>
+                    {/* En pantalla se elige (y se oculta con el ojo); en papel va el texto. */}
+                    <div className="evaluaciones-registros-elegir no-imprimir">
+                      <select
+                        value={fila.id}
+                        aria-label={t("evaluaciones.reportes.queEvaluacion", { n: lugar + 1 })}
+                        onChange={(evento) => onElegir(lugar, evento.target.value)}
+                      >
+                        {suyas.map((una) => (
+                          <option key={una.fila.id} value={una.fila.id} disabled={una.fila.id !== fila.id && lugares.includes(una.fila.id)}>
+                            {etiqueta(una)}
+                          </option>
+                        ))}
+                      </select>
+                      <TocarParaOcultar ocultar={ocultar} tipo="fila" clave={fila.id} titulo={etiqueta(elegida)} icono />
+                    </div>
                     <span className="evaluaciones-solo-papel">{etiqueta(elegida)}</span>
                   </td>
                   {columnas.map((columna) => (
@@ -293,6 +365,7 @@ const RegistrosDelJugador = ({ test, suyas, lugares, onElegir, config, idioma, j
           </tbody>
         </table>
       </div>
+      <HojasDeOcultar ocultar={ocultar} />
     </section>
   );
 };
