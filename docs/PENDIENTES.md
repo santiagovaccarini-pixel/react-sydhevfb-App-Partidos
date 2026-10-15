@@ -1841,7 +1841,9 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   microciclos, vale en los de su dispositivo; si se eligen, solo en esos), con un aviso si
   algún microciclo quedó sin V.R. La tabla, como las de los reportes: la cabecera oscura con
   los grupos en su tono, la primera columna fija al deslizar, la fila del V.R. y las franjas
-  (Excelente a Desvío; el Bueno es el promedio, por eso no va otra fila de Promedio) y una fila
+  (Excelente a Desvío; el Bueno es el promedio, por eso no va otra fila de Promedio; **15/10**:
+  arriba va, a pedido de Santiago, una tarjeta con el promedio de cada columna: ver «Las
+  tarjetas con el promedio», abajo) y una fila
   por microciclo (o por jugador) con los colores de la U.A. y la carga crónica. Con más de un
   V.R., un solo botón («Ver las de …») pasa las franjas de uno a otro. (Desde el 15/10, otra
   presentación, todas las columnas pintadas y ocultar a mano: ver «La presentación, los colores
@@ -1936,7 +1938,26 @@ toco un columna o fila en cierto lugar tiene que preguntarme si la quiero oculta
   (lo sacó Santiago), las tarjetas de arriba con números (distancia promedio, alta intensidad,
   duración media, cumplimiento vs V.R. y «vs. microciclo anterior»: el informe no los calcula),
   «Exportar», la temporada ni las iniciales de quien usa la app. **Pendiente**: preguntarle si
-  quiere esas tarjetas y con qué números; no hacerlas sin su respuesta.
+  quiere esas tarjetas y con qué números; no hacerlas sin su respuesta. (Respondido el mismo
+  15/10: ver «Las tarjetas con el promedio», abajo.)
+- **Las tarjetas con el promedio (15/10)**: a la pregunta («¿Las querés? Si es así, decime qué
+  número va en cada una»), Santiago: «Si las quiero y quiero que pongas el promedio de cada
+  variable arriba de su columna». Hecho:
+  - arriba de todo, la fila «Promedio» con una tarjeta oscura por columna, justo arriba de la
+    suya: el número grande y una línea con el tono de su grupo, como las tarjetas de la imagen.
+    VS RIVAL es texto y no lleva;
+  - el promedio de todas las filas del informe (las que dejan los filtros), también las
+    ocultas a mano: ocultar no cambia los números (UI-039). Las celdas vacías no cuentan, como
+    PROMEDIO del Excel. Cada uno con el formato de su columna; N° Sesiones y N° Descanso, con
+    un decimal (son cantidades: «5,7» dice más que «6»; lo propuso Claude);
+  - no queda fija al bajar (como las franjas); su rótulo, sí al deslizar de costado. Se oculta
+    tocando «Promedio», como las demás filas, y vuelve con «Filas»; un «?» explica la cuenta;
+  - con «Mi selección», el Bueno de las franjas también es un promedio de las filas y suele dar
+    lo mismo, pero no siempre: el Bueno sale solo de las filas de su V.R. y, en las por minuto,
+    del promedio de la medida ÷ el de los minutos (como el archivo). Con «Valor referencial» u
+    «Objetivo», el Bueno es el del V.R. o el objetivo, y la tarjeta sirve para compararlo.
+  No se agregó la comparación «vs. microciclo anterior» de las tarjetas de la imagen (no la
+  pidió): **pendiente** preguntarle si la quiere; no hacerla sin su respuesta.
 
 Queda prohibido en el Informe: volver a mostrar las franjas como filas de datos sin su color,
 «Team Average Sesion» en cada fila cuando todas son del equipo, un fondo de color fuerte por

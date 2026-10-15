@@ -400,7 +400,7 @@ export default {
       baseTitulo: "Ver y corregir lo cargado",
       base: "En «Base» están todas las filas.\n1. Tocá dos veces una celda para cambiarla.\n2. Con el embudo de cada columna filtrás u ordenás. Ahí también la ocultás («Ocultar esta columna»); para ocultar filas, elegilas y tocá «Ocultar fila». «Columnas» y «Mostrar», arriba de la tabla, las vuelven a mostrar.\n3. Mirá arriba de la tabla, por dispositivo, el promedio de lo que queda a la vista, su V.R. y el % del promedio contra el V.R.\n4. Elegí en «Comparaciones» qué V.R. usar y la zona de impacto: ahí ves el volumen y la densidad contra el V.R.\nLos colores comparan cada número con el promedio y el desvío de lo que se ve de su dispositivo: verde oscuro, más de dos desvíos por arriba del promedio; verde claro, entre uno y dos; amarillo, del promedio a un desvío por arriba; naranja, hasta un desvío por abajo; rojo, más de un desvío por abajo.",
       informeTitulo: "Informe",
-      informe: "En «Informe» elegís cuál ver. Por ahora está «Por microciclo».\n1. En los filtros, elegí qué entra: microciclos, fechas, tipo de sesión y más. Sin nada elegido en un filtro, entra todo; «Limpiar filtros» los vacía.\n2. Tocá «Siguiente: El informe».\n3. Elegí el tipo de variable, cómo se ve, de dónde salen las franjas y el V.R. Con «+ Otro V.R.» sumás uno para los microciclos de otro dispositivo o para los que elijas.\nArriba de la tabla están las franjas (Excelente a Malo), con el color que toma cada una; abajo, una fila por microciclo. Cada número se pinta según la franja en la que cae.\nPara ocultar una columna o una fila, tocá su nombre y confirmá. «Columnas» y «Filas», arriba de la tabla, dicen cuántas hay ocultas y las vuelven a mostrar.",
+      informe: "En «Informe» elegís cuál ver. Por ahora está «Por microciclo».\n1. En los filtros, elegí qué entra: microciclos, fechas, tipo de sesión y más. Sin nada elegido en un filtro, entra todo; «Limpiar filtros» los vacía.\n2. Tocá «Siguiente: El informe».\n3. Elegí el tipo de variable, cómo se ve, de dónde salen las franjas y el V.R. Con «+ Otro V.R.» sumás uno para los microciclos de otro dispositivo o para los que elijas.\nArriba de todo, cada columna tiene una tarjeta con su promedio. Después vienen las franjas (Excelente a Malo), con el color que toma cada una, y abajo, una fila por microciclo. Cada número se pinta según la franja en la que cae.\nPara ocultar una columna o una fila, tocá su nombre y confirmá. «Columnas» y «Filas», arriba de la tabla, dicen cuántas hay ocultas y las vuelven a mostrar.",
       referenciasTitulo: "Valores de referencia",
       referencias: "En «Valores de referencia» están los V.R. de cada dispositivo.\n1. Elegí el dispositivo.\n2. Tocá dos veces un número para cambiarlo.\n3. Con «Agregar V.R.» sumás uno; cada uno tiene «Cambiar nombre», «Borrar» y «Usar de partido» (el que usa Cargar para el % vs V.R. de partido de ese dispositivo).\nPara ocultar una columna o una fila, tocá su nombre y confirmá. «Columnas» y «Filas», arriba de las tablas, las vuelven a mostrar.\nAbajo están los últimos cambios: «Volver» deja uno como estaba.",
       traerTitulo: "Traer lo que ya tenías",
@@ -460,6 +460,10 @@ export default {
       categorizacion: {
         titulo: "Categorización",
         texto: "De dónde salen las franjas de arriba (Excelente a Malo).\n«Mi selección»: del promedio y el desvío de las filas que se ven.\n«Valor referencial»: del V.R.; su promedio es el Bueno y su desvío arma las demás. Un V.R. por jugador usa sus cinco categorías.\n«Objetivo sesión/microciclo»: el Bueno es el promedio del Team Average de cada sesión y el desvío, el de los jugadores en cada sesión. En las variables, solo con «Jugador» en Microciclo/Jugador.",
+      },
+      promedioInforme: {
+        titulo: "Promedio",
+        texto: "El de cada columna, con todas las filas del informe, también las que ocultaste: ocultar no cambia los números. Las celdas vacías no cuentan. Para dejar filas afuera de la cuenta, usá los filtros.",
       },
       vrInforme: {
         titulo: "V.R. del informe",
@@ -541,6 +545,7 @@ export default {
       franjasDe: "Franjas de {{vr}}",
       franjasSinVr: "Franjas",
       verFranjasDe: "Ver las de {{vr}}",
+      promedios: "Promedio",
       cuantosMicrociclos_one: "{{n}} microciclo",
       cuantosMicrociclos_other: "{{n}} microciclos",
       cuantosJugadores_one: "{{n}} jugador",
