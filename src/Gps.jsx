@@ -61,8 +61,9 @@ import "./gps.css";
 //     14/10), y los mismos colores del Excel, cada dispositivo contra lo
 //     suyo. Se corrige en la tabla y el historial se trae una vez con Pegar
 //     desde Excel.
-//   · Reportes: el Informe (Santiago, 15/10), por ahora Por microciclo
-//     (ReportesGps.jsx y domain/gps/porMicrociclo.js).
+//   · Informe (Santiago, 15/10; «cambiale el nombre por Informe»: en GPS no
+//     se llama Reportes), por ahora Por microciclo (ReportesGps.jsx y
+//     domain/gps/porMicrociclo.js).
 //   · Valores de referencia: los V.R. de cada dispositivo (ReferenciasGps.jsx).
 //   · Ajustes: el nombre de cada columna, esconderla, sumar columnas del
 //     club, las opciones de cada lista (también los dispositivos) y los
@@ -71,7 +72,7 @@ import "./gps.css";
 export const DESTINOS_GPS = [
   { id: "cargar", etiqueta: "Cargar", icono: "usuario" },
   { id: "base", etiqueta: "Base", icono: "documento" },
-  { id: "reportes", etiqueta: "Reportes", icono: "grafico" },
+  { id: "informe", etiqueta: "Informe", icono: "grafico" },
   { id: "referencias", etiqueta: "Valores de referencia", icono: "registros" },
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
@@ -1530,7 +1531,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       ) : (
         pantallaCargar
       );
-  else if (vista === "reportes")
+  else if (vista === "informe")
     contenido = (
       <ReportesGps
         filasGps={filasGps}
@@ -1599,7 +1600,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const contenidoDeLaGuia = {
     titulo: t("gps.guia.titulo"),
     intro: t("gps.guia.intro"),
-    secciones: ["cargar", "base", "reportes", "referencias", "traer", "ajustes"].map((parte) => ({ titulo: t(`gps.guia.${parte}Titulo`), texto: t(`gps.guia.${parte}`) })),
+    secciones: ["cargar", "base", "informe", "referencias", "traer", "ajustes"].map((parte) => ({ titulo: t(`gps.guia.${parte}Titulo`), texto: t(`gps.guia.${parte}`) })),
     terminos: TERMINOS_GPS.map((termino) => ({ titulo: t(`gps.terminos.${termino}.titulo`), texto: t(`gps.terminos.${termino}.texto`) })),
   };
 

@@ -1311,7 +1311,10 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
 Como pide la regla de las bases (UI-012), cuando estén los pasos 2 y 3 la barra queda Cargar ·
 Base · Reportes · Ajustes (y los V.R. donde se decida en el paso 4). Desde el 12/10: Cargar ·
 Base · Ajustes, y abre en Cargar (como Evaluaciones). Desde el 15/10: Cargar · Base · Reportes ·
-Valores de referencia · Ajustes (como Evaluaciones).
+Valores de referencia · Ajustes (como Evaluaciones). El mismo 15/10, Santiago: «cambiale el nombre
+por Informe»: en GPS la solapa se llama **Informe** (en portugués, Relatório): Cargar · Base ·
+Informe · Valores de referencia · Ajustes. Lesiones y Evaluaciones siguen con «Reportes» (no se
+pidió).
 
 ### Decisiones de Santiago (10/10)
 
@@ -1745,7 +1748,8 @@ un V.R. a otro («Ver tabla» y «Volver»: va uno solo).
 Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
 `src/domain/gps/porMicrociclo.js`, UI-038):
 
-- **GPS › Reportes**: «Ver informes» con Por microciclo, Por tarea y Por jugador; los dos
+- **GPS › Informe** (se llamó «Reportes» hasta que Santiago pidió, el mismo 15/10, «cambiale
+  el nombre por Informe»): «Ver informes» con Por microciclo, Por tarea y Por jugador; los dos
   últimos dicen «Todavía no está».
 - **Los filtros** (paso 1 de 2): Microciclo, Fecha, Tipo de Sesión, Tipo Microciclo,
   Clasificación Días, Microciclo/Jugador y Nombre, cada uno un desplegable que abre la lista con
