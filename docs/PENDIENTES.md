@@ -297,12 +297,13 @@ Lo que Santiago marcó así. Cada punto está completo en su sección; acá solo
   lista con casillas del filtro de las bases (`ListaParaMarcar`). Queda prohibido poner todas
   las opciones a la vista como botones, también en listas cortas. Lo cumplen GPS › Cargar y
   Ajustes › Reglas de carga (12/10). **Todavía muestran opciones como botones** (anotado el
-  12/10; falta que Santiago confirme si se pasan todos juntos, en un cambio aparte): los
-  formularios de Lesiones (Nuevos casos) y de Evaluaciones (Cargar), que ponen en botones las
-  listas de hasta 6 opciones; Mostrar / Oculta en Ajustes de Lesiones, Evaluaciones y GPS; el
-  tipo de una columna nueva del GPS; los períodos de Lesiones › Reportes y de Lesiones c/1000 h;
-  Frente / Espalda y las capas del mapa corporal; y el orden en el filtro de cada columna de las
-  bases.
+  12/10; falta que Santiago confirme si se pasan todos juntos, en un cambio aparte): ~~los
+  formularios de Lesiones (Nuevos casos)~~ (hecho el 15/10, con la carga sin figura) y el de
+  Evaluaciones (Cargar), que pone en botones las listas de hasta 6 opciones; Mostrar / Oculta en
+  Ajustes de Lesiones, Evaluaciones y GPS; el tipo de una columna nueva del GPS; los períodos de
+  Lesiones › Reportes y de Lesiones c/1000 h; ~~Frente / Espalda y las capas del mapa
+  corporal~~ (la figura de la carga se sacó el 15/10); y el orden en el filtro de cada columna de
+  las bases.
 - Después de entrar, lo primero es elegir el club (`src/ElegirClub.jsx`); desde el portal se
   cambia con "Cambiar". Solo se ven los clubes en los que se está o se estuvo.
 - **Clubes con fecha de salida (02/10, migración `20261003_club_miembros.sql`, corrida el
@@ -411,7 +412,38 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
 
 ## Lesiones: lo que sigue (anotado el 02/10)
 
-- **El cuerpo humano para cargar la lesión (hecho el 02/10, rehecho el 02/10)**: en
+- **La carga sin la figura del cuerpo (15/10).** Santiago, 15/10: «Saca toda la figura de la carga
+  de lesiones y solo dejas desplegables y la haces mas intuitiva porfavor». Reemplaza lo de los
+  dos puntos que siguen (la figura para cargar y los músculos dibujados), que quedan como
+  historia. Ver UI-036.
+  - **Descripción general**: «Parte del cuerpo lesionada» y «Lado», cada uno en su desplegable.
+    Las partes van de la cabeza a los pies (las que agregó el club, al lado de la parte donde
+    van; las que no se sabe dónde van, al final) y debajo de cada una dice lo que tiene (los
+    tres primeros grupos musculares, o músculos, y ligamentos de las listas a la vista: «Muslo
+    — Cuádriceps, Isquiotibiales, Aductores»). El lado se elige siempre a mano.
+  - **Descripción específica**: arriba, la parte y el lado elegidos; abajo, «Músculo afectado»,
+    «Músculo específico», «Área» y «Ligamento específico», cada uno en su desplegable y solo con
+    lo que va en esa parte (el mismo `mapa` de `src/domain/mapaCorporal.js`). Sin grupo
+    elegido, cada músculo dice de qué grupo es; elegido un músculo de un solo grupo, el grupo se
+    completa; otro grupo borra el músculo de otro grupo; otra parte borra lo que no va en ella
+    (como antes). El área: primero las del músculo entero y después las de cada tercio. Una
+    columna sin nada para esa parte no aparece; si no hay ninguna, lo dice. Lo cargado que no
+    va en la parte se ve igual, para poder sacarlo.
+  - «Ver todas las opciones de las listas» (antes «Elegir de la lista») muestra las listas
+    enteras, por si una opción que agregó el club quedó en otra parte; «Ver solo lo que va en
+    (la parte)» vuelve.
+  - **Todo en desplegables**: las listas cortas de la carga (Lado, Producto, Cuándo,
+    Localización), que iban como botones a la vista, también (UI-027).
+  - **La ficha** ya no lleva la figura chica al lado del diagnóstico.
+  - Se borraron `MapaCorporal.jsx`, `FiguraCuerpo.jsx` y `FiguraAnatomica.jsx` (y sus estilos y
+    textos). Siguen `siluetaCuerpo.js`, `anatomiaCuerpo.js` y `manchasCuerpo.js`: los usa el mapa
+    de calor de los reportes, que no cambió.
+  - No cambió qué se guarda ni cómo: las mismas columnas, los mismos códigos, el diagnóstico,
+    la recurrencia y la recidiva.
+  - **Queda prohibido** volver a poner la figura del cuerpo (o un dibujo para tocar) en la carga
+    de una lesión o en su ficha, y volver a poner opciones como botones a la vista en la carga.
+- ~~**El cuerpo humano para cargar la lesión (hecho el 02/10, rehecho el 02/10)**~~ (sacado el
+  15/10, ver el punto de arriba): en
   Descripción general, la figura de un cuerpo de verdad, de frente o de espaldas
   (`src/components/siluetaCuerpo.js` dibuja la silueta y la parte en sus partes;
   `src/components/FiguraCuerpo.jsx` la muestra): se toca la zona, la figura se acerca, se
@@ -436,7 +468,8 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   corregir a mano dónde va una opción (y el mapa entero) desde Ajustes, por la regla del 02/10
   de que ninguna regla quede escrita en código; hace falta guardar las partes de cada opción
   en `lesiones_opciones` (una columna nueva, con su migración).
-- **Músculos, tendones y ligamentos en la figura (02/10)**: en Descripción específica la
+- ~~**Músculos, tendones y ligamentos en la figura (02/10)**~~ (sacado el 15/10, ver «La carga
+  sin la figura del cuerpo»): en Descripción específica la
   parte se ve de cerca, de frente y de espaldas, con los músculos (gris azulado), los
   tendones (blanco) y los ligamentos (celeste) dibujados (`src/components/anatomiaCuerpo.js`,
   `src/components/FiguraAnatomica.jsx`); la rodilla, el tobillo (por fuera y por dentro) y la
@@ -469,7 +502,8 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   arriba, verde abajo; **cambiado el 14/10**, ver «Lo anotado en Notas, segunda tanda
   (13/10)»: tarjetas chicas, el % con el color al lado del número, sin los puntos ni su
   leyenda); al lado, el "Mapa corporal de lesiones": la figura de cargar una
-  lesión, de frente y de espaldas, como una escultura gris con relieve (dos imágenes WebP
+  lesión (desde el 15/10 la carga ya no tiene figura; el reporte sigue con estas imágenes),
+  de frente y de espaldas, como una escultura gris con relieve (dos imágenes WebP
   en `src/assets/` que arma `scripts/cuerpo-3d/generar.sh` a partir del mismo dibujo del
   cuerpo, con músculos de adorno como el trapecio o los abdominales; si cambia el dibujo
   del cuerpo hay que volver a correrlo), una mancha de calor sobre el músculo,
@@ -2811,7 +2845,16 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
   planilla de valor referencial, para que la app calcule los V.R. con su lógica.
 - Las otras 3, sin decidir todavía (se ven una por una, en este orden): revisar la lógica de
   Flujo diario; Isocinecia con el lector de Python y conectar con VALD; mejorar el cuerpo humano
-  del reporte de Lesiones.
+  del reporte de Lesiones. **15/10**: Flujo diario pasa al final («Dejalo como ultimo punto»).
+  - **Isocinecia**: el lector es un .exe de más de 30 MB (Santiago, 15/10). Se le pidió el
+    código con el que se armó (los .py) y dos o tres PDF de ejemplo; con los PDF alcanza para
+    armar la lectura aunque no esté el .py. Nada de eso va al repositorio.
+  - **El cuerpo humano**: la figura de la carga se sacó (hecho el 15/10, ver «Lesiones: lo que
+    sigue», la carga sin la figura del cuerpo). Para el reporte, Santiago preguntó si puede pasar
+    una imagen para que se pinte ahí el calor y pidió (15/10, «investiga cual es la mejor manera
+    de implementarlo y contrastalo contra otros soft o webs que hagan lo mismo») comparar con
+    otros programas; la imagen la hace él («La puedo hacer rapido»). Hasta que decida, el mapa de
+    calor del reporte sigue como está (UI-024).
 
 ## Lo que dejó la revisión completa del 30/09
 

@@ -1,4 +1,4 @@
-// La silueta de la figura del cuerpo (FiguraCuerpo.jsx): un cuerpo de
+// La silueta del cuerpo (el mapa de calor de los reportes de Lesiones): un cuerpo de
 // verdad, de frente y de espaldas, en un lienzo de 200 x 440. El brazo y la
 // pierna se dibujan del lado izquierdo de la pantalla y se espejan para el
 // otro lado; la cabeza, el cuello y el tronco se dibujan por la mitad y se
