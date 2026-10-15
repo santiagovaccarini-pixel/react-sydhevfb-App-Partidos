@@ -1,4 +1,5 @@
 import { esNumero } from "./valores.js";
+import { suave } from "../colores.js";
 
 // El informe de arriba de BD_GPS y su formato condicional, con las filas que
 // deja ver el filtro (los SUBTOTAL del Excel), por dispositivo: cada fila se
@@ -65,18 +66,20 @@ export const ZONAS_DE_IMPACTO = Object.freeze([
 ]);
 export const ZONA_AL_ABRIR = "tarea_mixta";
 
-// Los colores del Excel.
+// Los colores del Excel, más suaves (Santiago, 15/10: «suaviza todos los
+// colores en todos los lugares donde se use»; en el Excel: 7FAD94, C8E7A7,
+// FFFF7F, F1B584 y FF7F7F).
 export const COLORES_GPS = Object.freeze({
-  excelente: "#7FAD94",
-  muyBueno: "#C8E7A7",
-  bueno: "#FFFF7F",
-  regular: "#F1B584",
-  malo: "#FF7F7F",
+  excelente: suave("#7FAD94"),
+  muyBueno: suave("#C8E7A7"),
+  bueno: suave("#FFFF7F"),
+  regular: suave("#F1B584"),
+  malo: suave("#FF7F7F"),
   // La columna Nombre: el promedio del equipo de una tarea (amarillo), el de
   // un tiempo de un partido oficial (gris) y el de la sesión (rojo claro).
-  promedioParcial: "#FFFF00",
-  promedioPartido: "#BFBFBF",
-  promedioSesion: "#D99694",
+  promedioParcial: suave("#FFFF00"),
+  promedioPartido: suave("#BFBFBF"),
+  promedioSesion: suave("#D99694"),
 });
 
 // El código de "Partido Oficial Torneo" en la lista Tarea o Partido.

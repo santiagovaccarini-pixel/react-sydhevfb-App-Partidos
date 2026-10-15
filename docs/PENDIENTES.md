@@ -25,8 +25,14 @@ a la propuesta está en «GPS (10/10)», «La presentación, los colores y ocult
   [el sistema de diseño](DESIGN_SYSTEM.md), «La presentación (15/10)».
 - **Colores suaves en toda la app** («suaviza todos los colores en todos los lugares donde se
   use»): los colores de las franjas y los semáforos son los de los archivos del club, más suaves
-  (`COLORES_SUAVES` en `src/domain/colores.js`). Hecho en el Informe de GPS; falta el resto de
-  la app (en curso).
+  (`COLORES_SUAVES` y `suave()` en `src/domain/colores.js`). Hecho (15/10) en el Informe de GPS,
+  la Base de GPS (las celdas y la columna Nombre), los rellenos y degradés de Evaluaciones (la
+  Base, lo de arriba y los reportes) y los dibujos de las tarjetas de GPS y Evaluaciones (los que
+  se ven si no carga la foto). Quedan como estaban, a propósito: los números de las clases (son
+  letra de color sobre gris, UI-014; más suaves no se leerían), el mapa de calor de Lesiones
+  (UI-024: es una escala de intensidad, no estos colores), los gráficos de Lesiones y el % vs
+  V.R. de partido de Cargar (ya tenía pastillas suaves y una barra fina). Si Santiago los
+  quiere también, se ven aparte.
 - **Ocultar columnas y filas en toda la app**: tocar el nombre de una columna o de una fila
   pregunta si se oculta; arriba de la tabla, «Columnas» y «Filas» dicen cuántas hay ocultas y
   las vuelven a mostrar; los números no cambian. Hecho en el Informe de GPS; faltan las bases y
@@ -828,7 +834,8 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     sin límite de cuántas atrás. En el Excel, Lateral D, Lateral I y Prono miraban otra columna.
   - Toda clase va de 5 a 1 con los mismos colores: 5 verde oscuro, 4 verde, 3 amarillo,
     2 naranja, 1 rojo. El Ratio del informe se clasifica con la misma regla que Ratio. Clas de
-    las filas (en el Excel AA2 tenía otra).
+    las filas (en el Excel AA2 tenía otra). (15/10: los rellenos y degradés van con los mismos
+    colores más suaves; el número de la clase sigue con su color, UI-040.)
   - **Cómo se ve una clase, igual en toda la app (Santiago, 09/10)**: «Necesitamos que se vean
     bien, no importa el color de fondo solo que se vean bien y sea lo mismo para todas las
     clasificaciones en todos lados». Primero (PR #228) la celda entera fue del color de su
@@ -1402,7 +1409,7 @@ pidió).
   a Excelente, verde claro; de Promedio a Muy Bueno, amarillo; de Regular a Promedio, naranja;
   menos que Regular, rojo. En Nombre, el Team Average de una tarea va en amarillo, el de un
   tiempo de un Partido Oficial Torneo en gris y el de la sesión en rojo claro. Solo el fondo,
-  como el Excel (sin negrita).
+  como el Excel (sin negrita). (15/10: los mismos colores, más suaves, UI-040.)
 - Se corrige en la tabla (Nombre se elige: un jugador o un Team Average), se borran filas
   (también varias, con Shift) y quien ya se fue del club ve la foto de su último día sin cambiar
   nada. Un período tiene miles de filas (en el historial, unas 2.000 cada 4 semanas): la tabla

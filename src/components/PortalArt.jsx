@@ -1,5 +1,6 @@
 import React from "react";
 import { ANCHO as ANCHO_FIGURA, ORDEN_DE_REGIONES, dibujoDe } from "./siluetaCuerpo.js";
+import { suave } from "../domain/colores.js";
 
 // Dibujos e íconos del portal. Van en código (SVG) para que carguen al toque
 // y sin internet; el día que haya fotos del club, se cambian por ellas.
@@ -280,12 +281,13 @@ export const IconoLesiones = () => (
 // Un cronómetro dorado y la escala de las clases del Excel de evaluaciones
 // (de 5, verde oscuro, a 1, rojo), con el degradé de su formato
 // condicional: el dibujo de la tarjeta Evaluaciones mientras no tenga foto.
+// Con los colores de la app, más suaves (Santiago, 15/10).
 const CLASES_EVALUACIONES = [
-  { color: "#4f6228", largo: 92 },
-  { color: "#92d050", largo: 74 },
-  { color: "#ffff00", largo: 58 },
-  { color: "#f79646", largo: 40 },
-  { color: "#ff0000", largo: 26 },
+  { color: suave("#4f6228"), largo: 92 },
+  { color: suave("#92d050"), largo: 74 },
+  { color: suave("#ffff00"), largo: 58 },
+  { color: suave("#f79646"), largo: 40 },
+  { color: suave("#ff0000"), largo: 26 },
 ];
 
 export const ArteEvaluaciones = () => (
@@ -350,7 +352,7 @@ export const ArteEvaluaciones = () => (
     </g>
     <path d="M326 140 L326 90" stroke="#f0c978" strokeWidth="3" strokeLinecap="round" />
     <path d="M326 140 L362 160" stroke="#f0c978" strokeOpacity="0.7" strokeWidth="2.5" strokeLinecap="round" />
-    <path d="M326 76 A64 64 0 0 1 388 124" fill="none" stroke="#92d050" strokeOpacity="0.55" strokeWidth="5" strokeLinecap="round" />
+    <path d="M326 76 A64 64 0 0 1 388 124" fill="none" stroke={suave("#92d050")} strokeOpacity="0.55" strokeWidth="5" strokeLinecap="round" />
     <circle cx="326" cy="140" r="5" fill="#f0c978" />
   </svg>
 );
@@ -367,8 +369,9 @@ export const IconoEvaluaciones = () => (
 // El recorrido de un jugador en la cancha, como lo dibuja el GPS (puntos
 // cada vez más claros hasta donde está ahora) y, a la izquierda, una columna
 // de la base con los cinco colores del Excel de GPS (de Excelente, verde
-// oscuro, a Malo, rojo): el dibujo de la tarjeta GPS mientras no tenga foto.
-const COLORES_DEL_DIBUJO_GPS = ["#7FAD94", "#C8E7A7", "#FFFF7F", "#F1B584", "#FF7F7F"];
+// oscuro, a Malo, rojo), más suaves como en la app: el dibujo de la tarjeta
+// GPS mientras no tenga foto.
+const COLORES_DEL_DIBUJO_GPS = ["#7FAD94", "#C8E7A7", "#FFFF7F", "#F1B584", "#FF7F7F"].map(suave);
 const RECORRIDO_GPS = [
   [246, 206],
   [262, 188],
