@@ -462,7 +462,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
 
   const jugadorDe = useCallback((id) => plantel.find((jugador) => String(jugador.id) === String(id)) || null, [plantel]);
   // De quién es una fila: el jugador, la persona o el promedio del equipo.
-  const nombreDe = (fila) => (fila?.promedio ? PROMEDIOS[fila.promedio]?.[idioma] : jugadorDe(fila?.jugador_id)?.nombre || fila?.persona || "");
+  // Estable mientras no cambien Datos básicos ni el idioma (los reportes
+  // recalculan con él el orden y los nombres de sus filas).
+  const nombreDe = useCallback((fila) => (fila?.promedio ? PROMEDIOS[fila.promedio]?.[idioma] : jugadorDe(fila?.jugador_id)?.nombre || fila?.persona || ""), [jugadorDe, idioma]);
 
   // ----------------------------------------------------------------- Base --
 

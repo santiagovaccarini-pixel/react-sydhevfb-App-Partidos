@@ -178,12 +178,18 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
 
   const informe = useMemo(
     () => (modo === "informe" ? informePorMicrociclo(filasGps, { filtros, tipoVariable, visualizacion, categorizacion, asignaciones, nombreDe }) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modo, filasGps, filtros, tipoVariable, visualizacion, categorizacion, asignaciones, idioma],
+    [modo, filasGps, filtros, tipoVariable, visualizacion, categorizacion, asignaciones, nombreDe],
   );
 
+  // Al pasar al informe: los V.R. elegidos siguen si alguno vale para lo
+  // filtrado (su dispositivo o sus microciclos); si no, los de entrada.
   const irAlInforme = () => {
-    if (!vrs || !vrs.some((uno) => referencias.some((referencia) => referencia.id === uno.id))) setVrs(vrsAlEntrar());
+    const dispositivosFiltrados = new Set(grupos.map((grupo) => grupo.dispositivo));
+    const sirve = (uno) => {
+      const referencia = referencias.find((una) => una.id === uno.id);
+      return Boolean(referencia) && (uno.microciclos.length > 0 || dispositivosFiltrados.has(referencia.dispositivo));
+    };
+    if (!vrs || !vrs.some(sirve)) setVrs(vrsAlEntrar());
     setVerFranjas(0);
     setModo("informe");
   };
