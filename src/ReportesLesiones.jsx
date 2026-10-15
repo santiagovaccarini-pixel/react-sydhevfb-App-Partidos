@@ -6,6 +6,7 @@ import { manchasDe } from "./components/manchasCuerpo.js";
 import { CuadroCadaMil, tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import { tonosDeGrupos } from "./components/TablaDatos.jsx";
 import { BotonGuia, TerminoDe } from "./components/Guia.jsx";
+import { HojasDeOcultar, OcultasArriba, TocarParaOcultar, useOcultar } from "./components/Ocultar.jsx";
 import ReporteCadaMil from "./ReporteCadaMil.jsx";
 import ReporteGraficos from "./ReporteGraficos.jsx";
 import { calcular, claveDeQuien, esFechaISO, normalizarTexto, tieneFecha } from "./domain/lesiones.js";
@@ -287,6 +288,8 @@ export default function ReportesLesiones({
   const [soloMusculares, setSoloMusculares] = useState(false);
   // En el individual, la lista de las LM se abre con «Ver cuáles».
   const [verLm, setVerLm] = useState(false);
+  // Las columnas y las lesiones ocultadas a mano en la tabla del individual.
+  const ocultarIndividual = useOcultar("lesiones-individual");
 
   const texto = textoDeOpcion;
   const numero = (valor, decimales = 2, minimo = decimales) =>
@@ -509,6 +512,24 @@ export default function ReportesLesiones({
     // fijo al deslizar.
     const registro = (lesion) => calcular("numero_registro", lesion, null, { lesiones }) ?? 0;
     const ordenadas = [...deJugador].sort((a, b) => registro(a) - registro(b) || String(a.fecha_lesion).localeCompare(String(b.fecha_lesion)));
+    // Lo ocultado a mano (Santiago, 15/10): una columna, tocando su nombre;
+    // una lesión, tocando lo que la identifica (el n° de registro), y se va
+    // de todas las tablas. Esa columna no se oculta. Solo deja de verse.
+    const tramosAVista = tramos
+      .map((tramo) => ({
+        ...tramo,
+        grupos: tramo.grupos.map((grupo) => ({ ...grupo, columnas: grupo.columnas.filter((clave) => !ocultarIndividual.columnaOculta(clave)) })).filter((grupo) => grupo.columnas.length > 0),
+      }))
+      .filter((tramo) => tramo.grupos.length > 0);
+    const columnasAVista = tramosAVista.reduce((suma, tramo) => suma + tramo.grupos.reduce((deGrupo, grupo) => deGrupo + grupo.columnas.length, 0), 0);
+    const lesionesAVista = ordenadas.filter((lesion) => !ocultarIndividual.filaOculta(lesion.id));
+    const textoDe = (clave, lesion) => {
+      const valor = CAMPO_POR_CLAVE[clave] ? enPantalla(CAMPO_POR_CLAVE[clave], lesion) : "";
+      return valor === null || valor === undefined ? "" : String(valor);
+    };
+    const nombreDeLesion = (lesion) =>
+      [tramos[0]?.id ? `${etiqueta(tramos[0].id)} ${textoDe(tramos[0].id, lesion)}`.trim() : "", textoDe("fecha_lesion", lesion)].filter(Boolean).join(" · ") || "—";
+    const columnasParaOcultar = tramos.flatMap((tramo) => tramo.grupos.flatMap((grupo) => grupo.columnas.map((clave) => ({ clave, texto: `${etiquetaDeGrupo(grupo.clave)} · ${etiqueta(clave)}` }))));
     // Las opciones del club que vienen pegadas con barras (ENTORSE/LESÃO
     // LIGAMENTAR) se pueden partir después de cada barra (sin agregar nada al
     // texto: se copia igual). Las fechas y lo corto, no.
@@ -605,11 +626,24 @@ export default function ReportesLesiones({
                 <h2>{t("lesiones.reportes.historialLesiones")}</h2>
                 <span>{plural("lesiones.reportes.registros", deJugador.length)}</span>
               </div>
+              {deJugador.length > 0 && (
+                <OcultasArriba ocultar={ocultarIndividual} columnas={columnasParaOcultar} filas={ordenadas.map((lesion) => ({ clave: lesion.id, texto: nombreDeLesion(lesion) }))} />
+              )}
               {deJugador.length === 0 ? (
                 <p className="vacio-ficha">{t("lesiones.reportes.sinLesionesJugador")}</p>
               ) : (
-                tramos.map((tramo, indice) => {
+                tramosAVista.map((tramo, indice) => {
                   const columnas = tramo.grupos.flatMap((grupo) => grupo.columnas.map((clave) => ({ clave, grupo: grupo.clave })));
+                  // Dónde se toca para ocultar una lesión: lo que la identifica (sin esa columna, la primera).
+                  const nombreEn = tramo.id || columnas[0]?.clave;
+                  const conNombre = (clave, lesion, contenido) =>
+                    clave === nombreEn ? (
+                      <TocarParaOcultar ocultar={ocultarIndividual} tipo="fila" clave={lesion.id} titulo={nombreDeLesion(lesion)}>
+                        {contenido}
+                      </TocarParaOcultar>
+                    ) : (
+                      contenido
+                    );
                   return (
                     <div className="informe-tabla-marco" key={indice}>
                       <table className="informe-tabla" style={{ "--columnas": columnas.length + (tramo.id ? 1 : 0) }}>
@@ -629,22 +663,29 @@ export default function ReportesLesiones({
                           <tr className="informe-cabeceras">
                             {columnas.map(({ clave, grupo }) => (
                               <th scope="col" key={clave} className={claseDeColumna(clave, tono(grupo))} data-columna={clave}>
-                                {etiqueta(clave)}
+                                {/* Al menos una columna queda a la vista. */}
+                                {columnasAVista > 1 ? (
+                                  <TocarParaOcultar ocultar={ocultarIndividual} tipo="columna" clave={clave} titulo={`${etiquetaDeGrupo(grupo)} · ${etiqueta(clave)}`}>
+                                    {etiqueta(clave)}
+                                  </TocarParaOcultar>
+                                ) : (
+                                  etiqueta(clave)
+                                )}
                               </th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {ordenadas.map((lesion) => (
+                          {lesionesAVista.map((lesion) => (
                             <tr key={lesion.id}>
                               {tramo.id && (
                                 <td className={claseDeColumna(tramo.id)} data-columna={tramo.id}>
-                                  {celda(tramo.id, lesion)}
+                                  {conNombre(tramo.id, lesion, celda(tramo.id, lesion))}
                                 </td>
                               )}
                               {columnas.map(({ clave }) => (
                                 <td key={clave} className={claseDeColumna(clave)} data-columna={clave}>
-                                  {celda(clave, lesion)}
+                                  {conNombre(clave, lesion, celda(clave, lesion))}
                                 </td>
                               ))}
                             </tr>
@@ -662,6 +703,7 @@ export default function ReportesLesiones({
               <span>{fechaCorta(hoy)}</span>
             </footer>
           </article>
+          <HojasDeOcultar ocultar={ocultarIndividual} />
         </div>
       </div>
     );

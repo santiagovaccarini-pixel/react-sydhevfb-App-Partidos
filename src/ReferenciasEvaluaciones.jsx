@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
+import { HojasDeOcultar, OcultasArriba, useOcultar } from "./components/Ocultar.jsx";
 import { HistorialDeReferencias, TablaDeReferencia } from "./components/TablaDeReferencia.jsx";
 import { textoDeValor, tiempoParaExcel } from "./domain/evaluaciones/excel.js";
 import { cambiarReferencia } from "./domain/evaluacionesDb.js";
@@ -91,6 +92,10 @@ export default function ReferenciasEvaluaciones({
   const sinBloque = categoriasConOcultas.filter((categoria) => !bloques[categoria.valor]);
   const [nueva, setNueva] = useState("");
   const [aBorrar, setABorrar] = useState(null);
+  // Ocultar a mano (Santiago, 15/10): lo mismo en las tablas de todas las
+  // categorías (tienen las mismas columnas y filas); el resumen, aparte.
+  const ocultarCategorias = useOcultar(`vr-evaluaciones:${test.id}`);
+  const ocultarResumen = useOcultar(`vr-evaluaciones-resumen:${test.id}`);
   const sumarCategoria = async () => {
     const codigo = nueva || sinBloque[0]?.valor;
     if (!codigo) return;
@@ -182,6 +187,10 @@ export default function ReferenciasEvaluaciones({
     // «Pro»: en el Excel da #REF! (la celda de la que salía ya no existe).
     ...(conPro ? [{ clave: "_pro", titulo: t("evaluaciones.referencias.pro"), editable: false }] : []),
   ];
+  // Lo que se puede ocultar en las tablas de las categorías (sin repetir).
+  const unaVez = (lista) => lista.filter((uno, indice) => lista.findIndex((otro) => otro.clave === uno.clave) === indice).map(({ clave, titulo }) => ({ clave, texto: titulo }));
+  const columnasDeCategorias = unaVez(tablas.flatMap(columnasDe));
+  const filasDeCategorias = unaVez(tablas.flatMap(filasDeTabla));
 
   return (
     <div className="app">
@@ -193,6 +202,7 @@ export default function ReferenciasEvaluaciones({
         {sinReferencias && <p className="lesiones-estado">{t(puedeCambiar ? "evaluaciones.referencias.sinDatosCargar" : "evaluaciones.referencias.sinDatos")}</p>}
         {test.conReferencias === false && !cargando && !error && <p className="lesiones-estado">{t("evaluaciones.referencias.noTiene")}</p>}
         {puedeCambiar && Object.keys(bloques).length > 0 && <p className="lesiones-ayuda referencias-ayuda">{t("referencias.comoSeCambia")}</p>}
+        {!cargando && !error && Object.keys(bloques).length > 0 && <OcultasArriba ocultar={ocultarCategorias} columnas={columnasDeCategorias} filas={filasDeCategorias} />}
         {!cargando &&
           !error &&
           categoriasConOcultas
@@ -208,6 +218,7 @@ export default function ReferenciasEvaluaciones({
                     {bloque.rotulo && <span>{bloque.rotulo}</span>}
                   </div>
                   <TablaDeReferencia
+                    ocultar={ocultarCategorias}
                     columnas={columnasDe(tabla)}
                     filas={filasDeTabla(tabla)}
                     texto={(fila, columna) => textoDeValor(bloque[fila.clave]?.[columna.clave] ?? null, fila.formato || columna.formato, idioma)}
@@ -245,7 +256,13 @@ export default function ReferenciasEvaluaciones({
         {!cargando && !error && referencias?.resumen && (
           <section className="tarjeta evaluaciones-bloque">
             <h2>{t("evaluaciones.referencias.resumen")}</h2>
+            <OcultasArriba
+              ocultar={ocultarResumen}
+              columnas={columnasDelResumen.map(({ clave, titulo }) => ({ clave, texto: titulo }))}
+              filas={categorias.map((categoria) => ({ clave: categoria.valor, texto: categoria.etiqueta }))}
+            />
             <TablaDeReferencia
+              ocultar={ocultarResumen}
               primera={t("evaluaciones.referencias.categoria")}
               columnas={columnasDelResumen}
               filas={categorias.map((categoria) => ({ clave: categoria.valor, titulo: categoria.etiqueta }))}
@@ -261,6 +278,8 @@ export default function ReferenciasEvaluaciones({
         )}
         {historial.leido && !sinEdicion && test.conReferencias !== false && <HistorialDeReferencias entradas={entradas} onVolver={enLinea ? volver : undefined} error={historial.error} />}
       </div>
+      <HojasDeOcultar ocultar={ocultarCategorias} />
+      <HojasDeOcultar ocultar={ocultarResumen} />
 
       <HojaConfirmar
         abierta={Boolean(aBorrar)}

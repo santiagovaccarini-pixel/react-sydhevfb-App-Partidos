@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaInferior } from "./components/SheetPanel.js";
+import { HojasDeOcultar, OcultasArriba, useOcultar } from "./components/Ocultar.jsx";
 import { HistorialDeReferencias, TablaDeReferencia } from "./components/TablaDeReferencia.jsx";
 import { TerminoDe } from "./components/Guia.jsx";
 import { tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
@@ -82,6 +83,9 @@ export default function ReferenciasGps({
   const [tablaElegida, setTablaElegida] = useState("");
   const tabla = tablas.length > 1 && tablas.includes(tablaElegida) ? tablaElegida : "";
   const aLaVista = tabla ? suyas.filter((referencia) => tablaDe(referencia) === tabla) : suyas;
+  // Ocultar a mano (Santiago, 15/10): lo mismo en todas las tablas (tienen
+  // las mismas columnas y filas).
+  const ocultar = useOcultar("vr-gps");
 
   // Se cambian con la base al día, con señal y siguiendo en el club.
   const puedeCambiar = !soloLectura && !sinEdicion && !faltaTabla && enLinea;
@@ -102,6 +106,11 @@ export default function ReferenciasGps({
     [columnasGps, gps, config, idioma],
   );
   const tituloDe = (clave) => columnas.find((columna) => columna.clave === clave)?.titulo || clave;
+  const columnasAVista = columnas.filter((columna) => !ocultar.columnaOculta(columna.clave));
+  // Las filas de todas las tablas a la vista, una vez cada una.
+  const filasParaOcultar = aLaVista
+    .flatMap((referencia) => filasDe(referencia).map((clave) => ({ clave, texto: tituloDeFila(referencia, clave) })))
+    .filter((fila, indice, todas) => todas.findIndex((otra) => otra.clave === fila.clave) === indice);
 
   // Como en la Base, salvo los por minuto: sus V.R. son chicos (0,48 por
   // minuto) y con un decimal se perderían; van con dos.
@@ -303,6 +312,7 @@ export default function ReferenciasGps({
             )}
             {dispositivo && !suyas.length && <p className="lesiones-estado">{t("gps.vr.ningunoDelDispositivo", { dispositivo: nombreDelDispositivo })}</p>}
             {puedeCambiar && suyas.length > 0 && <p className="lesiones-ayuda referencias-ayuda">{t("referencias.comoSeCambia")}</p>}
+            {aLaVista.length > 0 && <OcultasArriba ocultar={ocultar} columnas={columnas.map((columna) => ({ clave: columna.clave, texto: columna.titulo }))} filas={filasParaOcultar} />}
             {aLaVista.map((referencia) => (
               <section key={referencia.id} className="tarjeta evaluaciones-bloque referencias-bloque">
                 <div className="evaluaciones-bloque-cabeza">
@@ -315,9 +325,10 @@ export default function ReferenciasGps({
                   )}
                 </div>
                 <TablaDeReferencia
+                  ocultar={ocultar}
                   columnas={columnas}
                   filas={filasDe(referencia).map((clave) => ({ clave, titulo: tituloDeFila(referencia, clave) }))}
-                  minimo={Math.max(520, 96 + columnas.length * 78)}
+                  minimo={Math.max(520, 96 + columnasAVista.length * 78)}
                   texto={(fila, columna) => {
                     const valor = valoresDe(referencia, fila.clave)?.[columna.clave];
                     return valor === undefined || valor === null ? "" : textoDe(columna.gps, valor);
@@ -387,6 +398,7 @@ export default function ReferenciasGps({
         onConfirmar={borrar}
         onCancelar={() => setABorrar(null)}
       />
+      <HojasDeOcultar ocultar={ocultar} />
     </div>
   );
 }

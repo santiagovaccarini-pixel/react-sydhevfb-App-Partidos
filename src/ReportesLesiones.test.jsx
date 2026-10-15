@@ -340,6 +340,75 @@ describe("los reportes con los minutos del GPS", () => {
     ]);
   });
 
+  // Santiago, 15/10: «EN TODO EL SOFT DE PODER OCULTAR MANUALMENTE UN COLUMNA
+  // Y FILAS»; «tiene que preguntarme si la quiero ocultar».
+  test("el cuadro: tocar el nombre de una columna o de una fila pregunta y la oculta; cada número sigue en su columna", async () => {
+    await montar();
+    await tocar(botonQueEmpieza("Reporte grupal"));
+    const cuadro = () => contenedor.querySelector(".informe-cuadro");
+    const pregunta = () => document.body.querySelector(".hoja-confirmar h3")?.textContent;
+    const confirmar = () => tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    // «Sin leves» de todos los tipos: pregunta; «Cancelar» la deja.
+    await tocar(cuadro().querySelectorAll("thead tr:nth-child(2) th .ocultar-al-tocar")[1]);
+    expect(pregunta()).toBe("¿Ocultar «Severidad (SIN LEVES) y Tipos (TODOS)»?");
+    await tocar(document.body.querySelector(".hoja-confirmar .boton-cancelar-hoja"));
+    expect(filas(cuadro())[0]).toEqual(["2", "1", "1", "1"]);
+    await tocar(cuadro().querySelectorAll("thead tr:nth-child(2) th .ocultar-al-tocar")[1]);
+    await confirmar();
+    expect(filas(cuadro())).toEqual([
+      ["2", "1", "1"],
+      ["10,00", "5,00", "5,00"],
+      ["23", "20", "20"],
+      ["115,00", "100,00", "100,00"],
+    ]);
+    expect([...cuadro().querySelectorAll('thead th[scope="colgroup"]')].map((th) => th.colSpan)).toEqual([1, 2]);
+    // Una fila, tocando su nombre.
+    await tocar(cuadro().querySelector("tbody tr:nth-child(2) th .ocultar-al-tocar"));
+    expect(pregunta()).toBe("¿Ocultar «Lesiones c/ 1000 h»?");
+    await confirmar();
+    expect(filas(cuadro())).toHaveLength(3);
+    // Arriba, cuántas hay ocultas; la columna queda guardada en el aparato, la fila no.
+    expect([...contenedor.querySelectorAll(".ocultar-arriba button")].map((boton) => boton.textContent)).toEqual(["Columnas1 oculta", "Filas1 oculta"]);
+    expect(JSON.parse(window.localStorage.getItem("reporte_ocultas:lesiones-cada-mil"))).toEqual(["sinLeves"]);
+    await act(async () => raiz.unmount());
+    await montar();
+    await tocar(botonQueEmpieza("Reporte grupal"));
+    expect(filas(cuadro())).toHaveLength(4);
+    expect(filas(cuadro())[0]).toEqual(["2", "1", "1"]);
+    // «Columnas» la vuelve a mostrar.
+    await tocar(contenedor.querySelector(".ocultar-arriba button"));
+    const casilla = [...document.body.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent.includes("SIN LEVES) y Tipos (TODOS)")).querySelector("input");
+    expect(casilla.checked).toBe(false);
+    await tocar(casilla);
+    await tocar([...document.body.querySelectorAll("button")].find((boton) => boton.textContent === "Listo"));
+    expect(filas(cuadro())[0]).toEqual(["2", "1", "1", "1"]);
+  });
+
+  test("el historial del individual: tocar el n° de registro oculta la lesión de las dos tablas, y tocar el nombre de una columna, la columna", async () => {
+    await montar();
+    await tocar(botonQueEmpieza("Reporte individual"));
+    await tocar(botonQueEmpieza("HULK"));
+    const tablas = () => [...contenedor.querySelectorAll(".informe-tabla")];
+    const cuantas = () => tablas().map((tabla) => tabla.querySelectorAll("tbody tr").length);
+    const pregunta = () => document.body.querySelector(".hoja-confirmar h3")?.textContent;
+    const confirmar = () => tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    const antes = cuantas();
+    expect(antes[0]).toBeGreaterThan(0);
+    await tocar(tablas()[0].querySelector('tbody tr td[data-columna="numero_registro"] .ocultar-al-tocar'));
+    expect(pregunta()).toMatch(/^¿Ocultar «N° de registro .+»\?$/);
+    await confirmar();
+    expect(cuantas()).toEqual(antes.map((n) => n - 1));
+    // Una columna deja de estar; el n° de registro no se oculta.
+    await tocar(tablas()[0].querySelector('th[data-columna="edad"] .ocultar-al-tocar'));
+    expect(pregunta()).toBe("¿Ocultar «Datos generales · Edad»?");
+    await confirmar();
+    expect([...tablas()[0].querySelectorAll("th[data-columna]")].map((th) => th.dataset.columna)).not.toContain("edad");
+    expect(contenedor.querySelector('th[data-columna="numero_registro"] .ocultar-al-tocar')).toBeNull();
+    expect([...contenedor.querySelectorAll(".ocultar-arriba button")].map((boton) => boton.textContent)).toEqual(["Columnas1 oculta", "Filas1 oculta"]);
+    // No sale al imprimir.
+    expect(contenedor.querySelector(".ocultar-arriba").classList.contains("no-imprimir")).toBe(true);
+  });
+
   test("Lesiones c/1000h y días perdidos: el período, los minutos, el cuadro y guardarlo con un nombre", async () => {
     periodosGuardados.lista = [{ id: "p-0", nombre: "Primer trimestre", desde: "2026-01-01", hasta: "2026-03-31" }];
     periodosGuardados.guardados = [];

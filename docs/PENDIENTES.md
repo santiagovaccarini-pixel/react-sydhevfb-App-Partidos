@@ -37,8 +37,22 @@ a la propuesta está en «GPS (10/10)», «La presentación, los colores y ocult
   pregunta si se oculta; arriba de la tabla, «Columnas» y «Filas» dicen cuántas hay ocultas y
   las vuelven a mostrar; los números no cambian. Hecho en el Informe de GPS y en las bases
   (15/10: GPS, Lesiones, Evaluaciones, Datos básicos y las tablas de Cargar de GPS; cómo, en
-  «Bases de Datos (05/10)», Ocultar columnas y filas); faltan las tablas de los reportes (en
-  curso).
+  «Bases de Datos (05/10)», Ocultar columnas y filas). **En los reportes y los V.R.** (15/10),
+  como en el Informe de GPS, con lo común en `src/components/Ocultar.jsx` (`useOcultar`,
+  `TocarParaOcultar`, `OcultasArriba`, `HojasDeOcultar`):
+  - Evaluaciones › Reportes: el grupal (una evaluación se oculta tocando su jugador; las filas
+    del informe, tocando su rótulo; la comparación con los V.R. va junta con la de abajo) y el
+    individual (una fila, con el ojo al lado de su desplegable, porque el nombre ya es el
+    desplegable; cada test, con su «Columnas» y «Filas»).
+  - Lesiones › Reportes: la tabla del individual (una lesión, tocando su n° de registro, se va
+    de las dos tablas; esa columna no se oculta) y el cuadro cada 1000 h (el grupal y «Lesiones
+    c/1000h y días perdidos»; los títulos de arriba se ajustan a lo que queda).
+  - Valores de referencia de Evaluaciones y de GPS: lo mismo en todas las tablas de la pantalla
+    (tienen las mismas columnas y filas); el resumen de Evaluaciones, aparte.
+  Las columnas quedan ocultas en ese aparato, por tabla (`reporte_ocultas:<tabla>`); las filas,
+  mientras se está en esa pantalla. Siempre queda al menos una columna. Lo oculto tampoco sale
+  al imprimir, y «Columnas» y «Filas» no se imprimen. Las cuentas, los promedios y los colores
+  se calculan con todo, como antes. Queda prohibido ocultar sin preguntar.
 - **El estilo de tabla del Informe en las demás tablas**: «Despues lo vemos». No hacerlo hasta
   que Santiago lo pida.
 

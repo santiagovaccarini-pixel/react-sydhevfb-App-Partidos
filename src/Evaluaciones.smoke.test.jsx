@@ -719,6 +719,38 @@ describe("Evaluaciones", () => {
     expect(contenedor.textContent).toContain("No hay evaluaciones de este test con estos filtros.");
   });
 
+  // Santiago, 15/10: «EN TODO EL SOFT DE PODER OCULTAR MANUALMENTE UN COLUMNA
+  // Y FILAS»; «tiene que preguntarme si la quiero ocultar».
+  test("Reportes › Grupal: tocar el jugador oculta su evaluación y tocar el nombre de una columna, la columna; el informe no cambia", async () => {
+    await montar();
+    await irA(contenedor, "Reportes");
+    await tocar([...contenedor.querySelectorAll(".reporte-opcion")].find((b) => b.textContent.includes("Reporte grupal")));
+    const informe = () => [...contenedor.querySelectorAll(".evaluaciones-informe-test thead tr.evaluaciones-informe-arriba")].map((tr) => tr.textContent);
+    const filas = () => contenedor.querySelectorAll(".evaluaciones-informe-test tbody tr");
+    const pregunta = () => document.body.querySelector(".hoja-confirmar h3")?.textContent;
+    const confirmar = () => tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    const antes = informe();
+    expect(filas()).toHaveLength(3);
+    // Una evaluación, tocando su jugador: pregunta; «Cancelar» la deja.
+    await tocar(filas()[0].querySelector('td[data-columna="jugador"] .ocultar-al-tocar'));
+    expect(pregunta()).toMatch(/^¿Ocultar «.+ · \d\d\/\d\d\/\d{4}»\?$/);
+    await tocar(document.body.querySelector(".hoja-confirmar .boton-cancelar-hoja"));
+    expect(filas()).toHaveLength(3);
+    await tocar(filas()[0].querySelector('td[data-columna="jugador"] .ocultar-al-tocar'));
+    await confirmar();
+    expect(filas()).toHaveLength(2);
+    // Los números de arriba siguen con las tres.
+    expect(informe()).toEqual(antes);
+    // Una columna, tocando su nombre: se va de las cabeceras y queda guardada en el aparato.
+    const lumbar = [...contenedor.querySelectorAll('.evaluaciones-informe-test th[data-columna="lumbar"]')][0];
+    await tocar(lumbar.querySelector(".ocultar-al-tocar"));
+    expect(pregunta()).toContain("Lumbar");
+    await confirmar();
+    expect(contenedor.querySelector('.evaluaciones-informe-test th[data-columna="lumbar"]')).toBeNull();
+    expect(JSON.parse(localStorage.getItem("reporte_ocultas:evaluaciones-grupal:zona_media"))).toEqual(["lumbar"]);
+    expect([...contenedor.querySelectorAll(".ocultar-arriba button")].map((b) => b.textContent)).toEqual(["Columnas1 oculta", "Filas1 oculta"]);
+  });
+
   // Santiago, 13/10: «solo se puede cambiar el nombre de las absolutas y las
   // relativas pasan a tomar el nombre del absoluto pero dependiendo que sea se
   // le agrega /Min o /PC».
