@@ -10,6 +10,7 @@ import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarGps from "./ImportarGps.jsx";
 import CargarGps from "./CargarGps.jsx";
 import ReferenciasGps from "./ReferenciasGps.jsx";
+import ReportesGps from "./ReportesGps.jsx";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, useGuiaDelModulo } from "./components/Guia.jsx";
 import { COLUMNAS_FIJAS, absolutaDe, codigoNuevo, columnaOculta, columnasVisibles, opcionesDeLista, opcionesDelExcel, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
@@ -60,14 +61,17 @@ import "./gps.css";
 //     14/10), y los mismos colores del Excel, cada dispositivo contra lo
 //     suyo. Se corrige en la tabla y el historial se trae una vez con Pegar
 //     desde Excel.
+//   · Reportes: el Informe (Santiago, 15/10), por ahora Por microciclo
+//     (ReportesGps.jsx y domain/gps/porMicrociclo.js).
+//   · Valores de referencia: los V.R. de cada dispositivo (ReferenciasGps.jsx).
 //   · Ajustes: el nombre de cada columna, esconderla, sumar columnas del
 //     club, las opciones de cada lista (también los dispositivos) y los
 //     números de las reglas de la carga.
-// Los reportes y los V.R. son los pasos que siguen (docs/PENDIENTES.md, «GPS»).
 
 export const DESTINOS_GPS = [
   { id: "cargar", etiqueta: "Cargar", icono: "usuario" },
   { id: "base", etiqueta: "Base", icono: "documento" },
+  { id: "reportes", etiqueta: "Reportes", icono: "grafico" },
   { id: "referencias", etiqueta: "Valores de referencia", icono: "registros" },
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
@@ -83,7 +87,23 @@ const PROMEDIO = "promedio:";
 // Cuántas filas se guardan a la vez al pegar en la tabla.
 const GUARDADOS_A_LA_VEZ = 6;
 // Las palabras propias de GPS que explica la guía, en este orden.
-const TERMINOS_GPS = ["teamAverage", "va", "microciclo", "porMinuto", "dispositivo", "vrBase", "comparaciones", "vrPartido", "vsPartido", "sinIngresar", "regenerativo"];
+const TERMINOS_GPS = [
+  "teamAverage",
+  "va",
+  "microciclo",
+  "porMinuto",
+  "dispositivo",
+  "vrBase",
+  "comparaciones",
+  "vrPartido",
+  "vsPartido",
+  "sinIngresar",
+  "regenerativo",
+  "unidadArbitraria",
+  "cargaCronica",
+  "categorizacion",
+  "vrInforme",
+];
 // El V.R. elegido de cada dispositivo y la zona de impacto de las
 // Comparaciones (las celdas A14:C14 y AI16 del Excel) quedan en este aparato.
 const claveDeElegidos = (equipoId) => `gps_vr:${equipoId}`;
@@ -578,6 +598,18 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       sigue = false;
     };
   }, [enLaBase, filasGps, armadas]);
+
+  // Para los reportes: el nombre de un dispositivo y el nombre y el formato
+  // de una columna por su clave.
+  const nombreDelDispositivo = (codigo) => (codigo ? textosDeListas.dispositivo?.get(codigo) || codigo : t("gps.sinDispositivo"));
+  const tituloDeClave = (clave) => {
+    const columna = gps.columnas.find((una) => una.clave === clave);
+    return columna ? titulo(columna) : clave;
+  };
+  const textoDeClave = (clave, valor) => {
+    const columna = gps.columnas.find((una) => una.clave === clave);
+    return columna ? textoDeCelda(columna, valor, idioma) : valor === null || valor === undefined ? "" : String(valor);
+  };
 
   const ordenDeDispositivos = useMemo(() => new Map([...(textosDeListas.dispositivo?.keys() || [])].map((codigo, indice) => [codigo, indice])), [textosDeListas]);
 
@@ -1496,6 +1528,27 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       ) : (
         pantallaCargar
       );
+  else if (vista === "reportes")
+    contenido = (
+      <ReportesGps
+        filasGps={filasGps}
+        referencias={referencias}
+        elegidos={elegidos}
+        nombreDe={nombreDe}
+        nombreDelDispositivo={nombreDelDispositivo}
+        tituloDe={tituloDeClave}
+        textoDe={textoDeClave}
+        textosDeListas={textosDeListas}
+        cargando={cargando}
+        encabezado={encabezado}
+        arriba={
+          <>
+            <AvisoSoloLectura hasta={equipo?.hasta} />
+            {estado}
+          </>
+        }
+      />
+    );
   else if (vista === "referencias")
     contenido = (
       <ReferenciasGps
@@ -1544,7 +1597,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const contenidoDeLaGuia = {
     titulo: t("gps.guia.titulo"),
     intro: t("gps.guia.intro"),
-    secciones: ["cargar", "base", "referencias", "traer", "ajustes"].map((parte) => ({ titulo: t(`gps.guia.${parte}Titulo`), texto: t(`gps.guia.${parte}`) })),
+    secciones: ["cargar", "base", "reportes", "referencias", "traer", "ajustes"].map((parte) => ({ titulo: t(`gps.guia.${parte}Titulo`), texto: t(`gps.guia.${parte}`) })),
     terminos: TERMINOS_GPS.map((termino) => ({ titulo: t(`gps.terminos.${termino}.titulo`), texto: t(`gps.terminos.${termino}.texto`) })),
   };
 

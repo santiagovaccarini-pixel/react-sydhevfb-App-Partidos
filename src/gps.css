@@ -785,3 +785,214 @@
 .gps-marco .gps-cargar-agregados {
   margin: 0;
 }
+
+/* Reportes (15/10): el menú de los informes, los filtros con casillas y el
+   informe Por microciclo, con la tabla de los reportes (cabecera oscura,
+   grupos con su tono y la primera columna fija al deslizar). */
+.gps-marco .gps-reportes-menu .reporte-opcion:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.gps-marco .gps-reportes-menu .reporte-opcion:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+.gps-marco .gps-reportes-filtros-cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+.gps-marco .gps-reportes-filtros-cabeza > b {
+  color: #0f172a;
+  font-size: 15px;
+}
+.gps-marco .gps-reportes-filtros-cabeza .boton-secundario {
+  width: auto;
+}
+.gps-marco .gps-reportes-grilla {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 640px) {
+  .gps-marco .gps-reportes-grilla {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1000px) {
+  .gps-marco .gps-reportes-grilla {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.gps-marco .gps-reportes-rotulo {
+  display: inline-flex;
+  align-items: center;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+.gps-marco .gps-reportes-grilla select,
+.gps-marco .gps-reportes-vr select {
+  min-height: 46px;
+  font-size: 15px;
+  font-weight: 800;
+}
+.gps-marco .gps-reportes-siguiente {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+}
+.gps-marco .gps-reportes-siguiente .lesiones-ayuda {
+  margin: 0;
+}
+.gps-marco .gps-reportes-siguiente .boton-principal {
+  width: auto;
+  min-height: 48px;
+  padding: 0 22px;
+}
+@media (max-width: 639px) {
+  .gps-marco .gps-reportes-siguiente .boton-principal {
+    width: 100%;
+  }
+}
+.gps-marco .gps-reportes-resumen {
+  margin: -4px auto 12px;
+  font-size: 13px;
+}
+.gps-marco .gps-reportes-vrs {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+}
+.gps-marco .gps-reportes-vr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* El nombre de un V.R. puede ser largo: el desplegable no pasa del ancho de
+   la tarjeta (se corta adentro) ni, en la compu, de 560 px. */
+.gps-marco .gps-reportes-vr > select {
+  flex: 0 1 560px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+@media (max-width: 639px) {
+  .gps-marco .gps-reportes-vr > select {
+    flex-basis: 100%;
+  }
+}
+.gps-marco .gps-reportes-vr > .selector-hoja {
+  flex: 1 1 200px;
+  width: auto;
+  min-width: 0;
+}
+.gps-marco .gps-reportes-quitar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  min-height: 46px;
+  padding: 0;
+}
+.gps-marco .gps-reportes-sumar {
+  justify-self: start;
+  width: auto;
+}
+.gps-marco .gps-reportes-vrs .lesiones-ayuda {
+  margin: 0;
+}
+.gps-marco .gps-reportes-tabla {
+  padding: 14px;
+}
+.gps-marco .gps-reportes-franjas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+}
+.gps-marco .gps-reportes-franjas .boton-secundario {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+}
+/* La tabla: la columna del nombre, fija y más ancha (en dos renglones si no
+   entra); las franjas, en gris claro, con el rótulo a la izquierda. */
+.gps-marco .gps-informe-tabla {
+  --informe-ancho-id: 156px;
+  min-width: calc(var(--columnas, 12) * 58px);
+}
+.gps-marco .gps-informe-tabla .informe-id {
+  text-align: left;
+}
+.gps-marco .gps-informe-tabla tbody th.informe-id {
+  padding: 6px 8px;
+  border-top: 1px solid #ececec;
+  background: #fff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 1px 0 0 #e5e7eb;
+}
+.gps-marco .gps-informe-tabla tbody tr:nth-child(even) th.informe-id {
+  background: #f7f7f7;
+}
+.gps-marco .gps-informe-tabla thead tr.evaluaciones-informe-arriba th.informe-id {
+  text-align: left;
+  background: #f8fafc;
+  box-shadow: 1px 0 0 #e5e7eb;
+}
+.gps-marco .gps-informe-nombre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+}
+.gps-marco .gps-informe-nombre > span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+}
+.gps-marco .gps-informe-nombre > b {
+  font-weight: 800;
+}
+.gps-marco .gps-informe-tabla .gps-informe-rival {
+  min-width: 220px;
+  text-align: left;
+  white-space: normal;
+}
+.gps-marco .gps-informe-tabla tr.gps-informe-vr td {
+  color: #475569;
+  font-style: italic;
+}
+.gps-marco .gps-informe-tabla .termino-ayuda {
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+}
+@media screen and (max-width: 639px) {
+  .gps-marco .gps-informe-tabla {
+    --informe-ancho-id: 116px;
+  }
+  .gps-marco .gps-reportes-tabla {
+    padding: 10px;
+  }
+}
