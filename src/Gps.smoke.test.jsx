@@ -1722,7 +1722,7 @@ describe("GPS", () => {
     await tocar(boton("Listo"));
   };
 
-  test("Reportes › Por microciclo: el menú, los filtros con casillas, el informe con sus franjas y colores, y otro V.R.", async () => {
+  test("Informe › Por microciclo: el menú, los filtros con casillas, el informe con sus franjas y colores, y otro V.R.", async () => {
     datos.filas = INFORME();
     datos.plantel = PLANTEL.map((jugador) => ({ ...jugador }));
     datos.referencias = [
@@ -1730,8 +1730,10 @@ describe("GPS", () => {
       { id: "s1", dispositivo: "sport", tipo: "FUTBOL", tabla: "FUTBOL 2", grupo: "TOTAL", orden: 2, promedio: { d: 4000 }, desvio: {}, dePartido: false },
     ];
     await montar();
-    await irA(contenedor, "Reportes");
-    expect(contenedor.querySelector("h1").textContent).toBe("Reportes");
+    // La solapa se llama Informe (Santiago, 15/10).
+    expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent)).toEqual(["Cargar", "Base", "Informe", "Valores de referencia", "Ajustes"]);
+    await irA(contenedor, "Informe");
+    expect(contenedor.querySelector("h1").textContent).toBe("Informe");
     // Las tres opciones; Por tarea y Por jugador, todavía no.
     const opciones = [...contenedor.querySelectorAll(".reporte-opcion")];
     expect(opciones.map((una) => una.querySelector("b").textContent)).toEqual(["Por microciclo", "Por tarea", "Por jugador"]);
@@ -1845,7 +1847,7 @@ describe("GPS", () => {
     await montar();
     await tocar(boton("Ver cómo se usa"));
     expect(hoja().querySelector("h3").textContent).toBe("Cómo se usa GPS");
-    expect([...hoja().querySelectorAll(".guia-seccion h4")].map((h) => h.textContent)).toEqual(["Cargar un día", "Ver y corregir lo cargado", "Reportes", "Valores de referencia", "Traer lo que ya tenías", "Ajustes", "Palabras que vas a ver"]);
+    expect([...hoja().querySelectorAll(".guia-seccion h4")].map((h) => h.textContent)).toEqual(["Cargar un día", "Ver y corregir lo cargado", "Informe", "Valores de referencia", "Traer lo que ya tenías", "Ajustes", "Palabras que vas a ver"]);
     // Cargar un día: cuatro pasos, cada uno con lo que hay que hacer.
     expect(hoja().querySelectorAll(".guia-seccion")[0].querySelectorAll("li")).toHaveLength(4);
     expect([...hoja().querySelectorAll("dt")].map((dt) => dt.textContent)).toContain("Team Average");
@@ -1916,8 +1918,8 @@ describe("GPS", () => {
     revisar("Pegar desde una planilla");
     await irA(contenedor, "Valores de referencia");
     revisar("Valores de referencia");
-    await irA(contenedor, "Reportes");
-    revisar("Reportes");
+    await irA(contenedor, "Informe");
+    revisar("Informe");
     await tocar(document.body.querySelector(".reporte-opcion"));
     revisar("Por microciclo › Filtros");
     await tocar(siguiente());
