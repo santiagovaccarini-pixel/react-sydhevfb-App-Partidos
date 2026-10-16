@@ -560,6 +560,7 @@ export default {
       ocultar: "Ocultar",
       franjas: {
         vr: "V.R.",
+        vrDe: "V.R. {{vr}}",
         excelente: "Excelente",
         muyBueno: "Muito bom",
         bueno: "Bom (média)",

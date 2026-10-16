@@ -1889,9 +1889,13 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
     (o de sus microciclos).
   Con un solo V.R. los números dan lo mismo que antes (el archivo usa un V.R. por tabla). Arriba
   de la tabla dice «Franjas de Mi selección» (o de «Objetivo…»); el nombre del V.R. y «Ver las
-  de …», solo con «Valor referencial»; con más de un V.R., la fila «V.R.» de las franjas también
-  va solo con «Valor referencial» (con las otras, cada fila tiene el suyo y uno solo no vale
-  para todas; lo propuso Claude). La U.A. y la carga crónica ya salían de todas las filas.
+  de …», solo con «Valor referencial»; con «Mi selección» u «Objetivo» y más de un V.R., las
+  franjas llevan una fila de V.R. por dispositivo, con su nombre («V.R. Catapult», «V.R.
+  Sport»; si dos son del mismo dispositivo, el nombre entero del V.R.), porque cada fila del
+  informe tiene el suyo. (Primero se había sacado la fila del V.R. en ese caso; se cambió el
+  mismo 16/10 al revisar la «Preferencia visual» del sistema de diseño: no se ocultan datos
+  útiles y cada % tiene que tener su referencia a la vista.) La U.A. y la carga crónica ya
+  salían de todas las filas.
   Descartado: con «Mi selección» u «Objetivo», separar las franjas por V.R. o por dispositivo.
   **Pendiente preguntar**: (a) un jugador con microciclos de dos dispositivos toma, para sus %,
   el V.R. del dispositivo de su primera fila; (b) con «Objetivo» y jugadores elegidos en
