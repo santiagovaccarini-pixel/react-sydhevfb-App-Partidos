@@ -25,6 +25,7 @@ import {
 import { FILTROS_POR_TAREA, LETRAS, MAXIMO_DE_COMPARACIONES, entraEnPorTarea, filasPorMicrocicloDe, informePorTarea, pasaLosFiltrosDe } from "./domain/gps/porTarea.js";
 import { FILTROS_POR_JUGADOR, informePorJugador, soloDeJugadores } from "./domain/gps/porJugador.js";
 import ReporteIndividualGps from "./ReporteIndividualGps.jsx";
+import ReporteGrupalGps from "./ReporteGrupalGps.jsx";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
 
@@ -127,9 +128,10 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   const { idioma, plural } = useIdioma();
   const [modo, setModo] = useState("menu");
   // El informe elegido en «Ver informes»: «porMicrociclo», «porTarea»,
-  // «porJugador» o «reporteIndividual» (ese, en su propio componente).
+  // «porJugador», «reporteIndividual» o «reporteGrupal» (esos dos, en su
+  // propio componente).
   const [tipo, setTipo] = useState("porMicrociclo");
-  const esReporte = tipo === "reporteIndividual";
+  const esReporte = tipo === "reporteIndividual" || tipo === "reporteGrupal";
   const [filtros, setFiltros] = useState(FILTROS_AL_ENTRAR);
   // Por tarea y Por jugador: las comparaciones de cada uno, con sus filtros.
   const [comparacionesDe, setComparacionesDe] = useState(() => ({ porTarea: [COMPARACIONES_NUEVAS.porTarea], porJugador: [COMPARACIONES_NUEVAS.porJugador] }));
@@ -530,6 +532,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
               {opcion("porTarea", "registros", true)}
               {opcion("porJugador", "usuario", true)}
               {opcion("reporteIndividual", "documento", true)}
+              {opcion("reporteGrupal", "grafico", true)}
             </div>
           </section>
         </div>
@@ -537,12 +540,16 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     );
   }
 
-  // ------------------------------------------------- Reporte individual --
-  // Va aparte, con sus dos pasos (Santiago, 16/10: «Dentro de Informe»).
-  if (tipo === "reporteIndividual") {
+  // ------------------------------------- Reporte individual y grupal --
+  // Van aparte, con sus dos pasos (Santiago, 16/10: «Dentro de Informe»).
+  if (esReporte) {
+    const Reporte = tipo === "reporteGrupal" ? ReporteGrupalGps : ReporteIndividualGps;
     return (
-      <ReporteIndividualGps
+      <Reporte
         filasGps={filasGps}
+        referencias={referencias}
+        elegidos={elegidos}
+        nombreDelDispositivo={nombreDelDispositivo}
         nombreDe={nombreDe}
         tituloDe={tituloDe}
         textoDe={textoDe}
