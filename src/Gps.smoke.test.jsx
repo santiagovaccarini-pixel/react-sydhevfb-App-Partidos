@@ -2145,35 +2145,31 @@ describe("GPS", () => {
     expect(contenedor.querySelector(".gps-informe-tabla thead th").textContent).toBe("Comparación / Microciclo");
     const filasDelInforme = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas tr")];
     expect(filasDelInforme().map((tr) => tr.querySelector("th").textContent)).toEqual([`A${alfa}`, "17", "18", "19", `B${beta}`, "17", "18", "19"]);
-    const deCadaComparacion = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-jugador-franjas")];
+    // Arriba, el V.R. y unas solas franjas de todo (Santiago, 16/10: «Unas solas para todo»).
     const FRANJAS = ["Excelente", "Muy bueno", "Bueno (promedio)", "Regular", "Malo", "Desvío"];
-    expect(deCadaComparacion().map((tbody) => [...tbody.querySelectorAll("th")].map((th) => th.textContent))).toEqual([FRANJAS, FRANJAS]);
-    // Las franjas de cada una van encima de su fila, como en el archivo.
-    expect(deCadaComparacion().map((tbody) => tbody.nextElementSibling.querySelector("th").textContent)).toEqual([`A${alfa}`, `B${beta}`]);
-    // Arriba, solo el V.R.
-    const arriba = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas:not(.gps-jugador-franjas) th")].map((th) => th.textContent);
-    expect(arriba()).toEqual(["V.R."]);
+    const arriba = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas th")].map((th) => th.textContent);
+    expect(arriba()).toEqual(["V.R.", ...FRANJAS]);
     // D (la primera variable): la fila de cada comparación, el promedio de sus microciclos.
     const cabeceras = [...contenedor.querySelectorAll(".gps-informe-tabla thead .gps-informe-cabecera")].map((b) => b.textContent);
     const columnaDeD = cabeceras.indexOf("D", cabeceras.indexOf("D") + 1);
     const deD = () => filasDelInforme().map((tr) => tr.querySelectorAll("td")[columnaDeD]?.textContent);
     expect(deD()).toEqual(["4000,0", "3000,0", "4000,0", "5000,0", "5000,0", "5000,0", "5000,0", "5000,0"]);
-    // ALFA, contra sí mismo: el 17 y el 19, pintados.
+    // El Bueno de D: el promedio de los seis microciclos de las dos comparaciones.
+    const franjaDeD = (indice) => contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas tr")[indice].querySelectorAll("td")[columnaDeD].textContent;
+    expect(franjaDeD(3)).toBe("4500,0");
     const pintadaEnD = (indice) => filasDelInforme()[indice].querySelectorAll("td")[columnaDeD].classList.contains("pintada");
-    expect([1, 3].map(pintadaEnD)).toEqual([true, true]);
-    // «Franjas» oculta las de cada comparación y las vuelve a mostrar.
+    expect([1, 3, 5].map(pintadaEnD)).toEqual([true, true, true]);
+    // «Franjas» las oculta (el V.R. queda) y las vuelve a mostrar.
     await tocar(contenedor.querySelector(".gps-informe-franjas-boton"));
-    expect(deCadaComparacion()).toHaveLength(0);
+    expect(arriba()).toEqual(["V.R."]);
     await tocar(contenedor.querySelector(".gps-informe-franjas-boton"));
-    expect(deCadaComparacion()).toHaveLength(2);
-    // Valor referencial: arriba, las del V.R.; ninguna por comparación.
+    expect(arriba()).toEqual(["V.R.", ...FRANJAS]);
+    // Valor referencial: arriba, las del V.R.
     await elegir(categorizacion(), "valorReferencial");
-    expect(deCadaComparacion()).toHaveLength(0);
     expect(arriba()).toEqual(["V.R.", ...FRANJAS]);
     // Objetivo: cada microciclo con el del equipo; sin franjas para mostrar ni su botón.
     await elegir(categorizacion(), "objetivo");
     expect(contenedor.querySelector(".gps-informe-franjas-boton")).toBeNull();
-    expect(deCadaComparacion()).toHaveLength(0);
     expect(arriba()).toEqual(["V.R."]);
     expect(contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas td.pintada").length).toBeGreaterThan(0);
     // Sin jugador elegido, Objetivo no está y vuelve a Mi selección.

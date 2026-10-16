@@ -1530,17 +1530,6 @@
   font-size: 12px;
   font-weight: 800;
 }
-/* Por jugador: las franjas de cada comparación, encima de su fila; una línea
-   más gruesa las separa de la comparación de arriba (y no se repite la de su
-   fila). */
-.gps-marco .gps-informe-tabla .gps-informe-filas + .gps-jugador-franjas tr:first-child th,
-.gps-marco .gps-informe-tabla .gps-informe-filas + .gps-jugador-franjas tr:first-child td {
-  border-top: 2px solid #334155;
-}
-.gps-marco .gps-informe-tabla .gps-jugador-franjas + .gps-informe-filas tr.gps-tarea-resumen th,
-.gps-marco .gps-informe-tabla .gps-jugador-franjas + .gps-informe-filas tr.gps-tarea-resumen td {
-  border-top: 0;
-}
 .gps-marco .gps-informe-filas td.gps-tarea-sin-filas {
   color: #94a3b8;
   font-style: italic;
