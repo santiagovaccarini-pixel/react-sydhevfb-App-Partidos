@@ -78,17 +78,11 @@ const filaDelReporte = (fila) => ({
 const numerosDe = (filas, clave) => filas.map((fila) => fila.valores[clave]).filter(esNumero);
 const sumar = (numeros) => numeros.reduce((total, x) => total + x, 0);
 
-// Los minutos de unos segundos como los cuenta el archivo: DIA × 24 + HORA
-// × 60 + MINUTO + SEGUNDO ÷ 60 del tiempo sumado (los días van × 24 y no ×
-// 1440: si los tiempos juntos pasan las 24 h, da menos minutos; queda como
-// el archivo).
-export const minutosDelArchivo = (segundos) => {
-  if (!esNumero(segundos)) return null;
-  const total = Math.round(segundos);
-  const dias = Math.floor(total / 86400);
-  const resto = total - dias * 86400;
-  return dias * 24 + Math.floor(resto / 3600) * 60 + Math.floor((resto % 3600) / 60) + (resto % 60) / 60;
-};
+// Los minutos del tiempo sumado, en segundos enteros como el archivo (HORA ×
+// 60 + MINUTO + SEGUNDO ÷ 60). El archivo contaba los días × 24 y no × 1440:
+// si los tiempos juntos pasaban las 24 h, daba menos minutos y el Por minuto
+// más alto. Santiago, 16/10: «Corregirlo»; por debajo de las 24 h da lo mismo.
+export const minutosDe = (segundos) => (esNumero(segundos) ? Math.round(segundos) / 60 : null);
 
 // Las cuentas de abajo de cada tabla.
 const totalesDe = (filas) => ({
@@ -101,7 +95,7 @@ const porMinutoDe = (filas, totales) => ({
     ...COLUMNAS_POR_MINUTO.map((clave, i) => {
       if (clave === "tiempo") return [clave, promedio(numerosDe(filas, "tiempo"))];
       const medida = COLUMNAS_TOTALES[i];
-      const minutos = minutosDelArchivo(sumar(filas.filter((fila) => esNumero(fila.valores[medida])).map((fila) => fila.valores.tiempo).filter(esNumero)));
+      const minutos = minutosDe(sumar(filas.filter((fila) => esNumero(fila.valores[medida])).map((fila) => fila.valores.tiempo).filter(esNumero)));
       return [clave, esNumero(totales.suma[medida]) && minutos ? totales.suma[medida] / minutos : null];
     }),
     ...DE_LA_CARGA.map((clave) => [clave, totales.promedio[clave]]),

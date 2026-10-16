@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { COLORES_INFORME } from "./porMicrociclo.js";
-import { COLUMNAS_POR_MINUTO, COLUMNAS_TOTALES, colorDelReporte, jugadoresDelReporte, minutosDelArchivo, reporteIndividual } from "./reporteIndividual.js";
+import { COLUMNAS_POR_MINUTO, COLUMNAS_TOTALES, colorDelReporte, jugadoresDelReporte, minutosDe, reporteIndividual } from "./reporteIndividual.js";
 
 // Filas inventadas: 12 días con el promedio del equipo de la sesión y dos
 // jugadores; el 1, con 12 sesiones; el 2, con todas.
@@ -55,9 +55,18 @@ describe("Reporte individual", () => {
     expect(jugador.porMinuto.promedio.tiempo).toBe(3600);
   });
 
-  test("los minutos como el archivo: los días van × 24 (con más de 24 h juntas, da menos)", () => {
-    expect(minutosDelArchivo(5400)).toBe(90);
-    expect(minutosDelArchivo(90061)).toBe(24 + 60 + 1 + 1 / 60);
+  test("los minutos, en segundos enteros; con más de 24 h juntas, también bien (el archivo contaba los días × 24)", () => {
+    expect(minutosDe(5400)).toBe(90);
+    expect(minutosDe(5400.4)).toBe(90);
+    expect(minutosDe(90061)).toBe(1440 + 60 + 1 + 1 / 60);
+    expect(minutosDe(null)).toBeNull();
+  });
+
+  test("el Promedio de Por minuto, con más de 24 h juntas: la suma ÷ todos los minutos", () => {
+    // 10 sesiones de 3 h (30 h juntas) y 9000 m cada una: 50 m por minuto.
+    const filas = Array.from({ length: 10 }, (_, i) => fila({ jugador_id: 1, fecha: dia(i + 1), microciclo: 17, tiempo: 10800, d: 9000, d_min: 50 }));
+    const { jugador } = reporteIndividual(filas, { jugador: "jugador:1" });
+    expect(jugador.porMinuto.promedio.d_min).toBeCloseTo(50, 9);
   });
 
   test("la regla de los colores: + 2 desvíos verde oscuro, + 1 verde, el promedio amarillo, − 1 naranja, más abajo rojo", () => {
