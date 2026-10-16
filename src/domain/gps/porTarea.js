@@ -25,24 +25,27 @@ export const LETRAS = Object.freeze(["A", "B", "C", "D", "E"]);
 // La página fija de las tablas dinámicas: Va vacío, No o Si.
 export const entraEnPorTarea = (fila) => ["", "si", "no"].includes(String(fila?.datos?.va ?? ""));
 
-// filtros: { filtro: [valores elegidos] }; sin nada elegido, todos.
-export const pasaLosFiltrosDeTarea = (fila, filtros = {}) =>
-  FILTROS_POR_TAREA.every((filtro) => {
+// filtros: { filtro: [valores elegidos] }; sin nada elegido, todos. lista:
+// los filtros del informe (los de Por tarea o los de Por jugador).
+export const pasaLosFiltrosDe = (fila, filtros = {}, lista = FILTROS_POR_TAREA) =>
+  lista.every((filtro) => {
     const elegidos = filtros[filtro];
     if (!elegidos || !elegidos.length) return true;
     const valor = valorDeFiltro(fila, filtro);
     return elegidos.some((elegido) => elegido === valor || String(elegido) === String(valor));
   });
+export const pasaLosFiltrosDeTarea = (fila, filtros = {}) => pasaLosFiltrosDe(fila, filtros, FILTROS_POR_TAREA);
 
 // Las filas de una comparación: una por microciclo, de menor a mayor (las sin
 // microciclo, al final). N° de sesiones: los días (fecha y clasificación de
 // días) de ese microciclo con estos filtros, como Micro_Sesión (sin mirar
-// Va).
-export const filasDeComparacion = (filasGps, filtros = {}) => {
+// Va); N° de descansos, los de Tipo de Sesión «Descanso» (como en Por
+// microciclo). lista: los filtros del informe.
+export const filasPorMicrocicloDe = (filasGps, filtros = {}, lista = FILTROS_POR_TAREA) => {
   const grupos = new Map();
   const deTodas = new Map();
   filasGps.forEach((fila) => {
-    if (!pasaLosFiltrosDeTarea(fila, filtros)) return;
+    if (!pasaLosFiltrosDe(fila, filtros, lista)) return;
     const microciclo = esNumero(fila.datos?.microciclo) ? fila.datos.microciclo : null;
     if (!deTodas.has(microciclo)) deTodas.set(microciclo, []);
     deTodas.get(microciclo).push(fila);
@@ -57,10 +60,12 @@ export const filasDeComparacion = (filasGps, filtros = {}) => {
       microciclos: microciclo === null ? [] : [microciclo],
       dispositivo: dispositivoDe(suyas),
       sesiones: diasDe(deTodas.get(microciclo) || suyas, false),
+      descansos: diasDe(deTodas.get(microciclo) || suyas, true),
       ...cuentasDeGrupo(suyas),
       filas: suyas,
     }));
 };
+export const filasDeComparacion = (filasGps, filtros = {}) => filasPorMicrocicloDe(filasGps, filtros, FILTROS_POR_TAREA);
 
 // El promedio de unos números que pueden faltar (PROMEDIO del Excel: salta
 // las vacías); sin ninguno, vacío.

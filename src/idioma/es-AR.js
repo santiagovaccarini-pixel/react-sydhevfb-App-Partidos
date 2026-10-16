@@ -400,7 +400,7 @@ export default {
       baseTitulo: "Ver y corregir lo cargado",
       base: "En «Base» están todas las filas.\n1. Tocá dos veces una celda para cambiarla.\n2. Con el embudo de cada columna filtrás u ordenás. Ahí también la ocultás («Ocultar esta columna»); para ocultar filas, elegilas y tocá «Ocultar fila». «Columnas» y «Mostrar», arriba de la tabla, las vuelven a mostrar.\n3. Mirá arriba de la tabla, por dispositivo, el promedio de lo que queda a la vista, su V.R. y el % del promedio contra el V.R.\n4. Elegí en «Comparaciones» qué V.R. usar y la zona de impacto: ahí ves el volumen y la densidad contra el V.R.\nLos colores comparan cada número con el promedio y el desvío de lo que se ve de su dispositivo: verde oscuro, más de dos desvíos por arriba del promedio; verde claro, entre uno y dos; amarillo, del promedio a un desvío por arriba; naranja, hasta un desvío por abajo; rojo, más de un desvío por abajo.",
       informeTitulo: "Informe",
-      informe: "En «Informe» elegís cuál ver: «Por microciclo» o «Por tarea».\n1. En los filtros, elegí qué entra: microciclos, fechas, tipo de sesión y más. Sin nada elegido en un filtro, entra todo; «Limpiar filtros» los vacía.\n2. Tocá «Siguiente: El informe». Ahí, «Filtros» (arriba) los vuelve a mostrar sin salir del informe; tocándolo otra vez se ocultan.\n3. Elegí el tipo de variable, cómo se ve, de dónde salen las franjas y el V.R. Con «+ Otro V.R.» sumás uno para los microciclos de otro dispositivo o para los que elijas.\nArriba de la tabla están las franjas (Excelente a Malo), con el color que toma cada una; abajo, una fila por microciclo. Cada número se pinta según la franja en la que cae.\nPara ocultar una columna, tocá su nombre y confirmá; «Columnas», arriba de la tabla, dice cuántas hay ocultas y las vuelve a mostrar. «Franjas» oculta las franjas y, tocándolo otra vez, las vuelve a mostrar.\nEn «Por tarea», cada comparación tiene sus filtros (tipo de sesión, microciclo, fecha, nombre y condición); con «+ Otra comparación» sumás hasta 5. En la tabla, arriba va el promedio de las comparaciones y, de cada una, su promedio y una fila por microciclo. Por tarea no se pinta.",
+      informe: "En «Informe» elegís cuál ver: «Por microciclo», «Por tarea» o «Por jugador».\n1. En los filtros, elegí qué entra: microciclos, fechas, tipo de sesión y más. Sin nada elegido en un filtro, entra todo; «Limpiar filtros» los vacía.\n2. Tocá «Siguiente: El informe». Ahí, «Filtros» (arriba) los vuelve a mostrar sin salir del informe; tocándolo otra vez se ocultan.\n3. Elegí el tipo de variable, cómo se ve, de dónde salen las franjas y el V.R. Con «+ Otro V.R.» sumás uno para los microciclos de otro dispositivo o para los que elijas.\nArriba de la tabla están las franjas (Excelente a Malo), con el color que toma cada una; abajo, una fila por microciclo. Cada número se pinta según la franja en la que cae.\nPara ocultar una columna, tocá su nombre y confirmá; «Columnas», arriba de la tabla, dice cuántas hay ocultas y las vuelve a mostrar. «Franjas» oculta las franjas y, tocándolo otra vez, las vuelve a mostrar.\nEn «Por tarea», cada comparación tiene sus filtros (tipo de sesión, microciclo, fecha, nombre y condición); con «+ Otra comparación» sumás hasta 5. En la tabla, arriba va el promedio de las comparaciones y, de cada una, su promedio y una fila por microciclo. Por tarea no se pinta.\nEn «Por jugador», cada comparación también tiene sus filtros (nombre, microciclo, fecha, tipo de sesión, condición y clasificación días; de entrada, condición «Total»). En la tabla, de cada una, su promedio y una fila por microciclo. Se pinta: con «Mi selección», cada comparación con sus franjas, encima de su fila; con «Valor referencial», con el V.R. de cada fila; con «Objetivo», cada microciclo con el del equipo en ese microciclo.",
       referenciasTitulo: "Valores de referencia",
       referencias: "En «Valores de referencia» están los V.R. de cada dispositivo.\n1. Elegí el dispositivo.\n2. Tocá dos veces un número para cambiarlo.\n3. Con «Agregar V.R.» sumás uno; cada uno tiene «Cambiar nombre», «Borrar» y «Usar de partido» (el que usa Cargar para el % vs V.R. de partido de ese dispositivo).\nPara ocultar una columna o una fila, tocá su nombre y confirmá. «Columnas» y «Filas», arriba de las tablas, las vuelven a mostrar.\nAbajo están los últimos cambios: «Volver» deja uno como estaba.",
       traerTitulo: "Traer lo que ya tenías",
@@ -459,7 +459,7 @@ export default {
       },
       categorizacion: {
         titulo: "Categorización",
-        texto: "De dónde salen las franjas de arriba (Excelente a Malo).\n«Mi selección»: del promedio y el desvío de todas las filas que se ven, sin importar el microciclo ni el V.R. de cada una.\n«Valor referencial»: del V.R. de cada fila (el de su dispositivo); su promedio es el Bueno y su desvío arma las demás. Un V.R. por jugador usa sus cinco categorías.\n«Objetivo sesión/microciclo»: el Bueno es el promedio del Team Average de cada sesión que se ve y el desvío, el de los jugadores en cada sesión, todas juntas. Solo está cuando todas las filas son jugadores: con «Valor suma» compara las sumas de los microciclos elegidos y con «Valor promedio», sus promedios.",
+        texto: "De dónde salen las franjas de arriba (Excelente a Malo).\n«Mi selección»: del promedio y el desvío de todas las filas que se ven, sin importar el microciclo ni el V.R. de cada una.\n«Valor referencial»: del V.R. de cada fila (el de su dispositivo); su promedio es el Bueno y su desvío arma las demás. Un V.R. por jugador usa sus cinco categorías.\n«Objetivo sesión/microciclo»: el Bueno es el promedio del Team Average de cada sesión que se ve y el desvío, el de los jugadores en cada sesión, todas juntas. Solo está cuando todas las filas son jugadores: con «Valor suma» compara las sumas de los microciclos elegidos y con «Valor promedio», sus promedios.\nEn «Por jugador»: con «Mi selección», cada comparación tiene sus franjas, con el promedio y el desvío de sus microciclos; con «Objetivo», cada microciclo, el del equipo en ese microciclo (solo cuando cada comparación tiene jugadores elegidos).",
       },
       vrInforme: {
         titulo: "V.R. del informe",
@@ -490,6 +490,7 @@ export default {
       porTarea: "Por tarea",
       porTareaTexto: "Hasta 5 comparaciones por tipo de sesión, cada una con su promedio y una fila por microciclo",
       porJugador: "Por jugador",
+      porJugadorTexto: "Hasta 5 comparaciones por jugador, cada una con su promedio, sus franjas y una fila por microciclo",
       todaviaNo: "Todavía no está",
       filtrosTexto: "Paso 1 de 2. Elegí qué entra en el informe y tocá «Siguiente: El informe». Sin nada elegido en un filtro, entra todo.",
       filtrosTitulo: "Filtros",
@@ -527,6 +528,11 @@ export default {
         promedio: "Promedio",
         promedioDeTodas: "Promedio de las comparaciones",
         sinMicrociclos: "Con estos filtros, esta comparación no tiene microciclos.",
+      },
+      jugador: {
+        todos: "Todos los nombres",
+        filtrosTexto: "Paso 1 de 2. Elegí el jugador de cada comparación y sus filtros, y tocá «Siguiente: El informe». Sin nada elegido en un filtro, entra todo. Con «+ Otra comparación» sumás hasta 5.",
+        informeTexto: "Paso 2 de 2. De cada comparación, su promedio y una fila por microciclo. Con «Mi selección», cada una tiene sus franjas encima de su fila. Con «Filtros» las cambiás sin salir de acá.",
       },
       tramo: "{{desde}} a {{hasta}}",
       tipoVariable: "Tipo de variable",

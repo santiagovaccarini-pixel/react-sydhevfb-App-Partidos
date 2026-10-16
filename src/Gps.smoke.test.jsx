@@ -1734,11 +1734,11 @@ describe("GPS", () => {
     expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent)).toEqual(["Cargar", "Base", "Informe", "Valores de referencia", "Ajustes"]);
     await irA(contenedor, "Informe");
     expect(contenedor.querySelector("h1").textContent).toBe("Informe");
-    // Las tres opciones; Por jugador, todavía no.
+    // Las tres opciones, las tres hechas.
     const opciones = [...contenedor.querySelectorAll(".reporte-opcion")];
     expect(opciones.map((una) => una.querySelector("b").textContent)).toEqual(["Por microciclo", "Por tarea", "Por jugador"]);
-    expect(opciones.map((una) => una.disabled)).toEqual([false, false, true]);
-    expect(opciones[2].textContent).toContain("Todavía no está");
+    expect(opciones.map((una) => una.disabled)).toEqual([false, false, false]);
+    expect(opciones[2].textContent).toContain("Hasta 5 comparaciones por jugador");
 
     // Los filtros: al entrar, el promedio del equipo de cada microciclo.
     await tocar(opciones[0]);
@@ -2100,6 +2100,88 @@ describe("GPS", () => {
     // «‹ Informe» vuelve a «Ver informes».
     await tocar(contenedor.querySelector(".reporte-volver"));
     expect(contenedor.querySelectorAll(".reporte-opcion")).toHaveLength(3);
+  });
+
+  test("Informe › Por jugador: una comparación por jugador, con su fila, sus franjas y una fila por microciclo; se pinta según la categorización", async () => {
+    // Inventados: en el 17, el 18 y el 19, el promedio del equipo de la sesión, ALFA (3000, 4000 y 5000) y BETA (siempre 5000).
+    const lista = [];
+    const agregar = (fecha, quien, valores) =>
+      lista.push(fila(`r${lista.length + 1}`, lista.length + 1, quien, fecha, { dispositivo: "catapult", tipo_microciclo: "competitivo", condicion: "total", clasificacion_dias: "mas1_m", tipo_sesion: "din_compleja", tiempo: 3600, ...valores }));
+    [17, 18, 19].forEach((m, i) => {
+      const dia = `2026-05-${String(4 + i * 7).padStart(2, "0")}`;
+      agregar(dia, { promedio: "sesion" }, { microciclo: m, d: 4000, ua: 200 });
+      agregar(dia, { jugador_id: 1 }, { microciclo: m, d: 3000 + 1000 * i, ua: 100 * (i + 1) });
+      agregar(dia, { jugador_id: 2 }, { microciclo: m, d: 5000, ua: 300 });
+    });
+    datos.filas = lista;
+    datos.plantel = PLANTEL.map((jugador) => ({ ...jugador }));
+    datos.referencias = [{ id: "c1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 4000, tiempo: 3600 }, desvio: { d: 500 }, dePartido: false }];
+    await montar();
+    await irA(contenedor, "Informe");
+    await tocar(contenedor.querySelectorAll(".reporte-opcion")[2]);
+    expect(contenedor.querySelector("h1").textContent).toBe("Por jugador");
+    // Una comparación con sus seis filtros; de entrada, Condición «Total».
+    const tarjetas = () => [...contenedor.querySelectorAll(".gps-tarea-comparacion")];
+    expect(tarjetas()).toHaveLength(1);
+    expect([...tarjetas()[0].querySelectorAll(".gps-reportes-rotulo")]).toHaveLength(6);
+    expect(tarjetas()[0].querySelectorAll(".gps-reportes-rotulo")[0].textContent).toBe("Nombre");
+    // A: ALFA; B (con «+ Otra comparación»): BETA.
+    const textoDe = (valor) => [...document.body.querySelectorAll(".tabla-datos-valores label")].map((label) => label.textContent).find((texto) => texto.toLowerCase().includes(valor));
+    await tocar(botones().find((b) => b.getAttribute("aria-label") === "Comparación A · Nombre"));
+    const alfa = textoDe("alfa");
+    const beta = textoDe("beta");
+    await tocar(boton("Cancelar"));
+    await elegirEnLaLista("Comparación A · Nombre", [alfa]);
+    await tocar(boton("+ Otra comparación"));
+    await elegirEnLaLista("Comparación B · Nombre", [beta]);
+    expect(tarjetas().map((tarjeta) => tarjeta.querySelector(".gps-tarea-comparacion-titulo").textContent)).toEqual(["Comparación A3 microciclos", "Comparación B3 microciclos"]);
+
+    // El informe: de cada comparación, su fila (letra y jugador), sus franjas (Mi selección) y sus microciclos.
+    await tocar(siguiente());
+    expect(contenedor.querySelector("h1").textContent).toBe("Por jugador");
+    const categorizacion = () => contenedor.querySelectorAll(".gps-reportes-grilla select")[2];
+    expect([...categorizacion().options].map((opcion) => opcion.textContent)).toEqual(["Mi selección", "Valor referencial", "Objetivo sesión/microciclo"]);
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Mi selección2 comparaciones · 6 microciclos");
+    expect(contenedor.querySelector(".gps-informe-tabla thead th").textContent).toBe("Comparación / Microciclo");
+    const filasDelInforme = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas tr")];
+    expect(filasDelInforme().map((tr) => tr.querySelector("th").textContent)).toEqual([`A${alfa}`, "17", "18", "19", `B${beta}`, "17", "18", "19"]);
+    const deCadaComparacion = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-jugador-franjas")];
+    const FRANJAS = ["Excelente", "Muy bueno", "Bueno (promedio)", "Regular", "Malo", "Desvío"];
+    expect(deCadaComparacion().map((tbody) => [...tbody.querySelectorAll("th")].map((th) => th.textContent))).toEqual([FRANJAS, FRANJAS]);
+    // Las franjas de cada una van encima de su fila, como en el archivo.
+    expect(deCadaComparacion().map((tbody) => tbody.nextElementSibling.querySelector("th").textContent)).toEqual([`A${alfa}`, `B${beta}`]);
+    // Arriba, solo el V.R.
+    const arriba = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas:not(.gps-jugador-franjas) th")].map((th) => th.textContent);
+    expect(arriba()).toEqual(["V.R."]);
+    // D (la primera variable): la fila de cada comparación, el promedio de sus microciclos.
+    const cabeceras = [...contenedor.querySelectorAll(".gps-informe-tabla thead .gps-informe-cabecera")].map((b) => b.textContent);
+    const columnaDeD = cabeceras.indexOf("D", cabeceras.indexOf("D") + 1);
+    const deD = () => filasDelInforme().map((tr) => tr.querySelectorAll("td")[columnaDeD]?.textContent);
+    expect(deD()).toEqual(["4000,0", "3000,0", "4000,0", "5000,0", "5000,0", "5000,0", "5000,0", "5000,0"]);
+    // ALFA, contra sí mismo: el 17 y el 19, pintados.
+    const pintadaEnD = (indice) => filasDelInforme()[indice].querySelectorAll("td")[columnaDeD].classList.contains("pintada");
+    expect([1, 3].map(pintadaEnD)).toEqual([true, true]);
+    // «Franjas» oculta las de cada comparación y las vuelve a mostrar.
+    await tocar(contenedor.querySelector(".gps-informe-franjas-boton"));
+    expect(deCadaComparacion()).toHaveLength(0);
+    await tocar(contenedor.querySelector(".gps-informe-franjas-boton"));
+    expect(deCadaComparacion()).toHaveLength(2);
+    // Valor referencial: arriba, las del V.R.; ninguna por comparación.
+    await elegir(categorizacion(), "valorReferencial");
+    expect(deCadaComparacion()).toHaveLength(0);
+    expect(arriba()).toEqual(["V.R.", ...FRANJAS]);
+    // Objetivo: cada microciclo con el del equipo; sin franjas para mostrar ni su botón.
+    await elegir(categorizacion(), "objetivo");
+    expect(contenedor.querySelector(".gps-informe-franjas-boton")).toBeNull();
+    expect(deCadaComparacion()).toHaveLength(0);
+    expect(arriba()).toEqual(["V.R."]);
+    expect(contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas td.pintada").length).toBeGreaterThan(0);
+    // Sin jugador elegido, Objetivo no está y vuelve a Mi selección.
+    await tocar(contenedor.querySelector(".gps-informe-filtros-boton"));
+    await tocar(boton("Limpiar filtros"));
+    expect([...categorizacion().options].map((opcion) => opcion.value)).toEqual(["miSeleccion", "valorReferencial"]);
+    expect(categorizacion().value).toBe("miSeleccion");
+    expect(filasDelInforme()[0].querySelector("th").textContent).toBe("ATodos los nombres");
   });
 
   test("Cargar: el % vs V.R. de partido es el del dispositivo elegido al subir el CSV", async () => {
