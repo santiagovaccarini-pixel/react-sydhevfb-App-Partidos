@@ -6637,38 +6637,36 @@ export default function App({
 
         <AvisoSoloLectura hasta={equipoGuardado?.hasta} />
 
-        <div className="lista-opciones">
-          <button
-            type="button"
-            className="opcion-ajuste"
-            disabled={soloLectura}
-            onClick={() => setVistaAjustes("equipo")}
-          >
-            <span className="icono-ajuste">
-              <Icono nombre="escudo" size={18} />
-            </span>
-            <span className="texto-ajuste">
-              <b>Equipo</b>
-              <span>{equipoPropio}</span>
-            </span>
-            <span className="flecha-ajuste">›</span>
-          </button>
+        <button
+          type="button"
+          className="opcion-ajuste"
+          disabled={soloLectura}
+          onClick={() => setVistaAjustes("equipo")}
+        >
+          <span className="icono-ajuste">
+            <Icono nombre="escudo" size={18} />
+          </span>
+          <span className="texto-ajuste">
+            <b>Equipo</b>
+            <span>{equipoPropio}</span>
+          </span>
+          <span className="flecha-ajuste">›</span>
+        </button>
 
-          <button
-            type="button"
-            className="opcion-ajuste"
-            onClick={pedirVaciarEscudos}
-          >
-            <span className="icono-ajuste">
-              <Icono nombre="refrescar" size={18} />
-            </span>
-            <span className="texto-ajuste">
-              <b>Escudos</b>
-              <span>Volver a bajarlos si alguno quedó mal</span>
-            </span>
-            <span className="flecha-ajuste">›</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className="opcion-ajuste"
+          onClick={pedirVaciarEscudos}
+        >
+          <span className="icono-ajuste">
+            <Icono nombre="refrescar" size={18} />
+          </span>
+          <span className="texto-ajuste">
+            <b>Escudos</b>
+            <span>Volver a bajarlos si alguno quedó mal</span>
+          </span>
+          <span className="flecha-ajuste">›</span>
+        </button>
 
         {avisoEscudos && (
           <div className="notificacion-guardado" role="status">

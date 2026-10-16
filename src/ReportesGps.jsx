@@ -361,11 +361,9 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
             <div className="cabeza-ficha">
               <b>{t("gps.reportes.ver")}</b>
             </div>
-            <div className="lista-opciones">
-              {opcion("porMicrociclo", "calendario", true)}
-              {opcion("porTarea", "registros", false)}
-              {opcion("porJugador", "usuario", false)}
-            </div>
+            {opcion("porMicrociclo", "calendario", true)}
+            {opcion("porTarea", "registros", false)}
+            {opcion("porJugador", "usuario", false)}
           </section>
         </div>
       </div>

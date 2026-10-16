@@ -371,12 +371,10 @@ export default function ReportesLesiones({
             <div className="cabeza-ficha">
               <b>{t("lesiones.reportes.ver")}</b>
             </div>
-            <div className="lista-opciones">
-              {tarjeta("individual", "usuario", t("lesiones.reportes.individual"), t("lesiones.reportes.individualTexto"))}
-              {tarjeta("grupal", "formacion", t("lesiones.reportes.grupal"), t("lesiones.reportes.grupalTexto"))}
-              {tarjeta("cadaMil", "grafico", t("lesiones.cadaMil.opcion"), t("lesiones.cadaMil.opcionTexto"))}
-              {tarjeta("graficos", "torta", t("lesiones.graficos.opcion"), t("lesiones.graficos.opcionTexto"))}
-            </div>
+            {tarjeta("individual", "usuario", t("lesiones.reportes.individual"), t("lesiones.reportes.individualTexto"))}
+            {tarjeta("grupal", "formacion", t("lesiones.reportes.grupal"), t("lesiones.reportes.grupalTexto"))}
+            {tarjeta("cadaMil", "grafico", t("lesiones.cadaMil.opcion"), t("lesiones.cadaMil.opcionTexto"))}
+            {tarjeta("graficos", "torta", t("lesiones.graficos.opcion"), t("lesiones.graficos.opcionTexto"))}
           </section>
           <section className="tarjeta tarjeta-ficha">
             <div className="cabeza-ficha">

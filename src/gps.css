@@ -126,24 +126,6 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-/* En la compu (Santiago, 16/10: «Muchos espacios en blanco aunque el texto
-   no llegue hasta ahi»): el bloque, del ancho de lo que muestra, y cada
-   dispositivo en una franja (su V.R. a la izquierda y los cinco números al
-   lado, cada uno de su ancho). */
-@media (min-width: 721px) {
-  .gps-marco .gps-comparaciones {
-    width: fit-content;
-    max-width: 100%;
-  }
-  .gps-marco .gps-comparacion {
-    grid-template-columns: minmax(240px, auto) auto;
-    align-items: center;
-    column-gap: 18px;
-  }
-  .gps-marco .gps-comparacion-numeros {
-    grid-template-columns: repeat(5, minmax(118px, max-content));
-  }
-}
 /* En el celular, una lista corta (nombre a la izquierda, % a la derecha):
    las dos tarjetas no empujan tanto la tabla para abajo. */
 @media (max-width: 720px) {
