@@ -46,6 +46,12 @@ export const TIPOS_DE_VARIABLE = Object.freeze({ absolutas: ABSOLUTAS, relativas
 
 // «Visualización», en el orden del Excel.
 export const VISUALIZACIONES = Object.freeze(["promedio", "suma", "porcentajePromedio", "porcentajeSuma"]);
+// Con Relativas no hay suma (Santiago, 16/10: «si se filtra por relativo no
+// puede haber en el filtro Suma y % Suma»).
+export const visualizacionesDe = (tipoVariable) => (tipoVariable === "relativas" ? VISUALIZACIONES.filter((una) => una !== "suma" && una !== "porcentajeSuma") : VISUALIZACIONES);
+// La que corresponde al pasar a Relativas: la suma pasa a promedio.
+export const visualizacionPara = (tipoVariable, visualizacion) =>
+  visualizacionesDe(tipoVariable).includes(visualizacion) ? visualizacion : visualizacion === "porcentajeSuma" ? "porcentajePromedio" : "promedio";
 // «Categorización» (la forma de analizar).
 export const CATEGORIZACIONES = Object.freeze(["miSeleccion", "valorReferencial", "objetivo"]);
 
@@ -381,12 +387,12 @@ export const franjasDeIndices = (porClave) => {
 };
 
 // --------------------------------------------- Las franjas del informe --
-// «Mi selección»: el promedio y el desvío de las filas. En la U.A. y la
-// carga crónica, de todas las filas que se ven; en los índices y las
-// variables, de las filas de cada V.R. (el Excel tiene una tabla de franjas
-// para los microciclos 10 a 16 y otra para los demás). Cada fila cuenta una
-// vez (Santiago, 15/10: «2. B»; el Excel contaba cada microciclo dos veces
-// en el desvío de los índices y las variables).
+// «Mi selección»: el promedio y el desvío de las filas, de todas las que se
+// ven (16/10: ver franjasDeTodo; hasta entonces los índices y las variables
+// salían de las filas de cada V.R., como las dos tablas del Excel para los
+// microciclos 10 a 16 y los demás). Cada fila cuenta una vez (Santiago,
+// 15/10: «2. B»; el Excel contaba cada microciclo dos veces en el desvío de
+// los índices y las variables).
 const franjasDeFilas = (filas, valorDe, alReves = false) => {
   const numeros = filas.map(valorDe).filter(esNumero);
   return franjasDe(promedio(numeros), desvio(numeros), { alReves });
@@ -460,26 +466,128 @@ const franjasDeClave = (filas, vr, clave, tipo, categorizacion, sesiones) => {
 // de las variables: solo con «Jugador» en Microciclo/Jugador).
 export const franjasDeTabla = (filas, vr, { categorizacion, tipoVariable, visualizacion, sesiones = null, variablesDelObjetivo = false }) => {
   const valores = vr?.promedio || {};
-  const enPorcentaje = (franjas, clave) => franjasEnPorcentaje(franjas, valores[clave]);
+  const enSuUnidad = (clave, tipo) => franjasDeClave(filas, vr, clave, tipo, categorizacion, sesiones);
+  return armarFranjas({
+    enSuUnidad,
+    enPorcentaje: (clave, tipo) => franjasEnPorcentaje(enSuUnidad(clave, tipo), valores[clave]),
+    tipoVariable,
+    visualizacion,
+    sinVariables: categorizacion === "objetivo" && !variablesDelObjetivo,
+  });
+};
+
+// Los índices y las variables de unas franjas: enSuUnidad(clave, tipo) y
+// enPorcentaje(clave, tipo) dan las franjas de una clave en su unidad o en %
+// del V.R. (tipo: "promedio" o "suma"). sinVariables: con Objetivo sin
+// «Jugador» en Microciclo/Jugador.
+const armarFranjas = ({ enSuUnidad, enPorcentaje, tipoVariable, visualizacion, sinVariables }) => {
   // Los índices: con los % del promedio de cada medida y por minuto.
   const porClave = {};
   [...MEDIDAS, ...MEDIDAS.map(conMin)].forEach((clave) => {
-    porClave[clave] = enPorcentaje(franjasDeClave(filas, vr, clave, "promedio", categorizacion, sesiones), clave);
+    porClave[clave] = enPorcentaje(clave, "promedio");
   });
   const indices = franjasDeIndices(porClave);
   // Las variables.
   const relativa = tipoVariable === "relativas";
   const variables = {};
   TIPOS_DE_VARIABLE[tipoVariable].forEach((clave) => {
-    if ((relativa && (visualizacion === "suma" || visualizacion === "porcentajeSuma")) || (categorizacion === "objetivo" && !variablesDelObjetivo)) {
+    if ((relativa && (visualizacion === "suma" || visualizacion === "porcentajeSuma")) || sinVariables) {
       variables[clave] = null;
       return;
     }
     const tipo = visualizacion === "suma" || visualizacion === "porcentajeSuma" ? "suma" : "promedio";
-    const franjas = franjasDeClave(filas, vr, clave, tipo, categorizacion, sesiones);
-    variables[clave] = visualizacion === "porcentajePromedio" || visualizacion === "porcentajeSuma" ? enPorcentaje(franjas, clave) : franjas;
+    variables[clave] = visualizacion === "porcentajePromedio" || visualizacion === "porcentajeSuma" ? enPorcentaje(clave, tipo) : enSuUnidad(clave, tipo);
   });
   return { indices, variables };
+};
+
+// Las franjas de todo lo que se ve, para «Mi selección» y «Objetivo»
+// (Santiago, 16/10: «Mi Seleccion: pinta por todo, no importa los
+// microciclos (Su definicion es: Promedio de todo lo que estoy viendo y las
+// categorias se arman con el desvio estandar de los datos que estoy
+// viendo)»; «Objetivo Sesion: El promedio es el de el microciclo
+// seleccionado y las demas categorias se arman con el desvio de los
+// jugadores que esten filtrados»; solo con Valor referencial «importan los
+// microciclos»). Unas solas franjas con todas las filas del informe (o
+// todas las sesiones), sin separar por V.R. Las de los % salen de cada fila
+// (o sesión) dividida por su propio V.R.; las que no tienen V.R. no tienen
+// %. Con un solo V.R. da lo mismo que dividir las franjas por él (como el
+// archivo). vrDeSesion(sesión): el V.R. de una sesión de Objetivo.
+export const franjasDeTodo = (filas, { categorizacion, tipoVariable, visualizacion, sesiones = null, vrDeSesion = () => null, variablesDelObjetivo = false }) => {
+  const objetivo = categorizacion === "objetivo";
+  // Las franjas en % de cada V.R., con unas filas (o sesiones).
+  const enPorcentajeCon = (lasFilas, lasSesiones) => (clave, tipo) =>
+    objetivo
+      ? lasSesiones && franjasDelObjetivo(sesionesEnPorcentaje(lasSesiones, clave, vrDeSesion), clave, tipo)
+      : franjasDeClave(filasEnPorcentaje(lasFilas, clave), null, clave, tipo, categorizacion, null);
+  const franjas = armarFranjas({
+    enSuUnidad: (clave, tipo) => franjasDeClave(filas, null, clave, tipo, categorizacion, sesiones),
+    enPorcentaje: enPorcentajeCon(filas, sesiones),
+    tipoVariable,
+    visualizacion,
+    sinVariables: objetivo && !variablesDelObjetivo,
+  });
+  // Cada índice, con las filas (o sesiones) cuyo V.R. tiene todas sus
+  // medidas, así todas salen de las mismas filas (una fila sin una de ellas
+  // tampoco tiene ese índice). Con un solo V.R. da lo mismo que antes.
+  const indices = {};
+  Object.entries(MEDIDAS_DE_INDICE).forEach(([indice, claves]) => {
+    const completo = (vr) => claves.every((clave) => baseDe(vr, clave) !== null);
+    const enPorcentaje = enPorcentajeCon(
+      filas.filter((fila) => completo(fila.vr)),
+      sesiones && sesiones.filter((sesion) => completo(vrDeSesion(sesion))),
+    );
+    indices[indice] = franjasDeIndices(Object.fromEntries(claves.map((clave) => [clave, enPorcentaje(clave, "promedio")])))[indice];
+  });
+  return { ...franjas, indices };
+};
+
+// Las medidas de cada índice (ver indicesDe).
+const MEDIDAS_DE_INDICE = Object.freeze({
+  volumen: ["d", ...ALTA, ...MAXIMA],
+  relativo: [conMin("d"), ...ALTA.map(conMin), ...MAXIMA.map(conMin)],
+  total: ["d"],
+  totalRel: [conMin("d")],
+  alta: ALTA,
+  altaRel: ALTA.map(conMin),
+  maxima: MAXIMA,
+  maximaRel: MAXIMA.map(conMin),
+});
+
+// El V.R. de una clave, si sirve para dividir (como dividir()).
+const baseDe = (vr, clave) => {
+  const base = vr?.promedio?.[clave];
+  return esNumero(base) && base !== 0 ? base : null;
+};
+// La medida de un por minuto (d de d_min), o null.
+const medidaDe = (clave) => MEDIDAS.find((una) => conMin(una) === clave) || null;
+
+// Las filas del informe con una clave en % de su V.R. (las que no tienen
+// V.R. para esa clave no van). En un por minuto también la medida, así el
+// Bueno sigue siendo el promedio de la medida ÷ el de los minutos.
+const filasEnPorcentaje = (filas, clave) => {
+  const medida = medidaDe(clave);
+  return filas.flatMap((fila) => {
+    const base = baseDe(fila.vr, clave);
+    if (base === null) return [];
+    const en = (valor) => (esNumero(valor) ? valor / base : valor);
+    const promedios = { ...fila.promedios, [clave]: en(fila.promedios[clave]) };
+    if (medida) promedios[medida] = en(fila.promedios[medida]);
+    return [{ ...fila, promedios, sumas: { ...fila.sumas, [clave]: en(fila.sumas[clave]) } }];
+  });
+};
+
+// Las sesiones de Objetivo con una clave en % del V.R. de cada una (el
+// promedio del equipo y los jugadores; en un por minuto, también la medida).
+const sesionesEnPorcentaje = (sesiones, clave, vrDeSesion) => {
+  const medida = medidaDe(clave);
+  return sesiones.flatMap((sesion) => {
+    const base = baseDe(vrDeSesion(sesion), clave);
+    if (base === null) return [];
+    const en = (valor) => (esNumero(valor) ? valor / base : valor);
+    const escalar = (fila) => ({ ...fila, datos: { ...fila.datos, [clave]: en(fila.datos?.[clave]), ...(medida ? { [medida]: en(fila.datos?.[medida]) } : {}) } });
+    return [{ ...sesion, equipo: sesion.equipo.map(escalar), jugadores: sesion.jugadores.map(escalar) }];
+  });
 };
 
 // --------------------------------------------------------- VS RIVAL --
@@ -587,25 +695,34 @@ export const informePorMicrociclo = (filasGps, opciones) => {
   const sesiones = categorizacion === "objetivo" ? sesionesDelObjetivo(filasGps, filtros) : null;
   const elegidosMj = filtros.microciclo_jugador || [];
   const variablesDelObjetivo = elegidosMj.length === 1 && elegidosMj[0] === "jugador";
-  // Una tabla de franjas por cada V.R. elegido, con sus filas (y, con
-  // Objetivo, las sesiones que le tocan: las de su dispositivo o sus
-  // microciclos, como las filas).
+  const asignacionDeSesion = (sesion) => referenciaDeFila(asignaciones, { microciclo: sesion.microciclo, dispositivo: sesion.dispositivo });
+  // Con «Mi selección» y «Objetivo», unas solas franjas de todo lo que se ve
+  // (Santiago, 16/10: «no importa los microciclos»): valen para todas las
+  // filas, también las que no tienen V.R.
+  const general =
+    categorizacion === "miSeleccion" || categorizacion === "objetivo"
+      ? franjasDeTodo(filas, { categorizacion, tipoVariable, visualizacion, sesiones, vrDeSesion: (sesion) => asignacionDeSesion(sesion)?.referencia || null, variablesDelObjetivo })
+      : null;
+  // Una tabla por cada V.R. elegido. Con «Valor referencial», con sus
+  // franjas (ahí «importan los microciclos»: cada fila, las del V.R. de su
+  // dispositivo o de sus microciclos); con las otras, las de todo.
   const tablas = asignaciones.map((asignacion, a) => ({
     asignacion: a,
     vr: asignacion.referencia || null,
-    ...franjasDeTabla(
-      filas.filter((fila) => fila.asignacion === a),
-      asignacion.referencia,
-      {
-        categorizacion,
-        tipoVariable,
-        visualizacion,
-        sesiones: sesiones && sesiones.filter((sesion) => referenciaDeFila(asignaciones, { microciclo: sesion.microciclo, dispositivo: sesion.dispositivo }) === asignacion),
-        variablesDelObjetivo,
-      },
-    ),
+    ...(general ||
+      franjasDeTabla(
+        filas.filter((fila) => fila.asignacion === a),
+        asignacion.referencia,
+        {
+          categorizacion,
+          tipoVariable,
+          visualizacion,
+          sesiones: sesiones && sesiones.filter((sesion) => asignacionDeSesion(sesion) === asignacion),
+          variablesDelObjetivo,
+        },
+      )),
   }));
-  return { filas, ua, tablas };
+  return { filas, ua, tablas, general };
 };
 
 // ------------------------------------------------------- Los colores --

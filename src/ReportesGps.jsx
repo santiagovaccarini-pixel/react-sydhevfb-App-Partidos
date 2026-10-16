@@ -9,7 +9,6 @@ import { esNumero } from "./domain/gps/valores.js";
 import {
   FILTROS_POR_MICROCICLO,
   TIPOS_DE_VARIABLE,
-  VISUALIZACIONES,
   colorDeCargaCronica,
   colorDeMayorMejor,
   colorDeUa,
@@ -19,6 +18,8 @@ import {
   informePorMicrociclo,
   pasaLosFiltros,
   valorDeFiltro,
+  visualizacionPara,
+  visualizacionesDe,
 } from "./domain/gps/porMicrociclo.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
@@ -197,8 +198,14 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     if (!hoja) return;
     const marcados = hoja.valores.map((valor) => valor.clave).filter((clave) => hoja.elegidos.includes(clave));
     if (hoja.vr !== undefined) cambiarVr(hoja.vr, { microciclos: marcados });
-    // Lo que se ve: lo que quedó sin marcar se oculta.
-    else if (hoja.ocultar) setOcultas((antes) => ({ ...antes, [hoja.ocultar]: hoja.valores.map((valor) => valor.clave).filter((clave) => !marcados.includes(clave)) }));
+    // Lo que se ve: lo que quedó sin marcar se oculta; lo oculto que no
+    // está en la lista (por ejemplo, la fila del V.R. con «Mi selección» y
+    // más de un V.R.) sigue oculto.
+    else if (hoja.ocultar)
+      setOcultas((antes) => {
+        const enLaLista = hoja.valores.map((valor) => valor.clave);
+        return { ...antes, [hoja.ocultar]: [...antes[hoja.ocultar].filter((clave) => !enLaLista.includes(clave)), ...enLaLista.filter((clave) => !marcados.includes(clave))] };
+      });
     // En un filtro, todo marcado es lo mismo que nada: todos.
     else cambiarFiltros({ ...filtros, [hoja.filtro]: marcados.length === hoja.valores.length ? SIN_ELEGIR : marcados });
     setHoja(null);
@@ -395,7 +402,10 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   }
 
   // ------------------------------------------------------------ Informe --
-  const { filas, ua, tablas } = informe;
+  // general: con «Mi selección» y «Objetivo», las franjas de todo lo que se
+  // ve, para todas las filas (Santiago, 16/10); con «Valor referencial», null
+  // (cada fila, las de su V.R.).
+  const { filas, ua, tablas, general } = informe;
   const actual = tablas.length ? Math.min(verFranjas, tablas.length - 1) : -1;
   const tabla = actual >= 0 ? tablas[actual] : null;
   const variables = TIPOS_DE_VARIABLE[tipoVariable];
@@ -477,15 +487,15 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
       ["altaRel", "alta", t("gps.reportes.columnas.rel")],
       ["maxima", "maxima", t("gps.reportes.columnas.abs")],
       ["maximaRel", "maxima", t("gps.reportes.columnas.rel")],
-    ].map(([clave, grupo, titulo]) => ({ clave, grupo, titulo, valor: (fila) => fila.indices[clave], texto: porciento, franjas: tabla?.indices?.[clave], franjasDeFila: (fila) => tablaDe(fila)?.indices?.[clave], color: colorDeMayorMejor })),
+    ].map(([clave, grupo, titulo]) => ({ clave, grupo, titulo, valor: (fila) => fila.indices[clave], texto: porciento, franjas: (tabla || general)?.indices?.[clave], franjasDeFila: (fila) => (tablaDe(fila) || general)?.indices?.[clave], color: colorDeMayorMejor })),
     ...variables.map((clave) => ({
       clave: `variable:${clave}`,
       grupo: "variables",
       titulo: tituloDe(clave),
       valor: (fila) => fila.variables[clave],
       texto: (valor) => textoDeVariable(clave, valor),
-      franjas: tabla?.variables?.[clave],
-      franjasDeFila: (fila) => tablaDe(fila)?.variables?.[clave],
+      franjas: (tabla || general)?.variables?.[clave],
+      franjasDeFila: (fila) => (tablaDe(fila) || general)?.variables?.[clave],
       color: colorDeVariable,
       vr: (referencia) => textoDe(clave, referencia?.promedio?.[clave]),
     })),
@@ -532,7 +542,10 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     );
 
   // Las filas de arriba: el V.R. y las franjas (cada una se puede ocultar).
-  const FILAS_DE_FRANJAS = [...(tabla?.vr ? ["vr"] : []), ...FRANJAS].map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
+  // Con «Mi selección» u «Objetivo» y más de un V.R., sin la fila del V.R.:
+  // cada fila del informe tiene el suyo y uno solo no vale para todas.
+  const filaDelVr = Boolean(tabla?.vr) && (categorizacion === "valorReferencial" || tablas.length === 1);
+  const FILAS_DE_FRANJAS = [...(filaDelVr ? ["vr"] : []), ...FRANJAS].map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
   const franjasAVista = FILAS_DE_FRANJAS.filter((una) => !ocultas.filas.includes(una.clave));
   const filasAVista = filas.filter((fila) => !ocultas.filas.includes(fila.clave));
   const cuantasOcultas = (cual) => ocultas[cual].filter((clave) => (cual === "columnas" ? COLUMNAS.some((columna) => columna.clave === clave) : [...FILAS_DE_FRANJAS, ...filas].some((una) => una.clave === clave))).length;
@@ -612,7 +625,14 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
               <span className="gps-reportes-rotulo">{t("gps.reportes.tipoVariable")}</span>
               <span className="gps-reportes-campo">
                 <Icono nombre="grafico" size={18} />
-                <select value={tipoVariable} onChange={(evento) => setTipoVariable(evento.target.value)}>
+                <select
+                  value={tipoVariable}
+                  onChange={(evento) => {
+                    const nuevo = evento.target.value;
+                    setTipoVariable(nuevo);
+                    setVisualizacion((antes) => visualizacionPara(nuevo, antes));
+                  }}
+                >
                   {Object.keys(TIPOS_DE_VARIABLE).map((tipo) => (
                     <option key={tipo} value={tipo}>
                       {t(`gps.reportes.tipos.${tipo}`)}
@@ -626,7 +646,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
               <span className="gps-reportes-campo">
                 <Icono nombre="tendencia" size={18} />
                 <select value={visualizacion} onChange={(evento) => setVisualizacion(evento.target.value)}>
-                  {VISUALIZACIONES.map((una) => (
+                  {visualizacionesDe(tipoVariable).map((una) => (
                     <option key={una} value={una}>
                       {t(`gps.reportes.visualizaciones.${una}`)}
                     </option>
@@ -703,12 +723,18 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
               <div className="gps-informe-titulo">
                 <Icono nombre="grafico" size={20} />
                 <span className="gps-informe-titulo-texto">
-                  <b>{tabla?.vr ? t("gps.reportes.franjasDe", { vr: nombreDeVr(tabla.vr) }) : t("gps.reportes.franjasSinVr")}</b>
+                  <b>
+                    {categorizacion !== "valorReferencial"
+                      ? t("gps.reportes.franjasDe", { vr: t(`gps.reportes.categorizaciones.${categorizacion}`) })
+                      : tabla?.vr
+                        ? t("gps.reportes.franjasDe", { vr: nombreDeVr(tabla.vr) })
+                        : t("gps.reportes.franjasSinVr")}
+                  </b>
                   <span>{plural(soloEquipo ? "gps.reportes.cuantosMicrociclos" : soloJugadores ? "gps.reportes.cuantosJugadores" : "gps.reportes.cuantasFilas", filas.length)}</span>
                 </span>
               </div>
               <div className="gps-informe-acciones">
-                {tablas.length > 1 && (
+                {categorizacion === "valorReferencial" && tablas.length > 1 && (
                   <button type="button" className="boton-secundario gps-informe-otras" onClick={() => setVerFranjas((actual + 1) % tablas.length)}>
                     <Icono nombre="cambio" size={15} />
                     {t("gps.reportes.verFranjasDe", { vr: nombreDeVr(tablas[(actual + 1) % tablas.length].vr) })}
