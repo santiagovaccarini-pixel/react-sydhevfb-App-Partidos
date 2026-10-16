@@ -395,7 +395,7 @@ export default {
       baseTitulo: "Ver e corrigir o que foi registrado",
       base: "Em «Base» estão todas as linhas.\n1. Toque duas vezes numa célula para mudá-la.\n2. Com o funil de cada coluna você filtra ou ordena. Ali também a oculta («Ocultar esta coluna»); para ocultar linhas, escolha-as e toque em «Ocultar linha». «Colunas» e «Mostrar», acima da tabela, voltam a mostrá-las.\n3. Veja em cima da tabela, por dispositivo, a média do que fica à vista, o seu V.R. e o % da média contra o V.R.\n4. Escolha em «Comparações» qual V.R. usar e a zona de impacto: ali você vê o volume e a densidade contra o V.R.\nAs cores comparam cada número com a média e o desvio do que fica à vista do seu dispositivo: verde-escuro, mais de dois desvios acima da média; verde-claro, entre um e dois; amarelo, da média a um desvio acima; laranja, até um desvio abaixo; vermelho, mais de um desvio abaixo.",
       informeTitulo: "Relatório",
-      informe: "Em «Relatório» você escolhe qual ver: «Por microciclo» ou «Por tarefa».\n1. Nos filtros, escolha o que entra: microciclos, datas, tipo de sessão e mais. Sem nada escolhido num filtro, entra tudo; «Limpar filtros» esvazia todos.\n2. Toque em «Avançar: O relatório». Ali, «Filtros» (em cima) mostra os filtros de novo sem sair do relatório; tocando outra vez, eles se ocultam.\n3. Escolha o tipo de variável, como se vê, de onde saem as faixas e o V.R. Com «+ Outro V.R.» você soma um para os microciclos de outro dispositivo ou para os que escolher.\nEm cima da tabela estão as faixas (Excelente a Ruim), com a cor de cada uma; embaixo, uma linha por microciclo. Cada número é pintado conforme a faixa em que cai.\nPara ocultar uma coluna, toque no nome dela e confirme; «Colunas», acima da tabela, diz quantas estão ocultas e volta a mostrá-las. «Faixas» oculta as faixas e, tocando outra vez, volta a mostrá-las.\nEm «Por tarefa», cada comparação tem os seus filtros (tipo de sessão, microciclo, data, nome e condição); com «+ Outra comparação» você soma até 5. Na tabela, em cima vai a média das comparações e, de cada uma, a sua média e uma linha por microciclo. Por tarefa não é pintado.",
+      informe: "Em «Relatório» você escolhe qual ver: «Por microciclo», «Por tarefa» ou «Por jogador».\n1. Nos filtros, escolha o que entra: microciclos, datas, tipo de sessão e mais. Sem nada escolhido num filtro, entra tudo; «Limpar filtros» esvazia todos.\n2. Toque em «Avançar: O relatório». Ali, «Filtros» (em cima) mostra os filtros de novo sem sair do relatório; tocando outra vez, eles se ocultam.\n3. Escolha o tipo de variável, como se vê, de onde saem as faixas e o V.R. Com «+ Outro V.R.» você soma um para os microciclos de outro dispositivo ou para os que escolher.\nEm cima da tabela estão as faixas (Excelente a Ruim), com a cor de cada uma; embaixo, uma linha por microciclo. Cada número é pintado conforme a faixa em que cai.\nPara ocultar uma coluna, toque no nome dela e confirme; «Colunas», acima da tabela, diz quantas estão ocultas e volta a mostrá-las. «Faixas» oculta as faixas e, tocando outra vez, volta a mostrá-las.\nEm «Por tarefa», cada comparação tem os seus filtros (tipo de sessão, microciclo, data, nome e condição); com «+ Outra comparação» você soma até 5. Na tabela, em cima vai a média das comparações e, de cada uma, a sua média e uma linha por microciclo. Por tarefa não é pintado.\nEm «Por jogador», cada comparação também tem os seus filtros (nome, microciclo, data, tipo de sessão, condição e classificação dias; de início, condição «Total»). Na tabela, de cada uma, a sua média e uma linha por microciclo. É pintado: com «Minha seleção», cada comparação com as suas faixas, em cima da linha dela; com «Valor referencial», com o V.R. de cada linha; com «Objetivo», cada microciclo com o do time nesse microciclo.",
       referenciasTitulo: "Valores de referência",
       referencias: "Em «Valores de referência» estão os V.R. de cada dispositivo.\n1. Escolha o dispositivo.\n2. Toque duas vezes num número para mudá-lo.\n3. Com «Adicionar V.R.» você soma um; cada um tem «Mudar nome», «Apagar» e «Usar de jogo» (o que Registrar usa para o % vs V.R. de jogo desse dispositivo).\nPara ocultar uma coluna ou uma linha, toque no nome dela e confirme. «Colunas» e «Linhas», acima das tabelas, voltam a mostrá-las.\nEmbaixo estão as últimas mudanças: «Voltar» deixa uma como estava.",
       traerTitulo: "Trazer o que você já tinha",
@@ -454,7 +454,7 @@ export default {
       },
       categorizacion: {
         titulo: "Categorização",
-        texto: "De onde saem as faixas de cima (Excelente a Ruim).\n«Minha seleção»: da média e do desvio de todas as linhas à vista, sem importar o microciclo nem o V.R. de cada uma.\n«Valor referencial»: do V.R. de cada linha (o do seu dispositivo); a média dele é o Bom e o desvio monta as outras. Um V.R. por jogador usa as cinco categorias dele.\n«Objetivo sessão/microciclo»: o Bom é a média do Team Average de cada sessão à vista e o desvio, o dos jogadores em cada sessão, todas juntas. Só aparece quando todas as linhas são jogadores: com «Valor soma» compara as somas dos microciclos escolhidos e com «Valor médio», as médias.",
+        texto: "De onde saem as faixas de cima (Excelente a Ruim).\n«Minha seleção»: da média e do desvio de todas as linhas à vista, sem importar o microciclo nem o V.R. de cada uma.\n«Valor referencial»: do V.R. de cada linha (o do seu dispositivo); a média dele é o Bom e o desvio monta as outras. Um V.R. por jogador usa as cinco categorias dele.\n«Objetivo sessão/microciclo»: o Bom é a média do Team Average de cada sessão à vista e o desvio, o dos jogadores em cada sessão, todas juntas. Só aparece quando todas as linhas são jogadores: com «Valor soma» compara as somas dos microciclos escolhidos e com «Valor médio», as médias.\nEm «Por jogador»: com «Minha seleção», cada comparação tem as suas faixas, com a média e o desvio dos seus microciclos; com «Objetivo», cada microciclo, o do time nesse microciclo (só quando cada comparação tem jogadores escolhidos).",
       },
       vrInforme: {
         titulo: "V.R. do relatório",
@@ -485,6 +485,7 @@ export default {
       porTarea: "Por tarefa",
       porTareaTexto: "Até 5 comparações por tipo de sessão, cada uma com a sua média e uma linha por microciclo",
       porJugador: "Por jogador",
+      porJugadorTexto: "Até 5 comparações por jogador, cada uma com a sua média, as suas faixas e uma linha por microciclo",
       todaviaNo: "Ainda não está",
       filtrosTexto: "Passo 1 de 2. Escolha o que entra no relatório e toque em «Avançar: O relatório». Sem nada escolhido num filtro, entra tudo.",
       filtrosTitulo: "Filtros",
@@ -522,6 +523,11 @@ export default {
         promedio: "Média",
         promedioDeTodas: "Média das comparações",
         sinMicrociclos: "Com estes filtros, esta comparação não tem microciclos.",
+      },
+      jugador: {
+        todos: "Todos os nomes",
+        filtrosTexto: "Passo 1 de 2. Escolha o jogador de cada comparação e os seus filtros, e toque em «Avançar: O relatório». Sem nada escolhido num filtro, entra tudo. Com «+ Outra comparação» você soma até 5.",
+        informeTexto: "Passo 2 de 2. De cada comparação, a sua média e uma linha por microciclo. Com «Minha seleção», cada uma tem as suas faixas em cima da linha dela. Em «Filtros» você as muda sem sair daqui.",
       },
       tramo: "{{desde}} a {{hasta}}",
       tipoVariable: "Tipo de variável",

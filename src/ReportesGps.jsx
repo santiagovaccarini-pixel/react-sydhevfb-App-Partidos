@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
@@ -22,7 +22,8 @@ import {
   visualizacionPara,
   visualizacionesDe,
 } from "./domain/gps/porMicrociclo.js";
-import { FILTROS_POR_TAREA, LETRAS, MAXIMO_DE_COMPARACIONES, entraEnPorTarea, filasDeComparacion, informePorTarea, pasaLosFiltrosDeTarea } from "./domain/gps/porTarea.js";
+import { FILTROS_POR_TAREA, LETRAS, MAXIMO_DE_COMPARACIONES, entraEnPorTarea, filasPorMicrocicloDe, informePorTarea, pasaLosFiltrosDe } from "./domain/gps/porTarea.js";
+import { FILTROS_POR_JUGADOR, informePorJugador, soloDeJugadores } from "./domain/gps/porJugador.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
 
@@ -51,7 +52,14 @@ import { fechaCorta } from "./idioma/formatos.js";
 // con sus filtros (Tipo de Sesión, Microciclo, Fecha, Nombre y Condición) y
 // «+ Otra comparación», hasta 5; en el informe, los mismos controles (sin
 // Objetivo) y una sola tabla: arriba el promedio de las comparaciones y, de
-// cada una, su fila y una por microciclo.
+// cada una, su fila y una por microciclo. No se pinta (16/10).
+//
+// Por jugador (domain/gps/porJugador.js), igual que Por tarea, con los
+// filtros de Por jugador (Nombre, Microciclo, Fecha, Tipo de Sesión,
+// Condición y Clasificación Días) y pintado: con «Mi selección», cada
+// comparación con sus franjas arriba de sus filas; con «Valor referencial»,
+// las del V.R. arriba de la tabla; con «Objetivo», cada microciclo con el
+// suyo.
 
 const FRANJAS = ["excelente", "muyBueno", "bueno", "regular", "malo", "desvio"];
 const SIN_ELEGIR = [];
@@ -59,10 +67,12 @@ const SIN_ELEGIR = [];
 const FILTROS_AL_ENTRAR = Object.freeze({ microciclo_jugador: ["sesion"] });
 // «Categorización», en el orden del archivo.
 const CATEGORIZACIONES_DEL_INFORME = ["miSeleccion", "valorReferencial", "objetivo"];
-// Por tarea: al entrar, una comparación sin filtros (como quedó guardado el
-// archivo: Tipo de Sesión, Fecha, Nombre y Condición en «(Todas)»).
-const COMPARACION_NUEVA = Object.freeze({ filtros: Object.freeze({}) });
-const FILTROS_DE = { porMicrociclo: FILTROS_POR_MICROCICLO, porTarea: FILTROS_POR_TAREA };
+// Al entrar, una comparación como quedó guardado el archivo: en Por tarea,
+// sin filtros (Tipo de Sesión, Fecha, Nombre y Condición en «(Todas)»); en
+// Por jugador, Condición en Total (el jugador se elige).
+const COMPARACIONES_NUEVAS = Object.freeze({ porTarea: Object.freeze({ filtros: Object.freeze({}) }), porJugador: Object.freeze({ filtros: Object.freeze({ condicion: Object.freeze(["total"]) }) }) });
+const SIN_FILTROS = Object.freeze({ filtros: Object.freeze({}) });
+const FILTROS_DE = { porMicrociclo: FILTROS_POR_MICROCICLO, porTarea: FILTROS_POR_TAREA, porJugador: FILTROS_POR_JUGADOR };
 
 // Los grupos de columnas con su «?».
 const TERMINOS_DE_GRUPOS = { ua: "gps.terminos.unidadArbitraria", cronica: "gps.terminos.cargaCronica" };
@@ -85,7 +95,7 @@ const tramos = (numeros, unir) => {
 // Las columnas ocultadas a mano se recuerdan en el aparato (como las columnas
 // fijas de las bases), cada informe las suyas. Las filas no se ocultan
 // (Santiago, 16/10: «quiero que saques la opcion de ocultar filas»).
-const CLAVES_COLUMNAS_OCULTAS = { porMicrociclo: "gps_informe_columnas_ocultas", porTarea: "gps_informe_tarea_columnas_ocultas" };
+const CLAVES_COLUMNAS_OCULTAS = { porMicrociclo: "gps_informe_columnas_ocultas", porTarea: "gps_informe_tarea_columnas_ocultas", porJugador: "gps_informe_jugador_columnas_ocultas" };
 const leerColumnasOcultas = (clave) => {
   try {
     const guardadas = JSON.parse(localStorage.getItem(clave) || "null");
@@ -115,12 +125,19 @@ const microcicloDe = (fila) => (fila.microciclo ?? fila.microciclos[fila.microci
 export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe, nombreDelDispositivo, tituloDe, textoDe, textosDeListas, encabezado, arriba = null, cargando = false }) {
   const { idioma, plural } = useIdioma();
   const [modo, setModo] = useState("menu");
-  // El informe elegido en «Ver informes»: «porMicrociclo» o «porTarea».
+  // El informe elegido en «Ver informes»: «porMicrociclo», «porTarea» o
+  // «porJugador».
   const [tipo, setTipo] = useState("porMicrociclo");
   const [filtros, setFiltros] = useState(FILTROS_AL_ENTRAR);
-  // Por tarea: las comparaciones, cada una con sus filtros.
-  const [comparaciones, setComparaciones] = useState([COMPARACION_NUEVA]);
+  // Por tarea y Por jugador: las comparaciones de cada uno, con sus filtros.
+  const [comparacionesDe, setComparacionesDe] = useState(() => ({ porTarea: [COMPARACIONES_NUEVAS.porTarea], porJugador: [COMPARACIONES_NUEVAS.porJugador] }));
   const porTarea = tipo === "porTarea";
+  const porJugador = tipo === "porJugador";
+  const conComparaciones = porTarea || porJugador;
+  const comparaciones = comparacionesDe[tipo] || SIN_ELEGIR;
+  const setComparaciones = (nuevas) => setComparacionesDe((antes) => ({ ...antes, [tipo]: nuevas }));
+  const filtrosDelInforme = FILTROS_DE[tipo];
+  const pasaLosDeEste = (fila, losFiltros) => pasaLosFiltrosDe(fila, losFiltros, filtrosDelInforme);
   const [hoja, setHoja] = useState(null);
   const [tipoVariable, setTipoVariable] = useState("absolutas");
   const [visualizacion, setVisualizacion] = useState("promedio");
@@ -179,15 +196,15 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     return porFiltro;
   };
   const opciones = useMemo(
-    () => (modo === "menu" || porTarea ? {} : opcionesCon(filtros, FILTROS_POR_MICROCICLO, pasaLosFiltros, entraEnElInforme)),
+    () => (modo === "menu" || conComparaciones ? {} : opcionesCon(filtros, FILTROS_POR_MICROCICLO, pasaLosFiltros, entraEnElInforme)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filasGps, filtros, modo, porTarea],
+    [filasGps, filtros, modo, conComparaciones],
   );
   // Por tarea: las de cada comparación, con sus filtros.
   const opcionesDeTarea = useMemo(
-    () => (modo === "menu" || !porTarea ? [] : comparaciones.map((comparacion) => opcionesCon(comparacion.filtros, FILTROS_POR_TAREA, pasaLosFiltrosDeTarea, entraEnPorTarea))),
+    () => (modo === "menu" || !conComparaciones ? [] : comparaciones.map((comparacion) => opcionesCon(comparacion.filtros, filtrosDelInforme, pasaLosDeEste, entraEnPorTarea))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filasGps, comparaciones, modo, porTarea],
+    [filasGps, comparaciones, modo, tipo],
   );
 
   const textoDeOpcion = (filtro, valor) => {
@@ -264,21 +281,23 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
 
   // Las filas del informe con estos filtros (sin V.R. todavía); en Por
   // tarea, las de microciclo de todas las comparaciones.
-  const porComparacion = (lasComparaciones) => lasComparaciones.slice(0, MAXIMO_DE_COMPARACIONES).map((comparacion) => filasDeComparacion(filasGps, comparacion.filtros));
+  const porComparacion = (lasComparaciones) => lasComparaciones.slice(0, MAXIMO_DE_COMPARACIONES).map((comparacion) => filasPorMicrocicloDe(filasGps, comparacion.filtros, filtrosDelInforme));
   const gruposDeTarea = (lasComparaciones) => porComparacion(lasComparaciones).flat();
   const deCadaComparacion = useMemo(
-    () => (modo === "menu" || !porTarea ? [] : porComparacion(comparaciones)),
+    () => (modo === "menu" || !conComparaciones ? [] : porComparacion(comparaciones)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modo, filasGps, porTarea, comparaciones],
+    [modo, filasGps, tipo, comparaciones],
   );
-  const grupos = useMemo(() => (modo === "menu" ? [] : porTarea ? deCadaComparacion.flat() : filasPorMicrociclo(filasGps, filtros)), [modo, filasGps, filtros, porTarea, deCadaComparacion]);
+  const grupos = useMemo(() => (modo === "menu" ? [] : conComparaciones ? deCadaComparacion.flat() : filasPorMicrociclo(filasGps, filtros)), [modo, filasGps, filtros, conComparaciones, deCadaComparacion]);
   // «Objetivo» solo pinta cuando todas las filas son jugadores (Santiago,
   // 16/10): si no, la opción no está y se ve con «Mi selección». En Por
-  // tarea las filas son microciclos: no está nunca.
-  const objetivoPosible = !porTarea && soloJugadores(grupos);
+  // jugador, cuando todas las comparaciones son de jugadores; Por tarea no se
+  // pinta.
+  const objetivoPosibleCon = (losGrupos, lasComparaciones) => (porJugador ? soloDeJugadores(lasComparaciones) : !porTarea && soloJugadores(losGrupos));
+  const objetivoPosible = objetivoPosibleCon(grupos, comparaciones);
   const categorizacionVista = categorizacion === "objetivo" && !objetivoPosible ? "miSeleccion" : categorizacion;
-  const sinObjetivoCon = (losGrupos) => {
-    if (porTarea || !soloJugadores(losGrupos)) setCategorizacion((antes) => (antes === "objetivo" ? "miSeleccion" : antes));
+  const sinObjetivoCon = (losGrupos, lasComparaciones = comparaciones) => {
+    if (!objetivoPosibleCon(losGrupos, lasComparaciones)) setCategorizacion((antes) => (antes === "objetivo" ? "miSeleccion" : antes));
   };
 
   // ----------------------------------------------------------- Los V.R. --
@@ -305,8 +324,9 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   const informe = useMemo(() => {
     if (modo !== "informe") return null;
     if (porTarea) return informePorTarea(filasGps, { comparaciones, tipoVariable, visualizacion, asignaciones });
+    if (porJugador) return informePorJugador(filasGps, { comparaciones, tipoVariable, visualizacion, categorizacion: categorizacionVista, asignaciones });
     return informePorMicrociclo(filasGps, { filtros, tipoVariable, visualizacion, categorizacion: categorizacionVista, asignaciones, nombreDe });
-  }, [modo, porTarea, filasGps, filtros, comparaciones, tipoVariable, visualizacion, categorizacionVista, asignaciones, nombreDe]);
+  }, [modo, porTarea, porJugador, filasGps, filtros, comparaciones, tipoVariable, visualizacion, categorizacionVista, asignaciones, nombreDe]);
 
   // Los V.R. elegidos siguen si alguno vale para lo filtrado (su dispositivo
   // o sus microciclos); si no, van los de entrada. Dice si cambiaron.
@@ -324,7 +344,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // filtros cerrados y, si no son todos jugadores, sin Objetivo.
   const irAlInforme = () => {
     revisarVrs(grupos);
-    sinObjetivoCon(grupos);
+    sinObjetivoCon(grupos, comparaciones);
     setVerFranjas(0);
     setFiltrosAbiertos(false);
     setModo("informe");
@@ -342,14 +362,16 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // con los V.R. revisados igual.
   const cambiarComparaciones = (nuevas) => {
     setComparaciones(nuevas);
-    if (modo === "informe" && revisarVrs(gruposDeTarea(nuevas))) setVerFranjas(0);
+    if (modo !== "informe") return;
+    if (revisarVrs(gruposDeTarea(nuevas))) setVerFranjas(0);
+    sinObjetivoCon(null, nuevas);
   };
-  const sumarComparacion = () => comparaciones.length < MAXIMO_DE_COMPARACIONES && cambiarComparaciones([...comparaciones, COMPARACION_NUEVA]);
+  const sumarComparacion = () => comparaciones.length < MAXIMO_DE_COMPARACIONES && cambiarComparaciones([...comparaciones, COMPARACIONES_NUEVAS[tipo]]);
   const quitarComparacion = (c) => cambiarComparaciones(comparaciones.filter((_, i) => i !== c));
   // «Limpiar filtros»: los de todas las comparaciones (como el botón del
   // archivo, que limpia todas las segmentaciones).
-  const limpiarFiltros = () => (porTarea ? cambiarComparaciones(comparaciones.map(() => COMPARACION_NUEVA)) : cambiarFiltros({}));
-  const hayFiltrosDeTarea = comparaciones.some((comparacion) => FILTROS_POR_TAREA.some((filtro) => comparacion.filtros[filtro]?.length));
+  const limpiarFiltros = () => (conComparaciones ? cambiarComparaciones(comparaciones.map(() => SIN_FILTROS)) : cambiarFiltros({}));
+  const hayFiltrosDeTarea = comparaciones.some((comparacion) => filtrosDelInforme.some((filtro) => comparacion.filtros[filtro]?.length));
 
   // ----------------------------------------------------------- Formatos --
   const porciento = (valor) => (esNumero(valor) ? textoDeValor(valor, "0%", idioma) : "");
@@ -411,10 +433,10 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // Los filtros, cada uno con su desplegable: en el paso 1 y, con «Filtros»,
   // dentro del informe. En Por tarea, una tarjeta por comparación con los
   // suyos, «Quitar» (si hay más de una) y «+ Otra comparación», hasta 5.
-  const hayFiltros = porTarea ? hayFiltrosDeTarea : FILTROS_POR_MICROCICLO.some((filtro) => filtros[filtro]?.length);
+  const hayFiltros = conComparaciones ? hayFiltrosDeTarea : FILTROS_POR_MICROCICLO.some((filtro) => filtros[filtro]?.length);
   const nombreDeComparacion = (c) => t("gps.reportes.tarea.comparacion", { letra: LETRAS[c] });
   const grillaDeFiltros = () =>
-    !porTarea ? (
+    !conComparaciones ? (
       <div className="gps-reportes-grilla">
         {FILTROS_POR_MICROCICLO.map((filtro) => (
           <div className="campo-inicio" key={filtro}>
@@ -442,7 +464,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
               )}
             </div>
             <div className="gps-reportes-grilla">
-              {FILTROS_POR_TAREA.map((filtro) => (
+              {filtrosDelInforme.map((filtro) => (
                 <div className="campo-inicio" key={filtro}>
                   <span className="gps-reportes-rotulo">{tituloDeFiltro(filtro)}</span>
                   {desplegableDeVarios(
@@ -463,7 +485,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
       </div>
     );
   // Cuántas filas va a tener el informe.
-  const cuantasVan = () => (porTarea ? plural("gps.reportes.tarea.cuantas", grupos.length) : plural("gps.reportes.cuantas", grupos.length));
+  const cuantasVan = () => (conComparaciones ? plural("gps.reportes.tarea.cuantas", grupos.length) : plural("gps.reportes.cuantas", grupos.length));
 
   // --------------------------------------------------------------- Menú --
   if (modo === "menu") {
@@ -501,7 +523,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
             <div className="lista-opciones">
               {opcion("porMicrociclo", "calendario", true)}
               {opcion("porTarea", "registros", true)}
-              {opcion("porJugador", "usuario", false)}
+              {opcion("porJugador", "usuario", true)}
             </div>
           </section>
         </div>
@@ -515,11 +537,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
       <div className="app">
         <div className="contenedor contenedor-base">
           {botonVolver(t("gps.reportes.titulo"), () => setModo("menu"))}
-          {encabezado(t(`gps.reportes.${tipo}`), t(porTarea ? "gps.reportes.tarea.filtrosTexto" : "gps.reportes.filtrosTexto"))}
+          {encabezado(t(`gps.reportes.${tipo}`), t(porJugador ? "gps.reportes.jugador.filtrosTexto" : porTarea ? "gps.reportes.tarea.filtrosTexto" : "gps.reportes.filtrosTexto"))}
           {arriba}
           <section className="tarjeta gps-reportes-filtros">
             <div className="gps-reportes-filtros-cabeza">
-              <b>{t(porTarea ? "gps.reportes.tarea.comparaciones" : "gps.reportes.filtrosTitulo")}</b>
+              <b>{t(conComparaciones ? "gps.reportes.tarea.comparaciones" : "gps.reportes.filtrosTitulo")}</b>
               <button type="button" className="boton-secundario" onClick={limpiarFiltros} disabled={!hayFiltros}>
                 {t("gps.reportes.limpiar")}
               </button>
@@ -546,8 +568,8 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // (cada fila, las de su V.R.). filas: las de microciclo (o de jugador); en
   // Por tarea, las de todas las comparaciones.
   const { ua, tablas } = informe;
-  const filas = porTarea ? informe.comparaciones.flatMap((bloque) => bloque.filas) : informe.filas;
-  const deTodo = porTarea ? null : informe.general;
+  const filas = conComparaciones ? informe.comparaciones.flatMap((bloque) => bloque.filas) : informe.filas;
+  const deTodo = conComparaciones ? null : informe.general;
   const actual = tablas.length ? Math.min(verFranjas, tablas.length - 1) : -1;
   const tabla = actual >= 0 ? tablas[actual] : null;
   const variables = TIPOS_DE_VARIABLE[tipoVariable];
@@ -565,10 +587,10 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
         return `${tituloDeFiltro(filtro)}: ${texto}`;
       })
       .join(" · ");
-  const resumenDeFiltros = porTarea
+  const resumenDeFiltros = conComparaciones
     ? comparaciones
         .slice(0, MAXIMO_DE_COMPARACIONES)
-        .map((comparacion, c) => `${LETRAS[c]}: ${resumenDe(comparacion.filtros, FILTROS_POR_TAREA) || t("gps.reportes.tarea.sinFiltros")}`)
+        .map((comparacion, c) => `${LETRAS[c]}: ${resumenDe(comparacion.filtros, filtrosDelInforme) || t("gps.reportes.tarea.sinFiltros")}`)
         .join("\n")
     : resumenDe(filtros, FILTROS_POR_MICROCICLO);
 
@@ -657,17 +679,42 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // Por tarea no se pinta (Santiago, 16/10: «por tarea no se pinta con
   // nada»): sus columnas van sin color.
   const sinColor = (columna) => ({ ...columna, color: null, franjas: null, franjasDeFila: null });
+  const COLUMNAS_DE_MICROCICLO = [
+    COLUMNA_SESIONES,
+    { clave: "descansos", titulo: t("gps.reportes.columnas.descansos"), valor: (fila) => fila.descansos, texto: entero },
+    ...COLUMNAS_UA,
+    { clave: "ccSuma", grupo: "cronica", titulo: t("gps.reportes.columnas.suma"), valor: (fila) => fila.cargaCronica.suma, texto: conDos, franjas: ua?.cronicaSuma, color: colorDeCargaCronica },
+    { clave: "ccPromedio", grupo: "cronica", titulo: t("gps.reportes.columnas.promedio"), valor: (fila) => fila.cargaCronica.promedio, texto: conDos, franjas: ua?.cronicaPromedio, color: colorDeCargaCronica },
+    ...COLUMNAS_MEDIDAS,
+  ];
+  // Por jugador: las franjas de cada celda según la categorización (con «Mi
+  // selección», las de su comparación; con «Valor referencial», las de su
+  // V.R.; con «Objetivo», las de su microciclo). franjasDeBloque(c): las de
+  // la comparación c, para sus filas de franjas.
+  const DONDE_ESTAN = { uaSuma: ["ua", "suma"], uaPromedio: ["ua", "promedio"], ccSuma: ["ua", "cronicaSuma"], ccPromedio: ["ua", "cronicaPromedio"] };
+  const dondeEsta = (clave) => DONDE_ESTAN[clave] || (clave.startsWith("variable:") ? ["variables", clave.slice(9)] : ["indices", clave]);
+  const conFranjasDeJugador = (columna) => {
+    if (!columna.color) return columna;
+    const [grupo, clave] = dondeEsta(columna.clave);
+    const deBloque = (c) => informe.comparaciones[c]?.franjas?.[grupo]?.[clave] ?? null;
+    return {
+      ...columna,
+      franjas: categorizacionVista === "valorReferencial" ? (tabla?.[grupo]?.[clave] ?? null) : null,
+      franjasDeBloque: deBloque,
+      franjasDeFila: (fila) => {
+        if (categorizacionVista === "objetivo") return fila.franjas?.[grupo]?.[clave] ?? null;
+        if (categorizacionVista === "valorReferencial") return tablaDe(fila)?.[grupo]?.[clave] ?? null;
+        return deBloque(fila.c);
+      },
+    };
+  };
+  // Por tarea, como el archivo: N° Micr. y N° Ses., sin colores. Por
+  // jugador, como Por microciclo sin VS RIVAL (el archivo no lo tiene ahí).
   const COLUMNAS = porTarea
     ? [{ clave: "microciclos", titulo: t("gps.reportes.columnas.microciclos"), valor: (fila) => fila.cantidad ?? null, texto: entero }, COLUMNA_SESIONES, ...COLUMNAS_UA, ...COLUMNAS_MEDIDAS].map(sinColor)
-    : [
-        COLUMNA_SESIONES,
-        { clave: "descansos", titulo: t("gps.reportes.columnas.descansos"), valor: (fila) => fila.descansos, texto: entero },
-        ...COLUMNAS_UA,
-        { clave: "ccSuma", grupo: "cronica", titulo: t("gps.reportes.columnas.suma"), valor: (fila) => fila.cargaCronica.suma, texto: conDos, franjas: ua?.cronicaSuma, color: colorDeCargaCronica },
-        { clave: "ccPromedio", grupo: "cronica", titulo: t("gps.reportes.columnas.promedio"), valor: (fila) => fila.cargaCronica.promedio, texto: conDos, franjas: ua?.cronicaPromedio, color: colorDeCargaCronica },
-        ...COLUMNAS_MEDIDAS,
-        { clave: "vsRival", titulo: t("gps.reportes.columnas.vsRival"), valor: (fila) => fila.vsRival, texto: (valor) => valor || "", rival: true },
-      ];
+    : porJugador
+      ? COLUMNAS_DE_MICROCICLO.map(conFranjasDeJugador)
+      : [...COLUMNAS_DE_MICROCICLO, { clave: "vsRival", titulo: t("gps.reportes.columnas.vsRival"), valor: (fila) => fila.vsRival, texto: (valor) => valor || "", rival: true }];
   const TITULOS_DE_GRUPOS = {
     ua: t("gps.reportes.columnas.ua"),
     cronica: t("gps.reportes.columnas.cronica"),
@@ -691,9 +738,9 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
 
   // La primera columna dice qué es cada fila: solo microciclos del equipo,
   // solo jugadores o las dos cosas.
-  const soloEquipo = !porTarea && filas.every((fila) => fila.promedio);
-  const todasDeJugadores = !porTarea && soloJugadores(filas);
-  const tituloDeLaPrimera = porTarea
+  const soloEquipo = !conComparaciones && filas.every((fila) => fila.promedio);
+  const todasDeJugadores = !conComparaciones && soloJugadores(filas);
+  const tituloDeLaPrimera = conComparaciones
     ? t("gps.reportes.columnas.comparacion")
     : soloEquipo
       ? t("gps.reportes.columnas.microciclo")
@@ -702,12 +749,17 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
         : t("gps.reportes.columnas.nombre");
   // Por tarea: la fila de una comparación dice su letra y su Tipo de Sesión
   // («Nombre Tarea» en el archivo); la de arriba, «Promedio»; las de cada
-  // microciclo, su número.
-  const tareasDe = (bloque) =>
-    bloque.filtros.tipo_sesion?.length ? bloque.filtros.tipo_sesion.map((valor) => textoDeOpcion("tipo_sesion", valor) || t("tabla.vacias")).join(", ") : t("gps.reportes.tarea.todasLasTareas");
+  // microciclo, su número. Por jugador: su letra y el jugador elegido
+  // («Nombre Jugador»).
+  const etiquetaDeBloque = (bloque) => {
+    const filtro = porJugador ? "nombre" : "tipo_sesion";
+    const elegidosAhora = bloque.filtros[filtro] || SIN_ELEGIR;
+    if (!elegidosAhora.length) return t(porJugador ? "gps.reportes.jugador.todos" : "gps.reportes.tarea.todasLasTareas");
+    return elegidosAhora.map((valor) => textoDeOpcion(filtro, valor) || t("tabla.vacias")).join(", ");
+  };
   const textoDeFilaDeTarea = (fila) => {
     if (fila.tipoDeFila === "general") return t("gps.reportes.tarea.promedioDeTodas");
-    if (fila.tipoDeFila === "comparacion") return `${nombreDeComparacion(fila.c)} · ${tareasDe(fila.bloque)}\n${resumenDe(fila.bloque.filtros, FILTROS_POR_TAREA) || t("gps.reportes.tarea.sinFiltros")}`;
+    if (fila.tipoDeFila === "comparacion") return `${nombreDeComparacion(fila.c)} · ${etiquetaDeBloque(fila.bloque)}\n${resumenDe(fila.bloque.filtros, filtrosDelInforme) || t("gps.reportes.tarea.sinFiltros")}`;
     return t("gps.reportes.microcicloN", { n: fila.microciclo ?? "" });
   };
   const nombreDeFilaDeTarea = (fila) => {
@@ -723,7 +775,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
           <span className="gps-tarea-letra" aria-hidden="true">
             {LETRAS[fila.c]}
           </span>
-          <b>{tareasDe(fila.bloque)}</b>
+          <b>{etiquetaDeBloque(fila.bloque)}</b>
         </span>
       );
     return (
@@ -733,9 +785,9 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     );
   };
   const textoDeFila = (fila) =>
-    porTarea ? textoDeFilaDeTarea(fila) : fila.promedio ? (soloEquipo ? t("gps.reportes.microcicloN", { n: fila.microciclo ?? "" }) : `${nombreDe(fila)} ${fila.microciclo ?? ""}`) : nombreDe(fila);
+    conComparaciones ? textoDeFilaDeTarea(fila) : fila.promedio ? (soloEquipo ? t("gps.reportes.microcicloN", { n: fila.microciclo ?? "" }) : `${nombreDe(fila)} ${fila.microciclo ?? ""}`) : nombreDe(fila);
   const nombreDeFila = (fila) =>
-    porTarea ? (
+    conComparaciones ? (
       nombreDeFilaDeTarea(fila)
     ) : fila.promedio ? (
       <span className="gps-informe-nombre">
@@ -751,14 +803,15 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
 
   // Las filas de la tabla. Por tarea: arriba el promedio de las comparaciones
   // (con más de una) y, de cada una, su fila y la de cada microciclo (una
-  // comparación sin microciclos lo dice en su fila).
+  // comparación sin microciclos lo dice en su fila). Por jugador, igual sin
+  // el promedio de arriba (el archivo no lo tiene).
   const conResumen = porTarea ? informe.comparaciones.filter((bloque) => bloque.resumen).length : 0;
-  const filasDeLaTabla = porTarea
+  const filasDeLaTabla = conComparaciones
     ? [
         ...(conResumen > 1 && informe.general ? [{ ...informe.general, tipoDeFila: "general" }] : []),
         ...informe.comparaciones.flatMap((bloque, c) => [
           { ...(bloque.resumen || { clave: `${bloque.letra}:resumen`, vacia: true }), tipoDeFila: "comparacion", bloque, c },
-          ...bloque.filas.map((fila) => ({ ...fila, tipoDeFila: "microciclo" })),
+          ...bloque.filas.map((fila) => ({ ...fila, tipoDeFila: "microciclo", c })),
         ]),
       ]
     : filas;
@@ -782,8 +835,19 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
           texto: t("gps.reportes.franjas.vrDe", { vr: repetido(una) ? nombreDeVr(una.vr) : nombreDelDispositivo(una.vr.dispositivo) }),
         }))
       : [{ clave: "franja:vr", franja: "vr", vr: tabla.vr, texto: t("gps.reportes.franjas.vr") }];
-  const filasDeFranjas = franjasOcultas || porTarea ? [] : FRANJAS.map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
+  // Por jugador, arriba solo las del V.R. (con «Valor referencial»): con «Mi
+  // selección», cada comparación tiene las suyas, encima de su fila (como el
+  // archivo: cada jugador contra sí mismo); con «Objetivo», cada microciclo
+  // tiene las suyas y no hay unas para mostrar.
+  const conFranjasArriba = !porTarea && (!porJugador || categorizacionVista === "valorReferencial");
+  const filasDeFranjas = franjasOcultas || !conFranjasArriba ? [] : FRANJAS.map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
   const franjasAVista = [...filasDelVr, ...filasDeFranjas];
+  const franjasDelBloque = (c) =>
+    porJugador && categorizacionVista === "miSeleccion" && !franjasOcultas && informe.comparaciones[c]?.franjas
+      ? FRANJAS.map((franja) => ({ clave: `franja:${LETRAS[c]}:${franja}`, franja, c, texto: t(`gps.reportes.franjas.${franja}`) }))
+      : [];
+  // El botón «Franjas», cuando hay franjas para ocultar.
+  const conBotonDeFranjas = !porTarea && !(porJugador && categorizacionVista === "objetivo");
   const cuantasOcultas = columnasOcultas.filter((clave) => COLUMNAS.some((columna) => columna.clave === clave)).length;
 
   const abrirColumnas = () => {
@@ -805,11 +869,13 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   };
   // En las franjas, cada número pintado con el color que toma lo que cae ahí
   // (Santiago, 15/10, con una imagen: la celda entera, no un punto al lado).
-  const celdaDeFranja = (columna, { franja, vr }) => {
+  // c: la comparación (Por jugador), con las franjas de esa comparación.
+  const celdaDeFranja = (columna, { franja, vr, c }) => {
     if (franja === "vr") return <td key={columna.clave}>{columna.vr ? columna.vr(vr) || vacio : ""}</td>;
-    const valor = columna.franjas ? columna.franjas[franja] : null;
-    if (!columna.franjas) return <td key={columna.clave} />;
-    const color = franja !== "desvio" && columna.color ? columna.color(valor, columna.franjas) : null;
+    const franjas = c === undefined ? columna.franjas : columna.franjasDeBloque ? columna.franjasDeBloque(c) : null;
+    if (!franjas) return <td key={columna.clave} />;
+    const valor = franjas[franja];
+    const color = franja !== "desvio" && columna.color ? columna.color(valor, franjas) : null;
     const texto = columna.texto(valor);
     return (
       <td key={columna.clave} className={color ? "pintada" : undefined} style={color ? { background: color } : undefined}>
@@ -818,11 +884,34 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     );
   };
 
+  const filaDeFranja = (una) => (
+    <tr key={una.clave} className={`franja-${una.franja}`}>
+      <th scope="row" className="gps-informe-id">
+        {una.texto}
+      </th>
+      {columnas.map((columna) => celdaDeFranja(columna, una))}
+    </tr>
+  );
+  const filaDeLaTabla = (fila) => (
+    <tr key={fila.clave} className={claseDeFila(fila)}>
+      <th scope="row" className="gps-informe-id" title={textoDeFila(fila)}>
+        {nombreDeFila(fila)}
+      </th>
+      {fila.vacia ? (
+        <td colSpan={columnas.length} className="gps-tarea-sin-filas">
+          {t("gps.reportes.tarea.sinMicrociclos")}
+        </td>
+      ) : (
+        columnas.map((columna) => celda(columna, fila))
+      )}
+    </tr>
+  );
+
   return (
     <div className="app">
       <div className="contenedor contenedor-base">
         {botonVolver(t("gps.reportes.titulo"), () => setModo("menu"))}
-        {encabezado(t(`gps.reportes.${tipo}`), t(porTarea ? "gps.reportes.tarea.informeTexto" : "gps.reportes.informeTexto"))}
+        {encabezado(t(`gps.reportes.${tipo}`), t(porTarea ? "gps.reportes.tarea.informeTexto" : porJugador ? "gps.reportes.jugador.informeTexto" : "gps.reportes.informeTexto"))}
         {arriba}
         {/* «Filtros»: dice qué se filtró y, tocándolo, abre acá abajo los
             mismos filtros del paso 1, sin salir del informe; tocándolo
@@ -966,7 +1055,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                           : t("gps.reportes.franjasSinVr")}
                   </b>
                   <span>
-                    {porTarea
+                    {conComparaciones
                       ? `${plural("gps.reportes.tarea.cuantasComparaciones", informe.comparaciones.length)} · ${plural("gps.reportes.tarea.microciclos", filas.length)}`
                       : plural(soloEquipo ? "gps.reportes.cuantosMicrociclos" : todasDeJugadores ? "gps.reportes.cuantosJugadores" : "gps.reportes.cuantasFilas", filas.length)}
                   </span>
@@ -984,8 +1073,8 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                   <b>{cuantasOcultas ? plural("gps.reportes.ocultas.cuantas", cuantasOcultas) : t("gps.reportes.ocultas.todas")}</b>
                   <Icono nombre="flecha" size={15} />
                 </button>
-                {/* Las franjas de color: un toque las oculta y otro las vuelve a mostrar (Por tarea no tiene). */}
-                {!porTarea && (
+                {/* Las franjas de color: un toque las oculta y otro las vuelve a mostrar (Por tarea no tiene; Por jugador con «Objetivo», tampoco). */}
+                {conBotonDeFranjas && (
                   <button
                     type="button"
                     className={`selector-hoja gps-informe-ver gps-informe-franjas-boton ${franjasOcultas ? "con-ocultas" : ""}`}
@@ -1036,34 +1125,22 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                       ))}
                   </tr>
                 </thead>
-                {franjasAVista.length > 0 && (
-                  <tbody className="gps-informe-franjas">
-                    {franjasAVista.map((una) => (
-                      <tr key={una.clave} className={`franja-${una.franja}`}>
-                        <th scope="row" className="gps-informe-id">
-                          {una.texto}
-                        </th>
-                        {columnas.map((columna) => celdaDeFranja(columna, una))}
-                      </tr>
-                    ))}
-                  </tbody>
+                {franjasAVista.length > 0 && <tbody className="gps-informe-franjas">{franjasAVista.map(filaDeFranja)}</tbody>}
+                {porJugador ? (
+                  // Por jugador: de cada comparación, sus franjas (con «Mi
+                  // selección»), su fila y sus microciclos.
+                  informe.comparaciones.map((bloque, c) => {
+                    const susFranjas = franjasDelBloque(c);
+                    return (
+                      <Fragment key={bloque.letra}>
+                        {susFranjas.length > 0 && <tbody className="gps-informe-franjas gps-jugador-franjas">{susFranjas.map(filaDeFranja)}</tbody>}
+                        <tbody className="gps-informe-filas">{filasDeLaTabla.filter((fila) => fila.c === c).map(filaDeLaTabla)}</tbody>
+                      </Fragment>
+                    );
+                  })
+                ) : (
+                  <tbody className="gps-informe-filas">{filasDeLaTabla.map(filaDeLaTabla)}</tbody>
                 )}
-                <tbody className="gps-informe-filas">
-                  {filasDeLaTabla.map((fila) => (
-                    <tr key={fila.clave} className={claseDeFila(fila)}>
-                      <th scope="row" className="gps-informe-id" title={textoDeFila(fila)}>
-                        {nombreDeFila(fila)}
-                      </th>
-                      {fila.vacia ? (
-                        <td colSpan={columnas.length} className="gps-tarea-sin-filas">
-                          {t("gps.reportes.tarea.sinMicrociclos")}
-                        </td>
-                      ) : (
-                        columnas.map((columna) => celda(columna, fila))
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
               </table>
             </div>
           </section>

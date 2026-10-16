@@ -1395,8 +1395,8 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
    traerlo directo de OpenField (paso 5).
 3. **Reportes**. 15/10: el Informe (Por microciclo, Por tarea y Por jugador), ver «Informe:
    Por microciclo, Por tarea y Por jugador (15/10)». Por microciclo, hecho el 15/10 (la solapa
-   Reportes, UI-038); Por tarea, el 16/10 (ver «Por tarea (16/10)»); Por jugador, después, con
-   sus dudas.
+   Reportes, UI-038); Por tarea y Por jugador, el 16/10 (ver «Por tarea (16/10)» y «Por
+   jugador (16/10)»).
 4. **V.R. por dispositivo**: se arman una vez con reglas estadísticas y quedan fijos (Santiago,
    10/10: «Los VR se arman una ves con reglas estadisticas y se dejan fijos»; las reglas las
    explica él más adelante). Cada dispositivo tiene los suyos («Exacto»). No inventar reglas ni
@@ -2010,7 +2010,7 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   en las 150 sesiones y el desvío, en 148 (las otras dos el archivo las tenía sin actualizar).
   La descripción del archivo dice que el desvío es «solo con los jugadores que poseen la
   condición SI», pero cuenta Va vacío, No y Si: se hace como calcula.
-- **Falta**: Por jugador, con su análisis y sus dudas. (Por tarea, hecho el 16/10: ver abajo.)
+- Por tarea y Por jugador, hechos el 16/10: ver abajo.
 
 **Por tarea (16/10)** (`src/ReportesGps.jsx`; el cálculo en `src/domain/gps/porTarea.js`,
 que usa las cuentas de Por microciclo; UI-038). En el archivo, «Por tarea» (filas 213 a 323 de
@@ -2069,6 +2069,57 @@ promedio de las cinco. No pinta. Santiago respondió en un cuestionario:
 Descartado en Por tarea: las cinco comparaciones fijas, el detalle solo con un Tipo de Sesión y
 hasta 20 microciclos, promediar solo los del 17 en adelante, el V.R. elegido mirando otra tabla,
 el tiempo en los índices y la suma con «Relativas».
+
+**Por jugador (16/10)** (`src/ReportesGps.jsx`; el cálculo en `src/domain/gps/porJugador.js`,
+que usa las cuentas de Por microciclo y las filas por microciclo de Por tarea; UI-038). En el
+archivo, «Por Jugador - Microciclo» (filas 71 a 211 de INFORME GPS) tiene cinco comparaciones
+fijas (A a E), cada una con sus segmentaciones (Nombre, Microciclo, Fecha, Tipo de Sesión,
+Condición y Clasificación Días) y su tabla dinámica (sin Va «Readaptación»). De cada una
+muestra sus franjas (el promedio y el desvío de sus microciclos: cada jugador contra sí
+mismo), su fila con el promedio y una fila por microciclo, con N° de sesiones y de descansos,
+U.A., la carga crónica del jugador, los índices y las variables; los de antes del 17, en otro
+bloque. Santiago respondió en un cuestionario:
+
+- **Los cuatro errores del archivo** (marcó los cuatro): Excelente y Malo a 2 desvíos en todas
+  (las comparaciones B a E los armaban a 1,5); en Total (D), el desvío de su propia comparación
+  (B a E tomaban el de la tabla de Por microciclo); cada fila con el V.R. de su dispositivo,
+  como en el resto (B a E lo buscaban en la hoja «Valores» con otra clave); todos los
+  microciclos juntos, cada uno con el V.R. de su dispositivo (el archivo separaba los de antes
+  del 17).
+- **Objetivo**: «Sí, por microciclo». Cada microciclo de la comparación se pinta contra el del
+  equipo en ese microciclo (el Bueno, el promedio del Team Average de sus sesiones; el desvío,
+  el de los jugadores), con los demás filtros de la comparación menos Nombre y Condición. La
+  fila de la comparación, con el promedio de los objetivos de sus microciclos. Solo aparece
+  cuando todas las comparaciones tienen jugadores elegidos en Nombre (sin el promedio del
+  equipo); si no, queda «Mi selección», como en Por microciclo.
+- **Se pinta**: «es al reves, por jugador si se pinta con las categorias y por tarea no se
+  pinta con nada». Con «Mi selección», cada comparación con sus franjas, encima de su fila, como
+  el archivo (la U.A. y la carga crónica, al revés, como en Por microciclo). La pregunta de
+  cómo hacerlo («una por comparación» o «unas solas para todo») se respondió con lo de Por
+  tarea; se hizo como el archivo y la opción recomendada, y queda para confirmar con Santiago.
+  Con «Valor referencial», cada fila con el V.R. de su dispositivo (la de la comparación, con
+  el de su último microciclo) y las franjas del V.R. arriba, con «Ver las de …» si hay más de
+  uno. Con «Objetivo», cada microciclo con las suyas: no hay unas franjas para mostrar, así
+  que tampoco va el botón «Franjas».
+- **El diseño**: como Por tarea («Tarjetas que sumás»): una tarjeta por comparación con su
+  letra en dorado y sus seis filtros, «+ Otra comparación» hasta 5, quitar cada una, «Limpiar
+  filtros» para todas; al entrar, una comparación con Condición «Total». En el informe, los
+  mismos controles que Por microciclo, «Filtros» con las mismas tarjetas, «Columnas» y
+  «Franjas», y una sola tabla: de cada comparación, sus franjas (con «Mi selección»), su fila
+  (su letra y el jugador elegido, o «Todos los nombres») y una por microciclo. Sin el promedio
+  de todas arriba (el archivo no lo tiene).
+- **Las columnas**: como Por microciclo sin VS RIVAL (el archivo no lo tiene acá): N° Sesiones,
+  N° Descanso, U.A., carga crónica (solo con un jugador elegido en la comparación: la de su
+  tabla de carga en ese microciclo), los índices y las variables. En la fila de la comparación,
+  N° de sesiones y de descansos suman; lo demás, el promedio de sus microciclos. Las columnas
+  ocultas se recuerdan aparte.
+- **Comprobado**: con datos inventados (`src/domain/gps/porJugador.test.js` y
+  `src/Gps.smoke.test.jsx`). Las cuentas de cada fila son las de Por microciclo, que se
+  comprobaron contra el archivo.
+
+Descartado en Por jugador: las cinco comparaciones fijas, los 1,5 desvíos de B a E, el desvío
+de Total y el V.R. de B a E tomados de otra tabla y otra hoja, y los microciclos de antes del 17
+aparte.
 
 **La presentación, los colores y ocultar (15/10, después de verlo con los datos del club).**
 Santiago mandó una captura del informe con: «1. NECESITO QUE HAGAS MUCHO HINCAPIE EN LA MANERA
