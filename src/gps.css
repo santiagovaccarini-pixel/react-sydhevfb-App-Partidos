@@ -967,9 +967,89 @@
     width: 100%;
   }
 }
-.gps-marco .gps-reportes-resumen {
-  margin: -4px auto 12px;
-  font-size: 13px;
+/* «Filtros» dentro del informe (Santiago, 16/10: «haces una flechita hacia
+   arriba que diga filtros y eso revela los filtros pero no te saca de la
+   pantalla, despues podes volver a ocultarlo tocando la misma flecha»): una
+   tarjeta que dice qué se filtró; tocándola se abren abajo los mismos
+   filtros del paso 1 y, otra vez, se cierran. La flecha mira para arriba;
+   abierta, para abajo. */
+.gps-marco .tarjeta.gps-informe-filtros {
+  padding: 0;
+}
+.gps-marco .gps-informe-filtros-boton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: none;
+  color: inherit;
+  font-weight: 400;
+  text-align: left;
+}
+.gps-marco .gps-informe-filtros.abiertos .gps-informe-filtros-boton {
+  border-radius: 16px 16px 0 0;
+}
+.gps-marco .gps-informe-filtros-boton:hover,
+.gps-marco .gps-informe-filtros-boton:active {
+  transform: none;
+  box-shadow: none;
+}
+@media (hover: hover) {
+  .gps-marco .gps-informe-filtros-boton:hover {
+    background: #111c31;
+  }
+}
+.gps-marco .gps-informe-filtros-boton:focus-visible {
+  outline: 2px solid #22c55e;
+  outline-offset: -2px;
+}
+.gps-marco .gps-informe-filtros-flecha {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  background: #0b1220;
+  color: #e2e8f0;
+}
+.gps-marco .gps-informe-filtros-flecha > svg {
+  transform: rotate(-90deg);
+}
+.gps-marco .gps-informe-filtros.abiertos .gps-informe-filtros-flecha > svg {
+  transform: rotate(90deg);
+}
+.gps-marco .gps-informe-filtros-texto {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.gps-marco .gps-informe-filtros-texto > b {
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 800;
+}
+.gps-marco .gps-informe-filtros-resumen {
+  color: #94a3b8;
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.gps-marco .gps-informe-filtros-cuerpo {
+  padding: 14px 16px 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+.gps-marco .gps-informe-filtros-cuerpo .gps-reportes-siguiente .boton-secundario {
+  width: auto;
+  height: auto;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 10px;
 }
 .gps-marco .gps-reportes-vrs {
   display: grid;

@@ -1755,7 +1755,11 @@ describe("GPS", () => {
 
     // El informe.
     await tocar(siguiente());
-    expect(contenedor.querySelector(".gps-reportes-resumen").textContent).toBe("Filtros: Microciclo: 18 a 20 · Microciclo/Jugador: Sesión (promedio del equipo)");
+    // Arriba, «Filtros» dice qué se filtró; de entrada, cerrado (Santiago, 16/10).
+    const botonFiltros = () => contenedor.querySelector(".gps-informe-filtros-boton");
+    expect(botonFiltros().textContent).toBe("FiltrosMicrociclo: 18 a 20 · Microciclo/Jugador: Sesión (promedio del equipo)");
+    expect(botonFiltros().getAttribute("aria-expanded")).toBe("false");
+    expect(contenedor.querySelector(".gps-informe-filtros .gps-reportes-grilla")).toBeNull();
     const tabla = contenedor.querySelector(".gps-informe-tabla");
     const filasDelInforme = [...tabla.querySelectorAll("tbody.gps-informe-filas tr")];
     // Solo microciclos del equipo: cada fila dice su número (Santiago, 15/10:
@@ -1801,12 +1805,22 @@ describe("GPS", () => {
     await tocar(botones().find((b) => b.getAttribute("aria-label") === "Quitar este V.R."));
     expect(contenedor.querySelectorAll(".gps-reportes-vr select")).toHaveLength(1);
 
-    // Volver a los filtros y «Limpiar filtros»: entran también los jugadores.
-    await tocar(boton("Filtros"));
+    // «Filtros» abre acá los mismos filtros, sin salir del informe (Santiago,
+    // 16/10: «eso revela los filtros pero no te saca de la pantalla»), y
+    // «Limpiar filtros» cambia el informe ahí mismo: entran también los jugadores.
+    await tocar(botonFiltros());
+    expect(botonFiltros().getAttribute("aria-expanded")).toBe("true");
+    expect([...contenedor.querySelectorAll(".gps-informe-filtros .gps-reportes-rotulo")].map((span) => span.textContent)).toEqual(["Microciclo", "Fecha", "Tipo de Sesión", "Tipo Microciclo", "Clasificación Días", "Microciclo/Jugador", "Nombre"]);
     await tocar(boton("Limpiar filtros"));
+    expect(contenedor.querySelector("h1").textContent).toBe("Por microciclo");
+    expect(siguiente()).toBeUndefined();
     expect(botones().find((b) => b.getAttribute("aria-label") === "Microciclo/Jugador").textContent).toBe("Todos");
-    expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("el informe tiene 5 filas");
-    await tocar(siguiente());
+    expect(contenedor.querySelector(".gps-informe-filtros .gps-reportes-siguiente").textContent).toContain("el informe tiene 5 filas");
+    expect(botonFiltros().textContent).toBe("FiltrosSin filtros: entra todo.");
+    // Tocándolo otra vez, se cierran.
+    await tocar(botonFiltros());
+    expect(botonFiltros().getAttribute("aria-expanded")).toBe("false");
+    expect(contenedor.querySelector(".gps-informe-filtros .gps-reportes-grilla")).toBeNull();
     // Con jugadores y microciclos: la primera columna dice qué es cada fila.
     expect(contenedor.querySelector(".gps-informe-tabla thead th").textContent).toBe("Nombre / Microciclo");
     const etiquetas = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas th")].map((th) => th.textContent);
@@ -1818,6 +1832,46 @@ describe("GPS", () => {
     // Objetivo: sin «Jugador» en Microciclo/Jugador, avisa que las variables no tienen franjas.
     await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "objetivo");
     expect(contenedor.querySelector(".gps-reportes-objetivo").textContent).toContain("«Jugador» en Microciclo/Jugador");
+    // «‹ Informe» vuelve a «Ver informes».
+    await tocar(contenedor.querySelector(".reporte-volver"));
+    expect(contenedor.querySelector("h1").textContent).toBe("Informe");
+    expect(contenedor.querySelectorAll(".reporte-opcion")).toHaveLength(3);
+  });
+
+  test("Informe › «Filtros» adentro: cambiar qué entra no saca del informe y, si el V.R. elegido no vale para lo nuevo, va el de entrada", async () => {
+    // Microciclos inventados: el 10 y el 11 tomados con Sport; el 17 y el 18, con Catapult.
+    const lista = [];
+    const agregar = (fecha, valores) =>
+      lista.push(fila(`r${lista.length + 1}`, lista.length + 1, { promedio: "sesion" }, fecha, { tipo_microciclo: "competitivo", condicion: "total", clasificacion_dias: "mas1_m", tipo_sesion: "din_compleja", d: 4000, tiempo: 3600, ua: 300, ...valores }));
+    agregar("2026-03-02", { dispositivo: "sport", microciclo: 10 });
+    agregar("2026-03-09", { dispositivo: "sport", microciclo: 11 });
+    agregar("2026-05-04", { dispositivo: "catapult", microciclo: 17 });
+    agregar("2026-05-11", { dispositivo: "catapult", microciclo: 18 });
+    datos.filas = lista;
+    datos.referencias = [
+      { id: "c1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 5000, tiempo: 3600 }, desvio: { d: 500 }, dePartido: false },
+      { id: "s1", dispositivo: "sport", tipo: "FUTBOL", tabla: "FUTBOL 2", grupo: "TOTAL", orden: 2, promedio: { d: 4000 }, desvio: {}, dePartido: false },
+    ];
+    await montar();
+    await irA(contenedor, "Informe");
+    await tocar(contenedor.querySelector(".reporte-opcion"));
+    await elegirEnLaLista("Microciclo", ["17", "18"]);
+    await tocar(siguiente());
+    const titulo = () => contenedor.querySelector(".gps-informe-titulo").textContent;
+    const microciclos = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas th")].map((th) => th.textContent);
+    expect(titulo()).toBe("Franjas de Catapult · FUTBOL · Oficial · TOTAL2 microciclos");
+    // Adentro, el 10 y el 11: el informe cambia ahí mismo y, como el V.R. de
+    // Catapult no vale para ellos, va el de entrada (el de Sport), igual que
+    // al pasar de los filtros al informe.
+    await tocar(contenedor.querySelector(".gps-informe-filtros-boton"));
+    await elegirEnLaLista("Microciclo", ["10", "11"]);
+    expect(contenedor.querySelector("h1").textContent).toBe("Por microciclo");
+    expect(microciclos()).toEqual(["10", "11"]);
+    expect(titulo()).toBe("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL2 microciclos");
+    // El que sigue valiendo, queda: con el 11 solo, sigue el de Sport.
+    await elegirEnLaLista("Microciclo", ["11"]);
+    expect(microciclos()).toEqual(["11"]);
+    expect(titulo()).toBe("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL1 microciclo");
   });
 
   test("Informe › ocultar columnas y filas: pregunta antes, las columnas se recuerdan y todo se vuelve a mostrar", async () => {

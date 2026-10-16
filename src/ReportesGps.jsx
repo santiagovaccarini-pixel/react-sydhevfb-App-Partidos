@@ -39,7 +39,9 @@ import { fechaCorta } from "./idioma/formatos.js";
 //      Visualización y Categorización; el V.R. de los colores y «+ Otro
 //      V.R.» para los microciclos de otro dispositivo o los que se elijan
 //      (D1); un solo botón para ver las franjas de cada V.R. (15/10, «solo
-//      deja un boton»); la tabla con la primera columna fija (D3).
+//      deja un boton»); la tabla con la primera columna fija (D3). Arriba,
+//      «Filtros» abre ahí mismo los del paso 1, sin salir del informe
+//      (16/10); «‹ Informe» vuelve a «Ver informes».
 
 const FRANJAS = ["excelente", "muyBueno", "bueno", "regular", "malo", "desvio"];
 const SIN_ELEGIR = [];
@@ -107,6 +109,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // (sin microciclos: los de su dispositivo). null: el de entrada.
   const [vrs, setVrs] = useState(null);
   const [verFranjas, setVerFranjas] = useState(0);
+  // Los filtros, también dentro del informe (Santiago, 16/10: «haces una
+  // flechita hacia arriba que diga filtros y eso revela los filtros pero no
+  // te saca de la pantalla, despues podes volver a ocultarlo tocando la misma
+  // flecha»): si están abiertos ahí.
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   // Lo que se ocultó a mano (Santiago, 15/10: «poder ocultar manualmente un
   // columna y filas sin necesidad de entrar a ajustes»; «Cuando toco un
   // columna o fila en cierto lugar tiene que preguntarme si la quiero
@@ -193,7 +200,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     // Lo que se ve: lo que quedó sin marcar se oculta.
     else if (hoja.ocultar) setOcultas((antes) => ({ ...antes, [hoja.ocultar]: hoja.valores.map((valor) => valor.clave).filter((clave) => !marcados.includes(clave)) }));
     // En un filtro, todo marcado es lo mismo que nada: todos.
-    else setFiltros((antes) => ({ ...antes, [hoja.filtro]: marcados.length === hoja.valores.length ? SIN_ELEGIR : marcados }));
+    else cambiarFiltros({ ...filtros, [hoja.filtro]: marcados.length === hoja.valores.length ? SIN_ELEGIR : marcados });
     setHoja(null);
   };
 
@@ -203,8 +210,8 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // ----------------------------------------------------------- Los V.R. --
   // El de entrada: el del dispositivo del último microciclo, el elegido en
   // la Base (o el primero de ese dispositivo).
-  const vrsAlEntrar = () => {
-    const ultimo = [...grupos].sort((a, b) => (microcicloDe(a) ?? -Infinity) - (microcicloDe(b) ?? -Infinity)).pop();
+  const vrsAlEntrar = (deLosGrupos) => {
+    const ultimo = [...deLosGrupos].sort((a, b) => (microcicloDe(a) ?? -Infinity) - (microcicloDe(b) ?? -Infinity)).pop();
     const dispositivo = ultimo?.dispositivo || referencias[0]?.dispositivo || "";
     const suyas = referencias.filter((referencia) => referencia.dispositivo === dispositivo);
     const referencia = suyas.find((una) => una.id === elegidos?.vr?.[dispositivo]) || suyas[0] || referencias[0];
@@ -226,17 +233,31 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     [modo, filasGps, filtros, tipoVariable, visualizacion, categorizacion, asignaciones, nombreDe],
   );
 
-  // Al pasar al informe: los V.R. elegidos siguen si alguno vale para lo
-  // filtrado (su dispositivo o sus microciclos); si no, los de entrada.
-  const irAlInforme = () => {
-    const dispositivosFiltrados = new Set(grupos.map((grupo) => grupo.dispositivo));
+  // Los V.R. elegidos siguen si alguno vale para lo filtrado (su dispositivo
+  // o sus microciclos); si no, van los de entrada. Dice si cambiaron.
+  const revisarVrs = (deLosGrupos) => {
+    const dispositivosFiltrados = new Set(deLosGrupos.map((grupo) => grupo.dispositivo));
     const sirve = (uno) => {
       const referencia = referencias.find((una) => una.id === uno.id);
       return Boolean(referencia) && (uno.microciclos.length > 0 || dispositivosFiltrados.has(referencia.dispositivo));
     };
-    if (!vrs || !vrs.some(sirve)) setVrs(vrsAlEntrar());
+    if (vrs && vrs.some(sirve)) return false;
+    setVrs(vrsAlEntrar(deLosGrupos));
+    return true;
+  };
+  // Al pasar al informe: los V.R. revisados, las franjas del primero y los
+  // filtros cerrados.
+  const irAlInforme = () => {
+    revisarVrs(grupos);
     setVerFranjas(0);
+    setFiltrosAbiertos(false);
     setModo("informe");
+  };
+  // Cambiar los filtros. Dentro del informe, sin salir, los V.R. se revisan
+  // como al pasar de los filtros al informe.
+  const cambiarFiltros = (nuevos) => {
+    setFiltros(nuevos);
+    if (modo === "informe" && revisarVrs(filasPorMicrociclo(filasGps, nuevos))) setVerFranjas(0);
   };
 
   // ----------------------------------------------------------- Formatos --
@@ -296,6 +317,20 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     </HojaInferior>
   );
 
+  // Los filtros, cada uno con su desplegable: en el paso 1 y, con «Filtros»,
+  // dentro del informe.
+  const hayFiltros = FILTROS_POR_MICROCICLO.some((filtro) => filtros[filtro]?.length);
+  const grillaDeFiltros = () => (
+    <div className="gps-reportes-grilla">
+      {FILTROS_POR_MICROCICLO.map((filtro) => (
+        <div className="campo-inicio" key={filtro}>
+          <span className="gps-reportes-rotulo">{tituloDeFiltro(filtro)}</span>
+          {desplegableDeVarios(tituloDeFiltro(filtro), filtros[filtro] || SIN_ELEGIR, (valor) => textoDeOpcion(filtro, valor) || t("tabla.vacias"), () => abrirFiltro(filtro), t("gps.reportes.todos"))}
+        </div>
+      ))}
+    </div>
+  );
+
   // --------------------------------------------------------------- Menú --
   if (modo === "menu") {
     const opcion = (cual, icono, hecho) => (
@@ -330,7 +365,6 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
 
   // ------------------------------------------------------------ Filtros --
   if (modo === "filtros") {
-    const hayFiltros = FILTROS_POR_MICROCICLO.some((filtro) => filtros[filtro]?.length);
     return (
       <div className="app">
         <div className="contenedor contenedor-base">
@@ -340,18 +374,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
           <section className="tarjeta gps-reportes-filtros">
             <div className="gps-reportes-filtros-cabeza">
               <b>{t("gps.reportes.filtrosTitulo")}</b>
-              <button type="button" className="boton-secundario" onClick={() => setFiltros({})} disabled={!hayFiltros}>
+              <button type="button" className="boton-secundario" onClick={() => cambiarFiltros({})} disabled={!hayFiltros}>
                 {t("gps.reportes.limpiar")}
               </button>
             </div>
-            <div className="gps-reportes-grilla">
-              {FILTROS_POR_MICROCICLO.map((filtro) => (
-                <div className="campo-inicio" key={filtro}>
-                  <span className="gps-reportes-rotulo">{tituloDeFiltro(filtro)}</span>
-                  {desplegableDeVarios(tituloDeFiltro(filtro), filtros[filtro] || SIN_ELEGIR, (valor) => textoDeOpcion(filtro, valor) || t("tabla.vacias"), () => abrirFiltro(filtro), t("gps.reportes.todos"))}
-                </div>
-              ))}
-            </div>
+            {grillaDeFiltros()}
             <div className="gps-reportes-siguiente">
               <p className="lesiones-ayuda" role="status">
                 {cargando && !filasGps.length ? t("gps.estado.cargando") : grupos.length ? plural("gps.reportes.cuantas", grupos.length) : t("gps.reportes.sinFilas")}
@@ -548,10 +575,36 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   return (
     <div className="app">
       <div className="contenedor contenedor-base">
-        {botonVolver(t("gps.reportes.volverAFiltros"), () => setModo("filtros"))}
+        {botonVolver(t("gps.reportes.titulo"), () => setModo("menu"))}
         {encabezado(t("gps.reportes.porMicrociclo"), t("gps.reportes.informeTexto"))}
         {arriba}
-        <p className="pantalla-donde gps-reportes-resumen">{resumenDeFiltros ? t("gps.reportes.filtrosElegidos", { filtros: resumenDeFiltros }) : t("gps.reportes.sinFiltros")}</p>
+        {/* «Filtros»: dice qué se filtró y, tocándolo, abre acá abajo los
+            mismos filtros del paso 1, sin salir del informe; tocándolo
+            otra vez, se cierran. */}
+        <section className={`tarjeta gps-reportes-filtros gps-informe-filtros ${filtrosAbiertos ? "abiertos" : ""}`.trim()}>
+          <button type="button" className="gps-informe-filtros-boton" onClick={() => setFiltrosAbiertos((antes) => !antes)} aria-expanded={filtrosAbiertos}>
+            <span className="gps-informe-filtros-flecha">
+              <Icono nombre="flecha" size={16} />
+            </span>
+            <span className="gps-informe-filtros-texto">
+              <b>{t("gps.reportes.filtrosTitulo")}</b>
+              <span className="gps-informe-filtros-resumen">{resumenDeFiltros || t("gps.reportes.sinFiltros")}</span>
+            </span>
+          </button>
+          {filtrosAbiertos && (
+            <div className="gps-informe-filtros-cuerpo">
+              {grillaDeFiltros()}
+              <div className="gps-reportes-siguiente">
+                <p className="lesiones-ayuda" role="status">
+                  {filas.length ? plural("gps.reportes.cuantas", filas.length) : t("gps.reportes.sinFilas")}
+                </p>
+                <button type="button" className="boton-secundario" onClick={() => cambiarFiltros({})} disabled={!hayFiltros}>
+                  {t("gps.reportes.limpiar")}
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="tarjeta gps-reportes-controles">
           <div className="gps-reportes-grilla">
