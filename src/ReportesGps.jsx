@@ -24,6 +24,7 @@ import {
 } from "./domain/gps/porMicrociclo.js";
 import { FILTROS_POR_TAREA, LETRAS, MAXIMO_DE_COMPARACIONES, entraEnPorTarea, filasPorMicrocicloDe, informePorTarea, pasaLosFiltrosDe } from "./domain/gps/porTarea.js";
 import { FILTROS_POR_JUGADOR, informePorJugador, soloDeJugadores } from "./domain/gps/porJugador.js";
+import ReporteIndividualGps from "./ReporteIndividualGps.jsx";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
 
@@ -125,9 +126,10 @@ const microcicloDe = (fila) => (fila.microciclo ?? fila.microciclos[fila.microci
 export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe, nombreDelDispositivo, tituloDe, textoDe, textosDeListas, encabezado, arriba = null, cargando = false }) {
   const { idioma, plural } = useIdioma();
   const [modo, setModo] = useState("menu");
-  // El informe elegido en «Ver informes»: «porMicrociclo», «porTarea» o
-  // «porJugador».
+  // El informe elegido en «Ver informes»: «porMicrociclo», «porTarea»,
+  // «porJugador» o «reporteIndividual» (ese, en su propio componente).
   const [tipo, setTipo] = useState("porMicrociclo");
+  const esReporte = tipo === "reporteIndividual";
   const [filtros, setFiltros] = useState(FILTROS_AL_ENTRAR);
   // Por tarea y Por jugador: las comparaciones de cada uno, con sus filtros.
   const [comparacionesDe, setComparacionesDe] = useState(() => ({ porTarea: [COMPARACIONES_NUEVAS.porTarea], porJugador: [COMPARACIONES_NUEVAS.porJugador] }));
@@ -196,9 +198,9 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     return porFiltro;
   };
   const opciones = useMemo(
-    () => (modo === "menu" || conComparaciones ? {} : opcionesCon(filtros, FILTROS_POR_MICROCICLO, pasaLosFiltros, entraEnElInforme)),
+    () => (modo === "menu" || conComparaciones || esReporte ? {} : opcionesCon(filtros, FILTROS_POR_MICROCICLO, pasaLosFiltros, entraEnElInforme)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filasGps, filtros, modo, conComparaciones],
+    [filasGps, filtros, modo, conComparaciones, esReporte],
   );
   // Por tarea: las de cada comparación, con sus filtros.
   const opcionesDeTarea = useMemo(
@@ -288,7 +290,10 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [modo, filasGps, tipo, comparaciones],
   );
-  const grupos = useMemo(() => (modo === "menu" ? [] : conComparaciones ? deCadaComparacion.flat() : filasPorMicrociclo(filasGps, filtros)), [modo, filasGps, filtros, conComparaciones, deCadaComparacion]);
+  const grupos = useMemo(
+    () => (modo === "menu" || esReporte ? [] : conComparaciones ? deCadaComparacion.flat() : filasPorMicrociclo(filasGps, filtros)),
+    [modo, filasGps, filtros, conComparaciones, deCadaComparacion, esReporte],
+  );
   // «Objetivo» solo pinta cuando todas las filas son jugadores (Santiago,
   // 16/10): si no, la opción no está y se ve con «Mi selección». En Por
   // jugador, cuando todas las comparaciones son de jugadores; Por tarea no se
@@ -524,10 +529,29 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
               {opcion("porMicrociclo", "calendario", true)}
               {opcion("porTarea", "registros", true)}
               {opcion("porJugador", "usuario", true)}
+              {opcion("reporteIndividual", "documento", true)}
             </div>
           </section>
         </div>
       </div>
+    );
+  }
+
+  // ------------------------------------------------- Reporte individual --
+  // Va aparte, con sus dos pasos (Santiago, 16/10: «Dentro de Informe»).
+  if (tipo === "reporteIndividual") {
+    return (
+      <ReporteIndividualGps
+        filasGps={filasGps}
+        nombreDe={nombreDe}
+        tituloDe={tituloDe}
+        textoDe={textoDe}
+        textosDeListas={textosDeListas}
+        encabezado={encabezado}
+        arriba={arriba}
+        cargando={cargando}
+        volver={botonVolver(t("gps.reportes.titulo"), () => setModo("menu"))}
+      />
     );
   }
 

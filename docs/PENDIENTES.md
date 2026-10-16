@@ -1396,7 +1396,8 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
 3. **Reportes**. 15/10: el Informe (Por microciclo, Por tarea y Por jugador), ver «Informe:
    Por microciclo, Por tarea y Por jugador (15/10)». Por microciclo, hecho el 15/10 (la solapa
    Reportes, UI-038); Por tarea y Por jugador, el 16/10 (ver «Por tarea (16/10)» y «Por
-   jugador (16/10)»).
+   jugador (16/10)»). El Reporte individual del Excel, el 16/10, dentro de Informe; el grupal,
+   pendiente (ver «Reporte individual y Reporte grupal (16/10)»).
 4. **V.R. por dispositivo**: se arman una vez con reglas estadísticas y quedan fijos (Santiago,
    10/10: «Los VR se arman una ves con reglas estadisticas y se dejan fijos»; las reglas las
    explica él más adelante). Cada dispositivo tiene los suyos («Exacto»). No inventar reglas ni
@@ -2228,6 +2229,60 @@ preguntar. Desde el 16/10 (Santiago: «no eso dejalo y mejor saca la ultima impl
 promedios con las tarjetas»), también: las tarjetas con el promedio de cada columna arriba de la
 tabla (una fila «Promedio» con números en tarjetas) y la comparación «vs. microciclo anterior».
 Solo se vuelven a poner si Santiago lo pide.
+
+### Reporte individual y Reporte grupal (16/10)
+
+Santiago, 16/10: «Ahora tenemos que implementar los informes de gps». En el Excel, además de la
+hoja INFORME GPS, están «Reporte Individual» y «Reporte Grupal». Se analizaron las dos y se le
+preguntó en un cuestionario:
+
+- **Dónde va**: «Dentro de Informe». En «Ver informes», una cuarta opción, «Reporte individual»
+  (`src/ReporteIndividualGps.jsx`; el cálculo en `src/domain/gps/reporteIndividual.js`), con dos
+  pasos como los demás: el jugador y los filtros, y el reporte, con «Filtros» adentro. La barra
+  no cambia.
+- **Qué tiene** (como el archivo): las segmentaciones Nombre (un jugador), Tipo de Sesión, Fecha
+  y Microciclo; las tablas dinámicas fijan Condición «Total» (Va, todas). Cuatro tablas con los
+  últimos 10 (de la fecha más nueva para atrás; en el mismo día, en el orden de carga): Por
+  jugador (el elegido) y Por equipo (el Team Average de cada sesión), cada una en Totales
+  (Tiempo, D, D_SHI, D_AccHI, D_DecHI, D_MPHI, D_S6, D_A8, D_A1, D_MP5, PSE, U.A. y
+  Descripción, con «Promedio» y «Suma»; el equipo, también «Desv. est.») y Por minuto (Tiempo y
+  los por minuto, con «Promedio»: la suma de cada medida ÷ los minutos de las filas que la
+  tienen; el equipo, también «Desv. est.»). Los nombres de las columnas son los de Ajustes ›
+  Cabeceras.
+- **Los colores** (la regla del archivo, con los colores suaves): desde promedio + 2 desvíos,
+  verde oscuro; desde + 1, verde; desde el promedio, amarillo; hasta − 1, naranja; más abajo,
+  rojo. Por equipo, contra el promedio y el desvío de su tabla, como el archivo. Por jugador,
+  «Contra el equipo ese día» (el archivo dice «*Pintado vs los valores del día de
+  entrenamiento» pero no tiene la regla): el Team Average de la sesión de ese día (fecha y
+  microciclo, como Objetivo) ± el desvío de los jugadores. Se pintan Tiempo y las 9 medidas;
+  PSE y U.A., no.
+- **Errores del archivo** («Explicación de variables», lo único marcado): la explicación de
+  abajo decía rangos que no coinciden con los nombres de las columnas (16–24 km/h y 2–4 m/s²
+  contra 14,4–25 km/h y 1,7–2,7 m/s²). Ahora usa el nombre de cada columna (el de Ajustes ›
+  Cabeceras) y una explicación sin rangos. Quedan como el archivo, porque no se marcaron:
+  - en «Por equipo · Por minuto», el amarillo llega hasta el promedio + el desvío de la tabla
+    de Totales (en la práctica da lo mismo: el de Totales es más grande);
+  - Gimnasio, Kine, Estudios y otras sesiones sin GPS cuentan como 0 en los últimos 10, en los
+    promedios y en el desvío.
+  «Tablas cruzadas» tampoco se marcó: en el archivo guardado, «Por jugador» no estaba filtrado
+  por el jugador y «Por equipo» mostraba al jugador elegido. Se tomó que en el Excel de Santiago
+  anda como dicen los títulos (Por jugador, el elegido; Por equipo, el Team Average); si no es
+  así, se ve con él.
+- **Otro error, sin preguntar todavía**: el archivo pasa el tiempo sumado a minutos con DIA × 24
+  (y no × 1440). Si los tiempos de las filas juntos pasan las 24 h, el Promedio de Por minuto
+  sale más alto. Quedó como el archivo (`minutosDelArchivo`); preguntar si se corrige.
+- **Ocultar**: las columnas se ocultan tocando su nombre (pregunta antes) y dejan de verse en
+  las cuatro tablas; «Columnas» las vuelve a mostrar. Las filas no se ocultan, como en el
+  Informe (UI-039). Se recuerdan aparte (`gps_reporte_individual_columnas_ocultas`).
+- **Reporte grupal**: «Primero el individual». La hoja del Excel es un borrador (título,
+  Período, Grupo, Sesiones, «Rendimiento y carga – análisis grupal», «Distancia (m)» y
+  «Jugadores en el informe», sin datos ni fórmulas). **Pendiente**: que Santiago diga qué
+  números van en cada parte; no inventarlo.
+- **Comprobado**: con datos inventados (`src/domain/gps/reporteIndividual.test.js` y
+  `src/Gps.smoke.test.jsx`). La hoja «Datos» del archivo guardado estaba desactualizada (ver
+  «Tablas cruzadas»), así que no sirve para comparar números.
+
+Descartado en el Reporte individual: la explicación de variables con los rangos del archivo.
 
 ### Pegar desde Excel (el historial)
 
