@@ -542,10 +542,24 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     );
 
   // Las filas de arriba: el V.R. y las franjas (cada una se puede ocultar).
-  // Con «Mi selección» u «Objetivo» y más de un V.R., sin la fila del V.R.:
-  // cada fila del informe tiene el suyo y uno solo no vale para todas.
-  const filaDelVr = Boolean(tabla?.vr) && (categorizacion === "valorReferencial" || tablas.length === 1);
-  const FILAS_DE_FRANJAS = [...(filaDelVr ? ["vr"] : []), ...FRANJAS].map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
+  // Con «Mi selección» u «Objetivo» y más de un V.R., una fila por V.R. con
+  // el nombre de su dispositivo: cada fila del informe tiene el suyo y así
+  // cada % tiene su referencia a la vista (16/10, «Preferencia visual» del
+  // sistema de diseño: no se ocultan datos útiles).
+  const variosVr = categorizacion !== "valorReferencial" && tablas.filter((una) => una.vr).length > 1;
+  const conVr = tablas.filter((una) => una.vr);
+  const repetido = (una) => conVr.filter((otra) => otra.vr.dispositivo === una.vr.dispositivo).length > 1;
+  const filasDelVr = !tabla?.vr
+    ? []
+    : variosVr
+      ? conVr.map((una) => ({
+          clave: `franja:vr:${una.asignacion}`,
+          franja: "vr",
+          vr: una.vr,
+          texto: t("gps.reportes.franjas.vrDe", { vr: repetido(una) ? nombreDeVr(una.vr) : nombreDelDispositivo(una.vr.dispositivo) }),
+        }))
+      : [{ clave: "franja:vr", franja: "vr", vr: tabla.vr, texto: t("gps.reportes.franjas.vr") }];
+  const FILAS_DE_FRANJAS = [...filasDelVr, ...FRANJAS.map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }))];
   const franjasAVista = FILAS_DE_FRANJAS.filter((una) => !ocultas.filas.includes(una.clave));
   const filasAVista = filas.filter((fila) => !ocultas.filas.includes(fila.clave));
   const cuantasOcultas = (cual) => ocultas[cual].filter((clave) => (cual === "columnas" ? COLUMNAS.some((columna) => columna.clave === clave) : [...FILAS_DE_FRANJAS, ...filas].some((una) => una.clave === clave))).length;
@@ -572,8 +586,8 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   };
   // En las franjas, cada número pintado con el color que toma lo que cae ahí
   // (Santiago, 15/10, con una imagen: la celda entera, no un punto al lado).
-  const celdaDeFranja = (columna, franja) => {
-    if (franja === "vr") return <td key={columna.clave}>{columna.vr ? columna.vr(tabla.vr) || vacio : ""}</td>;
+  const celdaDeFranja = (columna, { franja, vr }) => {
+    if (franja === "vr") return <td key={columna.clave}>{columna.vr ? columna.vr(vr) || vacio : ""}</td>;
     const valor = columna.franjas ? columna.franjas[franja] : null;
     if (!columna.franjas) return <td key={columna.clave} />;
     const color = franja !== "desvio" && columna.color ? columna.color(valor, columna.franjas) : null;
@@ -797,7 +811,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                             {una.texto}
                           </button>
                         </th>
-                        {columnas.map((columna) => celdaDeFranja(columna, una.franja))}
+                        {columnas.map((columna) => celdaDeFranja(columna, una))}
                       </tr>
                     ))}
                   </tbody>

@@ -1808,11 +1808,15 @@ describe("GPS", () => {
     await tocar(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-franjas tr.franja-vr .gps-informe-fila"));
     await tocar(boton("Ocultar"));
     expect(contenedor.querySelector(".gps-informe-tabla tr.franja-vr")).toBeNull();
-    // Con Mi selección, unas solas franjas: sin «Ver las de …» ni la fila del V.R. (cada fila tiene el suyo).
+    // Con Mi selección, unas solas franjas, sin «Ver las de …», y una fila de V.R. por
+    // dispositivo con su nombre: cada fila del informe tiene el suyo (16/10).
     await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "miSeleccion");
     expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Mi selección3 microciclos");
     expect(botones().some((b) => b.textContent.startsWith("Ver las de"))).toBe(false);
-    expect([...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas th")].map((th) => th.textContent)[0]).toBe("Excelente");
+    expect([...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas th")].map((th) => th.textContent).slice(0, 3)).toEqual(["V.R. Catapult", "V.R. Sport", "Excelente"]);
+    // El valor de cada V.R. (Catapult: D 5000 y tiempo 1 h; Sport: D 4000).
+    const filasVr = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas tr.franja-vr")];
+    expect(filasVr.map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent).filter((texto) => texto && texto !== "–"))).toEqual([["5000,0", "1:00:00"], ["4000,0"]]);
     // «Filas» con «Listo» no vuelve a mostrar la del V.R., que acá no está en la lista.
     await tocar(contenedor.querySelectorAll(".gps-informe-ver")[1]);
     await tocar(boton("Listo"));
