@@ -459,7 +459,7 @@ export default {
       },
       categorizacion: {
         titulo: "Categorización",
-        texto: "De dónde salen las franjas de arriba (Excelente a Malo).\n«Mi selección»: del promedio y el desvío de las filas que se ven.\n«Valor referencial»: del V.R.; su promedio es el Bueno y su desvío arma las demás. Un V.R. por jugador usa sus cinco categorías.\n«Objetivo sesión/microciclo»: el Bueno es el promedio del Team Average de cada sesión y el desvío, el de los jugadores en cada sesión. En las variables, solo con «Jugador» en Microciclo/Jugador.",
+        texto: "De dónde salen las franjas de arriba (Excelente a Malo).\n«Mi selección»: del promedio y el desvío de todas las filas que se ven, sin importar el microciclo ni el V.R. de cada una.\n«Valor referencial»: del V.R. de cada fila (el de su dispositivo); su promedio es el Bueno y su desvío arma las demás. Un V.R. por jugador usa sus cinco categorías.\n«Objetivo sesión/microciclo»: el Bueno es el promedio del Team Average de cada sesión que se ve y el desvío, el de los jugadores en cada sesión, todas juntas. En las variables, solo con «Jugador» en Microciclo/Jugador.",
       },
       vrInforme: {
         titulo: "V.R. del informe",

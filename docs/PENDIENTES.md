@@ -1836,7 +1836,7 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   el informe y «Siguiente: El informe».
 - **El informe** (paso 2 de 2): arriba, lo filtrado en una línea; Tipo de variable
   (Absolutas o Relativas), Visualización (Valor promedio, Valor suma, % del promedio o % de la
-  suma) y Categorización (Mi selección o Valor referencial); el V.R. (de entrada, el del
+  suma; con Relativas, solo los dos promedios desde el 16/10) y Categorización (Mi selección o Valor referencial); el V.R. (de entrada, el del
   dispositivo del último microciclo, el elegido en la Base) y «+ Otro V.R.» (sin elegir
   microciclos, vale en los de su dispositivo; si se eligen, solo en esos), con un aviso si
   algún microciclo quedó sin V.R. La tabla, como las de los reportes: la cabecera oscura con
@@ -1861,6 +1861,47 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   informes» (antes, «‹ Filtros» volvía al paso 1, saliendo del informe). Lo de la flecha que
   gira al abrir lo propuso Claude. Vale para los tres informes (Por tarea y Por jugador,
   cuando se hagan).
+- **Las franjas de «Mi selección» y «Objetivo», de todo lo que se ve (16/10).** Santiago, con
+  una captura (Jugador, Valor suma, Mi selección: casi todo «–» y sin color): «no se esta
+  pintando con mi seleccion, pero si se pinta si uso vr, me parece que estas confundiendo las
+  cosas: 1. Mi Seleccion: pinta por todo, no importa los microciclos (Su definicion es:
+  Promedio de todo lo que estoy viendo y las categorias se arman con el desvio estandar de los
+  datos que estoy viendo) 2. V.R: El bueno (Promedio) es el del V.R y las demas categorias se
+  arman con el desvio estandar de ese V.R o si se tienen las 5 categorias se arman con eso y no
+  con desvio (ahi si importan los microciclos xq no podrias m¡pintar con el V.R de catapult
+  microciclos que esta marcados con otro dispositivo) 3. Objetivo Sesion: El promedio es el de
+  el microciclo seleccionado y las demas categorias se arman con el desvio de los jugadores que
+  esten filtrados»; y con otra captura (Relativas, Valor promedio, Mi selección: solo unos 0
+  en rojo): «Esto tmb, que se pinta solo de rojo y nada mas una variable».
+  Hasta ese día los índices y las variables salían de las filas de cada V.R. (una tabla de
+  franjas por V.R., como el archivo con los microciclos 10 a 16): una fila sin V.R. (por
+  ejemplo, un jugador de un dispositivo sin V.R. elegido) quedaba sin franjas y solo se
+  pintaban sus 0, en rojo. Desde el 16/10:
+  - «Mi selección»: unas solas franjas con todas las filas del informe, sin importar el
+    microciclo ni el V.R. de cada una; se pintan todas las filas, también las que no tienen
+    V.R. En los %, cada fila se divide por su propio V.R. (las que no tienen V.R. no tienen
+    %, ni cuentan en esas franjas);
+  - «Objetivo»: lo mismo con todas las sesiones de lo filtrado (el Bueno, el promedio del
+    Team Average de cada sesión; el desvío, el de los jugadores de cada sesión), sin separar
+    por V.R.;
+  - «Valor referencial»: igual que antes, cada fila con las franjas del V.R. de su dispositivo
+    (o de sus microciclos).
+  Con un solo V.R. los números dan lo mismo que antes (el archivo usa un V.R. por tabla). Arriba
+  de la tabla dice «Franjas de Mi selección» (o de «Objetivo…»); el nombre del V.R. y «Ver las
+  de …», solo con «Valor referencial»; con más de un V.R., la fila «V.R.» de las franjas también
+  va solo con «Valor referencial» (con las otras, cada fila tiene el suyo y uno solo no vale
+  para todas; lo propuso Claude). La U.A. y la carga crónica ya salían de todas las filas.
+  Descartado: con «Mi selección» u «Objetivo», separar las franjas por V.R. o por dispositivo.
+  **Pendiente preguntar**: (a) un jugador con microciclos de dos dispositivos toma, para sus %,
+  el V.R. del dispositivo de su primera fila; (b) con «Objetivo» y jugadores elegidos en
+  Nombre, el desvío sale de todos los jugadores de cada sesión (como el archivo), no solo de
+  los elegidos.
+- **Con «Relativas», sin Valor suma ni % de la suma (16/10).** Santiago: «si se filtra por
+  relativo no puede haber en el filtro Suma y % Suma». Con Tipo de variable «Relativas»,
+  Visualización ofrece solo Valor promedio y % del promedio; si estaba en Valor suma pasa a
+  Valor promedio y, si estaba en % de la suma, a % del promedio (eso lo propuso Claude). Antes,
+  con Relativas y una suma, las variables quedaban sin franjas ni colores. Descartado: Valor
+  suma y % de la suma con «Relativas».
 - **VS RIVAL**: en el promedio del equipo, el TOTAL de cada partido oficial del microciclo, en
   orden de fecha (Santiago: «toma la descripción donde la condicion sea total»); un partido sin
   TOTAL no va, como en el archivo. Comprobado con los datos del club: da igual que el archivo en
@@ -1914,7 +1955,9 @@ toco un columna o fila en cierto lugar tiene que preguntarme si la quiero oculta
   naranja; más abajo, rojo; en las variables, además, un 0 va en rojo. Vale con las tres
   categorizaciones, contra sus franjas (con «Objetivo», el objetivo ± el desvío). Cada fila usa
   las franjas de su V.R. (el archivo tenía otra tabla para los microciclos 10 a 16); sin
-  franjas, sin color.
+  franjas, sin color. (**Cambiado el 16/10**: con «Mi selección» y «Objetivo», unas solas
+  franjas de todo lo que se ve, para todas las filas; ver «Las franjas de «Mi selección» y
+  «Objetivo», de todo lo que se ve», arriba.)
 - **Los colores** («3. B»): los mismos del archivo, más suaves (`src/domain/colores.js`; en el
   archivo eran A7B093, C8E7A7, FFFF7F, FBCAA2, F1B584 y FF7F7F). Y «suaviza todos los colores en
   todos los lugares donde se use» (6): ver «Toda la app: presentación, colores suaves y

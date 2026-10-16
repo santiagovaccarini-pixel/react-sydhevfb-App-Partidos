@@ -24,6 +24,8 @@ import {
   porcentajesDeFila,
   referenciaDeFila,
   valorDeVariable,
+  visualizacionesDe,
+  visualizacionPara,
 } from "./porMicrociclo.js";
 
 // Filas inventadas: el promedio del equipo de cada sesión y jugadores.
@@ -205,23 +207,69 @@ describe("el V.R. de cada fila y el informe entero", () => {
     expect(referenciaDeFila(asignaciones, { microciclo: 20, dispositivo: "catapult" }).referencia).toBe(otroCatapult);
     expect(referenciaDeFila([], { microciclo: 20, dispositivo: "catapult" })).toBeNull();
   });
-  test("cada fila con el V.R. de su dispositivo y una tabla de franjas por V.R.; la U.A. solo con Mi selección", () => {
+  test("cada fila con el V.R. de su dispositivo; con Mi selección, unas solas franjas de todas las filas (Santiago, 16/10); la U.A. solo con Mi selección", () => {
     const filas = [sesion(12, "a", { d: 100, ua: 10, dispositivo: "sport" }), sesion(17, "b", { d: 200, ua: 30 }), sesion(18, "c", { d: 300, ua: 50 })];
-    const informe = informePorMicrociclo(filas, {
-      asignaciones: [{ referencia: catapult, microciclos: null }, { referencia: sport, microciclos: null }],
-      nombreDe,
-    });
+    const asignaciones = [{ referencia: catapult, microciclos: null }, { referencia: sport, microciclos: null }];
+    const informe = informePorMicrociclo(filas, { asignaciones, nombreDe });
     expect(informe.filas.map((una) => [una.etiqueta, una.asignacion, una.porcentajes.promedios.d])).toEqual([
       ["Team Average Sesion12", 1, 1],
       ["Team Average Sesion17", 0, 1],
       ["Team Average Sesion18", 0, 1.5],
     ]);
-    // Con una sola fila no hay desvío (ni franjas).
-    expect(informe.tablas[0].variables.d.bueno).toBe(250);
-    expect(informe.tablas[0].variables.d.desvio).toBeCloseTo(Math.sqrt(5000), 12);
-    expect(informe.tablas[1].variables.d).toBeNull();
+    // «Promedio de todo lo que estoy viendo»: las tres filas, sin importar el V.R. de cada una.
+    expect(informe.general.variables.d.bueno).toBe(200);
+    expect(informe.general.variables.d.desvio).toBeCloseTo(100, 12);
+    expect(informe.tablas.map((tabla) => [tabla.asignacion, tabla.variables, tabla.indices])).toEqual([
+      [0, informe.general.variables, informe.general.indices],
+      [1, informe.general.variables, informe.general.indices],
+    ]);
     expect(informe.ua.suma.bueno).toBe(30);
-    expect(informePorMicrociclo(filas, { categorizacion: "valorReferencial", asignaciones: [], nombreDe }).ua).toBeNull();
+    // Con Valor referencial sí importan los microciclos: cada tabla, las de su V.R.
+    const conDesvio = asignaciones.map((asignacion) => ({ ...asignacion, referencia: { ...asignacion.referencia, desvio: { d: 10 } } }));
+    const conVr = informePorMicrociclo(filas, { categorizacion: "valorReferencial", asignaciones: conDesvio, nombreDe });
+    expect(conVr.general).toBeNull();
+    expect([conVr.tablas[0].variables.d.bueno, conVr.tablas[1].variables.d.bueno]).toEqual([200, 100]);
+    expect(conVr.ua).toBeNull();
+  });
+  test("Mi selección pinta también las filas sin V.R.; sus % salen de cada fila ÷ su propio V.R.", () => {
+    // Un jugador tomado con Sport, sin un V.R. de Sport elegido.
+    const filas = [sesion(17, "b", { d: 200 }), sesion(18, "c", { d: 300 }), fila({ jugador_id: 7, microciclo: 12, fecha: "a", d: 400, va: "si", dispositivo: "sport" })];
+    const asignaciones = [{ referencia: catapult, microciclos: null }];
+    const informe = informePorMicrociclo(filas, { asignaciones, nombreDe });
+    const jugador = informe.filas.find((una) => una.etiqueta.startsWith("Jugador 7"));
+    expect([jugador.asignacion, jugador.vr]).toEqual([-1, null]);
+    // «Promedio de todo lo que estoy viendo»: también el jugador (hasta el 16/10 quedaba sin franjas).
+    expect(informe.general.variables.d.bueno).toBe(300);
+    expect(informe.general.variables.d.desvio).toBeCloseTo(100, 12);
+    expect(colorDeVariable(jugador.variables.d, informe.general.variables.d)).toBe(COLORES_INFORME.muyBueno);
+    // En %: 200/200 y 300/200; el jugador no tiene % (no tiene V.R.).
+    const enPorcentaje = informePorMicrociclo(filas, { asignaciones, nombreDe, visualizacion: "porcentajePromedio" });
+    expect(enPorcentaje.general.variables.d.bueno).toBeCloseTo(1.25, 12);
+    expect(enPorcentaje.general.variables.d.desvio).toBeCloseTo(Math.sqrt(0.125), 12);
+  });
+  test("con un solo V.R., las franjas de todo dan lo mismo que las de su tabla (como el archivo)", () => {
+    // Todas las medidas, con su por minuto, en seis filas inventadas.
+    const claves = ["d", "d_shi", "d_acchi", "d_dechi", "d_mphi", "d_s6", "d_a8", "d_a1", "d_mp5", "mts90"];
+    const valores = (n) => Object.fromEntries(claves.flatMap((clave, c) => [[clave, 1000 + n * 37 + c * 11], [`${clave}_min`, 10 + ((n * 7 + c * 3) % 13)]]));
+    const filas = [17, 18, 19].flatMap((m, i) => [
+      sesion(m, `2026-05-${10 + i}`, { ...valores(i), tiempo: 3000 + i * 300, ua: 100 + i }),
+      fila({ jugador_id: 3, microciclo: m, fecha: `2026-05-${10 + i}`, va: "si", ...valores(i + 5), tiempo: 2400 + i * 120 }),
+    ]);
+    const vr = { id: "v", dispositivo: "catapult", promedio: Object.fromEntries([...claves, ...claves.map((clave) => `${clave}_min`), "tiempo"].map((clave, c) => [clave, 900 + c * 17])) };
+    const asignaciones = [{ referencia: vr, microciclos: null }];
+    const cerca = (a, b) => {
+      if (typeof a === "number" && typeof b === "number") return expect(a).toBeCloseTo(b, 9);
+      if (a === null || b === null || typeof a !== "object") return expect(a).toEqual(b);
+      expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
+      Object.keys(a).forEach((clave) => cerca(a[clave], b[clave]));
+    };
+    ["absolutas", "relativas"].forEach((tipoVariable) =>
+      visualizacionesDe(tipoVariable).forEach((visualizacion) => {
+        const opciones = { tipoVariable, visualizacion, categorizacion: "miSeleccion" };
+        const informe = informePorMicrociclo(filas, { ...opciones, asignaciones, nombreDe });
+        cerca(informe.general, franjasDeTabla(informe.filas, vr, opciones));
+      }),
+    );
   });
 });
 
@@ -403,5 +451,42 @@ describe("Objetivo sesión/microciclo (como el archivo)", () => {
     expect(conSesion.ua).toBeNull();
     const conJugador = informePorMicrociclo(FILAS(), { ...opciones, filtros: { microciclo_jugador: ["jugador"] } });
     expect(conJugador.tablas[0].variables.d.bueno).toBe(1500);
+  });
+  test("unas solas franjas con todas las sesiones, aunque sean de dos V.R. (Santiago, 16/10); los %, cada sesión ÷ su V.R.", () => {
+    // La primera sesión, tomada con Sport.
+    const filas = FILAS().map((una) => (una.fecha === "2026-05-11" ? { ...una, datos: { ...una.datos, dispositivo: "sport" } } : una));
+    const catapultVr = { id: "c", dispositivo: "catapult", promedio: { d: 1000 }, desvio: {} };
+    const sportVr = { id: "s", dispositivo: "sport", promedio: { d: 500 }, desvio: {} };
+    const opciones = { categorizacion: "objetivo", asignaciones: [{ referencia: catapultVr, microciclos: null }, { referencia: sportVr, microciclos: null }], nombreDe, filtros: { microciclo_jugador: ["jugador"] } };
+    const informe = informePorMicrociclo(filas, opciones);
+    expect(informe.general.variables.d.bueno).toBe(1500);
+    expect(informe.tablas.map((tabla) => tabla.variables)).toEqual([informe.general.variables, informe.general.variables]);
+    // % del promedio: 1000/500 y 2000/1000; el desvío, el de los jugadores ÷ el V.R. de su sesión.
+    const enPorcentaje = informePorMicrociclo(filas, { ...opciones, visualizacion: "porcentajePromedio" });
+    expect(enPorcentaje.general.variables.d.bueno).toBe(2);
+    expect(enPorcentaje.general.variables.d.desvio).toBeCloseTo((Math.sqrt(20000) / 500 + 200 / 1000) / 2, 12);
+    expect(enPorcentaje.general.indices.total.bueno).toBe(2);
+  });
+  test("con un solo V.R., las franjas de todas las sesiones dan lo mismo que las de su tabla", () => {
+    const vr = { dispositivo: "catapult", promedio: { d: 1000, d_min: 20, tiempo: 3000 }, desvio: {} };
+    const asignaciones = [{ referencia: vr, microciclos: null }];
+    ["promedio", "suma", "porcentajePromedio", "porcentajeSuma"].forEach((visualizacion) => {
+      const opciones = { categorizacion: "objetivo", tipoVariable: "absolutas", visualizacion };
+      const filtros = { microciclo_jugador: ["jugador"] };
+      const informe = informePorMicrociclo(FILAS(), { ...opciones, asignaciones, nombreDe, filtros });
+      const deTabla = franjasDeTabla(informe.filas, vr, { ...opciones, sesiones: sesionesDelObjetivo(FILAS(), filtros), variablesDelObjetivo: true });
+      expect(informe.general.variables.d.bueno).toBeCloseTo(deTabla.variables.d.bueno, 12);
+      expect(informe.general.variables.d.desvio).toBeCloseTo(deTabla.variables.d.desvio, 12);
+      expect(informe.general.indices.total.bueno).toBeCloseTo(deTabla.indices.total.bueno, 12);
+    });
+  });
+});
+
+describe("Visualización según Tipo de variable", () => {
+  test("con Relativas no hay Suma ni % Suma (Santiago, 16/10); al pasar a Relativas, la suma pasa a promedio", () => {
+    expect(visualizacionesDe("absolutas")).toEqual(["promedio", "suma", "porcentajePromedio", "porcentajeSuma"]);
+    expect(visualizacionesDe("relativas")).toEqual(["promedio", "porcentajePromedio"]);
+    expect(["promedio", "suma", "porcentajePromedio", "porcentajeSuma"].map((una) => visualizacionPara("relativas", una))).toEqual(["promedio", "promedio", "porcentajePromedio", "porcentajePromedio"]);
+    expect(visualizacionPara("absolutas", "suma")).toBe("suma");
   });
 });

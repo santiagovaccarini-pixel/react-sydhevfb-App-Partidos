@@ -1763,10 +1763,11 @@ describe("GPS", () => {
     const tabla = contenedor.querySelector(".gps-informe-tabla");
     const filasDelInforme = [...tabla.querySelectorAll("tbody.gps-informe-filas tr")];
     // Solo microciclos del equipo: cada fila dice su número (Santiago, 15/10:
-    // la presentación) y arriba, cuántos son y de qué V.R. son las franjas.
+    // la presentación) y arriba, cuántos son y de dónde salen las franjas
+    // (con Mi selección, de todo lo que se ve: Santiago, 16/10).
     expect(tabla.querySelector("thead th").textContent).toBe("Microciclo");
     expect(filasDelInforme.map((tr) => tr.querySelector("th").textContent)).toEqual(["18", "19", "20"]);
-    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Catapult · FUTBOL · Oficial · TOTAL3 microciclos");
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Mi selección3 microciclos");
     // N° Sesiones (con el descanso) y N° Descanso.
     expect(filasDelInforme.map((tr) => [tr.querySelectorAll("td")[0].textContent, tr.querySelectorAll("td")[1].textContent])).toEqual([["2", "1"], ["2", "0"], ["2", "0"]]);
     // Las franjas, en su bloque, cada número pintado con el color que toma
@@ -1791,8 +1792,9 @@ describe("GPS", () => {
       ["Mi selección", "Valor referencial", "Objetivo sesión/microciclo"],
     ]);
     await elegir(desplegables[2], "valorReferencial");
-    // Con Valor referencial, la U.A. no tiene franjas ni colores (como el
-    // archivo); los índices, sí: contra las franjas del V.R.
+    // Con Valor referencial, las franjas son las del V.R.; la U.A. no tiene
+    // franjas ni colores (como el archivo); los índices, sí.
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Catapult · FUTBOL · Oficial · TOTAL3 microciclos");
     const conVr = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas tr")];
     expect(conVr.every((tr) => !tr.querySelectorAll("td")[2].style.background)).toBe(true);
     expect(conVr.every((tr) => tr.querySelectorAll("td")[8].style.background)).toBe(true);
@@ -1802,6 +1804,12 @@ describe("GPS", () => {
     expect([...contenedor.querySelectorAll(".gps-reportes-vr select")].map((select) => select.options[select.selectedIndex].textContent)).toEqual(["Catapult · FUTBOL · Oficial · TOTAL", "Sport · FUTBOL · FUTBOL 2 · TOTAL"]);
     await tocar(botones().find((b) => b.textContent.startsWith("Ver las de Sport")));
     expect(contenedor.querySelector(".gps-informe-titulo").textContent).toContain("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL");
+    // Con Mi selección, unas solas franjas: sin «Ver las de …» ni la fila del V.R. (cada fila tiene el suyo).
+    await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "miSeleccion");
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Mi selección3 microciclos");
+    expect(botones().some((b) => b.textContent.startsWith("Ver las de"))).toBe(false);
+    expect([...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas th")].map((th) => th.textContent)[0]).toBe("Excelente");
+    await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "valorReferencial");
     await tocar(botones().find((b) => b.getAttribute("aria-label") === "Quitar este V.R."));
     expect(contenedor.querySelectorAll(".gps-reportes-vr select")).toHaveLength(1);
 
@@ -1858,8 +1866,10 @@ describe("GPS", () => {
     await elegirEnLaLista("Microciclo", ["17", "18"]);
     await tocar(siguiente());
     const titulo = () => contenedor.querySelector(".gps-informe-titulo").textContent;
+    const vrElegido = () => [...contenedor.querySelectorAll(".gps-reportes-vr select")].map((select) => select.options[select.selectedIndex].textContent);
     const microciclos = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas th")].map((th) => th.textContent);
-    expect(titulo()).toBe("Franjas de Catapult · FUTBOL · Oficial · TOTAL2 microciclos");
+    expect(vrElegido()).toEqual(["Catapult · FUTBOL · Oficial · TOTAL"]);
+    expect(titulo()).toBe("Franjas de Mi selección2 microciclos");
     // Adentro, el 10 y el 11: el informe cambia ahí mismo y, como el V.R. de
     // Catapult no vale para ellos, va el de entrada (el de Sport), igual que
     // al pasar de los filtros al informe.
@@ -1867,11 +1877,47 @@ describe("GPS", () => {
     await elegirEnLaLista("Microciclo", ["10", "11"]);
     expect(contenedor.querySelector("h1").textContent).toBe("Por microciclo");
     expect(microciclos()).toEqual(["10", "11"]);
-    expect(titulo()).toBe("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL2 microciclos");
+    expect(vrElegido()).toEqual(["Sport · FUTBOL · FUTBOL 2 · TOTAL"]);
+    expect(titulo()).toBe("Franjas de Mi selección2 microciclos");
     // El que sigue valiendo, queda: con el 11 solo, sigue el de Sport.
     await elegirEnLaLista("Microciclo", ["11"]);
     expect(microciclos()).toEqual(["11"]);
-    expect(titulo()).toBe("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL1 microciclo");
+    expect(vrElegido()).toEqual(["Sport · FUTBOL · FUTBOL 2 · TOTAL"]);
+    expect(titulo()).toBe("Franjas de Mi selección1 microciclo");
+  });
+
+  test("Informe › Mi selección pinta todas las filas, también las que no tienen V.R. (Santiago, 16/10); con Relativas no hay Suma ni % Suma", async () => {
+    // Microciclos inventados: el 10 y el 11 tomados con Sport, sin un V.R. de Sport; el 17 y el 18, con Catapult.
+    const lista = [];
+    const agregar = (fecha, valores) =>
+      lista.push(fila(`r${lista.length + 1}`, lista.length + 1, { promedio: "sesion" }, fecha, { tipo_microciclo: "competitivo", condicion: "total", clasificacion_dias: "mas1_m", tipo_sesion: "din_compleja", tiempo: 3600, ua: 300, ...valores }));
+    agregar("2026-03-02", { dispositivo: "sport", microciclo: 10, d: 3000 });
+    agregar("2026-03-09", { dispositivo: "sport", microciclo: 11, d: 3500 });
+    agregar("2026-05-04", { dispositivo: "catapult", microciclo: 17, d: 4000 });
+    agregar("2026-05-11", { dispositivo: "catapult", microciclo: 18, d: 4500 });
+    datos.filas = lista;
+    datos.referencias = [{ id: "c1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 5000, tiempo: 3600 }, desvio: { d: 500 }, dePartido: false }];
+    await montar();
+    await irA(contenedor, "Informe");
+    await tocar(contenedor.querySelector(".reporte-opcion"));
+    await tocar(siguiente());
+    const filasDelInforme = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas tr")];
+    // La columna de D (la primera de las variables).
+    const pintadas = () => filasDelInforme().map((tr) => [tr.querySelector("th").textContent, Boolean(tr.querySelectorAll("td")[14].style.background)]);
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Mi selección4 microciclos");
+    expect(pintadas()).toEqual([["10", true], ["11", true], ["17", true], ["18", true]]);
+    // Con Valor referencial, solo las que tienen V.R.
+    const desplegables = () => [...contenedor.querySelectorAll(".gps-reportes-grilla select")];
+    await elegir(desplegables()[2], "valorReferencial");
+    expect(pintadas()).toEqual([["10", false], ["11", false], ["17", true], ["18", true]]);
+    await elegir(desplegables()[2], "miSeleccion");
+    // Relativas: sin Valor suma ni % de la suma; si estaba la suma, pasa al promedio.
+    await elegir(desplegables()[1], "suma");
+    await elegir(desplegables()[0], "relativas");
+    expect([...desplegables()[1].options].map((option) => option.textContent)).toEqual(["Valor promedio", "% del promedio"]);
+    expect(desplegables()[1].value).toBe("promedio");
+    await elegir(desplegables()[0], "absolutas");
+    expect([...desplegables()[1].options].map((option) => option.textContent)).toEqual(["Valor promedio", "Valor suma", "% del promedio", "% de la suma"]);
   });
 
   test("Informe › ocultar columnas y filas: pregunta antes, las columnas se recuerdan y todo se vuelve a mostrar", async () => {
