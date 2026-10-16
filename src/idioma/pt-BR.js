@@ -395,7 +395,7 @@ export default {
       baseTitulo: "Ver e corrigir o que foi registrado",
       base: "Em «Base» estão todas as linhas.\n1. Toque duas vezes numa célula para mudá-la.\n2. Com o funil de cada coluna você filtra ou ordena. Ali também a oculta («Ocultar esta coluna»); para ocultar linhas, escolha-as e toque em «Ocultar linha». «Colunas» e «Mostrar», acima da tabela, voltam a mostrá-las.\n3. Veja em cima da tabela, por dispositivo, a média do que fica à vista, o seu V.R. e o % da média contra o V.R.\n4. Escolha em «Comparações» qual V.R. usar e a zona de impacto: ali você vê o volume e a densidade contra o V.R.\nAs cores comparam cada número com a média e o desvio do que fica à vista do seu dispositivo: verde-escuro, mais de dois desvios acima da média; verde-claro, entre um e dois; amarelo, da média a um desvio acima; laranja, até um desvio abaixo; vermelho, mais de um desvio abaixo.",
       informeTitulo: "Relatório",
-      informe: "Em «Relatório» você escolhe qual ver. Por enquanto está «Por microciclo».\n1. Nos filtros, escolha o que entra: microciclos, datas, tipo de sessão e mais. Sem nada escolhido num filtro, entra tudo; «Limpar filtros» esvazia todos.\n2. Toque em «Avançar: O relatório».\n3. Escolha o tipo de variável, como se vê, de onde saem as faixas e o V.R. Com «+ Outro V.R.» você soma um para os microciclos de outro dispositivo ou para os que escolher.\nNo alto, cada coluna tem um cartão com a sua média. Depois vêm as faixas (Excelente a Ruim), com a cor de cada uma, e embaixo, uma linha por microciclo. Cada número é pintado conforme a faixa em que cai.\nPara ocultar uma coluna ou uma linha, toque no nome dela e confirme. «Colunas» e «Linhas», acima da tabela, dizem quantas estão ocultas e voltam a mostrá-las.",
+      informe: "Em «Relatório» você escolhe qual ver. Por enquanto está «Por microciclo».\n1. Nos filtros, escolha o que entra: microciclos, datas, tipo de sessão e mais. Sem nada escolhido num filtro, entra tudo; «Limpar filtros» esvazia todos.\n2. Toque em «Avançar: O relatório».\n3. Escolha o tipo de variável, como se vê, de onde saem as faixas e o V.R. Com «+ Outro V.R.» você soma um para os microciclos de outro dispositivo ou para os que escolher.\nEm cima da tabela estão as faixas (Excelente a Ruim), com a cor de cada uma; embaixo, uma linha por microciclo. Cada número é pintado conforme a faixa em que cai.\nPara ocultar uma coluna ou uma linha, toque no nome dela e confirme. «Colunas» e «Linhas», acima da tabela, dizem quantas estão ocultas e voltam a mostrá-las.",
       referenciasTitulo: "Valores de referência",
       referencias: "Em «Valores de referência» estão os V.R. de cada dispositivo.\n1. Escolha o dispositivo.\n2. Toque duas vezes num número para mudá-lo.\n3. Com «Adicionar V.R.» você soma um; cada um tem «Mudar nome», «Apagar» e «Usar de jogo» (o que Registrar usa para o % vs V.R. de jogo desse dispositivo).\nPara ocultar uma coluna ou uma linha, toque no nome dela e confirme. «Colunas» e «Linhas», acima das tabelas, voltam a mostrá-las.\nEmbaixo estão as últimas mudanças: «Voltar» deixa uma como estava.",
       traerTitulo: "Trazer o que você já tinha",
@@ -455,10 +455,6 @@ export default {
       categorizacion: {
         titulo: "Categorização",
         texto: "De onde saem as faixas de cima (Excelente a Ruim).\n«Minha seleção»: da média e do desvio das linhas à vista.\n«Valor referencial»: do V.R.; a média dele é o Bom e o desvio monta as outras. Um V.R. por jogador usa as cinco categorias dele.\n«Objetivo sessão/microciclo»: o Bom é a média do Team Average de cada sessão e o desvio, o dos jogadores em cada sessão. Nas variáveis, só com «Jogador» em Microciclo/Jogador.",
-      },
-      promedioInforme: {
-        titulo: "Média",
-        texto: "A de cada coluna, com todas as linhas do relatório, também as que você ocultou: ocultar não muda os números. As células vazias não contam. Para deixar linhas fora da conta, use os filtros.",
       },
       vrInforme: {
         titulo: "V.R. do relatório",
@@ -540,7 +536,6 @@ export default {
       franjasDe: "Faixas de {{vr}}",
       franjasSinVr: "Faixas",
       verFranjasDe: "Ver as de {{vr}}",
-      promedios: "Média",
       cuantosMicrociclos_one: "{{n}} microciclo",
       cuantosMicrociclos_other: "{{n}} microciclos",
       cuantosJugadores_one: "{{n}} jogador",
