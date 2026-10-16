@@ -25,10 +25,9 @@ permite comprobar que Claude la aplica en tu entorno.
 
 1. Abrí Claude Code en la nube y elegí el repositorio
    `santiagovaccarini-pixel/react-sydhevfb-App-Partidos`.
-2. Elegí como rama de partida la que contiene este cambio:
-   `docs/sports-ux-ui-claude-cloud`. Iniciá una sesión nueva con esa rama. Si tu
-   interfaz no permite elegirla, podés probar después de unir el PR, en una sesión
-   nueva desde `main`; no alcanza con que los archivos estén en otra rama.
+2. Elegí `main` si la actualización que querés probar ya está integrada. Para un
+   PR abierto, elegí su rama de trabajo. Iniciá una sesión nueva con esa rama:
+   no alcanza con que los archivos estén en otra rama o en un chat anterior.
 3. Pegá este pedido de revisión sin cambios:
 
    ```text
@@ -36,6 +35,8 @@ permite comprobar que Claude la aplica en tu entorno.
    Leé CLAUDE.md, la Skill, DESIGN_SYSTEM.md y las decisiones vigentes. Decime
    tres mejoras concretas de legibilidad y jerarquía compatibles con lo aprobado,
    qué componentes reutilizarías y cómo las verificarías en celular y al imprimir.
+   Explicá cómo aplicarías la dirección visual documentada y qué tomarías de las
+   referencias, sin copiar sus datos ni agregar sus funciones.
    Separá las propuestas de las decisiones existentes. No agregues métricas.
    ```
 
@@ -43,6 +44,11 @@ permite comprobar que Claude la aplica en tu entorno.
    dentro del alcance, conserva cálculos y decisiones, y no afirma haber visto una
    imagen ausente. Debe explicar la jerarquía, la lectura y la facilidad de uso con
    los criterios del sistema de diseño. No debe modificar archivos.
+   Debe reconocer negro/grafito y dorado como identidad, separar colores de marca
+   y de datos, justificar la composición y conservar los descartes. Una descripción
+   genérica de «premium» o tomar «Editorial»/«Analítico» como ejemplos aprobados no
+   cumple. Si no tiene las capturas en el checkout, debe usar el registro escrito
+   y no afirmar haberlas visto.
 5. Para probar la selección automática, iniciá otra sesión desde la misma rama y
    pedí: «Explicame sin editar cómo simplificarías la navegación para consultar un
    reporte de lesiones, respetando lo que ya está decidido». Sin mencionar la Skill

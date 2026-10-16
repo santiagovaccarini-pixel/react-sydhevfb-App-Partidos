@@ -26,10 +26,12 @@ Aplican a todo el proyecto: Respondé en castellano simple.
   de diseño define cómo presentarlo. No exijas que el usuario repita preferencias
   estéticas ni enumere retoques visuales. `/sports-ux-ui` queda como acceso manual.
   Para trabajos de lógica sin interfaz, seguí estas reglas generales.
-- La preferencia visual es premium, limpia, intuitiva y consistente, con datos
-  legibles y navegación simple. Una referencia visual aporta estética; no agrega
-  datos, métricas, funciones ni decisiones de producto. Conservá las excepciones
-  y los descartes de `docs/UI_DECISIONS.md`.
+- La dirección visual es **negro/grafito y dorado**, deportiva, elegante, limpia
+  y ordenada. Aplicá la [dirección visual de ARK](docs/DESIGN_SYSTEM.md#direccion-visual-ark),
+  definida con las referencias del usuario; «premium» solo no es un criterio de
+  aceptación. La persona debe reconocer dónde está, qué ve y qué puede hacer al
+  entrar. Una referencia aporta estética; no agrega datos, métricas, funciones ni
+  decisiones de producto. Conservá las excepciones y descartes documentados.
 - Hacé el cambio mínimo necesario. No agregues funcionalidades, reorganices
   módulos, hagas refactorizaciones ni cambies dependencias fuera del pedido.
 - Protegé lógica y funcionalidad: cálculos, fechas, importación/exportación,

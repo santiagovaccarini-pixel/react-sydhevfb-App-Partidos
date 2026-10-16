@@ -59,6 +59,11 @@ prohibiciones específicas de conversaciones que no están disponibles.
 
 ## Pendientes que no deben tratarse como decisiones cerradas
 
+Dirección visual confirmada el 16/10: ver UI-041 y la
+[dirección visual de ARK](DESIGN_SYSTEM.md#direccion-visual-ark). Precisa identidad
+y criterio de composición; no resuelve por sí sola los pendientes funcionales,
+la nueva geometría del mapa corporal ni la transferencia del Informe a otras tablas.
+
 - Local / visitante / neutral en el filtro: falta confirmar botones u hoja
   («Chicas del filtro»). No registrar ninguna de las dos opciones como prohibida.
 - Nombres del filtro de jugador: faltan los reemplazos concretos («Chicas del filtro»).
@@ -100,6 +105,29 @@ prohibiciones específicas de conversaciones que no están disponibles.
   15/10 (UI-038), con «Jugador» y Objetivo el mismo día; faltan Por tarea y Por jugador.
 
 ## Nuevas decisiones y reaperturas
+
+### UI-041 · Dirección visual general (16/10)
+
+- **Estado:** CERRADA para la dirección estética; implementación por el alcance de
+  cada pedido. No es una migración visual global ya realizada.
+- **Fecha y fuente:** 16/10/2026, pedido explícito en la conversación de
+  configuración de Claude Code Cloud con dos capturas como referencias estéticas.
+- **Alcance:** criterio general de interfaces y reportes de ARK.
+- **Decisión:** predominio de negro/grafito y dorado, limpieza y orden, orientación
+  inmediata, reportes deportivos elegantes con composición deliberada. Se confirma
+  la preferencia por vista anterior/posterior y calor en reportes de lesiones.
+  Criterios e interpretación de las capturas en
+  [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md#direccion-visual-ark), fuente de diseño.
+- **No reintroducir:** las propuestas «Editorial» y «Analítico» anteriores como
+  ejemplos aprobados. Esta referencia no devuelve gráficos, resúmenes, tarjetas,
+  puntos o funciones descartados ni la figura a la carga de Lesiones.
+- **Motivo:** «premium» resultó demasiado genérico para orientar el gusto del usuario.
+- **Reapertura:** precisa la dirección general incorporada por el PR #288;
+  conserva su alcance y las decisiones previas de producto. No reemplaza UI-024,
+  UI-036, UI-038, UI-039 ni UI-040.
+- **Cómo comprobarlo:** revisar la identidad, jerarquía y orientación del cambio
+  frente a los rasgos documentados, con datos reales o de prueba autorizados, y
+  contrastar la lectura en escritorio, celular y papel cuando corresponda.
 
 Si la decisión ya tiene una fuente equivalente, actualizá esa fuente y sumá aquí
 solo una referencia. Si no la tiene, registrala aquí con este formato:
