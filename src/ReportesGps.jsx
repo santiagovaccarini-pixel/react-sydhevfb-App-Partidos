@@ -198,8 +198,14 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     if (!hoja) return;
     const marcados = hoja.valores.map((valor) => valor.clave).filter((clave) => hoja.elegidos.includes(clave));
     if (hoja.vr !== undefined) cambiarVr(hoja.vr, { microciclos: marcados });
-    // Lo que se ve: lo que quedó sin marcar se oculta.
-    else if (hoja.ocultar) setOcultas((antes) => ({ ...antes, [hoja.ocultar]: hoja.valores.map((valor) => valor.clave).filter((clave) => !marcados.includes(clave)) }));
+    // Lo que se ve: lo que quedó sin marcar se oculta; lo oculto que no
+    // está en la lista (por ejemplo, la fila del V.R. con «Mi selección» y
+    // más de un V.R.) sigue oculto.
+    else if (hoja.ocultar)
+      setOcultas((antes) => {
+        const enLaLista = hoja.valores.map((valor) => valor.clave);
+        return { ...antes, [hoja.ocultar]: [...antes[hoja.ocultar].filter((clave) => !enLaLista.includes(clave)), ...enLaLista.filter((clave) => !marcados.includes(clave))] };
+      });
     // En un filtro, todo marcado es lo mismo que nada: todos.
     else cambiarFiltros({ ...filtros, [hoja.filtro]: marcados.length === hoja.valores.length ? SIN_ELEGIR : marcados });
     setHoja(null);

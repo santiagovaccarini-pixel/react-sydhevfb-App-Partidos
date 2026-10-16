@@ -515,17 +515,44 @@ const armarFranjas = ({ enSuUnidad, enPorcentaje, tipoVariable, visualizacion, s
 // archivo). vrDeSesion(sesión): el V.R. de una sesión de Objetivo.
 export const franjasDeTodo = (filas, { categorizacion, tipoVariable, visualizacion, sesiones = null, vrDeSesion = () => null, variablesDelObjetivo = false }) => {
   const objetivo = categorizacion === "objetivo";
-  return armarFranjas({
+  // Las franjas en % de cada V.R., con unas filas (o sesiones).
+  const enPorcentajeCon = (lasFilas, lasSesiones) => (clave, tipo) =>
+    objetivo
+      ? lasSesiones && franjasDelObjetivo(sesionesEnPorcentaje(lasSesiones, clave, vrDeSesion), clave, tipo)
+      : franjasDeClave(filasEnPorcentaje(lasFilas, clave), null, clave, tipo, categorizacion, null);
+  const franjas = armarFranjas({
     enSuUnidad: (clave, tipo) => franjasDeClave(filas, null, clave, tipo, categorizacion, sesiones),
-    enPorcentaje: (clave, tipo) =>
-      objetivo
-        ? sesiones && franjasDelObjetivo(sesionesEnPorcentaje(sesiones, clave, vrDeSesion), clave, tipo)
-        : franjasDeClave(filasEnPorcentaje(filas, clave), null, clave, tipo, categorizacion, null),
+    enPorcentaje: enPorcentajeCon(filas, sesiones),
     tipoVariable,
     visualizacion,
     sinVariables: objetivo && !variablesDelObjetivo,
   });
+  // Cada índice, con las filas (o sesiones) cuyo V.R. tiene todas sus
+  // medidas, así todas salen de las mismas filas (una fila sin una de ellas
+  // tampoco tiene ese índice). Con un solo V.R. da lo mismo que antes.
+  const indices = {};
+  Object.entries(MEDIDAS_DE_INDICE).forEach(([indice, claves]) => {
+    const completo = (vr) => claves.every((clave) => baseDe(vr, clave) !== null);
+    const enPorcentaje = enPorcentajeCon(
+      filas.filter((fila) => completo(fila.vr)),
+      sesiones && sesiones.filter((sesion) => completo(vrDeSesion(sesion))),
+    );
+    indices[indice] = franjasDeIndices(Object.fromEntries(claves.map((clave) => [clave, enPorcentaje(clave, "promedio")])))[indice];
+  });
+  return { ...franjas, indices };
 };
+
+// Las medidas de cada índice (ver indicesDe).
+const MEDIDAS_DE_INDICE = Object.freeze({
+  volumen: ["d", ...ALTA, ...MAXIMA],
+  relativo: [conMin("d"), ...ALTA.map(conMin), ...MAXIMA.map(conMin)],
+  total: ["d"],
+  totalRel: [conMin("d")],
+  alta: ALTA,
+  altaRel: ALTA.map(conMin),
+  maxima: MAXIMA,
+  maximaRel: MAXIMA.map(conMin),
+});
 
 // El V.R. de una clave, si sirve para dividir (como dividir()).
 const baseDe = (vr, clave) => {

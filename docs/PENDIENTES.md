@@ -1880,7 +1880,8 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   - «Mi selección»: unas solas franjas con todas las filas del informe, sin importar el
     microciclo ni el V.R. de cada una; se pintan todas las filas, también las que no tienen
     V.R. En los %, cada fila se divide por su propio V.R. (las que no tienen V.R. no tienen
-    %, ni cuentan en esas franjas);
+    %, ni cuentan en esas franjas); cada índice (Volumen, Alta, Máxima…) sale de las filas
+    cuyo V.R. tiene todas sus medidas, para que no se mezclen filas distintas en cada medida;
   - «Objetivo»: lo mismo con todas las sesiones de lo filtrado (el Bueno, el promedio del
     Team Average de cada sesión; el desvío, el de los jugadores de cada sesión), sin separar
     por V.R.;

@@ -1804,12 +1804,20 @@ describe("GPS", () => {
     expect([...contenedor.querySelectorAll(".gps-reportes-vr select")].map((select) => select.options[select.selectedIndex].textContent)).toEqual(["Catapult · FUTBOL · Oficial · TOTAL", "Sport · FUTBOL · FUTBOL 2 · TOTAL"]);
     await tocar(botones().find((b) => b.textContent.startsWith("Ver las de Sport")));
     expect(contenedor.querySelector(".gps-informe-titulo").textContent).toContain("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL");
+    // La fila del V.R., oculta a mano.
+    await tocar(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-franjas tr.franja-vr .gps-informe-fila"));
+    await tocar(boton("Ocultar"));
+    expect(contenedor.querySelector(".gps-informe-tabla tr.franja-vr")).toBeNull();
     // Con Mi selección, unas solas franjas: sin «Ver las de …» ni la fila del V.R. (cada fila tiene el suyo).
     await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "miSeleccion");
     expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Mi selección3 microciclos");
     expect(botones().some((b) => b.textContent.startsWith("Ver las de"))).toBe(false);
     expect([...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas th")].map((th) => th.textContent)[0]).toBe("Excelente");
+    // «Filas» con «Listo» no vuelve a mostrar la del V.R., que acá no está en la lista.
+    await tocar(contenedor.querySelectorAll(".gps-informe-ver")[1]);
+    await tocar(boton("Listo"));
     await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "valorReferencial");
+    expect(contenedor.querySelector(".gps-informe-tabla tr.franja-vr")).toBeNull();
     await tocar(botones().find((b) => b.getAttribute("aria-label") === "Quitar este V.R."));
     expect(contenedor.querySelectorAll(".gps-reportes-vr select")).toHaveLength(1);
 

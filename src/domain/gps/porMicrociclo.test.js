@@ -247,6 +247,20 @@ describe("el V.R. de cada fila y el informe entero", () => {
     expect(enPorcentaje.general.variables.d.bueno).toBeCloseTo(1.25, 12);
     expect(enPorcentaje.general.variables.d.desvio).toBeCloseTo(Math.sqrt(0.125), 12);
   });
+  test("cada índice sale de las filas cuyo V.R. tiene todas sus medidas (un V.R. sin una medida no mezcla filas)", () => {
+    // Del 10 y el 11, con Sport: su V.R. no tiene d_mp5 y tiene la mitad en d_s6, d_a8 y d_a1.
+    const medidas = (maxima) => ({ d: 100, d_shi: 100, d_acchi: 100, d_dechi: 100, d_mphi: 100, d_s6: maxima, d_a8: maxima, d_a1: maxima, d_mp5: maxima });
+    const filas = [sesion(10, "a", { ...medidas(100), dispositivo: "sport" }), sesion(11, "b", { ...medidas(100), dispositivo: "sport" }), sesion(17, "c", medidas(100)), sesion(18, "d", medidas(110))];
+    const sportVr = { id: "s", dispositivo: "sport", promedio: { ...medidas(50), d: 100, d_mp5: null } };
+    const catapultVr = { id: "c", dispositivo: "catapult", promedio: medidas(100) };
+    const informe = informePorMicrociclo(filas, { asignaciones: [{ referencia: catapultVr, microciclos: null }, { referencia: sportVr, microciclos: null }], nombreDe });
+    expect(informe.filas.map((una) => una.indices.maxima)).toEqual([null, null, 1, 1.1]);
+    // Máxima y Volumen, solo del 17 y el 18; Total, de las cuatro.
+    expect(informe.general.indices.maxima.bueno).toBeCloseTo(1.05, 12);
+    expect(informe.general.indices.volumen.bueno).toBeCloseTo((1 + 4 + 4 * 1.05) / 9, 12);
+    expect(informe.general.indices.total.bueno).toBe(1);
+    expect(informe.general.indices.total.desvio).toBe(0);
+  });
   test("con un solo V.R., las franjas de todo dan lo mismo que las de su tabla (como el archivo)", () => {
     // Todas las medidas, con su por minuto, en seis filas inventadas.
     const claves = ["d", "d_shi", "d_acchi", "d_dechi", "d_mphi", "d_s6", "d_a8", "d_a1", "d_mp5", "mts90"];
