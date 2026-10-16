@@ -1187,3 +1187,92 @@
   background: rgba(211, 173, 98, 0.25);
   color: #6b4e0e;
 }
+
+/* El espacio (Santiago, 16/10; ver docs/DESIGN_SYSTEM.md, «El espacio»):
+   en la compu, la columna más ancha y las tarjetas en todas las columnas que
+   entren; la cuenta en una sola fila. En el celular, la foto más baja, así
+   entran más tarjetas en la pantalla. */
+.portal-contenido {
+  width: min(1240px, 100%);
+}
+@media (min-width: 721px) {
+  .portal-opciones {
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 14px;
+  }
+  .portal-cuenta {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 10px;
+    margin-bottom: 18px;
+  }
+  .portal-cuenta-acciones {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .portal-cuenta .portal-idioma {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .portal-encabezado {
+    margin-bottom: 18px;
+  }
+  .portal-encabezado h1 {
+    font-size: clamp(2rem, 3vw, 2.7rem);
+  }
+  .bases-barra {
+    margin-bottom: 18px;
+  }
+}
+@media (max-width: 720px) {
+  .portal-foto {
+    aspect-ratio: 2.4 / 1;
+  }
+  .portal-cuenta {
+    row-gap: 8px;
+    margin-bottom: 14px;
+  }
+  .portal-encabezado {
+    margin-bottom: 14px;
+  }
+  .portal-encabezado h1 {
+    font-size: clamp(1.75rem, 7vw, 2.2rem);
+  }
+  .bases-barra {
+    margin-bottom: 16px;
+  }
+}
+
+/* Cuentas, Clubes de la app y Notas: en la compu, cada fila en una franja
+   (los datos a la izquierda y los botones a la derecha) y los campos del
+   ancho de lo que se escribe. */
+@media (min-width: 721px) {
+  .cuentas-contenido {
+    width: min(1060px, 100%);
+  }
+  .cuenta-fila {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 18px;
+    row-gap: 6px;
+  }
+  .cuenta-fila > * {
+    grid-column: 1;
+  }
+  .cuenta-fila > .cuenta-acciones {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    justify-content: flex-end;
+  }
+  .cuentas-invitar input,
+  .cuentas-invitar select {
+    max-width: 440px;
+  }
+  .cuentas-invitar textarea {
+    max-width: 760px;
+  }
+  .cuentas-club-elegido {
+    width: fit-content;
+    min-width: 280px;
+    max-width: 100%;
+  }
+}

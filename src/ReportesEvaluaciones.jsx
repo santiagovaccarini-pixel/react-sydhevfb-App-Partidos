@@ -502,8 +502,10 @@ export default function ReportesEvaluaciones({ evaluaciones, referenciasPorTest,
             <div className="cabeza-ficha">
               <b>{t("lesiones.reportes.ver")}</b>
             </div>
-            {tarjeta("individual", "usuario", t("lesiones.reportes.individual"), t("evaluaciones.reportes.individualTexto"))}
-            {tarjeta("grupal", "formacion", t("lesiones.reportes.grupal"), t("evaluaciones.reportes.grupalTexto"))}
+            <div className="lista-opciones">
+              {tarjeta("individual", "usuario", t("lesiones.reportes.individual"), t("evaluaciones.reportes.individualTexto"))}
+              {tarjeta("grupal", "formacion", t("lesiones.reportes.grupal"), t("evaluaciones.reportes.grupalTexto"))}
+            </div>
           </section>
         </div>
       </div>

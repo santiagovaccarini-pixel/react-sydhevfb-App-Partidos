@@ -44,6 +44,91 @@
   font-size: 12px;
 }
 
+/* Compacto (Santiago, 16/10: «Demasiado espacio en el cuadro del escudo,
+   puede achicarse hacia arriba»): el escudo chico a la izquierda y, al lado,
+   el módulo, el club, la fecha y la pastilla. En el celular, arriba la barra
+   (volver e idioma); en la compu, todo en una franja. */
+.lesiones-marco .hero-lesiones {
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+.lesiones-marco .hero-lesiones-club {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 1px;
+  align-items: center;
+  justify-items: start;
+  padding-top: 0;
+  text-align: left;
+}
+.lesiones-marco .hero-lesiones-club > :first-child {
+  grid-row: 1 / span 4;
+  align-self: center;
+}
+.lesiones-marco .hero-lesiones-club > :not(:first-child) {
+  grid-column: 2;
+}
+.lesiones-marco .hero-lesiones-club .escudo-cam,
+.lesiones-marco .hero-lesiones-club .escudo-rival,
+.lesiones-marco .hero-lesiones-club .escudo-club.escudo-real {
+  width: 46px;
+  margin: 0;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.4));
+}
+.lesiones-marco .hero-lesiones-club .etiqueta-hero {
+  text-align: left;
+}
+.lesiones-marco .hero-lesiones-club .nombre-sesion {
+  font-size: 20px;
+  line-height: 1.15;
+}
+.lesiones-marco .hero-lesiones-club .fecha-hero {
+  text-align: left;
+}
+.lesiones-marco .hero-lesiones-club .estado-hero {
+  margin-top: 4px;
+}
+@media (min-width: 721px) {
+  .lesiones-marco .hero-lesiones {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 18px;
+    padding: 12px 16px;
+  }
+  .lesiones-marco .hero-lesiones-barra {
+    display: contents;
+  }
+  .lesiones-marco .hero-lesiones-barra > :first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .lesiones-marco .hero-lesiones-barra > :last-child {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .lesiones-marco .hero-lesiones-club {
+    grid-column: 2;
+    grid-row: 1;
+    grid-template-columns: auto auto auto;
+    justify-content: center;
+  }
+  .lesiones-marco .hero-lesiones-club .nombre-sesion {
+    font-size: 22px;
+  }
+  /* La pastilla, a la derecha del nombre. */
+  .lesiones-marco .hero-lesiones-club .estado-hero {
+    grid-column: 3;
+    grid-row: 1 / span 3;
+    align-self: center;
+    margin: 0 0 0 6px;
+  }
+}
+
+/* Ajustes › Cabeceras: el título de cada grupo, a lo ancho de la grilla. */
+.lesiones-marco .lista-opciones > .lesiones-ajuste-grupo {
+  grid-column: 1 / -1;
+}
+
 /* Las otras pantallas: título a la izquierda, globo a la derecha. */
 .lesiones-marco .lesiones-encabezado {
   display: flex;
@@ -542,6 +627,15 @@
   width: 100%;
   min-height: 44px;
   margin: 10px 0 0;
+}
+@media (min-width: 721px) {
+  .lesiones-marco .datos-pegar-excel {
+    width: auto;
+    min-width: 240px;
+    padding: 0 24px;
+    justify-self: start;
+    align-self: flex-start;
+  }
 }
 .lesiones-marco .datos-importar-pegado {
   display: grid;
