@@ -304,7 +304,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
 
   const informe = useMemo(() => {
     if (modo !== "informe") return null;
-    if (porTarea) return informePorTarea(filasGps, { comparaciones, tipoVariable, visualizacion, categorizacion: categorizacionVista, asignaciones });
+    if (porTarea) return informePorTarea(filasGps, { comparaciones, tipoVariable, visualizacion, asignaciones });
     return informePorMicrociclo(filasGps, { filtros, tipoVariable, visualizacion, categorizacion: categorizacionVista, asignaciones, nombreDe });
   }, [modo, porTarea, filasGps, filtros, comparaciones, tipoVariable, visualizacion, categorizacionVista, asignaciones, nombreDe]);
 
@@ -545,7 +545,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // Por tarea, las de todas las comparaciones.
   const { ua, tablas } = informe;
   const filas = porTarea ? informe.comparaciones.flatMap((bloque) => bloque.filas) : informe.filas;
-  const deTodo = porTarea ? informe.franjas : informe.general;
+  const deTodo = porTarea ? null : informe.general;
   const actual = tablas.length ? Math.min(verFranjas, tablas.length - 1) : -1;
   const tabla = actual >= 0 ? tablas[actual] : null;
   const variables = TIPOS_DE_VARIABLE[tipoVariable];
@@ -652,8 +652,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // las variables y VS RIVAL. Por tarea, como el archivo: N° Micr. y N° Ses.
   // (en la fila de cada comparación; en la de cada microciclo, sus sesiones),
   // U.A., los índices y las variables.
+  // Por tarea no se pinta (Santiago, 16/10: «por tarea no se pinta con
+  // nada»): sus columnas van sin color.
+  const sinColor = (columna) => ({ ...columna, color: null, franjas: null, franjasDeFila: null });
   const COLUMNAS = porTarea
-    ? [{ clave: "microciclos", titulo: t("gps.reportes.columnas.microciclos"), valor: (fila) => fila.cantidad ?? null, texto: entero }, COLUMNA_SESIONES, ...COLUMNAS_UA, ...COLUMNAS_MEDIDAS]
+    ? [{ clave: "microciclos", titulo: t("gps.reportes.columnas.microciclos"), valor: (fila) => fila.cantidad ?? null, texto: entero }, COLUMNA_SESIONES, ...COLUMNAS_UA, ...COLUMNAS_MEDIDAS].map(sinColor)
     : [
         COLUMNA_SESIONES,
         { clave: "descansos", titulo: t("gps.reportes.columnas.descansos"), valor: (fila) => fila.descansos, texto: entero },
@@ -764,7 +767,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // una fila por V.R. con el nombre de su dispositivo: cada fila del informe
   // tiene el suyo y así cada % tiene su referencia a la vista (16/10,
   // «Preferencia visual» del sistema de diseño: no se ocultan datos útiles).
-  const variosVr = categorizacionVista !== "valorReferencial" && tablas.filter((una) => una.vr).length > 1;
+  const variosVr = (porTarea || categorizacionVista !== "valorReferencial") && tablas.filter((una) => una.vr).length > 1;
   const conVr = tablas.filter((una) => una.vr);
   const repetido = (una) => conVr.filter((otra) => otra.vr.dispositivo === una.vr.dispositivo).length > 1;
   const filasDelVr = !tabla?.vr
@@ -777,7 +780,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
           texto: t("gps.reportes.franjas.vrDe", { vr: repetido(una) ? nombreDeVr(una.vr) : nombreDelDispositivo(una.vr.dispositivo) }),
         }))
       : [{ clave: "franja:vr", franja: "vr", vr: tabla.vr, texto: t("gps.reportes.franjas.vr") }];
-  const filasDeFranjas = franjasOcultas ? [] : FRANJAS.map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
+  const filasDeFranjas = franjasOcultas || porTarea ? [] : FRANJAS.map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
   const franjasAVista = [...filasDelVr, ...filasDeFranjas];
   const cuantasOcultas = columnasOcultas.filter((clave) => COLUMNAS.some((columna) => columna.clave === clave)).length;
 
@@ -882,22 +885,25 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                 </select>
               </span>
             </label>
-            <label className="campo-inicio">
-              <span className="gps-reportes-rotulo">
-                {t("gps.reportes.categorizacion")}
-                <TerminoDe clave="gps.terminos.categorizacion" />
-              </span>
-              <span className="gps-reportes-campo">
-                <Icono nombre="cuadros" size={18} />
-                <select value={categorizacionVista} onChange={(evento) => setCategorizacion(evento.target.value)}>
-                  {CATEGORIZACIONES_DEL_INFORME.filter((una) => una !== "objetivo" || objetivoPosible).map((una) => (
-                    <option key={una} value={una}>
-                      {t(`gps.reportes.categorizaciones.${una}`)}
-                    </option>
-                  ))}
-                </select>
-              </span>
-            </label>
+            {/* Por tarea no se pinta: sin Categorización. */}
+            {!porTarea && (
+              <label className="campo-inicio">
+                <span className="gps-reportes-rotulo">
+                  {t("gps.reportes.categorizacion")}
+                  <TerminoDe clave="gps.terminos.categorizacion" />
+                </span>
+                <span className="gps-reportes-campo">
+                  <Icono nombre="cuadros" size={18} />
+                  <select value={categorizacionVista} onChange={(evento) => setCategorizacion(evento.target.value)}>
+                    {CATEGORIZACIONES_DEL_INFORME.filter((una) => una !== "objetivo" || objetivoPosible).map((una) => (
+                      <option key={una} value={una}>
+                        {t(`gps.reportes.categorizaciones.${una}`)}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+              </label>
+            )}
           </div>
 
           <div className="gps-reportes-vrs">
@@ -949,11 +955,13 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                 <Icono nombre="grafico" size={20} />
                 <span className="gps-informe-titulo-texto">
                   <b>
-                    {categorizacionVista !== "valorReferencial"
-                      ? t("gps.reportes.franjasDe", { vr: t(`gps.reportes.categorizaciones.${categorizacionVista}`) })
-                      : tabla?.vr
-                        ? t("gps.reportes.franjasDe", { vr: nombreDeVr(tabla.vr) })
-                        : t("gps.reportes.franjasSinVr")}
+                    {porTarea
+                      ? t("gps.reportes.tarea.comparaciones")
+                      : categorizacionVista !== "valorReferencial"
+                        ? t("gps.reportes.franjasDe", { vr: t(`gps.reportes.categorizaciones.${categorizacionVista}`) })
+                        : tabla?.vr
+                          ? t("gps.reportes.franjasDe", { vr: nombreDeVr(tabla.vr) })
+                          : t("gps.reportes.franjasSinVr")}
                   </b>
                   <span>
                     {porTarea
@@ -963,7 +971,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                 </span>
               </div>
               <div className="gps-informe-acciones">
-                {categorizacionVista === "valorReferencial" && tablas.length > 1 && (
+                {!porTarea && categorizacionVista === "valorReferencial" && tablas.length > 1 && (
                   <button type="button" className="boton-secundario gps-informe-otras" onClick={() => setVerFranjas((actual + 1) % tablas.length)}>
                     <Icono nombre="cambio" size={15} />
                     {t("gps.reportes.verFranjasDe", { vr: nombreDeVr(tablas[(actual + 1) % tablas.length].vr) })}
@@ -974,18 +982,20 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                   <b>{cuantasOcultas ? plural("gps.reportes.ocultas.cuantas", cuantasOcultas) : t("gps.reportes.ocultas.todas")}</b>
                   <Icono nombre="flecha" size={15} />
                 </button>
-                {/* Las franjas de color: un toque las oculta y otro las vuelve a mostrar. */}
-                <button
-                  type="button"
-                  className={`selector-hoja gps-informe-ver gps-informe-franjas-boton ${franjasOcultas ? "con-ocultas" : ""}`}
-                  onClick={() => setFranjasOcultas((antes) => !antes)}
-                  aria-label={t(franjasOcultas ? "gps.reportes.ocultas.mostrarFranjas" : "gps.reportes.ocultas.ocultarFranjas")}
-                  title={t(franjasOcultas ? "gps.reportes.ocultas.mostrarFranjas" : "gps.reportes.ocultas.ocultarFranjas")}
-                >
-                  <span>{t("gps.reportes.ocultas.franjas")}</span>
-                  <b>{t(franjasOcultas ? "gps.reportes.ocultas.franjasOcultas" : "gps.reportes.ocultas.franjasALaVista")}</b>
-                  <Icono nombre="ocultar" size={15} />
-                </button>
+                {/* Las franjas de color: un toque las oculta y otro las vuelve a mostrar (Por tarea no tiene). */}
+                {!porTarea && (
+                  <button
+                    type="button"
+                    className={`selector-hoja gps-informe-ver gps-informe-franjas-boton ${franjasOcultas ? "con-ocultas" : ""}`}
+                    onClick={() => setFranjasOcultas((antes) => !antes)}
+                    aria-label={t(franjasOcultas ? "gps.reportes.ocultas.mostrarFranjas" : "gps.reportes.ocultas.ocultarFranjas")}
+                    title={t(franjasOcultas ? "gps.reportes.ocultas.mostrarFranjas" : "gps.reportes.ocultas.ocultarFranjas")}
+                  >
+                    <span>{t("gps.reportes.ocultas.franjas")}</span>
+                    <b>{t(franjasOcultas ? "gps.reportes.ocultas.franjasOcultas" : "gps.reportes.ocultas.franjasALaVista")}</b>
+                    <Icono nombre="ocultar" size={15} />
+                  </button>
+                )}
               </div>
             </div>
             <div className="gps-informe-marco" tabIndex={0} role="region" aria-label={t(`gps.reportes.${tipo}`)}>
