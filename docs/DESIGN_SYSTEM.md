@@ -152,10 +152,100 @@ tomando como referencia la estética de informes de lesiones, tablas y dashboard
 Premium se expresa en jerarquía, proporciones, alineación y cuidado de los detalles;
 no requiere más tarjetas, efectos ni información.
 
+El pedido posterior del mismo 16/10 precisa esa dirección con negro y dorado y dos
+referencias visuales. La sección siguiente es la definición estética vigente;
+las palabras generales anteriores se interpretan a través de ella.
+
 Estos criterios amplían esta misma fuente de diseño. La Skill
 [sports-ux-ui](../.claude/skills/sports-ux-ui/SKILL.md) los aplica al trabajo pedido;
 no convierte propuestas pendientes en decisiones cerradas ni autoriza un rediseño
 general. Las reglas específicas de cada módulo conservan su alcance.
+
+<a id="direccion-visual-ark"></a>
+
+### Dirección visual: negro, dorado y claridad (16/10)
+
+Fuente: pedido explícito del usuario en la conversación de configuración de
+Claude Code Cloud, acompañado por una interfaz de análisis por microciclo y un
+reporte individual de lesiones. Pidió predominio de negro y dorado, una estética
+limpia y ordenada, reportes elegantes y hechos con criterio, y comprensión rápida
+al entrar. Su principio es: «donde el usuario se pierda, perdemos nosotros».
+
+**Identidad de la aplicación.** Negro y grafito dominan el marco, la navegación
+y las superficies de trabajo; deben distinguirse entre sí para que se reconozcan
+los niveles. Dorado sobrio y cálido marca identidad, selección o énfasis en poca
+superficie. Texto principal blanco o casi blanco, secundario gris legible. Bordes
+discretos, sombras contenidas y radios coherentes; el volumen se obtiene por
+contraste y alineación. Los tonos azulados y verdes de la primera captura no
+reemplazan el negro/dorado que el usuario pidió expresamente.
+
+Los colores de datos conservan su significado: franjas, comparaciones, clases,
+grupos y calor siguen sus fuentes de dominio y decisiones vigentes. No convertir
+un semáforo o un mapa corporal a dorado para hacerlo coincidir con la marca.
+
+Como punto de partida técnico, se pueden evaluar negro `#0B0D10`, grafito
+`#171B20` y dorado `#C6A15B`, con texto claro `#F2F4F7`. Son valores propuestos para
+implementar y comprobar contraste, no colores exactos extraídos de las capturas
+ni valores ya aplicados. Reutilizar componentes no exige conservar un acento de
+marca anterior cuando el pedido autoriza trabajar el aspecto de esa pieza.
+
+**Composición de la web.** Título fuerte, una explicación breve y controles
+agrupados por tarea. En escritorio, filtros alineados en una banda; en celular,
+reordenados con etiquetas visibles, sin achicar todo hasta que entre. El lugar
+activo se distingue por texto y tratamiento visual; la navegación existente
+mantiene sus destinos y un regreso claro. La barra lateral de la captura es una
+referencia de orientación, no una orden para reemplazar la navegación del producto.
+No agregar pasos, opciones o paneles permanentes que obliguen a buscar la acción.
+
+**Composición de los reportes.** Identidad deportiva reconocible: cabecera oscura
+con club y jugador o plantel, título con presencia y datos de contexto subordinados.
+Las fotos y escudos se usan cuando existen y corresponden, con una composición
+deliberada. Cuerpo claro o gris muy suave es compatible con negro/dorado y facilita
+el papel; no es obligatorio oscurecer todas las celdas. La vista de pantalla sigue
+las decisiones vigentes del módulo, sin extenderle un tema por una captura.
+Resultados, unidades y referencias se leen como un conjunto. Indicadores, mapa e
+historial comparten alineaciones, márgenes y proporciones; el cuerpo humano es una
+pieza de información, no decoración ni una figura diminuta en un espacio sobrante.
+La tabla tiene cabeceras agrupadas, filas regulares, cifras comparables y contexto.
+Se conservan campos, formato de comparación y funciones aprobados: una portada
+espectacular no compensa datos difíciles de leer ni permite quitar columnas.
+
+#### Cómo interpretar los ejemplos
+
+| Referencia aportada | Rasgos que orientan el diseño | Contenido que no queda autorizado por la imagen |
+| --- | --- | --- |
+| Interfaz de análisis por microciclo | Fondo oscuro por capas, título claro, controles alineados, agrupación de variables, estructura de tabla y lugar activo reconocible. Aplicar el acento de marca dorado pedido por el usuario. | Gráfico, métricas de resumen, comparaciones, selector de temporada, exportaciones, cifras y cabeceras. Se mantienen los descartes de UI-038 y los colores de UI-040. |
+| Reporte individual de lesiones | Cabecera deportiva negra, identidad del jugador, tipografía con jerarquía, bloques de tasas organizados, figura anterior y posterior y tabla de historial compuesta como parte del mismo documento. | Cifras, identidad del jugador de ejemplo, «Categoría 4*», nuevos resúmenes, puntos de «Sobre referencia», líneas y marcadores anatómicos o lateralidad ilustrativa. No reabre descartes ni cambia el mapa clínico. |
+| Otro reporte de lesiones mencionado por el usuario | Está confirmada la preferencia por un cuerpo humano de frente y de espalda con zonas de calor. | Esa otra imagen no está disponible en esta conversación; no atribuirle una paleta, figura, distribución o funciones que no se pudieron observar. |
+
+Las capturas se interpretan aquí por sus rasgos visuales. No se incorporan sus
+datos personales o clínicos al repositorio ni se asume que los archivos temporales
+del chat estarán disponibles en Claude Cloud. Si las imágenes no están en el
+checkout, usar esta descripción y explicar esa limitación al compararlas.
+
+El usuario rechazó las propuestas «Editorial» y «Analítico» presentadas antes de
+estas referencias. No son ejemplos aprobados. Mantener orden, espaciado y una
+tabla legible es necesario, pero una plantilla administrativa genérica, recoloreada
+o llena de tarjetas intercambiables, no representa por sí sola esta dirección.
+
+#### Criterio de aceptación del diseño
+
+Al presentar un cambio, contrastar el resultado con estos puntos observables:
+
+- Se reconoce la identidad negra/grafito y dorada sin confundir colores de marca
+  con colores que expresan datos.
+- Se entiende el módulo, qué datos se ven, el contexto y la siguiente acción con
+  el título, las etiquetas y el estado visible; no hace falta adivinar un ícono.
+- Los resultados se pueden comparar y sus unidades y referencias se encuentran
+  junto a ellos; no se achica la letra ni se omite información para encajar.
+- Cabecera, controles, bloques, figura y tabla comparten una retícula y una
+  jerarquía intencionales. Explicar qué rasgos de las referencias se aplicaron.
+- Celular, escritorio y papel cuando corresponda conservan legibilidad y recorrido.
+
+Esta dirección guía los trabajos de interfaz que se pidan. No ordena repintar la
+plataforma completa ni implementar todos los elementos de las imágenes. La nueva
+figura del mapa de calor, su geometría y sus interacciones siguen el alcance de
+UI-024 y los pendientes del módulo; la carga de Lesiones sigue sin figura (UI-036).
 
 ### Estándar por defecto para todo trabajo de interfaz
 
@@ -184,7 +274,8 @@ a cada nueva instrucción.
 ### Referencias y valores existentes
 
 Antes de elegir valores, buscá la clase que usa la pantalla. Los siguientes son
-ejemplos existentes, no un tema nuevo que deba imponerse a todos los módulos:
+ejemplos del estado actual, no una paleta de marca que reemplace la dirección
+negro/dorado anterior. No deben imponerse a todos los módulos:
 
 | Elemento | Fuente actual | Criterio de uso |
 | --- | --- | --- |
