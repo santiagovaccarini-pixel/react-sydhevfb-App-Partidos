@@ -1361,7 +1361,8 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
    traerlo directo de OpenField (paso 5).
 3. **Reportes**. 15/10: el Informe (Por microciclo, Por tarea y Por jugador), ver «Informe:
    Por microciclo, Por tarea y Por jugador (15/10)». Por microciclo, hecho el 15/10 (la solapa
-   Reportes, UI-038); Por tarea y Por jugador, después, cada uno con sus dudas.
+   Reportes, UI-038); Por tarea, el 16/10 (ver «Por tarea (16/10)»); Por jugador, después, con
+   sus dudas.
 4. **V.R. por dispositivo**: se arman una vez con reglas estadísticas y quedan fijos (Santiago,
    10/10: «Los VR se arman una ves con reglas estadisticas y se dejan fijos»; las reglas las
    explica él más adelante). Cada dispositivo tiene los suyos («Exacto»). No inventar reglas ni
@@ -1975,7 +1976,61 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   en las 150 sesiones y el desvío, en 148 (las otras dos el archivo las tenía sin actualizar).
   La descripción del archivo dice que el desvío es «solo con los jugadores que poseen la
   condición SI», pero cuenta Va vacío, No y Si: se hace como calcula.
-- **Falta**: Por tarea y Por jugador, cada uno con su análisis y sus dudas.
+- **Falta**: Por jugador, con su análisis y sus dudas. (Por tarea, hecho el 16/10: ver abajo.)
+
+**Por tarea (16/10)** (`src/ReportesGps.jsx`; el cálculo en `src/domain/gps/porTarea.js`,
+que usa las cuentas de Por microciclo; UI-038). En el archivo, «Por tarea» (filas 213 a 323 de
+INFORME GPS) tiene cinco comparaciones fijas (A a E), cada una con sus segmentaciones (Tipo de
+Sesión, Microciclo, Fecha, Nombre y Condición) y su tabla dinámica (Va vacío, No o Si). De cada
+una muestra su fila (el Tipo de Sesión elegido, N° Micr., N° Ses. y el promedio de cada
+columna) y, solo con un Tipo de Sesión elegido, una fila por microciclo (hasta 20); arriba, el
+promedio de las cinco. No pinta. Santiago respondió en un cuestionario:
+
+- **El promedio de cada comparación**: «LAS SELECCIONADAS, SI USAS SOLO 18 Y 12 SE USAN ESAS Y SI
+  USAS MAS SE USAN ESAS». Promedia todos los microciclos elegidos (el archivo tomaba solo los del
+  17 en adelante y los buscaba por su lugar en otra lista: si la comparación no empezaba en el
+  10, fallaba).
+- **Los tres errores del archivo** (marcó los tres): cada microciclo usa el V.R. de su
+  dispositivo, como en Por microciclo (el archivo lo elegía mirando la tabla de Por
+  microciclo); los índices Volumen y Máxima usan D_MP5 (el archivo usaba el % del tiempo); con
+  «Relativas» no hay Valor suma ni % de la suma (el archivo sumaba valores por minuto).
+  «>30km/h» es Mts ≥ 90% Pico, como en Por microciclo.
+- **Los colores**: «Sí, como Por microciclo». Con «Mi selección», unas solas franjas de todas las
+  filas de microciclo de todas las comparaciones (la U.A., al revés, como en Por microciclo);
+  con «Valor referencial», las del V.R. de cada fila. Se pintan también la fila de cada
+  comparación y la de arriba (con «Valor referencial», con el V.R. de su último microciclo).
+  «Objetivo» no está: las filas son microciclos, no jugadores (ver «Objetivo, solo con
+  jugadores…», arriba).
+- **El diseño**: «Tarjetas que sumás». En el paso 1, una tarjeta por comparación (con su letra
+  en dorado, el acento de la marca) con sus cinco filtros; arranca con una y «+ Otra
+  comparación» suma hasta 5 (con 5 dice «Hasta 5 comparaciones»); con más de una, cada tarjeta
+  tiene su botón para quitarla. «Limpiar filtros» vacía los de todas, como el botón del archivo.
+  En el informe, los mismos controles que Por microciclo (sin Objetivo), «Filtros» con las
+  mismas tarjetas y una sola tabla: arriba, «Promedio» (el de las filas de las comparaciones;
+  solo con más de una), y de cada comparación su fila (su letra y el Tipo de Sesión elegido, o
+  «Todas las tareas») y una fila por microciclo, siempre, sin el límite de 20. Una sola tabla,
+  y no una por tarjeta como en el dibujo del cuestionario, para que las columnas queden
+  alineadas al comparar (lo decidió Claude; si Santiago prefiere la tabla dentro de cada
+  tarjeta, se cambia).
+- **Al entrar**: una comparación sin filtros, como quedó guardado el archivo (Tipo de Sesión,
+  Fecha, Nombre y Condición en «(Todas)»; el Microciclo tenía elegidos del 10 al 17). Claude le
+  había dicho antes que el archivo abría con «Team Average Parcial» y «Parcial»: estaba mal.
+- **Las columnas**: N° Micr. y N° Ses. (en la fila de cada comparación: cuántos microciclos y la
+  suma de sus sesiones), U.A. suma y promedio, los índices y las variables; sin carga crónica
+  ni VS RIVAL, como el archivo. En la fila de cada microciclo, N° Ses. dice sus sesiones (en el
+  archivo, vacía; lo propuso Claude para que se vea de dónde sale la suma). N° de sesiones: los
+  días (fecha y clasificación de días) de ese microciclo con los filtros de la comparación, sin
+  mirar Va, como Micro_Sesión. Las columnas ocultas se recuerdan aparte de las de Por
+  microciclo.
+- **Comprobado**: con datos inventados (`src/domain/gps/porTarea.test.js` y
+  `src/Gps.smoke.test.jsx`). La tabla dinámica de la comparación A del archivo está sin
+  actualizar (no coincide con ninguna combinación de filtros de la base de hoy), así que no
+  sirve para comparar números; las cuentas de cada fila son las de Por microciclo, que sí se
+  comprobaron contra el archivo.
+
+Descartado en Por tarea: las cinco comparaciones fijas, el detalle solo con un Tipo de Sesión y
+hasta 20 microciclos, promediar solo los del 17 en adelante, el V.R. elegido mirando otra tabla,
+el tiempo en los índices y la suma con «Relativas».
 
 **La presentación, los colores y ocultar (15/10, después de verlo con los datos del club).**
 Santiago mandó una captura del informe con: «1. NECESITO QUE HAGAS MUCHO HINCAPIE EN LA MANERA

@@ -1039,6 +1039,8 @@
   font-size: 12.5px;
   font-weight: 600;
   overflow-wrap: anywhere;
+  /* Por tarea: una línea por comparación. */
+  white-space: pre-line;
 }
 .gps-marco .gps-informe-filtros-cuerpo {
   padding: 14px 16px 16px;
@@ -1114,6 +1116,59 @@
   width: 46px;
   min-height: 46px;
   padding: 0;
+}
+/* Por tarea (16/10): una tarjeta por comparación, con su letra (en dorado,
+   el acento de la marca en poca superficie) y sus filtros; abajo, «+ Otra
+   comparación». */
+.gps-marco .gps-tarea-comparaciones {
+  display: grid;
+  gap: 12px;
+}
+.gps-marco .gps-tarea-comparacion {
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  background: #111c31;
+}
+.gps-marco .gps-tarea-comparacion-cabeza {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.gps-marco .gps-tarea-comparacion-titulo {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.gps-marco .gps-tarea-comparacion-titulo > b {
+  color: #f8fafc;
+  font-size: 14px;
+}
+.gps-marco .gps-tarea-comparacion-titulo > span {
+  color: #94a3b8;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.gps-marco .gps-tarea-letra {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #c6a15b;
+  color: #0b0d10;
+  font-size: 14px;
+  font-weight: 800;
+}
+.gps-marco .gps-tarea-sumar {
+  justify-self: start;
+  width: auto;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 10px;
 }
 .gps-marco .gps-reportes-sumar {
   justify-self: start;
@@ -1426,6 +1481,41 @@
 .gps-marco .gps-informe-franjas tr.franja-vr td {
   color: #cbd5e1;
   font-style: italic;
+}
+
+/* Por tarea: el promedio de las comparaciones y la fila de cada una, en
+   negrita con un fondo más claro y una línea arriba; debajo, las de cada
+   microciclo. */
+/* (Con la tabla en el selector, para ganarle al gris de las filas pares.) */
+.gps-marco .gps-informe-tabla .gps-informe-filas tr.gps-tarea-general th,
+.gps-marco .gps-informe-tabla .gps-informe-filas tr.gps-tarea-general td:not(.pintada),
+.gps-marco .gps-informe-tabla .gps-informe-filas tr.gps-tarea-resumen th,
+.gps-marco .gps-informe-tabla .gps-informe-filas tr.gps-tarea-resumen td:not(.pintada) {
+  background: #1e293b;
+}
+.gps-marco .gps-informe-tabla .gps-informe-filas tr.gps-tarea-general td,
+.gps-marco .gps-informe-tabla .gps-informe-filas tr.gps-tarea-resumen td {
+  font-weight: 800;
+}
+.gps-marco .gps-informe-tabla .gps-informe-filas tr.gps-tarea-resumen th,
+.gps-marco .gps-informe-tabla .gps-informe-filas tr.gps-tarea-resumen td {
+  border-top: 2px solid #334155;
+}
+.gps-marco .gps-informe-nombre.gps-tarea-nombre {
+  align-items: center;
+}
+.gps-marco .gps-informe-nombre.gps-tarea-nombre > .gps-tarea-letra {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: #0b0d10;
+  font-size: 12px;
+  font-weight: 800;
+}
+.gps-marco .gps-informe-filas td.gps-tarea-sin-filas {
+  color: #94a3b8;
+  font-style: italic;
+  text-align: left;
 }
 
 /* Las filas: todas del mismo alto, los números centrados (como en la
