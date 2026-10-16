@@ -58,6 +58,40 @@ a la propuesta está en «GPS (10/10)», «La presentación, los colores y ocult
 - **El estilo de tabla del Informe en las demás tablas**: «Despues lo vemos». No hacerlo hasta
   que Santiago lo pida.
 
+## El espacio en toda la web (16/10)
+
+Santiago, 16/10: «no esta sobrando muchisimo espacio en todas las cosas que fuimos agregando …
+me gustaria que dejemos esta correccion como un estandar para la web»; «es en todas las
+pantallas»; «mostrame antes de subirlo a main». Se relevó cada pantalla en la compu y en el
+celular, se le mostró una primera pasada con capturas de antes y después (datos inventados) y
+el mismo 16/10 pidió subirla («podes subir los cambio de la reduccion de espacios»). La regla
+quedó en [el sistema de diseño](DESIGN_SYSTEM.md), «El espacio (16/10)»; UI-042.
+
+- **Hecho (16/10)**: los encabezados con escudo de GPS, Lesiones, Evaluaciones y Datos básicos,
+  y los de Partido y Flujo diario, más bajos; los menús (Ajustes, Ver informes, Cabeceras,
+  Listas) en columnas en la compu; botones, campos, avisos y «Pegar desde una planilla» del ancho
+  de su contenido en la compu (en el celular, como antes); las comparaciones de la Base de GPS
+  en franjas; el portal y Bases de Datos con más tarjetas por fila y la foto más baja en el
+  celular; Cuentas, Clubes de la app y Notas con los botones a la derecha. No cambió ningún
+  dato, texto, cálculo ni función.
+- **Falta** (se deja para después, como el resto de lo pendiente): pasar la regla al resto de
+  las pantallas. Lo relevado y no hecho: Partido (la cancha más alta que la pantalla en la
+  compu, «Ajustar horarios y eventos» con Inicio y Final en una fila, el marcador y «Penales»),
+  Elegir club y las pantallas de acceso, Datos básicos › Posiciones y Catapult, GPS › Cargar (el
+  panel «% vs V.R. de partido» y los que no entrenaron) y los controles del Informe en el
+  celular, Evaluaciones (el «nº» de arriba de la Base, el paso 1 de la carga), la cabecera de
+  los reportes de Lesiones y Evaluaciones, Informes gráficos, Lesiones › Ficha y Nuevos casos
+  vacío, Cuentas y Notas (el campo de nueva nota) y la barra lateral de la compu. Antes de sacar
+  algo que es contenido (por ejemplo, «Seguir registrando» repetido en Flujo diario o la
+  tarjeta «Crear reportes» de Lesiones), se consulta.
+- **Errores encontrados al relevar** (sin arreglar todavía): GPS › Cargar › «La sesión» se
+  corre de costado a 390 px; en Partido › Editar registro › Formación los convocados quedan en
+  una sola columna (la clase `grid-plantel` no tiene estilo: la regla es `grilla-plantel`); al
+  entrar a un módulo desde el portal o Bases de Datos la pantalla no vuelve arriba; el aviso
+  «OpenField no responde» tapa «Módulos» en el celular.
+- **Sin revisar todavía**: de 721 a 1100 px (tablet) y con zoom, la impresión de los reportes,
+  los estados de error y sin señal, y solo lectura en Partido, Tareas, Cuentas y Notas.
+
 ## Entrenamiento (OpenField)
 
 ### Interfaz (hecha el 21/09; queda lo fino)

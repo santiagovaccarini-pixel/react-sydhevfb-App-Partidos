@@ -144,6 +144,38 @@ Las tablas que ya están conservan su estilo hasta que Santiago decida llevarles
 («Despues lo vemos», 15/10). Los colores suaves y ocultar columnas y filas sí van en toda la
 app (ver `PENDIENTES.md`, «Toda la app: presentación, colores suaves y ocultar»).
 
+## El espacio (16/10)
+
+Santiago, 16/10: «no esta sobrando muchisimo espacio en todas las cosas que fuimos agregando …
+me gustaria que dejemos esta correccion como un estandar para la web»; «es en todas las
+pantallas». Vio una primera pasada (antes y después, en la compu y en el celular) y el mismo
+16/10 pidió subirla: «podes subir los cambio de la reduccion de espacios». Es una regla para todo
+lo que se haga; lo que falta pasar está en `PENDIENTES.md`, «El espacio en toda la web (16/10)».
+
+- Nada es más ancho ni más alto que lo que muestra. En la compu, un botón, un aviso o un campo
+  mide lo que su texto, con un mínimo cómodo para tocarlo; en el celular, los botones siguen a
+  lo ancho, para el dedo.
+- Lo que es una lista va en columnas en la compu: los menús de opciones (Ajustes, Ver informes,
+  Cabeceras, Listas) dentro de `.lista-opciones` (columnas de al menos 300 px; en el celular,
+  una), las listas para elegir (rivales, equipos) en columnas de 280 px y las tarjetas del portal
+  y de Bases de Datos en todas las columnas que entren.
+- Los campos, del ancho de lo que se escribe: hasta 440 px un texto o un desplegable, 240 px una
+  fecha, una hora o un número y 760 px un texto largo. Dentro de una tabla o de una hoja, sin
+  límite.
+- Un rótulo y su valor, cerca, no en las dos puntas de la pantalla; la cantidad, al lado de su
+  título. «Volver» y «Guardar», juntos a la derecha, cada uno de su ancho.
+- Una sola separación entre tarjetas, no el hueco del contenedor más el margen de cada una.
+- Encabezados bajos: el de cada módulo con escudo (GPS, Lesiones, Evaluaciones, Datos básicos),
+  con el escudo chico a la izquierda y, al lado, el módulo, el club, la fecha y su pastilla (en
+  la compu, todo en una franja); el de Partido y Flujo diario, con «Módulos» y el rótulo en la
+  misma fila y los escudos más chicos.
+- Las filas con acciones (Cuentas, Clubes de la app, Notas): en la compu, los datos a la
+  izquierda y los botones a la derecha, en una franja.
+
+Lo común está al final de `src/style.css` («El espacio»); lo de cada módulo, en su hoja de
+estilos. Para ganar espacio no se saca ni se cambia ningún dato, texto ni función: si algo
+sobra, se consulta.
+
 ## Preferencia visual y aplicación de la Skill (16/10)
 
 El pedido del 16/10 para configurar Claude Code Cloud define esta dirección:

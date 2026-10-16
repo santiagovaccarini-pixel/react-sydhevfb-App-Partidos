@@ -95,18 +95,20 @@ export default function TrainingSettings({
           <p>Lo que la app usa en Flujo diario.</p>
         </header>
 
-        {opciones.map((opcion) => (
-          <button key={opcion.id} type="button" className="opcion-ajuste" onClick={opcion.alTocar}>
-            <span className="icono-ajuste">
-              <Icono nombre={opcion.icono} size={18} />
-            </span>
-            <span className="texto-ajuste">
-              <b>{opcion.titulo}</b>
-              <span>{opcion.detalle}</span>
-            </span>
-            <span className="flecha-ajuste">›</span>
-          </button>
-        ))}
+        <div className="lista-opciones">
+          {opciones.map((opcion) => (
+            <button key={opcion.id} type="button" className="opcion-ajuste" onClick={opcion.alTocar}>
+              <span className="icono-ajuste">
+                <Icono nombre={opcion.icono} size={18} />
+              </span>
+              <span className="texto-ajuste">
+                <b>{opcion.titulo}</b>
+                <span>{opcion.detalle}</span>
+              </span>
+              <span className="flecha-ajuste">›</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

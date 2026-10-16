@@ -975,49 +975,51 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.cabeceras")} texto={t("lesiones.ajustes.cabecerasAyuda")} />
             {/* Cada grupo del Excel con sus columnas abajo: el grupo también
                 se renombra (es la fila de arriba de las cabeceras). */}
-            {GRUPOS.map((grupo, indiceGrupo) => {
-              const suyos = CAMPOS.filter((campo) => campo.grupo === grupo.clave);
-              const claveGrupo = claveDeGrupo(grupo.clave);
-              return (
-                <React.Fragment key={grupo.clave}>
-                  {filaAjuste({
-                    id: claveGrupo,
-                    clase: "lesiones-ajuste-grupo",
-                    titulo: etiquetaDeGrupo(grupo.clave, config, idioma),
-                    detalle: plural("lesiones.ajustes.grupoDe", suyos.length),
-                    alTocar: () => {
-                      setErrorHoja("");
-                      const propio = config?.campos?.[claveGrupo];
-                      setHojaCabecera({
-                        clave: claveGrupo,
-                        grupo: grupo.clave,
-                        etiquetas: { ...(propio?.etiquetas || grupo.etiquetas) },
-                        oculto: false,
-                        orden: propio?.orden ?? 1000 + indiceGrupo,
-                      });
-                    },
-                  })}
-                  {suyos.map((campo) =>
-                    filaAjuste({
-                      id: campo.clave,
-                      titulo: etiqueta(campo.clave),
-                      detalle: t("lesiones.ajustes.porDefecto", { texto: campo.etiquetas[idioma] || campo.etiquetas["es-AR"] }),
-                      extra: campoOculto(campo.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
+            <div className="lista-opciones">
+              {GRUPOS.map((grupo, indiceGrupo) => {
+                const suyos = CAMPOS.filter((campo) => campo.grupo === grupo.clave);
+                const claveGrupo = claveDeGrupo(grupo.clave);
+                return (
+                  <React.Fragment key={grupo.clave}>
+                    {filaAjuste({
+                      id: claveGrupo,
+                      clase: "lesiones-ajuste-grupo",
+                      titulo: etiquetaDeGrupo(grupo.clave, config, idioma),
+                      detalle: plural("lesiones.ajustes.grupoDe", suyos.length),
                       alTocar: () => {
                         setErrorHoja("");
-                        const propio = config?.campos?.[campo.clave];
+                        const propio = config?.campos?.[claveGrupo];
                         setHojaCabecera({
-                          clave: campo.clave,
-                          etiquetas: { ...(propio?.etiquetas || campo.etiquetas) },
-                          oculto: Boolean(propio?.oculto),
-                          orden: propio?.orden ?? CAMPOS.indexOf(campo),
+                          clave: claveGrupo,
+                          grupo: grupo.clave,
+                          etiquetas: { ...(propio?.etiquetas || grupo.etiquetas) },
+                          oculto: false,
+                          orden: propio?.orden ?? 1000 + indiceGrupo,
                         });
                       },
-                    }),
-                  )}
-                </React.Fragment>
-              );
-            })}
+                    })}
+                    {suyos.map((campo) =>
+                      filaAjuste({
+                        id: campo.clave,
+                        titulo: etiqueta(campo.clave),
+                        detalle: t("lesiones.ajustes.porDefecto", { texto: campo.etiquetas[idioma] || campo.etiquetas["es-AR"] }),
+                        extra: campoOculto(campo.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
+                        alTocar: () => {
+                          setErrorHoja("");
+                          const propio = config?.campos?.[campo.clave];
+                          setHojaCabecera({
+                            clave: campo.clave,
+                            etiquetas: { ...(propio?.etiquetas || campo.etiquetas) },
+                            oculto: Boolean(propio?.oculto),
+                            orden: propio?.orden ?? CAMPOS.indexOf(campo),
+                          });
+                        },
+                      }),
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
             </div>
@@ -1049,16 +1051,18 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
               titulo={etiqueta(clave)}
               texto={CAMPOS_DEL_CUERPO.includes(clave) ? `${plural("lesiones.ajustes.opciones", todas.length)}. ${t("lesiones.ajustes.seUbicanSolas")}` : plural("lesiones.ajustes.opciones", todas.length)}
             />
-            {todas.map((opcion) =>
-              filaAjuste({
-                id: opcion.valor,
-                titulo: opcion.etiqueta,
-                // En las listas del cuerpo, dónde va cada una.
-                detalle: dondeVa(clave, opcion.valor) || (opcion.oculto ? t("lesiones.ajustes.oculto") : t("lesiones.ajustes.mostrar")),
-                extra: opcion.oculto ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
-                alTocar: () => abrirOpcion(opcion),
-              }),
-            )}
+            <div className="lista-opciones">
+              {todas.map((opcion) =>
+                filaAjuste({
+                  id: opcion.valor,
+                  titulo: opcion.etiqueta,
+                  // En las listas del cuerpo, dónde va cada una.
+                  detalle: dondeVa(clave, opcion.valor) || (opcion.oculto ? t("lesiones.ajustes.oculto") : t("lesiones.ajustes.mostrar")),
+                  extra: opcion.oculto ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
+                  alTocar: () => abrirOpcion(opcion),
+                }),
+              )}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("listas")}>{t("lesiones.ajustes.volverListas")}</BotonVolver>
               <button type="button" className="boton-principal" onClick={() => abrirOpcion(null)} disabled={!campo}>
@@ -1075,14 +1079,16 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         <div className="app">
           <div className="contenedor">
             <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.listas")} texto={t("lesiones.ajustes.listasAyuda")} />
-            {CAMPOS_CON_LISTA.map((campo) =>
-              filaAjuste({
-                id: campo.clave,
-                titulo: etiqueta(campo.clave),
-                detalle: plural("lesiones.ajustes.opciones", opcionesDeCampo(campo.clave, config, idioma).length),
-                alTocar: () => setVistaAjustes(`lista:${campo.clave}`),
-              }),
-            )}
+            <div className="lista-opciones">
+              {CAMPOS_CON_LISTA.map((campo) =>
+                filaAjuste({
+                  id: campo.clave,
+                  titulo: etiqueta(campo.clave),
+                  detalle: plural("lesiones.ajustes.opciones", opcionesDeCampo(campo.clave, config, idioma).length),
+                  alTocar: () => setVistaAjustes(`lista:${campo.clave}`),
+                }),
+              )}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
             </div>
@@ -1096,20 +1102,22 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         <div className="contenedor">
           <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.titulo")} texto={t("lesiones.ajustes.texto")} />
           <AvisoSoloLectura hasta={equipo?.hasta} />
-          {filaAjuste({
-            id: "cabeceras",
-            icono: "documento",
-            titulo: t("lesiones.ajustes.cabeceras"),
-            detalle: t("lesiones.ajustes.cabecerasTexto"),
-            alTocar: () => setVistaAjustes("cabeceras"),
-          })}
-          {filaAjuste({
-            id: "listas",
-            icono: "filtro",
-            titulo: t("lesiones.ajustes.listas"),
-            detalle: t("lesiones.ajustes.listasTexto"),
-            alTocar: () => setVistaAjustes("listas"),
-          })}
+          <div className="lista-opciones">
+            {filaAjuste({
+              id: "cabeceras",
+              icono: "documento",
+              titulo: t("lesiones.ajustes.cabeceras"),
+              detalle: t("lesiones.ajustes.cabecerasTexto"),
+              alTocar: () => setVistaAjustes("cabeceras"),
+            })}
+            {filaAjuste({
+              id: "listas",
+              icono: "filtro",
+              titulo: t("lesiones.ajustes.listas"),
+              detalle: t("lesiones.ajustes.listasTexto"),
+              alTocar: () => setVistaAjustes("listas"),
+            })}
+          </div>
         </div>
       </div>
     );

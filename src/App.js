@@ -253,7 +253,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.16.7";
+const APP_VERSION = "2026.10.16.8";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
@@ -6637,36 +6637,38 @@ export default function App({
 
         <AvisoSoloLectura hasta={equipoGuardado?.hasta} />
 
-        <button
-          type="button"
-          className="opcion-ajuste"
-          disabled={soloLectura}
-          onClick={() => setVistaAjustes("equipo")}
-        >
-          <span className="icono-ajuste">
-            <Icono nombre="escudo" size={18} />
-          </span>
-          <span className="texto-ajuste">
-            <b>Equipo</b>
-            <span>{equipoPropio}</span>
-          </span>
-          <span className="flecha-ajuste">›</span>
-        </button>
+        <div className="lista-opciones">
+          <button
+            type="button"
+            className="opcion-ajuste"
+            disabled={soloLectura}
+            onClick={() => setVistaAjustes("equipo")}
+          >
+            <span className="icono-ajuste">
+              <Icono nombre="escudo" size={18} />
+            </span>
+            <span className="texto-ajuste">
+              <b>Equipo</b>
+              <span>{equipoPropio}</span>
+            </span>
+            <span className="flecha-ajuste">›</span>
+          </button>
 
-        <button
-          type="button"
-          className="opcion-ajuste"
-          onClick={pedirVaciarEscudos}
-        >
-          <span className="icono-ajuste">
-            <Icono nombre="refrescar" size={18} />
-          </span>
-          <span className="texto-ajuste">
-            <b>Escudos</b>
-            <span>Volver a bajarlos si alguno quedó mal</span>
-          </span>
-          <span className="flecha-ajuste">›</span>
-        </button>
+          <button
+            type="button"
+            className="opcion-ajuste"
+            onClick={pedirVaciarEscudos}
+          >
+            <span className="icono-ajuste">
+              <Icono nombre="refrescar" size={18} />
+            </span>
+            <span className="texto-ajuste">
+              <b>Escudos</b>
+              <span>Volver a bajarlos si alguno quedó mal</span>
+            </span>
+            <span className="flecha-ajuste">›</span>
+          </button>
+        </div>
 
         {avisoEscudos && (
           <div className="notificacion-guardado" role="status">
