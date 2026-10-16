@@ -53,20 +53,19 @@ describe("Por jugador", () => {
     const dos = informePorJugador(FILAS(), { comparaciones: [{ filtros: { nombre: ["jugador:1", "jugador:2"] } }] });
     expect(dos.comparaciones[0].filas.every((una) => una.cargaCronica.suma === null)).toBe(true);
   });
-  test("Mi selección: las franjas de cada comparación, con sus microciclos (cada jugador contra sí mismo, a 2 desvíos)", () => {
+  test("Mi selección: unas solas franjas, con todos los microciclos de todas las comparaciones (a 2 desvíos)", () => {
     const informe = informePorJugador(FILAS(), { comparaciones: [{ filtros: { nombre: ["jugador:1"] } }, { filtros: { nombre: ["jugador:2"] } }], asignaciones });
-    const [a, b] = informe.comparaciones;
-    expect(a.franjas.variables.d.bueno).toBe(2500);
-    expect(b.franjas.variables.d.bueno).toBe(2500);
-    const desvioA = a.franjas.variables.d.desvio;
-    expect(a.franjas.variables.d.excelente).toBeCloseTo(2500 + 2 * desvioA, 9);
-    expect(b.franjas.variables.d.desvio).not.toBeCloseTo(desvioA, 3);
+    // D: 800, 1500, 3300 y 4400 de A; 1200, 2500, 2700 y 3600 de B.
+    const d = informe.general.variables.d;
+    expect(d.bueno).toBe(2500);
+    expect(d.desvio).toBeCloseTo(Math.sqrt(11080000 / 7), 9);
+    expect(d.excelente).toBeCloseTo(2500 + 2 * d.desvio, 9);
     // La U.A., al revés (lo bajo es Excelente).
-    expect(a.franjas.ua.suma.excelente).toBeLessThan(a.franjas.ua.suma.bueno);
+    expect(informe.general.ua.suma.excelente).toBeLessThan(informe.general.ua.suma.bueno);
   });
   test("Valor referencial: las del V.R. de cada fila; la fila de la comparación, con el de su último microciclo", () => {
     const informe = informePorJugador(FILAS(), { categorizacion: "valorReferencial", comparaciones: [{ filtros: { nombre: ["jugador:1"] } }], asignaciones });
-    expect(informe.comparaciones[0].franjas).toBeNull();
+    expect(informe.general).toBeNull();
     expect(informe.tablas[0].variables.d.bueno).toBe(2000);
     expect(informe.comparaciones[0].resumen.asignacion).toBe(0);
   });

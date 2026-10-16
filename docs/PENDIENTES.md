@@ -2093,21 +2093,22 @@ bloque. Santiago respondió en un cuestionario:
   cuando todas las comparaciones tienen jugadores elegidos en Nombre (sin el promedio del
   equipo); si no, queda «Mi selección», como en Por microciclo.
 - **Se pinta**: «es al reves, por jugador si se pinta con las categorias y por tarea no se
-  pinta con nada». Con «Mi selección», cada comparación con sus franjas, encima de su fila, como
-  el archivo (la U.A. y la carga crónica, al revés, como en Por microciclo). La pregunta de
-  cómo hacerlo («una por comparación» o «unas solas para todo») se respondió con lo de Por
-  tarea; se hizo como el archivo y la opción recomendada, y queda para confirmar con Santiago.
-  Con «Valor referencial», cada fila con el V.R. de su dispositivo (la de la comparación, con
-  el de su último microciclo) y las franjas del V.R. arriba, con «Ver las de …» si hay más de
-  uno. Con «Objetivo», cada microciclo con las suyas: no hay unas franjas para mostrar, así
-  que tampoco va el botón «Franjas».
+  pinta con nada». Con «Mi selección», unas solas franjas arriba de la tabla, con el promedio
+  y el desvío de todos los microciclos de todas las comparaciones (la U.A. y la carga crónica,
+  al revés, como en Por microciclo). Primero se hizo como el archivo, unas por comparación
+  encima de su fila (PR #295), porque la pregunta se había respondido con lo de Por tarea;
+  **cambiado el mismo 16/10** (Santiago, en un cuestionario: «Unas solas para todo»).
+  Descartado: unas franjas por comparación. Con «Valor referencial», cada fila con el V.R. de
+  su dispositivo (la de la comparación, con el de su último microciclo) y las franjas del V.R.
+  arriba, con «Ver las de …» si hay más de uno. Con «Objetivo», cada microciclo con las suyas:
+  no hay unas franjas para mostrar, así que tampoco va el botón «Franjas».
 - **El diseño**: como Por tarea («Tarjetas que sumás»): una tarjeta por comparación con su
   letra en dorado y sus seis filtros, «+ Otra comparación» hasta 5, quitar cada una, «Limpiar
   filtros» para todas; al entrar, una comparación con Condición «Total». En el informe, los
   mismos controles que Por microciclo, «Filtros» con las mismas tarjetas, «Columnas» y
-  «Franjas», y una sola tabla: de cada comparación, sus franjas (con «Mi selección»), su fila
-  (su letra y el jugador elegido, o «Todos los nombres») y una por microciclo. Sin el promedio
-  de todas arriba (el archivo no lo tiene).
+  «Franjas», y una sola tabla: arriba el V.R. y las franjas; de cada comparación, su fila (su
+  letra y el jugador elegido, o «Todos los nombres») y una por microciclo. Sin el promedio de
+  todas arriba (el archivo no lo tiene).
 - **Las columnas**: como Por microciclo sin VS RIVAL (el archivo no lo tiene acá): N° Sesiones,
   N° Descanso, U.A., carga crónica (solo con un jugador elegido en la comparación: la de su
   tabla de carga en ese microciclo), los índices y las variables. En la fila de la comparación,
@@ -2117,9 +2118,9 @@ bloque. Santiago respondió en un cuestionario:
   `src/Gps.smoke.test.jsx`). Las cuentas de cada fila son las de Por microciclo, que se
   comprobaron contra el archivo.
 
-Descartado en Por jugador: las cinco comparaciones fijas, los 1,5 desvíos de B a E, el desvío
-de Total y el V.R. de B a E tomados de otra tabla y otra hoja, y los microciclos de antes del 17
-aparte.
+Descartado en Por jugador: las cinco comparaciones fijas, unas franjas por comparación, los 1,5
+desvíos de B a E, el desvío de Total y el V.R. de B a E tomados de otra tabla y otra hoja, y los
+microciclos de antes del 17 aparte.
 
 **La presentación, los colores y ocultar (15/10, después de verlo con los datos del club).**
 Santiago mandó una captura del informe con: «1. NECESITO QUE HAGAS MUCHO HINCAPIE EN LA MANERA

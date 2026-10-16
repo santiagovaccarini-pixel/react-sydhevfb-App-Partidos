@@ -1,4 +1,4 @@
-import React, { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
@@ -56,10 +56,10 @@ import { fechaCorta } from "./idioma/formatos.js";
 //
 // Por jugador (domain/gps/porJugador.js), igual que Por tarea, con los
 // filtros de Por jugador (Nombre, Microciclo, Fecha, Tipo de Sesión,
-// Condición y Clasificación Días) y pintado: con «Mi selección», cada
-// comparación con sus franjas arriba de sus filas; con «Valor referencial»,
-// las del V.R. arriba de la tabla; con «Objetivo», cada microciclo con el
-// suyo.
+// Condición y Clasificación Días) y pintado: con «Mi selección», unas solas
+// franjas de todo lo que se ve; con «Valor referencial», las del V.R. de
+// cada fila; las dos, arriba de la tabla. Con «Objetivo», cada microciclo
+// con el suyo.
 
 const FRANJAS = ["excelente", "muyBueno", "bueno", "regular", "malo", "desvio"];
 const SIN_ELEGIR = [];
@@ -688,23 +688,21 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     ...COLUMNAS_MEDIDAS,
   ];
   // Por jugador: las franjas de cada celda según la categorización (con «Mi
-  // selección», las de su comparación; con «Valor referencial», las de su
-  // V.R.; con «Objetivo», las de su microciclo). franjasDeBloque(c): las de
-  // la comparación c, para sus filas de franjas.
+  // selección», las de todo; con «Valor referencial», las de su V.R.; con
+  // «Objetivo», las de su microciclo).
   const DONDE_ESTAN = { uaSuma: ["ua", "suma"], uaPromedio: ["ua", "promedio"], ccSuma: ["ua", "cronicaSuma"], ccPromedio: ["ua", "cronicaPromedio"] };
   const dondeEsta = (clave) => DONDE_ESTAN[clave] || (clave.startsWith("variable:") ? ["variables", clave.slice(9)] : ["indices", clave]);
   const conFranjasDeJugador = (columna) => {
     if (!columna.color) return columna;
     const [grupo, clave] = dondeEsta(columna.clave);
-    const deBloque = (c) => informe.comparaciones[c]?.franjas?.[grupo]?.[clave] ?? null;
+    const deTodas = informe.general?.[grupo]?.[clave] ?? null;
     return {
       ...columna,
-      franjas: categorizacionVista === "valorReferencial" ? (tabla?.[grupo]?.[clave] ?? null) : null,
-      franjasDeBloque: deBloque,
+      franjas: categorizacionVista === "valorReferencial" ? (tabla?.[grupo]?.[clave] ?? null) : deTodas,
       franjasDeFila: (fila) => {
         if (categorizacionVista === "objetivo") return fila.franjas?.[grupo]?.[clave] ?? null;
         if (categorizacionVista === "valorReferencial") return tablaDe(fila)?.[grupo]?.[clave] ?? null;
-        return deBloque(fila.c);
+        return deTodas;
       },
     };
   };
@@ -811,7 +809,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
         ...(conResumen > 1 && informe.general ? [{ ...informe.general, tipoDeFila: "general" }] : []),
         ...informe.comparaciones.flatMap((bloque, c) => [
           { ...(bloque.resumen || { clave: `${bloque.letra}:resumen`, vacia: true }), tipoDeFila: "comparacion", bloque, c },
-          ...bloque.filas.map((fila) => ({ ...fila, tipoDeFila: "microciclo", c })),
+          ...bloque.filas.map((fila) => ({ ...fila, tipoDeFila: "microciclo" })),
         ]),
       ]
     : filas;
@@ -835,19 +833,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
           texto: t("gps.reportes.franjas.vrDe", { vr: repetido(una) ? nombreDeVr(una.vr) : nombreDelDispositivo(una.vr.dispositivo) }),
         }))
       : [{ clave: "franja:vr", franja: "vr", vr: tabla.vr, texto: t("gps.reportes.franjas.vr") }];
-  // Por jugador, arriba solo las del V.R. (con «Valor referencial»): con «Mi
-  // selección», cada comparación tiene las suyas, encima de su fila (como el
-  // archivo: cada jugador contra sí mismo); con «Objetivo», cada microciclo
-  // tiene las suyas y no hay unas para mostrar.
-  const conFranjasArriba = !porTarea && (!porJugador || categorizacionVista === "valorReferencial");
-  const filasDeFranjas = franjasOcultas || !conFranjasArriba ? [] : FRANJAS.map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
-  const franjasAVista = [...filasDelVr, ...filasDeFranjas];
-  const franjasDelBloque = (c) =>
-    porJugador && categorizacionVista === "miSeleccion" && !franjasOcultas && informe.comparaciones[c]?.franjas
-      ? FRANJAS.map((franja) => ({ clave: `franja:${LETRAS[c]}:${franja}`, franja, c, texto: t(`gps.reportes.franjas.${franja}`) }))
-      : [];
-  // El botón «Franjas», cuando hay franjas para ocultar.
+  // Por jugador con «Objetivo», cada microciclo tiene las suyas y no hay unas
+  // para mostrar (ni el botón «Franjas»).
   const conBotonDeFranjas = !porTarea && !(porJugador && categorizacionVista === "objetivo");
+  const filasDeFranjas = franjasOcultas || !conBotonDeFranjas ? [] : FRANJAS.map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
+  const franjasAVista = [...filasDelVr, ...filasDeFranjas];
   const cuantasOcultas = columnasOcultas.filter((clave) => COLUMNAS.some((columna) => columna.clave === clave)).length;
 
   const abrirColumnas = () => {
@@ -869,13 +859,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   };
   // En las franjas, cada número pintado con el color que toma lo que cae ahí
   // (Santiago, 15/10, con una imagen: la celda entera, no un punto al lado).
-  // c: la comparación (Por jugador), con las franjas de esa comparación.
-  const celdaDeFranja = (columna, { franja, vr, c }) => {
+  const celdaDeFranja = (columna, { franja, vr }) => {
     if (franja === "vr") return <td key={columna.clave}>{columna.vr ? columna.vr(vr) || vacio : ""}</td>;
-    const franjas = c === undefined ? columna.franjas : columna.franjasDeBloque ? columna.franjasDeBloque(c) : null;
-    if (!franjas) return <td key={columna.clave} />;
-    const valor = franjas[franja];
-    const color = franja !== "desvio" && columna.color ? columna.color(valor, franjas) : null;
+    const valor = columna.franjas ? columna.franjas[franja] : null;
+    if (!columna.franjas) return <td key={columna.clave} />;
+    const color = franja !== "desvio" && columna.color ? columna.color(valor, columna.franjas) : null;
     const texto = columna.texto(valor);
     return (
       <td key={columna.clave} className={color ? "pintada" : undefined} style={color ? { background: color } : undefined}>
@@ -1126,21 +1114,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
                   </tr>
                 </thead>
                 {franjasAVista.length > 0 && <tbody className="gps-informe-franjas">{franjasAVista.map(filaDeFranja)}</tbody>}
-                {porJugador ? (
-                  // Por jugador: de cada comparación, sus franjas (con «Mi
-                  // selección»), su fila y sus microciclos.
-                  informe.comparaciones.map((bloque, c) => {
-                    const susFranjas = franjasDelBloque(c);
-                    return (
-                      <Fragment key={bloque.letra}>
-                        {susFranjas.length > 0 && <tbody className="gps-informe-franjas gps-jugador-franjas">{susFranjas.map(filaDeFranja)}</tbody>}
-                        <tbody className="gps-informe-filas">{filasDeLaTabla.filter((fila) => fila.c === c).map(filaDeLaTabla)}</tbody>
-                      </Fragment>
-                    );
-                  })
-                ) : (
-                  <tbody className="gps-informe-filas">{filasDeLaTabla.map(filaDeLaTabla)}</tbody>
-                )}
+                <tbody className="gps-informe-filas">{filasDeLaTabla.map(filaDeLaTabla)}</tbody>
               </table>
             </div>
           </section>

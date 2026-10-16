@@ -32,9 +32,10 @@ import { LETRAS, MAXIMO_DE_COMPARACIONES, filasPorMicrocicloDe } from "./porTare
 // microciclo (si la comparación es de un solo jugador, como la tabla de
 // carga del archivo), los índices, los % del V.R. de su dispositivo y las
 // variables. Se pinta («por jugador si se pinta con las categorias»):
-//   · «Mi selección»: cada comparación con sus franjas, el promedio y el
-//     desvío de sus microciclos (como el archivo: cada jugador contra sí
-//     mismo), a 2 desvíos (el archivo usaba 1,5 en B a E).
+//   · «Mi selección»: unas solas franjas, con el promedio y el desvío de
+//     todos los microciclos de todas las comparaciones, a 2 desvíos
+//     (Santiago, 16/10: «Unas solas para todo»; el archivo ponía unas por
+//     comparación, y en B a E a 1,5 desvíos).
 //   · «Valor referencial»: cada fila, las del V.R. de su dispositivo.
 //   · «Objetivo»: cada microciclo, el del equipo en ese microciclo (el
 //     promedio del Team Average de sus sesiones y el desvío de los
@@ -87,10 +88,10 @@ const promedioDeGrupos = (lista, claves) => Object.fromEntries(claves.map((clave
 // Todo «Por jugador». opciones: { comparaciones: [{ filtros }], tipoVariable,
 // visualizacion, categorizacion, asignaciones (los V.R. elegidos, como en Por
 // microciclo) }. Devuelve { comparaciones: [{ letra, filtros, filas,
-// resumen, franjas }], tablas }. franjas: las de la comparación con «Mi
-// selección» ({ indices, variables, ua }); con «Objetivo», cada fila (y su
-// resumen) trae las suyas en `franjas`; con «Valor referencial», las de cada
-// V.R. están en tablas.
+// resumen }], general, tablas, categorizacion }. general: con «Mi
+// selección», las franjas de todo ({ indices, variables, ua }); con
+// «Objetivo», cada fila (y su resumen) trae las suyas en `franjas`; con
+// «Valor referencial», las de cada V.R. están en tablas.
 export const informePorJugador = (filasGps, opciones = {}) => {
   const { comparaciones = [{ filtros: {} }], tipoVariable = "absolutas", visualizacion = "promedio", asignaciones = [] } = opciones;
   const pedidas = comparaciones.slice(0, MAXIMO_DE_COMPARACIONES);
@@ -132,25 +133,27 @@ export const informePorJugador = (filasGps, opciones = {}) => {
       resumen.asignacion = ultima ? ultima.asignacion : -1;
       if (categorizacion === "objetivo") resumen.franjas = { indices: promedioDeGrupos(filas.map((fila) => fila.franjas?.indices), CLAVES_DE_INDICE), variables: promedioDeGrupos(filas.map((fila) => fila.franjas?.variables), claves) };
     }
-    const franjas =
-      categorizacion === "miSeleccion" && filas.length
-        ? {
-            ...franjasDeTodo(filas, { categorizacion, tipoVariable, visualizacion }),
-            ua: {
-              suma: franjasAlReves(filas.map((fila) => fila.sumas.ua)),
-              promedio: franjasAlReves(filas.map((fila) => fila.promedios.ua)),
-              cronicaSuma: franjasAlReves(filas.map((fila) => fila.cargaCronica.suma)),
-              cronicaPromedio: franjasAlReves(filas.map((fila) => fila.cargaCronica.promedio)),
-            },
-          }
-        : null;
-    return { letra: LETRAS[c], filtros, jugador, filas, resumen, franjas };
+    return { letra: LETRAS[c], filtros, jugador, filas, resumen };
   });
   const todas = bloques.flatMap((bloque) => bloque.filas);
+  // Mi selección: las de todos los microciclos de todas las comparaciones
+  // (la U.A. y la carga crónica, al revés, como en Por microciclo).
+  const general =
+    categorizacion === "miSeleccion" && todas.length
+      ? {
+          ...franjasDeTodo(todas, { categorizacion, tipoVariable, visualizacion }),
+          ua: {
+            suma: franjasAlReves(todas.map((fila) => fila.sumas.ua)),
+            promedio: franjasAlReves(todas.map((fila) => fila.promedios.ua)),
+            cronicaSuma: franjasAlReves(todas.map((fila) => fila.cargaCronica.suma)),
+            cronicaPromedio: franjasAlReves(todas.map((fila) => fila.cargaCronica.promedio)),
+          },
+        }
+      : null;
   const tablas = asignaciones.map((asignacion, a) => ({
     asignacion: a,
     vr: asignacion.referencia || null,
     ...(categorizacion === "valorReferencial" ? franjasDeTabla(todas.filter((fila) => fila.asignacion === a), asignacion.referencia, { categorizacion, tipoVariable, visualizacion }) : {}),
   }));
-  return { comparaciones: bloques, tablas, categorizacion };
+  return { comparaciones: bloques, general, tablas, categorizacion };
 };
