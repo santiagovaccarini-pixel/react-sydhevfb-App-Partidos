@@ -1617,6 +1617,9 @@ describe("interfaz operativa", () => {
 
     await act(async () => pestana("Formación").click());
 
+    // El banco, con la misma grilla que al cargar la formación (16/10).
+    expect(contenedor.querySelector(".grilla-plantel .fila-plantel")).not.toBeNull();
+
     const puestoDe = (nombre) =>
       Array.from(contenedor.querySelectorAll(".pista .puesto-cancha")).find(
         (puesto) => puesto.textContent.includes(nombre),

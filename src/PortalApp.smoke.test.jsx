@@ -244,8 +244,12 @@ describe("el portal", () => {
   });
 
   test("al tocar Partido muestra la portada con su foto y entra sin la intro", async () => {
+    const subir = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     await montar();
     await tocar("Entrar a Partido");
+    // El módulo arranca arriba, no donde estaba el portal.
+    expect(subir).toHaveBeenCalledWith(0, 0);
+    subir.mockRestore();
 
     // La portada tapa la pantalla: atrás la foto de la tarjeta borrosa, adelante
     // la misma foto entera y el nombre...

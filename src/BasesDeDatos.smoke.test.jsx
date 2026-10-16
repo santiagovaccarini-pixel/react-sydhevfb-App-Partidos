@@ -154,8 +154,12 @@ describe("Bases de Datos", () => {
   });
 
   test("al tocar una base: la portada encima, la base abajo y su botón vuelve a las bases", async () => {
+    const subir = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     await montar();
     await act(async () => tarjetas()[0].click());
+    // La base arranca arriba, no donde estaban las tarjetas.
+    expect(subir).toHaveBeenCalledWith(0, 0);
+    subir.mockRestore();
 
     const portada = contenedor.querySelector(".portal-portada");
     expect(portada.classList.contains("tarjeta-lesiones")).toBe(true);

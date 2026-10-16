@@ -125,6 +125,8 @@ export default function BasesDeDatos({ permisos, userId, email, onVolver, onTarj
     portadas.current += 1;
     setPortada({ tarjeta: elegida, desde, numero: portadas.current });
     setAbierta(elegida.modo);
+    // La base arranca arriba (16/10, al relevar el espacio).
+    if (typeof window !== "undefined" && typeof window.scrollTo === "function") window.scrollTo(0, 0);
   };
 
   const volverALasBases = () => {

@@ -305,6 +305,12 @@
 .gps-marco .gps-cargar-grupo-campos > .gps-cargar-largo {
   flex: 1 1 100%;
   min-width: 0;
+  /* Lo elegido no ensancha la página: en el celular, la caja se corría
+     de costado (16/10, al relevar el espacio); lo largo termina en «…». */
+  grid-template-columns: minmax(0, 1fr);
+}
+.gps-marco .gps-cargar-grupo-campos > .gps-cargar-largo > .selector-hoja {
+  width: 100%;
 }
 /* Lo escrito, copiado y escondido en el mismo lugar y con el mismo ancho, le
    da el alto a la caja: un renglón más recién cuando el texto llega al borde

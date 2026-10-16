@@ -1769,17 +1769,17 @@
   margin: 10px 16px 0;
 }
 /* Flujo diario con el servidor de OpenField caído: se trabaja igual, con un
-   aviso arriba para volver a probar. */
+   aviso arriba para volver a probar. Ocupa su lugar y corre lo de abajo (16/10,
+   al relevar el espacio: flotando, tapaba «Módulos» en el celular). */
 .aviso-openfield-caido {
-  position: fixed;
-  top: calc(10px + env(safe-area-inset-top, 0px));
-  left: 50%;
+  position: relative;
   z-index: 60;
   display: flex;
   align-items: center;
   gap: 10px;
   width: max-content;
-  max-width: calc(100vw - 32px);
+  max-width: calc(100% - 32px);
+  margin: calc(10px + env(safe-area-inset-top, 0px)) auto 0;
   padding: 8px 8px 8px 14px;
   border: 1px solid rgba(240, 201, 120, 0.55);
   border-radius: 14px;
@@ -1789,7 +1789,6 @@
   font-size: 13px;
   font-weight: 700;
   line-height: 1.35;
-  transform: translateX(-50%);
 }
 .aviso-openfield-caido button {
   flex: none;
