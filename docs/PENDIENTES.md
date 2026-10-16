@@ -1848,6 +1848,19 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   V.R., un solo botón («Ver las de …») pasa las franjas de uno a otro. (Desde el 15/10, otra
   presentación, todas las columnas pintadas y ocultar a mano: ver «La presentación, los colores
   y ocultar», abajo.)
+- **Los filtros, también dentro del informe (16/10).** Santiago: «necesito que ahora la pantalla de filtros salga dentro de informes despues de la actual
+  pantalla de filtrado, haces una flechita hacia arriba que diga filtros y eso revela los
+  filtros pero no te saca de la pantalla, despues podes volver a ocultarlo tocando la misma
+  flecha».
+  El paso 1 (los filtros) sigue igual. En el informe, arriba, la tarjeta «Filtros» (una flecha
+  para arriba y lo que se filtró) abre ahí mismo los mismos filtros, con «Limpiar filtros» y
+  cuántas filas quedan; el informe cambia sin salir de la pantalla y, tocándola otra vez, se
+  cierran (abiertos, la flecha mira para abajo; al entrar al informe, cerrados). Al cambiar
+  los filtros ahí, los V.R. se revisan como al pasar de los filtros al informe: siguen si
+  alguno vale para lo filtrado; si no, van los de entrada. «‹ Informe» vuelve a «Ver
+  informes» (antes, «‹ Filtros» volvía al paso 1, saliendo del informe). Lo de la flecha que
+  gira al abrir lo propuso Claude. Vale para los tres informes (Por tarea y Por jugador,
+  cuando se hagan).
 - **VS RIVAL**: en el promedio del equipo, el TOTAL de cada partido oficial del microciclo, en
   orden de fecha (Santiago: «toma la descripción donde la condicion sea total»); un partido sin
   TOTAL no va, como en el archivo. Comprobado con los datos del club: da igual que el archivo en
