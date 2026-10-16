@@ -10,6 +10,10 @@ mantiene un borrador local mientras sincroniza el partido con Supabase.
   para explicar cambios en lenguaje simple.
 - [Sistema de diseño](docs/DESIGN_SYSTEM.md): criterios visuales, mobile-first y
   reutilización de componentes.
+- [Skill sports-ux-ui](.claude/skills/sports-ux-ui/SKILL.md): diseño de informes,
+  tablas y dashboards con la estética del proyecto.
+- [Claude Code Cloud](docs/CLAUDE_CODE_CLOUD.md): cómo cargar y probar estas
+  instrucciones desde el repositorio.
 - [Decisiones de interfaz](docs/UI_DECISIONS.md): índice de decisiones cerradas y
   cómo registrar descartes sin duplicar la documentación existente.
 - [Pendientes y acuerdos del producto](docs/PENDIENTES.md): conservar sus decisiones;

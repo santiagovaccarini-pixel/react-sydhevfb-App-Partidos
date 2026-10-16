@@ -144,6 +144,106 @@ Las tablas que ya están conservan su estilo hasta que Santiago decida llevarles
 («Despues lo vemos», 15/10). Los colores suaves y ocultar columnas y filas sí van en toda la
 app (ver `PENDIENTES.md`, «Toda la app: presentación, colores suaves y ocultar»).
 
+## Preferencia visual y aplicación de la Skill (16/10)
+
+El pedido del 16/10 para configurar Claude Code Cloud define esta dirección:
+**premium, limpia, intuitiva y consistente, con datos legibles y navegación simple**,
+tomando como referencia la estética de informes de lesiones, tablas y dashboards.
+Premium se expresa en jerarquía, proporciones, alineación y cuidado de los detalles;
+no requiere más tarjetas, efectos ni información.
+
+Estos criterios amplían esta misma fuente de diseño. La Skill
+[sports-ux-ui](../.claude/skills/sports-ux-ui/SKILL.md) los aplica al trabajo pedido;
+no convierte propuestas pendientes en decisiones cerradas ni autoriza un rediseño
+general. Las reglas específicas de cada módulo conservan su alcance.
+
+### Estándar por defecto para todo trabajo de interfaz
+
+El usuario indica qué necesita lograr. Claude aplica estos criterios sin exigir
+un pedido adicional de diseño ni una lista de ajustes por pantalla, tanto al
+crear una función con interfaz como al mejorar una existente:
+
+1. **Entender al entrar.** La pantalla deja claro dónde estás, qué muestra y cuál
+   es el siguiente paso, con el contexto mínimo necesario.
+2. **Leer y comparar sin esfuerzo.** Jerarquía tipográfica, alineación, espacio y
+   contraste ordenan la información. La densidad acompaña la tarea; no se ocultan
+   datos útiles para que la pantalla parezca más limpia.
+3. **Actuar con claridad.** Acciones principales reconocibles, controles con
+   nombres comprensibles, regreso previsible y estados que explican qué pasó.
+4. **Reconocer el mismo producto.** Mismos patrones para tareas equivalentes,
+   componentes existentes y significado consistente de colores, íconos y palabras.
+5. **Funcionar en el contexto real.** Celular, escritorio, teclado, traducciones
+   y estados afectados forman parte de la entrega. Impresión cuando corresponda.
+
+Antes de cerrar, evaluá el resultado con esos cinco criterios y corregí los
+problemas dentro del alcance autorizado. No hace falta agregar elementos nuevos
+para cumplirlos. El estándar no dispara rediseños de pantallas ajenas al pedido.
+Los acuerdos particulares permanecen en UI_DECISIONS y PENDIENTES, sin copiarlos
+a cada nueva instrucción.
+
+### Referencias y valores existentes
+
+Antes de elegir valores, buscá la clase que usa la pantalla. Los siguientes son
+ejemplos existentes, no un tema nuevo que deba imponerse a todos los módulos:
+
+| Elemento | Fuente actual | Criterio de uso |
+| --- | --- | --- |
+| Tipografía de interfaz | `src/style.css`: Inter con Arial/sans-serif de respaldo | Conservá la familia y la escala del módulo; no agregues fuentes por estética. |
+| Reportes de Lesiones | `src/lesiones.css`: Roboto Condensed en partes del reporte | Conservá su densidad y sus estilos de impresión; no cambies toda la app a esta fuente. |
+| Superficies oscuras del Informe GPS | «La presentación», arriba; `src/gps.css` | Fondo `#0f172a`, bordes discretos y esquinas de 16 px donde ya corresponde. No implica pasar los reportes de Lesiones a oscuro. |
+| Tonos de grupos de tablas | `src/components/tablaDatos.css`: `--grupo-fondo-N` y `--grupo-linea-N` | Reutilizá el par de cada grupo con su significado actual; evitá paletas paralelas. |
+| Franjas y semáforos suaves | `src/domain/colores.js`: `COLORES_SUAVES` y `suave()` | Conservá categorías, umbrales y excepciones de UI-040; no son colores decorativos intercambiables. |
+
+El mapa de calor de Lesiones, sus gráficos y los colores de clases mantienen sus
+reglas propias. Una preferencia estética no cambia el significado de un color.
+
+### Informes y dashboards que se pidan
+
+- Mostrá primero qué se está viendo: título, período, jugador o plantel y filtros
+  aplicados cuando correspondan. Reutilizá el contexto existente sin duplicarlo.
+- Hacé que se distingan el valor, la unidad y la referencia. Un porcentaje necesita
+  una base de comparación comprensible. Conservá precisión, signos y redondeos.
+- Usá solo métricas y gráficos existentes o expresamente pedidos y definidos.
+  Una captura de referencia no autoriza copiar sus números, columnas ni acciones.
+  Si un dato falta, mostrá su ausencia; no lo inventes ni lo conviertas en cero.
+- Una tarjeta de resumen se justifica si aporta una lectura útil y está dentro del
+  pedido. No repitas cada cifra de la tabla en una tarjeta. Consultá las decisiones
+  del módulo para saber qué resúmenes están aprobados y cuáles descartados.
+- Si se afecta la impresión, revisá también la vista de papel: títulos y columnas
+  completos, leyendas legibles y cortes de página útiles. Conservá formato y
+  orientación aprobados, y la regla de que lo oculto no sale al imprimir. Las ayudas
+  interactivas no van al papel. No agregues un botón de exportación por una imagen.
+
+### Tablas y bases de datos legibles
+
+- Conservá el comportamiento de `TablaDatos`: selección, edición, pegado, filtros,
+  orden, tamaños y columnas fijas. Las cabeceras y celdas no se reemplazan por
+  tarjetas si con eso se pierde la comparación entre filas.
+- En tablas anchas, mantené visible la identidad de la fila y la cabecera usando
+  los mecanismos existentes. El desplazamiento queda dentro de la tabla y debe
+  poder operarse con teclado sin bloquear la navegación al resto de la pantalla.
+- Usá cifras de ancho uniforme (`tabular-nums`) donde el módulo lo admite, con
+  unidades en la cabecera o el contexto. Conservá la alineación aprobada de cada
+  tabla; no impongas una alineación universal si contradice su diseño vigente.
+- No reduzcas la letra hasta volverla ilegible para hacer entrar más columnas.
+  Conservá nombres y unidades accesibles cuando un texto deba recortarse.
+- Distinguí vacío, cero y dato faltante según los formatos existentes. Ocultar filas
+  o columnas cambia su visibilidad, no los cálculos; filtrar conserva su propia
+  lógica (UI-039). La cantidad de filas va arriba, sin agregar una columna #.
+
+### Navegación, lectura y estados
+
+- Una acción principal clara por paso y un regreso reconocible con los componentes
+  existentes. Conservá el lugar y el nombre de cada módulo, sus solapas y filtros.
+- Los estados de carga, vacío, error, guardado, sin señal y solo lectura deben
+  explicar qué pasa y qué se puede hacer. No ocultes un fallo con un estado exitoso
+  ni agregues botones sin una acción implementada.
+- Comprobá contraste de texto y controles, foco visible y etiquetas accesibles.
+  No uses solo el color para transmitir un estado o una comparación. Cualquier
+  significado desconocido se consulta en la fuente del dominio, no se deduce del color.
+- Densidad compacta significa quitar repetición y ordenar; no comprimir áreas de
+  toque ni perder información. Revisá nombres largos y ambas traducciones.
+
 ## Revisión antes de entregar
 
 Comprobá que la tarea principal se entiende, los controles se leen y se tocan,
