@@ -157,6 +157,30 @@ Estos criterios amplían esta misma fuente de diseño. La Skill
 no convierte propuestas pendientes en decisiones cerradas ni autoriza un rediseño
 general. Las reglas específicas de cada módulo conservan su alcance.
 
+### Estándar por defecto para todo trabajo de interfaz
+
+El usuario indica qué necesita lograr. Claude aplica estos criterios sin exigir
+un pedido adicional de diseño ni una lista de ajustes por pantalla, tanto al
+crear una función con interfaz como al mejorar una existente:
+
+1. **Entender al entrar.** La pantalla deja claro dónde estás, qué muestra y cuál
+   es el siguiente paso, con el contexto mínimo necesario.
+2. **Leer y comparar sin esfuerzo.** Jerarquía tipográfica, alineación, espacio y
+   contraste ordenan la información. La densidad acompaña la tarea; no se ocultan
+   datos útiles para que la pantalla parezca más limpia.
+3. **Actuar con claridad.** Acciones principales reconocibles, controles con
+   nombres comprensibles, regreso previsible y estados que explican qué pasó.
+4. **Reconocer el mismo producto.** Mismos patrones para tareas equivalentes,
+   componentes existentes y significado consistente de colores, íconos y palabras.
+5. **Funcionar en el contexto real.** Celular, escritorio, teclado, traducciones
+   y estados afectados forman parte de la entrega. Impresión cuando corresponda.
+
+Antes de cerrar, evaluá el resultado con esos cinco criterios y corregí los
+problemas dentro del alcance autorizado. No hace falta agregar elementos nuevos
+para cumplirlos. El estándar no dispara rediseños de pantallas ajenas al pedido.
+Los acuerdos particulares permanecen en UI_DECISIONS y PENDIENTES, sin copiarlos
+a cada nueva instrucción.
+
 ### Referencias y valores existentes
 
 Antes de elegir valores, buscá la clase que usa la pantalla. Los siguientes son
@@ -183,13 +207,8 @@ reglas propias. Una preferencia estética no cambia el significado de un color.
   Una captura de referencia no autoriza copiar sus números, columnas ni acciones.
   Si un dato falta, mostrá su ausencia; no lo inventes ni lo conviertas en cero.
 - Una tarjeta de resumen se justifica si aporta una lectura útil y está dentro del
-  pedido. No repitas cada cifra de la tabla en una tarjeta. En GPS › Informe siguen
-  descartadas las tarjetas de promedios y «vs. microciclo anterior» (UI-038).
-- En el individual de Lesiones, conservá las tarjetas compactas, el porcentaje con
-  signo y la referencia; no devuelvas los puntos ni la leyenda descartados. Su
-  fuente está en PENDIENTES, «El reporte individual de Lesiones, más chico».
-- La mezcla del reporte actual de Lesiones con la imagen oscura y su nueva figura
-  sigue pendiente en UI_DECISIONS. No elijas por tu cuenta sus piezas, tema o mapa.
+  pedido. No repitas cada cifra de la tabla en una tarjeta. Consultá las decisiones
+  del módulo para saber qué resúmenes están aprobados y cuáles descartados.
 - Si se afecta la impresión, revisá también la vista de papel: títulos y columnas
   completos, leyendas legibles y cortes de página útiles. Conservá formato y
   orientación aprobados, y la regla de que lo oculto no sale al imprimir. Las ayudas
@@ -204,8 +223,8 @@ reglas propias. Una preferencia estética no cambia el significado de un color.
   los mecanismos existentes. El desplazamiento queda dentro de la tabla y debe
   poder operarse con teclado sin bloquear la navegación al resto de la pantalla.
 - Usá cifras de ancho uniforme (`tabular-nums`) donde el módulo lo admite, con
-  unidades en la cabecera o el contexto. Seguí su alineación: el Informe GPS lleva
-  números centrados; no la cambies por una regla genérica de alinear a la derecha.
+  unidades en la cabecera o el contexto. Conservá la alineación aprobada de cada
+  tabla; no impongas una alineación universal si contradice su diseño vigente.
 - No reduzcas la letra hasta volverla ilegible para hacer entrar más columnas.
   Conservá nombres y unidades accesibles cuando un texto deba recortarse.
 - Distinguí vacío, cero y dato faltante según los formatos existentes. Ocultar filas

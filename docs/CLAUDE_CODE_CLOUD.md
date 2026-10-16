@@ -4,8 +4,8 @@
 
 | Archivo | Función |
 | --- | --- |
-| `CLAUDE.md` | Instrucciones generales persistentes del proyecto y vínculo a la Skill. |
-| `.claude/skills/sports-ux-ui/SKILL.md` | Procedimiento de diseño que Claude puede elegir cuando corresponda o que podés invocar con `/sports-ux-ui`. |
+| `CLAUDE.md` | Instrucciones persistentes que indican aplicar la Skill por defecto en todo trabajo de interfaz, incluso si el pedido no menciona diseño. |
+| `.claude/skills/sports-ux-ui/SKILL.md` | Estándar general de diseño y usabilidad, disponible para selección automática por su descripción y también con `/sports-ux-ui`. |
 | `docs/DESIGN_SYSTEM.md` | Fuente de criterios de estética, componentes, tablas, reportes y navegación. |
 | `docs/UI_DECISIONS.md` y `docs/PENDIENTES.md` | Decisiones existentes, excepciones, descartes y pendientes por módulo. |
 
@@ -14,6 +14,12 @@ clonado. No hace falta instalar esta Skill en tu computadora ni subirla como
 plugin. `CLAUDE.md` se lee como instrucciones del proyecto; el cuerpo de la Skill
 se carga cuando se usa. Son instrucciones para el asistente, no una garantía
 automática de calidad ni una modificación de la aplicación.
+
+En el uso normal pedís lo que necesitás, sin agregar «hacelo premium» ni indicar
+retoques visuales uno por uno. El estándar define cómo debe resolverse la interfaz.
+No se agregan hooks ni permisos especiales: CLAUDE.md establece la regla y la
+descripción de la Skill facilita su selección automática. La prueba siguiente
+permite comprobar que Claude la aplica en tu entorno.
 
 ## Probar antes de unir el PR
 
@@ -35,14 +41,14 @@ automática de calidad ni una modificación de la aplicación.
 
 4. Comprobá que la respuesta identifica los archivos consultados, propone mejoras
    dentro del alcance, conserva cálculos y decisiones, y no afirma haber visto una
-   imagen ausente. Debe respetar las tarjetas compactas del individual y dejar
-   pendiente la combinación con la imagen oscura. No debe modificar archivos.
+   imagen ausente. Debe explicar la jerarquía, la lectura y la facilidad de uso con
+   los criterios del sistema de diseño. No debe modificar archivos.
 5. Para probar la selección automática, iniciá otra sesión desde la misma rama y
-   pedí: «Revisá sin editar la presentación de la tabla de GPS › Informe. Aplicá
-   los criterios visuales del proyecto y explicá qué reutilizarías». Claude debería
-   usar `sports-ux-ui`, conservar los números centrados y no sugerir recuperar las
-   tarjetas de promedios descartadas. Si no la elige, invocá `/sports-ux-ui` y
-   comprobá su descubrimiento con el paso siguiente.
+   pedí: «Explicame sin editar cómo simplificarías la navegación para consultar un
+   reporte de lesiones, respetando lo que ya está decidido». Sin mencionar la Skill
+   ni repetir preferencias estéticas, Claude debería usar `sports-ux-ui` y explicar
+   la propuesta con el estándar general. Si no la elige, invocá `/sports-ux-ui` y
+   comprobá su descubrimiento con el apartado siguiente.
 
 ## Si no aparece o no sigue el estilo
 
@@ -60,8 +66,9 @@ automática de calidad ni una modificación de la aplicación.
 
 ## Probar una mejora real
 
-Después de la revisión, pedí una mejora acotada, por ejemplo: «Aplicá solo el
-ajuste de espaciado que propusiste en esa pantalla; conservá lógica y navegación».
+Después de la revisión, pedí la función o mejora que necesites, por ejemplo:
+«Aplicá la mejora de navegación que propusiste». Claude debe aplicar el estándar
+general sin pedirte que diseñes cada detalle ni volver a acordar la estética.
 Revisá el diff y las pruebas que informe Claude. Para un cambio de código deben
 ejecutarse las verificaciones de CLAUDE.md; si es visual, también un recorrido
 en celular y escritorio y la impresión cuando corresponda. Si el entorno no

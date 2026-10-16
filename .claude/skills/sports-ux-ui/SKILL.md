@@ -1,6 +1,6 @@
 ---
 name: sports-ux-ui
-description: Diseñar, mejorar o revisar la presentación y usabilidad de informes deportivos, tablas, bases de datos y dashboards de ARK con estética premium, limpia e intuitiva. Usar en pedidos visuales y de navegación; no en tareas exclusivamente de backend, cálculos o migraciones sin interfaz.
+description: Aplicar el estándar visual y de usabilidad de ARK al crear, modificar o revisar cualquier interfaz web, incluidas pantallas, formularios, navegación, informes deportivos, tablas, bases de datos y dashboards. Usar también cuando se pide una función con interfaz sin mencionar diseño. No aplica a tareas exclusivamente de backend, cálculos o migraciones sin interfaz.
 ---
 
 # Sports UX/UI para ARK
@@ -8,13 +8,17 @@ description: Diseñar, mejorar o revisar la presentación y usabilidad de inform
 Aplicá la estética preferida de Santiago al alcance pedido: premium, limpia,
 intuitiva, consistente, datos legibles y navegación simple. El resultado debe
 ayudar a leer, comparar y actuar sin tener que aprender la estructura interna.
+Este es el estándar general de trabajo con interfaces, no una lista de cambios
+por pantalla. Aplicalo aunque el pedido no mencione estética. El usuario define
+la tarea; no necesita volver a describir sus preferencias visuales.
 
 Si hay argumentos de invocación, usalos como pedido concreto:
 
 $ARGUMENTS
 
-Sin un objetivo concreto, pedí qué pantalla se quiere trabajar; no elijas un
-rediseño por tu cuenta. Si se pide solo una revisión o propuesta, no edites archivos.
+Tomá el objetivo del pedido actual y su contexto; no exijas argumentos ni una lista
+de retoques para aplicar el estándar. Si no hay ninguna tarea identificable,
+consultá qué se quiere resolver. Si se pide solo revisión o propuesta, no edites.
 
 ## Ubicar el trabajo
 
@@ -49,10 +53,9 @@ rediseño por tu cuenta. Si se pide solo una revisión o propuesta, no edites ar
 - Conservá es-AR y pt-BR usando `src/idioma/`, etiquetas accesibles y foco visible.
   No transmitas significado solo con color. No agregues bibliotecas, fuentes ni un
   tema global para una mejora puntual.
-- Respetá las excepciones vigentes: GPS › Informe no tiene tarjetas de promedios;
-  su estética no se extiende automáticamente a otras tablas. La combinación del
-  reporte de Lesiones con la imagen oscura sigue pendiente. Verificá la decisión
-  actual completa en las fuentes anteriores antes de actuar.
+- Respetá las excepciones vigentes del módulo consultando su decisión actual
+  completa. Mantené esas decisiones en sus fuentes; no conviertas esta Skill en
+  un catálogo de casos particulares ni extiendas excepciones a toda la plataforma.
 
 ## Comprobar y entregar
 

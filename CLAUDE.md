@@ -19,10 +19,12 @@ Aplican a todo el proyecto: Respondé en castellano simple.
 
 - Diseñá una interfaz elegante, simple, profesional, estética, agradable e
   intuitiva siguiendo `docs/DESIGN_SYSTEM.md`. Primero celular.
-- En pedidos de diseño, presentación o usabilidad de informes, tablas, bases y
-  dashboards, aplicá la Skill del proyecto
-  [sports-ux-ui](.claude/skills/sports-ux-ui/SKILL.md). Se puede invocar con
-  `/sports-ux-ui`; sus criterios detallados viven en el sistema de diseño.
+- En todo pedido que cree, cambie o revise una interfaz web, aplicá por defecto la
+  Skill del proyecto [sports-ux-ui](.claude/skills/sports-ux-ui/SKILL.md), aunque el
+  usuario no mencione diseño ni invoque la Skill. Incluye pantallas, formularios,
+  navegación, informes, tablas y dashboards. El pedido define qué hacer; el sistema
+  de diseño define cómo presentarlo. No exijas que el usuario repita preferencias
+  estéticas ni enumere retoques visuales. `/sports-ux-ui` queda como acceso manual.
   Para trabajos de lógica sin interfaz, seguí estas reglas generales.
 - La preferencia visual es premium, limpia, intuitiva y consistente, con datos
   legibles y navegación simple. Una referencia visual aporta estética; no agrega
