@@ -23,6 +23,7 @@ import {
   pasaLosFiltros,
   porcentajesDeFila,
   referenciaDeFila,
+  soloJugadores,
   valorDeVariable,
   visualizacionesDe,
   visualizacionPara,
@@ -230,6 +231,26 @@ describe("el V.R. de cada fila y el informe entero", () => {
     expect(conVr.general).toBeNull();
     expect([conVr.tablas[0].variables.d.bueno, conVr.tablas[1].variables.d.bueno]).toEqual([200, 100]);
     expect(conVr.ua).toBeNull();
+  });
+  test("un jugador con microciclos de dos dispositivos: el V.R. del de su último microciclo (16/10, como el archivo)", () => {
+    const filas = [
+      fila({ jugador_id: 7, microciclo: 12, fecha: "a", d: 100, va: "si", dispositivo: "sport" }),
+      fila({ jugador_id: 7, microciclo: 17, fecha: "b", d: 300, va: "si" }),
+      fila({ jugador_id: 8, microciclo: 17, fecha: "b", d: 200, va: "si" }),
+      fila({ jugador_id: 8, microciclo: 12, fecha: "a", d: 200, va: "si", dispositivo: "sport" }),
+    ];
+    const asignaciones = [{ referencia: sport, microciclos: null }, { referencia: catapult, microciclos: null }];
+    const informe = informePorMicrociclo(filas, { asignaciones, nombreDe });
+    expect(informe.filas.map((una) => [una.etiqueta, una.dispositivo, una.vr.id, una.porcentajes.promedios.d])).toEqual([
+      ["Jugador 7", "catapult", "c", 1],
+      ["Jugador 8", "catapult", "c", 1],
+    ]);
+    // Con solo el 12 elegido, el de Sport.
+    const del12 = informePorMicrociclo(filas, { asignaciones, nombreDe, filtros: { microciclo: [12] } });
+    expect(del12.filas.map((una) => [una.dispositivo, una.vr.id])).toEqual([
+      ["sport", "s"],
+      ["sport", "s"],
+    ]);
   });
   test("Mi selección pinta también las filas sin V.R.; sus % salen de cada fila ÷ su propio V.R.", () => {
     // Un jugador tomado con Sport, sin un V.R. de Sport elegido.
@@ -456,15 +477,30 @@ describe("Objetivo sesión/microciclo (como el archivo)", () => {
     expect(sesionesDelObjetivo(filas, { nombre: ["jugador:1"], microciclo_jugador: ["jugador"] })).toHaveLength(2);
     expect(sesionesDelObjetivo(filas, { tipo_sesion: ["tarea_mixta"] }).map((sesion) => sesion.fecha)).toEqual(["2026-05-12"]);
   });
-  test("en el informe: en los índices, siempre; en las variables, solo con «Jugador» en Microciclo/Jugador", () => {
+  test("solo pinta cuando todas las filas son jugadores (Santiago, 16/10); con Valor suma, las sumas de lo elegido, y con Valor promedio, el promedio", () => {
     const vr = { dispositivo: "catapult", promedio: { d: 1000, d_min: 20 }, desvio: {} };
     const opciones = { categorizacion: "objetivo", asignaciones: [{ referencia: vr, microciclos: null }], nombreDe };
+    // Con filas del equipo, sin franjas.
     const conSesion = informePorMicrociclo(FILAS(), { ...opciones, filtros: { microciclo_jugador: ["sesion"] } });
-    expect(conSesion.tablas[0].indices.total.bueno).toBe(1.5);
+    expect(soloJugadores(conSesion.filas)).toBe(false);
+    expect(conSesion.tablas[0].indices.total.bueno ?? null).toBeNull();
     expect(conSesion.tablas[0].variables.d).toBeNull();
     expect(conSesion.ua).toBeNull();
+    const mezcladas = informePorMicrociclo(FILAS(), opciones);
+    expect(soloJugadores(mezcladas.filas)).toBe(false);
+    expect(mezcladas.tablas[0].variables.d).toBeNull();
+    // Solo jugadores (por Microciclo/Jugador o por Nombre): índices y variables.
     const conJugador = informePorMicrociclo(FILAS(), { ...opciones, filtros: { microciclo_jugador: ["jugador"] } });
+    expect(soloJugadores(conJugador.filas)).toBe(true);
+    expect(conJugador.tablas[0].indices.total.bueno).toBe(1.5);
     expect(conJugador.tablas[0].variables.d.bueno).toBe(1500);
+    const porNombre = informePorMicrociclo(FILAS(), { ...opciones, filtros: { nombre: ["jugador:1", "jugador:2"] } });
+    expect(soloJugadores(porNombre.filas)).toBe(true);
+    expect(porNombre.tablas[0].variables.d.bueno).toBe(1500);
+    // Valor suma: la suma del equipo en las sesiones de lo elegido.
+    const conSuma = informePorMicrociclo(FILAS(), { ...opciones, visualizacion: "suma", filtros: { microciclo_jugador: ["jugador"] } });
+    expect(conSuma.general.variables.d.bueno).toBe(3000);
+    expect(soloJugadores([])).toBe(false);
   });
   test("unas solas franjas con todas las sesiones, aunque sean de dos V.R. (Santiago, 16/10); los %, cada sesión ÷ su V.R.", () => {
     // La primera sesión, tomada con Sport.
@@ -488,7 +524,7 @@ describe("Objetivo sesión/microciclo (como el archivo)", () => {
       const opciones = { categorizacion: "objetivo", tipoVariable: "absolutas", visualizacion };
       const filtros = { microciclo_jugador: ["jugador"] };
       const informe = informePorMicrociclo(FILAS(), { ...opciones, asignaciones, nombreDe, filtros });
-      const deTabla = franjasDeTabla(informe.filas, vr, { ...opciones, sesiones: sesionesDelObjetivo(FILAS(), filtros), variablesDelObjetivo: true });
+      const deTabla = franjasDeTabla(informe.filas, vr, { ...opciones, sesiones: sesionesDelObjetivo(FILAS(), filtros) });
       expect(informe.general.variables.d.bueno).toBeCloseTo(deTabla.variables.d.bueno, 12);
       expect(informe.general.variables.d.desvio).toBeCloseTo(deTabla.variables.d.desvio, 12);
       expect(informe.general.indices.total.bueno).toBeCloseTo(deTabla.indices.total.bueno, 12);

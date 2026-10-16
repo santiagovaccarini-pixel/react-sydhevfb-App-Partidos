@@ -1077,10 +1077,6 @@
     padding-top: 0;
     border-top: 0;
   }
-  .gps-marco .gps-reportes-controles > .gps-reportes-objetivo {
-    flex-basis: 100%;
-    order: 3;
-  }
 }
 .gps-marco .gps-reportes-vr {
   display: flex;
@@ -1127,15 +1123,12 @@
   border-radius: 10px;
   white-space: nowrap;
 }
-.gps-marco .gps-reportes-objetivo {
-  margin: 10px 0 0;
-}
 .gps-marco .gps-reportes-vrs .lesiones-ayuda {
   margin: 0;
 }
 /* La tabla del informe (Santiago, 15/10: «HACÉ MUCHO HINCAPIÉ EN LA MANERA DE
    PRESENTAR LAS COSAS»). Arriba, cuántas filas, de qué V.R. son las franjas y
-   qué se ve (columnas y filas). La tabla corre adentro de su marco, con las
+   qué se ve (las columnas y las franjas). La tabla corre adentro de su marco, con las
    cabeceras y la primera columna siempre a la vista; las franjas, en un
    bloque gris claro con el color que toma cada franja al lado de su número;
    los números a la derecha, todos del mismo ancho, y «–» donde no hay dato. */
@@ -1320,9 +1313,8 @@
   height: 18px;
   font-size: 11px;
 }
-/* Tocar una cabecera o el nombre de una fila: ocultarla. */
-.gps-marco .gps-informe-cabecera,
-.gps-marco .gps-informe-fila {
+/* Tocar una cabecera: ocultarla. */
+.gps-marco .gps-informe-cabecera {
   display: block;
   width: 100%;
   min-height: 28px;
@@ -1341,8 +1333,7 @@
   text-decoration-color: rgba(255, 255, 255, 0.4);
   text-underline-offset: 3px;
 }
-.gps-marco .gps-informe-cabecera:focus-visible,
-.gps-marco .gps-informe-fila:focus-visible {
+.gps-marco .gps-informe-cabecera:focus-visible {
   outline: 2px solid #22c55e;
   outline-offset: 1px;
 }

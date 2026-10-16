@@ -35,7 +35,9 @@ a la propuesta está en «GPS (10/10)», «La presentación, los colores y ocult
   quiere también, se ven aparte.
 - **Ocultar columnas y filas en toda la app**: tocar el nombre de una columna o de una fila
   pregunta si se oculta; arriba de la tabla, «Columnas» y «Filas» dicen cuántas hay ocultas y
-  las vuelven a mostrar; los números no cambian. Hecho en el Informe de GPS y en las bases
+  las vuelven a mostrar; los números no cambian. (En el Informe de GPS, desde el 16/10, solo
+  columnas: las filas no se ocultan y «Franjas» oculta y muestra las franjas; ver «GPS (10/10)»,
+  «Objetivo, solo con jugadores…».) Hecho en el Informe de GPS y en las bases
   (15/10: GPS, Lesiones, Evaluaciones, Datos básicos y las tablas de Cargar de GPS; cómo, en
   «Bases de Datos (05/10)», Ocultar columnas y filas). **En los reportes y los V.R.** (15/10),
   como en el Informe de GPS, con lo común en `src/components/Ocultar.jsx` (`useOcultar`,
@@ -1897,16 +1899,61 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   útiles y cada % tiene que tener su referencia a la vista.) La U.A. y la carga crónica ya
   salían de todas las filas.
   Descartado: con «Mi selección» u «Objetivo», separar las franjas por V.R. o por dispositivo.
-  **Pendiente preguntar**: (a) un jugador con microciclos de dos dispositivos toma, para sus %,
+  Se preguntó el 16/10: (a) un jugador con microciclos de dos dispositivos tomaba, para sus %,
   el V.R. del dispositivo de su primera fila; (b) con «Objetivo» y jugadores elegidos en
   Nombre, el desvío sale de todos los jugadores de cada sesión (como el archivo), no solo de
-  los elegidos.
+  los elegidos. Lo que respondió y lo que se hizo, en «Objetivo, solo con jugadores; las
+  franjas, con su botón; sin ocultar filas (16/10)», abajo.
 - **Con «Relativas», sin Valor suma ni % de la suma (16/10).** Santiago: «si se filtra por
   relativo no puede haber en el filtro Suma y % Suma». Con Tipo de variable «Relativas»,
   Visualización ofrece solo Valor promedio y % del promedio; si estaba en Valor suma pasa a
   Valor promedio y, si estaba en % de la suma, a % del promedio (eso lo propuso Claude). Antes,
   con Relativas y una suma, las variables quedaban sin franjas ni colores. Descartado: Valor
   suma y % de la suma con «Relativas».
+- **Objetivo, solo con jugadores; las franjas, con su botón; sin ocultar filas (16/10).**
+  Santiago respondió en un cuestionario:
+  - A qué V.R. usa, para sus %, un jugador con microciclos de dos dispositivos: «SI ES MI
+    SELECCION NO USA VR, TE LO DIJE UN MILLON DE VECES, SON VISTAS SEPARADAS Y MANERAS DE
+    PINTAS DISTINTAS MI SELECCION SOLO USA LO QUE ESTA FILTRADO Y EL DESVIO DE LO QUE ESTA,
+    NADA MAS». «Mi selección» ya pinta así: sus franjas salen solo de lo que se ve (ver «Las
+    franjas de «Mi selección» y «Objetivo»…», arriba). El número de cada % sí se divide por un
+    V.R., con cualquier categorización: es lo que muestran «% del promedio», «% de la suma» y
+    los índices. Un jugador con microciclos de dos dispositivos toma el del dispositivo de su
+    último microciclo, como el archivo, que a los jugadores les pone el V.R. de los
+    microciclos del 17 en adelante. Hasta ese día tomaba el de su primera fila. Lo decidió
+    Claude siguiendo el archivo; si Santiago prefiere otra cosa, se cambia.
+  - Objetivo en Por microciclo: «SI ESTAS EN POR MICROCICLO NO SE PUEDE PINTAR POR OBJETIVO
+    SESION, DESAPARECE LA OPCION». Al preguntarle cuándo (el 15/10 había dicho «Hay un modo de
+    filtrar que si pinta dentro de por microciclo»): «Solo pinta en caso de que solo haya
+    jugadores y el color sale dependiendo de los microciclos elegidos y el modo de verlos
+    (Suma: suma todos los valores de los microciclos seleccionados y de ahi sale el pintado,
+    promedio es un promedio entre todos los microciclos seleccionados y asi con las otras que
+    quedan)».
+    - «Objetivo sesión/microciclo» aparece en Categorización solo cuando todas las filas del
+      informe son jugadores: con «Jugador» en Microciclo/Jugador o con solo jugadores en Nombre.
+      Si vuelven filas del equipo, la opción se va y queda «Mi selección». Se sacó el aviso
+      sobre «Jugador» en Microciclo/Jugador.
+    - El cálculo ya era ese: con «Valor suma», la suma del Team Average de las sesiones de lo
+      elegido; con «Valor promedio», su promedio; con los %, lo mismo dividido por el V.R. de
+      cada sesión.
+    - El desvío sigue saliendo de todos los jugadores de cada sesión, como el archivo, aunque se
+      elijan algunos en Nombre; así se pinta también con un solo jugador elegido. Santiago no lo
+      respondió: si prefiere solo los elegidos, se cambia.
+  - Si se saca la fila del V.R. con «Mi selección» y «Objetivo»: «No, dejalo srive para ver el vr
+    sin necesidad de cambiar la manera de categorizar ademas quiero que saques la opcion de
+    ocultar filas y al lado de ocultar columnas agregues un boton para que se oculten las
+    franjas de color y cuando lo vuelva a toca aparescan».
+    - La fila del V.R. queda.
+    - En el Informe ya no se ocultan filas: no está «Filas» arriba de la tabla y tocar el nombre
+      de una fila no hace nada.
+    - Al lado de «Columnas», «Franjas» (dice «A la vista» u «Ocultas») oculta con un toque de
+      Excelente a Desvío y las vuelve a mostrar con otro. La fila del V.R. sigue a la vista y
+      los colores de las filas no cambian. Queda así mientras se está en el Informe (eso lo
+      propuso Claude).
+    - Las demás tablas siguen como estaban (ver «Toda la app: presentación, colores suaves y
+      ocultar», al principio).
+  Descartado: Objetivo con filas del equipo, ocultar filas en el Informe de GPS y sacar la fila
+  del V.R. con «Mi selección» u «Objetivo».
 - **VS RIVAL**: en el promedio del equipo, el TOTAL de cada partido oficial del microciclo, en
   orden de fecha (Santiago: «toma la descripción donde la condicion sea total»); un partido sin
   TOTAL no va, como en el archivo. Comprobado con los datos del club: da igual que el archivo en
@@ -1923,7 +1970,8 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   promedio de la medida ÷ el promedio de los minutos, cada sesión al segundo) y el desvío, el
   promedio de los desvíos; con «Valor suma», las sumas. En los índices vale siempre; en las
   variables, solo con «Jugador» en Microciclo/Jugador (si no, las franjas de las variables
-  quedan vacías y se avisa). Comprobado con la tabla interna del archivo: el promedio da igual
+  quedan vacías y se avisa). (**Cambiado el 16/10**: Objetivo aparece solo cuando todas las
+  filas son jugadores; ver «Objetivo, solo con jugadores…», arriba.) Comprobado con la tabla interna del archivo: el promedio da igual
   en las 150 sesiones y el desvío, en 148 (las otras dos el archivo las tenía sin actualizar).
   La descripción del archivo dice que el desvío es «solo con los jugadores que poseen la
   condición SI», pero cuenta Va vacío, No y Si: se hace como calcula.
@@ -1977,6 +2025,8 @@ toco un columna o fila en cierto lugar tiene que preguntarme si la quiero oculta
   Cabeceras sigue escondiendo para todo el club. Que sea solo de cada aparato lo propuso Claude
   y Santiago no lo objetó (respondió cómo se oculta): si prefiere otra cosa, se cambia. En todas
   las demás tablas: ver «Toda la app: presentación, colores suaves y ocultar», al principio.
+  (**Cambiado el 16/10** en el Informe: las filas ya no se ocultan y «Franjas», al lado de
+  «Columnas», oculta y muestra las franjas; ver «Objetivo, solo con jugadores…», arriba.)
 - **Queda para después** (6, «Despues lo vemos»): llevar este estilo de tabla a las demás
   tablas (bases y reportes). No hacerlo hasta que Santiago lo pida.
 - **La estética (15/10, con una imagen)**: Santiago mandó la imagen de una pantalla de ejemplo,
