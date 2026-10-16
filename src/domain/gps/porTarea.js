@@ -1,20 +1,5 @@
 import { esNumero } from "./valores.js";
-import {
-  TIPOS_DE_VARIABLE,
-  cuentasDeGrupo,
-  desvio,
-  diasDe,
-  dispositivoDe,
-  franjasDe,
-  franjasDeTabla,
-  franjasDeTodo,
-  indicesDe,
-  porcentajesDeFila,
-  promedio,
-  referenciaDeFila,
-  valorDeFiltro,
-  valorDeVariable,
-} from "./porMicrociclo.js";
+import { TIPOS_DE_VARIABLE, cuentasDeGrupo, diasDe, dispositivoDe, indicesDe, porcentajesDeFila, promedio, referenciaDeFila, valorDeFiltro, valorDeVariable } from "./porMicrociclo.js";
 
 // GPS › Informe › Por tarea: la parte «Por tarea» de la hoja «INFORME GPS»
 // del Excel (filas 213 a 323), con sus tablas dinámicas (hoja TD,
@@ -30,7 +15,8 @@ import {
 // lo mostraba solo con un Tipo de Sesión elegido y hasta 20 microciclos.
 // Cada fila, como en «Por microciclo»: U.A. suma y promedio, los índices, los
 // % del V.R. de su dispositivo y las variables; sin carga crónica ni VS RIVAL
-// (el archivo no los tiene en Por tarea).
+// (el archivo no los tiene en Por tarea). No se pinta (Santiago, 16/10: «por
+// tarea no se pinta con nada»): sin categorización, franjas ni colores.
 
 export const FILTROS_POR_TAREA = Object.freeze(["tipo_sesion", "microciclo", "fecha", "nombre", "condicion"]);
 export const MAXIMO_DE_COMPARACIONES = 5;
@@ -91,23 +77,13 @@ const filaDePromedios = (filas, claves) => ({
   variables: Object.fromEntries(claves.map((clave) => [clave, promedioDe(filas.map((fila) => fila.variables[clave]))])),
 });
 
-// El V.R. de una fila de promedios (para pintarla con Valor referencial): el
-// de su último microciclo, como un jugador en Por microciclo.
-const asignacionDelUltimo = (filas) => {
-  const conMicrociclo = filas.filter((fila) => esNumero(fila.microciclo));
-  const ultima = conMicrociclo.length ? conMicrociclo.reduce((mejor, fila) => (fila.microciclo > mejor.microciclo ? fila : mejor)) : filas[filas.length - 1];
-  return ultima ? ultima.asignacion : -1;
-};
-
 // Todo «Por tarea». opciones: { comparaciones: [{ filtros }], tipoVariable,
-// visualizacion, categorizacion («miSeleccion» o «valorReferencial»),
-// asignaciones (los V.R. elegidos, como en Por microciclo) }. Devuelve
-// { comparaciones: [{ letra, filtros, filas, resumen }], general, ua, tablas,
-// franjas }: general es la fila del promedio de las comparaciones; franjas,
-// las de todo lo que se ve con «Mi selección» (null con Valor referencial).
+// visualizacion, asignaciones (los V.R. elegidos, como en Por microciclo: los
+// % de cada fila) }. Devuelve { comparaciones: [{ letra, filtros, filas,
+// resumen }], general, tablas }: general es la fila del promedio de las
+// comparaciones; tablas, los V.R. que se usan (para su fila arriba).
 export const informePorTarea = (filasGps, opciones = {}) => {
   const { comparaciones = [{ filtros: {} }], tipoVariable = "absolutas", visualizacion = "promedio", asignaciones = [] } = opciones;
-  const categorizacion = opciones.categorizacion === "valorReferencial" ? "valorReferencial" : "miSeleccion";
   const claves = TIPOS_DE_VARIABLE[tipoVariable];
   const bloques = comparaciones.slice(0, MAXIMO_DE_COMPARACIONES).map((comparacion, c) => {
     const filas = filasDeComparacion(filasGps, comparacion.filtros).map((fila) => {
@@ -130,34 +106,12 @@ export const informePorTarea = (filasGps, opciones = {}) => {
           clave: `${LETRAS[c]}:resumen`,
           cantidad: filas.length,
           sesiones: filas.reduce((total, fila) => total + fila.sesiones, 0),
-          asignacion: asignacionDelUltimo(filas),
         }
       : null;
     return { letra: LETRAS[c], filtros: comparacion.filtros || {}, filas, resumen };
   });
-  const todas = bloques.flatMap((bloque) => bloque.filas);
   const resumenes = bloques.map((bloque) => bloque.resumen).filter(Boolean);
-  const general = resumenes.length ? { ...filaDePromedios(resumenes, claves), clave: "general", cantidad: null, sesiones: null, asignacion: asignacionDelUltimo(todas) } : null;
-  // La U.A., con «Mi selección», de todas las filas de microciclo (lo bajo es
-  // Excelente, como en Por microciclo).
-  const franjasDeUa = (valorDe) => {
-    const numeros = todas.map(valorDe).filter(esNumero);
-    return franjasDe(promedio(numeros), desvio(numeros), { alReves: true });
-  };
-  const ua = categorizacion === "miSeleccion" ? { suma: franjasDeUa((fila) => fila.sumas.ua), promedio: franjasDeUa((fila) => fila.promedios.ua) } : null;
-  // «Mi selección»: unas solas franjas de todo lo que se ve (las filas de
-  // microciclo de todas las comparaciones), como en Por microciclo; «Valor
-  // referencial»: las del V.R. de cada fila.
-  const franjas = categorizacion === "miSeleccion" ? franjasDeTodo(todas, { categorizacion, tipoVariable, visualizacion }) : null;
-  const tablas = asignaciones.map((asignacion, a) => ({
-    asignacion: a,
-    vr: asignacion.referencia || null,
-    ...(franjas ||
-      franjasDeTabla(
-        todas.filter((fila) => fila.asignacion === a),
-        asignacion.referencia,
-        { categorizacion, tipoVariable, visualizacion },
-      )),
-  }));
-  return { comparaciones: bloques, general, ua, tablas, franjas };
+  const general = resumenes.length ? { ...filaDePromedios(resumenes, claves), clave: "general", cantidad: null, sesiones: null } : null;
+  const tablas = asignaciones.map((asignacion, a) => ({ asignacion: a, vr: asignacion.referencia || null }));
+  return { comparaciones: bloques, general, tablas };
 };

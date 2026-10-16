@@ -2052,11 +2052,16 @@ describe("GPS", () => {
     }
     expect(tarjetas()).toHaveLength(2);
 
-    // El informe: sin Objetivo; arriba el promedio de A y B; de cada una, su fila y la de cada microciclo.
+    // El informe: no se pinta (Santiago, 16/10: «por tarea no se pinta con nada»): sin
+    // Categorización ni «Franjas»; arriba el promedio de A y B; de cada una, su fila y la de cada microciclo.
     await tocar(siguiente());
     expect(contenedor.querySelector("h1").textContent).toBe("Por tarea");
-    expect([...contenedor.querySelectorAll(".gps-reportes-grilla select")[2].options].map((option) => option.value)).toEqual(["miSeleccion", "valorReferencial"]);
-    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Mi selección2 comparaciones · 5 microciclos");
+    expect([...contenedor.querySelectorAll(".gps-reportes-grilla .gps-reportes-rotulo")].map((span) => span.textContent)).toEqual(["Tipo de variable", "Visualización"]);
+    expect(contenedor.querySelector(".gps-informe-franjas-boton")).toBeNull();
+    expect([...contenedor.querySelectorAll(".gps-informe-ver")].map((b) => b.textContent)).toEqual(["ColumnasTodas"]);
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Comparaciones2 comparaciones · 5 microciclos");
+    // Arriba, solo la fila del V.R.
+    expect([...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas th")].map((th) => th.textContent)).toEqual(["V.R."]);
     expect(contenedor.querySelector(".gps-informe-tabla thead th").textContent).toBe("Comparación / Microciclo");
     const filasDelInforme = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas tr")];
     expect(filasDelInforme().map((tr) => tr.querySelector("th").textContent)).toEqual(["Promedio", `A${compleja}`, "10", "17", "18", `B${colectiva}`, "17", "18"]);
@@ -2077,8 +2082,8 @@ describe("GPS", () => {
       ["–", "1"],
       ["–", "1"],
     ]);
-    // Pintadas como Por microciclo.
-    expect(filasDelInforme().every((tr) => tr.querySelectorAll("td")[columnaDeD].style.background)).toBe(true);
+    // Nada pintado.
+    expect(contenedor.querySelectorAll(".gps-informe-tabla td.pintada")).toHaveLength(0);
     // % del promedio: cada microciclo contra el V.R. de su dispositivo; el 10, sin V.R. hasta sumar el de Sport.
     await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[1], "porcentajePromedio");
     expect(deD()).toEqual(["88%", "75%", "–", "50%", "100%", "100%", "75%", "125%"]);

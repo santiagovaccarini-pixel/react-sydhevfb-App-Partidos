@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import { COLORES_INFORME, colorDeMayorMejor } from "./porMicrociclo.js";
 import { MAXIMO_DE_COMPARACIONES, entraEnPorTarea, filasDeComparacion, informePorTarea, pasaLosFiltrosDeTarea } from "./porTarea.js";
 
 // Filas inventadas: tareas del promedio del equipo (Parcial) y de jugadores.
@@ -83,24 +82,13 @@ describe("el informe Por tarea", () => {
     expect(del17.indices.maxima).toBe(1.25);
     expect(del17.indices.volumen).toBeCloseTo((1 + 4 * 1 + 4 * 1.25) / 9, 12);
   });
-  test("Mi selección: unas solas franjas de todas las filas de microciclo (de todas las comparaciones); Valor referencial: las del V.R. de cada fila", () => {
-    const informe = informePorTarea(FILAS(), { comparaciones: [{ filtros: { tipo_sesion: ["tarea_mixta"] } }, { filtros: { tipo_sesion: ["din_compleja"] } }], asignaciones });
-    // D de 400, 800, 1200 y 600: promedio 750.
-    expect(informe.franjas.variables.d.bueno).toBe(750);
-    expect(informe.tablas.map((tabla) => tabla.variables.d.bueno)).toEqual([750, 750]);
-    expect(informe.ua.suma.bueno).toBe(175);
-    expect(colorDeMayorMejor(informe.comparaciones[0].resumen.variables.d, informe.franjas.variables.d)).toBe(COLORES_INFORME.bueno);
-    const conVr = informePorTarea(FILAS(), { categorizacion: "valorReferencial", asignaciones });
-    expect(conVr.franjas).toBeNull();
-    expect(conVr.ua).toBeNull();
-    expect(conVr.tablas.map((tabla) => [tabla.vr.id, tabla.variables.d.bueno])).toEqual([
-      ["c", 1000],
-      ["s", 500],
+  test("no se pinta (Santiago, 16/10: «por tarea no se pinta con nada»): sin franjas; los V.R., solo para los %", () => {
+    const informe = informePorTarea(FILAS(), { comparaciones: [{ filtros: { tipo_sesion: ["tarea_mixta"] } }], asignaciones, categorizacion: "valorReferencial" });
+    expect(Object.keys(informe).sort()).toEqual(["comparaciones", "general", "tablas"]);
+    expect(informe.tablas).toEqual([
+      { asignacion: 0, vr: vrCatapult },
+      { asignacion: 1, vr: vrSport },
     ]);
-    // La fila de la comparación usa el V.R. de su último microciclo (el 18, de Catapult).
-    expect(conVr.comparaciones[0].resumen.asignacion).toBe(0);
-    // Objetivo no va en Por tarea: queda Mi selección.
-    expect(informePorTarea(FILAS(), { categorizacion: "objetivo", asignaciones }).franjas).not.toBeNull();
   });
   test("una comparación sin filas no tiene fila de promedio; como mucho, 5 comparaciones", () => {
     const informe = informePorTarea(FILAS(), { comparaciones: [{ filtros: { microciclo: [99] } }] });

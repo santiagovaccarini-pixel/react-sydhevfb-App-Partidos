@@ -2000,7 +2000,11 @@ promedio de las cinco. No pinta. Santiago respondió en un cuestionario:
   con «Valor referencial», las del V.R. de cada fila. Se pintan también la fila de cada
   comparación y la de arriba (con «Valor referencial», con el V.R. de su último microciclo).
   «Objetivo» no está: las filas son microciclos, no jugadores (ver «Objetivo, solo con
-  jugadores…», arriba).
+  jugadores…», arriba). **Cambiado el mismo 16/10** (Santiago, en el cuestionario de Por
+  jugador: «por jugador si se pinta con las categorias y por tarea no se pinta con nada»): Por
+  tarea no se pinta. No tiene Categorización, franjas ni «Franjas», y ninguna celda tiene
+  color. Arriba queda la fila del V.R. (una por dispositivo si hay más de uno), porque los %
+  salen de él. El título de la tabla dice «Comparaciones». Descartado: pintar Por tarea.
 - **El diseño**: «Tarjetas que sumás». En el paso 1, una tarjeta por comparación (con su letra
   en dorado, el acento de la marca) con sus cinco filtros; arranca con una y «+ Otra
   comparación» suma hasta 5 (con 5 dice «Hasta 5 comparaciones»); con más de una, cada tarjeta
