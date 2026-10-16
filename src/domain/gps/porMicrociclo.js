@@ -809,4 +809,4 @@ export const colorDeCargaCronica = (valor, franjas) => {
   return null;
 };
 
-export { MEDIDAS, ALTA, MAXIMA, numerosDe, promedio };
+export { MEDIDAS, ALTA, MAXIMA, numerosDe, promedio, dispositivoDe, diasDe };
