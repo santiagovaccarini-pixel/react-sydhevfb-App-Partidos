@@ -1784,12 +1784,13 @@ describe("GPS", () => {
     // VS RIVAL: el 17 no entró; los demás, sin partidos oficiales («–»: sin dato).
     expect(filasDelInforme.map((tr) => tr.querySelector("td.gps-informe-rival").textContent)).toEqual(["–", "–", "–"]);
 
-    // Visualización, Tipo de variable y Categorización.
+    // Visualización, Tipo de variable y Categorización: sin Objetivo, que
+    // solo pinta cuando todas las filas son jugadores (Santiago, 16/10).
     const desplegables = [...contenedor.querySelectorAll(".gps-reportes-grilla select")];
     expect(desplegables.map((select) => [...select.options].map((option) => option.textContent))).toEqual([
       ["Absolutas", "Relativas"],
       ["Valor promedio", "Valor suma", "% del promedio", "% de la suma"],
-      ["Mi selección", "Valor referencial", "Objetivo sesión/microciclo"],
+      ["Mi selección", "Valor referencial"],
     ]);
     await elegir(desplegables[2], "valorReferencial");
     // Con Valor referencial, las franjas son las del V.R.; la U.A. no tiene
@@ -1804,10 +1805,6 @@ describe("GPS", () => {
     expect([...contenedor.querySelectorAll(".gps-reportes-vr select")].map((select) => select.options[select.selectedIndex].textContent)).toEqual(["Catapult · FUTBOL · Oficial · TOTAL", "Sport · FUTBOL · FUTBOL 2 · TOTAL"]);
     await tocar(botones().find((b) => b.textContent.startsWith("Ver las de Sport")));
     expect(contenedor.querySelector(".gps-informe-titulo").textContent).toContain("Franjas de Sport · FUTBOL · FUTBOL 2 · TOTAL");
-    // La fila del V.R., oculta a mano.
-    await tocar(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-franjas tr.franja-vr .gps-informe-fila"));
-    await tocar(boton("Ocultar"));
-    expect(contenedor.querySelector(".gps-informe-tabla tr.franja-vr")).toBeNull();
     // Con Mi selección, unas solas franjas, sin «Ver las de …», y una fila de V.R. por
     // dispositivo con su nombre: cada fila del informe tiene el suyo (16/10).
     await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "miSeleccion");
@@ -1817,11 +1814,7 @@ describe("GPS", () => {
     // El valor de cada V.R. (Catapult: D 5000 y tiempo 1 h; Sport: D 4000).
     const filasVr = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas tr.franja-vr")];
     expect(filasVr.map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent).filter((texto) => texto && texto !== "–"))).toEqual([["5000,0", "1:00:00"], ["4000,0"]]);
-    // «Filas» con «Listo» no vuelve a mostrar la del V.R., que acá no está en la lista.
-    await tocar(contenedor.querySelectorAll(".gps-informe-ver")[1]);
-    await tocar(boton("Listo"));
     await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "valorReferencial");
-    expect(contenedor.querySelector(".gps-informe-tabla tr.franja-vr")).toBeNull();
     await tocar(botones().find((b) => b.getAttribute("aria-label") === "Quitar este V.R."));
     expect(contenedor.querySelectorAll(".gps-reportes-vr select")).toHaveLength(1);
 
@@ -1849,9 +1842,20 @@ describe("GPS", () => {
     expect(contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas td.gps-informe-rival")[1].textContent).toBe("Vs Rival Uno TOTAL");
     // El jugador, con la carga crónica del último microciclo elegido (el 20: su U.A. ÷ la de ese y los 3 anteriores).
     expect(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-filas tr").querySelectorAll("td")[4].textContent).toBe("1,00");
-    // Objetivo: sin «Jugador» en Microciclo/Jugador, avisa que las variables no tienen franjas.
+    // Objetivo: con filas del equipo no está; solo con jugadores (Santiago,
+    // 16/10: «Solo pinta en caso de que solo haya jugadores»).
+    const categorizaciones = () => [...contenedor.querySelectorAll(".gps-reportes-grilla select")[2].options].map((option) => option.value);
+    expect(categorizaciones()).toEqual(["miSeleccion", "valorReferencial"]);
+    await tocar(botonFiltros());
+    await elegirEnLaLista("Microciclo/Jugador", ["Jugador"]);
+    expect(categorizaciones()).toEqual(["miSeleccion", "valorReferencial", "objetivo"]);
     await elegir(contenedor.querySelectorAll(".gps-reportes-grilla select")[2], "objetivo");
-    expect(contenedor.querySelector(".gps-reportes-objetivo").textContent).toContain("«Jugador» en Microciclo/Jugador");
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Objetivo sesión/microciclo1 jugador");
+    // Si vuelven las filas del equipo, Objetivo se va y queda Mi selección.
+    await elegirEnLaLista("Microciclo/Jugador", ["Sesión (promedio del equipo)"]);
+    expect(categorizaciones()).toEqual(["miSeleccion", "valorReferencial"]);
+    expect(contenedor.querySelectorAll(".gps-reportes-grilla select")[2].value).toBe("miSeleccion");
+    expect(contenedor.querySelector(".gps-informe-titulo").textContent).toBe("Franjas de Mi selección4 microciclos");
     // «‹ Informe» vuelve a «Ver informes».
     await tocar(contenedor.querySelector(".reporte-volver"));
     expect(contenedor.querySelector("h1").textContent).toBe("Informe");
@@ -1932,7 +1936,7 @@ describe("GPS", () => {
     expect([...desplegables()[1].options].map((option) => option.textContent)).toEqual(["Valor promedio", "Valor suma", "% del promedio", "% de la suma"]);
   });
 
-  test("Informe › ocultar columnas y filas: pregunta antes, las columnas se recuerdan y todo se vuelve a mostrar", async () => {
+  test("Informe › ocultar columnas (pregunta antes y se recuerdan) y «Franjas» oculta y muestra las franjas; las filas no se ocultan", async () => {
     datos.filas = INFORME();
     datos.referencias = [{ id: "c1", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 5000, tiempo: 3600 }, desvio: { d: 500 }, dePartido: false }];
     await montar();
@@ -1941,8 +1945,10 @@ describe("GPS", () => {
     await tocar(siguiente());
     const cabecerasDelInforme = () => [...contenedor.querySelectorAll(".gps-informe-tabla .gps-informe-cabecera")].map((b) => b.textContent);
     const filasDelInforme = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas th")].map((th) => th.textContent);
+    const franjas = () => [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-franjas th")].map((th) => th.textContent);
     const loQueSeVe = () => [...contenedor.querySelectorAll(".gps-informe-ver")].map((b) => b.textContent);
-    expect(loQueSeVe()).toEqual(["ColumnasTodas", "FilasTodas"]);
+    // Arriba, «Columnas» y, al lado, «Franjas» (Santiago, 16/10); no hay «Filas».
+    expect(loQueSeVe()).toEqual(["ColumnasTodas", "FranjasA la vista"]);
     const columnasAlEntrar = cabecerasDelInforme().length;
     // La Suma de la carga crónica: tocar su cabecera pregunta, y «Cancelar» la deja.
     const sumaDeLaCronica = () => [...contenedor.querySelectorAll(".gps-informe-tabla th.tono-1 .gps-informe-cabecera")].find((b) => b.textContent === "Suma");
@@ -1956,32 +1962,35 @@ describe("GPS", () => {
     await tocar(boton("Ocultar"));
     expect(cabecerasDelInforme()).toHaveLength(columnasAlEntrar - 1);
     expect(sumaDeLaCronica()).toBeUndefined();
-    expect(loQueSeVe()).toEqual(["Columnas1 oculta", "FilasTodas"]);
+    expect(loQueSeVe()).toEqual(["Columnas1 oculta", "FranjasA la vista"]);
     expect(JSON.parse(localStorage.getItem("gps_informe_columnas_ocultas"))).toEqual(["ccSuma"]);
-    // Una fila (el microciclo 18) y la del desvío, tocando su nombre.
+    // Las filas no se ocultan: su nombre no es un botón.
+    expect(filasDelInforme()).toEqual(["17", "18", "19", "20"]);
+    expect(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-filas th button")).toBeNull();
+    expect(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-franjas th button")).toBeNull();
+    // «Franjas»: un toque las oculta (queda la fila del V.R.) y otro las vuelve a mostrar; los colores de las filas no cambian.
     const delDiecinueve = () => {
       const td = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas tr")].find((tr) => tr.querySelector("th").textContent === "19").querySelectorAll("td")[2];
       return [td.textContent, td.style.background];
     };
     const antesDeOcultar = delDiecinueve();
-    await tocar([...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas .gps-informe-fila")].find((b) => b.textContent === "18"));
-    expect(document.body.querySelector(".hoja-confirmar h3").textContent).toBe("¿Ocultar «Microciclo 18»?");
-    await tocar(boton("Ocultar"));
-    await tocar(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-franjas tr.franja-desvio .gps-informe-fila"));
-    await tocar(boton("Ocultar"));
-    expect(filasDelInforme()).toEqual(["17", "19", "20"]);
-    expect(contenedor.querySelector(".gps-informe-tabla tr.franja-desvio")).toBeNull();
-    expect(loQueSeVe()).toEqual(["Columnas1 oculta", "Filas2 ocultas"]);
-    // Ocultar no cambia los números ni los colores: el 19 sigue igual.
+    expect(franjas()).toEqual(["V.R.", "Excelente", "Muy bueno", "Bueno (promedio)", "Regular", "Malo", "Desvío"]);
+    const botonFranjas = () => contenedor.querySelector(".gps-informe-franjas-boton");
+    expect(botonFranjas().getAttribute("aria-label")).toBe("Ocultar las franjas");
+    await tocar(botonFranjas());
+    expect(franjas()).toEqual(["V.R."]);
+    expect(loQueSeVe()).toEqual(["Columnas1 oculta", "FranjasOcultas"]);
+    expect(botonFranjas().getAttribute("aria-label")).toBe("Mostrar las franjas");
     expect(delDiecinueve()).toEqual(antesDeOcultar);
-    // Al volver al informe (otra vez desde los filtros), la columna sigue oculta y las filas vuelven.
+    await tocar(botonFranjas());
+    expect(franjas()).toEqual(["V.R.", "Excelente", "Muy bueno", "Bueno (promedio)", "Regular", "Malo", "Desvío"]);
+    // Al volver al informe (otra vez desde los filtros), la columna sigue oculta.
     act(() => raiz.unmount());
     await montar();
     await irA(contenedor, "Informe");
     await tocar(contenedor.querySelector(".reporte-opcion"));
     await tocar(siguiente());
     expect(sumaDeLaCronica()).toBeUndefined();
-    expect(filasDelInforme()).toEqual(["17", "18", "19", "20"]);
     // «Columnas»: la lista con casillas vuelve a mostrarla.
     await tocar(contenedor.querySelector(".gps-informe-ver"));
     const casilla = [...document.body.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent === "Carga crónica · Suma");
