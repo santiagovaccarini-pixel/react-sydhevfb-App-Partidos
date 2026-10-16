@@ -1095,52 +1095,54 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           <div className="contenedor">
             {encabezado(t("lesiones.ajustes.cabeceras"), t("evaluaciones.ajustes.cabecerasAyuda"))}
             {elegirTest(test.id, setTestId)}
-            {columnasDelTest.map((columna, indice) => {
-              const grupo = columna.grupo && columnasDelTest[indice - 1]?.grupo !== columna.grupo ? test.grupos?.find((uno) => uno.clave === columna.grupo) || { clave: columna.grupo } : null;
-              const propio = config.campos?.[test.id]?.[columna.clave];
-              const absoluta = absolutaDe(test, columna);
-              const relativa = absoluta ? { absoluta: titulo(test, absoluta), sufijo: columna.relativa.sufijo, nombre: titulo(test, columna) } : null;
-              return (
-                <React.Fragment key={columna.clave}>
-                  {grupo &&
-                    filaAjuste({
-                      id: claveDeGrupo(grupo.clave),
-                      clase: "lesiones-ajuste-grupo",
-                      titulo: tituloDeGrupo(test, grupo, config, idioma),
-                      detalle: plural("lesiones.ajustes.grupoDe", columnasDelTest.filter((una) => una.grupo === grupo.clave).length),
+            <div className="lista-opciones">
+              {columnasDelTest.map((columna, indice) => {
+                const grupo = columna.grupo && columnasDelTest[indice - 1]?.grupo !== columna.grupo ? test.grupos?.find((uno) => uno.clave === columna.grupo) || { clave: columna.grupo } : null;
+                const propio = config.campos?.[test.id]?.[columna.clave];
+                const absoluta = absolutaDe(test, columna);
+                const relativa = absoluta ? { absoluta: titulo(test, absoluta), sufijo: columna.relativa.sufijo, nombre: titulo(test, columna) } : null;
+                return (
+                  <React.Fragment key={columna.clave}>
+                    {grupo &&
+                      filaAjuste({
+                        id: claveDeGrupo(grupo.clave),
+                        clase: "lesiones-ajuste-grupo",
+                        titulo: tituloDeGrupo(test, grupo, config, idioma),
+                        detalle: plural("lesiones.ajustes.grupoDe", columnasDelTest.filter((una) => una.grupo === grupo.clave).length),
+                        alTocar: () => {
+                          setErrorHoja("");
+                          const guardado = config.campos?.[test.id]?.[claveDeGrupo(grupo.clave)];
+                          setHojaCabecera({
+                            test: test.id,
+                            clave: claveDeGrupo(grupo.clave),
+                            grupo,
+                            etiquetas: { ...(guardado?.etiquetas || grupo.titulo || {}) },
+                            oculto: false,
+                            orden: guardado?.orden ?? 1000 + indice,
+                          });
+                        },
+                      })}
+                    {filaAjuste({
+                      id: columna.clave,
+                      titulo: titulo(test, columna),
+                      detalle: relativa ? t("lesiones.ajustes.relativa", relativa) : t("lesiones.ajustes.porDefecto", { texto: columna.titulo[idioma] || columna.titulo["es-AR"] }),
+                      extra: columnaOculta(test, columna.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
                       alTocar: () => {
                         setErrorHoja("");
-                        const guardado = config.campos?.[test.id]?.[claveDeGrupo(grupo.clave)];
                         setHojaCabecera({
                           test: test.id,
-                          clave: claveDeGrupo(grupo.clave),
-                          grupo,
-                          etiquetas: { ...(guardado?.etiquetas || grupo.titulo || {}) },
-                          oculto: false,
-                          orden: guardado?.orden ?? 1000 + indice,
+                          clave: columna.clave,
+                          etiquetas: { ...(propio?.etiquetas && Object.values(propio.etiquetas).some(Boolean) ? propio.etiquetas : columna.titulo) },
+                          oculto: Boolean(propio?.oculto),
+                          orden: propio?.orden ?? indice,
+                          relativa,
                         });
                       },
                     })}
-                  {filaAjuste({
-                    id: columna.clave,
-                    titulo: titulo(test, columna),
-                    detalle: relativa ? t("lesiones.ajustes.relativa", relativa) : t("lesiones.ajustes.porDefecto", { texto: columna.titulo[idioma] || columna.titulo["es-AR"] }),
-                    extra: columnaOculta(test, columna.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
-                    alTocar: () => {
-                      setErrorHoja("");
-                      setHojaCabecera({
-                        test: test.id,
-                        clave: columna.clave,
-                        etiquetas: { ...(propio?.etiquetas && Object.values(propio.etiquetas).some(Boolean) ? propio.etiquetas : columna.titulo) },
-                        oculto: Boolean(propio?.oculto),
-                        orden: propio?.orden ?? indice,
-                        relativa,
-                      });
-                    },
-                  })}
-                </React.Fragment>
-              );
-            })}
+                  </React.Fragment>
+                );
+              })}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
             </div>
@@ -1171,15 +1173,17 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         <div className="app">
           <div className="contenedor">
             {encabezado(lista ? tituloDeLista(lista) : clave, plural("lesiones.ajustes.opciones", todas.length))}
-            {todas.map((opcion) =>
-              filaAjuste({
-                id: opcion.valor,
-                titulo: opcion.etiqueta,
-                detalle: opcion.oculto ? t("lesiones.ajustes.oculto") : t("lesiones.ajustes.mostrar"),
-                extra: opcion.oculto ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
-                alTocar: () => abrirOpcion(opcion),
-              }),
-            )}
+            <div className="lista-opciones">
+              {todas.map((opcion) =>
+                filaAjuste({
+                  id: opcion.valor,
+                  titulo: opcion.etiqueta,
+                  detalle: opcion.oculto ? t("lesiones.ajustes.oculto") : t("lesiones.ajustes.mostrar"),
+                  extra: opcion.oculto ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
+                  alTocar: () => abrirOpcion(opcion),
+                }),
+              )}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("listas")}>{t("lesiones.ajustes.volverListas")}</BotonVolver>
               <button type="button" className="boton-principal" onClick={() => abrirOpcion(null)} disabled={soloLectura}>
@@ -1196,14 +1200,16 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         <div className="app">
           <div className="contenedor">
             {encabezado(t("lesiones.ajustes.listas"), t("evaluaciones.ajustes.listasAyuda"))}
-            {LISTAS.map((lista) =>
-              filaAjuste({
-                id: lista.clave,
-                titulo: tituloDeLista(lista),
-                detalle: plural("lesiones.ajustes.opciones", opcionesDeLista(lista.clave, config, idioma, { test: lista.test }).length),
-                alTocar: () => setVistaAjustes(`lista:${lista.clave}`),
-              }),
-            )}
+            <div className="lista-opciones">
+              {LISTAS.map((lista) =>
+                filaAjuste({
+                  id: lista.clave,
+                  titulo: tituloDeLista(lista),
+                  detalle: plural("lesiones.ajustes.opciones", opcionesDeLista(lista.clave, config, idioma, { test: lista.test }).length),
+                  alTocar: () => setVistaAjustes(`lista:${lista.clave}`),
+                }),
+              )}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
             </div>
@@ -1217,20 +1223,22 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         <div className="contenedor">
           {encabezado(t("lesiones.ajustes.titulo"), t("evaluaciones.ajustes.texto"))}
           <AvisoSoloLectura hasta={equipo?.hasta} />
-          {filaAjuste({
-            id: "cabeceras",
-            icono: "documento",
-            titulo: t("lesiones.ajustes.cabeceras"),
-            detalle: t("evaluaciones.ajustes.cabecerasTexto"),
-            alTocar: () => setVistaAjustes("cabeceras"),
-          })}
-          {filaAjuste({
-            id: "listas",
-            icono: "filtro",
-            titulo: t("lesiones.ajustes.listas"),
-            detalle: t("lesiones.ajustes.listasTexto"),
-            alTocar: () => setVistaAjustes("listas"),
-          })}
+          <div className="lista-opciones">
+            {filaAjuste({
+              id: "cabeceras",
+              icono: "documento",
+              titulo: t("lesiones.ajustes.cabeceras"),
+              detalle: t("evaluaciones.ajustes.cabecerasTexto"),
+              alTocar: () => setVistaAjustes("cabeceras"),
+            })}
+            {filaAjuste({
+              id: "listas",
+              icono: "filtro",
+              titulo: t("lesiones.ajustes.listas"),
+              detalle: t("lesiones.ajustes.listasTexto"),
+              alTocar: () => setVistaAjustes("listas"),
+            })}
+          </div>
         </div>
       </div>
     );

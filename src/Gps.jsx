@@ -1281,15 +1281,17 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           <div className="contenedor">
             {encabezado(t("gps.reglas.titulo"), t("gps.reglas.ayuda"))}
             {faltanReglas && <p className="lesiones-estado error">{t("gps.reglas.faltaMigracion")}</p>}
-            {AJUSTES_DE_REGLAS.map((ajuste) =>
-              filaAjuste({
-                id: ajuste.clave,
-                titulo: t(`gps.reglas.${ajuste.clave}.titulo`),
-                detalle: ajuste.tipo === "prendida" ? textoDeRegla(ajuste, reglas[ajuste.clave]) : t(`gps.reglas.${ajuste.clave}.detalle`, { valor: textoDeRegla(ajuste, reglas[ajuste.clave]) }),
-                extra: JSON.stringify(reglas[ajuste.clave]) !== JSON.stringify(REGLAS_CARGA[ajuste.clave]) ? <span className="lesiones-oculta">{t("gps.reglas.cambiada")}</span> : null,
-                alTocar: () => abrirRegla(ajuste),
-              }),
-            )}
+            <div className="lista-opciones">
+              {AJUSTES_DE_REGLAS.map((ajuste) =>
+                filaAjuste({
+                  id: ajuste.clave,
+                  titulo: t(`gps.reglas.${ajuste.clave}.titulo`),
+                  detalle: ajuste.tipo === "prendida" ? textoDeRegla(ajuste, reglas[ajuste.clave]) : t(`gps.reglas.${ajuste.clave}.detalle`, { valor: textoDeRegla(ajuste, reglas[ajuste.clave]) }),
+                  extra: JSON.stringify(reglas[ajuste.clave]) !== JSON.stringify(REGLAS_CARGA[ajuste.clave]) ? <span className="lesiones-oculta">{t("gps.reglas.cambiada")}</span> : null,
+                  alTocar: () => abrirRegla(ajuste),
+                }),
+              )}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
             </div>
@@ -1303,32 +1305,34 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         <div className="app">
           <div className="contenedor">
             {encabezado(t("lesiones.ajustes.cabeceras"), t("gps.ajustes.cabecerasAyuda"))}
-            {gps.columnas.map((columna, indice) => {
-              const propio = config.campos?.[gps.id]?.[columna.clave];
-              const absoluta = absolutaDe(gps, columna);
-              const relativa = absoluta ? { absoluta: titulo(absoluta), sufijo: columna.relativa.sufijo, nombre: titulo(columna) } : null;
-              return filaAjuste({
-                id: columna.clave,
-                titulo: titulo(columna),
-                detalle: relativa
-                  ? t("lesiones.ajustes.relativa", relativa)
-                  : columna.propia
-                    ? t("gps.ajustes.delClub", { tipo: tipoDeColumna(columna.tipo) })
-                    : t("lesiones.ajustes.porDefecto", { texto: columna.titulo[idioma] || columna.titulo["es-AR"] }),
-                extra: columnaOculta(gps, columna.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
-                alTocar: () => {
-                  setErrorHoja("");
-                  setHojaCabecera({
-                    clave: columna.clave,
-                    etiquetas: { ...(propio?.etiquetas && Object.values(propio.etiquetas).some(Boolean) ? propio.etiquetas : columna.titulo) },
-                    oculto: Boolean(propio?.oculto),
-                    orden: propio?.orden ?? indice,
-                    tipo: columna.propia ? columna.tipo : null,
-                    relativa,
-                  });
-                },
-              });
-            })}
+            <div className="lista-opciones">
+              {gps.columnas.map((columna, indice) => {
+                const propio = config.campos?.[gps.id]?.[columna.clave];
+                const absoluta = absolutaDe(gps, columna);
+                const relativa = absoluta ? { absoluta: titulo(absoluta), sufijo: columna.relativa.sufijo, nombre: titulo(columna) } : null;
+                return filaAjuste({
+                  id: columna.clave,
+                  titulo: titulo(columna),
+                  detalle: relativa
+                    ? t("lesiones.ajustes.relativa", relativa)
+                    : columna.propia
+                      ? t("gps.ajustes.delClub", { tipo: tipoDeColumna(columna.tipo) })
+                      : t("lesiones.ajustes.porDefecto", { texto: columna.titulo[idioma] || columna.titulo["es-AR"] }),
+                  extra: columnaOculta(gps, columna.clave, config) ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
+                  alTocar: () => {
+                    setErrorHoja("");
+                    setHojaCabecera({
+                      clave: columna.clave,
+                      etiquetas: { ...(propio?.etiquetas && Object.values(propio.etiquetas).some(Boolean) ? propio.etiquetas : columna.titulo) },
+                      oculto: Boolean(propio?.oculto),
+                      orden: propio?.orden ?? indice,
+                      tipo: columna.propia ? columna.tipo : null,
+                      relativa,
+                    });
+                  },
+                });
+              })}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
               <button
@@ -1371,15 +1375,17 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           <div className="contenedor">
             {encabezado(lista ? tituloDeLista(lista) : clave, plural("lesiones.ajustes.opciones", todas.length))}
             {clave === "dispositivo" && <p className="lesiones-ayuda gps-ayuda-lista">{t("gps.ajustes.dispositivosAyuda")}</p>}
-            {todas.map((opcion) =>
-              filaAjuste({
-                id: opcion.valor,
-                titulo: opcion.etiqueta,
-                detalle: opcion.oculto ? t("lesiones.ajustes.oculto") : t("lesiones.ajustes.mostrar"),
-                extra: opcion.oculto ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
-                alTocar: () => abrirOpcion(opcion),
-              }),
-            )}
+            <div className="lista-opciones">
+              {todas.map((opcion) =>
+                filaAjuste({
+                  id: opcion.valor,
+                  titulo: opcion.etiqueta,
+                  detalle: opcion.oculto ? t("lesiones.ajustes.oculto") : t("lesiones.ajustes.mostrar"),
+                  extra: opcion.oculto ? <span className="lesiones-oculta">{t("lesiones.ajustes.oculto")}</span> : null,
+                  alTocar: () => abrirOpcion(opcion),
+                }),
+              )}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("listas")}>{t("lesiones.ajustes.volverListas")}</BotonVolver>
               <button type="button" className="boton-principal" onClick={() => abrirOpcion(null)} disabled={soloLectura}>
@@ -1396,14 +1402,16 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         <div className="app">
           <div className="contenedor">
             {encabezado(t("lesiones.ajustes.listas"), t("gps.ajustes.listasAyuda"))}
-            {LISTAS.map((lista) =>
-              filaAjuste({
-                id: lista.clave,
-                titulo: tituloDeLista(lista),
-                detalle: plural("lesiones.ajustes.opciones", opcionesDeLista(lista.clave, config, idioma, { test: gps }).length),
-                alTocar: () => setVistaAjustes(`lista:${lista.clave}`),
-              }),
-            )}
+            <div className="lista-opciones">
+              {LISTAS.map((lista) =>
+                filaAjuste({
+                  id: lista.clave,
+                  titulo: tituloDeLista(lista),
+                  detalle: plural("lesiones.ajustes.opciones", opcionesDeLista(lista.clave, config, idioma, { test: gps }).length),
+                  alTocar: () => setVistaAjustes(`lista:${lista.clave}`),
+                }),
+              )}
+            </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
             </div>
@@ -1417,27 +1425,29 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         <div className="contenedor">
           {encabezado(t("lesiones.ajustes.titulo"), t("gps.ajustes.texto"))}
           <AvisoSoloLectura hasta={equipo?.hasta} />
-          {filaAjuste({
-            id: "cabeceras",
-            icono: "documento",
-            titulo: t("lesiones.ajustes.cabeceras"),
-            detalle: t("gps.ajustes.cabecerasTexto"),
-            alTocar: () => setVistaAjustes("cabeceras"),
-          })}
-          {filaAjuste({
-            id: "listas",
-            icono: "filtro",
-            titulo: t("lesiones.ajustes.listas"),
-            detalle: t("gps.ajustes.listasTexto"),
-            alTocar: () => setVistaAjustes("listas"),
-          })}
-          {filaAjuste({
-            id: "reglas",
-            icono: "reloj",
-            titulo: t("gps.reglas.titulo"),
-            detalle: t("gps.reglas.texto"),
-            alTocar: () => setVistaAjustes("reglas"),
-          })}
+          <div className="lista-opciones">
+            {filaAjuste({
+              id: "cabeceras",
+              icono: "documento",
+              titulo: t("lesiones.ajustes.cabeceras"),
+              detalle: t("gps.ajustes.cabecerasTexto"),
+              alTocar: () => setVistaAjustes("cabeceras"),
+            })}
+            {filaAjuste({
+              id: "listas",
+              icono: "filtro",
+              titulo: t("lesiones.ajustes.listas"),
+              detalle: t("gps.ajustes.listasTexto"),
+              alTocar: () => setVistaAjustes("listas"),
+            })}
+            {filaAjuste({
+              id: "reglas",
+              icono: "reloj",
+              titulo: t("gps.reglas.titulo"),
+              detalle: t("gps.reglas.texto"),
+              alTocar: () => setVistaAjustes("reglas"),
+            })}
+          </div>
         </div>
       </div>
     );
