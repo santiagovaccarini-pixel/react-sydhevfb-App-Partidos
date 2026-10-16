@@ -1734,10 +1734,10 @@ describe("GPS", () => {
     expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent)).toEqual(["Cargar", "Base", "Informe", "Valores de referencia", "Ajustes"]);
     await irA(contenedor, "Informe");
     expect(contenedor.querySelector("h1").textContent).toBe("Informe");
-    // Las tres opciones, las tres hechas.
+    // Las cuatro opciones, las cuatro hechas.
     const opciones = [...contenedor.querySelectorAll(".reporte-opcion")];
-    expect(opciones.map((una) => una.querySelector("b").textContent)).toEqual(["Por microciclo", "Por tarea", "Por jugador"]);
-    expect(opciones.map((una) => una.disabled)).toEqual([false, false, false]);
+    expect(opciones.map((una) => una.querySelector("b").textContent)).toEqual(["Por microciclo", "Por tarea", "Por jugador", "Reporte individual"]);
+    expect(opciones.map((una) => una.disabled)).toEqual([false, false, false, false]);
     expect(opciones[2].textContent).toContain("Hasta 5 comparaciones por jugador");
 
     // Los filtros: al entrar, el promedio del equipo de cada microciclo.
@@ -1859,7 +1859,7 @@ describe("GPS", () => {
     // «‹ Informe» vuelve a «Ver informes».
     await tocar(contenedor.querySelector(".reporte-volver"));
     expect(contenedor.querySelector("h1").textContent).toBe("Informe");
-    expect(contenedor.querySelectorAll(".reporte-opcion")).toHaveLength(3);
+    expect(contenedor.querySelectorAll(".reporte-opcion")).toHaveLength(4);
   });
 
   test("Informe › «Filtros» adentro: cambiar qué entra no saca del informe y, si el V.R. elegido no vale para lo nuevo, va el de entrada", async () => {
@@ -2099,7 +2099,7 @@ describe("GPS", () => {
     expect(filasDelInforme().map((tr) => tr.querySelector("th").textContent)).toEqual(["ATodas las tareas", "10", "17", "18"]);
     // «‹ Informe» vuelve a «Ver informes».
     await tocar(contenedor.querySelector(".reporte-volver"));
-    expect(contenedor.querySelectorAll(".reporte-opcion")).toHaveLength(3);
+    expect(contenedor.querySelectorAll(".reporte-opcion")).toHaveLength(4);
   });
 
   test("Informe › Por jugador: una comparación por jugador, con su fila, sus franjas y una fila por microciclo; se pinta según la categorización", async () => {
@@ -2178,6 +2178,67 @@ describe("GPS", () => {
     expect([...categorizacion().options].map((opcion) => opcion.value)).toEqual(["miSeleccion", "valorReferencial"]);
     expect(categorizacion().value).toBe("miSeleccion");
     expect(filasDelInforme()[0].querySelector("th").textContent).toBe("ATodos los nombres");
+  });
+
+  test("Informe › Reporte individual: el jugador y los filtros; sus últimos 10 y los del equipo, en totales y por minuto, pintados", async () => {
+    // Inventados: 12 días con el promedio del equipo de la sesión, ALFA y BETA.
+    const lista = [];
+    const agregar = (fecha, quien, valores) =>
+      lista.push(fila(`r${lista.length + 1}`, lista.length + 1, quien, fecha, { dispositivo: "catapult", tipo_microciclo: "competitivo", condicion: "total", clasificacion_dias: "mas1_m", tipo_sesion: "din_compleja", tiempo: 3600, ...valores }));
+    for (let n = 1; n <= 12; n += 1) {
+      const dia = `2026-05-${String(n).padStart(2, "0")}`;
+      agregar(dia, { promedio: "sesion" }, { microciclo: 17, d: 1000 * n, d_min: (1000 * n) / 60, pse: 5, ua: 300 });
+      agregar(dia, { jugador_id: 1 }, { microciclo: 17, d: 1000 * n - 200, d_min: (1000 * n - 200) / 60, pse: 6, ua: 360, va: "si", descripcion: `Sesión ${n}` });
+      agregar(dia, { jugador_id: 2 }, { microciclo: 17, d: 1000 * n + 200, d_min: (1000 * n + 200) / 60, pse: 4, ua: 240, va: "si" });
+    }
+    datos.filas = lista;
+    datos.plantel = PLANTEL.map((jugador) => ({ ...jugador }));
+    await montar();
+    await irA(contenedor, "Informe");
+    await tocar(contenedor.querySelectorAll(".reporte-opcion")[3]);
+    expect(contenedor.querySelector("h1").textContent).toBe("Reporte individual");
+    // Sin jugador no se sigue.
+    expect(siguiente().disabled).toBe(true);
+    expect([...contenedor.querySelectorAll(".gps-reportes-rotulo")].map((span) => span.textContent)).toEqual(["Jugador", "Tipo de Sesión", "Fecha", "Microciclo"]);
+    const jugadores = contenedor.querySelector(".gps-reportes-grilla select");
+    const alfa = [...jugadores.options].find((opcion) => opcion.textContent.toLowerCase().includes("alfa"));
+    await elegir(jugadores, alfa.value);
+    expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("12 entrenamientos; se ven los últimos 10");
+    await tocar(siguiente());
+    expect(contenedor.querySelector("h1").textContent).toBe("Reporte individual");
+    expect(contenedor.querySelector(".gps-reporte-cabeza h2").textContent).toBe(`Reporte de GPS – ${alfa.textContent}`);
+    // Cuatro tablas: Por jugador y Por equipo, en Totales y Por minuto.
+    const secciones = [...contenedor.querySelectorAll(".gps-reporte-seccion")];
+    expect(secciones.map((seccion) => seccion.querySelector(".gps-informe-titulo b").textContent)).toEqual(["Por jugador", "Por equipo"]);
+    const tablas = [...contenedor.querySelectorAll(".gps-reporte-tabla")];
+    expect(tablas).toHaveLength(4);
+    const filasDe = (tabla) => [...tabla.querySelectorAll("tbody:not(.gps-reporte-pie) tr")];
+    const pieDe = (tabla) => [...tabla.querySelectorAll("tbody.gps-reporte-pie th")].map((th) => th.textContent);
+    expect(filasDe(tablas[0])).toHaveLength(10);
+    expect(pieDe(tablas[0])).toEqual(["Promedio", "Suma"]);
+    expect(pieDe(tablas[1])).toEqual(["Promedio"]);
+    expect(pieDe(tablas[2])).toEqual(["Promedio", "Desv. est.", "Suma"]);
+    expect(pieDe(tablas[3])).toEqual(["Promedio", "Desv. est."]);
+    // D: la segunda columna; el último día, primero.
+    const cabeceras = [...tablas[0].querySelectorAll("thead th")].map((th) => th.textContent);
+    expect(cabeceras.slice(0, 3)).toEqual(["Fecha", "Tiempo", "D"]);
+    expect(cabeceras.at(-1)).toBe("Descripción");
+    const deD = (tabla) => filasDe(tabla).map((tr) => tr.querySelectorAll("td")[1].textContent);
+    expect(deD(tablas[0])[0]).toContain("11800");
+    expect(deD(tablas[2])[0]).toContain("12000");
+    // Pintadas: las del jugador contra el equipo ese día; las del equipo, contra su tabla.
+    expect(tablas[0].querySelectorAll("td.pintada").length).toBeGreaterThan(0);
+    expect(tablas[2].querySelectorAll("td.pintada").length).toBeGreaterThan(0);
+    // Qué es cada variable, abajo.
+    expect(contenedor.querySelector(".gps-reporte-variables").textContent).toContain("Metros totales acumulados");
+    // Ocultar una columna, preguntando: deja de verse en las cuatro tablas.
+    await tocar([...tablas[0].querySelectorAll("thead .gps-informe-cabecera")].find((b) => b.textContent === "D"));
+    await tocar(boton("Ocultar"));
+    expect([...contenedor.querySelectorAll(".gps-reporte-tabla")][2].querySelectorAll("thead th")[2].textContent).not.toBe("D");
+    expect(contenedor.querySelector(".gps-informe-ver").textContent).toContain("1 oculta");
+    // «‹ Informe» vuelve a «Ver informes».
+    await tocar(contenedor.querySelector(".reporte-volver"));
+    expect(contenedor.querySelectorAll(".reporte-opcion")).toHaveLength(4);
   });
 
   test("Cargar: el % vs V.R. de partido es el del dispositivo elegido al subir el CSV", async () => {
