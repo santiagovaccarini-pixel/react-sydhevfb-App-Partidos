@@ -1400,8 +1400,8 @@ Los archivos no van al repositorio (nombres de jugadores y datos del club).
 3. **Reportes**. 15/10: el Informe (Por microciclo, Por tarea y Por jugador), ver «Informe:
    Por microciclo, Por tarea y Por jugador (15/10)». Por microciclo, hecho el 15/10 (la solapa
    Reportes, UI-038); Por tarea y Por jugador, el 16/10 (ver «Por tarea (16/10)» y «Por
-   jugador (16/10)»). El Reporte individual del Excel, el 16/10, dentro de Informe; el grupal,
-   pendiente (ver «Reporte individual y Reporte grupal (16/10)»).
+   jugador (16/10)»). El Reporte individual y el Reporte grupal del Excel, el 16/10, dentro de
+   Informe (ver «Reporte individual y Reporte grupal (16/10)»).
 4. **V.R. por dispositivo**: se arman una vez con reglas estadísticas y quedan fijos (Santiago,
    10/10: «Los VR se arman una ves con reglas estadisticas y se dejan fijos»; las reglas las
    explica él más adelante). Cada dispositivo tiene los suyos («Exacto»). No inventar reglas ni
@@ -2280,10 +2280,31 @@ preguntó en un cuestionario:
 - **Ocultar**: las columnas se ocultan tocando su nombre (pregunta antes) y dejan de verse en
   las cuatro tablas; «Columnas» las vuelve a mostrar. Las filas no se ocultan, como en el
   Informe (UI-039). Se recuerdan aparte (`gps_reporte_individual_columnas_ocultas`).
-- **Reporte grupal**: «Primero el individual». La hoja del Excel es un borrador (título,
-  Período, Grupo, Sesiones, «Rendimiento y carga – análisis grupal», «Distancia (m)» y
-  «Jugadores en el informe», sin datos ni fórmulas). **Pendiente**: que Santiago diga qué
-  números van en cada parte; no inventarlo.
+- **Reporte grupal (hecho el 16/10)**: «Primero el individual». La hoja del Excel es un
+  borrador (título, Período, Grupo, Sesiones, «Rendimiento y carga – análisis grupal», dos filas
+  de cinco casillas con «Distancia (m)» en la primera y «Jugadores en el informe», sin datos ni
+  fórmulas). Santiago, 16/10, en un cuestionario: «Proponeme el contenido»; se le mostró una
+  propuesta con datos inventados y eligió «Así: 9 medidas y U.A.», «Promedio y total», «Todo el
+  plantel» y, para la tabla de los jugadores, «Los 3 tipos de categorizacion». Quedó así
+  (`src/ReporteGrupalGps.jsx`; el cálculo en `src/domain/gps/reporteGrupal.js`):
+  - En «Ver informes», la quinta opción, con dos pasos como el individual: los filtros (Tipo de
+    Sesión, Fecha y Microciclo; Condición Total) y el reporte, con «Filtros» adentro.
+  - Arriba: Período (la primera y la última fecha), Grupo («Todo el plantel») y Sesiones (las
+    del promedio del equipo de la sesión con tiempo: los descansos y las sesiones sin GPS no
+    cuentan).
+  - «Rendimiento y carga»: 10 casillas, las 9 medidas del Reporte individual y la U.A.; en cada
+    una, grande, el promedio del equipo por sesión (el Team Average) y abajo el total del período.
+    No reabre las tarjetas con el promedio que se sacaron del Informe (UI-038): son las casillas
+    del borrador del Reporte grupal, elegidas por Santiago para esta pantalla.
+  - «Jugadores en el informe»: cada jugador con sus sesiones y su promedio por sesión de Tiempo,
+    las 9 medidas y la U.A., pintado con las tres categorizaciones del Informe y sus reglas
+    («Mi selección», los jugadores que se ven; «Valor referencial», un V.R. que se elige, de
+    entrada el de la Base para el dispositivo de la última sesión; «Objetivo sesión/microciclo»,
+    el Team Average de las sesiones y el desvío de sus jugadores). Las franjas van arriba, con
+    «Franjas» para ocultarlas, como en el Informe; la U.A., solo con «Mi selección» (al revés).
+    Se ocultan columnas, no filas.
+  - Descartado: elegir los jugadores del grupo, solo el promedio o solo el total en las
+    casillas, y la tabla sin colores o solo con la lista de nombres.
 - **Comprobado**: con datos inventados (`src/domain/gps/reporteIndividual.test.js` y
   `src/Gps.smoke.test.jsx`). La hoja «Datos» del archivo guardado estaba desactualizada (ver
   «Tablas cruzadas»), así que no sirve para comparar números.

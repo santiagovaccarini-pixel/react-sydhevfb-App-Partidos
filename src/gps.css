@@ -1743,3 +1743,121 @@
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   }
 }
+
+/* GPS › Informe › Reporte grupal (16/10, propuesta): como el Reporte
+   individual. En la cabecera, Período, Grupo y Sesiones con su ícono (como el
+   borrador del Excel); «Rendimiento y carga», 10 casillas (dos por fila en el
+   celular y cinco en la compu, como las dos filas de cinco del Excel) con el
+   promedio por sesión grande y el total abajo; el dorado, solo en los íconos. */
+.gps-marco .gps-grupal-datos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+/* En el celular, el período (lo más largo) va solo en su fila. */
+.gps-marco .gps-grupal-dato:first-child {
+  grid-column: 1 / -1;
+}
+.gps-marco .gps-grupal-dato {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  background: #111c31;
+}
+.gps-marco .gps-grupal-dato-icono {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(198, 161, 91, 0.14);
+  color: #c6a15b;
+}
+.gps-marco .gps-grupal-dato-texto {
+  display: grid;
+  min-width: 0;
+}
+.gps-marco .gps-grupal-dato-texto > span {
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.gps-marco .gps-grupal-dato-texto > b {
+  color: #f8fafc;
+  font-size: 15px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.gps-marco .gps-grupal-casillas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gps-marco .gps-grupal-casilla {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  background: #111c31;
+}
+.gps-marco .gps-grupal-casilla-nombre {
+  overflow: hidden;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+}
+.gps-marco .gps-grupal-casilla-valor {
+  color: #f8fafc;
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+.gps-marco .gps-grupal-casilla-total {
+  color: #94a3b8;
+  font-size: 12px;
+}
+.gps-marco .gps-grupal-casilla-total b {
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+}
+.gps-marco .tarjeta .gps-grupal-ayuda {
+  margin: 0 0 10px;
+}
+.gps-marco .gps-grupal-controles {
+  margin-bottom: 12px;
+}
+.gps-marco .gps-grupal-tabla {
+  --informe-ancho-id: 112px;
+}
+@media (min-width: 721px) {
+  .gps-marco .gps-grupal-datos {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .gps-marco .gps-grupal-dato:first-child {
+    grid-column: auto;
+  }
+  .gps-marco .gps-grupal-tabla {
+    --informe-ancho-id: 150px;
+  }
+  .gps-marco .gps-grupal-casillas {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
