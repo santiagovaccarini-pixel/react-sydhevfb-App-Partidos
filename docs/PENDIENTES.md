@@ -2270,11 +2270,13 @@ preguntó en un cuestionario:
     promedios y en el desvío.
   «Tablas cruzadas» tampoco se marcó: en el archivo guardado, «Por jugador» no estaba filtrado
   por el jugador y «Por equipo» mostraba al jugador elegido. Se tomó que en el Excel de Santiago
-  anda como dicen los títulos (Por jugador, el elegido; Por equipo, el Team Average); si no es
-  así, se ve con él.
-- **Otro error, sin preguntar todavía**: el archivo pasa el tiempo sumado a minutos con DIA × 24
-  (y no × 1440). Si los tiempos de las filas juntos pasan las 24 h, el Promedio de Por minuto
-  sale más alto. Quedó como el archivo (`minutosDelArchivo`); preguntar si se corrige.
+  anda como dicen los títulos (Por jugador, el elegido; Por equipo, el Team Average). Santiago lo
+  confirmó el 16/10 en un cuestionario: «Sí, como los títulos».
+- **Los minutos de Por minuto (corregido el 16/10)**: el archivo pasa el tiempo sumado a minutos
+  con DIA × 24 (y no × 1440); si los tiempos de las filas juntos pasan las 24 h, el Promedio de
+  Por minuto sale más alto. Santiago, 16/10, en un cuestionario: «Corregirlo». La app cuenta
+  todos los minutos (`minutosDe`, en segundos enteros como el archivo); por debajo de las 24 h da
+  lo mismo que el archivo. Descartado: volver a contar los días × 24.
 - **Ocultar**: las columnas se ocultan tocando su nombre (pregunta antes) y dejan de verse en
   las cuatro tablas; «Columnas» las vuelve a mostrar. Las filas no se ocultan, como en el
   Informe (UI-039). Se recuerdan aparte (`gps_reporte_individual_columnas_ocultas`).
