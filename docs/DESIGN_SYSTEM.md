@@ -132,10 +132,13 @@ de cada grupo con el fondo de su tono (`--grupo-fondo-N`, el de las bases) y su 
 franjas pintadas enteras con la letra oscura; el V.R. y el desvío en gris y cursiva; los
 números centrados. De una imagen de ejemplo se toma cómo se ve, nunca sus datos, cabeceras ni
 funciones (el gráfico, las tarjetas con números, «Exportar»): eso se pregunta. Las tarjetas se
-preguntaron y van arriba de cada columna, con su promedio (Santiago, 15/10: «quiero que pongas
-el promedio de cada variable arriba de su columna»): oscuras, el número grande en negrita y una
-línea arriba con el tono del grupo de su columna; qué son (el rótulo «Promedio», con su «?») va
-una sola vez, en la primera columna, no en cada tarjeta.
+preguntaron y el 15/10 fueron arriba de cada columna, con su promedio (Santiago: «quiero que
+pongas el promedio de cada variable arriba de su columna»): oscuras, el número grande en negrita
+y una línea arriba con el tono del grupo de su columna; qué son (el rótulo «Promedio», con su
+«?») iba una sola vez, en la primera columna, no en cada tarjeta. **Sacadas el 16/10**
+(Santiago: «no eso dejalo y mejor saca la ultima implementacion de los promedios con las
+tarjetas»): el Informe no lleva tarjetas con números ni la comparación
+«vs. microciclo anterior»; no volver a ponerlas si Santiago no lo pide.
 
 Las tablas que ya están conservan su estilo hasta que Santiago decida llevarles este
 («Despues lo vemos», 15/10). Los colores suaves y ocultar columnas y filas sí van en toda la

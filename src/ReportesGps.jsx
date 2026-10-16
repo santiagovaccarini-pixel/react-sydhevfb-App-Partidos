@@ -18,7 +18,6 @@ import {
   filasPorMicrociclo,
   informePorMicrociclo,
   pasaLosFiltros,
-  promedio,
   valorDeFiltro,
 } from "./domain/gps/porMicrociclo.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -243,7 +242,6 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // ----------------------------------------------------------- Formatos --
   const porciento = (valor) => (esNumero(valor) ? textoDeValor(valor, "0%", idioma) : "");
   const entero = (valor) => (esNumero(valor) ? textoDeValor(valor, "0", idioma) : "");
-  const conUno = (valor) => (esNumero(valor) ? textoDeValor(valor, "0.0", idioma) : "");
   const conDos = (valor) => (esNumero(valor) ? textoDeValor(valor, "0.00", idioma) : "");
   const enPorcentaje = visualizacion === "porcentajePromedio" || visualizacion === "porcentajeSuma";
   const textoDeVariable = (clave, valor) => (enPorcentaje ? porciento(valor) : textoDe(clave, valor));
@@ -434,13 +432,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // Las columnas de la tabla, con su grupo (y su tono, como en la base). La
   // U.A. y la carga crónica se pintan como el archivo; los índices y las
   // variables, con la regla que el archivo usa para esas columnas en «Por
-  // jugador» (en «Por microciclo» no las pinta). textoDelPromedio: el de su
-  // tarjeta, si no es el de la columna (el de unas cantidades, con un
-  // decimal: «5,7» dice más que «6»).
+  // jugador» (en «Por microciclo» no las pinta).
   const tablaDe = (fila) => tablas.find((una) => una.asignacion === fila.asignacion) || null;
   const COLUMNAS = [
-    { clave: "sesiones", titulo: t("gps.reportes.columnas.sesiones"), valor: (fila) => fila.sesiones, texto: entero, textoDelPromedio: conUno },
-    { clave: "descansos", titulo: t("gps.reportes.columnas.descansos"), valor: (fila) => fila.descansos, texto: entero, textoDelPromedio: conUno },
+    { clave: "sesiones", titulo: t("gps.reportes.columnas.sesiones"), valor: (fila) => fila.sesiones, texto: entero },
+    { clave: "descansos", titulo: t("gps.reportes.columnas.descansos"), valor: (fila) => fila.descansos, texto: entero },
     { clave: "uaSuma", grupo: "ua", titulo: t("gps.reportes.columnas.suma"), valor: (fila) => fila.sumas.ua, texto: entero, franjas: ua?.suma, color: colorDeUa },
     { clave: "uaPromedio", grupo: "ua", titulo: t("gps.reportes.columnas.promedio"), valor: (fila) => fila.promedios.ua, texto: entero, franjas: ua?.promedio, color: colorDeUa },
     { clave: "ccSuma", grupo: "cronica", titulo: t("gps.reportes.columnas.suma"), valor: (fila) => fila.cargaCronica.suma, texto: conDos, franjas: ua?.cronicaSuma, color: colorDeCargaCronica },
@@ -508,27 +504,17 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
       </span>
     );
 
-  // Arriba de todo, una tarjeta con el promedio de cada columna (Santiago,
-  // 15/10: «quiero que pongas el promedio de cada variable arriba de su
-  // columna»): el de todas las filas del informe, también las ocultas
-  // (ocultar no cambia los números); las celdas vacías no cuentan, como
-  // PROMEDIO del Excel. VS RIVAL es texto: sin tarjeta.
-  const FILA_DE_PROMEDIOS = { clave: "arriba:promedio", texto: t("gps.reportes.promedios") };
-  const verPromedios = !ocultas.filas.includes(FILA_DE_PROMEDIOS.clave);
-  const textoDelPromedio = (columna) => (columna.textoDelPromedio || columna.texto)(promedio(filas.map(columna.valor).filter(esNumero)));
-
-  // Las filas de arriba: el promedio, el V.R. y las franjas (cada una se puede ocultar).
+  // Las filas de arriba: el V.R. y las franjas (cada una se puede ocultar).
   const FILAS_DE_FRANJAS = [...(tabla?.vr ? ["vr"] : []), ...FRANJAS].map((franja) => ({ clave: `franja:${franja}`, franja, texto: t(`gps.reportes.franjas.${franja}`) }));
-  const FILAS_DE_ARRIBA = [FILA_DE_PROMEDIOS, ...FILAS_DE_FRANJAS];
   const franjasAVista = FILAS_DE_FRANJAS.filter((una) => !ocultas.filas.includes(una.clave));
   const filasAVista = filas.filter((fila) => !ocultas.filas.includes(fila.clave));
-  const cuantasOcultas = (cual) => ocultas[cual].filter((clave) => (cual === "columnas" ? COLUMNAS.some((columna) => columna.clave === clave) : [...FILAS_DE_ARRIBA, ...filas].some((una) => una.clave === clave))).length;
+  const cuantasOcultas = (cual) => ocultas[cual].filter((clave) => (cual === "columnas" ? COLUMNAS.some((columna) => columna.clave === clave) : [...FILAS_DE_FRANJAS, ...filas].some((una) => una.clave === clave))).length;
 
   const abrirLoQueSeVe = (cual) => {
     const valores =
       cual === "columnas"
         ? COLUMNAS.map((columna) => ({ clave: columna.clave, texto: tituloCompleto(columna) }))
-        : [...FILAS_DE_ARRIBA.map((una) => ({ clave: una.clave, texto: una.texto })), ...filas.map((fila) => ({ clave: fila.clave, texto: textoDeFila(fila) }))];
+        : [...FILAS_DE_FRANJAS.map((una) => ({ clave: una.clave, texto: una.texto })), ...filas.map((fila) => ({ clave: fila.clave, texto: textoDeFila(fila) }))];
     setHoja({ ocultar: cual, titulo: t(`gps.reportes.aLaVista.${cual}`), valores, elegidos: valores.map((valor) => valor.clave).filter((clave) => !ocultas[cual].includes(clave)), busqueda: "" });
   };
   const ocultar = ({ tipo, clave }) => setOcultas((antes) => ({ ...antes, [tipo]: [...antes[tipo].filter((una) => una !== clave), clave] }));
@@ -690,29 +676,6 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
             <div className="gps-informe-marco" tabIndex={0} role="region" aria-label={t("gps.reportes.porMicrociclo")}>
               <table className={`gps-informe-tabla ${soloEquipo ? "solo-equipo" : ""}`}>
                 <thead>
-                  {verPromedios && (
-                    <tr className="gps-informe-promedios">
-                      <th scope="row" className="gps-informe-id">
-                        <span className="gps-informe-promedios-rotulo">
-                          <button type="button" className="gps-informe-fila" onClick={() => setAOcultar({ tipo: "filas", clave: FILA_DE_PROMEDIOS.clave, titulo: FILA_DE_PROMEDIOS.texto })} title={t("gps.reportes.tocarParaOcultarFila")} aria-haspopup="dialog">
-                            {FILA_DE_PROMEDIOS.texto}
-                          </button>
-                          <TerminoDe clave="gps.terminos.promedioInforme" />
-                        </span>
-                      </th>
-                      {columnas.map((columna) => {
-                        if (columna.rival) return <td key={columna.clave} />;
-                        const texto = textoDelPromedio(columna);
-                        return (
-                          <td key={columna.clave}>
-                            <span className={`gps-informe-tarjeta ${columna.grupo ? `tono-${tonos[columna.grupo]}` : ""}`.trim()} title={`${FILA_DE_PROMEDIOS.texto} · ${tituloCompleto(columna)}`}>
-                              {texto === "" ? vacio : texto}
-                            </span>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  )}
                   <tr className="gps-informe-grupos" ref={filaDeGrupos}>
                     <th scope="col" rowSpan={2} className="gps-informe-id">
                       {tituloDeLaPrimera}

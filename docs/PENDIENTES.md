@@ -1842,8 +1842,8 @@ Lo hecho de **Por microciclo** (15/10; `src/ReportesGps.jsx`, el cálculo en
   algún microciclo quedó sin V.R. La tabla, como las de los reportes: la cabecera oscura con
   los grupos en su tono, la primera columna fija al deslizar, la fila del V.R. y las franjas
   (Excelente a Desvío; el Bueno es el promedio, por eso no va otra fila de Promedio; **15/10**:
-  arriba va, a pedido de Santiago, una tarjeta con el promedio de cada columna: ver «Las
-  tarjetas con el promedio», abajo) y una fila
+  arriba fue, a pedido de Santiago, una tarjeta con el promedio de cada columna, y el **16/10**
+  se sacó, también a su pedido: ver «Las tarjetas con el promedio», abajo) y una fila
   por microciclo (o por jugador) con los colores de la U.A. y la carga crónica. Con más de un
   V.R., un solo botón («Ver las de …») pasa las franjas de uno a otro. (Desde el 15/10, otra
   presentación, todas las columnas pintadas y ocultar a mano: ver «La presentación, los colores
@@ -1958,12 +1958,20 @@ toco un columna o fila en cierto lugar tiene que preguntarme si la quiero oculta
     «Objetivo», el Bueno es el del V.R. o el objetivo, y la tarjeta sirve para compararlo.
   No se agregó la comparación «vs. microciclo anterior» de las tarjetas de la imagen (no la
   pidió): **pendiente** preguntarle si la quiere; no hacerla sin su respuesta.
+  **Sacadas el 16/10.** A la pregunta por «vs. microciclo anterior», Santiago: «no eso dejalo y
+  mejor saca la ultima implementacion de los promedios con las tarjetas». Se sacó la fila
+  «Promedio» con sus tarjetas (el código, los estilos, los textos, el «?», la guía y su prueba):
+  el Informe quedó como estaba antes del 15/10 a la tarde. Tampoco va la comparación
+  «vs. microciclo anterior».
 
 Queda prohibido en el Informe: volver a mostrar las franjas como filas de datos sin su color,
 «Team Average Sesion» en cada fila cuando todas son del equipo, un fondo de color fuerte por
 grupo en la cabecera (**reabierto el 15/10**: ahora va el fondo del tono de cada grupo, ver «La
 estética»), pintar solo la U.A. y la carga crónica, los colores fuertes del archivo y ocultar sin
-preguntar.
+preguntar. Desde el 16/10 (Santiago: «no eso dejalo y mejor saca la ultima implementacion de los
+promedios con las tarjetas»), también: las tarjetas con el promedio de cada columna arriba de la
+tabla (una fila «Promedio» con números en tarjetas) y la comparación «vs. microciclo anterior».
+Solo se vuelven a poner si Santiago lo pide.
 
 ### Pegar desde Excel (el historial)
 

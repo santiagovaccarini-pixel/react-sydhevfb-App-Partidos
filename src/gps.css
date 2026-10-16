@@ -1313,60 +1313,6 @@
   font-weight: 600;
 }
 
-/* Arriba de todo, una tarjeta con el promedio de cada columna (Santiago,
-   15/10: «quiero que pongas el promedio de cada variable arriba de su
-   columna»), como las tarjetas de su imagen: oscura, el número grande y una
-   línea arriba con el tono de su grupo. No queda fija al bajar (como las
-   franjas); su rótulo, sí al deslizar de costado. */
-.gps-marco .gps-informe-tabla tr.gps-informe-promedios td {
-  padding: 10px 4px 12px;
-  background: #0b1220;
-  vertical-align: middle;
-}
-.gps-marco .gps-informe-tabla tr.gps-informe-promedios th.gps-informe-id {
-  top: auto;
-  z-index: 1;
-  padding: 10px 12px 12px;
-  background: #0b1220;
-  color: #f8fafc;
-  font-size: 13px;
-  font-weight: 800;
-  text-align: left;
-  white-space: normal;
-}
-.gps-marco .gps-informe-promedios-rotulo {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 6px;
-}
-.gps-marco .gps-informe-promedios-rotulo .gps-informe-fila {
-  width: auto;
-}
-.gps-marco .gps-informe-tarjeta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 46px;
-  padding: 6px 8px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-top: 3px solid #475569;
-  border-radius: 10px;
-  background: #111c31;
-  color: #f8fafc;
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.1;
-  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.3);
-}
-.gps-marco .gps-informe-tarjeta.tono-0 { border-top-color: var(--grupo-linea-0); }
-.gps-marco .gps-informe-tarjeta.tono-1 { border-top-color: var(--grupo-linea-1); }
-.gps-marco .gps-informe-tarjeta.tono-2 { border-top-color: var(--grupo-linea-2); }
-.gps-marco .gps-informe-tarjeta.tono-3 { border-top-color: var(--grupo-linea-3); }
-.gps-marco .gps-informe-tarjeta.tono-4 { border-top-color: var(--grupo-linea-4); }
-.gps-marco .gps-informe-tarjeta.tono-5 { border-top-color: var(--grupo-linea-5); }
-.gps-marco .gps-informe-tarjeta.tono-6 { border-top-color: var(--grupo-linea-6); }
-
 /* Las franjas (y el V.R.): un bloque aparte, cada número pintado entero con
    el color que toma lo que cae ahí; el V.R. y el desvío, en gris y en
    cursiva; una línea más gruesa antes de las filas. */
@@ -1489,14 +1435,5 @@
   .gps-marco .gps-informe-tabla tr.gps-informe-grupos th.gps-informe-suelta {
     min-width: 56px;
     padding-bottom: 8px;
-  }
-  .gps-marco .gps-informe-tabla tr.gps-informe-promedios th.gps-informe-id {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-  .gps-marco .gps-informe-tarjeta {
-    min-height: 42px;
-    padding: 6px;
-    font-size: 14px;
   }
 }
