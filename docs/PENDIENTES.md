@@ -84,11 +84,15 @@ quedó en [el sistema de diseño](DESIGN_SYSTEM.md), «El espacio (16/10)»; UI-
   vacío, Cuentas y Notas (el campo de nueva nota) y la barra lateral de la compu. Antes de sacar
   algo que es contenido (por ejemplo, «Seguir registrando» repetido en Flujo diario o la
   tarjeta «Crear reportes» de Lesiones), se consulta.
-- **Errores encontrados al relevar** (sin arreglar todavía): GPS › Cargar › «La sesión» se
-  corre de costado a 390 px; en Partido › Editar registro › Formación los convocados quedan en
-  una sola columna (la clase `grid-plantel` no tiene estilo: la regla es `grilla-plantel`); al
-  entrar a un módulo desde el portal o Bases de Datos la pantalla no vuelve arriba; el aviso
-  «OpenField no responde» tapa «Módulos» en el celular.
+- **Errores encontrados al relevar** (arreglados el 16/10; Santiago eligió «Los 4 errores
+  encontrados» en el cuestionario de qué seguir): GPS › Cargar › «La sesión» se corría de
+  costado a 390 px (ahora la caja de lo elegido no pasa el ancho de la pantalla y lo largo
+  termina en «…»); en Partido › Editar registro › Formación los convocados quedaban en una sola
+  columna (la clase `grid-plantel` no tenía estilo: ahora usa `grilla-plantel`, como al cargar
+  la formación); al entrar a un módulo desde el portal o a una base desde Bases de Datos la
+  pantalla no volvía arriba (ahora arranca arriba); el aviso «OpenField no responde» tapaba
+  «Módulos» en el celular (ahora ocupa su lugar arriba y corre lo de abajo). No cambió ningún
+  dato, texto, cálculo ni función.
 - **Sin revisar todavía**: de 721 a 1100 px (tablet) y con zoom, la impresión de los reportes,
   los estados de error y sin señal, y solo lectura en Partido, Tareas, Cuentas y Notas.
 

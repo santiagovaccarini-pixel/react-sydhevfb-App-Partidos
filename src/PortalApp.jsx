@@ -234,6 +234,9 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
     portadas.current += 1;
     setPortada({ tarjeta, desde, numero: portadas.current });
     setModo(tarjeta.modo);
+    // El módulo arranca arriba (si no, quedaba donde estaba el portal y
+    // tapaba el título y la acción principal; 16/10, al relevar el espacio).
+    if (typeof window !== "undefined" && typeof window.scrollTo === "function") window.scrollTo(0, 0);
   };
 
   const volver = () => setModo(MODOS.PORTAL);
