@@ -19,6 +19,15 @@ Aplican a todo el proyecto: Respondé en castellano simple.
 
 - Diseñá una interfaz elegante, simple, profesional, estética, agradable e
   intuitiva siguiendo `docs/DESIGN_SYSTEM.md`. Primero celular.
+- En pedidos de diseño, presentación o usabilidad de informes, tablas, bases y
+  dashboards, aplicá la Skill del proyecto
+  [sports-ux-ui](.claude/skills/sports-ux-ui/SKILL.md). Se puede invocar con
+  `/sports-ux-ui`; sus criterios detallados viven en el sistema de diseño.
+  Para trabajos de lógica sin interfaz, seguí estas reglas generales.
+- La preferencia visual es premium, limpia, intuitiva y consistente, con datos
+  legibles y navegación simple. Una referencia visual aporta estética; no agrega
+  datos, métricas, funciones ni decisiones de producto. Conservá las excepciones
+  y los descartes de `docs/UI_DECISIONS.md`.
 - Hacé el cambio mínimo necesario. No agregues funcionalidades, reorganices
   módulos, hagas refactorizaciones ni cambies dependencias fuera del pedido.
 - Protegé lógica y funcionalidad: cálculos, fechas, importación/exportación,
@@ -66,3 +75,9 @@ Rutas de los archivos modificados y para qué se tocó cada uno.
 ### CÓMO PROBARLO
 Pasos sencillos y resultado esperado; verificaciones realizadas y pendientes.
 No afirmes que una prueba pasó si no la ejecutaste.
+
+## Uso en Claude Code Cloud
+
+La configuración viaja con el repositorio. Consultá
+[la guía de activación y prueba](docs/CLAUDE_CODE_CLOUD.md) para elegir la rama
+que contiene estos archivos y comprobar la Skill en una sesión nueva.
