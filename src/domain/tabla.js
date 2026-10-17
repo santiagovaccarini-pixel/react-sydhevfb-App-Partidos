@@ -343,6 +343,11 @@ export const ordenarFilas = (filas, orden) => {
     .map(({ fila }) => fila);
 };
 
+// Las filas apagadas (quien ya no está en el plantel actual), después de las
+// demás, cada grupo en el orden que traía (Datos básicos; Santiago, 17/10:
+// «Siempre al final», también al ordenar por una columna).
+export const apagadasAlFinal = (filas) => [...filas.filter((fila) => !fila.apagada), ...filas.filter((fila) => fila.apagada)];
+
 // Las columnas en tramos de un mismo grupo seguido (la fila de arriba de las
 // cabeceras). Si se mueve una columna a otro lado, su grupo se parte.
 export const tramosDeGrupos = (columnas) => {

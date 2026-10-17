@@ -386,6 +386,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
               onPegar={pegar}
               leyenda={t("datos.leyendaYaNoEsta")}
               rotuloApagada={t("datos.yaNoEsta")}
+              apagadasAlFinal
               onBorrarFilas={
                 soloLectura
                   ? undefined

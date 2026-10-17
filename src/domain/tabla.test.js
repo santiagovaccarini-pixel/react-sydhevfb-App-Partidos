@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   aTexto,
+  apagadasAlFinal,
   aplicarPegado,
   desdeTexto,
   filtrarFilas,
@@ -203,6 +204,17 @@ describe("filtros y orden de las cabeceras", () => {
     expect(ordenarFilas(filas, { clave: "inicio", sentido: "desc" }).map((f) => f.id)).toEqual([1, 2, 3]);
     expect(ordenarFilas(filas, { clave: "lado", sentido: "desc" }).map((f) => f.id)).toEqual([2, 1, 3]);
     expect(ordenarFilas(filas, null)).toBe(filas);
+  });
+
+  test("las apagadas (quien ya no está), después de las demás, cada grupo en su orden", () => {
+    const lista = [
+      { id: 1, apagada: true },
+      { id: 2 },
+      { id: 3, apagada: true },
+      { id: 4 },
+    ];
+    expect(apagadasAlFinal(lista).map((f) => f.id)).toEqual([2, 4, 1, 3]);
+    expect(apagadasAlFinal([])).toEqual([]);
   });
 
   test("si la fila dice cómo ordenar una columna, manda eso (el nombre y no el id, la fecha y no el texto)", () => {

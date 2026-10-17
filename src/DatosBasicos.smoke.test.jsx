@@ -209,10 +209,13 @@ describe("el módulo Datos básicos", () => {
     await montar();
     expect(texto(contenedor)).toContain("2 jugadores · 2 en el plantel actual");
     const casilla = (fila) => celda(contenedor, fila, 1).querySelector("input[type=checkbox]");
+    const nombres = () => [...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent);
     expect(casilla(0).checked).toBe(true);
     await tocar(casilla(0));
     expect(registro.guardados).toEqual([{ id: 7, actual: false }]);
-    expect(casilla(0).checked).toBe(false);
+    // Quien ya no está baja al final en el momento (Santiago, 17/10).
+    expect(nombres()).toEqual(["SCARPA", "HULK"]);
+    expect(casilla(1).checked).toBe(false);
     expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
 
     // El filtro de la cabecera: Sí / No.
@@ -227,12 +230,13 @@ describe("el módulo Datos básicos", () => {
     expect([...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent)).toEqual(["SCARPA"]);
     await tocar(botonDe("Quitar filtros"));
 
-    // Se vuelve a marcar.
-    await tocar(casilla(0));
+    // Se vuelve a marcar: vuelve a su lugar.
+    await tocar(casilla(1));
     expect(registro.guardados).toEqual([
       { id: 7, actual: false },
       { id: 7, actual: true },
     ]);
+    expect(nombres()).toEqual(["HULK", "SCARPA"]);
     expect(casilla(0).checked).toBe(true);
   });
 
@@ -249,25 +253,50 @@ describe("el módulo Datos básicos", () => {
       soltar = resolver;
     });
     await tocar(casilla(0));
-    // Mientras se guarda, ya se ve: el color, la leyenda y el contador.
+    // Mientras se guarda, ya se ve: el color, la leyenda, el contador y que
+    // baja al final (ahora es la segunda fila).
     expect(registro.guardados).toEqual([{ id: 7, actual: false }]);
-    expect(fila(0).classList.contains("apagada")).toBe(true);
-    expect(fila(1).classList.contains("apagada")).toBe(false);
+    expect(fila(1).textContent).toContain("HULK");
+    expect(fila(1).classList.contains("apagada")).toBe(true);
+    expect(fila(0).classList.contains("apagada")).toBe(false);
     expect(contenedor.querySelector(".tabla-datos-leyenda").textContent).toBe("En este color, los que ya no están en el plantel actual (Datos básicos › Actual).");
     expect(contenedor.querySelector(".tabla-datos-leyenda").classList.contains("oculta")).toBe(false);
-    expect(fila(0).title).toBe("Ya no está");
+    expect(fila(1).title).toBe("Ya no está");
     expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
     await act(async () => soltar());
     registro.esperaGuardar = null;
-    expect(fila(0).classList.contains("apagada")).toBe(true);
+    expect(fila(1).classList.contains("apagada")).toBe(true);
 
     // Sin el SQL, marcarlo de nuevo no se guarda: vuelve a como estaba.
     registro.fallarGuardar = "datos.error.faltaActual";
-    await tocar(casilla(0));
-    expect(casilla(0).checked).toBe(false);
-    expect(fila(0).classList.contains("apagada")).toBe(true);
+    await tocar(casilla(1));
+    expect(casilla(1).checked).toBe(false);
+    expect(fila(1).textContent).toContain("HULK");
+    expect(fila(1).classList.contains("apagada")).toBe(true);
     expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
     expect(texto(contenedor)).toContain("20261011_jugadores_actual.sql");
+  });
+
+  // Nota de Santiago (17/10, en un cuestionario: «Siempre al final», «Sí, en
+  // el momento», «Solo Datos básicos»).
+  test("los que ya no están van al final, también al ordenar por una columna", async () => {
+    const jugador = (id, nombre, fecha_nacimiento, actual) => ({ ...plantelInicial()[1], id, nombre, fecha_nacimiento, actual });
+    registro.plantel = [jugador(21, "ALFA", "1985-03-01", false), jugador(22, "BETA", "1990-03-01", true), jugador(23, "GAMA", "1995-03-01", true)];
+    await montar();
+    const nombres = () => [...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent);
+    expect(nombres()).toEqual(["BETA", "GAMA", "ALFA"]);
+    const ordenar = async (sentido) => {
+      await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Fecha de nacimiento"]'));
+      await tocar([...contenedor.querySelectorAll(".chip-criterio")].find((b) => b.textContent === sentido));
+    };
+    // ALFA es el mayor, pero ya no está: sigue abajo.
+    await ordenar("De menor a mayor");
+    expect(nombres()).toEqual(["BETA", "GAMA", "ALFA"]);
+    await ordenar("De mayor a menor");
+    expect(nombres()).toEqual(["GAMA", "BETA", "ALFA"]);
+    // La tabla recuerda el orden mientras la app está abierta: se saca.
+    await tocar([...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === "Quitar filtros"));
+    expect(nombres()).toEqual(["BETA", "GAMA", "ALFA"]);
   });
 
   test("Actual: si no se guarda pero mientras tanto se pegó y guardó lo mismo, no vuelve atrás", async () => {
@@ -289,9 +318,11 @@ describe("el módulo Datos básicos", () => {
       { id: 7, actual: false },
     ]);
     await act(async () => soltar());
-    // En la base quedó false: la pantalla también.
-    expect(casilla(0).checked).toBe(false);
-    expect(fila(0).classList.contains("apagada")).toBe(true);
+    // En la base quedó false: la pantalla también (la fila bajó al final y
+    // lo pegado fue igual a la suya).
+    expect(fila(1).textContent).toContain("HULK");
+    expect(casilla(1).checked).toBe(false);
+    expect(fila(1).classList.contains("apagada")).toBe(true);
     expect(texto(contenedor)).toContain("2 jugadores · 1 en el plantel actual");
   });
 

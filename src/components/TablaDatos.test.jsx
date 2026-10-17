@@ -533,6 +533,30 @@ describe("la tabla estilo Excel", () => {
     expect(editados).toEqual([]);
   });
 
+  // Datos básicos (Santiago, 17/10: «Siempre al final»); las bases, no.
+  test("con apagadasAlFinal, las apagadas van después de las demás, también al ordenar; sin la opción, no", async () => {
+    const tres = [
+      { id: 1, apagada: true, valores: { nombre: "ALFA", edad: 40, pie: "" }, textos: { nombre: "ALFA", edad: "40 años", pie: "" } },
+      { id: 2, valores: { nombre: "BETA", edad: 20, pie: "" }, textos: { nombre: "BETA", edad: "20 años", pie: "" } },
+      { id: 3, valores: { nombre: "GAMA", edad: 30, pie: "" }, textos: { nombre: "GAMA", edad: "30 años", pie: "" } },
+    ];
+    const nombres = () => [...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent);
+    const ordenarEdad = async (sentido) => {
+      await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Edad"]'));
+      await tocar([...contenedor.querySelectorAll(".chip-criterio")].find((b) => b.textContent === sentido));
+    };
+    await montar({ filas: tres, apagadasAlFinal: true });
+    expect(nombres()).toEqual(["BETA", "GAMA", "ALFA"]);
+    await ordenarEdad("De mayor a menor");
+    expect(nombres()).toEqual(["GAMA", "BETA", "ALFA"]);
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    await montar({ filas: tres });
+    expect(nombres()).toEqual(["ALFA", "BETA", "GAMA"]);
+    await ordenarEdad("De mayor a menor");
+    expect(nombres()).toEqual(["ALFA", "GAMA", "BETA"]);
+  });
+
   test("una fila apagada va en otro color, con la leyenda arriba; sin ninguna a la vista, la leyenda guarda su lugar", async () => {
     const leyenda = "En este color, los que ya no están";
     await montar({ leyenda, rotuloApagada: "Ya no está" });
