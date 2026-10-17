@@ -316,6 +316,15 @@ export const CAMPOS_CON_LISTA = CAMPOS.filter((campo) => campo.tipo === "lista" 
 // desde el módulo Datos básicos).
 export const DATOS_DEL_JUGADOR = ["categoria", "fecha_nacimiento", "pie_dominante", "posicion"];
 
+// Las columnas que Lesiones comparte con Datos básicos (las del jugador): su
+// nombre y sus listas se cambian en Datos básicos › Ajustes, y en Lesiones
+// siempre se ven (Santiago, 17/10: «En lesiones solo lo que sea de lesiones,
+// si comparte columnas con datos basicos quedan en datos basicos»; esconder
+// una desde Datos básicos, «Solo en Datos básicos»). Es la misma lista de
+// es_columna_de_datos_basicos en la base (20261028_datos_basicos_ajustes.sql).
+export const COLUMNAS_DE_DATOS_BASICOS = ["jugador", ...DATOS_DEL_JUGADOR];
+export const esDeDatosBasicos = (clave) => COLUMNAS_DE_DATOS_BASICOS.includes(clave);
+
 // Lo que se carga a mano en una lesión (va en `datos` o en su columna). Es
 // exactamente lo que el Excel no calcula.
 export const TIPOS_MANUALES = ["lista", "fecha", "fecha_hora", "texto", "texto_largo", "numero"];
@@ -419,8 +428,9 @@ export const etiquetaDeGrupo = (clave, config, idioma) => {
 };
 
 // Las columnas obligatorias (jugador, parte, lado, fecha) no se pueden esconder:
-// sin ellas no se registra la lesión.
-export const campoOculto = (clave, config) => !campoPorClave(clave)?.obligatorio && Boolean(config?.campos?.[clave]?.oculto);
+// sin ellas no se registra la lesión. Las del jugador tampoco se esconden en
+// Lesiones: eso se decide en Datos básicos y vale solo ahí.
+export const campoOculto = (clave, config) => !campoPorClave(clave)?.obligatorio && !esDeDatosBasicos(clave) && Boolean(config?.campos?.[clave]?.oculto);
 
 // Las opciones de un desplegable en este club (las de la base si las hay, si
 // no las del Excel), cada una con su texto en el idioma pedido.

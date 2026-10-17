@@ -3,7 +3,7 @@
 // { ..., error } con el error ya traducido a una clave del diccionario.
 import { supabase } from "../supabase.js";
 import { camposCambiados, claveDeErrorDeBase, normalizarLesion } from "./lesiones.js";
-import { armarConfig, campoPorClave, esCalculado, filasParaSembrar } from "./lesionesCampos.js";
+import { COLUMNAS_DE_DATOS_BASICOS, armarConfig, campoPorClave, esCalculado, filasParaSembrar } from "./lesionesCampos.js";
 import { agregarJugador, cargarPlantel, normalizarJugador, quitarJugador } from "./plantel.js";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./alDia.js";
 import { hoyISO } from "../idioma/formatos.js";
@@ -428,6 +428,65 @@ export const leerConfig = async (equipoId) => {
     if (filas.error) return { config: armarConfig(), ...fallo(filas.error, "lesiones.error.noLeer") };
   }
   return { config: armarConfig(filas.campos.data || [], filas.opciones.data || []), error: "" };
+};
+
+// Datos básicos › Ajustes (20261028_datos_basicos_ajustes.sql). Las
+// columnas del jugador que comparte con Lesiones (su nombre y sus listas,
+// las de esta misma configuración) las ve y las cambia cualquiera que sigue
+// en el club; lo propio de Datos básicos (el nombre de sus otras columnas y
+// cuáles se esconden en su tabla) va en datos_basicos_columnas. Sin el SQL,
+// quien no tiene Lesiones ve los textos de la app y la tabla todas las
+// columnas. Devuelve { config, columnas: { [columna]: { etiquetas, oculto } }, error }.
+export const leerConfigDatos = async (equipoId) => {
+  if (!equipoId) return { config: armarConfig(), columnas: {}, error: "" };
+  const leer = () =>
+    Promise.all([
+      supabase.from("lesiones_campos").select("campo, etiqueta_es, etiqueta_pt, oculto, orden").eq("equipo_id", equipoId).in("campo", COLUMNAS_DE_DATOS_BASICOS).order("orden"),
+      supabase.from("lesiones_opciones").select("campo, codigo, etiqueta_es, etiqueta_pt, oculto, orden").eq("equipo_id", equipoId).in("campo", COLUMNAS_DE_DATOS_BASICOS).order("orden"),
+    ]);
+  let [campos, opciones] = await leer();
+  // Lo que falta del Excel se siembra (solo de estas columnas). Si no se
+  // puede (sin el SQL, sin Lesiones), valen los textos de la app.
+  if (!campos.error && !opciones.error) {
+    const semilla = filasParaSembrar(equipoId);
+    const hay = new Set((campos.data || []).map((fila) => fila.campo));
+    const hayOpcion = new Set((opciones.data || []).map((fila) => `${fila.campo}|${fila.codigo}`));
+    const camposNuevos = semilla.campos.filter((fila) => COLUMNAS_DE_DATOS_BASICOS.includes(fila.campo) && !hay.has(fila.campo));
+    const opcionesNuevas = semilla.opciones.filter((fila) => COLUMNAS_DE_DATOS_BASICOS.includes(fila.campo) && !hayOpcion.has(`${fila.campo}|${fila.codigo}`));
+    const sembrado = await Promise.all([
+      camposNuevos.length ? supabase.from("lesiones_campos").upsert(camposNuevos, { onConflict: "equipo_id,campo", ignoreDuplicates: true }) : { error: null },
+      opcionesNuevas.length ? supabase.from("lesiones_opciones").upsert(opcionesNuevas, { onConflict: "equipo_id,campo,codigo", ignoreDuplicates: true }) : { error: null },
+    ]);
+    if ((camposNuevos.length || opcionesNuevas.length) && !sembrado.some((uno) => uno.error)) [campos, opciones] = await leer();
+  }
+  const config = campos.error || opciones.error ? armarConfig() : armarConfig(campos.data || [], opciones.data || []);
+  const propias = await supabase.from("datos_basicos_columnas").select("columna, etiqueta_es, etiqueta_pt, oculto").eq("equipo_id", equipoId);
+  const columnas = Object.fromEntries(
+    (propias.error ? [] : propias.data || []).map((fila) => [
+      fila.columna,
+      { etiquetas: { "es-AR": fila.etiqueta_es || "", "pt-BR": fila.etiqueta_pt || "" }, oculto: Boolean(fila.oculto) },
+    ]),
+  );
+  return { config, columnas, error: campos.error || opciones.error ? fallo(campos.error || opciones.error, "lesiones.error.noLeer").error : "" };
+};
+
+// Lo propio de una columna de Datos básicos: su nombre (solo el de las que
+// no son de Lesiones) y si se esconde en la tabla de Datos básicos.
+export const guardarColumnaDatos = async (equipoId, columna, { etiquetas = {}, oculto = false }) => {
+  const { error } = await supabase.from("datos_basicos_columnas").upsert(
+    {
+      equipo_id: equipoId,
+      columna,
+      etiqueta_es: String(etiquetas["es-AR"] || "").trim(),
+      etiqueta_pt: String(etiquetas["pt-BR"] || "").trim(),
+      oculto: Boolean(oculto),
+    },
+    { onConflict: "equipo_id,columna" },
+  );
+  if (!error) return { error: "" };
+  // Sin el SQL nuevo, la tabla no está: se dice qué falta.
+  if (/datos_basicos_columnas/.test(error.message || "") || ["42P01", "PGRST205"].includes(error.code)) return { error: "datos.ajustes.faltaSql" };
+  return fallo(error, "lesiones.ajustes.errorGuardar");
 };
 
 export const guardarCampo = async (equipoId, campo, { etiquetas = {}, oculto = false, orden = 0 }) => {

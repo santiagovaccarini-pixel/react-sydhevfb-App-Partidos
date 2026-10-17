@@ -330,7 +330,9 @@ quedó en [el sistema de diseño](DESIGN_SYSTEM.md), «El espacio (16/10)»; UI-
   Jugadores ni Flujo diario Ajustes › Lista de jugadores. Lo que estaba ahí se mudó igual:
   la solapa **Posiciones** (los puestos y roles de Partido, `src/components/PosicionesPartido.jsx`)
   y la solapa **Catapult** (el chaleco de cada jugador, `src/components/VinculosCatapult.jsx`;
-  solo para quien tiene Flujo diario, porque busca los chalecos con esa cuenta).
+  solo para quien tiene Flujo diario, porque busca los chalecos con esa cuenta). Desde el
+  17/10, Catapult está adentro de Datos básicos › Ajustes y Posiciones sigue como solapa (ver
+  «Datos básicos › Ajustes» en «Lo anotado en Notas, tercera tanda (17/10)»).
 - **Actual (03/10)**, en Datos básicos: quedan todos los jugadores que pasaron por el club, y
   la casilla "Actual" (al lado del nombre) marca los del plantel de hoy; se marca y desmarca
   con un toque y se guarda al toque (`jugadores.actual`, migración
@@ -3669,6 +3671,43 @@ confirme.**
     cambió (sin SQL). Ver UI-047.
   - **Queda prohibido** cambiar sin preguntar la categoría de las lesiones de un jugador que
     las tiene cargadas, y volver a mostrar en una lesión siempre la categoría actual.
+  - Santiago la confirmó: «Está bien, pasamos» (17/10).
+- **Datos básicos › Ajustes (hecho el 17/10).** Nota del 14/10: «Agregar ajustes de datos
+  basicos y mover posiciones a ajustes de partido». Santiago, 17/10, en dos cuestionarios:
+  - Qué va en Ajustes: «Listas», «Cabeceras» y «Catapult».
+  - Lesiones: «En lesiones solo lo que sea de lesiones, si comparte columnas con datos basicos
+    quedan en datos basicos».
+  - Quién lo cambia: «Vamos a implementar un nivel mas de permisos para cada modulo (Solo
+    Lectura y Edicion) solo lectura no deja editar nada y edicion si». Hacerlo «Aparte, justo
+    después» y, mientras tanto, lo cambia «Cualquiera del club».
+  - Esconder desde Datos básicos una columna que comparte con Lesiones: «Solo en Datos
+    básicos».
+  - Posiciones: «Mejor deja posiciones dentro de datos basicos» (no se pasa a Partido).
+
+  Quedó así:
+  - **Datos básicos** tiene la solapa **Ajustes** (Jugadores, Posiciones, Ajustes) con tres
+    filas: **Cabeceras** (el nombre de cada columna en cada idioma y cuáles se ven en la tabla),
+    **Listas** (las opciones de Categoría, Pie dominante y Posición: agregar, renombrar o
+    esconder) y **Catapult** (el dispositivo de cada jugador; solo para quien tiene Flujo
+    diario, como antes; se mira también en solo lectura). La solapa Catapult ya no está.
+  - **Las columnas del jugador** (nombre y apellido, categoría, fecha de nacimiento, pie
+    dominante y posición) se llaman igual en Lesiones y usan las mismas listas: se cambian
+    solo desde Datos básicos › Ajustes. Lesiones › Ajustes ya no las muestra (avisa dónde se
+    cambian) y en Lesiones siempre se ven.
+  - **Esconder** una columna desde Datos básicos la saca solo de su tabla. El nombre de cada
+    jugador no se esconde. Las columnas propias (Actual, Edad, Foto, Horas previas) tienen su
+    nombre aparte: la Edad de Datos básicos (la de hoy) ya no toma el nombre de la Edad de
+    Lesiones (la del día de la lesión).
+  - **Quién**: hasta los niveles de permiso por módulo, cualquiera que sigue en el club (como
+    los jugadores); en solo lectura, Cabeceras y Listas no se abren. Anon, nada.
+  - **La base** (migración `20261028_datos_basicos_ajustes.sql`, se corre antes de usarlo):
+    las políticas que dejan ver y cambiar el nombre y las listas de las columnas del jugador
+    (`lesiones_campos` y `lesiones_opciones`, solo esas cinco; no se borran) y la tabla
+    `datos_basicos_columnas` (nombre de las propias y lo escondido). Sin el SQL, quien no tiene
+    Lesiones ve los nombres de la app y, al guardar, la app dice qué SQL falta.
+  - **Queda prohibido** volver a cambiar las columnas del jugador desde Lesiones › Ajustes,
+    que esconderlas en Datos básicos las esconda en Lesiones, y pasar Posiciones a Partido sin
+    un pedido nuevo. Ver UI-048.
 - **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
   con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
@@ -3677,8 +3716,10 @@ confirme.**
   franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
   GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
   UI-040.
-- **Lo que sigue, en este orden**: Datos básicos (Ajustes de Datos básicos con las posiciones
-  pasadas a Partido, y sacarlo de los módulos principales como Notas); moverse por la app (botones siempre a la vista, esconder la
+- **Lo que sigue, en este orden**: los niveles de permiso por módulo («Solo Lectura y
+  Edicion»; Santiago, 17/10: «Aparte, justo después» de los Ajustes de Datos básicos); Datos
+  básicos fuera de los módulos principales (nota del 14/10: «Pasar datos basicos a un modulo
+  fuera de los principales al igual que notas»); moverse por la app (botones siempre a la vista, esconder la
   barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo

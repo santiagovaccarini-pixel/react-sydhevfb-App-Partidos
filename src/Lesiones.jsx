@@ -46,6 +46,7 @@ import {
   campoPorClave,
   claveDeGrupo,
   codigoNuevo,
+  esDeDatosBasicos,
   etiquetaDeCampo,
   etiquetaDeGrupo,
   etiquetaDeOpcion,
@@ -973,11 +974,14 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         <div className="app">
           <div className="contenedor">
             <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.cabeceras")} texto={t("lesiones.ajustes.cabecerasAyuda")} />
+            {/* Las columnas del jugador se cambian en Datos básicos › Ajustes
+                (Santiago, 17/10): acá queda solo lo de Lesiones. */}
+            <p className="lesiones-ayuda lesiones-del-jugador">{t("lesiones.ajustes.delJugador")}</p>
             {/* Cada grupo del Excel con sus columnas abajo: el grupo también
                 se renombra (es la fila de arriba de las cabeceras). */}
             <div className="lista-opciones">
               {GRUPOS.map((grupo, indiceGrupo) => {
-                const suyos = CAMPOS.filter((campo) => campo.grupo === grupo.clave);
+                const suyos = CAMPOS.filter((campo) => campo.grupo === grupo.clave && !esDeDatosBasicos(campo.clave));
                 const claveGrupo = claveDeGrupo(grupo.clave);
                 return (
                   <React.Fragment key={grupo.clave}>
@@ -1079,8 +1083,9 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         <div className="app">
           <div className="contenedor">
             <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.listas")} texto={t("lesiones.ajustes.listasAyuda")} />
+            <p className="lesiones-ayuda lesiones-del-jugador">{t("lesiones.ajustes.delJugador")}</p>
             <div className="lista-opciones">
-              {CAMPOS_CON_LISTA.map((campo) =>
+              {CAMPOS_CON_LISTA.filter((campo) => !esDeDatosBasicos(campo.clave)).map((campo) =>
                 filaAjuste({
                   id: campo.clave,
                   titulo: etiqueta(campo.clave),

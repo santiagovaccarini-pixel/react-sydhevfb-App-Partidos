@@ -33,11 +33,13 @@ import {
 import {
   CAMPOS,
   CAMPOS_EDITABLES,
+  COLUMNAS_DE_DATOS_BASICOS,
   GRUPOS,
   OPCIONES,
   PASOS,
   armarConfig,
   campoOculto,
+  campoPorClave,
   claveDeGrupo,
   esCalculado,
   etiquetaDeCampo,
@@ -106,6 +108,13 @@ describe("el catálogo del Excel", () => {
     expect(campoOculto("parte_cuerpo", config)).toBe(false);
     expect(campoOculto("producto", config)).toBe(true);
     expect(campoOculto("medico", config)).toBe(false);
+  });
+
+  test("las columnas del jugador siempre se ven en Lesiones: se esconden solo en Datos básicos (17/10)", () => {
+    const config = armarConfig([{ campo: "pie_dominante", etiqueta_es: "", etiqueta_pt: "", oculto: true, orden: 5 }], []);
+    expect(campoOculto("pie_dominante", config)).toBe(false);
+    expect(COLUMNAS_DE_DATOS_BASICOS).toEqual(["jugador", "categoria", "fecha_nacimiento", "pie_dominante", "posicion"]);
+    expect(COLUMNAS_DE_DATOS_BASICOS.every((clave) => campoPorClave(clave))).toBe(true);
   });
 
   test("cada desplegable tiene opciones con código único y texto en los dos idiomas", () => {

@@ -1180,7 +1180,11 @@ describe("el módulo Lesiones", () => {
     const filasDeCabeceras = [...contenedor.querySelectorAll(".opcion-ajuste")].map((b) => b.querySelector("b").textContent);
     expect(filasDeCabeceras.slice(0, 3)).toEqual(["Datos generales", "N° de caso", "N° de registro"]);
     expect([...contenedor.querySelectorAll(".lesiones-ajuste-grupo b")].map((b) => b.textContent)).toEqual(GRUPOS_DEL_EXCEL);
-    expect(filasDeCabeceras).toHaveLength(36 + 7);
+    // Las cinco del jugador (nombre, categoría, nacimiento, pie y posición)
+    // se cambian en Datos básicos › Ajustes (Santiago, 17/10).
+    expect(filasDeCabeceras).toHaveLength(36 - 5 + 7);
+    ["Nombre y apellido", "Categoría", "Fecha de nacimiento", "Pie dominante", "Posición"].forEach((columna) => expect(filasDeCabeceras).not.toContain(columna));
+    expect(texto(contenedor)).toContain("se cambian en Datos básicos › Ajustes.");
     await tocar(botonQueEmpieza(contenedor, "Descripción general"));
     expect(texto(contenedor)).toContain("Grupo: Descripción general");
     expect(texto(contenedor)).toContain("Es la fila de arriba de las cabeceras");
@@ -1192,6 +1196,9 @@ describe("el módulo Lesiones", () => {
 
     await tocar(boton(contenedor, "Volver a Ajustes"));
     await tocar(botonQueEmpieza(contenedor, "Listas"));
+    const listas = [...contenedor.querySelectorAll(".opcion-ajuste b")].map((b) => b.textContent);
+    expect(listas).toContain("Mecanismo");
+    ["Categoría", "Pie dominante", "Posición"].forEach((lista) => expect(listas).not.toContain(lista));
     await tocar(botonQueEmpieza(contenedor, "Mecanismo"));
     expect(texto(contenedor)).toContain("15 opciones");
     await tocar(boton(contenedor, "Agregar una opción"));

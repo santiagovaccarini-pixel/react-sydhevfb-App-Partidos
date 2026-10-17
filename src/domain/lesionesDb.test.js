@@ -6,9 +6,11 @@ import {
   cargarPlantelLesiones,
   crearLesion,
   guardarCategoriaDeLesiones,
+  guardarColumnaDatos,
   guardarDatosJugador,
   historialDeLesion,
   importarLesion,
+  leerConfigDatos,
   leerLesionesPorJugador,
   leerMinutosDeEntrenamiento,
   listarLesiones,
@@ -29,7 +31,7 @@ vi.mock("./plantel.js", () => ({
 vi.mock("../supabase.js", () => {
   const cadena = () => {
     const c = {};
-    ["select", "eq", "not", "order", "limit", "insert", "update", "single", "range"].forEach((metodo) => {
+    ["select", "eq", "in", "not", "order", "limit", "insert", "update", "upsert", "single", "range"].forEach((metodo) => {
       c[metodo] = (...args) => {
         doble.llamadas.push([metodo, ...args]);
         return c;
@@ -122,6 +124,56 @@ describe("guardar una lesión", () => {
     await actualizarLesion("les-1", { jugador_id: 7, fecha_lesion: "2026-09-01", datos: { parte_cuerpo: "coxa", categoria: "sub20", edad: 19 } });
     const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "update");
     expect(enviado.datos).toEqual({ parte_cuerpo: "coxa", categoria: "sub20" });
+  });
+});
+
+describe("Datos básicos › Ajustes (17/10)", () => {
+  const COMPARTIDAS = ["jugador", "categoria", "fecha_nacimiento", "pie_dominante", "posicion"];
+
+  test("se leen y se siembran solo las columnas del jugador, y lo propio de Datos básicos aparte", async () => {
+    doble.respuestas = [
+      { data: [], error: null },
+      { data: [], error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: [{ campo: "categoria", etiqueta_es: "Categoría actual", etiqueta_pt: "", oculto: false, orden: 1 }], error: null },
+      { data: [{ campo: "categoria", codigo: "sub21", etiqueta_es: "Sub-21", etiqueta_pt: "", oculto: false, orden: 9 }], error: null },
+      { data: [{ columna: "foto_url", etiqueta_es: "Foto carnet", etiqueta_pt: "", oculto: true }], error: null },
+    ];
+    const { config, columnas, error } = await leerConfigDatos("eq-1");
+    expect(error).toBe("");
+    expect(doble.llamadas.filter(([metodo]) => metodo === "in")).toEqual(Array(4).fill(["in", "campo", COMPARTIDAS]));
+    const sembrado = doble.llamadas.filter(([metodo]) => metodo === "upsert").flatMap(([, filas]) => filas);
+    expect(sembrado.length).toBeGreaterThan(0);
+    expect(sembrado.every((fila) => COMPARTIDAS.includes(fila.campo))).toBe(true);
+    expect(config.campos.categoria.etiquetas["es-AR"]).toBe("Categoría actual");
+    expect(config.listas.categoria.map((opcion) => opcion.codigo)).toEqual(["sub21"]);
+    expect(columnas).toEqual({ foto_url: { etiquetas: { "es-AR": "Foto carnet", "pt-BR": "" }, oculto: true } });
+  });
+
+  test("sin el SQL nuevo se lee igual: lo propio de Datos básicos queda vacío", async () => {
+    doble.respuestas = [
+      { data: [], error: null },
+      { data: [], error: null },
+      { data: null, error: { code: "42501", message: "new row violates row-level security policy" } },
+      { data: null, error: null },
+      { data: null, error: { code: "42P01", message: 'relation "public.datos_basicos_columnas" does not exist' } },
+    ];
+    const { config, columnas, error } = await leerConfigDatos("eq-1");
+    expect(error).toBe("");
+    expect(config).toEqual({ campos: {}, listas: {} });
+    expect(columnas).toEqual({});
+  });
+
+  test("lo propio de una columna se guarda con su club; sin la tabla, se dice qué SQL falta", async () => {
+    await guardarColumnaDatos("eq-1", "horas_previas", { etiquetas: { "es-AR": " Horas antes ", "pt-BR": "" }, oculto: true });
+    expect(doble.llamadas).toContainEqual(["from", "datos_basicos_columnas"]);
+    expect(doble.llamadas.find(([metodo]) => metodo === "upsert").slice(1)).toEqual([
+      { equipo_id: "eq-1", columna: "horas_previas", etiqueta_es: "Horas antes", etiqueta_pt: "", oculto: true },
+      { onConflict: "equipo_id,columna" },
+    ]);
+    doble.error = { code: "PGRST205", message: "Could not find the table 'public.datos_basicos_columnas' in the schema cache" };
+    expect(await guardarColumnaDatos("eq-1", "edad", { oculto: true })).toEqual({ error: "datos.ajustes.faltaSql" });
   });
 });
 

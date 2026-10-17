@@ -331,6 +331,13 @@
   color: #64748b;
   font-size: 11px;
 }
+/* Ajustes: dónde se cambian las columnas del jugador (sobre el fondo oscuro). */
+.lesiones-marco .lesiones-del-jugador {
+  margin: 0 0 12px;
+  color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1.45;
+}
 .lesiones-marco .lesiones-aviso-recidiva {
   margin: 0 0 12px;
   padding: 9px 12px;
