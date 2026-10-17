@@ -178,7 +178,7 @@ export default function TrainingCuenta({ cuentaInicial, onCambio, onVolver }) {
           autoComplete="username"
           value={username}
           onChange={(event) => setUsername(event.target.value)}
-          placeholder="El que usás para entrar al sistema de los chalecos"
+          placeholder="El que usás para entrar al sistema de los dispositivos"
           disabled={estado === "guardando"}
         />
 

@@ -158,8 +158,8 @@ describe("el módulo Datos básicos", () => {
   test("los chalecos de Catapult están acá para quien tiene Flujo diario", async () => {
     await montar({ partido: true, flujo: true, lesiones: false, datos: true });
     await irA(contenedor, "Catapult");
-    expect(texto(contenedor)).toContain("Chalecos de Catapult");
-    expect(texto(contenedor)).toContain("2 jugadores · 0 con chaleco");
+    expect(texto(contenedor)).toContain("Dispositivos de Catapult");
+    expect(texto(contenedor)).toContain("2 jugadores · 0 con dispositivo");
     await act(async () => raiz.unmount());
     raiz = createRoot(contenedor);
     await montar({ partido: true, flujo: false, lesiones: true, datos: true });

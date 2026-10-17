@@ -298,7 +298,7 @@ describe("TrainingTareas", () => {
     expect(casillas().map((casilla) => casilla.checked)).toEqual([true, true, false, false]);
     expect(casillas()[2].disabled).toBe(true);
     expect(casillas()[3].disabled).toBe(true);
-    expect(contenedor.textContent).toContain("sin chaleco");
+    expect(contenedor.textContent).toContain("sin dispositivo");
     expect(contenedor.textContent).toContain("sin datos");
     expect(contenedor.textContent).toContain("2 de 2 en la tarea");
     await act(async () => botonPorTexto("Listo").click());
