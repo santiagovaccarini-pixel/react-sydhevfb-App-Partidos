@@ -138,9 +138,12 @@ describe("el portal", () => {
     // Cada tarjeta lleva su foto y su ícono arriba a la izquierda.
     expect(contenedor.querySelector(".tarjeta-partido .portal-foto img").getAttribute("src")).toBe("/portal/partido.webp");
     expect(contenedor.querySelector(".tarjeta-flujo .portal-foto img").getAttribute("src")).toBe("/portal/flujo.webp");
-    // Partido, Flujo diario, Datos básicos (que va con cualquier módulo) y
-    // Notas (toda la gente del club).
-    expect(contenedor.querySelectorAll(".portal-tarjeta .portal-icono svg")).toHaveLength(4);
+    // Las tarjetas grandes son de los módulos principales (Partido y Flujo
+    // diario); Datos básicos (va con cualquier módulo) y Notas (toda la gente
+    // del club) van abajo, en «Del club» (Santiago, 17/10).
+    expect(contenedor.querySelectorAll(".portal-tarjeta .portal-icono svg")).toHaveLength(2);
+    expect(contenedor.querySelector(".portal-del-club-titulo").textContent).toBe("Del club");
+    expect([...contenedor.querySelectorAll(".portal-acceso strong")].map((s) => s.textContent)).toEqual(["Datos básicos", "Notas"]);
     // Cada tarjeta se toca entera para entrar: sin el botón «Entrar ›»
     // (Santiago, 14/10); el nombre para el lector de pantalla sigue.
     expect(contenedor.querySelectorAll(".portal-entrar")).toHaveLength(0);
@@ -148,23 +151,24 @@ describe("el portal", () => {
     expect(portada()).toBeNull();
   });
 
-  test("con algún módulo aparece también Datos básicos, con su foto (y el dibujo si no carga)", async () => {
+  test("con algún módulo aparece también Datos básicos, abajo en «Del club», y entra con su portada", async () => {
     cuenta.permisos = { partido: true, flujo: true, datos: true };
     await montar();
-    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(4);
-    const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Datos básicos"]');
-    expect(tarjeta).not.toBeNull();
-    expect(tarjeta.classList.contains("tarjeta-datos")).toBe(true);
-    const foto = tarjeta.querySelector(".portal-foto img");
-    expect(foto.getAttribute("src")).toBe("/portal/datos.webp");
-    await act(async () => foto.dispatchEvent(new Event("error")));
-    expect(tarjeta.querySelector(".portal-foto img")).toBeNull();
-    expect(tarjeta.querySelector(".portal-foto svg")).not.toBeNull();
+    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(2);
+    const fila = contenedor.querySelector('button[aria-label="Entrar a Datos básicos"]');
+    expect(fila).not.toBeNull();
+    expect(fila.classList.contains("portal-acceso")).toBe(true);
+    expect(fila.closest(".portal-del-club")).not.toBeNull();
+    expect(fila.querySelector(".portal-acceso-icono svg")).not.toBeNull();
+    expect(fila.textContent).toContain("Los jugadores y sus datos");
     await tocar("Entrar a Datos básicos");
+    // La portada de siempre, con su foto.
+    expect(portada().querySelector(".portal-portada-foto img").getAttribute("src")).toBe("/portal/datos.webp");
     await act(async () => vi.runAllTimers());
     expect(contenedor.querySelector(".datos-de-prueba")).not.toBeNull();
     await act(async () => contenedor.querySelector(".datos-de-prueba button").click());
-    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(4);
+    expect(contenedor.querySelectorAll(".portal-tarjeta")).toHaveLength(2);
+    expect(contenedor.querySelectorAll(".portal-acceso")).toHaveLength(2);
   });
 
   test("quien ya se fue del club lo ve marcado en el portal y al elegir club; los clubes sin membresía no aparecen", async () => {
@@ -414,12 +418,14 @@ describe("el portal", () => {
     equipo.actual = { id: "eq-1", nombre: "Atlético Mineiro", rol: "staff", partido: true, flujo: false };
     cuenta.permisos = { partido: true, flujo: false };
     await montar();
-    const tarjeta = contenedor.querySelector('button[aria-label="Entrar a Notas"]');
-    expect(tarjeta).not.toBeNull();
-    expect(tarjeta.classList.contains("tarjeta-notas")).toBe(true);
-    expect(tarjeta.querySelector(".portal-foto img")).toBeNull();
-    expect(tarjeta.querySelector(".portal-foto svg")).not.toBeNull();
+    const fila = contenedor.querySelector('button[aria-label="Entrar a Notas"]');
+    expect(fila).not.toBeNull();
+    expect(fila.classList.contains("tarjeta-notas")).toBe(true);
+    expect(fila.closest(".portal-del-club")).not.toBeNull();
     await tocar("Entrar a Notas");
+    // La portada lleva su dibujo (Notas no tiene foto).
+    expect(portada().querySelector(".portal-portada-foto img")).toBeNull();
+    expect(portada().querySelector(".portal-portada-foto svg")).not.toBeNull();
     await act(async () => vi.runAllTimers());
     expect(contenedor.querySelector(".notas-de-prueba")).not.toBeNull();
     await act(async () => contenedor.querySelector(".notas-de-prueba button").click());

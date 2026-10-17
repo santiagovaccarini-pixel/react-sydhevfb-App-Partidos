@@ -3767,6 +3767,18 @@ confirme.**
       lesión sigue con la que guardó.
     - **Queda prohibido** darle «Sin acceso» a Datos básicos y que alguien con Datos básicos en
       Solo lectura cambie jugadores, sus Ajustes o las listas de sus columnas desde otro módulo.
+    - Santiago lo confirmó: «Está bien, pasamos» (17/10).
+- **Datos básicos y Notas, fuera de los módulos principales (hecho el 17/10).** Nota del 14/10:
+  «Pasar datos basicos a un modulo fuera de los principales al igual que notas». Santiago, 17/10,
+  en un cuestionario: «Las dos salen» (Datos básicos y Notas) y «Abajo, en «Del club»».
+  - En el portal, las tarjetas grandes son solo de los módulos principales: Partido, Flujo
+    diario y Bases de Datos. Debajo, el apartado **Del club** (pt: «Do clube») con una fila
+    compacta para Datos básicos y otra para Notas: el ícono, el nombre, la línea de qué hay
+    adentro y la flechita; en la compu, una al lado de la otra. Se tocan enteras y entran con
+    la misma portada (Datos básicos con su foto, Notas con su dibujo). Quién ve cada una no
+    cambió (Datos básicos, con algún módulo; Notas, toda la gente que sigue en el club).
+  - **Queda prohibido** volver a poner Datos básicos o Notas como tarjetas grandes entre los
+    módulos principales sin un pedido nuevo. Ver UI-050.
 - **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
   con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
@@ -3775,9 +3787,7 @@ confirme.**
   franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
   GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
   UI-040.
-- **Lo que sigue, en este orden**: Datos
-  básicos fuera de los módulos principales (nota del 14/10: «Pasar datos basicos a un modulo
-  fuera de los principales al igual que notas»); moverse por la app (botones siempre a la vista, esconder la
+- **Lo que sigue, en este orden**: moverse por la app (botones siempre a la vista, esconder la
   barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo

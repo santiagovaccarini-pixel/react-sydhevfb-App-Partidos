@@ -174,6 +174,7 @@ export default {
     datosTexto: "Los jugadores y sus datos, en una tabla que se copia y se pega como en Excel.",
     notasTitulo: "Notas",
     notasTexto: "Las mejoras que querés hacer en la app, anotadas para que las vea tu club.",
+    delClub: "Del club",
   },
   // Notas: las mejoras de la app, que escribe y lee la gente de cada club.
   notas: {

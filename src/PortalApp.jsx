@@ -24,7 +24,7 @@ import {
   IconoNotas,
   IconoPartido,
 } from "./components/PortalArt.jsx";
-import { ClubDelPortal, Portada, TarjetasDelPortal } from "./components/PortalTarjetas.jsx";
+import { AccesosDelClub, ClubDelPortal, Portada, TarjetasDelPortal } from "./components/PortalTarjetas.jsx";
 import { t, useIdioma } from "./idioma/index.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import { cargarEquipos, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
@@ -45,6 +45,8 @@ const MODOS = {
 
 // Los módulos de la app, contados en una línea: lo esencial de cada uno. Qué
 // lleva cada tarjeta (foto, foco, dibujo...) está en components/PortalTarjetas.jsx.
+// Los principales van en tarjetas grandes; Datos básicos y Notas, abajo, en
+// «Del club» (DEL_CLUB, Santiago, 17/10).
 const TARJETAS = [
   {
     modo: MODOS.PARTIDO,
@@ -91,6 +93,11 @@ const TARJETAS = [
     etiqueta: "portal.nuevo",
     texto: "portal.basesTexto",
   },
+];
+
+// Lo del club que no es un módulo principal: una fila compacta cada uno, con
+// la misma portada al entrar.
+const DEL_CLUB = [
   {
     modo: MODOS.DATOS,
     permiso: "datos",
@@ -103,7 +110,6 @@ const TARJETAS = [
     Arte: ArteDatos,
     Icono: IconoDatos,
     titulo: "portal.datosTitulo",
-    etiqueta: "portal.nuevo",
     texto: "portal.datosTexto",
   },
   {
@@ -117,7 +123,6 @@ const TARJETAS = [
     Arte: ArteNotas,
     Icono: IconoNotas,
     titulo: "portal.notasTitulo",
-    etiqueta: "portal.nuevo",
     texto: "portal.notasTexto",
   },
 ];
@@ -129,6 +134,7 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onClubesDeLaApp
   useIdioma();
   const equipo = leerEquipoElegido();
   const tarjetas = TARJETAS.filter((tarjeta) => permisos?.[tarjeta.permiso]);
+  const delClub = DEL_CLUB.filter((tarjeta) => permisos?.[tarjeta.permiso]);
 
   return (
     <main className="portal-modulos">
@@ -158,10 +164,11 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onClubesDeLaApp
         <div className="portal-encabezado">
           <ClubDelPortal equipo={equipo} onCambiarClub={onCambiarClub} />
           <h1>{t("portal.pregunta")}</h1>
-          <p>{tarjetas.length > 1 ? t("portal.elegi") : t("portal.unSolo")}</p>
+          <p>{tarjetas.length === 1 ? t("portal.unSolo") : t("portal.elegi")}</p>
         </div>
 
         <TarjetasDelPortal tarjetas={tarjetas} onElegir={onElegir} />
+        <AccesosDelClub titulo={t("portal.delClub")} tarjetas={delClub} onElegir={onElegir} />
       </section>
     </main>
   );
