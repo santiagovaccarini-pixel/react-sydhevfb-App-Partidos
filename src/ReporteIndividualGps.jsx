@@ -4,6 +4,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { COLORES_INFORME, claveDeNombre, valorDeFiltro } from "./domain/gps/porMicrociclo.js";
+import { fuerte, rellenoDe } from "./domain/colores.js";
 import { COLUMNAS_POR_MINUTO, COLUMNAS_TOTALES, CUANTAS, FILTROS_DEL_REPORTE, entraEnElReporte, esDelEquipo, jugadoresDelReporte, pasaLosFiltrosDelReporte, reporteIndividual } from "./domain/gps/reporteIndividual.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta } from "./idioma/formatos.js";
@@ -274,7 +275,7 @@ export default function ReporteIndividualGps({ filasGps, nombreDe, tituloDe, tex
                 {medidas.map((clave) => {
                   const color = fila.colores?.[tipo]?.[clave] || null;
                   return (
-                    <td key={clave} className={color ? "pintada" : undefined} style={color ? { background: color } : undefined}>
+                    <td key={clave} className={color ? "pintada" : undefined} style={color ? { background: rellenoDe(color) } : undefined}>
                       {textoDeCelda(clave, fila.valores[clave])}
                     </td>
                   );
@@ -388,7 +389,7 @@ export default function ReporteIndividualGps({ filasGps, nombreDe, tituloDe, tex
               <ul className="gps-reporte-leyenda" aria-label={t("gps.reportes.individual.leyenda")}>
                 {FRANJAS.map((franja) => (
                   <li key={franja}>
-                    <span className="gps-reporte-muestra" style={{ background: COLOR_DE_FRANJA[franja] }} aria-hidden="true" />
+                    <span className="gps-reporte-muestra" style={{ background: fuerte(COLOR_DE_FRANJA[franja]) }} aria-hidden="true" />
                     {t(`gps.reportes.franjas.${franja}`)}
                   </li>
                 ))}

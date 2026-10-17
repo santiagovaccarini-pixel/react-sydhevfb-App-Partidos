@@ -5,6 +5,7 @@ import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { TerminoDe } from "./components/Guia.jsx";
 import { valorDeFiltro } from "./domain/gps/porMicrociclo.js";
+import { rellenoDe } from "./domain/colores.js";
 import { FILTROS_DEL_REPORTE, entraEnElReporte, pasaLosFiltrosDelReporte } from "./domain/gps/reporteIndividual.js";
 import { CASILLAS, CATEGORIZACIONES_DEL_GRUPAL, COLUMNAS_JUGADORES, colorDeColumna, conTiempo, reporteGrupal } from "./domain/gps/reporteGrupal.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -243,7 +244,7 @@ export default function ReporteGrupalGps({ filasGps, referencias = [], elegidos 
     const valor = franjas[franja];
     const color = franja !== "desvio" ? colorDeColumna(clave)(valor, franjas) : null;
     return (
-      <td key={clave} className={color ? "pintada" : undefined} style={color ? { background: color } : undefined}>
+      <td key={clave} className={color ? "pintada" : undefined} style={color ? { background: rellenoDe(color) } : undefined}>
         {texto(clave, valor)}
       </td>
     );
@@ -449,7 +450,7 @@ export default function ReporteGrupalGps({ filasGps, referencias = [], elegidos 
                         {columnas.map((clave) => {
                           const color = uno.colores[clave];
                           return (
-                            <td key={clave} className={color ? "pintada" : undefined} style={color ? { background: color } : undefined}>
+                            <td key={clave} className={color ? "pintada" : undefined} style={color ? { background: rellenoDe(color) } : undefined}>
                               {texto(clave, uno.valores[clave])}
                             </td>
                           );

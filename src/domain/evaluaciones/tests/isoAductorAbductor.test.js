@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularFilas, vistaDeFilas } from "../motor.js";
-import { suave } from "../../colores.js";
+import { rellenoDe, suave } from "../../colores.js";
 import { COLORES } from "../formatoCondicional.js";
 import { COMO_PERSONA, leerEvaluacionesPegadas, planDeEvaluaciones } from "../importar.js";
 import { ISO_ADUCTOR_ABDUCTOR as T, TABLAS_DE_REFERENCIA } from "./isoAductorAbductor.js";
@@ -107,12 +107,12 @@ describe("Iso Aductor-Abductor: el informe y los colores", () => {
   it("los colores: la relativa más es mejor, el ratio a los dos lados y la fuerza ABS sin color", () => {
     const [uno, dos] = filas.map((una) => vista.estilos[una.id]);
     // PD REL: 3, 2,5 y 2,75: μ = 2,75, σ = 0,25. 3 ≥ μ + σ: verde; 2,5 ≥ μ − σ: naranja.
-    expect(uno.ad_pd_rel).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.verde)})` });
-    expect(dos.ad_pd_rel).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.naranja)})` });
+    expect(uno.ad_pd_rel).toEqual({ background: rellenoDe(suave(COLORES.verde)) });
+    expect(dos.ad_pd_rel).toEqual({ background: rellenoDe(suave(COLORES.naranja)) });
     expect(uno.ad_pd).toBeUndefined();
     expect(uno.pc).toBeUndefined();
     // Ratio PD: 1,2, 0,909… y 1,222…: el más lejos del promedio, rojo.
-    expect(dos.ratio_pd).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.rojo)})` });
+    expect(dos.ratio_pd).toEqual({ background: rellenoDe(suave(COLORES.rojo)) });
     expect(uno.ad_pd_clas).toEqual({ background: COLORES.gris, color: COLORES.verde, fontWeight: 700 });
     expect(uno.ad_pierna).toEqual({ background: COLORES.gris, color: "#984807", fontWeight: 700 });
   });

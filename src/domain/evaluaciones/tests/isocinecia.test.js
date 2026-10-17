@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { columnasDeLaVista } from "../ajustes.js";
-import { suave } from "../../colores.js";
+import { rellenoDe, suave } from "../../colores.js";
 import { COLORES } from "../formatoCondicional.js";
 import { COMO_PERSONA, leerEvaluacionesPegadas, planDeEvaluaciones } from "../importar.js";
 import { calcularFilas, estadisticas, estilosDeFilas, vistaDeFilas } from "../motor.js";
@@ -154,7 +154,7 @@ describe("Isocinecia: el informe y los colores, con las filas que se ven", () =>
     // Las vacías no se pintan.
     expect(estilos[uno.id].v180_peak_ext_pd).toBeUndefined();
     // 300 con μ ≈ 263 y σ ≈ 32: entre μ + σ y μ + 2σ, verde.
-    expect(estilos[uno.id].v60_peak_ext_pd).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.verde)})` });
+    expect(estilos[uno.id].v60_peak_ext_pd).toEqual({ background: rellenoDe(suave(COLORES.verde)) });
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularFilas, vistaDeFilas } from "../motor.js";
-import { suave } from "../../colores.js";
+import { rellenoDe, suave } from "../../colores.js";
 import { COLORES } from "../formatoCondicional.js";
 import { leerEvaluacionesPegadas, planDeEvaluaciones, ordenDeCarga, COMO_PERSONA, ESTADOS } from "../importar.js";
 import { MOVILIDAD_CADERA, MOVILIDAD_ISQUIO, MOVILIDAD_TOBILLO } from "./movilidad.js";
@@ -83,7 +83,7 @@ describe("Movilidad: el informe y los colores", () => {
     expect(fila("comparacion").pd.valor).toBeCloseTo(40 / 38, 12);
     expect(fila("comparacion").pd_clas.valor).toBe(3);
     expect(fila("referencia").pd.valor).toBe(38);
-    expect(vista.estilosComparacion.pd).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.amarillo)})` });
+    expect(vista.estilosComparacion.pd).toEqual({ background: rellenoDe(suave(COLORES.amarillo)) });
   });
 
   it("N°, promedio, desvío (con lo que suma el Excel), máximo, mínimo y las cuentas de PD / PI / Sin Deficit", () => {
@@ -100,8 +100,8 @@ describe("Movilidad: el informe y los colores", () => {
   it("los colores: más es mejor en PD, clases sobre gris y la pierna en negro con la clase del déficit en 2 o menos", () => {
     const [uno, dos, tres] = filas.map((una) => vista.estilos[una.id]);
     // μ = 40 y σ = 5,29…: PD 46 ≥ μ + σ: verde; 36 ≥ μ − σ: naranja.
-    expect(dos.pd).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.verde)})` });
-    expect(tres.pd).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.naranja)})` });
+    expect(dos.pd).toEqual({ background: rellenoDe(suave(COLORES.verde)) });
+    expect(tres.pd).toEqual({ background: rellenoDe(suave(COLORES.naranja)) });
     expect(uno.pd_clas).toEqual({ background: COLORES.gris, color: COLORES.amarillo, fontWeight: 700 });
     // Déficit 15,8 % (clase 1): pierna en negro con letra blanca.
     expect(uno.pierna).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, #000000)`, color: COLORES.blanco, fontWeight: 700 });
@@ -114,8 +114,8 @@ describe("Movilidad: el informe y los colores", () => {
     const c = calcularFilas(MOVILIDAD_ISQUIO, isquio, REF_ISQUIO);
     const { estilos } = vistaDeFilas(MOVILIDAD_ISQUIO, c.map((una) => ({ id: una.fila.id, celdas: una.celdas })), REF_ISQUIO, "mayor");
     // μ = 15 y σ = 7,07…: 10, entre μ − σ y μ: amarillo; 20, entre μ y μ + σ: naranja.
-    expect(estilos[isquio[0].id].pd).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.amarillo)})` });
-    expect(estilos[isquio[1].id].pd).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.naranja)})` });
+    expect(estilos[isquio[0].id].pd).toEqual({ background: rellenoDe(suave(COLORES.amarillo)) });
+    expect(estilos[isquio[1].id].pd).toEqual({ background: rellenoDe(suave(COLORES.naranja)) });
     expect(estilos[isquio[1].id].pd_mejora).toBeUndefined();
   });
 });
