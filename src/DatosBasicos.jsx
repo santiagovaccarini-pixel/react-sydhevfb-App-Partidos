@@ -11,6 +11,7 @@ import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
 import { esActual, guardarPuestos } from "./domain/plantel.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { edadAl } from "./domain/lesiones.js";
+import { conLaMismaFecha } from "./domain/importarJugadores.js";
 import { textoDeHoras } from "./domain/tabla.js";
 import { campoPorClave, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
 import { agregarJugadorBasico, cargarPlantelLesiones, guardarDatosJugador, leerConfig, quitarJugadorBasico } from "./domain/lesionesDb.js";
@@ -68,7 +69,14 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
   const [nombreNuevo, setNombreNuevo] = useState("");
+  const [fechaNueva, setFechaNueva] = useState("");
   const [agregando, setAgregando] = useState(false);
+  // Al agregar a mano, si la fecha de nacimiento ya la tiene otro: ¿es el
+  // mismo jugador? Se pregunta por cada uno con esa fecha (Santiago, 17/10).
+  // { nombre, fecha, coincidencias, i }
+  const [mismo, setMismo] = useState(null);
+  // Solo los que no tienen fecha de nacimiento (para completarla).
+  const [soloSinFecha, setSoloSinFecha] = useState(false);
   const [aBorrar, setABorrar] = useState(null);
   const [importando, setImportando] = useState(false);
 
@@ -148,9 +156,14 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     [config, idioma, soloLectura],
   );
 
+  const sinFecha = plantel.filter((jugador) => !jugador.fecha_nacimiento).length;
+  useEffect(() => {
+    if (!sinFecha) setSoloSinFecha(false);
+  }, [sinFecha]);
+
   const filas = useMemo(
     () =>
-      plantel.map((jugador) => {
+      (soloSinFecha ? plantel.filter((jugador) => !jugador.fecha_nacimiento) : plantel).map((jugador) => {
         const edad = edadHoy(jugador.fecha_nacimiento);
         return {
           id: jugador.id,
@@ -181,7 +194,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [plantel, config, idioma],
+    [plantel, config, idioma, soloSinFecha],
   );
 
   const reemplazar = (jugador) => setPlantel((antes) => antes.map((uno) => (uno.id === jugador.id ? jugador : uno)));
@@ -202,6 +215,14 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // solo vuelve atrás si mientras tanto no se guardó otra cosa de él.
   const guardadosBien = useRef(new Map());
   const guardar = async (jugadorId, datos) => {
+    // La fecha de nacimiento es obligatoria (Santiago, 17/10): vacía no se
+    // guarda; lo demás de la fila, sí.
+    if ("fecha_nacimiento" in datos && !datos.fecha_nacimiento) {
+      const resto = Object.fromEntries(Object.entries(datos).filter(([clave]) => clave !== "fecha_nacimiento"));
+      if (!Object.keys(resto).length) return { error: "datos.error.fechaObligatoria" };
+      const respuesta = await guardar(jugadorId, resto);
+      return respuesta.error ? respuesta : { ...respuesta, aviso: respuesta.aviso || "datos.error.fechaObligatoria", sinGuardar: (respuesta.sinGuardar || 0) + 1 };
+    }
     const respuesta = await guardarDatosJugador(jugadorId, datos);
     if (!respuesta.error) guardadosBien.current.set(jugadorId, (guardadosBien.current.get(jugadorId) || 0) + 1);
     return respuesta;
@@ -246,23 +267,67 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     return { hechos, error: ultimoError };
   };
 
-  const agregar = async (evento) => {
-    evento.preventDefault();
-    if (!nombreNuevo.trim()) {
-      setAviso(t("datos.error.nombre"));
-      return;
-    }
+  // Nombre y fecha de nacimiento, los dos obligatorios (Santiago, 17/10).
+  const crear = async (nombre, fecha) => {
     setAgregando(true);
-    const respuesta = await agregarJugadorBasico(equipoId, nombreNuevo);
-    setAgregando(false);
+    const respuesta = await agregarJugadorBasico(equipoId, nombre);
     if (respuesta.error) {
+      setAgregando(false);
       setAviso(t(respuesta.error));
       return;
     }
-    setPlantel((antes) => [...antes, respuesta.jugador].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
+    const guardado = await guardarDatosJugador(respuesta.jugador.id, { fecha_nacimiento: fecha });
+    setAgregando(false);
+    const jugador = guardado.error ? respuesta.jugador : guardado.jugador;
+    setPlantel((antes) => [...antes, jugador].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
     setNombreNuevo("");
-    setAviso(t("datos.agregado"));
+    setFechaNueva("");
+    setAviso(guardado.error ? t("datos.agregadoSinFecha", { error: t(guardado.error) }) : t("datos.agregado"));
   };
+
+  const agregar = async (evento) => {
+    evento.preventDefault();
+    const nombre = nombreNuevo.trim();
+    if (!nombre) {
+      setAviso(t("datos.error.nombre"));
+      return;
+    }
+    if (!fechaNueva) {
+      setAviso(t("datos.error.fechaObligatoria"));
+      return;
+    }
+    if (fechaNueva > hoyISO()) {
+      setAviso(t("datos.error.nacimientoFuturo"));
+      return;
+    }
+    // La misma fecha que otro jugador: se pregunta antes de agregarlo.
+    const coincidencias = conLaMismaFecha(plantel, fechaNueva);
+    if (coincidencias.length) {
+      setMismo({ nombre, fecha: fechaNueva, coincidencias, i: 0 });
+      return;
+    }
+    await crear(nombre, fechaNueva);
+  };
+  // «Sí, es el mismo»: no se agrega y queda el que ya estaba (esté o no en
+  // el plantel actual). «No, es otro»: se pregunta por el siguiente con esa
+  // fecha y, sin más, se agrega.
+  const esElMismo = () => {
+    const jugador = mismo.coincidencias[mismo.i];
+    setMismo(null);
+    setNombreNuevo("");
+    setFechaNueva("");
+    setAviso(t("datos.mismo.noSeAgrego", { jugador: jugador.nombre }));
+  };
+  const esOtro = async () => {
+    if (mismo.i + 1 < mismo.coincidencias.length) {
+      setMismo({ ...mismo, i: mismo.i + 1 });
+      return;
+    }
+    const { nombre, fecha } = mismo;
+    setMismo(null);
+    await crear(nombre, fecha);
+  };
+  const delMismo = mismo ? mismo.coincidencias[mismo.i] : null;
 
   // Se borran de a uno, todos los elegidos (con Shift, varias filas); si
   // alguno no se puede (por ejemplo, con lesiones o evaluaciones cargadas),
@@ -355,16 +420,29 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
           {vista === "jugadores" && !soloLectura && (
           <section className="tarjeta tarjeta-inicio">
             <form className="agregar-jugador datos-agregar" onSubmit={agregar}>
-              <input
-                type="text"
-                value={nombreNuevo}
-                placeholder={t("datos.nombre")}
-                aria-label={t("datos.nombre")}
-                maxLength={80}
-                autoComplete="off"
-                onChange={(evento) => setNombreNuevo(evento.target.value)}
-              />
-              <button type="submit" className="boton-principal" disabled={agregando || !nombreNuevo.trim()}>
+              <label className="datos-agregar-campo datos-agregar-nombre">
+                <span>{t("datos.nombre")}</span>
+                <input
+                  type="text"
+                  value={nombreNuevo}
+                  placeholder={t("datos.nombre")}
+                  aria-label={t("datos.nombre")}
+                  maxLength={80}
+                  autoComplete="off"
+                  onChange={(evento) => setNombreNuevo(evento.target.value)}
+                />
+              </label>
+              <label className="datos-agregar-campo datos-agregar-fecha">
+                <span>{etiqueta("fecha_nacimiento")}</span>
+                <input
+                  type="date"
+                  value={fechaNueva}
+                  max={hoyISO()}
+                  aria-label={etiqueta("fecha_nacimiento")}
+                  onChange={(evento) => setFechaNueva(evento.target.value)}
+                />
+              </label>
+              <button type="submit" className="boton-principal" disabled={agregando || !nombreNuevo.trim() || !fechaNueva}>
                 {agregando ? t("comun.guardando") : t("datos.agregar")}
               </button>
             </form>
@@ -377,6 +455,14 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
 
           {vista === "jugadores" && (
           <section className="tarjeta">
+            {sinFecha > 0 && !soloLectura && (
+              <p className="lesiones-estado datos-sin-fecha" role="status">
+                {plural("datos.sinFecha.cuantos", sinFecha)}
+                <button type="button" onClick={() => setSoloSinFecha((antes) => !antes)}>
+                  {soloSinFecha ? t("datos.sinFecha.todos") : plural("datos.sinFecha.ver", sinFecha)}
+                </button>
+              </p>
+            )}
             <TablaDatos
               id="jugadores"
               recordar="jugadores"
@@ -417,6 +503,26 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         etiquetaCancelar={t("comun.cancelar")}
         onConfirmar={confirmarBorrar}
         onCancelar={() => setABorrar(null)}
+      />
+      {/* Arranca en «Sí, es el mismo» (no agrega nada); cerrar no agrega ni descarta. */}
+      <HojaConfirmar
+        abierta={Boolean(delMismo)}
+        titulo={t("datos.mismo.titulo")}
+        descripcion={
+          delMismo
+            ? t("datos.mismo.texto", {
+                fecha: fechaCorta(mismo.fecha),
+                jugador: esActual(delMismo) ? delMismo.nombre : `${delMismo.nombre} · ${t("datos.yaNoEsta")}`,
+              })
+            : ""
+        }
+        detalle={mismo ? t("datos.mismo.agregando", { nombre: mismo.nombre }) : null}
+        icono="usuario"
+        etiquetaCancelar={t("datos.mismo.si")}
+        etiquetaConfirmar={t("datos.mismo.no")}
+        onCancelar={esElMismo}
+        onConfirmar={esOtro}
+        onCerrar={() => setMismo(null)}
       />
     </MarcoAplicacion>
   );

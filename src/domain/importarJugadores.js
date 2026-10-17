@@ -215,6 +215,12 @@ export const emparejar = (filas, plantel = []) => {
   return resultado;
 };
 
+// Los jugadores con esa fecha de nacimiento: posibles repetidos al agregar
+// uno (Santiago, 17/10: «La misma fecha»), estén o no en el plantel actual.
+// salvo: los ids que ya se respondió que son otro jugador.
+export const conLaMismaFecha = (plantel = [], fecha, { salvo = [] } = {}) =>
+  fecha ? plantel.filter((jugador) => jugador.fecha_nacimiento === fecha && !salvo.includes(String(jugador.id))) : [];
+
 // Qué cambia en un jugador de la app: los datos del Excel que no tiene o que
 // tiene distintos. Lo que el Excel trae vacío no borra nada.
 export const cambiosPara = (datos, jugador) =>

@@ -3603,7 +3603,39 @@ confirme.**
   «Actual», la fila baja en el momento (y sube al marcarla); la celda elegida la sigue, así que
   lo que se escribe o se pega va al mismo jugador. Es una opción de la tabla compartida
   (`apagadasAlFinal`) que solo usa Datos básicos: en Lesiones, Evaluaciones y GPS las filas
-  siguen por fecha y orden de carga. Ver UI-045.
+  siguen por fecha y orden de carga. Ver UI-045. Santiago la confirmó: «Está bien, pasamos» (17/10).
+- **Nombre y fecha de nacimiento obligatorios, con aviso de posibles repetidos (hecho el
+  17/10).** Nota de Datos básicos. Santiago, 17/10, en un cuestionario:
+  - Al pegar desde Excel, un jugador nuevo sin fecha: «Que avise y te diga que es obligatorio
+    cargar la fecha, entonces ese nombre queda en rojo la fecha y no te deja cargar los demas
+    hasta que le cargues la fecha pero pudiendolo hacer dentro de la web».
+  - Los que ya están sin fecha: «Aviso arriba de la tabla».
+  - Posible repetido: «La misma fecha, sale un cartel de "Esta fecha de nacimiento ya esta
+    registrado con este nombre (…)" y preguntas "Es el mismo jugador?" dos opciones si no
+    carga ese nuevo jugador y queda el que ya estaba aunque no este marcado como actual, no
+    importa, si dice no, en caso de que haya algun jugador mas con esa fecha se hace lo mismo
+    y pregunta hasta que no coincida nadie con la fecha y ahi se carga».
+
+  Quedó así:
+  - **A mano**: el formulario pide nombre y fecha de nacimiento; sin las dos, «Agregar
+    jugador» no se puede tocar.
+  - **En la tabla**: la fecha de nacimiento no se puede dejar vacía («La fecha de nacimiento es
+    obligatoria»); si se pega una fila con la fecha vacía, lo demás de la fila se guarda.
+  - **Al pegar desde Excel**: un jugador nuevo sin fecha (o con una que no se entiende) queda
+    con el nombre y la fecha en rojo, y la fecha se carga ahí mismo. Mientras falte alguna o
+    haya una pregunta sin responder, no se carga ninguno (abajo dice qué falta). Si se elige
+    «No cargar» para esa fila, ya no hace falta su fecha.
+  - **Posible repetido** (a mano o pegando): alguien de la lista (esté o no en el plantel
+    actual) con la misma fecha. «¿Es el mismo jugador?» con «Esta fecha de nacimiento ya está
+    registrada con este nombre: …». «Sí, es el mismo»: no se carga y queda el que estaba. «No,
+    es otro»: se pregunta por el siguiente con esa fecha y, cuando no queda ninguno, se carga.
+    A mano es un cartel (cerrarlo no agrega nada y deja el formulario); al pegar, la pregunta
+    va en la fila. Solo se compara con los que ya están en la lista, no con otras filas del
+    mismo pegado.
+  - **Los que ya están sin fecha**: arriba de la tabla, «N jugadores sin fecha de nacimiento,
+    que es obligatoria» con «Ver cuáles» (la tabla muestra solo esos) y «Ver todos». No se ve
+    en solo lectura.
+  - La base no cambió: es una regla de la app (sin SQL). Ver UI-046.
 - **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
   con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
@@ -3612,7 +3644,7 @@ confirme.**
   franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
   GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
   UI-040.
-- **Lo que sigue, en este orden**: Datos básicos (nombre y fecha de nacimiento obligatorios con aviso de posibles repetidos, el cambio
+- **Lo que sigue, en este orden**: Datos básicos (el cambio
   de categoría, Ajustes de Datos básicos con las posiciones pasadas a Partido, y sacarlo de los
   módulos principales como Notas); moverse por la app (botones siempre a la vista, esconder la
   barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una
