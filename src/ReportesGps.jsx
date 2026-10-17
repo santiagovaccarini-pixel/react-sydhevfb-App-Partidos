@@ -390,12 +390,15 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   const textoDeVariable = (clave, valor) => (enPorcentaje ? porciento(valor) : textoDe(clave, valor));
 
   // ------------------------------------------------------------- Partes --
-  const botonVolver = (texto, alTocar) => (
+  // La barra de arriba: volver y, en los filtros, «Siguiente». Al bajar
+  // queda fija arriba, siempre a la vista (Santiago, 17/10).
+  const botonVolver = (texto, alTocar, siguiente = null) => (
     <div className="reporte-acciones">
       <button type="button" className="boton-secundario reporte-volver" onClick={alTocar}>
         <Icono nombre="flecha" size={14} />
         {texto}
       </button>
+      {siguiente}
     </div>
   );
 
@@ -559,7 +562,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
         encabezado={encabezado}
         arriba={arriba}
         cargando={cargando}
-        volver={botonVolver(t("gps.reportes.titulo"), volverAlMenu)}
+        volver={(siguiente) => botonVolver(t("gps.reportes.titulo"), volverAlMenu, siguiente)}
       />
     );
   }
@@ -569,7 +572,13 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     return (
       <div className="app">
         <div className="contenedor contenedor-base">
-          {botonVolver(t("gps.reportes.titulo"), volverAlMenu)}
+          {botonVolver(
+            t("gps.reportes.titulo"),
+            volverAlMenu,
+            <button type="button" className="boton-principal" onClick={irAlInforme} disabled={!grupos.length}>
+              {t("gps.reportes.siguiente")}
+            </button>,
+          )}
           {encabezado(t(`gps.reportes.${tipo}`), t(porJugador ? "gps.reportes.jugador.filtrosTexto" : porTarea ? "gps.reportes.tarea.filtrosTexto" : "gps.reportes.filtrosTexto"))}
           {arriba}
           <section className="tarjeta gps-reportes-filtros">
@@ -584,9 +593,6 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
               <p className="lesiones-ayuda" role="status">
                 {cargando && !filasGps.length ? t("gps.estado.cargando") : grupos.length ? cuantasVan() : t("gps.reportes.sinFilas")}
               </p>
-              <button type="button" className="boton-principal" onClick={irAlInforme} disabled={!grupos.length}>
-                {t("gps.reportes.siguiente")}
-              </button>
             </div>
           </section>
         </div>

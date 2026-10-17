@@ -35,8 +35,9 @@ const MEDIDAS = COLUMNAS_TOTALES.filter((clave) => clave !== "tiempo");
 const FRANJAS = ["excelente", "muyBueno", "bueno", "regular", "malo"];
 const COLOR_DE_FRANJA = { excelente: COLORES_INFORME.excelente, muyBueno: COLORES_INFORME.muyBueno, bueno: COLORES_INFORME.bueno, regular: COLORES_INFORME.naranja, malo: COLORES_INFORME.malo };
 
-// volver: el botón para volver a «Ver informes»; encabezado y arriba: los de
-// las demás pantallas; lo demás, como ReportesGps.
+// volver(siguiente): la barra de arriba, con el botón para volver a «Ver
+// informes» y, si se le pasa, «Siguiente» (fija al bajar); encabezado y
+// arriba: los de las demás pantallas; lo demás, como ReportesGps.
 export default function ReporteIndividualGps({ filasGps, nombreDe, tituloDe, textoDe, textosDeListas, encabezado, arriba = null, volver, cargando = false }) {
   const { idioma, plural } = useIdioma();
   const [paso, setPaso] = useState("filtros");
@@ -178,7 +179,19 @@ export default function ReporteIndividualGps({ filasGps, nombreDe, tituloDe, tex
     return (
       <div className="app">
         <div className="contenedor contenedor-base">
-          {volver}
+          {volver(
+            <button
+              type="button"
+              className="boton-principal"
+              onClick={() => {
+                setFiltrosAbiertos(false);
+                setPaso("reporte");
+              }}
+              disabled={!jugador || !reporte.jugador.cuantas}
+            >
+              {t("gps.reportes.individual.siguiente")}
+            </button>,
+          )}
           {encabezado(t("gps.reportes.reporteIndividual"), t("gps.reportes.individual.filtrosTexto", { cuantas: CUANTAS }))}
           {arriba}
           <section className="tarjeta gps-reportes-filtros">
@@ -193,17 +206,6 @@ export default function ReporteIndividualGps({ filasGps, nombreDe, tituloDe, tex
               <p className="lesiones-ayuda" role="status">
                 {cargando && !filasGps.length ? t("gps.estado.cargando") : cuantasVan()}
               </p>
-              <button
-                type="button"
-                className="boton-principal"
-                onClick={() => {
-                  setFiltrosAbiertos(false);
-                  setPaso("reporte");
-                }}
-                disabled={!jugador || !reporte.jugador.cuantas}
-              >
-                {t("gps.reportes.individual.siguiente")}
-              </button>
             </div>
           </section>
         </div>
@@ -345,7 +347,7 @@ export default function ReporteIndividualGps({ filasGps, nombreDe, tituloDe, tex
   return (
     <div className="app">
       <div className="contenedor contenedor-base">
-        {volver}
+        {volver()}
         {encabezado(t("gps.reportes.reporteIndividual"), t("gps.reportes.individual.reporteTexto", { cuantas: CUANTAS }))}
         {arriba}
         <section className={`tarjeta gps-reportes-filtros gps-informe-filtros ${filtrosAbiertos ? "abiertos" : ""}`.trim()}>

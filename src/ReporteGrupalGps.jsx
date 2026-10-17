@@ -175,7 +175,19 @@ export default function ReporteGrupalGps({ filasGps, referencias = [], elegidos 
     return (
       <div className="app">
         <div className="contenedor contenedor-base">
-          {volver}
+          {volver(
+            <button
+              type="button"
+              className="boton-principal"
+              onClick={() => {
+                setFiltrosAbiertos(false);
+                setPaso("reporte");
+              }}
+              disabled={!reporte.sesiones}
+            >
+              {t("gps.reportes.grupal.siguiente")}
+            </button>,
+          )}
           {encabezado(t("gps.reportes.reporteGrupal"), t("gps.reportes.grupal.filtrosTexto"))}
           {arriba}
           <section className="tarjeta gps-reportes-filtros">
@@ -190,17 +202,6 @@ export default function ReporteGrupalGps({ filasGps, referencias = [], elegidos 
               <p className="lesiones-ayuda" role="status">
                 {cargando && !filasGps.length ? t("gps.estado.cargando") : cuantasVan()}
               </p>
-              <button
-                type="button"
-                className="boton-principal"
-                onClick={() => {
-                  setFiltrosAbiertos(false);
-                  setPaso("reporte");
-                }}
-                disabled={!reporte.sesiones}
-              >
-                {t("gps.reportes.grupal.siguiente")}
-              </button>
             </div>
           </section>
         </div>
@@ -264,7 +265,7 @@ export default function ReporteGrupalGps({ filasGps, referencias = [], elegidos 
   return (
     <div className="app">
       <div className="contenedor contenedor-base">
-        {volver}
+        {volver()}
         {encabezado(t("gps.reportes.reporteGrupal"), t("gps.reportes.grupal.reporteTexto"))}
         {arriba}
         <section className={`tarjeta gps-reportes-filtros gps-informe-filtros ${filtrosAbiertos ? "abiertos" : ""}`.trim()}>
