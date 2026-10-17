@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   calcular,
   camposCambiados,
+  categoriasAlCambiar,
   claveDeErrorDeBase,
   claveDeQuien,
   conValor,
@@ -528,5 +529,37 @@ describe("lesiones de alguien fuera de Datos básicos y sin fecha de inicio", ()
     expect(claveDeErrorDeBase({ code: "PGRST204", message: "Could not find the 'persona' column of 'lesiones' in the schema cache" })).toBe("lesiones.error.faltaMigracionPersonas");
     expect(claveDeErrorDeBase({ code: "23514", message: 'violates check constraint "lesiones_de_quien"' })).toBe("lesiones.error.jugador");
     expect(claveDeErrorDeBase({ code: "23505", message: 'duplicate key value violates unique constraint "lesiones_sin_repetir_persona"' })).toBe("lesiones.error.repetida");
+  });
+});
+
+// Santiago, 17/10: al cambiarle la categoría a un jugador, «todo» o «desde»
+// una fecha (solo en Lesiones).
+describe("la categoría de las lesiones al cambiarla", () => {
+  const lesiones = [
+    { id: "a", fecha_lesion: "2026-01-10", datos: { parte_cuerpo: "muslo" } },
+    { id: "b", fecha_lesion: "2026-03-01", datos: { categoria: "sub18" } },
+    { id: "c", fecha_lesion: "2026-08-20", datos: {} },
+    { id: "d", fecha_lesion: null, datos: {} },
+  ];
+  test("en todo su historial: todas con la nueva", () => {
+    expect(categoriasAlCambiar(lesiones, { anterior: "sub20", nueva: "profissional" })).toEqual([
+      { id: "a", datos: { parte_cuerpo: "muslo", categoria: "profissional" } },
+      { id: "b", datos: { categoria: "profissional" } },
+      { id: "c", datos: { categoria: "profissional" } },
+      { id: "d", datos: { categoria: "profissional" } },
+    ]);
+  });
+  test("desde una fecha: antes, la guardada o la anterior; desde esa fecha (y sin fecha), la nueva", () => {
+    expect(categoriasAlCambiar(lesiones, { anterior: "sub20", nueva: "profissional", desde: "2026-06-01" })).toEqual([
+      { id: "a", datos: { parte_cuerpo: "muslo", categoria: "sub20" } },
+      { id: "c", datos: { categoria: "profissional" } },
+      { id: "d", datos: { categoria: "profissional" } },
+    ]);
+  });
+  test("solo las que cambian; sin categoría nueva, se borra la guardada", () => {
+    expect(categoriasAlCambiar([{ id: "x", fecha_lesion: "2026-09-01", datos: { categoria: "sub20" } }], { anterior: "profissional", nueva: "sub20" })).toEqual([]);
+    expect(categoriasAlCambiar([{ id: "y", fecha_lesion: "2026-09-01", datos: { categoria: "sub20", lado: "d" } }], { anterior: "sub20", nueva: "" })).toEqual([
+      { id: "y", datos: { lado: "d" } },
+    ]);
   });
 });

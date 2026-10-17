@@ -1,5 +1,18 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { CAMBIOS_EN_LA_FICHA, actualizarLesion, agregarJugadorBasico, cargarPlantelLesiones, crearLesion, guardarDatosJugador, historialDeLesion, importarLesion, leerMinutosDeEntrenamiento, listarLesiones } from "./lesionesDb.js";
+import {
+  CAMBIOS_EN_LA_FICHA,
+  actualizarLesion,
+  agregarJugadorBasico,
+  cargarPlantelLesiones,
+  crearLesion,
+  guardarCategoriaDeLesiones,
+  guardarDatosJugador,
+  historialDeLesion,
+  importarLesion,
+  leerLesionesPorJugador,
+  leerMinutosDeEntrenamiento,
+  listarLesiones,
+} from "./lesionesDb.js";
 
 // Un doble de Supabase que anota la consulta y contesta lo configurado (o,
 // si hay, la próxima de "respuestas", una por consulta).
@@ -16,7 +29,7 @@ vi.mock("./plantel.js", () => ({
 vi.mock("../supabase.js", () => {
   const cadena = () => {
     const c = {};
-    ["select", "eq", "order", "limit", "insert", "update", "single", "range"].forEach((metodo) => {
+    ["select", "eq", "not", "order", "limit", "insert", "update", "single", "range"].forEach((metodo) => {
       c[metodo] = (...args) => {
         doble.llamadas.push([metodo, ...args]);
         return c;
@@ -102,6 +115,55 @@ describe("guardar una lesión", () => {
     const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "update");
     expect(enviado.datos).toEqual({ parte_cuerpo: "coxa", lado: "direito", horas_imagen: "12" });
     expect(enviado.fecha_alta).toBe("2026-09-20");
+  });
+
+  test("la categoría del jugador ese día queda en la lesión (Santiago, 17/10)", async () => {
+    doble.filas = { id: "les-1", jugador_id: 7, fecha_lesion: "2026-09-01", datos: {} };
+    await actualizarLesion("les-1", { jugador_id: 7, fecha_lesion: "2026-09-01", datos: { parte_cuerpo: "coxa", categoria: "sub20", edad: 19 } });
+    const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "update");
+    expect(enviado.datos).toEqual({ parte_cuerpo: "coxa", categoria: "sub20" });
+  });
+});
+
+describe("la categoría de las lesiones al cambiarla en Datos básicos", () => {
+  test("se leen las de cada jugador, de a 1000, sin las de personas fuera de Datos básicos", async () => {
+    const muchas = Array.from({ length: 1000 }, (_, i) => ({ id: `a${i}`, jugador_id: 7, fecha_lesion: "2026-01-10", datos: {} }));
+    doble.respuestas = [
+      { data: muchas, error: null },
+      { data: [{ id: "b1", jugador_id: 8, fecha_lesion: null, datos: null }], error: null },
+    ];
+    const { porJugador, error } = await leerLesionesPorJugador("eq-1");
+    expect(error).toBe("");
+    expect(porJugador[7]).toHaveLength(1000);
+    expect(porJugador[8]).toEqual([{ id: "b1", fecha_lesion: null, datos: {} }]);
+    expect(doble.llamadas.filter(([metodo]) => metodo === "range").map(([, desde, hasta]) => [desde, hasta])).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ]);
+    expect(doble.llamadas).toContainEqual(["not", "jugador_id", "is", null]);
+  });
+
+  test("si la base no deja leer, no se pregunta y se dice por qué", async () => {
+    doble.error = { code: "42501", message: "permission denied" };
+    const { porJugador, error } = await leerLesionesPorJugador("eq-1");
+    expect(porJugador).toEqual({});
+    expect(error).not.toBe("");
+  });
+
+  test("se guardan de a una; si una falla, se siguen las demás y se avisa", async () => {
+    doble.respuestas = [{ data: null, error: null }, { data: null, error: { code: "42501", message: "permission denied" } }, { data: null, error: null }];
+    const respuesta = await guardarCategoriaDeLesiones([
+      { id: "l1", datos: { categoria: "profissional" } },
+      { id: "l2", datos: { categoria: "sub20" } },
+      { id: "l3", datos: { categoria: "sub20", parte_cuerpo: "coxa" } },
+    ]);
+    expect(respuesta.hechas).toEqual(["l1", "l3"]);
+    expect(respuesta.error).not.toBe("");
+    expect(doble.llamadas.filter(([metodo]) => metodo === "update").map(([, datos]) => datos)).toEqual([
+      { datos: { categoria: "profissional" } },
+      { datos: { categoria: "sub20" } },
+      { datos: { categoria: "sub20", parte_cuerpo: "coxa" } },
+    ]);
   });
 });
 

@@ -57,6 +57,12 @@ vi.mock("./domain/lesionesDb.js", () => ({
     registro.plantel.push(jugador);
     return { jugador: { ...jugador }, error: "" };
   },
+  // Las lesiones de cada jugador (para la categoría) y su categoría guardada.
+  leerLesionesPorJugador: async () => ({ porJugador: JSON.parse(JSON.stringify(registro.lesiones)), error: "" }),
+  guardarCategoriaDeLesiones: async (cambios) => {
+    registro.categoriasDeLesiones.push(...cambios);
+    return { hechas: cambios.map((cambio) => cambio.id), error: "" };
+  },
   quitarJugadorBasico: async (id) => {
     // Uno con lesiones o evaluaciones cargadas no se puede borrar.
     if (registro.noSeBorran?.includes(id)) return { error: "datos.error.borrarConDatos" };
@@ -67,6 +73,7 @@ vi.mock("./domain/lesionesDb.js", () => ({
 
 const { default: DatosBasicos } = await import("./DatosBasicos.jsx");
 const { fijarIdiomaParaPruebas } = await import("./idioma/index.js");
+const { hoyISO } = await import("./idioma/formatos.js");
 
 const texto = (contenedor) => contenedor.textContent;
 const boton = (contenedor, etiqueta) => [...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim() === etiqueta);
@@ -92,6 +99,8 @@ describe("el módulo Datos básicos", () => {
     registro.equipo = { id: "eq-1", nombre: "Atlético Mineiro" };
     registro.plantel = plantelInicial();
     registro.fallarAgregar = "";
+    registro.lesiones = {};
+    registro.categoriasDeLesiones = [];
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -613,6 +622,89 @@ describe("el módulo Datos básicos", () => {
     expect(registro.guardados).toEqual([]);
     expect(texto(contenedor)).toContain("La fecha de nacimiento es obligatoria.");
     expect(fecha().textContent).toBe("25/07/1986");
+  });
+
+  // Santiago, 17/10: al cambiar la categoría de alguien con lesiones, ¿en todo
+  // su historial o desde una fecha? (solo Lesiones; de entrada, desde hoy).
+  const conLesiones = () => ({
+    7: [
+      { id: "l1", fecha_lesion: "2026-01-10", datos: {} },
+      { id: "l2", fecha_lesion: "2026-09-01", datos: { categoria: "profissional" } },
+    ],
+  });
+  const cambiarCategoria = async (texto) => {
+    await tocar(celda(contenedor, 0, 2));
+    await tocar(celda(contenedor, 0, 2));
+    await tocar([...document.body.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === texto));
+  };
+
+  test("cambiar la categoría de alguien con lesiones: «Desde esa fecha» deja las de antes con la que tenía", async () => {
+    registro.lesiones = conLesiones();
+    await montar();
+    await cambiarCategoria("Sub-20");
+    expect(registro.guardados).toEqual([]);
+    expect(hoja().textContent).toContain("¿Cambia en todo su historial o desde una fecha?");
+    expect(hoja().textContent).toContain("HULK pasa de Mayor (profesional) a Sub-20 y tiene 2 lesiones cargadas.");
+    const fecha = hoja().querySelector('input[type="date"]');
+    expect(fecha.value).toBe(hoyISO());
+    await escribir(fecha, "2026-06-01");
+    await tocar(boton(document.body, "Desde esa fecha"));
+    await act(async () => Promise.resolve());
+    expect(hoja()).toBeNull();
+    expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
+    expect(registro.categoriasDeLesiones).toEqual([
+      { id: "l1", datos: { categoria: "profissional" } },
+      { id: "l2", datos: { categoria: "sub20" } },
+    ]);
+    expect(celda(contenedor, 0, 2).textContent).toBe("Sub-20");
+  });
+
+  test("cambiar la categoría: «En todo su historial» la cambia en todas; cerrar no cambia nada", async () => {
+    registro.lesiones = conLesiones();
+    await montar();
+    await cambiarCategoria("Sub-20");
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    await act(async () => Promise.resolve());
+    expect(hoja()).toBeNull();
+    expect(registro.guardados).toEqual([]);
+    expect(celda(contenedor, 0, 2).textContent).toBe("Mayor (profesional)");
+    await cambiarCategoria("Sub-20");
+    await tocar(boton(document.body, "En todo su historial"));
+    await act(async () => Promise.resolve());
+    expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
+    expect(registro.categoriasDeLesiones).toEqual([
+      { id: "l1", datos: { categoria: "sub20" } },
+      { id: "l2", datos: { categoria: "sub20" } },
+    ]);
+  });
+
+  test("cambiar la categoría de alguien sin lesiones no pregunta", async () => {
+    await montar();
+    await cambiarCategoria("Sub-20");
+    expect(hoja()).toBeNull();
+    expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
+    expect(registro.categoriasDeLesiones).toEqual([]);
+  });
+
+  test("al pegar: si cambia la categoría de alguien con lesiones, se elige en su fila y hasta entonces no se carga", async () => {
+    registro.lesiones = conLesiones();
+    await montar();
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), "Nome e Sobrenome\tCategoria\nHulk\tSub-20");
+    const fila = () => contenedor.querySelector(".datos-importar-lista li");
+    expect(fila().textContent).toContain("Cambia la categoría de HULK: de Mayor (profesional) a Sub-20, y tiene 2 lesiones. ¿En todo su historial o desde una fecha?");
+    expect(texto(contenedor)).toContain("0 nuevos · 1 con cambios · 0 sin cambios");
+    expect(texto(contenedor)).toContain("Falta elegir en 1 fila desde cuándo cambia la categoría.");
+    expect(boton(contenedor, "Nada para cargar").disabled).toBe(true);
+    await tocar([...fila().querySelectorAll("button")].find((b) => b.textContent === "En todo su historial"));
+    expect(fila().textContent).toContain("Categoría: en todo su historial.");
+    await tocar(boton(contenedor, "Cargar 1 jugador"));
+    await act(async () => Promise.resolve());
+    expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
+    expect(registro.categoriasDeLesiones).toEqual([
+      { id: "l1", datos: { categoria: "sub20" } },
+      { id: "l2", datos: { categoria: "sub20" } },
+    ]);
   });
 
   test("un nombre que ya está en la lista no se agrega dos veces (y se dice en el idioma de la app)", async () => {

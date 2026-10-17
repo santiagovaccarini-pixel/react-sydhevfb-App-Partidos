@@ -16,7 +16,9 @@ export const CAMPOS = [
   { clave: "numero_caso", tipo: "auto", grupo: "dados_gerais", etiquetas: et("N° de caso", "N° de Caso") },
   { clave: "numero_registro", tipo: "calculado", grupo: "dados_gerais", etiquetas: et("N° de registro", "N° de Registro") },
   { clave: "jugador", tipo: "jugador", grupo: "dados_gerais", obligatorio: true, etiquetas: et("Nombre y apellido", "Nome e Sobrenome") },
-  { clave: "categoria", tipo: "dato_jugador", lista: true, grupo: "dados_gerais", etiquetas: et("Categoría", "Categoria") },
+  // La categoría queda en cada lesión como era ese día (delDia; Santiago,
+  // 17/10: al cambiarle la categoría a un jugador, «todo» o «desde» una fecha).
+  { clave: "categoria", tipo: "dato_jugador", lista: true, delDia: true, grupo: "dados_gerais", etiquetas: et("Categoría", "Categoria") },
   { clave: "fecha_nacimiento", tipo: "dato_jugador", grupo: "dados_gerais", etiquetas: et("Fecha de nacimiento", "D. Nac. (DD/MM/AAAA)") },
   { clave: "pie_dominante", tipo: "dato_jugador", lista: true, grupo: "dados_gerais", etiquetas: et("Pie dominante", "P. Dominante") },
   { clave: "posicion", tipo: "dato_jugador", lista: true, grupo: "dados_gerais", etiquetas: et("Posición", "Posicao") },
