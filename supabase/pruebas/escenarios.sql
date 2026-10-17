@@ -1229,7 +1229,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,esta_autorizado,evaluaciones_referencia_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_referencia_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -2066,5 +2066,55 @@ select pruebas.ser('eva@dos.com'); set role authenticated;
 select pruebas.esperar('Eva no cambia las descripciones de Uno', (select gps_cambiar_en_descripciones('00000000-0000-0000-0000-0000000000c1', array['C.P.S'], 'X')), 0);
 reset role;
 select pruebas.esperar('...siguen como estaban', (select datos ->> 'descripcion' from gps where persona = 'Desc Uno'), '2026_10_08_C.P.S Rondo 4v4');
+
+-- Datos básicos › Ajustes (20261028_datos_basicos_ajustes.sql): el nombre y
+-- las listas de las columnas del jugador que comparte con Lesiones los
+-- cambia cualquiera que sigue en el club; lo demás de Lesiones, solo quien
+-- tiene Lesiones. Lo propio de Datos básicos, cualquiera que sigue.
+insert into public.lesiones_campos (equipo_id, campo, etiqueta_es) values
+  ('00000000-0000-0000-0000-0000000000c1', 'categoria', 'Categoría'),
+  ('00000000-0000-0000-0000-0000000000c1', 'tipo_lesion', 'Tipo de lesión'),
+  ('00000000-0000-0000-0000-0000000000c2', 'categoria', 'Categoría de Dos');
+insert into public.lesiones_opciones (equipo_id, campo, codigo, etiqueta_es) values
+  ('00000000-0000-0000-0000-0000000000c1', 'pie_dominante', 'destro', 'Derecho'),
+  ('00000000-0000-0000-0000-0000000000c1', 'tipo_lesion', 'muscular', 'Muscular');
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('Sin Lesiones, la preparadora ve el nombre de las columnas del jugador', (select count(*) from lesiones_campos), 1);
+select pruebas.esperar('...y sus listas, nada más', (select string_agg(campo, ',') from lesiones_opciones), 'pie_dominante');
+select pruebas.esperar('...cambia el nombre de una', pruebas.filas($$update lesiones_campos set etiqueta_es = 'Categoría actual' where campo = 'categoria'$$), 1);
+select pruebas.esperar('...renombra una opción', pruebas.filas($$update lesiones_opciones set etiqueta_es = 'Diestro' where codigo = 'destro'$$), 1);
+select pruebas.esperar('...suma una (como la app, con upsert)', pruebas.filas($$insert into lesiones_opciones (equipo_id, campo, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'categoria', 'sub21', 'Sub-21') on conflict (equipo_id, campo, codigo) do update set etiqueta_es = excluded.etiqueta_es$$), 1);
+select pruebas.esperar('...y la esconde', pruebas.filas($$update lesiones_opciones set oculto = true where codigo = 'sub21'$$), 1);
+select pruebas.esperar('...pero no la borra', pruebas.filas($$delete from lesiones_opciones where codigo = 'sub21'$$), 0);
+select pruebas.esperar('...ni toca lo que es solo de Lesiones', pruebas.filas($$update lesiones_campos set etiqueta_es = 'x' where campo = 'tipo_lesion'$$) + pruebas.filas($$update lesiones_opciones set etiqueta_es = 'x' where campo = 'tipo_lesion'$$), 0);
+select pruebas.debe_fallar('...ni lo suma', $$insert into lesiones_opciones (equipo_id, campo, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'tipo_lesion', 'otra', 'Otra')$$, 'row-level security');
+select pruebas.debe_fallar('...ni suma una columna del jugador en otro club', $$insert into lesiones_opciones (equipo_id, campo, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c2', 'categoria', 'x', 'X')$$, 'row-level security');
+select pruebas.esperar('...ni ve las de otro club', (select count(*) from lesiones_campos where equipo_id = :C2), 0);
+select pruebas.esperar('Lo propio de Datos básicos: nombra una columna', pruebas.filas($$insert into datos_basicos_columnas (equipo_id, columna, etiqueta_es, etiqueta_pt) values ('00000000-0000-0000-0000-0000000000c1', 'foto_url', 'Foto carnet', 'Foto 3x4') on conflict (equipo_id, columna) do update set etiqueta_es = excluded.etiqueta_es, etiqueta_pt = excluded.etiqueta_pt$$), 1);
+select pruebas.esperar('...esconde una compartida, solo en Datos básicos', pruebas.filas($$insert into datos_basicos_columnas (equipo_id, columna, oculto) values ('00000000-0000-0000-0000-0000000000c1', 'pie_dominante', true) on conflict (equipo_id, columna) do update set oculto = excluded.oculto$$), 1);
+select pruebas.esperar('...y las ve', (select string_agg(columna || ':' || oculto, ',' order by columna) from datos_basicos_columnas), 'foto_url:false,pie_dominante:true');
+select pruebas.debe_fallar('...pero no las borra', $$delete from datos_basicos_columnas$$, 'permission denied');
+select pruebas.debe_fallar('...ni pone un nombre de más de 120 letras', $$update datos_basicos_columnas set etiqueta_es = repeat('x', 121)$$, 'datos_basicos_columnas_textos');
+select pruebas.debe_fallar('...ni anota en otro club', $$insert into datos_basicos_columnas (equipo_id, columna) values ('00000000-0000-0000-0000-0000000000c2', 'foto_url')$$, 'row-level security');
+reset role;
+select pruebas.esperar('En Lesiones la columna compartida no quedó escondida', (select oculto::text from lesiones_campos where equipo_id = :C1 and campo = 'categoria'), 'false');
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Con Lesiones, Beto ve el nombre que puso la preparadora', (select etiqueta_es from lesiones_campos where equipo_id = :C1 and campo = 'categoria'), 'Categoría actual');
+select pruebas.esperar('...y lo de Lesiones, como siempre', (select count(*) from lesiones_opciones where equipo_id = :C1), 3);
+select pruebas.esperar('...y lo de Datos básicos', (select count(*) from datos_basicos_columnas), 2);
+reset role;
+select pruebas.ser('gps@uno.com'); set role authenticated;
+select pruebas.esperar('Quien ya se fue de Uno no ve lo de Datos básicos', (select count(*) from datos_basicos_columnas) + (select count(*) from lesiones_campos) + (select count(*) from lesiones_opciones), 0);
+select pruebas.esperar('...ni lo cambia', pruebas.filas($$update datos_basicos_columnas set oculto = false$$) + pruebas.filas($$update lesiones_opciones set etiqueta_es = 'x'$$), 0);
+select pruebas.debe_fallar('...ni lo suma', $$insert into datos_basicos_columnas (equipo_id, columna) values ('00000000-0000-0000-0000-0000000000c1', 'edad')$$, 'row-level security');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de otro club) no ve lo de Datos básicos de Uno', (select count(*) from datos_basicos_columnas) + (select count(*) from lesiones_campos where equipo_id = :C1), 0);
+select pruebas.esperar('...ni lo cambia', pruebas.filas($$update datos_basicos_columnas set oculto = false$$) + pruebas.filas($$update lesiones_campos set etiqueta_es = 'x' where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
+select pruebas.esperar('...y en su club sí nombra la categoría', pruebas.filas($$update lesiones_campos set etiqueta_es = 'Categoria' where equipo_id = '00000000-0000-0000-0000-0000000000c2' and campo = 'categoria'$$), 1);
+reset role;
+set role anon;
+select pruebas.debe_fallar('Sin cuenta, nada de Datos básicos', 'select count(*) from datos_basicos_columnas', 'permission denied');
+reset role;
 
 select 'ESCENARIOS: todos bien' as resultado;

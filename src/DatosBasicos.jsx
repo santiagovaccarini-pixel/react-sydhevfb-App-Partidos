@@ -7,19 +7,19 @@ import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarJugadores from "./ImportarJugadores.jsx";
 import { PosicionesJugadores } from "./components/PosicionesPartido.jsx";
-import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
+import AjustesDatosBasicos from "./AjustesDatosBasicos.jsx";
 import { esActual, guardarPuestos } from "./domain/plantel.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
 import { categoriasAlCambiar, edadAl } from "./domain/lesiones.js";
 import { conLaMismaFecha } from "./domain/importarJugadores.js";
 import { textoDeHoras } from "./domain/tabla.js";
-import { campoPorClave, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
+import { campoPorClave, esDeDatosBasicos, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
 import {
   agregarJugadorBasico,
   cargarPlantelLesiones,
   guardarCategoriaDeLesiones,
   guardarDatosJugador,
-  leerConfig,
+  leerConfigDatos,
   leerLesionesPorJugador,
   quitarJugadorBasico,
 } from "./domain/lesionesDb.js";
@@ -33,12 +33,13 @@ import "./lesiones.css";
 // pega. Es la única lista de jugadores: la usan Partido, Flujo diario y
 // Lesiones. La hoja entera del Excel se trae con "Pegar desde Excel"
 // (ImportarJugadores.jsx). Además, dónde juega cada uno en Partido
-// (Posiciones) y su chaleco de Catapult para Flujo diario (Catapult).
+// (Posiciones) y, en Ajustes, el nombre de cada columna, las listas y su
+// dispositivo de Catapult para Flujo diario (AjustesDatosBasicos.jsx).
 
 export const DESTINOS_DATOS = [
   { id: "jugadores", etiqueta: "Jugadores", icono: "usuario" },
   { id: "posiciones", etiqueta: "Posiciones", icono: "formacion" },
-  { id: "catapult", etiqueta: "Catapult", icono: "llave" },
+  { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
 
 // Las columnas: el nombre, si está hoy en el plantel, los datos del Excel y
@@ -52,27 +53,33 @@ const COLUMNAS = [
   { clave: "actual", tipo: "casilla", editable: true, texto: "datos.actual" },
   { clave: "categoria", tipo: "lista", editable: true },
   { clave: "fecha_nacimiento", tipo: "fecha", editable: true, nacimiento: true },
-  { clave: "edad", tipo: "calculado", editable: false },
+  { clave: "edad", tipo: "calculado", editable: false, texto: "datos.edad" },
   { clave: "pie_dominante", tipo: "lista", editable: true },
   { clave: "posicion", tipo: "lista", editable: true },
   { clave: "foto_url", tipo: "texto", editable: true, texto: "datos.foto" },
   { clave: "horas_previas", tipo: "horas", editable: true, texto: "datos.horasPrevias" },
 ];
 
+// En Ajustes, cada columna se guarda con su clave; el nombre es la del
+// jugador en Lesiones (las compartidas se llaman igual en los dos lados).
+const claveDeAjuste = (columna) => columna.rotulo || columna.clave;
+
 // La edad de hoy, con la misma cuenta que la de Lesiones.
 const edadHoy = (nacimiento) => edadAl(nacimiento, hoyISO());
 
-// permisos: los del club (sin ellos, todo a la vista). Los chalecos de
-// Catapult se buscan con la cuenta de Flujo diario: esa solapa es para quien
+// permisos: los del club (sin ellos, todo a la vista). Los dispositivos de
+// Catapult se buscan con la cuenta de Flujo diario: eso de Ajustes es para quien
 // tiene ese módulo en el club (ser dueño de la app no la abre).
 export default function DatosBasicos({ onVolver, permisos = null }) {
   const { idioma, plural } = useIdioma();
   const conCatapult = !permisos || Boolean(permisos.flujo);
-  const destinos = DESTINOS_DATOS.filter((destino) => destino.id !== "catapult" || conCatapult);
+  const destinos = DESTINOS_DATOS;
   const [vista, setVista] = useState("jugadores");
   const [equipo, setEquipo] = useState(() => leerEquipoElegido());
   const [plantel, setPlantel] = useState([]);
   const [config, setConfig] = useState(null);
+  // Lo propio de Datos básicos › Ajustes: { [columna]: { etiquetas, oculto } }.
+  const [columnasDatos, setColumnasDatos] = useState({});
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
@@ -120,7 +127,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       setCargando(true);
       setError("");
     }
-    const [respuestaPlantel, respuestaConfig, respuestaLesiones] = await Promise.all([cargarPlantelLesiones(equipoId), leerConfig(equipoId), leerLesionesPorJugador(equipoId)]);
+    const [respuestaPlantel, respuestaConfig, respuestaLesiones] = await Promise.all([cargarPlantelLesiones(equipoId), leerConfigDatos(equipoId), leerLesionesPorJugador(equipoId)]);
     if (!respuestaLesiones.error) setLesionesDe(respuestaLesiones.porJugador);
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
@@ -129,6 +136,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     setPlantel(respuestaPlantel.plantel || []);
     // Sin las tablas de Lesiones todavía, valen los textos del Excel.
     setConfig(respuestaConfig.error ? null : respuestaConfig.config);
+    setColumnasDatos(respuestaConfig.columnas || {});
     if (respuestaPlantel.error) setError(respuestaPlantel.error);
     setCargando(false);
   }, [equipoId]);
@@ -149,27 +157,60 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   const etiqueta = (clave) => etiquetaDeCampo(clave, config, idioma);
   const textoDeOpcion = (clave, codigo) => etiquetaDeOpcion(clave, codigo, config, idioma);
 
+  // El nombre de cada columna en este club y si se esconde en esta tabla
+  // (Datos básicos › Ajustes). Las del jugador toman el de Lesiones; las
+  // propias, el que puso el club en este idioma o, si no, el de la app.
+  const columnasDeAjustes = useMemo(
+    () =>
+      COLUMNAS.map((columna) => {
+        const clave = claveDeAjuste(columna);
+        const compartida = esDeDatosBasicos(clave);
+        const porDefecto = columna.texto ? t(columna.texto) : etiquetaDeCampo(clave, null, idioma);
+        const propias = columnasDatos[clave]?.etiquetas;
+        return {
+          clave,
+          titulo: compartida ? etiquetaDeCampo(clave, config, idioma) : String(propias?.[idioma] || "").trim() || porDefecto,
+          porDefecto,
+          compartida,
+          // El nombre de cada jugador no se esconde.
+          fija: clave === "jugador",
+          oculta: clave !== "jugador" && Boolean(columnasDatos[clave]?.oculto),
+          etiquetas: compartida ? undefined : propias,
+        };
+      }),
+    [config, columnasDatos, idioma],
+  );
+
   const columnas = useMemo(
     () =>
-      COLUMNAS.map((columna) => ({
-        clave: columna.clave,
-        titulo: columna.texto ? t(columna.texto) : etiquetaDeCampo(columna.rotulo || columna.clave, config, idioma),
-        tipo: columna.tipo,
-        // La fecha de nacimiento pegada nunca queda en el futuro ("86" es 1986).
-        nacimiento: columna.nacimiento,
-        editable: columna.editable && !soloLectura,
-        ancho: columna.clave === "nombre" ? 180 : undefined,
-        opciones:
-          columna.tipo === "lista"
-            ? opcionesDeCampo(columna.clave, config, idioma).map((opcion) => ({
-                ...opcion,
-                alias: [etiquetaDeOpcion(columna.clave, opcion.valor, config, idioma === "pt-BR" ? "es-AR" : "pt-BR")],
-              }))
-            : undefined,
-      })),
+      COLUMNAS.map((columna, indice) => ({ columna, ajuste: columnasDeAjustes[indice] }))
+        .filter(({ ajuste }) => !ajuste.oculta)
+        .map(({ columna, ajuste }) => ({
+          clave: columna.clave,
+          titulo: ajuste.titulo,
+          tipo: columna.tipo,
+          // La fecha de nacimiento pegada nunca queda en el futuro ("86" es 1986).
+          nacimiento: columna.nacimiento,
+          editable: columna.editable && !soloLectura,
+          ancho: columna.clave === "nombre" ? 180 : undefined,
+          opciones:
+            columna.tipo === "lista"
+              ? opcionesDeCampo(columna.clave, config, idioma).map((opcion) => ({
+                  ...opcion,
+                  alias: [etiquetaDeOpcion(columna.clave, opcion.valor, config, idioma === "pt-BR" ? "es-AR" : "pt-BR")],
+                }))
+              : undefined,
+        })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config, idioma, soloLectura],
+    [config, columnasDeAjustes, idioma, soloLectura],
   );
+
+  // Después de cambiar algo en Ajustes, lo de este club otra vez.
+  const recargarAjustes = async () => {
+    const respuesta = await leerConfigDatos(equipoId);
+    if (!respuesta.error) setConfig(respuesta.config);
+    setColumnasDatos(respuesta.columnas || {});
+  };
 
   const sinFecha = plantel.filter((jugador) => !jugador.fecha_nacimiento).length;
   useEffect(() => {
@@ -469,7 +510,17 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
 
           {vista === "posiciones" && !cargando && !error && <PosicionesJugadores plantel={plantel} soloLectura={soloLectura} onCambiar={cambiarPuestos} />}
 
-          {vista === "catapult" && conCatapult && <VinculosCatapult equipoId={equipoId} soloLectura={soloLectura} onAviso={setAviso} />}
+          {vista === "ajustes" && (
+            <AjustesDatosBasicos
+              equipoId={equipoId}
+              config={config}
+              columnas={columnasDeAjustes}
+              soloLectura={soloLectura}
+              conCatapult={conCatapult}
+              onRecargar={recargarAjustes}
+              onAviso={setAviso}
+            />
+          )}
 
           {vista === "jugadores" && !soloLectura && (
           <section className="tarjeta tarjeta-inicio">

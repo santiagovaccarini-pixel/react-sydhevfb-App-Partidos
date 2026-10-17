@@ -37,7 +37,29 @@ vi.mock("./domain/lesionesDb.js", () => ({
     plantel: registro.plantel.map((jugador) => ({ ...jugador })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
     error: "",
   }),
-  leerConfig: async () => ({ config: { campos: {}, listas: {} }, error: "" }),
+  // Datos básicos › Ajustes: lo de Lesiones que comparte (nombre y listas de
+  // las columnas del jugador) y lo propio.
+  leerConfigDatos: async () => ({ config: JSON.parse(JSON.stringify(registro.config)), columnas: JSON.parse(JSON.stringify(registro.columnas)), error: "" }),
+  guardarCampo: async (equipoId, campo, datos) => {
+    registro.ajustes.push({ tabla: "campos", campo, ...datos });
+    registro.config.campos[campo] = { etiquetas: { ...datos.etiquetas }, oculto: datos.oculto, orden: datos.orden };
+    return { error: "" };
+  },
+  guardarOpcion: async (equipoId, campo, datos) => {
+    registro.ajustes.push({ tabla: "opciones", campo, ...datos });
+    const lista = (registro.config.listas[campo] = registro.config.listas[campo] || []);
+    const otra = lista.findIndex((una) => una.codigo === datos.codigo);
+    const fila = { codigo: datos.codigo, etiquetas: { ...datos.etiquetas }, oculto: datos.oculto, orden: datos.orden };
+    if (otra >= 0) lista[otra] = fila;
+    else lista.push(fila);
+    return { error: "" };
+  },
+  guardarColumnaDatos: async (equipoId, columna, datos) => {
+    registro.ajustes.push({ tabla: "columnas", columna, ...datos });
+    if (registro.faltaSqlAjustes) return { error: "datos.ajustes.faltaSql" };
+    registro.columnas[columna] = { etiquetas: { ...datos.etiquetas }, oculto: datos.oculto };
+    return { error: "" };
+  },
   guardarDatosJugador: async (id, cambios) => {
     registro.guardados.push({ id, ...cambios });
     // Un plan por llamada (esperar y/o fallar), para probar guardados cruzados.
@@ -101,6 +123,10 @@ describe("el módulo Datos básicos", () => {
     registro.fallarAgregar = "";
     registro.lesiones = {};
     registro.categoriasDeLesiones = [];
+    registro.config = { campos: {}, listas: {} };
+    registro.columnas = {};
+    registro.ajustes = [];
+    registro.faltaSqlAjustes = false;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -164,20 +190,123 @@ describe("el módulo Datos básicos", () => {
     expect(contenedor.querySelectorAll(".jugador-puestos")[0].querySelectorAll(".chip-rol.activo")).toHaveLength(0);
   });
 
-  test("los chalecos de Catapult están acá para quien tiene Flujo diario", async () => {
+  // Datos básicos › Ajustes (Santiago, 17/10: Listas, Cabeceras y Catapult).
+  const menu = () => [...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent);
+  const filasDeAjustes = () => [...contenedor.querySelectorAll(".opcion-ajuste b")].map((b) => b.textContent);
+  const filaDeAjuste = (titulo) => [...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b")?.textContent === titulo);
+  const hojaDeAjuste = () => document.body.querySelector(".lesiones-hoja");
+  const cabeceras = () => [...contenedor.querySelectorAll("th[data-columna]")].map((th) => th.textContent);
+
+  test("los dispositivos de Catapult están en Ajustes para quien tiene Flujo diario", async () => {
     await montar({ partido: true, flujo: true, lesiones: false, datos: true });
-    await irA(contenedor, "Catapult");
+    expect(menu()).toEqual(["Jugadores", "Posiciones", "Ajustes"]);
+    await irA(contenedor, "Ajustes");
+    expect(filasDeAjustes()).toEqual(["Cabeceras", "Listas", "Catapult"]);
+    await tocar(filaDeAjuste("Catapult"));
     expect(texto(contenedor)).toContain("Dispositivos de Catapult");
     expect(texto(contenedor)).toContain("2 jugadores · 0 con dispositivo");
+    await tocar(boton(contenedor, "Volver a Ajustes"));
+    expect(filasDeAjustes()).toEqual(["Cabeceras", "Listas", "Catapult"]);
     await act(async () => raiz.unmount());
     raiz = createRoot(contenedor);
     await montar({ partido: true, flujo: false, lesiones: true, datos: true });
-    expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent)).toEqual(["Jugadores", "Posiciones"]);
+    expect(menu()).toEqual(["Jugadores", "Posiciones", "Ajustes"]);
+    await irA(contenedor, "Ajustes");
+    expect(filasDeAjustes()).toEqual(["Cabeceras", "Listas"]);
     // Ser dueño de la app no abre Catapult: hace falta Flujo diario en el club.
     await act(async () => raiz.unmount());
     raiz = createRoot(contenedor);
     await montar({ partido: true, flujo: false, lesiones: false, datos: true, admin: true, dueno: "principal", esDueno: true });
-    expect([...contenedor.querySelectorAll(".navegacion-movil button")].map((b) => b.textContent)).toEqual(["Jugadores", "Posiciones"]);
+    await irA(contenedor, "Ajustes");
+    expect(filasDeAjustes()).toEqual(["Cabeceras", "Listas"]);
+  });
+
+  test("Ajustes › Cabeceras: una columna propia se renombra y una del jugador se esconde solo de esta tabla", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar(filaDeAjuste("Cabeceras"));
+    expect(filasDeAjustes()).toEqual(["Nombre y apellido", "Actual", "Categoría", "Fecha de nacimiento", "Edad", "Pie dominante", "Posición", "Foto (enlace)", "Horas previas"]);
+    expect(filaDeAjuste("Categoría").textContent).toContain("También en Lesiones");
+    expect(filaDeAjuste("Foto (enlace)").textContent).not.toContain("También en Lesiones");
+    // Una propia: el nombre va a lo de Datos básicos, en el idioma que se usa.
+    await tocar(filaDeAjuste("Foto (enlace)"));
+    const nombre = () => hojaDeAjuste().querySelector("input[type=text]");
+    expect(nombre().value).toBe("Foto (enlace)");
+    await escribir(nombre(), "Foto carnet");
+    await tocar(boton(document.body, "Guardar"));
+    expect(registro.ajustes).toEqual([{ tabla: "columnas", columna: "foto_url", etiquetas: { "es-AR": "Foto carnet", "pt-BR": "" }, oculto: false }]);
+    expect(hojaDeAjuste()).toBeNull();
+    expect(filaDeAjuste("Foto carnet")).toBeTruthy();
+    // Una del jugador: esconderla no toca la configuración de Lesiones.
+    await tocar(filaDeAjuste("Pie dominante"));
+    expect(hojaDeAjuste().textContent).toContain("Este nombre también se usa en Lesiones. Esconderla acá no la saca de Lesiones.");
+    await tocar(boton(document.body, "Oculta"));
+    await tocar(boton(document.body, "Guardar"));
+    expect(registro.ajustes.slice(1)).toEqual([{ tabla: "columnas", columna: "pie_dominante", etiquetas: {}, oculto: true }]);
+    expect(filaDeAjuste("Pie dominante").textContent).toContain("Oculta");
+    await irA(contenedor, "Jugadores");
+    expect(cabeceras()).toEqual(["Nombre y apellido", "Actual", "Categoría", "Fecha de nacimiento", "Edad", "Posición", "Foto carnet", "Horas previas"]);
+    // En portugués, sin nombre propio, el de la app.
+    await act(async () => fijarIdiomaParaPruebas("pt-BR"));
+    expect(cabeceras()).toContain("Foto (link)");
+  });
+
+  test("Ajustes › Cabeceras: renombrar una columna del jugador la renombra también en Lesiones; el nombre no se esconde", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar(filaDeAjuste("Cabeceras"));
+    await tocar(filaDeAjuste("Categoría"));
+    await escribir(hojaDeAjuste().querySelector("input[type=text]"), "Categoría actual");
+    await tocar(boton(document.body, "Guardar"));
+    expect(registro.ajustes).toEqual([{ tabla: "campos", campo: "categoria", etiquetas: { "es-AR": "Categoría actual", "pt-BR": "Categoria" }, oculto: false, orden: 0 }]);
+    expect(filaDeAjuste("Categoría actual")).toBeTruthy();
+    await tocar(filaDeAjuste("Nombre y apellido"));
+    expect(hojaDeAjuste().textContent).toContain("Es el nombre de cada jugador: siempre se muestra.");
+    expect(boton(document.body, "Oculta")).toBeUndefined();
+    await tocar(boton(document.body, "Cancelar"));
+    await irA(contenedor, "Jugadores");
+    expect(cabeceras()[2]).toBe("Categoría actual");
+  });
+
+  test("Ajustes › Listas: se suma una opción a la categoría y se puede elegir en la tabla", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar(filaDeAjuste("Listas"));
+    expect(filasDeAjustes()).toEqual(["Categoría", "Pie dominante", "Posición"]);
+    await tocar(filaDeAjuste("Categoría"));
+    expect(filasDeAjustes()).toContain("Sub-20");
+    await tocar(boton(contenedor, "Agregar una opción"));
+    await escribir(hojaDeAjuste().querySelector("input[type=text]"), "Sub-21");
+    await tocar(boton(document.body, "Guardar"));
+    expect(registro.ajustes).toEqual([
+      expect.objectContaining({ tabla: "opciones", campo: "categoria", codigo: expect.stringMatching(/^sub_21_/), etiquetas: { "es-AR": "Sub-21", "pt-BR": "" }, oculto: false }),
+    ]);
+    expect(filasDeAjustes()).toContain("Sub-21");
+    await irA(contenedor, "Jugadores");
+    await tocar(celda(contenedor, 1, 2));
+    await tocar(celda(contenedor, 1, 2));
+    expect([...document.body.querySelectorAll(".opcion-hoja")].map((b) => b.textContent.trim())).toContain("Sub-21");
+  });
+
+  test("Ajustes: sin el SQL nuevo, esconder una columna dice qué falta; en solo lectura no se cambia nada", async () => {
+    registro.faltaSqlAjustes = true;
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar(filaDeAjuste("Cabeceras"));
+    await tocar(filaDeAjuste("Horas previas"));
+    await tocar(boton(document.body, "Oculta"));
+    await tocar(boton(document.body, "Guardar"));
+    expect(hojaDeAjuste().textContent).toContain("Falta correr el SQL de los Ajustes de Datos básicos (20261028_datos_basicos_ajustes.sql).");
+    await tocar(boton(document.body, "Cancelar"));
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    registro.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: "2026-09-25" };
+    await montar({ partido: true, flujo: true, lesiones: false, datos: true });
+    await irA(contenedor, "Ajustes");
+    expect(filaDeAjuste("Cabeceras").disabled).toBe(true);
+    expect(filaDeAjuste("Listas").disabled).toBe(true);
+    // Los dispositivos se miran igual.
+    expect(filaDeAjuste("Catapult").disabled).toBe(false);
   });
 
   test("muestra los jugadores en la tabla estilo Excel con los datos que piden los módulos", async () => {
