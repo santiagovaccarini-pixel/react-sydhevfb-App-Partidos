@@ -72,6 +72,8 @@ function membresiaDe(fila) {
   ["partido", "flujo", "lesiones", "evaluaciones", "gps"].forEach((clave) => {
     if (typeof fila?.[clave] === "boolean") resultado[clave] = fila[clave];
   });
+  // Los módulos que tiene solo para mirar (20261029_niveles_de_permiso.sql).
+  if (Array.isArray(fila?.solo_lectura)) resultado.solo_lectura = fila.solo_lectura.filter((clave) => typeof clave === "string");
   return resultado;
 }
 
@@ -89,6 +91,13 @@ const normalizarEquipo = (fila) => ({
 
 /** Quien ya se fue del club: ve lo cargado hasta su último día y no cambia nada. */
 export const esSoloLectura = (equipo) => Boolean(equipo?.hasta);
+
+/**
+ * Tiene ese módulo «Solo lectura» en Cuentas (Santiago, 17/10): ve todo, al
+ * día, pero no carga, no cambia ni borra nada. No es la foto del último día:
+ * eso es solo para quien ya se fue.
+ */
+export const soloParaMirar = (equipo, modulo) => Array.isArray(equipo?.solo_lectura) && equipo.solo_lectura.includes(modulo);
 
 // Los clubes de quien consulta, con su membresía. Si la base todavía no
 // tiene la vista (o algo falló), no hay membresía que leer: devuelve null.

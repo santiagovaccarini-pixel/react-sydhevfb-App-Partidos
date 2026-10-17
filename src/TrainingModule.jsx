@@ -6,7 +6,7 @@ import TrainingSettings from "./TrainingSettings";
 import TrainingTareas from "./TrainingTareas";
 import useEntrenamientos from "./useEntrenamientos.js";
 import { vincularActividad } from "./domain/entrenamiento.js";
-import { leerEquipoElegido } from "./domain/equipo.js";
+import { leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 
 export const DESTINOS_ENTRENAMIENTO = [
   { id: "inicio", etiqueta: "Inicio", icono: "partido" },
@@ -40,8 +40,11 @@ export default function TrainingModule({ onVolver, email = "", rol = "usuario" }
   const [vistaAjustes, setVistaAjustesEstado] = useState("inicio");
   const [equipo] = useState(() => leerEquipoElegido());
   // Quien ya se fue del club mira la foto de su último día y no cambia nada.
+  // Quien tiene Flujo diario en «Solo lectura» mira lo de la base, al día, y
+  // tampoco cambia nada (Santiago, 17/10).
   const hasta = equipo?.hasta || null;
-  const entrenamientos = useEntrenamientos({ equipoId: equipo?.id || null, email, soloLectura: Boolean(hasta) });
+  const mirar = soloParaMirar(equipo, "flujo");
+  const entrenamientos = useEntrenamientos({ equipoId: equipo?.id || null, email, soloLectura: Boolean(hasta) || mirar });
   const { actual } = entrenamientos;
 
   useEffect(olvidarVistaGuardada, []);
@@ -81,6 +84,7 @@ export default function TrainingModule({ onVolver, email = "", rol = "usuario" }
         onRecargar={entrenamientos.recargarBase}
         onVolverModulos={onVolver}
         hasta={hasta}
+        mirar={mirar}
         nombreClub={equipo?.nombre || ""}
       />
     ),
@@ -92,7 +96,7 @@ export default function TrainingModule({ onVolver, email = "", rol = "usuario" }
         subtitulo="Inicio · Sesión de OpenField"
         etiquetaVolver="Volver a Inicio"
         onSeleccionar={(nueva) => {
-          if (actual && !hasta) entrenamientos.cambiar(actual.id, (entrenamiento) => vincularActividad(entrenamiento, nueva));
+          if (actual && !hasta && !mirar) entrenamientos.cambiar(actual.id, (entrenamiento) => vincularActividad(entrenamiento, nueva));
           irA("inicio");
         }}
         onVolver={() => irA("inicio")}
@@ -105,6 +109,7 @@ export default function TrainingModule({ onVolver, email = "", rol = "usuario" }
         onIrAInicio={() => irA("inicio")}
         guardado={entrenamientos.guardado}
         hasta={hasta}
+        mirar={mirar}
       />
     ),
     ajustes: (

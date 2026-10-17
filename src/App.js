@@ -16,6 +16,7 @@ import {
   elegirEquipoInicial,
   guardarEquipoElegido,
   leerEquipoElegido,
+  soloParaMirar,
 } from "./domain/equipo";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./domain/alDia.js";
@@ -253,7 +254,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.17.9";
+const APP_VERSION = "2026.10.17.10";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
@@ -1477,7 +1478,11 @@ export default function App({
   // que quedó guardado en el teléfono: mostrar el de por defecto sería mostrar
   // un club ajeno.
   // Quien ya se fue del club ve los partidos hasta su último día y no carga.
-  const soloLectura = Boolean(equipoGuardado?.hasta);
+  // Quien tiene Partido en «Solo lectura» ve todo al día y tampoco carga
+  // (Santiago, 17/10).
+  const seFue = Boolean(equipoGuardado?.hasta);
+  const mirar = soloParaMirar(equipoGuardado, "partido");
+  const soloLectura = seFue || mirar;
 
   const equipoPropio =
     equipos.find((equipo) => equipo.id === equipoId)?.nombre ||
@@ -1717,8 +1722,8 @@ export default function App({
     return () => {
       vigente = false;
     };
-    // soloLectura: si se entera de que ya no está en el club, pasa a la foto.
-  }, [equiposCargados, equipoId, soloLectura]);
+    // seFue: si se entera de que ya no está en el club, pasa a la foto.
+  }, [equiposCargados, equipoId, seFue]);
 
   const posicionScrollPendiente = useRef(null);
   // Qué período se inició y cuándo (ver ejecutarAccionPeriodo).
@@ -2403,8 +2408,8 @@ export default function App({
     setHistorialCargado(false);
     setEstadoHistorial("cargando");
     cargarRegistrosSupabase();
-    // soloLectura: si se entera de que ya no está en el club, pasa a la foto.
-  }, [equiposCargados, equipoId, soloLectura]);
+    // seFue: si se entera de que ya no está en el club, pasa a la foto.
+  }, [equiposCargados, equipoId, seFue]);
 
   // Sin red, el pedido a la base puede quedarse colgado sin contestar nunca.
   // No se lo corta —si llega tarde, sirve igual—, pero a los doce segundos se
@@ -2463,7 +2468,7 @@ export default function App({
     // Mientras lo que hay en memoria sea de otro club no se escribe nada: es
     // lo que envenenaba el respaldo al cambiar de equipo. La foto de un club
     // del que ya se fue tampoco queda guardada en el celular.
-    if (!historialCargado || equipoDeGuardados !== equipoId || soloLectura) return;
+    if (!historialCargado || equipoDeGuardados !== equipoId || seFue) return;
 
     try {
       localStorage.setItem(
@@ -2473,7 +2478,7 @@ export default function App({
     } catch (error) {
       console.warn("No se pudo actualizar el respaldo local del historial.");
     }
-  }, [guardados, historialCargado, equipoId, equipoDeGuardados, soloLectura]);
+  }, [guardados, historialCargado, equipoId, equipoDeGuardados, seFue]);
 
   // El borrador se guarda en la clave de su club con cada cambio.
   useEffect(() => {
@@ -5218,7 +5223,7 @@ export default function App({
           )}
         </header>
 
-        <AvisoSoloLectura hasta={equipoGuardado?.hasta} />
+        <AvisoSoloLectura hasta={equipoGuardado?.hasta} mirar={mirar} modulo="partido" />
 
         {soloLectura && (
           <section className="tarjeta tarjeta-inicio">
@@ -6635,7 +6640,7 @@ export default function App({
           <p>Lo que la app usa en todas las pantallas.</p>
         </header>
 
-        <AvisoSoloLectura hasta={equipoGuardado?.hasta} />
+        <AvisoSoloLectura hasta={equipoGuardado?.hasta} mirar={mirar} modulo="partido" />
 
         <div className="lista-opciones">
           <button

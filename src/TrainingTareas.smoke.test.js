@@ -10,6 +10,7 @@ const dobles = vi.hoisted(() => ({ plantel: [], cargar: vi.fn() }));
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => ({ id: "eq-1", nombre: "Atlético Mineiro" }),
   esElCam: (nombre) => /mineiro/i.test(String(nombre || "")),
+  soloParaMirar: (equipo, modulo) => Array.isArray(equipo?.solo_lectura) && equipo.solo_lectura.includes(modulo),
 }));
 
 // La lista viene de la prueba; lo demás (quién está en el plantel actual) es

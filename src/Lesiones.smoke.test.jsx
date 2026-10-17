@@ -37,6 +37,7 @@ vi.mock("./domain/equipo.js", () => ({
   elegirEquipoInicial: () => null,
   guardarEquipoElegido: () => {},
   esElCam: (nombre) => nombre === "Atlético Mineiro",
+  soloParaMirar: (equipo, modulo) => Array.isArray(equipo?.solo_lectura) && equipo.solo_lectura.includes(modulo),
 }));
 vi.mock("./domain/lesionesDb.js", () => ({
   listarLesiones: async () => (datos.errorAlLeer ? { lesiones: [], error: datos.errorAlLeer } : { lesiones: datos.lesiones.map((l) => ({ ...l, datos: { ...l.datos } })), error: "" }),
@@ -1355,6 +1356,29 @@ describe("el módulo Lesiones", () => {
 
     await navegar(contenedor, "Ajustes");
     expect(texto(contenedor)).toContain("Dejaste este club el 25/09/2026.");
+    expect([...contenedor.querySelectorAll(".opcion-ajuste")].every((b) => b.disabled)).toBe(true);
+  });
+
+  test("con Lesiones en «Solo lectura» ve todo al día (también los cambios) y no puede cambiar nada", async () => {
+    datos.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: null, lesiones: true, solo_lectura: ["lesiones"] };
+    await montar();
+    expect(texto(contenedor)).toContain("Tenés Lesiones en solo lectura.");
+    expect(texto(contenedor)).not.toContain("Dejaste este club");
+    expect(texto(contenedor)).toContain("Quién está lesionado hoy.");
+    expect(texto(contenedor)).toContain("HULK");
+    expect(boton(contenedor, "Nueva lesión")).toBeUndefined();
+    expect(boton(contenedor, "Alta médica")).toBeUndefined();
+    await tocar(boton(contenedor, "Ver detalle"));
+    expect(boton(contenedor, "Editar")).toBeUndefined();
+    // Los cambios de la lesión sí se ven: está en el club, al día.
+    expect(datos.historialesPedidos.length).toBeGreaterThan(0);
+
+    await navegar(contenedor, "Base");
+    expect(boton(contenedor, "Borrar fila")).toBeUndefined();
+    expect(boton(contenedor, "Pegar")).toBeUndefined();
+
+    await navegar(contenedor, "Ajustes");
+    expect(texto(contenedor)).toContain("Tenés Lesiones en solo lectura.");
     expect([...contenedor.querySelectorAll(".opcion-ajuste")].every((b) => b.disabled)).toBe(true);
   });
 

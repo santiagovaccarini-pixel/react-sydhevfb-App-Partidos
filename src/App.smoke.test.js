@@ -1386,6 +1386,34 @@ describe("interfaz operativa", () => {
     expect(localStorage.getItem("backup_registros_partidos:eq-1")).toBeNull();
   });
 
+  test("con Partido en «Solo lectura» ve los partidos al día y no puede cargar, cambiar ni borrar", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    doblesSupabase.equipos = [{ id: "eq-1", nombre: "Atlético Mineiro", hasta: null, partido: true, solo_lectura: ["partido"] }];
+    doblesSupabase.filasHistorial = [{ id: 1, equipo_id: "eq-1", fecha: "2026-09-01", rival: "Rival Inventado", resultado: "2-2" }];
+
+    await montarApp();
+
+    expect(contenedor.textContent).toContain("Tenés Partido en solo lectura.");
+    expect(contenedor.textContent).not.toContain("Dejaste este club");
+    expect(contenedor.textContent).not.toContain("Ingresar Formación");
+    expect(contenedor.querySelector(".boton-localia")).toBeNull();
+    // Lo de la tabla, al día: no es la foto de quien se fue.
+    expect(doblesSupabase.rpc).not.toHaveBeenCalledWith("datos_al_dia", { p_tabla: "registros_partido", p_equipo: "eq-1" });
+    expect(irAPestana("Partido")).toBeUndefined();
+
+    const verRegistros = Array.from(contenedor.querySelectorAll("button")).find((boton) => boton.textContent.trim() === "Ver registros");
+    await act(async () => verRegistros.click());
+    expect(contenedor.textContent).toContain("Rival Inventado");
+    expect(contenedor.querySelector(".boton-eliminar-registro")).toBeNull();
+    expect(contenedor.textContent).not.toContain("Borrar historial");
+
+    await act(async () => irAPestana("Ajustes").click());
+    const opcion = Array.from(contenedor.querySelectorAll(".opcion-ajuste")).find((boton) => boton.textContent.includes("Equipo"));
+    expect(opcion.disabled).toBe(true);
+    expect(doblesSupabase.insertar).not.toHaveBeenCalled();
+    expect(doblesSupabase.actualizar).not.toHaveBeenCalled();
+  });
+
   test("Ajustes › Equipo no crea clubes ni cambia el nombre: muestra el escudo y el nombre, nada más", async () => {
     // Los datos del club los cambian solo los dueños de la app, desde Clubes
     // de la app (decisión del 09/10): tampoco el administrador del club.

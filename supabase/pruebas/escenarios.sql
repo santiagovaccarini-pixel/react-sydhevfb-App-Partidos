@@ -1192,7 +1192,7 @@ reset role;
 -- Lo que esperan el servidor y la app (spec del paso 2): nombres, argumentos
 -- y columnas de las funciones nuevas.
 select pruebas.esperar('mi_cuenta devuelve lo acordado', pg_get_function_result('public.mi_cuenta()'::regprocedure),
-  'TABLE(estado text, dueno text, flujo boolean, catapult boolean, tecnico boolean)');
+  'TABLE(estado text, dueno text, flujo boolean, catapult boolean, tecnico boolean, flujo_edita boolean)');
 select pruebas.esperar('panel_clubes, por club solo esto', pg_get_function_result('public.panel_clubes()'::regprocedure),
   'TABLE(equipo_id uuid, nombre text, correo_entidad text, correo_admin text, personas integer)');
 select pruebas.esperar('panel_duenos', pg_get_function_result('public.panel_duenos()'::regprocedure),
@@ -1212,7 +1212,7 @@ select pruebas.esperar('Los argumentos de las funciones nuevas',
       and p.proname in ('crear_club', 'asignar_entidad', 'agregar_subdueno', 'quitar_subdueno', 'traspasar_principal',
                         'derivar_pedido', 'rechazar_pedido_sin_club', 'pedir_acceso', 'cancelar_pedido',
                         'aceptar_pedido', 'rechazar_pedido', 'salir_del_club', 'panel_historial', 'renombrar_club')),
-  'aceptar_pedido(p_id uuid, p_partido boolean, p_flujo boolean, p_lesiones boolean, p_evaluaciones boolean, p_gps boolean DEFAULT false); '
+  'aceptar_pedido(p_id uuid, p_partido boolean, p_flujo boolean, p_lesiones boolean, p_evaluaciones boolean, p_gps boolean DEFAULT false, p_solo_lectura text[] DEFAULT ''{}''::text[]); '
   || 'agregar_subdueno(p_correo text); asignar_entidad(p_equipo uuid, p_correo text); cancelar_pedido(p_id uuid); '
   || 'crear_club(p_nombre text, p_correo_entidad text DEFAULT NULL::text, p_zona text DEFAULT ''America/Sao_Paulo''::text); '
   || 'derivar_pedido(p_id uuid, p_equipo uuid); panel_historial(p_limite integer DEFAULT 50); '
@@ -1228,9 +1228,9 @@ select pruebas.esperar('Ninguna función de public se ejecuta sin cuenta',
 select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni internas)',
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
+  'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
   || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_referencia_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
-  || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_usar,'
+  || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
 select pruebas.esperar('es_admin() ya no existe', (select count(*) from pg_proc where proname = 'es_admin'), 0);
@@ -2115,6 +2115,66 @@ select pruebas.esperar('...y en su club sí nombra la categoría', pruebas.filas
 reset role;
 set role anon;
 select pruebas.debe_fallar('Sin cuenta, nada de Datos básicos', 'select count(*) from datos_basicos_columnas', 'permission denied');
+reset role;
+
+-- Niveles de permiso por módulo (20261029_niveles_de_permiso.sql): con un
+-- módulo en «Solo lectura» se ve todo lo de ese módulo, pero no se carga,
+-- no se cambia y no se borra nada; lo demás que tiene, con Edición.
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto deja a la preparadora con GPS solo para mirar', pruebas.filas($$update club_miembros set solo_lectura = array['gps'] where user_id = '00000000-0000-0000-0000-000000000015' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.debe_fallar('...con un módulo que existe', $$update club_miembros set solo_lectura = array['otro'] where user_id = '00000000-0000-0000-0000-000000000015' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$, 'club_miembros_solo_lectura_valida');
+select pruebas.esperar('...y lo ve en Cuentas', (select array_to_string(solo_lectura, ',') from v_miembros_club where user_id = '00000000-0000-0000-0000-000000000015' and equipo_id = :C1), 'gps');
+reset role;
+select pruebas.esperar('Queda en su historia como un cambio de módulos', (select count(*) from club_miembros_historial where user_id = '00000000-0000-0000-0000-000000000015' and accion = 'modulos' and detalle -> 'solo_lectura' ? 'gps'), 1);
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('La preparadora sabe que tiene GPS solo para mirar', (select array_to_string(solo_lectura, ',') from v_mis_clubes where id = :C1), 'gps');
+select pruebas.esperar('...ve el GPS de Uno', (select (count(*) > 0)::int from gps where equipo_id = :C1), 1);
+select pruebas.esperar('...y sus Ajustes y sus V.R.', (select (count(*) > 0)::int from gps_campos) + (select (count(*) > 0)::int from gps_referencias), 2);
+select pruebas.debe_fallar('...pero no carga', $$insert into gps (equipo_id, fecha, persona) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-10', 'Nueva')$$, 'row-level security');
+select pruebas.esperar('...ni cambia', pruebas.filas($$update gps set datos = '{}' where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
+select pruebas.esperar('...ni borra', pruebas.filas($$delete from gps where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
+select pruebas.esperar('...ni toca los Ajustes', pruebas.filas($$update gps_campos set oculto = true$$) + pruebas.filas($$update gps_opciones set oculto = true$$) + pruebas.filas($$update gps_reglas set reglas = '{}'$$), 0);
+select pruebas.debe_fallar('...ni los V.R.', format('select gps_referencia_cambiar(%L, %L, %L, 1)', :'vr_c1', 'promedio', 'd'), 'referencia_sin_permiso');
+select pruebas.esperar('...ni renombra estrategias en las descripciones', (select gps_cambiar_en_descripciones('00000000-0000-0000-0000-0000000000c1', array['C.P.S'], 'X')), 0);
+select pruebas.debe_fallar('...ni deja una carga sin terminar', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-12', 0, '{}', '{}')$q$, 'row-level security');
+select pruebas.esperar('...ni sigue una', pruebas.filas($$update gps_en_curso set paso = 0$$) + pruebas.filas($$update gps_en_curso_datos set datos = '{}'$$), 0);
+select pruebas.debe_fallar('...ni recuerda el dispositivo (no carga)', $$insert into gps_preferencias (equipo_id, dispositivo_pegar) values ('00000000-0000-0000-0000-0000000000c1', 'x') on conflict (user_id, equipo_id) do update set equipo_id = excluded.equipo_id, dispositivo_pegar = excluded.dispositivo_pegar$$, 'row-level security');
+select pruebas.esperar('En Evaluaciones, con Edición, sigue cargando', pruebas.filas($$insert into evaluaciones (equipo_id, test, persona, fecha, datos) values ('00000000-0000-0000-0000-0000000000c1', 'zona_media', 'Nivel Uno', '2026-10-12', '{"lumbar":190}')$$), 1);
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto le devuelve la Edición', pruebas.filas($$update club_miembros set solo_lectura = '{}' where user_id = '00000000-0000-0000-0000-000000000015' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('...y la invita a otra cuenta con Partido y Lesiones solo para mirar', pruebas.filas($$insert into club_invitaciones (equipo_id, email, rol, partido, flujo, lesiones, solo_lectura) values ('00000000-0000-0000-0000-0000000000c1', 'mira@uno.com', 'staff', true, false, true, array['partido', 'lesiones'])$$), 1);
+select pruebas.debe_fallar('...con módulos que existen', $$insert into club_invitaciones (equipo_id, email, solo_lectura) values ('00000000-0000-0000-0000-0000000000c1', 'otra@uno.com', array['notas'])$$, 'club_invitaciones_solo_lectura_valida');
+reset role;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('Con la Edición de vuelta, la preparadora carga en el GPS', pruebas.filas($$insert into gps (equipo_id, fecha, persona) values ('00000000-0000-0000-0000-0000000000c1', '2026-10-10', 'Nueva')$$), 1);
+select pruebas.esperar('...y la borra', pruebas.filas($$delete from gps where persona = 'Nueva'$$), 1);
+reset role;
+insert into auth.users (id, email, email_confirmed_at)
+values ('00000000-0000-0000-0000-000000000099', 'mira@uno.com', now());
+select pruebas.esperar('La invitada entra a Uno con Partido y Lesiones solo para mirar', (select array_to_string(solo_lectura, ',') from club_miembros where user_id = '00000000-0000-0000-0000-000000000099' and equipo_id = :C1), 'partido,lesiones');
+select pruebas.ser('mira@uno.com'); set role authenticated;
+select pruebas.esperar('...ve los partidos y las lesiones de Uno', (select (count(*) > 0)::int from registros_partido where equipo_id = :C1) + (select (count(*) > 0)::int from lesiones where equipo_id = :C1), 2);
+select pruebas.debe_fallar('...pero no carga un partido', $$insert into registros_partido (fecha, rival, equipo_id) values ('2026-10-12', 'Rival N', '00000000-0000-0000-0000-0000000000c1')$$, 'row-level security');
+select pruebas.esperar('...ni cambia uno', pruebas.filas($$update registros_partido set rival = 'X' where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
+select pruebas.debe_fallar('...ni carga una lesión', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, '2026-10-12', '{"parte_cuerpo":"pe","lado":"direito"}')$$, 'row-level security');
+select pruebas.esperar('...ni la cambia ni la borra', pruebas.filas($$update lesiones set fecha_alta = '2026-10-12'$$) + pruebas.filas($$delete from lesiones$$), 0);
+select pruebas.debe_fallar('...ni cambia los Ajustes de Lesiones', $$insert into lesiones_opciones (equipo_id, campo, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'tipo_lesion', 'nueva', 'Nueva')$$, 'row-level security');
+select pruebas.esperar('...pero las columnas del jugador siguen siendo de Datos básicos (las cambia cualquiera del club)', pruebas.filas($$update lesiones_opciones set etiqueta_es = 'Diestro' where equipo_id = '00000000-0000-0000-0000-0000000000c1' and codigo = 'destro'$$), 1);
+reset role;
+-- El servidor manda cortes a Catapult solo con Flujo diario con Edición.
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('El principal, con Flujo y Edición en el club del token, manda cortes', (select catapult || ',' || flujo_edita from mi_cuenta()), 'true,true');
+reset role;
+update club_miembros set solo_lectura = array['flujo']
+ where user_id = (select id from auth.users where email = 'duenio@prueba.com') and equipo_id = (select id from equipos where nombre = 'Atlético Mineiro');
+select pruebas.ser('duenio@prueba.com'); set role authenticated;
+select pruebas.esperar('...con Flujo solo para mirar, lee de Catapult pero no manda cortes', (select catapult || ',' || flujo_edita from mi_cuenta()), 'true,false');
+reset role;
+update club_miembros set solo_lectura = '{}'
+ where user_id = (select id from auth.users where email = 'duenio@prueba.com') and equipo_id = (select id from equipos where nombre = 'Atlético Mineiro');
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva no cambia el nivel de nadie en Uno', pruebas.filas($$update club_miembros set solo_lectura = array['partido'] where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
 reset role;
 
 select 'ESCENARIOS: todos bien' as resultado;

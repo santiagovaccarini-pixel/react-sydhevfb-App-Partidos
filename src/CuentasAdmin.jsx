@@ -6,8 +6,10 @@ import { FlechaVolver } from "./components/PortalTarjetas.jsx";
 import { cargarEquipos } from "./domain/equipo.js";
 import {
   MODULOS_DEL_CLUB,
-  cambiarModulo,
+  NIVELES,
+  cambiarNivel,
   cancelarInvitacion,
+  conNivel,
   correoValido,
   darDeBaja,
   enviarInvitacionPorMail,
@@ -16,6 +18,7 @@ import {
   invitar,
   listarInvitaciones,
   listarMiembros,
+  nivelDe,
   reincorporar,
 } from "./domain/membresiasDb.js";
 import { aceptarPedido, pedidosDelClub, rechazarPedido } from "./domain/pedidosDb.js";
@@ -25,7 +28,8 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
 // Cuentas: la gente del club, para su administrador. Arriba, los pedidos de
 // acceso (aceptar eligiendo módulos, o rechazar); después invitar por correo
-// (siempre como staff), módulos, dar de baja con el último día, reincorporar
+// (siempre como staff), el nivel de cada módulo (sin acceso, solo lectura o
+// edición; Santiago, 17/10), dar de baja con el último día, reincorporar
 // y la historia de cada uno. Quien se va sigue viendo lo cargado hasta su
 // último día, sin cambiar nada (eso lo cuida la base). El admin no toca a
 // otro admin ni su propia fila, y a los dueños de la app (principal o sub) la
@@ -33,10 +37,22 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 // cualquiera, está en Cambiar club (ElegirClub.jsx).
 // Todo va directo a la base con la sesión de quien entra; la base decide.
 
-// Lo que se marca por defecto al invitar y al aceptar un pedido. El rol es
-// siempre staff: la app no nombra administradores.
-export const INVITACION_INICIAL = Object.freeze({ rol: "staff", partido: true, flujo: true, lesiones: false, evaluaciones: false, gps: false });
-const MODULOS_INICIALES = Object.freeze(Object.fromEntries(MODULOS_DEL_CLUB.map((clave) => [clave, INVITACION_INICIAL[clave]])));
+// Lo que se marca por defecto al invitar y al aceptar un pedido (los módulos
+// que se dan, con Edición). El rol es siempre staff: la app no nombra
+// administradores.
+export const INVITACION_INICIAL = Object.freeze({
+  rol: "staff",
+  partido: true,
+  flujo: true,
+  lesiones: false,
+  evaluaciones: false,
+  gps: false,
+  solo_lectura: Object.freeze([]),
+});
+const MODULOS_INICIALES = Object.freeze({
+  ...Object.fromEntries(MODULOS_DEL_CLUB.map((clave) => [clave, INVITACION_INICIAL[clave]])),
+  solo_lectura: INVITACION_INICIAL.solo_lectura,
+});
 
 // Un mensaje de error: una clave del diccionario o el texto de la base.
 const mensajeDe = (error, porDefecto) => {
@@ -44,10 +60,47 @@ const mensajeDe = (error, porDefecto) => {
   return /^[a-z]+(\.[a-zA-Z]+)+$/.test(texto) ? t(texto) : texto || t(porDefecto);
 };
 
+// Los módulos que tiene, con «(solo lectura)» al lado de los que solo mira.
 const nombresDeModulos = (fila) => {
-  const lista = MODULOS_DEL_CLUB.filter((clave) => fila?.[clave]).map((clave) => t(`cuentas.modulos.${clave}`));
+  const lista = MODULOS_DEL_CLUB.filter((clave) => fila?.[clave]).map((clave) =>
+    nivelDe(fila, clave) === "lectura"
+      ? t("cuentas.niveles.conSoloLectura", { modulo: t(`cuentas.modulos.${clave}`) })
+      : t(`cuentas.modulos.${clave}`),
+  );
   return lista.length ? lista.join(", ") : t("cuentas.ningunModulo");
 };
+
+// La flechita de un desplegable.
+const FlechaAbajo = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
+// Cada módulo en su desplegable (UI-027), con el nivel elegido: se toca y
+// sube la hoja con Sin acceso, Solo lectura y Edición.
+const NivelesDeModulos = ({ fila, etiqueta, disabled = false, onTocar }) => (
+  <div className="cuenta-niveles" role="group" aria-label={etiqueta}>
+    {MODULOS_DEL_CLUB.map((clave) => {
+      const nivel = nivelDe(fila, clave);
+      const modulo = t(`cuentas.modulos.${clave}`);
+      return (
+        <button
+          key={clave}
+          type="button"
+          className={`cuenta-nivel nivel-${nivel}`}
+          disabled={disabled}
+          aria-label={t("cuentas.niveles.cambiar", { modulo, nivel: t(`cuentas.niveles.${nivel}`) })}
+          onClick={() => onTocar(clave)}
+        >
+          <span className="cuenta-nivel-modulo">{modulo}</span>
+          <b>{t(`cuentas.niveles.${nivel}`)}</b>
+          <FlechaAbajo />
+        </button>
+      );
+    })}
+  </div>
+);
 
 // Una línea de la historia de una membresía, en criollo.
 export const textoDeMovimiento = (movimiento) => {
@@ -77,7 +130,7 @@ export const textoDeMovimiento = (movimiento) => {
 // Las filas de otro admin, de un dueño de la app y la propia no tienen
 // acciones (la base tampoco las deja cambiar): sus módulos se leen, no se
 // tocan. La historia se mira en todas.
-const FilaMiembro = ({ miembro, esMio, ocupada, onModulo, onBaja, onReincorporar, onHistoria }) => {
+const FilaMiembro = ({ miembro, esMio, ocupada, onNivel, onBaja, onReincorporar, onHistoria }) => {
   const activo = !miembro.hasta;
   const editable = !esMio && miembro.rol !== "admin" && !miembro.protegido;
   return (
@@ -108,20 +161,12 @@ const FilaMiembro = ({ miembro, esMio, ocupada, onModulo, onBaja, onReincorporar
         )}
       </div>
       {editable && (
-        <div className="cuenta-permisos" role="group" aria-label={t("cuentas.quePuedeUsar", { correo: miembro.email })}>
-          {MODULOS_DEL_CLUB.map((clave) => (
-            <button
-              key={clave}
-              type="button"
-              className="cuenta-chip"
-              aria-pressed={Boolean(miembro[clave])}
-              disabled={ocupada}
-              onClick={() => onModulo(miembro, clave)}
-            >
-              {t(`cuentas.modulos.${clave}`)}
-            </button>
-          ))}
-        </div>
+        <NivelesDeModulos
+          fila={miembro}
+          etiqueta={t("cuentas.quePuedeUsar", { correo: miembro.email })}
+          disabled={ocupada}
+          onTocar={(clave) => onNivel(miembro, clave)}
+        />
       )}
       <div className="cuenta-acciones">
         {editable &&
@@ -244,6 +289,8 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
   const [historia, setHistoria] = useState(null);
   const [aAceptar, setAAceptar] = useState(null);
   const [aRechazar, setARechazar] = useState(null);
+  // La hoja con los niveles de un módulo: { titulo, nivel, alElegir }.
+  const [eligiendoNivel, setEligiendoNivel] = useState(null);
 
   const clubElegido = clubes.find((uno) => uno.id === clubId) || null;
 
@@ -333,7 +380,24 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     }
   };
 
-  const alternarModulo = (miembro, clave) => aplicar(miembro, () => cambiarModulo(miembro.user_id, clubId, clave, !miembro[clave]));
+  // Abre la hoja con los niveles de un módulo. `correo`: de quién es (en el
+  // título de la hoja).
+  const elegirNivel = (fila, clave, correo, alElegir) =>
+    setEligiendoNivel({
+      titulo: [t(`cuentas.modulos.${clave}`), correo].filter(Boolean).join(" · "),
+      nivel: nivelDe(fila, clave),
+      alElegir,
+    });
+  const opcionesDeNivel = NIVELES.map((nivel) => ({
+    valor: nivel,
+    etiqueta: t(`cuentas.niveles.${nivel}`),
+    detalle: t(`cuentas.niveles.${nivel}Detalle`),
+  }));
+  const cambiarNivelDe = (miembro, clave) =>
+    elegirNivel(miembro, clave, miembro.email, (nivel) => {
+      if (nivel === nivelDe(miembro, clave)) return;
+      aplicar(miembro, () => cambiarNivel({ ...miembro, equipo_id: clubId }, clave, nivel));
+    });
   const volverAlClub = (miembro) =>
     aplicar(miembro, () => reincorporar(miembro.user_id, clubId), t("cuentas.reincorporado", { correo: miembro.email }));
 
@@ -484,7 +548,7 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
   const abiertas = invitaciones.filter((una) => !invitacionVencida(una));
 
   const accionesMiembro = {
-    onModulo: alternarModulo,
+    onNivel: cambiarNivelDe,
     onBaja: (miembro) => {
       setFechaBaja(hoyISO());
       setADarBaja(miembro);
@@ -546,19 +610,13 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
                 autoComplete="off"
                 onChange={(evento) => setCorreo(evento.target.value)}
               />
-              <div className="cuenta-permisos" role="group" aria-label={t("cuentas.invitarTitulo")}>
-                {MODULOS_DEL_CLUB.map((clave) => (
-                  <button
-                    key={clave}
-                    type="button"
-                    className="cuenta-chip"
-                    aria-pressed={Boolean(nueva[clave])}
-                    onClick={() => setNueva((actual) => ({ ...actual, [clave]: !actual[clave] }))}
-                  >
-                    {t(`cuentas.modulos.${clave}`)}
-                  </button>
-                ))}
-              </div>
+              <NivelesDeModulos
+                fila={nueva}
+                etiqueta={t("cuentas.invitarTitulo")}
+                onTocar={(clave) =>
+                  elegirNivel(nueva, clave, correo.trim().toLowerCase(), (nivel) => setNueva((actual) => ({ ...actual, ...conNivel(actual, clave, nivel) })))
+                }
+              />
               <button type="submit" className="cuenta-autorizar" disabled={ocupada === "invitar" || !correo.trim()}>
                 {ocupada === "invitar" ? t("cuentas.invitando") : t("cuentas.invitar")}
               </button>
@@ -696,19 +754,15 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
             </>
           }
         >
-          <div className="cuenta-permisos" role="group" aria-label={t("pedidos.aceptarTitulo", { correo: aAceptar.pedido.email })}>
-            {MODULOS_DEL_CLUB.map((clave) => (
-              <button
-                key={clave}
-                type="button"
-                className="cuenta-chip"
-                aria-pressed={Boolean(aAceptar.modulos[clave])}
-                onClick={() => setAAceptar((actual) => ({ ...actual, modulos: { ...actual.modulos, [clave]: !actual.modulos[clave] } }))}
-              >
-                {t(`cuentas.modulos.${clave}`)}
-              </button>
-            ))}
-          </div>
+          <NivelesDeModulos
+            fila={aAceptar.modulos}
+            etiqueta={t("pedidos.aceptarTitulo", { correo: aAceptar.pedido.email })}
+            onTocar={(clave) =>
+              elegirNivel(aAceptar.modulos, clave, aAceptar.pedido.email, (nivel) =>
+                setAAceptar((actual) => (actual ? { ...actual, modulos: { ...actual.modulos, ...conNivel(actual.modulos, clave, nivel) } } : actual)),
+              )
+            }
+          />
         </HojaInferior>
       )}
 
@@ -754,6 +808,20 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
         etiquetaCancelar={t("comun.cancelar")}
         onConfirmar={confirmarRechazo}
         onCancelar={() => setARechazar(null)}
+      />
+
+      {/* La última, para quedar arriba también de la hoja de aceptar. */}
+      <HojaOpciones
+        abierta={Boolean(eligiendoNivel)}
+        titulo={eligiendoNivel?.titulo || ""}
+        opciones={opcionesDeNivel}
+        elegida={eligiendoNivel?.nivel}
+        onElegir={(nivel) => {
+          const { alElegir } = eligiendoNivel;
+          setEligiendoNivel(null);
+          alElegir(nivel);
+        }}
+        onCerrar={() => setEligiendoNivel(null)}
       />
     </main>
   );

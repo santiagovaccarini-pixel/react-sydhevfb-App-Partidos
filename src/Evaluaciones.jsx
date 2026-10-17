@@ -44,7 +44,7 @@ import {
   leerReferencias,
   listarEvaluaciones,
 } from "./domain/evaluacionesDb.js";
-import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
+import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { interpretarMinutos, textoDeMinutos } from "./domain/tabla.js";
@@ -191,8 +191,11 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const [errorHoja, setErrorHoja] = useState("");
 
   const equipoId = equipo?.id || null;
-  // Quien ya se fue del club ve lo cargado hasta su último día y no cambia nada.
-  const soloLectura = Boolean(equipo?.hasta);
+  // Quien ya se fue del club ve lo cargado hasta su último día y no cambia
+  // nada; quien tiene Evaluaciones «Solo lectura» ve todo, al día, y tampoco.
+  const seFue = Boolean(equipo?.hasta);
+  const mirar = soloParaMirar(equipo, "evaluaciones");
+  const soloLectura = seFue || mirar;
 
   // Sin club elegido en este celular, se adopta el que diga la base.
   useEffect(() => {
@@ -248,10 +251,10 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   }, [cargar]);
 
   // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10).
-  useEnVivo({ nombre: "evaluaciones", tablas: ["evaluaciones", "jugadores"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
+  useEnVivo({ nombre: "evaluaciones", tablas: ["evaluaciones", "jugadores"], equipoId, activo: !seFue, alCambiar: () => cargar({ silencioso: true }) });
   // Los V.R. que cambia otra persona, en su propio canal (sin la
   // actualización 20261025 la tabla no avisa: no hay nada que escuchar).
-  useEnVivo({ nombre: "evaluaciones-referencias", tablas: ["evaluaciones_referencias"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
+  useEnVivo({ nombre: "evaluaciones-referencias", tablas: ["evaluaciones_referencias"], equipoId, activo: !seFue, alCambiar: () => cargar({ silencioso: true }) });
 
   useEffect(() => {
     const alCambiar = () => setEnLinea(navigator.onLine !== false);
@@ -915,7 +918,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           </div>
         </header>
 
-        <AvisoSoloLectura hasta={equipo?.hasta} />
+        <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="evaluaciones" />
         {estado}
 
         {!soloLectura && (
@@ -946,7 +949,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           <SelectorDeVista test={test} elegida={vistaDeLaBase} alElegir={(vista) => setVistaPorTest((antes) => ({ ...antes, [test.id]: vista }))} idioma={idioma} />
         </div>
         {encabezado(test.titulo[idioma], test.nota[idioma])}
-        <AvisoSoloLectura hasta={equipo?.hasta} />
+        <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="evaluaciones" />
         {estado}
         {sinReferencias && <p className="lesiones-estado evaluaciones-sin-referencias">{t("evaluaciones.sinReferencias")}</p>}
         {!soloLectura && (
@@ -994,6 +997,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       idioma={idioma}
       equipoId={equipoId}
       soloLectura={soloLectura}
+      seFue={seFue}
       enLinea={enLinea}
       cargando={cargando}
       error={error}
@@ -1001,7 +1005,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       encabezado={encabezado}
       arriba={
         <>
-          <AvisoSoloLectura hasta={equipo?.hasta} />
+          <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="evaluaciones" />
           {estado}
         </>
       }
@@ -1222,7 +1226,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       <div className="app">
         <div className="contenedor">
           {encabezado(t("lesiones.ajustes.titulo"), t("evaluaciones.ajustes.texto"))}
-          <AvisoSoloLectura hasta={equipo?.hasta} />
+          <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="evaluaciones" />
           <div className="lista-opciones">
             {filaAjuste({
               id: "cabeceras",
@@ -1339,7 +1343,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         hoy={hoy}
         estado={
           <>
-            <AvisoSoloLectura hasta={equipo?.hasta} />
+            <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="evaluaciones" />
             {estado}
           </>
         }

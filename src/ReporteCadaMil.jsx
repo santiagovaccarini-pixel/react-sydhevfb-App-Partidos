@@ -4,6 +4,7 @@ import { EscudoDeClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { CuadroCadaMil } from "./components/CuadroCadaMil.jsx";
 import { TerminoDe } from "./components/Guia.jsx";
+import { soloParaMirar } from "./domain/equipo.js";
 import { esFechaISO } from "./domain/lesiones.js";
 import { borrarPeriodo, guardarPeriodo, listarPeriodos } from "./domain/periodosDb.js";
 import { contadorDelPeriodo, ordenarPeriodos } from "./domain/reportes.js";
@@ -27,7 +28,8 @@ import { fechaCorta } from "./idioma/formatos.js";
 export default function ReporteCadaMil({ lesiones, gps, hoy, equipo, acciones, estado, numero, queCuenta, onAviso }) {
   const { plural } = useIdioma();
   const equipoId = equipo?.id || null;
-  const soloLectura = Boolean(equipo?.hasta);
+  // Quien ya se fue o tiene Lesiones «Solo lectura» no guarda ni borra períodos.
+  const soloLectura = Boolean(equipo?.hasta) || soloParaMirar(equipo, "lesiones");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState(hoy);
   const [nombre, setNombre] = useState("");

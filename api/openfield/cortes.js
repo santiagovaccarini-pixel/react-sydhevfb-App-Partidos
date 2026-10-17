@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { autenticarCookieOpenField, responderNoAutenticado } from "../../lib/openfieldAuth.js";
+import { autenticarCookieOpenField, exigirEdicion, responderNoAutenticado } from "../../lib/openfieldAuth.js";
 import { resolverPase } from "../../lib/catapultAcceso.js";
 import { leerBodyJson, resumirError, textoSeguro } from "../../lib/catapultCloud.js";
 import {
@@ -38,7 +38,7 @@ export default async function handler(request, response) {
     return response.status(405).json({ ok: false, error: "Método no permitido" });
   }
 
-  const auth = autenticarCookieOpenField(request);
+  const auth = exigirEdicion(autenticarCookieOpenField(request));
   if (!auth.ok) {
     return responderNoAutenticado(response, auth);
   }

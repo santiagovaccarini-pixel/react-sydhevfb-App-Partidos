@@ -31,6 +31,7 @@ vi.mock("./TrainingSettings", () => ({ default: () => <div>Ajustes de prueba</di
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => ({ id: "eq-1", nombre: "Atlético Mineiro" }),
   esElCam: (nombre) => /mineiro/i.test(String(nombre || "")),
+  soloParaMirar: (equipo, modulo) => Array.isArray(equipo?.solo_lectura) && equipo.solo_lectura.includes(modulo),
 }));
 
 vi.mock("./domain/plantel.js", async (importOriginal) => ({

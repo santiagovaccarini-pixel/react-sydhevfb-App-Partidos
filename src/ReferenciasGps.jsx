@@ -60,6 +60,7 @@ export default function ReferenciasGps({
   sinEdicion,
   faltaTabla,
   soloLectura,
+  seFue = soloLectura,
   enLinea,
   encabezado,
   arriba = null,
@@ -129,10 +130,10 @@ export default function ReferenciasGps({
   // ------------------------------------------------------------ Historial --
   const [historial, setHistorial] = useState({ cambios: [], error: "", leido: false });
   const leerHistorial = useCallback(async () => {
-    if (soloLectura || sinEdicion || faltaTabla || !equipoId) return;
+    if (seFue || sinEdicion || faltaTabla || !equipoId) return;
     const respuesta = await leerHistorialDeReferencias(equipoId, "gps_referencias");
     setHistorial({ cambios: respuesta.cambios, error: respuesta.error, leido: true });
-  }, [equipoId, soloLectura, sinEdicion, faltaTabla]);
+  }, [equipoId, seFue, sinEdicion, faltaTabla]);
   // Cada vez que cambian los V.R. (acá o en otro aparato), el historial también.
   useEffect(() => {
     leerHistorial();
@@ -356,7 +357,7 @@ export default function ReferenciasGps({
                 {t("gps.vr.sumar", { dispositivo: nombreDelDispositivo })}
               </button>
             )}
-            {historial.leido && !soloLectura && !sinEdicion && <HistorialDeReferencias entradas={entradas} onVolver={enLinea ? volver : undefined} error={historial.error} />}
+            {historial.leido && !seFue && !sinEdicion && <HistorialDeReferencias entradas={entradas} onVolver={enLinea && !soloLectura ? volver : undefined} error={historial.error} />}
           </>
         )}
       </div>

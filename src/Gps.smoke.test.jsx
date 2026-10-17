@@ -54,6 +54,7 @@ vi.mock("./domain/equipo.js", () => ({
   elegirEquipoInicial: () => null,
   guardarEquipoElegido: () => {},
   esElCam: () => false,
+  soloParaMirar: (equipo, modulo) => Array.isArray(equipo?.solo_lectura) && equipo.solo_lectura.includes(modulo),
 }));
 vi.mock("./domain/lesionesDb.js", () => ({
   cargarPlantelLesiones: async () => ({ plantel: datos.plantel.map((jugador) => ({ ...jugador })), error: "" }),
@@ -795,6 +796,26 @@ describe("GPS", () => {
     await tocar(celda(contenedor, 0, "D"));
     await tocar(celda(contenedor, 0, "D"));
     expect(celda(contenedor, 0, "D").querySelector("input")).toBeNull();
+  });
+
+  test("con GPS en «Solo lectura» ve la base al día (con su copia en el aparato) y no cambia nada", async () => {
+    datos.equipo = { id: "eq-1", nombre: "Club de Prueba", hasta: null, gps: true, solo_lectura: ["gps"] };
+    await montar();
+    // En Cargar no hay nada para cargar.
+    expect(contenedor.textContent).toContain("Tenés GPS en solo lectura.");
+    expect(boton("Cargar un día")).toBeUndefined();
+    await irA(contenedor, "Base");
+    expect(contenedor.textContent).toContain("Todas las filas del GPS del club. Filtrá");
+    expect(contenedor.textContent).not.toContain("Dejaste este club");
+    expect(boton("Pegar desde una planilla")).toBeUndefined();
+    expect(boton("Borrar fila")).toBeUndefined();
+    expect(filas(contenedor)).toHaveLength(3);
+    await tocar(celda(contenedor, 0, "D"));
+    await tocar(celda(contenedor, 0, "D"));
+    expect(celda(contenedor, 0, "D").querySelector("input")).toBeNull();
+    // Lo de la base, al día: queda la copia del aparato (no es la foto de quien se fue).
+    await esperarLargo(() => datos.copiasGuardadas.length > 0);
+    expect(datos.copiasGuardadas.at(-1)).toMatchObject({ equipoId: "eq-1", filas: 3 });
   });
 
   // Sin lo técnico (Santiago, 14/10): qué falta y a quién avisarle.

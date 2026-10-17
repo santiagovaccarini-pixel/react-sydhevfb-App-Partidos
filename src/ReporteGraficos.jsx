@@ -5,6 +5,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaDeFiltro, elegidosAlAbrir } from "./components/ListaParaMarcar.jsx";
 import { BarrasApiladas, Columnas, Torta, coloresDeSeries } from "./components/GraficosReporte.jsx";
 import { tituloDeVariante } from "./components/CuadroCadaMil.jsx";
+import { soloParaMirar } from "./domain/equipo.js";
 import { listarPeriodos } from "./domain/periodosDb.js";
 import { OPCIONES } from "./domain/lesionesCampos.js";
 import { claveDeQuien, tieneFecha } from "./domain/lesiones.js";
@@ -77,7 +78,8 @@ const compararTextos = (a, b) => a.localeCompare(b, "es", { numeric: true, sensi
 export default function ReporteGraficos({ lesiones, plantel, gps, hoy, equipo, acciones, estado, numero, queCuenta, etiqueta, textoDeOpcion, camposVisibles = [], enPantalla = () => "", onIrA }) {
   const { idioma, plural } = useIdioma();
   const equipoId = equipo?.id || null;
-  const soloLectura = Boolean(equipo?.hasta);
+  // Quien ya se fue o tiene Lesiones «Solo lectura» no guarda ni borra períodos.
+  const soloLectura = Boolean(equipo?.hasta) || soloParaMirar(equipo, "lesiones");
   const [periodos, setPeriodos] = useState([]);
   const [errorPeriodos, setErrorPeriodos] = useState("");
   const [cargandoPeriodos, setCargandoPeriodos] = useState(true);

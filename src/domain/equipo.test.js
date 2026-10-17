@@ -26,6 +26,7 @@ import {
   elegirEquipoInicial,
   esElCam,
   esSoloLectura,
+  soloParaMirar,
   guardarEquipoElegido,
   leerEquipoElegido,
 } from "./equipo.js";
@@ -130,6 +131,17 @@ describe("cargarEquipos y la membresía", () => {
     expect(leerEquipoElegido()).toEqual({ id: "uno", nombre: "Atlético Mineiro", hasta: null });
     guardarEquipoElegido(null);
     expect(leerEquipoElegido()).toBeNull();
+  });
+  it("guarda los módulos que tiene en «Solo lectura»: los ve al día, sin cambiar nada (no es la foto de quien se fue)", () => {
+    guardarEquipoElegido({ id: "uno", nombre: "Atlético Mineiro", gps: true, lesiones: true, solo_lectura: ["gps", 3] });
+    const elegido = leerEquipoElegido();
+    expect(elegido).toEqual({ id: "uno", nombre: "Atlético Mineiro", hasta: null, gps: true, lesiones: true, solo_lectura: ["gps"] });
+    expect(soloParaMirar(elegido, "gps")).toBe(true);
+    expect(soloParaMirar(elegido, "lesiones")).toBe(false);
+    expect(esSoloLectura(elegido)).toBe(false);
+    // Una base sin la actualización no trae la lista: todo es edición.
+    expect(soloParaMirar({ id: "uno", gps: true }, "gps")).toBe(false);
+    expect(soloParaMirar(null, "gps")).toBe(false);
   });
 });
 

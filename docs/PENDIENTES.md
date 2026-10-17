@@ -3708,6 +3708,44 @@ confirme.**
   - **Queda prohibido** volver a cambiar las columnas del jugador desde Lesiones › Ajustes,
     que esconderlas en Datos básicos las esconda en Lesiones, y pasar Posiciones a Partido sin
     un pedido nuevo. Ver UI-048.
+  - Santiago lo probó: «funciona» (17/10).
+- **Niveles de permiso por módulo (hecho el 17/10).** Santiago, 17/10: «Vamos a implementar un
+  nivel mas de permisos para cada modulo (Solo Lectura y Edicion) solo lectura no deja editar
+  nada y edicion si». En un cuestionario:
+  - Datos básicos: «Deja eso para el final» (se pregunta al cerrar esta nota).
+  - Cuentas: «Un desplegable por módulo».
+  - Qué ve con solo lectura: «Puede ver todo, siempre que tenga los permisos pero no puede
+    editar nada si tiene solo lectura».
+
+  Quedó así:
+  - **Cuentas**: cada módulo (Partido, Flujo diario, Lesiones, Evaluaciones y GPS) tiene su
+    desplegable con **Sin acceso**, **Solo lectura** o **Edición**, en cada miembro, al invitar
+    y al aceptar un pedido (reemplazan los botones de prender y apagar). La hoja dice qué
+    permite cada uno. De entrada, al invitar y al aceptar, Partido y Flujo diario con Edición.
+    Las filas que no se tocan, las invitaciones y la historia dicen «(solo lectura)» al lado del
+    módulo.
+  - **En el módulo, con Solo lectura**: ve todo, al día, como quien edita (lo nuevo de otros
+    sin recargar, los cambios de una lesión y los últimos cambios de los V.R., sin «Volver»),
+    sin nada para cargar, cambiar, borrar ni pegar, y con los Ajustes cerrados. Arriba, «Tenés
+    {módulo} en solo lectura.». No es la foto del último día: eso sigue siendo solo para quien
+    se fue del club.
+  - **Flujo diario**: no empieza ni cambia entrenamientos y no manda cortes a Catapult; el
+    servidor también lo frena (`mi_cuenta` suma `flujo_edita` y la cookie pasa a la versión 5,
+    con `edita`; las de antes vencen y la app pide otra sola).
+  - **La base** (migración `20261029_niveles_de_permiso.sql`, se corre antes de publicar): la
+    columna `solo_lectura` (los módulos que solo mira) en `club_miembros` y
+    `club_invitaciones`; `puede_editar_en` y `clubes_donde_edito`; en las 18 tablas de los
+    módulos, políticas restrictivas que solo dejan agregar, cambiar y borrar con Edición (una
+    migración vieja corrida otra vez no las saca); `aceptar_pedido` con `p_solo_lectura`; la
+    historia y los dueños protegidos con la lista; las vistas `v_mis_clubes` y
+    `v_miembros_club`, con la lista. `20261016_gps.sql` se niega a correr después de esta. Sin
+    el SQL, la app sigue como antes (todo es Edición) y elegir Solo lectura avisa que falta
+    una actualización. Las columnas del jugador que Lesiones comparte con Datos básicos se
+    siguen cambiando como Datos básicos.
+  - **Datos básicos no cambió**: lo sigue cambiando cualquiera que sigue en el club.
+  - **Queda prohibido** volver a los botones de prender y apagar cada módulo en Cuentas, que
+    Solo lectura muestre la foto del último día y dejar cargar, cambiar, borrar o mandar cortes
+    con Solo lectura. Ver UI-049.
 - **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
   con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
@@ -3716,8 +3754,8 @@ confirme.**
   franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
   GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
   UI-040.
-- **Lo que sigue, en este orden**: los niveles de permiso por módulo («Solo Lectura y
-  Edicion»; Santiago, 17/10: «Aparte, justo después» de los Ajustes de Datos básicos); Datos
+- **Lo que sigue, en este orden**: el nivel de permiso de Datos básicos (Santiago, 17/10: «Deja
+  eso para el final» de los niveles de permiso por módulo); Datos
   básicos fuera de los módulos principales (nota del 14/10: «Pasar datos basicos a un modulo
   fuera de los principales al igual que notas»); moverse por la app (botones siempre a la vista, esconder la
   barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una

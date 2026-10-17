@@ -39,7 +39,7 @@ import {
   unirFilasGps,
 } from "./domain/gpsDb.js";
 import { guardarCopiaGps, leerCopiaGps } from "./domain/copiaGps.js";
-import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
+import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -208,8 +208,12 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const [errorHoja, setErrorHoja] = useState("");
 
   const equipoId = equipo?.id || null;
-  // Quien ya se fue del club ve lo cargado hasta su último día y no cambia nada.
-  const soloLectura = Boolean(equipo?.hasta);
+  // Quien ya se fue del club ve lo cargado hasta su último día y no cambia
+  // nada. Quien tiene GPS en «Solo lectura» ve todo al día y tampoco cambia
+  // nada (Santiago, 17/10).
+  const seFue = Boolean(equipo?.hasta);
+  const mirar = soloParaMirar(equipo, "gps");
+  const soloLectura = seFue || mirar;
 
   // Sin club elegido en este celular, se adopta el que diga la base.
   useEffect(() => {
@@ -329,7 +333,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     setErrorHistorial("");
     setTrayendo(null);
     marca.current = null;
-    if (!soloLectura) {
+    if (!seFue) {
       cuenta.current = await cuentaDeLaSesion();
       const copia = cuenta.current ? await leerCopiaGps(cuenta.current, equipoId) : null;
       if (esta !== lecturas.current) return;
@@ -369,16 +373,16 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     }
     marca.current = respuesta.hasta;
     // Lo de antes, con lo reciente como esté (se pudo cambiar mientras tanto).
-    setFilasGps((antes) => (soloLectura ? respuesta.recientes : unirFilasGps(respuesta.viejas, antes)));
-  }, [equipoId, soloLectura, ponerAlDia]);
+    setFilasGps((antes) => (seFue ? respuesta.recientes : unirFilasGps(respuesta.viejas, antes)));
+  }, [equipoId, seFue, ponerAlDia]);
 
   // La copia de este aparato, al día con lo que se ve (al rato de cada
   // cambio, para no escribirla en cada celda).
   useEffect(() => {
-    if (soloLectura || cargando || trayendo || errorHistorial || !cuenta.current || !equipoId) return undefined;
+    if (seFue || cargando || trayendo || errorHistorial || !cuenta.current || !equipoId) return undefined;
     const temporizador = setTimeout(() => guardarCopiaGps(cuenta.current, equipoId, { filas: filasGps, hasta: marca.current }), 1500);
     return () => clearTimeout(temporizador);
-  }, [filasGps, cargando, trayendo, errorHistorial, soloLectura, equipoId]);
+  }, [filasGps, cargando, trayendo, errorHistorial, seFue, equipoId]);
 
   const cargar = useCallback(() => Promise.all([cargarClub(), cargarFilas()]), [cargarClub, cargarFilas]);
 
@@ -396,7 +400,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     nombre: "gps",
     tablas: ["gps", "jugadores"],
     equipoId,
-    activo: !soloLectura,
+    activo: !seFue,
     alCambiar: () => Promise.all([cargarClub({ silencioso: true }), ponerAlDia()]),
   });
   // Los V.R. que cambia otra persona, en su propio canal (sin la
@@ -405,7 +409,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     nombre: "gps-referencias",
     tablas: ["gps_referencias"],
     equipoId,
-    activo: !soloLectura && !sinEdicionVr && !faltanReferencias,
+    activo: !seFue && !sinEdicionVr && !faltanReferencias,
     alCambiar: cargarReferencias,
   });
 
@@ -894,8 +898,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           </div>
         </header>
 
-        <p className="pantalla-donde">{t(soloLectura ? "gps.donde.baseSoloLectura" : "gps.donde.base")}</p>
-        <AvisoSoloLectura hasta={equipo?.hasta} />
+        <p className="pantalla-donde">{t(seFue ? "gps.donde.baseSoloLectura" : mirar ? "gps.donde.baseMirar" : "gps.donde.base")}</p>
+        <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="gps" />
 
         {estado}
 
@@ -1058,7 +1062,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         </header>
 
         {!soloLectura && <p className="pantalla-donde">{t("gps.donde.cargar")}</p>}
-        <AvisoSoloLectura hasta={equipo?.hasta} />
+        <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="gps" />
         {!enLinea && <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>}
 
         {!soloLectura && (
@@ -1424,7 +1428,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       <div className="app">
         <div className="contenedor">
           {encabezado(t("lesiones.ajustes.titulo"), t("gps.ajustes.texto"))}
-          <AvisoSoloLectura hasta={equipo?.hasta} />
+          <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="gps" />
           <div className="lista-opciones">
             {filaAjuste({
               id: "cabeceras",
@@ -1556,7 +1560,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         encabezado={encabezado}
         arriba={
           <>
-            <AvisoSoloLectura hasta={equipo?.hasta} />
+            <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="gps" />
             {estado}
           </>
         }
@@ -1574,11 +1578,12 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         sinEdicion={sinEdicionVr}
         faltaTabla={faltanReferencias}
         soloLectura={soloLectura}
+        seFue={seFue}
         enLinea={enLinea}
         encabezado={encabezado}
         arriba={
           <>
-            <AvisoSoloLectura hasta={equipo?.hasta} />
+            <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="gps" />
             {estado}
           </>
         }

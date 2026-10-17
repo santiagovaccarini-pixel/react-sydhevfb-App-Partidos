@@ -45,6 +45,7 @@ export default function ReferenciasEvaluaciones({
   idioma,
   equipoId,
   soloLectura,
+  seFue = soloLectura,
   enLinea,
   cargando,
   error,
@@ -64,10 +65,10 @@ export default function ReferenciasEvaluaciones({
   // ------------------------------------------------------------ Historial --
   const [historial, setHistorial] = useState({ cambios: [], faltaTabla: false, error: "", leido: false });
   const leerHistorial = useCallback(async () => {
-    if (soloLectura || !equipoId) return;
+    if (seFue || !equipoId) return;
     const respuesta = await leerHistorialDeReferencias(equipoId, "evaluaciones_referencias");
     setHistorial({ cambios: respuesta.cambios, faltaTabla: respuesta.faltaTabla, error: respuesta.error, leido: true });
-  }, [equipoId, soloLectura]);
+  }, [equipoId, seFue]);
   // Cada vez que cambian los V.R. (acá o en otro aparato), el historial también.
   useEffect(() => {
     leerHistorial();
@@ -276,7 +277,7 @@ export default function ReferenciasEvaluaciones({
             />
           </section>
         )}
-        {historial.leido && !sinEdicion && test.conReferencias !== false && <HistorialDeReferencias entradas={entradas} onVolver={enLinea ? volver : undefined} error={historial.error} />}
+        {historial.leido && !sinEdicion && test.conReferencias !== false && <HistorialDeReferencias entradas={entradas} onVolver={enLinea && !soloLectura ? volver : undefined} error={historial.error} />}
       </div>
       <HojasDeOcultar ocultar={ocultarCategorias} />
       <HojasDeOcultar ocultar={ocultarResumen} />

@@ -38,7 +38,7 @@ vi.mock("../supabase.js", () => ({
 }));
 
 const {
-  cambiarModulo,
+  cambiarNivel,
   cancelarInvitacion,
   claveDeError,
   correoValido,
@@ -46,8 +46,10 @@ const {
   enviarInvitacionPorMail,
   estadoDeMembresia,
   invitacionVencida,
+  conNivel,
   invitar,
   listarMiembros,
+  nivelDe,
   ordenarMiembros,
   reincorporar,
 } = await import("./membresiasDb.js");
@@ -121,7 +123,8 @@ describe("la membresía de una cuenta en un club", () => {
 
   it("módulos, baja y reincorporación cambian la fila justa (el rol no se toca desde la app)", async () => {
     base.responder = (pedido) => ({ data: [{ equipo_id: "c1", user_id: "u2", ...pedido.datos }], error: null });
-    await cambiarModulo("u2", "c1", "lesiones", true);
+    const beto = { equipo_id: "c1", user_id: "u2", partido: true, lesiones: false, evaluaciones: false };
+    await cambiarNivel(beto, "lesiones", "edicion");
     await darDeBaja("u2", "c1", "2026-09-25");
     const vuelto = await reincorporar("u2", "c1");
     expect(base.pedidos.map((p) => p.datos)).toEqual([
@@ -133,12 +136,13 @@ describe("la membresía de una cuenta en un club", () => {
     expect(vuelto.hasta).toBeNull();
     // Sin el correo ni el estado de la cuenta (no están en club_miembros):
     // así Cuentas no los borra de la lista al cambiar un módulo.
-    const cambiado = await cambiarModulo("u2", "c1", "evaluaciones", true);
+    const cambiado = await cambiarNivel(beto, "evaluaciones", "edicion");
     expect(cambiado).toMatchObject({ user_id: "u2", evaluaciones: true });
     expect(cambiado).not.toHaveProperty("email");
     expect(cambiado).not.toHaveProperty("estado");
-    expect(() => cambiarModulo("u2", "c1", "admin", true)).toThrow("cuentas.errorClub");
-    expect(() => cambiarModulo("u2", "c1", "rol", "admin")).toThrow("cuentas.errorClub");
+    expect(() => cambiarNivel(beto, "admin", "edicion")).toThrow("cuentas.errorClub");
+    expect(() => cambiarNivel(beto, "rol", "admin")).toThrow("cuentas.errorClub");
+    expect(() => cambiarNivel(beto, "gps", "todo")).toThrow("cuentas.errorClub");
   });
 
   it("si la base no deja, avisa con la razón", async () => {
@@ -146,9 +150,51 @@ describe("la membresía de una cuenta en un club", () => {
     base.responder = () => ({ data: [], error: null });
     await expect(darDeBaja("u2", "c1", "2026-10-01")).rejects.toThrow("cuentas.errorSinPermiso");
     base.responder = () => ({ data: null, error: { message: "dueno_protegido", code: "P0001" } });
-    await expect(cambiarModulo("u2", "c1", "flujo", false)).rejects.toThrow("cuentas.errorDuenoProtegido");
+    await expect(cambiarNivel({ equipo_id: "c1", user_id: "u2", flujo: true }, "flujo", "sin")).rejects.toThrow("cuentas.errorDuenoProtegido");
     base.responder = () => ({ data: null, error: { message: "ultimo_admin", code: "P0001" } });
     await expect(darDeBaja("u1", "c1", "2026-10-01")).rejects.toThrow("cuentas.errorUltimoAdmin");
+  });
+});
+
+describe("el nivel de cada módulo (sin acceso, solo lectura o edición)", () => {
+  it("se lee del módulo y de la lista de solo lectura; sin la lista (base sin actualizar), todo es edición", () => {
+    const fila = { partido: true, flujo: true, lesiones: false, gps: true, solo_lectura: ["gps", "lesiones", "otro"] };
+    expect(nivelDe(fila, "partido")).toBe("edicion");
+    expect(nivelDe(fila, "gps")).toBe("lectura");
+    // Sin el módulo no hay nivel, aunque esté en la lista.
+    expect(nivelDe(fila, "lesiones")).toBe("sin");
+    expect(nivelDe({ partido: true }, "partido")).toBe("edicion");
+    expect(nivelDe(null, "partido")).toBe("sin");
+  });
+
+  it("dejar un módulo en un nivel cambia el módulo y la lista, en el orden de los módulos", () => {
+    const fila = { partido: true, gps: true, solo_lectura: ["gps"] };
+    expect(conNivel(fila, "partido", "lectura")).toEqual({ partido: true, solo_lectura: ["partido", "gps"] });
+    expect(conNivel(fila, "gps", "edicion")).toEqual({ gps: true, solo_lectura: [] });
+    expect(conNivel(fila, "gps", "sin")).toEqual({ gps: false, solo_lectura: [] });
+    expect(conNivel({}, "lesiones", "edicion")).toEqual({ lesiones: true, solo_lectura: [] });
+  });
+
+  it("la lista va a la base solo si cambia (sin la actualización, dar o sacar un módulo sigue andando)", async () => {
+    base.responder = (pedido) => ({ data: [{ equipo_id: "c1", user_id: "u2", ...pedido.datos }], error: null });
+    const beto = { equipo_id: "c1", user_id: "u2", partido: true, gps: false };
+    await cambiarNivel(beto, "gps", "edicion");
+    await cambiarNivel(beto, "gps", "lectura");
+    const vuelto = await cambiarNivel({ ...beto, gps: true, solo_lectura: ["gps"] }, "gps", "sin");
+    expect(base.pedidos.map((p) => p.datos)).toEqual([{ gps: true }, { gps: true, solo_lectura: ["gps"] }, { gps: false, solo_lectura: [] }]);
+    expect(vuelto).toMatchObject({ gps: false, solo_lectura: [] });
+    // Si la base todavía no tiene la columna, lo dice.
+    base.responder = () => ({ data: null, error: { code: "PGRST204", message: "Could not find the 'solo_lectura' column of 'club_miembros'" } });
+    await expect(cambiarNivel(beto, "gps", "lectura")).rejects.toThrow("cuentas.errorFaltaMigracion");
+  });
+
+  it("invitar manda los módulos en solo lectura solo si hay alguno, y solo de los que se dan", async () => {
+    base.responder = (pedido) => (pedido.op === "insert" ? { data: null, error: null } : { data: [{ id: "i1", usada_en: null }], error: null });
+    await invitar("c1", { email: "uno@club.com", partido: true, flujo: false });
+    await invitar("c1", { email: "dos@club.com", partido: true, flujo: false, gps: true, solo_lectura: ["gps", "flujo"] });
+    const inserciones = base.pedidos.filter((p) => p.op === "insert").map((p) => p.datos);
+    expect(inserciones[0]).not.toHaveProperty("solo_lectura");
+    expect(inserciones[1]).toMatchObject({ partido: true, flujo: false, gps: true, solo_lectura: ["gps"] });
   });
 });
 
