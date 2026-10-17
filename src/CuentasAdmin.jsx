@@ -5,8 +5,9 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { FlechaVolver } from "./components/PortalTarjetas.jsx";
 import { cargarEquipos } from "./domain/equipo.js";
 import {
+  DATOS_BASICOS,
+  MODULOS_CON_NIVEL,
   MODULOS_DEL_CLUB,
-  NIVELES,
   cambiarNivel,
   cancelarInvitacion,
   conNivel,
@@ -19,6 +20,7 @@ import {
   listarInvitaciones,
   listarMiembros,
   nivelDe,
+  nivelesDe,
   reincorporar,
 } from "./domain/membresiasDb.js";
 import { aceptarPedido, pedidosDelClub, rechazarPedido } from "./domain/pedidosDb.js";
@@ -61,13 +63,17 @@ const mensajeDe = (error, porDefecto) => {
 };
 
 // Los módulos que tiene, con «(solo lectura)» al lado de los que solo mira.
+// Datos básicos lo tienen todos: se nombra solo si es para mirar.
 const nombresDeModulos = (fila) => {
   const lista = MODULOS_DEL_CLUB.filter((clave) => fila?.[clave]).map((clave) =>
     nivelDe(fila, clave) === "lectura"
       ? t("cuentas.niveles.conSoloLectura", { modulo: t(`cuentas.modulos.${clave}`) })
       : t(`cuentas.modulos.${clave}`),
   );
-  return lista.length ? lista.join(", ") : t("cuentas.ningunModulo");
+  const modulos = lista.length ? lista.join(", ") : t("cuentas.ningunModulo");
+  return nivelDe(fila, DATOS_BASICOS) === "lectura"
+    ? `${modulos} · ${t("cuentas.niveles.conSoloLectura", { modulo: t(`cuentas.modulos.${DATOS_BASICOS}`) })}`
+    : modulos;
 };
 
 // La flechita de un desplegable.
@@ -78,10 +84,11 @@ const FlechaAbajo = () => (
 );
 
 // Cada módulo en su desplegable (UI-027), con el nivel elegido: se toca y
-// sube la hoja con Sin acceso, Solo lectura y Edición.
+// sube la hoja con Sin acceso, Solo lectura y Edición (Datos básicos, al
+// final, sin «Sin acceso»).
 const NivelesDeModulos = ({ fila, etiqueta, disabled = false, onTocar }) => (
   <div className="cuenta-niveles" role="group" aria-label={etiqueta}>
-    {MODULOS_DEL_CLUB.map((clave) => {
+    {MODULOS_CON_NIVEL.map((clave) => {
       const nivel = nivelDe(fila, clave);
       const modulo = t(`cuentas.modulos.${clave}`);
       return (
@@ -386,13 +393,13 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
     setEligiendoNivel({
       titulo: [t(`cuentas.modulos.${clave}`), correo].filter(Boolean).join(" · "),
       nivel: nivelDe(fila, clave),
+      opciones: nivelesDe(clave).map((nivel) => ({
+        valor: nivel,
+        etiqueta: t(`cuentas.niveles.${nivel}`),
+        detalle: t(clave === DATOS_BASICOS ? `cuentas.niveles.${nivel}DetalleDatos` : `cuentas.niveles.${nivel}Detalle`),
+      })),
       alElegir,
     });
-  const opcionesDeNivel = NIVELES.map((nivel) => ({
-    valor: nivel,
-    etiqueta: t(`cuentas.niveles.${nivel}`),
-    detalle: t(`cuentas.niveles.${nivel}Detalle`),
-  }));
   const cambiarNivelDe = (miembro, clave) =>
     elegirNivel(miembro, clave, miembro.email, (nivel) => {
       if (nivel === nivelDe(miembro, clave)) return;
@@ -814,7 +821,7 @@ export default function CuentasAdmin({ miUserId, club = null, onVolver }) {
       <HojaOpciones
         abierta={Boolean(eligiendoNivel)}
         titulo={eligiendoNivel?.titulo || ""}
-        opciones={opcionesDeNivel}
+        opciones={eligiendoNivel?.opciones || []}
         elegida={eligiendoNivel?.nivel}
         onElegir={(nivel) => {
           const { alElegir } = eligiendoNivel;

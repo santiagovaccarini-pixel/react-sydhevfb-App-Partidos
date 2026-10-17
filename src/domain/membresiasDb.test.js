@@ -188,13 +188,32 @@ describe("el nivel de cada módulo (sin acceso, solo lectura o edición)", () =>
     await expect(cambiarNivel(beto, "gps", "lectura")).rejects.toThrow("cuentas.errorFaltaMigracion");
   });
 
+  it("Datos básicos no se apaga: Solo lectura o Edición, y cambia solo la lista", async () => {
+    expect(nivelDe({ partido: true }, "datos")).toBe("edicion");
+    expect(nivelDe({ solo_lectura: ["datos"] }, "datos")).toBe("lectura");
+    expect(conNivel({ gps: true, solo_lectura: ["gps"] }, "datos", "lectura")).toEqual({ solo_lectura: ["gps", "datos"] });
+    expect(conNivel({ solo_lectura: ["datos"] }, "datos", "edicion")).toEqual({ solo_lectura: [] });
+    base.responder = (pedido) => ({ data: [{ equipo_id: "c1", user_id: "u2", ...pedido.datos }], error: null });
+    const beto = { equipo_id: "c1", user_id: "u2", partido: true };
+    await cambiarNivel(beto, "datos", "lectura");
+    expect(base.pedidos.map((p) => p.datos)).toEqual([{ solo_lectura: ["datos"] }]);
+    // En el nivel que ya tenía no va a la base.
+    await cambiarNivel(beto, "datos", "edicion");
+    expect(base.pedidos).toHaveLength(1);
+    expect(() => cambiarNivel(beto, "datos", "sin")).toThrow("cuentas.errorClub");
+  });
+
   it("invitar manda los módulos en solo lectura solo si hay alguno, y solo de los que se dan", async () => {
     base.responder = (pedido) => (pedido.op === "insert" ? { data: null, error: null } : { data: [{ id: "i1", usada_en: null }], error: null });
     await invitar("c1", { email: "uno@club.com", partido: true, flujo: false });
     await invitar("c1", { email: "dos@club.com", partido: true, flujo: false, gps: true, solo_lectura: ["gps", "flujo"] });
+    // Datos básicos va aunque no sea una columna (lo tienen todos).
+    await invitar("c1", { email: "tres@club.com", partido: true, solo_lectura: ["datos"] });
     const inserciones = base.pedidos.filter((p) => p.op === "insert").map((p) => p.datos);
     expect(inserciones[0]).not.toHaveProperty("solo_lectura");
     expect(inserciones[1]).toMatchObject({ partido: true, flujo: false, gps: true, solo_lectura: ["gps"] });
+    expect(inserciones[2]).toMatchObject({ partido: true, solo_lectura: ["datos"] });
+    expect(inserciones[2]).not.toHaveProperty("datos");
   });
 });
 

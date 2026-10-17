@@ -2160,7 +2160,28 @@ select pruebas.esperar('...ni cambia uno', pruebas.filas($$update registros_part
 select pruebas.debe_fallar('...ni carga una lesión', $$insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, '2026-10-12', '{"parte_cuerpo":"pe","lado":"direito"}')$$, 'row-level security');
 select pruebas.esperar('...ni la cambia ni la borra', pruebas.filas($$update lesiones set fecha_alta = '2026-10-12'$$) + pruebas.filas($$delete from lesiones$$), 0);
 select pruebas.debe_fallar('...ni cambia los Ajustes de Lesiones', $$insert into lesiones_opciones (equipo_id, campo, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'tipo_lesion', 'nueva', 'Nueva')$$, 'row-level security');
-select pruebas.esperar('...pero las columnas del jugador siguen siendo de Datos básicos (las cambia cualquiera del club)', pruebas.filas($$update lesiones_opciones set etiqueta_es = 'Diestro' where equipo_id = '00000000-0000-0000-0000-0000000000c1' and codigo = 'destro'$$), 1);
+select pruebas.esperar('...pero las columnas del jugador siguen siendo de Datos básicos (las cambia quien tiene Datos básicos con Edición)', pruebas.filas($$update lesiones_opciones set etiqueta_es = 'Diestro' where equipo_id = '00000000-0000-0000-0000-0000000000c1' and codigo = 'destro'$$), 1);
+select pruebas.esperar('...y con Datos básicos con Edición agrega un jugador', pruebas.filas($$insert into jugadores (equipo_id, nombre) values ('00000000-0000-0000-0000-0000000000c1', 'Nivel Datos')$$), 1);
+reset role;
+-- Datos básicos en «Solo lectura» (20261030_datos_basicos_nivel.sql): sin
+-- «Sin acceso» (todos los módulos usan su lista), ve todo y no cambia nada.
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto le deja Datos básicos solo para mirar', pruebas.filas($$update club_miembros set solo_lectura = array['partido', 'lesiones', 'datos'] where user_id = '00000000-0000-0000-0000-000000000099' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+select pruebas.esperar('...y también se puede invitar así', pruebas.filas($$insert into club_invitaciones (equipo_id, email, rol, partido, solo_lectura) values ('00000000-0000-0000-0000-0000000000c1', 'mira.datos@uno.com', 'staff', true, array['datos'])$$), 1);
+reset role;
+select pruebas.ser('mira@uno.com'); set role authenticated;
+select pruebas.esperar('Con Datos básicos solo para mirar ve a los jugadores de Uno', (select (count(*) > 0)::int from jugadores where equipo_id = :C1), 1);
+select pruebas.debe_fallar('...pero no agrega', $$insert into jugadores (equipo_id, nombre) values ('00000000-0000-0000-0000-0000000000c1', 'Otro Nivel')$$, 'row-level security');
+select pruebas.esperar('...ni cambia', pruebas.filas($$update jugadores set nombre = 'X' where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
+select pruebas.esperar('...ni borra', pruebas.filas($$delete from jugadores where nombre = 'Nivel Datos'$$), 0);
+select pruebas.debe_fallar('...ni toca los Ajustes de Datos básicos', $$insert into datos_basicos_columnas (equipo_id, columna, oculto) values ('00000000-0000-0000-0000-0000000000c1', 'edad', true)$$, 'row-level security');
+select pruebas.esperar('...ni las listas de las columnas del jugador', pruebas.filas($$update lesiones_opciones set etiqueta_es = 'Zurdo' where equipo_id = '00000000-0000-0000-0000-0000000000c1' and codigo = 'destro'$$), 0);
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto le devuelve la Edición en Datos básicos', pruebas.filas($$update club_miembros set solo_lectura = array['partido', 'lesiones'] where user_id = '00000000-0000-0000-0000-000000000099' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select pruebas.ser('mira@uno.com'); set role authenticated;
+select pruebas.esperar('...y vuelve a cambiar a sus jugadores', pruebas.filas($$delete from jugadores where nombre = 'Nivel Datos'$$), 1);
 reset role;
 -- El servidor manda cortes a Catapult solo con Flujo diario con Edición.
 select pruebas.ser('duenio@prueba.com'); set role authenticated;

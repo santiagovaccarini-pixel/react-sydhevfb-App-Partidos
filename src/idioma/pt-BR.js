@@ -1504,6 +1504,7 @@ export default {
       lesiones: "Lesões",
       evaluaciones: "Avaliações",
       gps: "GPS",
+      datos: "Dados básicos",
     },
     // O nível de cada módulo (Santiago, 17/10).
     niveles: {
@@ -1513,6 +1514,8 @@ export default {
       sinDetalle: "Não vê o módulo.",
       lecturaDetalle: "Vê tudo, em dia, mas não registra, altera nem apaga nada.",
       edicionDetalle: "Vê, registra, altera e apaga.",
+      lecturaDetalleDatos: "Vê os jogadores, em dia, mas não adiciona, altera nem apaga nada.",
+      edicionDetalleDatos: "Vê, adiciona, altera e apaga jogadores e seus Ajustes.",
       cambiar: "{{modulo}}: {{nivel}}. Toque para mudar.",
       conSoloLectura: "{{modulo}} (somente leitura)",
     },
