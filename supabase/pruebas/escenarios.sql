@@ -983,6 +983,42 @@ select pruebas.esperar('...la sigue', (select (gps_dejar_en_curso((select id fro
 select pruebas.esperar('...y queda que la dejó ella', (select creado_email || ',' || actualizado_email from gps_en_curso), 'gps@uno.com,pf@uno.com');
 reset role;
 
+-- Lo que recuerda cada cuenta (20261027_gps_preferencias.sql): el último
+-- dispositivo al pegar desde Excel y al cargar un CSV. La app guarda con
+-- upsert (el club va también en lo que se cambia); cada cuenta ve lo suyo.
+select pruebas.ser('gps@uno.com'); set role authenticated;
+select pruebas.esperar('Recuerda el dispositivo con que pegó', pruebas.filas($$insert into gps_preferencias (equipo_id, dispositivo_pegar) values ('00000000-0000-0000-0000-0000000000c1', 'catapult') on conflict (user_id, equipo_id) do update set equipo_id = excluded.equipo_id, dispositivo_pegar = excluded.dispositivo_pegar$$), 1);
+select pruebas.esperar('...y el del CSV, sin perder el otro', pruebas.filas($$insert into gps_preferencias (equipo_id, dispositivo_csv) values ('00000000-0000-0000-0000-0000000000c1', 'sport') on conflict (user_id, equipo_id) do update set equipo_id = excluded.equipo_id, dispositivo_csv = excluded.dispositivo_csv$$), 1);
+select pruebas.esperar('...los ve, a su nombre', (select user_id || ',' || dispositivo_pegar || ',' || dispositivo_csv from gps_preferencias), '00000000-0000-0000-0000-000000000616,catapult,sport');
+select pruebas.esperar('...los vuelve a cambiar', pruebas.filas($$insert into gps_preferencias (equipo_id, dispositivo_pegar) values ('00000000-0000-0000-0000-0000000000c1', 'sport') on conflict (user_id, equipo_id) do update set equipo_id = excluded.equipo_id, dispositivo_pegar = excluded.dispositivo_pegar$$), 1);
+select pruebas.esperar('...y quedan', (select dispositivo_pegar || ',' || dispositivo_csv from gps_preferencias), 'sport,sport');
+select pruebas.debe_fallar('No los anota a nombre de otra cuenta', $$insert into gps_preferencias (user_id, equipo_id, dispositivo_pegar) values ('00000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-0000000000c1', 'x')$$, 'permission denied');
+select pruebas.debe_fallar('...ni se los pasa', $$update gps_preferencias set user_id = '00000000-0000-0000-0000-000000000015'$$, 'permission denied');
+select pruebas.esperar('...ni los lleva a otro club', pruebas.filas($$update gps_preferencias set equipo_id = '00000000-0000-0000-0000-0000000000c2'$$), 1);
+select pruebas.esperar('...siguen en Uno', (select count(*) from gps_preferencias where equipo_id = :C1), 1);
+select pruebas.debe_fallar('...ni anota en un club donde no tiene GPS', $$insert into gps_preferencias (equipo_id, dispositivo_pegar) values ('00000000-0000-0000-0000-0000000000c2', 'x')$$, 'row-level security');
+select pruebas.debe_fallar('...ni un nombre de más de 80 letras', $$update gps_preferencias set dispositivo_csv = repeat('x', 81)$$, 'gps_preferencias_dispositivos');
+select pruebas.debe_fallar('...ni los borra', $$delete from gps_preferencias$$, 'permission denied');
+reset role;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('La preparadora no ve lo que recuerda la otra cuenta', (select count(*) from gps_preferencias), 0);
+select pruebas.esperar('...ni lo cambia', pruebas.filas($$update gps_preferencias set dispositivo_pegar = 'x'$$), 0);
+select pruebas.esperar('...y recuerda lo suyo', pruebas.filas($$insert into gps_preferencias (equipo_id, dispositivo_csv) values ('00000000-0000-0000-0000-0000000000c1', 'catapult') on conflict (user_id, equipo_id) do update set equipo_id = excluded.equipo_id, dispositivo_csv = excluded.dispositivo_csv$$), 1);
+select pruebas.esperar('...sin tocar lo de la otra', (select count(*) from gps_preferencias), 1);
+reset role;
+select pruebas.esperar('Cada una, lo suyo', (select string_agg(coalesce(dispositivo_pegar, '-') || '/' || dispositivo_csv, ',' order by user_id) from gps_preferencias), '-/catapult,sport/sport');
+select pruebas.ser('nuevo@uno.com'); set role authenticated;
+select pruebas.esperar('Sin GPS no se ve lo que recuerdan otras cuentas', (select count(*) from gps_preferencias), 0);
+select pruebas.debe_fallar('...ni se recuerda nada', $$insert into gps_preferencias (equipo_id, dispositivo_pegar) values ('00000000-0000-0000-0000-0000000000c1', 'x')$$, 'row-level security');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de otro club) no ve lo que recuerdan en Uno', (select count(*) from gps_preferencias), 0);
+select pruebas.debe_fallar('...ni anota en Uno', $$insert into gps_preferencias (equipo_id, dispositivo_pegar) values ('00000000-0000-0000-0000-0000000000c1', 'x')$$, 'row-level security');
+reset role;
+set role anon;
+select pruebas.debe_fallar('Sin cuenta, nada', 'select count(*) from gps_preferencias', 'permission denied');
+reset role;
+
 -- Quien carga el GPS se va de Uno: ve la foto de su último día, mientras
 -- tenga el permiso, pero no cambia nada.
 select pruebas.ser('beto@uno.com'); set role authenticated;
@@ -1007,6 +1043,7 @@ select pruebas.debe_fallar('...ni suma uno', $$insert into gps_referencias (equi
 select pruebas.esperar('...ni ve su historial', (select count(*) from referencias_historial), 0);
 select pruebas.esperar('...pero ya no ve las cargas sin terminar', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 0);
 select pruebas.debe_fallar('...ni deja una', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-12', 0, '{}', '{}')$q$, 'row-level security');
+select pruebas.esperar('...ni recuerda el dispositivo (ya no carga)', (select count(*) from gps_preferencias) + pruebas.filas($$update gps_preferencias set dispositivo_pegar = 'x'$$), 0);
 reset role;
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Beto le saca GPS (ya se fue)', pruebas.filas($$update club_miembros set gps = false where user_id = '00000000-0000-0000-0000-000000000616' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);

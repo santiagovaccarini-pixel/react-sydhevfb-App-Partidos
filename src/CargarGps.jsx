@@ -11,7 +11,7 @@ import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, falt
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
 import { COMO_PERSONA, NO_CARGAR, buscadorDelGps, leerSegundos } from "./domain/gps/importar.js";
 import { esNumero, textoDeSegundos } from "./domain/gps/valores.js";
-import { borrarEnCurso, crearFilasGps, dejarEnCurso, enCursoDelDia, listarGps, partidoDelDia } from "./domain/gpsDb.js";
+import { borrarEnCurso, crearFilasGps, dejarEnCurso, enCursoDelDia, leerDispositivosRecordados, listarGps, partidoDelDia, recordarDispositivo } from "./domain/gpsDb.js";
 import { DUDOSO, nombreIgual } from "./domain/importarPersonas.js";
 import { actualesPrimero, cargarPlantelConCatapult, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -200,6 +200,26 @@ export default function CargarGps({
   useEffect(() => () => onSinGuardar?.(false), [onSinGuardar]);
 
   const cambiar = (cambios) => setEstado((antes) => ({ ...antes, ...(typeof cambios === "function" ? cambios(antes) : cambios) }));
+
+  // El dispositivo: de entrada, el último que eligió la cuenta al cargar un
+  // CSV (nota del 17/10), si sigue en la lista y la carga todavía no tiene.
+  const elegidoAMano = useRef(false);
+  const listaDeDispositivos = useRef([]);
+  useEffect(() => {
+    let vigente = true;
+    leerDispositivosRecordados(equipoId).then(({ csv }) => {
+      if (!vigente || !csv || elegidoAMano.current || !listaDeDispositivos.current.some((opcion) => opcion.valor === csv)) return;
+      setEstado((antes) => (antes.dispositivo ? antes : { ...antes, dispositivo: csv }));
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [equipoId]);
+  const elegirDispositivo = (valor) => {
+    elegidoAMano.current = true;
+    cambiar({ dispositivo: valor });
+    recordarDispositivo(equipoId, "csv", valor);
+  };
   // Ese día ya tiene una carga sin terminar: quién la dejó y cuándo.
   const textoEnCurso = (otra) =>
     t("gps.enCurso.enCursoDelDia", {
@@ -403,6 +423,7 @@ export default function CargarGps({
 
   // --------------------------------------------------- Lo que se calcula --
   const opciones = (lista) => opcionesDeLista(lista, config, idioma, { test: gps });
+  listaDeDispositivos.current = opciones("dispositivo");
   const etiqueta = (lista, codigo) => opcionesDeLista(lista, config, "es-AR", { test: gps, conOcultas: true }).find((opcion) => opcion.valor === codigo)?.etiqueta || null;
 
   // Las filas de un bloque para el cálculo, con lo cambiado a mano y los
@@ -1146,7 +1167,7 @@ export default function CargarGps({
             {campo(
               titulo("dispositivo"),
               opciones("dispositivo").length ? (
-                elegir({ rotulo: titulo("dispositivo"), lista: "dispositivo", valor: estado.dispositivo, alElegir: (valor) => cambiar({ dispositivo: valor }), ajustado: true })
+                elegir({ rotulo: titulo("dispositivo"), lista: "dispositivo", valor: estado.dispositivo, alElegir: elegirDispositivo, ajustado: true })
               ) : (
                 <p className="lesiones-ayuda">{t("gps.importar.sinDispositivos")}</p>
               ),
@@ -1510,7 +1531,7 @@ export default function CargarGps({
         )}
         {campo(
           titulo("dispositivo"),
-          opciones("dispositivo").length ? elegir({ rotulo: titulo("dispositivo"), lista: "dispositivo", valor: estado.dispositivo, alElegir: (valor) => cambiar({ dispositivo: valor }), ajustado: true }) : <p className="lesiones-ayuda">{t("gps.importar.sinDispositivos")}</p>,
+          opciones("dispositivo").length ? elegir({ rotulo: titulo("dispositivo"), lista: "dispositivo", valor: estado.dispositivo, alElegir: elegirDispositivo, ajustado: true }) : <p className="lesiones-ayuda">{t("gps.importar.sinDispositivos")}</p>,
           "disp",
           "ajustado",
         )}

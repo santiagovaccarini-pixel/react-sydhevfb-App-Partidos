@@ -179,6 +179,13 @@ vi.mock("./domain/gpsDb.js", () => ({
     return { error: "" };
   },
   partidoDelDia: async (equipoId, fecha) => datos.partidos.find((partido) => partido.fecha === fecha) || null,
+  // El último dispositivo que eligió la cuenta al pegar y al cargar un CSV.
+  leerDispositivosRecordados: async () => ({ ...datos.recordados }),
+  recordarDispositivo: async (equipoId, lugar, dispositivo) => {
+    datos.recordar.push({ equipoId, lugar, dispositivo });
+    datos.recordados = { ...datos.recordados, [lugar]: dispositivo };
+    return { error: "" };
+  },
   listarEnCurso: async () => ({ enCurso: datos.enCurso.map(({ datos: hecho, ...fila }) => ({ ...fila })), faltaTabla: false, error: "" }),
   enCursoDelDia: async (equipoId, fecha) => {
     const fila = datos.enCurso.find((una) => una.fecha === fecha);
@@ -341,6 +348,8 @@ describe("GPS", () => {
     datos.copiasGuardadas = [];
     datos.alDia = [];
     datos.errorHistorial = "";
+    datos.recordados = { pegar: "", csv: "" };
+    datos.recordar = [];
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -650,6 +659,8 @@ describe("GPS", () => {
     await tocar(boton("Guardar igual el que no está en Datos básicos"));
     await esperar(() => contenedor.textContent.includes("3 para cargar"));
     await elegir(contenedor.querySelector(".gps-dispositivo select"), "catapult");
+    // Queda recordado en la cuenta para la próxima vez (nota del 17/10).
+    expect(datos.recordar).toEqual([{ equipoId: "eq-1", lugar: "pegar", dispositivo: "catapult" }]);
     await esperar(() => Boolean(boton("Cargar 3 filas")) && !boton("Cargar 3 filas").disabled);
     await tocar(boton("Cargar 3 filas"));
     expect(datos.creadas).toEqual([
@@ -660,6 +671,24 @@ describe("GPS", () => {
     expect(document.body.textContent).toContain("Listo: se cargaron 3 filas.");
     // De vuelta en la Base, con las nuevas.
     expect(filas(contenedor)).toHaveLength(6);
+  });
+
+  // Nota del 17/10: «Recordar el ultimo dispositivo seleccionado cuando se
+  // copia para pegar en la base gps» (Santiago: «En mi cuenta»).
+  test("Pegar desde una planilla: arranca con el último dispositivo que eligió la cuenta al pegar", async () => {
+    datos.recordados = { pegar: "sport", csv: "catapult" };
+    await montarEnLaBase();
+    await tocar(boton("Pegar desde una planilla"));
+    await esperar(() => contenedor.querySelector(".gps-dispositivo select").value === "sport");
+    expect(datos.recordar).toEqual([]);
+  });
+
+  test("Pegar desde una planilla: un dispositivo recordado que ya no está en la lista no se elige solo", async () => {
+    datos.recordados = { pegar: "borrado", csv: "" };
+    await montarEnLaBase();
+    await tocar(boton("Pegar desde una planilla"));
+    await act(async () => new Promise((resolver) => setTimeout(resolver, 20)));
+    expect(contenedor.querySelector(".gps-dispositivo select").value).toBe("");
   });
 
   // Santiago, 13/10: «solo se puede cambiar el nombre de las absolutas y las
@@ -832,6 +861,20 @@ describe("GPS", () => {
     expect(contenedor.querySelector(".estado-hero").textContent).toBe("1 fila de hoy");
     expect(boton("Cargar un día")).toBeTruthy();
     expect(contenedor.querySelector(".tabla-datos")).toBeNull();
+  });
+
+  // Nota del 17/10: «… al igual que en la carga de un csv». Cada lugar
+  // recuerda el suyo.
+  test("Cargar un día: arranca con el último dispositivo que eligió la cuenta al cargar un CSV", async () => {
+    datos.recordados = { pegar: "catapult", csv: "sport" };
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER), { dispositivo: null });
+    expect(contenedor.querySelector('[aria-label="Dispositivo"]').textContent).toBe("Sport");
+    // Si se cambia, queda recordado el nuevo.
+    await elegirDelDesplegable("Dispositivo", "Catapult");
+    expect(contenedor.querySelector('[aria-label="Dispositivo"]').textContent).toBe("Catapult");
+    expect(datos.recordar).toEqual([{ equipoId: "eq-1", lugar: "csv", dispositivo: "catapult" }]);
   });
 
   test("Cargar un día: el CSV, un paso por tarea con sus jugadores y todos sus datos, y la sesión al final", async () => {

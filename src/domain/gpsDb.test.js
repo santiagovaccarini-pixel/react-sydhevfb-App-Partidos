@@ -17,7 +17,9 @@ import {
   guardarOpcionGps,
   leerAjustesGps,
   leerEnCurso,
+  leerDispositivosRecordados,
   leerReferenciasGps,
+  recordarDispositivo,
   borrarReferenciaGps,
   cambiarValorDeReferenciaGps,
   marcarDePartidoGps,
@@ -40,7 +42,7 @@ vi.mock("./alDia.js", () => ({ esSoloLectura: () => doble.soloLectura }));
 vi.mock("../supabase.js", () => {
   const cadena = () => {
     const c = {};
-    ["select", "eq", "gte", "lte", "not", "is", "in", "order", "range", "limit", "insert", "update", "upsert", "delete", "single"].forEach((metodo) => {
+    ["select", "eq", "gte", "lte", "not", "is", "in", "order", "range", "limit", "insert", "update", "upsert", "delete", "single", "maybeSingle"].forEach((metodo) => {
       c[metodo] = (...args) => {
         doble.llamadas.push([metodo, ...args]);
         return c;
@@ -593,5 +595,50 @@ describe("todas las filas, rápido (Santiago, 14/10)", () => {
     doble.respuestas = [{ data: null, error: { message: "Failed to fetch" } }];
     const sinSenal = await ponerAlDiaGps("eq-1", { filas: enElAparato, hasta: "2026-10-12T10:00:00Z" });
     expect(sinSenal).toMatchObject({ filas: enElAparato, cambio: false, error: "gps.error.noLeer" });
+  });
+});
+
+// Nota del 17/10: el último dispositivo elegido al pegar y al cargar un CSV,
+// en la cuenta (Santiago: «En mi cuenta»).
+describe("Lo que recuerda la cuenta", () => {
+  const NINGUNO = { pegar: "", csv: "" };
+
+  test("lee el último dispositivo de cada lugar, de la cuenta en el club", async () => {
+    doble.respuestas = [{ data: { dispositivo_pegar: "catapult", dispositivo_csv: null }, error: null }];
+    expect(await leerDispositivosRecordados("eq-1")).toEqual({ pegar: "catapult", csv: "" });
+    expect(doble.llamadas).toEqual([["from", "gps_preferencias"], ["select", "dispositivo_pegar, dispositivo_csv"], ["eq", "equipo_id", "eq-1"], ["maybeSingle"]]);
+  });
+
+  test("sin fila, sin la tabla o sin señal, ninguno (se elige a mano, sin aviso)", async () => {
+    doble.respuestas = [
+      { data: null, error: null },
+      { data: null, error: { code: "PGRST205", message: "Could not find the table 'public.gps_preferencias' in the schema cache" } },
+      { data: null, error: { message: "TypeError: Failed to fetch" } },
+    ];
+    expect(await leerDispositivosRecordados("eq-1")).toEqual(NINGUNO);
+    expect(await leerDispositivosRecordados("eq-1")).toEqual(NINGUNO);
+    expect(await leerDispositivosRecordados("eq-1")).toEqual(NINGUNO);
+  });
+
+  test("guarda solo el del lugar, por cuenta y club (la cuenta la pone la base); ninguno, vacío", async () => {
+    expect(await recordarDispositivo("eq-1", "csv", "sport")).toEqual({ error: "" });
+    expect(doble.llamadas).toEqual([["from", "gps_preferencias"], ["upsert", { equipo_id: "eq-1", dispositivo_csv: "sport" }, { onConflict: "user_id,equipo_id" }]]);
+    doble.llamadas.length = 0;
+    await recordarDispositivo("eq-1", "pegar", "");
+    expect(doble.llamadas[1]).toEqual(["upsert", { equipo_id: "eq-1", dispositivo_pegar: null }, { onConflict: "user_id,equipo_id" }]);
+    // Si no se pudo, dice por qué (la pantalla no lo muestra: es una ayuda).
+    doble.respuestas = [{ data: null, error: { code: "42501", message: "new row violates row-level security policy" } }];
+    expect(await recordarDispositivo("eq-1", "pegar", "sport")).toEqual({ error: "gps.error.sinPermiso" });
+  });
+
+  test("en solo lectura, sin club o con otro lugar, no lee ni guarda", async () => {
+    doble.soloLectura = true;
+    expect(await leerDispositivosRecordados("eq-1")).toEqual(NINGUNO);
+    expect(await recordarDispositivo("eq-1", "csv", "sport")).toEqual({ error: "" });
+    doble.soloLectura = false;
+    expect(await leerDispositivosRecordados(null)).toEqual(NINGUNO);
+    await recordarDispositivo(null, "csv", "sport");
+    await recordarDispositivo("eq-1", "otro", "sport");
+    expect(doble.llamadas).toEqual([]);
   });
 });

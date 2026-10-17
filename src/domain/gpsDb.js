@@ -323,6 +323,30 @@ export const guardarReglasGps = async (equipoId, reglas) => {
   return { error: "" };
 };
 
+// ------------------------------------------- Lo que recuerda tu cuenta --
+// El último dispositivo que eligió la cuenta en este club al pegar desde una
+// planilla y al cargar un CSV, cada lugar el suyo (migración
+// 20261027_gps_preferencias.sql; nota del 17/10, Santiago: «En mi cuenta»).
+// Es una ayuda: sin la tabla, sin señal o en solo lectura no hay nada que
+// recordar (se elige a mano, como antes) y no se avisa.
+const COLUMNA_DEL_LUGAR = Object.freeze({ pegar: "dispositivo_pegar", csv: "dispositivo_csv" });
+
+export const leerDispositivosRecordados = async (equipoId) => {
+  const ninguno = { pegar: "", csv: "" };
+  if (!equipoId || esSoloLectura(equipoId)) return ninguno;
+  const { data, error } = await supabase.from("gps_preferencias").select("dispositivo_pegar, dispositivo_csv").eq("equipo_id", equipoId).maybeSingle();
+  if (error || !data) return ninguno;
+  return { pegar: data.dispositivo_pegar || "", csv: data.dispositivo_csv || "" };
+};
+
+// lugar: "pegar" o "csv". La cuenta la pone la base.
+export const recordarDispositivo = async (equipoId, lugar, dispositivo) => {
+  const columna = COLUMNA_DEL_LUGAR[lugar];
+  if (!equipoId || !columna || esSoloLectura(equipoId)) return { error: "" };
+  const { error } = await supabase.from("gps_preferencias").upsert({ equipo_id: equipoId, [columna]: dispositivo || null }, { onConflict: "user_id,equipo_id" });
+  return { error: error ? claveDeErrorGps(error) : "" };
+};
+
 // ------------------------------------------ Los valores de referencia --
 // Los V.R. de cada dispositivo (migración 20261024_gps_referencias.sql):
 // [{ id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio,
