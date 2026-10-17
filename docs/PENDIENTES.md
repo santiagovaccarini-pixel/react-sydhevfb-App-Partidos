@@ -2144,7 +2144,8 @@ toco un columna o fila en cierto lugar tiene que preguntarme si la quiero oculta
   de su nombre (antes, un fondo de color fuerte por grupo; **cambiado el 15/10**: ver «La
   estética», abajo). La primera columna dice qué es cada
   fila: «Microciclo» con solo microciclos del equipo (cada fila, su número), «Jugador» con solo
-  jugadores (el nombre y sus microciclos) y «Nombre / Microciclo» si hay de los dos. Las franjas
+  jugadores (el nombre; sin sus microciclos desde el 17/10, ver «Lo anotado en Notas, tercera
+  tanda») y «Nombre / Microciclo» si hay de los dos. Las franjas
   (el V.R. y de Excelente a Desvío) van en un bloque gris aparte, con un punto del color que
   toma lo que cae en cada franja al lado de su número. Los números van a la derecha, con
   cifras del mismo ancho; donde no hay dato, «–»; todas las filas del mismo alto (VS RIVAL en un
@@ -3537,6 +3538,42 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
     marca Claude o él pinta una copia con colores, y si van primero las partes del cuerpo y
     después los músculos. Para usar su figura hace falta la figura sola (sin calor), de frente
     y de espaldas, en grande y con permiso de uso.
+
+### Lo anotado en Notas, tercera tanda (17/10)
+
+Santiago pasó en capturas las 22 notas de «Por hacer» (17/10: «Necesito que sigamos con esto y
+vayamos punto por punto. Me vas preguntando cualquier duda o decision de logica o diseño»). Se
+ordenaron de lo más chico a lo más grande y van de a una, un PR por nota.
+
+- **Parecen hechas** (se le pidió que las mire y las marque): «Cuando se entra a bases de datos
+  siempre te deja en el medio» (arreglado el 16/10, «El espacio en toda la web», errores
+  encontrados al relevar) y «Hacer el reporte que te pase de lesiones» (06/10: ya están el
+  individual, el grupal, Lesiones c/1000h e Informes gráficos).
+- **Sin los microciclos al lado del nombre en el Informe (hecho el 17/10).** Nota del 15/10: «No
+  poner los microciclos al lado de los nombres dentro de informes». En el Informe de GPS, la
+  fila de un jugador lleva solo su nombre (antes, abajo, sus microciclos: «17 a 22»). Las filas
+  del promedio del equipo siguen con su número de microciclo: es lo que distingue una de otra.
+  **Queda prohibido** volver a poner los microciclos junto al nombre de un jugador.
+- **Lo que se oculta, hasta salir (17/10, decidido).** Nota del 16/10: «Hacer que las columnas
+  que se oculten en las bases y/o filas sean temporales y una ves que se salga de la base queden
+  como estan». Santiago, 17/10, en un cuestionario: «Hasta salir de esa base» y «Bases e
+  informes». Las columnas fijas y los anchos se siguen recordando.
+- **El último dispositivo, en la cuenta (17/10, decidido).** Nota del 16/10: «Recordar el ultimo
+  dispositivo seleccionado cuando se copia para pegar en la base gps al igual que en la carga
+  de un csv». Santiago, 17/10: «En mi cuenta» (no en el aparato ni para todo el club); lleva
+  una migración.
+- **Degradar los colores (17/10, a mostrar).** Nota del 16/10: «Degradar los colores mitad blanco
+  y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
+  con blanco, o un degradé de blanco a su color dentro de la celda).
+- **Lo que sigue, en este orden**: Datos básicos («Chaleco» pasa a «dispositivo», los no actuales
+  al final, nombre y fecha de nacimiento obligatorios con aviso de posibles repetidos, el cambio
+  de categoría, Ajustes de Datos básicos con las posiciones pasadas a Partido, y sacarlo de los
+  módulos principales como Notas); moverse por la app (botones siempre a la vista, esconder la
+  barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una
+  fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
+  referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
+  diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;
+  Isocinecia con Python y VALD).
 
 ## Lo que dejó la revisión completa del 30/09
 
