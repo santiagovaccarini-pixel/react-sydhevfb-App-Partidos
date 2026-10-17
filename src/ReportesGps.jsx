@@ -824,9 +824,11 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
         <b>{fila.microciclo}</b>
       </span>
     ) : (
+      // Un jugador, solo con su nombre (Santiago, nota del 15/10: «No poner los
+      // microciclos al lado de los nombres dentro de informes»; antes iban
+      // abajo, «17 a 22»).
       <span className="gps-informe-nombre">
         <b>{nombreDe(fila)}</b>
-        {fila.microciclos.length > 0 && <span>{tramos(fila.microciclos, unirTramo)}</span>}
       </span>
     );
 

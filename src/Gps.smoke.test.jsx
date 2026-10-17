@@ -1837,7 +1837,8 @@ describe("GPS", () => {
     // Con jugadores y microciclos: la primera columna dice qué es cada fila.
     expect(contenedor.querySelector(".gps-informe-tabla thead th").textContent).toBe("Nombre / Microciclo");
     const etiquetas = [...contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas th")].map((th) => th.textContent);
-    expect(etiquetas).toEqual(["ALFA17 a 20", "Team Average Sesion17", "Team Average Sesion18", "Team Average Sesion19", "Team Average Sesion20"]);
+    // El jugador, solo con su nombre (sin sus microciclos al lado: nota del 15/10).
+    expect(etiquetas).toEqual(["ALFA", "Team Average Sesion17", "Team Average Sesion18", "Team Average Sesion19", "Team Average Sesion20"]);
     // VS RIVAL del 17: el TOTAL, aunque se cargó en el medio.
     expect(contenedor.querySelectorAll(".gps-informe-tabla tbody.gps-informe-filas td.gps-informe-rival")[1].textContent).toBe("Vs Rival Uno TOTAL");
     // El jugador, con la carga crónica del último microciclo elegido (el 20: su U.A. ÷ la de ese y los 3 anteriores).
