@@ -3545,6 +3545,15 @@ Santiago pasó en capturas las 22 notas de «Por hacer» (17/10: «Necesito que 
 vayamos punto por punto. Me vas preguntando cualquier duda o decision de logica o diseño»). Se
 ordenaron de lo más chico a lo más grande y van de a una, un PR por nota.
 
+**Cómo se trabajan las notas (Santiago, 17/10; vale para toda nota que pase).** «TE DIJE NOTA
+POR NOTA Y NO PASAMOS A OTRA SIN CORNFIRMAR QUE ESTE TODO BIEN» y «Orden de trabajo cuando te
+paso notas para hacer: 1. Las haces una por una 2. Cuando este terminada, tengas dudas o dudas
+de diseño o como implementarlo me avisas 3. Subis todo y me preguntas si esta bien y podemos
+pasar a la siguiente nota». O sea: una nota por vez; las dudas de esa nota se le preguntan
+cuando aparecen (no las de la nota siguiente); al terminarla se sube (PR, CI, publicar) y se le
+pregunta si está bien. **No se empieza ni se pregunta nada de la nota siguiente hasta que
+confirme.**
+
 - **Parecen hechas** (se le pidió que las mire y las marque): «Cuando se entra a bases de datos
   siempre te deja en el medio» (arreglado el 16/10, «El espacio en toda la web», errores
   encontrados al relevar) y «Hacer el reporte que te pase de lesiones» (06/10: ya están el
@@ -3573,6 +3582,16 @@ ordenaron de lo más chico a lo más grande y van de a una, un PR por nota.
   aviso. Va en la tabla `gps_preferencias` (migración `20261027_gps_preferencias.sql`): una fila
   por cuenta y club; cada cuenta ve y cambia solo la suya, donde tiene GPS y sigue; anon, nada.
   **Queda prohibido** guardarlo en el aparato o compartirlo entre las cuentas del club.
+  Santiago corrió el SQL, la probó y confirmó: «funciona» (17/10).
+- **«Chaleco» pasa a «dispositivo» (hecho el 17/10).** Nota de Datos básicos. Santiago, 17/10,
+  en un cuestionario: «En toda la app» y, a los textos propuestos, «Sí, así». Donde la app decía
+  «chaleco» (en portugués, «colete») ahora dice «dispositivo»: Datos básicos › Catapult
+  («Dispositivos de Catapult», «N con dispositivo», «Dispositivo: …», «Sin dispositivo»,
+  «Emparejar con los dispositivos», «Buscar dispositivos» y sus avisos) y Flujo diario («sin
+  dispositivo» al elegir jugadores, «No hay jugadores con dispositivo y datos en esta sesión.»,
+  «… no tiene dispositivo. Asignalo en Datos básicos › Catapult.», la ayuda del usuario y
+  Pruebas técnicas). Es solo el texto: el vínculo de cada jugador con Catapult y lo guardado no
+  cambiaron. **Queda prohibido** volver a decir «chaleco» o «colete» en la app. Ver UI-044.
 - **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
   con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
@@ -3581,8 +3600,7 @@ ordenaron de lo más chico a lo más grande y van de a una, un PR por nota.
   franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
   GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
   UI-040.
-- **Lo que sigue, en este orden**: Datos básicos («Chaleco» pasa a «dispositivo», los no actuales
-  al final, nombre y fecha de nacimiento obligatorios con aviso de posibles repetidos, el cambio
+- **Lo que sigue, en este orden**: Datos básicos (los no actuales al final, nombre y fecha de nacimiento obligatorios con aviso de posibles repetidos, el cambio
   de categoría, Ajustes de Datos básicos con las posiciones pasadas a Partido, y sacarlo de los
   módulos principales como Notas); moverse por la app (botones siempre a la vista, esconder la
   barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una

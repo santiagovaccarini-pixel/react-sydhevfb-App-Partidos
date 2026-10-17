@@ -71,10 +71,10 @@ describe("los chalecos de Catapult en Datos básicos", () => {
     await montar(true);
 
     expect([...contenedor.querySelectorAll(".nombre-lista")]).toHaveLength(3);
-    expect(contenedor.textContent).toContain("Chaleco: IGOR GOMES (GOM)");
+    expect(contenedor.textContent).toContain("Dispositivo: IGOR GOMES (GOM)");
     expect(contenedor.querySelector(".agregar-jugador")).toBeNull();
-    expect(botonPorTexto("Buscar chalecos")).toBeUndefined();
-    expect(contenedor.textContent).not.toContain("Emparejar con los chalecos");
+    expect(botonPorTexto("Buscar dispositivos")).toBeUndefined();
+    expect(contenedor.textContent).not.toContain("Emparejar con los dispositivos");
   });
 
   test("muestra la lista compartida con su estado de vínculo", async () => {
@@ -83,16 +83,16 @@ describe("los chalecos de Catapult en Datos básicos", () => {
 
     expect(dobles.cargar).toHaveBeenCalledWith("eq-1");
     const texto = contenedor.textContent;
-    expect(contenedor.querySelector(".cabeza-ficha b").textContent).toBe("Chalecos de Catapult");
-    expect(texto).toContain("3 jugadores · 1 con chaleco");
-    expect(texto).toContain("Chaleco: IGOR GOMES (GOM)");
-    expect(texto).toContain("Sin chaleco");
+    expect(contenedor.querySelector(".cabeza-ficha b").textContent).toBe("Dispositivos de Catapult");
+    expect(texto).toContain("3 jugadores · 1 con dispositivo");
+    expect(texto).toContain("Dispositivo: IGOR GOMES (GOM)");
+    expect(texto).toContain("Sin dispositivo");
     expect([...contenedor.querySelectorAll(".nombre-lista")].map((n) => n.textContent)).toEqual([
       "A MINDA",
       "IGOR GOMES",
       "LEMOS",
     ]);
-    expect(botonPorTexto("Buscar chalecos")).toBeDefined();
+    expect(botonPorTexto("Buscar dispositivos")).toBeDefined();
     // Los jugadores se agregan en la tabla de Datos básicos, no acá.
     expect(contenedor.querySelector(".agregar-jugador")).toBeNull();
   });
@@ -104,10 +104,10 @@ describe("los chalecos de Catapult en Datos básicos", () => {
     );
     await montar();
 
-    await act(async () => botonPorTexto("Buscar chalecos").click());
+    await act(async () => botonPorTexto("Buscar dispositivos").click());
 
     const texto = contenedor.textContent;
-    expect(texto).toContain("Chalecos encontrados: 3");
+    expect(texto).toContain("Dispositivos encontrados: 3");
     expect(texto).toContain("Coincide solo");
     expect(texto).toContain("Guardado");
     expect(botonPorTexto("Guardar 1 cambio")).toBeDefined();
@@ -120,7 +120,7 @@ describe("los chalecos de Catapult en Datos básicos", () => {
       setter.call(selects[2], "a3");
       selects[2].dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(selects[2].getAttribute("aria-label")).toBe("Chaleco de LEMOS");
+    expect(selects[2].getAttribute("aria-label")).toBe("Dispositivo de LEMOS");
     expect(botonPorTexto("Guardar 2 cambios")).toBeDefined();
     expect(contenedor.textContent).toContain("Elegido a mano");
 
@@ -140,12 +140,12 @@ describe("los chalecos de Catapult en Datos básicos", () => {
       vi.fn(async () => respuesta(200, { ok: true, fuente: "athletes", atletas: ATLETAS })),
     );
     await montar();
-    await act(async () => botonPorTexto("Buscar chalecos").click());
+    await act(async () => botonPorTexto("Buscar dispositivos").click());
 
     const nombres = [...contenedor.querySelectorAll(".nombre-lista")].map((nombre) => nombre.textContent);
     expect(nombres).toEqual(["IGOR GOMES", "LEMOS", "A MINDA · Ya no está"]);
     // A MINDA coincide con un chaleco, pero no se le propone: nada para guardar.
-    expect(contenedor.querySelector('select[aria-label="Chaleco de A MINDA"]').value).toBe("");
+    expect(contenedor.querySelector('select[aria-label="Dispositivo de A MINDA"]').value).toBe("");
     expect(botonPorTexto("Sin cambios para guardar")).toBeDefined();
   });
 
@@ -156,8 +156,8 @@ describe("los chalecos de Catapult en Datos básicos", () => {
       vi.fn(async () => respuesta(200, { ok: true, fuente: "athletes", atletas: ATLETAS })),
     );
     await montar();
-    await act(async () => botonPorTexto("Buscar chalecos").click());
-    expect(contenedor.querySelector('select[aria-label="Chaleco de IGOR GOMES"]').value).toBe("a9");
+    await act(async () => botonPorTexto("Buscar dispositivos").click());
+    expect(contenedor.querySelector('select[aria-label="Dispositivo de IGOR GOMES"]').value).toBe("a9");
     // Guardar otros cambios no lo desvincula.
     const guardar = [...contenedor.querySelectorAll("button")].find((boton) => boton.textContent.trim().startsWith("Guardar"));
     if (guardar && !guardar.disabled) await act(async () => guardar.click());
@@ -170,7 +170,7 @@ describe("los chalecos de Catapult en Datos básicos", () => {
       vi.fn(async () => respuesta(200, { ok: true, fuente: "athletes", atletas: ATLETAS })),
     );
     await montar();
-    await act(async () => botonPorTexto("Buscar chalecos").click());
+    await act(async () => botonPorTexto("Buscar dispositivos").click());
 
     const selects = contenedor.querySelectorAll("select");
     await act(async () => {
@@ -179,7 +179,7 @@ describe("los chalecos de Catapult en Datos básicos", () => {
       selects[2].dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    expect(contenedor.textContent).toContain("Hay un chaleco elegido para más de un jugador");
+    expect(contenedor.textContent).toContain("Hay un dispositivo elegido para más de un jugador");
     expect(botonPorTexto("Guardar 2 cambios").disabled).toBe(true);
     expect(dobles.guardar).not.toHaveBeenCalled();
   });
@@ -200,7 +200,7 @@ describe("los chalecos de Catapult en Datos básicos", () => {
     );
     fijarIdiomaParaPruebas("pt-BR");
     await montar();
-    await act(async () => botonPorTexto("Buscar coletes").click());
+    await act(async () => botonPorTexto("Buscar dispositivos").click());
     await act(async () => Promise.resolve());
     expect(contenedor.textContent).toContain("Seu clube ainda não conectou o Catapult no app.");
   });

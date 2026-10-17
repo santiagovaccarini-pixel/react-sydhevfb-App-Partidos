@@ -413,7 +413,7 @@ export const HojaJugadores = ({
             >
               <input type="checkbox" checked={Boolean(datos)} disabled={apagado} onChange={() => onAlternar(clave)} />
               <span className="nombre-fila-jugador">{jugador.nombre}</span>
-              {!conChaleco ? <small>sin chaleco</small> : sinDatos ? <small>sin datos</small> : null}
+              {!conChaleco ? <small>sin dispositivo</small> : sinDatos ? <small>sin datos</small> : null}
             </label>
           );
         })}
@@ -440,7 +440,7 @@ export const HojaEntraSale = ({ abierta, tarea, elegibles, onEntra, onSale, onDe
         </button>
       }
     >
-      {elegibles.length === 0 && <p className="vacio-ficha">No hay jugadores con chaleco y datos en esta sesión.</p>}
+      {elegibles.length === 0 && <p className="vacio-ficha">No hay jugadores con dispositivo y datos en esta sesión.</p>}
       <div className="lista-entra-sale">
         {elegibles.map((jugador) => {
           const clave = String(jugador.id);

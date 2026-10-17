@@ -946,7 +946,7 @@ export default function TrainingDiagnostico({ cuenta, onVolver }) {
                 {sonda.control.is_injected === true
                   ? " · actividad INYECTADA (is_injected: sí)"
                   : sonda.control.is_injected === false
-                    ? " · actividad real de chalecos (is_injected: no)"
+                    ? " · actividad real de dispositivos (is_injected: no)"
                     : ""}
                 {sonda.periodId ? "" : " · sin período para sondear /periods/{id}"}
               </p>
