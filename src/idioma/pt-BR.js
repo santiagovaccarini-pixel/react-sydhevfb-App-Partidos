@@ -171,6 +171,7 @@ export default {
     datosTexto: "Os jogadores e seus dados, numa tabela que copia e cola como no Excel.",
     notasTitulo: "Notas",
     notasTexto: "As melhorias que você quer fazer no app, anotadas para o seu clube ver.",
+    delClub: "Do clube",
   },
   // Bases de Dados: um cartão por base, como na tela principal.
   notas: {

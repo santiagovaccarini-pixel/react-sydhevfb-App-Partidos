@@ -104,6 +104,93 @@
   gap: 16px;
 }
 
+/* Del club (Santiago, 17/10): Datos básicos y Notas, abajo de las tarjetas,
+   en filas compactas: el ícono, el nombre con una línea y la flechita. */
+.portal-del-club {
+  margin-top: 28px;
+}
+
+.portal-del-club-titulo {
+  margin: 0 0 12px;
+}
+
+.portal-del-club-lista {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.portal-acceso {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 76px;
+  padding: 12px 16px 12px 12px;
+  border: 1px solid var(--portal-border);
+  border-radius: 18px;
+  background: var(--portal-card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.portal-acceso:hover {
+  border-color: rgba(240, 201, 120, 0.55);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.portal-acceso:focus-visible {
+  outline: 2px solid #f0c978;
+  outline-offset: 3px;
+}
+
+.portal-acceso-icono {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border: 1px solid rgba(240, 201, 120, 0.7);
+  border-radius: 16px;
+  background: rgba(11, 13, 16, 0.72);
+  color: #f0c978;
+}
+
+.portal-acceso-icono svg {
+  width: 28px;
+  height: 28px;
+}
+
+.portal-acceso-texto {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.portal-acceso-texto strong {
+  font-size: 1.08rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+.portal-acceso-texto small {
+  color: var(--portal-muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.portal-acceso-flecha {
+  width: 20px;
+  height: 20px;
+  color: var(--portal-muted);
+}
+
+.portal-acceso:hover .portal-acceso-flecha {
+  color: #f0c978;
+}
+
 /* Cada tarjeta es un botón grande: la foto arriba, entera, con el ícono en
    la esquina, y abajo el nombre, una línea de qué hay adentro y Entrar. */
 .portal-tarjeta {
@@ -1262,6 +1349,9 @@
   .portal-opciones {
     grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
     gap: 14px;
+  }
+  .portal-del-club-lista {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
   .portal-cuenta {
     grid-template-columns: minmax(0, 1fr) auto auto;

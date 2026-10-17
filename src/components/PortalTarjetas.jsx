@@ -166,6 +166,44 @@ export const TarjetasDelPortal = ({ tarjetas, onElegir }) => (
   </div>
 );
 
+// Lo del club que no es un módulo principal (Datos básicos y Notas;
+// Santiago, 17/10: «Pasar datos basicos a un modulo fuera de los principales
+// al igual que notas», «Abajo, en «Del club»»): debajo de las tarjetas, con
+// su título, una fila compacta por cada uno (el ícono, el nombre, una línea y
+// la flechita). Se toca entera, como una tarjeta, y la portada arranca desde
+// la fila.
+export const AccesosDelClub = ({ titulo, tarjetas, onElegir }) =>
+  tarjetas.length ? (
+    <section className="portal-del-club" aria-label={titulo}>
+      <h2 className="portal-kicker portal-del-club-titulo">{titulo}</h2>
+      <div className="portal-del-club-lista">
+        {tarjetas.map((tarjeta) => {
+          const { modo, clase, Icono, titulo: nombre, texto } = tarjeta;
+          return (
+            <button
+              type="button"
+              key={modo}
+              className={`portal-acceso ${clase}`}
+              onClick={(evento) => onElegir(tarjeta, lugarDeLaFoto(evento.currentTarget))}
+              aria-label={t("portal.entrarA", { modulo: t(nombre) })}
+            >
+              <span className="portal-acceso-icono">
+                <Icono />
+              </span>
+              <span className="portal-acceso-texto">
+                <strong>{t(nombre)}</strong>
+                <small>{t(texto)}</small>
+              </span>
+              <svg className="portal-acceso-flecha" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m9 6 6 6-6 6" />
+              </svg>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  ) : null;
+
 // El club con el que se trabaja, arriba del título: si la cuenta ya se fue
 // del club, hasta cuándo (solo lectura); y, si se pide, el botón para cambiarlo.
 export const ClubDelPortal = ({ equipo, onCambiarClub = null }) =>

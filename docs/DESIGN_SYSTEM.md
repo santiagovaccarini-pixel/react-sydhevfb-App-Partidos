@@ -46,7 +46,8 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
 - `src/components/AppChrome.js`: marco y navegación compartidos.
 - `src/components/SheetPanel.js`, `HojaOpciones.js` y `ConfirmSheet.js`: hojas,
   opciones y confirmaciones.
-- `src/components/PortalTarjetas.jsx`: tarjetas y portadas de portal y bases.
+- `src/components/PortalTarjetas.jsx`: tarjetas y portadas de portal y bases, y las filas
+  compactas de «Del club» del portal (`AccesosDelClub`, UI-050).
 - `src/components/TablaDatos.jsx` y `tablaDatos.css`: tablas de las bases.
 - `src/components/ClubCrest.js` y `BotonVolver.jsx`: escudos y regreso.
 
