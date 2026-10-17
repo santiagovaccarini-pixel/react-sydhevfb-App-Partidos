@@ -3787,8 +3787,25 @@ confirme.**
   franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
   GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
   UI-040.
-- **Lo que sigue, en este orden**: moverse por la app (botones siempre a la vista, esconder la
-  barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una
+- **Botones siempre a la vista en los reportes (hecho el 17/10).** Primera nota de «moverse por la
+  app». Santiago, en un cuestionario, a «¿dónde?»: «la idea es que los botones de volver,
+  siguiente o accesos rapidos para ir de un lugar al otro en un reporte queden a la vista»,
+  «Reportes de Lesiones» y «Toda la app»; a «¿cómo?»: «Arriba, fija al bajar».
+  - En todos los reportes (Lesiones › Reportes, Evaluaciones › Reportes y GPS › Informe, con
+    el reporte individual y el grupal), la barra de arriba (Volver y, según el reporte,
+    Cambiar jugador, Imprimir o guardar en PDF y Siguiente) queda fija arriba al bajar, sobre
+    un vidrio grafito que aparece al empezar a bajar. Sin bajar, se ve como antes.
+  - En el paso de filtros de GPS (Por microciclo, Por tarea, Por jugador, Reporte individual y
+    Reporte grupal), «Siguiente» sube a esa barra, al lado de Volver; abajo de los filtros queda
+    cuántas filas tendrá el informe.
+  - En el celular, si los botones no entran en una fila, van en dos renglones parejos, con la
+    misma letra y el nombre entero. En papel la barra no va.
+  - No cambió la barra de Volver y Guardar de las pantallas de carga (en el celular, fija
+    abajo) ni ningún cálculo, filtro o permiso.
+  - **Queda prohibido** repetir «Siguiente» arriba y abajo y volver a dejar que la barra de
+    los reportes se vaya al bajar sin un pedido nuevo. Ver UI-051.
+- **Lo que sigue, en este orden**: moverse por la app (esconder la barra lateral y la de
+  abajo, abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
   diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;

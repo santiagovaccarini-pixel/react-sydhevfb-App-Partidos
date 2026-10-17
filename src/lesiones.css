@@ -1009,8 +1009,61 @@
 .lesiones-marco .reporte-acciones button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   width: auto;
+  height: 44px;
+}
+@media (min-width: 640px) {
+  .lesiones-marco .reporte-acciones button {
+    padding: 0 16px;
+  }
+}
+/* La barra de los reportes (Volver, Cambiar jugador, Imprimir y, en el
+   Informe de GPS, Siguiente) queda fija arriba al bajar, sobre un vidrio
+   grafito: siempre a la vista (Santiago, 17/10: «la idea es que los botones
+   de volver, siguiente o accesos rapidos para ir de un lugar al otro en un
+   reporte queden a la vista»; «Arriba, fija al bajar»). Sin bajar, los
+   botones quedan donde estaban y el vidrio aparece al empezar a bajar (en
+   los navegadores que no saben hacerlo, está siempre). En papel no va. */
+@media screen {
+  .lesiones-marco .reporte-acciones {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin: -8px 0 4px;
+    padding: 8px 0;
+    background: rgba(2, 6, 23, 0.9);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+  @supports (animation-timeline: scroll()) {
+    .lesiones-marco .reporte-acciones {
+      background: transparent;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      animation: reporte-acciones-vidrio linear both;
+      animation-timeline: scroll();
+      animation-range: 0px 24px;
+    }
+  }
+}
+@keyframes reporte-acciones-vidrio {
+  to {
+    background-color: rgba(2, 6, 23, 0.9);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+}
+/* En el celular, si no entran en una fila, dos renglones parejos: la misma
+   letra y cada botón con su nombre entero. */
+@media (max-width: 639px) {
+  .lesiones-marco .reporte-acciones-derecha {
+    display: contents;
+  }
+  .lesiones-marco .reporte-acciones button {
+    flex: 1 1 auto;
+  }
 }
 .lesiones-marco .reporte-volver svg {
   transform: rotate(180deg);

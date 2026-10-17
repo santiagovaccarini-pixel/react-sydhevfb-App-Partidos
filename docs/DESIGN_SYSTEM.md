@@ -167,6 +167,10 @@ lo que se haga; lo que falta pasar está en `PENDIENTES.md`, «El espacio en tod
   límite.
 - Un rótulo y su valor, cerca, no en las dos puntas de la pantalla; la cantidad, al lado de su
   título. «Volver» y «Guardar», juntos a la derecha, cada uno de su ancho.
+- En los reportes, la barra de arriba (`.reporte-acciones`, en `lesiones.css`: Volver, Cambiar
+  jugador, Imprimir, Siguiente) queda fija arriba al bajar, sobre un vidrio grafito que aparece
+  al bajar; en el celular, en dos renglones si no entra, sin achicar la letra (UI-051). Un
+  reporte nuevo usa esa barra.
 - Una sola separación entre tarjetas, no el hueco del contenedor más el margen de cada una.
 - Encabezados bajos: el de cada módulo con escudo (GPS, Lesiones, Evaluaciones, Datos básicos),
   con el escudo chico a la izquierda y, al lado, el módulo, el club, la fecha y su pastilla (en

@@ -1817,6 +1817,13 @@ describe("GPS", () => {
     await tocar(boton("Cancelar"));
     await elegirEnLaLista("Microciclo", ["18", "19", "20"]);
     expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("el informe tiene 3 filas");
+    // «Siguiente» va en la barra de arriba, al lado de Volver (fija al bajar),
+    // y una sola vez: abajo de los filtros queda solo cuántas filas tendrá
+    // (Santiago, 17/10: «Arriba, fija al bajar»).
+    expect(siguiente().closest(".reporte-acciones")).not.toBeNull();
+    expect(contenedor.querySelector(".reporte-acciones .reporte-volver")).not.toBeNull();
+    expect(botones().filter((b) => b.textContent.trim().startsWith("Siguiente"))).toHaveLength(1);
+    expect(contenedor.querySelector(".gps-reportes-siguiente button")).toBeNull();
 
     // El informe.
     await tocar(siguiente());
@@ -2280,6 +2287,9 @@ describe("GPS", () => {
     const alfa = [...jugadores.options].find((opcion) => opcion.textContent.toLowerCase().includes("alfa"));
     await elegir(jugadores, alfa.value);
     expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("12 entrenamientos; se ven los últimos 10");
+    // «Siguiente», arriba al lado de Volver (fija al bajar).
+    expect(siguiente().closest(".reporte-acciones")).not.toBeNull();
+    expect(siguiente().disabled).toBe(false);
     await tocar(siguiente());
     expect(contenedor.querySelector("h1").textContent).toBe("Reporte individual");
     expect(contenedor.querySelector(".gps-reporte-cabeza h2").textContent).toBe(`Reporte de GPS – ${alfa.textContent}`);
@@ -2339,6 +2349,8 @@ describe("GPS", () => {
     expect(contenedor.querySelector("h1").textContent).toBe("Reporte grupal");
     expect([...contenedor.querySelectorAll(".gps-reportes-rotulo")].map((span) => span.textContent)).toEqual(["Tipo de Sesión", "Fecha", "Microciclo"]);
     expect(contenedor.querySelector(".gps-reportes-siguiente").textContent).toContain("12 sesiones con GPS");
+    // «Siguiente», arriba al lado de Volver (fija al bajar).
+    expect(siguiente().closest(".reporte-acciones")).not.toBeNull();
     await tocar(siguiente());
     expect(contenedor.querySelector(".gps-grupal-cabeza h2").textContent).toBe("Reporte grupal de GPS");
     const datosDeArriba = [...contenedor.querySelectorAll(".gps-grupal-dato")].map((dato) => dato.textContent);

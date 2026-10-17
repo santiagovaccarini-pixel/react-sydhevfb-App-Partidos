@@ -254,7 +254,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.17.12";
+const APP_VERSION = "2026.10.17.13";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
