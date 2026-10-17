@@ -3742,10 +3742,31 @@ confirme.**
     el SQL, la app sigue como antes (todo es Edición) y elegir Solo lectura avisa que falta
     una actualización. Las columnas del jugador que Lesiones comparte con Datos básicos se
     siguen cambiando como Datos básicos.
-  - **Datos básicos no cambió**: lo sigue cambiando cualquiera que sigue en el club.
+  - **Datos básicos no cambió** en ese paso: lo siguió cambiando cualquiera que sigue en el
+    club (ver abajo, el 17/10).
   - **Queda prohibido** volver a los botones de prender y apagar cada módulo en Cuentas, que
     Solo lectura muestre la foto del último día y dejar cargar, cambiar, borrar o mandar cortes
     con Solo lectura. Ver UI-049.
+  - Santiago la confirmó: «Está bien, pasamos» (17/10).
+  - **El nivel de Datos básicos (hecho el 17/10).** Santiago, en un cuestionario, a «¿quién
+    cambia los jugadores, las posiciones y sus Ajustes?»: «Su propio desplegable». En Cuentas,
+    Datos básicos suma su desplegable, al final, en cada miembro, al invitar y al aceptar un
+    pedido, con **Solo lectura** o **Edición** (de entrada, Edición). No tiene «Sin acceso»:
+    lo tiene todo el que sigue en el club, porque los demás módulos usan su lista de jugadores.
+    - Con Solo lectura ve a los jugadores al día, sin agregar, cambiar, borrar ni pegar, con
+      Cabeceras y Listas cerradas (Catapult se mira) y el aviso «Tenés Datos básicos en solo
+      lectura.» arriba. Las filas y la historia de Cuentas dicen «Datos básicos (solo
+      lectura)».
+    - La base (migración `20261030_datos_basicos_nivel.sql`, se corre después de la de los
+      niveles): `solo_lectura` admite `datos`; agregar, cambiar y borrar jugadores, lo propio de
+      Datos básicos › Ajustes y el nombre y las listas de las columnas del jugador que comparte
+      con Lesiones piden Edición en Datos básicos (lo demás de Lesiones sigue pidiendo Edición
+      en Lesiones). `20261029_niveles_de_permiso.sql` se niega a correr después de esta.
+    - Con Lesiones en Solo lectura, cambiar la categoría de un jugador con lesiones ya no
+      pregunta desde cuándo (sus lesiones no se pueden cambiar): cambia la del jugador y cada
+      lesión sigue con la que guardó.
+    - **Queda prohibido** darle «Sin acceso» a Datos básicos y que alguien con Datos básicos en
+      Solo lectura cambie jugadores, sus Ajustes o las listas de sus columnas desde otro módulo.
 - **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
   con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
@@ -3754,8 +3775,7 @@ confirme.**
   franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
   GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
   UI-040.
-- **Lo que sigue, en este orden**: el nivel de permiso de Datos básicos (Santiago, 17/10: «Deja
-  eso para el final» de los niveles de permiso por módulo); Datos
+- **Lo que sigue, en este orden**: Datos
   básicos fuera de los módulos principales (nota del 14/10: «Pasar datos basicos a un modulo
   fuera de los principales al igual que notas»); moverse por la app (botones siempre a la vista, esconder la
   barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una

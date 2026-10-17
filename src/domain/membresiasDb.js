@@ -18,20 +18,28 @@ export const MODULOS_DEL_CLUB = ["partido", "flujo", "lesiones", "evaluaciones",
 // Antes de 20261029_niveles_de_permiso.sql la columna no está: todo es edición.
 export const NIVELES = ["sin", "lectura", "edicion"];
 
+// Datos básicos también tiene nivel (Santiago, 17/10: «Su propio
+// desplegable»), pero no se apaga: lo tiene todo el que sigue en el club
+// (los demás módulos usan su lista de jugadores). Solo lectura o Edición.
+export const DATOS_BASICOS = "datos";
+export const MODULOS_CON_NIVEL = [...MODULOS_DEL_CLUB, DATOS_BASICOS];
+export const nivelesDe = (modulo) => (modulo === DATOS_BASICOS ? ["lectura", "edicion"] : NIVELES);
+
 const soloLecturaDe = (fila) =>
-  Array.isArray(fila?.solo_lectura) ? MODULOS_DEL_CLUB.filter((modulo) => fila.solo_lectura.includes(modulo)) : [];
+  Array.isArray(fila?.solo_lectura) ? MODULOS_CON_NIVEL.filter((modulo) => fila.solo_lectura.includes(modulo)) : [];
 
 export const nivelDe = (fila, modulo) => {
-  if (!fila?.[modulo]) return "sin";
+  if (modulo !== DATOS_BASICOS && !fila?.[modulo]) return "sin";
   return soloLecturaDe(fila).includes(modulo) ? "lectura" : "edicion";
 };
 
 // Lo que cambia al dejar un módulo en un nivel: el módulo y la lista de solo
-// lectura (sin acceso lo saca también de la lista).
+// lectura (sin acceso lo saca también de la lista). Datos básicos no tiene
+// columna propia: solo la lista.
 export const conNivel = (fila, modulo, nivel) => {
   const resto = soloLecturaDe(fila).filter((otro) => otro !== modulo);
-  const soloLectura = nivel === "lectura" ? MODULOS_DEL_CLUB.filter((otro) => otro === modulo || resto.includes(otro)) : resto;
-  return { [modulo]: nivel !== "sin", solo_lectura: soloLectura };
+  const soloLectura = nivel === "lectura" ? MODULOS_CON_NIVEL.filter((otro) => otro === modulo || resto.includes(otro)) : resto;
+  return modulo === DATOS_BASICOS ? { solo_lectura: soloLectura } : { [modulo]: nivel !== "sin", solo_lectura: soloLectura };
 };
 
 // Los errores de la base como claves del diccionario.
@@ -120,10 +128,12 @@ const cambiar = async (userId, equipoId, cambios) => {
 // si cambia: así, sin la actualización de la base, dar o sacar un módulo
 // sigue andando.
 export const cambiarNivel = (miembro, modulo, nivel) => {
-  if (!MODULOS_DEL_CLUB.includes(modulo) || !NIVELES.includes(nivel)) throw new Error("cuentas.errorClub");
+  if (!MODULOS_CON_NIVEL.includes(modulo) || !nivelesDe(modulo).includes(nivel)) throw new Error("cuentas.errorClub");
   const nuevo = conNivel(miembro, modulo, nivel);
-  const cambios = { [modulo]: nuevo[modulo] };
+  const cambios = modulo === DATOS_BASICOS ? {} : { [modulo]: nuevo[modulo] };
   if (nuevo.solo_lectura.join(",") !== soloLecturaDe(miembro).join(",")) cambios.solo_lectura = nuevo.solo_lectura;
+  // Datos básicos en el nivel que ya tenía: no hay nada que mandar.
+  if (!Object.keys(cambios).length) return Promise.resolve(normalizarMembresia(miembro));
   return cambiar(miembro.user_id, miembro.equipo_id, cambios);
 };
 export const darDeBaja = (userId, equipoId, hasta) => cambiar(userId, equipoId, { hasta });
@@ -183,7 +193,7 @@ export const invitar = async (equipoId, { email, partido = true, flujo = true, l
   const correo = String(email || "").trim().toLowerCase();
   if (!correoValido(correo)) throw new Error("cuentas.errorCorreo");
   const modulos = { partido, flujo, lesiones, evaluaciones, gps };
-  const soloLectura = soloLecturaDe({ solo_lectura }).filter((modulo) => modulos[modulo]);
+  const soloLectura = soloLecturaDe({ solo_lectura }).filter((modulo) => modulo === DATOS_BASICOS || modulos[modulo]);
   const insertar = () =>
     supabase
       .from("club_invitaciones")

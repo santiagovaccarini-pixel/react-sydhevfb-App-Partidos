@@ -9,7 +9,7 @@ import ImportarJugadores from "./ImportarJugadores.jsx";
 import { PosicionesJugadores } from "./components/PosicionesPartido.jsx";
 import AjustesDatosBasicos from "./AjustesDatosBasicos.jsx";
 import { esActual, guardarPuestos } from "./domain/plantel.js";
-import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
+import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 import { categoriasAlCambiar, edadAl } from "./domain/lesiones.js";
 import { conLaMismaFecha } from "./domain/importarJugadores.js";
 import { textoDeHoras } from "./domain/tabla.js";
@@ -103,7 +103,13 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
 
   const equipoId = equipo?.id || null;
   // Quien ya se fue del club ve a los jugadores de entonces y no cambia nada.
-  const soloLectura = Boolean(equipo?.hasta);
+  // Quien tiene Datos básicos en «Solo lectura» los ve al día y tampoco
+  // cambia nada (Santiago, 17/10).
+  const seFue = Boolean(equipo?.hasta);
+  const mirar = soloParaMirar(equipo, "datos");
+  const soloLectura = seFue || mirar;
+  // Las lesiones solo se cambian con Lesiones con Edición.
+  const editaLesiones = !soloParaMirar(equipo, "lesiones");
 
   useEffect(() => {
     if (equipoId) return undefined;
@@ -146,7 +152,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   }, [cargar]);
 
   // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10).
-  useEnVivo({ nombre: "datos", tablas: ["jugadores"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
+  useEnVivo({ nombre: "datos", tablas: ["jugadores"], equipoId, activo: !seFue, alCambiar: () => cargar({ silencioso: true }) });
 
   useEffect(() => {
     if (!aviso) return undefined;
@@ -275,7 +281,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // si vale para todo su historial o desde una fecha (Santiago, 17/10: solo
   // Lesiones, solo si tiene lesiones, de entrada desde hoy). Devuelve
   // { desde } (null: todo) o null si se cancela.
-  const pideCategoria = (jugador, nueva) => Boolean(jugador?.categoria && (nueva || "") !== jugador.categoria && lesionesDe[jugador.id]?.length);
+  // Con Lesiones en solo lectura no se pregunta: sus lesiones no se cambian.
+  const pideCategoria = (jugador, nueva) => Boolean(editaLesiones && jugador?.categoria && (nueva || "") !== jugador.categoria && lesionesDe[jugador.id]?.length);
   const preguntarCategoria = (jugador, nueva) =>
     new Promise((resolver) => setCambioCategoria({ jugador, nueva: nueva || "", fecha: hoyISO(), resolver }));
   const responderCategoria = (respuesta) => {
@@ -457,7 +464,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       equipoId={equipoId}
       plantel={plantel}
       config={config}
-      lesionesDe={lesionesDe}
+      // Con Lesiones en solo lectura no se pregunta por la categoría.
+      lesionesDe={editaLesiones ? lesionesDe : {}}
       onCambiarCategoria={aplicarCategoria}
       onVolver={() => setImportando(false)}
       onRecargar={cargar}
@@ -505,7 +513,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
             </div>
           </header>
 
-          <AvisoSoloLectura hasta={equipo?.hasta} />
+          <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="datos" />
           {estado}
 
           {vista === "posiciones" && !cargando && !error && <PosicionesJugadores plantel={plantel} soloLectura={soloLectura} onCambiar={cambiarPuestos} />}

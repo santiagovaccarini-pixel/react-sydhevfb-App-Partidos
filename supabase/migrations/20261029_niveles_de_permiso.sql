@@ -32,7 +32,9 @@
 -- Editor, entera y de una vez. Solo agrega: la app de antes sigue andando
 -- (todos quedan con Edición). Se puede volver a correr. Después de esta,
 -- 20261016_gps.sql ya no se vuelve a correr (se frena sola: desharía los
--- niveles en las vistas, las invitaciones y los pedidos).
+-- niveles en las vistas, las invitaciones y los pedidos). Y esta no se
+-- vuelve a correr después de 20261030_datos_basicos_nivel.sql (se frena
+-- sola: sacaría Datos básicos de los niveles).
 -- =====================================================================
 
 begin;
@@ -41,6 +43,12 @@ do $$
 begin
   if to_regprocedure('public.es_columna_de_datos_basicos(text)') is null or to_regprocedure('public.clubes_donde_puedo(text)') is null then
     raise exception 'Primero hay que correr 20261028_datos_basicos_ajustes.sql.';
+  end if;
+  -- Volver a correrla sacaría Datos básicos de los niveles.
+  if exists (select 1 from pg_constraint
+              where conname = 'club_miembros_solo_lectura_valida'
+                and pg_get_constraintdef(oid) like '%datos%') then
+    raise exception 'Ya está corrida 20261030_datos_basicos_nivel.sql: esta es anterior y no hace falta volver a correrla.';
   end if;
 end $$;
 

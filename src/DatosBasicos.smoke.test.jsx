@@ -29,6 +29,7 @@ vi.mock("./domain/equipo.js", () => ({
   elegirEquipoInicial: () => null,
   guardarEquipoElegido: () => {},
   esElCam: (nombre) => nombre === "Atlético Mineiro",
+  soloParaMirar: (equipo, modulo) => Array.isArray(equipo?.solo_lectura) && equipo.solo_lectura.includes(modulo),
 }));
 // La base de mentira: el plantel cambia con lo que se agrega y se guarda.
 vi.mock("./domain/lesionesDb.js", () => ({
@@ -516,6 +517,26 @@ describe("el módulo Datos básicos", () => {
     expect(registro.guardados).toEqual([]);
   });
 
+  test("con Datos básicos en «Solo lectura» ve a los jugadores al día y no puede cambiar nada", async () => {
+    registro.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: null, solo_lectura: ["datos"] };
+    await montar();
+    expect(texto(contenedor)).toContain("Tenés Datos básicos en solo lectura.");
+    expect(texto(contenedor)).not.toContain("Dejaste este club");
+    expect(texto(contenedor)).toContain("HULK");
+    expect(boton(contenedor, "Agregar jugador")).toBeUndefined();
+    expect(boton(contenedor, "Borrar fila")).toBeUndefined();
+    expect(boton(contenedor, "Pegar desde Excel")).toBeUndefined();
+    expect(celda(contenedor, 0, 1).querySelector("input[type=checkbox]").disabled).toBe(true);
+    await tocar(celda(contenedor, 1, 5));
+    await tocar(celda(contenedor, 1, 5));
+    expect(contenedor.querySelector(".opcion-hoja")).toBeNull();
+    await irA(contenedor, "Ajustes");
+    expect(texto(contenedor)).toContain("Tenés Datos básicos en solo lectura.");
+    expect(filaDeAjuste("Cabeceras").disabled).toBe(true);
+    expect(filaDeAjuste("Listas").disabled).toBe(true);
+    expect(registro.guardados).toEqual([]);
+  });
+
   test("se cambia el pie dominante desde la celda, se agrega un jugador y se borra otro", async () => {
     await montar();
     // Dos toques en una celda de lista abren la hoja de opciones.
@@ -805,6 +826,16 @@ describe("el módulo Datos básicos", () => {
       { id: "l1", datos: { categoria: "sub20" } },
       { id: "l2", datos: { categoria: "sub20" } },
     ]);
+  });
+
+  test("con Lesiones en «Solo lectura» la categoría cambia sin preguntar y sus lesiones quedan como estaban", async () => {
+    registro.lesiones = conLesiones();
+    registro.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: null, lesiones: true, solo_lectura: ["lesiones"] };
+    await montar();
+    await cambiarCategoria("Sub-20");
+    expect(hoja()).toBeNull();
+    expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
+    expect(registro.categoriasDeLesiones).toEqual([]);
   });
 
   test("cambiar la categoría de alguien sin lesiones no pregunta", async () => {

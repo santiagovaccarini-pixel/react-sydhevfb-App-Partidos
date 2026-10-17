@@ -73,7 +73,8 @@ export const aceptarPedido = async (
   { partido = false, flujo = false, lesiones = false, evaluaciones = false, gps = false, solo_lectura = [] } = {},
 ) => {
   const modulos = { partido, flujo, lesiones, evaluaciones, gps };
-  const soloLectura = Array.isArray(solo_lectura) ? Object.keys(modulos).filter((modulo) => modulos[modulo] && solo_lectura.includes(modulo)) : [];
+  // Datos básicos ("datos") no se apaga: va si está en la lista.
+  const soloLectura = Array.isArray(solo_lectura) ? [...Object.keys(modulos), "datos"].filter((modulo) => (modulo === "datos" || modulos[modulo]) && solo_lectura.includes(modulo)) : [];
   await llamar("aceptar_pedido", {
     p_id: id,
     p_partido: Boolean(partido),

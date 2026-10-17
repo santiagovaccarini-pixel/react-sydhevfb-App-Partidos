@@ -58,7 +58,7 @@ vi.mock("./domain/membresiasDb.js", async () => {
     // Como la de verdad: el módulo y, si cambia, la lista de solo lectura.
     cambiarNivel: async (fila, modulo, nivel) => {
       const nuevo = real.conNivel(fila, modulo, nivel);
-      const cambios = { [modulo]: nuevo[modulo] };
+      const cambios = modulo === "datos" ? {} : { [modulo]: nuevo[modulo] };
       if (nuevo.solo_lectura.join(",") !== (fila.solo_lectura || []).join(",")) cambios.solo_lectura = nuevo.solo_lectura;
       return cambiar(fila.user_id, fila.equipo_id, cambios);
     },
@@ -268,14 +268,20 @@ describe("Cuentas", () => {
 
     await escribir(correo, "nuevo@uno.com");
     const formulario = contenedor.querySelector(".cuentas-invitar");
-    // De entrada, Partido y Flujo diario con Edición; lo demás, sin acceso.
+    // De entrada, Partido y Flujo diario con Edición; lo demás, sin acceso;
+    // Datos básicos (lo tienen todos), con Edición.
     expect(niveles(formulario)).toEqual([
       ["Partido", "Edición"],
       ["Flujo diario", "Edición"],
       ["Lesiones", "Sin acceso"],
       ["Evaluaciones", "Sin acceso"],
       ["GPS", "Sin acceso"],
+      ["Datos básicos", "Edición"],
     ]);
+    // Datos básicos no se apaga: solo Solo lectura o Edición.
+    await tocar(nivel(formulario, "Datos básicos"));
+    expect([...document.querySelectorAll(".opcion-hoja")].map((b) => b.firstChild.textContent)).toEqual(["Solo lectura", "Edición"]);
+    await tocar(opcionDeHoja("Solo lectura"));
     await elegirNivel(formulario, "Lesiones", "Solo lectura");
     await elegirNivel(formulario, "Evaluaciones", "Edición");
     await elegirNivel(formulario, "GPS", "Solo lectura");
@@ -295,14 +301,14 @@ describe("Cuentas", () => {
         lesiones: true,
         evaluaciones: true,
         gps: true,
-        solo_lectura: ["lesiones", "gps"],
+        solo_lectura: ["lesiones", "gps", "datos"],
       },
     });
     // Después de invitar, el formulario vuelve a lo de entrada.
     expect(nivelDe(contenedor.querySelector(".cuentas-invitar"), "Lesiones")).toBe("Sin acceso");
     // La invitación dice qué módulos va a mirar nada más.
     expect(fila("nuevo@uno.com").querySelector(".cuenta-meta").textContent).toMatch(
-      /^Partido, Lesiones \(solo lectura\), Evaluaciones, GPS \(solo lectura\) · Vence el /,
+      /^Partido, Lesiones \(solo lectura\), Evaluaciones, GPS \(solo lectura\) · Datos básicos \(solo lectura\) · Vence el /,
     );
     // La invitación nueva sale por mail, al toque y en el idioma de quien invita.
     expect(datos.mails).toEqual([{ id: "i-nuevo@uno.com", idioma: "es-AR" }]);
@@ -479,6 +485,11 @@ describe("Cuentas", () => {
     const antes = datos.llamadas.length;
     await elegirNivel(fila("beto@uno.com"), "Evaluaciones", "Solo lectura");
     expect(datos.llamadas.length).toBe(antes);
+    // Datos básicos: solo la lista (no tiene columna propia).
+    await elegirNivel(fila("beto@uno.com"), "Datos básicos", "Solo lectura");
+    expect(datos.llamadas.at(-1)).toEqual({ que: "cambiar", userId: "beto", equipoId: "c1", cambios: { solo_lectura: ["evaluaciones", "datos"] } });
+    expect(nivelDe(fila("beto@uno.com"), "Datos básicos")).toBe("Solo lectura");
+    expect(document.body.textContent).not.toContain("Datos básicos · beto@uno.com");
 
     // Ningún desplegable de rol en ninguna fila.
     expect(nivel(contenedor, "Administrador del club")).toBeUndefined();
@@ -552,6 +563,7 @@ describe("Cuentas", () => {
       ["Lesiones", "Sin acceso"],
       ["Evaluaciones", "Sin acceso"],
       ["GPS", "Sin acceso"],
+      ["Datos básicos", "Edición"],
     ]);
     // La hoja de los niveles sube encima de la de aceptar; la de aceptar sigue.
     await elegirNivel(hoja, "Flujo diario", "Sin acceso");
