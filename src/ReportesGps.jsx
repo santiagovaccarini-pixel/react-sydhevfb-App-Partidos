@@ -6,6 +6,7 @@ import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { TerminoDe } from "./components/Guia.jsx";
 import { textoDeValor } from "./domain/evaluaciones/excel.js";
 import { esNumero } from "./domain/gps/valores.js";
+import { rellenoDe } from "./domain/colores.js";
 import {
   FILTROS_POR_MICROCICLO,
   TIPOS_DE_VARIABLE,
@@ -885,7 +886,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     const texto = columna.texto(valor);
     const color = columna.color ? columna.color(valor, columna.franjasDeFila ? columna.franjasDeFila(fila) : columna.franjas) : null;
     return (
-      <td key={columna.clave} className={`${columna.rival ? "gps-informe-rival" : ""} ${color ? "pintada" : ""}`} style={color ? { background: color } : undefined} title={columna.rival && texto ? texto : undefined}>
+      <td key={columna.clave} className={`${columna.rival ? "gps-informe-rival" : ""} ${color ? "pintada" : ""}`} style={color ? { background: rellenoDe(color) } : undefined} title={columna.rival && texto ? texto : undefined}>
         {texto === "" ? vacio : texto}
       </td>
     );
@@ -899,7 +900,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     const color = franja !== "desvio" && columna.color ? columna.color(valor, columna.franjas) : null;
     const texto = columna.texto(valor);
     return (
-      <td key={columna.clave} className={color ? "pintada" : undefined} style={color ? { background: color } : undefined}>
+      <td key={columna.clave} className={color ? "pintada" : undefined} style={color ? { background: rellenoDe(color) } : undefined}>
         {texto === "" ? vacio : texto}
       </td>
     );

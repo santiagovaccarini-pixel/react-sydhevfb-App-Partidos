@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularFilas, vistaDeFilas } from "../motor.js";
-import { suave } from "../../colores.js";
+import { rellenoDe, suave } from "../../colores.js";
 import { COLORES } from "../formatoCondicional.js";
 import { COMO_PERSONA, leerEvaluacionesPegadas, planDeEvaluaciones } from "../importar.js";
 import { SENTADILLA_INCREMENTAL as T, franjaDelExcel, porcentajeDelRm } from "./sentadillaIncremental.js";
@@ -158,10 +158,10 @@ describe("Sentadilla Incremental: el informe y los colores", () => {
     const [uno, dos] = filas.map((una) => vista.estilos[una.id]);
     const franja = calc[0].celdas.franja_rm_ind;
     const color = { 1: COLORES.rojo, 2: COLORES.naranja, 3: COLORES.amarillo, 4: COLORES.verde, 5: COLORES.verdeOscuro }[franja];
-    expect(uno.rm_ind).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(color)})` });
+    expect(uno.rm_ind).toEqual({ background: rellenoDe(suave(color)) });
     // Vel: 1,2, 1,0 y 1,1 (μ 1,1, σ 0,1): 1,2 ≥ μ + σ, verde; 1,0 ≥ μ − σ, naranja.
-    expect(uno.vel_1).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.verde)})` });
-    expect(dos.vel_1).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.naranja)})` });
+    expect(uno.vel_1).toEqual({ background: rellenoDe(suave(COLORES.verde)) });
+    expect(dos.vel_1).toEqual({ background: rellenoDe(suave(COLORES.naranja)) });
     expect(uno.clas.background).toBe(COLORES.gris);
     // Lo cargado (Kg, P.C.) no se pinta; una vacía, tampoco.
     expect(uno.kg_1).toBeUndefined();
@@ -170,7 +170,7 @@ describe("Sentadilla Incremental: el informe y los colores", () => {
   });
 
   it("la fila de comparación, pintada con la clase del promedio; el P.C., sin color", () => {
-    expect(vista.estilosComparacion.rm_vel).toEqual({ background: `linear-gradient(90deg, ${COLORES.blanco}, ${suave(COLORES.naranja)})` });
+    expect(vista.estilosComparacion.rm_vel).toEqual({ background: rellenoDe(suave(COLORES.naranja)) });
     expect(vista.estilosComparacion.pc).toBeUndefined();
   });
 });

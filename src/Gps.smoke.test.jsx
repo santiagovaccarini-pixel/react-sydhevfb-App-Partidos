@@ -398,9 +398,10 @@ describe("GPS", () => {
 
     // Los colores del Excel, más suaves (Santiago, 15/10), contra promedio ±
     // desvío: verde claro, naranja y amarillo.
-    expect(celda(contenedor, 1, "D").style.background).toBe("rgb(211, 237, 201)");
-    expect(celda(contenedor, 0, "D").style.background).toBe("rgb(247, 199, 154)");
-    expect(celda(contenedor, 2, "D").style.background).toBe("rgb(251, 240, 166)");
+    // Las celdas, con el degradé de blanco a su color fuerte (17/10).
+    expect(celda(contenedor, 1, "D").style.background).toContain("rgb(159, 214, 138)");
+    expect(celda(contenedor, 0, "D").style.background).toContain("rgb(238, 148, 71)");
+    expect(celda(contenedor, 2, "D").style.background).toContain("rgb(245, 220, 63)");
     // El promedio de un partido oficial, en gris en la columna Nombre.
     expect(celda(contenedor, 2, "Nombre").style.background).toBe("rgb(213, 217, 223)");
 
@@ -425,7 +426,7 @@ describe("GPS", () => {
     expect(celda(contenedor, vieja, "D").style.background).toBe("");
     expect(filas(contenedor)[vieja].className).toContain("apagada");
     const beta = filas(contenedor).findIndex((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent === "BETA");
-    expect(celda(contenedor, beta, "D").style.background).toBe("rgb(211, 237, 201)");
+    expect(celda(contenedor, beta, "D").style.background).toContain("rgb(159, 214, 138)");
     expect(datos.lecturas).toHaveLength(1);
   });
 

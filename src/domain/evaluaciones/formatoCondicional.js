@@ -1,5 +1,5 @@
 import { esError, multiplicar, seCumple, sumar } from "./excel.js";
-import { suave } from "../colores.js";
+import { rellenoDe, suave } from "../colores.js";
 
 // El formato condicional del Excel de evaluaciones, como datos: cada regla
 // dice a qué columnas se aplica, su prioridad (la del Excel: el número más
@@ -77,8 +77,12 @@ export const estiloDeCelda = (reglas, clave, contexto) => {
 // use»); la letra, con el suyo (más suave no se leería).
 export const cssDeEstilo = (estilo) => {
   const css = {};
-  if (estilo?.relleno?.tipo === "degradado") css.background = `linear-gradient(90deg, ${COLORES.blanco}, ${suave(estilo.relleno.color)})`;
-  else if (estilo?.relleno?.tipo === "solido") css.background = suave(estilo.relleno.color);
+  // Los colores de franja van con el degradé de toda la app (Santiago, 17/10:
+  // «B fuerte pero un poco mas degradado»); otro relleno, como el Excel.
+  const color = estilo?.relleno?.color ? suave(estilo.relleno.color) : null;
+  const degradado = color ? rellenoDe(color) : null;
+  if (estilo?.relleno?.tipo === "degradado") css.background = degradado !== color ? degradado : `linear-gradient(90deg, ${COLORES.blanco}, ${color})`;
+  else if (estilo?.relleno?.tipo === "solido") css.background = degradado;
   if (estilo?.letra) css.color = estilo.letra;
   if (estilo?.negrita) css.fontWeight = 700;
   return Object.keys(css).length ? css : null;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularFilas, vistaDeFilas } from "../motor.js";
-import { suave } from "../../colores.js";
+import { fuerte, suave } from "../../colores.js";
 import { COLORES, COLOR_DE_CLASE } from "../formatoCondicional.js";
 import { COMO_PERSONA, leerEvaluacionesPegadas, planDeEvaluaciones } from "../importar.js";
 import { SALTO_COUNTERMOVEMENT, SALTO_DROP, SALTO_SINGLE_LEG, SALTO_SQUAT, bloqueDeSaltos } from "./saltos.js";
@@ -120,8 +120,8 @@ describe("Countermovement: el informe y los colores", () => {
   it("los colores: cada medida contra el grupo, las clases sobre gris; P.C. y Va? sin color", () => {
     const [uno, dos] = filas.map((una) => vista.estilos[una.id]);
     // 38 está por debajo del promedio (40) y a un desvío (2): naranja; 42, a un desvío arriba: verde.
-    expect(uno.altura.background).toContain(suave(COLORES.naranja));
-    expect(dos.altura.background).toContain(suave(COLORES.verde));
+    expect(uno.altura.background).toContain(fuerte(suave(COLORES.naranja)));
+    expect(dos.altura.background).toContain(fuerte(suave(COLORES.verde)));
     expect(uno.altura_clas).toEqual({ background: COLORES.gris, color: COLOR_DE_CLASE[2], fontWeight: 700 });
     expect(uno.pc).toBeUndefined();
     expect(uno.va).toBeUndefined();

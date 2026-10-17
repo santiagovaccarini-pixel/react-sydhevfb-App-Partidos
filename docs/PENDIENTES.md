@@ -3562,9 +3562,14 @@ ordenaron de lo más chico a lo más grande y van de a una, un PR por nota.
   dispositivo seleccionado cuando se copia para pegar en la base gps al igual que en la carga
   de un csv». Santiago, 17/10: «En mi cuenta» (no en el aparato ni para todo el club); lleva
   una migración.
-- **Degradar los colores (17/10, a mostrar).** Nota del 16/10: «Degradar los colores mitad blanco
+- **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
-  con blanco, o un degradé de blanco a su color dentro de la celda).
+  con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
+  «Quiero que sean un poco mas fuertes los colores y que se note un poco mas el degrade», «B
+  fuerte pero un poco mas degradado» y «En toda la app». Cada celda pintada con un color de
+  franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
+  GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
+  UI-040.
 - **Lo que sigue, en este orden**: Datos básicos («Chaleco» pasa a «dispositivo», los no actuales
   al final, nombre y fecha de nacimiento obligatorios con aviso de posibles repetidos, el cambio
   de categoría, Ajustes de Datos básicos con las posiciones pasadas a Partido, y sacarlo de los

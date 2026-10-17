@@ -112,7 +112,8 @@ En una tabla de datos (la primera hecha así: GPS › Informe, 15/10):
   filas tienen el mismo alto. (En el Informe, centrados desde el 15/10: ver abajo.)
 - Las referencias (franjas, V.R.) van en un bloque aparte de los datos, con el color que toma
   cada una.
-- Los colores de franjas y semáforos son los suaves de `src/domain/colores.js`. La cabecera no
+- Los colores de franjas y semáforos salen de `src/domain/colores.js`: en una celda pintada, el
+  degradé de blanco a su tono fuerte (`rellenoDe()`, desde el 17/10, UI-040). La cabecera no
   lleva un color fuerte por grupo: el tono del grupo es una línea. (En el Informe, el fondo del
   tono desde el 15/10: ver abajo.)
 - Una columna o una fila se oculta tocando su nombre, que pregunta antes. «Columnas» y «Filas»,
@@ -315,7 +316,7 @@ negro/dorado anterior. No deben imponerse a todos los módulos:
 | Reportes de Lesiones | `src/lesiones.css`: Roboto Condensed en partes del reporte | Conservá su densidad y sus estilos de impresión; no cambies toda la app a esta fuente. |
 | Superficies oscuras del Informe GPS | «La presentación», arriba; `src/gps.css` | Fondo `#0f172a`, bordes discretos y esquinas de 16 px donde ya corresponde. No implica pasar los reportes de Lesiones a oscuro. |
 | Tonos de grupos de tablas | `src/components/tablaDatos.css`: `--grupo-fondo-N` y `--grupo-linea-N` | Reutilizá el par de cada grupo con su significado actual; evitá paletas paralelas. |
-| Franjas y semáforos suaves | `src/domain/colores.js`: `COLORES_SUAVES` y `suave()` | Conservá categorías, umbrales y excepciones de UI-040; no son colores decorativos intercambiables. |
+| Franjas y semáforos | `src/domain/colores.js`: `COLORES_SUAVES`, `suave()`, `COLORES_FUERTES` y `rellenoDe()` (el degradé de cada celda pintada) | Conservá categorías, umbrales y excepciones de UI-040; no son colores decorativos intercambiables. Pintá una celda con `rellenoDe(color)`, no con el color liso. |
 
 El mapa de calor de Lesiones, sus gráficos y los colores de clases mantienen sus
 reglas propias. Una preferencia estética no cambia el significado de un color.

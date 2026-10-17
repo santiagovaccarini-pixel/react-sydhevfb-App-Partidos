@@ -1,3 +1,4 @@
+import { rellenoDe } from "../colores.js";
 import { describe, expect, test } from "vitest";
 import { COLUMNAS_GPS, GPS, LISTAS_GPS, POR_MINUTO, columnaGps } from "./columnas.js";
 import { armarConfigGps, claveDeColumnaPropia, gpsDelClub } from "./ajustes.js";
@@ -159,8 +160,9 @@ describe("el informe de arriba y los colores", () => {
     expect(grupos[0].cuentas.d.media).toBe(20);
     // 2000 sería enorme en el dispositivo a; en el b está entre el promedio y
     // un desvío más.
-    expect(estilos.b2.d.background).toBe(COLORES_GPS.bueno);
-    expect(estilos.a3.d.background).toBe(COLORES_GPS.muyBueno);
+    // Las celdas, con el degradé de toda la app (17/10); el nombre, liso.
+    expect(estilos.b2.d.background).toBe(rellenoDe(COLORES_GPS.bueno));
+    expect(estilos.a3.d.background).toBe(rellenoDe(COLORES_GPS.muyBueno));
     expect(estilos.p1.jugador.background).toBe(COLORES_GPS.promedioPartido);
     expect(estilos.p2.jugador.background).toBe(COLORES_GPS.promedioParcial);
     expect(estilos.s1.jugador.background).toBe(COLORES_GPS.promedioSesion);

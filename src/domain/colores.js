@@ -14,6 +14,30 @@ export const COLORES_SUAVES = Object.freeze({
   gris: "#D5D9DF",
 });
 
+// El relleno de una celda pintada: un degradé de blanco a su color, en un tono
+// más fuerte que el suave (Santiago, nota del 16/10: «Degradar los colores
+// mitad blanco y el color que corresponda»; el 17/10, viendo capturas, «B
+// fuerte pero un poco mas degradado»). El blanco llega hasta el 30 % y el
+// color lleno va desde el 70 %; la letra sigue oscura y se lee igual.
+export const COLORES_FUERTES = Object.freeze({
+  verdeOscuro: "#4FA866",
+  verde: "#9FD68A",
+  amarillo: "#F5DC3F",
+  naranjaClaro: "#F7B47F",
+  naranja: "#EE9447",
+  rojo: "#E86060",
+});
+const FUERTE_DE = Object.freeze(Object.fromEntries(Object.entries(COLORES_FUERTES).map(([nombre, fuerte]) => [COLORES_SUAVES[nombre], fuerte])));
+// El tono fuerte de un color de franja (para una muestra chica, como la de una
+// leyenda); otro color queda igual.
+export const fuerte = (color) => (typeof color === "string" ? FUERTE_DE[color.toUpperCase()] || color : color);
+// El fondo de una celda: el degradé, si es un color de franja; otro color
+// (el gris de las clases, el de la fila del equipo), liso.
+export const rellenoDe = (color) => {
+  const tono = typeof color === "string" ? FUERTE_DE[color.toUpperCase()] : null;
+  return tono ? `linear-gradient(90deg, #FFFFFF 0%, #FFFFFF 30%, ${tono} 70%, ${tono} 100%)` : color;
+};
+
 // Cada color fuerte de los archivos del club, con su versión suave. Los
 // colores de la letra no pasan por acá: más suaves no se leerían (por ejemplo,
 // el número de una clase sobre gris).

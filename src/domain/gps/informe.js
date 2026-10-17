@@ -1,5 +1,5 @@
 import { esNumero } from "./valores.js";
-import { suave } from "../colores.js";
+import { rellenoDe, suave } from "../colores.js";
 
 // El informe de arriba de BD_GPS y su formato condicional, con las filas que
 // deja ver el filtro (los SUBTOTAL del Excel), por dispositivo: cada fila se
@@ -236,7 +236,7 @@ export const vistaDelGps = (filas, columnas, conCuentas = []) => {
     const suyos = {};
     conColores.forEach((columna) => {
       const color = colorDeValor(fila.datos?.[columna.clave], cuentas?.[columna.clave]);
-      if (color) suyos[columna.clave] = { background: color };
+      if (color) suyos[columna.clave] = { background: rellenoDe(color) };
     });
     const nombre = colorDelNombre(fila);
     if (nombre) suyos.jugador = { background: nombre };
