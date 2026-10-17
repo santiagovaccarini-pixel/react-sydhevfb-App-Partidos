@@ -82,6 +82,25 @@ export const normalizarLesion = (fila) => ({
   datos: fila?.datos && typeof fila.datos === "object" ? { ...fila.datos } : {},
 });
 
+// Al cambiarle la categoría a un jugador (Santiago, 17/10): «todo» (desde
+// null) deja la nueva en todas sus lesiones; «desde» una fecha, las que
+// empezaron antes quedan con la que tenían guardada o, si no tenían, con la
+// anterior, y las de esa fecha en adelante (y las sin fecha) pasan a la
+// nueva. Devuelve solo las que cambian: [{ id, datos }].
+export const categoriasAlCambiar = (lesiones = [], { anterior = "", nueva = "", desde = null } = {}) =>
+  lesiones
+    .map((lesion) => {
+      const datos = lesion.datos || {};
+      const antes = Boolean(desde && lesion.fecha_lesion && lesion.fecha_lesion < desde);
+      const categoria = antes ? datos.categoria || anterior : nueva;
+      if ((datos.categoria || "") === (categoria || "")) return null;
+      const nuevos = { ...datos };
+      if (categoria) nuevos.categoria = categoria;
+      else delete nuevos.categoria;
+      return { id: lesion.id, datos: nuevos };
+    })
+    .filter(Boolean);
+
 // Leer y escribir una columna del Excel en la lesión, esté en su propia
 // columna o adentro de `datos`.
 export const valorDe = (lesion, clave) => {

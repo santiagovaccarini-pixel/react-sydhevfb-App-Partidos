@@ -10,11 +10,19 @@ import { PosicionesJugadores } from "./components/PosicionesPartido.jsx";
 import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
 import { esActual, guardarPuestos } from "./domain/plantel.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
-import { edadAl } from "./domain/lesiones.js";
+import { categoriasAlCambiar, edadAl } from "./domain/lesiones.js";
 import { conLaMismaFecha } from "./domain/importarJugadores.js";
 import { textoDeHoras } from "./domain/tabla.js";
 import { campoPorClave, etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/lesionesCampos.js";
-import { agregarJugadorBasico, cargarPlantelLesiones, guardarDatosJugador, leerConfig, quitarJugadorBasico } from "./domain/lesionesDb.js";
+import {
+  agregarJugadorBasico,
+  cargarPlantelLesiones,
+  guardarCategoriaDeLesiones,
+  guardarDatosJugador,
+  leerConfig,
+  leerLesionesPorJugador,
+  quitarJugadorBasico,
+} from "./domain/lesionesDb.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
@@ -77,6 +85,12 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   const [mismo, setMismo] = useState(null);
   // Solo los que no tienen fecha de nacimiento (para completarla).
   const [soloSinFecha, setSoloSinFecha] = useState(false);
+  // Las lesiones de cada jugador (las que se ven con Lesiones), para la
+  // categoría: { [jugador_id]: [{ id, fecha_lesion, datos }] }.
+  const [lesionesDe, setLesionesDe] = useState({});
+  // ¿La categoría nueva vale para todo su historial o desde una fecha?
+  // (Santiago, 17/10) { jugador, nueva, fecha, resolver }
+  const [cambioCategoria, setCambioCategoria] = useState(null);
   const [aBorrar, setABorrar] = useState(null);
   const [importando, setImportando] = useState(false);
 
@@ -106,7 +120,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       setCargando(true);
       setError("");
     }
-    const [respuestaPlantel, respuestaConfig] = await Promise.all([cargarPlantelLesiones(equipoId), leerConfig(equipoId)]);
+    const [respuestaPlantel, respuestaConfig, respuestaLesiones] = await Promise.all([cargarPlantelLesiones(equipoId), leerConfig(equipoId), leerLesionesPorJugador(equipoId)]);
+    if (!respuestaLesiones.error) setLesionesDe(respuestaLesiones.porJugador);
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
       return;
@@ -214,6 +229,30 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // Cuántas veces se guardó algo de cada jugador: lo que no se pudo guardar
   // solo vuelve atrás si mientras tanto no se guardó otra cosa de él.
   const guardadosBien = useRef(new Map());
+
+  // La categoría cambia y el jugador tenía otra y tiene lesiones: se pregunta
+  // si vale para todo su historial o desde una fecha (Santiago, 17/10: solo
+  // Lesiones, solo si tiene lesiones, de entrada desde hoy). Devuelve
+  // { desde } (null: todo) o null si se cancela.
+  const pideCategoria = (jugador, nueva) => Boolean(jugador?.categoria && (nueva || "") !== jugador.categoria && lesionesDe[jugador.id]?.length);
+  const preguntarCategoria = (jugador, nueva) =>
+    new Promise((resolver) => setCambioCategoria({ jugador, nueva: nueva || "", fecha: hoyISO(), resolver }));
+  const responderCategoria = (respuesta) => {
+    cambioCategoria?.resolver(respuesta);
+    setCambioCategoria(null);
+  };
+  // Lo elegido, en sus lesiones; si algo no se guarda, se avisa.
+  const aplicarCategoria = async (jugador, nueva, { desde }) => {
+    const lesiones = lesionesDe[jugador.id] || [];
+    const cambios = categoriasAlCambiar(lesiones, { anterior: jugador.categoria, nueva, desde });
+    if (!cambios.length) return { error: "" };
+    const respuesta = await guardarCategoriaDeLesiones(cambios);
+    const nuevas = new Map(cambios.filter((cambio) => respuesta.hechas.includes(cambio.id)).map((cambio) => [cambio.id, cambio.datos]));
+    setLesionesDe((antes) => ({ ...antes, [jugador.id]: (antes[jugador.id] || []).map((lesion) => (nuevas.has(lesion.id) ? { ...lesion, datos: nuevas.get(lesion.id) } : lesion)) }));
+    if (respuesta.error) setAviso(t("datos.categoria.lesionesSinGuardar", { error: t(respuesta.error) }));
+    return respuesta;
+  };
+
   const guardar = async (jugadorId, datos) => {
     // La fecha de nacimiento es obligatoria (Santiago, 17/10): vacía no se
     // guarda; lo demás de la fila, sí.
@@ -223,8 +262,19 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       const respuesta = await guardar(jugadorId, resto);
       return respuesta.error ? respuesta : { ...respuesta, aviso: respuesta.aviso || "datos.error.fechaObligatoria", sinGuardar: (respuesta.sinGuardar || 0) + 1 };
     }
+    const jugador = plantel.find((uno) => uno.id === jugadorId);
+    let categoria = null;
+    if ("categoria" in datos && pideCategoria(jugador, datos.categoria)) {
+      categoria = await preguntarCategoria(jugador, datos.categoria);
+      // Cancelado: la categoría queda como estaba; lo demás de la fila, se guarda.
+      if (!categoria) {
+        const resto = Object.fromEntries(Object.entries(datos).filter(([clave]) => clave !== "categoria"));
+        return Object.keys(resto).length ? guardar(jugadorId, resto) : { cancelado: true };
+      }
+    }
     const respuesta = await guardarDatosJugador(jugadorId, datos);
     if (!respuesta.error) guardadosBien.current.set(jugadorId, (guardadosBien.current.get(jugadorId) || 0) + 1);
+    if (!respuesta.error && categoria) await aplicarCategoria(jugador, datos.categoria, categoria);
     return respuesta;
   };
 
@@ -236,6 +286,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     const vez = guardadosBien.current.get(jugadorId) || 0;
     if (alToque && antes) setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: valor } : uno)));
     const respuesta = await guardar(jugadorId, { [clave]: valor });
+    if (respuesta.cancelado) return {};
     if (respuesta.error) {
       if (alToque && antes && (guardadosBien.current.get(jugadorId) || 0) === vez)
         setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: antes[clave] } : uno)));
@@ -255,6 +306,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     let ultimoError = "";
     for (const [jugadorId, datos] of porJugador) {
       const respuesta = await guardar(jugadorId, datos); // eslint-disable-line no-await-in-loop
+      if (respuesta.cancelado) continue;
       if (respuesta.error) {
         ultimoError = respuesta.error;
         continue;
@@ -364,6 +416,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       equipoId={equipoId}
       plantel={plantel}
       config={config}
+      lesionesDe={lesionesDe}
+      onCambiarCategoria={aplicarCategoria}
       onVolver={() => setImportando(false)}
       onRecargar={cargar}
       onListo={({ nuevos, actualizados }) => {
@@ -523,6 +577,40 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         onCancelar={esElMismo}
         onConfirmar={esOtro}
         onCerrar={() => setMismo(null)}
+      />
+      {/* La categoría nueva: arranca en «Desde esa fecha» (lo anterior queda); cerrar no cambia nada. */}
+      <HojaConfirmar
+        abierta={Boolean(cambioCategoria)}
+        titulo={t("datos.categoria.titulo")}
+        descripcion={
+          cambioCategoria
+            ? plural("datos.categoria.texto", lesionesDe[cambioCategoria.jugador.id]?.length || 0, {
+                jugador: cambioCategoria.jugador.nombre,
+                anterior: textoDeOpcion("categoria", cambioCategoria.jugador.categoria),
+                nueva: cambioCategoria.nueva ? textoDeOpcion("categoria", cambioCategoria.nueva) : t("datos.categoria.ninguna"),
+              })
+            : ""
+        }
+        detalle={
+          cambioCategoria ? (
+            <label className="datos-categoria-desde">
+              <span>{t("datos.categoria.desdeFecha")}</span>
+              <input
+                type="date"
+                value={cambioCategoria.fecha}
+                max={hoyISO()}
+                aria-label={t("datos.categoria.desdeFecha")}
+                onChange={(evento) => setCambioCategoria((antes) => (antes ? { ...antes, fecha: evento.target.value } : antes))}
+              />
+            </label>
+          ) : null
+        }
+        icono="usuario"
+        etiquetaCancelar={t("datos.categoria.desde")}
+        etiquetaConfirmar={t("datos.categoria.todo")}
+        onCancelar={() => responderCategoria({ desde: cambioCategoria?.fecha || hoyISO() })}
+        onConfirmar={() => responderCategoria({ desde: null })}
+        onCerrar={() => responderCategoria(null)}
       />
     </MarcoAplicacion>
   );

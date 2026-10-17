@@ -44,11 +44,12 @@ const fallo = (error, porDefecto) => ({
 
 // Los vacíos no se guardan, y lo que el Excel calcula tampoco (se calcula
 // cada vez que se mira): así `datos` tiene solo lo cargado a mano. Lo que se
-// cargó a mano en una columna que después pasó a calcularse queda.
+// cargó a mano en una columna que después pasó a calcularse queda, y la
+// categoría del jugador ese día también (delDia).
 const limpiarDatos = (datos = {}) =>
   Object.fromEntries(
     Object.entries(datos || {})
-      .filter(([clave]) => !esCalculado(clave) || campoPorClave(clave)?.cargadoAntes)
+      .filter(([clave]) => !esCalculado(clave) || campoPorClave(clave)?.cargadoAntes || campoPorClave(clave)?.delDia)
       .map(([clave, valor]) => [clave, typeof valor === "string" ? valor.trim() : valor])
       .filter(([, valor]) => valor !== null && valor !== undefined && valor !== ""),
   );
@@ -136,6 +137,48 @@ export const borrarLesion = async (id) => {
   const { error } = await supabase.from("lesiones").delete().eq("id", id);
   if (error) return fallo(error, "lesiones.error.noBorrar");
   return { error: "" };
+};
+
+// La categoría de las lesiones al cambiarle la categoría a un jugador
+// (Datos básicos; Santiago, 17/10). Las lesiones de cada jugador, livianas:
+// { [jugador_id]: [{ id, fecha_lesion, datos }] }. Sin Lesiones (o en solo
+// lectura) no se ve ninguna, y no se pregunta. De a 1000 por vez.
+const LESIONES_POR_VEZ = 1000;
+export const leerLesionesPorJugador = async (equipoId) => {
+  if (!equipoId || esSoloLectura(equipoId)) return { porJugador: {}, error: "" };
+  const filas = [];
+  for (let desde = 0; ; desde += LESIONES_POR_VEZ) {
+    const { data, error } = await supabase
+      .from("lesiones")
+      .select("id, jugador_id, fecha_lesion, datos")
+      .eq("equipo_id", equipoId)
+      .not("jugador_id", "is", null)
+      .order("id")
+      .range(desde, desde + LESIONES_POR_VEZ - 1); // eslint-disable-line no-await-in-loop
+    if (error) return { porJugador: {}, ...fallo(error, "lesiones.error.noLeer") };
+    const pagina = Array.isArray(data) ? data : [];
+    filas.push(...pagina);
+    if (pagina.length < LESIONES_POR_VEZ) break;
+  }
+  const porJugador = {};
+  filas.forEach((fila) => {
+    const lesion = { id: fila.id, fecha_lesion: fila.fecha_lesion || null, datos: fila.datos && typeof fila.datos === "object" ? fila.datos : {} };
+    (porJugador[fila.jugador_id] = porJugador[fila.jugador_id] || []).push(lesion);
+  });
+  return { porJugador, error: "" };
+};
+
+// cambios: [{ id, datos }] (los datos enteros de cada lesión, con su
+// categoría nueva). De a una; si una falla, se sigue y se avisa.
+export const guardarCategoriaDeLesiones = async (cambios) => {
+  const hechas = [];
+  let error = "";
+  for (const cambio of cambios) {
+    const respuesta = await supabase.from("lesiones").update({ datos: cambio.datos }).eq("id", cambio.id); // eslint-disable-line no-await-in-loop
+    if (respuesta.error) error = fallo(respuesta.error, "lesiones.error.noGuardar").error;
+    else hechas.push(cambio.id);
+  }
+  return { hechas, error };
 };
 
 // Los últimos cambios de una lesión, del más nuevo al más viejo, con las

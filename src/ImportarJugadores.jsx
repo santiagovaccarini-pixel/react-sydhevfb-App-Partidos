@@ -7,7 +7,7 @@ import { etiquetaDeCampo, etiquetaDeOpcion, opcionesDeCampo } from "./domain/les
 import { agregarJugadorBasico, guardarDatosJugador } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { hoyISO } from "./idioma/formatos.js";
+import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 
 // Pegar desde Excel, en Datos básicos: se pega la tabla de la hoja "Datos
@@ -17,15 +17,17 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 // un nombre solo parecido no se carga hasta que alguien confirma quién es.
 // Un jugador nuevo necesita su fecha de nacimiento (Santiago, 17/10): si el
 // Excel no la trae, queda en rojo y se carga acá; con la misma fecha que
-// otro de la app, «¿Es el mismo jugador?» por cada uno con esa fecha. Hasta
-// completar las fechas y responder, no se carga nada.
+// otro de la app, «¿Es el mismo jugador?» por cada uno con esa fecha. Si
+// cambia la categoría de un jugador con lesiones, en su fila se elige si
+// vale para todo su historial o desde una fecha (Santiago, 17/10: «Uno por
+// uno»). Hasta completar las fechas y responder, no se carga nada.
 
 const LISTAS = ["categoria", "pie_dominante", "posicion"];
 
 // Las columnas que no son de Lesiones tienen su propio texto.
 const TEXTOS_PROPIOS = { foto_url: "datos.foto", horas_previas: "datos.horasPrevias" };
 
-export default function ImportarJugadores({ equipoId, plantel, config, onVolver, onRecargar, onListo }) {
+export default function ImportarJugadores({ equipoId, plantel, config, lesionesDe = {}, onCambiarCategoria, onVolver, onRecargar, onListo }) {
   const { idioma, plural } = useIdioma();
   const [texto, setTexto] = useState("");
   // Lo que se cambió a mano: { índice de la fila: destino }.
@@ -34,6 +36,10 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
   const [fechas, setFechas] = useState({});
   // ¿Es el mismo jugador? { índice: { no: [ids que son otro], mismo: id } }.
   const [respuestas, setRespuestas] = useState({});
+  // La categoría nueva de un jugador con lesiones: { índice: { desde } }
+  // (desde null: todo su historial) y la fecha que se está eligiendo.
+  const [categorias, setCategorias] = useState({});
+  const [desdeCategoria, setDesdeCategoria] = useState({});
   const [hojaFila, setHojaFila] = useState(null);
   const [progreso, setProgreso] = useState(null);
   const [fallas, setFallas] = useState([]);
@@ -108,19 +114,26 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
       const como = elMismo ? "mismo" : fila.indice in elegidos ? "elegido" : sugeridos[i].como;
       // Un nombre solo parecido no se carga hasta confirmar quién es.
       const porConfirmar = como === "parecido";
-      const hayQueHacer = !porConfirmar && !faltaFecha && !pregunta && (destino === NUEVO || Object.keys(cambios).length > 0);
-      return { ...fila, datos, avisos, destino, jugador, cambios, hayQueHacer, como, porConfirmar, pideFecha, faltaFecha, pregunta, elMismo };
+      // Cambia la categoría de alguien que tenía otra y tiene lesiones: ¿todo o desde una fecha?
+      const cambiaCategoria = Boolean(jugador && !porConfirmar && "categoria" in cambios && jugador.categoria && lesionesDe[jugador.id]?.length);
+      const categoria = cambiaCategoria ? categorias[fila.indice] || null : null;
+      const faltaCategoria = cambiaCategoria && !categoria;
+      const hayQueHacer = !porConfirmar && !faltaFecha && !pregunta && !faltaCategoria && (destino === NUEVO || Object.keys(cambios).length > 0);
+      return { ...fila, datos, avisos, destino, jugador, cambios, hayQueHacer, como, porConfirmar, pideFecha, faltaFecha, pregunta, elMismo, cambiaCategoria, categoria, faltaCategoria };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leido, plantel, listas, elegidos, formatoFecha, fechas, respuestas]);
+  }, [leido, plantel, listas, elegidos, formatoFecha, fechas, respuestas, categorias, lesionesDe]);
 
   const aCargar = filas.filter((fila) => fila.destino !== NO_CARGAR && fila.hayQueHacer);
   const nuevos = filas.filter((fila) => fila.destino === NUEVO).length;
-  const conCambios = filas.filter((fila) => fila.jugador && !fila.porConfirmar && fila.hayQueHacer).length;
-  const iguales = filas.filter((fila) => fila.jugador && !fila.porConfirmar && !fila.hayQueHacer).length;
+  // Una categoría sin responder es un cambio que espera, no una fila igual.
+  const conCambios = filas.filter((fila) => fila.jugador && !fila.porConfirmar && (fila.hayQueHacer || fila.faltaCategoria)).length;
+  const iguales = filas.filter((fila) => fila.jugador && !fila.porConfirmar && !fila.hayQueHacer && !fila.faltaCategoria).length;
   const porConfirmar = filas.filter((fila) => fila.porConfirmar).length;
   const faltanFechas = filas.filter((fila) => fila.faltaFecha).length;
   const preguntas = filas.filter((fila) => fila.pregunta).length;
+  const faltanCategorias = filas.filter((fila) => fila.faltaCategoria).length;
+  const bloqueado = faltanFechas > 0 || preguntas > 0 || faltanCategorias > 0;
   const responder = (indice, cambio) => setRespuestas((previas) => ({ ...previas, [indice]: { ...previas[indice], ...cambio } }));
   const nombreConEstado = (jugador) => (esActual(jugador) ? jugador.nombre : `${jugador.nombre} · ${t("datos.yaNoEsta")}`);
 
@@ -129,6 +142,8 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
     setElegidos({});
     setFechas({});
     setRespuestas({});
+    setCategorias({});
+    setDesdeCategoria({});
     setFallas([]);
   };
 
@@ -200,6 +215,8 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
           errores.push({ nombre: fila.nombre, error: t(guardado.error) });
           continue;
         }
+        // La categoría nueva, en sus lesiones como se eligió en la fila.
+        if (fila.categoria) await onCambiarCategoria?.(fila.jugador, fila.cambios.categoria, fila.categoria); // eslint-disable-line no-await-in-loop
         if (guardado.aviso) sinHoras = true;
         actualizados += 1;
         hechas.add(fila.indice);
@@ -335,6 +352,54 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
                       {t("datos.importar.confirmar", { jugador: fila.jugador?.nombre || "—" })}
                     </button>
                   )}
+                  {fila.cambiaCategoria && !fila.categoria && (
+                    <div className="datos-importar-mismo datos-importar-categoria" role="group" aria-label={t("datos.categoria.titulo")}>
+                      <p>
+                        {plural("datos.importar.categoria", lesionesDe[fila.jugador.id].length, {
+                          jugador: fila.jugador.nombre,
+                          anterior: etiquetaDeOpcion("categoria", fila.jugador.categoria, config, idioma),
+                          nueva: fila.cambios.categoria ? etiquetaDeOpcion("categoria", fila.cambios.categoria, config, idioma) : t("datos.categoria.ninguna"),
+                        })}
+                      </p>
+                      <label className="datos-importar-fecha">
+                        <span>{t("datos.categoria.desdeFecha")}</span>
+                        <input
+                          type="date"
+                          max={hoy}
+                          value={desdeCategoria[fila.indice] || hoy}
+                          aria-label={`${t("datos.categoria.desdeFecha")} · ${fila.nombre}`}
+                          disabled={ocupado}
+                          onChange={(evento) => setDesdeCategoria((previas) => ({ ...previas, [fila.indice]: evento.target.value }))}
+                        />
+                      </label>
+                      <div>
+                        <button
+                          type="button"
+                          className="boton-secundario"
+                          disabled={ocupado}
+                          onClick={() => setCategorias((previas) => ({ ...previas, [fila.indice]: { desde: desdeCategoria[fila.indice] || hoy } }))}
+                        >
+                          {t("datos.categoria.desde")}
+                        </button>
+                        <button type="button" className="boton-secundario" disabled={ocupado} onClick={() => setCategorias((previas) => ({ ...previas, [fila.indice]: { desde: null } }))}>
+                          {t("datos.categoria.todo")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {fila.cambiaCategoria && fila.categoria && (
+                    <p className="datos-importar-detalle">
+                      {fila.categoria.desde ? t("datos.importar.categoriaDesde", { fecha: fechaCorta(fila.categoria.desde) }) : t("datos.importar.categoriaTodo")}
+                      <button
+                        type="button"
+                        className="datos-importar-cambiar"
+                        disabled={ocupado}
+                        onClick={() => setCategorias((previas) => Object.fromEntries(Object.entries(previas).filter(([clave]) => Number(clave) !== fila.indice)))}
+                      >
+                        {t("datos.importar.cambiarCategoria")}
+                      </button>
+                    </p>
+                  )}
                   {fila.destino !== NO_CARGAR &&
                     fila.avisos.map((aviso) => (
                       <p className="datos-importar-aviso" key={aviso.campo}>
@@ -347,10 +412,11 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
           </section>
         )}
 
-        {(faltanFechas > 0 || preguntas > 0) && (
+        {bloqueado && (
           <div className="lesiones-estado error datos-importar-bloqueo" role="alert">
             {faltanFechas > 0 && <p>{plural("datos.importar.faltanFechas", faltanFechas)}</p>}
             {preguntas > 0 && <p>{plural("datos.importar.preguntas", preguntas)}</p>}
+            {faltanCategorias > 0 && <p>{plural("datos.importar.faltanCategorias", faltanCategorias)}</p>}
           </div>
         )}
 
@@ -358,7 +424,7 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
           <BotonVolver onClick={onVolver} disabled={ocupado}>
             {t("comun.volver")}
           </BotonVolver>
-          <button type="button" className="boton-principal" onClick={cargar} disabled={ocupado || aCargar.length === 0 || faltanFechas > 0 || preguntas > 0}>
+          <button type="button" className="boton-principal" onClick={cargar} disabled={ocupado || aCargar.length === 0 || bloqueado}>
             {progreso
               ? t("datos.importar.cargando", progreso)
               : aCargar.length === 0
@@ -379,8 +445,9 @@ export default function ImportarJugadores({ equipoId, plantel, config, onVolver,
           setHojaFila(null);
           if (indice === undefined) return;
           setElegidos((previos) => ({ ...previos, [indice]: destino }));
-          // Elegido a mano otra vez: lo de si es el mismo jugador se vuelve a preguntar.
+          // Elegido a mano otra vez: lo de si es el mismo jugador (y la categoría) se vuelve a preguntar.
           setRespuestas((previas) => Object.fromEntries(Object.entries(previas).filter(([clave]) => Number(clave) !== indice)));
+          setCategorias((previas) => Object.fromEntries(Object.entries(previas).filter(([clave]) => Number(clave) !== indice)));
         }}
         onCerrar={() => setHojaFila(null)}
       />

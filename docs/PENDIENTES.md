@@ -725,9 +725,11 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
   avisa. No se traen los
   planes ni los tests (columnas AN en adelante). Antes de pegar hay que correr
   `20261008_lesiones_recaida.sql` y `20261010_lesiones_sin_fecha_y_personas.sql`.
-- Para decidir cuando se hagan los informes: la categoría de una lesión hoy se muestra con
+- Para decidir cuando se hagan los informes: ~~la categoría de una lesión hoy se muestra con
   la categoría actual del jugador (el código quería guardar la del día de la lesión, pero esa
-  columna no se guarda porque cuenta como calculada); y "Imágenes" se carga como texto libre
+  columna no se guarda porque cuenta como calculada)~~ (resuelto el 17/10: cada lesión guarda
+  la del día y, al cambiarla en Datos básicos, se pregunta; ver «El cambio de categoría de un
+  jugador, en sus lesiones» en «Lo anotado en Notas, tercera tanda (17/10)»); y "Imágenes" se carga como texto libre
   aunque el catálogo tiene la lista del Excel (resonancia, ecografía, radiografía,
   tomografía, sin imagen).
 
@@ -3636,6 +3638,37 @@ confirme.**
     que es obligatoria» con «Ver cuáles» (la tabla muestra solo esos) y «Ver todos». No se ve
     en solo lectura.
   - La base no cambió: es una regla de la app (sin SQL). Ver UI-046.
+  - Santiago la confirmó: «Está bien, pasamos» (17/10).
+- **El cambio de categoría de un jugador, en sus lesiones (hecho el 17/10).** Nota de Datos
+  básicos («cambio de categoría de un jugador: todo o desde ahora»). Santiago, 17/10, en un
+  cuestionario: «Solo a Lesiones», «Solo si tiene lesiones», «Desde una fecha, de entrada hoy»
+  y, al pegar desde Excel, «Uno por uno».
+
+  Quedó así:
+  - **Cada lesión guarda su categoría**: al guardarla con el formulario de Lesiones queda la
+    que tiene el jugador en ese momento (antes se borraba al guardar y se mostraba siempre la
+    actual). Las que no la guardan (las cargadas antes y las pegadas desde Excel) muestran la
+    actual hasta que se le cambie la categoría al jugador.
+  - **En Datos básicos** (al elegirla en la tabla o al pegar sobre la celda): si alguien que
+    tenía categoría pasa a otra y tiene lesiones cargadas, sale «¿Cambia en todo su historial o
+    desde una fecha?», con la fecha (de entrada, hoy). «Desde esa fecha»: las lesiones que
+    empezaron antes quedan con la que tenían (o con la anterior, si no tenían ninguna) y las de
+    esa fecha en adelante y las sin fecha de inicio pasan a la nueva. «En todo su historial»:
+    todas pasan a la nueva. Cerrar el cartel deja la categoría como estaba (si se pegó la fila
+    entera, lo demás se guarda).
+  - **En Pegar desde Excel** de Datos básicos: la misma pregunta va en la fila de cada jugador
+    al que le cambia, uno por uno, con su fecha; hasta responderla no se carga ninguno.
+    Respondida, la fila dice «Categoría: desde el …» o «Categoría: en todo su historial», con
+    «Cambiar».
+  - **No pregunta** si no tenía categoría, si no tiene lesiones o si quien la cambia no tiene
+    Lesiones (no las ve): ahí las lesiones que no guardaban categoría muestran la nueva, como
+    antes. Si no se pudo cambiar alguna lesión, la categoría del jugador queda cambiada y se
+    avisa.
+  - Solo cambia Lesiones (la tabla, los reportes y la exportación, que ya usaba la de cada
+    lesión): Evaluaciones sigue con la Selección de cada fila y GPS no cambia. La base no
+    cambió (sin SQL). Ver UI-047.
+  - **Queda prohibido** cambiar sin preguntar la categoría de las lesiones de un jugador que
+    las tiene cargadas, y volver a mostrar en una lesión siempre la categoría actual.
 - **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
   con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
@@ -3644,9 +3677,8 @@ confirme.**
   franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
   GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
   UI-040.
-- **Lo que sigue, en este orden**: Datos básicos (el cambio
-  de categoría, Ajustes de Datos básicos con las posiciones pasadas a Partido, y sacarlo de los
-  módulos principales como Notas); moverse por la app (botones siempre a la vista, esconder la
+- **Lo que sigue, en este orden**: Datos básicos (Ajustes de Datos básicos con las posiciones
+  pasadas a Partido, y sacarlo de los módulos principales como Notas); moverse por la app (botones siempre a la vista, esconder la
   barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo

@@ -906,6 +906,35 @@
   padding: 0 14px;
   font-size: 13px;
 }
+/* La categoría nueva de un jugador con lesiones: la fecha, en el cartel. */
+.detalle-hoja .datos-categoria-desde {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.detalle-hoja .datos-categoria-desde span {
+  white-space: nowrap;
+}
+.detalle-hoja .datos-categoria-desde input {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+}
+.lesiones-marco .datos-importar-cambiar {
+  margin-left: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .lesiones-marco .datos-importar-bloqueo p {
   margin: 0;
 }
