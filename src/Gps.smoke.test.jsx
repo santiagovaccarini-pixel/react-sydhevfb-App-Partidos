@@ -1959,13 +1959,13 @@ describe("GPS", () => {
     expect(document.body.querySelector(".hoja-confirmar p").textContent).toContain("Los números no cambian");
     await tocar(boton("Cancelar"));
     expect(cabecerasDelInforme()).toHaveLength(columnasAlEntrar);
-    // «Ocultar»: deja de verse y queda guardada en el aparato.
+    // «Ocultar»: deja de verse, mientras se está en el informe (no se guarda).
     await tocar(sumaDeLaCronica());
     await tocar(boton("Ocultar"));
     expect(cabecerasDelInforme()).toHaveLength(columnasAlEntrar - 1);
     expect(sumaDeLaCronica()).toBeUndefined();
     expect(loQueSeVe()).toEqual(["Columnas1 oculta", "FranjasA la vista"]);
-    expect(JSON.parse(localStorage.getItem("gps_informe_columnas_ocultas"))).toEqual(["ccSuma"]);
+    expect(localStorage.getItem("gps_informe_columnas_ocultas")).toBeNull();
     // Las filas no se ocultan: su nombre no es un botón.
     expect(filasDelInforme()).toEqual(["17", "18", "19", "20"]);
     expect(contenedor.querySelector(".gps-informe-tabla tbody.gps-informe-filas th button")).toBeNull();
@@ -1986,13 +1986,6 @@ describe("GPS", () => {
     expect(delDiecinueve()).toEqual(antesDeOcultar);
     await tocar(botonFranjas());
     expect(franjas()).toEqual(["V.R.", "Excelente", "Muy bueno", "Bueno (promedio)", "Regular", "Malo", "Desvío"]);
-    // Al volver al informe (otra vez desde los filtros), la columna sigue oculta.
-    act(() => raiz.unmount());
-    await montar();
-    await irA(contenedor, "Informe");
-    await tocar(contenedor.querySelector(".reporte-opcion"));
-    await tocar(siguiente());
-    expect(sumaDeLaCronica()).toBeUndefined();
     // «Columnas»: la lista con casillas vuelve a mostrarla.
     await tocar(contenedor.querySelector(".gps-informe-ver"));
     const casilla = [...document.body.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent === "Carga crónica · Suma");
@@ -2001,7 +1994,24 @@ describe("GPS", () => {
     await tocar(boton("Listo"));
     expect(sumaDeLaCronica()).toBeDefined();
     expect(cabecerasDelInforme()).toHaveLength(columnasAlEntrar);
-    expect(JSON.parse(localStorage.getItem("gps_informe_columnas_ocultas"))).toEqual([]);
+    // Al volver a «Ver informes» y entrar otra vez, lo oculto vuelve a verse
+    // (Santiago, 17/10: «Hasta salir de esa base», «Bases e informes»).
+    await tocar(sumaDeLaCronica());
+    await tocar(boton("Ocultar"));
+    expect(sumaDeLaCronica()).toBeUndefined();
+    await tocar(contenedor.querySelector(".reporte-volver"));
+    await tocar(contenedor.querySelector(".reporte-opcion"));
+    await tocar(siguiente());
+    expect(sumaDeLaCronica()).toBeDefined();
+    // Y al salir de GPS y volver, también.
+    await tocar(sumaDeLaCronica());
+    await tocar(boton("Ocultar"));
+    act(() => raiz.unmount());
+    await montar();
+    await irA(contenedor, "Informe");
+    await tocar(contenedor.querySelector(".reporte-opcion"));
+    await tocar(siguiente());
+    expect(sumaDeLaCronica()).toBeDefined();
   });
 
   test("Informe › Por tarea: comparaciones que se suman (hasta 5), cada una con sus filtros; arriba el promedio y, de cada una, su fila y una por microciclo", async () => {

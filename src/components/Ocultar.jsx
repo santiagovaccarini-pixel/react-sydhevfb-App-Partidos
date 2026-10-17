@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Icono } from "./AppChrome";
 import { HojaConfirmar } from "./ConfirmSheet.js";
 import { HojaInferior } from "./SheetPanel.js";
@@ -15,46 +15,36 @@ import "./ocultar.css";
 // arriba de la tabla, dicen cuántas hay ocultas y abren la lista para
 // volver a mostrarlas. Solo dejan de verse (tampoco salen al imprimir): las
 // cuentas, los promedios y los colores se calculan igual, con todo. Las
-// columnas quedan ocultas en ese aparato (por tabla, `reporte_ocultas:<id>`);
-// las filas, mientras se está en esa pantalla. Las bases tienen lo suyo en
-// TablaDatos (ahí tocar la cabecera fija y mueve la columna).
+// columnas y las filas quedan ocultas mientras se está en esa pantalla: al
+// salir, vuelven a verse (Santiago, nota del 16/10: «Hacer que las columnas
+// que se oculten en las bases y/o filas sean temporales»; 17/10: «Hasta salir
+// de esa base», «Bases e informes»). Las bases tienen lo suyo en TablaDatos
+// (ahí tocar la cabecera fija y mueve la columna).
 
-const CLAVE = "reporte_ocultas";
-
-const leer = (id) => {
+// Hasta el 17/10 las columnas ocultas quedaban guardadas en el aparato
+// (`reporte_ocultas:<id>`): lo guardado se borra, así no vuelve.
+const olvidar = (id) => {
   try {
-    const guardadas = JSON.parse(localStorage.getItem(`${CLAVE}:${id}`) || "[]");
-    return Array.isArray(guardadas) ? guardadas.filter((una) => typeof una === "string") : [];
+    localStorage.removeItem(`reporte_ocultas:${id}`);
   } catch {
-    return [];
-  }
-};
-
-const guardar = (id, claves) => {
-  try {
-    localStorage.setItem(`${CLAVE}:${id}`, JSON.stringify(claves));
-  } catch {
-    // Sin localStorage, duran lo que dura la pantalla.
+    // Sin localStorage no había nada guardado.
   }
 };
 
 // Lo oculto de una tabla (o de varias con las mismas columnas, como los
 // V.R. de cada categoría). id: de qué tabla son las columnas guardadas.
 export const useOcultar = (id) => {
-  // Las columnas se guardan al ocultar o mostrar (no al cambiar de id: así
-  // las de una tabla no pisan las de otra).
-  const [columnasDe, setColumnasDe] = useState(() => ({ id, claves: leer(id) }));
-  const columnas = columnasDe.id === id ? columnasDe.claves : leer(id);
+  // Las de cada tabla, aparte: las de una no pisan las de otra.
+  const [columnasDe, setColumnasDe] = useState({});
+  const columnas = columnasDe[id] || [];
+  useEffect(() => olvidar(id), [id]);
   const [filas, setFilas] = useState([]);
   // La pregunta ({ tipo: "columna" | "fila", claves, titulo }) y la lista
   // para volver a mostrar ({ tipo: "columnas" | "filas", valores, elegidos, busqueda }).
   const [pregunta, setPregunta] = useState(null);
   const [lista, setLista] = useState(null);
 
-  const cambiarColumnas = (claves) => {
-    guardar(id, claves);
-    setColumnasDe({ id, claves });
-  };
+  const cambiarColumnas = (claves) => setColumnasDe((antes) => ({ ...antes, [id]: claves }));
   const ocultas = (tipo) => (tipo === "columnas" ? columnas : filas);
   // Las claves de la lista que no se marcaron quedan ocultas; las ocultas
   // que no están en la lista (de otra vista de la tabla), también.

@@ -86,12 +86,12 @@ describe("la tabla estilo Excel", () => {
     expect(document.body.querySelector(".hoja-confirmar p").textContent).toContain("No se borra nada");
     await tocar(document.body.querySelector(".hoja-confirmar .boton-cancelar-hoja"));
     expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
-    // «Ocultar»: deja de verse y queda guardada en el aparato, para esta tabla.
+    // «Ocultar»: deja de verse, mientras se está en la tabla (no se guarda).
     await tocar(embudo("Edad"));
     await tocar(document.body.querySelector(".tabla-datos-ocultar-columna"));
     await tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
     expect(cabeceras(contenedor)).toEqual(["Nombre", "Pie"]);
-    expect(JSON.parse(localStorage.getItem("tabla_ocultas:prueba"))).toEqual(["edad"]);
+    expect(localStorage.getItem("tabla_ocultas:prueba")).toBeNull();
     expect(contenedor.querySelector(".tabla-datos-columnas").textContent).toBe("1 columna oculta");
     // Una fila elegida: «Ocultar fila» pregunta; el informe de arriba (vista) sigue con las dos.
     await tocar(celda(contenedor, 0, 0));
@@ -101,12 +101,6 @@ describe("la tabla estilo Excel", () => {
     expect([...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent)).toEqual(["SCARPA"]);
     expect(contenedor.querySelector(".tabla-datos-cuantas").textContent).toBe("1 de 2 filas");
     expect(vistas.at(-1)).toEqual([1, 2]);
-    // Al volver a la tabla con la app abierta, siguen ocultas la columna y la fila.
-    await act(async () => raiz.unmount());
-    raiz = createRoot(contenedor);
-    await montar({ vista, recordar: "prueba-ocultar" });
-    expect(cabeceras(contenedor)).toEqual(["Nombre", "Pie"]);
-    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(1);
     // «Mostrar la fila oculta» y «Columnas» las vuelven a mostrar.
     expect(contenedor.querySelector(".tabla-datos-mostrar-filas").textContent).toBe("Mostrar la fila oculta");
     await tocar(contenedor.querySelector(".tabla-datos-mostrar-filas"));
@@ -118,7 +112,20 @@ describe("la tabla estilo Excel", () => {
     await tocar(casilla.querySelector("input"));
     await tocar([...document.body.querySelectorAll("button")].find((b) => b.textContent === "Listo"));
     expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
-    expect(JSON.parse(localStorage.getItem("tabla_ocultas:prueba"))).toEqual([]);
+    // Al salir de la tabla y volver, lo oculto vuelve a verse (Santiago, 17/10:
+    // «Hasta salir de esa base»).
+    await tocar(embudo("Edad"));
+    await tocar(document.body.querySelector(".tabla-datos-ocultar-columna"));
+    await tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    await tocar(celda(contenedor, 0, 0));
+    await tocar(contenedor.querySelector(".tabla-datos-ocultar-filas"));
+    await tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Pie"]);
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    await montar({ vista, recordar: "prueba-ocultar" });
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(2);
     // Una tabla que no deja ocultar no muestra nada de esto.
     await montar({ ocultar: false });
     expect(contenedor.querySelector(".tabla-datos-columnas")).toBeNull();
@@ -142,16 +149,19 @@ describe("la tabla estilo Excel", () => {
     expect(document.body.querySelector(".tabla-datos-ocultar-columna")).toBeNull();
   });
 
-  test("en una carga sin guardar (recordarFilasOcultas: false), las filas ocultas duran mientras se está en la tabla", async () => {
-    await montar({ recordar: "prueba-carga", recordarFilasOcultas: false });
+  test("las filas ocultas duran mientras se está en la tabla; lo guardado antes del 17/10 se borra", async () => {
+    localStorage.setItem("tabla_ocultas:prueba", JSON.stringify(["edad"]));
+    await montar({ recordar: "prueba-carga" });
+    expect(cabeceras(contenedor)).toEqual(["Nombre", "Edad", "Pie"]);
+    expect(localStorage.getItem("tabla_ocultas:prueba")).toBeNull();
     await tocar(celda(contenedor, 0, 0));
     await tocar(contenedor.querySelector(".tabla-datos-ocultar-filas"));
     await tocar(document.body.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
     expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(1);
-    // Sus filas van por su lugar: al volver (otra carga), se ven todas.
+    // Al volver, se ven todas.
     await act(async () => raiz.unmount());
     raiz = createRoot(contenedor);
-    await montar({ recordar: "prueba-carga", recordarFilasOcultas: false });
+    await montar({ recordar: "prueba-carga" });
     expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(2);
     expect(contenedor.querySelector(".tabla-datos-mostrar-filas")).toBeNull();
   });

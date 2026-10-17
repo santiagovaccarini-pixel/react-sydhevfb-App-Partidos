@@ -741,13 +741,13 @@ describe("Evaluaciones", () => {
     expect(filas()).toHaveLength(2);
     // Los números de arriba siguen con las tres.
     expect(informe()).toEqual(antes);
-    // Una columna, tocando su nombre: se va de las cabeceras y queda guardada en el aparato.
+    // Una columna, tocando su nombre: se va de las cabeceras, mientras se está en el reporte.
     const lumbar = [...contenedor.querySelectorAll('.evaluaciones-informe-test th[data-columna="lumbar"]')][0];
     await tocar(lumbar.querySelector(".ocultar-al-tocar"));
     expect(pregunta()).toContain("Lumbar");
     await confirmar();
     expect(contenedor.querySelector('.evaluaciones-informe-test th[data-columna="lumbar"]')).toBeNull();
-    expect(JSON.parse(localStorage.getItem("reporte_ocultas:evaluaciones-grupal:zona_media"))).toEqual(["lumbar"]);
+    expect(localStorage.getItem("reporte_ocultas:evaluaciones-grupal:zona_media")).toBeNull();
     expect([...contenedor.querySelectorAll(".ocultar-arriba button")].map((b) => b.textContent)).toEqual(["Columnas1 oculta", "Filas1 oculta"]);
   });
 

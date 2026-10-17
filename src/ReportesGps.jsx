@@ -95,23 +95,19 @@ const tramos = (numeros, unir) => {
   return partes.map(([desde, hasta]) => (desde === hasta ? String(desde) : hasta === desde + 1 ? `${desde}, ${hasta}` : unir(desde, hasta))).join(", ");
 };
 
-// Las columnas ocultadas a mano se recuerdan en el aparato (como las columnas
-// fijas de las bases), cada informe las suyas. Las filas no se ocultan
-// (Santiago, 16/10: «quiero que saques la opcion de ocultar filas»).
-const CLAVES_COLUMNAS_OCULTAS = { porMicrociclo: "gps_informe_columnas_ocultas", porTarea: "gps_informe_tarea_columnas_ocultas", porJugador: "gps_informe_jugador_columnas_ocultas" };
-const leerColumnasOcultas = (clave) => {
+// Las columnas ocultadas a mano, cada informe las suyas, mientras se está en
+// él: al volver a «Ver informes» o salir de Informe, vuelven a verse
+// (Santiago, 17/10: «Hasta salir de esa base», «Bases e informes»). Las filas
+// no se ocultan (Santiago, 16/10: «quiero que saques la opcion de ocultar
+// filas»).
+const SIN_OCULTAS = Object.freeze({ porMicrociclo: [], porTarea: [], porJugador: [] });
+// Hasta el 17/10 quedaban guardadas en el aparato: lo guardado se borra.
+const GUARDADAS_ANTES = ["gps_informe_columnas_ocultas", "gps_informe_tarea_columnas_ocultas", "gps_informe_jugador_columnas_ocultas"];
+const olvidarLasGuardadas = () => {
   try {
-    const guardadas = JSON.parse(localStorage.getItem(clave) || "null");
-    return Array.isArray(guardadas) ? guardadas.filter((una) => typeof una === "string") : [];
+    GUARDADAS_ANTES.forEach((clave) => localStorage.removeItem(clave));
   } catch {
-    return [];
-  }
-};
-const guardarColumnasOcultas = (clave, columnas) => {
-  try {
-    localStorage.setItem(clave, JSON.stringify(columnas));
-  } catch {
-    // Sin localStorage, quedan ocultas mientras se está en el informe.
+    // Sin localStorage no había nada guardado.
   }
 };
 
@@ -161,11 +157,16 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   // un columna … tiene que preguntarme si la quiero ocultar»): solo dejan de
   // verse, los números no cambian. aOcultar: la columna tocada, mientras se
   // pregunta.
-  const [todasLasOcultas, setTodasLasOcultas] = useState(() => Object.fromEntries(Object.entries(CLAVES_COLUMNAS_OCULTAS).map(([cual, clave]) => [cual, leerColumnasOcultas(clave)])));
-  const columnasOcultas = todasLasOcultas[tipo];
+  const [todasLasOcultas, setTodasLasOcultas] = useState(SIN_OCULTAS);
+  const columnasOcultas = todasLasOcultas[tipo] || SIN_ELEGIR;
   const setColumnasOcultas = (cambio) => setTodasLasOcultas((antes) => ({ ...antes, [tipo]: typeof cambio === "function" ? cambio(antes[tipo]) : cambio }));
   const [aOcultar, setAOcultar] = useState(null);
-  useEffect(() => Object.entries(CLAVES_COLUMNAS_OCULTAS).forEach(([cual, clave]) => guardarColumnasOcultas(clave, todasLasOcultas[cual])), [todasLasOcultas]);
+  useEffect(olvidarLasGuardadas, []);
+  // Volver a «Ver informes»: lo oculto vuelve a verse.
+  const volverAlMenu = () => {
+    setTodasLasOcultas(SIN_OCULTAS);
+    setModo("menu");
+  };
   // Las franjas de color, ocultas con su botón (Santiago, 16/10: «al lado de
   // ocultar columnas agregues un boton para que se oculten las franjas de
   // color y cuando lo vuelva a toca aparescan»). La fila del V.R. queda («sirve
@@ -558,7 +559,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
         encabezado={encabezado}
         arriba={arriba}
         cargando={cargando}
-        volver={botonVolver(t("gps.reportes.titulo"), () => setModo("menu"))}
+        volver={botonVolver(t("gps.reportes.titulo"), volverAlMenu)}
       />
     );
   }
@@ -568,7 +569,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
     return (
       <div className="app">
         <div className="contenedor contenedor-base">
-          {botonVolver(t("gps.reportes.titulo"), () => setModo("menu"))}
+          {botonVolver(t("gps.reportes.titulo"), volverAlMenu)}
           {encabezado(t(`gps.reportes.${tipo}`), t(porJugador ? "gps.reportes.jugador.filtrosTexto" : porTarea ? "gps.reportes.tarea.filtrosTexto" : "gps.reportes.filtrosTexto"))}
           {arriba}
           <section className="tarjeta gps-reportes-filtros">
@@ -932,7 +933,7 @@ export default function ReportesGps({ filasGps, referencias, elegidos, nombreDe,
   return (
     <div className="app">
       <div className="contenedor contenedor-base">
-        {botonVolver(t("gps.reportes.titulo"), () => setModo("menu"))}
+        {botonVolver(t("gps.reportes.titulo"), volverAlMenu)}
         {encabezado(t(`gps.reportes.${tipo}`), t(porTarea ? "gps.reportes.tarea.informeTexto" : porJugador ? "gps.reportes.jugador.informeTexto" : "gps.reportes.informeTexto"))}
         {arriba}
         {/* «Filtros»: dice qué se filtró y, tocándolo, abre acá abajo los

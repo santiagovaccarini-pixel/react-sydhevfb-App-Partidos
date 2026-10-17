@@ -996,7 +996,6 @@ export default function CargarGps({
         filas={filas.map(filaDeLaTabla)}
         fijas={fijas}
         onEditar={editarCelda}
-        recordarFilasOcultas={false}
       />
     </section>
   );
@@ -1584,7 +1583,7 @@ export default function CargarGps({
       {aMedias && <p className="lesiones-estado error">{t("gps.cargar.aMedias", { n: aMedias.hechas, total: aMedias.lista.length })}</p>}
       <p className="lesiones-ayuda">{t("gps.cargar.revisarAyuda")}</p>
       <section className="tarjeta evaluaciones-tabla">
-        <TablaDatos id="gps" recordar="gps:cargar" columnas={columnasDeLaTabla} filas={filasDeLaTabla} fijas={fijas} onEditar={editarCelda} recordarFilasOcultas={false} />
+        <TablaDatos id="gps" recordar="gps:cargar" columnas={columnasDeLaTabla} filas={filasDeLaTabla} fijas={fijas} onEditar={editarCelda} />
       </section>
       {falla && <div className="lesiones-estado error">{t(falla, { fecha: estado.fecha ? fechaCorta(estado.fecha) : "—" })}</div>}
     </>

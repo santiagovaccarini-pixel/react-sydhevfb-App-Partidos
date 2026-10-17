@@ -71,13 +71,12 @@ import "./tablaDatos.css";
 // TODO EL SOFT … OCULTAR MANUALMENTE UN COLUMNA Y FILAS SIN NECESIDAD DE
 // ENTRAR A AJUSTES»; «tiene que preguntarme si la quiero ocultar»): una
 // columna desde su embudo y las filas elegidas desde «Ocultar fila», siempre
-// preguntando antes. Las columnas quedan ocultas en ese aparato, para esa
-// tabla; las filas, mientras la app está abierta (como los filtros). Solo
+// preguntando antes. Columnas y filas quedan ocultas mientras se está en la
+// tabla: al salir (otra solapa, Módulos), vuelven a verse (Santiago, nota del
+// 16/10: «Hacer que las columnas que se oculten en las bases y/o filas sean
+// temporales»; 17/10: «Hasta salir de esa base», «Bases e informes»). Solo
 // dejan de verse: el informe de arriba y los colores (vista) se calculan
 // igual, con las filas ocultas. «Columnas» y «Mostrar» las vuelven a mostrar.
-// recordarFilasOcultas: false en las tablas de una carga sin guardar (Cargar
-// de GPS): sus filas van por su lugar y en la carga siguiente serían otras,
-// así que las ocultas duran mientras se está en la tabla.
 // muchasFilas: para una base de miles de filas (GPS): se dibujan solo las
 // filas que se ven al correr la tabla, y unas cuantas más arriba y abajo; lo
 // demás (elegir, copiar, pegar, filtros, el informe de arriba) sigue con
@@ -128,11 +127,14 @@ const guardarEnCelular = (clave, id, valor) => {
 
 const leerOrden = (id) => leerDelCelular(CLAVE_ORDEN, id);
 
-// Las columnas ocultadas a mano: [clave].
-const CLAVE_OCULTAS = "tabla_ocultas";
-const leerOcultas = (id) => {
-  const guardadas = leerDelCelular(CLAVE_OCULTAS, id);
-  return Array.isArray(guardadas) ? guardadas.filter((una) => typeof una === "string") : [];
+// Las columnas ocultadas a mano quedaban guardadas en el aparato hasta el
+// 17/10 (`tabla_ocultas:<id>`): lo guardado se borra, así no vuelve.
+const olvidarOcultas = (id) => {
+  try {
+    localStorage.removeItem(`tabla_ocultas:${id}`);
+  } catch {
+    // Sin localStorage no había nada guardado.
+  }
 };
 const guardarOrden = (id, orden) => guardarEnCelular(CLAVE_ORDEN, id, orden);
 
@@ -220,7 +222,6 @@ export const TablaDatos = ({
   siempreAVista = SIN_FIJAS,
   muchasFilas = false,
   ocultar = true,
-  recordarFilasOcultas = true,
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -238,11 +239,11 @@ export const TablaDatos = ({
   const [pendientes, setPendientes] = useState({});
   const [filtros, setFiltros] = useState(() => (recordar && memoria.get(recordar)?.filtros) || {}); // { clave: [textos elegidos] }
   const [ordenFilas, setOrdenFilas] = useState(() => (recordar && memoria.get(recordar)?.orden) || null); // { clave, sentido }
-  // Lo ocultado a mano: las columnas, en este aparato; las filas (ids),
-  // mientras la app está abierta. aOcultar: lo tocado, mientras se pregunta
-  // ({ tipo: "columna", clave, titulo } o { tipo: "filas", ids }).
-  const [columnasOcultas, setColumnasOcultas] = useState(() => (ocultar ? leerOcultas(id) : []));
-  const [filasOcultas, setFilasOcultas] = useState(() => (ocultar && recordar && recordarFilasOcultas && memoria.get(recordar)?.ocultas) || []);
+  // Lo ocultado a mano: las columnas y las filas (ids), mientras se está en
+  // la tabla. aOcultar: lo tocado, mientras se pregunta ({ tipo: "columna",
+  // clave, titulo } o { tipo: "filas", ids }).
+  const [columnasOcultas, setColumnasOcultas] = useState([]);
+  const [filasOcultas, setFilasOcultas] = useState([]);
   const [aOcultar, setAOcultar] = useState(null);
   const [hojaColumnas, setHojaColumnas] = useState(null); // { elegidos, busqueda }
   const [hojaFiltro, setHojaFiltro] = useState(null); // { clave, titulo, elegidos, busqueda }
@@ -482,11 +483,9 @@ export const TablaDatos = ({
   }, [mensaje]);
 
   useEffect(() => {
-    if (recordar) memoria.set(recordar, { filtros, orden: ordenFilas, ocultas: recordarFilasOcultas ? filasOcultas : [] });
-  }, [recordar, filtros, ordenFilas, filasOcultas, recordarFilasOcultas]);
-  useEffect(() => {
-    if (ocultar) guardarEnCelular(CLAVE_OCULTAS, id, columnasOcultas);
-  }, [ocultar, id, columnasOcultas]);
+    if (recordar) memoria.set(recordar, { filtros, orden: ordenFilas });
+  }, [recordar, filtros, ordenFilas]);
+  useEffect(() => olvidarOcultas(id), [id]);
 
   // ----------------------------------------------------------- Selección --
 

@@ -84,12 +84,13 @@ describe("ocultar columnas y filas en los reportes y los V.R.", () => {
     expect(filas("una")).toEqual(["Bueno"]);
     expect(filas("otra")).toEqual(["Bueno"]);
     expect(arriba()).toEqual(["Columnas1 oculta", "Filas1 oculta"]);
-    // La columna queda guardada en el aparato; la fila, no.
-    expect(JSON.parse(localStorage.getItem("reporte_ocultas:prueba"))).toEqual(["a"]);
+    // Nada queda guardado: al salir y volver a entrar, todo se ve
+    // (Santiago, 17/10: «Hasta salir de esa base»).
+    expect(localStorage.getItem("reporte_ocultas:prueba")).toBeNull();
     await act(async () => raiz.unmount());
     raiz = createRoot(contenedor);
     await montar();
-    expect(cabeceras("una")).toEqual(["Carrera"]);
+    expect(cabeceras("una")).toEqual(["Salto", "Carrera"]);
     expect(filas("una")).toEqual(["Bueno", "Malo"]);
   });
 
@@ -115,16 +116,22 @@ describe("ocultar columnas y filas en los reportes y los V.R.", () => {
     expect(cabeceras("una")).toEqual(["Carrera"]);
   });
 
-  test("lo de una tabla no pisa lo de otra: al cambiar de tabla (otro id) se lee lo suyo", async () => {
+  test("lo de una tabla no pisa lo de otra: al cambiar de tabla (otro id) cada una tiene lo suyo, mientras se está en la pantalla", async () => {
     await montar("uno");
     await tocar(contenedor.querySelector(".una thead th .ocultar-al-tocar"));
     await confirmar();
     expect(cabeceras("una")).toEqual(["Carrera"]);
     await montar("dos");
     expect(cabeceras("una")).toEqual(["Salto", "Carrera"]);
-    expect(localStorage.getItem("reporte_ocultas:dos")).toBeNull();
-    expect(JSON.parse(localStorage.getItem("reporte_ocultas:uno"))).toEqual(["a"]);
     await montar("uno");
     expect(cabeceras("una")).toEqual(["Carrera"]);
+    expect(localStorage.getItem("reporte_ocultas:uno")).toBeNull();
+  });
+
+  test("lo que quedó guardado en el aparato antes del 17/10 se borra y no se aplica", async () => {
+    localStorage.setItem("reporte_ocultas:prueba", JSON.stringify(["a"]));
+    await montar();
+    expect(cabeceras("una")).toEqual(["Salto", "Carrera"]);
+    expect(localStorage.getItem("reporte_ocultas:prueba")).toBeNull();
   });
 });

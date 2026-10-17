@@ -122,7 +122,8 @@ En una tabla de datos (la primera hecha así: GPS › Informe, 15/10):
   embudo; las filas, eligiéndolas y tocando «Ocultar fila». Lo oculto se ve en ámbar con las
   demás acciones («1 columna oculta», «Mostrar las 2 filas ocultas»). En los reportes y los
   V.R., como en el Informe, con `src/components/Ocultar.jsx`; donde el nombre de una fila ya
-  es otra cosa (un desplegable), el ojo tachado al lado. Lo oculto no sale al imprimir.
+  es otra cosa (un desplegable), el ojo tachado al lado. Lo oculto no sale al imprimir y dura
+  mientras se está en esa base o ese informe: al salir, todo vuelve a verse (UI-039, 17/10).
 
 **El Informe de GPS, con la estética de una imagen (15/10).** Santiago mandó la imagen de una
 pantalla de ejemplo para el Informe («esta seria una estetica agradable a la vista y buena para
