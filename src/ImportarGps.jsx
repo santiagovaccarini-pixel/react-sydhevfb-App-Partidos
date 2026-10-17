@@ -5,7 +5,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { opcionesDeLista, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
 import { COMO_PERSONA, ESTADOS, NO_CARGAR, leerGpsPegado, ordenDeCarga, planDelGps } from "./domain/gps/importar.js";
-import { crearFilasGps, listarGps } from "./domain/gpsDb.js";
+import { crearFilasGps, leerDispositivosRecordados, listarGps, recordarDispositivo } from "./domain/gpsDb.js";
 import { fechaDelExcel, formatoDeLasFechas } from "./domain/importarLesiones.js";
 import { nombreIgual } from "./domain/importarPersonas.js";
 import { actualesPrimero, cargarPlantelConCatapult, esActual } from "./domain/plantel.js";
@@ -49,8 +49,12 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
   const [intento, setIntento] = useState(0);
   const [plan, setPlan] = useState([]);
   const [calculando, setCalculando] = useState(false);
-  // El dispositivo con que se tomaron las filas pegadas ("": ninguno).
+  // El dispositivo con que se tomaron las filas pegadas ("": ninguno). De
+  // entrada, el último que eligió la cuenta acá (nota del 17/10), si sigue en
+  // la lista y todavía no se eligió otro.
   const [dispositivo, setDispositivo] = useState("");
+  const elegidoAMano = useRef(false);
+  const listaDeDispositivos = useRef([]);
   // Lo elegido para cada nombre que no está en Datos básicos: { nombre
   // normalizado: destino } (vale para todas sus filas).
   const [elegidos, setElegidos] = useState({});
@@ -81,6 +85,21 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
       vigente = false;
     };
   }, [equipoId]);
+
+  useEffect(() => {
+    let vigente = true;
+    leerDispositivosRecordados(equipoId).then(({ pegar }) => {
+      if (vigente && pegar && !elegidoAMano.current && listaDeDispositivos.current.some((opcion) => opcion.valor === pegar)) setDispositivo(pegar);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [equipoId]);
+  const elegirDispositivo = (valor) => {
+    elegidoAMano.current = true;
+    setDispositivo(valor);
+    recordarDispositivo(equipoId, "pegar", valor);
+  };
 
   const conCatapult = useMemo(() => plantel.map((jugador) => (enCatapult[String(jugador.id)] ? { ...jugador, catapult_nombre: enCatapult[String(jugador.id)] } : jugador)), [plantel, enCatapult]);
 
@@ -224,6 +243,7 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
 
   const conProblemas = plan.filter((fila) => fila.estado === ESTADOS.conProblemas);
   const dispositivos = opcionesDeLista("dispositivo", config, idioma, { test: gps });
+  listaDeDispositivos.current = dispositivos;
 
   const pegarTexto = (nuevo) => {
     setTexto(nuevo);
@@ -349,7 +369,7 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
         <section className="tarjeta gps-dispositivo">
           <label className="campo-inicio">
             <span>{t("gps.importar.dispositivo")}</span>
-            <select value={dispositivo} onChange={(evento) => setDispositivo(evento.target.value)} disabled={ocupado}>
+            <select value={dispositivo} onChange={(evento) => elegirDispositivo(evento.target.value)} disabled={ocupado}>
               <option value="">{t("gps.sinDispositivo")}</option>
               {dispositivos.map((opcion) => (
                 <option key={opcion.valor} value={opcion.valor}>

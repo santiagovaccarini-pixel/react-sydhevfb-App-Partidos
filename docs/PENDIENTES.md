@@ -3562,10 +3562,17 @@ ordenaron de lo más chico a lo más grande y van de a una, un PR por nota.
   ahí; al pasar a otra solapa, volver a «Ver informes» o a Módulos, vuelven a verse. Lo que
   quedaba guardado en el aparato se borra al entrar. Las columnas fijas, los anchos y el orden
   se siguen recordando. Ver UI-039.
-- **El último dispositivo, en la cuenta (17/10, decidido).** Nota del 16/10: «Recordar el ultimo
+- **El último dispositivo, en la cuenta (hecho el 17/10).** Nota del 16/10: «Recordar el ultimo
   dispositivo seleccionado cuando se copia para pegar en la base gps al igual que en la carga
-  de un csv». Santiago, 17/10: «En mi cuenta» (no en el aparato ni para todo el club); lleva
-  una migración.
+  de un csv». Santiago, 17/10: «En mi cuenta» (no en el aparato ni para todo el club). En GPS ›
+  «Pegar desde una planilla» y en «Cargar un día», el dispositivo arranca con el último que
+  eligió esa cuenta en ese club, en ese mismo lugar (cada uno recuerda el suyo: elegir uno al
+  cargar un CSV no cambia el de pegar). Se guarda al elegirlo; si ya no está en la lista de
+  Ajustes, no se elige solo. Una carga sin terminar que ya tenía dispositivo sigue con el suyo.
+  Es una ayuda: sin señal, sin la migración o en solo lectura se elige a mano, como antes, sin
+  aviso. Va en la tabla `gps_preferencias` (migración `20261027_gps_preferencias.sql`): una fila
+  por cuenta y club; cada cuenta ve y cambia solo la suya, donde tiene GPS y sigue; anon, nada.
+  **Queda prohibido** guardarlo en el aparato o compartirlo entre las cuentas del club.
 - **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
   con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
