@@ -12,7 +12,7 @@ import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, TextoConPasos, useGui
 import ReportesLesiones from "./ReportesLesiones.jsx";
 import ImportarLesiones from "./ImportarLesiones.jsx";
 import { CAMPOS_DEL_CUERPO, REGIONES, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre } from "./domain/mapaCorporal.js";
-import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
+import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import {
   calcular,
@@ -190,8 +190,11 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const [errorHoja, setErrorHoja] = useState("");
 
   const equipoId = equipo?.id || null;
-  // Quien ya se fue del club ve lo cargado hasta su último día y no cambia nada.
-  const soloLectura = Boolean(equipo?.hasta);
+  // Quien ya se fue del club ve lo cargado hasta su último día y no cambia
+  // nada; quien tiene Lesiones «Solo lectura» ve todo, al día, y tampoco.
+  const seFue = Boolean(equipo?.hasta);
+  const mirar = soloParaMirar(equipo, "lesiones");
+  const soloLectura = seFue || mirar;
 
   // Sin club elegido en este celular, se adopta el que diga la base, igual
   // que hace Partido al abrir.
@@ -251,7 +254,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10).
   // También el GPS: de ahí salen las horas de Lesiones c/1000h (llega a quien
   // tiene GPS; quien no, las ve al volver a entrar).
-  useEnVivo({ nombre: "lesiones", tablas: ["lesiones", "jugadores", "gps"], equipoId, activo: !soloLectura, alCambiar: () => cargar({ silencioso: true }) });
+  useEnVivo({ nombre: "lesiones", tablas: ["lesiones", "jugadores", "gps"], equipoId, activo: !seFue, alCambiar: () => cargar({ silencioso: true }) });
 
   useEffect(() => {
     const alCambiar = () => setEnLinea(navigator.onLine !== false);
@@ -273,13 +276,13 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // guarda algo. Quien ya se fue del club no los ve: la lista tendría lo que
   // se cambió después de su último día.
   useEffect(() => {
-    if (!detalleId || soloLectura) return undefined;
+    if (!detalleId || seFue) return undefined;
     let vigente = true;
     historialDeLesion(detalleId).then((respuesta) => vigente && setCambiosDetalle(respuesta.cambios));
     return () => {
       vigente = false;
     };
-  }, [detalleId, soloLectura, guardadas]);
+  }, [detalleId, seFue, guardadas]);
 
   useEffect(() => {
     setCambiosDetalle([]);
@@ -699,8 +702,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
           </div>
         </header>
 
-        <p className="pantalla-donde">{t(soloLectura ? "lesiones.donde.nuevosSoloLectura" : "lesiones.donde.nuevos")}</p>
-        <AvisoSoloLectura hasta={equipo?.hasta} />
+        <p className="pantalla-donde">{t(seFue ? "lesiones.donde.nuevosSoloLectura" : mirar ? "lesiones.donde.nuevosMirar" : "lesiones.donde.nuevos")}</p>
+        <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="lesiones" />
         {estado}
 
         {!soloLectura && (
@@ -871,7 +874,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const pantallaBase = (
     <div className="app">
       <div className="contenedor contenedor-base">
-        <Encabezado onGuia={guia.abrir} titulo={t("nav.base")} texto={t(soloLectura ? "lesiones.donde.baseSoloLectura" : "lesiones.donde.base")} />
+        <Encabezado onGuia={guia.abrir} titulo={t("nav.base")} texto={t(seFue ? "lesiones.donde.baseSoloLectura" : mirar ? "lesiones.donde.baseMirar" : "lesiones.donde.base")} />
         {estado}
         {!soloLectura && (
           <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
@@ -1106,7 +1109,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       <div className="app">
         <div className="contenedor">
           <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.titulo")} texto={t("lesiones.ajustes.texto")} />
-          <AvisoSoloLectura hasta={equipo?.hasta} />
+          <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="lesiones" />
           <div className="lista-opciones">
             {filaAjuste({
               id: "cabeceras",
@@ -1139,7 +1142,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     })).filter((seccion) => seccion.campos.length > 0),
     // Quien ya se fue del club no ve los cambios: tendrían lo que se tocó
     // después de su último día.
-    ...(soloLectura ? [] : [{ id: SECCION_CAMBIOS, titulo: t("lesiones.ficha.cambios"), campos: [] }]),
+    // Los últimos cambios: quien ya se fue no los ve (serían de después).
+    ...(seFue ? [] : [{ id: SECCION_CAMBIOS, titulo: t("lesiones.ficha.cambios"), campos: [] }]),
   ];
 
   // La pestaña elegida queda a la vista en la barra, que se desliza de
@@ -1759,7 +1763,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         gps={minutos}
         estado={
           <>
-            <AvisoSoloLectura hasta={equipo?.hasta} />
+            <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="lesiones" />
             {estado}
           </>
         }

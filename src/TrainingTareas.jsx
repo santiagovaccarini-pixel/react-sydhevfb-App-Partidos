@@ -128,11 +128,11 @@ const Aviso = ({ tono = "", titulo, texto, accion, onAccion, children }) => (
 // avisa con onCambiar (quien lo tiene lo guarda en el celular y en la base).
 // La sesión de OpenField se elige recién al enviar; ahí se revisa el resumen
 // y se confirma con el nombre de la sesión.
-export default function TrainingTareas({ entrenamiento = null, onCambiar = () => {}, onIrAInicio, guardado = null, hasta = null }) {
+export default function TrainingTareas({ entrenamiento = null, onCambiar = () => {}, onIrAInicio, guardado = null, hasta = null, mirar = false }) {
   const activityId = entrenamiento?.actividad?.id || "";
   const sesion = entrenamiento;
   // Quien ya se fue del club mira: cualquier cambio se frena acá y se avisa.
-  const soloLectura = Boolean(hasta);
+  const soloLectura = Boolean(hasta) || mirar;
   const [intentoEnLectura, setIntentoEnLectura] = useState(0);
   const cambiar = soloLectura ? () => setIntentoEnLectura((veces) => veces + 1) : onCambiar;
   const setSesion = cambiar;
@@ -910,7 +910,7 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
           deshabilitado={soloLectura || tareas.length === 0 || envio.estado === "planificando" || envio.estado === "enviando"}
         />
 
-        <AvisoSoloLectura hasta={hasta} className="aviso-solo-lectura-tablero" />
+        <AvisoSoloLectura hasta={hasta} mirar={mirar} modulo="flujo" className="aviso-solo-lectura-tablero" />
 
         {(estadoAtletas === "error" || envio.estado === "error") && (
           <div className="avisos-tablero">
@@ -1209,7 +1209,7 @@ export default function TrainingTareas({ entrenamiento = null, onCambiar = () =>
 
       {intentoEnLectura > 0 && (
         <div className="aviso-lectura-flotante" role="status" key={intentoEnLectura}>
-          {t("club.soloLecturaCambio")}
+          {t(hasta ? "club.soloLecturaCambio" : "club.soloMirarCambio")}
         </div>
       )}
     </>

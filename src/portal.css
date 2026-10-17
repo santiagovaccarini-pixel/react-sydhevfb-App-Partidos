@@ -551,32 +551,84 @@
   font-size: 0.84rem;
 }
 
-.cuenta-permisos {
-  display: flex;
-  flex-wrap: wrap;
+/* El nivel de cada módulo (Santiago, 17/10): un desplegable por módulo, con
+   el módulo arriba y el nivel abajo; Edición en dorado, Solo lectura en
+   claro y Sin acceso apagado (el nivel siempre dice cuál es, no solo el
+   color). En el celular angosto, uno por fila; desde 390 px, dos; en la
+   compu, los cinco en una fila. */
+.cuenta-niveles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 8px;
 }
 
-.cuenta-chip {
-  min-height: 44px;
-  padding: 0 14px;
+.cuenta-nivel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "modulo modulo"
+    "nivel flecha";
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 1px;
+  min-height: 52px;
+  padding: 7px 12px;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-  background: transparent;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
   color: #dfe5ec;
   font: inherit;
-  font-size: 0.88rem;
-  font-weight: 800;
+  text-align: left;
   cursor: pointer;
 }
 
-.cuenta-chip[aria-pressed="true"] {
+.cuenta-nivel-modulo {
+  grid-area: modulo;
+  color: var(--portal-muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cuenta-nivel b {
+  grid-area: nivel;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.cuenta-nivel svg {
+  grid-area: flecha;
+  width: 16px;
+  height: 16px;
+  color: var(--portal-muted);
+}
+
+.cuenta-nivel.nivel-edicion {
   border-color: rgba(240, 201, 120, 0.75);
-  background: rgba(211, 173, 98, 0.18);
+  background: rgba(211, 173, 98, 0.16);
+}
+
+.cuenta-nivel.nivel-edicion b {
   color: #f0c978;
 }
 
-.cuenta-chip:disabled,
+.cuenta-nivel.nivel-lectura {
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+.cuenta-nivel.nivel-sin b {
+  color: var(--portal-muted);
+  font-weight: 700;
+}
+
+.cuenta-nivel:focus-visible {
+  outline: 2px solid #f0c978;
+  outline-offset: 2px;
+}
+
+.cuenta-nivel:disabled,
 .cuenta-autorizar:disabled,
 .cuenta-quitar:disabled {
   opacity: 0.5;
@@ -1178,13 +1230,24 @@
 }
 
 /* Cuentas: los pedidos de acceso al club, arriba de todo. */
-.cuentas-hoja .cuenta-permisos .cuenta-chip {
+.cuentas-hoja .cuenta-nivel {
   border-color: rgba(15, 23, 42, 0.25);
+  background: #ffffff;
   color: #0f172a;
 }
-.cuentas-hoja .cuenta-permisos .cuenta-chip[aria-pressed="true"] {
+.cuentas-hoja .cuenta-nivel-modulo,
+.cuentas-hoja .cuenta-nivel svg,
+.cuentas-hoja .cuenta-nivel.nivel-sin b {
+  color: #475569;
+}
+.cuentas-hoja .cuenta-nivel.nivel-lectura {
+  border-color: rgba(15, 23, 42, 0.55);
+}
+.cuentas-hoja .cuenta-nivel.nivel-edicion {
   border-color: #b8891f;
   background: rgba(211, 173, 98, 0.25);
+}
+.cuentas-hoja .cuenta-nivel.nivel-edicion b {
   color: #6b4e0e;
 }
 

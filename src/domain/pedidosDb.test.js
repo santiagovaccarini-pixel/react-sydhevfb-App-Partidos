@@ -80,10 +80,16 @@ describe("los pedidos para el administrador del club", () => {
     expect(await pedidosDelClub("c1")).toHaveLength(1);
     await aceptarPedido("p1", { partido: true, lesiones: 1 });
     await rechazarPedido("p2");
+    // Los módulos en solo lectura, solo si hay alguno (y de los que se dan).
+    await aceptarPedido("p3", { partido: true, gps: true, solo_lectura: ["gps", "flujo"] });
     expect(base.llamadas).toEqual([
       { funcion: "pedidos_del_club", parametros: { p_equipo: "c1" } },
       { funcion: "aceptar_pedido", parametros: { p_id: "p1", p_partido: true, p_flujo: false, p_lesiones: true, p_evaluaciones: false } },
       { funcion: "rechazar_pedido", parametros: { p_id: "p2" } },
+      {
+        funcion: "aceptar_pedido",
+        parametros: { p_id: "p3", p_partido: true, p_flujo: false, p_lesiones: false, p_evaluaciones: false, p_gps: true, p_solo_lectura: ["gps"] },
+      },
     ]);
   });
 

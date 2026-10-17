@@ -55,7 +55,13 @@ vi.mock("./domain/membresiasDb.js", async () => {
       return lista;
     },
     listarInvitaciones: async (equipoId) => datos.invitaciones[equipoId] || [],
-    cambiarModulo: async (userId, equipoId, modulo, valor) => cambiar(userId, equipoId, { [modulo]: valor }),
+    // Como la de verdad: el módulo y, si cambia, la lista de solo lectura.
+    cambiarNivel: async (fila, modulo, nivel) => {
+      const nuevo = real.conNivel(fila, modulo, nivel);
+      const cambios = { [modulo]: nuevo[modulo] };
+      if (nuevo.solo_lectura.join(",") !== (fila.solo_lectura || []).join(",")) cambios.solo_lectura = nuevo.solo_lectura;
+      return cambiar(fila.user_id, fila.equipo_id, cambios);
+    },
     darDeBaja: async (userId, equipoId, hasta) => cambiar(userId, equipoId, { hasta }),
     reincorporar: async (userId, equipoId) => cambiar(userId, equipoId, { hasta: null, desde: "2026-10-02" }),
     historialDeMiembro: async (equipoId, userId) => {
@@ -187,7 +193,16 @@ describe("Cuentas", () => {
   const texto = () => contenedor.textContent;
   const fila = (correo) => [...contenedor.querySelectorAll(".cuenta-fila")].find((li) => li.querySelector(".cuenta-correo").textContent === correo);
   const boton = (dentro, etiqueta) => [...dentro.querySelectorAll("button")].find((b) => b.textContent.trim() === etiqueta);
-  const chip = (dentro, etiqueta) => [...dentro.querySelectorAll(".cuenta-chip")].find((b) => b.textContent.trim() === etiqueta);
+  // El desplegable de un módulo y su nivel; elegir abre la hoja y toca el nivel.
+  const nivel = (dentro, modulo) => [...dentro.querySelectorAll(".cuenta-nivel")].find((b) => b.querySelector(".cuenta-nivel-modulo").textContent === modulo);
+  const nivelDe = (dentro, modulo) => nivel(dentro, modulo)?.querySelector("b").textContent;
+  const niveles = (dentro) => [...dentro.querySelectorAll(".cuenta-nivel")].map((b) => [b.querySelector(".cuenta-nivel-modulo").textContent, b.querySelector("b").textContent]);
+  const opcionDeHoja = (etiqueta) =>
+    [...document.querySelectorAll(".opcion-hoja")].find((b) => b.firstChild?.textContent === etiqueta);
+  const elegirNivel = async (dentro, modulo, etiqueta) => {
+    await tocar(nivel(dentro, modulo));
+    await tocar(opcionDeHoja(etiqueta));
+  };
   const tocar = async (elemento) => {
     expect(elemento, "no se encontró el botón").toBeTruthy();
     await act(async () => elemento.click());
@@ -214,7 +229,7 @@ describe("Cuentas", () => {
     // La fila propia: sus módulos se leen, no se tocan.
     const ana = fila("ana@uno.com");
     expect([...ana.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Tu cuenta", "Administrador del club"]);
-    expect(ana.querySelector(".cuenta-chip")).toBeNull();
+    expect(ana.querySelector(".cuenta-nivel")).toBeNull();
     // Los datos separados con « · », sin pegarse.
     expect(ana.querySelector(".cuenta-meta").textContent).toBe("En el club desde el 01/09/2026 · Partido, Flujo diario, Lesiones");
     expect(fila("gaby@uno.com").querySelector(".cuenta-etiqueta.alerta").textContent).toBe("Cuenta bloqueada");
@@ -224,8 +239,8 @@ describe("Cuentas", () => {
     expect(dario.querySelector(".cuenta-meta").textContent).toBe("Hasta el 31/03/2026 · solo lectura");
     expect(boton(dario, "Reincorporar")).toBeTruthy();
     // A quien se fue no se le cambia el rol, pero sí qué puede seguir mirando.
-    expect(chip(dario, "Administrador del club")).toBeUndefined();
-    expect(chip(dario, "Partido")).toBeTruthy();
+    expect(nivel(dario, "Administrador del club")).toBeUndefined();
+    expect(nivel(dario, "Partido")).toBeTruthy();
 
     expect(fila("espera@uno.com").querySelector(".cuenta-meta").textContent).toMatch(/^Partido · Vence el \d{2}\/\d{2}\/\d{4}$/);
   });
@@ -252,18 +267,43 @@ describe("Cuentas", () => {
     expect(datos.llamadas).toEqual([]);
 
     await escribir(correo, "nuevo@uno.com");
-    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Lesiones"));
-    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Evaluaciones"));
-    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "GPS"));
-    await tocar(chip(contenedor.querySelector(".cuentas-invitar"), "Flujo diario"));
+    const formulario = contenedor.querySelector(".cuentas-invitar");
+    // De entrada, Partido y Flujo diario con Edición; lo demás, sin acceso.
+    expect(niveles(formulario)).toEqual([
+      ["Partido", "Edición"],
+      ["Flujo diario", "Edición"],
+      ["Lesiones", "Sin acceso"],
+      ["Evaluaciones", "Sin acceso"],
+      ["GPS", "Sin acceso"],
+    ]);
+    await elegirNivel(formulario, "Lesiones", "Solo lectura");
+    await elegirNivel(formulario, "Evaluaciones", "Edición");
+    await elegirNivel(formulario, "GPS", "Solo lectura");
+    await elegirNivel(formulario, "Flujo diario", "Sin acceso");
+    expect(nivelDe(formulario, "Lesiones")).toBe("Solo lectura");
     await tocar(invitarBoton);
-    // Sin chip de administrador: se invita siempre como staff.
-    expect(chip(contenedor.querySelector(".cuentas-invitar"), "Administrador del club")).toBeUndefined();
+    // Sin desplegable de administrador: se invita siempre como staff.
+    expect(nivel(contenedor.querySelector(".cuentas-invitar"), "Administrador del club")).toBeUndefined();
     expect(datos.llamadas.at(-1)).toEqual({
       que: "invitar",
       equipoId: "c1",
-      invitacion: { email: "nuevo@uno.com", rol: "staff", partido: true, flujo: false, lesiones: true, evaluaciones: true, gps: true },
+      invitacion: {
+        email: "nuevo@uno.com",
+        rol: "staff",
+        partido: true,
+        flujo: false,
+        lesiones: true,
+        evaluaciones: true,
+        gps: true,
+        solo_lectura: ["lesiones", "gps"],
+      },
     });
+    // Después de invitar, el formulario vuelve a lo de entrada.
+    expect(nivelDe(contenedor.querySelector(".cuentas-invitar"), "Lesiones")).toBe("Sin acceso");
+    // La invitación dice qué módulos va a mirar nada más.
+    expect(fila("nuevo@uno.com").querySelector(".cuenta-meta").textContent).toMatch(
+      /^Partido, Lesiones \(solo lectura\), Evaluaciones, GPS \(solo lectura\) · Vence el /,
+    );
     // La invitación nueva sale por mail, al toque y en el idioma de quien invita.
     expect(datos.mails).toEqual([{ id: "i-nuevo@uno.com", idioma: "es-AR" }]);
     expect(texto()).toContain("Le mandamos un mail a nuevo@uno.com con el enlace para entrar.");
@@ -409,22 +449,42 @@ describe("Cuentas", () => {
     expect(fila("espera@uno.com")).toBeUndefined();
   });
 
-  test("los módulos van a la base al toque; el rol no se toca y otro admin no tiene acciones", async () => {
+  test("el nivel de cada módulo va a la base al toque; el rol no se toca y otro admin no tiene acciones", async () => {
     datos.miembros.c1.push(miembro({ user_id: "cata", email: "cata@uno.com", rol: "admin" }));
     await montar();
-    await tocar(chip(fila("beto@uno.com"), "Lesiones"));
+    // La hoja dice qué es cada nivel, con el módulo y la cuenta arriba.
+    await tocar(nivel(fila("beto@uno.com"), "Lesiones"));
+    expect(document.body.textContent).toContain("Lesiones · beto@uno.com");
+    expect(opcionDeHoja("Solo lectura").textContent).toContain("Ve todo, al día, pero no carga, cambia ni borra nada.");
+    expect(opcionDeHoja("Sin acceso").getAttribute("aria-pressed")).toBe("true");
+    await tocar(opcionDeHoja("Edición"));
     expect(datos.llamadas.at(-1)).toEqual({ que: "cambiar", userId: "beto", equipoId: "c1", cambios: { lesiones: true } });
-    expect(chip(fila("beto@uno.com"), "Lesiones").getAttribute("aria-pressed")).toBe("true");
+    expect(nivelDe(fila("beto@uno.com"), "Lesiones")).toBe("Edición");
+    // Solo lectura: el módulo sigue y entra a la lista.
+    await elegirNivel(fila("beto@uno.com"), "Lesiones", "Solo lectura");
+    expect(datos.llamadas.at(-1)).toEqual({ que: "cambiar", userId: "beto", equipoId: "c1", cambios: { lesiones: true, solo_lectura: ["lesiones"] } });
+    expect(nivelDe(fila("beto@uno.com"), "Lesiones")).toBe("Solo lectura");
     // Evaluaciones es un permiso aparte.
-    await tocar(chip(fila("beto@uno.com"), "Evaluaciones"));
-    expect(datos.llamadas.at(-1)).toEqual({ que: "cambiar", userId: "beto", equipoId: "c1", cambios: { evaluaciones: true } });
-    expect(chip(fila("beto@uno.com"), "Evaluaciones").getAttribute("aria-pressed")).toBe("true");
+    await elegirNivel(fila("beto@uno.com"), "Evaluaciones", "Solo lectura");
+    expect(datos.llamadas.at(-1)).toEqual({
+      que: "cambiar",
+      userId: "beto",
+      equipoId: "c1",
+      cambios: { evaluaciones: true, solo_lectura: ["lesiones", "evaluaciones"] },
+    });
+    // Sin acceso también lo saca de solo lectura.
+    await elegirNivel(fila("beto@uno.com"), "Lesiones", "Sin acceso");
+    expect(datos.llamadas.at(-1)).toEqual({ que: "cambiar", userId: "beto", equipoId: "c1", cambios: { lesiones: false, solo_lectura: ["evaluaciones"] } });
+    // Elegir el mismo nivel no va a la base.
+    const antes = datos.llamadas.length;
+    await elegirNivel(fila("beto@uno.com"), "Evaluaciones", "Solo lectura");
+    expect(datos.llamadas.length).toBe(antes);
 
-    // Ningún chip de rol en ninguna fila.
-    expect(chip(contenedor, "Administrador del club")).toBeUndefined();
+    // Ningún desplegable de rol en ninguna fila.
+    expect(nivel(contenedor, "Administrador del club")).toBeUndefined();
     // Otro admin: sin módulos para tocar, sin baja; la historia se mira.
     const cata = fila("cata@uno.com");
-    expect(cata.querySelector(".cuenta-chip")).toBeNull();
+    expect(cata.querySelector(".cuenta-nivel")).toBeNull();
     expect(boton(cata, "Dar de baja")).toBeUndefined();
     expect(boton(cata, "Salir del club")).toBeUndefined();
     expect(boton(cata, "Historia")).toBeTruthy();
@@ -442,7 +502,7 @@ describe("Cuentas", () => {
     await montar();
     const duenio = fila("duenio@uno.com");
     expect([...duenio.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Dueño de la app"]);
-    expect(duenio.querySelector(".cuenta-chip")).toBeNull();
+    expect(duenio.querySelector(".cuenta-nivel")).toBeNull();
     expect(duenio.querySelector(".cuenta-meta").textContent).toContain("Partido, Flujo diario");
     expect([...duenio.querySelectorAll(".cuenta-acciones button")].map((b) => b.textContent)).toEqual(["Historia"]);
     // Aunque se haya ido: nadie del club lo reincorpora ni le cambia qué ve.
@@ -450,12 +510,12 @@ describe("Cuentas", () => {
     expect(sub.classList.contains("se-fue")).toBe(true);
     expect(sub.querySelector(".cuenta-meta").textContent).toBe("Hasta el 31/08/2026 · solo lectura · Partido, Flujo diario");
     expect(sub.querySelector(".cuenta-meta-hasta").textContent).toBe("Hasta el 31/08/2026 · solo lectura");
-    expect(sub.querySelector(".cuenta-chip")).toBeNull();
+    expect(sub.querySelector(".cuenta-nivel")).toBeNull();
     expect(boton(sub, "Reincorporar")).toBeUndefined();
     expect([...sub.querySelectorAll(".cuenta-etiqueta")].map((e) => e.textContent)).toEqual(["Dueño de la app"]);
     // El resto sigue igual.
     expect(boton(fila("beto@uno.com"), "Dar de baja")).toBeTruthy();
-    expect(chip(fila("beto@uno.com"), "Partido")).toBeTruthy();
+    expect(nivel(fila("beto@uno.com"), "Partido")).toBeTruthy();
 
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     expect(fila("duenio@uno.com").querySelector(".cuenta-etiqueta").textContent).toBe("Dono do app");
@@ -466,9 +526,9 @@ describe("Cuentas", () => {
     datos.errorCambio = "cuentas.errorDuenoProtegido";
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     await montar();
-    await tocar(chip(fila("beto@uno.com"), "Lesões"));
+    await elegirNivel(fila("beto@uno.com"), "Lesões", "Somente leitura");
     expect(texto()).toContain("Essa conta não pode ser removida nem alterada pelo clube: só ela pode sair.");
-    expect(chip(fila("beto@uno.com"), "Lesões").getAttribute("aria-pressed")).toBe("false");
+    expect(nivelDe(fila("beto@uno.com"), "Lesões")).toBe("Sem acesso");
     fijarIdiomaParaPruebas("es-AR");
   });
 
@@ -485,18 +545,26 @@ describe("Cuentas", () => {
     await tocar(boton(pedido, "Aceptar"));
     const hoja = contenedor.querySelector(".cuentas-hoja");
     expect(hoja.textContent).toContain("¿Qué puede usar pide@uno.com?");
-    // Los mismos chips de la invitación, con lo de siempre marcado.
-    expect([...hoja.querySelectorAll(".cuenta-chip")].map((c) => [c.textContent, c.getAttribute("aria-pressed")])).toEqual([
-      ["Partido", "true"],
-      ["Flujo diario", "true"],
-      ["Lesiones", "false"],
-      ["Evaluaciones", "false"],
-      ["GPS", "false"],
+    // Los mismos desplegables de la invitación, con lo de siempre elegido.
+    expect(niveles(hoja)).toEqual([
+      ["Partido", "Edición"],
+      ["Flujo diario", "Edición"],
+      ["Lesiones", "Sin acceso"],
+      ["Evaluaciones", "Sin acceso"],
+      ["GPS", "Sin acceso"],
     ]);
-    await tocar(chip(hoja, "Flujo diario"));
-    await tocar(chip(hoja, "Lesiones"));
-    await tocar(boton(hoja, "Sí, aceptar"));
-    expect(datos.llamadas.at(-1)).toEqual({ que: "aceptar", id: "p1", modulos: { partido: true, flujo: false, lesiones: true, evaluaciones: false, gps: false } });
+    // La hoja de los niveles sube encima de la de aceptar; la de aceptar sigue.
+    await elegirNivel(hoja, "Flujo diario", "Sin acceso");
+    await elegirNivel(contenedor.querySelector(".cuentas-hoja"), "Lesiones", "Solo lectura");
+    expect(nivelDe(contenedor.querySelector(".cuentas-hoja"), "Lesiones")).toBe("Solo lectura");
+    await tocar(boton(contenedor.querySelector(".cuentas-hoja"), "Sí, aceptar"));
+    expect(datos.llamadas.at(-1)).toEqual({
+      que: "aceptar",
+      id: "p1",
+      modulos: { partido: true, flujo: false, lesiones: true, evaluaciones: false, gps: false, solo_lectura: ["lesiones"] },
+    });
+    // En la fila, «(solo lectura)» al lado del módulo; en los desplegables, su nivel.
+    expect(nivelDe(fila("pide@uno.com"), "Lesiones")).toBe("Solo lectura");
     expect(texto()).toContain("pide@uno.com ya está en el club.");
     expect(tonoDelAviso()).toBe("ok");
     expect(fila("pide@uno.com").closest(".cuentas-grupo").querySelector("h2").textContent).toContain("En el club");
@@ -552,6 +620,10 @@ describe("Cuentas", () => {
     expect(lineas).toEqual(["Volvió al club", "Dejó el club: último día 31/03/2026", "Entró al club (Staff; Partido, Flujo diario)"]);
     expect(contenedor.querySelector(".cuentas-historia li span").textContent).toContain("por ana@uno.com");
     expect(textoDeMovimiento({ accion: "modulos", detalle: { partido: false, flujo: false, lesiones: false } })).toBe("Módulos: ningún módulo");
+    // Con niveles: «(solo lectura)» al lado de los que solo mira.
+    expect(textoDeMovimiento({ accion: "modulos", detalle: { partido: true, gps: true, solo_lectura: ["gps"] } })).toBe(
+      "Módulos: Partido, GPS (solo lectura)",
+    );
   });
 
   test("un cambio de nombre del club (lo hace un dueño de la app) se lee como tal, no como una membresía borrada", async () => {
@@ -615,14 +687,14 @@ describe("Cuentas", () => {
     datos.compuerta = new Promise((resolver) => {
       abrir = resolver;
     });
-    await tocar(chip(fila("beto@uno.com"), "Lesiones"));
+    await elegirNivel(fila("beto@uno.com"), "Lesiones", "Edición");
     await tocar(boton(contenedor, "Cambiar"));
     await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "Club Dos"));
     await act(async () => abrir());
     await act(async () => Promise.resolve());
     expect(contenedor.querySelector(".cuentas-club-elegido strong").textContent).toBe("Club Dos");
     // En Club Dos, Beto sigue sin Lesiones: el cambio fue en Club Uno.
-    expect(chip(fila("beto@uno.com"), "Lesiones").getAttribute("aria-pressed")).toBe("false");
+    expect(nivelDe(fila("beto@uno.com"), "Lesiones")).toBe("Sin acceso");
   });
 
   test("elegir otro club rápido: lo que vuelve tarde del anterior no se mezcla", async () => {

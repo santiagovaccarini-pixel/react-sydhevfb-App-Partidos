@@ -35,6 +35,8 @@ export default function TrainingInicio({
   onVolverModulos,
   // El último día en el club de quien entró, si ya se fue: solo mira.
   hasta = null,
+  // Flujo diario en «Solo lectura»: mira lo de la base, al día.
+  mirar = false,
   nombreClub = "",
 }) {
   const [fecha, setFecha] = useState(hoyLocal);
@@ -44,7 +46,7 @@ export default function TrainingInicio({
 
   const resumen = useMemo(() => (actual ? resumenEntrenamiento(actual) : null), [actual]);
   const hayTareas = Boolean(resumen && resumen.tareas > 0);
-  const soloLectura = Boolean(hasta);
+  const soloLectura = Boolean(hasta) || mirar;
   const estadoHero = resumen ? ETIQUETAS_ESTADO_ENTRENAMIENTO[resumen.estado] : "";
 
   const empezar = () => {
@@ -91,7 +93,7 @@ export default function TrainingInicio({
           )}
         </header>
 
-        <AvisoSoloLectura hasta={hasta} />
+        <AvisoSoloLectura hasta={hasta} mirar={mirar} modulo="flujo" />
 
         {actual && !soloLectura && (
           <section className="tarjeta tarjeta-inicio">

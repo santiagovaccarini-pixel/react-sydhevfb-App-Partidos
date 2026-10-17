@@ -11,7 +11,28 @@ import { cabecerasJson } from "../trainingApi.js";
 export const TABLA_MEMBRESIAS = "club_miembros";
 export const MODULOS_DEL_CLUB = ["partido", "flujo", "lesiones", "evaluaciones", "gps"];
 
-const COLUMNAS_MEMBRESIA = "equipo_id, user_id, desde, hasta, rol, partido, flujo, lesiones, evaluaciones, gps";
+// El nivel de cada módulo (Santiago, 17/10: «Vamos a implementar un nivel mas
+// de permisos para cada modulo (Solo Lectura y Edicion) solo lectura no deja
+// editar nada y edicion si»): sin acceso (el módulo apagado), solo lectura
+// (prendido y en `solo_lectura`) o edición (prendido, fuera de la lista).
+// Antes de 20261029_niveles_de_permiso.sql la columna no está: todo es edición.
+export const NIVELES = ["sin", "lectura", "edicion"];
+
+const soloLecturaDe = (fila) =>
+  Array.isArray(fila?.solo_lectura) ? MODULOS_DEL_CLUB.filter((modulo) => fila.solo_lectura.includes(modulo)) : [];
+
+export const nivelDe = (fila, modulo) => {
+  if (!fila?.[modulo]) return "sin";
+  return soloLecturaDe(fila).includes(modulo) ? "lectura" : "edicion";
+};
+
+// Lo que cambia al dejar un módulo en un nivel: el módulo y la lista de solo
+// lectura (sin acceso lo saca también de la lista).
+export const conNivel = (fila, modulo, nivel) => {
+  const resto = soloLecturaDe(fila).filter((otro) => otro !== modulo);
+  const soloLectura = nivel === "lectura" ? MODULOS_DEL_CLUB.filter((otro) => otro === modulo || resto.includes(otro)) : resto;
+  return { [modulo]: nivel !== "sin", solo_lectura: soloLectura };
+};
 
 // Los errores de la base como claves del diccionario.
 export const claveDeError = (error, porDefecto = "cuentas.errorClub") => {
@@ -22,7 +43,7 @@ export const claveDeError = (error, porDefecto = "cuentas.errorClub") => {
   if (/correo_invalido/.test(texto)) return "cuentas.errorCorreo";
   if (/club_invitaciones_abierta_unica|duplicate key/.test(texto)) return "cuentas.errorInvitacionRepetida";
   if (error?.code === "42501" || /row-level security|permission denied/.test(texto)) return "cuentas.errorSinPermiso";
-  if (error?.code === "42P01" || /does not exist/.test(texto)) return "cuentas.errorFaltaMigracion";
+  if (error?.code === "42P01" || /does not exist|solo_lectura/.test(texto)) return "cuentas.errorFaltaMigracion";
   return porDefecto;
 };
 
@@ -41,6 +62,7 @@ const normalizarMembresia = (fila) => ({
   lesiones: Boolean(fila.lesiones),
   evaluaciones: Boolean(fila.evaluaciones),
   gps: Boolean(fila.gps),
+  solo_lectura: soloLecturaDe(fila),
 });
 
 // Un miembro como lo muestra Cuentas (la vista v_miembros_club): la membresía
@@ -81,22 +103,28 @@ export const listarMiembros = async (equipoId) => {
 // club, o la fila es de otro admin o la propia), no vuelve ninguna fila y se
 // avisa. El rol no se cambia desde la app. Devuelve solo la membresía: lo
 // de la cuenta (correo, estado) no está en esa tabla y queda como estaba en
-// la lista.
+// la lista. Vuelve la fila entera: con o sin la columna solo_lectura.
 const cambiar = async (userId, equipoId, cambios) => {
   const { data, error } = await supabase
     .from(TABLA_MEMBRESIAS)
     .update(cambios)
     .eq("equipo_id", equipoId)
     .eq("user_id", userId)
-    .select(COLUMNAS_MEMBRESIA);
+    .select("*");
   if (error) throw fallo(error);
   if (!data || data.length === 0) throw new Error("cuentas.errorSinPermiso");
   return normalizarMembresia(data[0]);
 };
 
-export const cambiarModulo = (userId, equipoId, modulo, valor) => {
-  if (!MODULOS_DEL_CLUB.includes(modulo)) throw new Error("cuentas.errorClub");
-  return cambiar(userId, equipoId, { [modulo]: Boolean(valor) });
+// Deja un módulo de un miembro en un nivel. La lista de solo lectura va solo
+// si cambia: así, sin la actualización de la base, dar o sacar un módulo
+// sigue andando.
+export const cambiarNivel = (miembro, modulo, nivel) => {
+  if (!MODULOS_DEL_CLUB.includes(modulo) || !NIVELES.includes(nivel)) throw new Error("cuentas.errorClub");
+  const nuevo = conNivel(miembro, modulo, nivel);
+  const cambios = { [modulo]: nuevo[modulo] };
+  if (nuevo.solo_lectura.join(",") !== soloLecturaDe(miembro).join(",")) cambios.solo_lectura = nuevo.solo_lectura;
+  return cambiar(miembro.user_id, miembro.equipo_id, cambios);
 };
 export const darDeBaja = (userId, equipoId, hasta) => cambiar(userId, equipoId, { hasta });
 export const reincorporar = (userId, equipoId) => cambiar(userId, equipoId, { hasta: null, desde: hoyISO() });
@@ -135,7 +163,7 @@ export const invitacionVencida = (invitacion, ahora = Date.now()) => {
 export const listarInvitaciones = async (equipoId) => {
   const { data, error } = await supabase
     .from("club_invitaciones")
-    .select("id, email, rol, partido, flujo, lesiones, evaluaciones, gps, creado_en, vence_en, usada_en, cancelada_en")
+    .select("*")
     .eq("equipo_id", equipoId)
     .is("usada_en", null)
     .is("cancelada_en", null)
@@ -148,13 +176,18 @@ export const listarInvitaciones = async (equipoId) => {
 // administradores). Si la cuenta ya existe (y confirmó su correo), la base la
 // mete en el club en el acto y la invitación vuelve usada; la de un dueño de
 // la app queda abierta, como la de un correo sin cuenta. Vuelve también el id
-// de la invitación, para mandarle el mail.
-export const invitar = async (equipoId, { email, partido = true, flujo = true, lesiones = false, evaluaciones = false, gps = false }) => {
+// de la invitación, para mandarle el mail. Los módulos en solo lectura van
+// solo si hay alguno (sin la actualización de la base, invitar sigue andando).
+export const invitar = async (equipoId, { email, partido = true, flujo = true, lesiones = false, evaluaciones = false, gps = false, solo_lectura = [] }) => {
   const rol = "staff";
   const correo = String(email || "").trim().toLowerCase();
   if (!correoValido(correo)) throw new Error("cuentas.errorCorreo");
+  const modulos = { partido, flujo, lesiones, evaluaciones, gps };
+  const soloLectura = soloLecturaDe({ solo_lectura }).filter((modulo) => modulos[modulo]);
   const insertar = () =>
-    supabase.from("club_invitaciones").insert({ equipo_id: equipoId, email: correo, rol, partido, flujo, lesiones, evaluaciones, gps });
+    supabase
+      .from("club_invitaciones")
+      .insert({ equipo_id: equipoId, email: correo, rol, ...modulos, ...(soloLectura.length ? { solo_lectura: soloLectura } : {}) });
   let { error } = await insertar();
   // La base no deja dos invitaciones abiertas al mismo correo, aunque la que
   // hay ya haya vencido: si todas las abiertas vencieron, se cancelan y se

@@ -22,7 +22,8 @@
 -- Requiere 20261014_duenos_y_pedidos.sql. Se corre en Supabase > SQL
 -- Editor, entera y de una vez. Solo agrega: la app de antes sigue andando.
 -- Se puede volver a correr. Después de esta, 20261014 ya no se vuelve a
--- correr (se frena sola: desharía el permiso nuevo).
+-- correr (se frena sola: desharía el permiso nuevo). Y esta tampoco después
+-- de 20261029_niveles_de_permiso.sql (se frena sola).
 -- =====================================================================
 
 begin;
@@ -31,6 +32,12 @@ do $$
 begin
   if to_regclass('public.plataforma') is null or to_regprocedure('public.datos_al_dia(text, uuid)') is null then
     raise exception 'Primero hay que correr 20261014_duenos_y_pedidos.sql.';
+  end if;
+  -- Volver a correrla desharía los niveles de permiso (las vistas, las
+  -- invitaciones y aceptar un pedido).
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'club_miembros' and column_name = 'solo_lectura') then
+    raise exception 'Ya está corrida 20261029_niveles_de_permiso.sql: esta es anterior y no hace falta volver a correrla.';
   end if;
 end $$;
 

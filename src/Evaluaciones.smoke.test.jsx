@@ -77,6 +77,7 @@ vi.mock("./domain/equipo.js", () => ({
   elegirEquipoInicial: () => null,
   guardarEquipoElegido: () => {},
   esElCam: () => false,
+  soloParaMirar: (equipo, modulo) => Array.isArray(equipo?.solo_lectura) && equipo.solo_lectura.includes(modulo),
 }));
 vi.mock("./domain/lesionesDb.js", () => ({
   cargarPlantelLesiones: async () => ({
@@ -644,6 +645,41 @@ describe("Evaluaciones", () => {
     expect(boton(contenedor, "Pegar desde Excel")).toBeUndefined();
     expect(boton(contenedor, "Borrar fila")).toBeUndefined();
     expect(filas(contenedor)).toHaveLength(3);
+  });
+
+  test("con Evaluaciones en «Solo lectura» ve todo, también los cambios de los V.R., y no cambia nada", async () => {
+    datos.equipo = { id: "eq-1", nombre: "Club de Prueba", hasta: null, evaluaciones: true, solo_lectura: ["evaluaciones"] };
+    datos.historialVr = [
+      {
+        id: 2,
+        tabla: "evaluaciones_referencias",
+        filaId: "vr1",
+        accion: "editada",
+        quien: "pf@club.com",
+        cuando: "2026-10-14T19:30:00Z",
+        antes: { id: "vr1", equipo_id: "eq-1", test: "zona_media", datos: { categorias: { mayor: { bueno: { lumbar: 170 / 1440 } } } } },
+        despues: { id: "vr1", equipo_id: "eq-1", test: "zona_media", datos: { categorias: { mayor: { bueno: { lumbar: 180 / 1440 } } } } },
+      },
+    ];
+    await montar();
+    expect(contenedor.textContent).toContain("Tenés Evaluaciones en solo lectura.");
+    expect(boton(contenedor, "Nueva evaluación")).toBeUndefined();
+    await irA(contenedor, "Base");
+    expect(boton(contenedor, "Pegar desde Excel")).toBeUndefined();
+    expect(boton(contenedor, "Borrar fila")).toBeUndefined();
+    expect(filas(contenedor)).toHaveLength(3);
+
+    await irA(contenedor, "Valores de referencia");
+    const td = celdaVr(tablaVr(0), "Bueno", "Lumbar");
+    await act(async () => td.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    expect(td.querySelector("input")).toBeNull();
+    // Los últimos cambios se ven, sin «Volver».
+    const items = [...contenedor.querySelectorAll(".referencias-historial-lista > li")];
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain("Mayor · Bueno · Lumbar: 2:50 → 3:00");
+    expect([...items[0].querySelectorAll("button")].find((b) => b.textContent === "Volver")).toBeUndefined();
+    expect(contenedor.querySelector(".referencias-historial").textContent).toContain("Quién cambió qué y cuándo.");
+    expect(contenedor.querySelector(".referencias-historial").textContent).not.toContain("«Volver»");
   });
 
   test("sin la migración, lo dice; y arriba se vuelve a Bases de Datos", async () => {

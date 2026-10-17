@@ -66,8 +66,14 @@ export const pedidosDelClub = async (equipoId) => {
 
 // Acepta con los módulos elegidos: la cuenta entra al club como staff.
 // GPS va solo si se da: así sirve también con una base sin la migración de
-// GPS (20261016), que no conoce ese módulo.
-export const aceptarPedido = async (id, { partido = false, flujo = false, lesiones = false, evaluaciones = false, gps = false } = {}) => {
+// GPS (20261016), que no conoce ese módulo. Lo mismo los módulos en solo
+// lectura: solo si hay alguno (20261029_niveles_de_permiso.sql).
+export const aceptarPedido = async (
+  id,
+  { partido = false, flujo = false, lesiones = false, evaluaciones = false, gps = false, solo_lectura = [] } = {},
+) => {
+  const modulos = { partido, flujo, lesiones, evaluaciones, gps };
+  const soloLectura = Array.isArray(solo_lectura) ? Object.keys(modulos).filter((modulo) => modulos[modulo] && solo_lectura.includes(modulo)) : [];
   await llamar("aceptar_pedido", {
     p_id: id,
     p_partido: Boolean(partido),
@@ -75,6 +81,7 @@ export const aceptarPedido = async (id, { partido = false, flujo = false, lesion
     p_lesiones: Boolean(lesiones),
     p_evaluaciones: Boolean(evaluaciones),
     ...(gps ? { p_gps: true } : {}),
+    ...(soloLectura.length ? { p_solo_lectura: soloLectura } : {}),
   });
   return true;
 };

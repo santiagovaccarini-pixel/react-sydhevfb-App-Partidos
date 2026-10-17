@@ -209,7 +209,10 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
       if (fresco.hasta && !leido.hasta) limpiarCopiasDelClub(leido.id);
       // Sin el GPS en el club, la copia del GPS de este aparato se va.
       if (leido.gps && fresco.gps === false) borrarCopiasGps(leido.id);
-      const cambio = ["hasta", "nombre", "rol", "partido", "flujo", "lesiones", "evaluaciones", "gps"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null));
+      const cambio =
+        ["hasta", "nombre", "rol", "partido", "flujo", "lesiones", "evaluaciones", "gps"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null)) ||
+        // Si el admin le cambió un módulo a «Solo lectura» o a «Edición».
+        (fresco.solo_lectura || []).join(",") !== (leido.solo_lectura || []).join(",");
       if (cambio) {
         guardarEquipoElegido(fresco);
         setClub(fresco);

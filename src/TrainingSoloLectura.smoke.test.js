@@ -29,6 +29,7 @@ vi.mock("./TrainingSettings", () => ({ default: () => <div>Ajustes de prueba</di
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => base.equipo,
   esElCam: (nombre) => /mineiro/i.test(String(nombre || "")),
+  soloParaMirar: (equipo, modulo) => Array.isArray(equipo?.solo_lectura) && equipo.solo_lectura.includes(modulo),
 }));
 
 vi.mock("./domain/plantel.js", async (importOriginal) => ({
@@ -153,6 +154,35 @@ describe("Flujo diario de un club del que ya se fue", () => {
     expect(base.borrados).toHaveLength(0);
     expect(leerEntrenamientosLocales().map((uno) => uno.id).sort()).toEqual(["local-1", "local-2"]);
     expect(window.localStorage.getItem(CLAVE_ENTRENAMIENTO_ACTUAL)).toBe("local-1");
+  });
+
+  test("con Flujo diario en «Solo lectura» ve lo de la base y no puede cambiar, mandar ni subir nada", async () => {
+    base.equipo = { id: "eq-1", nombre: "Uno", hasta: null, flujo: true, solo_lectura: ["flujo"] };
+    base.lista = [
+      { id: "base-1", equipoId: "eq-1", fecha: "2026-03-10", nombre: "De la base", actividadId: "", actividadNombre: "", estado: "sin-enviar", tareas: 1, actualizadoEn: "2026-03-10T12:00:00.000Z", guardadoEn: "2026-03-10T12:00:00.000Z" },
+    ];
+    base.completo = entrenamiento({ id: "base-1", nombre: "De la base", tareas: [tarea("t1", "Rondo")] });
+    await montar();
+
+    expect(contenedor.querySelector(".etiqueta-hero").textContent).toBe("SOLO LECTURA");
+    expect(contenedor.textContent).toContain("Tenés Flujo diario en solo lectura.");
+    expect(contenedor.textContent).not.toContain("Dejaste este club");
+    expect(contenedor.querySelector("#fecha-entrenamiento")).toBeNull();
+    expect(filas()).toHaveLength(1);
+
+    await act(async () => filas()[0].click());
+    await act(async () => Promise.resolve());
+    expect(base.leidos).toEqual([["base-1", "eq-1"]]);
+    expect(contenedor.querySelector(".boton-guardar-cabecera").disabled).toBe(true);
+    await act(async () => contenedor.querySelector("[aria-label='Nueva tarea']").click());
+    expect(contenedor.querySelector(".aviso-lectura-flotante").textContent).toBe(
+      "Solo lectura: para cambiar algo, pedile Edición al administrador del club.",
+    );
+
+    await act(async () => raiz.unmount());
+    raiz = null;
+    expect(base.guardados).toHaveLength(0);
+    expect(base.borrados).toHaveLength(0);
   });
 
   test("en el club donde sigue no aparecen los de otro club guardados en el celular", async () => {

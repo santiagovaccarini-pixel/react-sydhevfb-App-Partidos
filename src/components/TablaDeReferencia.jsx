@@ -211,7 +211,7 @@ export const HistorialDeReferencias = ({ entradas, onVolver, error = "" }) => {
   return (
     <section className="tarjeta referencias-historial">
       <h2>{t("referencias.historial.titulo")}</h2>
-      <p className="lesiones-ayuda">{t("referencias.historial.ayuda")}</p>
+      <p className="lesiones-ayuda">{t(onVolver ? "referencias.historial.ayuda" : "referencias.historial.ayudaMirar")}</p>
       {error && <p className="evaluaciones-vr-error">{t(error)}</p>}
       {fallo && (
         <p className="evaluaciones-vr-error" role="alert">
