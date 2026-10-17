@@ -19,20 +19,14 @@ import { fechaCorta } from "./idioma/formatos.js";
 
 const SIN_ELEGIR = [];
 const SIN_FILTROS = Object.freeze({});
-const CLAVE_COLUMNAS_OCULTAS = "gps_reporte_individual_columnas_ocultas";
-const leerOcultas = () => {
+// Las columnas ocultas, mientras se está en el reporte: al salir vuelven a
+// verse (Santiago, 17/10: «Hasta salir de esa base», «Bases e informes»).
+// Hasta el 17/10 quedaban guardadas en el aparato: lo guardado se borra.
+const olvidarLasGuardadas = () => {
   try {
-    const guardadas = JSON.parse(localStorage.getItem(CLAVE_COLUMNAS_OCULTAS) || "null");
-    return Array.isArray(guardadas) ? guardadas.filter((clave) => typeof clave === "string") : [];
+    localStorage.removeItem("gps_reporte_individual_columnas_ocultas");
   } catch {
-    return [];
-  }
-};
-const guardarOcultas = (ocultas) => {
-  try {
-    localStorage.setItem(CLAVE_COLUMNAS_OCULTAS, JSON.stringify(ocultas));
-  } catch {
-    // Sin dónde guardar, quedan ocultas mientras se está acá.
+    // Sin localStorage no había nada guardado.
   }
 };
 // Las medidas de la explicación de abajo (sin rangos: el rango está en el
@@ -50,9 +44,9 @@ export default function ReporteIndividualGps({ filasGps, nombreDe, tituloDe, tex
   const [filtros, setFiltros] = useState(SIN_FILTROS);
   const [hoja, setHoja] = useState(null);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
-  const [ocultas, setOcultas] = useState(leerOcultas);
+  const [ocultas, setOcultas] = useState(SIN_ELEGIR);
   const [aOcultar, setAOcultar] = useState(null);
-  useEffect(() => guardarOcultas(ocultas), [ocultas]);
+  useEffect(olvidarLasGuardadas, []);
 
   // ------------------------------------------------------- Los filtros --
   const nombreDeClave = (clave) => {

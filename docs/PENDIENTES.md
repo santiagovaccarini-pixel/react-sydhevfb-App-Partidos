@@ -3554,10 +3554,14 @@ ordenaron de lo más chico a lo más grande y van de a una, un PR por nota.
   fila de un jugador lleva solo su nombre (antes, abajo, sus microciclos: «17 a 22»). Las filas
   del promedio del equipo siguen con su número de microciclo: es lo que distingue una de otra.
   **Queda prohibido** volver a poner los microciclos junto al nombre de un jugador.
-- **Lo que se oculta, hasta salir (17/10, decidido).** Nota del 16/10: «Hacer que las columnas
+- **Lo que se oculta, hasta salir (hecho el 17/10).** Nota del 16/10: «Hacer que las columnas
   que se oculten en las bases y/o filas sean temporales y una ves que se salga de la base queden
   como estan». Santiago, 17/10, en un cuestionario: «Hasta salir de esa base» y «Bases e
-  informes». Las columnas fijas y los anchos se siguen recordando.
+  informes». En las bases (`TablaDatos`), el Informe y los reportes de GPS, y los reportes y V.R.
+  de Lesiones y Evaluaciones (`Ocultar.jsx`), columnas y filas quedan ocultas mientras se está
+  ahí; al pasar a otra solapa, volver a «Ver informes» o a Módulos, vuelven a verse. Lo que
+  quedaba guardado en el aparato se borra al entrar. Las columnas fijas, los anchos y el orden
+  se siguen recordando. Ver UI-039.
 - **El último dispositivo, en la cuenta (17/10, decidido).** Nota del 16/10: «Recordar el ultimo
   dispositivo seleccionado cuando se copia para pegar en la base gps al igual que en la carga
   de un csv». Santiago, 17/10: «En mi cuenta» (no en el aparato ni para todo el club); lleva

@@ -367,20 +367,21 @@ describe("los reportes con los minutos del GPS", () => {
     expect(pregunta()).toBe("¿Ocultar «Lesiones c/ 1000 h»?");
     await confirmar();
     expect(filas(cuadro())).toHaveLength(3);
-    // Arriba, cuántas hay ocultas; la columna queda guardada en el aparato, la fila no.
+    // Arriba, cuántas hay ocultas; nada queda guardado en el aparato.
     expect([...contenedor.querySelectorAll(".ocultar-arriba button")].map((boton) => boton.textContent)).toEqual(["Columnas1 oculta", "Filas1 oculta"]);
-    expect(JSON.parse(window.localStorage.getItem("reporte_ocultas:lesiones-cada-mil"))).toEqual(["sinLeves"]);
-    await act(async () => raiz.unmount());
-    await montar();
-    await tocar(botonQueEmpieza("Reporte grupal"));
-    expect(filas(cuadro())).toHaveLength(4);
-    expect(filas(cuadro())[0]).toEqual(["2", "1", "1"]);
+    expect(window.localStorage.getItem("reporte_ocultas:lesiones-cada-mil")).toBeNull();
     // «Columnas» la vuelve a mostrar.
     await tocar(contenedor.querySelector(".ocultar-arriba button"));
     const casilla = [...document.body.querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent.includes("SIN LEVES) y Tipos (TODOS)")).querySelector("input");
     expect(casilla.checked).toBe(false);
     await tocar(casilla);
     await tocar([...document.body.querySelectorAll("button")].find((boton) => boton.textContent === "Listo"));
+    expect(filas(cuadro())[0]).toEqual(["2", "1", "1", "1"]);
+    // Al salir y volver a entrar, todo se ve (Santiago, 17/10: «Hasta salir de esa base»).
+    await act(async () => raiz.unmount());
+    await montar();
+    await tocar(botonQueEmpieza("Reporte grupal"));
+    expect(filas(cuadro())).toHaveLength(4);
     expect(filas(cuadro())[0]).toEqual(["2", "1", "1", "1"]);
   });
 
