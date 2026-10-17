@@ -5,6 +5,7 @@ import { HojaConfirmar } from "./ConfirmSheet.js";
 import { HojaInferior } from "./SheetPanel.js";
 import { Icono } from "./AppChrome";
 import {
+  apagadasAlFinal as ponerApagadasAlFinal,
   aplicarPegado,
   aTexto,
   desdeTexto,
@@ -43,7 +44,8 @@ import "./tablaDatos.css";
 //           que ya no está en el plantel actual)
 // leyenda: qué quiere decir ese color (se ve si hay alguna fila apagada a la
 // vista; si no, guarda su lugar); rotuloApagada: lo que dice una fila
-// apagada al pasar el mouse
+// apagada al pasar el mouse; apagadasAlFinal: las apagadas van después de
+// las demás, también al ordenar por una columna (Datos básicos, 17/10)
 // onEditar(filaId, clave, valor) → Promise<{ error }>; onPegar(cambios) → Promise<{ error, hechos }>
 // onAbrirFila(filaId), onBorrarFilas(filaIds): las filas elegidas (con
 // Shift, varias), en el orden en que se ven
@@ -217,6 +219,7 @@ export const TablaDatos = ({
   recordar = null,
   leyenda = "",
   rotuloApagada = "",
+  apagadasAlFinal = false,
   fijas = SIN_FIJAS,
   vista = null,
   siempreAVista = SIN_FIJAS,
@@ -363,14 +366,12 @@ export const TablaDatos = ({
     setForzadas((previas) => [...previas, ...nuevas]);
   }, [siempreAVista]);
   const filasFiltradas = useMemo(() => {
+    const ordenar = (lista) => (apagadasAlFinal ? ponerApagadasAlFinal(ordenarFilas(lista, ordenFilas)) : ordenarFilas(lista, ordenFilas));
     const filtradas = filtrarFilas(filas, filtrosVigentes);
-    if (forzadas.length === 0 || filtradas.length === filas.length) return ordenarFilas(filtradas, ordenFilas);
+    if (forzadas.length === 0 || filtradas.length === filas.length) return ordenar(filtradas);
     const pasan = new Set(filtradas.map((fila) => fila.id));
-    return ordenarFilas(
-      filas.filter((fila) => pasan.has(fila.id) || forzadas.includes(fila.id)),
-      ordenFilas,
-    );
-  }, [filas, filtrosVigentes, ordenFilas, forzadas]);
+    return ordenar(filas.filter((fila) => pasan.has(fila.id) || forzadas.includes(fila.id)));
+  }, [filas, filtrosVigentes, ordenFilas, forzadas, apagadasAlFinal]);
   // Las que se ven: sin las ocultadas a mano.
   const filasVista = useMemo(() => {
     if (!ocultar || !filasOcultas.length) return filasFiltradas;

@@ -348,6 +348,8 @@ quedó en [el sistema de diseño](DESIGN_SYSTEM.md), «El espacio (16/10)»; UI-
     está" (en el Historial individual y el reporte, solo si tienen lesiones). A quien se fue no se le
     propone chaleco.
   - Reportes del plantel y la Base: todos (sus lesiones son historia del club).
+  - La tabla de Datos básicos: los que se fueron, al final, también al ordenar por una columna
+    (17/10; ver «Lo anotado en Notas, tercera tanda (17/10)»).
   Mientras no se corra el SQL, todos cuentan como actuales y marcar la casilla avisa qué SQL
   falta. Con lesiones cargadas, borrar no se puede: se avisa que se desmarque Actual.
 - **Pegar desde Excel (02/10)**, en Datos básicos (`src/ImportarJugadores.jsx` y
@@ -3592,6 +3594,16 @@ confirme.**
   «… no tiene dispositivo. Asignalo en Datos básicos › Catapult.», la ayuda del usuario y
   Pruebas técnicas). Es solo el texto: el vínculo de cada jugador con Catapult y lo guardado no
   cambiaron. **Queda prohibido** volver a decir «chaleco» o «colete» en la app. Ver UI-044.
+  Santiago la confirmó: «Está bien, pasamos» (17/10).
+- **Los que ya no están, al final de Datos básicos (hecho el 17/10).** Nota de Datos básicos
+  («no actuales al final»). Santiago, 17/10, en un cuestionario: «Siempre al final», «Sí, en el
+  momento» y «Solo Datos básicos». En la tabla de Datos básicos van primero los del plantel
+  actual y después los que ya no están (en su color), cada grupo por nombre; si se ordena por
+  una columna, cada grupo se ordena por ella y los que ya no están siguen abajo. Al desmarcar
+  «Actual», la fila baja en el momento (y sube al marcarla); la celda elegida la sigue, así que
+  lo que se escribe o se pega va al mismo jugador. Es una opción de la tabla compartida
+  (`apagadasAlFinal`) que solo usa Datos básicos: en Lesiones, Evaluaciones y GPS las filas
+  siguen por fecha y orden de carga. Ver UI-045.
 - **Degradar los colores (hecho el 17/10).** Nota del 16/10: «Degradar los colores mitad blanco
   y el color que corresponda». Santiago, 17/10: «Mostrame las dos» (cada color mezclado mitad
   con blanco, o un degradé de blanco a su color dentro de la celda); viendo las capturas,
@@ -3600,7 +3612,7 @@ confirme.**
   franja va de blanco (hasta el 30 %) a su tono fuerte (desde el 70 %): Informe y reportes de
   GPS, la Base de GPS y Evaluaciones. Las cuentas y las reglas de cada color no cambian. Ver
   UI-040.
-- **Lo que sigue, en este orden**: Datos básicos (los no actuales al final, nombre y fecha de nacimiento obligatorios con aviso de posibles repetidos, el cambio
+- **Lo que sigue, en este orden**: Datos básicos (nombre y fecha de nacimiento obligatorios con aviso de posibles repetidos, el cambio
   de categoría, Ajustes de Datos básicos con las posiciones pasadas a Partido, y sacarlo de los
   módulos principales como Notas); moverse por la app (botones siempre a la vista, esconder la
   barra lateral y la de abajo, abrir cada base en el último registro); Evaluaciones (cargar una
