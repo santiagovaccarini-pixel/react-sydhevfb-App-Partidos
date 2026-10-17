@@ -388,9 +388,13 @@ describe("el módulo Datos básicos", () => {
     expect(celda(contenedor, 1, 5).textContent).toBe("Derecho");
 
     await escribir(contenedor.querySelector(".datos-agregar input"), "lemos");
+    // Sin la fecha de nacimiento no se agrega (es obligatoria).
+    expect(boton(contenedor, "Agregar jugador").disabled).toBe(true);
+    await escribir(contenedor.querySelector('.datos-agregar input[type="date"]'), "2001-04-02");
     await tocar(boton(contenedor, "Agregar jugador"));
     await act(async () => Promise.resolve());
     expect(registro.agregados).toEqual([{ equipoId: "eq-1", nombre: "lemos" }]);
+    expect(registro.guardados.at(-1)).toEqual({ id: 9, fecha_nacimiento: "2001-04-02" });
     expect(texto(contenedor)).toContain("Jugador agregado");
     expect(texto(contenedor)).toContain("3 jugadores");
     expect([...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent)).toEqual(["HULK", "LEMOS", "SCARPA"]);
@@ -448,12 +452,17 @@ describe("el módulo Datos básicos", () => {
     expect(filas()[2].textContent).toContain("«CARRILERO» no se entendió en Posición: queda como está.");
     // Un nombre solo parecido no se carga hasta que alguien confirma quién es.
     expect(filas()[1].textContent).toContain("Si es él, cambia: Categoría, Fecha de nacimiento, Pie dominante, Posición, Foto (enlace)");
-    expect(boton(contenedor, "Cargar 2 jugadores")).toBeTruthy();
+    // Otro Nuevo no trae fecha de nacimiento (obligatoria): en rojo y, hasta
+    // completarla, no se carga nada.
+    expect(filas()[3].classList.contains("falta-fecha")).toBe(true);
+    expect(filas()[3].textContent).toContain("Falta la fecha de nacimiento: es obligatoria. Cargala acá.");
+    expect(texto(contenedor)).toContain("Falta la fecha de nacimiento de 1 jugador nuevo");
+    expect(boton(contenedor, "Cargar 1 jugador").disabled).toBe(true);
     await tocar(boton(contenedor, "Sí, es SCARPA"));
     expect(destinos()[1]).toBe("Es SCARPA");
     expect(filas()[1].textContent).toContain("Cambia: Categoría, Fecha de nacimiento, Pie dominante, Posición, Foto (enlace)");
     expect(texto(contenedor)).toContain("2 nuevos · 1 con cambios · 1 sin cambios");
-    expect(boton(contenedor, "Cargar 3 jugadores")).toBeTruthy();
+    expect(boton(contenedor, "Cargar 2 jugadores").disabled).toBe(true);
 
     // Quién es cada fila se corrige a mano: la última no se carga.
     await tocar(filas()[3].querySelector(".datos-importar-destino"));
@@ -462,6 +471,9 @@ describe("el módulo Datos básicos", () => {
     expect([...contenedor.querySelectorAll(".opcion-hoja")].map((b) => b.textContent.trim())).toEqual(["Jugador nuevo", "No cargar"]);
     await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === "No cargar"));
     expect(destinos()[3]).toBe("No cargar");
+    // Sin cargarlo, ya no hace falta su fecha.
+    expect(texto(contenedor)).not.toContain("Falta la fecha de nacimiento de");
+    expect(boton(contenedor, "Cargar 2 jugadores").disabled).toBe(false);
 
     await tocar(boton(contenedor, "Cargar 2 jugadores"));
     await act(async () => Promise.resolve());
@@ -482,7 +494,7 @@ describe("el módulo Datos básicos", () => {
     await tocar(boton(contenedor, "Pegar desde Excel"));
     await escribir(
       contenedor.querySelector(".datos-importar-pegado textarea"),
-      "Nome e Sobrenome\tCategoria\nAna Rara\tSub-20\nBea Bien\tSub-20\nHulk Paraíba\tSub-20",
+      "Nome e Sobrenome\tCategoria\tD. Nac. (DD/MM/AAAA)\nAna Rara\tSub-20\t01/02/2003\nBea Bien\tSub-20\t02/03/2004\nHulk Paraíba\tSub-20\t03/04/2005",
     );
     const destinos = () => [...contenedor.querySelectorAll(".datos-importar-destino")].map((b) => b.textContent);
     // "Hulk Paraíba" parece HULK: alguien decide que no es él y que no se carga.
@@ -496,9 +508,111 @@ describe("el módulo Datos básicos", () => {
     // Bea ya está; lo elegido a mano para la otra fila se respeta: solo queda Ana.
     expect(destinos()).toEqual(["Jugador nuevo", "Es BEA BIEN", "No cargar"]);
     expect(boton(contenedor, "Cargar 1 jugador")).toBeTruthy();
-    expect(registro.guardados).toEqual([{ id: 9 + 1, categoria: "sub20" }]);
+    expect(registro.guardados).toEqual([{ id: 9 + 1, categoria: "sub20", fecha_nacimiento: "2004-03-02" }]);
     await tocar(boton(contenedor, "Volver"));
     expect(texto(contenedor)).toContain("3 jugadores");
+  });
+
+  // Santiago, 17/10: nombre y fecha de nacimiento obligatorios; con la misma
+  // fecha que otro, «¿Es el mismo jugador?» por cada uno con esa fecha.
+  const conFechas = () => [
+    { ...plantelInicial()[1], id: 31, nombre: "ALFA", fecha_nacimiento: "1990-01-01" },
+    { ...plantelInicial()[1], id: 32, nombre: "BETA", fecha_nacimiento: "1990-01-01", actual: false },
+    { ...plantelInicial()[1], id: 33, nombre: "GAMA", fecha_nacimiento: "1995-05-05" },
+  ];
+  const agregarA = async (nombre, fecha) => {
+    await escribir(contenedor.querySelector(".datos-agregar input"), nombre);
+    await escribir(contenedor.querySelector('.datos-agregar input[type="date"]'), fecha);
+    await tocar(boton(contenedor, "Agregar jugador"));
+    await act(async () => Promise.resolve());
+  };
+  const hoja = () => document.body.querySelector(".hoja-confirmar");
+
+  test("al pegar: la fecha que falta se carga ahí y, con la misma fecha que otro, se pregunta si es el mismo", async () => {
+    registro.plantel = conFechas();
+    await montar();
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    await escribir(
+      contenedor.querySelector(".datos-importar-pegado textarea"),
+      "Nome e Sobrenome\tD. Nac. (DD/MM/AAAA)\nDELTA\t\nEPSILON\t05/05/1995",
+    );
+    const filas = () => [...contenedor.querySelectorAll(".datos-importar-lista li")];
+    const destinos = () => [...contenedor.querySelectorAll(".datos-importar-destino")].map((b) => b.textContent);
+    // DELTA no trae fecha: en rojo; EPSILON tiene la de GAMA: la pregunta.
+    expect(filas()[0].classList.contains("falta-fecha")).toBe(true);
+    expect(filas()[1].textContent).toContain("Esta fecha de nacimiento ya está registrada con este nombre: GAMA. ¿Es el mismo jugador?");
+    expect(texto(contenedor)).toContain("Falta responder en 1 fila si es el mismo jugador.");
+    expect(boton(contenedor, "Nada para cargar").disabled).toBe(true);
+    // La fecha de DELTA, cargada en la web: también tiene la de otros dos.
+    await escribir(filas()[0].querySelector('input[type="date"]'), "1990-01-01");
+    expect(filas()[0].classList.contains("falta-fecha")).toBe(false);
+    expect(filas()[0].textContent).toContain("ya está registrada con este nombre: ALFA.");
+    await tocar([...filas()[0].querySelectorAll("button")].find((b) => b.textContent === "No, es otro"));
+    expect(filas()[0].textContent).toContain("ya está registrada con este nombre: BETA · Ya no está.");
+    await tocar([...filas()[0].querySelectorAll("button")].find((b) => b.textContent === "No, es otro"));
+    // EPSILON es GAMA: no se carga.
+    await tocar([...filas()[1].querySelectorAll("button")].find((b) => b.textContent === "Sí, es el mismo"));
+    expect(destinos()).toEqual(["Jugador nuevo", "No se carga: es GAMA"]);
+    expect(texto(contenedor)).not.toContain("Falta responder");
+    await tocar(boton(contenedor, "Cargar 1 jugador"));
+    await act(async () => Promise.resolve());
+    expect(registro.agregados).toEqual([{ equipoId: "eq-1", nombre: "DELTA" }]);
+    expect(registro.guardados).toEqual([{ id: 9, fecha_nacimiento: "1990-01-01" }]);
+  });
+
+  test("con la misma fecha de nacimiento que otro, pregunta si es el mismo: «Sí» no lo agrega", async () => {
+    registro.plantel = conFechas();
+    await montar();
+    await agregarA("DELTA", "1990-01-01");
+    expect(registro.agregados).toEqual([]);
+    expect(hoja().textContent).toContain("¿Es el mismo jugador?");
+    expect(hoja().textContent).toContain("Esta fecha de nacimiento (01/01/1990) ya está registrada con este nombre: ALFA.");
+    expect(hoja().textContent).toContain("Estás agregando a DELTA.");
+    await tocar(boton(document.body, "Sí, es el mismo"));
+    expect(hoja()).toBeNull();
+    expect(registro.agregados).toEqual([]);
+    expect(texto(contenedor)).toContain("No se agregó: ALFA ya está en la lista.");
+    expect(texto(contenedor)).toContain("3 jugadores");
+  });
+
+  test("con la misma fecha: «No» pregunta por el siguiente (aunque ya no esté) y, sin más, lo agrega", async () => {
+    registro.plantel = conFechas();
+    await montar();
+    await agregarA("DELTA", "1990-01-01");
+    await tocar(boton(document.body, "No, es otro"));
+    expect(hoja().textContent).toContain("ya está registrada con este nombre: BETA · Ya no está.");
+    expect(registro.agregados).toEqual([]);
+    await tocar(boton(document.body, "No, es otro"));
+    await act(async () => Promise.resolve());
+    expect(hoja()).toBeNull();
+    expect(registro.agregados).toEqual([{ equipoId: "eq-1", nombre: "DELTA" }]);
+    expect(registro.guardados.at(-1)).toMatchObject({ fecha_nacimiento: "1990-01-01" });
+    expect(texto(contenedor)).toContain("Jugador agregado");
+    // Cerrar la pregunta no agrega ni descarta: el formulario queda.
+    await agregarA("EPSILON", "1995-05-05");
+    await act(async () => document.body.querySelector(".velo-dialogo").dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    expect(hoja()).toBeNull();
+    expect(registro.agregados).toHaveLength(1);
+    expect(contenedor.querySelector(".datos-agregar input").value).toBe("EPSILON");
+  });
+
+  test("la fecha de nacimiento no se borra; los que no la tienen se avisan y se ven aparte", async () => {
+    await montar();
+    // SCARPA no tiene fecha: el aviso y, al tocarlo, solo él.
+    expect(contenedor.querySelector(".datos-sin-fecha").textContent).toContain("1 jugador sin fecha de nacimiento, que es obligatoria.");
+    await tocar(boton(contenedor, "Ver cuál"));
+    expect([...contenedor.querySelectorAll("tbody tr")].map((tr) => tr.querySelector("td").textContent)).toEqual(["SCARPA"]);
+    await tocar(boton(contenedor, "Ver todos"));
+    expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(2);
+    // La de HULK no se puede dejar vacía.
+    const fecha = () => celda(contenedor, 0, 3);
+    await tocar(fecha());
+    await tocar(fecha());
+    await escribir(fecha().querySelector("input"), "");
+    await act(async () => fecha().querySelector("input").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(registro.guardados).toEqual([]);
+    expect(texto(contenedor)).toContain("La fecha de nacimiento es obligatoria.");
+    expect(fecha().textContent).toBe("25/07/1986");
   });
 
   test("un nombre que ya está en la lista no se agrega dos veces (y se dice en el idioma de la app)", async () => {
@@ -506,6 +620,7 @@ describe("el módulo Datos básicos", () => {
     await montar();
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     await escribir(contenedor.querySelector(".datos-agregar input"), "HULK");
+    await escribir(contenedor.querySelector('.datos-agregar input[type="date"]'), "2001-04-02");
     await tocar(boton(contenedor, "Adicionar jogador"));
     await act(async () => Promise.resolve());
     expect(texto(contenedor)).toContain("Esse jogador já está na lista.");

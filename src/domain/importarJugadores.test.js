@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { NO_CARGAR, NUEVO, cambiosPara, emparejar, fechaDeNacimiento, formatoDeFechas, interpretarFila, leerPegado, normalizarCabecera } from "./importarJugadores.js";
+import { NO_CARGAR, NUEVO, cambiosPara, conLaMismaFecha, emparejar, fechaDeNacimiento, formatoDeFechas, interpretarFila, leerPegado, normalizarCabecera } from "./importarJugadores.js";
 import { OPCIONES } from "./lesionesCampos.js";
 
 // Las listas como las arma la pantalla: el texto en español y, de alias, el
@@ -170,5 +170,22 @@ describe("quién es cada fila en la app", () => {
     // Las horas se comparan como se ven: un decimal de más no es un cambio.
     expect(cambiosPara({ horas_previas: 30 + 14 / 60 + 20 / 3600 }, { ...jugador, horas_previas: 30.238889 })).toEqual({});
     expect(cambiosPara({ horas_previas: 31 }, { ...jugador, horas_previas: 30.238889 })).toEqual({ horas_previas: 31 });
+  });
+});
+
+// Santiago, 17/10: un posible repetido es alguien con la misma fecha de
+// nacimiento, esté o no en el plantel actual.
+describe("los posibles repetidos por la fecha de nacimiento", () => {
+  const plantel = [
+    { id: 1, nombre: "ALFA", fecha_nacimiento: "1990-01-01" },
+    { id: 2, nombre: "BETA", fecha_nacimiento: "1990-01-01", actual: false },
+    { id: 3, nombre: "GAMA", fecha_nacimiento: "" },
+  ];
+  test("todos los que tienen esa fecha, menos los que ya se dijo que son otro", () => {
+    expect(conLaMismaFecha(plantel, "1990-01-01").map((j) => j.nombre)).toEqual(["ALFA", "BETA"]);
+    expect(conLaMismaFecha(plantel, "1990-01-01", { salvo: ["1"] }).map((j) => j.nombre)).toEqual(["BETA"]);
+    expect(conLaMismaFecha(plantel, "1995-05-05")).toEqual([]);
+    // Sin fecha no hay con quién compararlo.
+    expect(conLaMismaFecha(plantel, "")).toEqual([]);
   });
 });

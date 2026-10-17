@@ -607,6 +607,47 @@
   padding: 0 16px;
   font-size: 14px;
 }
+/* Nombre y fecha de nacimiento, los dos obligatorios (17/10): en el celular,
+   el nombre a lo ancho y abajo la fecha con el botón; en la compu, en fila. */
+.datos-marco .datos-agregar {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.datos-marco .datos-agregar-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.datos-marco .datos-agregar-campo > span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+.datos-marco .datos-agregar-campo input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.datos-marco .datos-agregar-nombre {
+  flex: 1 1 100%;
+}
+.datos-marco .datos-agregar-fecha {
+  flex: 1 1 150px;
+}
+@media (min-width: 721px) {
+  .datos-marco .datos-agregar-nombre {
+    flex: 1 1 260px;
+  }
+  .datos-marco .datos-agregar-fecha {
+    flex: 0 0 190px;
+  }
+}
+/* Los que no tienen fecha de nacimiento: el aviso, en amarillo. */
+.datos-marco .lesiones-estado.datos-sin-fecha {
+  margin: 0 0 10px;
+  background: #fef3c7;
+  color: #92400e;
+}
 .lesiones-marco .lesiones-nota-fija {
   margin: 4px 0 0;
   padding: 10px 12px;
@@ -798,6 +839,78 @@
 /* Lesiones › Base: Pegar desde Excel, arriba de la tabla. */
 .lesiones-marco .lesiones-pegar-excel {
   margin: 0 0 12px;
+}
+/* Un jugador nuevo sin fecha de nacimiento (obligatoria, 17/10): en rojo,
+   con la fecha para cargar ahí; y la pregunta de si es el mismo jugador. */
+.lesiones-marco .datos-importar-lista li.falta-fecha .datos-importar-fila b {
+  color: #b91c1c;
+}
+.lesiones-marco .datos-importar-fecha {
+  display: grid;
+  gap: 4px;
+  max-width: 260px;
+  margin: 2px 0 0;
+}
+.lesiones-marco .datos-importar-fecha > span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+.lesiones-marco .datos-importar-fecha input {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+}
+.lesiones-marco .datos-importar-fecha.falta > span,
+.lesiones-marco .datos-importar-fecha.falta em {
+  color: #b91c1c;
+}
+.lesiones-marco .datos-importar-fecha.falta input {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+.lesiones-marco .datos-importar-fecha em {
+  font-size: 12.5px;
+  font-style: normal;
+  font-weight: 700;
+}
+.lesiones-marco .datos-importar-mismo {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  background: #fffbeb;
+}
+.lesiones-marco .datos-importar-mismo p {
+  margin: 0;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.lesiones-marco .datos-importar-mismo > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lesiones-marco .datos-importar-mismo .boton-secundario {
+  min-height: 40px;
+  margin: 0;
+  padding: 0 14px;
+  font-size: 13px;
+}
+.lesiones-marco .datos-importar-bloqueo p {
+  margin: 0;
+}
+.lesiones-marco .datos-importar-bloqueo p + p {
+  margin-top: 4px;
 }
 .lesiones-marco .datos-importar-confirmar {
   display: inline-flex;
