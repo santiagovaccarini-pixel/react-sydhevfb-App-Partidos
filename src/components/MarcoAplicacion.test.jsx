@@ -45,9 +45,20 @@ describe("MarcoAplicacion: esconder las barras", () => {
     });
   };
   const marco = () => contenedor.querySelector(".marco-aplicacion");
+  // Como el navegador: al deslizar la página, el aviso llega al documento.
   const bajarA = async (y) => {
     window.scrollY = y;
-    await act(async () => window.dispatchEvent(new Event("scroll")));
+    await act(async () => document.dispatchEvent(new Event("scroll")));
+  };
+  // Algo que se desliza adentro (una tabla de una base) de cierto alto.
+  const tablaQueCorre = (alto, adentroDe = contenedor.querySelector(".contenido-aplicacion")) => {
+    const tabla = document.createElement("div");
+    Object.defineProperty(tabla, "clientHeight", { value: alto });
+    adentroDe.appendChild(tabla);
+    return async (y) => {
+      tabla.scrollTop = y;
+      await act(async () => tabla.dispatchEvent(new Event("scroll")));
+    };
   };
 
   // Santiago, 18/10: «y si en compu mejor lo hacemos apretando el escudo?».
@@ -96,6 +107,33 @@ describe("MarcoAplicacion: esconder las barras", () => {
     // En otra solapa, se ve.
     await montar("ajustes");
     expect(marco().classList.contains("barra-abajo-escondida")).toBe(false);
+  });
+
+  // Santiago, 18/10: «Fijate que hay lugares que en el celular no esta
+  // funcionando»: en las bases lo que corre es la tabla, no la página.
+  test("en el celular, también se va al bajar dentro de una tabla y vuelve al subir; una lista chica no cuenta", async () => {
+    await montar();
+    const bajarLaTabla = tablaQueCorre(420);
+    await bajarLaTabla(300);
+    expect(marco().classList.contains("barra-abajo-escondida")).toBe(true);
+    await bajarLaTabla(250);
+    expect(marco().classList.contains("barra-abajo-escondida")).toBe(false);
+    // De costado: la posición de arriba a abajo no cambia, la barra tampoco.
+    await bajarLaTabla(250);
+    expect(marco().classList.contains("barra-abajo-escondida")).toBe(false);
+
+    const bajarLaLista = tablaQueCorre(120);
+    await bajarLaLista(400);
+    expect(marco().classList.contains("barra-abajo-escondida")).toBe(false);
+
+    // Dentro de una hoja abierta (opciones, confirmar), tampoco.
+    const hoja = document.createElement("div");
+    hoja.setAttribute("role", "dialog");
+    document.body.appendChild(hoja);
+    const bajarEnLaHoja = tablaQueCorre(400, hoja);
+    await bajarEnLaHoja(500);
+    expect(marco().classList.contains("barra-abajo-escondida")).toBe(false);
+    hoja.remove();
   });
 
   test("en la compu, bajar no esconde nada", async () => {

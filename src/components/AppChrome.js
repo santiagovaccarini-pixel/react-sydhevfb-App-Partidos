@@ -325,6 +325,23 @@ const guardarBarraAchicada = (achicada) => {
 // Lo mismo que la oculta en el CSS: debajo de 720 px no hay barra lateral.
 const CELULAR = "(max-width: 720px)";
 const PASO_MINIMO = 8;
+// Además de la página, cuenta lo que se desliza adentro y es grande (las
+// tablas de las bases, el Informe de GPS, la lista del Historial); no una
+// lista chica de opciones ni lo que está dentro de una hoja abierta.
+const ALTO_MINIMO_ADENTRO = 150;
+const posicionDe = (lugar) => {
+  if (lugar === document || lugar === document.documentElement || lugar === document.body) {
+    return Math.max(0, window.scrollY);
+  }
+  if (
+    lugar instanceof Element &&
+    lugar.clientHeight >= ALTO_MINIMO_ADENTRO &&
+    !lugar.closest('[role="dialog"]')
+  ) {
+    return Math.max(0, lugar.scrollTop);
+  }
+  return null;
+};
 
 // El mismo marco (barra lateral en escritorio, barra inferior en el celular)
 // sirve para Partido y para Entrenamiento: cambian los destinos y la marca.
@@ -364,23 +381,30 @@ export const MarcoAplicacion = ({
 
   useEffect(() => {
     const celular = window.matchMedia?.(CELULAR);
-    let ultima = Math.max(0, window.scrollY);
-    const alMover = () => {
-      const y = Math.max(0, window.scrollY);
+    // La última posición de cada cosa que se desliza (la página o una tabla).
+    const ultimas = new WeakMap();
+    const alMover = (evento) => {
+      const lugar = evento?.type === "scroll" ? evento.target : document;
+      const y = posicionDe(lugar);
+      if (y === null) return;
+      const clave = lugar === document.documentElement || lugar === document.body ? document : lugar;
+      const ultima = ultimas.has(clave) ? ultimas.get(clave) : 0;
       if (!celular?.matches) {
-        ultima = y;
+        ultimas.set(clave, y);
         setAbajoEscondida(false);
         return;
       }
       if (Math.abs(y - ultima) < PASO_MINIMO) return;
-      // Bajando y ya pasado el principio, se va; subiendo, vuelve.
+      // Bajando y ya pasado el principio, se va; subiendo, vuelve. De costado
+      // (una tabla ancha) no cambia nada.
       setAbajoEscondida(y > ultima && y > 56);
-      ultima = y;
+      ultimas.set(clave, y);
     };
-    window.addEventListener("scroll", alMover, { passive: true });
+    // En la fase de captura llegan también los de adentro (no suben solos).
+    document.addEventListener("scroll", alMover, { capture: true, passive: true });
     window.addEventListener("resize", alMover);
     return () => {
-      window.removeEventListener("scroll", alMover);
+      document.removeEventListener("scroll", alMover, { capture: true });
       window.removeEventListener("resize", alMover);
     };
   }, []);

@@ -3877,6 +3877,11 @@ confirme.**
   - Celular: la barra de abajo se va al bajar (pasados los primeros 56 px) y vuelve apenas se
     sube, al cambiar de solapa o al llegarle con el teclado. La fila de Volver y los avisos que
     estaban apoyados en ella bajan con ella (`--alto-barra-abajo`). Al imprimir no cambia nada.
+  - Arreglo del mismo día (Santiago: «Fijate que hay lugares que en el celular no esta
+    funcionando»): en las bases (`.tabla-datos-marco`), el Informe de GPS y la lista del
+    Historial lo que corre es la tabla o la lista, no la página, y la barra no se enteraba. Ahora
+    escucha también lo que se desliza adentro (en la fase de captura), si mide 150 px o más y no
+    está dentro de una hoja abierta (`role="dialog"`); de costado no cambia nada.
   - **Queda prohibido** esconder la lateral del todo, que se esconda sola, volver a la flechita
     de abajo y esconder la de abajo con un botón o solo en algunas pantallas, salvo un pedido
     nuevo. Ver UI-053.
