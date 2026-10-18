@@ -2032,6 +2032,7 @@ export default {
       fechaFutura: "La fecha de inicio no puede ser futura.",
       fechaAntes: "Las fechas de transición, retorno y alta no pueden ser anteriores al inicio.",
       fechaFuturaOtra: "Ninguna fecha puede ser futura.",
+      fechasFuturasSinActualizar: "Para guardar fechas a futuro falta una actualización de la base de datos. Avisale a quien administra la app.",
       parte: "Elegí la parte del cuerpo lesionada.",
       lado: "Elegí el lado.",
       tipo: "Elegí el tipo de lesión.",
