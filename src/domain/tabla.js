@@ -28,10 +28,20 @@ export const ordenDeColumnas = (claves, guardado) => {
   return orden;
 };
 
+// Un texto que empieza como una fórmula (=, +, -, @) va con un apóstrofo
+// adelante: Excel y Sheets lo pegan como texto y no lo ejecutan (lo que
+// alguien escribió en una celda no corre en la planilla de otro; auditoría
+// de seguridad del 18/10). Los números y tiempos con signo (-2,5; +3; -0:30)
+// quedan igual. Al pegar en la app, el apóstrofo se saca (sinApostrofo).
+const PARECE_FORMULA = /^[=+\-@]/;
+const NUMERO_CON_SIGNO = /^[-+]?[\d.,:]+%?$/;
+const comoTexto = (texto) => (PARECE_FORMULA.test(texto) && !NUMERO_CON_SIGNO.test(texto) ? `'${texto}` : texto);
+const sinApostrofo = (texto) => texto.replace(/^'(?=[=+\-@])/, "");
+
 // Un rectángulo de celdas como texto: filas con salto de línea, celdas con
 // tabulación. Un texto con tabulaciones o saltos va entre comillas.
 const escaparCelda = (texto) => {
-  const t = String(texto ?? "");
+  const t = comoTexto(String(texto ?? ""));
   return /[\t\n"]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 };
 
@@ -188,7 +198,7 @@ const textoDeOpcionComparable = (texto) => normalizarTextoBase(texto).replace(/\
 // Un texto pegado en una celda, convertido al valor que guarda esa columna.
 // Devuelve undefined cuando no se entiende (y la celda no se toca).
 export const interpretarValor = (columna, texto) => {
-  const t = String(texto ?? "").trim();
+  const t = sinApostrofo(String(texto ?? "").trim());
   switch (columna.tipo) {
     case "lista": {
       if (!t) return null;

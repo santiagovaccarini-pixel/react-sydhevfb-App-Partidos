@@ -3981,6 +3981,43 @@ confirme.**
     todas las listas juntas o tests sin listas, usar en Evaluaciones otra lista de categorías que
     la de Datos básicos y cambiar las evaluaciones de un jugador sin preguntar, salvo un pedido
     nuevo. Ver UI-056.
+- **Auditoría de seguridad (hecha el 18/10).** Santiago, en medio de la nota de los V.R.: «necesito
+  hacer una auditoría de seguridad completa en este momento. Revisa todo nuestro repositorio […]
+  Si encuentras cualquier riesgo, soluciónalo de inmediato». Se revisó:
+  - **Claves y datos**: no hay claves secretas en el código ni en la historia disponible; la de
+    Supabase en la app y en los macros de Excel es la publishable (hecha para estar a la vista: la
+    protección es RLS); las del servidor (`SUPABASE_SECRET_KEY`, `OPENFIELD_API_TOKEN`,
+    `OPENFIELD_SESSION_SECRET`, `CATAPULT_SESSION_KEY`) salen de las variables de Vercel; las de
+    las pruebas son inventadas. Los correos del repositorio son de prueba. El nombre del club
+    aparece en comentarios, pruebas y nombres de V.R. viejos (información pública, no un riesgo).
+  - **La base**: las 37 tablas con RLS; a anon se le sacó todo (también lo que se cree después) y
+    las pruebas de la base lo comprueban; las 69 funciones `security definer` fijan su
+    `search_path`.
+  - **El servidor** (`api/`): cada función comprueba la sesión con Supabase (o la cookie firmada,
+    `HttpOnly`, `Secure`, `SameSite=Lax`, comparada en tiempo constante) antes de usar una clave;
+    el mail de una invitación va solo al correo guardado y a la dirección de la app configurada.
+  - **Los formularios**: React escapa todo lo que se muestra y la CSP de `index.html` solo deja
+    correr scripts propios (no hay `innerHTML`, `eval` ni enlaces armados con lo cargado); la base
+    recibe los valores por separado (no hay filtros armados con texto); las fotos se cargan como
+    imagen. Al salir se borran las copias del aparato (`limpiarAlSalir`).
+  - **Se arregló**: (1) las cabeceras de `vercel.json`: la app no se puede meter en un marco de
+    otro sitio (`X-Frame-Options: DENY` y `frame-ancestors 'none'`, que la CSP de la página no
+    puede poner), `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+    strict-origin-when-cross-origin` y sin cámara, micrófono, ubicación, pagos ni USB
+    (`Permissions-Policy`; la app no los usa); (2) «Copiar» de las tablas (`aTexto` en
+    `domain/tabla.js`): un texto que empieza como fórmula (=, +, -, @) va con un apóstrofo para que
+    Excel o Sheets no lo ejecuten; los números con signo quedan igual y al pegar en la app el
+    apóstrofo se saca; (3) `source-map-js` 1.2.1 → 1.2.2 (solo de la compilación y las pruebas;
+    `npm audit`, 0 vulnerabilidades).
+  - **Queda prohibido** permitir que la app se muestre dentro de otro sitio y copiar sin ese
+    apóstrofo, salvo un pedido nuevo.
+- **En curso: la planilla de valor referencial** (quedó en pausa por la auditoría). Santiago, en
+  cuestionarios: elegir la base, ver todos sus datos, filtrar la muestra y calcular el V.R. con la
+  lógica de su planilla («Plantilla VR»: descarte de atípicos por cuartiles y cortes que buscan
+  2,5 / 13,5 / 34 / 34 / 16 %); «GPS primero», el sentido «Al calcular», «Automático y Manual»,
+  Malo «Copialo igual» y «Un solo nombre libre» en «Agregar V.R.». La cuenta, copiada y
+  comparada con la planilla recalculada (datos inventados), da igual; falta mostrarle la maqueta
+  del flujo antes de hacerlo.
 - **Lo que sigue, en este orden**: las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
   diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;
