@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { TablaDatos } from "./TablaDatos.jsx";
+import { olvidarPosiciones } from "./posicionesDeTablas.js";
 import { fijarIdiomaParaPruebas } from "../idioma/index.js";
 
 const columnas = [
@@ -424,6 +425,75 @@ describe("la tabla estilo Excel", () => {
     await act(async () => raiz.render(<div />));
     await montar();
     expect(contenedor.querySelectorAll("tbody tr")).toHaveLength(2);
+  });
+
+  // Santiago, 18/10: «Abajo, en la última», «En todas las bases de datos,
+  // incluyendo las que se añadan en el futuro», «Donde estabas».
+  describe("abrir en la última fila", () => {
+    // El navegador de las pruebas no mide: la tabla corre 1000 px en 200.
+    let alto;
+    beforeEach(() => {
+      alto = 1000;
+      olvidarPosiciones();
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+        configurable: true,
+        get() {
+          return this.classList.contains("tabla-datos-marco") ? alto : 0;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+        configurable: true,
+        get() {
+          return this.classList.contains("tabla-datos-marco") ? 200 : 0;
+        },
+      });
+    });
+    afterEach(() => {
+      delete HTMLElement.prototype.scrollHeight;
+      delete HTMLElement.prototype.clientHeight;
+    });
+    const caja = () => contenedor.querySelector(".tabla-datos-marco");
+    const correrA = async (arriba) => {
+      caja().scrollTop = arriba;
+      await act(async () => caja().dispatchEvent(new Event("scroll")));
+    };
+    const salirYVolver = async (extra) => {
+      await act(async () => raiz.render(<div />));
+      await montar(extra);
+    };
+
+    test("abre en la última fila; al volver (una ficha) queda donde estaba; al cambiar de solapa, otra vez en la última", async () => {
+      await montar({ recordar: "pos" });
+      expect(caja().scrollTop).toBe(1000);
+      await correrA(300);
+      await salirYVolver({ recordar: "pos" });
+      expect(caja().scrollTop).toBe(300);
+      // Cambiar de solapa o de módulo olvida dónde estaba.
+      olvidarPosiciones();
+      await salirYVolver({ recordar: "pos" });
+      expect(caja().scrollTop).toBe(1000);
+    });
+
+    test("abajo de todo, sigue en la última aunque lleguen filas; subida, no se mueve", async () => {
+      await montar({ recordar: "pos" });
+      expect(caja().scrollTop).toBe(1000);
+      const otra = { id: 3, valores: { nombre: "ZETA", edad: 20, pie: "" }, textos: { nombre: "ZETA", edad: "20 años", pie: "" } };
+      alto = 1300;
+      await montar({ recordar: "pos", filas: [...filas, otra] });
+      expect(caja().scrollTop).toBe(1300);
+      await correrA(100);
+      alto = 1600;
+      await montar({ recordar: "pos", filas: [...filas, otra, { ...otra, id: 4 }] });
+      expect(caja().scrollTop).toBe(100);
+    });
+
+    test("lo que no es una base (abrirAlFinal apagado) abre arriba, como siempre", async () => {
+      await montar({ recordar: "pos-no", abrirAlFinal: false });
+      expect(caja().scrollTop).toBe(0);
+      await correrA(300);
+      await salirYVolver({ recordar: "pos-no", abrirAlFinal: false });
+      expect(caja().scrollTop).toBe(0);
+    });
   });
 
   test("en el celular hay que mantener apretada la cabecera; moverse antes es desplazar", async () => {

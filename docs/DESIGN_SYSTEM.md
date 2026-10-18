@@ -51,7 +51,9 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
   opciones y confirmaciones.
 - `src/components/PortalTarjetas.jsx`: tarjetas y portadas de portal y bases, y las filas
   compactas de «Del club» del portal (`AccesosDelClub`, UI-050).
-- `src/components/TablaDatos.jsx` y `tablaDatos.css`: tablas de las bases.
+- `src/components/TablaDatos.jsx` y `tablaDatos.css`: tablas de las bases. Abren en la última
+  fila y, al volver de una ficha, donde estaban (`abrirAlFinal`, encendido de entrada; UI-054):
+  una base nueva lo trae solo; lo que no es una base lo apaga.
 - `src/components/ClubCrest.js` y `BotonVolver.jsx`: escudos y regreso.
 - `src/components/BotonModulos.jsx`: volver a los módulos desde el encabezado, fijo arriba al
   bajar (UI-051).

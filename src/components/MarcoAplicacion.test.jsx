@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { MarcoAplicacion } from "./AppChrome";
+import { guardarPosicion, posicionDe } from "./posicionesDeTablas.js";
 import { fijarIdiomaParaPruebas } from "../idioma/index.js";
 
 // Las barras se esconden para dejar más lugar (Santiago, 18/10, en un
@@ -134,6 +135,17 @@ describe("MarcoAplicacion: esconder las barras", () => {
     await bajarEnLaHoja(500);
     expect(marco().classList.contains("barra-abajo-escondida")).toBe(false);
     hoja.remove();
+  });
+
+  // Santiago, 18/10: las bases abren en la última fila al entrar y, dentro
+  // de la misma solapa (abrir una ficha y volver), quedan donde estaban.
+  test("al cambiar de solapa se olvida dónde quedó cada base; en la misma, no", async () => {
+    await montar("base");
+    guardarPosicion("lesiones:todas", { arriba: 300, costado: 0, abajo: false });
+    await montar("base");
+    expect(posicionDe("lesiones:todas")).not.toBeNull();
+    await montar("ajustes");
+    expect(posicionDe("lesiones:todas")).toBeNull();
   });
 
   test("en la compu, bajar no esconde nada", async () => {

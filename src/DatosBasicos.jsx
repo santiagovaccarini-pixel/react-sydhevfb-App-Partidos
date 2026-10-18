@@ -584,6 +584,10 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
               leyenda={t("datos.leyendaYaNoEsta")}
               rotuloApagada={t("datos.yaNoEsta")}
               apagadasAlFinal
+              // Va por nombre, con los que ya no están al final: abre arriba,
+              // con el plantel actual a la vista (Santiago, 18/10: «Arriba,
+              // como ahora»; UI-054).
+              abrirAlFinal={false}
               onBorrarFilas={
                 soloLectura
                   ? undefined

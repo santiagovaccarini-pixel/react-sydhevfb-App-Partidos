@@ -3888,7 +3888,20 @@ confirme.**
   - **Queda prohibido** esconder la lateral del todo, que se esconda sola, volver a la flechita
     de abajo y esconder la de abajo con un botón o solo en algunas pantallas, salvo un pedido
     nuevo. Ver UI-053.
-- **Lo que sigue, en este orden**: moverse por la app (abrir cada base en el último registro); Evaluaciones (cargar una
+- **Cada base abre en el último registro (hecho el 18/10).** Tercera nota de «moverse por la app».
+  Santiago, en cuestionarios: «Abajo, en la última»; «En todas las bases de datos, incluyendo las
+  que se añadan en el futuro»; «Donde estabas»; para Datos básicos › Jugadores, «Arriba, como
+  ahora».
+  - En `TablaDatos` (`abrirAlFinal`, encendido de entrada): al entrar, la tabla abre bajada hasta
+    la última fila; el orden no cambia. Mientras siga abajo de todo, si llegan filas o se
+    filtra, sigue en la última; si se subió, no se mueve. Al abrir una ficha o pegar y volver,
+    queda donde estaba (`posicionesDeTablas.js`); `MarcoAplicacion` lo olvida al cambiar de
+    solapa o de módulo, antes de dibujar la solapa nueva.
+  - Datos básicos › Jugadores y las tablas de la carga de GPS lo tienen apagado (abren arriba,
+    como antes).
+  - **Queda prohibido** dar vuelta el orden de las bases (lo último primero) y volver siempre a
+    la última aunque se venga de una ficha, salvo un pedido nuevo. Ver UI-054.
+- **Lo que sigue, en este orden**: Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
   diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;

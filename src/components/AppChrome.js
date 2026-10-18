@@ -2,6 +2,7 @@ import { t, useIdioma } from "../idioma/index.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { EscudoDeClub } from "./ClubCrest";
 import { leerEquipoElegido } from "../domain/equipo";
+import { olvidarPosiciones } from "./posicionesDeTablas.js";
 
 const trazos = {
   torta: (
@@ -363,6 +364,15 @@ export const MarcoAplicacion = ({
   const [achicada, setAchicada] = useState(leerBarraAchicada);
   const [abajoEscondida, setAbajoEscondida] = useState(false);
   const lateral = useRef(null);
+  // Al entrar al módulo o cambiar de solapa, cada base vuelve a abrir en su
+  // última fila; dentro de la misma solapa (abrir una ficha y volver), queda
+  // donde estaba (UI-054). Antes de dibujar la solapa nueva, para que su
+  // tabla ya no encuentre la posición vieja.
+  const solapaAnterior = useRef(null);
+  if (solapaAnterior.current !== activo) {
+    solapaAnterior.current = activo;
+    olvidarPosiciones();
+  }
   // Sin un partido cargado, el tablero no tiene nada que mostrar.
   const destinosVisibles = destinos.filter(
     (destino) => destino.id !== "partido" || hayPartido,
