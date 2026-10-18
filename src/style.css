@@ -2460,6 +2460,89 @@ button:disabled {
   display: none;
 }
 
+/* Las barras se esconden para dejar más lugar (UI-053). En la compu, el botón
+   de abajo de la barra lateral la achica a una franja con los íconos solos
+   (el nombre de cada solapa queda al pasar el mouse); el aparato la recuerda.
+   Solo en pantalla: al imprimir no hay barra. */
+.barra-lateral-cambiar {
+  position: absolute;
+  right: 13px;
+  bottom: 18px;
+  left: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border-radius: 9px;
+  background: transparent;
+  color: #8f9893;
+  box-shadow: none;
+}
+
+.barra-lateral-cambiar:hover {
+  transform: none;
+  background: #242a27;
+  color: #fff;
+  box-shadow: none;
+}
+
+.barra-lateral-cambiar:focus-visible {
+  outline: 2px solid #11b968;
+  outline-offset: 2px;
+}
+
+.barra-lateral-cambiar .girada {
+  transform: rotate(180deg);
+}
+
+@media screen and (min-width: 721px) {
+  .navegacion-escritorio {
+    transition: width 180ms ease, padding 180ms ease;
+  }
+
+  .contenido-aplicacion {
+    transition: margin-left 180ms ease;
+  }
+
+  .marco-aplicacion.barra-achicada .navegacion-escritorio {
+    width: 68px;
+    padding: 22px 10px;
+  }
+
+  .marco-aplicacion.barra-achicada .contenido-aplicacion {
+    margin-left: 68px;
+  }
+
+  .marco-aplicacion.barra-achicada .marca-aplicacion {
+    min-height: 76px;
+  }
+
+  .marco-aplicacion.barra-achicada .marca-aplicacion .escudo-cam,
+  .marco-aplicacion.barra-achicada .marca-aplicacion .escudo-rival,
+  .marco-aplicacion.barra-achicada .marca-aplicacion .escudo-club.escudo-real {
+    width: 40px;
+  }
+
+  .marco-aplicacion.barra-achicada .marca-aplicacion strong,
+  .marco-aplicacion.barra-achicada .navegacion-escritorio nav button span {
+    display: none;
+  }
+
+  .marco-aplicacion.barra-achicada .navegacion-escritorio nav button {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .marco-aplicacion.barra-achicada .navegacion-escritorio nav button.activo::before {
+    left: -10px;
+  }
+
+  .marco-aplicacion.barra-achicada .barra-lateral-cambiar {
+    right: 10px;
+    left: 10px;
+  }
+}
+
 .tablero-partido {
   width: min(1180px, 100%);
   min-height: 100vh;
@@ -3545,7 +3628,7 @@ button:disabled {
   .acciones-formacion {
     position: fixed;
     right: 0;
-    bottom: calc(67px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--alto-barra-abajo, 67px) + env(safe-area-inset-bottom, 0px));
     left: 0;
     z-index: 20;
     margin: 0;
@@ -3738,6 +3821,29 @@ button:disabled {
     border-top: 1px solid #dce2df;
     background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(16px);
+    transition: transform 220ms ease;
+  }
+
+  /* Al bajar, la barra se va y lo que estaba apoyado en ella (la fila de
+     Volver, los avisos) baja con ella; apenas se sube, vuelve (UI-053). Con
+     el teclado, al llegar a un botón de la barra, se ve. */
+  .marco-aplicacion {
+    --alto-barra-abajo: 67px;
+  }
+
+  .marco-aplicacion.barra-abajo-escondida:not(:has(.navegacion-movil:focus-within)) {
+    --alto-barra-abajo: 0px;
+  }
+
+  .marco-aplicacion.barra-abajo-escondida .navegacion-movil:not(:focus-within) {
+    transform: translateY(100%);
+  }
+
+  .acciones-dobles,
+  .acciones-formacion,
+  .lesiones-marco .lesiones-toast,
+  .aviso-lectura-flotante {
+    transition: bottom 220ms ease;
   }
 
   /* Los íconos arriba, todos a la misma altura aunque un nombre ocupe dos

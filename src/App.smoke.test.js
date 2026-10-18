@@ -332,9 +332,13 @@ describe("interfaz operativa", () => {
     expect(
       contenedor.querySelectorAll(".navegacion-movil button"),
     ).toHaveLength(4);
+    // Los destinos de la barra lateral (aparte, el botón para achicarla).
     expect(
-      contenedor.querySelectorAll(".navegacion-escritorio button"),
+      contenedor.querySelectorAll(".navegacion-escritorio nav button"),
     ).toHaveLength(4);
+    expect(
+      contenedor.querySelectorAll(".navegacion-escritorio .barra-lateral-cambiar"),
+    ).toHaveLength(1);
 
     const accionPeriodo = contenedor.querySelector(".accion-periodo");
     await act(async () => accionPeriodo.click());

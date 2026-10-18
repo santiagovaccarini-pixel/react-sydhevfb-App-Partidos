@@ -1809,7 +1809,7 @@
 .aviso-lectura-flotante {
   position: fixed;
   left: 50%;
-  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--alto-barra-abajo, 67px) + 25px + env(safe-area-inset-bottom, 0px));
   z-index: 60;
   width: max-content;
   max-width: calc(100vw - 32px);

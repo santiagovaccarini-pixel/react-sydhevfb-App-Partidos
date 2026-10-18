@@ -72,10 +72,12 @@ describe("la barra de acciones queda a mano en el teléfono", () => {
       enElTelefono,
     );
     expect(regla).toContain("position: fixed");
-    // La misma cuenta que ya usa la app para despejar la navegación.
+    // La misma cuenta que ya usa la app para despejar la navegación: el alto
+    // de la barra de abajo (67px), que pasa a 0 cuando se va al bajar (UI-053).
     expect(regla).toContain(
-      "bottom: calc(67px + env(safe-area-inset-bottom, 0px))",
+      "bottom: calc(var(--alto-barra-abajo, 67px) + env(safe-area-inset-bottom, 0px))",
     );
+    expect(reglaCon(".marco-aplicacion", enElTelefono)).toContain("--alto-barra-abajo: 67px");
   });
 
   it("deja abajo el lugar que la barra ocupa", () => {

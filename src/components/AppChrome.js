@@ -1,5 +1,5 @@
 import { t, useIdioma } from "../idioma/index.js";
-import React, { useId } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { EscudoDeClub } from "./ClubCrest";
 import { leerEquipoElegido } from "../domain/equipo";
 
@@ -303,10 +303,36 @@ export const DESTINOS_PARTIDO = [
   { id: "ajustes", etiqueta: "Ajustes", icono: "ajustes" },
 ];
 
+// La barra lateral achicada (solo los íconos) se recuerda en el aparato.
+const CLAVE_BARRA_ACHICADA = "barra_lateral_achicada";
+const leerBarraAchicada = () => {
+  try {
+    return window.localStorage.getItem(CLAVE_BARRA_ACHICADA) === "1";
+  } catch {
+    return false;
+  }
+};
+const guardarBarraAchicada = (achicada) => {
+  try {
+    if (achicada) window.localStorage.setItem(CLAVE_BARRA_ACHICADA, "1");
+    else window.localStorage.removeItem(CLAVE_BARRA_ACHICADA);
+  } catch {
+    // Sin almacenamiento, vale hasta salir.
+  }
+};
+
+// En el celular, la barra de abajo se va al bajar y vuelve apenas se sube.
+// Lo mismo que la oculta en el CSS: debajo de 720 px no hay barra lateral.
+const CELULAR = "(max-width: 720px)";
+const PASO_MINIMO = 8;
+
 // El mismo marco (barra lateral en escritorio, barra inferior en el celular)
 // sirve para Partido y para Entrenamiento: cambian los destinos y la marca.
 // La marca es el nombre del módulo, como en el portal (en Partido, «Partido»;
-// la web se llama ARK).
+// la web se llama ARK). Las dos barras se esconden para dejar más lugar
+// (Santiago, 18/10, en un cuestionario: «Achicar a íconos», «Se va al bajar»,
+// «En toda la app»; UI-053): en la compu, un botón achica la lateral a una
+// franja con los íconos; en el celular, la de abajo se va al bajar.
 export const MarcoAplicacion = ({
   activo = "partido",
   onNavigate,
@@ -317,16 +343,78 @@ export const MarcoAplicacion = ({
   children,
 }) => {
   useIdioma();
+  const [achicada, setAchicada] = useState(leerBarraAchicada);
+  const [abajoEscondida, setAbajoEscondida] = useState(false);
+  const lateral = useRef(null);
   // Sin un partido cargado, el tablero no tiene nada que mostrar.
   const destinosVisibles = destinos.filter(
     (destino) => destino.id !== "partido" || hayPartido,
   );
 
+  // Lo que se ubica según el ancho de la pantalla (la franja fija del botón
+  // de módulos, tablas y gráficos) se vuelve a medir al achicar o abrir.
+  const primeraVez = useRef(true);
+  useEffect(() => {
+    if (primeraVez.current) {
+      primeraVez.current = false;
+      return;
+    }
+    window.dispatchEvent(new Event("resize"));
+  }, [achicada]);
+
+  useEffect(() => {
+    const celular = window.matchMedia?.(CELULAR);
+    let ultima = Math.max(0, window.scrollY);
+    const alMover = () => {
+      const y = Math.max(0, window.scrollY);
+      if (!celular?.matches) {
+        ultima = y;
+        setAbajoEscondida(false);
+        return;
+      }
+      if (Math.abs(y - ultima) < PASO_MINIMO) return;
+      // Bajando y ya pasado el principio, se va; subiendo, vuelve.
+      setAbajoEscondida(y > ultima && y > 56);
+      ultima = y;
+    };
+    window.addEventListener("scroll", alMover, { passive: true });
+    window.addEventListener("resize", alMover);
+    return () => {
+      window.removeEventListener("scroll", alMover);
+      window.removeEventListener("resize", alMover);
+    };
+  }, []);
+
+  // En otra solapa, la barra de abajo vuelve a verse.
+  useEffect(() => setAbajoEscondida(false), [activo]);
+
+  const cambiarBarra = () => {
+    setAchicada((antes) => {
+      guardarBarraAchicada(!antes);
+      return !antes;
+    });
+  };
+
+  const clases = [
+    "marco-aplicacion",
+    achicada ? "barra-achicada" : "",
+    abajoEscondida ? "barra-abajo-escondida" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className={`marco-aplicacion ${className}`.trim()}>
+    <div className={clases}>
       <aside
+        ref={lateral}
         className="navegacion-escritorio"
         aria-label="Navegación principal"
+        onTransitionEnd={(evento) => {
+          if (evento.target === lateral.current && evento.propertyName === "width") {
+            window.dispatchEvent(new Event("resize"));
+          }
+        }}
       >
         <div className="marca-aplicacion">
           {/* El escudo real del club elegido (bajado como en Partido); si no
@@ -340,18 +428,34 @@ export const MarcoAplicacion = ({
         </div>
 
         <nav>
-          {destinosVisibles.map((destino) => (
-            <button
-              key={destino.id}
-              type="button"
-              className={activo === destino.id ? "activo" : ""}
-              onClick={() => onNavigate(destino.id)}
-            >
-              <Icono nombre={destino.icono} />
-              <span>{t(`nav.${destino.id}`, {}, destino.etiqueta)}</span>
-            </button>
-          ))}
+          {destinosVisibles.map((destino) => {
+            const etiqueta = t(`nav.${destino.id}`, {}, destino.etiqueta);
+            return (
+              <button
+                key={destino.id}
+                type="button"
+                className={activo === destino.id ? "activo" : ""}
+                onClick={() => onNavigate(destino.id)}
+                aria-label={achicada ? etiqueta : undefined}
+                title={achicada ? etiqueta : undefined}
+              >
+                <Icono nombre={destino.icono} />
+                <span>{etiqueta}</span>
+              </button>
+            );
+          })}
         </nav>
+
+        <button
+          type="button"
+          className="barra-lateral-cambiar"
+          onClick={cambiarBarra}
+          aria-expanded={!achicada}
+          aria-label={t(achicada ? "nav.abrirBarra" : "nav.achicarBarra")}
+          title={t(achicada ? "nav.abrirBarra" : "nav.achicarBarra")}
+        >
+          <Icono nombre="flecha" size={18} className={achicada ? "" : "girada"} />
+        </button>
       </aside>
 
       <main className="contenido-aplicacion">{children}</main>
