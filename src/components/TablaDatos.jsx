@@ -22,6 +22,7 @@ import {
   valoresDeColumna,
 } from "../domain/tabla.js";
 import { t, useIdioma } from "../idioma/index.js";
+import { guardarPosicion, posicionDe } from "./posicionesDeTablas.js";
 import "./tablaDatos.css";
 
 // Una tabla estilo base de datos, parecida a Excel: las cabeceras se
@@ -50,7 +51,13 @@ import "./tablaDatos.css";
 // onAbrirFila(filaId), onBorrarFilas(filaIds): las filas elegidas (con
 // Shift, varias), en el orden en que se ven
 // recordar: con qué nombre se guardan los filtros y el orden mientras la app
-// está abierta (al abrir una ficha y volver, siguen como estaban).
+// está abierta (al abrir una ficha y volver, siguen como estaban), y dónde
+// quedó la tabla hasta cambiar de solapa o de módulo.
+// abrirAlFinal: al entrar, la tabla abre bajada hasta la última fila (la
+// última cargada) y la sigue mostrando mientras no se suba; al volver de una
+// ficha, donde estaba (Santiago, 18/10: «Abajo, en la última», «En todas las
+// bases de datos, incluyendo las que se añadan en el futuro», «Donde
+// estabas»; UI-054). Vale para toda base; lo que no es una base lo apaga.
 // fijas: claves de las columnas que van primero y quedan a la vista al
 // correr la tabla en la compu (como inmovilizar en Excel). No se arrastran;
 // cada una lleva su `ancho` (en píxeles, de borde a borde). Son las de
@@ -225,6 +232,7 @@ export const TablaDatos = ({
   siempreAVista = SIN_FIJAS,
   muchasFilas = false,
   ocultar = true,
+  abrirAlFinal = true,
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -422,6 +430,38 @@ export const TablaDatos = ({
       if (cuadro !== null) cancelarCuadro(cuadro);
     };
   }, [muchasFilas, medirVentana]);
+  // Abrir en la última fila y seguir ahí mientras no se suba (llegan filas
+  // nuevas, se filtra); al volver de una ficha, donde estaba (UI-054).
+  const abajoDeTodo = useRef(abrirAlFinal);
+  useLayoutEffect(() => {
+    const caja = cajaRef.current;
+    if (!caja) return;
+    const guardada = abrirAlFinal ? posicionDe(recordar) : null;
+    if (guardada) {
+      caja.scrollTop = guardada.arriba;
+      caja.scrollLeft = guardada.costado;
+      abajoDeTodo.current = guardada.abajo;
+    } else if (abrirAlFinal) {
+      caja.scrollTop = caja.scrollHeight;
+    }
+    // Solo al abrir.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useLayoutEffect(() => {
+    const caja = cajaRef.current;
+    if (caja && abrirAlFinal && abajoDeTodo.current) caja.scrollTop = caja.scrollHeight;
+  }, [abrirAlFinal, filasVista]);
+  useEffect(() => {
+    const caja = cajaRef.current;
+    if (!caja || !abrirAlFinal) return undefined;
+    const alCorrer = () => {
+      abajoDeTodo.current = caja.scrollHeight - caja.scrollTop - caja.clientHeight < 2;
+      guardarPosicion(recordar, { arriba: caja.scrollTop, costado: caja.scrollLeft, abajo: abajoDeTodo.current });
+    };
+    caja.addEventListener("scroll", alCorrer, { passive: true });
+    return () => caja.removeEventListener("scroll", alCorrer);
+  }, [recordar, abrirAlFinal]);
+
   // Con las flechas, la tabla corre hasta la fila elegida (si no, con
   // muchasFilas, podría no estar dibujada).
   const llevarAVista = (f) => {
