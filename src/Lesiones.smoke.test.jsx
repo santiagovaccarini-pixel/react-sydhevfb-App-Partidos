@@ -818,6 +818,25 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain("No hay lesiones activas");
   });
 
+  // Santiago, 18/10: «cargue la vuelta a entrenamiento y no ponia en
+  // Entrenamiento seguia diciendo en transicion»; «Entrenando apenas la cargo».
+  test("con la vuelta al entrenamiento prevista, la tarjeta ya dice Entrenando y sigue en Nuevos casos", async () => {
+    const enDias = (dias) => {
+      const fecha = new Date(`${hoyISO()}T12:00:00Z`);
+      fecha.setUTCDate(fecha.getUTCDate() + dias);
+      return fecha.toISOString().slice(0, 10);
+    };
+    await montar();
+    await tocar(boton(contenedor, "Alta médica"));
+    await escribir(document.querySelector("#alta-fecha_transicion"), enDias(1));
+    await escribir(document.querySelector("#alta-fecha_retorno_entrenamiento"), enDias(2));
+    await tocar(boton(contenedor, "Guardar"));
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(1);
+    expect(texto(contenedor)).toContain("Fechas guardadas");
+    expect(contenedor.querySelector(".lesiones-etapa").textContent).toBe("Entrenando");
+  });
+
   test("los reportes: el individual como el del Excel y el grupal", async () => {
     // Fechas contadas desde hoy, para que la prueba ande cualquier día del año.
     const haceDias = (dias) => {

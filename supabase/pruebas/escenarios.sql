@@ -598,11 +598,14 @@ select pruebas.ser('carla@uno.com'); set role authenticated;
 select pruebas.esperar('Carla carga una lesión con la vuelta prevista (fechas futuras)', pruebas.filas($$insert into lesiones (equipo_id, jugador_id, numero_caso, fecha_lesion, fecha_transicion, fecha_retorno_entrenamiento, fecha_alta, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 700, current_date - 10, current_date - 2, current_date + 5, current_date + 12, '{"parte_cuerpo":"tornozelo","lado":"direito"}')$$), 1);
 select pruebas.debe_fallar('...pero la fecha de la lesión no puede ser futura', $$insert into lesiones (equipo_id, jugador_id, numero_caso, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 701, current_date + 1, '{"parte_cuerpo":"ombro","lado":"direito"}')$$, 'lesiones_sin_futuro');
 select pruebas.esperar('La vista general: con el alta cargada ya no está activa', (select count(*) from v_lesiones where numero_caso = 700 and not activa), 1);
-select pruebas.esperar('...la etapa va hasta hoy (en transición)', (select etapa from v_lesiones where numero_caso = 700), 'transicion');
+select pruebas.esperar('...la etapa, con la última fecha cargada aunque no haya llegado (20261101)', (select etapa from v_lesiones where numero_caso = 700), 'alta');
 select pruebas.esperar('...y los días de baja, hasta hoy', (select dias_baja from v_lesiones where numero_caso = 700), 10);
 select pruebas.esperar('Power Query: la recuperación hasta hoy', (select recuperacao from v_lesiones_excel_v1 where n_de_caso = 700), 10);
 select pruebas.esperar('...Recup 1 hasta la transición y Recup 2 hasta hoy', (select recup_1 || ',' || recup_2 from v_lesiones_excel_v1 where n_de_caso = 700), '8,10');
 select pruebas.esperar('...y sin severidad hasta que llegue el alta', (select coalesce(severidade, 'vacía') from v_lesiones_excel_v1 where n_de_caso = 700), 'vacía');
+select pruebas.esperar('Con la vuelta al entrenamiento prevista (sin alta)', pruebas.filas($$insert into lesiones (equipo_id, jugador_id, numero_caso, fecha_lesion, fecha_transicion, fecha_retorno_entrenamiento, datos) values ('00000000-0000-0000-0000-0000000000c1', 9002, 702, current_date - 3, current_date + 1, current_date + 2, '{"parte_cuerpo":"joelho","lado":"esquerdo"}')$$), 1);
+select pruebas.esperar('...ya dice entrenando y sigue activa (20261101)', (select etapa || ',' || activa from v_lesiones where numero_caso = 702), 'entrenando,true');
+select pruebas.esperar('...y Recup 1 y Recup 2 van hasta hoy', (select recup_1 || ',' || recup_2 from v_lesiones where numero_caso = 702), '3,0');
 reset role;
 
 -- ------------------------------------------------ Períodos guardados --

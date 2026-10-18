@@ -120,19 +120,21 @@ export const conValor = (lesion, clave, valor) => {
 
 // Las fechas de la vuelta (transición, retorno al entrenamiento y alta) se
 // pueden cargar a futuro, como fechas previstas (Santiago, 18/10: «claro que
-// son todas futuras»). Cada una cuenta recién cuando llega: la etapa, los días
-// y los reportes, hasta hoy («Hasta hoy»). llegada: la fecha si ya llegó (si
-// no, null); hastaHoy: la fecha si ya llegó, o hoy.
+// son todas futuras»). Los días y los reportes cuentan cada una recién cuando
+// llega, hasta hoy («Hasta hoy»). llegada: la fecha si ya llegó (si no, null);
+// hastaHoy: la fecha si ya llegó, o hoy.
 const llegada = (fecha, hoy) => (esFechaISO(fecha) && fecha <= hoy ? fecha : null);
 const hastaHoy = (fecha, hoy) => llegada(fecha, hoy) || hoy;
 
-// En qué etapa está hoy: lesionado → en transición → entrenando → con alta.
-// Sin fecha de inicio, "sinFecha" hasta que se complete.
-export const etapaDe = (lesion, hoy = hoyISO()) => {
+// En qué etapa está: lesionado → en transición → entrenando → con alta. La da
+// la última fecha cargada, apenas se carga, aunque sea prevista (Santiago,
+// 18/10: «Entrenando apenas la cargo»). Sin fecha de inicio, "sinFecha" hasta
+// que se complete.
+export const etapaDe = (lesion) => {
   if (!tieneFecha(lesion)) return "sinFecha";
-  if (llegada(lesion?.fecha_alta, hoy)) return "alta";
-  if (llegada(lesion?.fecha_retorno_entrenamiento, hoy)) return "entrenando";
-  if (llegada(lesion?.fecha_transicion, hoy)) return "transicion";
+  if (lesion?.fecha_alta) return "alta";
+  if (lesion?.fecha_retorno_entrenamiento) return "entrenando";
+  if (lesion?.fecha_transicion) return "transicion";
   return "lesionado";
 };
 

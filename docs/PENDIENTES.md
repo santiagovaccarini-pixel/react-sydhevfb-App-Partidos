@@ -437,8 +437,10 @@ mover a una configuración por club:
 - Recup 1 = transición − inicio; Recup 2 = retorno al entrenamiento − inicio;
   recuperación = alta (o hoy) − inicio. Las etapas (lesionado, transición,
   entrenando, alta) salen de esas fechas; "activa" = sin alta. Desde el 18/10
-  esas fechas pueden ser previstas (futuras): cada una cuenta recién cuando
-  llega (hasta entonces, hasta hoy), y "activa" sigue siendo sin alta cargada.
+  esas fechas pueden ser previstas (futuras): la etapa la da la última fecha
+  cargada, apenas se carga; los días y los reportes cuentan cada una recién
+  cuando llega (hasta entonces, hasta hoy), y "activa" sigue siendo sin alta
+  cargada.
 - Reportes (`REGLAS_INCIDENCIA` en `src/domain/reportes.js`, copiadas de las fórmulas del
   Excel): el cuadro cada 1000 horas cuenta las lesiones no traumáticas (Datos Básicos P8)
   de partidos oficiales, amistosos y entrenamientos (R7:R9) del profesional (S7); "sin
@@ -3845,6 +3847,19 @@ confirme.**
       el alta.
     - Lo que frena guardar se muestra adentro de la hoja (antes quedaba tapado y se veía al
       cancelar).
+  - **La etapa, apenas se carga la fecha (segunda corrección del 18/10).** Santiago, al probarlo:
+    «cargue la vuelta a entrenamiento y no ponia en Entrenamiento seguia diciendo en transicion»
+    (la había cargado para el día siguiente a la transición). En un cuestionario: «Entrenando
+    apenas la cargo».
+    - La etapa la da la última fecha cargada (transición, retorno al entrenamiento o alta), haya
+      llegado o no: en la tarjeta de Nuevos casos, en la ficha y en `v_lesiones`. Reemplaza
+      «la etapa cambia el día que llega cada fecha» de la corrección anterior. Los días de baja,
+      Recup 1 y 2, la severidad y los reportes siguen contando hasta hoy, y la lesión sigue
+      saliendo de Nuevos casos apenas se carga el alta.
+    - Base: `20261101_lesiones_etapa_al_cargar.sql` (rehace `v_lesiones` con la etapa nueva;
+      la vista de Power Query no tiene etapa y no cambia). `20261031_lesiones_fechas_futuras.sql`
+      se niega a correr después de esta.
+    - **Queda prohibido** volver a esperar que llegue la fecha para cambiar la etapa. Ver UI-052.
 - **Lo que sigue, en este orden**: moverse por la app (esconder la barra lateral y la de
   abajo, abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
