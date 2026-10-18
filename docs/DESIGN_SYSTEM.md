@@ -50,6 +50,8 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
   compactas de «Del club» del portal (`AccesosDelClub`, UI-050).
 - `src/components/TablaDatos.jsx` y `tablaDatos.css`: tablas de las bases.
 - `src/components/ClubCrest.js` y `BotonVolver.jsx`: escudos y regreso.
+- `src/components/BotonModulos.jsx`: volver a los módulos desde el encabezado, fijo arriba al
+  bajar (UI-051).
 
 Revisá `src/style.css`, `portal.css`, `training.css`, `lesiones.css`,
 `evaluaciones.css` y `gps.css` antes de crear estilos; mantené sus convenciones de color,
@@ -171,6 +173,8 @@ lo que se haga; lo que falta pasar está en `PENDIENTES.md`, «El espacio en tod
   jugador, Imprimir, Siguiente) queda fija arriba al bajar, sobre un vidrio grafito que aparece
   al bajar; en el celular, en dos renglones si no entra, sin achicar la letra (UI-051). Un
   reporte nuevo usa esa barra.
+- El botón para volver a los módulos del encabezado de cada módulo es `BotonModulos`: al bajar,
+  el mismo botón queda fijo arriba sobre ese vidrio (UI-051). Un módulo nuevo lo usa.
 - Una sola separación entre tarjetas, no el hueco del contenedor más el margen de cada una.
 - Encabezados bajos: el de cada módulo con escudo (GPS, Lesiones, Evaluaciones, Datos básicos),
   con el escudo chico a la izquierda y, al lado, el módulo, el club, la fecha y su pastilla (en

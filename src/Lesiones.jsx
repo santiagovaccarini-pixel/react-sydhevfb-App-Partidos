@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEnVivo } from "./domain/enVivo.js";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
+import BotonModulos from "./components/BotonModulos.jsx";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { BotonVolver, DatoDetalle } from "./components/BotonVolver.jsx";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
@@ -681,10 +682,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         <header className="hero-partido hero-lesiones">
           <div className="hero-lesiones-barra">
             {onVolver ? (
-              <button type="button" className="boton-modulos" onClick={onVolver}>
-                <Icono nombre="flecha" size={14} />
-                {t(volverA)}
-              </button>
+              <BotonModulos onClick={onVolver}>{t(volverA)}</BotonModulos>
             ) : (
               <span />
             )}
