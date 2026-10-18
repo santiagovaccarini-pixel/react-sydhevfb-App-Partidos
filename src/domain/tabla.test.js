@@ -57,6 +57,17 @@ describe("copiar y pegar como Excel", () => {
     expect(desdeTexto("")).toEqual([]);
   });
 
+  // Auditoría de seguridad del 18/10: lo escrito en una celda no se ejecuta
+  // como fórmula en la planilla donde se pega.
+  test("un texto que empieza como fórmula se copia como texto; los números con signo, igual", () => {
+    const matriz = [["=HYPERLINK(\"http://x\")", "+SUMA(A1)", "-cmd", "@HOY", "-2,5", "+3", "-0:30", "Nota"]];
+    expect(desdeTexto(aTexto(matriz))).toEqual([["'=HYPERLINK(\"http://x\")", "'+SUMA(A1)", "'-cmd", "'@HOY", "-2,5", "+3", "-0:30", "Nota"]]);
+    // Pegado de vuelta en la app, queda como se escribió.
+    expect(interpretarValor({ tipo: "texto" }, "'=HYPERLINK(\"http://x\")")).toBe('=HYPERLINK("http://x")');
+    expect(interpretarValor({ tipo: "lista", opciones: [{ valor: "x", etiqueta: "=X" }] }, "'=X")).toBe("x");
+    expect(interpretarValor({ tipo: "texto" }, "'Hola")).toBe("'Hola");
+  });
+
   test("una fecha de nacimiento nunca queda en el futuro: con el año en dos cifras, como Pegar desde Excel", () => {
     const hoy = "2026-10-05";
     expect(interpretarNacimiento("25/07/86", hoy)).toBe("1986-07-25");
