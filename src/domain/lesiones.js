@@ -4,6 +4,7 @@
 // por clave de campo (ver lesionesCampos.js).
 import { hoyISO } from "../idioma/formatos.js";
 import { CAMPOS, TIPOS_MANUALES, campoPorClave } from "./lesionesCampos.js";
+import { claveDeErrorConsentimiento } from "./consentimiento.js";
 
 export const ETAPAS = ["lesionado", "transicion", "entrenando", "alta"];
 
@@ -509,6 +510,8 @@ export const claveDeErrorDeBase = (error) => {
   if (codigo === "42501" || /row-level security|permission denied/i.test(mensaje)) {
     return "lesiones.error.sinPermiso";
   }
+  // Sin la confirmación del consentimiento (20261103).
+  if (claveDeErrorConsentimiento(error)) return claveDeErrorConsentimiento(error);
   if (codigo === "23514" && /lesiones_de_quien/i.test(mensaje)) return "lesiones.error.jugador";
   // El jugador es de otro club (20261013_seguridad.sql). El texto es el mismo
   // que en Evaluaciones ("Ese jugador no es de este club.").

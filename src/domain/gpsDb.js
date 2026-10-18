@@ -4,6 +4,7 @@
 // diccionario.
 import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
+import { claveDeErrorConsentimiento } from "./consentimiento.js";
 import { CATEGORIAS_DE_UN_VR } from "./gps/informe.js";
 import { calcularNoIngresaron } from "./match.js";
 
@@ -30,6 +31,8 @@ export const claveDeErrorGps = (error, porDefecto = "gps.error.noGuardar") => {
     return "gps.error.faltaMigracion";
   }
   if (/jugador_de_otro_club/.test(texto)) return "gps.error.jugadorDeOtroClub";
+  // Sin la confirmación del consentimiento (20261103).
+  if (claveDeErrorConsentimiento(error)) return claveDeErrorConsentimiento(error);
   if (/gps_sin_futuro/.test(texto)) return "gps.error.fechaFutura";
   if (/gps_de_quien/.test(texto)) return "gps.error.sinJugador";
   if (error?.code === "42501" || /row-level security|permission denied/.test(texto)) return "gps.error.sinPermiso";

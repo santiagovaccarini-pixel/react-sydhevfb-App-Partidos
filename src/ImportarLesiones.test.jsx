@@ -4,11 +4,19 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fijarIdiomaParaPruebas } from "./idioma/index.js";
 
 // Lo que se manda a la base, en memoria.
-const base = vi.hoisted(() => ({ cargadas: [] }));
+const base = vi.hoisted(() => ({ cargadas: [], confirmadas: [], confirmaciones: [] }));
 vi.mock("./domain/lesionesDb.js", () => ({
   importarLesion: async (equipoId, lesion) => {
     base.cargadas.push(lesion);
     return { lesion: { ...lesion, id: `les-${base.cargadas.length}` }, error: "" };
+  },
+}));
+// El consentimiento de las personas fuera de Datos básicos (20261103).
+vi.mock("./domain/consentimientoDb.js", () => ({
+  leerPersonasConfirmadas: async () => ({ personas: new Set(base.confirmadas), sinTabla: false, error: "" }),
+  confirmarPersonas: async (equipoId, baseDeDatos, personas, texto) => {
+    base.confirmaciones.push({ equipoId, base: baseDeDatos, personas, texto });
+    return { error: "" };
   },
 }));
 
@@ -39,6 +47,8 @@ describe("pegar lesiones: nombres fuera de Datos básicos y casos sin fecha", ()
   beforeEach(() => {
     fijarIdiomaParaPruebas("es-AR");
     base.cargadas = [];
+    base.confirmadas = [];
+    base.confirmaciones = [];
     listo = null;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -95,7 +105,21 @@ describe("pegar lesiones: nombres fuera de Datos básicos y casos sin fecha", ()
     await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "João Silva"));
     expect(destinos()[2]).toBe("Es João Silva");
 
+    // Antes de guardar, se confirma el consentimiento de la persona de afuera.
     await tocar(contenedor.querySelector(".acciones-dobles .boton-principal"));
+    expect(base.cargadas).toHaveLength(0);
+    const hoja = document.querySelector(".hoja-confirmar");
+    expect(hoja.querySelector("h3").textContent).toBe("Personas fuera de Datos básicos");
+    expect([...hoja.querySelectorAll(".consentimiento-personas li")].map((li) => li.textContent)).toEqual(["Persona De Afuera"]);
+    await tocar(hoja.querySelector(".boton-confirmar-hoja"));
+    expect(base.confirmaciones).toEqual([
+      {
+        equipoId: "eq-1",
+        base: "lesiones",
+        personas: ["Persona De Afuera"],
+        texto: "Lo que vas a cargar tiene 1 persona que no está en Datos básicos. Para cargarla, confirmá que el club tiene su consentimiento (o el de su madre, padre o tutor, si es menor de edad).",
+      },
+    ]);
     expect(listo).toEqual({ cargadas: 4 });
     expect(base.cargadas.map((lesion) => [lesion.numero_caso, lesion.jugador_id, lesion.persona, lesion.fecha_lesion])).toEqual([
       [1, 1, null, "2026-01-21"],
@@ -103,6 +127,26 @@ describe("pegar lesiones: nombres fuera de Datos básicos y casos sin fecha", ()
       [3, 3, null, "2026-02-06"],
       [4, 1, null, null],
     ]);
+  });
+
+  test("si no se confirma el consentimiento de la persona de afuera, no se carga nada; si ya estaba confirmada, no se pregunta", async () => {
+    await montar();
+    await pegar(PEGADO);
+    await tocar(contenedor.querySelector(".datos-importar-elegir-todos button"));
+    await tocar(contenedor.querySelectorAll(".datos-importar-destino")[2]);
+    await tocar([...document.querySelectorAll(".opcion-hoja")].find((opcion) => opcion.textContent.trim() === "João Silva"));
+    await tocar(contenedor.querySelector(".acciones-dobles .boton-principal"));
+    await tocar(document.querySelector(".hoja-confirmar .boton-cancelar-hoja"));
+    expect(document.querySelector(".hoja-confirmar")).toBeNull();
+    expect(base.confirmaciones).toHaveLength(0);
+    expect(base.cargadas).toHaveLength(0);
+    expect(listo).toBeNull();
+
+    // Confirmada antes (escrita de otra forma): se carga sin preguntar.
+    base.confirmadas = ["persona de afuera"];
+    await tocar(contenedor.querySelector(".acciones-dobles .boton-principal"));
+    expect(document.querySelector(".hoja-confirmar")).toBeNull();
+    expect(listo).toEqual({ cargadas: 4 });
   });
 
   test("un nombre de afuera también se puede no cargar", async () => {

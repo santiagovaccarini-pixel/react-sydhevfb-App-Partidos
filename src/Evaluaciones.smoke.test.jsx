@@ -23,6 +23,9 @@ const datos = vi.hoisted(() => ({
   compuerta: null,
   // Si está, la próxima lectura falla (una recarga que no llega).
   fallaLaProxima: "",
+  // El consentimiento de las personas fuera de Datos básicos (20261103).
+  personasConfirmadas: [],
+  confirmaciones: [],
   // Lo que el club cambió en Ajustes (las filas de la base).
   ajustes: { campos: [], opciones: [] },
   // Las categorías del club en Datos básicos (null: no se pudieron leer).
@@ -92,6 +95,13 @@ vi.mock("./domain/lesionesDb.js", () => ({
     ],
     error: "",
   }),
+}));
+vi.mock("./domain/consentimientoDb.js", () => ({
+  leerPersonasConfirmadas: async () => ({ personas: new Set(datos.personasConfirmadas), sinTabla: false, error: "" }),
+  confirmarPersonas: async (equipoId, base, personas) => {
+    datos.confirmaciones.push({ equipoId, base, personas });
+    return { error: "" };
+  },
 }));
 vi.mock("./domain/referenciasDb.js", () => ({
   leerHistorialDeReferencias: async () => ({ cambios: datos.historialVr.map((una) => ({ ...una })), faltaTabla: datos.faltaHistorial, error: "" }),
@@ -268,6 +278,8 @@ describe("Evaluaciones", () => {
     datos.actualizadas = [];
     datos.borradas = [];
     datos.compuerta = null;
+    datos.personasConfirmadas = [];
+    datos.confirmaciones = [];
     datos.fallaLaProxima = "";
     datos.ajustes = { campos: [], opciones: [] };
     datos.categorias = null;
@@ -666,6 +678,21 @@ describe("Evaluaciones", () => {
     expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 2, persona: null, fecha: "2026-06-02", datos: { seleccion: "mayor", lumbar: 190 } } }]);
     expect(document.body.textContent).toContain("Listo: se cargó 1 evaluación.");
     expect(filas(contenedor)).toHaveLength(4);
+  });
+
+  test("Pegar desde Excel: quien no está en Datos básicos se carga después de confirmar su consentimiento", async () => {
+    await montar();
+    await irA(contenedor, "Base");
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    const pegado = ["nº Eva\tFecha\tJugador\tSeleccion\tLumbar\tNota", "1\t02/06/2026\tNombre Nuevo\tMayor\t3:20\t"].join("\n");
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), pegado);
+    await tocar(boton(contenedor, "Guardar igual la que no está en Datos básicos"));
+    await tocar(boton(contenedor, "Cargar 1 evaluación"));
+    expect(datos.creadas).toHaveLength(0);
+    expect([...document.querySelectorAll(".hoja-confirmar .consentimiento-personas li")].map((li) => li.textContent)).toEqual(["Nombre Nuevo"]);
+    await tocar(document.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    expect(datos.confirmaciones).toEqual([{ equipoId: "eq-1", base: "evaluaciones", personas: ["Nombre Nuevo"] }]);
+    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "zona_media", ev: { jugador_id: null, persona: "Nombre Nuevo", fecha: "2026-06-02", datos: { seleccion: "mayor", lumbar: 200 } } }]);
   });
 
   test("Pegar desde Excel: si falla la recarga, lo cargado igual se ve como \"Ya está\" y no se carga dos veces", async () => {

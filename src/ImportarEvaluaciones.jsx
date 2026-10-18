@@ -10,6 +10,7 @@ import { textoDeMinutos } from "./domain/tabla.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
+import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
 
 // Pegar desde Excel, en Evaluaciones › Base: se pega la tabla de la hoja del
 // test (con su fila de títulos) y antes de guardar nada se ve qué pasa con
@@ -45,6 +46,10 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
   // la fila: destino }.
   const [elegidos, setElegidos] = useState({});
   const [hojaFila, setHojaFila] = useState(null);
+  // Las personas que no están en Datos básicos: antes de guardar, quien
+  // carga confirma su consentimiento (20261103).
+  const consentimiento = useConsentimientoPersonas(equipoId, "evaluaciones");
+  const [errorConsentimiento, setErrorConsentimiento] = useState("");
   const hoy = hoyISO();
   const esteAnio = Number(hoy.slice(0, 4));
   // El año de las fechas que vienen sin año ("12-jun").
@@ -113,6 +118,7 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
     setFallas([]);
     setCargadasAntes(null);
     setElegidos({});
+    setErrorConsentimiento("");
   };
 
   // Qué puede ser una fila con un nombre que no está en Datos básicos.
@@ -160,6 +166,12 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
   const cargar = async () => {
     const lista = aCargar;
     if (lista.length === 0) return;
+    setErrorConsentimiento("");
+    const permiso = await consentimiento.pedir(lista.filter((fila) => !fila.evaluacion.jugador_id).map((fila) => fila.evaluacion.persona));
+    if (!permiso.sigue) {
+      setErrorConsentimiento(permiso.error);
+      return;
+    }
     // Los nombres que siguen sin elegir no se cargan: la pantalla queda
     // abierta con ellos.
     const quedanSinElegir = sinElegir.length;
@@ -231,6 +243,11 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
 
         {plantelSinLeer && texto.trim() && <div className="lesiones-estado error">{t("evaluaciones.importar.plantelSinLeer")}</div>}
         {leido?.error && <div className="lesiones-estado error">{t(leido.error)}</div>}
+        {errorConsentimiento && (
+          <div className="lesiones-estado error" role="alert">
+            {t(errorConsentimiento)}
+          </div>
+        )}
 
         {sinAnio && (
           <section className="tarjeta evaluaciones-anio">
@@ -375,6 +392,7 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
         }}
         onCerrar={() => setHojaFila(null)}
       />
+      {consentimiento.hoja}
     </div>
   );
 }

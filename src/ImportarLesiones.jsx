@@ -10,6 +10,7 @@ import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import { BotonGuia, TextoConPasos } from "./components/Guia.jsx";
+import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
 
 // Pegar desde Excel, en Lesiones › Base: se pega la tabla de la hoja
 // "Antecedentes BD" (con su fila de cabeceras) y antes de guardar nada se ve
@@ -42,6 +43,10 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
   // la fila: destino }.
   const [elegidos, setElegidos] = useState({});
   const [hojaFila, setHojaFila] = useState(null);
+  // Las personas que no están en Datos básicos: antes de guardar, quien
+  // carga confirma su consentimiento (20261103).
+  const consentimiento = useConsentimientoPersonas(equipoId, "lesiones");
+  const [errorConsentimiento, setErrorConsentimiento] = useState("");
   // Si se sale de la pantalla en medio de la carga (otra pestaña de la
   // barra), la carga se corta ahí: lo cargado queda y lo que falta se ve al
   // volver a pegar.
@@ -78,6 +83,7 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
     setFallas([]);
     setCargadasAntes(null);
     setElegidos({});
+    setErrorConsentimiento("");
   };
 
   // Qué puede ser una fila con un nombre que no está en Datos básicos.
@@ -127,6 +133,12 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
   const cargar = async () => {
     const lista = aCargar;
     if (lista.length === 0) return;
+    setErrorConsentimiento("");
+    const permiso = await consentimiento.pedir(lista.filter((fila) => !fila.lesion.jugador_id).map((fila) => fila.lesion.persona));
+    if (!permiso.sigue) {
+      setErrorConsentimiento(permiso.error);
+      return;
+    }
     // Los nombres que siguen sin elegir no se cargan: la pantalla queda
     // abierta con ellos.
     const quedanSinElegir = sinElegir.length;
@@ -191,6 +203,11 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
 
         {plantelSinLeer && texto.trim() && <div className="lesiones-estado error">{t("lesiones.importar.plantelSinLeer")}</div>}
         {leido?.error && <div className="lesiones-estado error">{t(leido.error)}</div>}
+        {errorConsentimiento && (
+          <div className="lesiones-estado error" role="alert">
+            {t(errorConsentimiento)}
+          </div>
+        )}
 
         {cargadasAntes > 0 && (
           <p className="lesiones-estado" role="status">
@@ -323,6 +340,7 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
         }}
         onCerrar={() => setHojaFila(null)}
       />
+      {consentimiento.hoja}
     </div>
   );
 }

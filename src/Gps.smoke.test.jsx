@@ -40,6 +40,10 @@ const datos = vi.hoisted(() => ({
   copiasGuardadas: [],
   // Las puestas al día pedidas (con la copia o después de cargar).
   alDia: [],
+  // El consentimiento de las personas fuera de Datos básicos (20261103): las
+  // ya confirmadas y las que se confirmaron al guardar.
+  personasConfirmadas: [],
+  confirmaciones: [],
 }));
 
 const PLANTEL = [
@@ -74,6 +78,14 @@ vi.mock("./domain/copiaGps.js", () => ({
     return true;
   },
   borrarCopiasGps: async () => true,
+}));
+vi.mock("./domain/consentimientoDb.js", () => ({
+  leerPersonasConfirmadas: async () => ({ personas: new Set(datos.personasConfirmadas), sinTabla: false, error: "" }),
+  confirmarPersonas: async (equipoId, base, personas) => {
+    datos.confirmaciones.push({ equipoId, base, personas });
+    datos.personasConfirmadas.push(...personas.map((nombre) => nombre.toLowerCase()));
+    return { error: "" };
+  },
 }));
 vi.mock("./domain/referenciasDb.js", () => ({
   leerHistorialDeReferencias: async () => ({ cambios: datos.historialVr.map((una) => ({ ...una })), faltaTabla: false, error: "" }),
@@ -348,6 +360,8 @@ describe("GPS", () => {
     datos.copia = null;
     datos.copiasGuardadas = [];
     datos.alDia = [];
+    datos.personasConfirmadas = [];
+    datos.confirmaciones = [];
     datos.errorHistorial = "";
     datos.recordados = { pegar: "", csv: "" };
     datos.recordar = [];
@@ -1021,6 +1035,11 @@ describe("GPS", () => {
     expect(titulo()).toBe("Revisar y guardar");
     expect(nombres()).toEqual(["Team Average Parcial", "ALFA", "BETA", "Invitado X", "DELTA", "ALFA", "BETA", "Team Average Sesion", "ALFA", "BETA", "EPSILON"]);
     await tocar(boton("Guardar 11 filas"));
+    // Antes de guardar, el consentimiento de quien no está en Datos básicos.
+    expect(datos.creadas).toHaveLength(0);
+    expect([...document.querySelectorAll(".hoja-confirmar .consentimiento-personas li")].map((li) => li.textContent)).toEqual(["Invitado X"]);
+    await tocar(document.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    expect(datos.confirmaciones).toEqual([{ equipoId: "eq-1", base: "gps", personas: ["Invitado X"] }]);
     expect(datos.creadas).toHaveLength(11);
     expect(datos.creadas.every((una) => Object.keys(una).every((clave) => !clave.startsWith("_")))).toBe(true);
     expect(datos.creadas[1]).toMatchObject({ fecha: AYER, jugador_id: 1, datos: { d: 3500, tiempo: 1200, m2: 120, largo: 40, ancho: 30, condicion: "parcial", tipo_microciclo: "competitivo", dispositivo: "catapult", clasificacion_dias: "menos1_m", tipo_sesion: "din_colectiva" } });
@@ -1181,7 +1200,10 @@ describe("GPS", () => {
     await elegirTipo("Din. General");
     await tocar(siguiente());
     expect(titulo()).toBe("Revisar y guardar");
+    // Quien no está en Datos básicos ya estaba confirmado: no se pregunta.
+    datos.personasConfirmadas = ["invitado x"];
     await tocar(boton("Guardar 11 filas"));
+    expect(document.querySelector(".hoja-confirmar")).toBeNull();
     expect(datos.creadas).toHaveLength(11);
     expect(datos.creadas[1]).toMatchObject({ jugador_id: 1, datos: { largo: 40, tipo_sesion: "din_colectiva" } });
     expect(datos.enCurso).toHaveLength(0);
