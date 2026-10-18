@@ -1,4 +1,5 @@
-import { CATEGORIAS, categoriaDeTexto, categoriaPorCodigo } from "./categorias.js";
+import { CATEGORIAS, categoriaDeTexto, categoriaPorCodigo, deDatosBasicos } from "./categorias.js";
+import { armarConfig as armarConfigDeDatos, opcionesDeCampo } from "../lesionesCampos.js";
 
 // Evaluaciones › Ajustes: el nombre de cada cabecera de cada test y las
 // opciones de cada lista, por club, como en Lesiones › Ajustes (pedido de
@@ -6,7 +7,8 @@ import { CATEGORIAS, categoriaDeTexto, categoriaPorCodigo } from "./categorias.j
 // hay una fila solo para lo que el club cambió: si no, valen los nombres del
 // Excel. Las evaluaciones guardan el código de cada opción; el texto está acá.
 
-// Selección: las categorías, la misma lista en todos los tests.
+// Selección: las categorías, la misma lista en todos los tests. Desde el
+// 18/10 son las de Datos básicos (ver opcionesDeCategorias).
 export const LISTA_SELECCION = "seleccion";
 
 // Las columnas que no se esconden: sin ellas no se sabe de quién es la
@@ -30,9 +32,12 @@ export const configVacia = () => ({ campos: {}, listas: {} });
 
 // Lo que vino de la base, en la forma que usan las pantallas:
 // { campos: { test: { campo: { etiquetas, oculto, orden } } },
-//   listas: { lista: [{ codigo, etiquetas, oculto, orden }] } }.
-export const armarConfig = (filasCampos = [], filasOpciones = []) => {
+//   listas: { lista: [{ codigo, etiquetas, oculto, orden }] },
+//   categorias: lo de Datos básicos › Ajustes (la lista Categoría del club),
+//   o null si no se pudo leer (valen las de la app) }.
+export const armarConfig = (filasCampos = [], filasOpciones = [], filasCategorias = null) => {
   const config = configVacia();
+  config.categorias = filasCategorias ? armarConfigDeDatos([], filasCategorias) : null;
   filasCampos.forEach((fila) => {
     if (!config.campos[fila.test]) config.campos[fila.test] = {};
     config.campos[fila.test][fila.campo] = {
@@ -99,10 +104,37 @@ export const columnasDeLaVista = (columnas, vista) => (!vista || vista === VISTA
 export const opcionesDelExcel = (lista, test) =>
   lista === LISTA_SELECCION ? CATEGORIAS.map((categoria) => ({ codigo: categoria.codigo, etiquetas: categoria.etiquetas })) : test?.listas?.[lista] || [];
 
+// Las categorías (Selección): las de Datos básicos, con sus nombres y en su
+// orden (Santiago, 18/10: «La de Datos básicos»; se cambian en Datos básicos
+// › Ajustes, ya no en Evaluaciones). Lo cargado antes con una categoría que
+// no está allá (una del Excel o una que el club había sumado acá) se sigue
+// viendo con su nombre, como escondida: no se elige.
+const opcionesDeCategorias = (config, idioma, conOcultas) => {
+  const deDatos = opcionesDeCampo("categoria", config?.categorias || null, idioma, { conOcultas: true }).map((opcion) => {
+    const valor = deDatosBasicos(opcion.valor);
+    return { valor, etiqueta: opcion.etiqueta, oculto: opcion.oculto, delExcel: Boolean(categoriaPorCodigo(valor)) };
+  });
+  const vistas = new Set(deDatos.map((opcion) => opcion.valor));
+  const viejas = [...CATEGORIAS.map((categoria) => ({ codigo: categoria.codigo, etiquetas: categoria.etiquetas })), ...(config?.listas?.[LISTA_SELECCION] || [])]
+    .filter((opcion) => {
+      if (vistas.has(opcion.codigo)) return false;
+      vistas.add(opcion.codigo);
+      return true;
+    })
+    .map((opcion) => ({
+      valor: opcion.codigo,
+      etiqueta: enIdioma(opcion.etiquetas, idioma) || enIdioma(categoriaPorCodigo(opcion.codigo)?.etiquetas, idioma) || opcion.codigo,
+      oculto: true,
+      delExcel: Boolean(categoriaPorCodigo(opcion.codigo)),
+    }));
+  return [...deDatos, ...viejas].filter((opcion) => conOcultas || !opcion.oculto);
+};
+
 // Las opciones de una lista en este club: las del Excel (con el nombre que
 // les puso el club) y las que sumó el club, en su orden. Cada una:
-// { valor, etiqueta, oculto, delExcel }.
+// { valor, etiqueta, oculto, delExcel }. Selección, las de Datos básicos.
 export const opcionesDeLista = (lista, config, idioma, { test = null, conOcultas = false } = {}) => {
+  if (lista === LISTA_SELECCION) return opcionesDeCategorias(config, idioma, conOcultas);
   const delExcel = opcionesDelExcel(lista, test);
   const guardadas = config?.listas?.[lista] || [];
   const porCodigo = new Map(guardadas.map((guardada) => [guardada.codigo, guardada]));
@@ -141,12 +173,13 @@ export const etiquetaDeOpcion = (lista, codigo, config, idioma, test = null) => 
 export const esCategoriaDelClub = (codigo, config) => Boolean(codigo) && opcionesDeLista(LISTA_SELECCION, config, "es-AR", { conOcultas: true }).some((opcion) => opcion.valor === codigo);
 
 // Lo que dice el selector del informe: el texto del Excel ("Vs Sub 15") si
-// el club no le cambió el nombre a la categoría; si no, "Vs" y su nombre.
+// la categoría se llama como en el Excel; si no (en Datos básicos, «Mayor
+// (profesional)»), "Vs" y su nombre.
 export const textoDeComparar = (codigo, config, idioma) => {
   const categoria = categoriaPorCodigo(codigo);
-  const guardada = (config?.listas?.[LISTA_SELECCION] || []).find((una) => una.codigo === codigo);
-  if (categoria && !(guardada && conTexto(guardada.etiquetas))) return categoria.contra[idiomaLargo(idioma)];
-  return `Vs ${etiquetaDeOpcion(LISTA_SELECCION, codigo, config, idioma)}`;
+  const etiqueta = etiquetaDeOpcion(LISTA_SELECCION, codigo, config, idioma);
+  if (categoria && etiqueta === categoria.etiquetas[idiomaLargo(idioma)]) return categoria.contra[idiomaLargo(idioma)];
+  return `Vs ${etiqueta}`;
 };
 
 const normalizar = (texto) =>
@@ -157,16 +190,17 @@ const normalizar = (texto) =>
     .toLowerCase();
 
 // La categoría de un texto pegado del Excel: la del Excel ("Sub-15",
-// "Profissional"…) o una del club por su nombre en cualquiera de los dos
-// idiomas. null si está vacío, undefined si no es ninguna.
+// "Profissional"…) o una del club (las de Datos básicos y las que se ven en lo
+// cargado) por su código o su nombre en cualquiera de los dos idiomas. null si
+// está vacío, undefined si no es ninguna.
 export const categoriaDeTextoDelClub = (texto, config) => {
   const delExcel = categoriaDeTexto(texto);
   if (delExcel !== undefined) return delExcel;
   const buscado = normalizar(texto);
-  const encontrada = (config?.listas?.[LISTA_SELECCION] || []).find(
-    (opcion) => normalizar(opcion.codigo) === buscado || IDIOMAS.some((idioma) => normalizar(opcion.etiquetas?.[idioma]) === buscado),
+  const encontrada = IDIOMAS.flatMap((idioma) => opcionesDeLista(LISTA_SELECCION, config, idioma, { conOcultas: true })).find(
+    (opcion) => normalizar(opcion.valor) === buscado || normalizar(opcion.etiqueta) === buscado,
   );
-  return encontrada ? encontrada.codigo : undefined;
+  return encontrada ? encontrada.valor : undefined;
 };
 
 // La opción de una lista de un texto pegado del Excel ("BAJA", "NO 1 y

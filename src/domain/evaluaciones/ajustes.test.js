@@ -12,6 +12,7 @@ import {
   textoDeComparar,
   tituloDeColumna,
 } from "./ajustes.js";
+import { aDatosBasicos, deDatosBasicos, seleccionesAlCambiar } from "./categorias.js";
 import { ZONA_MEDIA } from "./tests/zonaMedia.js";
 import { CURL_NORDICO_ISOPRONE } from "./tests/curlNordicoIsoprone.js";
 import { PRESS_PLANO } from "./tests/pressPlano.js";
@@ -34,6 +35,22 @@ const config = armarConfig(
   ],
 );
 const columna = (clave) => ZONA_MEDIA.columnas.find((una) => una.clave === clave);
+// Las categorías del club en Datos básicos (inventadas): Mayor renombrada,
+// Sub-18 escondida y una sumada; y una que el club había sumado antes en
+// Evaluaciones.
+const categoriasDelClub = armarConfig(
+  [],
+  [{ lista: "seleccion", codigo: "juveniles_v", etiqueta_es: "Juveniles", etiqueta_pt: "", oculto: false, orden: 6 }],
+  [
+    { campo: "categoria", codigo: "profissional", etiqueta_es: "Primera", etiqueta_pt: "Profissional", oculto: false, orden: 0 },
+    { campo: "categoria", codigo: "sub23", etiqueta_es: "Sub-23", etiqueta_pt: "Sub-23", oculto: false, orden: 1 },
+    { campo: "categoria", codigo: "sub20", etiqueta_es: "Sub-20", etiqueta_pt: "Sub-20", oculto: false, orden: 2 },
+    { campo: "categoria", codigo: "sub18", etiqueta_es: "Sub-18", etiqueta_pt: "Sub-18", oculto: true, orden: 3 },
+    { campo: "categoria", codigo: "sub17", etiqueta_es: "Sub-17", etiqueta_pt: "Sub-17", oculto: false, orden: 4 },
+    { campo: "categoria", codigo: "sub15", etiqueta_es: "Sub-15", etiqueta_pt: "Sub-15", oculto: false, orden: 5 },
+    { campo: "categoria", codigo: "reserva_x", etiqueta_es: "Reserva", etiqueta_pt: "Reserva", oculto: false, orden: 6 },
+  ],
+);
 
 describe("Evaluaciones › Ajustes", () => {
   it("el nombre de una cabecera: el del club, en el otro idioma si falta, y si no el del Excel", () => {
@@ -90,44 +107,94 @@ describe("Evaluaciones › Ajustes", () => {
     expect(claves).toContain("ratio");
   });
 
-  it("Selección: las del Excel con el nombre del club, las escondidas aparte y las que sumó el club al final", () => {
-    expect(opcionesDeLista(LISTA_SELECCION, config, "es-AR").map((una) => una.etiqueta)).toEqual(["Sub-17", "Sub-18", "Sub-20", "Sub-23", "Primera", "Reserva"]);
-    expect(opcionesDeLista(LISTA_SELECCION, config, "pt-BR", { conOcultas: true }).map((una) => una.etiqueta)).toEqual([
-      "Sub-15",
-      "Sub-17",
-      "Sub-18",
-      "Sub-20",
-      "Sub-23",
-      "Primera",
-      "Reserva",
+  // Santiago, 18/10: las categorías son las de Datos básicos («La de Datos
+  // básicos»), con sus nombres; lo cargado antes no se pierde.
+  it("Selección: las de Datos básicos, con sus nombres y su orden; lo cargado con otra se sigue viendo", () => {
+    expect(opcionesDeLista(LISTA_SELECCION, categoriasDelClub, "es-AR").map((una) => [una.valor, una.etiqueta])).toEqual([
+      ["mayor", "Primera"],
+      ["sub23", "Sub-23"],
+      ["sub20", "Sub-20"],
+      ["sub17", "Sub-17"],
+      ["sub15", "Sub-15"],
+      ["reserva_x", "Reserva"],
     ]);
-    // Sin cambios, las del Excel (en portugués, Mayor es Profissional).
-    expect(opcionesDeLista(LISTA_SELECCION, armarConfig(), "pt-BR").map((una) => una.etiqueta).at(-1)).toBe("Profissional");
-    // Una escondida se sigue viendo en lo cargado.
-    expect(etiquetaDeOpcion(LISTA_SELECCION, "sub15", config, "es-AR")).toBe("Sub-15");
-    expect(etiquetaDeOpcion(LISTA_SELECCION, "borrada", config, "es-AR")).toBe("borrada");
+    // La escondida en Datos básicos y la que el club había sumado acá, solo para lo cargado.
+    expect(opcionesDeLista(LISTA_SELECCION, categoriasDelClub, "es-AR", { conOcultas: true }).map((una) => una.etiqueta)).toEqual([
+      "Primera",
+      "Sub-23",
+      "Sub-20",
+      "Sub-18",
+      "Sub-17",
+      "Sub-15",
+      "Reserva",
+      "Juveniles",
+    ]);
+    // Sin lo del club, las de Datos básicos de la app (en portugués, Profissional).
+    expect(opcionesDeLista(LISTA_SELECCION, armarConfig(), "es-AR").map((una) => una.etiqueta)).toEqual(["Mayor (profesional)", "Sub-23", "Sub-20", "Sub-18", "Sub-17", "Sub-15"]);
+    expect(opcionesDeLista(LISTA_SELECCION, armarConfig(), "pt-BR")[0]).toMatchObject({ valor: "mayor", etiqueta: "Profissional" });
+    expect(etiquetaDeOpcion(LISTA_SELECCION, "juveniles_v", categoriasDelClub, "es-AR")).toBe("Juveniles");
+    expect(etiquetaDeOpcion(LISTA_SELECCION, "borrada", categoriasDelClub, "es-AR")).toBe("borrada");
   });
 
   it("una categoría del club vale como categoría (sus clases quedan vacías sin V.R.)", () => {
-    expect(esCategoriaDelClub("reserva_x", config)).toBe(true);
-    expect(esCategoriaDelClub("sub15", config)).toBe(true);
-    expect(esCategoriaDelClub("otra", config)).toBe(false);
+    expect(esCategoriaDelClub("reserva_x", categoriasDelClub)).toBe(true);
+    expect(esCategoriaDelClub("sub18", categoriasDelClub)).toBe(true);
+    expect(esCategoriaDelClub("juveniles_v", categoriasDelClub)).toBe(true);
+    expect(esCategoriaDelClub("otra", categoriasDelClub)).toBe(false);
   });
 
-  it("el selector del informe: el texto del Excel o «Vs» y el nombre del club", () => {
-    expect(textoDeComparar("sub17", config, "es-AR")).toBe("Vs Sub 17");
+  it("el selector del informe: el texto del Excel o «Vs» y el nombre de Datos básicos", () => {
+    expect(textoDeComparar("sub17", categoriasDelClub, "es-AR")).toBe("Vs Sub 17");
     expect(textoDeComparar("mayor", armarConfig(), "pt-BR")).toBe("Vs Profissional");
-    expect(textoDeComparar("mayor", config, "es-AR")).toBe("Vs Primera");
-    expect(textoDeComparar("reserva_x", config, "es-AR")).toBe("Vs Reserva");
+    expect(textoDeComparar("mayor", armarConfig(), "es-AR")).toBe("Vs Mayor (profesional)");
+    expect(textoDeComparar("mayor", categoriasDelClub, "es-AR")).toBe("Vs Primera");
+    expect(textoDeComparar("reserva_x", categoriasDelClub, "es-AR")).toBe("Vs Reserva");
   });
 
-  it("al pegar, la Selección se reconoce como en el Excel y con los nombres del club", () => {
-    expect(categoriaDeTextoDelClub("Sub-20", config)).toBe("sub20");
-    expect(categoriaDeTextoDelClub("Profissional", config)).toBe("mayor");
-    expect(categoriaDeTextoDelClub("primera", config)).toBe("mayor");
-    expect(categoriaDeTextoDelClub("RESERVA", config)).toBe("reserva_x");
-    expect(categoriaDeTextoDelClub("", config)).toBe(null);
-    expect(categoriaDeTextoDelClub("Juveniles", config)).toBe(undefined);
+  it("al pegar, la Selección se reconoce como en el Excel y con los nombres de Datos básicos", () => {
+    expect(categoriaDeTextoDelClub("Sub-20", categoriasDelClub)).toBe("sub20");
+    expect(categoriaDeTextoDelClub("Profissional", categoriasDelClub)).toBe("mayor");
+    expect(categoriaDeTextoDelClub("primera", categoriasDelClub)).toBe("mayor");
+    expect(categoriaDeTextoDelClub("Mayor (profesional)", armarConfig())).toBe("mayor");
+    expect(categoriaDeTextoDelClub("RESERVA", categoriasDelClub)).toBe("reserva_x");
+    expect(categoriaDeTextoDelClub("Juveniles", categoriasDelClub)).toBe("juveniles_v");
+    expect(categoriaDeTextoDelClub("", categoriasDelClub)).toBe(null);
+    expect(categoriaDeTextoDelClub("Infantiles", categoriasDelClub)).toBe(undefined);
+  });
+});
+
+// Santiago, 18/10: al cambiarle la categoría a un jugador en Datos básicos,
+// la misma pregunta que en Lesiones, también para sus evaluaciones.
+describe("Evaluaciones › la categoría al cambiarla en Datos básicos", () => {
+  const evaluaciones = [
+    { id: "e1", fecha: "2026-03-01", datos: { seleccion: "sub20", lumbar: 200 } },
+    { id: "e2", fecha: "2026-05-01", datos: { lumbar: 210 } },
+    { id: "e3", fecha: "2026-08-01", datos: { seleccion: "sub20" } },
+  ];
+  it("Datos básicos llama «profissional» a Mayor; las demás, igual", () => {
+    expect(deDatosBasicos("profissional")).toBe("mayor");
+    expect(deDatosBasicos("sub20")).toBe("sub20");
+    expect(deDatosBasicos("")).toBe(null);
+    expect(aDatosBasicos("mayor")).toBe("profissional");
+    expect(aDatosBasicos("reserva_x")).toBe("reserva_x");
+  });
+  it("«En todo su historial»: todas pasan a la nueva", () => {
+    expect(seleccionesAlCambiar(evaluaciones, { anterior: "sub20", nueva: "profissional", desde: null })).toEqual([
+      { id: "e1", datos: { seleccion: "mayor", lumbar: 200 } },
+      { id: "e2", datos: { seleccion: "mayor", lumbar: 210 } },
+      { id: "e3", datos: { seleccion: "mayor" } },
+    ]);
+  });
+  it("«Desde esa fecha»: las de antes quedan con la suya (o la anterior); desde esa fecha, la nueva", () => {
+    expect(seleccionesAlCambiar(evaluaciones, { anterior: "sub20", nueva: "profissional", desde: "2026-06-01" })).toEqual([
+      { id: "e2", datos: { seleccion: "sub20", lumbar: 210 } },
+      { id: "e3", datos: { seleccion: "mayor" } },
+    ]);
+    // Sin categoría nueva, las de esa fecha en adelante quedan sin Selección.
+    expect(seleccionesAlCambiar(evaluaciones, { anterior: "sub20", nueva: "", desde: "2026-06-01" })).toEqual([
+      { id: "e2", datos: { seleccion: "sub20", lumbar: 210 } },
+      { id: "e3", datos: {} },
+    ]);
   });
 });
 

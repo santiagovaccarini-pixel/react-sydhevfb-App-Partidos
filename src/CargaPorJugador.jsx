@@ -4,7 +4,8 @@ import { BotonVolver } from "./components/BotonVolver.jsx";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { SelectorDeTest } from "./ReportesEvaluaciones.jsx";
-import { LISTA_SELECCION, categoriaDeTextoDelClub, opcionesDeLista, tituloDeColumna, tituloDeGrupo } from "./domain/evaluaciones/ajustes.js";
+import { LISTA_SELECCION, opcionesDeLista, tituloDeColumna, tituloDeGrupo } from "./domain/evaluaciones/ajustes.js";
+import { deDatosBasicos } from "./domain/evaluaciones/categorias.js";
 import { listaDeColumna } from "./domain/evaluaciones/celdas.js";
 import { esActual } from "./domain/plantel.js";
 import { interpretarMinutos } from "./domain/tabla.js";
@@ -205,7 +206,7 @@ export default function CargaPorJugador({ carga, setCarga, tests, columnas, comu
   const elegirJugador = (filaId, valor) => {
     const jugador = jugadorDe(valor);
     if (!jugador) return;
-    const categoria = categoriaDeTextoDelClub(jugador.categoria, config);
+    const categoria = deDatosBasicos(jugador.categoria);
     const deLaLista = categoria && opcionesDeLista(LISTA_SELECCION, config, idioma).some((opcion) => opcion.valor === categoria);
     cambiarFila(filaId, (fila) => ({ ...fila, jugador_id: jugador.id, datos: deLaLista ? { ...fila.datos, [LISTA_SELECCION]: categoria } : fila.datos }));
   };

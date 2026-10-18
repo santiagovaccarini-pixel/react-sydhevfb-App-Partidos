@@ -94,6 +94,15 @@ vi.mock("./domain/lesionesDb.js", () => ({
   },
 }));
 
+// Las evaluaciones de cada jugador (para la categoría) y su Selección guardada.
+vi.mock("./domain/evaluacionesDb.js", () => ({
+  leerEvaluacionesPorJugador: async () => ({ porJugador: JSON.parse(JSON.stringify(registro.evaluaciones)), error: "" }),
+  guardarSeleccionDeEvaluaciones: async (cambios) => {
+    registro.seleccionesDeEvaluaciones.push(...cambios);
+    return { hechas: cambios.map((cambio) => cambio.id), error: "" };
+  },
+}));
+
 const { default: DatosBasicos } = await import("./DatosBasicos.jsx");
 const { fijarIdiomaParaPruebas } = await import("./idioma/index.js");
 const { hoyISO } = await import("./idioma/formatos.js");
@@ -124,6 +133,8 @@ describe("el módulo Datos básicos", () => {
     registro.fallarAgregar = "";
     registro.lesiones = {};
     registro.categoriasDeLesiones = [];
+    registro.evaluaciones = {};
+    registro.seleccionesDeEvaluaciones = [];
     registro.config = { campos: {}, listas: {} };
     registro.columnas = {};
     registro.ajustes = [];
@@ -793,7 +804,7 @@ describe("el módulo Datos básicos", () => {
     await montar();
     await cambiarCategoria("Sub-20");
     expect(registro.guardados).toEqual([]);
-    expect(hoja().textContent).toContain("¿Cambia en todo su historial o desde una fecha?");
+    expect(hoja().textContent).toContain("¿Cambia en todo su historial de lesiones o desde una fecha?");
     expect(hoja().textContent).toContain("HULK pasa de Mayor (profesional) a Sub-20 y tiene 2 lesiones cargadas.");
     const fecha = hoja().querySelector('input[type="date"]');
     expect(fecha.value).toBe(hoyISO());
@@ -852,12 +863,12 @@ describe("el módulo Datos básicos", () => {
     await tocar(boton(contenedor, "Pegar desde Excel"));
     await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), "Nome e Sobrenome\tCategoria\nHulk\tSub-20");
     const fila = () => contenedor.querySelector(".datos-importar-lista li");
-    expect(fila().textContent).toContain("Cambia la categoría de HULK: de Mayor (profesional) a Sub-20, y tiene 2 lesiones. ¿En todo su historial o desde una fecha?");
+    expect(fila().textContent).toContain("Cambia la categoría de HULK: de Mayor (profesional) a Sub-20, y tiene 2 lesiones. ¿En todo su historial de lesiones o desde una fecha?");
     expect(texto(contenedor)).toContain("0 nuevos · 1 con cambios · 0 sin cambios");
     expect(texto(contenedor)).toContain("Falta elegir en 1 fila desde cuándo cambia la categoría.");
     expect(boton(contenedor, "Nada para cargar").disabled).toBe(true);
     await tocar([...fila().querySelectorAll("button")].find((b) => b.textContent === "En todo su historial"));
-    expect(fila().textContent).toContain("Categoría: en todo su historial.");
+    expect(fila().textContent).toContain("Categoría en Lesiones: en todo su historial.");
     await tocar(boton(contenedor, "Cargar 1 jugador"));
     await act(async () => Promise.resolve());
     expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
@@ -865,6 +876,98 @@ describe("el módulo Datos básicos", () => {
       { id: "l1", datos: { categoria: "sub20" } },
       { id: "l2", datos: { categoria: "sub20" } },
     ]);
+  });
+
+  // Santiago, 18/10: «Como hicimos en lesiones, se pregunta mismamente por
+  // base, es decir, hacemos la misma pregunta para la base de lesiones
+  // primero y despues para la de evaluaciones».
+  const conEvaluaciones = () => ({
+    7: [
+      { id: "e1", fecha: "2026-03-01", datos: { seleccion: "mayor", lumbar: 200 } },
+      { id: "e2", fecha: "2026-08-01", datos: { lumbar: 210 } },
+    ],
+  });
+
+  test("cambiar la categoría de alguien con lesiones y evaluaciones: primero Lesiones, después Evaluaciones con la misma fecha", async () => {
+    registro.lesiones = conLesiones();
+    registro.evaluaciones = conEvaluaciones();
+    await montar();
+    await cambiarCategoria("Sub-20");
+    expect(hoja().textContent).toContain("¿Cambia en todo su historial de lesiones o desde una fecha?");
+    await escribir(hoja().querySelector('input[type="date"]'), "2026-06-01");
+    await tocar(boton(document.body, "Desde esa fecha"));
+    await act(async () => Promise.resolve());
+    // Todavía no se guardó nada: falta Evaluaciones.
+    expect(registro.guardados).toEqual([]);
+    expect(hoja().textContent).toContain("¿Cambia en todo su historial de evaluaciones o desde una fecha?");
+    expect(hoja().textContent).toContain("HULK pasa de Mayor (profesional) a Sub-20 y tiene 2 evaluaciones cargadas.");
+    expect(hoja().querySelector('input[type="date"]').value).toBe("2026-06-01");
+    await tocar(boton(document.body, "Desde esa fecha"));
+    await act(async () => Promise.resolve());
+    expect(hoja()).toBeNull();
+    expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
+    expect(registro.categoriasDeLesiones).toEqual([
+      { id: "l1", datos: { categoria: "profissional" } },
+      { id: "l2", datos: { categoria: "sub20" } },
+    ]);
+    // La de antes queda con la suya; la de después pasa a Sub-20.
+    expect(registro.seleccionesDeEvaluaciones).toEqual([{ id: "e2", datos: { seleccion: "sub20", lumbar: 210 } }]);
+  });
+
+  test("cambiar la categoría de alguien solo con evaluaciones: «En todo su historial»; cerrar la pregunta no cambia nada", async () => {
+    registro.evaluaciones = conEvaluaciones();
+    await montar();
+    await cambiarCategoria("Sub-20");
+    expect(hoja().textContent).toContain("¿Cambia en todo su historial de evaluaciones o desde una fecha?");
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    await act(async () => Promise.resolve());
+    expect(registro.guardados).toEqual([]);
+    expect(celda(contenedor, 0, 2).textContent).toBe("Mayor (profesional)");
+    await cambiarCategoria("Sub-20");
+    await tocar(boton(document.body, "En todo su historial"));
+    await act(async () => Promise.resolve());
+    expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
+    expect(registro.seleccionesDeEvaluaciones).toEqual([
+      { id: "e1", datos: { seleccion: "sub20", lumbar: 200 } },
+      { id: "e2", datos: { seleccion: "sub20", lumbar: 210 } },
+    ]);
+  });
+
+  test("con Evaluaciones en «Solo lectura» no se pregunta por ellas y quedan como estaban", async () => {
+    registro.lesiones = conLesiones();
+    registro.evaluaciones = conEvaluaciones();
+    registro.equipo = { id: "eq-1", nombre: "Atlético Mineiro", hasta: null, solo_lectura: ["evaluaciones"] };
+    await montar();
+    await cambiarCategoria("Sub-20");
+    await tocar(boton(document.body, "En todo su historial"));
+    await act(async () => Promise.resolve());
+    expect(hoja()).toBeNull();
+    expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
+    expect(registro.categoriasDeLesiones).toHaveLength(2);
+    expect(registro.seleccionesDeEvaluaciones).toEqual([]);
+  });
+
+  test("al pegar: con lesiones y evaluaciones, en su fila se elige primero para Lesiones y después para Evaluaciones", async () => {
+    registro.lesiones = conLesiones();
+    registro.evaluaciones = conEvaluaciones();
+    await montar();
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), "Nome e Sobrenome\tCategoria\nHulk\tSub-20");
+    const fila = () => contenedor.querySelector(".datos-importar-lista li");
+    expect(fila().textContent).toContain("y tiene 2 lesiones. ¿En todo su historial de lesiones o desde una fecha?");
+    await tocar([...fila().querySelectorAll("button")].find((b) => b.textContent === "En todo su historial"));
+    expect(fila().textContent).toContain("Categoría en Lesiones: en todo su historial.");
+    expect(fila().textContent).toContain("Cambia la categoría de HULK: de Mayor (profesional) a Sub-20, y tiene 2 evaluaciones. ¿En todo su historial de evaluaciones o desde una fecha?");
+    expect(texto(contenedor)).toContain("Falta elegir en 1 fila desde cuándo cambia la categoría.");
+    expect(boton(contenedor, "Nada para cargar").disabled).toBe(true);
+    await escribir(fila().querySelector('input[type="date"]'), "2026-06-01");
+    await tocar([...fila().querySelectorAll("button")].find((b) => b.textContent === "Desde esa fecha"));
+    expect(fila().textContent).toContain("Categoría en Evaluaciones: desde el 01/06/2026.");
+    await tocar(boton(contenedor, "Cargar 1 jugador"));
+    await act(async () => Promise.resolve());
+    expect(registro.guardados).toEqual([{ id: 7, categoria: "sub20" }]);
+    expect(registro.categoriasDeLesiones).toHaveLength(2);
+    expect(registro.seleccionesDeEvaluaciones).toEqual([{ id: "e2", datos: { seleccion: "sub20", lumbar: 210 } }]);
   });
 
   test("un nombre que ya está en la lista no se agrega dos veces (y se dice en el idioma de la app)", async () => {
