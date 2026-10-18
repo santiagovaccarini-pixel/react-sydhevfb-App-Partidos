@@ -3818,16 +3818,18 @@ button:disabled {
 
   /* Al bajar, la barra se va y lo que estaba apoyado en ella (la fila de
      Volver, los avisos) baja con ella; apenas se sube, vuelve (UI-053). Con
-     el teclado, al llegar a un botón de la barra, se ve. */
+     el teclado, al llegar a un botón de la barra, se ve. Solo con el
+     teclado (:focus-visible): al tocar una solapa el botón queda con el
+     foco y, con :focus-within, la barra ya no se iba. */
   .marco-aplicacion {
     --alto-barra-abajo: 67px;
   }
 
-  .marco-aplicacion.barra-abajo-escondida:not(:has(.navegacion-movil:focus-within)) {
+  .marco-aplicacion.barra-abajo-escondida:not(:has(.navegacion-movil :focus-visible)) {
     --alto-barra-abajo: 0px;
   }
 
-  .marco-aplicacion.barra-abajo-escondida .navegacion-movil:not(:focus-within) {
+  .marco-aplicacion.barra-abajo-escondida .navegacion-movil:not(:has(:focus-visible)) {
     transform: translateY(100%);
   }
 
