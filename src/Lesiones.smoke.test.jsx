@@ -747,14 +747,51 @@ describe("el módulo Lesiones", () => {
   test("el alta médica cierra la lesión; la severidad sale sola de las fechas", async () => {
     await montar();
     await tocar(boton(contenedor, "Alta médica"));
-    expect(texto(contenedor)).toContain("¿Dar el alta médica?");
-    await tocar(boton(contenedor, "Sí, dar el alta"));
+    expect(texto(contenedor)).toContain("La lesión sale de «Nuevos casos» recién cuando cargás el retorno a la competencia.");
+    // Sin cambiar ninguna fecha, no hay nada que guardar.
+    expect(boton(contenedor, "Guardar").disabled).toBe(true);
+    await escribir(document.querySelector("#alta-fecha_alta"), hoyISO());
+    await tocar(boton(contenedor, "Guardar"));
     await act(async () => Promise.resolve());
     expect(datos.actualizadas).toHaveLength(1);
     expect(datos.actualizadas[0].lesion.fecha_alta).toBe(hoyISO());
     expect(datos.actualizadas[0].lesion.datos.severidad).toBeUndefined();
     expect(texto(contenedor)).toContain("Alta guardada");
     expect(texto(contenedor)).toContain("No hay lesiones activas");
+  });
+
+  // Santiago, 18/10: «que se puedan completar las demas fechas y que solo se
+  // vaya de cargar cuando se cargue la fecha de vuelta a la competicion y no
+  // el resto».
+  test("en el alta médica se cargan las demás fechas y la lesión sigue en Nuevos casos hasta el retorno a la competencia", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Alta médica"));
+    const rotulos = [...document.body.querySelectorAll(".lesiones-hoja .campo-inicio label")].map((label) => label.textContent);
+    expect(rotulos).toHaveLength(3);
+    expect(document.querySelector("#alta-fecha_alta").value).toBe("");
+    await escribir(document.querySelector("#alta-fecha_transicion"), hoyISO());
+    await escribir(document.querySelector("#alta-fecha_retorno_entrenamiento"), hoyISO());
+    await tocar(boton(contenedor, "Guardar"));
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(1);
+    const guardada = datos.actualizadas[0].lesion;
+    expect(guardada.fecha_transicion).toBe(hoyISO());
+    expect(guardada.fecha_retorno_entrenamiento).toBe(hoyISO());
+    expect(guardada.fecha_alta).toBeNull();
+    expect(texto(contenedor)).toContain("Fechas guardadas. Sigue en «Nuevos casos»");
+    // Sigue activa, con su botón de alta.
+    expect(boton(contenedor, "Alta médica")).toBeTruthy();
+    expect(texto(contenedor)).not.toContain("No hay lesiones activas");
+  });
+
+  test("en el alta médica, una fecha antes del inicio no se guarda", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Alta médica"));
+    await escribir(document.querySelector("#alta-fecha_transicion"), "2020-01-01");
+    await tocar(boton(contenedor, "Guardar"));
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(0);
+    expect(texto(contenedor)).toContain("Alta médica");
   });
 
   test("los reportes: el individual como el del Excel y el grupal", async () => {

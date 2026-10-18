@@ -169,11 +169,11 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // de la parte del cuerpo elegida.
   const [deLaLista, setDeLaLista] = useState({});
 
-  // Hojas: elegir de una lista (como los desplegables de Partido), dar el
-  // alta, borrar.
+  // Hojas: elegir de una lista (como los desplegables de Partido), el alta
+  // médica (con las fechas de la vuelta), borrar.
   const [hojaSelector, setHojaSelector] = useState(null);
   const [aDarAlta, setADarAlta] = useState(null);
-  const [fechaAlta, setFechaAlta] = useState(hoyISO());
+  const [fechasAlta, setFechasAlta] = useState({});
   const [aBorrar, setABorrar] = useState(null);
   // El destino de la barra mientras se confirma dejar una carga sin guardar.
   const [aSalir, setASalir] = useState(null);
@@ -493,21 +493,37 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     setAviso(t("lesiones.guardado"));
   };
 
+  // Alta médica: las fechas de la vuelta (pase a transición, retorno al
+  // entrenamiento y retorno a la competencia), a medida que pasan. La lesión
+  // sale de Nuevos casos recién con el retorno a la competencia (Santiago,
+  // 18/10: «que se puedan completar las demas fechas y que solo se vaya de
+  // cargar cuando se cargue la fecha de vuelta a la competicion y no el
+  // resto»). Las que el club escondió no se muestran; el retorno a la
+  // competencia, siempre.
+  const FECHAS_DEL_ALTA = ["fecha_transicion", "fecha_retorno_entrenamiento", "fecha_alta"];
+  const fechasDelAlta = FECHAS_DEL_ALTA.filter((clave) => clave === "fecha_alta" || !oculto(clave));
+  const abrirAlta = (lesion) => {
+    setFechasAlta(Object.fromEntries(FECHAS_DEL_ALTA.map((clave) => [clave, lesion[clave] || ""])));
+    setADarAlta(lesion);
+  };
+  const cambiosDelAlta = aDarAlta ? fechasDelAlta.filter((clave) => (fechasAlta[clave] || "") !== (aDarAlta[clave] || "")) : [];
+
   const confirmarAlta = async () => {
     const lesion = aDarAlta;
-    if (!lesion) return;
-    const hoy = hoyISO();
+    if (!lesion || !cambiosDelAlta.length) return;
     // Sin fecha de inicio, primero hay que completarla (editando la lesión).
     if (!tieneFecha(lesion)) return setAviso(t("lesiones.error.fecha"));
-    if (!fechaAlta || fechaAlta < lesion.fecha_lesion) return setAviso(t("lesiones.error.fechaAntes"));
-    if (fechaAlta > hoy) return setAviso(t("lesiones.error.fechaFuturaOtra"));
+    const nueva = cambiosDelAlta.reduce((antes, clave) => ({ ...antes, [clave]: fechasAlta[clave] || null }), lesion);
+    // Solo frena lo que rompen estas fechas (antes del inicio o futuras).
+    const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: lesiones, oculto })[0]?.error;
+    if (falta) return setAviso(t(falta, variablesDelError(nueva)));
     setOcupado(true);
-    const respuesta = await actualizarLesion(lesion.id, { ...lesion, fecha_alta: fechaAlta });
+    const respuesta = await actualizarLesion(lesion.id, nueva);
     setOcupado(false);
     if (respuesta.error) return avisarError(respuesta.error, lesion);
     reemplazar(respuesta.lesion);
     setADarAlta(null);
-    setAviso(t("lesiones.altaGuardada"));
+    setAviso(t(respuesta.lesion.fecha_alta ? "lesiones.altaGuardada" : "lesiones.fechasGuardadas"));
     return undefined;
   };
 
@@ -659,10 +675,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
           <button
             type="button"
             className="boton-detalle"
-            onClick={() => {
-              setFechaAlta(hoyISO());
-              setADarAlta(lesion);
-            }}
+            onClick={() => abrirAlta(lesion)}
           >
             {t("lesiones.darAlta")}
           </button>
@@ -1256,10 +1269,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
               <button
                 type="button"
                 className="boton-secundario"
-                onClick={() => {
-                  setFechaAlta(hoyISO());
-                  setADarAlta(lesion);
-                }}
+                onClick={() => abrirAlta(lesion)}
               >
                 {t("lesiones.darAlta")}
               </button>
@@ -1886,16 +1896,25 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
               <button type="button" className="boton-cancelar-hoja" onClick={() => setADarAlta(null)} disabled={ocupado}>
                 {t("comun.cancelar")}
               </button>
-              <button type="button" className="boton-confirmar-hoja" onClick={confirmarAlta} disabled={ocupado}>
-                {ocupado ? t("comun.guardando") : t("lesiones.siAlta")}
+              <button type="button" className="boton-confirmar-hoja" onClick={confirmarAlta} disabled={ocupado || !cambiosDelAlta.length}>
+                {ocupado ? t("comun.guardando") : t("comun.guardar")}
               </button>
             </>
           }
         >
-          <div className="campo-inicio">
-            <label>{t("lesiones.altaFecha")}</label>
-            <input type="date" value={fechaAlta} min={aDarAlta.fecha_lesion} max={hoyISO()} onChange={(evento) => setFechaAlta(evento.target.value)} />
-          </div>
+          {fechasDelAlta.map((clave) => (
+            <div className="campo-inicio" key={clave}>
+              <label htmlFor={`alta-${clave}`}>{etiqueta(clave)}</label>
+              <input
+                id={`alta-${clave}`}
+                type="date"
+                value={fechasAlta[clave] || ""}
+                min={aDarAlta.fecha_lesion || undefined}
+                max={hoyISO()}
+                onChange={(evento) => setFechasAlta((antes) => ({ ...antes, [clave]: evento.target.value }))}
+              />
+            </div>
+          ))}
         </HojaInferior>
       )}
 
