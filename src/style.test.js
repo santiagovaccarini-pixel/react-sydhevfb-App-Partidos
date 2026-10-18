@@ -80,6 +80,13 @@ describe("la barra de acciones queda a mano en el teléfono", () => {
     expect(reglaCon(".marco-aplicacion", enElTelefono)).toContain("--alto-barra-abajo: 67px");
   });
 
+  it("la barra de abajo se va al bajar aunque se haya tocado una solapa", () => {
+    // Al tocar un botón queda con el foco: la excepción para el teclado es
+    // :focus-visible; con :focus-within la barra no se iba más (18/10).
+    expect(estilos).toContain(".marco-aplicacion.barra-abajo-escondida .navegacion-movil:not(:has(:focus-visible))");
+    expect(estilos).not.toMatch(/barra-abajo-escondida[^{]*focus-within/);
+  });
+
   it("deja abajo el lugar que la barra ocupa", () => {
     // Si esto se queda corto, la barra tapa la última tarjeta de la pantalla:
     // a los 88px que despejaban la navegación hay que sumarles los 71 de la

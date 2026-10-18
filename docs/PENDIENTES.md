@@ -3881,7 +3881,10 @@ confirme.**
     funcionando»): en las bases (`.tabla-datos-marco`), el Informe de GPS y la lista del
     Historial lo que corre es la tabla o la lista, no la página, y la barra no se enteraba. Ahora
     escucha también lo que se desliza adentro (en la fase de captura), si mide 150 px o más y no
-    está dentro de una hoja abierta (`role="dialog"`); de costado no cambia nada.
+    está dentro de una hoja abierta (`role="dialog"`); de costado no cambia nada. La causa
+    principal era otra: al tocar una solapa, su botón queda con el foco y la regla para el
+    teclado (`:focus-within`) dejaba la barra a la vista para siempre. Ahora la excepción es solo
+    con el foco del teclado (`:focus-visible`).
   - **Queda prohibido** esconder la lateral del todo, que se esconda sola, volver a la flechita
     de abajo y esconder la de abajo con un botón o solo en algunas pantallas, salvo un pedido
     nuevo. Ver UI-053.
