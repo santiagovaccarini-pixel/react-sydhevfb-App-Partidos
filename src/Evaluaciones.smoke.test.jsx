@@ -25,6 +25,8 @@ const datos = vi.hoisted(() => ({
   fallaLaProxima: "",
   // Lo que el club cambió en Ajustes (las filas de la base).
   ajustes: { campos: [], opciones: [] },
+  // Las categorías del club en Datos básicos (null: no se pudieron leer).
+  categorias: null,
   cabeceras: [],
   opciones: [],
   referenciasCurl: null,
@@ -131,6 +133,7 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
     error: "",
   }),
   leerAjustes: async () => ({ campos: [...datos.ajustes.campos], opciones: [...datos.ajustes.opciones], error: "" }),
+  leerCategorias: async () => ({ filas: datos.categorias ? datos.categorias.map((fila) => ({ ...fila })) : null, error: "" }),
   guardarCabecera: async (equipoId, test, campo, { etiquetas, oculto, orden }) => {
     datos.cabeceras.push({ equipoId, test, campo, etiquetas, oculto, orden });
     datos.ajustes.campos = [
@@ -267,6 +270,7 @@ describe("Evaluaciones", () => {
     datos.compuerta = null;
     datos.fallaLaProxima = "";
     datos.ajustes = { campos: [], opciones: [] };
+    datos.categorias = null;
     datos.cabeceras = [];
     datos.opciones = [];
     datos.referenciasCurl = null;
@@ -316,7 +320,8 @@ describe("Evaluaciones", () => {
     expect(celda(contenedor, 0, "nº Eva").textContent).toBe("1");
     expect(celda(contenedor, 2, "nº Eva").textContent).toBe("2");
     expect(celda(contenedor, 0, "Fecha Nac").textContent).toBe("15/03/2000");
-    expect(celda(contenedor, 0, "Seleccion").textContent).toBe("Mayor");
+    // La categoría, con el nombre de Datos básicos (18/10).
+    expect(celda(contenedor, 0, "Seleccion").textContent).toBe("Mayor (profesional)");
     expect(celda(contenedor, 0, "Lumbar").textContent).toBe("4:00");
     // La clase, con el número del color de su clase, en negrita, sobre gris.
     const clase = celda(contenedor, 0, "L. Clas");
@@ -349,7 +354,8 @@ describe("Evaluaciones", () => {
     await irA(contenedor, "Base");
     const comparar = contenedor.querySelector(".evaluaciones-comparar select");
     expect(comparar.value).toBe("mayor");
-    expect([...comparar.options].map((opcion) => opcion.textContent)).toEqual(["Vs Sub 15", "Vs Sub 17", "Vs Sub 18", "Vs Sub 20", "Vs Sub 23", "Vs Mayor"]);
+    // Las categorías de Datos básicos, en su orden; «Vs Sub 15» como el Excel, Mayor con su nombre de allá.
+    expect([...comparar.options].map((opcion) => opcion.textContent)).toEqual(["Vs Mayor (profesional)", "Vs Sub 23", "Vs Sub 20", "Vs Sub 18", "Vs Sub 17", "Vs Sub 15"]);
     const [fila2, fila3] = contenedor.querySelectorAll("tr.tabla-datos-arriba");
     // Promedio 214 s contra el Bueno (180 s): 118,89 %, clase 4 (en verde).
     const porcentaje = celdaDeArriba(contenedor, fila2, "Lumbar");
@@ -573,6 +579,16 @@ describe("Evaluaciones", () => {
     expect(datos.actualizadas[0].id).toBe("e2");
     expect(datos.actualizadas[0].ev.datos).toEqual({ seleccion: "mayor", lumbar: 160 });
     expect(lumbar().textContent).toBe("2:40");
+    // Pegar una categoría como la escribe el Excel («Sub-20», «Mayor») vale,
+    // aunque en Datos básicos se llame distinto (18/10).
+    await tocar(celda(contenedor, 0, "Seleccion"));
+    const evento = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(evento, "clipboardData", { value: { getData: () => "Sub-20\nMayor" } });
+    await act(async () => contenedor.querySelector(".tabla-datos-marco").dispatchEvent(evento));
+    expect(datos.actualizadas.slice(1).map((una) => [una.id, una.ev.datos.seleccion])).toEqual([
+      ["e1", "sub20"],
+      ["e2", "mayor"],
+    ]);
   });
 
   test("dos celdas de la misma fila guardadas seguidas, con la conexión lenta: no se pisan", async () => {
@@ -681,7 +697,7 @@ describe("Evaluaciones", () => {
     expect([...filaDe(bloque, "Bueno").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["3:00", "1:20", "1:20", "10,00", "2:00", "0,70"]);
     expect([...filaDe(bloque, "n").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["10", "10", "10", "10", "10", "10"]);
     expect([...resumen.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Categoría", "n", "Lumbar", "Lateral D", "Lateral I", "Prono", "Ratio", "Def. Lat", "Pro"]);
-    expect([...filaDe(resumen, "Mayor").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["12", "3:00", "1:20", "1:20", "2:00", "0,70", "10,00", ""]);
+    expect([...filaDe(resumen, "Mayor (profesional)").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["12", "3:00", "1:20", "1:20", "2:00", "0,70", "10,00", ""]);
     expect([...filaDe(resumen, "Sub-15").querySelectorAll("td")].map((td) => td.textContent)).toEqual(["", "", "", "", "", "", "", ""]);
   });
 
@@ -713,9 +729,9 @@ describe("Evaluaciones", () => {
     await cambiarVr(celdaVr(tablaVr(0), "Bueno", "Ratio"), "0,75");
     expect(datos.cambiosVr.at(-1)).toMatchObject({ ruta: ["categorias", "mayor", "bueno", "ratio"], valor: 0.75 });
     // El resumen: el n y el Bueno (es el mismo de la categoría); «Pro» no se cambia.
-    await cambiarVr(celdaVr(tablaVr(1), "Mayor", "n"), "15");
+    await cambiarVr(celdaVr(tablaVr(1), "Mayor (profesional)", "n"), "15");
     expect(datos.cambiosVr.at(-1)).toMatchObject({ ruta: ["resumen", "n", "mayor"], valor: 15 });
-    const pro = celdaVr(tablaVr(1), "Mayor", "Pro");
+    const pro = celdaVr(tablaVr(1), "Mayor (profesional)", "Pro");
     await act(async () => pro.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
     expect(pro.querySelector("input")).toBeNull();
     // Lo que no se entiende no se guarda.
@@ -760,7 +776,7 @@ describe("Evaluaciones", () => {
     const items = [...contenedor.querySelectorAll(".referencias-historial-lista > li")];
     expect(items).toHaveLength(1);
     expect(items[0].textContent).toContain("pf@club.com");
-    expect(items[0].textContent).toContain("Mayor · Bueno · Lumbar: 2:50 → 3:00");
+    expect(items[0].textContent).toContain("Mayor (profesional) · Bueno · Lumbar: 2:50 → 3:00");
     await tocar([...items[0].querySelectorAll("button")].find((b) => b.textContent === "Volver"));
     expect(datos.cambiosVr.at(-1)).toEqual({ test: "zona_media", ruta: ["categorias", "mayor", "bueno", "lumbar"], valor: 170 / 1440 });
     expect(document.body.textContent).toContain("Listo: quedó como estaba.");
@@ -817,7 +833,7 @@ describe("Evaluaciones", () => {
     // Los últimos cambios se ven, sin «Volver».
     const items = [...contenedor.querySelectorAll(".referencias-historial-lista > li")];
     expect(items).toHaveLength(1);
-    expect(items[0].textContent).toContain("Mayor · Bueno · Lumbar: 2:50 → 3:00");
+    expect(items[0].textContent).toContain("Mayor (profesional) · Bueno · Lumbar: 2:50 → 3:00");
     expect([...items[0].querySelectorAll("button")].find((b) => b.textContent === "Volver")).toBeUndefined();
     expect(contenedor.querySelector(".referencias-historial").textContent).toContain("Quién cambió qué y cuándo.");
     expect(contenedor.querySelector(".referencias-historial").textContent).not.toContain("«Volver»");
@@ -843,7 +859,7 @@ describe("Evaluaciones", () => {
     await tocar(lista[0]);
     expect(contenedor.querySelector(".informe-cabecera h1").textContent).toBe("ALFA");
     expect(contenedor.querySelector(".informe-subtitulo").textContent).toBe("Club de Prueba · Performance");
-    expect([...contenedor.querySelectorAll(".informe-dato")].map((dato) => dato.textContent)).toEqual(["CategoríaMayor", "Última evaluación06/07/2026", "Nº evaluaciones7"]);
+    expect([...contenedor.querySelectorAll(".informe-dato")].map((dato) => dato.textContent)).toEqual(["CategoríaMayor (profesional)", "Última evaluación06/07/2026", "Nº evaluaciones7"]);
     expect([...contenedor.querySelectorAll(".evaluaciones-area-titulo")].map((h) => h.textContent)).toEqual(["Zona Media"]);
     const seccion = contenedor.querySelector(".evaluaciones-registros");
     expect(seccion.querySelector("h3").textContent).toBe('Evaluación Zona Media "CORE"');
@@ -953,7 +969,7 @@ describe("Evaluaciones", () => {
     expect(cabeceras(contenedor)).toContain("Izq. máx./PC");
   });
 
-  test("Ajustes: se renombra y se esconde una cabecera, y se suma una opción a Selección", async () => {
+  test("Ajustes: se renombra y se esconde una cabecera; las listas, por test y sin Selección (son las categorías de Datos básicos)", async () => {
     await montar();
     await irA(contenedor, "Ajustes");
     await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.textContent.includes("Cabeceras")));
@@ -976,39 +992,49 @@ describe("Evaluaciones", () => {
     // Lo calculado con Prono sigue (el ratio no se esconde solo).
     expect(cabeceras(contenedor)).toContain("Ratio");
 
+    // Listas: primero el test, solo los que tienen listas; Selección ya no
+    // está (Santiago, 18/10: son las categorías de Datos básicos).
     await irA(contenedor, "Ajustes");
     await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.textContent.includes("Listas")));
-    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Seleccion"));
-    expect([...contenedor.querySelectorAll(".opcion-ajuste b")].map((b) => b.textContent)).toEqual(["Sub-15", "Sub-17", "Sub-18", "Sub-20", "Sub-23", "Mayor"]);
+    expect(contenedor.textContent).toContain("Las categorías (la Selección) son las de Datos básicos: se cambian en Datos básicos › Ajustes › Listas.");
+    const elegirLista = contenedor.querySelector("select.evaluaciones-elegir-test-lista");
+    expect([...elegirLista.options].map((opcion) => opcion.textContent)).toEqual(["Estabilidad rotacional", "Sentadilla Incremental"]);
+    expect([...contenedor.querySelectorAll(".opcion-ajuste b")].map((b) => b.textContent)).toEqual(["Cifosis", "Inestabilidad", "Completa recorrido"]);
+    await elegirTest(contenedor, "Sentadilla Incremental");
+    expect([...contenedor.querySelectorAll(".opcion-ajuste b")].map((b) => b.textContent)).toEqual(["Dispositivo", "Medio", "Cuenta para el RM"]);
+    // Una opción nueva en Medio.
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Medio"));
     await tocar(boton(contenedor, "Agregar una opción"));
-    await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), "Reserva");
+    await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), "Hack");
     await tocar(boton(contenedor, "Guardar"));
     expect(datos.opciones).toHaveLength(1);
-    expect(datos.opciones[0]).toMatchObject({ lista: "seleccion", etiquetas: { "es-AR": "Reserva" }, orden: 6 });
-    expect(datos.opciones[0].codigo).toMatch(/^reserva_/);
-    // Mayor pasa a llamarse Primera: el selector del informe también.
-    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Mayor"));
-    await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), "Primera");
-    await tocar(boton(contenedor, "Guardar"));
+    expect(datos.opciones[0]).toMatchObject({ lista: "sentadilla_medio", etiquetas: { "es-AR": "Hack" }, orden: 3 });
+    // Volver a las listas deja el mismo test.
+    await tocar(boton(contenedor, "Volver a Listas"));
+    expect(contenedor.querySelector("select.evaluaciones-elegir-test-lista").value).toBe("sentadilla_incremental");
+
+    // Las categorías salen de Datos básicos, con los nombres del club, y
+    // valen en la Base, el informe y la carga.
+    datos.categorias = [
+      { campo: "categoria", codigo: "profissional", etiqueta_es: "Primera", etiqueta_pt: "Profissional", oculto: false, orden: 0 },
+      { campo: "categoria", codigo: "sub20", etiqueta_es: "Sub-20", etiqueta_pt: "Sub-20", oculto: false, orden: 1 },
+      { campo: "categoria", codigo: "reserva_x", etiqueta_es: "Reserva", etiqueta_pt: "Reserva", oculto: false, orden: 2 },
+    ];
+    await act(async () => raiz.unmount());
+    raiz = null;
+    await montar();
     await irA(contenedor, "Base");
     expect(celda(contenedor, 0, "Seleccion").textContent).toBe("Primera");
-    expect([...contenedor.querySelector(".evaluaciones-comparar select").options].map((opcion) => opcion.textContent)).toEqual([
-      "Vs Sub 15",
-      "Vs Sub 17",
-      "Vs Sub 18",
-      "Vs Sub 20",
-      "Vs Sub 23",
-      "Vs Primera",
-      "Vs Reserva",
-    ]);
+    expect([...contenedor.querySelector(".evaluaciones-comparar select").options].map((opcion) => opcion.textContent)).toEqual(["Vs Primera", "Vs Sub 20", "Vs Reserva"]);
     // Las clases siguen contra los V.R. de esa categoría (es la misma).
     expect(celda(contenedor, 0, "L. Clas").textContent).toBe("5");
-    // La carga, con los nombres del club, sin la columna escondida y con las siete opciones.
+    // La carga, con los nombres del club, sin la columna escondida y con las categorías de Datos básicos.
     await irA(contenedor, "Cargar");
     await empezarCarga(contenedor);
     expect(titulosDeLaCarga(contenedor)).toEqual(["Jugador", "Seleccion", "Lumbar (min)", "Lateral D", "Lateral I", "Nota", ""]);
     await elegirJugador(contenedor, 0, "BETA");
-    expect([...dato(contenedor, "BETA · Seleccion").options].map((opcion) => opcion.textContent)).toEqual(["—", "Sub-15", "Sub-17", "Sub-18", "Sub-20", "Sub-23", "Primera", "Reserva"]);
+    expect([...dato(contenedor, "BETA · Seleccion").options].map((opcion) => opcion.textContent)).toEqual(["—", "Primera", "Sub-20", "Reserva"]);
+    expect(dato(contenedor, "BETA · Seleccion").value).toBe("sub20");
   });
 
   test("Curl Nórdico e Isoprone: en la Base, sus cuatro bloques; se carga por pasos con el peso del día al principio", async () => {
@@ -1331,7 +1357,7 @@ describe("Evaluaciones", () => {
 
     // Los V.R.: una tabla por categoría y el resumen, sin la columna «Pro» de Zona Media.
     await irA(contenedor, "Valores de referencia");
-    expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["V.R. de prueba Sub 15", "Mayor", "RESUMEN CATEGORIAS (Promedios)"]);
+    expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["Mayor (profesional)", "V.R. de prueba Sub 15", "RESUMEN CATEGORIAS (Promedios)"]);
     const resumen = [...contenedor.querySelectorAll(".evaluaciones-bloque")].at(-1);
     expect([...resumen.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Categoría", "n", "P.C.", "Rep", "RM", "Kg", "Rel"]);
 
@@ -1478,6 +1504,6 @@ describe("Evaluaciones", () => {
     expect(cabeceras(contenedor).slice(0, 3)).toEqual(["nº Aval.", "Data", "Jogador"]);
     expect(celda(contenedor, 0, "Seleção").textContent).toBe("Profissional");
     expect(celda(contenedor, 2, "% melhora").textContent).toBe("5,0%");
-    expect([...contenedor.querySelector(".evaluaciones-comparar select").options].at(-1).textContent).toBe("Vs Profissional");
+    expect(contenedor.querySelector(".evaluaciones-comparar select").selectedOptions[0].textContent).toBe("Vs Profissional");
   });
 });

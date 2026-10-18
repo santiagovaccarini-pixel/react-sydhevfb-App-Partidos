@@ -24,6 +24,8 @@ import {
   leerLesionesPorJugador,
   quitarJugadorBasico,
 } from "./domain/lesionesDb.js";
+import { guardarSeleccionDeEvaluaciones, leerEvaluacionesPorJugador } from "./domain/evaluacionesDb.js";
+import { seleccionesAlCambiar } from "./domain/evaluaciones/categorias.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
@@ -65,6 +67,12 @@ const COLUMNAS = [
 // jugador en Lesiones (las compartidas se llaman igual en los dos lados).
 const claveDeAjuste = (columna) => columna.rotulo || columna.clave;
 
+// Las bases que guardan la categoría de cada registro, en el orden en que se
+// pregunta al cambiársela a un jugador (Santiago, 18/10: «hacemos la misma
+// pregunta para la base de lesiones primero y despues para la de
+// evaluaciones»).
+const BASES_CON_CATEGORIA = ["lesiones", "evaluaciones"];
+
 // La edad de hoy, con la misma cuenta que la de Lesiones.
 const edadHoy = (nacimiento) => edadAl(nacimiento, hoyISO());
 
@@ -96,8 +104,11 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // Las lesiones de cada jugador (las que se ven con Lesiones), para la
   // categoría: { [jugador_id]: [{ id, fecha_lesion, datos }] }.
   const [lesionesDe, setLesionesDe] = useState({});
+  // Lo mismo de sus evaluaciones (las que se ven con Evaluaciones; 18/10):
+  // { [jugador_id]: [{ id, fecha, datos }] }.
+  const [evaluacionesDe, setEvaluacionesDe] = useState({});
   // ¿La categoría nueva vale para todo su historial o desde una fecha?
-  // (Santiago, 17/10) { jugador, nueva, fecha, resolver }
+  // (Santiago, 17/10; desde el 18/10, por base) { jugador, nueva, base, fecha, resolver }
   const [cambioCategoria, setCambioCategoria] = useState(null);
   const [aBorrar, setABorrar] = useState(null);
   const [importando, setImportando] = useState(false);
@@ -109,8 +120,10 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   const seFue = Boolean(equipo?.hasta);
   const mirar = soloParaMirar(equipo, "datos");
   const soloLectura = seFue || mirar;
-  // Las lesiones solo se cambian con Lesiones con Edición.
+  // Las lesiones solo se cambian con Lesiones con Edición; las evaluaciones,
+  // con Evaluaciones con Edición.
   const editaLesiones = !soloParaMirar(equipo, "lesiones");
+  const editaEvaluaciones = !soloParaMirar(equipo, "evaluaciones");
 
   useEffect(() => {
     if (equipoId) return undefined;
@@ -134,8 +147,14 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       setCargando(true);
       setError("");
     }
-    const [respuestaPlantel, respuestaConfig, respuestaLesiones] = await Promise.all([cargarPlantelLesiones(equipoId), leerConfigDatos(equipoId), leerLesionesPorJugador(equipoId)]);
+    const [respuestaPlantel, respuestaConfig, respuestaLesiones, respuestaEvaluaciones] = await Promise.all([
+      cargarPlantelLesiones(equipoId),
+      leerConfigDatos(equipoId),
+      leerLesionesPorJugador(equipoId),
+      leerEvaluacionesPorJugador(equipoId),
+    ]);
     if (!respuestaLesiones.error) setLesionesDe(respuestaLesiones.porJugador);
+    if (!respuestaEvaluaciones.error) setEvaluacionesDe(respuestaEvaluaciones.porJugador);
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
       return;
@@ -278,28 +297,44 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // solo vuelve atrás si mientras tanto no se guardó otra cosa de él.
   const guardadosBien = useRef(new Map());
 
-  // La categoría cambia y el jugador tenía otra y tiene lesiones: se pregunta
-  // si vale para todo su historial o desde una fecha (Santiago, 17/10: solo
-  // Lesiones, solo si tiene lesiones, de entrada desde hoy). Devuelve
-  // { desde } (null: todo) o null si se cancela.
-  // Con Lesiones en solo lectura no se pregunta: sus lesiones no se cambian.
-  const pideCategoria = (jugador, nueva) => Boolean(editaLesiones && jugador?.categoria && (nueva || "") !== jugador.categoria && lesionesDe[jugador.id]?.length);
-  const preguntarCategoria = (jugador, nueva) =>
-    new Promise((resolver) => setCambioCategoria({ jugador, nueva: nueva || "", fecha: hoyISO(), resolver }));
+  // La categoría cambia y el jugador tenía otra y tiene registros en una base
+  // que guarda la categoría: se pregunta si vale para todo su historial o
+  // desde una fecha (Santiago, 17/10: solo si tiene, de entrada desde hoy;
+  // 18/10: primero Lesiones y después Evaluaciones, la segunda con la fecha
+  // de la primera). Devuelve { desde } (null: todo) o null si se cancela.
+  // Con una base en solo lectura no se pregunta por ella: no se cambia.
+  const registrosDe = { lesiones: editaLesiones ? lesionesDe : {}, evaluaciones: editaEvaluaciones ? evaluacionesDe : {} };
+  const pideCategoria = (jugador, nueva, base) => Boolean(jugador?.categoria && (nueva || "") !== jugador.categoria && registrosDe[base][jugador.id]?.length);
+  const preguntarCategoria = (jugador, nueva, base, fecha) =>
+    new Promise((resolver) => setCambioCategoria({ jugador, nueva: nueva || "", base, fecha: fecha || hoyISO(), resolver }));
   const responderCategoria = (respuesta) => {
     cambioCategoria?.resolver(respuesta);
     setCambioCategoria(null);
   };
-  // Lo elegido, en sus lesiones; si algo no se guarda, se avisa.
-  const aplicarCategoria = async (jugador, nueva, { desde }) => {
-    const lesiones = lesionesDe[jugador.id] || [];
-    const cambios = categoriasAlCambiar(lesiones, { anterior: jugador.categoria, nueva, desde });
-    if (!cambios.length) return { error: "" };
-    const respuesta = await guardarCategoriaDeLesiones(cambios);
-    const nuevas = new Map(cambios.filter((cambio) => respuesta.hechas.includes(cambio.id)).map((cambio) => [cambio.id, cambio.datos]));
-    setLesionesDe((antes) => ({ ...antes, [jugador.id]: (antes[jugador.id] || []).map((lesion) => (nuevas.has(lesion.id) ? { ...lesion, datos: nuevas.get(lesion.id) } : lesion)) }));
-    if (respuesta.error) setAviso(t("datos.categoria.lesionesSinGuardar", { error: t(respuesta.error) }));
-    return respuesta;
+  // Lo elegido para cada base ({ lesiones, evaluaciones }: { desde } o
+  // nada), en sus registros; si algo no se guarda, se avisa.
+  const aplicarCategoria = async (jugador, nueva, respuestas) => {
+    if (respuestas.lesiones) {
+      const cambios = categoriasAlCambiar(lesionesDe[jugador.id] || [], { anterior: jugador.categoria, nueva, desde: respuestas.lesiones.desde });
+      if (cambios.length) {
+        const respuesta = await guardarCategoriaDeLesiones(cambios);
+        const nuevas = new Map(cambios.filter((cambio) => respuesta.hechas.includes(cambio.id)).map((cambio) => [cambio.id, cambio.datos]));
+        setLesionesDe((antes) => ({ ...antes, [jugador.id]: (antes[jugador.id] || []).map((lesion) => (nuevas.has(lesion.id) ? { ...lesion, datos: nuevas.get(lesion.id) } : lesion)) }));
+        if (respuesta.error) setAviso(t("datos.categoria.lesionesSinGuardar", { error: t(respuesta.error) }));
+      }
+    }
+    if (respuestas.evaluaciones) {
+      const cambios = seleccionesAlCambiar(evaluacionesDe[jugador.id] || [], { anterior: jugador.categoria, nueva, desde: respuestas.evaluaciones.desde });
+      if (cambios.length) {
+        const respuesta = await guardarSeleccionDeEvaluaciones(cambios);
+        const nuevas = new Map(cambios.filter((cambio) => respuesta.hechas.includes(cambio.id)).map((cambio) => [cambio.id, cambio.datos]));
+        setEvaluacionesDe((antes) => ({
+          ...antes,
+          [jugador.id]: (antes[jugador.id] || []).map((evaluacion) => (nuevas.has(evaluacion.id) ? { ...evaluacion, datos: nuevas.get(evaluacion.id) } : evaluacion)),
+        }));
+        if (respuesta.error) setAviso(t("datos.categoria.evaluacionesSinGuardar", { error: t(respuesta.error) }));
+      }
+    }
   };
 
   const guardar = async (jugadorId, datos) => {
@@ -312,18 +347,23 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       return respuesta.error ? respuesta : { ...respuesta, aviso: respuesta.aviso || "datos.error.fechaObligatoria", sinGuardar: (respuesta.sinGuardar || 0) + 1 };
     }
     const jugador = plantel.find((uno) => uno.id === jugadorId);
-    let categoria = null;
-    if ("categoria" in datos && pideCategoria(jugador, datos.categoria)) {
-      categoria = await preguntarCategoria(jugador, datos.categoria);
-      // Cancelado: la categoría queda como estaba; lo demás de la fila, se guarda.
-      if (!categoria) {
-        const resto = Object.fromEntries(Object.entries(datos).filter(([clave]) => clave !== "categoria"));
-        return Object.keys(resto).length ? guardar(jugadorId, resto) : { cancelado: true };
+    const respuestas = {};
+    if ("categoria" in datos) {
+      for (const base of BASES_CON_CATEGORIA) {
+        if (!pideCategoria(jugador, datos.categoria, base)) continue;
+        const elegida = await preguntarCategoria(jugador, datos.categoria, base, Object.values(respuestas).find((una) => una.desde)?.desde); // eslint-disable-line no-await-in-loop
+        // Cancelado: la categoría queda como estaba (en ninguna base cambia
+        // nada); lo demás de la fila, se guarda.
+        if (!elegida) {
+          const resto = Object.fromEntries(Object.entries(datos).filter(([clave]) => clave !== "categoria"));
+          return Object.keys(resto).length ? guardar(jugadorId, resto) : { cancelado: true };
+        }
+        respuestas[base] = elegida;
       }
     }
     const respuesta = await guardarDatosJugador(jugadorId, datos);
     if (!respuesta.error) guardadosBien.current.set(jugadorId, (guardadosBien.current.get(jugadorId) || 0) + 1);
-    if (!respuesta.error && categoria) await aplicarCategoria(jugador, datos.categoria, categoria);
+    if (!respuesta.error && Object.keys(respuestas).length) await aplicarCategoria(jugador, datos.categoria, respuestas);
     return respuesta;
   };
 
@@ -465,8 +505,9 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       equipoId={equipoId}
       plantel={plantel}
       config={config}
-      // Con Lesiones en solo lectura no se pregunta por la categoría.
-      lesionesDe={editaLesiones ? lesionesDe : {}}
+      // Con una base en solo lectura no se pregunta por la categoría en ella.
+      lesionesDe={registrosDe.lesiones}
+      evaluacionesDe={registrosDe.evaluaciones}
       onCambiarCategoria={aplicarCategoria}
       onVolver={() => setImportando(false)}
       onRecargar={cargar}
@@ -639,13 +680,13 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         onConfirmar={esOtro}
         onCerrar={() => setMismo(null)}
       />
-      {/* La categoría nueva: arranca en «Desde esa fecha» (lo anterior queda); cerrar no cambia nada. */}
+      {/* La categoría nueva, por base: arranca en «Desde esa fecha» (lo anterior queda); cerrar no cambia nada. */}
       <HojaConfirmar
         abierta={Boolean(cambioCategoria)}
-        titulo={t("datos.categoria.titulo")}
+        titulo={t(cambioCategoria?.base === "evaluaciones" ? "datos.categoria.tituloEvaluaciones" : "datos.categoria.titulo")}
         descripcion={
           cambioCategoria
-            ? plural("datos.categoria.texto", lesionesDe[cambioCategoria.jugador.id]?.length || 0, {
+            ? plural(cambioCategoria.base === "evaluaciones" ? "datos.categoria.textoEvaluaciones" : "datos.categoria.texto", registrosDe[cambioCategoria.base][cambioCategoria.jugador.id]?.length || 0, {
                 jugador: cambioCategoria.jugador.nombre,
                 anterior: textoDeOpcion("categoria", cambioCategoria.jugador.categoria),
                 nueva: cambioCategoria.nueva ? textoDeOpcion("categoria", cambioCategoria.nueva) : t("datos.categoria.ninguna"),

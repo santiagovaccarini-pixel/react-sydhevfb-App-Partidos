@@ -43,6 +43,7 @@ import {
   guardarCabecera,
   guardarOpcionDeLista,
   leerAjustes,
+  leerCategorias,
   leerReferencias,
   listarEvaluaciones,
 } from "./domain/evaluacionesDb.js";
@@ -89,6 +90,8 @@ const SE_CARGAN = ["fecha", "jugador", "lista", "tiempo", "texto", "numero"];
 // Los tests que se cargan a mano en Cargar. Isocinecia no: sale del PDF del
 // equipo (Santiago, 09/10); se trae con Pegar desde Excel y se corrige en la Base.
 const TESTS_QUE_SE_CARGAN = TESTS.filter((uno) => uno.seCargaEnLaApp !== false);
+// Los tests con listas propias (sin contar Selección), los de Ajustes › Listas.
+const TESTS_CON_LISTAS = TESTS.filter((uno) => uno.columnas.some((columna) => columna.tipo === "lista" && listaDeColumna(columna) !== LISTA_SELECCION));
 // Van alineadas a la izquierda, como en el Excel; el resto, centrado.
 const A_LA_IZQUIERDA = ["jugador", "nota"];
 // Una lista corta se elige con botones; una larga, con la hoja de opciones
@@ -176,6 +179,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // Los V.R. del club, por test.
   const [referenciasPorTest, setReferenciasPorTest] = useState({});
   const [filasAjustes, setFilasAjustes] = useState({ campos: [], opciones: [] });
+  // Las categorías del club en Datos básicos (son la Selección; 18/10). null:
+  // no se pudieron leer y valen las de la app.
+  const [filasCategorias, setFilasCategorias] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
@@ -234,17 +240,19 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       setCargando(true);
       setError("");
     }
-    const [respuestaPlantel, respuestaEvaluaciones, respuestaReferencias, respuestaAjustes] = await Promise.all([
+    const [respuestaPlantel, respuestaEvaluaciones, respuestaReferencias, respuestaAjustes, respuestaCategorias] = await Promise.all([
       cargarPlantelLesiones(equipoId),
       listarEvaluaciones(equipoId),
       leerReferencias(equipoId),
       leerAjustes(equipoId),
+      leerCategorias(equipoId),
     ]);
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
       if (!respuestaEvaluaciones.error) setEvaluaciones(respuestaEvaluaciones.evaluaciones);
       if (!respuestaReferencias.error) setReferenciasPorTest(respuestaReferencias.referencias || {});
       if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones });
+      if (!respuestaCategorias.error) setFilasCategorias(respuestaCategorias.filas);
       return;
     }
     setPlantel(respuestaPlantel.plantel || []);
@@ -257,6 +265,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     }
     // Sin poder leer los Ajustes, siguen los nombres del Excel.
     if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones });
+    setFilasCategorias(respuestaCategorias.filas);
     setCargando(false);
   }, [equipoId]);
 
@@ -286,7 +295,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     return () => clearTimeout(temporizador);
   }, [aviso]);
 
-  const config = useMemo(() => (filasAjustes ? armarConfig(filasAjustes.campos, filasAjustes.opciones) : configVacia()), [filasAjustes]);
+  const config = useMemo(() => (filasAjustes ? armarConfig(filasAjustes.campos, filasAjustes.opciones, filasCategorias) : configVacia()), [filasAjustes, filasCategorias]);
   const esCategoria = useCallback((codigo) => esCategoriaDelClub(codigo, config), [config]);
   const titulo = (unTest, columna) => tituloDeColumna(unTest, columna, config, idioma);
   const opcionesDeColumna = (unTest, columna) => opcionesDeLista(listaDeColumna(columna), config, idioma, { test: unTest });
@@ -1056,10 +1065,11 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     </button>
   );
 
-  // Las listas de los tests: Selección (la misma en todos) y las que traiga
-  // cada test, una vez cada una.
+  // Las listas de los tests, una vez cada una. Selección ya no está: son las
+  // categorías de Datos básicos y se cambian allá (Santiago, 18/10: «La lista
+  // «Selección»», «La de Datos básicos»).
   const LISTAS = useMemo(() => {
-    const listas = [{ clave: LISTA_SELECCION, test: null, columna: TESTS[0].columnas.find((columna) => columna.clave === "seleccion") }];
+    const listas = [];
     TESTS.forEach((uno) =>
       uno.columnas
         .filter((columna) => columna.tipo === "lista" && listaDeColumna(columna) !== LISTA_SELECCION)
@@ -1183,12 +1193,17 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     }
 
     if (vistaAjustes === "listas") {
+      // Primero el test, como en Cabeceras, y solo los que tienen listas
+      // (Santiago, 18/10: «Sí, elegir el test», «Solo los que tienen listas»).
+      const testDeListas = TESTS_CON_LISTAS.includes(test) ? test : TESTS_CON_LISTAS[0];
+      const suyas = LISTAS.filter((lista) => testDeListas.columnas.some((columna) => columna.tipo === "lista" && listaDeColumna(columna) === lista.clave));
       return (
         <div className="app">
           <div className="contenedor">
             {encabezado(t("lesiones.ajustes.listas"), t("evaluaciones.ajustes.listasAyuda"))}
+            <SelectorDeTest tests={TESTS_CON_LISTAS} elegido={testDeListas.id} alElegir={setTestId} idioma={idioma} />
             <div className="lista-opciones">
-              {LISTAS.map((lista) =>
+              {suyas.map((lista) =>
                 filaAjuste({
                   id: lista.clave,
                   titulo: tituloDeLista(lista),

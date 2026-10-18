@@ -1369,6 +1369,9 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     agregar opciones; lo cargado no se pierde). Una categoría que suma el club no tiene V.R.
     hasta que se carguen: sus clases quedan vacías. El selector del informe dice «Vs» y el
     nombre del club si lo cambió. Pegar desde Excel también reconoce los nombres del club.
+    **Reabierta el 18/10** (ver «Evaluaciones: la elección de test y las categorías de Datos
+    básicos», más abajo, y UI-056): Listas se elige por test y Selección ya no está; las
+    categorías son las de Datos básicos y se cambian allá.
     En la base: migración `supabase/migrations/20261015_evaluaciones_ajustes.sql` (tablas
     `evaluaciones_campos` y `evaluaciones_opciones`, una fila solo para lo que cambió el
     club; permisos como Lesiones › Ajustes). Sin esa migración la app sigue con los nombres
@@ -3674,6 +3677,9 @@ confirme.**
     Lesiones (no las ve): ahí las lesiones que no guardaban categoría muestran la nueva, como
     antes. Si no se pudo cambiar alguna lesión, la categoría del jugador queda cambiada y se
     avisa.
+  - **Reabierta el 18/10 para Evaluaciones**: después de la de Lesiones va la misma pregunta
+    para Evaluaciones (ver «Evaluaciones: la elección de test y las categorías de Datos
+    básicos» y UI-056). GPS sigue sin cambiar. Lo de abajo es lo del 17/10.
   - Solo cambia Lesiones (la tabla, los reportes y la exportación, que ya usaba la de cada
     lesión): Evaluaciones sigue con la Selección de cada fila y GPS no cambia. La base no
     cambió (sin SQL). Ver UI-047.
@@ -3939,7 +3945,43 @@ confirme.**
   - **Queda prohibido** volver a la carga nueva por pasos de a un jugador, ofrecer jugadores que ya
     no están en el plantel, repetir un jugador en la misma carga y una fecha por fila, salvo un
     pedido nuevo. Ver UI-055.
-- **Lo que sigue, en este orden**: Evaluaciones (la elección de test); y las grandes, cada una aparte (la planilla de valor
+- **Evaluaciones: la elección de test y las categorías de Datos básicos (hecho el 18/10).** Nota
+  «sacar la selección de Ajustes / la elección de test para cambiar las listas» (llegó en capturas
+  el 17/10; su texto exacto no quedó guardado). Santiago, en cuestionarios: «Sí, elegir el test»,
+  que «Sacar la selección de Ajustes» era «La lista «Selección»», «Solo los que tienen listas»,
+  que las categorías de Evaluaciones son «Usas las que tenga el jugador en datos basicos», con la
+  lista y los nombres de «La de Datos básicos», al cargar «Se puede cambiar, como ahora», y al
+  cambiar la categoría en Datos básicos: «Como hicimos en lesiones, se pregunta mismamente por
+  base, es decir, hacemos la misma pregunta para la base de lesiones primero y despues para la de
+  evaluaciones».
+  - **Ajustes › Listas**: arriba, el desplegable «Test» solo con los tests que tienen listas (hoy,
+    Estabilidad rotacional y Sentadilla Incremental) y abajo, solo sus listas. «Selección» ya no
+    está; el texto de arriba dice que las categorías se cambian en Datos básicos › Ajustes ›
+    Listas.
+  - **Las categorías (Selección) son las de Datos básicos**, con sus nombres y su orden, en la
+    Base, el informe («Vs …»), los V.R., los reportes, la carga y Pegar desde Excel. Datos básicos
+    guarda «profissional» la que Evaluaciones guarda «mayor» (la del Excel y la de los V.R.): la
+    app las traduce (`deDatosBasicos` y `aDatosBasicos` en `domain/evaluaciones/categorias.js`), y
+    lo cargado y los V.R. no cambian (sin SQL). «Vs Sub 15» queda como el Excel cuando el nombre
+    coincide; si no, «Vs» y el nombre de Datos básicos («Vs Mayor (profesional)»). Una categoría
+    que el club suma en Datos básicos aparece con sus V.R. vacíos. Lo cargado antes con una que no
+    está allá (una que el club había sumado en Evaluaciones) se sigue viendo con su nombre, sin
+    poder elegirla. Las categorías se leen de `lesiones_opciones` (las ve cualquiera que sigue en
+    el club; sin poder leerlas, valen las de la app).
+  - **Al cargar** la Selección sigue viniendo de la categoría del jugador y se puede cambiar.
+  - **Datos básicos**, al cambiar la categoría de alguien que tenía otra: primero la pregunta de
+    Lesiones (si tiene lesiones) y después la misma para Evaluaciones (si tiene evaluaciones), con
+    la fecha que se eligió para Lesiones; cada título dice de qué base es. «Desde esa fecha»: las
+    evaluaciones de antes quedan con su Selección (o la anterior, si no tenían) y las de esa fecha
+    en adelante pasan a la nueva; «En todo su historial»: todas. Cerrar cualquiera de las dos deja
+    la categoría como estaba. Con una base en solo lectura no se pregunta por ella. Al pegar desde
+    Excel, en la fila del jugador va primero la de Lesiones y, respondida, la de Evaluaciones; cada
+    respuesta queda como «Categoría en Lesiones/Evaluaciones: …» con «Cambiar».
+  - **Queda prohibido** volver a poner Selección en Evaluaciones › Ajustes › Listas, mostrar ahí
+    todas las listas juntas o tests sin listas, usar en Evaluaciones otra lista de categorías que
+    la de Datos básicos y cambiar las evaluaciones de un jugador sin preguntar, salvo un pedido
+    nuevo. Ver UI-056.
+- **Lo que sigue, en este orden**: las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
   diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;
   Isocinecia con Python y VALD).

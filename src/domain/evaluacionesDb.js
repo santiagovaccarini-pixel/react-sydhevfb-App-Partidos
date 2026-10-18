@@ -127,6 +127,53 @@ export const cambiarReferencia = async (equipoId, test, ruta, valor) => {
   return { datos: data && typeof data === "object" && !Array.isArray(data) ? data : {}, error: "" };
 };
 
+// Las categorías del club (Datos básicos › Ajustes › Listas › Categoría): son
+// la Selección de Evaluaciones (Santiago, 18/10). Solo se leen (las ve
+// cualquiera que sigue en el club). Si no se pueden leer, o quien mira ya se
+// fue del club, valen las de la app: { filas } o { filas: null }.
+export const leerCategorias = async (equipoId) => {
+  if (!equipoId || esSoloLectura(equipoId)) return { filas: null, error: "" };
+  const { data, error } = await supabase
+    .from("lesiones_opciones")
+    .select("campo, codigo, etiqueta_es, etiqueta_pt, oculto, orden")
+    .eq("equipo_id", equipoId)
+    .eq("campo", "categoria")
+    .order("orden");
+  if (error) return { filas: null, ...fallo(error, "evaluaciones.error.noLeer") };
+  return { filas: Array.isArray(data) ? data : [], error: "" };
+};
+
+// La Selección de las evaluaciones al cambiarle la categoría a un jugador
+// (Datos básicos; Santiago, 18/10, como en Lesiones). Las evaluaciones de
+// cada jugador, livianas: { [jugador_id]: [{ id, fecha, datos }] }. Sin
+// Evaluaciones (o en solo lectura) no se ve ninguna, y no se pregunta.
+export const leerEvaluacionesPorJugador = async (equipoId) => {
+  if (!equipoId || esSoloLectura(equipoId)) return { porJugador: {}, error: "" };
+  const { filas, error } = await todas((desde, hasta) =>
+    supabase.from("evaluaciones").select("id, jugador_id, fecha, datos").eq("equipo_id", equipoId).not("jugador_id", "is", null).order("id").range(desde, hasta),
+  );
+  if (error) return { porJugador: {}, ...fallo(error, "evaluaciones.error.noLeer") };
+  const porJugador = {};
+  filas.forEach((fila) => {
+    const evaluacion = { id: fila.id, fecha: fila.fecha || null, datos: fila.datos && typeof fila.datos === "object" && !Array.isArray(fila.datos) ? fila.datos : {} };
+    (porJugador[fila.jugador_id] = porJugador[fila.jugador_id] || []).push(evaluacion);
+  });
+  return { porJugador, error: "" };
+};
+
+// cambios: [{ id, datos }] (los datos enteros de cada evaluación, con su
+// Selección nueva). De a una; si una falla, se sigue y se avisa.
+export const guardarSeleccionDeEvaluaciones = async (cambios) => {
+  const hechas = [];
+  let error = "";
+  for (const cambio of cambios) {
+    const respuesta = await supabase.from("evaluaciones").update({ datos: cambio.datos }).eq("id", cambio.id); // eslint-disable-line no-await-in-loop
+    if (respuesta.error) error = fallo(respuesta.error).error;
+    else hechas.push(cambio.id);
+  }
+  return { hechas, error };
+};
+
 export const crearEvaluacion = async (equipoId, test, evaluacion) => {
   const { data, error } = await supabase
     .from("evaluaciones")

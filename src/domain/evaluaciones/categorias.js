@@ -38,3 +38,34 @@ export const categoriaDeTexto = (texto) => {
   );
   return encontrada ? encontrada.codigo : undefined;
 };
+
+// Las categorías de Evaluaciones son las de Datos básicos (Santiago, 18/10, en
+// un cuestionario: «Usas las que tenga el jugador en datos basicos» y, para
+// la lista y sus nombres, «La de Datos básicos»). Datos básicos guarda
+// «profissional» la que acá (en lo cargado y en los V.R.) es «mayor», la del
+// Excel; las demás tienen el mismo código. Lo guardado no cambia.
+const DE_DATOS_BASICOS = Object.freeze({ profissional: "mayor" });
+export const deDatosBasicos = (codigo) => (codigo ? DE_DATOS_BASICOS[codigo] || codigo : null);
+export const aDatosBasicos = (codigo) => (codigo ? Object.keys(DE_DATOS_BASICOS).find((clave) => DE_DATOS_BASICOS[clave] === codigo) || codigo : null);
+
+// Al cambiarle la categoría a un jugador en Datos básicos, en sus evaluaciones
+// (Santiago, 18/10: «Como hicimos en lesiones, se pregunta mismamente por
+// base»): como categoriasAlCambiar de Lesiones, con la fecha de cada
+// evaluación y su Selección. «todo» (desde null) deja la nueva en todas;
+// «desde» una fecha, las de antes quedan con la que tenían o, si no tenían,
+// con la anterior, y las de esa fecha en adelante pasan a la nueva. anterior
+// y nueva, como las guarda Datos básicos. Devuelve solo las que cambian:
+// [{ id, datos }].
+export const seleccionesAlCambiar = (evaluaciones = [], { anterior = "", nueva = "", desde = null } = {}) =>
+  evaluaciones
+    .map((evaluacion) => {
+      const datos = evaluacion.datos || {};
+      const antes = Boolean(desde && evaluacion.fecha && evaluacion.fecha < desde);
+      const seleccion = antes ? datos.seleccion || deDatosBasicos(anterior) : deDatosBasicos(nueva);
+      if ((datos.seleccion || "") === (seleccion || "")) return null;
+      const nuevos = { ...datos };
+      if (seleccion) nuevos.seleccion = seleccion;
+      else delete nuevos.seleccion;
+      return { id: evaluacion.id, datos: nuevos };
+    })
+    .filter(Boolean);
