@@ -16,10 +16,11 @@
 --
 -- Requiere 20261010_lesiones_sin_fecha_y_personas.sql. Se corre en Supabase
 -- > SQL Editor, entera y de una vez. No cambia ninguna lesión: afloja una
--- regla y cambia cómo cuentan las vistas. Se puede volver a correr. Después
--- de esta, 20261010_lesiones_sin_fecha_y_personas.sql ya no se vuelve a
--- correr (se frena sola: las vistas volverían a contar con las fechas
--- previstas).
+-- regla y cambia cómo cuentan las vistas. Se puede volver a correr hasta que
+-- se corra 20261101_lesiones_etapa_al_cargar.sql (después se frena sola: la
+-- etapa cambia apenas se carga la fecha). Después de esta,
+-- 20261010_lesiones_sin_fecha_y_personas.sql ya no se vuelve a correr (se
+-- frena sola: las vistas volverían a contar con las fechas previstas).
 -- =====================================================================
 
 begin;
@@ -29,6 +30,11 @@ begin
   if not exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'lesiones' and column_name = 'persona') then
     raise exception 'Primero hay que correr 20261010_lesiones_sin_fecha_y_personas.sql.';
+  end if;
+  -- Después de 20261101 (la etapa al cargar la fecha), la vista general de
+  -- acá volvería a esperar que llegue cada fecha.
+  if coalesce(obj_description(to_regclass('public.v_lesiones'), 'pg_class'), '') like '%20261101%' then
+    raise exception 'Ya está corrida 20261101_lesiones_etapa_al_cargar.sql: esta ya no se vuelve a correr.';
   end if;
 end $$;
 

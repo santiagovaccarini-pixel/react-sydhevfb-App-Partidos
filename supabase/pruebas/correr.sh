@@ -105,7 +105,8 @@ for vieja in instalar-desde-cero \
              migrations/20261005_foto_al_dia migrations/20261006_horas_imagen migrations/20261012_evaluaciones \
              migrations/20261013_seguridad migrations/20261014_duenos_y_pedidos migrations/20261016_gps \
              migrations/20261024_gps_referencias migrations/20261025_referencias_editables \
-             migrations/20261029_niveles_de_permiso migrations/20261010_lesiones_sin_fecha_y_personas; do
+             migrations/20261029_niveles_de_permiso migrations/20261010_lesiones_sin_fecha_y_personas \
+             migrations/20261031_lesiones_fechas_futuras; do
   echo "→ $(basename "$vieja").sql después de la última (se tiene que negar)"
   if $PSQL -f "$RAIZ/supabase/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
     echo "ERROR: $vieja.sql corrió después de una más nueva"

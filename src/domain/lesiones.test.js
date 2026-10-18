@@ -305,15 +305,14 @@ describe("etapas, días y severidad", () => {
   });
 
   // Santiago, 18/10: las fechas de la vuelta se cargan a futuro; la lesión
-  // sale de Nuevos casos «Apenas la cargo» (el alta) y la etapa, los días y
-  // la severidad cuentan «Hasta hoy».
-  test("con fechas previstas (futuras), cada una cuenta recién cuando llega", () => {
+  // sale de Nuevos casos «Apenas la cargo» (el alta), la etapa cambia
+  // «Entrenando apenas la cargo» y los días y la severidad cuentan «Hasta hoy».
+  test("con fechas previstas (futuras), la etapa cambia al cargarlas y los días cuentan hasta hoy", () => {
     const hoy = "2026-09-10";
     const prevista = base({ fecha_transicion: "2026-09-05", fecha_retorno_entrenamiento: "2026-09-20", fecha_alta: "2026-10-01" });
-    expect(etapaDe(prevista, hoy)).toBe("transicion");
-    expect(etapaDe(prevista, "2026-09-25")).toBe("entrenando");
-    expect(etapaDe(prevista, "2026-10-01")).toBe("alta");
-    expect(etapaDe(base({ fecha_transicion: "2026-09-20" }), hoy)).toBe("lesionado");
+    expect(etapaDe(base({ fecha_transicion: "2026-09-20" }))).toBe("transicion");
+    expect(etapaDe(base({ fecha_transicion: "2026-09-05", fecha_retorno_entrenamiento: "2026-09-20" }))).toBe("entrenando");
+    expect(etapaDe(prevista)).toBe("alta");
     // Con el alta cargada sale de Nuevos casos, aunque no haya llegado.
     expect(estaActiva(prevista)).toBe(false);
     expect(estaActiva(base({ fecha_transicion: "2026-09-20" }))).toBe(true);
