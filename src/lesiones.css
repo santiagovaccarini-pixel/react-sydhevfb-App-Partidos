@@ -1717,9 +1717,12 @@
 }
 
 /* El cuadro cada 1000 horas del grupal (el del Excel: cuatro columnas,
-   una fila por medida). */
+   una fila por medida). La columna de la grilla va al ancho de la tarjeta:
+   si el cuadro no entra (celular angosto), corre de costado adentro de su
+   marco en vez de estirar la pantalla. */
 .lesiones-marco .informe-indices {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   min-width: 0;
 }

@@ -3860,6 +3860,11 @@ confirme.**
       la vista de Power Query no tiene etapa y no cambia). `20261031_lesiones_fechas_futuras.sql`
       se niega a correr después de esta.
     - **Queda prohibido** volver a esperar que llegue la fecha para cambiar la etapa. Ver UI-052.
+- **El cuadro cada 1000 horas sin estirar la pantalla (18/10).** Visto al revisar los botones
+  fijos: a 320 px, el reporte grupal y «Lesiones c/1000h y días perdidos» se corrían 25 px de
+  costado (la grilla del cuadro tomaba el ancho de la tabla). Santiago, en un cuestionario: «Sí,
+  después de la nota». Ahora la grilla va al ancho de la tarjeta y, si la tabla no entra, corre
+  de costado adentro de su marco, como las demás tablas. En la compu y al imprimir no cambia.
 - **Lo que sigue, en este orden**: moverse por la app (esconder la barra lateral y la de
   abajo, abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
