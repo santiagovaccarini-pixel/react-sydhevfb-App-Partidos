@@ -436,7 +436,9 @@ mover a una configuración por club:
   del jugador, por n° de caso.
 - Recup 1 = transición − inicio; Recup 2 = retorno al entrenamiento − inicio;
   recuperación = alta (o hoy) − inicio. Las etapas (lesionado, transición,
-  entrenando, alta) salen de esas fechas; "activa" = sin alta.
+  entrenando, alta) salen de esas fechas; "activa" = sin alta. Desde el 18/10
+  esas fechas pueden ser previstas (futuras): cada una cuenta recién cuando
+  llega (hasta entonces, hasta hoy), y "activa" sigue siendo sin alta cargada.
 - Reportes (`REGLAS_INCIDENCIA` en `src/domain/reportes.js`, copiadas de las fórmulas del
   Excel): el cuadro cada 1000 horas cuenta las lesiones no traumáticas (Datos Básicos P8)
   de partidos oficiales, amistosos y entrenamientos (R7:R9) del profesional (S7); "sin
@@ -3825,6 +3827,24 @@ confirme.**
     cambiaron.
   - **Queda prohibido** volver a la hoja que solo pide el alta, poner hoy de entrada en el alta y
     que otra fecha cierre la lesión. Ver UI-052.
+  - **Fechas previstas (corrección del 18/10).** Santiago, al probarlo: «dentro de alta medica no
+    me deja guardar y cuando aprieto cancelar me dice que niguna fecha puede ser futura. Primero
+    es todo lo contrario, claro que son todas futuras. Segundo, si no deja cargar que el aviso
+    apareaca visible aunque este adentro de la tarjeta». En un cuestionario: sale de Nuevos casos
+    «Apenas la cargo»; etapa, días y reportes «Hasta hoy»; «En toda la app».
+    - El pase a transición, el retorno al entrenamiento y el retorno a la competencia se pueden
+      cargar a futuro en la hoja, al editar, en la Base y al pegar; la fecha de la lesión sigue
+      sin poder ser futura. Base: `20261031_lesiones_fechas_futuras.sql` (la regla
+      `lesiones_sin_futuro` queda solo para la fecha de la lesión; `v_lesiones` y la vista de
+      Power Query cuentan hasta hoy). `20261010_lesiones_sin_fecha_y_personas.sql` se niega a
+      correr después de esta. Sin el SQL, guardar una fecha futura avisa que falta una
+      actualización.
+    - Con el retorno a la competencia cargado, aunque sea futuro, la lesión sale de Nuevos casos.
+      La etapa cambia el día que llega cada fecha; los días de baja, Recup 1 y 2 y los reportes
+      cuentan hasta esa fecha o hasta hoy si todavía no llegó; la severidad aparece cuando llega
+      el alta.
+    - Lo que frena guardar se muestra adentro de la hoja (antes quedaba tapado y se veía al
+      cancelar).
 - **Lo que sigue, en este orden**: moverse por la app (esconder la barra lateral y la de
   abajo, abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor

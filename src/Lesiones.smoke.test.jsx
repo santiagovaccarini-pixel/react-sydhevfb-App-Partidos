@@ -784,14 +784,38 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).not.toContain("No hay lesiones activas");
   });
 
-  test("en el alta médica, una fecha antes del inicio no se guarda", async () => {
+  // Santiago, 18/10: «si no deja cargar que el aviso aparezca visible aunque
+  // este adentro de la tarjeta».
+  test("en el alta médica, una fecha antes del inicio no se guarda y el aviso sale adentro de la hoja", async () => {
     await montar();
     await tocar(boton(contenedor, "Alta médica"));
     await escribir(document.querySelector("#alta-fecha_transicion"), "2020-01-01");
     await tocar(boton(contenedor, "Guardar"));
     await act(async () => Promise.resolve());
     expect(datos.actualizadas).toHaveLength(0);
-    expect(texto(contenedor)).toContain("Alta médica");
+    const aviso = document.querySelector(".lesiones-hoja [role=alert]");
+    expect(aviso?.textContent).toBe("Las fechas de transición, retorno y alta no pueden ser anteriores al inicio.");
+    // Al cambiar la fecha, el aviso se va.
+    await escribir(document.querySelector("#alta-fecha_transicion"), hoyISO());
+    expect(document.querySelector(".lesiones-hoja [role=alert]")).toBeNull();
+  });
+
+  // Santiago, 18/10: «claro que son todas futuras»; sale de Nuevos casos
+  // «Apenas la cargo».
+  test("en el alta médica se cargan fechas futuras; con el retorno a la competencia previsto sale de Nuevos casos", async () => {
+    await montar();
+    await tocar(boton(contenedor, "Alta médica"));
+    const enDiez = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+    expect(document.querySelector("#alta-fecha_alta").getAttribute("max")).toBeNull();
+    await escribir(document.querySelector("#alta-fecha_retorno_entrenamiento"), enDiez);
+    await escribir(document.querySelector("#alta-fecha_alta"), enDiez);
+    await tocar(boton(contenedor, "Guardar"));
+    await act(async () => Promise.resolve());
+    expect(datos.actualizadas).toHaveLength(1);
+    expect(datos.actualizadas[0].lesion.fecha_alta).toBe(enDiez);
+    expect(document.querySelector(".lesiones-hoja [role=alert]")).toBeNull();
+    expect(texto(contenedor)).toContain("Alta guardada");
+    expect(texto(contenedor)).toContain("No hay lesiones activas");
   });
 
   test("los reportes: el individual como el del Excel y el grupal", async () => {

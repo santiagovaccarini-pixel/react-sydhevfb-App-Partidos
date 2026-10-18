@@ -17,7 +17,7 @@
 --
 -- Requiere 20261006_horas_imagen.sql y 20261008_lesiones_recaida.sql. Se
 -- corre en Supabase > SQL Editor, entero y de una vez. Se puede volver a
--- correr.
+-- correr, hasta 20261031_lesiones_fechas_futuras.sql (después se frena sola).
 -- =====================================================================
 
 begin;
@@ -33,6 +33,12 @@ begin
   if exists (select 1 from pg_constraint where conname = 'lesiones_sin_solapar' and conrelid = 'public.lesiones'::regclass)
      or to_regclass('public.lesiones_sin_repetir') is null then
     raise exception 'Primero hay que correr 20261008_lesiones_recaida.sql.';
+  end if;
+  -- Después de 20261031 (fechas previstas), las vistas de acá volverían a
+  -- contar con las fechas futuras.
+  if exists (select 1 from pg_constraint where conname = 'lesiones_sin_futuro' and conrelid = 'public.lesiones'::regclass
+               and pg_get_constraintdef(oid) not like '%fecha_alta%') then
+    raise exception 'Ya está corrida 20261031_lesiones_fechas_futuras.sql: esta ya no se vuelve a correr.';
   end if;
 end $$;
 

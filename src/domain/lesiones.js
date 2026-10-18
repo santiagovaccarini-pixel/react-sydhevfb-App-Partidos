@@ -118,25 +118,38 @@ export const conValor = (lesion, clave, valor) => {
   return { ...lesion, datos: { ...(lesion.datos || {}), [clave]: valor ?? null } };
 };
 
-// En qué etapa está: lesionado → en transición → entrenando → con alta. Sin
-// fecha de inicio, "sinFecha" hasta que se complete.
-export const etapaDe = (lesion) => {
+// Las fechas de la vuelta (transición, retorno al entrenamiento y alta) se
+// pueden cargar a futuro, como fechas previstas (Santiago, 18/10: «claro que
+// son todas futuras»). Cada una cuenta recién cuando llega: la etapa, los días
+// y los reportes, hasta hoy («Hasta hoy»). llegada: la fecha si ya llegó (si
+// no, null); hastaHoy: la fecha si ya llegó, o hoy.
+const llegada = (fecha, hoy) => (esFechaISO(fecha) && fecha <= hoy ? fecha : null);
+const hastaHoy = (fecha, hoy) => llegada(fecha, hoy) || hoy;
+
+// En qué etapa está hoy: lesionado → en transición → entrenando → con alta.
+// Sin fecha de inicio, "sinFecha" hasta que se complete.
+export const etapaDe = (lesion, hoy = hoyISO()) => {
   if (!tieneFecha(lesion)) return "sinFecha";
-  if (lesion?.fecha_alta) return "alta";
-  if (lesion?.fecha_retorno_entrenamiento) return "entrenando";
-  if (lesion?.fecha_transicion) return "transicion";
+  if (llegada(lesion?.fecha_alta, hoy)) return "alta";
+  if (llegada(lesion?.fecha_retorno_entrenamiento, hoy)) return "entrenando";
+  if (llegada(lesion?.fecha_transicion, hoy)) return "transicion";
   return "lesionado";
 };
 
-export const estaActiva = (lesion) => !["alta", "sinFecha"].includes(etapaDe(lesion));
+// En Nuevos casos (activa): con fecha de inicio y sin el retorno a la
+// competencia cargado. Sale apenas se carga, aunque la fecha sea futura
+// (Santiago, 18/10: «Apenas la cargo»).
+export const estaActiva = (lesion) => tieneFecha(lesion) && !lesion?.fecha_alta;
+// Ya llegó el alta (para los reportes, que cuentan hasta hoy).
+export const conAltaHoy = (lesion, hoy = hoyISO()) => Boolean(llegada(lesion?.fecha_alta, hoy));
 
 // Sin retorno al entrenamiento no puede entrenar: para el plantel sigue
 // lesionado. Entrenando pero sin competir, se está reintegrando.
 export const sinEntrenar = (lesion) => ["lesionado", "transicion"].includes(etapaDe(lesion));
 
-// Días de baja: hasta el alta, o hasta hoy si sigue activa.
+// Días de baja: hasta el alta, o hasta hoy si todavía no llegó.
 export const diasDeBaja = (lesion, hoy = hoyISO()) =>
-  Math.max(0, diasEntre(lesion.fecha_lesion, lesion.fecha_alta || hoy) ?? 0);
+  Math.max(0, diasEntre(lesion.fecha_lesion, hastaHoy(lesion.fecha_alta, hoy)) ?? 0);
 
 // Ventanas, en días desde el fin de la lesión anterior (alta, o hoy si sigue
 // abierta) hasta el inicio de la nueva: recurrencia hasta 60 (celda J5 de la
@@ -289,16 +302,18 @@ export const calcular = (clave, lesion, jugador = null, contexto = {}) => {
       if (!lado || !pie) return "";
       return lado === pie ? "sim" : "nao";
     }
+    // Con una fecha prevista (futura), hasta hoy.
     case "recup_1":
-      return lesion?.fecha_transicion ? diasEntre(lesion.fecha_lesion, lesion.fecha_transicion) : null;
+      return lesion?.fecha_transicion ? diasEntre(lesion.fecha_lesion, hastaHoy(lesion.fecha_transicion, contexto.hoy || hoyISO())) : null;
     case "recup_2":
-      return lesion?.fecha_retorno_entrenamiento ? diasEntre(lesion.fecha_lesion, lesion.fecha_retorno_entrenamiento) : null;
+      return lesion?.fecha_retorno_entrenamiento ? diasEntre(lesion.fecha_lesion, hastaHoy(lesion.fecha_retorno_entrenamiento, contexto.hoy || hoyISO())) : null;
     case "recuperacion":
-      return esFechaISO(lesion?.fecha_lesion) ? diasEntre(lesion.fecha_lesion, lesion.fecha_alta || contexto.hoy || hoyISO()) : null;
+      return esFechaISO(lesion?.fecha_lesion) ? diasEntre(lesion.fecha_lesion, hastaHoy(lesion.fecha_alta, contexto.hoy || hoyISO())) : null;
     case "horas_imagen":
       return horasHastaLaImagen(lesion?.fecha_lesion, lesion?.datos?.hora_imagen) ?? horasCargadasAMano(lesion);
+    // Cuando llegó el alta (con una prevista, todavía no se sabe).
     case "severidad":
-      return lesion?.fecha_alta ? severidadPorDias(diasEntre(lesion.fecha_lesion, lesion.fecha_alta)) : "";
+      return llegada(lesion?.fecha_alta, contexto.hoy || hoyISO()) ? severidadPorDias(diasEntre(lesion.fecha_lesion, lesion.fecha_alta)) : "";
     case "recurrencia":
       return recurrenciaDe(lesion, lesiones, contexto.hoy);
     case "recidiva":
@@ -333,11 +348,11 @@ export const errorDeCampo = (lesion, clave, hoy = hoyISO()) => {
     if (!esFechaISO(lesion.fecha_lesion)) return "lesiones.error.fecha";
     return lesion.fecha_lesion > hoy ? "lesiones.error.fechaFutura" : "";
   }
+  // Las de la vuelta pueden ser futuras (fechas previstas), no antes del inicio.
   if (FECHAS_POSTERIORES.includes(clave)) {
     const valor = lesion[clave];
     if (!valor) return "";
-    if (!esFechaISO(valor) || (esFechaISO(lesion.fecha_lesion) && valor < lesion.fecha_lesion)) return "lesiones.error.fechaAntes";
-    return valor > hoy ? "lesiones.error.fechaFuturaOtra" : "";
+    return !esFechaISO(valor) || (esFechaISO(lesion.fecha_lesion) && valor < lesion.fecha_lesion) ? "lesiones.error.fechaAntes" : "";
   }
   if (clave === "tipo_lesion") return lesion.datos?.tipo_lesion ? "" : "lesiones.error.tipo";
   if (clave === "parte_cuerpo") return lesion.datos?.parte_cuerpo ? "" : "lesiones.error.parte";
@@ -500,7 +515,9 @@ export const claveDeErrorDeBase = (error) => {
   if (codigo === "23505" && /lesiones_numero_caso_unico/i.test(mensaje)) return "lesiones.importar.casoOcupado";
   // La regla de antes (hasta correr 20261008_lesiones_recaida.sql).
   if (codigo === "23P01" || /lesiones_sin_solapar/i.test(mensaje)) return "lesiones.error.solapada";
-  if (codigo === "23514" && /sin_futuro/i.test(mensaje)) return "lesiones.error.fechaFuturaOtra";
+  // La fecha de inicio futura se frena antes de guardar: si la base frena una
+  // fecha futura, es una de la vuelta y falta correr 20261031_lesiones_fechas_futuras.sql.
+  if (codigo === "23514" && /sin_futuro/i.test(mensaje)) return "lesiones.error.fechasFuturasSinActualizar";
   if (codigo === "23514" && /fechas_en_orden/i.test(mensaje)) return "lesiones.error.fechaAntes";
   return "";
 };

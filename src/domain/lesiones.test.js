@@ -5,6 +5,7 @@ import {
   categoriasAlCambiar,
   claveDeErrorDeBase,
   claveDeQuien,
+  conAltaHoy,
   conValor,
   diagnosticoDe,
   diasDeBaja,
@@ -13,6 +14,7 @@ import {
   errorImagenAntes,
   erroresDeLesion,
   erroresNuevos,
+  estaActiva,
   estadoDelPlantel,
   etapaDe,
   horasHastaLaImagen,
@@ -302,6 +304,33 @@ describe("etapas, días y severidad", () => {
     expect(calcular("severidad", base())).toBe("");
   });
 
+  // Santiago, 18/10: las fechas de la vuelta se cargan a futuro; la lesión
+  // sale de Nuevos casos «Apenas la cargo» (el alta) y la etapa, los días y
+  // la severidad cuentan «Hasta hoy».
+  test("con fechas previstas (futuras), cada una cuenta recién cuando llega", () => {
+    const hoy = "2026-09-10";
+    const prevista = base({ fecha_transicion: "2026-09-05", fecha_retorno_entrenamiento: "2026-09-20", fecha_alta: "2026-10-01" });
+    expect(etapaDe(prevista, hoy)).toBe("transicion");
+    expect(etapaDe(prevista, "2026-09-25")).toBe("entrenando");
+    expect(etapaDe(prevista, "2026-10-01")).toBe("alta");
+    expect(etapaDe(base({ fecha_transicion: "2026-09-20" }), hoy)).toBe("lesionado");
+    // Con el alta cargada sale de Nuevos casos, aunque no haya llegado.
+    expect(estaActiva(prevista)).toBe(false);
+    expect(estaActiva(base({ fecha_transicion: "2026-09-20" }))).toBe(true);
+    expect(conAltaHoy(prevista, hoy)).toBe(false);
+    expect(conAltaHoy(prevista, "2026-10-01")).toBe(true);
+    // Los días, hasta hoy; al llegar el alta, fijos.
+    expect(diasDeBaja(prevista, hoy)).toBe(9);
+    expect(diasDeBaja(prevista, "2026-12-01")).toBe(30);
+    expect(calcular("recuperacion", prevista, null, { hoy })).toBe(9);
+    expect(calcular("recup_1", prevista, null, { hoy })).toBe(4);
+    expect(calcular("recup_2", prevista, null, { hoy })).toBe(9);
+    expect(calcular("recup_2", prevista, null, { hoy: "2026-09-30" })).toBe(19);
+    // La severidad, cuando llegó el alta.
+    expect(calcular("severidad", prevista, null, { hoy })).toBe("");
+    expect(calcular("severidad", prevista, null, { hoy: "2026-10-02" })).toBe("mayor");
+  });
+
   test("valorDe y conValor saben qué va en columna y qué en datos", () => {
     const lesion = conValor(conValor(base(), "fecha_alta", "2026-09-10"), "medico", "Dr. X");
     expect(lesion.fecha_alta).toBe("2026-09-10");
@@ -320,7 +349,8 @@ describe("validar", () => {
     expect(validarLesion(base({ fecha_lesion: "" }), { hoy })).toBe("lesiones.error.fecha");
     expect(validarLesion(base({ fecha_lesion: "2026-10-02" }), { hoy })).toBe("lesiones.error.fechaFutura");
     expect(validarLesion(base({ fecha_alta: "2026-08-30" }), { hoy })).toBe("lesiones.error.fechaAntes");
-    expect(validarLesion(base({ fecha_transicion: "2026-10-05" }), { hoy })).toBe("lesiones.error.fechaFuturaOtra");
+    // Las de la vuelta pueden ser futuras (las previstas; Santiago, 18/10).
+    expect(validarLesion(base({ fecha_transicion: "2026-10-05" }), { hoy })).toBe("");
     // El tipo de lesión no es opcional.
     expect(validarLesion(conDatos({ tipo_lesion: null }), { hoy })).toBe("lesiones.error.tipo");
     expect(validarLesion(conDatos({ parte_cuerpo: null }), { hoy })).toBe("lesiones.error.parte");
@@ -456,7 +486,7 @@ describe("recidiva, plantel, revisión y cambios", () => {
     expect(errorDeCampo(base({ fecha_lesion: "" }), "fecha_lesion", hoy)).toBe("lesiones.error.fecha");
     expect(errorDeCampo(base({ fecha_lesion: "2026-10-03" }), "fecha_lesion", hoy)).toBe("lesiones.error.fechaFutura");
     expect(errorDeCampo(base({ fecha_transicion: "2026-08-01" }), "fecha_transicion", hoy)).toBe("lesiones.error.fechaAntes");
-    expect(errorDeCampo(base({ fecha_alta: "2026-10-05" }), "fecha_alta", hoy)).toBe("lesiones.error.fechaFuturaOtra");
+    expect(errorDeCampo(base({ fecha_alta: "2026-10-05" }), "fecha_alta", hoy)).toBe("");
     expect(errorDeCampo(base({ fecha_alta: null }), "fecha_alta", hoy)).toBe("");
     expect(errorDeCampo(base({ datos: { lado: "direito" } }), "parte_cuerpo", hoy)).toBe("lesiones.error.parte");
     expect(errorDeCampo(base({ datos: { parte_cuerpo: "coxa" } }), "lado", hoy)).toBe("lesiones.error.lado");

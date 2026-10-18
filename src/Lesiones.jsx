@@ -18,6 +18,7 @@ import { actualesPrimero, esActual } from "./domain/plantel.js";
 import {
   calcular,
   claveDeQuien,
+  conAltaHoy,
   conValor,
   diasDeBaja,
   errorDeCampo,
@@ -174,6 +175,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const [hojaSelector, setHojaSelector] = useState(null);
   const [aDarAlta, setADarAlta] = useState(null);
   const [fechasAlta, setFechasAlta] = useState({});
+  // Lo que frena guardar el alta, adentro de la hoja (afuera quedaba tapado).
+  const [errorAlta, setErrorAlta] = useState("");
   const [aBorrar, setABorrar] = useState(null);
   // El destino de la barra mientras se confirma dejar una carga sin guardar.
   const [aSalir, setASalir] = useState(null);
@@ -504,6 +507,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const fechasDelAlta = FECHAS_DEL_ALTA.filter((clave) => clave === "fecha_alta" || !oculto(clave));
   const abrirAlta = (lesion) => {
     setFechasAlta(Object.fromEntries(FECHAS_DEL_ALTA.map((clave) => [clave, lesion[clave] || ""])));
+    setErrorAlta("");
     setADarAlta(lesion);
   };
   const cambiosDelAlta = aDarAlta ? fechasDelAlta.filter((clave) => (fechasAlta[clave] || "") !== (aDarAlta[clave] || "")) : [];
@@ -512,15 +516,17 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     const lesion = aDarAlta;
     if (!lesion || !cambiosDelAlta.length) return;
     // Sin fecha de inicio, primero hay que completarla (editando la lesión).
-    if (!tieneFecha(lesion)) return setAviso(t("lesiones.error.fecha"));
+    if (!tieneFecha(lesion)) return setErrorAlta(t("lesiones.error.fecha"));
     const nueva = cambiosDelAlta.reduce((antes, clave) => ({ ...antes, [clave]: fechasAlta[clave] || null }), lesion);
-    // Solo frena lo que rompen estas fechas (antes del inicio o futuras).
+    // Solo frena lo que rompen estas fechas (antes del inicio). Pueden ser
+    // futuras: son las previstas.
     const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: lesiones, oculto })[0]?.error;
-    if (falta) return setAviso(t(falta, variablesDelError(nueva)));
+    if (falta) return setErrorAlta(t(falta, variablesDelError(nueva)));
+    setErrorAlta("");
     setOcupado(true);
     const respuesta = await actualizarLesion(lesion.id, nueva);
     setOcupado(false);
-    if (respuesta.error) return avisarError(respuesta.error, lesion);
+    if (respuesta.error) return setErrorAlta(textoDeError(respuesta.error, lesion));
     reemplazar(respuesta.lesion);
     setADarAlta(null);
     setAviso(t(respuesta.lesion.fecha_alta ? "lesiones.altaGuardada" : "lesiones.fechasGuardadas"));
@@ -661,7 +667,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             {etiqueta("recuperacion")} <strong>{plural("lesiones.dias", diasDeBaja(lesion))}</strong>
           </span>
         )}
-        {lesion.fecha_alta && tieneFecha(lesion) && (
+        {conAltaHoy(lesion) && tieneFecha(lesion) && (
           <span>
             {etiqueta("severidad")} <strong>{enPantalla(campoPorClave("severidad"), lesion)}</strong>
           </span>
@@ -1321,7 +1327,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             <label>
               {rotulo} {opcional}
             </label>
-            <input type="date" value={valor || ""} max={hoyISO()} onChange={(evento) => cambiar(evento.target.value)} />
+            <input type="date" value={valor || ""} max={campo.clave === "fecha_lesion" ? hoyISO() : undefined} onChange={(evento) => cambiar(evento.target.value)} />
             {horas !== null && (
               <small className="lesiones-ayuda">
                 {etiqueta("horas_imagen")}: {plural("lesiones.horas", horas)}
@@ -1902,6 +1908,11 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             </>
           }
         >
+          {errorAlta && (
+            <div className="aviso-hoja" role="alert">
+              {errorAlta}
+            </div>
+          )}
           {fechasDelAlta.map((clave) => (
             <div className="campo-inicio" key={clave}>
               <label htmlFor={`alta-${clave}`}>{etiqueta(clave)}</label>
@@ -1910,8 +1921,10 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
                 type="date"
                 value={fechasAlta[clave] || ""}
                 min={aDarAlta.fecha_lesion || undefined}
-                max={hoyISO()}
-                onChange={(evento) => setFechasAlta((antes) => ({ ...antes, [clave]: evento.target.value }))}
+                onChange={(evento) => {
+                  setErrorAlta("");
+                  setFechasAlta((antes) => ({ ...antes, [clave]: evento.target.value }));
+                }}
               />
             </div>
           ))}

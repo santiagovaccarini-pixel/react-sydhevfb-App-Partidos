@@ -2015,6 +2015,7 @@ export default {
       fechaFutura: "A data de início não pode ser no futuro.",
       fechaAntes: "As datas de transição, retorno e alta não podem ser anteriores ao início.",
       fechaFuturaOtra: "Nenhuma data pode ser no futuro.",
+      fechasFuturasSinActualizar: "Para salvar datas futuras falta uma atualização do banco de dados. Avise quem administra o app.",
       parte: "Escolha a parte do corpo lesionada.",
       lado: "Escolha o lado.",
       tipo: "Escolha o tipo de lesão.",

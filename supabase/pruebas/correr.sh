@@ -88,7 +88,7 @@ $PSQL -f "$ULTIMA" >/dev/null
 echo "→ 20261014_revisar_duenos.sql"
 $PSQL -f "$RAIZ/supabase/migrations/20261014_revisar_duenos.sql" >/dev/null
 # Las que dicen que se pueden volver a correr, también después de las nuevas.
-for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261010_lesiones_sin_fecha_y_personas 20261011_jugadores_actual \
+for otra_vez in 20261008_lesiones_recaida 20261009_lesiones_periodos 20261011_jugadores_actual \
                 20261013b_notas; do
   echo "→ $otra_vez.sql (otra vez, después de la última)"
   $PSQL -f "$RAIZ/supabase/migrations/$otra_vez.sql" >/dev/null
@@ -105,7 +105,7 @@ for vieja in instalar-desde-cero \
              migrations/20261005_foto_al_dia migrations/20261006_horas_imagen migrations/20261012_evaluaciones \
              migrations/20261013_seguridad migrations/20261014_duenos_y_pedidos migrations/20261016_gps \
              migrations/20261024_gps_referencias migrations/20261025_referencias_editables \
-             migrations/20261029_niveles_de_permiso; do
+             migrations/20261029_niveles_de_permiso migrations/20261010_lesiones_sin_fecha_y_personas; do
   echo "→ $(basename "$vieja").sql después de la última (se tiene que negar)"
   if $PSQL -f "$RAIZ/supabase/$vieja.sql" >/dev/null 2>"$DATOS/vieja.err"; then
     echo "ERROR: $vieja.sql corrió después de una más nueva"

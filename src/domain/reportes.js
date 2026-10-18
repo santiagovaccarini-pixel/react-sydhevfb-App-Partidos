@@ -3,7 +3,7 @@
 // VR, el valor de referencia del plantel) y el contador por período de
 // "Antecedentes BD", que arma la hoja "Incidencias c 1000h". Las horas son
 // las del GPS. Además, los conteos del reporte grupal.
-import { calcular, claveDeQuien, diasEntre, esFechaISO, estaActiva, tieneFecha } from "./lesiones.js";
+import { calcular, claveDeQuien, conAltaHoy, diasEntre, esFechaISO, tieneFecha } from "./lesiones.js";
 
 // Las reglas del cuadro, como están en el Excel: qué lesiones entran (las
 // celdas de Datos Básicos P8, R7:R9 y S7), qué es leve para "sin leves" (T8:
@@ -142,8 +142,9 @@ export const lesionesDelReporte = (lesiones, { desde = "", hasta = "", sinLeves 
     return true;
   });
 
-// Días perdidos por una lesión: del inicio al alta (sin alta, hasta hoy).
-export const diasPerdidos = (lesion, hoy) => Math.max(0, diasEntre(lesion.fecha_lesion, lesion.fecha_alta || hoy) ?? 0);
+// Días perdidos por una lesión: del inicio al alta (sin alta, o con una
+// prevista que todavía no llegó, hasta hoy).
+export const diasPerdidos = (lesion, hoy) => Math.max(0, diasEntre(lesion.fecha_lesion, conAltaHoy(lesion, hoy) ? lesion.fecha_alta : hoy) ?? 0);
 
 // Cuántas hay de cada valor de una columna (o de lo que diga `valor`), de
 // mayor a menor: [{ valor, cantidad, dias }]. Las vacías no cuentan, ni las
@@ -196,11 +197,13 @@ export const porMes = (lesiones, desde, hasta) =>
 // El resumen de un grupo de lesiones. todas: las del club, para la
 // recurrencia (que mira las anteriores).
 export const resumenDeLesiones = (lesiones, { hoy, todas = lesiones } = {}) => {
-  const conAlta = lesiones.filter((lesion) => lesion.fecha_alta);
+  // Los reportes cuentan hasta hoy: un alta prevista que todavía no llegó
+  // sigue de baja (Santiago, 18/10: «Hasta hoy»).
+  const conAlta = lesiones.filter((lesion) => conAltaHoy(lesion, hoy));
   return {
     cantidad: lesiones.length,
     dias: lesiones.reduce((suma, lesion) => suma + diasPerdidos(lesion, hoy), 0),
-    activas: lesiones.filter(estaActiva).length,
+    activas: lesiones.filter((lesion) => tieneFecha(lesion) && !conAltaHoy(lesion, hoy)).length,
     // Los jugadores y las personas fuera de Datos básicos, cada uno una vez.
     jugadores: new Set(lesiones.map(claveDeQuien).filter(Boolean)).size,
     promedioDias: conAlta.length ? conAlta.reduce((suma, lesion) => suma + diasPerdidos(lesion, hoy), 0) / conAlta.length : null,
