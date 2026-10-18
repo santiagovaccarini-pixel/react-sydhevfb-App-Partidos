@@ -4289,6 +4289,60 @@ button:disabled {
   transform: rotate(180deg);
 }
 
+/* Al bajar, cuando el botón del encabezado se va de la pantalla, el mismo
+   botón queda fijo arriba, sobre el vidrio grafito de la barra de los
+   reportes y a lo ancho del contenedor (Santiago, 18/10: «Tmb deja fijo los
+   botones para volver a modulo»; UI-051). Lo dibuja BotonModulos. */
+.barra-modulos-fija {
+  position: fixed;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  padding: max(8px, env(safe-area-inset-top, 0px)) 0 8px;
+  background: rgba(2, 6, 23, 0.9);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  animation: barra-modulos-entra 0.16s ease-out;
+}
+.barra-modulos-fija .boton-modulos {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.barra-modulos-fija .boton-modulos:hover,
+.barra-modulos-fija .boton-modulos:active {
+  transform: none;
+  box-shadow: none;
+}
+.barra-modulos-fija .boton-modulos svg {
+  transform: rotate(180deg);
+}
+@keyframes barra-modulos-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-modulos-fija {
+    animation: none;
+  }
+}
+@media print {
+  .barra-modulos-fija {
+    display: none !important;
+  }
+}
+
 .etiqueta-hero {
   color: rgba(226, 232, 240, 0.5);
   font-size: 10px;

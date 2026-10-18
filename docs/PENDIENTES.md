@@ -3804,6 +3804,12 @@ confirme.**
     abajo) ni ningún cálculo, filtro o permiso.
   - **Queda prohibido** repetir «Siguiente» arriba y abajo y volver a dejar que la barra de
     los reportes se vaya al bajar sin un pedido nuevo. Ver UI-051.
+  - **El botón para volver a los módulos, también (18/10).** Santiago: «Tmb deja fijo los
+    botones para volver a modulo». El botón del encabezado de cada módulo («‹ Bases de Datos»
+    en Lesiones, Evaluaciones y GPS; «‹ Módulos» en Datos básicos, Partido y Flujo diario)
+    sigue en su lugar; al bajar, apenas empieza a taparse, el mismo botón aparece fijo arriba
+    sobre el vidrio grafito de los reportes, y se va al volver arriba. Lo dibuja un componente
+    compartido (`src/components/BotonModulos.jsx`). No va al papel.
 - **Lo que sigue, en este orden**: moverse por la app (esconder la barra lateral y la de
   abajo, abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor

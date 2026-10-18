@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEnVivo } from "./domain/enVivo.js";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
+import BotonModulos from "./components/BotonModulos.jsx";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
@@ -493,10 +494,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
           <header className="hero-partido hero-lesiones">
             <div className="hero-lesiones-barra">
               {onVolver ? (
-                <button type="button" className="boton-modulos" onClick={onVolver}>
-                  <Icono nombre="flecha" size={14} />
-                  {t("portal.modulos")}
-                </button>
+                <BotonModulos onClick={onVolver}>{t("portal.modulos")}</BotonModulos>
               ) : (
                 <span />
               )}

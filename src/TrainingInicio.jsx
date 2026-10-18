@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Icono } from "./components/AppChrome";
+import BotonModulos from "./components/BotonModulos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import TrainingBloques from "./TrainingApp.jsx";
 import {
@@ -67,10 +67,7 @@ export default function TrainingInicio({
       <div className="contenedor contenedor-inicio-formacion">
         <header className="hero-partido hero-sesion">
           {onVolverModulos && (
-            <button type="button" className="boton-modulos" onClick={onVolverModulos}>
-              <Icono nombre="flecha" size={14} />
-              Módulos
-            </button>
+            <BotonModulos onClick={onVolverModulos}>Módulos</BotonModulos>
           )}
           <span className="etiqueta-hero">{actual ? "ENTRENAMIENTO" : soloLectura ? "SOLO LECTURA" : "SIN ENTRENAMIENTO"}</span>
           <strong className="nombre-sesion">

@@ -118,6 +118,7 @@ import {
   resumenDeJugador,
 } from "./domain/jugadores";
 import { Icono, MarcoAplicacion } from "./components/AppChrome";
+import BotonModulos from "./components/BotonModulos.jsx";
 import { HoraActual, RelojPartido } from "./components/MatchClock";
 import { HojaConfirmar } from "./components/ConfirmSheet";
 import { HojaOpciones } from "./components/HojaOpciones";
@@ -254,7 +255,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.17.13";
+const APP_VERSION = "2026.10.18.1";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
@@ -5148,10 +5149,7 @@ export default function App({
           {/* Vuelve al portal, a la vista y no escondido en Ajustes: igual
               que en Flujo diario. */}
           {onVolver && (
-            <button type="button" className="boton-modulos" onClick={salirAModulos}>
-              <Icono nombre="flecha" size={14} />
-              Módulos
-            </button>
+            <BotonModulos onClick={salirAModulos}>Módulos</BotonModulos>
           )}
           <span className="etiqueta-hero">
             {soloLectura ? "Solo lectura" : "Próximo partido"}
