@@ -4196,6 +4196,20 @@ button:disabled {
   font-weight: 700;
 }
 
+/* Las personas fuera de Datos básicos que se confirman al cargar
+   (Consentimiento.jsx): todas a la vista, y si son muchas, se desliza. */
+.consentimiento-personas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 12px;
+  max-height: 9.5em;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
 .acciones-hoja {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

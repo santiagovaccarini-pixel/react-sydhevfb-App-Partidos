@@ -793,7 +793,10 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
     una fila en `escenarios.sql`: las pruebas de aislamiento la recorren solas con cada cuenta.
     Una tabla o vista que se lea sin `equipo_id` se revisa y se suma a la lista de
     `huecos_entre_clubes()` y a `filas_ajenas` en los escenarios. Ver «Aislamiento entre clubes
-    (18/10)».
+    (18/10)»;
+  - si la base guarda datos de atletas, su tabla con el disparador `exigir_consentimiento` (y
+    su `persona`, si la tiene) y la carga de archivos con `useConsentimientoPersonas`
+    (`src/components/Consentimiento.jsx`). Ver «Consentimiento de los atletas (18/10)».
 - Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
   Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones tiene sus fotos desde el
   05/10 (`public/portal/lesiones.webp` y `lesiones-parada.webp`, las mandó Santiago); el dibujo
@@ -4043,6 +4046,39 @@ confirme.**
     de nadie y cambiarlo es otro mecanismo.
   - **Queda prohibido** una tabla o vista con datos de un club sin su `equipo_id` y sus reglas,
     o una regla que abra sin mirar el club, salvo un pedido nuevo.
+- **Consentimiento de los atletas (hecho el 18/10, migración `20261103_consentimiento.sql`,
+  UI-057).** Santiago, como parte de cumplir con el RGPD y la CCPA: «Los clubes deben confirmar
+  que tienen el consentimiento de los atletas (o de sus tutores si son menores de edad) para
+  subir sus datos». En cuestionarios: «Una vez por club»; los jugadores ya cargados, «Quedan
+  todos confirmados»; las personas fuera de Datos básicos, «Confirmar al cargar el archivo»;
+  el documento firmado, «No, lo guarda el club»; mientras no confirme, «No se cargan hasta
+  confirmar»; quién, «Entidad y administrador» y, como la entidad todavía no tiene su cuenta
+  vinculada al club (paso 3), «Ahora el administrador; la entidad después».
+  - **La base** (`consentimientos`): cada confirmación con el texto tal como se mostró, quién,
+    como qué (administrador, entidad o carga) y cuándo, que pone la base; no se cambia ni se
+    borra desde la app. La del club la hace el administrador (la entidad, cuando su cuenta
+    quede vinculada al club: se suma a la política `consentimientos_confirmar`); la ven todos
+    los del club. La de personas, quien carga en esa base, y la ve quien tiene esa base.
+  - **Sin confirmar no se carga**: el disparador `exigir_consentimiento` frena las filas nuevas
+    de `jugadores`, `lesiones`, `evaluaciones`, `gps` y `gps_en_curso` (`falta_consentimiento`)
+    y la fila de una persona fuera de Datos básicos sin confirmar, al cargarla o al pasarle una
+    fila (`falta_consentimiento_persona`; el nombre se compara sin mayúsculas ni espacios de
+    más). Lo ya cargado se ve y se cambia igual. A quien no sigue en el club lo frenan sus
+    reglas antes (no se entera de si el club confirmó). Desde el SQL Editor, no frena. Partido
+    y Flujo diario no se frenan: usan el plantel de Datos básicos, que sí.
+  - **Lo que ya estaba**: las personas fuera de Datos básicos ya cargadas quedan confirmadas al
+    correr la migración, sin nombre de quien confirmó; los jugadores no necesitan nada.
+  - **En la app**: el aviso de la pantalla principal y la hoja «Personas fuera de Datos
+    básicos» en Lesiones y Evaluaciones (pegar) y al guardar una carga de GPS (UI-057). Si la
+    base dice que falta, el aviso de cada pantalla lo explica.
+  - **No es todo el RGPD ni la CCPA**: hacen falta también la política de privacidad, el
+    contrato con cada club (la app trata datos por cuenta del club), dónde se guardan los datos
+    y qué hacer ante una filtración. Lo tiene que revisar alguien que sepa de leyes. Siguen,
+    nota por nota: exportar todo lo de un atleta (portabilidad) y borrarlo del todo (derecho al
+    olvido).
+  - **Queda prohibido** cargar datos nuevos de atletas sin la confirmación del club, o de una
+    persona fuera de Datos básicos sin la suya, y que la confirme el staff por el club, salvo
+    un pedido nuevo.
 - **En curso: la planilla de valor referencial** (quedó en pausa por la auditoría). Santiago, en
   cuestionarios: elegir la base, ver todos sus datos, filtrar la muestra y calcular el V.R. con la
   lógica de su planilla («Plantilla VR»: descarte de atípicos por cuartiles y cortes que buscan
@@ -4050,7 +4086,8 @@ confirme.**
   Malo «Copialo igual» y «Un solo nombre libre» en «Agregar V.R.». La cuenta, copiada y
   comparada con la planilla recalculada (datos inventados), da igual; falta mostrarle la maqueta
   del flujo antes de hacerlo.
-- **Lo que sigue, en este orden**: las grandes, cada una aparte (la planilla de valor
+- **Lo que sigue, en este orden**: exportar todo lo de un atleta (portabilidad) y borrarlo del
+  todo (derecho al olvido), nota por nota; después, las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
   diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;
   Isocinecia con Python y VALD).

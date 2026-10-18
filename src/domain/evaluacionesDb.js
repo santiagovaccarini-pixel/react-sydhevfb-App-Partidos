@@ -4,6 +4,7 @@
 // traducido a una clave del diccionario.
 import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
+import { claveDeErrorConsentimiento } from "./consentimiento.js";
 
 const COLUMNAS = "id, equipo_id, test, orden, jugador_id, persona, fecha, datos, creado_en, actualizado_en";
 
@@ -17,6 +18,8 @@ export const claveDeErrorEvaluaciones = (error, porDefecto = "evaluaciones.error
     return "evaluaciones.error.faltaMigracion";
   }
   if (/jugador_de_otro_club/.test(texto)) return "evaluaciones.error.jugadorDeOtroClub";
+  // Sin la confirmación del consentimiento (20261103).
+  if (claveDeErrorConsentimiento(error)) return claveDeErrorConsentimiento(error);
   if (/evaluaciones_sin_futuro/.test(texto)) return "evaluaciones.error.fechaFutura";
   if (/evaluaciones_de_quien/.test(texto)) return "evaluaciones.error.sinJugador";
   if (error?.code === "42501" || /row-level security|permission denied/.test(texto)) return "evaluaciones.error.sinPermiso";

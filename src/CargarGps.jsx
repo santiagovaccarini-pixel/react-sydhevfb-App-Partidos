@@ -5,6 +5,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
+import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
 import { opcionesDeLista, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
 import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, llegaAlCorte, microcicloDe, vrPartidoDelDispositivo, vsPartido } from "./domain/gps/cargar.js";
@@ -148,6 +149,7 @@ export default function CargarGps({
   const [dejando, setDejando] = useState(false);
   const [otroAparato, setOtroAparato] = useState(false);
   const [errorPaso, setErrorPaso] = useState("");
+  const consentimiento = useConsentimientoPersonas(equipoId, "gps");
   const [hoja, setHoja] = useState(null);
   // El desplegable de varios abierto: { titulo, valores, elegidos, busqueda, alAplicar }.
   const [hojaVarios, setHojaVarios] = useState(null);
@@ -1640,6 +1642,14 @@ export default function CargarGps({
     }
     setErrorPaso("");
     setFalla("");
+    // Las personas que no están en Datos básicos: antes de guardar, quien
+    // carga confirma su consentimiento (20261103).
+    const permiso = await consentimiento.pedir(quedan.filter((fila) => !fila.jugador_id && !fila.promedio).map((fila) => fila.persona));
+    if (!enPantalla.current) return;
+    if (!permiso.sigue) {
+      if (permiso.error) setFalla(permiso.error);
+      return;
+    }
     setProgreso({ n: desde, total: lista.length });
     if (!aMedias) {
       const [respuesta, delDia] = await Promise.all([listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }), enCursoDelDia(equipoId, estado.fecha)]);
@@ -1880,6 +1890,7 @@ export default function CargarGps({
           </div>
         )}
       </HojaInferior>
+      {consentimiento.hoja}
     </div>
   );
 }

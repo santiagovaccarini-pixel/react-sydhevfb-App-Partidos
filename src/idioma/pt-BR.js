@@ -213,6 +213,30 @@ export default {
     gpsTitulo: "GPS",
     gpsTexto: "O que o GPS mede em cada tarefa e em cada jogo, com um relatório do time e cores que mostram quem está acima ou abaixo da média.",
   },
+  // O consentimento dos atletas (20261103).
+  consentimiento: {
+    titulo: "Consentimento dos atletas",
+    avisoAdmin: "Antes de carregar dados novos de jogadores, lesões, avaliações ou GPS, o clube precisa confirmar que tem o consentimento dos seus atletas. Você confirma uma única vez.",
+    avisoStaff: "Antes de carregar dados novos de jogadores, lesões, avaliações ou GPS, o administrador do clube precisa confirmar que o clube tem o consentimento dos seus atletas. Avise-o.",
+    confirmar: "Confirmar",
+    declaracion: "Confirmo, em nome de {{club}}, que o clube tem o consentimento de cada atleta (ou o da mãe, do pai ou do responsável, se for menor de idade) para carregar e usar os seus dados neste app, incluídos os de saúde. O clube guarda esses consentimentos assinados.",
+    confirmo: "Confirmo",
+    ahoraNo: "Agora não",
+    listo: "Pronto: o consentimento dos atletas ficou confirmado.",
+    personas: {
+      titulo: "Pessoas fora de Dados básicos",
+      texto_one: "O que você vai carregar tem 1 pessoa que não está em Dados básicos. Para carregá-la, confirme que o clube tem o consentimento dela (ou o da mãe, do pai ou do responsável, se for menor de idade).",
+      texto_other: "O que você vai carregar tem {{n}} pessoas que não estão em Dados básicos. Para carregá-las, confirme que o clube tem o consentimento delas (ou o da mãe, do pai ou do responsável, se forem menores de idade).",
+      lista: "Pessoas a confirmar",
+      confirmar: "Confirmo e carrego",
+    },
+    error: {
+      club: "Falta o administrador do clube confirmar o consentimento dos atletas, na tela principal. Até lá, não se carregam dados novos.",
+      persona: "Falta confirmar o consentimento de uma pessoa que não está em Dados básicos. Carregue de novo e confirme.",
+      noLeer: "Não foi possível verificar o consentimento dos atletas.",
+      noGuardar: "Não foi possível salvar a confirmação. Tente de novo.",
+    },
+  },
   evaluaciones: {
     titulo: "Avaliações",
     nueva: "Nova avaliação",
