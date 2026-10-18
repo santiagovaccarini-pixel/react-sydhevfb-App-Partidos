@@ -516,3 +516,300 @@
 .evaluaciones-marco .referencias-historial-mas {
   margin-top: 8px;
 }
+
+/* Cargar: varios jugadores a la vez (CargaPorJugador.jsx; Santiago, 18/10,
+   con maquetas). En la compu, una tabla con una fila por jugador: el jugador
+   fijo a la izquierda, los títulos de los bloques en dorado arriba de sus
+   columnas y la tabla que se corre de costado. En el celular, una tarjeta por
+   jugador que se cierra y se abre con la flecha de abajo a la derecha. */
+.evaluaciones-marco .evaluaciones-varios {
+  padding: 14px;
+}
+.evaluaciones-marco .evaluaciones-varios-marco {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla th {
+  padding: 10px 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla th.bloque {
+  padding: 7px 8px 3px;
+  border-left: 1px solid #334155;
+  color: #c6a15b;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla th.par {
+  background: #1e293b;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla th.inicio {
+  border-left: 1px solid #334155;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla td {
+  padding: 6px 4px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: center;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla td.par {
+  background: #f8fafc;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla td.inicio {
+  border-left: 1px solid #e2e8f0;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla .fija {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  box-shadow: 1px 0 0 #e2e8f0;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla td.fija {
+  background: #fff;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla th.fija {
+  z-index: 2;
+  color: #c6a15b;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla input,
+.evaluaciones-marco .evaluaciones-varios-tabla select {
+  height: 38px;
+  min-height: 0;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 600;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla .evaluaciones-varios-numero {
+  width: 64px;
+  text-align: center;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla .evaluaciones-varios-tiempo {
+  width: 72px;
+  text-align: center;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla .evaluaciones-varios-nota {
+  width: 170px;
+}
+.evaluaciones-marco .evaluaciones-varios-tabla select {
+  width: auto;
+  max-width: 220px;
+}
+
+/* El jugador de cada fila: se toca para elegirlo en la hoja de opciones. */
+.evaluaciones-marco .evaluaciones-varios-jugador {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 168px;
+  min-height: 38px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 13px;
+  box-shadow: none;
+  text-align: left;
+}
+.evaluaciones-marco .evaluaciones-varios-jugador:hover,
+.evaluaciones-marco .evaluaciones-varios-jugador:active {
+  transform: none;
+  box-shadow: none;
+}
+.evaluaciones-marco .evaluaciones-varios-jugador b {
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.evaluaciones-marco .evaluaciones-varios-jugador.vacio b {
+  color: #64748b;
+  font-weight: 700;
+}
+.evaluaciones-marco .evaluaciones-varios-jugador svg {
+  flex: none;
+  transform: rotate(90deg);
+}
+.evaluaciones-marco .evaluaciones-varios-sacar,
+.evaluaciones-marco .evaluaciones-varios-flecha {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border-radius: 9px;
+  background: transparent;
+  box-shadow: none;
+}
+.evaluaciones-marco .evaluaciones-varios-sacar {
+  color: #b91c1c;
+}
+.evaluaciones-marco .evaluaciones-varios-sacar:hover,
+.evaluaciones-marco .evaluaciones-varios-flecha:hover {
+  transform: none;
+  background: #f1f5f9;
+  box-shadow: none;
+}
+.evaluaciones-marco .evaluaciones-varios-agregar {
+  width: auto;
+  margin: 12px 0 0;
+}
+
+/* En el celular, las tarjetas. */
+.evaluaciones-marco .evaluaciones-varios-tarjetas {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+.evaluaciones-marco .evaluaciones-varios-tarjetas .evaluaciones-varios-agregar {
+  width: 100%;
+  margin: 0;
+}
+.evaluaciones-marco .evaluaciones-varios-tarjeta {
+  margin: 0;
+  padding: 14px;
+}
+.evaluaciones-marco .evaluaciones-varios-arriba {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.evaluaciones-marco .evaluaciones-varios-arriba .evaluaciones-varios-jugador {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  min-height: 46px;
+  font-size: 15px;
+}
+.evaluaciones-marco .evaluaciones-varios-bloque {
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid #e2e8f0;
+}
+.evaluaciones-marco .evaluaciones-varios-bloque.primero {
+  padding: 0;
+  border-top: 0;
+}
+.evaluaciones-marco .evaluaciones-varios-bloque-titulo {
+  margin: 0 0 8px;
+  color: #a16207;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Lo angosto llena los huecos que deja lo ancho (Selección y P.C. juntos,
+   arriba de Dispositivo y Medio). */
+.evaluaciones-marco .evaluaciones-varios-campos {
+  display: grid;
+  grid-auto-flow: row dense;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+.evaluaciones-marco .evaluaciones-varios-campos label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+}
+.evaluaciones-marco .evaluaciones-varios-campos label > span,
+.evaluaciones-marco .evaluaciones-varios-grilla-titulo {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.evaluaciones-marco .evaluaciones-varios-campos .ancha {
+  grid-column: 1 / -1;
+}
+.evaluaciones-marco .evaluaciones-varios-campos input,
+.evaluaciones-marco .evaluaciones-varios-campos select,
+.evaluaciones-marco .evaluaciones-varios-grilla input,
+.evaluaciones-marco .evaluaciones-varios-grilla select {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  min-height: 0;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 600;
+}
+.evaluaciones-marco .evaluaciones-varios-grilla {
+  display: grid;
+  gap: 6px;
+  align-items: center;
+}
+.evaluaciones-marco .evaluaciones-varios-grilla-titulo {
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+.evaluaciones-marco .evaluaciones-varios-grilla > b {
+  padding: 0 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+}
+.evaluaciones-marco .evaluaciones-varios-grilla input,
+.evaluaciones-marco .evaluaciones-varios-grilla select {
+  padding: 0 4px;
+  text-align: center;
+}
+.evaluaciones-marco .evaluaciones-varios-abajo {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+.evaluaciones-marco .evaluaciones-varios-abajo p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+}
+.evaluaciones-marco .evaluaciones-varios-flecha {
+  flex: none;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+.evaluaciones-marco .evaluaciones-varios-flecha svg {
+  transform: rotate(-90deg);
+  transition: transform 160ms ease;
+}
+.evaluaciones-marco .evaluaciones-varios-tarjeta.cerrada .evaluaciones-varios-flecha svg {
+  transform: rotate(90deg);
+}

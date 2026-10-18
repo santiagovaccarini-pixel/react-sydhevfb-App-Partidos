@@ -15,6 +15,8 @@ const datos = vi.hoisted(() => ({
   faltaHistorial: false,
   errorAlLeer: "",
   creadas: [],
+  // Si está, el guardado que sigue a esa cantidad de creadas falla.
+  fallaAlCrear: null,
   actualizadas: [],
   borradas: [],
   // Si está, cada guardado espera a que se abra (una conexión lenta).
@@ -82,8 +84,8 @@ vi.mock("./domain/equipo.js", () => ({
 vi.mock("./domain/lesionesDb.js", () => ({
   cargarPlantelLesiones: async () => ({
     plantel: [
-      { id: 1, nombre: "ALFA", roles: [], puestos: [], actual: true, fecha_nacimiento: "2000-03-15", posicion: "delantero_central" },
-      { id: 2, nombre: "BETA", roles: [], puestos: [], actual: true, fecha_nacimiento: "", posicion: "" },
+      { id: 1, nombre: "ALFA", roles: [], puestos: [], actual: true, fecha_nacimiento: "2000-03-15", posicion: "delantero_central", categoria: "profissional" },
+      { id: 2, nombre: "BETA", roles: [], puestos: [], actual: true, fecha_nacimiento: "", posicion: "", categoria: "sub20" },
       { id: 3, nombre: "GAMA", roles: [], puestos: [], actual: false, fecha_nacimiento: "", posicion: "" },
     ],
     error: "",
@@ -146,6 +148,11 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
     return { error: "" };
   },
   crearEvaluacion: async (equipoId, test, ev) => {
+    if (datos.fallaAlCrear && datos.creadas.length >= datos.fallaAlCrear.despues) {
+      const { error } = datos.fallaAlCrear;
+      datos.fallaAlCrear = null;
+      return { evaluacion: null, error };
+    }
     datos.creadas.push({ equipoId, test, ev });
     const nueva = { ...ev, id: `nueva-${datos.creadas.length}`, equipo_id: equipoId, test, orden: 100 + datos.creadas.length, persona: ev.persona ?? null };
     datos.evaluaciones.push(nueva);
@@ -164,7 +171,7 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
 
 const { default: Evaluaciones } = await import("./Evaluaciones.jsx");
 const { fijarIdiomaParaPruebas } = await import("./idioma/index.js");
-const { hoyISO } = await import("./idioma/formatos.js");
+const { fechaCorta, hoyISO } = await import("./idioma/formatos.js");
 
 const botones = (contenedor) => [...document.body.querySelectorAll("button")];
 const boton = (contenedor, etiqueta) => botones(contenedor).find((b) => b.textContent.trim() === etiqueta);
@@ -205,6 +212,38 @@ const elegirTest = async (contenedor, nombre) => {
   });
 };
 
+// La carga nueva (Santiago, 18/10): el test y la fecha; después, una fila por
+// jugador.
+const empezarCarga = async (contenedor, nombreTest) => {
+  await tocar(boton(contenedor, "Nueva evaluación"));
+  if (nombreTest) await elegirTest(contenedor, nombreTest);
+  await tocar(boton(contenedor, "Siguiente"));
+};
+const filasDeLaCarga = (contenedor) => [...contenedor.querySelectorAll(".evaluaciones-varios-tabla tbody tr")];
+const titulosDeLaCarga = (contenedor) => [...contenedor.querySelectorAll(".evaluaciones-varios-tabla thead th")].map((th) => th.textContent);
+const opcionesDeLaHoja = () => [...document.body.querySelectorAll(".opcion-hoja")].map((b) => b.textContent);
+const elegirEnLaHoja = async (nombre) => tocar([...document.body.querySelectorAll(".opcion-hoja")].find((b) => b.textContent === nombre));
+// El jugador de una fila, en la hoja de opciones.
+const elegirJugador = async (contenedor, indice, nombre) => {
+  await tocar(filasDeLaCarga(contenedor)[indice].querySelector(".evaluaciones-varios-jugador"));
+  await elegirEnLaHoja(nombre);
+};
+// Un dato de la carga por su nombre completo (jugador · bloque · columna),
+// el que lee un lector de pantalla.
+const dato = (contenedor, rotulo) => {
+  const encontrado = contenedor.querySelector(`[aria-label="${rotulo}"]`);
+  expect(encontrado, `no está el dato ${rotulo}`).toBeTruthy();
+  return encontrado;
+};
+const elegirOpcion = async (lista, etiqueta) => {
+  const opcion = [...lista.options].find((una) => una.textContent === etiqueta);
+  expect(opcion, `no está la opción ${etiqueta}`).toBeTruthy();
+  await act(async () => {
+    lista.value = opcion.value;
+    lista.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+};
+
 describe("Evaluaciones", () => {
   let contenedor;
   let raiz;
@@ -222,6 +261,7 @@ describe("Evaluaciones", () => {
     datos.faltaHistorial = false;
     datos.errorAlLeer = "";
     datos.creadas = [];
+    datos.fallaAlCrear = null;
     datos.actualizadas = [];
     datos.borradas = [];
     datos.compuerta = null;
@@ -354,44 +394,140 @@ describe("Evaluaciones", () => {
     expect(boton(contenedor, "Nueva evaluación")).toBeUndefined();
   });
 
-  test("Nueva evaluación: de quién y cuándo, después las medidas; los tiempos se guardan en segundos", async () => {
+  // Santiago, 18/10: «que aprietes cargar, elijas el test y cuando le das a
+  // siguiente te lleva a una fila con las cabeceras del test elegido…».
+  test("Nueva evaluación: el test y la fecha, después una fila por jugador; los tiempos se guardan en segundos", async () => {
     await montar();
     await tocar(boton(contenedor, "Nueva evaluación"));
     expect(contenedor.querySelector("h1").textContent).toBe("Nueva evaluación");
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Jugador y fecha");
-    // Sin jugador no se sigue.
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Test y fecha");
+    // Una fecha para todos; posterior a hoy, no sigue.
+    const fecha = campo(contenedor, "Fecha").querySelector("input");
+    expect(fecha.value).toBe(hoyISO());
+    await escribir(fecha, "2999-01-01");
     await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.textContent).toContain("Una evaluación tiene que ser de alguien: elegí el jugador.");
-    // El plantel actual primero; quien ya no está, al final y marcado.
-    const jugadores = [...contenedor.querySelectorAll(".lesiones-lista-jugadores button")];
-    expect(jugadores.map((b) => b.querySelector("b").textContent)).toEqual(["ALFA", "BETA", "GAMA"]);
-    await tocar(jugadores[1]);
-    expect(campo(contenedor, "Fecha").querySelector("input").value).toBe(hoyISO());
-    await tocar([...campo(contenedor, "Seleccion").querySelectorAll("button")].find((b) => b.textContent === "Mayor"));
+    expect(contenedor.textContent).toContain("La fecha de la evaluación no puede ser posterior a hoy.");
+    await escribir(campo(contenedor, "Fecha").querySelector("input"), hoyISO());
     await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Medidas");
-    expect([...contenedor.querySelectorAll(".lesiones-campo-paso label")].map((label) => label.textContent)).toEqual(["Lumbar", "Lateral D", "Lateral I", "Prono", "Nota"]);
-    // Un tiempo que no se entiende no se guarda.
-    await escribir(campo(contenedor, "Lumbar").querySelector("input"), "3:7x");
-    await tocar(boton(contenedor, "Guardar la evaluación"));
-    expect(contenedor.textContent).toContain("«3:7x» no se entiende en Lumbar");
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Una fila por jugador");
+    expect(contenedor.querySelector(".lesiones-encabezado p").textContent).toBe(`Zona Media · ${fechaCorta(hoyISO())}`);
+    expect(titulosDeLaCarga(contenedor)).toEqual(["Jugador", "Seleccion", "Lumbar", "Lateral D", "Lateral I", "Prono", "Nota", ""]);
+    // Una fila para empezar; sin nada cargado no hay qué guardar.
+    expect(filasDeLaCarga(contenedor)).toHaveLength(1);
+    expect(boton(contenedor, "Guardar 0 evaluaciones").disabled).toBe(true);
+    // Solo el plantel actual (GAMA ya no está); la Selección sale de la categoría de Datos básicos.
+    await tocar(filasDeLaCarga(contenedor)[0].querySelector(".evaluaciones-varios-jugador"));
+    expect(opcionesDeLaHoja()).toEqual(["ALFA", "BETA"]);
+    await elegirEnLaHoja("BETA");
+    expect(dato(contenedor, "BETA · Seleccion").value).toBe("sub20");
+    // Otro jugador: la hoja se abre sola y no ofrece a los que ya están.
+    await tocar(boton(contenedor, "+ Agregar jugador"));
+    expect(filasDeLaCarga(contenedor)).toHaveLength(2);
+    expect(opcionesDeLaHoja()).toEqual(["ALFA"]);
+    await elegirEnLaHoja("ALFA");
+    // «Mayor (profesional)» de Datos básicos es Mayor; se puede cambiar.
+    expect(dato(contenedor, "ALFA · Seleccion").value).toBe("mayor");
+    await elegirOpcion(dato(contenedor, "ALFA · Seleccion"), "Sub-23");
+    // Un tiempo que no se entiende no se guarda (y dice de quién es).
+    await escribir(dato(contenedor, "BETA · Lumbar"), "3:7x");
+    await escribir(dato(contenedor, "BETA · Prono"), "2,05");
+    await escribir(dato(contenedor, "BETA · Nota"), "con molestia");
+    await escribir(dato(contenedor, "ALFA · Lumbar"), "4:00");
+    await tocar(boton(contenedor, "Guardar 2 evaluaciones"));
+    expect(contenedor.textContent).toContain("BETA: «3:7x» no se entiende en Lumbar");
     expect(datos.creadas).toHaveLength(0);
-    await escribir(campo(contenedor, "Lumbar").querySelector("input"), "3:10");
-    await escribir(campo(contenedor, "Prono").querySelector("input"), "2,05");
-    await escribir(campo(contenedor, "Nota").querySelector("textarea"), "con molestia");
-    await tocar(boton(contenedor, "Guardar la evaluación"));
+    await escribir(dato(contenedor, "BETA · Lumbar"), "3:10");
+    await tocar(boton(contenedor, "Guardar 2 evaluaciones"));
     expect(datos.creadas).toEqual([
-      { equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 2, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", lumbar: 190, prono: 125, nota: "con molestia" } } },
+      { equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 2, persona: null, fecha: hoyISO(), datos: { seleccion: "sub20", lumbar: 190, prono: 125, nota: "con molestia" } } },
+      { equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { seleccion: "sub23", lumbar: 240 } } },
     ]);
-    // Vuelve a Cargar, con la nueva entre las de hoy.
-    expect(document.body.textContent).toContain("Evaluación guardada.");
-    expect(contenedor.querySelector(".estado-hero").textContent).toBe("1 evaluación hoy");
-    // En la Base, al final (es la más nueva) y con su cálculo.
+    // Vuelve a Cargar, con las nuevas entre las de hoy.
+    expect(document.body.textContent).toContain("2 evaluaciones guardadas.");
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("2 evaluaciones hoy");
+    // En la Base, al final (son las más nuevas) y con su cálculo.
     await irA(contenedor, "Base");
-    expect(filas(contenedor)).toHaveLength(4);
+    expect(filas(contenedor)).toHaveLength(5);
     expect(celda(contenedor, 3, "Jugador").textContent).toBe("BETA");
     expect(celda(contenedor, 3, "Lumbar").textContent).toBe("3:10");
     expect(celda(contenedor, 3, "nº Eva").textContent).toBe("2");
+    expect(celda(contenedor, 4, "Jugador").textContent).toBe("ALFA");
+  });
+
+  test("Nueva evaluación: una fila con algo cargado pide su jugador; sacarla pregunta si tiene algo", async () => {
+    await montar();
+    await empezarCarga(contenedor);
+    await elegirJugador(contenedor, 0, "ALFA");
+    await escribir(dato(contenedor, "ALFA · Lumbar"), "3:00");
+    // Otra fila sin elegir a nadie, con algo escrito.
+    await tocar(boton(contenedor, "+ Agregar jugador"));
+    await tocar(boton(contenedor, "Cancelar"));
+    await escribir(dato(contenedor, "Fila 2 · Prono"), "2:00");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(contenedor.textContent).toContain("Falta elegir el jugador de la fila 2.");
+    expect(datos.creadas).toHaveLength(0);
+    // Sacar una fila con algo cargado pregunta; vacía, no.
+    await tocar(contenedor.querySelector('[aria-label="Sacar de la carga: Fila 2"]'));
+    expect(document.body.textContent).toContain("Lo que cargaste de esta fila se pierde.");
+    await tocar(boton(contenedor, "Sí, sacar"));
+    expect(filasDeLaCarga(contenedor)).toHaveLength(1);
+    await tocar(boton(contenedor, "+ Agregar jugador"));
+    await tocar(boton(contenedor, "Cancelar"));
+    await tocar(contenedor.querySelector('[aria-label="Sacar de la carga: Fila 2"]'));
+    expect(filasDeLaCarga(contenedor)).toHaveLength(1);
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", lumbar: 180 } } }]);
+  });
+
+  test("Nueva evaluación: si una no se guarda, las guardadas salen de la carga y al reintentar no se repiten", async () => {
+    await montar();
+    await empezarCarga(contenedor);
+    await elegirJugador(contenedor, 0, "ALFA");
+    await escribir(dato(contenedor, "ALFA · Lumbar"), "3:00");
+    await tocar(boton(contenedor, "+ Agregar jugador"));
+    await elegirEnLaHoja("BETA");
+    await escribir(dato(contenedor, "BETA · Lumbar"), "2:00");
+    datos.fallaAlCrear = { despues: 1, error: "evaluaciones.error.noGuardar" };
+    await tocar(boton(contenedor, "Guardar 2 evaluaciones"));
+    expect(datos.creadas.map((una) => una.ev.jugador_id)).toEqual([1]);
+    expect(contenedor.textContent).toContain("Se guardó 1 y salió de la lista.");
+    expect(filasDeLaCarga(contenedor).map((fila) => fila.querySelector(".evaluaciones-varios-jugador b").textContent)).toEqual(["BETA"]);
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(datos.creadas.map((una) => una.ev.jugador_id)).toEqual([1, 2]);
+    expect(document.body.textContent).toContain("1 evaluación guardada.");
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("2 evaluaciones hoy");
+  });
+
+  // Santiago, 18/10: en el celular, «Tarjetas» que «se puedan cerrar y abrir
+  // con una flechita al costado inferior derecho de la evaluacion».
+  test("Nueva evaluación en el celular: una tarjeta por jugador que se cierra y se abre con la flecha", async () => {
+    const matchMediaOriginal = window.matchMedia;
+    window.matchMedia = vi.fn(() => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    try {
+      await montar();
+      await empezarCarga(contenedor);
+      expect(contenedor.querySelector(".evaluaciones-varios-tabla")).toBeNull();
+      const tarjetas = () => [...contenedor.querySelectorAll(".evaluaciones-varios-tarjeta")];
+      expect(tarjetas()).toHaveLength(1);
+      await tocar(tarjetas()[0].querySelector(".evaluaciones-varios-jugador"));
+      await elegirEnLaHoja("BETA");
+      expect([...tarjetas()[0].querySelectorAll(".evaluaciones-varios-campos label > span")].map((span) => span.textContent)).toEqual(["Seleccion", "Lumbar", "Lateral D", "Lateral I", "Prono", "Nota"]);
+      await escribir(dato(contenedor, "BETA · Lumbar"), "3:10");
+      const flecha = tarjetas()[0].querySelector(".evaluaciones-varios-flecha");
+      expect(flecha.getAttribute("aria-label")).toBe("Cerrar: BETA");
+      expect(flecha.getAttribute("aria-expanded")).toBe("true");
+      await tocar(flecha);
+      // Cerrada: lo cargado, en una línea.
+      expect(tarjetas()[0].querySelector(".evaluaciones-varios-campos")).toBeNull();
+      expect(tarjetas()[0].querySelector(".evaluaciones-varios-abajo p").textContent).toBe("Sub-20 · 1 de 4 medidas");
+      expect(flecha.getAttribute("aria-expanded")).toBe("false");
+      await tocar(tarjetas()[0].querySelector(".evaluaciones-varios-flecha"));
+      expect(dato(contenedor, "BETA · Lumbar").value).toBe("3:10");
+      await tocar(boton(contenedor, "Guardar 1 evaluación"));
+      expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 2, persona: null, fecha: hoyISO(), datos: { seleccion: "sub20", lumbar: 190 } } }]);
+    } finally {
+      window.matchMedia = matchMediaOriginal;
+    }
   });
 
   test("editar una de hoy: el jugador no se cambia, los tiempos se ven como se escriben", async () => {
@@ -410,8 +546,13 @@ describe("Evaluaciones", () => {
 
   test("salir de una carga con algo escrito pide confirmación", async () => {
     await montar();
-    await tocar(boton(contenedor, "Nueva evaluación"));
-    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
+    // Sin nada cargado, «Cancelar» sale sin preguntar.
+    await empezarCarga(contenedor);
+    await tocar(boton(contenedor, "Atrás"));
+    await tocar(boton(contenedor, "Cancelar"));
+    expect(boton(contenedor, "Nueva evaluación")).toBeTruthy();
+    await empezarCarga(contenedor);
+    await elegirJugador(contenedor, 0, "ALFA");
     await irA(contenedor, "Base");
     expect(document.body.textContent).toContain("¿Salir sin guardar?");
     await tocar(boton(contenedor, "Sí, salir"));
@@ -862,10 +1003,12 @@ describe("Evaluaciones", () => {
     ]);
     // Las clases siguen contra los V.R. de esa categoría (es la misma).
     expect(celda(contenedor, 0, "L. Clas").textContent).toBe("5");
-    // Con siete opciones, la carga la elige en la hoja de opciones.
+    // La carga, con los nombres del club, sin la columna escondida y con las siete opciones.
     await irA(contenedor, "Cargar");
-    await tocar(boton(contenedor, "Nueva evaluación"));
-    expect(campo(contenedor, "Seleccion").querySelector(".selector-hoja")).not.toBeNull();
+    await empezarCarga(contenedor);
+    expect(titulosDeLaCarga(contenedor)).toEqual(["Jugador", "Seleccion", "Lumbar (min)", "Lateral D", "Lateral I", "Nota", ""]);
+    await elegirJugador(contenedor, 0, "BETA");
+    expect([...dato(contenedor, "BETA · Seleccion").options].map((opcion) => opcion.textContent)).toEqual(["—", "Sub-15", "Sub-17", "Sub-18", "Sub-20", "Sub-23", "Primera", "Reserva"]);
   });
 
   test("Curl Nórdico e Isoprone: en la Base, sus cuatro bloques; se carga por pasos con el peso del día al principio", async () => {
@@ -921,26 +1064,36 @@ describe("Evaluaciones", () => {
     await irA(contenedor, "Valores de referencia");
     expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["V.R. de prueba Curl", "V.R. de prueba Isoprone"]);
 
-    // Se carga por pasos: el peso con el jugador y la fecha; después cada bloque.
+    // Se carga una fila por jugador: el peso del día después de la Selección; cada bloque con su título arriba.
     await irA(contenedor, "Cargar");
-    await tocar(boton(contenedor, "Nueva evaluación"));
-    await elegirTest(contenedor, "Curl Nórdico e Isoprone");
-    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
-    await escribir(campo(contenedor, "P.C.").querySelector("input"), "80,5");
-    await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Curl Nórdico · Máxima");
-    await escribir(campo(contenedor, "L MÁX").querySelector("input"), "402");
-    await escribir(campo(contenedor, "R MÁX").querySelector("input"), "x");
-    await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.textContent).toContain("«x» no es un número en R MÁX.");
-    await escribir(campo(contenedor, "R MÁX").querySelector("input"), "398");
-    await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Curl Nórdico · Media");
-    await tocar(boton(contenedor, "Siguiente"));
-    await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Isoprone · Media");
-    await tocar(boton(contenedor, "Guardar la evaluación"));
-    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "curl_nordico_isoprone", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { pc: 80.5, curl_l_max: 402, curl_r_max: 398 } } }]);
+    await empezarCarga(contenedor, "Curl Nórdico e Isoprone");
+    expect(titulosDeLaCarga(contenedor)).toEqual([
+      "Jugador",
+      "Seleccion",
+      "P.C.",
+      "Curl Nórdico · Máxima",
+      "Curl Nórdico · Media",
+      "Isoprone · Máxima",
+      "Isoprone · Media",
+      "",
+      "L MÁX",
+      "R MÁX",
+      "L MED.",
+      "R MED.",
+      "L MÁX",
+      "R MÁX",
+      "L MED.",
+      "R MED.",
+    ]);
+    await elegirJugador(contenedor, 0, "ALFA");
+    await escribir(dato(contenedor, "ALFA · P.C."), "80,5");
+    await escribir(dato(contenedor, "ALFA · Curl Nórdico · Máxima · L MÁX"), "402");
+    await escribir(dato(contenedor, "ALFA · Curl Nórdico · Máxima · R MÁX"), "x");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(contenedor.textContent).toContain("ALFA: «x» no es un número en R MÁX.");
+    await escribir(dato(contenedor, "ALFA · Curl Nórdico · Máxima · R MÁX"), "398");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "curl_nordico_isoprone", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", pc: 80.5, curl_l_max: 402, curl_r_max: 398 } } }]);
   });
 
   test("Isocinecia: en la Base se elige la velocidad; se carga por medida, con extensión y flexión juntas", async () => {
@@ -1073,20 +1226,20 @@ describe("Evaluaciones", () => {
     expect(contenedor.textContent).toContain("Este test no tiene valores de referencia");
     expect(contenedor.textContent).not.toContain("Todavía no están los valores de referencia");
 
-    // Se carga por pasos: cada pierna en apoyo es un paso, con las opciones como botones.
+    // Se carga una fila por jugador: cada pierna en apoyo es un bloque, con sus listas.
     await irA(contenedor, "Cargar");
-    await tocar(boton(contenedor, "Nueva evaluación"));
-    await elegirTest(contenedor, "Estabilidad rotacional");
-    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
-    await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Pierna derecha en apoyo");
-    await tocar([...campo(contenedor, "Cifosis Derecha").querySelectorAll("button")].find((b) => b.textContent === "ALTA Y BAJA"));
-    await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Pierna izquierda en apoyo");
-    await tocar([...campo(contenedor, "Completa recorrido").querySelectorAll("button")].find((b) => b.textContent === "NO 1 y 2"));
-    await tocar(boton(contenedor, "Guardar la evaluación"));
+    await empezarCarga(contenedor, "Estabilidad rotacional");
+    expect(titulosDeLaCarga(contenedor).slice(0, 5)).toEqual(["Jugador", "Seleccion", "Pierna derecha en apoyo", "Pierna izquierda en apoyo", ""]);
+    await elegirJugador(contenedor, 0, "ALFA");
+    await elegirOpcion(dato(contenedor, "ALFA · Pierna derecha en apoyo · Cifosis Derecha"), "ALTA Y BAJA");
+    await elegirOpcion(dato(contenedor, "ALFA · Pierna izquierda en apoyo · Completa recorrido"), "NO 1 y 2");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
     expect(datos.creadas).toEqual([
-      { equipoId: "eq-1", test: "estabilidad_rotacional", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { cifosis_derecha_derecha: "alta_y_baja", completa_recorrido_izquierda: "no_1_y_2" } } },
+      {
+        equipoId: "eq-1",
+        test: "estabilidad_rotacional",
+        ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", cifosis_derecha_derecha: "alta_y_baja", completa_recorrido_izquierda: "no_1_y_2" } },
+      },
     ]);
   });
 
@@ -1182,32 +1335,39 @@ describe("Evaluaciones", () => {
     const resumen = [...contenedor.querySelectorAll(".evaluaciones-bloque")].at(-1);
     expect([...resumen.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Categoría", "n", "P.C.", "Rep", "RM", "Kg", "Rel"]);
 
-    // Se carga por pasos: el dispositivo, el medio y el peso con el jugador; después cada serie.
+    // Dispositivo y Medio, para todos en el primer paso; se pueden cambiar en cada fila
+    // (Santiago, 18/10: «Uno para todos pero se puede modificar individual»).
     await irA(contenedor, "Cargar");
     await tocar(boton(contenedor, "Nueva evaluación"));
     await elegirTest(contenedor, "Sentadilla Incremental");
-    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
-    await tocar([...campo(contenedor, "Medio").querySelectorAll("button")].find((b) => b.textContent === "Leg Press"));
-    await escribir(campo(contenedor, "P.C.").querySelector("input"), "80,5");
+    expect(contenedor.textContent).toContain("La fecha y lo que elijas acá valen para todos los jugadores que cargues; en cada fila se puede cambiar.");
+    await tocar([...campo(contenedor, "Medio").querySelectorAll("button")].find((b) => b.textContent === "Sentadilla con Trap"));
     await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Serie 1");
-    await escribir(campo(contenedor, "Kg").querySelector("input"), "20");
-    await escribir(campo(contenedor, "PSE").querySelector("input"), "0,5");
-    await tocar([...campo(contenedor, "¿Cuenta?").querySelectorAll("button")].find((b) => b.textContent === "NO"));
-    for (const serie of ["Serie 2", "Serie 3", "Serie 4", "Serie 5"]) {
-      await tocar(boton(contenedor, "Siguiente"));
-      expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe(serie);
-    }
+    expect(titulosDeLaCarga(contenedor).slice(0, 12)).toEqual(["Jugador", "Seleccion", "Dispositivo", "Medio", "P.C.", "Serie 1", "Serie 2", "Serie 3", "Serie 4", "Serie 5", "Valor Referencial", "Nota"]);
+    await elegirJugador(contenedor, 0, "ALFA");
+    expect(dato(contenedor, "ALFA · Medio").value).toBe("agachamento_trap");
+    await tocar(boton(contenedor, "+ Agregar jugador"));
+    await elegirEnLaHoja("BETA");
+    expect(dato(contenedor, "BETA · Medio").value).toBe("agachamento_trap");
+    // Uno se cambia a mano: si después se cambia para todos, ese queda como estaba.
+    await elegirOpcion(dato(contenedor, "ALFA · Medio"), "Leg Press");
+    await tocar(boton(contenedor, "Atrás"));
+    await tocar([...campo(contenedor, "Medio").querySelectorAll("button")].find((b) => b.textContent === "Sentadilla"));
     await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Valor Referencial");
-    await escribir(campo(contenedor, "RM x Vel").querySelector("input"), "251");
-    expect(campo(contenedor, "Nota")).toBeTruthy();
-    await tocar(boton(contenedor, "Guardar la evaluación"));
+    expect(dato(contenedor, "ALFA · Medio").value).toBe("prensa");
+    expect(dato(contenedor, "BETA · Medio").value).toBe("agachamento");
+    await escribir(dato(contenedor, "ALFA · P.C."), "80,5");
+    await escribir(dato(contenedor, "ALFA · Serie 1 · Kg"), "20");
+    await escribir(dato(contenedor, "ALFA · Serie 1 · PSE"), "0,5");
+    await elegirOpcion(dato(contenedor, "ALFA · Serie 1 · ¿Cuenta?"), "NO");
+    await escribir(dato(contenedor, "ALFA · Valor Referencial · RM x Vel"), "251");
+    // BETA no tiene nada propio: no se guarda.
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
     expect(datos.creadas).toEqual([
       {
         equipoId: "eq-1",
         test: "sentadilla_incremental",
-        ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { medio: "prensa", pc: 80.5, kg_1: 20, pse_1: 0.5, cuenta_1: "no", rm_vel: 251 } },
+        ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", medio: "prensa", pc: 80.5, kg_1: 20, pse_1: 0.5, cuenta_1: "no", rm_vel: 251 } },
       },
     ]);
   });
@@ -1239,15 +1399,13 @@ describe("Evaluaciones", () => {
     expect([...resumen.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Categoría", "n", "P.C.", "Rep", "RM", "Kg", "Rel"]);
 
     await irA(contenedor, "Cargar");
-    await tocar(boton(contenedor, "Nueva evaluación"));
-    await elegirTest(contenedor, "Press Plano");
-    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
-    await escribir(campo(contenedor, "P.C.").querySelector("input"), "80,5");
-    await tocar(boton(contenedor, "Siguiente"));
-    expect([...contenedor.querySelectorAll(".lesiones-campo-paso label")].map((label) => label.textContent)).toEqual(["Rep", "Kg", "Nota"]);
-    await escribir(campo(contenedor, "Kg").querySelector("input"), "100");
-    await tocar(boton(contenedor, "Guardar la evaluación"));
-    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "press_plano", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { pc: 80.5, kg: 100 } } }]);
+    await empezarCarga(contenedor, "Press Plano");
+    expect(titulosDeLaCarga(contenedor)).toEqual(["Jugador", "Seleccion", "P.C.", "Rep", "Kg", "Nota", ""]);
+    await elegirJugador(contenedor, 0, "ALFA");
+    await escribir(dato(contenedor, "ALFA · P.C."), "80,5");
+    await escribir(dato(contenedor, "ALFA · Kg"), "100");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "press_plano", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", pc: 80.5, kg: 100 } } }]);
   });
 
   test("Saltos: cuatro tests; Countermovement con sus clases y la comparación, Single Leg por medida y Drop sin V.R. todavía", async () => {
@@ -1301,22 +1459,15 @@ describe("Evaluaciones", () => {
     await elegirTest(contenedor, "Salto Drop");
     expect(contenedor.textContent).toContain("Todavía no hay valores de referencia de este test: agregá una categoría abajo y cargá sus números.");
 
-    // Se carga por pasos: el P.C. con el jugador; después, una medida por paso (cada pierna).
+    // Se carga una fila por jugador: el P.C. después de la Selección; cada medida, un bloque con sus dos piernas.
     await irA(contenedor, "Cargar");
-    await tocar(boton(contenedor, "Nueva evaluación"));
-    await elegirTest(contenedor, "Salto Single Leg");
-    await tocar(contenedor.querySelector(".lesiones-lista-jugadores button"));
-    await escribir(campo(contenedor, "P.C.").querySelector("input"), "80,5");
-    await tocar(boton(contenedor, "Siguiente"));
-    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Altura");
-    expect([...contenedor.querySelectorAll(".lesiones-campo-paso label")].map((label) => label.textContent)).toEqual(["Altura PD", "Altura PI"]);
-    await escribir(campo(contenedor, "Altura PD").querySelector("input"), "21,5");
-    for (const medida of ["Pico de Fuerza", "Pico de Potencia", "RSI-modified"]) {
-      await tocar(boton(contenedor, "Siguiente"));
-      expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe(medida);
-    }
-    await tocar(boton(contenedor, "Guardar la evaluación"));
-    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "salto_single_leg", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { pc: 80.5, altura_pd: 21.5 } } }]);
+    await empezarCarga(contenedor, "Salto Single Leg");
+    expect(titulosDeLaCarga(contenedor).slice(0, 8)).toEqual(["Jugador", "Selección", "P.C.", "Altura", "Pico de Fuerza", "Pico de Potencia", "RSI-modified", ""]);
+    await elegirJugador(contenedor, 0, "ALFA");
+    await escribir(dato(contenedor, "ALFA · P.C."), "80,5");
+    await escribir(dato(contenedor, "ALFA · Altura · Altura PD"), "21,5");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "salto_single_leg", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", pc: 80.5, altura_pd: 21.5 } } }]);
   });
 
   test("en portugués, con los textos del Excel traducidos", async () => {

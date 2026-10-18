@@ -1318,6 +1318,10 @@ carga en la app; lo viejo se trae una vez con Pegar desde Excel.
     Zona Media, Selección); después un paso por bloque de medidas (las columnas con el mismo
     grupo; las sueltas, juntas) y la nota al final. Los tiempos se escriben en minutos y
     segundos (3:04 o 3,04). Abajo, las evaluaciones de hoy, para corregirlas o borrarlas.
+    **Reabierta el 18/10** (Santiago, «cargar una fila por jugador»): la carga nueva es de varios
+    jugadores a la vez, el test y la fecha primero y una fila por jugador; el formulario por
+    pasos queda solo para «Editar» (ver «Evaluaciones: cargar una fila por jugador», más abajo,
+    y UI-055).
     En la Base ya no está «Agregar evaluación» (descartado: no volver a ponerlo ahí).
     Isocinecia no está en Cargar: sale del PDF del equipo (Santiago, 09/10; ver Isocinecia,
     más abajo).
@@ -3901,8 +3905,41 @@ confirme.**
     como antes).
   - **Queda prohibido** dar vuelta el orden de las bases (lo último primero) y volver siempre a
     la última aunque se venga de una ficha, salvo un pedido nuevo. Ver UI-054.
-- **Lo que sigue, en este orden**: Evaluaciones (cargar una
-  fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
+- **Evaluaciones: cargar una fila por jugador (hecho el 18/10).** Santiago: «Me lo imagino asi, que
+  la carga en ves de preguntar por jugador y ahi pasar a cargar los datos, que aprietes cargar,
+  elijas el test y cuando le das a siguiente te lleva a una fila con las cabeceras del test elegido
+  entonces a la isquierda elegis el nombre del jugador y abajo de esa fila un boton que te deje
+  añadir un jugador. Esto es para que se puedan cargar varios jugadores al mismo tiempo en la misma
+  evaluacion». Vio maquetas con datos inventados (Zona Media y la más larga, Sentadilla
+  Incremental) y respondió en cuestionarios: «Queda lo que te explique antes» (reemplaza la carga
+  por pasos), «Solo el plantel actual y la categoria se rellena con lo que tiene en datos basicos
+  con la opcion de cambiarla», «Así está bien», la fecha «Una para todos», «Tarjetas en el
+  celular», que las tarjetas «se puedan cerrar y abrir con una flechita al costado inferior derecho
+  de la evaluacion» y Dispositivo y Medio «Uno para todos pero se puede modificar individual».
+  - «Nueva evaluación» (`src/CargaPorJugador.jsx`) va en dos pasos. Paso 1: el test, la fecha (hoy,
+    no posterior) y las listas sueltas que no son la Selección (hoy, Dispositivo y Medio de
+    Sentadilla Incremental), para todos. Paso 2, «Una fila por jugador»: las columnas que se cargan
+    a mano, en el orden de los pasos de antes (`columnasDeLaCarga` en `Evaluaciones.jsx`). En la
+    compu, una tabla: el jugador fijo a la izquierda, los títulos de los bloques en dorado arriba de
+    sus columnas y la tabla que se corre de costado. En el celular, una tarjeta por jugador con sus
+    datos por bloque (tres o más bloques seguidos con las mismas columnas, como las series, en una
+    grilla) y la flecha abajo a la derecha que la cierra (queda la Selección y cuántas medidas
+    tiene) y la abre. Abajo, «+ Agregar jugador» (abre la hoja para elegirlo).
+  - El jugador se elige en la hoja de opciones: solo el plantel actual y nadie dos veces. La
+    Selección sale de la categoría de Datos básicos («Mayor (profesional)» es Mayor) y se cambia en
+    la fila. Cambiar Dispositivo o Medio para todos cambia las filas que tenían el anterior, no las
+    cambiadas a mano. Otro test en el paso 1 deja los jugadores y su Selección y borra lo demás.
+  - «Guardar N evaluaciones» guarda una evaluación por fila con jugador y algo cargado (lo que se
+    completa solo no cuenta), todas con la misma fecha y de a una. Una fila con algo cargado y sin
+    jugador, o un número o un tiempo que no se entiende, no deja guardar y dice de qué fila o de
+    quién es. Si una no se puede guardar, las guardadas salen de la carga y al reintentar no se
+    repiten. Sacar una fila con algo cargado pregunta; salir con algo cargado, también.
+  - «Editar» en las de hoy sigue con el formulario por pasos, sin cambiar el jugador. Isocinecia
+    sigue fuera de Cargar.
+  - **Queda prohibido** volver a la carga nueva por pasos de a un jugador, ofrecer jugadores que ya
+    no están en el plantel, repetir un jugador en la misma carga y una fecha por fila, salvo un
+    pedido nuevo. Ver UI-055.
+- **Lo que sigue, en este orden**: Evaluaciones (la elección de test); y las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
   diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;
   Isocinecia con Python y VALD).

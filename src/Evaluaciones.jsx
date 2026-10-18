@@ -9,6 +9,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import CargaPorJugador, { cargaNueva, evaluacionesDeLaCarga, hayAlgoCargado } from "./CargaPorJugador.jsx";
 import ImportarEvaluaciones from "./ImportarEvaluaciones.jsx";
 import ReportesEvaluaciones, { SelectorDeTest, SelectorDeVista, vistaInicial } from "./ReportesEvaluaciones.jsx";
 import ReferenciasEvaluaciones from "./ReferenciasEvaluaciones.jsx";
@@ -58,8 +59,10 @@ import "./evaluaciones.css";
 // Evaluaciones (en Bases de Datos): las hojas del Excel BD_evaluaciones, un
 // test cada una (hoy Zona Media; los demás se suman de a uno en
 // domain/evaluaciones/tests/). Como Lesiones (Santiago, 09/10), en pantallas:
-//   · Cargar: las evaluaciones nuevas se cargan aparte, en un formulario por
-//     pasos (regla para todas las bases: la carga nueva va en su pantalla).
+//   · Cargar: las evaluaciones nuevas se cargan aparte (regla para todas las
+//     bases: la carga nueva va en su pantalla), varios jugadores a la vez, una
+//     fila por jugador (CargaPorJugador.jsx, 18/10); una de hoy se corrige en
+//     un formulario por pasos.
 //   · Base: una sola, eligiendo qué test se ve; arriba el informe del Excel
 //     (promedio, desvío, n, máximo y mínimo de las filas que deja ver el
 //     filtro y la comparación con los V.R. de la categoría elegida) y abajo
@@ -104,13 +107,6 @@ const aliasDeOpcion = (lista, codigo, config, test) => [
 
 const primeraMayuscula = (texto) => (texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : "");
 
-const normalizarTexto = (texto) =>
-  String(texto || "")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .trim();
-
 // Lo que tiene una carga, sin vacíos: para saber si se cambió algo.
 const sinVacios = (formulario) => {
   if (!formulario) return "";
@@ -147,6 +143,21 @@ export const pasosDeCarga = (test, config) => {
   return pasos;
 };
 
+// La carga nueva, una fila por jugador (18/10): las columnas de cada fila, en
+// el orden de los pasos (la Selección, las listas sueltas, el peso del día,
+// cada bloque y la nota al final). Las listas sueltas que no son la Selección
+// (Dispositivo y Medio) se eligen para todos en el paso 1 y se pueden cambiar
+// en cada fila (Santiago: «Uno para todos pero se puede modificar individual»).
+export const columnasDeLaCarga = (test, config) => {
+  const columnas = pasosDeCarga(test, config)
+    .flatMap((unPaso) => unPaso.columnas)
+    .filter((clave) => !["jugador", "fecha"].includes(clave))
+    .map((clave) => test.columnas.find((columna) => columna.clave === clave))
+    .filter(Boolean);
+  const comunes = columnas.filter((columna) => columna.tipo === "lista" && !columna.grupo && listaDeColumna(columna) !== LISTA_SELECCION);
+  return { columnas, comunes };
+};
+
 // onVolver: el botón de arriba a la izquierda (vuelve a Bases de Datos);
 // volverA: la clave de su texto.
 export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" }) {
@@ -181,9 +192,11 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const [paso, setPaso] = useState(0);
   const [pasoMaximo, setPasoMaximo] = useState(0);
   const [errorFormulario, setErrorFormulario] = useState("");
-  const [busquedaJugador, setBusquedaJugador] = useState("");
   const [aSalir, setASalir] = useState(null);
   const [hojaSelector, setHojaSelector] = useState(null);
+  // La carga nueva, varios jugadores a la vez (CargaPorJugador.jsx).
+  const [nuevas, setNuevas] = useState(null);
+  const [errorNuevas, setErrorNuevas] = useState("");
 
   // Ajustes: qué se mira y la hoja abierta.
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
@@ -492,14 +505,15 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const abrirFormulario = (nuevo, { pasoInicial = 0, todos = false } = {}) => {
     formularioAlAbrir.current = nuevo;
     setErrorFormulario("");
-    setBusquedaJugador("");
     setPaso(pasoInicial);
     setPasoMaximo(todos ? pasosDeCarga(testDe(nuevo.test) || TESTS[0], config).length - 1 : pasoInicial);
     setFormulario(nuevo);
   };
 
-  const abrirNueva = () =>
-    abrirFormulario({ id: null, test: (TESTS_QUE_SE_CARGAN.includes(test) ? test : TESTS_QUE_SE_CARGAN[0]).id, jugador_id: null, persona: null, fecha: hoyISO(), datos: {}, textos: {} });
+  const abrirNueva = () => {
+    setErrorNuevas("");
+    setNuevas(cargaNueva((TESTS_QUE_SE_CARGAN.includes(test) ? test : TESTS_QUE_SE_CARGAN[0]).id));
+  };
 
   // Al editar, los tiempos se ven como se escriben (3:04).
   const abrirEdicion = (evaluacion) => {
@@ -599,6 +613,45 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     setAviso(t("evaluaciones.guardada"));
   };
 
+  const testDeNuevas = nuevas ? testDe(nuevas.test) || TESTS_QUE_SE_CARGAN[0] : null;
+  const columnasDeNuevas = useMemo(() => (testDeNuevas ? columnasDeLaCarga(testDeNuevas, config) : null), [testDeNuevas, config]);
+
+  // Una evaluación por fila con algo cargado, de a una. Si una no se puede,
+  // las guardadas salen de la carga (al reintentar no se repiten).
+  const guardarNuevas = async () => {
+    const { evaluaciones: listas, error: falta } = evaluacionesDeLaCarga(nuevas, {
+      columnas: columnasDeNuevas.columnas,
+      nombreDe: (id) => jugadorDe(id)?.nombre || "",
+      titulo: (columna) => titulo(testDeNuevas, columna),
+    });
+    if (falta) {
+      setErrorNuevas(falta);
+      return;
+    }
+    setErrorNuevas("");
+    setOcupado(true);
+    const guardadas = [];
+    let falla = "";
+    for (const { filaId, evaluacion } of listas) {
+      const respuesta = await crearEvaluacion(equipoId, nuevas.test, evaluacion); // eslint-disable-line no-await-in-loop
+      if (respuesta.error) {
+        falla = respuesta.error;
+        break;
+      }
+      guardadas.push({ filaId, evaluacion: respuesta.evaluacion });
+    }
+    setOcupado(false);
+    if (guardadas.length) setEvaluaciones((previas) => [...previas, ...guardadas.map((una) => una.evaluacion)]);
+    if (falla) {
+      const ids = new Set(guardadas.map((una) => una.filaId));
+      setNuevas((actual) => ({ ...actual, filas: actual.filas.filter((fila) => !ids.has(fila.id)) }));
+      setErrorNuevas(guardadas.length ? `${t(falla)} ${plural("evaluaciones.varios.seGuardaron", guardadas.length)}` : t(falla));
+      return;
+    }
+    setNuevas(null);
+    setAviso(plural("evaluaciones.varios.guardadas", guardadas.length));
+  };
+
   const selectorConHoja = ({ titulo: rotulo, opciones, valor, alElegir }) => {
     const elegida = opciones.find((una) => una.valor === valor);
     return (
@@ -609,66 +662,14 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     );
   };
 
-  // De quién es: el buscador del plantel, como en Lesiones. Al editar no se
-  // cambia (se corrige en la Base).
+  // De quién es: no se cambia acá (se corrige en la Base). La carga nueva
+  // elige a cada jugador en su fila (CargaPorJugador.jsx).
   const campoJugador = (carga) => {
-    const elegido = jugadorDe(carga.jugador_id);
     const rotulo = titulo(testDelFormulario, testDelFormulario.columnas.find((columna) => columna.tipo === "jugador") || { clave: "jugador", titulo: { "es-AR": "Jugador", "pt-BR": "Jogador" } });
-    if (carga.id) {
-      return (
-        <div className="campo-inicio lesiones-campo-paso" key="jugador">
-          <label>{rotulo}</label>
-          <p className="evaluaciones-jugador-fijo">{elegido?.nombre || carga.persona || "—"}</p>
-        </div>
-      );
-    }
-    if (elegido) {
-      return (
-        <div className="campo-inicio lesiones-campo-paso" key="jugador">
-          <label>{rotulo}</label>
-          <button
-            type="button"
-            className="rival-elegido"
-            onClick={() => {
-              setBusquedaJugador("");
-              cambiarFormulario({ jugador_id: null });
-            }}
-          >
-            <b>{elegido.nombre}</b>
-            <span>{t("lesiones.pasos.cambiar")}</span>
-          </button>
-        </div>
-      );
-    }
-    const buscado = normalizarTexto(busquedaJugador);
-    const candidatos = actualesPrimero(plantel).filter((jugador) => !buscado || normalizarTexto(jugador.nombre).includes(buscado));
     return (
       <div className="campo-inicio lesiones-campo-paso" key="jugador">
         <label>{rotulo}</label>
-        <input
-          className="lesiones-buscador-jugador"
-          type="search"
-          value={busquedaJugador}
-          onChange={(evento) => setBusquedaJugador(evento.target.value)}
-          placeholder={t("lesiones.pasos.buscar")}
-          aria-label={t("lesiones.pasos.buscar")}
-          autoComplete="off"
-        />
-        {plantel.length === 0 && <p className="lesiones-ayuda">{t("lesiones.sinJugadores")}</p>}
-        {plantel.length > 0 && (
-          <div className="lista-rivales lesiones-lista-jugadores">
-            {candidatos.length === 0 ? (
-              <p className="sin-resultados">{t("lesiones.pasos.ningunJugador")}</p>
-            ) : (
-              candidatos.map((jugador) => (
-                <button type="button" key={jugador.id} onClick={() => cambiarFormulario({ jugador_id: jugador.id, persona: null })}>
-                  <b>{jugador.nombre}</b>
-                  <span>{esActual(jugador) ? "" : t("datos.yaNoEsta")}</span>
-                </button>
-              ))
-            )}
-          </div>
-        )}
+        <p className="evaluaciones-jugador-fijo">{jugadorDe(carga.jugador_id)?.nombre || carga.persona || "—"}</p>
       </div>
     );
   };
@@ -798,22 +799,6 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           </section>
 
           {errorFormulario && <div className="aviso-hoja">{errorFormulario}</div>}
-
-          {/* El test se elige al empezar una carga nueva. */}
-          {actual.id === "quien" && !carga.id && TESTS_QUE_SE_CARGAN.length > 1 && (
-            <section className="tarjeta tarjeta-ficha lesiones-grupo">
-              <div className="campo-inicio lesiones-campo-paso">
-                <label>{t("evaluaciones.form.test")}</label>
-                <SelectorDeTest
-                  tests={TESTS_QUE_SE_CARGAN}
-                  elegido={carga.test}
-                  alElegir={(id) => cambiarFormulario({ test: id, datos: carga.datos?.seleccion ? { seleccion: carga.datos.seleccion } : {}, textos: {} })}
-                  idioma={idioma}
-                  conRotulo={false}
-                />
-              </div>
-            </section>
-          )}
 
           <section className="tarjeta tarjeta-ficha lesiones-grupo">
             {actual.columnas.map((clave) => {
@@ -1302,6 +1287,24 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
 
   let contenido;
   if (formulario) contenido = pantallaFormulario(formulario);
+  else if (nuevas)
+    contenido = (
+      <CargaPorJugador
+        carga={nuevas}
+        setCarga={setNuevas}
+        tests={TESTS_QUE_SE_CARGAN}
+        columnas={columnasDeNuevas.columnas}
+        comunes={columnasDeNuevas.comunes}
+        config={config}
+        plantel={plantel}
+        encabezado={encabezado}
+        error={errorNuevas}
+        setError={setErrorNuevas}
+        ocupado={ocupado}
+        onCancelar={() => (hayAlgoCargado(nuevas) ? setASalir("cargar") : setNuevas(null))}
+        onGuardar={guardarNuevas}
+      />
+    );
   else if (vista === "base")
     contenido =
       importando && !soloLectura ? (
@@ -1355,13 +1358,14 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // Tocar un destino de la barra cierra lo que estuviera encima.
   const irA = (id) => {
     setFormulario(null);
+    setNuevas(null);
     setImportando(false);
     if (id === "ajustes") setVistaAjustes("inicio");
     setVista(id);
   };
   // Una carga con algo sin guardar no se tira sin preguntar.
   const navegar = (id) => {
-    if (formulario && sinVacios(formulario) !== sinVacios(formularioAlAbrir.current)) {
+    if ((formulario && sinVacios(formulario) !== sinVacios(formularioAlAbrir.current)) || hayAlgoCargado(nuevas)) {
       setASalir(id);
       return;
     }
