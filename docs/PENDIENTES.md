@@ -788,7 +788,12 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
     (`src/domain/enVivo.js`) y su lectura en silencio. Ver «Lo anotado en Notas»;
   - si la tabla puede tener miles de filas (como el GPS), sus políticas con
     `equipo_id in (select public.clubes_donde_puedo('<permiso>'))` (el permiso, una vez por
-    pedido), no con `puede_usar_en(equipo_id, …)` fila por fila. Ver «GPS (10/10)», Muchas filas.
+    pedido), no con `puede_usar_en(equipo_id, …)` fila por fila. Ver «GPS (10/10)», Muchas filas;
+  - toda tabla nueva con su `equipo_id` y RLS, cada política que abre mirando el club, y al menos
+    una fila en `escenarios.sql`: las pruebas de aislamiento la recorren solas con cada cuenta.
+    Una tabla o vista que se lea sin `equipo_id` se revisa y se suma a la lista de
+    `huecos_entre_clubes()` y a `filas_ajenas` en los escenarios. Ver «Aislamiento entre clubes
+    (18/10)».
 - Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
   Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones tiene sus fotos desde el
   05/10 (`public/portal/lesiones.webp` y `lesiones-parada.webp`, las mandó Santiago); el dibujo
@@ -4011,6 +4016,33 @@ confirme.**
     `npm audit`, 0 vulnerabilidades).
   - **Queda prohibido** permitir que la app se muestre dentro de otro sitio y copiar sin ese
     apóstrofo, salvo un pedido nuevo.
+- **Aislamiento entre clubes (18/10, migración `20261102_aislamiento_entre_clubes.sql`).**
+  Santiago: «esta es una aplicación multi-inquilino […] asegúrate de que no haya forma de que un
+  club acceda a los datos de atletas de otro. Implementa filtros automáticos a nivel de backend
+  basados en el club_id de la sesión». Ese filtro ya existía: las reglas de cada tabla (RLS)
+  dejan ver y cambiar solo filas de los clubes de quien entra (`auth.uid()` de la sesión, en
+  `club_miembros`), sin que la app tenga que pedirlo; las vistas leen con los permisos de quien
+  las abre (`security_invoker`); las funciones con permisos especiales comprueban el club
+  (`acceso_club`, `puede_usar_en`, `es_admin_de_club`); un registro no se cuelga de un jugador
+  de otro club (`jugador_de_otro_club`); el servidor (`api/`) lee con la sesión de quien pide.
+  Quien está en dos clubes ve los dos (es su permiso); el club elegido en la app ordena la
+  pantalla, no es el candado. Se revisó con la base de pruebas, entrando como cada una de las 32
+  cuentas: ninguna vio, cambió ni borró filas de un club donde nunca estuvo.
+  - **Se arregló**: `ajustes`, la tabla de cuando la app era de un solo club (la app y el Excel
+    ya no la usan), la leía cualquier cuenta autorizada de cualquier club, con el nombre del
+    club de entonces. Quedó cerrada para la API (la fila queda).
+  - **Se sumó**: `huecos_entre_clubes()` (solo desde el SQL Editor): lista lo que podría mezclar
+    clubes (una tabla sin reglas, una regla que abre sin mirar el club, una vista que las
+    saltea, algo que se lee sin columna de club fuera de lo revisado, algo abierto sin cuenta).
+    Vacía, todo bien; la migración se frena si no lo está. Y en `escenarios.sql`, «Aislamiento
+    entre clubes»: con cada cuenta y en cada tabla con club (también las que se sumen) cuenta
+    lo ajeno que ve, cambia o borra a ciegas, más las funciones que leen por club; se comprobó
+    que la prueba falla al plantar una regla floja de ver, de borrar o de cambiar.
+  - **Queda**: Realtime avisa a cualquier cuenta conectada que se borró una fila (solo su
+    número, sin datos ni club; Supabase no filtra los borrados). No se tocó: no muestra datos
+    de nadie y cambiarlo es otro mecanismo.
+  - **Queda prohibido** una tabla o vista con datos de un club sin su `equipo_id` y sus reglas,
+    o una regla que abra sin mirar el club, salvo un pedido nuevo.
 - **En curso: la planilla de valor referencial** (quedó en pausa por la auditoría). Santiago, en
   cuestionarios: elegir la base, ver todos sus datos, filtrar la muestra y calcular el V.R. con la
   lógica de su planilla («Plantilla VR»: descarte de atípicos por cuartiles y cortes que buscan

@@ -2214,4 +2214,184 @@ select pruebas.ser('eva@dos.com'); set role authenticated;
 select pruebas.esperar('Eva no cambia el nivel de nadie en Uno', pruebas.filas($$update club_miembros set solo_lectura = array['partido'] where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
 reset role;
 
+-- ------------------------------------------- Aislamiento entre clubes --
+-- 20261102. Cada cuenta, en cada tabla y vista con club (también las que se
+-- sumen después, sin tocar esto): no ve, no cambia ni borra filas de un club
+-- donde nunca estuvo, ni las lee por otro lado. Donde estuvo y se fue sigue
+-- viendo lo de su tiempo (eso lo miran los escenarios de arriba).
+
+select pruebas.esperar('ajustes (la tabla vieja con el club de entonces) ya no se toca con cuenta',
+  has_any_column_privilege('authenticated', 'public.ajustes', 'SELECT, INSERT, UPDATE')::text, 'false');
+select pruebas.esperar('La base no tiene huecos entre clubes',
+  (select coalesce(string_agg(problema || ': ' || objeto, ', ' order by problema, objeto), '') from public.huecos_entre_clubes()), '');
+begin;
+create table public.prueba_sin_reglas (equipo_id uuid);
+create table public.prueba_abierta (equipo_id uuid);
+alter table public.prueba_abierta enable row level security;
+create policy abierta on public.prueba_abierta for select to authenticated using (true);
+create table public.prueba_sin_club (dato text);
+alter table public.prueba_sin_club enable row level security;
+grant select on public.prueba_sin_club to authenticated;
+create view public.prueba_vista as select * from public.lesiones;
+grant select on public.prueba_vista to authenticated;
+select pruebas.esperar('...y avisa si se suma una tabla sin reglas, una regla que no mira el club, algo sin club o una vista que se las saltea',
+  (select string_agg(problema || ': ' || objeto, ', ' order by problema, objeto) from public.huecos_entre_clubes()),
+  'regla_sin_club: prueba_abierta.abierta, sin_columna_de_club: prueba_sin_club, tabla_sin_reglas: prueba_sin_reglas, vista_sin_reglas: prueba_vista');
+rollback;
+
+-- Una cuenta de Catapult (inventada), para que esa tabla también tenga qué mirar.
+insert into public.catapult_cuentas (user_id, usuario, secreto)
+values ('00000000-0000-0000-0000-00000000000b', 'beto.catapult', 'cifrado-de-prueba');
+
+-- Los clubes de una cuenta: donde está o estuvo.
+create or replace function pruebas.clubes_de(p_user uuid)
+returns setof uuid language sql stable as $$
+  select m.equipo_id from public.club_miembros m where m.user_id = p_user
+$$;
+
+-- Lo que ve cada cuenta: en cada tabla o vista con club, cuántas filas y
+-- cuántas de un club donde nunca estuvo; en lo revisado sin columna de club
+-- (huecos_entre_clubes), lo mismo con su propia vuelta.
+create or replace function pruebas.filas_ajenas()
+returns table (cuenta text, tabla text, ve bigint, ajenas bigint)
+language plpgsql as $$
+declare
+  u record;
+  t record;
+  v_ajenas constant jsonb := jsonb_build_object(
+    'equipos', 'q.id not in (select pruebas.clubes_de(%1$L))',
+    'v_mis_clubes', 'q.id not in (select pruebas.clubes_de(%1$L))',
+    'perfiles', 'q.user_id <> %1$L and not exists (select 1 from public.club_miembros suyo
+                   join public.club_miembros mio on mio.equipo_id = suyo.equipo_id
+                  where suyo.user_id = q.user_id and mio.user_id = %1$L and mio.rol = ''admin'')',
+    'catapult_cuentas', 'q.user_id <> %1$L',
+    'gps_en_curso_datos', 'q.en_curso_id not in (select c.id from public.gps_en_curso c where c.equipo_id in (select pruebas.clubes_de(%1$L)))',
+    'v_lesiones_excel_v1', 'q.lesao_id not in (select l.id from public.lesiones l where l.equipo_id in (select pruebas.clubes_de(%1$L)))');
+begin
+  for u in select a.id, a.email as correo from auth.users a order by a.email loop
+    for t in select c.relname,
+                    exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'equipo_id' and not a.attisdropped) as con_club
+               from pg_class c join pg_namespace n on n.oid = c.relnamespace
+              where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm')
+                and has_any_column_privilege('authenticated', c.oid, 'SELECT')
+              order by 1 loop
+      if not t.con_club and not v_ajenas ? t.relname then
+        raise exception 'FALLA: % se lee sin columna de club y no está revisada (huecos_entre_clubes)', t.relname;
+      end if;
+      perform set_config('request.jwt.claims', json_build_object('sub', u.id, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      execute format('select count(*), count(*) filter (where %s) from public.%I q',
+                     case when t.con_club then format('q.equipo_id is null or q.equipo_id not in (select pruebas.clubes_de(%L))', u.id)
+                          else format(v_ajenas ->> t.relname::text, u.id) end,
+                     t.relname) into ve, ajenas;
+      execute 'reset role';
+      cuenta := u.correo;
+      tabla := t.relname;
+      return next;
+    end loop;
+  end loop;
+end $$;
+
+create temp table aislamiento as select * from pruebas.filas_ajenas();
+select pruebas.esperar('Ninguna cuenta ve filas de un club donde nunca estuvo',
+  (select coalesce(string_agg(cuenta || ' en ' || tabla || ': ' || ajenas, ', '), '') from aislamiento where ajenas > 0), '');
+select pruebas.esperar('...y la prueba mira de verdad: en cada tabla alguna cuenta ve filas (si una nueva no tiene, sumale una en estos escenarios)',
+  (select coalesce(string_agg(tabla, ', ' order by tabla), '') from (select tabla from aislamiento group by tabla having max(ve) = 0) x), '');
+
+-- Cambiar o borrar a ciegas (sin leer nada de la fila, así solo cuentan las
+-- reglas de cambiar y borrar) filas de un club donde nunca estuvo: primero
+-- se apartan las de sus clubes (sin disparadores ni claves, para que no se
+-- traben), así lo que toque es ajeno. Cada intento se deshace igual; si tocó
+-- alguna fila (o llegó a una y dio error), se anota.
+create or replace function pruebas.escrituras_ajenas()
+returns table (cuenta text, tabla text, intento text)
+language plpgsql as $$
+declare
+  u record;
+  t record;
+  v_accion text;
+  v_columna text;
+  v_filas bigint;
+begin
+  for u in select a.id, a.email as correo from auth.users a order by a.email loop
+    for t in select c.oid, c.relname
+               from pg_class c join pg_namespace n on n.oid = c.relnamespace
+              where n.nspname = 'public' and c.relkind in ('r', 'p')
+                and exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'equipo_id' and not a.attisdropped)
+              order by 2 loop
+      v_columna := (select a.attname from pg_attribute a
+                     where a.attrelid = t.oid and a.attnum > 0 and not a.attisdropped
+                       and a.attidentity = '' and a.attgenerated = ''
+                       and has_column_privilege('authenticated', t.oid, a.attname, 'UPDATE')
+                     order by a.attname <> 'equipo_id', a.attnum limit 1);
+      foreach v_accion in array array['cambiar', 'borrar'] loop
+        continue when v_accion = 'cambiar' and v_columna is null;
+        continue when v_accion = 'borrar' and not has_table_privilege('authenticated', t.oid, 'DELETE');
+        begin
+          set local session_replication_role = replica;
+          execute format('delete from public.%I where equipo_id in (select pruebas.clubes_de(%L))', t.relname, u.id);
+          perform set_config('request.jwt.claims', json_build_object('sub', u.id, 'role', 'authenticated')::text, true);
+          execute 'set local role authenticated';
+          if v_accion = 'cambiar' then
+            execute format('update public.%I set %I = null', t.relname, v_columna);
+          else
+            execute format('delete from public.%I', t.relname);
+          end if;
+          get diagnostics v_filas = row_count;
+          raise exception using errcode = 'P0099', message = v_filas::text;
+        exception
+          when sqlstate 'P0099' then
+            intento := case when sqlerrm <> '0' then v_accion || ' ' || sqlerrm || ' filas' end;
+          when others then
+            intento := v_accion || ': ' || sqlerrm;
+        end;
+        execute 'reset role';
+        if intento is not null then
+          cuenta := u.correo;
+          tabla := t.relname;
+          return next;
+        end if;
+      end loop;
+    end loop;
+  end loop;
+end $$;
+
+select pruebas.esperar('Ninguna cuenta cambia ni borra filas de un club donde nunca estuvo',
+  (select coalesce(string_agg(cuenta || ' en ' || tabla || ' (' || intento || ')', ', '), '') from pruebas.escrituras_ajenas()), '');
+
+-- Las funciones que leen por club, para cada cuenta y cada club donde nunca
+-- estuvo: no devuelven nada (o no la dejan, como los pedidos).
+create or replace function pruebas.funciones_ajenas()
+returns table (cuenta text, funcion text, filas bigint)
+language plpgsql as $$
+declare
+  u record;
+  e record;
+  v_tabla text;
+begin
+  for u in select a.id, a.email as correo from auth.users a order by a.email loop
+    for e in select q.id from public.equipos q where q.id not in (select pruebas.clubes_de(u.id)) loop
+      perform set_config('request.jwt.claims', json_build_object('sub', u.id, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      cuenta := u.correo;
+      foreach v_tabla in array array['registros_partido', 'entrenamientos', 'jugadores', 'lesiones', 'evaluaciones',
+                                     'evaluaciones_referencias', 'gps'] loop
+        funcion := 'datos_al_dia ' || v_tabla;
+        filas := (select count(*) from public.datos_al_dia(v_tabla, e.id));
+        return next;
+      end loop;
+      funcion := 'minutos_de_entrenamiento';
+      filas := (select count(*) from public.minutos_de_entrenamiento(e.id));
+      return next;
+      funcion := 'pedidos_del_club';
+      filas := case when coalesce(pruebas.error(format('select * from public.pedidos_del_club(%L)', e.id)), '') like '%solo_admin%' then 0 else 1 end;
+      return next;
+      execute 'reset role';
+    end loop;
+  end loop;
+end $$;
+
+select pruebas.esperar('...ni lo lee con las funciones que leen por club',
+  (select coalesce(string_agg(cuenta || ' en ' || funcion || ': ' || filas, ', '), '') from pruebas.funciones_ajenas() where filas > 0), '');
+
 select 'ESCENARIOS: todos bien' as resultado;
