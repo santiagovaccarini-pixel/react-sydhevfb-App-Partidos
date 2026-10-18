@@ -3868,15 +3868,18 @@ confirme.**
 - **Las barras se esconden (hecho el 18/10).** Segunda nota de «moverse por la app»: «esconder la
   barra lateral y la de abajo». Santiago, en un cuestionario: en la compu, «Achicar a íconos»; en
   el celular, «Se va al bajar»; «En toda la app».
-  - Compu: el botón de abajo de la barra lateral la achica a una franja de 68 px con los íconos
-    solos y la vuelve a abrir; el aparato lo recuerda (`barra_lateral_achicada`). El nombre de
+  - Compu: tocando el escudo (con el nombre del módulo) la barra lateral se achica a una franja
+    de 68 px con los íconos solos y se vuelve a abrir; el aparato lo recuerda
+    (`barra_lateral_achicada`). Primero era una flechita abajo de la barra; Santiago, al verlo:
+    «y si en compu mejor lo hacemos apretando el escudo?», y se cambió el mismo día. El nombre de
     cada solapa queda al pasar el mouse y para lectores de pantalla. Lo que se ubica por el ancho
     (la franja fija del botón de módulos, tablas, gráficos) se vuelve a medir.
   - Celular: la barra de abajo se va al bajar (pasados los primeros 56 px) y vuelve apenas se
     sube, al cambiar de solapa o al llegarle con el teclado. La fila de Volver y los avisos que
     estaban apoyados en ella bajan con ella (`--alto-barra-abajo`). Al imprimir no cambia nada.
-  - **Queda prohibido** esconder la lateral del todo, que se esconda sola y esconder la de abajo
-    con un botón o solo en algunas pantallas, salvo un pedido nuevo. Ver UI-053.
+  - **Queda prohibido** esconder la lateral del todo, que se esconda sola, volver a la flechita
+    de abajo y esconder la de abajo con un botón o solo en algunas pantallas, salvo un pedido
+    nuevo. Ver UI-053.
 - **Lo que sigue, en este orden**: moverse por la app (abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo

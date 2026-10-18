@@ -50,9 +50,11 @@ describe("MarcoAplicacion: esconder las barras", () => {
     await act(async () => window.dispatchEvent(new Event("scroll")));
   };
 
-  test("en la compu, el botón achica la barra lateral a íconos, la abre y el aparato lo recuerda", async () => {
+  // Santiago, 18/10: «y si en compu mejor lo hacemos apretando el escudo?».
+  test("en la compu, tocando el escudo la barra lateral se achica a íconos, se abre y el aparato lo recuerda", async () => {
     await montar();
-    const boton = contenedor.querySelector(".barra-lateral-cambiar");
+    const boton = contenedor.querySelector(".navegacion-escritorio button.marca-aplicacion");
+    expect(boton.querySelector("strong").textContent).toBe("Lesiones");
     expect(boton.getAttribute("aria-label")).toBe("Achicar la barra");
     expect(boton.getAttribute("aria-expanded")).toBe("true");
     expect(marco().classList.contains("barra-achicada")).toBe(false);
@@ -74,7 +76,7 @@ describe("MarcoAplicacion: esconder las barras", () => {
     raiz = null;
     await montar();
     expect(marco().classList.contains("barra-achicada")).toBe(true);
-    await act(async () => contenedor.querySelector(".barra-lateral-cambiar").click());
+    await act(async () => contenedor.querySelector(".navegacion-escritorio .marca-aplicacion").click());
     expect(marco().classList.contains("barra-achicada")).toBe(false);
     expect(window.localStorage.getItem("barra_lateral_achicada")).toBeNull();
   });
