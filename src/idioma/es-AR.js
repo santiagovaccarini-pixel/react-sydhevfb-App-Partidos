@@ -77,6 +77,8 @@ export default {
     posiciones: "Posiciones",
     catapult: "Catapult",
     referencias: "Valores de referencia",
+    achicarBarra: "Achicar la barra",
+    abrirBarra: "Abrir la barra",
   },
   acceso: {
     marca: "ARK",

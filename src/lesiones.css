@@ -395,7 +395,7 @@
 .lesiones-marco .lesiones-toast {
   position: fixed;
   left: 50%;
-  bottom: calc(84px + env(safe-area-inset-bottom));
+  bottom: calc(var(--alto-barra-abajo, 67px) + 17px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 60;
   padding: 10px 16px;

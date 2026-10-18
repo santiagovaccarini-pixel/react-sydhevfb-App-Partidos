@@ -43,7 +43,9 @@ Las decisiones específicas del producto se consultan en [UI_DECISIONS.md](UI_DE
 La regla existente es que lo igual en otro módulo sea igual en toda la web
 (`PENDIENTES.md`, sección «Idioma, Lesiones y Datos básicos»). Reutilizá:
 
-- `src/components/AppChrome.js`: marco y navegación compartidos.
+- `src/components/AppChrome.js`: marco y navegación compartidos. En la compu, la barra lateral
+  se achica a íconos con su botón de abajo (el aparato lo recuerda); en el celular, la barra de
+  abajo se va al bajar y vuelve al subir (UI-053).
 - `src/components/SheetPanel.js`, `HojaOpciones.js` y `ConfirmSheet.js`: hojas,
   opciones y confirmaciones.
 - `src/components/PortalTarjetas.jsx`: tarjetas y portadas de portal y bases, y las filas
@@ -175,6 +177,9 @@ lo que se haga; lo que falta pasar está en `PENDIENTES.md`, «El espacio en tod
   reporte nuevo usa esa barra.
 - El botón para volver a los módulos del encabezado de cada módulo es `BotonModulos`: al bajar,
   el mismo botón queda fijo arriba sobre ese vidrio (UI-051). Un módulo nuevo lo usa.
+- Lo que va fijo arriba de la barra de abajo del celular (la fila de Volver, los avisos) se
+  ubica con `--alto-barra-abajo` (en `style.css`), así baja con ella cuando se va (UI-053). Un
+  elemento fijo nuevo apoyado en esa barra la usa.
 - Una sola separación entre tarjetas, no el hueco del contenedor más el margen de cada una.
 - Encabezados bajos: el de cada módulo con escudo (GPS, Lesiones, Evaluaciones, Datos básicos),
   con el escudo chico a la izquierda y, al lado, el módulo, el club, la fecha y su pastilla (en
