@@ -3810,6 +3810,21 @@ confirme.**
     sigue en su lugar; al bajar, apenas empieza a taparse, el mismo botón aparece fijo arriba
     sobre el vidrio grafito de los reportes, y se va al volver arriba. Lo dibuja un componente
     compartido (`src/components/BotonModulos.jsx`). No va al papel.
+- **Alta médica con las fechas de la vuelta (hecho el 18/10).** Al cerrar los botones a la vista,
+  se vio que en la compu «Alta médica» y el borrar quedaban fuera de la tarjeta de la lesión (la
+  regla del espacio del 16/10 dejaba a «Ver detalle» con todo el ancho). Santiago, en un
+  cuestionario: «Si arreglalo, pero tmb agrega dentro de alta medica que se puedan completar
+  las demas fechas y que solo se vaya de cargar cuando se cargue la fecha de vuelta a la
+  competicion y no el resto».
+  - En la compu, esos botones (en Lesiones, Partido › Registros, Evaluaciones y las cargas de GPS
+    a medio hacer) van cada uno del ancho de su texto, adentro de su tarjeta.
+  - «Alta médica» abre una hoja con el pase a transición, el retorno al entrenamiento y el
+    retorno a la competencia (alta), con lo ya cargado; la del alta empieza vacía. Se puede
+    guardar sin el alta: la lesión sigue en Nuevos casos, con su etapa al día. Con el retorno a
+    la competencia, sale de la lista. Las cuentas (recuperación, Recup 1 y 2, severidad) no
+    cambiaron.
+  - **Queda prohibido** volver a la hoja que solo pide el alta, poner hoy de entrada en el alta y
+    que otra fecha cierre la lesión. Ver UI-052.
 - **Lo que sigue, en este orden**: moverse por la app (esconder la barra lateral y la de
   abajo, abrir cada base en el último registro); Evaluaciones (cargar una
   fila por jugador, la elección de test); y las grandes, cada una aparte (la planilla de valor
