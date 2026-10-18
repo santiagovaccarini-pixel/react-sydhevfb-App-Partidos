@@ -331,8 +331,8 @@ const PASO_MINIMO = 8;
 // La marca es el nombre del módulo, como en el portal (en Partido, «Partido»;
 // la web se llama ARK). Las dos barras se esconden para dejar más lugar
 // (Santiago, 18/10, en un cuestionario: «Achicar a íconos», «Se va al bajar»,
-// «En toda la app»; UI-053): en la compu, un botón achica la lateral a una
-// franja con los íconos; en el celular, la de abajo se va al bajar.
+// «En toda la app»; UI-053): en la compu, tocando el escudo la lateral se
+// achica a una franja con los íconos; en el celular, la de abajo se va al bajar.
 export const MarcoAplicacion = ({
   activo = "partido",
   onNavigate,
@@ -416,7 +416,17 @@ export const MarcoAplicacion = ({
           }
         }}
       >
-        <div className="marca-aplicacion">
+        {/* Tocando el escudo, la barra se achica a los íconos o se vuelve a
+            abrir (Santiago, 18/10: «y si en compu mejor lo hacemos apretando
+            el escudo?»). */}
+        <button
+          type="button"
+          className="marca-aplicacion"
+          onClick={cambiarBarra}
+          aria-expanded={!achicada}
+          aria-label={t(achicada ? "nav.abrirBarra" : "nav.achicarBarra")}
+          title={t(achicada ? "nav.abrirBarra" : "nav.achicarBarra")}
+        >
           {/* El escudo real del club elegido (bajado como en Partido); si no
               hay club todavía, el dibujado de siempre. */}
           {leerEquipoElegido()?.nombre ? (
@@ -425,7 +435,7 @@ export const MarcoAplicacion = ({
             <EscudoCAM etiqueta={marca} />
           )}
           <strong>{marca}</strong>
-        </div>
+        </button>
 
         <nav>
           {destinosVisibles.map((destino) => {
@@ -445,17 +455,6 @@ export const MarcoAplicacion = ({
             );
           })}
         </nav>
-
-        <button
-          type="button"
-          className="barra-lateral-cambiar"
-          onClick={cambiarBarra}
-          aria-expanded={!achicada}
-          aria-label={t(achicada ? "nav.abrirBarra" : "nav.achicarBarra")}
-          title={t(achicada ? "nav.abrirBarra" : "nav.achicarBarra")}
-        >
-          <Icono nombre="flecha" size={18} className={achicada ? "" : "girada"} />
-        </button>
       </aside>
 
       <main className="contenido-aplicacion">{children}</main>

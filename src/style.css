@@ -2460,39 +2460,35 @@ button:disabled {
   display: none;
 }
 
-/* Las barras se esconden para dejar más lugar (UI-053). En la compu, el botón
-   de abajo de la barra lateral la achica a una franja con los íconos solos
-   (el nombre de cada solapa queda al pasar el mouse); el aparato la recuerda.
-   Solo en pantalla: al imprimir no hay barra. */
-.barra-lateral-cambiar {
-  position: absolute;
-  right: 13px;
-  bottom: 18px;
-  left: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 40px;
-  border-radius: 9px;
+/* Las barras se esconden para dejar más lugar (UI-053). En la compu, tocando
+   el escudo (con el nombre del módulo) la barra lateral se achica a una franja
+   con los íconos solos (el nombre de cada solapa queda al pasar el mouse) y
+   se vuelve a abrir; el aparato la recuerda. Solo en pantalla: al imprimir no
+   hay barra. */
+.navegacion-escritorio .marca-aplicacion {
+  width: 100%;
+  padding: 0;
+  border-radius: 12px;
   background: transparent;
-  color: #8f9893;
+  color: inherit;
+  font: inherit;
   box-shadow: none;
 }
 
-.barra-lateral-cambiar:hover {
+.navegacion-escritorio .marca-aplicacion:hover {
   transform: none;
-  background: #242a27;
-  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
   box-shadow: none;
 }
 
-.barra-lateral-cambiar:focus-visible {
-  outline: 2px solid #11b968;
-  outline-offset: 2px;
+.navegacion-escritorio .marca-aplicacion:active {
+  transform: scale(0.97);
+  box-shadow: none;
 }
 
-.barra-lateral-cambiar .girada {
-  transform: rotate(180deg);
+.navegacion-escritorio .marca-aplicacion:focus-visible {
+  outline: 2px solid #11b968;
+  outline-offset: 4px;
 }
 
 @media screen and (min-width: 721px) {
@@ -2537,10 +2533,6 @@ button:disabled {
     left: -10px;
   }
 
-  .marco-aplicacion.barra-achicada .barra-lateral-cambiar {
-    right: 10px;
-    left: 10px;
-  }
 }
 
 .tablero-partido {

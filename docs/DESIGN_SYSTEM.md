@@ -44,8 +44,8 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
 (`PENDIENTES.md`, sección «Idioma, Lesiones y Datos básicos»). Reutilizá:
 
 - `src/components/AppChrome.js`: marco y navegación compartidos. En la compu, la barra lateral
-  se achica a íconos con su botón de abajo (el aparato lo recuerda); en el celular, la barra de
-  abajo se va al bajar y vuelve al subir (UI-053).
+  se achica a íconos y se abre tocando el escudo (el aparato lo recuerda); en el celular, la
+  barra de abajo se va al bajar y vuelve al subir (UI-053).
 - `src/components/SheetPanel.js`, `HojaOpciones.js` y `ConfirmSheet.js`: hojas,
   opciones y confirmaciones.
 - `src/components/PortalTarjetas.jsx`: tarjetas y portadas de portal y bases, y las filas
