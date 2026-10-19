@@ -4104,6 +4104,20 @@ confirme.**
   - **Dónde**: Datos básicos, elegir un jugador y «Ver ficha» (solo el administrador): la hoja
     de abajo con su nombre, «Exportar sus datos», «Bajar el Excel» y «Bajar el JSON». Los
     archivos se llaman `datos-de-<nombre>-<fecha>`. Ahí va a ir también el borrado.
+  - **Arreglo (19/10, migración `20261105_exportar_atleta_partidos.sql`).** En la base del club,
+    exportar decía «Falta una actualización de la base de datos». El diagnóstico en el SQL
+    Editor dio «function unnest(jsonb) does not exist»: ahí los titulares y los convocados de
+    los partidos están guardados como lista JSON (jsonb), no como lista de textos (text[], la
+    instalación desde cero y las pruebas). `exportar_atleta` ahora los lee igual en los dos
+    casos (`lista_de_nombres`), y las pruebas de la base lo prueban con las dos. La app decía
+    «Falta una actualización» ante cualquier función que faltara adentro: ahora solo si falta
+    `exportar_atleta`; lo demás es «No se pudieron preparar los datos» (y lo que dijo la base
+    queda en la consola).
+  - **Falla conocida, para después (Santiago, 19/10: «Solo la exportación»)**: con esas mismas
+    columnas en jsonb, cambiarle el nombre a un jugador falla (`partido_con_nombres_de_hoy`, de
+    `20261022_nombres_en_todos_lados.sql`, las lee como text[]; comprobado en la base de
+    pruebas pasándolas a jsonb). En la base del club, cambiar un nombre en Datos básicos
+    seguramente da «No se pudo guardar». El arreglo es el mismo: leerlas igual en los dos casos.
   - **Queda prohibido** que lo exporte alguien que no es el administrador, o que el archivo
     lleve datos de otros jugadores, salvo un pedido nuevo.
 - **En curso: la planilla de valor referencial** (quedó en pausa por la auditoría). Santiago, en
@@ -4113,7 +4127,9 @@ confirme.**
   Malo «Copialo igual» y «Un solo nombre libre» en «Agregar V.R.». La cuenta, copiada y
   comparada con la planilla recalculada (datos inventados), da igual; falta mostrarle la maqueta
   del flujo antes de hacerlo.
-- **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); después, las grandes, cada una aparte (la planilla de valor
+- **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
+  nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
+  conocida); después, las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
   diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;
   Isocinecia con Python y VALD).
