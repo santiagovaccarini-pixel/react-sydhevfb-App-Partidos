@@ -1,5 +1,17 @@
 import { describe, expect, test } from "vitest";
-import { AUTOMATICO, CORTES_MANUALES, MANUAL, MAS_ES_MEJOR, MENOS_ES_MEJOR, calcularValorReferencial, sinAtipicos } from "./valorReferencial.js";
+import {
+  AUTOMATICO,
+  CORTES_MANUALES,
+  MANUAL,
+  MAS_ES_MEJOR,
+  MENOS_ES_MEJOR,
+  calcularValorReferencial,
+  cortesValidos,
+  opcionesDeCorte,
+  sinAtipicos,
+  sumaCompleta,
+  sumaDePorcentajes,
+} from "./valorReferencial.js";
 
 // Tres casos con datos inventados (nada del club), calculados también con la
 // planilla del club recalculada: los números de abajo son los que da ella.
@@ -191,5 +203,36 @@ describe("El valor referencial, con la lógica de la planilla del club", () => {
     cerca(r.promedio + 2 * r.desvio)(propios.valores.excelente);
     cerca(r.promedio - r.desvio)(propios.valores.regular);
     expect(calcularValorReferencial(datos, { modo: AUTOMATICO }).valores).not.toEqual(r.valores);
+  });
+
+  test("Manual: los desvíos que ofrece la planilla (Excelente por encima de Muy bueno y Malo por encima de Regular, hasta 2)", () => {
+    expect(opcionesDeCorte("muy_bueno")).toEqual([0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75]);
+    expect(opcionesDeCorte("regular")).toEqual([0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75]);
+    expect(opcionesDeCorte("excelente", { muy_bueno: 1.5 })).toEqual([1.75, 2]);
+    expect(opcionesDeCorte("excelente", { muy_bueno: 1.75 })).toEqual([2]);
+    expect(opcionesDeCorte("malo", { regular: 0.25 })).toEqual([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]);
+    // Lo que no se ofrece pasa al más cercano que sí.
+    expect(cortesValidos({ excelente: 1, muy_bueno: 1.5, regular: 0.75, malo: 3 })).toEqual({ excelente: 1.75, muy_bueno: 1.5, regular: 0.75, malo: 2 });
+    expect(cortesValidos({ excelente: 1.3, muy_bueno: 0.9, regular: 0.1, malo: 0.6 })).toEqual({ excelente: 1.25, muy_bueno: 1, regular: 0.25, malo: 0.5 });
+    // Lo de Automático siempre se puede elegir en Manual.
+    Object.values(CASOS).forEach((caso) => {
+      const auto = calcularValorReferencial(caso.datos, { sentido: caso.sentido, relativa: caso.relativa });
+      expect(cortesValidos(auto.desvios)).toEqual(auto.desvios);
+    });
+  });
+
+  test("la suma de los % de las cinco da 100 % con los desvíos que ofrece la planilla", () => {
+    const datos = CASOS.absolutaMasEsMejor.datos;
+    [0.25, 0.5, 1, 1.75].forEach((muyBueno) =>
+      opcionesDeCorte("excelente", { muy_bueno: muyBueno }).forEach((excelente) => {
+        const r = calcularValorReferencial(datos, { modo: MANUAL, cortes: { excelente, muy_bueno: muyBueno, regular: 0.75, malo: 1 } });
+        expect(sumaCompleta(r)).toBe(true);
+      }),
+    );
+    // Con cortes cruzados (que la pantalla no deja elegir), no da 100 %.
+    const cruzados = calcularValorReferencial(datos, { modo: MANUAL, cortes: { excelente: 0.25, muy_bueno: 1.75, regular: 0.75, malo: 1 } });
+    expect(sumaDePorcentajes(cruzados)).toBeGreaterThan(1);
+    expect(sumaCompleta(cruzados)).toBe(false);
+    expect(sumaCompleta(null)).toBe(false);
   });
 });

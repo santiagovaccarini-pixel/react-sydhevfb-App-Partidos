@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { COLUMNAS_GPS, columnaGps } from "./columnas.js";
 import { CLAVES_DE_LOS_VR } from "./informe.js";
+import { conSentidoGps } from "../sentido.js";
 import { AUTOMATICO, MANUAL, MAS_ES_MEJOR, MENOS_ES_MEJOR, calcularValorReferencial } from "../valorReferencial.js";
 import {
   armarPlanilla,
@@ -11,6 +12,7 @@ import {
   filasDeLaMuestra,
   leerPlanilla,
   medidasDeLaPlanilla,
+  medidasDeLaPlanillaGuardada,
   muestraDeLosFiltros,
   numerosParaGuardar,
 } from "./planillaVr.js";
@@ -30,10 +32,14 @@ const FILAS = [
 ];
 
 describe("La planilla de valor referencial en GPS", () => {
-  test("las medidas son las columnas de la hoja de los V.R., en su orden", () => {
-    const medidas = medidasDeLaPlanilla(COLUMNAS_GPS);
-    expect(medidas.map((columna) => columna.clave)).toEqual([...CLAVES_DE_LOS_VR]);
-    expect(medidasDeLaPlanilla([columnaGps("tiempo"), columnaGps("d")]).map((columna) => columna.clave)).toEqual(["d", "tiempo"]);
+  test("las medidas son todas las columnas de números, en el orden de la Base (también las del club)", () => {
+    const claves = medidasDeLaPlanilla(COLUMNAS_GPS).map((columna) => columna.clave);
+    expect(claves).toEqual(COLUMNAS_GPS.filter(conSentidoGps).map((columna) => columna.clave));
+    CLAVES_DE_LOS_VR.forEach((clave) => expect(claves).toContain(clave));
+    ["smax", "pse", "ua"].forEach((clave) => expect(claves).toContain(clave));
+    // No las que no son números ni las fijas.
+    ["microciclo", "jugador", "puesto", "inicio", "tarea_partido", "dispositivo"].forEach((clave) => expect(claves).not.toContain(clave));
+    expect(medidasDeLaPlanilla([columnaGps("tiempo"), columnaGps("d"), { clave: "propia_sprints", tipo: "numero", propia: true }]).map((columna) => columna.clave)).toEqual(["tiempo", "d", "propia_sprints"]);
   });
 
   test("de entrada, el sentido de Ajustes (o el de la app) y Automático", () => {
@@ -62,12 +68,15 @@ describe("La planilla de valor referencial en GPS", () => {
     expect(calculos.d.resultado.n).toBe(8);
     expect(calculos.d.atipicos.map((uno) => [uno.fila.id, uno.valor, uno.bajo])).toEqual([["h", 9000, false]]);
     expect(calculos.d_min.resultado.n).toBe(8);
-    expect(calculos.d_min.resultado.valores).toEqual(
-      calcularValorReferencial(
-        FILAS.map((una) => ({ numerador: una.datos.d, denominador: una.datos.tiempo / 60 })),
-        { relativa: true, modo: MANUAL },
-      ).valores,
-    );
+    // Manual sin desvíos elegidos: los de Automático.
+    const relativas = FILAS.map((una) => ({ numerador: una.datos.d, denominador: una.datos.tiempo / 60 }));
+    const automatico = calcularValorReferencial(relativas, { relativa: true });
+    expect(calculos.d_min.resultado.valores).toEqual(calcularValorReferencial(relativas, { relativa: true, modo: MANUAL, cortes: automatico.desvios }).valores);
+    // Con los elegidos, esos.
+    const cortes = { excelente: 2, muy_bueno: 1, regular: 0.5, malo: 1.5 };
+    const conCortes = calcularPlanilla(FILAS, [columnaGps("d_min")], { d_min: { sentido: MAS_ES_MEJOR, modo: MANUAL, cortes } });
+    expect(conCortes.d_min.resultado.desvios).toEqual(cortes);
+    expect(conCortes.d_min.resultado.valores).toEqual(calcularValorReferencial(relativas, { relativa: true, modo: MANUAL, cortes }).valores);
     // Sin datos en ninguna fila, no hay V.R. de esa medida.
     expect(calculos.d_shi).toEqual({ resultado: null, atipicos: [] });
   });
@@ -105,14 +114,30 @@ describe("La planilla de valor referencial en GPS", () => {
   });
 
   test("la planilla guardada: lo elegido, cuántas filas y cuándo; lo que no se entiende queda afuera", () => {
-    const planilla = armarPlanilla({ muestra: { tarea_partido: ["tarea"] }, eleccion: { d: { sentido: MENOS_ES_MEJOR, modo: MANUAL }, tiempo: { sentido: "x", modo: "y" } }, filas: 40, calculado: "2026-10-19" });
-    expect(planilla).toEqual({ version: 1, muestra: { tarea_partido: ["tarea"] }, medidas: { d: { sentido: MENOS_ES_MEJOR, modo: MANUAL }, tiempo: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO } }, filas: 40, calculado: "2026-10-19" });
+    const cortes = { excelente: 1.5, muy_bueno: 1, regular: 0.75, malo: 1 };
+    const planilla = armarPlanilla({
+      muestra: { tarea_partido: ["tarea"] },
+      eleccion: { d: { sentido: MENOS_ES_MEJOR, modo: MANUAL, cortes }, d_min: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO, cortes }, tiempo: { sentido: "x", modo: "y" } },
+      filas: 40,
+      calculado: "2026-10-19",
+    });
+    // Los desvíos se guardan solo en Manual.
+    expect(planilla).toEqual({
+      version: 1,
+      muestra: { tarea_partido: ["tarea"] },
+      medidas: { d: { sentido: MENOS_ES_MEJOR, modo: MANUAL, cortes }, d_min: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO }, tiempo: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO } },
+      filas: 40,
+      calculado: "2026-10-19",
+    });
     expect(leerPlanilla(planilla)).toEqual(planilla);
     expect(leerPlanilla(null)).toBeNull();
     expect(leerPlanilla([1])).toBeNull();
     expect(leerPlanilla({ muestra: { a: "x", b: [1] }, medidas: { d: 3, deficit: {} } })).toEqual({ version: 1, muestra: { b: [1] }, medidas: { deficit: { sentido: MENOS_ES_MEJOR, modo: AUTOMATICO } }, filas: null, calculado: null });
-    // Para recalcular: lo guardado y, en una medida que no estaba, lo de entrada.
-    const medidas = [columnaGps("d"), columnaGps("d_shi")];
-    expect(eleccionDeLaPlanilla(leerPlanilla(planilla), medidas, () => MENOS_ES_MEJOR)).toMatchObject({ d: { sentido: MENOS_ES_MEJOR, modo: MANUAL }, d_shi: { sentido: MENOS_ES_MEJOR, modo: AUTOMATICO } });
+    // Desvíos que la planilla no ofrece: al más cercano que sí.
+    expect(leerPlanilla({ medidas: { d: { modo: MANUAL, cortes: { excelente: 0.5, muy_bueno: 1, regular: 0.75, malo: 9 } } } }).medidas.d.cortes).toEqual({ excelente: 1.25, muy_bueno: 1, regular: 0.75, malo: 2 });
+    // Para recalcular: solo las medidas elegidas (las que siguen estando), con lo elegido.
+    const medidas = [columnaGps("d"), columnaGps("d_shi"), columnaGps("d_min")];
+    expect(medidasDeLaPlanillaGuardada(leerPlanilla(planilla), medidas).map((columna) => columna.clave)).toEqual(["d", "d_min"]);
+    expect(eleccionDeLaPlanilla(leerPlanilla(planilla), medidas)).toEqual({ d: { sentido: MENOS_ES_MEJOR, modo: MANUAL, cortes }, d_min: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO } });
   });
 });

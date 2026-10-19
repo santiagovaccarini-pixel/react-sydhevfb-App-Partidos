@@ -4209,6 +4209,21 @@ confirme.**
       para escribirlo a mano). Con ella, ese V.R. vacío ya no se ofrece: «Agregar V.R.» lleva a la
       planilla, como estaba anotado en «Lo que sigue». Los números de cualquier V.R. se siguen
       cambiando a mano con dos toques.
+    - **Cambio del mismo día, al probarla (2026.10.19.6; UI-060).** Santiago: «Necesito poder
+      elegir las columnas que voy a usar en el vr (Siempre tienen que ser numericas)» y «El manual
+      es para que yo elija los desvios que va a usar la categoria […] cada 0.25 desvios […] y
+      siempre la suma de todos los % tiene que ser 100% si no es 100% no se deja avanzar»; en un
+      cuestionario, «Vienen todas las numericas», «Los que dio Automático» y «Revisa devuelta el
+      archivo […] ahi esta la logica de xq se descartan algunos desvios». Las medidas son todas
+      las columnas de números de GPS (también las del club; no las fijas), todas marcadas de
+      entrada, y se eligen en «Elegir medidas»; se guardan solo las elegidas (también para
+      «Recalcular»). En Manual se eligen los desvíos de cada categoría, de entrada los de
+      Automático, con lo que prueba la planilla: Muy bueno y Regular de 0,25 a 1,75; Excelente
+      desde Muy bueno + 0,25 y Malo desde Regular + 0,25, hasta 2 (la planilla deja en blanco lo
+      que pasa de 2 y las opciones que no superan a la de al lado). Se guardan en `planilla` y la
+      suma de los % tiene que dar 100 % para guardar. Diferencia con la planilla: allá, en Manual,
+      el % de Bueno es el de Automático (AC29) y por eso la suma podía no dar 100 % (AC33); acá
+      sale de los cortes elegidos.
     - **Queda prohibido** guardar en `planilla` textos o nombres de jugadores, y volver a poner
       «Promedios del equipo: No entran / Entran» o Automático/Manual en Ajustes, salvo un pedido
       nuevo.
