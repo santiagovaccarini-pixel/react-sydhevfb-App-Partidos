@@ -144,11 +144,11 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
   }),
   leerAjustes: async () => ({ campos: [...datos.ajustes.campos], opciones: [...datos.ajustes.opciones], error: "" }),
   leerCategorias: async () => ({ filas: datos.categorias ? datos.categorias.map((fila) => ({ ...fila })) : null, error: "" }),
-  guardarCabecera: async (equipoId, test, campo, { etiquetas, oculto, orden }) => {
-    datos.cabeceras.push({ equipoId, test, campo, etiquetas, oculto, orden });
+  guardarCabecera: async (equipoId, test, campo, { etiquetas, oculto, orden, sentido }) => {
+    datos.cabeceras.push({ equipoId, test, campo, etiquetas, oculto, orden, ...(sentido ? { sentido } : {}) });
     datos.ajustes.campos = [
       ...datos.ajustes.campos.filter((fila) => !(fila.test === test && fila.campo === campo)),
-      { test, campo, etiqueta_es: etiquetas["es-AR"] || "", etiqueta_pt: etiquetas["pt-BR"] || "", oculto, orden },
+      { test, campo, etiqueta_es: etiquetas["es-AR"] || "", etiqueta_pt: etiquetas["pt-BR"] || "", oculto, orden, sentido },
     ];
     return { error: "" };
   },
@@ -996,6 +996,32 @@ describe("Evaluaciones", () => {
     expect(cabeceras(contenedor)).toContain("Izq. máx./PC");
   });
 
+  test("Ajustes › Cabeceras: «Para los V.R.» en lo que se carga con números o tiempos y en lo calculado con V.R.; un déficit arranca en «Menos es mejor»", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.textContent.includes("Cabeceras")));
+    const cabecera = (titulo) => tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b")?.textContent === titulo));
+    const paraLosVr = () => document.body.querySelector(".lesiones-hoja .sentido-para-vr");
+    const prendido = () => paraLosVr().querySelector(".chip-criterio.prendido").textContent;
+    // Zona Media: un tiempo, sí; la Selección (una lista), no.
+    await cabecera("Lumbar");
+    expect(prendido()).toBe("Más es mejor");
+    await tocar(boton(contenedor, "Cancelar"));
+    await cabecera("Seleccion");
+    expect(paraLosVr()).toBe(null);
+    await tocar(boton(contenedor, "Cancelar"));
+    // Movilidad de Tobillo: el déficit (calculado, con V.R.) arranca en
+    // «Menos es mejor», como sus clases; se cambia y se guarda.
+    await elegirTest(contenedor, "Movilidad de Tobillo");
+    await cabecera("% DEFICIT LATERAL");
+    expect(prendido()).toBe("Menos es mejor");
+    await tocar([...paraLosVr().querySelectorAll(".chip-criterio")].find((b) => b.textContent === "Más es mejor"));
+    await tocar(boton(contenedor, "Guardar"));
+    expect(datos.cabeceras.at(-1)).toMatchObject({ test: "movilidad_tobillo", campo: "deficit", sentido: "mas" });
+    await cabecera("% DEFICIT LATERAL");
+    expect(prendido()).toBe("Más es mejor");
+  });
+
   test("Ajustes: se renombra y se esconde una cabecera; las listas, por test y sin Selección (son las categorías de Datos básicos)", async () => {
     await montar();
     await irA(contenedor, "Ajustes");
@@ -1005,7 +1031,7 @@ describe("Evaluaciones", () => {
     expect(nombre.value).toBe("Lumbar");
     await escribir(nombre, "Lumbar (min)");
     await tocar(boton(contenedor, "Guardar"));
-    expect(datos.cabeceras).toEqual([{ equipoId: "eq-1", test: "zona_media", campo: "lumbar", etiquetas: { "es-AR": "Lumbar (min)", "pt-BR": "Lombar" }, oculto: false, orden: 5 }]);
+    expect(datos.cabeceras).toEqual([{ equipoId: "eq-1", test: "zona_media", campo: "lumbar", etiquetas: { "es-AR": "Lumbar (min)", "pt-BR": "Lombar" }, oculto: false, orden: 5, sentido: "mas" }]);
     // Selección no se esconde: hace falta para clasificar.
     await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === "Seleccion"));
     expect(document.body.textContent).toContain("Esta columna hace falta para cargar la evaluación: siempre se muestra.");

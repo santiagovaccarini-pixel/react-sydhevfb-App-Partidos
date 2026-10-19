@@ -9,6 +9,8 @@
 // fecha_hora, texto, texto_largo. Las fechas con `columna: true` van en su
 // propia columna de la tabla; el resto, en `datos`.
 
+import { sentidoGuardado } from "./sentido.js";
+
 const et = (es, pt) => ({ "es-AR": es, "pt-BR": pt });
 const op = (codigo, es, pt) => ({ codigo, etiquetas: et(es, pt) });
 
@@ -388,6 +390,8 @@ export const armarConfig = (filasCampos = [], filasOpciones = []) => {
       etiquetas: { "es-AR": fila.etiqueta_es || "", "pt-BR": fila.etiqueta_pt || "" },
       oculto: Boolean(fila.oculto),
       orden: fila.orden ?? 0,
+      // «Más es mejor» o «Menos es mejor» para los V.R. (vacío: lo de la app).
+      sentido: sentidoGuardado(fila.sentido),
     };
   });
   [...filasOpciones]

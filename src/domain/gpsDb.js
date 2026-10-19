@@ -7,6 +7,7 @@ import { esSoloLectura } from "./alDia.js";
 import { claveDeErrorConsentimiento } from "./consentimiento.js";
 import { CATEGORIAS_DE_UN_VR } from "./gps/informe.js";
 import { calcularNoIngresaron } from "./match.js";
+import { faltaSentido, sentidoGuardado } from "./sentido.js";
 
 // actualizado_en: para traer después solo lo cambiado (ponerAlDiaGps).
 const COLUMNAS = "id, equipo_id, orden, fecha, jugador_id, persona, promedio, datos, actualizado_en";
@@ -228,18 +229,22 @@ const COLUMNAS_CAMPOS = "campo, etiqueta_es, etiqueta_pt, oculto, orden, tipo";
 const COLUMNAS_OPCIONES = "lista, codigo, etiqueta_es, etiqueta_pt, oculto, orden";
 
 export const leerAjustesGps = async (equipoId) => {
-  if (!equipoId) return { campos: [], opciones: [], error: "" };
-  const [campos, opciones] = await Promise.all([
-    supabase.from("gps_campos").select(COLUMNAS_CAMPOS).eq("equipo_id", equipoId),
+  if (!equipoId) return { campos: [], opciones: [], sinSentido: false, error: "" };
+  const leerCampos = (columnas) => supabase.from("gps_campos").select(columnas).eq("equipo_id", equipoId);
+  let [campos, opciones] = await Promise.all([
+    leerCampos(`${COLUMNAS_CAMPOS}, sentido`),
     supabase.from("gps_opciones").select(COLUMNAS_OPCIONES).eq("equipo_id", equipoId).order("orden", { ascending: true }),
   ]);
+  // Sin la columna sentido (la base sin 20261107): como antes, sin «Para los V.R.».
+  const sinSentido = Boolean(campos.error && faltaSentido(campos.error));
+  if (sinSentido) campos = await leerCampos(COLUMNAS_CAMPOS);
   const error = campos.error || opciones.error;
   if (error) {
     const clave = claveDeErrorGps(error, "gps.error.noLeer");
-    if (clave === "gps.error.faltaMigracion") return { campos: [], opciones: [], error: "" };
-    return { campos: [], opciones: [], error: clave };
+    if (clave === "gps.error.faltaMigracion") return { campos: [], opciones: [], sinSentido, error: "" };
+    return { campos: [], opciones: [], sinSentido, error: clave };
   }
-  return { campos: campos.data || [], opciones: opciones.data || [], error: "" };
+  return { campos: campos.data || [], opciones: opciones.data || [], sinSentido, error: "" };
 };
 
 const textoLimpio = (texto) => String(texto || "").trim();
@@ -264,8 +269,10 @@ export const cambiarEnDescripcionesGps = async (equipoId, antes, despues) => {
   return { cambiadas: Number(data) || 0, error: "" };
 };
 
-// El nombre de una columna y si se ve; con `tipo`, una columna que suma el club.
-export const guardarCabeceraGps = async (equipoId, campo, { etiquetas = {}, oculto = false, orden = 0, tipo = null }) => {
+// El nombre de una columna y si se ve; con `tipo`, una columna que suma el
+// club; con `sentido`, «Más es mejor» o «Menos es mejor» para los V.R. (sin
+// él no se toca: así anda también sin 20261107).
+export const guardarCabeceraGps = async (equipoId, campo, { etiquetas = {}, oculto = false, orden = 0, tipo = null, sentido = null }) => {
   const { error } = await supabase.from("gps_campos").upsert(
     {
       equipo_id: equipoId,
@@ -275,6 +282,7 @@ export const guardarCabeceraGps = async (equipoId, campo, { etiquetas = {}, ocul
       oculto: Boolean(oculto),
       orden,
       tipo: tipo || null,
+      ...(sentidoGuardado(sentido) ? { sentido: sentidoGuardado(sentido) } : {}),
       actualizado_en: new Date().toISOString(),
     },
     { onConflict: "equipo_id,campo" },

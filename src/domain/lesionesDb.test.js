@@ -148,7 +148,7 @@ describe("Datos básicos › Ajustes (17/10)", () => {
     expect(sembrado.every((fila) => COMPARTIDAS.includes(fila.campo))).toBe(true);
     expect(config.campos.categoria.etiquetas["es-AR"]).toBe("Categoría actual");
     expect(config.listas.categoria.map((opcion) => opcion.codigo)).toEqual(["sub21"]);
-    expect(columnas).toEqual({ foto_url: { etiquetas: { "es-AR": "Foto carnet", "pt-BR": "" }, oculto: true } });
+    expect(columnas).toEqual({ foto_url: { etiquetas: { "es-AR": "Foto carnet", "pt-BR": "" }, oculto: true, sentido: null } });
   });
 
   test("sin el SQL nuevo se lee igual: lo propio de Datos básicos queda vacío", async () => {

@@ -604,6 +604,24 @@ button:active {
   box-shadow: none;
 }
 
+/* Ajustes › Cabeceras: «Para los V.R.» (Más es mejor / Menos es mejor),
+   debajo de lo demás de la cabecera y separado con una línea. */
+.sentido-para-vr {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.sentido-para-vr-titulo {
+  color: var(--cam-gris);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
 /* Cada criterio prendido, con su nombre arriba. La línea de abajo separa uno
    de otro cuando hay varios apilados. */
 .bloque-criterio {

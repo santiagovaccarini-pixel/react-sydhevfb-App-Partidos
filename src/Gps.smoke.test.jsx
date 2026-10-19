@@ -145,12 +145,12 @@ vi.mock("./domain/gpsDb.js", () => ({
     datos.filas = datos.filas.filter((una) => !ids.includes(una.id));
     return { borradas: [...ids], error: "" };
   },
-  leerAjustesGps: async () => ({ campos: [...datos.ajustes.campos], opciones: [...datos.ajustes.opciones], error: "" }),
-  guardarCabeceraGps: async (equipoId, campo, { etiquetas = {}, oculto = false, orden = 0, tipo = null }) => {
-    datos.cabeceras.push({ equipoId, campo, etiquetas, oculto, orden, tipo });
+  leerAjustesGps: async () => ({ campos: [...datos.ajustes.campos], opciones: [...datos.ajustes.opciones], sinSentido: datos.sinSentido, error: "" }),
+  guardarCabeceraGps: async (equipoId, campo, { etiquetas = {}, oculto = false, orden = 0, tipo = null, sentido = null }) => {
+    datos.cabeceras.push({ equipoId, campo, etiquetas, oculto, orden, tipo, sentido });
     datos.ajustes.campos = [
       ...datos.ajustes.campos.filter((fila) => fila.campo !== campo),
-      { campo, etiqueta_es: etiquetas["es-AR"] || "", etiqueta_pt: etiquetas["pt-BR"] || "", oculto, orden, tipo },
+      { campo, etiqueta_es: etiquetas["es-AR"] || "", etiqueta_pt: etiquetas["pt-BR"] || "", oculto, orden, tipo, sentido },
     ];
     return { error: "" };
   },
@@ -343,6 +343,7 @@ describe("GPS", () => {
     datos.borradas = [];
     datos.ajustes = { campos: [], opciones: [...DISPOSITIVOS] };
     datos.cabeceras = [];
+    datos.sinSentido = false;
     datos.opciones = [];
     datos.descripciones = [];
     datos.plantel = PLANTEL.map((jugador) => ({ ...jugador }));
@@ -729,6 +730,43 @@ describe("GPS", () => {
     // La absoluta sí se renombra.
     await tocar(ajuste("Distancia"));
     expect(document.body.querySelector(".lesiones-hoja input[type=text]").disabled).toBe(false);
+  });
+
+  test("Ajustes › Cabeceras: «Para los V.R.» en las de números y tiempos (no en listas); se guarda y vuelve", async () => {
+    await montarEnLaBase();
+    await irA(contenedor, "Ajustes");
+    await tocar(ajuste("Cabeceras"));
+    const paraLosVr = () => document.body.querySelector(".lesiones-hoja .sentido-para-vr");
+    const prendido = () => paraLosVr().querySelector(".chip-criterio.prendido").textContent;
+    // Una lista no lo lleva.
+    await tocar(ajuste("Dispositivo"));
+    expect(paraLosVr()).toBe(null);
+    await tocar(boton("Cancelar"));
+    // Una medida, sí: de entrada, «Más es mejor».
+    await tocar(ajuste("D"));
+    expect(paraLosVr().textContent).toContain("Para los V.R.");
+    expect(prendido()).toBe("Más es mejor");
+    await tocar(boton("Menos es mejor"));
+    await tocar(boton("Guardar"));
+    expect(datos.cabeceras.at(-1)).toMatchObject({ campo: "d", sentido: "menos" });
+    // Al volver a abrirla, lo guardado.
+    await tocar(ajuste("D"));
+    expect(prendido()).toBe("Menos es mejor");
+    await tocar(boton("Cancelar"));
+    // Una por minuto también (aunque su nombre no se cambie).
+    await tocar(ajuste("D/min"));
+    expect(prendido()).toBe("Más es mejor");
+  });
+
+  test("Ajustes › Cabeceras: sin la actualización de la base, «Para los V.R.» no aparece y se guarda como antes", async () => {
+    datos.sinSentido = true;
+    await montarEnLaBase();
+    await irA(contenedor, "Ajustes");
+    await tocar(ajuste("Cabeceras"));
+    await tocar(ajuste("D"));
+    expect(document.body.querySelector(".lesiones-hoja .sentido-para-vr")).toBe(null);
+    await tocar(boton("Guardar"));
+    expect(datos.cabeceras.at(-1)).toMatchObject({ campo: "d", sentido: null });
   });
 
   test("Ajustes: una estrategia renombrada cambia también en las descripciones ya guardadas (nota del 12/10)", async () => {

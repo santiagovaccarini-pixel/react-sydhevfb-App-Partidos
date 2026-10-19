@@ -306,7 +306,7 @@ describe("el módulo Datos básicos", () => {
     expect(nombre().value).toBe("Foto (enlace)");
     await escribir(nombre(), "Foto carnet");
     await tocar(boton(document.body, "Guardar"));
-    expect(registro.ajustes).toEqual([{ tabla: "columnas", columna: "foto_url", etiquetas: { "es-AR": "Foto carnet", "pt-BR": "" }, oculto: false }]);
+    expect(registro.ajustes).toEqual([{ tabla: "columnas", columna: "foto_url", etiquetas: { "es-AR": "Foto carnet", "pt-BR": "" }, oculto: false, sentido: null }]);
     expect(hojaDeAjuste()).toBeNull();
     expect(filaDeAjuste("Foto carnet")).toBeTruthy();
     // Una del jugador: esconderla no toca la configuración de Lesiones.
@@ -321,6 +321,21 @@ describe("el módulo Datos básicos", () => {
     // En portugués, sin nombre propio, el de la app.
     await act(async () => fijarIdiomaParaPruebas("pt-BR"));
     expect(cabeceras()).toContain("Foto (link)");
+  });
+
+  test("Ajustes › Cabeceras: «Para los V.R.» solo en la edad y las horas previas", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar(filaDeAjuste("Cabeceras"));
+    const paraLosVr = () => hojaDeAjuste().querySelector(".sentido-para-vr");
+    await tocar(filaDeAjuste("Foto (enlace)"));
+    expect(paraLosVr()).toBeNull();
+    await tocar(boton(document.body, "Cancelar"));
+    await tocar(filaDeAjuste("Horas previas"));
+    expect(paraLosVr().querySelector(".chip-criterio.prendido").textContent).toBe("Más es mejor");
+    await tocar([...paraLosVr().querySelectorAll(".chip-criterio")].find((b) => b.textContent === "Menos es mejor"));
+    await tocar(boton(document.body, "Guardar"));
+    expect(registro.ajustes.at(-1)).toMatchObject({ tabla: "columnas", columna: "horas_previas", sentido: "menos" });
   });
 
   test("Ajustes › Cabeceras: renombrar una columna del jugador la renombra también en Lesiones; el nombre no se esconde", async () => {
