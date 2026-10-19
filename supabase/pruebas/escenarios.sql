@@ -2337,6 +2337,19 @@ select pruebas.esperar('...y el historial de sus lesiones (quién, cuándo y qu�
 select pruebas.esperar('...con los nombres de columnas y listas del club', (select string_agg(o ->> 'etiqueta_es', ',') from jsonb_array_elements(:'exportado'::jsonb -> 'ajustes' -> 'lesiones_opciones') o), 'Derecho (del club)');
 select pruebas.debe_fallar('Un jugador que no existe contesta igual que uno ajeno', 'select exportar_atleta(123456)', 'solo_admin');
 reset role;
+-- Los titulares y los convocados de una base de antes (lista JSON en vez de
+-- lista de textos, 20261105): lo mismo.
+begin;
+reset role;
+alter table public.registros_partido alter column titulares drop default, alter column convocados drop default;
+alter table public.registros_partido alter column titulares type jsonb using to_jsonb(titulares),
+                                      alter column convocados type jsonb using to_jsonb(convocados);
+set role authenticated;
+select pruebas.esperar('...también con los partidos de una base de antes (titulares y convocados como lista JSON)',
+  (select (exportar_atleta(9101) -> 'partidos' = '[{"fecha": "2026-07-05", "rival": "Rival Exporta", "entro": ["80:00"], "salio": ["60:00"], "localia": "local", "titular": true, "convocado": true, "resultado": ""}]'::jsonb)::text),
+  'true');
+rollback;
+reset role;
 select pruebas.ser('pablo@nueve.com'); set role authenticated;
 select pruebas.debe_fallar('El staff no exporta, aunque tenga todas las bases', 'select exportar_atleta(9101)', 'solo_admin');
 reset role;
