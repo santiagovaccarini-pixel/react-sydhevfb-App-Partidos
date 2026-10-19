@@ -132,7 +132,11 @@ grant execute on function public.gps_referencia_cambiar(uuid, text, text, numeri
 -- Antes de guardar, que haya quedado bien.
 do $$
 begin
-  if (select count(*) from pg_policies where schemaname = 'public' and tablename = 'gps_referencias') <> 4 then
+  -- Sus cuatro políticas, por nombre: después se suman otras (las de los
+  -- niveles de permiso, 20261029), y así se puede correr también más tarde.
+  if not (select relrowsecurity from pg_class where oid = 'public.gps_referencias'::regclass)
+     or (select count(*) from pg_policies where schemaname = 'public' and tablename = 'gps_referencias'
+          and policyname in ('gps_referencias_ver', 'gps_referencias_sumar', 'gps_referencias_cambiar', 'gps_referencias_borrar')) <> 4 then
     raise exception 'gps_referencias no tiene sus cuatro políticas.';
   end if;
   if exists (select 1 from information_schema.role_table_grants
