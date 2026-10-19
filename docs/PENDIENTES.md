@@ -4149,6 +4149,38 @@ confirme.**
   Malo «Copialo igual» y «Un solo nombre libre» en «Agregar V.R.». La cuenta, copiada y
   comparada con la planilla recalculada (datos inventados), da igual; falta mostrarle la maqueta
   del flujo antes de hacerlo.
+  - **La maqueta (19/10), con datos inventados.** GPS › Valores de referencia › «Agregar V.R. de
+    (dispositivo)»: paso 1, el nombre libre y la muestra (todas las filas de ese dispositivo en la
+    Base, filtradas con el embudo de cada columna, y arriba cuántas filas, jugadores y fechas
+    quedan); paso 2, por medida, el sentido, Automático/Manual, los cinco valores (Excelente a
+    Malo) con el % de la muestra en cada uno y cuántos datos y atípicos (en la compu, una tabla;
+    en el celular, una tarjeta por medida); al guardar, una tarjeta más del dispositivo con sus
+    cinco filas, como los V.R. por jugador. Santiago, en cuestionarios: «Me gusta, solo agregale
+    alguna manera de poder ver que datos se descartaron como atipicos»; Recalcular, «Sí, con
+    «Recalcular»»; los promedios del equipo, «Depende el VR que se quiera hacer» y, sin la opción
+    aparte, «Se ven y se filtran» (las filas del promedio están en la tabla y se sacan con el
+    embudo de Nombre); «Saca la opcion de entrenaron o no entrenaron, eso no es para el vr» (era
+    «Promedios del equipo: No entran / Entran»: descartada); el sentido de cada medida va en
+    Ajustes › Cabeceras («tiene que ser para todas las bases igual»), sin Automático/Manual («eso
+    se decide si el automatico da malos porcentajes en cada categoria»); y el orden, «Primero
+    Ajustes, después el V.R.».
+  - **Nota 1, hecha el 19/10 (migración `20261107_sentido_de_las_medidas.sql`; UI-059).** En
+    GPS, Evaluaciones, Lesiones y Datos básicos, la hoja de una cabecera de números o tiempos
+    pregunta «Para los V.R.»: «Más es mejor» o «Menos es mejor» (columna `sentido` de
+    `gps_campos`, `evaluaciones_campos`, `lesiones_campos` y `datos_basicos_columnas`; vacío es
+    lo de la app). Cuáles: en GPS, las medidas, sus por minuto y los tiempos (no el Microciclo ni
+    las horas); en Evaluaciones, lo que se carga con números o tiempos y lo calculado que tiene
+    V.R. (relativas y déficits); en Lesiones, la edad, las horas hasta la imagen y los días de
+    recuperación; en Datos básicos, la edad y las horas previas (`src/domain/sentido.js`). De
+    entrada, «Más es mejor»; los déficits de Evaluaciones, «Menos es mejor», como sus clases. Lo
+    cambia quien cambia las cabeceras (las mismas políticas). Sin el SQL, la app sigue como antes
+    y no lo pregunta. Todavía no lo usa ninguna cuenta: es lo que va a venir elegido en la nota 2.
+  - **Nota 2, falta:** «Agregar V.R.» con la planilla en GPS, como la maqueta con lo de arriba:
+    los atípicos de cada medida a la vista (qué filas, con qué valor y entre qué límites), las
+    filas del promedio del equipo en la tabla para filtrarlas, el sentido de Ajustes (que se
+    puede cambiar en cada cálculo), Automático/Manual al calcular, y «Recalcular» en la tarjeta
+    (con la misma muestra y lo elegido, con los datos de ese día; pregunta antes y los números de
+    antes quedan en los últimos cambios, con «Volver»).
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida); después, las grandes, cada una aparte (la planilla de valor

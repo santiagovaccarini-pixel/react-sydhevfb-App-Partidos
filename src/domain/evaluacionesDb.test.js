@@ -78,7 +78,7 @@ describe("leer las evaluaciones", () => {
   test("sin club no se pide nada", async () => {
     expect(await listarEvaluaciones(null, "zona_media")).toEqual({ evaluaciones: [], error: "" });
     expect(await leerReferencias(null)).toEqual({ referencias: {}, error: "" });
-    expect(await leerAjustes(null)).toEqual({ campos: [], opciones: [], error: "" });
+    expect(await leerAjustes(null)).toEqual({ campos: [], opciones: [], sinSentido: false, error: "" });
     expect(doble.llamadas).toEqual([]);
   });
 
@@ -184,7 +184,7 @@ describe("Ajustes: cabeceras y listas del club", () => {
       { data: null, error: { code: "PGRST205", message: "Could not find the table 'public.evaluaciones_campos' in the schema cache" } },
       { data: null, error: { code: "PGRST205", message: "Could not find the table 'public.evaluaciones_opciones' in the schema cache" } },
     ];
-    expect(await leerAjustes("eq-1")).toEqual({ campos: [], opciones: [], error: "" });
+    expect(await leerAjustes("eq-1")).toEqual({ campos: [], opciones: [], sinSentido: false, error: "" });
   });
 
   test("guardar una cabecera y una opción: los textos limpios, por club", async () => {

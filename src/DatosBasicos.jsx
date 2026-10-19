@@ -26,6 +26,7 @@ import {
 } from "./domain/lesionesDb.js";
 import { guardarSeleccionDeEvaluaciones, leerEvaluacionesPorJugador } from "./domain/evaluacionesDb.js";
 import { seleccionesAlCambiar } from "./domain/evaluaciones/categorias.js";
+import { COLUMNAS_CON_SENTIDO_DATOS, sentidoDe } from "./domain/sentido.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
@@ -88,8 +89,10 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   const [equipo, setEquipo] = useState(() => leerEquipoElegido());
   const [plantel, setPlantel] = useState([]);
   const [config, setConfig] = useState(null);
-  // Lo propio de Datos básicos › Ajustes: { [columna]: { etiquetas, oculto } }.
+  // Lo propio de Datos básicos › Ajustes: { [columna]: { etiquetas, oculto, sentido } }.
   const [columnasDatos, setColumnasDatos] = useState({});
+  // Sin la columna sentido en la base (sin 20261107): Ajustes no lo pregunta.
+  const [sinSentido, setSinSentido] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
@@ -166,6 +169,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     // Sin las tablas de Lesiones todavía, valen los textos del Excel.
     setConfig(respuestaConfig.error ? null : respuestaConfig.config);
     setColumnasDatos(respuestaConfig.columnas || {});
+    setSinSentido(Boolean(respuestaConfig.sinSentido));
     if (respuestaPlantel.error) setError(respuestaPlantel.error);
     setCargando(false);
   }, [equipoId]);
@@ -205,9 +209,11 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
           fija: clave === "jugador",
           oculta: clave !== "jugador" && Boolean(columnasDatos[clave]?.oculto),
           etiquetas: compartida ? undefined : propias,
+          // «Para los V.R.» (Más es mejor o Menos es mejor): solo las de números y tiempos.
+          sentido: COLUMNAS_CON_SENTIDO_DATOS.includes(clave) && !sinSentido ? sentidoDe(columnasDatos[clave]?.sentido, clave) : null,
         };
       }),
-    [config, columnasDatos, idioma],
+    [config, columnasDatos, idioma, sinSentido],
   );
 
   const columnas = useMemo(
@@ -239,6 +245,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     const respuesta = await leerConfigDatos(equipoId);
     if (!respuesta.error) setConfig(respuesta.config);
     setColumnasDatos(respuesta.columnas || {});
+    setSinSentido(Boolean(respuesta.sinSentido));
   };
 
   const sinFecha = plantel.filter((jugador) => !jugador.fecha_nacimiento).length;

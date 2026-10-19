@@ -6,6 +6,7 @@ import { EscudoDeClub } from "./components/ClubCrest";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaInferior } from "./components/SheetPanel.js";
+import { SentidoParaVr } from "./components/SentidoParaVr.jsx";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
@@ -47,6 +48,7 @@ import {
   leerReferencias,
   listarEvaluaciones,
 } from "./domain/evaluacionesDb.js";
+import { conSentidoEvaluaciones, sentidoDe } from "./domain/sentido.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
@@ -251,7 +253,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
       if (!respuestaEvaluaciones.error) setEvaluaciones(respuestaEvaluaciones.evaluaciones);
       if (!respuestaReferencias.error) setReferenciasPorTest(respuestaReferencias.referencias || {});
-      if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones });
+      if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones, sinSentido: respuestaAjustes.sinSentido });
       if (!respuestaCategorias.error) setFilasCategorias(respuestaCategorias.filas);
       return;
     }
@@ -264,7 +266,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       setReferenciasPorTest(respuestaReferencias.referencias || {});
     }
     // Sin poder leer los Ajustes, siguen los nombres del Excel.
-    if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones });
+    if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones, sinSentido: respuestaAjustes.sinSentido });
     setFilasCategorias(respuestaCategorias.filas);
     setCargando(false);
   }, [equipoId]);
@@ -1133,6 +1135,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
                           oculto: Boolean(propio?.oculto),
                           orden: propio?.orden ?? indice,
                           relativa,
+                          // «Para los V.R.»: en las de números y tiempos, con la base al día.
+                          sentido: conSentidoEvaluaciones(test, columna) && !filasAjustes.sinSentido ? sentidoDe(propio?.sentido, columna.clave) : null,
                         });
                       },
                     })}
@@ -1295,6 +1299,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             </button>
           </div>
         )}
+        {hoja.sentido && <SentidoParaVr valor={hoja.sentido} onCambiar={(sentido) => setHoja({ ...hoja, sentido })} />}
       </HojaInferior>
     ) : null;
 

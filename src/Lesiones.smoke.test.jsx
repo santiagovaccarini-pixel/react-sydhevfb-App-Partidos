@@ -1242,6 +1242,22 @@ describe("el módulo Lesiones", () => {
     expect(casos()).toEqual(["1", "4", "2", "3"]);
   });
 
+  test("Ajustes › Cabeceras: «Para los V.R.» solo en las de números (la edad, las horas y los días)", async () => {
+    await montar();
+    await navegar(contenedor, "Ajustes");
+    await tocar(botonQueEmpieza(contenedor, "Cabeceras"));
+    const paraLosVr = () => document.body.querySelector(".lesiones-hoja .sentido-para-vr");
+    await tocar(botonQueEmpieza(contenedor, "Parte del cuerpo lesionada"));
+    expect(paraLosVr()).toBe(null);
+    await tocar(boton(contenedor, "Cancelar"));
+    await tocar(botonQueEmpieza(contenedor, "Edad"));
+    expect(paraLosVr().querySelector(".chip-criterio.prendido").textContent).toBe("Más es mejor");
+    await tocar([...paraLosVr().querySelectorAll(".chip-criterio")].find((b) => b.textContent === "Menos es mejor"));
+    await tocar(boton(contenedor, "Guardar"));
+    await act(async () => Promise.resolve());
+    expect(datos.cabeceras.at(-1)).toMatchObject({ campo: "edad", sentido: "menos" });
+  });
+
   test("en Ajustes se renombran cabeceras y opciones en el idioma que se está usando", async () => {
     await montar();
     await navegar(contenedor, "Ajustes");

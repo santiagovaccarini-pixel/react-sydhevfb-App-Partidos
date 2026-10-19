@@ -232,12 +232,36 @@ describe("los Ajustes", () => {
       { data: [{ campo: "d", etiqueta_es: "Distancia" }], error: null },
       { data: [{ lista: "dispositivo", codigo: "catapult" }], error: null },
     ];
-    expect(await leerAjustesGps("eq-1")).toEqual({ campos: [{ campo: "d", etiqueta_es: "Distancia" }], opciones: [{ lista: "dispositivo", codigo: "catapult" }], error: "" });
+    expect(await leerAjustesGps("eq-1")).toEqual({ campos: [{ campo: "d", etiqueta_es: "Distancia" }], opciones: [{ lista: "dispositivo", codigo: "catapult" }], sinSentido: false, error: "" });
     doble.respuestas = [
       { data: null, error: { code: "42P01", message: 'relation "public.gps_campos" does not exist' } },
       { data: null, error: null },
     ];
-    expect(await leerAjustesGps("eq-1")).toEqual({ campos: [], opciones: [], error: "" });
+    expect(await leerAjustesGps("eq-1")).toEqual({ campos: [], opciones: [], sinSentido: false, error: "" });
+  });
+
+  test("sin la columna sentido (antes de 20261107), se leen como antes y Ajustes no lo pregunta", async () => {
+    doble.respuestas = [
+      { data: null, error: { code: "42703", message: "column gps_campos.sentido does not exist" } },
+      { data: [{ lista: "dispositivo", codigo: "catapult" }], error: null },
+      { data: [{ campo: "d", etiqueta_es: "Distancia" }], error: null },
+    ];
+    expect(await leerAjustesGps("eq-1")).toEqual({ campos: [{ campo: "d", etiqueta_es: "Distancia" }], opciones: [{ lista: "dispositivo", codigo: "catapult" }], sinSentido: true, error: "" });
+    const columnas = doble.llamadas.filter(([metodo]) => metodo === "select").map(([, cuales]) => cuales);
+    expect(columnas[0]).toContain("sentido");
+    expect(columnas[2]).not.toContain("sentido");
+  });
+
+  test("«Para los V.R.» se guarda solo cuando viene (y si es uno de los dos)", async () => {
+    const guardado = () => doble.llamadas.find((llamada) => llamada[0] === "upsert")[1];
+    await guardarCabeceraGps("eq-1", "d", { etiquetas: { "es-AR": "D" }, sentido: "menos" });
+    expect(guardado()).toMatchObject({ campo: "d", sentido: "menos" });
+    doble.llamadas.length = 0;
+    await guardarCabeceraGps("eq-1", "d", { etiquetas: { "es-AR": "D" } });
+    expect("sentido" in guardado()).toBe(false);
+    doble.llamadas.length = 0;
+    await guardarCabeceraGps("eq-1", "d", { etiquetas: { "es-AR": "D" }, sentido: "cualquiera" });
+    expect("sentido" in guardado()).toBe(false);
   });
 
   test("una columna del club lleva su tipo; una opción, su código", async () => {

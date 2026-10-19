@@ -1,5 +1,6 @@
 import { CATEGORIAS, categoriaDeTexto, categoriaPorCodigo, deDatosBasicos } from "./categorias.js";
 import { armarConfig as armarConfigDeDatos, opcionesDeCampo } from "../lesionesCampos.js";
+import { sentidoGuardado } from "../sentido.js";
 
 // Evaluaciones › Ajustes: el nombre de cada cabecera de cada test y las
 // opciones de cada lista, por club, como en Lesiones › Ajustes (pedido de
@@ -31,7 +32,7 @@ const conTexto = (etiquetas) => IDIOMAS.some((idioma) => String(etiquetas?.[idio
 export const configVacia = () => ({ campos: {}, listas: {} });
 
 // Lo que vino de la base, en la forma que usan las pantallas:
-// { campos: { test: { campo: { etiquetas, oculto, orden } } },
+// { campos: { test: { campo: { etiquetas, oculto, orden, sentido } } },
 //   listas: { lista: [{ codigo, etiquetas, oculto, orden }] },
 //   categorias: lo de Datos básicos › Ajustes (la lista Categoría del club),
 //   o null si no se pudo leer (valen las de la app) }.
@@ -44,6 +45,8 @@ export const armarConfig = (filasCampos = [], filasOpciones = [], filasCategoria
       etiquetas: { "es-AR": fila.etiqueta_es || "", "pt-BR": fila.etiqueta_pt || "" },
       oculto: Boolean(fila.oculto),
       orden: fila.orden ?? 0,
+      // «Más es mejor» o «Menos es mejor» para los V.R. (vacío: lo de la app).
+      sentido: sentidoGuardado(fila.sentido),
     };
   });
   [...filasOpciones]

@@ -5,6 +5,7 @@
 import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
 import { claveDeErrorConsentimiento } from "./consentimiento.js";
+import { faltaSentido, sentidoGuardado } from "./sentido.js";
 
 const COLUMNAS = "id, equipo_id, test, orden, jugador_id, persona, fecha, datos, creado_en, actualizado_en";
 
@@ -210,18 +211,22 @@ const COLUMNAS_OPCIONES = "lista, codigo, etiqueta_es, etiqueta_pt, oculto, orde
 // { campos: [filas], opciones: [filas], error }. Si las tablas todavía no
 // están, vuelve vacío y sin error (valen los nombres del Excel).
 export const leerAjustes = async (equipoId) => {
-  if (!equipoId) return { campos: [], opciones: [], error: "" };
-  const [campos, opciones] = await Promise.all([
-    supabase.from("evaluaciones_campos").select(COLUMNAS_CAMPOS).eq("equipo_id", equipoId),
+  if (!equipoId) return { campos: [], opciones: [], sinSentido: false, error: "" };
+  const leerCampos = (columnas) => supabase.from("evaluaciones_campos").select(columnas).eq("equipo_id", equipoId);
+  let [campos, opciones] = await Promise.all([
+    leerCampos(`${COLUMNAS_CAMPOS}, sentido`),
     supabase.from("evaluaciones_opciones").select(COLUMNAS_OPCIONES).eq("equipo_id", equipoId).order("orden", { ascending: true }),
   ]);
+  // Sin la columna sentido (la base sin 20261107): como antes, sin «Para los V.R.».
+  const sinSentido = Boolean(campos.error && faltaSentido(campos.error));
+  if (sinSentido) campos = await leerCampos(COLUMNAS_CAMPOS);
   const error = campos.error || opciones.error;
   if (error) {
     const clave = claveDeErrorEvaluaciones(error, "evaluaciones.error.noLeer");
-    if (clave === "evaluaciones.error.faltaMigracion") return { campos: [], opciones: [], error: "" };
-    return { campos: [], opciones: [], error: clave };
+    if (clave === "evaluaciones.error.faltaMigracion") return { campos: [], opciones: [], sinSentido, error: "" };
+    return { campos: [], opciones: [], sinSentido, error: clave };
   }
-  return { campos: campos.data || [], opciones: opciones.data || [], error: "" };
+  return { campos: campos.data || [], opciones: opciones.data || [], sinSentido, error: "" };
 };
 
 const sinMigracionDeAjustes = (error) => {
@@ -234,7 +239,9 @@ const falloDeAjustes = (error) =>
 
 const textoLimpio = (texto) => String(texto || "").trim();
 
-export const guardarCabecera = async (equipoId, test, campo, { etiquetas = {}, oculto = false, orden = 0 }) => {
+// Con `sentido`, también «Más es mejor» o «Menos es mejor» para los V.R. (sin
+// él no se toca: así anda también sin 20261107).
+export const guardarCabecera = async (equipoId, test, campo, { etiquetas = {}, oculto = false, orden = 0, sentido = null }) => {
   const { error } = await supabase.from("evaluaciones_campos").upsert(
     {
       equipo_id: equipoId,
@@ -244,6 +251,7 @@ export const guardarCabecera = async (equipoId, test, campo, { etiquetas = {}, o
       etiqueta_pt: textoLimpio(etiquetas["pt-BR"]),
       oculto: Boolean(oculto),
       orden,
+      ...(sentidoGuardado(sentido) ? { sentido: sentidoGuardado(sentido) } : {}),
       actualizado_en: new Date().toISOString(),
     },
     { onConflict: "equipo_id,test,campo" },

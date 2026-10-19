@@ -6,6 +6,7 @@ import { EscudoDeClub } from "./components/ClubCrest";
 import { BotonVolver, DatoDetalle } from "./components/BotonVolver.jsx";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaInferior } from "./components/SheetPanel.js";
+import { SentidoParaVr } from "./components/SentidoParaVr.jsx";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
@@ -66,6 +67,7 @@ import {
   leerMinutosDeEntrenamiento,
   listarLesiones,
 } from "./domain/lesionesDb.js";
+import { CAMPOS_CON_SENTIDO_LESIONES, sentidoDe } from "./domain/sentido.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, fechaLarga, fechaYHora, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
@@ -1036,6 +1038,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
                             etiquetas: { ...(propio?.etiquetas || campo.etiquetas) },
                             oculto: Boolean(propio?.oculto),
                             orden: propio?.orden ?? CAMPOS.indexOf(campo),
+                            // «Para los V.R.»: en las de números, con la base al día.
+                            sentido: CAMPOS_CON_SENTIDO_LESIONES.includes(campo.clave) && !config?.sinSentido ? sentidoDe(propio?.sentido, campo.clave) : null,
                           });
                         },
                       }),
@@ -1854,6 +1858,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             </button>
           </div>
         )}
+        {hoja.sentido && <SentidoParaVr valor={hoja.sentido} onCambiar={(sentido) => setHoja({ ...hoja, sentido })} />}
       </HojaInferior>
     ) : null;
 

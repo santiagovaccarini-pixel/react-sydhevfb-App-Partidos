@@ -900,6 +900,16 @@ select pruebas.esperar('...y los ve', (select count(*) from gps_campos) + (selec
 select pruebas.debe_fallar('Una columna propia es de un tipo conocido', $$insert into gps_campos (equipo_id, campo, etiqueta_es, tipo) values ('00000000-0000-0000-0000-0000000000c1', 'propia_otra', 'Otra', 'formula')$$, 'gps_campos_tipo');
 select pruebas.debe_fallar('...ni un nombre de más de 120 letras', $$insert into gps_campos (equipo_id, campo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c1', 'd', repeat('x', 121))$$, 'gps_campos_etiquetas');
 select pruebas.debe_fallar('No cambia los Ajustes de otro club', $$insert into gps_opciones (equipo_id, lista, codigo, etiqueta_es) values ('00000000-0000-0000-0000-0000000000c2', 'dispositivo', 'espia', 'Espía')$$, 'row-level security');
+-- «Para los V.R.»: Más es mejor o Menos es mejor de cada medida
+-- (20261107_sentido_de_las_medidas.sql), en la cabecera.
+select pruebas.esperar('Marca «Menos es mejor» en una medida', pruebas.filas($$update gps_campos set sentido = 'menos' where campo = 'rhie_max'$$), 1);
+select pruebas.esperar('...lo cambia', pruebas.filas($$update gps_campos set sentido = 'mas' where campo = 'rhie_max'$$), 1);
+select pruebas.esperar('...y lo ve', (select sentido from gps_campos where campo = 'rhie_max'), 'mas');
+select pruebas.debe_fallar('Solo «mas» o «menos»', $$update gps_campos set sentido = 'igual' where campo = 'rhie_max'$$, 'gps_campos_sentido');
+select pruebas.debe_fallar('No lo marca en otro club', $$insert into gps_campos (equipo_id, campo, sentido) values ('00000000-0000-0000-0000-0000000000c2', 'd', 'mas')$$, 'row-level security');
+reset role;
+select pruebas.esperar('Las cuatro cabeceras lo guardan con su control', (select count(*) from pg_constraint where conname in ('lesiones_campos_sentido', 'evaluaciones_campos_sentido', 'gps_campos_sentido', 'datos_basicos_columnas_sentido')), 4);
+select pruebas.ser('gps@uno.com'); set role authenticated;
 -- Las reglas de la carga de cada día (20261020_gps_reglas.sql).
 select pruebas.esperar('Cambia las reglas de la carga', pruebas.filas($$insert into gps_reglas (equipo_id, reglas) values ('00000000-0000-0000-0000-0000000000c1', '{"parteDelTiempo":0.8}')$$), 1);
 select pruebas.esperar('...las vuelve a cambiar', pruebas.filas($$update gps_reglas set reglas = '{"parteDelTiempo":0.75,"minimoRegenerativo":6}' where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);

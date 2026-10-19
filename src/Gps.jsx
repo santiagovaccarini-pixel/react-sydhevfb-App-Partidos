@@ -6,6 +6,7 @@ import { EscudoDeClub } from "./components/ClubCrest";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaInferior } from "./components/SheetPanel.js";
+import { SentidoParaVr } from "./components/SentidoParaVr.jsx";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarGps from "./ImportarGps.jsx";
@@ -16,6 +17,7 @@ import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, useGuiaDelModulo } from "./components/Guia.jsx";
 import { COLUMNAS_FIJAS, absolutaDe, codigoNuevo, columnaOculta, columnasVisibles, opcionesDeLista, opcionesDelExcel, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { TIPOS_PROPIOS, armarConfigGps, claveDeColumnaPropia, configGpsVacia, gpsDelClub } from "./domain/gps/ajustes.js";
+import { conSentidoGps, sentidoDe } from "./domain/sentido.js";
 import { AJUSTES_DE_REGLAS, REGLAS_CARGA, reglasDelClub, vrPartidoDeLasReglas } from "./domain/gps/cargar.js";
 import { PROMEDIOS } from "./domain/gps/columnas.js";
 import { FILAS_DEL_INFORME, ZONAS_DE_IMPACTO, ZONA_AL_ABRIR, comparaciones, porcentajesVsVr, vistaDelGps } from "./domain/gps/informe.js";
@@ -246,7 +248,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     setPlantel(respuestaPlantel.plantel || []);
     setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
     // Sin poder leer los Ajustes, siguen los nombres del Excel.
-    if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones });
+    if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones, sinSentido: respuestaAjustes.sinSentido });
     // Sin poder leer las reglas, siguen las de antes (o las de la plantilla).
     if (!respuestaReglas.error) {
       setReglasGuardadas(respuestaReglas.reglas);
@@ -1327,6 +1329,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
                       orden: propio?.orden ?? indice,
                       tipo: columna.propia ? columna.tipo : null,
                       relativa,
+                      // «Para los V.R.»: en las de números y tiempos, con la base al día.
+                      sentido: conSentidoGps(columna) && !filasAjustes.sinSentido ? sentidoDe(propio?.sentido, columna.clave) : null,
                     });
                   },
                 });
@@ -1501,6 +1505,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         </div>
         {fija ? <p className="lesiones-ayuda lesiones-nota-fija">{t("gps.ajustes.noSeOculta")}</p> : chipsMostrar(hoja, setHoja)}
         {nota && <p className="lesiones-ayuda lesiones-nota-fija">{nota}</p>}
+        {hoja.sentido && <SentidoParaVr valor={hoja.sentido} onCambiar={(sentido) => setHoja({ ...hoja, sentido })} />}
       </HojaInferior>
     ) : null;
 

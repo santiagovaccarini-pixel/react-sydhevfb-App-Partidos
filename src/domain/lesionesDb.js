@@ -7,6 +7,7 @@ import { COLUMNAS_DE_DATOS_BASICOS, armarConfig, campoPorClave, esCalculado, fil
 import { agregarJugador, cargarPlantel, normalizarJugador, quitarJugador } from "./plantel.js";
 import { esSoloLectura, leerAlDia, masNuevasPrimero } from "./alDia.js";
 import { hoyISO } from "../idioma/formatos.js";
+import { faltaSentido, sentidoGuardado } from "./sentido.js";
 
 const COLUMNAS_SIN_PERSONA =
   "id, equipo_id, jugador_id, numero_caso, fecha_lesion, fecha_transicion, fecha_retorno_entrenamiento, fecha_alta, datos, creado_en, actualizado_en";
@@ -385,12 +386,17 @@ export const quitarJugadorBasico = async (id) => {
 
 // ------------------------------------------- Cabeceras y listas por club --
 
+const COLUMNAS_CAMPOS = "campo, etiqueta_es, etiqueta_pt, oculto, orden";
 const leerFilasConfig = async (equipoId) => {
-  const [campos, opciones] = await Promise.all([
-    supabase.from("lesiones_campos").select("campo, etiqueta_es, etiqueta_pt, oculto, orden").eq("equipo_id", equipoId).order("orden"),
+  const leerCampos = (columnas) => supabase.from("lesiones_campos").select(columnas).eq("equipo_id", equipoId).order("orden");
+  let [campos, opciones] = await Promise.all([
+    leerCampos(`${COLUMNAS_CAMPOS}, sentido`),
     supabase.from("lesiones_opciones").select("campo, codigo, etiqueta_es, etiqueta_pt, oculto, orden").eq("equipo_id", equipoId).order("orden"),
   ]);
-  return { campos, opciones, error: campos.error || opciones.error };
+  // Sin la columna sentido (la base sin 20261107): como antes, sin «Para los V.R.».
+  const sinSentido = Boolean(campos.error && faltaSentido(campos.error));
+  if (sinSentido) campos = await leerCampos(COLUMNAS_CAMPOS);
+  return { campos, opciones, sinSentido, error: campos.error || opciones.error };
 };
 
 // Lo que el catálogo del Excel tiene y el club todavía no: la primera vez
@@ -427,7 +433,9 @@ export const leerConfig = async (equipoId) => {
     filas = await leerFilasConfig(equipoId);
     if (filas.error) return { config: armarConfig(), ...fallo(filas.error, "lesiones.error.noLeer") };
   }
-  return { config: armarConfig(filas.campos.data || [], filas.opciones.data || []), error: "" };
+  const config = armarConfig(filas.campos.data || [], filas.opciones.data || []);
+  config.sinSentido = filas.sinSentido;
+  return { config, error: "" };
 };
 
 // Datos básicos › Ajustes (20261028_datos_basicos_ajustes.sql). Las
@@ -460,19 +468,25 @@ export const leerConfigDatos = async (equipoId) => {
     if ((camposNuevos.length || opcionesNuevas.length) && !sembrado.some((uno) => uno.error)) [campos, opciones] = await leer();
   }
   const config = campos.error || opciones.error ? armarConfig() : armarConfig(campos.data || [], opciones.data || []);
-  const propias = await supabase.from("datos_basicos_columnas").select("columna, etiqueta_es, etiqueta_pt, oculto").eq("equipo_id", equipoId);
+  const leerPropias = (columnas) => supabase.from("datos_basicos_columnas").select(columnas).eq("equipo_id", equipoId);
+  let propias = await leerPropias("columna, etiqueta_es, etiqueta_pt, oculto, sentido");
+  // Sin la columna sentido (la base sin 20261107): como antes, sin «Para los V.R.».
+  const sinSentido = Boolean(propias.error && faltaSentido(propias.error));
+  if (sinSentido) propias = await leerPropias("columna, etiqueta_es, etiqueta_pt, oculto");
   const columnas = Object.fromEntries(
     (propias.error ? [] : propias.data || []).map((fila) => [
       fila.columna,
-      { etiquetas: { "es-AR": fila.etiqueta_es || "", "pt-BR": fila.etiqueta_pt || "" }, oculto: Boolean(fila.oculto) },
+      { etiquetas: { "es-AR": fila.etiqueta_es || "", "pt-BR": fila.etiqueta_pt || "" }, oculto: Boolean(fila.oculto), sentido: sentidoGuardado(fila.sentido) },
     ]),
   );
-  return { config, columnas, error: campos.error || opciones.error ? fallo(campos.error || opciones.error, "lesiones.error.noLeer").error : "" };
+  return { config, columnas, sinSentido, error: campos.error || opciones.error ? fallo(campos.error || opciones.error, "lesiones.error.noLeer").error : "" };
 };
 
 // Lo propio de una columna de Datos básicos: su nombre (solo el de las que
-// no son de Lesiones) y si se esconde en la tabla de Datos básicos.
-export const guardarColumnaDatos = async (equipoId, columna, { etiquetas = {}, oculto = false }) => {
+// no son de Lesiones), si se esconde en la tabla de Datos básicos y, con
+// `sentido`, «Más es mejor» o «Menos es mejor» para los V.R. (sin él no se
+// toca: así anda también sin 20261107).
+export const guardarColumnaDatos = async (equipoId, columna, { etiquetas = {}, oculto = false, sentido = null }) => {
   const { error } = await supabase.from("datos_basicos_columnas").upsert(
     {
       equipo_id: equipoId,
@@ -480,6 +494,7 @@ export const guardarColumnaDatos = async (equipoId, columna, { etiquetas = {}, o
       etiqueta_es: String(etiquetas["es-AR"] || "").trim(),
       etiqueta_pt: String(etiquetas["pt-BR"] || "").trim(),
       oculto: Boolean(oculto),
+      ...(sentidoGuardado(sentido) ? { sentido: sentidoGuardado(sentido) } : {}),
     },
     { onConflict: "equipo_id,columna" },
   );
@@ -489,7 +504,9 @@ export const guardarColumnaDatos = async (equipoId, columna, { etiquetas = {}, o
   return fallo(error, "lesiones.ajustes.errorGuardar");
 };
 
-export const guardarCampo = async (equipoId, campo, { etiquetas = {}, oculto = false, orden = 0 }) => {
+// Con `sentido`, también «Más es mejor» o «Menos es mejor» para los V.R. (sin
+// él no se toca: así anda también sin 20261107).
+export const guardarCampo = async (equipoId, campo, { etiquetas = {}, oculto = false, orden = 0, sentido = null }) => {
   const { error } = await supabase.from("lesiones_campos").upsert(
     {
       equipo_id: equipoId,
@@ -498,6 +515,7 @@ export const guardarCampo = async (equipoId, campo, { etiquetas = {}, oculto = f
       etiqueta_pt: String(etiquetas["pt-BR"] || "").trim(),
       oculto: Boolean(oculto),
       orden,
+      ...(sentidoGuardado(sentido) ? { sentido: sentidoGuardado(sentido) } : {}),
       actualizado_en: new Date().toISOString(),
     },
     { onConflict: "equipo_id,campo" },
