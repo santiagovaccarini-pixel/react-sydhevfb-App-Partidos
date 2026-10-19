@@ -4265,6 +4265,19 @@ confirme.**
       la planilla. En un cuestionario eligió «Que lo diga (Recomendado)»: en esas variables,
       «Datos» suma «· N sin tiempo» (las filas con el dato y sin tiempo o con tiempo 0), también
       cuando no alcanza para calcular. La cuenta no cambia.
+    - **Los atípicos con promedio de 1 o menos, también en las absolutas** (19/10). Santiago vio
+      en Dist «Quedaron afuera los menores a -1997,8» y pidió revisar los rangos: «nunca van a
+      haber datos negativos en esa variable». La cuenta es la de la planilla (columna F de
+      «1.3 Proceso_Absolutos»: CUARTIL 1 − 1,5 × (CUARTIL 3 − CUARTIL 1)); con muchos datos
+      chicos y una cola de grandes, el límite de abajo da negativo y por abajo no se descarta
+      nada. Él respondió: «Agrega la condicion de que si el promedio es menor a 1 no descarta
+      nada y no se ordenan los datos de menor a mayor, se dejan como estan, por eso te da
+      negativo». Hecho: si el promedio de todos los datos es 1 o menos, no se descarta nada,
+      también en las absolutas (su hoja no lo tenía; se usa «1 o menos», como la hoja de
+      relativos). El orden no cambia nada: CUARTIL de Excel da lo mismo con los datos
+      desordenados (comprobado con datos inventados; la app no cambia el orden de las filas).
+      Queda pendiente que elija cómo se muestra el límite de abajo cuando no deja afuera ningún
+      dato (le preguntó dos veces; no eligió).
     - **Correr los SQL por la conexión de Supabase** (permiso del 19/10): una consulta con
       `drop trigger` se queda esperando y se corta al minuto sin aplicar nada, aunque el disparador
       no exista. Si pasa, se corre por partes, cada una completa (así se corrió `20261026`).

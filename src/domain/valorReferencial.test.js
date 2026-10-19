@@ -187,6 +187,37 @@ describe("El valor referencial, con la lógica de la planilla del club", () => {
     expect(sinAtipicos(datos.map((dato) => dato.numerador)).quedan).toContain(false);
   });
 
+  test("una absoluta con promedio de 1 o menos tampoco descarta nada (Santiago, 19/10)", () => {
+    // El 3 sería atípico por los cuartiles, pero el promedio da 0,806.
+    const valores = [0.2, 0.3, 0.25, 0.28, 3];
+    expect(sinAtipicos(valores).quedan).toContain(false);
+    const r = calcularValorReferencial(valores.map((valor) => ({ valor })));
+    expect(r.descartados).toBe(0);
+    expect(r.veces).toBeNull();
+    expect(r.atipicos).toEqual({ desde: null, hasta: null, indices: [] });
+    cerca(0.806)(r.promedio);
+    // Exactamente 1, tampoco (como la hoja de relativos: «1 o menos»).
+    const justo1 = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 5.5];
+    expect(sinAtipicos(justo1).quedan).toContain(false);
+    expect(calcularValorReferencial(justo1.map((valor) => ({ valor }))).descartados).toBe(0);
+    // Con más de 1, sí: los cuartiles.
+    expect(calcularValorReferencial([20, 30, 25, 28, 300].map((valor) => ({ valor }))).descartados).toBe(1);
+  });
+
+  test("el orden de los datos no cambia nada (los cuartiles, como CUARTIL de Excel)", () => {
+    const ordenados = [100, 200, 300, 400, 500, 600, 800, 1000, 1200, 1500, 6000];
+    const desordenados = [1500, 300, 6000, 100, 1000, 500, 200, 1200, 800, 400, 600];
+    const a = calcularValorReferencial(ordenados.map((valor) => ({ valor })));
+    const b = calcularValorReferencial(desordenados.map((valor) => ({ valor })));
+    expect(b.valores).toEqual(a.valores);
+    expect(b.porcentajes).toEqual(a.porcentajes);
+    // Q1 350 y Q3 1100: de -775 a 2225; afuera, el 6000.
+    expect([a.atipicos.desde, a.atipicos.hasta]).toEqual([-775, 2225]);
+    expect([b.atipicos.desde, b.atipicos.hasta]).toEqual([-775, 2225]);
+    expect(desordenados[b.atipicos.indices[0]]).toBe(6000);
+    cerca(660)(a.promedio);
+  });
+
   test("sin datos, con uno solo o sin variación no hay V.R.", () => {
     expect(calcularValorReferencial([])).toBeNull();
     expect(calcularValorReferencial([{ valor: 3 }])).toBeNull();
