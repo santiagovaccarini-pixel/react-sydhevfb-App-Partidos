@@ -2022,6 +2022,27 @@ describe("GPS", () => {
     expect(barra()).toContain(`${total} de ${total} elegidas`);
   });
 
+  test("Valores de referencia › «Agregar V.R.» con la planilla: en las por minuto, «Datos» dice cuántas filas no entran por no tener tiempo", async () => {
+    datos.sinPlanilla = false;
+    datos.referencias = VR();
+    datos.filas = [
+      ...FILAS_PLANILLA(),
+      fila("z1", 30, { jugador_id: 1 }, diasAntes(4), { microciclo: 30, d: 500, tiempo: 0, tarea_partido: "partido_oficial_torneo", dispositivo: "catapult" }),
+      fila("z2", 31, { jugador_id: 2 }, diasAntes(4), { microciclo: 30, d: 0, tiempo: 0, tarea_partido: "partido_oficial_torneo", dispositivo: "catapult" }),
+    ];
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    await tocar(boton("Agregar V.R. de Catapult"));
+    await escribir(contenedor.querySelector("#planilla-vr-nombre"), "Con tiempo 0");
+    await tocar(siguiente());
+    const datosDe = (clave) => contenedor.querySelector(`.planilla-vr-tabla tr[data-medida="${clave}"] td.datos`).textContent;
+    // En la planilla darían #DIV/0!: acá no entran y se dice cuántas.
+    expect(datosDe("d_min")).toMatch(/ · 2 sin tiempo$/);
+    // En las absolutas, no.
+    expect(datosDe("d")).not.toContain("sin tiempo");
+    expect(contenedor.querySelector('.planilla-vr-tarjeta[data-medida="d_min"] .planilla-vr-datos').textContent).toMatch(/ · 2 sin tiempo$/);
+  });
+
   test("Valores de referencia › un V.R. de la planilla: «Recalcular» pregunta y usa la misma muestra con los datos de hoy; un solo nombre; «Volver»", async () => {
     datos.sinPlanilla = false;
     datos.referencias = [...VR(), DE_LA_PLANILLA()];

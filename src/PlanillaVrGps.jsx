@@ -203,9 +203,24 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
     if (respuesta?.error) setError(t(respuesta.error));
   };
 
+  // Datos: cuántos se usaron, los atípicos y, en las por minuto, las filas
+  // que no entran por no tener tiempo (Santiago, 19/10: «Que lo diga»).
   const datos = (clave) => {
     const resultado = calculos?.[clave]?.resultado;
-    if (!resultado) return t("gps.vr.planilla.sinDatos");
+    const sinTiempo = calculos?.[clave]?.sinTiempo || 0;
+    const conSinTiempo = sinTiempo > 0 && (
+      <>
+        {" · "}
+        <span className="planilla-vr-sin-tiempo">{plural("gps.vr.planilla.sinTiempo", sinTiempo)}</span>
+      </>
+    );
+    if (!resultado)
+      return (
+        <>
+          {t("gps.vr.planilla.sinDatos")}
+          {conSinTiempo}
+        </>
+      );
     return (
       <>
         {t("gps.vr.planilla.usados", { usados: resultado.usados, n: resultado.n })}
@@ -217,6 +232,7 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
             </button>
           </>
         )}
+        {conSinTiempo}
       </>
     );
   };

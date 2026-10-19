@@ -4257,6 +4257,14 @@ confirme.**
       cuestionario (la celda D10, «Menos de 12402») y eligió «Con todas las filas (Recomendado)».
       **Queda prohibido** copiar en la app el límite de filas de la planilla, salvo un pedido
       nuevo.
+    - **Las por minuto con tiempo 0** (19/10; Santiago: «Para los relativos que tienen tiempo pero
+      tienen dato 0 que en la planilla da div 0 y da error, que hiciste?»). En la planilla, una
+      fila con tiempo 0 da #DIV/0! y el V.R. queda en blanco; hay que borrarla a mano. La app no
+      la usa (tampoco la que no tiene tiempo) y calcula con las demás; el dato 0 con tiempo entra
+      como 0 por minuto, como en la planilla, y si todos los datos son 0 el promedio usa 0,01, como
+      la planilla. En un cuestionario eligió «Que lo diga (Recomendado)»: en esas variables,
+      «Datos» suma «· N sin tiempo» (las filas con el dato y sin tiempo o con tiempo 0), también
+      cuando no alcanza para calcular. La cuenta no cambia.
     - **Correr los SQL por la conexión de Supabase** (permiso del 19/10): una consulta con
       `drop trigger` se queda esperando y se corta al minuto sin aplicar nada, aunque el disparador
       no exista. Si pasa, se corre por partes, cada una completa (así se corrió `20261026`).

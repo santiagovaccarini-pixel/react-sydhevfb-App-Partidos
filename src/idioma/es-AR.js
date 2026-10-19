@@ -899,6 +899,8 @@ export default {
         verAtipicos_one: "Ver {{n}} atípico",
         verAtipicos_other: "Ver {{n}} atípicos",
         sinDatos: "Sin datos suficientes",
+        sinTiempo_one: "{{n}} sin tiempo",
+        sinTiempo_other: "{{n}} sin tiempo",
         datosDe: "Datos: {{datos}}",
         atipicosTitulo: "Atípicos de {{medida}} ({{n}})",
         atipicosTexto15: "Quedaron afuera los menores a {{desde}} y los mayores a {{hasta}}: 1,5 veces el rango entre el primer y el tercer cuartil (así se descarta hasta el 10 %).",

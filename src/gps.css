@@ -2075,6 +2075,10 @@
   text-decoration: underline;
   cursor: pointer;
 }
+/* «3 sin tiempo», sin partirse (Santiago, 19/10). */
+.gps-marco .planilla-vr-sin-tiempo {
+  white-space: nowrap;
+}
 .planilla-vr-ver-atipicos:hover {
   transform: none;
   box-shadow: none;

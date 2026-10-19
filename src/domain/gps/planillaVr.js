@@ -43,9 +43,12 @@ export const datoDeLaFila = (columna, fila) => {
   return { valor: datos[columna.clave] };
 };
 
-// Cada medida con las filas de la muestra: { clave: { resultado, atipicos } }.
-// resultado, el de calcularValorReferencial (null si no alcanza); atipicos,
-// las filas que quedaron afuera, de menor a mayor: [{ fila, valor, bajo }].
+// Cada medida con las filas de la muestra: { clave: { resultado, atipicos,
+// sinTiempo } }. resultado, el de calcularValorReferencial (null si no
+// alcanza); atipicos, las filas que quedaron afuera, de menor a mayor: [{
+// fila, valor, bajo }]; sinTiempo, en las por minuto, cuántas filas tienen
+// el dato pero no entran por no tener tiempo o tenerlo en 0 (en la planilla,
+// #DIV/0!; Santiago, 19/10: «Que lo diga»).
 export const calcularPlanilla = (filas, medidas, eleccion) =>
   Object.fromEntries(
     medidas.map((columna) => {
@@ -67,7 +70,8 @@ export const calcularPlanilla = (filas, medidas, eleccion) =>
             })
             .sort((a, b) => a.valor - b.valor)
         : [];
-      return [columna.clave, { resultado, atipicos }];
+      const sinTiempo = relativa ? datos.filter((dato) => esNumero(dato.numerador) && !(dato.denominador > 0)).length : 0;
+      return [columna.clave, { resultado, atipicos, sinTiempo }];
     }),
   );
 
