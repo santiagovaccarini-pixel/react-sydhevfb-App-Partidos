@@ -1946,6 +1946,38 @@
   font-size: 12px;
   white-space: normal;
 }
+/* Un valor del V.R.: se toca para ver todos los decimales (Santiago, 19/10). */
+.gps-marco .planilla-vr-valor {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+}
+.gps-marco .planilla-vr-valor:hover {
+  transform: none;
+  box-shadow: none;
+  background: rgba(15, 23, 42, 0.06);
+}
+.gps-marco .planilla-vr-valor:active {
+  transform: none;
+  box-shadow: none;
+}
+.gps-marco .planilla-vr-valor:focus-visible {
+  outline: 2px solid #d6b25e;
+  outline-offset: 1px;
+}
+.gps-marco .planilla-vr-categorias li .planilla-vr-valor {
+  width: auto;
+  text-align: right;
+}
 .gps-marco .planilla-vr-tabla td.valor b {
   display: block;
   color: #0f172a;
@@ -2091,16 +2123,28 @@
 .gps-marco .referencias-calculado {
   margin: -4px 0 10px;
 }
-/* La planilla: qué medidas entran y, en Manual, los desvíos de cada
-   categoría con la suma de los % (Santiago, 19/10). */
+/* La planilla: qué medidas entran (en el paso 1, debajo del nombre) y, en
+   Manual, los desvíos de cada categoría con la suma de los % (Santiago,
+   19/10). */
+.gps-marco .planilla-vr-medidas {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cam-linea);
+}
+.gps-marco .planilla-vr-medidas-titulo {
+  color: var(--cam-gris);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
 .gps-marco .planilla-vr-medidas-barra {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px 12px;
-  margin: 0 0 12px;
-  color: #e2e8f0;
+  color: var(--cam-tinta);
   font-size: 14px;
   font-weight: 700;
 }
@@ -2108,10 +2152,26 @@
 .gps-marco .planilla-vr-tabla tr.con-cortes > td {
   border-bottom: 0;
 }
+/* En la compu, cada desvío debajo de su columna (Santiago, 19/10). */
+.gps-marco .planilla-vr-tabla .planilla-vr-fila-cortes > th,
 .gps-marco .planilla-vr-tabla .planilla-vr-fila-cortes > td {
   padding: 0 8px 10px;
+}
+.gps-marco .planilla-vr-tabla .planilla-vr-fila-cortes > td.planilla-vr-cortes-suma {
   text-align: left;
   white-space: normal;
+}
+.gps-marco .planilla-vr-tabla .planilla-vr-fila-cortes > td[class^="cat-"] {
+  padding: 0 4px 10px;
+}
+.gps-marco .planilla-vr-tabla .planilla-vr-fila-cortes .planilla-vr-elegir {
+  width: 100%;
+  min-width: 70px;
+  max-width: 96px;
+  height: 32px;
+  padding: 0 2px 0 6px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .gps-marco .planilla-vr-cortes {
   display: grid;
@@ -2121,9 +2181,6 @@
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   background: #f8fafc;
-}
-.gps-marco .planilla-vr-tabla .planilla-vr-cortes {
-  margin: 0;
 }
 .gps-marco .planilla-vr-cortes-titulo {
   color: #475569;

@@ -4230,6 +4230,33 @@ confirme.**
       que elijo (como ahora)». Con eso las cinco categorías cubren toda la muestra y la suma da
       siempre 100 %; el control queda por seguridad. **Queda prohibido** tomar en Manual el % de
       Bueno de Automático, como AC29, salvo un pedido nuevo.
+    - **Segundo cambio del 19/10, al probarla (2026.10.19.7; UI-060).** Santiago:
+      - «si eso tiene que quedar en el paso 1, el paso 2 es el resultado de los que hiciste»: qué
+        variables entran se elige en el paso 1, debajo del nombre («Variables del V.R.», «N de M
+        elegidas» y «Elegir variables»); el paso 2 es el resultado. Al volver del paso 2, la
+        muestra sigue filtrada como estaba (antes se perdían los filtros) y lo elegido en cada
+        variable sigue; un V.R. nuevo arranca sin filtros.
+      - «hace que cada desvio quede debajo de su columna asi queda mejor y no es gigante»: en la
+        compu, en Manual, debajo de la variable va una fila «Desvíos» con la suma de los % y cada
+        desvío en la columna de su categoría (Bueno, el promedio, no tiene). En el celular siguen
+        juntos en la tarjeta.
+      - «todo queda redondeado a dos decimales y si se quiere ver mas se hace click sobre la celda
+        y se aumentan los decimales pero siempre en 2»: los valores del V.R. y de los atípicos van
+        con 2 decimales; tocando un valor del V.R. se ven todos y, otra vez, vuelve a 2. Los
+        tiempos siguen en horas y minutos. Es en esta pantalla: las tarjetas de Valores de
+        referencia y el informe siguen con el formato de cada columna.
+      - «y cambia medida por variables»: en esta pantalla dice «Variables» donde decía «Medida» o
+        «Medidas».
+    - **Por qué no da igual que la planilla con muchas filas** (19/10, al comparar el mismo V.R.:
+      «no me esta dando lo mismo»). En el archivo de la planilla, «1.3 Proceso_Absolutos» tiene
+      fórmulas hasta la fila 3738, que leen «1.1 Datos_Absolutos» hasta la fila 3720: toma como
+      mucho 3716 filas. Además, el promedio (SUBTOTAL hasta la fila 10006) cuenta como mucho 9984
+      filas y el desvío llega hasta la 100006. «2.3 Proceso_Relativos» tiene los mismos límites.
+      La app usa toda la muestra: con hasta 3716 filas da lo mismo que la planilla (los desvíos
+      elegidos coincidían; cambiaban el promedio y el desvío). Santiago lo confirmó en un
+      cuestionario (la celda D10, «Menos de 12402») y eligió «Con todas las filas (Recomendado)».
+      **Queda prohibido** copiar en la app el límite de filas de la planilla, salvo un pedido
+      nuevo.
     - **Correr los SQL por la conexión de Supabase** (permiso del 19/10): una consulta con
       `drop trigger` se queda esperando y se corta al minuto sin aplicar nada, aunque el disparador
       no exista. Si pasa, se corre por partes, cada una completa (así se corrió `20261026`).
