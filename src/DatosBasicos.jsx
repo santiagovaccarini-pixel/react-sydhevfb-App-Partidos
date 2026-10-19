@@ -29,6 +29,7 @@ import { seleccionesAlCambiar } from "./domain/evaluaciones/categorias.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
+import FichaAtleta from "./FichaAtleta.jsx";
 import "./lesiones.css";
 
 // Datos básicos: los jugadores del club con lo que cada módulo necesita (la
@@ -111,6 +112,8 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // (Santiago, 17/10; desde el 18/10, por base) { jugador, nueva, base, fecha, resolver }
   const [cambioCategoria, setCambioCategoria] = useState(null);
   const [aBorrar, setABorrar] = useState(null);
+  // La ficha del jugador elegido (solo el administrador): exportar sus datos.
+  const [ficha, setFicha] = useState(null);
   const [importando, setImportando] = useState(false);
 
   const equipoId = equipo?.id || null;
@@ -637,6 +640,9 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
                       if (elegidos.length) setABorrar(elegidos);
                     }
               }
+              // «Ver ficha», solo para el administrador del club: lo que el
+              // atleta pide sobre sus datos (20261104).
+              onAbrirFila={permisos?.adminClub && !soloLectura ? (id) => setFicha(plantel.find((uno) => uno.id === id) || null) : undefined}
             />
           </section>
           )}
@@ -660,6 +666,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         onConfirmar={confirmarBorrar}
         onCancelar={() => setABorrar(null)}
       />
+      {ficha && <FichaAtleta key={ficha.id} jugador={ficha} onCerrar={() => setFicha(null)} />}
       {/* Arranca en «Sí, es el mismo» (no agrega nada); cerrar no agrega ni descarta. */}
       <HojaConfirmar
         abierta={Boolean(delMismo)}

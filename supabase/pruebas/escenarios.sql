@@ -1258,7 +1258,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_referencia_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -2303,6 +2303,47 @@ select pruebas.ser('rita@nueve.com'); set role authenticated;
 select pruebas.esperar('Quien se fue del club no ve las personas que se confirmaron', (select count(*) from consentimientos where equipo_id = '00000000-0000-0000-0000-0000000000e5' and alcance = 'personas'), 0);
 reset role;
 
+-- ------------------------------------ Exportar los datos de un atleta --
+-- 20261104. En el club Nueve (de arriba): un atleta con un nombre anterior,
+-- una lesión, una evaluación, una fila de GPS y dos partidos (en uno está, con
+-- compañeros; en el otro, no). Se carga sin cuenta.
+reset role;
+select set_config('request.jwt.claims', '', false);
+insert into public.jugadores (id, nombre, equipo_id, fecha_nacimiento) overriding system value values (9101, 'ANTES NOMBRE', '00000000-0000-0000-0000-0000000000e5', '2004-05-06');
+update public.jugadores set nombre = 'ATLETA EXPORTA' where id = 9101;
+insert into public.lesiones (equipo_id, jugador_id, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000e5', 9101, '2026-07-01', '{"parte_cuerpo":"coxa","lado":"direito"}');
+update public.lesiones set fecha_alta = '2026-07-20' where jugador_id = 9101;
+insert into public.evaluaciones (equipo_id, test, jugador_id, fecha, datos) values ('00000000-0000-0000-0000-0000000000e5', 'zona_media', 9101, '2026-07-02', '{"lumbar":200}');
+insert into public.gps (equipo_id, fecha, jugador_id, datos) values ('00000000-0000-0000-0000-0000000000e5', '2026-07-03', 9101, '{"d":5000}');
+insert into public.lesiones_opciones (equipo_id, campo, codigo, etiqueta_es, etiqueta_pt) values ('00000000-0000-0000-0000-0000000000e5', 'lado', 'direito', 'Derecho (del club)', 'Direito');
+insert into public.registros_partido (fecha, rival, equipo_id, titulares, convocados, cambio_1_sale, cambio_1_entra, cambio_1_tiempo, cambios_extra) values
+  ('2026-07-05', 'Rival Exporta', '00000000-0000-0000-0000-0000000000e5', array['ATLETA EXPORTA', 'COMPANERO TITULAR'], array['ATLETA EXPORTA', 'COMPANERO TITULAR', 'COMPANERO SUPLENTE'],
+   'ATLETA EXPORTA', 'COMPANERO SUPLENTE', '60:00', '[{"sale":"COMPANERO TITULAR","entra":"ANTES NOMBRE","hora":"80:00"}]'),
+  ('2026-07-12', 'Rival Sin El', '00000000-0000-0000-0000-0000000000e5', array['COMPANERO TITULAR'], array['COMPANERO TITULAR'], '', '', '', '[]');
+
+select pruebas.ser('nora@nueve.com'); set role authenticated;
+select exportar_atleta(9101) as exportado \gset
+select pruebas.esperar('El administrador exporta todo lo del atleta: su ficha, sus nombres de antes, sus lesiones, evaluaciones y GPS',
+  (select (:'exportado'::jsonb -> 'jugador' ->> 'nombre') || ',' || (:'exportado'::jsonb -> 'nombres_anteriores' -> 0 ->> 'nombre') || ','
+          || jsonb_array_length(:'exportado'::jsonb -> 'lesiones') || ',' || jsonb_array_length(:'exportado'::jsonb -> 'evaluaciones') || ','
+          || jsonb_array_length(:'exportado'::jsonb -> 'gps')), 'ATLETA EXPORTA,ANTES NOMBRE,1,1,1');
+select pruebas.esperar('...los partidos donde estuvo, con lo suyo: convocado, titular, cuándo salió y cuándo entró (también con su nombre de antes)',
+  (select (:'exportado'::jsonb -> 'partidos' = '[{"fecha": "2026-07-05", "rival": "Rival Exporta", "entro": ["80:00"], "salio": ["60:00"], "localia": "local", "titular": true, "convocado": true, "resultado": ""}]'::jsonb)::text),
+  'true');
+select pruebas.esperar('...sin nada de sus compañeros', (select (position('COMPANERO' in :'exportado') > 0)::text), 'false');
+select pruebas.esperar('...y el historial de sus lesiones (quién, cuándo y qué) y de lo demás',
+  (select string_agg(h ->> 'base' || ':' || (h ->> 'accion'), ',' order by h ->> 'base', h ->> 'accion') from jsonb_array_elements(:'exportado'::jsonb -> 'historial') h),
+  'datos:creada,evaluaciones:creada,gps:creada,lesiones:creada,lesiones:editada');
+select pruebas.esperar('...con los nombres de columnas y listas del club', (select string_agg(o ->> 'etiqueta_es', ',') from jsonb_array_elements(:'exportado'::jsonb -> 'ajustes' -> 'lesiones_opciones') o), 'Derecho (del club)');
+select pruebas.debe_fallar('Un jugador que no existe contesta igual que uno ajeno', 'select exportar_atleta(123456)', 'solo_admin');
+reset role;
+select pruebas.ser('pablo@nueve.com'); set role authenticated;
+select pruebas.debe_fallar('El staff no exporta, aunque tenga todas las bases', 'select exportar_atleta(9101)', 'solo_admin');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.debe_fallar('El administrador de otro club tampoco', 'select exportar_atleta(9101)', 'solo_admin');
+reset role;
+
 -- ------------------------------------------- Aislamiento entre clubes --
 -- 20261102. Cada cuenta, en cada tabla y vista con club (también las que se
 -- sumen después, sin tocar esto): no ve, no cambia ni borra filas de un club
@@ -2474,6 +2515,10 @@ begin
       return next;
       funcion := 'pedidos_del_club';
       filas := case when coalesce(pruebas.error(format('select * from public.pedidos_del_club(%L)', e.id)), '') like '%solo_admin%' then 0 else 1 end;
+      return next;
+      funcion := 'exportar_atleta';
+      filas := (select count(*) from (select j.id from public.jugadores j where j.equipo_id = e.id) j
+                 where coalesce(pruebas.error(format('select public.exportar_atleta(%s)', j.id)), '') not like '%solo_admin%');
       return next;
       execute 'reset role';
     end loop;

@@ -796,7 +796,9 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
     (18/10)»;
   - si la base guarda datos de atletas, su tabla con el disparador `exigir_consentimiento` (y
     su `persona`, si la tiene) y la carga de archivos con `useConsentimientoPersonas`
-    (`src/components/Consentimiento.jsx`). Ver «Consentimiento de los atletas (18/10)».
+    (`src/components/Consentimiento.jsx`). Ver «Consentimiento de los atletas (18/10)»;
+  - si la base guarda datos de atletas, sus filas en `exportar_atleta` y su hoja en
+    `src/domain/exportarAtleta.js`. Ver «Exportar los datos de un atleta (19/10)».
 - Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
   Datos (`public/portal/bases.webp` y `bases-parada.webp`). Lesiones tiene sus fotos desde el
   05/10 (`public/portal/lesiones.webp` y `lesiones-parada.webp`, las mandó Santiago); el dibujo
@@ -4079,6 +4081,31 @@ confirme.**
   - **Queda prohibido** cargar datos nuevos de atletas sin la confirmación del club, o de una
     persona fuera de Datos básicos sin la suya, y que la confirme el staff por el club, salvo
     un pedido nuevo.
+- **Exportar los datos de un atleta (hecho el 19/10, migración `20261104_exportar_atleta.sql`,
+  UI-058).** Santiago: «Añade una función para que un club pueda exportar todos los datos de un
+  atleta si este lo solicita (Portabilidad)». En un cuestionario: «Excel y además JSON»; además
+  de Datos básicos, Lesiones, Evaluaciones y GPS, «Partidos donde estuvo» e «Historial de
+  cambios»; «El administrador, con todo»; «Datos básicos, en la ficha».
+  - **La base** (`exportar_atleta(jugador)`): todo lo del jugador en su club, en un solo jsonb.
+    Solo el administrador del club y con todo, aunque no tenga cada base (para cualquier otro,
+    o un jugador que no existe, contesta lo mismo: `solo_admin`). Lleva su fila de Datos
+    básicos y sus nombres anteriores; sus lesiones, evaluaciones y GPS, con el correo de quien
+    los cargó y cambió; de cada partido del club donde figura por su nombre (o uno anterior),
+    solo lo suyo: convocado, titular, cuándo entró y salió (nada de sus compañeros); el
+    historial de sus lesiones (quién, cuándo y qué) y de su ficha, evaluaciones y GPS (cuándo
+    y, si se sabe, quién); y los nombres de columnas y listas del club (no son del atleta, no
+    van en el JSON). Lo de otros clubes donde estuvo no va: es de esos clubes.
+  - **El Excel** (`src/domain/xlsx.js`, sin bibliotecas nuevas: un .xlsx de verdad, revisado
+    con Excel de Python y con LibreOffice): una hoja por base con datos (Datos básicos,
+    Lesiones, una por test de Evaluaciones, GPS, Partidos, Historial de cambios), con los
+    nombres de columnas y listas del club, la primera fila fija y en negrita; lo guardado, no
+    lo que se calcula; los números como números; un texto que empieza con «=» queda texto.
+  - **El JSON**: lo guardado tal cual (códigos de las listas, fechas ISO), para otro sistema.
+  - **Dónde**: Datos básicos, elegir un jugador y «Ver ficha» (solo el administrador): la hoja
+    de abajo con su nombre, «Exportar sus datos», «Bajar el Excel» y «Bajar el JSON». Los
+    archivos se llaman `datos-de-<nombre>-<fecha>`. Ahí va a ir también el borrado.
+  - **Queda prohibido** que lo exporte alguien que no es el administrador, o que el archivo
+    lleve datos de otros jugadores, salvo un pedido nuevo.
 - **En curso: la planilla de valor referencial** (quedó en pausa por la auditoría). Santiago, en
   cuestionarios: elegir la base, ver todos sus datos, filtrar la muestra y calcular el V.R. con la
   lógica de su planilla («Plantilla VR»: descarte de atípicos por cuartiles y cortes que buscan
@@ -4086,8 +4113,7 @@ confirme.**
   Malo «Copialo igual» y «Un solo nombre libre» en «Agregar V.R.». La cuenta, copiada y
   comparada con la planilla recalculada (datos inventados), da igual; falta mostrarle la maqueta
   del flujo antes de hacerlo.
-- **Lo que sigue, en este orden**: exportar todo lo de un atleta (portabilidad) y borrarlo del
-  todo (derecho al olvido), nota por nota; después, las grandes, cada una aparte (la planilla de valor
+- **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); después, las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
   diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;
   Isocinecia con Python y VALD).
