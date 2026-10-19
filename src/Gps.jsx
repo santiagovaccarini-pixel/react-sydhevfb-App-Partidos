@@ -195,6 +195,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const [referencias, setReferencias] = useState([]);
   const [faltanReferencias, setFaltanReferencias] = useState(false);
   const [sinEdicionVr, setSinEdicionVr] = useState(false);
+  // Sin la actualización 20261108, «Agregar V.R.» sin la planilla.
+  const [sinPlanillaVr, setSinPlanillaVr] = useState(true);
   const [elegidos, setElegidos] = useState({});
   const [hojaReglas, setHojaReglas] = useState(null);
   const avisarSinGuardar = useCallback((sinGuardar) => {
@@ -259,6 +261,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       setReferencias(respuestaReferencias.referencias);
       setFaltanReferencias(respuestaReferencias.faltaTabla);
       setSinEdicionVr(respuestaReferencias.sinEdicion);
+      setSinPlanillaVr(respuestaReferencias.sinPlanilla !== false);
     }
   }, [equipoId]);
 
@@ -269,6 +272,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     setReferencias(respuesta.referencias);
     setFaltanReferencias(respuesta.faltaTabla);
     setSinEdicionVr(respuesta.sinEdicion);
+    setSinPlanillaVr(respuesta.sinPlanilla !== false);
   }, [equipoId]);
   // Lo que devolvió la base al cambiar uno o varios: reemplaza a los suyos.
   const conReferenciasCambiadas = useCallback((cambiadas) => {
@@ -608,6 +612,40 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       sigue = false;
     };
   }, [enLaBase, filasGps, armadas]);
+
+  // Para la planilla de V.R. (Valores de referencia › «Agregar V.R.»): las
+  // filas armadas como en la Base (las mismas guardadas), sus columnas sin
+  // editar, cómo se ve un valor guardado de una columna (para decir con qué
+  // filtros se calculó) y el sentido de Ajustes › Cabeceras de cada medida.
+  const armarFilaDeLaBase = useCallback(
+    (fila) => {
+      const ya = armadas.get(fila);
+      if (ya) return ya;
+      const armada = armarFila(fila);
+      armadas.set(fila, armada);
+      return armada;
+    },
+    [armadas, armarFila],
+  );
+  const columnasDeLaBase = useMemo(() => columnas.map((columna) => ({ ...columna, editable: false })), [columnas]);
+  const textoDeValorDeLaBase = useCallback(
+    (clave, valor) => {
+      const columna = gps.columnas.find((una) => una.clave === clave);
+      if (!columna) return String(valor ?? "");
+      if (columna.tipo === "jugador") {
+        const texto = String(valor ?? "");
+        if (texto.startsWith(PROMEDIO)) return PROMEDIOS[texto.slice(PROMEDIO.length)]?.[idioma] || texto;
+        return jugadorDe(texto)?.nombre || texto;
+      }
+      if (columna.tipo === "fecha") return fechaCorta(valor);
+      if (columna.tipo === "lista") return textosDeListas[columna.lista]?.get(valor) || String(valor ?? "");
+      if (EN_SEGUNDOS.includes(columna.tipo)) return esNumero(valor) ? textoDeCelda(columna, valor * 3600, idioma) : "";
+      if (columna.tipo === "texto") return String(valor ?? "");
+      return textoDeCelda(columna, valor, idioma);
+    },
+    [gps, idioma, jugadorDe, textosDeListas],
+  );
+  const sentidoDeAjustes = useCallback((clave) => config.campos?.[gps.id]?.[clave]?.sentido ?? null, [config, gps]);
 
   // Para los reportes: el nombre de un dispositivo y el nombre y el formato
   // de una columna por su clave.
@@ -1590,6 +1628,15 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         onCambiadas={conReferenciasCambiadas}
         onRecargar={cargarReferencias}
         onAviso={setAviso}
+        sinPlanilla={sinPlanillaVr}
+        filasGps={filasGps}
+        todasLasFilas={!cargando && !trayendo && !errorHistorial}
+        armarFilaDeLaBase={armarFilaDeLaBase}
+        columnasDeLaBase={columnasDeLaBase}
+        fijasDeLaBase={fijas}
+        textoDeValorDeLaBase={textoDeValorDeLaBase}
+        sentidoDeAjustes={sentidoDeAjustes}
+        onGuia={guia.abrir}
       />
     );
   else if (importando && !soloLectura)

@@ -6,6 +6,7 @@ import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
 import { claveDeErrorConsentimiento } from "./consentimiento.js";
 import { CATEGORIAS_DE_UN_VR } from "./gps/informe.js";
+import { leerPlanilla } from "./gps/planillaVr.js";
 import { calcularNoIngresaron } from "./match.js";
 import { faltaSentido, sentidoGuardado } from "./sentido.js";
 
@@ -369,7 +370,10 @@ export const recordarDispositivo = async (equipoId, lugar, dispositivo) => {
 // actualización, sinEdicion (se miran, no se cambian, y Cargar sigue con el
 // V.R. de partido de las reglas). Las categorías de los V.R. por jugador
 // (20261026_gps_referencias_categorias.sql): las cuatro siempre, vacías si no
-// tiene; sin esa actualización, todas vacías.
+// tiene; sin esa actualización, todas vacías. Los calculados con la planilla
+// (20261108_gps_vr_planilla.sql) traen con qué se calcularon (planilla; los
+// demás, null); sin esa actualización, sinPlanilla: «Agregar V.R.» sigue
+// como antes, con tipo, tabla y grupo.
 const categoriasDe = (valor) => Object.fromEntries(CATEGORIAS_DE_UN_VR.map((categoria) => [categoria, objeto(objeto(valor)[categoria])]));
 
 export const normalizarReferenciaGps = (fila) => ({
@@ -383,6 +387,7 @@ export const normalizarReferenciaGps = (fila) => ({
   desvio: objeto(fila.desvio),
   categorias: categoriasDe(fila.categorias),
   dePartido: fila.de_partido === true,
+  planilla: leerPlanilla(fila.planilla),
 });
 
 const COLUMNAS_VR = "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvio";
@@ -390,23 +395,33 @@ const COLUMNAS_VR = "id, dispositivo, tipo, tabla, grupo, orden, promedio, desvi
 // existe. Sin de_partido tampoco están las categorías (son de después).
 const textoDelError = (error) => `${error?.message || ""} ${error?.details || ""}`;
 const faltaLaColumna = (error) => error?.code === "42703" || /de_partido|categorias/.test(textoDelError(error));
+const faltaLaPlanilla = (error) => /planilla/.test(textoDelError(error)) && (error?.code === "42703" || /does not exist|schema cache|Could not find/i.test(textoDelError(error)));
 
 export const leerReferenciasGps = async (equipoId) => {
-  if (!equipoId) return { referencias: [], faltaTabla: false, sinEdicion: false, error: "" };
+  if (!equipoId) return { referencias: [], faltaTabla: false, sinEdicion: false, sinPlanilla: false, error: "" };
   const pedir = (columnas) => supabase.from("gps_referencias").select(columnas).eq("equipo_id", equipoId).order("orden", { ascending: true });
   let sinEdicion = false;
-  let { data, error } = await pedir(`${COLUMNAS_VR}, de_partido, categorias`);
-  if (error && faltaLaColumna(error) && !/de_partido/.test(textoDelError(error))) ({ data, error } = await pedir(`${COLUMNAS_VR}, de_partido`));
+  let sinPlanilla = false;
+  let { data, error } = await pedir(`${COLUMNAS_VR}, de_partido, categorias, planilla`);
+  if (error && faltaLaPlanilla(error)) {
+    sinPlanilla = true;
+    ({ data, error } = await pedir(`${COLUMNAS_VR}, de_partido, categorias`));
+  }
+  if (error && faltaLaColumna(error) && !/de_partido/.test(textoDelError(error))) {
+    sinPlanilla = true;
+    ({ data, error } = await pedir(`${COLUMNAS_VR}, de_partido`));
+  }
   if (error && faltaLaColumna(error)) {
     sinEdicion = true;
+    sinPlanilla = true;
     ({ data, error } = await pedir(COLUMNAS_VR));
   }
   if (error) {
     const clave = claveDeErrorGps(error, "gps.error.noLeer");
-    if (clave === "gps.error.faltaMigracion") return { referencias: [], faltaTabla: true, sinEdicion: true, error: "" };
-    return { referencias: [], faltaTabla: false, sinEdicion, error: clave };
+    if (clave === "gps.error.faltaMigracion") return { referencias: [], faltaTabla: true, sinEdicion: true, sinPlanilla: true, error: "" };
+    return { referencias: [], faltaTabla: false, sinEdicion, sinPlanilla, error: clave };
   }
-  return { referencias: (Array.isArray(data) ? data : []).map(normalizarReferenciaGps), faltaTabla: false, sinEdicion, error: "" };
+  return { referencias: (Array.isArray(data) ? data : []).map(normalizarReferenciaGps), faltaTabla: false, sinEdicion, sinPlanilla, error: "" };
 };
 
 // Al cambiar un V.R.: sin la actualización, que falta; un nombre que ya
@@ -415,7 +430,7 @@ const falloDeReferencia = (error) => {
   const texto = `${error?.message || ""} ${error?.details || ""}`;
   if (/gps_referencias_una|duplicate key/.test(texto)) return { error: "gps.vr.repetido" };
   if (/gps_referencias_un_partido/.test(texto)) return { error: "gps.vr.otroDePartido" };
-  if (/referencia_invalida|gps_referencias_numeros|gps_referencias_textos/.test(texto)) return { error: "gps.vr.noSeEntiende" };
+  if (/referencia_invalida|gps_referencias_numeros|gps_referencias_textos|gps_referencias_planilla/.test(texto)) return { error: "gps.vr.noSeEntiende" };
   const clave = claveDeErrorGps(error, "gps.error.noGuardar");
   return { error: clave === "gps.error.faltaMigracion" ? "gps.vr.faltaActualizacion" : clave };
 };
@@ -439,15 +454,32 @@ export const marcarDePartidoGps = async (id, marcar) => {
 };
 
 // Las categorías van solo si tiene alguna (al volver atrás un V.R. por
-// jugador borrado): así se suma igual en una base sin 20261026. Vuelve la
-// fila entera, con las columnas que tenga la base.
-export const sumarReferenciaGps = async (equipoId, { dispositivo, tipo, tabla, grupo, orden = 0, promedio = {}, desvio = {}, categorias = {} }) => {
+// jugador borrado): así se suma igual en una base sin 20261026. La planilla,
+// solo en uno calculado con ella (sin 20261108 no se ofrece). Vuelve la fila
+// entera, con las columnas que tenga la base.
+const categoriasConNumeros = (categorias) => Object.fromEntries(Object.entries(categoriasDe(categorias)).filter(([, valores]) => Object.keys(valores).length));
+export const sumarReferenciaGps = async (equipoId, { dispositivo, tipo, tabla, grupo, orden = 0, promedio = {}, desvio = {}, categorias = {}, planilla = null }) => {
   const fila = { equipo_id: equipoId, dispositivo, tipo: textoLimpio(tipo), tabla: textoLimpio(tabla), grupo: textoLimpio(grupo), orden, promedio, desvio };
-  const conNumeros = Object.entries(categoriasDe(categorias)).filter(([, valores]) => Object.keys(valores).length);
-  if (conNumeros.length) fila.categorias = Object.fromEntries(conNumeros);
+  const conNumeros = categoriasConNumeros(categorias);
+  if (Object.keys(conNumeros).length) fila.categorias = conNumeros;
+  if (planilla) fila.planilla = planilla;
   const { data, error } = await supabase.from("gps_referencias").insert(fila).select("*").single();
   if (error) return falloDeReferencia(error);
   return { referencia: normalizarReferenciaGps(data), error: "" };
+};
+
+// «Recalcular» un V.R. de la planilla, o volver atrás un recálculo: sus
+// números y con qué se calculó, de un saque (queda una sola entrada en los
+// últimos cambios, con la fila entera).
+export const recalcularReferenciaGps = async (id, { promedio = {}, desvio = {}, categorias = {}, planilla }) => {
+  const { data, error } = await supabase
+    .from("gps_referencias")
+    .update({ promedio, desvio, categorias: categoriasConNumeros(categorias), planilla })
+    .eq("id", id)
+    .select("*");
+  if (error) return falloDeReferencia(error);
+  if (!Array.isArray(data) || !data.length) return { error: "gps.error.sinPermiso" };
+  return { referencia: normalizarReferenciaGps(data[0]), error: "" };
 };
 
 export const renombrarReferenciaGps = async (id, { tipo, tabla, grupo }) => {

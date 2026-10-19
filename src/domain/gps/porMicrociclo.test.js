@@ -331,6 +331,21 @@ describe("los colores del Excel en Por microciclo", () => {
     expect(colorDeMayorMejor(null, franjas)).toBeNull();
     expect(colorDeMayorMejor(100, { ...franjas, regular: null })).toBeNull();
   });
+  test("un V.R. de la planilla con «Menos es mejor» (las franjas al revés): lo bajo es Excelente", () => {
+    const franjas = { excelente: 80, muyBueno: 90, bueno: 100, regular: 110, malo: 120, desvio: null };
+    expect([70, 80, 85, 90, 95, 100, 105, 110, 115].map((valor) => colorDeMayorMejor(valor, franjas))).toEqual([
+      COLORES_INFORME.excelente,
+      COLORES_INFORME.excelente,
+      COLORES_INFORME.muyBueno,
+      COLORES_INFORME.muyBueno,
+      COLORES_INFORME.bueno,
+      COLORES_INFORME.bueno,
+      COLORES_INFORME.naranja,
+      COLORES_INFORME.naranja,
+      COLORES_INFORME.malo,
+    ]);
+    expect(colorDeVariable(0, franjas)).toBe(COLORES_INFORME.malo);
+  });
   test("variables: un 0 va en rojo, también sin franjas (la primera regla del archivo para ellas)", () => {
     const franjas = franjasDe(-10, 5);
     expect(colorDeMayorMejor(0, franjas)).toBe(COLORES_INFORME.excelente);

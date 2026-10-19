@@ -771,9 +771,19 @@ export const colorDeUa = (valor, franjas) => {
 // «Por jugador»; con «Mi selección» y «Valor referencial», contra sus
 // franjas; con «Objetivo», contra el objetivo ± el desvío, que son sus
 // franjas): ≥ Excelente verde oscuro; ≥ Muy Bueno verde; ≥ Bueno amarillo;
-// ≥ Regular naranja; menos, rojo. Sin franjas, sin color.
+// ≥ Regular naranja; menos, rojo. Sin franjas, sin color. Un V.R. de la
+// planilla con «Menos es mejor» (nota 2, 19/10) trae las franjas al revés
+// (Excelente abajo del Bueno y Regular arriba): ahí lo bajo es Excelente,
+// con ≤ en cada franja.
 export const colorDeMayorMejor = (valor, franjas) => {
   if (!esNumero(valor) || !franjas || !["excelente", "muyBueno", "bueno", "regular"].every((franja) => esNumero(franjas[franja]))) return null;
+  if (franjas.excelente < franjas.bueno && franjas.regular > franjas.bueno) {
+    if (valor <= franjas.excelente) return COLORES_INFORME.excelente;
+    if (valor <= franjas.muyBueno) return COLORES_INFORME.muyBueno;
+    if (valor <= franjas.bueno) return COLORES_INFORME.bueno;
+    if (valor <= franjas.regular) return COLORES_INFORME.naranja;
+    return COLORES_INFORME.malo;
+  }
   if (valor >= franjas.excelente) return COLORES_INFORME.excelente;
   if (valor >= franjas.muyBueno) return COLORES_INFORME.muyBueno;
   if (valor >= franjas.bueno) return COLORES_INFORME.bueno;

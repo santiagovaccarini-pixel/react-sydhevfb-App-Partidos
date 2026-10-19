@@ -10,8 +10,11 @@ import { textoDeCelda } from "./domain/gps/valores.js";
 import { interpretarHoras, interpretarValor } from "./domain/tabla.js";
 import { cambiosDeEntrada } from "./domain/referencias.js";
 import { leerHistorialDeReferencias } from "./domain/referenciasDb.js";
-import { borrarReferenciaGps, cambiarValorDeReferenciaGps, marcarDePartidoGps, renombrarReferenciaGps, sumarReferenciaGps } from "./domain/gpsDb.js";
-import { t } from "./idioma/index.js";
+import { borrarReferenciaGps, cambiarValorDeReferenciaGps, marcarDePartidoGps, recalcularReferenciaGps, renombrarReferenciaGps, sumarReferenciaGps } from "./domain/gpsDb.js";
+import { armarPlanilla, calcularPlanilla, eleccionDeLaPlanilla, filasDeLaMuestra, medidasDeLaPlanilla, numerosParaGuardar } from "./domain/gps/planillaVr.js";
+import PlanillaVrGps from "./PlanillaVrGps.jsx";
+import { t, useIdioma } from "./idioma/index.js";
+import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 
 // GPS › Valores de referencia (Santiago, 14/10: «Todos los vr tienen que
 // tener su solapa aparte», «Como esta en evaluaciones»): arriba se elige el
@@ -25,6 +28,13 @@ import { t } from "./idioma/index.js";
 // del Excel: Excelente, Muy Bueno, Bueno (su promedio), Regular y Malo. Con
 // V.R. de más de una tabla en el dispositivo (los de cada jugador van por
 // tabla), se puede ver una sola tabla (de entrada, todas, como antes).
+// «Agregar V.R.» abre la planilla del club (PlanillaVrGps.jsx; nota 2 de la
+// planilla de valor referencial, 19/10): un solo nombre (va en la tabla) y
+// la muestra de la Base. Un V.R. calculado así dice cuándo y con qué filas
+// y tiene «Recalcular» (con la misma muestra y lo elegido, con los datos de
+// ese día; pregunta antes, y los números de antes quedan en los últimos
+// cambios, con «Volver»). Sin la actualización 20261108 de la base, «Agregar
+// V.R.» sigue como antes: tipo, tabla y grupo, para escribirlo a mano.
 
 const FILAS = ["promedio", "desvio"];
 const FILAS_CON_CATEGORIAS = ["excelente", "muy_bueno", "promedio", "regular", "malo"];
@@ -67,7 +77,20 @@ export default function ReferenciasGps({
   onCambiadas,
   onRecargar,
   onAviso,
+  // La planilla: sin la actualización de la base, no; las filas del GPS (como
+  // vienen de la base) y si ya llegaron todas; cómo se arma cada una en la
+  // Base, sus columnas y cómo se ve un valor guardado de una columna.
+  sinPlanilla = true,
+  filasGps = [],
+  todasLasFilas = true,
+  armarFilaDeLaBase = null,
+  columnasDeLaBase = [],
+  fijasDeLaBase = [],
+  textoDeValorDeLaBase = (_clave, valor) => String(valor ?? ""),
+  sentidoDeAjustes = () => null,
+  onGuia = null,
 }) {
+  const { plural } = useIdioma();
   // Los dispositivos de la lista del club y, si hay V.R. de uno que ya no
   // está en la lista, también.
   const opciones = useMemo(() => {
@@ -162,6 +185,10 @@ export default function ReferenciasGps({
           const cambios = cambiosDeEntrada(entrada)
             .flatMap(numeroPorNumero)
             .filter((cambio) => cambio.ruta[0] !== "orden");
+          // «Recalcular» cambia todos los números de un saque: una sola línea.
+          if (cambios.some((cambio) => cambio.ruta[0] === "planilla")) {
+            return { ...entrada, cambios, recalculo: true, lineas: [t("gps.vr.cambio.recalculado", { nombre: nombreDe(entrada.despues) })], volver: true };
+          }
           const lineas = [];
           if (cambios.some((cambio) => ["tipo", "tabla", "grupo"].includes(cambio.ruta[0]))) lineas.push(t("gps.vr.cambio.nombre", { antes: nombreDe(entrada.antes), despues: nombreDe(entrada.despues) }));
           cambios.forEach((cambio) => {
@@ -194,8 +221,13 @@ export default function ReferenciasGps({
         promedio: antes.promedio || {},
         desvio: antes.desvio || {},
         categorias: antes.categorias || {},
+        planilla: antes.planilla || null,
       });
       if (!respuesta.error && antes.de_partido) respuesta = await marcarDePartidoGps(respuesta.referencia.id, true);
+    } else if (entrada.recalculo) {
+      if (!referencias.some((una) => una.id === entrada.filaId)) return { error: "gps.vr.yaNoEsta" };
+      const antes = entrada.antes;
+      respuesta = await recalcularReferenciaGps(entrada.filaId, { promedio: antes.promedio || {}, desvio: antes.desvio || {}, categorias: antes.categorias || {}, planilla: antes.planilla || null });
     } else {
       if (!referencias.some((una) => una.id === entrada.filaId)) return { error: "gps.vr.yaNoEsta" };
       const nombre = entrada.cambios.some((cambio) => ["tipo", "tabla", "grupo"].includes(cambio.ruta[0]));
@@ -222,17 +254,24 @@ export default function ReferenciasGps({
 
   const abrirHoja = (referencia = null) => {
     setErrorHoja("");
-    setHoja(referencia ? { id: referencia.id, tipo: referencia.tipo, tabla: referencia.tabla, grupo: referencia.grupo } : { id: null, tipo: "", tabla: "", grupo: "" });
+    setHoja(
+      referencia
+        ? { id: referencia.id, tipo: referencia.tipo, tabla: referencia.tabla, grupo: referencia.grupo, deLaPlanilla: Boolean(referencia.planilla) }
+        : { id: null, tipo: "", tabla: "", grupo: "", deLaPlanilla: false },
+    );
   };
   const guardarHoja = async () => {
     if (!hoja) return;
-    if (![hoja.tipo, hoja.tabla, hoja.grupo].every((texto) => String(texto || "").trim())) {
-      setErrorHoja(t("gps.vr.faltaNombre"));
+    // Uno de la planilla tiene un solo nombre (en la tabla).
+    const completo = hoja.deLaPlanilla ? String(hoja.tabla || "").trim() : [hoja.tipo, hoja.tabla, hoja.grupo].every((texto) => String(texto || "").trim());
+    if (!completo) {
+      setErrorHoja(t(hoja.deLaPlanilla ? "gps.vr.planilla.faltaNombre" : "gps.vr.faltaNombre"));
       return;
     }
     setOcupado(true);
     const orden = referencias.reduce((mayor, referencia) => Math.max(mayor, referencia.orden), 0) + 1;
-    const respuesta = hoja.id ? await renombrarReferenciaGps(hoja.id, hoja) : await sumarReferenciaGps(equipoId, { dispositivo, tipo: hoja.tipo, tabla: hoja.tabla, grupo: hoja.grupo, orden });
+    const nombre = hoja.deLaPlanilla ? { tipo: "", tabla: hoja.tabla, grupo: "" } : hoja;
+    const respuesta = hoja.id ? await renombrarReferenciaGps(hoja.id, nombre) : await sumarReferenciaGps(equipoId, { dispositivo, tipo: hoja.tipo, tabla: hoja.tabla, grupo: hoja.grupo, orden });
     setOcupado(false);
     if (respuesta.error) {
       setErrorHoja(t(respuesta.error));
@@ -265,6 +304,86 @@ export default function ReferenciasGps({
     reemplazar(respuesta.referencias);
   };
 
+  // ------------------------------------------------- La planilla del club --
+  const [calculando, setCalculando] = useState(false);
+  const [aRecalcular, setARecalcular] = useState(null);
+  const [recalculando, setRecalculando] = useState(false);
+  const medidas = useMemo(() => medidasDeLaPlanilla(gps.columnas), [gps]);
+  const tituloDeMedida = (clave) => {
+    const columna = gps.columnas.find((una) => una.clave === clave);
+    return columna ? tituloDeColumna(gps, columna, config, idioma) : clave;
+  };
+  // Las filas del dispositivo, armadas como en la Base (solo para calcular).
+  const conFilas = calculando || Boolean(aRecalcular);
+  const filasDelDispositivo = useMemo(
+    () => (conFilas && armarFilaDeLaBase ? filasGps.filter((fila) => (fila.datos?.dispositivo || "") === dispositivo).map(armarFilaDeLaBase) : []),
+    [conFilas, armarFilaDeLaBase, filasGps, dispositivo],
+  );
+  const puedeCalcular = puedeCambiar && !sinPlanilla && Boolean(armarFilaDeLaBase);
+
+  const guardarDeLaPlanilla = async ({ nombre, promedio, desvio, categorias, planilla }) => {
+    const orden = referencias.reduce((mayor, referencia) => Math.max(mayor, referencia.orden), 0) + 1;
+    const respuesta = await sumarReferenciaGps(equipoId, { dispositivo, tipo: "", tabla: nombre, grupo: "", orden, promedio, desvio, categorias, planilla });
+    if (respuesta.error) return respuesta;
+    reemplazar([respuesta.referencia]);
+    if (tabla) setTablaElegida(tablaDe(respuesta.referencia));
+    setCalculando(false);
+    onAviso(t("gps.vr.sumado"));
+    return { error: "" };
+  };
+
+  // Cómo se armó la muestra: cada filtro con lo elegido (hasta tres, con su
+  // nombre; más, cuántos).
+  const textoDeLaMuestra = (planilla) => {
+    const filtros = Object.entries(planilla?.muestra || {});
+    if (!filtros.length) return t("gps.vr.planilla.conTodas");
+    return filtros
+      .map(([clave, valores]) => {
+        const columna = columnasDeLaBase.find((una) => una.clave === clave);
+        const textos = valores.map((valor) => (valor === "" || valor === null ? t("gps.vr.planilla.vacio") : textoDeValorDeLaBase(clave, valor)));
+        return t("gps.vr.planilla.filtro", { columna: columna?.titulo || clave, valores: textos.length <= 3 ? textos.join(", ") : plural("gps.vr.planilla.elegidos", textos.length) });
+      })
+      .join(" · ");
+  };
+  const textoDelCalculo = (planilla) =>
+    [
+      t("gps.vr.planilla.calculado", { fecha: planilla.calculado ? fechaCorta(planilla.calculado) : "—", filas: plural("gps.vr.planilla.filas", planilla.filas ?? 0) }),
+      textoDeLaMuestra(planilla),
+    ].join(" · ");
+
+  // «Recalcular»: la misma muestra y lo elegido, con los datos de hoy.
+  const recalculo = useMemo(() => {
+    if (!aRecalcular?.planilla) return null;
+    const muestra = filasDeLaMuestra(filasDelDispositivo, aRecalcular.planilla.muestra);
+    const eleccion = eleccionDeLaPlanilla(aRecalcular.planilla, medidas, sentidoDeAjustes);
+    return { muestra, eleccion };
+  }, [aRecalcular, filasDelDispositivo, medidas, sentidoDeAjustes]);
+  const textoDeLaDiferencia = (antes, ahora) => {
+    if (antes === null || antes === undefined || antes === ahora) return t("gps.vr.planilla.igualQueAntes");
+    return ahora > antes ? plural("gps.vr.planilla.masQueAntes", ahora - antes) : plural("gps.vr.planilla.menosQueAntes", antes - ahora);
+  };
+  const recalcular = async () => {
+    const referencia = aRecalcular;
+    if (!referencia || !recalculo || recalculando) return;
+    const numeros = numerosParaGuardar(calcularPlanilla(recalculo.muestra.map((fila) => fila.gps), medidas, recalculo.eleccion));
+    if (!Object.keys(numeros.promedio).length) {
+      setARecalcular(null);
+      onAviso(t("gps.vr.planilla.ningunaMedida"), { error: true });
+      return;
+    }
+    setRecalculando(true);
+    const planilla = armarPlanilla({ muestra: referencia.planilla.muestra, eleccion: recalculo.eleccion, filas: recalculo.muestra.length, calculado: hoyISO() });
+    const respuesta = await recalcularReferenciaGps(referencia.id, { ...numeros, planilla });
+    setRecalculando(false);
+    setARecalcular(null);
+    if (respuesta.error) {
+      onAviso(t(respuesta.error), { error: true });
+      return;
+    }
+    reemplazar([respuesta.referencia]);
+    onAviso(t("gps.vr.planilla.recalculado"));
+  };
+
   const cambiarNumero = (referencia) => async (fila, columna, valor) => {
     const respuesta = await cambiarValorDeReferenciaGps(referencia.id, fila.clave, columna.clave, valor);
     if (!respuesta.error) reemplazar([respuesta.referencia]);
@@ -272,6 +391,23 @@ export default function ReferenciasGps({
   };
 
   // ------------------------------------------------------------ Pantalla --
+  if (calculando && puedeCalcular)
+    return (
+      <PlanillaVrGps
+        dispositivo={{ valor: dispositivo, etiqueta: nombreDelDispositivo }}
+        filas={filasDelDispositivo}
+        columnas={columnasDeLaBase}
+        fijas={fijasDeLaBase}
+        medidas={medidas}
+        tituloDe={tituloDeMedida}
+        textoDe={textoDe}
+        sentidoDeAjustes={sentidoDeAjustes}
+        onGuardar={guardarDeLaPlanilla}
+        onCancelar={() => setCalculando(false)}
+        onGuia={onGuia}
+      />
+    );
+
   let aviso = null;
   if (faltaTabla) aviso = t("gps.vr.faltaMigracion");
   else if (sinEdicion && !soloLectura) aviso = t("gps.vr.faltaActualizacion");
@@ -325,6 +461,7 @@ export default function ReferenciasGps({
                     </span>
                   )}
                 </div>
+                {referencia.planilla && <p className="lesiones-ayuda referencias-calculado">{textoDelCalculo(referencia.planilla)}</p>}
                 <TablaDeReferencia
                   ocultar={ocultar}
                   columnas={columnas}
@@ -339,6 +476,11 @@ export default function ReferenciasGps({
                 />
                 {puedeCambiar && (
                   <div className="referencias-acciones">
+                    {referencia.planilla && puedeCalcular && (
+                      <button type="button" className="boton-secundario" onClick={() => setARecalcular(referencia)} disabled={!todasLasFilas}>
+                        {t("gps.vr.planilla.recalcular")}
+                      </button>
+                    )}
                     <button type="button" className="boton-secundario" onClick={() => marcar(referencia, !referencia.dePartido)}>
                       {referencia.dePartido ? t("gps.vr.noUsarDePartido") : t("gps.vr.usarDePartido")}
                     </button>
@@ -353,10 +495,11 @@ export default function ReferenciasGps({
               </section>
             ))}
             {puedeCambiar && dispositivo && (
-              <button type="button" className="boton-principal referencias-sumar" onClick={() => abrirHoja()}>
+              <button type="button" className="boton-principal referencias-sumar" onClick={() => (puedeCalcular ? setCalculando(true) : abrirHoja())} disabled={puedeCalcular && !todasLasFilas}>
                 {t("gps.vr.sumar", { dispositivo: nombreDelDispositivo })}
               </button>
             )}
+            {puedeCalcular && dispositivo && !todasLasFilas && <p className="lesiones-ayuda referencias-ayuda">{t("gps.vr.planilla.faltanFilas")}</p>}
             {historial.leido && !seFue && !sinEdicion && <HistorialDeReferencias entradas={entradas} onVolver={enLinea && !soloLectura ? volver : undefined} error={historial.error} />}
           </>
         )}
@@ -367,7 +510,7 @@ export default function ReferenciasGps({
           abierta
           className="lesiones-hoja"
           titulo={hoja.id ? t("gps.vr.cambiarNombre") : t("gps.vr.sumar", { dispositivo: nombreDelDispositivo })}
-          descripcion={t("gps.vr.nombreAyuda")}
+          descripcion={hoja.deLaPlanilla ? t("gps.vr.planilla.nombreAyuda") : t("gps.vr.nombreAyuda")}
           onCerrar={() => setHoja(null)}
           acciones={
             <>
@@ -381,15 +524,40 @@ export default function ReferenciasGps({
           }
         >
           {errorHoja && <div className="aviso-hoja">{errorHoja}</div>}
-          {["tipo", "tabla", "grupo"].map((campo) => (
-            <div className="campo-inicio" key={campo}>
-              <label htmlFor={`vr-${campo}`}>{t(`gps.vr.${campo}`)}</label>
-              <input id={`vr-${campo}`} type="text" maxLength={campo === "tipo" ? 80 : 120} value={hoja[campo]} onChange={(evento) => setHoja({ ...hoja, [campo]: evento.target.value })} />
+          {hoja.deLaPlanilla ? (
+            <div className="campo-inicio">
+              <label htmlFor="vr-nombre">{t("gps.vr.planilla.nombre")}</label>
+              <input id="vr-nombre" type="text" maxLength={120} value={hoja.tabla} onChange={(evento) => setHoja({ ...hoja, tabla: evento.target.value })} />
             </div>
-          ))}
+          ) : (
+            ["tipo", "tabla", "grupo"].map((campo) => (
+              <div className="campo-inicio" key={campo}>
+                <label htmlFor={`vr-${campo}`}>{t(`gps.vr.${campo}`)}</label>
+                <input id={`vr-${campo}`} type="text" maxLength={campo === "tipo" ? 80 : 120} value={hoja[campo]} onChange={(evento) => setHoja({ ...hoja, [campo]: evento.target.value })} />
+              </div>
+            ))
+          )}
         </HojaInferior>
       )}
 
+      <HojaConfirmar
+        abierta={Boolean(aRecalcular && recalculo)}
+        titulo={aRecalcular ? t("gps.vr.planilla.recalcularTitulo", { nombre: nombreDe(aRecalcular) }) : ""}
+        icono="documento"
+        descripcion={
+          aRecalcular && recalculo
+            ? t("gps.vr.planilla.recalcularTexto", {
+                muestra: textoDeLaMuestra(aRecalcular.planilla),
+                filas: plural("gps.vr.planilla.filas", recalculo.muestra.length),
+                diferencia: textoDeLaDiferencia(aRecalcular.planilla.filas, recalculo.muestra.length),
+              })
+            : ""
+        }
+        etiquetaConfirmar={recalculando ? t("gps.vr.planilla.guardando") : t("gps.vr.planilla.recalcular")}
+        etiquetaCancelar={t("comun.cancelar")}
+        onConfirmar={recalcular}
+        onCancelar={() => setARecalcular(null)}
+      />
       <HojaConfirmar
         abierta={Boolean(aBorrar)}
         titulo={t("gps.vr.borrarTitulo")}

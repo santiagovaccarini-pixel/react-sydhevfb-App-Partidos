@@ -1861,3 +1861,230 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+
+/* GPS › Valores de referencia › «Agregar V.R.» con la planilla del club
+   (PlanillaVrGps.jsx; la maqueta del 19/10). Los colores de cada categoría,
+   los del informe (COLORES_INFORME). En la compu, una tabla; en el celular,
+   una tarjeta por medida. */
+.gps-marco .planilla-vr-nombre .campo-inicio {
+  display: grid;
+  gap: 4px;
+}
+.gps-marco .planilla-vr-muestra {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 13px;
+}
+.gps-marco .planilla-vr-muestra b {
+  color: #d6b25e;
+}
+.gps-marco .planilla-vr-tabla-marco {
+  overflow-x: auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0;
+}
+.gps-marco .planilla-vr-tabla {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.gps-marco .planilla-vr-tabla th,
+.gps-marco .planilla-vr-tabla td {
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: center;
+  white-space: nowrap;
+}
+.gps-marco .planilla-vr-tabla thead th {
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.gps-marco .planilla-vr-tabla thead th.cat-excelente { box-shadow: inset 0 -4px 0 #8fc79b; }
+.gps-marco .planilla-vr-tabla thead th.cat-muy_bueno { box-shadow: inset 0 -4px 0 #d3edc9; }
+.gps-marco .planilla-vr-tabla thead th.cat-bueno { box-shadow: inset 0 -4px 0 #fbf0a6; }
+.gps-marco .planilla-vr-tabla thead th.cat-regular { box-shadow: inset 0 -4px 0 #f7c79a; }
+.gps-marco .planilla-vr-tabla thead th.cat-malo { box-shadow: inset 0 -4px 0 #f4a7a7; }
+.gps-marco .planilla-vr-tabla .fija {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 700;
+  text-align: left;
+  box-shadow: 1px 0 0 #e2e8f0;
+}
+.gps-marco .planilla-vr-tabla thead th.fija {
+  z-index: 2;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+.gps-marco .planilla-vr-tabla .planilla-vr-elegir {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+}
+.gps-marco .planilla-vr-tabla td.datos {
+  color: #64748b;
+  font-size: 12px;
+}
+.gps-marco .planilla-vr-tabla td.valor b {
+  display: block;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.gps-marco .planilla-vr-tabla td.valor small {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+}
+.gps-marco .planilla-vr-tabla td.cat-excelente { background: #8fc79b33; }
+.gps-marco .planilla-vr-tabla td.cat-muy_bueno { background: #d3edc94d; }
+.gps-marco .planilla-vr-tabla td.cat-bueno { background: #fbf0a64d; }
+.gps-marco .planilla-vr-tabla td.cat-regular { background: #f7c79a33; }
+.gps-marco .planilla-vr-tabla td.cat-malo { background: #f4a7a733; }
+.gps-marco .planilla-vr-tarjetas {
+  display: none;
+  gap: 12px;
+}
+.gps-marco .planilla-vr-tarjeta {
+  padding: 14px;
+}
+.gps-marco .planilla-vr-medida {
+  margin: 0 0 10px;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 800;
+}
+.gps-marco .planilla-vr-eleccion {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.gps-marco .planilla-vr-eleccion .planilla-vr-elegir {
+  min-width: 0;
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 600;
+}
+.gps-marco .planilla-vr-categorias {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.gps-marco .planilla-vr-categorias li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 64px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-left: 4px solid;
+  border-radius: 9px;
+  font-size: 14px;
+}
+.gps-marco .planilla-vr-categorias li span { color: #334155; font-weight: 700; }
+.gps-marco .planilla-vr-categorias li b { color: #0f172a; font-variant-numeric: tabular-nums; }
+.gps-marco .planilla-vr-categorias li small { color: #64748b; font-size: 12px; text-align: right; }
+.gps-marco .planilla-vr-categorias li.cat-excelente { border-color: #8fc79b; background: #8fc79b26; }
+.gps-marco .planilla-vr-categorias li.cat-muy_bueno { border-color: #d3edc9; background: #d3edc94d; }
+.gps-marco .planilla-vr-categorias li.cat-bueno { border-color: #fbf0a6; background: #fbf0a64d; }
+.gps-marco .planilla-vr-categorias li.cat-regular { border-color: #f7c79a; background: #f7c79a26; }
+.gps-marco .planilla-vr-categorias li.cat-malo { border-color: #f4a7a7; background: #f4a7a726; }
+.gps-marco .planilla-vr-datos {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .gps-marco .planilla-vr-tabla-marco {
+    display: none;
+  }
+  .gps-marco .planilla-vr-tarjetas {
+    display: grid;
+  }
+}
+/* Los atípicos: un enlace en «Datos» y una hoja con las filas. */
+.gps-marco .planilla-vr-ver-atipicos,
+.planilla-vr-ver-atipicos {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: #0f766e;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.planilla-vr-ver-atipicos:hover {
+  transform: none;
+  box-shadow: none;
+}
+.planilla-vr-atipicos {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.planilla-vr-atipicos li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto 72px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f8fafc;
+  font-size: 14px;
+}
+.planilla-vr-atipicos li span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.planilla-vr-atipicos li b {
+  font-variant-numeric: tabular-nums;
+}
+.planilla-vr-atipicos li small {
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+@media (max-width: 420px) {
+  .planilla-vr-atipicos li {
+    grid-template-columns: 78px minmax(0, 1fr) auto;
+  }
+  .planilla-vr-atipicos li small {
+    grid-column: 2 / -1;
+    text-align: left;
+  }
+}
+/* Un V.R. de la planilla: cuándo y con qué filas se calculó. */
+.gps-marco .referencias-calculado {
+  margin: -4px 0 10px;
+}
