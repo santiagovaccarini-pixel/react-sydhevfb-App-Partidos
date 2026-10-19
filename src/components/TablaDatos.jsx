@@ -90,6 +90,10 @@ import "./tablaDatos.css";
 // filas que se ven al correr la tabla, y unas cuantas más arriba y abajo; lo
 // demás (elegir, copiar, pegar, filtros, el informe de arriba) sigue con
 // todas. Con las flechas, la tabla corre hasta la celda elegida.
+// onFiltros(filtros): los filtros que se están aplicando ({ clave: [textos
+// elegidos] }), cada vez que cambian (la planilla de V.R. de GPS guarda con
+// qué filas se calculó). Las columnas y las filas tienen que ser las mismas
+// entre una vez y otra (useMemo), como en todas las tablas.
 
 const CLAVE_ORDEN = "tabla_columnas";
 const CLAVE_ANCHOS = "tabla_anchos";
@@ -233,6 +237,7 @@ export const TablaDatos = ({
   muchasFilas = false,
   ocultar = true,
   abrirAlFinal = true,
+  onFiltros = null,
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -358,6 +363,9 @@ export const TablaDatos = ({
     [filtros, columnas, filas],
   );
   const hayFiltros = Object.keys(filtrosVigentes).length > 0;
+  useEffect(() => {
+    onFiltros?.(filtrosVigentes);
+  }, [onFiltros, filtrosVigentes]);
   // Las filas que se ven: filtradas y en el orden pedido. Todo lo que es
   // "fila n" (elegir, copiar, pegar, editar) habla de estas.
   // Las pedidas a la vista que siguen a la vista: las que llegaron después

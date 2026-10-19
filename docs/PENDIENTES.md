@@ -4182,12 +4182,36 @@ confirme.**
     en GPS y Evaluaciones (no en un test sin V.R.). El SQL ya estaba corrido en la base del club
     (19/10, por la conexión): las columnas `sentido` de `lesiones_campos` y
     `datos_basicos_columnas` quedan sin uso; no se borraron.
-  - **Nota 2, falta:** «Agregar V.R.» con la planilla en GPS, como la maqueta con lo de arriba:
+  - **Nota 2, hecha el 19/10 (migración `20261108_gps_vr_planilla.sql`; UI-060):** «Agregar V.R.» con la planilla en GPS, como la maqueta con lo de arriba:
     los atípicos de cada medida a la vista (qué filas, con qué valor y entre qué límites), las
     filas del promedio del equipo en la tabla para filtrarlas, el sentido de Ajustes (que se
     puede cambiar en cada cálculo), Automático/Manual al calcular, y «Recalcular» en la tarjeta
     (con la misma muestra y lo elegido, con los datos de ese día; pregunta antes y los números de
     antes quedan en los últimos cambios, con «Volver»).
+    - **Cómo quedó.** La cuenta es la de la planilla (`src/domain/valorReferencial.js`, comparada
+      con la planilla recalculada en 45 casos inventados; tres quedan en sus pruebas). La muestra
+      y lo que se guarda, en `src/domain/gps/planillaVr.js`; la pantalla, en
+      `src/PlanillaVrGps.jsx`. Las medidas son las de la hoja de los V.R. (de D a Mts >= 90% Pico,
+      sus por minuto y el Tiempo); una medida sin al menos dos números distintos queda «Sin datos
+      suficientes» y no se guarda. Un V.R. calculado se guarda con un solo nombre (en `tabla`,
+      con tipo y grupo vacíos), el Bueno en el promedio y las otras cuatro en las categorías, y
+      en `planilla` con qué se calculó: los filtros con los valores de las filas (el código de
+      una opción, la fecha, el id del jugador; no los textos ni los nombres, así sirve en los dos
+      idiomas), lo elegido en cada medida, cuántas filas y la fecha. Las personas fuera del
+      plantel no tienen id: en «Recalcular» van todas juntas.
+    - **Los colores con «Menos es mejor».** Un V.R. así trae las franjas al revés (Excelente por
+      debajo del Bueno): el informe y el reporte grupal pintan lo bajo en verde
+      (`colorDeMayorMejor`). Los V.R. de antes no cambian.
+    - **Se calcula con todas las filas del GPS:** mientras llegan las de antes (la primera vez en
+      un aparato) o si no llegaron, «Agregar V.R.» y «Recalcular» quedan apagados y se dice por
+      qué.
+    - **Sin la actualización 20261108**, «Agregar V.R.» sigue como antes (tipo, tabla y grupo,
+      para escribirlo a mano). Con ella, ese V.R. vacío ya no se ofrece: «Agregar V.R.» lleva a la
+      planilla, como estaba anotado en «Lo que sigue». Los números de cualquier V.R. se siguen
+      cambiando a mano con dos toques.
+    - **Queda prohibido** guardar en `planilla` textos o nombres de jugadores, y volver a poner
+      «Promedios del equipo: No entran / Entran» o Automático/Manual en Ajustes, salvo un pedido
+      nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida); después, las grandes, cada una aparte (la planilla de valor

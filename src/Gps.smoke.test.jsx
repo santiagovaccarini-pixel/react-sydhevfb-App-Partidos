@@ -29,6 +29,8 @@ const datos = vi.hoisted(() => ({
   referencias: [],
   faltanReferencias: false,
   sinEdicionVr: false,
+  // Sin la actualización 20261108: «Agregar V.R.» sin la planilla.
+  sinPlanilla: true,
   cambiosVr: [],
   historialVr: [],
   partidos: [],
@@ -155,7 +157,21 @@ vi.mock("./domain/gpsDb.js", () => ({
     return { error: "" };
   },
   leerReglasGps: async () => ({ reglas: { ...datos.reglas }, faltaTabla: datos.faltanReglas, error: "" }),
-  leerReferenciasGps: async () => ({ referencias: datos.referencias.map((una) => ({ ...una, promedio: { ...una.promedio }, desvio: { ...una.desvio }, categorias: JSON.parse(JSON.stringify(una.categorias || {})) })), faltaTabla: datos.faltanReferencias, sinEdicion: datos.sinEdicionVr, error: "" }),
+  leerReferenciasGps: async () => ({
+    referencias: datos.referencias.map((una) => ({ ...una, promedio: { ...una.promedio }, desvio: { ...una.desvio }, categorias: JSON.parse(JSON.stringify(una.categorias || {})) })),
+    faltaTabla: datos.faltanReferencias,
+    sinEdicion: datos.sinEdicionVr,
+    sinPlanilla: datos.sinPlanilla,
+    error: "",
+  }),
+  // «Recalcular» (o volver atrás un recálculo): todo de un saque.
+  recalcularReferenciaGps: async (id, nuevos) => {
+    datos.cambiosVr.push({ que: "recalcular", id, ...JSON.parse(JSON.stringify(nuevos)) });
+    const referencia = datos.referencias.find((una) => una.id === id);
+    if (!referencia) return { error: "gps.error.sinPermiso" };
+    Object.assign(referencia, JSON.parse(JSON.stringify(nuevos)));
+    return { referencia: { ...referencia }, error: "" };
+  },
   // Como la base: el promedio, el desvío o una categoría (las de los V.R. por jugador).
   cambiarValorDeReferenciaGps: async (id, cual, clave, valor) => {
     datos.cambiosVr.push({ que: "valor", id, cual, clave, valor });
@@ -353,6 +369,7 @@ describe("GPS", () => {
     datos.referencias = [];
     datos.faltanReferencias = false;
     datos.sinEdicionVr = false;
+    datos.sinPlanilla = true;
     datos.cambiosVr = [];
     datos.historialVr = [];
     datos.partidos = [];
@@ -1846,6 +1863,172 @@ describe("GPS", () => {
     }
     await tocar(boton("Listo"));
   };
+
+  // La planilla de valor referencial (nota 2, 19/10): todo inventado.
+  const FILAS_PLANILLA = () => [
+    ...[4000, 4100, 4200, 3900, 4050, 3950, 4150, 4020, 3980, 9000].map((d, i) =>
+      fila(`p${i}`, i + 1, { jugador_id: (i % 2) + 1 }, diasAntes(i + 2), { microciclo: 30, d, d_min: d / 50, tiempo: 3000, tarea_partido: "partido_oficial_torneo", dispositivo: "catapult" }),
+    ),
+    fila("t1", 20, { jugador_id: 1 }, diasAntes(3), { microciclo: 30, d: 2000, tiempo: 3000, tarea_partido: "otra_tarea", dispositivo: "catapult" }),
+    fila("t2", 21, { jugador_id: 2 }, diasAntes(3), { microciclo: 30, d: 2200, tiempo: 3000, tarea_partido: "otra_tarea", dispositivo: "catapult" }),
+    fila("pr", 22, { promedio: "parcial" }, diasAntes(2), { microciclo: 30, d: 4500, tiempo: 3000, tarea_partido: "partido_oficial_torneo", dispositivo: "catapult" }),
+    fila("s1", 23, { jugador_id: 1 }, diasAntes(2), { microciclo: 30, d: 7000, tiempo: 3000, tarea_partido: "partido_oficial_torneo", dispositivo: "sport" }),
+  ];
+  const DE_LA_PLANILLA = () => ({
+    id: "r9",
+    dispositivo: "catapult",
+    tipo: "",
+    tabla: "Mi VR",
+    grupo: "",
+    orden: 9,
+    promedio: { d: 4000 },
+    desvio: {},
+    categorias: { excelente: { d: 4300 }, muy_bueno: { d: 4150 }, regular: { d: 3850 }, malo: { d: 3700 } },
+    dePartido: false,
+    planilla: { version: 1, muestra: { tarea_partido: ["partido_oficial_torneo"] }, medidas: { d: { sentido: "mas", modo: "manual" } }, filas: 9, calculado: "2026-10-01" },
+  });
+
+  test("Valores de referencia › «Agregar V.R.» con la planilla: el nombre, la muestra con el embudo, el V.R. con sus atípicos y se guarda", async () => {
+    datos.sinPlanilla = false;
+    datos.referencias = VR();
+    datos.filas = FILAS_PLANILLA();
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    await tocar(boton("Agregar V.R. de Catapult"));
+    expect(contenedor.querySelector("h1").textContent).toBe("Nuevo V.R. de Catapult");
+    expect(contenedor.querySelector(".lesiones-paso-numero").textContent).toBe("Paso 1 de 2");
+    // La muestra: todas las filas de Catapult, también la del promedio del equipo; no las de Sport.
+    const muestra = () => contenedor.querySelector(".planilla-vr-muestra").textContent;
+    expect(muestra()).toContain("Muestra: 13 filas · 2 jugadores · del ");
+    expect(filas(contenedor)).toHaveLength(13);
+    // Sin nombre no sigue.
+    await tocar(siguiente());
+    expect(contenedor.textContent).toContain("Escribí el nombre del V.R.");
+    await escribir(contenedor.querySelector("#planilla-vr-nombre"), " Partidos 2026 ");
+    // El embudo de Tarea o Partido: solo los partidos.
+    await tocar(contenedor.querySelector('.tabla-datos-filtro[aria-label="Filtrar u ordenar Tarea o Partido"]'));
+    const valores = () => [...document.body.querySelectorAll(".tabla-datos-valores label")];
+    await tocar(boton("Ninguno"));
+    await tocar(valores().find((label) => label.textContent.startsWith("Partido Oficial Torneo")).querySelector("input"));
+    await tocar(boton("Aplicar"));
+    expect(muestra()).toContain("Muestra: 11 filas · 2 jugadores");
+    await tocar(siguiente());
+    expect(contenedor.querySelector(".lesiones-paso-numero").textContent).toBe("Paso 2 de 2");
+    expect(contenedor.querySelector(".lesiones-encabezado p").textContent).toBe("Partidos 2026 · 11 filas · 2 jugadores · del " + fechaCorta(diasAntes(11)) + " al " + fechaCorta(diasAntes(2)));
+    // Por medida, en la compu una tabla: el sentido de Ajustes, Automático, los datos y los cinco valores.
+    const filaD = () => contenedor.querySelector('.planilla-vr-tabla tr[data-medida="d"]');
+    expect(filaD().querySelector("th").textContent).toBe("D");
+    expect(filaD().querySelector('select[aria-label="Sentido de D"]').value).toBe("mas");
+    expect(filaD().querySelector('select[aria-label="Cortes de D"]').value).toBe("automatico");
+    expect(filaD().querySelector("td.datos").textContent).toBe("10 de 11 · Ver 1 atípico");
+    const valoresD = () => [...filaD().querySelectorAll("td.valor b")].map((b) => Number(b.textContent.replace(/\./g, "").replace(",", ".")));
+    const [excelente, , bueno, , malo] = valoresD();
+    expect(excelente).toBeGreaterThan(bueno);
+    expect(malo).toBeLessThan(bueno);
+    // Una medida sin números en la muestra.
+    expect(contenedor.querySelector('.planilla-vr-tabla tr[data-medida="d_shi"] td.datos').textContent).toBe("Sin datos suficientes");
+    // El celular: una tarjeta por medida, con lo mismo.
+    expect(contenedor.querySelector('.planilla-vr-tarjeta[data-medida="d"] .planilla-vr-datos').textContent).toBe("Datos: 10 de 11 · Ver 1 atípico");
+    // Los atípicos: qué fila, con qué valor y entre qué límites.
+    await tocar(filaD().querySelector(".planilla-vr-ver-atipicos"));
+    const hoja = () => document.body.querySelector(".planilla-vr-hoja-atipicos");
+    expect(hoja().textContent).toContain("Atípicos de D (1)");
+    expect(hoja().textContent).toContain("3 veces el rango entre el primer y el tercer cuartil");
+    const atipico = hoja().querySelector(".planilla-vr-atipicos li");
+    expect([...atipico.children].map((uno) => uno.textContent)).toEqual([fechaCorta(diasAntes(11)), "BETA", "9000,0", "Muy alto"]);
+    await tocar(boton("Cerrar"));
+    // «Menos es mejor» para este V.R.: Excelente pasa a ser lo más bajo.
+    await elegir(filaD().querySelector('select[aria-label="Sentido de D"]'), "menos");
+    expect(valoresD()[0]).toBeLessThan(valoresD()[2]);
+    await elegir(filaD().querySelector('select[aria-label="Cortes de D"]'), "manual");
+    await tocar(boton("Guardar V.R."));
+    const guardado = datos.cambiosVr.at(-1);
+    expect(guardado).toMatchObject({ que: "sumar", dispositivo: "catapult", tipo: "", tabla: "Partidos 2026", grupo: "", orden: 4, desvio: {} });
+    expect(guardado.planilla).toEqual({
+      version: 1,
+      muestra: { tarea_partido: ["partido_oficial_torneo"] },
+      medidas: expect.objectContaining({ d: { sentido: "menos", modo: "manual" }, d_min: { sentido: "mas", modo: "automatico" } }),
+      filas: 11,
+      calculado: HOY,
+    });
+    // El Tiempo es igual en todas: sin variación no hay V.R. de esa medida.
+    expect(Object.keys(guardado.promedio)).toEqual(["d", "d_min"]);
+    expect(guardado.categorias.excelente.d).toBeLessThan(guardado.promedio.d);
+    // De vuelta en Valores de referencia: la tarjeta, con sus cinco filas y con qué se calculó.
+    expect(contenedor.querySelector("h1").textContent).toBe("Valores de referencia");
+    expect(contenedor.textContent).toContain("V.R. agregado.");
+    const tarjeta = tarjetaVr("Partidos 2026");
+    expect([...tarjeta.querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
+    expect(tarjeta.querySelector(".referencias-calculado").textContent).toBe(`Calculado el ${fechaCorta(HOY)} con 11 filas · Tarea o Partido: Partido Oficial Torneo`);
+  });
+
+  test("Valores de referencia › un V.R. de la planilla: «Recalcular» pregunta y usa la misma muestra con los datos de hoy; un solo nombre; «Volver»", async () => {
+    datos.sinPlanilla = false;
+    datos.referencias = [...VR(), DE_LA_PLANILLA()];
+    datos.filas = FILAS_PLANILLA();
+    datos.historialVr = [
+      {
+        id: 5,
+        tabla: "gps_referencias",
+        filaId: "r9",
+        accion: "editada",
+        quien: "pf@club.com",
+        cuando: "2026-10-14T19:30:00Z",
+        antes: { ...DE_LA_PLANILLA(), promedio: { d: 3000 }, planilla: { ...DE_LA_PLANILLA().planilla, filas: 5 } },
+        despues: DE_LA_PLANILLA(),
+      },
+    ];
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    const tarjeta = () => tarjetaVr("Mi VR");
+    expect(tarjeta().querySelector(".referencias-calculado").textContent).toBe(`Calculado el ${fechaCorta("2026-10-01")} con 9 filas · Tarea o Partido: Partido Oficial Torneo`);
+    const dentro = (texto) => [...tarjeta().querySelectorAll(".referencias-acciones button")].find((b) => b.textContent === texto);
+    // Los V.R. escritos a mano no tienen «Recalcular».
+    expect([...tarjetaVr("FUTBOL · Oficial · TOTAL").querySelectorAll(".referencias-acciones button")].map((b) => b.textContent)).not.toContain("Recalcular");
+    await tocar(dentro("Recalcular"));
+    const dialogo = () => document.body.querySelector(".hoja-confirmar");
+    expect(dialogo().querySelector("h3").textContent).toBe("¿Recalcular «Mi VR»?");
+    expect(dialogo().textContent).toContain("Se calcula de nuevo con la misma muestra (Tarea o Partido: Partido Oficial Torneo) y lo elegido en cada medida, con los datos de hoy: 11 filas (2 más que la vez anterior).");
+    await tocar(dialogo().querySelector(".boton-confirmar-hoja"));
+    const recalculado = datos.cambiosVr.at(-1);
+    expect(recalculado).toMatchObject({ que: "recalcular", id: "r9", desvio: {} });
+    expect(recalculado.planilla).toMatchObject({ muestra: { tarea_partido: ["partido_oficial_torneo"] }, filas: 11, calculado: HOY });
+    // Lo elegido se respeta (D, Manual); una medida que no estaba, con lo de entrada.
+    expect(recalculado.planilla.medidas.d).toEqual({ sentido: "mas", modo: "manual" });
+    expect(recalculado.planilla.medidas.d_min).toEqual({ sentido: "mas", modo: "automatico" });
+    expect(contenedor.textContent).toContain("V.R. recalculado.");
+    expect(tarjeta().querySelector(".referencias-calculado").textContent).toContain("con 11 filas");
+    // Un solo nombre.
+    await tocar(dentro("Cambiar nombre"));
+    expect(document.body.querySelector("#vr-tipo")).toBeNull();
+    expect(document.body.querySelector("#vr-nombre").value).toBe("Mi VR");
+    await escribir(document.body.querySelector("#vr-nombre"), "");
+    await tocar(boton("Guardar"));
+    expect(document.body.textContent).toContain("Escribí el nombre del V.R.");
+    await escribir(document.body.querySelector("#vr-nombre"), "Partidos 2027");
+    await tocar(boton("Guardar"));
+    expect(datos.cambiosVr.at(-1)).toEqual({ que: "nombre", id: "r9", tipo: "", tabla: "Partidos 2027", grupo: "" });
+    expect(tarjetaVr("Partidos 2027")).toBeTruthy();
+    // En los últimos cambios, un recálculo es una línea; «Volver» deja todo como estaba.
+    const item = [...contenedor.querySelectorAll(".referencias-historial-lista > li")].find((li) => li.textContent.includes("Recalculó «Mi VR»"));
+    expect(item).toBeTruthy();
+    expect(item.textContent).not.toContain("→");
+    await tocar([...item.querySelectorAll("button")].find((b) => b.textContent === "Volver"));
+    expect(datos.cambiosVr.at(-1)).toMatchObject({ que: "recalcular", id: "r9", promedio: { d: 3000 }, planilla: { filas: 5 } });
+    expect(document.body.textContent).toContain("Listo: quedó como estaba.");
+  });
+
+  test("Valores de referencia › la planilla: sin todas las filas todavía, no se calcula (lo dice)", async () => {
+    datos.sinPlanilla = false;
+    datos.referencias = [DE_LA_PLANILLA()];
+    datos.filas = FILAS_PLANILLA();
+    datos.errorHistorial = "gps.error.noLeer";
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    expect(boton("Agregar V.R. de Catapult").disabled).toBe(true);
+    expect([...tarjetaVr("Mi VR").querySelectorAll(".referencias-acciones button")].find((b) => b.textContent === "Recalcular").disabled).toBe(true);
+    expect(contenedor.textContent).toContain("Para calcular un V.R. hacen falta todas las filas del GPS: todavía están llegando.");
+  });
 
   test("Informe › Por microciclo: el menú, los filtros con casillas, el informe con sus franjas y colores, y otro V.R.", async () => {
     datos.filas = INFORME();

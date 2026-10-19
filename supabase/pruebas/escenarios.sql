@@ -1001,6 +1001,15 @@ select pruebas.esperar('...también lo borrado', (select count(*) from referenci
 select pruebas.esperar('...pero no el de otro club', (select count(*) from referencias_historial where equipo_id = :C2), 0);
 select pruebas.debe_fallar('...ni lo cambia', $$update referencias_historial set quien_email = 'otro@uno.com'$$, 'permission denied');
 select pruebas.debe_fallar('...ni le suma', $$insert into referencias_historial (tabla, fila_id, accion) values ('gps_referencias', gen_random_uuid(), 'creada')$$, 'permission denied');
+-- Un V.R. de la planilla (20261108_gps_vr_planilla.sql): un solo nombre y
+-- con qué se calculó; «Recalcular» cambia todo de un saque.
+select pruebas.esperar('Suma un V.R. de la planilla, con un solo nombre', pruebas.filas($$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo, orden, promedio, categorias, planilla) values ('00000000-0000-0000-0000-0000000000c1', 'catapult', '', 'Partidos 2026', '', 5, '{"d": 10}', '{"excelente": {"d": 14}, "muy_bueno": {"d": 12}, "regular": {"d": 8}, "malo": {"d": 6}}', '{"version": 1, "muestra": {"tarea_partido": ["partido_oficial_torneo"]}, "medidas": {"d": {"sentido": "mas", "modo": "automatico"}}, "filas": 30}')$$), 1);
+select pruebas.debe_fallar('...uno escrito a mano sigue con tipo, tabla y grupo', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo) values ('00000000-0000-0000-0000-0000000000c1', 'catapult', '', 'Solo', '')$$, 'gps_referencias_textos');
+select pruebas.debe_fallar('...la planilla es un objeto', $$update gps_referencias set planilla = '[1]' where tabla = 'Partidos 2026'$$, 'gps_referencias_planilla');
+select pruebas.esperar('...lo recalcula de un saque', pruebas.filas($$update gps_referencias set promedio = '{"d": 11}', categorias = '{"excelente": {"d": 15}, "muy_bueno": {"d": 13}, "regular": {"d": 9}, "malo": {"d": 7}}', planilla = planilla || '{"filas": 40}' where tabla = 'Partidos 2026'$$), 1);
+select pruebas.esperar('...y en el historial queda cómo estaba', (select (antes #>> '{promedio,d}') || '→' || (despues #>> '{promedio,d}') || ',' || (antes #>> '{planilla,filas}') || '→' || (despues #>> '{planilla,filas}') from referencias_historial where tabla = 'gps_referencias' and accion = 'editada' and despues ->> 'tabla' = 'Partidos 2026'), '10→11,30→40');
+select pruebas.debe_fallar('...no suma uno de la planilla en otro club', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo, planilla) values ('00000000-0000-0000-0000-0000000000c2', 'catapult', '', 'Otro', '', '{}')$$, 'row-level security');
+select pruebas.esperar('...y lo borra', pruebas.filas($$delete from gps_referencias where tabla = 'Partidos 2026'$$), 1);
 reset role;
 
 select pruebas.ser('nuevo@uno.com'); set role authenticated;
@@ -1099,6 +1108,7 @@ select pruebas.esperar('...y los V.R. de cada dispositivo', (select count(*) fro
 select pruebas.debe_fallar('...pero ya no los cambia', format('select gps_referencia_cambiar(%L, %L, %L, 1)', :'vr_c1', 'promedio', 'd'), 'referencia_sin_permiso');
 select pruebas.debe_fallar('...ni sus categorías', format('select gps_referencia_cambiar(%L, %L, %L, 1)', :'vr_s1', 'muy_bueno', 'd'), 'referencia_sin_permiso');
 select pruebas.esperar('...ni de un saque', pruebas.filas($$update gps_referencias set categorias = '{}'$$), 0);
+select pruebas.esperar('...ni recalcula uno', pruebas.filas($$update gps_referencias set promedio = '{}', planilla = '{}'$$), 0);
 select pruebas.debe_fallar('...ni marca uno de partido', format('select gps_referencia_de_partido(%L, true)', :'vr_c1'), 'referencia_sin_permiso');
 select pruebas.esperar('...ni los borra', pruebas.filas($$delete from gps_referencias$$), 0);
 select pruebas.debe_fallar('...ni suma uno', $$insert into gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo) values ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'FUTBOL', 'Otra', 'TOTAL FUTBOL')$$, 'row-level security');
