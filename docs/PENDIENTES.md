@@ -1567,6 +1567,28 @@ no se trabe con muchas filas, si hay que pagar lo hacemos».
   `clubes_donde_puedo('gps')` (las mismas funciones, una vez por pedido): cada página, unos
   15 ms; contar, unos 10 ms. Quién ve, carga, cambia y borra no cambió (los escenarios del GPS
   pasan igual). Las otras tablas siguen como estaban (tienen pocas filas).
+- **Lo cambiado, sin recorrer toda la tabla (19/10, migración `20261106_gps_indice_cambios.sql`).**
+  Santiago, 19/10: «para solucionar la lentitud con las 15,000+ filas»; en un cuestionario, sobre
+  el índice para «lo que cambió»: «Sí, agregalo».
+  - **Qué se midió en la base del club** (solo lectura, 19/10; 16.103 filas de GPS, todas de un
+    club). Al abrir la Base con la copia del aparato, el pedido de lo cambiado desde la última
+    vez (`ponerAlDiaGps`) tardó de 1,2 a 1,6 s las tres veces de esos dos días, aunque traía de
+    81 a 274 filas. No tenía un índice: la base recorría todas las filas del club. Lo normal es
+    que eso tome de 8 a 15 ms, pero cuando el servidor está lento ese recorrido es lo que más se
+    estira.
+  - **Las reglas no eran la causa.** El mismo pedido tarda unos 15 ms con las reglas y unos 8 ms
+    sin ellas. Una página de 1000 filas por fecha usa `gps_por_fecha`, con las reglas y también
+    en el plan que Postgres reusa entre pedidos.
+  - **El índice nuevo:** `gps_por_cambio (equipo_id, actualizado_en, id)`. Ahora se leen solo
+    las filas cambiadas, ya en orden. Medido en Postgres con 16.000 filas inventadas y las
+    reglas puestas: de 11,3 ms a 1,9 ms, leyendo 130 páginas en vez de 3.211. Ocupa
+    aproximadamente 1 MB. Una prueba de los escenarios comprueba que ese pedido lo usa sin
+    ordenar aparte.
+  - **No se agregó un índice `(equipo_id, id)`** (opción del mismo cuestionario, no elegida).
+    Medido igual: Postgres no lo usa, porque con todo el GPS de un solo club leer la tabla entera
+    sigue siendo más rápido. Pedir todos los id tardó 92 ms sin el índice y 88 ms con él.
+  - **No cambió:** quién ve, carga, cambia y borra; las reglas; los datos; la app. Lo que tarda la
+    primera vez en un aparato (bajar todas las filas) tampoco cambia con este índice.
 
 ### Todas las filas al abrir (14/10)
 

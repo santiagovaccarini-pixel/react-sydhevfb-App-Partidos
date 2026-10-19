@@ -71,6 +71,19 @@ begin
     false);
 end $$;
 
+-- El plan de una consulta, en texto (para ver qué índice usa).
+create or replace function pruebas.plan(p_sql text)
+returns text language plpgsql as $$
+declare
+  v_linea text;
+  v_plan text := '';
+begin
+  for v_linea in execute 'explain (costs off) ' || p_sql loop
+    v_plan := v_plan || v_linea || E'\n';
+  end loop;
+  return v_plan;
+end $$;
+
 grant execute on all functions in schema pruebas to anon, authenticated;
 
 -- ------------------------------------------------------------ El elenco --
@@ -868,6 +881,16 @@ select pruebas.debe_fallar('...ni en otro club', $$insert into gps (equipo_id, f
 select pruebas.esperar('Corrige un tiempo', pruebas.filas($$update gps set datos = datos || '{"tiempo":1900}' where jugador_id = 9006$$), 1);
 select pruebas.debe_fallar('...pero no le cambia el orden de carga', $$update gps set orden = 1 where jugador_id = 9006$$, 'orden');
 select pruebas.debe_fallar('...ni la lleva al futuro', $$update gps set fecha = current_date + 2 where jugador_id = 9006$$, 'gps_sin_futuro');
+-- Lo cambiado desde la última vez (ponerAlDiaGps) se lee con su índice, ya en
+-- orden, también con las reglas puestas (20261106_gps_indice_cambios.sql).
+-- Con tan pocas filas Postgres prefiere leer la tabla entera: se le pide que
+-- no, para ver qué índice usaría.
+set enable_seqscan = off;
+select pruebas.esperar('Lo cambiado desde una fecha se lee con su índice, ya en orden',
+  (select case when v ~ 'gps_por_cambio' and v !~ 'Sort' then 'con su índice' else v end
+     from pruebas.plan($$select id from gps where equipo_id = '00000000-0000-0000-0000-0000000000c1' and actualizado_en >= now() - interval '1 day' order by actualizado_en, id limit 1000$$) v),
+  'con su índice');
+reset enable_seqscan;
 -- Los Ajustes del club: el nombre de una columna, una columna que suma el
 -- club y una opción de una lista.
 select pruebas.esperar('Le cambia el nombre a una columna', pruebas.filas($$insert into gps_campos (equipo_id, campo, etiqueta_es, etiqueta_pt) values ('00000000-0000-0000-0000-0000000000c1', 'rhie_max', 'RHIE máx', 'RHIE máx')$$), 1);
