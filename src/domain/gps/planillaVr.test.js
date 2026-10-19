@@ -78,7 +78,19 @@ describe("La planilla de valor referencial en GPS", () => {
     expect(conCortes.d_min.resultado.desvios).toEqual(cortes);
     expect(conCortes.d_min.resultado.valores).toEqual(calcularValorReferencial(relativas, { relativa: true, modo: MANUAL, cortes }).valores);
     // Sin datos en ninguna fila, no hay V.R. de esa medida.
-    expect(calculos.d_shi).toEqual({ resultado: null, atipicos: [] });
+    expect(calculos.d_shi).toEqual({ resultado: null, atipicos: [], sinTiempo: 0 });
+    expect(calculos.d.sinTiempo).toBe(0);
+    expect(calculos.d_min.sinTiempo).toBe(0);
+  });
+
+  test("en las por minuto, cuenta las filas con el dato y sin tiempo o con tiempo 0 (en la planilla, #DIV/0!): no entran", () => {
+    const filas = [...FILAS.slice(0, 7), fila("j", { d: 500, tiempo: 0 }), fila("k", { d: 0, tiempo: 0 }), fila("l", { d: 300 }), fila("m", { d: 0, tiempo: 3000 })];
+    const calculos = calcularPlanilla(filas, [columnaGps("d_min")], { d_min: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO } });
+    expect(calculos.d_min.sinTiempo).toBe(3);
+    // El dato 0 con tiempo entra (0 por minuto), como en la planilla.
+    expect(calculos.d_min.resultado.n).toBe(8);
+    // Sin ninguna fila con tiempo, no hay V.R., pero se dice cuántas faltan.
+    expect(calcularPlanilla(filas.slice(7, 10), [columnaGps("d_min")], {}).d_min).toEqual({ resultado: null, atipicos: [], sinTiempo: 3 });
   });
 
   test("se guarda como un V.R. por jugador: el Bueno en el promedio y las otras cuatro en las categorías", () => {

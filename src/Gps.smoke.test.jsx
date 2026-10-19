@@ -1897,6 +1897,11 @@ describe("GPS", () => {
     await tocar(boton("Agregar V.R. de Catapult"));
     expect(contenedor.querySelector("h1").textContent).toBe("Nuevo V.R. de Catapult");
     expect(contenedor.querySelector(".lesiones-paso-numero").textContent).toBe("Paso 1 de 2");
+    // Qué medidas entran, en el paso 1 debajo del nombre: de entrada, todas las de números.
+    const barra = () => contenedor.querySelector(".planilla-vr-medidas .planilla-vr-medidas-barra")?.textContent;
+    const total = Number(/(\d+) de (\d+) elegidas/.exec(barra())[2]);
+    expect(barra()).toContain(`${total} de ${total} elegidas`);
+    expect(total).toBeGreaterThan(21);
     // La muestra: todas las filas de Catapult, también la del promedio del equipo; no las de Sport.
     const muestra = () => contenedor.querySelector(".planilla-vr-muestra").textContent;
     expect(muestra()).toContain("Muestra: 13 filas · 2 jugadores · del ");
@@ -1935,18 +1940,18 @@ describe("GPS", () => {
     expect(hoja().textContent).toContain("Atípicos de D (1)");
     expect(hoja().textContent).toContain("3 veces el rango entre el primer y el tercer cuartil");
     const atipico = hoja().querySelector(".planilla-vr-atipicos li");
-    expect([...atipico.children].map((uno) => uno.textContent)).toEqual([fechaCorta(diasAntes(11)), "BETA", "9000,0", "Muy alto"]);
+    expect([...atipico.children].map((uno) => uno.textContent)).toEqual([fechaCorta(diasAntes(11)), "BETA", "9000,00", "Muy alto"]);
     await tocar(boton("Cerrar"));
     // «Menos es mejor» para este V.R.: Excelente pasa a ser lo más bajo.
     await elegir(filaD().querySelector('select[aria-label="Sentido de D"]'), "menos");
     expect(valoresD()[0]).toBeLessThan(valoresD()[2]);
-    // Qué medidas entran: de entrada, todas las de números; se eligen en una hoja.
-    const barra = () => contenedor.querySelector(".planilla-vr-medidas-barra").textContent;
-    const total = Number(/Medidas: (\d+) de (\d+)/.exec(barra())[2]);
-    expect(barra()).toContain(`Medidas: ${total} de ${total}`);
-    expect(total).toBeGreaterThan(21);
+    // El paso 2 es el resultado: con todas las medidas, sin elegirlas acá.
     expect(contenedor.querySelector('.planilla-vr-tabla tr[data-medida="smax"]')).toBeTruthy();
-    await tocar(boton("Elegir medidas"));
+    expect(contenedor.querySelector(".planilla-vr-medidas-barra")).toBeNull();
+    // Qué medidas entran se elige en el paso 1, en una hoja; lo elegido en el paso 2 sigue.
+    await tocar(boton("Atrás"));
+    expect(contenedor.querySelector(".lesiones-paso-numero").textContent).toBe("Paso 1 de 2");
+    await tocar(boton("Elegir variables"));
     const hojaMedidas = () => document.body.querySelector(".planilla-vr-hoja-medidas");
     await tocar([...hojaMedidas().querySelectorAll("button")].find((b) => b.textContent === "Ninguno"));
     expect([...hojaMedidas().querySelectorAll("button")].find((b) => b.textContent === "Listo").disabled).toBe(true);
@@ -1954,8 +1959,20 @@ describe("GPS", () => {
     await marcar("D");
     await marcar("D/min");
     await tocar([...hojaMedidas().querySelectorAll("button")].find((b) => b.textContent === "Listo"));
-    expect(barra()).toContain(`Medidas: 2 de ${total}`);
+    expect(barra()).toContain(`2 de ${total} elegidas`);
+    expect(muestra()).toContain("Muestra: 11 filas · 2 jugadores");
+    await tocar(siguiente());
     expect([...contenedor.querySelectorAll(".planilla-vr-tabla tr[data-medida]")].map((tr) => tr.dataset.medida)).toEqual(["d", "d_min"]);
+    expect(filaD().querySelector('select[aria-label="Sentido de D"]').value).toBe("menos");
+    // Los valores, con 2 decimales; tocando uno, todos; otra vez, 2.
+    expect(contenedor.querySelector(".planilla-vr-tabla thead th").textContent).toBe("Variables");
+    const excelenteMin = () => contenedor.querySelector('.planilla-vr-tabla tr[data-medida="d_min"] td.cat-excelente');
+    expect(excelenteMin().querySelector("b").textContent).toMatch(/^\d+,\d{2}$/);
+    await tocar(excelenteMin().querySelector(".planilla-vr-valor"));
+    expect(excelenteMin().querySelector(".planilla-vr-valor").getAttribute("aria-pressed")).toBe("true");
+    expect(excelenteMin().querySelector("b").textContent).toMatch(/^\d+,\d{3,}$/);
+    await tocar(excelenteMin().querySelector(".planilla-vr-valor"));
+    expect(excelenteMin().querySelector("b").textContent).toMatch(/^\d+,\d{2}$/);
     // Manual: los desvíos de cada categoría, de entrada los de Automático, con lo que ofrece la planilla.
     const cortesD = () => contenedor.querySelector('.planilla-vr-tabla tr[data-cortes="d"]');
     expect(cortesD()).toBeNull();
@@ -1963,6 +1980,11 @@ describe("GPS", () => {
     await elegir(filaD().querySelector('select[aria-label="Cortes de D"]'), "manual");
     expect(valoresD()).toEqual(automaticoD);
     const desvio = (categoria) => cortesD().querySelector(`select[aria-label="Desvíos de ${categoria} en D"]`);
+    // En la compu, cada desvío debajo de su columna; Bueno (el promedio) no tiene.
+    expect([...cortesD().children].map((celda) => celda.className)).toEqual(["fija", "planilla-vr-cortes-suma", "cat-excelente", "cat-muy_bueno", "cat-bueno", "cat-regular", "cat-malo"]);
+    expect(desvio("Excelente").closest("td").className).toBe("cat-excelente");
+    expect(desvio("Malo").closest("td").className).toBe("cat-malo");
+    expect(cortesD().querySelector("td.cat-bueno select")).toBeNull();
     const opciones = (select) => [...select.options].map((opcion) => opcion.textContent);
     expect(opciones(desvio("Muy Bueno"))).toEqual(["0,25", "0,50", "0,75", "1,00", "1,25", "1,50", "1,75"]);
     expect(cortesD().querySelector(".planilla-vr-suma").textContent).toBe("Suma de los %: 100,0%");
@@ -1994,6 +2016,31 @@ describe("GPS", () => {
     const tarjeta = tarjetaVr("Partidos 2026");
     expect([...tarjeta.querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
     expect(tarjeta.querySelector(".referencias-calculado").textContent).toBe(`Calculado el ${fechaCorta(HOY)} con 11 filas · Tarea o Partido: Partido Oficial Torneo`);
+    // Otro V.R. nuevo arranca sin los filtros ni las medidas del anterior.
+    await tocar(boton("Agregar V.R. de Catapult"));
+    expect(muestra()).toContain("Muestra: 13 filas");
+    expect(barra()).toContain(`${total} de ${total} elegidas`);
+  });
+
+  test("Valores de referencia › «Agregar V.R.» con la planilla: en las por minuto, «Datos» dice cuántas filas no entran por no tener tiempo", async () => {
+    datos.sinPlanilla = false;
+    datos.referencias = VR();
+    datos.filas = [
+      ...FILAS_PLANILLA(),
+      fila("z1", 30, { jugador_id: 1 }, diasAntes(4), { microciclo: 30, d: 500, tiempo: 0, tarea_partido: "partido_oficial_torneo", dispositivo: "catapult" }),
+      fila("z2", 31, { jugador_id: 2 }, diasAntes(4), { microciclo: 30, d: 0, tiempo: 0, tarea_partido: "partido_oficial_torneo", dispositivo: "catapult" }),
+    ];
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    await tocar(boton("Agregar V.R. de Catapult"));
+    await escribir(contenedor.querySelector("#planilla-vr-nombre"), "Con tiempo 0");
+    await tocar(siguiente());
+    const datosDe = (clave) => contenedor.querySelector(`.planilla-vr-tabla tr[data-medida="${clave}"] td.datos`).textContent;
+    // En la planilla darían #DIV/0!: acá no entran y se dice cuántas.
+    expect(datosDe("d_min")).toMatch(/ · 2 sin tiempo$/);
+    // En las absolutas, no.
+    expect(datosDe("d")).not.toContain("sin tiempo");
+    expect(contenedor.querySelector('.planilla-vr-tarjeta[data-medida="d_min"] .planilla-vr-datos').textContent).toMatch(/ · 2 sin tiempo$/);
   });
 
   test("Valores de referencia › un V.R. de la planilla: «Recalcular» pregunta y usa la misma muestra con los datos de hoy; un solo nombre; «Volver»", async () => {
@@ -2022,7 +2069,7 @@ describe("GPS", () => {
     await tocar(dentro("Recalcular"));
     const dialogo = () => document.body.querySelector(".hoja-confirmar");
     expect(dialogo().querySelector("h3").textContent).toBe("¿Recalcular «Mi VR»?");
-    expect(dialogo().textContent).toContain("Se calcula de nuevo con la misma muestra (Tarea o Partido: Partido Oficial Torneo) y lo elegido en cada medida, con los datos de hoy: 11 filas (2 más que la vez anterior).");
+    expect(dialogo().textContent).toContain("Se calcula de nuevo con la misma muestra (Tarea o Partido: Partido Oficial Torneo) y lo elegido en cada variable, con los datos de hoy: 11 filas (2 más que la vez anterior).");
     await tocar(dialogo().querySelector(".boton-confirmar-hoja"));
     const recalculado = datos.cambiosVr.at(-1);
     expect(recalculado).toMatchObject({ que: "recalcular", id: "r9", desvio: {} });
