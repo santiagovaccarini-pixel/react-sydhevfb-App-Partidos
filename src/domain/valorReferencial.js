@@ -12,8 +12,11 @@
 // Cada variable es «Más es mejor» o «Menos es mejor» (con la segunda, las
 // franjas se dan vuelta). Las relativas (por minuto) son el numerador sobre
 // el denominador de cada fila; su promedio, la suma de los numeradores
-// sobre la de los denominadores, y si ese promedio es 1 o menos no se
-// descarta nada (como la hoja de relativos).
+// sobre la de los denominadores. Si el promedio de todos los datos es 1 o
+// menos no se descarta nada: en las relativas, como la hoja de relativos; en
+// las absolutas también, aunque su hoja no lo tiene (Santiago, 19/10:
+// «Agrega la condicion de que si el promedio es menor a 1 no descarta
+// nada»).
 // Las funciones de Excel que usa, como en Excel: CUARTIL y PERCENTIL
 // (inclusivos), DESVEST (muestral) y JERARQUIA (de mayor a menor). En Malo,
 // la planilla usa siempre el corte de Regular más 0,25 desvíos (Santiago,
@@ -140,9 +143,9 @@ export const calcularValorReferencial = (datos, { sentido = MAS_ES_MEJOR, modo =
   if (!filas.length) return null;
   const valores = filas.map((fila) => fila.valor);
   const suma = (lista, clave) => lista.reduce((total, fila) => total + fila[clave], 0);
-  // En las relativas con un promedio de 1 o menos no se descarta nada.
-  const promedioCrudo = relativa ? (suma(filas, "numerador") === 0 ? 0.01 : suma(filas, "numerador")) / suma(filas, "denominador") : null;
-  const { veces, desde = null, hasta = null, quedan } = relativa && promedioCrudo <= 1 ? { veces: null, quedan: valores.map(() => true) } : sinAtipicos(valores);
+  // Con un promedio de todos los datos de 1 o menos no se descarta nada.
+  const promedioCrudo = relativa ? (suma(filas, "numerador") === 0 ? 0.01 : suma(filas, "numerador")) / suma(filas, "denominador") : promedio(valores);
+  const { veces, desde = null, hasta = null, quedan } = promedioCrudo <= 1 ? { veces: null, quedan: valores.map(() => true) } : sinAtipicos(valores);
   const usadas = filas.filter((_, i) => quedan[i]);
   const x = usadas.map((fila) => fila.valor);
   const media = relativa ? suma(usadas, "numerador") / suma(usadas, "denominador") : promedio(x);
