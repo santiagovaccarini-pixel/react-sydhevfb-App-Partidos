@@ -4212,6 +4212,14 @@ confirme.**
     - **Queda prohibido** guardar en `planilla` textos o nombres de jugadores, y volver a poner
       «Promedios del equipo: No entran / Entran» o Automático/Manual en Ajustes, salvo un pedido
       nuevo.
+    - **La base del club no tenía `20261026_gps_referencias_categorias.sql`** (las categorías de
+      los V.R.; visto el 19/10 al correr `20261108`, que la necesita). No se podía correr: su
+      control pedía exactamente cuatro políticas en `gps_referencias` y, después de
+      `20261029_niveles_de_permiso.sql`, hay siete. Ahora busca las cuatro por su nombre, y las
+      pruebas de la base la vuelven a correr después de la última, como las demás que se pueden
+      volver a correr. Santiago, 19/10: «a partir de ahora tenes permiso para correr los sql en
+      supabase sin preguntarme pero si avisarme»: Claude corre `20261026` y `20261108` por la
+      conexión y avisa.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida); después, las grandes, cada una aparte (la planilla de valor
