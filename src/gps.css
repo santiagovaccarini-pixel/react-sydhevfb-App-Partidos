@@ -1931,6 +1931,7 @@
   color: #e2e8f0;
 }
 .gps-marco .planilla-vr-tabla .planilla-vr-elegir {
+  min-width: 124px;
   height: 36px;
   padding: 0 8px;
   border: 1px solid #cbd5e1;
@@ -1940,8 +1941,10 @@
   font: inherit;
 }
 .gps-marco .planilla-vr-tabla td.datos {
+  min-width: 112px;
   color: #64748b;
   font-size: 12px;
+  white-space: normal;
 }
 .gps-marco .planilla-vr-tabla td.valor b {
   display: block;
@@ -2087,4 +2090,93 @@
 /* Un V.R. de la planilla: cuándo y con qué filas se calculó. */
 .gps-marco .referencias-calculado {
   margin: -4px 0 10px;
+}
+/* La planilla: qué medidas entran y, en Manual, los desvíos de cada
+   categoría con la suma de los % (Santiago, 19/10). */
+.gps-marco .planilla-vr-medidas-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.gps-marco .planilla-vr-tabla tr.con-cortes > th,
+.gps-marco .planilla-vr-tabla tr.con-cortes > td {
+  border-bottom: 0;
+}
+.gps-marco .planilla-vr-tabla .planilla-vr-fila-cortes > td {
+  padding: 0 8px 10px;
+  text-align: left;
+  white-space: normal;
+}
+.gps-marco .planilla-vr-cortes {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.gps-marco .planilla-vr-tabla .planilla-vr-cortes {
+  margin: 0;
+}
+.gps-marco .planilla-vr-cortes-titulo {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.gps-marco .planilla-vr-cortes-grilla {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.gps-marco .planilla-vr-cortes-grilla label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 8px;
+  border-left: 4px solid;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+.gps-marco .planilla-vr-cortes-grilla label.cat-excelente { border-color: #8fc79b; }
+.gps-marco .planilla-vr-cortes-grilla label.cat-muy_bueno { border-color: #d3edc9; }
+.gps-marco .planilla-vr-cortes-grilla label.cat-regular { border-color: #f7c79a; }
+.gps-marco .planilla-vr-cortes-grilla label.cat-malo { border-color: #f4a7a7; }
+.gps-marco .planilla-vr-cortes .planilla-vr-elegir {
+  min-width: 0;
+  height: 40px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 600;
+}
+.gps-marco .planilla-vr-suma {
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 700;
+}
+.gps-marco .planilla-vr-suma.mal {
+  color: #b91c1c;
+}
+@media (max-width: 760px) {
+  .gps-marco .planilla-vr-cortes-grilla {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 360px) {
+  .gps-marco .planilla-vr-eleccion {
+    grid-template-columns: 1fr;
+  }
 }

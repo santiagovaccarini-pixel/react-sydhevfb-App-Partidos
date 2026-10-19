@@ -1,10 +1,11 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { BotonGuia } from "./components/Guia.jsx";
+import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { textoDeValor } from "./domain/evaluaciones/excel.js";
-import { AUTOMATICO, MANUAL, MAS_ES_MEJOR, MENOS_ES_MEJOR } from "./domain/valorReferencial.js";
+import { AUTOMATICO, CATEGORIAS_CON_CORTE, MANUAL, MAS_ES_MEJOR, MENOS_ES_MEJOR, cortesValidos, opcionesDeCorte, sumaCompleta, sumaDePorcentajes } from "./domain/valorReferencial.js";
 import { armarPlanilla, calcularPlanilla, eleccionDeEntrada, muestraDeLosFiltros, numerosParaGuardar } from "./domain/gps/planillaVr.js";
 import { filtrarFilas } from "./domain/tabla.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -18,18 +19,23 @@ import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 //      dispositivo en la Base, como en la Base (también las del promedio del
 //      equipo: «Se ven y se filtran»), filtradas con el embudo de cada
 //      columna. Arriba, cuántas filas, jugadores y fechas quedan.
-//   2. El V.R.: por medida, el sentido (el de Ajustes › Cabeceras) y
-//      Automático o Manual, que se pueden cambiar; los cinco valores con qué
-//      parte de la muestra cae en cada uno; y cuántos datos se usaron, con
-//      los atípicos a la vista («agregale alguna manera de poder ver que
-//      datos se descartaron como atipicos»). En la compu, una tabla; en el
-//      celular, una tarjeta por medida.
+//   2. El V.R.: arriba, qué medidas entran (las columnas de números; de
+//      entrada, todas: «Vienen todas las numericas»); por medida, el sentido
+//      (el de Ajustes › Cabeceras) y Automático o Manual, que se pueden
+//      cambiar; en Manual, los desvíos de Excelente, Muy bueno, Regular y
+//      Malo, de entrada los de Automático, con lo que ofrece la planilla, y
+//      la suma de los %, que tiene que dar 100 % para guardar; los cinco
+//      valores con qué parte de la muestra cae en cada uno; y cuántos datos
+//      se usaron, con los atípicos a la vista («agregale alguna manera de
+//      poder ver que datos se descartaron como atipicos»). En la compu, una
+//      tabla; en el celular, una tarjeta por medida.
 // Al guardar, el V.R. queda como uno por jugador (sus cinco filas) y con qué
 // se calculó, para «Recalcular» (domain/gps/planillaVr.js).
 //
 // filas: las del dispositivo, armadas como en la Base ({ id, valores,
 // textos, gps }); columnas: las de la Base (sin editar); medidas: las
-// columnas de los V.R.; textoDe(columna, valor): cómo se ve un número;
+// columnas de números que se pueden elegir; textoDe(columna, valor): cómo se
+// ve un número;
 // onGuardar({ nombre, promedio, desvio, categorias, planilla }) → { error }.
 
 const CATEGORIAS = ["excelente", "muy_bueno", "bueno", "regular", "malo"];
@@ -58,6 +64,9 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
   const [nombre, setNombre] = useState("");
   const [filtros, setFiltros] = useState({});
   const [eleccion, setEleccion] = useState(() => eleccionDeEntrada(medidas, sentidoDeAjustes));
+  // Las medidas que entran (de entrada, todas) y la hoja para elegirlas.
+  const [elegidas, setElegidas] = useState(() => medidas.map((columna) => columna.clave));
+  const [hojaMedidas, setHojaMedidas] = useState(null);
   const [verAtipicos, setVerAtipicos] = useState(null);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -93,12 +102,22 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
     [resumen, idioma],
   );
 
+  const medidasElegidas = useMemo(() => medidas.filter((columna) => elegidas.includes(columna.clave)), [medidas, elegidas]);
   const calculos = useMemo(
-    () => (paso === 1 ? calcularPlanilla(muestra.map((fila) => fila.gps), medidas, eleccion) : null),
-    [paso, muestra, medidas, eleccion],
+    () => (paso === 1 ? calcularPlanilla(muestra.map((fila) => fila.gps), medidasElegidas, eleccion) : null),
+    [paso, muestra, medidasElegidas, eleccion],
   );
   const cambiar = (clave, campo, valor) => setEleccion((antes) => ({ ...antes, [clave]: { ...antes[clave], [campo]: valor } }));
+  // A Manual: los desvíos arrancan como los de Automático (Santiago, 19/10).
+  const cambiarModo = (clave, modo) =>
+    setEleccion((antes) => ({
+      ...antes,
+      [clave]: { ...antes[clave], modo, ...(modo === MANUAL ? { cortes: cortesValidos(calculos?.[clave]?.resultado?.desvios || antes[clave]?.cortes || {}) } : {}) },
+    }));
+  const cambiarCorte = (clave, categoria, valor) =>
+    setEleccion((antes) => ({ ...antes, [clave]: { ...antes[clave], cortes: cortesValidos({ ...antes[clave]?.cortes, [categoria]: Number(valor) }) } }));
   const porcentaje = (valor) => textoDeValor(valor, "0.0%", idioma);
+  const desvios = (valor) => new Intl.NumberFormat(idioma, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(valor);
 
   const siguiente = () => {
     if (!nombre.trim()) {
@@ -125,9 +144,17 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
       setError(t("gps.vr.planilla.ningunaMedida"));
       return;
     }
+    // La suma de los % de cada medida tiene que dar 100 % (Santiago, 19/10:
+    // «si no es 100% no se deja avanzar»).
+    const sinCien = medidasElegidas.find((columna) => calculos[columna.clave]?.resultado && !sumaCompleta(calculos[columna.clave].resultado));
+    if (sinCien) {
+      setError(t("gps.vr.planilla.sumaMal", { medida: tituloDe(sinCien.clave), suma: porcentaje(sumaDePorcentajes(calculos[sinCien.clave].resultado)) }));
+      return;
+    }
     setError("");
     setGuardando(true);
-    const planilla = armarPlanilla({ muestra: muestraDeLosFiltros(filas, filtros), eleccion, filas: muestra.length, calculado: hoyISO() });
+    const deLasElegidas = Object.fromEntries(medidasElegidas.map((columna) => [columna.clave, eleccion[columna.clave]]));
+    const planilla = armarPlanilla({ muestra: muestraDeLosFiltros(filas, filtros), eleccion: deLasElegidas, filas: muestra.length, calculado: hoyISO() });
     const respuesta = await onGuardar({ nombre: nombre.trim(), ...numeros, planilla });
     setGuardando(false);
     if (respuesta?.error) setError(t(respuesta.error));
@@ -151,6 +178,45 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
     );
   };
   const tituloDeCategoria = (categoria) => t(`gps.vr.${categoria}`);
+
+  // En Manual: los desvíos de cada categoría (lo que ofrece la planilla) y la
+  // suma de los %.
+  const cortesManuales = (columna, titulo) => {
+    const elegido = eleccion[columna.clave];
+    if (elegido?.modo !== MANUAL) return null;
+    const cortes = cortesValidos(elegido.cortes || {});
+    const resultado = calculos?.[columna.clave]?.resultado;
+    const completa = sumaCompleta(resultado);
+    return (
+      <div className="planilla-vr-cortes">
+        <span className="planilla-vr-cortes-titulo">{t("gps.vr.planilla.desvios")}</span>
+        <div className="planilla-vr-cortes-grilla">
+          {CATEGORIAS_CON_CORTE.map((categoria) => (
+            <label key={categoria} className={`cat-${categoria}`}>
+              <span>{tituloDeCategoria(categoria)}</span>
+              <select
+                className="planilla-vr-elegir"
+                aria-label={t("gps.vr.planilla.desviosDe", { categoria: tituloDeCategoria(categoria), medida: titulo })}
+                value={cortes[categoria]}
+                onChange={(evento) => cambiarCorte(columna.clave, categoria, evento.target.value)}
+              >
+                {opcionesDeCorte(categoria, cortes).map((opcion) => (
+                  <option key={opcion} value={opcion}>
+                    {desvios(opcion)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+        {resultado && (
+          <small className={`planilla-vr-suma ${completa ? "" : "mal"}`.trim()} role={completa ? undefined : "alert"}>
+            {t(completa ? "gps.vr.planilla.suma" : "gps.vr.planilla.sumaMalCorta", { suma: porcentaje(sumaDePorcentajes(resultado)) })}
+          </small>
+        )}
+      </div>
+    );
+  };
 
   const columnaAtipica = verAtipicos ? medidas.find((columna) => columna.clave === verAtipicos) : null;
   const calculoAtipico = verAtipicos ? calculos?.[verAtipicos] : null;
@@ -210,6 +276,12 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
               <p>{t("gps.vr.planilla.vrTexto")}</p>
             </section>
             {error && <div className="aviso-hoja">{error}</div>}
+            <div className="planilla-vr-medidas-barra">
+              <span>{t("gps.vr.planilla.medidasElegidas", { n: medidasElegidas.length, total: medidas.length })}</span>
+              <button type="button" className="boton-secundario" onClick={() => setHojaMedidas({ elegidos: [...elegidas], busqueda: "" })}>
+                {t("gps.vr.planilla.elegirMedidas")}
+              </button>
+            </div>
             <div className="tarjeta planilla-vr-tabla-marco">
               <table className="planilla-vr-tabla">
                 <thead>
@@ -228,11 +300,13 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
                   </tr>
                 </thead>
                 <tbody>
-                  {medidas.map((columna) => {
+                  {medidasElegidas.map((columna) => {
                     const resultado = calculos?.[columna.clave]?.resultado;
                     const titulo = tituloDe(columna.clave);
+                    const manual = cortesManuales(columna, titulo);
                     return (
-                      <tr key={columna.clave} data-medida={columna.clave}>
+                      <React.Fragment key={columna.clave}>
+                      <tr data-medida={columna.clave} className={manual ? "con-cortes" : undefined}>
                         <th className="fija" scope="row">
                           {titulo}
                         </th>
@@ -240,7 +314,7 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
                           <Elegir etiqueta={t("gps.vr.planilla.sentidoDe", { medida: titulo })} valor={eleccion[columna.clave]?.sentido} opciones={SENTIDOS} onCambiar={(valor) => cambiar(columna.clave, "sentido", valor)} />
                         </td>
                         <td>
-                          <Elegir etiqueta={t("gps.vr.planilla.cortesDe", { medida: titulo })} valor={eleccion[columna.clave]?.modo} opciones={MODOS} onCambiar={(valor) => cambiar(columna.clave, "modo", valor)} />
+                          <Elegir etiqueta={t("gps.vr.planilla.cortesDe", { medida: titulo })} valor={eleccion[columna.clave]?.modo} opciones={MODOS} onCambiar={(valor) => cambiarModo(columna.clave, valor)} />
                         </td>
                         <td className="datos">{datos(columna.clave)}</td>
                         {CATEGORIAS.map((categoria) => (
@@ -256,13 +330,19 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
                           </td>
                         ))}
                       </tr>
+                      {manual && (
+                        <tr className="planilla-vr-fila-cortes" data-cortes={columna.clave}>
+                          <td colSpan={4 + CATEGORIAS.length}>{manual}</td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
               </table>
             </div>
             <div className="planilla-vr-tarjetas">
-              {medidas.map((columna) => {
+              {medidasElegidas.map((columna) => {
                 const resultado = calculos?.[columna.clave]?.resultado;
                 const titulo = tituloDe(columna.clave);
                 return (
@@ -270,8 +350,9 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
                     <div className="planilla-vr-medida">{titulo}</div>
                     <div className="planilla-vr-eleccion">
                       <Elegir etiqueta={t("gps.vr.planilla.sentidoDe", { medida: titulo })} valor={eleccion[columna.clave]?.sentido} opciones={SENTIDOS} onCambiar={(valor) => cambiar(columna.clave, "sentido", valor)} />
-                      <Elegir etiqueta={t("gps.vr.planilla.cortesDe", { medida: titulo })} valor={eleccion[columna.clave]?.modo} opciones={MODOS} onCambiar={(valor) => cambiar(columna.clave, "modo", valor)} />
+                      <Elegir etiqueta={t("gps.vr.planilla.cortesDe", { medida: titulo })} valor={eleccion[columna.clave]?.modo} opciones={MODOS} onCambiar={(valor) => cambiarModo(columna.clave, valor)} />
                     </div>
+                    {cortesManuales(columna, titulo)}
                     <ul className="planilla-vr-categorias">
                       {CATEGORIAS.map((categoria) => (
                         <li key={categoria} className={`cat-${categoria}`}>
@@ -306,6 +387,44 @@ export default function PlanillaVrGps({ dispositivo, filas, columnas, fijas, med
           )}
         </div>
       </div>
+
+      <HojaInferior
+        abierta={Boolean(hojaMedidas)}
+        className="lesiones-hoja planilla-vr-hoja-medidas"
+        titulo={t("gps.vr.planilla.medidasTitulo")}
+        descripcion={t("gps.vr.planilla.medidasAyuda")}
+        onCerrar={() => setHojaMedidas(null)}
+        acciones={
+          <>
+            <button type="button" className="boton-cancelar-hoja" onClick={() => setHojaMedidas(null)}>
+              {t("comun.cancelar")}
+            </button>
+            <button
+              type="button"
+              className="boton-confirmar-hoja"
+              disabled={!hojaMedidas?.elegidos.length}
+              onClick={() => {
+                setElegidas(medidas.map((columna) => columna.clave).filter((clave) => hojaMedidas.elegidos.includes(clave)));
+                setHojaMedidas(null);
+              }}
+            >
+              {t("comun.listo")}
+            </button>
+          </>
+        }
+      >
+        {hojaMedidas && (
+          <div className="tabla-datos-filtro-cuerpo">
+            <ListaParaMarcar
+              valores={medidas.map((columna) => ({ clave: columna.clave, texto: tituloDe(columna.clave) }))}
+              elegidos={hojaMedidas.elegidos}
+              onCambiar={(elegidos) => setHojaMedidas((antes) => ({ ...antes, elegidos }))}
+              busqueda={hojaMedidas.busqueda}
+              onBuscar={(busqueda) => setHojaMedidas((antes) => ({ ...antes, busqueda }))}
+            />
+          </div>
+        )}
+      </HojaInferior>
 
       <HojaInferior
         abierta={Boolean(columnaAtipica && calculoAtipico?.resultado)}

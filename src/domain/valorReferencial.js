@@ -41,6 +41,41 @@ const PASOS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75];
 const SALTO = 0.25;
 const TOPE = 2;
 
+// Los desvíos que se pueden elegir en Manual (Santiago, 19/10: «El manual es
+// para que yo elija los desvios que va a usar la categoria eso esta en la
+// planilla de vr que es cada 0.25 desvios» y «Revisa devuelta el archivo […]
+// ahi esta la logica de xq se descartan algunos desvios»): los mismos que
+// prueba la planilla. Muy bueno y Regular, de 0,25 a 1,75; Excelente, de
+// Muy bueno + 0,25 hasta 2, y Malo, de Regular + 0,25 hasta 2 (la planilla
+// deja en blanco las opciones que pasan de 2 o no superan a la de al lado).
+// Así los cortes no se cruzan y los % de las cinco suman toda la muestra.
+export const CATEGORIAS_CON_CORTE = Object.freeze(["excelente", "muy_bueno", "regular", "malo"]);
+const redondo = (valor) => Math.round(valor * 100) / 100;
+const desde = (base) => {
+  const opciones = [];
+  for (let paso = redondo(base + SALTO); paso <= TOPE; paso = redondo(paso + SALTO)) opciones.push(paso);
+  return opciones;
+};
+export const opcionesDeCorte = (categoria, cortes = {}) => {
+  if (categoria === "muy_bueno" || categoria === "regular") return [...PASOS];
+  return desde(categoria === "excelente" ? cortes.muy_bueno : cortes.regular);
+};
+// Lo elegido, siempre dentro de lo que se ofrece: lo que no está, al más cercano.
+const elMasCercano = (valor, opciones) => (numero(valor) ? opciones.reduce((mejor, opcion) => (Math.abs(opcion - valor) < Math.abs(mejor - valor) ? opcion : mejor), opciones[0]) : opciones[0]);
+export const cortesValidos = (cortes = {}) => {
+  const muyBueno = elMasCercano(cortes.muy_bueno ?? 1, PASOS);
+  const regular = elMasCercano(cortes.regular ?? 1, PASOS);
+  return {
+    excelente: elMasCercano(cortes.excelente, desde(muyBueno)),
+    muy_bueno: muyBueno,
+    regular,
+    malo: elMasCercano(cortes.malo, desde(regular)),
+  };
+};
+// Cuánto suman los % de las cinco (tiene que ser toda la muestra).
+export const sumaDePorcentajes = (resultado) => (resultado ? Object.values(resultado.porcentajes).reduce((suma, parte) => suma + parte, 0) : 0);
+export const sumaCompleta = (resultado) => Boolean(resultado) && Math.abs(sumaDePorcentajes(resultado) - 1) < 1e-9;
+
 const numero = (valor) => typeof valor === "number" && Number.isFinite(valor);
 const promedio = (valores) => valores.reduce((suma, valor) => suma + valor, 0) / valores.length;
 const desvioMuestral = (valores) => {

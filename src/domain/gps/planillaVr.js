@@ -3,17 +3,20 @@
 // cuestionarios y al ver la maqueta). Un V.R. se calcula con una muestra: las
 // filas de un dispositivo en la Base, filtradas con el embudo de cada columna
 // (las del promedio del equipo también están: «Se ven y se filtran»). Cada
-// medida de la hoja de los V.R. se calcula con la lógica de la planilla
+// medida elegida (las columnas de números: «Necesito poder elegir las
+// columnas que voy a usar en el vr (Siempre tienen que ser numericas)»;
+// «Vienen todas las numericas») se calcula con la lógica de la planilla
 // (domain/valorReferencial.js), con su sentido (el de Ajustes › Cabeceras,
 // que se puede cambiar) y Automático o Manual («eso se decide si el
-// automatico da malos porcentajes en cada categoria»). Se guarda como los
+// automatico da malos porcentajes en cada categoria»; en Manual se eligen
+// los desvíos de cada categoría, de entrada los de Automático). Se guarda como los
 // V.R. por jugador: el Bueno en el promedio y las otras cuatro en las
 // categorías; y, en `planilla`, con qué se calculó, para «Recalcular» con
 // los datos de ese día (migración 20261108_gps_vr_planilla.sql).
 
-import { AUTOMATICO, MANUAL, calcularValorReferencial } from "../valorReferencial.js";
-import { sentidoDe, sentidoGuardado } from "../sentido.js";
-import { CATEGORIAS_DE_UN_VR, CLAVES_DE_LOS_VR } from "./informe.js";
+import { AUTOMATICO, CATEGORIAS_CON_CORTE, MANUAL, calcularValorReferencial, cortesValidos } from "../valorReferencial.js";
+import { conSentidoGps, sentidoDe, sentidoGuardado } from "../sentido.js";
+import { CATEGORIAS_DE_UN_VR } from "./informe.js";
 
 export const VERSION_DE_LA_PLANILLA = 1;
 export const MODOS = Object.freeze([AUTOMATICO, MANUAL]);
@@ -21,9 +24,10 @@ export const MODOS = Object.freeze([AUTOMATICO, MANUAL]);
 const esNumero = (valor) => typeof valor === "number" && Number.isFinite(valor);
 const esObjeto = (valor) => valor !== null && typeof valor === "object" && !Array.isArray(valor);
 
-// Las medidas: las columnas de la hoja de los V.R. (las de GPS › Valores de
-// referencia), en su orden.
-export const medidasDeLaPlanilla = (columnas = []) => CLAVES_DE_LOS_VR.map((clave) => columnas.find((columna) => columna.clave === clave)).filter(Boolean);
+// Las medidas que se pueden elegir: las columnas de números (las medidas, sus
+// por minuto, los tiempos y las del club; no las fijas, como el Microciclo),
+// en el orden de la Base. De entrada, todas.
+export const medidasDeLaPlanilla = (columnas = []) => columnas.filter(conSentidoGps);
 
 // Lo elegido de entrada en una medida: el sentido de Ajustes › Cabeceras y
 // Automático.
@@ -48,7 +52,12 @@ export const calcularPlanilla = (filas, medidas, eleccion) =>
       const datos = filas.map((fila) => datoDeLaFila(columna, fila));
       const relativa = columna.tipo === "porMinuto";
       const elegido = eleccion?.[columna.clave] || {};
-      const resultado = calcularValorReferencial(datos, { sentido: elegido.sentido, modo: elegido.modo, relativa });
+      // Manual sin desvíos elegidos: los de Automático.
+      const automatico = () => calcularValorReferencial(datos, { sentido: elegido.sentido, relativa });
+      const resultado =
+        elegido.modo === MANUAL
+          ? calcularValorReferencial(datos, { sentido: elegido.sentido, modo: MANUAL, relativa, cortes: cortesValidos(elegido.cortes || automatico()?.desvios || {}) })
+          : automatico();
       const atipicos = resultado
         ? resultado.atipicos.indices
             .map((indice) => {
@@ -112,11 +121,18 @@ export const filasDeLaMuestra = (filasArmadas, muestra = {}) => {
 
 // ----------------------------------------------------- Lo que se guarda --
 // planilla: { version, muestra: { clave: [valores] }, medidas: { clave: {
-// sentido, modo } }, filas: cuántas entraron, calculado: la fecha (ISO) }.
+// sentido, modo, cortes? } } (solo las elegidas; cortes, los desvíos de
+// Manual), filas: cuántas entraron, calculado: la fecha (ISO) }.
+const medidaGuardada = (clave, elegido) => {
+  const modo = MODOS.includes(elegido?.modo) ? elegido.modo : AUTOMATICO;
+  const medida = { sentido: sentidoGuardado(elegido?.sentido) || sentidoDe(null, clave), modo };
+  if (modo === MANUAL && esObjeto(elegido?.cortes) && CATEGORIAS_CON_CORTE.every((categoria) => esNumero(elegido.cortes[categoria]))) medida.cortes = cortesValidos(elegido.cortes);
+  return medida;
+};
 export const armarPlanilla = ({ muestra, eleccion, filas, calculado }) => ({
   version: VERSION_DE_LA_PLANILLA,
   muestra,
-  medidas: Object.fromEntries(Object.entries(eleccion).map(([clave, elegido]) => [clave, { sentido: sentidoGuardado(elegido.sentido) || sentidoDe(null, clave), modo: MODOS.includes(elegido.modo) ? elegido.modo : AUTOMATICO }])),
+  medidas: Object.fromEntries(Object.entries(eleccion).map(([clave, elegido]) => [clave, medidaGuardada(clave, elegido)])),
   filas,
   calculado,
 });
@@ -129,7 +145,7 @@ export const leerPlanilla = (valor) => {
   const medidas = Object.fromEntries(
     Object.entries(esObjeto(valor.medidas) ? valor.medidas : {})
       .filter(([, elegido]) => esObjeto(elegido))
-      .map(([clave, elegido]) => [clave, { sentido: sentidoDe(elegido.sentido, clave), modo: MODOS.includes(elegido.modo) ? elegido.modo : AUTOMATICO }]),
+      .map(([clave, elegido]) => [clave, medidaGuardada(clave, { ...elegido, sentido: sentidoDe(elegido.sentido, clave) })]),
   );
   return {
     version: esNumero(valor.version) ? valor.version : VERSION_DE_LA_PLANILLA,
@@ -140,6 +156,7 @@ export const leerPlanilla = (valor) => {
   };
 };
 
-// Lo elegido para recalcular: lo guardado y, en una medida que no estaba, lo
-// de entrada.
-export const eleccionDeLaPlanilla = (planilla, medidas, sentidoDeAjustes) => ({ ...eleccionDeEntrada(medidas, sentidoDeAjustes), ...(planilla?.medidas || {}) });
+// Para recalcular: las medidas que se eligieron (las que siguen estando) y lo
+// elegido en cada una.
+export const medidasDeLaPlanillaGuardada = (planilla, medidas) => medidas.filter((columna) => esObjeto(planilla?.medidas?.[columna.clave]));
+export const eleccionDeLaPlanilla = (planilla, medidas) => Object.fromEntries(medidasDeLaPlanillaGuardada(planilla, medidas).map((columna) => [columna.clave, planilla.medidas[columna.clave]]));

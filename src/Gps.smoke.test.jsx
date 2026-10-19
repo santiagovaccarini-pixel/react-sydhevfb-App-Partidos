@@ -1940,18 +1940,52 @@ describe("GPS", () => {
     // «Menos es mejor» para este V.R.: Excelente pasa a ser lo más bajo.
     await elegir(filaD().querySelector('select[aria-label="Sentido de D"]'), "menos");
     expect(valoresD()[0]).toBeLessThan(valoresD()[2]);
+    // Qué medidas entran: de entrada, todas las de números; se eligen en una hoja.
+    const barra = () => contenedor.querySelector(".planilla-vr-medidas-barra").textContent;
+    const total = Number(/Medidas: (\d+) de (\d+)/.exec(barra())[2]);
+    expect(barra()).toContain(`Medidas: ${total} de ${total}`);
+    expect(total).toBeGreaterThan(21);
+    expect(contenedor.querySelector('.planilla-vr-tabla tr[data-medida="smax"]')).toBeTruthy();
+    await tocar(boton("Elegir medidas"));
+    const hojaMedidas = () => document.body.querySelector(".planilla-vr-hoja-medidas");
+    await tocar([...hojaMedidas().querySelectorAll("button")].find((b) => b.textContent === "Ninguno"));
+    expect([...hojaMedidas().querySelectorAll("button")].find((b) => b.textContent === "Listo").disabled).toBe(true);
+    const marcar = async (texto) => tocar([...hojaMedidas().querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent === texto).querySelector("input"));
+    await marcar("D");
+    await marcar("D/min");
+    await tocar([...hojaMedidas().querySelectorAll("button")].find((b) => b.textContent === "Listo"));
+    expect(barra()).toContain(`Medidas: 2 de ${total}`);
+    expect([...contenedor.querySelectorAll(".planilla-vr-tabla tr[data-medida]")].map((tr) => tr.dataset.medida)).toEqual(["d", "d_min"]);
+    // Manual: los desvíos de cada categoría, de entrada los de Automático, con lo que ofrece la planilla.
+    const cortesD = () => contenedor.querySelector('.planilla-vr-tabla tr[data-cortes="d"]');
+    expect(cortesD()).toBeNull();
+    const automaticoD = valoresD();
     await elegir(filaD().querySelector('select[aria-label="Cortes de D"]'), "manual");
+    expect(valoresD()).toEqual(automaticoD);
+    const desvio = (categoria) => cortesD().querySelector(`select[aria-label="Desvíos de ${categoria} en D"]`);
+    const opciones = (select) => [...select.options].map((opcion) => opcion.textContent);
+    expect(opciones(desvio("Muy Bueno"))).toEqual(["0,25", "0,50", "0,75", "1,00", "1,25", "1,50", "1,75"]);
+    expect(cortesD().querySelector(".planilla-vr-suma").textContent).toBe("Suma de los %: 100,0%");
+    // Excelente, solo por encima de Muy bueno y hasta 2.
+    await elegir(desvio("Muy Bueno"), "1.75");
+    expect(opciones(desvio("Excelente"))).toEqual(["2,00"]);
+    expect(desvio("Excelente").value).toBe("2");
+    await elegir(desvio("Regular"), "0.5");
+    expect(Number(desvio("Malo").value)).toBeGreaterThan(0.5);
+    expect(cortesD().querySelector(".planilla-vr-suma").textContent).toBe("Suma de los %: 100,0%");
+    // En el celular, lo mismo en la tarjeta.
+    expect(contenedor.querySelector('.planilla-vr-tarjeta[data-medida="d"] .planilla-vr-cortes select[aria-label="Desvíos de Excelente en D"]')).toBeTruthy();
+    const maloElegido = Number(desvio("Malo").value);
     await tocar(boton("Guardar V.R."));
     const guardado = datos.cambiosVr.at(-1);
     expect(guardado).toMatchObject({ que: "sumar", dispositivo: "catapult", tipo: "", tabla: "Partidos 2026", grupo: "", orden: 4, desvio: {} });
     expect(guardado.planilla).toEqual({
       version: 1,
       muestra: { tarea_partido: ["partido_oficial_torneo"] },
-      medidas: expect.objectContaining({ d: { sentido: "menos", modo: "manual" }, d_min: { sentido: "mas", modo: "automatico" } }),
+      medidas: { d: { sentido: "menos", modo: "manual", cortes: { excelente: 2, muy_bueno: 1.75, regular: 0.5, malo: maloElegido } }, d_min: { sentido: "mas", modo: "automatico" } },
       filas: 11,
       calculado: HOY,
     });
-    // El Tiempo es igual en todas: sin variación no hay V.R. de esa medida.
     expect(Object.keys(guardado.promedio)).toEqual(["d", "d_min"]);
     expect(guardado.categorias.excelente.d).toBeLessThan(guardado.promedio.d);
     // De vuelta en Valores de referencia: la tarjeta, con sus cinco filas y con qué se calculó.
@@ -1993,9 +2027,9 @@ describe("GPS", () => {
     const recalculado = datos.cambiosVr.at(-1);
     expect(recalculado).toMatchObject({ que: "recalcular", id: "r9", desvio: {} });
     expect(recalculado.planilla).toMatchObject({ muestra: { tarea_partido: ["partido_oficial_torneo"] }, filas: 11, calculado: HOY });
-    // Lo elegido se respeta (D, Manual); una medida que no estaba, con lo de entrada.
-    expect(recalculado.planilla.medidas.d).toEqual({ sentido: "mas", modo: "manual" });
-    expect(recalculado.planilla.medidas.d_min).toEqual({ sentido: "mas", modo: "automatico" });
+    // Solo las medidas elegidas, con lo elegido (D, Manual; sin desvíos guardados, los de Automático).
+    expect(recalculado.planilla.medidas).toEqual({ d: { sentido: "mas", modo: "manual" } });
+    expect(Object.keys(recalculado.promedio)).toEqual(["d"]);
     expect(contenedor.textContent).toContain("V.R. recalculado.");
     expect(tarjeta().querySelector(".referencias-calculado").textContent).toContain("con 11 filas");
     // Un solo nombre.

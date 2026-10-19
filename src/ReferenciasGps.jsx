@@ -11,7 +11,7 @@ import { interpretarHoras, interpretarValor } from "./domain/tabla.js";
 import { cambiosDeEntrada } from "./domain/referencias.js";
 import { leerHistorialDeReferencias } from "./domain/referenciasDb.js";
 import { borrarReferenciaGps, cambiarValorDeReferenciaGps, marcarDePartidoGps, recalcularReferenciaGps, renombrarReferenciaGps, sumarReferenciaGps } from "./domain/gpsDb.js";
-import { armarPlanilla, calcularPlanilla, eleccionDeLaPlanilla, filasDeLaMuestra, medidasDeLaPlanilla, numerosParaGuardar } from "./domain/gps/planillaVr.js";
+import { armarPlanilla, calcularPlanilla, eleccionDeLaPlanilla, filasDeLaMuestra, medidasDeLaPlanilla, medidasDeLaPlanillaGuardada, numerosParaGuardar } from "./domain/gps/planillaVr.js";
 import PlanillaVrGps from "./PlanillaVrGps.jsx";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
@@ -351,13 +351,13 @@ export default function ReferenciasGps({
       textoDeLaMuestra(planilla),
     ].join(" · ");
 
-  // «Recalcular»: la misma muestra y lo elegido, con los datos de hoy.
+  // «Recalcular»: la misma muestra, las mismas medidas y lo elegido en cada
+  // una, con los datos de hoy.
   const recalculo = useMemo(() => {
     if (!aRecalcular?.planilla) return null;
     const muestra = filasDeLaMuestra(filasDelDispositivo, aRecalcular.planilla.muestra);
-    const eleccion = eleccionDeLaPlanilla(aRecalcular.planilla, medidas, sentidoDeAjustes);
-    return { muestra, eleccion };
-  }, [aRecalcular, filasDelDispositivo, medidas, sentidoDeAjustes]);
+    return { muestra, medidas: medidasDeLaPlanillaGuardada(aRecalcular.planilla, medidas), eleccion: eleccionDeLaPlanilla(aRecalcular.planilla, medidas) };
+  }, [aRecalcular, filasDelDispositivo, medidas]);
   const textoDeLaDiferencia = (antes, ahora) => {
     if (antes === null || antes === undefined || antes === ahora) return t("gps.vr.planilla.igualQueAntes");
     return ahora > antes ? plural("gps.vr.planilla.masQueAntes", ahora - antes) : plural("gps.vr.planilla.menosQueAntes", antes - ahora);
@@ -365,7 +365,7 @@ export default function ReferenciasGps({
   const recalcular = async () => {
     const referencia = aRecalcular;
     if (!referencia || !recalculo || recalculando) return;
-    const numeros = numerosParaGuardar(calcularPlanilla(recalculo.muestra.map((fila) => fila.gps), medidas, recalculo.eleccion));
+    const numeros = numerosParaGuardar(calcularPlanilla(recalculo.muestra.map((fila) => fila.gps), recalculo.medidas, recalculo.eleccion));
     if (!Object.keys(numeros.promedio).length) {
       setARecalcular(null);
       onAviso(t("gps.vr.planilla.ningunaMedida"), { error: true });
