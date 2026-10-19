@@ -2,8 +2,8 @@ import React from "react";
 import { MAS_ES_MEJOR, MENOS_ES_MEJOR } from "../domain/sentido.js";
 import { t } from "../idioma/index.js";
 
-// Ajustes › Cabeceras de cada base (GPS, Evaluaciones, Lesiones y Datos
-// básicos): «Para los V.R.», si en esta medida más es mejor o menos es mejor
+// Ajustes › Cabeceras de las bases con V.R. (GPS y Evaluaciones): «Para los
+// V.R.», si en esta medida más es mejor o menos es mejor
 // (src/domain/sentido.js). Va en la hoja de la cabecera, debajo de lo demás,
 // solo en las columnas de números y tiempos.
 const OPCIONES = [
