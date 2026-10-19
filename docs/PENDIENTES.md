@@ -4175,6 +4175,13 @@ confirme.**
     entrada, «Más es mejor»; los déficits de Evaluaciones, «Menos es mejor», como sus clases. Lo
     cambia quien cambia las cabeceras (las mismas políticas). Sin el SQL, la app sigue como antes
     y no lo pregunta. Todavía no lo usa ninguna cuenta: es lo que va a venir elegido en la nota 2.
+    **Cambio del mismo día (2026.10.19.4; UI-059).** Santiago, al probarlo: «solo tienen que
+    aparecer cuando la base de datos o pantalla que este viendo tenga Valores Referenciales»; en
+    cuestionarios, Lesiones «Sacarla de Lesiones» (su «VR» del reporte «no es un vr es un valor
+    de referencia grupal») y en GPS y Evaluaciones «Todas las de números y tiempos». Queda solo
+    en GPS y Evaluaciones (no en un test sin V.R.). El SQL ya estaba corrido en la base del club
+    (19/10, por la conexión): las columnas `sentido` de `lesiones_campos` y
+    `datos_basicos_columnas` quedan sin uso; no se borraron.
   - **Nota 2, falta:** «Agregar V.R.» con la planilla en GPS, como la maqueta con lo de arriba:
     los atípicos de cada medida a la vista (qué filas, con qué valor y entre qué límites), las
     filas del promedio del equipo en la tabla para filtrarlas, el sentido de Ajustes (que se

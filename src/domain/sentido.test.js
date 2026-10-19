@@ -1,7 +1,5 @@
 import { describe, expect, test } from "vitest";
 import {
-  CAMPOS_CON_SENTIDO_LESIONES,
-  COLUMNAS_CON_SENTIDO_DATOS,
   MAS_ES_MEJOR,
   MENOS_ES_MEJOR,
   conSentidoEvaluaciones,
@@ -12,6 +10,7 @@ import {
   sentidoPorDefecto,
 } from "./sentido.js";
 import { COLUMNAS_GPS, columnaGps } from "./gps/columnas.js";
+import { TESTS } from "./evaluaciones/tests/index.js";
 
 describe("«Más es mejor» o «Menos es mejor» de cada medida", () => {
   test("se guarda solo uno de los dos; lo demás es vacío (lo de la app)", () => {
@@ -56,9 +55,11 @@ describe("«Más es mejor» o «Menos es mejor» de cada medida", () => {
     expect(conSentidoEvaluaciones(test_, { clave: "numero", tipo: "calculado", fija: true })).toBe(false);
   });
 
-  test("Lesiones y Datos básicos: las de números", () => {
-    expect(CAMPOS_CON_SENTIDO_LESIONES).toEqual(["edad", "horas_imagen", "recup_1", "recup_2", "recuperacion"]);
-    expect(COLUMNAS_CON_SENTIDO_DATOS).toEqual(["edad", "horas_previas"]);
+  test("Evaluaciones: un test sin V.R. no lo pregunta", () => {
+    const sinVr = { conReferencias: false, metricas: [] };
+    expect(conSentidoEvaluaciones(sinVr, { clave: "kg", tipo: "numero" })).toBe(false);
+    expect(conSentidoEvaluaciones(sinVr, { clave: "lumbar", tipo: "tiempo" })).toBe(false);
+    expect(TESTS.filter((test_) => test_.conReferencias === false).every((test_) => test_.columnas.every((columna) => !conSentidoEvaluaciones(test_, columna)))).toBe(true);
   });
 
   test("sin la columna en la base (antes de 20261107) se reconoce el error", () => {

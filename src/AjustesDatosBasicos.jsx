@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { HojaInferior } from "./components/SheetPanel.js";
-import { SentidoParaVr } from "./components/SentidoParaVr.jsx";
 import { VinculosCatapult } from "./components/VinculosCatapult.jsx";
 import { COLUMNAS_DE_DATOS_BASICOS, campoPorClave, codigoNuevo, etiquetaDeCampo, opcionesDeCampo } from "./domain/lesionesCampos.js";
 import { guardarCampo, guardarColumnaDatos, guardarOpcion } from "./domain/lesionesDb.js";
@@ -14,7 +13,7 @@ import { t, useIdioma } from "./idioma/index.js";
 // acá la saca solo de la tabla de Datos básicos. Hasta que haya niveles de
 // permiso por módulo, lo cambia cualquiera que sigue en el club.
 //
-// columnas: [{ clave, titulo, porDefecto, compartida, fija, oculta, etiquetas, sentido }]
+// columnas: [{ clave, titulo, porDefecto, compartida, fija, oculta, etiquetas }]
 // (las de la tabla de Datos básicos, con su nombre de hoy y el original).
 
 const LISTAS = COLUMNAS_DE_DATOS_BASICOS.filter((clave) => campoPorClave(clave)?.lista);
@@ -93,7 +92,7 @@ export default function AjustesDatosBasicos({ equipoId, config, columnas, soloLe
     } else {
       // El nombre de la app no se guarda: así sigue el idioma de cada uno.
       const etiquetas = { ...hoja.etiquetas, [idioma]: nombre === columna.porDefecto ? "" : nombre };
-      respuesta = await guardarColumnaDatos(equipoId, hoja.clave, { etiquetas, oculto: columna.fija ? false : hoja.oculto, sentido: hoja.sentido });
+      respuesta = await guardarColumnaDatos(equipoId, hoja.clave, { etiquetas, oculto: columna.fija ? false : hoja.oculto });
     }
     if (!respuesta.error) await onRecargar?.();
     setOcupado(false);
@@ -134,8 +133,6 @@ export default function AjustesDatosBasicos({ equipoId, config, columnas, soloLe
         ? { ...(guardada || campoPorClave(columna.clave)?.etiquetas || {}), [idioma]: columna.titulo }
         : { "es-AR": "", "pt-BR": "", ...(columna.etiquetas || {}), [idioma]: columna.titulo },
       oculto: columna.oculta,
-      // «Para los V.R.»: en las de números y tiempos, con la base al día.
-      sentido: columna.sentido || null,
     });
   };
 
@@ -287,7 +284,6 @@ export default function AjustesDatosBasicos({ equipoId, config, columnas, soloLe
               </button>
             </div>
           )}
-          {hoja.sentido && <SentidoParaVr valor={hoja.sentido} onCambiar={(sentido) => setHoja({ ...hoja, sentido })} />}
         </HojaInferior>
       )}
     </>
