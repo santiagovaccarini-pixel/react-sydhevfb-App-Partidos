@@ -4224,6 +4224,15 @@ confirme.**
       suma de los % tiene que dar 100 % para guardar. Diferencia con la planilla: allá, en Manual,
       el % de Bueno es el de Automático (AC29) y por eso la suma podía no dar 100 % (AC33); acá
       sale de los cortes elegidos.
+      Santiago lo confirmó en cuestionarios (19/10): Malo, «Todo lo que queda por debajo de
+      Regular» (en «Menos es mejor», por encima); la suma de los % incluye el Bueno («la suma de
+      los % que tiene que dar 100% suma el promedio (Bueno)»), y Bueno, «Bueno con el Muy bueno
+      que elijo (como ahora)». Con eso las cinco categorías cubren toda la muestra y la suma da
+      siempre 100 %; el control queda por seguridad. **Queda prohibido** tomar en Manual el % de
+      Bueno de Automático, como AC29, salvo un pedido nuevo.
+    - **Correr los SQL por la conexión de Supabase** (permiso del 19/10): una consulta con
+      `drop trigger` se queda esperando y se corta al minuto sin aplicar nada, aunque el disparador
+      no exista. Si pasa, se corre por partes, cada una completa (así se corrió `20261026`).
     - **Queda prohibido** guardar en `planilla` textos o nombres de jugadores, y volver a poner
       «Promedios del equipo: No entran / Entran» o Automático/Manual en Ajustes, salvo un pedido
       nuevo.
