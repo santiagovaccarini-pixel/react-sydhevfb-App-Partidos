@@ -2649,3 +2649,46 @@
     break-after: avoid;
   }
 }
+
+/* Datos básicos › Ver ficha (FichaAtleta.jsx): lo que el atleta pide sobre
+   sus datos, en la hoja de abajo. */
+.ficha-atleta .cuerpo-hoja {
+  text-align: left;
+}
+.ficha-atleta-bloque {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #e6eaef;
+  border-radius: 14px;
+  background: #f6f8fa;
+}
+.ficha-atleta-bloque b {
+  color: var(--cam-negro, #0b0d10);
+  font-size: 14px;
+}
+.ficha-atleta-bloque p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.ficha-atleta-botones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+.ficha-atleta-botones .boton-secundario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+}
+.ficha-atleta-aviso {
+  font-weight: 700;
+}
+.ficha-atleta-aviso.error {
+  color: #b91c1c !important;
+}

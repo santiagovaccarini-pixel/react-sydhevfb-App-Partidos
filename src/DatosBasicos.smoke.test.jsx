@@ -23,6 +23,33 @@ vi.mock("./domain/plantel.js", async (importOriginal) => ({
   guardarVinculoCatapult: async () => ({}),
 }));
 
+// Exportar los datos de un atleta (20261104): lo que pide la ficha a la base
+// y lo que se baja.
+const exportacion = vi.hoisted(() => ({ pedidos: [], descargas: [] }));
+vi.mock("./domain/privacidadDb.js", () => ({
+  exportarAtleta: async (jugadorId) => {
+    exportacion.pedidos.push(jugadorId);
+    return {
+      datos: {
+        generado_en: "2026-10-19T12:00:00Z",
+        club: "Club de Prueba",
+        jugador: { id: jugadorId, nombre: "ATLETA DE PRUEBA", actual: true },
+        nombres_anteriores: [],
+        lesiones: [],
+        evaluaciones: [],
+        gps: [],
+        partidos: [],
+        historial: [],
+        ajustes: {},
+      },
+      error: "",
+    };
+  },
+}));
+vi.mock("./domain/descargar.js", () => ({
+  descargarArchivo: (nombre, contenido, tipo) => exportacion.descargas.push({ nombre, contenido, tipo }),
+}));
+
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => registro.equipo,
   cargarEquipos: async () => ({ equipos: [] }),
@@ -163,6 +190,39 @@ describe("el módulo Datos básicos", () => {
   };
 
   const irA = (contenedor, nombre) => tocar([...contenedor.querySelectorAll(".navegacion-movil button")].find((b) => b.textContent.includes(nombre)));
+
+  test("Ver ficha: el administrador baja todos los datos de un atleta, en Excel y en JSON; el resto no la ve", async () => {
+    registro.equipo = { id: "eq-1", nombre: "Club de Prueba" };
+    registro.plantel = [{ id: 31, nombre: "ATLETA DE PRUEBA", roles: [], puestos: [], categoria: "", fecha_nacimiento: "2004-01-02", pie_dominante: "", posicion: "", foto_url: "" }];
+    exportacion.pedidos = [];
+    exportacion.descargas = [];
+    await montar({ partido: true, datos: true, adminClub: false });
+    await tocar(celda(contenedor, 0, 0));
+    expect(boton(contenedor, "Ver ficha")).toBeUndefined();
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+
+    await montar({ partido: true, datos: true, adminClub: true });
+    await tocar(celda(contenedor, 0, 0));
+    await tocar(boton(contenedor, "Ver ficha"));
+    const ficha = document.querySelector(".ficha-atleta");
+    expect(ficha.querySelector("h3").textContent).toBe("ATLETA DE PRUEBA");
+    expect(ficha.textContent).toContain("Exportar sus datos");
+    await tocar([...ficha.querySelectorAll("button")].find((b) => b.textContent.includes("Bajar el Excel")));
+    expect(exportacion.pedidos).toEqual([31]);
+    expect(exportacion.descargas.map((una) => [una.nombre, una.tipo])).toEqual([
+      [`datos-de-atleta-de-prueba-${hoyISO()}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    ]);
+    expect(exportacion.descargas[0].contenido).toBeInstanceOf(Uint8Array);
+    expect(ficha.textContent).toContain("Listo: se bajó el Excel. Mandáselo al atleta.");
+    // El JSON, con lo que ya se leyó (no se pide otra vez).
+    await tocar([...ficha.querySelectorAll("button")].find((b) => b.textContent.includes("Bajar el JSON")));
+    expect(exportacion.pedidos).toEqual([31]);
+    expect(exportacion.descargas[1].nombre).toBe(`datos-de-atleta-de-prueba-${hoyISO()}.json`);
+    expect(JSON.parse(exportacion.descargas[1].contenido).atleta.nombre).toBe("ATLETA DE PRUEBA");
+    await tocar([...ficha.querySelectorAll("button")].find((b) => b.textContent.trim() === "Cerrar"));
+    expect(document.querySelector(".ficha-atleta")).toBeNull();
+  });
 
   test("las posiciones de Partido se cargan acá: un rol se guarda al toque y con cuatro puestos no se suma otro", async () => {
     registro.plantel = [
