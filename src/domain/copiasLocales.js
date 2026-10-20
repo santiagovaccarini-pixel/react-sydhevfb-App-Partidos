@@ -1,8 +1,10 @@
 import { borrarCopiasGps } from "./copiaGps.js";
+import { borrarCopiasSinSenal } from "./copiaSinSenal.js";
 
 // Lo que la app guarda en el celular de cada club (copias de lo que bajó de
 // la base) y cuándo se borra: al salir de la cuenta y cuando la cuenta deja
-// un club. El GPS va aparte, en IndexedDB (copiaGps.js), y se borra junto.
+// un club. El GPS va aparte, en IndexedDB (copiaGps.js), y se borra junto;
+// también las copias para ver las bases sin señal (copiaSinSenal.js).
 // Lo que la persona cargó y todavía no subió (partidos pendientes, el
 // borrador del partido, los entrenamientos del aparato) no se toca: es
 // trabajo suyo, no datos ajenos.
@@ -34,6 +36,7 @@ export const limpiarCopiasDelClub = (equipoId = null) => {
     if (!equipoId || id === String(equipoId) || id === undefined) borrar(clave);
   });
   borrarCopiasGps(equipoId || null);
+  borrarCopiasSinSenal(equipoId || null);
 };
 
 // Al salir de la cuenta: la copia de la cuenta, el club elegido y las copias

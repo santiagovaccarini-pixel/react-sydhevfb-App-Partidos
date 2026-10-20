@@ -31,6 +31,34 @@ const lesionHulk = () => ({
   datos: { parte_cuerpo: "coxa", lado: "direito", tipo_lesion: "muscular_1a" },
 });
 
+// La copia para ver sin señal (copiaSinSenal.js), en memoria: en las
+// pruebas no hay IndexedDB.
+const copias = vi.hoisted(() => ({ marcas: {}, guardadas: {} }));
+vi.mock("./domain/copiaSinSenal.js", () => {
+  const clave = (modulo, cuenta, equipoId) => `${equipoId}|${modulo}|${cuenta}`;
+  return {
+    cuentaDelAparato: async () => "cuenta-1",
+    sinSenalActivo: (modulo, cuenta, equipoId) => Boolean(copias.marcas[clave(modulo, cuenta, equipoId)]),
+    activarSinSenal: (modulo, cuenta, equipoId) => {
+      copias.marcas[clave(modulo, cuenta, equipoId)] = true;
+      return true;
+    },
+    desactivarSinSenal: async (modulo, cuenta, equipoId) => {
+      delete copias.marcas[clave(modulo, cuenta, equipoId)];
+      delete copias.guardadas[clave(modulo, cuenta, equipoId)];
+      return true;
+    },
+    guardarCopiaSinSenal: async (modulo, cuenta, equipoId, datos) => {
+      if (!copias.marcas[clave(modulo, cuenta, equipoId)]) return null;
+      const guardadaEn = "2026-10-20T14:32:00.000Z";
+      copias.guardadas[clave(modulo, cuenta, equipoId)] = { datos: JSON.parse(JSON.stringify(datos)), guardadaEn };
+      return guardadaEn;
+    },
+    leerCopiaSinSenal: async (modulo, cuenta, equipoId) => (copias.marcas[clave(modulo, cuenta, equipoId)] ? copias.guardadas[clave(modulo, cuenta, equipoId)] || null : null),
+    borrarCopiasSinSenal: async () => null,
+  };
+});
+
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => datos.equipo,
   cargarEquipos: async () => ({ equipos: [] }),
@@ -164,6 +192,9 @@ describe("el módulo Lesiones", () => {
     datos.errorAlLeer = "";
     datos.plantel = null;
     datos.compuerta = null;
+    copias.marcas = {};
+    copias.guardadas = {};
+    Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -199,6 +230,35 @@ describe("el módulo Lesiones", () => {
     expect(texto(contenedor)).toContain("1 lesão ativa");
     expect(texto(contenedor)).toContain("LESÃO MUSCULAR GRAU 1 A COXA Direito");
     expect(boton(contenedor, "Ver detalhes")).toBeTruthy();
+  });
+
+  // Paso 1 de «cargar sin señal y a la vez que otra persona» (Santiago,
+  // 20/10): «Solo donde se active», en Ajustes de cada base.
+  test("Ver sin señal: se activa en Ajustes, guarda la copia y sin señal abre con ella, para mirar", async () => {
+    const sinSenalAhora = async (sin) => {
+      Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
+      await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
+    };
+    await montar();
+    await navegar(contenedor, "Ajustes");
+    const ajuste = () => contenedor.querySelector(".ajuste-sin-senal button");
+    expect(ajuste().textContent).toContain("Ver Lesiones sin señal en este aparato");
+    await tocar(ajuste());
+    expect(document.querySelector(".hoja-confirmar h3").textContent).toBe("¿Ver Lesiones sin señal en este aparato?");
+    await tocar(boton(contenedor, "Activar"));
+    await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
+    expect(copias.guardadas["eq-1|lesiones|cuenta-1"].datos.lesiones).toHaveLength(1);
+
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    datos.lesiones = [];
+    await sinSenalAhora(true);
+    await montar();
+    expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Sin señal: ves la copia de este aparato");
+    expect(texto(contenedor)).toContain("HULK");
+    expect(boton(contenedor, "Alta médica")).toBeFalsy();
+    await sinSenalAhora(false);
+    expect(contenedor.querySelector(".aviso-sin-senal")).toBeNull();
   });
 
   test("la ficha es como la de Partido: resumen arriba, una pestaña por grupo del Excel y los últimos cambios", async () => {
@@ -1468,7 +1528,9 @@ describe("el módulo Lesiones", () => {
 
     await navegar(contenedor, "Ajustes");
     expect(texto(contenedor)).toContain("Tenés Lesiones en solo lectura.");
-    expect([...contenedor.querySelectorAll(".opcion-ajuste")].every((b) => b.disabled)).toBe(true);
+    expect([...contenedor.querySelectorAll(".lista-opciones:not(.ajuste-sin-senal) .opcion-ajuste")].every((b) => b.disabled)).toBe(true);
+    // Mirar sin señal sí: es solo para mirar (paso 1 de «cargar sin señal…»).
+    expect(contenedor.querySelector(".ajuste-sin-senal .opcion-ajuste").disabled).toBe(false);
   });
 
   test("la hoja de opciones larga tiene buscador que acerca lo escrito", async () => {

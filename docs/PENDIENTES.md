@@ -4461,6 +4461,18 @@ confirme.**
       al volver a «Pegar desde Excel». «Volver» desde lo pegado deja de esperar.
     - **Queda prohibido** que Evaluaciones guarde dos iguales en todo, que guarde una tanda por
       partes y que «Reemplazar» toque otro test u otro día, salvo un pedido nuevo.
+  - **Hecho, paso 1a (20/10, 2026.10.20.6; UI-065): ver Lesiones y Evaluaciones sin señal.**
+    Santiago, en un cuestionario: se activa «En cada base» (en Ajustes, «Ver Lesiones sin señal en
+    este aparato») y GPS, «Una sola regla» (paso 1b). Si se activa (pregunta antes, porque son datos
+    de los atletas en el aparato), la base guarda en el aparato (IndexedDB, por club, base y cuenta)
+    lo que trajo con señal, un rato después de cada cambio. Sin señal abre con esa copia, para
+    mirar (sin botones para cambiar), con el aviso «Sin señal: ves la copia de este aparato» y de
+    cuándo es; cuando vuelve la señal, se ve lo de la base, al día. Sin activarlo, sin señal sigue
+    el aviso de siempre y dice dónde activarlo. La copia se borra al desactivarlo, al salir de la
+    cuenta, al dejar el club y al perder esa base. Quien ya se fue del club no la guarda; quien tiene
+    la base en «Solo lectura», sí (es para mirar). No toca la base de datos.
+    - **Queda prohibido** guardar la copia sin que se active en ese aparato, y cambiar datos desde
+      la copia (eso es el paso 3), salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

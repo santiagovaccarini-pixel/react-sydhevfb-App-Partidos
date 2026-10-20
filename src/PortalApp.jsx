@@ -11,6 +11,7 @@ import ElegirClub from "./ElegirClub.jsx";
 import Notas from "./Notas.jsx";
 import { permisosEnClub } from "./domain/perfilesDb.js";
 import { borrarCopiasGps } from "./domain/copiaGps.js";
+import { borrarCopiasSinSenal } from "./domain/copiaSinSenal.js";
 import { limpiarCopiasDelClub } from "./domain/copiasLocales.js";
 import {
   ArteBases,
@@ -218,6 +219,10 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
       if (fresco.hasta && !leido.hasta) limpiarCopiasDelClub(leido.id);
       // Sin el GPS en el club, la copia del GPS de este aparato se va.
       if (leido.gps && fresco.gps === false) borrarCopiasGps(leido.id);
+      // Sin una base en el club, su copia para verla sin señal se va.
+      ["lesiones", "evaluaciones", "gps"].forEach((modulo) => {
+        if (leido[modulo] && fresco[modulo] === false) borrarCopiasSinSenal(leido.id, modulo);
+      });
       const cambio =
         ["hasta", "nombre", "rol", "partido", "flujo", "lesiones", "evaluaciones", "gps"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null)) ||
         // Si el admin le cambió un módulo a «Solo lectura» o a «Edición».

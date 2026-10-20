@@ -10,6 +10,7 @@ import { SentidoParaVr } from "./components/SentidoParaVr.jsx";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import { AjusteSinSenal, AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import CargaPorJugador, { cargaNueva, evaluacionesDeLaCarga, hayAlgoCargado } from "./CargaPorJugador.jsx";
 import ImportarEvaluaciones from "./ImportarEvaluaciones.jsx";
 import ReportesEvaluaciones, { SelectorDeTest, SelectorDeVista, vistaInicial } from "./ReportesEvaluaciones.jsx";
@@ -197,6 +198,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const [importando, setImportando] = useState(false);
   const [aBorrar, setABorrar] = useState(null);
   const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
+  // Sin señal, lo que se ve es la copia de este aparato ({ guardadaEn }): se
+  // mira y no se cambia nada (paso 1 de «cargar sin señal…»).
+  const [deLaCopia, setDeLaCopia] = useState(null);
 
   // La carga: { id, test, jugador_id, persona, fecha, datos, textos } (textos:
   // los tiempos como se escriben, hasta guardar).
@@ -229,7 +233,12 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // nada; quien tiene Evaluaciones «Solo lectura» ve todo, al día, y tampoco.
   const seFue = Boolean(equipo?.hasta);
   const mirar = soloParaMirar(equipo, "evaluaciones");
-  const soloLectura = seFue || mirar;
+  const soloLectura = seFue || mirar || Boolean(deLaCopia);
+  // «Ver Evaluaciones sin señal en este aparato» (Santiago, 20/10: «Solo donde
+  // se active», en Ajustes). Quien ya se fue no guarda copia.
+  const sinSenal = useSinSenal("evaluaciones", equipoId, { deshabilitado: seFue });
+  const leerCopia = useRef(sinSenal.leer);
+  leerCopia.current = sinSenal.leer;
 
   // Sin club elegido en este celular, se adopta el que diga la base.
   useEffect(() => {
@@ -250,6 +259,24 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // silencioso: lo nuevo de otros (useEnVivo), sin "Cargando…"; lo que no se
   // pudo leer queda como se veía.
   const cargar = useCallback(async ({ silencioso = false } = {}) => {
+    // Sin señal, la copia de este aparato (si se activó); si no hay, como
+    // siempre (el aviso de que hace falta señal).
+    const conLaCopia = async () => {
+      const copia = await leerCopia.current();
+      if (!copia) return false;
+      const { datos } = copia;
+      setPlantel(Array.isArray(datos.plantel) ? datos.plantel : []);
+      setPlantelSinLeer(false);
+      setEvaluaciones(Array.isArray(datos.evaluaciones) ? datos.evaluaciones : []);
+      setReferenciasPorTest(datos.referencias || {});
+      if (datos.ajustes) setFilasAjustes(datos.ajustes);
+      setFilasCategorias(datos.categorias ?? null);
+      setDeLaCopia({ guardadaEn: copia.guardadaEn });
+      setError("");
+      setCargando(false);
+      return true;
+    };
+    if (sinSenalAhora() && (await conLaCopia())) return;
     if (!silencioso) {
       setCargando(true);
       setError("");
@@ -261,6 +288,10 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       leerAjustes(equipoId),
       leerCategorias(equipoId),
     ]);
+    // Se cortó la señal en el camino: la copia, si hay.
+    const sinLlegar = [respuestaEvaluaciones, respuestaReferencias].find((respuesta) => respuesta.error);
+    if (sinLlegar && falloDeRed(sinLlegar) && (await conLaCopia())) return;
+    if (!sinLlegar) setDeLaCopia(null);
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
       if (!respuestaEvaluaciones.error) setEvaluaciones(respuestaEvaluaciones.evaluaciones);
@@ -302,6 +333,22 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       window.removeEventListener("offline", alCambiar);
     };
   }, []);
+
+  // Vuelve la señal mientras se ve la copia: lo de la base, al día.
+  useEffect(() => {
+    if (enLinea && deLaCopia) cargar();
+  }, [enLinea]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Con «Ver Evaluaciones sin señal» activado, lo que se ve (al día, con
+  // señal) queda en la copia de este aparato, un rato después de cada cambio.
+  useEffect(() => {
+    if (!sinSenal.activo || deLaCopia || cargando || error || plantelSinLeer || !equipoId) return undefined;
+    const temporizador = setTimeout(
+      () => sinSenal.guardar({ plantel, evaluaciones, referencias: referenciasPorTest, ajustes: filasAjustes, categorias: filasCategorias }),
+      1500,
+    );
+    return () => clearTimeout(temporizador);
+  }, [sinSenal.activo, sinSenal.guardar, deLaCopia, cargando, error, plantelSinLeer, equipoId, plantel, evaluaciones, referenciasPorTest, filasAjustes, filasCategorias]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!aviso) return undefined;
@@ -984,8 +1031,13 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
 
   // ------------------------------------------------------------ Pantallas --
 
-  const estado = !enLinea ? (
-    <p className="lesiones-estado">{t("evaluaciones.estado.sinConexion")}</p>
+  const estado = deLaCopia ? (
+    <AvisoSinSenal guardadaEn={deLaCopia.guardadaEn} />
+  ) : !enLinea ? (
+    <p className="lesiones-estado">
+      {t("evaluaciones.estado.sinConexion")}
+      {!sinSenal.activo && !seFue && ` ${t("sinSenal.paraActivar")}`}
+    </p>
   ) : error ? (
     <div className="lesiones-estado error">
       {t(error)}{" "}
@@ -1401,6 +1453,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
               alTocar: () => setVistaAjustes("listas"),
             })}
           </div>
+          <AjusteSinSenal modulo="evaluaciones" sinSenal={sinSenal} deshabilitado={seFue} onAviso={setAviso} />
         </div>
       </div>
     );
