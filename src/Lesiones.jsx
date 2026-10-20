@@ -9,6 +9,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import { AjusteSinSenal, AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, TextoConPasos, useGuiaDelModulo } from "./components/Guia.jsx";
 import ReportesLesiones from "./ReportesLesiones.jsx";
 import ImportarLesiones from "./ImportarLesiones.jsx";
@@ -153,6 +154,9 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
+  // Sin señal, lo que se ve es la copia de este aparato ({ guardadaEn }): se
+  // mira y no se cambia nada (paso 1 de «cargar sin señal…»).
+  const [deLaCopia, setDeLaCopia] = useState(null);
 
   // Pantallas encima de la vista: la ficha de una lesión (con la pestaña que
   // se está mirando) y la carga por pasos.
@@ -198,7 +202,12 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // nada; quien tiene Lesiones «Solo lectura» ve todo, al día, y tampoco.
   const seFue = Boolean(equipo?.hasta);
   const mirar = soloParaMirar(equipo, "lesiones");
-  const soloLectura = seFue || mirar;
+  const soloLectura = seFue || mirar || Boolean(deLaCopia);
+  // «Ver Lesiones sin señal en este aparato» (Santiago, 20/10: «Solo donde se
+  // active», en Ajustes). Quien ya se fue no guarda copia.
+  const sinSenal = useSinSenal("lesiones", equipoId, { deshabilitado: seFue });
+  const leerCopia = useRef(sinSenal.leer);
+  leerCopia.current = sinSenal.leer;
 
   // Sin club elegido en este celular, se adopta el que diga la base, igual
   // que hace Partido al abrir.
@@ -220,6 +229,23 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // silencioso: lo nuevo de otros (useEnVivo), sin "Cargando…"; lo que no se
   // pudo leer queda como se veía.
   const cargar = useCallback(async ({ silencioso = false } = {}) => {
+    // Sin señal, la copia de este aparato (si se activó); si no hay, como
+    // siempre (el aviso de que hace falta señal).
+    const conLaCopia = async () => {
+      const copia = await leerCopia.current();
+      if (!copia) return false;
+      const { datos } = copia;
+      setPlantel(Array.isArray(datos.plantel) ? datos.plantel : []);
+      setPlantelSinLeer(false);
+      setLesiones(Array.isArray(datos.lesiones) ? datos.lesiones : []);
+      setConfig(datos.config ?? null);
+      setMinutos(datos.minutos ?? null);
+      setDeLaCopia({ guardadaEn: copia.guardadaEn });
+      setError("");
+      setCargando(false);
+      return true;
+    };
+    if (sinSenalAhora() && (await conLaCopia())) return;
     if (!silencioso) {
       setCargando(true);
       setError("");
@@ -230,6 +256,10 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       leerConfig(equipoId),
       leerMinutosDeEntrenamiento(equipoId),
     ]);
+    // Se cortó la señal en el camino: la copia, si hay.
+    const sinLlegar = [respuestaLesiones, respuestaConfig].find((respuesta) => respuesta.error);
+    if (sinLlegar && falloDeRed(sinLlegar) && (await conLaCopia())) return;
+    if (!sinLlegar) setDeLaCopia(null);
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
       if (!respuestaConfig.error) setConfig(respuestaConfig.config);
@@ -275,6 +305,19 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     const temporizador = setTimeout(() => setAviso(""), 2600);
     return () => clearTimeout(temporizador);
   }, [aviso]);
+
+  // Vuelve la señal mientras se ve la copia: lo de la base, al día.
+  useEffect(() => {
+    if (enLinea && deLaCopia) cargar();
+  }, [enLinea]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Con «Ver Lesiones sin señal» activado, lo que se ve (al día, con señal)
+  // queda en la copia de este aparato, un rato después de cada cambio.
+  useEffect(() => {
+    if (!sinSenal.activo || deLaCopia || cargando || error || plantelSinLeer || !equipoId) return undefined;
+    const temporizador = setTimeout(() => sinSenal.guardar({ plantel, lesiones, config, minutos }), 1500);
+    return () => clearTimeout(temporizador);
+  }, [sinSenal.activo, sinSenal.guardar, deLaCopia, cargando, error, plantelSinLeer, equipoId, plantel, lesiones, config, minutos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // La ficha trae sus últimos cambios cuando se abre y cada vez que se
   // guarda algo. Quien ya se fue del club no los ve: la lista tendría lo que
@@ -636,8 +679,13 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
 
   const hoy = primeraMayuscula(fechaLarga(hoyISO()));
 
-  const estado = !enLinea ? (
-    <p className="lesiones-estado">{t("lesiones.estado.sinConexion")}</p>
+  const estado = deLaCopia ? (
+    <AvisoSinSenal guardadaEn={deLaCopia.guardadaEn} />
+  ) : !enLinea ? (
+    <p className="lesiones-estado">
+      {t("lesiones.estado.sinConexion")}
+      {!sinSenal.activo && !seFue && ` ${t("sinSenal.paraActivar")}`}
+    </p>
   ) : error ? (
     <div className="lesiones-estado error">
       {t(error)}{" "}
@@ -1143,6 +1191,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
               alTocar: () => setVistaAjustes("listas"),
             })}
           </div>
+          <AjusteSinSenal modulo="lesiones" sinSenal={sinSenal} deshabilitado={seFue} onAviso={setAviso} />
         </div>
       </div>
     );

@@ -57,6 +57,9 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
 - `src/components/ClubCrest.js` y `BotonVolver.jsx`: escudos y regreso.
 - `src/components/BotonModulos.jsx`: volver a los módulos desde el encabezado, fijo arriba al
   bajar (UI-051).
+- `src/components/SinSenal.jsx`: ver una base sin señal, igual en Lesiones, Evaluaciones y GPS:
+  el ajuste «Ver {base} sin señal en este aparato» con sus hojas, el aviso de la copia y la copia
+  del aparato (UI-065).
 
 Revisá `src/style.css`, `portal.css`, `training.css`, `lesiones.css`,
 `evaluaciones.css` y `gps.css` antes de crear estilos; mantené sus convenciones de color,
