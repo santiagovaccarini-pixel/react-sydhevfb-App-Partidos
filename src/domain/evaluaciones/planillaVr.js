@@ -75,12 +75,15 @@ export const filasDeLaPlanilla = (test, tabla = null) => {
   return FILAS_DE_LA_PLANILLA.map((clave) => delTest.find((fila) => fila.clave === clave) || { clave, titulo: TITULOS[clave], ...(clave === "n" ? { formato: "General" } : {}) });
 };
 
-// El bloque de la categoría con lo calculado: sobre el de antes (las medidas
-// que no se calcularon y los títulos quedan como estaban), los números de
-// cada medida calculada y `planilla`.
+// El bloque de la categoría con lo calculado: solo las variables que se
+// usaron (Santiago, 20/10: «En el vr solo dejas las columnas que se hayan
+// usado porfavor, si no se usaron no tienen que estar en el vr»), con los
+// títulos que tenía, y `planilla`. Lo de antes queda en los últimos
+// cambios, con «Volver».
+const DEL_BLOQUE = ["titulo", "titulos", "rotulo"];
 export const bloqueDeLaPlanilla = ({ anterior, calculos, planilla, test }) => {
   const claves = new Set(tablasDeReferencia(test).flatMap((tabla) => tabla.metricas.map((metrica) => metrica.clave)));
-  const bloque = esObjeto(anterior) ? JSON.parse(JSON.stringify(anterior)) : {};
+  const bloque = Object.fromEntries(Object.entries(esObjeto(anterior) ? anterior : {}).filter(([clave]) => DEL_BLOQUE.includes(clave)).map(([clave, valor]) => [clave, JSON.parse(JSON.stringify(valor))]));
   const poner = (fila, clave, valor) => {
     if (!esObjeto(bloque[fila])) bloque[fila] = {};
     bloque[fila][clave] = valor;
@@ -90,11 +93,6 @@ export const bloqueDeLaPlanilla = ({ anterior, calculos, planilla, test }) => {
     poner("n", clave, resultado.usados);
     poner("desvio", clave, resultado.desvio);
     CATEGORIAS.forEach((categoria) => poner(categoria, clave, resultado.valores[categoria]));
-    // Sin Promedio (es el Bueno): lo de antes de esa medida se va.
-    if (esObjeto(bloque.promedio)) {
-      delete bloque.promedio[clave];
-      if (!Object.keys(bloque.promedio).length) delete bloque.promedio;
-    }
     // «DE»: los desvíos de cada corte (el Bueno es el promedio).
     const de = `${clave}_de`;
     if (claves.has(de)) CATEGORIAS_CON_CORTE.forEach((categoria) => poner(categoria, de, resultado.desvios[categoria]));
