@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
+import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { opcionesDeLista, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
-import { COMO_PERSONA, ESTADOS, NO_CARGAR, leerGpsPegado, ordenDeCarga, planDelGps } from "./domain/gps/importar.js";
-import { crearFilasGps, leerDispositivosRecordados, listarGps, recordarDispositivo } from "./domain/gpsDb.js";
+import { COMO_PERSONA, ESTADOS, NO_CARGAR, diasDeLaMismaSesion, leerGpsPegado, ordenDeCarga, ordenDeCargaReemplazando, planDelGps } from "./domain/gps/importar.js";
+import { crearFilasGps, leerDispositivosRecordados, listarGps, pegarFilasGps, recordarDispositivo } from "./domain/gpsDb.js";
 import { fechaDelExcel, formatoDeLasFechas } from "./domain/importarLesiones.js";
 import { nombreIgual } from "./domain/importarPersonas.js";
 import { actualesPrimero, cargarPlantelConCatapult, esActual } from "./domain/plantel.js";
@@ -29,6 +30,9 @@ const EJEMPLOS = 3;
 // El navegador muestra "Leyendo…" antes de cada cuenta larga.
 const ESPERA_PARA_PINTAR = 30;
 
+// Regla 1: cuántos días se muestran en el aviso (los demás se cuentan).
+const DIAS_A_LA_VISTA = 6;
+
 // Cuántas veces aparece cada cosa: [{ clave, cantidad }], de más a menos.
 const contar = (claves) => {
   const cuantas = new Map();
@@ -36,10 +40,13 @@ const contar = (claves) => {
   return [...cuantas.entries()].map(([clave, cantidad]) => ({ clave, cantidad })).sort((a, b) => b.cantidad - a.cantidad);
 };
 
-export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, plantel, plantelSinLeer = false, onVolver, onGuia, onRecargar, onListo }) {
+// enEspera: lo pegado que quedó en espera con la Regla 1 («Ir a la Base»): {
+// texto, dispositivo, elegidos }; se sigue desde ahí. onVerEnLaBase({ dias,
+// dispositivo, filas, espera }): las filas de esos días que ya estaban.
+export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, plantel, plantelSinLeer = false, enEspera = null, onVolver, onGuia, onRecargar, onListo, onVerEnLaBase }) {
   const { idioma, plural } = useIdioma();
   const hoy = hoyISO();
-  const [texto, setTexto] = useState("");
+  const [texto, setTexto] = useState(() => enEspera?.texto || "");
   const [leido, setLeido] = useState(null);
   const [leyendo, setLeyendo] = useState(false);
   // Las filas que ya están en la app en las fechas de lo pegado (null:
@@ -52,16 +59,19 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
   // El dispositivo con que se tomaron las filas pegadas ("": ninguno). De
   // entrada, el último que eligió la cuenta acá (nota del 17/10), si sigue en
   // la lista y todavía no se eligió otro.
-  const [dispositivo, setDispositivo] = useState("");
-  const elegidoAMano = useRef(false);
+  const [dispositivo, setDispositivo] = useState(() => enEspera?.dispositivo || "");
+  const elegidoAMano = useRef(Boolean(enEspera));
   const listaDeDispositivos = useRef([]);
   // Lo elegido para cada nombre que no está en Datos básicos: { nombre
   // normalizado: destino } (vale para todas sus filas).
-  const [elegidos, setElegidos] = useState({});
+  const [elegidos, setElegidos] = useState(() => enEspera?.elegidos || {});
   const [hojaNombre, setHojaNombre] = useState(null);
   const [progreso, setProgreso] = useState(null);
   const [falla, setFalla] = useState("");
   const [cargadasAntes, setCargadasAntes] = useState(null);
+  // Regla 1: los días que son una sesión que ya está con otros datos, mientras
+  // se pregunta ([{ fecha, filas }]).
+  const [otrosDias, setOtrosDias] = useState(null);
   // Los nombres en Catapult de cada jugador (el vínculo de Datos básicos):
   // el Excel nombra a cada uno como Catapult.
   const [enCatapult, setEnCatapult] = useState({});
@@ -273,8 +283,18 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
   // De qué día es: la fecha, o como vino si no se entiende.
   const fechaDe = (fila) => (fila.fila.fecha ? fechaCorta(fila.fila.fecha) : fila.textos.fecha || t("gps.sinFecha"));
 
-  const cargar = async () => {
-    const lista = aCargar;
+  // Se guarda de a tandas de días enteros, en la base (20261112). Antes, la
+  // Regla 1: si hay días que son una sesión que ya está con otros datos, se
+  // pregunta («Ir a la Base» o «Reemplazar y cargar»). La base revisa lo
+  // mismo con los días bloqueados. Sin esa actualización, como antes.
+  const cargar = async ({ reemplazar = false } = {}) => {
+    setOtrosDias(null);
+    const dias = diasDeLaMismaSesion(plan, existentes || [], dispositivo);
+    if (dias.length && !reemplazar) {
+      setOtrosDias(dias);
+      return;
+    }
+    const lista = reemplazar ? ordenDeCargaReemplazando(plan, dias) : aCargar;
     if (lista.length === 0) return;
     // Los nombres que siguen sin elegir no se cargan: la pantalla queda
     // abierta con ellos.
@@ -282,26 +302,69 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
     setFalla("");
     setCargadasAntes(null);
     setProgreso({ n: 0, total: lista.length });
-    const { creadas, error } = await crearFilasGps(
-      equipoId,
-      lista.map((fila) => fila.fila),
-      {
-        alAvanzar: (n, total) => enPantalla.current && setProgreso({ n, total }),
-        seguir: () => enPantalla.current,
-      },
-    );
-    // Lo cargado ya cuenta como "Ya está en la app": al volver a intentar no
-    // se carga dos veces.
-    if (enPantalla.current && creadas.length) setExistentes((previas) => [...(previas || []), ...creadas]);
+    const alAvanzar = (n, total) => enPantalla.current && setProgreso({ n, total });
+    const seguir = () => enPantalla.current;
+    const respuesta = await pegarFilasGps(equipoId, { dispositivo, filas: lista.map((fila) => fila.fila), reemplazar, alAvanzar, seguir });
+    if (respuesta.sinFuncion) {
+      // Sin la actualización 20261112 no se reemplaza.
+      if (reemplazar) {
+        setProgreso(null);
+        setFalla("gps.error.faltaMigracion");
+        return;
+      }
+      const { creadas, error } = await crearFilasGps(
+        equipoId,
+        lista.map((fila) => fila.fila),
+        { alAvanzar, seguir },
+      );
+      // Lo cargado ya cuenta como "Ya está en la app": al volver a intentar no
+      // se carga dos veces.
+      if (enPantalla.current && creadas.length) setExistentes((previas) => [...(previas || []), ...creadas]);
+      await onRecargar();
+      if (!enPantalla.current) return;
+      setProgreso(null);
+      if (!error && quedanSinElegir === 0) {
+        onListo({ cargadas: creadas.length });
+        return;
+      }
+      setFalla(error);
+      setCargadasAntes(creadas.length);
+      return;
+    }
+    // Lo guardado se vuelve a leer: cuenta como "Ya está en la app" y al
+    // volver a intentar no se carga dos veces.
+    if (enPantalla.current) setIntento((antes) => antes + 1);
     await onRecargar();
     if (!enPantalla.current) return;
     setProgreso(null);
-    if (!error && quedanSinElegir === 0) {
-      onListo({ cargadas: creadas.length });
+    // Otra persona cargó esos días mientras tanto: con lo de ahora se vuelve a revisar.
+    if (respuesta.conOtras) {
+      setFalla("gps.importar.cambiaronMientrasTanto");
+      if (respuesta.creadas) setCargadasAntes(respuesta.creadas);
       return;
     }
-    setFalla(error);
-    setCargadasAntes(creadas.length);
+    if (!respuesta.error && quedanSinElegir === 0) {
+      onListo({ cargadas: respuesta.creadas, reemplazadas: respuesta.reemplazadas });
+      return;
+    }
+    setFalla(respuesta.error);
+    setCargadasAntes(respuesta.creadas);
+  };
+
+  // Regla 1: el aviso. Cada día, con cuántos jugadores y filas; el
+  // dispositivo, como se dice.
+  const conDispositivo = dispositivo
+    ? t("gps.importar.mismaSesion.conDispositivo", { dispositivo: dispositivos.find((opcion) => opcion.valor === dispositivo)?.etiqueta || dispositivo })
+    : t("gps.importar.mismaSesion.sinDispositivo");
+  const delDia = (dia) => new Set(dia.filas.map((fila) => (fila.jugador_id ? `j:${fila.jugador_id}` : `p:${nombreIgual(fila.persona)}`))).size;
+  // El promedio del equipo se reemplaza solo si lo pegado lo trae en esos días.
+  const traePromedio = (otrosDias || []).some((dia) =>
+    plan.some(({ estado, fila }) => fila?.promedio && fila.fecha === dia.fecha && (estado === ESTADOS.nueva || estado === ESTADOS.yaEsta)),
+  );
+  const irALaBase = () => {
+    const dias = otrosDias || [];
+    setOtrosDias(null);
+    onVerEnLaBase?.({ dias: dias.map((dia) => dia.fecha), dispositivo, filas: dias.flatMap((dia) => dia.filas), espera: { texto, dispositivo, elegidos } });
   };
 
   const ocupado = Boolean(progreso);
@@ -505,7 +568,7 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
           <BotonVolver onClick={onVolver} disabled={ocupado}>
             {t("comun.volver")}
           </BotonVolver>
-          <button type="button" className="boton-principal" onClick={cargar} disabled={ocupado || calculando || aCargar.length === 0}>
+          <button type="button" className="boton-principal" onClick={() => cargar()} disabled={ocupado || calculando || aCargar.length === 0}>
             {progreso ? t("gps.importar.cargando", progreso) : aCargar.length === 0 ? t("gps.importar.nadaQueCargar") : plural("gps.importar.cargar", aCargar.length)}
           </button>
         </div>
@@ -524,6 +587,34 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
           setElegidos((previos) => ({ ...previos, [llave]: destino }));
         }}
         onCerrar={() => setHojaNombre(null)}
+      />
+      <HojaConfirmar
+        abierta={Boolean(otrosDias)}
+        icono="refrescar"
+        titulo={t("gps.importar.mismaSesion.titulo")}
+        descripcion={plural("gps.importar.mismaSesion.texto", otrosDias?.length || 0, { conDispositivo })}
+        detalle={
+          <div className="gps-misma-sesion">
+            <ul className="consentimiento-personas">
+              {(otrosDias || []).slice(0, DIAS_A_LA_VISTA).map((dia) => (
+                <li key={dia.fecha}>
+                  {t("gps.importar.mismaSesion.dia", {
+                    fecha: fechaCorta(dia.fecha),
+                    jugadores: plural("gps.importar.mismaSesion.jugadores", delDia(dia)),
+                    filas: plural("gps.cargar.mismaSesion.filas", dia.filas.length),
+                  })}
+                </li>
+              ))}
+            </ul>
+            {(otrosDias?.length || 0) > DIAS_A_LA_VISTA && <p>{plural("gps.importar.mismaSesion.yMas", otrosDias.length - DIAS_A_LA_VISTA)}</p>}
+            <p>{t(traePromedio ? "gps.importar.mismaSesion.queHace" : "gps.importar.mismaSesion.queHaceSinPromedio", { conDispositivo })}</p>
+          </div>
+        }
+        etiquetaCancelar={t("gps.cargar.mismaSesion.irALaBase")}
+        etiquetaConfirmar={t("gps.cargar.mismaSesion.reemplazar")}
+        onCancelar={irALaBase}
+        onConfirmar={() => cargar({ reemplazar: true })}
+        onCerrar={() => setOtrosDias(null)}
       />
     </div>
   );

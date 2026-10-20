@@ -15,6 +15,8 @@ import {
   enCursoDelDia,
   guardarCabeceraGps,
   guardarDiaGps,
+  pegarFilasGps,
+  POR_TANDA_DE_DIAS,
   guardarOpcionGps,
   leerAjustesGps,
   leerEnCurso,
@@ -260,6 +262,30 @@ describe("guardar un día de una vez (GPS › Cargar, 20261111)", () => {
     expect(await guardarDiaGps("eq-1", { fecha: "2026-10-08", dispositivo: "catapult", filas })).toEqual({ sinFuncion: true, error: "" });
     doble.respuestas = [{ data: null, error: { code: "42501", message: 'new row violates row-level security policy for table "gps"' } }];
     expect((await guardarDiaGps("eq-1", { fecha: "2026-10-08", dispositivo: "catapult", filas })).error).toBe("gps.error.sinPermiso");
+  });
+});
+
+describe("pegar de a tandas de días enteros (GPS › Pegar, 20261112)", () => {
+  const delDia = (fecha, n) => Array.from({ length: n }, (_, i) => ({ fecha, jugador_id: i + 1, datos: { d: 100 + i, dispositivo: "catapult" } }));
+  test("cada tanda con días enteros (un día no se parte); suma lo que dice la base", async () => {
+    const filas = [...delDia("2026-10-01", POR_TANDA_DE_DIAS - 10), ...delDia("2026-10-02", 20), ...delDia("2026-10-03", 5)];
+    doble.respuestas = [{ data: { creadas: 489, yaEstaban: 1, reemplazadas: 0 }, error: null }, { data: { creadas: 25, yaEstaban: 0, reemplazadas: 4 }, error: null }];
+    const avances = [];
+    expect(await pegarFilasGps("eq-1", { dispositivo: " catapult", filas, reemplazar: true, alAvanzar: (hechas, total) => avances.push([hechas, total]) })).toEqual({ creadas: 514, yaEstaban: 1, reemplazadas: 4, error: "" });
+    const llamadas = doble.llamadas.filter((llamada) => llamada[0] === "rpc");
+    expect(llamadas.map(([, funcion]) => funcion)).toEqual(["gps_pegar_filas", "gps_pegar_filas"]);
+    expect(llamadas.map(([, , argumentos]) => argumentos.p_filas.length)).toEqual([POR_TANDA_DE_DIAS - 10, 25]);
+    expect(llamadas[0][2]).toMatchObject({ p_equipo: "eq-1", p_dispositivo: "catapult", p_reemplazar: true });
+    expect(avances).toEqual([[POR_TANDA_DE_DIAS - 10, POR_TANDA_DE_DIAS + 15], [POR_TANDA_DE_DIAS + 15, POR_TANDA_DE_DIAS + 15]]);
+  });
+  test("lo que dice la base: sin la actualización (de entrada), la misma sesión, otro error (lo hecho queda)", async () => {
+    const filas = [...delDia("2026-10-01", POR_TANDA_DE_DIAS), ...delDia("2026-10-02", 3)];
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.gps_pegar_filas in the schema cache" } }];
+    expect(await pegarFilasGps("eq-1", { filas })).toMatchObject({ sinFuncion: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "gps_dia_con_otras", details: "1" } }];
+    expect(await pegarFilasGps("eq-1", { filas })).toMatchObject({ conOtras: true, creadas: 0, error: "" });
+    doble.respuestas = [{ data: { creadas: POR_TANDA_DE_DIAS, yaEstaban: 0, reemplazadas: 0 }, error: null }, { data: null, error: { code: "42501", message: 'new row violates row-level security policy for table "gps"' } }];
+    expect(await pegarFilasGps("eq-1", { filas })).toMatchObject({ creadas: POR_TANDA_DE_DIAS, error: "gps.error.sinPermiso" });
   });
 });
 

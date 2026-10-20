@@ -174,8 +174,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const [ocupado, setOcupado] = useState(false);
   const [importando, setImportando] = useState(false);
   // Regla 1, «Ir a la Base»: las filas de una sesión que ya estaba, mientras
-  // la carga espera en «Sin terminar» ({ fecha, enCursoId, vez, filtros }).
+  // la carga espera en «Sin terminar» ({ fecha, enCursoId, vez, filtros }) o
+  // lo pegado espera ({ pegado: true, dias, vez, filtros }).
   const [revisarCarga, setRevisarCarga] = useState(null);
+  // Lo pegado en espera ({ texto, dispositivo, elegidos }): se sigue desde ahí.
+  const [pegadoEnEspera, setPegadoEnEspera] = useState(null);
   // Cargar: el día que se está cargando (los pasos, encima de la pantalla) y
   // si tiene algo sin guardar (al irse, se pregunta).
   const [cargandoDia, setCargandoDia] = useState(false);
@@ -966,9 +969,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         )}
         {revisarCarga && (
           <div className="lesiones-estado gps-revisar-carga" role="status">
-            {t("gps.cargar.mismaSesion.enEspera", { fecha: fechaCorta(revisarCarga.fecha) })}{" "}
+            {revisarCarga.pegado
+              ? plural("gps.importar.mismaSesion.enEspera", revisarCarga.dias.length, { fecha: fechaCorta(revisarCarga.dias[0]) })
+              : t("gps.cargar.mismaSesion.enEspera", { fecha: fechaCorta(revisarCarga.fecha) })}{" "}
             <button type="button" onClick={() => seguirLaCarga()}>
-              {t("gps.cargar.mismaSesion.seguir")}
+              {revisarCarga.pegado ? t("gps.importar.mismaSesion.seguir") : t("gps.cargar.mismaSesion.seguir")}
             </button>{" "}
             <button type="button" onClick={() => setRevisarCarga(null)}>
               {t("gps.cargar.mismaSesion.verTodo")}
@@ -1038,10 +1043,29 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     ponerAlDia();
   };
   const seguirLaCarga = () => {
+    if (revisarCarga?.pegado) {
+      setRevisarCarga(null);
+      setImportando(true);
+      return;
+    }
     const id = revisarCarga?.enCursoId;
     setRevisarCarga(null);
     setVista("cargar");
     if (id) seguirEnCurso(id);
+  };
+  // Lo mismo desde «Pegar desde una planilla»: lo pegado queda en espera y la
+  // Base se abre con las filas de esos días que ya estaban.
+  const verPegadoEnLaBase = ({ dias = [], dispositivo, filas: deLosDias = [], espera }) => {
+    setImportando(false);
+    setPegadoEnEspera(espera);
+    const nombres = [...new Set(deLosDias.map((fila) => (fila.jugador_id ? jugadorDe(fila.jugador_id)?.nombre : fila.persona) || "").filter(Boolean))];
+    setRevisarCarga({
+      pegado: true,
+      dias,
+      vez: Date.now(),
+      filtros: { fecha: dias.map(fechaCorta), jugador: nombres, ...(dispositivo ? { dispositivo: [nombreDelDispositivo(dispositivo)] } : {}) },
+    });
+    setVista("base");
   };
 
   // Dejado para revisar: vuelve a Cargar, donde queda en «Sin terminar».
@@ -1686,13 +1710,22 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         equipoId={equipoId}
         plantel={plantel}
         plantelSinLeer={plantelSinLeer}
-        onVolver={() => setImportando(false)}
+        enEspera={pegadoEnEspera}
+        onVolver={() => {
+          setImportando(false);
+          setPegadoEnEspera(null);
+          setRevisarCarga(null);
+        }}
         onGuia={guia.abrir}
         onRecargar={ponerAlDia}
-        onListo={({ cargadas }) => {
+        onListo={({ cargadas, reemplazadas = 0 }) => {
           setImportando(false);
-          setAviso(plural("gps.importar.listo", cargadas));
+          setPegadoEnEspera(null);
+          setRevisarCarga(null);
+          const listo = plural("gps.importar.listo", cargadas);
+          setAviso(reemplazadas ? `${listo} ${plural("gps.cargar.reemplazadas", reemplazadas)}` : listo);
         }}
+        onVerEnLaBase={verPegadoEnLaBase}
       />
     );
   else contenido = pantallaBase;

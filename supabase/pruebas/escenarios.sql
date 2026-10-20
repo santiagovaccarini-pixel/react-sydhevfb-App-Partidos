@@ -1301,7 +1301,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -2219,6 +2219,48 @@ select pruebas.debe_fallar('Sin GPS no guarda', $q$select gps_guardar_dia('00000
 reset role;
 set role anon;
 select pruebas.debe_fallar('Anon, nada', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-21', 'cat', '[{"fecha":"2026-09-21","jugador_id":9006,"datos":{"d":1,"dispositivo":"cat"}}]')$q$, 'permission denied');
+reset role;
+rollback;
+
+-- GPS › Pegar desde una planilla (20261112): las iguales no entran (dos
+-- iguales en lo pegado, sí), la Regla 1 por día y reemplazar días.
+begin;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+insert into gps (equipo_id, fecha, jugador_id, promedio, datos) values
+  ('00000000-0000-0000-0000-0000000000c1', '2026-09-10', 9006, null, '{"d":4000,"tiempo":3000,"inicio":36000,"dispositivo":"cat"}'),
+  ('00000000-0000-0000-0000-0000000000c1', '2026-09-10', 9006, null, '{"d":4000,"tiempo":3000,"dispositivo":"cat","condicion":"total"}'),
+  ('00000000-0000-0000-0000-0000000000c1', '2026-09-10', null, 'sesion', '{"d":3900,"dispositivo":"cat"}'),
+  ('00000000-0000-0000-0000-0000000000c1', '2026-09-11', 9022, null, '{"d":3000,"tiempo":2000,"inicio":36000,"dispositivo":"cat"}');
+select pruebas.esperar('Pegar: la igual a una que ya está no entra; las nuevas sí, también dos iguales en lo pegado',
+  (select gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', 'cat', $j$[
+    {"fecha":"2026-09-10","jugador_id":9006,"datos":{"d":4000,"tiempo":3000,"inicio":36000,"dispositivo":"cat"}},
+    {"fecha":"2026-09-12","jugador_id":9022,"datos":{"d":2500,"tiempo":1800,"inicio":36000,"dispositivo":"cat"}},
+    {"fecha":"2026-09-12","jugador_id":9022,"datos":{"d":2500,"tiempo":1800,"inicio":36000,"dispositivo":"cat"}}
+  ]$j$::jsonb)::text), '{"creadas": 2, "yaEstaban": 1, "reemplazadas": 0}');
+select pruebas.debe_fallar('Regla 1: un día con la misma sesión y otros datos no se guarda (y nada de esa tanda)', $q$select gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', 'cat', '[
+    {"fecha":"2026-09-13","jugador_id":9022,"datos":{"d":1000,"dispositivo":"cat"}},
+    {"fecha":"2026-09-10","jugador_id":9006,"datos":{"d":4100,"tiempo":3000,"inicio":36000,"dispositivo":"cat"}}]')$q$, 'gps_dia_con_otras');
+select pruebas.esperar('...nada de esa tanda', (select count(*) from gps where fecha = '2026-09-13'), 0);
+select pruebas.esperar('Otro turno (otra hora de inicio) se suma sin preguntar',
+  (select (gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', 'cat', '[{"fecha":"2026-09-11","jugador_id":9022,"datos":{"d":1200,"tiempo":900,"inicio":61200,"dispositivo":"cat"}}]') ->> 'creadas')), '1');
+select pruebas.esperar('Reemplazar: ese día, las de ese jugador con ese dispositivo y el promedio, por todas las pegadas (también la que ya estaba igual)',
+  (select gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', 'cat', $j$[
+    {"fecha":"2026-09-10","jugador_id":9006,"datos":{"d":4100,"tiempo":3000,"inicio":36000,"dispositivo":"cat"}},
+    {"fecha":"2026-09-10","jugador_id":9006,"datos":{"d":4000,"tiempo":3000,"dispositivo":"cat","condicion":"total"}},
+    {"fecha":"2026-09-10","promedio":"sesion","datos":{"d":3950,"dispositivo":"cat"}}
+  ]$j$::jsonb, true)::text), '{"creadas": 3, "yaEstaban": 0, "reemplazadas": 3}');
+select pruebas.esperar('...y quedan las pegadas', (select string_agg(coalesce(jugador_id::text, promedio) || ':' || (datos ->> 'd'), ',' order by orden) from gps where fecha = '2026-09-10'), '9006:4100,9006:4000,sesion:3950');
+select pruebas.esperar('...sin tocar los otros días', (select count(*) from gps where fecha in ('2026-09-11', '2026-09-12')), 4);
+select pruebas.debe_fallar('Todas con el dispositivo elegido', $q$select gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', 'cat', '[{"fecha":"2026-09-14","jugador_id":9006,"datos":{"d":1,"dispositivo":"spo"}}]')$q$, 'gps_dia_filas');
+select pruebas.debe_fallar('...con fecha', $q$select gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', 'cat', '[{"fecha":"14/09/2026","jugador_id":9006,"datos":{"d":1,"dispositivo":"cat"}}]')$q$, 'gps_dia_filas');
+select pruebas.debe_fallar('...y alguna', $q$select gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', 'cat', '[]')$q$, 'gps_dia_filas');
+select pruebas.debe_fallar('No pega en otro club', $q$select gps_pegar_filas('00000000-0000-0000-0000-0000000000c2', '', '[{"fecha":"2026-09-14","persona":"Espía","datos":{"d":1}}]')$q$, 'row-level security');
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.debe_fallar('Sin GPS no pega', $q$select gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', '', '[{"fecha":"2026-09-14","jugador_id":9006,"datos":{"d":1}}]')$q$, 'row-level security');
+reset role;
+set role anon;
+select pruebas.debe_fallar('Anon, nada', $q$select gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', '', '[{"fecha":"2026-09-14","jugador_id":9006,"datos":{"d":1}}]')$q$, 'permission denied');
 reset role;
 rollback;
 

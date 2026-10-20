@@ -1076,6 +1076,26 @@ export default {
       listo_one: "Listo: se cargó {{n}} fila.",
       listo_other: "Listo: se cargaron {{n}} filas.",
       fallo: "Se cortó la carga: {{error}} Lo que falta se ve como «para cargar»: probá de nuevo.",
+      cambiaronMientrasTanto: "Mientras tanto cambiaron filas de esos días en la Base.",
+      // Regla 1 (Santiago, 20/10), al pegar: días que ya están en la Base con
+      // la misma sesión (jugador, fecha y hora de inicio) y otros datos.
+      mismaSesion: {
+        titulo: "Esos días ya están en la Base, con otros datos",
+        texto_one: "{{n}} día de lo pegado ya tiene filas de esos jugadores {{conDispositivo}} a la misma hora de inicio, con otros datos:",
+        texto_other: "{{n}} días de lo pegado ya tienen filas de esos jugadores {{conDispositivo}} a la misma hora de inicio, con otros datos:",
+        conDispositivo: "con {{dispositivo}}",
+        sinDispositivo: "sin dispositivo",
+        dia: "{{fecha}} · {{jugadores}} · {{filas}}",
+        jugadores_one: "{{n}} jugador",
+        jugadores_other: "{{n}} jugadores",
+        yMas_one: "y {{n}} día más",
+        yMas_other: "y {{n}} días más",
+        queHace: "«Reemplazar y cargar» borra, en esos días, esas filas y el promedio del equipo {{conDispositivo}}, y guarda las pegadas (lo borrado queda en el historial). «Ir a la Base» deja lo pegado en espera para que revises esas filas.",
+        queHaceSinPromedio: "«Reemplazar y cargar» borra, en esos días, esas filas {{conDispositivo}} y guarda las pegadas (lo borrado queda en el historial). «Ir a la Base» deja lo pegado en espera para que revises esas filas.",
+        enEspera_one: "Estas son las filas del {{fecha}} que ya estaban. Lo pegado quedó en espera.",
+        enEspera_other: "Estas son las filas de esos {{n}} días que ya estaban. Lo pegado quedó en espera.",
+        seguir: "Seguir con lo pegado",
+      },
     },
     enCurso: {
       titulo_one: "{{n}} carga sin terminar",

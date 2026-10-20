@@ -234,6 +234,49 @@ export const planDelGps = (filas, { columnas, plantel = [], existentes = [], hoy
 // Las que se cargan, en el orden del Excel.
 export const ordenDeCarga = (plan) => plan.filter((fila) => fila.estado === ESTADOS.nueva).sort((a, b) => a.indice - b.indice);
 
+// Regla 1 (Santiago, 20/10: «Jugador, fecha y hora de incio para preguntar si
+// es duplicado»): los días de lo pegado que son una sesión que ya está con
+// otros datos. Un día lo es si alguna fila que se carga (no las que ya están
+// iguales) es de un jugador (o persona) que ese día, con el dispositivo
+// elegido, ya tiene una fila con la misma hora de inicio; otra hora es otro
+// turno. De cada uno, las filas de ese día de los jugadores pegados (las que
+// se reemplazarían: sus tareas y su total, que no tiene hora): [{ fecha,
+// filas }], por fecha. Lo mismo que gps_pegar_filas (20261112).
+const esNumero = (valor) => typeof valor === "number" && Number.isFinite(valor);
+const quienDeLaFila = (fila) => {
+  if (!fila || fila.promedio) return null;
+  if (fila.jugador_id) return `j:${fila.jugador_id}`;
+  const persona = String(fila.persona || "").replace(/\s+/g, " ").trim().toLowerCase();
+  return persona ? `p:${persona}` : null;
+};
+export const diasDeLaMismaSesion = (plan = [], existentes = [], dispositivo = "") => {
+  const elDispositivo = String(dispositivo || "").trim();
+  const antesPorDia = new Map();
+  existentes.forEach((fila) => {
+    if (fila.promedio || String(fila.datos?.dispositivo ?? "").trim() !== elDispositivo) return;
+    antesPorDia.set(fila.fecha, [...(antesPorDia.get(fila.fecha) || []), fila]);
+  });
+  const dias = new Set();
+  plan.forEach(({ estado, fila }) => {
+    if (estado !== ESTADOS.nueva || !fila?.fecha || !esNumero(fila.datos?.inicio)) return;
+    const quien = quienDeLaFila(fila);
+    if (!quien) return;
+    if ((antesPorDia.get(fila.fecha) || []).some((antes) => quienDeLaFila(antes) === quien && esNumero(antes.datos?.inicio) && Math.abs(antes.datos.inicio - fila.datos.inicio) <= 0.5)) dias.add(fila.fecha);
+  });
+  return [...dias].sort().map((fecha) => {
+    const pegados = new Set(plan.filter(({ estado, fila }) => [ESTADOS.nueva, ESTADOS.yaEsta].includes(estado) && fila?.fecha === fecha).map(({ fila }) => quienDeLaFila(fila)).filter(Boolean));
+    return { fecha, filas: (antesPorDia.get(fecha) || []).filter((antes) => pegados.has(quienDeLaFila(antes))) };
+  });
+};
+
+// Lo que se manda al reemplazar: las que se cargan y, en los días que se
+// reemplazan, también las que ya estaban iguales (sus copias de antes se
+// borran), en el orden del Excel.
+export const ordenDeCargaReemplazando = (plan, dias = []) => {
+  const fechas = new Set(dias.map((dia) => dia.fecha));
+  return plan.filter((fila) => fila.estado === ESTADOS.nueva || (fila.estado === ESTADOS.yaEsta && fechas.has(fila.fila?.fecha))).sort((a, b) => a.indice - b.indice);
+};
+
 // Los nombres que no están en Datos básicos y falta elegir qué son, uno por
 // nombre: [{ llave, nombre, filas, dudoso }].
 export const nombresSinElegir = (plan) => {

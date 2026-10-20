@@ -14,7 +14,7 @@ import {
   porcentajesVsVr,
   vistaDelGps,
 } from "./informe.js";
-import { ESTADOS, COMO_PERSONA, NO_CARGAR, leerGpsPegado, leerSegundos, nombresSinElegir, ordenDeCarga, planDelGps, promedioDeNombre } from "./importar.js";
+import { ESTADOS, COMO_PERSONA, NO_CARGAR, diasDeLaMismaSesion, leerGpsPegado, leerSegundos, nombresSinElegir, ordenDeCarga, ordenDeCargaReemplazando, planDelGps, promedioDeNombre } from "./importar.js";
 import { datosConCambio, periodoInicial, porMinuto, textoDeCelda, textoDeSegundos } from "./valores.js";
 
 // Datos inventados: ningún nombre ni valor del club.
@@ -349,5 +349,44 @@ describe("pegar desde Excel la hoja BD_GPS", () => {
     expect(leerSegundos("")).toBe(null);
     expect(leerSegundos("ayer")).toBe(undefined);
     expect(leerSegundos("0:61:00")).toBe(undefined);
+  });
+});
+
+// Regla 1 al pegar (Santiago, 20/10: «Jugador, fecha y hora de incio para
+// preguntar si es duplicado»). Todo inventado.
+describe("Regla 1 al pegar: los días que son una sesión que ya está con otros datos", () => {
+  const pegada = (indice, estado, fecha, quien, inicio, extra = {}) => ({ indice, estado, fila: { fecha, jugador_id: null, persona: null, promedio: null, ...quien, datos: { d: 3000 + indice, ...(inicio === null ? {} : { inicio }), dispositivo: "catapult", ...extra } } });
+  const antes = (id, fecha, quien, inicio, dispositivo = "catapult") => ({ id, fecha, jugador_id: null, persona: null, promedio: null, ...quien, datos: { d: 2000, ...(inicio === null ? {} : { inicio }), dispositivo } });
+  const plan = [
+    pegada(1, ESTADOS.nueva, "2026-10-01", { jugador_id: 1 }, 36000),
+    pegada(2, ESTADOS.yaEsta, "2026-10-01", { jugador_id: 2 }, 36000),
+    pegada(3, ESTADOS.nueva, "2026-10-01", { promedio: "sesion" }, null),
+    pegada(4, ESTADOS.nueva, "2026-10-02", { jugador_id: 1 }, 61200),
+    pegada(5, ESTADOS.nueva, "2026-10-03", { persona: "Invitado  X" }, 36000),
+    pegada(6, ESTADOS.conProblemas, "2026-10-04", { jugador_id: 1 }, 36000),
+  ];
+  const existentes = [
+    antes("a1", "2026-10-01", { jugador_id: 1 }, 36000),
+    antes("a2", "2026-10-01", { jugador_id: 1 }, null),
+    antes("a3", "2026-10-01", { jugador_id: 2 }, 36000),
+    antes("a4", "2026-10-01", { jugador_id: 9 }, 36000),
+    antes("a5", "2026-10-02", { jugador_id: 1 }, 36000),
+    antes("a6", "2026-10-03", { persona: "invitado x" }, 36000.3),
+    antes("a7", "2026-10-04", { jugador_id: 1 }, 36000),
+    antes("a8", "2026-10-01", { jugador_id: 1 }, 36000, "sport"),
+  ];
+  test("un día es la misma sesión si una que se carga tiene la hora de inicio de una que ya está (mismo jugador y dispositivo); otra hora es otro turno", () => {
+    const dias = diasDeLaMismaSesion(plan, existentes, "catapult");
+    expect(dias.map((dia) => dia.fecha)).toEqual(["2026-10-01", "2026-10-03"]);
+    // De cada día, las de los jugadores pegados (también el que ya estaba igual), con ese dispositivo.
+    expect(dias[0].filas.map((fila) => fila.id)).toEqual(["a1", "a2", "a3"]);
+    expect(dias[1].filas.map((fila) => fila.id)).toEqual(["a6"]);
+    expect(diasDeLaMismaSesion(plan, existentes, "sport").map((dia) => dia.fecha)).toEqual(["2026-10-01"]);
+    expect(diasDeLaMismaSesion(plan, [], "catapult")).toEqual([]);
+  });
+  test("al reemplazar se mandan las que se cargan y, en esos días, también las que ya estaban iguales", () => {
+    const dias = diasDeLaMismaSesion(plan, existentes, "catapult");
+    expect(ordenDeCargaReemplazando(plan, dias).map((fila) => fila.indice)).toEqual([1, 2, 3, 4, 5]);
+    expect(ordenDeCargaReemplazando(plan, []).map((fila) => fila.indice)).toEqual([1, 3, 4, 5]);
   });
 });
