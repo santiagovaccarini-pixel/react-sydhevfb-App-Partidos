@@ -36,12 +36,14 @@ import {
 import { celdasDeLaFila, listaDeColumna, textoDeCeldaDelInforme } from "./domain/evaluaciones/celdas.js";
 import { textoDeValor } from "./domain/evaluaciones/excel.js";
 import { calcularFilas, vistaDeFilas } from "./domain/evaluaciones/motor.js";
+import { conOtrosDatos, igualEnTodo } from "./domain/evaluaciones/importar.js";
 import { TESTS } from "./domain/evaluaciones/tests/index.js";
 import {
   actualizarEvaluacion,
   borrarEvaluacion,
   crearEvaluacion,
   guardarCabecera,
+  guardarEvaluaciones,
   guardarOpcionDeLista,
   leerAjustes,
   leerCategorias,
@@ -92,6 +94,8 @@ const SE_CARGAN = ["fecha", "jugador", "lista", "tiempo", "texto", "numero"];
 // Los tests que se cargan a mano en Cargar. Isocinecia no: sale del PDF del
 // equipo (Santiago, 09/10); se trae con Pegar desde Excel y se corrige en la Base.
 const TESTS_QUE_SE_CARGAN = TESTS.filter((uno) => uno.seCargaEnLaApp !== false);
+// Regla 1: cuántos nombres se ven en la hoja (después, «y N más»).
+const A_LA_VISTA = 6;
 // Los tests con listas propias (sin contar Selección), los de Ajustes › Listas.
 const TESTS_CON_LISTAS = TESTS.filter((uno) => uno.columnas.some((columna) => columna.tipo === "lista" && listaDeColumna(columna) !== LISTA_SELECCION));
 // Van alineadas a la izquierda, como en el Excel; el resto, centrado.
@@ -205,6 +209,14 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // La carga nueva, varios jugadores a la vez (CargaPorJugador.jsx).
   const [nuevas, setNuevas] = useState(null);
   const [errorNuevas, setErrorNuevas] = useState("");
+  // Regla 1 (Santiago, 20/10): las evaluaciones de la carga de alguien que ese
+  // día ya tiene otra del test, con otros datos (la hoja pregunta).
+  const [otrasDelDia, setOtrasDelDia] = useState(null);
+  // «Ir a la Base»: lo que espera ({ tipo: "carga", carga } o { tipo:
+  // "pegado", texto, anio, elegidos }) y las filas que se revisan ({ tipo,
+  // test, fecha, vez, filtros }).
+  const [enEspera, setEnEspera] = useState(null);
+  const [revisar, setRevisar] = useState(null);
 
   // Ajustes: qué se mira y la hoja abierta.
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
@@ -561,6 +573,13 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
 
   const abrirNueva = () => {
     setErrorNuevas("");
+    // La carga que quedó en espera («Ir a la Base») sigue desde ahí.
+    if (enEspera?.tipo === "carga") {
+      setNuevas(enEspera.carga);
+      setEnEspera(null);
+      setRevisar(null);
+      return;
+    }
     setNuevas(cargaNueva((TESTS_QUE_SE_CARGAN.includes(test) ? test : TESTS_QUE_SE_CARGAN[0]).id));
   };
 
@@ -665,20 +684,10 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const testDeNuevas = nuevas ? testDe(nuevas.test) || TESTS_QUE_SE_CARGAN[0] : null;
   const columnasDeNuevas = useMemo(() => (testDeNuevas ? columnasDeLaCarga(testDeNuevas, config) : null), [testDeNuevas, config]);
 
-  // Una evaluación por fila con algo cargado, de a una. Si una no se puede,
-  // las guardadas salen de la carga (al reintentar no se repiten).
-  const guardarNuevas = async () => {
-    const { evaluaciones: listas, error: falta } = evaluacionesDeLaCarga(nuevas, {
-      columnas: columnasDeNuevas.columnas,
-      nombreDe: (id) => jugadorDe(id)?.nombre || "",
-      titulo: (columna) => titulo(testDeNuevas, columna),
-    });
-    if (falta) {
-      setErrorNuevas(falta);
-      return;
-    }
-    setErrorNuevas("");
-    setOcupado(true);
+  // Sin la actualización 20261113: una evaluación por fila con algo cargado,
+  // de a una. Si una no se puede, las guardadas salen de la carga (al
+  // reintentar no se repiten).
+  const guardarDeAUna = async (listas) => {
     const guardadas = [];
     let falla = "";
     for (const { filaId, evaluacion } of listas) {
@@ -699,6 +708,99 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     }
     setNuevas(null);
     setAviso(plural("evaluaciones.varios.guardadas", guardadas.length));
+  };
+
+  // Todas de una vez (20261113): se guardan todas o ninguna. La igual en todo
+  // a una que ya está no se carga; la de alguien que ese día ya tiene otra
+  // con otros datos (Regla 1), se pregunta: «Ir a la Base» o «Reemplazar y
+  // cargar».
+  const guardarNuevas = async ({ reemplazar = false } = {}) => {
+    setOtrasDelDia(null);
+    const { evaluaciones: listas, error: falta } = evaluacionesDeLaCarga(nuevas, {
+      columnas: columnasDeNuevas.columnas,
+      nombreDe: (id) => jugadorDe(id)?.nombre || "",
+      titulo: (columna) => titulo(testDeNuevas, columna),
+    });
+    if (falta) {
+      setErrorNuevas(falta);
+      return;
+    }
+    const delTestDeNuevas = evaluaciones.filter((una) => una.test === nuevas.test);
+    const igual = listas.find(({ evaluacion }) => delTestDeNuevas.some((otra) => igualEnTodo(otra, evaluacion)));
+    if (igual) {
+      setErrorNuevas(t("evaluaciones.varios.yaEsta", { jugador: nombreDe(igual.evaluacion) }));
+      return;
+    }
+    const choques = conOtrosDatos(
+      listas.map((una) => una.evaluacion),
+      delTestDeNuevas,
+    );
+    if (choques.length && !reemplazar) {
+      setOtrasDelDia(choques);
+      return;
+    }
+    setErrorNuevas("");
+    setOcupado(true);
+    const respuesta = await guardarEvaluaciones(equipoId, nuevas.test, { evaluaciones: listas.map((una) => una.evaluacion), reemplazar });
+    if (respuesta.sinFuncion) {
+      if (!reemplazar) {
+        await guardarDeAUna(listas);
+        return;
+      }
+      setOcupado(false);
+      setErrorNuevas(t("evaluaciones.error.faltaActualizacion"));
+      return;
+    }
+    setOcupado(false);
+    const borradas = new Set(respuesta.borradas);
+    if (respuesta.evaluaciones.length || borradas.size) setEvaluaciones((previas) => [...previas.filter((una) => !borradas.has(una.id)), ...respuesta.evaluaciones]);
+    // Otra persona cargó esos días mientras tanto: con lo de ahora se vuelve a revisar.
+    if (respuesta.conOtras) {
+      await cargar({ silencioso: true });
+      setErrorNuevas(t("evaluaciones.mismoDia.cambiaronMientrasTanto"));
+      return;
+    }
+    if (respuesta.error) {
+      setErrorNuevas(t(respuesta.error));
+      return;
+    }
+    setNuevas(null);
+    const guardadas = plural("evaluaciones.varios.guardadas", respuesta.evaluaciones.length);
+    setAviso(borradas.size ? `${guardadas} ${plural("evaluaciones.mismoDia.reemplazadas", borradas.size)}` : guardadas);
+  };
+
+  // «Ir a la Base»: lo cargado (o lo pegado) queda en espera y la Base se abre
+  // con las evaluaciones que ya estaban (esos jugadores y esos días, con
+  // filtros aparte de los de siempre).
+  const nombresDe = (lista) => [...new Set(lista.map(nombreDe).filter(Boolean))];
+  const verCargaEnLaBase = () => {
+    const existentes = (otrasDelDia || []).flatMap((choque) => choque.existentes);
+    setOtrasDelDia(null);
+    setEnEspera({ tipo: "carga", carga: nuevas });
+    setRevisar({ tipo: "carga", test: nuevas.test, fecha: nuevas.fecha, vez: Date.now(), filtros: { jugador: nombresDe(existentes), fecha: [fechaCorta(nuevas.fecha)] } });
+    setTestId(nuevas.test);
+    setImportando(false);
+    setNuevas(null);
+    setVista("base");
+  };
+  const verPegadoEnLaBase = ({ choques = [], espera }) => {
+    const existentes = choques.flatMap((choque) => choque.existentes);
+    setEnEspera({ tipo: "pegado", ...espera });
+    setRevisar({ tipo: "pegado", test: test.id, vez: Date.now(), filtros: { jugador: nombresDe(existentes), fecha: [...new Set(existentes.map((una) => fechaCorta(una.fecha)))] } });
+    setImportando(false);
+  };
+  // «Seguir»: vuelve a lo que espera, como estaba.
+  const seguirConLoQueEspera = () => {
+    setRevisar(null);
+    if (enEspera?.tipo === "pegado") {
+      setImportando(true);
+      return;
+    }
+    if (enEspera?.tipo !== "carga") return;
+    setErrorNuevas("");
+    setNuevas(enEspera.carga);
+    setEnEspera(null);
+    setVista("cargar");
   };
 
   const selectorConHoja = ({ titulo: rotulo, opciones, valor, alElegir }) => {
@@ -970,6 +1072,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // Un test sin valores de referencia (Estabilidad rotacional) no avisa que faltan.
   const sinReferencias = test.conReferencias !== false && !cargando && !error && !referencias;
 
+  // Lo que se revisa («Ir a la Base»), si es de este test.
+  const revisando = revisar && revisar.test === test.id ? revisar : null;
+
   const pantallaBase = (
     <div className="app">
       <div className="contenedor contenedor-base">
@@ -990,11 +1095,23 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             {t("evaluaciones.importar.boton")}
           </button>
         )}
+        {revisando && (
+          <div className="lesiones-estado evaluaciones-revisar" role="status">
+            {revisando.tipo === "carga" ? t("evaluaciones.mismoDia.enEsperaCarga", { fecha: fechaCorta(revisando.fecha) }) : t("evaluaciones.mismoDia.enEsperaPegado")}{" "}
+            <button type="button" onClick={() => seguirConLoQueEspera()}>
+              {t(revisando.tipo === "carga" ? "evaluaciones.mismoDia.seguirCarga" : "evaluaciones.mismoDia.seguirPegado")}
+            </button>{" "}
+            <button type="button" onClick={() => setRevisar(null)}>
+              {t("evaluaciones.mismoDia.verTodo")}
+            </button>
+          </div>
+        )}
         <section className="tarjeta evaluaciones-tabla">
           <TablaDatos
-            key={`${test.id}-${vistaDeLaBase}`}
+            key={revisando ? `revisar:${revisando.vez}:${test.id}-${vistaDeLaBase}` : `${test.id}-${vistaDeLaBase}`}
             id={`evaluaciones-${test.id}`}
-            recordar={`evaluaciones:${test.id}`}
+            recordar={revisando ? `evaluaciones:revisar:${revisando.vez}` : `evaluaciones:${test.id}`}
+            filtrosIniciales={revisando?.filtros || null}
             columnas={columnas}
             filas={filas}
             fijas={fijas}
@@ -1361,7 +1478,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         setError={setErrorNuevas}
         ocupado={ocupado}
         onCancelar={() => (hayAlgoCargado(nuevas) ? setASalir("cargar") : setNuevas(null))}
-        onGuardar={guardarNuevas}
+        onGuardar={() => guardarNuevas()}
       />
     );
   else if (vista === "base")
@@ -1374,19 +1491,31 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           plantel={plantel}
           plantelSinLeer={plantelSinLeer}
           evaluaciones={delTest}
-          onVolver={() => setImportando(false)}
+          enEspera={enEspera?.tipo === "pegado" ? enEspera : null}
+          onVolver={() => {
+            setImportando(false);
+            if (enEspera?.tipo === "pegado") setEnEspera(null);
+            if (revisar?.tipo === "pegado") setRevisar(null);
+          }}
           onRecargar={cargar}
-          // Las cargadas quedan en la lista antes de recargar: si la recarga
-          // falla, al reintentar se ven como "Ya está" y no se duplican.
-          onGuardadas={(nuevas) =>
+          // Las cargadas quedan en la lista antes de recargar (y las
+          // reemplazadas salen): si la recarga falla, al reintentar se ven
+          // como "Ya está" y no se duplican.
+          onGuardadas={(nuevas, borradas = []) =>
             setEvaluaciones((previas) => {
-              const yaEstan = new Set(previas.map((una) => una.id));
-              return [...previas, ...nuevas.filter((una) => !yaEstan.has(una.id))];
+              const fuera = new Set(borradas);
+              const quedan = previas.filter((una) => !fuera.has(una.id));
+              const yaEstan = new Set(quedan.map((una) => una.id));
+              return [...quedan, ...nuevas.filter((una) => !yaEstan.has(una.id))];
             })
           }
-          onListo={({ cargadas }) => {
+          onVerEnLaBase={verPegadoEnLaBase}
+          onListo={({ cargadas, reemplazadas = 0 }) => {
             setImportando(false);
-            setAviso(plural("evaluaciones.importar.listo", cargadas));
+            if (enEspera?.tipo === "pegado") setEnEspera(null);
+            if (revisar?.tipo === "pegado") setRevisar(null);
+            const listo = plural("evaluaciones.importar.listo", cargadas);
+            setAviso(reemplazadas ? `${listo} ${plural("evaluaciones.mismoDia.reemplazadas", reemplazadas)}` : listo);
           }}
         />
       ) : (
@@ -1494,6 +1623,32 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         etiquetaCancelar={t("comun.cancelar")}
         onConfirmar={confirmarBorrar}
         onCancelar={() => setABorrar(null)}
+      />
+
+      <HojaConfirmar
+        abierta={Boolean(otrasDelDia)}
+        icono="refrescar"
+        titulo={t("evaluaciones.mismoDia.titulo")}
+        descripcion={plural("evaluaciones.mismoDia.carga", otrasDelDia?.length || 0, {
+          test: testDeNuevas?.pestana[idioma] || "",
+          fecha: nuevas?.fecha ? fechaCorta(nuevas.fecha) : "",
+        })}
+        detalle={
+          <div className="evaluaciones-mismo-dia">
+            <ul className="consentimiento-personas">
+              {(otrasDelDia || []).slice(0, A_LA_VISTA).map(({ evaluacion }, i) => (
+                <li key={`${evaluacion.jugador_id || evaluacion.persona}-${i}`}>{nombreDe(evaluacion)}</li>
+              ))}
+            </ul>
+            {(otrasDelDia?.length || 0) > A_LA_VISTA && <p>{plural("evaluaciones.mismoDia.yMas", otrasDelDia.length - A_LA_VISTA)}</p>}
+            <p>{t("evaluaciones.mismoDia.queHaceCarga")}</p>
+          </div>
+        }
+        etiquetaCancelar={t("evaluaciones.mismoDia.irALaBase")}
+        etiquetaConfirmar={t("evaluaciones.mismoDia.reemplazar")}
+        onCancelar={verCargaEnLaBase}
+        onConfirmar={() => guardarNuevas({ reemplazar: true })}
+        onCerrar={() => setOtrasDelDia(null)}
       />
 
       <HojaConfirmar

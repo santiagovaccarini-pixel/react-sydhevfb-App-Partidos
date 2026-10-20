@@ -1,10 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
+import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { LISTA_SELECCION, categoriaDeTextoDelClub, configVacia, etiquetaDeOpcion, opcionDeTexto, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
-import { COMO_PERSONA, ESTADOS, NO_CARGAR, leerEvaluacionesPegadas, ordenDeCarga, planDeEvaluaciones } from "./domain/evaluaciones/importar.js";
-import { crearEvaluacion } from "./domain/evaluacionesDb.js";
+import {
+  COMO_PERSONA,
+  ESTADOS,
+  NO_CARGAR,
+  conOtrosDatos,
+  leerEvaluacionesPegadas,
+  ordenDeCarga,
+  ordenDeCargaReemplazando,
+  planDeEvaluaciones,
+} from "./domain/evaluaciones/importar.js";
+import { crearEvaluacion, guardarEvaluaciones } from "./domain/evaluacionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { textoDeMinutos } from "./domain/tabla.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -31,20 +41,43 @@ const CLASE_DEL_ESTADO = {
 
 // Los años que se pueden elegir para las fechas que vienen sin año.
 const PRIMER_ANIO = 2000;
+// Regla 1: cuántas se ven en la hoja (después, «y N más»).
+const A_LA_VISTA = 6;
 
-// onGuardadas(lista): las que se cargaron, todas juntas al terminar (antes de
-// recargar todo, por si la recarga falla).
-export default function ImportarEvaluaciones({ test, config = configVacia(), equipoId, plantel, plantelSinLeer = false, evaluaciones, onVolver, onRecargar, onGuardadas, onListo }) {
+// onGuardadas(lista, borradas): las que se cargaron y los ids de las que se
+// reemplazaron, todas juntas al terminar (antes de recargar todo, por si la
+// recarga falla). Regla 1 (Santiago, 20/10), «Ir a la Base»:
+// onVerEnLaBase({ choques, espera }); al volver, enEspera ({ texto, anio,
+// elegidos }) trae lo pegado como estaba.
+export default function ImportarEvaluaciones({
+  test,
+  config = configVacia(),
+  equipoId,
+  plantel,
+  plantelSinLeer = false,
+  evaluaciones,
+  enEspera = null,
+  onVolver,
+  onRecargar,
+  onGuardadas,
+  onVerEnLaBase,
+  onListo,
+}) {
   const { idioma, plural } = useIdioma();
-  const [texto, setTexto] = useState("");
+  const [texto, setTexto] = useState(() => enEspera?.texto || "");
   const [progreso, setProgreso] = useState(null);
   const [fallas, setFallas] = useState([]);
+  // Lo que impidió cargar una tanda (todas o ninguna).
+  const [falla, setFalla] = useState("");
+  // Regla 1: las de alguien que ese día ya tiene otra de este test, con otros
+  // datos (la hoja pregunta).
+  const [otrasDelDia, setOtrasDelDia] = useState(null);
   // Cuántas se cargaron, si quedaron nombres sin elegir (la pantalla sigue
   // abierta para elegirlos).
   const [cargadasAntes, setCargadasAntes] = useState(null);
   // Lo elegido para los nombres que no están en Datos básicos: { indice de
   // la fila: destino }.
-  const [elegidos, setElegidos] = useState({});
+  const [elegidos, setElegidos] = useState(() => enEspera?.elegidos || {});
   const [hojaFila, setHojaFila] = useState(null);
   // Las personas que no están en Datos básicos: antes de guardar, quien
   // carga confirma su consentimiento (20261103).
@@ -53,7 +86,7 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
   const hoy = hoyISO();
   const esteAnio = Number(hoy.slice(0, 4));
   // El año de las fechas que vienen sin año ("12-jun").
-  const [anio, setAnio] = useState(esteAnio);
+  const [anio, setAnio] = useState(() => enEspera?.anio || esteAnio);
   // Si se sale de la pantalla en medio de la carga, la carga se corta ahí: lo
   // cargado queda y lo que falta se ve al volver a pegar.
   const enPantalla = useRef(true);
@@ -116,6 +149,7 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
   const pegarTexto = (nuevo) => {
     setTexto(nuevo);
     setFallas([]);
+    setFalla("");
     setCargadasAntes(null);
     setElegidos({});
     setErrorConsentimiento("");
@@ -163,18 +197,9 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
       .join(" · ");
   };
 
-  const cargar = async () => {
-    const lista = aCargar;
-    if (lista.length === 0) return;
-    setErrorConsentimiento("");
-    const permiso = await consentimiento.pedir(lista.filter((fila) => !fila.evaluacion.jugador_id).map((fila) => fila.evaluacion.persona));
-    if (!permiso.sigue) {
-      setErrorConsentimiento(permiso.error);
-      return;
-    }
-    // Los nombres que siguen sin elegir no se cargan: la pantalla queda
-    // abierta con ellos.
-    const quedanSinElegir = sinElegir.length;
+  // Sin la actualización 20261113: de a una, como antes (una que falla no
+  // frena a las demás).
+  const cargarDeAUna = async (lista, quedanSinElegir) => {
     const errores = [];
     const guardadas = [];
     let cargadas = 0;
@@ -206,6 +231,72 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
     }
     setFallas(errores);
     setCargadasAntes(cargadas);
+  };
+
+  const cargar = async ({ reemplazar = false } = {}) => {
+    setOtrasDelDia(null);
+    const choques = conOtrosDatos(
+      aCargar.map((fila) => fila.evaluacion),
+      evaluaciones,
+    );
+    if (choques.length && !reemplazar) {
+      setOtrasDelDia(choques);
+      return;
+    }
+    const lista = reemplazar ? ordenDeCargaReemplazando(plan, choques) : aCargar;
+    if (lista.length === 0) return;
+    setErrorConsentimiento("");
+    const permiso = await consentimiento.pedir(lista.filter((fila) => !fila.evaluacion.jugador_id).map((fila) => fila.evaluacion.persona));
+    if (!permiso.sigue) {
+      setErrorConsentimiento(permiso.error);
+      return;
+    }
+    // Los nombres que siguen sin elegir no se cargan: la pantalla queda
+    // abierta con ellos.
+    const quedanSinElegir = sinElegir.length;
+    setFallas([]);
+    setFalla("");
+    setCargadasAntes(null);
+    setProgreso({ n: 0, total: lista.length });
+    const respuesta = await guardarEvaluaciones(equipoId, test.id, {
+      evaluaciones: lista.map((fila) => fila.evaluacion),
+      reemplazar,
+      alAvanzar: (n, total) => enPantalla.current && setProgreso({ n, total }),
+      seguir: () => enPantalla.current,
+    });
+    if (respuesta.sinFuncion) {
+      if (!reemplazar) {
+        await cargarDeAUna(lista, quedanSinElegir);
+        return;
+      }
+      setProgreso(null);
+      setFalla("evaluaciones.error.faltaActualizacion");
+      return;
+    }
+    if (respuesta.evaluaciones.length || respuesta.borradas.length) onGuardadas?.(respuesta.evaluaciones, respuesta.borradas);
+    await onRecargar();
+    if (!enPantalla.current) return;
+    setProgreso(null);
+    // Otra persona cargó esos días mientras tanto: con lo de ahora se vuelve a revisar.
+    if (respuesta.conOtras) {
+      setFalla("evaluaciones.mismoDia.cambiaronMientrasTanto");
+      if (respuesta.evaluaciones.length) setCargadasAntes(respuesta.evaluaciones.length);
+      return;
+    }
+    if (!respuesta.error && quedanSinElegir === 0) {
+      onListo({ cargadas: respuesta.evaluaciones.length, reemplazadas: respuesta.borradas.length });
+      return;
+    }
+    setFalla(respuesta.error);
+    setCargadasAntes(respuesta.evaluaciones.length);
+  };
+
+  // De quién es una evaluación, como se ve.
+  const nombreDeLa = (evaluacion) => (evaluacion.jugador_id ? plantel.find((uno) => String(uno.id) === String(evaluacion.jugador_id))?.nombre : evaluacion.persona) || "";
+  const irALaBase = () => {
+    const choques = otrasDelDia || [];
+    setOtrasDelDia(null);
+    onVerEnLaBase?.({ choques, espera: { texto, anio, elegidos } });
   };
 
   const ocupado = Boolean(progreso);
@@ -246,6 +337,12 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
         {errorConsentimiento && (
           <div className="lesiones-estado error" role="alert">
             {t(errorConsentimiento)}
+          </div>
+        )}
+
+        {falla && (
+          <div className="lesiones-estado error" role="alert">
+            {t(falla)}
           </div>
         )}
 
@@ -368,7 +465,7 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
           <BotonVolver onClick={onVolver} disabled={ocupado}>
             {t("comun.volver")}
           </BotonVolver>
-          <button type="button" className="boton-principal" onClick={cargar} disabled={ocupado || aCargar.length === 0}>
+          <button type="button" className="boton-principal" onClick={() => cargar()} disabled={ocupado || aCargar.length === 0}>
             {progreso
               ? t("evaluaciones.importar.cargando", progreso)
               : aCargar.length === 0
@@ -391,6 +488,30 @@ export default function ImportarEvaluaciones({ test, config = configVacia(), equ
           setElegidos((previos) => ({ ...previos, [indice]: destino }));
         }}
         onCerrar={() => setHojaFila(null)}
+      />
+      <HojaConfirmar
+        abierta={Boolean(otrasDelDia)}
+        icono="refrescar"
+        titulo={t("evaluaciones.mismoDia.titulo")}
+        descripcion={plural("evaluaciones.mismoDia.pegado", otrasDelDia?.length || 0, { test: test.pestana[idioma] })}
+        detalle={
+          <div className="evaluaciones-mismo-dia">
+            <ul className="consentimiento-personas">
+              {(otrasDelDia || []).slice(0, A_LA_VISTA).map(({ evaluacion }, i) => (
+                <li key={`${evaluacion.jugador_id || evaluacion.persona}-${evaluacion.fecha}-${i}`}>
+                  {evaluacion.fecha ? fechaCorta(evaluacion.fecha) : t("evaluaciones.sinFecha")} · {nombreDeLa(evaluacion)}
+                </li>
+              ))}
+            </ul>
+            {(otrasDelDia?.length || 0) > A_LA_VISTA && <p>{plural("evaluaciones.mismoDia.yMas", otrasDelDia.length - A_LA_VISTA)}</p>}
+            <p>{t("evaluaciones.mismoDia.queHacePegado")}</p>
+          </div>
+        }
+        etiquetaCancelar={t("evaluaciones.mismoDia.irALaBase")}
+        etiquetaConfirmar={t("evaluaciones.mismoDia.reemplazar")}
+        onCancelar={irALaBase}
+        onConfirmar={() => cargar({ reemplazar: true })}
+        onCerrar={() => setOtrasDelDia(null)}
       />
       {consentimiento.hoja}
     </div>

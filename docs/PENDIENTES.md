@@ -4440,6 +4440,27 @@ confirme.**
       «Ya está en la app».
     - **Queda prohibido** que Pegar guarde un día por partes o sin la revisión de la base, y que
       «Reemplazar» toque otro dispositivo u otro día, salvo un pedido nuevo.
+  - **Hecho, parte A3 (20/10, migración `20261113_evaluaciones_guardar.sql`, 2026.10.20.5;
+    UI-064): Evaluaciones.** La regla de Santiago quedó en la base como regla fija: no puede
+    haber dos evaluaciones iguales del mismo test (la misma persona, la misma fecha y los mismos
+    datos), se carguen como se carguen; en la base del club no había ninguna. «Cargar» (una fila
+    por jugador) y «Pegar desde Excel» guardan de una vez (Pegar, de a tandas de hasta 500, con
+    las de un mismo jugador y día juntas): cada tanda, toda o nada, con esos días del test
+    bloqueados mientras se revisa y se guarda. Antes, Cargar guardaba de a una y Pegar seguía
+    con las demás si una fallaba; sin la actualización de la base, siguen así. Una igual en todo a
+    una que ya está: en Cargar no se guarda y avisa «… esa evaluación ya está en la Base»; en
+    Pegar sigue «Ya está en la app». La Regla 1: la clave es el jugador (o la persona), el test y
+    la fecha (no hay hora de inicio; en la base del club nunca hubo dos evaluaciones del mismo
+    test, del mismo jugador, el mismo día). Si una nueva choca, no se guarda nada y la app
+    pregunta: «Ir a la Base» o «Reemplazar y cargar», que borra las de esos jugadores esos días
+    en ese test (quedan en el historial) y guarda las nuevas. Si mientras tanto otra persona cargó
+    esos días, no se guarda, se vuelve a leer y dice «Mientras tanto cambiaron evaluaciones de
+    esos jugadores en la Base.».
+    - **Lo que espera:** queda mientras la app está abierta. La carga en espera vuelve con
+      «Seguir la carga» o al tocar «Nueva evaluación»; lo pegado, con «Seguir con lo pegado» o
+      al volver a «Pegar desde Excel». «Volver» desde lo pegado deja de esperar.
+    - **Queda prohibido** que Evaluaciones guarde dos iguales en todo, que guarde una tanda por
+      partes y que «Reemplazar» toque otro test u otro día, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

@@ -5,6 +5,7 @@ import {
   claveDeErrorEvaluaciones,
   crearEvaluacion,
   guardarCabecera,
+  guardarEvaluaciones,
   guardarOpcionDeLista,
   leerAjustes,
   leerReferencias,
@@ -162,6 +163,42 @@ describe("guardar una evaluación", () => {
     expect(claveDeErrorEvaluaciones({ message: "TypeError: Load failed" }, "evaluaciones.error.noBorrar")).toBe("evaluaciones.error.noBorrar");
     expect(clave({ code: "XX000", message: "otra cosa" })).toBe("evaluaciones.error.noGuardar");
     expect(claveDeErrorEvaluaciones({ code: "XX000" }, "evaluaciones.error.noBorrar")).toBe("evaluaciones.error.noBorrar");
+  });
+});
+
+// Parte A3 de «cargar sin señal y a la vez que otra persona» (20261113).
+describe("guardar varias de una vez", () => {
+  const nueva = (jugador_id, fecha, datos = { lumbar: 180 }) => ({ jugador_id, persona: null, fecha, datos });
+
+  test("de a tandas; las del mismo jugador y el mismo día, en la misma tanda; junta lo guardado y lo borrado", async () => {
+    const evaluaciones = [...Array.from({ length: 499 }, (_, i) => nueva(i + 1, "2026-06-12")), nueva(9000, "2026-06-12"), nueva(9000, "2026-06-12", { lumbar: 190 }), nueva(9001, "2026-06-12")];
+    doble.respuestas = [
+      { data: { filas: [evaluacion(1)], borradas: ["v1"], yaEstaban: 497 }, error: null },
+      { data: { filas: [evaluacion(2), evaluacion(3)], borradas: [], yaEstaban: 1 }, error: null },
+    ];
+    const avance = [];
+    const respuesta = await guardarEvaluaciones("eq-1", "zona_media", { evaluaciones, reemplazar: true, alAvanzar: (n, total) => avance.push([n, total]) });
+    const tandas = doble.llamadas.filter(([metodo]) => metodo === "rpc");
+    expect(tandas.map(([, funcion, argumentos]) => [funcion, argumentos.p_filas.length, argumentos.p_test, argumentos.p_reemplazar])).toEqual([
+      ["evaluaciones_guardar", 499, "zona_media", true],
+      ["evaluaciones_guardar", 3, "zona_media", true],
+    ]);
+    expect(tandas[1][2].p_filas.map((fila) => fila.jugador_id)).toEqual([9000, 9000, 9001]);
+    expect(respuesta).toEqual({ evaluaciones: [evaluacion(1), evaluacion(2), evaluacion(3)].map(({ id, equipo_id, test, orden, jugador_id, persona, fecha, datos }) => ({ id, equipo_id, test, orden, jugador_id, persona, fecha, datos })), borradas: ["v1"], yaEstaban: 498, error: "" });
+    expect(avance).toEqual([
+      [499, 502],
+      [502, 502],
+    ]);
+  });
+
+  test("sin la actualización de la base, sinFuncion; la Regla 1, conOtras; dos iguales, el error que lo dice", async () => {
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.evaluaciones_guardar" } }];
+    expect(await guardarEvaluaciones("eq-1", "zona_media", { evaluaciones: [nueva(1, "2026-06-12")] })).toMatchObject({ sinFuncion: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "evaluaciones_con_otras", details: "1" } }];
+    expect(await guardarEvaluaciones("eq-1", "zona_media", { evaluaciones: [nueva(1, "2026-06-12")] })).toMatchObject({ conOtras: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "evaluaciones_sin_repetir"' } }];
+    expect(await guardarEvaluaciones("eq-1", "zona_media", { evaluaciones: [nueva(1, "2026-06-12")] })).toMatchObject({ error: "evaluaciones.error.repetida" });
+    expect(claveDeErrorEvaluaciones({ code: "23505", message: 'duplicate key value violates unique constraint "evaluaciones_sin_repetir"' })).toBe("evaluaciones.error.repetida");
   });
 });
 

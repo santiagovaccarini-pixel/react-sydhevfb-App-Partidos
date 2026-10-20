@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { COMO_PERSONA, ESTADOS, NO_CARGAR, fechaConMes, leerEvaluacionesPegadas, leerFecha, ordenDeCarga, planDeEvaluaciones } from "./importar.js";
+import {
+  COMO_PERSONA,
+  ESTADOS,
+  NO_CARGAR,
+  conOtrosDatos,
+  fechaConMes,
+  igualEnTodo,
+  leerEvaluacionesPegadas,
+  leerFecha,
+  ordenDeCarga,
+  ordenDeCargaReemplazando,
+  planDeEvaluaciones,
+} from "./importar.js";
 import { ZONA_MEDIA } from "./tests/zonaMedia.js";
 
 // Todo inventado: ningún nombre ni valor sale del Excel del club.
@@ -148,5 +160,46 @@ describe("pegar evaluaciones desde Excel", () => {
     const { filas } = leerEvaluacionesPegadas(pegado(fila({ fecha: "20/06/2026" }), fila({ jugador: "Beto Gómez", fecha: "01/06/2026" })), ZONA_MEDIA);
     const orden = ordenDeCarga(plan(filas));
     expect(orden.map((una) => una.nombre)).toEqual(["ALFA", "Beto Gómez"]);
+  });
+});
+
+// Parte A3 de «cargar sin señal y a la vez que otra persona» (Santiago,
+// 20/10): «Es repetida si coincide nombre, fecha, y todos los datos son
+// iguales» y la Regla 1, como en la base (20261113).
+describe("la regla de la base y la Regla 1", () => {
+  const ya = [
+    { id: "a", jugador_id: 1, persona: null, fecha: "2026-06-01", datos: { seleccion: "mayor", lumbar: 180 } },
+    { id: "b", jugador_id: null, persona: "Nombre  Nuevo", fecha: "2026-06-01", datos: { lumbar: 150 } },
+  ];
+
+  it("igual en todo: la misma persona, la misma fecha y los mismos datos (sin importar el orden de las claves)", () => {
+    expect(igualEnTodo(ya[0], { jugador_id: 1, fecha: "2026-06-01", datos: { lumbar: 180, seleccion: "mayor" } })).toBe(true);
+    expect(igualEnTodo(ya[1], { persona: "nombre nuevo ", fecha: "2026-06-01", datos: { lumbar: 150 } })).toBe(true);
+    expect(igualEnTodo(ya[0], { jugador_id: 1, fecha: "2026-06-01", datos: { lumbar: 180 } })).toBe(false);
+    expect(igualEnTodo(ya[0], { jugador_id: 1, fecha: "2026-06-02", datos: { seleccion: "mayor", lumbar: 180 } })).toBe(false);
+  });
+
+  it("Regla 1: la de alguien que ese día ya tiene otra con otros datos; otro día o la igual, no", () => {
+    const nuevas = [
+      { jugador_id: 1, persona: null, fecha: "2026-06-01", datos: { seleccion: "mayor", lumbar: 190 } },
+      { jugador_id: 1, persona: null, fecha: "2026-06-02", datos: { lumbar: 190 } },
+      { jugador_id: null, persona: "Nombre Nuevo", fecha: "2026-06-01", datos: { lumbar: 150 } },
+      { jugador_id: null, persona: "NOMBRE NUEVO", fecha: "2026-06-01", datos: { lumbar: 160 } },
+    ];
+    expect(conOtrosDatos(nuevas, ya).map(({ evaluacion, existentes }) => [evaluacion.datos.lumbar, existentes.map((una) => una.id)])).toEqual([
+      [190, ["a"]],
+      [160, ["b"]],
+    ]);
+  });
+
+  it("al reemplazar se mandan las nuevas y, de esos jugadores y días, también las que ya estaban", () => {
+    const plan = [
+      { indice: 3, estado: ESTADOS.nueva, evaluacion: { jugador_id: 1, fecha: "2026-06-01", datos: { lumbar: 190 } } },
+      { indice: 1, estado: ESTADOS.yaEsta, evaluacion: { jugador_id: 1, fecha: "2026-06-01", datos: { lumbar: 180 } } },
+      { indice: 2, estado: ESTADOS.yaEsta, evaluacion: { jugador_id: 2, fecha: "2026-06-01", datos: { lumbar: 150 } } },
+      { indice: 4, estado: ESTADOS.conProblemas, evaluacion: { jugador_id: 1, fecha: "2026-06-01", datos: {} } },
+    ];
+    const choques = [{ evaluacion: plan[0].evaluacion, existentes: [] }];
+    expect(ordenDeCargaReemplazando(plan, choques).map((fila) => fila.indice)).toEqual([1, 3]);
   });
 });

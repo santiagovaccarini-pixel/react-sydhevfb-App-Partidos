@@ -813,3 +813,18 @@
 .evaluaciones-marco .evaluaciones-varios-tarjeta.cerrada .evaluaciones-varios-flecha svg {
   transform: rotate(90deg);
 }
+
+/* Regla 1: en la hoja, los nombres y qué hace cada botón, uno abajo del otro (como en GPS). */
+.evaluaciones-marco .evaluaciones-mismo-dia {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+}
+.evaluaciones-marco .evaluaciones-mismo-dia p {
+  margin: 0;
+  color: var(--cam-gris);
+  font-weight: 650;
+  line-height: 1.45;
+  text-align: center;
+}

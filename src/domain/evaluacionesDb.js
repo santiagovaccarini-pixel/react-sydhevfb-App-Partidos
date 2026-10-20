@@ -6,6 +6,7 @@ import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
 import { claveDeErrorConsentimiento } from "./consentimiento.js";
 import { faltaSentido, sentidoGuardado } from "./sentido.js";
+import { quienDeLaEvaluacion } from "./evaluaciones/importar.js";
 
 const COLUMNAS = "id, equipo_id, test, orden, jugador_id, persona, fecha, datos, creado_en, actualizado_en";
 
@@ -19,6 +20,8 @@ export const claveDeErrorEvaluaciones = (error, porDefecto = "evaluaciones.error
     return "evaluaciones.error.faltaMigracion";
   }
   if (/jugador_de_otro_club/.test(texto)) return "evaluaciones.error.jugadorDeOtroClub";
+  // Dos iguales en todo (20261113).
+  if (/evaluaciones_sin_repetir/.test(texto)) return "evaluaciones.error.repetida";
   // Sin la confirmación del consentimiento (20261103).
   if (claveDeErrorConsentimiento(error)) return claveDeErrorConsentimiento(error);
   if (/evaluaciones_sin_futuro/.test(texto)) return "evaluaciones.error.fechaFutura";
@@ -186,6 +189,52 @@ export const crearEvaluacion = async (equipoId, test, evaluacion) => {
     .single();
   if (error) return fallo(error, "evaluaciones.error.noGuardar");
   return { evaluacion: normalizarEvaluacion(data), error: "" };
+};
+
+// Evaluaciones › Cargar y Pegar desde una planilla, de a tandas
+// (20261113_evaluaciones_guardar.sql): cada tanda, toda o nada, con sus días
+// bloqueados. Las del mismo jugador y el mismo día van en la misma tanda. La
+// base no guarda las que ya están iguales (yaEstaban) y no guarda una tanda
+// con una de alguien que ese día ya tiene otra con otros datos (conOtras, la
+// Regla 1); con reemplazar, cambia esas. Si una tanda falla se corta ahí: lo
+// guardado queda. Sin esa actualización, sinFuncion: se guarda como antes
+// (crearEvaluacion). alAvanzar(hechas, total) después de cada tanda. Devuelve
+// { evaluaciones (las guardadas), borradas (ids), yaEstaban, error }.
+export const POR_TANDA = 500;
+export const guardarEvaluaciones = async (equipoId, test, { evaluaciones = [], reemplazar = false, alAvanzar = null, seguir = () => true } = {}) => {
+  const porPar = new Map();
+  evaluaciones.forEach((evaluacion) => {
+    const par = `${quienDeLaEvaluacion(evaluacion)}|${evaluacion.fecha || "-"}`;
+    porPar.set(par, [...(porPar.get(par) || []), evaluacion]);
+  });
+  const tandas = [];
+  let tanda = [];
+  porPar.forEach((delPar) => {
+    if (tanda.length && tanda.length + delPar.length > POR_TANDA) {
+      tandas.push(tanda);
+      tanda = [];
+    }
+    tanda = tanda.concat(delPar);
+  });
+  if (tanda.length) tandas.push(tanda);
+  const hecho = { evaluaciones: [], borradas: [], yaEstaban: 0 };
+  let mandadas = 0;
+  for (const una of tandas) {
+    if (!seguir()) break;
+    const { data, error } = await supabase.rpc("evaluaciones_guardar", { p_equipo: equipoId, p_test: test, p_filas: una.map(soloCampos), p_reemplazar: Boolean(reemplazar) }); // eslint-disable-line no-await-in-loop
+    if (error) {
+      const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+      if (!mandadas && (error.code === "PGRST202" || (/evaluaciones_guardar/.test(texto) && /does not exist|schema cache|Could not find/i.test(texto)))) return { ...hecho, sinFuncion: true, error: "" };
+      if (/evaluaciones_con_otras/.test(texto)) return { ...hecho, conOtras: true, error: "" };
+      return { ...hecho, ...fallo(error, "evaluaciones.error.noGuardar") };
+    }
+    hecho.evaluaciones.push(...(Array.isArray(data?.filas) ? data.filas : []).map(normalizarEvaluacion));
+    hecho.borradas.push(...(Array.isArray(data?.borradas) ? data.borradas : []));
+    hecho.yaEstaban += Number(data?.yaEstaban) || 0;
+    mandadas += una.length;
+    alAvanzar?.(mandadas, evaluaciones.length);
+  }
+  return { ...hecho, error: "" };
 };
 
 export const actualizarEvaluacion = async (id, evaluacion) => {
