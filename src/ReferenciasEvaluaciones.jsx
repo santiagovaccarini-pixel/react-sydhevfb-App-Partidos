@@ -356,8 +356,17 @@ export default function ReferenciasEvaluaciones({
             .flatMap((categoria) => {
               const bloque = bloques[categoria.valor];
               // Un test puede tener sus V.R. en varias tablas (Curl Nórdico e
-              // Isoprone: una por evaluación); si no, una sola.
-              return tablas.map((tabla, indice) => (
+              // Isoprone: una por evaluación); si no, una sola. Uno calculado
+              // con la planilla muestra solo las variables que se usaron (y
+              // sus «DE»); una tabla sin ninguna, no va (Santiago, 20/10:
+              // «En el vr solo dejas las columnas que se hayan usado»).
+              const columnasDelBloque = (tabla) => {
+                if (!bloque.planilla) return columnasDe(tabla);
+                const usadas = (clave) => typeof bloque.bueno?.[clave] === "number";
+                return columnasDe(tabla).filter((columna) => usadas(columna.clave) || (columna.clave.endsWith("_de") && usadas(columna.clave.slice(0, -3))));
+              };
+              const suyas = tablas.filter((tabla) => columnasDelBloque(tabla).length > 0);
+              return (suyas.length ? suyas : tablas.slice(0, 1)).map((tabla, indice, lista) => (
                 <section key={`${categoria.valor}-${tabla.id}`} className="tarjeta evaluaciones-bloque referencias-bloque">
                   <div className="evaluaciones-bloque-cabeza">
                     <h2>{titulo(bloque, tabla, categoria)}</h2>
@@ -366,14 +375,14 @@ export default function ReferenciasEvaluaciones({
                   {indice === 0 && bloque.planilla && <p className="lesiones-ayuda referencias-calculado">{textoDelCalculo(leerPlanilla(bloque.planilla))}</p>}
                   <TablaDeReferencia
                     ocultar={ocultarCategorias}
-                    columnas={columnasDe(tabla)}
+                    columnas={columnasDelBloque(tabla)}
                     filas={filasDeTabla(tabla, bloque)}
                     texto={(fila, columna) => textoDeValor(bloque[fila.clave]?.[columna.clave] ?? null, fila.formato || columna.formato, idioma)}
                     interpretar={interpretar}
                     onCambiar={puedeCambiar ? (fila, columna, valor) => cambiar(["categorias", categoria.valor, fila.clave, columna.clave], valor) : undefined}
                   />
                   {/* Borrar la categoría: en la última de sus tablas. */}
-                  {puedeCambiar && indice === tablas.length - 1 && (
+                  {puedeCambiar && indice === lista.length - 1 && (
                     <div className="referencias-acciones">
                       {bloque.planilla && puedeCalcular && (
                         <button type="button" className="boton-secundario" onClick={() => setARecalcular(categoria.valor)}>

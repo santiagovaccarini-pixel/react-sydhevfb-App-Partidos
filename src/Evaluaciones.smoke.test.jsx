@@ -846,10 +846,16 @@ describe("Evaluaciones", () => {
     });
     expect(muestra()).toContain("Muestra: 11 filas");
     expect(contenedor.querySelector(".planilla-vr-medidas-barra").textContent).toContain("6 de 6 elegidas");
+    // Sin Ratio: no va a estar en el V.R.
+    await tocar(boton(contenedor, "Elegir variables"));
+    const hojaVariables = () => document.body.querySelector(".planilla-vr-hoja-medidas");
+    await tocar([...hojaVariables().querySelectorAll(".tabla-datos-valores label")].find((label) => label.textContent === "Ratio").querySelector("input"));
+    await tocar([...hojaVariables().querySelectorAll("button")].find((b) => b.textContent === "Listo"));
+    expect(contenedor.querySelector(".planilla-vr-medidas-barra").textContent).toContain("5 de 6 elegidas");
     await tocar(botones(contenedor).find((b) => b.textContent.trim().startsWith("Siguiente")));
     expect(contenedor.querySelector(".lesiones-encabezado p").textContent).toMatch(/^Mayor \(profesional\) · 11 filas · 2 jugadores/);
     // Las variables del test; los tiempos en minutos y segundos.
-    expect([...contenedor.querySelectorAll(".planilla-vr-tabla tr[data-medida]")].map((tr) => tr.dataset.medida)).toEqual(["lumbar", "lateral_d", "lateral_i", "def_lat", "prono", "ratio"]);
+    expect([...contenedor.querySelectorAll(".planilla-vr-tabla tr[data-medida]")].map((tr) => tr.dataset.medida)).toEqual(["lumbar", "lateral_d", "lateral_i", "def_lat", "prono"]);
     const lumbar = () => contenedor.querySelector('.planilla-vr-tabla tr[data-medida="lumbar"]');
     [...lumbar().querySelectorAll("td.valor b")].forEach((b) => expect(b.textContent).toMatch(/^\d+:\d\d$/));
     // Los tiempos van en la unidad del Excel (días): sin la regla del promedio
@@ -864,11 +870,15 @@ describe("Evaluaciones", () => {
     expect(bloque.valor.bueno.lumbar).toBeCloseTo((240 + 150 + 252 + 200 + 215 + 230 + 190 + 205 + 220 + 210) / 10 / 1440, 10);
     expect(bloque.valor.desvio.lumbar).toBeGreaterThan(0);
     expect(bloque.valor.promedio).toBeUndefined();
+    // Solo las variables usadas (Santiago, 20/10): Ratio no queda, aunque
+    // tenía; Def. Lat, sin datos suficientes, tampoco.
+    expect(Object.keys(bloque.valor.bueno)).toEqual(["lumbar", "lateral_d", "lateral_i", "prono"]);
     expect(bloque.valor.planilla).toMatchObject({ version: 1, muestra: { seleccion: ["mayor"] }, filas: 11, calculado: hoyISO() });
     expect(resumen).toEqual({ test: "zona_media", ruta: ["resumen", "n", "mayor"], valor: 11 });
     expect(document.body.textContent).toContain("V.R. de Mayor (profesional) calculados.");
     // El bloque: n, el desvío y las cinco, sin Promedio (Zona Media no tenía fila de desvío).
     expect([...tablaVr(0).querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["n", "Desv. Estándar", "Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
+    expect([...tablaVr(0).querySelectorAll("thead th")].map((th) => th.textContent).filter(Boolean)).toEqual(["Lumbar", "Lateral D", "Lateral I", "Prono"]);
     // Dice cuándo y con qué filas; «Recalcular» pregunta y usa la misma muestra.
     expect(contenedor.querySelector(".referencias-calculado").textContent).toBe(`Calculado el ${fechaCorta(hoyISO())} con 11 filas · Seleccion: Mayor (profesional)`);
     const cuantos = datos.cambiosVr.length;

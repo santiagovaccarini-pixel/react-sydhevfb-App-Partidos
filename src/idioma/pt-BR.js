@@ -425,7 +425,7 @@ export default {
         titulo: "Calcular V.R. de {{test}}",
         texto: "Escolha a categoria, as variáveis e com quais linhas ele é calculado.",
         categoria: "Categoria do V.R.",
-        categoriaAyuda: "Se já tiver V.R., os das variáveis escolhidas são substituídos; os de agora ficam nas últimas mudanças, com «Voltar».",
+        categoriaAyuda: "Se já tiver V.R., eles são substituídos: ficam só as variáveis escolhidas. Os de agora ficam nas últimas mudanças, com «Voltar».",
         muestraTexto: "Estas são todas as linhas de {{test}} na Base. Começa com as da Seleção da categoria; filtre com o funil de cada coluna até ficar com as que quiser.",
         conTodas: "todas as linhas do teste",
         sinPeso_one: "{{n}} sem peso",

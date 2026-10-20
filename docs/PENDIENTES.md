@@ -4293,7 +4293,8 @@ confirme.**
       supabase sin preguntarme pero si avisarme»: Claude corre `20261026` y `20261108` por la
       conexión y avisa.
     - **Nota 2 cerrada** (Santiago, 19/10: «Cerrada»). Sigue pendiente que elija cómo se ve el
-      límite de abajo de los atípicos cuando no deja afuera ningún dato.
+      límite de abajo de los atípicos cuando no deja afuera ningún dato. El 20/10 eligió: «deja como esta el limite» (se sigue viendo el que da la cuenta, aunque sea
+      negativo).
   - **Nota 3, hecha el 19/10 y 20/10 (2026.10.20.1; UI-061): la planilla de V.R. en
     Evaluaciones** («Lo mismo que GPS, para los V.R. de cada test»). Santiago, en
     cuestionarios (19/10): «Un botón arriba», la muestra con «Las de esa Selección», las
@@ -4329,8 +4330,16 @@ confirme.**
       que nunca se descartaban atípicos. Santiago, en un cuestionario: «Cuando se use tiempo se
       saca esa regla». Hecho en las dos bases: en una variable de tiempo, los atípicos se
       descartan siempre con los cuartiles.
+    - **Solo las variables que se usaron (20/10, 2026.10.20.2).** Santiago: «En el vr solo dejas
+      las columnas que se hayan usado porfavor, si no se usaron no tienen que estar en el vr».
+      Hecho en los V.R. calculados con la planilla: la tabla muestra solo las variables con
+      resultado (en Evaluaciones, también sus «DE»; una tabla sin ninguna no va; las que
+      quedaron «Sin datos suficientes» tampoco). En Evaluaciones, el bloque de la categoría
+      guarda solo lo calculado (con su título); lo de antes queda en los últimos cambios, con
+      «Volver». Los V.R. cargados a mano o por SQL se ven como antes, con todas las columnas.
     - **Queda prohibido** volver a mostrar la fila Promedio en un V.R. calculado con la planilla
-      y aplicar la regla del promedio de 1 o menos a los tiempos, salvo un pedido nuevo.
+      aplicar la regla del promedio de 1 o menos a los tiempos y dejar en un V.R. calculado
+      variables que no se usaron, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida); después, las grandes, cada una aparte (la planilla de valor

@@ -433,7 +433,7 @@ export default {
         titulo: "Calcular V.R. de {{test}}",
         texto: "Elegí la categoría, las variables y con qué filas se calcula.",
         categoria: "Categoría del V.R.",
-        categoriaAyuda: "Si ya tiene V.R., se reemplazan los de las variables elegidas; los de ahora quedan en los últimos cambios, con «Volver».",
+        categoriaAyuda: "Si ya tiene V.R., se reemplazan: quedan solo las variables elegidas. Los de ahora quedan en los últimos cambios, con «Volver».",
         muestraTexto: "Estas son todas las filas de {{test}} en la Base. Arranca con las de la Selección de la categoría; filtrá con el embudo de cada columna hasta quedarte con las que querés.",
         conTodas: "todas las filas del test",
         sinPeso_one: "{{n}} sin peso",

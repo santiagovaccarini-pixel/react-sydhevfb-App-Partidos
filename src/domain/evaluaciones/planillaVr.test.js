@@ -58,7 +58,7 @@ describe("La planilla de V.R. en Evaluaciones", () => {
     expect(calculo.esTiempo({ formato: "0.00" })).toBe(false);
   });
 
-  test("el bloque: n (los usados), Desvío, los cinco y, en los déficits, «DE» con los desvíos; sin Promedio; lo demás, como estaba", () => {
+  test("el bloque: n (los usados), Desvío, los cinco y, en los déficits, «DE» con los desvíos; sin Promedio; solo las variables usadas", () => {
     const movilidad = elTest("movilidad_tobillo");
     const medidas = medidasDeEvaluaciones(movilidad);
     const filas = [0.1, 0.12, 0.08, 0.15, 0.11, 0.09, 0.13, 0.5].map((deficit, i) => fila(`m${i}`, { pd: 10 + i, pi: 11 + i, deficit }));
@@ -69,18 +69,22 @@ describe("La planilla de V.R. en Evaluaciones", () => {
     const bloque = bloqueDeLaPlanilla({ test: movilidad, anterior, calculos, planilla });
     const deficit = calculos.deficit.resultado;
     expect(bloque.n.deficit).toBe(deficit.usados);
-    // Sin Promedio: es el Bueno (lo de antes de esa medida se va).
-    expect(bloque.promedio).toEqual({ pi: 12 });
+    // Sin Promedio: es el Bueno.
+    expect(bloque.promedio).toBeUndefined();
     expect(deficit.valores.bueno).toBe(deficit.promedio);
     expect(bloque.desvio.deficit).toBe(deficit.desvio);
     expect(bloque.bueno.deficit).toBe(deficit.valores.bueno);
     expect(bloque.malo.deficit).toBe(deficit.valores.malo);
     expect([bloque.excelente.deficit_de, bloque.muy_bueno.deficit_de, bloque.regular.deficit_de, bloque.malo.deficit_de]).toEqual([1.5, 1, 0.75, 1.25]);
     expect(bloque.bueno.deficit_de).toBeUndefined();
-    // Lo que no se calculó (PI) y el título, como estaban; el de antes no cambia.
-    expect(bloque.n.pi).toBe(40);
-    expect(bloque.bueno.pi).toBe(12);
+    // Solo las variables usadas (Santiago, 20/10): PI no se calculó y no está;
+    // el título queda; el de antes no cambia.
+    expect(bloque.n.pi).toBeUndefined();
+    expect(bloque.bueno.pi).toBeUndefined();
+    expect(Object.keys(bloque.bueno)).toEqual(["pd", "deficit"]);
+    expect(bloque.excelente.deficit_de).toBe(1.5);
     expect(bloque.titulo).toBe("Mayor (VR)");
+    expect(anterior.bueno.pi).toBe(12);
     expect(anterior.bueno.deficit).toBe(0.3);
     expect(bloque.planilla).toEqual(planilla);
     // Un test sin fila de Desvío (Press Plano): igual va, y se ve con su título.

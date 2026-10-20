@@ -2018,6 +2018,8 @@ describe("GPS", () => {
     // Arriba, cuántos datos se usaron y el desvío de la muestra (Santiago, 19/10).
     expect([...tarjeta.querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["n", "Desvío", "Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
     expect(Object.keys(guardado.desvio)).toEqual(["d", "d_min"]);
+    // Solo las medidas que se usaron (Santiago, 20/10).
+    expect([...tarjeta.querySelectorAll("thead th")].map((th) => th.textContent).filter(Boolean)).toEqual(["D", "D/min"]);
     expect([...tarjeta.querySelectorAll("tbody tr")][0].querySelector("td").textContent).toBe("10");
     expect(tarjeta.querySelector(".referencias-calculado").textContent).toBe(`Calculado el ${fechaCorta(HOY)} con 11 filas · Tarea o Partido: Partido Oficial Torneo`);
     // Otro V.R. nuevo arranca sin los filtros ni las medidas del anterior.

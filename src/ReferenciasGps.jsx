@@ -135,7 +135,10 @@ export default function ReferenciasGps({
     [columnasGps, gps, config, idioma],
   );
   const tituloDe = (clave) => columnas.find((columna) => columna.clave === clave)?.titulo || clave;
-  const columnasAVista = columnas.filter((columna) => !ocultar.columnaOculta(columna.clave));
+  // Uno calculado con la planilla: solo las medidas que se usaron (Santiago,
+  // 20/10: «En el vr solo dejas las columnas que se hayan usado porfavor, si
+  // no se usaron no tienen que estar en el vr»).
+  const columnasDe = (referencia) => (referencia.planilla ? columnas.filter((columna) => typeof referencia.promedio?.[columna.clave] === "number") : columnas);
   // Las filas de todas las tablas a la vista, una vez cada una.
   const filasParaOcultar = aLaVista
     .flatMap((referencia) => filasDe(referencia).map((clave) => ({ clave, texto: tituloDeFila(referencia, clave) })))
@@ -470,9 +473,9 @@ export default function ReferenciasGps({
                 {referencia.planilla && <p className="lesiones-ayuda referencias-calculado">{textoDelCalculo(referencia.planilla)}</p>}
                 <TablaDeReferencia
                   ocultar={ocultar}
-                  columnas={columnas}
+                  columnas={columnasDe(referencia)}
                   filas={filasDe(referencia).map((clave) => ({ clave, titulo: tituloDeFila(referencia, clave), editable: clave !== "n" }))}
-                  minimo={Math.max(520, 96 + columnasAVista.length * 78)}
+                  minimo={Math.max(520, 96 + columnasDe(referencia).filter((columna) => !ocultar.columnaOculta(columna.clave)).length * 78)}
                   texto={(fila, columna) => {
                     const valor = valoresDe(referencia, fila.clave)?.[columna.clave];
                     if (valor === undefined || valor === null) return "";
