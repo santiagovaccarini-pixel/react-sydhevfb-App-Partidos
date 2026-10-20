@@ -2115,8 +2115,10 @@ select pruebas.esperar('Antes de correrla, el partido tiene el nombre de antes',
 select pruebas.esperar('...después, el de hoy', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival De Antes'), 'LATERAL');
 select pruebas.esperar('...y el de antes queda anotado', (select string_agg(nombre, ',') from jugadores_nombres_anteriores where jugador_id = 9023), 'LATERAL VIEJO');
 select pruebas.esperar('...sin tocar lo que ya estaba bien', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Homonimo'), 'SCARPA');
--- Y el arreglo de después (20261109), que la de arriba acaba de pisar.
+-- Y los arreglos de después (20261109 y 20261110), que la de arriba acaba
+-- de pisar.
 \ir ../migrations/20261109_nombres_con_listas_json.sql
+\ir ../migrations/20261110_nombres_en_los_vr.sql
 
 -- Los titulares y los convocados de una base de antes (lista JSON en vez de
 -- lista de textos, como la del club): cambiar un nombre daba «No se pudo
@@ -2134,6 +2136,40 @@ select pruebas.esperar('...y los cambios', (select cambio_1_sale || '>' || cambi
 select pruebas.esperar('Un partido que sube tarde con el nombre anterior', pruebas.filas($$insert into registros_partido (fecha, rival, equipo_id, titulares, convocados) values ('2026-10-04', 'Rival Lista', '00000000-0000-0000-0000-0000000000c1', '["zaguero ", null, 7]', '"no es una lista"')$$), 1);
 select pruebas.esperar('...se guarda con el de hoy (lo que no es un nombre, como vino)', (select titulares::text || ' | ' || convocados::text from registros_partido where rival = 'Rival Lista'), '["ZAGUERO DOS", null, 7] | "no es una lista"');
 reset role;
+rollback;
+
+-- Los V.R. por jugador del GPS llevan el nombre escrito en grupo: también
+-- pasan al de hoy (20261110; Santiago, 20/10: «Sí, que cambien»).
+begin;
+insert into public.gps_referencias (equipo_id, dispositivo, tipo, tabla, grupo) values
+  ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'Microciclo', 'Partidos', 'ZAGUERO'),
+  ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'Microciclo', 'Total', 'zaguero '),
+  ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'Microciclo', 'Promedio', 'ZAGUERO'),
+  ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'Microciclo', 'Promedio', 'ZAGUERO DOS'),
+  ('00000000-0000-0000-0000-0000000000c1', 'catapult', 'ZAGUERO', 'ZAGUERO', 'TOTAL FUTBOL'),
+  ('00000000-0000-0000-0000-0000000000c2', 'catapult', 'Microciclo', 'Partidos', 'ZAGUERO');
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto le cambia el nombre a un jugador con V.R. por jugador en GPS',
+  pruebas.filas($$update jugadores set nombre = 'ZAGUERO DOS' where id = 9021$$), 1);
+reset role;
+select pruebas.esperar('...sus V.R. pasan al nombre nuevo (también el escrito distinto); si en la tabla ya hay uno con el nuevo, queda',
+  (select string_agg(tabla || ' · ' || grupo, ', ' order by tabla, grupo) from gps_referencias
+    where equipo_id = '00000000-0000-0000-0000-0000000000c1' and tipo = 'Microciclo' and grupo ilike 'zaguero%'),
+  'Partidos · ZAGUERO DOS, Promedio · ZAGUERO, Promedio · ZAGUERO DOS, Total · ZAGUERO DOS');
+select pruebas.esperar('...el tipo y la tabla no se tocan', (select count(*) from gps_referencias where tipo = 'ZAGUERO' and tabla = 'ZAGUERO' and grupo = 'TOTAL FUTBOL'), 1);
+select pruebas.esperar('...ni los de otro club', (select grupo from gps_referencias where equipo_id = '00000000-0000-0000-0000-0000000000c2' and tipo = 'Microciclo'), 'ZAGUERO');
+select pruebas.esperar('...y queda en los últimos cambios, a nombre de Beto',
+  (select count(*) from referencias_historial
+    where tabla = 'gps_referencias' and accion = 'editada' and quien = '00000000-0000-0000-0000-00000000000b'
+      and antes ->> 'grupo' ilike 'zaguero%' and despues ->> 'grupo' = 'ZAGUERO DOS'), 2);
+-- Si algo fallara con los V.R., el nombre se cambia igual.
+create function pruebas.vr_que_falla() returns trigger language plpgsql as $$ begin raise exception 'falla a propósito'; end $$;
+create trigger vr_que_falla before update on public.gps_referencias for each row execute function pruebas.vr_que_falla();
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Con los V.R. fallando, el nombre se cambia igual', pruebas.filas($$update jugadores set nombre = 'ZAGUERO TRES' where id = 9021$$), 1);
+select pruebas.esperar('...y en los partidos también', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA,ZAGUERO TRES');
+reset role;
+select pruebas.esperar('...los V.R. quedan como estaban', (select grupo from gps_referencias where equipo_id = '00000000-0000-0000-0000-0000000000c1' and tipo = 'Microciclo' and tabla = 'Partidos' and grupo ilike 'zaguero%'), 'ZAGUERO DOS');
 rollback;
 
 -- GPS: al renombrar una opción de estrategia, cambia también en la
