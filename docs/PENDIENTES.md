@@ -4150,6 +4150,23 @@ confirme.**
     de la base cambian un nombre con las dos formas; sin el arreglo, con la lista JSON, da
     «function unnest(jsonb) does not exist». Claude la corrió en la base del club por la
     conexión y avisó.
+  - **También en los V.R. por jugador del GPS (20/10, migración
+    `20261110_nombres_en_los_vr.sql`).** Santiago preguntó si la nota era que el nombre cambie
+    «en todos lados, no solo en partido». Se revisó en la base del club, contando filas sin leer
+    nombres: Lesiones, Evaluaciones, GPS y Entrenamiento guardan el número del jugador (en las
+    tres primeras, ninguna fila de un jugador tiene además el nombre escrito), así que el nombre
+    nuevo se ve solo; Partido guarda los nombres escritos y los cambia la base; las personas
+    fuera de Datos básicos no son jugadores y no cambian; el nombre de Catapult es aparte. Lo
+    único con el nombre escrito que no cambiaba: los V.R. por jugador del GPS (los del Excel, con
+    el jugador en `grupo`). Santiago, en un cuestionario: «Sí, que cambien». Hecho: al cambiar el nombre
+    en Datos básicos, los V.R. del GPS del club con un nombre anterior de ese jugador en `grupo`
+    pasan al de hoy (con los mismos cuidados que en los partidos) y queda en los últimos
+    cambios de Valores de referencia, a nombre de quien cambió el nombre y con «Volver». Si en
+    esa tabla ya hay un V.R. con el nombre nuevo, ese queda como está. Este paso nunca frena el
+    cambio de nombre. Hoy la base del club no tiene V.R. por jugador: sirve para cuando se
+    carguen. Claude la corrió en la base del club por la conexión y avisó.
+    - **Queda prohibido** que el cambio de nombre en los V.R. toque el tipo o la tabla, o que
+      frene el cambio de nombre, salvo un pedido nuevo.
   - **Queda prohibido** que lo exporte alguien que no es el administrador, o que el archivo
     lleve datos de otros jugadores, salvo un pedido nuevo.
 - **En curso: la planilla de valor referencial** (quedó en pausa por la auditoría). Santiago, en
