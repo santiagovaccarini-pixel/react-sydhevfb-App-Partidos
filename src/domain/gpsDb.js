@@ -194,6 +194,31 @@ export const crearFilasGps = async (equipoId, filas, { alAvanzar = null, seguir 
   return { creadas, error: "" };
 };
 
+// GPS › Cargar un día, de una vez (20261111_gps_guardar_dia.sql): todas las
+// filas del día o ninguna, con el día bloqueado mientras se guarda. La base
+// no lo guarda si el CSV ya está (yaEsta) o si es una sesión que ya está con
+// otros datos (conOtras, la Regla 1); con reemplazar, cambia esas filas y el
+// promedio del equipo por las nuevas. Sin esa actualización, sinFuncion: se
+// guarda como antes (crearFilasGps). Devuelve { creadas, reemplazadas, error }.
+export const guardarDiaGps = async (equipoId, { fecha, dispositivo, filas = [], reemplazar = false }) => {
+  const { data, error } = await supabase.rpc("gps_guardar_dia", {
+    p_equipo: equipoId,
+    p_fecha: fecha,
+    p_dispositivo: String(dispositivo || "").trim(),
+    p_filas: filas.map(soloCampos),
+    p_reemplazar: Boolean(reemplazar),
+  });
+  if (error) {
+    const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+    if (error.code === "PGRST202" || (/gps_guardar_dia/.test(texto) && /does not exist|schema cache|Could not find/i.test(texto))) return { sinFuncion: true, error: "" };
+    if (/gps_ya_esta/.test(texto)) return { yaEsta: true, error: "gps.cargar.yaEstaAlGuardar" };
+    if (/gps_dia_con_otras/.test(texto)) return { conOtras: true, error: "" };
+    if (/gps_dia_filas/.test(texto)) return { error: "gps.cargar.unDiaUnDispositivo" };
+    return fallo(error, "gps.error.noGuardar");
+  }
+  return { creadas: Number(data?.creadas) || 0, reemplazadas: Number(data?.reemplazadas) || 0, error: "" };
+};
+
 export const actualizarFilaGps = async (id, fila) => {
   const { data, error } = await supabase.from("gps").update(soloCampos(fila)).eq("id", id).select(COLUMNAS).single();
   if (error) return fallo(error, "gps.error.noGuardar");

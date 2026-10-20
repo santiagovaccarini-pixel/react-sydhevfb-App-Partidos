@@ -4172,6 +4172,7 @@ confirme.**
     anon pueden llamar a esas funciones.
     - **Queda prohibido** que el cambio de nombre en los V.R. toque el tipo o la tabla, o que
       frene el cambio de nombre, salvo un pedido nuevo.
+  - **Nota cerrada** (Santiago, 20/10, en un cuestionario: «Sí, está bien, cerrada»).
   - **Queda prohibido** que lo exporte alguien que no es el administrador, o que el archivo
     lleve datos de otros jugadores, salvo un pedido nuevo.
 - **En curso: la planilla de valor referencial** (quedó en pausa por la auditoría). Santiago, en
@@ -4373,6 +4374,49 @@ confirme.**
       aplicar la regla del promedio de 1 o menos a los tiempos y dejar en un V.R. calculado
       variables que no se usaron, salvo un pedido nuevo.
     - **Nota 3 cerrada** (Santiago, 20/10, en un cuestionario: «Está bien, cerrada»).
+- **En curso: cargar sin señal y a la vez que otra persona (20/10).** Santiago eligió esta nota
+  y, en cuestionarios: en «Todas» las bases; sin señal «Tiene que poder hacer todo y que se suba
+  cuando vuelva a tener internet»; si dos cambian la misma fila, «Se juntan; si es la misma
+  celda, aviso»; «Las dos cosas» (las bases y Partido); una fila que otro borró mientras se la
+  cambiaba sin señal «Queda borrada y te aviso»; la copia para trabajar sin señal «Solo donde se
+  active»; Ajustes y Cuentas «Sí, con señal»; Entrenamiento (las tareas que van a OpenField)
+  «Lo vemos al final». Preguntó los riesgos: Claude explicó los datos de salud en el celular
+  (la copia es de esa cuenta y ese club, se borra al cerrar sesión, al cambiar de club y al
+  perder el permiso; queda el riesgo de un celular perdido y desbloqueado), los permisos que
+  cambian sin señal (la base rechaza lo que ya no se puede y la app lo dice), quién hizo cada
+  cosa (la cuenta y la hora de cada cambio) y los choques. Sobre «una fila virtual donde se
+  vayan cargando sin pisarse» (nota de Santiago): se puede; es el paso 2 (cada guardado manda
+  solo su cambio, la base los aplica en orden y frena los duplicados con sus reglas).
+  - **Orden acordado** (Santiago: «Antes de eso resolvamos los puntos debiles de hoy y las
+    reglas de duplicados»): A) los puntos débiles de hoy y las reglas de duplicados, en tres
+    partes (GPS › Cargar un día; GPS › Pegar desde una planilla; Evaluaciones); 1) ver sin
+    señal; 2) la fila de espera de cambios; 3) cargar, cambiar y borrar sin señal; 4) Partido
+    compartido entre celulares (y Entrenamiento, al final).
+  - **Reglas de duplicados acordadas.** GPS: la de hoy, en la base (mismo día, misma distancia,
+    tiempo y hora de inicio: el CSV ya está y no se carga). Regla 1, en Cargar un día, Pegar
+    desde una planilla y Evaluaciones: «Si coincide fecha y jugador pero no datos se avisa…», con
+    «Ir a la Base» (las filas que coinciden, con lo cargado en espera) o cargarlo directamente,
+    que «Reemplaza» las filas de antes («Las del mismo dispositivo»; el promedio del equipo, «Sí,
+    con el nuevo»). En GPS, la clave es «Jugador, fecha y hora de incio para preguntar si es
+    duplicado»: otra hora de inicio es otro turno y se suma. Evaluaciones: «Es repetida si
+    coincide nombre, fecha, y todos los datos son iguales» (en la base del club no hay ninguna).
+  - **Hecho, parte A1 (20/10, migración `20261111_gps_guardar_dia.sql`, 2026.10.20.3; UI-062):
+    GPS › Cargar un día.** Se guarda todo el día de una vez (todo o nada), con el día del club
+    bloqueado mientras se revisa y se guarda: dos personas que guardan a la vez no pasan las dos.
+    La regla del CSV que ya está quedó también en la base. La Regla 1, como arriba. En la base
+    del club, contando filas sin leer datos: el total de cada jugador no tiene hora de inicio
+    (ninguno de los cargados con Cargar un día y la mitad de los de antes) y las tareas sí casi
+    siempre; por eso la misma sesión se reconoce por las tareas y, al reemplazar, cambian todas
+    las filas de esos jugadores de ese día con ese dispositivo (tareas y total) y el promedio del
+    equipo. No hubo nunca dos turnos del mismo jugador con el mismo dispositivo el mismo día.
+    Al elegir la fecha, «Ese día ya hay N filas de otra sesión» pasó a «Ese día ya hay N filas en
+    la Base» (la misma sesión se revisa al guardar). Sin la actualización de la base se guarda
+    como antes y reemplazar avisa que falta.
+    - **Límite conocido:** si un día hubiera dos turnos con el mismo dispositivo y se reemplaza
+      uno, se reemplazan también las filas del otro turno de esos jugadores (el total no tiene
+      hora). El aviso dice cuántas filas son y deja revisarlas antes con «Ir a la Base».
+    - **Queda prohibido** que la app guarde un día por partes o sin la revisión de la base, y que
+      «Reemplazar» toque otro dispositivo u otro día, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

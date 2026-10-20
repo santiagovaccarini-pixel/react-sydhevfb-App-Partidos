@@ -46,6 +46,9 @@ const datos = vi.hoisted(() => ({
   // ya confirmadas y las que se confirmaron al guardar.
   personasConfirmadas: [],
   confirmaciones: [],
+  // Los días guardados de una vez (20261111) y si falta esa actualización.
+  diasGuardados: [],
+  sinGuardarDia: false,
 }));
 
 const PLANTEL = [
@@ -128,6 +131,27 @@ vi.mock("./domain/gpsDb.js", () => ({
     const total = datos.totalFalso ?? filas.length;
     if (maximo && total > maximo) return { filas: [], total, demasiadas: true, error: "" };
     return { filas: filas.map((fila) => ({ ...fila, datos: { ...fila.datos } })), total, demasiadas: false, error: "" };
+  },
+  // Como la base (20261111): el día de una vez, con la Regla 1 (la misma
+  // sesión con otros datos no se guarda; con reemplazar, cambia esas filas y
+  // el promedio del equipo de ese día y ese dispositivo).
+  guardarDiaGps: async (equipoId, { fecha, dispositivo, filas, reemplazar = false }) => {
+    datos.diasGuardados.push({ fecha, dispositivo, filas: filas.length, reemplazar });
+    if (datos.sinGuardarDia) return { sinFuncion: true, error: "" };
+    const { filasDeLaMismaSesion } = await import("./domain/gps/cargar.js");
+    const otras = filasDeLaMismaSesion(filas, datos.filas.filter((fila) => fila.fecha === fecha), dispositivo);
+    if (otras.length && !reemplazar) return { conOtras: true, error: "" };
+    const antes = datos.filas.length;
+    if (otras.length) {
+      const ids = new Set(otras.map((fila) => fila.id));
+      const conPromedio = filas.some((fila) => fila.promedio);
+      datos.filas = datos.filas.filter((fila) => !ids.has(fila.id) && !(conPromedio && fila.fecha === fecha && fila.promedio && fila.datos.dispositivo === dispositivo));
+    }
+    const reemplazadas = antes - datos.filas.length;
+    const creadas = filas.map((fila, i) => ({ id: `nueva-${datos.creadas.length + i + 1}`, equipo_id: equipoId, orden: 100 + datos.creadas.length + i, jugador_id: null, persona: null, promedio: null, ...fila }));
+    datos.creadas.push(...filas);
+    datos.filas.push(...creadas);
+    return { creadas: filas.length, reemplazadas, error: "" };
   },
   crearFilasGps: async (equipoId, filas, { alAvanzar } = {}) => {
     const creadas = filas.map((fila, i) => ({ id: `nueva-${datos.creadas.length + i + 1}`, equipo_id: equipoId, orden: 100 + datos.creadas.length + i, jugador_id: null, persona: null, promedio: null, ...fila }));
@@ -383,6 +407,8 @@ describe("GPS", () => {
     datos.errorHistorial = "";
     datos.recordados = { pegar: "", csv: "" };
     datos.recordar = [];
+    datos.diasGuardados = [];
+    datos.sinGuardarDia = false;
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -991,10 +1017,10 @@ describe("GPS", () => {
     expect(contenedor.textContent).toContain("2. Juego: 2 jugadores");
     expect(contenedor.textContent).toContain("El CSV no trae");
     // La fecha sale del CSV y se revisa si ya está en la Base: ese día hay
-    // filas, pero de otra sesión.
+    // filas, pero de otra sesión (sin la misma hora de inicio).
     expect(contenedor.querySelector("input[type=date]").value).toBe(AYER);
     await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
-    expect(contenedor.textContent).toContain("Ese día ya hay 3 filas de otra sesión.");
+    expect(contenedor.textContent).toContain("Ese día ya hay 3 filas en la Base.");
     // A. Alfa es ALFA (su nombre en Catapult); Invitado X no está en Datos básicos.
     await tocar(siguiente());
     expect(contenedor.textContent).toContain("Falta elegir qué hacer con 1 nombre que no está en Datos básicos.");
@@ -1343,6 +1369,129 @@ describe("GPS", () => {
     await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
     await tocar(siguiente());
     expect(titulo()).toBe("1. Rondo");
+  });
+
+  // Regla 1 (Santiago, 20/10): la misma sesión (jugador, fecha y hora de
+  // inicio) ya en la Base con otros datos. Ayer, ALFA ya tiene el Rondo de
+  // las 10:00 con otros números (Catapult) y BETA, con Sport.
+  const conLaMismaSesion = () => [
+    ...FILAS(),
+    fila("s1", 11, { jugador_id: 1 }, AYER, { d: 3100, tiempo: 1200, inicio: 36000, dispositivo: "catapult" }),
+    fila("s2", 12, { jugador_id: 2 }, AYER, { d: 2700, tiempo: 1200, inicio: 36000, dispositivo: "sport" }),
+  ];
+  // Todo el día, hasta «Revisar y guardar».
+  const hastaGuardar = async () => {
+    await hastaLaPrimeraTarea();
+    await tocar(siguiente());
+    await elegirTipo();
+    await tocar(siguiente());
+    await elegirTipo("Descanso");
+    await tocar(siguiente());
+    await elegirDelDesplegable("Tipo Microciclo", "Competitivo");
+    await elegirDelDesplegable("Día del microciclo", "-1");
+    await elegirTipo("Din. General");
+    await tocar(siguiente());
+    expect(titulo()).toBe("Revisar y guardar");
+  };
+  const hojaDeLaSesion = () => document.querySelector(".hoja-confirmar");
+  const nombresDeLaBase = () => filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent);
+
+  test("Regla 1: la misma sesión con otros datos pregunta; «Reemplazar y cargar» cambia esas filas y el promedio del equipo por las nuevas", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    datos.personasConfirmadas = ["invitado x"];
+    datos.filas = conLaMismaSesion();
+    await montar();
+    await hastaGuardar();
+    await tocar(boton("Guardar 11 filas"));
+    // No guarda: pregunta, con quiénes y cuántas filas (las de Catapult).
+    expect(datos.creadas).toHaveLength(0);
+    expect(datos.diasGuardados).toHaveLength(0);
+    expect(hojaDeLaSesion().querySelector("h3").textContent).toBe("Esa sesión ya está en la Base, con otros datos");
+    expect(hojaDeLaSesion().textContent).toContain(`2 jugadores de este CSV ya tienen filas del ${fechaCorta(AYER)} con Catapult a la misma hora de inicio, con otros datos:`);
+    expect([...hojaDeLaSesion().querySelectorAll(".consentimiento-personas li")].map((li) => li.textContent)).toEqual(["ALFA · 2 filas", "BETA · 1 fila"]);
+    expect(hojaDeLaSesion().textContent).toContain("«Reemplazar y cargar» borra esas filas y el promedio del equipo de ese día con Catapult");
+    // El foco arranca en lo que no borra.
+    expect(document.activeElement.textContent).toBe("Ir a la Base");
+    // Tocar afuera solo cierra.
+    await act(async () => document.querySelector(".velo-dialogo").dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    expect(hojaDeLaSesion()).toBeNull();
+    expect(titulo()).toBe("Revisar y guardar");
+    await tocar(boton("Guardar 11 filas"));
+    await tocar(boton("Reemplazar y cargar"));
+    expect(datos.diasGuardados).toEqual([{ fecha: AYER, dispositivo: "catapult", filas: 11, reemplazar: true }]);
+    expect(datos.creadas).toHaveLength(11);
+    // Quedan la de Sport y las nuevas; las de antes de Catapult (y su promedio), no.
+    expect(datos.filas.filter((una) => una.fecha === AYER && !String(una.id).startsWith("nueva")).map((una) => una.id)).toEqual(["s2"]);
+    expect(document.body.textContent).toContain(`Listo: se guardaron 11 filas del ${fechaCorta(AYER)}. Se reemplazaron 4 filas que ya estaban.`);
+  });
+
+  test("Regla 1, «Ir a la Base»: la carga queda en «Sin terminar» y la Base muestra esas filas; «Seguir la carga» vuelve donde estaba", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    datos.personasConfirmadas = ["invitado x"];
+    datos.filas = conLaMismaSesion();
+    await montar();
+    await hastaGuardar();
+    await tocar(boton("Guardar 11 filas"));
+    await tocar(boton("Ir a la Base"));
+    expect(datos.creadas).toHaveLength(0);
+    expect(datos.dejadas).toHaveLength(1);
+    expect(datos.enCurso).toHaveLength(1);
+    // La Base, con las filas de esa sesión que ya estaban (la fecha, esos jugadores y Catapult).
+    await esperar(() => Boolean(contenedor.querySelector(".gps-revisar-carga")));
+    expect(contenedor.querySelector(".gps-revisar-carga").textContent).toContain(`Estas son las filas del ${fechaCorta(AYER)} que ya estaban. Tu carga quedó en «Sin terminar».`);
+    expect(nombresDeLaBase()).toEqual(["ALFA", "BETA", "ALFA"]);
+    // «Ver toda la Base»: sin esos filtros.
+    await tocar(boton("Ver toda la Base"));
+    expect(contenedor.querySelector(".gps-revisar-carga")).toBeNull();
+    expect(nombresDeLaBase().length).toBeGreaterThan(3);
+    // Otra vez, y se sigue la carga desde la Base.
+    await irA(contenedor, "Cargar");
+    await tocar(boton("Seguir"));
+    expect(titulo()).toBe("Revisar y guardar");
+    await tocar(boton("Guardar 11 filas"));
+    await tocar(boton("Ir a la Base"));
+    await esperar(() => Boolean(contenedor.querySelector(".gps-revisar-carga")));
+    await tocar(boton("Seguir la carga"));
+    await esperar(() => Boolean(contenedor.querySelector(".lesiones-paso-titulo h2")));
+    expect(titulo()).toBe("Revisar y guardar");
+  });
+
+  test("Regla 1: otro turno (otra hora de inicio) se suma sin preguntar", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    datos.personasConfirmadas = ["invitado x"];
+    datos.filas = [...FILAS(), fila("t1", 11, { jugador_id: 1 }, AYER, { d: 3100, tiempo: 1200, inicio: 61200, dispositivo: "catapult" })];
+    await montar();
+    await hastaGuardar();
+    await tocar(boton("Guardar 11 filas"));
+    expect(hojaDeLaSesion()).toBeNull();
+    expect(datos.diasGuardados).toEqual([{ fecha: AYER, dispositivo: "catapult", filas: 11, reemplazar: false }]);
+    expect(datos.creadas).toHaveLength(11);
+    expect(datos.filas.some((una) => una.id === "t1")).toBe(true);
+  });
+
+  test("Regla 1 sin la actualización de la base: sin la misma sesión se guarda como antes; reemplazar avisa que falta", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    datos.personasConfirmadas = ["invitado x"];
+    datos.sinGuardarDia = true;
+    await montar();
+    await hastaGuardar();
+    await tocar(boton("Guardar 11 filas"));
+    expect(datos.creadas).toHaveLength(11);
+    expect(document.body.textContent).toContain(`Listo: se guardaron 11 filas del ${fechaCorta(AYER)}.`);
+  });
+
+  test("Regla 1 sin la actualización de la base, con la misma sesión: «Reemplazar y cargar» no borra nada y avisa", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    datos.personasConfirmadas = ["invitado x"];
+    datos.sinGuardarDia = true;
+    datos.filas = conLaMismaSesion();
+    await montar();
+    await hastaGuardar();
+    await tocar(boton("Guardar 11 filas"));
+    await tocar(boton("Reemplazar y cargar"));
+    expect(datos.creadas).toHaveLength(0);
+    expect(datos.filas.map((una) => una.id)).toEqual(["g1", "g2", "g3", "s1", "s2"]);
+    expect(contenedor.textContent).toContain("Falta una actualización de la base de datos para usar GPS.");
   });
 
   const CSV_PARTIDO = (fecha) =>

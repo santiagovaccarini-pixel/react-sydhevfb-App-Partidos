@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
+import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { HojaInferior } from "./components/SheetPanel.js";
@@ -8,11 +9,25 @@ import { TablaDatos } from "./components/TablaDatos.jsx";
 import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
 import { opcionesDeLista, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
-import { REGLAS_CARGA, VS_PARTIDO, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, llegaAlCorte, microcicloDe, vrPartidoDelDispositivo, vsPartido } from "./domain/gps/cargar.js";
+import {
+  REGLAS_CARGA,
+  VS_PARTIDO,
+  bloquesDelCsv,
+  calcularCarga,
+  esArquero,
+  faltaLoObligatorio,
+  filasDeLaMismaSesion,
+  filasYaEnLaBase,
+  leerCsvCatapult,
+  llegaAlCorte,
+  microcicloDe,
+  vrPartidoDelDispositivo,
+  vsPartido,
+} from "./domain/gps/cargar.js";
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
 import { COMO_PERSONA, NO_CARGAR, buscadorDelGps, leerSegundos } from "./domain/gps/importar.js";
 import { esNumero, textoDeSegundos } from "./domain/gps/valores.js";
-import { borrarEnCurso, crearFilasGps, dejarEnCurso, enCursoDelDia, leerDispositivosRecordados, listarGps, partidoDelDia, recordarDispositivo } from "./domain/gpsDb.js";
+import { borrarEnCurso, crearFilasGps, dejarEnCurso, enCursoDelDia, guardarDiaGps, leerDispositivosRecordados, listarGps, partidoDelDia, recordarDispositivo } from "./domain/gpsDb.js";
 import { DUDOSO, nombreIgual } from "./domain/importarPersonas.js";
 import { actualesPrimero, cargarPlantelConCatapult, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -131,6 +146,9 @@ export default function CargarGps({
   onSinGuardar,
   // Se dejó para revisar: ({ fecha }).
   onDejado,
+  // Regla 1, «Ir a la Base»: quedó para revisar y se ven las filas de esa
+  // sesión que ya estaban ({ fecha, dispositivo, filas, enCursoId }).
+  onVerEnLaBase,
   // La siguieron en otro aparato: abrir la última (su id).
   onAbrirEnCurso,
   // Abre «Cómo se usa» de GPS.
@@ -159,6 +177,9 @@ export default function CargarGps({
   const [aMedias, setAMedias] = useState(null);
   // ¿El CSV ya está en la Base? { clave, estado: revisando | esta | noEsta | error, iguales, delDia }.
   const [revision, setRevision] = useState(null);
+  // Regla 1: la sesión ya está ese día con otros datos: { filas } (las que se
+  // reemplazarían), mientras se pregunta.
+  const [otraSesion, setOtraSesion] = useState(null);
   const [intento, setIntento] = useState(0);
   const [intentoPartido, setIntentoPartido] = useState(0);
   // El partido de ese día en Partido: { fecha, estado: buscando | hay | noHay
@@ -1613,11 +1634,26 @@ export default function CargarGps({
     </>
   );
 
-  // Se guarda en el orden de la plantilla, de a tandas. Justo antes, se
-  // vuelve a mirar que el CSV no esté ya en la Base (otra persona pudo
-  // cargarlo mientras tanto). Si se corta, lo guardado queda y lo que falta
-  // se guarda al volver a tocar (lo de la tabla ya no se cambia).
-  const guardar = async () => {
+  // Regla 1: quiénes ya tienen esa sesión ese día, con cuántas filas, y el
+  // nombre del dispositivo.
+  const deLaMismaSesion = [];
+  (otraSesion?.filas || []).forEach((fila) => {
+    const clave = fila.jugador_id ? `j:${fila.jugador_id}` : `p:${String(fila.persona || "").toLowerCase()}`;
+    const ya = deLaMismaSesion.find((uno) => uno.clave === clave);
+    if (ya) ya.filas += 1;
+    else deLaMismaSesion.push({ clave, nombre: fila.jugador_id ? jugadorDe(fila.jugador_id)?.nombre || String(fila.jugador_id) : fila.persona || "—", filas: 1 });
+  });
+  const nombreDelDispositivo = otraSesion ? opcionesDeLista("dispositivo", config, idioma, { test: gps, conOcultas: true }).find((opcion) => opcion.valor === estado.dispositivo)?.etiqueta || estado.dispositivo || "—" : "";
+
+  // Se guarda en el orden de la plantilla, todo de una vez (20261111). Justo
+  // antes, se vuelve a mirar que el CSV no esté ya en la Base (otra persona
+  // pudo cargarlo mientras tanto) y la Regla 1: si es una sesión que ya está
+  // ese día con otros datos, se pregunta («Ir a la Base» o «Reemplazar y
+  // cargar»). La base revisa lo mismo con el día bloqueado. Sin esa
+  // actualización, de a tandas, como antes: si se corta, lo guardado queda y
+  // lo que falta se guarda al volver a tocar (lo de la tabla ya no se cambia).
+  const guardar = async ({ reemplazar = false } = {}) => {
+    setOtraSesion(null);
     const lista =
       aMedias?.lista ||
       (resultado || []).map((fila) => Object.fromEntries(Object.entries(fila).filter(([clave]) => !clave.startsWith("_") && clave !== "id")));
@@ -1664,6 +1700,40 @@ export default function CargarGps({
         setFalla("gps.enCurso.yaEnCurso");
         return;
       }
+      const otras = reemplazar ? [] : filasDeLaMismaSesion(quedan, respuesta.filas, estado.dispositivo);
+      if (otras.length) {
+        setProgreso(null);
+        setOtraSesion({ filas: otras });
+        return;
+      }
+      const dia = await guardarDiaGps(equipoId, { fecha: estado.fecha, dispositivo: estado.dispositivo, filas: quedan, reemplazar });
+      if (!enPantalla.current) return;
+      if (!dia.sinFuncion) {
+        setProgreso(null);
+        // Otra persona guardó esa sesión mientras tanto: se pregunta con lo de ahora.
+        if (dia.conOtras) {
+          const ahora = await listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha });
+          if (!enPantalla.current) return;
+          const deAhora = ahora.error ? [] : filasDeLaMismaSesion(quedan, ahora.filas, estado.dispositivo);
+          if (deAhora.length) setOtraSesion({ filas: deAhora });
+          else setFalla("gps.cargar.noSeRevisoBase");
+          return;
+        }
+        if (dia.error) {
+          setFalla(dia.error);
+          return;
+        }
+        // Ya está en la Base: deja de estar «Sin terminar».
+        const quitada = deEnCurso?.id ? await borrarEnCurso(deEnCurso.id) : { error: "" };
+        onListo?.({ cargadas: dia.creadas, reemplazadas: dia.reemplazadas, fecha: estado.fecha, quedoEnCurso: Boolean(quitada.error) });
+        return;
+      }
+      // Sin la actualización 20261111 no se reemplaza.
+      if (reemplazar) {
+        setProgreso(null);
+        setFalla("gps.error.faltaMigracion");
+        return;
+      }
     }
     const { creadas, error } = await crearFilasGps(equipoId, quedan, {
       alAvanzar: (n) => enPantalla.current && setProgreso({ n: desde + n, total: lista.length }),
@@ -1684,8 +1754,10 @@ export default function CargarGps({
   };
 
   // Dejar para revisar: todo lo hecho va a la base y se sigue desde
-  // «Sin terminar», en este aparato o en otro, en el paso donde quedó.
-  const dejar = async () => {
+  // «Sin terminar», en este aparato o en otro, en el paso donde quedó. Con
+  // verEnLaBase (la Regla 1, «Ir a la Base»), después se ven en la Base las
+  // filas de esa sesión que ya estaban.
+  const dejar = async ({ verEnLaBase = null } = {}) => {
     if (!estado.csv.length || dejando) return;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(estado.fecha)) {
       setErrorPaso(t("gps.enCurso.faltaFecha"));
@@ -1724,7 +1796,8 @@ export default function CargarGps({
       return;
     }
     setDeEnCurso({ id: respuesta.id, version: respuesta.version });
-    onDejado?.({ fecha: estado.fecha });
+    if (verEnLaBase) onVerEnLaBase?.({ fecha: estado.fecha, dispositivo: estado.dispositivo, filas: verEnLaBase.filas, enCursoId: respuesta.id });
+    else onDejado?.({ fecha: estado.fecha });
   };
 
   // El título y la ayuda de cada paso.
@@ -1797,7 +1870,7 @@ export default function CargarGps({
           <div className="gps-cargar-titulo-fila">
             <h2>{tituloDe(actual)}</h2>
             {estado.csv.length > 0 && !aMedias && (
-              <button type="button" className="boton-secundario gps-cargar-dejar" onClick={dejar} disabled={dejando || Boolean(progreso) || !enLinea}>
+              <button type="button" className="boton-secundario gps-cargar-dejar" onClick={() => dejar()} disabled={dejando || Boolean(progreso) || !enLinea}>
                 <Icono nombre="reloj" size={15} />
                 {dejando ? t("gps.enCurso.dejando") : t("gps.enCurso.dejar")}
               </button>
@@ -1827,7 +1900,7 @@ export default function CargarGps({
             </BotonVolver>
           )}
           {ultimo ? (
-            <button type="button" className="boton-principal" onClick={guardar} disabled={Boolean(progreso) || !enLinea || !resultado?.length}>
+            <button type="button" className="boton-principal" onClick={() => guardar()} disabled={Boolean(progreso) || !enLinea || !resultado?.length}>
               {progreso
                 ? t("gps.cargar.guardando", { n: progreso.n, total: progreso.total })
                 : aMedias
@@ -1890,6 +1963,31 @@ export default function CargarGps({
           </div>
         )}
       </HojaInferior>
+      <HojaConfirmar
+        abierta={Boolean(otraSesion)}
+        icono="refrescar"
+        titulo={t("gps.cargar.mismaSesion.titulo")}
+        descripcion={plural("gps.cargar.mismaSesion.texto", deLaMismaSesion.length, { fecha: estado.fecha ? fechaCorta(estado.fecha) : "—", dispositivo: nombreDelDispositivo })}
+        detalle={
+          <div className="gps-misma-sesion">
+            <ul className="consentimiento-personas">
+              {deLaMismaSesion.map((uno) => (
+                <li key={uno.clave}>{t("gps.cargar.mismaSesion.quien", { nombre: uno.nombre, filas: plural("gps.cargar.mismaSesion.filas", uno.filas) })}</li>
+              ))}
+            </ul>
+            <p>{t("gps.cargar.mismaSesion.queHace", { dispositivo: nombreDelDispositivo })}</p>
+          </div>
+        }
+        etiquetaCancelar={t("gps.cargar.mismaSesion.irALaBase")}
+        etiquetaConfirmar={t("gps.cargar.mismaSesion.reemplazar")}
+        onCancelar={() => {
+          const filas = otraSesion?.filas || [];
+          setOtraSesion(null);
+          dejar({ verEnLaBase: { filas } });
+        }}
+        onConfirmar={() => guardar({ reemplazar: true })}
+        onCerrar={() => setOtraSesion(null)}
+      />
       {consentimiento.hoja}
     </div>
   );
