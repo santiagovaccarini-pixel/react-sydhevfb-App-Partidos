@@ -204,6 +204,15 @@ describe("El valor referencial, con la lógica de la planilla del club", () => {
     expect(calcularValorReferencial([20, 30, 25, 28, 300].map((valor) => ({ valor }))).descartados).toBe(1);
   });
 
+  test("en los tiempos no va la regla del promedio de 1 o menos (Santiago, 19/10)", () => {
+    // En la unidad del Excel (días): el promedio da menos de 1.
+    const tiempos = [180, 190, 200, 185, 195, 205, 210, 900].map((segundos) => ({ valor: segundos / 1440 }));
+    expect(calcularValorReferencial(tiempos).descartados).toBe(0);
+    const sinRegla = calcularValorReferencial(tiempos, { reglaDelUno: false });
+    expect(sinRegla.descartados).toBe(1);
+    expect(sinRegla.atipicos.indices).toEqual([7]);
+  });
+
   test("el orden de los datos no cambia nada (los cuartiles, como CUARTIL de Excel)", () => {
     const ordenados = [100, 200, 300, 400, 500, 600, 800, 1000, 1200, 1500, 6000];
     const desordenados = [1500, 300, 6000, 100, 1000, 500, 200, 1200, 800, 400, 600];

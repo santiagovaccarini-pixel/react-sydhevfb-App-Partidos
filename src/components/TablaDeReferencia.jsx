@@ -16,8 +16,9 @@ const TOQUE_QUIETO = 10;
 // en las bases: dos toques (o dos clics, o Enter) en la celda, se escribe y
 // Enter (o tocar afuera) lo guarda; Esc no cambia nada.
 //
-// columnas: [{ clave, titulo, teclado?, editable? }]; filas: [{ clave, titulo }]
-// (una columna con editable: false solo se mira).
+// columnas: [{ clave, titulo, teclado?, editable? }]; filas: [{ clave, titulo,
+// editable? }] (una columna o una fila con editable: false solo se mira: el
+// n de un V.R. de la planilla).
 // texto(fila, columna): lo que se ve.
 // interpretar(fila, columna, escrito): el número, null (vaciar) o
 // undefined (no se entiende).
@@ -41,7 +42,7 @@ export const TablaDeReferencia = ({ columnas: todasLasColumnas, filas: todasLasF
   const claveDe = (fila, columna) => `${fila.clave}|${columna.clave}`;
 
   const empezar = (fila, columna) => {
-    if (!editable || guardando) return;
+    if (!editable || guardando || fila.editable === false || columna.editable === false) return;
     const original = texto(fila, columna) || "";
     enCurso.current = { fila, columna, escrito: original, original };
     setError("");
@@ -130,7 +131,7 @@ export const TablaDeReferencia = ({ columnas: todasLasColumnas, filas: todasLasF
                 {columnas.map((columna) => {
                   const clave = claveDe(fila, columna);
                   const aca = editando && claveDe(editando.fila, editando.columna) === clave;
-                  const seCambia = editable && columna.editable !== false;
+                  const seCambia = editable && columna.editable !== false && fila.editable !== false;
                   return (
                     <td
                       key={columna.clave}

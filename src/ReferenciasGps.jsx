@@ -12,7 +12,7 @@ import { cambiosDeEntrada } from "./domain/referencias.js";
 import { leerHistorialDeReferencias } from "./domain/referenciasDb.js";
 import { borrarReferenciaGps, cambiarValorDeReferenciaGps, marcarDePartidoGps, recalcularReferenciaGps, renombrarReferenciaGps, sumarReferenciaGps } from "./domain/gpsDb.js";
 import { armarPlanilla, calcularPlanilla, eleccionDeLaPlanilla, filasDeLaMuestra, medidasDeLaPlanilla, medidasDeLaPlanillaGuardada, numerosParaGuardar } from "./domain/gps/planillaVr.js";
-import PlanillaVrGps from "./PlanillaVrGps.jsx";
+import PlanillaVr from "./PlanillaVr.jsx";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 
@@ -28,7 +28,7 @@ import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 // del Excel: Excelente, Muy Bueno, Bueno (su promedio), Regular y Malo. Con
 // V.R. de más de una tabla en el dispositivo (los de cada jugador van por
 // tabla), se puede ver una sola tabla (de entrada, todas, como antes).
-// «Agregar V.R.» abre la planilla del club (PlanillaVrGps.jsx; nota 2 de la
+// «Agregar V.R.» abre la planilla del club (PlanillaVr.jsx; nota 2 de la
 // planilla de valor referencial, 19/10): un solo nombre (va en la tabla) y
 // la muestra de la Base. Un V.R. calculado así dice cuándo y con qué filas
 // y tiene «Recalcular» (con la misma muestra y lo elegido, con los datos de
@@ -38,11 +38,16 @@ import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 
 const FILAS = ["promedio", "desvio"];
 const FILAS_CON_CATEGORIAS = ["excelente", "muy_bueno", "promedio", "regular", "malo"];
+const conAlgo = (objeto) => Object.keys(objeto || {}).length > 0;
 const filasDe = (referencia) => {
   if (!tieneCategorias(referencia)) return FILAS;
-  return Object.keys(referencia.desvio || {}).length ? [...FILAS_CON_CATEGORIAS, "desvio"] : FILAS_CON_CATEGORIAS;
+  // Los de la planilla: arriba, cuántos datos se usaron (n) y el desvío de la
+  // muestra (Santiago, 19/10: «Agrega estos datos para todos los vr que
+  // hagamos de aca en adelante»).
+  if (referencia.planilla) return [...(conAlgo(referencia.planilla.n) ? ["n"] : []), ...(conAlgo(referencia.desvio) ? ["desvio"] : []), ...FILAS_CON_CATEGORIAS];
+  return conAlgo(referencia.desvio) ? [...FILAS_CON_CATEGORIAS, "desvio"] : FILAS_CON_CATEGORIAS;
 };
-const valoresDe = (referencia, fila) => (CATEGORIAS_DE_UN_VR.includes(fila) ? referencia?.categorias?.[fila] : referencia?.[fila]);
+const valoresDe = (referencia, fila) => (fila === "n" ? referencia?.planilla?.n : CATEGORIAS_DE_UN_VR.includes(fila) ? referencia?.categorias?.[fila] : referencia?.[fila]);
 const tituloDeFila = (referencia, fila) => t(fila === "promedio" && tieneCategorias(referencia) ? "gps.vr.bueno" : `gps.vr.${fila}`);
 const nombreDe = (referencia) => [referencia?.tipo, referencia?.tabla, referencia?.grupo].filter(Boolean).join(" · ");
 const tablaDe = (referencia) => [referencia?.tipo, referencia?.tabla].filter(Boolean).join(" · ");
@@ -372,7 +377,7 @@ export default function ReferenciasGps({
       return;
     }
     setRecalculando(true);
-    const planilla = armarPlanilla({ muestra: referencia.planilla.muestra, eleccion: recalculo.eleccion, filas: recalculo.muestra.length, calculado: hoyISO() });
+    const planilla = armarPlanilla({ muestra: referencia.planilla.muestra, eleccion: recalculo.eleccion, filas: recalculo.muestra.length, calculado: hoyISO(), n: numeros.n });
     const respuesta = await recalcularReferenciaGps(referencia.id, { ...numeros, planilla });
     setRecalculando(false);
     setARecalcular(null);
@@ -393,8 +398,9 @@ export default function ReferenciasGps({
   // ------------------------------------------------------------ Pantalla --
   if (calculando && puedeCalcular)
     return (
-      <PlanillaVrGps
-        dispositivo={{ valor: dispositivo, etiqueta: nombreDelDispositivo }}
+      <PlanillaVr
+        titulo={t("gps.vr.planilla.titulo", { dispositivo: nombreDelDispositivo })}
+        muestraTexto={t("gps.vr.planilla.muestraTexto", { dispositivo: nombreDelDispositivo })}
         filas={filasDelDispositivo}
         columnas={columnasDeLaBase}
         fijas={fijasDeLaBase}
@@ -465,11 +471,12 @@ export default function ReferenciasGps({
                 <TablaDeReferencia
                   ocultar={ocultar}
                   columnas={columnas}
-                  filas={filasDe(referencia).map((clave) => ({ clave, titulo: tituloDeFila(referencia, clave) }))}
+                  filas={filasDe(referencia).map((clave) => ({ clave, titulo: tituloDeFila(referencia, clave), editable: clave !== "n" }))}
                   minimo={Math.max(520, 96 + columnasAVista.length * 78)}
                   texto={(fila, columna) => {
                     const valor = valoresDe(referencia, fila.clave)?.[columna.clave];
-                    return valor === undefined || valor === null ? "" : textoDe(columna.gps, valor);
+                    if (valor === undefined || valor === null) return "";
+                    return fila.clave === "n" ? String(valor) : textoDe(columna.gps, valor);
                   }}
                   interpretar={interpretar}
                   onCambiar={puedeCambiar ? cambiarNumero(referencia) : undefined}

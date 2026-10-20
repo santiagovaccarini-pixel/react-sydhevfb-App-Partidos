@@ -345,7 +345,7 @@ describe("los V.R. de cada dispositivo (arriba de la Base)", () => {
   });
 
   test("los calculados con la planilla (20261108) traen con qué se calcularon; sin la columna, se leen como antes y sinPlanilla", async () => {
-    const planilla = { version: 1, muestra: { tarea_partido: ["tarea"] }, medidas: { d: { sentido: "menos", modo: "manual" } }, filas: 40, calculado: "2026-10-19" };
+    const planilla = { version: 1, muestra: { tarea_partido: ["tarea"] }, medidas: { d: { sentido: "menos", modo: "manual" } }, filas: 40, calculado: "2026-10-19", n: { d: 38 } };
     doble.respuestas = [
       { data: [{ id: "r1", dispositivo: "catapult", tipo: "", tabla: "Partidos 2026", grupo: "", orden: 1, promedio: { d: 10 }, desvio: {}, de_partido: false, categorias: {}, planilla }, { id: "r2", dispositivo: "catapult", tipo: "FUTBOL", tabla: "Oficial", grupo: "TOTAL", orden: 2, promedio: {}, desvio: {}, planilla: null }], error: null },
     ];
@@ -423,7 +423,7 @@ describe("cambiar los V.R. de GPS (Santiago, 14/10)", () => {
     expect(await borrarReferenciaGps("r1")).toEqual({ error: "" });
   });
   test("recalcular: los números y con qué se calculó, de un saque; sin filas, no pudo", async () => {
-    const planilla = { version: 1, muestra: {}, medidas: {}, filas: 41, calculado: "2026-10-20" };
+    const planilla = { version: 1, muestra: {}, medidas: {}, filas: 41, calculado: "2026-10-20", n: {} };
     doble.respuestas = [{ data: [{ ...vr, promedio: { d: 11 }, planilla }], error: null }];
     const respuesta = await recalcularReferenciaGps("r1", { promedio: { d: 11 }, categorias: { excelente: { d: 15 }, muy_bueno: {}, regular: { d: 9 } }, planilla });
     expect(respuesta).toEqual({ referencia: expect.objectContaining({ id: "r1", promedio: { d: 11 }, planilla }), error: "" });

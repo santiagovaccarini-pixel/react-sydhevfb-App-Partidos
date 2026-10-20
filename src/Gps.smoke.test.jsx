@@ -2007,6 +2007,7 @@ describe("GPS", () => {
       medidas: { d: { sentido: "menos", modo: "manual", cortes: { excelente: 2, muy_bueno: 1.75, regular: 0.5, malo: maloElegido } }, d_min: { sentido: "mas", modo: "automatico" } },
       filas: 11,
       calculado: HOY,
+      n: { d: 10, d_min: guardado.planilla.n.d_min },
     });
     expect(Object.keys(guardado.promedio)).toEqual(["d", "d_min"]);
     expect(guardado.categorias.excelente.d).toBeLessThan(guardado.promedio.d);
@@ -2014,7 +2015,10 @@ describe("GPS", () => {
     expect(contenedor.querySelector("h1").textContent).toBe("Valores de referencia");
     expect(contenedor.textContent).toContain("V.R. agregado.");
     const tarjeta = tarjetaVr("Partidos 2026");
-    expect([...tarjeta.querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
+    // Arriba, cuántos datos se usaron y el desvío de la muestra (Santiago, 19/10).
+    expect([...tarjeta.querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["n", "Desvío", "Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
+    expect(Object.keys(guardado.desvio)).toEqual(["d", "d_min"]);
+    expect([...tarjeta.querySelectorAll("tbody tr")][0].querySelector("td").textContent).toBe("10");
     expect(tarjeta.querySelector(".referencias-calculado").textContent).toBe(`Calculado el ${fechaCorta(HOY)} con 11 filas · Tarea o Partido: Partido Oficial Torneo`);
     // Otro V.R. nuevo arranca sin los filtros ni las medidas del anterior.
     await tocar(boton("Agregar V.R. de Catapult"));
