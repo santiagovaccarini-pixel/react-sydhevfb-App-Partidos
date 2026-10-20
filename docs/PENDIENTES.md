@@ -4140,6 +4140,16 @@ confirme.**
     `20261022_nombres_en_todos_lados.sql`, las lee como text[]; comprobado en la base de
     pruebas pasándolas a jsonb). En la base del club, cambiar un nombre en Datos básicos
     seguramente da «No se pudo guardar». El arreglo es el mismo: leerlas igual en los dos casos.
+  - **Arreglada (20/10, migración `20261109_nombres_con_listas_json.sql`).** Santiago, en un
+    cuestionario, eligió seguir con «Cambiar el nombre de un jugador». En la base del club
+    (solo mirando cómo está armada y cuántas filas hay, sin leer datos) los titulares y los
+    convocados están como lista JSON y `partido_con_nombres_de_hoy` es la de `20261022`. Ahora
+    esa función los lee igual en los dos casos y los devuelve con el mismo tipo; lo demás
+    (cambios, guía de la transmisión, formación, lo del rival sin tocar) queda igual. Al
+    correrla, los partidos que hayan quedado con un nombre anterior pasan al de hoy. Las pruebas
+    de la base cambian un nombre con las dos formas; sin el arreglo, con la lista JSON, da
+    «function unnest(jsonb) does not exist». Claude la corrió en la base del club por la
+    conexión y avisó.
   - **Queda prohibido** que lo exporte alguien que no es el administrador, o que el archivo
     lleve datos de otros jugadores, salvo un pedido nuevo.
 - **En curso: la planilla de valor referencial** (quedó en pausa por la auditoría). Santiago, en
@@ -4340,9 +4350,10 @@ confirme.**
     - **Queda prohibido** volver a mostrar la fila Promedio en un V.R. calculado con la planilla
       aplicar la regla del promedio de 1 o menos a los tiempos y dejar en un V.R. calculado
       variables que no se usaron, salvo un pedido nuevo.
+    - **Nota 3 cerrada** (Santiago, 20/10, en un cuestionario: «Está bien, cerrada»).
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
-  conocida); después, las grandes, cada una aparte (la planilla de valor
+  conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
   diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;
   Isocinecia con Python y VALD).
