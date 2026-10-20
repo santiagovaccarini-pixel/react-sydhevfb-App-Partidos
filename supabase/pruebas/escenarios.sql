@@ -1301,7 +1301,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -2170,6 +2170,56 @@ select pruebas.esperar('Con los V.R. fallando, el nombre se cambia igual', prueb
 select pruebas.esperar('...y en los partidos también', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA,ZAGUERO TRES');
 reset role;
 select pruebas.esperar('...los V.R. quedan como estaban', (select grupo from gps_referencias where equipo_id = '00000000-0000-0000-0000-0000000000c1' and tipo = 'Microciclo' and tabla = 'Partidos' and grupo ilike 'zaguero%'), 'ZAGUERO DOS');
+rollback;
+
+-- GPS › Cargar un día (20261111): se guarda entero, sin repetir un CSV que ya
+-- está, y con la Regla 1 (Santiago, 20/10): con filas de esos jugadores ese
+-- día y con ese dispositivo, se pregunta; reemplazar las cambia por las
+-- nuevas, con el promedio del equipo. La preparadora tiene GPS.
+begin;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('Guarda un día entero de una vez, en su orden (también la tarea y el total iguales de quien hizo una sola tarea)',
+  (select (gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-20', 'cat', $j$[
+    {"fecha":"2026-09-20","jugador_id":9006,"datos":{"d":4100.1234,"tiempo":3000,"inicio":36000,"dispositivo":"cat","descripcion":"Tarea"}},
+    {"fecha":"2026-09-20","jugador_id":9006,"datos":{"d":4100.1234,"tiempo":3000,"inicio":36000,"dispositivo":"cat","descripcion":"Total"}},
+    {"fecha":"2026-09-20","jugador_id":9022,"datos":{"d":3900.5,"tiempo":2900,"inicio":36000,"dispositivo":"cat"}},
+    {"fecha":"2026-09-20","persona":"Juvenil Invitado","datos":{"d":3500.25,"tiempo":2800,"inicio":36000,"dispositivo":"cat"}},
+    {"fecha":"2026-09-20","promedio":"sesion","datos":{"d":3833.6,"dispositivo":"cat"}}
+  ]$j$::jsonb)) ->> 'creadas'), '5');
+select pruebas.esperar('...en el orden de carga', (select string_agg(coalesce(jugador_id::text, persona, promedio), ',' order by orden) from gps where fecha = '2026-09-20'), '9006,9006,9022,Juvenil Invitado,sesion');
+select pruebas.debe_fallar('El mismo CSV otra vez, no: ya está en la Base', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-20', 'cat',
+  '[{"fecha":"2026-09-20","jugador_id":9006,"datos":{"d":4100.12345,"tiempo":3000.2,"inicio":36000,"dispositivo":"cat"}}]')$q$, 'gps_ya_esta');
+select pruebas.debe_fallar('...tampoco con otro dispositivo (el CSV es el mismo)', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-20', 'spo',
+  '[{"fecha":"2026-09-20","jugador_id":9022,"datos":{"d":3900.5,"tiempo":2900,"inicio":36000,"dispositivo":"spo"}}]')$q$, 'gps_ya_esta');
+select pruebas.debe_fallar('Regla 1: los mismos jugadores ese día, con el mismo dispositivo y otros datos, pregunta', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-20', 'cat',
+  '[{"fecha":"2026-09-20","jugador_id":9006,"datos":{"d":5000,"tiempo":3100,"inicio":36000,"dispositivo":"cat"}}]')$q$, 'gps_dia_con_otras');
+select pruebas.debe_fallar('...también una persona fuera de Datos básicos, escrita distinto', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-20', 'cat',
+  '[{"fecha":"2026-09-20","persona":"juvenil invitado ","datos":{"d":3600,"tiempo":2800,"inicio":36000,"dispositivo":"cat"}}]')$q$, 'gps_dia_con_otras');
+select pruebas.esperar('...y no guardó nada', (select count(*) from gps where fecha = '2026-09-20'), 5);
+select pruebas.esperar('Con otro dispositivo ese día, entra sin preguntar',
+  (select (gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-20', 'spo', '[{"fecha":"2026-09-20","jugador_id":9006,"datos":{"d":4200,"tiempo":3050,"inicio":50000,"dispositivo":"spo"}}]')) ->> 'creadas'), '1');
+select pruebas.esperar('Otro turno (otra hora de inicio), los mismos jugadores y el mismo dispositivo: entra sin preguntar',
+  (select (gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-20', 'cat', '[{"fecha":"2026-09-20","jugador_id":9022,"datos":{"d":2000,"tiempo":1500,"inicio":61200,"dispositivo":"cat"}},{"fecha":"2026-09-20","jugador_id":9022,"datos":{"d":2000,"tiempo":1500,"dispositivo":"cat","condicion":"total"}}]')) ->> 'creadas'), '2');
+select pruebas.esperar('Reemplazar: cambia las filas de ese jugador ese día con ese dispositivo (sus tareas y su total) y el promedio, por las nuevas',
+  (select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-20', 'cat', $j$[
+    {"fecha":"2026-09-20","jugador_id":9006,"datos":{"d":5000,"tiempo":3100,"inicio":36000,"dispositivo":"cat"}},
+    {"fecha":"2026-09-20","promedio":"sesion","datos":{"d":4400,"dispositivo":"cat"}}
+  ]$j$::jsonb, true)::text), '{"creadas": 2, "reemplazadas": 3}');
+select pruebas.esperar('...quedan las de los otros jugadores (también su otro turno) y las del otro dispositivo',
+  (select string_agg(coalesce(jugador_id::text, persona, promedio) || ':' || (datos ->> 'dispositivo') || ':' || (datos ->> 'd'), ',' order by orden) from gps where fecha = '2026-09-20'),
+  '9022:cat:3900.5,Juvenil Invitado:cat:3500.25,9006:spo:4200,9022:cat:2000,9022:cat:2000,9006:cat:5000,sesion:cat:4400');
+select pruebas.debe_fallar('Las filas son todas de ese día', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-21', 'cat', '[{"fecha":"2026-09-20","jugador_id":9006,"datos":{"d":1,"dispositivo":"cat"}}]')$q$, 'gps_dia_filas');
+select pruebas.debe_fallar('...y de ese dispositivo', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-21', 'cat', '[{"fecha":"2026-09-21","jugador_id":9006,"datos":{"d":1,"dispositivo":"spo"}}]')$q$, 'gps_dia_filas');
+select pruebas.debe_fallar('...y alguna hay', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-21', 'cat', '[]')$q$, 'gps_dia_filas');
+select pruebas.debe_fallar('No guarda en otro club', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c2', '2026-09-21', 'cat', '[{"fecha":"2026-09-21","persona":"Espía","datos":{"d":1,"dispositivo":"cat"}}]')$q$, 'row-level security');
+reset role;
+select pruebas.esperar('Lo reemplazado queda en las versiones, como todo borrado', (select count(*) from versiones_datos where tabla = 'gps' and accion = 'borrada' and fila ->> 'fecha' = '2026-09-20'), 3);
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.debe_fallar('Sin GPS no guarda', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-21', 'cat', '[{"fecha":"2026-09-21","jugador_id":9006,"datos":{"d":1,"dispositivo":"cat"}}]')$q$, 'row-level security');
+reset role;
+set role anon;
+select pruebas.debe_fallar('Anon, nada', $q$select gps_guardar_dia('00000000-0000-0000-0000-0000000000c1', '2026-09-21', 'cat', '[{"fecha":"2026-09-21","jugador_id":9006,"datos":{"d":1,"dispositivo":"cat"}}]')$q$, 'permission denied');
+reset role;
 rollback;
 
 -- GPS: al renombrar una opción de estrategia, cambia también en la

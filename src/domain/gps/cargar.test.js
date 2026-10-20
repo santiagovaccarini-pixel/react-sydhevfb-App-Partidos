@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, llegaAlCorte, metrosPorJugador, microcicloDe, reglasDelClub, vrPartidoDeLasReglas, vrPartidoDelDispositivo, vsPartido } from "./cargar.js";
+import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasDeLaMismaSesion, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, llegaAlCorte, metrosPorJugador, microcicloDe, reglasDelClub, vrPartidoDeLasReglas, vrPartidoDelDispositivo, vsPartido } from "./cargar.js";
 
 // Datos inventados: ningún nombre ni valor del club.
 
@@ -295,6 +295,27 @@ describe("el encabezado de la sesión", () => {
     const sinNada = calcularCarga(cargaBase({ tareas })).filas.find((f) => f.promedio === "sesion");
     expect(sinNada.datos.m2).toBeUndefined();
     expect(sinNada.datos.cp_tarea).toBeUndefined();
+  });
+});
+
+// Regla 1 (Santiago, 20/10: «Jugador, fecha y hora de incio para preguntar si
+// es duplicado»). Todo inventado.
+describe("Regla 1: ¿la misma sesión, con otros datos?", () => {
+  const nueva = (quien, inicio, extra = {}) => ({ fecha: "2026-10-08", ...quien, datos: { d: 3000, ...(inicio === null ? {} : { inicio }), dispositivo: "catapult", ...extra } });
+  const vieja = (id, quien, inicio, dispositivo = "catapult") => ({ id, fecha: "2026-10-08", jugador_id: null, persona: null, promedio: null, ...quien, datos: { d: 2900, ...(inicio === null ? {} : { inicio }), dispositivo } });
+  const nuevas = [nueva({ jugador_id: 1 }, 36000), nueva({ jugador_id: 1 }, null, { condicion: "total" }), nueva({ jugador_id: 2 }, 36000), nueva({ persona: "Invitado  X" }, 36000), nueva({ promedio: "sesion" }, 36000)];
+
+  test("con un jugador a la misma hora de inicio (y el mismo dispositivo), es la misma: las filas de ese día de los jugadores que se cargan, también su total", () => {
+    const delDia = [vieja("v1", { jugador_id: 1 }, 36000), vieja("v2", { jugador_id: 1 }, null), vieja("v3", { jugador_id: 2 }, null), vieja("v4", { jugador_id: 9 }, 36000), vieja("v5", { promedio: "sesion" }, 36000)];
+    expect(filasDeLaMismaSesion(nuevas, delDia, "catapult").map((fila) => fila.id)).toEqual(["v1", "v2", "v3"]);
+  });
+  test("una persona fuera de Datos básicos, escrita distinto, también", () => {
+    expect(filasDeLaMismaSesion(nuevas, [vieja("p1", { persona: "invitado x " }, 36000.4)], "catapult").map((fila) => fila.id)).toEqual(["p1"]);
+  });
+  test("otra hora de inicio es otro turno; otro dispositivo, otra cosa; un total sin hora, no alcanza", () => {
+    expect(filasDeLaMismaSesion(nuevas, [vieja("t1", { jugador_id: 1 }, 61200), vieja("t2", { jugador_id: 1 }, null)], "catapult")).toEqual([]);
+    expect(filasDeLaMismaSesion(nuevas, [vieja("s1", { jugador_id: 1 }, 36000, "sport")], "catapult")).toEqual([]);
+    expect(filasDeLaMismaSesion(nuevas, [], "catapult")).toEqual([]);
   });
 });
 

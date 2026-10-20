@@ -448,6 +448,35 @@ export const filasYaEnLaBase = (filasCsv = [], filasBase = []) => {
   }).length;
 };
 
+// Regla 1 (Santiago, 20/10: «Jugador, fecha y hora de incio para preguntar si
+// es duplicado»): ¿lo que se va a guardar es una sesión que ya está ese día,
+// con otros datos? Algún jugador (o persona) tiene ese día, con el mismo
+// dispositivo, una fila con la misma hora de inicio; otra hora es otro turno.
+// Si es, devuelve las filas de ese día y ese dispositivo de los jugadores que
+// se cargan (las que se reemplazarían: sus tareas y su total, que no tiene
+// hora de inicio); si no, ninguna. Lo mismo que gps_guardar_dia
+// (20261111_gps_guardar_dia.sql). nuevas y delDia, como las de la base.
+const quienDeLaFila = (fila) => {
+  if (!fila || fila.promedio) return null;
+  if (fila.jugador_id) return `j:${fila.jugador_id}`;
+  const persona = String(fila.persona || "").replace(/\s+/g, " ").trim().toLowerCase();
+  return persona ? `p:${persona}` : null;
+};
+export const filasDeLaMismaSesion = (nuevas = [], delDia = [], dispositivo = "") => {
+  const elDispositivo = String(dispositivo ?? "").trim();
+  const delDispositivo = delDia.filter((fila) => !fila?.promedio && String(fila?.datos?.dispositivo ?? "").trim() === elDispositivo);
+  const inicios = new Map();
+  nuevas.forEach((fila) => {
+    const quien = quienDeLaFila(fila);
+    if (!quien || !esNumero(fila?.datos?.inicio)) return;
+    inicios.set(quien, [...(inicios.get(quien) || []), fila.datos.inicio]);
+  });
+  const misma = delDispositivo.some((fila) => esNumero(fila.datos?.inicio) && (inicios.get(quienDeLaFila(fila)) || []).some((inicio) => Math.abs(inicio - fila.datos.inicio) <= 0.5));
+  if (!misma) return [];
+  const quienes = new Set(nuevas.map(quienDeLaFila).filter(Boolean));
+  return delDispositivo.filter((fila) => quienes.has(quienDeLaFila(fila)));
+};
+
 // Los m² por jugador (la plantilla, con base: un trapecio).
 export const metrosPorJugador = ({ largo, ancho, base, jugadores }) => {
   if (!esNumero(largo) || !esNumero(ancho) || !(jugadores > 0)) return null;

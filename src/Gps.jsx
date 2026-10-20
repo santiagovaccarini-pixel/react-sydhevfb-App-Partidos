@@ -173,6 +173,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [importando, setImportando] = useState(false);
+  // Regla 1, «Ir a la Base»: las filas de una sesión que ya estaba, mientras
+  // la carga espera en «Sin terminar» ({ fecha, enCursoId, vez, filtros }).
+  const [revisarCarga, setRevisarCarga] = useState(null);
   // Cargar: el día que se está cargando (los pasos, encima de la pantalla) y
   // si tiene algo sin guardar (al irse, se pregunta).
   const [cargandoDia, setCargandoDia] = useState(false);
@@ -961,10 +964,23 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             {t("gps.importar.boton")}
           </button>
         )}
+        {revisarCarga && (
+          <div className="lesiones-estado gps-revisar-carga" role="status">
+            {t("gps.cargar.mismaSesion.enEspera", { fecha: fechaCorta(revisarCarga.fecha) })}{" "}
+            <button type="button" onClick={() => seguirLaCarga()}>
+              {t("gps.cargar.mismaSesion.seguir")}
+            </button>{" "}
+            <button type="button" onClick={() => setRevisarCarga(null)}>
+              {t("gps.cargar.mismaSesion.verTodo")}
+            </button>
+          </div>
+        )}
         <section className="tarjeta evaluaciones-tabla">
           <TablaDatos
             id="gps"
-            recordar="gps"
+            key={revisarCarga ? `revisar:${revisarCarga.vez}` : "gps"}
+            recordar={revisarCarga ? `gps:revisar:${revisarCarga.vez}` : "gps"}
+            filtrosIniciales={revisarCarga?.filtros || null}
             columnas={columnas}
             filas={filas}
             fijas={fijas}
@@ -997,13 +1013,35 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const deHoy = conHoy ? filasGps.filter((fila) => fila.fecha === hoy).length : null;
 
   // Guardado el día: a la Base.
-  const alCargarDia = ({ cargadas, fecha, quedoEnCurso = false }) => {
+  const alCargarDia = ({ cargadas, reemplazadas = 0, fecha, quedoEnCurso = false }) => {
     diaSinGuardar.current = false;
     setCargandoDia(false);
     setCargaEnCurso(null);
+    setRevisarCarga(null);
     setVista("base");
     ponerAlDia();
-    setAviso(quedoEnCurso ? t("gps.enCurso.quedoSinBorrar") : plural("gps.cargar.listo", cargadas, { fecha: fecha ? fechaCorta(fecha) : "—" }));
+    const listo = plural("gps.cargar.listo", cargadas, { fecha: fecha ? fechaCorta(fecha) : "—" });
+    setAviso(quedoEnCurso ? t("gps.enCurso.quedoSinBorrar") : reemplazadas ? `${listo} ${plural("gps.cargar.reemplazadas", reemplazadas)}` : listo);
+  };
+
+  // Regla 1, «Ir a la Base»: la carga quedó en «Sin terminar» y la Base se
+  // abre con las filas de esa sesión que ya estaban (la fecha, esos jugadores
+  // y el dispositivo), con sus filtros aparte de los de siempre.
+  const verEnLaBase = ({ fecha, dispositivo, filas: deLaSesion = [], enCursoId }) => {
+    diaSinGuardar.current = false;
+    setCargandoDia(false);
+    setCargaEnCurso(null);
+    cargarEnCurso({ silencioso: true });
+    const nombres = [...new Set(deLaSesion.map((fila) => (fila.jugador_id ? jugadorDe(fila.jugador_id)?.nombre : fila.persona) || "").filter(Boolean))];
+    setRevisarCarga({ fecha, enCursoId, vez: Date.now(), filtros: { fecha: [fechaCorta(fecha)], jugador: nombres, dispositivo: [nombreDelDispositivo(dispositivo)] } });
+    setVista("base");
+    ponerAlDia();
+  };
+  const seguirLaCarga = () => {
+    const id = revisarCarga?.enCursoId;
+    setRevisarCarga(null);
+    setVista("cargar");
+    if (id) seguirEnCurso(id);
   };
 
   // Dejado para revisar: vuelve a Cargar, donde queda en «Sin terminar».
@@ -1577,6 +1615,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           }}
           onSinGuardar={avisarSinGuardar}
           onDejado={alDejarDia}
+          onVerEnLaBase={verEnLaBase}
           onAbrirEnCurso={seguirEnCurso}
           onGuia={guia.abrir}
         />
@@ -1671,6 +1710,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     setImportando(false);
     setCargandoDia(false);
     setCargaEnCurso(null);
+    setRevisarCarga(null);
     diaSinGuardar.current = false;
     if (id === "ajustes") setVistaAjustes("inicio");
     setVista(id);

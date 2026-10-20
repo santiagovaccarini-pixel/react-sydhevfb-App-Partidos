@@ -1861,3 +1861,19 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+
+/* Regla 1 (Cargar un día): quiénes ya tienen esa sesión y, abajo, qué hace
+   cada botón. Uno debajo del otro, a lo ancho de la hoja. */
+.gps-marco .gps-misma-sesion {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+}
+.gps-marco .gps-misma-sesion p {
+  margin: 0;
+  color: var(--cam-gris);
+  font-weight: 650;
+  line-height: 1.45;
+  text-align: center;
+}

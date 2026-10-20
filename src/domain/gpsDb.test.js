@@ -14,6 +14,7 @@ import {
   dejarEnCurso,
   enCursoDelDia,
   guardarCabeceraGps,
+  guardarDiaGps,
   guardarOpcionGps,
   leerAjustesGps,
   leerEnCurso,
@@ -224,6 +225,41 @@ describe("guardar", () => {
     expect(claveDeErrorGps({ message: 'new row for relation "gps" violates check constraint "gps_de_quien"' })).toBe("gps.error.sinJugador");
     expect(claveDeErrorGps({ message: "Failed to fetch" })).toBe("gps.error.sinConexion");
     expect(claveDeErrorGps({ message: "Failed to fetch" }, "gps.error.noLeer")).toBe("gps.error.noLeer");
+  });
+});
+
+describe("guardar un día de una vez (GPS › Cargar, 20261111)", () => {
+  const filas = [
+    { fecha: "2026-10-08", jugador_id: 7, persona: "No va", datos: { d: 100.5, inicio: 36000, dispositivo: "catapult ", vacio: "" } },
+    { fecha: "2026-10-08", promedio: "sesion", datos: { d: 90, dispositivo: "catapult" } },
+  ];
+  test("manda las filas como se guardan, el día, el dispositivo y si reemplaza; devuelve cuántas", async () => {
+    doble.respuestas = [{ data: { creadas: 2, reemplazadas: 3 }, error: null }];
+    expect(await guardarDiaGps("eq-1", { fecha: "2026-10-08", dispositivo: " catapult", filas, reemplazar: true })).toEqual({ creadas: 2, reemplazadas: 3, error: "" });
+    const [, funcion, argumentos] = doble.llamadas.find((llamada) => llamada[0] === "rpc");
+    expect(funcion).toBe("gps_guardar_dia");
+    expect(argumentos).toEqual({
+      p_equipo: "eq-1",
+      p_fecha: "2026-10-08",
+      p_dispositivo: "catapult",
+      p_filas: [
+        { jugador_id: 7, persona: null, promedio: null, fecha: "2026-10-08", datos: { d: 100.5, inicio: 36000, dispositivo: "catapult" } },
+        { jugador_id: null, persona: null, promedio: "sesion", fecha: "2026-10-08", datos: { d: 90, dispositivo: "catapult" } },
+      ],
+      p_reemplazar: true,
+    });
+  });
+  test("lo que dice la base: ya está, la misma sesión con otros datos, filas de otro día o sin la actualización", async () => {
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "gps_ya_esta", details: "4" } }];
+    expect(await guardarDiaGps("eq-1", { fecha: "2026-10-08", dispositivo: "catapult", filas })).toEqual({ yaEsta: true, error: "gps.cargar.yaEstaAlGuardar" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "gps_dia_con_otras", details: "3" } }];
+    expect(await guardarDiaGps("eq-1", { fecha: "2026-10-08", dispositivo: "catapult", filas })).toEqual({ conOtras: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "gps_dia_filas" } }];
+    expect((await guardarDiaGps("eq-1", { fecha: "2026-10-08", dispositivo: "catapult", filas })).error).toBe("gps.cargar.unDiaUnDispositivo");
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.gps_guardar_dia in the schema cache" } }];
+    expect(await guardarDiaGps("eq-1", { fecha: "2026-10-08", dispositivo: "catapult", filas })).toEqual({ sinFuncion: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "42501", message: 'new row violates row-level security policy for table "gps"' } }];
+    expect((await guardarDiaGps("eq-1", { fecha: "2026-10-08", dispositivo: "catapult", filas })).error).toBe("gps.error.sinPermiso");
   });
 });
 
