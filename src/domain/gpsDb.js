@@ -219,6 +219,50 @@ export const guardarDiaGps = async (equipoId, { fecha, dispositivo, filas = [], 
   return { creadas: Number(data?.creadas) || 0, reemplazadas: Number(data?.reemplazadas) || 0, error: "" };
 };
 
+// GPS › Pegar desde una planilla, de a tandas de días enteros
+// (20261112_gps_pegar_filas.sql): cada tanda, toda o nada, con sus días
+// bloqueados. La base no guarda las que ya están iguales (yaEstaban) y no
+// guarda una tanda con un día que es una sesión que ya está con otros datos
+// (conOtras, la Regla 1); con reemplazar, cambia las de esos días. Si una
+// tanda falla se corta ahí: lo guardado queda (lo que falta se ve al volver
+// a pegar). Sin esa actualización, sinFuncion: se guarda como antes
+// (crearFilasGps). alAvanzar(hechas, total) después de cada tanda. Devuelve
+// { creadas, yaEstaban, reemplazadas, error }.
+export const POR_TANDA_DE_DIAS = 500;
+export const pegarFilasGps = async (equipoId, { dispositivo = "", filas = [], reemplazar = false, alAvanzar = null, seguir = () => true }) => {
+  const porDia = new Map();
+  filas.forEach((fila) => porDia.set(fila.fecha, [...(porDia.get(fila.fecha) || []), fila]));
+  const tandas = [];
+  let tanda = [];
+  porDia.forEach((delDia) => {
+    if (tanda.length && tanda.length + delDia.length > POR_TANDA_DE_DIAS) {
+      tandas.push(tanda);
+      tanda = [];
+    }
+    tanda = tanda.concat(delDia);
+  });
+  if (tanda.length) tandas.push(tanda);
+  const hecho = { creadas: 0, yaEstaban: 0, reemplazadas: 0 };
+  let mandadas = 0;
+  for (const una of tandas) {
+    if (!seguir()) break;
+    const { data, error } = await supabase.rpc("gps_pegar_filas", { p_equipo: equipoId, p_dispositivo: String(dispositivo || "").trim(), p_filas: una.map(soloCampos), p_reemplazar: Boolean(reemplazar) }); // eslint-disable-line no-await-in-loop
+    if (error) {
+      const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+      if (!mandadas && (error.code === "PGRST202" || (/gps_pegar_filas/.test(texto) && /does not exist|schema cache|Could not find/i.test(texto)))) return { ...hecho, sinFuncion: true, error: "" };
+      if (/gps_dia_con_otras/.test(texto)) return { ...hecho, conOtras: true, error: "" };
+      if (/gps_dia_filas/.test(texto)) return { ...hecho, error: "gps.cargar.unDiaUnDispositivo" };
+      return { ...hecho, ...fallo(error, "gps.error.noGuardar") };
+    }
+    hecho.creadas += Number(data?.creadas) || 0;
+    hecho.yaEstaban += Number(data?.yaEstaban) || 0;
+    hecho.reemplazadas += Number(data?.reemplazadas) || 0;
+    mandadas += una.length;
+    alAvanzar?.(mandadas, filas.length);
+  }
+  return { ...hecho, error: "" };
+};
+
 export const actualizarFilaGps = async (id, fila) => {
   const { data, error } = await supabase.from("gps").update(soloCampos(fila)).eq("id", id).select(COLUMNAS).single();
   if (error) return fallo(error, "gps.error.noGuardar");

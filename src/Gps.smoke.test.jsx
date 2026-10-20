@@ -49,6 +49,8 @@ const datos = vi.hoisted(() => ({
   // Los días guardados de una vez (20261111) y si falta esa actualización.
   diasGuardados: [],
   sinGuardarDia: false,
+  // Lo pegado que se mandó a la base (20261112).
+  pegadas: [],
 }));
 
 const PLANTEL = [
@@ -152,6 +154,30 @@ vi.mock("./domain/gpsDb.js", () => ({
     datos.creadas.push(...filas);
     datos.filas.push(...creadas);
     return { creadas: filas.length, reemplazadas, error: "" };
+  },
+  // Como la base (20261112): las iguales (menos el dispositivo) no entran; la
+  // Regla 1 por día; con reemplazar, cambia esos días.
+  pegarFilasGps: async (equipoId, { dispositivo = "", filas, reemplazar = false, alAvanzar }) => {
+    datos.pegadas.push({ dispositivo, filas: filas.length, reemplazar });
+    if (datos.sinGuardarDia) return { sinFuncion: true, creadas: 0, yaEstaban: 0, reemplazadas: 0, error: "" };
+    const { diasDeLaMismaSesion } = await import("./domain/gps/importar.js");
+    const sinDispositivo = (fila) => JSON.stringify(Object.entries(fila.datos || {}).filter(([clave]) => clave !== "dispositivo").sort());
+    const quien = (fila) => `${fila.jugador_id || ""}|${fila.promedio || ""}|${String(fila.persona || "").toLowerCase()}`;
+    const igual = (fila) => datos.filas.some((antes) => antes.fecha === fila.fecha && quien(antes) === quien(fila) && sinDispositivo(antes) === sinDispositivo(fila));
+    const plan = filas.map((fila) => ({ estado: igual(fila) ? "yaEsta" : "nueva", fila }));
+    const dias = diasDeLaMismaSesion(plan, datos.filas, dispositivo);
+    if (dias.length && !reemplazar) return { creadas: 0, yaEstaban: 0, reemplazadas: 0, conOtras: true, error: "" };
+    const fechas = new Set(dias.map((dia) => dia.fecha));
+    const antes = datos.filas.length;
+    const borrar = new Set(dias.flatMap((dia) => dia.filas.map((fila) => fila.id)));
+    datos.filas = datos.filas.filter((fila) => !borrar.has(fila.id) && !(fechas.has(fila.fecha) && fila.promedio && (fila.datos.dispositivo || "") === dispositivo && filas.some((una) => una.fecha === fila.fecha && una.promedio)));
+    const reemplazadas = antes - datos.filas.length;
+    const entran = plan.filter(({ estado, fila }) => estado === "nueva" || fechas.has(fila.fecha)).map(({ fila }) => fila);
+    const creadas = entran.map((fila, i) => ({ id: `nueva-${datos.creadas.length + i + 1}`, equipo_id: equipoId, orden: 100 + datos.creadas.length + i, jugador_id: null, persona: null, promedio: null, ...fila }));
+    datos.creadas.push(...entran);
+    datos.filas.push(...creadas);
+    alAvanzar?.(filas.length, filas.length);
+    return { creadas: entran.length, yaEstaban: filas.length - entran.length, reemplazadas, error: "" };
   },
   crearFilasGps: async (equipoId, filas, { alAvanzar } = {}) => {
     const creadas = filas.map((fila, i) => ({ id: `nueva-${datos.creadas.length + i + 1}`, equipo_id: equipoId, orden: 100 + datos.creadas.length + i, jugador_id: null, persona: null, promedio: null, ...fila }));
@@ -409,6 +435,7 @@ describe("GPS", () => {
     datos.recordar = [];
     datos.diasGuardados = [];
     datos.sinGuardarDia = false;
+    datos.pegadas = [];
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -730,6 +757,86 @@ describe("GPS", () => {
     expect(document.body.textContent).toContain("Listo: se cargaron 3 filas.");
     // De vuelta en la Base, con las nuevas.
     expect(filas(contenedor)).toHaveLength(6);
+  });
+
+  // Regla 1 al pegar (Santiago, 20/10): ayer ALFA ya tiene la sesión de las
+  // 10:00 con otros números (Catapult). Lo pegado trae ayer ALFA y BETA a las
+  // 10:00 y hoy ALFA.
+  const pegadoConLaMismaSesion = (conPromedio = false) =>
+    [
+      "Microciclo\tNombre\tD\tT\tInicio de tarea\tFecha",
+      `30\tALFA\t3500\t0:20:00\t10:00:00\t${fechaCorta(AYER)}`,
+      `30\tBETA\t2800\t0:20:00\t10:00:00\t${fechaCorta(AYER)}`,
+      ...(conPromedio ? [`30\tTeam Average Sesion\t3150\t0:20:00\t10:00:00\t${fechaCorta(AYER)}`] : []),
+      `31\tALFA\t4100\t0:50:00\t10:00:00\t${fechaCorta(HOY)}`,
+    ].join("\n");
+  const pegarConLaMismaSesion = async (conPromedio = false) => {
+    const cuantas = conPromedio ? "Cargar 4 filas" : "Cargar 3 filas";
+    datos.filas = [...FILAS(), fila("s1", 11, { jugador_id: 1 }, AYER, { d: 3100, tiempo: 1200, inicio: 36000, dispositivo: "catapult" })];
+    await montarEnLaBase();
+    await tocar(boton("Pegar desde una planilla"));
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), pegadoConLaMismaSesion(conPromedio));
+    await elegir(contenedor.querySelector(".gps-dispositivo select"), "catapult");
+    await esperar(() => Boolean(boton(cuantas)) && !boton(cuantas).disabled);
+    await tocar(boton(cuantas));
+  };
+
+  test("Pegar, Regla 1: un día que es la misma sesión con otros datos pregunta; «Reemplazar y cargar» cambia esas filas", async () => {
+    await pegarConLaMismaSesion();
+    expect(datos.pegadas).toHaveLength(0);
+    const hoja = document.querySelector(".hoja-confirmar");
+    expect(hoja.querySelector("h3").textContent).toBe("Esos días ya están en la Base, con otros datos");
+    expect(hoja.textContent).toContain("1 día de lo pegado ya tiene filas de esos jugadores con Catapult a la misma hora de inicio, con otros datos:");
+    expect([...hoja.querySelectorAll(".consentimiento-personas li")].map((li) => li.textContent)).toEqual([`${fechaCorta(AYER)} · 2 jugadores · 3 filas`]);
+    // Lo pegado no trae el promedio del equipo: el aviso no dice que lo borra.
+    expect(hoja.textContent).toContain("«Reemplazar y cargar» borra, en esos días, esas filas con Catapult y guarda las pegadas (lo borrado queda en el historial).");
+    expect(document.activeElement.textContent).toBe("Ir a la Base");
+    await tocar(boton("Reemplazar y cargar"));
+    expect(datos.pegadas).toEqual([{ dispositivo: "catapult", filas: 3, reemplazar: true }]);
+    // Ayer quedan el promedio (lo pegado no trae) y las pegadas; hoy, la nueva.
+    expect(datos.filas.filter((una) => una.fecha === AYER).map((una) => una.id)).toEqual(["g3", "nueva-1", "nueva-2"]);
+    expect(document.body.textContent).toContain("Listo: se cargaron 3 filas. Se reemplazaron 3 filas que ya estaban.");
+  });
+
+  test("Pegar, Regla 1: si lo pegado trae el promedio del equipo de ese día, el aviso dice que también lo reemplaza", async () => {
+    await pegarConLaMismaSesion(true);
+    expect(document.querySelector(".hoja-confirmar").textContent).toContain("«Reemplazar y cargar» borra, en esos días, esas filas y el promedio del equipo con Catapult, y guarda las pegadas");
+    await tocar(boton("Reemplazar y cargar"));
+    expect(datos.pegadas).toEqual([{ dispositivo: "catapult", filas: 4, reemplazar: true }]);
+    // Ayer: el promedio de antes (g3) se fue; quedan las pegadas, con el nuevo.
+    expect(datos.filas.filter((una) => una.fecha === AYER).map((una) => una.promedio || una.jugador_id)).toEqual([1, 2, "sesion"]);
+  });
+
+  test("Pegar, Regla 1, «Ir a la Base»: lo pegado queda en espera, la Base muestra esas filas y «Seguir con lo pegado» vuelve con todo", async () => {
+    await pegarConLaMismaSesion();
+    await tocar(boton("Ir a la Base"));
+    expect(datos.pegadas).toHaveLength(0);
+    await esperar(() => Boolean(contenedor.querySelector(".gps-revisar-carga")));
+    expect(contenedor.querySelector(".gps-revisar-carga").textContent).toContain(`Estas son las filas del ${fechaCorta(AYER)} que ya estaban. Lo pegado quedó en espera.`);
+    expect(filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Nombre")].textContent)).toEqual(["ALFA", "BETA", "ALFA"]);
+    await tocar(boton("Seguir con lo pegado"));
+    await esperar(() => contenedor.textContent.includes("3 para cargar"));
+    expect(contenedor.querySelector(".gps-dispositivo select").value).toBe("catapult");
+    await esperar(() => Boolean(boton("Cargar 3 filas")) && !boton("Cargar 3 filas").disabled);
+    await tocar(boton("Cargar 3 filas"));
+    expect(document.querySelector(".hoja-confirmar h3").textContent).toBe("Esos días ya están en la Base, con otros datos");
+    // Volver sin cargar: lo pegado deja de esperar.
+    await act(async () => document.querySelector(".velo-dialogo").dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    await tocar(boton("Volver"));
+    await tocar(boton("Pegar desde una planilla"));
+    expect(contenedor.textContent).not.toContain("3 para cargar");
+  });
+
+  test("Pegar sin la actualización de la base: sin la misma sesión se guarda como antes", async () => {
+    datos.sinGuardarDia = true;
+    await montarEnLaBase();
+    await tocar(boton("Pegar desde una planilla"));
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), ["Microciclo\tNombre\tD\tFecha", `31\tALFA\t4100\t${fechaCorta(HOY)}`].join("\n"));
+    await esperar(() => Boolean(boton("Cargar 1 fila")) && !boton("Cargar 1 fila").disabled);
+    await tocar(boton("Cargar 1 fila"));
+    expect(datos.pegadas).toHaveLength(1);
+    expect(datos.creadas).toHaveLength(1);
+    expect(document.body.textContent).toContain("Listo: se cargó 1 fila.");
   });
 
   // Nota del 17/10: «Recordar el ultimo dispositivo seleccionado cuando se

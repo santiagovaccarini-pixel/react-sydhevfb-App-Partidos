@@ -4417,6 +4417,29 @@ confirme.**
       hora). El aviso dice cuántas filas son y deja revisarlas antes con «Ir a la Base».
     - **Queda prohibido** que la app guarde un día por partes o sin la revisión de la base, y que
       «Reemplazar» toque otro dispositivo u otro día, salvo un pedido nuevo.
+  - **Hecho, parte A2 (20/10, migración `20261112_gps_pegar_filas.sql`, 2026.10.20.4; UI-063):
+    GPS › Pegar desde una planilla.** Lo pegado se guarda de a tandas de días enteros (hasta 500
+    filas; un día más grande va solo): cada tanda, toda o nada, con sus días bloqueados (el mismo
+    bloqueo que Cargar un día: Cargar y Pegar del mismo día no pasan a la vez). La regla de
+    siempre, «Ya está en la app» (la misma persona, el mismo día y los mismos datos; el
+    dispositivo no cuenta), quedó también en la base: si otra persona cargó esas filas mientras
+    tanto, no se duplican. Dos iguales dentro de lo pegado se guardan las dos, como antes. La
+    Regla 1, por día: un día de lo pegado es una sesión que ya está con otros datos si algún
+    jugador (o persona) pegado tiene ese día, con el mismo dispositivo, una fila con la misma
+    hora de inicio. Esos días no se guardan y la app pregunta, con la lista de días (cada uno con
+    cuántos jugadores y cuántas filas tiene): «Ir a la Base» o «Reemplazar y cargar». Con
+    reemplazar, en esos días se borran las filas de los jugadores pegados con ese dispositivo
+    (tareas y total) y, si lo pegado trae el promedio del equipo de ese día, ese promedio; y se
+    guardan todas las pegadas de ese día (también las que ya estaban iguales). Si lo pegado no
+    trae el promedio, el aviso no dice que lo borra (el promedio de antes queda). Si mientras se
+    revisaba otra persona cargó esos días, no se guardan y dice «Mientras tanto cambiaron filas
+    de esos días en la Base.» (se vuelve a leer y se puede revisar de nuevo). Sin la
+    actualización de la base se guarda como antes y reemplazar avisa que falta.
+    - **Límite conocido:** como antes, si se corta a mitad de camino, las tandas ya guardadas
+      quedan y el aviso dice cuántas filas se cargaron; al volver a intentar, esas cuentan como
+      «Ya está en la app».
+    - **Queda prohibido** que Pegar guarde un día por partes o sin la revisión de la base, y que
+      «Reemplazar» toque otro dispositivo u otro día, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor
