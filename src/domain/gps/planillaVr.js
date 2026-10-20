@@ -44,22 +44,28 @@ export const datoDeLaFila = (columna, fila) => {
 };
 
 // Cada medida con las filas de la muestra: { clave: { resultado, atipicos,
-// sinTiempo } }. resultado, el de calcularValorReferencial (null si no
+// sinDenominador } }. resultado, el de calcularValorReferencial (null si no
 // alcanza); atipicos, las filas que quedaron afuera, de menor a mayor: [{
-// fila, valor, bajo }]; sinTiempo, en las por minuto, cuántas filas tienen
-// el dato pero no entran por no tener tiempo o tenerlo en 0 (en la planilla,
-// #DIV/0!; Santiago, 19/10: «Que lo diga»).
-export const calcularPlanilla = (filas, medidas, eleccion) =>
+// fila, valor, bajo }]; sinDenominador, en las relativas, cuántas filas
+// tienen el dato pero no entran por no tener tiempo (o peso) o tenerlo en 0
+// (en la planilla, #DIV/0!; Santiago, 19/10: «Que lo diga»).
+// opciones, para otra base: datoDe(columna, fila), esRelativa(columna)
+// (Evaluaciones: las relativas, por peso) y esTiempo(columna) (en los
+// tiempos no va la regla del promedio de 1 o menos).
+const esPorMinuto = (columna) => columna.tipo === "porMinuto";
+export const esTiempoGps = (columna) => ["tiempo", "hora"].includes(columna.tipo);
+export const calcularPlanilla = (filas, medidas, eleccion, { datoDe = datoDeLaFila, esRelativa = esPorMinuto, esTiempo = esTiempoGps } = {}) =>
   Object.fromEntries(
     medidas.map((columna) => {
-      const datos = filas.map((fila) => datoDeLaFila(columna, fila));
-      const relativa = columna.tipo === "porMinuto";
+      const datos = filas.map((fila) => datoDe(columna, fila));
+      const relativa = esRelativa(columna);
+      const reglaDelUno = !esTiempo(columna);
       const elegido = eleccion?.[columna.clave] || {};
       // Manual sin desvíos elegidos: los de Automático.
-      const automatico = () => calcularValorReferencial(datos, { sentido: elegido.sentido, relativa });
+      const automatico = () => calcularValorReferencial(datos, { sentido: elegido.sentido, relativa, reglaDelUno });
       const resultado =
         elegido.modo === MANUAL
-          ? calcularValorReferencial(datos, { sentido: elegido.sentido, modo: MANUAL, relativa, cortes: cortesValidos(elegido.cortes || automatico()?.desvios || {}) })
+          ? calcularValorReferencial(datos, { sentido: elegido.sentido, modo: MANUAL, relativa, reglaDelUno, cortes: cortesValidos(elegido.cortes || automatico()?.desvios || {}) })
           : automatico();
       const atipicos = resultado
         ? resultado.atipicos.indices
@@ -70,24 +76,32 @@ export const calcularPlanilla = (filas, medidas, eleccion) =>
             })
             .sort((a, b) => a.valor - b.valor)
         : [];
-      const sinTiempo = relativa ? datos.filter((dato) => esNumero(dato.numerador) && !(dato.denominador > 0)).length : 0;
-      return [columna.clave, { resultado, atipicos, sinTiempo }];
+      const sinDenominador = relativa ? datos.filter((dato) => esNumero(dato.numerador) && !(dato.denominador > 0)).length : 0;
+      return [columna.clave, { resultado, atipicos, sinDenominador }];
     }),
   );
 
-// Lo que se guarda: el Bueno de cada medida en el promedio y Excelente, Muy
-// Bueno, Regular y Malo en las categorías. Las medidas sin cuenta no van.
+// Lo que se guarda: el Bueno de cada medida en el promedio, Excelente, Muy
+// Bueno, Regular y Malo en las categorías, el desvío de la muestra y cuántos
+// datos se usaron (n, en la planilla; Santiago, 19/10: «Agrega estos datos
+// para todos los vr que hagamos de aca en adelante: Cantidad de datos
+// utilizados en cada variable. Desvio de la muestra»). Las medidas sin
+// cuenta no van.
 export const numerosParaGuardar = (calculos) => {
   const promedio = {};
+  const desvio = {};
+  const n = {};
   const categorias = Object.fromEntries(CATEGORIAS_DE_UN_VR.map((categoria) => [categoria, {}]));
   Object.entries(calculos).forEach(([clave, { resultado }]) => {
     if (!resultado) return;
     promedio[clave] = resultado.valores.bueno;
+    desvio[clave] = resultado.desvio;
+    n[clave] = resultado.usados;
     CATEGORIAS_DE_UN_VR.forEach((categoria) => {
       categorias[categoria][clave] = resultado.valores[categoria];
     });
   });
-  return { promedio, desvio: {}, categorias };
+  return { promedio, desvio, categorias, n };
 };
 
 // ------------------------------------------------------------ La muestra --
@@ -126,19 +140,22 @@ export const filasDeLaMuestra = (filasArmadas, muestra = {}) => {
 // ----------------------------------------------------- Lo que se guarda --
 // planilla: { version, muestra: { clave: [valores] }, medidas: { clave: {
 // sentido, modo, cortes? } } (solo las elegidas; cortes, los desvíos de
-// Manual), filas: cuántas entraron, calculado: la fecha (ISO) }.
+// Manual), filas: cuántas entraron, calculado: la fecha (ISO), n: { clave:
+// cuántos datos se usaron } (desde el 19/10) }.
 const medidaGuardada = (clave, elegido) => {
   const modo = MODOS.includes(elegido?.modo) ? elegido.modo : AUTOMATICO;
   const medida = { sentido: sentidoGuardado(elegido?.sentido) || sentidoDe(null, clave), modo };
   if (modo === MANUAL && esObjeto(elegido?.cortes) && CATEGORIAS_CON_CORTE.every((categoria) => esNumero(elegido.cortes[categoria]))) medida.cortes = cortesValidos(elegido.cortes);
   return medida;
 };
-export const armarPlanilla = ({ muestra, eleccion, filas, calculado }) => ({
+const soloNumeros = (valor) => Object.fromEntries(Object.entries(esObjeto(valor) ? valor : {}).filter(([, numero]) => esNumero(numero)));
+export const armarPlanilla = ({ muestra, eleccion, filas, calculado, n = {} }) => ({
   version: VERSION_DE_LA_PLANILLA,
   muestra,
   medidas: Object.fromEntries(Object.entries(eleccion).map(([clave, elegido]) => [clave, medidaGuardada(clave, elegido)])),
   filas,
   calculado,
+  n: soloNumeros(n),
 });
 
 // La planilla como viene de la base (o null si no es de la planilla): lo que
@@ -157,6 +174,7 @@ export const leerPlanilla = (valor) => {
     medidas,
     filas: esNumero(valor.filas) ? valor.filas : null,
     calculado: typeof valor.calculado === "string" ? valor.calculado : null,
+    n: soloNumeros(valor.n),
   };
 };
 

@@ -820,6 +820,82 @@ describe("Evaluaciones", () => {
     expect(contenedor.querySelector(".referencias-sumar-categoria")).toBeNull();
   });
 
+  test("Valores de referencia › «Calcular con la planilla»: la categoría, la muestra con su Selección, el V.R. en el bloque y «Recalcular»", async () => {
+    // Todo inventado: diez de Mayor y dos de Sub-20 (en segundos).
+    const mas = [200, 215, 230, 190, 205, 220, 210, 600].map((lumbar, i) => evaluacion(`p${i}`, 10 + i, (i % 2) + 1, `2026-08-0${i + 1}`, { lumbar, lateral_d: 90 + i * 3, lateral_i: 85 + i * 4, prono: 120 + i * 5 }));
+    const sub20 = [180, 170].map((lumbar, i) => evaluacion(`q${i}`, 30 + i, 1, "2026-08-20", { lumbar, lateral_d: 70, lateral_i: 75, prono: 100 }, {}));
+    sub20.forEach((una) => (una.datos.seleccion = "sub20"));
+    datos.evaluaciones = [...EVALUACIONES(), ...mas, ...sub20];
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    await tocar(boton(contenedor, "Calcular con la planilla"));
+    expect(contenedor.querySelector("h1").textContent).toBe("Calcular V.R. de Zona Media");
+    // De entrada, la categoría que ya tiene V.R. y sus filas (las de esa Selección).
+    const categoria = () => contenedor.querySelector("#planilla-vr-categoria");
+    expect(categoria().value).toBe("mayor");
+    const muestra = () => contenedor.querySelector(".planilla-vr-muestra").textContent;
+    expect(muestra()).toContain("Muestra: 11 filas · 2 jugadores");
+    await act(async () => {
+      categoria().value = "sub20";
+      categoria().dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(muestra()).toContain("Muestra: 2 filas · 1 jugador");
+    await act(async () => {
+      categoria().value = "mayor";
+      categoria().dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(muestra()).toContain("Muestra: 11 filas");
+    expect(contenedor.querySelector(".planilla-vr-medidas-barra").textContent).toContain("6 de 6 elegidas");
+    await tocar(botones(contenedor).find((b) => b.textContent.trim().startsWith("Siguiente")));
+    expect(contenedor.querySelector(".lesiones-encabezado p").textContent).toMatch(/^Mayor \(profesional\) · 11 filas · 2 jugadores/);
+    // Las variables del test; los tiempos en minutos y segundos.
+    expect([...contenedor.querySelectorAll(".planilla-vr-tabla tr[data-medida]")].map((tr) => tr.dataset.medida)).toEqual(["lumbar", "lateral_d", "lateral_i", "def_lat", "prono", "ratio"]);
+    const lumbar = () => contenedor.querySelector('.planilla-vr-tabla tr[data-medida="lumbar"]');
+    [...lumbar().querySelectorAll("td.valor b")].forEach((b) => expect(b.textContent).toMatch(/^\d+:\d\d$/));
+    // Los tiempos van en la unidad del Excel (días): sin la regla del promedio
+    // de 1 o menos (Santiago, 19/10), el 10:00 queda afuera.
+    expect(lumbar().querySelector("td.datos").textContent).toBe("10 de 11 · Ver 1 atípico");
+    await tocar(boton(contenedor, "Guardar V.R."));
+    // El bloque de Mayor: lo calculado, con el título que tenía; el n del resumen.
+    const [bloque, resumen] = datos.cambiosVr.slice(-2);
+    expect(bloque.ruta).toEqual(["categorias", "mayor"]);
+    expect(bloque.valor.titulo).toBe("V.R. de prueba");
+    expect(bloque.valor.n.lumbar).toBe(10);
+    expect(bloque.valor.bueno.lumbar).toBeCloseTo((240 + 150 + 252 + 200 + 215 + 230 + 190 + 205 + 220 + 210) / 10 / 1440, 10);
+    expect(bloque.valor.desvio.lumbar).toBeGreaterThan(0);
+    expect(bloque.valor.promedio).toBeUndefined();
+    expect(bloque.valor.planilla).toMatchObject({ version: 1, muestra: { seleccion: ["mayor"] }, filas: 11, calculado: hoyISO() });
+    expect(resumen).toEqual({ test: "zona_media", ruta: ["resumen", "n", "mayor"], valor: 11 });
+    expect(document.body.textContent).toContain("V.R. de Mayor (profesional) calculados.");
+    // El bloque: n, el desvío y las cinco, sin Promedio (Zona Media no tenía fila de desvío).
+    expect([...tablaVr(0).querySelectorAll("tbody th")].map((th) => th.textContent)).toEqual(["n", "Desv. Estándar", "Excelente", "Muy Bueno", "Bueno", "Regular", "Malo"]);
+    // Dice cuándo y con qué filas; «Recalcular» pregunta y usa la misma muestra.
+    expect(contenedor.querySelector(".referencias-calculado").textContent).toBe(`Calculado el ${fechaCorta(hoyISO())} con 11 filas · Seleccion: Mayor (profesional)`);
+    const cuantos = datos.cambiosVr.length;
+    await tocar(boton(contenedor, "Recalcular"));
+    const hoja = [...document.body.querySelectorAll(".hoja-confirmar, [role='dialog']")].find((una) => una.textContent.includes("¿Recalcular «Mayor (profesional)»?"));
+    expect(hoja.textContent).toContain("11 filas (las mismas que la vez anterior)");
+    await tocar([...hoja.querySelectorAll("button")].find((b) => b.textContent === "Recalcular"));
+    expect(datos.cambiosVr.slice(cuantos).map((cambio) => cambio.ruta)).toEqual([["categorias", "mayor"], ["resumen", "n", "mayor"]]);
+    expect(document.body.textContent).toContain("V.R. de Mayor (profesional) recalculados.");
+  });
+
+  test("Valores de referencia › un cálculo con la planilla es una línea en los últimos cambios y «Volver» deja el bloque como estaba", async () => {
+    const fila = (datosVr) => ({ id: "vr1", equipo_id: "eq-1", test: "zona_media", datos: datosVr });
+    const antes = { titulo: "V.R. de prueba", bueno: { lumbar: 180 / 1440 } };
+    const despues = { titulo: "V.R. de prueba", bueno: { lumbar: 200 / 1440 }, malo: { lumbar: 150 / 1440 }, planilla: { version: 1, muestra: {}, medidas: {}, filas: 9, calculado: "2026-10-19" } };
+    datos.historialVr = [
+      { id: 3, tabla: "evaluaciones_referencias", filaId: "vr1", accion: "editada", quien: "pf@club.com", cuando: "2026-10-19T19:30:00Z", antes: fila({ categorias: { mayor: despues } }), despues: fila({ categorias: { mayor: { ...despues, planilla: { ...despues.planilla, filas: 10 } } } }) },
+      { id: 2, tabla: "evaluaciones_referencias", filaId: "vr1", accion: "editada", quien: "pf@club.com", cuando: "2026-10-19T19:00:00Z", antes: fila({ categorias: { mayor: antes } }), despues: fila({ categorias: { mayor: despues } }) },
+    ];
+    await montar();
+    await irA(contenedor, "Valores de referencia");
+    const items = [...contenedor.querySelectorAll(".referencias-historial-lista > li")];
+    expect(items.map((item) => item.querySelector("ul").textContent)).toEqual(["Recalculó Mayor (profesional)", "Calculó Mayor (profesional) con la planilla"]);
+    await tocar([...items[1].querySelectorAll("button")].find((b) => b.textContent === "Volver"));
+    expect(datos.cambiosVr).toEqual([{ test: "zona_media", ruta: ["categorias", "mayor"], valor: antes }]);
+  });
+
   test("quien ya se fue del club ve todo y no cambia nada", async () => {
     datos.equipo = { id: "eq-1", nombre: "Club de Prueba", hasta: "2026-09-25" };
     await montar();

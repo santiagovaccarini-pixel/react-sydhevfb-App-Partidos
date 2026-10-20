@@ -91,8 +91,10 @@ import "./tablaDatos.css";
 // demás (elegir, copiar, pegar, filtros, el informe de arriba) sigue con
 // todas. Con las flechas, la tabla corre hasta la celda elegida.
 // onFiltros(filtros): los filtros que se están aplicando ({ clave: [textos
-// elegidos] }), cada vez que cambian (la planilla de V.R. de GPS guarda con
-// qué filas se calculó). Las columnas y las filas tienen que ser las mismas
+// elegidos] }), cada vez que cambian (la planilla de V.R. guarda con qué
+// filas se calculó). filtrosIniciales: con qué filtros arranca si no hay
+// otros recordados (la planilla de V.R. de Evaluaciones, con la Selección de
+// la categoría). Las columnas y las filas tienen que ser las mismas
 // entre una vez y otra (useMemo), como en todas las tablas.
 
 const CLAVE_ORDEN = "tabla_columnas";
@@ -238,6 +240,7 @@ export const TablaDatos = ({
   ocultar = true,
   abrirAlFinal = true,
   onFiltros = null,
+  filtrosIniciales = null,
 }) => {
   const { plural } = useIdioma();
   const [orden, setOrden] = useState(() => ordenDeColumnas(columnas.map((c) => c.clave), leerOrden(id)));
@@ -253,7 +256,7 @@ export const TablaDatos = ({
   // Las casillas que se están guardando: { "fila:clave": valor nuevo }. Se ven
   // marcadas (o no) al toque, sin esperar a la base.
   const [pendientes, setPendientes] = useState({});
-  const [filtros, setFiltros] = useState(() => (recordar && memoria.get(recordar)?.filtros) || {}); // { clave: [textos elegidos] }
+  const [filtros, setFiltros] = useState(() => (recordar && memoria.get(recordar)?.filtros) || filtrosIniciales || {}); // { clave: [textos elegidos] }
   const [ordenFilas, setOrdenFilas] = useState(() => (recordar && memoria.get(recordar)?.orden) || null); // { clave, sentido }
   // Lo ocultado a mano: las columnas y las filas (ids), mientras se está en
   // la tabla. aOcultar: lo tocado, mientras se pregunta ({ tipo: "columna",

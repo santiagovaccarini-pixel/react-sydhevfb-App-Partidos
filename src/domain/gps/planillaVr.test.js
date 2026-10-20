@@ -78,22 +78,31 @@ describe("La planilla de valor referencial en GPS", () => {
     expect(conCortes.d_min.resultado.desvios).toEqual(cortes);
     expect(conCortes.d_min.resultado.valores).toEqual(calcularValorReferencial(relativas, { relativa: true, modo: MANUAL, cortes }).valores);
     // Sin datos en ninguna fila, no hay V.R. de esa medida.
-    expect(calculos.d_shi).toEqual({ resultado: null, atipicos: [], sinTiempo: 0 });
-    expect(calculos.d.sinTiempo).toBe(0);
-    expect(calculos.d_min.sinTiempo).toBe(0);
+    expect(calculos.d_shi).toEqual({ resultado: null, atipicos: [], sinDenominador: 0 });
+    expect(calculos.d.sinDenominador).toBe(0);
+    expect(calculos.d_min.sinDenominador).toBe(0);
   });
 
   test("en las por minuto, cuenta las filas con el dato y sin tiempo o con tiempo 0 (en la planilla, #DIV/0!): no entran", () => {
     const filas = [...FILAS.slice(0, 7), fila("j", { d: 500, tiempo: 0 }), fila("k", { d: 0, tiempo: 0 }), fila("l", { d: 300 }), fila("m", { d: 0, tiempo: 3000 })];
     const calculos = calcularPlanilla(filas, [columnaGps("d_min")], { d_min: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO } });
-    expect(calculos.d_min.sinTiempo).toBe(3);
+    expect(calculos.d_min.sinDenominador).toBe(3);
     // El dato 0 con tiempo entra (0 por minuto), como en la planilla.
     expect(calculos.d_min.resultado.n).toBe(8);
     // Sin ninguna fila con tiempo, no hay V.R., pero se dice cuántas faltan.
-    expect(calcularPlanilla(filas.slice(7, 10), [columnaGps("d_min")], {}).d_min).toEqual({ resultado: null, atipicos: [], sinTiempo: 3 });
+    expect(calcularPlanilla(filas.slice(7, 10), [columnaGps("d_min")], {}).d_min).toEqual({ resultado: null, atipicos: [], sinDenominador: 3 });
   });
 
-  test("se guarda como un V.R. por jugador: el Bueno en el promedio y las otras cuatro en las categorías", () => {
+  test("en los tiempos no va la regla del promedio de 1 o menos: los descarta como cualquier otra", () => {
+    // Tiempos inventados de menos de un segundo de promedio (una prueba de la regla).
+    const filas = [0.2, 0.3, 0.25, 0.28, 0.22, 0.27, 0.24, 3].map((tiempo, i) => fila(`t${i}`, { tiempo }));
+    const conTiempo = calcularPlanilla(filas, [columnaGps("tiempo")], {});
+    expect(conTiempo.tiempo.resultado.descartados).toBe(1);
+    // Con otra base, su propio esTiempo.
+    expect(calcularPlanilla(filas, [columnaGps("tiempo")], {}, { esTiempo: () => false }).tiempo.resultado.descartados).toBe(0);
+  });
+
+  test("se guarda como un V.R. por jugador: el Bueno en el promedio, las otras cuatro en las categorías, el desvío y cuántos datos (n)", () => {
     const calculos = calcularPlanilla(FILAS, [columnaGps("d"), columnaGps("d_shi")], eleccionDeEntrada([columnaGps("d"), columnaGps("d_shi")]));
     const numeros = numerosParaGuardar(calculos);
     expect(Object.keys(numeros.promedio)).toEqual(["d"]);
@@ -101,7 +110,9 @@ describe("La planilla de valor referencial en GPS", () => {
     expect(numeros.categorias.excelente.d).toBe(calculos.d.resultado.valores.excelente);
     expect(numeros.categorias.malo.d).toBe(calculos.d.resultado.valores.malo);
     expect(Object.keys(numeros.categorias)).toEqual(["excelente", "muy_bueno", "regular", "malo"]);
-    expect(numeros.desvio).toEqual({});
+    // Desde el 19/10, el desvío de la muestra y cuántos datos se usaron.
+    expect(numeros.desvio).toEqual({ d: calculos.d.resultado.desvio });
+    expect(numeros.n).toEqual({ d: calculos.d.resultado.usados });
   });
 
   test("la muestra se guarda con los valores de las filas, no con los textos (sirve en otro idioma)", () => {
@@ -132,19 +143,21 @@ describe("La planilla de valor referencial en GPS", () => {
       eleccion: { d: { sentido: MENOS_ES_MEJOR, modo: MANUAL, cortes }, d_min: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO, cortes }, tiempo: { sentido: "x", modo: "y" } },
       filas: 40,
       calculado: "2026-10-19",
+      n: { d: 38, d_min: 39, x: "no" },
     });
-    // Los desvíos se guardan solo en Manual.
+    // Los desvíos se guardan solo en Manual; de n, solo los números.
     expect(planilla).toEqual({
       version: 1,
       muestra: { tarea_partido: ["tarea"] },
       medidas: { d: { sentido: MENOS_ES_MEJOR, modo: MANUAL, cortes }, d_min: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO }, tiempo: { sentido: MAS_ES_MEJOR, modo: AUTOMATICO } },
       filas: 40,
       calculado: "2026-10-19",
+      n: { d: 38, d_min: 39 },
     });
     expect(leerPlanilla(planilla)).toEqual(planilla);
     expect(leerPlanilla(null)).toBeNull();
     expect(leerPlanilla([1])).toBeNull();
-    expect(leerPlanilla({ muestra: { a: "x", b: [1] }, medidas: { d: 3, deficit: {} } })).toEqual({ version: 1, muestra: { b: [1] }, medidas: { deficit: { sentido: MENOS_ES_MEJOR, modo: AUTOMATICO } }, filas: null, calculado: null });
+    expect(leerPlanilla({ muestra: { a: "x", b: [1] }, medidas: { d: 3, deficit: {} } })).toEqual({ version: 1, muestra: { b: [1] }, medidas: { deficit: { sentido: MENOS_ES_MEJOR, modo: AUTOMATICO } }, filas: null, calculado: null, n: {} });
     // Desvíos que la planilla no ofrece: al más cercano que sí.
     expect(leerPlanilla({ medidas: { d: { modo: MANUAL, cortes: { excelente: 0.5, muy_bueno: 1, regular: 0.75, malo: 9 } } } }).medidas.d.cortes).toEqual({ excelente: 1.25, muy_bueno: 1, regular: 0.75, malo: 2 });
     // Para recalcular: solo las medidas elegidas (las que siguen estando), con lo elegido.

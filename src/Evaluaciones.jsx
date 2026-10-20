@@ -356,6 +356,44 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   );
   const fijas = useMemo(() => visibles.filter((columna) => columna.fija).map((columna) => columna.clave), [visibles]);
 
+  // La planilla de V.R. (nota 3, 19/10): las filas del test como en la Base,
+  // con todas sus columnas (no solo las de una vista), solo para mirar y
+  // filtrar la muestra. Las filas se arman recién al abrirla.
+  const planillaDeVr = useMemo(() => {
+    const todas = columnasVisibles(test, config);
+    const etiqueta = (columna) => tituloDeColumna(test, columna, config, idioma);
+    return {
+      columnas: todas.map((columna) => ({
+        clave: columna.clave,
+        titulo: etiqueta(columna),
+        grupo: columna.grupo,
+        grupoTitulo: columna.grupo ? tituloDeGrupo(test, test.grupos?.find((grupo) => grupo.clave === columna.grupo) || { clave: columna.grupo }, config, idioma) : undefined,
+        tipo: TIPO_EN_LA_TABLA[columna.tipo] || "calculado",
+        editable: false,
+        ancho: columna.ancho,
+        alinear: A_LA_IZQUIERDA.includes(columna.clave) ? undefined : "centro",
+      })),
+      fijas: todas.filter((columna) => columna.fija).map((columna) => columna.clave),
+      armarFilas: () =>
+        calculadas.map(({ fila, celdas }) => ({
+          id: fila.id,
+          ...celdasDeLaFila({ test, columnas: todas, fila, celdas, jugador: jugadorDe(fila.jugador_id), config, idioma }),
+          celdas,
+        })),
+      // Cómo se ve un valor guardado de la muestra (para decir con qué se calculó).
+      textoDe: (clave, valor) => {
+        const columna = todas.find((una) => una.clave === clave);
+        if (!columna) return String(valor ?? "");
+        if (columna.tipo === "fecha") return fechaCorta(valor);
+        if (columna.tipo === "jugador") return jugadorDe(valor)?.nombre || String(valor ?? "");
+        if (columna.tipo === "lista") return opcionesDeLista(listaDeColumna(columna), config, idioma, { conOcultas: true, test }).find((opcion) => opcion.valor === valor)?.etiqueta || String(valor ?? "");
+        return String(valor ?? "");
+      },
+      // El sentido de Ajustes › Cabeceras (nota 1).
+      sentidoDe: (clave) => config.campos?.[test.id]?.[clave]?.sentido || null,
+    };
+  }, [test, config, idioma, calculadas, jugadorDe]);
+
   // Cómo se ve cada celda (como en el Excel, con su formato) y qué se edita.
   const filas = useMemo(
     () =>
@@ -1003,6 +1041,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           {estado}
         </>
       }
+      planilla={planillaDeVr}
       onCambiadas={(id, datos) => setReferenciasPorTest((antes) => ({ ...antes, [id]: datos }))}
       onRecargar={() => cargar({ silencioso: true })}
       onAviso={setAviso}

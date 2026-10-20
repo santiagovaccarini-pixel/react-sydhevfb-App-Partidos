@@ -16,7 +16,9 @@
 // menos no se descarta nada: en las relativas, como la hoja de relativos; en
 // las absolutas también, aunque su hoja no lo tiene (Santiago, 19/10:
 // «Agrega la condicion de que si el promedio es menor a 1 no descarta
-// nada»).
+// nada»). En los tiempos, no (Santiago, 19/10: «Cuando se use tiempo se saca
+// esa regla»; en Evaluaciones van en la unidad del Excel y siempre darían
+// menos de 1): reglaDelUno en false.
 // Las funciones de Excel que usa, como en Excel: CUARTIL y PERCENTIL
 // (inclusivos), DESVEST (muestral) y JERARQUIA (de mayor a menor). En Malo,
 // la planilla usa siempre el corte de Regular más 0,25 desvíos (Santiago,
@@ -128,7 +130,7 @@ const elegirCorte = (distancias, colas) => {
 // desvios: { excelente, muy_bueno, regular, malo }, atipicos: { desde,
 // hasta, indices } }: los atípicos, entre qué límites quedaba adentro y en
 // qué lugar de `datos` estaban (sin descartar, límites null).
-export const calcularValorReferencial = (datos, { sentido = MAS_ES_MEJOR, modo = AUTOMATICO, relativa = false, cortes = null } = {}) => {
+export const calcularValorReferencial = (datos, { sentido = MAS_ES_MEJOR, modo = AUTOMATICO, relativa = false, cortes = null, reglaDelUno = true } = {}) => {
   const filas = (datos || [])
     .map((dato, indice) =>
       relativa
@@ -145,7 +147,7 @@ export const calcularValorReferencial = (datos, { sentido = MAS_ES_MEJOR, modo =
   const suma = (lista, clave) => lista.reduce((total, fila) => total + fila[clave], 0);
   // Con un promedio de todos los datos de 1 o menos no se descarta nada.
   const promedioCrudo = relativa ? (suma(filas, "numerador") === 0 ? 0.01 : suma(filas, "numerador")) / suma(filas, "denominador") : promedio(valores);
-  const { veces, desde = null, hasta = null, quedan } = promedioCrudo <= 1 ? { veces: null, quedan: valores.map(() => true) } : sinAtipicos(valores);
+  const { veces, desde = null, hasta = null, quedan } = reglaDelUno && promedioCrudo <= 1 ? { veces: null, quedan: valores.map(() => true) } : sinAtipicos(valores);
   const usadas = filas.filter((_, i) => quedan[i]);
   const x = usadas.map((fila) => fila.valor);
   const media = relativa ? suma(usadas, "numerador") / suma(usadas, "denominador") : promedio(x);

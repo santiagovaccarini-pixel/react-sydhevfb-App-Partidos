@@ -4292,6 +4292,45 @@ confirme.**
       volver a correr. Santiago, 19/10: «a partir de ahora tenes permiso para correr los sql en
       supabase sin preguntarme pero si avisarme»: Claude corre `20261026` y `20261108` por la
       conexión y avisa.
+    - **Nota 2 cerrada** (Santiago, 19/10: «Cerrada»). Sigue pendiente que elija cómo se ve el
+      límite de abajo de los atípicos cuando no deja afuera ningún dato.
+  - **Nota 3, hecha el 19/10 y 20/10 (2026.10.20.1; UI-061): la planilla de V.R. en
+    Evaluaciones** («Lo mismo que GPS, para los V.R. de cada test»). Santiago, en
+    cuestionarios (19/10): «Un botón arriba», la muestra con «Las de esa Selección», las
+    relativas «En ves de tiempo se divide por peso» y que llene el bloque entero («Eso se usa
+    para ver el vr, lo que vos decis es mi seleccion»).
+    - **Cómo quedó.** En Evaluaciones › Valores de referencia, arriba, «Calcular con la
+      planilla» abre los dos pasos de GPS (la pantalla pasó a `src/PlanillaVr.jsx`, para las
+      dos bases, y sus estilos a `src/planillaVr.css`): en el paso 1 se elige la categoría (de
+      entrada, la primera que ya tiene V.R.; si no, Mayor), las variables y la muestra, que
+      arranca filtrada por la Selección de esa categoría. Las variables son las de las tablas
+      de V.R. del test, sin las «DE» de los déficits (se llenan con los desvíos elegidos). Las
+      relativas por peso (las «Rel»: la fuerza ÷ el P.C.) son como las por minuto de GPS: cada
+      fila, su fuerza ÷ su peso; el promedio, la suma de las fuerzas ÷ la de los pesos; las
+      filas sin peso o con peso 0 no entran y «Datos» dice «N sin peso». Los tiempos, en la
+      unidad del Excel, como los V.R. de siempre; los porcentajes, como porcentaje. Al guardar,
+      el bloque de la categoría queda con lo calculado (las variables que no se calcularon y el
+      título, como estaban), con qué se calculó (`planilla` del bloque; no hizo falta tocar la
+      base) y el n de la categoría en el resumen, si el test tiene resumen. El bloque dice
+      «Calculado el … con N filas · filtros» y suma «Recalcular»; en los últimos cambios, un
+      cálculo es una línea («Calculó …» o «Recalculó …») y «Volver» deja el bloque entero como
+      estaba. La cuenta y la muestra, en `src/domain/evaluaciones/planillaVr.js`.
+    - **Pedido del 19/10, al ver las capturas:** «Agrega estos datos para todos los vr que
+      hagamos de aca en adelante: Cantidad de datos utilizados en cada variable. Desvio de la
+      muestra y saca esa fila de promedio que esta de mas». Hecho, en GPS y en Evaluaciones,
+      para los V.R. calculados con la planilla: arriba, «n» (los datos usados después de sacar
+      los atípicos) y el desvío de la muestra; sin la fila Promedio (es el Bueno). En GPS, el
+      desvío va en `desvio` y el n en `planilla.n` (no se cambia a mano); en Evaluaciones, en
+      las filas n y Desv. Estándar del bloque (también en los tests que no tenían esa fila,
+      como Zona Media o Press Plano), y lo que había en Promedio de esas variables se va. Los
+      V.R. cargados a mano o por SQL se ven como antes.
+    - **Los tiempos sin la regla del promedio de 1 o menos.** En Evaluaciones los tiempos van
+      en la unidad del Excel (días: 3:04 es 184 ÷ 1440) y su promedio siempre da menos de 1, así
+      que nunca se descartaban atípicos. Santiago, en un cuestionario: «Cuando se use tiempo se
+      saca esa regla». Hecho en las dos bases: en una variable de tiempo, los atípicos se
+      descartan siempre con los cuartiles.
+    - **Queda prohibido** volver a mostrar la fila Promedio en un V.R. calculado con la planilla
+      y aplicar la regla del promedio de 1 o menos a los tiempos, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida); después, las grandes, cada una aparte (la planilla de valor
