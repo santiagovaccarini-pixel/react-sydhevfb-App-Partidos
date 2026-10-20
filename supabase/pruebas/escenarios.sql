@@ -2115,6 +2115,26 @@ select pruebas.esperar('Antes de correrla, el partido tiene el nombre de antes',
 select pruebas.esperar('...después, el de hoy', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival De Antes'), 'LATERAL');
 select pruebas.esperar('...y el de antes queda anotado', (select string_agg(nombre, ',') from jugadores_nombres_anteriores where jugador_id = 9023), 'LATERAL VIEJO');
 select pruebas.esperar('...sin tocar lo que ya estaba bien', (select array_to_string(titulares, ',') from registros_partido where rival = 'Rival Homonimo'), 'SCARPA');
+-- Y el arreglo de después (20261109), que la de arriba acaba de pisar.
+\ir ../migrations/20261109_nombres_con_listas_json.sql
+
+-- Los titulares y los convocados de una base de antes (lista JSON en vez de
+-- lista de textos, como la del club): cambiar un nombre daba «No se pudo
+-- guardar» (20261109).
+begin;
+alter table public.registros_partido alter column titulares drop default, alter column convocados drop default;
+alter table public.registros_partido alter column titulares type jsonb using to_jsonb(titulares),
+                                      alter column convocados type jsonb using to_jsonb(convocados);
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Con los partidos de una base de antes (lista JSON), Beto le cambia el nombre a un jugador',
+  pruebas.filas($$update jugadores set nombre = 'ZAGUERO DOS' where id = 9021$$), 1);
+select pruebas.esperar('...los titulares quedan con el nombre nuevo, como lista JSON', (select titulares::text from registros_partido where rival = 'Rival Nombres'), '["G. SCARPA", "ZAGUERO DOS"]');
+select pruebas.esperar('...los convocados también', (select convocados::text from registros_partido where rival = 'Rival Nombres'), '["G. SCARPA", "ZAGUERO DOS", "SUPLENTE"]');
+select pruebas.esperar('...y los cambios', (select cambio_1_sale || '>' || cambio_1_entra from registros_partido where rival = 'Rival Nombres'), 'G. SCARPA>ZAGUERO DOS');
+select pruebas.esperar('Un partido que sube tarde con el nombre anterior', pruebas.filas($$insert into registros_partido (fecha, rival, equipo_id, titulares, convocados) values ('2026-10-04', 'Rival Lista', '00000000-0000-0000-0000-0000000000c1', '["zaguero ", null, 7]', '"no es una lista"')$$), 1);
+select pruebas.esperar('...se guarda con el de hoy (lo que no es un nombre, como vino)', (select titulares::text || ' | ' || convocados::text from registros_partido where rival = 'Rival Lista'), '["ZAGUERO DOS", null, 7] | "no es una lista"');
+reset role;
+rollback;
 
 -- GPS: al renombrar una opción de estrategia, cambia también en la
 -- Descripción ya guardada (donde empieza cada parte).
