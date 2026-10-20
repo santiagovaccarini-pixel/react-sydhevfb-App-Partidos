@@ -4164,7 +4164,12 @@ confirme.**
     cambios de Valores de referencia, a nombre de quien cambió el nombre y con «Volver». Si en
     esa tabla ya hay un V.R. con el nombre nuevo, ese queda como está. Este paso nunca frena el
     cambio de nombre. Hoy la base del club no tiene V.R. por jugador: sirve para cuando se
-    carguen. Claude la corrió en la base del club por la conexión y avisó.
+    carguen. En la base del club: Claude corrió por la conexión la función de los V.R. y el
+    paso final (0 V.R. cambiados); el cambio del disparador (`jugadores_nombre_cambiado`) no
+    llegaba a la base por la conexión (se quedaba esperando una confirmación que no aparecía) y
+    lo corrió Santiago en el SQL Editor (20/10: «Listo»). Claude comprobó después, solo
+    mirando cómo está armada la base, que quedó puesto y conectado, y que ni las cuentas ni
+    anon pueden llamar a esas funciones.
     - **Queda prohibido** que el cambio de nombre en los V.R. toque el tipo o la tabla, o que
       frene el cambio de nombre, salvo un pedido nuevo.
   - **Queda prohibido** que lo exporte alguien que no es el administrador, o que el archivo
