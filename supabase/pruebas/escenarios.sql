@@ -1301,7 +1301,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -2261,6 +2261,54 @@ select pruebas.debe_fallar('Sin GPS no pega', $q$select gps_pegar_filas('0000000
 reset role;
 set role anon;
 select pruebas.debe_fallar('Anon, nada', $q$select gps_pegar_filas('00000000-0000-0000-0000-0000000000c1', '', '[{"fecha":"2026-09-14","jugador_id":9006,"datos":{"d":1}}]')$q$, 'permission denied');
+reset role;
+rollback;
+
+-- Evaluaciones (20261113): dos iguales, nunca; guardar varias de una vez,
+-- las iguales no entran, la Regla 1 por jugador y día, y reemplazar.
+begin;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+insert into evaluaciones (equipo_id, test, jugador_id, persona, fecha, datos) values
+  ('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', 9006, null, '2026-09-10', '{"izq":40,"der":41}'),
+  ('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', null, 'Cata Tres', '2026-09-10', '{"izq":30}'),
+  ('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', null, 'Sin Fecha', null, '{"izq":20}');
+select pruebas.debe_fallar('Dos evaluaciones iguales, nunca', $q$insert into evaluaciones (equipo_id, test, jugador_id, fecha, datos) values ('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', 9006, '2026-09-10', '{"der":41,"izq":40}')$q$, 'evaluaciones_sin_repetir');
+select pruebas.debe_fallar('...tampoco sin fecha', $q$insert into evaluaciones (equipo_id, test, persona, fecha, datos) values ('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', 'Sin Fecha', null, '{"izq":20}')$q$, 'evaluaciones_sin_repetir');
+select pruebas.esperar('...con otros datos, sí (a mano, como antes)', pruebas.filas($q$insert into evaluaciones (equipo_id, test, persona, fecha, datos) values ('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', 'Sin Fecha', null, '{"izq":21}')$q$), 1);
+select pruebas.esperar('Guardar: la igual a una que ya está no entra; la nueva sí, y vuelve como en la tabla',
+  (select (r ->> 'yaEstaban') || ':' || jsonb_array_length(r -> 'filas') || ':' || jsonb_array_length(r -> 'borradas') || ':' || (r #>> '{filas,0,test}') || ':' || (r #>> '{filas,0,fecha}') || ':' || ((r #> '{filas,0,orden}') is not null)::text
+     from (select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', $j$[
+       {"jugador_id":9006,"fecha":"2026-09-10","datos":{"izq":40,"der":41}},
+       {"jugador_id":9006,"fecha":"2026-09-11","datos":{"izq":42}}
+     ]$j$::jsonb) as r) x),
+  '1:1:0:movilidad_tobillo:2026-09-11:true');
+select pruebas.debe_fallar('Regla 1: el mismo jugador, el mismo día y otros datos no se guarda (y nada de esa tanda)', $q$select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', '[
+    {"jugador_id":9006,"fecha":"2026-09-12","datos":{"izq":43}},
+    {"jugador_id":9006,"fecha":"2026-09-10","datos":{"izq":45}}]')$q$, 'evaluaciones_con_otras');
+select pruebas.esperar('...nada de esa tanda', (select count(*) from evaluaciones where fecha = '2026-09-12'), 0);
+select pruebas.esperar('Otro test, el mismo día: entra sin preguntar',
+  (select jsonb_array_length(evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_cadera', '[{"jugador_id":9006,"fecha":"2026-09-10","datos":{"izq":30}}]') -> 'filas')), 1);
+select pruebas.esperar('Reemplazar: la de ese jugador ese día en ese test, por la nueva (la igual de otra persona queda como estaba)',
+  (select (r ->> 'yaEstaban') || ':' || jsonb_array_length(r -> 'filas') || ':' || jsonb_array_length(r -> 'borradas')
+     from (select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', $j$[
+       {"jugador_id":9006,"fecha":"2026-09-10","datos":{"izq":45}},
+       {"persona":"Cata Tres","fecha":"2026-09-10","datos":{"izq":30}}
+     ]$j$::jsonb, true) as r) x),
+  '1:1:1');
+select pruebas.esperar('...y quedan las de ese día', (select string_agg(coalesce(persona, jugador_id::text) || ':' || (datos ->> 'izq'), ',' order by orden) from evaluaciones where test = 'movilidad_tobillo' and fecha = '2026-09-10'), 'Cata Tres:30,9006:45');
+select pruebas.esperar('...sin tocar las de otro día ni las de otro test', (select count(*) from evaluaciones where jugador_id = 9006 and (fecha = '2026-09-11' or test = 'movilidad_cadera')), 2);
+select pruebas.debe_fallar('Las fechas, como en la base', $q$select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', '[{"jugador_id":9006,"fecha":"12/09/2026","datos":{"izq":1}}]')$q$, 'evaluaciones_filas');
+select pruebas.debe_fallar('...los datos, un objeto', $q$select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', '[{"jugador_id":9006,"fecha":"2026-09-12","datos":[1]}]')$q$, 'evaluaciones_filas');
+select pruebas.debe_fallar('...el test, bien escrito', $q$select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'Movilidad', '[{"jugador_id":9006,"fecha":"2026-09-12","datos":{"izq":1}}]')$q$, 'evaluaciones_filas');
+select pruebas.debe_fallar('...y alguna', $q$select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', '[]')$q$, 'evaluaciones_filas');
+select pruebas.debe_fallar('No guarda en otro club', $q$select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c2', 'movilidad_tobillo', '[{"persona":"Espía","fecha":"2026-09-12","datos":{"izq":1}}]')$q$, 'row-level security');
+reset role;
+select pruebas.esperar('Lo reemplazado queda en las versiones, como todo borrado', (select count(*) from versiones_datos where tabla = 'evaluaciones' and accion = 'borrada' and fila ->> 'fecha' = '2026-09-10'), 1);
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.debe_fallar('Sin Evaluaciones no guarda', $q$select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', '[{"jugador_id":9006,"fecha":"2026-09-12","datos":{"izq":1}}]')$q$, 'row-level security');
+reset role;
+set role anon;
+select pruebas.debe_fallar('Anon, nada', $q$select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', '[{"jugador_id":9006,"fecha":"2026-09-12","datos":{"izq":1}}]')$q$, 'permission denied');
 reset role;
 rollback;
 

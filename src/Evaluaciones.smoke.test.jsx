@@ -17,6 +17,11 @@ const datos = vi.hoisted(() => ({
   creadas: [],
   // Si está, el guardado que sigue a esa cantidad de creadas falla.
   fallaAlCrear: null,
+  // Guardar varias de una vez (20261113): lo que se pidió, si a la base le
+  // falta esa actualización y si la próxima falla (todas o ninguna).
+  deUnaVez: [],
+  sinGuardarVarias: false,
+  fallaAlGuardar: "",
   actualizadas: [],
   borradas: [],
   // Si está, cada guardado espera a que se abra (una conexión lenta).
@@ -171,6 +176,35 @@ vi.mock("./domain/evaluacionesDb.js", () => ({
     datos.evaluaciones.push(nueva);
     return { evaluacion: nueva, error: "" };
   },
+  // Como la base (20261113): todas o ninguna; las iguales en todo no entran;
+  // la de alguien que ese día ya tiene otra del test, con otros datos, no se
+  // guarda (Regla 1); con reemplazar, cambia esas.
+  guardarEvaluaciones: async (equipoId, test, { evaluaciones: lista = [], reemplazar = false } = {}) => {
+    datos.deUnaVez.push({ test, n: lista.length, reemplazar });
+    const nada = { evaluaciones: [], borradas: [], yaEstaban: 0 };
+    if (datos.sinGuardarVarias) return { ...nada, sinFuncion: true, error: "" };
+    if (datos.fallaAlGuardar) {
+      const error = datos.fallaAlGuardar;
+      datos.fallaAlGuardar = "";
+      return { ...nada, error };
+    }
+    const { conOtrosDatos, igualEnTodo, quienDeLaEvaluacion } = await import("./domain/evaluaciones/importar.js");
+    const delTest = datos.evaluaciones.filter((una) => una.test === test);
+    const choques = conOtrosDatos(lista, delTest);
+    if (choques.length && !reemplazar) return { ...nada, conOtras: true, error: "" };
+    const par = (una) => `${quienDeLaEvaluacion(una)}|${una.fecha || "-"}`;
+    const pares = new Set(choques.map(({ evaluacion }) => par(evaluacion)));
+    const borradas = delTest.filter((una) => pares.has(par(una))).map((una) => una.id);
+    datos.evaluaciones = datos.evaluaciones.filter((una) => !borradas.includes(una.id));
+    const entran = lista.filter((ev) => pares.has(par(ev)) || !delTest.some((otra) => igualEnTodo(otra, ev)));
+    const nuevas = entran.map((ev) => {
+      datos.creadas.push({ equipoId, test, ev });
+      const nueva = { ...ev, id: `nueva-${datos.creadas.length}`, equipo_id: equipoId, test, orden: 100 + datos.creadas.length, persona: ev.persona ?? null };
+      datos.evaluaciones.push(nueva);
+      return nueva;
+    });
+    return { evaluaciones: nuevas, borradas, yaEstaban: lista.length - nuevas.length, error: "" };
+  },
   actualizarEvaluacion: async (id, ev) => {
     datos.actualizadas.push({ id, ev });
     if (datos.compuerta) await datos.compuerta;
@@ -275,6 +309,9 @@ describe("Evaluaciones", () => {
     datos.errorAlLeer = "";
     datos.creadas = [];
     datos.fallaAlCrear = null;
+    datos.deUnaVez = [];
+    datos.sinGuardarVarias = false;
+    datos.fallaAlGuardar = "";
     datos.actualizadas = [];
     datos.borradas = [];
     datos.compuerta = null;
@@ -497,7 +534,8 @@ describe("Evaluaciones", () => {
     expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 1, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", lumbar: 180 } } }]);
   });
 
-  test("Nueva evaluación: si una no se guarda, las guardadas salen de la carga y al reintentar no se repiten", async () => {
+  test("Nueva evaluación sin la actualización de la base: de a una; si una no se guarda, las guardadas salen de la carga y al reintentar no se repiten", async () => {
+    datos.sinGuardarVarias = true;
     await montar();
     await empezarCarga(contenedor);
     await elegirJugador(contenedor, 0, "ALFA");
@@ -514,6 +552,106 @@ describe("Evaluaciones", () => {
     expect(datos.creadas.map((una) => una.ev.jugador_id)).toEqual([1, 2]);
     expect(document.body.textContent).toContain("1 evaluación guardada.");
     expect(contenedor.querySelector(".estado-hero").textContent).toBe("2 evaluaciones hoy");
+  });
+
+  // Parte A3 de «cargar sin señal y a la vez que otra persona» (Santiago,
+  // 20/10): todas de una vez; una igual en todo no se carga; la Regla 1
+  // (alguien que ese día ya tiene otra del test, con otros datos) pregunta.
+  const cargarAlfaHoy = async () => {
+    await empezarCarga(contenedor);
+    await elegirJugador(contenedor, 0, "ALFA");
+    await escribir(dato(contenedor, "ALFA · Lumbar"), "3:00");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+  };
+  const hojaDelDia = () => document.querySelector(".hoja-confirmar");
+
+  test("Nueva evaluación, Regla 1: si ese día ya tiene otra con otros datos, pregunta; «Reemplazar y cargar» la cambia por la nueva", async () => {
+    datos.evaluaciones = [...EVALUACIONES(), evaluacion("hoy-1", 4, 1, hoyISO(), { lumbar: 170 })];
+    await montar();
+    await cargarAlfaHoy();
+    expect(datos.deUnaVez).toHaveLength(0);
+    expect(hojaDelDia().querySelector("h3").textContent).toBe("Esas evaluaciones ya están en la Base, con otros datos");
+    expect(hojaDelDia().textContent).toContain(`1 jugador de esta carga ya tiene una evaluación de Zona Media del ${fechaCorta(hoyISO())}, con otros datos:`);
+    expect([...hojaDelDia().querySelectorAll(".consentimiento-personas li")].map((li) => li.textContent)).toEqual(["ALFA"]);
+    expect(hojaDelDia().textContent).toContain("«Reemplazar y cargar» borra esas evaluaciones y guarda las de esta carga (lo borrado queda en el historial).");
+    // El foco arranca en «Ir a la Base»: no borra.
+    expect(document.activeElement.textContent).toBe("Ir a la Base");
+    await tocar(boton(contenedor, "Reemplazar y cargar"));
+    expect(datos.deUnaVez).toEqual([{ test: "zona_media", n: 1, reemplazar: true }]);
+    expect(datos.evaluaciones.map((una) => una.id)).not.toContain("hoy-1");
+    expect(document.body.textContent).toContain("1 evaluación guardada. Se reemplazó 1 evaluación que ya estaba.");
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("1 evaluación hoy");
+  });
+
+  test("Nueva evaluación, Regla 1, «Ir a la Base»: la carga espera, la Base muestra la que ya estaba y «Seguir la carga» vuelve con todo", async () => {
+    datos.evaluaciones = [...EVALUACIONES(), evaluacion("hoy-1", 4, 1, hoyISO(), { lumbar: 170 })];
+    await montar();
+    await cargarAlfaHoy();
+    await tocar(boton(contenedor, "Ir a la Base"));
+    expect(datos.deUnaVez).toHaveLength(0);
+    expect(contenedor.querySelector(".evaluaciones-revisar").textContent).toContain(`Estas son las evaluaciones del ${fechaCorta(hoyISO())} que ya estaban. Tu carga quedó en espera.`);
+    expect(filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Fecha")].textContent)).toEqual([fechaCorta(hoyISO())]);
+    // «Ver toda la Base» saca esos filtros; la carga sigue esperando.
+    await tocar(boton(contenedor, "Ver toda la Base"));
+    expect(filas(contenedor)).toHaveLength(4);
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    expect(dato(contenedor, "ALFA · Lumbar").value).toBe("3:00");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(hojaDelDia().querySelector("h3").textContent).toBe("Esas evaluaciones ya están en la Base, con otros datos");
+    await tocar(boton(contenedor, "Ir a la Base"));
+    await tocar(boton(contenedor, "Seguir la carga"));
+    expect(dato(contenedor, "ALFA · Lumbar").value).toBe("3:00");
+  });
+
+  test("Nueva evaluación: una igual en todo a una que ya está no se carga", async () => {
+    datos.evaluaciones = [...EVALUACIONES(), evaluacion("hoy-1", 4, 1, hoyISO(), { lumbar: 180 })];
+    await montar();
+    await cargarAlfaHoy();
+    expect(hojaDelDia()).toBeNull();
+    expect(datos.deUnaVez).toHaveLength(0);
+    expect(contenedor.textContent).toContain("ALFA: esa evaluación ya está en la Base (la misma fecha y los mismos datos).");
+  });
+
+  test("Nueva evaluación: se guardan todas o ninguna", async () => {
+    await montar();
+    await empezarCarga(contenedor);
+    await elegirJugador(contenedor, 0, "ALFA");
+    await escribir(dato(contenedor, "ALFA · Lumbar"), "3:00");
+    await tocar(boton(contenedor, "+ Agregar jugador"));
+    await elegirEnLaHoja("BETA");
+    await escribir(dato(contenedor, "BETA · Lumbar"), "2:00");
+    datos.fallaAlGuardar = "evaluaciones.error.noGuardar";
+    await tocar(boton(contenedor, "Guardar 2 evaluaciones"));
+    expect(datos.creadas).toHaveLength(0);
+    expect(contenedor.textContent).toContain("No se pudo guardar la evaluación.");
+    expect(filasDeLaCarga(contenedor)).toHaveLength(2);
+    await tocar(boton(contenedor, "Guardar 2 evaluaciones"));
+    expect(datos.creadas.map((una) => una.ev.jugador_id)).toEqual([1, 2]);
+    expect(document.body.textContent).toContain("2 evaluaciones guardadas.");
+  });
+
+  test("Nueva evaluación: si otra persona cargó ese día mientras tanto, no se guarda, se vuelve a leer y la próxima vez pregunta", async () => {
+    await montar();
+    // Otra persona carga la de ALFA de hoy (la app todavía no la vio).
+    datos.evaluaciones = [...datos.evaluaciones, evaluacion("otra-1", 9, 1, hoyISO(), { lumbar: 170 })];
+    await cargarAlfaHoy();
+    expect(datos.deUnaVez).toEqual([{ test: "zona_media", n: 1, reemplazar: false }]);
+    expect(datos.creadas).toHaveLength(0);
+    expect(contenedor.textContent).toContain("Mientras tanto cambiaron evaluaciones de esos jugadores en la Base. Revisá y volvé a guardar.");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(hojaDelDia().querySelector("h3").textContent).toBe("Esas evaluaciones ya están en la Base, con otros datos");
+  });
+
+  test("Nueva evaluación sin la actualización de la base: reemplazar avisa que falta y no cambia nada", async () => {
+    datos.sinGuardarVarias = true;
+    datos.evaluaciones = [...EVALUACIONES(), evaluacion("hoy-1", 4, 1, hoyISO(), { lumbar: 170 })];
+    await montar();
+    await cargarAlfaHoy();
+    await tocar(boton(contenedor, "Reemplazar y cargar"));
+    expect(datos.creadas).toHaveLength(0);
+    expect(datos.evaluaciones.map((una) => una.id)).toContain("hoy-1");
+    expect(contenedor.textContent).toContain("Para reemplazar falta una actualización de la base de datos.");
   });
 
   // Santiago, 18/10: en el celular, «Tarjetas» que «se puedan cerrar y abrir
@@ -678,6 +816,50 @@ describe("Evaluaciones", () => {
     expect(datos.creadas).toEqual([{ equipoId: "eq-1", test: "zona_media", ev: { jugador_id: 2, persona: null, fecha: "2026-06-02", datos: { seleccion: "mayor", lumbar: 190 } } }]);
     expect(document.body.textContent).toContain("Listo: se cargó 1 evaluación.");
     expect(filas(contenedor)).toHaveLength(4);
+  });
+
+  // Regla 1 al pegar: BETA ya tiene la del 01/06 con otros tiempos.
+  const pegarConElMismoDia = async () => {
+    await montar();
+    await irA(contenedor, "Base");
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    const pegado = ["nº Eva\tFecha\tJugador\tSeleccion\tLumbar\tNota", "1\t01/06/2026\tBETA\tMayor\t3:10\t", "1\t02/06/2026\tALFA\tMayor\t3:20\t"].join("\n");
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), pegado);
+    expect(contenedor.textContent).toContain("2 para cargar");
+    await tocar(boton(contenedor, "Cargar 2 evaluaciones"));
+  };
+
+  test("Pegar, Regla 1: la de alguien que ese día ya tiene otra con otros datos pregunta; «Reemplazar y cargar» la cambia", async () => {
+    await pegarConElMismoDia();
+    expect(datos.deUnaVez).toHaveLength(0);
+    const hoja = document.querySelector(".hoja-confirmar");
+    expect(hoja.querySelector("h3").textContent).toBe("Esas evaluaciones ya están en la Base, con otros datos");
+    expect(hoja.textContent).toContain("1 evaluación de lo pegado es de alguien que ese día ya tiene otra de Zona Media, con otros datos:");
+    expect([...hoja.querySelectorAll(".consentimiento-personas li")].map((li) => li.textContent)).toEqual(["01/06/2026 · BETA"]);
+    expect(document.activeElement.textContent).toBe("Ir a la Base");
+    await tocar(boton(contenedor, "Reemplazar y cargar"));
+    expect(datos.deUnaVez).toEqual([{ test: "zona_media", n: 2, reemplazar: true }]);
+    expect(datos.evaluaciones.map((una) => una.id)).not.toContain("e2");
+    expect(document.body.textContent).toContain("Listo: se cargaron 2 evaluaciones. Se reemplazó 1 evaluación que ya estaba.");
+    expect(filas(contenedor)).toHaveLength(4);
+  });
+
+  test("Pegar, Regla 1, «Ir a la Base»: lo pegado espera, la Base muestra la que ya estaba y «Seguir con lo pegado» vuelve con todo", async () => {
+    await pegarConElMismoDia();
+    await tocar(boton(contenedor, "Ir a la Base"));
+    expect(datos.deUnaVez).toHaveLength(0);
+    expect(contenedor.querySelector(".evaluaciones-revisar").textContent).toContain("Estas son las evaluaciones de esos días que ya estaban. Lo pegado quedó en espera.");
+    expect(filas(contenedor).map((tr) => tr.querySelectorAll("td")[columna(contenedor, "Jugador")].textContent)).toEqual(["BETA"]);
+    await tocar(boton(contenedor, "Seguir con lo pegado"));
+    expect(contenedor.textContent).toContain("2 para cargar");
+    await tocar(boton(contenedor, "Cargar 2 evaluaciones"));
+    expect(document.querySelector(".hoja-confirmar h3").textContent).toBe("Esas evaluaciones ya están en la Base, con otros datos");
+    // Volver sin cargar: lo pegado deja de esperar.
+    await act(async () => document.querySelector(".velo-dialogo").dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    await tocar(boton(contenedor, "Volver"));
+    expect(contenedor.querySelector(".evaluaciones-revisar")).toBeNull();
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    expect(contenedor.querySelector(".datos-importar-pegado textarea").value).toBe("");
   });
 
   test("Pegar desde Excel: quien no está en Datos básicos se carga después de confirmar su consentimiento", async () => {

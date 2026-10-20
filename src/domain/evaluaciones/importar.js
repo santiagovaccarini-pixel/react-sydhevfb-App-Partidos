@@ -278,3 +278,50 @@ export const planDeEvaluaciones = (
 // Las que se cargan, en el orden del Excel (así, con la misma fecha, quedan
 // en el mismo orden).
 export const ordenDeCarga = (plan) => plan.filter((fila) => fila.estado === ESTADOS.nueva).sort((a, b) => a.indice - b.indice);
+
+// De quién es una evaluación, como la compara la base (20261113): el
+// jugador o el nombre de la persona, sin mayúsculas ni espacios de más.
+export const quienDeLaEvaluacion = (evaluacion) => {
+  if (evaluacion?.jugador_id) return `j:${evaluacion.jugador_id}`;
+  const persona = String(evaluacion?.persona || "").replace(/\s+/g, " ").trim().toLowerCase();
+  return persona ? `p:${persona}` : "";
+};
+const parDe = (evaluacion) => `${quienDeLaEvaluacion(evaluacion)}|${evaluacion?.fecha || "-"}`;
+
+// Los datos como texto, con las claves en orden (así se comparan enteros).
+const datosFijos = (datos) =>
+  JSON.stringify(datos || {}, (_, valor) =>
+    valor && typeof valor === "object" && !Array.isArray(valor) ? Object.fromEntries(Object.keys(valor).sort().map((clave) => [clave, valor[clave]])) : valor,
+  );
+
+// Iguales en todo (Santiago, 20/10: «Es repetida si coincide nombre, fecha, y
+// todos los datos son iguales»): la base no deja guardar dos así.
+export const igualEnTodo = (una, otra) =>
+  Boolean(quienDeLaEvaluacion(una)) && parDe(una) === parDe(otra) && datosFijos(una?.datos) === datosFijos(otra?.datos);
+
+// Regla 1 (Santiago, 20/10: «Si coincide fecha y jugador pero no datos se
+// avisa…»): las evaluaciones nuevas de alguien que ese día ya tiene otra de
+// ese test, con otros datos. existentes: las del test. [{ evaluacion,
+// existentes }], en el orden de las nuevas. Lo mismo que
+// evaluaciones_guardar (20261113).
+export const conOtrosDatos = (nuevas = [], existentes = []) => {
+  const porPar = new Map();
+  existentes.forEach((otra) => {
+    if (!quienDeLaEvaluacion(otra)) return;
+    porPar.set(parDe(otra), [...(porPar.get(parDe(otra)) || []), otra]);
+  });
+  return nuevas
+    .filter((evaluacion) => quienDeLaEvaluacion(evaluacion))
+    .map((evaluacion) => ({ evaluacion, existentes: porPar.get(parDe(evaluacion)) || [] }))
+    .filter(({ evaluacion, existentes: delPar }) => delPar.length > 0 && !delPar.some((otra) => igualEnTodo(otra, evaluacion)));
+};
+
+// Lo que se manda al reemplazar: las que se cargan y, de los jugadores y días
+// que se reemplazan, también las que ya estaban (sus copias de antes se
+// borran), en el orden del Excel.
+export const ordenDeCargaReemplazando = (plan, choques = []) => {
+  const pares = new Set(choques.map(({ evaluacion }) => parDe(evaluacion)));
+  return plan
+    .filter((fila) => fila.estado === ESTADOS.nueva || (fila.estado === ESTADOS.yaEsta && pares.has(parDe(fila.evaluacion))))
+    .sort((a, b) => a.indice - b.indice);
+};
