@@ -22,6 +22,10 @@ const datos = vi.hoisted(() => ({
   deUnaVez: [],
   sinGuardarVarias: false,
   fallaAlGuardar: "",
+  // Cambiar solo lo cambiado (20261114): lo que se pidió y si a la base le
+  // falta esa actualización.
+  cambiadas: [],
+  sinCambiar: false,
   actualizadas: [],
   borradas: [],
   // Si está, cada guardado espera a que se abra (una conexión lenta).
@@ -128,7 +132,29 @@ vi.mock("./domain/consentimientoDb.js", () => ({
 vi.mock("./domain/referenciasDb.js", () => ({
   leerHistorialDeReferencias: async () => ({ cambios: datos.historialVr.map((una) => ({ ...una })), faltaTabla: datos.faltaHistorial, error: "" }),
 }));
-vi.mock("./domain/evaluacionesDb.js", () => ({
+vi.mock("./domain/evaluacionesDb.js", async (importOriginal) => ({
+  // Qué cambió de una evaluación: la de la app.
+  cambiosDeLaEvaluacion: (await importOriginal()).cambiosDeLaEvaluacion,
+  // Como la base (20261114): solo lo cambiado; en la misma celda gana el
+  // último y dice qué había; si ya no está, borrada.
+  cambiarEvaluacion: async (id, { cambios, antes }) => {
+    datos.cambiadas.push({ id, cambios, antes });
+    if (datos.sinCambiar) return { sinFuncion: true, error: "" };
+    if (datos.compuerta) await datos.compuerta;
+    const actual = datos.evaluaciones.find((una) => una.id === id);
+    if (!actual) return { borrada: true, error: "" };
+    const pisadas = [];
+    const nueva = { ...actual, datos: { ...actual.datos } };
+    Object.entries(cambios).forEach(([clave, valor]) => {
+      const habia = (clave.startsWith("datos.") ? actual.datos[clave.slice(6)] : actual[clave]) ?? null;
+      if (clave in antes && JSON.stringify(habia) !== JSON.stringify(antes[clave]) && JSON.stringify(habia) !== JSON.stringify(valor)) pisadas.push({ clave, habia });
+      if (!clave.startsWith("datos.")) nueva[clave] = valor;
+      else if (valor === null) delete nueva.datos[clave.slice(6)];
+      else nueva.datos[clave.slice(6)] = valor;
+    });
+    datos.evaluaciones = datos.evaluaciones.map((una) => (una.id === id ? nueva : una));
+    return { evaluacion: nueva, pisadas, error: "" };
+  },
   cambiarReferencia: async (equipoId, test, ruta, valor) => {
     datos.cambiosVr.push({ test, ruta, valor });
     const actual = JSON.parse(JSON.stringify((test === "zona_media" && datos.referencias) || {}));
@@ -329,6 +355,8 @@ describe("Evaluaciones", () => {
     datos.deUnaVez = [];
     datos.sinGuardarVarias = false;
     datos.fallaAlGuardar = "";
+    datos.cambiadas = [];
+    datos.sinCambiar = false;
     datos.actualizadas = [];
     datos.borradas = [];
     datos.compuerta = null;
@@ -763,7 +791,9 @@ describe("Evaluaciones", () => {
     expect(lumbar.value).toBe("3:20");
     await escribir(lumbar, "3:25");
     await tocar(boton(contenedor, "Guardar la evaluación"));
-    expect(datos.actualizadas).toEqual([{ id: "e4", ev: { jugador_id: 2, persona: null, fecha: hoyISO(), datos: { seleccion: "mayor", lumbar: 205 } } }]);
+    // Solo lo cambiado, con lo que se veía (paso 2 de «cargar sin señal…»).
+    expect(datos.cambiadas).toEqual([{ id: "e4", cambios: { "datos.lumbar": 205 }, antes: { "datos.lumbar": 200 } }]);
+    expect(document.body.textContent).toContain("Evaluación guardada.");
   });
 
   test("salir de una carga con algo escrito pide confirmación", async () => {
@@ -791,9 +821,7 @@ describe("Evaluaciones", () => {
     expect(input.value).toBe("2:30");
     await escribir(input, "2:40");
     await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-    expect(datos.actualizadas).toHaveLength(1);
-    expect(datos.actualizadas[0].id).toBe("e2");
-    expect(datos.actualizadas[0].ev.datos).toEqual({ seleccion: "mayor", lumbar: 160 });
+    expect(datos.cambiadas).toEqual([{ id: "e2", cambios: { "datos.lumbar": 160 }, antes: { "datos.lumbar": 150 } }]);
     expect(lumbar().textContent).toBe("2:40");
     // Pegar una categoría como la escribe el Excel («Sub-20», «Mayor») vale,
     // aunque en Datos básicos se llame distinto (18/10).
@@ -801,10 +829,8 @@ describe("Evaluaciones", () => {
     const evento = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(evento, "clipboardData", { value: { getData: () => "Sub-20\nMayor" } });
     await act(async () => contenedor.querySelector(".tabla-datos-marco").dispatchEvent(evento));
-    expect(datos.actualizadas.slice(1).map((una) => [una.id, una.ev.datos.seleccion])).toEqual([
-      ["e1", "sub20"],
-      ["e2", "mayor"],
-    ]);
+    // La de e2 ya era «Mayor»: no hay nada que guardar.
+    expect(datos.cambiadas.slice(1).map((una) => [una.id, una.cambios])).toEqual([["e1", { "datos.seleccion": "sub20" }]]);
   });
 
   test("dos celdas de la misma fila guardadas seguidas, con la conexión lenta: no se pisan", async () => {
@@ -826,11 +852,67 @@ describe("Evaluaciones", () => {
     await editar("Lateral D", "1,30");
     await act(async () => abrir());
     await act(async () => Promise.resolve());
-    expect(datos.actualizadas).toHaveLength(2);
-    // La segunda sale de lo que dejó la primera.
-    expect(datos.actualizadas[1].ev.datos).toEqual({ seleccion: "mayor", lumbar: 160, lateral_d: 90 });
+    // Cada una manda solo su celda; la segunda sale de lo que dejó la primera.
+    expect(datos.cambiadas.map((una) => una.cambios)).toEqual([{ "datos.lumbar": 160 }, { "datos.lateral_d": 90 }]);
+    expect(datos.evaluaciones.find((una) => una.id === "e2").datos).toEqual({ seleccion: "mayor", lumbar: 160, lateral_d: 90 });
     expect(celda(contenedor, 1, "Lumbar").textContent).toBe("2:40");
     expect(celda(contenedor, 1, "Lateral D").textContent).toBe("1:30");
+  });
+
+  // Paso 2 de «cargar sin señal y a la vez que otra persona» (Santiago, 20/10:
+  // «Se juntan; si es la misma celda, aviso»; 21/10: «Gana el último, con
+  // aviso»; una fila que otro borró, «Queda borrada y te aviso»). La otra
+  // persona cambia la base sin que esta pantalla se entere.
+  const editarLumbarDeBeta = async () => {
+    const td = () => celda(contenedor, 1, "Lumbar");
+    await tocar(td());
+    await tocar(td());
+    const input = td().querySelector("input");
+    await escribir(input, "2:40");
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  };
+  const otraPersonaCambia = (cambio) => {
+    datos.evaluaciones = datos.evaluaciones.map((una) => (una.id === "e2" ? { ...una, datos: { ...una.datos, ...cambio } } : una));
+  };
+
+  test("dos personas cambian celdas distintas de la misma fila a la vez: quedan las dos", async () => {
+    await montar();
+    await irA(contenedor, "Base");
+    otraPersonaCambia({ lateral_d: 95 });
+    await editarLumbarDeBeta();
+    expect(datos.cambiadas).toEqual([{ id: "e2", cambios: { "datos.lumbar": 160 }, antes: { "datos.lumbar": 150 } }]);
+    expect(celda(contenedor, 1, "Lumbar").textContent).toBe("2:40");
+    expect(celda(contenedor, 1, "Lateral D").textContent).toBe("1:35");
+    expect(document.body.textContent).not.toContain("Otra persona había cambiado");
+  });
+
+  test("dos personas cambian la misma celda a la vez: gana el último y se le avisa", async () => {
+    await montar();
+    await irA(contenedor, "Base");
+    otraPersonaCambia({ lumbar: 170 });
+    await editarLumbarDeBeta();
+    expect(celda(contenedor, 1, "Lumbar").textContent).toBe("2:40");
+    expect(document.body.textContent).toContain("Otra persona había cambiado «Lumbar» mientras tanto: quedó lo tuyo.");
+  });
+
+  test("una fila que otra persona borró mientras tanto: queda borrada y se avisa", async () => {
+    await montar();
+    await irA(contenedor, "Base");
+    datos.evaluaciones = datos.evaluaciones.filter((una) => una.id !== "e2");
+    await editarLumbarDeBeta();
+    expect(filas(contenedor)).toHaveLength(2);
+    expect(document.body.textContent).toContain("Esa evaluación la borró otra persona: queda borrada.");
+  });
+
+  test("sin la actualización de la base: se guarda la fila entera, como antes", async () => {
+    datos.sinCambiar = true;
+    await montar();
+    await irA(contenedor, "Base");
+    await editarLumbarDeBeta();
+    // Lo intenta y, como la base no tiene la función nueva, guarda la fila.
+    expect(datos.cambiadas).toHaveLength(1);
+    expect(datos.actualizadas.map((una) => [una.id, una.ev.datos])).toEqual([["e2", { seleccion: "mayor", lumbar: 160 }]]);
+    expect(celda(contenedor, 1, "Lumbar").textContent).toBe("2:40");
   });
 
   test("borrar una fila pide confirmación", async () => {

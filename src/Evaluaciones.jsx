@@ -42,6 +42,8 @@ import { TESTS } from "./domain/evaluaciones/tests/index.js";
 import {
   actualizarEvaluacion,
   borrarEvaluacion,
+  cambiarEvaluacion,
+  cambiosDeLaEvaluacion,
   crearEvaluacion,
   guardarCabecera,
   guardarEvaluaciones,
@@ -57,7 +59,7 @@ import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { interpretarMinutos, textoDeMinutos } from "./domain/tabla.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta, fechaLarga, hoyISO } from "./idioma/formatos.js";
+import { enLista, fechaCorta, fechaLarga, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import "./lesiones.css";
 import "./evaluaciones.css";
@@ -533,6 +535,38 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const ultimas = useRef(evaluaciones);
   ultimas.current = evaluaciones;
   const colas = useRef(new Map());
+
+  // Se guarda solo lo cambiado (paso 2 de «cargar sin señal y a la vez que
+  // otra persona»): celdas distintas de la misma fila no se pisan; en la
+  // misma celda gana el último y se avisa (Santiago, 21/10: «Gana el último,
+  // con aviso»); si otra persona la borró, queda borrada y se avisa. vieja:
+  // como se veía al empezar a cambiarla. Sin la actualización 20261114, la
+  // fila entera, como antes.
+  const nombreDeLaClave = (unTest, clave) => {
+    const columna = clave.startsWith("datos.")
+      ? unTest.columnas.find((una) => una.clave === clave.slice(6))
+      : unTest.columnas.find((una) => una.tipo === (clave === "fecha" ? "fecha" : "jugador"));
+    return columna ? titulo(unTest, columna) : clave;
+  };
+  const guardarCambios = async (id, vieja, nueva) => {
+    const { cambios, antes } = cambiosDeLaEvaluacion(vieja, nueva);
+    if (!Object.keys(cambios).length) return { evaluacion: ultimas.current.find((una) => una.id === id) || vieja, error: "" };
+    const respuesta = await cambiarEvaluacion(id, { cambios, antes });
+    if (respuesta.sinFuncion) return actualizarEvaluacion(id, nueva);
+    if (respuesta.borrada) {
+      ultimas.current = ultimas.current.filter((una) => una.id !== id);
+      setEvaluaciones((previas) => previas.filter((una) => una.id !== id));
+      setAviso(t("evaluaciones.cambios.borrada"));
+      return { borrada: true, error: "" };
+    }
+    if (respuesta.error) return respuesta;
+    if (respuesta.pisadas.length) {
+      const suyo = testDe(vieja?.test || respuesta.evaluacion.test) || test;
+      setAviso(t("evaluaciones.cambios.pisadas", { columnas: enLista([...new Set(respuesta.pisadas.map((pisada) => nombreDeLaClave(suyo, pisada.clave)))]) }));
+    }
+    return { evaluacion: respuesta.evaluacion, pisadas: respuesta.pisadas, error: "" };
+  };
+
   const guardarFila = (id, cambiar) => {
     const unPaso = async () => {
       const evaluacion = ultimas.current.find((una) => una.id === id);
@@ -540,7 +574,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       const { evaluacion: nueva, error: falta } = cambiar(evaluacion);
       if (falta) return { error: falta };
       if (!nueva) return {};
-      const respuesta = await actualizarEvaluacion(id, nueva);
+      const respuesta = await guardarCambios(id, evaluacion, nueva);
+      if (respuesta.borrada) return {};
       if (respuesta.error) return { error: respuesta.error };
       ultimas.current = ultimas.current.map((una) => (una.id === id ? respuesta.evaluacion : una));
       reemplazar(respuesta.evaluacion);
@@ -716,8 +751,12 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     });
     const evaluacion = { jugador_id: carga.jugador_id, persona: carga.persona, fecha: carga.fecha, datos };
     setOcupado(true);
-    const respuesta = carga.id ? await actualizarEvaluacion(carga.id, evaluacion) : await crearEvaluacion(equipoId, carga.test, evaluacion);
+    const respuesta = carga.id ? await guardarCambios(carga.id, formularioAlAbrir.current, evaluacion) : await crearEvaluacion(equipoId, carga.test, evaluacion);
     setOcupado(false);
+    if (respuesta.borrada) {
+      cerrarFormulario();
+      return;
+    }
     if (respuesta.error) {
       setErrorFormulario(t(respuesta.error));
       return;
@@ -725,7 +764,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     if (carga.id) reemplazar(respuesta.evaluacion);
     else setEvaluaciones((previas) => [...previas, respuesta.evaluacion]);
     cerrarFormulario();
-    setAviso(t("evaluaciones.guardada"));
+    // Si pisó lo de otra persona, ese aviso queda.
+    if (!respuesta.pisadas?.length) setAviso(t("evaluaciones.guardada"));
   };
 
   const testDeNuevas = nuevas ? testDe(nuevas.test) || TESTS_QUE_SE_CARGAN[0] : null;

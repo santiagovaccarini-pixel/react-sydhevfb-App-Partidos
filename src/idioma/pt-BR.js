@@ -512,6 +512,10 @@ export default {
       repetida: "Já existe uma avaliação igual na Base (a mesma pessoa, a mesma data e os mesmos dados).",
       faltaActualizacion: "Para substituir falta uma atualização da base de dados. Avise quem administra o app.",
     },
+    cambios: {
+      pisadas: "Outra pessoa tinha mudado «{{columnas}}» enquanto isso: ficou o seu.",
+      borrada: "Essa avaliação foi apagada por outra pessoa: continua apagada.",
+    },
     mismoDia: {
       titulo: "Essas avaliações já estão na Base, com outros dados",
       carga_one: "{{n}} jogador desta carga já tem uma avaliação de {{test}} de {{fecha}}, com outros dados:",

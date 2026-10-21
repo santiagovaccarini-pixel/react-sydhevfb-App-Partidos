@@ -398,6 +398,11 @@
   bottom: calc(var(--alto-barra-abajo, 67px) + 17px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 60;
+  /* Un aviso largo usa el ancho de la pantalla (con left: 50%, solo tendría
+     la mitad); uno corto queda igual. */
+  width: max-content;
+  max-width: min(520px, calc(100vw - 32px));
+  text-align: center;
   padding: 10px 16px;
   border-radius: 999px;
   background: #0f172a;

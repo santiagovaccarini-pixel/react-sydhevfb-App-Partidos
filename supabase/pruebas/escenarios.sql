@@ -1301,7 +1301,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -2309,6 +2309,43 @@ select pruebas.debe_fallar('Sin Evaluaciones no guarda', $q$select evaluaciones_
 reset role;
 set role anon;
 select pruebas.debe_fallar('Anon, nada', $q$select evaluaciones_guardar('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', '[{"jugador_id":9006,"fecha":"2026-09-12","datos":{"izq":1}}]')$q$, 'permission denied');
+reset role;
+rollback;
+
+-- Evaluaciones (20261114): cambiar solo lo cambiado; celdas distintas se
+-- juntan, la misma celda gana el último (y lo dice), la borrada no se cambia.
+begin;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+insert into evaluaciones (equipo_id, test, jugador_id, fecha, datos) values
+  ('00000000-0000-0000-0000-0000000000c1', 'movilidad_tobillo', 9006, '2026-09-20', '{"izq":40,"der":41}');
+select pruebas.esperar('Una cambia una celda (sin pisar a nadie)',
+  (select (evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-20'), '{"datos.izq":42}', '{"datos.izq":40}') -> 'pisadas')::text), '[]');
+select pruebas.esperar('...otra, a la vez, otra celda de la misma fila: se juntan',
+  (select (evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-20'), '{"datos.der":43}', '{"datos.der":41}') #>> '{fila,datos}')), '{"der": 43, "izq": 42}');
+select pruebas.esperar('La misma celda, a la vez: gana el último y dice qué había',
+  (select (evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-20'), '{"datos.izq":45}', '{"datos.izq":40}') -> 'pisadas')::text), '[{"clave": "datos.izq", "habia": 42}]');
+select pruebas.esperar('...y queda lo del último', (select datos ->> 'izq' from evaluaciones where id = (select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-20')), '45');
+select pruebas.esperar('Si los dos pusieron lo mismo, no hay nada que avisar',
+  (select (evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-20'), '{"datos.izq":45}', '{"datos.izq":40}') -> 'pisadas')::text), '[]');
+select pruebas.esperar('Vaciar un dato lo saca',
+  (select (evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-20'), '{"datos.der":null}') #>> '{fila,datos}')), '{"izq": 45}');
+select pruebas.esperar('...y la fecha se cambia como las demás',
+  (select (evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-20'), '{"fecha":"2026-09-21"}', '{"fecha":"2026-09-20"}') #>> '{fila,fecha}')), '2026-09-21');
+select pruebas.debe_fallar('El test no se cambia', $q$select evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-21'), '{"test":"zona_media"}')$q$, 'evaluaciones_cambios');
+select pruebas.debe_fallar('...ni nada que no sea de la fila', $q$select evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-21'), '{"orden":1}')$q$, 'evaluaciones_cambios');
+select pruebas.debe_fallar('...y algo hay que cambiar', $q$select evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-21'), '{}')$q$, 'evaluaciones_cambios');
+select pruebas.debe_fallar('Las reglas de siempre: no de un jugador de otro club', $q$select evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-21'), '{"jugador_id":9004}')$q$, 'jugador_de_otro_club');
+select pruebas.debe_fallar('...ni con fecha futura', $q$select evaluaciones_cambiar((select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-21'), '{"fecha":"2999-01-01"}')$q$, 'evaluaciones_sin_futuro');
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.debe_fallar('Sin Evaluaciones no la ve: para él no está', $q$select evaluaciones_cambiar((select '00000000-0000-0000-0000-000000000000'::uuid), '{"datos.izq":1}')$q$, 'fila_borrada');
+reset role;
+set role anon;
+select pruebas.debe_fallar('Anon, nada', $q$select evaluaciones_cambiar('00000000-0000-0000-0000-000000000000', '{"datos.izq":1}')$q$, 'permission denied');
+reset role;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('Otra persona la borra', pruebas.filas($q$delete from evaluaciones where id = (select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-21')$q$), 1);
+select pruebas.debe_fallar('...y cambiarla avisa que ya no está', $q$select evaluaciones_cambiar('00000000-0000-0000-0000-0000000000ee', '{"datos.izq":1}')$q$, 'fila_borrada');
 reset role;
 rollback;
 
