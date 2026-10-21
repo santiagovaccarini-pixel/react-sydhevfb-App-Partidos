@@ -1,15 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Icono } from "./AppChrome";
-import { HojaConfirmar } from "./ConfirmSheet.js";
-import { activarSinSenal, cuentaDelAparato, desactivarSinSenal, guardarCopiaSinSenal, leerCopiaSinSenal, sinSenalActivo } from "../domain/copiaSinSenal.js";
+import { cuentaDelAparato, guardarCopiaSinSenal, leerCopiaSinSenal } from "../domain/copiaSinSenal.js";
 import { idiomaActual, t } from "../idioma/index.js";
 
 // Ver una base sin señal (paso 1 de la nota «cargar sin señal y a la vez que
-// otra persona»; Santiago, 20/10: «Solo donde se active», en Ajustes de cada
-// base). Lo mismo para Lesiones, Evaluaciones y GPS: la base dice qué guarda
-// y cómo se muestra; acá, si está activado, la copia, el aviso y el ajuste.
-
-const nombreDe = (modulo) => t(`cuentas.modulos.${modulo}`);
+// otra persona»; Santiago, 21/10: la copia «Automática en todos, sin botón»).
+// Lo mismo para Lesiones, Evaluaciones y GPS: la base dice qué guarda y cómo
+// se muestra; acá, la copia de este aparato y el aviso.
 
 // De cuándo es la copia: la fecha y la hora (de 0 a 23, así la frase no
 // termina en «p. m.»).
@@ -25,11 +21,9 @@ export const falloDeRed = (respuesta) => /Failed to fetch|NetworkError|Load fail
 
 // modulo: "lesiones", "evaluaciones" o "gps". deshabilitado: quien ya se fue
 // del club (ve la foto de su último día: no guarda copia). Devuelve { activo,
-// guardadaEn, leer(), guardar(datos), activar(), desactivar() }.
+// leer(), guardar(datos) }: activo, si hay cuenta y club para guardarla.
 export const useSinSenal = (modulo, equipoId, { deshabilitado = false } = {}) => {
   const [cuenta, setCuenta] = useState(null);
-  const [activo, setActivo] = useState(false);
-  const [guardadaEn, setGuardadaEn] = useState(null);
 
   useEffect(() => {
     let vigente = true;
@@ -39,18 +33,6 @@ export const useSinSenal = (modulo, equipoId, { deshabilitado = false } = {}) =>
     };
   }, []);
 
-  useEffect(() => {
-    const ahora = !deshabilitado && sinSenalActivo(modulo, cuenta, equipoId);
-    setActivo(ahora);
-    setGuardadaEn(null);
-    if (!ahora) return undefined;
-    let vigente = true;
-    leerCopiaSinSenal(modulo, cuenta, equipoId).then((copia) => vigente && setGuardadaEn(copia?.guardadaEn || null));
-    return () => {
-      vigente = false;
-    };
-  }, [modulo, cuenta, equipoId, deshabilitado]);
-
   // La cuenta se busca de nuevo: la base puede leer antes de que llegue.
   const leer = useCallback(async () => {
     if (deshabilitado || !equipoId) return null;
@@ -58,29 +40,10 @@ export const useSinSenal = (modulo, equipoId, { deshabilitado = false } = {}) =>
     return leerCopiaSinSenal(modulo, deEsteAparato, equipoId);
   }, [modulo, cuenta, equipoId, deshabilitado]);
 
-  const guardar = useCallback(
-    async (datos) => {
-      if (!activo) return null;
-      const hora = await guardarCopiaSinSenal(modulo, cuenta, equipoId, datos);
-      if (hora) setGuardadaEn(hora);
-      return hora;
-    },
-    [modulo, cuenta, equipoId, activo],
-  );
+  const activo = Boolean(cuenta && equipoId && !deshabilitado);
+  const guardar = useCallback((datos) => (activo ? guardarCopiaSinSenal(modulo, cuenta, equipoId, datos) : Promise.resolve(null)), [modulo, cuenta, equipoId, activo]);
 
-  const activar = useCallback(() => {
-    if (deshabilitado || !activarSinSenal(modulo, cuenta, equipoId)) return false;
-    setActivo(true);
-    return true;
-  }, [modulo, cuenta, equipoId, deshabilitado]);
-
-  const desactivar = useCallback(async () => {
-    await desactivarSinSenal(modulo, cuenta, equipoId);
-    setActivo(false);
-    setGuardadaEn(null);
-  }, [modulo, cuenta, equipoId]);
-
-  return { activo, guardadaEn, leer, guardar, activar, desactivar, listo: Boolean(cuenta && equipoId) };
+  return { activo, leer, guardar };
 };
 
 // Arriba de la base, mientras se ve la copia: de cuándo es y que para
@@ -91,70 +54,3 @@ export const AvisoSinSenal = ({ guardadaEn }) => (
     <span>{t("sinSenal.copiaTexto", { fecha: cuando(guardadaEn) })}</span>
   </div>
 );
-
-// En Ajustes: «Ver <base> sin señal en este aparato». Activar pregunta antes
-// (son datos de los atletas en el aparato); desactivar borra la copia.
-// onAviso(texto): el aviso de abajo.
-export const AjusteSinSenal = ({ modulo, sinSenal, deshabilitado = false, onAviso }) => {
-  const [hoja, setHoja] = useState(null);
-  const base = nombreDe(modulo);
-  const detalle = sinSenal.activo
-    ? sinSenal.guardadaEn
-      ? t("sinSenal.ajusteActivo", { fecha: cuando(sinSenal.guardadaEn) })
-      : t("sinSenal.ajusteActivoSinCopia")
-    : t("sinSenal.ajusteInactivo", { base });
-  const confirmar = async () => {
-    const era = hoja;
-    setHoja(null);
-    if (era === "activar") {
-      if (sinSenal.activar()) onAviso?.(t("sinSenal.activadoListo", { base }));
-      else onAviso?.(t("sinSenal.noSeActivo"));
-      return;
-    }
-    await sinSenal.desactivar();
-    onAviso?.(t("sinSenal.desactivadoListo", { base }));
-  };
-  return (
-    <>
-      <div className="lista-opciones ajuste-sin-senal">
-        <button
-          type="button"
-          className="opcion-ajuste"
-          aria-pressed={sinSenal.activo}
-          onClick={() => setHoja(sinSenal.activo ? "desactivar" : "activar")}
-          disabled={deshabilitado || !sinSenal.listo}
-        >
-          <span className="icono-ajuste">
-            <Icono nombre="guardar" size={18} />
-          </span>
-          <span className="texto-ajuste">
-            <b>{t("sinSenal.ajusteTitulo", { base })}</b>
-            <span>{detalle}</span>
-          </span>
-          <span className={`estado-sin-senal ${sinSenal.activo ? "activo" : ""}`}>{t(sinSenal.activo ? "sinSenal.activado" : "sinSenal.desactivado")}</span>
-        </button>
-      </div>
-      <HojaConfirmar
-        abierta={hoja === "activar"}
-        icono="candado"
-        titulo={t("sinSenal.activarTitulo", { base })}
-        descripcion={t("sinSenal.activarTexto", { base })}
-        detalle={<p className="detalle-sin-senal">{t("sinSenal.activarDetalle", { base })}</p>}
-        etiquetaCancelar={t("comun.cancelar")}
-        etiquetaConfirmar={t("sinSenal.activar")}
-        onConfirmar={confirmar}
-        onCancelar={() => setHoja(null)}
-      />
-      <HojaConfirmar
-        abierta={hoja === "desactivar"}
-        icono="borrar"
-        titulo={t("sinSenal.desactivarTitulo", { base })}
-        descripcion={t("sinSenal.desactivarTexto")}
-        etiquetaCancelar={t("comun.cancelar")}
-        etiquetaConfirmar={t("sinSenal.desactivar")}
-        onConfirmar={confirmar}
-        onCancelar={() => setHoja(null)}
-      />
-    </>
-  );
-};

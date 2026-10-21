@@ -85,28 +85,17 @@ const EVALUACIONES = () => [
 
 // La copia para ver sin señal (copiaSinSenal.js), en memoria: en las
 // pruebas no hay IndexedDB.
-const copias = vi.hoisted(() => ({ marcas: {}, guardadas: {} }));
+const copias = vi.hoisted(() => ({ guardadas: {} }));
 vi.mock("./domain/copiaSinSenal.js", () => {
   const clave = (modulo, cuenta, equipoId) => `${equipoId}|${modulo}|${cuenta}`;
   return {
     cuentaDelAparato: async () => "cuenta-1",
-    sinSenalActivo: (modulo, cuenta, equipoId) => Boolean(copias.marcas[clave(modulo, cuenta, equipoId)]),
-    activarSinSenal: (modulo, cuenta, equipoId) => {
-      copias.marcas[clave(modulo, cuenta, equipoId)] = true;
-      return true;
-    },
-    desactivarSinSenal: async (modulo, cuenta, equipoId) => {
-      delete copias.marcas[clave(modulo, cuenta, equipoId)];
-      delete copias.guardadas[clave(modulo, cuenta, equipoId)];
-      return true;
-    },
     guardarCopiaSinSenal: async (modulo, cuenta, equipoId, datos) => {
-      if (!copias.marcas[clave(modulo, cuenta, equipoId)]) return null;
       const guardadaEn = "2026-10-20T14:32:00.000Z";
       copias.guardadas[clave(modulo, cuenta, equipoId)] = { datos: JSON.parse(JSON.stringify(datos)), guardadaEn };
       return guardadaEn;
     },
-    leerCopiaSinSenal: async (modulo, cuenta, equipoId) => (copias.marcas[clave(modulo, cuenta, equipoId)] ? copias.guardadas[clave(modulo, cuenta, equipoId)] || null : null),
+    leerCopiaSinSenal: async (modulo, cuenta, equipoId) => copias.guardadas[clave(modulo, cuenta, equipoId)] || null,
     borrarCopiasSinSenal: async () => null,
   };
 });
@@ -359,7 +348,6 @@ describe("Evaluaciones", () => {
     datos.referenciasSaltos = null;
     datos.referenciasSingleLeg = null;
     volvio = 0;
-    copias.marcas = {};
     copias.guardadas = {};
     Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
     contenedor = document.createElement("div");
@@ -586,32 +574,20 @@ describe("Evaluaciones", () => {
   });
 
   // Paso 1 de «cargar sin señal y a la vez que otra persona» (Santiago,
-  // 20/10): «Solo donde se active», en Ajustes de cada base.
-  const ajusteSinSenal = () => contenedor.querySelector(".ajuste-sin-senal button");
+  // 21/10: la copia «Automática en todos, sin botón»).
   const unRato = () => act(async () => new Promise((listo) => setTimeout(listo, 1600)));
   const sinSenalAhora = async (sin) => {
     Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
     await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
   };
 
-  test("Ver sin señal: se activa en Ajustes (pregunta antes), guarda la copia y sin señal la Base abre con ella, para mirar", async () => {
+  test("Ver sin señal: con señal guarda sola la copia de este aparato; sin señal la Base abre con ella, para mirar", async () => {
     await montar();
-    await irA(contenedor, "Ajustes");
-    expect(ajusteSinSenal().textContent).toContain("Ver Evaluaciones sin señal en este aparato");
-    expect(ajusteSinSenal().textContent).toContain("Desactivado");
-    expect(ajusteSinSenal().getAttribute("aria-pressed")).toBe("false");
-    await tocar(ajusteSinSenal());
-    const hoja = document.querySelector(".hoja-confirmar");
-    expect(hoja.querySelector("h3").textContent).toBe("¿Ver Evaluaciones sin señal en este aparato?");
-    expect(hoja.textContent).toContain("Activalo solo en un aparato tuyo y con bloqueo de pantalla");
-    // El foco arranca en Cancelar.
-    expect(document.activeElement.textContent).toBe("Cancelar");
-    await tocar(boton(contenedor, "Activar"));
-    expect(document.body.textContent).toContain("Listo: Evaluaciones se puede mirar sin señal en este aparato.");
     await unRato();
     expect(copias.guardadas["eq-1|evaluaciones|cuenta-1"].datos.evaluaciones.map((una) => una.id)).toEqual(["e1", "e2", "e3"]);
-    expect(ajusteSinSenal().textContent).toContain("Copia del 20/10/2026");
-    expect(ajusteSinSenal().getAttribute("aria-pressed")).toBe("true");
+    // No hay que activar nada: no hay botón.
+    await irA(contenedor, "Base");
+    expect(contenedor.textContent).not.toContain("Ver sin señal");
 
     // Otra vez, sin señal: la copia, para mirar.
     await act(async () => raiz.unmount());
@@ -632,22 +608,16 @@ describe("Evaluaciones", () => {
     expect(boton(contenedor, "Nueva evaluación")).toBeTruthy();
   });
 
-  test("Ver sin señal: sin activarlo, sin señal avisa cómo; desactivarlo borra la copia", async () => {
+  test("Ver sin señal: sin copia, el aviso de siempre; quien ya se fue del club no guarda copia", async () => {
     await sinSenalAhora(true);
     await montar();
-    expect(contenedor.textContent).toContain("Sin conexión. Evaluaciones necesita señal para leer y guardar. Para mirarla sin señal en este aparato, activalo en Ajustes cuando tengas señal.");
+    expect(contenedor.textContent).toContain("Sin conexión. Evaluaciones necesita señal para leer y guardar.");
+    await act(async () => raiz.unmount());
     await sinSenalAhora(false);
-    await irA(contenedor, "Ajustes");
-    await tocar(ajusteSinSenal());
-    await tocar(boton(contenedor, "Activar"));
+    datos.equipo = { id: "eq-1", nombre: "Club de Prueba", hasta: "2026-09-25" };
+    await montar();
     await unRato();
-    expect(Object.keys(copias.guardadas)).toEqual(["eq-1|evaluaciones|cuenta-1"]);
-    await tocar(ajusteSinSenal());
-    expect(document.querySelector(".hoja-confirmar h3").textContent).toBe("¿Dejar de ver Evaluaciones sin señal?");
-    await tocar(boton(contenedor, "Desactivar"));
     expect(copias.guardadas).toEqual({});
-    expect(document.body.textContent).toContain("Listo: se borró la copia de Evaluaciones de este aparato.");
-    expect(ajusteSinSenal().textContent).toContain("Desactivado");
   });
 
   // Parte A3 de «cargar sin señal y a la vez que otra persona» (Santiago,

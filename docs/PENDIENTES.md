@@ -4473,6 +4473,22 @@ confirme.**
     la base en «Solo lectura», sí (es para mirar). No toca la base de datos.
     - **Queda prohibido** guardar la copia sin que se active en ese aparato, y cambiar datos desde
       la copia (eso es el paso 3), salvo un pedido nuevo.
+    - **Cambio (21/10; UI-066):** Santiago: «Ese boton tiene que ir dentro de la base, no en
+      ajustes». El botón «Ver sin señal en este aparato» pasó a la Base, al lado de «Pegar desde
+      Excel»; Ajustes quedó como antes. Queda prohibido volver a ponerlo en Ajustes, salvo un
+      pedido nuevo. (No llegó a publicarse: lo reemplazó el cambio de abajo.)
+    - **Cambio (21/10, 2026.10.21.1; UI-067): la copia es automática, sin botón.** Santiago
+      preguntó «para que hicimos ese boton?» y si podía ser automático «cuando se detecta que no
+      hay señal». Claude explicó que sin señal ya no se puede bajar la copia (tiene que guardarse
+      antes, con señal) y el riesgo de guardarla en todos los aparatos; en un cuestionario eligió
+      «Automática en todos, sin botón». Reabre «Solo donde se active»: todo aparato donde se abre la
+      base guarda la copia solo, con señal, y sin señal abre con ella. Se sigue borrando al salir
+      de la cuenta, al dejar el club y al perder la base; quien ya se fue no la guarda. Riesgo
+      aceptado: quedan datos de los atletas en todo aparato donde se abre la base, también uno
+      compartido, hasta que se sale de la cuenta. Para GPS (paso 1b), «Una sola regla» pasa a ser
+      la misma: automático, sin botón.
+      - **Queda prohibido** volver a pedir que se active o agregar un botón para apagarla, salvo un
+        pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor
