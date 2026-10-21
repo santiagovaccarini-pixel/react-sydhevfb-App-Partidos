@@ -5,6 +5,7 @@
 import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
 import { claveDeErrorConsentimiento } from "./consentimiento.js";
+import { POR_MINUTO } from "./gps/columnas.js";
 import { CATEGORIAS_DE_UN_VR } from "./gps/informe.js";
 import { leerPlanilla } from "./gps/planillaVr.js";
 import { calcularNoIngresaron } from "./match.js";
@@ -262,6 +263,47 @@ export const pegarFilasGps = async (equipoId, { dispositivo = "", filas = [], re
     alAvanzar?.(mandadas, filas.length);
   }
   return { ...hecho, error: "" };
+};
+
+// Lo que cambió de una fila, celda por celda (para gps_cambiar): cambios, lo
+// nuevo; antes, lo que se veía. En datos, lo vaciado va como null. Los «por
+// minuto» no van: los calcula la base con lo que quedó en la fila.
+const DE_QUIEN_Y_CUANDO = ["fecha", "jugador_id", "persona", "promedio"];
+const CALCULADOS = new Set(Object.values(POR_MINUTO));
+export const cambiosDeLaFilaGps = (vieja, nueva) => {
+  const de = soloCampos(vieja || {});
+  const a = soloCampos(nueva || {});
+  const cambios = {};
+  const antes = {};
+  DE_QUIEN_Y_CUANDO.forEach((clave) => {
+    if ((de[clave] ?? null) === (a[clave] ?? null)) return;
+    cambios[clave] = a[clave] ?? null;
+    antes[clave] = de[clave] ?? null;
+  });
+  new Set([...Object.keys(de.datos), ...Object.keys(a.datos)]).forEach((clave) => {
+    if (CALCULADOS.has(clave) || JSON.stringify(de.datos[clave] ?? null) === JSON.stringify(a.datos[clave] ?? null)) return;
+    cambios[`datos.${clave}`] = a.datos[clave] ?? null;
+    antes[`datos.${clave}`] = de.datos[clave] ?? null;
+  });
+  return { cambios, antes };
+};
+
+// Cambiar solo lo cambiado (20261116_gps_cambiar.sql), como en Evaluaciones
+// y Lesiones: dos personas que cambian celdas distintas de la misma fila no
+// se pisan; en la misma celda gana el último y la base dice cuáles pisó
+// (pisadas: [{ clave, habia }], Santiago, 21/10: «Gana el último, con
+// aviso»). Si otra persona la borró, borrada («Queda borrada y te aviso»).
+// Sin esa actualización, sinFuncion: se guarda como antes, la fila entera
+// (actualizarFilaGps).
+export const cambiarFilaGps = async (id, { cambios = {}, antes = {} } = {}) => {
+  const { data, error } = await supabase.rpc("gps_cambiar", { p_id: id, p_cambios: cambios, p_antes: antes, p_por_minuto: POR_MINUTO });
+  if (error) {
+    const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+    if (error.code === "PGRST202" || (/gps_cambiar\b/.test(texto) && /does not exist|schema cache|Could not find/i.test(texto))) return { sinFuncion: true, error: "" };
+    if (/fila_borrada/.test(texto)) return { borrada: true, error: "" };
+    return fallo(error, "gps.error.noGuardar");
+  }
+  return { fila: normalizarFilaGps(data?.fila), pisadas: Array.isArray(data?.pisadas) ? data.pisadas : [], error: "" };
 };
 
 export const actualizarFilaGps = async (id, fila) => {

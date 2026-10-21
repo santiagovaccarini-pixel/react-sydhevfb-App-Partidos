@@ -1301,7 +1301,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_cambiar,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_cambiar,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -2346,6 +2346,52 @@ reset role;
 select pruebas.ser('pf@uno.com'); set role authenticated;
 select pruebas.esperar('Otra persona la borra', pruebas.filas($q$delete from evaluaciones where id = (select id from evaluaciones where jugador_id = 9006 and test = 'movilidad_tobillo' and fecha = '2026-09-21')$q$), 1);
 select pruebas.debe_fallar('...y cambiarla avisa que ya no está', $q$select evaluaciones_cambiar('00000000-0000-0000-0000-0000000000ee', '{"datos.izq":1}')$q$, 'fila_borrada');
+reset role;
+rollback;
+
+-- GPS (20261116): lo mismo que Evaluaciones (20261114), y los «por minuto»
+-- los calcula la base con lo que quedó en la fila.
+begin;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+insert into gps (equipo_id, fecha, jugador_id, datos) values
+  ('00000000-0000-0000-0000-0000000000c1', '2026-09-20', 9006, '{"tiempo":5400,"d":5200,"d_min":57.7,"d_shi":900,"d_shi_min":10,"tarea":"uno"}');
+select id as fila_g from gps where jugador_id = 9006 and fecha = '2026-09-20' \gset
+select pruebas.esperar('GPS: una cambia la Distancia; su «por minuto» se recalcula y los demás quedan como venían',
+  (select (gps_cambiar(:'fila_g', '{"datos.d":6300}', '{"datos.d":5200}', '{"d":"d_min","d_shi":"d_shi_min"}') #>> '{fila,datos}')),
+  '{"d": 6300, "d_min": 70, "d_shi": 900, "tarea": "uno", "tiempo": 5400, "d_shi_min": 10}');
+select pruebas.esperar('...otra, a la vez, cambia el Tiempo: se juntan y los «por minuto» salen de las dos',
+  (select (gps_cambiar(:'fila_g', '{"datos.tiempo":3600}', '{"datos.tiempo":5400}', '{"d":"d_min","d_shi":"d_shi_min"}') #>> '{fila,datos}')),
+  '{"d": 6300, "d_min": 105, "d_shi": 900, "tarea": "uno", "tiempo": 3600, "d_shi_min": 15}');
+select pruebas.esperar('...con decimales, igual que la app',
+  (select (gps_cambiar(:'fila_g', '{"datos.tiempo":5400,"datos.d":5200}', '{}', '{"d":"d_min","d_shi":"d_shi_min"}') #>> '{fila,datos,d_min}')), '57.77777777777778');
+select pruebas.esperar('La misma celda, a la vez: gana el último y dice qué había',
+  (select (gps_cambiar(:'fila_g', '{"datos.d":6000}', '{"datos.d":6300}', '{"d":"d_min","d_shi":"d_shi_min"}') -> 'pisadas')::text), '[{"clave": "datos.d", "habia": 5200}]');
+select pruebas.esperar('...y queda lo del último, con su «por minuto»', (select datos ->> 'd' || ' ' || (datos ->> 'd_min') from gps where id = :'fila_g'), '6000 66.66666666666667');
+select pruebas.esperar('Una celda que no es una medida no toca los «por minuto»',
+  (select (gps_cambiar(:'fila_g', '{"datos.tarea":"dos"}', '{"datos.tarea":"uno"}', '{"d":"d_min","d_shi":"d_shi_min"}') #>> '{fila,datos,d_min}')), '66.66666666666667');
+select pruebas.esperar('Vaciar una medida saca su «por minuto»',
+  (select (gps_cambiar(:'fila_g', '{"datos.d":null}', '{}', '{"d":"d_min","d_shi":"d_shi_min"}') #>> '{fila,datos}')), '{"d_shi": 900, "tarea": "dos", "tiempo": 5400, "d_shi_min": 10}');
+select pruebas.esperar('...y sin Tiempo, el «por minuto» queda vacío (0 si la medida es 0)',
+  (select (gps_cambiar(:'fila_g', '{"datos.tiempo":null,"datos.d":0}', '{}', '{"d":"d_min","d_shi":"d_shi_min"}') #>> '{fila,datos}')), '{"d": 0, "d_min": 0, "d_shi": 900, "tarea": "dos"}');
+select pruebas.esperar('...la fecha y de quién es se cambian como lo demás',
+  (select (gps_cambiar(:'fila_g', '{"fecha":"2026-09-21","jugador_id":null,"promedio":"parcial"}', '{"fecha":"2026-09-20"}') -> 'fila') ->> 'promedio'), 'parcial');
+select pruebas.debe_fallar('El club no se cambia', format($q$select gps_cambiar(%L, '{"equipo_id":"00000000-0000-0000-0000-0000000000c2"}')$q$, :'fila_g'), 'gps_cambios');
+select pruebas.debe_fallar('...ni el orden', format($q$select gps_cambiar(%L, '{"orden":1}')$q$, :'fila_g'), 'gps_cambios');
+select pruebas.debe_fallar('...un «por minuto» tiene que ser otra columna', format($q$select gps_cambiar(%L, '{"datos.d":1}', '{}', '{"d":"tiempo"}')$q$, :'fila_g'), 'gps_cambios');
+select pruebas.debe_fallar('...con nombre', format($q$select gps_cambiar(%L, '{"datos.d":1}', '{}', '{"d":1}')$q$, :'fila_g'), 'gps_cambios');
+select pruebas.debe_fallar('Las reglas de siempre: de alguien', format($q$select gps_cambiar(%L, '{"promedio":null}')$q$, :'fila_g'), 'gps_de_quien');
+select pruebas.debe_fallar('...no de un jugador de otro club', format($q$select gps_cambiar(%L, '{"jugador_id":9004,"promedio":null}')$q$, :'fila_g'), 'jugador_de_otro_club');
+select pruebas.debe_fallar('...ni con fecha futura', format($q$select gps_cambiar(%L, '{"fecha":"2999-01-01"}')$q$, :'fila_g'), 'gps_sin_futuro');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.debe_fallar('Desde otro club no la ve: para ella no está', format($q$select gps_cambiar(%L, '{"datos.d":1}')$q$, :'fila_g'), 'fila_borrada');
+reset role;
+set role anon;
+select pruebas.debe_fallar('Anon, nada', $q$select gps_cambiar('00000000-0000-0000-0000-000000000000', '{"datos.d":1}')$q$, 'permission denied');
+reset role;
+select pruebas.ser('pf@uno.com'); set role authenticated;
+select pruebas.esperar('Otra persona la borra', pruebas.filas(format($q$delete from gps where id = %L$q$, :'fila_g')), 1);
+select pruebas.debe_fallar('...y cambiarla avisa que ya no está', format($q$select gps_cambiar(%L, '{"datos.d":1}')$q$, :'fila_g'), 'fila_borrada');
 reset role;
 rollback;
 

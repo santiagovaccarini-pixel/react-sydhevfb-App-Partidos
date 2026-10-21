@@ -540,6 +540,10 @@ export default {
   },
   gps: {
     titulo: "GPS",
+    cambios: {
+      pisadas: "Outra pessoa tinha mudado «{{columnas}}» enquanto isso: ficou o seu.",
+      borrada: "Essa linha foi apagada por outra pessoa: continua apagada.",
+    },
     donde: {
       cargar: "Aqui você registra o que o GPS mediu em um treino ou em um jogo. Toque em «Carregar um dia» para começar. Se deixou algo pela metade, está embaixo, em «Não terminadas».",
       base: "Todas as linhas do GPS do clube. Toque duas vezes numa célula para mudá-la e filtre com o funil de cada coluna: o relatório em cima da tabela é calculado com o que fica à vista.",
