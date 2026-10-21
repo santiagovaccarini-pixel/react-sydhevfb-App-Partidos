@@ -2694,11 +2694,31 @@
 }
 
 /* Ver la base sin señal (paso 1 de «cargar sin señal y a la vez que otra
-   persona»): en Ajustes, el ajuste con su estado a la derecha (dorado si está
-   activado) y el texto de la hoja que pregunta. Lo usan Lesiones, Evaluaciones
-   y GPS (components/SinSenal.jsx). */
-.lesiones-marco .ajuste-sin-senal {
-  margin-top: 14px;
+   persona»): en la Base, al lado de «Pegar desde Excel» (21/10), el botón con
+   su estado a la derecha (dorado si está activado), y el texto de la hoja que
+   pregunta. Lo usan Lesiones, Evaluaciones y GPS (components/SinSenal.jsx). En
+   el celular, uno abajo del otro; en la compu, uno al lado del otro. */
+.lesiones-marco .acciones-base {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+.lesiones-marco .acciones-base .datos-pegar-excel {
+  margin: 0;
+}
+.lesiones-marco .boton-sin-senal {
+  height: auto;
+  min-height: 50px;
+  padding: 8px 14px;
+}
+.lesiones-marco .boton-sin-senal .estado-sin-senal {
+  margin-left: 0;
+}
+@media (min-width: 721px) {
+  .lesiones-marco .boton-sin-senal {
+    padding: 0 18px;
+  }
 }
 .lesiones-marco .estado-sin-senal {
   margin-left: auto;

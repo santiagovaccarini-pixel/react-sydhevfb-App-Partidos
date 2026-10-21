@@ -1686,12 +1686,11 @@ export default {
     },
   },
   // Ver una base sin señal (paso 1 de «cargar sin señal y a la vez que otra
-  // persona»; Santiago, 20/10: «Solo donde se active», en Ajustes de cada base).
+  // persona»; Santiago, 20/10: «Solo donde se active»; 21/10: el botón, en la Base).
   sinSenal: {
-    ajusteTitulo: "Ver {{base}} sin señal en este aparato",
-    ajusteActivo: "Copia del {{fecha}}.",
-    ajusteActivoSinCopia: "La copia se guarda la próxima vez que se abra con señal.",
-    ajusteInactivo: "Guarda una copia en este aparato para mirar {{base}} aunque no haya señal.",
+    boton: "Ver sin señal en este aparato",
+    botonAyuda: "Guarda una copia en este aparato para mirar {{base}} aunque no haya señal.",
+    copiaDel: "Copia del {{fecha}}.",
     activado: "Activado",
     desactivado: "Desactivado",
     activarTitulo: "¿Ver {{base}} sin señal en este aparato?",
@@ -1706,7 +1705,7 @@ export default {
     noSeActivo: "No se pudo activar en este aparato (puede que el navegador no lo deje).",
     copiaTitulo: "Sin señal: ves la copia de este aparato",
     copiaTexto: "Es del {{fecha}}. Para cambiar algo hace falta señal.",
-    paraActivar: "Para mirarla sin señal en este aparato, activalo en Ajustes cuando tengas señal.",
+    paraActivar: "Para mirarla sin señal en este aparato, tocá «Ver sin señal en este aparato» en la Base cuando tengas señal.",
   },
   club: {
     titulo: "¿Con qué club trabajás?",

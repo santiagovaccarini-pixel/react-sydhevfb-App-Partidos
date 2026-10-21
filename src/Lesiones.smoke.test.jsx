@@ -233,16 +233,16 @@ describe("el módulo Lesiones", () => {
   });
 
   // Paso 1 de «cargar sin señal y a la vez que otra persona» (Santiago,
-  // 20/10): «Solo donde se active», en Ajustes de cada base.
-  test("Ver sin señal: se activa en Ajustes, guarda la copia y sin señal abre con ella, para mirar", async () => {
+  // 20/10): «Solo donde se active»; 21/10: el botón, en la Base.
+  test("Ver sin señal: se activa en la Base, guarda la copia y sin señal abre con ella, para mirar", async () => {
     const sinSenalAhora = async (sin) => {
       Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
       await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
     };
     await montar();
-    await navegar(contenedor, "Ajustes");
-    const ajuste = () => contenedor.querySelector(".ajuste-sin-senal button");
-    expect(ajuste().textContent).toContain("Ver Lesiones sin señal en este aparato");
+    await navegar(contenedor, "Base");
+    const ajuste = () => contenedor.querySelector(".acciones-base .boton-sin-senal");
+    expect(ajuste().textContent).toBe("Ver sin señal en este aparatoDesactivado");
     await tocar(ajuste());
     expect(document.querySelector(".hoja-confirmar h3").textContent).toBe("¿Ver Lesiones sin señal en este aparato?");
     await tocar(boton(contenedor, "Activar"));
@@ -1502,6 +1502,8 @@ describe("el módulo Lesiones", () => {
     expect(cabeceras.every((th) => th.classList.contains("fija"))).toBe(true);
     expect(boton(contenedor, "Borrar fila")).toBeUndefined();
     expect(boton(contenedor, "Pegar")).toBeUndefined();
+    // Quien ya se fue no guarda copia.
+    expect(contenedor.querySelector(".boton-sin-senal")).toBeNull();
 
     await navegar(contenedor, "Ajustes");
     expect(texto(contenedor)).toContain("Dejaste este club el 25/09/2026.");
@@ -1525,12 +1527,12 @@ describe("el módulo Lesiones", () => {
     await navegar(contenedor, "Base");
     expect(boton(contenedor, "Borrar fila")).toBeUndefined();
     expect(boton(contenedor, "Pegar")).toBeUndefined();
+    // Ver sin señal sí: es solo para mirar (paso 1 de «cargar sin señal…»).
+    expect(contenedor.querySelector(".acciones-base .boton-sin-senal").disabled).toBe(false);
 
     await navegar(contenedor, "Ajustes");
     expect(texto(contenedor)).toContain("Tenés Lesiones en solo lectura.");
-    expect([...contenedor.querySelectorAll(".lista-opciones:not(.ajuste-sin-senal) .opcion-ajuste")].every((b) => b.disabled)).toBe(true);
-    // Mirar sin señal sí: es solo para mirar (paso 1 de «cargar sin señal…»).
-    expect(contenedor.querySelector(".ajuste-sin-senal .opcion-ajuste").disabled).toBe(false);
+    expect([...contenedor.querySelectorAll(".opcion-ajuste")].every((b) => b.disabled)).toBe(true);
   });
 
   test("la hoja de opciones larga tiene buscador que acerca lo escrito", async () => {

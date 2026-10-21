@@ -9,7 +9,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
-import { AjusteSinSenal, AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
+import { AvisoSinSenal, BotonSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, TextoConPasos, useGuiaDelModulo } from "./components/Guia.jsx";
 import ReportesLesiones from "./ReportesLesiones.jsx";
 import ImportarLesiones from "./ImportarLesiones.jsx";
@@ -941,11 +941,18 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       <div className="contenedor contenedor-base">
         <Encabezado onGuia={guia.abrir} titulo={t("nav.base")} texto={t(seFue ? "lesiones.donde.baseSoloLectura" : mirar ? "lesiones.donde.baseMirar" : "lesiones.donde.base")} />
         {estado}
-        {!soloLectura && (
-          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
-            <Icono nombre="documento" size={16} />
-            {t("lesiones.importar.boton")}
-          </button>
+        {/* Pegar desde Excel y ver sin señal (Santiago, 21/10: «Ese boton tiene que
+            ir dentro de la base, no en ajustes»). Quien ya se fue, ninguno. */}
+        {!seFue && (
+          <div className="acciones-base">
+            {!soloLectura && (
+              <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
+                <Icono nombre="documento" size={16} />
+                {t("lesiones.importar.boton")}
+              </button>
+            )}
+            <BotonSinSenal modulo="lesiones" sinSenal={sinSenal} onAviso={setAviso} />
+          </div>
         )}
         <section className="tarjeta">{tablaDeLesiones(filasBase)}</section>
       </div>
@@ -1191,7 +1198,6 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
               alTocar: () => setVistaAjustes("listas"),
             })}
           </div>
-          <AjusteSinSenal modulo="lesiones" sinSenal={sinSenal} deshabilitado={seFue} onAviso={setAviso} />
         </div>
       </div>
     );

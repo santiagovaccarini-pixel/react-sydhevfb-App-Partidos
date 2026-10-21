@@ -5,9 +5,10 @@ import { activarSinSenal, cuentaDelAparato, desactivarSinSenal, guardarCopiaSinS
 import { idiomaActual, t } from "../idioma/index.js";
 
 // Ver una base sin señal (paso 1 de la nota «cargar sin señal y a la vez que
-// otra persona»; Santiago, 20/10: «Solo donde se active», en Ajustes de cada
-// base). Lo mismo para Lesiones, Evaluaciones y GPS: la base dice qué guarda
-// y cómo se muestra; acá, si está activado, la copia, el aviso y el ajuste.
+// otra persona»; Santiago, 20/10: «Solo donde se active», en cada base; 21/10:
+// el botón, en la Base). Lo mismo para Lesiones, Evaluaciones y GPS: la base
+// dice qué guarda y cómo se muestra; acá, si está activado, la copia, el aviso
+// y el botón.
 
 const nombreDe = (modulo) => t(`cuentas.modulos.${modulo}`);
 
@@ -92,17 +93,14 @@ export const AvisoSinSenal = ({ guardadaEn }) => (
   </div>
 );
 
-// En Ajustes: «Ver <base> sin señal en este aparato». Activar pregunta antes
-// (son datos de los atletas en el aparato); desactivar borra la copia.
-// onAviso(texto): el aviso de abajo.
-export const AjusteSinSenal = ({ modulo, sinSenal, deshabilitado = false, onAviso }) => {
+// En la Base, al lado de «Pegar desde Excel» (Santiago, 21/10: «Ese boton
+// tiene que ir dentro de la base, no en ajustes»): «Ver sin señal en este
+// aparato», con «Activado» o «Desactivado». Activar pregunta antes (son datos
+// de los atletas en el aparato); desactivar borra la copia. onAviso(texto):
+// el aviso de abajo.
+export const BotonSinSenal = ({ modulo, sinSenal, onAviso }) => {
   const [hoja, setHoja] = useState(null);
   const base = nombreDe(modulo);
-  const detalle = sinSenal.activo
-    ? sinSenal.guardadaEn
-      ? t("sinSenal.ajusteActivo", { fecha: cuando(sinSenal.guardadaEn) })
-      : t("sinSenal.ajusteActivoSinCopia")
-    : t("sinSenal.ajusteInactivo", { base });
   const confirmar = async () => {
     const era = hoja;
     setHoja(null);
@@ -116,24 +114,18 @@ export const AjusteSinSenal = ({ modulo, sinSenal, deshabilitado = false, onAvis
   };
   return (
     <>
-      <div className="lista-opciones ajuste-sin-senal">
-        <button
-          type="button"
-          className="opcion-ajuste"
-          aria-pressed={sinSenal.activo}
-          onClick={() => setHoja(sinSenal.activo ? "desactivar" : "activar")}
-          disabled={deshabilitado || !sinSenal.listo}
-        >
-          <span className="icono-ajuste">
-            <Icono nombre="guardar" size={18} />
-          </span>
-          <span className="texto-ajuste">
-            <b>{t("sinSenal.ajusteTitulo", { base })}</b>
-            <span>{detalle}</span>
-          </span>
-          <span className={`estado-sin-senal ${sinSenal.activo ? "activo" : ""}`}>{t(sinSenal.activo ? "sinSenal.activado" : "sinSenal.desactivado")}</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        className="boton-secundario datos-pegar-excel boton-sin-senal"
+        aria-pressed={sinSenal.activo}
+        title={sinSenal.activo ? "" : t("sinSenal.botonAyuda", { base })}
+        onClick={() => setHoja(sinSenal.activo ? "desactivar" : "activar")}
+        disabled={!sinSenal.listo}
+      >
+        <Icono nombre="guardar" size={16} />
+        <span>{t("sinSenal.boton")}</span>
+        <span className={`estado-sin-senal ${sinSenal.activo ? "activo" : ""}`}>{t(sinSenal.activo ? "sinSenal.activado" : "sinSenal.desactivado")}</span>
+      </button>
       <HojaConfirmar
         abierta={hoja === "activar"}
         icono="candado"
@@ -150,6 +142,7 @@ export const AjusteSinSenal = ({ modulo, sinSenal, deshabilitado = false, onAvis
         icono="borrar"
         titulo={t("sinSenal.desactivarTitulo", { base })}
         descripcion={t("sinSenal.desactivarTexto")}
+        detalle={sinSenal.guardadaEn ? <p className="detalle-sin-senal">{t("sinSenal.copiaDel", { fecha: cuando(sinSenal.guardadaEn) })}</p> : null}
         etiquetaCancelar={t("comun.cancelar")}
         etiquetaConfirmar={t("sinSenal.desactivar")}
         onConfirmar={confirmar}

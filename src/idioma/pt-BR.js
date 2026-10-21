@@ -1665,10 +1665,9 @@ export default {
     },
   },
   sinSenal: {
-    ajusteTitulo: "Ver {{base}} sem sinal neste aparelho",
-    ajusteActivo: "Cópia de {{fecha}}.",
-    ajusteActivoSinCopia: "A cópia é salva na próxima vez que abrir com sinal.",
-    ajusteInactivo: "Salva uma cópia neste aparelho para ver {{base}} mesmo sem sinal.",
+    boton: "Ver sem sinal neste aparelho",
+    botonAyuda: "Salva uma cópia neste aparelho para ver {{base}} mesmo sem sinal.",
+    copiaDel: "Cópia de {{fecha}}.",
     activado: "Ativado",
     desactivado: "Desativado",
     activarTitulo: "Ver {{base}} sem sinal neste aparelho?",
@@ -1683,7 +1682,7 @@ export default {
     noSeActivo: "Não foi possível ativar neste aparelho (talvez o navegador não deixe).",
     copiaTitulo: "Sem sinal: você vê a cópia deste aparelho",
     copiaTexto: "É de {{fecha}}. Para mudar algo precisa de sinal.",
-    paraActivar: "Para ver sem sinal neste aparelho, ative em Ajustes quando tiver sinal.",
+    paraActivar: "Para ver sem sinal neste aparelho, toque em «Ver sem sinal neste aparelho» na Base quando tiver sinal.",
   },
   club: {
     titulo: "Com qual clube você trabalha?",

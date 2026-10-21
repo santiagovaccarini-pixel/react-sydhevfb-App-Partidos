@@ -4473,6 +4473,10 @@ confirme.**
     la base en «Solo lectura», sí (es para mirar). No toca la base de datos.
     - **Queda prohibido** guardar la copia sin que se active en ese aparato, y cambiar datos desde
       la copia (eso es el paso 3), salvo un pedido nuevo.
+    - **Cambio (21/10, 2026.10.21.1; UI-066):** Santiago: «Ese boton tiene que ir dentro de la
+      base, no en ajustes». El botón «Ver sin señal en este aparato» pasó a la Base, al lado de
+      «Pegar desde Excel»; Ajustes quedó como antes. Queda prohibido volver a ponerlo en Ajustes,
+      salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

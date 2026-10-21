@@ -10,7 +10,7 @@ import { SentidoParaVr } from "./components/SentidoParaVr.jsx";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
-import { AjusteSinSenal, AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
+import { AvisoSinSenal, BotonSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import CargaPorJugador, { cargaNueva, evaluacionesDeLaCarga, hayAlgoCargado } from "./CargaPorJugador.jsx";
 import ImportarEvaluaciones from "./ImportarEvaluaciones.jsx";
 import ReportesEvaluaciones, { SelectorDeTest, SelectorDeVista, vistaInicial } from "./ReportesEvaluaciones.jsx";
@@ -1141,11 +1141,18 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="evaluaciones" />
         {estado}
         {sinReferencias && <p className="lesiones-estado evaluaciones-sin-referencias">{t("evaluaciones.sinReferencias")}</p>}
-        {!soloLectura && (
-          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
-            <Icono nombre="documento" size={16} />
-            {t("evaluaciones.importar.boton")}
-          </button>
+        {/* Pegar desde Excel y ver sin señal (Santiago, 21/10: «Ese boton tiene que
+            ir dentro de la base, no en ajustes»). Quien ya se fue, ninguno. */}
+        {!seFue && (
+          <div className="acciones-base">
+            {!soloLectura && (
+              <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
+                <Icono nombre="documento" size={16} />
+                {t("evaluaciones.importar.boton")}
+              </button>
+            )}
+            <BotonSinSenal modulo="evaluaciones" sinSenal={sinSenal} onAviso={setAviso} />
+          </div>
         )}
         {revisando && (
           <div className="lesiones-estado evaluaciones-revisar" role="status">
@@ -1453,7 +1460,6 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
               alTocar: () => setVistaAjustes("listas"),
             })}
           </div>
-          <AjusteSinSenal modulo="evaluaciones" sinSenal={sinSenal} deshabilitado={seFue} onAviso={setAviso} />
         </div>
       </div>
     );
