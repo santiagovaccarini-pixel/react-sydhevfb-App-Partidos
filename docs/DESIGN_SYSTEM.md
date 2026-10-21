@@ -53,12 +53,16 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
   compactas de «Del club» del portal (`AccesosDelClub`, UI-050).
 - `src/components/TablaDatos.jsx` y `tablaDatos.css`: tablas de las bases. Abren en la última
   fila y, al volver de una ficha, donde estaban (`abrirAlFinal`, encendido de entrada; UI-054):
-  una base nueva lo trae solo; lo que no es una base lo apaga.
+  una base nueva lo trae solo; lo que no es una base lo apaga. Dos colores de fila, cada uno con
+  su leyenda: gris cálido, quien ya no está en el plantel (`apagada`); dorado claro, lo cargado o
+  cambiado sin señal que espera para subir (`espera`, UI-072).
 - `src/components/ClubCrest.js` y `BotonVolver.jsx`: escudos y regreso.
 - `src/components/BotonModulos.jsx`: volver a los módulos desde el encabezado, fijo arriba al
   bajar (UI-051).
 - `src/components/SinSenal.jsx`: ver una base sin señal, igual en Lesiones, Evaluaciones y GPS:
-  la copia del aparato, que se guarda sola, y el aviso de la copia (UI-065 a UI-067).
+  la copia del aparato, que se guarda sola, y el aviso de la copia (UI-065 a UI-067). En una
+  base que deja cargar sin señal, `AvisoDeEspera`: el aviso dorado con cuántos cambios esperan
+  para subir y, con señal, «Subir ahora» (UI-072); la cola, en `domain/filaDeEspera.js`.
 
 Revisá `src/style.css`, `portal.css`, `training.css`, `lesiones.css`,
 `evaluaciones.css` y `gps.css` antes de crear estilos; mantené sus convenciones de color,

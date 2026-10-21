@@ -104,6 +104,18 @@ vi.mock("./domain/copiaSinSenal.js", () => {
   };
 });
 
+// La fila de espera de lo hecho sin señal (filaDeEspera.js), en memoria.
+const esperas = vi.hoisted(() => ({ guardadas: {} }));
+vi.mock("./domain/filaDeEspera.js", () => ({
+  leerEspera: async (modulo, cuenta, equipoId) => JSON.parse(JSON.stringify(esperas.guardadas[`${equipoId}|${modulo}|${cuenta}`] || [])),
+  guardarEspera: async (modulo, cuenta, equipoId, cola) => {
+    const clave = `${equipoId}|${modulo}|${cuenta}`;
+    if (cola.length) esperas.guardadas[clave] = JSON.parse(JSON.stringify(cola));
+    else delete esperas.guardadas[clave];
+    return true;
+  },
+}));
+
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => datos.equipo,
   cargarEquipos: async () => ({ equipos: [] }),
@@ -169,6 +181,8 @@ vi.mock("./domain/evaluacionesDb.js", async (importOriginal) => ({
     return { datos: actual, error: "" };
   },
   listarEvaluaciones: async () => {
+    // Sin señal, la base no contesta.
+    if (navigator.onLine === false) return { evaluaciones: [], error: "evaluaciones.error.noLeer", detalle: "TypeError: Failed to fetch" };
     if (datos.fallaLaProxima) {
       const error = datos.fallaLaProxima;
       datos.fallaLaProxima = "";
@@ -255,6 +269,7 @@ vi.mock("./domain/evaluacionesDb.js", async (importOriginal) => ({
   },
   borrarEvaluacion: async (id) => {
     datos.borradas.push(id);
+    datos.evaluaciones = datos.evaluaciones.filter((una) => una.id !== id);
     return { error: "" };
   },
 }));
@@ -377,6 +392,7 @@ describe("Evaluaciones", () => {
     datos.referenciasSingleLeg = null;
     volvio = 0;
     copias.guardadas = {};
+    esperas.guardadas = {};
     Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -609,7 +625,7 @@ describe("Evaluaciones", () => {
     await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
   };
 
-  test("Ver sin señal: con señal guarda sola la copia de este aparato; sin señal la Base abre con ella, para mirar", async () => {
+  test("Ver sin señal: con señal guarda sola la copia de este aparato; sin señal la Base abre con ella y se puede cambiar", async () => {
     await montar();
     await unRato();
     expect(copias.guardadas["eq-1|evaluaciones|cuenta-1"].datos.evaluaciones.map((una) => una.id)).toEqual(["e1", "e2", "e3"]);
@@ -617,24 +633,140 @@ describe("Evaluaciones", () => {
     await irA(contenedor, "Base");
     expect(contenedor.textContent).not.toContain("Ver sin señal");
 
-    // Otra vez, sin señal: la copia, para mirar.
+    // Otra vez, sin señal: la copia (paso 3, Santiago, 21/10: sin señal se
+    // carga, se cambia y se borra igual).
     await act(async () => raiz.unmount());
-    datos.evaluaciones = [];
     await sinSenalAhora(true);
     await montar();
     await irA(contenedor, "Base");
     expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Sin señal: ves la copia de este aparato");
-    expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Para cambiar algo hace falta señal.");
+    expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Lo que cargues, cambies o borres queda en este aparato y se sube solo cuando vuelva la señal.");
     expect(filas(contenedor)).toHaveLength(3);
-    expect(boton(contenedor, "Pegar desde Excel")).toBeFalsy();
+    expect(boton(contenedor, "Pegar desde Excel")).toBeTruthy();
     await irA(contenedor, "Cargar");
-    expect(boton(contenedor, "Nueva evaluación")).toBeFalsy();
+    expect(boton(contenedor, "Nueva evaluación")).toBeTruthy();
+    // Los Ajustes, con señal.
+    await irA(contenedor, "Ajustes");
+    expect(contenedor.textContent).toContain("Sin señal: los Ajustes se cambian cuando vuelva la señal.");
 
     // Vuelve la señal: lo de la base, al día.
     await sinSenalAhora(false);
+    await unRato();
     expect(contenedor.querySelector(".aviso-sin-senal")).toBeNull();
-    expect(boton(contenedor, "Nueva evaluación")).toBeTruthy();
-  });
+  }, 20000);
+
+  // Paso 3 de «cargar sin señal y a la vez que otra persona» (Santiago, 21/10,
+  // en un cuestionario: lo que espera, con un aviso arriba y las filas «de
+  // otro color»; al volver la señal «Lo sube sola y avisa»; si choca,
+  // «Espera y te pregunta»; sin señal, también Pegar y los V.R.).
+  const sinSenalConLaCopia = async () => {
+    await montar();
+    await unRato();
+    await act(async () => raiz.unmount());
+    await sinSenalAhora(true);
+    await montar();
+  };
+  const avisoArriba = () => contenedor.querySelector(".aviso-sin-senal")?.textContent || "";
+  const queEsperan = () => [...contenedor.querySelectorAll("tbody tr.espera")];
+
+  test("sin señal: se cambia, se borra y se carga; queda esperando, en otro color, y al volver la señal sube sola y avisa", async () => {
+    await sinSenalConLaCopia();
+    await irA(contenedor, "Base");
+    await editarLumbarDeBeta();
+    expect(datos.cambiadas).toEqual([]);
+    expect(celda(contenedor, 1, "Lumbar").textContent).toBe("2:40");
+    expect(queEsperan()).toEqual([filas(contenedor)[1]]);
+    expect(avisoArriba()).toContain("Sin señal: 1 cambio espera para subir");
+    expect(contenedor.textContent).toContain("En este color, lo que espera para subir (se cargó o cambió sin señal).");
+    // Borrar.
+    await tocar(celda(contenedor, 2, "Lumbar"));
+    await tocar(boton(contenedor, "Borrar fila"));
+    await tocar(boton(contenedor, "Sí, borrar"));
+    expect(datos.borradas).toEqual([]);
+    expect(filas(contenedor)).toHaveLength(2);
+    expect(document.body.textContent).toContain("1 cambio quedó en este aparato: se sube solo cuando vuelva la señal.");
+    // Cargar una nueva.
+    await irA(contenedor, "Cargar");
+    await cargarAlfaHoy();
+    expect(datos.deUnaVez).toEqual([]);
+    expect(esperas.guardadas["eq-1|evaluaciones|cuenta-1"].map((uno) => uno.tipo)).toEqual(["cambiar", "borrar", "crear"]);
+    await irA(contenedor, "Base");
+    expect(filas(contenedor)).toHaveLength(3);
+    expect(queEsperan()).toHaveLength(2);
+    expect(avisoArriba()).toContain("Sin señal: 3 cambios esperan para subir");
+
+    // Vuelve la señal: sube sola, en orden, y avisa.
+    await sinSenalAhora(false);
+    await unRato();
+    expect(datos.cambiadas).toEqual([{ id: "e2", cambios: { "datos.lumbar": 160 }, antes: { "datos.lumbar": 150 } }]);
+    expect(datos.borradas).toEqual(["e3"]);
+    expect(datos.deUnaVez).toEqual([{ test: "zona_media", n: 1, reemplazar: false }]);
+    expect(document.body.textContent).toContain("Se subieron 3 cambios hechos sin señal.");
+    expect(esperas.guardadas).toEqual({});
+    expect(queEsperan()).toEqual([]);
+    expect(filas(contenedor)).toHaveLength(3);
+    expect(contenedor.querySelector(".aviso-sin-senal")).toBeNull();
+  }, 20000);
+
+  test("lo que espera queda en el aparato: sin señal, al volver a abrir, se ve encima de la copia", async () => {
+    await sinSenalConLaCopia();
+    await irA(contenedor, "Base");
+    await editarLumbarDeBeta();
+    await act(async () => raiz.unmount());
+    await montar();
+    await irA(contenedor, "Base");
+    expect(celda(contenedor, 1, "Lumbar").textContent).toBe("2:40");
+    expect(queEsperan()).toHaveLength(1);
+    expect(avisoArriba()).toContain("Sin señal: 1 cambio espera para subir");
+  }, 20000);
+
+  test("si lo cargado sin señal choca con otra que cargó otra persona, espera y pregunta; «Ir a la Base» y después «Reemplazar y cargar»", async () => {
+    await sinSenalConLaCopia();
+    await cargarAlfaHoy();
+    // Mientras tanto, otra persona carga a ALFA ese día, con otros datos.
+    datos.evaluaciones = [...datos.evaluaciones, evaluacion("hoy-1", 4, 1, hoyISO(), { lumbar: 170 })];
+    await sinSenalAhora(false);
+    await unRato();
+    expect(datos.deUnaVez).toEqual([]);
+    expect(hojaDelDia().querySelector("h3").textContent).toBe("Esas evaluaciones ya están en la Base, con otros datos");
+    expect(hojaDelDia().textContent).toContain("1 evaluación que cargaste sin señal es de alguien que ese día ya tiene otra del mismo test, con otros datos:");
+    expect([...hojaDelDia().querySelectorAll(".consentimiento-personas li")].map((li) => li.textContent)).toEqual([`${fechaCorta(hoyISO())} · ALFA · Zona Media`]);
+    // «Ir a la Base»: las dos, la suya en otro color; sigue esperando.
+    await tocar(boton(document.body, "Ir a la Base"));
+    expect(contenedor.textContent).toContain("Estas son las evaluaciones de esos días que ya estaban y, en otro color, las que cargaste sin señal: esperan.");
+    expect(filas(contenedor)).toHaveLength(2);
+    expect(queEsperan()).toHaveLength(1);
+    expect(avisoArriba()).toContain("1 cambio espera para subir");
+    expect(avisoArriba()).toContain("1 choca con lo que cargó otra persona");
+    // «Subir lo que espera»: pregunta otra vez; «Reemplazar y cargar».
+    await tocar(boton(contenedor, "Subir lo que espera"));
+    await unRato();
+    await tocar(boton(document.body, "Reemplazar y cargar"));
+    await unRato();
+    expect(datos.deUnaVez).toEqual([{ test: "zona_media", n: 1, reemplazar: true }]);
+    expect(esperas.guardadas).toEqual({});
+    expect(document.body.textContent).toContain("Se reemplazó 1 evaluación que ya estaba.");
+  }, 20000);
+
+  test("sin señal se pega desde Excel y se cambian los V.R.: esperan y suben al volver la señal", async () => {
+    await sinSenalConLaCopia();
+    await irA(contenedor, "Valores de referencia");
+    await cambiarVr(celdaVr(tablaVr(0), "Bueno", "Lumbar"), "3:10");
+    expect(datos.cambiosVr).toEqual([]);
+    expect(celdaVr(tablaVr(0), "Bueno", "Lumbar").textContent).toBe("3:10");
+    await irA(contenedor, "Base");
+    await tocar(boton(contenedor, "Pegar desde Excel"));
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), ["nº Eva\tFecha\tJugador\tSeleccion\tLumbar", "1\t02/06/2026\tBETA\tMayor\t3:10"].join("\n"));
+    await tocar(boton(contenedor, "Cargar 1 evaluación"));
+    expect(datos.deUnaVez).toEqual([]);
+    expect(document.body.textContent).toContain("1 cambio quedó en este aparato: se sube solo cuando vuelva la señal.");
+    expect(avisoArriba()).toContain("Sin señal: 2 cambios esperan para subir");
+    await sinSenalAhora(false);
+    await unRato();
+    expect(datos.cambiosVr).toEqual([{ test: "zona_media", ruta: ["categorias", "mayor", "bueno", "lumbar"], valor: 190 / 1440 }]);
+    expect(datos.deUnaVez).toEqual([{ test: "zona_media", n: 1, reemplazar: false }]);
+    expect(document.body.textContent).toContain("Se subieron 2 cambios hechos sin señal.");
+  }, 20000);
 
   test("Ver sin señal: sin copia, el aviso de siempre; quien ya se fue del club no guarda copia", async () => {
     await sinSenalAhora(true);

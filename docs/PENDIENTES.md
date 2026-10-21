@@ -4568,6 +4568,32 @@ confirme.**
       paso 3, cargar, cambiar y borrar sin señal, que se confirma antes de empezar.
     - **Queda prohibido** lo mismo que en el paso 2a, para Datos básicos y la categoría de sus
       registros, salvo un pedido nuevo.
+  - **Paso 3, cargar, cambiar y borrar sin señal, por partes** (Santiago, en un cuestionario:
+    «Sí, empezá con Evaluaciones»): 3a Evaluaciones, después Lesiones, GPS y Datos básicos. Para
+    todas, sus respuestas del 21/10: lo que espera, «Opcion 1 pero de otro color las filas» (un
+    aviso arriba con cuántos cambios esperan y las filas de otro color); al volver la señal, «Lo
+    sube sola y avisa»; si una nueva choca con otra que cargó otra persona, «Espera y te
+    pregunta»; en Evaluaciones, sin señal también «Pegar desde Excel» y «Valores de referencia».
+  - **Hecho, paso 3a (21/10, 2026.10.21.7; UI-072): Evaluaciones sin señal.** Sin señal (o si la
+    señal se corta al guardar) se carga, se cambia, se borra, se pega desde Excel y se cambian los
+    V.R. como con señal; los Ajustes, no. Lo hecho queda en una fila de espera en el aparato (por
+    club, base y cuenta; `domain/filaDeEspera.js` y `domain/evaluaciones/espera.js`) y se ve al
+    toque, con el aviso dorado y las filas en dorado claro. Al volver la señal sube solo, en
+    orden, con las funciones del paso 2 (lo que pisó y lo que otra persona borró se avisa como en
+    UI-068) y avisa cuántos cambios subieron; con señal a medias lo reintenta cada medio minuto, y
+    con señal se puede tocar «Subir ahora». Una nueva que choca (Regla 1) espera y pregunta con
+    la hoja de siempre: «Ir a la Base» o «Reemplazar y cargar». Sin SQL nuevo.
+    - **Lo que espera es trabajo de quien lo cargó:** como los partidos pendientes
+      (`copiasLocales.js`), no se borra al salir de la cuenta ni al dejar el club; sube cuando
+      esa cuenta vuelve a abrir Evaluaciones con señal. Si mientras tanto perdió el permiso, la
+      base no lo deja subir: si todavía puede abrir Evaluaciones, la app avisa cuántos cambios no
+      se pudieron subir y por qué.
+    - **Límites conocidos:** sin señal no se puede dejar confirmado el consentimiento de una
+      persona que no está en Datos básicos: pegarla pide señal, como antes. El historial de los
+      V.R. y «Volver» necesitan señal. Una nueva cargada sin señal, si se cambia mientras justo se
+      está subiendo, puede volver a preguntar con la hoja de la Regla 1.
+    - **Queda prohibido** que lo hecho sin señal se pierda sin avisar, que una nueva que choca
+      suba sin preguntar, o cambiar los Ajustes sin señal, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

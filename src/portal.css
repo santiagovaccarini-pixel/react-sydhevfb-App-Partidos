@@ -1103,6 +1103,12 @@
   gap: 6px;
   margin: 0 0 18px;
 }
+/* Lo que espera para subir (paso 3 de «cargar sin señal…»): el mismo aviso
+   dorado, con «Subir ahora» abajo. */
+.aviso-espera {
+  gap: 6px;
+}
+.aviso-espera .cuenta-autorizar,
 .aviso-consentimiento .cuenta-autorizar {
   justify-self: start;
   margin-top: 4px;
