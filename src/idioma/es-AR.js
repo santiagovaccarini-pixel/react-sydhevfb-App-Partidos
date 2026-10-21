@@ -549,6 +549,17 @@ export default {
       reemplazadas_one: "Se reemplazó {{n}} evaluación que ya estaba.",
       reemplazadas_other: "Se reemplazaron {{n}} evaluaciones que ya estaban.",
     },
+    // Paso 3 de «cargar sin señal…»: lo cargado sin señal (Santiago, 21/10:
+    // si choca, «Espera y te pregunta»).
+    espera: {
+      choques_one: "{{n}} evaluación que cargaste sin señal es de alguien que ese día ya tiene otra del mismo test, con otros datos:",
+      choques_other: "{{n}} evaluaciones que cargaste sin señal son de alguien que ese día ya tiene otra del mismo test, con otros datos:",
+      queHace: "«Reemplazar y cargar» borra esas evaluaciones y guarda las tuyas (lo borrado queda en el historial). «Ir a la Base» las deja esperando, en otro color, para que revises esas filas.",
+      enEsperaRevisar: "Estas son las evaluaciones de esos días que ya estaban y, en otro color, las que cargaste sin señal: esperan.",
+      subirLoQueEspera: "Subir lo que espera",
+      borradas_one: "{{n}} cambio no subió: esa evaluación la borró otra persona.",
+      borradas_other: "{{n}} cambios no subieron: esas evaluaciones las borró otra persona.",
+    },
   },
   gps: {
     titulo: "GPS",
@@ -1712,6 +1723,32 @@ export default {
   sinSenal: {
     copiaTitulo: "Sin señal: ves la copia de este aparato",
     copiaTexto: "Es del {{fecha}}. Para cambiar algo hace falta señal.",
+    // Paso 3 de «cargar sin señal…»: en las bases que dejan cargar sin señal
+    // (Santiago, 21/10: aviso arriba, filas de otro color, se sube sola).
+    titulo: "Sin señal",
+    ajustesConSenal: "Sin señal: los Ajustes se cambian cuando vuelva la señal.",
+    cambiosSinCopia: "Lo que cargues, cambies o borres queda en este aparato y se sube solo cuando vuelva la señal.",
+    copiaConCambios: "Es del {{fecha}}. Lo que cargues, cambies o borres queda en este aparato y se sube solo cuando vuelva la señal.",
+    esperanSinSenal_one: "Sin señal: {{n}} cambio espera para subir",
+    esperanSinSenal_other: "Sin señal: {{n}} cambios esperan para subir",
+    esperan_one: "{{n}} cambio espera para subir",
+    esperan_other: "{{n}} cambios esperan para subir",
+    seSubenSolos: "Se suben solos cuando vuelva la señal.",
+    copiaDel: "La copia es del {{fecha}}.",
+    seSubenSolosConSenal: "Se suben solos en un rato.",
+    subiendo: "Subiendo…",
+    chocan_one: "{{n}} choca con lo que cargó otra persona: hace falta que elijas qué queda.",
+    chocan_other: "{{n}} chocan con lo que cargó otra persona: hace falta que elijas qué queda.",
+    subirAhora: "Subir ahora",
+    subirYRevisar: "Revisar y subir",
+    leyendaEspera: "En este color, lo que espera para subir (se cargó o cambió sin señal).",
+    subidos_one: "Se subió {{n}} cambio hecho sin señal.",
+    subidos_other: "Se subieron {{n}} cambios hechos sin señal.",
+    noSubieron_one: "{{n}} cambio hecho sin señal no se pudo subir ({{error}}).",
+    noSubieron_other: "{{n}} cambios hechos sin señal no se pudieron subir ({{error}}).",
+    quedoEnElAparato: "Quedó en este aparato: se sube solo cuando vuelva la señal.",
+    quedaronEnElAparato_one: "{{n}} cambio quedó en este aparato: se sube solo cuando vuelva la señal.",
+    quedaronEnElAparato_other: "{{n}} cambios quedaron en este aparato: se suben solos cuando vuelva la señal.",
   },
   club: {
     titulo: "¿Con qué club trabajás?",

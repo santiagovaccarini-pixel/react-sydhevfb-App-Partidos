@@ -10,7 +10,7 @@ import { SentidoParaVr } from "./components/SentidoParaVr.jsx";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
-import { AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
+import { AvisoDeEspera, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import CargaPorJugador, { cargaNueva, evaluacionesDeLaCarga, hayAlgoCargado } from "./CargaPorJugador.jsx";
 import ImportarEvaluaciones from "./ImportarEvaluaciones.jsx";
 import ReportesEvaluaciones, { SelectorDeTest, SelectorDeVista, vistaInicial } from "./ReportesEvaluaciones.jsx";
@@ -38,11 +38,14 @@ import { celdasDeLaFila, listaDeColumna, textoDeCeldaDelInforme } from "./domain
 import { textoDeValor } from "./domain/evaluaciones/excel.js";
 import { calcularFilas, vistaDeFilas } from "./domain/evaluaciones/motor.js";
 import { conOtrosDatos, igualEnTodo } from "./domain/evaluaciones/importar.js";
+import { conBorrada, conCambio as conCambioEnEspera, conCreadas, conLoQueEspera, conReferencia, conValorEnRuta, esLocal, idsEnEspera, subirLaEspera } from "./domain/evaluaciones/espera.js";
+import { guardarEspera, leerEspera } from "./domain/filaDeEspera.js";
 import { TESTS } from "./domain/evaluaciones/tests/index.js";
 import {
   actualizarEvaluacion,
   borrarEvaluacion,
   cambiarEvaluacion,
+  cambiarReferencia,
   cambiosDeLaEvaluacion,
   crearEvaluacion,
   guardarCabecera,
@@ -200,9 +203,17 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const [importando, setImportando] = useState(false);
   const [aBorrar, setABorrar] = useState(null);
   const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
-  // Sin señal, lo que se ve es la copia de este aparato ({ guardadaEn }): se
-  // mira y no se cambia nada (paso 1 de «cargar sin señal…»).
+  // Sin señal, lo que se ve es la copia de este aparato ({ guardadaEn }; paso
+  // 1 de «cargar sin señal…»), con lo que espera para subir encima.
   const [deLaCopia, setDeLaCopia] = useState(null);
+  // Lo cargado, cambiado o borrado sin señal que espera para subir (paso 3;
+  // evaluaciones/espera.js), lo que ya se está subiendo y las nuevas que
+  // chocan con otra del mismo jugador y día (Regla 1: se pregunta).
+  const [cola, setCola] = useState([]);
+  const colaActual = useRef([]);
+  const [subiendo, setSubiendo] = useState(false);
+  const subiendoAhora = useRef(false);
+  const [chocadas, setChocadas] = useState(null);
 
   // La carga: { id, test, jugador_id, persona, fecha, datos, textos } (textos:
   // los tiempos como se escriben, hasta guardar).
@@ -235,12 +246,25 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // nada; quien tiene Evaluaciones «Solo lectura» ve todo, al día, y tampoco.
   const seFue = Boolean(equipo?.hasta);
   const mirar = soloParaMirar(equipo, "evaluaciones");
-  const soloLectura = seFue || mirar || Boolean(deLaCopia);
+  // Sin señal se carga, se cambia y se borra igual (paso 3 de «cargar sin
+  // señal…»; Santiago, 21/10); los Ajustes, solo con señal.
+  const soloLectura = seFue || mirar;
+  const sinConexion = Boolean(deLaCopia) || !enLinea;
   // Para ver Evaluaciones sin señal (Santiago, 21/10: la copia «Automática en
   // todos, sin botón»). Quien ya se fue no guarda copia.
   const sinSenal = useSinSenal("evaluaciones", equipoId, { deshabilitado: seFue });
   const leerCopia = useRef(sinSenal.leer);
   leerCopia.current = sinSenal.leer;
+  const cuenta = sinSenal.cuenta;
+
+  // La fila de espera queda en este aparato con cada cambio.
+  const ponerCola = (nueva) => {
+    colaActual.current = nueva;
+    setCola(nueva);
+    guardarEspera("evaluaciones", cuenta, equipoId, nueva);
+  };
+  // Lo que se lee (de la base o de la copia), con lo que espera encima.
+  const conLaCola = (evaluacionesLeidas, referenciasLeidas) => conLoQueEspera({ evaluaciones: evaluacionesLeidas, referencias: referenciasLeidas }, colaActual.current);
 
   // Sin club elegido en este celular, se adopta el que diga la base.
   useEffect(() => {
@@ -269,8 +293,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       const { datos } = copia;
       setPlantel(Array.isArray(datos.plantel) ? datos.plantel : []);
       setPlantelSinLeer(false);
-      setEvaluaciones(Array.isArray(datos.evaluaciones) ? datos.evaluaciones : []);
-      setReferenciasPorTest(datos.referencias || {});
+      const conEspera = conLaCola(Array.isArray(datos.evaluaciones) ? datos.evaluaciones : [], datos.referencias || {});
+      setEvaluaciones(conEspera.evaluaciones);
+      setReferenciasPorTest(conEspera.referencias);
       if (datos.ajustes) setFilasAjustes(datos.ajustes);
       setFilasCategorias(datos.categorias ?? null);
       setDeLaCopia({ guardadaEn: copia.guardadaEn });
@@ -296,8 +321,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     if (!sinLlegar) setDeLaCopia(null);
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
-      if (!respuestaEvaluaciones.error) setEvaluaciones(respuestaEvaluaciones.evaluaciones);
-      if (!respuestaReferencias.error) setReferenciasPorTest(respuestaReferencias.referencias || {});
+      if (!respuestaEvaluaciones.error) setEvaluaciones(conLaCola(respuestaEvaluaciones.evaluaciones, {}).evaluaciones);
+      if (!respuestaReferencias.error) setReferenciasPorTest(conLaCola([], respuestaReferencias.referencias || {}).referencias);
       if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones, sinSentido: respuestaAjustes.sinSentido });
       if (!respuestaCategorias.error) setFilasCategorias(respuestaCategorias.filas);
       return;
@@ -307,8 +332,9 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     if (respuestaEvaluaciones.error || respuestaReferencias.error) {
       setError(respuestaEvaluaciones.error || respuestaReferencias.error);
     } else {
-      setEvaluaciones(respuestaEvaluaciones.evaluaciones);
-      setReferenciasPorTest(respuestaReferencias.referencias || {});
+      const conEspera = conLaCola(respuestaEvaluaciones.evaluaciones, respuestaReferencias.referencias || {});
+      setEvaluaciones(conEspera.evaluaciones);
+      setReferenciasPorTest(conEspera.referencias);
     }
     // Sin poder leer los Ajustes, siguen los nombres del Excel.
     if (!respuestaAjustes.error) setFilasAjustes({ campos: respuestaAjustes.campos, opciones: respuestaAjustes.opciones, sinSentido: respuestaAjustes.sinSentido });
@@ -336,21 +362,39 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     };
   }, []);
 
-  // Vuelve la señal mientras se ve la copia: lo de la base, al día.
+  // La fila de espera de esta cuenta y este club, en este aparato: lo que se
+  // ve, con ella encima.
   useEffect(() => {
-    if (enLinea && deLaCopia) cargar();
+    let vigente = true;
+    leerEspera("evaluaciones", cuenta, equipoId).then((guardada) => {
+      if (!vigente || !guardada.length) return;
+      colaActual.current = guardada;
+      setCola(guardada);
+      setEvaluaciones((previas) => conLoQueEspera({ evaluaciones: previas, referencias: {} }, guardada).evaluaciones);
+      setReferenciasPorTest((previas) => conLoQueEspera({ evaluaciones: [], referencias: previas }, guardada).referencias);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [cuenta, equipoId]);
+
+  // Vuelve la señal mientras se ve la copia: lo de la base, al día (si algo
+  // espera, se sube primero; ver abajo).
+  useEffect(() => {
+    if (enLinea && deLaCopia && !colaActual.current.some((uno) => !uno.chocan)) cargar();
   }, [enLinea]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lo que se ve (al día, con señal) queda en la copia de este aparato, un
   // rato después de cada cambio.
+  // (Mientras algo espera para subir, no: la copia es lo que había en la base.)
   useEffect(() => {
-    if (!sinSenal.activo || deLaCopia || cargando || error || plantelSinLeer || !equipoId) return undefined;
+    if (!sinSenal.activo || deLaCopia || cola.length || cargando || error || plantelSinLeer || !equipoId) return undefined;
     const temporizador = setTimeout(
       () => sinSenal.guardar({ plantel, evaluaciones, referencias: referenciasPorTest, ajustes: filasAjustes, categorias: filasCategorias }),
       1500,
     );
     return () => clearTimeout(temporizador);
-  }, [sinSenal.activo, sinSenal.guardar, deLaCopia, cargando, error, plantelSinLeer, equipoId, plantel, evaluaciones, referenciasPorTest, filasAjustes, filasCategorias]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sinSenal.activo, sinSenal.guardar, deLaCopia, cola.length, cargando, error, plantelSinLeer, equipoId, plantel, evaluaciones, referenciasPorTest, filasAjustes, filasCategorias]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!aviso) return undefined;
@@ -456,6 +500,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   }, [test, config, idioma, calculadas, jugadorDe]);
 
   // Cómo se ve cada celda (como en el Excel, con su formato) y qué se edita.
+  const idsQueEsperan = useMemo(() => idsEnEspera(cola), [cola]);
   const filas = useMemo(
     () =>
       calculadas.map(({ fila, celdas }) => {
@@ -466,9 +511,12 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           celdas,
           // Quien ya no está en el plantel actual, en otro color (como en Lesiones).
           apagada: Boolean(jugador && !esActual(jugador)),
+          // Lo cargado o cambiado sin señal, en otro color hasta que sube
+          // (Santiago, 21/10: las filas «de otro color»).
+          espera: idsQueEsperan.has(fila.id),
         };
       }),
-    [calculadas, test, visibles, jugadorDe, config, idioma],
+    [calculadas, test, visibles, jugadorDe, config, idioma, idsQueEsperan],
   );
 
   const selectorComparar = (
@@ -548,10 +596,21 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       : unTest.columnas.find((una) => una.tipo === (clave === "fecha" ? "fecha" : "jugador"));
     return columna ? titulo(unTest, columna) : clave;
   };
+  // Sin señal (o si la señal se corta al guardar), y siempre en una que
+  // todavía espera para cargarse, el cambio queda en la fila de espera
+  // (enEspera) y se ve al toque.
   const guardarCambios = async (id, vieja, nueva) => {
     const { cambios, antes } = cambiosDeLaEvaluacion(vieja, nueva);
-    if (!Object.keys(cambios).length) return { evaluacion: ultimas.current.find((una) => una.id === id) || vieja, error: "" };
+    const enLaLista = ultimas.current.find((una) => una.id === id) || vieja;
+    if (!Object.keys(cambios).length) return { evaluacion: enLaLista, error: "" };
+    const aLaEspera = () => {
+      ponerCola(conCambioEnEspera(colaActual.current, { id, cambios, antes }));
+      const { textos: _, ...sinTextos } = { ...enLaLista, ...nueva, id };
+      return { evaluacion: sinTextos, enEspera: true, error: "" };
+    };
+    if (sinConexion || esLocal(id)) return aLaEspera();
     const respuesta = await cambiarEvaluacion(id, { cambios, antes });
+    if (falloDeRed(respuesta)) return aLaEspera();
     if (respuesta.sinFuncion) return actualizarEvaluacion(id, nueva);
     if (respuesta.borrada) {
       ultimas.current = ultimas.current.filter((una) => una.id !== id);
@@ -630,15 +689,23 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     setOcupado(true);
     const borradas = [];
     let falla = "";
+    let esperan = 0;
     for (const evaluacion of elegidas) {
-      const respuesta = await borrarEvaluacion(evaluacion.id);
-      if (respuesta.error) falla = falla || respuesta.error;
+      // Sin señal (o si se corta), y la que todavía espera para cargarse:
+      // en la fila de espera.
+      const respuesta = sinConexion || esLocal(evaluacion.id) ? { error: "", enEspera: true } : await borrarEvaluacion(evaluacion.id); // eslint-disable-line no-await-in-loop
+      if (respuesta.enEspera || falloDeRed(respuesta)) {
+        ponerCola(conBorrada(colaActual.current, evaluacion.id));
+        if (!esLocal(evaluacion.id)) esperan += 1;
+        borradas.push(evaluacion.id);
+      } else if (respuesta.error) falla = falla || respuesta.error;
       else borradas.push(evaluacion.id);
     }
     setOcupado(false);
     setEvaluaciones((previas) => previas.filter((una) => !borradas.includes(una.id)));
     if (formulario?.id && borradas.includes(formulario.id)) cerrarFormulario();
     if (falla) setAviso(elegidas.length === 1 ? t(falla) : `${t(falla)} ${t("tabla.borradasDe", { n: borradas.length, total: elegidas.length })}`);
+    else if (esperan) setAviso(plural("sinSenal.quedaronEnElAparato", esperan));
     else setAviso(elegidas.length === 1 ? t("evaluaciones.borrada") : t("evaluaciones.borradas", { n: borradas.length }));
   };
 
@@ -751,7 +818,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     });
     const evaluacion = { jugador_id: carga.jugador_id, persona: carga.persona, fecha: carga.fecha, datos };
     setOcupado(true);
-    const respuesta = carga.id ? await guardarCambios(carga.id, formularioAlAbrir.current, evaluacion) : await crearEvaluacion(equipoId, carga.test, evaluacion);
+    const respuesta = carga.id ? await guardarCambios(carga.id, formularioAlAbrir.current, evaluacion) : await crearOEsperar(carga.test, evaluacion);
     setOcupado(false);
     if (respuesta.borrada) {
       cerrarFormulario();
@@ -765,7 +832,21 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     else setEvaluaciones((previas) => [...previas, respuesta.evaluacion]);
     cerrarFormulario();
     // Si pisó lo de otra persona, ese aviso queda.
-    if (!respuesta.pisadas?.length) setAviso(t("evaluaciones.guardada"));
+    if (respuesta.enEspera) setAviso(t("sinSenal.quedoEnElAparato"));
+    else if (!respuesta.pisadas?.length) setAviso(t("evaluaciones.guardada"));
+  };
+
+  // Una nueva: sin señal (o si se corta al guardar), a la fila de espera.
+  const crearOEsperar = async (unTest, evaluacion) => {
+    const aLaEspera = () => {
+      const nuevaCola = conCreadas(colaActual.current, unTest, [evaluacion]);
+      ponerCola(nuevaCola);
+      const { evaluaciones: conEspera } = conLoQueEspera({ evaluaciones: ultimas.current }, nuevaCola);
+      return { evaluacion: conEspera[conEspera.length - 1], enEspera: true, error: "" };
+    };
+    if (sinConexion) return aLaEspera();
+    const respuesta = await crearEvaluacion(equipoId, unTest, evaluacion);
+    return falloDeRed(respuesta) ? aLaEspera() : respuesta;
   };
 
   const testDeNuevas = nuevas ? testDe(nuevas.test) || TESTS_QUE_SE_CARGAN[0] : null;
@@ -818,6 +899,26 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       setErrorNuevas(t("evaluaciones.varios.yaEsta", { jugador: nombreDe(igual.evaluacion) }));
       return;
     }
+    // Sin señal, todas quedan esperando: la Regla 1 se pregunta al subirlas,
+    // con lo que haya en la base en ese momento (Santiago, 21/10: «Espera y
+    // te pregunta»).
+    const aLaEspera = () => {
+      const nuevaCola = conCreadas(
+        colaActual.current,
+        nuevas.test,
+        listas.map((una) => una.evaluacion),
+      );
+      ponerCola(nuevaCola);
+      setEvaluaciones((previas) => conLoQueEspera({ evaluaciones: previas }, nuevaCola).evaluaciones);
+      setErrorNuevas("");
+      setOcupado(false);
+      setNuevas(null);
+      setAviso(plural("sinSenal.quedaronEnElAparato", listas.length));
+    };
+    if (sinConexion) {
+      aLaEspera();
+      return;
+    }
     const choques = conOtrosDatos(
       listas.map((una) => una.evaluacion),
       delTestDeNuevas,
@@ -829,6 +930,10 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     setErrorNuevas("");
     setOcupado(true);
     const respuesta = await guardarEvaluaciones(equipoId, nuevas.test, { evaluaciones: listas.map((una) => una.evaluacion), reemplazar });
+    if (falloDeRed(respuesta) && !reemplazar) {
+      aLaEspera();
+      return;
+    }
     if (respuesta.sinFuncion) {
       if (!reemplazar) {
         await guardarDeAUna(listas);
@@ -876,6 +981,119 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     setRevisar({ tipo: "pegado", test: test.id, vez: Date.now(), filtros: { jugador: nombresDe(existentes), fecha: [...new Set(existentes.map((una) => fechaCorta(una.fecha)))] } });
     setImportando(false);
   };
+  // ---------------------------------------- La fila de espera, al subirla --
+
+  // Al volver la señal se sube sola y avisa (Santiago, 21/10: «Lo sube sola y
+  // avisa»). Las nuevas que chocan con otra del mismo jugador y día (con otros
+  // datos) esperan y se pregunta, como al cargar («Espera y te pregunta»);
+  // solas no se vuelven a intentar: conChocadas, cuando se pide. Devuelve si
+  // subió (y se volvió a leer la base).
+  const subir = async ({ conChocadas = false } = {}) => {
+    const enviada = colaActual.current;
+    if (subiendoAhora.current || !enviada.length || !equipoId || seFue) return false;
+    if (!conChocadas && enviada.every((uno) => uno.chocan)) return false;
+    subiendoAhora.current = true;
+    setSubiendo(true);
+    const leidas = await listarEvaluaciones(equipoId);
+    if (leidas.error) {
+      subiendoAhora.current = false;
+      setSubiendo(false);
+      return false;
+    }
+    const resultado = await subirLaEspera(enviada, {
+      equipoId,
+      servidor: leidas.evaluaciones,
+      funciones: { guardar: guardarEvaluaciones, crear: crearEvaluacion, cambiar: cambiarEvaluacion, actualizar: actualizarEvaluacion, borrar: borrarEvaluacion, referencia: cambiarReferencia },
+      esDeRed: falloDeRed,
+      conChocadas,
+      conOtrosDatos,
+    });
+    // Lo que se hizo mientras subía queda para la próxima.
+    ponerCola([...resultado.quedan, ...colaActual.current.filter((uno) => !enviada.includes(uno))]);
+    const columnasPisadas = resultado.pisadas.map((pisada) => {
+      const suya = enviada.find((uno) => uno.id === pisada.id);
+      const deLaBase = leidas.evaluaciones.find((una) => una.id === pisada.id);
+      return nombreDeLaClave(testDe(deLaBase?.test || suya?.test) || test, pisada.clave);
+    });
+    const partes = [
+      resultado.subidos ? plural("sinSenal.subidos", resultado.subidos) : "",
+      columnasPisadas.length ? t("evaluaciones.cambios.pisadas", { columnas: enLista([...new Set(columnasPisadas)]) }) : "",
+      resultado.borradasPorOtra ? plural("evaluaciones.espera.borradas", resultado.borradasPorOtra) : "",
+      resultado.errores.length ? plural("sinSenal.noSubieron", resultado.errores.length, { error: t(resultado.errores[0]) }) : "",
+    ].filter(Boolean);
+    if (partes.length) setAviso(partes.join(" "));
+    if (resultado.chocadas.length) setChocadas(resultado.chocadas);
+    await cargar({ silencioso: true });
+    subiendoAhora.current = false;
+    setSubiendo(false);
+    return true;
+  };
+  const subirAlVolver = useRef(subir);
+  subirAlVolver.current = subir;
+  // Con señal y algo esperando, se sube: al volver la señal, al abrir y, si
+  // la señal anda a medias, cada medio minuto.
+  const pendientes = cola.filter((uno) => !uno.chocan).length;
+  useEffect(() => {
+    if (!enLinea || !pendientes || seFue || cargando) return undefined;
+    const ya = setTimeout(() => subirAlVolver.current(), deLaCopia ? 0 : 1500);
+    const otraVez = setInterval(() => subirAlVolver.current(), 30000);
+    return () => {
+      clearTimeout(ya);
+      clearInterval(otraVez);
+    };
+  }, [enLinea, pendientes, seFue, cargando, Boolean(deLaCopia)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // «Reemplazar y cargar»: las que chocaban se cargan y las otras de ese
+  // jugador y ese día se borran (quedan en el historial).
+  const reemplazarChocadas = async () => {
+    const lista = chocadas || [];
+    setChocadas(null);
+    if (!lista.length) return;
+    setOcupado(true);
+    let reemplazadas = 0;
+    let cargadas = 0;
+    let falla = "";
+    const subidas = new Set();
+    for (const unTest of [...new Set(lista.map((una) => una.test))]) {
+      const delTest = lista.filter((una) => una.test === unTest);
+      // eslint-disable-next-line no-await-in-loop
+      const respuesta = await guardarEvaluaciones(equipoId, unTest, { evaluaciones: delTest.map((una) => una.evaluacion), reemplazar: true });
+      if (respuesta.error || respuesta.sinFuncion) {
+        falla = falla || respuesta.error || "evaluaciones.error.faltaActualizacion";
+        continue;
+      }
+      delTest.forEach((una) => subidas.add(una.id));
+      cargadas += respuesta.evaluaciones.length;
+      reemplazadas += respuesta.borradas.length;
+    }
+    ponerCola(colaActual.current.filter((uno) => !subidas.has(uno.id)));
+    setOcupado(false);
+    if (falla) setAviso(t(falla));
+    else {
+      const listo = plural("evaluaciones.varios.guardadas", cargadas);
+      setAviso(reemplazadas ? `${listo} ${plural("evaluaciones.mismoDia.reemplazadas", reemplazadas)}` : listo);
+    }
+    if (revisar?.tipo === "espera") setRevisar(null);
+    await cargar({ silencioso: true });
+  };
+  // «Ir a la Base»: esperan y la Base se abre con las de esos jugadores y
+  // esos días (las que ya estaban y las que esperan, en su color).
+  const verChocadasEnLaBase = () => {
+    const lista = chocadas || [];
+    setChocadas(null);
+    if (!lista.length) return;
+    const existentes = lista.flatMap((una) => una.existentes);
+    setRevisar({
+      tipo: "espera",
+      test: lista[0].test,
+      vez: Date.now(),
+      filtros: { jugador: nombresDe([...existentes, ...lista.map((una) => una.evaluacion)]), fecha: [...new Set(existentes.map((una) => fechaCorta(una.fecha)))] },
+    });
+    setTestId(lista[0].test);
+    setImportando(false);
+    setVista("base");
+  };
+
   // «Seguir»: vuelve a lo que espera, como estaba.
   const seguirConLoQueEspera = () => {
     setRevisar(null);
@@ -1071,10 +1289,13 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
 
   // ------------------------------------------------------------ Pantallas --
 
+  const chocan = cola.filter((uno) => uno.chocan).length;
   const estado = deLaCopia ? (
-    <AvisoSinSenal guardadaEn={deLaCopia.guardadaEn} />
-  ) : !enLinea ? (
+    <AvisoDeEspera sinSenal guardadaEn={deLaCopia.guardadaEn} cuantos={cola.length} />
+  ) : !enLinea && (error || cargando) ? (
     <p className="lesiones-estado">{t("evaluaciones.estado.sinConexion")}</p>
+  ) : !enLinea ? (
+    <AvisoDeEspera sinSenal cuantos={cola.length} />
   ) : error ? (
     <div className="lesiones-estado error">
       {t(error)}{" "}
@@ -1084,6 +1305,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     </div>
   ) : cargando ? (
     <p className="lesiones-estado">{t("evaluaciones.estado.cargando")}</p>
+  ) : cola.length ? (
+    <AvisoDeEspera cuantos={cola.length} chocan={chocan} subiendo={subiendo} alSubir={() => subir({ conChocadas: Boolean(chocan) })} />
   ) : null;
 
   const hoy = hoyISO();
@@ -1146,7 +1369,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
 
         {!soloLectura && (
           <div className="acciones-inicio lesiones-acciones">
-            <button type="button" className="boton-principal boton-formacion-grande" onClick={abrirNueva} disabled={!enLinea || Boolean(error) || cargando}>
+            <button type="button" className="boton-principal boton-formacion-grande" onClick={abrirNueva} disabled={Boolean(error) || cargando}>
               {t("evaluaciones.nueva")}
             </button>
           </div>
@@ -1179,12 +1402,29 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         {estado}
         {sinReferencias && <p className="lesiones-estado evaluaciones-sin-referencias">{t("evaluaciones.sinReferencias")}</p>}
         {!soloLectura && (
-          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
+          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={cargando || Boolean(error)}>
             <Icono nombre="documento" size={16} />
             {t("evaluaciones.importar.boton")}
           </button>
         )}
-        {revisando && (
+        {revisando && revisando.tipo === "espera" && (
+          <div className="lesiones-estado evaluaciones-revisar" role="status">
+            {t("evaluaciones.espera.enEsperaRevisar")}{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setRevisar(null);
+                subir({ conChocadas: true });
+              }}
+            >
+              {t("evaluaciones.espera.subirLoQueEspera")}
+            </button>{" "}
+            <button type="button" onClick={() => setRevisar(null)}>
+              {t("evaluaciones.mismoDia.verTodo")}
+            </button>
+          </div>
+        )}
+        {revisando && revisando.tipo !== "espera" && (
           <div className="lesiones-estado evaluaciones-revisar" role="status">
             {revisando.tipo === "carga" ? t("evaluaciones.mismoDia.enEsperaCarga", { fecha: fechaCorta(revisando.fecha) }) : t("evaluaciones.mismoDia.enEsperaPegado")}{" "}
             <button type="button" onClick={() => seguirConLoQueEspera()}>
@@ -1209,6 +1449,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             onPegar={pegarEnTabla}
             leyenda={t("datos.leyendaYaNoEsta")}
             rotuloApagada={t("datos.yaNoEsta")}
+            leyendaEspera={t("sinSenal.leyendaEspera")}
             onBorrarFilas={
               soloLectura
                 ? undefined
@@ -1237,6 +1478,11 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       soloLectura={soloLectura}
       seFue={seFue}
       enLinea={enLinea}
+      sinSenal={sinConexion}
+      onAlAparato={(testId, ruta, valor) => {
+        ponerCola(conReferencia(colaActual.current, { test: testId, ruta, valor }));
+        return conValorEnRuta(referenciasPorTest[testId], ruta, valor);
+      }}
       cargando={cargando}
       error={error}
       selector={elegirTest(test.id, setTestId)}
@@ -1297,7 +1543,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   };
 
   const filaAjuste = ({ id, icono, titulo: rotulo, detalle, alTocar, extra = null, clase = "" }) => (
-    <button key={id} type="button" className={`opcion-ajuste ${clase}`.trim()} onClick={alTocar} disabled={soloLectura}>
+    <button key={id} type="button" className={`opcion-ajuste ${clase}`.trim()} onClick={alTocar} disabled={soloLectura || sinConexion}>
       {icono && (
         <span className="icono-ajuste">
           <Icono nombre={icono} size={18} />
@@ -1432,7 +1678,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("listas")}>{t("lesiones.ajustes.volverListas")}</BotonVolver>
-              <button type="button" className="boton-principal" onClick={() => abrirOpcion(null)} disabled={soloLectura}>
+              <button type="button" className="boton-principal" onClick={() => abrirOpcion(null)} disabled={soloLectura || sinConexion}>
                 {t("lesiones.ajustes.nuevaOpcion")}
               </button>
             </div>
@@ -1474,6 +1720,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         <div className="contenedor">
           {encabezado(t("lesiones.ajustes.titulo"), t("evaluaciones.ajustes.texto"))}
           <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="evaluaciones" />
+          {/* Los Ajustes, solo con señal (Santiago, 20/10: «Sí, con señal»). */}
+          {sinConexion && !soloLectura && <p className="lesiones-estado">{t("sinSenal.ajustesConSenal")}</p>}
           <div className="lista-opciones">
             {filaAjuste({
               id: "cabeceras",
@@ -1599,10 +1847,20 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
             })
           }
           onVerEnLaBase={verPegadoEnLaBase}
-          onListo={({ cargadas, reemplazadas = 0 }) => {
+          sinSenal={sinConexion}
+          onAlAparato={(lista) => {
+            const nuevaCola = conCreadas(colaActual.current, test.id, lista);
+            ponerCola(nuevaCola);
+            setEvaluaciones((previas) => conLoQueEspera({ evaluaciones: previas }, nuevaCola).evaluaciones);
+          }}
+          onListo={({ cargadas, reemplazadas = 0, alAparato = 0 }) => {
             setImportando(false);
             if (enEspera?.tipo === "pegado") setEnEspera(null);
             if (revisar?.tipo === "pegado") setRevisar(null);
+            if (alAparato) {
+              setAviso(plural("sinSenal.quedaronEnElAparato", alAparato));
+              return;
+            }
             const listo = plural("evaluaciones.importar.listo", cargadas);
             setAviso(reemplazadas ? `${listo} ${plural("evaluaciones.mismoDia.reemplazadas", reemplazadas)}` : listo);
           }}
@@ -1738,6 +1996,31 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         onCancelar={verCargaEnLaBase}
         onConfirmar={() => guardarNuevas({ reemplazar: true })}
         onCerrar={() => setOtrasDelDia(null)}
+      />
+
+      {/* Lo cargado sin señal que choca con otra que cargó otra persona
+          (Santiago, 21/10: «Espera y te pregunta»): la misma hoja. */}
+      <HojaConfirmar
+        abierta={Boolean(chocadas)}
+        icono="refrescar"
+        titulo={t("evaluaciones.mismoDia.titulo")}
+        descripcion={plural("evaluaciones.espera.choques", chocadas?.length || 0)}
+        detalle={
+          <div className="evaluaciones-mismo-dia">
+            <ul className="consentimiento-personas">
+              {(chocadas || []).slice(0, A_LA_VISTA).map((una) => (
+                <li key={una.id}>{[una.evaluacion.fecha ? fechaCorta(una.evaluacion.fecha) : "", nombreDe(una.evaluacion), testDe(una.test)?.pestana[idioma] || ""].filter(Boolean).join(" · ")}</li>
+              ))}
+            </ul>
+            {(chocadas?.length || 0) > A_LA_VISTA && <p>{plural("evaluaciones.mismoDia.yMas", chocadas.length - A_LA_VISTA)}</p>}
+            <p>{t("evaluaciones.espera.queHace")}</p>
+          </div>
+        }
+        etiquetaCancelar={t("evaluaciones.mismoDia.irALaBase")}
+        etiquetaConfirmar={t("evaluaciones.mismoDia.reemplazar")}
+        onCancelar={verChocadasEnLaBase}
+        onConfirmar={reemplazarChocadas}
+        onCerrar={() => setChocadas(null)}
       />
 
       <HojaConfirmar

@@ -98,6 +98,10 @@
      plantel actual): un gris cálido, que no usa ningún estado de Lesiones.
      Lo usan las filas y la muestra de la leyenda. */
   --tabla-datos-apagada: #e4ded5;
+  /* Una fila cargada o cambiada sin señal que todavía no subió (paso 3 de
+     «cargar sin señal…»): un dorado claro, distinto del gris de las
+     apagadas y de los colores de los valores. */
+  --tabla-datos-espera: #f6e7b4;
 }
 
 /* Con todas las columnas con su ancho, la tabla mide lo que suman (sin
@@ -329,6 +333,24 @@
 .tabla-datos-tabla tr.apagada td.fija:not(.elegida) {
   background: #dbd4c9;
   color: #57534e;
+}
+
+/* Una fila que espera para subir: su color, también si además está apagada
+   (sin tapar lo elegido ni la fila activa). Las celdas con el color de su
+   valor lo conservan. */
+.tabla-datos-tabla tr.espera td:not(.elegida) {
+  background: var(--tabla-datos-espera);
+  color: #3b2f0b;
+}
+
+.tabla-datos-tabla tr.espera td.fija:not(.elegida) {
+  background: #efdc98;
+  color: #3b2f0b;
+}
+
+.tabla-datos-leyenda-espera .tabla-datos-muestra {
+  border-color: #b8952c;
+  background: var(--tabla-datos-espera);
 }
 
 /* La leyenda guarda su lugar aunque no haya filas apagadas a la vista: así

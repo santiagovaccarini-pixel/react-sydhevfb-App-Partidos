@@ -21,6 +21,7 @@ import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
+import { falloDeRed } from "./components/SinSenal.jsx";
 
 // Pegar desde Excel, en Evaluaciones › Base: se pega la tabla de la hoja del
 // test (con su fila de títulos) y antes de guardar nada se ve qué pasa con
@@ -48,7 +49,10 @@ const A_LA_VISTA = 6;
 // reemplazaron, todas juntas al terminar (antes de recargar todo, por si la
 // recarga falla). Regla 1 (Santiago, 20/10), «Ir a la Base»:
 // onVerEnLaBase({ choques, espera }); al volver, enEspera ({ texto, anio,
-// elegidos }) trae lo pegado como estaba.
+// elegidos }) trae lo pegado como estaba. Sin señal (sinSenal, o si se
+// corta al guardar), lo que se carga va a la fila de espera de este aparato
+// (onAlAparato(evaluaciones); paso 3 de «cargar sin señal…»): la Regla 1 se
+// pregunta al subirlo, con lo que haya en la base en ese momento.
 export default function ImportarEvaluaciones({
   test,
   config = configVacia(),
@@ -62,6 +66,8 @@ export default function ImportarEvaluaciones({
   onGuardadas,
   onVerEnLaBase,
   onListo,
+  sinSenal = false,
+  onAlAparato = null,
 }) {
   const { idioma, plural } = useIdioma();
   const [texto, setTexto] = useState(() => enEspera?.texto || "");
@@ -235,6 +241,23 @@ export default function ImportarEvaluaciones({
 
   const cargar = async ({ reemplazar = false } = {}) => {
     setOtrasDelDia(null);
+    const alAparato = (lista) => {
+      onAlAparato(lista.map((fila) => fila.evaluacion));
+      onListo({ cargadas: 0, alAparato: lista.length });
+    };
+    if (sinSenal && onAlAparato) {
+      if (!aCargar.length) return;
+      // Las personas fuera de Datos básicos, con su consentimiento (sin señal
+      // no se puede dejar confirmado: lo dice).
+      setErrorConsentimiento("");
+      const permiso = await consentimiento.pedir(aCargar.filter((fila) => !fila.evaluacion.jugador_id).map((fila) => fila.evaluacion.persona));
+      if (!permiso.sigue) {
+        setErrorConsentimiento(permiso.error);
+        return;
+      }
+      alAparato(aCargar);
+      return;
+    }
     const choques = conOtrosDatos(
       aCargar.map((fila) => fila.evaluacion),
       evaluaciones,
@@ -271,6 +294,12 @@ export default function ImportarEvaluaciones({
       }
       setProgreso(null);
       setFalla("evaluaciones.error.faltaActualizacion");
+      return;
+    }
+    // Se cortó la señal sin guardar nada: a la fila de espera.
+    if (falloDeRed(respuesta) && !reemplazar && onAlAparato && !respuesta.evaluaciones.length) {
+      setProgreso(null);
+      alAparato(lista);
       return;
     }
     if (respuesta.evaluaciones.length || respuesta.borradas.length) onGuardadas?.(respuesta.evaluaciones, respuesta.borradas);

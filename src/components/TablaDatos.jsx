@@ -39,14 +39,18 @@ import "./tablaDatos.css";
 // tabla no lleva una columna que cuente las filas (Santiago, 05/10).
 //
 // columnas: [{ clave, titulo, tipo, editable, opciones, ancho, grupo, grupoTitulo }]
-// filas:    [{ id, valores: { clave: valor }, textos: { clave: texto }, orden?: { clave: valor }, apagada? }]
+// filas:    [{ id, valores: { clave: valor }, textos: { clave: texto }, orden?: { clave: valor }, apagada?, espera? }]
 //           (`orden`, si está, es lo que se usa para ordenar esa columna;
 //           `apagada`, una fila que va en otro color: en las bases, alguien
-//           que ya no está en el plantel actual)
+//           que ya no está en el plantel actual; `espera`, una cargada o
+//           cambiada sin señal que todavía no subió, en otro color más)
 // leyenda: qué quiere decir ese color (se ve si hay alguna fila apagada a la
 // vista; si no, guarda su lugar); rotuloApagada: lo que dice una fila
 // apagada al pasar el mouse; apagadasAlFinal: las apagadas van después de
-// las demás, también al ordenar por una columna (Datos básicos, 17/10)
+// las demás, también al ordenar por una columna (Datos básicos, 17/10);
+// leyendaEspera: qué quiere decir el color de las que esperan (se ve
+// mientras hay alguna; paso 3 de «cargar sin señal…», Santiago, 21/10: las
+// filas «de otro color»)
 // onEditar(filaId, clave, valor) → Promise<{ error }>; onPegar(cambios) → Promise<{ error, hechos }>
 // onAbrirFila(filaId), onBorrarFilas(filaIds): las filas elegidas (con
 // Shift, varias), en el orden en que se ven
@@ -232,6 +236,7 @@ export const TablaDatos = ({
   recordar = null,
   leyenda = "",
   rotuloApagada = "",
+  leyendaEspera = "",
   apagadasAlFinal = false,
   fijas = SIN_FIJAS,
   vista = null,
@@ -1203,6 +1208,12 @@ export const TablaDatos = ({
           {leyenda}
         </p>
       )}
+      {leyendaEspera && filas.some((fila) => fila.espera) && (
+        <p className="tabla-datos-leyenda tabla-datos-leyenda-espera">
+          <i className="tabla-datos-muestra" aria-hidden="true" />
+          {leyendaEspera}
+        </p>
+      )}
 
       {deLaVista?.encima || null}
 
@@ -1342,8 +1353,8 @@ export const TablaDatos = ({
               return (
                 <tr
                   key={fila.id}
-                  className={`${activa?.f === f ? "activa" : ""} ${fila.apagada ? "apagada" : ""}`.trim() || undefined}
-                  title={fila.apagada ? rotuloApagada || leyenda || undefined : undefined}
+                  className={`${activa?.f === f ? "activa" : ""} ${fila.apagada ? "apagada" : ""} ${fila.espera ? "espera" : ""}`.replace(/\s+/g, " ").trim() || undefined}
+                  title={fila.espera ? leyendaEspera || undefined : fila.apagada ? rotuloApagada || leyenda || undefined : undefined}
                 >
                   {visibles.map((col, c) => {
                     const enEdicion = editando && editando.filaId === fila.id && editando.clave === col.clave;

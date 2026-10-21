@@ -6,6 +6,7 @@ import { textoDeValor, tiempoParaExcel } from "./domain/evaluaciones/excel.js";
 import { COMPARAR_AL_ABRIR } from "./domain/evaluaciones/categorias.js";
 import { bloqueDeLaPlanilla, calculoDeEvaluaciones, filasDeLaPlanilla, filtrosDeLaCategoria, medidasDeEvaluaciones } from "./domain/evaluaciones/planillaVr.js";
 import { cambiarReferencia } from "./domain/evaluacionesDb.js";
+import { falloDeRed } from "./components/SinSenal.jsx";
 import { armarPlanilla, calcularPlanilla, eleccionDeLaPlanilla, filasDeLaMuestra, leerPlanilla, medidasDeLaPlanillaGuardada, numerosParaGuardar } from "./domain/gps/planillaVr.js";
 import { cambiosDeEntrada, iguales } from "./domain/referencias.js";
 import { leerHistorialDeReferencias } from "./domain/referenciasDb.js";
@@ -68,6 +69,8 @@ export default function ReferenciasEvaluaciones({
   onCambiadas,
   onRecargar,
   onAviso,
+  sinSenal = false,
+  onAlAparato = null,
 }) {
   const { plural } = useIdioma();
   const bloques = referencias?.categorias || {};
@@ -88,12 +91,23 @@ export default function ReferenciasEvaluaciones({
     leerHistorial();
   }, [leerHistorial, referencias]);
 
-  // Sin la actualización de la base, se miran y no se cambian.
+  // Sin la actualización de la base, se miran y no se cambian. Sin señal se
+  // cambian igual (paso 3 de «cargar sin señal…»; Santiago, 21/10: también
+  // «Valores de referencia»): van a la fila de espera de este aparato
+  // (onAlAparato devuelve cómo quedan) y suben al volver la señal.
   const sinEdicion = historial.faltaTabla;
-  const puedeCambiar = !soloLectura && !sinEdicion && enLinea && test.conReferencias !== false && historial.leido;
+  const conEspera = Boolean(onAlAparato);
+  const puedeCambiar = !soloLectura && !sinEdicion && (enLinea || (sinSenal && conEspera)) && test.conReferencias !== false && (historial.leido || sinSenal);
 
   const cambiar = async (ruta, valor) => {
+    const alAparato = () => {
+      const datos = onAlAparato(test.id, ruta, valor);
+      onCambiadas(test.id, datos);
+      return { datos, alAparato: true, error: "" };
+    };
+    if (sinSenal && conEspera) return alAparato();
     const respuesta = await cambiarReferencia(equipoId, test.id, ruta, valor);
+    if (falloDeRed(respuesta) && conEspera) return alAparato();
     if (!respuesta.error) onCambiadas(test.id, respuesta.datos);
     return respuesta;
   };

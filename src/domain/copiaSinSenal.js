@@ -13,7 +13,10 @@ import { leerPerfilLocal } from "./perfilesDb.js";
 
 const BASE = "ark-sin-senal";
 const ALMACEN = "copias";
-const VERSION_DE_LA_BASE = 1;
+// Lo cargado o cambiado sin señal que espera para subir (paso 3;
+// filaDeEspera.js), en la misma base, aparte de las copias.
+export const ALMACEN_ESPERA = "espera";
+const VERSION_DE_LA_BASE = 2;
 // Si cambia lo que se guarda, las copias viejas no se usan.
 export const FORMATO_SIN_SENAL = 1;
 // Las marcas de cuando había que activarlo en cada aparato (20/10):
@@ -31,6 +34,7 @@ const abrirBase = () =>
       pedido.onupgradeneeded = () => {
         const base = pedido.result;
         if (!base.objectStoreNames.contains(ALMACEN)) base.createObjectStore(ALMACEN);
+        if (!base.objectStoreNames.contains(ALMACEN_ESPERA)) base.createObjectStore(ALMACEN_ESPERA);
       };
       pedido.onsuccess = () => resolver(pedido.result);
       pedido.onerror = () => resolver(null);
@@ -40,16 +44,16 @@ const abrirBase = () =>
     }
   });
 
-// Una operación sobre el almacén; null si no se pudo (sin IndexedDB, lleno o
-// cualquier falla).
-const conAlmacen = async (modo, hacer) => {
+// Una operación sobre un almacén (de entrada, el de las copias); null si no
+// se pudo (sin IndexedDB, lleno o cualquier falla).
+export const conAlmacen = async (modo, hacer, almacen = ALMACEN) => {
   const base = await abrirBase();
   if (!base) return null;
   return new Promise((resolver) => {
     let resultado = null;
     try {
-      const transaccion = base.transaction(ALMACEN, modo);
-      const pedido = hacer(transaccion.objectStore(ALMACEN));
+      const transaccion = base.transaction(almacen, modo);
+      const pedido = hacer(transaccion.objectStore(almacen));
       if (pedido) pedido.onsuccess = () => (resultado = pedido.result);
       transaccion.oncomplete = () => {
         base.close();
@@ -70,7 +74,7 @@ const conAlmacen = async (modo, hacer) => {
   });
 };
 
-const claveDe = (modulo, cuenta, equipoId) => `${equipoId}|${modulo}|${cuenta}`;
+export const claveDe = (modulo, cuenta, equipoId) => `${equipoId}|${modulo}|${cuenta}`;
 
 // La cuenta de este aparato: la de la sesión o, sin señal y sin sesión que
 // leer, la última que entró (como la puerta de entrada).
