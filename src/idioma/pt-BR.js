@@ -2139,6 +2139,10 @@ export default {
     guardado: "Lesão salva",
     altaGuardada: "Alta salva",
     fechasGuardadas: "Datas salvas. Continua em «Novos casos» até você preencher o retorno à competição.",
+    cambios: {
+      pisadas: "Outra pessoa tinha mudado «{{columnas}}» enquanto isso: ficou o seu.",
+      borrada: "Essa lesão foi apagada por outra pessoa: continua apagada.",
+    },
     avisoRecidiva: "Atenção: já teve uma lesão em {{parte}} ({{lado}}) em {{fecha}}. Pode contar como recorrência ou recidiva.",
     graficos: {
       opcion: "Relatórios gráficos",

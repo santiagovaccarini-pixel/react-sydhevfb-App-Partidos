@@ -3,6 +3,8 @@ import {
   CAMBIOS_EN_LA_FICHA,
   actualizarLesion,
   agregarJugadorBasico,
+  cambiarLesion,
+  cambiosDeLaLesion,
   cargarPlantelLesiones,
   crearLesion,
   guardarCategoriaDeLesiones,
@@ -124,6 +126,46 @@ describe("guardar una lesión", () => {
     await actualizarLesion("les-1", { jugador_id: 7, fecha_lesion: "2026-09-01", datos: { parte_cuerpo: "coxa", categoria: "sub20", edad: 19 } });
     const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "update");
     expect(enviado.datos).toEqual({ parte_cuerpo: "coxa", categoria: "sub20" });
+  });
+});
+
+// Paso 2 de «cargar sin señal y a la vez que otra persona» (20261115;
+// Santiago, 21/10, la misma celda: «Gana el último, con aviso»).
+describe("cambiar solo lo cambiado", () => {
+  const vieja = { id: "les-1", jugador_id: 7, persona: null, fecha_lesion: "2026-09-01", fecha_transicion: null, fecha_retorno_entrenamiento: null, fecha_alta: null, datos: { parte_cuerpo: "coxa", lado: "direito", medico: "Dr. X" } };
+
+  test("cada celda cambiada, con lo que se veía; lo calculado y los vacíos no cuentan", () => {
+    const nueva = { ...vieja, fecha_alta: "2026-09-20", datos: { parte_cuerpo: "coxa", lado: "esquerdo", medico: " ", edad: 30, diagnostico: "otro" } };
+    expect(cambiosDeLaLesion(vieja, nueva)).toEqual({
+      cambios: { fecha_alta: "2026-09-20", "datos.lado": "esquerdo", "datos.medico": null },
+      antes: { fecha_alta: null, "datos.lado": "direito", "datos.medico": "Dr. X" },
+    });
+    expect(cambiosDeLaLesion(vieja, { ...vieja, datos: { ...vieja.datos, edad: 31 } })).toEqual({ cambios: {}, antes: {} });
+  });
+
+  test("de un jugador a alguien fuera de Datos básicos: los dos campos, con el nombre limpio", () => {
+    expect(cambiosDeLaLesion(vieja, { ...vieja, jugador_id: null, persona: "  Ana   Prueba " })).toEqual({
+      cambios: { jugador_id: null, persona: "Ana Prueba" },
+      antes: { jugador_id: 7, persona: null },
+    });
+  });
+
+  test("va por la función de la base; devuelve cómo quedó y qué pisó", async () => {
+    doble.respuestas = [{ data: { fila: { ...vieja, fecha_alta: "2026-09-20" }, pisadas: [{ clave: "fecha_alta", habia: "2026-09-18" }] }, error: null }];
+    const respuesta = await cambiarLesion("les-1", { cambios: { fecha_alta: "2026-09-20" }, antes: { fecha_alta: null } });
+    expect(doble.llamadas).toEqual([["rpc", "lesiones_cambiar", { p_id: "les-1", p_cambios: { fecha_alta: "2026-09-20" }, p_antes: { fecha_alta: null } }]]);
+    expect(respuesta).toMatchObject({ lesion: { id: "les-1", fecha_alta: "2026-09-20", datos: { medico: "Dr. X" } }, pisadas: [{ clave: "fecha_alta", habia: "2026-09-18" }], error: "" });
+  });
+
+  test("sin la actualización de la base, sinFuncion; si otra persona la borró, borrada; lo demás, en palabras", async () => {
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.lesiones_cambiar" } }];
+    expect(await cambiarLesion("les-1", { cambios: { fecha_alta: "2026-09-20" } })).toEqual({ sinFuncion: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "fila_borrada" } }];
+    expect(await cambiarLesion("les-1", { cambios: { fecha_alta: "2026-09-20" } })).toEqual({ borrada: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "42501", message: "permission denied for table lesiones" } }];
+    expect((await cambiarLesion("les-1", { cambios: { fecha_alta: "2026-09-20" } })).error).toBe("lesiones.error.sinPermiso");
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "jugador_de_otro_club" } }];
+    expect((await cambiarLesion("les-1", { cambios: { jugador_id: 9 } })).error).toBe("evaluaciones.error.jugadorDeOtroClub");
   });
 });
 

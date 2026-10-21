@@ -1301,7 +1301,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_cambiar,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -2502,6 +2502,48 @@ update club_miembros set solo_lectura = '{}'
 select pruebas.ser('eva@dos.com'); set role authenticated;
 select pruebas.esperar('Eva no cambia el nivel de nadie en Uno', pruebas.filas($$update club_miembros set solo_lectura = array['partido'] where equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 0);
 reset role;
+
+-- Lesiones (20261115): lo mismo que Evaluaciones (20261114).
+begin;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+insert into lesiones (equipo_id, jugador_id, fecha_lesion, datos) values
+  ('00000000-0000-0000-0000-0000000000c1', 9006, '2026-09-20', '{"parte_cuerpo":"coxa","lado":"direito","comentarios":"uno"}');
+select id as lesion_l from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20' \gset
+select pruebas.esperar('Lesiones: una cambia una celda (sin pisar a nadie)',
+  (select (lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"datos.comentarios":"dos"}', '{"datos.comentarios":"uno"}') -> 'pisadas')::text), '[]');
+select pruebas.esperar('...otra, a la vez, otra celda de la misma lesión: se juntan',
+  (select (lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"fecha_alta":"2026-09-25"}', '{"fecha_alta":null}') -> 'fila') ->> 'fecha_alta' || ' ' || (select datos ->> 'comentarios' from lesiones where id = (select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'))), '2026-09-25 dos');
+select pruebas.esperar('La misma celda, a la vez: gana el último y dice qué había',
+  (select (lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"fecha_alta":"2026-09-27"}', '{"fecha_alta":null}') -> 'pisadas')::text), '[{"clave": "fecha_alta", "habia": "2026-09-25"}]');
+select pruebas.esperar('...y queda lo del último', (select fecha_alta::text from lesiones where id = (select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20')), '2026-09-27');
+select pruebas.esperar('Si los dos pusieron lo mismo, no hay nada que avisar',
+  (select (lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"datos.comentarios":"dos"}', '{"datos.comentarios":"uno"}') -> 'pisadas')::text), '[]');
+select pruebas.esperar('Vaciar un dato lo saca, y una fecha vacía queda vacía',
+  (select (x #>> '{fila,datos}') || ' ' || coalesce(x #>> '{fila,fecha_alta}', 'sin alta') from (select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"datos.comentarios":"","fecha_alta":null}') as x) s), '{"lado": "direito", "parte_cuerpo": "coxa"} sin alta');
+select pruebas.debe_fallar('...pasarla a alguien fuera de Datos básicos sin su consentimiento, no', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"jugador_id":null,"persona":"  Persona   Cambiada "}')$q$, 'falta_consentimiento_persona');
+select pruebas.debe_fallar('El club no se cambia', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"equipo_id":"00000000-0000-0000-0000-0000000000c2"}')$q$, 'lesiones_cambios');
+select pruebas.debe_fallar('...ni el N° de caso', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"numero_caso":1}')$q$, 'lesiones_cambios');
+select pruebas.debe_fallar('...y algo hay que cambiar', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{}')$q$, 'lesiones_cambios');
+select pruebas.debe_fallar('Las reglas de siempre: no de un jugador de otro club', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"jugador_id":9004}')$q$, 'jugador_de_otro_club');
+select pruebas.debe_fallar('...ni el alta antes de la lesión', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"fecha_alta":"2026-09-01"}')$q$, 'lesiones_fechas_en_orden');
+select pruebas.debe_fallar('...ni una lesión que empieza en el futuro', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"fecha_lesion":"2999-01-01"}')$q$, 'lesiones_sin_futuro');
+reset role;
+select pruebas.ser('mira@uno.com'); set role authenticated;
+select pruebas.esperar('Con Lesiones solo para mirar la ve...', (select count(*) from lesiones where id = (select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20')), 1);
+select pruebas.debe_fallar('...pero no la cambia', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"datos.comentarios":"x"}')$q$, 'permission denied');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.debe_fallar('Desde otro club no la ve: para ella no está', format($q$select lesiones_cambiar(%L, '{"datos.comentarios":"x"}')$q$, :'lesion_l'), 'fila_borrada');
+reset role;
+set role anon;
+select pruebas.debe_fallar('Anon, nada', $q$select lesiones_cambiar('00000000-0000-0000-0000-000000000000', '{"datos.comentarios":"x"}')$q$, 'permission denied');
+reset role;
+select pruebas.esperar('Cada cambio queda en el historial, con quién lo hizo', ((select count(*) from lesiones_historial where lesion_id = (select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20') and accion = 'editada' and quien = '00000000-0000-0000-0000-00000000000b') >= 4)::text, 'true');
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Otra persona la borra', pruebas.filas($q$delete from lesiones where id = (select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20')$q$), 1);
+select pruebas.debe_fallar('...y cambiarla avisa que ya no está', $q$select lesiones_cambiar('00000000-0000-0000-0000-0000000000ee', '{"datos.comentarios":"x"}')$q$, 'fila_borrada');
+reset role;
+rollback;
 
 -- ------------------------------------ Consentimiento de los atletas --
 -- 20261103. Un club nuevo, sin confirmar: Nora (admin), Pablo (staff con

@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 const datos = vi.hoisted(() => ({
   lesiones: [],
   guardadas: [],
+  // Cómo quedó en la base cada lesión cambiada, después de cada guardado.
   actualizadas: [],
+  // Lo que mandó cada cambio (solo lo cambiado, paso 2 de «cargar sin
+  // señal…»). Con sinCambiar, la base no tiene esa actualización.
+  cambiadas: [],
+  sinCambiar: false,
   borradas: [],
   cabeceras: [],
   opciones: [],
@@ -56,7 +61,30 @@ vi.mock("./domain/equipo.js", () => ({
   esElCam: (nombre) => nombre === "Atlético Mineiro",
   soloParaMirar: (equipo, modulo) => Array.isArray(equipo?.solo_lectura) && equipo.solo_lectura.includes(modulo),
 }));
-vi.mock("./domain/lesionesDb.js", () => ({
+vi.mock("./domain/lesionesDb.js", async (importOriginal) => ({
+  cambiosDeLaLesion: (await importOriginal()).cambiosDeLaLesion,
+  // Como 20261115: junta lo cambiado en la lesión de la base (datos.lesiones)
+  // y dice qué pisó; si ya no está, borrada.
+  cambiarLesion: async (id, { cambios = {}, antes = {} } = {}) => {
+    datos.cambiadas.push({ id, cambios, antes });
+    if (datos.sinCambiar) return { sinFuncion: true, error: "" };
+    if (datos.compuerta) await datos.compuerta;
+    const fila = datos.lesiones.find((una) => una.id === id);
+    if (!fila) return { borrada: true, error: "" };
+    const pisadas = [];
+    Object.entries(cambios).forEach(([clave, nuevo]) => {
+      const enDatos = clave.startsWith("datos.");
+      const campo = enDatos ? clave.slice(6) : clave;
+      const habia = (enDatos ? fila.datos[campo] : fila[campo]) ?? null;
+      if (clave in antes && JSON.stringify(habia) !== JSON.stringify(antes[clave] ?? null) && JSON.stringify(habia) !== JSON.stringify(nuevo ?? null)) pisadas.push({ clave, habia });
+      if (!enDatos) fila[campo] = nuevo;
+      else if (nuevo === null || nuevo === "") delete fila.datos[campo];
+      else fila.datos[campo] = nuevo;
+    });
+    const lesion = JSON.parse(JSON.stringify(fila));
+    datos.actualizadas.push({ id, lesion });
+    return { lesion, pisadas, error: "" };
+  },
   listarLesiones: async () => (datos.errorAlLeer ? { lesiones: [], error: datos.errorAlLeer } : { lesiones: datos.lesiones.map((l) => ({ ...l, datos: { ...l.datos } })), error: "" }),
   cargarPlantelLesiones: async () => ({
     plantel: datos.plantel || [
@@ -71,7 +99,9 @@ vi.mock("./domain/lesionesDb.js", () => ({
   leerMinutosDeEntrenamiento: async () => ({ minutos: datos.minutos ?? null, error: "" }),
   crearLesion: async (equipoId, lesion) => {
     datos.guardadas.push({ equipoId, lesion });
-    return { lesion: { ...lesion, id: "les-nueva", numero_caso: 2 }, error: "" };
+    const nueva = { ...lesion, id: "les-nueva", numero_caso: 2 };
+    datos.lesiones.push(JSON.parse(JSON.stringify(nueva)));
+    return { lesion: nueva, error: "" };
   },
   actualizarLesion: async (id, lesion) => {
     datos.actualizadas.push({ id, lesion: JSON.parse(JSON.stringify(lesion)) });
@@ -181,6 +211,7 @@ describe("el módulo Lesiones", () => {
     datos.errorAlLeer = "";
     datos.plantel = null;
     datos.compuerta = null;
+    datos.sinCambiar = false;
     copias.guardadas = {};
     Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
     contenedor = document.createElement("div");
@@ -191,7 +222,7 @@ describe("el módulo Lesiones", () => {
   afterEach(async () => {
     await act(async () => raiz.unmount());
     contenedor.remove();
-    ["guardadas", "actualizadas", "borradas", "cabeceras", "opciones"].forEach((clave) => {
+    ["guardadas", "actualizadas", "cambiadas", "borradas", "cabeceras", "opciones"].forEach((clave) => {
       datos[clave].length = 0;
     });
   });
@@ -297,6 +328,9 @@ describe("el módulo Lesiones", () => {
     await act(async () => Promise.resolve());
     expect(datos.actualizadas).toHaveLength(1);
     expect(datos.actualizadas[0].lesion.datos.medico).toBe("Dr. X");
+    // Se manda solo lo cambiado (y la categoría del jugador ese día, que
+    // faltaba), no la lesión entera (paso 2 de «cargar sin señal…»).
+    expect(datos.cambiadas).toEqual([{ id: "les-1", cambios: { "datos.medico": "Dr. X", "datos.categoria": "profissional" }, antes: { "datos.medico": null, "datos.categoria": null } }]);
     expect(texto(contenedor)).toContain("Lesión guardada");
     // Vuelve a la ficha, en la misma pestaña, y los cambios se piden de nuevo.
     expect(pestana(contenedor, "Observaciones").getAttribute("aria-selected")).toBe("true");
@@ -1156,6 +1190,8 @@ describe("el módulo Lesiones", () => {
     await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     expect(datos.actualizadas).toHaveLength(1);
     expect(datos.actualizadas[0].lesion.datos.medico).toBe("Dra. Pérez");
+    // Se manda solo esa celda, con lo que se veía (paso 2 de «cargar sin señal…»).
+    expect(datos.cambiadas).toEqual([{ id: "les-1", cambios: { "datos.medico": "Dra. Pérez" }, antes: { "datos.medico": null } }]);
 
     // Pegar un texto de Excel en la columna del lado.
     const indiceLado = cabeceras.findIndex((th) => th.textContent === "Lado");
@@ -1227,6 +1263,82 @@ describe("el módulo Lesiones", () => {
     expect(datos.actualizadas[2].lesion.datos).toMatchObject({ medico: "Dr. Gómez", lado: "esquerdo", parte_cuerpo: "coxa" });
     expect(celda(etiqueta("medico")).textContent).toBe("Dr. Gómez");
     expect(celda("Lado").textContent).toBe("Izquierdo");
+  });
+
+  // Paso 2 de «cargar sin señal y a la vez que otra persona» (Santiago, 20/10:
+  // «Se juntan; si es la misma celda, aviso»; 21/10: «Gana el último, con
+  // aviso»; una fila que otro borró, «Queda borrada y te aviso»). La otra
+  // persona cambia la base (datos.lesiones) sin que esta pantalla se entere.
+  describe("dos personas cambian la misma lesión a la vez", () => {
+    const celdaDe = (titulo) => {
+      const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")];
+      return contenedor.querySelector(".tabla-datos-tabla tbody tr").querySelectorAll("td")[cabeceras.findIndex((th) => th.textContent === titulo)];
+    };
+    const escribirMedico = async (valor) => {
+      await tocar(celdaDe(etiqueta("medico")));
+      await tocar(celdaDe(etiqueta("medico")));
+      const input = celdaDe(etiqueta("medico")).querySelector("input");
+      await escribir(input, valor);
+      await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    };
+    const otraPersonaCambia = (cambio) => Object.assign(datos.lesiones[0].datos, cambio);
+
+    test("celdas distintas: quedan las dos, sin aviso", async () => {
+      datos.lesiones[0].datos.medico = "Dr. X";
+      await montar();
+      await navegar(contenedor, "Base");
+      otraPersonaCambia({ tratamiento: "Fisioterapia" });
+      await escribirMedico("Dra. Pérez");
+      expect(datos.cambiadas).toEqual([{ id: "les-1", cambios: { "datos.medico": "Dra. Pérez" }, antes: { "datos.medico": "Dr. X" } }]);
+      expect(datos.lesiones[0].datos).toMatchObject({ medico: "Dra. Pérez", tratamiento: "Fisioterapia" });
+      expect(celdaDe(etiqueta("medico")).textContent).toBe("Dra. Pérez");
+      expect(texto(document.body)).not.toContain("Otra persona había cambiado");
+    });
+
+    test("la misma celda: gana el último y se le avisa", async () => {
+      datos.lesiones[0].datos.medico = "Dr. X";
+      await montar();
+      await navegar(contenedor, "Base");
+      otraPersonaCambia({ medico: "Dr. Gómez" });
+      await escribirMedico("Dra. Pérez");
+      expect(datos.lesiones[0].datos.medico).toBe("Dra. Pérez");
+      expect(celdaDe(etiqueta("medico")).textContent).toBe("Dra. Pérez");
+      expect(texto(document.body)).toContain(`Otra persona había cambiado «${etiqueta("medico")}» mientras tanto: quedó lo tuyo.`);
+    });
+
+    test("una lesión que otra persona borró: queda borrada y se avisa", async () => {
+      await montar();
+      await navegar(contenedor, "Base");
+      datos.lesiones = [];
+      await escribirMedico("Dra. Pérez");
+      expect(texto(contenedor.querySelector(".tabla-datos-tabla tbody"))).not.toContain("HULK");
+      expect(texto(document.body)).toContain("Esa lesión la borró otra persona: queda borrada.");
+    });
+
+    test("en el alta médica: si otra persona cargó otra fecha, quedan las dos; si cargó la misma, gana el último y se avisa en vez de «Alta guardada»", async () => {
+      await montar();
+      datos.lesiones[0].fecha_transicion = "2026-09-22";
+      datos.lesiones[0].fecha_alta = "2026-09-24";
+      await tocar(boton(contenedor, "Alta médica"));
+      await escribir(document.querySelector("#alta-fecha_alta"), hoyISO());
+      await tocar(boton(contenedor, "Guardar"));
+      await act(async () => Promise.resolve());
+      expect(datos.cambiadas).toEqual([{ id: "les-1", cambios: { fecha_alta: hoyISO() }, antes: { fecha_alta: null } }]);
+      expect(datos.lesiones[0]).toMatchObject({ fecha_transicion: "2026-09-22", fecha_alta: hoyISO() });
+      expect(texto(document.body)).toContain(`Otra persona había cambiado «${etiqueta("fecha_alta")}» mientras tanto: quedó lo tuyo.`);
+      expect(texto(document.body)).not.toContain("Alta guardada");
+    });
+
+    test("sin la actualización de la base: se guarda la lesión entera, como antes", async () => {
+      datos.sinCambiar = true;
+      await montar();
+      await navegar(contenedor, "Base");
+      await escribirMedico("Dra. Pérez");
+      expect(datos.cambiadas).toHaveLength(1);
+      expect(datos.actualizadas).toHaveLength(1);
+      expect(datos.actualizadas[0].lesion).toMatchObject({ id: "les-1", fecha_lesion: "2026-09-20", datos: { parte_cuerpo: "coxa", lado: "direito", medico: "Dra. Pérez" } });
+      expect(celdaDe(etiqueta("medico")).textContent).toBe("Dra. Pérez");
+    });
   });
 
   test("las cabeceras de la base filtran y ordenan como en Excel", async () => {

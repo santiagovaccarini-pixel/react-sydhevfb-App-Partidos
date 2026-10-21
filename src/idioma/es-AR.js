@@ -2172,6 +2172,12 @@ export default {
     guardado: "Lesión guardada",
     altaGuardada: "Alta guardada",
     fechasGuardadas: "Fechas guardadas. Sigue en «Nuevos casos» hasta que cargues el retorno a la competencia.",
+    // Paso 2 de «cargar sin señal…»: se guarda solo lo cambiado (Santiago,
+    // 21/10: la misma celda, «Gana el último, con aviso»).
+    cambios: {
+      pisadas: "Otra persona había cambiado «{{columnas}}» mientras tanto: quedó lo tuyo.",
+      borrada: "Esa lesión la borró otra persona: queda borrada.",
+    },
     avisoRecidiva: "Ojo: ya tuvo una lesión en {{parte}} ({{lado}}) el {{fecha}}. Puede contar como recurrencia o recidiva.",
     graficos: {
       opcion: "Informes gráficos",

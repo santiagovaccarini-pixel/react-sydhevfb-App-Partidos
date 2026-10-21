@@ -58,6 +58,8 @@ import {
 import {
   actualizarLesion,
   borrarLesion,
+  cambiarLesion,
+  cambiosDeLaLesion,
   cargarPlantelLesiones,
   crearLesion,
   guardarCampo,
@@ -68,7 +70,7 @@ import {
   listarLesiones,
 } from "./domain/lesionesDb.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta, fechaLarga, fechaYHora, hoyISO } from "./idioma/formatos.js";
+import { enLista, fechaCorta, fechaLarga, fechaYHora, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import "./lesiones.css";
 
@@ -525,8 +527,9 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     if (!datos.categoria && jugador?.categoria) datos.categoria = jugador.categoria;
     const aGuardar = { ...lesion, datos };
     setOcupado(true);
-    const respuesta = lesion.id ? await actualizarLesion(lesion.id, aGuardar) : await crearLesion(equipoId, aGuardar);
+    const respuesta = lesion.id ? await guardarCambios(lesion.id, formularioAlAbrir.current, aGuardar) : await crearLesion(equipoId, aGuardar);
     setOcupado(false);
+    if (respuesta.borrada) return;
     if (respuesta.error) {
       setErrorFormulario(
         t(respuesta.error, { parte: textoDeOpcion("parte_cuerpo", datos.parte_cuerpo), lado: textoDeOpcion("lado", datos.lado) }),
@@ -536,7 +539,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     reemplazar(respuesta.lesion);
     setFormulario(null);
     setDetalleId(respuesta.lesion.id);
-    setAviso(t("lesiones.guardado"));
+    // Si pisó lo de otra persona, ese aviso queda.
+    if (!respuesta.pisadas?.length) setAviso(t("lesiones.guardado"));
   };
 
   // Alta médica: las fechas de la vuelta (pase a transición, retorno al
@@ -567,12 +571,13 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     if (falta) return setErrorAlta(t(falta, variablesDelError(nueva)));
     setErrorAlta("");
     setOcupado(true);
-    const respuesta = await actualizarLesion(lesion.id, nueva);
+    const respuesta = await guardarCambios(lesion.id, lesion, nueva);
     setOcupado(false);
+    if (respuesta.borrada) return undefined;
     if (respuesta.error) return setErrorAlta(textoDeError(respuesta.error, lesion));
     reemplazar(respuesta.lesion);
     setADarAlta(null);
-    setAviso(t(respuesta.lesion.fecha_alta ? "lesiones.altaGuardada" : "lesiones.fechasGuardadas"));
+    if (!respuesta.pisadas?.length) setAviso(t(respuesta.lesion.fecha_alta ? "lesiones.altaGuardada" : "lesiones.fechasGuardadas"));
     return undefined;
   };
 
@@ -856,10 +861,39 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // Lo último de cada lesión (lo que ya devolvió la base, aunque la pantalla
   // todavía no se haya redibujado) y una cola por lesión: dos celdas de la
   // misma lesión guardadas seguidas no se pisan, la segunda sale de lo que
-  // dejó la primera (la base guarda la fila entera).
+  // dejó la primera.
   const ultimas = useRef(lesiones);
   ultimas.current = lesiones;
   const colas = useRef(new Map());
+
+  // Se guarda solo lo cambiado (paso 2 de «cargar sin señal y a la vez que
+  // otra persona», como en Evaluaciones): celdas distintas de la misma lesión
+  // no se pisan; en la misma celda gana el último y se avisa (Santiago,
+  // 21/10: «Gana el último, con aviso»); si otra persona la borró, queda
+  // borrada y se avisa. vieja: como se veía al empezar a cambiarla. Sin la
+  // actualización 20261115, la fila entera, como antes.
+  const nombreDeLaClave = (clave) => {
+    if (clave === "jugador_id" || clave === "persona") return etiqueta("jugador");
+    return etiqueta(clave.startsWith("datos.") ? clave.slice(6) : clave);
+  };
+  const guardarCambios = async (id, vieja, nueva) => {
+    const { cambios, antes } = cambiosDeLaLesion(vieja, nueva);
+    if (!Object.keys(cambios).length) return { lesion: ultimas.current.find((una) => una.id === id) || vieja, error: "" };
+    const respuesta = await cambiarLesion(id, { cambios, antes });
+    if (respuesta.sinFuncion) return actualizarLesion(id, nueva);
+    if (respuesta.borrada) {
+      ultimas.current = ultimas.current.filter((una) => una.id !== id);
+      setLesiones((actuales) => actuales.filter((una) => una.id !== id));
+      setDetalleId((actual) => (actual === id ? null : actual));
+      setFormulario((actual) => (actual?.id === id ? null : actual));
+      setADarAlta((actual) => (actual?.id === id ? null : actual));
+      setAviso(t("lesiones.cambios.borrada"));
+      return { borrada: true, error: "" };
+    }
+    if (respuesta.error) return respuesta;
+    if (respuesta.pisadas.length) setAviso(t("lesiones.cambios.pisadas", { columnas: enLista([...new Set(respuesta.pisadas.map((pisada) => nombreDeLaClave(pisada.clave)))]) }));
+    return { lesion: respuesta.lesion, pisadas: respuesta.pisadas, error: "" };
+  };
   const guardarFila = (lesionId, cambiar) => {
     const paso = async () => {
       const lesion = ultimas.current.find((una) => una.id === lesionId);
@@ -868,7 +902,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       // Solo frena lo que rompe esta edición (no lo que ya le faltaba a la lesión).
       const falta = erroresNuevos(lesion, nueva, { hoy: hoyISO(), otras: ultimas.current, oculto })[0]?.error;
       if (falta) return { error: falta, variables: variablesDelError(nueva) };
-      const respuesta = await actualizarLesion(lesion.id, nueva);
+      const respuesta = await guardarCambios(lesion.id, lesion, nueva);
+      if (respuesta.borrada) return { sinLesion: true };
       if (respuesta.error) return { error: respuesta.error, variables: variablesDelError(nueva) };
       ultimas.current = ultimas.current.map((una) => (una.id === lesionId ? respuesta.lesion : una));
       reemplazar(respuesta.lesion);
