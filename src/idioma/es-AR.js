@@ -1686,26 +1686,10 @@ export default {
     },
   },
   // Ver una base sin señal (paso 1 de «cargar sin señal y a la vez que otra
-  // persona»; Santiago, 20/10: «Solo donde se active»; 21/10: el botón, en la Base).
+  // persona»; Santiago, 21/10: la copia «Automática en todos, sin botón»).
   sinSenal: {
-    boton: "Ver sin señal en este aparato",
-    botonAyuda: "Guarda una copia en este aparato para mirar {{base}} aunque no haya señal.",
-    copiaDel: "Copia del {{fecha}}.",
-    activado: "Activado",
-    desactivado: "Desactivado",
-    activarTitulo: "¿Ver {{base}} sin señal en este aparato?",
-    activarTexto: "Lo de {{base}} del club queda guardado en este aparato, para mirarlo aunque no haya señal.",
-    activarDetalle: "Activalo solo en un aparato tuyo y con bloqueo de pantalla: son datos de los atletas. La copia se borra al desactivarlo, al salir de la cuenta, al dejar el club o si dejás de tener {{base}}. Sin señal se mira; para cambiar algo hace falta señal.",
-    activar: "Activar",
-    desactivarTitulo: "¿Dejar de ver {{base}} sin señal?",
-    desactivarTexto: "Se borra la copia de este aparato. Con señal, todo sigue igual.",
-    desactivar: "Desactivar",
-    activadoListo: "Listo: {{base}} se puede mirar sin señal en este aparato.",
-    desactivadoListo: "Listo: se borró la copia de {{base}} de este aparato.",
-    noSeActivo: "No se pudo activar en este aparato (puede que el navegador no lo deje).",
     copiaTitulo: "Sin señal: ves la copia de este aparato",
     copiaTexto: "Es del {{fecha}}. Para cambiar algo hace falta señal.",
-    paraActivar: "Para mirarla sin señal en este aparato, tocá «Ver sin señal en este aparato» en la Base cuando tengas señal.",
   },
   club: {
     titulo: "¿Con qué club trabajás?",

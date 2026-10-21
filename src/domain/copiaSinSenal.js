@@ -1,15 +1,13 @@
 // Ver las bases sin señal (paso 1 de la nota «cargar sin señal y a la vez que
-// otra persona»; Santiago, 20/10: la copia para usar sin señal «Solo donde se
-// active», en Ajustes de cada base: «Ver Lesiones sin señal en este
-// aparato»). Si se activó en este aparato, la base guarda acá lo que trajo
-// (para esta cuenta y este club) y, sin señal, abre con eso para mirar.
+// otra persona»; Santiago, 21/10: la copia «Automática en todos, sin botón»).
+// Con señal, la base guarda acá lo que trajo (para esta cuenta y este club) y,
+// sin señal, abre con eso para mirar.
 //
-// Lo que se guarda va en IndexedDB, una copia por club, base y cuenta. Que
-// está activado, en localStorage (es solo una marca). Todo se borra al
-// desactivarlo, al salir de la cuenta, cuando la cuenta deja el club
-// (copiasLocales.js) y cuando pierde esa base (PortalApp.jsx). Sin IndexedDB
-// (un navegador viejo, una ventana privada que no lo deja) no hay copia: sin
-// señal se ve el aviso de siempre.
+// Lo que se guarda va en IndexedDB, una copia por club, base y cuenta. Se
+// borra al salir de la cuenta, cuando la cuenta deja el club (copiasLocales.js)
+// y cuando pierde esa base (PortalApp.jsx). Sin IndexedDB (un navegador viejo,
+// una ventana privada que no lo deja) no hay copia: sin señal se ve el aviso
+// de siempre.
 import { supabase } from "../supabase.js";
 import { leerPerfilLocal } from "./perfilesDb.js";
 
@@ -18,7 +16,8 @@ const ALMACEN = "copias";
 const VERSION_DE_LA_BASE = 1;
 // Si cambia lo que se guarda, las copias viejas no se usan.
 export const FORMATO_SIN_SENAL = 1;
-// La marca de cada base activada: sin_senal:<club>:<base>:<cuenta>.
+// Las marcas de cuando había que activarlo en cada aparato (20/10):
+// sin_senal:<club>:<base>:<cuenta>. Ya no se usan; se borran con las copias.
 export const MARCA_SIN_SENAL = "sin_senal";
 
 const abrirBase = () =>
@@ -72,7 +71,6 @@ const conAlmacen = async (modo, hacer) => {
 };
 
 const claveDe = (modulo, cuenta, equipoId) => `${equipoId}|${modulo}|${cuenta}`;
-const marcaDe = (modulo, cuenta, equipoId) => `${MARCA_SIN_SENAL}:${equipoId}:${modulo}:${cuenta}`;
 
 // La cuenta de este aparato: la de la sesión o, sin señal y sin sesión que
 // leer, la última que entró (como la puerta de entrada).
@@ -86,55 +84,25 @@ export const cuentaDelAparato = async () => {
   return leerPerfilLocal()?.user_id || null;
 };
 
-export const sinSenalActivo = (modulo, cuenta, equipoId) => {
-  if (!modulo || !cuenta || !equipoId) return false;
-  try {
-    return localStorage.getItem(marcaDe(modulo, cuenta, equipoId)) === "1";
-  } catch {
-    return false;
-  }
-};
-
-export const activarSinSenal = (modulo, cuenta, equipoId) => {
-  if (!modulo || !cuenta || !equipoId) return false;
-  try {
-    localStorage.setItem(marcaDe(modulo, cuenta, equipoId), "1");
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-// Se desactiva y la copia se borra.
-export const desactivarSinSenal = async (modulo, cuenta, equipoId) => {
-  if (!modulo || !cuenta || !equipoId) return null;
-  try {
-    localStorage.removeItem(marcaDe(modulo, cuenta, equipoId));
-  } catch {
-    // Sin localStorage no había marca.
-  }
-  return conAlmacen("readwrite", (almacen) => almacen.delete(claveDe(modulo, cuenta, equipoId)));
-};
-
-// datos: lo que la base necesita para mostrarse (lo decide cada base). Solo
-// si está activado. Devuelve la hora en que se guardó (ISO) o null.
+// datos: lo que la base necesita para mostrarse (lo decide cada base).
+// Devuelve la hora en que se guardó (ISO) o null.
 export const guardarCopiaSinSenal = async (modulo, cuenta, equipoId, datos) => {
-  if (!sinSenalActivo(modulo, cuenta, equipoId) || !datos || typeof datos !== "object") return null;
+  if (!modulo || !cuenta || !equipoId || !datos || typeof datos !== "object") return null;
   const guardadaEn = new Date().toISOString();
   const hecho = await conAlmacen("readwrite", (almacen) => almacen.put({ formato: FORMATO_SIN_SENAL, guardadaEn, datos }, claveDe(modulo, cuenta, equipoId)));
   return hecho ? guardadaEn : null;
 };
 
-// { datos, guardadaEn } o null (sin activar, sin copia o de otro formato).
+// { datos, guardadaEn } o null (sin copia o de otro formato).
 export const leerCopiaSinSenal = async (modulo, cuenta, equipoId) => {
-  if (!sinSenalActivo(modulo, cuenta, equipoId)) return null;
+  if (!modulo || !cuenta || !equipoId) return null;
   const copia = await conAlmacen("readonly", (almacen) => almacen.get(claveDe(modulo, cuenta, equipoId)));
   if (!copia || copia === true || copia.formato !== FORMATO_SIN_SENAL || !copia.datos || typeof copia.datos !== "object") return null;
   return { datos: copia.datos, guardadaEn: copia.guardadaEn || null };
 };
 
-// Las copias y las marcas de un club (de todas las cuentas de este aparato),
-// de una base de ese club o, sin club, todas.
+// Las copias (y las marcas viejas) de un club, de todas las cuentas de este
+// aparato, de una base de ese club o, sin club, todas.
 export const borrarCopiasSinSenal = async (equipoId = null, modulo = null) => {
   try {
     Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))

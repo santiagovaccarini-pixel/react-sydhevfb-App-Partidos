@@ -58,8 +58,7 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
 - `src/components/BotonModulos.jsx`: volver a los módulos desde el encabezado, fijo arriba al
   bajar (UI-051).
 - `src/components/SinSenal.jsx`: ver una base sin señal, igual en Lesiones, Evaluaciones y GPS:
-  el botón «Ver sin señal en este aparato» de la Base con sus hojas, el aviso de la copia y la
-  copia del aparato (UI-065 y UI-066).
+  la copia del aparato, que se guarda sola, y el aviso de la copia (UI-065 a UI-067).
 
 Revisá `src/style.css`, `portal.css`, `training.css`, `lesiones.css`,
 `evaluaciones.css` y `gps.css` antes de crear estilos; mantené sus convenciones de color,

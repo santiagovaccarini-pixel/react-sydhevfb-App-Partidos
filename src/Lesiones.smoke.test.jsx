@@ -33,28 +33,17 @@ const lesionHulk = () => ({
 
 // La copia para ver sin señal (copiaSinSenal.js), en memoria: en las
 // pruebas no hay IndexedDB.
-const copias = vi.hoisted(() => ({ marcas: {}, guardadas: {} }));
+const copias = vi.hoisted(() => ({ guardadas: {} }));
 vi.mock("./domain/copiaSinSenal.js", () => {
   const clave = (modulo, cuenta, equipoId) => `${equipoId}|${modulo}|${cuenta}`;
   return {
     cuentaDelAparato: async () => "cuenta-1",
-    sinSenalActivo: (modulo, cuenta, equipoId) => Boolean(copias.marcas[clave(modulo, cuenta, equipoId)]),
-    activarSinSenal: (modulo, cuenta, equipoId) => {
-      copias.marcas[clave(modulo, cuenta, equipoId)] = true;
-      return true;
-    },
-    desactivarSinSenal: async (modulo, cuenta, equipoId) => {
-      delete copias.marcas[clave(modulo, cuenta, equipoId)];
-      delete copias.guardadas[clave(modulo, cuenta, equipoId)];
-      return true;
-    },
     guardarCopiaSinSenal: async (modulo, cuenta, equipoId, datos) => {
-      if (!copias.marcas[clave(modulo, cuenta, equipoId)]) return null;
       const guardadaEn = "2026-10-20T14:32:00.000Z";
       copias.guardadas[clave(modulo, cuenta, equipoId)] = { datos: JSON.parse(JSON.stringify(datos)), guardadaEn };
       return guardadaEn;
     },
-    leerCopiaSinSenal: async (modulo, cuenta, equipoId) => (copias.marcas[clave(modulo, cuenta, equipoId)] ? copias.guardadas[clave(modulo, cuenta, equipoId)] || null : null),
+    leerCopiaSinSenal: async (modulo, cuenta, equipoId) => copias.guardadas[clave(modulo, cuenta, equipoId)] || null,
     borrarCopiasSinSenal: async () => null,
   };
 });
@@ -192,7 +181,6 @@ describe("el módulo Lesiones", () => {
     datos.errorAlLeer = "";
     datos.plantel = null;
     datos.compuerta = null;
-    copias.marcas = {};
     copias.guardadas = {};
     Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
     contenedor = document.createElement("div");
@@ -233,19 +221,13 @@ describe("el módulo Lesiones", () => {
   });
 
   // Paso 1 de «cargar sin señal y a la vez que otra persona» (Santiago,
-  // 20/10): «Solo donde se active»; 21/10: el botón, en la Base.
-  test("Ver sin señal: se activa en la Base, guarda la copia y sin señal abre con ella, para mirar", async () => {
+  // 21/10: la copia «Automática en todos, sin botón»).
+  test("Ver sin señal: con señal guarda sola la copia de este aparato; sin señal abre con ella, para mirar", async () => {
     const sinSenalAhora = async (sin) => {
       Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
       await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
     };
     await montar();
-    await navegar(contenedor, "Base");
-    const ajuste = () => contenedor.querySelector(".acciones-base .boton-sin-senal");
-    expect(ajuste().textContent).toBe("Ver sin señal en este aparatoDesactivado");
-    await tocar(ajuste());
-    expect(document.querySelector(".hoja-confirmar h3").textContent).toBe("¿Ver Lesiones sin señal en este aparato?");
-    await tocar(boton(contenedor, "Activar"));
     await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
     expect(copias.guardadas["eq-1|lesiones|cuenta-1"].datos.lesiones).toHaveLength(1);
 
@@ -1502,8 +1484,6 @@ describe("el módulo Lesiones", () => {
     expect(cabeceras.every((th) => th.classList.contains("fija"))).toBe(true);
     expect(boton(contenedor, "Borrar fila")).toBeUndefined();
     expect(boton(contenedor, "Pegar")).toBeUndefined();
-    // Quien ya se fue no guarda copia.
-    expect(contenedor.querySelector(".boton-sin-senal")).toBeNull();
 
     await navegar(contenedor, "Ajustes");
     expect(texto(contenedor)).toContain("Dejaste este club el 25/09/2026.");
@@ -1527,8 +1507,6 @@ describe("el módulo Lesiones", () => {
     await navegar(contenedor, "Base");
     expect(boton(contenedor, "Borrar fila")).toBeUndefined();
     expect(boton(contenedor, "Pegar")).toBeUndefined();
-    // Ver sin señal sí: es solo para mirar (paso 1 de «cargar sin señal…»).
-    expect(contenedor.querySelector(".acciones-base .boton-sin-senal").disabled).toBe(false);
 
     await navegar(contenedor, "Ajustes");
     expect(texto(contenedor)).toContain("Tenés Lesiones en solo lectura.");
