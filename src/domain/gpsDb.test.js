@@ -6,6 +6,7 @@ import {
   SOLO_PROMEDIOS,
   actualizarFilaGps,
   borrarFilaGps,
+  cuentaDeLaSesion,
   borrarEnCurso,
   borrarFilasGps,
   cambiarEnDescripcionesGps,
@@ -776,5 +777,16 @@ describe("Lo que recuerda la cuenta", () => {
     await recordarDispositivo(null, "csv", "sport");
     await recordarDispositivo("eq-1", "otro", "sport");
     expect(doble.llamadas).toEqual([]);
+  });
+});
+
+// Paso 1 de «cargar sin señal…»: sin sesión que leer (sin señal), la copia
+// del aparato se busca con la última cuenta que entró, como la puerta.
+describe("la cuenta del aparato", () => {
+  test("sin sesión, la última que entró en este aparato; sin ninguna, nadie", async () => {
+    localStorage.setItem("perfil_cuenta", JSON.stringify({ user_id: "cuenta-guardada" }));
+    expect(await cuentaDeLaSesion()).toBe("cuenta-guardada");
+    localStorage.removeItem("perfil_cuenta");
+    expect(await cuentaDeLaSesion()).toBeNull();
   });
 });

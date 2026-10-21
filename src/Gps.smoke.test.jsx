@@ -79,13 +79,29 @@ vi.mock("./domain/plantel.js", async (importOriginal) => ({
 const porFechaYOrden = (a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.orden - b.orden);
 const copiar = (filas) => filas.map((fila) => ({ ...fila, datos: { ...fila.datos } }));
 vi.mock("./domain/copiaGps.js", () => ({
-  leerCopiaGps: async () => (datos.copia ? { filas: copiar(datos.copia.filas), hasta: datos.copia.hasta } : null),
+  leerCopiaGps: async () => (datos.copia ? { filas: copiar(datos.copia.filas), hasta: datos.copia.hasta, guardadaEn: datos.copia.guardadaEn ?? null } : null),
   guardarCopiaGps: async (cuenta, equipoId, copia) => {
     datos.copiasGuardadas.push({ cuenta, equipoId, filas: copia.filas.length, hasta: copia.hasta });
     return true;
   },
   borrarCopiasGps: async () => true,
 }));
+// Lo del club para ver GPS sin señal (copiaSinSenal.js), en memoria: en las
+// pruebas no hay IndexedDB.
+const copias = vi.hoisted(() => ({ guardadas: {} }));
+vi.mock("./domain/copiaSinSenal.js", () => {
+  const clave = (modulo, cuenta, equipoId) => `${equipoId}|${modulo}|${cuenta}`;
+  return {
+    cuentaDelAparato: async () => "cuenta-1",
+    guardarCopiaSinSenal: async (modulo, cuenta, equipoId, guardar) => {
+      const guardadaEn = "2026-10-20T14:32:00.000Z";
+      copias.guardadas[clave(modulo, cuenta, equipoId)] = { datos: JSON.parse(JSON.stringify(guardar)), guardadaEn };
+      return guardadaEn;
+    },
+    leerCopiaSinSenal: async (modulo, cuenta, equipoId) => copias.guardadas[clave(modulo, cuenta, equipoId)] || null,
+    borrarCopiasSinSenal: async () => null,
+  };
+});
 vi.mock("./domain/consentimientoDb.js", () => ({
   leerPersonasConfirmadas: async () => ({ personas: new Set(datos.personasConfirmadas), sinTabla: false, error: "" }),
   confirmarPersonas: async (equipoId, base, personas) => {
@@ -436,6 +452,8 @@ describe("GPS", () => {
     datos.diasGuardados = [];
     datos.sinGuardarDia = false;
     datos.pegadas = [];
+    copias.guardadas = {};
+    Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
     volvio = 0;
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -676,6 +694,44 @@ describe("GPS", () => {
     expect(datos.alDia[0]).toEqual({ equipoId: "eq-1", filas: 3, hasta: "2026-10-13T10:00:00Z" });
     await esperar(() => filas(contenedor).length === 4);
     expect(contenedor.querySelector(".estado-hero").textContent).toBe("4 filas");
+  });
+
+  // Paso 1 de «cargar sin señal y a la vez que otra persona» (Santiago,
+  // 21/10: la copia «Automática en todos, sin botón»): GPS también. Las filas
+  // van en su copia de siempre; lo del club (Datos básicos, Ajustes, reglas y
+  // V.R.), en la de ver sin señal.
+  test("Ver GPS sin señal: con señal guarda solo lo del club; sin señal abre con la copia del aparato, para mirar", async () => {
+    const sinSenalAhora = async (sin) => {
+      Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
+      await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
+    };
+    await montarEnLaBase();
+    await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
+    expect(copias.guardadas["eq-1|gps|cuenta-1"].datos.plantel.map((jugador) => jugador.nombre)).toEqual(["ALFA", "BETA", "GAMA"]);
+    expect(contenedor.textContent).not.toContain("Ver sin señal");
+
+    // Otra vez, sin señal: no se pide nada a la base.
+    await act(async () => raiz.unmount());
+    datos.copia = { filas: FILAS(), hasta: "2026-10-13T10:00:00Z", guardadaEn: "2026-10-20T14:32:00.000Z" };
+    datos.plantel = [];
+    datos.lecturas = [];
+    datos.alDia = [];
+    await sinSenalAhora(true);
+    await montarEnLaBase();
+    expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Sin señal: ves la copia de este aparato");
+    expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Para cambiar algo hace falta señal.");
+    expect(filas(contenedor)).toHaveLength(3);
+    // Los nombres, de lo del club en la copia.
+    expect(contenedor.textContent).toContain("ALFA");
+    expect(datos.lecturas).toEqual([]);
+    expect(datos.alDia).toEqual([]);
+    expect(boton("Pegar desde una planilla")).toBeFalsy();
+
+    // Vuelve la señal: lo de la base, al día.
+    datos.plantel = PLANTEL.map((jugador) => ({ ...jugador }));
+    await sinSenalAhora(false);
+    expect(contenedor.querySelector(".aviso-sin-senal")).toBeNull();
+    expect(datos.alDia).toHaveLength(1);
   });
 
   test("si no llega el resto del historial, se ven las últimas 4 semanas y avisa", async () => {

@@ -42,6 +42,7 @@ import {
   unirFilasGps,
 } from "./domain/gpsDb.js";
 import { guardarCopiaGps, leerCopiaGps } from "./domain/copiaGps.js";
+import { AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
@@ -210,6 +211,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   }, []);
   const [aBorrar, setABorrar] = useState(null);
   const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
+  // Sin señal, lo que se ve es la copia de este aparato ({ guardadaEn }): se
+  // mira y no se cambia nada (paso 1 de «cargar sin señal…»). clubListo: lo
+  // del club ya se leyó de la base (recién ahí se guarda su copia).
+  const [deLaCopia, setDeLaCopia] = useState(null);
+  const [clubListo, setClubListo] = useState(false);
 
   // Ajustes: qué se mira y la hoja abierta.
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
@@ -224,7 +230,14 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // nada (Santiago, 17/10).
   const seFue = Boolean(equipo?.hasta);
   const mirar = soloParaMirar(equipo, "gps");
-  const soloLectura = seFue || mirar;
+  const soloLectura = seFue || mirar || Boolean(deLaCopia);
+  // Para ver GPS sin señal (Santiago, 21/10: la copia «Automática en todos,
+  // sin botón»): las filas van en su copia de siempre (copiaGps.js); lo del
+  // club (Datos básicos, Ajustes, reglas y V.R.), en esta. Quien ya se fue no
+  // guarda copia.
+  const sinSenal = useSinSenal("gps", equipoId, { deshabilitado: seFue });
+  const leerCopia = useRef(sinSenal.leer);
+  leerCopia.current = sinSenal.leer;
 
   // Sin club elegido en este celular, se adopta el que diga la base.
   useEffect(() => {
@@ -246,12 +259,32 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // silencioso: lo nuevo de otros (useEnVivo); lo que no se pudo leer queda
   // como se veía.
   const cargarClub = useCallback(async ({ silencioso = false } = {}) => {
+    // Sin señal, lo del club de la copia de este aparato (si hay).
+    const conLaCopia = async () => {
+      const copia = await leerCopia.current();
+      if (!copia) return false;
+      const { datos } = copia;
+      setPlantel(Array.isArray(datos.plantel) ? datos.plantel : []);
+      setPlantelSinLeer(false);
+      if (datos.ajustes) setFilasAjustes(datos.ajustes);
+      setReglasGuardadas(datos.reglas || {});
+      setFaltanReglas(Boolean(datos.faltanReglas));
+      setReferencias(Array.isArray(datos.referencias) ? datos.referencias : []);
+      setFaltanReferencias(Boolean(datos.faltanReferencias));
+      setSinEdicionVr(Boolean(datos.sinEdicionVr));
+      setSinPlanillaVr(datos.sinPlanillaVr !== false);
+      return true;
+    };
+    if (sinSenalAhora() && (await conLaCopia())) return;
     const [respuestaPlantel, respuestaAjustes, respuestaReglas, respuestaReferencias] = await Promise.all([
       cargarPlantelLesiones(equipoId),
       leerAjustesGps(equipoId),
       leerReglasGps(equipoId),
       leerReferenciasGps(equipoId),
     ]);
+    // Se cortó la señal en el camino: la copia, si hay.
+    if ([respuestaAjustes, respuestaReferencias].some(falloDeRed) && (await conLaCopia())) return;
+    if (!silencioso && !respuestaPlantel.error && !respuestaPlantel.deRespaldo && !respuestaAjustes.error && !respuestaReferencias.error) setClubListo(true);
     if (silencioso && (respuestaPlantel.error || respuestaPlantel.deRespaldo)) return;
     setPlantel(respuestaPlantel.plantel || []);
     setPlantelSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo));
@@ -355,10 +388,17 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         actuales.current = copia.filas;
         setFilasGps(copia.filas);
         setCargando(false);
+        // Sin señal, la copia para mirar (paso 1 de «cargar sin señal…»).
+        if (sinSenalAhora()) {
+          setDeLaCopia({ guardadaEn: copia.guardadaEn || null });
+          return;
+        }
+        setDeLaCopia(null);
         await ponerAlDia();
         return;
       }
     }
+    setDeLaCopia(null);
     const respuesta = await traerTodoGps(equipoId, {
       desdeReciente: periodoInicial(hoyISO()).desde,
       alPrimeraParte: (recientes) => {
@@ -392,10 +432,31 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // La copia de este aparato, al día con lo que se ve (al rato de cada
   // cambio, para no escribirla en cada celda).
   useEffect(() => {
-    if (seFue || cargando || trayendo || errorHistorial || !cuenta.current || !equipoId) return undefined;
+    if (seFue || deLaCopia || cargando || trayendo || errorHistorial || !cuenta.current || !equipoId) return undefined;
     const temporizador = setTimeout(() => guardarCopiaGps(cuenta.current, equipoId, { filas: filasGps, hasta: marca.current }), 1500);
     return () => clearTimeout(temporizador);
-  }, [filasGps, cargando, trayendo, errorHistorial, seFue, equipoId]);
+  }, [filasGps, cargando, trayendo, errorHistorial, seFue, equipoId, deLaCopia]);
+
+  // Lo del club que se ve (al día, con señal) queda en su copia de este
+  // aparato, un rato después de cada cambio.
+  useEffect(() => {
+    if (!sinSenal.activo || deLaCopia || !clubListo || plantelSinLeer || !equipoId) return undefined;
+    const temporizador = setTimeout(
+      () =>
+        sinSenal.guardar({
+          plantel,
+          ajustes: filasAjustes,
+          reglas: reglasGuardadas,
+          faltanReglas,
+          referencias,
+          faltanReferencias,
+          sinEdicionVr,
+          sinPlanillaVr,
+        }),
+      1500,
+    );
+    return () => clearTimeout(temporizador);
+  }, [sinSenal.activo, sinSenal.guardar, deLaCopia, clubListo, plantelSinLeer, equipoId, plantel, filasAjustes, reglasGuardadas, faltanReglas, referencias, faltanReferencias, sinEdicionVr, sinPlanillaVr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cargar = useCallback(() => Promise.all([cargarClub(), cargarFilas()]), [cargarClub, cargarFilas]);
 
@@ -465,6 +526,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       window.removeEventListener("offline", alCambiar);
     };
   }, []);
+
+  // Vuelve la señal mientras se ve la copia: lo de la base, al día.
+  useEffect(() => {
+    if (enLinea && deLaCopia) cargar();
+  }, [enLinea]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!aviso) return undefined;
@@ -897,7 +963,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
 
   // ------------------------------------------------------------ Pantallas --
 
-  const estado = !enLinea ? (
+  const estado = deLaCopia ? (
+    <AvisoSinSenal guardadaEn={deLaCopia.guardadaEn} />
+  ) : !enLinea ? (
     <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>
   ) : error ? (
     <div className="lesiones-estado error">

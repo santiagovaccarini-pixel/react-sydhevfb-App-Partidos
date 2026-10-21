@@ -67,12 +67,13 @@ const conAlmacen = async (modo, hacer) => {
 
 const claveDe = (cuenta, equipoId) => `${cuenta}:${equipoId}`;
 
-// La copia de esta cuenta en este club: { filas, hasta } o null.
+// La copia de esta cuenta en este club: { filas, hasta, guardadaEn } o null
+// (guardadaEn: cuándo se guardó en este aparato, para decirlo sin señal).
 export const leerCopiaGps = async (cuenta, equipoId) => {
   if (!cuenta || !equipoId) return null;
   const copia = await conAlmacen("readonly", (almacen) => almacen.get(claveDe(cuenta, equipoId)));
   if (!copia || copia === true || copia.formato !== FORMATO_COPIA_GPS || !Array.isArray(copia.filas)) return null;
-  return { filas: copia.filas, hasta: copia.hasta || null };
+  return { filas: copia.filas, hasta: copia.hasta || null, guardadaEn: Number.isFinite(copia.guardada) ? new Date(copia.guardada).toISOString() : null };
 };
 
 // hasta: lo último que se trajo de la base (su hora, la de la base).
