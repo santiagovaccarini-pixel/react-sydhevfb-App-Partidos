@@ -13,7 +13,12 @@ const datos = vi.hoisted(() => ({
   totalFalso: null,
   lecturas: [],
   creadas: [],
+  // Cómo quedó en la base cada fila cambiada, después de cada guardado.
   actualizadas: [],
+  // Lo que mandó cada cambio (solo lo cambiado, paso 2 de «cargar sin
+  // señal…»). Con sinCambiar, la base no tiene esa actualización.
+  cambiadas: [],
+  sinCambiar: false,
   borradas: [],
   ajustes: { campos: [], opciones: [] },
   cabeceras: [],
@@ -113,7 +118,40 @@ vi.mock("./domain/consentimientoDb.js", () => ({
 vi.mock("./domain/referenciasDb.js", () => ({
   leerHistorialDeReferencias: async () => ({ cambios: datos.historialVr.map((una) => ({ ...una })), faltaTabla: false, error: "" }),
 }));
-vi.mock("./domain/gpsDb.js", () => ({
+vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
+  cambiosDeLaFilaGps: (await importOriginal()).cambiosDeLaFilaGps,
+  // Como 20261116: junta lo cambiado en la fila de la base (datos.filas),
+  // recalcula los «por minuto» de lo cambiado y dice qué pisó; si ya no
+  // está, borrada.
+  cambiarFilaGps: async (id, { cambios = {}, antes = {} } = {}) => {
+    datos.cambiadas.push({ id, cambios, antes });
+    if (datos.sinCambiar) return { sinFuncion: true, error: "" };
+    const { POR_MINUTO } = await import("./domain/gps/columnas.js");
+    const { porMinuto } = await import("./domain/gps/valores.js");
+    const vieja = datos.filas.find((una) => una.id === id);
+    if (!vieja) return { borrada: true, error: "" };
+    const fila = JSON.parse(JSON.stringify(vieja));
+    const pisadas = [];
+    Object.entries(cambios).forEach(([clave, nuevo]) => {
+      const enDatos = clave.startsWith("datos.");
+      const campo = enDatos ? clave.slice(6) : clave;
+      const habia = (enDatos ? fila.datos[campo] : fila[campo]) ?? null;
+      if (clave in antes && JSON.stringify(habia) !== JSON.stringify(antes[clave] ?? null) && JSON.stringify(habia) !== JSON.stringify(nuevo ?? null)) pisadas.push({ clave, habia });
+      if (!enDatos) fila[campo] = nuevo;
+      else if (nuevo === null || nuevo === "") delete fila.datos[campo];
+      else fila.datos[campo] = nuevo;
+    });
+    Object.entries(POR_MINUTO).forEach(([de, clave]) => {
+      if (!("datos.tiempo" in cambios) && !(`datos.${de}` in cambios)) return;
+      if (!(de in fila.datos) && !(clave in fila.datos)) return;
+      const calculado = porMinuto(fila.datos[de], fila.datos.tiempo);
+      if (calculado === null) delete fila.datos[clave];
+      else fila.datos[clave] = calculado;
+    });
+    datos.filas = datos.filas.map((una) => (una.id === id ? fila : una));
+    datos.actualizadas.push({ id, fila: JSON.parse(JSON.stringify(fila)) });
+    return { fila, pisadas, error: "" };
+  },
   SOLO_PROMEDIOS: "promedio",
   SIN_DISPOSITIVO: "-",
   cuentaDeLaSesion: async () => "cuenta-1",
@@ -422,6 +460,8 @@ describe("GPS", () => {
     datos.lecturas = [];
     datos.creadas = [];
     datos.actualizadas = [];
+    datos.cambiadas = [];
+    datos.sinCambiar = false;
     datos.borradas = [];
     datos.ajustes = { campos: [], opciones: [...DISPOSITIVOS] };
     datos.cabeceras = [];
@@ -613,6 +653,9 @@ describe("GPS", () => {
     expect(datos.actualizadas).toHaveLength(1);
     expect(datos.actualizadas[0].id).toBe("g1");
     expect(datos.actualizadas[0].fila.datos).toEqual({ microciclo: 30, puesto: "DEL", d: 4500, d_min: 90, tiempo: 3000, dispositivo: "catapult" });
+    // Se manda solo la medida, con lo que se veía; su por minuto lo calcula la
+    // base con lo que quedó (paso 2 de «cargar sin señal…»).
+    expect(datos.cambiadas[0]).toEqual({ id: "g1", cambios: { "datos.d": 4500 }, antes: { "datos.d": 4000 } });
     expect(celda(contenedor, 0, "D/min").textContent).toBe("90,0");
 
     // El Tiempo se escribe como en el Excel (h:mm:ss) y se guarda en segundos.
@@ -633,6 +676,53 @@ describe("GPS", () => {
     expect(datos.actualizadas[0]).toMatchObject({ id: "g2", fila: { jugador_id: null, persona: null, promedio: "sesion" } });
     expect(celda(contenedor, 1, "Nombre").textContent).toBe("Team Average Sesion");
     expect(celda(contenedor, 1, "Nombre").style.background).toBe("rgb(244, 167, 167)");
+  });
+
+  // Paso 2 de «cargar sin señal y a la vez que otra persona» (Santiago, 20/10:
+  // «Se juntan; si es la misma celda, aviso»; 21/10: «Gana el último, con
+  // aviso»; una fila que otro borró, «Queda borrada y te aviso»). La otra
+  // persona cambia la base (datos.filas) sin que esta pantalla se entere.
+  describe("dos personas cambian la misma fila a la vez", () => {
+    const otraPersonaCambia = (id, cambio) => {
+      datos.filas = datos.filas.map((una) => (una.id === id ? { ...una, datos: { ...una.datos, ...cambio } } : una));
+    };
+
+    test("una cambia la D y otra el Tiempo: quedan las dos y la D/min sale de las dos", async () => {
+      await montarEnLaBase();
+      otraPersonaCambia("g1", { tiempo: 3600, d_min: 66.66666666666667 });
+      await editarCelda(contenedor, 0, "D", "4500");
+      expect(datos.cambiadas).toEqual([{ id: "g1", cambios: { "datos.d": 4500 }, antes: { "datos.d": 4000 } }]);
+      expect(datos.filas.find((una) => una.id === "g1").datos).toMatchObject({ d: 4500, tiempo: 3600, d_min: 75 });
+      expect(celda(contenedor, 0, "D/min").textContent).toBe("75,0");
+      expect(celda(contenedor, 0, "Tiempo").textContent).toBe("1:00:00");
+      expect(document.body.textContent).not.toContain("Otra persona había cambiado");
+    });
+
+    test("la misma celda: gana el último y se le avisa", async () => {
+      await montarEnLaBase();
+      otraPersonaCambia("g1", { d: 4200, d_min: 84 });
+      await editarCelda(contenedor, 0, "D", "4500");
+      expect(datos.filas.find((una) => una.id === "g1").datos).toMatchObject({ d: 4500, d_min: 90 });
+      expect(celda(contenedor, 0, "D").textContent).toBe("4500,0");
+      expect(document.body.textContent).toContain("Otra persona había cambiado «D» mientras tanto: quedó lo tuyo.");
+    });
+
+    test("una fila que otra persona borró: queda borrada y se avisa", async () => {
+      await montarEnLaBase();
+      datos.filas = datos.filas.filter((una) => una.id !== "g1");
+      await editarCelda(contenedor, 0, "D", "4500");
+      expect(filas(contenedor)).toHaveLength(2);
+      expect(document.body.textContent).toContain("Esa fila la borró otra persona: queda borrada.");
+    });
+
+    test("sin la actualización de la base: se guarda la fila entera, como antes", async () => {
+      datos.sinCambiar = true;
+      await montarEnLaBase();
+      await editarCelda(contenedor, 0, "D", "4500");
+      expect(datos.cambiadas).toHaveLength(1);
+      expect(datos.actualizadas).toEqual([{ id: "g1", fila: expect.objectContaining({ datos: { microciclo: 30, puesto: "DEL", d: 4500, d_min: 90, tiempo: 3000, dispositivo: "catapult" } }) }]);
+      expect(celda(contenedor, 0, "D/min").textContent).toBe("90,0");
+    });
   });
 
   // Santiago, 14/10: «saca esos 4 filtros de arriba de fechas, jugador y

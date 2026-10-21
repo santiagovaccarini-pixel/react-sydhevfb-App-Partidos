@@ -552,6 +552,12 @@ export default {
   },
   gps: {
     titulo: "GPS",
+    // Paso 2 de «cargar sin señal…»: se guarda solo lo cambiado (Santiago,
+    // 21/10: la misma celda, «Gana el último, con aviso»).
+    cambios: {
+      pisadas: "Otra persona había cambiado «{{columnas}}» mientras tanto: quedó lo tuyo.",
+      borrada: "Esa fila la borró otra persona: queda borrada.",
+    },
     donde: {
       cargar: "Acá cargás lo que midió el GPS en un entrenamiento o en un partido. Tocá «Cargar un día» para empezar. Si dejaste algo a medias, está abajo, en «Sin terminar».",
       base: "Todas las filas del GPS del club. Tocá dos veces una celda para cambiarla y filtrá con el embudo de cada columna: el informe de arriba de la tabla se calcula con lo que queda a la vista.",

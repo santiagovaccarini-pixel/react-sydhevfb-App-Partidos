@@ -27,6 +27,8 @@ import {
   actualizarFilaGps,
   borrarEnCurso,
   borrarFilasGps,
+  cambiarFilaGps,
+  cambiosDeLaFilaGps,
   cuentaDeLaSesion,
   guardarCabeceraGps,
   guardarOpcionGps,
@@ -47,7 +49,7 @@ import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoEle
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta, fechaLarga, fechaYHora, hoyISO } from "./idioma/formatos.js";
+import { enLista, fechaCorta, fechaLarga, fechaYHora, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import "./lesiones.css";
 import "./evaluaciones.css";
@@ -870,6 +872,34 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const ultimas = useRef(filasGps);
   ultimas.current = filasGps;
   const colas = useRef(new Map());
+
+  // Se guarda solo lo cambiado (paso 2 de «cargar sin señal y a la vez que
+  // otra persona», como en Evaluaciones y Lesiones): celdas distintas de la
+  // misma fila no se pisan (los «por minuto» los calcula la base con lo que
+  // quedó); en la misma celda gana el último y se avisa (Santiago, 21/10:
+  // «Gana el último, con aviso»); si otra persona la borró, queda borrada y
+  // se avisa. Sin la actualización 20261116, la fila entera, como antes.
+  const nombreDeLaClave = (clave) => {
+    if (["jugador_id", "persona", "promedio"].includes(clave)) return tituloDeClave("jugador");
+    return tituloDeClave(clave.startsWith("datos.") ? clave.slice(6) : clave);
+  };
+  const guardarCambios = async (id, vieja, nueva) => {
+    const { cambios, antes } = cambiosDeLaFilaGps(vieja, nueva);
+    if (!Object.keys(cambios).length) return { fila: ultimas.current.find((una) => una.id === id) || vieja, error: "" };
+    const respuesta = await cambiarFilaGps(id, { cambios, antes });
+    if (respuesta.sinFuncion) return actualizarFilaGps(id, nueva);
+    if (respuesta.borrada) {
+      ultimas.current = ultimas.current.filter((una) => una.id !== id);
+      if (lote.current) lote.current.delete(id);
+      setFilasGps((previas) => previas.filter((una) => una.id !== id));
+      setAviso(t("gps.cambios.borrada"));
+      return { borrada: true, error: "" };
+    }
+    if (respuesta.error) return respuesta;
+    if (respuesta.pisadas.length) setAviso(t("gps.cambios.pisadas", { columnas: enLista([...new Set(respuesta.pisadas.map((pisada) => nombreDeLaClave(pisada.clave)))]) }));
+    return { fila: respuesta.fila, pisadas: respuesta.pisadas, error: "" };
+  };
+
   const guardarFila = (id, cambiar) => {
     const unPaso = async () => {
       const fila = ultimas.current.find((una) => una.id === id);
@@ -877,7 +907,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       const { fila: nueva, error: falta } = cambiar(fila);
       if (falta) return { error: falta };
       if (!nueva) return {};
-      const respuesta = await actualizarFilaGps(id, nueva);
+      const respuesta = await guardarCambios(id, fila, nueva);
+      if (respuesta.borrada) return {};
       if (respuesta.error) return { error: respuesta.error };
       ultimas.current = ultimas.current.map((una) => (una.id === id ? respuesta.fila : una));
       reemplazar(respuesta.fila);

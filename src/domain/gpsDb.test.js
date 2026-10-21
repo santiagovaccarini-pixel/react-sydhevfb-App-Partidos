@@ -10,6 +10,8 @@ import {
   borrarEnCurso,
   borrarFilasGps,
   cambiarEnDescripcionesGps,
+  cambiarFilaGps,
+  cambiosDeLaFilaGps,
   claveDeErrorGps,
   crearFilasGps,
   dejarEnCurso,
@@ -228,6 +230,50 @@ describe("guardar", () => {
     expect(claveDeErrorGps({ message: 'new row for relation "gps" violates check constraint "gps_de_quien"' })).toBe("gps.error.sinJugador");
     expect(claveDeErrorGps({ message: "Failed to fetch" })).toBe("gps.error.sinConexion");
     expect(claveDeErrorGps({ message: "Failed to fetch" }, "gps.error.noLeer")).toBe("gps.error.noLeer");
+  });
+});
+
+// Paso 2 de «cargar sin señal y a la vez que otra persona» (20261116;
+// Santiago, 21/10, la misma celda: «Gana el último, con aviso»).
+describe("cambiar solo lo cambiado", () => {
+  test("cada celda cambiada, con lo que se veía; los «por minuto» no van (los calcula la base)", () => {
+    const vieja = fila(1, { datos: { d: 4000, d_min: 80, tiempo: 3000, tarea: "uno" } });
+    const nueva = { ...vieja, fecha: "2026-10-09", datos: { d: 4500, d_min: 90, tiempo: 3000, tarea: "" } };
+    expect(cambiosDeLaFilaGps(vieja, nueva)).toEqual({
+      cambios: { fecha: "2026-10-09", "datos.d": 4500, "datos.tarea": null },
+      antes: { fecha: "2026-10-08", "datos.d": 4000, "datos.tarea": "uno" },
+    });
+    expect(cambiosDeLaFilaGps(vieja, { ...vieja, datos: { ...vieja.datos, d_min: 81 } })).toEqual({ cambios: {}, antes: {} });
+  });
+
+  test("de un jugador al promedio del equipo: los tres campos de quién es", () => {
+    expect(cambiosDeLaFilaGps(fila(1), { ...fila(1), jugador_id: null, promedio: "sesion" })).toEqual({
+      cambios: { jugador_id: null, promedio: "sesion" },
+      antes: { jugador_id: 7, promedio: null },
+    });
+  });
+
+  test("va por la función de la base, con cuál es el «por minuto» de cada medida; devuelve cómo quedó y qué pisó", async () => {
+    doble.respuestas = [{ data: { fila: fila(1, { datos: { d: 4500, d_min: 90, tiempo: 3000 } }), pisadas: [{ clave: "datos.d", habia: 4200 }] }, error: null }];
+    const respuesta = await cambiarFilaGps("g1", { cambios: { "datos.d": 4500 }, antes: { "datos.d": 4000 } });
+    const [[, funcion, argumentos]] = doble.llamadas;
+    expect(funcion).toBe("gps_cambiar");
+    expect(argumentos).toMatchObject({ p_id: "g1", p_cambios: { "datos.d": 4500 }, p_antes: { "datos.d": 4000 } });
+    expect(argumentos.p_por_minuto).toMatchObject({ d: "d_min" });
+    expect(argumentos.p_por_minuto).not.toHaveProperty("tiempo");
+    expect(Object.keys(argumentos.p_por_minuto).length).toBeGreaterThan(5);
+    expect(respuesta).toMatchObject({ fila: { id: "g1", datos: { d: 4500, d_min: 90 } }, pisadas: [{ clave: "datos.d", habia: 4200 }], error: "" });
+  });
+
+  test("sin la actualización de la base, sinFuncion; si otra persona la borró, borrada; lo demás, en palabras", async () => {
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.gps_cambiar" } }];
+    expect(await cambiarFilaGps("g1", { cambios: { "datos.d": 1 } })).toEqual({ sinFuncion: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "fila_borrada" } }];
+    expect(await cambiarFilaGps("g1", { cambios: { "datos.d": 1 } })).toEqual({ borrada: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "gps_sin_futuro" } }];
+    expect((await cambiarFilaGps("g1", { cambios: { fecha: "2999-01-01" } })).error).toBe("gps.error.fechaFutura");
+    doble.respuestas = [{ data: null, error: { code: "42501", message: "permission denied for table gps" } }];
+    expect((await cambiarFilaGps("g1", { cambios: { "datos.d": 1 } })).error).toBe("gps.error.sinPermiso");
   });
 });
 

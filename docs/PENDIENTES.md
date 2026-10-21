@@ -4534,6 +4534,21 @@ confirme.**
     - **Queda afuera:** cambiar la categoría de las lesiones desde Datos básicos (al cambiarle la
       categoría a un jugador) sigue guardando los datos enteros de cada lesión; va con el paso 2d.
     - **Queda prohibido** lo mismo que en el paso 2a, para Lesiones, salvo un pedido nuevo.
+  - **Hecho, paso 2c (21/10, migración `20261116_gps_cambiar.sql`, 2026.10.21.5; UI-070): GPS.**
+    Santiago, en un cuestionario: «Sí, seguí con GPS». Lo mismo que en Evaluaciones y Lesiones al
+    cambiar una celda de la Base (escribir o pegar): se mandan solo las celdas cambiadas, celdas
+    distintas de la misma fila quedan las dos, en la misma celda gana el último y le aparece «Otra
+    persona había cambiado «D» mientras tanto: quedó lo tuyo.», y una fila que otra persona borró
+    sale de la Base con «Esa fila la borró otra persona: queda borrada.». La diferencia: los «por
+    minuto» (D/min = D ÷ los minutos de la fila) ya no los manda la app; los calcula la base al
+    juntar, con lo que quedó en la fila. Si una persona cambia la D y otra el Tiempo a la vez, la
+    D/min sale de las dos (antes, con la fila entera, se perdía el cambio de una de las dos). La regla de
+    siempre sigue (Santiago, 10/10: «lo traído del Excel queda como está; lo que se cambia, se
+    recalcula»): se recalcula el de la medida cambiada y, si cambió el Tiempo, todos los de la fila,
+    con la misma cuenta y los mismos decimales que la app. Sin la actualización de la base se
+    guarda la fila entera, como antes.
+    - **Queda prohibido** lo mismo que en el paso 2a, para GPS, y que un «por minuto» quede con una
+      cuenta que no sale de lo que quedó en la fila, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor
