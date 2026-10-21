@@ -4520,6 +4520,20 @@ confirme.**
     - **Queda prohibido** que un cambio de Evaluaciones mande la fila entera cuando la base tiene la
       función nueva, que vuelva a crear una fila que otra persona borró o que pise una celda sin
       avisar, salvo un pedido nuevo.
+  - **Hecho, paso 2b (21/10, migración `20261115_lesiones_cambiar.sql`, 2026.10.21.4; UI-069):
+    Lesiones.** Santiago, en un cuestionario: «Sí, seguí con Lesiones». Lo mismo que en Evaluaciones,
+    en los tres lugares donde se cambia una lesión: la tabla de la Base (escribir o pegar en una
+    celda), el formulario («Editar») y el alta médica. Se mandan solo las celdas cambiadas, con lo
+    que se veía; celdas distintas de la misma lesión quedan las dos; en la misma celda gana el último
+    y le aparece «Otra persona había cambiado «Médico» mientras tanto: quedó lo tuyo.» (en vez de
+    «Lesión guardada», «Alta guardada» o «Fechas guardadas»); si otra persona la borró, la lesión
+    sale de la Base (y se cierran su ficha, el formulario o el alta) y aparece «Esa lesión la borró
+    otra persona: queda borrada.». Las reglas de la base siguen igual (fechas en orden, la misma
+    lesión dos veces, jugador del club, consentimiento de las personas, «Solo lectura»). Sin la
+    actualización de la base se guarda la lesión entera, como antes.
+    - **Queda afuera:** cambiar la categoría de las lesiones desde Datos básicos (al cambiarle la
+      categoría a un jugador) sigue guardando los datos enteros de cada lesión; va con el paso 2d.
+    - **Queda prohibido** lo mismo que en el paso 2a, para Lesiones, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

@@ -119,6 +119,46 @@ export const importarLesion = async (equipoId, lesion) => {
   return { lesion: normalizarLesion(data), error: "" };
 };
 
+// Lo que cambió de una lesión, celda por celda (para lesiones_cambiar):
+// cambios, lo nuevo; antes, lo que se veía. En datos, lo vaciado va como
+// null. Lo que la app no guarda (lo calculado, los vacíos) no cuenta.
+const COLUMNAS_QUE_SE_CAMBIAN = ["jugador_id", "persona", "fecha_lesion", "fecha_transicion", "fecha_retorno_entrenamiento", "fecha_alta"];
+export const cambiosDeLaLesion = (vieja, nueva) => {
+  const de = soloCampos(vieja || {});
+  const a = soloCampos(nueva || {});
+  const cambios = {};
+  const antes = {};
+  COLUMNAS_QUE_SE_CAMBIAN.forEach((clave) => {
+    if ((de[clave] ?? null) === (a[clave] ?? null)) return;
+    cambios[clave] = a[clave] ?? null;
+    antes[clave] = de[clave] ?? null;
+  });
+  new Set([...Object.keys(de.datos), ...Object.keys(a.datos)]).forEach((clave) => {
+    if (JSON.stringify(de.datos[clave] ?? null) === JSON.stringify(a.datos[clave] ?? null)) return;
+    cambios[`datos.${clave}`] = a.datos[clave] ?? null;
+    antes[`datos.${clave}`] = de.datos[clave] ?? null;
+  });
+  return { cambios, antes };
+};
+
+// Cambiar solo lo cambiado (20261115_lesiones_cambiar.sql), como en
+// Evaluaciones: dos personas que cambian celdas distintas de la misma lesión
+// no se pisan; en la misma celda gana el último y la base dice cuáles pisó
+// (pisadas: [{ clave, habia }], Santiago, 21/10: «Gana el último, con
+// aviso»). Si otra persona la borró, borrada («Queda borrada y te aviso»).
+// Sin esa actualización, sinFuncion: se guarda como antes, la fila entera
+// (actualizarLesion).
+export const cambiarLesion = async (id, { cambios = {}, antes = {} } = {}) => {
+  const { data, error } = await supabase.rpc("lesiones_cambiar", { p_id: id, p_cambios: cambios, p_antes: antes });
+  if (error) {
+    const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+    if (error.code === "PGRST202" || (/lesiones_cambiar/.test(texto) && /does not exist|schema cache|Could not find/i.test(texto))) return { sinFuncion: true, error: "" };
+    if (/fila_borrada/.test(texto)) return { borrada: true, error: "" };
+    return fallo(error, "lesiones.error.noGuardar");
+  }
+  return { lesion: normalizarLesion(data?.fila), pisadas: Array.isArray(data?.pisadas) ? data.pisadas : [], error: "" };
+};
+
 export const actualizarLesion = async (id, lesion) => {
   const { data, error } = await conOSinPersona((conPersona) =>
     supabase
