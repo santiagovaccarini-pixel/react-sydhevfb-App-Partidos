@@ -8,6 +8,7 @@ import { claveDeErrorConsentimiento } from "./consentimiento.js";
 import { CATEGORIAS_DE_UN_VR } from "./gps/informe.js";
 import { leerPlanilla } from "./gps/planillaVr.js";
 import { calcularNoIngresaron } from "./match.js";
+import { leerPerfilLocal } from "./perfilesDb.js";
 import { faltaSentido, sentidoGuardado } from "./sentido.js";
 
 // actualizado_en: para traer después solo lo cambiado (ponerAlDiaGps).
@@ -694,14 +695,17 @@ export const borrarEnCurso = async (id) => {
 // Sin copia, la primera vez, trae primero las últimas semanas (se ven
 // enseguida) y después las demás (traerTodoGps).
 
-// La cuenta que usa la app (la copia del aparato es de cada cuenta).
+// La cuenta que usa la app (la copia del aparato es de cada cuenta). Sin
+// sesión que leer (sin señal), la última que entró en este aparato, como la
+// puerta de entrada: así, sin señal, se encuentra la copia.
 export const cuentaDeLaSesion = async () => {
   try {
     const { data } = await supabase.auth.getSession();
-    return data?.session?.user?.id || null;
+    if (data?.session?.user?.id) return data.session.user.id;
   } catch {
-    return null;
+    // Sin sesión que leer: la guardada.
   }
+  return leerPerfilLocal()?.user_id || null;
 };
 
 // Lo último que se trajo de la base: la hora (de la base) del último cambio.

@@ -4489,6 +4489,14 @@ confirme.**
       la misma: automático, sin botón.
       - **Queda prohibido** volver a pedir que se active o agregar un botón para apagarla, salvo un
         pedido nuevo.
+  - **Hecho, paso 1b (21/10, 2026.10.21.2; UI-067): ver GPS sin señal.** Igual que Lesiones y
+    Evaluaciones: automático, sin botón. Las filas ya iban en su copia de siempre (copiaGps.js, para
+    abrir rápido); ahora también lo del club (Datos básicos, Ajustes, reglas y V.R.) queda en la
+    copia para ver sin señal. Sin señal, GPS abre con las dos, para mirar (Base, Informe y V.R.),
+    con el aviso «Sin señal: ves la copia de este aparato» y de cuándo es, sin intentar traer nada
+    de la base; al volver la señal, se pone al día. Mientras se ve la copia, la copia de las filas
+    no se vuelve a guardar (así no cambia de cuándo es). Sin sesión que leer (sin señal), la cuenta
+    del aparato es la última que entró, como en la puerta de entrada, para encontrar la copia.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor
