@@ -2231,6 +2231,16 @@ export default {
       pisadas: "Otra persona había cambiado «{{columnas}}» mientras tanto: quedó lo tuyo.",
       borrada: "Esa lesión la borró otra persona: queda borrada.",
     },
+    // Paso 3b de «cargar sin señal…» (Santiago, 21/10): lo que espera para
+    // subir y lo que pasa al subirlo. Una que otra persona ya cargó: «Si es
+    // la misma tiene que avisar y descartar».
+    espera: {
+      chip: "Espera para subir",
+      borradas_one: "{{n}} cambio no subió: esa lesión la borró otra persona.",
+      borradas_other: "{{n}} cambios no subieron: esas lesiones las borró otra persona.",
+      repetidas_one: "La lesión de {{jugador}} del {{fecha}} ya la había cargado otra persona: se descartó la tuya.",
+      repetidas_other: "{{n}} lesiones que cargaste sin señal ya las había cargado otra persona: se descartaron las tuyas.",
+    },
     avisoRecidiva: "Ojo: ya tuvo una lesión en {{parte}} ({{lado}}) el {{fecha}}. Puede contar como recurrencia o recidiva.",
     graficos: {
       opcion: "Informes gráficos",

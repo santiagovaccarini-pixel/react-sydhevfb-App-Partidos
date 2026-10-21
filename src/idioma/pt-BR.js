@@ -2186,6 +2186,13 @@ export default {
       pisadas: "Outra pessoa tinha mudado «{{columnas}}» enquanto isso: ficou o seu.",
       borrada: "Essa lesão foi apagada por outra pessoa: continua apagada.",
     },
+    espera: {
+      chip: "Espera para subir",
+      borradas_one: "{{n}} mudança não subiu: essa lesão foi apagada por outra pessoa.",
+      borradas_other: "{{n}} mudanças não subiram: essas lesões foram apagadas por outra pessoa.",
+      repetidas_one: "A lesão de {{jugador}} de {{fecha}} já tinha sido registrada por outra pessoa: a sua foi descartada.",
+      repetidas_other: "{{n}} lesões que você registrou sem sinal já tinham sido registradas por outra pessoa: as suas foram descartadas.",
+    },
     avisoRecidiva: "Atenção: já teve uma lesão em {{parte}} ({{lado}}) em {{fecha}}. Pode contar como recorrência ou recidiva.",
     graficos: {
       opcion: "Relatórios gráficos",

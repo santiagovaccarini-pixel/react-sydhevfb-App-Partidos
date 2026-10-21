@@ -9,13 +9,15 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
-import { AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
+import { AvisoDeEspera, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import { BotonGuia, GuiaDelModulo, OfrecerGuia, TerminoDe, TextoConPasos, useGuiaDelModulo } from "./components/Guia.jsx";
 import ReportesLesiones from "./ReportesLesiones.jsx";
 import ImportarLesiones from "./ImportarLesiones.jsx";
 import { CAMPOS_DEL_CUERPO, REGIONES, TERCIOS, crearMapa, partesPorNombre, tercioPorNombre } from "./domain/mapaCorporal.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
+import { conBorrada, conCambio as conCambioEnEspera, conCreadas, conLoHechoMientras, conLoQueEspera, esLocal, idsEnEspera, subirLaEspera } from "./domain/lesionesEspera.js";
+import { guardarEspera, leerEspera } from "./domain/filaDeEspera.js";
 import {
   calcular,
   claveDeQuien,
@@ -65,6 +67,7 @@ import {
   guardarCampo,
   guardarOpcion,
   historialDeLesion,
+  importarLesion,
   leerConfig,
   leerMinutosDeEntrenamiento,
   listarLesiones,
@@ -156,9 +159,15 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
-  // Sin señal, lo que se ve es la copia de este aparato ({ guardadaEn }): se
-  // mira y no se cambia nada (paso 1 de «cargar sin señal…»).
+  // Sin señal, lo que se ve es la copia de este aparato ({ guardadaEn }; paso
+  // 1 de «cargar sin señal…»), con lo que espera para subir encima.
   const [deLaCopia, setDeLaCopia] = useState(null);
+  // Lo cargado, cambiado o borrado sin señal que espera para subir (paso 3b;
+  // lesionesEspera.js) y si ya se está subiendo.
+  const [cola, setCola] = useState([]);
+  const colaActual = useRef([]);
+  const [subiendo, setSubiendo] = useState(false);
+  const subiendoAhora = useRef(false);
 
   // Pantallas encima de la vista: la ficha de una lesión (con la pestaña que
   // se está mirando) y la carga por pasos.
@@ -204,12 +213,26 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // nada; quien tiene Lesiones «Solo lectura» ve todo, al día, y tampoco.
   const seFue = Boolean(equipo?.hasta);
   const mirar = soloParaMirar(equipo, "lesiones");
-  const soloLectura = seFue || mirar || Boolean(deLaCopia);
+  // Sin señal se carga, se cambia, se da el alta, se borra y se pega igual
+  // (paso 3b de «cargar sin señal…»; Santiago, 21/10); los Ajustes, solo con
+  // señal.
+  const soloLectura = seFue || mirar;
+  const sinConexion = Boolean(deLaCopia) || !enLinea;
   // Para ver Lesiones sin señal (Santiago, 21/10: la copia «Automática en
   // todos, sin botón»). Quien ya se fue no guarda copia.
   const sinSenal = useSinSenal("lesiones", equipoId, { deshabilitado: seFue });
   const leerCopia = useRef(sinSenal.leer);
   leerCopia.current = sinSenal.leer;
+  const cuenta = sinSenal.cuenta;
+
+  // La fila de espera queda en este aparato con cada cambio.
+  const ponerCola = (nueva) => {
+    colaActual.current = nueva;
+    setCola(nueva);
+    guardarEspera("lesiones", cuenta, equipoId, nueva);
+  };
+  // Lo que se lee (de la base o de la copia), con lo que espera encima.
+  const conLaCola = (lesionesLeidas) => conLoQueEspera(lesionesLeidas, colaActual.current);
 
   // Sin club elegido en este celular, se adopta el que diga la base, igual
   // que hace Partido al abrir.
@@ -239,7 +262,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       const { datos } = copia;
       setPlantel(Array.isArray(datos.plantel) ? datos.plantel : []);
       setPlantelSinLeer(false);
-      setLesiones(Array.isArray(datos.lesiones) ? datos.lesiones : []);
+      setLesiones(conLaCola(Array.isArray(datos.lesiones) ? datos.lesiones : []));
       setConfig(datos.config ?? null);
       setMinutos(datos.minutos ?? null);
       setDeLaCopia({ guardadaEn: copia.guardadaEn });
@@ -265,7 +288,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
       if (!respuestaConfig.error) setConfig(respuestaConfig.config);
-      if (!respuestaLesiones.error) setLesiones(respuestaLesiones.lesiones);
+      if (!respuestaLesiones.error) setLesiones(conLaCola(respuestaLesiones.lesiones));
       if (!respuestaMinutos.error) setMinutos(respuestaMinutos.minutos);
       return;
     }
@@ -278,7 +301,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     if (respuestaLesiones.error || respuestaConfig.error) {
       setError(respuestaLesiones.error || respuestaConfig.error);
     } else {
-      setLesiones(respuestaLesiones.lesiones);
+      setLesiones(conLaCola(respuestaLesiones.lesiones));
     }
     setCargando(false);
   }, [equipoId]);
@@ -308,24 +331,42 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     return () => clearTimeout(temporizador);
   }, [aviso]);
 
-  // Vuelve la señal mientras se ve la copia: lo de la base, al día.
+  // La fila de espera de esta cuenta y este club, en este aparato: lo que se
+  // ve, con ella encima.
   useEffect(() => {
-    if (enLinea && deLaCopia) cargar();
+    let vigente = true;
+    leerEspera("lesiones", cuenta, equipoId).then((guardada) => {
+      if (!vigente || !guardada.length) return;
+      colaActual.current = guardada;
+      setCola(guardada);
+      setLesiones((previas) => conLoQueEspera(previas, guardada));
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [cuenta, equipoId]);
+
+  // Vuelve la señal mientras se ve la copia: lo de la base, al día (si algo
+  // espera, se sube primero; ver abajo).
+  useEffect(() => {
+    if (enLinea && deLaCopia && !colaActual.current.length) cargar();
   }, [enLinea]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lo que se ve (al día, con señal) queda en la copia de este aparato, un
   // rato después de cada cambio.
+  // (Mientras algo espera para subir, no: la copia es lo que había en la base.)
   useEffect(() => {
-    if (!sinSenal.activo || deLaCopia || cargando || error || plantelSinLeer || !equipoId) return undefined;
+    if (!sinSenal.activo || deLaCopia || cola.length || cargando || error || plantelSinLeer || !equipoId) return undefined;
     const temporizador = setTimeout(() => sinSenal.guardar({ plantel, lesiones, config, minutos }), 1500);
     return () => clearTimeout(temporizador);
-  }, [sinSenal.activo, sinSenal.guardar, deLaCopia, cargando, error, plantelSinLeer, equipoId, plantel, lesiones, config, minutos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sinSenal.activo, sinSenal.guardar, deLaCopia, cola.length, cargando, error, plantelSinLeer, equipoId, plantel, lesiones, config, minutos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // La ficha trae sus últimos cambios cuando se abre y cada vez que se
   // guarda algo. Quien ya se fue del club no los ve: la lista tendría lo que
-  // se cambió después de su último día.
+  // se cambió después de su último día. Una cargada sin señal todavía no
+  // tiene cambios en la base.
   useEffect(() => {
-    if (!detalleId || seFue) return undefined;
+    if (!detalleId || seFue || esLocal(detalleId)) return undefined;
     let vigente = true;
     historialDeLesion(detalleId).then((respuesta) => vigente && setCambiosDetalle(respuesta.cambios));
     return () => {
@@ -527,7 +568,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     if (!datos.categoria && jugador?.categoria) datos.categoria = jugador.categoria;
     const aGuardar = { ...lesion, datos };
     setOcupado(true);
-    const respuesta = lesion.id ? await guardarCambios(lesion.id, formularioAlAbrir.current, aGuardar) : await crearLesion(equipoId, aGuardar);
+    const respuesta = lesion.id ? await guardarCambios(lesion.id, formularioAlAbrir.current, aGuardar) : await crearOEsperar(aGuardar);
     setOcupado(false);
     if (respuesta.borrada) return;
     if (respuesta.error) {
@@ -540,7 +581,21 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     setFormulario(null);
     setDetalleId(respuesta.lesion.id);
     // Si pisó lo de otra persona, ese aviso queda.
-    if (!respuesta.pisadas?.length) setAviso(t("lesiones.guardado"));
+    if (respuesta.enEspera) setAviso(t("sinSenal.quedoEnElAparato"));
+    else if (!respuesta.pisadas?.length) setAviso(t("lesiones.guardado"));
+  };
+
+  // Una nueva: sin señal (o si se corta al guardar), a la fila de espera.
+  const crearOEsperar = async (lesion) => {
+    const aLaEspera = () => {
+      const nuevaCola = conCreadas(colaActual.current, [lesion]);
+      ponerCola(nuevaCola);
+      const { id } = nuevaCola[nuevaCola.length - 1];
+      return { lesion: conLoQueEspera([], nuevaCola).find((una) => una.id === id), enEspera: true, error: "" };
+    };
+    if (sinConexion) return aLaEspera();
+    const respuesta = await crearLesion(equipoId, lesion);
+    return falloDeRed(respuesta) ? aLaEspera() : respuesta;
   };
 
   // Alta médica: las fechas de la vuelta (pase a transición, retorno al
@@ -577,7 +632,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     if (respuesta.error) return setErrorAlta(textoDeError(respuesta.error, lesion));
     reemplazar(respuesta.lesion);
     setADarAlta(null);
-    if (!respuesta.pisadas?.length) setAviso(t(respuesta.lesion.fecha_alta ? "lesiones.altaGuardada" : "lesiones.fechasGuardadas"));
+    if (respuesta.enEspera) setAviso(t("sinSenal.quedoEnElAparato"));
+    else if (!respuesta.pisadas?.length) setAviso(t(respuesta.lesion.fecha_alta ? "lesiones.altaGuardada" : "lesiones.fechasGuardadas"));
     return undefined;
   };
 
@@ -590,9 +646,16 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     setOcupado(true);
     const borradas = [];
     let falla = null;
+    let esperan = 0;
     for (const lesion of elegidas) {
-      const respuesta = await borrarLesion(lesion.id);
-      if (respuesta.error) falla = falla || textoDeError(respuesta.error, lesion);
+      // Sin señal (o si se corta), y la que todavía espera para cargarse: en
+      // la fila de espera.
+      const respuesta = sinConexion || esLocal(lesion.id) ? { error: "", enEspera: true } : await borrarLesion(lesion.id); // eslint-disable-line no-await-in-loop
+      if (respuesta.enEspera || falloDeRed(respuesta)) {
+        ponerCola(conBorrada(colaActual.current, lesion.id));
+        if (!esLocal(lesion.id)) esperan += 1;
+        borradas.push(lesion.id);
+      } else if (respuesta.error) falla = falla || textoDeError(respuesta.error, lesion);
       else borradas.push(lesion.id);
     }
     setOcupado(false);
@@ -600,6 +663,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     if (borradas.includes(detalleId)) setDetalleId(null);
     if (formulario?.id && borradas.includes(formulario.id)) setFormulario(null);
     if (falla) setAviso(elegidas.length === 1 ? falla : `${falla} ${t("tabla.borradasDe", { n: borradas.length, total: elegidas.length })}`);
+    else if (esperan) setAviso(plural("sinSenal.quedaronEnElAparato", esperan));
     else setAviso(elegidas.length === 1 ? t("lesiones.borrada") : t("lesiones.borradas", { n: borradas.length }));
   };
 
@@ -685,9 +749,11 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   const hoy = primeraMayuscula(fechaLarga(hoyISO()));
 
   const estado = deLaCopia ? (
-    <AvisoSinSenal guardadaEn={deLaCopia.guardadaEn} />
-  ) : !enLinea ? (
+    <AvisoDeEspera sinSenal guardadaEn={deLaCopia.guardadaEn} cuantos={cola.length} />
+  ) : !enLinea && (error || cargando) ? (
     <p className="lesiones-estado">{t("lesiones.estado.sinConexion")}</p>
+  ) : !enLinea ? (
+    <AvisoDeEspera sinSenal cuantos={cola.length} />
   ) : error ? (
     <div className="lesiones-estado error">
       {t(error)}{" "}
@@ -697,14 +763,20 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     </div>
   ) : cargando ? (
     <p className="lesiones-estado">{t("lesiones.estado.cargando")}</p>
+  ) : cola.length ? (
+    <AvisoDeEspera cuantos={cola.length} subiendo={subiendo} alSubir={() => subir()} />
   ) : null;
+
+  // Las que esperan para subir (cargadas o cambiadas sin señal).
+  const idsQueEsperan = useMemo(() => idsEnEspera(cola), [cola]);
 
   // Una lesión en la lista, con la misma cara que un registro de Partido.
   const tarjetaLesion = (lesion, { conAlta = false } = {}) => (
-    <div className="registro-guardado lesiones-registro" key={lesion.id}>
+    <div className={`registro-guardado lesiones-registro ${idsQueEsperan.has(lesion.id) ? "espera" : ""}`.trim()} key={lesion.id}>
       <span className="cabecera-registro">
         <span className="fecha-registro">{lesion.fecha_lesion ? fechaCorta(lesion.fecha_lesion) : "—"}</span>
         <EtapaChip lesion={lesion} />
+        {idsQueEsperan.has(lesion.id) && <span className="lesiones-espera">{t("lesiones.espera.chip")}</span>}
         {lesion.numero_caso && <span className="lesiones-caso">{t("lesiones.caso", { n: lesion.numero_caso })}</span>}
       </span>
       <div className="lesiones-registro-cuerpo">
@@ -775,7 +847,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
 
         {!soloLectura && (
           <div className="acciones-inicio lesiones-acciones">
-            <button type="button" className="boton-principal boton-formacion-grande" onClick={abrirNueva} disabled={!enLinea || Boolean(error) || cargando}>
+            <button type="button" className="boton-principal boton-formacion-grande" onClick={abrirNueva} disabled={Boolean(error) || cargando}>
               {t("lesiones.nueva")}
             </button>
           </div>
@@ -844,9 +916,12 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         orden: Object.fromEntries(CAMPOS.map((campo) => [campo.clave, ordenDe(campo, lesion)]).filter(([, valor]) => valor !== undefined)),
         // La lesión de alguien que ya no está en el plantel actual, en otro color.
         apagada: Boolean(lesion.jugador_id && jugadorDe(lesion.jugador_id) && !esActual(jugadorDe(lesion.jugador_id))),
+        // Lo cargado o cambiado sin señal, en otro color hasta que sube
+        // (Santiago, 21/10: las filas «de otro color»).
+        espera: idsQueEsperan.has(lesion.id),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lesiones, plantel, config, idioma],
+    [lesiones, plantel, config, idioma, idsQueEsperan],
   );
   // El historial de un jugador: la misma base, con sus lesiones nada más.
   const filasHistorial = useMemo(
@@ -876,10 +951,20 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     if (clave === "jugador_id" || clave === "persona") return etiqueta("jugador");
     return etiqueta(clave.startsWith("datos.") ? clave.slice(6) : clave);
   };
+  // Sin señal (o si la señal se corta al guardar), y siempre en una que
+  // todavía espera para cargarse, el cambio queda en la fila de espera
+  // (enEspera) y se ve al toque.
   const guardarCambios = async (id, vieja, nueva) => {
     const { cambios, antes } = cambiosDeLaLesion(vieja, nueva);
-    if (!Object.keys(cambios).length) return { lesion: ultimas.current.find((una) => una.id === id) || vieja, error: "" };
+    const enLaLista = ultimas.current.find((una) => una.id === id) || vieja;
+    if (!Object.keys(cambios).length) return { lesion: enLaLista, error: "" };
+    const aLaEspera = () => {
+      ponerCola(conCambioEnEspera(colaActual.current, { id, cambios, antes }));
+      return { lesion: { ...enLaLista, ...nueva, id }, enEspera: true, error: "" };
+    };
+    if (sinConexion || esLocal(id)) return aLaEspera();
     const respuesta = await cambiarLesion(id, { cambios, antes });
+    if (falloDeRed(respuesta)) return aLaEspera();
     if (respuesta.sinFuncion) return actualizarLesion(id, nueva);
     if (respuesta.borrada) {
       ultimas.current = ultimas.current.filter((una) => una.id !== id);
@@ -942,6 +1027,70 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
     return { hechos, error: ultimoError, variables };
   };
 
+  // ---------------------------------------- La fila de espera, al subirla --
+
+  // Al volver la señal se sube sola y avisa (Santiago, 21/10: «Lo sube sola y
+  // avisa»). La misma lesión que ya cargó otra persona se descarta y se avisa
+  // («Si es la misma tiene que avisar y descartar»). Lo que estaba abierto
+  // (la ficha, el formulario, el alta) de una que subió sigue abierto, con la
+  // de la base.
+  const subir = async () => {
+    const enviada = colaActual.current;
+    if (subiendoAhora.current || !enviada.length || !equipoId || seFue) return false;
+    subiendoAhora.current = true;
+    setSubiendo(true);
+    const terminar = () => {
+      subiendoAhora.current = false;
+      setSubiendo(false);
+    };
+    const leidas = await listarLesiones(equipoId);
+    if (leidas.error) {
+      terminar();
+      return false;
+    }
+    const resultado = await subirLaEspera(enviada, {
+      equipoId,
+      servidor: leidas.lesiones,
+      funciones: { crear: importarLesion, cambiar: cambiarLesion, actualizar: actualizarLesion, borrar: borrarLesion },
+      esDeRed: falloDeRed,
+    });
+    const despues = await listarLesiones(equipoId);
+    ponerCola(conLoHechoMientras(colaActual.current, { enviada, ...resultado }, cambiosDeLaLesion));
+    const deLaBase = (id) => resultado.nuevas[id]?.id || id;
+    const conIdDeLaBase = (una) => (una?.id && resultado.nuevas[una.id] ? { ...una, id: resultado.nuevas[una.id].id } : una);
+    if (!despues.error) setLesiones(conLaCola(despues.lesiones));
+    setDetalleId(deLaBase);
+    setFormulario(conIdDeLaBase);
+    formularioAlAbrir.current = conIdDeLaBase(formularioAlAbrir.current);
+    setADarAlta(conIdDeLaBase);
+    const columnasPisadas = resultado.pisadas.map((pisada) => nombreDeLaClave(pisada.clave));
+    const [repetida] = resultado.repetidas;
+    const partes = [
+      resultado.subidos ? plural("sinSenal.subidos", resultado.subidos) : "",
+      columnasPisadas.length ? t("lesiones.cambios.pisadas", { columnas: enLista([...new Set(columnasPisadas)]) }) : "",
+      resultado.borradasPorOtra ? plural("lesiones.espera.borradas", resultado.borradasPorOtra) : "",
+      repetida ? plural("lesiones.espera.repetidas", resultado.repetidas.length, { jugador: nombreDeLesion(repetida.lesion), fecha: fechaCorta(repetida.lesion.fecha_lesion) }) : "",
+      resultado.errores.length ? plural("sinSenal.noSubieron", resultado.errores.length, { error: textoDeError(resultado.errores[0].error, resultado.errores[0].lesion) }) : "",
+    ].filter(Boolean);
+    if (partes.length) setAviso(partes.join(" "));
+    await cargar({ silencioso: true });
+    terminar();
+    return true;
+  };
+  const subirAlVolver = useRef(subir);
+  subirAlVolver.current = subir;
+  // Con señal y algo esperando, se sube: al volver la señal, al abrir y, si
+  // la señal anda a medias, cada medio minuto.
+  useEffect(() => {
+    if (!enLinea || !cola.length || seFue || cargando) return undefined;
+    const ya = setTimeout(() => subirAlVolver.current(), deLaCopia ? 0 : 1500);
+    const otraVez = setInterval(() => subirAlVolver.current(), 30000);
+    return () => {
+      clearTimeout(ya);
+      clearInterval(otraVez);
+    };
+  }, [enLinea, cola.length, seFue, cargando, Boolean(deLaCopia)]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // La tabla de lesiones: la de la Base y la del historial de un jugador
   // son la misma (mismas columnas y mismo orden de columnas guardado). Cada
   // una recuerda sus filtros al abrir una ficha y volver.
@@ -956,6 +1105,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
       onPegar={pegarEnBase}
       leyenda={t("datos.leyendaYaNoEsta")}
       rotuloApagada={t("datos.yaNoEsta")}
+      leyendaEspera={t("sinSenal.leyendaEspera")}
       onAbrirFila={abrirFicha}
       onBorrarFilas={
         soloLectura
@@ -974,7 +1124,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         <Encabezado onGuia={guia.abrir} titulo={t("nav.base")} texto={t(seFue ? "lesiones.donde.baseSoloLectura" : mirar ? "lesiones.donde.baseMirar" : "lesiones.donde.base")} />
         {estado}
         {!soloLectura && (
-          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea || cargando || Boolean(error)}>
+          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={cargando || Boolean(error)}>
             <Icono nombre="documento" size={16} />
             {t("lesiones.importar.boton")}
           </button>
@@ -1053,7 +1203,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
   // Ajustes, con el mismo formato que en Flujo diario: filas, y adentro de
   // cada una su pantalla con "Volver a Ajustes".
   const filaAjuste = ({ id, icono, titulo, detalle, alTocar, extra = null, clase = "" }) => (
-    <button key={id} type="button" className={`opcion-ajuste ${clase}`.trim()} onClick={alTocar} disabled={soloLectura}>
+    <button key={id} type="button" className={`opcion-ajuste ${clase}`.trim()} onClick={alTocar} disabled={soloLectura || sinConexion}>
       {icono && (
         <span className="icono-ajuste">
           <Icono nombre={icono} size={18} />
@@ -1169,7 +1319,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
             </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("listas")}>{t("lesiones.ajustes.volverListas")}</BotonVolver>
-              <button type="button" className="boton-principal" onClick={() => abrirOpcion(null)} disabled={!campo}>
+              <button type="button" className="boton-principal" onClick={() => abrirOpcion(null)} disabled={!campo || sinConexion}>
                 {t("lesiones.ajustes.nuevaOpcion")}
               </button>
             </div>
@@ -1207,6 +1357,8 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
         <div className="contenedor">
           <Encabezado onGuia={guia.abrir} titulo={t("lesiones.ajustes.titulo")} texto={t("lesiones.ajustes.texto")} />
           <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="lesiones" />
+          {/* Los Ajustes, solo con señal (Santiago, 20/10: «Sí, con señal»). */}
+          {sinConexion && !soloLectura && <p className="lesiones-estado">{t("sinSenal.ajustesConSenal")}</p>}
           <div className="lista-opciones">
             {filaAjuste({
               id: "cabeceras",
@@ -1299,6 +1451,7 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
               lesion.fecha_lesion ? fechaCorta(lesion.fecha_lesion) : "",
               t(`lesiones.etapa.${etapaDe(lesion)}`),
               lesion.jugador_id ? "" : t("lesiones.fueraDeDatos"),
+              idsQueEsperan.has(lesion.id) ? t("lesiones.espera.chip") : "",
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -1832,9 +1985,17 @@ export default function Lesiones({ onVolver, volverA = "portal.modulos" }) {
           onVolver={() => setImportando(false)}
           onGuia={guia.abrir}
           onRecargar={cargar}
-          onListo={({ cargadas }) => {
+          sinSenal={sinConexion}
+          onAlAparato={(lista) => {
+            const nuevaCola = conCreadas(colaActual.current, lista);
+            ponerCola(nuevaCola);
+            setLesiones((previas) => conLoQueEspera(previas, nuevaCola));
+          }}
+          onListo={({ cargadas, alAparato = 0 }) => {
             setImportando(false);
-            setAviso(plural("lesiones.importar.listo", cargadas));
+            setAviso(
+              [cargadas || !alAparato ? plural("lesiones.importar.listo", cargadas) : "", alAparato ? plural("sinSenal.quedaronEnElAparato", alAparato) : ""].filter(Boolean).join(" "),
+            );
           }}
         />
       ) : (
