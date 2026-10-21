@@ -168,17 +168,39 @@ export const leerEvaluacionesPorJugador = async (equipoId) => {
   return { porJugador, error: "" };
 };
 
-// cambios: [{ id, datos }] (los datos enteros de cada evaluación, con su
-// Selección nueva). De a una; si una falla, se sigue y se avisa.
+// cambios: [{ id, datos, antes }] (los datos enteros de cada evaluación, con
+// su Selección nueva; antes, la que tenía). De a una; si una falla, se sigue
+// y se avisa. Con 20261114 se cambia solo la Selección (paso 2 de «cargar sin
+// señal y a la vez que otra persona»), como la categoría de las lesiones
+// (guardarCategoriaDeLesiones): pisadas, en cuántas otra persona la había
+// cambiado mientras tanto; datos, cómo quedó cada una; las que otra persona
+// borró no cuentan.
 export const guardarSeleccionDeEvaluaciones = async (cambios) => {
   const hechas = [];
+  const datos = {};
+  let pisadas = 0;
   let error = "";
+  let sinFuncion = false;
   for (const cambio of cambios) {
+    if (!sinFuncion) {
+      // eslint-disable-next-line no-await-in-loop
+      const respuesta = await cambiarEvaluacion(cambio.id, { cambios: { "datos.seleccion": cambio.datos?.seleccion || null }, antes: { "datos.seleccion": cambio.antes || null } });
+      sinFuncion = Boolean(respuesta.sinFuncion);
+      if (!sinFuncion) {
+        if (respuesta.error) error = respuesta.error;
+        else if (!respuesta.borrada) {
+          hechas.push(cambio.id);
+          datos[cambio.id] = respuesta.evaluacion.datos;
+          pisadas += respuesta.pisadas.length;
+        }
+        continue;
+      }
+    }
     const respuesta = await supabase.from("evaluaciones").update({ datos: cambio.datos }).eq("id", cambio.id); // eslint-disable-line no-await-in-loop
     if (respuesta.error) error = fallo(respuesta.error).error;
     else hechas.push(cambio.id);
   }
-  return { hechas, error };
+  return { hechas, datos, pisadas, error };
 };
 
 export const crearEvaluacion = async (equipoId, test, evaluacion) => {

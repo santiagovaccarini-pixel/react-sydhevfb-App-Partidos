@@ -88,8 +88,12 @@ vi.mock("./domain/lesionesDb.js", () => ({
     registro.columnas[columna] = { etiquetas: { ...datos.etiquetas }, oculto: datos.oculto };
     return { error: "" };
   },
-  guardarDatosJugador: async (id, cambios) => {
+  // Como 20261117: con lo que se veía (antes), dice qué columnas había
+  // cambiado otra persona mientras tanto (registro.plantel es la base); si
+  // ya no está, borrado.
+  guardarDatosJugador: async (id, cambios, { antes = null } = {}) => {
     registro.guardados.push({ id, ...cambios });
+    registro.antesDeGuardar.push(antes ? { id, ...Object.fromEntries(Object.keys(cambios).map((clave) => [clave, antes[clave]])) } : null);
     // Un plan por llamada (esperar y/o fallar), para probar guardados cruzados.
     const paso = registro.plan.shift();
     if (paso?.esperar) await paso.esperar;
@@ -97,8 +101,14 @@ vi.mock("./domain/lesionesDb.js", () => ({
     if (registro.esperaGuardar) await registro.esperaGuardar;
     if (registro.fallarGuardar) return { error: registro.fallarGuardar };
     const jugador = registro.plantel.find((uno) => uno.id === id);
+    if (!jugador) return { borrado: true, error: "" };
+    const pisadas = antes
+      ? Object.keys(cambios)
+          .filter((clave) => (jugador[clave] ?? "") !== (antes[clave] ?? "") && (jugador[clave] ?? "") !== (cambios[clave] ?? ""))
+          .map((clave) => ({ clave, habia: jugador[clave] }))
+      : [];
     Object.assign(jugador, cambios);
-    return { jugador: { ...jugador }, error: "" };
+    return { jugador: { ...jugador }, pisadas, error: "" };
   },
   agregarJugadorBasico: async (equipoId, nombre) => {
     registro.agregados.push({ equipoId, nombre });
@@ -109,9 +119,12 @@ vi.mock("./domain/lesionesDb.js", () => ({
   },
   // Las lesiones de cada jugador (para la categoría) y su categoría guardada.
   leerLesionesPorJugador: async () => ({ porJugador: JSON.parse(JSON.stringify(registro.lesiones)), error: "" }),
+  // Con la categoría que tenía cada una (antes, aparte); pisadas, las que
+  // otra persona había cambiado mientras tanto.
   guardarCategoriaDeLesiones: async (cambios) => {
-    registro.categoriasDeLesiones.push(...cambios);
-    return { hechas: cambios.map((cambio) => cambio.id), error: "" };
+    registro.categoriasDeLesiones.push(...cambios.map(({ antes, ...cambio }) => cambio));
+    registro.antesDeCategorias.push(...cambios.map((cambio) => [cambio.id, cambio.antes]));
+    return { hechas: cambios.map((cambio) => cambio.id), pisadas: registro.pisadasDeCategorias || 0, error: "" };
   },
   quitarJugadorBasico: async (id) => {
     // Uno con lesiones o evaluaciones cargadas no se puede borrar.
@@ -125,8 +138,9 @@ vi.mock("./domain/lesionesDb.js", () => ({
 vi.mock("./domain/evaluacionesDb.js", () => ({
   leerEvaluacionesPorJugador: async () => ({ porJugador: JSON.parse(JSON.stringify(registro.evaluaciones)), error: "" }),
   guardarSeleccionDeEvaluaciones: async (cambios) => {
-    registro.seleccionesDeEvaluaciones.push(...cambios);
-    return { hechas: cambios.map((cambio) => cambio.id), error: "" };
+    registro.seleccionesDeEvaluaciones.push(...cambios.map(({ antes, ...cambio }) => cambio));
+    registro.antesDeCategorias.push(...cambios.map((cambio) => [cambio.id, cambio.antes]));
+    return { hechas: cambios.map((cambio) => cambio.id), pisadas: 0, error: "" };
   },
 }));
 
@@ -160,6 +174,9 @@ describe("el módulo Datos básicos", () => {
     registro.fallarAgregar = "";
     registro.lesiones = {};
     registro.categoriasDeLesiones = [];
+    registro.antesDeCategorias = [];
+    registro.pisadasDeCategorias = 0;
+    registro.antesDeGuardar = [];
     registro.evaluaciones = {};
     registro.seleccionesDeEvaluaciones = [];
     registro.config = { campos: {}, listas: {} };
@@ -617,6 +634,45 @@ describe("el módulo Datos básicos", () => {
     expect(registro.guardados).toEqual([]);
   });
 
+  // Paso 2 de «cargar sin señal y a la vez que otra persona» (Santiago, 20/10:
+  // «Se juntan; si es la misma celda, aviso»; 21/10: «Gana el último, con
+  // aviso»; una fila que otro borró, «Queda borrada y te aviso»). La otra
+  // persona cambia la base (registro.plantel) sin que esta pantalla se entere.
+  describe("dos personas cambian el mismo jugador a la vez", () => {
+    const elegirPie = async (opcion) => {
+      await tocar(celda(contenedor, 1, 5));
+      await tocar(celda(contenedor, 1, 5));
+      await tocar([...contenedor.querySelectorAll(".opcion-hoja")].find((b) => b.textContent.trim() === opcion));
+      await act(async () => Promise.resolve());
+    };
+
+    test("columnas distintas: quedan las dos, sin aviso; se manda lo que se veía", async () => {
+      await montar();
+      registro.plantel.find((uno) => uno.id === 8).posicion = "volante_central";
+      await elegirPie("Derecho");
+      expect(registro.antesDeGuardar).toEqual([{ id: 8, pie_dominante: "" }]);
+      expect(registro.plantel.find((uno) => uno.id === 8)).toMatchObject({ pie_dominante: "direito", posicion: "volante_central" });
+      expect(texto(document.body)).not.toContain("Otra persona había cambiado");
+    });
+
+    test("la misma columna: gana el último y se le avisa", async () => {
+      await montar();
+      registro.plantel.find((uno) => uno.id === 8).pie_dominante = "esquerdo";
+      await elegirPie("Derecho");
+      expect(registro.plantel.find((uno) => uno.id === 8).pie_dominante).toBe("direito");
+      expect(celda(contenedor, 1, 5).textContent).toBe("Derecho");
+      expect(texto(document.body)).toMatch(/Otra persona había cambiado «[^»]+» mientras tanto: quedó lo tuyo\./);
+    });
+
+    test("un jugador que otra persona borró: sale de la lista y se avisa", async () => {
+      await montar();
+      registro.plantel = registro.plantel.filter((uno) => uno.id !== 8);
+      await elegirPie("Derecho");
+      expect(texto(contenedor)).not.toContain("SCARPA");
+      expect(texto(document.body)).toContain("Ese jugador lo borró otra persona: queda borrado.");
+    });
+  });
+
   test("se cambia el pie dominante desde la celda, se agrega un jugador y se borra otro", async () => {
     await montar();
     // Dos toques en una celda de lista abren la hoja de opciones.
@@ -906,6 +962,21 @@ describe("el módulo Datos básicos", () => {
       { id: "l1", datos: { categoria: "sub20" } },
       { id: "l2", datos: { categoria: "sub20" } },
     ]);
+    // Cada una va con la que tenía (paso 2 de «cargar sin señal…»).
+    expect(registro.antesDeCategorias).toEqual([
+      ["l1", null],
+      ["l2", "profissional"],
+    ]);
+  });
+
+  test("cambiar la categoría: si otra persona había cambiado la de un registro, queda la nueva y se avisa", async () => {
+    registro.lesiones = conLesiones();
+    registro.pisadasDeCategorias = 1;
+    await montar();
+    await cambiarCategoria("Sub-20");
+    await tocar(boton(document.body, "En todo su historial"));
+    await act(async () => Promise.resolve());
+    expect(texto(document.body)).toContain("Otra persona había cambiado la categoría de 1 registro mientras tanto: quedó la tuya.");
   });
 
   test("con Lesiones en «Solo lectura» la categoría cambia sin preguntar y sus lesiones quedan como estaban", async () => {

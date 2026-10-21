@@ -244,8 +244,40 @@ describe("la categoría de las lesiones al cambiarla en Datos básicos", () => {
     expect(error).not.toBe("");
   });
 
-  test("se guardan de a una; si una falla, se siguen las demás y se avisa", async () => {
-    doble.respuestas = [{ data: null, error: null }, { data: null, error: { code: "42501", message: "permission denied" } }, { data: null, error: null }];
+  // Paso 2 de «cargar sin señal y a la vez que otra persona»: solo la
+  // categoría, con la que tenía (lesiones_cambiar, 20261115).
+  test("se cambia solo la categoría, con la que tenía; dice en cuántas la había cambiado otra persona y salta las borradas", async () => {
+    const fila = (id, datos) => ({ id, equipo_id: "eq-1", jugador_id: 7, fecha_lesion: "2026-09-01", datos });
+    doble.respuestas = [
+      { data: { fila: fila("l1", { categoria: "sub20", parte_cuerpo: "coxa", medico: "Dr. X" }), pisadas: [] }, error: null },
+      { data: { fila: fila("l2", { categoria: "sub20" }), pisadas: [{ clave: "datos.categoria", habia: "sub23" }] }, error: null },
+      { data: null, error: { code: "P0001", message: "fila_borrada" } },
+      { data: null, error: { code: "42501", message: "permission denied for table lesiones" } },
+    ];
+    const respuesta = await guardarCategoriaDeLesiones([
+      { id: "l1", datos: { categoria: "sub20", parte_cuerpo: "coxa" }, antes: "profissional" },
+      { id: "l2", datos: { categoria: "sub20" }, antes: "profissional" },
+      { id: "l3", datos: { categoria: "sub20" }, antes: null },
+      { id: "l4", datos: {}, antes: "profissional" },
+    ]);
+    expect(doble.llamadas.map(([, funcion, argumentos]) => [funcion, argumentos.p_id, argumentos.p_cambios, argumentos.p_antes])).toEqual([
+      ["lesiones_cambiar", "l1", { "datos.categoria": "sub20" }, { "datos.categoria": "profissional" }],
+      ["lesiones_cambiar", "l2", { "datos.categoria": "sub20" }, { "datos.categoria": "profissional" }],
+      ["lesiones_cambiar", "l3", { "datos.categoria": "sub20" }, { "datos.categoria": null }],
+      ["lesiones_cambiar", "l4", { "datos.categoria": null }, { "datos.categoria": "profissional" }],
+    ]);
+    expect(respuesta).toMatchObject({ hechas: ["l1", "l2"], pisadas: 1, error: "lesiones.error.sinPermiso" });
+    // Lo que otra persona cambió en la lesión (el médico) queda.
+    expect(respuesta.datos.l1).toEqual({ categoria: "sub20", parte_cuerpo: "coxa", medico: "Dr. X" });
+  });
+
+  test("sin la actualización de la base, de a una con los datos enteros; si una falla, se siguen las demás y se avisa", async () => {
+    doble.respuestas = [
+      { data: null, error: { code: "PGRST202", message: "Could not find the function public.lesiones_cambiar" } },
+      { data: null, error: null },
+      { data: null, error: { code: "42501", message: "permission denied" } },
+      { data: null, error: null },
+    ];
     const respuesta = await guardarCategoriaDeLesiones([
       { id: "l1", datos: { categoria: "profissional" } },
       { id: "l2", datos: { categoria: "sub20" } },
@@ -336,6 +368,39 @@ describe("la fecha de nacimiento de Datos básicos", () => {
     expect(await guardarDatosJugador(7, { fecha_nacimiento: "1986-07-25" })).toMatchObject({ error: "" });
     // Vaciarla, sí.
     expect(await guardarDatosJugador(7, { fecha_nacimiento: null })).toMatchObject({ error: "" });
+  });
+});
+
+// Paso 2 de «cargar sin señal y a la vez que otra persona» (20261117;
+// Santiago, 21/10, la misma celda: «Gana el último, con aviso»).
+describe("cambiar un jugador con lo que se veía", () => {
+  const visto = { id: 7, nombre: "HULK", categoria: "", fecha_nacimiento: "1986-07-25", pie_dominante: "", posicion: "", foto_url: "", horas_previas: null, actual: true };
+
+  test("solo las columnas cambiadas, como se guardan, con lo que tenían (vacío: null)", async () => {
+    doble.respuestas = [{ data: { fila: { ...visto, categoria: "sub20", foto_url: null }, pisadas: [] }, error: null }];
+    const respuesta = await guardarDatosJugador(7, { categoria: "sub20", foto_url: "  " }, { antes: visto });
+    expect(doble.llamadas).toEqual([["rpc", "jugadores_cambiar", { p_id: 7, p_cambios: { categoria: "sub20", foto_url: null }, p_antes: { categoria: null, foto_url: null } }]]);
+    expect(respuesta).toMatchObject({ jugador: { id: 7, categoria: "sub20" }, pisadas: [], error: "" });
+  });
+
+  test("dice qué columnas había cambiado otra persona; si lo borró, borrado; el nombre repetido, en palabras", async () => {
+    doble.respuestas = [{ data: { fila: { ...visto, categoria: "sub20" }, pisadas: [{ clave: "categoria", habia: "sub23" }] }, error: null }];
+    expect(await guardarDatosJugador(7, { categoria: "sub20" }, { antes: visto })).toMatchObject({ pisadas: [{ clave: "categoria", habia: "sub23" }], error: "" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "fila_borrada" } }];
+    expect(await guardarDatosJugador(7, { categoria: "sub20" }, { antes: visto })).toEqual({ borrado: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "jugadores_nombre_unico_por_equipo"' } }];
+    expect(await guardarDatosJugador(7, { nombre: "OTRO" }, { antes: visto })).toEqual({ error: "datos.error.repetido" });
+    // Lo que se frena antes de guardar, igual que siempre.
+    doble.llamadas.length = 0;
+    expect(await guardarDatosJugador(7, { fecha_nacimiento: "2999-01-01" }, { antes: visto })).toEqual({ error: "datos.error.nacimientoFuturo" });
+    expect(doble.llamadas).toEqual([]);
+  });
+
+  test("sin la actualización de la base, como antes (las columnas cambiadas, directo a la tabla)", async () => {
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.jugadores_cambiar" } }, { data: { ...visto, categoria: "sub20" }, error: null }];
+    expect(await guardarDatosJugador(7, { categoria: "sub20" }, { antes: visto })).toMatchObject({ jugador: { categoria: "sub20" }, error: "" });
+    const [, enviado] = doble.llamadas.find(([metodo]) => metodo === "update");
+    expect(enviado).toMatchObject({ categoria: "sub20" });
   });
 });
 

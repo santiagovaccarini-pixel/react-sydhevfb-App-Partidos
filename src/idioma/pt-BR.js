@@ -1532,6 +1532,12 @@ export default {
       todo: "Em todo o histórico",
       ninguna: "sem categoria",
       lesionesSinGuardar: "A categoria mudou, mas não foi possível mudá-la em todas as lesões ({{error}}).",
+      pisadas_one: "Outra pessoa tinha mudado a categoria de {{n}} registro enquanto isso: ficou a sua.",
+      pisadas_other: "Outra pessoa tinha mudado a categoria de {{n}} registros enquanto isso: ficou a sua.",
+    },
+    cambios: {
+      pisadas: "Outra pessoa tinha mudado «{{columnas}}» enquanto isso: ficou o seu.",
+      borrado: "Esse jogador foi excluído por outra pessoa: continua excluído.",
     },
     borrarTitulo: "Excluir o jogador?",
     borrarTexto: "Excluir é para um jogador cadastrado por engano: {{jugador}} sai da lista de todos os módulos. Se ele já não está no clube, melhor desmarcar Atual (os dados ficam). Com lesões ou avaliações registradas não dá para excluir.",

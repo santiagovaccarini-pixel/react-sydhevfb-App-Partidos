@@ -1301,7 +1301,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
-  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,lesiones_cambiar,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
+  || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,jugadores_cambiar,lesiones_cambiar,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
   || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
@@ -2588,6 +2588,49 @@ select pruebas.esperar('Cada cambio queda en el historial, con quién lo hizo', 
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Otra persona la borra', pruebas.filas($q$delete from lesiones where id = (select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20')$q$), 1);
 select pruebas.debe_fallar('...y cambiarla avisa que ya no está', $q$select lesiones_cambiar('00000000-0000-0000-0000-0000000000ee', '{"datos.comentarios":"x"}')$q$, 'fila_borrada');
+reset role;
+rollback;
+
+-- Datos básicos (20261117): lo mismo que Evaluaciones (20261114), por columna.
+begin;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+insert into jugadores (nombre, equipo_id) values ('PRUEBA CAMBIOS', '00000000-0000-0000-0000-0000000000c1'), ('PRUEBA OTRO', '00000000-0000-0000-0000-0000000000c1');
+select id as jugador_j from jugadores where nombre = 'PRUEBA CAMBIOS' \gset
+select pruebas.esperar('Datos básicos: una cambia la categoría (sin pisar a nadie)',
+  (select (jugadores_cambiar(:'jugador_j', '{"categoria":"sub20"}', '{"categoria":null}') -> 'pisadas')::text), '[]');
+select pruebas.esperar('...otra, a la vez, otra columna del mismo jugador: se juntan',
+  (select (x #>> '{fila,categoria}') || ' ' || (x #>> '{fila,fecha_nacimiento}') from (select jugadores_cambiar(:'jugador_j', '{"fecha_nacimiento":"2001-02-03"}', '{"fecha_nacimiento":null}') as x) s), 'sub20 2001-02-03');
+select pruebas.esperar('La misma columna, a la vez: gana el último y dice qué había',
+  (select (jugadores_cambiar(:'jugador_j', '{"categoria":"sub23"}', '{"categoria":null}') -> 'pisadas')::text), '[{"clave": "categoria", "habia": "sub20"}]');
+select pruebas.esperar('...y queda lo del último', (select categoria from jugadores where id = :'jugador_j'), 'sub23');
+select pruebas.esperar('Si los dos pusieron lo mismo, no hay nada que avisar',
+  (select (jugadores_cambiar(:'jugador_j', '{"categoria":"sub23"}', '{"categoria":null}') -> 'pisadas')::text), '[]');
+select pruebas.esperar('Un texto vacío queda vacío; las horas y «Actual», como números y sí/no',
+  (select coalesce(x #>> '{fila,foto_url}', 'sin foto') || ' ' || (x #>> '{fila,horas_previas}') || ' ' || (x #>> '{fila,actual}')
+     from (select jugadores_cambiar(:'jugador_j', '{"foto_url":"  ","horas_previas":12.5,"actual":false}', '{}') as x) s), 'sin foto 12.5 false');
+select pruebas.esperar('El nombre se cambia sin espacios de más...',
+  (select jugadores_cambiar(:'jugador_j', '{"nombre":"  PRUEBA NUEVO  "}', '{"nombre":"PRUEBA CAMBIOS"}') #>> '{fila,nombre}'), 'PRUEBA NUEVO');
+select pruebas.esperar('...y queda el de antes, como siempre', (select count(*) from jugadores_nombres_anteriores where jugador_id = :'jugador_j' and nombre = 'PRUEBA CAMBIOS'), 1);
+select pruebas.debe_fallar('El club no se cambia', format($q$select jugadores_cambiar(%s, '{"equipo_id":"00000000-0000-0000-0000-0000000000c2"}')$q$, :'jugador_j'), 'jugadores_cambios');
+select pruebas.debe_fallar('...ni las posiciones de Partido por acá', format($q$select jugadores_cambiar(%s, '{"roles":["X"]}')$q$, :'jugador_j'), 'jugadores_cambios');
+select pruebas.debe_fallar('...ni el nombre vacío', format($q$select jugadores_cambiar(%s, '{"nombre":"  "}')$q$, :'jugador_j'), 'jugadores_cambios');
+select pruebas.debe_fallar('Las reglas de siempre: el nombre no se repite en el club', format($q$select jugadores_cambiar(%s, '{"nombre":"prueba otro"}')$q$, :'jugador_j'), 'jugadores_nombre_unico_por_equipo');
+select pruebas.debe_fallar('...ni horas negativas', format($q$select jugadores_cambiar(%s, '{"horas_previas":-1}')$q$, :'jugador_j'), 'jugadores_horas_previas_no_negativas');
+select pruebas.esperar('Beto le deja Datos básicos solo para mirar', pruebas.filas($$update club_miembros set solo_lectura = array['partido', 'lesiones', 'datos'] where user_id = '00000000-0000-0000-0000-000000000099' and equipo_id = '00000000-0000-0000-0000-0000000000c1'$$), 1);
+reset role;
+select pruebas.ser('mira@uno.com'); set role authenticated;
+select pruebas.esperar('Con Datos básicos solo para mirar lo ve...', (select count(*) from jugadores where id = :'jugador_j'), 1);
+select pruebas.debe_fallar('...pero no lo cambia', format($q$select jugadores_cambiar(%s, '{"categoria":"x"}')$q$, :'jugador_j'), 'permission denied');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.debe_fallar('Desde otro club no lo ve: para ella no está', format($q$select jugadores_cambiar(%s, '{"categoria":"x"}')$q$, :'jugador_j'), 'fila_borrada');
+reset role;
+set role anon;
+select pruebas.debe_fallar('Anon, nada', $q$select jugadores_cambiar(1, '{"categoria":"x"}')$q$, 'permission denied');
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Otra persona lo quita', pruebas.filas(format($q$delete from jugadores where id = %s$q$, :'jugador_j')), 1);
+select pruebas.debe_fallar('...y cambiarlo avisa que ya no está', format($q$select jugadores_cambiar(%s, '{"categoria":"x"}')$q$, :'jugador_j'), 'fila_borrada');
 reset role;
 rollback;
 

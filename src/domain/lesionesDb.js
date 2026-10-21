@@ -208,17 +208,40 @@ export const leerLesionesPorJugador = async (equipoId) => {
   return { porJugador, error: "" };
 };
 
-// cambios: [{ id, datos }] (los datos enteros de cada lesión, con su
-// categoría nueva). De a una; si una falla, se sigue y se avisa.
+// cambios: [{ id, datos, antes }] (los datos enteros de cada lesión, con su
+// categoría nueva; antes, la categoría que tenía). De a una; si una falla,
+// se sigue y se avisa. Con 20261115 se cambia solo la categoría (paso 2 de
+// «cargar sin señal y a la vez que otra persona»): lo demás que otra persona
+// cambió en la lesión queda; pisadas dice en cuántas otra persona había
+// cambiado la categoría mientras tanto (gana el último) y datos, cómo quedó
+// cada una. Una que otra persona borró ya no está: no cuenta como hecha ni
+// como error.
 export const guardarCategoriaDeLesiones = async (cambios) => {
   const hechas = [];
+  const datos = {};
+  let pisadas = 0;
   let error = "";
+  let sinFuncion = false;
   for (const cambio of cambios) {
+    if (!sinFuncion) {
+      // eslint-disable-next-line no-await-in-loop
+      const respuesta = await cambiarLesion(cambio.id, { cambios: { "datos.categoria": cambio.datos?.categoria || null }, antes: { "datos.categoria": cambio.antes || null } });
+      sinFuncion = Boolean(respuesta.sinFuncion);
+      if (!sinFuncion) {
+        if (respuesta.error) error = respuesta.error;
+        else if (!respuesta.borrada) {
+          hechas.push(cambio.id);
+          datos[cambio.id] = respuesta.lesion.datos;
+          pisadas += respuesta.pisadas.length;
+        }
+        continue;
+      }
+    }
     const respuesta = await supabase.from("lesiones").update({ datos: cambio.datos }).eq("id", cambio.id); // eslint-disable-line no-await-in-loop
     if (respuesta.error) error = fallo(respuesta.error, "lesiones.error.noGuardar").error;
     else hechas.push(cambio.id);
   }
-  return { hechas, error };
+  return { hechas, datos, pisadas, error };
 };
 
 // Los últimos cambios de una lesión, del más nuevo al más viejo, con las
@@ -361,22 +384,53 @@ export const cargarPlantelLesiones = async (equipoId) => {
 };
 
 // Solo lo que se mande: una celda de la tabla, o la ficha entera.
-export const guardarDatosJugador = async (id, datos) => {
-  const cambios = { actualizado_en: new Date().toISOString() };
-  if ("nombre" in datos) cambios.nombre = String(datos.nombre || "").trim();
-  if ("categoria" in datos) cambios.categoria = datos.categoria || null;
-  if ("fecha_nacimiento" in datos) cambios.fecha_nacimiento = datos.fecha_nacimiento || null;
-  if ("pie_dominante" in datos) cambios.pie_dominante = datos.pie_dominante || null;
-  if ("posicion" in datos) cambios.posicion = datos.posicion || null;
-  if ("foto_url" in datos) cambios.foto_url = String(datos.foto_url || "").trim() || null;
-  if ("horas_previas" in datos) {
-    cambios.horas_previas = horasPrevias(datos.horas_previas);
-    if ((datos.horas_previas ?? "") !== "" && (cambios.horas_previas === null || cambios.horas_previas < 0)) return { error: "datos.error.horas" };
+// Cada columna de Datos básicos como se guarda (y como se compara con lo que
+// hay en la base): sin espacios de más y, lo vacío, null.
+const COMO_SE_GUARDA = {
+  nombre: (valor) => String(valor || "").trim(),
+  categoria: (valor) => valor || null,
+  fecha_nacimiento: (valor) => valor || null,
+  pie_dominante: (valor) => valor || null,
+  posicion: (valor) => valor || null,
+  foto_url: (valor) => String(valor || "").trim() || null,
+  horas_previas: (valor) => horasPrevias(valor),
+  actual: (valor) => valor !== false,
+};
+
+// Cambiar solo lo cambiado con lo que se veía (20261117_jugadores_cambiar.sql;
+// paso 2 de «cargar sin señal y a la vez que otra persona»): en la misma
+// columna gana el último y la base dice cuáles pisó (pisadas, Santiago,
+// 21/10: «Gana el último, con aviso»); si otra persona lo borró, borrado
+// («Queda borrada y te aviso»). Sin esa actualización, sinFuncion.
+const cambiarJugador = async (id, cambios, jugador) => {
+  const antes = Object.fromEntries(Object.keys(cambios).map((clave) => [clave, COMO_SE_GUARDA[clave](jugador?.[clave])]));
+  const { data, error } = await supabase.rpc("jugadores_cambiar", { p_id: id, p_cambios: cambios, p_antes: antes });
+  if (error) {
+    const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+    if (error.code === "PGRST202" || (/jugadores_cambiar/.test(texto) && /does not exist|schema cache|Could not find/i.test(texto))) return { sinFuncion: true, error: "" };
+    if (/fila_borrada/.test(texto)) return { borrado: true, error: "" };
+    if (/duplicate key|unique/i.test(error.message || "")) return { error: "datos.error.repetido" };
+    return fallo(error, "datos.error.guardar");
   }
-  if ("actual" in datos) cambios.actual = datos.actual !== false;
+  return { jugador: normalizarJugadorLesiones(data?.fila), pisadas: Array.isArray(data?.pisadas) ? data.pisadas : [], error: "" };
+};
+
+// antes: el jugador como se veía al cambiarlo (sin él, se guarda como antes
+// de 20261117).
+export const guardarDatosJugador = async (id, datos, { antes = null } = {}) => {
+  const cambios = { actualizado_en: new Date().toISOString() };
+  Object.keys(COMO_SE_GUARDA).forEach((clave) => {
+    if (clave in datos) cambios[clave] = COMO_SE_GUARDA[clave](datos[clave]);
+  });
+  if ("horas_previas" in datos && (datos.horas_previas ?? "") !== "" && (cambios.horas_previas === null || cambios.horas_previas < 0)) return { error: "datos.error.horas" };
   if (cambios.nombre === "") return { error: "datos.error.nombre" };
   // Nadie nace en el futuro (una fecha elegida en el calendario de la celda).
   if (cambios.fecha_nacimiento && cambios.fecha_nacimiento > hoyISO()) return { error: "datos.error.nacimientoFuturo" };
+  if (antes) {
+    const { actualizado_en: _, ...soloLoCambiado } = cambios;
+    const respuesta = await cambiarJugador(id, soloLoCambiado, antes);
+    if (!respuesta.sinFuncion) return respuesta;
+  }
   const guardar = (valores, columnas) => supabase.from("jugadores").update(valores).eq("id", id).select(columnas).single();
   const sin = [];
   let valores = cambios;
