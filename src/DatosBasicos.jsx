@@ -27,7 +27,7 @@ import {
 import { guardarSeleccionDeEvaluaciones, leerEvaluacionesPorJugador } from "./domain/evaluacionesDb.js";
 import { seleccionesAlCambiar } from "./domain/evaluaciones/categorias.js";
 import { t, useIdioma } from "./idioma/index.js";
-import { fechaCorta, hoyISO } from "./idioma/formatos.js";
+import { enLista, fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import FichaAtleta from "./FichaAtleta.jsx";
 import "./lesiones.css";
@@ -299,6 +299,10 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // Cuántas veces se guardó algo de cada jugador: lo que no se pudo guardar
   // solo vuelve atrás si mientras tanto no se guardó otra cosa de él.
   const guardadosBien = useRef(new Map());
+  // Lo que se está guardando de cada jugador: dos cambios seguidos del mismo
+  // jugador (el segundo antes de que vuelva el primero) no se avisan como si
+  // fueran de otra persona.
+  const enCamino = useRef(new Map());
 
   // La categoría cambia y el jugador tenía otra y tiene registros en una base
   // que guarda la categoría: se pregunta si vale para todo su historial o
@@ -314,14 +318,25 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     cambioCategoria?.resolver(respuesta);
     setCambioCategoria(null);
   };
+  // Se cambia solo la categoría de cada registro, con la que tenía (paso 2
+  // de «cargar sin señal y a la vez que otra persona»): si otra persona la
+  // había cambiado mientras tanto, queda la nueva y se avisa.
+  const conLaQueTenian = (cambios, registros, clave) => {
+    const tenian = new Map((registros || []).map((registro) => [registro.id, registro.datos?.[clave] || null]));
+    return cambios.map((cambio) => ({ ...cambio, antes: tenian.get(cambio.id) ?? null }));
+  };
   // Lo elegido para cada base ({ lesiones, evaluaciones }: { desde } o
   // nada), en sus registros; si algo no se guarda, se avisa.
   const aplicarCategoria = async (jugador, nueva, respuestas) => {
+    let pisadas = 0;
+    let fallo = false;
     if (respuestas.lesiones) {
       const cambios = categoriasAlCambiar(lesionesDe[jugador.id] || [], { anterior: jugador.categoria, nueva, desde: respuestas.lesiones.desde });
       if (cambios.length) {
-        const respuesta = await guardarCategoriaDeLesiones(cambios);
-        const nuevas = new Map(cambios.filter((cambio) => respuesta.hechas.includes(cambio.id)).map((cambio) => [cambio.id, cambio.datos]));
+        const respuesta = await guardarCategoriaDeLesiones(conLaQueTenian(cambios, lesionesDe[jugador.id], "categoria"));
+        pisadas += respuesta.pisadas || 0;
+        fallo = fallo || Boolean(respuesta.error);
+        const nuevas = new Map(cambios.filter((cambio) => respuesta.hechas.includes(cambio.id)).map((cambio) => [cambio.id, respuesta.datos?.[cambio.id] || cambio.datos]));
         setLesionesDe((antes) => ({ ...antes, [jugador.id]: (antes[jugador.id] || []).map((lesion) => (nuevas.has(lesion.id) ? { ...lesion, datos: nuevas.get(lesion.id) } : lesion)) }));
         if (respuesta.error) setAviso(t("datos.categoria.lesionesSinGuardar", { error: t(respuesta.error) }));
       }
@@ -329,8 +344,10 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     if (respuestas.evaluaciones) {
       const cambios = seleccionesAlCambiar(evaluacionesDe[jugador.id] || [], { anterior: jugador.categoria, nueva, desde: respuestas.evaluaciones.desde });
       if (cambios.length) {
-        const respuesta = await guardarSeleccionDeEvaluaciones(cambios);
-        const nuevas = new Map(cambios.filter((cambio) => respuesta.hechas.includes(cambio.id)).map((cambio) => [cambio.id, cambio.datos]));
+        const respuesta = await guardarSeleccionDeEvaluaciones(conLaQueTenian(cambios, evaluacionesDe[jugador.id], "seleccion"));
+        pisadas += respuesta.pisadas || 0;
+        fallo = fallo || Boolean(respuesta.error);
+        const nuevas = new Map(cambios.filter((cambio) => respuesta.hechas.includes(cambio.id)).map((cambio) => [cambio.id, respuesta.datos?.[cambio.id] || cambio.datos]));
         setEvaluacionesDe((antes) => ({
           ...antes,
           [jugador.id]: (antes[jugador.id] || []).map((evaluacion) => (nuevas.has(evaluacion.id) ? { ...evaluacion, datos: nuevas.get(evaluacion.id) } : evaluacion)),
@@ -338,7 +355,11 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         if (respuesta.error) setAviso(t("datos.categoria.evaluacionesSinGuardar", { error: t(respuesta.error) }));
       }
     }
+    if (pisadas && !fallo) setAviso(plural("datos.categoria.pisadas", pisadas));
   };
+
+  // El nombre de una columna en este club, para los avisos.
+  const tituloDeColumna = (clave) => columnasDeAjustes[COLUMNAS.findIndex((columna) => columna.clave === clave)]?.titulo || clave;
 
   const guardar = async (jugadorId, datos) => {
     // La fecha de nacimiento es obligatoria (Santiago, 17/10): vacía no se
@@ -364,8 +385,23 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
         respuestas[base] = elegida;
       }
     }
-    const respuesta = await guardarDatosJugador(jugadorId, datos);
+    // Con lo que se veía (paso 2 de «cargar sin señal y a la vez que otra
+    // persona»): en la misma columna gana el último y se avisa (Santiago,
+    // 21/10: «Gana el último, con aviso»); si otra persona lo borró, sale de
+    // la lista y se avisa («Queda borrada y te aviso»).
+    const visto = { ...jugador, ...enCamino.current.get(jugadorId) };
+    enCamino.current.set(jugadorId, { ...enCamino.current.get(jugadorId), ...datos });
+    const respuesta = await guardarDatosJugador(jugadorId, datos, { antes: visto });
+    const pendientes = enCamino.current.get(jugadorId) || {};
+    Object.keys(datos).forEach((clave) => pendientes[clave] === datos[clave] && delete pendientes[clave]);
+    if (!Object.keys(pendientes).length) enCamino.current.delete(jugadorId);
+    if (respuesta.borrado) {
+      setPlantel((antes) => antes.filter((uno) => uno.id !== jugadorId));
+      setAviso(t("datos.cambios.borrado"));
+      return respuesta;
+    }
     if (!respuesta.error) guardadosBien.current.set(jugadorId, (guardadosBien.current.get(jugadorId) || 0) + 1);
+    if (respuesta.pisadas?.length) setAviso(t("datos.cambios.pisadas", { columnas: enLista([...new Set(respuesta.pisadas.map((pisada) => tituloDeColumna(pisada.clave)))]) }));
     if (!respuesta.error && Object.keys(respuestas).length) await aplicarCategoria(jugador, datos.categoria, respuestas);
     return respuesta;
   };
@@ -378,7 +414,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     const vez = guardadosBien.current.get(jugadorId) || 0;
     if (alToque && antes) setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: valor } : uno)));
     const respuesta = await guardar(jugadorId, { [clave]: valor });
-    if (respuesta.cancelado) return {};
+    if (respuesta.cancelado || respuesta.borrado) return {};
     if (respuesta.error) {
       if (alToque && antes && (guardadosBien.current.get(jugadorId) || 0) === vez)
         setPlantel((lista) => lista.map((uno) => (uno.id === jugadorId ? { ...uno, [clave]: antes[clave] } : uno)));
@@ -398,7 +434,7 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     let ultimoError = "";
     for (const [jugadorId, datos] of porJugador) {
       const respuesta = await guardar(jugadorId, datos); // eslint-disable-line no-await-in-loop
-      if (respuesta.cancelado) continue;
+      if (respuesta.cancelado || respuesta.borrado) continue;
       if (respuesta.error) {
         ultimoError = respuesta.error;
         continue;

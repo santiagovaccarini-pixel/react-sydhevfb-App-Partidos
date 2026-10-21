@@ -4549,6 +4549,25 @@ confirme.**
     guarda la fila entera, como antes.
     - **Queda prohibido** lo mismo que en el paso 2a, para GPS, y que un «por minuto» quede con una
       cuenta que no sale de lo que quedó en la fila, salvo un pedido nuevo.
+  - **Hecho, paso 2d (21/10, migración `20261117_jugadores_cambiar.sql`, 2026.10.21.6; UI-071):
+    Datos básicos.** Santiago, en un cuestionario: «Sí, seguí con Datos básicos». Datos básicos ya
+    guardaba solo las columnas cambiadas (dos personas que cambian columnas distintas del mismo
+    jugador quedaban las dos); ahora cada cambio va con lo que se veía y, si otra persona había
+    cambiado la misma columna, gana el último y le aparece «Otra persona había cambiado «Pie
+    dominante» mientras tanto: quedó lo tuyo.»; si otra persona lo borró, sale de la lista con «Ese
+    jugador lo borró otra persona: queda borrado.». Dos cambios seguidos del mismo jugador desde la
+    misma pantalla no se avisan como de otra persona. Al cambiarle la categoría a un jugador, en
+    sus lesiones y evaluaciones se cambia solo la categoría (la Selección, en Evaluaciones), con la
+    que tenía: lo demás que otra persona haya cambiado en esa lesión o evaluación queda (antes se
+    guardaban todos sus datos y se podía pisar); si otra persona había cambiado esa categoría
+    mientras tanto, queda la nueva y aparece «Otra persona había cambiado la categoría de N
+    registros mientras tanto: quedó la tuya.»; una que otra persona borró se saltea. Las reglas de
+    siempre siguen (el nombre no se repite en el club, el nombre de antes queda para los partidos y
+    los V.R., «Solo lectura»). Sin la actualización de la base se guarda como antes.
+    - **Con esto queda hecho el paso 2** (Evaluaciones, Lesiones, GPS y Datos básicos). Sigue el
+      paso 3, cargar, cambiar y borrar sin señal, que se confirma antes de empezar.
+    - **Queda prohibido** lo mismo que en el paso 2a, para Datos básicos y la categoría de sus
+      registros, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

@@ -1557,6 +1557,16 @@ export default {
       todo: "En todo su historial",
       ninguna: "sin categoría",
       lesionesSinGuardar: "La categoría cambió, pero no se pudo cambiar en todas sus lesiones ({{error}}).",
+      // Paso 2 de «cargar sin señal…»: se cambia solo la categoría de cada
+      // registro (Santiago, 21/10: «Gana el último, con aviso»).
+      pisadas_one: "Otra persona había cambiado la categoría de {{n}} registro mientras tanto: quedó la tuya.",
+      pisadas_other: "Otra persona había cambiado la categoría de {{n}} registros mientras tanto: quedó la tuya.",
+    },
+    // Paso 2 de «cargar sin señal…»: se guarda solo lo cambiado (Santiago,
+    // 21/10: la misma celda, «Gana el último, con aviso»).
+    cambios: {
+      pisadas: "Otra persona había cambiado «{{columnas}}» mientras tanto: quedó lo tuyo.",
+      borrado: "Ese jugador lo borró otra persona: queda borrado.",
     },
     borrarTitulo: "¿Borrar al jugador?",
     borrarTexto: "Borrar es para un jugador cargado por error: {{jugador}} sale de la lista de todos los módulos. Si ya no está en el club, mejor desmarcá Actual (sus datos quedan). Con lesiones o evaluaciones cargadas no se puede borrar.",

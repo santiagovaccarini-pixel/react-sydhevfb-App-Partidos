@@ -9,6 +9,7 @@ import {
   guardarCabecera,
   guardarEvaluaciones,
   guardarOpcionDeLista,
+  guardarSeleccionDeEvaluaciones,
   leerAjustes,
   leerReferencias,
   listarEvaluaciones,
@@ -240,6 +241,29 @@ describe("cambiar solo lo cambiado", () => {
     expect(await cambiarEvaluacion("e1", { cambios: { "datos.lumbar": 190 } })).toEqual({ borrada: true, error: "" });
     doble.respuestas = [{ data: null, error: { code: "P0001", message: "evaluaciones_sin_futuro" } }];
     expect((await cambiarEvaluacion("e1", { cambios: { fecha: "2099-01-01" } })).error).toBe(claveDeErrorEvaluaciones({ code: "P0001", message: "evaluaciones_sin_futuro" }, "evaluaciones.error.noGuardar"));
+  });
+});
+
+describe("la Selección de las evaluaciones al cambiar la categoría en Datos básicos", () => {
+  test("solo la Selección, con la que tenía; sin la actualización de la base, los datos enteros", async () => {
+    doble.respuestas = [
+      { data: { fila: evaluacion(1, { datos: { seleccion: "sub20", lumbar: 190 } }), pisadas: [{ clave: "datos.seleccion", habia: "sub23" }] }, error: null },
+      { data: null, error: { code: "P0001", message: "fila_borrada" } },
+    ];
+    const respuesta = await guardarSeleccionDeEvaluaciones([
+      { id: "e1", datos: { seleccion: "sub20", lumbar: 184 }, antes: "mayor" },
+      { id: "e2", datos: { seleccion: "sub20" }, antes: "mayor" },
+    ]);
+    expect(doble.llamadas.map(([, funcion, argumentos]) => [funcion, argumentos.p_cambios, argumentos.p_antes])).toEqual([
+      ["evaluaciones_cambiar", { "datos.seleccion": "sub20" }, { "datos.seleccion": "mayor" }],
+      ["evaluaciones_cambiar", { "datos.seleccion": "sub20" }, { "datos.seleccion": "mayor" }],
+    ]);
+    expect(respuesta).toEqual({ hechas: ["e1"], datos: { e1: { seleccion: "sub20", lumbar: 190 } }, pisadas: 1, error: "" });
+
+    doble.llamadas.length = 0;
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.evaluaciones_cambiar" } }, { data: null, error: null }];
+    expect(await guardarSeleccionDeEvaluaciones([{ id: "e1", datos: { seleccion: "sub20", lumbar: 184 }, antes: "mayor" }])).toMatchObject({ hechas: ["e1"], error: "" });
+    expect(doble.llamadas.find(([metodo]) => metodo === "update")).toEqual(["update", { datos: { seleccion: "sub20", lumbar: 184 } }]);
   });
 });
 
