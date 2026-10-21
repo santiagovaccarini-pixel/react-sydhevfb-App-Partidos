@@ -4594,6 +4594,39 @@ confirme.**
       está subiendo, puede volver a preguntar con la hoja de la Regla 1.
     - **Queda prohibido** que lo hecho sin señal se pierda sin avisar, que una nueva que choca
       suba sin preguntar, o cambiar los Ajustes sin señal, salvo un pedido nuevo.
+  - **Hecho, paso 3b (21/10, 2026.10.21.8; UI-073): Lesiones sin señal.** Santiago, en
+    cuestionarios: «Sí, seguí con Lesiones (Recomendado)», con las mismas respuestas del paso 3a;
+    sin señal, «Cargar, cambiar y borrar», «Dar el alta» y «Pegar desde Excel». Sin señal (o si
+    la señal se corta al guardar), Nueva lesión, Editar, el alta médica, las celdas de la Base y
+    del historial, borrar y «Pegar desde una planilla» funcionan como con señal; los Ajustes, no.
+    Lo hecho queda en la fila de espera del aparato (`domain/lesionesEspera.js`, con lo que
+    comparte con Evaluaciones), con el aviso dorado, las filas en dorado claro y, en Nuevos
+    casos, la tarjeta en dorado claro con «Espera para subir». Al volver la señal sube sola, en
+    orden, y avisa. Sin SQL nuevo.
+    - **La misma lesión:** si otra persona ya la cargó mientras tanto (mismo jugador o persona,
+      parte del cuerpo, lado y fecha de inicio; la regla de la base), Santiago: «Si es la misma
+      tiene que avisar y descartar» (le ofrecía «Juntar con la que ya está», que Claude
+      recomendaba, «Quedarme con la de la Base» y «Reemplazar y cargar»). La tuya no sube y
+      aparece «La lesión de {jugador} del {fecha} ya la había cargado otra persona: se descartó
+      la tuya.».
+    - **El N° de caso:** Santiago: «El Nº de caso se ordena por fecha de incio de lesiones» y,
+      al preguntarle cómo, «Las nuevas, después del último» (no «Renumerar todo el club por
+      fecha»). Una cargada sin señal no tiene N° hasta que sube; al subir, las nuevas toman los
+      que siguen al último de la Base, de la fecha de inicio más vieja a la más nueva (las sin
+      fecha, al final). Los N° que ya están no cambian. Un N° pegado del Excel queda si está
+      libre; si otra persona lo usó mientras tanto, toma el que le toca por su fecha.
+    - **Lo que espera es trabajo de quien lo cargó**, como en el paso 3a: no se borra al salir
+      de la cuenta ni al dejar el club, y sube cuando esa cuenta vuelve a abrir Lesiones con
+      señal.
+    - **Límites conocidos:** sin señal no se puede dejar confirmado el consentimiento de una
+      persona que no está en Datos básicos (pegarla pide señal, como en el paso 3a). Los
+      «Cambios» de la ficha necesitan señal; una cargada sin señal todavía no tiene. Si otra
+      persona toma un N° justo mientras se sube, la lesión toma el que sigue aunque no quede en
+      orden de fecha. Una lesión sin fecha de inicio igual a una que cargó otra persona no se
+      reconoce como la misma (la base no la frena, como siempre).
+    - **Queda prohibido** que lo hecho sin señal se pierda sin avisar, que la misma lesión quede
+      dos veces, que al subir cambien N° de caso que ya están en la Base, o cambiar los Ajustes
+      sin señal, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

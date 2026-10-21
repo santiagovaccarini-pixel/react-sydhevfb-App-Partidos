@@ -22,6 +22,8 @@ const datos = vi.hoisted(() => ({
   errorAlLeer: "",
   // Si está, cada guardado espera a que se abra (una conexión lenta).
   compuerta: null,
+  // Lo que subió con importarLesion (las cargadas sin señal y lo pegado).
+  importadas: [],
 }));
 
 const lesionHulk = () => ({
@@ -53,6 +55,21 @@ vi.mock("./domain/copiaSinSenal.js", () => {
   };
 });
 
+// La fila de espera de lo hecho sin señal (filaDeEspera.js), en memoria.
+const esperas = vi.hoisted(() => ({ guardadas: {} }));
+vi.mock("./domain/filaDeEspera.js", () => ({
+  leerEspera: async (modulo, cuenta, equipoId) => JSON.parse(JSON.stringify(esperas.guardadas[`${equipoId}|${modulo}|${cuenta}`] || [])),
+  guardarEspera: async (modulo, cuenta, equipoId, cola) => {
+    const clave = `${equipoId}|${modulo}|${cuenta}`;
+    if (cola.length) esperas.guardadas[clave] = JSON.parse(JSON.stringify(cola));
+    else delete esperas.guardadas[clave];
+    return true;
+  },
+}));
+// Sin señal, la base no contesta.
+const sinRed = { error: "lesiones.error.noGuardar", detalle: "TypeError: Failed to fetch" };
+const hayRed = () => navigator.onLine !== false;
+
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => datos.equipo,
   cargarEquipos: async () => ({ equipos: [] }),
@@ -66,6 +83,7 @@ vi.mock("./domain/lesionesDb.js", async (importOriginal) => ({
   // Como 20261115: junta lo cambiado en la lesión de la base (datos.lesiones)
   // y dice qué pisó; si ya no está, borrada.
   cambiarLesion: async (id, { cambios = {}, antes = {} } = {}) => {
+    if (!hayRed()) return sinRed;
     datos.cambiadas.push({ id, cambios, antes });
     if (datos.sinCambiar) return { sinFuncion: true, error: "" };
     if (datos.compuerta) await datos.compuerta;
@@ -85,7 +103,10 @@ vi.mock("./domain/lesionesDb.js", async (importOriginal) => ({
     datos.actualizadas.push({ id, lesion });
     return { lesion, pisadas, error: "" };
   },
-  listarLesiones: async () => (datos.errorAlLeer ? { lesiones: [], error: datos.errorAlLeer } : { lesiones: datos.lesiones.map((l) => ({ ...l, datos: { ...l.datos } })), error: "" }),
+  listarLesiones: async () => {
+    if (!hayRed()) return { lesiones: [], error: "lesiones.error.noLeer", detalle: "TypeError: Failed to fetch" };
+    return datos.errorAlLeer ? { lesiones: [], error: datos.errorAlLeer } : { lesiones: datos.lesiones.map((l) => ({ ...l, datos: { ...l.datos } })), error: "" };
+  },
   cargarPlantelLesiones: async () => ({
     plantel: datos.plantel || [
       { id: 7, nombre: "HULK", roles: [], puestos: ["DEL"], categoria: "profissional", fecha_nacimiento: "1986-07-25", pie_dominante: "esquerdo", posicion: "delantero_central", foto_url: "" },
@@ -98,6 +119,7 @@ vi.mock("./domain/lesionesDb.js", async (importOriginal) => ({
   leerConfig: async () => ({ config: datos.config, error: "" }),
   leerMinutosDeEntrenamiento: async () => ({ minutos: datos.minutos ?? null, error: "" }),
   crearLesion: async (equipoId, lesion) => {
+    if (!hayRed()) return sinRed;
     datos.guardadas.push({ equipoId, lesion });
     const nueva = { ...lesion, id: "les-nueva", numero_caso: 2 };
     datos.lesiones.push(JSON.parse(JSON.stringify(nueva)));
@@ -109,10 +131,25 @@ vi.mock("./domain/lesionesDb.js", async (importOriginal) => ({
     return { lesion: { ...lesion, id }, error: "" };
   },
   borrarLesion: async (id) => {
+    if (!hayRed()) return { ...sinRed, error: "lesiones.error.noBorrar" };
     datos.borradas.push(id);
+    datos.lesiones = datos.lesiones.filter((una) => una.id !== id);
     return { error: "" };
   },
-  importarLesion: async () => ({ error: "" }),
+  // Como la base: la misma lesión dos veces no (lesiones_sin_repetir), el N°
+  // de caso no se repite y, sin N°, el que sigue.
+  importarLesion: async (equipoId, lesion) => {
+    if (!hayRed()) return sinRed;
+    const misma = (una) =>
+      (una.jugador_id ?? null) === (lesion.jugador_id ?? null) && una.fecha_lesion === lesion.fecha_lesion && una.datos?.parte_cuerpo === lesion.datos?.parte_cuerpo && una.datos?.lado === lesion.datos?.lado;
+    if (lesion.fecha_lesion && datos.lesiones.some(misma)) return { error: "lesiones.error.repetida" };
+    if (lesion.numero_caso && datos.lesiones.some((una) => una.numero_caso === lesion.numero_caso)) return { error: "lesiones.importar.casoOcupado" };
+    const numero = lesion.numero_caso || Math.max(0, ...datos.lesiones.map((una) => una.numero_caso || 0)) + 1;
+    const nueva = { ...JSON.parse(JSON.stringify(lesion)), id: `les-subida-${datos.importadas.length + 1}`, numero_caso: numero };
+    datos.importadas.push({ jugador_id: nueva.jugador_id, numero_caso: numero, fecha_lesion: nueva.fecha_lesion });
+    datos.lesiones.push(nueva);
+    return { lesion: nueva, error: "" };
+  },
   historialDeLesion: async (id) => {
     datos.historialesPedidos.push(id);
     return { cambios: datos.cambios, error: "" };
@@ -130,7 +167,7 @@ vi.mock("./domain/lesionesDb.js", async (importOriginal) => ({
 const { default: Lesiones } = await import("./Lesiones.jsx");
 const { fijarIdiomaParaPruebas } = await import("./idioma/index.js");
 const { CAMPOS, OPCIONES, PASOS, etiquetaDeCampo, etiquetaDeOpcion } = await import("./domain/lesionesCampos.js");
-const { hoyISO } = await import("./idioma/formatos.js");
+const { fechaCorta: fechaCortaDe, hoyISO } = await import("./idioma/formatos.js");
 
 const texto = (contenedor) => contenedor.textContent;
 const botones = (contenedor) => [...contenedor.querySelectorAll("button")];
@@ -212,7 +249,9 @@ describe("el módulo Lesiones", () => {
     datos.plantel = null;
     datos.compuerta = null;
     datos.sinCambiar = false;
+    datos.importadas = [];
     copias.guardadas = {};
+    esperas.guardadas = {};
     Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
@@ -253,26 +292,187 @@ describe("el módulo Lesiones", () => {
 
   // Paso 1 de «cargar sin señal y a la vez que otra persona» (Santiago,
   // 21/10: la copia «Automática en todos, sin botón»).
-  test("Ver sin señal: con señal guarda sola la copia de este aparato; sin señal abre con ella, para mirar", async () => {
-    const sinSenalAhora = async (sin) => {
-      Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
-      await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
-    };
+  const sinSenalAhora = async (sin) => {
+    Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
+    await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
+  };
+  const unRato = async (ms = 60) => {
+    for (let i = 0; i < 3; i++) await act(async () => new Promise((listo) => setTimeout(listo, ms))); // eslint-disable-line no-await-in-loop
+  };
+  test("Ver sin señal: con señal guarda sola la copia de este aparato; sin señal abre con ella (y deja cargar)", async () => {
     await montar();
     await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
     expect(copias.guardadas["eq-1|lesiones|cuenta-1"].datos.lesiones).toHaveLength(1);
 
     await act(async () => raiz.unmount());
     raiz = createRoot(contenedor);
-    datos.lesiones = [];
     await sinSenalAhora(true);
     await montar();
     expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Sin señal: ves la copia de este aparato");
+    expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Lo que cargues, cambies o borres queda en este aparato y se sube solo cuando vuelva la señal.");
     expect(texto(contenedor)).toContain("HULK");
-    expect(boton(contenedor, "Alta médica")).toBeFalsy();
+    // Paso 3b: sin señal también se carga, se da el alta y se pega.
+    expect(boton(contenedor, "Alta médica")).toBeTruthy();
+    expect(boton(contenedor, "Nueva lesión").disabled).toBe(false);
+    await navegar(contenedor, "Base");
+    expect(boton(contenedor, "Pegar desde una planilla").disabled).toBe(false);
+    // Los Ajustes, con señal.
+    await navegar(contenedor, "Ajustes");
+    expect(texto(contenedor)).toContain("Sin señal: los Ajustes se cambian cuando vuelva la señal.");
+    expect(contenedor.querySelector(".opcion-ajuste").disabled).toBe(true);
     await sinSenalAhora(false);
+    await unRato();
     expect(contenedor.querySelector(".aviso-sin-senal")).toBeNull();
+    expect(contenedor.querySelector(".opcion-ajuste").disabled).toBe(false);
   });
+
+  // Paso 3b (Santiago, 21/10, en un cuestionario: sin señal «Cargar, cambiar
+  // y borrar», «Dar el alta» y «Pegar desde Excel»; lo que espera, con un
+  // aviso arriba y las filas «de otro color»; al volver la señal «Lo sube sola
+  // y avisa»; la misma lesión que ya cargó otra persona, «avisar y
+  // descartar»; las nuevas, con el N° de caso que sigue al último, por fecha).
+  const lesionDe = (id, jugador, caso, fecha, datosDeLaLesion) => ({ ...lesionHulk(), id, jugador_id: jugador, numero_caso: caso, fecha_lesion: fecha, datos: datosDeLaLesion });
+  const sinSenalConLaCopia = async () => {
+    await montar();
+    await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    await sinSenalAhora(true);
+    await montar();
+  };
+  const avisoArriba = () => contenedor.querySelector(".aviso-sin-senal")?.textContent || "";
+  const queEsperan = () => [...contenedor.querySelectorAll(".tabla-datos-tabla tbody tr.espera")];
+  const tarjetaDe = (nombre) => [...contenedor.querySelectorAll(".lesiones-registro")].find((tarjeta) => tarjeta.querySelector(".lesiones-registro-cuerpo strong")?.textContent === nombre);
+  const celdaDeLaBase = (fila, titulo) => {
+    const cabeceras = [...contenedor.querySelectorAll(".tabla-datos-tabla th[data-columna]")];
+    return contenedor.querySelectorAll(".tabla-datos-tabla tbody tr")[fila].querySelectorAll("td")[cabeceras.findIndex((th) => th.textContent === titulo)];
+  };
+  const escribirEnLaBase = async (fila, titulo, valor) => {
+    await tocar(celdaDeLaBase(fila, titulo));
+    await tocar(celdaDeLaBase(fila, titulo));
+    const input = celdaDeLaBase(fila, titulo).querySelector("input");
+    await escribir(input, valor);
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  };
+  const cargarRodillaDeScarpa = async () => {
+    await tocar(boton(contenedor, "Nueva lesión"));
+    await tocar(botonQueEmpieza(contenedor, "SCARPA"));
+    await siguiente(contenedor);
+    await elegirTipo(contenedor);
+    await elegirLugar(contenedor, "Rodilla", "Izquierdo");
+    for (let i = 0; i < 4; i++) await siguiente(contenedor); // eslint-disable-line no-await-in-loop
+    await tocar(boton(contenedor, "Guardar la lesión"));
+  };
+
+  test("sin señal: se da el alta, se cambia una celda, se borra y se carga; espera en otro color y al volver la señal sube sola y avisa", async () => {
+    datos.lesiones = [
+      lesionHulk(),
+      lesionDe("les-2", 5, 2, "2026-09-10", { parte_cuerpo: "joelho", lado: "direito", tipo_lesion: "entorse" }),
+      lesionDe("les-3", 8, 3, "2026-09-05", { parte_cuerpo: "coxa", lado: "esquerdo", tipo_lesion: "muscular_1a" }),
+    ];
+    await sinSenalConLaCopia();
+    // El alta de HULK.
+    await tocar(boton(tarjetaDe("HULK"), "Alta médica"));
+    await escribir(document.querySelector("#alta-fecha_alta"), hoyISO());
+    await tocar(boton(document.body, "Guardar"));
+    expect(texto(document.body)).toContain("Quedó en este aparato: se sube solo cuando vuelva la señal.");
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("2 lesiones activas");
+    // Borrar la de SCARPA.
+    await tocar(tarjetaDe("SCARPA").querySelector(".boton-eliminar-registro"));
+    await tocar(boton(document.body, "Sí, borrar"));
+    expect(texto(document.body)).toContain("1 cambio quedó en este aparato: se sube solo cuando vuelva la señal.");
+    expect(tarjetaDe("SCARPA")).toBeUndefined();
+    // Cargar una nueva: queda abierta su ficha, que dice que espera.
+    await cargarRodillaDeScarpa();
+    expect(datos.guardadas).toEqual([]);
+    expect(texto(contenedor)).toContain("Espera para subir");
+    await tocar(boton(contenedor, "Volver"));
+    expect(tarjetaDe("SCARPA").classList.contains("espera")).toBe(true);
+    expect(tarjetaDe("SCARPA").querySelector(".lesiones-espera").textContent).toBe("Espera para subir");
+    expect(tarjetaDe("ZAGUEIRO").classList.contains("espera")).toBe(false);
+    // Una celda en la Base: las que esperan, en otro color.
+    await navegar(contenedor, "Base");
+    await escribirEnLaBase(1, etiqueta("medico"), "Dra. Pérez");
+    expect(datos.cambiadas).toEqual([]);
+    expect(celdaDeLaBase(1, etiqueta("medico")).textContent).toBe("Dra. Pérez");
+    expect(queEsperan()).toHaveLength(3);
+    expect(texto(contenedor)).toContain("En este color, lo que espera para subir (se cargó o cambió sin señal).");
+    expect(avisoArriba()).toContain("Sin señal: 4 cambios esperan para subir");
+    expect(esperas.guardadas["eq-1|lesiones|cuenta-1"].map((uno) => uno.tipo)).toEqual(["cambiar", "borrar", "crear", "cambiar"]);
+    // La ficha de la nueva, abierta mientras vuelve la señal.
+    await navegar(contenedor, "Nuevos casos");
+    await tocar(boton(tarjetaDe("SCARPA"), "Ver detalle"));
+
+    await sinSenalAhora(false);
+    await unRato();
+    expect(datos.cambiadas).toEqual([
+      { id: "les-1", cambios: { fecha_alta: hoyISO() }, antes: { fecha_alta: null } },
+      { id: "les-2", cambios: { "datos.medico": "Dra. Pérez" }, antes: { "datos.medico": null } },
+    ]);
+    expect(datos.borradas).toEqual(["les-3"]);
+    // La nueva, con el N° que sigue al último de la Base.
+    expect(datos.importadas).toEqual([{ jugador_id: 8, numero_caso: 4, fecha_lesion: hoyISO() }]);
+    expect(texto(document.body)).toContain("Se subieron 4 cambios hechos sin señal.");
+    expect(esperas.guardadas).toEqual({});
+    // La ficha sigue abierta, ya con la de la base.
+    expect(texto(contenedor)).toContain(`Caso 4 · ${fechaCortaDe(hoyISO())}`);
+    expect(texto(contenedor)).not.toContain("Espera para subir");
+    expect(contenedor.querySelector(".aviso-sin-senal")).toBeNull();
+  }, 20000);
+
+  test("lo que espera queda en el aparato: sin señal, al volver a abrir, se ve encima de la copia", async () => {
+    await sinSenalConLaCopia();
+    await navegar(contenedor, "Base");
+    await escribirEnLaBase(0, etiqueta("medico"), "Dra. Pérez");
+    await act(async () => raiz.unmount());
+    raiz = createRoot(contenedor);
+    await montar();
+    await navegar(contenedor, "Base");
+    expect(celdaDeLaBase(0, etiqueta("medico")).textContent).toBe("Dra. Pérez");
+    expect(queEsperan()).toHaveLength(1);
+    expect(avisoArriba()).toContain("Sin señal: 1 cambio espera para subir");
+  }, 20000);
+
+  test("la misma lesión que otra persona cargó mientras tanto: se descarta la tuya y se avisa", async () => {
+    await sinSenalConLaCopia();
+    await cargarRodillaDeScarpa();
+    datos.lesiones.push(lesionDe("les-otra", 8, 2, hoyISO(), { parte_cuerpo: "joelho", lado: "esquerdo", tipo_lesion: "entorse" }));
+    await sinSenalAhora(false);
+    await unRato();
+    expect(datos.importadas).toEqual([]);
+    expect(texto(document.body)).toContain(`La lesión de SCARPA del ${fechaCortaDe(hoyISO())} ya la había cargado otra persona: se descartó la tuya.`);
+    expect(esperas.guardadas).toEqual({});
+    // La ficha de la descartada se cierra: queda la de la otra persona.
+    expect(tarjetaDe("SCARPA").classList.contains("espera")).toBe(false);
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("2 lesiones activas");
+  }, 20000);
+
+  test("sin señal se pega desde Excel; al subir, un N° del Excel que ya usó otra persona toma el que le toca por su fecha", async () => {
+    await sinSenalConLaCopia();
+    await navegar(contenedor, "Base");
+    await tocar(boton(contenedor, "Pegar desde una planilla"));
+    const pegado = [
+      ["N° de Caso", "Nome e Sobrenome", "Tipo de lesão", "Parte do Corpo Lesionada", "Lado", "Data de Início da Lesão (DD/MM/YYYY)"],
+      ["7", "SCARPA", "ENTORSE/LESÃO LIGAMENTAR", "JOELHO", "Esquerdo", "25/08/2026"],
+      ["", "ZAGUEIRO", "LESÃO MUSCULAR GRAU 1 A", "COXA", "Direito", "20/08/2026"],
+    ];
+    await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), pegado.map((fila) => fila.join("\t")).join("\n"));
+    await tocar(boton(contenedor, "Cargar 2 lesiones"));
+    expect(datos.importadas).toEqual([]);
+    expect(texto(document.body)).toContain("2 cambios quedaron en este aparato: se suben solos cuando vuelva la señal.");
+    expect(queEsperan()).toHaveLength(2);
+    expect(avisoArriba()).toContain("Sin señal: 2 cambios esperan para subir");
+    // Mientras tanto, otra persona usa el N° 7.
+    datos.lesiones.push(lesionDe("les-otra", 7, 7, "2026-09-01", { parte_cuerpo: "joelho", lado: "direito", tipo_lesion: "entorse" }));
+    await sinSenalAhora(false);
+    await unRato();
+    expect(datos.importadas).toEqual([
+      { jugador_id: 8, numero_caso: 9, fecha_lesion: "2026-08-25" },
+      { jugador_id: 5, numero_caso: 8, fecha_lesion: "2026-08-20" },
+    ]);
+    expect(texto(document.body)).toContain("Se subieron 2 cambios hechos sin señal.");
+    expect(queEsperan()).toEqual([]);
+  }, 20000);
 
   test("la ficha es como la de Partido: resumen arriba, una pestaña por grupo del Excel y los últimos cambios", async () => {
     datos.cambios = [

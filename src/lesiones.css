@@ -263,6 +263,23 @@
   background: #e0e7ff;
   color: #3730a3;
 }
+/* Lo cargado o cambiado sin señal que espera para subir (paso 3b de «cargar
+   sin señal…»): el color de las filas que esperan en la Base, con su texto. */
+.lesiones-marco .lesiones-registro.espera {
+  border-color: #b8952c;
+  background: #fbf3d9;
+}
+.lesiones-marco .lesiones-espera {
+  padding: 2px 8px;
+  border: 1px solid #b8952c;
+  border-radius: 999px;
+  background: #f6e7b4;
+  color: #3b2f0b;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 .lesiones-marco .lesiones-sin-fecha {
   display: grid;
   gap: 8px;

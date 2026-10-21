@@ -11,6 +11,7 @@ import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import { BotonGuia, TextoConPasos } from "./components/Guia.jsx";
 import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
+import { falloDeRed } from "./components/SinSenal.jsx";
 
 // Pegar desde Excel, en Lesiones › Base: se pega la tabla de la hoja
 // "Antecedentes BD" (con su fila de cabeceras) y antes de guardar nada se ve
@@ -20,7 +21,11 @@ import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
 // nombre (sin agregarlo a Datos básicos), es un jugador de la lista o no se
 // carga. Se ve igual que Pegar desde Excel en Datos básicos
 // (ImportarJugadores.jsx). Sin Datos básicos leído de la base no se sabe
-// quién es cada uno (todos parecerían de afuera): no se carga nada.
+// quién es cada uno (todos parecerían de afuera): no se carga nada. Sin
+// señal (sinSenal, o si se corta en el camino), lo que falta va a la fila de
+// espera de este aparato (onAlAparato(lesiones); paso 3b de «cargar sin
+// señal…»), con el N° de caso del Excel o sin N° (lo pone la app al subir,
+// por fecha de inicio: Santiago, 21/10).
 
 // Cómo se ve cada estado (las clases del de Datos básicos).
 const CLASE_DEL_ESTADO = {
@@ -31,7 +36,7 @@ const CLASE_DEL_ESTADO = {
   [ESTADOS.conProblemas]: "problema",
 };
 
-export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = false, lesiones, config, onVolver, onGuia, onRecargar, onListo }) {
+export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = false, lesiones, config, onVolver, onGuia, onRecargar, onListo, sinSenal = false, onAlAparato = null }) {
   const { idioma, plural } = useIdioma();
   const [texto, setTexto] = useState("");
   const [progreso, setProgreso] = useState(null);
@@ -39,6 +44,9 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
   // Cuántas se cargaron, si quedaron nombres sin elegir (la pantalla sigue
   // abierta para elegirlos).
   const [cargadasAntes, setCargadasAntes] = useState(null);
+  // Cuántas quedaron en la fila de espera de este aparato (sin señal), si la
+  // pantalla sigue abierta.
+  const [alAparatoAntes, setAlAparatoAntes] = useState(0);
   // Lo elegido para los nombres que no están en Datos básicos: { indice de
   // la fila: destino }.
   const [elegidos, setElegidos] = useState({});
@@ -82,6 +90,7 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
     setTexto(nuevo);
     setFallas([]);
     setCargadasAntes(null);
+    setAlAparatoAntes(0);
     setElegidos({});
     setErrorConsentimiento("");
   };
@@ -144,27 +153,34 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
     const quedanSinElegir = sinElegir.length;
     const errores = [];
     let cargadas = 0;
+    let alAparato = [];
     setFallas([]);
     setCargadasAntes(null);
-    for (let i = 0; i < lista.length; i++) {
+    setAlAparatoAntes(0);
+    if (sinSenal && onAlAparato) alAparato = lista;
+    for (let i = 0; i < lista.length && !alAparato.length; i++) {
       if (!enPantalla.current) break;
       const fila = lista[i];
       setProgreso({ n: i + 1, total: lista.length });
       const guardado = await importarLesion(equipoId, fila.lesion); // eslint-disable-line no-await-in-loop
-      if (guardado.error) errores.push({ caso: casoDe(fila), nombre: fila.nombre, error: textoDelProblema(fila, guardado.error) });
+      if (falloDeRed(guardado) && onAlAparato) alAparato = lista.slice(i);
+      else if (guardado.error) errores.push({ caso: casoDe(fila), nombre: fila.nombre, error: textoDelProblema(fila, guardado.error) });
       else cargadas += 1;
     }
+    if (alAparato.length) onAlAparato(alAparato.map((fila) => ({ ...fila.lesion, numero_caso: fila.numeroCaso })));
     // Con las lesiones de nuevo, las que ya quedaron se ven como "Ya está en
     // la app" y las que fallaron se pueden volver a intentar (con lo elegido).
-    await onRecargar();
+    // Sin señal, lo que se ve ya las tiene (las que esperan).
+    if (!sinSenal) await onRecargar();
     if (!enPantalla.current) return;
     setProgreso(null);
     if (errores.length === 0 && quedanSinElegir === 0) {
-      onListo({ cargadas });
+      onListo(alAparato.length ? { cargadas, alAparato: alAparato.length } : { cargadas });
       return;
     }
     setFallas(errores);
     setCargadasAntes(cargadas);
+    setAlAparatoAntes(alAparato.length);
   };
 
   const ocupado = Boolean(progreso);
@@ -209,9 +225,9 @@ export default function ImportarLesiones({ equipoId, plantel, plantelSinLeer = f
           </div>
         )}
 
-        {cargadasAntes > 0 && (
+        {(cargadasAntes > 0 || alAparatoAntes > 0) && (
           <p className="lesiones-estado" role="status">
-            {plural("lesiones.importar.listo", cargadasAntes)}
+            {[cargadasAntes > 0 ? plural("lesiones.importar.listo", cargadasAntes) : "", alAparatoAntes > 0 ? plural("sinSenal.quedaronEnElAparato", alAparatoAntes) : ""].filter(Boolean).join(" ")}
           </p>
         )}
 
