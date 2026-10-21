@@ -4497,6 +4497,29 @@ confirme.**
     de la base; al volver la señal, se pone al día. Mientras se ve la copia, la copia de las filas
     no se vuelve a guardar (así no cambia de cuándo es). Sin sesión que leer (sin señal), la cuenta
     del aparato es la última que entró, como en la puerta de entrada, para encontrar la copia.
+  - **Paso 2, la fila de espera de cambios, por partes:** 2a Evaluaciones (que arma también lo que
+    comparten las demás), 2b Lesiones, 2c GPS y 2d Datos básicos. Santiago, en un cuestionario
+    (21/10), para «Si dos personas cambian la misma celda a la vez, ¿qué hace la app con la
+    segunda?»: «Gana el último, con aviso» (entre esa, «Avisa y elegís», que Claude recomendaba,
+    y «Gana el primero, con aviso»).
+  - **Hecho, paso 2a (21/10, migración `20261114_evaluaciones_cambiar.sql`, 2026.10.21.3; UI-068):
+    Evaluaciones.** Al cambiar una evaluación (en la tabla de la Base o en el formulario), la app
+    manda solo las celdas que cambiaron, con lo que se veía en cada una, no la fila entera. La base
+    las aplica de a una por fila (la fila queda bloqueada mientras se cambia), así que dos personas
+    que cambian celdas distintas de la misma fila a la vez quedan las dos. Si las dos cambian la
+    misma celda, gana el último (el que guarda después) y a ese le aparece «Otra persona había
+    cambiado «Lumbar» mientras tanto: quedó lo tuyo.» (con el nombre de las columnas). Si otra
+    persona la borró mientras tanto, no se cambia nada, la fila sale de la tabla y aparece «Esa
+    evaluación la borró otra persona: queda borrada.». Los permisos son los de siempre (los de la
+    base para esa cuenta). Sin la actualización de la base se guarda la fila entera, como antes.
+    El aviso de abajo de las bases (Lesiones, Evaluaciones, GPS y Datos básicos) ahora usa el ancho
+    de la pantalla cuando es largo; los cortos quedan igual.
+    - **Límite conocido:** la otra persona no ve el cambio hasta que vuelve a abrir la base (ver
+      los cambios de otros en el momento no está pedido). El aviso dice qué columna se pisó, no
+      qué valor tenía.
+    - **Queda prohibido** que un cambio de Evaluaciones mande la fila entera cuando la base tiene la
+      función nueva, que vuelva a crear una fila que otra persona borró o que pise una celda sin
+      avisar, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

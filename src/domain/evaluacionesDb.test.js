@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   actualizarEvaluacion,
   borrarEvaluacion,
+  cambiarEvaluacion,
+  cambiosDeLaEvaluacion,
   claveDeErrorEvaluaciones,
   crearEvaluacion,
   guardarCabecera,
@@ -199,6 +201,45 @@ describe("guardar varias de una vez", () => {
     doble.respuestas = [{ data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "evaluaciones_sin_repetir"' } }];
     expect(await guardarEvaluaciones("eq-1", "zona_media", { evaluaciones: [nueva(1, "2026-06-12")] })).toMatchObject({ error: "evaluaciones.error.repetida" });
     expect(claveDeErrorEvaluaciones({ code: "23505", message: 'duplicate key value violates unique constraint "evaluaciones_sin_repetir"' })).toBe("evaluaciones.error.repetida");
+  });
+});
+
+// Paso 2 de «cargar sin señal y a la vez que otra persona» (20261114;
+// Santiago, 21/10, la misma celda: «Gana el último, con aviso»).
+describe("cambiar solo lo cambiado", () => {
+  test("se manda cada celda cambiada con lo que se veía; lo vacío va como null", () => {
+    const vieja = evaluacion(1, { datos: { lumbar: 184, lateral_d: 90, nota: "" } });
+    const nueva = { ...vieja, fecha: "2026-06-13", datos: { lumbar: 190, lateral_d: 90, nota: "", lateral_i: "", seleccion: "sub20" } };
+    expect(cambiosDeLaEvaluacion(vieja, nueva)).toEqual({
+      cambios: { fecha: "2026-06-13", "datos.lumbar": 190, "datos.seleccion": "sub20" },
+      antes: { fecha: "2026-06-12", "datos.lumbar": 184, "datos.seleccion": null },
+    });
+    expect(cambiosDeLaEvaluacion(vieja, { ...vieja, datos: { lateral_d: 90 } })).toEqual({ cambios: { "datos.lumbar": null }, antes: { "datos.lumbar": 184 } });
+    expect(cambiosDeLaEvaluacion(vieja, { ...vieja })).toEqual({ cambios: {}, antes: {} });
+  });
+
+  test("de un jugador a alguien fuera de Datos básicos: los dos campos, con el nombre limpio", () => {
+    const vieja = evaluacion(1);
+    expect(cambiosDeLaEvaluacion(vieja, { ...vieja, jugador_id: null, persona: "  Ana   Prueba " })).toEqual({
+      cambios: { jugador_id: null, persona: "Ana Prueba" },
+      antes: { jugador_id: 7, persona: null },
+    });
+  });
+
+  test("va por la función de la base; devuelve cómo quedó y qué pisó", async () => {
+    doble.respuestas = [{ data: { fila: evaluacion(1, { datos: { lumbar: 190 } }), pisadas: [{ clave: "datos.lumbar", habia: 186 }] }, error: null }];
+    const respuesta = await cambiarEvaluacion("e1", { cambios: { "datos.lumbar": 190 }, antes: { "datos.lumbar": 184 } });
+    expect(doble.llamadas).toEqual([["rpc", "evaluaciones_cambiar", { p_id: "e1", p_cambios: { "datos.lumbar": 190 }, p_antes: { "datos.lumbar": 184 } }]]);
+    expect(respuesta).toMatchObject({ evaluacion: { id: "e1", datos: { lumbar: 190 } }, pisadas: [{ clave: "datos.lumbar", habia: 186 }], error: "" });
+  });
+
+  test("sin la actualización de la base, sinFuncion; si otra persona la borró, borrada; lo demás, en palabras", async () => {
+    doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.evaluaciones_cambiar" } }];
+    expect(await cambiarEvaluacion("e1", { cambios: { "datos.lumbar": 190 } })).toEqual({ sinFuncion: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "fila_borrada" } }];
+    expect(await cambiarEvaluacion("e1", { cambios: { "datos.lumbar": 190 } })).toEqual({ borrada: true, error: "" });
+    doble.respuestas = [{ data: null, error: { code: "P0001", message: "evaluaciones_sin_futuro" } }];
+    expect((await cambiarEvaluacion("e1", { cambios: { fecha: "2099-01-01" } })).error).toBe(claveDeErrorEvaluaciones({ code: "P0001", message: "evaluaciones_sin_futuro" }, "evaluaciones.error.noGuardar"));
   });
 });
 

@@ -237,6 +237,45 @@ export const guardarEvaluaciones = async (equipoId, test, { evaluaciones = [], r
   return { ...hecho, error: "" };
 };
 
+// Lo que cambió de una evaluación, celda por celda (paso 2 de «cargar sin
+// señal y a la vez que otra persona»): { cambios, antes }, con las claves de
+// evaluaciones_cambiar ("fecha", "jugador_id", "persona", "datos.<clave>").
+// vieja: como se veía al empezar a cambiarla.
+export const cambiosDeLaEvaluacion = (vieja, nueva) => {
+  const de = soloCampos(vieja || {});
+  const a = soloCampos(nueva || {});
+  const cambios = {};
+  const antes = {};
+  ["fecha", "jugador_id", "persona"].forEach((clave) => {
+    if ((de[clave] ?? null) === (a[clave] ?? null)) return;
+    cambios[clave] = a[clave] ?? null;
+    antes[clave] = de[clave] ?? null;
+  });
+  new Set([...Object.keys(de.datos), ...Object.keys(a.datos)]).forEach((clave) => {
+    if (JSON.stringify(de.datos[clave] ?? null) === JSON.stringify(a.datos[clave] ?? null)) return;
+    cambios[`datos.${clave}`] = a.datos[clave] ?? null;
+    antes[`datos.${clave}`] = de.datos[clave] ?? null;
+  });
+  return { cambios, antes };
+};
+
+// Cambiar solo lo cambiado (20261114_evaluaciones_cambiar.sql): dos personas
+// que cambian celdas distintas de la misma fila no se pisan; en la misma
+// celda gana el último y la base dice cuáles pisó (pisadas: [{ clave, habia
+// }], Santiago, 21/10: «Gana el último, con aviso»). Si otra persona la borró,
+// borrada («Queda borrada y te aviso»). Sin esa actualización, sinFuncion: se
+// guarda como antes, la fila entera (actualizarEvaluacion).
+export const cambiarEvaluacion = async (id, { cambios = {}, antes = {} } = {}) => {
+  const { data, error } = await supabase.rpc("evaluaciones_cambiar", { p_id: id, p_cambios: cambios, p_antes: antes });
+  if (error) {
+    const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+    if (error.code === "PGRST202" || (/evaluaciones_cambiar/.test(texto) && /does not exist|schema cache|Could not find/i.test(texto))) return { sinFuncion: true, error: "" };
+    if (/fila_borrada/.test(texto)) return { borrada: true, error: "" };
+    return fallo(error, "evaluaciones.error.noGuardar");
+  }
+  return { evaluacion: normalizarEvaluacion(data?.fila), pisadas: Array.isArray(data?.pisadas) ? data.pisadas : [], error: "" };
+};
+
 export const actualizarEvaluacion = async (id, evaluacion) => {
   const { data, error } = await supabase.from("evaluaciones").update(soloCampos(evaluacion)).eq("id", id).select(COLUMNAS).single();
   if (error) return fallo(error, "evaluaciones.error.noGuardar");

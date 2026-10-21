@@ -520,6 +520,12 @@ export default {
       repetida: "Ya hay una evaluación igual en la Base (la misma persona, la misma fecha y los mismos datos).",
       faltaActualizacion: "Para reemplazar falta una actualización de la base de datos. Avisale a quien administra la app.",
     },
+    // Paso 2 de «cargar sin señal…»: se guarda solo lo cambiado (Santiago,
+    // 21/10: la misma celda, «Gana el último, con aviso»).
+    cambios: {
+      pisadas: "Otra persona había cambiado «{{columnas}}» mientras tanto: quedó lo tuyo.",
+      borrada: "Esa evaluación la borró otra persona: queda borrada.",
+    },
     // Regla 1 (Santiago, 20/10): una evaluación de alguien que ese día ya
     // tiene otra de ese test, con otros datos.
     mismoDia: {
