@@ -28,6 +28,7 @@ import {
   borrarEnCurso,
   borrarFilasGps,
   cambiarFilaGps,
+  cambiarValorDeReferenciaGps,
   cambiosDeLaFilaGps,
   crearFilasGps,
   cuentaDeLaSesion,
@@ -44,6 +45,7 @@ import {
   leerReglasGps,
   listarEnCurso,
   listarGps,
+  marcarDePartidoGps,
   pegarFilasGps,
   ponerAlDiaGps,
   traerTodoGps,
@@ -54,6 +56,7 @@ import { AvisoDeEspera, AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } 
 import {
   conBorradas,
   conCambio as conCambioEnEspera,
+  conDePartido,
   conDia,
   conEnCurso,
   conFilaCambiada,
@@ -61,13 +64,17 @@ import {
   conLoQueEspera,
   conPegado,
   conReemplazo,
+  conValorDeVr,
+  conVrQueEspera,
   cuentaDeLaEspera,
   enCursoEnEspera,
   esLocal,
   filaQueEspera,
   idsEnEspera,
   sinEnCurso,
+  sinVrQueEspera,
   subirLaEspera,
+  vrEnEspera,
 } from "./domain/gps/espera.js";
 import { guardarEspera, leerEspera } from "./domain/filaDeEspera.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
@@ -275,9 +282,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const mirar = soloParaMirar(equipo, "gps");
   const soloLectura = seFue || mirar || Boolean(deLaCopia);
   // Sin señal, en la Base se cambia y se borra igual (paso 3c.1 de «cargar
-  // sin señal…»; Santiago, 23/10), se carga un día (paso 3c.2b) y se pega
-  // desde una planilla (3c.3). Los V.R., con su parte del paso 3c; los
-  // Ajustes, solo con señal.
+  // sin señal…»; Santiago, 23/10), se carga un día (paso 3c.2b), se pega
+  // desde una planilla (3c.3) y en los V.R. se cambian los números y el «de
+  // partido» (3c.4); los Ajustes, solo con señal.
   const baseSoloLectura = seFue || mirar;
   const sinConexion = Boolean(deLaCopia) || !enLinea;
   // Para ver GPS sin señal (Santiago, 21/10: la copia «Automática en todos,
@@ -420,6 +427,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Las que se ven: las de la base con lo que espera encima.
   const filasVistas = useMemo(() => conLoQueEspera(filasGps, espera), [filasGps, espera]);
   const idsQueEsperan = useMemo(() => idsEnEspera(espera), [espera]);
+  // Los V.R. que se ven, con lo que espera encima (paso 3c.4); la copia del
+  // aparato guarda los de la base.
+  const referenciasVistas = useMemo(() => conVrQueEspera(referencias, espera), [referencias, espera]);
   // Las puestas al día van de a una (abrir, lo de otros, después de cargar).
   const cola = useRef(Promise.resolve());
   // Cómo se arma una fila para la tabla (más abajo) y las ya armadas.
@@ -810,9 +820,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Las columnas con V.R. en el club: sus cuentas hacen falta aunque estén
   // escondidas (las Comparaciones van con todas, como en el Excel).
   const conCuentas = useMemo(() => {
-    const conVr = new Set(referencias.flatMap((referencia) => Object.keys(referencia.promedio)));
+    const conVr = new Set(referenciasVistas.flatMap((referencia) => Object.keys(referencia.promedio)));
     return gps.columnas.filter((columna) => conVr.has(columna.clave));
-  }, [gps, referencias]);
+  }, [gps, referenciasVistas]);
 
   // Con las filas que se ven: lo de arriba y los colores, cada dispositivo
   // con lo suyo (con más de uno a la vista, cada uno con su nombre): el
@@ -834,7 +844,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       const zona = ZONAS_DE_IMPACTO.some((una) => una.id === elegidos.zona) ? elegidos.zona : ZONA_AL_ABRIR;
       // Cada dispositivo, con sus V.R., el elegido (o el primero) y sus %.
       const deCadaUno = grupos.map((grupo) => {
-        const suyas = grupo.dispositivo ? referencias.filter((referencia) => referencia.dispositivo === grupo.dispositivo) : [];
+        const suyas = grupo.dispositivo ? referenciasVistas.filter((referencia) => referencia.dispositivo === grupo.dispositivo) : [];
         const referencia = suyas.find((una) => una.id === elegidos.vr?.[grupo.dispositivo]) || suyas[0] || null;
         const porcentajes = porcentajesVsVr(grupo.cuentas, referencia?.promedio);
         return { grupo, suyas, referencia, porcentajes };
@@ -926,7 +936,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibles, conCuentas, textosDeListas, ordenDeDispositivos, idioma, referencias, faltanReferencias, elegidos, elegir],
+    [visibles, conCuentas, textosDeListas, ordenDeDispositivos, idioma, referenciasVistas, faltanReferencias, elegidos, elegir],
   );
 
   // Al pegar en muchas filas, lo guardado se junta y la tabla se redibuja
@@ -1141,6 +1151,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         enCursos: (fecha) => enCursosDelDia(equipoId, fecha),
         leerEnCurso,
         borrarEnCurso,
+        leerReferencias: () => leerReferenciasGps(equipoId),
+        cambiarVr: cambiarValorDeReferenciaGps,
+        marcar: marcarDePartidoGps,
       },
       filaDe: (id) => actuales.current.find((una) => una.id === id) || null,
       csvDe: (datos) => filasDelCsvEnCurso(datos, gps.columnas),
@@ -1167,11 +1180,17 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       resultado.reemplazadas ? plural("gps.cargar.reemplazadas", resultado.reemplazadas) : "",
       columnasPisadas.length ? t("gps.cambios.pisadas", { columnas: enLista([...new Set(columnasPisadas)]) }) : "",
       resultado.borradasPorOtra ? plural("gps.espera.borradas", resultado.borradasPorOtra) : "",
+      resultado.vrPisados ? plural("gps.espera.vrPisados", resultado.vrPisados) : "",
+      ...[...new Set(resultado.dePartidoPisados)].map((codigo) => t("gps.espera.dePartidoPisado", { dispositivo: nombreDelDispositivo(codigo) })),
+      resultado.vrBorrados ? plural("gps.espera.vrBorrados", resultado.vrBorrados) : "",
       ...resultado.descartadas.map(descartada),
       resultado.sinBorrar ? t("gps.enCurso.quedoSinBorrar") : "",
       noSubieron ? plural("sinSenal.noSubieron", noSubieron, { error: t(resultado.errores[0].error) }) : "",
     ].filter(Boolean);
     if (partes.length) setAviso(partes.join(" "));
+    // Los V.R. como quedaron en la base (si otra persona borró uno, todos).
+    if (resultado.devueltasVr.length) conReferenciasCambiadas(resultado.devueltasVr);
+    if (resultado.vrBorrados) cargarReferencias();
     // Desde la copia del aparato, todo al día; si no, lo cambiado. Lo
     // subido sale de la cola después: así no desaparece un rato.
     if (deLaCopia) await cargar();
@@ -1231,8 +1250,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     avisoDeEspera
   ) : null;
 
-  // Los V.R., hasta su parte del paso 3c, sin señal son para mirar (el
-  // aviso de siempre).
+  // Quien solo mira los V.R. (o ya se fue), sin señal ve el aviso de siempre.
   const estadoParaMirar = deLaCopia ? <AvisoSinSenal guardadaEn={deLaCopia.guardadaEn} /> : !enLinea ? <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p> : estado;
 
   const numero = (n) => Number(n).toLocaleString(idioma);
@@ -1379,8 +1397,25 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         return estaba;
       },
     }),
-    [filasVistas, espera], // eslint-disable-line react-hooks/exhaustive-deps
+    // ponerEspera guarda con la cuenta del aparato y el club: con los de ahora.
+    [filasVistas, espera, sinSenal.cuenta, equipoId], // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  // Lo que en los V.R. queda en este aparato sin señal (paso 3c.4): los
+  // números y el «de partido»; lo mismo guardado con señal saca lo que
+  // esperaba (si no, al subir pisaría lo nuevo).
+  const delAparatoVr = useMemo(() => {
+    const queEspera = vrEnEspera(espera);
+    return {
+      ...queEspera,
+      alCambiar: (cambio) => ponerEspera(conValorDeVr(esperaActual.current, cambio)),
+      alMarcar: (cambio) => ponerEspera(conDePartido(esperaActual.current, cambio)),
+      conSenal: (cambio) => {
+        const sin = sinVrQueEspera(esperaActual.current, cambio);
+        if (sin.length !== esperaActual.current.length) ponerEspera(sin);
+      },
+    };
+  }, [espera, sinSenal.cuenta, equipoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Regla 1, «Ir a la Base»: la carga quedó en «Sin terminar» y la Base se
   // abre con las filas de esa sesión que ya estaban (la fecha, esos jugadores
@@ -2066,7 +2101,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           plantel={plantel}
           plantelSinLeer={plantelSinLeer}
           reglas={reglas}
-          referencias={referencias}
+          referencias={referenciasVistas}
           vrPartidoViejo={sinEdicionVr ? vrPartidoDeLasReglas(reglasGuardadas) : null}
           columnas={columnas}
           fijas={fijas}
@@ -2093,7 +2128,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     contenido = (
       <ReportesGps
         filasGps={filasVistas}
-        referencias={referencias}
+        referencias={referenciasVistas}
         elegidos={elegidos}
         nombreDe={nombreDe}
         nombreDelDispositivo={nombreDelDispositivo}
@@ -2117,20 +2152,21 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         config={config}
         idioma={idioma}
         equipoId={equipoId}
-        referencias={referencias}
+        referencias={referenciasVistas}
         dispositivos={opcionesDeLista("dispositivo", config, idioma, { test: gps })}
         sinEdicion={sinEdicionVr}
         faltaTabla={faltanReferencias}
-        soloLectura={soloLectura}
+        soloLectura={baseSoloLectura}
         seFue={seFue}
-        enLinea={enLinea}
+        enLinea={!sinConexion}
         encabezado={encabezado}
         arriba={
           <>
             <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="gps" />
-            {estadoParaMirar}
+            {baseSoloLectura ? estadoParaMirar : estado}
           </>
         }
+        delAparato={delAparatoVr}
         onCambiadas={conReferenciasCambiadas}
         onRecargar={cargarReferencias}
         onAviso={setAviso}

@@ -528,7 +528,7 @@ export const leerReferenciasGps = async (equipoId) => {
   if (error) {
     const clave = claveDeErrorGps(error, "gps.error.noLeer");
     if (clave === "gps.error.faltaMigracion") return { referencias: [], faltaTabla: true, sinEdicion: true, sinPlanilla: true, error: "" };
-    return { referencias: [], faltaTabla: false, sinEdicion, sinPlanilla, error: clave };
+    return { referencias: [], faltaTabla: false, sinEdicion, sinPlanilla, error: clave, detalle: error.message || "" };
   }
   return { referencias: (Array.isArray(data) ? data : []).map(normalizarReferenciaGps), faltaTabla: false, sinEdicion, sinPlanilla, error: "" };
 };
@@ -541,7 +541,7 @@ const falloDeReferencia = (error) => {
   if (/gps_referencias_un_partido/.test(texto)) return { error: "gps.vr.otroDePartido" };
   if (/referencia_invalida|gps_referencias_numeros|gps_referencias_textos|gps_referencias_planilla/.test(texto)) return { error: "gps.vr.noSeEntiende" };
   const clave = claveDeErrorGps(error, "gps.error.noGuardar");
-  return { error: clave === "gps.error.faltaMigracion" ? "gps.vr.faltaActualizacion" : clave };
+  return { error: clave === "gps.error.faltaMigracion" ? "gps.vr.faltaActualizacion" : clave, detalle: error?.message || "" };
 };
 
 // Un número de un V.R.: cual, "promedio", "desvio" o una categoría

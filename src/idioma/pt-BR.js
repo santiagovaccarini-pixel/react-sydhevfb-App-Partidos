@@ -553,6 +553,12 @@ export default {
       choquesPegado_one: "{{n}} dia do que você colou sem sinal já tem linhas desses jogadores {{conDispositivo}} no mesmo horário de início, com outros dados (registradas por outra pessoa):",
       choquesPegado_other: "{{n}} dias do que você colou sem sinal já têm linhas desses jogadores {{conDispositivo}} no mesmo horário de início, com outros dados (registradas por outra pessoa):",
       enEsperaRevisarDias: "Estas são as linhas desses {{n}} dias que já estavam e, em outra cor, as que você registrou sem sinal: estão esperando.",
+      // Passo 3c.4: os V.R. sem sinal.
+      vrPisados_one: "Outra pessoa tinha mudado {{n}} número dos V.R. que você mudou sem sinal: ficou o seu (em «Últimas mudanças» dá para voltar atrás).",
+      vrPisados_other: "Outra pessoa tinha mudado {{n}} números dos V.R. que você mudou sem sinal: ficaram os seus (em «Últimas mudanças» dá para voltar atrás).",
+      dePartidoPisado: "Outra pessoa tinha mudado o V.R. de jogo de {{dispositivo}}: ficou o que você escolheu sem sinal.",
+      vrBorrados_one: "{{n}} mudança dos V.R. não subiu: esse V.R. foi apagado por outra pessoa.",
+      vrBorrados_other: "{{n}} mudanças dos V.R. não subiram: esses V.R. foram apagados por outra pessoa.",
     },
     donde: {
       cargar: "Aqui você registra o que o GPS mediu em um treino ou em um jogo. Toque em «Carregar um dia» para começar. Se deixou algo pela metade, está embaixo, em «Não terminadas».",
@@ -892,6 +898,8 @@ export default {
       usarDePartido: "Usar de jogo",
       noUsarDePartido: "Deixar de usar de jogo",
       esDePartido: "De jogo",
+      noDePartidoEspera: "Deixa de ser de jogo: espera para subir",
+      sinSenal: "Sem sinal dá para mudar os números (dois toques) e «Usar de jogo»: esperam em outra cor e sobem sozinhos quando o sinal voltar. Adicionar, mudar o nome e apagar, com sinal.",
       repetido: "Esse dispositivo já tem um V.R. com esse nome.",
       otroDePartido: "Esse dispositivo já tem outro V.R. de jogo.",
       noSeEntiende: "Não foi possível salvar: revise o que escreveu.",

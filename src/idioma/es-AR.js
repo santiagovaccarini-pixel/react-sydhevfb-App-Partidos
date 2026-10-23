@@ -571,6 +571,12 @@ export default {
       choquesPegado_one: "{{n}} día de lo que pegaste sin señal ya tiene filas de esos jugadores {{conDispositivo}} a la misma hora de inicio, con otros datos (las cargó otra persona):",
       choquesPegado_other: "{{n}} días de lo que pegaste sin señal ya tienen filas de esos jugadores {{conDispositivo}} a la misma hora de inicio, con otros datos (las cargó otra persona):",
       enEsperaRevisarDias: "Estas son las filas de esos {{n}} días que ya estaban y, en otro color, las que cargaste sin señal: esperan.",
+      // Paso 3c.4: los V.R. sin señal (Santiago, 23/10: «Números y "de partido"»; gana el último y avisa).
+      vrPisados_one: "Otra persona había cambiado {{n}} número de los V.R. que cambiaste sin señal: quedó el tuyo (en «Últimos cambios» podés volverlo atrás).",
+      vrPisados_other: "Otra persona había cambiado {{n}} números de los V.R. que cambiaste sin señal: quedaron los tuyos (en «Últimos cambios» podés volverlos atrás).",
+      dePartidoPisado: "Otra persona había cambiado el V.R. de partido de {{dispositivo}}: quedó el que elegiste sin señal.",
+      vrBorrados_one: "{{n}} cambio de los V.R. no subió: ese V.R. lo borró otra persona.",
+      vrBorrados_other: "{{n}} cambios de los V.R. no subieron: esos V.R. los borró otra persona.",
     },
     donde: {
       cargar: "Acá cargás lo que midió el GPS en un entrenamiento o en un partido. Tocá «Cargar un día» para empezar. Si dejaste algo a medias, está abajo, en «Sin terminar».",
@@ -910,6 +916,8 @@ export default {
       usarDePartido: "Usar de partido",
       noUsarDePartido: "Dejar de usar de partido",
       esDePartido: "De partido",
+      noDePartidoEspera: "Deja de ser de partido: espera para subir",
+      sinSenal: "Sin señal se cambian los números (dos toques) y «Usar de partido»: esperan en otro color y se suben solos cuando vuelva la señal. Agregar, cambiar el nombre y borrar, con señal.",
       repetido: "Ese dispositivo ya tiene un V.R. con ese nombre.",
       otroDePartido: "Ese dispositivo ya tiene otro V.R. de partido.",
       noSeEntiende: "No se pudo guardar: revisá lo escrito.",

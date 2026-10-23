@@ -4737,6 +4737,31 @@ confirme.**
       mirar).
     - **Queda prohibido** que lo hecho sin señal se pierda sin avisar o cambiar los Ajustes sin
       señal, salvo un pedido nuevo.
+  - **Hecho, paso 3c.4 (23/10, 2026.10.23.6; UI-079): GPS › Valores de referencia sin señal.**
+    Santiago, en un cuestionario: «Números y "de partido" (Recomendado)» (cambiar números
+    —promedio, desvío y categorías— y marcar cuál es el V.R. de partido; si otra persona cambió
+    el mismo número, gana el último y avisa; agregar, renombrar, borrar y la planilla, con
+    señal). Sin señal (o si se corta al guardar), un número se cambia con dos toques y «Usar de
+    partido» funciona: queda en la fila de espera (`domain/gps/espera.js`: `{ tipo: "vr" }` y
+    `{ tipo: "dePartido" }`), en dorado claro en la tabla (con la leyenda) y con la pastilla
+    «Espera para subir» el de partido que cambió. Lo que se ve con lo que espera encima también
+    lo usan la Base, el Informe y Cargar. Al volver la señal sube solo: se leen los V.R. de la
+    base una vez; si otra persona había cambiado el mismo número (o el de partido), queda el de
+    este aparato y se avisa; si borró el V.R., no sube y se avisa; lo que ya está así no se
+    cambia. Sin SQL nuevo (`gps_referencia_cambiar` y `gps_referencia_de_partido`, como con
+    señal). Agregar, cambiar el nombre, borrar, recalcular y volver atrás, solo con señal.
+    - **Arreglado al hacerlo:** lo que «Cargar un día» y «Pegar desde una planilla» dejan en el
+      aparato sin señal podía no guardarse en él si se hacía antes de que la app leyera la
+      cuenta del aparato (se guardaba con la de un momento antes, vacía); ahora se guarda con la
+      de ahora. Las pruebas de GPS guardan como la de verdad (sin cuenta, nada).
+    - **Límites conocidos:** lo hecho sin señal es de este aparato y de esta cuenta hasta que
+      sube. Gana el último aunque el otro cambio sea más nuevo (lo de este aparato sube después):
+      se avisa y se puede volver atrás en «Últimos cambios».
+    - **Queda prohibido** que lo hecho sin señal se pierda sin avisar, o agregar, renombrar,
+      borrar o recalcular V.R. sin señal, salvo un pedido nuevo.
+    - **Lo que sigue de la nota:** Datos básicos sin señal (la última parte del paso 3) y después
+      el paso 4 (Partido compartido entre celulares; Entrenamiento, al final), cada uno
+      confirmado en un cuestionario antes de empezar.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

@@ -4,6 +4,7 @@ import { HojaInferior } from "./components/SheetPanel.js";
 import { HojasDeOcultar, OcultasArriba, useOcultar } from "./components/Ocultar.jsx";
 import { HistorialDeReferencias, TablaDeReferencia } from "./components/TablaDeReferencia.jsx";
 import { TerminoDe } from "./components/Guia.jsx";
+import { falloDeRed } from "./components/SinSenal.jsx";
 import { tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { CATEGORIAS_DE_UN_VR, CLAVES_DE_LOS_VR, tieneCategorias } from "./domain/gps/informe.js";
 import { textoDeCelda } from "./domain/gps/valores.js";
@@ -35,6 +36,13 @@ import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 // ese día; pregunta antes, y los números de antes quedan en los últimos
 // cambios, con «Volver»). Sin la actualización 20261108 de la base, «Agregar
 // V.R.» sigue como antes: tipo, tabla y grupo, para escribirlo a mano.
+// Sin señal se cambian los números y el «de partido» (paso 3c.4 de «cargar
+// sin señal y a la vez que otra persona»; Santiago, 23/10, en un
+// cuestionario: «Números y "de partido"»): van a la fila de espera de este
+// aparato (delAparato), se ven en el color de lo que espera y suben solos al
+// volver la señal (si otra persona cambió el mismo número, gana el último y
+// avisa). Sumar, cambiar el nombre, borrar, recalcular y volver atrás, con
+// señal.
 
 const FILAS = ["promedio", "desvio"];
 const FILAS_CON_CATEGORIAS = ["excelente", "muy_bueno", "promedio", "regular", "malo"];
@@ -94,6 +102,12 @@ export default function ReferenciasGps({
   textoDeValorDeLaBase = (_clave, valor) => String(valor ?? ""),
   sentidoDeAjustes = () => null,
   onGuia = null,
+  // Sin señal: { numeros, dePartido } (lo que espera: «id|cual|clave» y los
+  // id cuyo «de partido» cambió), alCambiar({ id, cual, clave, valor, antes
+  // }), alMarcar({ dispositivo, vr, antes }) y conSenal(cambio) (lo mismo,
+  // guardado con señal: lo que esperaba ya no va). Sin delAparato, sin señal
+  // solo se miran.
+  delAparato = null,
 }) {
   const { plural } = useIdioma();
   // Los dispositivos de la lista del club y, si hay V.R. de uno que ya no
@@ -116,8 +130,11 @@ export default function ReferenciasGps({
   // las mismas columnas y filas).
   const ocultar = useOcultar("vr-gps");
 
-  // Se cambian con la base al día, con señal y siguiendo en el club.
+  // Se cambian con la base al día, con señal y siguiendo en el club. Sin
+  // señal, los números y el «de partido» (a la fila de espera).
   const puedeCambiar = !soloLectura && !sinEdicion && !faltaTabla && enLinea;
+  const sinSenal = !enLinea && Boolean(delAparato);
+  const puedeCambiarNumeros = puedeCambiar || (!soloLectura && !sinEdicion && !faltaTabla && sinSenal);
 
   // Las columnas: las de la hoja de los V.R. y, si un V.R. tiene otra, también.
   const columnasGps = useMemo(() => {
@@ -304,11 +321,19 @@ export default function ReferenciasGps({
     onAviso(t("gps.vr.borrado"));
   };
   const marcar = async (referencia, valor) => {
+    const cambio = { dispositivo: referencia.dispositivo, vr: valor ? referencia.id : null, antes: suyas.find((una) => una.dePartido)?.id ?? null };
+    const alAparato = () => {
+      delAparato.alMarcar(cambio);
+      onAviso(t("sinSenal.quedoEnElAparato"));
+    };
+    if (sinSenal) return alAparato();
     const respuesta = await marcarDePartidoGps(referencia.id, valor);
+    if (falloDeRed(respuesta) && delAparato) return alAparato();
     if (respuesta.error) {
       onAviso(t(respuesta.error), { error: true });
       return;
     }
+    delAparato?.conSenal({ dispositivo: referencia.dispositivo });
     reemplazar(respuesta.referencias);
   };
 
@@ -393,10 +418,22 @@ export default function ReferenciasGps({
   };
 
   const cambiarNumero = (referencia) => async (fila, columna, valor) => {
+    const cambio = { id: referencia.id, cual: fila.clave, clave: columna.clave };
+    const alAparato = () => {
+      delAparato.alCambiar({ ...cambio, valor, antes: valoresDe(referencia, fila.clave)?.[columna.clave] ?? null });
+      return { error: "" };
+    };
+    if (sinSenal) return alAparato();
     const respuesta = await cambiarValorDeReferenciaGps(referencia.id, fila.clave, columna.clave, valor);
-    if (!respuesta.error) reemplazar([respuesta.referencia]);
+    if (falloDeRed(respuesta) && delAparato) return alAparato();
+    if (!respuesta.error) {
+      delAparato?.conSenal(cambio);
+      reemplazar([respuesta.referencia]);
+    }
     return respuesta;
   };
+  const numerosEnEspera = delAparato?.numeros?.size ? delAparato.numeros : null;
+  const enEsperaDe = (referencia) => (numerosEnEspera ? (fila, columna) => numerosEnEspera.has(`${referencia.id}|${fila.clave}|${columna.clave}`) : null);
 
   // ------------------------------------------------------------ Pantalla --
   if (calculando && puedeCalcular)
@@ -457,7 +494,13 @@ export default function ReferenciasGps({
               </label>
             )}
             {dispositivo && !suyas.length && <p className="lesiones-estado">{t("gps.vr.ningunoDelDispositivo", { dispositivo: nombreDelDispositivo })}</p>}
-            {puedeCambiar && suyas.length > 0 && <p className="lesiones-ayuda referencias-ayuda">{t("referencias.comoSeCambia")}</p>}
+            {puedeCambiarNumeros && suyas.length > 0 && <p className="lesiones-ayuda referencias-ayuda">{t(sinSenal ? "gps.vr.sinSenal" : "referencias.comoSeCambia")}</p>}
+            {numerosEnEspera && aLaVista.some((referencia) => [...numerosEnEspera].some((clave) => clave.startsWith(`${referencia.id}|`))) && (
+              <p className="referencias-leyenda-espera">
+                <i aria-hidden="true" />
+                {t("sinSenal.leyendaEspera")}
+              </p>
+            )}
             {aLaVista.length > 0 && <OcultasArriba ocultar={ocultar} columnas={columnas.map((columna) => ({ clave: columna.clave, texto: columna.titulo }))} filas={filasParaOcultar} />}
             {aLaVista.map((referencia) => (
               <section key={referencia.id} className="tarjeta evaluaciones-bloque referencias-bloque">
@@ -470,6 +513,11 @@ export default function ReferenciasGps({
                     </span>
                   )}
                 </div>
+                {delAparato?.dePartido?.has(referencia.id) && (
+                  <p className="referencias-espera">
+                    <span className="lesiones-espera">{t(referencia.dePartido ? "gps.espera.chip" : "gps.vr.noDePartidoEspera")}</span>
+                  </p>
+                )}
                 {referencia.planilla && <p className="lesiones-ayuda referencias-calculado">{textoDelCalculo(referencia.planilla)}</p>}
                 <TablaDeReferencia
                   ocultar={ocultar}
@@ -482,9 +530,11 @@ export default function ReferenciasGps({
                     return fila.clave === "n" ? String(valor) : textoDe(columna.gps, valor);
                   }}
                   interpretar={interpretar}
-                  onCambiar={puedeCambiar ? cambiarNumero(referencia) : undefined}
+                  onCambiar={puedeCambiarNumeros ? cambiarNumero(referencia) : undefined}
+                  enEspera={enEsperaDe(referencia)}
+                  leyendaEspera={t("sinSenal.leyendaEspera")}
                 />
-                {puedeCambiar && (
+                {puedeCambiarNumeros && (
                   <div className="referencias-acciones">
                     {referencia.planilla && puedeCalcular && (
                       <button type="button" className="boton-secundario" onClick={() => setARecalcular(referencia)} disabled={!todasLasFilas}>
@@ -494,12 +544,16 @@ export default function ReferenciasGps({
                     <button type="button" className="boton-secundario" onClick={() => marcar(referencia, !referencia.dePartido)}>
                       {referencia.dePartido ? t("gps.vr.noUsarDePartido") : t("gps.vr.usarDePartido")}
                     </button>
-                    <button type="button" className="boton-secundario" onClick={() => abrirHoja(referencia)}>
-                      {t("gps.vr.cambiarNombre")}
-                    </button>
-                    <button type="button" className="boton-secundario boton-peligro" onClick={() => setABorrar(referencia)}>
-                      {t("gps.vr.borrar")}
-                    </button>
+                    {puedeCambiar && (
+                      <>
+                        <button type="button" className="boton-secundario" onClick={() => abrirHoja(referencia)}>
+                          {t("gps.vr.cambiarNombre")}
+                        </button>
+                        <button type="button" className="boton-secundario boton-peligro" onClick={() => setABorrar(referencia)}>
+                          {t("gps.vr.borrar")}
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </section>

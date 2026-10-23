@@ -107,7 +107,9 @@ vi.mock("./domain/copiaSinSenal.js", () => {
 const esperas = vi.hoisted(() => ({ guardadas: {} }));
 vi.mock("./domain/filaDeEspera.js", () => ({
   leerEspera: async (modulo, cuenta, equipoId) => JSON.parse(JSON.stringify(esperas.guardadas[`${equipoId}|${modulo}|${cuenta}`] || [])),
+  // Como la de verdad: sin la cuenta del aparato o sin club, no guarda.
   guardarEspera: async (modulo, cuenta, equipoId, cola) => {
+    if (!cuenta || !equipoId) return null;
     const clave = `${equipoId}|${modulo}|${cuenta}`;
     if (cola.length) esperas.guardadas[clave] = JSON.parse(JSON.stringify(cola));
     else delete esperas.guardadas[clave];
@@ -270,13 +272,16 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
     return { error: "" };
   },
   leerReglasGps: async () => ({ reglas: { ...datos.reglas }, faltaTabla: datos.faltanReglas, error: "" }),
-  leerReferenciasGps: async () => ({
-    referencias: datos.referencias.map((una) => ({ ...una, promedio: { ...una.promedio }, desvio: { ...una.desvio }, categorias: JSON.parse(JSON.stringify(una.categorias || {})) })),
-    faltaTabla: datos.faltanReferencias,
-    sinEdicion: datos.sinEdicionVr,
-    sinPlanilla: datos.sinPlanilla,
-    error: "",
-  }),
+  leerReferenciasGps: async () =>
+    hayRed()
+      ? {
+          referencias: datos.referencias.map((una) => ({ ...una, promedio: { ...una.promedio }, desvio: { ...una.desvio }, categorias: JSON.parse(JSON.stringify(una.categorias || {})) })),
+          faltaTabla: datos.faltanReferencias,
+          sinEdicion: datos.sinEdicionVr,
+          sinPlanilla: datos.sinPlanilla,
+          error: "",
+        }
+      : { referencias: [], faltaTabla: false, sinEdicion: false, sinPlanilla: false, error: "gps.error.noLeer", detalle: sinRed.detalle },
   // «Recalcular» (o volver atrás un recálculo): todo de un saque.
   recalcularReferenciaGps: async (id, nuevos) => {
     datos.cambiosVr.push({ que: "recalcular", id, ...JSON.parse(JSON.stringify(nuevos)) });
@@ -287,6 +292,7 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
   },
   // Como la base: el promedio, el desvío o una categoría (las de los V.R. por jugador).
   cambiarValorDeReferenciaGps: async (id, cual, clave, valor) => {
+    if (!hayRed()) return sinRed;
     datos.cambiosVr.push({ que: "valor", id, cual, clave, valor });
     const referencia = datos.referencias.find((una) => una.id === id);
     if (!referencia) return { error: "gps.error.sinPermiso" };
@@ -298,6 +304,7 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
     return { referencia: { ...referencia }, error: "" };
   },
   marcarDePartidoGps: async (id, marcar) => {
+    if (!hayRed()) return sinRed;
     datos.cambiosVr.push({ que: "partido", id, marcar });
     const referencia = datos.referencias.find((una) => una.id === id);
     datos.referencias = datos.referencias.map((una) => (una.dispositivo === referencia.dispositivo ? { ...una, dePartido: una.id === id ? marcar : marcar ? false : una.dePartido } : una));
@@ -2481,6 +2488,70 @@ describe("GPS", () => {
     expect(datos.cambiosVr.at(-1)).toMatchObject({ que: "borrar" });
     expect(tarjetaVr("REDUCIDO · REDUCIDO 2 · DIN. ACCION")).toBeUndefined();
   });
+
+  // Paso 3c.4 de «cargar sin señal…» (Santiago, 23/10: «Números y "de
+  // partido"»; si otra persona cambió el mismo número, gana el último y avisa).
+  test("Valores de referencia sin señal: los números y el «de partido» quedan en el aparato, en otro color, y al volver la señal suben y avisan", async () => {
+    datos.referencias = VR();
+    await sinSenalConLaCopia();
+    await irA(contenedor, "Valores de referencia");
+    expect(contenedor.textContent).toContain("Sin señal se cambian los números (dos toques) y «Usar de partido»");
+    // Agregar, cambiar el nombre y borrar, con señal.
+    const acciones = (nombre) => [...tarjetaVr(nombre).querySelectorAll(".referencias-acciones button")].map((b) => b.textContent);
+    expect(acciones("FUTBOL · Oficial · TOTAL")).toEqual(["Dejar de usar de partido"]);
+    expect(boton("Agregar V.R. de Catapult")).toBeUndefined();
+
+    await cambiarVr(celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Promedio", "D"), "9950");
+    await cambiarVr(celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Desvío", "D"), "310");
+    const promedio = celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Promedio", "D");
+    expect(promedio.textContent).toBe("9950,0");
+    expect(promedio.classList.contains("espera")).toBe(true);
+    expect(promedio.title).toBe("En este color, lo que espera para subir (se cargó o cambió sin señal).");
+    expect(celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Promedio", "Tiempo").classList.contains("espera")).toBe(false);
+    expect(contenedor.querySelector(".referencias-leyenda-espera").textContent).toBe("En este color, lo que espera para subir (se cargó o cambió sin señal).");
+    // El de partido, otro: los dos dicen que esperan.
+    await tocar([...tarjetaVr("DINAMICA · DINAMICA 1 · FUERZA").querySelectorAll(".referencias-acciones button")].find((b) => b.textContent === "Usar de partido"));
+    expect(document.body.textContent).toContain("Quedó en este aparato: se sube solo cuando vuelva la señal.");
+    expect(tarjetaVr("DINAMICA · DINAMICA 1 · FUERZA").querySelector(".referencias-de-partido")).not.toBeNull();
+    expect(tarjetaVr("DINAMICA · DINAMICA 1 · FUERZA").querySelector(".lesiones-espera").textContent).toBe("Espera para subir");
+    expect(tarjetaVr("FUTBOL · Oficial · TOTAL").querySelector(".referencias-de-partido")).toBeNull();
+    expect(tarjetaVr("FUTBOL · Oficial · TOTAL").querySelector(".lesiones-espera").textContent).toBe("Deja de ser de partido: espera para subir");
+    expect(avisoArriba()).toContain("Sin señal: 3 cambios esperan para subir");
+    expect(esperas.guardadas["eq-1|gps|cuenta-1"].map((uno) => uno.tipo)).toEqual(["vr", "vr", "dePartido"]);
+    expect(datos.cambiosVr).toEqual([]);
+
+    // Mientras tanto, otra persona cambió el mismo desvío.
+    datos.referencias[0].desvio = { d: 305 };
+    await sinSenalAhora(false);
+    await unRato();
+    expect(datos.cambiosVr).toEqual([
+      { que: "valor", id: "r1", cual: "promedio", clave: "d", valor: 9950 },
+      { que: "valor", id: "r1", cual: "desvio", clave: "d", valor: 310 },
+      { que: "partido", id: "r2", marcar: true },
+    ]);
+    expect(document.body.textContent).toContain("Se subieron 3 cambios hechos sin señal.");
+    expect(document.body.textContent).toContain("Otra persona había cambiado 1 número de los V.R. que cambiaste sin señal: quedó el tuyo");
+    expect(esperas.guardadas).toEqual({});
+    expect(contenedor.querySelectorAll("td.espera, .lesiones-espera")).toHaveLength(0);
+    expect(celdaVr(tarjetaVr("FUTBOL · Oficial · TOTAL"), "Desvío", "D").textContent).toBe("310,0");
+    expect(tarjetaVr("DINAMICA · DINAMICA 1 · FUERZA").querySelector(".referencias-de-partido")).not.toBeNull();
+    // Con señal, otra vez todo.
+    expect(acciones("FUTBOL · Oficial · TOTAL")).toEqual(["Usar de partido", "Cambiar nombre", "Borrar"]);
+  }, 20000);
+
+  test("Valores de referencia sin señal: si otra persona borró el V.R., no sube y avisa", async () => {
+    datos.referencias = VR();
+    await sinSenalConLaCopia();
+    await irA(contenedor, "Valores de referencia");
+    await cambiarVr(celdaVr(tarjetaVr("DINAMICA · DINAMICA 1 · FUERZA"), "Promedio", "D"), "3100");
+    datos.referencias = datos.referencias.filter((una) => una.id !== "r2");
+    await sinSenalAhora(false);
+    await unRato();
+    expect(datos.cambiosVr).toEqual([]);
+    expect(document.body.textContent).toContain("1 cambio de los V.R. no subió: ese V.R. lo borró otra persona.");
+    expect(esperas.guardadas).toEqual({});
+    expect(tarjetaVr("DINAMICA · DINAMICA 1 · FUERZA")).toBeUndefined();
+  }, 20000);
 
   test("Valores de referencia: los últimos cambios, con quién y cuándo, y «Volver»", async () => {
     datos.referencias = VR();

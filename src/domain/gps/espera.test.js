@@ -9,14 +9,19 @@ import {
   conLoQueEspera,
   conLosCambios,
   conPegado,
+  conDePartido,
   conReemplazo,
+  conValorDeVr,
+  conVrQueEspera,
   cuentaDeLaEspera,
   enCursoEnEspera,
   esLocal,
   filaQueEspera,
   idsEnEspera,
   sinEnCurso,
+  sinVrQueEspera,
   subirLaEspera,
+  vrEnEspera,
 } from "./espera.js";
 
 // Paso 3c.1 de «cargar sin señal y a la vez que otra persona» (Santiago,
@@ -381,5 +386,110 @@ describe("lo pegado sin señal", () => {
     const sinFuncion = await subir(cola, { base: [igual], pegar: () => ({ sinFuncion: true, creadas: 0, yaEstaban: 0, reemplazadas: 0, error: "" }) });
     expect(llamadas.at(-1)).toEqual(["crear", 3]);
     expect(sinFuncion).toMatchObject({ subidos: 3, quedan: [], descartadas: [{ tipo: "pegado", n: 1 }] });
+  });
+});
+
+describe("los V.R. sin señal", () => {
+  // Paso 3c.4 (Santiago, 23/10: «Números y "de partido"»; si otra persona
+  // cambió el mismo número, gana el último y avisa). Todo inventado.
+  const CATEGORIAS = { excelente: {}, muy_bueno: {}, regular: {}, malo: {} };
+  const vr = (id, extra = {}) => ({ id, dispositivo: "catapult", tipo: "Futbol", tabla: "Oficial", grupo: "TOTAL", orden: 1, promedio: { d: 6000 }, desvio: { d: 500 }, categorias: CATEGORIAS, dePartido: false, planilla: null, ...extra });
+
+  test("un número cambiado otra vez queda el último, con lo que se veía antes del primero; vuelto a como estaba, ya no espera", () => {
+    let cola = conValorDeVr([], { id: "r1", cual: "promedio", clave: "d", valor: 6100, antes: 6000 });
+    cola = conValorDeVr(cola, { id: "r1", cual: "promedio", clave: "d", valor: 6200, antes: 6100 });
+    cola = conValorDeVr(cola, { id: "r1", cual: "excelente", clave: "d", valor: 7000, antes: undefined });
+    expect(cola).toEqual([
+      { tipo: "vr", id: "r1", cual: "promedio", clave: "d", valor: 6200, antes: 6000 },
+      { tipo: "vr", id: "r1", cual: "excelente", clave: "d", valor: 7000, antes: null },
+    ]);
+    expect(conValorDeVr(cola, { id: "r1", cual: "promedio", clave: "d", valor: 6000, antes: 6200 })).toEqual([cola[1]]);
+    expect(sinVrQueEspera(cola, { id: "r1", cual: "excelente", clave: "d" })).toEqual([cola[0]]);
+  });
+
+  test("el de partido: queda el último; vuelto al de antes, ya no espera", () => {
+    let cola = conDePartido([], { dispositivo: "catapult", vr: "r2", antes: "r1" });
+    cola = conDePartido(cola, { dispositivo: "catapult", vr: null, antes: "r2" });
+    expect(cola).toEqual([{ tipo: "dePartido", dispositivo: "catapult", vr: null, antes: "r1" }]);
+    expect(conDePartido(cola, { dispositivo: "catapult", vr: "r1", antes: null })).toEqual([]);
+    expect(sinVrQueEspera(cola, { dispositivo: "catapult" })).toEqual([]);
+  });
+
+  test("se ven con lo que espera encima y se sabe qué pintar", () => {
+    const referencias = [vr("r1", { dePartido: true }), vr("r2"), vr("r3", { dispositivo: "sport" })];
+    expect(conVrQueEspera(referencias, [])).toBe(referencias);
+    let cola = conValorDeVr([], { id: "r1", cual: "desvio", clave: "d", valor: null, antes: 500 });
+    cola = conValorDeVr(cola, { id: "r2", cual: "malo", clave: "tiempo", valor: 1200, antes: null });
+    cola = conDePartido(cola, { dispositivo: "catapult", vr: "r2", antes: "r1" });
+    const vistas = conVrQueEspera(referencias, cola);
+    expect(vistas[0]).toMatchObject({ desvio: {}, dePartido: false });
+    expect(vistas[1]).toMatchObject({ categorias: { ...CATEGORIAS, malo: { tiempo: 1200 } }, dePartido: true });
+    expect(vistas[2]).toBe(referencias[2]);
+    expect(referencias[0].desvio).toEqual({ d: 500 });
+    expect(vrEnEspera(cola)).toEqual({ numeros: new Set(["r1|desvio|d", "r2|malo|tiempo"]), dePartido: new Set(["r2", "r1"]) });
+    expect(cuentaDeLaEspera(cola)).toEqual({ total: 3, chocan: 0, pendientes: 3 });
+  });
+
+  const llamadas = [];
+  const funciones = ({ base = [], cambiar = null, marcar = null, leer = null } = {}) => ({
+    leerReferencias: async () => {
+      llamadas.push(["leer"]);
+      return leer ? leer() : { referencias: base, error: "" };
+    },
+    cambiarVr: async (id, cual, clave, valor) => {
+      llamadas.push(["cambiarVr", id, cual, clave, valor]);
+      if (cambiar) return cambiar();
+      const referencia = base.find((una) => una.id === id);
+      return { referencia: conVrQueEspera([referencia], [{ tipo: "vr", id, cual, clave, valor }])[0], error: "" };
+    },
+    marcar: async (id, marcarlo) => {
+      llamadas.push(["marcar", id, marcarlo]);
+      if (marcar) return marcar();
+      const dispositivo = base.find((una) => una.id === id).dispositivo;
+      return { referencias: base.filter((una) => una.dispositivo === dispositivo).map((una) => ({ ...una, dePartido: marcarlo ? una.id === id : una.dePartido && una.id !== id })), error: "" };
+    },
+  });
+  const esDeRed = (respuesta) => /Failed to fetch/.test(`${respuesta?.detalle || ""}`);
+  const subir = (cola, opciones) => {
+    llamadas.length = 0;
+    return subirLaEspera(cola, { funciones: funciones(opciones), esDeRed });
+  };
+
+  test("al subir: lee los V.R. una vez; gana el último y avisa si otra persona lo había cambiado; lo que ya está así no se cambia", async () => {
+    let cola = conValorDeVr([], { id: "r1", cual: "promedio", clave: "d", valor: 6100, antes: 6000 });
+    cola = conValorDeVr(cola, { id: "r1", cual: "desvio", clave: "d", valor: 450, antes: 500 });
+    cola = conValorDeVr(cola, { id: "r2", cual: "promedio", clave: "d", valor: 5000, antes: 6000 });
+    cola = conDePartido(cola, { dispositivo: "catapult", vr: "r2", antes: "r1" });
+    // Otra persona: el desvío de r1 a 480 y el promedio de r2 ya en 5000.
+    const base = [vr("r1", { dePartido: true, desvio: { d: 480 } }), vr("r2", { promedio: { d: 5000 } })];
+    const hecho = await subir(cola, { base });
+    expect(llamadas).toEqual([["leer"], ["cambiarVr", "r1", "promedio", "d", 6100], ["cambiarVr", "r1", "desvio", "d", 450], ["marcar", "r2", true]]);
+    expect(hecho).toMatchObject({ subidos: 4, vrPisados: 1, dePartidoPisados: [], vrBorrados: 0, quedan: [], errores: [] });
+    expect(hecho.devueltasVr.at(-1)).toMatchObject({ id: "r2", dePartido: true });
+  });
+
+  test("el de partido que otra persona cambió mientras tanto: queda el de este aparato y se avisa; ninguno desmarca el que hay", async () => {
+    const otra = [vr("r1"), vr("r2"), vr("r3", { dePartido: true })];
+    const marcado = await subir(conDePartido([], { dispositivo: "catapult", vr: "r2", antes: "r1" }), { base: otra });
+    expect(marcado).toMatchObject({ subidos: 1, dePartidoPisados: ["catapult"] });
+    const ninguno = await subir(conDePartido([], { dispositivo: "catapult", vr: null, antes: "r1" }), { base: otra });
+    expect(llamadas.at(-1)).toEqual(["marcar", "r3", false]);
+    expect(ninguno).toMatchObject({ subidos: 1, dePartidoPisados: ["catapult"] });
+  });
+
+  test("si otra persona borró el V.R., no sube y se avisa; sin señal en el camino queda; un error de la base no se reintenta", async () => {
+    let cola = conValorDeVr([], { id: "r9", cual: "promedio", clave: "d", valor: 1, antes: 2 });
+    cola = conDePartido(cola, { dispositivo: "catapult", vr: "r9", antes: null });
+    expect(await subir(cola, { base: [vr("r1")] })).toMatchObject({ subidos: 0, vrBorrados: 2, quedan: [] });
+
+    const red = { error: "gps.error.noLeer", detalle: "TypeError: Failed to fetch" };
+    expect(await subir(cola, { leer: () => ({ referencias: [], ...red }) })).toMatchObject({ cortado: true, quedan: cola });
+    const uno = conValorDeVr([], { id: "r1", cual: "promedio", clave: "d", valor: 1, antes: 6000 });
+    expect(await subir(uno, { base: [vr("r1")], cambiar: () => ({ error: "gps.error.sinConexion", detalle: "TypeError: Failed to fetch" }) })).toMatchObject({ cortado: true, quedan: uno });
+    expect(await subir(uno, { base: [vr("r1")], cambiar: () => ({ error: "gps.error.sinPermiso", detalle: "referencia_sin_permiso" }) })).toMatchObject({
+      cortado: false,
+      quedan: [],
+      errores: [{ error: "gps.error.sinPermiso", ids: ["r1"] }],
+    });
   });
 });
