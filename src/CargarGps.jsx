@@ -6,7 +6,6 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
-import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
 import { AvisoDeEspera, falloDeRed } from "./components/SinSenal.jsx";
 import { opcionesDeLista, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
@@ -178,7 +177,6 @@ export default function CargarGps({
   const [dejando, setDejando] = useState(false);
   const [otroAparato, setOtroAparato] = useState(false);
   const [errorPaso, setErrorPaso] = useState("");
-  const consentimiento = useConsentimientoPersonas(equipoId, "gps");
   const [hoja, setHoja] = useState(null);
   // El desplegable de varios abierto: { titulo, valores, elegidos, busqueda, alAplicar }.
   const [hojaVarios, setHojaVarios] = useState(null);
@@ -1743,20 +1741,6 @@ export default function CargarGps({
     setErrorPaso("");
     setFalla("");
     const alAparato = !enLinea && Boolean(delAparato);
-    const personas = quedan.filter((fila) => !fila.jugador_id && !fila.promedio).map((fila) => fila.persona);
-    // Su consentimiento se confirma con señal.
-    if (alAparato && personas.some((nombre) => String(nombre ?? "").trim())) {
-      setFalla("gps.espera.personasConSenal");
-      return;
-    }
-    // Las personas que no están en Datos básicos: antes de guardar, quien
-    // carga confirma su consentimiento (20261103).
-    const permiso = alAparato ? { sigue: true } : await consentimiento.pedir(personas);
-    if (!enPantalla.current) return;
-    if (!permiso.sigue) {
-      if (permiso.error) setFalla(permiso.error);
-      return;
-    }
     setProgreso({ n: desde, total: lista.length });
     // Al aparato: lo de este aparato, con las mismas reglas.
     const enElAparato = () => {
@@ -2114,7 +2098,6 @@ export default function CargarGps({
         onConfirmar={() => guardar({ reemplazar: true })}
         onCerrar={() => setOtraSesion(null)}
       />
-      {consentimiento.hoja}
     </div>
   );
 }

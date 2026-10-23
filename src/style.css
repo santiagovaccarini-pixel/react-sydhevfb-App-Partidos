@@ -4214,8 +4214,8 @@ button:disabled {
   font-weight: 700;
 }
 
-/* Las personas fuera de Datos básicos que se confirman al cargar
-   (Consentimiento.jsx): todas a la vista, y si son muchas, se desliza. */
+/* Una lista corta en una hoja de confirmar (quiénes o qué días ya están en
+   la Base, con la Regla 1): todas a la vista, y si son muchas, se desliza. */
 .consentimiento-personas {
   display: flex;
   flex-wrap: wrap;

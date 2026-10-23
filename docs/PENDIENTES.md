@@ -796,7 +796,9 @@ nueva se escribe en un solo lugar y con un nombre, para que mudarla sea corto.
     (18/10)»;
   - si la base guarda datos de atletas, su tabla con el disparador `exigir_consentimiento` (y
     su `persona`, si la tiene) y la carga de archivos con `useConsentimientoPersonas`
-    (`src/components/Consentimiento.jsx`). Ver «Consentimiento de los atletas (18/10)»;
+    (`src/components/Consentimiento.jsx`). Ver «Consentimiento de los atletas (18/10)».
+    Reabierta (23/10): se sacó el consentimiento; ya no se pide (ver «Sin el consentimiento de
+    los atletas (23/10)»);
   - si la base guarda datos de atletas, sus filas en `exportar_atleta` y su hoja en
     `src/domain/exportarAtleta.js`. Ver «Exportar los datos de un atleta (19/10)».
 - Fotos: la foto que tenía la tarjeta Lesiones (los servidores dorados) ahora es la de Bases de
@@ -4104,6 +4106,27 @@ confirme.**
   - **Queda prohibido** cargar datos nuevos de atletas sin la confirmación del club, o de una
     persona fuera de Datos básicos sin la suya, y que la confirme el staff por el club, salvo
     un pedido nuevo.
+  - **Reabierta (23/10, UI-078): se saca todo.** Ver «Sin el consentimiento de los atletas
+    (23/10)», abajo.
+- **Sin el consentimiento de los atletas (hecho el 23/10, migración
+  `20261119_sin_consentimiento.sql`, 2026.10.23.5; UI-078).** Santiago, en medio del paso 3c:
+  «Te dije que saques lo del consentimiento de los jugadores, no lo vamos a usar» (ese pedido
+  anterior no está en esta documentación; se registra con este mensaje). En un cuestionario:
+  qué sacar, «Todo» (el aviso del club en la pantalla principal, la hoja de las personas fuera
+  de Datos básicos al cargar y las reglas de la base); lo ya guardado, «Se borran»; cuándo,
+  «Ahora».
+  - **La base**: salen los disparadores `exigir_consentimiento` (jugadores, lesiones,
+    evaluaciones, gps y gps_en_curso) y se borra la tabla `consentimientos` con todo lo que
+    tenía (no se puede deshacer), con sus funciones. Se carga como antes del 18/10.
+    `20261104_exportar_atleta.sql` pedía esa tabla para correr: ya está corrida y no hace
+    falta volver a correrla.
+  - **En la app**: sin el aviso de la pantalla principal y sin la hoja «Personas fuera de Datos
+    básicos» (Lesiones, Evaluaciones y GPS). Sin señal, las personas fuera de Datos básicos se
+    guardan y se pegan como las demás (antes se frenaban porque su consentimiento se
+    confirmaba con señal: UI-076 y UI-077). La clase `consentimiento-personas` queda: es la de
+    las listas de la Regla 1.
+  - **Queda prohibido** volver a pedir el consentimiento, o frenar una carga por él, salvo un
+    pedido nuevo.
 - **Exportar los datos de un atleta (hecho el 19/10, migración `20261104_exportar_atleta.sql`,
   UI-058).** Santiago: «Añade una función para que un club pueda exportar todos los datos de un
   atleta si este lo solicita (Portabilidad)». En un cuestionario: «Excel y además JSON»; además
@@ -4589,7 +4612,8 @@ confirme.**
       esa cuenta vuelve a abrir Evaluaciones con señal. Si mientras tanto perdió el permiso, la
       base no lo deja subir: si todavía puede abrir Evaluaciones, la app avisa cuántos cambios no
       se pudieron subir y por qué.
-    - **Límites conocidos:** sin señal no se puede dejar confirmado el consentimiento de una
+    - **Límites conocidos:** (lo del consentimiento ya no aplica: se sacó el 23/10, UI-078)
+      sin señal no se puede dejar confirmado el consentimiento de una
       persona que no está en Datos básicos: pegarla pide señal, como antes. El historial de los
       V.R. y «Volver» necesitan señal. Una nueva cargada sin señal, si se cambia mientras justo se
       está subiendo, puede volver a preguntar con la hoja de la Regla 1.
@@ -4619,7 +4643,8 @@ confirme.**
     - **Lo que espera es trabajo de quien lo cargó**, como en el paso 3a: no se borra al salir
       de la cuenta ni al dejar el club, y sube cuando esa cuenta vuelve a abrir Lesiones con
       señal.
-    - **Límites conocidos:** sin señal no se puede dejar confirmado el consentimiento de una
+    - **Límites conocidos:** (lo del consentimiento ya no aplica: se sacó el 23/10, UI-078)
+      sin señal no se puede dejar confirmado el consentimiento de una
       persona que no está en Datos básicos (pegarla pide señal, como en el paso 3a). Los
       «Cambios» de la ficha necesitan señal; una cargada sin señal todavía no tiene. Si otra
       persona toma un N° justo mientras se sube, la lesión toma el que sigue aunque no quede en
@@ -4680,7 +4705,8 @@ confirme.**
     señal cuyo CSV ya está en la Base o en otra carga sin terminar, o que siguieron desde otro
     aparato, se descarta y avisa. Sin SQL nuevo.
     - **Límites conocidos:** sin señal no se guardan personas que no están en Datos básicos
-      (su consentimiento se confirma con señal): se deja para revisar. Lo dejado sin señal es de
+      (su consentimiento se confirma con señal): se deja para revisar (ya no: el consentimiento
+      se sacó el 23/10, UI-078). Lo dejado sin señal es de
       este aparato y de esta cuenta hasta que sube (no se ve en otros aparatos). Mientras se
       sube, lo cargado sin señal no se cambia ni se borra («probá en un momento»). Si la señal se
       corta justo después de que la base guardó el día, al subir se ve como «ya lo había cargado
@@ -4700,12 +4726,13 @@ confirme.**
     afuera lo que ya está igual): si la señal se corta a mitad de camino, lo pegado queda entero
     y al volver sube lo que falta. Sin SQL nuevo.
     - **Límites conocidos:** sin señal no se cargan personas que no están en Datos básicos (su
-      consentimiento se confirma con señal). Si la señal se corta después de que subió una
+      consentimiento se confirma con señal; ya no: el consentimiento se sacó el 23/10, UI-078). Si la señal se corta después de que subió una
       parte, al volver esa parte se cuenta como «ya estaba en la Base». Lo pegado sin señal es de
       este aparato y de esta cuenta hasta que sube.
     - **Visto al hacerlo (aparte, sin cambiar):** con señal, «Pegar desde una planilla» no pide
       el consentimiento de las personas que no están en Datos básicos (Cargar un día sí); la base
-      frena las que no están confirmadas («consentimiento.error.persona»).
+      frena las que no están confirmadas («consentimiento.error.persona»). Ya no aplica: el
+      consentimiento se sacó el 23/10 (UI-078).
     - **Queda para la parte que sigue:** los V.R. (3c.4) siguen sin señal como antes (para
       mirar).
     - **Queda prohibido** que lo hecho sin señal se pierda sin avisar o cambiar los Ajustes sin

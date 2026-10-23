@@ -4,7 +4,6 @@
 // traducido a una clave del diccionario.
 import { supabase } from "../supabase.js";
 import { esSoloLectura } from "./alDia.js";
-import { claveDeErrorConsentimiento } from "./consentimiento.js";
 import { faltaSentido, sentidoGuardado } from "./sentido.js";
 import { quienDeLaEvaluacion } from "./evaluaciones/importar.js";
 
@@ -22,8 +21,6 @@ export const claveDeErrorEvaluaciones = (error, porDefecto = "evaluaciones.error
   if (/jugador_de_otro_club/.test(texto)) return "evaluaciones.error.jugadorDeOtroClub";
   // Dos iguales en todo (20261113).
   if (/evaluaciones_sin_repetir/.test(texto)) return "evaluaciones.error.repetida";
-  // Sin la confirmación del consentimiento (20261103).
-  if (claveDeErrorConsentimiento(error)) return claveDeErrorConsentimiento(error);
   if (/evaluaciones_sin_futuro/.test(texto)) return "evaluaciones.error.fechaFutura";
   if (/evaluaciones_de_quien/.test(texto)) return "evaluaciones.error.sinJugador";
   if (error?.code === "42501" || /row-level security|permission denied/.test(texto)) return "evaluaciones.error.sinPermiso";

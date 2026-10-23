@@ -47,10 +47,6 @@ const datos = vi.hoisted(() => ({
   copiasGuardadas: [],
   // Las puestas al día pedidas (con la copia o después de cargar).
   alDia: [],
-  // El consentimiento de las personas fuera de Datos básicos (20261103): las
-  // ya confirmadas y las que se confirmaron al guardar.
-  personasConfirmadas: [],
-  confirmaciones: [],
   // Los días guardados de una vez (20261111) y si falta esa actualización.
   diasGuardados: [],
   sinGuardarDia: false,
@@ -121,14 +117,6 @@ vi.mock("./domain/filaDeEspera.js", () => ({
 // Sin señal, la base no contesta.
 const sinRed = { error: "gps.error.noGuardar", detalle: "TypeError: Failed to fetch" };
 const hayRed = () => navigator.onLine !== false;
-vi.mock("./domain/consentimientoDb.js", () => ({
-  leerPersonasConfirmadas: async () => ({ personas: new Set(datos.personasConfirmadas), sinTabla: false, error: "" }),
-  confirmarPersonas: async (equipoId, base, personas) => {
-    datos.confirmaciones.push({ equipoId, base, personas });
-    datos.personasConfirmadas.push(...personas.map((nombre) => nombre.toLowerCase()));
-    return { error: "" };
-  },
-}));
 vi.mock("./domain/referenciasDb.js", () => ({
   leerHistorialDeReferencias: async () => ({ cambios: datos.historialVr.map((una) => ({ ...una })), faltaTabla: false, error: "" }),
 }));
@@ -502,8 +490,6 @@ describe("GPS", () => {
     datos.copia = null;
     datos.copiasGuardadas = [];
     datos.alDia = [];
-    datos.personasConfirmadas = [];
-    datos.confirmaciones = [];
     datos.errorHistorial = "";
     datos.recordados = { pegar: "", csv: "" };
     datos.recordar = [];
@@ -1121,7 +1107,7 @@ describe("GPS", () => {
       expect(esperas.guardadas).toEqual({});
     }, 30000);
 
-    test("con personas que no están en Datos básicos no se carga sin señal", async () => {
+    test("quien no está en Datos básicos también se pega sin señal (sin consentimiento: Santiago, 23/10)", async () => {
       const texto = ["Microciclo\tNombre\tD\tFecha", `31\tALFA\t4100\t${fechaCorta(HOY)}`, `31\tNombre Nuevo\t3900\t${fechaCorta(HOY)}`].join("\n");
       await sinSenalConLaCopia();
       await tocar(boton("Pegar desde una planilla"));
@@ -1130,8 +1116,8 @@ describe("GPS", () => {
       await tocar(boton("Guardar igual el que no está en Datos básicos"));
       await esperar(() => Boolean(boton("Cargar 2 filas")) && !boton("Cargar 2 filas").disabled);
       await tocar(boton("Cargar 2 filas"));
-      expect(contenedor.textContent).toContain("Sin señal no se cargan personas que no están en Datos básicos");
-      expect(enEspera()).toEqual([]);
+      expect(document.querySelector(".hoja-confirmar")).toBeNull();
+      expect(enEspera()[0].filas.map((fila) => fila.persona || fila.jugador_id)).toEqual([1, "Nombre Nuevo"]);
     }, 30000);
   });
 
@@ -1530,12 +1516,10 @@ describe("GPS", () => {
     // Revisar: todo lo que va a la Base, en el orden de la plantilla.
     expect(titulo()).toBe("Revisar y guardar");
     expect(nombres()).toEqual(["Team Average Parcial", "ALFA", "BETA", "Invitado X", "DELTA", "ALFA", "BETA", "Team Average Sesion", "ALFA", "BETA", "EPSILON"]);
+    // Quien no está en Datos básicos se guarda sin preguntar nada más (sin
+    // consentimiento: Santiago, 23/10).
     await tocar(boton("Guardar 11 filas"));
-    // Antes de guardar, el consentimiento de quien no está en Datos básicos.
-    expect(datos.creadas).toHaveLength(0);
-    expect([...document.querySelectorAll(".hoja-confirmar .consentimiento-personas li")].map((li) => li.textContent)).toEqual(["Invitado X"]);
-    await tocar(document.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
-    expect(datos.confirmaciones).toEqual([{ equipoId: "eq-1", base: "gps", personas: ["Invitado X"] }]);
+    expect(document.querySelector(".hoja-confirmar")).toBeNull();
     expect(datos.creadas).toHaveLength(11);
     expect(datos.creadas.every((una) => Object.keys(una).every((clave) => !clave.startsWith("_")))).toBe(true);
     expect(datos.creadas[1]).toMatchObject({ fecha: AYER, jugador_id: 1, datos: { d: 3500, tiempo: 1200, m2: 120, largo: 40, ancho: 30, condicion: "parcial", tipo_microciclo: "competitivo", dispositivo: "catapult", clasificacion_dias: "menos1_m", tipo_sesion: "din_colectiva" } });
@@ -1696,8 +1680,6 @@ describe("GPS", () => {
     await elegirTipo("Din. General");
     await tocar(siguiente());
     expect(titulo()).toBe("Revisar y guardar");
-    // Quien no está en Datos básicos ya estaba confirmado: no se pregunta.
-    datos.personasConfirmadas = ["invitado x"];
     await tocar(boton("Guardar 11 filas"));
     expect(document.querySelector(".hoja-confirmar")).toBeNull();
     expect(datos.creadas).toHaveLength(11);
@@ -1787,7 +1769,7 @@ describe("GPS", () => {
   // revisar «Queda en el aparato»; al subir, las reglas del «Mismo CSV» y la
   // Regla 1 «Espera y te pregunta»).
   describe("Cargar un día sin señal", () => {
-    // Solo jugadores de Datos básicos (sin personas: su consentimiento se confirma con señal).
+    // Solo jugadores de Datos básicos.
     const CSV_DE_ELLOS = (fecha) =>
       CSV(fecha, [
         "A. Alfa,Session,0,9000,01:10:00,10:00:00,11:10:00,30",
@@ -1883,13 +1865,13 @@ describe("GPS", () => {
       await esperar(() => contenedor.textContent.includes("Rival Inventado"));
     }, 30000);
 
-    test("con personas que no están en Datos básicos no se guarda sin señal: se deja para revisar", async () => {
+    test("quien no está en Datos básicos también se guarda sin señal (sin consentimiento: Santiago, 23/10)", async () => {
       datos.plantel = CON_DELTA_Y_EPSILON();
       await sinSenalEnCargar();
       await hastaRevisar(CSV_TAREAS(AYER), { noEntrenaron: true });
       await tocar(botonGuardar());
-      expect(contenedor.textContent).toContain("Sin señal no se guardan personas que no están en Datos básicos");
-      expect(enEspera()).toEqual([]);
+      expect(document.querySelector(".hoja-confirmar")).toBeNull();
+      expect(enEspera()[0].filas.some((fila) => fila.persona === "Invitado X")).toBe(true);
     }, 30000);
 
     test("«Dejar para revisar» queda en este aparato, con su marca; se sigue sin señal y al volver la señal sube a «Sin terminar»", async () => {
@@ -2027,7 +2009,6 @@ describe("GPS", () => {
 
   test("Regla 1: la misma sesión con otros datos pregunta; «Reemplazar y cargar» cambia esas filas y el promedio del equipo por las nuevas", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
-    datos.personasConfirmadas = ["invitado x"];
     datos.filas = conLaMismaSesion();
     await montar();
     await hastaGuardar();
@@ -2056,7 +2037,6 @@ describe("GPS", () => {
 
   test("Regla 1, «Ir a la Base»: la carga queda en «Sin terminar» y la Base muestra esas filas; «Seguir la carga» vuelve donde estaba", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
-    datos.personasConfirmadas = ["invitado x"];
     datos.filas = conLaMismaSesion();
     await montar();
     await hastaGuardar();
@@ -2087,7 +2067,6 @@ describe("GPS", () => {
 
   test("Regla 1: otro turno (otra hora de inicio) se suma sin preguntar", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
-    datos.personasConfirmadas = ["invitado x"];
     datos.filas = [...FILAS(), fila("t1", 11, { jugador_id: 1 }, AYER, { d: 3100, tiempo: 1200, inicio: 61200, dispositivo: "catapult" })];
     await montar();
     await hastaGuardar();
@@ -2100,7 +2079,6 @@ describe("GPS", () => {
 
   test("Regla 1 sin la actualización de la base: sin la misma sesión se guarda como antes; reemplazar avisa que falta", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
-    datos.personasConfirmadas = ["invitado x"];
     datos.sinGuardarDia = true;
     await montar();
     await hastaGuardar();
@@ -2111,7 +2089,6 @@ describe("GPS", () => {
 
   test("Regla 1 sin la actualización de la base, con la misma sesión: «Reemplazar y cargar» no borra nada y avisa", async () => {
     datos.plantel = CON_DELTA_Y_EPSILON();
-    datos.personasConfirmadas = ["invitado x"];
     datos.sinGuardarDia = true;
     datos.filas = conLaMismaSesion();
     await montar();

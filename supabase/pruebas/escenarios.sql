@@ -137,19 +137,6 @@ insert into public.lesiones (equipo_id, jugador_id, fecha_lesion, datos, creado_
   ('00000000-0000-0000-0000-0000000000c1', 9001, '2026-03-10', '{"parte_cuerpo":"coxa","lado":"direito"}', '2026-03-10 18:00-03'),
   ('00000000-0000-0000-0000-0000000000c1', 9001, '2026-08-20', '{"parte_cuerpo":"joelho","lado":"esquerdo"}', '2026-08-20 18:00-03');
 
--- Los dos clubes ya confirmaron el consentimiento de sus atletas (20261103);
--- sin confirmar, ver «Consentimiento de los atletas».
-insert into public.consentimientos (equipo_id, alcance, texto) values
-  ('00000000-0000-0000-0000-0000000000c1', 'club', 'Confirmación de prueba.'),
-  ('00000000-0000-0000-0000-0000000000c2', 'club', 'Confirmación de prueba.');
--- Y el de las personas fuera de Datos básicos que se cargan más abajo.
-insert into public.consentimientos (equipo_id, alcance, base, personas, texto)
-select x.equipo_id::uuid, 'personas', 'lesiones',
-       array['Cata Tres', 'Autor ajeno', 'Del Futuro', 'Espía', 'Id elegido', 'Juvenil Invitado', 'Nivel Uno', 'Nueva',
-             'Persona de Dos', 'Sin Fecha', 'Desc Uno', 'Desc Dos', 'Desc Tres', 'Desc Otro'],
-       'Personas de prueba.'
-  from (values ('00000000-0000-0000-0000-0000000000c1'), ('00000000-0000-0000-0000-0000000000c2')) as x (equipo_id);
-
 -- Las versiones se anotan con la hora de la carga: acá, el día de cada dato.
 -- Y un detalle: el último día de Darío (31/03) termina a las 23:59 de San
 -- Pablo, aunque en UTC ya sea 1/04.
@@ -2568,7 +2555,6 @@ select pruebas.esperar('Si los dos pusieron lo mismo, no hay nada que avisar',
   (select (lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"datos.comentarios":"dos"}', '{"datos.comentarios":"uno"}') -> 'pisadas')::text), '[]');
 select pruebas.esperar('Vaciar un dato lo saca, y una fecha vacía queda vacía',
   (select (x #>> '{fila,datos}') || ' ' || coalesce(x #>> '{fila,fecha_alta}', 'sin alta') from (select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"datos.comentarios":"","fecha_alta":null}') as x) s), '{"lado": "direito", "parte_cuerpo": "coxa"} sin alta');
-select pruebas.debe_fallar('...pasarla a alguien fuera de Datos básicos sin su consentimiento, no', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"jugador_id":null,"persona":"  Persona   Cambiada "}')$q$, 'falta_consentimiento_persona');
 select pruebas.debe_fallar('El club no se cambia', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"equipo_id":"00000000-0000-0000-0000-0000000000c2"}')$q$, 'lesiones_cambios');
 select pruebas.debe_fallar('...ni el N° de caso', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{"numero_caso":1}')$q$, 'lesiones_cambios');
 select pruebas.debe_fallar('...y algo hay que cambiar', $q$select lesiones_cambiar((select id from lesiones where jugador_id = 9006 and fecha_lesion = '2026-09-20'), '{}')$q$, 'lesiones_cambios');
@@ -2636,10 +2622,11 @@ select pruebas.debe_fallar('...y cambiarlo avisa que ya no está', format($q$sel
 reset role;
 rollback;
 
--- ------------------------------------ Consentimiento de los atletas --
--- 20261103. Un club nuevo, sin confirmar: Nora (admin), Pablo (staff con
--- Lesiones, Evaluaciones y GPS) y Quique (staff, solo GPS). Lo que ya estaba
--- se carga sin cuenta (como desde el SQL Editor).
+-- ---------------------------------- Sin consentimiento de los atletas --
+-- 20261119 saca lo de 20261103 (Santiago, 23/10: «no lo vamos a usar»). Un
+-- club nuevo: Nora (admin), Pablo (staff con Lesiones, Evaluaciones y GPS),
+-- Quique (staff, solo GPS) y Rita (ya se fue). Lo que ya estaba se carga sin
+-- cuenta (como desde el SQL Editor).
 reset role;
 select set_config('request.jwt.claims', '', false);
 insert into public.equipos (id, nombre) values ('00000000-0000-0000-0000-0000000000e5', 'Club Nueve');
@@ -2655,61 +2642,21 @@ insert into public.club_miembros (equipo_id, user_id, desde, hasta, rol, partido
   ('00000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-0000000000a3', '2026-01-01', null, 'staff', false, false, false, false, true),
   ('00000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-0000000000a4', '2026-01-01', current_date - 1, 'staff', false, false, true, false, false);
 insert into public.lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000e5', 'Ya Estaba', '2026-05-01', '{}');
--- Al correr la migración, las personas que ya estaban quedan confirmadas
--- (sin nombre de quien confirmó); otra vez, no se repiten.
-\ir ../migrations/20261103_consentimiento.sql
-\ir ../migrations/20261103_consentimiento.sql
-select pruebas.esperar('Las personas que ya estaban quedan confirmadas una vez, sin nombre de quien confirmó',
-  (select count(*) from consentimientos where equipo_id = '00000000-0000-0000-0000-0000000000e5' and alcance = 'personas' and 'Ya Estaba' = any (personas)
-      and confirmado_por is null and confirmado_como is null), 1);
+-- Se puede volver a correr.
+\ir ../migrations/20261119_sin_consentimiento.sql
+select pruebas.esperar('Sin los disparadores del consentimiento', (select count(*) from pg_trigger where tgname = 'exigir_consentimiento' and not tgisinternal), 0);
+select pruebas.esperar('...ni la tabla de las confirmaciones', (select (to_regclass('public.consentimientos') is null)::text), 'true');
 
 select pruebas.ser('pablo@nueve.com'); set role authenticated;
-select pruebas.debe_fallar('Sin la confirmación del club no se agrega un jugador', $$insert into jugadores (equipo_id, nombre) values ('00000000-0000-0000-0000-0000000000e5', 'Nuevo Nueve')$$, 'falta_consentimiento');
-select pruebas.debe_fallar('...ni una lesión', $$insert into lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000e5', 'Ya Estaba', '2026-06-01', '{}')$$, 'falta_consentimiento');
-select pruebas.debe_fallar('...ni una evaluación', $$insert into evaluaciones (equipo_id, test, persona, fecha) values ('00000000-0000-0000-0000-0000000000e5', 'zona_media', 'Ya Estaba', '2026-06-01')$$, 'falta_consentimiento');
-select pruebas.debe_fallar('...ni el GPS', $$insert into gps (equipo_id, fecha, persona) values ('00000000-0000-0000-0000-0000000000e5', '2026-06-01', 'Ya Estaba')$$, 'falta_consentimiento');
-select pruebas.debe_fallar('...ni una carga de GPS en curso', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000e5', '2026-06-01', 0, '{}', '{}')$q$, 'falta_consentimiento');
-select pruebas.esperar('Lo que ya estaba se sigue cambiando', pruebas.filas($$update lesiones set datos = '{"comentarios":"corregido"}' where persona = 'Ya Estaba'$$), 1);
-select pruebas.debe_fallar('El staff no confirma por el club', $$insert into consentimientos (equipo_id, alcance, texto) values ('00000000-0000-0000-0000-0000000000e5', 'club', 'Confirmo.')$$, 'row-level security');
+select pruebas.esperar('Sin confirmar nada, se agrega un jugador', pruebas.filas($$insert into jugadores (equipo_id, nombre) values ('00000000-0000-0000-0000-0000000000e5', 'Nuevo Nueve')$$), 1);
+select pruebas.esperar('...una lesión de una persona nueva fuera de Datos básicos', pruebas.filas($$insert into lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000e5', 'Persona Nueva', '2026-06-02', '{}')$$), 1);
+select pruebas.esperar('...una evaluación', pruebas.filas($$insert into evaluaciones (equipo_id, test, persona, fecha) values ('00000000-0000-0000-0000-0000000000e5', 'zona_media', 'Persona Nueva', '2026-06-02')$$), 1);
+select pruebas.esperar('...el GPS', pruebas.filas($$insert into gps (equipo_id, fecha, persona) values ('00000000-0000-0000-0000-0000000000e5', '2026-06-02', 'Persona Nueva')$$), 1);
+select pruebas.esperar('...una carga de GPS en curso', (select (gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000e5', '2026-06-01', 0, '{}', '{}') ->> 'version')), '1');
+select pruebas.esperar('...y se pasa una fila a otra persona', pruebas.filas($$update lesiones set persona = 'Otra Persona' where persona = 'Ya Estaba' and fecha_lesion = '2026-05-01'$$), 1);
 reset role;
 select pruebas.ser('eva@dos.com'); set role authenticated;
-select pruebas.debe_fallar('Alguien de otro club no se entera de si confirmó: lo frenan las reglas', $$insert into jugadores (equipo_id, nombre) values ('00000000-0000-0000-0000-0000000000e5', 'Espía')$$, 'row-level security');
-select pruebas.debe_fallar('...ni confirma por él', $$insert into consentimientos (equipo_id, alcance, texto) values ('00000000-0000-0000-0000-0000000000e5', 'club', 'Confirmo.')$$, 'row-level security');
-select pruebas.esperar('...ni ve sus confirmaciones', (select count(*) from consentimientos where equipo_id = '00000000-0000-0000-0000-0000000000e5'), 0);
-reset role;
-select pruebas.ser('nora@nueve.com'); set role authenticated;
-select pruebas.esperar('El administrador confirma una vez por el club',
-  pruebas.filas($$insert into consentimientos (equipo_id, alcance, texto, confirmado_por, confirmado_en, confirmado_como)
-                  values ('00000000-0000-0000-0000-0000000000e5', 'club', 'Confirmo que el club tiene el consentimiento.', '00000000-0000-0000-0000-0000000000a2', '2020-01-01', 'entidad')$$), 1);
-select pruebas.esperar('...a su nombre, hoy y como administrador (lo pone la base)',
-  (select confirmado_como || ',' || confirmado_email || ',' || (confirmado_en > now() - interval '1 hour')::text || ',' || (confirmado_por = auth.uid())::text
-     from consentimientos where equipo_id = '00000000-0000-0000-0000-0000000000e5' and alcance = 'club'), 'administrador,nora@nueve.com,true,true');
-select pruebas.debe_fallar('La confirmación no se cambia', $$update consentimientos set texto = 'otro'$$, 'permission denied');
-select pruebas.debe_fallar('...ni se borra', $$delete from consentimientos$$, 'permission denied');
-reset role;
-select pruebas.ser('pablo@nueve.com'); set role authenticated;
-select pruebas.esperar('Confirmado el club, se agrega un jugador', pruebas.filas($$insert into jugadores (equipo_id, nombre) values ('00000000-0000-0000-0000-0000000000e5', 'Nuevo Nueve')$$), 1);
-select pruebas.esperar('...y se cargan datos de quien ya estaba', pruebas.filas($$insert into lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000e5', 'Ya Estaba', '2026-06-01', '{}')$$), 1);
-select pruebas.debe_fallar('Una persona nueva fuera de Datos básicos pide su confirmación', $$insert into lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000e5', 'Persona Nueva', '2026-06-02', '{}')$$, 'falta_consentimiento_persona');
-select pruebas.debe_fallar('...también en Evaluaciones', $$insert into evaluaciones (equipo_id, test, persona, fecha) values ('00000000-0000-0000-0000-0000000000e5', 'zona_media', 'Persona Nueva', '2026-06-02')$$, 'falta_consentimiento_persona');
-select pruebas.debe_fallar('...y en el GPS', $$insert into gps (equipo_id, fecha, persona) values ('00000000-0000-0000-0000-0000000000e5', '2026-06-02', 'Persona Nueva')$$, 'falta_consentimiento_persona');
-select pruebas.debe_fallar('...y al pasarle una fila que ya estaba', $$update lesiones set persona = 'Persona Nueva' where persona = 'Ya Estaba' and fecha_lesion = '2026-05-01'$$, 'falta_consentimiento_persona');
-select pruebas.esperar('Quien carga el archivo confirma a sus personas',
-  pruebas.filas($$insert into consentimientos (equipo_id, alcance, base, personas, texto)
-                  values ('00000000-0000-0000-0000-0000000000e5', 'personas', 'lesiones', array['  Persona   Nueva ', 'Persona Nueva', ''], 'Confirmo el consentimiento de estas personas.')$$), 1);
-select pruebas.esperar('...una vez cada nombre, como carga',
-  (select array_to_string(personas, ',') || ',' || confirmado_como from consentimientos where equipo_id = '00000000-0000-0000-0000-0000000000e5' and base = 'lesiones' and confirmado_por = auth.uid()),
-  'Persona Nueva,carga');
-select pruebas.esperar('...y ya se carga, escrita como sea', pruebas.filas($$insert into lesiones (equipo_id, persona, fecha_lesion, datos) values ('00000000-0000-0000-0000-0000000000e5', 'persona  nueva', '2026-06-02', '{}')$$), 1);
-select pruebas.esperar('...también en otra base del club', pruebas.filas($$insert into gps (equipo_id, fecha, persona) values ('00000000-0000-0000-0000-0000000000e5', '2026-06-02', 'Persona Nueva')$$), 1);
-reset role;
-select pruebas.ser('quique@nueve.com'); set role authenticated;
-select pruebas.debe_fallar('Sin Lesiones no se confirman personas de Lesiones', $$insert into consentimientos (equipo_id, alcance, base, personas, texto) values ('00000000-0000-0000-0000-0000000000e5', 'personas', 'lesiones', array['Otra'], 'Confirmo.')$$, 'row-level security');
-select pruebas.esperar('...ni se ven las que se confirmaron ahí', (select count(*) from consentimientos where equipo_id = '00000000-0000-0000-0000-0000000000e5' and alcance = 'personas' and base = 'lesiones'), 0);
-select pruebas.esperar('...pero sí que el club confirmó', (select count(*) from consentimientos where equipo_id = '00000000-0000-0000-0000-0000000000e5' and alcance = 'club'), 1);
-reset role;
-select pruebas.ser('rita@nueve.com'); set role authenticated;
-select pruebas.esperar('Quien se fue del club no ve las personas que se confirmaron', (select count(*) from consentimientos where equipo_id = '00000000-0000-0000-0000-0000000000e5' and alcance = 'personas'), 0);
+select pruebas.debe_fallar('Alguien de otro club sigue sin poder cargar: lo frenan las reglas', $$insert into jugadores (equipo_id, nombre) values ('00000000-0000-0000-0000-0000000000e5', 'Espía')$$, 'row-level security');
 reset role;
 
 -- ------------------------------------ Exportar los datos de un atleta --

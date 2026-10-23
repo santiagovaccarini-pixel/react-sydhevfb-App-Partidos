@@ -26,7 +26,6 @@ import {
   IconoPartido,
 } from "./components/PortalArt.jsx";
 import { AccesosDelClub, ClubDelPortal, Portada, TarjetasDelPortal } from "./components/PortalTarjetas.jsx";
-import { AvisoConsentimiento } from "./components/Consentimiento.jsx";
 import { t, useIdioma } from "./idioma/index.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import { cargarEquipos, guardarEquipoElegido, leerEquipoElegido } from "./domain/equipo.js";
@@ -169,7 +168,6 @@ const Portal = ({ onElegir, permisos, email, onSalir, onCuentas, onClubesDeLaApp
           <p>{tarjetas.length === 1 ? t("portal.unSolo") : t("portal.elegi")}</p>
         </div>
 
-        <AvisoConsentimiento club={equipo} adminClub={Boolean(permisos?.adminClub)} />
         <TarjetasDelPortal tarjetas={tarjetas} onElegir={onElegir} />
         <AccesosDelClub titulo={t("portal.delClub")} tarjetas={delClub} onElegir={onElegir} />
       </section>

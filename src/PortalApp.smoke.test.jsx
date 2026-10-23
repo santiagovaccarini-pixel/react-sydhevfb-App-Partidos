@@ -10,9 +10,6 @@ const equipo = vi.hoisted(() => ({
   actual: { id: "eq-1", nombre: "Atlético Mineiro" },
   lista: [{ id: "eq-1", nombre: "Atlético Mineiro" }, { id: "eq-2", nombre: "Cruzeiro" }],
 }));
-// El consentimiento de los atletas del club (20261103): si ya lo confirmó y
-// lo que se confirmó desde el portal.
-const consentimiento = vi.hoisted(() => ({ confirmado: true, confirmaciones: [] }));
 const cuenta = vi.hoisted(() => ({
   email: "dt@club.com",
   userId: "u1",
@@ -48,14 +45,6 @@ vi.mock("./domain/equipo.js", () => ({
   },
   cargarEquipos: async () => ({ equipos: equipo.lista }),
   esElCam: (nombre) => nombre === "Atlético Mineiro",
-}));
-vi.mock("./domain/consentimientoDb.js", () => ({
-  leerConsentimientoDelClub: async () => ({ confirmado: consentimiento.confirmado, sinTabla: false, error: "" }),
-  confirmarConsentimientoDelClub: async (equipoId, texto) => {
-    consentimiento.confirmaciones.push({ equipoId, texto });
-    consentimiento.confirmado = true;
-    return { error: "" };
-  },
 }));
 vi.mock("./CuentasAdmin.jsx", () => ({ default: ({ onVolver }) => <div className="cuentas-de-prueba"><button type="button" onClick={onVolver}>Volver al portal</button></div> }));
 vi.mock("./ClubesDeLaApp.jsx", () => ({
@@ -112,8 +101,6 @@ describe("el portal", () => {
     equipo.lista = [{ id: "eq-1", nombre: "Atlético Mineiro" }, { id: "eq-2", nombre: "Cruzeiro" }];
     cuenta.permisos = { partido: true, flujo: true };
     cuenta.cerrarSesion = vi.fn();
-    consentimiento.confirmado = true;
-    consentimiento.confirmaciones = [];
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
   });
@@ -542,53 +529,15 @@ describe("el portal", () => {
     expect(contenedor.querySelector(".cuentas-de-prueba")).not.toBeNull();
   });
 
-  test("si el club no confirmó el consentimiento de los atletas, su administrador lo confirma una vez desde el portal", async () => {
+  // Sin el consentimiento de los atletas (Santiago, 23/10: «no lo vamos a
+  // usar»): ningún aviso para confirmarlo, ni al administrador.
+  test("el portal no pide confirmar el consentimiento de los atletas", async () => {
     equipo.actual = { id: "eq-1", nombre: "Club de Prueba", rol: "admin", partido: true, flujo: false, lesiones: true };
     equipo.lista = [{ ...equipo.actual }];
-    consentimiento.confirmado = false;
-    await montar();
-    await act(async () => Promise.resolve());
-
-    const aviso = contenedor.querySelector(".aviso-consentimiento");
-    expect(aviso.querySelector("b").textContent).toBe("Consentimiento de los atletas");
-    expect(aviso.textContent).toContain("Lo confirmás vos, una sola vez.");
-    await act(async () => aviso.querySelector("button").click());
-    const declaracion =
-      "Confirmo, en nombre de Club de Prueba, que el club tiene el consentimiento de cada atleta (o el de su madre, padre o tutor, si es menor de edad) para cargar y usar sus datos en esta app, incluidos los de salud. El club guarda esos consentimientos firmados.";
-    const hoja = document.querySelector(".hoja-confirmar");
-    expect(hoja.querySelector("p").textContent).toBe(declaracion);
-    expect(hoja.querySelector(".boton-cancelar-hoja").textContent).toBe("Ahora no");
-    await act(async () => hoja.querySelector(".boton-confirmar-hoja").click());
-    // Se guarda lo que se aceptó, tal como se mostró.
-    expect(consentimiento.confirmaciones).toEqual([{ equipoId: "eq-1", texto: declaracion }]);
-    expect(document.querySelector(".hoja-confirmar")).toBeNull();
-    expect(contenedor.querySelector(".aviso-consentimiento").textContent).toBe("Listo: el consentimiento de los atletas quedó confirmado.");
-    expect(contenedor.querySelector(".aviso-consentimiento button")).toBeNull();
-  });
-
-  test("sin la confirmación, el resto del club ve que la tiene que hacer el administrador; con ella o después de irse, no hay aviso", async () => {
-    equipo.actual = { id: "eq-1", nombre: "Club de Prueba", rol: "staff", partido: true, flujo: false, lesiones: false };
-    equipo.lista = [{ ...equipo.actual }];
-    consentimiento.confirmado = false;
-    await montar();
-    await act(async () => Promise.resolve());
-    const aviso = contenedor.querySelector(".aviso-consentimiento");
-    expect(aviso.textContent).toContain("el administrador del club tiene que confirmar que el club tiene el consentimiento de sus atletas. Avisale.");
-    expect(aviso.querySelector("button")).toBeNull();
-    await act(async () => raiz.unmount());
-
-    consentimiento.confirmado = true;
     await montar();
     await act(async () => Promise.resolve());
     expect(contenedor.querySelector(".aviso-consentimiento")).toBeNull();
-    await act(async () => raiz.unmount());
-
-    consentimiento.confirmado = false;
-    equipo.actual = { ...equipo.actual, hasta: "2026-09-25", miembro: true };
-    equipo.lista = [{ ...equipo.actual }];
-    await montar();
-    await act(async () => Promise.resolve());
-    expect(contenedor.querySelector(".aviso-consentimiento")).toBeNull();
+    expect(contenedor.textContent).not.toContain("Consentimiento de los atletas");
   });
 
   test("si el admin del club cambia los módulos, al volver al portal se ven los nuevos", async () => {

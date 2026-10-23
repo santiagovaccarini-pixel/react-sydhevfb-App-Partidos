@@ -20,7 +20,6 @@ import { textoDeMinutos } from "./domain/tabla.js";
 import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
-import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
 import { falloDeRed } from "./components/SinSenal.jsx";
 
 // Pegar desde Excel, en Evaluaciones › Base: se pega la tabla de la hoja del
@@ -85,10 +84,6 @@ export default function ImportarEvaluaciones({
   // la fila: destino }.
   const [elegidos, setElegidos] = useState(() => enEspera?.elegidos || {});
   const [hojaFila, setHojaFila] = useState(null);
-  // Las personas que no están en Datos básicos: antes de guardar, quien
-  // carga confirma su consentimiento (20261103).
-  const consentimiento = useConsentimientoPersonas(equipoId, "evaluaciones");
-  const [errorConsentimiento, setErrorConsentimiento] = useState("");
   const hoy = hoyISO();
   const esteAnio = Number(hoy.slice(0, 4));
   // El año de las fechas que vienen sin año ("12-jun").
@@ -158,7 +153,6 @@ export default function ImportarEvaluaciones({
     setFalla("");
     setCargadasAntes(null);
     setElegidos({});
-    setErrorConsentimiento("");
   };
 
   // Qué puede ser una fila con un nombre que no está en Datos básicos.
@@ -247,14 +241,6 @@ export default function ImportarEvaluaciones({
     };
     if (sinSenal && onAlAparato) {
       if (!aCargar.length) return;
-      // Las personas fuera de Datos básicos, con su consentimiento (sin señal
-      // no se puede dejar confirmado: lo dice).
-      setErrorConsentimiento("");
-      const permiso = await consentimiento.pedir(aCargar.filter((fila) => !fila.evaluacion.jugador_id).map((fila) => fila.evaluacion.persona));
-      if (!permiso.sigue) {
-        setErrorConsentimiento(permiso.error);
-        return;
-      }
       alAparato(aCargar);
       return;
     }
@@ -268,12 +254,6 @@ export default function ImportarEvaluaciones({
     }
     const lista = reemplazar ? ordenDeCargaReemplazando(plan, choques) : aCargar;
     if (lista.length === 0) return;
-    setErrorConsentimiento("");
-    const permiso = await consentimiento.pedir(lista.filter((fila) => !fila.evaluacion.jugador_id).map((fila) => fila.evaluacion.persona));
-    if (!permiso.sigue) {
-      setErrorConsentimiento(permiso.error);
-      return;
-    }
     // Los nombres que siguen sin elegir no se cargan: la pantalla queda
     // abierta con ellos.
     const quedanSinElegir = sinElegir.length;
@@ -363,11 +343,6 @@ export default function ImportarEvaluaciones({
 
         {plantelSinLeer && texto.trim() && <div className="lesiones-estado error">{t("evaluaciones.importar.plantelSinLeer")}</div>}
         {leido?.error && <div className="lesiones-estado error">{t(leido.error)}</div>}
-        {errorConsentimiento && (
-          <div className="lesiones-estado error" role="alert">
-            {t(errorConsentimiento)}
-          </div>
-        )}
 
         {falla && (
           <div className="lesiones-estado error" role="alert">
@@ -542,7 +517,6 @@ export default function ImportarEvaluaciones({
         onConfirmar={() => cargar({ reemplazar: true })}
         onCerrar={() => setOtrasDelDia(null)}
       />
-      {consentimiento.hoja}
     </div>
   );
 }
