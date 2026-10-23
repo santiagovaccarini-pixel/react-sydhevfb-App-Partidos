@@ -1871,6 +1871,58 @@ describe("Evaluaciones", () => {
     expect(datos.cabeceras).toHaveLength(2);
   });
 
+  test("Ajustes › Lectura del PDF: con un PDF de ejemplo, el nombre se elige en un desplegable (o a mano)", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.textContent.includes("Lectura del PDF (Isocinecia)")));
+    const fila = (titulo) => [...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === titulo);
+    const hoja = () => document.body.querySelector(".lesiones-hoja");
+    const opciones = () => [...hoja().querySelector("select").options].map((opcion) => opcion.textContent);
+    const elegirArchivo = async (archivo) => {
+      const entrada = hoja().querySelector(".evaluaciones-pdf-ejemplo-archivo");
+      await act(async () => {
+        Object.defineProperty(entrada, "files", { value: [archivo], configurable: true });
+        entrada.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      for (let vuelta = 0; vuelta < 40 && hoja().textContent.includes("Leyendo…"); vuelta += 1) {
+        await act(async () => new Promise((listo) => setTimeout(listo, 5)));
+      }
+    };
+    await tocar(fila("Work/BW"));
+    // Sin un PDF de ejemplo no hay filas: se escribe.
+    expect(hoja().querySelector("select")).toBeNull();
+    expect(hoja().querySelector("input[type=text]").value).toBe("WRK/BODYWEIGHT");
+    expect(hoja().textContent).toContain("Para elegir el nombre de una lista, elegí un PDF del isocinético: se lee en este aparato y no se guarda.");
+    // Lo que no es un PDF no da filas.
+    await elegirArchivo(new File([new TextEncoder().encode("hola")], "nota.pdf", { type: "application/pdf" }));
+    expect(hoja().textContent).toContain("No es un PDF.");
+    expect(hoja().querySelector("select")).toBeNull();
+    // Con el PDF de ejemplo: sus filas, sin las de las otras medidas que se
+    // usan, y el nombre de ahora, que no está en este PDF.
+    await elegirArchivo(new File([pdfDePrueba({ rotulos: { "WRK/BODYWEIGHT": "WORK/BW" } })], "ejemplo.pdf", { type: "application/pdf" }));
+    expect(opciones()).toEqual(["WRK/BODYWEIGHT (el de ahora)", "PEAK TORQUE", "TIME TO PK TQ", "WORK/BW", "Escribir a mano…"]);
+    expect(hoja().querySelector("select").selectedIndex).toBe(0);
+    expect(hoja().textContent).toContain("«WRK/BODYWEIGHT» no está en «ejemplo.pdf».");
+    expect(hoja().querySelector("input[type=text]")).toBeNull();
+    expect(hoja().textContent).toContain("Las filas son de «ejemplo.pdf» (no se guarda).");
+    expect(boton(document.body, "Elegir otro PDF")).toBeTruthy();
+    await elegirOpcion(hoja().querySelector("select"), "WORK/BW");
+    expect(hoja().textContent).not.toContain("no está en «ejemplo.pdf»");
+    // A mano, y de vuelta a la lista.
+    await elegirOpcion(hoja().querySelector("select"), "Escribir a mano…");
+    expect(hoja().querySelector("input[type=text]").value).toBe("WORK/BW");
+    await escribir(hoja().querySelector("input[type=text]"), "WORK / BW");
+    expect(hoja().querySelector("select").value).toBe("__a_mano__");
+    await elegirOpcion(hoja().querySelector("select"), "WORK/BW");
+    expect(hoja().querySelector("input[type=text]")).toBeNull();
+    await tocar(boton(contenedor, "Guardar"));
+    expect(datos.cabeceras).toEqual([{ equipoId: "eq-1", test: "isocinecia", campo: "pdf.work", etiquetas: { "es-AR": "WORK/BW", "pt-BR": "WORK/BW" }, oculto: false, orden: 0 }]);
+    // Otra medida: las filas del PDF de ejemplo siguen, y WORK/BW ya es de Work/BW.
+    await tocar(fila("Average Power"));
+    expect(opciones()).toEqual(["PEAK TORQUE", "TIME TO PK TQ", "AVG. POWER", "Escribir a mano…"]);
+    expect(hoja().querySelector("select").value).toBe("AVG. POWER");
+  });
+
   test("Isocinecia con PDF: si el nombre de una medida no aparece, se elige la fila en la tarjeta y queda en Ajustes", async () => {
     await montar();
     await irA(contenedor, "Base");
@@ -1892,15 +1944,19 @@ describe("Evaluaciones", () => {
     const tarjetas = () => [...contenedor.querySelectorAll(".evaluaciones-pdf-tarjeta")];
     const faltas = (tarjeta) => [...tarjeta.querySelectorAll(".evaluaciones-pdf-falta")];
     expect(faltas(tarjetas()[0])).toHaveLength(1);
-    expect(faltas(tarjetas()[0])[0].textContent).toContain("No se encontró «WRK/BODYWEIGHT» (Work/BW) en este PDF. ¿Cuál de estas filas es?");
-    expect([...faltas(tarjetas()[0])[0].querySelectorAll("label")].map((opcion) => opcion.textContent)).toEqual(["PEAK TORQUE", "TIME TO PK TQ", "WORK/BW"]);
+    expect(faltas(tarjetas()[0])[0].textContent).toContain("No se encontró «WRK/BODYWEIGHT» (Work/BW) en este PDF. ¿Qué fila del PDF es?");
+    // En un desplegable (Santiago, 23/10: «Desplegable en los dos»).
+    const desplegable = faltas(tarjetas()[0])[0].querySelector("select");
+    expect(desplegable.getAttribute("aria-label")).toBe("Fila del PDF para Work/BW");
+    expect([...desplegable.options].map((opcion) => opcion.textContent)).toEqual(["Elegí la fila…", "PEAK TORQUE", "TIME TO PK TQ", "WORK/BW"]);
+    expect([...faltas(tarjetas()[0])[0].querySelectorAll("button")].find((b) => b.textContent === "Usar esta").disabled).toBe(true);
     expect(faltas(tarjetas()[1])).toHaveLength(2);
     // Sin elegir, no se guarda.
     await tocar(boton(contenedor, "Guardar 2 evaluaciones"));
     expect(contenedor.textContent).toContain("alfa.pdf: falta elegir qué fila del PDF es Work/BW (o «Dejar vacía»).");
     expect(datos.creadas).toHaveLength(0);
     // Se elige WORK/BW: queda en Ajustes y sirve para los dos PDF.
-    await tocar([...faltas(tarjetas()[0])[0].querySelectorAll("input[type=radio]")].find((radio) => radio.value === "WORK/BW"));
+    await elegirOpcion(faltas(tarjetas()[0])[0].querySelector("select"), "WORK/BW");
     await tocar([...faltas(tarjetas()[0])[0].querySelectorAll("button")].find((b) => b.textContent === "Usar esta"));
     expect(datos.cabeceras).toEqual([{ equipoId: "eq-1", test: "isocinecia", campo: "pdf.work", etiquetas: { "es-AR": "WORK/BW", "pt-BR": "WORK/BW" }, oculto: false, orden: 0 }]);
     expect(document.body.textContent).toContain("Quedó en Ajustes: Work/BW se lee de «WORK/BW».");
@@ -1936,7 +1992,7 @@ describe("Evaluaciones", () => {
       await act(async () => new Promise((listo) => setTimeout(listo, 5)));
     }
     const falta = contenedor.querySelector(".evaluaciones-pdf-falta");
-    await tocar([...falta.querySelectorAll("input[type=radio]")].find((radio) => radio.value === "WORK/BW"));
+    await elegirOpcion(falta.querySelector("select"), "WORK/BW");
     await tocar([...falta.querySelectorAll("button")].find((b) => b.textContent === "Usar esta"));
     expect(datos.cabeceras).toEqual([]);
     expect(contenedor.textContent).toContain("No se pudo guardar en Ajustes (");

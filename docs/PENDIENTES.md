@@ -3601,6 +3601,10 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
       tarjeta»; lo cambia «Quien cambia los Ajustes». En la app: Ajustes › «Lectura del PDF
       (Isocinecia)» y, en «Revisar lo leído», la lista de las filas libres del PDF con «Dejar
       vacía» y «Usar esta» (ver UI-083). Sin migración: va en `evaluaciones_campos`.
+      Después (23/10, 2026.10.23.13): Santiago preguntó si el nombre era un desplegable y eligió
+      «Desplegable en los dos»: en la tarjeta, las filas libres van en un desplegable; en Ajustes,
+      «Elegir un PDF de ejemplo» (se lee en el aparato, no se guarda) da las filas del desplegable,
+      con «Escribir a mano…» (ver UI-083).
     - **Lo que sigue de la nota:** conectar con VALD (falta que Santiago diga qué aparatos y
       qué datos), confirmado en un cuestionario antes de empezar.
   - **El cuerpo humano**: la figura de la carga se sacó (hecho el 15/10, ver «Lesiones: lo que

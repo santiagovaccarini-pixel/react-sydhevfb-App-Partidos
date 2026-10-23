@@ -51,7 +51,7 @@ export const lecturaDeConfig = (config) =>
 export const LECTURA_DE_ENTRADA = lecturaDeConfig(null);
 
 // Los nombres se comparan sin mayúsculas ni espacios de más.
-const comoRotulo = (texto) => String(texto ?? "").replace(/\s+/g, " ").trim().toUpperCase();
+export const comoRotulo = (texto) => String(texto ?? "").replace(/\s+/g, " ").trim().toUpperCase();
 
 // Cuánto puede correrse un texto de su fila (en puntos de la página).
 const MISMA_FILA = 3;
@@ -234,6 +234,22 @@ export const textosDelPdf = async (datos, { inflar = inflarConElNavegador } = {}
   }
 };
 
+// Las filas de la tabla de todas las páginas, una vez cada una y en el orden
+// del PDF.
+const filasSinRepetir = (paginas) => {
+  const filas = [];
+  paginas.forEach((pagina) => pagina.filas.forEach((fila) => !filas.some((otra) => comoRotulo(otra) === comoRotulo(fila)) && filas.push(fila)));
+  return filas;
+};
+
+// Todas las filas de un PDF de ejemplo, para elegir en Ajustes el nombre de
+// una medida en un desplegable (Santiago, 23/10: «Desplegable en los dos»):
+// { filas } o { error } si no es el informe del isocinético.
+export const filasDelPdf = (paginasDelPdf = []) => {
+  const paginas = paginasDelPdf.map((textos) => leerPagina(textos)).filter(Boolean);
+  return paginas.length ? { filas: filasSinRepetir(paginas) } : { error: "evaluaciones.pdf.noEsIsocinecia" };
+};
+
 // Lo leído con una forma de leer cada medida: { nombre, fecha, datos: { pc,
 // v60_…, … }, velocidades: [60, 180, 300], faltan: [grados que no vinieron],
 // noEncontradas: [medidas que se usan y cuyo nombre no aparece], filasLibres:
@@ -250,12 +266,7 @@ export const leerPaginas = (paginasDelPdf = [], lectura = LECTURA_DE_ENTRADA) =>
   const usadas = new Set(
     MEDIDAS_PDF.filter(({ clave }) => paginas.some((pagina) => pagina.encontradas.includes(clave))).map(({ clave }) => comoRotulo((lectura[clave] || LECTURA_DE_ENTRADA[clave]).nombre)),
   );
-  const filasLibres = [];
-  paginas.forEach((pagina) =>
-    pagina.filas.forEach((fila) => {
-      if (!usadas.has(comoRotulo(fila)) && !filasLibres.some((otra) => comoRotulo(otra) === comoRotulo(fila))) filasLibres.push(fila);
-    }),
-  );
+  const filasLibres = filasSinRepetir(paginas).filter((fila) => !usadas.has(comoRotulo(fila)));
   return {
     nombre: primera.nombre,
     fecha: fechaDeSesion(primera.sesion),

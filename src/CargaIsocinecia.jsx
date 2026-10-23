@@ -30,8 +30,8 @@ import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 //
 // Cada medida se lee con el nombre de su fila en Ajustes (lectura; Santiago,
 // 23/10: «Nombre y si se usa»). Si el nombre de una no aparece en un PDF, la
-// tarjeta lo dice y muestra las filas del PDF que no se usan para elegir cuál
-// es («Se elige en la tarjeta»): lo elegido queda en Ajustes para los
+// tarjeta lo dice y muestra las filas del PDF que no se usan, en un
+// desplegable, para elegir cuál es («Se elige en la tarjeta»): lo elegido queda en Ajustes para los
 // próximos PDF (quien carga tiene Edición, como para cambiar los Ajustes); sin
 // señal, o si no se puede guardar, vale para esta carga (lecturaPropia). O
 // «Dejar vacía» (vacias).
@@ -204,14 +204,21 @@ export default function CargaIsocinecia({
       <div className="evaluaciones-pdf-falta" key={medida} role="group" aria-label={tituloDeMedida(medida)}>
         <p>{t(filasLibres.length ? "evaluaciones.pdf.noEncontrada" : "evaluaciones.pdf.noEncontradaSinFilas", { nombre, medida: tituloDeMedida(medida) })}</p>
         {filasLibres.length > 0 && (
-          <div className="evaluaciones-pdf-filas">
+          // En un desplegable (Santiago, 23/10: «Desplegable en los dos»).
+          <select
+            className="evaluaciones-pdf-fila"
+            value={filasElegidas[clave] || ""}
+            onChange={(evento) => setFilasElegidas((actual) => ({ ...actual, [clave]: evento.target.value }))}
+            aria-label={t("evaluaciones.pdf.filaDelPdf", { medida: tituloDeMedida(medida) })}
+            disabled={guardandoFila === clave}
+          >
+            <option value="">{t("evaluaciones.pdf.elegirFila")}</option>
             {filasLibres.map((fila) => (
-              <label key={fila} className={filasElegidas[clave] === fila ? "elegida" : undefined}>
-                <input type="radio" name={clave} value={fila} checked={filasElegidas[clave] === fila} onChange={() => setFilasElegidas((actual) => ({ ...actual, [clave]: fila }))} />
-                <span>{fila}</span>
-              </label>
+              <option key={fila} value={fila}>
+                {fila}
+              </option>
             ))}
-          </div>
+          </select>
         )}
         <div className="evaluaciones-pdf-falta-acciones">
           <button type="button" className="boton-secundario" onClick={() => dejarVacia(pdf, medida)} disabled={guardandoFila === clave}>

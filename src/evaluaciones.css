@@ -861,6 +861,17 @@
 .evaluaciones-marco .evaluaciones-pdf-archivo {
   display: none;
 }
+/* Ajustes › Lectura del PDF: el PDF de ejemplo del que salen las filas del
+   desplegable (Santiago, 23/10: «Desplegable en los dos»). */
+.evaluaciones-marco .evaluaciones-pdf-ejemplo {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+.evaluaciones-marco .evaluaciones-pdf-ejemplo .evaluaciones-pdf-elegir {
+  min-height: 42px;
+  margin: 0;
+}
 .evaluaciones-marco .evaluaciones-pdf-cuantos {
   margin: 8px 0 0;
   color: #475569;
@@ -904,37 +915,18 @@
   font-weight: 700;
   line-height: 1.4;
 }
-.evaluaciones-marco .evaluaciones-pdf-filas {
-  display: grid;
-  gap: 6px;
-  max-height: 240px;
-  overflow-y: auto;
-}
-.evaluaciones-marco .evaluaciones-pdf-filas label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 40px;
+.evaluaciones-marco .evaluaciones-pdf-falta select {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
   margin: 0;
-  padding: 6px 10px;
-  border: 1px solid #e2e8f0;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
   border-radius: 10px;
   background: #fff;
   color: #0f172a;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
-  cursor: pointer;
-}
-.evaluaciones-marco .evaluaciones-pdf-filas label.elegida {
-  border-color: #a16207;
-  box-shadow: 0 0 0 1px #a16207 inset;
-}
-.evaluaciones-marco .evaluaciones-pdf-filas input {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: #a16207;
 }
 .evaluaciones-marco .evaluaciones-pdf-falta-acciones {
   display: flex;
