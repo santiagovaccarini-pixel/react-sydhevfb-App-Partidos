@@ -6,7 +6,9 @@
 // señal «Lo sube sola y avisa»). Va por partes; la 3c.1: cambiar celdas y
 // borrar filas de la Base; la 3c.2b: «Cargar un día» y «Dejar para revisar»
 // (Santiago, 23/10: sin señal el «Vs» va a mano, lo dejado para revisar
-// «Queda en el aparato» y al subir valen las reglas del «Mismo CSV»). Acá,
+// «Queda en el aparato» y al subir valen las reglas del «Mismo CSV»); la
+// 3c.3: «Pegar desde una planilla» (al subir, lo que ya está no se carga de
+// nuevo y la Regla 1 espera y pregunta). Acá,
 // sin pantalla: qué queda en la cola con cada cosa que se hace, cómo se ve
 // lo que espera y cómo se sube.
 //
@@ -28,8 +30,12 @@
 //   · { tipo: "enCurso", id: "local:…", base, fecha, paso, resumen, datos,
 //     dejadaEn }: una carga dejada para revisar sin señal. base: la de la
 //     base que se siguió ({ id, version }), si se siguió una.
+//   · { tipo: "pegado", id: "local:…", dispositivo, filas, reemplazar?,
+//     chocan? }: lo pegado sin señal (de uno o más días), con sus filas como
+//     las de un día.
 import { esLocal, nuevoIdLocal } from "../evaluaciones/espera.js";
 import { filasDeLaMismaSesion, filasEnOtroCsv, filasYaEnLaBase } from "./cargar.js";
+import { ESTADOS, diasDeLaMismaSesion, planDeLoPegado } from "./importar.js";
 import { datosConCambio } from "./valores.js";
 
 export { esLocal };
@@ -54,14 +60,17 @@ export const conCambio = (cola, { id, cambios = {}, antes = {} }) => {
   return cola.map((uno) => (uno === ya ? { ...uno, cambios: { ...uno.cambios, ...cambios }, antes: { ...antes, ...uno.antes } } : uno));
 };
 
-// Borrar: lo que esperaba para esa fila ya no hace falta. Las de un día que
-// espera salen de su día (y el día, si se queda sin filas).
+// Lo que espera con filas propias: un día o lo pegado.
+const conFilas = (uno) => uno.tipo === "dia" || uno.tipo === "pegado";
+
+// Borrar: lo que esperaba para esa fila ya no hace falta. Las de un día (o
+// de lo pegado) que espera salen de ahí (y el día, si se queda sin filas).
 export const conBorradas = (cola, ids = []) => {
   const locales = new Set(ids.filter(esLocal));
   const nuevas = new Set(ids.filter((id) => !esLocal(id)));
   const sinLocales = locales.size
     ? cola.flatMap((uno) => {
-        if (uno.tipo !== "dia" || !uno.filas.some((fila) => locales.has(fila.id))) return [uno];
+        if (!conFilas(uno) || !uno.filas.some((fila) => locales.has(fila.id))) return [uno];
         const filas = uno.filas.filter((fila) => !locales.has(fila.id));
         return filas.length ? [{ ...uno, filas }] : [];
       })
@@ -95,12 +104,26 @@ export const conDia = (cola, { fecha, dispositivo = "", filas = [], enCurso = nu
   return { cola: [...cola.filter((uno) => uno !== deAca), dia], id };
 };
 
-// Una fila de un día que espera, cambiada.
-export const conFilaCambiada = (cola, fila) =>
-  cola.map((uno) => (uno.tipo === "dia" && uno.filas.some((una) => una.id === fila.id) ? { ...uno, filas: uno.filas.map((una) => (una.id === fila.id ? { ...fila } : una)) } : uno));
+// «Pegar desde una planilla» sin señal: lo pegado entra en la cola, con un
+// id para cada fila. Devuelve { cola, id }.
+export const conPegado = (cola, { dispositivo = "", filas = [], reemplazar = false }) => {
+  const id = nuevoIdLocal();
+  const pegado = {
+    tipo: "pegado",
+    id,
+    dispositivo,
+    filas: filas.map((fila, i) => ({ ...paraLaBase(fila), id: `${id}#${i + 1}`, orden: i + 1 })),
+    ...(reemplazar ? { reemplazar: true } : {}),
+  };
+  return { cola: [...cola, pegado], id };
+};
 
-// La Regla 1 de un día que chocaba, contestada «Reemplazar y cargar».
-export const conReemplazo = (cola, id) => cola.map((uno) => (uno.tipo === "dia" && uno.id === id ? { ...uno, chocan: false, reemplazar: true } : uno));
+// Una fila de un día (o de lo pegado) que espera, cambiada.
+export const conFilaCambiada = (cola, fila) =>
+  cola.map((uno) => (conFilas(uno) && uno.filas.some((una) => una.id === fila.id) ? { ...uno, filas: uno.filas.map((una) => (una.id === fila.id ? { ...fila } : una)) } : uno));
+
+// La Regla 1 de lo que chocaba, contestada «Reemplazar y cargar».
+export const conReemplazo = (cola, id) => cola.map((uno) => (conFilas(uno) && uno.id === id ? { ...uno, chocan: false, reemplazar: true } : uno));
 
 // «Dejar para revisar» sin señal: queda en este aparato. Con el id de una
 // de este aparato, la cambia; con el de una de la base (se siguió esa), la
@@ -119,8 +142,8 @@ export const enCursoEnEspera = (cola = []) => cola.filter((uno) => uno.tipo === 
 
 // ------------------------------------------------------ Cómo se ve con ella --
 
-// Las filas de los días que esperan.
-const filasQueEsperan = (cola) => cola.flatMap((uno) => (uno.tipo === "dia" ? uno.filas : []));
+// Las filas de los días (y de lo pegado) que esperan.
+const filasQueEsperan = (cola) => cola.flatMap((uno) => (conFilas(uno) ? uno.filas : []));
 export const filaQueEspera = (cola = [], id) => filasQueEsperan(cola).find((fila) => fila.id === id) || null;
 
 // Por fecha; en un día, las de la base primero y en su orden.
@@ -141,11 +164,12 @@ export const conLoQueEspera = (filas = [], cola = []) => {
 // Las filas que esperan (para pintarlas): las cambiadas y las de los días.
 export const idsEnEspera = (cola = []) => new Set([...cola.filter((uno) => uno.tipo === "cambiar").map((uno) => uno.id), ...filasQueEsperan(cola).map((fila) => fila.id)]);
 
-// Cuánto espera (un día cuenta sus filas), cuánto choca y cuántos se suben solos.
+// Cuánto espera (un día o lo pegado cuenta sus filas), cuánto choca y
+// cuántos se suben solos.
 export const cuentaDeLaEspera = (cola = []) =>
   cola.reduce(
     (cuenta, uno) => {
-      const n = uno.tipo === "dia" ? uno.filas.length : 1;
+      const n = conFilas(uno) ? uno.filas.length : 1;
       return { total: cuenta.total + n, chocan: cuenta.chocan + (uno.chocan ? n : 0), pendientes: cuenta.pendientes + (uno.chocan ? 0 : 1) };
     },
     { total: 0, chocan: 0, pendientes: 0 },
@@ -213,6 +237,44 @@ const subirEnCurso = async (carga, { listar, dejar, enCursos, leerEnCurso }, { c
   return { estado: "listo", id: respuesta.id };
 };
 
+// Lo pegado sin señal, a la base (gps_pegar_filas, 20261112: de a tandas de
+// días enteros; lo que ya está igual no se carga de nuevo). Antes, la Regla
+// 1 con lo que hay ahora: los días que son una sesión que ya está con otros
+// datos esperan y se pregunta (los demás suben). Volver a subir lo mismo no
+// lo carga dos veces (ya está igual). Sin esa actualización, como antes: la
+// app deja afuera lo que ya está y lo crea. Devuelve { estado: listo |
+// chocan | red | error, creadas, yaEstaban, reemplazadas, quedan, dias }.
+const subirPegado = async (pegado, { pegar, crear, listar }, esDeRed) => {
+  const conRed = (respuesta) => (esDeRed(respuesta) ? { estado: "red" } : { estado: "error", error: respuesta.error });
+  const fechas = pegado.filas.map((fila) => fila.fecha).filter(Boolean).sort();
+  const enLaBase = async () => (fechas.length ? listar(fechas[0], fechas[fechas.length - 1]) : { filas: [], error: "" });
+  const delRango = await enLaBase();
+  if (delRango.error) return conRed(delRango);
+  const dias = pegado.reemplazar ? [] : diasDeLaMismaSesion(planDeLoPegado(pegado.filas, delRango.filas), delRango.filas, pegado.dispositivo);
+  const chocan = new Set(dias.map((dia) => dia.fecha));
+  const ahora = pegado.filas.filter((fila) => !chocan.has(fila.fecha));
+  const hecho = { creadas: 0, yaEstaban: 0, reemplazadas: 0 };
+  if (ahora.length) {
+    const respuesta = await pegar({ dispositivo: pegado.dispositivo, filas: ahora.map(paraLaBase), reemplazar: Boolean(pegado.reemplazar) });
+    if (respuesta.conOtras) {
+      // Otra persona cargó esos días mientras tanto: espera todo y se pregunta con lo de ahora.
+      const otraVez = await enLaBase();
+      const deAhora = otraVez.error ? [] : diasDeLaMismaSesion(planDeLoPegado(pegado.filas, otraVez.filas), otraVez.filas, pegado.dispositivo);
+      return { estado: "chocan", creadas: respuesta.creadas || 0, yaEstaban: 0, reemplazadas: respuesta.reemplazadas || 0, quedan: pegado.filas, dias: deAhora };
+    }
+    if (respuesta.sinFuncion) {
+      if (pegado.reemplazar) return { estado: "error", error: "gps.error.faltaMigracion" };
+      const nuevas = planDeLoPegado(ahora, delRango.filas).filter(({ estado }) => estado !== ESTADOS.yaEsta);
+      const creadas = await crear(nuevas.map(({ fila }) => paraLaBase(fila)));
+      if (creadas.error) return conRed(creadas);
+      Object.assign(hecho, { creadas: nuevas.length, yaEstaban: ahora.length - nuevas.length });
+    } else if (respuesta.error) return conRed(respuesta);
+    else Object.assign(hecho, { creadas: respuesta.creadas || 0, yaEstaban: respuesta.yaEstaban || 0, reemplazadas: respuesta.reemplazadas || 0 });
+  }
+  const quedan = pegado.filas.filter((fila) => chocan.has(fila.fecha));
+  return { estado: quedan.length ? "chocan" : "listo", ...hecho, quedan, dias };
+};
+
 // Sube lo que espera, en orden, con las funciones de la base (las de
 // gpsDb.js; se reciben para probarlas sin la base): los borrados seguidos,
 // juntos (borrarFilasGps). filaDe(id): la fila como está en la pantalla, para
@@ -222,10 +284,11 @@ const subirEnCurso = async (carga, { listar, dejar, enCursos, leerEnCurso }, { c
 // permiso, otra regla) no se reintenta: va en errores ({ error, ids }) y sale
 // de la cola. devueltas: las filas como quedaron en la base; borradas: los
 // id que ya no están (para que la pantalla no espere a ponerse al día).
-// Un día que choca queda (chocan) y vuelve en chocadas ({ dia, existentes })
-// para preguntar; uno que ya estaba, o una carga sin terminar del mismo CSV,
-// sale y vuelve en descartadas ({ tipo, fecha, otra }). subidasEnCurso: las
-// de este aparato que ya están en «Sin terminar» ({ local, id }).
+// Un día (o lo pegado de los días) que choca queda (chocan) y vuelve en
+// chocadas ({ carga, existentes, dias }) para preguntar; uno que ya estaba,
+// o una carga sin terminar del mismo CSV, sale y vuelve en descartadas
+// ({ tipo, fecha, otra, n }). subidasEnCurso: las de este aparato que ya
+// están en «Sin terminar» ({ local, id }).
 export const subirLaEspera = async (cola, { funciones, filaDe = () => null, csvDe = () => [], esDeRed }) => {
   const { cambiar, actualizar, borrar } = funciones;
   const quedan = [];
@@ -281,7 +344,7 @@ export const subirLaEspera = async (cola, { funciones, filaDe = () => null, csvD
       else if (hecho.estado === "chocan") {
         const espera = { ...uno, chocan: true };
         quedan.push(espera);
-        resultado.chocadas.push({ dia: espera, existentes: hecho.existentes });
+        resultado.chocadas.push({ carga: espera, existentes: hecho.existentes, dias: [{ fecha: uno.fecha, filas: hecho.existentes }] });
       } else if (hecho.estado === "red") {
         // Sin señal en el camino: lo que falta del día queda.
         resultado.cortado = true;
@@ -291,6 +354,28 @@ export const subirLaEspera = async (cola, { funciones, filaDe = () => null, csvD
         resultado.reemplazadas += hecho.reemplazadas;
         if (hecho.sinBorrar) resultado.sinBorrar += 1;
         if (uno.enCurso) resultado.conEnCurso = true;
+      }
+      continue;
+    }
+    if (uno.tipo === "pegado") {
+      const hecho = await subirPegado(uno, funciones, esDeRed); // eslint-disable-line no-await-in-loop
+      if (hecho.estado === "red") {
+        // Sin señal en el camino: queda todo (lo que ya subió, al volver, ya está).
+        resultado.cortado = true;
+        quedan.push(uno);
+        continue;
+      }
+      if (hecho.estado === "error") {
+        resultado.errores.push({ error: hecho.error, ids: uno.filas.map((fila) => fila.id) });
+        continue;
+      }
+      resultado.subidos += hecho.creadas;
+      resultado.reemplazadas += hecho.reemplazadas;
+      if (hecho.yaEstaban) resultado.descartadas.push({ tipo: "pegado", n: hecho.yaEstaban });
+      if (hecho.estado === "chocan") {
+        const espera = { ...uno, filas: hecho.quedan, chocan: true };
+        quedan.push(espera);
+        resultado.chocadas.push({ carga: espera, existentes: hecho.dias.flatMap((dia) => dia.filas), dias: hecho.dias });
       }
       continue;
     }

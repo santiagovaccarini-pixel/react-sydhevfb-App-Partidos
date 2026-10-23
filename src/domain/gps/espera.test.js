@@ -8,6 +8,7 @@ import {
   conLoHechoMientras,
   conLoQueEspera,
   conLosCambios,
+  conPegado,
   conReemplazo,
   cuentaDeLaEspera,
   enCursoEnEspera,
@@ -224,7 +225,7 @@ describe("un día cargado sin señal", () => {
     const otra = { id: "g7", ...delDia(1, 3500) };
     const chocan = await subir(cola, { base: [otra], guardar: () => ({ conOtras: true, error: "" }) });
     expect(chocan.quedan).toEqual([{ ...cola[0], chocan: true }]);
-    expect(chocan.chocadas).toEqual([{ dia: chocan.quedan[0], existentes: [otra] }]);
+    expect(chocan.chocadas).toEqual([{ carga: chocan.quedan[0], existentes: [otra], dias: [{ fecha: "2026-06-02", filas: [otra] }] }]);
     expect(cuentaDeLaEspera(chocan.quedan)).toEqual({ total: 1, chocan: 1, pendientes: 0 });
     // Lo que volvió cambiado queda en su lugar.
     expect(conLoHechoMientras(cola, { enviada: cola, quedan: chocan.quedan })).toEqual(chocan.quedan);
@@ -283,5 +284,102 @@ describe("un día cargado sin señal", () => {
 
     const otroAparato = await subir(dejada({ id: "ec1", version: 2 }), { dejar: () => ({ error: "gps.enCurso.otroAparato" }) });
     expect(otroAparato.descartadas).toEqual([{ tipo: "otroAparato", fecha: "2026-06-02", otra: null }]);
+  });
+});
+
+// Paso 3c.3 (Santiago, 23/10): «Pegar desde una planilla» sin señal; al
+// subir, lo que ya está no se carga de nuevo y la Regla 1 espera y pregunta.
+describe("lo pegado sin señal", () => {
+  const pegada = (fecha, id, d, extra = {}) => ({ fecha, jugador_id: id, persona: null, promedio: null, datos: { dispositivo: "catapult", d, tiempo: 1200, inicio: 36000, ...extra } });
+  const PEGADAS = () => [pegada("2026-06-01", 1, 3000), pegada("2026-06-01", 2, 2800), pegada("2026-06-02", 1, 3100), pegada("2026-06-02", 2, 2900)];
+
+  test("entra con un id para cada fila, se ve en sus fechas y se cambia y se borra ahí", () => {
+    const { cola, id } = conPegado([], { dispositivo: "catapult", filas: PEGADAS() });
+    expect(cola[0]).toMatchObject({ tipo: "pegado", dispositivo: "catapult" });
+    expect(cola[0].filas.map((una) => una.id)).toEqual([1, 2, 3, 4].map((n) => `${id}#${n}`));
+    const vistas = conLoQueEspera([fila("g1", {}, { fecha: "2026-06-01" }), fila("g9", {}, { fecha: "2026-06-03" })], cola);
+    expect(vistas.map((una) => una.id)).toEqual(["g1", `${id}#1`, `${id}#2`, `${id}#3`, `${id}#4`, "g9"]);
+    expect(idsEnEspera(cola).size).toBe(4);
+    expect(cuentaDeLaEspera(cola)).toEqual({ total: 4, chocan: 0, pendientes: 1 });
+    let otra = conFilaCambiada(cola, { ...filaQueEspera(cola, `${id}#2`), datos: { d: 1 } });
+    expect(filaQueEspera(otra, `${id}#2`).datos).toEqual({ d: 1 });
+    otra = conBorradas(otra, [`${id}#1`, `${id}#2`, `${id}#3`, `${id}#4`]);
+    expect(otra).toEqual([]);
+  });
+
+  const llamadas = [];
+  const funciones = ({ base = [], pegar = null } = {}) => ({
+    listar: async (desde, hasta) => {
+      llamadas.push(["listar", desde, hasta]);
+      return { filas: base.filter((una) => una.fecha >= desde && una.fecha <= hasta), error: "" };
+    },
+    pegar: async ({ dispositivo, filas, reemplazar }) => {
+      llamadas.push(["pegar", dispositivo, filas.map((una) => `${una.fecha}|${una.jugador_id}`), reemplazar]);
+      return pegar ? pegar(filas) : { creadas: filas.length, yaEstaban: 0, reemplazadas: 0, error: "" };
+    },
+    crear: async (filas) => {
+      llamadas.push(["crear", filas.length]);
+      return { creadas: filas, error: "" };
+    },
+  });
+  const esDeRed = (respuesta) => /Failed to fetch/.test(`${respuesta?.detalle || ""}`);
+  const subir = (cola, opciones) => {
+    llamadas.length = 0;
+    return subirLaEspera(cola, { funciones: funciones(opciones), esDeRed });
+  };
+
+  test("al subir, va todo de una vez; lo que ya estaba igual no se carga de nuevo y se avisa", async () => {
+    const { cola } = conPegado([], { dispositivo: "catapult", filas: PEGADAS() });
+    const respuesta = await subir(cola, { pegar: (filas) => ({ creadas: filas.length - 1, yaEstaban: 1, reemplazadas: 0, error: "" }) });
+    expect(llamadas).toEqual([
+      ["listar", "2026-06-01", "2026-06-02"],
+      ["pegar", "catapult", ["2026-06-01|1", "2026-06-01|2", "2026-06-02|1", "2026-06-02|2"], false],
+    ]);
+    expect(respuesta).toMatchObject({ subidos: 3, quedan: [], descartadas: [{ tipo: "pegado", n: 1 }] });
+  });
+
+  test("un día que es la misma sesión con otros datos espera y pregunta; los demás suben; «Reemplazar y cargar» los reemplaza", async () => {
+    const { cola } = conPegado([], { dispositivo: "catapult", filas: PEGADAS() });
+    const otra = { id: "g7", ...pegada("2026-06-02", 1, 3500) };
+    const respuesta = await subir(cola, { base: [otra] });
+    expect(llamadas[1]).toEqual(["pegar", "catapult", ["2026-06-01|1", "2026-06-01|2"], false]);
+    expect(respuesta.subidos).toBe(2);
+    expect(respuesta.quedan).toEqual([{ ...cola[0], filas: cola[0].filas.slice(2), chocan: true }]);
+    expect(respuesta.chocadas).toEqual([{ carga: respuesta.quedan[0], existentes: [otra], dias: [{ fecha: "2026-06-02", filas: [otra] }] }]);
+    // Lo que volvió cambiado queda en su lugar.
+    expect(conLoHechoMientras(cola, { enviada: cola, quedan: respuesta.quedan })).toEqual(respuesta.quedan);
+    const reemplazo = conReemplazo(respuesta.quedan, cola[0].id);
+    await subir(reemplazo, { base: [otra] });
+    expect(llamadas[1]).toEqual(["pegar", "catapult", ["2026-06-02|1", "2026-06-02|2"], true]);
+    // Una fila igual a la que ya está no hace chocar ese día.
+    const igual = { id: "g8", ...pegada("2026-06-02", 1, 3100) };
+    const sinChoque = await subir(cola, { base: [igual] });
+    expect(sinChoque.chocadas).toEqual([]);
+  });
+
+  test("sin señal en el camino queda todo; si otra persona cargó esos días mientras tanto, espera y pregunta; sin la actualización, la app deja afuera lo que ya está", async () => {
+    const { cola } = conPegado([], { dispositivo: "catapult", filas: PEGADAS() });
+    const cortado = await subir(cola, { pegar: () => ({ creadas: 0, yaEstaban: 0, reemplazadas: 0, error: "gps.error.noGuardar", detalle: "TypeError: Failed to fetch" }) });
+    expect(cortado).toMatchObject({ cortado: true, quedan: cola, subidos: 0 });
+
+    const base = [];
+    const mientras = await subirLaEspera(cola, {
+      funciones: {
+        ...funciones(),
+        listar: async (desde, hasta) => ({ filas: base.filter((una) => una.fecha >= desde && una.fecha <= hasta), error: "" }),
+        pegar: async () => {
+          base.push({ id: "g7", ...pegada("2026-06-01", 2, 2500) });
+          return { creadas: 0, yaEstaban: 0, reemplazadas: 0, conOtras: true, error: "" };
+        },
+      },
+      esDeRed,
+    });
+    expect(mientras.quedan).toEqual([{ ...cola[0], chocan: true }]);
+    expect(mientras.chocadas[0].dias.map((dia) => dia.fecha)).toEqual(["2026-06-01"]);
+
+    const igual = { id: "g8", ...pegada("2026-06-01", 1, 3000) };
+    const sinFuncion = await subir(cola, { base: [igual], pegar: () => ({ sinFuncion: true, creadas: 0, yaEstaban: 0, reemplazadas: 0, error: "" }) });
+    expect(llamadas.at(-1)).toEqual(["crear", 3]);
+    expect(sinFuncion).toMatchObject({ subidos: 3, quedan: [], descartadas: [{ tipo: "pegado", n: 1 }] });
   });
 });

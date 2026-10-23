@@ -4687,6 +4687,27 @@ confirme.**
       otra persona» y se descarta (el día ya está en la Base).
     - **Queda para las partes que siguen:** Pegar desde una planilla (3c.3) y los V.R. (3c.4)
       siguen sin señal como antes (para mirar).
+  - **Hecho, paso 3c.3 (23/10, 2026.10.23.4; UI-077): GPS › Pegar desde una planilla sin
+    señal.** Santiago: «Sí, seguí (Recomendado)» a «lo pegado queda en el aparato y se ve en
+    dorado en la Base. Al volver la señal se sube solo; si choca con otra persona (Regla 1),
+    espera y te pregunta, y si otra persona ya cargó lo mismo, se descarta y avisa». Sin señal
+    (o si se corta al cargar), lo que ya está y la Regla 1 se miran con lo de este aparato y lo
+    pegado queda en la fila de espera (`domain/gps/espera.js`; en la Base en dorado claro, se
+    cambia y se borra ahí). Al volver la señal sube solo con `gps_pegar_filas`: antes, la Regla 1
+    con lo que hay ahora (`planDeLoPegado` y `diasDeLaMismaSesion`); los días que chocan esperan
+    y se pregunta («Reemplazar y cargar» o «Ir a la Base»), los demás suben; lo que ya está igual
+    no se carga de nuevo y se avisa. Volver a subir lo mismo no lo carga dos veces (la base deja
+    afuera lo que ya está igual): si la señal se corta a mitad de camino, lo pegado queda entero
+    y al volver sube lo que falta. Sin SQL nuevo.
+    - **Límites conocidos:** sin señal no se cargan personas que no están en Datos básicos (su
+      consentimiento se confirma con señal). Si la señal se corta después de que subió una
+      parte, al volver esa parte se cuenta como «ya estaba en la Base». Lo pegado sin señal es de
+      este aparato y de esta cuenta hasta que sube.
+    - **Visto al hacerlo (aparte, sin cambiar):** con señal, «Pegar desde una planilla» no pide
+      el consentimiento de las personas que no están en Datos básicos (Cargar un día sí); la base
+      frena las que no están confirmadas («consentimiento.error.persona»).
+    - **Queda para la parte que sigue:** los V.R. (3c.4) siguen sin señal como antes (para
+      mirar).
     - **Queda prohibido** que lo hecho sin señal se pierda sin avisar o cambiar los Ajustes sin
       señal, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
