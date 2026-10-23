@@ -13,6 +13,7 @@ import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import { AvisoDeEspera, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import CargaPorJugador, { cargaNueva, evaluacionesDeLaCarga, hayAlgoCargado } from "./CargaPorJugador.jsx";
 import CargaIsocinecia, { ISOCINECIA_PDF, evaluacionesDeLosPdf, hayPdfCargado } from "./CargaIsocinecia.jsx";
+import { MEDIDAS_PDF, TEST_DEL_PDF, campoDelPdf, lecturaDeConfig } from "./domain/evaluaciones/pdfIsocinecia.js";
 import ImportarEvaluaciones from "./ImportarEvaluaciones.jsx";
 import ReportesEvaluaciones, { SelectorDeTest, SelectorDeVista, vistaInicial } from "./ReportesEvaluaciones.jsx";
 import ReferenciasEvaluaciones from "./ReferenciasEvaluaciones.jsx";
@@ -243,6 +244,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // Ajustes: qué se mira y la hoja abierta.
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
   const [hojaCabecera, setHojaCabecera] = useState(null);
+  // Ajustes › Lectura del PDF de Isocinecia: la medida que se está cambiando.
+  const [hojaPdf, setHojaPdf] = useState(null);
   const [hojaOpcion, setHojaOpcion] = useState(null);
   const [errorHoja, setErrorHoja] = useState("");
 
@@ -408,6 +411,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   }, [aviso]);
 
   const config = useMemo(() => (filasAjustes ? armarConfig(filasAjustes.campos, filasAjustes.opciones, filasCategorias) : configVacia()), [filasAjustes, filasCategorias]);
+  // Cómo se lee cada medida del PDF de Isocinecia (Ajustes › Lectura del PDF).
+  const lecturaDelPdf = useMemo(() => lecturaDeConfig(config), [config]);
   const esCategoria = useCallback((codigo) => esCategoriaDelClub(codigo, config), [config]);
   const titulo = (unTest, columna) => tituloDeColumna(unTest, columna, config, idioma);
   const opcionesDeColumna = (unTest, columna) => opcionesDeLista(listaDeColumna(columna), config, idioma, { test: unTest });
@@ -892,7 +897,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     setOtrasDelDia(null);
     // Con PDF (Isocinecia), cada uno con su fecha.
     const { evaluaciones: listas, error: falta } = conPdf
-      ? evaluacionesDeLosPdf(nuevas, { nombreDe: (id) => jugadorDe(id)?.nombre || "" })
+      ? evaluacionesDeLosPdf(nuevas, { nombreDe: (id) => jugadorDe(id)?.nombre || "", lectura: lecturaDelPdf })
       : evaluacionesDeLaCarga(nuevas, {
           columnas: columnasDeNuevas.columnas,
           nombreDe: (id) => jugadorDe(id)?.nombre || "",
@@ -1536,6 +1541,35 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     setAviso(t("lesiones.ajustes.guardado"));
   };
 
+  // El nombre de una medida en el PDF de Isocinecia y si se usa (Santiago,
+  // 23/10: «Nombre y si se usa»), como un campo más del test en los Ajustes
+  // del club. Desde la tarjeta de Cargar, al elegir la fila de una medida que
+  // no apareció, con usar en true.
+  const guardarLecturaDelPdf = async (medida, nombre, { usar = true } = {}) => {
+    const limpio = String(nombre || "").trim();
+    const respuesta = await guardarCabecera(equipoId, TEST_DEL_PDF, campoDelPdf(medida), { etiquetas: { "es-AR": limpio, "pt-BR": limpio }, oculto: !usar, orden: 0 });
+    if (respuesta.error) return respuesta;
+    await cargar({ silencioso: true });
+    setAviso(t("evaluaciones.pdf.quedoEnAjustes", { medida: MEDIDAS_PDF.find((una) => una.clave === medida)?.titulo || medida, nombre: limpio }));
+    return { error: "" };
+  };
+  const guardarHojaPdf = async () => {
+    const hoja = hojaPdf;
+    if (!hoja) return;
+    if (!String(hoja.nombre || "").trim()) {
+      setErrorHoja(t("lesiones.ajustes.faltaTexto"));
+      return;
+    }
+    setOcupado(true);
+    const respuesta = await guardarLecturaDelPdf(hoja.medida, hoja.nombre, { usar: hoja.usar });
+    setOcupado(false);
+    if (respuesta.error) {
+      setErrorHoja(t(respuesta.error));
+      return;
+    }
+    setHojaPdf(null);
+  };
+
   const guardarHojaOpcion = async () => {
     const hoja = hojaOpcion;
     if (!hoja) return;
@@ -1591,6 +1625,33 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   const tituloDeLista = (lista) => lista.test?.titulosDeListas?.[lista.clave]?.[idioma] || (lista.columna ? titulo(lista.test || TESTS[0], lista.columna) : lista.clave);
 
   const pantallaAjustes = () => {
+    if (vistaAjustes === "pdf") {
+      return (
+        <div className="app">
+          <div className="contenedor">
+            {encabezado(t("evaluaciones.ajustes.pdf"), t("evaluaciones.ajustes.pdfAyuda"))}
+            <div className="lista-opciones">
+              {MEDIDAS_PDF.map((medida) =>
+                filaAjuste({
+                  id: `pdf-${medida.clave}`,
+                  titulo: medida.titulo,
+                  detalle: t("evaluaciones.ajustes.pdfEnElPdf", { nombre: lecturaDelPdf[medida.clave].nombre }),
+                  extra: lecturaDelPdf[medida.clave].usar ? null : <span className="lesiones-oculta">{t("evaluaciones.ajustes.pdfNoSeUsa")}</span>,
+                  alTocar: () => {
+                    setErrorHoja("");
+                    setHojaPdf({ medida: medida.clave, titulo: medida.titulo, deEntrada: medida.enElPdf, nombre: lecturaDelPdf[medida.clave].nombre, usar: lecturaDelPdf[medida.clave].usar });
+                  },
+                }),
+              )}
+            </div>
+            <div className="acciones-dobles">
+              <BotonVolver onClick={() => setVistaAjustes("inicio")}>{t("lesiones.ajustes.volver")}</BotonVolver>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (vistaAjustes === "cabeceras") {
       // Por test: cada bloque (si tiene) y sus columnas.
       const columnasDelTest = test.columnas;
@@ -1751,6 +1812,13 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
               detalle: t("lesiones.ajustes.listasTexto"),
               alTocar: () => setVistaAjustes("listas"),
             })}
+            {filaAjuste({
+              id: "pdf",
+              icono: "subir",
+              titulo: t("evaluaciones.ajustes.pdf"),
+              detalle: t("evaluaciones.ajustes.pdfTexto"),
+              alTocar: () => setVistaAjustes("pdf"),
+            })}
           </div>
         </div>
       </div>
@@ -1821,11 +1889,14 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         setCarga={setNuevas}
         tests={TESTS_EN_CARGAR}
         config={config}
+        lectura={lecturaDelPdf}
         plantel={plantel}
         encabezado={encabezado}
         error={errorNuevas}
         setError={setErrorNuevas}
         ocupado={ocupado}
+        sinConexion={sinConexion}
+        onGuardarLectura={guardarLecturaDelPdf}
         onCambiarTest={(id) => {
           setErrorNuevas("");
           setNuevas((actual) => ({ ...actual, test: id, paso: 0 }));
@@ -1965,6 +2036,42 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         }}
         onCerrar={() => setHojaSelector(null)}
       />
+
+      <HojaInferior
+        abierta={Boolean(hojaPdf)}
+        className="lesiones-hoja"
+        titulo={hojaPdf ? t("evaluaciones.ajustes.pdfEditar", { medida: hojaPdf.titulo }) : ""}
+        onCerrar={() => !ocupado && setHojaPdf(null)}
+        acciones={
+          <>
+            <button type="button" className="boton-cancelar-hoja" onClick={() => setHojaPdf(null)} disabled={ocupado}>
+              {t("comun.cancelar")}
+            </button>
+            <button type="button" className="boton-confirmar-hoja" onClick={guardarHojaPdf} disabled={ocupado}>
+              {ocupado ? t("comun.guardando") : t("comun.guardar")}
+            </button>
+          </>
+        }
+      >
+        {hojaPdf && (
+          <>
+            {errorHoja && <div className="aviso-hoja">{errorHoja}</div>}
+            <div className="campo-inicio">
+              <label htmlFor="evaluaciones-pdf-nombre">{t("evaluaciones.ajustes.pdfNombre")}</label>
+              <input id="evaluaciones-pdf-nombre" type="text" maxLength={120} value={hojaPdf.nombre} onChange={(evento) => setHojaPdf({ ...hojaPdf, nombre: evento.target.value })} />
+              <small className="lesiones-ayuda">{t("evaluaciones.ajustes.pdfDeEntrada", { nombre: hojaPdf.deEntrada })}</small>
+            </div>
+            <div className="grilla-criterios">
+              <button type="button" className={`chip-criterio ${hojaPdf.usar ? "prendido" : ""}`} aria-pressed={hojaPdf.usar} onClick={() => setHojaPdf({ ...hojaPdf, usar: true })}>
+                {t("evaluaciones.ajustes.pdfSeUsa")}
+              </button>
+              <button type="button" className={`chip-criterio ${!hojaPdf.usar ? "prendido" : ""}`} aria-pressed={!hojaPdf.usar} onClick={() => setHojaPdf({ ...hojaPdf, usar: false })}>
+                {t("evaluaciones.ajustes.pdfNoSeUsa")}
+              </button>
+            </div>
+          </>
+        )}
+      </HojaInferior>
 
       {hojaDeTextos({
         abierta: Boolean(hojaCabecera),

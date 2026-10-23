@@ -30,7 +30,7 @@ const texto = (x, y, contenido) => {
   return `q\n8.33333 0 0 8.33333 0 0 cm BT\n/R8 7.92 Tf\n0.999409 0 0 1 ${x} ${y} Tm\n[${tj}]TJ\nET\nQ\n`;
 };
 
-const pagina = ({ grados, indiceVelocidad, nombre, sesion, peso, involucrada }) => {
+const pagina = ({ grados, indiceVelocidad, nombre, sesion, peso, involucrada, rotulos }) => {
   // Con la izquierda como lesionada, la derecha va primero; con la derecha,
   // al revés (como el PDF: «UNINVOL» primero).
   const orden = involucrada === "Right" ? ["LEFT", "RIGHT"] : ["RIGHT", "LEFT"];
@@ -44,7 +44,7 @@ const pagina = ({ grados, indiceVelocidad, nombre, sesion, peso, involucrada }) 
   contenido += [252.2, 292.4, 368.3, 408.5].map((x, indice) => texto(x, 618.3, orden[indice % 2])).join("");
   MEDIDAS.forEach(([rotulo, medida], fila) => {
     const y = 598.9 - fila * 18.9;
-    contenido += texto(140, y, rotulo) + texto(221.5, y, "%");
+    contenido += texto(140, y, rotulos[rotulo] ?? rotulo) + texto(221.5, y, "%");
     X_COLUMNAS.forEach((x, columna) => {
       // La columna del PDF (por el orden de las piernas) a la de la prueba.
       const pierna = orden[columna % 2] === "RIGHT" ? 0 : 1;
@@ -58,10 +58,12 @@ const pagina = ({ grados, indiceVelocidad, nombre, sesion, peso, involucrada }) 
   return contenido;
 };
 
-// El PDF entero. velocidades: cuáles van (de entrada, las tres).
-export const pdfDePrueba = ({ nombre = "Jugador de Prueba", sesion = "7/22/2026 11:01:58 AM", peso = "80.0", involucrada = "Left", velocidades = [60, 180, 300] } = {}) => {
+// El PDF entero. velocidades: cuáles van (de entrada, las tres); rotulos:
+// otro nombre para alguna fila ({ "WRK/BODYWEIGHT": "WORK/BW" }), como si el
+// equipo lo cambiara.
+export const pdfDePrueba = ({ nombre = "Jugador de Prueba", sesion = "7/22/2026 11:01:58 AM", peso = "80.0", involucrada = "Left", velocidades = [60, 180, 300], rotulos = {} } = {}) => {
   const todas = [60, 180, 300];
-  const paginas = velocidades.map((grados) => pagina({ grados, indiceVelocidad: todas.indexOf(grados), nombre, sesion, peso, involucrada }));
+  const paginas = velocidades.map((grados) => pagina({ grados, indiceVelocidad: todas.indexOf(grados), nombre, sesion, peso, involucrada, rotulos }));
   const partes = ["%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"];
   const objetos = [];
   objetos.push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");

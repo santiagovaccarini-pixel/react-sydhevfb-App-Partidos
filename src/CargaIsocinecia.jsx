@@ -6,7 +6,7 @@ import { HojaOpciones } from "./components/HojaOpciones.js";
 import { SelectorDeTest } from "./ReportesEvaluaciones.jsx";
 import { LISTA_SELECCION, opcionesDeLista } from "./domain/evaluaciones/ajustes.js";
 import { deDatosBasicos } from "./domain/evaluaciones/categorias.js";
-import { leerPdfIsocinecia } from "./domain/evaluaciones/pdfIsocinecia.js";
+import { LECTURA_DE_ENTRADA, MEDIDAS_PDF, leerPaginas, leerPdfIsocinecia } from "./domain/evaluaciones/pdfIsocinecia.js";
 import { VELOCIDADES } from "./domain/evaluaciones/tests/isocinecia.js";
 import { DUDOSO, buscadorDeJugadores } from "./domain/importarPersonas.js";
 import { idAlAzar } from "./domain/pendientes.js";
@@ -25,8 +25,16 @@ import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 //     TQ/BW de cada velocidad; «Ver todo» abre las tres velocidades. Se
 //     guarda una evaluación por PDF, con las reglas de siempre.
 // La carga es la de Evaluaciones (cargaNueva); los PDF van en pdfs: [{ id,
-// archivo, leyendo, error, nombre, jugador_id, aviso, fecha, datos, faltan,
-// abierta }].
+// archivo, leyendo, error, nombre, paginas (los textos del PDF), jugador_id,
+// aviso, fecha, seleccion, vacias, abierta }].
+//
+// Cada medida se lee con el nombre de su fila en Ajustes (lectura; Santiago,
+// 23/10: «Nombre y si se usa»). Si el nombre de una no aparece en un PDF, la
+// tarjeta lo dice y muestra las filas del PDF que no se usan para elegir cuál
+// es («Se elige en la tarjeta»): lo elegido queda en Ajustes para los
+// próximos PDF (quien carga tiene Edición, como para cambiar los Ajustes); sin
+// señal, o si no se puede guardar, vale para esta carga (lecturaPropia). O
+// «Dejar vacía» (vacias).
 
 export const ISOCINECIA_PDF = "isocinecia";
 
@@ -35,10 +43,20 @@ const listos = (carga) => pdfsDe(carga).filter((pdf) => !pdf.leyendo && !pdf.err
 export const hayPdfCargado = (carga) => pdfsDe(carga).length > 0;
 export const pdfsParaGuardar = (carga) => listos(carga).filter((pdf) => pdf.jugador_id);
 
+// Cómo se lee en esta carga: lo de Ajustes con lo elegido solo para ella.
+export const lecturaDeLaCarga = (carga, lectura = LECTURA_DE_ENTRADA) => ({ ...lectura, ...(carga?.lecturaPropia || {}) });
+// Lo leído de un PDF con esa forma de leer.
+const leidoDe = (pdf, lectura) => (pdf.paginas ? leerPaginas(pdf.paginas, lectura) : { datos: {}, faltan: [], noEncontradas: [], filasLibres: [] });
+// Las medidas cuyo nombre no aparece y que todavía no se eligieron ni se
+// dejaron vacías.
+export const medidasPendientes = (pdf, lectura) => (leidoDe(pdf, lectura).noEncontradas || []).filter((medida) => !pdf.vacias?.includes(medida));
+const tituloDeMedida = (clave) => MEDIDAS_PDF.find((una) => una.clave === clave)?.titulo || clave;
+
 // Las evaluaciones de los PDF: { evaluaciones: [{ filaId, evaluacion }] } o
 // { error } (lo que falta, con el PDF).
-export const evaluacionesDeLosPdf = (carga, { nombreDe = () => "" } = {}) => {
+export const evaluacionesDeLosPdf = (carga, { nombreDe = () => "", lectura = LECTURA_DE_ENTRADA } = {}) => {
   const lista = listos(carga);
+  const comoSeLee = lecturaDeLaCarga(carga, lectura);
   const evaluaciones = [];
   const vistas = new Set();
   for (const pdf of lista) {
@@ -49,20 +67,14 @@ export const evaluacionesDeLosPdf = (carga, { nombreDe = () => "" } = {}) => {
     const clave = `${pdf.jugador_id}|${pdf.fecha}`;
     if (vistas.has(clave)) return { error: t("evaluaciones.pdf.repetido", { jugador: quien, fecha: fechaCorta(pdf.fecha) }) };
     vistas.add(clave);
-    const datos = { ...pdf.datos, ...(pdf.seleccion ? { [LISTA_SELECCION]: pdf.seleccion } : {}) };
+    const pendiente = medidasPendientes(pdf, comoSeLee)[0];
+    if (pendiente) return { error: t("evaluaciones.pdf.faltaElegirFila", { archivo: pdf.archivo, medida: tituloDeMedida(pendiente) }) };
+    const datos = { ...leidoDe(pdf, comoSeLee).datos, ...(pdf.seleccion ? { [LISTA_SELECCION]: pdf.seleccion } : {}) };
     evaluaciones.push({ filaId: pdf.id, evaluacion: { jugador_id: pdf.jugador_id, persona: null, fecha: pdf.fecha, datos } });
   }
   return { evaluaciones };
 };
 
-// Las medidas de la tarjeta, como en la Base (los nombres del equipo).
-const MEDIDAS = [
-  { clave: "peak", titulo: "Peak TQ/BW" },
-  { clave: "work", titulo: "Work/BW" },
-  { clave: "avg", titulo: "Average Power" },
-  { clave: "wf", titulo: "Work Fatigue" },
-  { clave: "rom", titulo: "ROM" },
-];
 const LADOS = [
   { mov: "ext", pierna: "pd", rotulo: "evaluaciones.pdf.extPd" },
   { mov: "ext", pierna: "pi", rotulo: "evaluaciones.pdf.extPi" },
@@ -71,10 +83,33 @@ const LADOS = [
 ];
 const claveDe = (velocidad, medida, lado) => (medida === "rom" ? `${velocidad}_rom_${lado.pierna}` : `${velocidad}_${medida}_${lado.mov}_${lado.pierna}`);
 
-export default function CargaIsocinecia({ carga, setCarga, tests, config, plantel, encabezado, error, setError, ocupado, onCancelar, onGuardar, onCambiarTest }) {
+export default function CargaIsocinecia({
+  carga,
+  setCarga,
+  tests,
+  config,
+  lectura = LECTURA_DE_ENTRADA,
+  plantel,
+  encabezado,
+  error,
+  setError,
+  ocupado,
+  sinConexion = false,
+  onCancelar,
+  onGuardar,
+  onCambiarTest,
+  onGuardarLectura = null,
+}) {
   const { idioma, plural } = useIdioma();
   const [eligiendo, setEligiendo] = useState(null);
   const [aSacar, setASacar] = useState(null);
+  // La fila elegida para una medida que no apareció: { "pdf|medida": fila }.
+  const [filasElegidas, setFilasElegidas] = useState({});
+  const [guardandoFila, setGuardandoFila] = useState(null);
+  const [notaLectura, setNotaLectura] = useState("");
+  const comoSeLee = lecturaDeLaCarga(carga, lectura);
+  // Las medidas que se usan (en ese orden), para la tarjeta.
+  const medidasQueSeUsan = MEDIDAS_PDF.filter(({ clave }) => comoSeLee[clave]?.usar !== false);
   const archivoRef = useRef(null);
   const pdfs = pdfsDe(carga);
   const actuales = useMemo(() => plantel.filter(esActual), [plantel]);
@@ -110,7 +145,7 @@ export default function CargaIsocinecia({ carga, setCarga, tests, config, plante
         const id = ids[indice];
         let leido;
         try {
-          leido = await leerPdfIsocinecia(await archivo.arrayBuffer());
+          leido = await leerPdfIsocinecia(await archivo.arrayBuffer(), { lectura: comoSeLee });
         } catch {
           leido = { error: "evaluaciones.pdf.noSeLeyo" };
         }
@@ -124,11 +159,71 @@ export default function CargaIsocinecia({ carga, setCarga, tests, config, plante
           leyendo: false,
           nombre: leido.nombre,
           fecha: leido.fecha,
-          datos: leido.datos,
-          faltan: leido.faltan,
+          paginas: leido.paginas,
+          vacias: [],
           ...(jugador ? conJugador(jugador) : { jugador_id: null, seleccion: null, aviso: encontrado === DUDOSO ? "dudoso" : "noEsta" }),
         });
       }),
+    );
+  };
+
+  // La fila elegida para una medida que no apareció: queda en Ajustes (para
+  // los próximos PDF del club) o, sin señal o si no se puede, en esta carga.
+  const usarFila = async (pdf, medida) => {
+    const fila = filasElegidas[`${pdf.id}|${medida}`];
+    if (!fila) return;
+    const soloEnEstaCarga = (nota) => {
+      setCarga((actual) => ({ ...actual, lecturaPropia: { ...(actual.lecturaPropia || {}), [medida]: { nombre: fila, usar: true } } }));
+      setNotaLectura(nota);
+    };
+    if (sinConexion || !onGuardarLectura) {
+      soloEnEstaCarga(t("evaluaciones.pdf.soloEstaCargaSinSenal"));
+      return;
+    }
+    setGuardandoFila(`${pdf.id}|${medida}`);
+    const respuesta = await onGuardarLectura(medida, fila);
+    setGuardandoFila(null);
+    if (respuesta?.error) {
+      soloEnEstaCarga(t("evaluaciones.pdf.soloEstaCargaError", { error: t(respuesta.error) }));
+      return;
+    }
+    // Ya está en Ajustes: lo de esta carga no hace falta.
+    setCarga((actual) => {
+      const propia = { ...(actual.lecturaPropia || {}) };
+      delete propia[medida];
+      return { ...actual, lecturaPropia: propia };
+    });
+  };
+  const dejarVacia = (pdf, medida) => cambiarPdf(pdf.id, (uno) => ({ vacias: [...(uno.vacias || []), medida] }));
+
+  // Una medida que no apareció en el PDF: qué fila es (o dejarla vacía).
+  const elegirFila = (pdf, medida, filasLibres) => {
+    const clave = `${pdf.id}|${medida}`;
+    const nombre = comoSeLee[medida]?.nombre || "";
+    return (
+      <div className="evaluaciones-pdf-falta" key={medida} role="group" aria-label={tituloDeMedida(medida)}>
+        <p>{t(filasLibres.length ? "evaluaciones.pdf.noEncontrada" : "evaluaciones.pdf.noEncontradaSinFilas", { nombre, medida: tituloDeMedida(medida) })}</p>
+        {filasLibres.length > 0 && (
+          <div className="evaluaciones-pdf-filas">
+            {filasLibres.map((fila) => (
+              <label key={fila} className={filasElegidas[clave] === fila ? "elegida" : undefined}>
+                <input type="radio" name={clave} value={fila} checked={filasElegidas[clave] === fila} onChange={() => setFilasElegidas((actual) => ({ ...actual, [clave]: fila }))} />
+                <span>{fila}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="evaluaciones-pdf-falta-acciones">
+          <button type="button" className="boton-secundario" onClick={() => dejarVacia(pdf, medida)} disabled={guardandoFila === clave}>
+            {t("evaluaciones.pdf.dejarVacia")}
+          </button>
+          {filasLibres.length > 0 && (
+            <button type="button" className="boton-principal" onClick={() => usarFila(pdf, medida)} disabled={!filasElegidas[clave] || guardandoFila === clave}>
+              {guardandoFila === clave ? t("comun.guardando") : t("evaluaciones.pdf.usarEsta")}
+            </button>
+          )}
+        </div>
+      </div>
     );
   };
 
@@ -214,7 +309,7 @@ export default function CargaIsocinecia({ carga, setCarga, tests, config, plante
   );
 
   // Una velocidad: sus medidas por pierna (o solo Peak TQ/BW, cerrada).
-  const tablaDeVelocidad = (pdf, { clave, grados }, medidas) => (
+  const tablaDeVelocidad = (datos, { clave, grados }, medidas) => (
     <div className="evaluaciones-pdf-velocidad" key={clave}>
       <p className="evaluaciones-varios-bloque-titulo">{`${grados}°`}</p>
       <table className="evaluaciones-pdf-tabla">
@@ -234,11 +329,11 @@ export default function CargaIsocinecia({ carga, setCarga, tests, config, plante
               <th scope="row">{medida.titulo}</th>
               {medida.clave === "rom" ? (
                 <>
-                  <td colSpan={2}>{comoNumero(pdf.datos?.[claveDe(clave, "rom", LADOS[0])])}</td>
-                  <td colSpan={2}>{comoNumero(pdf.datos?.[claveDe(clave, "rom", LADOS[1])])}</td>
+                  <td colSpan={2}>{comoNumero(datos?.[claveDe(clave, "rom", LADOS[0])])}</td>
+                  <td colSpan={2}>{comoNumero(datos?.[claveDe(clave, "rom", LADOS[1])])}</td>
                 </>
               ) : (
-                LADOS.map((lado) => <td key={`${lado.mov}-${lado.pierna}`}>{comoNumero(pdf.datos?.[claveDe(clave, medida.clave, lado)])}</td>)
+                LADOS.map((lado) => <td key={`${lado.mov}-${lado.pierna}`}>{comoNumero(datos?.[claveDe(clave, medida.clave, lado)])}</td>)
               )}
             </tr>
           ))}
@@ -267,7 +362,9 @@ export default function CargaIsocinecia({ carga, setCarga, tests, config, plante
         </section>
       );
     }
-    const velocidades = VELOCIDADES.filter((una) => !pdf.faltan?.includes(una.grados));
+    const leido = leidoDe(pdf, comoSeLee);
+    const pendientes = medidasPendientes(pdf, comoSeLee);
+    const velocidades = VELOCIDADES.filter((una) => !leido.faltan?.includes(una.grados));
     return (
       <section className={`tarjeta evaluaciones-varios-tarjeta evaluaciones-pdf-tarjeta ${pdf.abierta ? "" : "cerrada"}`.trim()} key={pdf.id}>
         <div className="evaluaciones-varios-arriba">
@@ -284,7 +381,8 @@ export default function CargaIsocinecia({ carga, setCarga, tests, config, plante
         </div>
         <p className="evaluaciones-pdf-archivo-nombre">{pdf.nombre ? t("evaluaciones.pdf.enElPdf", { nombre: pdf.nombre, archivo: pdf.archivo }) : pdf.archivo}</p>
         {pdf.aviso && !pdf.jugador_id && <div className="aviso-hoja">{t(pdf.aviso === "dudoso" ? "evaluaciones.pdf.dudoso" : "evaluaciones.pdf.noEsta", { nombre: pdf.nombre || pdf.archivo })}</div>}
-        {pdf.faltan?.length > 0 && <div className="aviso-hoja">{t("evaluaciones.pdf.faltan", { velocidades: pdf.faltan.map((grados) => `${grados}°`).join(", ") })}</div>}
+        {leido.faltan?.length > 0 && <div className="aviso-hoja">{t("evaluaciones.pdf.faltan", { velocidades: leido.faltan.map((grados) => `${grados}°`).join(", ") })}</div>}
+        {pendientes.map((medida) => elegirFila(pdf, medida, leido.filasLibres || []))}
         <div className="evaluaciones-varios-bloque primero">
           <div className="evaluaciones-varios-campos">
             <label>
@@ -304,11 +402,13 @@ export default function CargaIsocinecia({ carga, setCarga, tests, config, plante
             </label>
             <p className="evaluaciones-pdf-peso">
               <span>{t("evaluaciones.pdf.peso")}</span>
-              <b>{comoNumero(pdf.datos?.pc)}</b>
+              <b>{comoNumero(leido.datos?.pc)}</b>
             </p>
           </div>
         </div>
-        <div className="evaluaciones-varios-bloque">{velocidades.map((velocidad) => tablaDeVelocidad(pdf, velocidad, pdf.abierta ? MEDIDAS : MEDIDAS.slice(0, 1)))}</div>
+        {medidasQueSeUsan.length > 0 && (
+          <div className="evaluaciones-varios-bloque">{velocidades.map((velocidad) => tablaDeVelocidad(leido.datos, velocidad, pdf.abierta ? medidasQueSeUsan : medidasQueSeUsan.slice(0, 1)))}</div>
+        )}
         <div className="evaluaciones-varios-abajo">
           <button type="button" className="boton-secundario evaluaciones-pdf-ver" aria-expanded={Boolean(pdf.abierta)} onClick={() => cambiarPdf(pdf.id, (uno) => ({ abierta: !uno.abierta }))}>
             {t(pdf.abierta ? "evaluaciones.pdf.verMenos" : "evaluaciones.pdf.verTodo")}
@@ -325,6 +425,7 @@ export default function CargaIsocinecia({ carga, setCarga, tests, config, plante
         <p>{t("evaluaciones.pdf.paso2Texto")}</p>
       </section>
       {error && <div className="aviso-hoja">{error}</div>}
+      {notaLectura && <p className="lesiones-estado">{notaLectura}</p>}
       {!actuales.length && <p className="lesiones-estado">{t("lesiones.sinJugadores")}</p>}
       <div className="evaluaciones-varios-tarjetas evaluaciones-pdf-tarjetas">
         {pdfs.map(tarjeta)}
