@@ -446,6 +446,9 @@ export const ISOCINECIA = Object.freeze({
   // en meter eso en cargar evaluacion xq eso se carga atraves de un pdf»).
   // Por ahora, lo viejo se trae con Pegar desde Excel y se corrige en la Base.
   seCargaEnLaApp: false,
+  // En Cargar, con el PDF (23/10; pdfIsocinecia.js y CargaIsocinecia.jsx): no
+  // con la fila por jugador ni con el formulario para editar.
+  cargaConPdf: true,
   pestana: et("Isocinecia", "Isocinesia"),
   titulo: et("Isocinecia", "Isocinesia"),
   nota: et("", ""),

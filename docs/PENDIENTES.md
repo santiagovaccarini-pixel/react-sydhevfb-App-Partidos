@@ -3583,6 +3583,19 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
   - **Isocinecia**: el lector es un .exe de más de 30 MB (Santiago, 15/10). Se le pidió el
     código con el que se armó (los .py) y dos o tres PDF de ejemplo; con los PDF alcanza para
     armar la lectura aunque no esté el .py. Nada de eso va al repositorio.
+    - **Hecho, el PDF en Cargar (23/10, 2026.10.23.11; UI-082).** Santiago, en cuestionarios:
+      empezar por «Leer el PDF en Cargar» (VALD, después); mandó tres PDF de ejemplo («Solo PDF
+      de ejemplo»), que se usaron solo en la sesión, sin subirlos ni repetir nombres. Claude
+      relevó el PDF: el «Comprehensive Evaluation» del isocinético, una página por velocidad,
+      letra común y el texto comprimido por página; la fecha en «Session» (mes/día/año), el peso
+      en «Wt», y el orden de las piernas cambia con la pierna lesionada (fila RIGHT / LEFT). La
+      lectura dio los mismos 55 datos que `pdftotext` en las nueve páginas, y Santiago confirmó
+      que los de un PDF «Sí, coinciden» con su Excel. Eligió «Varios a la vez», la fecha «La del
+      PDF» y «Una tarjeta por PDF» para revisar. En la app: Cargar › Isocinecia › «Elegir PDF» y
+      «Revisar lo leído» (ver UI-082); se guarda una evaluación por PDF con las reglas de
+      siempre. Las pruebas usan un PDF inventado (`pdfIsocineciaDePrueba.js`).
+    - **Lo que sigue de la nota:** conectar con VALD (falta que Santiago diga qué aparatos y
+      qué datos), confirmado en un cuestionario antes de empezar.
   - **El cuerpo humano**: la figura de la carga se sacó (hecho el 15/10, ver «Lesiones: lo que
     sigue», la carga sin la figura del cuerpo). Para el reporte, Santiago preguntó si puede pasar
     una imagen para que se pinte ahí el calor y pidió (15/10, «investiga cual es la mejor manera
