@@ -231,6 +231,13 @@ export const planDelGps = (filas, { columnas, plantel = [], existentes = [], hoy
   });
 };
 
+// Lo pegado frente a lo que ya está (al subir lo pegado sin señal, para la
+// Regla 1): cada fila, nueva o yaEsta (igual a una que ya está).
+export const planDeLoPegado = (filas = [], existentes = []) => {
+  const yaEstan = new Set(existentes.map(firmaDe));
+  return filas.map((fila) => ({ estado: yaEstan.has(firmaDe(fila)) ? ESTADOS.yaEsta : ESTADOS.nueva, fila }));
+};
+
 // Las que se cargan, en el orden del Excel.
 export const ordenDeCarga = (plan) => plan.filter((fila) => fila.estado === ESTADOS.nueva).sort((a, b) => a.indice - b.indice);
 

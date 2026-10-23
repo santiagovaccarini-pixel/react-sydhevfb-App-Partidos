@@ -44,6 +44,7 @@ import {
   leerReglasGps,
   listarEnCurso,
   listarGps,
+  pegarFilasGps,
   ponerAlDiaGps,
   traerTodoGps,
   unirFilasGps,
@@ -58,6 +59,7 @@ import {
   conFilaCambiada,
   conLoHechoMientras,
   conLoQueEspera,
+  conPegado,
   conReemplazo,
   cuentaDeLaEspera,
   enCursoEnEspera,
@@ -116,6 +118,8 @@ const A_LA_IZQUIERDA = ["jugador", "descripcion"];
 const PROMEDIO = "promedio:";
 // Cuántas filas se guardan a la vez al pegar en la tabla.
 const GUARDADOS_A_LA_VEZ = 6;
+// Lo pegado sin señal que choca: cuántos días se muestran (como al pegar).
+const DIAS_QUE_CHOCAN_A_LA_VISTA = 6;
 // Las palabras propias de GPS que explica la guía, en este orden.
 const TERMINOS_GPS = [
   "teamAverage",
@@ -271,8 +275,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const mirar = soloParaMirar(equipo, "gps");
   const soloLectura = seFue || mirar || Boolean(deLaCopia);
   // Sin señal, en la Base se cambia y se borra igual (paso 3c.1 de «cargar
-  // sin señal…»; Santiago, 23/10) y se carga un día (paso 3c.2b). Pegar y los
-  // V.R., con su parte del paso 3c; los Ajustes, solo con señal.
+  // sin señal…»; Santiago, 23/10), se carga un día (paso 3c.2b) y se pega
+  // desde una planilla (3c.3). Los V.R., con su parte del paso 3c; los
+  // Ajustes, solo con señal.
   const baseSoloLectura = seFue || mirar;
   const sinConexion = Boolean(deLaCopia) || !enLinea;
   // Para ver GPS sin señal (Santiago, 21/10: la copia «Automática en todos,
@@ -1129,8 +1134,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         actualizar: actualizarFilaGps,
         borrar: borrarFilasGps,
         guardarDia: (dia) => guardarDiaGps(equipoId, dia),
+        pegar: (pegado) => pegarFilasGps(equipoId, pegado),
         crear: (filasDelDia) => crearFilasGps(equipoId, filasDelDia),
-        listar: (fecha) => listarGps(equipoId, { desde: fecha, hasta: fecha }),
+        listar: (desde, hasta = desde) => listarGps(equipoId, { desde, hasta }),
         dejar: (carga) => dejarEnCurso(equipoId, carga),
         enCursos: (fecha) => enCursosDelDia(equipoId, fecha),
         leerEnCurso,
@@ -1151,10 +1157,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     }
     const columnasPisadas = resultado.pisadas.map((pisada) => nombreDeLaClave(pisada.clave));
     const noSubieron = resultado.errores.reduce((total, uno) => total + uno.ids.length, 0);
-    const descartada = ({ tipo, fecha, otra }) =>
-      tipo === "repetida"
-        ? t("gps.espera.enCursoRepetida", { fecha: fechaCorta(fecha), quien: otra?.actualizado_email || "—", cuando: otra?.actualizado_en ? fechaYHora(otra.actualizado_en) : "—" })
-        : t({ dia: "gps.espera.diaRepetido", enLaBase: "gps.espera.enCursoEnLaBase", otroAparato: "gps.espera.enCursoOtroAparato" }[tipo], { fecha: fechaCorta(fecha) });
+    const descartada = ({ tipo, fecha, otra, n }) => {
+      if (tipo === "pegado") return plural("gps.espera.pegadasYaEstaban", n);
+      if (tipo === "repetida") return t("gps.espera.enCursoRepetida", { fecha: fechaCorta(fecha), quien: otra?.actualizado_email || "—", cuando: otra?.actualizado_en ? fechaYHora(otra.actualizado_en) : "—" });
+      return t({ dia: "gps.espera.diaRepetido", enLaBase: "gps.espera.enCursoEnLaBase", otroAparato: "gps.espera.enCursoOtroAparato" }[tipo], { fecha: fechaCorta(fecha) });
+    };
     const partes = [
       resultado.subidos ? plural("sinSenal.subidos", resultado.subidos) : "",
       resultado.reemplazadas ? plural("gps.cargar.reemplazadas", resultado.reemplazadas) : "",
@@ -1171,7 +1178,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     else await ponerAlDia();
     ponerEspera(conLoHechoMientras(esperaActual.current, { enviada, ...resultado }));
     if (resultado.conEnCurso) cargarEnCurso({ silencioso: true });
-    if (resultado.chocadas.length) setChocadas((antes) => [...antes.filter((una) => !resultado.chocadas.some((otra) => otra.dia.id === una.dia.id)), ...resultado.chocadas]);
+    if (resultado.chocadas.length) setChocadas((antes) => [...antes.filter((una) => !resultado.chocadas.some((otra) => otra.carga.id === una.carga.id)), ...resultado.chocadas]);
     subiendoAhora.current = false;
     setSubiendo(false);
     return true;
@@ -1275,8 +1282,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           </div>
         )}
 
-        {!soloLectura && (
-          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)} disabled={!enLinea}>
+        {!baseSoloLectura && (
+          <button type="button" className="boton-secundario datos-pegar-excel lesiones-pegar-excel" onClick={() => setImportando(true)}>
             <Icono nombre="documento" size={16} />
             {t("gps.importar.boton")}
           </button>
@@ -1286,7 +1293,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             {revisarCarga.pegado
               ? plural("gps.importar.mismaSesion.enEspera", revisarCarga.dias.length, { fecha: fechaCorta(revisarCarga.dias[0]) })
               : revisarCarga.espera
-                ? t("gps.espera.enEsperaRevisar", { fecha: fechaCorta(revisarCarga.fecha) })
+                ? revisarCarga.cuantosDias > 1
+                  ? t("gps.espera.enEsperaRevisarDias", { n: revisarCarga.cuantosDias })
+                  : t("gps.espera.enEsperaRevisar", { fecha: fechaCorta(revisarCarga.fecha) })
                 : t("gps.cargar.mismaSesion.enEspera", { fecha: fechaCorta(revisarCarga.fecha) })}{" "}
             <button type="button" onClick={() => seguirLaCarga()} disabled={revisarCarga.espera && (!enLinea || subiendo)}>
               {revisarCarga.pegado ? t("gps.importar.mismaSesion.seguir") : revisarCarga.espera ? t("gps.espera.subirLoQueEspera") : t("gps.cargar.mismaSesion.seguir")}
@@ -1351,12 +1360,14 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     setAviso(quedoEnCurso ? t("gps.enCurso.quedoSinBorrar") : reemplazadas ? `${listo} ${plural("gps.cargar.reemplazadas", reemplazadas)}` : listo);
   };
 
-  // Lo que «Cargar un día» deja en este aparato sin señal (paso 3c.2b).
+  // Lo que «Cargar un día» y «Pegar desde una planilla» dejan en este
+  // aparato sin señal (pasos 3c.2b y 3c.3).
   const delAparato = useMemo(
     () => ({
       filas: filasVistas,
       enCurso: enCursoEnEspera(espera),
       alGuardar: (dia) => ponerEspera(conDia(esperaActual.current, dia).cola),
+      alPegar: (pegado) => ponerEspera(conPegado(esperaActual.current, pegado).cola),
       alDejar: (carga) => {
         const { cola: nueva, id } = conEnCurso(esperaActual.current, carga);
         ponerEspera(nueva);
@@ -1460,10 +1471,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     setCargandoDia(true);
   };
 
-  // Un día cargado sin señal que es la misma sesión que cargó otra persona
-  // con otros datos (la Regla 1): «Reemplazar y cargar» o «Ir a la Base»
-  // (espera, en otro color, para revisar esas filas), de a uno.
+  // Un día cargado (o días pegados) sin señal que es la misma sesión que
+  // cargó otra persona con otros datos (la Regla 1): «Reemplazar y cargar» o
+  // «Ir a la Base» (espera, en otro color, para revisar esas filas), de a uno.
   const chocada = chocadas[0] || null;
+  const pegadoQueChoca = chocada?.carga.tipo === "pegado";
   const quienesDeLaChocada = [];
   (chocada?.existentes || []).forEach((fila) => {
     const clave = fila.jugador_id ? `j:${fila.jugador_id}` : `p:${String(fila.persona || "").toLowerCase()}`;
@@ -1471,18 +1483,31 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     if (ya) ya.filas += 1;
     else quienesDeLaChocada.push({ clave, nombre: nombreDe(fila) || "—", filas: 1 });
   });
+  // Lo pegado, como al pegar: cada día, con cuántos jugadores y filas.
+  const dispositivoQueChoca = chocada ? nombreDelDispositivo(chocada.carga.dispositivo) : "—";
+  const conDispositivoQueChoca = chocada?.carga.dispositivo ? t("gps.importar.mismaSesion.conDispositivo", { dispositivo: dispositivoQueChoca }) : t("gps.importar.mismaSesion.sinDispositivo");
+  const jugadoresDelDia = (dia) => new Set(dia.filas.map((fila) => (fila.jugador_id ? `j:${fila.jugador_id}` : `p:${String(fila.persona || "").toLowerCase()}`))).size;
+  const fechasQueChocan = new Set((chocada?.dias || []).map((dia) => dia.fecha));
+  const traePromedioQueChoca = (chocada?.carga.filas || []).some((fila) => fila.promedio && fechasQueChocan.has(fila.fecha));
   const reemplazarChocada = () => {
     setChocadas((antes) => antes.slice(1));
     if (!chocada) return;
-    ponerEspera(conReemplazo(esperaActual.current, chocada.dia.id));
+    ponerEspera(conReemplazo(esperaActual.current, chocada.carga.id));
     subir();
   };
   const verChocadaEnLaBase = () => {
     setChocadas((antes) => antes.slice(1));
     if (!chocada) return;
-    const { dia, existentes } = chocada;
-    const nombres = [...new Set([...existentes, ...dia.filas].filter((fila) => !fila.promedio).map(nombreDe).filter(Boolean))];
-    setRevisarCarga({ espera: true, fecha: dia.fecha, vez: Date.now(), filtros: { fecha: [fechaCorta(dia.fecha)], jugador: nombres, dispositivo: [nombreDelDispositivo(dia.dispositivo)] } });
+    const { carga, existentes } = chocada;
+    const fechas = [...fechasQueChocan].sort();
+    const nombres = [...new Set([...existentes, ...carga.filas.filter((fila) => fechasQueChocan.has(fila.fecha))].filter((fila) => !fila.promedio).map(nombreDe).filter(Boolean))];
+    setRevisarCarga({
+      espera: true,
+      fecha: fechas[0],
+      cuantosDias: fechas.length,
+      vez: Date.now(),
+      filtros: { fecha: fechas.map(fechaCorta), jugador: nombres, ...(carga.dispositivo ? { dispositivo: [nombreDelDispositivo(carga.dispositivo)] } : {}) },
+    });
     setVista("base");
   };
 
@@ -2120,7 +2145,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         onGuia={guia.abrir}
       />
     );
-  else if (importando && !soloLectura)
+  else if (importando && !baseSoloLectura)
     contenido = (
       <ImportarGps
         gps={gps}
@@ -2129,6 +2154,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         plantel={plantel}
         plantelSinLeer={plantelSinLeer}
         enEspera={pegadoEnEspera}
+        enLinea={!sinConexion}
+        delAparato={delAparato}
         onVolver={() => {
           setImportando(false);
           setPegadoEnEspera(null);
@@ -2136,10 +2163,15 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         }}
         onGuia={guia.abrir}
         onRecargar={ponerAlDia}
-        onListo={({ cargadas, reemplazadas = 0 }) => {
+        onListo={({ cargadas, reemplazadas = 0, alAparato = false }) => {
           setImportando(false);
           setPegadoEnEspera(null);
           setRevisarCarga(null);
+          // Sin señal quedó en este aparato (en otro color en la Base) y se sube solo.
+          if (alAparato) {
+            setAviso(plural("gps.espera.pegadasEnElAparato", cargadas));
+            return;
+          }
           const listo = plural("gps.importar.listo", cargadas);
           setAviso(reemplazadas ? `${listo} ${plural("gps.cargar.reemplazadas", reemplazadas)}` : listo);
         }}
@@ -2359,17 +2391,39 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       <HojaConfirmar
         abierta={Boolean(chocada) && !cargandoDia && !importando}
         icono="refrescar"
-        titulo={t("gps.cargar.mismaSesion.titulo")}
-        descripcion={plural("gps.espera.choques", quienesDeLaChocada.length, { fecha: chocada ? fechaCorta(chocada.dia.fecha) : "—", dispositivo: chocada ? nombreDelDispositivo(chocada.dia.dispositivo) : "—" })}
+        titulo={t(pegadoQueChoca ? "gps.importar.mismaSesion.titulo" : "gps.cargar.mismaSesion.titulo")}
+        descripcion={
+          pegadoQueChoca
+            ? plural("gps.espera.choquesPegado", chocada.dias.length, { conDispositivo: conDispositivoQueChoca })
+            : plural("gps.espera.choques", quienesDeLaChocada.length, { fecha: chocada ? fechaCorta(chocada.carga.fecha) : "—", dispositivo: dispositivoQueChoca })
+        }
         detalle={
-          <div className="gps-misma-sesion">
-            <ul className="consentimiento-personas">
-              {quienesDeLaChocada.map((uno) => (
-                <li key={uno.clave}>{t("gps.cargar.mismaSesion.quien", { nombre: uno.nombre, filas: plural("gps.cargar.mismaSesion.filas", uno.filas) })}</li>
-              ))}
-            </ul>
-            <p>{t("gps.espera.queHace", { dispositivo: chocada ? nombreDelDispositivo(chocada.dia.dispositivo) : "—" })}</p>
-          </div>
+          pegadoQueChoca ? (
+            <div className="gps-misma-sesion">
+              <ul className="consentimiento-personas">
+                {chocada.dias.slice(0, DIAS_QUE_CHOCAN_A_LA_VISTA).map((dia) => (
+                  <li key={dia.fecha}>
+                    {t("gps.importar.mismaSesion.dia", {
+                      fecha: fechaCorta(dia.fecha),
+                      jugadores: plural("gps.importar.mismaSesion.jugadores", jugadoresDelDia(dia)),
+                      filas: plural("gps.cargar.mismaSesion.filas", dia.filas.length),
+                    })}
+                  </li>
+                ))}
+              </ul>
+              {chocada.dias.length > DIAS_QUE_CHOCAN_A_LA_VISTA && <p>{plural("gps.importar.mismaSesion.yMas", chocada.dias.length - DIAS_QUE_CHOCAN_A_LA_VISTA)}</p>}
+              <p>{t(traePromedioQueChoca ? "gps.importar.mismaSesion.queHace" : "gps.importar.mismaSesion.queHaceSinPromedio", { conDispositivo: conDispositivoQueChoca })}</p>
+            </div>
+          ) : (
+            <div className="gps-misma-sesion">
+              <ul className="consentimiento-personas">
+                {quienesDeLaChocada.map((uno) => (
+                  <li key={uno.clave}>{t("gps.cargar.mismaSesion.quien", { nombre: uno.nombre, filas: plural("gps.cargar.mismaSesion.filas", uno.filas) })}</li>
+                ))}
+              </ul>
+              <p>{t("gps.espera.queHace", { dispositivo: dispositivoQueChoca })}</p>
+            </div>
+          )
         }
         etiquetaCancelar={t("gps.cargar.mismaSesion.irALaBase")}
         etiquetaConfirmar={t("gps.cargar.mismaSesion.reemplazar")}

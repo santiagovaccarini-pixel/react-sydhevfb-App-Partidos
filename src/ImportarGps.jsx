@@ -3,6 +3,7 @@ import { Icono } from "./components/AppChrome";
 import { BotonVolver } from "./components/BotonVolver.jsx";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { HojaOpciones } from "./components/HojaOpciones.js";
+import { AvisoDeEspera, falloDeRed } from "./components/SinSenal.jsx";
 import { opcionesDeLista, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
 import { COMO_PERSONA, ESTADOS, NO_CARGAR, diasDeLaMismaSesion, leerGpsPegado, ordenDeCarga, ordenDeCargaReemplazando, planDelGps } from "./domain/gps/importar.js";
@@ -43,7 +44,25 @@ const contar = (claves) => {
 // enEspera: lo pegado que quedó en espera con la Regla 1 («Ir a la Base»): {
 // texto, dispositivo, elegidos }; se sigue desde ahí. onVerEnLaBase({ dias,
 // dispositivo, filas, espera }): las filas de esos días que ya estaban.
-export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, plantel, plantelSinLeer = false, enEspera = null, onVolver, onGuia, onRecargar, onListo, onVerEnLaBase }) {
+// Sin señal (paso 3c.3 de «cargar sin señal…»; Santiago, 23/10), lo que ya
+// está se mira en lo de este aparato y lo pegado queda en él: se sube solo
+// cuando vuelve la señal. delAparato: { filas (las que se ven en la Base),
+// alPegar({ dispositivo, filas, reemplazar }) }; sin él, todo con señal.
+export default function ImportarGps({
+  gps,
+  config = configGpsVacia(),
+  equipoId,
+  plantel,
+  plantelSinLeer = false,
+  enEspera = null,
+  enLinea = true,
+  delAparato = null,
+  onVolver,
+  onGuia,
+  onRecargar,
+  onListo,
+  onVerEnLaBase,
+}) {
   const { idioma, plural } = useIdioma();
   const hoy = hoyISO();
   const [texto, setTexto] = useState(() => enEspera?.texto || "");
@@ -69,6 +88,8 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
   const [progreso, setProgreso] = useState(null);
   const [falla, setFalla] = useState("");
   const [cargadasAntes, setCargadasAntes] = useState(null);
+  // Lo que quedó en este aparato (sin señal) mientras la pantalla sigue abierta.
+  const [alAparatoAntes, setAlAparatoAntes] = useState(0);
   // Regla 1: los días que son una sesión que ya está con otros datos, mientras
   // se pregunta ([{ fecha, filas }]).
   const [otrosDias, setOtrosDias] = useState(null);
@@ -165,18 +186,26 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
       setExistentes([]);
       return undefined;
     }
+    // Sin señal, lo de este aparato (la copia de la Base y lo que espera).
+    const deAca = () => (delAparato?.filas || []).filter((fila) => fila.fecha >= rango.desde && fila.fecha <= rango.hasta);
+    setErrorExistentes("");
+    if (!enLinea && delAparato) {
+      setExistentes(deAca());
+      return undefined;
+    }
     let vigente = true;
     setExistentes(null);
-    setErrorExistentes("");
-    listarGps(equipoId, rango).then(({ filas, error }) => {
+    listarGps(equipoId, rango).then((respuesta) => {
       if (!vigente) return;
-      if (error) setErrorExistentes(error);
-      else setExistentes(filas);
+      if (delAparato && falloDeRed(respuesta)) setExistentes(deAca());
+      else if (respuesta.error) setErrorExistentes(respuesta.error);
+      else setExistentes(respuesta.filas);
     });
     return () => {
       vigente = false;
     };
-  }, [rango, equipoId, intento]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rango, equipoId, intento, enLinea]);
 
   // El plan, con lo que ya está, lo elegido y el dispositivo.
   useEffect(() => {
@@ -259,6 +288,7 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
     setTexto(nuevo);
     setFalla("");
     setCargadasAntes(null);
+    setAlAparatoAntes(0);
     setElegidos({});
   };
 
@@ -286,7 +316,9 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
   // Se guarda de a tandas de días enteros, en la base (20261112). Antes, la
   // Regla 1: si hay días que son una sesión que ya está con otros datos, se
   // pregunta («Ir a la Base» o «Reemplazar y cargar»). La base revisa lo
-  // mismo con los días bloqueados. Sin esa actualización, como antes.
+  // mismo con los días bloqueados. Sin esa actualización, como antes. Sin
+  // señal (o si se corta en el camino), lo pegado queda en este aparato: al
+  // subir se revisa otra vez y lo que ya subió no se carga dos veces.
   const cargar = async ({ reemplazar = false } = {}) => {
     setOtrosDias(null);
     const dias = diasDeLaMismaSesion(plan, existentes || [], dispositivo);
@@ -301,10 +333,35 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
     const quedanSinElegir = sinElegir.length;
     setFalla("");
     setCargadasAntes(null);
+    setAlAparatoAntes(0);
+    const alAparato = () => {
+      setProgreso(null);
+      // Su consentimiento se confirma con señal.
+      if (lista.some(({ fila }) => !fila.jugador_id && !fila.promedio && String(fila.persona ?? "").trim())) {
+        setFalla("gps.espera.personasConSenalPegado");
+        return;
+      }
+      delAparato.alPegar({ dispositivo, filas: lista.map((fila) => fila.fila), reemplazar });
+      // Lo que quedó en el aparato ya cuenta como "Ya está en la app".
+      setExistentes((previas) => [...(previas || []), ...lista.map((fila) => fila.fila)]);
+      if (quedanSinElegir === 0) {
+        onListo({ cargadas: lista.length, alAparato: true });
+        return;
+      }
+      setAlAparatoAntes(lista.length);
+    };
+    if (!enLinea && delAparato) {
+      alAparato();
+      return;
+    }
     setProgreso({ n: 0, total: lista.length });
     const alAvanzar = (n, total) => enPantalla.current && setProgreso({ n, total });
     const seguir = () => enPantalla.current;
     const respuesta = await pegarFilasGps(equipoId, { dispositivo, filas: lista.map((fila) => fila.fila), reemplazar, alAvanzar, seguir });
+    if (delAparato && falloDeRed(respuesta) && enPantalla.current) {
+      alAparato();
+      return;
+    }
     if (respuesta.sinFuncion) {
       // Sin la actualización 20261112 no se reemplaza.
       if (reemplazar) {
@@ -396,6 +453,8 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
           </div>
         </header>
 
+        {!enLinea && delAparato && <AvisoDeEspera sinSenal />}
+
         <section className="tarjeta datos-importar-pegado">
           {/* Lo pegado no se escribe en el cuadro (son megas de texto): se lee y se resume abajo. */}
           <textarea
@@ -463,6 +522,11 @@ export default function ImportarGps({ gps, config = configGpsVacia(), equipoId, 
         {cargadasAntes > 0 && (
           <p className="lesiones-estado" role="status">
             {plural("gps.importar.listo", cargadasAntes)}
+          </p>
+        )}
+        {alAparatoAntes > 0 && (
+          <p className="lesiones-estado" role="status">
+            {plural("gps.espera.pegadasEnElAparato", alAparatoAntes)}
           </p>
         )}
         {falla && (

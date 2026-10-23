@@ -231,6 +231,7 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
   // Como la base (20261112): las iguales (menos el dispositivo) no entran; la
   // Regla 1 por día; con reemplazar, cambia esos días.
   pegarFilasGps: async (equipoId, { dispositivo = "", filas, reemplazar = false, alAvanzar }) => {
+    if (!hayRed()) return { creadas: 0, yaEstaban: 0, reemplazadas: 0, ...sinRed };
     datos.pegadas.push({ dispositivo, filas: filas.length, reemplazar });
     if (datos.sinGuardarDia) return { sinFuncion: true, creadas: 0, yaEstaban: 0, reemplazadas: 0, error: "" };
     const { diasDeLaMismaSesion } = await import("./domain/gps/importar.js");
@@ -834,8 +835,8 @@ describe("GPS", () => {
     expect(contenedor.textContent).toContain("ALFA");
     expect(datos.lecturas).toEqual([]);
     expect(datos.alDia).toEqual([]);
-    // Pegar, Cargar y los V.R., con su parte del paso 3c.
-    expect(boton("Pegar desde una planilla")).toBeFalsy();
+    // Pegar, con su parte del paso 3c (3c.3): sin señal también se pega.
+    expect(boton("Pegar desde una planilla").disabled).toBe(false);
     // Los Ajustes, con señal.
     await irA(contenedor, "Ajustes");
     expect(contenedor.textContent).toContain("Sin señal: los Ajustes se cambian cuando vuelva la señal.");
@@ -1056,6 +1057,82 @@ describe("GPS", () => {
     await tocar(boton("Volver"));
     await tocar(boton("Pegar desde una planilla"));
     expect(contenedor.textContent).not.toContain("3 para cargar");
+  });
+
+  // Paso 3c.3 de «cargar sin señal…» (Santiago, 23/10, en cuestionarios: sin
+  // señal también «Pegar desde una planilla»; al subir, si choca (Regla 1)
+  // espera y pregunta, y lo que ya está no se carga de nuevo).
+  describe("Pegar desde una planilla sin señal", () => {
+    const enEspera = () => esperas.guardadas["eq-1|gps|cuenta-1"] || [];
+    const pegarSinSenal = async (texto, cuantas) => {
+      await sinSenalConLaCopia();
+      await tocar(boton("Pegar desde una planilla"));
+      expect(avisoArriba()).toContain("Lo que cargues, cambies o borres queda en este aparato");
+      await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), texto);
+      await elegir(contenedor.querySelector(".gps-dispositivo select"), "catapult");
+      await esperar(() => Boolean(boton(cuantas)) && !boton(cuantas).disabled);
+      await tocar(boton(cuantas));
+    };
+
+    test("lo pegado queda en el aparato (en otro color en la Base) y al volver la señal sube; lo que ya estaba igual no se carga de nuevo", async () => {
+      const texto = ["Microciclo\tNombre\tD\tT\tFecha", `31\tALFA\t4100\t0:50:00\t${fechaCorta(HOY)}`, `31\tBETA\t4200\t0:50:00\t${fechaCorta(HOY)}`].join("\n");
+      await pegarSinSenal(texto, "Cargar 2 filas");
+      expect(datos.pegadas).toEqual([]);
+      expect(document.body.textContent).toContain("Sin señal: 2 filas pegadas quedaron en este aparato y se suben solas cuando vuelva la señal.");
+      expect(enEspera().map((uno) => uno.tipo)).toEqual(["pegado"]);
+      expect(filas(contenedor)).toHaveLength(5);
+      expect(queEsperan()).toHaveLength(2);
+      // Mientras tanto, otra persona pegó la misma fila de BETA.
+      datos.filas.push(fila("x1", 30, { jugador_id: 2 }, HOY, { microciclo: 31, d: 4200, tiempo: 3000, dispositivo: "sport" }));
+      await sinSenalAhora(false);
+      await unRato();
+      expect(datos.pegadas).toEqual([{ dispositivo: "catapult", filas: 2, reemplazar: false }]);
+      expect(datos.creadas.map((una) => una.jugador_id)).toEqual([1]);
+      expect(document.body.textContent).toContain("Se subió 1 cambio hecho sin señal. 1 fila pegada sin señal ya estaba en la Base: no se cargó de nuevo.");
+      expect(esperas.guardadas).toEqual({});
+      expect(queEsperan()).toEqual([]);
+    }, 30000);
+
+    test("al subir, los días que son la misma sesión con otros datos esperan y preguntan; los demás suben; «Ir a la Base» y «Reemplazar y cargar»", async () => {
+      await pegarSinSenal(pegadoConLaMismaSesion(), "Cargar 3 filas");
+      // Mientras tanto, otra persona cargó ayer la sesión de las 10:00 con otros números.
+      datos.filas.push(fila("s1", 11, { jugador_id: 1 }, AYER, { d: 3100, tiempo: 1200, inicio: 36000, dispositivo: "catapult" }));
+      await sinSenalAhora(false);
+      await unRato();
+      // Hoy sube; ayer espera y pregunta.
+      expect(datos.pegadas).toEqual([{ dispositivo: "catapult", filas: 1, reemplazar: false }]);
+      const hoja = () => document.querySelector(".hoja-confirmar");
+      expect(hoja().querySelector("h3").textContent).toBe("Esos días ya están en la Base, con otros datos");
+      expect(hoja().textContent).toContain("1 día de lo que pegaste sin señal ya tiene filas de esos jugadores con Catapult a la misma hora de inicio, con otros datos (las cargó otra persona):");
+      expect([...hoja().querySelectorAll(".consentimiento-personas li")].map((li) => li.textContent)).toEqual([`${fechaCorta(AYER)} · 2 jugadores · 3 filas`]);
+      expect(hoja().textContent).toContain("«Ir a la Base» deja lo pegado en espera para que revises esas filas.");
+      // «Ir a la Base»: espera, en otro color, con las de ese día.
+      await tocar(boton("Ir a la Base"));
+      expect(contenedor.querySelector(".gps-revisar-carga").textContent).toContain(`Estas son las filas del ${fechaCorta(AYER)} que ya estaban y, en otro color, las que cargaste sin señal: esperan.`);
+      expect(queEsperan()).toHaveLength(2);
+      expect(enEspera()).toEqual([expect.objectContaining({ tipo: "pegado", chocan: true })]);
+      // «Subir lo que espera»: pregunta otra vez; «Reemplazar y cargar».
+      await tocar(boton("Subir lo que espera"));
+      await unRato();
+      await tocar(boton("Reemplazar y cargar"));
+      await unRato();
+      expect(datos.pegadas.at(-1)).toEqual({ dispositivo: "catapult", filas: 2, reemplazar: true });
+      expect(datos.filas.some((una) => una.id === "s1")).toBe(false);
+      expect(esperas.guardadas).toEqual({});
+    }, 30000);
+
+    test("con personas que no están en Datos básicos no se carga sin señal", async () => {
+      const texto = ["Microciclo\tNombre\tD\tFecha", `31\tALFA\t4100\t${fechaCorta(HOY)}`, `31\tNombre Nuevo\t3900\t${fechaCorta(HOY)}`].join("\n");
+      await sinSenalConLaCopia();
+      await tocar(boton("Pegar desde una planilla"));
+      await escribir(contenedor.querySelector(".datos-importar-pegado textarea"), texto);
+      await esperar(() => Boolean(boton("Guardar igual el que no está en Datos básicos")));
+      await tocar(boton("Guardar igual el que no está en Datos básicos"));
+      await esperar(() => Boolean(boton("Cargar 2 filas")) && !boton("Cargar 2 filas").disabled);
+      await tocar(boton("Cargar 2 filas"));
+      expect(contenedor.textContent).toContain("Sin señal no se cargan personas que no están en Datos básicos");
+      expect(enEspera()).toEqual([]);
+    }, 30000);
   });
 
   test("Pegar sin la actualización de la base: sin la misma sesión se guarda como antes", async () => {
