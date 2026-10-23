@@ -2832,6 +2832,25 @@ button:disabled {
   text-align: center;
 }
 
+/* Partido compartido sin señal (paso 4c): una línea corta, dorada, debajo de
+   «En vivo»; el reloj baja apenas. */
+.aviso-reloj {
+  margin: 38px 10px 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(240, 201, 120, 0.7);
+  border-radius: 8px;
+  background: rgba(240, 201, 120, 0.16);
+  color: #6b4d0c;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.reloj-centro.con-aviso {
+  padding-top: 10px;
+}
+
 .rotulo-reloj {
   display: block;
   color: var(--cam-gris);

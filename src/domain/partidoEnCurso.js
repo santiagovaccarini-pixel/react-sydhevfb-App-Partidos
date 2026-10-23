@@ -167,6 +167,59 @@ export const juntarConLaBase = (servidor = {}, { subido = {}, ahora = {} } = {})
   return plano;
 };
 
+// Lo que se sabe que tiene la base después de leerla: lo de la base, salvo
+// lo que este celular cambió y todavía no está ahí, que sigue con lo que se
+// veía antes de cambiarlo (paso 4c). Así, al subirlo, si otra persona lo
+// cambió mientras tanto (por ejemplo, mientras este celular no tenía señal),
+// la base lo dice (pisadas) aunque se haya leído antes de subir.
+export const loQueSeVio = (servidor = {}, { subido = {}, ahora = {} } = {}) => {
+  const visto = { ...(servidor || {}) };
+  Object.keys(diferenciasDelPartido(subido || {}, ahora).cambios).forEach((clave) => {
+    if (igual(servidor?.[clave], ahora?.[clave])) return;
+    if (subido && Object.prototype.hasOwnProperty.call(subido, clave)) visto[clave] = subido[clave];
+    else delete visto[clave];
+  });
+  return visto;
+};
+
+// Lo que se sabe que tiene la base después de subir: lo de antes con lo que
+// se mandó (lo que se sacó, sin).
+export const conLoEnviado = (subido = {}, cambios = {}) => {
+  const visto = { ...(subido || {}) };
+  Object.entries(cambios || {}).forEach(([clave, valor]) => {
+    if (esVacio(valor)) delete visto[clave];
+    else visto[clave] = valor;
+  });
+  return visto;
+};
+
+// Lo que anota «Guardar partido» en el partido compartido (si quedó
+// guardado terminado y en qué celular): no es un dato del partido, así que
+// no se avisa si se pisa.
+const DEL_GUARDADO = new Set(["guardadoTerminado", "guardadoPor"]);
+export const pisadasParaAvisar = (pisadas = []) =>
+  (pisadas || []).filter((pisada) => pisada?.clave && !DEL_GUARDADO.has(String(pisada.clave).split(".")[0]));
+
+// Lo que este celular subió llegó después de que otro celular guardó el
+// partido terminado: no está en el Historial (paso 4c; Santiago, 23/10: si
+// se guardó igual, al volver se le avisa que toque «Guardar partido»).
+export const guardadoEnOtroCelular = (datos = {}, { cambios = {}, propio = "" } = {}) =>
+  Boolean(datos?.guardadoTerminado) &&
+  Boolean(datos?.guardadoPor) &&
+  datos.guardadoPor !== propio &&
+  Object.keys(cambios || {}).some((clave) => !DEL_GUARDADO.has(clave.split(".")[0]));
+
+// Los otros celulares sumados al partido (sin este ni los que se fueron) y,
+// de ellos, los que no se conectan hace más de un minuto (paso 4c; Santiago,
+// 23/10: «Guardar partido» espera lo de todos, con «Guardar igual»). Un
+// celular sin señal no puede avisar si tiene algo sin subir: lo que se sabe
+// es desde cuándo no se conecta.
+export const SEGUNDOS_SIN_CONECTARSE = 60;
+export const otrosCelulares = (celulares = [], { propio = "" } = {}) =>
+  (celulares || []).filter((uno) => uno?.celular && uno.celular !== propio && uno.sumado !== false);
+export const celularesQueFaltan = (celulares = [], { propio = "", segundos = SEGUNDOS_SIN_CONECTARSE } = {}) =>
+  otrosCelulares(celulares, { propio }).filter((uno) => Number(uno.segundos) > segundos);
+
 // Terminado: con el segundo tiempo (y, con prórroga, el segundo
 // suplementario) terminado.
 export const partidoTerminado = (plano = {}) => Boolean(plano.finalST) && (!plano.prorrogaActiva || Boolean(plano.finalSTE));

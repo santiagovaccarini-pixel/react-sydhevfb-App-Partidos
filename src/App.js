@@ -79,14 +79,21 @@ import {
 import {
   aplanarPartido,
   armarPartido,
+  celularesQueFaltan,
+  conLoEnviado,
   diferenciasDelPartido,
+  guardadoEnOtroCelular,
   juntarConLaBase,
+  loQueSeVio,
   nombreDelDato,
+  otrosCelulares,
   paraSumarse,
   partidoTerminado,
+  pisadasParaAvisar,
 } from "./domain/partidoEnCurso.js";
 import {
   cambiarPartidoEnCurso,
+  celularesDelPartido,
   partidosEnCursoDelClub,
 } from "./domain/partidoEnCursoDb.js";
 import { useEnVivo } from "./domain/enVivo.js";
@@ -269,7 +276,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.23.9";
+const APP_VERSION = "2026.10.23.10";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
@@ -327,6 +334,32 @@ const terminarGuardado = (club, guardado) => {
 };
 const CLAVE_RESPALDO = "backup_registros_partidos";
 const CLAVE_PENDIENTES = "registros_sin_sincronizar";
+const CLAVE_CELULAR = "partido_este_celular";
+
+// Este celular, con un número propio que no dice de quién es: para saber
+// cuáles están sumados a un partido en curso y desde cuándo no se conectan
+// (paso 4c de «cargar sin señal y a la vez que otra persona»). Sin dónde
+// guardarlo, uno nuevo cada vez que se abre.
+const leerIdCelular = () => {
+  const valido = (valor) =>
+    typeof valor === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(valor);
+  try {
+    const guardado = window.localStorage.getItem(CLAVE_CELULAR);
+    if (valido(guardado)) return guardado;
+  } catch {
+    // Sin almacenamiento: uno nuevo.
+  }
+  const nuevo = `cel-${idAlAzar()}`.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+  try {
+    window.localStorage.setItem(CLAVE_CELULAR, nuevo);
+  } catch {
+    // Sin almacenamiento: vale mientras esté abierta.
+  }
+  return nuevo;
+};
+// Cuánto se espera la lista de celulares al tocar «Guardar partido»: con mala
+// señal no se deja a la persona esperando.
+const ESPERA_CELULARES_MS = 5000;
 
 // Una copia por club. Con una sola para todos, al cambiar de equipo la base
 // contestaba vacía y la app caía al respaldo del club anterior: se veían los
@@ -1406,6 +1439,8 @@ export default function App({
   const [estadoHistorial, setEstadoHistorial] = useState("cargando");
   const [guardando, setGuardando] = useState(false);
   const guardandoRef = useRef(false);
+  const idCelular = useRef(null);
+  if (!idCelular.current) idCelular.current = leerIdCelular();
   const [registroSeleccionado, setRegistroSeleccionado] = useState(null);
   const [detalleEditando, setDetalleEditando] = useState(false);
   const [detalleBorrador, setDetalleBorrador] = useState(null);
@@ -2075,7 +2110,9 @@ export default function App({
         ? {
             ...prev,
             idSupabase: idFila,
-            ...(terminado ? { guardadoTerminado: true } : {}),
+            ...(terminado
+              ? { guardadoTerminado: true, guardadoPor: idCelular.current }
+              : {}),
           }
         : prev,
     );
@@ -2538,14 +2575,34 @@ export default function App({
   // supo de la base (enCursoSubido) y su versión: así se sabe qué cambió acá,
   // aunque se cierre la app. Sin la actualización de la base, como antes.
   // «Limpiar» empieza otro partido en este celular y deja el de antes.
+  //
+  // Sin señal (paso 4c; Santiago, 23/10): cada celular sigue anotando y, al
+  // volver, lo suyo se sube y se junta (avisa «Solo si se pisó algo»); se
+  // reintenta cada 20 segundos aunque el celular diga que hay red. Mientras
+  // tanto, un «Aviso chico en el partido». Cada celular avisa a la base que
+  // sigue sumado, para que «Guardar partido» espere lo de los que no se
+  // conectan (con «Guardar igual»).
   const enCurso = useRef({
     registroEnviado: null,
     enCamino: false,
     otraVez: false,
     sinFuncion: false,
     sinLista: false,
+    sinCelulares: false,
+    celulares: [],
+    avisoGuardado: null,
+    // El partido que se acaba de empezar en la base, hasta que la pantalla
+    // tenga su id: así no se empieza otra vez.
+    creadoPara: null,
   });
+  const [otraSubida, setOtraSubida] = useState(0);
   const [paraSumarseA, setParaSumarseA] = useState([]);
+  const [celularesSumados, setCelularesSumados] = useState([]);
+  const [enCursoSinSenal, setEnCursoSinSenal] = useState(false);
+  const ponerCelulares = (lista) => {
+    enCurso.current.celulares = lista;
+    setCelularesSumados(lista);
+  };
   const mismosDatos = (uno, otro) =>
     !Object.keys(diferenciasDelPartido(uno || {}, otro || {}).cambios).length;
   // Lo de la base de este partido (su id, datos, versión y fila del
@@ -2566,6 +2623,12 @@ export default function App({
       subido: prev.enCursoSubido || {},
       ahora,
     });
+    // Lo de acá que todavía no subió sigue con lo que se veía: al subirlo, si
+    // otra persona lo cambió mientras tanto, la base lo dice (4c).
+    const visto = loQueSeVio(datos, {
+      subido: prev.enCursoSubido || {},
+      ahora,
+    });
     const nuevo = normalizarBorrador({
       ...armarPartido(plano, {
         vacio: crearRegistroVacio(),
@@ -2573,7 +2636,7 @@ export default function App({
         nuevoId: idAlAzar,
       }),
       idEnCurso: id,
-      enCursoSubido: datos,
+      enCursoSubido: visto,
       enCursoVersion: Number.isInteger(version)
         ? version
         : prev.enCursoVersion ?? null,
@@ -2583,7 +2646,7 @@ export default function App({
       prev.idEnCurso === id &&
       prev.enCursoVersion === nuevo.enCursoVersion &&
       prev.idSupabase === nuevo.idSupabase &&
-      mismosDatos(prev.enCursoSubido, datos) &&
+      mismosDatos(prev.enCursoSubido, visto) &&
       mismosDatos(ahora, aplanarPartido(nuevo));
     return igual ? prev : nuevo;
   };
@@ -2599,6 +2662,9 @@ export default function App({
     if (!club || club !== equipoId || soloLectura || !hayPartidoCargado(actual)) {
       return;
     }
+    // Recién empezado en la base y la pantalla todavía no tiene su id: se
+    // sube cuando lo tenga (si no, quedaba repetido).
+    if (!actual.idEnCurso && estado.creadoPara === actual.idLocal) return;
     const conBase = Boolean(actual.idEnCurso && actual.enCursoSubido);
     const { cambios, antes } = diferenciasDelPartido(
       conBase ? actual.enCursoSubido : {},
@@ -2625,8 +2691,15 @@ export default function App({
       estado.sinFuncion = true;
       return;
     }
+    if (respuesta.sinSenal) {
+      if (actual.idEnCurso) setEnCursoSinSenal(true);
+    } else if (!respuesta.error) {
+      setEnCursoSinSenal(false);
+    }
+    if (!actual.idEnCurso && respuesta.id) estado.creadoPara = actual.idLocal;
     if (respuesta.noEsta) {
       // Lo borraron: este celular lo vuelve a empezar con lo que tiene.
+      estado.creadoPara = null;
       setRegistro((prev) =>
         prev.idLocal === actual.idLocal
           ? { ...prev, idEnCurso: null, enCursoSubido: null, enCursoVersion: null }
@@ -2634,28 +2707,51 @@ export default function App({
       );
     } else if (!respuesta.error) {
       estado.registroEnviado = `${respuesta.id}|${registroId}`;
+      // Lo que se mandó ya está en la base: lo que cambió acá mientras subía
+      // sigue pendiente, con lo que se mandó como lo que se veía.
       setRegistro((prev) =>
         prev.idLocal === actual.idLocal
           ? conLaBase(
-              { ...prev, idEnCurso: prev.idEnCurso || respuesta.id },
+              {
+                ...prev,
+                idEnCurso: prev.idEnCurso || respuesta.id,
+                enCursoSubido: conLoEnviado(prev.enCursoSubido || {}, cambios),
+              },
               { ...respuesta, registroId },
             )
           : prev,
       );
-      if (respuesta.pisadas.length) {
-        avisarGuardado(
+      const avisos = [];
+      const pisadas = pisadasParaAvisar(respuesta.pisadas);
+      if (pisadas.length) {
+        avisos.push(
           t("partido.enCurso.pisadas", {
             datos: [
-              ...new Set(respuesta.pisadas.map((pisada) => nombreDelDato(pisada.clave))),
+              ...new Set(pisadas.map((pisada) => nombreDelDato(pisada.clave))),
             ].join(", "),
           }),
-          6000,
         );
       }
+      // Lo de acá llegó después de que otro celular lo guardó terminado: no
+      // está en el Historial (se avisa una vez por guardado).
+      const guardado = `${respuesta.id}|${respuesta.datos?.guardadoPor || ""}`;
+      if (
+        estado.avisoGuardado !== guardado &&
+        guardadoEnOtroCelular(respuesta.datos, {
+          cambios,
+          propio: idCelular.current,
+        })
+      ) {
+        estado.avisoGuardado = guardado;
+        avisos.push(t("partido.enCurso.yaGuardado"));
+      }
+      if (avisos.length) avisarGuardado(avisos.join(" "), avisos.length > 1 ? 10000 : 6000);
     }
+    // Lo que se anotó mientras subía, después de que la pantalla tenga lo
+    // que contestó la base.
     if (estado.otraVez) {
       estado.otraVez = false;
-      subirEnCurso();
+      setOtraSubida((vez) => vez + 1);
     }
   };
   // Los partidos en curso del club: a cuáles se ofrece «Sumarme» y lo que
@@ -2670,7 +2766,11 @@ export default function App({
       estado.sinLista = true;
       return;
     }
+    if (respuesta.sinSenal && registroVigente.current.idEnCurso) {
+      setEnCursoSinSenal(true);
+    }
     if (respuesta.error || club !== clubDelBorrador.current) return;
+    setEnCursoSinSenal(false);
     const actual = registroVigente.current;
     setParaSumarseA(
       paraSumarse(respuesta.partidos, { propio: actual.idEnCurso || null }),
@@ -2684,10 +2784,45 @@ export default function App({
       );
     }
   };
+  // Este celular sigue sumado al partido (o se fue, con sumado en false) y
+  // los celulares del partido, con desde cuándo no se conecta cada uno (4c).
+  const anotarCelular = async ({
+    id = registroVigente.current.idEnCurso,
+    sumado = true,
+  } = {}) => {
+    const estado = enCurso.current;
+    if (estado.sinFuncion || estado.sinCelulares || !id || soloLectura) {
+      return null;
+    }
+    const respuesta = await celularesDelPartido(id, idCelular.current, {
+      sumado,
+    });
+    if (respuesta.sinFuncion) {
+      estado.sinCelulares = true;
+      return null;
+    }
+    if (!sumado || registroVigente.current.idEnCurso !== id) return respuesta;
+    if (respuesta.sinSenal) setEnCursoSinSenal(true);
+    else if (!respuesta.error && !respuesta.noEsta) {
+      setEnCursoSinSenal(false);
+      ponerCelulares(respuesta.celulares);
+    }
+    return respuesta;
+  };
+  // Al dejar un partido en este celular («Limpiar» o sumarse a otro), los
+  // otros ya no lo esperan para guardar. Sin señal, queda como estaba.
+  const dejarElPartido = (id) => {
+    if (!id) return;
+    anotarCelular({ id, sumado: false });
+    ponerCelulares([]);
+    setEnCursoSinSenal(false);
+  };
   // «Sumarme»: este celular pasa a ese partido (con lo de la base). Si tenía
   // otro cargado, pregunta antes.
   const sumarseAlPartido = (oferta) => {
     const sumarse = () => {
+      const anterior = registroVigente.current.idEnCurso;
+      if (anterior && anterior !== oferta.id) dejarElPartido(anterior);
       const nuevo = normalizarBorrador({
         ...armarPartido(oferta.datos, {
           vacio: crearRegistroVacio(),
@@ -2726,6 +2861,9 @@ export default function App({
   const subirEnCursoVigente = useRef(subirEnCurso);
   subirEnCursoVigente.current = subirEnCurso;
   useEffect(() => {
+    if (otraSubida) subirEnCursoVigente.current();
+  }, [otraSubida]);
+  useEffect(() => {
     if (!equipoId || soloLectura) return undefined;
     const temporizador = window.setTimeout(
       () => subirEnCursoVigente.current(),
@@ -2740,6 +2878,8 @@ export default function App({
   }, []);
   const traerDeLaBaseVigente = useRef(traerDeLaBase);
   traerDeLaBaseVigente.current = traerDeLaBase;
+  const anotarCelularVigente = useRef(anotarCelular);
+  anotarCelularVigente.current = anotarCelular;
   useEnVivo({
     nombre: "partido-en-curso",
     tablas: ["partidos_en_curso"],
@@ -2747,15 +2887,27 @@ export default function App({
     activo: Boolean(equipoId) && !soloLectura,
     alCambiar: () => traerDeLaBaseVigente.current(),
   });
+  // Cada 20 segundos: lo de los otros celulares, lo de este que no subió
+  // (en la cancha el celular suele decir que hay red aunque la base no
+  // conteste, y el aviso de «online» no llega) y que este sigue sumado.
   useEffect(() => {
     if (!equipoId || soloLectura) return undefined;
-    traerDeLaBaseVigente.current();
-    const intervalo = window.setInterval(
-      () => traerDeLaBaseVigente.current(),
-      20000,
-    );
+    const vuelta = () => {
+      traerDeLaBaseVigente.current();
+      subirEnCursoVigente.current();
+      anotarCelularVigente.current();
+    };
+    vuelta();
+    const intervalo = window.setInterval(vuelta, 20000);
     return () => window.clearInterval(intervalo);
   }, [equipoId, soloLectura, registro.idEnCurso]);
+  useEffect(() => {
+    const alCortarse = () => {
+      if (registroVigente.current.idEnCurso) setEnCursoSinSenal(true);
+    };
+    window.addEventListener("offline", alCortarse);
+    return () => window.removeEventListener("offline", alCortarse);
+  }, []);
 
   // Al cambiar de club, el partido en memoria ya quedó guardado en el suyo
   // (se escribe con cada cambio) y se trae el del club nuevo, o uno vacío.
@@ -4518,7 +4670,9 @@ export default function App({
             : {
                 ...prev,
                 idSupabase: idGuardado,
-                ...(terminado ? { guardadoTerminado: true } : {}),
+                ...(terminado
+                  ? { guardadoTerminado: true, guardadoPor: idCelular.current }
+                  : {}),
               },
         );
         if (clubDelGuardado && clubDelBorrador.current !== clubDelGuardado) {
@@ -4580,12 +4734,110 @@ export default function App({
     }
   };
 
-  const guardarRegistro = async () => {
-    if (guardandoRef.current) return;
+  // Partido compartido (paso 4c; Santiago, 23/10: «Guardar partido» no
+  // guarda hasta que se junte lo de todos los celulares). Un celular sin
+  // señal no puede avisar que tiene algo sin subir: si otro celular sumado no
+  // se conecta hace más de un minuto, o este no tiene señal y hay otros, se
+  // espera. «Esperar» no guarda; «Guardar igual», por si ese celular no
+  // vuelve (se apagó o cerró la app).
+  const revisandoCelulares = useRef(false);
+  const faltaJuntar = async () => {
+    const actual = registroVigente.current;
+    const estado = enCurso.current;
+    if (
+      !actual.idEnCurso ||
+      soloLectura ||
+      estado.sinFuncion ||
+      estado.sinCelulares
+    ) {
+      return null;
+    }
+    const respuesta = await Promise.race([
+      anotarCelular({ id: actual.idEnCurso }),
+      new Promise((resolver) =>
+        window.setTimeout(
+          () => resolver({ sinSenal: true }),
+          ESPERA_CELULARES_MS,
+        ),
+      ),
+    ]);
+    if (!respuesta || respuesta.noEsta) return null;
+    if (respuesta.sinSenal) {
+      return otrosCelulares(estado.celulares, { propio: idCelular.current })
+        .length
+        ? { sinSenal: true, faltan: [] }
+        : null;
+    }
+    if (respuesta.error) return null;
+    const faltan = celularesQueFaltan(respuesta.celulares, {
+      propio: idCelular.current,
+    });
+    return faltan.length ? { sinSenal: false, faltan } : null;
+  };
+  const avisarQueFaltaJuntar = ({ sinSenal, faltan }) => {
+    const desde = (segundos) =>
+      new Date(Date.now() - Number(segundos || 0) * 1000)
+        .toTimeString()
+        .slice(0, 5);
+    const quien = (uno) => uno.email || t("partido.enCurso.otroCelular");
+    setConfirmacion({
+      titulo: t("partido.enCurso.faltaTitulo"),
+      descripcion: sinSenal
+        ? t("partido.enCurso.faltaSinSenal")
+        : faltan.length === 1
+          ? t("partido.enCurso.faltaUno", {
+              quien: quien(faltan[0]),
+              hora: desde(faltan[0].segundos),
+            })
+          : t("partido.enCurso.faltanVarios", { n: faltan.length }),
+      icono: "reloj",
+      detalle:
+        faltan.length > 1 ? (
+          <>
+            <Icono nombre="reloj" size={15} />
+            {faltan
+              .map((uno) =>
+                t("partido.enCurso.desdeLas", {
+                  quien: quien(uno),
+                  hora: desde(uno.segundos),
+                }),
+              )
+              .join(" · ")}
+          </>
+        ) : null,
+      etiquetaConfirmar: t("partido.enCurso.guardarIgual"),
+      etiquetaCancelar: t("partido.enCurso.esperar"),
+      onConfirmar: () =>
+        guardarRegistroVigente.current({ sinEsperarCelulares: true }),
+    });
+  };
+
+  const guardarRegistro = async ({ sinEsperarCelulares = false } = {}) => {
+    if (guardandoRef.current || revisandoCelulares.current) return;
 
     const erroresBasicos = validarRegistroBasico(registro);
     if (erroresBasicos.length > 0) {
       alert(erroresBasicos.join("\n"));
+      return;
+    }
+
+    // Antes, que se haya juntado lo de todos los celulares. Después se
+    // guarda el partido como quedó (con lo que llegó mientras se esperaba).
+    if (!sinEsperarCelulares && registro.idEnCurso && !soloLectura) {
+      revisandoCelulares.current = true;
+      setGuardando(true);
+      let falta = null;
+      try {
+        falta = await faltaJuntar();
+      } finally {
+        revisandoCelulares.current = false;
+        setGuardando(false);
+      }
+      if (falta) {
+        avisarQueFaltaJuntar(falta);
+        return;
+      }
+      guardarRegistroVigente.current({ sinEsperarCelulares: true });
       return;
     }
 
@@ -4667,6 +4919,10 @@ export default function App({
     await archivarRegistro(nuevoRegistro, coincidente);
   };
 
+  // Después de esperar a los celulares se guarda con el partido como quedó.
+  const guardarRegistroVigente = useRef(guardarRegistro);
+  guardarRegistroVigente.current = guardarRegistro;
+
   // Detalle de lo que está por borrarse, para no limpiar un partido por error.
   const resumenPartidoEnCurso = () => {
     const cambiosCargados = [
@@ -4704,6 +4960,8 @@ export default function App({
 
   const confirmarLimpiarCarga = () => {
     const nuevoRegistro = crearRegistroVacio();
+    // Los otros celulares siguen con el partido; este ya no lo tiene.
+    dejarElPartido(registroVigente.current.idEnCurso);
 
     // Partido nuevo: la fecha vuelve a seguir al calendario.
     fechaElegidaAMano.current = false;
@@ -8516,7 +8774,7 @@ export default function App({
             <button
               type="button"
               className="boton-guardar-cabecera"
-              onClick={guardarRegistro}
+              onClick={() => guardarRegistro()}
               disabled={guardando}
             >
               <Icono nombre={guardando ? "reloj" : "check"} size={18} />
@@ -8632,6 +8890,18 @@ export default function App({
               baseSegundos={datosPeriodoVista.baseSegundos}
               inicio={registro[datosPeriodoVista.inicio]}
               final={registro[datosPeriodoVista.final]}
+              aviso={
+                // Sin señal, con otros celulares en el partido (Santiago,
+                // 23/10: «Aviso chico en el partido»); se va sola cuando lo
+                // de este celular sube.
+                enCursoSinSenal &&
+                registro.idEnCurso &&
+                !soloLectura &&
+                otrosCelulares(celularesSumados, { propio: idCelular.current })
+                  .length > 0
+                  ? t("partido.enCurso.sinSenal")
+                  : null
+              }
             />
 
             {renderItemsPeriodo()}

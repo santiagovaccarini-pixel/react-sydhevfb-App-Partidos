@@ -1,5 +1,19 @@
 import { describe, expect, test, vi } from "vitest";
-import { aplanarPartido, armarPartido, diferenciasDelPartido, juntarConLaBase, nombreDelDato, paraSumarse, partidoTerminado } from "./partidoEnCurso.js";
+import {
+  aplanarPartido,
+  armarPartido,
+  celularesQueFaltan,
+  conLoEnviado,
+  diferenciasDelPartido,
+  guardadoEnOtroCelular,
+  juntarConLaBase,
+  loQueSeVio,
+  nombreDelDato,
+  otrosCelulares,
+  paraSumarse,
+  partidoTerminado,
+  pisadasParaAvisar,
+} from "./partidoEnCurso.js";
 
 // Paso 4a de «cargar sin señal y a la vez que otra persona» (Santiago, 23/10:
 // «Varios cargan a la vez»). Todo inventado.
@@ -164,7 +178,53 @@ vi.mock("../supabase.js", () => ({
     },
   },
 }));
-const { cambiarPartidoEnCurso } = await import("./partidoEnCursoDb.js");
+const { cambiarPartidoEnCurso, celularesDelPartido, partidosEnCursoDelClub } = await import("./partidoEnCursoDb.js");
+
+describe("sin señal, se junta al volver (4c)", () => {
+  test("lo que se vio: lo de la base, salvo lo de acá que todavía no subió, que sigue con lo que se veía antes", () => {
+    const subido = { rival: "Rival de Prueba", inicioST: "22:00:00", "cambios.c1.sale": "JUGADOR UNO" };
+    // Sin señal, acá se cambió el inicio del ST y se anotó el final del PT;
+    // mientras tanto, en otro celular se cambió el inicio del ST y el rival.
+    const ahora = { ...subido, inicioST: "22:01:00", finalPT: "21:47:00" };
+    const servidor = { ...subido, rival: "Rival Nuevo", inicioST: "22:02:00" };
+    expect(loQueSeVio(servidor, { subido, ahora })).toEqual({ rival: "Rival Nuevo", inicioST: "22:00:00", "cambios.c1.sale": "JUGADOR UNO" });
+    // Al subir, lo pendiente va con lo que se veía: la base puede decir que se pisó.
+    expect(diferenciasDelPartido(loQueSeVio(servidor, { subido, ahora }), juntarConLaBase(servidor, { subido, ahora }))).toEqual({
+      cambios: { inicioST: "22:01:00", finalPT: "21:47:00" },
+      antes: { inicioST: "22:00:00", finalPT: null },
+    });
+    // Lo que ya está igual en la base no queda pendiente.
+    expect(loQueSeVio({ ...servidor, inicioST: "22:01:00", finalPT: "21:47:00" }, { subido, ahora })).toEqual({ ...servidor, inicioST: "22:01:00", finalPT: "21:47:00" });
+    // Lo sacado acá que la base todavía tiene, sigue con lo que se veía.
+    expect(loQueSeVio(subido, { subido, ahora: { rival: "Rival de Prueba", inicioST: "22:00:00" } })).toEqual(subido);
+  });
+
+  test("lo que se sabe después de subir: lo de antes con lo mandado (lo sacado, sin)", () => {
+    expect(conLoEnviado({ rival: "A", inicioPT: "21:00:00" }, { rival: "B", inicioPT: null, finalPT: "21:47:00" })).toEqual({ rival: "B", finalPT: "21:47:00" });
+    expect(conLoEnviado(null, { rival: "B" })).toEqual({ rival: "B" });
+  });
+
+  test("lo del guardado no se avisa como pisado; lo anotado después de que otro celular lo guardó terminado, sí", () => {
+    expect(pisadasParaAvisar([{ clave: "guardadoPor", habia: "cel-a" }, { clave: "inicioST", habia: "22:00:00" }, null])).toEqual([{ clave: "inicioST", habia: "22:00:00" }]);
+    const datos = { finalST: "22:50:00", guardadoTerminado: true, guardadoPor: "cel-a" };
+    expect(guardadoEnOtroCelular(datos, { cambios: { "cambios.c9.sale": "JUGADOR UNO" }, propio: "cel-b" })).toBe(true);
+    expect(guardadoEnOtroCelular(datos, { cambios: { "cambios.c9.sale": "JUGADOR UNO" }, propio: "cel-a" })).toBe(false);
+    expect(guardadoEnOtroCelular(datos, { cambios: { guardadoTerminado: true, guardadoPor: "cel-b" }, propio: "cel-b" })).toBe(false);
+    expect(guardadoEnOtroCelular({ finalST: "22:50:00" }, { cambios: { rival: "X" }, propio: "cel-b" })).toBe(false);
+  });
+
+  test("los otros celulares sumados y los que no se conectan hace más de un minuto", () => {
+    const celulares = [
+      { celular: "cel-a", email: "uno@prueba.com", sumado: true, segundos: 5 },
+      { celular: "cel-b", email: "dos@prueba.com", sumado: true, segundos: 61 },
+      { celular: "cel-c", email: "tres@prueba.com", sumado: false, segundos: 300 },
+      { celular: "cel-d", email: "cuatro@prueba.com", sumado: true, segundos: 60 },
+    ];
+    expect(otrosCelulares(celulares, { propio: "cel-a" }).map((uno) => uno.celular)).toEqual(["cel-b", "cel-d"]);
+    expect(celularesQueFaltan(celulares, { propio: "cel-a" }).map((uno) => uno.celular)).toEqual(["cel-b"]);
+    expect(celularesQueFaltan(celulares, { propio: "cel-b" })).toEqual([]);
+  });
+});
 
 describe("subir el partido en curso", () => {
   test("manda lo cambiado, con lo que había y la fila del Historial; vuelve cómo quedó y qué se pisó", async () => {
@@ -188,8 +248,36 @@ describe("subir el partido en curso", () => {
     llamadas.respuesta = { data: null, error: { code: "P0001", message: "partido_en_curso_no_esta" } };
     expect(await cambiarPartidoEnCurso("eq-1", { id: "e1", cambios: {} })).toEqual({ noEsta: true, error: "" });
     llamadas.respuesta = { data: null, error: { message: "TypeError: Failed to fetch" } };
-    expect(await cambiarPartidoEnCurso("eq-1", { cambios: {} })).toEqual({ error: "partido.enCurso.noSubio", detalle: "TypeError: Failed to fetch" });
+    expect(await cambiarPartidoEnCurso("eq-1", { cambios: {} })).toEqual({ sinSenal: true, error: "partido.enCurso.noSubio", detalle: "TypeError: Failed to fetch" });
     llamadas.respuesta = { data: null, error: { code: "42501", message: "new row violates row-level security policy" } };
     expect((await cambiarPartidoEnCurso("eq-1", { cambios: {} })).error).toBe("partido.enCurso.sinPermiso");
+  });
+});
+
+describe("los celulares del partido (4c)", () => {
+  test("este celular sigue (o se fue) y vuelven los del partido, con los segundos desde que se supo de cada uno", async () => {
+    llamadas.respuesta = { data: [{ celular: "cel-a", email: "uno@prueba.com", sumado: true, segundos: 3 }, { celular: "cel-b", email: "", sumado: false, segundos: "90" }, { email: "sin celular" }], error: null };
+    expect(await celularesDelPartido("e1", "cel-a")).toEqual({
+      celulares: [
+        { celular: "cel-a", email: "uno@prueba.com", sumado: true, segundos: 3 },
+        { celular: "cel-b", email: "", sumado: false, segundos: 90 },
+      ],
+      error: "",
+    });
+    expect(llamadas.rpc.at(-1)).toEqual(["partido_en_curso_celulares", { p_id: "e1", p_celular: "cel-a", p_sumado: true }]);
+    await celularesDelPartido("e1", "cel-a", { sumado: false });
+    expect(llamadas.rpc.at(-1)[1].p_sumado).toBe(false);
+    expect(await celularesDelPartido(null, "cel-a")).toEqual({ celulares: [], error: "" });
+  });
+
+  test("sin la actualización de la base, sinFuncion; si lo borraron, noEsta; sin señal, sinSenal", async () => {
+    llamadas.respuesta = { data: null, error: { code: "PGRST202", message: "Could not find the function public.partido_en_curso_celulares in the schema cache" } };
+    expect(await celularesDelPartido("e1", "cel-a")).toEqual({ celulares: [], sinFuncion: true, error: "" });
+    llamadas.respuesta = { data: null, error: { code: "P0001", message: "partido_en_curso_no_esta" } };
+    expect(await celularesDelPartido("e1", "cel-a")).toEqual({ celulares: [], noEsta: true, error: "" });
+    llamadas.respuesta = { data: null, error: { message: "TypeError: Failed to fetch" } };
+    expect(await celularesDelPartido("e1", "cel-a")).toMatchObject({ celulares: [], sinSenal: true, error: "partido.enCurso.noSeLeyo" });
+    // Leer los del club sin señal, también.
+    expect(await partidosEnCursoDelClub("eq-1")).toMatchObject({ partidos: [], sinSenal: true });
   });
 });

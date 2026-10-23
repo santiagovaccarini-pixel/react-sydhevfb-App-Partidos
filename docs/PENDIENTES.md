@@ -4830,6 +4830,40 @@ confirme.**
     - **Límites conocidos (para 4c):** sin señal, lo de cada celular queda para cuando vuelva,
       pero todavía no se probó ni se avisa con dos celulares sin señal a la vez (es 4c). Quien
       tiene Partido solo para mirar no ve la tarjeta (no se decidió que pueda mirarlo en vivo).
+  - **Hecho, paso 4c (23/10, migración `20261122_partido_en_curso_celulares.sql`, 2026.10.23.10):
+    sin señal, cada celular sigue y se junta al volver.** Santiago, en cuestionarios: 4b «Sí,
+    seguí con 4c»; sin señal, «Aviso chico en el partido»; al volver, avisa «Solo si se pisó algo»;
+    si otro celular guardó el partido terminado mientras uno no tenía señal, «No deja guardar hasta
+    que todos los cambios se combinen» y, como un celular sin señal no puede avisar que tiene algo
+    sin subir, «Espera, con «Guardar igual»». En la base, `partidos_en_curso_celulares` anota los
+    celulares sumados a cada partido y cuándo se supo de cada uno (con la hora de la base);
+    `partido_en_curso_celulares` dice que este sigue (o que se fue) y trae los del partido. Lo ve
+    quien tiene Partido en el club; lo anota quien lo tiene con Edición; anon, nada. En la app:
+    - Sin señal, debajo de «En vivo» del reloj: «Sin señal: lo que anotes se junta con los otros
+      celulares cuando vuelva.» Solo si hay otros celulares en el partido; se va sola cuando lo de
+      este celular sube.
+    - Al volver, lo anotado se sube solo (también si el celular dice que hay red pero la base no
+      contesta: se reintenta cada 20 segundos) y se junta; si otra persona cambió el mismo dato,
+      el aviso de siempre («…quedó lo tuyo»). Arreglado: si se leía la base antes de subir, ese
+      aviso no salía (ahora lo pendiente sigue con lo que se veía antes de cambiarlo).
+    - Cada celular sumado le avisa a la base que sigue (cada 20 segundos). «Guardar partido», si
+      otro celular sumado no se conecta hace más de un minuto (o este no tiene señal y hay otros),
+      muestra «Falta juntar lo de otro celular» con quién falta y desde qué hora, y «Esperar» (no
+      guarda) o «Guardar igual» (por si ese celular no vuelve). «Limpiar» o sumarse a otro saca a
+      este celular de la lista.
+    - Si un celular anota algo después de que otro guardó el partido terminado: «Este partido ya
+      se guardó en otro celular: lo último que anotaste todavía no está en el Historial. Tocá
+      «Guardar partido» para sumarlo.»
+    - Arreglado también: un partido recién empezado en la base podía quedar repetido si se anotaba
+      algo mientras subía por primera vez.
+    - Sin la actualización de la base, como en 4b (sin lista de celulares: «Guardar partido» no
+      espera).
+    - **Límites conocidos:** un celular con la pantalla bloqueada o la app cerrada sin «Limpiar» se
+      ve igual que uno sin señal: «Guardar partido» lo espera (para eso está «Guardar igual»). La
+      hora de «desde las …» es la del celular que guarda, con lo que dice la base.
+    - **Queda prohibido** lo de UI-081, salvo un pedido nuevo.
+    - **Lo que sigue de la nota:** Entrenamiento («lo vemos al final»), confirmado en un
+      cuestionario antes de empezar.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor
