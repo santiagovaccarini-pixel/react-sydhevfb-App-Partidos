@@ -107,6 +107,20 @@ vi.mock("./domain/copiaSinSenal.js", () => {
     borrarCopiasSinSenal: async () => null,
   };
 });
+// La fila de espera de lo hecho sin señal (filaDeEspera.js), en memoria.
+const esperas = vi.hoisted(() => ({ guardadas: {} }));
+vi.mock("./domain/filaDeEspera.js", () => ({
+  leerEspera: async (modulo, cuenta, equipoId) => JSON.parse(JSON.stringify(esperas.guardadas[`${equipoId}|${modulo}|${cuenta}`] || [])),
+  guardarEspera: async (modulo, cuenta, equipoId, cola) => {
+    const clave = `${equipoId}|${modulo}|${cuenta}`;
+    if (cola.length) esperas.guardadas[clave] = JSON.parse(JSON.stringify(cola));
+    else delete esperas.guardadas[clave];
+    return true;
+  },
+}));
+// Sin señal, la base no contesta.
+const sinRed = { error: "gps.error.noGuardar", detalle: "TypeError: Failed to fetch" };
+const hayRed = () => navigator.onLine !== false;
 vi.mock("./domain/consentimientoDb.js", () => ({
   leerPersonasConfirmadas: async () => ({ personas: new Set(datos.personasConfirmadas), sinTabla: false, error: "" }),
   confirmarPersonas: async (equipoId, base, personas) => {
@@ -124,6 +138,7 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
   // recalcula los «por minuto» de lo cambiado y dice qué pisó; si ya no
   // está, borrada.
   cambiarFilaGps: async (id, { cambios = {}, antes = {} } = {}) => {
+    if (!hayRed()) return sinRed;
     datos.cambiadas.push({ id, cambios, antes });
     if (datos.sinCambiar) return { sinFuncion: true, error: "" };
     const { POR_MINUTO } = await import("./domain/gps/columnas.js");
@@ -247,6 +262,7 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
     return { fila: guardada, error: "" };
   },
   borrarFilasGps: async (ids) => {
+    if (!hayRed()) return { borradas: [], ...sinRed, error: "gps.error.noBorrar" };
     datos.borradas.push(...ids);
     datos.filas = datos.filas.filter((una) => !ids.includes(una.id));
     return { borradas: [...ids], error: "" };
@@ -493,6 +509,7 @@ describe("GPS", () => {
     datos.sinGuardarDia = false;
     datos.pegadas = [];
     copias.guardadas = {};
+    esperas.guardadas = {};
     Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
     volvio = 0;
     contenedor = document.createElement("div");
@@ -790,11 +807,11 @@ describe("GPS", () => {
   // 21/10: la copia «Automática en todos, sin botón»): GPS también. Las filas
   // van en su copia de siempre; lo del club (Datos básicos, Ajustes, reglas y
   // V.R.), en la de ver sin señal.
-  test("Ver GPS sin señal: con señal guarda solo lo del club; sin señal abre con la copia del aparato, para mirar", async () => {
-    const sinSenalAhora = async (sin) => {
-      Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
-      await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
-    };
+  const sinSenalAhora = async (sin) => {
+    Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
+    await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
+  };
+  test("Ver GPS sin señal: con señal guarda solo lo del club; sin señal abre con la copia del aparato", async () => {
     await montarEnLaBase();
     await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
     expect(copias.guardadas["eq-1|gps|cuenta-1"].datos.plantel.map((jugador) => jugador.nombre)).toEqual(["ALFA", "BETA", "GAMA"]);
@@ -809,13 +826,20 @@ describe("GPS", () => {
     await sinSenalAhora(true);
     await montarEnLaBase();
     expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Sin señal: ves la copia de este aparato");
-    expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Para cambiar algo hace falta señal.");
+    // Paso 3c.1: en la Base, sin señal también se cambia y se borra.
+    expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Lo que cargues, cambies o borres queda en este aparato");
     expect(filas(contenedor)).toHaveLength(3);
     // Los nombres, de lo del club en la copia.
     expect(contenedor.textContent).toContain("ALFA");
     expect(datos.lecturas).toEqual([]);
     expect(datos.alDia).toEqual([]);
+    // Pegar, Cargar y los V.R., con su parte del paso 3c.
     expect(boton("Pegar desde una planilla")).toBeFalsy();
+    // Los Ajustes, con señal.
+    await irA(contenedor, "Ajustes");
+    expect(contenedor.textContent).toContain("Sin señal: los Ajustes se cambian cuando vuelva la señal.");
+    expect(ajuste("Cabeceras").disabled).toBe(true);
+    await irA(contenedor, "Base");
 
     // Vuelve la señal: lo de la base, al día.
     datos.plantel = PLANTEL.map((jugador) => ({ ...jugador }));
@@ -823,6 +847,66 @@ describe("GPS", () => {
     expect(contenedor.querySelector(".aviso-sin-senal")).toBeNull();
     expect(datos.alDia).toHaveLength(1);
   });
+
+  // Paso 3c.1 (Santiago, 23/10, en un cuestionario: sin señal, también
+  // «Cambiar y borrar en la Base»; lo que espera, con un aviso arriba y las
+  // filas «de otro color»; al volver la señal «Lo sube sola y avisa»).
+  const sinSenalConLaCopia = async () => {
+    datos.copia = { filas: FILAS(), hasta: "2026-10-13T10:00:00Z", guardadaEn: "2026-10-20T14:32:00.000Z" };
+    await montarEnLaBase();
+    await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
+    await act(async () => raiz.unmount());
+    await sinSenalAhora(true);
+    await montarEnLaBase();
+  };
+  const unRato = async () => {
+    for (let i = 0; i < 6; i++) await act(async () => new Promise((listo) => setTimeout(listo, 40))); // eslint-disable-line no-await-in-loop
+  };
+  const queEsperan = () => [...contenedor.querySelectorAll("tbody tr.espera")];
+  const avisoArriba = () => contenedor.querySelector(".aviso-sin-senal")?.textContent || "";
+
+  test("sin señal: se cambia una celda (con su «por minuto») y se borra una fila; esperan en otro color y al volver la señal suben solas y avisan", async () => {
+    await sinSenalConLaCopia();
+    await editarCelda(contenedor, 0, "D", "4500");
+    expect(datos.cambiadas).toEqual([]);
+    expect(celda(contenedor, 0, "D").textContent).toBe("4500,0");
+    expect(celda(contenedor, 0, "D/min").textContent).toBe("90,0");
+    expect(queEsperan()).toEqual([filas(contenedor)[0]]);
+    expect(contenedor.textContent).toContain("En este color, lo que espera para subir (se cargó o cambió sin señal).");
+    // Borrar la de BETA.
+    await tocar(celda(contenedor, 1, "D"));
+    await tocar(boton("Borrar fila"));
+    await tocar(boton("Sí, borrar"));
+    expect(datos.borradas).toEqual([]);
+    expect(filas(contenedor)).toHaveLength(2);
+    expect(document.body.textContent).toContain("1 cambio quedó en este aparato: se sube solo cuando vuelva la señal.");
+    expect(avisoArriba()).toContain("Sin señal: 2 cambios esperan para subir");
+    expect(esperas.guardadas["eq-1|gps|cuenta-1"].map((uno) => uno.tipo)).toEqual(["cambiar", "borrar"]);
+    expect(contenedor.querySelector(".estado-hero").textContent).toBe("2 filas");
+
+    // Vuelve la señal: sube sola, en orden, y avisa.
+    await sinSenalAhora(false);
+    await unRato();
+    expect(datos.cambiadas).toEqual([{ id: "g1", cambios: { "datos.d": 4500 }, antes: { "datos.d": 4000 } }]);
+    expect(datos.borradas).toEqual(["g2"]);
+    expect(document.body.textContent).toContain("Se subieron 2 cambios hechos sin señal.");
+    expect(esperas.guardadas).toEqual({});
+    expect(queEsperan()).toEqual([]);
+    expect(filas(contenedor)).toHaveLength(2);
+    expect(celda(contenedor, 0, "D").textContent).toBe("4500,0");
+    expect(contenedor.querySelector(".aviso-sin-senal")).toBeNull();
+  }, 20000);
+
+  test("lo que espera queda en el aparato: sin señal, al volver a abrir, se ve encima de la copia", async () => {
+    await sinSenalConLaCopia();
+    await editarCelda(contenedor, 0, "D", "4500");
+    await act(async () => raiz.unmount());
+    await montarEnLaBase();
+    await unRato();
+    expect(celda(contenedor, 0, "D").textContent).toBe("4500,0");
+    expect(queEsperan()).toHaveLength(1);
+    expect(avisoArriba()).toContain("Sin señal: 1 cambio espera para subir");
+  }, 20000);
 
   test("si no llega el resto del historial, se ven las últimas 4 semanas y avisa", async () => {
     datos.filas = [...FILAS(), VIEJA()];
