@@ -46,7 +46,8 @@ const retener = (alSoltar) =>
 
 vi.mock("./supabase.js", () => ({
   supabase: {
-    rpc: async () => ({ data: [], error: null }),
+    // Sin db.rpc, como una base sin las funciones de Partido.
+    rpc: async (funcion, parametros) => (db.rpc ? db.rpc(funcion, parametros) : { data: [], error: null }),
     from: (tablaPedida) => {
       const tabla = tablaPedida === "v_mis_clubes" ? "equipos" : tablaPedida;
       if (tabla === "equipos") {
@@ -189,6 +190,7 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
       retenerUpdate: null,
       demorarRespuestaUpdate: null,
       retenidos: [],
+      rpc: null,
     });
     localStorage.clear();
     localStorage.setItem("registro_actual_partido", JSON.stringify(borradorCruzeiro()));
@@ -390,6 +392,72 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
 
     await act(async () => contenedor.querySelector("#panel-cambios .boton-ahora-cambio").click());
     expect(borrador().cambios[0].periodo).toBe("ST");
+  });
+
+  // Paso 4a de «cargar sin señal y a la vez que otra persona» (Santiago,
+  // 23/10: «Varios cargan a la vez»): el partido en curso, también en la base.
+  test("el partido en curso sube a la base dato por dato: la primera vez todo, después solo lo cambiado, y al guardarlo, su fila", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 30, 0));
+    enElSegundoTiempo();
+    const subidas = [];
+    let datos = {};
+    db.rpc = async (funcion, parametros) => {
+      if (funcion !== "partido_en_curso_cambiar") return { data: [], error: null };
+      subidas.push(parametros);
+      Object.entries(parametros.p_cambios).forEach(([clave, valor]) => {
+        if (valor === null || valor === "") delete datos[clave];
+        else datos[clave] = valor;
+      });
+      return { data: { id: "en-curso-1", datos: { ...datos }, version: subidas.length, pisadas: [] }, error: null };
+    };
+    await montar();
+    await act(async () => vi.advanceTimersByTime(900));
+    await vaciarPromesas();
+    expect(subidas).toHaveLength(1);
+    expect(subidas[0]).toMatchObject({ p_id: null, p_equipo: "eq-1", p_antes: {}, p_registro: null });
+    expect(subidas[0].p_cambios).toMatchObject({ rival: "Cruzeiro", resultado: "1-0", inicioPT: "21:00:00", finalPT: "21:47:00", inicioST: "22:03:00" });
+    expect(Object.keys(subidas[0].p_cambios).some((clave) => clave.startsWith("cambios."))).toBe(false);
+    expect(borrador().idEnCurso).toBe("en-curso-1");
+
+    // Un cambio: solo eso, con lo que había (nada).
+    await act(async () => contenedor.querySelector("#panel-cambios .boton-ahora-cambio").click());
+    await act(async () => vi.advanceTimersByTime(900));
+    await vaciarPromesas();
+    expect(subidas).toHaveLength(2);
+    const id = borrador().cambios[0].id;
+    expect(subidas[1]).toMatchObject({ p_id: "en-curso-1", p_registro: null });
+    expect(subidas[1].p_cambios).toEqual({ [`cambios.${id}.hora`]: borrador().cambios[0].hora, [`cambios.${id}.periodo`]: "ST", [`cambios.${id}.lugar`]: 0 });
+    expect(subidas[1].p_antes).toEqual({ [`cambios.${id}.hora`]: null, [`cambios.${id}.periodo`]: null, [`cambios.${id}.lugar`]: null });
+    // Sin nada nuevo, no sube.
+    await act(async () => vi.advanceTimersByTime(2000));
+    await vaciarPromesas();
+    expect(subidas).toHaveLength(2);
+
+    // «Guardar partido»: al Historial como siempre, y el partido en curso anota la fila.
+    await guardar();
+    await act(async () => vi.advanceTimersByTime(900));
+    await vaciarPromesas();
+    expect(db.inserts).toHaveLength(1);
+    expect(subidas.at(-1)).toMatchObject({ p_id: "en-curso-1", p_registro: db.inserts[0].id });
+  });
+
+  test("sin la actualización de la base, Partido sigue como antes y no lo vuelve a intentar", async () => {
+    enElSegundoTiempo();
+    let intentos = 0;
+    db.rpc = async (funcion) => {
+      if (funcion === "partido_en_curso_cambiar") intentos += 1;
+      return { data: null, error: { code: "PGRST202", message: "Could not find the function public.partido_en_curso_cambiar in the schema cache" } };
+    };
+    await montar();
+    await act(async () => vi.advanceTimersByTime(900));
+    await vaciarPromesas();
+    await act(async () => contenedor.querySelector("#panel-cambios .boton-ahora-cambio").click());
+    await act(async () => vi.advanceTimersByTime(900));
+    await vaciarPromesas();
+    expect(intentos).toBe(1);
+    expect(borrador().idEnCurso).toBeUndefined();
+    await guardar();
+    expect(db.inserts).toHaveLength(1);
   });
 
   test("dos toques de más sobre un período terminado no pisan su final: Reanudar pregunta antes", async () => {

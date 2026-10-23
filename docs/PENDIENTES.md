@@ -4779,6 +4779,33 @@ confirme.**
       nuevo.
     - **Lo que sigue de la nota:** el paso 4 (Partido compartido entre celulares; Entrenamiento,
       al final), confirmado en un cuestionario antes de empezar.
+  - **Paso 4, Partido compartido entre celulares, por partes (23/10; UI-081).** Santiago, en
+    cuestionarios: Datos básicos sin señal «Sí, está bien» y «Sí, empezá con Partido»; cómo:
+    «Varios cargan a la vez»; el mismo dato con otro valor, «Gana el último y avisa»; sin señal,
+    «Sigue y se junta al volver»; «Sí, en 3 partes»; sumarse con un «Aviso con «Sumarme»»; al
+    Historial (y al Excel) «No, al guardar, como hoy»; «Limpiar», «Solo en este celular». Claude
+    relevó cómo guarda Partido: el partido en curso vive en un solo celular y «Guardar partido»
+    lo sube entero (el último pisa entero al otro); los cambios van en lugares fijos (cambio 1,
+    2…), así que dos celulares que anotan un cambio a la vez irían al mismo lugar. Partes: 4a la
+    base, dato por dato; 4b sumarse y ver en vivo; 4c sin señal, se junta al volver.
+  - **Hecho, paso 4a (23/10, migración `20261120_partido_en_curso.sql`, 2026.10.23.8): el
+    partido en curso, en la base, dato por dato.** La tabla `partidos_en_curso` (aparte de
+    `registros_partido`: el Historial y el Excel no la ven) guarda el partido que se está cargando
+    desarmado en datos sueltos (`src/domain/partidoEnCurso.js`): los cambios, cada uno por su id
+    (con su lugar como un dato más); los VAR, por su lugar; lo de este celular y de cómo se ve
+    (su número, la fila del Historial, el VAR que se mira), no. `partido_en_curso_cambiar` sube
+    solo lo que cambió, con lo que se veía: si otra persona cambió el mismo dato mientras tanto,
+    gana el último y la base lo dice (pisadas). Lo ve quien tiene Partido en el club; lo carga y
+    lo cambia quien lo tiene con Edición. En la app, un rato después de cada cambio se sube lo
+    que cambió (la primera vez, todo); sin señal o si falla, queda para el próximo cambio o para
+    cuando vuelva la señal; «Guardar partido» anota en él la fila del Historial; «Limpiar» empieza
+    otro y deja el de antes. Sin la actualización de la base, Partido sigue como antes. A la
+    vista no cambia nada. Cada cambio tiene ahora su id (los de antes lo reciben al abrir).
+    - **Límites conocidos (para 4b y 4c):** todavía nadie lee el partido en curso: se suma y se
+      ve en vivo en 4b. Al volver a abrir la app, la primera subida manda todo sin lo que se veía
+      (no avisa pisadas) y no saca de la base lo que se borró mientras no subía. Falta decidir
+      hasta cuándo se ofrece un partido en curso para sumarse (se pregunta en 4b).
+    - **Queda prohibido** lo de UI-081, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

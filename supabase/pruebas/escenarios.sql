@@ -1291,7 +1291,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
   || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,jugadores_cambiar,lesiones_cambiar,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
-  || 'panel_duenos,panel_historial,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
+  || 'panel_duenos,panel_historial,partido_en_curso_cambiar,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
 select pruebas.esperar('es_admin() ya no existe', (select count(*) from pg_proc where proname = 'es_admin'), 0);
@@ -2711,6 +2711,67 @@ select pruebas.debe_fallar('El staff no exporta, aunque tenga todas las bases', 
 reset role;
 select pruebas.ser('eva@dos.com'); set role authenticated;
 select pruebas.debe_fallar('El administrador de otro club tampoco', 'select exportar_atleta(9101)', 'solo_admin');
+reset role;
+
+-- ------------------------------- Partido compartido entre celulares --
+-- 20261120 (paso 4a de «cargar sin señal y a la vez que otra persona»;
+-- Santiago, 23/10: «Varios cargan a la vez»; el mismo dato con otro valor,
+-- «Gana el último y avisa»; al Historial recién con «Guardar partido»). El
+-- partido en curso, dato por dato, aparte del Historial.
+reset role;
+select set_config('request.jwt.claims', '', false);
+-- Se puede volver a correr.
+\ir ../migrations/20261120_partido_en_curso.sql
+
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select (partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"Rival Vivo","fecha":"2026-10-23","cambios.a1.sale":"VIEJO","inicioPT":""}') ->> 'id') as en_curso \gset
+select pruebas.esperar('Beto empieza un partido: queda en curso, sin lo vacío', (select datos::text from partidos_en_curso where id = :'en_curso'), '{"fecha": "2026-10-23", "rival": "Rival Vivo", "cambios.a1.sale": "VIEJO"}');
+select pruebas.esperar('...con quién lo empezó', (select creado_email || ',' || version from partidos_en_curso where id = :'en_curso'), 'beto@uno.com,1');
+select pruebas.esperar('...y no está en el Historial', (select count(*) from registros_partido where rival = 'Rival Vivo'), 0);
+reset role;
+select pruebas.ser('dario@uno.com'); set role authenticated;
+select pruebas.esperar('Darío (que volvió a Uno) lo ve', (select count(*) from partidos_en_curso where id = :'en_curso'), 1);
+select pruebas.esperar('...anota otro dato: quedan los dos', (select (partido_en_curso_cambiar(:'en_curso', '00000000-0000-0000-0000-0000000000c1', '{"inicioPT":"21:00:00"}', '{"inicioPT":null}') -> 'datos')::text), '{"fecha": "2026-10-23", "rival": "Rival Vivo", "inicioPT": "21:00:00", "cambios.a1.sale": "VIEJO"}');
+select pruebas.esperar('...y cambia el que sale, que vio VIEJO: sin pisar a nadie', (select (partido_en_curso_cambiar(:'en_curso', '00000000-0000-0000-0000-0000000000c1', '{"cambios.a1.sale":"NUEVO"}', '{"cambios.a1.sale":"VIEJO"}') -> 'pisadas')::text), '[]');
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('Beto, que también vio VIEJO, lo cambia a otro: gana el último y la base dice qué había', (select (partido_en_curso_cambiar(:'en_curso', '00000000-0000-0000-0000-0000000000c1', '{"cambios.a1.sale":"OTRO"}', '{"cambios.a1.sale":"VIEJO"}') -> 'pisadas')::text), '[{"clave": "cambios.a1.sale", "habia": "NUEVO"}]');
+select pruebas.esperar('...quedó el suyo', (select datos ->> 'cambios.a1.sale' from partidos_en_curso where id = :'en_curso'), 'OTRO');
+select pruebas.esperar('...a lo mismo no es pisar', (select (partido_en_curso_cambiar(:'en_curso', '00000000-0000-0000-0000-0000000000c1', '{"cambios.a1.sale":"OTRO"}', '{"cambios.a1.sale":"VIEJO"}') -> 'pisadas')::text), '[]');
+select pruebas.esperar('...lo vacío lo saca', (select ((partido_en_curso_cambiar(:'en_curso', '00000000-0000-0000-0000-0000000000c1', '{"inicioPT":""}', '{"inicioPT":"21:00:00"}') -> 'datos') ? 'inicioPT')::text), 'false');
+select pruebas.esperar('...y la versión sube con cada cambio, con quién fue el último', (select version || ',' || actualizado_email from partidos_en_curso where id = :'en_curso'), '6,beto@uno.com');
+insert into registros_partido (fecha, rival, equipo_id) values ('2026-10-23', 'Rival Vivo', '00000000-0000-0000-0000-0000000000c1') returning id as registro_vivo \gset
+select pruebas.esperar('Al guardarlo en el Historial, se anota su fila', (select partido_en_curso_cambiar(:'en_curso', '00000000-0000-0000-0000-0000000000c1', '{}', '{}', :registro_vivo) ->> 'id'), :'en_curso');
+select pruebas.esperar('...y queda', (select registro_id from partidos_en_curso where id = :'en_curso'), :registro_vivo);
+select pruebas.debe_fallar('Un dato con un nombre raro no entra', $q$select partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"a b":1}')$q$, 'partido_en_curso_cambios');
+select pruebas.debe_fallar('...ni algo que no es una lista de datos', $q$select partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '[1]')$q$, 'partido_en_curso_cambios');
+select pruebas.debe_fallar('No le cambia el club', $q$update partidos_en_curso set equipo_id = '00000000-0000-0000-0000-0000000000c2'$q$, 'permission denied');
+select pruebas.debe_fallar('...ni quién lo empezó', $q$update partidos_en_curso set creado_email = 'otro@uno.com'$q$, 'permission denied');
+select pruebas.debe_fallar('...ni la versión a mano', $q$update partidos_en_curso set version = 9$q$, 'permission denied');
+select pruebas.debe_fallar('Uno que ya no está no se cambia', $q$select partido_en_curso_cambiar('00000000-0000-0000-0000-0000000e9999', '00000000-0000-0000-0000-0000000000c1', '{"rival":"X"}')$q$, 'partido_en_curso_no_esta');
+reset role;
+select pruebas.ser('mira@uno.com'); set role authenticated;
+select pruebas.esperar('Con Partido solo para mirar, lo ve', (select count(*) from partidos_en_curso where id = :'en_curso'), 1);
+select pruebas.debe_fallar('...pero no lo cambia', format('select partido_en_curso_cambiar(%L, %L, %L)', :'en_curso', '00000000-0000-0000-0000-0000000000c1', '{"rival":"X"}'), 'permission denied');
+select pruebas.debe_fallar('...ni empieza otro', $q$select partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"X"}')$q$, 'row-level security');
+select pruebas.esperar('...ni lo borra', pruebas.filas($q$delete from partidos_en_curso$q$), 0);
+reset role;
+select pruebas.ser('carla@uno.com'); set role authenticated;
+select pruebas.esperar('Carla (sin Partido) no lo ve', (select count(*) from partidos_en_curso), 0);
+select pruebas.debe_fallar('...ni empieza uno', $q$select partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"X"}')$q$, 'row-level security');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de Dos) no lo ve', (select count(*) from partidos_en_curso), 0);
+select pruebas.debe_fallar('...ni lo cambia', format('select partido_en_curso_cambiar(%L, %L, %L)', :'en_curso', '00000000-0000-0000-0000-0000000000c2', '{"rival":"X"}'), 'partido_en_curso_no_esta');
+select pruebas.debe_fallar('...ni empieza uno en Uno', $q$select partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"X"}')$q$, 'row-level security');
+reset role;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select (partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"Otro"}') ->> 'id') as otro_en_curso \gset
+select pruebas.esperar('Beto borra uno (el de Rival Vivo queda para la prueba de aislamiento)', pruebas.filas(format('delete from partidos_en_curso where id = %L', :'otro_en_curso')), 1);
+reset role;
+set role anon;
+select pruebas.debe_fallar('Sin cuenta no se ve el partido en curso', 'select count(*) from partidos_en_curso', 'permission denied');
+select pruebas.debe_fallar('...ni se cambia', $q$select partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"X"}')$q$, 'permission denied');
 reset role;
 
 -- ------------------------------------------- Aislamiento entre clubes --
