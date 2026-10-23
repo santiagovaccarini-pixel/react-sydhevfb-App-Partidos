@@ -1146,7 +1146,7 @@ export default {
       dejar: "Deixar para revisar",
       dejando: "Salvando…",
       dejada: "Ficou em «Não terminadas»: continue em Registrar, neste aparelho ou em outro.",
-      enCursoDelDia: "Já há uma carga em andamento de {{fecha}} (deixada por {{quien}} em {{cuando}}). Continue em «Não terminadas», em Registrar.",
+      enCursoDelDia: "Esse CSV já está em uma carga não terminada de {{fecha}} (deixada por {{quien}} em {{cuando}}). Continue em «Não terminadas», em Registrar.",
       yaEnCurso: "Já há uma carga em andamento desse dia. Continue em «Não terminadas», em Registrar.",
       otroAparato: "Continuaram em outro aparelho e o que você fez aqui não foi salvo.",
       abrirUltima: "Abrir a última",
