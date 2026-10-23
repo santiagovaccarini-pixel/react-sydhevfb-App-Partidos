@@ -15,6 +15,7 @@ import { t, useIdioma } from "./idioma/index.js";
 import { fechaCorta, hoyISO } from "./idioma/formatos.js";
 import SelectorIdioma from "./idioma/SelectorIdioma.jsx";
 import { BotonGuia, TextoConPasos } from "./components/Guia.jsx";
+import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
 
 // Pegar desde Excel, en GPS › Base: la hoja BD_GPS (con su fila de títulos)
 // se trae una vez tal como está (Santiago, 10/10): también los promedios del
@@ -87,6 +88,10 @@ export default function ImportarGps({
   const [hojaNombre, setHojaNombre] = useState(null);
   const [progreso, setProgreso] = useState(null);
   const [falla, setFalla] = useState("");
+  // Las personas que no están en Datos básicos: antes de guardar, quien
+  // carga confirma su consentimiento (20261103).
+  const consentimiento = useConsentimientoPersonas(equipoId, "gps");
+  const [errorConsentimiento, setErrorConsentimiento] = useState("");
   const [cargadasAntes, setCargadasAntes] = useState(null);
   // Lo que quedó en este aparato (sin señal) mientras la pantalla sigue abierta.
   const [alAparatoAntes, setAlAparatoAntes] = useState(0);
@@ -287,6 +292,7 @@ export default function ImportarGps({
   const pegarTexto = (nuevo) => {
     setTexto(nuevo);
     setFalla("");
+    setErrorConsentimiento("");
     setCargadasAntes(null);
     setAlAparatoAntes(0);
     setElegidos({});
@@ -332,6 +338,7 @@ export default function ImportarGps({
     // abierta con ellos.
     const quedanSinElegir = sinElegir.length;
     setFalla("");
+    setErrorConsentimiento("");
     setCargadasAntes(null);
     setAlAparatoAntes(0);
     const alAparato = () => {
@@ -352,6 +359,13 @@ export default function ImportarGps({
     };
     if (!enLinea && delAparato) {
       alAparato();
+      return;
+    }
+    // Con señal, las personas que no están en Datos básicos: antes de
+    // guardar, quien carga confirma su consentimiento (20261103).
+    const permiso = await consentimiento.pedir(lista.filter(({ fila }) => !fila.jugador_id && !fila.promedio).map(({ fila }) => fila.persona));
+    if (!permiso.sigue) {
+      setErrorConsentimiento(permiso.error);
       return;
     }
     setProgreso({ n: 0, total: lista.length });
@@ -529,6 +543,11 @@ export default function ImportarGps({
             {plural("gps.espera.pegadasEnElAparato", alAparatoAntes)}
           </p>
         )}
+        {errorConsentimiento && (
+          <div className="lesiones-estado error" role="alert">
+            {t(errorConsentimiento)}
+          </div>
+        )}
         {falla && (
           <div className="lesiones-estado error" role="alert">
             {t("gps.importar.fallo", { error: t(falla) })}
@@ -680,6 +699,7 @@ export default function ImportarGps({
         onConfirmar={() => cargar({ reemplazar: true })}
         onCerrar={() => setOtrosDias(null)}
       />
+      {consentimiento.hoja}
     </div>
   );
 }

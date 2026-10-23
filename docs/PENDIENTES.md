@@ -4094,8 +4094,9 @@ confirme.**
   - **Lo que ya estaba**: las personas fuera de Datos básicos ya cargadas quedan confirmadas al
     correr la migración, sin nombre de quien confirmó; los jugadores no necesitan nada.
   - **En la app**: el aviso de la pantalla principal y la hoja «Personas fuera de Datos
-    básicos» en Lesiones y Evaluaciones (pegar) y al guardar una carga de GPS (UI-057). Si la
-    base dice que falta, el aviso de cada pantalla lo explica.
+    básicos» en Lesiones y Evaluaciones (pegar) y al guardar una carga de GPS (UI-057); desde
+    el 23/10, también al pegar en GPS con señal (ver «Hecho, paso 3c.3»). Si la base dice que
+    falta, el aviso de cada pantalla lo explica.
   - **No es todo el RGPD ni la CCPA**: hacen falta también la política de privacidad, el
     contrato con cada club (la app trata datos por cuenta del club), dónde se guardan los datos
     y qué hacer ante una filtración. Lo tiene que revisar alguien que sepa de leyes. Siguen,
@@ -4706,6 +4707,19 @@ confirme.**
     - **Visto al hacerlo (aparte, sin cambiar):** con señal, «Pegar desde una planilla» no pide
       el consentimiento de las personas que no están en Datos básicos (Cargar un día sí); la base
       frena las que no están confirmadas («consentimiento.error.persona»).
+      - **Arreglado el 23/10 (2026.10.23.5).** Pedido del 23/10: «con señal, pegar una persona
+        nueva pide confirmar su consentimiento (la misma hoja que en Cargar un día) y después
+        carga sin error». Con señal, «Cargar N filas» abre antes la hoja «Personas fuera de
+        Datos básicos» (UI-057) con las personas de lo pegado que todavía no se confirmaron
+        (no los jugadores ni los promedios del equipo), igual que al pegar en Lesiones. Va
+        después de la Regla 1 (también con «Reemplazar y cargar»). «Volver» no carga nada; si
+        la confirmación no se guarda, se ve el error y no se carga. Sin señal sigue igual que en
+        este paso (`gps.espera.personasConSenalPegado`). Sin textos ni SQL nuevos.
+      - **Límite conocido:** si la señal se corta después de confirmar, lo pegado no queda en el
+        aparato (lo frena el aviso de sin señal); la confirmación ya quedó y, al volver a cargar
+        con señal, no se pregunta de nuevo.
+      - **Queda prohibido** cargar con señal personas que no están en Datos básicos sin pedir
+        antes su consentimiento, salvo un pedido nuevo.
     - **Queda para la parte que sigue:** los V.R. (3c.4) siguen sin señal como antes (para
       mirar).
     - **Queda prohibido** que lo hecho sin señal se pierda sin avisar o cambiar los Ajustes sin

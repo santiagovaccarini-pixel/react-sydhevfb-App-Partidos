@@ -981,6 +981,14 @@ describe("GPS", () => {
     expect(datos.recordar).toEqual([{ equipoId: "eq-1", lugar: "pegar", dispositivo: "catapult" }]);
     await esperar(() => Boolean(boton("Cargar 3 filas")) && !boton("Cargar 3 filas").disabled);
     await tocar(boton("Cargar 3 filas"));
+    // Antes de cargar, el consentimiento de quien no está en Datos básicos
+    // (la misma hoja que en Cargar un día).
+    expect(datos.pegadas).toHaveLength(0);
+    expect(datos.creadas).toHaveLength(0);
+    expect(document.querySelector(".hoja-confirmar").textContent).toContain("Personas fuera de Datos básicos");
+    expect([...document.querySelectorAll(".hoja-confirmar .consentimiento-personas li")].map((li) => li.textContent)).toEqual(["Nombre Nuevo"]);
+    await tocar(document.querySelector(".hoja-confirmar .boton-confirmar-hoja"));
+    expect(datos.confirmaciones).toEqual([{ equipoId: "eq-1", base: "gps", personas: ["Nombre Nuevo"] }]);
     expect(datos.creadas).toEqual([
       { fecha: HOY, jugador_id: 1, persona: null, promedio: null, datos: { microciclo: 31, puesto: "DEL", d: 4100.5, d_min: 82.01, tiempo: 3000, codigo_estrategia: "cps", dispositivo: "catapult" } },
       { fecha: HOY, jugador_id: null, persona: null, promedio: "parcial", datos: { microciclo: 31, d: 4300, d_min: 86, tiempo: 3000, codigo_estrategia: "0", dispositivo: "catapult" } },
@@ -989,6 +997,27 @@ describe("GPS", () => {
     expect(document.body.textContent).toContain("Listo: se cargaron 3 filas.");
     // De vuelta en la Base, con las nuevas.
     expect(filas(contenedor)).toHaveLength(6);
+  });
+
+  test("Pegar desde una planilla: sin confirmar el consentimiento de una persona nueva no se carga nada", async () => {
+    await montarEnLaBase();
+    await tocar(boton("Pegar desde una planilla"));
+    await escribir(
+      contenedor.querySelector(".datos-importar-pegado textarea"),
+      ["Microciclo\tNombre\tD\tFecha", `31\tALFA\t4100\t${fechaCorta(HOY)}`, `31\tNombre Nuevo\t3900\t${fechaCorta(HOY)}`].join("\n"),
+    );
+    await esperar(() => Boolean(boton("Guardar igual el que no está en Datos básicos")));
+    await tocar(boton("Guardar igual el que no está en Datos básicos"));
+    await esperar(() => Boolean(boton("Cargar 2 filas")) && !boton("Cargar 2 filas").disabled);
+    await tocar(boton("Cargar 2 filas"));
+    expect([...document.querySelectorAll(".hoja-confirmar .consentimiento-personas li")].map((li) => li.textContent)).toEqual(["Nombre Nuevo"]);
+    await tocar(document.querySelector(".hoja-confirmar .boton-cancelar-hoja"));
+    // Sigue en la pantalla, sin cargar ni confirmar nada.
+    expect(document.querySelector(".hoja-confirmar")).toBeNull();
+    expect(datos.confirmaciones).toEqual([]);
+    expect(datos.pegadas).toHaveLength(0);
+    expect(datos.creadas).toHaveLength(0);
+    expect(boton("Cargar 2 filas")).toBeTruthy();
   });
 
   // Regla 1 al pegar (Santiago, 20/10): ayer ALFA ya tiene la sesión de las
