@@ -1153,10 +1153,12 @@ describe("el módulo Lesiones", () => {
     // Debajo, qué es el % y qué cuenta, en corto (sin la leyenda de los puntos).
     expect(texto(contenedor)).toContain("El % compara al jugador con la referencia");
     expect(texto(contenedor)).not.toContain("Superior a la referencia");
-    // El mapa corporal: lo lesionado pintado, sin nombres al costado.
-    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-mancha")).toHaveLength(1);
-    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-mancha title")).toHaveLength(1);
-    expect(contenedor.querySelectorAll(".informe-mapa .cuerpo-calor-nombre")).toHaveLength(0);
+    // El mapa corporal (desde el 23/10, el del individual): la zona de su
+    // lesión pintada, se llega con el teclado y está abierta en el detalle.
+    expect(contenedor.querySelector(".informe-mapa")).toBeNull();
+    expect(contenedor.querySelectorAll(".mapa-jugador-vistas .mapa-jugador-calor").length).toBeGreaterThan(0);
+    expect(contenedor.querySelectorAll('.mapa-jugador-toque[role="button"]')).toHaveLength(1);
+    expect(contenedor.querySelectorAll(".mapa-jugador-detalle tbody tr")).toHaveLength(1);
     // El historial: sus lesiones, con todas las columnas a la vista en dos
     // tablas por grupo del Excel (con los nombres de los grupos del club).
     const tablas = [...contenedor.querySelectorAll(".informe-tabla")];
