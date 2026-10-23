@@ -76,6 +76,8 @@ import {
   escribirBorrador,
   leerBorradorDelClub,
 } from "./domain/borrador";
+import { aplanarPartido, diferenciasDelPartido } from "./domain/partidoEnCurso.js";
+import { cambiarPartidoEnCurso } from "./domain/partidoEnCursoDb.js";
 import { puntosDeRegistros } from "./domain/puntos";
 import {
   cortesDelPartido,
@@ -255,7 +257,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.23.7";
+const APP_VERSION = "2026.10.23.8";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
@@ -1149,7 +1151,11 @@ export default function App({
   intro = true,
   onVolver = null,
 } = {}) {
+  // Cada cambio con su id: así, en el partido compartido entre celulares
+  // (partidoEnCurso.js), dos cambios anotados a la vez en dos celulares no
+  // van al mismo lugar.
   const crearCambioVacio = () => ({
+    id: idAlAzar(),
     sale: "",
     entra: "",
     hora: "",
@@ -1303,16 +1309,25 @@ export default function App({
         return lista;
       };
 
+      // Los cambios guardados antes de que tuvieran id, con uno.
+      const conId = (lista) =>
+        lista.map((cambio) =>
+          cambio && typeof cambio === "object" && !cambio.id
+            ? { ...cambio, id: idAlAzar() }
+            : cambio,
+        );
+
       return {
         ...registroVacio,
         ...registroRecuperado,
-        cambios: arregloSeguro(
-          registroRecuperado.cambios,
-          registroVacio.cambios,
+        cambios: conId(
+          arregloSeguro(registroRecuperado.cambios, registroVacio.cambios),
         ),
-        cambiosRival: arregloSeguro(
-          registroRecuperado.cambiosRival,
-          registroVacio.cambiosRival,
+        cambiosRival: conId(
+          arregloSeguro(
+            registroRecuperado.cambiosRival,
+            registroVacio.cambiosRival,
+          ),
         ),
         jugadoresRival: Array.isArray(registroRecuperado.jugadoresRival)
           ? registroRecuperado.jugadoresRival
@@ -2489,6 +2504,102 @@ export default function App({
     if (!guardado) console.warn("No se pudo guardar el borrador local.");
     setBorradorSinLugar(!guardado);
   }, [registro]);
+
+  // El partido en curso también queda en la base, dato por dato
+  // (partidos_en_curso; paso 4a de «cargar sin señal y a la vez que otra
+  // persona», Santiago, 23/10: «Varios cargan a la vez»), para que otros
+  // celulares del club se sumen. A la vista, igual que hoy: el Historial (y
+  // el Excel) lo ven recién con «Guardar partido». Un rato después de cada
+  // cambio se sube solo lo que cambió; sin señal (o si falla), queda para el
+  // próximo cambio o para cuando vuelva la señal. Sin la actualización de la
+  // base, como antes. Lo subido: lo que la base ya tiene de este partido
+  // (de este idLocal: «Limpiar» empieza otro y deja el de antes).
+  const enCurso = useRef({
+    idLocal: null,
+    subido: null,
+    registroId: null,
+    enCamino: false,
+    otraVez: false,
+    sinFuncion: false,
+  });
+  const subirEnCurso = async () => {
+    const estado = enCurso.current;
+    if (estado.sinFuncion) return;
+    if (estado.enCamino) {
+      estado.otraVez = true;
+      return;
+    }
+    const actual = registroVigente.current;
+    const club = clubDelBorrador.current;
+    if (!club || club !== equipoId || soloLectura || !hayPartidoCargado(actual)) {
+      return;
+    }
+    const mismo =
+      Boolean(actual.idEnCurso) && estado.idLocal === actual.idLocal;
+    const plano = aplanarPartido(actual);
+    const { cambios, antes } = diferenciasDelPartido(
+      mismo ? estado.subido : {},
+      plano,
+    );
+    const registroId = actual.idSupabase || null;
+    if (
+      mismo &&
+      !Object.keys(cambios).length &&
+      (!registroId || registroId === estado.registroId)
+    ) {
+      return;
+    }
+    estado.enCamino = true;
+    const respuesta = await cambiarPartidoEnCurso(club, {
+      id: actual.idEnCurso || null,
+      cambios,
+      antes: mismo ? antes : {},
+      registroId,
+    });
+    estado.enCamino = false;
+    if (respuesta.sinFuncion) {
+      estado.sinFuncion = true;
+      return;
+    }
+    if (respuesta.noEsta) {
+      // Lo borraron: este celular lo vuelve a empezar con lo que tiene.
+      estado.idLocal = null;
+      estado.subido = null;
+      setRegistro((prev) =>
+        prev.idLocal === actual.idLocal ? { ...prev, idEnCurso: null } : prev,
+      );
+    } else if (!respuesta.error) {
+      estado.idLocal = actual.idLocal;
+      estado.subido = plano;
+      estado.registroId = registroId;
+      if (actual.idEnCurso !== respuesta.id) {
+        setRegistro((prev) =>
+          prev.idLocal === actual.idLocal
+            ? { ...prev, idEnCurso: respuesta.id }
+            : prev,
+        );
+      }
+    }
+    if (estado.otraVez) {
+      estado.otraVez = false;
+      subirEnCurso();
+    }
+  };
+  const subirEnCursoVigente = useRef(subirEnCurso);
+  subirEnCursoVigente.current = subirEnCurso;
+  useEffect(() => {
+    if (!equipoId || soloLectura) return undefined;
+    const temporizador = window.setTimeout(
+      () => subirEnCursoVigente.current(),
+      800,
+    );
+    return () => window.clearTimeout(temporizador);
+  }, [registro, equipoId, soloLectura]);
+  useEffect(() => {
+    const alVolver = () => subirEnCursoVigente.current();
+    window.addEventListener("online", alVolver);
+    return () => window.removeEventListener("online", alVolver);
+  }, []);
 
   // Al cambiar de club, el partido en memoria ya quedó guardado en el suyo
   // (se escribe con cada cambio) y se trae el del club nuevo, o uno vacío.
