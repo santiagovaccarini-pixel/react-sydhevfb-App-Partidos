@@ -4,8 +4,8 @@ import { idiomaActual, t, useIdioma } from "../idioma/index.js";
 
 // Ver una base sin señal (paso 1 de la nota «cargar sin señal y a la vez que
 // otra persona»; Santiago, 21/10: la copia «Automática en todos, sin botón»).
-// Lo mismo para Lesiones, Evaluaciones y GPS: la base dice qué guarda y cómo
-// se muestra; acá, la copia de este aparato y el aviso.
+// Lo mismo para Lesiones, Evaluaciones, GPS y Datos básicos: la base dice qué
+// guarda y cómo se muestra; acá, la copia de este aparato y el aviso.
 
 // De cuándo es la copia: la fecha y la hora (de 0 a 23, así la frase no
 // termina en «p. m.»).
@@ -19,7 +19,7 @@ const cuando = (iso) => {
 export const sinSenalAhora = () => typeof navigator !== "undefined" && navigator.onLine === false;
 export const falloDeRed = (respuesta) => /Failed to fetch|NetworkError|Load failed/i.test(`${respuesta?.detalle || ""} ${respuesta?.error || ""}`);
 
-// modulo: "lesiones", "evaluaciones" o "gps". deshabilitado: quien ya se fue
+// modulo: "lesiones", "evaluaciones", "gps" o "datos". deshabilitado: quien ya se fue
 // del club (ve la foto de su último día: no guarda copia). Devuelve { activo,
 // leer(), guardar(datos), cuenta }: activo, si hay cuenta y club para
 // guardarla; cuenta, la de este aparato (para la fila de espera del paso 3).

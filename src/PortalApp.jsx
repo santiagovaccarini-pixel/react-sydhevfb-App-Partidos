@@ -221,6 +221,9 @@ const AppConSesion = ({ email, userId, permisos, cerrarSesion, desdeCache = fals
       ["lesiones", "evaluaciones", "gps"].forEach((modulo) => {
         if (leido[modulo] && fresco[modulo] === false) borrarCopiasSinSenal(leido.id, modulo);
       });
+      // Datos básicos se abre con cualquier módulo: sin ninguno, su copia se va.
+      const conDatos = (uno) => ["partido", "flujo", "lesiones", "evaluaciones", "gps"].some((modulo) => uno[modulo]);
+      if (conDatos(leido) && !conDatos(fresco)) borrarCopiasSinSenal(leido.id, "datos");
       const cambio =
         ["hasta", "nombre", "rol", "partido", "flujo", "lesiones", "evaluaciones", "gps"].some((clave) => (fresco[clave] ?? null) !== (leido[clave] ?? null)) ||
         // Si el admin le cambió un módulo a «Solo lectura» o a «Edición».

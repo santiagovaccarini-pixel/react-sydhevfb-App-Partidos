@@ -50,6 +50,27 @@ vi.mock("./domain/descargar.js", () => ({
   descargarArchivo: (nombre, contenido, tipo) => exportacion.descargas.push({ nombre, contenido, tipo }),
 }));
 
+// La copia para ver sin señal (copiaSinSenal.js), en memoria: en las
+// pruebas no hay IndexedDB.
+const copias = vi.hoisted(() => ({ guardadas: {} }));
+vi.mock("./domain/copiaSinSenal.js", () => {
+  const clave = (modulo, cuenta, equipoId) => `${equipoId}|${modulo}|${cuenta}`;
+  return {
+    cuentaDelAparato: async () => "cuenta-1",
+    guardarCopiaSinSenal: async (modulo, cuenta, equipoId, datos) => {
+      const guardadaEn = "2026-10-20T14:32:00.000Z";
+      copias.guardadas[clave(modulo, cuenta, equipoId)] = { datos: JSON.parse(JSON.stringify(datos)), guardadaEn };
+      return guardadaEn;
+    },
+    leerCopiaSinSenal: async (modulo, cuenta, equipoId) => copias.guardadas[clave(modulo, cuenta, equipoId)] || null,
+    borrarCopiasSinSenal: async () => null,
+  };
+});
+// Sin señal, la base no contesta: el plantel, el de respaldo (solo los
+// nombres), y lo demás, con el error de red.
+const hayRed = () => navigator.onLine !== false;
+const sinRed = { error: "comun.sinConexion", detalle: "TypeError: Failed to fetch" };
+
 vi.mock("./domain/equipo.js", () => ({
   leerEquipoElegido: () => registro.equipo,
   cargarEquipos: async () => ({ equipos: [] }),
@@ -61,13 +82,14 @@ vi.mock("./domain/equipo.js", () => ({
 // La base de mentira: el plantel cambia con lo que se agrega y se guarda.
 vi.mock("./domain/lesionesDb.js", () => ({
   // Como la de verdad: ordenado por nombre.
-  cargarPlantelLesiones: async () => ({
-    plantel: registro.plantel.map((jugador) => ({ ...jugador })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
-    error: "",
-  }),
+  cargarPlantelLesiones: async () =>
+    hayRed()
+      ? { plantel: registro.plantel.map((jugador) => ({ ...jugador })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es")), error: "" }
+      : { plantel: registro.plantel.map(({ id, nombre }) => ({ id, nombre, roles: [], puestos: [] })), error: "", deRespaldo: true },
   // Datos básicos › Ajustes: lo de Lesiones que comparte (nombre y listas de
   // las columnas del jugador) y lo propio.
-  leerConfigDatos: async () => ({ config: JSON.parse(JSON.stringify(registro.config)), columnas: JSON.parse(JSON.stringify(registro.columnas)), error: "" }),
+  leerConfigDatos: async () =>
+    hayRed() ? { config: JSON.parse(JSON.stringify(registro.config)), columnas: JSON.parse(JSON.stringify(registro.columnas)), error: "" } : { config: { campos: {}, listas: {} }, columnas: {}, ...sinRed },
   guardarCampo: async (equipoId, campo, datos) => {
     registro.ajustes.push({ tabla: "campos", campo, ...datos });
     registro.config.campos[campo] = { etiquetas: { ...datos.etiquetas }, oculto: datos.oculto, orden: datos.orden };
@@ -118,7 +140,7 @@ vi.mock("./domain/lesionesDb.js", () => ({
     return { jugador: { ...jugador }, error: "" };
   },
   // Las lesiones de cada jugador (para la categoría) y su categoría guardada.
-  leerLesionesPorJugador: async () => ({ porJugador: JSON.parse(JSON.stringify(registro.lesiones)), error: "" }),
+  leerLesionesPorJugador: async () => (hayRed() ? { porJugador: JSON.parse(JSON.stringify(registro.lesiones)), error: "" } : { porJugador: {}, ...sinRed }),
   // Con la categoría que tenía cada una (antes, aparte); pisadas, las que
   // otra persona había cambiado mientras tanto.
   guardarCategoriaDeLesiones: async (cambios) => {
@@ -136,7 +158,7 @@ vi.mock("./domain/lesionesDb.js", () => ({
 
 // Las evaluaciones de cada jugador (para la categoría) y su Selección guardada.
 vi.mock("./domain/evaluacionesDb.js", () => ({
-  leerEvaluacionesPorJugador: async () => ({ porJugador: JSON.parse(JSON.stringify(registro.evaluaciones)), error: "" }),
+  leerEvaluacionesPorJugador: async () => (hayRed() ? { porJugador: JSON.parse(JSON.stringify(registro.evaluaciones)), error: "" } : { porJugador: {}, ...sinRed }),
   guardarSeleccionDeEvaluaciones: async (cambios) => {
     registro.seleccionesDeEvaluaciones.push(...cambios.map(({ antes, ...cambio }) => cambio));
     registro.antesDeCategorias.push(...cambios.map((cambio) => [cambio.id, cambio.antes]));
@@ -183,6 +205,8 @@ describe("el módulo Datos básicos", () => {
     registro.columnas = {};
     registro.ajustes = [];
     registro.faltaSqlAjustes = false;
+    copias.guardadas = {};
+    Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });
     contenedor = document.createElement("div");
     document.body.appendChild(contenedor);
     raiz = createRoot(contenedor);
@@ -632,6 +656,85 @@ describe("el módulo Datos básicos", () => {
     expect(filaDeAjuste("Cabeceras").disabled).toBe(true);
     expect(filaDeAjuste("Listas").disabled).toBe(true);
     expect(registro.guardados).toEqual([]);
+  });
+
+  // Paso 3 de «cargar sin señal y a la vez que otra persona» (Santiago, 23/10,
+  // en un cuestionario: «Solo mirar»).
+  describe("sin señal", () => {
+    const sinSenalAhora = async (sin) => {
+      Object.defineProperty(window.navigator, "onLine", { value: !sin, configurable: true });
+      await act(async () => window.dispatchEvent(new Event(sin ? "offline" : "online")));
+    };
+    const unRato = async () => {
+      for (let i = 0; i < 6; i++) await act(async () => new Promise((listo) => setTimeout(listo, 40))); // eslint-disable-line no-await-in-loop
+    };
+    const otraVez = async () => {
+      await act(async () => raiz.unmount());
+      raiz = createRoot(contenedor);
+      await montar();
+    };
+
+    test("con señal guarda la copia; sin señal abre con ella, solo para mirar; al volver la señal, lo de la base", async () => {
+      registro.columnas = { horas_previas: { etiquetas: { "es-AR": "Horas de antes", "pt-BR": "" }, oculto: false } };
+      await montar();
+      await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
+      const guardada = copias.guardadas["eq-1|datos|cuenta-1"].datos;
+      expect(guardada.plantel.map((jugador) => jugador.nombre)).toEqual(["HULK", "SCARPA"]);
+      expect(guardada.columnas).toEqual(registro.columnas);
+
+      // Otra vez, sin señal (mientras tanto, otra persona sumó un jugador).
+      await sinSenalAhora(true);
+      registro.plantel.push({ ...plantelInicial()[1], id: 9, nombre: "ZETA" });
+      await otraVez();
+      expect(texto(contenedor)).toContain("Sin señal: ves la copia de este aparato");
+      expect(texto(contenedor)).toContain("Para cambiar algo hace falta señal.");
+      expect(texto(contenedor)).toContain("HULK");
+      expect(texto(contenedor)).not.toContain("ZETA");
+      expect(texto(contenedor)).toContain("Horas de antes");
+      expect(texto(contenedor)).toContain("25/07/1986");
+      // Solo para mirar.
+      expect(boton(contenedor, "Agregar jugador")).toBeUndefined();
+      expect(boton(contenedor, "Pegar desde Excel")).toBeUndefined();
+      expect(celda(contenedor, 0, 1).querySelector("input[type=checkbox]").disabled).toBe(true);
+      await tocar(celda(contenedor, 1, 5));
+      await tocar(celda(contenedor, 1, 5));
+      expect(contenedor.querySelector(".opcion-hoja")).toBeNull();
+      expect(boton(contenedor, "Borrar fila")).toBeUndefined();
+      await irA(contenedor, "Posiciones");
+      expect([...contenedor.querySelectorAll(".boton-puesto")].map((b) => b.textContent.trim())).not.toContain("+");
+      await irA(contenedor, "Ajustes");
+      expect(filaDeAjuste("Cabeceras").disabled).toBe(true);
+      expect(registro.guardados).toEqual([]);
+      // Mientras se ve la copia no se guarda otra.
+      await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
+      expect(copias.guardadas["eq-1|datos|cuenta-1"].datos.plantel).toHaveLength(2);
+
+      // Vuelve la señal: lo de la base, al día, y se cambia otra vez.
+      await irA(contenedor, "Jugadores");
+      await sinSenalAhora(false);
+      await unRato();
+      expect(texto(contenedor)).toContain("ZETA");
+      expect(texto(contenedor)).not.toContain("Sin señal: ves la copia de este aparato");
+      expect(boton(contenedor, "Agregar jugador")).toBeTruthy();
+    }, 15000);
+
+    test("sin copia en el aparato: dice que no hay conexión y no deja cambiar nada", async () => {
+      await sinSenalAhora(true);
+      await montar();
+      expect(texto(contenedor)).toContain("No hay conexión. Fijate la señal y probá de nuevo.");
+      expect(texto(contenedor)).toContain("HULK");
+      expect(boton(contenedor, "Agregar jugador")).toBeUndefined();
+      expect(celda(contenedor, 0, 1).querySelector("input[type=checkbox]").disabled).toBe(true);
+      // Sin lo de la base, no queda copia.
+      await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
+      expect(copias.guardadas).toEqual({});
+      // Al volver la señal, lo de la base.
+      await sinSenalAhora(false);
+      await unRato();
+      expect(texto(contenedor)).not.toContain("No hay conexión");
+      expect(texto(contenedor)).toContain("25/07/1986");
+      expect(boton(contenedor, "Agregar jugador")).toBeTruthy();
+    }, 15000);
   });
 
   // Paso 2 de «cargar sin señal y a la vez que otra persona» (Santiago, 20/10:

@@ -561,7 +561,9 @@ export const leerConfigDatos = async (equipoId) => {
       { etiquetas: { "es-AR": fila.etiqueta_es || "", "pt-BR": fila.etiqueta_pt || "" }, oculto: Boolean(fila.oculto) },
     ]),
   );
-  return { config, columnas, error: campos.error || opciones.error ? fallo(campos.error || opciones.error, "lesiones.error.noLeer").error : "" };
+  // Con el detalle: sin señal, Datos básicos abre con la copia del aparato.
+  const falla = campos.error || opciones.error;
+  return { config, columnas, ...(falla ? fallo(falla, "lesiones.error.noLeer") : { error: "" }) };
 };
 
 // Lo propio de una columna de Datos básicos: su nombre (solo el de las que
