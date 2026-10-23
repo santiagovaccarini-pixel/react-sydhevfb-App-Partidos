@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { inflateSync } from "node:zlib";
-import { fechaDeSesion, inflarConElNavegador, leerPdfIsocinecia, textosDeLaPagina } from "./pdfIsocinecia.js";
+import { armarConfig } from "./ajustes.js";
+import { LECTURA_DE_ENTRADA, fechaDeSesion, inflarConElNavegador, lecturaDeConfig, leerPaginas, leerPdfIsocinecia, textosDeLaPagina } from "./pdfIsocinecia.js";
 import { pdfDePrueba, valorDePrueba } from "./pdfIsocineciaDePrueba.js";
 import { NUMEROS } from "./tests/isocinecia.js";
 
@@ -23,7 +24,10 @@ const esperado = () => {
 describe("leer el PDF del isocinético", () => {
   test("de las tres páginas, las 18 medidas de cada velocidad, con el peso, el nombre y la fecha del PDF", async () => {
     const leido = await leerPdfIsocinecia(pdfDePrueba(), { inflar });
-    expect(leido).toEqual({ nombre: "Jugador de Prueba", fecha: "2026-07-22", datos: esperado(), velocidades: [60, 180, 300], faltan: [] });
+    expect(leido).toMatchObject({ nombre: "Jugador de Prueba", fecha: "2026-07-22", datos: esperado(), velocidades: [60, 180, 300], faltan: [], noEncontradas: [] });
+    // Las filas del PDF que no son de ninguna medida, por si hay que elegir.
+    expect(leido.filasLibres).toEqual(["PEAK TORQUE", "TIME TO PK TQ"]);
+    expect(leido.paginas).toHaveLength(3);
     // Son justo lo que se carga de Isocinecia.
     expect(Object.keys(leido.datos).sort()).toEqual([...NUMEROS].sort());
   });
@@ -66,5 +70,36 @@ describe("leer el PDF del isocinético", () => {
     ]);
     expect(fechaDeSesion("1/11/2026 12:06:40 AM")).toBe("2026-01-11");
     expect(fechaDeSesion("")).toBeNull();
+  });
+});
+
+describe("el nombre de cada fila, en Ajustes (Santiago, 23/10: «Nombre y si se usa»)", () => {
+  test("de entrada, los del informe; lo del club encima, y si se usa", () => {
+    expect(lecturaDeConfig(null).work).toEqual({ nombre: "WRK/BODYWEIGHT", usar: true });
+    const config = armarConfig([
+      { test: "isocinecia", campo: "pdf.work", etiqueta_es: "WORK/BW", etiqueta_pt: "WORK/BW", oculto: false },
+      { test: "isocinecia", campo: "pdf.avg", etiqueta_es: "AVG. POWER", etiqueta_pt: "", oculto: true },
+    ]);
+    expect(lecturaDeConfig(config)).toMatchObject({ work: { nombre: "WORK/BW", usar: true }, avg: { nombre: "AVG. POWER", usar: false }, peak: { nombre: "PEAK TQ/BW", usar: true } });
+  });
+
+  test("si el PDF cambió el nombre de una fila, no se inventa: se dice cuál falta y qué filas quedan", async () => {
+    const leido = await leerPdfIsocinecia(pdfDePrueba({ rotulos: { "WRK/BODYWEIGHT": "WORK/BW" } }), { inflar });
+    expect(leido.noEncontradas).toEqual(["work"]);
+    expect(leido.filasLibres).toEqual(["PEAK TORQUE", "TIME TO PK TQ", "WORK/BW"]);
+    expect(leido.datos.v60_work_ext_pd).toBeUndefined();
+    // Con el nombre nuevo (de Ajustes o elegido en la tarjeta) se lee; las
+    // mayúsculas y los espacios de más no importan.
+    const conElNombre = leerPaginas(leido.paginas, { ...LECTURA_DE_ENTRADA, work: { nombre: " work/bw ", usar: true } });
+    expect(conElNombre.noEncontradas).toEqual([]);
+    expect(conElNombre.datos.v60_work_ext_pd).toBe(121.5);
+    expect(conElNombre.filasLibres).toEqual(["PEAK TORQUE", "TIME TO PK TQ"]);
+  });
+
+  test("una medida que no se usa no se lee ni se reclama", async () => {
+    const leido = await leerPdfIsocinecia(pdfDePrueba(), { inflar, lectura: { ...LECTURA_DE_ENTRADA, avg: { nombre: "AVG. POWER", usar: false } } });
+    expect(Object.keys(leido.datos).some((clave) => clave.includes("_avg_"))).toBe(false);
+    expect(leido.noEncontradas).toEqual([]);
+    expect(leido.filasLibres).toContain("AVG. POWER");
   });
 });

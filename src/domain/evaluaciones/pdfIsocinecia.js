@@ -18,15 +18,40 @@ import { VELOCIDADES } from "./tests/isocinecia.js";
 // Fatigue y ROM (uno por pierna: en el PDF es el mismo en extensión y en
 // flexión); de la primera, el nombre (Name), la fecha (Session, mes/día/año)
 // y el peso (Wt) como P.C.
+//
+// Cada medida se busca por el nombre de su fila en el PDF. El club lo puede
+// cambiar en Ajustes, y también si se usa (Santiago, 23/10, en un
+// cuestionario: «Nombre y si se usa»); si un nombre no aparece, se dice cuál y
+// qué filas del PDF quedaron sin usar, para elegir en la tarjeta («Se elige en
+// la tarjeta»).
 
-// Las filas del PDF y su medida en la app.
-const MEDIDAS_DEL_PDF = Object.freeze({
-  "PEAK TQ/BW": "peak",
-  "WRK/BODYWEIGHT": "work",
-  "AVG. POWER": "avg",
-  "WORK FATIGUE": "wf",
-  ROM: "rom",
-});
+// Las medidas de la app y el nombre de su fila en el PDF, de entrada.
+export const MEDIDAS_PDF = Object.freeze([
+  { clave: "peak", titulo: "Peak TQ/BW", enElPdf: "PEAK TQ/BW" },
+  { clave: "work", titulo: "Work/BW", enElPdf: "WRK/BODYWEIGHT" },
+  { clave: "avg", titulo: "Average Power", enElPdf: "AVG. POWER" },
+  { clave: "wf", titulo: "Work Fatigue", enElPdf: "WORK FATIGUE" },
+  { clave: "rom", titulo: "ROM", enElPdf: "ROM" },
+]);
+export const TEST_DEL_PDF = "isocinecia";
+// En los Ajustes del club (evaluaciones_campos), como un campo más del test:
+// «pdf.peak», con el nombre en la etiqueta y «oculto» si no se usa.
+export const campoDelPdf = (medida) => `pdf.${medida}`;
+
+// Cómo se lee cada medida: { peak: { nombre, usar }, … }, con lo del club
+// encima de lo de entrada.
+export const lecturaDeConfig = (config) =>
+  Object.fromEntries(
+    MEDIDAS_PDF.map(({ clave, enElPdf }) => {
+      const propio = config?.campos?.[TEST_DEL_PDF]?.[campoDelPdf(clave)];
+      const nombre = String(propio?.etiquetas?.["es-AR"] || propio?.etiquetas?.["pt-BR"] || "").trim();
+      return [clave, { nombre: nombre || enElPdf, usar: !propio?.oculto }];
+    }),
+  );
+export const LECTURA_DE_ENTRADA = lecturaDeConfig(null);
+
+// Los nombres se comparan sin mayúsculas ni espacios de más.
+const comoRotulo = (texto) => String(texto ?? "").replace(/\s+/g, " ").trim().toUpperCase();
 
 // Cuánto puede correrse un texto de su fila (en puntos de la página).
 const MISMA_FILA = 3;
@@ -140,9 +165,10 @@ const alLadoDe = (textos, rotulo) => {
   return valor && !/:$/.test(valor.texto) ? valor.texto : "";
 };
 
-// Una página: { grados, valores: { v60_peak_ext_pd: …, … }, nombre, fecha, pc }
-// o null si no es una página del informe.
-export const leerPagina = (textos) => {
+// Una página: { grados, valores: { v60_peak_ext_pd: …, … }, nombre, sesion,
+// peso, encontradas: [medidas], filas: [nombres de las filas con números] } o
+// null si no es una página del informe.
+export const leerPagina = (textos, lectura = LECTURA_DE_ENTRADA) => {
   const velocidad = textos.map((uno) => /^(\d+)\s*DEG\/SEC$/i.exec(uno.texto)).find(Boolean);
   const grados = velocidad ? Number(velocidad[1]) : null;
   const clave = VELOCIDADES.find((una) => una.grados === grados)?.clave;
@@ -155,10 +181,23 @@ export const leerPagina = (textos) => {
     ...piernas.map((uno, indice) => ({ x: uno.x, movimiento: indice < 2 ? "ext" : "flex", pierna: uno.texto === "RIGHT" ? "pd" : "pi" })),
     ...textos.filter((uno) => uno.texto === "DEFICIT").map((uno) => ({ x: uno.x, deficit: true })),
   ];
+  // Las filas de la tabla: lo de más a la izquierda de cada renglón con
+  // números en las columnas.
+  const desde = Math.min(...piernas.map((uno) => uno.x)) - 15;
+  const conNumeros = (uno) => enLaFila(textos, uno.y).filter((otro) => otro.x >= desde && numero(otro.texto) !== null).length >= 2;
+  const filas = textos
+    .filter((uno) => uno.x < desde && numero(uno.texto) === null && /[A-Za-z]/.test(uno.texto) && conNumeros(uno))
+    .filter((uno, _, todas) => !todas.some((otra) => otra !== uno && Math.abs(otra.y - uno.y) <= MISMA_FILA && otra.x < uno.x))
+    .sort((a, b) => b.y - a.y)
+    .map((uno) => uno.texto.trim());
   const valores = {};
-  Object.entries(MEDIDAS_DEL_PDF).forEach(([rotulo, medida]) => {
-    const fila = textos.find((uno) => uno.texto.toUpperCase() === rotulo);
+  const encontradas = [];
+  MEDIDAS_PDF.forEach(({ clave: medida }) => {
+    const como = lectura[medida] || LECTURA_DE_ENTRADA[medida];
+    if (!como.usar) return;
+    const fila = textos.find((uno) => comoRotulo(uno.texto) === comoRotulo(como.nombre));
     if (!fila) return;
+    encontradas.push(medida);
     enLaFila(textos, fila.y)
       .filter((uno) => uno.x > fila.x && numero(uno.texto) !== null)
       .forEach((uno) => {
@@ -170,7 +209,7 @@ export const leerPagina = (textos) => {
         valores[destino] = numero(uno.texto);
       });
   });
-  return { grados, valores, nombre: alLadoDe(textos, "Name:"), sesion: alLadoDe(textos, "Session:"), peso: alLadoDe(textos, "Wt:") };
+  return { grados, valores, encontradas, filas, nombre: alLadoDe(textos, "Name:"), sesion: alLadoDe(textos, "Session:"), peso: alLadoDe(textos, "Wt:") };
 };
 
 // «7/22/2026 11:01:58 AM» → «2026-07-22».
@@ -183,30 +222,55 @@ export const fechaDeSesion = (texto) => {
   return `${anio}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 };
 
-// El PDF entero: { nombre, fecha, datos: { pc, v60_…, … }, velocidades: [60,
-// 180, 300], faltan: [grados que no vinieron] } o { error } (una clave del
-// diccionario) si no es el informe del isocinético.
-export const leerPdfIsocinecia = async (datos, { inflar = inflarConElNavegador } = {}) => {
+// Los textos de cada página del PDF (para leerlo, y para volver a leerlo si
+// cambia cómo se lee una medida): { paginas: [[{ x, y, texto }]] } o { error }.
+export const textosDelPdf = async (datos, { inflar = inflarConElNavegador } = {}) => {
   const bytes = bytesDe(datos);
   if (comoTexto(bytes.subarray(0, 5)) !== "%PDF-") return { error: "evaluaciones.pdf.noEsPdf" };
-  let bloques;
   try {
-    bloques = await bloquesDeTexto(bytes, inflar);
+    return { paginas: (await bloquesDeTexto(bytes, inflar)).map(textosDeLaPagina) };
   } catch {
     return { error: "evaluaciones.pdf.noSeLeyo" };
   }
-  const paginas = bloques.map((bloque) => leerPagina(textosDeLaPagina(bloque))).filter(Boolean);
+};
+
+// Lo leído con una forma de leer cada medida: { nombre, fecha, datos: { pc,
+// v60_…, … }, velocidades: [60, 180, 300], faltan: [grados que no vinieron],
+// noEncontradas: [medidas que se usan y cuyo nombre no aparece], filasLibres:
+// [las filas del PDF que no son de ninguna medida] } o { error } si no es el
+// informe del isocinético.
+export const leerPaginas = (paginasDelPdf = [], lectura = LECTURA_DE_ENTRADA) => {
+  const paginas = paginasDelPdf.map((textos) => leerPagina(textos, lectura)).filter(Boolean);
   if (!paginas.length) return { error: "evaluaciones.pdf.noEsIsocinecia" };
   const primera = paginas[0];
   const peso = numero(String(primera.peso).replace(",", "."));
   const datosLeidos = { ...(peso !== null && peso > 0 ? { pc: peso } : {}) };
   paginas.forEach((pagina) => Object.assign(datosLeidos, pagina.valores));
   const velocidades = VELOCIDADES.map((una) => una.grados).filter((grados) => paginas.some((pagina) => pagina.grados === grados));
+  const usadas = new Set(
+    MEDIDAS_PDF.filter(({ clave }) => paginas.some((pagina) => pagina.encontradas.includes(clave))).map(({ clave }) => comoRotulo((lectura[clave] || LECTURA_DE_ENTRADA[clave]).nombre)),
+  );
+  const filasLibres = [];
+  paginas.forEach((pagina) =>
+    pagina.filas.forEach((fila) => {
+      if (!usadas.has(comoRotulo(fila)) && !filasLibres.some((otra) => comoRotulo(otra) === comoRotulo(fila))) filasLibres.push(fila);
+    }),
+  );
   return {
     nombre: primera.nombre,
     fecha: fechaDeSesion(primera.sesion),
     datos: datosLeidos,
     velocidades,
     faltan: VELOCIDADES.map((una) => una.grados).filter((grados) => !velocidades.includes(grados)),
+    noEncontradas: MEDIDAS_PDF.filter(({ clave }) => (lectura[clave] || LECTURA_DE_ENTRADA[clave]).usar && !paginas.some((pagina) => pagina.encontradas.includes(clave))).map(({ clave }) => clave),
+    filasLibres,
   };
+};
+
+// El PDF entero, de una vez: lo de leerPaginas y sus textos (paginas).
+export const leerPdfIsocinecia = async (datos, { inflar = inflarConElNavegador, lectura = LECTURA_DE_ENTRADA } = {}) => {
+  const textos = await textosDelPdf(datos, { inflar });
+  if (textos.error) return { error: textos.error };
+  const leido = leerPaginas(textos.paginas, lectura);
+  return leido.error ? leido : { ...leido, paginas: textos.paginas };
 };

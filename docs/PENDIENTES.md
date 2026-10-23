@@ -3594,6 +3594,13 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
       PDF» y «Una tarjeta por PDF» para revisar. En la app: Cargar › Isocinecia › «Elegir PDF» y
       «Revisar lo leído» (ver UI-082); se guarda una evaluación por PDF con las reglas de
       siempre. Las pruebas usan un PDF inventado (`pdfIsocineciaDePrueba.js`).
+    - **Hecho, los nombres del PDF en Ajustes (23/10, 2026.10.23.12; UI-083).** Santiago preguntó
+      cómo busca la web cada columna si el PDF agrega o quita columnas (por el nombre de la fila;
+      si no la encuentra, esa medida queda vacía) y pidió poder elegirlas a mano y dejarlas en
+      Ajustes. En cuestionarios: «Nombre y si se usa»; cuando no se encuentra, «Se elige en la
+      tarjeta»; lo cambia «Quien cambia los Ajustes». En la app: Ajustes › «Lectura del PDF
+      (Isocinecia)» y, en «Revisar lo leído», la lista de las filas libres del PDF con «Dejar
+      vacía» y «Usar esta» (ver UI-083). Sin migración: va en `evaluaciones_campos`.
     - **Lo que sigue de la nota:** conectar con VALD (falta que Santiago diga qué aparatos y
       qué datos), confirmado en un cuestionario antes de empezar.
   - **El cuerpo humano**: la figura de la carga se sacó (hecho el 15/10, ver «Lesiones: lo que

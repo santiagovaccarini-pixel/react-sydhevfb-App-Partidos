@@ -198,6 +198,7 @@ vi.mock("./domain/evaluacionesDb.js", async (importOriginal) => ({
   leerAjustes: async () => ({ campos: [...datos.ajustes.campos], opciones: [...datos.ajustes.opciones], error: "" }),
   leerCategorias: async () => ({ filas: datos.categorias ? datos.categorias.map((fila) => ({ ...fila })) : null, error: "" }),
   guardarCabecera: async (equipoId, test, campo, { etiquetas, oculto, orden, sentido }) => {
+    if (datos.fallaCabecera) return { error: datos.fallaCabecera };
     datos.cabeceras.push({ equipoId, test, campo, etiquetas, oculto, orden, ...(sentido ? { sentido } : {}) });
     datos.ajustes.campos = [
       ...datos.ajustes.campos.filter((fila) => !(fila.test === test && fila.campo === campo)),
@@ -370,6 +371,7 @@ describe("Evaluaciones", () => {
     datos.ajustes = { campos: [], opciones: [] };
     datos.categorias = null;
     datos.cabeceras = [];
+    datos.fallaCabecera = "";
     datos.opciones = [];
     datos.referenciasCurl = null;
     datos.referenciasIso = null;
@@ -1839,6 +1841,111 @@ describe("Evaluaciones", () => {
       ["isocinecia", 2, "2026-06-24", "sub20", 70.5, 111.5, 352.5, 56],
     ]);
     expect(document.body.textContent).toContain("2 evaluaciones guardadas.");
+  });
+
+  test("Ajustes › Lectura del PDF (Isocinecia): el nombre de cada medida en el PDF y si se usa", async () => {
+    await montar();
+    await irA(contenedor, "Ajustes");
+    await tocar([...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.textContent.includes("Lectura del PDF (Isocinecia)")));
+    const fila = (titulo) => [...contenedor.querySelectorAll(".opcion-ajuste")].find((b) => b.querySelector("b").textContent === titulo);
+    expect([...contenedor.querySelectorAll(".opcion-ajuste b")].map((b) => b.textContent)).toEqual(["Peak TQ/BW", "Work/BW", "Average Power", "Work Fatigue", "ROM"]);
+    expect(fila("Work/BW").textContent).toContain("En el PDF: «WRK/BODYWEIGHT»");
+    await tocar(fila("Work/BW"));
+    const nombre = document.body.querySelector(".lesiones-hoja input[type=text]");
+    expect(nombre.value).toBe("WRK/BODYWEIGHT");
+    expect(document.body.textContent).toContain("De entrada: «WRK/BODYWEIGHT».");
+    await escribir(nombre, "WORK/BW");
+    await tocar(boton(contenedor, "Guardar"));
+    expect(datos.cabeceras).toEqual([{ equipoId: "eq-1", test: "isocinecia", campo: "pdf.work", etiquetas: { "es-AR": "WORK/BW", "pt-BR": "WORK/BW" }, oculto: false, orden: 0 }]);
+    expect(fila("Work/BW").textContent).toContain("En el PDF: «WORK/BW»");
+    // Una que no se usa.
+    await tocar(fila("Average Power"));
+    await tocar([...document.body.querySelectorAll(".lesiones-hoja .chip-criterio")].find((b) => b.textContent === "No se usa"));
+    await tocar(boton(contenedor, "Guardar"));
+    expect(datos.cabeceras.at(-1)).toMatchObject({ campo: "pdf.avg", oculto: true });
+    expect(fila("Average Power").textContent).toContain("No se usa");
+    // Sin nombre no se guarda.
+    await tocar(fila("ROM"));
+    await escribir(document.body.querySelector(".lesiones-hoja input[type=text]"), " ");
+    await tocar(boton(contenedor, "Guardar"));
+    expect(datos.cabeceras).toHaveLength(2);
+  });
+
+  test("Isocinecia con PDF: si el nombre de una medida no aparece, se elige la fila en la tarjeta y queda en Ajustes", async () => {
+    await montar();
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Isocinecia");
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    const archivos = [
+      new File([pdfDePrueba({ nombre: "Alfa", rotulos: { "WRK/BODYWEIGHT": "WORK/BW" } })], "alfa.pdf", { type: "application/pdf" }),
+      new File([pdfDePrueba({ nombre: "Beta", sesion: "6/24/2026 4:17:53 PM", rotulos: { "WRK/BODYWEIGHT": "WORK/BW", ROM: "RANGE" } })], "beta.pdf", { type: "application/pdf" }),
+    ];
+    const elegir = contenedor.querySelector(".evaluaciones-pdf-archivo");
+    await act(async () => {
+      Object.defineProperty(elegir, "files", { value: archivos, configurable: true });
+      elegir.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    for (let vuelta = 0; vuelta < 20 && contenedor.querySelector(".evaluaciones-pdf-tarjeta[aria-busy]"); vuelta += 1) {
+      await act(async () => new Promise((listo) => setTimeout(listo, 5)));
+    }
+    const tarjetas = () => [...contenedor.querySelectorAll(".evaluaciones-pdf-tarjeta")];
+    const faltas = (tarjeta) => [...tarjeta.querySelectorAll(".evaluaciones-pdf-falta")];
+    expect(faltas(tarjetas()[0])).toHaveLength(1);
+    expect(faltas(tarjetas()[0])[0].textContent).toContain("No se encontró «WRK/BODYWEIGHT» (Work/BW) en este PDF. ¿Cuál de estas filas es?");
+    expect([...faltas(tarjetas()[0])[0].querySelectorAll("label")].map((opcion) => opcion.textContent)).toEqual(["PEAK TORQUE", "TIME TO PK TQ", "WORK/BW"]);
+    expect(faltas(tarjetas()[1])).toHaveLength(2);
+    // Sin elegir, no se guarda.
+    await tocar(boton(contenedor, "Guardar 2 evaluaciones"));
+    expect(contenedor.textContent).toContain("alfa.pdf: falta elegir qué fila del PDF es Work/BW (o «Dejar vacía»).");
+    expect(datos.creadas).toHaveLength(0);
+    // Se elige WORK/BW: queda en Ajustes y sirve para los dos PDF.
+    await tocar([...faltas(tarjetas()[0])[0].querySelectorAll("input[type=radio]")].find((radio) => radio.value === "WORK/BW"));
+    await tocar([...faltas(tarjetas()[0])[0].querySelectorAll("button")].find((b) => b.textContent === "Usar esta"));
+    expect(datos.cabeceras).toEqual([{ equipoId: "eq-1", test: "isocinecia", campo: "pdf.work", etiquetas: { "es-AR": "WORK/BW", "pt-BR": "WORK/BW" }, oculto: false, orden: 0 }]);
+    expect(document.body.textContent).toContain("Quedó en Ajustes: Work/BW se lee de «WORK/BW».");
+    expect(faltas(tarjetas()[0])).toHaveLength(0);
+    expect(faltas(tarjetas()[1])).toHaveLength(1);
+    // En el otro, ROM queda vacía.
+    await tocar([...faltas(tarjetas()[1])[0].querySelectorAll("button")].find((b) => b.textContent === "Dejar vacía"));
+    expect(faltas(tarjetas()[1])).toHaveLength(0);
+    await tocar(tarjetas()[0].querySelector(".evaluaciones-varios-jugador"));
+    await elegirEnLaHoja("ALFA");
+    await tocar(tarjetas()[1].querySelector(".evaluaciones-varios-jugador"));
+    await elegirEnLaHoja("BETA");
+    await tocar(boton(contenedor, "Guardar 2 evaluaciones"));
+    expect(datos.creadas.map(({ ev }) => [ev.jugador_id, ev.datos.v60_work_ext_pd, ev.datos.v60_rom_pd ?? null, Object.keys(ev.datos).length])).toEqual([
+      [1, 121.5, 151.5, 56],
+      [2, 121.5, null, 50],
+    ]);
+  });
+
+  test("Isocinecia con PDF: si no se puede guardar en Ajustes, la fila elegida vale para esa carga y lo dice", async () => {
+    datos.fallaCabecera = "evaluaciones.ajustes.errorGuardar";
+    await montar();
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Isocinecia");
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    const elegir = contenedor.querySelector(".evaluaciones-pdf-archivo");
+    await act(async () => {
+      Object.defineProperty(elegir, "files", { value: [new File([pdfDePrueba({ nombre: "Alfa", rotulos: { "WRK/BODYWEIGHT": "WORK/BW" } })], "alfa.pdf", { type: "application/pdf" })], configurable: true });
+      elegir.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    for (let vuelta = 0; vuelta < 20 && contenedor.querySelector(".evaluaciones-pdf-tarjeta[aria-busy]"); vuelta += 1) {
+      await act(async () => new Promise((listo) => setTimeout(listo, 5)));
+    }
+    const falta = contenedor.querySelector(".evaluaciones-pdf-falta");
+    await tocar([...falta.querySelectorAll("input[type=radio]")].find((radio) => radio.value === "WORK/BW"));
+    await tocar([...falta.querySelectorAll("button")].find((b) => b.textContent === "Usar esta"));
+    expect(datos.cabeceras).toEqual([]);
+    expect(contenedor.textContent).toContain("No se pudo guardar en Ajustes (");
+    expect(contenedor.textContent).toContain("): lo elegido vale para esta carga.");
+    expect(contenedor.querySelector(".evaluaciones-pdf-falta")).toBeNull();
+    await tocar(contenedor.querySelector(".evaluaciones-varios-jugador"));
+    await elegirEnLaHoja("ALFA");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(datos.creadas.map(({ ev }) => ev.datos.v180_work_flex_pi)).toEqual([224.5]);
   });
 
   test("Isocinecia de hoy (pegada desde el Excel): en Cargar se ve y se borra, pero se corrige en la Base", async () => {

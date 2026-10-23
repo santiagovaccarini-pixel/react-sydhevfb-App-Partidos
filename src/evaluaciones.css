@@ -887,6 +887,66 @@
 .evaluaciones-marco .evaluaciones-pdf-tarjeta .aviso-hoja {
   margin: 10px 0 0;
 }
+/* Una medida que no apareció en el PDF: qué fila es (o dejarla vacía). */
+.evaluaciones-marco .evaluaciones-pdf-falta {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 12px;
+  border: 1px solid rgba(240, 201, 120, 0.7);
+  border-radius: 12px;
+  background: rgba(240, 201, 120, 0.12);
+}
+.evaluaciones-marco .evaluaciones-pdf-falta > p {
+  margin: 0;
+  color: #5b420c;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.evaluaciones-marco .evaluaciones-pdf-filas {
+  display: grid;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.evaluaciones-marco .evaluaciones-pdf-filas label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.evaluaciones-marco .evaluaciones-pdf-filas label.elegida {
+  border-color: #a16207;
+  box-shadow: 0 0 0 1px #a16207 inset;
+}
+.evaluaciones-marco .evaluaciones-pdf-filas input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #a16207;
+}
+.evaluaciones-marco .evaluaciones-pdf-falta-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.evaluaciones-marco .evaluaciones-pdf-falta-acciones button {
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+}
 .evaluaciones-marco .evaluaciones-pdf-tarjeta .evaluaciones-varios-bloque.primero {
   margin-top: 12px;
 }
