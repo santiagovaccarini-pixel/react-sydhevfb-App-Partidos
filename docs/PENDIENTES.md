@@ -3639,6 +3639,17 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
     marca Claude o él pinta una copia con colores, y si van primero las partes del cuerpo y
     después los músculos. Para usar su figura hace falta la figura sola (sin calor), de frente
     y de espaldas, en grande y con permiso de uso.
+    - **Hecho el mapa nuevo del individual (23/10, 2026.10.23.14; UI-084).** Santiago eligió
+      seguir con esta nota (la de Flujo diario queda para el final). Claude buscó cómo lo hacen
+      otros programas: TeamBuildr tiene un mapa del cuerpo para que el atleta marque dolor; en
+      Kitman Labs y Smartabase no se encontró uno; en los estudios de lesiones el mapa por zona se
+      arma con la cantidad y los días perdidos (la «carga lesional»). La foto del 15/10 no estaba en
+      esta conversación: Santiago la mandó de nuevo y, en cuestionarios, eligió las piezas (ver
+      UI-084), el período con desplegable, solo en el individual, oscuro en pantalla y blanco al
+      imprimir y su figura, que mandó limpia de frente y de espaldas. A la figura se le sacó el fondo
+      (y la sombra del piso) en la sesión; las zonas las marcó Claude a mano. **Falta que confirme**:
+      las zonas marcadas, y lo que no respondió (qué es una zona, los lados juntos y la dona por
+      familia), que se hizo con lo recomendado.
 
 ### Lo anotado en Notas, tercera tanda (17/10)
 

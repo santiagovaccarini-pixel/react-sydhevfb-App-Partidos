@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Icono } from "./components/AppChrome";
 import { EscudoDeClub } from "./components/ClubCrest";
 import { CuerpoConCalor, partirDespuesDeBarras } from "./components/CuerpoConCalor.jsx";
+import MapaDelJugador from "./components/MapaDelJugador.jsx";
 import { manchasDe } from "./components/manchasCuerpo.js";
 import { CuadroCadaMil, tituloDeVariante } from "./components/CuadroCadaMil.jsx";
 import { tonosDeGrupos } from "./components/TablaDatos.jsx";
@@ -151,8 +152,8 @@ const BarrasPorMes = ({ meses, textoSeveridad, idioma }) => {
 // El mapa corporal: el cuerpo de frente y de espaldas con lo lesionado
 // pintado (el músculo, el tendón, el ligamento o la parte del cuerpo), más
 // intenso cuantas más lesiones, y nada más (Santiago, 11/10: sin nombres ni
-// líneas). El mismo en el individual y en el grupal; el nombre de lo
-// lesionado se lee al pasar el mouse.
+// líneas). El nombre de lo lesionado se lee al pasar el mouse. Desde el
+// 23/10 va solo en el grupal: el individual tiene MapaDelJugador.
 const MapaCorporal = ({ lesiones, mapa, textoDeOpcion }) => (
   <div className="reporte-mapa">
     <CuerpoConCalor
@@ -615,12 +616,11 @@ export default function ReportesLesiones({
                 </div>
               </section>
 
-              <section className="informe-mapa">
-                <div className="informe-seccion">
-                  <h2>{t("lesiones.reportes.mapaCorporal")}</h2>
-                </div>
-                <MapaCorporal lesiones={deJugador} mapa={mapa} textoDeOpcion={texto} />
-              </section>
+            </div>
+
+            {/* El mapa corporal del individual, a todo el ancho (Santiago, 23/10). */}
+            <div className="informe-mapa-jugador">
+              <MapaDelJugador key={jugador.id} lesiones={deJugador} hoy={hoy} textoDeOpcion={texto} />
             </div>
 
             <section className="informe-lesiones">

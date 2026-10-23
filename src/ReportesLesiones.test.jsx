@@ -85,6 +85,11 @@ describe("los reportes con los minutos del GPS", () => {
     if (!elemento) throw new Error("no se encontró el botón");
     await act(async () => elemento.click());
   };
+  // Una zona del cuerpo (un polígono del SVG, que no tiene .click()).
+  const tocarZona = async (zona) => {
+    if (!zona) throw new Error("no se encontró la zona");
+    await act(async () => zona.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  };
   const botonQueEmpieza = (etiqueta) => [...contenedor.querySelectorAll("button")].find((b) => b.textContent.trim().startsWith(etiqueta));
   const filas = (cuadro) => [...cuadro.querySelectorAll("tbody tr")].map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent));
   // Los indicadores del individual, de una medida: los valores del jugador,
@@ -184,7 +189,8 @@ describe("los reportes con los minutos del GPS", () => {
     expect(notas().querySelectorAll("p")[1].textContent).toBe(
       "Cuentan: No traumática · Partido oficial, Partido amistoso, Entrenamiento · Profesional. LM: lesiones musculares. Ver cuáles",
     );
-    expect(texto()).not.toContain("Lesión muscular grado 1 A");
+    // (El tipo de cada lesión sí está en el historial del mapa corporal.)
+    expect(notas().textContent).not.toContain("Lesión muscular grado 1 A");
     expect(texto()).not.toContain("Cuentan las lesiones con");
     expect(ver().getAttribute("aria-expanded")).toBe("false");
     expect(ver().classList.contains("no-imprimir")).toBe(true);
@@ -312,20 +318,74 @@ describe("los reportes con los minutos del GPS", () => {
     expect(celda("tipo_lesion").classList.contains("informe-corta")).toBe(false);
   });
 
-  test("el mapa corporal: lo lesionado pintado, sin nombres (se leen al pasar el mouse)", async () => {
-    await montar(GPS, PLANTEL);
+  test("el mapa corporal del individual: el calor por zona, la zona con más abierta, su detalle y su historial, y la dona del tipo", async () => {
+    await montar(GPS, PLANTEL, LESIONES, (campo, codigo) => etiquetaDeOpcion(campo, codigo, null, "es-AR"));
     await tocar(botonQueEmpieza("Reporte individual"));
     await tocar(botonQueEmpieza("HULK"));
-    const mapa = contenedor.querySelector(".informe-mapa");
-    // El muslo y la rodilla derechos, de frente (sin músculo cargado: la parte).
-    const frente = mapa.querySelector('[data-vista="frente"]');
-    expect(frente.querySelectorAll(".cuerpo-calor-mancha")).toHaveLength(2);
-    expect(mapa.querySelectorAll("text")).toHaveLength(2);
-    expect(mapa.querySelectorAll("line, circle")).toHaveLength(0);
-    expect([...frente.querySelectorAll(".cuerpo-calor-mancha title")].map((nombre) => nombre.textContent).sort()).toEqual(["coxa", "joelho"]);
-    expect(mapa.querySelector("svg").getAttribute("aria-label")).toContain("coxa");
-    expect(mapa.querySelectorAll('[data-vista="espalda"] .cuerpo-calor-mancha')).toHaveLength(0);
-    expect(mapa.querySelectorAll(".cuerpo-calor-vista text")[0].textContent).toBe("Anterior");
+    const mapa = contenedor.querySelector(".mapa-jugador");
+    // El mapa de antes ya no va en el individual (sigue en el grupal).
+    expect(contenedor.querySelector(".informe-mapa")).toBeNull();
+    expect(mapa.querySelector("h2").textContent).toBe("Mapa corporal de lesiones");
+    // El muslo y la rodilla derechos (sin músculo cargado: la parte), de frente y de espaldas.
+    const calor = (vista) => [...mapa.querySelectorAll(`.mapa-jugador-vistas [data-vista="${vista}"] .mapa-jugador-calor`)].map((una) => una.dataset.zona).sort();
+    expect(calor("frente")).toEqual(["parte_cuerpo:coxa", "parte_cuerpo:joelho"]);
+    expect(calor("espalda")).toEqual(["parte_cuerpo:coxa", "parte_cuerpo:joelho"]);
+    // Con el teclado se llega a las zonas con lesiones, una vez cada una.
+    expect([...mapa.querySelectorAll('.mapa-jugador-toque[role="button"]')].map((una) => una.getAttribute("aria-label")).sort()).toEqual(["Muslo: 1 lesión", "Rodilla: 1 lesión"]);
+    // Abre la zona con más (empatadas: la de más días perdidos).
+    const detalle = () => mapa.querySelector(".mapa-jugador-detalle");
+    const historial = () => [...detalle().querySelectorAll("tbody tr")].map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent));
+    expect(detalle().querySelector("h4").textContent).toBe("Muslo");
+    expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("1 lesión20 días perdidos");
+    // El lado, debajo del músculo.
+    expect(historial()).toEqual([["01/03/2026", "Lesión muscular grado 1 A", "—Derecho", "20"]]);
+    expect(detalle().querySelector(".mapa-jugador-zoom svg").getAttribute("viewBox")).not.toBe("0 0 456 1011");
+    // La dona: por familia.
+    expect([...mapa.querySelectorAll(".mapa-jugador-dona-leyenda li")].map((li) => li.textContent)).toEqual(["Muscular50%", "Articular / ligamentaria50%"]);
+    // Se toca la rodilla.
+    await tocarZona(mapa.querySelector('.mapa-jugador-toque[data-zona="parte_cuerpo:joelho"]'));
+    expect(detalle().querySelector("h4").textContent).toBe("Rodilla");
+    expect(historial()).toEqual([["01/06/2026", "Esguince / lesión ligamentaria", "—Derecho", "10"]]);
+    expect(mapa.querySelector('.mapa-jugador-toque[aria-label="Rodilla: 1 lesión"]').getAttribute("aria-pressed")).toBe("true");
+    // Una zona sin lesiones también se toca.
+    await tocarZona(mapa.querySelector('.mapa-jugador-toque[data-zona="musculo:isquiotibiais"]'));
+    expect(detalle().querySelector("h4").textContent).toBe("Isquiotibiales");
+    expect(detalle().textContent).toContain("0 lesiones");
+    expect(detalle().textContent).toContain("Sin lesiones en esta zona en el período.");
+  });
+
+  test("el mapa del individual: el músculo es la zona, lo más afectado, el lado, y el período", async () => {
+    const conMusculo = [
+      ...LESIONES,
+      { id: "les-4", jugador_id: 7, numero_caso: 4, fecha_lesion: "2025-02-01", fecha_alta: "2025-03-03", datos: { parte_cuerpo: "coxa", lado: "esquerdo", musculo: "isquiotibiais", musculo_especifico: "biceps_femoral", tipo_lesion: "muscular_2a", ...DEL_CUADRO } },
+      { id: "les-5", jugador_id: 7, numero_caso: 5, fecha_lesion: "2026-09-20", fecha_alta: null, datos: { parte_cuerpo: "coxa", lado: "esquerdo", musculo: "isquiotibiais", musculo_especifico: "semitendinoso", tipo_lesion: "muscular_1b", ...DEL_CUADRO } },
+      { id: "les-6", jugador_id: 7, numero_caso: 6, fecha_lesion: "2026-09-25", fecha_alta: "2026-09-28", datos: { parte_cuerpo: "coxa", lado: "direito", musculo: "isquiotibiais", musculo_especifico: "biceps_femoral", tipo_lesion: "muscular_1a", ...DEL_CUADRO } },
+    ];
+    await montar(GPS, PLANTEL, conMusculo, (campo, codigo) => etiquetaDeOpcion(campo, codigo, null, "es-AR"));
+    await tocar(botonQueEmpieza("Reporte individual"));
+    await tocar(botonQueEmpieza("HULK"));
+    const mapa = contenedor.querySelector(".mapa-jugador");
+    const detalle = () => mapa.querySelector(".mapa-jugador-detalle");
+    // Los isquiotibiales (3 lesiones) se abren solos; en los dos lados, cada uno con lo suyo.
+    expect(detalle().querySelector("h4").textContent).toBe("Isquiotibiales");
+    expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("3 lesiones45 días perdidos");
+    expect([...detalle().querySelectorAll(".mapa-jugador-barras li")].map((li) => li.textContent)).toEqual(["Bíceps femoral2", "Semitendinoso1"]);
+    expect([...detalle().querySelectorAll("tbody tr")].map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent))).toEqual([
+      ["25/09/2026", "Lesión muscular grado 1 A", "Bíceps femoralDerecho", "3"],
+      ["20/09/2026", "Lesión muscular grado 1 B", "SemitendinosoIzquierdo", "12en curso"],
+      ["01/02/2025", "Lesión muscular grado 2 A", "Bíceps femoralIzquierdo", "30"],
+    ]);
+    const isquios = [...mapa.querySelectorAll('.mapa-jugador-vistas [data-vista="espalda"] .mapa-jugador-calor[data-zona="musculo:isquiotibiais"]')];
+    expect(isquios.map((una) => una.dataset.cantidad).sort()).toEqual(["1", "2"]);
+    // El período: «Este año» deja afuera la de 2025.
+    const periodo = mapa.querySelector(".mapa-jugador-periodo select");
+    expect(periodo.value).toBe("todo");
+    await act(async () => {
+      periodo.value = "anio";
+      periodo.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("2 lesiones15 días perdidos");
+    expect(mapa.querySelector(".mapa-jugador-rango").textContent).toBe("Este año · 01/01/2026 – 02/10/2026");
   });
 
   test("el grupal: el cuadro del plantel en el período", async () => {

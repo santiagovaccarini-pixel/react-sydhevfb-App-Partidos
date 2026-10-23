@@ -1291,11 +1291,12 @@
   font-size: 13px;
   letter-spacing: 0.02em;
 }
-/* Al medio: los indicadores cada 1000 horas (dos filas de cuatro tarjetas) y
-   el mapa corporal al lado. */
+/* Al medio: los indicadores cada 1000 horas (dos filas de cuatro tarjetas).
+   Desde el 23/10 el mapa corporal va abajo, a todo el ancho; en una pantalla
+   ancha (y en el papel) las dos medidas van una al lado de la otra. */
 .lesiones-marco .informe-medio {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   gap: 18px;
   padding: 16px 26px 0;
@@ -1305,6 +1306,15 @@
   align-content: start;
   gap: 10px;
   min-width: 0;
+}
+@media (min-width: 1100px), print {
+  .lesiones-marco .informe-indicadores {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 18px;
+  }
+  .lesiones-marco .informe-indicadores > :not(.informe-medida) {
+    grid-column: 1 / -1;
+  }
 }
 /* Las tarjetas, lo más chicas posible (Santiago, 12/10): el título, el número
    con su % contra la referencia al lado (en rojo si está por encima, en
@@ -2432,6 +2442,530 @@
   size: A4 landscape;
   margin: 10mm;
 }
+/* El mapa corporal del individual (Santiago, 23/10, con la foto del reporte
+   oscuro «MAPA CORPORAL DE LESIONES»): negro, grafito y dorado en pantalla;
+   blanco al imprimir (mismas piezas, otros colores). El calor sigue con sus
+   colores (UI-024); el dorado marca la zona elegida. */
+.lesiones-marco .informe-mapa-jugador {
+  padding: 16px 26px 0;
+}
+.lesiones-marco .mapa-jugador {
+  --mj-fondo: #0b0d10;
+  --mj-panel: #171b20;
+  --mj-zoom: #0e1115;
+  --mj-linea: rgba(255, 255, 255, 0.09);
+  --mj-texto: #f2f4f7;
+  --mj-suave: #a7b0ba;
+  --mj-dorado: #c6a15b;
+  padding: 18px;
+  border-radius: 14px;
+  background: radial-gradient(120% 70% at 50% 0%, #1b2027 0%, var(--mj-fondo) 72%);
+  color: var(--mj-texto);
+}
+.lesiones-marco .mapa-jugador h2,
+.lesiones-marco .mapa-jugador h3,
+.lesiones-marco .mapa-jugador h4 {
+  color: var(--mj-texto);
+  font-family: "Roboto Condensed", Arial, sans-serif;
+}
+.lesiones-marco .mapa-jugador-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--mj-linea);
+}
+.lesiones-marco .mapa-jugador-cabecera h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.lesiones-marco .mapa-jugador-cabecera p {
+  margin: 4px 0 0;
+  color: var(--mj-suave);
+  font-size: 13px;
+}
+.lesiones-marco .mapa-jugador-periodo {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+.lesiones-marco .mapa-jugador-periodo label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--mj-suave);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lesiones-marco .mapa-jugador-periodo select,
+.lesiones-marco .mapa-jugador-fechas input {
+  width: auto;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(198, 161, 91, 0.55);
+  border-radius: 10px;
+  background: var(--mj-panel);
+  color: var(--mj-texto);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.lesiones-marco .mapa-jugador-periodo select:focus-visible,
+.lesiones-marco .mapa-jugador-fechas input:focus-visible {
+  outline: 2px solid var(--mj-dorado);
+  outline-offset: 2px;
+}
+.lesiones-marco .mapa-jugador-fechas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lesiones-marco .mapa-jugador-rango {
+  margin: 0;
+  color: var(--mj-suave);
+  font-size: 12px;
+}
+.lesiones-marco .mapa-jugador-cuerpo {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.62fr) minmax(0, 1.45fr) minmax(0, 1.75fr);
+  grid-template-areas: "tipos figuras detalle";
+  align-items: start;
+  gap: 18px;
+  margin-top: 16px;
+}
+.lesiones-marco .mapa-jugador-tipos {
+  grid-area: tipos;
+}
+.lesiones-marco .mapa-jugador-figuras {
+  grid-area: figuras;
+  min-width: 0;
+}
+.lesiones-marco .mapa-jugador-detalle {
+  grid-area: detalle;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.lesiones-marco .mapa-jugador-tipos,
+.lesiones-marco .mapa-jugador-detalle {
+  padding: 14px;
+  border: 1px solid var(--mj-linea);
+  border-radius: 12px;
+  background: var(--mj-panel);
+}
+.lesiones-marco .mapa-jugador h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lesiones-marco .mapa-jugador-detalle h3 {
+  margin: 0;
+}
+.lesiones-marco .mapa-jugador-vistas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.lesiones-marco .mapa-jugador-vista {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.lesiones-marco .mapa-jugador-svg {
+  display: block;
+  width: 100%;
+  max-height: 560px;
+  height: auto;
+}
+.lesiones-marco .mapa-jugador-vista figcaption {
+  padding: 4px 14px;
+  border: 1px solid var(--mj-linea);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--mj-texto);
+  font-family: "Roboto Condensed", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Mezclado con la figura: se sigue viendo el relieve del músculo. */
+/* hard-light: el color vivo, como en la foto, y el relieve se sigue viendo. */
+.lesiones-marco .mapa-jugador-calores {
+  mix-blend-mode: hard-light;
+}
+.lesiones-marco .mapa-jugador-borde {
+  fill: none;
+  stroke: var(--mj-dorado);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-opacity: 0.85;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.lesiones-marco .mapa-jugador-toque {
+  fill: transparent;
+  cursor: pointer;
+  outline: none;
+}
+.lesiones-marco .mapa-jugador-toque:hover {
+  fill: rgba(198, 161, 91, 0.14);
+}
+.lesiones-marco .mapa-jugador-toque:focus-visible {
+  fill: rgba(198, 161, 91, 0.18);
+  stroke: var(--mj-dorado);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.lesiones-marco .mapa-jugador-escala {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  color: var(--mj-suave);
+  font-size: 12px;
+  text-align: center;
+}
+.lesiones-marco .mapa-jugador-escala i {
+  flex: none;
+  width: 44px;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgb(250, 204, 21), rgb(249, 115, 22), rgb(220, 38, 38), rgb(127, 29, 29));
+}
+.lesiones-marco .mapa-jugador-nota,
+.lesiones-marco .mapa-jugador-vacio {
+  margin: 0;
+  color: var(--mj-suave);
+  font-size: 13px;
+}
+.lesiones-marco .mapa-jugador-nota {
+  margin-top: 6px;
+  text-align: center;
+}
+.lesiones-marco .mapa-jugador-zona {
+  display: grid;
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+  grid-template-areas:
+    "zoom datos"
+    "zoom afectados";
+  grid-template-rows: auto 1fr;
+  align-items: start;
+  gap: 4px 12px;
+}
+.lesiones-marco .mapa-jugador-zoom {
+  grid-area: zoom;
+}
+.lesiones-marco .mapa-jugador-zona-datos {
+  grid-area: datos;
+}
+.lesiones-marco .mapa-jugador-afectados {
+  grid-area: afectados;
+  min-width: 0;
+}
+.lesiones-marco .mapa-jugador-zoom {
+  overflow: hidden;
+  aspect-ratio: 1;
+  border: 1px solid var(--mj-linea);
+  border-radius: 10px;
+  background: var(--mj-zoom);
+}
+.lesiones-marco .mapa-jugador-zoom .mapa-jugador-svg {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+.lesiones-marco .mapa-jugador-zona-datos {
+  min-width: 0;
+}
+.lesiones-marco .mapa-jugador-zona-datos h4 {
+  margin: 0 0 8px;
+  overflow-wrap: break-word;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.lesiones-marco .mapa-jugador-cuenta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+.lesiones-marco .mapa-jugador-cuenta i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+.lesiones-marco .mapa-jugador-cuenta span {
+  display: grid;
+}
+.lesiones-marco .mapa-jugador-cuenta b {
+  font-size: 16px;
+}
+.lesiones-marco .mapa-jugador-cuenta small {
+  color: var(--mj-suave);
+  font-size: 13px;
+}
+.lesiones-marco .mapa-jugador-rotulo {
+  margin: 0 0 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--mj-linea);
+  color: var(--mj-suave);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lesiones-marco .mapa-jugador-barras {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lesiones-marco .mapa-jugador-barras li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 22px;
+  align-items: center;
+  gap: 8px;
+  color: var(--mj-texto);
+  font-size: 13px;
+}
+.lesiones-marco .mapa-jugador-barras span {
+  overflow-wrap: break-word;
+}
+.lesiones-marco .mapa-jugador-barras i {
+  display: block;
+  overflow: hidden;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.lesiones-marco .mapa-jugador-barras em {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+.lesiones-marco .mapa-jugador-barras b {
+  text-align: right;
+}
+.lesiones-marco .mapa-jugador-tabla-marco {
+  overflow-x: auto;
+}
+.lesiones-marco .mapa-jugador-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--mj-texto);
+  font-size: 13px;
+}
+.lesiones-marco .mapa-jugador-tabla th {
+  padding: 8px;
+  border-bottom: 1px solid var(--mj-linea);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--mj-suave);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+.lesiones-marco .mapa-jugador-tabla td {
+  padding: 8px;
+  border-bottom: 1px solid var(--mj-linea);
+  vertical-align: top;
+}
+.lesiones-marco .mapa-jugador-tabla .numero {
+  text-align: right;
+  white-space: nowrap;
+}
+.lesiones-marco .mapa-jugador-tabla .fecha {
+  white-space: nowrap;
+}
+.lesiones-marco .mapa-jugador-tabla td small {
+  display: block;
+  color: var(--mj-suave);
+  font-size: 11px;
+}
+.lesiones-marco .mapa-jugador-tipo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.lesiones-marco .mapa-jugador-tipo i {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.lesiones-marco .mapa-jugador-dona {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  margin: 0;
+}
+.lesiones-marco .mapa-jugador-dona svg {
+  width: 150px;
+  height: 150px;
+}
+.lesiones-marco .mapa-jugador-dona-fondo {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 6;
+}
+.lesiones-marco .mapa-jugador-dona-leyenda {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lesiones-marco .mapa-jugador-dona-leyenda li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--mj-texto);
+  font-size: 13px;
+}
+.lesiones-marco .mapa-jugador-dona-leyenda i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+@media screen and (max-width: 1100px) {
+  .lesiones-marco .mapa-jugador-cuerpo {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "figuras detalle"
+      "tipos detalle";
+  }
+}
+@media screen and (max-width: 760px) {
+  .lesiones-marco .informe-mapa-jugador {
+    padding: 14px 14px 0;
+  }
+  .lesiones-marco .mapa-jugador {
+    padding: 14px 12px;
+  }
+  .lesiones-marco .mapa-jugador-cabecera h2 {
+    font-size: 20px;
+  }
+  .lesiones-marco .mapa-jugador-periodo {
+    justify-items: start;
+  }
+  .lesiones-marco .mapa-jugador-cuerpo {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "figuras"
+      "detalle"
+      "tipos";
+  }
+  .lesiones-marco .mapa-jugador-zona-datos h4 {
+    font-size: 18px;
+  }
+  .lesiones-marco .mapa-jugador-zona {
+    grid-template-columns: minmax(0, 110px) minmax(0, 1fr);
+    grid-template-areas:
+      "zoom datos"
+      "afectados afectados";
+    gap: 10px 12px;
+  }
+  /* El historial de la zona, una tarjetita por lesión: la fecha y los días
+     arriba; el tipo y el músculo con su lado, abajo. */
+  .lesiones-marco .mapa-jugador-tabla thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .lesiones-marco .mapa-jugador-tabla,
+  .lesiones-marco .mapa-jugador-tabla tbody {
+    display: block;
+  }
+  .lesiones-marco .mapa-jugador-tabla tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "fecha dias"
+      "tipo dias"
+      "estructura dias";
+    gap: 3px 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--mj-linea);
+  }
+  .lesiones-marco .mapa-jugador-tabla td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .lesiones-marco .mapa-jugador-tabla td:nth-child(1) {
+    grid-area: fecha;
+    color: var(--mj-suave);
+    font-size: 12px;
+  }
+  .lesiones-marco .mapa-jugador-tabla td:nth-child(2) {
+    grid-area: tipo;
+  }
+  .lesiones-marco .mapa-jugador-tabla td:nth-child(3) {
+    grid-area: estructura;
+  }
+  .lesiones-marco .mapa-jugador-tabla td:nth-child(4) {
+    grid-area: dias;
+    align-self: center;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .lesiones-marco .mapa-jugador-tabla td.numero::before {
+    content: attr(data-rotulo);
+    display: block;
+    color: var(--mj-suave);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+}
+@media print {
+  .lesiones-marco .informe-mapa-jugador {
+    padding: 8px 20px 0;
+    break-inside: avoid;
+  }
+  .lesiones-marco .mapa-jugador {
+    --mj-panel: #fff;
+    --mj-zoom: #f3f4f6;
+    --mj-linea: #e5e7eb;
+    --mj-texto: #111827;
+    --mj-suave: #4b5563;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .lesiones-marco .mapa-jugador-svg {
+    max-height: 330px;
+  }
+  .lesiones-marco .mapa-jugador-cabecera h2 {
+    font-size: 16px;
+  }
+}
+
 @media print {
   .lesiones-marco .reporte {
     page: reporte;
