@@ -3607,6 +3607,23 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
       con «Escribir a mano…» (ver UI-083).
     - **Lo que sigue de la nota:** conectar con VALD (falta que Santiago diga qué aparatos y
       qué datos), confirmado en un cuestionario antes de empezar.
+    - **VALD, lo decidido (23/10).** Santiago, en cuestionarios: el club usa ForceDecks,
+      NordBord y ForceFrame; para conectarlos, «Las dos, por partes» (primero importar el archivo
+      que se exporta de VALD Hub y después que se traigan solas por la API); ForceDecks va a
+      Saltos, NordBord a Curl Nórdico e Isoprone y ForceFrame a Iso Aductor-Abductor; se empieza
+      por NordBord. Sobre la API respondió «No sé / hay que pedirlo» y preguntó qué dice la
+      documentación de VALD. Claude buscó (las páginas de support.vald.com no se pudieron abrir
+      directo; se usaron los resúmenes del buscador, el manual del paquete valdr y la página de
+      integraciones de VALD): hay «External APIs» para esos tres aparatos, que permiten traer los
+      tests cambiados desde una fecha sin entrar a VALD Hub; se piden por mail a support@vald.com
+      con el ID de organización de VALD Hub y un acuerdo de licencia, y VALD da un clientId y un
+      clientSecret (en marzo de 2026 cambió la autenticación); VALD dice que las integraciones
+      no tienen cargo con la suscripción. El CSV sale a mano de VALD Hub (Dashboard › Results
+      Export); no se encontró una exportación automática. Santiago eligió «Pido la API y
+      mientras tanto el CSV». Falta: un CSV de NordBord de ejemplo (no va al repositorio) y,
+      para la API, el acceso y la documentación oficial que mande VALD. Las claves van como
+      secreto en el servidor, nunca en la app, en GitHub ni en el chat, y no se programa contra
+      la API sin esa documentación.
   - **El cuerpo humano**: la figura de la carga se sacó (hecho el 15/10, ver «Lesiones: lo que
     sigue», la carga sin la figura del cuerpo). Para el reporte, Santiago preguntó si puede pasar
     una imagen para que se pinte ahí el calor y pidió (15/10, «investiga cual es la mejor manera
