@@ -848,6 +848,117 @@
   transform: rotate(90deg);
 }
 
+/* Cargar › Isocinecia con PDF (23/10): el botón para elegirlos y una tarjeta
+   por PDF (en la compu, dos por fila). */
+.evaluaciones-marco .evaluaciones-pdf-elegir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  min-height: 46px;
+}
+.evaluaciones-marco .evaluaciones-pdf-archivo {
+  display: none;
+}
+.evaluaciones-marco .evaluaciones-pdf-cuantos {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+}
+.evaluaciones-marco .evaluaciones-pdf-tarjetas {
+  align-items: start;
+}
+.evaluaciones-marco .evaluaciones-pdf-agregar .evaluaciones-pdf-elegir {
+  width: 100%;
+}
+.evaluaciones-marco .evaluaciones-pdf-archivo-nombre {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+.evaluaciones-marco .evaluaciones-pdf-tarjeta.con-error .evaluaciones-pdf-archivo-nombre {
+  flex: 1;
+  margin: 0;
+}
+.evaluaciones-marco .evaluaciones-pdf-tarjeta .aviso-hoja {
+  margin: 10px 0 0;
+}
+.evaluaciones-marco .evaluaciones-pdf-tarjeta .evaluaciones-varios-bloque.primero {
+  margin-top: 12px;
+}
+.evaluaciones-marco .evaluaciones-pdf-peso {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.evaluaciones-marco .evaluaciones-pdf-peso span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.evaluaciones-marco .evaluaciones-pdf-peso b {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  color: #0f172a;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.evaluaciones-marco .evaluaciones-pdf-velocidad + .evaluaciones-pdf-velocidad {
+  margin-top: 12px;
+}
+.evaluaciones-marco .evaluaciones-pdf-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.evaluaciones-marco .evaluaciones-pdf-tabla th,
+.evaluaciones-marco .evaluaciones-pdf-tabla td {
+  padding: 5px 4px;
+  border-bottom: 1px solid #eef2f6;
+  text-align: right;
+  white-space: nowrap;
+}
+.evaluaciones-marco .evaluaciones-pdf-tabla thead th {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+.evaluaciones-marco .evaluaciones-pdf-tabla tbody th {
+  overflow: hidden;
+  max-width: 120px;
+  color: #334155;
+  font-weight: 700;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+.evaluaciones-marco .evaluaciones-pdf-tabla td[colspan] {
+  text-align: center;
+}
+.evaluaciones-marco .evaluaciones-pdf-ver {
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+}
+@media (min-width: 900px) {
+  .evaluaciones-marco .evaluaciones-pdf-tarjetas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .evaluaciones-marco .evaluaciones-pdf-agregar {
+    grid-column: 1 / -1;
+  }
+  .evaluaciones-marco .evaluaciones-pdf-agregar .evaluaciones-pdf-elegir {
+    width: auto;
+  }
+}
+
 /* Regla 1: en la hoja, los nombres y qué hace cada botón, uno abajo del otro (como en GPS). */
 .evaluaciones-marco .evaluaciones-mismo-dia {
   display: flex;

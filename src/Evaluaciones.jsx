@@ -12,6 +12,7 @@ import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import { AvisoDeEspera, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import CargaPorJugador, { cargaNueva, evaluacionesDeLaCarga, hayAlgoCargado } from "./CargaPorJugador.jsx";
+import CargaIsocinecia, { ISOCINECIA_PDF, evaluacionesDeLosPdf, hayPdfCargado } from "./CargaIsocinecia.jsx";
 import ImportarEvaluaciones from "./ImportarEvaluaciones.jsx";
 import ReportesEvaluaciones, { SelectorDeTest, SelectorDeVista, vistaInicial } from "./ReportesEvaluaciones.jsx";
 import ReferenciasEvaluaciones from "./ReferenciasEvaluaciones.jsx";
@@ -100,6 +101,10 @@ const SE_CARGAN = ["fecha", "jugador", "lista", "tiempo", "texto", "numero"];
 // Los tests que se cargan a mano en Cargar. Isocinecia no: sale del PDF del
 // equipo (Santiago, 09/10); se trae con Pegar desde Excel y se corrige en la Base.
 const TESTS_QUE_SE_CARGAN = TESTS.filter((uno) => uno.seCargaEnLaApp !== false);
+// En Cargar, también los que se cargan con un PDF (Isocinecia, 23/10).
+const TESTS_EN_CARGAR = TESTS.filter((uno) => uno.seCargaEnLaApp !== false || uno.cargaConPdf);
+// Si hay algo que se perdería al salir de Cargar (las filas o los PDF).
+const hayAlgoEnLaCarga = (carga) => hayAlgoCargado(carga) || hayPdfCargado(carga);
 // Regla 1: cuántos nombres se ven en la hoja (después, «y N más»).
 const A_LA_VISTA = 6;
 // Los tests con listas propias (sin contar Selección), los de Ajustes › Listas.
@@ -729,7 +734,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
       setRevisar(null);
       return;
     }
-    setNuevas(cargaNueva((TESTS_QUE_SE_CARGAN.includes(test) ? test : TESTS_QUE_SE_CARGAN[0]).id));
+    setNuevas(cargaNueva((TESTS_EN_CARGAR.includes(test) ? test : TESTS_EN_CARGAR[0]).id));
   };
 
   // Al editar, los tiempos se ven como se escriben (3:04).
@@ -849,7 +854,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     return falloDeRed(respuesta) ? aLaEspera() : respuesta;
   };
 
-  const testDeNuevas = nuevas ? testDe(nuevas.test) || TESTS_QUE_SE_CARGAN[0] : null;
+  const testDeNuevas = nuevas ? testDe(nuevas.test) || TESTS_EN_CARGAR[0] : null;
+  const conPdf = nuevas?.test === ISOCINECIA_PDF;
   const columnasDeNuevas = useMemo(() => (testDeNuevas ? columnasDeLaCarga(testDeNuevas, config) : null), [testDeNuevas, config]);
 
   // Sin la actualización 20261113: una evaluación por fila con algo cargado,
@@ -870,7 +876,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     if (guardadas.length) setEvaluaciones((previas) => [...previas, ...guardadas.map((una) => una.evaluacion)]);
     if (falla) {
       const ids = new Set(guardadas.map((una) => una.filaId));
-      setNuevas((actual) => ({ ...actual, filas: actual.filas.filter((fila) => !ids.has(fila.id)) }));
+      setNuevas((actual) => ({ ...actual, filas: actual.filas.filter((fila) => !ids.has(fila.id)), pdfs: (actual.pdfs || []).filter((pdf) => !ids.has(pdf.id)) }));
       setErrorNuevas(guardadas.length ? `${t(falla)} ${plural("evaluaciones.varios.seGuardaron", guardadas.length)}` : t(falla));
       return;
     }
@@ -884,11 +890,14 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   // cargar».
   const guardarNuevas = async ({ reemplazar = false } = {}) => {
     setOtrasDelDia(null);
-    const { evaluaciones: listas, error: falta } = evaluacionesDeLaCarga(nuevas, {
-      columnas: columnasDeNuevas.columnas,
-      nombreDe: (id) => jugadorDe(id)?.nombre || "",
-      titulo: (columna) => titulo(testDeNuevas, columna),
-    });
+    // Con PDF (Isocinecia), cada uno con su fecha.
+    const { evaluaciones: listas, error: falta } = conPdf
+      ? evaluacionesDeLosPdf(nuevas, { nombreDe: (id) => jugadorDe(id)?.nombre || "" })
+      : evaluacionesDeLaCarga(nuevas, {
+          columnas: columnasDeNuevas.columnas,
+          nombreDe: (id) => jugadorDe(id)?.nombre || "",
+          titulo: (columna) => titulo(testDeNuevas, columna),
+        });
     if (falta) {
       setErrorNuevas(falta);
       return;
@@ -969,7 +978,8 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
     const existentes = (otrasDelDia || []).flatMap((choque) => choque.existentes);
     setOtrasDelDia(null);
     setEnEspera({ tipo: "carga", carga: nuevas });
-    setRevisar({ tipo: "carga", test: nuevas.test, fecha: nuevas.fecha, vez: Date.now(), filtros: { jugador: nombresDe(existentes), fecha: [fechaCorta(nuevas.fecha)] } });
+    const fechas = conPdf ? [...new Set(existentes.map((una) => fechaCorta(una.fecha)))] : [fechaCorta(nuevas.fecha)];
+    setRevisar({ tipo: "carga", test: nuevas.test, fecha: conPdf ? null : nuevas.fecha, vez: Date.now(), filtros: { jugador: nombresDe(existentes), fecha: fechas } });
     setTestId(nuevas.test);
     setImportando(false);
     setNuevas(null);
@@ -1426,7 +1436,11 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         )}
         {revisando && revisando.tipo !== "espera" && (
           <div className="lesiones-estado evaluaciones-revisar" role="status">
-            {revisando.tipo === "carga" ? t("evaluaciones.mismoDia.enEsperaCarga", { fecha: fechaCorta(revisando.fecha) }) : t("evaluaciones.mismoDia.enEsperaPegado")}{" "}
+            {revisando.tipo === "carga"
+              ? revisando.fecha
+                ? t("evaluaciones.mismoDia.enEsperaCarga", { fecha: fechaCorta(revisando.fecha) })
+                : t("evaluaciones.mismoDia.enEsperaCargaDias")
+              : t("evaluaciones.mismoDia.enEsperaPegado")}{" "}
             <button type="button" onClick={() => seguirConLoQueEspera()}>
               {t(revisando.tipo === "carga" ? "evaluaciones.mismoDia.seguirCarga" : "evaluaciones.mismoDia.seguirPegado")}
             </button>{" "}
@@ -1800,12 +1814,32 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
 
   let contenido;
   if (formulario) contenido = pantallaFormulario(formulario);
+  else if (nuevas && conPdf)
+    contenido = (
+      <CargaIsocinecia
+        carga={nuevas}
+        setCarga={setNuevas}
+        tests={TESTS_EN_CARGAR}
+        config={config}
+        plantel={plantel}
+        encabezado={encabezado}
+        error={errorNuevas}
+        setError={setErrorNuevas}
+        ocupado={ocupado}
+        onCambiarTest={(id) => {
+          setErrorNuevas("");
+          setNuevas((actual) => ({ ...actual, test: id, paso: 0 }));
+        }}
+        onCancelar={() => (hayAlgoEnLaCarga(nuevas) ? setASalir("cargar") : setNuevas(null))}
+        onGuardar={() => guardarNuevas()}
+      />
+    );
   else if (nuevas)
     contenido = (
       <CargaPorJugador
         carga={nuevas}
         setCarga={setNuevas}
-        tests={TESTS_QUE_SE_CARGAN}
+        tests={TESTS_EN_CARGAR}
         columnas={columnasDeNuevas.columnas}
         comunes={columnasDeNuevas.comunes}
         config={config}
@@ -1814,7 +1848,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         error={errorNuevas}
         setError={setErrorNuevas}
         ocupado={ocupado}
-        onCancelar={() => (hayAlgoCargado(nuevas) ? setASalir("cargar") : setNuevas(null))}
+        onCancelar={() => (hayAlgoEnLaCarga(nuevas) ? setASalir("cargar") : setNuevas(null))}
         onGuardar={() => guardarNuevas()}
       />
     );
@@ -1900,7 +1934,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
   };
   // Una carga con algo sin guardar no se tira sin preguntar.
   const navegar = (id) => {
-    if ((formulario && sinVacios(formulario) !== sinVacios(formularioAlAbrir.current)) || hayAlgoCargado(nuevas)) {
+    if ((formulario && sinVacios(formulario) !== sinVacios(formularioAlAbrir.current)) || hayAlgoEnLaCarga(nuevas)) {
       setASalir(id);
       return;
     }
@@ -1976,7 +2010,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
         abierta={Boolean(otrasDelDia)}
         icono="refrescar"
         titulo={t("evaluaciones.mismoDia.titulo")}
-        descripcion={plural("evaluaciones.mismoDia.carga", otrasDelDia?.length || 0, {
+        descripcion={plural(conPdf ? "evaluaciones.mismoDia.cargaPdf" : "evaluaciones.mismoDia.carga", otrasDelDia?.length || 0, {
           test: testDeNuevas?.pestana[idioma] || "",
           fecha: nuevas?.fecha ? fechaCorta(nuevas.fecha) : "",
         })}
@@ -1984,7 +2018,7 @@ export default function Evaluaciones({ onVolver, volverA = "portal.basesTitulo" 
           <div className="evaluaciones-mismo-dia">
             <ul className="consentimiento-personas">
               {(otrasDelDia || []).slice(0, A_LA_VISTA).map(({ evaluacion }, i) => (
-                <li key={`${evaluacion.jugador_id || evaluacion.persona}-${i}`}>{nombreDe(evaluacion)}</li>
+                <li key={`${evaluacion.jugador_id || evaluacion.persona}-${i}`}>{conPdf ? `${nombreDe(evaluacion)} · ${fechaCorta(evaluacion.fecha)}` : nombreDe(evaluacion)}</li>
               ))}
             </ul>
             {(otrasDelDia?.length || 0) > A_LA_VISTA && <p>{plural("evaluaciones.mismoDia.yMas", otrasDelDia.length - A_LA_VISTA)}</p>}

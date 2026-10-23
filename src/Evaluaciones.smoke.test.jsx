@@ -1,5 +1,6 @@
 import React from "react";
 import { act } from "react";
+import { pdfDePrueba } from "./domain/evaluaciones/pdfIsocineciaDePrueba.js";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -1752,8 +1753,9 @@ describe("Evaluaciones", () => {
     await elegirTest(contenedor, "Isocinecia");
     expect([...contenedor.querySelectorAll(".evaluaciones-bloque h2")].map((h) => h.textContent)).toEqual(["V.R. de prueba 60", "V.R. de prueba 180", "V.R. de prueba 300"]);
 
-    // No se carga a mano (sale del PDF del equipo: Santiago, 09/10): en
-    // Cargar no está, ni aunque sea el que se mira en la Base.
+    // No se carga a mano: sale del PDF del equipo (Santiago, 09/10). Desde el
+    // 23/10 («Leer el PDF en Cargar»), en Cargar está y, si es el que se mira
+    // en la Base, Cargar empieza con él y pide los PDF (no la fila por jugador).
     await irA(contenedor, "Base");
     await elegirTest(contenedor, "Isocinecia");
     await irA(contenedor, "Cargar");
@@ -1762,6 +1764,7 @@ describe("Evaluaciones", () => {
     expect([...deLaCarga.options].map((opcion) => opcion.textContent)).toEqual([
       "Zona Media",
       "Curl Nórdico e Isoprone",
+      "Isocinecia",
       "Movilidad de Tobillo",
       "Movilidad de Cadera",
       "Movilidad de Isquio",
@@ -1774,7 +1777,68 @@ describe("Evaluaciones", () => {
       "Salto Squat",
       "Salto Single Leg",
     ]);
-    expect(deLaCarga.value).toBe("zona_media");
+    expect(deLaCarga.value).toBe("isocinecia");
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Test y PDF");
+    expect(contenedor.querySelector(".evaluaciones-pdf-elegir").textContent).toBe("Elegir PDF");
+    // Otro test: la fila por jugador de siempre.
+    await elegirOpcion(deLaCarga, "Zona Media");
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Test y fecha");
+  });
+
+  test("Isocinecia con PDF: varios a la vez, una tarjeta por PDF para revisar y una evaluación por PDF, con su fecha", async () => {
+    await montar();
+    await irA(contenedor, "Base");
+    await elegirTest(contenedor, "Isocinecia");
+    await irA(contenedor, "Cargar");
+    await tocar(boton(contenedor, "Nueva evaluación"));
+    expect(boton(contenedor, "Siguiente").disabled).toBe(true);
+    const archivos = [
+      new File([pdfDePrueba({ nombre: "Alfa" })], "alfa.pdf", { type: "application/pdf" }),
+      new File([pdfDePrueba({ nombre: "Otro Nombre", sesion: "6/24/2026 4:17:53 PM", involucrada: "Right", peso: "70.5" })], "otro.pdf", { type: "application/pdf" }),
+      new File([new TextEncoder().encode("no es un pdf")], "nota.pdf", { type: "application/pdf" }),
+    ];
+    const elegir = contenedor.querySelector(".evaluaciones-pdf-archivo");
+    await act(async () => {
+      Object.defineProperty(elegir, "files", { value: archivos, configurable: true });
+      elegir.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    for (let vuelta = 0; vuelta < 20 && contenedor.querySelector(".evaluaciones-pdf-tarjeta[aria-busy]"); vuelta += 1) {
+      await act(async () => new Promise((listo) => setTimeout(listo, 5)));
+    }
+    expect(contenedor.querySelector(".lesiones-paso-titulo h2").textContent).toBe("Revisar lo leído");
+    const tarjetas = [...contenedor.querySelectorAll(".evaluaciones-pdf-tarjeta")];
+    expect(tarjetas).toHaveLength(3);
+    // El primero: el jugador por el nombre del PDF, la fecha y el peso del PDF,
+    // la Selección de Datos básicos y Peak TQ/BW de cada velocidad.
+    expect(tarjetas[0].querySelector(".evaluaciones-varios-jugador").textContent).toBe("ALFA");
+    expect(tarjetas[0].querySelector(".evaluaciones-pdf-archivo-nombre").textContent).toBe("En el PDF: Alfa · alfa.pdf");
+    expect(tarjetas[0].querySelector('input[type="date"]').value).toBe("2026-07-22");
+    expect(tarjetas[0].querySelector("select").value).toBe("mayor");
+    expect(tarjetas[0].querySelector(".evaluaciones-pdf-peso b").textContent).toBe("80,0");
+    expect([...tarjetas[0].querySelectorAll(".evaluaciones-pdf-tabla tbody tr")].map((fila) => fila.textContent)).toEqual([
+      "Peak TQ/BW111,5112,5113,5114,5",
+      "Peak TQ/BW211,5212,5213,5214,5",
+      "Peak TQ/BW311,5312,5313,5314,5",
+    ]);
+    // «Ver todo»: las cinco medidas de cada velocidad.
+    await tocar(tarjetas[0].querySelector(".evaluaciones-pdf-ver"));
+    expect(tarjetas[0].querySelectorAll(".evaluaciones-pdf-tabla tbody tr")).toHaveLength(15);
+    // El segundo: ese nombre no está en Datos básicos, se elige.
+    expect(tarjetas[1].textContent).toContain("«Otro Nombre» no está en Datos básicos: elegí el jugador.");
+    // El tercero no es el informe.
+    expect(tarjetas[2].textContent).toContain("No es un PDF.");
+    await tocar(boton(contenedor, "Guardar 1 evaluación"));
+    expect(contenedor.textContent).toContain("Falta elegir el jugador del PDF otro.pdf.");
+    expect(datos.creadas).toHaveLength(0);
+    await tocar(tarjetas[1].querySelector(".evaluaciones-varios-jugador"));
+    await elegirEnLaHoja("BETA");
+    expect(tarjetas[1].querySelector("select").value).toBe("sub20");
+    await tocar(boton(contenedor, "Guardar 2 evaluaciones"));
+    expect(datos.creadas.map(({ test, ev }) => [test, ev.jugador_id, ev.fecha, ev.datos.seleccion, ev.datos.pc, ev.datos.v60_peak_ext_pd, ev.datos.v300_rom_pi, Object.keys(ev.datos).length])).toEqual([
+      ["isocinecia", 1, "2026-07-22", "mayor", 80, 111.5, 352.5, 56],
+      ["isocinecia", 2, "2026-06-24", "sub20", 70.5, 111.5, 352.5, 56],
+    ]);
+    expect(document.body.textContent).toContain("2 evaluaciones guardadas.");
   });
 
   test("Isocinecia de hoy (pegada desde el Excel): en Cargar se ve y se borra, pero se corrige en la Base", async () => {
