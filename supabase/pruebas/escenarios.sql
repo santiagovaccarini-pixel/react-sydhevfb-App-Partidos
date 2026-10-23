@@ -1291,7 +1291,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
   || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,jugadores_cambiar,lesiones_cambiar,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
-  || 'panel_duenos,panel_historial,partido_en_curso_cambiar,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
+  || 'panel_duenos,panel_historial,partido_en_curso_cambiar,partidos_en_curso_del_club,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
 select pruebas.esperar('es_admin() ya no existe', (select count(*) from pg_proc where proname = 'es_admin'), 0);
@@ -2722,6 +2722,7 @@ reset role;
 select set_config('request.jwt.claims', '', false);
 -- Se puede volver a correr.
 \ir ../migrations/20261120_partido_en_curso.sql
+\ir ../migrations/20261121_partido_en_curso_en_vivo.sql
 
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select (partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"Rival Vivo","fecha":"2026-10-23","cambios.a1.sale":"VIEJO","inicioPT":""}') ->> 'id') as en_curso \gset
@@ -2767,11 +2768,33 @@ select pruebas.debe_fallar('...ni empieza uno en Uno', $q$select partido_en_curs
 reset role;
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select (partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"Otro"}') ->> 'id') as otro_en_curso \gset
+-- 20261121 (4b): los del club con cambios en las últimas 6 horas, el último
+-- primero, para ofrecer «Sumarme» y seguir el abierto.
+select pruebas.esperar('Los partidos en curso del club, el último primero', (select string_agg(datos ->> 'rival', ',') from partidos_en_curso_del_club('00000000-0000-0000-0000-0000000000c1')), 'Otro,Rival Vivo');
+select pruebas.esperar('...con su fila del Historial y quién lo cambió por última vez', (select registro_id || ',' || actualizado_email from partidos_en_curso_del_club('00000000-0000-0000-0000-0000000000c1') where id = :'en_curso'), :registro_vivo || ',beto@uno.com');
+reset role;
+-- Uno sin cambios hace más de 6 horas ya no se ofrece (la hora la pone la
+-- base: se cambia sin el disparador).
+set session_replication_role = replica;
+update partidos_en_curso set actualizado_en = now() - interval '7 hours' where id = :'otro_en_curso';
+set session_replication_role = origin;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('...uno sin cambios hace más de 6 horas, no', (select string_agg(datos ->> 'rival', ',') from partidos_en_curso_del_club('00000000-0000-0000-0000-0000000000c1')), 'Rival Vivo');
+reset role;
+select pruebas.ser('mira@uno.com'); set role authenticated;
+select pruebas.esperar('Con Partido solo para mirar, también los lee', (select count(*) from partidos_en_curso_del_club('00000000-0000-0000-0000-0000000000c1')), 1);
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de Dos) no lee los de Uno', (select count(*) from partidos_en_curso_del_club('00000000-0000-0000-0000-0000000000c1')), 0);
+reset role;
+select pruebas.esperar('El partido en curso va en vivo (Realtime)', (select count(*) from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'partidos_en_curso'), 1);
+select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Beto borra uno (el de Rival Vivo queda para la prueba de aislamiento)', pruebas.filas(format('delete from partidos_en_curso where id = %L', :'otro_en_curso')), 1);
 reset role;
 set role anon;
 select pruebas.debe_fallar('Sin cuenta no se ve el partido en curso', 'select count(*) from partidos_en_curso', 'permission denied');
 select pruebas.debe_fallar('...ni se cambia', $q$select partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"X"}')$q$, 'permission denied');
+select pruebas.debe_fallar('...ni se leen los del club', $q$select * from partidos_en_curso_del_club('00000000-0000-0000-0000-0000000000c1')$q$, 'permission denied');
 reset role;
 
 -- ------------------------------------------- Aislamiento entre clubes --

@@ -4806,6 +4806,30 @@ confirme.**
       (no avisa pisadas) y no saca de la base lo que se borró mientras no subía. Falta decidir
       hasta cuándo se ofrece un partido en curso para sumarse (se pregunta en 4b).
     - **Queda prohibido** lo de UI-081, salvo un pedido nuevo.
+  - **Hecho, paso 4b (23/10, migración `20261121_partido_en_curso_en_vivo.sql`, 2026.10.23.9):
+    sumarse al partido en curso y verlo en vivo.** Santiago, en cuestionario: 4a «Sí, seguí con
+    4b»; «Sumarme» se ofrece «Hasta guardarlo terminado» (si nadie lo guarda, deja de ofrecerse a
+    las 6 horas sin cambios). `partidos_en_curso_del_club` trae los partidos en curso del club con
+    algún cambio en las últimas 6 horas (lo ve quien tiene Partido en el club; anon, nada) y
+    `partidos_en_curso` entra en Realtime. En la app:
+    - Al abrir Partido, si hay uno en curso del club que no se guardó terminado, una tarjeta
+      «EN VIVO» arriba de la carga del partido: «Hay un partido en curso: vs …», quién lo cambió
+      por última vez y a qué hora, y «Sumarme». Si en ese celular ya hay otro partido cargado,
+      pregunta antes («¿Dejar el partido de este celular?»).
+    - Con «Sumarme», ese celular pasa a ese partido (con la formación y lo anotado). Lo que anota
+      cada celular llega a los otros solo (y cada 20 segundos, por las dudas) y se junta con lo
+      que ese celular todavía no subió. Si otra persona cambió el mismo dato mientras tanto, queda
+      lo último y avisa cuál («Otra persona había cambiado Inicio ST mientras tanto: quedó lo
+      tuyo.»). Una lectura vieja no pisa una nueva (versión).
+    - En el partido queda lo último que se supo de la base: al volver a abrir la app ya no se
+      manda todo de nuevo, y lo borrado mientras no subía se saca (resuelve el límite de 4a).
+    - «Guardar partido» de un partido terminado (con el segundo tiempo terminado y, con
+      prórroga, el segundo suplementario) lo marca guardado terminado: deja de ofrecerse.
+      «Limpiar» avisa que en los otros celulares sigue. El Historial y el Excel, como hoy.
+    - Sin la actualización de la base, Partido sigue como antes (sin tarjeta).
+    - **Límites conocidos (para 4c):** sin señal, lo de cada celular queda para cuando vuelva,
+      pero todavía no se probó ni se avisa con dos celulares sin señal a la vez (es 4c). Quien
+      tiene Partido solo para mirar no ve la tarjeta (no se decidió que pueda mirarlo en vivo).
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

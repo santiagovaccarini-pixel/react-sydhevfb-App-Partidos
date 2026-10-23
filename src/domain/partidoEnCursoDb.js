@@ -41,3 +41,30 @@ export const cambiarPartidoEnCurso = async (equipoId, { id = null, cambios = {},
     error: "",
   };
 };
+
+// Los partidos en curso del club con algún cambio en las últimas 6 horas, el
+// último primero (20261121_partido_en_curso_en_vivo.sql): para ofrecer
+// «Sumarme» y para traer lo que anotan los otros celulares en el abierto.
+// [{ id, datos, registroId, version, actualizadoEn, actualizadoEmail }]. Sin la
+// actualización de la base, ninguno (sinFuncion).
+export const partidosEnCursoDelClub = async (equipoId) => {
+  if (!equipoId) return { partidos: [], error: "" };
+  const { data, error } = await supabase.rpc("partidos_en_curso_del_club", { p_equipo: equipoId });
+  if (error) {
+    if (faltaLaFuncion(error) || /partidos_en_curso_del_club/.test(`${error.message || ""}`)) return { partidos: [], sinFuncion: true, error: "" };
+    return { partidos: [], error: "partido.enCurso.noSeLeyo", detalle: error.message || "" };
+  }
+  return {
+    partidos: (Array.isArray(data) ? data : [])
+      .filter((fila) => fila?.id && fila.datos && typeof fila.datos === "object")
+      .map((fila) => ({
+        id: fila.id,
+        datos: fila.datos,
+        registroId: fila.registro_id ?? null,
+        version: fila.version ?? null,
+        actualizadoEn: fila.actualizado_en || null,
+        actualizadoEmail: fila.actualizado_email || "",
+      })),
+    error: "",
+  };
+};

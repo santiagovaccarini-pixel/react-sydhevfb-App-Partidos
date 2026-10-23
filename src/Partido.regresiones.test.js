@@ -460,6 +460,138 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     expect(db.inserts).toHaveLength(1);
   });
 
+  // Paso 4b (Santiago, 23/10: «Aviso con «Sumarme»»; se ofrece «Hasta
+  // guardarlo terminado»; el mismo dato, «Gana el último y avisa»). La base de
+  // mentira: los partidos en curso del club y lo que se sube a cada uno.
+  const baseCompartida = () => {
+    const base = { partidos: [], subidas: [], pisadas: [] };
+    db.rpc = async (funcion, parametros) => {
+      if (funcion === "partidos_en_curso_del_club") {
+        return { data: base.partidos.map((uno) => ({ ...uno, datos: { ...uno.datos } })), error: null };
+      }
+      if (funcion !== "partido_en_curso_cambiar") return { data: [], error: null };
+      base.subidas.push(parametros);
+      let partido = base.partidos.find((uno) => uno.id === parametros.p_id);
+      if (!partido) {
+        partido = { id: `nuevo-${base.subidas.length}`, datos: {}, registro_id: null, version: 0, actualizado_en: new Date().toISOString(), actualizado_email: "yo@club.com" };
+        base.partidos.push(partido);
+      }
+      Object.entries(parametros.p_cambios).forEach(([clave, valor]) => {
+        if (valor === null || valor === "") delete partido.datos[clave];
+        else partido.datos[clave] = valor;
+      });
+      partido.version += 1;
+      if (parametros.p_registro) partido.registro_id = parametros.p_registro;
+      return { data: { id: partido.id, datos: { ...partido.datos }, version: partido.version, pisadas: base.pisadas.splice(0) }, error: null };
+    };
+    return base;
+  };
+  const otroCelular = () => ({
+    id: "en-curso-otro",
+    registro_id: null,
+    version: 3,
+    actualizado_en: "2026-09-08T22:20:00Z",
+    actualizado_email: "otro@club.com",
+    datos: {
+      fecha: "2026-09-08",
+      rival: "Rival Vivo",
+      localia: "local",
+      inicioPT: "21:00:00",
+      "cambios.c-otro.sale": "ALONSO",
+      "cambios.c-otro.entra": "BERNARD",
+      "cambios.c-otro.hora": "21:30:00",
+      "cambios.c-otro.periodo": "PT",
+      "cambios.c-otro.lugar": 0,
+      "formacion.titulares": ["ALONSO", "SCARPA"],
+      // Lo de entrada de todo partido, como lo sube cualquier celular.
+      modoTiempo: "enVivo",
+      "formacion.cancha": { lineas: { def: 4, med: 4, ata: 2 }, puestos: {} },
+    },
+  });
+  const pasar = async (milisegundos) => {
+    await act(async () => vi.advanceTimersByTime(milisegundos));
+    await vaciarPromesas();
+  };
+
+  test("un partido en curso de otro celular se ofrece con «Sumarme»; al sumarse, este celular lo carga con lo de la base", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 30, 0));
+    localStorage.removeItem("registro_actual_partido");
+    const base = baseCompartida();
+    base.partidos.push(otroCelular());
+    await montar();
+    await pasar(100);
+    const tarjeta = contenedor.querySelector(".tarjeta-sumarse");
+    expect(tarjeta.querySelector(".titulo-sumarse").textContent).toBe("Hay un partido en curso: vs Rival Vivo");
+    expect(tarjeta.querySelector(".pastilla-vivo").textContent).toBe("EN VIVO");
+    expect(tarjeta.querySelector(".detalle-sumarse").textContent).toMatch(/^Lo cambió otro@club\.com a las \d\d:\d\d\.$/);
+    await act(async () => tarjeta.querySelector(".boton-sumarse").click());
+    await vaciarPromesas();
+    expect(borrador()).toMatchObject({ rival: "Rival Vivo", inicioPT: "21:00:00", idEnCurso: "en-curso-otro", enCursoVersion: 3 });
+    expect(borrador().cambios[0]).toMatchObject({ id: "c-otro", sale: "ALONSO", entra: "BERNARD", hora: "21:30:00" });
+    expect(contenedor.querySelector(".tarjeta-sumarse")).toBeNull();
+    expect(contenedor.textContent).toContain("Te sumaste: lo que anotes se junta con lo de los otros celulares.");
+    // Sumarse no sube nada: ya está todo en la base.
+    await pasar(2000);
+    expect(base.subidas.map((una) => una.p_cambios)).toEqual([]);
+
+    // Lo que anota el otro celular llega (cada 20 segundos, sin Realtime en las pruebas).
+    base.partidos[0].datos.finalPT = "21:47:00";
+    base.partidos[0].version = 4;
+    await pasar(20000);
+    expect(borrador()).toMatchObject({ finalPT: "21:47:00", enCursoVersion: 4 });
+    expect(base.subidas).toEqual([]);
+
+    // Lo que anota este: sube solo eso, con lo que había.
+    await escribirGolesRival("2");
+    await pasar(900);
+    expect(base.subidas).toHaveLength(1);
+    expect(base.subidas[0]).toMatchObject({ p_id: "en-curso-otro", p_cambios: { resultado: borrador().resultado }, p_antes: { resultado: null } });
+    // Una lectura vieja (de una versión anterior) no lo pisa.
+    base.partidos[0].version = 2;
+    delete base.partidos[0].datos.finalPT;
+    await pasar(20000);
+    expect(borrador().finalPT).toBe("21:47:00");
+  });
+
+  test("si este celular tiene otro partido cargado, «Sumarme» pregunta antes", async () => {
+    const base = baseCompartida();
+    base.partidos.push(otroCelular());
+    await montar();
+    await irA("Formación");
+    await pasar(100);
+    await act(async () => contenedor.querySelector(".tarjeta-sumarse .boton-sumarse").click());
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("¿Dejar el partido de este celular?");
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").click());
+    expect(borrador().rival).toBe("Cruzeiro");
+    await act(async () => contenedor.querySelector(".tarjeta-sumarse .boton-sumarse").click());
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-confirmar-hoja").click());
+    await vaciarPromesas();
+    expect(borrador()).toMatchObject({ rival: "Rival Vivo", idEnCurso: "en-curso-otro" });
+  });
+
+  test("si otra persona cambió el mismo dato mientras tanto, gana el último y se le avisa; guardado terminado, deja de ofrecerse", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 50, 0));
+    enElSegundoTiempo();
+    const base = baseCompartida();
+    await montar();
+    await pasar(900);
+    expect(base.subidas).toHaveLength(1);
+    expect(borrador().idEnCurso).toBe("nuevo-1");
+    // La base dice que el inicio del ST lo había cambiado otra persona.
+    base.pisadas.push({ clave: "inicioST", habia: "22:04:00" });
+    await act(async () => contenedor.querySelector("#panel-cambios .boton-ahora-cambio").click());
+    await pasar(900);
+    expect(contenedor.textContent).toContain("Otra persona había cambiado Inicio ST mientras tanto: quedó lo tuyo.");
+    // Termina y se guarda: el partido en curso queda como guardado terminado.
+    await act(async () => contenedor.querySelector(".accion-periodo").click());
+    await vaciarPromesas();
+    await guardar();
+    await pasar(900);
+    expect(borrador().finalST).toBeTruthy();
+    expect(base.partidos[0].datos.guardadoTerminado).toBe(true);
+    expect(base.partidos[0].registro_id).toBe(db.inserts[0].id);
+  });
+
   test("dos toques de más sobre un período terminado no pisan su final: Reanudar pregunta antes", async () => {
     vi.setSystemTime(new Date(2026, 8, 8, 22, 40, 0));
     enElSegundoTiempo();

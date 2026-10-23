@@ -1750,6 +1750,21 @@ export default {
     pedirOtro: "Pedir para entrar em outro clube",
   },
   partido: {
+    enCurso: {
+      // Passo 4: a partida compartilhada entre celulares.
+      hay: "Há uma partida em andamento: vs {{rival}}",
+      sinRival: "sem adversário",
+      enVivo: "AO VIVO",
+      sinEmpezar: "SEM COMEÇAR",
+      quien: "Mudada por {{quien}} às {{hora}}.",
+      sumarme: "Participar",
+      sumado: "Você entrou: o que anotar se junta com o dos outros celulares.",
+      dejarTitulo: "Deixar a partida deste celular?",
+      dejarTexto: "Este celular tem outra partida carregada. Se você entrar, ela deixa de aparecer aqui (o que já foi salvo continua no Histórico).",
+      siSumarme: "Sim, participar",
+      pisadas: "Outra pessoa tinha mudado {{datos}} enquanto isso: ficou o seu.",
+      limpiarSigue: "Nos outros celulares que estão nesta partida, continua.",
+    },
     reanudarTitulo: "Retomar o {{periodo}}?",
     reanudarTexto: "O final registrado ({{final}}) é apagado e o relógio volta a correr. Se depois você tocar em Finalizar, fica a hora desse momento.",
     reanudarSi: "Sim, retomar",
