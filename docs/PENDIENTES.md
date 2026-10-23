@@ -98,6 +98,14 @@ quedó en [el sistema de diseño](DESIGN_SYSTEM.md), «El espacio (16/10)»; UI-
 
 ## Entrenamiento (OpenField)
 
+### Entre celulares (23/10, pendiente para la nota de Flujo diario)
+
+- Dos celulares en el mismo entrenamiento se pisan (se guarda entero y queda el del último), y
+  cada celular recuerda solo lo que envió él a OpenField. Santiago eligió resolverlo en la nota
+  «Flujo diario, revisar su lógica y moverlo a GPS» («Dejarlo para esa nota»); ahí se pregunta
+  cómo se juntan y el aviso antes de repetir un envío. Ver «Entrenamiento, para la nota de Flujo
+  diario» en «cargar sin señal y a la vez que otra persona».
+
 ### Interfaz (hecha el 21/09; queda lo fino)
 
 - Entrenamiento ya tiene la cara de Partido: inicio con la sesión elegida,
@@ -4864,12 +4872,23 @@ confirme.**
     - **Queda prohibido** lo de UI-081, salvo un pedido nuevo.
     - **Lo que sigue de la nota:** Entrenamiento («lo vemos al final»), confirmado en un
       cuestionario antes de empezar.
+  - **Entrenamiento, para la nota de Flujo diario (23/10).** Santiago, en cuestionarios: 4c «Sí,
+    seguí con Entrenamiento»; sobre cuánto hacer ahora en Entrenamiento (Flujo diario), sabiendo
+    que después viene «revisar su lógica y moverlo a GPS»: «Dejarlo para esa nota», entre esa,
+    «Lo justo para no perder datos» y «Como Partido, completo» (cómo se juntan dos celulares y el
+    aviso antes de repetir un envío a OpenField quedaron sin respuesta: se preguntan en esa nota).
+    Claude relevó cómo anda hoy: sin señal ya funciona (cada cambio queda en el celular y sube
+    solo al volver); dos celulares en el mismo entrenamiento se pisan (se guarda entero y queda
+    el del último); cada celular recuerda solo lo que envió él a OpenField, así que un envío
+    desde otro celular puede repetir cortes. Queda como riesgo conocido hasta esa nota.
+  - **Nota cerrada (23/10):** pasos 1 a 4 hechos; Entrenamiento pasa a la nota de Flujo diario.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
-  diario, revisar su lógica y moverlo a GPS; cargar sin señal y a la vez que otra persona;
-  Isocinecia con Python y VALD).
+  diario, revisar su lógica y moverlo a GPS (con Entrenamiento entre celulares: que no se pisen y
+  el aviso antes de repetir un envío a OpenField, 23/10); cargar sin señal y a la vez que otra
+  persona (cerrada el 23/10; Entrenamiento va con Flujo diario); Isocinecia con Python y VALD).
 
 ## Lo que dejó la revisión completa del 30/09
 
